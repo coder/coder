@@ -319,11 +319,17 @@ func (server *Server) ContextDetail(
 	}
 	detail := ChatContextDetail{Resources: pinnedContextResources(pinned)}
 	if chat.AgentID.Valid {
+		// The pinned rows authorize against the chat while the agent and
+		// snapshot reads authorize against the workspace, so a reader
+		// with chat-only access still gets the inventory, minus the
+		// discovery state.
 		view, err := server.workspaceMCPViewForPinned(ctx, chat, pinned)
 		if err != nil {
-			return ChatContextDetail{}, xerrors.Errorf("load workspace mcp view: %w", err)
+			server.logger.Warn(ctx, "failed to load workspace mcp view for chat context detail",
+				slog.F("chat_id", chat.ID), slog.Error(err))
+		} else {
+			detail.MCPDiscovery = view.Discovery()
 		}
-		detail.MCPDiscovery = view.Discovery()
 	}
 	server.logger.Debug(ctx, "computed chat context resources",
 		slog.F("chat_id", chat.ID),

@@ -18,6 +18,7 @@ import (
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
@@ -712,6 +713,33 @@ func TestContextDetail(t *testing.T) {
 
 		_, err := server.ContextDetail(context.Background(), database.Chat{ID: chatID})
 		require.Error(t, err)
+	})
+
+	t.Run("DiscoveryFailureKeepsResources", func(t *testing.T) {
+		t.Parallel()
+
+		// A reader with chat access but no workspace access can list the
+		// pinned rows yet not read the agent. The inventory still ships;
+		// only the discovery state is omitted.
+		ctrl := gomock.NewController(t)
+		db := dbmock.NewMockStore(ctrl)
+		chatID := uuid.New()
+		agentID := uuid.New()
+		db.EXPECT().ListChatContextResourcesByChatID(gomock.Any(), chatID).
+			Return([]database.ChatContextResource{
+				instructionResource(t, "/home/coder/AGENTS.md", "be helpful", database.WorkspaceAgentContextResourceStatusOk),
+			}, nil)
+		db.EXPECT().GetWorkspaceAgentByID(gomock.Any(), agentID).
+			Return(database.WorkspaceAgent{}, dbauthz.NotAuthorizedError{Err: xerrors.New("denied")})
+		server := newPinServer(t, db)
+
+		detail, err := server.ContextDetail(context.Background(), database.Chat{
+			ID:      chatID,
+			AgentID: uuid.NullUUID{UUID: agentID, Valid: true},
+		})
+		require.NoError(t, err)
+		require.Len(t, detail.Resources, 1)
+		require.Nil(t, detail.MCPDiscovery)
 	})
 }
 

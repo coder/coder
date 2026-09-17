@@ -429,6 +429,12 @@ func (p *Server) resolveWorkspaceMCPTools(
 	chat database.Chat,
 	workspaceCtx *turnWorkspaceContext,
 ) []fantasy.AgentTool {
+	// getWorkspaceAgent may have rebound the chat to a replacement agent
+	// earlier in this turn; the row loaded at turn start would still name
+	// the soft-deleted one and withhold every replacement tool.
+	if current := workspaceCtx.currentChatSnapshot(); current.ID != uuid.Nil {
+		chat = current
+	}
 	tools, err := p.pinnedWorkspaceMCPTools(ctx, chat, workspaceCtx.getWorkspaceConn)
 	if err != nil {
 		logger.Warn(ctx, "failed to read pinned workspace MCP tools",
