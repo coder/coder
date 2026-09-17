@@ -105,6 +105,8 @@ func (m *prMetadataMaps) lookupCommit(fullSHA string, prNumber int) prMetadata {
 // CLI. It never fails: when gh is unavailable or the query errors, a
 // warning is written and empty maps are returned so callers degrade to
 // title-only categorization.
+//
+//nolint:revive // ghAvailable gates the gh CLI call, like the other flag params here.
 func loadPRMetadata(w io.Writer, ghAvailable bool, commits []commitEntry) *prMetadataMaps {
 	if ghAvailable {
 		prMeta, err := ghBuildPRMetadataMap(commits)
