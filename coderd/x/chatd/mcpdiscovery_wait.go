@@ -19,6 +19,11 @@ import (
 // bound.
 const mcpDiscoveryAttemptRetention = 10 * time.Minute
 
+// mcpDiscoveryRefreshTimeout bounds the single read that refreshes a
+// spent attempt's outcome, so a slow database cannot turn a reuse into a
+// second wait.
+const mcpDiscoveryRefreshTimeout = 2 * time.Second
+
 // mcpDiscoveryAttempt is one bounded wait for an agent process's workspace
 // MCP discovery. Attempts are cached per chat on this replica and keyed by
 // agent and agent run id so preparation steps, user turns, and the
@@ -53,7 +58,19 @@ func (p *Server) waitForMCPDiscovery(ctx context.Context, chatID, agentID uuid.U
 	join := func(attempt *mcpDiscoveryAttempt) chattool.MCPDiscoveryOutcome {
 		select {
 		case <-attempt.done:
-			return attempt.outcome
+			outcome := attempt.outcome
+			if outcome.WaitTimedOut && ctx.Err() == nil {
+				// Discovery may have finished after the budget was spent;
+				// report the current state with one bounded read rather
+				// than the stale timeout, without arming another wait.
+				refreshCtx, cancel := context.WithTimeout(ctx, mcpDiscoveryRefreshTimeout)
+				fresh, complete := chattool.CurrentMCPDiscovery(refreshCtx, p.db, agentID)
+				cancel()
+				if complete {
+					return fresh
+				}
+			}
+			return outcome
 		case <-ctx.Done():
 			return chattool.MCPDiscoveryOutcome{WaitTimedOut: true}
 		}

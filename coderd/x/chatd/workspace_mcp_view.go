@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
@@ -217,8 +218,40 @@ func (v workspaceMCPView) Incomplete() bool {
 	return false
 }
 
+// Model-facing summary bounds: per-source diagnostics are capped in the
+// push at 4 KiB and the source list is capped only by the snapshot, so the
+// prompt note lists a bounded number of entries per category with a
+// short diagnostic each and counts the rest.
+const (
+	summaryMaxEntries         = 8
+	summaryMaxDiagnosticBytes = 200
+)
+
+// summaryDiagnostic trims a diagnostic for the prompt note on a rune
+// boundary.
+func summaryDiagnostic(s string) string {
+	if len(s) <= summaryMaxDiagnosticBytes {
+		return s
+	}
+	cut := summaryMaxDiagnosticBytes
+	for cut > 0 && !utf8.RuneStart(s[cut]) {
+		cut--
+	}
+	return s[:cut] + "..."
+}
+
+// summaryList joins at most summaryMaxEntries entries and counts the rest.
+func summaryList(entries []string) string {
+	if len(entries) <= summaryMaxEntries {
+		return strings.Join(entries, "; ")
+	}
+	return fmt.Sprintf("%s; and %d more", strings.Join(entries[:summaryMaxEntries], "; "), len(entries)-summaryMaxEntries)
+}
+
 // Summary renders the view as one model-facing line. It describes
-// discovery outcomes only and never claims a server is healthy.
+// discovery outcomes only and never claims a server is healthy. Its size
+// is bounded so a workspace with many declared servers or long
+// diagnostics cannot crowd out the rest of the prompt.
 func (v workspaceMCPView) Summary() string {
 	var sentences []string
 	switch {
@@ -235,25 +268,25 @@ func (v workspaceMCPView) Summary() string {
 	for _, s := range v.servers {
 		switch {
 		case s.ok && s.diagnostic != "":
-			usable = append(usable, fmt.Sprintf("%s (%d tools, warning: %s)", s.name, s.toolCount, s.diagnostic))
+			usable = append(usable, fmt.Sprintf("%s (%d tools, warning: %s)", s.name, s.toolCount, summaryDiagnostic(s.diagnostic)))
 		case s.ok:
 			usable = append(usable, fmt.Sprintf("%s (%d tools)", s.name, s.toolCount))
 		default:
-			failed = append(failed, fmt.Sprintf("%s (%s)", s.name, s.diagnostic))
+			failed = append(failed, fmt.Sprintf("%s (%s)", s.name, summaryDiagnostic(s.diagnostic)))
 		}
 	}
 	if len(usable) > 0 {
-		sentences = append(sentences, fmt.Sprintf("Discovered servers: %s.", strings.Join(usable, "; ")))
+		sentences = append(sentences, fmt.Sprintf("Discovered servers: %s.", summaryList(usable)))
 	}
 	if len(failed) > 0 {
-		sentences = append(sentences, fmt.Sprintf("Failed servers: %s.", strings.Join(failed, "; ")))
+		sentences = append(sentences, fmt.Sprintf("Failed servers: %s.", summaryList(failed)))
 	}
 	if len(v.configs) > 0 {
 		parts := make([]string, 0, len(v.configs))
 		for _, c := range v.configs {
-			parts = append(parts, fmt.Sprintf("%s (%s)", c.path, c.diagnostic))
+			parts = append(parts, fmt.Sprintf("%s (%s)", c.path, summaryDiagnostic(c.diagnostic)))
 		}
-		sentences = append(sentences, fmt.Sprintf("Invalid MCP config files: %s.", strings.Join(parts, "; ")))
+		sentences = append(sentences, fmt.Sprintf("Invalid MCP config files: %s.", summaryList(parts)))
 	}
 	return strings.Join(sentences, " ")
 }

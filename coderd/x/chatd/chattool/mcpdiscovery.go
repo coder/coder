@@ -87,7 +87,10 @@ func WaitForMCPDiscovery(ctx context.Context, db database.Store, agentID uuid.UU
 				outcome.WaitTimedOut = true
 				return outcome
 			}
-		case agent.AgentRunID != "" && snap.AgentRunID != "" && agent.AgentRunID != snap.AgentRunID:
+		case agent.AgentRunID != snap.AgentRunID:
+			// Same rule as chatd's workspace MCP view: a one-sided id
+			// also names a previous process; only two empty ids are
+			// indeterminate and fall through to the phase cases.
 			outcome.Stale = true
 			outcome.Phase = phaseFromSnapshot(snap)
 			if !seenCurrentSnapshot && time.Now().After(noSnapshotDeadline) {
@@ -116,6 +119,29 @@ func WaitForMCPDiscovery(ctx context.Context, db database.Store, agentID uuid.UU
 		case <-ticker.C:
 		}
 	}
+}
+
+// CurrentMCPDiscovery reads the agent's discovery state once, without
+// waiting, and reports whether the current process has completed
+// discovery. chatd uses it to refresh a spent (timed-out) attempt whose
+// discovery finished after the wait ended. Read errors report unknown
+// and false.
+func CurrentMCPDiscovery(ctx context.Context, db database.Store, agentID uuid.UUID) (MCPDiscoveryOutcome, bool) {
+	outcome := MCPDiscoveryOutcome{Phase: codersdk.ChatContextMCPDiscoveryPhaseUnknown}
+	agent, err := db.GetWorkspaceAgentByID(ctx, agentID)
+	if err != nil {
+		return outcome, false
+	}
+	snap, err := db.GetLatestWorkspaceAgentContextSnapshot(ctx, agentID)
+	if err != nil {
+		return outcome, false
+	}
+	outcome.Phase = phaseFromSnapshot(snap)
+	outcome.Stale = agent.AgentRunID != snap.AgentRunID
+	if outcome.Stale || outcome.Phase != codersdk.ChatContextMCPDiscoveryPhaseComplete {
+		return outcome, false
+	}
+	return summarizeMCPDiscovery(ctx, db, agentID, outcome), true
 }
 
 func phaseFromSnapshot(snap database.WorkspaceAgentContextSnapshot) codersdk.ChatContextMCPDiscoveryPhase {
