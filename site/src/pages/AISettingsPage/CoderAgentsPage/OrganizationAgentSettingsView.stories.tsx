@@ -53,6 +53,7 @@ const meta: Meta<typeof OrganizationAgentSettingsView> = {
 		isLoading: false,
 		loadError: null,
 		refetchError: null,
+		modelsError: null,
 		canEdit: true,
 		showAdvisor: true,
 		saveByContext,
@@ -151,6 +152,23 @@ export const UnavailableSavedModels: Story = {
 			{ context: "general", model_config_id: "model-gone" },
 			{ context: "title_generation", model_config_id: "model-gone" },
 		],
+	},
+};
+
+export const Loading: Story = {
+	args: {
+		isLoading: true,
+		defaultModelID: undefined,
+		overrides: undefined,
+		enabledModels: [],
+	},
+};
+
+export const OverridesRefetchError: Story = {
+	args: {
+		refetchError: mockApiError({
+			message: "Failed to refresh model overrides.",
+		}),
 	},
 };
 

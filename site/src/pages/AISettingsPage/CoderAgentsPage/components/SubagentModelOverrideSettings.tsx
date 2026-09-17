@@ -146,11 +146,13 @@ export const SubagentModelOverrideSettings: FC<
 					triggerAriaLabel={title}
 					disabled={isFormDisabled}
 					placeholder={
-						isUnavailableSavedModel ? "Unavailable model" : unsetPlaceholder
+						isLoading
+							? "Loading models..."
+							: isUnavailableSavedModel
+								? "Unavailable model"
+								: unsetPlaceholder
 					}
-					emptyMessage={
-						isLoading ? "Loading models..." : "No enabled models found."
-					}
+					emptyMessage="No enabled models found."
 					className="h-10 w-full justify-between rounded-md border border-border border-solid bg-transparent px-3 text-sm"
 					contentClassName="min-w-[18rem]"
 					reasoningEffort={selectedReasoningEffort}
