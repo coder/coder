@@ -124,7 +124,7 @@ func (p *Server) resolveModelCall(ctx context.Context, spec modelCallSpec) (reso
 		routeCtx = dbauthz.AsChatd(ctx)
 	}
 	if spec.fixedModel != nil {
-		out.route, err = p.resolveModelRouteForProviderType(routeCtx, spec.chat.OwnerID, spec.fixedModel.providerType)
+		out.route, err = p.resolveModelRouteForProviderType(routeCtx, spec.chat.OwnerID, spec.fixedModel.providerType, spec.fixedModel.modelName)
 	} else {
 		out.route, err = p.resolveModelRouteForConfig(routeCtx, spec.chat.OwnerID, out.dbConfig)
 	}

@@ -431,6 +431,7 @@ func TestResolveModelRouteForProviderTypeAIGatewayRequiresProvider(t *testing.T)
 		ctx,
 		uuid.New(),
 		string(codersdk.ChatComputerUseProviderOpenAI),
+		"",
 	)
 	require.ErrorContains(t, err, "AI Gateway routing requires a usable AI provider")
 }

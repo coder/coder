@@ -91,18 +91,22 @@ func TestAIBridgeProviderFormatMapping(t *testing.T) {
 	tests := []struct {
 		name         string
 		providerType database.AIProviderType
+		model        string
 		wantProvider string
 		wantBaseURL  string
 	}{
-		{name: "OpenAI", providerType: database.AIProviderTypeOpenai, wantProvider: "openai", wantBaseURL: "http://coder-aibridge/v1"},
-		{name: "Anthropic", providerType: database.AIProviderTypeAnthropic, wantProvider: "anthropic", wantBaseURL: "http://coder-aibridge"},
-		{name: "Bedrock", providerType: database.AIProviderTypeBedrock, wantProvider: "anthropic", wantBaseURL: "http://coder-aibridge"},
-		{name: "Google", providerType: database.AIProviderTypeGoogle, wantProvider: "openai-compat", wantBaseURL: "http://coder-aibridge/v1"},
+		{name: "OpenAI", providerType: database.AIProviderTypeOpenai, model: "gpt-5", wantProvider: "openai", wantBaseURL: "http://coder-aibridge/v1"},
+		{name: "Anthropic", providerType: database.AIProviderTypeAnthropic, model: "claude-sonnet-4", wantProvider: "anthropic", wantBaseURL: "http://coder-aibridge"},
+		// Bedrock Mantle serves several model families; the prefix decides the format.
+		{name: "BedrockAnthropic", providerType: database.AIProviderTypeBedrock, model: "anthropic.claude-sonnet-4-20250514-v1:0", wantProvider: "anthropic", wantBaseURL: "http://coder-aibridge"},
+		{name: "BedrockOpenAI", providerType: database.AIProviderTypeBedrock, model: "openai.gpt-5.6-luna", wantProvider: "openai", wantBaseURL: "http://coder-aibridge/v1"},
+		{name: "BedrockThirdParty", providerType: database.AIProviderTypeBedrock, model: "mistral.ministral-3-3b-instruct", wantProvider: "openai-compat", wantBaseURL: "http://coder-aibridge/v1"},
+		{name: "Google", providerType: database.AIProviderTypeGoogle, model: "gemini-2.5-pro", wantProvider: "openai-compat", wantBaseURL: "http://coder-aibridge/v1"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			config := fantasyConfigForAIBridge(tt.providerType)
+			config := fantasyConfigForAIBridge(tt.providerType, tt.model)
 			require.Equal(t, tt.wantProvider, config.ProviderHint)
 			require.Equal(t, tt.wantBaseURL, config.Keys.BaseURL(config.ProviderHint))
 			require.Equal(t, aibridgePlaceholderAPIKey, config.Keys.APIKey(config.ProviderHint))

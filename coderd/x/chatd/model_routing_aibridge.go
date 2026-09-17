@@ -64,6 +64,7 @@ type aiGatewayRequestFormat int
 
 const (
 	aiGatewayRequestFormatOpenAI aiGatewayRequestFormat = iota
+	aiGatewayRequestFormatOpenAICompat
 	aiGatewayRequestFormatAnthropic
 )
 
@@ -165,7 +166,7 @@ func (p *Server) newModel(
 		baseRT = &chatdebug.RecordingTransport{Base: baseRT}
 	}
 
-	config := fantasyConfigForAIBridge(route.Provider.Type)
+	config := fantasyConfigForAIBridge(route.Provider.Type, req.ModelName)
 	extraHeaders := mergeConfigBetaHeaders(req.ExtraHeaders, config.ProviderHint, req.CallConfig)
 	return newLanguageModel(
 		config.ProviderHint,
@@ -215,14 +216,14 @@ type aibridgeFantasyConfig struct {
 	Keys         chatprovider.ProviderAPIKeys
 }
 
-func fantasyConfigForAIBridge(providerType database.AIProviderType) aibridgeFantasyConfig {
+func fantasyConfigForAIBridge(providerType database.AIProviderType, model string) aibridgeFantasyConfig {
 	var fantasyProvider string
 	baseURL := aibridgeLocalBaseURL + "/v1"
-	switch providerType {
-	case database.AIProviderTypeAnthropic, database.AIProviderTypeBedrock:
+	switch aiGatewayRequestFormatFor(providerType, model) {
+	case aiGatewayRequestFormatAnthropic:
 		fantasyProvider = fantasyanthropic.Name
 		baseURL = aibridgeLocalBaseURL
-	case database.AIProviderTypeOpenai:
+	case aiGatewayRequestFormatOpenAI:
 		fantasyProvider = fantasyopenai.Name
 	default:
 		fantasyProvider = fantasyopenaicompat.Name
@@ -240,12 +241,26 @@ func fantasyConfigForAIBridge(providerType database.AIProviderType) aibridgeFant
 	}
 }
 
-func aiGatewayRequestFormatForProviderType(providerType database.AIProviderType) aiGatewayRequestFormat {
+// aiGatewayRequestFormatFor picks the wire format chatd speaks to the gateway.
+// Bedrock Mantle serves Anthropic-, OpenAI-, and third-party-shaped models, so
+// the model prefix decides there, mirroring bedrocksig.BaseURLForModel.
+func aiGatewayRequestFormatFor(providerType database.AIProviderType, model string) aiGatewayRequestFormat {
 	switch providerType {
-	case database.AIProviderTypeAnthropic, database.AIProviderTypeBedrock:
+	case database.AIProviderTypeAnthropic:
 		return aiGatewayRequestFormatAnthropic
-	default:
+	case database.AIProviderTypeOpenai:
 		return aiGatewayRequestFormatOpenAI
+	case database.AIProviderTypeBedrock:
+		switch {
+		case strings.HasPrefix(model, "anthropic."):
+			return aiGatewayRequestFormatAnthropic
+		case strings.HasPrefix(model, "openai."):
+			return aiGatewayRequestFormatOpenAI
+		default:
+			return aiGatewayRequestFormatOpenAICompat
+		}
+	default:
+		return aiGatewayRequestFormatOpenAICompat
 	}
 }
 
@@ -288,12 +303,13 @@ func (p *Server) resolveAIGatewayRoute(
 	ownerID uuid.UUID,
 	provider database.AIProvider,
 	modelProviderHint string,
+	model string,
 ) (aiGatewayModelRoute, error) {
 	auth, err := p.aiGatewayProviderAuthForUser(
 		ctx,
 		ownerID,
 		provider,
-		aiGatewayRequestFormatForProviderType(provider.Type),
+		aiGatewayRequestFormatFor(provider.Type, model),
 	)
 	if err != nil {
 		return aiGatewayModelRoute{}, xerrors.Errorf("resolve AI Gateway provider auth: %w", err)
@@ -310,13 +326,14 @@ func (p *Server) resolveModelRouteForConfig(
 	if err != nil {
 		return aiGatewayModelRoute{}, err
 	}
-	return p.resolveAIGatewayRoute(ctx, ownerID, provider, string(provider.Type))
+	return p.resolveAIGatewayRoute(ctx, ownerID, provider, string(provider.Type), modelConfig.Model)
 }
 
 func (p *Server) resolveModelRouteForProviderType(
 	ctx context.Context,
 	ownerID uuid.UUID,
 	providerType string,
+	model string,
 ) (aiGatewayModelRoute, error) {
 	provider, err := p.aiProviderForProviderType(ctx, providerType)
 	if err != nil {
@@ -327,6 +344,7 @@ func (p *Server) resolveModelRouteForProviderType(
 		ownerID,
 		provider,
 		chatprovider.NormalizeProvider(providerType),
+		model,
 	)
 }
 
