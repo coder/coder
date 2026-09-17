@@ -186,6 +186,7 @@ type Server struct {
 	hooks                          *chathooks.Trigger
 	providerAPIKeys                chatprovider.ProviderAPIKeys
 	allowBYOK                      bool
+	disableCallerSuppliedTools     bool
 	oidcTokenSource                mcpclient.UserOIDCTokenSource
 	mcpHTTPClient                  *http.Client
 	debugSvc                       *chatdebug.Service
@@ -2853,6 +2854,7 @@ type Config struct {
 	AllowBYOK                      bool
 	AllowBYOKSet                   bool
 	AlwaysEnableDebugLogs          bool
+	DisableCallerSuppliedTools     bool
 	WebpushDispatcher              webpush.Dispatcher
 	HookDispatcher                 *dispatch.Dispatcher
 	UsageTracker                   *workspacestats.UsageTracker
@@ -2955,6 +2957,7 @@ func New(ps pubsub.Pubsub, cfg Config) *Server {
 		hooks:                          chathooks.NewTrigger(hookDispatcher),
 		providerAPIKeys:                cfg.ProviderAPIKeys,
 		allowBYOK:                      allowBYOK,
+		disableCallerSuppliedTools:     cfg.DisableCallerSuppliedTools,
 		oidcTokenSource:                cfg.OIDCTokenSource,
 		mcpHTTPClient:                  mcpHTTPClient,
 		debugSvcFactory: func() *chatdebug.Service {
