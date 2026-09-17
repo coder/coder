@@ -1,7 +1,8 @@
 /**
- * Vendored from @shadcn/react 0.3.0 (MIT). Keep this file in sync with
+ * Vendored from @shadcn/react 0.3.0 (MIT) with local scroll-behavior fixes;
+ * see the link below for upstream source. Keep this file in sync with
  * https://github.com/shadcn-ui/ui/tree/b1c580c/packages/react/src/message-scroller
- * except for changes marked as LOCAL CHANGE.
+ * except for the marked local changes.
  */
 import * as React from "react";
 
@@ -59,6 +60,9 @@ type MessageScrollerRefs = {
 	visibilityStore: MessageScrollerVisibilityStore;
 	visibleMessageIdsRef: React.RefObject<Set<string>>;
 	handledScrollAnchorsRef: React.RefObject<WeakSet<HTMLElement>>;
+	// LOCAL CHANGE: latched while a user layout change (tool disclosure toggle)
+	// is in flight, suppressing implicit follow re-engagement.
+	followLatchRef: React.RefObject<boolean>;
 };
 
 // Builds the per-instance ref bag: the two external stores constructed once, and
@@ -120,6 +124,8 @@ function useMessageScrollerRefs({
 		React.useRef<MessageScrollerVisibilityStore | null>(null);
 	const visibleMessageIdsRef = React.useRef(new Set<string>());
 	const handledScrollAnchorsRef = React.useRef(new WeakSet<HTMLElement>());
+	// LOCAL CHANGE
+	const followLatchRef = React.useRef(false);
 
 	if (stateStoreRef.current === null) {
 		stateStoreRef.current = createMessageScrollerStore(
@@ -170,6 +176,7 @@ function useMessageScrollerRefs({
 		visibilityStore: visibilityStoreRef.current,
 		visibleMessageIdsRef,
 		handledScrollAnchorsRef,
+		followLatchRef,
 	};
 }
 

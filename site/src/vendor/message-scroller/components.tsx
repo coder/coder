@@ -1,7 +1,8 @@
 /**
- * Vendored from @shadcn/react 0.3.0 (MIT). Keep this file in sync with
+ * Vendored from @shadcn/react 0.3.0 (MIT) with local scroll-behavior fixes;
+ * see the link below for upstream source. Keep this file in sync with
  * https://github.com/shadcn-ui/ui/tree/b1c580c/packages/react/src/message-scroller
- * except for changes marked as LOCAL CHANGE.
+ * except for the marked local changes.
  */
 import * as React from "react";
 
@@ -146,6 +147,7 @@ function MessageScrollerViewport({
 		preserveScrollOnPrependRef,
 		setViewportElement,
 		syncAfterScroll,
+		userLayoutIntent,
 		userScrollIntent,
 		viewportRef,
 	} = useMessageScrollerContext();
@@ -207,6 +209,29 @@ function MessageScrollerViewport({
 			observer.disconnect();
 		};
 	}, [handleResize, viewportRef]);
+
+	// LOCAL CHANGE: disclosure toggles inside the transcript announce their
+	// layout change so the viewport can hold the reader's position instead of
+	// reading the churn as new content to follow or re-anchor to.
+	React.useEffect(() => {
+		const viewport = viewportRef.current;
+
+		if (!viewport) {
+			return;
+		}
+
+		viewport.addEventListener(
+			"messagescroller:userlayoutintent",
+			userLayoutIntent,
+		);
+
+		return () => {
+			viewport.removeEventListener(
+				"messagescroller:userlayoutintent",
+				userLayoutIntent,
+			);
+		};
+	}, [userLayoutIntent, viewportRef]);
 
 	return (
 		// biome-ignore lint/a11y/useAriaPropsSupportedByRole: role defaults to "region", which supports aria-label, but the rule cannot see the fallback.

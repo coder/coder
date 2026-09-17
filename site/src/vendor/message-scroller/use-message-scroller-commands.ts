@@ -1,7 +1,8 @@
 /**
- * Vendored from @shadcn/react 0.3.0 (MIT). Keep this file in sync with
+ * Vendored from @shadcn/react 0.3.0 (MIT) with local scroll-behavior fixes;
+ * see the link below for upstream source. Keep this file in sync with
  * https://github.com/shadcn-ui/ui/tree/b1c580c/packages/react/src/message-scroller
- * except for changes marked as LOCAL CHANGE.
+ * except for the marked local changes.
  */
 import * as React from "react";
 
@@ -47,6 +48,8 @@ function useMessageScrollerCommands({
 		spacerHeightRef,
 		spacerRef,
 		viewportRef,
+		// LOCAL CHANGE
+		followLatchRef,
 	} = refs;
 
 	const setAutoScrolling = React.useCallback(
@@ -102,6 +105,10 @@ function useMessageScrollerCommands({
 				autoscrolling?: boolean;
 			} = {},
 		) => {
+			// LOCAL CHANGE: every programmatic scroll is an explicit command, so
+			// it releases the disclosure latch and lets follow re-engage.
+			followLatchRef.current = false;
+
 			const viewport = viewportRef.current;
 
 			if (!viewport) {

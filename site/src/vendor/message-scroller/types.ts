@@ -1,7 +1,8 @@
 /**
- * Vendored from @shadcn/react 0.3.0 (MIT). Keep this file in sync with
+ * Vendored from @shadcn/react 0.3.0 (MIT) with local scroll-behavior fixes;
+ * see the link below for upstream source. Keep this file in sync with
  * https://github.com/shadcn-ui/ui/tree/b1c580c/packages/react/src/message-scroller
- * except for changes marked as LOCAL CHANGE.
+ * except for the marked local changes.
  */
 import type * as React from "react";
 
@@ -188,6 +189,9 @@ type MessageScrollerContextValue = {
 	stateStore: MessageScrollerStore<MessageScrollerScrollable>;
 	syncAfterScroll: () => void;
 	unobserveVisibility: () => void;
+	// LOCAL CHANGE: layout churn inside the transcript (tool disclosure
+	// toggles) that must not read as content to follow or re-anchor to.
+	userLayoutIntent: () => void;
 	userScrollIntent: () => void;
 	viewportRef: React.RefObject<HTMLDivElement | null>;
 	visibilityStore: MessageScrollerVisibilityStore;
