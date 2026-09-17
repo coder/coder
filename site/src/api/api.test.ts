@@ -264,6 +264,57 @@ describe("api.ts", () => {
 		});
 	});
 
+	describe("organization AI spend details", () => {
+		afterEach(() => {
+			vi.restoreAllMocks();
+		});
+
+		it("passes detail filters and pagination to the organization spend endpoint", async () => {
+			const getSpy = vi.spyOn(axiosInstance, "get").mockResolvedValueOnce({
+				data: { rows: [], count: 0 },
+			});
+
+			await API.getOrganizationAISpendDetails("my-org", {
+				user_id: "user-1",
+				group_id: "group-1",
+				provider_name: "openai",
+				model: "gpt-4o-mini",
+				limit: 25,
+				offset: 50,
+			});
+
+			expect(getSpy).toHaveBeenCalledWith(
+				expect.stringContaining("/api/v2/organizations/my-org/ai/spend?"),
+			);
+			const [url] = getSpy.mock.calls[0];
+			expect(url).toContain("user_id=user-1");
+			expect(url).toContain("group_id=group-1");
+			expect(url).toContain("limit=25");
+			expect(url).toContain("offset=50");
+		});
+
+		it("downloads the full filtered organization spend export as a blob", async () => {
+			const blob = new Blob(["csv"]);
+			const getSpy = vi
+				.spyOn(axiosInstance, "get")
+				.mockResolvedValueOnce({ data: blob });
+
+			await expect(
+				API.exportOrganizationAISpend("my-org", {
+					period_start: "2026-09-01T00:00:00Z",
+					period_end: "2026-09-15T00:00:00Z",
+					provider_name: "openai",
+				}),
+			).resolves.toBe(blob);
+			expect(getSpy).toHaveBeenCalledWith(
+				expect.stringContaining(
+					"/api/v2/organizations/my-org/ai/spend/export?",
+				),
+				{ responseType: "blob" },
+			);
+		});
+	});
+
 	describe("update", () => {
 		describe("given a running workspace", () => {
 			it("stops with current version before starting with the latest version", async () => {
