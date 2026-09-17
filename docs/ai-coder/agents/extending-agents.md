@@ -224,6 +224,7 @@ The agent connects to the servers declared in `.mcp.json` once startup scripts f
 A chat turn waits up to 15&nbsp;seconds for that initial discovery to finish so the model sees the workspace tools; if discovery takes longer, the turn continues with whatever has been discovered so far.
 Each server is published as soon as it connects, so one slow or unresponsive server does not hold back the tools of the others.
 Servers that fail to connect are listed with their error, servers that connect with no tools are still listed, and the rest contribute their tools.
+The chat's context indicator shows whether discovery is still initializing, has completed, or still describes a previous agent process after a restart.
 
 A single set of connections is shared by tool discovery and tool execution, so each declared server is launched once.
 When the connected tool list changes, the agent re-scans and pushes a new snapshot.
