@@ -379,7 +379,9 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 		parameters,
 		formValues: form.values.rich_parameter_values ?? [],
 		touched: form.touched,
+		autofillByName,
 		setFieldValue: form.setFieldValue,
+		setFieldTouched: form.setFieldTouched,
 	});
 
 	const disabled =
