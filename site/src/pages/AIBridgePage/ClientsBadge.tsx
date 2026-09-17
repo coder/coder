@@ -2,7 +2,6 @@ import type { FC } from "react";
 import { DimensionBadge } from "./DimensionBadge";
 import { AIBridgeClientIcon } from "./icons/AIBridgeClientIcon";
 
-// A missing client is reported as Unknown, like the sessions list.
 export const ClientsBadge: FC<{ clients: readonly (string | null)[] }> = ({
 	clients,
 }) => (
