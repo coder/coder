@@ -17,6 +17,9 @@ type MCPReport struct {
 	ConfigErrors []MCPConfigError
 }
 
+// maxSourceBytes matches coderd's per-resource source cap.
+const maxSourceBytes = 1024
+
 // MCPConfigError attributes a config-level failure (malformed JSON or a
 // server entry the engine's schema rejects) to the .mcp.json file at
 // Path. The filesystem pass only validates JSON shape, so this is the
@@ -144,10 +147,10 @@ func applyMCPConfigErrors(resources []Resource, errs []MCPConfigError) []Resourc
 			}
 		}
 		if idx < 0 {
-			// coderd rejects duplicate sources regardless of kind, so a
-			// config entry pointing at a file already emitted as another
-			// kind gets no second row rather than failing the push.
-			if slices.ContainsFunc(resources, func(r Resource) bool { return r.Source == cfgErr.Path }) {
+			// coderd rejects duplicate sources regardless of kind and
+			// sources above its cap, and either rejection fails the
+			// whole push, so such a config entry gets no row.
+			if len(cfgErr.Path) > maxSourceBytes || slices.ContainsFunc(resources, func(r Resource) bool { return r.Source == cfgErr.Path }) {
 				continue
 			}
 			resources = append(resources, Resource{
