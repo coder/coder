@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"maps"
 	"math"
 	"path"
@@ -28,9 +29,6 @@ import (
 )
 
 const (
-	// maxInstructionAncestorDepth bounds the walk from a touched directory
-	// up toward the working directory.
-	maxInstructionAncestorDepth = 16
 	// instructionDiscoveryTimeout bounds the agent round trip so a slow
 	// workspace cannot stall the step.
 	instructionDiscoveryTimeout = 3 * time.Second
@@ -44,6 +42,17 @@ const (
 	// agent about once pinned and cached-negative ones are filtered, so a
 	// step that touches many trees costs at most a few round trips.
 	maxInstructionProbesPerStep = 4 * workspacesdk.MaxContextInstructionDirectories
+	// maxDiscoveredInstructionBytes caps the readable discovered content a
+	// chat holds across every step. The agent caps one response at the same
+	// size, but a step can make several requests and a chat many steps, and
+	// every pinned body is rendered into every later prompt; files past the
+	// cap are pinned as excluded, without content.
+	maxDiscoveredInstructionBytes = 1 << 20
+	// pendingProbeTTL is how long a directory a command ran in is re-probed
+	// on every later touch of its tree, so a file the command creates after
+	// its result returned (a background process, a timed-out run) is still
+	// picked up.
+	pendingProbeTTL = 10 * time.Minute
 )
 
 // instructionFileNames mirrors the agent resolver's recognized names so a
@@ -54,12 +63,15 @@ var instructionFileNames = []string{"AGENTS.md", "CLAUDE.md", ".cursorrules"}
 // a step's executed tools touched, so the next model call sees them.
 type instructionDiscoverer func(ctx context.Context, calls []fantasy.ToolCallContent, results []fantasy.Content)
 
-// instructionProbeCache remembers directories the agent reported as holding
-// no instruction file, per agent, so a step that keeps touching the same
-// tree does not re-ask on every tool call.
+// instructionProbeCache remembers, per agent, directories the agent
+// reported as holding no instruction file, so a step that keeps touching
+// the same tree does not re-ask on every tool call, and directories a
+// command ran in, which later touches re-probe for a while because the
+// command may still be writing.
 type instructionProbeCache struct {
 	mu      sync.Mutex
 	entries map[instructionProbeKey]time.Time
+	pending map[instructionProbeKey]time.Time
 }
 
 type instructionProbeKey struct {
@@ -71,6 +83,42 @@ func (c *instructionProbeCache) negative(now time.Time, agentID uuid.UUID, dir s
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	expiry, ok := c.entries[instructionProbeKey{agentID: agentID, dir: pathKey(dir)}]
+	return ok && now.Before(expiry)
+}
+
+// markPending records directories a command ran in. The set is bounded
+// like the negative cache; when it fills, expired entries go first and then
+// the whole set, which only costs the next touch a probe it may not need.
+func (c *instructionProbeCache) markPending(now time.Time, agentID uuid.UUID, dirs []string) {
+	if len(dirs) == 0 {
+		return
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.pending == nil {
+		c.pending = make(map[instructionProbeKey]time.Time)
+	}
+	if len(c.pending)+len(dirs) > maxInstructionProbeEntries {
+		for key, expiry := range c.pending {
+			if !now.Before(expiry) {
+				delete(c.pending, key)
+			}
+		}
+		if len(c.pending)+len(dirs) > maxInstructionProbeEntries {
+			c.pending = make(map[instructionProbeKey]time.Time)
+		}
+	}
+	for _, dir := range dirs {
+		c.pending[instructionProbeKey{agentID: agentID, dir: pathKey(dir)}] = now.Add(pendingProbeTTL)
+	}
+}
+
+// isPending reports whether a command ran in dir recently enough that a
+// touch of its tree should read it again.
+func (c *instructionProbeCache) isPending(now time.Time, agentID uuid.UUID, dir string) bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	expiry, ok := c.pending[instructionProbeKey{agentID: agentID, dir: pathKey(dir)}]
 	return ok && now.Before(expiry)
 }
 
@@ -153,15 +201,10 @@ func isUNCPath(raw string) bool {
 	return len(raw) >= 2 && (raw[0] == '\\' || raw[0] == '/') && (raw[1] == '\\' || raw[1] == '/')
 }
 
-// instructionRowDir is the directory whose probe produced an instruction
-// row. A discovered row records it in source_path, because the resolver
-// attributes a symlinked file to its target, whose directory may differ from
-// the one that was probed; a snapshot row's source_path is its scan root, so
-// its directory comes from source.
+// instructionRowDir is the directory an instruction row's file sits in,
+// which for a discovered row is the directory that was probed: the agent
+// reports a symlinked file under the link's own path.
 func instructionRowDir(row database.ChatContextResource) string {
-	if row.Discovered && row.SourcePath != "" {
-		return agentPath(row.SourcePath)
-	}
 	return path.Dir(agentPath(row.Source))
 }
 
@@ -234,13 +277,14 @@ func touchedPaths(calls []fantasy.ToolCallContent, results []fantasy.Content) (f
 // of its child projects arrive through the snapshot) and below the root.
 // Directories above the working directory are not candidates either; only
 // nested files refine the pinned ones. The result is deduplicated and
-// ordered shallowest first.
+// ordered shallowest first, so the per-step request cap keeps the
+// directories whose files govern the most.
 func candidateInstructionDirs(files, dirs []string, workingDir string) []string {
 	workingKey := pathKey(agentPath(workingDir))
 	seen := make(map[string]struct{})
 	var out []string
 	visit := func(dir string) {
-		for depth := 0; depth < maxInstructionAncestorDepth; depth++ {
+		for {
 			key := pathKey(dir)
 			if isRootAgentPath(dir) || key == workingKey || (workingKey != "/" && strings.HasPrefix(workingKey+"/", key+"/")) {
 				return
@@ -371,7 +415,16 @@ func (p *Server) discoverInstructionContext(
 	}
 	logger := p.logger.With(slog.F("chat_id", chat.ID), slog.F("agent_id", agent.ID))
 
+	now := p.clock.Now()
 	stale := staleInstructionDirs(files, dirs)
+	// A directory a command ran in recently stays stale for later touches:
+	// the command may still be writing when its result returns.
+	p.instructionProbes.markPending(now, agent.ID, dirs)
+	for _, dir := range candidates {
+		if p.instructionProbes.isPending(now, agent.ID, dir) {
+			stale[pathKey(dir)] = struct{}{}
+		}
+	}
 	p.instructionProbes.forget(agent.ID, slices.Collect(maps.Keys(stale)))
 
 	//nolint:gocritic // Chatd pins discovered rows onto a chat it does not own.
@@ -387,7 +440,6 @@ func (p *Server) discoverInstructionContext(
 			pinnedDirs[pathKey(instructionRowDir(row))] = struct{}{}
 		}
 	}
-	now := p.clock.Now()
 	probe := selectInstructionProbes(candidates, pinnedDirs, stale, func(dir string) bool {
 		return p.instructionProbes.negative(now, agent.ID, dir)
 	})
@@ -449,8 +501,11 @@ func (p *Server) discoverInstructionContext(
 // returned. rows is the chat's inventory before the probe: a file the chat
 // already pins under another spelling of a Windows path reuses that
 // spelling, since the agent echoes the request's casing and the row key is
-// case-sensitive. It reports how many rows were pinned and removed, and
-// stops at the first store error so a transaction caller sees it.
+// case-sensitive. Readable content past the chat's discovered budget is
+// pinned as excluded; resolved files arrive shallowest directory first, so
+// the budget goes to the files that govern the most. It reports how many
+// rows were pinned and removed, and stops at the first store error so a
+// transaction caller sees it.
 func reconcileDiscoveredInstructionFiles(
 	ctx context.Context,
 	store database.Store,
@@ -461,9 +516,17 @@ func reconcileDiscoveredInstructionFiles(
 	probed []string,
 ) (pinned, removed int, err error) {
 	spellings := make(map[string]string, len(rows))
+	heldBytes := make(map[string]int64, len(rows))
+	var used int64
 	for _, row := range rows {
-		if row.BodyKind == database.WorkspaceAgentContextBodyKindInstructionFile {
-			spellings[pathKey(agentPath(row.Source))] = row.Source
+		if row.BodyKind != database.WorkspaceAgentContextBodyKindInstructionFile {
+			continue
+		}
+		key := pathKey(agentPath(row.Source))
+		spellings[key] = row.Source
+		if row.Discovered && row.Status == database.WorkspaceAgentContextResourceStatusOk {
+			heldBytes[key] = row.SizeBytes
+			used += row.SizeBytes
 		}
 	}
 	returned := make(map[string]struct{}, len(resolved))
@@ -472,6 +535,24 @@ func reconcileDiscoveredInstructionFiles(
 		returned[key] = struct{}{}
 		if source, ok := spellings[key]; ok {
 			file.Source = source
+		}
+		if file.Status == string(database.WorkspaceAgentContextResourceStatusOk) {
+			// A re-read of a pinned file replaces its bytes rather than
+			// adding to them.
+			used -= heldBytes[key]
+			delete(heldBytes, key)
+			size := int64(math.MaxInt64)
+			if file.SizeBytes <= math.MaxInt64 {
+				size = int64(file.SizeBytes)
+			}
+			if size > maxDiscoveredInstructionBytes-used {
+				file.Status = string(database.WorkspaceAgentContextResourceStatusExcluded)
+				file.Error = fmt.Sprintf("discovered instruction content cap of %d bytes reached", maxDiscoveredInstructionBytes)
+				file.Content = ""
+			} else {
+				used += size
+				heldBytes[key] = size
+			}
 		}
 		ok, err := pinDiscoveredInstructionFile(ctx, store, chatID, file)
 		if err != nil {
@@ -491,17 +572,14 @@ func reconcileDiscoveredInstructionFiles(
 }
 
 // pinDiscoveredInstructionFile stores one resolved file as a discovered row.
-// Readable results are pinned with their body; oversize and excluded ones
-// (past the per-file or the per-response cap) without it, so the model and
-// the inventory still learn the file exists and the directory is not
-// re-probed. Other statuses are transient read failures.
+// A readable result is pinned with its body; any other status (oversize,
+// excluded, unreadable, invalid) without one, so the inventory and the
+// prompt's omitted-file note still learn the file exists, the directory is
+// not re-probed, and a file that stopped being readable replaces the body
+// pinned from an earlier read rather than keeping it.
 func pinDiscoveredInstructionFile(ctx context.Context, store database.Store, chatID uuid.UUID, file workspacesdk.ContextInstructionFile) (bool, error) {
 	status := database.WorkspaceAgentContextResourceStatus(file.Status)
-	switch status {
-	case database.WorkspaceAgentContextResourceStatusOk,
-		database.WorkspaceAgentContextResourceStatusOversize,
-		database.WorkspaceAgentContextResourceStatusExcluded:
-	default:
+	if !status.Valid() {
 		return false, nil
 	}
 	if file.SizeBytes > math.MaxInt64 {
@@ -524,7 +602,6 @@ func pinDiscoveredInstructionFile(ctx context.Context, store database.Store, cha
 		SizeBytes:   int64(file.SizeBytes),
 		Status:      status,
 		Error:       file.Error,
-		SourcePath:  file.Directory,
 	}); err != nil {
 		return false, xerrors.Errorf("upsert discovered resource: %w", err)
 	}

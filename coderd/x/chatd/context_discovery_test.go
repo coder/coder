@@ -480,7 +480,6 @@ func TestRefreshKeepsDiscoveredRowsWhenReReadFails(t *testing.T) {
 	require.True(t, bySource[discoveryNestedSource].Discovered, "the discovered row survives a failed re-read")
 	v1 := sha256.Sum256([]byte("site rules v1"))
 	require.Equal(t, v1[:], bySource[discoveryNestedSource].ContentHash)
-	require.Equal(t, discoveryNestedDir, bySource[discoveryNestedSource].SourcePath, "the kept row still knows its probed directory")
 }
 
 // startChatWithDiscoveredFile drives one read_file step on the nested path,
@@ -552,33 +551,6 @@ func pinnedBySource(ctx context.Context, t *testing.T, db database.Store, chatID
 	return out
 }
 
-// TestRefreshProbesDiscoveredRowsByDirectory covers a symlinked instruction
-// file: the resolver attributes it to its target, so the row's source sits
-// in another directory than the one that was probed. Refresh must re-probe
-// the probed directory, where the link still is, not the target's.
-func TestRefreshProbesDiscoveredRowsByDirectory(t *testing.T) {
-	t.Parallel()
-
-	ctx := testutil.Context(t, testutil.WaitLong)
-	linkedSource := discoveryNestedDir + "/rules/shared.md"
-	db, server, chat, mockConn := startChatWithDiscoveredFile(ctx, t, instructionFileResponse(discoveryNestedDir, linkedSource, "shared rules v1"))
-	before := pinnedBySource(ctx, t, db, chat.ID)
-	require.True(t, before[linkedSource].Discovered)
-	require.Equal(t, discoveryNestedDir, before[linkedSource].SourcePath, "the row records the probed directory")
-
-	mockConn.EXPECT().ResolveContextInstructions(gomock.Any(), workspacesdk.ResolveContextInstructionsRequest{
-		Directories: []string{discoveryNestedDir},
-	}).Return(instructionFileResponse(discoveryNestedDir, linkedSource, "shared rules v2"), nil)
-	_, err := server.RefreshChatContext(ctx, chat)
-	require.NoError(t, err)
-
-	after := pinnedBySource(ctx, t, db, chat.ID)
-	require.Contains(t, after, linkedSource, "refresh probes the link's directory and keeps the row")
-	v2 := sha256.Sum256([]byte("shared rules v2"))
-	require.Equal(t, v2[:], after[linkedSource].ContentHash)
-	require.Equal(t, discoveryNestedDir, after[linkedSource].SourcePath)
-}
-
 // TestRefreshKeepsNewerStepDiscovery races a refresh against a step: while
 // the refresh probe is in flight, a step pins newer bytes for the same file.
 // The probe's older read must not replace them.
@@ -600,7 +572,6 @@ func TestRefreshKeepsNewerStepDiscovery(t *testing.T) {
 			ContentHash: v3[:],
 			SizeBytes:   13,
 			Status:      database.WorkspaceAgentContextResourceStatusOk,
-			SourcePath:  discoveryNestedDir,
 		}))
 		return instructionFileResponse(discoveryNestedDir, discoveryNestedSource, "site rules v2"), nil
 	})
@@ -680,4 +651,79 @@ func TestLazyInstructionDiscoveryReprobesStaleDirectory(t *testing.T) {
 	require.Len(t, rows, 1)
 	require.Equal(t, writtenSource, rows[0].Source)
 	require.True(t, rows[0].Discovered)
+}
+
+// TestLazyInstructionDiscoveryReprobesAfterBackgroundCommand checks that a
+// directory a command ran in is read again on a later touch even though it
+// already contributed a pinned file: the command may still be writing when
+// its result returns, so the file it creates afterwards is picked up by the
+// next read in that tree rather than waiting for Refresh context.
+func TestLazyInstructionDiscoveryReprobesAfterBackgroundCommand(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	db, ps := dbtestutil.NewDB(t)
+	generatedSource := discoveryNestedDir + "/CLAUDE.md"
+	var modelCalls atomic.Int32
+	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse("title")
+		}
+		switch modelCalls.Add(1) {
+		case 1:
+			return chattest.OpenAIStreamingResponse(chattest.OpenAIToolCallChunk("execute", `{"command":"./gen-rules.sh","workdir":"`+discoveryNestedDir+`","run_in_background":true}`))
+		case 2:
+			return chattest.OpenAIStreamingResponse(chattest.OpenAIToolCallChunk("read_file", `{"path":"`+discoveryTouchedFile+`"}`))
+		}
+		return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("done")...)
+	})
+	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
+	ws, dbAgent := seedWorkspaceWithAgent(t, db, user.ID)
+
+	ctrl := gomock.NewController(t)
+	mockConn := agentconnmock.NewMockAgentConn(ctrl)
+	setupDiscoveryAgentConn(mockConn)
+	mockConn.EXPECT().StartProcess(gomock.Any(), gomock.Cond(func(req workspacesdk.StartProcessRequest) bool {
+		return req.Background && req.WorkDir == discoveryNestedDir
+	})).Return(workspacesdk.StartProcessResponse{ID: "gen", Started: true}, nil)
+	mockConn.EXPECT().ReadFileLines(gomock.Any(), discoveryTouchedFile, int64(1), int64(0), gomock.Any()).
+		Return(workspacesdk.ReadFileLinesResponse{Success: true, FileSize: 4, TotalLines: 1, LinesRead: 1, Content: "data"}, nil)
+	// The command's directory is probed right away and already holds a file,
+	// which pins it. The read on the next step would normally skip a pinned
+	// directory; the recent command makes it probe site again and find the
+	// file the command has created since.
+	mockConn.EXPECT().ResolveContextInstructions(gomock.Any(), workspacesdk.ResolveContextInstructionsRequest{
+		Directories: []string{discoveryNestedDir},
+	}).Return(instructionFileResponse(discoveryNestedDir, discoveryNestedSource, "site rules"), nil)
+	both := instructionFileResponse(discoveryNestedDir, discoveryNestedSource, "site rules")
+	both.Files = append(both.Files, instructionFileResponse(discoveryNestedDir, generatedSource, "generated rules").Files...)
+	mockConn.EXPECT().ResolveContextInstructions(gomock.Any(), workspacesdk.ResolveContextInstructionsRequest{
+		Directories: []string{discoveryNestedDir, discoveryNestedDir + "/src"},
+	}).Return(both, nil)
+
+	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
+		cfg.AgentConn = func(_ context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+			require.Equal(t, dbAgent.ID, agentID)
+			return mockConn, func() {}, nil
+		}
+	})
+	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
+		WorkspaceID:    uuid.NullUUID{UUID: ws.ID, Valid: true},
+		AgentID:        uuid.NullUUID{UUID: dbAgent.ID, Valid: true},
+		Title:          "lazy-instruction-discovery-background-command",
+		ModelConfigID:  model.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("generate then read"),
+		},
+	})
+	require.NoError(t, err)
+	waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
+
+	pinned := pinnedBySource(ctx, t, db, chat.ID)
+	require.Len(t, pinned, 2)
+	require.True(t, pinned[discoveryNestedSource].Discovered)
+	require.True(t, pinned[generatedSource].Discovered, "the file the command created after its result is pinned by the next read")
 }

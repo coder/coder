@@ -63,6 +63,8 @@ When the agent reads, writes, or edits a file, or runs a command in an explicit 
 These files are pinned like other resources: they appear in the chat's context list and are read again when you select **Refresh context**.
 Edits to a nested file do not mark the chat out of date, because the agent does not watch nested directories.
 When the agent writes an instruction file or runs a command in a directory it already loaded from, that directory is read again: new files are added and files that no longer exist are dropped from the chat.
+For a while after a command, later reads in that tree read its directory again too, because the command may still have been writing when it returned.
+A chat holds at most 1&nbsp;MiB of nested instruction content; files past that cap are listed as excluded with no content, like a snapshot's.
 Paths on a Windows network share (`\\server\share`) are not searched.
 
 ### Snapshot limits

@@ -194,6 +194,9 @@ func TestAPI_ResolveInstructions(t *testing.T) {
 	require.NoError(t, os.MkdirAll(filepath.Join(root, "linked"), 0o755))
 	require.NoError(t, os.Symlink(filepath.Join(outside, "AGENTS.md"), filepath.Join(root, "linked", "AGENTS.md")))
 	require.NoError(t, os.MkdirAll(filepath.Join(root, "dirnamed", "AGENTS.md"), 0o755))
+	mustWriteFile(t, filepath.Join(root, "aliased", "docs", "rules.md"), "aliased rules")
+	require.NoError(t, os.Symlink(filepath.Join("docs", "rules.md"), filepath.Join(root, "aliased", "AGENTS.md")))
+	require.NoError(t, os.Symlink("AGENTS.md", filepath.Join(root, "aliased", "CLAUDE.md")))
 
 	srv, _ := newAPITestServer(t, agentcontext.ManagerOptions{
 		WorkingDir: func() string { return root },
@@ -219,6 +222,7 @@ func TestAPI_ResolveInstructions(t *testing.T) {
 		filepath.Join(root, "big"),
 		filepath.Join(root, "linked"),
 		filepath.Join(root, "dirnamed"),
+		filepath.Join(root, "aliased"),
 		filepath.Join(root, "site", "..", "site"),
 	)
 	require.Equal(t, http.StatusOK, status)
@@ -226,8 +230,8 @@ func TestAPI_ResolveInstructions(t *testing.T) {
 	for _, file := range resp.Files {
 		bySource[file.Source] = file
 	}
-	require.Len(t, bySource, 4, "plain, missing, wrong-case, and directory-named entries contribute nothing: %+v", resp.Files)
-	require.Len(t, resp.Files, 6, "a directory listed twice is read twice")
+	require.Len(t, bySource, 5, "plain, missing, wrong-case, and directory-named entries contribute nothing: %+v", resp.Files)
+	require.Len(t, resp.Files, 7, "a directory listed twice is read twice")
 
 	site := bySource[filepath.Join(root, "site", "AGENTS.md")]
 	require.Equal(t, filepath.Join(root, "site"), site.Directory)
@@ -246,6 +250,12 @@ func TestAPI_ResolveInstructions(t *testing.T) {
 	require.Equal(t, "invalid", linked.Status)
 	require.Empty(t, linked.Content, "an escaping symlink target is never shipped")
 	require.Contains(t, linked.Error, "escapes scan root")
+
+	aliased := bySource[filepath.Join(root, "aliased", "AGENTS.md")]
+	require.Equal(t, "ok", aliased.Status)
+	require.Equal(t, "aliased rules", aliased.Content, "an in-tree symlink is read and reported under the link's path, where it applies")
+	require.NotContains(t, bySource, filepath.Join(root, "aliased", "docs", "rules.md"))
+	require.NotContains(t, bySource, filepath.Join(root, "aliased", "CLAUDE.md"), "a second name for the same file collapses onto the first")
 
 	status, _ = resolve("relative/dir")
 	require.Equal(t, http.StatusBadRequest, status)

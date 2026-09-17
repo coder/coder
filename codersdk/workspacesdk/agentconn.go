@@ -1386,7 +1386,8 @@ type ResolveContextInstructionsRequest struct {
 type ContextInstructionFile struct {
 	// Directory is the requested directory the file was found in.
 	Directory string `json:"directory"`
-	// Source is the resolved absolute path of the file.
+	// Source is the absolute path of the file in Directory. A symlink is
+	// reported under its own path, not its target's.
 	Source      string `json:"source"`
 	Content     string `json:"content,omitempty"`
 	ContentHash string `json:"content_hash"`

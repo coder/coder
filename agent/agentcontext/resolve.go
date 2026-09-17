@@ -450,6 +450,11 @@ func directoryEntryNames(dir string) map[string]struct{} {
 // on-demand instructions endpoint chatd calls for directories a tool
 // touched, so nested files match what a scan root would have produced.
 // A missing or non-directory dir yields nothing.
+//
+// Unlike a snapshot resource, a symlinked file keeps the link's path as
+// its Source: the file was resolved for dir and its instructions apply
+// there, not in the target's directory. Aliases within dir still collapse
+// through the target-based ID.
 func (r *Resolver) ResolveInstructionFiles(dir string) []Resource {
 	r = r.normalize()
 	info, err := os.Stat(dir)
@@ -457,7 +462,12 @@ func (r *Resolver) ResolveInstructionFiles(dir string) []Resource {
 		return nil
 	}
 	var out []Resource
-	r.readInstructionFilesIn(dir, &out, make(map[string]int))
+	seenID := make(map[string]int)
+	for _, f := range lstatInstructionFiles(dir) {
+		res := r.readInstructionFile(dir, f.path, f.info, "")
+		res.Source = f.path
+		appendResource(&out, seenID, res)
+	}
 	return out
 }
 
