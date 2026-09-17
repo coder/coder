@@ -314,14 +314,10 @@ func (w *Watcher) schedule() {
 }
 
 // hasInstructionFile reports whether dir directly holds a recognized
-// instruction file, probing the fixed names rather than listing dir.
+// instruction file under its exact name, so a child the resolver would not
+// publish does not take one of the watched slots.
 func hasInstructionFile(dir string) bool {
-	for _, name := range instructionFileNames {
-		if info, err := os.Lstat(filepath.Join(dir, name)); err == nil && !info.IsDir() {
-			return true
-		}
-	}
-	return false
+	return len(lstatInstructionFiles(dir)) > 0
 }
 
 // hasGitMarker reports whether dir holds a .git directory or file.
