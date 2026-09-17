@@ -162,8 +162,44 @@ func TestBuildWorkspaceMCPView(t *testing.T) {
 	})
 }
 
+// expectWorkspaceMCPViewTx drives the view's read-only transaction against
+// the same mock so the agent and snapshot expectations below are reached.
+func expectWorkspaceMCPViewTx(db *dbmock.MockStore) {
+	db.EXPECT().InTx(gomock.Any(), gomock.Any()).DoAndReturn(
+		func(f func(database.Store) error, _ *database.TxOptions) error { return f(db) })
+}
+
 func TestLoadWorkspaceMCPView(t *testing.T) {
 	t.Parallel()
+
+	// A restart committing between the two reads would otherwise pair one
+	// process's agent row with another process's snapshot, so both reads
+	// go through one repeatable-read, read-only transaction handle.
+	t.Run("ReadsAgentAndSnapshotInOneTransaction", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		db := dbmock.NewMockStore(ctrl)
+		tx := dbmock.NewMockStore(ctrl)
+		agentID := uuid.New()
+		db.EXPECT().InTx(gomock.Any(), gomock.Any()).DoAndReturn(
+			func(f func(database.Store) error, opts *database.TxOptions) error {
+				require.Equal(t, sql.LevelRepeatableRead, opts.Isolation)
+				require.True(t, opts.ReadOnly)
+				return f(tx)
+			})
+		tx.EXPECT().GetWorkspaceAgentByID(gomock.Any(), agentID).
+			Return(database.WorkspaceAgent{ID: agentID, AgentRunID: "run-a"}, nil)
+		tx.EXPECT().GetLatestWorkspaceAgentContextSnapshot(gomock.Any(), agentID).
+			Return(database.WorkspaceAgentContextSnapshot{AgentRunID: "run-a", McpDiscoveryPhase: database.WorkspaceAgentMcpDiscoveryPhaseComplete}, nil)
+		server := newPinServer(t, db)
+
+		view, err := server.workspaceMCPViewForPinned(context.Background(), database.Chat{
+			ID:      uuid.New(),
+			AgentID: uuid.NullUUID{UUID: agentID, Valid: true},
+		}, nil)
+		require.NoError(t, err)
+		require.Equal(t, &codersdk.ChatContextMCPDiscovery{Phase: codersdk.ChatContextMCPDiscoveryPhaseComplete}, view.Discovery())
+	})
 
 	t.Run("NoSnapshotYet", func(t *testing.T) {
 		t.Parallel()
@@ -171,6 +207,7 @@ func TestLoadWorkspaceMCPView(t *testing.T) {
 		db := dbmock.NewMockStore(ctrl)
 		chatID := uuid.New()
 		agentID := uuid.New()
+		expectWorkspaceMCPViewTx(db)
 		db.EXPECT().GetWorkspaceAgentByID(gomock.Any(), agentID).
 			Return(database.WorkspaceAgent{ID: agentID, AgentRunID: "run-a"}, nil)
 		db.EXPECT().GetLatestWorkspaceAgentContextSnapshot(gomock.Any(), agentID).
@@ -192,6 +229,7 @@ func TestLoadWorkspaceMCPView(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		db := dbmock.NewMockStore(ctrl)
 		agentID := uuid.New()
+		expectWorkspaceMCPViewTx(db)
 		db.EXPECT().GetWorkspaceAgentByID(gomock.Any(), agentID).
 			Return(database.WorkspaceAgent{ID: agentID, AgentRunID: "run-a"}, nil)
 		db.EXPECT().GetLatestWorkspaceAgentContextSnapshot(gomock.Any(), agentID).
@@ -217,6 +255,7 @@ func TestLoadWorkspaceMCPView(t *testing.T) {
 		agentID := uuid.New()
 		// A rebuild soft-deleted the bound agent, which GetWorkspaceAgentByID
 		// filters out, and purged its snapshot.
+		expectWorkspaceMCPViewTx(db)
 		db.EXPECT().GetWorkspaceAgentByID(gomock.Any(), agentID).
 			Return(database.WorkspaceAgent{}, sql.ErrNoRows)
 		server := newPinServer(t, db)
@@ -252,6 +291,7 @@ func TestResolveWorkspaceMCPTools_UsesReboundAgent(t *testing.T) {
 		Return([]database.ChatContextResource{mcpServerResource(t, "fs", &agentproto.MCPServerBody{
 			ServerName: "fs", Tools: []*agentproto.MCPTool{{Name: "read"}},
 		}, database.WorkspaceAgentContextResourceStatusOk)}, nil)
+	expectWorkspaceMCPViewTx(db)
 	db.EXPECT().GetWorkspaceAgentByID(gomock.Any(), newAgentID).
 		Return(database.WorkspaceAgent{ID: newAgentID, AgentRunID: "run-b"}, nil)
 	db.EXPECT().GetLatestWorkspaceAgentContextSnapshot(gomock.Any(), newAgentID).

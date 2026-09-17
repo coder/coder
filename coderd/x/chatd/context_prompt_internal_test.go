@@ -681,6 +681,7 @@ func TestContextDetail(t *testing.T) {
 		chatID := uuid.New()
 		agentID := uuid.New()
 		db.EXPECT().ListChatContextResourcesByChatID(gomock.Any(), chatID).Return(nil, nil)
+		expectWorkspaceMCPViewTx(db)
 		db.EXPECT().GetWorkspaceAgentByID(gomock.Any(), agentID).
 			Return(database.WorkspaceAgent{ID: agentID, AgentRunID: "run-b"}, nil)
 		db.EXPECT().GetLatestWorkspaceAgentContextSnapshot(gomock.Any(), agentID).
@@ -729,6 +730,7 @@ func TestContextDetail(t *testing.T) {
 			Return([]database.ChatContextResource{
 				instructionResource(t, "/home/coder/AGENTS.md", "be helpful", database.WorkspaceAgentContextResourceStatusOk),
 			}, nil)
+		expectWorkspaceMCPViewTx(db)
 		db.EXPECT().GetWorkspaceAgentByID(gomock.Any(), agentID).
 			Return(database.WorkspaceAgent{}, dbauthz.NotAuthorizedError{Err: xerrors.New("denied")})
 		server := newPinServer(t, db)
