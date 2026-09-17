@@ -1081,6 +1081,99 @@ func TestOAuth2ProviderRevoke(t *testing.T) {
 	}
 }
 
+func TestOAuth2ProviderRevokeInvalidToken(t *testing.T) {
+	t.Parallel()
+
+	ownerClient := coderdtest.New(t, nil)
+	owner := coderdtest.CreateFirstUser(t, ownerClient)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	apps := generateApps(ctx, t, ownerClient, "revoke-invalid-token")
+
+	//nolint:gocritic // OAuth2 app management requires owner permission.
+	secret, err := ownerClient.PostOAuth2ProviderAppSecret(ctx, apps.Default.ID)
+	require.NoError(t, err)
+
+	// Same length as the original, so the token keeps its shape but not its secret.
+	replaceAfterLast := func(tok, sep string) string {
+		idx := strings.LastIndex(tok, sep)
+		require.NotEqual(t, -1, idx, "token should contain %q", sep)
+		return tok[:idx+1] + strings.Repeat("a", len(tok)-idx-1)
+	}
+
+	tests := []struct {
+		name string
+		// tokenFor returns the token to present at the revocation endpoint.
+		tokenFor func(*codersdk.Client, *oauth2.Token) string
+		// staysValid says the token under test is a real token that must keep
+		// working after the refused revocation.
+		staysValid bool
+	}{
+		{
+			name: "RefreshTokenWrongSecret",
+			tokenFor: func(_ *codersdk.Client, tok *oauth2.Token) string {
+				return replaceAfterLast(tok.RefreshToken, "_")
+			},
+		},
+		{
+			name: "AccessTokenWrongSecret",
+			tokenFor: func(_ *codersdk.Client, tok *oauth2.Token) string {
+				return replaceAfterLast(tok.AccessToken, "-")
+			},
+		},
+		{
+			name: "SessionTokenFromAnotherLogin",
+			tokenFor: func(userClient *codersdk.Client, _ *oauth2.Token) string {
+				return userClient.SessionToken()
+			},
+			staysValid: true,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitLong)
+
+			userClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID)
+
+			cfg := &oauth2.Config{
+				ClientID:     apps.Default.ID.String(),
+				ClientSecret: secret.ClientSecretFull,
+				Endpoint: oauth2.Endpoint{
+					AuthURL:   apps.Default.Endpoints.Authorization,
+					TokenURL:  apps.Default.Endpoints.Token,
+					AuthStyle: oauth2.AuthStyleInParams,
+				},
+				RedirectURL: apps.Default.CallbackURL,
+				Scopes:      []string{},
+			}
+
+			code, verifier, err := authorizationFlow(ctx, userClient, cfg)
+			require.NoError(t, err)
+			token, err := cfg.Exchange(ctx, code, oauth2.SetAuthURLParam("code_verifier", verifier))
+			require.NoError(t, err)
+
+			tokenWorks := func(tok string) bool {
+				checkClient := codersdk.New(userClient.URL)
+				checkClient.SetSessionToken(tok)
+				_, err := checkClient.User(ctx, codersdk.Me)
+				return err == nil
+			}
+			require.True(t, tokenWorks(token.AccessToken), "session should be valid before the revoke attempt")
+
+			tokenUnderTest := test.tokenFor(userClient, token)
+
+			// RFC 7009 §2.2 answers 200 for a token the client cannot revoke,
+			// so the reply says nothing about which tokens exist.
+			err = userClient.RevokeOAuth2Token(ctx, apps.Default.ID, secret.ClientSecretFull, tokenUnderTest)
+			require.NoError(t, err, "revoking a token this client was never issued must answer 200")
+			require.True(t, tokenWorks(token.AccessToken), "a refused revocation must not end the session")
+			if test.staysValid {
+				require.True(t, tokenWorks(tokenUnderTest), "a refused revocation must leave the presented token working")
+			}
+		})
+	}
+}
+
 // TestOAuth2ProviderRevokeCrossApp covers RFC 7009 revocation's ownership
 // check, which compares a token's app_id directly rather than joining
 // through app_secret_id. That rewrite had zero test coverage on its

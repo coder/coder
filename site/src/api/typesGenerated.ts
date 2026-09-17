@@ -2877,10 +2877,11 @@ export interface ChatModelOpenAICompatProviderOptions {
 // From codersdk/chats.go
 /**
  * ChatModelOpenAIConfig holds settings applied once when the OpenAI client
- * is built, not per request.
+ * is built, not per request, including OpenAI-format models on Bedrock.
  */
 export interface ChatModelOpenAIConfig {
 	readonly use_responses_api?: boolean;
+	readonly reasoning_model?: boolean;
 }
 
 // From codersdk/chats.go
@@ -6483,6 +6484,13 @@ export interface OAuth2AppEndpoints {
 	 */
 	readonly device_authorization: string;
 }
+
+// From codersdk/name.go
+/**
+ * OAuth2AppNameMaxBytes is the maximum UTF-8 byte length of an OAuth2
+ * application name.
+ */
+export const OAuth2AppNameMaxBytes = 64;
 
 // From codersdk/oauth2.go
 /**

@@ -27653,29 +27653,35 @@ WHERE
 			END
 		ELSE true
 	END
-	-- Filter by agents_allowed
+	-- Filter by classic parameter flow
 	AND CASE
 		WHEN $9 :: boolean IS NOT NULL THEN
-			t.agents_allowed = $9 :: boolean
+			t.use_classic_parameter_flow = $9 :: boolean
+		ELSE true
+	END
+	-- Filter by agents_allowed
+	AND CASE
+		WHEN $10 :: boolean IS NOT NULL THEN
+			t.agents_allowed = $10 :: boolean
 		ELSE true
 	END
 	-- Filter by author_id
 	AND CASE
-		  WHEN $10 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
-			  t.created_by = $10
+		  WHEN $11 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+			  t.created_by = $11
 		  ELSE true
 	END
 	-- Filter by author_username
 	AND CASE
-		  WHEN $11 :: text != '' THEN
-			  t.created_by = (SELECT id FROM users WHERE lower(users.username) = lower($11) AND deleted = false)
+		  WHEN $12 :: text != '' THEN
+			  t.created_by = (SELECT id FROM users WHERE lower(users.username) = lower($12) AND deleted = false)
 		  ELSE true
 	END
 
 	-- Filter by has_external_agent in latest version
 	AND CASE
-		WHEN $12 :: boolean IS NOT NULL THEN
-			tv.has_external_agent = $12 :: boolean
+		WHEN $13 :: boolean IS NOT NULL THEN
+			tv.has_external_agent = $13 :: boolean
 		ELSE true
 	END
   -- Authorize Filter clause will be injected below in GetAuthorizedTemplates
@@ -27684,18 +27690,19 @@ ORDER BY (t.name, t.id) ASC
 `
 
 type GetTemplatesWithFilterParams struct {
-	Deleted          bool         `db:"deleted" json:"deleted"`
-	OrganizationID   uuid.UUID    `db:"organization_id" json:"organization_id"`
-	ExactName        string       `db:"exact_name" json:"exact_name"`
-	ExactDisplayName string       `db:"exact_display_name" json:"exact_display_name"`
-	FuzzyName        string       `db:"fuzzy_name" json:"fuzzy_name"`
-	FuzzyDisplayName string       `db:"fuzzy_display_name" json:"fuzzy_display_name"`
-	IDs              []uuid.UUID  `db:"ids" json:"ids"`
-	Deprecated       sql.NullBool `db:"deprecated" json:"deprecated"`
-	AgentsAllowed    sql.NullBool `db:"agents_allowed" json:"agents_allowed"`
-	AuthorID         uuid.UUID    `db:"author_id" json:"author_id"`
-	AuthorUsername   string       `db:"author_username" json:"author_username"`
-	HasExternalAgent sql.NullBool `db:"has_external_agent" json:"has_external_agent"`
+	Deleted                 bool         `db:"deleted" json:"deleted"`
+	OrganizationID          uuid.UUID    `db:"organization_id" json:"organization_id"`
+	ExactName               string       `db:"exact_name" json:"exact_name"`
+	ExactDisplayName        string       `db:"exact_display_name" json:"exact_display_name"`
+	FuzzyName               string       `db:"fuzzy_name" json:"fuzzy_name"`
+	FuzzyDisplayName        string       `db:"fuzzy_display_name" json:"fuzzy_display_name"`
+	IDs                     []uuid.UUID  `db:"ids" json:"ids"`
+	Deprecated              sql.NullBool `db:"deprecated" json:"deprecated"`
+	UseClassicParameterFlow sql.NullBool `db:"use_classic_parameter_flow" json:"use_classic_parameter_flow"`
+	AgentsAllowed           sql.NullBool `db:"agents_allowed" json:"agents_allowed"`
+	AuthorID                uuid.UUID    `db:"author_id" json:"author_id"`
+	AuthorUsername          string       `db:"author_username" json:"author_username"`
+	HasExternalAgent        sql.NullBool `db:"has_external_agent" json:"has_external_agent"`
 }
 
 func (q *sqlQuerier) GetTemplatesWithFilter(ctx context.Context, arg GetTemplatesWithFilterParams) ([]Template, error) {
@@ -27708,6 +27715,7 @@ func (q *sqlQuerier) GetTemplatesWithFilter(ctx context.Context, arg GetTemplate
 		arg.FuzzyDisplayName,
 		pq.Array(arg.IDs),
 		arg.Deprecated,
+		arg.UseClassicParameterFlow,
 		arg.AgentsAllowed,
 		arg.AuthorID,
 		arg.AuthorUsername,

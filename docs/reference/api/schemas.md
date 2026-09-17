@@ -3349,6 +3349,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "frequency_penalty": 0,
     "max_output_tokens": 0,
     "openai_config": {
+      "reasoning_model": true,
       "use_responses_api": true
     },
     "presence_penalty": 0,
@@ -3633,6 +3634,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "frequency_penalty": 0,
   "max_output_tokens": 0,
   "openai_config": {
+    "reasoning_model": true,
     "use_responses_api": true
   },
   "presence_penalty": 0,
@@ -3881,6 +3883,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ```json
 {
+  "reasoning_model": true,
   "use_responses_api": true
 }
 ```
@@ -3889,6 +3892,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 | Name                | Type    | Required | Restrictions | Description |
 |---------------------|---------|----------|--------------|-------------|
+| `reasoning_model`   | boolean | false    |              |             |
 | `use_responses_api` | boolean | false    |              |             |
 
 ## codersdk.ChatModelOpenAIProviderOptions
@@ -5929,6 +5933,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "frequency_penalty": 0,
     "max_output_tokens": 0,
     "openai_config": {
+      "reasoning_model": true,
       "use_responses_api": true
     },
     "presence_penalty": 0,
@@ -11315,6 +11320,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
         "frequency_penalty": 0,
         "max_output_tokens": 0,
         "openai_config": {
+          "reasoning_model": true,
           "use_responses_api": true
         },
         "presence_penalty": 0,
@@ -15324,6 +15330,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
     "frequency_penalty": 0,
     "max_output_tokens": 0,
     "openai_config": {
+      "reasoning_model": true,
       "use_responses_api": true
     },
     "presence_penalty": 0,
