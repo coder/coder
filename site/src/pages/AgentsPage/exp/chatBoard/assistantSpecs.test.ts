@@ -66,6 +66,7 @@ describe("cardAssistantSpec", () => {
 		);
 		expect(spec.systemPrompt).not.toContain("board/effort");
 		expect(spec.systemPrompt).not.toContain("Merge two cards");
+		expect(spec.systemPrompt).not.toContain("Organizing the board");
 		const text = spec.snapshot;
 		expect(text).toContain('Assistant for card "Epic"');
 		expect(text).toContain("Column: Doing");
@@ -127,6 +128,54 @@ describe("boardAssistantSpec", () => {
 		expect(
 			cardAssistantSpec(cardFor([chat("a")]), { coderMcp: true }).systemPrompt,
 		).toContain("coder_get_chat_messages");
+	});
+
+	it("teaches both assistants to verify chats before acting, in either tool variant", () => {
+		const prompts = [
+			boardAssistantSpec(stateOf([chat("a")]), "org-1", { coderMcp: false }),
+			boardAssistantSpec(stateOf([chat("a")]), "org-1", { coderMcp: true }),
+			cardAssistantSpec(cardFor([chat("a")]), { coderMcp: false }),
+			cardAssistantSpec(cardFor([chat("a")]), { coderMcp: true }),
+		].map((spec) => spec.systemPrompt);
+		for (const prompt of prompts) {
+			expect(prompt).toContain(
+				"titles, summaries and list metadata are not evidence",
+			);
+			expect(prompt).toContain("read all its user messages in order");
+			expect(prompt).toContain("which implementation line is current");
+			expect(prompt).toContain(
+				"GET $CODER_URL/api/v2/workspaces/<id> for name and latest_build.status, then run coder ssh <name> -- git status",
+			);
+			expect(prompt).toContain("by its subject and outcome");
+			expect(prompt).toContain("Refer to chats by title in prose");
+			expect(prompt).toContain("gives messages newest first");
+			expect(prompt).not.toContain("oldest to newest");
+		}
+	});
+
+	it("keeps the group-vs-effort, title-vs-note and archive rules to the board assistant", () => {
+		const board = boardAssistantSpec(stateOf([chat("a")]), "org-1", {
+			coderMcp: true,
+		}).systemPrompt;
+		expect(board).toContain(
+			"Group only chats that produce one artifact together",
+		);
+		expect(board).toContain("Use an effort when cards share a theme");
+		expect(board).toContain("State never goes in a title");
+		expect(board).toContain(
+			'coder_archive_chat, or PATCH $CODER_URL/api/v2/chats/<id> with {"archived": true}',
+		);
+		expect(
+			boardAssistantSpec(stateOf([chat("a")]), "org-1", { coderMcp: false })
+				.systemPrompt,
+		).toContain(
+			'yes (PATCH $CODER_URL/api/v2/chats/<id> with {"archived": true})',
+		);
+		const card = cardAssistantSpec(cardFor([chat("a")]), {
+			coderMcp: true,
+		}).systemPrompt;
+		expect(card).not.toContain("Use an effort when cards share a theme");
+		expect(card).not.toContain("coder_archive_chat");
 	});
 
 	it("snapshots every card with its primary id, column, chats and notes", () => {
