@@ -118,17 +118,19 @@ func TestMCPDiscoveryAttemptRearm(t *testing.T) {
 	}
 	attempt(chatID, agentID)
 	require.EqualValues(t, 1, db.calls.Load())
+	start := time.Now()
 	got := server.waitForMCPDiscovery(ctx, chatID, agentID)
-	require.EqualValues(t, 1, db.calls.Load(), "a timed-out attempt is not repeated for the same agent process")
+	require.EqualValues(t, 2, db.calls.Load(), "a timed-out attempt is refreshed with one read, not repeated, for the same agent process")
+	require.Less(t, time.Since(start), 5*time.Second, "the refresh read is bounded, not a second wait")
 	require.True(t, got.WaitTimedOut)
 	runB := "run-b"
 	db.agentRunID.Store(&runB)
 	attempt(chatID, agentID)
-	require.EqualValues(t, 2, db.calls.Load(), "a new agent process on the same agent row rearms")
+	require.EqualValues(t, 3, db.calls.Load(), "a new agent process on the same agent row rearms")
 	attempt(chatID, uuid.New())
-	require.EqualValues(t, 3, db.calls.Load(), "a new agent binding rearms")
+	require.EqualValues(t, 4, db.calls.Load(), "a new agent binding rearms")
 	attempt(uuid.New(), agentID)
-	require.EqualValues(t, 4, db.calls.Load(), "each chat gets an attempt")
+	require.EqualValues(t, 5, db.calls.Load(), "each chat gets an attempt")
 }
 
 func TestMCPDiscoveryAttemptTimedOutExpires(t *testing.T) {
@@ -211,6 +213,42 @@ func TestMCPDiscoveryAttemptKeptWhenRunIDLookupFails(t *testing.T) {
 	server.mcpDiscoveryMu.Unlock()
 }
 
+func TestMCPDiscoveryTimedOutAttemptRefreshedOnceComplete(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitLong)
+	var complete atomic.Bool
+	db := &mcpDiscoveryProbeStore{read: func(context.Context, uuid.UUID) (database.WorkspaceAgentContextSnapshot, error) {
+		phase := database.WorkspaceAgentMcpDiscoveryPhasePending
+		if complete.Load() {
+			phase = database.WorkspaceAgentMcpDiscoveryPhaseComplete
+		}
+		return database.WorkspaceAgentContextSnapshot{AgentRunID: "run-a", McpDiscoveryPhase: phase}, nil
+	}}
+	runA := "run-a"
+	db.agentRunID.Store(&runA)
+	server := &Server{db: db, logger: testutil.Logger(t)}
+	chatID, agentID := uuid.New(), uuid.New()
+	attemptCtx, cancel := context.WithCancel(ctx)
+	cancel()
+	require.True(t, server.waitForMCPDiscovery(attemptCtx, chatID, agentID).WaitTimedOut)
+	calls := db.calls.Load()
+
+	// Still pending: the cached timeout is reused after one read.
+	got := server.waitForMCPDiscovery(ctx, chatID, agentID)
+	require.True(t, got.WaitTimedOut)
+
+	// Discovery finished after the budget was spent: a later caller gets
+	// the current state from one read, and the spent attempt stays cached.
+	complete.Store(true)
+	got = server.waitForMCPDiscovery(ctx, chatID, agentID)
+	require.False(t, got.WaitTimedOut)
+	require.Equal(t, codersdk.ChatContextMCPDiscoveryPhaseComplete, got.Phase)
+	require.LessOrEqual(t, db.calls.Load()-calls, int32(2), "one read per reuse, no new wait")
+	server.mcpDiscoveryMu.Lock()
+	require.NotNil(t, server.mcpDiscoveryAttempts[chatID])
+	server.mcpDiscoveryMu.Unlock()
+}
+
 func TestMCPDiscoveryAttemptCompleteNotCached(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitLong)
@@ -236,8 +274,9 @@ func TestMCPDiscoveryConcurrentAttempt(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitLong)
 	entered := make(chan struct{})
 	release := make(chan struct{})
+	var enteredOnce sync.Once
 	db := &mcpDiscoveryProbeStore{read: func(ctx context.Context, _ uuid.UUID) (database.WorkspaceAgentContextSnapshot, error) {
-		close(entered)
+		enteredOnce.Do(func() { close(entered) })
 		select {
 		case <-release:
 		case <-ctx.Done():
@@ -263,8 +302,10 @@ func TestMCPDiscoveryConcurrentAttempt(t *testing.T) {
 	cancel()
 	close(release)
 	testutil.TryReceive(ctx, t, done)
+	// Reusing the spent attempt refreshes the outcome with one read and
+	// starts no new wait.
 	server.waitForMCPDiscovery(ctx, chatID, agentID)
-	require.EqualValues(t, 1, db.calls.Load())
+	require.EqualValues(t, 2, db.calls.Load())
 }
 
 // TestMCPDiscoveryCanceledJoinerRace runs a canceled joiner concurrently

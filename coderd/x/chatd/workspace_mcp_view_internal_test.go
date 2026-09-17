@@ -3,6 +3,8 @@ package chatd
 import (
 	"context"
 	"database/sql"
+	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -143,6 +145,28 @@ func TestBuildWorkspaceMCPView(t *testing.T) {
 		require.Contains(t, summary, "/w/.mcp.json (server \"x\" has no command or url)")
 		require.NotContains(t, summary, "healthy")
 		require.NotContains(t, summary, "connected")
+	})
+
+	t.Run("SummaryIsBounded", func(t *testing.T) {
+		t.Parallel()
+		// Many declared servers with long diagnostics must not turn the
+		// prompt note into a context-window hazard.
+		pinned := make([]database.ChatContextResource, 0, 12)
+		for i := 0; i < 12; i++ {
+			r := mcpServerResource(t, fmt.Sprintf("srv-%02d", i), &agentproto.MCPServerBody{}, database.WorkspaceAgentContextResourceStatusUnreadable)
+			r.Error = strings.Repeat("e", 1000)
+			pinned = append(pinned, r)
+		}
+		view := buildWorkspaceMCPView(
+			database.WorkspaceAgent{ID: agentID, AgentRunID: "run-a"},
+			&database.WorkspaceAgentContextSnapshot{AgentRunID: "run-a", McpDiscoveryPhase: database.WorkspaceAgentMcpDiscoveryPhaseComplete},
+			pinned,
+		)
+		summary := view.Summary()
+		require.Less(t, len(summary), 12*1000, "diagnostics are trimmed")
+		require.Contains(t, summary, "; and 4 more.")
+		require.Equal(t, summaryMaxEntries, strings.Count(summary, "..."), "each listed diagnostic is trimmed once")
+		require.NotContains(t, summary, "srv-11", "entries past the cap are counted, not listed")
 	})
 
 	t.Run("CompleteWithoutIssuesIsNotIncomplete", func(t *testing.T) {

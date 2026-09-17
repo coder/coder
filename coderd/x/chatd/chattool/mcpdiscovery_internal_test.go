@@ -177,6 +177,32 @@ func TestWaitForMCPDiscovery(t *testing.T) {
 		require.Equal(t, codersdk.ChatContextMCPDiscoveryPhaseComplete, got.Phase)
 	})
 
+	t.Run("LegacySnapshotUnderCurrentRunIsStale", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		db := dbmock.NewMockStore(ctrl)
+		agentID := uuid.New()
+		db.EXPECT().GetWorkspaceAgentByID(gomock.Any(), agentID).Return(agentRow("run-b"), nil).AnyTimes()
+		call := 0
+		db.EXPECT().GetLatestWorkspaceAgentContextSnapshot(gomock.Any(), agentID).
+			DoAndReturn(func(context.Context, uuid.UUID) (database.WorkspaceAgentContextSnapshot, error) {
+				call++
+				if call <= 2 {
+					// A complete snapshot left by a legacy process (no run
+					// id) under a current agent is a previous process too.
+					return snapshot("", database.WorkspaceAgentMcpDiscoveryPhaseComplete), nil
+				}
+				return snapshot("run-b", database.WorkspaceAgentMcpDiscoveryPhaseComplete), nil
+			}).AnyTimes()
+		expectSummary(db, agentID)
+
+		got := WaitForMCPDiscovery(context.Background(), db, agentID)
+		require.GreaterOrEqual(t, call, 3, "the wait does not accept the legacy snapshot")
+		require.Equal(t, codersdk.ChatContextMCPDiscoveryPhaseComplete, got.Phase)
+		require.False(t, got.Stale)
+		require.False(t, got.WaitTimedOut)
+	})
+
 	t.Run("NoSnapshotTimesOutAfterGrace", func(t *testing.T) {
 		t.Parallel()
 		ctrl := gomock.NewController(t)
@@ -193,6 +219,34 @@ func TestWaitForMCPDiscovery(t *testing.T) {
 		require.Less(t, elapsed, testutil.WaitShort)
 		require.True(t, got.WaitTimedOut)
 		require.Equal(t, codersdk.ChatContextMCPDiscoveryPhaseUnknown, got.Phase)
+	})
+
+	t.Run("CurrentReadsOnce", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		db := dbmock.NewMockStore(ctrl)
+		agentID := uuid.New()
+		db.EXPECT().GetWorkspaceAgentByID(gomock.Any(), agentID).Return(agentRow("run-b"), nil).Times(3)
+		db.EXPECT().GetLatestWorkspaceAgentContextSnapshot(gomock.Any(), agentID).
+			Return(snapshot("run-b", database.WorkspaceAgentMcpDiscoveryPhasePending), nil)
+		got, complete := CurrentMCPDiscovery(context.Background(), db, agentID)
+		require.False(t, complete)
+		require.Equal(t, codersdk.ChatContextMCPDiscoveryPhasePending, got.Phase)
+
+		db.EXPECT().GetLatestWorkspaceAgentContextSnapshot(gomock.Any(), agentID).
+			Return(snapshot("run-a", database.WorkspaceAgentMcpDiscoveryPhaseComplete), nil)
+		got, complete = CurrentMCPDiscovery(context.Background(), db, agentID)
+		require.False(t, complete, "a previous process's completion does not count")
+		require.True(t, got.Stale)
+
+		db.EXPECT().GetLatestWorkspaceAgentContextSnapshot(gomock.Any(), agentID).
+			Return(snapshot("run-b", database.WorkspaceAgentMcpDiscoveryPhaseComplete), nil)
+		expectSummary(db, agentID)
+		got, complete = CurrentMCPDiscovery(context.Background(), db, agentID)
+		require.True(t, complete)
+		require.Equal(t, codersdk.ChatContextMCPDiscoveryPhaseComplete, got.Phase)
+		require.False(t, got.WaitTimedOut)
+		requireCounts(t, got)
 	})
 
 	t.Run("DBErrorFailsOpen", func(t *testing.T) {
