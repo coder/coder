@@ -746,10 +746,10 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 					// next turn. The item key covers a block that has no persisted
 					// row yet and follows it when paging re-keys it. The newest
 					// decision wins.
-					const memberKeys = block.rowIndices
-						.map((rowIndex) => renderRows[rowIndex])
-						.filter((member) => member.type === "message")
-						.map((member) => member.key);
+					const memberKeys = block.rowIndices.flatMap((rowIndex) => {
+						const member = renderRows[rowIndex];
+						return member.type === "message" ? [member.key] : [];
+					});
 					const itemKey = nextLiveItemKeys.get(block.key) ?? block.key;
 					let expanded = expandedBlocks.get(itemKey) ?? false;
 					for (const memberKey of memberKeys) {
