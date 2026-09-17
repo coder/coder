@@ -159,6 +159,8 @@ func TestDefaultSystemPromptTaskDiscipline(t *testing.T) {
 	}
 }
 
+// TestPlanningPromptContract checks assembled instructions, not whether a model
+// follows them or makes the right planning decision for a particular task.
 func TestPlanningPromptContract(t *testing.T) {
 	t.Parallel()
 
@@ -175,13 +177,16 @@ func TestPlanningPromptContract(t *testing.T) {
 			want: []string{
 				"If the user requests only a plan, deliver it without implementing it",
 				"If the user asks you to plan and implement, proceed with the authorized implementation",
-				"present the plan in the conversation unless the user requests a file",
-				"A supplied path does not require you to create a file",
+				"present short plans in the conversation",
+				"Use a plan file when requested or when retaining and revising it will help",
+				"The path is a location, not an instruction to create a file",
+				"Surface the approach and tradeoffs when the user needs to decide",
 			},
 			dontWant: []string{
 				"Present the plan to the user and wait for review before starting implementation",
 				"Write the file first, then present it",
 				"1. Use spawn_agent and wait_agent",
+				"unless the user requests a file",
 				"You are in Plan Mode.",
 			},
 			hasWorkspace: true,
@@ -190,8 +195,9 @@ func TestPlanningPromptContract(t *testing.T) {
 			name: "DetachedConversation",
 			mode: systemPromptBehaviorContext{isRootChat: true},
 			want: []string{
-				"present the plan in the conversation unless the user requests a file",
-				"Do not create a workspace solely to store a conversational plan",
+				"present short plans in the conversation",
+				"Use a plan file when requested or when retaining and revising it will help",
+				"do not provision one merely to turn a sufficient conversational answer into a file",
 			},
 			dontWant: []string{"<plan-file-path>", "call propose_plan"},
 		},
@@ -205,6 +211,8 @@ func TestPlanningPromptContract(t *testing.T) {
 				"You are in Plan Mode.",
 				"Do not use Plan Mode to implement the requested changes",
 				"When the plan is ready, call propose_plan with the plan file path",
+				planningInvestigationGuidance,
+				"If the user cancels the task, stop working on it and do not submit the canceled plan",
 				"After a successful propose_plan call, stop immediately",
 			},
 			hasWorkspace: true,
@@ -216,11 +224,13 @@ func TestPlanningPromptContract(t *testing.T) {
 			},
 			want: []string{
 				"You are in Plan Mode as a delegated sub-agent",
-				"cloning a missing repository for inspection is permitted setup",
-				"Do not implement changes, edit existing project files, or author the parent agent's final plan file",
+				planningInvestigationGuidance,
+				"If the parent agent cancels or revises the assignment, stop the canceled work",
+				"do not author its final plan file",
 			},
 			dontWant: []string{
 				"Do not implement changes or intentionally modify workspace files",
+				"only intentional workspace-write exception",
 				"call propose_plan",
 			},
 		},
@@ -251,6 +261,8 @@ func TestPlanningPromptContract(t *testing.T) {
 			require.NotContains(t, text, defaultSystemPromptPlanPathBlockPlaceholder)
 			if tc.hasWorkspace {
 				require.Contains(t, text, "<plan-file-path>\nYour plan file path for this chat is:")
+				require.Contains(t, text, "Explicit Plan Mode requires this path for its submitted plan")
+				require.Contains(t, text, "Outside Plan Mode, use a project-specific path when the task calls for it")
 			} else {
 				require.NotContains(t, text, "<plan-file-path>\nYour plan file path for this chat is:")
 			}

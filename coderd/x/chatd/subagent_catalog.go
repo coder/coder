@@ -325,14 +325,13 @@ func buildSpawnAgentDescription(
 		"it with interrupt_agent."
 	if currentChat.PlanMode.Valid && currentChat.PlanMode.ChatPlanMode == database.ChatPlanModePlan {
 		description += " During plan mode, type=\"" + subagentTypeGeneral +
-			"\" is for non-mutating substantial investigation and planning support, " +
-			"and type=\"" + subagentTypeExplore +
-			"\" is for narrow repository-local lookup or tracing. Both may use " +
-			"shell commands for exploration and inspection, but only type=\"" +
-			subagentTypeGeneral +
-			"\" should be used for cloning repositories or non-local investigation. " +
-			"They must not implement changes or edit existing project files; " +
-			"cloning by type=\"general\" for inspection is the only intentional workspace-write exception."
+			"\" is for substantial investigation and planning support. " +
+			"General planning agents follow this boundary: " +
+			planningInvestigationGuidance + " Type=\"" + subagentTypeExplore +
+			"\" is for narrow repository-local lookup or tracing and retains " +
+			"Explore Mode's stricter prohibition on workspace modifications. " +
+			"Assign work requiring setup or isolated experiments to type=\"" +
+			subagentTypeGeneral + "\" instead."
 	}
 	return description
 }
@@ -354,7 +353,7 @@ func formatSubagentDefinitionsWithDescriptionOverrides(
 
 func planningOverlaySubagentGuidance() string {
 	planModeDescriptions := map[string]string{
-		subagentTypeGeneral: "non-mutating substantial investigation, analysis, and planning support",
+		subagentTypeGeneral: "substantial investigation, analysis, and planning support without implementing the proposal",
 		subagentTypeExplore: "narrow repository-local codebase lookup and code tracing",
 	}
 
