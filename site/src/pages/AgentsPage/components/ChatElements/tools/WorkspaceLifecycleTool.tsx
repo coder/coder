@@ -3,7 +3,8 @@ import { ToolCall } from "./ToolCall";
 import type { ToolStatus } from "./utils";
 import { WorkspaceBuildLogSection } from "./WorkspaceBuildLogSection";
 
-type StartWorkspaceToolProps = {
+type WorkspaceLifecycleToolProps = {
+	action: "start" | "stop";
 	status: ToolStatus;
 	buildId?: string;
 	workspaceName: string;
@@ -13,7 +14,8 @@ type StartWorkspaceToolProps = {
 	labelOverride?: string;
 };
 
-export const StartWorkspaceTool: FC<StartWorkspaceToolProps> = ({
+export const WorkspaceLifecycleTool: FC<WorkspaceLifecycleToolProps> = ({
+	action,
 	status,
 	buildId,
 	workspaceName,
@@ -23,16 +25,18 @@ export const StartWorkspaceTool: FC<StartWorkspaceToolProps> = ({
 	labelOverride,
 }) => {
 	const isRunning = status === "running";
+	const completed = action === "start" ? "Started" : "Stopped";
 
-	const label = isRunning
-		? "Starting workspace…"
-		: labelOverride
-			? labelOverride
-			: isError
-				? `Failed to start ${workspaceName || "workspace"}`
-				: workspaceName
-					? `Started ${workspaceName}`
-					: "Started workspace";
+	let label: string;
+	if (isRunning) {
+		label = action === "start" ? "Starting workspace…" : "Stopping workspace…";
+	} else if (labelOverride) {
+		label = labelOverride;
+	} else if (isError) {
+		label = `Failed to ${action} ${workspaceName || "workspace"}`;
+	} else {
+		label = `${completed} ${workspaceName || "workspace"}`;
+	}
 
 	const hasBuildLogs = (isRunning || Boolean(buildId)) && !noBuild;
 
@@ -41,11 +45,11 @@ export const StartWorkspaceTool: FC<StartWorkspaceToolProps> = ({
 			className="w-full"
 			status={status}
 			isError={isError}
-			errorMessage={errorMessage || "Failed to start workspace"}
+			errorMessage={errorMessage || `Failed to ${action} workspace`}
 			hasContent={hasBuildLogs}
 			defaultExpanded={isRunning}
 		>
-			<ToolCall.Header iconName="start_workspace" label={label} />
+			<ToolCall.Header iconName={`${action}_workspace`} label={label} />
 			<ToolCall.Content>
 				<WorkspaceBuildLogSection status={status} buildId={buildId} />
 			</ToolCall.Content>
