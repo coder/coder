@@ -92,13 +92,16 @@ const renderWithQueryClient = () => {
 const refetchCatalog = async (
 	queryClient: ReturnType<typeof createTestQueryClient>,
 	getChatModels: { mock: { calls: unknown[] } },
+	expectedCalls = 2,
 ) => {
 	await act(() =>
 		queryClient.invalidateQueries({
 			queryKey: organizationChatModelsKey(MockDefaultOrganization.id),
 		}),
 	);
-	await waitFor(() => expect(getChatModels.mock.calls).toHaveLength(2));
+	await waitFor(() =>
+		expect(getChatModels.mock.calls).toHaveLength(expectedCalls),
+	);
 };
 
 describe("OrganizationAgentSettings", () => {
@@ -176,12 +179,13 @@ describe("OrganizationAgentSettings", () => {
 		const getChatModels = vi
 			.spyOn(API.experimental, "getChatModels")
 			.mockResolvedValueOnce(chatModelsResponse([defaultModel, alternateModel]))
-			.mockResolvedValue(
+			.mockResolvedValueOnce(
 				chatModelsResponse([
 					defaultModel,
 					{ ...alternateModel, enabled: false },
 				]),
-			);
+			)
+			.mockResolvedValue(chatModelsResponse([defaultModel, alternateModel]));
 		mockOverridesAndUpdate();
 		const user = userEvent.setup();
 		const queryClient = renderWithQueryClient();
@@ -192,11 +196,22 @@ describe("OrganizationAgentSettings", () => {
 			alternateModel,
 		);
 		await refetchCatalog(queryClient, getChatModels);
-
 		await within(defaultSection).findByRole(
 			"combobox",
 			pickerName(defaultModel),
 		);
+
+		// Relisting the dropped model must not resurrect the selection.
+		await refetchCatalog(queryClient, getChatModels, 3);
+		await user.click(
+			await within(defaultSection).findByRole(
+				"combobox",
+				pickerName(defaultModel),
+			),
+		);
+		await screen.findByRole("option", {
+			name: new RegExp(alternateModel.display_name),
+		});
 	});
 
 	it("follows a refetched default after the saved model is reselected", async () => {
