@@ -88,7 +88,7 @@ Because `~/.coder/skills` is itself a scan root, skills placed directly under it
 
 Each discovered skill contributes its name and description to the `<available-skills>` block in the agent's system prompt.
 The full instructions are loaded only when the agent calls a tool, and they are served from the chat's pinned snapshot rather than read live from the workspace.
-A skill added after a chat pinned its snapshot appears in that chat after you refresh its context.
+A skill added after a chat pinned its snapshot reaches an active chat on the agent's next push, as described under [How the workspace shares context with chats](#how-the-workspace-shares-context-with-chats); a skill that changed, or that replaces one of the same name, waits for you to refresh the chat's context.
 
 Two tools are registered when skills are present:
 
