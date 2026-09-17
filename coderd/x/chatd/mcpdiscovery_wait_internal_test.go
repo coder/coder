@@ -213,6 +213,37 @@ func TestMCPDiscoveryAttemptKeptWhenRunIDLookupFails(t *testing.T) {
 	server.mcpDiscoveryMu.Unlock()
 }
 
+func TestMCPDiscoveryTimedOutAttemptKeyedToObservedRun(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitLong)
+	// The agent restarts while the first wait is in flight: the cache key
+	// was read as run A, the wait spends its budget on run B.
+	runA, runB := "run-a", "run-b"
+	db := &mcpDiscoveryProbeStore{}
+	db.agentRunID.Store(&runA)
+	db.read = func(context.Context, uuid.UUID) (database.WorkspaceAgentContextSnapshot, error) {
+		db.agentRunID.Store(&runB)
+		return database.WorkspaceAgentContextSnapshot{AgentRunID: runB, McpDiscoveryPhase: database.WorkspaceAgentMcpDiscoveryPhasePending}, nil
+	}
+	server := &Server{db: db, logger: testutil.Logger(t)}
+	chatID, agentID := uuid.New(), uuid.New()
+	// The first poll already observes run B; the caller's deadline then
+	// ends the wait without spending the full budget.
+	waitCtx, cancel := context.WithTimeout(ctx, testutil.IntervalMedium)
+	defer cancel()
+	require.True(t, server.waitForMCPDiscovery(waitCtx, chatID, agentID).WaitTimedOut)
+	calls := db.calls.Load()
+
+	// The next turn reads run B and must reuse the spent attempt rather
+	// than spend another budget on the same process.
+	got := server.waitForMCPDiscovery(ctx, chatID, agentID)
+	require.True(t, got.WaitTimedOut)
+	require.LessOrEqual(t, db.calls.Load()-calls, int32(1), "one refresh read, no new wait")
+	server.mcpDiscoveryMu.Lock()
+	require.Equal(t, runB, server.mcpDiscoveryAttempts[chatID].agentRunID)
+	server.mcpDiscoveryMu.Unlock()
+}
+
 func TestMCPDiscoveryTimedOutAttemptRefreshedOnceComplete(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitLong)

@@ -32,7 +32,9 @@ const mcpDiscoveryRefreshTimeout = 2 * time.Second
 // up the chat spends its own bounded wait; the cache is an optimization,
 // not the bound.
 type mcpDiscoveryAttempt struct {
-	agentID    uuid.UUID
+	agentID uuid.UUID
+	// agentRunID is guarded by Server.mcpDiscoveryMu: the run id the wait
+	// started on, replaced by the run it last observed once it settles.
 	agentRunID string
 	done       chan struct{}
 	// outcome is written by the owning goroutine before done is closed and
@@ -114,7 +116,21 @@ func (p *Server) waitForMCPDiscovery(ctx context.Context, chatID, agentID uuid.U
 	p.mcpDiscoveryMu.Unlock()
 
 	outcome := chattool.WaitForMCPDiscovery(ctx, p.db, agentID)
+	observedRunID := agentRunID
+	if outcome.WaitTimedOut {
+		// The agent may have restarted during the wait, in which case the
+		// wait spent its budget on the new process; key the spent attempt
+		// to that process so the next turn reuses it instead of waiting
+		// again. The read outlives a canceled turn because the attempt
+		// stays cached for later turns.
+		readCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), mcpDiscoveryRefreshTimeout)
+		if current, err := p.db.GetWorkspaceAgentByID(readCtx, agentID); err == nil {
+			observedRunID = current.AgentRunID
+		}
+		cancel()
+	}
 	p.mcpDiscoveryMu.Lock()
+	attempt.agentRunID = observedRunID
 	if outcome.WaitTimedOut {
 		attempt.expiresAt = now.Add(mcpDiscoveryAttemptRetention)
 	} else if p.mcpDiscoveryAttempts[chatID] == attempt {
