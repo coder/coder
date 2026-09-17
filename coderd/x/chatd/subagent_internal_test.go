@@ -2708,7 +2708,8 @@ func TestSpawnAgent_PlanModeDescriptionOmitsComputerUse(t *testing.T) {
 	require.Contains(t, description, `type="explore" is for narrow repository-local lookup or tracing`)
 	require.Contains(t, description, `only type="general" should be used for cloning repositories or non-local investigation`)
 	require.NotContains(t, description, "Both may use shell commands for exploration, such as cloning repositories")
-	require.Contains(t, description, "must not implement changes or intentionally modify workspace files")
+	require.Contains(t, description, "must not implement changes or edit existing project files")
+	require.Contains(t, description, `cloning by type="general" for inspection is the only intentional workspace-write exception`)
 }
 
 func TestSpawnAgent_PlanModeRejectsComputerUse(t *testing.T) {

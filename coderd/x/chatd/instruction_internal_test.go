@@ -7,6 +7,7 @@ import (
 	"charm.land/fantasy"
 	"github.com/stretchr/testify/require"
 
+	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/codersdk"
@@ -125,6 +126,10 @@ func TestDefaultSystemPromptTaskDiscipline(t *testing.T) {
 		"Batch independent lookups",
 		"Run dependent operations sequentially",
 		"A timeout or background process identifier is not a successful result",
+		"Before retrying any action that may have side effects",
+		"check whether it already took effect",
+		"Follow the user's requested output format",
+		"When the user corrects or disputes your work, re-check the relevant assumptions and evidence",
 		"Preserve unrelated user changes",
 		"run the relevant tests, lint, type checks, or build",
 		"except checks the user explicitly asked you to skip",
@@ -151,6 +156,105 @@ func TestDefaultSystemPromptTaskDiscipline(t *testing.T) {
 		"DO NOT provide an answer",
 	} {
 		require.NotContains(t, DefaultSystemPrompt, instruction)
+	}
+}
+
+func TestPlanningPromptContract(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name         string
+		mode         systemPromptBehaviorContext
+		want         []string
+		dontWant     []string
+		hasWorkspace bool
+	}{
+		{
+			name: "Conversation",
+			mode: systemPromptBehaviorContext{isRootChat: true},
+			want: []string{
+				"If the user requests only a plan, deliver it without implementing it",
+				"If the user asks you to plan and implement, proceed with the authorized implementation",
+				"present the plan in the conversation unless the user requests a file",
+				"A supplied path does not require you to create a file",
+			},
+			dontWant: []string{
+				"Present the plan to the user and wait for review before starting implementation",
+				"Write the file first, then present it",
+				"1. Use spawn_agent and wait_agent",
+				"You are in Plan Mode.",
+			},
+			hasWorkspace: true,
+		},
+		{
+			name: "DetachedConversation",
+			mode: systemPromptBehaviorContext{isRootChat: true},
+			want: []string{
+				"present the plan in the conversation unless the user requests a file",
+				"Do not create a workspace solely to store a conversational plan",
+			},
+			dontWant: []string{"<plan-file-path>", "call propose_plan"},
+		},
+		{
+			name: "PlanMode",
+			mode: systemPromptBehaviorContext{
+				planMode:   database.NullChatPlanMode{ChatPlanMode: database.ChatPlanModePlan, Valid: true},
+				isRootChat: true,
+			},
+			want: []string{
+				"You are in Plan Mode.",
+				"Do not use Plan Mode to implement the requested changes",
+				"When the plan is ready, call propose_plan with the plan file path",
+				"After a successful propose_plan call, stop immediately",
+			},
+			hasWorkspace: true,
+		},
+		{
+			name: "PlanDelegate",
+			mode: systemPromptBehaviorContext{
+				planMode: database.NullChatPlanMode{ChatPlanMode: database.ChatPlanModePlan, Valid: true},
+			},
+			want: []string{
+				"You are in Plan Mode as a delegated sub-agent",
+				"cloning a missing repository for inspection is permitted setup",
+				"Do not implement changes, edit existing project files, or author the parent agent's final plan file",
+			},
+			dontWant: []string{
+				"Do not implement changes or intentionally modify workspace files",
+				"call propose_plan",
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			deploymentPrompt := DefaultSystemPrompt
+			var subagentInstruction string
+			if !tc.mode.isRootChat {
+				deploymentPrompt = strings.Replace(deploymentPrompt, subagentOrchestrationPromptBlock, "", 1)
+				subagentInstruction = defaultSubagentInstruction
+			}
+			messages := chatprompt.InsertSystem(nil, deploymentPrompt)
+			messages = buildSystemPrompt(messages, subagentInstruction, "", nil, "", tc.mode)
+			var pathBlock string
+			if tc.hasWorkspace {
+				pathBlock = formatPlanPathBlock("/home/coder/.coder/plans/PLAN-test.md", "/home/coder")
+			}
+			messages = renderPlanPathPrompt(messages, pathBlock)
+			text := systemPromptText(t, messages)
+			for _, want := range tc.want {
+				require.Contains(t, text, want)
+			}
+			for _, unwanted := range tc.dontWant {
+				require.NotContains(t, text, unwanted)
+			}
+			require.NotContains(t, text, defaultSystemPromptPlanPathBlockPlaceholder)
+			if tc.hasWorkspace {
+				require.Contains(t, text, "<plan-file-path>\nYour plan file path for this chat is:")
+			} else {
+				require.NotContains(t, text, "<plan-file-path>\nYour plan file path for this chat is:")
+			}
+		})
 	}
 }
 

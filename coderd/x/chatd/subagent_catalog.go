@@ -20,11 +20,6 @@ const (
 	subagentTypeGeneral     = "general"
 	subagentTypeExplore     = "explore"
 	subagentTypeComputerUse = "computer_use"
-
-	defaultSystemPromptPlanningGuidance = "1. Delegate context gathering with " +
-		spawnAgentToolName + " when it helps, only after defining the question or " +
-		"deliverable, scope, available inputs, and completion criteria. Follow the " +
-		spawnAgentToolName + " description for agent selection and ownership."
 )
 
 // unbilledSubagentToolNames excludes parent-side orchestration because
@@ -345,7 +340,8 @@ func buildSpawnAgentDescription(
 			"shell commands for exploration and inspection, but only type=\"" +
 			subagentTypeGeneral +
 			"\" should be used for cloning repositories or non-local investigation. " +
-			"They must not implement changes or intentionally modify workspace files."
+			"They must not implement changes or edit existing project files; " +
+			"cloning by type=\"general\" for inspection is the only intentional workspace-write exception."
 	}
 	return description
 }
