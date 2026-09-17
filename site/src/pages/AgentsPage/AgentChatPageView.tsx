@@ -710,9 +710,11 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 					/>
 				) : null;
 			case "desktop":
-				return availableDesktopChatId ? (
+				return workspace && workspaceAgent && availableDesktopChatId ? (
 					<DesktopPanel
 						chatId={availableDesktopChatId}
+						workspace={workspace}
+						workspaceAgent={workspaceAgent}
 						isVisible={effectiveSidebarTabId === "desktop"}
 					/>
 				) : null;

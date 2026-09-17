@@ -1,7 +1,16 @@
 import { ExternalLinkIcon } from "lucide-react";
 import type { FC } from "react";
 import { useEffect, useState } from "react";
-
+import { useMutation, useQueryClient } from "react-query";
+import { toast } from "sonner";
+import { getErrorMessage } from "#/api/errors";
+import { startWorkspace } from "#/api/queries/workspaces";
+import type {
+	Workspace,
+	WorkspaceAgent,
+	WorkspaceAgentStatus,
+	WorkspaceStatus,
+} from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import { Spinner } from "#/components/Spinner/Spinner";
 import {
@@ -13,11 +22,25 @@ import { DesktopToolbar, type ScaleMode } from "./DesktopToolbar";
 
 interface DesktopPanelProps {
 	chatId: string;
+	workspace: Workspace;
+	workspaceAgent: WorkspaceAgent;
 	/** When true the panel is the active sidebar tab. */
 	isVisible?: boolean;
 }
 
-export const DesktopPanel: FC<DesktopPanelProps> = ({ chatId, isVisible }) => {
+/** Build statuses from which the workspace can be started again. */
+const startableWorkspaceStatuses: readonly WorkspaceStatus[] = [
+	"stopped",
+	"failed",
+	"canceled",
+];
+
+export const DesktopPanel: FC<DesktopPanelProps> = ({
+	chatId,
+	workspace,
+	workspaceAgent,
+	isVisible,
+}) => {
 	// Delay the VNC connection until the desktop tab is first selected.
 	// Once activated, the connection stays alive even when the tab is
 	// switched away.
@@ -25,6 +48,14 @@ export const DesktopPanel: FC<DesktopPanelProps> = ({ chatId, isVisible }) => {
 	if (isVisible && !activated) {
 		setActivated(true);
 	}
+
+	const queryClient = useQueryClient();
+	const { mutate: start, isPending: isStartingWorkspace } = useMutation({
+		...startWorkspace(workspace, queryClient),
+		onError: (error) => {
+			toast.error(getErrorMessage(error, "Failed to start workspace."));
+		},
+	});
 
 	const [isControlling, setIsControlling] = useState(false);
 	if (!isVisible && isControlling) {
@@ -34,9 +65,14 @@ export const DesktopPanel: FC<DesktopPanelProps> = ({ chatId, isVisible }) => {
 	const [scaleMode, setScaleMode] = useState<ScaleMode>("fit");
 	const [isPoppedOut, setIsPoppedOut] = useState(false);
 
+	// The desktop endpoint rejects any agent that is not connected, so
+	// gate the connection on the agent state from the workspace watch.
+	// This tears the session down when the workspace stops and dials
+	// again as soon as the agent reconnects, without manual retries.
 	const { status, reconnect, attach } = useDesktopConnection({
 		chatId: isPoppedOut ? undefined : chatId,
-		activated: activated && !isPoppedOut,
+		activated:
+			activated && !isPoppedOut && workspaceAgent.status === "connected",
 		scaleViewport: scaleMode === "fit",
 	});
 
@@ -95,6 +131,10 @@ export const DesktopPanel: FC<DesktopPanelProps> = ({ chatId, isVisible }) => {
 	return (
 		<DesktopPanelView
 			status={status}
+			workspaceStatus={workspace.latest_build.status}
+			agentStatus={workspaceAgent.status}
+			onStartWorkspace={() => start({})}
+			isStartingWorkspace={isStartingWorkspace}
 			reconnect={reconnect}
 			attach={attach}
 			scaleMode={scaleMode}
@@ -109,6 +149,10 @@ export const DesktopPanel: FC<DesktopPanelProps> = ({ chatId, isVisible }) => {
 
 export interface DesktopPanelViewProps {
 	status: DesktopConnectionStatus;
+	workspaceStatus: WorkspaceStatus;
+	agentStatus: WorkspaceAgentStatus;
+	onStartWorkspace: () => void;
+	isStartingWorkspace: boolean;
 	reconnect: () => void;
 	attach: (container: HTMLElement) => void;
 	scaleMode: ScaleMode;
@@ -121,6 +165,10 @@ export interface DesktopPanelViewProps {
 
 export const DesktopPanelView: FC<DesktopPanelViewProps> = ({
 	status,
+	workspaceStatus,
+	agentStatus,
+	onStartWorkspace,
+	isStartingWorkspace,
 	reconnect,
 	attach,
 	scaleMode,
@@ -130,6 +178,38 @@ export const DesktopPanelView: FC<DesktopPanelViewProps> = ({
 	onReleaseControl,
 	onPopOut,
 }) => {
+	if (startableWorkspaceStatuses.includes(workspaceStatus)) {
+		return (
+			<div className="flex h-full flex-col items-center justify-center gap-3 text-content-secondary">
+				<span className="text-center text-sm">
+					The workspace is stopped. Start it to reconnect to the desktop.
+				</span>
+				<Button
+					variant="outline"
+					size="sm"
+					onClick={onStartWorkspace}
+					disabled={isStartingWorkspace}
+				>
+					<Spinner loading={isStartingWorkspace} />
+					Start workspace
+				</Button>
+			</div>
+		);
+	}
+
+	if (workspaceStatus !== "running" || agentStatus !== "connected") {
+		return (
+			<div className="flex h-full flex-col items-center justify-center gap-2 text-content-secondary">
+				<Spinner loading className="size-6" />
+				<span className="text-sm">
+					{workspaceStatus === "running"
+						? "Waiting for the workspace agent to connect..."
+						: `Workspace is ${workspaceStatus}...`}
+				</span>
+			</div>
+		);
+	}
+
 	if (status === "connecting") {
 		return (
 			<div className="flex h-full flex-col items-center justify-center gap-2 text-content-secondary">
