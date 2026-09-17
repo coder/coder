@@ -32,11 +32,20 @@ import {
 import { formatContextLimit } from "#/modules/aiModels/ModelSelector";
 import { ProviderIcon } from "#/modules/aiModels/ProviderIcon";
 import { formatProviderLabel } from "#/utils/aiProviders";
+import {
+	compactionTriggerTokens,
+	resolveCompactionContextLimit,
+} from "../utils/modelOptions";
 
 interface UserCompactionThresholdSettingsProps {
 	models: readonly TypesGen.ChatModel[];
 	providerTypeByID: ReadonlyMap<string, string>;
 	organizations: readonly TypesGen.Organization[];
+	/**
+	 * Organization ID to the model config the organization routes compaction
+	 * through. Missing entries mean the chat model summarizes itself.
+	 */
+	compactionModelIDByOrganization?: ReadonlyMap<string, string>;
 	modelsError?: unknown;
 	isLoadingModels?: boolean;
 	thresholds: readonly TypesGen.UserChatCompactionThreshold[] | undefined;
@@ -63,18 +72,6 @@ const parseThresholdDraft = (value: string): number | null => {
 	return parsedValue;
 };
 
-/**
- * Number of tokens at which compaction triggers for the given context
- * window and threshold, or undefined when the window is unknown.
- */
-const compactionTriggerTokens = (
-	contextLimit: number,
-	thresholdPercent: number,
-): number | undefined =>
-	contextLimit > 0
-		? Math.round((contextLimit * thresholdPercent) / 100)
-		: undefined;
-
 const ContextCompactionHeader: FC = () => (
 	<div className="flex flex-col gap-2">
 		<h3 className="m-0 text-sm font-semibold text-content-primary">
@@ -93,6 +90,7 @@ export const UserCompactionThresholdSettings: FC<
 	models,
 	providerTypeByID,
 	organizations,
+	compactionModelIDByOrganization = new Map<string, string>(),
 	modelsError,
 	isLoadingModels,
 	thresholds,
@@ -381,8 +379,13 @@ export const UserCompactionThresholdSettings: FC<
 									parsedDraftValue ??
 									existingOverride ??
 									modelConfig.compression_threshold;
+								const contextLimit = resolveCompactionContextLimit(
+									modelConfig,
+									models,
+									compactionModelIDByOrganization,
+								);
 								const triggerTokens = compactionTriggerTokens(
-									modelConfig.context_limit,
+									contextLimit,
 									effectiveThreshold,
 								);
 
@@ -413,18 +416,14 @@ export const UserCompactionThresholdSettings: FC<
 											)}
 										</TableCell>
 										<TableCell className="w-0 whitespace-nowrap tabular-nums">
-											{modelConfig.context_limit > 0 ? (
+											{contextLimit > 0 ? (
 												<div className="flex flex-col">
-													<span>
-														{formatContextLimit(modelConfig.context_limit)}{" "}
-														tokens
-													</span>
-													{triggerTokens !== undefined &&
-														effectiveThreshold < 100 && (
-															<span className="text-2xs text-content-secondary">
-																Compacts at ~{formatContextLimit(triggerTokens)}
-															</span>
-														)}
+													<span>{formatContextLimit(contextLimit)} tokens</span>
+													{triggerTokens !== undefined && (
+														<span className="text-2xs text-content-secondary">
+															Compacts at ~{formatContextLimit(triggerTokens)}
+														</span>
+													)}
 												</div>
 											) : (
 												<span className="text-content-secondary">Unknown</span>
