@@ -462,14 +462,7 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 			}
 
 			prMeta := loadPRMetadata(w, ghAvailable, commits)
-
-			var breakingCommits []commitEntry
-			for _, c := range commits {
-				meta := prMeta.lookupCommit(c.FullSHA, c.PRCount)
-				if categorizeCommit(c.Title, meta.Labels) == "breaking" {
-					breakingCommits = append(breakingCommits, c)
-				}
-			}
+			breakingCommits := findBreakingCommits(commits, prMeta)
 
 			if len(breakingCommits) > 0 {
 				fmt.Fprintln(w)
