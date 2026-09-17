@@ -12,30 +12,35 @@
 
 set -euo pipefail
 
-# Slowest test packages by CI wall time (test-go-pg ubuntu, Sep 2026), slowest
-# first, relative to the module path. Roughly right is good enough: packages
+# Test packages by CI wall time (test-go-pg ubuntu, Sep 2026), relative to the
+# module path. The heavy packages (100s+) start first and run for most of the
+# job; the light packages fill the remaining slots and their builds overlap
+# with the heavy runs instead of forming a tail; the medium packages (20-100s)
+# start once heavy slots free up. Roughly right is good enough: packages
 # missing from the pattern set are skipped and everything else keeps go list
 # order.
 heavy="
 coderd
+enterprise/coderd
 coderd/database
 cli
 coderd/database/migrations
-enterprise/coderd
-enterprise
-enterprise/cli
+"
+medium="
 coderd/x/chatd
-codersdk/toolsdk
 enterprise/wsproxy
-coderd/notifications
+enterprise/cli
+enterprise
+codersdk/toolsdk
 coderd/database/dbauthz
+enterprise/coderd/prebuilds
+coderd/notifications
+coderd/x/chatd/chatstate
 tailnet
 coderd/database/dbpurge
 scaletest/workspacebuild
 coderd/httpapi
 provisioner/terraform
-enterprise/coderd/prebuilds
-coderd/x/chatd/chatstate
 scaletest/createworkspaces
 coderd/database/pubsub
 agent
@@ -53,29 +58,42 @@ fi
 
 module="$(go list -m)"
 
-go list -tags=testsmallbatch "$@" | awk -v heavy="$heavy" -v module="$module" '
+go list -tags=testsmallbatch "$@" | awk -v heavy="$heavy" -v medium="$medium" -v module="$module" '
 BEGIN {
-	n = split(heavy, list, /[[:space:]]+/)
-	for (i = 1; i <= n; i++) {
-		if (list[i] != "") {
-			rank[module "/" list[i]] = i
+	nh = split(heavy, hlist, /[[:space:]]+/)
+	for (i = 1; i <= nh; i++) {
+		if (hlist[i] != "") {
+			hrank[module "/" hlist[i]] = i
+		}
+	}
+	nm = split(medium, mlist, /[[:space:]]+/)
+	for (i = 1; i <= nm; i++) {
+		if (mlist[i] != "") {
+			mrank[module "/" mlist[i]] = i
 		}
 	}
 }
 {
-	if ($0 in rank) {
-		found[rank[$0]] = $0
+	if ($0 in hrank) {
+		hfound[hrank[$0]] = $0
+	} else if ($0 in mrank) {
+		mfound[mrank[$0]] = $0
 	} else {
-		rest[++m] = $0
+		rest[++nr] = $0
 	}
 }
 END {
-	for (i = 1; i <= n; i++) {
-		if (i in found) {
-			print found[i]
+	for (i = 1; i <= nh; i++) {
+		if (i in hfound) {
+			print hfound[i]
 		}
 	}
-	for (i = 1; i <= m; i++) {
+	for (i = 1; i <= nr; i++) {
 		print rest[i]
+	}
+	for (i = 1; i <= nm; i++) {
+		if (i in mfound) {
+			print mfound[i]
+		}
 	}
 }'
