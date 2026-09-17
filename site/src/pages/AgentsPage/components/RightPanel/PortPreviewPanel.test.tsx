@@ -11,6 +11,10 @@ import {
 	ComposerContext,
 	type ComposerSendResult,
 } from "../../context/ComposerContext";
+import {
+	type TabPopoutMessage,
+	tabPopoutChannelName,
+} from "../../utils/rightPanelTabPopout";
 import type { UserRightPanelTab } from "../../utils/rightPanelTabs";
 import { PortPreviewPanel } from "./PortPreviewPanel";
 
@@ -40,6 +44,7 @@ function renderPanel(onSend = sent(), readyTimeoutMs?: number) {
 	const panel = (send: Send | undefined, isAgentWorking: boolean) => (
 		<ComposerContext value={send ? { send } : undefined}>
 			<PortPreviewPanel
+				chatId="chat-1"
 				workspace={MockWorkspace}
 				agent={MockWorkspaceAgent}
 				host="*.apps.example.com"
@@ -589,6 +594,138 @@ describe("PortPreviewPanel annotations", () => {
 				{ type: "coder-annotator:clear-highlights" },
 				frameOrigin,
 			),
+		);
+	});
+
+	it("steps aside while the tab is shown in its own window", async () => {
+		const open = vi.spyOn(window, "open").mockReturnValue(window);
+		const popoutWindow = new BroadcastChannel(tabPopoutChannelName(tab.id));
+		const fromChat: TabPopoutMessage[] = [];
+		popoutWindow.addEventListener("message", (event) => {
+			fromChat.push(event.data as TabPopoutMessage);
+		});
+		const { onSend } = renderPanel();
+		try {
+			// The panel asks whether a window is already showing the tab.
+			await waitFor(() =>
+				expect(fromChat).toContainEqual({ type: "probe" } as TabPopoutMessage),
+			);
+
+			await userEvent.click(
+				screen.getByRole("button", { name: "Open in a separate window" }),
+			);
+			expect(open).toHaveBeenCalledWith(
+				"/agents/chat-1/tabs/port-3000",
+				tabPopoutChannelName(tab.id),
+				expect.stringContaining("popup"),
+			);
+
+			// The window announces itself; the panel replaces its preview with a
+			// placeholder rather than run a second copy of the app.
+			popoutWindow.postMessage({
+				type: "popout-opened",
+			} satisfies TabPopoutMessage);
+			await screen.findByRole("button", { name: "Bring back" });
+			expect(screen.queryByTitle("Preview :3000")).not.toBeInTheDocument();
+			expect(
+				screen.queryByRole("button", { name: /annotate elements/i }),
+			).not.toBeInTheDocument();
+			await waitFor(() =>
+				expect(fromChat).toContainEqual({
+					type: "chat-state",
+					isAgentWorking: false,
+				} satisfies TabPopoutMessage),
+			);
+
+			// The window sends through this chat's composer.
+			popoutWindow.postMessage({
+				type: "send",
+				id: "send-1",
+				message: "# UI annotations",
+			} satisfies TabPopoutMessage);
+			await waitFor(() =>
+				expect(fromChat).toContainEqual({
+					type: "send-result",
+					id: "send-1",
+					result: "sent",
+				} satisfies TabPopoutMessage),
+			);
+			expect(onSend).toHaveBeenCalledWith("# UI annotations");
+
+			// Bring back asks the window to close and restores the preview.
+			await userEvent.click(screen.getByRole("button", { name: "Bring back" }));
+			await waitFor(() =>
+				expect(fromChat).toContainEqual({
+					type: "bring-back",
+				} satisfies TabPopoutMessage),
+			);
+			expect(screen.getByTitle("Preview :3000")).toBeInTheDocument();
+		} finally {
+			popoutWindow.close();
+			open.mockRestore();
+		}
+	});
+
+	it("restores the preview when the window closes on its own", async () => {
+		renderPanel();
+		const popoutWindow = new BroadcastChannel(tabPopoutChannelName(tab.id));
+		try {
+			popoutWindow.postMessage({
+				type: "popout-opened",
+			} satisfies TabPopoutMessage);
+			await screen.findByRole("button", { name: "Bring back" });
+			popoutWindow.postMessage({
+				type: "popout-closed",
+			} satisfies TabPopoutMessage);
+			await screen.findByTitle("Preview :3000");
+		} finally {
+			popoutWindow.close();
+		}
+	});
+
+	it("starts annotating when it is the tab's own window", async () => {
+		const onSend = sent();
+		renderComponent(
+			<ComposerContext value={{ send: onSend }}>
+				<PortPreviewPanel
+					chatId="chat-1"
+					workspace={MockWorkspace}
+					agent={MockWorkspaceAgent}
+					host="*.apps.example.com"
+					tab={tab}
+					canAnnotate
+					isPopoutWindow
+				/>
+			</ComposerContext>,
+		);
+		const frame = screen.getByTitle<HTMLIFrameElement>("Preview :3000");
+		expect(new URL(frame.src).searchParams.get("coder_annotate")).toBe("1");
+		expect(frame).toHaveAttribute(
+			"sandbox",
+			expect.stringContaining("allow-scripts"),
+		);
+		expect(frame.getAttribute("sandbox")).not.toContain("allow-top-navigation");
+		expect(annotateButton()).toHaveAttribute("aria-pressed", "true");
+		// The app can be opened directly; there is no further window to open.
+		expect(screen.getByLabelText("Open port in new tab")).toHaveAttribute(
+			"href",
+			expect.stringContaining("3000--"),
+		);
+		expect(
+			screen.queryByRole("button", { name: "Open in a separate window" }),
+		).not.toBeInTheDocument();
+
+		const postMessage = vi.spyOn(frameWindow(frame), "postMessage");
+		window.dispatchEvent(
+			new MessageEvent("message", {
+				data: { type: "coder-annotator:ready" },
+				origin: new URL(frame.src).origin,
+				source: frameWindow(frame),
+			}),
+		);
+		expect(postMessage).toHaveBeenCalledWith(
+			{ type: "coder-annotator:set-picking", picking: true },
+			new URL(frame.src).origin,
 		);
 	});
 

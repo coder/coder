@@ -23,9 +23,17 @@ import { WorkspaceIframe } from "#/modules/apps/WorkspaceAppFrame";
 import { portForwardURL } from "#/utils/portForward";
 import {
 	type ComposerHandle,
+	type ComposerSendResult,
 	useComposer,
 } from "../../context/ComposerContext";
 import { useAnnotatorBridge } from "../../hooks/useAnnotatorBridge";
+import {
+	isTabPopoutMessage,
+	postToTabPopout,
+	type TabPopoutMessage,
+	tabPopoutChannelName,
+	tabPopoutPath,
+} from "../../utils/rightPanelTabPopout";
 import type { UserRightPanelTab } from "../../utils/rightPanelTabs";
 
 const sendRetries = 6;
@@ -37,6 +45,11 @@ const sendRetryMs = 500;
 const maxPendingSends = 3;
 const overlayUnavailableReason =
 	"The annotation overlay could not load in this app. It may block external scripts or not serve HTML.";
+// The previewed app keeps its own origin and may open windows and
+// dialogs, but it cannot navigate the window it is shown in: a page must
+// never be able to swap the dashboard for a lookalike.
+const previewSandbox =
+	"allow-scripts allow-same-origin allow-forms allow-modals allow-popups allow-popups-to-escape-sandbox allow-downloads";
 // A sent annotation whose turn never starts within this window is
 // forgotten rather than left to light up during an unrelated later turn.
 const turnStartGraceMs = 15_000;
@@ -119,6 +132,7 @@ function dropQueuedSends(queue: SendQueue): number {
 }
 
 export const PortPreviewPanel: React.FC<{
+	chatId: string;
 	workspace: Workspace;
 	agent: WorkspaceAgent;
 	host: string;
@@ -129,14 +143,20 @@ export const PortPreviewPanel: React.FC<{
 	// Drives the shimmer over annotated elements: on while the agent works
 	// on a sent annotation message, cleared when it stops.
 	isAgentWorking?: boolean;
+	// Rendered by the tab's own window rather than the chat page. The
+	// window is opened to annotate in, so annotate mode starts on, and the
+	// control that opens the window becomes a plain link to the app.
+	isPopoutWindow?: boolean;
 	annotatorReadyTimeoutMs?: number;
 }> = ({
+	chatId,
 	workspace,
 	agent,
 	host,
 	tab,
 	canAnnotate = false,
 	isAgentWorking = false,
+	isPopoutWindow = false,
 	annotatorReadyTimeoutMs,
 }) => {
 	const url = portForwardURL(
@@ -163,8 +183,15 @@ export const PortPreviewPanel: React.FC<{
 	// The proxy injects the overlay only on the request that carries the
 	// marker param, so each request reloads the frame. Client-side routing
 	// inside the app keeps the overlay; a full navigation drops it until
-	// the user presses Annotate again.
-	const [overlayRequests, setOverlayRequests] = useState(0);
+	// the user presses Annotate again. The tab's own window is opened to
+	// annotate in, so it asks for the overlay from the start.
+	const [overlayRequests, setOverlayRequests] = useState(
+		isPopoutWindow ? 1 : 0,
+	);
+	// Whether a window of the tab's own is showing it. While one is, the
+	// panel steps aside rather than run a second preview of the same app,
+	// and relays the window's sends through this chat's composer.
+	const [hasPopout, setHasPopout] = useState(false);
 	// Elements from annotations sent this turn, highlighted in the preview
 	// until the agent's turn ends. `started` guards against a send resolving
 	// before the chat reports the turn as running; further annotations sent
@@ -220,11 +247,98 @@ export const PortPreviewPanel: React.FC<{
 		frameRef,
 		frameKey: overlayRequests,
 		frameOrigin: frameUrl ? new URL(frameUrl).origin : undefined,
-		enabled: overlayRequests > 0,
+		enabled: !hasPopout && overlayRequests > 0,
 		readyTimeoutMs: annotatorReadyTimeoutMs,
 		onSubmit: handleSubmit,
 		onRevoke: handleRevoke,
 	});
+
+	// The chat page's side of the tab's window: learn when one opens and
+	// closes, and lend it this chat's composer, under the same gating as
+	// the visible input.
+	useEffect(() => {
+		if (isPopoutWindow) {
+			return;
+		}
+		const channel = new BroadcastChannel(tabPopoutChannelName(tab.id));
+		const reply = (message: TabPopoutMessage) => channel.postMessage(message);
+		channel.addEventListener("message", (event: MessageEvent<unknown>) => {
+			if (!isTabPopoutMessage(event.data)) {
+				return;
+			}
+			const message = event.data;
+			switch (message.type) {
+				case "popout-opened":
+					setHasPopout(true);
+					break;
+				case "popout-closed":
+					setHasPopout(false);
+					break;
+				case "send": {
+					const sent = composer
+						? composer.send(message.message)
+						: Promise.resolve<ComposerSendResult>("busy");
+					sent.then(
+						(result) => reply({ type: "send-result", id: message.id, result }),
+						(error: unknown) =>
+							reply({
+								type: "send-result",
+								id: message.id,
+								result: {
+									error: getErrorMessage(
+										error,
+										"Failed to send UI annotation.",
+									),
+								},
+							}),
+					);
+					break;
+				}
+			}
+		});
+		// A window left open across a reload of this page answers with
+		// popout-opened.
+		channel.postMessage({ type: "probe" } satisfies TabPopoutMessage);
+		return () => channel.close();
+	}, [tab.id, composer, isPopoutWindow]);
+
+	// The window renders the same panel and needs the same chat state.
+	useEffect(() => {
+		if (hasPopout) {
+			postToTabPopout(tab.id, { type: "chat-state", isAgentWorking });
+		}
+	}, [hasPopout, tab.id, isAgentWorking]);
+
+	// Same window geometry as the desktop popout. Naming the window means a
+	// second click focuses and reloads the one already open.
+	const handlePopout = () => {
+		const width = Math.round(screen.availWidth * 0.5);
+		const height = Math.round(screen.availHeight * 0.5);
+		const left = Math.round((screen.availWidth - width) / 2);
+		const top = Math.round((screen.availHeight - height) / 2);
+		const opened = open(
+			tabPopoutPath(chatId, tab.id),
+			tabPopoutChannelName(tab.id),
+			`popup,width=${width},height=${height},left=${left},top=${top}`,
+		);
+		if (!opened) {
+			toast.error(
+				"The browser blocked the window. Allow popups and try again.",
+			);
+		}
+	};
+
+	const handleBringBack = () => {
+		postToTabPopout(tab.id, { type: "bring-back" });
+		setHasPopout(false);
+	};
+
+	// Opened to annotate in: ask for picking as soon as the overlay loads.
+	useEffect(() => {
+		if (isPopoutWindow) {
+			bridge.setPicking(true);
+		}
+	}, [isPopoutWindow, bridge.setPicking]);
 
 	// The overlay is requested at most once per attempt: while it is still
 	// loading, further clicks only toggle the desired picking state instead
@@ -298,7 +412,10 @@ export const PortPreviewPanel: React.FC<{
 	}, [bridge.picking]);
 
 	const showAnnotate =
-		canAnnotate && composer !== undefined && frameUrl !== undefined;
+		canAnnotate &&
+		composer !== undefined &&
+		frameUrl !== undefined &&
+		!hasPopout;
 
 	return (
 		<div className="flex h-full min-h-0 flex-col">
@@ -360,6 +477,30 @@ export const PortPreviewPanel: React.FC<{
 					>
 						<ExternalLinkIcon />
 					</Button>
+				) : canAnnotate && !isPopoutWindow ? (
+					<Tooltip>
+						<TooltipTrigger asChild>
+							<Button
+								size="icon"
+								variant="subtle"
+								aria-label="Open in a separate window"
+								aria-pressed={hasPopout}
+								onClick={handlePopout}
+								className={
+									hasPopout
+										? "bg-surface-tertiary text-content-primary"
+										: undefined
+								}
+							>
+								<ExternalLinkIcon />
+							</Button>
+						</TooltipTrigger>
+						<TooltipContent side="bottom">
+							{hasPopout
+								? "Annotations from the separate window are sent to this chat"
+								: "Open in a separate window; annotations there are sent to this chat"}
+						</TooltipContent>
+					</Tooltip>
 				) : (
 					<Button size="icon" variant="subtle" asChild>
 						<a
@@ -377,12 +518,26 @@ export const PortPreviewPanel: React.FC<{
 				<div className="flex min-h-0 flex-1 items-center justify-center px-6 text-center text-xs text-content-secondary">
 					{unavailableMessage}
 				</div>
+			) : hasPopout ? (
+				<div
+					className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 px-6 text-center text-content-secondary"
+					role="status"
+				>
+					<ExternalLinkIcon className="size-8" />
+					<span className="text-sm">
+						{tab.label} is open in a separate window.
+					</span>
+					<Button variant="outline" size="sm" onClick={handleBringBack}>
+						Bring back
+					</Button>
+				</div>
 			) : (
 				<WorkspaceIframe
 					key={overlayRequests}
 					ref={frameRef}
 					src={frameUrl}
 					title={tab.label}
+					sandbox={previewSandbox}
 					onLoad={bridge.frameLoaded}
 				/>
 			)}

@@ -262,6 +262,7 @@ const UserTabContent: React.FC<UserTabContentProps> = ({
 			}
 			return (
 				<PortPreviewPanel
+					chatId={chatId}
 					workspace={workspace}
 					agent={agent}
 					host={wildcardHostname}
