@@ -189,16 +189,16 @@ func (a *ContextAPI) PushContextState(ctx context.Context, req *agentproto.PushC
 		// after this read is caught by the snapshot upsert: both
 		// processes write the same snapshot row, so repeatable read
 		// aborts the loser and this closure re-runs against the new
-		// run id.
-		if req.AgentRunId != "" {
-			agent, err := tx.GetWorkspaceAgentByID(ctx, a.AgentID)
-			if err != nil {
-				return xerrors.Errorf("get workspace agent: %w", err)
-			}
-			if agent.AgentRunID != "" && agent.AgentRunID != req.AgentRunId {
-				staleRun = true
-				return nil
-			}
+		// run id. An empty request run id is checked too: a current
+		// legacy process cleared the row in UpdateStartup, so a
+		// nonempty row means a newer process has since registered.
+		agent, err := tx.GetWorkspaceAgentByID(ctx, a.AgentID)
+		if err != nil {
+			return xerrors.Errorf("get workspace agent: %w", err)
+		}
+		if agent.AgentRunID != "" && agent.AgentRunID != req.AgentRunId {
+			staleRun = true
+			return nil
 		}
 
 		existing, err := tx.GetLatestWorkspaceAgentContextSnapshot(ctx, a.AgentID)

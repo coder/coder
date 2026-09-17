@@ -58,6 +58,12 @@ func TestPushContextState(t *testing.T) {
 			},
 		)
 	}
+	// expectNoCurrentRun answers the agent row read that precedes every
+	// push with a row holding no run id, so a request without one passes.
+	expectNoCurrentRun := func(dbm *dbmock.MockStore) {
+		dbm.EXPECT().GetWorkspaceAgentByID(gomock.Any(), agentID).
+			Return(database.WorkspaceAgent{ID: agentID}, nil)
+	}
 
 	t.Run("DisabledReturnsUnimplemented", func(t *testing.T) {
 		t.Parallel()
@@ -85,6 +91,7 @@ func TestPushContextState(t *testing.T) {
 
 		api, dbm := makeAPI(t)
 		expectInTx(dbm)
+		expectNoCurrentRun(dbm)
 
 		dbm.EXPECT().GetLatestWorkspaceAgentContextSnapshot(gomock.Any(), agentID).
 			Return(database.WorkspaceAgentContextSnapshot{}, errNoRows())
@@ -117,6 +124,7 @@ func TestPushContextState(t *testing.T) {
 		marker := &fakeDirtyMarker{}
 		api.DirtyMarker = marker
 		expectInTx(dbm)
+		expectNoCurrentRun(dbm)
 
 		dbm.EXPECT().GetLatestWorkspaceAgentContextSnapshot(gomock.Any(), agentID).
 			Return(database.WorkspaceAgentContextSnapshot{}, errNoRows())
@@ -154,6 +162,7 @@ func TestPushContextState(t *testing.T) {
 		marker := &fakeDirtyMarker{}
 		api.DirtyMarker = marker
 		expectInTx(dbm)
+		expectNoCurrentRun(dbm)
 
 		// A non-initial push at a version not strictly greater than the
 		// stored one is dropped before any write; hydration and the
@@ -214,7 +223,10 @@ func TestPushContextState(t *testing.T) {
 			t.Parallel()
 			api, dbm := makeAPI(t)
 			expectInTx(dbm)
-			// An empty run id skips the agent row read entirely.
+			// A legacy process cleared the row in UpdateStartup, so its
+			// empty run id matches.
+			dbm.EXPECT().GetWorkspaceAgentByID(gomock.Any(), agentID).
+				Return(database.WorkspaceAgent{ID: agentID}, nil)
 			dbm.EXPECT().GetLatestWorkspaceAgentContextSnapshot(gomock.Any(), agentID).
 				Return(database.WorkspaceAgentContextSnapshot{}, errNoRows())
 			expectWrites(dbm, database.UpsertWorkspaceAgentContextSnapshotParams{
@@ -243,6 +255,25 @@ func TestPushContextState(t *testing.T) {
 				Version:      7,
 				AgentRunId:   "run-a",
 				McpDiscovery: &agentproto.MCPDiscovery{Phase: agentproto.MCPDiscovery_COMPLETE},
+			})
+			require.NoError(t, err)
+			require.False(t, resp.GetAccepted())
+			require.Equal(t, 0, marker.called)
+		})
+
+		t.Run("LegacyRequestAfterCurrentRunDropped", func(t *testing.T) {
+			t.Parallel()
+			api, dbm := makeAPI(t)
+			marker := &fakeDirtyMarker{}
+			api.DirtyMarker = marker
+			expectInTx(dbm)
+			// A newer process registered a run id after this legacy
+			// process started, so an empty run id is known stale.
+			dbm.EXPECT().GetWorkspaceAgentByID(gomock.Any(), agentID).
+				Return(database.WorkspaceAgent{ID: agentID, AgentRunID: "run-b"}, nil)
+
+			resp, err := api.PushContextState(context.Background(), &agentproto.PushContextStateRequest{
+				Version: 7,
 			})
 			require.NoError(t, err)
 			require.False(t, resp.GetAccepted())
@@ -403,6 +434,7 @@ func TestPushContextState(t *testing.T) {
 
 		api, dbm := makeAPI(t)
 		expectInTx(dbm)
+		expectNoCurrentRun(dbm)
 
 		// Existing version 5 stored; incoming version 3 with initial=false
 		// is a replay/out-of-order push and must be silently dropped
@@ -426,6 +458,7 @@ func TestPushContextState(t *testing.T) {
 
 		api, dbm := makeAPI(t)
 		expectInTx(dbm)
+		expectNoCurrentRun(dbm)
 
 		dbm.EXPECT().GetLatestWorkspaceAgentContextSnapshot(gomock.Any(), agentID).
 			Return(database.WorkspaceAgentContextSnapshot{Version: 5}, nil)
@@ -443,6 +476,7 @@ func TestPushContextState(t *testing.T) {
 
 		api, dbm := makeAPI(t)
 		expectInTx(dbm)
+		expectNoCurrentRun(dbm)
 
 		// Agent rebooted: in-memory counter back to 1 but the stored
 		// version from the previous process boot is 5. initial=true is
@@ -472,6 +506,7 @@ func TestPushContextState(t *testing.T) {
 
 		api, dbm := makeAPI(t)
 		expectInTx(dbm)
+		expectNoCurrentRun(dbm)
 
 		dbm.EXPECT().GetLatestWorkspaceAgentContextSnapshot(gomock.Any(), agentID).
 			Return(database.WorkspaceAgentContextSnapshot{Version: 1}, nil)
@@ -503,6 +538,7 @@ func TestPushContextState(t *testing.T) {
 
 		api, dbm := makeAPI(t)
 		expectInTx(dbm)
+		expectNoCurrentRun(dbm)
 
 		dbm.EXPECT().GetLatestWorkspaceAgentContextSnapshot(gomock.Any(), agentID).
 			Return(database.WorkspaceAgentContextSnapshot{}, errNoRows())
@@ -529,6 +565,7 @@ func TestPushContextState(t *testing.T) {
 
 		api, dbm := makeAPI(t)
 		expectInTx(dbm)
+		expectNoCurrentRun(dbm)
 
 		dbm.EXPECT().GetLatestWorkspaceAgentContextSnapshot(gomock.Any(), agentID).
 			Return(database.WorkspaceAgentContextSnapshot{}, errNoRows())
@@ -579,6 +616,7 @@ func TestPushContextState(t *testing.T) {
 
 		api, dbm := makeAPI(t)
 		expectInTx(dbm)
+		expectNoCurrentRun(dbm)
 
 		dbm.EXPECT().GetLatestWorkspaceAgentContextSnapshot(gomock.Any(), agentID).
 			Return(database.WorkspaceAgentContextSnapshot{}, errNoRows())
@@ -637,6 +675,8 @@ func TestPushContextState(t *testing.T) {
 				},
 			),
 		)
+		dbm.EXPECT().GetWorkspaceAgentByID(gomock.Any(), agentID).
+			Return(database.WorkspaceAgent{ID: agentID}, nil).Times(2)
 		gomock.InOrder(
 			dbm.EXPECT().GetLatestWorkspaceAgentContextSnapshot(gomock.Any(), agentID).
 				Return(database.WorkspaceAgentContextSnapshot{}, errNoRows()),
