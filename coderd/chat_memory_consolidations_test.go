@@ -46,6 +46,9 @@ func TestChatMemoryConsolidationLists(t *testing.T) {
 	require.Len(t, projectRecords, 1)
 	require.Equal(t, codersdk.ChatMemoryConsolidationStatusRunning, projectRecords[0].Status)
 	require.Equal(t, project.ID, *projectRecords[0].ProjectID)
+	// A run without mutations serializes an empty array, never null.
+	require.NotNil(t, projectRecords[0].Mutations)
+	require.Empty(t, projectRecords[0].Mutations)
 
 	personalRecords, err = client.ListChatUserMemoryConsolidations(ctx, firstUser.OrganizationID)
 	require.NoError(t, err)

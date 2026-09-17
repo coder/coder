@@ -94,5 +94,8 @@ func chatMemoryConsolidation(record database.ChatMemoryConsolidation) codersdk.C
 		result.FinishedAt = &record.FinishedAt.Time
 	}
 	_ = json.Unmarshal(record.Mutations, &result.Mutations)
+	if result.Mutations == nil {
+		result.Mutations = []codersdk.ChatMemoryMutation{}
+	}
 	return result
 }

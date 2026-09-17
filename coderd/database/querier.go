@@ -540,6 +540,9 @@ type sqlcQuerier interface {
 	GetChatProjectMemoriesByProjectID(ctx context.Context, projectID uuid.UUID) ([]GetChatProjectMemoriesByProjectIDRow, error)
 	GetChatProjectMemoryByID(ctx context.Context, id uuid.UUID) (GetChatProjectMemoryByIDRow, error)
 	GetChatProjectMemoryByName(ctx context.Context, arg GetChatProjectMemoryByNameParams) (GetChatProjectMemoryByNameRow, error)
+	// Locks the row for the rest of the transaction so a consolidation that
+	// revalidated it cannot be raced by a concurrent edit.
+	GetChatProjectMemoryByNameForUpdate(ctx context.Context, arg GetChatProjectMemoryByNameForUpdateParams) (ChatProjectMemory, error)
 	GetChatProjectsByOrganizationID(ctx context.Context, organizationID uuid.UUID) ([]GetChatProjectsByOrganizationIDRow, error)
 	// Pool fullness distinguishes capacity waits from worker pickup delays.
 	GetChatQueuedForCapacity(ctx context.Context, arg GetChatQueuedForCapacityParams) (bool, error)
@@ -567,6 +570,9 @@ type sqlcQuerier interface {
 	GetChatUserMemoriesByUserAndOrganization(ctx context.Context, arg GetChatUserMemoriesByUserAndOrganizationParams) ([]GetChatUserMemoriesByUserAndOrganizationRow, error)
 	GetChatUserMemoryByID(ctx context.Context, id uuid.UUID) (GetChatUserMemoryByIDRow, error)
 	GetChatUserMemoryByName(ctx context.Context, arg GetChatUserMemoryByNameParams) (GetChatUserMemoryByNameRow, error)
+	// Locks the row for the rest of the transaction so a consolidation that
+	// revalidated it cannot be raced by a concurrent edit.
+	GetChatUserMemoryByNameForUpdate(ctx context.Context, arg GetChatUserMemoryByNameForUpdateParams) (ChatUserMemory, error)
 	GetChatUserModelOverride(ctx context.Context, arg GetChatUserModelOverrideParams) (ChatUserModelOverride, error)
 	GetChatUserModelOverrides(ctx context.Context, arg GetChatUserModelOverridesParams) ([]ChatUserModelOverride, error)
 	// Returns the concatenated text of each user-visible user prompt in a

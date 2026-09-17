@@ -62,6 +62,16 @@ WHERE chat_user_memories.user_id = @user_id::uuid
     AND chat_user_memories.organization_id = @organization_id::uuid
     AND lower(chat_user_memories.name) = lower(@name::text);
 
+-- name: GetChatUserMemoryByNameForUpdate :one
+-- Locks the row for the rest of the transaction so a consolidation that
+-- revalidated it cannot be raced by a concurrent edit.
+SELECT *
+FROM chat_user_memories
+WHERE user_id = @user_id::uuid
+    AND organization_id = @organization_id::uuid
+    AND lower(name) = lower(@name::text)
+FOR UPDATE;
+
 -- name: GetChatUserMemoriesByUserAndOrganization :many
 SELECT
     sqlc.embed(chat_user_memories),

@@ -143,8 +143,16 @@ func (p *Server) extractMemories(ctx context.Context, logger slog.Logger, chat d
 		}
 	}
 	if extracted {
-		p.maybeConsolidateMemoriesAsync(ctx, logger, chat)
+		p.runAfterMemoryExtraction(ctx, logger, chat)
 	}
+}
+
+func (p *Server) runAfterMemoryExtraction(ctx context.Context, logger slog.Logger, chat database.Chat) {
+	if p.afterMemoryExtraction != nil {
+		p.afterMemoryExtraction(ctx, logger, chat)
+		return
+	}
+	p.maybeConsolidateMemoriesAsync(ctx, logger, chat)
 }
 
 // extractMemoriesOnce runs one extraction pass from the cursor to the chat's

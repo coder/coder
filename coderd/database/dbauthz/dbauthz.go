@@ -3752,6 +3752,10 @@ func (q *querier) GetChatProjectMemoryByName(ctx context.Context, arg database.G
 	return fetch(q.log, q.auth, q.db.GetChatProjectMemoryByName)(ctx, arg)
 }
 
+func (q *querier) GetChatProjectMemoryByNameForUpdate(ctx context.Context, arg database.GetChatProjectMemoryByNameForUpdateParams) (database.ChatProjectMemory, error) {
+	return fetch(q.log, q.auth, q.db.GetChatProjectMemoryByNameForUpdate)(ctx, arg)
+}
+
 func (q *querier) GetChatProjectsByOrganizationID(ctx context.Context, organizationID uuid.UUID) ([]database.GetChatProjectsByOrganizationIDRow, error) {
 	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetChatProjectsByOrganizationID)(ctx, organizationID)
 }
@@ -3854,6 +3858,10 @@ func (q *querier) GetChatUserMemoryByID(ctx context.Context, id uuid.UUID) (data
 
 func (q *querier) GetChatUserMemoryByName(ctx context.Context, arg database.GetChatUserMemoryByNameParams) (database.GetChatUserMemoryByNameRow, error) {
 	return fetch(q.log, q.auth, q.db.GetChatUserMemoryByName)(ctx, arg)
+}
+
+func (q *querier) GetChatUserMemoryByNameForUpdate(ctx context.Context, arg database.GetChatUserMemoryByNameForUpdateParams) (database.ChatUserMemory, error) {
+	return fetch(q.log, q.auth, q.db.GetChatUserMemoryByNameForUpdate)(ctx, arg)
 }
 
 func (q *querier) GetChatUserModelOverride(ctx context.Context, arg database.GetChatUserModelOverrideParams) (database.ChatUserModelOverride, error) {

@@ -188,6 +188,9 @@ type MemoryIndexEntry struct {
 // MemoryStore stores durable memories in one scope.
 type MemoryStore interface {
 	Get(ctx context.Context, name string) (Memory, error)
+	// GetForUpdate reads a memory and locks its row until the enclosing
+	// InTx commits, so a revalidated row cannot change before it is written.
+	GetForUpdate(ctx context.Context, name string) (Memory, error)
 	List(ctx context.Context) ([]MemoryIndexEntry, error)
 	ListFull(ctx context.Context) ([]Memory, error)
 	Count(ctx context.Context) (int64, error)
@@ -219,6 +222,17 @@ func (s projectMemoryStore) Get(ctx context.Context, name string) (Memory, error
 		return Memory{}, err
 	}
 	return Memory{Name: row.ChatProjectMemory.Name, Description: row.ChatProjectMemory.Description, Body: row.ChatProjectMemory.Body, UpdatedAt: row.ChatProjectMemory.UpdatedAt, CreatedByUsername: row.CreatedByUsername}, nil
+}
+
+func (s projectMemoryStore) GetForUpdate(ctx context.Context, name string) (Memory, error) {
+	row, err := s.db.GetChatProjectMemoryByNameForUpdate(ctx, database.GetChatProjectMemoryByNameForUpdateParams{ProjectID: s.projectID, Name: name})
+	if errors.Is(err, sql.ErrNoRows) {
+		return Memory{}, ErrMemoryNotFound
+	}
+	if err != nil {
+		return Memory{}, err
+	}
+	return Memory{Name: row.Name, Description: row.Description, Body: row.Body, UpdatedAt: row.UpdatedAt}, nil
 }
 
 func (s projectMemoryStore) List(ctx context.Context) ([]MemoryIndexEntry, error) {
@@ -308,6 +322,17 @@ func (s personalMemoryStore) Get(ctx context.Context, name string) (Memory, erro
 		return Memory{}, err
 	}
 	return Memory{Name: row.ChatUserMemory.Name, Description: row.ChatUserMemory.Description, Body: row.ChatUserMemory.Body, UpdatedAt: row.ChatUserMemory.UpdatedAt, CreatedByUsername: row.CreatedByUsername}, nil
+}
+
+func (s personalMemoryStore) GetForUpdate(ctx context.Context, name string) (Memory, error) {
+	row, err := s.db.GetChatUserMemoryByNameForUpdate(ctx, database.GetChatUserMemoryByNameForUpdateParams{UserID: s.userID, OrganizationID: s.organizationID, Name: name})
+	if errors.Is(err, sql.ErrNoRows) {
+		return Memory{}, ErrMemoryNotFound
+	}
+	if err != nil {
+		return Memory{}, err
+	}
+	return Memory{Name: row.Name, Description: row.Description, Body: row.Body, UpdatedAt: row.UpdatedAt}, nil
 }
 
 func (s personalMemoryStore) List(ctx context.Context) ([]MemoryIndexEntry, error) {

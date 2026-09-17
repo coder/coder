@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -173,8 +174,13 @@ func (p *Server) consolidateMemories(ctx context.Context, logger slog.Logger, ch
 		finish(database.ChatMemoryConsolidationStatusFailed, before, nil, xerrors.Errorf("load memories: %w", err))
 		return
 	}
+	candidates := memoryConsolidationCandidates(memories, time.Now())
+	if len(candidates) == 0 {
+		finish(database.ChatMemoryConsolidationStatusSkipped, before, nil, nil)
+		return
+	}
 	call := resolved.newObjectCall("memory_consolidation", "Consolidate durable chat memories.", memoryConsolidationMaxOutputTokens)
-	call.Prompt = quickgenPrompt(memoryConsolidationPrompt, formatMemoryConsolidationInput(memories))
+	call.Prompt = quickgenPrompt(memoryConsolidationPrompt, formatMemoryConsolidationInput(candidates))
 	modelCtx, cancelModel := context.WithTimeout(ctx, memoryConsolidationModelTimeout)
 	result, err := generateQuickgenObject[memoryConsolidation](modelCtx, resolved.model.LanguageModel(), call)
 	cancelModel()
@@ -228,10 +234,19 @@ func memoryConsolidationDebounced(ctx context.Context, db database.Store, scope 
 	if record.Status == database.ChatMemoryConsolidationStatusRunning {
 		return now.Sub(record.StartedAt) < memoryConsolidationRunningStale
 	}
-	return count < chattool.MaxMemories && now.Sub(record.StartedAt) < memoryConsolidationDebounce
+	// At the cap a run that shrank the scope may continue immediately so new
+	// saves are unblocked. A run that changed nothing still debounces, or a
+	// full scope would pay for the same model call on every turn.
+	if count >= chattool.MaxMemories && record.Status == database.ChatMemoryConsolidationStatusSucceeded && record.MemoriesAfter < record.MemoriesBefore {
+		return false
+	}
+	return now.Sub(record.StartedAt) < memoryConsolidationDebounce
 }
 
 func (p *Server) finishMemoryConsolidation(ctx context.Context, scope memoryConsolidationScope, id uuid.UUID, status database.ChatMemoryConsolidationStatus, after int64, mutations []codersdk.ChatMemoryMutation, finishErr error) error {
+	if mutations == nil {
+		mutations = []codersdk.ChatMemoryMutation{}
+	}
 	encoded, err := json.Marshal(mutations)
 	if err != nil {
 		return xerrors.Errorf("marshal mutations: %w", err)
@@ -249,9 +264,26 @@ func (p *Server) finishMemoryConsolidation(ctx context.Context, scope memoryCons
 	return p.db.PruneChatMemoryConsolidationsByUser(ctx, database.PruneChatMemoryConsolidationsByUserParams{UserID: scope.userID.UUID, OrganizationID: scope.organizationID, KeepCount: memoryConsolidationKeepRecords})
 }
 
+// memoryConsolidationCandidates returns the memories the model may change,
+// oldest first. Memories inside the protect window are excluded because no
+// mutation touching them would be applied, and presenting the oldest first
+// means the byte cap trims recent memories rather than the stale duplicates
+// consolidation exists to remove.
+func memoryConsolidationCandidates(memories []chattool.Memory, now time.Time) []chattool.Memory {
+	candidates := make([]chattool.Memory, 0, len(memories))
+	for _, memory := range memories {
+		if now.Sub(memory.UpdatedAt) < memoryConsolidationProtectWindow {
+			continue
+		}
+		candidates = append(candidates, memory)
+	}
+	sort.SliceStable(candidates, func(i, j int) bool { return candidates[i].UpdatedAt.Before(candidates[j].UpdatedAt) })
+	return candidates
+}
+
 func formatMemoryConsolidationInput(memories []chattool.Memory) string {
 	var b strings.Builder
-	_, _ = b.WriteString("Memories, newest first:\n")
+	_, _ = b.WriteString("Memories, oldest first:\n")
 	for _, memory := range memories {
 		body := memory.Body
 		if len(body) > memoryConsolidationBodyBytes {
@@ -420,7 +452,7 @@ func memoryConsolidationMutationCurrent(ctx context.Context, store chattool.Memo
 	} else if _, exists := snapshot[mutation.Into]; exists {
 		touched = append(touched, mutation.Into)
 	} else {
-		_, err := store.Get(ctx, mutation.Into)
+		_, err := store.GetForUpdate(ctx, mutation.Into)
 		if err == nil {
 			return false, nil
 		}
@@ -431,7 +463,7 @@ func memoryConsolidationMutationCurrent(ctx context.Context, store chattool.Memo
 
 	for _, name := range touched {
 		expected := snapshot[name]
-		memory, err := store.Get(ctx, name)
+		memory, err := store.GetForUpdate(ctx, name)
 		if errors.Is(err, chattool.ErrMemoryNotFound) {
 			return false, nil
 		}

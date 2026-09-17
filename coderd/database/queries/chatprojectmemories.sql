@@ -65,6 +65,15 @@ JOIN visible_users ON visible_users.id = chat_project_memories.created_by
 WHERE chat_project_memories.project_id = @project_id::uuid
     AND lower(chat_project_memories.name) = lower(@name::text);
 
+-- name: GetChatProjectMemoryByNameForUpdate :one
+-- Locks the row for the rest of the transaction so a consolidation that
+-- revalidated it cannot be raced by a concurrent edit.
+SELECT *
+FROM chat_project_memories
+WHERE project_id = @project_id::uuid
+    AND lower(name) = lower(@name::text)
+FOR UPDATE;
+
 -- name: GetChatProjectMemoriesByProjectID :many
 SELECT
     sqlc.embed(chat_project_memories),

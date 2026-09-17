@@ -7759,6 +7759,39 @@ func (q *sqlQuerier) GetChatProjectMemoryByName(ctx context.Context, arg GetChat
 	return i, err
 }
 
+const getChatProjectMemoryByNameForUpdate = `-- name: GetChatProjectMemoryByNameForUpdate :one
+SELECT id, project_id, organization_id, name, description, body, source_chat_id, created_by, created_at, updated_at
+FROM chat_project_memories
+WHERE project_id = $1::uuid
+    AND lower(name) = lower($2::text)
+FOR UPDATE
+`
+
+type GetChatProjectMemoryByNameForUpdateParams struct {
+	ProjectID uuid.UUID `db:"project_id" json:"project_id"`
+	Name      string    `db:"name" json:"name"`
+}
+
+// Locks the row for the rest of the transaction so a consolidation that
+// revalidated it cannot be raced by a concurrent edit.
+func (q *sqlQuerier) GetChatProjectMemoryByNameForUpdate(ctx context.Context, arg GetChatProjectMemoryByNameForUpdateParams) (ChatProjectMemory, error) {
+	row := q.db.QueryRowContext(ctx, getChatProjectMemoryByNameForUpdate, arg.ProjectID, arg.Name)
+	var i ChatProjectMemory
+	err := row.Scan(
+		&i.ID,
+		&i.ProjectID,
+		&i.OrganizationID,
+		&i.Name,
+		&i.Description,
+		&i.Body,
+		&i.SourceChatID,
+		&i.CreatedBy,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const insertChatProjectMemory = `-- name: InsertChatProjectMemory :one
 INSERT INTO chat_project_memories (
     id,
@@ -15294,6 +15327,40 @@ func (q *sqlQuerier) GetChatUserMemoryByName(ctx context.Context, arg GetChatUse
 		&i.ChatUserMemory.CreatedAt,
 		&i.ChatUserMemory.UpdatedAt,
 		&i.CreatedByUsername,
+	)
+	return i, err
+}
+
+const getChatUserMemoryByNameForUpdate = `-- name: GetChatUserMemoryByNameForUpdate :one
+SELECT id, organization_id, user_id, name, description, body, source_chat_id, created_at, updated_at
+FROM chat_user_memories
+WHERE user_id = $1::uuid
+    AND organization_id = $2::uuid
+    AND lower(name) = lower($3::text)
+FOR UPDATE
+`
+
+type GetChatUserMemoryByNameForUpdateParams struct {
+	UserID         uuid.UUID `db:"user_id" json:"user_id"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	Name           string    `db:"name" json:"name"`
+}
+
+// Locks the row for the rest of the transaction so a consolidation that
+// revalidated it cannot be raced by a concurrent edit.
+func (q *sqlQuerier) GetChatUserMemoryByNameForUpdate(ctx context.Context, arg GetChatUserMemoryByNameForUpdateParams) (ChatUserMemory, error) {
+	row := q.db.QueryRowContext(ctx, getChatUserMemoryByNameForUpdate, arg.UserID, arg.OrganizationID, arg.Name)
+	var i ChatUserMemory
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.UserID,
+		&i.Name,
+		&i.Description,
+		&i.Body,
+		&i.SourceChatID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
 	)
 	return i, err
 }
