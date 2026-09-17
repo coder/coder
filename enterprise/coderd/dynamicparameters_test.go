@@ -305,6 +305,53 @@ func TestDynamicParameterBuild(t *testing.T) {
 		})
 	})
 
+	// StaleOptionValue covers a template update that removes an option value an existing workspace already selected.
+	t.Run("StaleOptionValue", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		before, _ := coderdtest.DynamicParameterTemplate(t, templateAdmin, orgID, coderdtest.DynamicParameterTemplateParams{
+			MainTF: string(must(os.ReadFile("testdata/parameters/staleoptionbefore/main.tf"))),
+		})
+
+		wrk, err := templateAdmin.CreateUserWorkspace(ctx, codersdk.Me, codersdk.CreateWorkspaceRequest{
+			TemplateID: before.ID,
+			Name:       coderdtest.RandomUsername(t),
+			RichParameterValues: []codersdk.WorkspaceBuildParameter{
+				{Name: "color", Value: "red"},
+			},
+		})
+		require.NoError(t, err)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, templateAdmin, wrk.LatestBuild.ID)
+
+		stop, err := templateAdmin.CreateWorkspaceBuild(ctx, wrk.ID, codersdk.CreateWorkspaceBuildRequest{
+			Transition: codersdk.WorkspaceTransitionStop,
+		})
+		require.NoError(t, err)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, templateAdmin, stop.ID)
+
+		// "red" is not an option in this version.
+		_, after := coderdtest.DynamicParameterTemplate(t, templateAdmin, orgID, coderdtest.DynamicParameterTemplateParams{
+			MainTF:     string(must(os.ReadFile("testdata/parameters/staleoptionafter/main.tf"))),
+			TemplateID: before.ID,
+		})
+
+		// No parameter values are sent, so the build can only use the previous value or the new default.
+		start, err := templateAdmin.CreateWorkspaceBuild(ctx, wrk.ID, codersdk.CreateWorkspaceBuildRequest{
+			TemplateVersionID: after.ID,
+			Transition:        codersdk.WorkspaceTransitionStart,
+		})
+		require.NoError(t, err)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, templateAdmin, start.ID)
+
+		params, err := templateAdmin.WorkspaceBuildParameters(ctx, start.ID)
+		require.NoError(t, err)
+		require.Len(t, params, 1)
+		require.Equal(t, "color", params[0].Name)
+		require.Equal(t, "blue", params[0].Value, "the removed option is replaced by the new default")
+	})
+
 	t.Run("ImmutableValidation", func(t *testing.T) {
 		t.Parallel()
 
