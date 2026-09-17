@@ -667,7 +667,8 @@ jobs:
           test-parallelism-tests: "8"
           # By default, run tests with cache for improved speed (possibly at the expense of correctness).
           # On main, run tests without cache for the inverse.
-          test-count: ${{ github.ref == 'refs/heads/main' && '1' || '' }}
+          # TEMPORARY for measurement, revert before merge.
+          test-count: "1"
           gotestsum-json-file: default
 
       - name: Test with PostgreSQL Database (macOS)
