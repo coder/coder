@@ -4,8 +4,9 @@ import (
 	"maps"
 	"slices"
 
-	tfaddr "github.com/hashicorp/go-terraform-address"
+	"github.com/hashicorp/hcl/v2"
 	tfjson "github.com/hashicorp/terraform-json"
+	"github.com/zclconf/go-cty/cty"
 	"golang.org/x/xerrors"
 )
 
@@ -20,7 +21,7 @@ const (
 type scriptOrderSelector struct {
 	kind        scriptOrderSelectorKind
 	name        string
-	instanceKey string
+	instanceKey cty.Value
 }
 
 type scriptOrderSelectorResolution struct {
@@ -34,34 +35,64 @@ type scriptOrderSelectorResolution struct {
 	moduleCallDeclared bool
 }
 
+func invalidScriptOrderSelectorError(raw string) error {
+	return xerrors.Errorf(
+		"script order selector %q must reference a coder_script in the "+
+			"declaring module or an entire direct child module call",
+		raw,
+	)
+}
+
 // parseScriptOrderSelector currently limits selectors to scripts in
 // the declaring module and whole child module calls.
 func parseScriptOrderSelector(raw string) (scriptOrderSelector, error) {
-	address, err := tfaddr.NewAddress(raw)
+	traversal, err := parseTerraformAddressTraversal(raw)
 	if err != nil {
-		return scriptOrderSelector{}, xerrors.Errorf("parse script order selector %q: %w", raw, err)
+		return scriptOrderSelector{},
+			xerrors.Errorf("parse script order selector %q: %w", raw, err)
 	}
-	if len(address.ModulePath) != 0 {
-		return scriptOrderSelector{}, xerrors.Errorf(
-			"script order selector %q must reference a coder_script in the declaring module or an entire direct child module call",
-			raw,
-		)
+	if len(traversal) < 2 {
+		return scriptOrderSelector{}, invalidScriptOrderSelectorError(raw)
 	}
 
-	switch address.ResourceSpec.Type {
+	root, rootOK := traversal[0].(hcl.TraverseRoot)
+	name, nameOK := traversal[1].(hcl.TraverseAttr)
+	if !rootOK || !nameOK {
+		return scriptOrderSelector{}, invalidScriptOrderSelectorError(raw)
+	}
+
+	instanceKey := cty.NilVal
+	position := 2
+	if position < len(traversal) {
+		index, ok := traversal[position].(hcl.TraverseIndex)
+		if !ok {
+			return scriptOrderSelector{}, invalidScriptOrderSelectorError(raw)
+		}
+		instanceKey, err = parseTerraformInstanceKey(index.Key)
+		if err != nil {
+			return scriptOrderSelector{},
+				xerrors.Errorf("parse script order selector %q instance key: %w", raw, err)
+		}
+		position++
+	}
+	if position != len(traversal) {
+		return scriptOrderSelector{}, invalidScriptOrderSelectorError(raw)
+	}
+
+	switch root.Name {
 	case "coder_script":
 		return scriptOrderSelector{
 			kind:        scriptOrderSelectorScript,
-			name:        address.ResourceSpec.Name,
-			instanceKey: address.ResourceSpec.Index.String(),
+			name:        name.Name,
+			instanceKey: instanceKey,
 		}, nil
 	case "module":
-		if address.ResourceSpec.Index.String() != "" {
+		if instanceKey != cty.NilVal {
 			return scriptOrderSelector{}, xerrors.Errorf("module selector %q must select all module instances", raw)
 		}
 		return scriptOrderSelector{
 			kind: scriptOrderSelectorModule,
-			name: address.ResourceSpec.Name,
+			name: name.Name,
 		}, nil
 	default:
 		return scriptOrderSelector{}, xerrors.Errorf("script order selector %q must select a coder_script or module", raw)
@@ -139,8 +170,8 @@ func isModuleCallInConfig(
 		if err != nil {
 			return false, err
 		}
-		for _, step := range modulePath {
-			call := module.ModuleCalls[step.Name]
+		for _, step := range modulePath.steps {
+			call := module.ModuleCalls[step.name]
 			if call == nil || call.Module == nil {
 				return false, nil
 			}
@@ -171,8 +202,8 @@ func resolveScriptOrderScriptSelector(
 		if err != nil {
 			return err
 		}
-		if selector.instanceKey != "" &&
-			address.ResourceSpec.Index.String() != selector.instanceKey {
+		if selector.instanceKey != cty.NilVal &&
+			!terraformInstanceKeysEqual(address.instanceKey, selector.instanceKey) {
 			continue
 		}
 		resolved[resource.Address] = struct{}{}
@@ -196,7 +227,7 @@ func resolveScriptOrderModuleSelector(
 		if err != nil {
 			return err
 		}
-		if len(modulePath) == 0 || modulePath[len(modulePath)-1].Name != selector.name {
+		if len(modulePath.steps) == 0 || modulePath.steps[len(modulePath.steps)-1].name != selector.name {
 			continue
 		}
 		if err := collectModuleCoderScriptAddresses(child, resolved); err != nil {
@@ -237,30 +268,27 @@ func collectModuleCoderScriptAddresses(
 // dependencies to the wrong resource.
 func parseStateResourceAddress(
 	module *tfjson.StateModule, resource *tfjson.StateResource,
-) (*tfaddr.Address, error) {
-	address, err := tfaddr.NewAddress(resource.Address)
+) (*terraformManagedResourceAddress, error) {
+	address, err := parseTerraformManagedResourceAddress(resource.Address)
 	if err != nil {
 		return nil, xerrors.Errorf("parse Terraform resource address %q: %w", resource.Address, err)
 	}
 	// Defensive: TF should always emit an address consistent with
 	// these state fields.
-	if address.ModulePath.String() != module.Address ||
-		address.ResourceSpec.Type != resource.Type ||
-		address.ResourceSpec.Name != resource.Name {
+	if address.modulePath.String() != module.Address ||
+		address.resourceType != resource.Type ||
+		address.resourceName != resource.Name {
 		return nil, xerrors.Errorf("Terraform resource address %q does not match its state fields", resource.Address)
 	}
-	return address, nil
+	return &address, nil
 }
 
-func parseStateModuleAddress(address string) (tfaddr.ModulePath, error) {
-	// go-terraform-address parses a module path only as part of a
-	// resource address, so append a placeholder resource before
-	// parsing it.
-	parsed, err := tfaddr.NewAddress(address + ".placeholder_resource.placeholder")
+func parseStateModuleAddress(address string) (terraformModulePath, error) {
+	parsed, err := parseTerraformModulePath(address)
 	if err != nil {
-		return nil, xerrors.Errorf("parse module address %q: %w", address, err)
+		return terraformModulePath{}, xerrors.Errorf("parse module address %q: %w", address, err)
 	}
-	return parsed.ModulePath, nil
+	return parsed, nil
 }
 
 func walkStateModuleTree(module *tfjson.StateModule, visit func(*tfjson.StateModule) error) error {
