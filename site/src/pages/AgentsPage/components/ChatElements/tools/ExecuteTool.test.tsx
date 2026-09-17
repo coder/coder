@@ -7,7 +7,7 @@ import { ExecuteTool } from "./ExecuteTool";
 const timeoutBlocks = [{ kind: "output" as const, text: "=== RUN TestFoo" }];
 
 describe("ExecuteTool timeout rendering", () => {
-	it("labels a timed-out run as started and shows a still-running chip", () => {
+	it("labels a timed-out run as started with a plain-text still-running suffix", () => {
 		renderComponent(
 			<ExecuteTool
 				command="go test ./..."
@@ -27,7 +27,7 @@ describe("ExecuteTool timeout rendering", () => {
 		).toHaveTextContent("Started go test ./...");
 		expect(
 			screen.getByRole("img", { name: /Stopped waiting after 30s/ }),
-		).toHaveTextContent("Still running");
+		).toHaveTextContent("· still running");
 		expect(
 			screen.getByRole("img", { name: /Process 376b2458/ }),
 		).toHaveTextContent("376b2458");
@@ -54,7 +54,7 @@ describe("ExecuteTool timeout rendering", () => {
 		).not.toHaveTextContent(/for 47\.2s/);
 	});
 
-	it("shows the status-unknown chip when liveness is unconfirmed", () => {
+	it("shows the status-unknown suffix when liveness is unconfirmed", () => {
 		renderComponent(
 			<ExecuteTool
 				command="go test ./..."
@@ -70,7 +70,7 @@ describe("ExecuteTool timeout rendering", () => {
 
 		expect(
 			screen.getByRole("img", { name: /could not read the process state/ }),
-		).toHaveTextContent("Status unknown");
+		).toHaveTextContent("· status unknown");
 	});
 
 	it("renders the wait-limit note in the expanded transcript", async () => {

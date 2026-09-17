@@ -12,7 +12,7 @@ import {
 	type AgentDisplayState,
 	resolveAgentDisplayState,
 } from "./displayMode";
-import { ProcessChip } from "./ProcessChip";
+import { ProcessIdentity } from "./ProcessIdentity";
 import { TerminalOutput } from "./TerminalOutput";
 import { ToolCall } from "./ToolCall";
 import {
@@ -201,7 +201,7 @@ export const ProcessOutputTool: FC<ProcessOutputToolProps> = ({
 				</ToolCall.HeaderButton>
 				{hasHeaderActions && (
 					<ToolCall.HeaderActions>
-						{processId && <ProcessChip processId={processId} />}
+						{processId && <ProcessIdentity processId={processId} />}
 						{killedBySignal && !isChecking && !sawProcessRunning && (
 							<Tooltip>
 								<TooltipTrigger asChild>

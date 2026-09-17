@@ -477,6 +477,15 @@ export const ExecuteTimedOutStillRunning: Story = {
 			timed_out: true,
 		},
 	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const header = canvas.getByRole("button", {
+			name: "Expand command",
+		});
+		expect(header).toHaveTextContent("Started go test ./...");
+		expect(header).toHaveTextContent("· still running");
+		expect(header).not.toHaveTextContent(/command timed out/);
+	},
 };
 
 /** Timeout whose recovery snapshot failed too, so liveness is unknown. */
@@ -494,6 +503,12 @@ export const ExecuteTimedOutStatusUnknown: Story = {
 			background_process_id: "376b2458-e318-4442-8b87-51a0f9727f0e",
 			timed_out: true,
 		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getByRole("button", { name: "Expand command" }),
+		).toHaveTextContent("· status unknown");
 	},
 };
 

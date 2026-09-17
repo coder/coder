@@ -12,7 +12,7 @@ import {
 	type AgentDisplayState,
 	resolveAgentDisplayState,
 } from "./displayMode";
-import { ProcessChip } from "./ProcessChip";
+import { ProcessIdentity } from "./ProcessIdentity";
 import { TerminalOutput } from "./TerminalOutput";
 import { ToolCall } from "./ToolCall";
 import type { ExecuteTranscriptBlock } from "./toolVisibility";
@@ -75,6 +75,22 @@ export const ExecuteTool: React.FC<ExecuteToolProps> = ({
 	// run duration, and wall time includes snapshot recovery beyond the limit.
 	const showDuration = !isBackgrounded && !(timedOut && !isRunning);
 	const durationLabel = showDuration ? formatShellDurationMs(durationMs) : "";
+	const stillRunning = timedOut && processRunning && !isRunning;
+	const statusUnknown = timedOut && !processRunning;
+	const stateSuffix = stillRunning
+		? "· still running"
+		: statusUnknown
+			? "· status unknown"
+			: "";
+	const suffixTooltip = stillRunning
+		? waitLimit
+			? `Stopped waiting after ${waitLimit}. The process kept running in the workspace.`
+			: "Stopped waiting. The process kept running in the workspace."
+		: statusUnknown
+			? waitLimit
+				? `Stopped waiting after ${waitLimit} and could not read the process state.`
+				: "Stopped waiting and could not read the process state."
+			: "";
 	const { commandLabel, durationSuffix } = getShellCommandLine({
 		command,
 		modelIntent,
@@ -90,17 +106,6 @@ export const ExecuteTool: React.FC<ExecuteToolProps> = ({
 		shellToolDisplayMode,
 		autoDisplayState,
 	);
-	const showStillRunningChip = timedOut && processRunning && !isRunning;
-	const statusUnknown = timedOut && !processRunning;
-	const chipLabel = showStillRunningChip
-		? waitLimit
-			? `Stopped waiting after ${waitLimit}. The process kept running in the workspace.`
-			: "Stopped waiting. The process kept running in the workspace."
-		: statusUnknown
-			? waitLimit
-				? `Stopped waiting after ${waitLimit} and could not read the process state.`
-				: "Stopped waiting and could not read the process state."
-			: "";
 
 	return (
 		<ToolCall.Root
@@ -125,40 +130,26 @@ export const ExecuteTool: React.FC<ExecuteToolProps> = ({
 								{durationSuffix}
 							</span>
 						)}
+						{stateSuffix && (
+							<Tooltip>
+								<TooltipTrigger asChild>
+									<span
+										aria-label={suffixTooltip}
+										role="img"
+										className="ml-1 shrink-0 text-[13px] leading-6 text-content-secondary"
+									>
+										{stateSuffix}
+									</span>
+								</TooltipTrigger>
+								<TooltipContent>{suffixTooltip}</TooltipContent>
+							</Tooltip>
+						)}
 					</span>
 					<ToolCall.Status />
 					<ToolCall.Chevron />
 				</ToolCall.HeaderButton>
 				<ToolCall.HeaderActions>
-					{showStillRunningChip && (
-						<Tooltip>
-							<TooltipTrigger asChild>
-								<span
-									aria-label={chipLabel}
-									role="img"
-									className="shrink-0 rounded bg-surface-secondary px-1.5 py-0.5 font-mono text-2xs leading-none text-content-secondary"
-								>
-									Still running
-								</span>
-							</TooltipTrigger>
-							<TooltipContent>{chipLabel}</TooltipContent>
-						</Tooltip>
-					)}
-					{statusUnknown && (
-						<Tooltip>
-							<TooltipTrigger asChild>
-								<span
-									aria-label={chipLabel}
-									role="img"
-									className="shrink-0 rounded bg-surface-secondary px-1.5 py-0.5 font-mono text-2xs leading-none text-content-secondary"
-								>
-									Status unknown
-								</span>
-							</TooltipTrigger>
-							<TooltipContent>{chipLabel}</TooltipContent>
-						</Tooltip>
-					)}
-					{processId && <ProcessChip processId={processId} />}
+					{processId && <ProcessIdentity processId={processId} />}
 					{killedBySignal && !isRunning && (
 						<Tooltip>
 							<TooltipTrigger asChild>
@@ -182,7 +173,7 @@ export const ExecuteTool: React.FC<ExecuteToolProps> = ({
 					transcriptBlocks={transcriptBlocks}
 					isError={isError}
 					isRunning={isRunning}
-					timedOutStillRunning={showStillRunningChip}
+					timedOutStillRunning={stillRunning}
 					waitLimit={waitLimit}
 				/>
 			</ToolCall.Content>
