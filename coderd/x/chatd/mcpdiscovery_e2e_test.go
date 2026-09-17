@@ -147,10 +147,10 @@ func (s *mcpDiscoveryStore) UpsertWorkspaceAgentContextSnapshot(ctx context.Cont
 func TestMCPDiscoveryGate_EndToEnd(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
-		name                                                                      string
-		unavailable                                                               string
-		tool                                                                      string
-		pinned, missing, stopped, restart, sameBatch, settled, autostart, sibling bool
+		name                                                                            string
+		unavailable                                                                     string
+		tool                                                                            string
+		pinned, missing, stopped, restart, sameBatch, settled, autostart, sibling, plan bool
 	}{
 		{name: "Attached_PinnedPending", pinned: true},
 		{name: "NoMCPServers", unavailable: "empty", settled: true},
@@ -159,6 +159,8 @@ func TestMCPDiscoveryGate_EndToEnd(t *testing.T) {
 		{name: "HungSiblingKeepsHealthyServerUsable", unavailable: "hung", sibling: true},
 		{name: "HungCreateWorkspace", tool: "create_workspace", unavailable: "hung"},
 		{name: "HungStartWorkspace", tool: "start_workspace", stopped: true, unavailable: "hung"},
+		{name: "PlanCreateWorkspace", tool: "create_workspace", unavailable: "hung", plan: true},
+		{name: "PlanStartWorkspace", tool: "start_workspace", stopped: true, unavailable: "hung", plan: true},
 		{name: "Attached_UnpinnedMissing", missing: true},
 		{name: "Autostart", stopped: true, autostart: true},
 		{name: "CreateWorkspace", tool: "create_workspace"},
@@ -403,7 +405,11 @@ func TestMCPDiscoveryGate_EndToEnd(t *testing.T) {
 				_, err := client.CreateChatMessage(ctx, chatID, codersdk.CreateChatMessageRequest{Content: input})
 				require.NoError(t, err)
 			} else {
-				chat, err := exp.CreateChat(ctx, codersdk.CreateChatRequest{OrganizationID: user.OrganizationID, WorkspaceID: workspaceID, Content: input})
+				var planMode codersdk.ChatPlanMode
+				if tc.plan {
+					planMode = codersdk.ChatPlanModePlan
+				}
+				chat, err := exp.CreateChat(ctx, codersdk.CreateChatRequest{OrganizationID: user.OrganizationID, WorkspaceID: workspaceID, Content: input, PlanMode: planMode})
 				require.NoError(t, err)
 				chatID = chat.ID
 			}
@@ -419,6 +425,23 @@ func TestMCPDiscoveryGate_EndToEnd(t *testing.T) {
 				}
 				require.Equal(t, wantCalls, calls.Load(), "generation must proceed even without usable MCP tools")
 				require.False(t, ctrl.invoked.Load())
+				if tc.plan {
+					messages, err := exp.GetChatMessages(ctx, chatID, nil)
+					require.NoError(t, err)
+					var found bool
+					for _, msg := range messages.Messages {
+						for _, part := range msg.Content {
+							if part.Type == codersdk.ChatMessagePartTypeToolResult && part.ToolName == tc.tool {
+								var result map[string]any
+								require.NoError(t, json.Unmarshal(part.Result, &result))
+								require.NotContains(t, result, "mcp_discovery", "plan-mode lifecycle tools must not wait for discovery")
+								found = true
+							}
+						}
+					}
+					require.True(t, found, "lifecycle tool must execute")
+					return
+				}
 				if tc.unavailable == "hung" {
 					require.Less(t, time.Since(started), 30*time.Second, "lifecycle tools and preparation must share one initialization budget")
 					nextCtx, cancel := context.WithTimeout(ctx, testutil.WaitShort)
