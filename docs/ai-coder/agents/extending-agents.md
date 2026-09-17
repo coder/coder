@@ -238,6 +238,7 @@ The agent notices edits to the file and reloads its servers automatically.
 The reload changes the pushed snapshot, and every chat bound to the workspace, open or new, receives the new tool set on that push.
 An archived chat is skipped and catches up on the first push after you unarchive it.
 An MCP-only change never marks a chat out of date, so no refresh is needed for it.
+A server named after the path of an instruction file the chat has pinned is not MCP-only: that chat is marked out of date and gets the server when you refresh.
 
 The snapshot carries tool definitions only, not a way to run them.
 Every workspace MCP tool call is proxied back through the workspace agent, so a chat can list workspace MCP tools while the workspace is unreachable, but calling one requires a running workspace with the server connected.
