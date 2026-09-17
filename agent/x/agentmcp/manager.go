@@ -709,7 +709,7 @@ func (m *Manager) installServers(
 			// entry keeps its old config, so the next reload retries
 			// the reconnect and clears the warning on success.
 			newServers[wantCfg.Name] = prev
-			warnings[wantCfg.Name] = "reconnect with the updated configuration failed, tools are from the previous connection: " + connectErrors[wantCfg.Name]
+			warnings[wantCfg.Name] = boundDiagnostic("reconnect with the updated configuration failed, tools are from the previous connection: " + connectErrors[wantCfg.Name])
 		}
 	}
 

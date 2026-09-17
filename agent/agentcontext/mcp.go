@@ -121,11 +121,10 @@ func buildMCPServerResources(servers []MCPServerStatus) []Resource {
 // flagged (unreadable, oversize, malformed JSON) keeps its own
 // diagnosis. Paths are matched verbatim first and then by symlink
 // resolution, because the engine and the resolver may reach the same
-// file through different spellings.
-func applyMCPConfigErrors(resources []Resource, errs []MCPConfigError) {
-	if len(errs) == 0 {
-		return
-	}
+// file through different spellings. A path with no row at all (a
+// configured file whose name the resolver does not recognize) gets a
+// synthesized row so the diagnostic still reaches chats.
+func applyMCPConfigErrors(resources []Resource, errs []MCPConfigError) []Resource {
 	for _, cfgErr := range errs {
 		if cfgErr.Path == "" || cfgErr.Err == "" {
 			continue
@@ -134,24 +133,33 @@ func applyMCPConfigErrors(resources []Resource, errs []MCPConfigError) {
 			return r.Kind == KindMCPConfig && r.Source == cfgErr.Path
 		})
 		if idx < 0 {
-			resolved, err := filepath.EvalSymlinks(cfgErr.Path)
-			if err != nil {
-				continue
+			if resolved, err := filepath.EvalSymlinks(cfgErr.Path); err == nil {
+				idx = slices.IndexFunc(resources, func(r Resource) bool {
+					if r.Kind != KindMCPConfig {
+						return false
+					}
+					got, err := filepath.EvalSymlinks(r.Source)
+					return err == nil && got == resolved
+				})
 			}
-			idx = slices.IndexFunc(resources, func(r Resource) bool {
-				if r.Kind != KindMCPConfig {
-					return false
-				}
-				got, err := filepath.EvalSymlinks(r.Source)
-				return err == nil && got == resolved
-			})
 		}
-		if idx < 0 || resources[idx].Status != StatusOK {
+		if idx < 0 {
+			resources = append(resources, Resource{
+				ID:     resourceID(KindMCPConfig, cfgErr.Path),
+				Kind:   KindMCPConfig,
+				Source: cfgErr.Path,
+				Status: StatusInvalid,
+				Error:  cfgErr.Err,
+			})
+			continue
+		}
+		if resources[idx].Status != StatusOK {
 			continue
 		}
 		resources[idx].Status = StatusInvalid
 		resources[idx].Error = cfgErr.Err
 	}
+	return resources
 }
 
 // hashMCPServer produces a deterministic content hash over a server's

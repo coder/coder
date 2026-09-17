@@ -189,7 +189,7 @@ func TestApplyMCPConfigErrors(t *testing.T) {
 			okConfig("/w/.mcp.json"),
 			{ID: "instruction_file:/w/AGENTS.md", Kind: KindInstructionFile, Source: "/w/AGENTS.md", Status: StatusOK},
 		}
-		applyMCPConfigErrors(resources, []MCPConfigError{{Path: "/w/.mcp.json", Err: "server \"a\" has no command or url"}})
+		resources = applyMCPConfigErrors(resources, []MCPConfigError{{Path: "/w/.mcp.json", Err: "server \"a\" has no command or url"}})
 		require.Equal(t, StatusInvalid, resources[0].Status)
 		require.Equal(t, "server \"a\" has no command or url", resources[0].Error)
 		require.Equal(t, StatusOK, resources[1].Status)
@@ -201,16 +201,23 @@ func TestApplyMCPConfigErrors(t *testing.T) {
 			ID: resourceID(KindMCPConfig, "/w/.mcp.json"), Kind: KindMCPConfig, Source: "/w/.mcp.json",
 			Status: StatusOversize, Error: "too big",
 		}}
-		applyMCPConfigErrors(resources, []MCPConfigError{{Path: "/w/.mcp.json", Err: "parse"}})
+		resources = applyMCPConfigErrors(resources, []MCPConfigError{{Path: "/w/.mcp.json", Err: "parse"}})
 		require.Equal(t, StatusOversize, resources[0].Status)
 		require.Equal(t, "too big", resources[0].Error)
 	})
 
-	t.Run("UnknownPathIgnored", func(t *testing.T) {
+	t.Run("UnmatchedPathSynthesizesInvalidRow", func(t *testing.T) {
 		t.Parallel()
-		resources := []Resource{okConfig("/w/.mcp.json")}
-		applyMCPConfigErrors(resources, []MCPConfigError{{Path: "/elsewhere/.mcp.json", Err: "parse"}})
+		// A configured file the resolver does not recognize by name
+		// (CODER_AGENT_EXP_MCP_CONFIG_FILES=/opt/custom.json) has no
+		// row of its own, so its diagnostic gets one.
+		resources := applyMCPConfigErrors([]Resource{okConfig("/w/.mcp.json")}, []MCPConfigError{{Path: "/opt/custom.json", Err: "parse"}})
+		require.Len(t, resources, 2)
 		require.Equal(t, StatusOK, resources[0].Status)
+		require.Equal(t, Resource{
+			ID: resourceID(KindMCPConfig, "/opt/custom.json"), Kind: KindMCPConfig, Source: "/opt/custom.json",
+			Status: StatusInvalid, Error: "parse",
+		}, resources[1])
 	})
 
 	t.Run("SymlinkedConfigMatchesTarget", func(t *testing.T) {
@@ -227,7 +234,7 @@ func TestApplyMCPConfigErrors(t *testing.T) {
 
 		// The resolver walked the symlink; the engine reported the target.
 		resources := []Resource{okConfig(link)}
-		applyMCPConfigErrors(resources, []MCPConfigError{{Path: target, Err: "semantic"}})
+		resources = applyMCPConfigErrors(resources, []MCPConfigError{{Path: target, Err: "semantic"}})
 		require.Equal(t, StatusInvalid, resources[0].Status)
 		require.Equal(t, "semantic", resources[0].Error)
 	})

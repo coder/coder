@@ -4,6 +4,7 @@ import (
 	"net/url"
 	"sort"
 	"strings"
+	"unicode/utf8"
 )
 
 // redactedPlaceholder replaces configured secret material in
@@ -15,11 +16,32 @@ const redactedPlaceholder = "[redacted]"
 // addresses and exit codes in the surrounding error text.
 const minRedactLength = 4
 
+// maxDiagnosticBytes matches coderd's per-resource error cap. A longer
+// error makes coderd reject the whole context push, and the agent
+// retries that push indefinitely.
+const maxDiagnosticBytes = 4096
+
+const truncatedSuffix = "... [truncated]"
+
+// boundDiagnostic truncates msg to maxDiagnosticBytes on a rune
+// boundary.
+func boundDiagnostic(msg string) string {
+	if len(msg) <= maxDiagnosticBytes {
+		return msg
+	}
+	cut := maxDiagnosticBytes - len(truncatedSuffix)
+	for cut > 0 && !utf8.RuneStart(msg[cut]) {
+		cut--
+	}
+	return msg[:cut] + truncatedSuffix
+}
+
 // sanitizeMCPError renders err for the discovery report with every
-// configured secret removed: URL userinfo and query strings, every env
-// value, and every header value. Transport errors echo the URL and
-// subprocess errors can echo the environment, so the raw text is never
-// safe to publish to chats.
+// configured secret removed: URL userinfo, path, and query string,
+// every env value, and every header value. Transport errors echo the
+// URL and subprocess errors can echo the environment, so the raw text
+// is never safe to publish to chats. The result is bounded to
+// maxDiagnosticBytes.
 func sanitizeMCPError(cfg ServerConfig, err error) string {
 	if err == nil {
 		return ""
@@ -54,6 +76,14 @@ func sanitizeMCPError(cfg ServerConfig, err error) string {
 					}
 				}
 			}
+			// Hosted MCP endpoints commonly carry the credential as a
+			// path segment, so the whole path goes; scheme, host, and
+			// the leading slash stay readable.
+			for _, p := range []string{u.EscapedPath(), u.Path} {
+				if p = strings.TrimPrefix(p, "/"); len(p) >= minRedactLength {
+					secrets = append(secrets, p)
+				}
+			}
 		}
 	}
 	// Longest first so a secret that contains another is replaced whole.
@@ -61,5 +91,5 @@ func sanitizeMCPError(cfg ServerConfig, err error) string {
 	for _, s := range secrets {
 		msg = strings.ReplaceAll(msg, s, redactedPlaceholder)
 	}
-	return msg
+	return boundDiagnostic(msg)
 }
