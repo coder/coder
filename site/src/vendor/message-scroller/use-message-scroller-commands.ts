@@ -46,6 +46,8 @@ function useMessageScrollerCommands({
     spacerHeightRef,
     spacerRef,
     viewportRef,
+    // LOCAL CHANGE
+    followLatchRef,
   } = refs
 
   const setAutoScrolling = React.useCallback(
@@ -101,6 +103,9 @@ function useMessageScrollerCommands({
         autoscrolling?: boolean
       } = {}
     ) => {
+      // LOCAL CHANGE: a scroll command releases the disclosure latch.
+      followLatchRef.current = false
+
       const viewport = viewportRef.current
 
       if (!viewport) {
@@ -245,11 +250,19 @@ function useMessageScrollerCommands({
 
     // Re-run the placement so the tail spacer is recomputed for the new content
     // height and the turn is held at the reading line.
-    return scrollToElement(
+    //
+    // LOCAL CHANGE: holding the anchor is not a scroll command, so it keeps
+    // the latch.
+    const latched = followLatchRef.current
+    const handled = scrollToElement(
       element,
       { align: "start" },
       { keepPreviousPeek: true }
     )
+
+    followLatchRef.current = latched
+
+    return handled
   }, [scrollToElement])
 
   // The target row may not be mounted yet (e.g. an async-loaded transcript).
