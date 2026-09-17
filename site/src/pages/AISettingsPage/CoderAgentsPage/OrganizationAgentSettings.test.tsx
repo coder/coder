@@ -97,14 +97,16 @@ const expectSubmitSaves = async (
 	updateChatModel: ReturnType<typeof mockOverridesAndUpdate>,
 	model: ChatModel,
 ) => {
+	const callsBefore = updateChatModel.mock.calls.length;
 	fireEvent.submit(form);
-	await waitFor(() => {
-		expect(updateChatModel).toHaveBeenLastCalledWith(
-			MockDefaultOrganization.id,
-			model.id,
-			{ is_default: true },
-		);
-	});
+	await waitFor(() =>
+		expect(updateChatModel).toHaveBeenCalledTimes(callsBefore + 1),
+	);
+	expect(updateChatModel).toHaveBeenLastCalledWith(
+		MockDefaultOrganization.id,
+		model.id,
+		{ is_default: true },
+	);
 };
 
 const refetchCatalog = async (
@@ -154,6 +156,29 @@ describe("OrganizationAgentSettings", () => {
 				{ is_default: true },
 			);
 		});
+	});
+
+	it("keeps the saved model when the catalog refresh fails", async () => {
+		vi.spyOn(API.experimental, "getChatModels")
+			.mockResolvedValueOnce(chatModelsResponse([defaultModel, alternateModel]))
+			.mockRejectedValue(new Error("catalog unavailable"));
+		const updateChatModel = mockOverridesAndUpdate();
+		const user = userEvent.setup();
+		renderWithQueryClient();
+
+		const defaultSection = await selectModel(
+			user,
+			defaultModel,
+			alternateModel,
+		);
+		await user.click(
+			await within(defaultSection).findByRole("button", { name: "Save" }),
+		);
+		// The saved indicator marks the end of the mutation success path, which
+		// includes the failed catalog refetch.
+		await within(defaultSection).findByText("Saved");
+
+		await expectSubmitSaves(defaultSection, updateChatModel, alternateModel);
 	});
 
 	it("keeps an unsaved selection when the model catalog refetches", async () => {

@@ -2327,9 +2327,26 @@ export const updateChatModel = (queryClient: QueryClient) => ({
 	mutationFn: ({ organizationId, modelId, req }: UpdateChatModelMutationArgs) =>
 		API.experimental.updateChatModel(organizationId, modelId, req),
 	onSuccess: async (
-		_model: TypesGen.ChatModel,
+		model: TypesGen.ChatModel,
 		variables: UpdateChatModelMutationArgs,
 	) => {
+		// Seed the catalog with the confirmed result so the saved state does not
+		// depend on the refetch that follows succeeding.
+		queryClient.setQueryData<TypesGen.OrganizationChatModelsResponse>(
+			organizationChatModelsKey(variables.organizationId),
+			(current) =>
+				current && {
+					...current,
+					models: current.models.map((existing) => {
+						if (existing.id === model.id) {
+							return model;
+						}
+						return model.is_default && existing.is_default
+							? { ...existing, is_default: false }
+							: existing;
+					}),
+				},
+		);
 		await invalidateChatConfigurationQueries(
 			queryClient,
 			variables.organizationId,
