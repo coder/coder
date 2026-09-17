@@ -1,27 +1,20 @@
 ---
 title: Example policy
+description: Review a broad Agent Firewall allowlist policy for multi-language workspaces.
 ---
 
 > [!NOTE]
-> Agent Firewall is part of [AI Governance](../ai-governance.md), which is
-> included with a Premium license.
+> Agent Firewall is part of [AI Governance](../ai-governance.md), which is included with a Premium license.
 
-This page contains a broad Agent Firewall policy for workspaces where agents
-build software in many languages.
-It allows the domains an agent needs to fetch dependencies, read source
-repositories, and pull container images, and blocks everything else.
+This page contains a broad Agent Firewall policy for workspaces where agents build software in many languages.
+It allows the domains an agent needs to fetch dependencies, read source repositories, and pull container images, and blocks everything else.
 
 Coder uses a policy of this shape on its own deployment.
-Treat it as a starting point: allow only the domains your workspaces actually
-need, and add your own Coder deployment domain.
-Most entries come from the
-[default allowed domains for Claude Code on the web](https://code.claude.com/docs/en/claude-code-on-the-web#default-allowed-domains).
+Treat it as a starting point: allow only the domains your workspaces actually need, and add your own Coder deployment domain.
+Most entries come from the [default allowed domains for Claude Code on the web](https://code.claude.com/docs/en/claude-code-on-the-web#default-allowed-domains).
 
-For the syntax of each entry, including method filters and wildcards, see the
-[rules engine](rules-engine.md).
-To load this policy in a template, pass it to the module's
-`agent_firewall_config` argument as described in
-[Agent Firewall](index.md).
+For the syntax of each entry, including method filters and wildcards, refer to the [rules engine docs](rules-engine.md).
+To load this policy in a template, pass it to the module's `agent_firewall_config` argument as described in [Agent Firewall](index.md).
 
 ```yaml
 allowlist:
