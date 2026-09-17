@@ -8,6 +8,7 @@ import { chatProject } from "#/api/queries/chatProjects";
 import { createChat } from "#/api/queries/chats";
 import { workspaces } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
+import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
 import { useWebpushNotifications } from "#/contexts/useWebpushNotifications";
@@ -39,6 +40,18 @@ const AgentCreatePage: FC = () => {
 		enabled: experiments.includes("chat-projects") && Boolean(projectId),
 	});
 	const selectedProject = projectQuery.data;
+	const projectLookupError =
+		projectId &&
+		experiments.includes("chat-projects") &&
+		projectQuery.error &&
+		(!isApiError(projectQuery.error) ||
+			projectQuery.error.response.status !== 404)
+			? projectQuery.error
+			: undefined;
+	const isProjectLookupPending =
+		Boolean(projectId) &&
+		experiments.includes("chat-projects") &&
+		projectQuery.isLoading;
 	const aiGatewayDisabled = !useAIGatewayEnabled();
 	const workspacesQuery = useQuery(workspaces({ q: "owner:me", limit: 0 }));
 	const createMutation = useMutation(createChat(queryClient));
@@ -75,6 +88,9 @@ const AgentCreatePage: FC = () => {
 		organizationId,
 		planMode,
 	}: CreateChatOptions) => {
+		if (isProjectLookupPending || projectLookupError) {
+			return;
+		}
 		const content: TypesGen.ChatInputPart[] = [];
 		if (message.trim()) {
 			content.push({ type: "text", text: message });
@@ -157,9 +173,19 @@ const AgentCreatePage: FC = () => {
 					</Badge>
 				</div>
 			)}
+			{projectLookupError && (
+				<ErrorAlert
+					error={projectLookupError}
+					className="mx-auto mt-4 w-full max-w-3xl"
+				/>
+			)}
 			<AgentCreateForm
 				onCreateChat={handleCreateChat}
-				isCreating={createMutation.isPending}
+				isCreating={
+					createMutation.isPending ||
+					isProjectLookupPending ||
+					Boolean(projectLookupError)
+				}
 				createError={createMutation.error}
 				canCreateChat={permissions.createChat}
 				canConfigureAgentSetup={permissions.editDeploymentConfig}

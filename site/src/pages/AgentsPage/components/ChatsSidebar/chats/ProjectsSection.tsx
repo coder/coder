@@ -1,6 +1,7 @@
 import { EllipsisVerticalIcon, PlusIcon } from "lucide-react";
 import type { FC } from "react";
 import { NavLink, useLocation } from "react-router";
+import { getErrorMessage } from "#/api/errors";
 import type { ChatProject } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import {
@@ -29,6 +30,8 @@ type ProjectsSectionProps = {
 	readonly onCreate: () => void;
 	readonly onEdit: (project: ChatProject) => void;
 	readonly onDelete: (project: ChatProject) => void;
+	readonly error?: unknown;
+	readonly onRetry: () => void;
 };
 
 export const ProjectsSection: FC<ProjectsSectionProps> = ({
@@ -39,6 +42,8 @@ export const ProjectsSection: FC<ProjectsSectionProps> = ({
 	onCreate,
 	onEdit,
 	onDelete,
+	error,
+	onRetry,
 }) => {
 	const location = useLocation();
 
@@ -69,85 +74,94 @@ export const ProjectsSection: FC<ProjectsSectionProps> = ({
 			</div>
 			{expanded && (
 				<div className="flex flex-col gap-0.5">
-					{projects.map((project) => {
-						const { canUpdate, canDelete } = chatProjectPermissionsFor(
-							project,
-							projectPermissions,
-						);
-						const row = (
-							<div
-								key={project.id}
-								className="group relative flex items-center gap-1 rounded-md px-2 py-1 text-content-secondary hover:bg-surface-tertiary/50 hover:text-content-primary has-[[aria-current=page]]:bg-surface-quaternary/50 has-[[aria-current=page]]:text-content-primary has-[[aria-current=page]]:border-l has-[[aria-current=page]]:border-content-primary has-[[aria-current=page]]:pl-[7px]"
-							>
-								<NavLink
-									to={{
-										pathname: buildAgentProjectPath(project.id),
-										search: location.search,
-									}}
-									className="min-w-0 flex-1 truncate text-[13px] text-content-primary no-underline"
+					{error ? (
+						<div className="flex items-center justify-between gap-2 px-2 py-1 text-xs text-content-destructive">
+							<span>{getErrorMessage(error, "Failed to load projects.")}</span>
+							<Button size="sm" variant="outline" onClick={onRetry}>
+								Retry
+							</Button>
+						</div>
+					) : (
+						projects.map((project) => {
+							const { canUpdate, canDelete } = chatProjectPermissionsFor(
+								project,
+								projectPermissions,
+							);
+							const row = (
+								<div
+									key={project.id}
+									className="group relative flex items-center gap-1 rounded-md px-2 py-1 text-content-secondary hover:bg-surface-tertiary/50 hover:text-content-primary has-[[aria-current=page]]:bg-surface-quaternary/50 has-[[aria-current=page]]:text-content-primary has-[[aria-current=page]]:border-l has-[[aria-current=page]]:border-content-primary has-[[aria-current=page]]:pl-[7px]"
 								>
-									{project.name}
-								</NavLink>
-								<span className="rounded bg-surface-secondary px-1.5 py-0.5 text-2xs tabular-nums">
-									{project.chat_count}
-								</span>
-								{(canUpdate || canDelete) && (
-									<DropdownMenu>
-										<DropdownMenuTrigger asChild>
-											<Button
-												variant="subtle"
-												size="icon"
-												className="size-6 min-w-0 opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
-												aria-label={`Open actions for ${project.name}`}
-											>
-												<EllipsisVerticalIcon className="size-3.5" />
-											</Button>
-										</DropdownMenuTrigger>
-										<DropdownMenuContent align="end">
-											{canUpdate && (
-												<DropdownMenuItem onSelect={() => onEdit(project)}>
-													Edit project
-												</DropdownMenuItem>
-											)}
-											{canDelete && (
-												<DropdownMenuItem
-													className="text-content-destructive focus:text-content-destructive"
-													onSelect={() => onDelete(project)}
+									<NavLink
+										to={{
+											pathname: buildAgentProjectPath(project.id),
+											search: location.search,
+										}}
+										className="min-w-0 flex-1 truncate text-[13px] text-content-primary no-underline"
+									>
+										{project.name}
+									</NavLink>
+									<span className="rounded bg-surface-secondary px-1.5 py-0.5 text-2xs tabular-nums">
+										{project.chat_count}
+									</span>
+									{(canUpdate || canDelete) && (
+										<DropdownMenu>
+											<DropdownMenuTrigger asChild>
+												<Button
+													variant="subtle"
+													size="icon"
+													className="size-6 min-w-0 opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
+													aria-label={`Open actions for ${project.name}`}
 												>
-													Delete project
-												</DropdownMenuItem>
-											)}
-										</DropdownMenuContent>
-									</DropdownMenu>
-								)}
-							</div>
-						);
-
-						if (!canUpdate && !canDelete) {
-							return row;
-						}
-
-						return (
-							<ContextMenu key={project.id}>
-								<ContextMenuTrigger asChild>{row}</ContextMenuTrigger>
-								<ContextMenuContent>
-									{canUpdate && (
-										<ContextMenuItem onSelect={() => onEdit(project)}>
-											Edit project
-										</ContextMenuItem>
+													<EllipsisVerticalIcon className="size-3.5" />
+												</Button>
+											</DropdownMenuTrigger>
+											<DropdownMenuContent align="end">
+												{canUpdate && (
+													<DropdownMenuItem onSelect={() => onEdit(project)}>
+														Edit project
+													</DropdownMenuItem>
+												)}
+												{canDelete && (
+													<DropdownMenuItem
+														className="text-content-destructive focus:text-content-destructive"
+														onSelect={() => onDelete(project)}
+													>
+														Delete project
+													</DropdownMenuItem>
+												)}
+											</DropdownMenuContent>
+										</DropdownMenu>
 									)}
-									{canDelete && (
-										<ContextMenuItem
-											className="text-content-destructive focus:text-content-destructive"
-											onSelect={() => onDelete(project)}
-										>
-											Delete project
-										</ContextMenuItem>
-									)}
-								</ContextMenuContent>
-							</ContextMenu>
-						);
-					})}
+								</div>
+							);
+
+							if (!canUpdate && !canDelete) {
+								return row;
+							}
+
+							return (
+								<ContextMenu key={project.id}>
+									<ContextMenuTrigger asChild>{row}</ContextMenuTrigger>
+									<ContextMenuContent>
+										{canUpdate && (
+											<ContextMenuItem onSelect={() => onEdit(project)}>
+												Edit project
+											</ContextMenuItem>
+										)}
+										{canDelete && (
+											<ContextMenuItem
+												className="text-content-destructive focus:text-content-destructive"
+												onSelect={() => onDelete(project)}
+											>
+												Delete project
+											</ContextMenuItem>
+										)}
+									</ContextMenuContent>
+								</ContextMenu>
+							);
+						})
+					)}
 				</div>
 			)}
 		</div>

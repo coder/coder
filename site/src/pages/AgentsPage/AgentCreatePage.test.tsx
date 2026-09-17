@@ -23,14 +23,17 @@ import AgentCreatePage from "./AgentCreatePage";
 vi.mock("./components/AgentCreateForm", () => ({
 	AgentCreateForm: ({
 		onCreateChat,
+		isCreating,
 	}: {
 		onCreateChat: (options: {
 			message: string;
 			organizationId: string;
 		}) => Promise<void>;
+		isCreating: boolean;
 	}) => (
 		<button
 			type="button"
+			disabled={isCreating}
 			onClick={() =>
 				onCreateChat({
 					message: "Create this chat",
@@ -176,6 +179,34 @@ describe("AgentCreatePage project assignment", () => {
 			expect(requestBody).toBeDefined();
 		});
 		expect(requestBody).not.toHaveProperty("project_id");
+	});
+
+	it("blocks chat creation when the project lookup fails", async () => {
+		const user = userEvent.setup();
+		let chatPostCount = 0;
+		server.use(
+			http.get(`/api/experimental/chats/projects/${MockChatProject.id}`, () =>
+				HttpResponse.json(
+					{ message: "Project lookup failed" },
+					{ status: 500 },
+				),
+			),
+			http.post("/api/v2/chats", () => {
+				chatPostCount++;
+				return HttpResponse.json({ ...MockChat, id: "created-chat" });
+			}),
+		);
+
+		render(
+			<Wrapper experiments={["chat-projects"]}>
+				<AgentCreatePage />
+			</Wrapper>,
+		);
+
+		await screen.findByText("Project lookup failed");
+		await user.click(screen.getByRole("button", { name: "Create chat" }));
+
+		expect(chatPostCount).toBe(0);
 	});
 
 	it("removes an unavailable project from the URL", async () => {

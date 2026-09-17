@@ -108,7 +108,9 @@ export const ChatsSidebar: FC<ChatsSidebarProps> = (props) => {
 	} = props;
 	const { organizations, experiments } = useDashboard();
 	const defaultOrganizationId =
-		organizations.find((organization) => organization.is_default)?.id ?? "";
+		organizations.find((organization) => organization.is_default)?.id ??
+		organizations[0]?.id ??
+		"";
 	const chatProjectsEnabled = experiments.includes("chat-projects");
 	const queryClient = useQueryClient();
 	const projectsQuery = useQuery({
@@ -188,6 +190,8 @@ export const ChatsSidebar: FC<ChatsSidebarProps> = (props) => {
 				projects={projects}
 				projectPermissions={projectPermissionsQuery.data}
 				isProjectsLoading={chatProjectsEnabled && projectsQuery.isLoading}
+				projectsError={chatProjectsEnabled ? projectsQuery.error : undefined}
+				onRetryProjects={() => void projectsQuery.refetch()}
 				onOpenProjectDialog={
 					chatProjectsEnabled ? setProjectDialogProject : undefined
 				}

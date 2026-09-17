@@ -12,6 +12,9 @@ type AgentProjectPageViewProps = {
 	readonly chats: readonly Chat[];
 	readonly isLoading: boolean;
 	readonly error?: unknown;
+	readonly hasNextPage: boolean;
+	readonly isFetchingNextPage: boolean;
+	readonly onLoadMore: () => void;
 	readonly onEdit?: () => void;
 	readonly newChatPath: string;
 };
@@ -21,6 +24,9 @@ export const AgentProjectPageView: FC<AgentProjectPageViewProps> = ({
 	chats,
 	isLoading,
 	error,
+	hasNextPage,
+	isFetchingNextPage,
+	onLoadMore,
 	onEdit,
 	newChatPath,
 }) => {
@@ -85,6 +91,16 @@ export const AgentProjectPageView: FC<AgentProjectPageViewProps> = ({
 							{chat.title || "Untitled"}
 						</Link>
 					))
+				)}
+				{hasNextPage && (
+					<Button
+						variant="outline"
+						disabled={isFetchingNextPage}
+						onClick={onLoadMore}
+						className="mt-3 self-start"
+					>
+						Load more
+					</Button>
 				)}
 			</div>
 			<MemorySection scope={{ kind: "project", projectId: project.id }} />

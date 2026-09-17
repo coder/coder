@@ -52,6 +52,9 @@ const AgentProjectPage: FC = () => {
 				chats={chats}
 				isLoading={projectQuery.isLoading || chatsQuery.isLoading}
 				error={projectQuery.error ?? chatsQuery.error}
+				hasNextPage={chatsQuery.hasNextPage}
+				isFetchingNextPage={chatsQuery.isFetchingNextPage}
+				onLoadMore={() => void chatsQuery.fetchNextPage()}
 				onEdit={canEdit ? () => setIsEditing(true) : undefined}
 				newChatPath={`/agents?project=${encodeURIComponent(projectId)}`}
 			/>

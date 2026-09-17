@@ -21,6 +21,19 @@ describe("MemoryDialog", () => {
 		});
 	});
 
+	it("blocks whitespace-only descriptions", async () => {
+		const user = userEvent.setup();
+		const onSubmit = vi.fn(async () => {});
+		render(<MemoryDialog open onOpenChange={vi.fn()} onSubmit={onSubmit} />);
+
+		await user.type(screen.getByLabelText("Name"), "durable-fact");
+		await user.type(screen.getByLabelText("Description"), "   ");
+		await user.type(screen.getByLabelText("Body"), "Project memory body");
+		await user.click(screen.getByRole("button", { name: "Save" }));
+
+		expect(onSubmit).not.toHaveBeenCalled();
+	});
+
 	it("blocks invalid memory names", async () => {
 		const user = userEvent.setup();
 		const onSubmit = vi.fn(async () => {});

@@ -68,6 +68,8 @@ interface ChatsPanelProps {
 	readonly projects: readonly ChatProject[];
 	readonly projectPermissions?: Record<string, boolean>;
 	readonly isProjectsLoading: boolean;
+	readonly projectsError?: unknown;
+	readonly onRetryProjects: () => void;
 	readonly onOpenProjectDialog?: (project: ChatProject | null) => void;
 	readonly onDeleteProject?: (project: ChatProject) => void;
 	readonly chats: readonly Chat[];
@@ -109,6 +111,8 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 	projects,
 	projectPermissions,
 	isProjectsLoading,
+	projectsError,
+	onRetryProjects,
 	onOpenProjectDialog,
 	onDeleteProject,
 	chats,
@@ -571,20 +575,6 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 														))}
 												</div>
 											)}
-											{onOpenProjectDialog && onDeleteProject && (
-												<ProjectsSection
-													projects={projects}
-													projectPermissions={projectPermissions}
-													expanded={!collapsedSections.Projects}
-													onToggle={() => toggleSection("Projects")}
-													onCreate={() => onOpenProjectDialog(null)}
-													onEdit={onOpenProjectDialog}
-													onDelete={onDeleteProject}
-												/>
-											)}
-											{isProjectsLoading && (
-												<Skeleton className="ml-2.5 h-3.5 w-20" />
-											)}
 											{sharedWithYouChats.length > 0 && (
 												<div className="not-first:mt-3">
 													<ChatSectionHeader
@@ -632,6 +622,22 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 												);
 											})}
 										</>
+									)}
+									{onOpenProjectDialog && onDeleteProject && (
+										<ProjectsSection
+											projects={projects}
+											projectPermissions={projectPermissions}
+											expanded={!collapsedSections.Projects}
+											onToggle={() => toggleSection("Projects")}
+											onCreate={() => onOpenProjectDialog(null)}
+											onEdit={onOpenProjectDialog}
+											onDelete={onDeleteProject}
+											error={projectsError}
+											onRetry={onRetryProjects}
+										/>
+									)}
+									{isProjectsLoading && (
+										<Skeleton className="ml-2.5 h-3.5 w-20" />
 									)}
 								</div>
 								{(hasNextPage || isFetchingNextPage) && (

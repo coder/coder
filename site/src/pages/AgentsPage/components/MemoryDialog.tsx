@@ -44,7 +44,8 @@ export const MemoryDialog: FC<MemoryDialogProps> = ({
 	const [error, setError] = useState<string>();
 	const isEditing = memory !== null && memory !== undefined;
 	const isNameValid = memoryNamePattern.test(name);
-	const isDescriptionValid = description.length <= 150;
+	const isDescriptionValid =
+		Boolean(description.trim()) && description.length <= 150;
 	const isBodyValid = new TextEncoder().encode(body).length <= 8192;
 
 	const handleOpenChange = (nextOpen: boolean) => {
@@ -110,7 +111,19 @@ export const MemoryDialog: FC<MemoryDialogProps> = ({
 							onChange={(event) => setDescription(event.target.value)}
 							disabled={isSaving}
 							maxLength={150}
+							aria-invalid={!isDescriptionValid}
+							aria-describedby={
+								!isDescriptionValid ? `${descriptionId}-error` : undefined
+							}
 						/>
+						{!isDescriptionValid && (
+							<p
+								id={`${descriptionId}-error`}
+								className="m-0 text-xs text-content-destructive"
+							>
+								Enter a description.
+							</p>
+						)}
 					</div>
 					<div className="flex flex-col gap-2">
 						<Label htmlFor={bodyId}>Body</Label>
