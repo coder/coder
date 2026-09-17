@@ -47,8 +47,7 @@ func TestScaleTestWorkspaceTraffic_UseHostLogin(t *testing.T) {
 	)
 	// nolint:gocritic // We are intentionally testing this as the owner.
 	clitest.SetupConfig(t, client, root)
-	// The ownership-skew warning is a diagnostic and is written to stderr so it
-	// cannot corrupt the --output json result on stdout.
+	// The ownership warning is a diagnostic written to stderr, not stdout.
 	var stderrBuf bytes.Buffer
 	inv.Stderr = &stderrBuf
 

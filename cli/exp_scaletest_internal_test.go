@@ -80,9 +80,8 @@ func scaletestUser(username, email string) codersdk.User {
 	}
 }
 
-// TestShardingFlagsDefaults asserts that attach installs the "unset" sentinels
-// (index -1, count 0) so requested() can tell an unset flag from a real shard 0
-// or count 0. This is the wiring the CLI relies on, verified without a server.
+// TestShardingFlagsDefaults checks that attach installs the unset sentinels, so
+// requested() can tell an unset flag from a real shard 0.
 func TestShardingFlagsDefaults(t *testing.T) {
 	t.Parallel()
 
@@ -96,9 +95,8 @@ func TestShardingFlagsDefaults(t *testing.T) {
 	require.False(t, s.requested())
 }
 
-// TestShardingFlagsValidate covers the flag validation and its mutual exclusion
-// with --target-workspaces directly, without a coderd client. Unset flags are
-// modelled with the sentinels attach installs (index -1, count 0).
+// TestShardingFlagsValidate exercises validate() directly, no coderd client.
+// Unset flags use the sentinels attach installs (index -1, count 0).
 func TestShardingFlagsValidate(t *testing.T) {
 	t.Parallel()
 
@@ -166,10 +164,8 @@ func TestShardingFlagsValidate(t *testing.T) {
 	})
 }
 
-// TestWorkspaceShardIndex verifies that hash-based shard assignment is
-// deterministic, in range, disjoint-and-complete over a set, and stable when
-// the set changes (a workspace's shard depends only on its ID and the shard
-// count, not on the other workspaces present).
+// TestWorkspaceShardIndex checks the hash assignment is deterministic and in
+// range; determinism is also what keeps it stable as the running set churns.
 func TestWorkspaceShardIndex(t *testing.T) {
 	t.Parallel()
 
@@ -202,11 +198,8 @@ func TestWorkspaceShardIndex(t *testing.T) {
 	}
 }
 
-// TestShardWorkspaces exercises the running-status filter plus shard assignment
-// as a unit, without a coderd client: it builds mixed-status workspaces, runs
-// shardWorkspaces for every shard index, and asserts that non-running
-// workspaces are excluded and the union of shards is exactly the running set
-// with no overlap.
+// TestShardWorkspaces checks that shardWorkspaces excludes non-running
+// workspaces and that the shards are disjoint and cover the whole running set.
 func TestShardWorkspaces(t *testing.T) {
 	t.Parallel()
 
@@ -264,9 +257,8 @@ func TestShardWorkspaces(t *testing.T) {
 	}
 }
 
-// TestSelectShard covers the shard wiring (empty-set handling and the per-shard
-// diagnostic) without a coderd client: selectShard operates on an
-// already-fetched workspace list.
+// TestSelectShard covers selectShard's empty-set handling and diagnostic on an
+// already-fetched list (no coderd client).
 func TestSelectShard(t *testing.T) {
 	t.Parallel()
 
