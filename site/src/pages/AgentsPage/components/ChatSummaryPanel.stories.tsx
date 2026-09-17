@@ -1,9 +1,13 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import type { FC } from "react";
-import { expect, spyOn, waitFor, within } from "storybook/test";
+import { expect, spyOn, userEvent, waitFor, within } from "storybook/test";
 import { API } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
-import { MockChat } from "#/testHelpers/chatEntities";
+import {
+	MockChat,
+	MockChatContextClean,
+	MockChatContextDirty,
+} from "#/testHelpers/chatEntities";
 import { withDashboardProvider } from "#/testHelpers/storybook";
 import { ChatSummaryPanel } from "./ChatSummaryPanel";
 
@@ -62,6 +66,11 @@ const meta: Meta<typeof ChatSummaryPanel> = {
 	args: {
 		chatId: MockChat.id,
 		isVisible: true,
+		contextUsage: {
+			usedTokens: 68_000,
+			contextLimitTokens: 100_000,
+			compressionThreshold: 70,
+		},
 	},
 };
 
@@ -74,6 +83,46 @@ export const WithSummary: Story = {
 			summary:
 				"Investigated the flaky CI job, traced it to a cache-layer race, and added a regression test.",
 		}),
+};
+
+export const WithAgentResources: Story = {
+	beforeEach: () => {
+		spyOn(API.experimental, "getChat").mockResolvedValue({
+			...MockChat,
+			summary: "Updated the agent resource details in the Summary panel.",
+			context: MockChatContextClean,
+		});
+		spyOn(API.experimental, "getChatCost").mockResolvedValue(mockCost);
+	},
+};
+
+export const ExpandedAgentResources: Story = {
+	beforeEach: WithAgentResources.beforeEach,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			await canvas.findByRole("button", { name: /^Context/ }),
+		);
+		await userEvent.click(canvas.getByRole("button", { name: /^Skills/ }));
+		await userEvent.click(canvas.getByRole("button", { name: /^MCP servers/ }));
+	},
+};
+
+export const EmptyResourcePlaceholders: Story = {
+	args: { contextUsage: null },
+	beforeEach: () =>
+		mockRequests({ summary: "No workspace resources were found." }),
+};
+
+export const ResourceWarningCollapsed: Story = {
+	beforeEach: () => {
+		spyOn(API.experimental, "getChat").mockResolvedValue({
+			...MockChat,
+			summary: "Some agent resources need attention.",
+			context: MockChatContextDirty,
+		});
+		spyOn(API.experimental, "getChatCost").mockResolvedValue(mockCost);
+	},
 };
 
 // A running subagent has no summary yet; its report is persisted as the
