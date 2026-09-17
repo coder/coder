@@ -1538,12 +1538,16 @@ ifdef TEST_MEMPROFILE
 GOTEST_FLAGS += -memprofile=$(TEST_MEMPROFILE)
 endif
 
+# The pattern list is expanded by scripts/test_packages.sh, which puts the
+# slowest packages first so go test's -p scheduler does not leave them for the
+# end of the run.
 TEST_PACKAGES ?= ./...
 
 test:
+	packages="$$(./scripts/test_packages.sh $(TEST_PACKAGES))"
 	$(GIT_FLAGS) gotestsum --format standard-quiet \
 		$(GOTESTSUM_RETRY_FLAGS) \
-		--packages="$(TEST_PACKAGES)" \
+		--packages="$$packages" \
 		-- \
 		$(GOTEST_FLAGS)
 .PHONY: test
@@ -1551,10 +1555,11 @@ test:
 test-race: TEST_PARALLEL_PACKAGES := $(RACE_PARALLEL_PACKAGES)
 test-race: TEST_PARALLEL_TESTS := $(RACE_PARALLEL_TESTS)
 test-race:
+	packages="$$(./scripts/test_packages.sh $(TEST_PACKAGES))"
 	$(GIT_FLAGS) gotestsum --format standard-quiet \
 		--junitfile="gotests.xml" \
 		$(GOTESTSUM_RETRY_FLAGS) \
-		--packages="$(TEST_PACKAGES)" \
+		--packages="$$packages" \
 		-- \
 		-race \
 		$(GOTEST_FLAGS)
@@ -1706,10 +1711,11 @@ test-tailnet-integration:
 test-timings:
 	@tmp_json="$$(mktemp)"; \
 	trap 'rm -f "$$tmp_json"' EXIT; \
+	packages="$$(./scripts/test_packages.sh $(TEST_PACKAGES))"; \
 	set +e; \
 	GOTESTSUM_JSONFILE="$$tmp_json" $(GIT_FLAGS) gotestsum --format standard-quiet \
 		$(GOTESTSUM_RETRY_FLAGS) \
-		--packages="$(TEST_PACKAGES)" \
+		--packages="$$packages" \
 		-- \
 		$(GOTEST_FLAGS); \
 	test_status=$$?; \
