@@ -27,6 +27,82 @@ const meta: Meta<typeof OrganizationAgentSettings> = {
 export default meta;
 type Story = StoryObj<typeof OrganizationAgentSettings>;
 
+const defaultModel = {
+	...MockChatModel,
+	organization_id: MockDefaultOrganization.id,
+	is_default: true,
+};
+const alternateModel = {
+	...MockChatModel,
+	organization_id: MockDefaultOrganization.id,
+	id: "model-2",
+	model: "gpt-5-mini",
+	display_name: "GPT-5 Mini",
+};
+
+const mockTwoModelsWithoutOverrides = () => {
+	spyOn(API.experimental, "getChatModels").mockResolvedValue({
+		models: [defaultModel, alternateModel],
+		providers: [MockChatModelProviderDescriptor],
+		unsupported_providers: [],
+	});
+	spyOn(
+		API.experimental,
+		"getOrganizationChatModelOverrides",
+	).mockResolvedValue({ overrides: [] });
+};
+
+const submitAlternateDefaultModel = async (canvasElement: HTMLElement) => {
+	const defaultSection = await within(canvasElement).findByRole("form", {
+		name: "Default model",
+	});
+	await userEvent.click(
+		await within(defaultSection).findByRole("combobox", {
+			name: `Default model, ${defaultModel.display_name}`,
+		}),
+	);
+	await userEvent.click(
+		await screen.findByRole("option", {
+			name: new RegExp(alternateModel.display_name),
+		}),
+	);
+	await userEvent.click(
+		within(defaultSection).getByRole("button", { name: "Save" }),
+	);
+	return defaultSection;
+};
+
+export const SavingDefaultModel: Story = {
+	beforeEach: () => {
+		mockTwoModelsWithoutOverrides();
+		spyOn(API.experimental, "updateChatModel").mockReturnValue(
+			new Promise<never>(() => {}),
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const defaultSection = await submitAlternateDefaultModel(canvasElement);
+		// The spinner's title joins the button's accessible name while saving.
+		await waitFor(() =>
+			expect(
+				within(defaultSection).getByRole("button", { name: /Save$/ }),
+			).toBeDisabled(),
+		);
+	},
+};
+
+export const DefaultModelSaveError: Story = {
+	beforeEach: () => {
+		mockTwoModelsWithoutOverrides();
+		spyOn(API.experimental, "updateChatModel").mockRejectedValue(
+			new Error("failed to save"),
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const defaultSection = await submitAlternateDefaultModel(canvasElement);
+		await within(defaultSection).findByText("Failed to save default model.");
+	},
+};
+
 export const ClearableWhenModelCatalogFails: Story = {
 	beforeEach: () => {
 		spyOn(API.experimental, "getChatModels").mockRejectedValue(
