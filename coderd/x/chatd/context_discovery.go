@@ -664,11 +664,13 @@ func pinDiscoveredInstructionFile(ctx context.Context, store database.Store, cha
 // directory a failed batch left unread keeps its rows as they were.
 //
 // The probe runs after the refresh transaction, so a step may pin newer
-// bytes for one of these files before its result is applied. The result is
-// therefore applied in a repeatable-read transaction and only to rows still
-// as the refresh captured them: a row a step rewrote earlier fails the hash
-// check, and one it rewrites during the transaction fails the transaction
-// with a serialization error, whose retry sees the new hash.
+// bytes for one of these files before its result is applied, or the chat
+// may be rebound to another agent. The result is therefore applied in a
+// repeatable-read transaction, only while the chat still points at the
+// probed agent, and only to rows still as the refresh captured them: a row
+// a step rewrote earlier fails the hash check, and one it rewrites during
+// the transaction fails the transaction with a serialization error, whose
+// retry sees the new hash.
 func (p *Server) rediscoverInstructionContext(ctx context.Context, chat database.Chat, captured []database.ChatContextResource) {
 	dirs := discoveredInstructionDirs(captured)
 	if len(dirs) == 0 || !chat.AgentID.Valid || p.agentConnFn == nil {
@@ -690,6 +692,17 @@ func (p *Server) rediscoverInstructionContext(ctx context.Context, chat database
 		stale[pathKey(dir)] = struct{}{}
 	}
 	err = database.ReadModifyUpdate(p.db, func(tx database.Store) error {
+		// The probe answered for the agent the refresh saw. Locking the chat
+		// keeps a rebind from landing in between: one that already committed
+		// shows another agent here and the answer is dropped, one that has
+		// not waits for this transaction and then clears the rows.
+		locked, err := tx.GetChatByIDForUpdate(ctx, chat.ID)
+		if err != nil {
+			return xerrors.Errorf("lock chat for rediscovery: %w", err)
+		}
+		if locked.AgentID != chat.AgentID {
+			return nil
+		}
 		current, err := tx.ListChatContextResourcesByChatID(ctx, chat.ID)
 		if err != nil {
 			return xerrors.Errorf("list chat context resources for rediscovery: %w", err)

@@ -16,6 +16,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/x/chatd"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
@@ -581,6 +582,41 @@ func TestRefreshKeepsNewerStepDiscovery(t *testing.T) {
 	after := pinnedBySource(ctx, t, db, chat.ID)
 	require.Equal(t, v3[:], after[discoveryNestedSource].ContentHash, "the step's newer read survives the refresh")
 	require.True(t, after[discoveryNestedSource].Discovered)
+}
+
+// TestRefreshDiscardsRediscoveryAfterRebind races a refresh against a rebind:
+// while the refresh probe is in flight, the chat moves to another agent and
+// its rows are cleared. The old agent's answer, including a file the refresh
+// never captured, must not be pinned onto the rebound chat.
+func TestRefreshDiscardsRediscoveryAfterRebind(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	db, server, chat, mockConn := startChatWithDiscoveredFile(ctx, t, instructionFileResponse(discoveryNestedDir, discoveryNestedSource, "site rules v1"))
+	//nolint:gocritic // Rebinding the chat as the chatd subject.
+	chatdCtx := dbauthz.AsChatd(ctx)
+	newSource := discoveryNestedDir + "/CLAUDE.md"
+	mockConn.EXPECT().ResolveContextInstructions(gomock.Any(), workspacesdk.ResolveContextInstructionsRequest{
+		Directories: []string{discoveryNestedDir},
+	}).DoAndReturn(func(context.Context, workspacesdk.ResolveContextInstructionsRequest) (workspacesdk.ResolveContextInstructionsResponse, error) {
+		oldAgent, err := db.GetWorkspaceAgentByID(chatdCtx, chat.AgentID.UUID)
+		require.NoError(t, err)
+		newAgent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{ResourceID: oldAgent.ResourceID, Directory: oldAgent.Directory, OperatingSystem: "linux"})
+		_, err = db.UpdateChatBuildAgentBinding(chatdCtx, database.UpdateChatBuildAgentBindingParams{
+			ID:      chat.ID,
+			BuildID: chat.BuildID,
+			AgentID: uuid.NullUUID{UUID: newAgent.ID, Valid: true},
+		})
+		require.NoError(t, err)
+		require.NoError(t, db.DeleteChatContextResourcesByChatID(chatdCtx, chat.ID))
+		resp := instructionFileResponse(discoveryNestedDir, discoveryNestedSource, "site rules v2")
+		resp.Files = append(resp.Files, instructionFileResponse(discoveryNestedDir, newSource, "claude rules").Files...)
+		return resp, nil
+	})
+	_, err := server.RefreshChatContext(ctx, chat)
+	require.NoError(t, err)
+
+	require.Empty(t, pinnedBySource(ctx, t, db, chat.ID), "the previous agent's files are not pinned onto the rebound chat")
 }
 
 // TestLazyInstructionDiscoveryReprobesStaleDirectory checks that a

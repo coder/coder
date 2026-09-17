@@ -270,10 +270,7 @@ func (r *Resolver) walk(ctx context.Context, roots []ScanRoot) (resources []Reso
 		}
 		r.discoverIn(root, &resources, seenID)
 	}
-	resources = slices.DeleteFunc(resources, func(resource Resource) bool {
-		return resource.ID == ""
-	})
-	return resources, snapErrs
+	return compactResources(resources), snapErrs
 }
 
 // deduplicateSkills keeps the first valid skill with each name. walk returns
@@ -468,7 +465,16 @@ func (r *Resolver) ResolveInstructionFiles(dir string) []Resource {
 		res.Source = f.path
 		appendResource(&out, seenID, res)
 	}
-	return out
+	return compactResources(out)
+}
+
+// compactResources drops the tombstones appendResource leaves behind when a
+// later valid occurrence replaces an earlier one, so no caller ships an
+// empty resource.
+func compactResources(resources []Resource) []Resource {
+	return slices.DeleteFunc(resources, func(resource Resource) bool {
+		return resource.ID == ""
+	})
 }
 
 // appendResource adds res to out unless an earlier resource already claimed
