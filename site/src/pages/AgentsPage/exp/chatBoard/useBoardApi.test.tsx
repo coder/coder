@@ -184,4 +184,38 @@ describe("useBoardApi", () => {
 
 		expect(queryClient.getQueryState(listKey)?.isInvalidated).toBe(true);
 	});
+
+	it("keeps the patch when a list refetch started before the write lands after it", async () => {
+		const request = createDeferred<void>();
+		vi.spyOn(API.experimental, "updateChat").mockReturnValue(request.promise);
+		const primary = chat("p");
+		const { queryClient, board } = renderApi(stateOf([primary]));
+		const listKey = infiniteChats({}).queryKey;
+		queryClient.setQueryData(listKey, { pages: [[primary]], pageParams: [0] });
+		const staleFetch = createDeferred<Chat[]>();
+		const refetch = queryClient.fetchInfiniteQuery({
+			queryKey: listKey,
+			queryFn: () => staleFetch.promise,
+			initialPageParam: 0,
+			staleTime: 0,
+		});
+		const cachedLabels = () =>
+			queryClient.getQueryData<{ pages: Chat[][] }>(listKey)?.pages[0]?.[0]
+				?.labels;
+		const written = {
+			"board/column": "Doing",
+			"board/pos": expect.any(String),
+		};
+
+		const pending = board.moveCard("p", "Doing", null);
+		await waitFor(() => expect(cachedLabels()).toEqual(written));
+
+		// The server answers the old refetch with pre-write labels.
+		staleFetch.resolve([primary]);
+		await refetch.catch(() => undefined);
+		request.resolve();
+		await pending;
+
+		expect(cachedLabels()).toEqual(written);
+	});
 });
