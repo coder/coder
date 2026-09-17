@@ -526,6 +526,15 @@ func TestSanitizeMCPError(t *testing.T) {
 		assert.True(t, strings.HasSuffix(got, truncatedSuffix), got)
 	})
 
+	t.Run("HeaderCredentialWithoutScheme", func(t *testing.T) {
+		t.Parallel()
+		cfg := ServerConfig{Headers: map[string]string{"Authorization": "Bearer bearer-sentinel", "X-Api-Key": "key-sentinel"}}
+		got := sanitizeMCPError(cfg, nil, xerrors.New("401: invalid token bearer-sentinel; key key-sentinel rejected"))
+		assert.NotContains(t, got, "bearer-sentinel")
+		assert.NotContains(t, got, "key-sentinel")
+		assert.Contains(t, got, "401: invalid token [redacted]")
+	})
+
 	t.Run("InheritedSecrets", func(t *testing.T) {
 		t.Parallel()
 		// Values the agent injects into the server environment (agent

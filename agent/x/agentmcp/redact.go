@@ -78,9 +78,17 @@ func sanitizeMCPError(cfg ServerConfig, inherited []string, err error) string {
 			secrets = append(secrets, a)
 		}
 	}
+	// A server may echo only the credential part of a scheme-prefixed
+	// header ("Bearer x" reported as "invalid token x"), so that part is
+	// registered on its own as well.
 	for _, v := range cfg.Headers {
 		if len(v) >= minRedactLength {
 			secrets = append(secrets, v)
+		}
+		if _, credential, ok := strings.Cut(v, " "); ok {
+			if credential = strings.TrimSpace(credential); len(credential) >= minRedactLength {
+				secrets = append(secrets, credential)
+			}
 		}
 	}
 	if cfg.URL != "" {

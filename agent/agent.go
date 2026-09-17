@@ -1762,14 +1762,21 @@ func (a *agent) updateCommandEnv(current []string) (updated []string, err error)
 	return updated, nil
 }
 
-// inheritedMCPSecrets reports the secret values updateCommandEnv injects
-// into every MCP server subprocess, so diagnostics a server echoes back
-// never publish them.
+// inheritedMCPSecrets reports the secret-bearing values updateCommandEnv
+// injects into every MCP server subprocess (the session token, user
+// secrets, and the manifest environment, which carries external-auth
+// tokens), so diagnostics a server echoes back never publish them.
 func (a *agent) inheritedMCPSecrets() []string {
 	values := []string{a.client.GetSessionToken()}
 	if secretsPtr := a.secrets.Load(); secretsPtr != nil {
 		for _, secret := range *secretsPtr {
 			values = append(values, string(secret.Value))
+		}
+	}
+	if manifest := a.manifest.Load(); manifest != nil {
+		for _, v := range manifest.EnvironmentVariables {
+			// Expanded exactly as updateCommandEnv exports it.
+			values = append(values, os.ExpandEnv(v))
 		}
 	}
 	return values
