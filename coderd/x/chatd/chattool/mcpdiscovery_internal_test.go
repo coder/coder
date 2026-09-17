@@ -254,7 +254,7 @@ func TestWaitForMCPDiscovery(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		db := dbmock.NewMockStore(ctrl)
 		agentID := uuid.New()
-		db.EXPECT().GetWorkspaceAgentByID(gomock.Any(), agentID).Return(agentRow("run-a"), nil)
+		db.EXPECT().GetWorkspaceAgentByID(gomock.Any(), agentID).Return(agentRow("run-a"), nil).AnyTimes()
 		db.EXPECT().GetLatestWorkspaceAgentContextSnapshot(gomock.Any(), agentID).
 			Return(database.WorkspaceAgentContextSnapshot{}, xerrors.New("connection refused"))
 
