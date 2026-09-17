@@ -48,8 +48,8 @@ type responsesInterceptionBase struct {
 	cfg  intercept.Config
 	cred intercept.Credential
 	// bedrockMantle is nil for non-Bedrock providers. When set, upstream
-	// calls are SigV4-signed against the Bedrock Mantle endpoint instead of
-	// using a key pool or BYOK secret.
+	// calls target the Bedrock Mantle endpoint and are SigV4-signed, or
+	// bearer-authenticated when the request carries a user Bedrock API key.
 	bedrockMantle *bedrocksig.MantleConfig
 
 	// clientHeaders are the original HTTP headers from the client request.
@@ -118,12 +118,18 @@ func (i *responsesInterceptionBase) newResponsesService(ctx context.Context) res
 		opts = append(opts, option.WithMiddleware(mw))
 	}
 
-	// Bedrock mantle: install the SigV4 signing middleware last so it runs
-	// innermost (right before the HTTP send) and signs the request after all
-	// other headers are set.
+	// Bedrock mantle: install auth last so it runs innermost (right before the
+	// HTTP send) after all other headers are set. A user Bedrock API key is
+	// sent as a bearer token; otherwise the request is SigV4-signed.
 	if i.bedrockMantle != nil {
-		//nolint:bodyclose // signing middleware hands the response to the transport, which closes the body.
-		opts = append(opts, option.WithMiddleware(bedrocksig.SignMiddleware(i.bedrockMantle.Creds, i.bedrockMantle.Region)))
+		if byok, ok := intercept.AsBYOK(i.cred); ok {
+			i.logger.Debug(ctx, "using byok auth", slog.F("key_hint", byok.Hint()))
+			//nolint:bodyclose // The middleware returns the upstream response for the SDK to close.
+			opts = append(opts, option.WithMiddleware(bedrocksig.BearerMiddleware(byok.Secret)))
+		} else {
+			//nolint:bodyclose // signing middleware hands the response to the transport, which closes the body.
+			opts = append(opts, option.WithMiddleware(bedrocksig.SignMiddleware(i.bedrockMantle.Creds, i.bedrockMantle.Region)))
+		}
 	}
 
 	return responses.NewResponseService(opts...)
