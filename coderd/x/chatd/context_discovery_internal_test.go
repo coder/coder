@@ -222,21 +222,27 @@ func TestUnchangedDiscoveredRows(t *testing.T) {
 	t.Parallel()
 
 	row := func(source string, hash byte, discovered bool) database.ChatContextResource {
-		return database.ChatContextResource{Source: source, ContentHash: []byte{hash}, Discovered: discovered, BodyKind: database.WorkspaceAgentContextBodyKindInstructionFile}
+		return database.ChatContextResource{Source: source, ContentHash: []byte{hash}, Discovered: discovered, BodyKind: database.WorkspaceAgentContextBodyKindInstructionFile, Status: database.WorkspaceAgentContextResourceStatusOk}
 	}
 	file := func(source string) workspacesdk.ContextInstructionFile {
 		return workspacesdk.ContextInstructionFile{Directory: path.Dir(source), Source: source, Status: "ok"}
 	}
+	// The excluded capture keeps the hash of the content it could not hold,
+	// so a step that later pins the content changes status and body only.
+	excluded := row("/repo/site/pkg/AGENTS.md", 4, true)
+	excluded.Status = database.WorkspaceAgentContextResourceStatusExcluded
 	captured := []database.ChatContextResource{
 		row("/repo/site/AGENTS.md", 1, true),
 		row("/repo/site/CLAUDE.md", 1, true),
 		row("/repo/docs/AGENTS.md", 1, true),
+		excluded,
 	}
 	current := []database.ChatContextResource{
 		row("/repo/AGENTS.md", 9, false),
 		row("/repo/site/AGENTS.md", 1, true),
 		row("/repo/site/CLAUDE.md", 2, true),
 		row("/repo/site/.cursorrules", 3, true),
+		row("/repo/site/pkg/AGENTS.md", 4, true),
 	}
 	resolved := []workspacesdk.ContextInstructionFile{
 		file("/repo/site/AGENTS.md"),
@@ -244,6 +250,7 @@ func TestUnchangedDiscoveredRows(t *testing.T) {
 		file("/repo/site/.cursorrules"),
 		file("/repo/docs/AGENTS.md"),
 		file("/repo/lib/AGENTS.md"),
+		file("/repo/site/pkg/AGENTS.md"),
 	}
 
 	rows, files := unchangedDiscoveredRows(captured, current, resolved)
@@ -255,7 +262,7 @@ func TestUnchangedDiscoveredRows(t *testing.T) {
 		return out
 	}
 	require.Equal(t, []string{"/repo/AGENTS.md", "/repo/site/AGENTS.md"}, sources(rows),
-		"snapshot rows and the unchanged discovered row stay; the rewritten and the step-discovered rows are off limits")
+		"snapshot rows and the unchanged discovered row stay; the rewritten, the step-discovered, and the excluded-then-pinned rows are off limits")
 	require.Equal(t, []string{"/repo/site/AGENTS.md", "/repo/lib/AGENTS.md"}, func() []string {
 		out := make([]string, 0, len(files))
 		for _, f := range files {

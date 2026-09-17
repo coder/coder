@@ -1391,9 +1391,11 @@ type ContextInstructionFile struct {
 	Source      string `json:"source"`
 	Content     string `json:"content,omitempty"`
 	ContentHash string `json:"content_hash"`
-	SizeBytes   uint64 `json:"size_bytes"`
-	Status      string `json:"status"`
-	Error       string `json:"error,omitempty"`
+	// SizeBytes is the length of Content when Status is ok and the file's
+	// size on disk otherwise.
+	SizeBytes uint64 `json:"size_bytes"`
+	Status    string `json:"status"`
+	Error     string `json:"error,omitempty"`
 }
 
 // ResolveContextInstructionsResponse lists the instruction files found in

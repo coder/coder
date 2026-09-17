@@ -718,19 +718,18 @@ func (p *Server) rediscoverInstructionContext(ctx context.Context, chat database
 
 // unchangedDiscoveredRows narrows a rediscovery to what a concurrent step has
 // not touched since the refresh captured the discovered rows. It returns the
-// current inventory without the discovered rows whose content changed or
-// that vanished, so only untouched rows can be rewritten or removed, and the
-// resolved files minus those whose source a step pinned meanwhile, whether
-// by rewriting a captured row or by discovering a file the refresh did not
-// know.
+// current inventory without the discovered rows a step rewrote or removed,
+// so only untouched rows can be rewritten or removed, and the resolved files
+// minus those whose source a step pinned meanwhile, whether by rewriting a
+// captured row or by discovering a file the refresh did not know.
 func unchangedDiscoveredRows(
 	captured, current []database.ChatContextResource,
 	resolved []workspacesdk.ContextInstructionFile,
 ) ([]database.ChatContextResource, []workspacesdk.ContextInstructionFile) {
-	capturedHash := make(map[string][]byte, len(captured))
+	capturedRows := make(map[string]database.ChatContextResource, len(captured))
 	for _, row := range captured {
 		if row.Discovered {
-			capturedHash[pathKey(agentPath(row.Source))] = row.ContentHash
+			capturedRows[pathKey(agentPath(row.Source))] = row
 		}
 	}
 	rows := make([]database.ChatContextResource, 0, len(current))
@@ -742,7 +741,7 @@ func unchangedDiscoveredRows(
 			rows = append(rows, row)
 			continue
 		}
-		if hash, ok := capturedHash[key]; ok && bytes.Equal(hash, row.ContentHash) {
+		if was, ok := capturedRows[key]; ok && sameDiscoveredRow(was, row) {
 			rows = append(rows, row)
 			unchanged[key] = struct{}{}
 			continue
@@ -755,7 +754,7 @@ func unchangedDiscoveredRows(
 		if _, ok := touched[key]; ok {
 			continue
 		}
-		if _, ok := capturedHash[key]; ok {
+		if _, ok := capturedRows[key]; ok {
 			if _, ok := unchanged[key]; !ok {
 				// Captured but gone from the inventory: a step removed it.
 				continue
@@ -764,6 +763,17 @@ func unchangedDiscoveredRows(
 		files = append(files, file)
 	}
 	return rows, files
+}
+
+// sameDiscoveredRow reports whether a step left a discovered row as it was
+// captured. Every field a pin rewrites is compared: a step that pins a file
+// the budget had excluded changes its status and body but not its hash.
+func sameDiscoveredRow(a, b database.ChatContextResource) bool {
+	return bytes.Equal(a.ContentHash, b.ContentHash) &&
+		a.Status == b.Status &&
+		a.Error == b.Error &&
+		a.SizeBytes == b.SizeBytes &&
+		bytes.Equal(a.Body, b.Body)
 }
 
 // resolveInstructionDirs asks the agent about dirs in request-sized batches,

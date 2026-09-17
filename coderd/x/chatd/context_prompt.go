@@ -321,9 +321,17 @@ func contextResourcesToPrompt(
 	case len(contextFileParts) == 0:
 		note = emptyNote
 	}
-	// Root files come before the nested files that refine them, whatever
-	// order the rows were pinned in.
+	// The global files come first, then root files before the nested files
+	// that refine them, whatever order the rows were pinned in. Depth alone
+	// would put a working directory outside the home directory ahead of
+	// ~/.coder.
 	slices.SortStableFunc(contextFileParts, func(a, b codersdk.ChatMessagePart) int {
+		if ga, gb := isGlobalInstructionPath(a.ContextFilePath), isGlobalInstructionPath(b.ContextFilePath); ga != gb {
+			if ga {
+				return -1
+			}
+			return 1
+		}
 		if da, db := pathDepth(a.ContextFilePath), pathDepth(b.ContextFilePath); da != db {
 			return da - db
 		}
@@ -351,6 +359,13 @@ func omittedInstructionFilesNote(omitted []string) string {
 // like POSIX ones.
 func pathDepth(p string) int {
 	return strings.Count(p, "/") + strings.Count(p, "\\")
+}
+
+// isGlobalInstructionPath reports whether p sits directly in a .coder
+// directory, the location the scope line declares global.
+func isGlobalInstructionPath(p string) bool {
+	dir := p[:max(strings.LastIndexAny(p, "/\\"), 0)]
+	return dir[strings.LastIndexAny(dir, "/\\")+1:] == ".coder"
 }
 
 // ContextResources returns the chat's pinned context resource list (metadata

@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -117,6 +118,25 @@ func TestContextResourcesToPrompt(t *testing.T) {
 		// Meta carries the pushed SKILL.md so read_skill serves the body
 		// from the pin without dialing the workspace.
 		require.Equal(t, []byte("# deploy"), skills[0].Meta)
+	})
+
+	t.Run("GlobalFilesFirstThenByDepth", func(t *testing.T) {
+		t.Parallel()
+
+		resources := []database.ChatContextResource{
+			instructionResource(t, "/repo/site/AGENTS.md", "site", database.WorkspaceAgentContextResourceStatusOk),
+			instructionResource(t, "/repo/AGENTS.md", "repo", database.WorkspaceAgentContextResourceStatusOk),
+			instructionResource(t, "/home/coder/.coder/AGENTS.md", "global", database.WorkspaceAgentContextResourceStatusOk),
+		}
+		instruction, _, _ := contextResourcesToPrompt(resources, "linux", "/repo", workspaceContextNoInstructionFilesNote)
+
+		// A working directory outside the home directory is shallower than
+		// ~/.coder, yet the global file still leads.
+		global := strings.Index(instruction, "Source: /home/coder/.coder/AGENTS.md")
+		root := strings.Index(instruction, "Source: /repo/AGENTS.md")
+		nested := strings.Index(instruction, "Source: /repo/site/AGENTS.md")
+		require.Less(t, global, root)
+		require.Less(t, root, nested)
 	})
 
 	t.Run("NamesOmittedFilesNextToRenderedOnes", func(t *testing.T) {

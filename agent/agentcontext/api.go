@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"path/filepath"
 	"strconv"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 
@@ -225,12 +226,18 @@ func (a *API) handleResolveInstructions(rw http.ResponseWriter, r *http.Request)
 				Error:       res.Error,
 			}
 			if res.Status == StatusOK {
-				if contentBytes+len(res.Payload) > maxInstructionResponseBytes {
+				// The content travels as JSON text, which cannot carry
+				// invalid UTF-8; replacing it here, before the bytes are
+				// counted, keeps every cap on what is actually shipped,
+				// stored, and rendered rather than on the file's size.
+				content := strings.ToValidUTF8(string(res.Payload), "\uFFFD")
+				if contentBytes+len(content) > maxInstructionResponseBytes {
 					file.Status = StatusExcluded.String()
 					file.Error = fmt.Sprintf("response content cap of %d bytes exceeded", maxInstructionResponseBytes)
 				} else {
-					file.Content = string(res.Payload)
-					contentBytes += len(res.Payload)
+					file.Content = content
+					file.SizeBytes = uint64(len(content))
+					contentBytes += len(content)
 				}
 			}
 			resp.Files = append(resp.Files, file)
