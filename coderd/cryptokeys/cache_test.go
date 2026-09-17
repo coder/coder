@@ -443,6 +443,35 @@ func TestCryptoKeyCache(t *testing.T) {
 		require.Equal(t, 3, ff.called)
 	})
 
+	// Close stops the refresh timer. A fetch that is in flight when Close runs
+	// fails (Close cancels the cache context) and must not re-arm the timer.
+	t.Run("CloseDuringRefreshDoesNotRearmTimer", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			ctx = testutil.Context(t, testutil.WaitShort)
+			// The failed refresh logs at error level by design.
+			logger = slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+			clock  = quartz.NewMock(t)
+		)
+
+		bf := newBlockingFetcher()
+		bf.results <- fetchResult{}
+		cache, err := cryptokeys.NewSigningCache(ctx, logger, bf, codersdk.CryptoKeyFeatureTailnetResume, cryptokeys.WithCacheClock(clock))
+		require.NoError(t, err)
+		testutil.RequireReceive(ctx, t, bf.started)
+
+		// Fire the refresh timer and hold its fetch open.
+		_, advance := clock.AdvanceNext()
+		testutil.RequireReceive(ctx, t, bf.started)
+
+		require.NoError(t, cache.Close())
+		advance.MustWait(ctx)
+
+		_, ok := clock.Peek()
+		require.False(t, ok, "refresh timer was re-armed after Close")
+	})
+
 	t.Run("Closed", func(t *testing.T) {
 		t.Parallel()
 
