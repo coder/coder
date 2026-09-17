@@ -58,6 +58,8 @@ interface UserCompactionThresholdSettingsProps {
 	onResetThreshold: (modelId: string) => Promise<unknown>;
 }
 
+const noCompactionOverrides: ReadonlyMap<string, string> = new Map();
+
 const parseThresholdDraft = (value: string): number | null => {
 	const trimmedValue = value.trim();
 	if (!/^\d+$/.test(trimmedValue)) {
@@ -90,7 +92,7 @@ export const UserCompactionThresholdSettings: FC<
 	models,
 	providerTypeByID,
 	organizations,
-	compactionModelIDByOrganization = new Map<string, string>(),
+	compactionModelIDByOrganization = noCompactionOverrides,
 	modelsError,
 	isLoadingModels,
 	thresholds,
