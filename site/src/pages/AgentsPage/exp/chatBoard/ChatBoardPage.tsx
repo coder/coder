@@ -28,6 +28,7 @@ import { isActiveChatStatus } from "../../components/ChatConversation/chatStore"
 import { buildChatSearchQuery } from "../../components/ChatsSidebar/dialogs/searchQuery";
 import {
 	type AssistantSpec,
+	type AssistantTools,
 	BOARD_ASSISTANT_KEY,
 	boardAssistantSpec,
 	cardAssistantSpec,
@@ -270,11 +271,14 @@ const ChatBoardPage: FC = () => {
 	};
 	const endPreview = () => setPendingPreview({ kind: "close" });
 
-	// Opens the chat for `spec`, creating it on first use.
-	const showAssistant = (spec: AssistantSpec) =>
+	// Opens the chat for the assistant labelled `key`, creating it on first use.
+	const showAssistant = (
+		key: string,
+		spec: (tools: AssistantTools) => AssistantSpec,
+	) =>
 		openAssistant({
 			spec,
-			existingId: assistantByKey.get(spec.key),
+			existingId: assistantByKey.get(key),
 			create: createMutation.mutateAsync,
 			rename: titleMutation.mutateAsync,
 			queryClient,
@@ -284,10 +288,13 @@ const ChatBoardPage: FC = () => {
 			setWindows((prev) => toFront(dropPreview(prev), windowCentered(chatId)));
 		});
 	const openCardAssistant = (card: BoardCardModel) =>
-		showAssistant(cardAssistantSpec(card));
+		showAssistant(card.id, (tools) => cardAssistantSpec(card, tools));
 	const openBoardAssistant = () => {
-		const spec = boardAssistantSpec(boardState, chats);
-		if (spec) void showAssistant(spec);
+		const organizationId = chats[0]?.organization_id;
+		if (!organizationId) return;
+		void showAssistant(BOARD_ASSISTANT_KEY, (tools) =>
+			boardAssistantSpec(boardState, organizationId, tools),
+		);
 	};
 
 	const handleDragStart = ({ active }: DragStartEvent) => {

@@ -98,6 +98,8 @@ Assistant
   a snapshot of every card with its primary chat id and is told how to read
   and edit board labels; it proposes changes and acts only on a yes. When it
   finishes a turn the board refetches the chat list.
+- When the Coder MCP is connected it is attached to the assistant, which
+  then needs a workspace only for label writes and a few fields.
 
 Sidebar
 
@@ -148,6 +150,19 @@ snapshot the previous maps of every touched chat so they can be undone.
   `refreshChatList.ts` refetches the list after a board assistant turn,
   retrying while watch events cancel it. `DraftChat.tsx` is the regular
   create form inside a board window.
+
+## Findings
+
+Coder MCP gaps seen while a board assistant worked, as of this experiment:
+
+- No tool writes labels or titles; label edits need the API.
+- `coder_get_chat` and `coder_list_chats` lack `created_at`, `summary`,
+  `diff_status` and cost.
+- `coder_get_chat_messages` applies `limit` before dropping tool-only
+  messages, so busy chats return empty pages, and it omits tool calls, so a
+  running chat's activity is invisible.
+- `coder_list_chats` caps at 100 with no cursor.
+- `coder_get_chat` returns the chat's full file list.
 
 ## Not done
 
