@@ -371,6 +371,7 @@ $(CODER_SLIM_NOVERSION_BINARIES): build/coder-slim_%: build/coder-slim_$(VERSION
 # "fat" binaries always depend on the site and the compressed slim binaries.
 $(CODER_FAT_BINARIES): \
 	site/out/index.html \
+	site/out/annotator.js \
 	site/out/bin/coder.sha1 \
 	site/out/bin/coder.tar.zst
 
@@ -601,6 +602,17 @@ site/out/index.html: \
 	# prevents this directory from getting to big, and causing "too much data" errors
 	rm -rf out/assets/
 	pnpm build
+
+# The overlay the app proxy injects into port previews. It is served from
+# site/out alongside the dashboard, so it is built after the site so the
+# site build cannot clobber it.
+site/out/annotator.js: \
+	annotator/node_modules/.installed \
+	site/out/index.html \
+	$(shell find ./annotator $(FIND_EXCLUSIONS) -type f \( -name '*.ts' -o -name '*.mts' \))
+	cd annotator/
+	pnpm build
+	cp dist/annotator.js ../site/out/annotator.js
 
 offlinedocs/out/index.html: offlinedocs/node_modules/.installed $(shell find ./offlinedocs $(FIND_EXCLUSIONS) -type f) $(shell find ./docs $(FIND_EXCLUSIONS) -type f | sed 's: :\\ :g')
 	cd offlinedocs/

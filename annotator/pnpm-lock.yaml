@@ -17,9 +17,12 @@ importers:
       typescript:
         specifier: 6.0.2
         version: 6.0.2
+      vite:
+        specifier: 8.2.1
+        version: 8.2.1
       vitest:
         specifier: 4.1.11
-        version: 4.1.11(jsdom@27.2.0)(vite@8.3.0)
+        version: 4.1.11(jsdom@27.2.0)(vite@8.2.1)
 
 packages:
 
@@ -560,13 +563,13 @@ packages:
     engines: {node: '>=14.17'}
     hasBin: true
 
-  vite@8.3.0:
-    resolution: {integrity: sha512-lhZBVvEHefgE+HQZC9O7EBJgCU/nVzFNl7vkS4RE0APtWLP02/8QVIkQtzBxPquh7lq5/78NHipTj7ODQ6XuyQ==}
+  vite@8.2.1:
+    resolution: {integrity: sha512-EU/eS7BH3XROHh2YnBefjM6DBKA6ZeMZEYQbj7NLWg5wHYlhB8B/Mayd5XsgWq+NFYccDOTemRpdETWR6Ka/lw==}
     engines: {node: ^20.19.0 || >=22.12.0}
     hasBin: true
     peerDependencies:
       '@types/node': ^20.19.0 || >=22.12.0
-      '@vitejs/devtools': ^0.7.1
+      '@vitejs/devtools': ^0.4.0
       esbuild: ^0.27.0 || ^0.28.0
       jiti: '>=1.21.0'
       less: ^4.0.0
@@ -845,13 +848,13 @@ snapshots:
       chai: 6.2.2
       tinyrainbow: 3.1.1
 
-  '@vitest/mocker@4.1.11(vite@8.3.0)':
+  '@vitest/mocker@4.1.11(vite@8.2.1)':
     dependencies:
       '@vitest/spy': 4.1.11
       estree-walker: 3.0.3
       magic-string: 0.30.21
     optionalDependencies:
-      vite: 8.3.0
+      vite: 8.2.1
 
   '@vitest/pretty-format@4.1.11':
     dependencies:
@@ -1129,7 +1132,7 @@ snapshots:
 
   typescript@6.0.2: {}
 
-  vite@8.3.0:
+  vite@8.2.1:
     dependencies:
       lightningcss: 1.33.0
       picomatch: 4.0.7
@@ -1139,10 +1142,10 @@ snapshots:
     optionalDependencies:
       fsevents: 2.3.3
 
-  vitest@4.1.11(jsdom@27.2.0)(vite@8.3.0):
+  vitest@4.1.11(jsdom@27.2.0)(vite@8.2.1):
     dependencies:
       '@vitest/expect': 4.1.11
-      '@vitest/mocker': 4.1.11(vite@8.3.0)
+      '@vitest/mocker': 4.1.11(vite@8.2.1)
       '@vitest/pretty-format': 4.1.11
       '@vitest/runner': 4.1.11
       '@vitest/snapshot': 4.1.11
@@ -1159,7 +1162,7 @@ snapshots:
       tinyexec: 1.3.1
       tinyglobby: 0.2.17
       tinyrainbow: 3.1.1
-      vite: 8.3.0
+      vite: 8.2.1
       why-is-node-running: 2.3.0
     optionalDependencies:
       jsdom: 27.2.0

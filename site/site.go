@@ -288,6 +288,9 @@ func ShouldCacheFile(reqFile string) bool {
 	denyListedSuffixes := []string{
 		".html",
 		"worker.js",
+		// Injected into proxied apps by URL rather than by hashed asset name,
+		// so a cached copy would outlive the dashboard it shipped with.
+		"annotator.js",
 	}
 
 	for _, suffix := range denyListedSuffixes {

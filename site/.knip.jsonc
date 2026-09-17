@@ -12,6 +12,9 @@
 	"ignoreBinaries": ["make", "protoc"],
 	"ignoreDependencies": [
 		"@babel/plugin-syntax-typescript",
+		// Linked from ../annotator; knip resolves the symlink to local files
+		// and never sees the package name being imported.
+		"@coder/annotator",
 		"@tailwindcss/typography",
 		"@types/react-virtualized-auto-sizer",
 		"tailwindcss",
