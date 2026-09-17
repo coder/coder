@@ -50,13 +50,22 @@ describe("cardAssistantSpec", () => {
 				summary: " done \n",
 			},
 		]);
-		const spec = cardAssistantSpec(card);
+		const spec = cardAssistantSpec(card, { coderMcp: false });
 		expect(spec).toMatchObject({
 			key: "p",
 			title: "Assistant: Epic",
 			organizationId: MockChat.organization_id,
 		});
 		expect(spec.systemPrompt).toContain("assistant for one card");
+		expect(spec.systemPrompt).toContain(
+			"Card id (primary chat): p. Members: p, m.",
+		);
+		expect(spec.systemPrompt).toContain("notes");
+		expect(spec.systemPrompt).toContain(
+			"Propose, then act only on an explicit yes.",
+		);
+		expect(spec.systemPrompt).not.toContain("board/effort");
+		expect(spec.systemPrompt).not.toContain("Merge two cards");
 		const text = spec.snapshot;
 		expect(text).toContain('Assistant for card "Epic"');
 		expect(text).toContain("Column: Doing");
@@ -65,34 +74,59 @@ describe("cardAssistantSpec", () => {
 		expect(text).toContain("2. Chat m\n   id: m\n   status: running");
 		expect(text).toContain("summary: done");
 		expect(text).toContain("Notes:\n");
-		expect(cardAssistantSpec(cardFor([chat("s")])).snapshot).toContain(
-			"Notes: none",
-		);
+		expect(
+			cardAssistantSpec(cardFor([chat("s")]), { coderMcp: false }).snapshot,
+		).toContain("Notes: none");
 	});
 });
 
 describe("boardAssistantSpec", () => {
-	it("keys the one board assistant and takes the organization from the list", () => {
-		const chats = [
-			{ ...chat("a"), organization_id: "org-1" },
-			{ ...chat("b"), organization_id: "org-2" },
-		];
-		const spec = boardAssistantSpec(stateOf(chats), chats);
+	it("keys the one board assistant for the given organization", () => {
+		const chats = [chat("a"), chat("b")];
+		const spec = boardAssistantSpec(stateOf(chats), "org-1", {
+			coderMcp: false,
+		});
 		expect(spec).toMatchObject({
 			key: "board",
 			title: "Board assistant",
 			organizationId: "org-1",
 		});
-		expect(spec?.systemPrompt).toContain("PATCH");
-		expect(spec?.systemPrompt).toContain("board/comment.N.M");
-		expect(spec?.systemPrompt).toContain(
+		expect(spec.systemPrompt).toContain("PATCH");
+		expect(spec.systemPrompt).toContain("board/comment.N.M");
+		expect(spec.systemPrompt).toContain(
 			"set board/comment.N.timestamp to the current Unix ms",
 		);
-		expect(spec?.systemPrompt).toContain('a note "Merged card: <title>"');
-		expect(spec?.systemPrompt).toContain(
+		expect(spec.systemPrompt).toContain('a note "Merged card: <title>"');
+		expect(spec.systemPrompt).toContain(
 			"oldest remaining member by created_at becomes primary",
 		);
-		expect(boardAssistantSpec(stateOf([]), [])).toBeUndefined();
+		expect(spec.systemPrompt).toContain(
+			"Propose, then act only on an explicit yes.",
+		);
+	});
+
+	it("names the MCP tools and the API gaps only when the Coder MCP is attached", () => {
+		const state = stateOf([chat("a")]);
+		const withMcp = boardAssistantSpec(state, "org-1", {
+			coderMcp: true,
+		}).systemPrompt;
+		expect(withMcp).toContain("coder_get_chat");
+		expect(withMcp).toContain(
+			"only for these gaps: label writes (PATCH), chat title writes, created_at, summary, diff, cost",
+		);
+		expect(withMcp).toContain('find_tools with queries ["chat"]');
+		expect(withMcp).toContain("the first time you need one of the API gaps");
+
+		const curlOnly = boardAssistantSpec(state, "org-1", {
+			coderMcp: false,
+		}).systemPrompt;
+		expect(curlOnly).not.toContain("coder_");
+		expect(curlOnly).toContain(
+			"the first time you need to read or write anything",
+		);
+		expect(
+			cardAssistantSpec(cardFor([chat("a")]), { coderMcp: true }).systemPrompt,
+		).toContain("coder_get_chat_messages");
 	});
 
 	it("snapshots every card with its primary id, column, chats and notes", () => {
@@ -108,8 +142,9 @@ describe("boardAssistantSpec", () => {
 			{ ...chat("m", { "board/group": "p" }), status: "running" as const },
 			chat("s"),
 		];
-		const spec = boardAssistantSpec(stateOf(chats), chats);
-		if (!spec) throw new Error("spec missing");
+		const spec = boardAssistantSpec(stateOf(chats), "org-1", {
+			coderMcp: false,
+		});
 		const text = spec.snapshot;
 		expect(text).toContain("Columns: Inbox, Doing");
 		expect(text).toContain(
