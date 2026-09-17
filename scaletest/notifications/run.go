@@ -34,8 +34,6 @@ type Runner struct {
 	websocketDeletionReceiptTimes   []time.Time
 	websocketDeletionReceiptTimesMu sync.RWMutex
 
-	// smtpReceiptTimes holds receipt times for SMTP template-deletion emails,
-	// deduped by message ID.
 	smtpReceiptTimes   []time.Time
 	smtpReceiptTimesMu sync.RWMutex
 
@@ -222,8 +220,7 @@ func (r *Runner) watchNotifications(ctx context.Context, conn *websocket.Conn, u
 		slog.F("username", user.Username),
 		slog.F("expected_deletions", expectedDeletions))
 
-	// seen tracks notification instance IDs so repeated deliveries of the same
-	// notification are counted once; len(seen) is the number counted so far.
+	// Dedupe repeated deliveries by instance ID; len(seen) is the count so far.
 	seen := make(map[uuid.UUID]bool)
 
 	for len(seen) < expectedDeletions {
@@ -280,8 +277,7 @@ func (r *Runner) watchNotificationsSMTP(ctx context.Context, user codersdk.User,
 		slog.F("email", user.Email),
 		slog.F("expected_deletions", expectedDeletions))
 
-	// seen tracks message IDs so repeated polls of the same email are counted
-	// once; len(seen) is the number counted so far.
+	// Dedupe repeated polls by message ID; len(seen) is the count so far.
 	seen := make(map[string]bool)
 
 	apiURL := fmt.Sprintf("%s/messages?email=%s", r.cfg.SMTPApiURL, user.Email)

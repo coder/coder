@@ -494,8 +494,8 @@ func triggerNotifications(
 
 	logger.Info(ctx, "creating test templates to trigger notifications", slog.F("count", deletionCount))
 
-	// Upload an empty template archive once and reuse it for every template
-	// version; the echo provisioner ignores the contents.
+	// The echo provisioner ignores template contents, so reuse one empty
+	// archive for every template version.
 	file, err := client.Upload(ctx, codersdk.ContentTypeTar, bytes.NewReader([]byte{}))
 	if err != nil {
 		logger.Error(ctx, "upload test template", slog.Error(err))
