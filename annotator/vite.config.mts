@@ -4,6 +4,11 @@ import { defineConfig } from "vite";
 // `<script src>`, so it must be a single self-contained IIFE with no
 // external chunks. The Makefile copies dist/annotator.js into site/out.
 export default defineConfig({
+	resolve: {
+		alias: {
+			react: new URL("./src/reactShim.ts", import.meta.url).pathname,
+		},
+	},
 	publicDir: false,
 	build: {
 		outDir: "dist",

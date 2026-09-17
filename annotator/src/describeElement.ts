@@ -1,5 +1,5 @@
 import type { AnnotatedElement } from "./protocol";
-import { describeReactOwner } from "./reactFiber";
+import { describeReactOwner, resolveReactSource } from "./reactFiber";
 
 const maxSelectorDepth = 6;
 const maxClassesPerSegment = 2;
@@ -296,6 +296,19 @@ export function describeElement(element: Element): AnnotatedElement {
 			height: Math.round(rect.height),
 		},
 		reactComponents: react?.components.length ? react.components : undefined,
-		sourceLocation: react?.sourceLocation,
+		reactProps: react?.props,
 	};
+}
+
+/**
+ * `describeElement` plus the React source data that needs source maps.
+ * The element is described synchronously first so a slow or missing
+ * source map can only cost the extra detail, never the annotation.
+ */
+export async function describeElementWithSource(
+	element: Element,
+): Promise<AnnotatedElement> {
+	const described = describeElement(element);
+	const source = await resolveReactSource(element);
+	return source ? { ...described, ...source } : described;
 }
