@@ -41,7 +41,7 @@ function frameWindow(frame: HTMLIFrameElement): Window {
 }
 
 function renderPanel(onSend = sent(), readyTimeoutMs?: number) {
-	renderComponent(
+	const panel = (isAgentWorking: boolean) => (
 		<ComposerProvider>
 			<Composer onSend={onSend} />
 			<PortPreviewPanel
@@ -50,10 +50,14 @@ function renderPanel(onSend = sent(), readyTimeoutMs?: number) {
 				host="*.apps.example.com"
 				tab={tab}
 				canAnnotate
+				isAgentWorking={isAgentWorking}
 				annotatorReadyTimeoutMs={readyTimeoutMs}
 			/>
-		</ComposerProvider>,
+		</ComposerProvider>
 	);
+	const view = renderComponent(panel(false));
+	const setAgentWorking = (isAgentWorking: boolean) =>
+		view.rerender(panel(isAgentWorking));
 	// Requesting the overlay remounts the iframe, so always look it up fresh.
 	const frame = () => screen.getByTitle<HTMLIFrameElement>("Preview :3000");
 	const frameOrigin = new URL(frame().src).origin;
@@ -66,7 +70,7 @@ function renderPanel(onSend = sent(), readyTimeoutMs?: number) {
 			}),
 		);
 	};
-	return { frame, frameOrigin, receive, onSend };
+	return { frame, frameOrigin, receive, onSend, setAgentWorking };
 }
 
 const submission: AnnotatorToHostMessage = {
@@ -336,6 +340,56 @@ describe("PortPreviewPanel annotations", () => {
 			}),
 		);
 		expect(onSend).not.toHaveBeenCalled();
+	});
+
+	it("shimmers annotated elements while the agent works on them", async () => {
+		const { frame, frameOrigin, receive, onSend, setAgentWorking } =
+			renderPanel();
+		await requestOverlay();
+		receive({ type: "coder-annotator:ready" });
+		const postMessage = vi.spyOn(frameWindow(frame()), "postMessage");
+		receive(submission);
+		await waitFor(() => expect(onSend).toHaveBeenCalledTimes(1));
+		expect(postMessage).not.toHaveBeenCalledWith(
+			expect.objectContaining({ type: "coder-annotator:highlight" }),
+			frameOrigin,
+		);
+
+		setAgentWorking(true);
+		const item = {
+			id: "a",
+			selector: "#save",
+			url: "http://3000--agent--ws--user.apps.example.com/",
+		};
+		await waitFor(() =>
+			expect(postMessage).toHaveBeenCalledWith(
+				{ type: "coder-annotator:highlight", items: [item] },
+				frameOrigin,
+			),
+		);
+
+		// A second annotation during the same turn joins the first.
+		receive({
+			...submission,
+			annotations: [{ ...submission.annotations[0], id: "b" }],
+		});
+		await waitFor(() =>
+			expect(postMessage).toHaveBeenCalledWith(
+				{
+					type: "coder-annotator:highlight",
+					items: [item, { ...item, id: "b" }],
+				},
+				frameOrigin,
+			),
+		);
+
+		setAgentWorking(false);
+		await waitFor(() =>
+			expect(postMessage).toHaveBeenLastCalledWith(
+				{ type: "coder-annotator:clear-highlights" },
+				frameOrigin,
+			),
+		);
 	});
 
 	it("stops requesting the overlay once it failed to load", async () => {
