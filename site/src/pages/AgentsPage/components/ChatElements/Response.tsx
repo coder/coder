@@ -233,11 +233,13 @@ const createComponents = (
 					const viewerLang: SupportedLanguages = isMermaid
 						? "text"
 						: (lang as SupportedLanguages);
+					// MermaidDiagram's error fallback strips the margin, border
+					// and rounding from its direct child, so the frame must stay
+					// on the outermost element rather than the ScrollArea.
 					const codeBlock = (
-						<div className="group/code-block relative my-4">
+						<div className="group/code-block relative my-4 overflow-hidden rounded-md border border-solid border-border-default bg-surface-primary">
 							<ScrollArea
 								orientation="both"
-								className="rounded-md border border-solid border-border-default bg-surface-primary"
 								scrollBarClassName="w-1.5"
 								horizontalScrollBarClassName="h-1.5"
 							>
