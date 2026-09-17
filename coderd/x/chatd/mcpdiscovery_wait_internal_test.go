@@ -3,6 +3,7 @@ package chatd
 import (
 	"context"
 	"database/sql"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -17,6 +18,7 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/quartz"
 )
 
 // TestPrepareGenerationMCPDiscoveryBudget verifies preparation spends the
@@ -123,6 +125,43 @@ func TestMCPDiscoveryAttemptRearm(t *testing.T) {
 	require.EqualValues(t, 4, db.calls.Load(), "each chat gets an attempt")
 }
 
+func TestMCPDiscoveryAttemptTimedOutExpires(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitLong)
+	db := &mcpDiscoveryProbeStore{read: func(ctx context.Context, _ uuid.UUID) (database.WorkspaceAgentContextSnapshot, error) {
+		<-ctx.Done()
+		return database.WorkspaceAgentContextSnapshot{}, ctx.Err()
+	}}
+	runA := "run-a"
+	db.agentRunID.Store(&runA)
+	mClock := quartz.NewMock(t)
+	server := &Server{db: db, logger: testutil.Logger(t), clock: mClock}
+	attempt := func(chatID, agentID uuid.UUID) {
+		t.Helper()
+		attemptCtx, cancel := context.WithCancel(ctx)
+		cancel()
+		server.waitForMCPDiscovery(attemptCtx, chatID, agentID)
+	}
+	chatID, agentID := uuid.New(), uuid.New()
+	attempt(chatID, agentID)
+	require.EqualValues(t, 1, db.calls.Load())
+	mClock.Advance(mcpDiscoveryAttemptRetention - time.Second).MustWait(ctx)
+	attempt(chatID, agentID)
+	require.EqualValues(t, 1, db.calls.Load(), "a timed-out attempt is reused within retention")
+	// Two other chats time out and are then left alone past retention.
+	attempt(uuid.New(), agentID)
+	attempt(uuid.New(), agentID)
+	server.mcpDiscoveryMu.Lock()
+	require.Len(t, server.mcpDiscoveryAttempts, 3)
+	server.mcpDiscoveryMu.Unlock()
+	mClock.Advance(mcpDiscoveryAttemptRetention).MustWait(ctx)
+	attempt(chatID, agentID)
+	require.EqualValues(t, 4, db.calls.Load(), "an expired attempt is spent again")
+	server.mcpDiscoveryMu.Lock()
+	require.Len(t, server.mcpDiscoveryAttempts, 1, "expired attempts for other chats are swept on rearm")
+	server.mcpDiscoveryMu.Unlock()
+}
+
 func TestMCPDiscoveryAttemptCompleteNotCached(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitLong)
@@ -177,6 +216,45 @@ func TestMCPDiscoveryConcurrentAttempt(t *testing.T) {
 	testutil.TryReceive(ctx, t, done)
 	server.waitForMCPDiscovery(ctx, chatID, agentID)
 	require.EqualValues(t, 1, db.calls.Load())
+}
+
+// TestMCPDiscoveryCanceledJoinerRace runs a canceled joiner concurrently
+// with the owner's completion; under the race detector the joiner must not
+// touch the outcome the owner is still writing.
+func TestMCPDiscoveryCanceledJoinerRace(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitLong)
+	entered := make(chan struct{})
+	var enteredOnce sync.Once
+	release := make(chan struct{})
+	db := &mcpDiscoveryProbeStore{read: func(ctx context.Context, _ uuid.UUID) (database.WorkspaceAgentContextSnapshot, error) {
+		enteredOnce.Do(func() { close(entered) })
+		select {
+		case <-release:
+		case <-ctx.Done():
+		}
+		return database.WorkspaceAgentContextSnapshot{AgentRunID: "run-a", McpDiscoveryPhase: database.WorkspaceAgentMcpDiscoveryPhaseComplete}, nil
+	}}
+	runA := "run-a"
+	db.agentRunID.Store(&runA)
+	server := &Server{db: db, logger: testutil.Logger(t)}
+	chatID, agentID := uuid.New(), uuid.New()
+	ownerDone := make(chan struct{})
+	go func() {
+		defer close(ownerDone)
+		server.waitForMCPDiscovery(ctx, chatID, agentID)
+	}()
+	testutil.TryReceive(ctx, t, entered)
+	joinedCtx, joinedCancel := context.WithCancel(ctx)
+	joinedCancel()
+	joinerDone := make(chan struct{})
+	go func() {
+		defer close(joinerDone)
+		server.waitForMCPDiscovery(joinedCtx, chatID, agentID)
+	}()
+	close(release)
+	testutil.TryReceive(ctx, t, ownerDone)
+	testutil.TryReceive(ctx, t, joinerDone)
 }
 
 func TestAppendWorkspaceMCPNote(t *testing.T) {
