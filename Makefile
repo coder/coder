@@ -791,6 +791,14 @@ lint/docs-html:
 	go run ./scripts/docshtmlcheck
 .PHONY: lint/docs-html
 
+# Fails when documented --experiments and CODER_EXPERIMENTS values are not in
+# codersdk.ExperimentsKnown. Intentionally not in lint until #29268 removes
+# three stale documented oauth2 keys; add it to lint once that PR merges.
+lint/check-experiment-keys:
+	echo "--- check documented experiment keys"
+	go run ./scripts/checkexperimentkeys
+.PHONY: lint/check-experiment-keys
+
 lint/architecture:
 	./scripts/check_architecture.sh
 .PHONY: lint/architecture
