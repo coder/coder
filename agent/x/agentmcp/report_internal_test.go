@@ -203,6 +203,60 @@ func TestReport(t *testing.T) {
 		assert.Equal(t, 1, fires())
 	})
 
+	t.Run("RetainedSessionErrorRedactedWithItsOwnConfig", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		dir := t.TempDir()
+		_, entry := fakeMCPServerConfig(t, "srv")
+		entry.Env["FIXTURE_SECRET"] = "old-config-sentinel"
+		entry.Env["TEST_MCP_FAKE_SERVER_ECHO_ENV"] = "FIXTURE_SECRET"
+		failMarker := filepath.Join(dir, "fail-list")
+		entry.Env["TEST_MCP_FAKE_SERVER_LIST_FAILS_IF_FILE"] = failMarker
+		configPath := writeMCPConfig(t, dir, map[string]mcpServerEntry{"srv": entry})
+		m, _ := newReportTestManager(t)
+		require.NoError(t, m.Reload(ctx, []string{configPath}))
+		require.Len(t, m.connectedTools(), 1)
+
+		// The replacement config fails to connect, so the previous
+		// session is retained and listed again; its error echoes the
+		// previous config's secret, which only that config can redact.
+		require.NoError(t, os.WriteFile(failMarker, nil, 0o600))
+		writeMCPConfig(t, dir, map[string]mcpServerEntry{"srv": {
+			Command: filepath.Join(dir, "missing-binary"),
+			Env:     map[string]string{"FIXTURE_SECRET": "new-config-sentinel"},
+		}})
+		require.NoError(t, m.Reload(ctx, []string{configPath}))
+		got := serverByName(t, m.Report(), "srv")
+		assert.False(t, got.Connected)
+		assert.Contains(t, got.Err, "tools/list rejected")
+		assert.NotContains(t, got.Err, "old-config-sentinel")
+	})
+
+	t.Run("InheritedSecretRedactedFromConnectError", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		dir := t.TempDir()
+		_, entry := fakeMCPServerConfig(t, "srv")
+		entry.Env["TEST_MCP_FAKE_SERVER_INIT_FAILS"] = "1"
+		entry.Env["TEST_MCP_FAKE_SERVER_ECHO_ENV"] = "CODER_AGENT_TOKEN"
+		configPath := writeMCPConfig(t, dir, map[string]mcpServerEntry{"srv": entry})
+		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+		// The token reaches the server through the agent's env
+		// enrichment, not the config, exactly as in production.
+		m := NewManager(ctx, logger, agentexec.DefaultExecer, nil, nil, func(env []string) ([]string, error) {
+			return append(env, "CODER_AGENT_TOKEN=agent-token-sentinel"), nil
+		}, nil)
+		t.Cleanup(func() { _ = m.Close() })
+		m.SetInheritedSecrets(func() []string { return []string{"agent-token-sentinel"} })
+
+		require.NoError(t, m.Reload(ctx, []string{configPath}))
+		got := serverByName(t, m.Report(), "srv")
+		assert.False(t, got.Connected)
+		assert.Contains(t, got.Err, "initialize rejected")
+		assert.NotContains(t, got.Err, "agent-token-sentinel")
+		assert.Contains(t, got.Err, "[redacted]")
+	})
+
 	t.Run("ReconnectFailureRetainsClientWithWarning", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -407,27 +461,37 @@ func TestSanitizeMCPError(t *testing.T) {
 		Headers: map[string]string{"Authorization": "Bearer header-sentinel"},
 	}
 	err := xerrors.New(`dial https://alice:pw-sentinel@example.com/mcp?token=query-sentinel&x=1 with Bearer header-sentinel env-sentinel exit 1 at 127.0.0.1`)
-	got := sanitizeMCPError(cfg, err)
+	got := sanitizeMCPError(cfg, nil, err)
 	for _, s := range []string{"pw-sentinel", "query-sentinel", "header-sentinel", "env-sentinel", "alice"} {
 		assert.NotContains(t, got, s)
 	}
 	assert.Contains(t, got, "127.0.0.1", "short values are not redacted, so addresses survive")
 	assert.True(t, strings.HasPrefix(got, "dial https://[redacted]@example.com/mcp?[redacted]"), got)
-	assert.Empty(t, sanitizeMCPError(cfg, nil))
+	assert.Empty(t, sanitizeMCPError(cfg, nil, nil))
 
 	t.Run("PathCredential", func(t *testing.T) {
 		t.Parallel()
 		cfg := ServerConfig{URL: "https://mcp.example.com/api/s/path-sentinel/mcp"}
-		got := sanitizeMCPError(cfg, xerrors.New(`Post "https://mcp.example.com/api/s/path-sentinel/mcp": 404 for /api/s/path-sentinel/mcp`))
+		got := sanitizeMCPError(cfg, nil, xerrors.New(`Post "https://mcp.example.com/api/s/path-sentinel/mcp": 404 for /api/s/path-sentinel/mcp`))
 		assert.NotContains(t, got, "path-sentinel")
 		assert.Contains(t, got, "https://mcp.example.com/[redacted]", "scheme and host stay readable")
 	})
 
 	t.Run("BoundedToReceiverCap", func(t *testing.T) {
 		t.Parallel()
-		got := sanitizeMCPError(ServerConfig{}, xerrors.New(strings.Repeat("x", 2*maxDiagnosticBytes)))
+		got := sanitizeMCPError(ServerConfig{}, nil, xerrors.New(strings.Repeat("x", 2*maxDiagnosticBytes)))
 		assert.LessOrEqual(t, len(got), maxDiagnosticBytes)
 		assert.True(t, strings.HasSuffix(got, truncatedSuffix), got)
+	})
+
+	t.Run("InheritedSecrets", func(t *testing.T) {
+		t.Parallel()
+		// Values the agent injects into the server environment (agent
+		// token, user secrets) are not in the config but can be echoed
+		// back by the server, so they are redacted like configured ones.
+		got := sanitizeMCPError(ServerConfig{}, []string{"token-sentinel", "1"}, xerrors.New("initialize rejected: token-sentinel at 127.0.0.1"))
+		assert.NotContains(t, got, "token-sentinel")
+		assert.Contains(t, got, "127.0.0.1", "the short-value floor applies to inherited values too")
 	})
 
 	t.Run("StdioArguments", func(t *testing.T) {
@@ -435,7 +499,7 @@ func TestSanitizeMCPError(t *testing.T) {
 		// Credentials are commonly passed as args; flags themselves stay
 		// readable while their values and every positional arg go.
 		cfg := ServerConfig{Command: "npx", Args: []string{"-y", "@scope/server-pkg", "--token", "arg-sentinel", "--key=eq-sentinel"}}
-		got := sanitizeMCPError(cfg, xerrors.New("exec npx -y @scope/server-pkg --token arg-sentinel --key=eq-sentinel: exit 1"))
+		got := sanitizeMCPError(cfg, nil, xerrors.New("exec npx -y @scope/server-pkg --token arg-sentinel --key=eq-sentinel: exit 1"))
 		assert.NotContains(t, got, "arg-sentinel")
 		assert.NotContains(t, got, "eq-sentinel")
 		assert.NotContains(t, got, "server-pkg")

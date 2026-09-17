@@ -16,6 +16,11 @@ const redactedPlaceholder = "[redacted]"
 // addresses and exit codes in the surrounding error text.
 const minRedactLength = 4
 
+// maxServerNameBytes matches coderd's per-resource source cap: the
+// server name is the source of every mcp_server resource, and a longer
+// one would make coderd reject the whole context push.
+const maxServerNameBytes = 1024
+
 // maxDiagnosticBytes matches coderd's per-resource error cap. A longer
 // error makes coderd reject the whole context push, and the agent
 // retries that push indefinitely.
@@ -38,18 +43,24 @@ func boundDiagnostic(msg string) string {
 
 // sanitizeMCPError renders err for the discovery report with every
 // configured secret removed: URL userinfo, path, and query string,
-// every env value, every header value, and every stdio argument that
-// is not itself a flag. Transport errors echo the URL and subprocess
-// errors can echo the command line and environment, so the raw text is
-// never safe to publish to chats. The result is bounded to
-// maxDiagnosticBytes.
-func sanitizeMCPError(cfg ServerConfig, err error) string {
+// every env value, every header value, every stdio argument that is
+// not itself a flag, and every inherited value (secrets the agent
+// injects into the server environment). Transport errors echo the URL
+// and a server can echo its command line and environment in a
+// JSON-RPC error, so the raw text is never safe to publish to chats.
+// The result is bounded to maxDiagnosticBytes.
+func sanitizeMCPError(cfg ServerConfig, inherited []string, err error) string {
 	if err == nil {
 		return ""
 	}
 	msg := err.Error()
-	secrets := make([]string, 0, len(cfg.Env)+len(cfg.Headers)+len(cfg.Args)+2)
+	secrets := make([]string, 0, len(cfg.Env)+len(cfg.Headers)+len(cfg.Args)+len(inherited)+2)
 	for _, v := range cfg.Env {
+		if len(v) >= minRedactLength {
+			secrets = append(secrets, v)
+		}
+	}
+	for _, v := range inherited {
 		if len(v) >= minRedactLength {
 			secrets = append(secrets, v)
 		}
