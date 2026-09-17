@@ -12,6 +12,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk/agentconnmock"
 	"github.com/coder/coder/v2/testutil"
@@ -138,6 +139,8 @@ func TestSelectInstructionProbes(t *testing.T) {
 		[]string{"/repo/pkg"},
 	)
 	require.Equal(t, map[string]struct{}{"/repo/site": {}, "/repo/pkg": {}}, stale)
+	// Windows spells the recognized names in any case; POSIX does not.
+	require.Equal(t, map[string]struct{}{"c:/repo/site": {}}, staleInstructionDirs([]string{"C:/repo/site/agents.md", "/repo/docs/agents.md"}, nil))
 
 	pinned := map[string]struct{}{"/repo/site": {}, "/repo/docs": {}}
 	negative := func(dir string) bool { return dir == "/repo/pkg" || dir == "/repo/cmd" }
@@ -174,6 +177,35 @@ func TestRemovedDiscoveredSources(t *testing.T) {
 	// row is a snapshot copy, never touched. The Windows row matches its
 	// directory case-insensitively.
 	require.Equal(t, []string{"/repo/site/AGENTS.md", "/repo/pkg/AGENTS.md", "C:\\repo\\win\\AGENTS.md"}, removedDiscoveredSources(rows, stale, probed, returned))
+}
+
+// TestReconcileDiscoveredInstructionFilesKeepsSpelling checks that a file
+// the chat already pins under another spelling of a Windows path updates
+// that row instead of adding a second one, and that a vanished file in a
+// stale directory is removed.
+func TestReconcileDiscoveredInstructionFilesKeepsSpelling(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+	server := &Server{db: db, logger: testutil.Logger(t)}
+	chatID := uuid.New()
+	rows := []database.ChatContextResource{
+		{Source: "C:\\repo\\site\\AGENTS.md", BodyKind: database.WorkspaceAgentContextBodyKindInstructionFile, Discovered: true},
+		{Source: "C:\\repo\\site\\CLAUDE.md", BodyKind: database.WorkspaceAgentContextBodyKindInstructionFile, Discovered: true},
+	}
+	resolved := []workspacesdk.ContextInstructionFile{{
+		Directory: "c:/Repo/site", Source: "c:/Repo/site/AGENTS.md", Content: "rules", ContentHash: "ab", SizeBytes: 5, Status: "ok",
+	}}
+	db.EXPECT().UpsertChatContextDiscoveredResource(gomock.Any(), gomock.Cond(func(arg database.UpsertChatContextDiscoveredResourceParams) bool {
+		return arg.ChatID == chatID && arg.Source == "C:\\repo\\site\\AGENTS.md"
+	})).Return(nil)
+	db.EXPECT().DeleteChatContextDiscoveredResource(gomock.Any(), database.DeleteChatContextDiscoveredResourceParams{ChatID: chatID, Source: "C:\\repo\\site\\CLAUDE.md"}).Return(nil)
+
+	stale := map[string]struct{}{"c:/repo/site": {}}
+	pinned, removed := server.reconcileDiscoveredInstructionFiles(context.Background(), testutil.Logger(t), chatID, rows, resolved, stale, []string{"c:/Repo/site"})
+	require.Equal(t, 1, pinned)
+	require.Equal(t, 1, removed)
 }
 
 // TestResolveInstructionDirsBatches checks that a probe larger than one

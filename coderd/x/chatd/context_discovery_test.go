@@ -342,10 +342,14 @@ func TestRefreshReResolvesDiscoveredRows(t *testing.T) {
 	setupDiscoveryAgentConn(mockConn)
 	mockConn.EXPECT().ReadFileLines(gomock.Any(), discoveryTouchedFile, int64(1), int64(0), gomock.Any()).
 		Return(workspacesdk.ReadFileLinesResponse{Success: true, FileSize: 4, TotalLines: 1, LinesRead: 1, Content: "data"}, nil)
+	vanishingSource := discoveryNestedDir + "/CLAUDE.md"
+	firstProbe := instructionFileResponse(discoveryNestedDir, discoveryNestedSource, "site rules v1")
+	firstProbe.Files = append(firstProbe.Files, instructionFileResponse(discoveryNestedDir, vanishingSource, "claude rules").Files...)
 	mockConn.EXPECT().ResolveContextInstructions(gomock.Any(), workspacesdk.ResolveContextInstructionsRequest{
 		Directories: []string{discoveryNestedDir, discoveryNestedDir + "/src"},
-	}).Return(instructionFileResponse(discoveryNestedDir, discoveryNestedSource, "site rules v1"), nil)
-	// Refresh re-resolves only the directories that held discovered rows.
+	}).Return(firstProbe, nil)
+	// Refresh re-resolves only the directories that held discovered rows;
+	// a file the directory no longer holds is dropped.
 	mockConn.EXPECT().ResolveContextInstructions(gomock.Any(), workspacesdk.ResolveContextInstructionsRequest{
 		Directories: []string{discoveryNestedDir},
 	}).Return(instructionFileResponse(discoveryNestedDir, discoveryNestedSource, "site rules v2"), nil)
@@ -384,8 +388,9 @@ func TestRefreshReResolvesDiscoveredRows(t *testing.T) {
 		return out
 	}
 	before := pinned()
-	require.Len(t, before, 2)
+	require.Len(t, before, 3)
 	require.True(t, before[discoveryNestedSource].Discovered)
+	require.True(t, before[vanishingSource].Discovered)
 
 	current, err := db.GetChatByID(chatdCtx, chat.ID)
 	require.NoError(t, err)
@@ -393,9 +398,156 @@ func TestRefreshReResolvesDiscoveredRows(t *testing.T) {
 	require.NoError(t, err)
 
 	after := pinned()
-	require.Len(t, after, 2, "refresh keeps the discovered file alongside the snapshot copy")
+	require.Len(t, after, 2, "refresh keeps the discovered file alongside the snapshot copy and drops the vanished one")
 	require.False(t, after[discoveryRootSource].Discovered)
 	require.True(t, after[discoveryNestedSource].Discovered)
+	require.NotContains(t, after, vanishingSource)
 	v2 := sha256.Sum256([]byte("site rules v2"))
 	require.Equal(t, v2[:], after[discoveryNestedSource].ContentHash, "refresh re-reads the nested file")
+}
+
+// TestRefreshKeepsDiscoveredRowsWhenReReadFails checks that a refresh whose
+// agent re-read fails leaves the discovered rows as they were instead of
+// dropping nested files until the next tool touch.
+func TestRefreshKeepsDiscoveredRowsWhenReReadFails(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	db, ps := dbtestutil.NewDB(t)
+	var modelCalls atomic.Int32
+	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse("title")
+		}
+		if modelCalls.Add(1) == 1 {
+			return chattest.OpenAIStreamingResponse(chattest.OpenAIToolCallChunk("read_file", `{"path":"`+discoveryTouchedFile+`"}`))
+		}
+		return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("done")...)
+	})
+	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
+	ws, dbAgent := seedWorkspaceWithAgent(t, db, user.ID)
+	//nolint:gocritic // Seeding agent context as the chatd subject.
+	seedAgentInstructionContext(dbauthz.AsChatd(ctx), t, db, dbAgent.ID, discoveryRootSource, "root rules")
+
+	ctrl := gomock.NewController(t)
+	mockConn := agentconnmock.NewMockAgentConn(ctrl)
+	setupDiscoveryAgentConn(mockConn)
+	mockConn.EXPECT().ReadFileLines(gomock.Any(), discoveryTouchedFile, int64(1), int64(0), gomock.Any()).
+		Return(workspacesdk.ReadFileLinesResponse{Success: true, FileSize: 4, TotalLines: 1, LinesRead: 1, Content: "data"}, nil)
+	mockConn.EXPECT().ResolveContextInstructions(gomock.Any(), workspacesdk.ResolveContextInstructionsRequest{
+		Directories: []string{discoveryNestedDir, discoveryNestedDir + "/src"},
+	}).Return(instructionFileResponse(discoveryNestedDir, discoveryNestedSource, "site rules v1"), nil)
+	mockConn.EXPECT().ResolveContextInstructions(gomock.Any(), workspacesdk.ResolveContextInstructionsRequest{
+		Directories: []string{discoveryNestedDir},
+	}).Return(workspacesdk.ResolveContextInstructionsResponse{}, xerrors.New("agent gone"))
+
+	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
+		cfg.AgentConn = func(_ context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+			require.Equal(t, dbAgent.ID, agentID)
+			return mockConn, func() {}, nil
+		}
+	})
+	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
+		WorkspaceID:    uuid.NullUUID{UUID: ws.ID, Valid: true},
+		AgentID:        uuid.NullUUID{UUID: dbAgent.ID, Valid: true},
+		Title:          "lazy-instruction-discovery-refresh-failure",
+		ModelConfigID:  model.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("read the app"),
+		},
+	})
+	require.NoError(t, err)
+	waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
+
+	//nolint:gocritic // Reading chat-owned rows as the chatd subject.
+	chatdCtx := dbauthz.AsChatd(ctx)
+	current, err := db.GetChatByID(chatdCtx, chat.ID)
+	require.NoError(t, err)
+	refreshed, err := server.RefreshChatContext(ctx, current)
+	require.NoError(t, err)
+	require.False(t, refreshed.ContextDirtySince.Valid)
+
+	rows, err := db.ListChatContextResourcesByChatID(chatdCtx, chat.ID)
+	require.NoError(t, err)
+	bySource := make(map[string]database.ChatContextResource, len(rows))
+	for _, row := range rows {
+		bySource[row.Source] = row
+	}
+	require.Len(t, bySource, 2)
+	require.True(t, bySource[discoveryNestedSource].Discovered, "the discovered row survives a failed re-read")
+	v1 := sha256.Sum256([]byte("site rules v1"))
+	require.Equal(t, v1[:], bySource[discoveryNestedSource].ContentHash)
+}
+
+// TestLazyInstructionDiscoveryReprobesStaleDirectory checks that a
+// directory a command or rule-file write made stale is not remembered as
+// empty: the command may still be creating the file, so a later touch of
+// the same tree asks the agent again.
+func TestLazyInstructionDiscoveryReprobesStaleDirectory(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	db, ps := dbtestutil.NewDB(t)
+	writtenSource := discoveryNestedDir + "/CLAUDE.md"
+	var modelCalls atomic.Int32
+	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse("title")
+		}
+		switch modelCalls.Add(1) {
+		case 1:
+			return chattest.OpenAIStreamingResponse(chattest.OpenAIToolCallChunk("write_file", `{"path":"`+writtenSource+`","content":"draft"}`))
+		case 2:
+			return chattest.OpenAIStreamingResponse(chattest.OpenAIToolCallChunk("read_file", `{"path":"`+discoveryTouchedFile+`"}`))
+		}
+		return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("done")...)
+	})
+	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
+	ws, dbAgent := seedWorkspaceWithAgent(t, db, user.ID)
+
+	ctrl := gomock.NewController(t)
+	mockConn := agentconnmock.NewMockAgentConn(ctrl)
+	setupDiscoveryAgentConn(mockConn)
+	mockConn.EXPECT().WriteFile(gomock.Any(), writtenSource, gomock.Any()).Return(nil)
+	mockConn.EXPECT().ReadFileLines(gomock.Any(), discoveryTouchedFile, int64(1), int64(0), gomock.Any()).
+		Return(workspacesdk.ReadFileLinesResponse{Success: true, FileSize: 4, TotalLines: 1, LinesRead: 1, Content: "data"}, nil)
+	// The write makes site stale and the probe finds nothing yet; the read
+	// on the next step probes site again instead of trusting that answer.
+	mockConn.EXPECT().ResolveContextInstructions(gomock.Any(), workspacesdk.ResolveContextInstructionsRequest{
+		Directories: []string{discoveryNestedDir},
+	}).Return(workspacesdk.ResolveContextInstructionsResponse{}, nil)
+	mockConn.EXPECT().ResolveContextInstructions(gomock.Any(), workspacesdk.ResolveContextInstructionsRequest{
+		Directories: []string{discoveryNestedDir, discoveryNestedDir + "/src"},
+	}).Return(instructionFileResponse(discoveryNestedDir, writtenSource, "final rules"), nil)
+
+	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
+		cfg.AgentConn = func(_ context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+			require.Equal(t, dbAgent.ID, agentID)
+			return mockConn, func() {}, nil
+		}
+	})
+	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
+		WorkspaceID:    uuid.NullUUID{UUID: ws.ID, Valid: true},
+		AgentID:        uuid.NullUUID{UUID: dbAgent.ID, Valid: true},
+		Title:          "lazy-instruction-discovery-reprobe",
+		ModelConfigID:  model.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("write then read"),
+		},
+	})
+	require.NoError(t, err)
+	waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
+
+	//nolint:gocritic // Reading chat-owned rows as the chatd subject.
+	rows, err := db.ListChatContextResourcesByChatID(dbauthz.AsChatd(ctx), chat.ID)
+	require.NoError(t, err)
+	require.Len(t, rows, 1)
+	require.Equal(t, writtenSource, rows[0].Source)
+	require.True(t, rows[0].Discovered)
 }

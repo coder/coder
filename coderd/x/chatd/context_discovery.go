@@ -112,14 +112,31 @@ func agentPath(p string) string {
 	return path.Clean(strings.ReplaceAll(p, "\\", "/"))
 }
 
+// isDrivePath reports whether p is a Windows drive-rooted path such as C:/.
+func isDrivePath(p string) bool {
+	return len(p) >= 2 && p[1] == ':'
+}
+
 // pathKey is the comparison form of a normalized path. Windows file systems
 // are case-insensitive by default, so drive-rooted paths compare folded;
 // POSIX paths compare as they are.
 func pathKey(p string) string {
-	if len(p) >= 2 && p[1] == ':' {
+	if isDrivePath(p) {
 		return strings.ToLower(p)
 	}
 	return p
+}
+
+// isInstructionFilePath reports whether file has a recognized instruction
+// file name, spelled exactly on POSIX and in any case on a Windows drive.
+func isInstructionFilePath(file string) bool {
+	base := path.Base(file)
+	for _, name := range instructionFileNames {
+		if base == name || (isDrivePath(file) && strings.EqualFold(base, name)) {
+			return true
+		}
+	}
+	return false
 }
 
 // isAbsAgentPath accepts a POSIX root or a Windows drive root such as C:/.
@@ -234,7 +251,7 @@ func candidateInstructionDirs(files, dirs []string, workingDir string) []string 
 func staleInstructionDirs(files, dirs []string) map[string]struct{} {
 	stale := make(map[string]struct{}, len(dirs))
 	for _, file := range files {
-		if slices.Contains(instructionFileNames, path.Base(file)) {
+		if isInstructionFilePath(file) {
 			stale[pathKey(path.Dir(file))] = struct{}{}
 		}
 	}
@@ -366,35 +383,25 @@ func (p *Server) discoverInstructionContext(
 	if len(probed) == 0 {
 		return
 	}
+	pinned, removed := p.reconcileDiscoveredInstructionFiles(dbCtx, logger, chat.ID, rows, resolved, stale, probed)
 
-	returned := make(map[string]struct{}, len(resolved))
 	foundDirs := make(map[string]struct{}, len(resolved))
-	pinned := 0
 	for _, file := range resolved {
-		returned[pathKey(agentPath(file.Source))] = struct{}{}
 		foundDirs[pathKey(agentPath(file.Directory))] = struct{}{}
-		ok, err := p.pinDiscoveredInstructionFile(dbCtx, chat.ID, file)
-		if err != nil {
-			logger.Warn(ctx, "pin discovered instruction file", slog.F("source", file.Source), slog.Error(err))
-			continue
-		}
-		if ok {
-			pinned++
-		}
-	}
-	removed := 0
-	for _, source := range removedDiscoveredSources(rows, stale, probed, returned) {
-		if err := p.db.DeleteChatContextDiscoveredResource(dbCtx, database.DeleteChatContextDiscoveredResourceParams{ChatID: chat.ID, Source: source}); err != nil {
-			logger.Warn(ctx, "delete removed instruction file", slog.F("source", source), slog.Error(err))
-			continue
-		}
-		removed++
 	}
 	negatives := make([]string, 0, len(probed))
 	for _, dir := range probed {
-		if _, ok := foundDirs[pathKey(dir)]; !ok {
-			negatives = append(negatives, dir)
+		key := pathKey(dir)
+		if _, ok := foundDirs[key]; ok {
+			continue
 		}
+		// A stale directory is not remembered as empty: the command that
+		// made it stale may still be running in the background and create
+		// the file after this probe, and a later touch must ask again.
+		if _, ok := stale[key]; ok {
+			continue
+		}
+		negatives = append(negatives, dir)
 	}
 	p.instructionProbes.markNegative(now, agent.ID, negatives)
 	if pinned == 0 && removed == 0 {
@@ -407,6 +414,53 @@ func (p *Server) discoverInstructionContext(
 		return
 	}
 	p.publishChatPubsubEvents([]database.Chat{updated}, codersdk.ChatWatchEventKindContextDirty)
+}
+
+// reconcileDiscoveredInstructionFiles pins the files the agent resolved and
+// removes the discovered rows in stale, probed directories it no longer
+// returned. rows is the chat's inventory before the probe: a file the chat
+// already pins under another spelling of a Windows path reuses that
+// spelling, since the agent echoes the request's casing and the row key is
+// case-sensitive. It reports how many rows were pinned and removed.
+func (p *Server) reconcileDiscoveredInstructionFiles(
+	ctx context.Context,
+	logger slog.Logger,
+	chatID uuid.UUID,
+	rows []database.ChatContextResource,
+	resolved []workspacesdk.ContextInstructionFile,
+	stale map[string]struct{},
+	probed []string,
+) (pinned, removed int) {
+	spellings := make(map[string]string, len(rows))
+	for _, row := range rows {
+		if row.BodyKind == database.WorkspaceAgentContextBodyKindInstructionFile {
+			spellings[pathKey(agentPath(row.Source))] = row.Source
+		}
+	}
+	returned := make(map[string]struct{}, len(resolved))
+	for _, file := range resolved {
+		key := pathKey(agentPath(file.Source))
+		returned[key] = struct{}{}
+		if source, ok := spellings[key]; ok {
+			file.Source = source
+		}
+		ok, err := p.pinDiscoveredInstructionFile(ctx, chatID, file)
+		if err != nil {
+			logger.Warn(ctx, "pin discovered instruction file", slog.F("source", file.Source), slog.Error(err))
+			continue
+		}
+		if ok {
+			pinned++
+		}
+	}
+	for _, source := range removedDiscoveredSources(rows, stale, probed, returned) {
+		if err := p.db.DeleteChatContextDiscoveredResource(ctx, database.DeleteChatContextDiscoveredResourceParams{ChatID: chatID, Source: source}); err != nil {
+			logger.Warn(ctx, "delete removed instruction file", slog.F("source", source), slog.Error(err))
+			continue
+		}
+		removed++
+	}
+	return pinned, removed
 }
 
 // pinDiscoveredInstructionFile stores one resolved file as a discovered row.
@@ -449,11 +503,12 @@ func (p *Server) pinDiscoveredInstructionFile(ctx context.Context, chatID uuid.U
 	return true, nil
 }
 
-// rediscoverInstructionContext re-reads the discovered instruction files a
-// refresh just dropped, so Refresh context re-pins nested files at their
-// current contents instead of forgetting them until the next tool touch.
-// Best-effort like discovery itself.
-func (p *Server) rediscoverInstructionContext(ctx context.Context, chat database.Chat, dirs []string) {
+// rediscoverInstructionContext re-reads the discovered rows a refresh kept,
+// so Refresh context brings nested files to their current contents and
+// drops the ones that vanished. Best-effort like discovery itself: a
+// directory a failed batch left unread keeps its rows as they were.
+func (p *Server) rediscoverInstructionContext(ctx context.Context, chat database.Chat, rows []database.ChatContextResource) {
+	dirs := discoveredInstructionDirs(rows)
 	if len(dirs) == 0 || !chat.AgentID.Valid || p.agentConnFn == nil {
 		return
 	}
@@ -464,12 +519,12 @@ func (p *Server) rediscoverInstructionContext(ctx context.Context, chat database
 		return
 	}
 	defer release()
-	resolved, _ := resolveInstructionDirs(ctx, logger, conn, dirs)
-	for _, file := range resolved {
-		if _, err := p.pinDiscoveredInstructionFile(ctx, chat.ID, file); err != nil {
-			logger.Warn(ctx, "re-pin discovered instruction file", slog.F("source", file.Source), slog.Error(err))
-		}
+	resolved, probed := resolveInstructionDirs(ctx, logger, conn, dirs)
+	stale := make(map[string]struct{}, len(probed))
+	for _, dir := range probed {
+		stale[pathKey(dir)] = struct{}{}
 	}
+	p.reconcileDiscoveredInstructionFiles(ctx, logger, chat.ID, rows, resolved, stale, probed)
 }
 
 // resolveInstructionDirs asks the agent about dirs in request-sized batches,
@@ -493,6 +548,18 @@ func resolveInstructionDirs(ctx context.Context, logger slog.Logger, conn worksp
 	return files, probed
 }
 
+// discoveredInstructionRows filters a chat's inventory to its discovered
+// rows.
+func discoveredInstructionRows(rows []database.ChatContextResource) []database.ChatContextResource {
+	var out []database.ChatContextResource
+	for _, row := range rows {
+		if row.Discovered {
+			out = append(out, row)
+		}
+	}
+	return out
+}
+
 // discoveredInstructionDirs lists the directories of a chat's discovered
 // rows, deduplicated, so a refresh can re-resolve them.
 func discoveredInstructionDirs(rows []database.ChatContextResource) []string {
@@ -503,10 +570,10 @@ func discoveredInstructionDirs(rows []database.ChatContextResource) []string {
 			continue
 		}
 		dir := path.Dir(agentPath(row.Source))
-		if _, ok := seen[dir]; ok {
+		if _, ok := seen[pathKey(dir)]; ok {
 			continue
 		}
-		seen[dir] = struct{}{}
+		seen[pathKey(dir)] = struct{}{}
 		out = append(out, dir)
 	}
 	return out
