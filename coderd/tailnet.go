@@ -32,6 +32,7 @@ import (
 	"github.com/coder/coder/v2/site"
 	"github.com/coder/coder/v2/tailnet"
 	"github.com/coder/coder/v2/tailnet/proto"
+	"github.com/coder/quartz"
 )
 
 var tailnetTransport *http.Transport
@@ -557,6 +558,8 @@ type InmemTailnetDialer struct {
 	ClientID uuid.UUID
 	// DatabaseHealthCheck is used to validate that the store is reachable.
 	DatabaseHealthCheck Pinger
+	// Clock is optional and defaults to the real clock.
+	Clock quartz.Clock
 }
 
 func (a *InmemTailnetDialer) Dial(ctx context.Context, _ tailnet.ResumeTokenController) (tailnet.ControlProtocolClients, error) {
@@ -572,7 +575,11 @@ func (a *InmemTailnetDialer) Dial(ctx context.Context, _ tailnet.ResumeTokenCont
 	}
 	coordClient := tailnet.NewInMemoryCoordinatorClient(
 		a.Logger, a.ClientID, tailnet.SingleTailnetCoordinateeAuth{}, *coord)
-	derpClient := newPollingDERPClient(a.DERPFn, a.Logger)
+	clock := a.Clock
+	if clock == nil {
+		clock = quartz.NewReal()
+	}
+	derpClient := newPollingDERPClient(a.DERPFn, a.Logger, clock)
 	return tailnet.ControlProtocolClients{
 		Closer:      closeAll{coord: coordClient, derp: derpClient},
 		Coordinator: coordClient,
@@ -580,13 +587,14 @@ func (a *InmemTailnetDialer) Dial(ctx context.Context, _ tailnet.ResumeTokenCont
 	}, nil
 }
 
-func newPollingDERPClient(derpFn func() *tailcfg.DERPMap, logger slog.Logger) tailnet.DERPClient {
+func newPollingDERPClient(derpFn func() *tailcfg.DERPMap, logger slog.Logger, clock quartz.Clock) tailnet.DERPClient {
 	ctx, cancel := context.WithCancel(context.Background())
 	a := &pollingDERPClient{
 		fn:       derpFn,
 		ctx:      ctx,
 		cancel:   cancel,
 		logger:   logger,
+		clock:    clock,
 		ch:       make(chan *tailcfg.DERPMap),
 		loopDone: make(chan struct{}),
 	}
@@ -599,6 +607,7 @@ func newPollingDERPClient(derpFn func() *tailcfg.DERPMap, logger slog.Logger) ta
 type pollingDERPClient struct {
 	fn          func() *tailcfg.DERPMap
 	logger      slog.Logger
+	clock       quartz.Clock
 	ctx         context.Context
 	cancel      context.CancelFunc
 	loopDone    chan struct{}
@@ -626,16 +635,12 @@ func (a *pollingDERPClient) pollDERP() {
 	defer close(a.loopDone)
 	defer a.logger.Debug(a.ctx, "polling DERPMap exited")
 
-	ticker := time.NewTicker(5 * time.Second)
+	// Fetch immediately so the tailnet can publish its node without waiting
+	// for the first tick.
+	ticker := a.clock.NewTicker(5*time.Second, "pollDERP")
 	defer ticker.Stop()
 
 	for {
-		select {
-		case <-a.ctx.Done():
-			return
-		case <-ticker.C:
-		}
-
 		newDerpMap := a.fn()
 		if !tailnet.CompareDERPMaps(a.lastDERPMap, newDerpMap) {
 			select {
@@ -643,6 +648,12 @@ func (a *pollingDERPClient) pollDERP() {
 				return
 			case a.ch <- newDerpMap:
 			}
+		}
+
+		select {
+		case <-a.ctx.Done():
+			return
+		case <-ticker.C:
 		}
 	}
 }

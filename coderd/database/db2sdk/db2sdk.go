@@ -354,12 +354,6 @@ func User(user database.User, organizationIDs []uuid.UUID) codersdk.User {
 	return convertedUser
 }
 
-func Users(users []database.User, organizationIDs map[uuid.UUID][]uuid.UUID) []codersdk.User {
-	return slice.List(users, func(user database.User) codersdk.User {
-		return User(user, organizationIDs[user.ID])
-	})
-}
-
 func Group(row database.GetGroupsRow, members []database.GroupMember, totalMemberCount int) codersdk.Group {
 	return codersdk.Group{
 		ID:                      row.Group.ID,
