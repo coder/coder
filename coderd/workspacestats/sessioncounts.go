@@ -43,10 +43,11 @@ const maxSessionCountEntries = 64
 
 // capSessionCounts keeps the busiest maxSessionCountEntries normalized names,
 // preferring known apps, and sums the rest into AppFamilyUnknown, so the
-// result can hold one name past the cap.
-func capSessionCounts(counts map[string]int64) map[string]int64 {
+// result can hold one name past the cap. The second return is how many names
+// were summed away, which the result length cannot reveal.
+func capSessionCounts(counts map[string]int64) (map[string]int64, int) {
 	if len(counts) <= maxSessionCountEntries {
-		return counts
+		return counts, 0
 	}
 	// Names are already normalized, so look up families directly rather
 	// than normalizing again on every sort comparison.
@@ -68,10 +69,11 @@ func capSessionCounts(counts map[string]int64) map[string]int64 {
 	for _, name := range ranked[:maxSessionCountEntries] {
 		capped[name] = counts[name]
 	}
-	for _, name := range ranked[maxSessionCountEntries:] {
+	overflow := ranked[maxSessionCountEntries:]
+	for _, name := range overflow {
 		capped[string(codersdk.AppFamilyUnknown)] += counts[name]
 	}
-	return capped
+	return capped, len(overflow)
 }
 
 // HasSessionCounts reports whether the stats contain any active session.

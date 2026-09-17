@@ -56,8 +56,8 @@ func (a *StatsAPI) UpdateStats(ctx context.Context, req *agentproto.UpdateStatsR
 		ws = database.WorkspaceIdentityFromWorkspace(w)
 	}
 
-	// The report itself is agent controlled, so log bounded scalars about it
-	// rather than the payload.
+	// The payload is unnormalized and unbounded until the batcher caps it, so
+	// log scalars rather than its contents.
 	a.Log.Debug(ctx, "read stats report",
 		slog.F("interval", a.AgentStatsRefreshInterval),
 		slog.F("workspace_id", ws.ID),

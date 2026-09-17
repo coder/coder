@@ -183,14 +183,14 @@ func TestBatchStatsSessionCountFold(t *testing.T) {
 	})
 	b.Add(dbtime.Now(), deps.Agent.ID, deps.Template.ID, deps.User.ID, deps.Workspace.ID, st, false)
 
-	// The fold is reported through the counter and a debug log, never a
+	// The overflow is reported through the counter and a debug log, never a
 	// warning, since a misbehaving agent would repeat it on every report.
 	overcap := func(e slog.SinkEntry) bool {
 		return strings.Contains(e.Message, "too many distinct session types")
 	}
 	require.Len(t, sink.Entries(overcap), 1)
 	require.Equal(t, slog.LevelDebug, sink.Entries(overcap)[0].Level)
-	require.Equal(t, float64(extra), prom_testutil.ToFloat64(b.metrics.SessionCountsFoldedTotal))
+	require.Equal(t, float64(extra), prom_testutil.ToFloat64(b.metrics.SessionCountsOverflowTotal))
 }
 
 // randStats returns a random agentproto.Stats

@@ -11,7 +11,8 @@ import (
 
 // sessionCountsFromProto is what the batcher applies on ingest.
 func sessionCountsFromProto(st *agentproto.Stats) map[string]int64 {
-	return capSessionCounts(normalizedSessionCounts(st))
+	counts, _ := capSessionCounts(normalizedSessionCounts(st))
+	return counts
 }
 
 func TestSessionCountsFromProto(t *testing.T) {
@@ -119,24 +120,4 @@ func TestClearSessionCounts(t *testing.T) {
 	ClearSessionCounts(st)
 	require.Empty(t, sessionCountsFromProto(st))
 	require.False(t, HasSessionCounts(st))
-}
-
-func BenchmarkSessionCountsFromProto(b *testing.B) {
-	for _, entries := range []int{16, 1_024, 200_000} {
-		b.Run(fmt.Sprintf("Entries%d", entries), func(b *testing.B) {
-			counts := make(map[string]int64, entries)
-			for i := range entries {
-				counts[fmt.Sprintf("app_%06d", i)] = 1
-			}
-			st := &agentproto.Stats{SessionCounts: counts}
-			b.ReportAllocs()
-			b.ResetTimer()
-			for b.Loop() {
-				got := sessionCountsFromProto(st)
-				if len(got) > maxSessionCountEntries+1 {
-					b.Fatal("session count cap exceeded")
-				}
-			}
-		})
-	}
 }

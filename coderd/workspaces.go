@@ -1829,11 +1829,9 @@ func (api *API) postWorkspaceUsage(rw http.ResponseWriter, r *http.Request) {
 	rw.WriteHeader(http.StatusNoContent)
 }
 
-// normalizeUsageAppName prepares a client-supplied app name for storage.
-// Input made only of whitespace or control characters returns the empty
-// string, so callers can treat it as an absent app name rather than a
-// session under the unknown family, which is what codersdk.NormalizeAppName
-// reports for input it strips to nothing.
+// normalizeUsageAppName prepares a client-supplied app name for storage. It
+// returns the empty string where NormalizeAppName would report the unknown
+// family, so callers can reject a nameless request.
 func normalizeUsageAppName(appName string) string {
 	named := strings.IndexFunc(appName, func(r rune) bool {
 		return !unicode.IsControl(r) && !unicode.IsSpace(r)

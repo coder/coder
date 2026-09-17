@@ -156,18 +156,17 @@ func (b *DBBatcher) Add(
 	usage bool,
 ) {
 	// Normalize and cap outside the lock.
-	sessionCounts := normalizedSessionCounts(st)
-	if folded := len(sessionCounts) - maxSessionCountEntries; folded > 0 {
+	sessionCounts, overflow := capSessionCounts(normalizedSessionCounts(st))
+	if overflow > 0 {
 		// A misbehaving agent hits this on every report, so the counter is the
 		// signal to alert on and the log stays at debug.
 		b.log.Debug(context.Background(), "too many distinct session types, overflow counted under unknown",
 			slog.F("agent_id", agentID),
-			slog.F("reported", len(sessionCounts)),
+			slog.F("overflow", overflow),
 			slog.F("max", maxSessionCountEntries),
 		)
-		b.metrics.SessionCountsFoldedTotal.Add(float64(folded))
+		b.metrics.SessionCountsOverflowTotal.Add(float64(overflow))
 	}
-	sessionCounts = capSessionCounts(sessionCounts)
 
 	b.mu.Lock()
 	defer b.mu.Unlock()
