@@ -19,6 +19,7 @@ const card: BoardCard = {
 	primary: MockChat,
 	members: [MockChat],
 	comments: notes,
+	efforts: [],
 };
 
 const renderNotes = (comments = notes) => {

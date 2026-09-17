@@ -23,7 +23,12 @@ const stateOf = (chats: readonly Chat[]): BoardState => {
 	return {
 		cards,
 		columns: buildColumns(cards, [], []),
-		storage: { columnOrder: [], emptyColumns: [], windows: [] },
+		storage: {
+			columnOrder: [],
+			emptyColumns: [],
+			windows: [],
+			effortFilter: null,
+		},
 	};
 };
 
@@ -83,6 +88,10 @@ describe("boardAssistantSpec", () => {
 		expect(spec?.systemPrompt).toContain(
 			"set board/comment.N.timestamp to the current Unix ms",
 		);
+		expect(spec?.systemPrompt).toContain('a note "Merged card: <title>"');
+		expect(spec?.systemPrompt).toContain(
+			"oldest remaining member by created_at becomes primary",
+		);
 		expect(boardAssistantSpec(stateOf([]), [])).toBeUndefined();
 	});
 
@@ -92,6 +101,8 @@ describe("boardAssistantSpec", () => {
 				"board/title": "Epic",
 				"board/column": "Doing",
 				"board/color": "sky",
+				"board/effort.0": "Q3",
+				"board/effort.1": "This week",
 				...addCommentLabels(addCommentLabels({}, "one", 1), "two", 2),
 			}),
 			{ ...chat("m", { "board/group": "p" }), status: "running" as const },
@@ -102,7 +113,7 @@ describe("boardAssistantSpec", () => {
 		const text = spec.snapshot;
 		expect(text).toContain("Columns: Inbox, Doing");
 		expect(text).toContain(
-			"Card p | column: Doing | title: Epic | color: sky | efforts: none\n  chats: Chat p (p) status: waiting; Chat m (m) status: running\n  notes: one | two",
+			"Card p | column: Doing | title: Epic | color: sky | efforts: Q3, This week\n  chats: Chat p (p) status: waiting; Chat m (m) status: running\n  notes: one | two",
 		);
 		expect(text).toContain(
 			"Card s | column: Inbox | title: Chat s | color: none | efforts: none\n  chats: Chat s (s) status: waiting\n  notes: none",
