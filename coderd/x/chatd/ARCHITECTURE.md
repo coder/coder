@@ -49,9 +49,9 @@ We call it **metadata**. The core state machine concerns itself with **execution
 
 File links are metadata, but they are written inside transitions: if a transition persists message content that references uploaded files (chat create, message send, queued send, or message edit), it records the file links in the same transaction. Two invariants are enforced when links are written. A file belongs to at most one chat: attaching a file that another chat already holds is refused in the same way as attaching a file that no longer exists. There is an upper bound on the number of files a chat holds. When a message's files would push the chat over the cap, the oldest files on the chat are deleted to make room, and their links go with them. Files in the same message are never evicted by that message, so only a message that is on its own larger than the cap is rejected. Files created by tools during a run take the same path, so a tool's attachment can evict a user's upload and vice versa.
 
-Each title has a source: `fallback` for a title derived from the first prompt, `generated` for a title written by automatic title generation, and `user` for a title the caller supplied. A `user` title replaces any title. Any other title replaces only a `fallback` title. Title writes do not change `updated_at`.
-
 Eviction means that a persisted message may reference a file that no longer exists. That's expected: the UI shows the attachment as expired, and when the history is sent to the model, an evicted user upload is replaced with a short placeholder saying the content has expired, while evicted assistant and tool files are dropped. Editing a message that still references an evicted file is refused until the attachment is removed from the edit.
+
+Each title has a source: `fallback` for a title derived from the first prompt, `generated` for a title written by automatic title generation, and `user` for a title the caller supplied. A `user` title replaces any title. Any other title replaces only a `fallback` title. Title writes do not change `updated_at`.
 
 If the distinction isn't completely clear to you at this point, don't worry. It should become clearer as you learn more about the core state machine.
 
@@ -453,8 +453,6 @@ If the request sets `title`, the chat is created with a `user` title and automat
 
 ### `PATCH /api/experimental/chats/{chat}`
 
-Setting `title` writes a `user` title. The write happens even when the text is unchanged, unless the title is already a `user` title.
-
 When archiving or unarchiving a root chat, the operation applies `SetArchived(archived)` to the root and all descendants atomically. If any chat in the family cannot apply the requested archived-state transition, the whole operation fails without changing any chat. Unarchiving an individual child chat remains guarded: it must fail while its parent is archived
 
 For `archived` updates, the supported input and output states are:
@@ -469,6 +467,8 @@ For `archived` updates, the supported input and output states are:
 If the request does not change `archived`, this endpoint doesn't emit any state transitions.
 
 Other execution-state classes are not supported for archive/unarchive.
+
+Setting `title` writes a `user` title. The write happens even when the text is unchanged, unless the title is already a `user` title.
 
 ### `POST /api/experimental/chats/{chat}/messages`
 
