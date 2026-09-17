@@ -105,7 +105,7 @@ func ValidateRedirectURIScheme(u *url.URL) error {
 // ValidateOAuth2RedirectURIShape checks that a redirect URI parses, uses an
 // allowed scheme, names a host or a path, and has no fragment. Both the admin
 // and dynamic registration paths run this check, so every stored redirect URI
-// passes it. The oauth2_callback_url validate tag uses it.
+// passes it.
 func ValidateOAuth2RedirectURIShape(raw string) error {
 	u, err := url.Parse(raw)
 	if err != nil {

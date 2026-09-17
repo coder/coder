@@ -68,21 +68,6 @@ func init() {
 		panic(err)
 	}
 
-	// oauth2_callback_url validates the common callback target shape for OAuth2
-	// app administration. Public clients receive the additional DCR redirect URI
-	// policy in the handler after their stored client type is available.
-	oauth2CallbackURLValidator := func(fl validator.FieldLevel) bool {
-		str, ok := fl.Field().Interface().(string)
-		if !ok {
-			return false
-		}
-		return codersdk.ValidateOAuth2RedirectURIShape(str) == nil
-	}
-	err = Validate.RegisterValidation("oauth2_callback_url", oauth2CallbackURLValidator)
-	if err != nil {
-		panic(err)
-	}
-
 	displayNameValidator := func(fl validator.FieldLevel) bool {
 		f := fl.Field().Interface()
 		str, ok := f.(string)

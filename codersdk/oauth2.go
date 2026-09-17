@@ -80,7 +80,7 @@ func (c *Client) OAuth2ProviderApp(ctx context.Context, id uuid.UUID) (OAuth2Pro
 
 type PostOAuth2ProviderAppRequest struct {
 	Name        string `json:"name" validate:"required,oauth2_app_name"`
-	CallbackURL string `json:"callback_url" validate:"required,oauth2_callback_url"`
+	CallbackURL string `json:"callback_url" validate:"required"`
 	Icon        string `json:"icon" validate:"omitempty"`
 }
 
@@ -101,7 +101,7 @@ func (c *Client) PostOAuth2ProviderApp(ctx context.Context, app PostOAuth2Provid
 
 type PutOAuth2ProviderAppRequest struct {
 	Name        string `json:"name" validate:"required,oauth2_app_name"`
-	CallbackURL string `json:"callback_url" validate:"required,oauth2_callback_url"`
+	CallbackURL string `json:"callback_url" validate:"required"`
 	Icon        string `json:"icon" validate:"omitempty"`
 }
 

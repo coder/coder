@@ -769,6 +769,24 @@ func TestOAuth2ProviderAppRedirectURIs(t *testing.T) {
 		requireCallbackURLValidationError(t, err)
 	})
 
+	// A callback the shape check rejects reports the reason against the
+	// callback_url field instead of a generic tag failure.
+	t.Run("CallbackWithFragment", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		//nolint:gocritic // OAuth2 app management requires owner permission.
+		_, err := client.PostOAuth2ProviderApp(ctx, codersdk.PostOAuth2ProviderAppRequest{
+			Name:        "fragment",
+			CallbackURL: first + "#fragment",
+		})
+		requireCallbackURLValidationError(t, err)
+		require.ErrorContains(t, err, "callback URL must not contain a fragment component")
+	})
+
 	// Registration stores a deduplicated list, and the configuration
 	// endpoint returns it in that form.
 	t.Run("RegistrationDedupsList", func(t *testing.T) {
