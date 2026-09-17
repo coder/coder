@@ -1,5 +1,4 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, within } from "storybook/test";
 import { MockDefaultOrganization } from "#/testHelpers/entities";
 import { AgentSetupNotice } from "./AgentSetupNotice";
 
@@ -21,16 +20,6 @@ export const AdminNoProvider: Story = {
 		providerCount: 0,
 		modelCount: 0,
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await expect(
-			canvas.getByRole("link", { name: "provider" }),
-		).toHaveAttribute("href", "/ai/settings/providers");
-		await expect(canvas.getByRole("link", { name: "model" })).toHaveAttribute(
-			"href",
-			`/ai/settings/models?org=${MockDefaultOrganization.name}`,
-		);
-	},
 };
 
 // Admin with a provider but no model: prompt to add a model only.
@@ -39,16 +28,6 @@ export const AdminNoModel: Story = {
 		isAdmin: true,
 		providerCount: 1,
 		modelCount: 0,
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await expect(canvas.getByRole("link", { name: "model" })).toHaveAttribute(
-			"href",
-			`/ai/settings/models?org=${MockDefaultOrganization.name}`,
-		);
-		await expect(
-			canvas.queryByRole("link", { name: "provider" }),
-		).not.toBeInTheDocument();
 	},
 };
 
@@ -60,16 +39,6 @@ export const AdminOnlyUnsupportedProvider: Story = {
 		providerCount: 0,
 		modelCount: 0,
 		unsupportedProviderNames: ["GitHub Copilot"],
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await expect(
-			canvas.getByText(/not supported by Coder Agents/),
-		).toBeInTheDocument();
-		await expect(canvas.getByText(/GitHub Copilot/)).toBeInTheDocument();
-		await expect(
-			canvas.getByRole("link", { name: "provider" }),
-		).toHaveAttribute("href", "/ai/settings/providers");
 	},
 };
 

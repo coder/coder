@@ -2,15 +2,21 @@ package httpmw_test
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strconv"
+	"strings"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/oauth2"
 
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
@@ -368,4 +374,47 @@ func (p *exchangeAssertingProvider) Exchange(_ context.Context, _ string, opts .
 
 func (*exchangeAssertingProvider) TokenSource(_ context.Context, _ *oauth2.Token) oauth2.TokenSource {
 	return nil
+}
+
+// TestExtractOAuth2ProviderAppBodyTooLarge covers the pre-authentication body
+// read on POST /oauth2/tokens and POST /oauth2/revoke. Those routes authenticate
+// the client from the request body, so they carry no API key middleware and the
+// form parse below runs before any authorization decision.
+//
+// net/http would otherwise cap the body at its own 10 MiB maxFormSize, which is
+// larger than the ceiling every other endpoint carries. The rejection is
+// asserted in the RFC 6749 error shape because a client that parses that shape
+// cannot read a codersdk.Response, so the status alone is not sufficient.
+func TestExtractOAuth2ProviderAppBodyTooLarge(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+
+	// Padding a valid form past the limit leaves size as the only reason to
+	// reject the request. client_id is present in the body, so a fallthrough to
+	// the missing-client_id path would be observable as a 400.
+	oversized := "client_id=" + uuid.NewString() + "&pad=" +
+		strings.Repeat("a", httpapi.DefaultMaxRequestBodyBytes)
+	require.Greater(t, len(oversized), httpapi.DefaultMaxRequestBodyBytes)
+
+	var nextCalled bool
+	handler := httpmw.ExtractOAuth2ProviderAppWithOAuth2Errors(db)(
+		http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+			nextCalled = true
+		}),
+	)
+
+	r := httptest.NewRequest(http.MethodPost, "/oauth2/tokens", strings.NewReader(oversized))
+	r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rw := httptest.NewRecorder()
+
+	handler.ServeHTTP(rw, r)
+
+	require.Equal(t, http.StatusRequestEntityTooLarge, rw.Code)
+	require.False(t, nextCalled, "handler ran on an oversized body")
+
+	var errResp codersdk.OAuth2Error
+	require.NoError(t, json.Unmarshal(rw.Body.Bytes(), &errResp))
+	require.Equal(t, codersdk.OAuth2ErrorCodeInvalidRequest, errResp.Error)
+	require.Contains(t, errResp.ErrorDescription, strconv.Itoa(httpapi.DefaultMaxRequestBodyBytes))
 }

@@ -375,7 +375,6 @@ func (e *executor) plan(ctx, killCtx context.Context, env, vars []string, logr l
 		Plan:                 planJSON,
 		DailyCost:            state.DailyCost,
 		ResourceReplacements: resReps,
-		AiTaskCount:          state.AITaskCount,
 	}
 
 	return msg, nil

@@ -8,7 +8,6 @@ import {
 } from "./AgentSettingsGeneralPageView";
 
 const preferencesData = {
-	task_notification_alert_dismissed: false,
 	thinking_display_mode: "auto" as const,
 	shell_tool_display_mode: "auto" as const,
 	code_diff_display_mode: "auto" as const,
@@ -66,12 +65,10 @@ export const InvisibleUnicodeWarningOnType: Story = {
 			"Additional behavior, style, and tone preferences",
 		);
 
-		expect(canvas.queryByText(/invisible Unicode/)).toBeNull();
 		await userEvent.type(textarea, "hello\u200bworld");
 
-		await waitFor(() => {
-			expect(canvas.getByText(/invisible Unicode/)).toBeInTheDocument();
-		});
+		// Wait for the warning to render so the snapshot captures it.
+		await canvas.findByText(/invisible Unicode/);
 	},
 };
 

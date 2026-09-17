@@ -127,17 +127,14 @@ func NewRequestBridge(ctx context.Context, providers []provider.Provider, rec re
 		return nil, err
 	}
 
-	mux := http.NewServeMux()
+	mux := newProviderMux(providers, logger)
 
 	for _, prov := range providers {
-		// Disabled providers serve a 503 sentinel on every path under
-		// "/<name>/". Bound to the bare name (not RoutePrefix) so paths
-		// outside the provider's normal "/v1" subtree are also caught.
+		// Disabled providers have 503 sentinel registered by newProviderMux
 		if !prov.Enabled() {
-			prefix := fmt.Sprintf("/%s/", prov.Name())
-			mux.HandleFunc(prefix, disabledProviderHandler(prov.Name(), logger))
 			continue
 		}
+
 		// Create per-provider circuit breaker if configured
 		cfg := prov.CircuitBreakerConfig()
 		providerName := prov.Name()
@@ -193,12 +190,6 @@ func NewRequestBridge(ctx context.Context, providers []provider.Provider, rec re
 			mux.Handle(route, http.StripPrefix(prov.RoutePrefix(), ftr))
 		}
 	}
-
-	// Catch-all.
-	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		logger.Warn(r.Context(), "route not supported", slog.F("path", r.URL.Path), slog.F("method", r.Method))
-		http.Error(w, fmt.Sprintf("route not supported: %s %s", r.Method, r.URL.Path), http.StatusNotFound)
-	})
 
 	inflightCtx, cancel := context.WithCancel(context.Background())
 	b := &RequestBridge{
@@ -313,7 +304,7 @@ func newInterceptionProcessor(p provider.Provider, cbs *circuitbreaker.ProviderC
 		r = r.WithContext(ctx)
 
 		// Record usage in the background to not block request flow.
-		asyncRecorder := recorder.NewAsyncRecorder(logger, rec, recordingTimeout)
+		asyncRecorder := recorder.NewAsyncRecorder(rec, recordingTimeout)
 		asyncRecorder.WithMetrics(m)
 		asyncRecorder.WithProvider(p.Name())
 		asyncRecorder.WithModel(interceptor.Model())

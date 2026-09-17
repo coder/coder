@@ -592,6 +592,9 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 			Name:     fmt.Sprintf("%db", options.DeploymentValues.DERP.Server.RegionID),
 			RegionID: int(options.DeploymentValues.DERP.Server.RegionID.Value()),
 			IPv4:     "127.0.0.1",
+			// Skip the IPv6 dial. The server only listens on IPv4, and the
+			// failed IPv6 dial can leave a goroutine behind that goleak reports.
+			IPv6:     "none",
 			DERPPort: derpPort,
 			// STUN port is added as a separate node by tailnet.NewDERPMap() if
 			// direct connections are enabled.
@@ -1861,10 +1864,9 @@ func DeploymentValues(t testing.TB, mut ...func(*codersdk.DeploymentValues)) *co
 	opts := cfg.Options()
 	err := opts.SetDefaults()
 	require.NoError(t, err)
-	// Tasks ship disabled. Tests exercise the enabled behavior by default so
-	// the Tasks suite keeps running; tests for the disabled path opt out
-	// explicitly via the mutators.
-	cfg.EnableAITasks = true
+	// The OAuth2 provider is off by default in production. Tests turn it on
+	// so OAuth2 routes are reachable without extra setup.
+	cfg.OAuth2.Provider.Enable = true
 	for _, fn := range mut {
 		fn(cfg)
 	}

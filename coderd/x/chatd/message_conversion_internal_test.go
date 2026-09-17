@@ -191,13 +191,8 @@ func TestBuildAssistantParts_PartialReasoningTimestamps(t *testing.T) {
 
 	startedAt := time.Date(2026, time.April, 10, 12, 0, 0, 0, time.UTC)
 
-	// Tests the persistence helper when the parallel CompletedAt
-	// slot is zero-valued, ensuring it leaves CompletedAt nil rather
-	// than setting it to the Go zero time. No production code path
-	// currently emits a zero CompletedAt alongside a non-zero
-	// StartedAt (flushActiveState always stamps both with
-	// dbtime.Now()), so this is a defensive boundary test for the
-	// `variants:"reasoning?"` contract.
+	// Missing completion timestamps must remain nil rather than being
+	// serialized as the Go zero time.
 	parts := buildAssistantParts(
 		testutil.Logger(t),
 		[]fantasy.Content{

@@ -3,8 +3,7 @@ title: Migrate from the Tasks API to the Chats API
 ---
 
 > [!WARNING]
-> Coder Tasks is deprecated as of Coder v2.34.
-> Coder Tasks product and API reference documentation is no longer published in the current documentation.
+> Coder Tasks was deprecated in Coder v2.34 and has been removed, including the Tasks API (`/api/v2/tasks`).
 > To read about Coder Tasks, use a previous version of the Coder documentation, from a release before v2.36.
 
 The Tasks API (`/api/v2/tasks`) and the
@@ -18,13 +17,10 @@ to the Chats API.
 ## When to migrate
 
 Migrate now.
-Coder Tasks was deprecated as of Coder v2.34.
-Starting June 2, 2026, Coder Tasks moved to a 12-month Extended Support Release (ESR) for Premium customers.
+Coder Tasks has been removed, so requests to the Tasks API fail.
 
-If you currently run workflows on the Tasks API, migrate to the Chats API and
-[Coder Agents](./index.md). Coder Agents runs the agent loop in the Coder
-control plane rather than inside the workspace, and is the supported path
-going forward.
+If your integrations still call the Tasks API, migrate to the Chats API and [Coder Agents](./index.md).
+Coder Agents runs the agent loop in the Coder control plane rather than inside the workspace, and is the supported path going forward.
 
 The two systems are not interchangeable. Tasks and Chats are separate
 resources with separate APIs, so plan to update your integrations rather
@@ -317,8 +313,7 @@ jobs:
 +           Use the gh CLI to read
 +           ${{ github.event.issue.html_url }},
 +           fix the issue, and create a PR.
-+         github-user-id: ${{ github.event.sender.id }}
-+         github-issue-url: ${{ github.event.issue.html_url }}
++         github-url: ${{ github.event.issue.html_url }}
 +         github-token: ${{ github.token }}
 +         comment-on-issue: true
 ```
@@ -331,9 +326,7 @@ Key differences from the Tasks GHA:
 - The prompt input is renamed from `coder-task-prompt` to `chat-prompt`.
 - LLM credentials are no longer passed through the template. They are
   configured in the Coder control plane.
-- Identify the user with `github-user-id` (the action resolves it to a
-  Coder user via the GitHub OAuth link) or with `coder-username`
-  directly.
+- No user mapping: the Tasks GHA's `github-user-id` input has no equivalent, because the chat is always owned by the user the `coder-token` belongs to and the Chats API has no owner override.
 
 See the
 [action README](https://github.com/coder/create-agent-chat-action#inputs)
@@ -443,11 +436,9 @@ unused when the chat is driven by the Chats API:
   }
 ```
 
-> [!TIP]
-> You do not have to remove these resources immediately. Templates can
-> serve both Tasks and Chats simultaneously during a transition period.
-> The Tasks-specific resources are simply unused when work comes through
-> the Chats API.
+> [!IMPORTANT]
+> Remove the Tasks-specific Terraform when you upgrade.
+> Tasks and Chats can no longer run side by side: Coder no longer injects `CODER_TASK_ID` or `CODER_TASK_PROMPT`, so builds of a template that keeps the `coder_task` data source can no longer populate it.
 
 See
 [Template Optimization](./platform-controls/template-optimization.md)
@@ -694,11 +685,11 @@ Chats API returns a `Chat` object with conversation-centric fields:
 
 ## CLI changes
 
-The Tasks CLI (`coder task`) remains separate from the Coder Agents Chats API.
-Coder no longer ships an interactive Coder Agents TUI. Use the web UI for
-interactive chat and direct API calls for automation.
+The Tasks CLI (`coder task`) was removed, and Coder does not ship an interactive Coder Agents TUI.
+Use the web UI for interactive chat and direct API calls for automation.
+The table below maps the removed commands to their Chats API equivalents.
 
-| Tasks CLI           | Chats equivalent                       |
+| Removed Tasks CLI   | Chats equivalent                       |
 |---------------------|----------------------------------------|
 | `coder task create` | Web UI or `POST /chats`                |
 | `coder task list`   | Web UI or `GET /chats`                 |

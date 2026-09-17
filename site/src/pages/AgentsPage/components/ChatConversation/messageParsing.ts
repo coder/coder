@@ -1,4 +1,5 @@
 import type * as TypesGen from "#/api/typesGenerated";
+import { ChatAttachmentMediaTypes } from "#/api/typesGenerated";
 import { asRecord, asString } from "../ChatElements/runtimeTypeUtils";
 import {
 	getProvidedSubagentTitle,
@@ -171,6 +172,7 @@ export const mergeTools = (
 			modelIntent,
 			parsedCommands: call.parsedCommands,
 			hookRewritten: call.hookRewritten,
+			startedAt: call.startedAt,
 		});
 	}
 
@@ -226,6 +228,7 @@ export const parseMessageContent = (
 					parsedCommands: part.parsed_commands,
 					mcpServerConfigId: part.mcp_server_config_id,
 					hookRewritten: part.hook_rewritten,
+					startedAt: part.created_at,
 				});
 				parsed.blocks = ensureToolBlock(parsed.blocks, id);
 				break;
@@ -308,12 +311,7 @@ export const parseMessageContent = (
 };
 
 const isEditableAttachmentMediaType = (mediaType: string): boolean =>
-	mediaType.startsWith("image/") ||
-	mediaType === "text/plain" ||
-	mediaType === "text/markdown" ||
-	mediaType === "text/csv" ||
-	mediaType === "application/json" ||
-	mediaType === "application/pdf";
+	ChatAttachmentMediaTypes.some((allowed) => allowed === mediaType);
 
 const isEditableUserMessageFileBlock = (
 	block: RenderBlock,

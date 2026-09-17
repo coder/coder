@@ -123,6 +123,24 @@ describe("applyMessagePartToStreamState", () => {
 		]);
 	});
 
+	it("keeps startedAt when a later delta omits created_at", () => {
+		const finalized = applyMessagePartToStreamState(null, {
+			type: "tool-call",
+			tool_name: "execute",
+			tool_call_id: "tc-1",
+			args: { command: "make build" },
+			created_at: "2025-01-01T00:00:00.000Z",
+		});
+		const afterDelta = applyMessagePartToStreamState(finalized, {
+			type: "tool-call",
+			tool_call_id: "tc-1",
+			args_delta: "",
+		});
+		expect(afterDelta!.toolCalls["tc-1"].startedAt).toBe(
+			"2025-01-01T00:00:00.000Z",
+		);
+	});
+
 	it("generates fallback tool call ID when missing", () => {
 		const result = applyMessagePartToStreamState(null, {
 			type: "tool-call",

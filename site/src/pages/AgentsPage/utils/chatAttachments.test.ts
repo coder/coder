@@ -10,6 +10,7 @@ import { toast } from "sonner";
 import {
 	handleAttachmentDownloadClick,
 	isChatAttachmentFile,
+	isRasterImageMediaType,
 	renameChatFileForUpload,
 	sanitizeChatFileName,
 } from "./chatAttachments";
@@ -273,6 +274,16 @@ describe("isChatAttachmentFile", () => {
 		});
 
 		expect(isChatAttachmentFile(file)).toBe(false);
+	});
+});
+
+describe("isRasterImageMediaType", () => {
+	it.each([
+		["image/png", true],
+		["image/svg+xml", false],
+		["application/pdf", false],
+	])("%s -> %s", (mediaType, expected) => {
+		expect(isRasterImageMediaType(mediaType)).toBe(expected);
 	});
 });
 

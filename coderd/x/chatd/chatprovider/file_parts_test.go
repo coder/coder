@@ -71,6 +71,9 @@ func TestAcceptsFilePartMediaType(t *testing.T) {
 		{"google-text", "google", "", "text/plain", true, nil},
 		{"google-anything", "google", "", "application/octet-stream", true, nil},
 
+		{"anthropic-svg", "anthropic", "", "image/svg+xml", false, nil},
+		{"google-svg", "google", "", "image/svg+xml", false, nil},
+
 		// Unknown providers reject everything so text-family content is
 		// converted to text and still reaches the model.
 		{"unknown-text", "made-up-provider", "", "text/plain", false, nil},
