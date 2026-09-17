@@ -300,6 +300,7 @@ func TestChatContextDirtyFromAgentPush(t *testing.T) {
 	resp, err = aAPI.PushContextState(ctx, &agentproto.PushContextStateRequest{
 		Version:       3,
 		AggregateHash: hashB,
+		AgentRunId:    "run-1",
 	})
 	require.NoError(t, err)
 	require.True(t, resp.GetAccepted())
