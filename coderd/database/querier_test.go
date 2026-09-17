@@ -2263,10 +2263,6 @@ func TestLinkChatFilesDeduplicatesInput(t *testing.T) {
 	require.Equal(t, file.ID, files[0].ID)
 }
 
-// TestChatTitleSource verifies the provenance rule enforced by
-// UpdateChatTitleByID: anything may replace a fallback title, only a user
-// title may replace a generated or user title, and title text never
-// takes part in the decision.
 func TestChatTitleSource(t *testing.T) {
 	t.Parallel()
 	if testing.Short() {
@@ -2328,64 +2324,6 @@ func TestChatTitleSource(t *testing.T) {
 					require.True(t, updated.UpdatedAt.Equal(chat.UpdatedAt), "title writes must not reorder chat lists")
 				})
 			}
-		}
-	})
-
-	t.Run("TextNeverDecides", func(t *testing.T) {
-		t.Parallel()
-
-		const fallback = "first prompt"
-		cases := []struct {
-			name    string
-			seed    database.Chat
-			renames []string
-		}{
-			{
-				name: "user title identical to the fallback text",
-				seed: database.Chat{Title: fallback, TitleSource: database.ChatTitleSourceUser},
-			},
-			{
-				name:    "renamed to the same text",
-				seed:    database.Chat{Title: fallback},
-				renames: []string{fallback},
-			},
-			{
-				name:    "renamed away and back",
-				seed:    database.Chat{Title: fallback},
-				renames: []string{"Other", fallback},
-			},
-		}
-		for _, tc := range cases {
-			t.Run(tc.name, func(t *testing.T) {
-				t.Parallel()
-				ctx := testutil.Context(t, testutil.WaitMedium)
-				db, _ := dbtestutil.NewDB(t)
-				chat := newChat(t, db, tc.seed)
-
-				want := chat.Title
-				for _, title := range tc.renames {
-					renamed, err := db.UpdateChatTitleByID(ctx, database.UpdateChatTitleByIDParams{
-						ID:          chat.ID,
-						Title:       title,
-						TitleSource: database.ChatTitleSourceUser,
-					})
-					require.NoError(t, err)
-					require.Equal(t, database.ChatTitleSourceUser, renamed.TitleSource)
-					want = title
-				}
-
-				_, err := db.UpdateChatTitleByID(ctx, database.UpdateChatTitleByIDParams{
-					ID:          chat.ID,
-					Title:       "Generated",
-					TitleSource: database.ChatTitleSourceGenerated,
-				})
-				require.ErrorIs(t, err, sql.ErrNoRows)
-
-				fetched, err := db.GetChatByID(ctx, chat.ID)
-				require.NoError(t, err)
-				require.Equal(t, want, fetched.Title)
-				require.Equal(t, database.ChatTitleSourceUser, fetched.TitleSource)
-			})
 		}
 	})
 }

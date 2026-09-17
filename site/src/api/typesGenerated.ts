@@ -1907,9 +1907,6 @@ export interface Chat {
 	readonly last_model_config_id: string;
 	readonly last_reasoning_effort?: string;
 	readonly title: string;
-	/**
-	 * TitleSource records where Title came from. See ChatTitleSource.
-	 */
 	readonly title_source: ChatTitleSource;
 	readonly status: ChatStatus;
 	readonly plan_mode?: ChatPlanMode;
@@ -3887,10 +3884,9 @@ export interface CreateChatRequest {
 	readonly organization_id: string;
 	readonly content: readonly ChatInputPart[];
 	/**
-	 * Title sets the chat title. When provided it is stored as-is (after
-	 * trimming surrounding whitespace) and automatic title generation is
-	 * skipped. When omitted, a title is derived from the first prompt and
-	 * later replaced by a generated one.
+	 * Title, when set, is trimmed and stored as the user title; automatic
+	 * title generation is skipped. When omitted, the title is derived from
+	 * the first prompt and later replaced by a generated title.
 	 */
 	readonly title?: string;
 	readonly system_prompt?: string;

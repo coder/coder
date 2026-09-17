@@ -1135,10 +1135,7 @@ type CreateOptions struct {
 	ParentChatID   uuid.NullUUID
 	RootChatID     uuid.NullUUID
 	Title          string
-	// TitleSource records where Title came from. A fallback title is
-	// re-derived when a hook overrides the prompt and is later replaced
-	// by automatic generation; a user title is never replaced. The zero
-	// value means fallback.
+	// TitleSource defaults to fallback.
 	TitleSource        database.ChatTitleSource
 	ModelConfigID      uuid.UUID
 	ReasoningEffort    *string
@@ -2611,9 +2608,8 @@ func (t *generatedChatTitle) Load() (string, bool) {
 	return t.title, true
 }
 
-// RenameChatTitle persists a user-supplied chat title. Choosing the text
-// the chat already shows still counts as a choice: the write records the
-// title as user-set so automatic generation cannot replace it later.
+// RenameChatTitle persists a user-supplied chat title. An unchanged
+// title is still written when its source is not yet user.
 func (p *Server) RenameChatTitle(
 	ctx context.Context,
 	chat database.Chat,

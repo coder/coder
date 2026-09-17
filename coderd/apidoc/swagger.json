@@ -17660,12 +17660,7 @@
 					"type": "string"
 				},
 				"title_source": {
-					"description": "TitleSource records where Title came from. See ChatTitleSource.",
-					"allOf": [
-						{
-							"$ref": "#/definitions/codersdk.ChatTitleSource"
-						}
-					]
+					"$ref": "#/definitions/codersdk.ChatTitleSource"
 				},
 				"updated_at": {
 					"type": "string",
@@ -19821,7 +19816,7 @@
 					"type": "string"
 				},
 				"title": {
-					"description": "Title sets the chat title. When provided it is stored as-is (after\ntrimming surrounding whitespace) and automatic title generation is\nskipped. When omitted, a title is derived from the first prompt and\nlater replaced by a generated one.",
+					"description": "Title, when set, is trimmed and stored as the user title; automatic\ntitle generation is skipped. When omitted, the title is derived from\nthe first prompt and later replaced by a generated title.",
 					"type": "string"
 				},
 				"unsafe_dynamic_tools": {

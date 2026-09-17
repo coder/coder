@@ -15,7 +15,7 @@ const renderDialog = (chat: Chat) => {
 };
 
 describe("RenameChatDialog", () => {
-	it("submits an unchanged placeholder title so it becomes the user's choice", async () => {
+	it("submits the unchanged text of a fallback title", async () => {
 		const user = userEvent.setup();
 		const chat: Chat = {
 			...MockChat,
@@ -29,7 +29,7 @@ describe("RenameChatDialog", () => {
 		expect(onRename).toHaveBeenCalledWith(chat.id, "derived from prompt");
 	});
 
-	it("does not resubmit an unchanged title the user already chose", async () => {
+	it("submits a user title only once it changes", async () => {
 		const user = userEvent.setup();
 		const chat: Chat = {
 			...MockChat,
@@ -39,18 +39,7 @@ describe("RenameChatDialog", () => {
 		const { onRename } = renderDialog(chat);
 
 		await user.click(screen.getByRole("button", { name: "Save" }));
-
 		expect(onRename).not.toHaveBeenCalled();
-	});
-
-	it("submits a changed title for a user-titled chat", async () => {
-		const user = userEvent.setup();
-		const chat: Chat = {
-			...MockChat,
-			title: "Chosen",
-			title_source: "user",
-		};
-		const { onRename } = renderDialog(chat);
 
 		const input = screen.getByRole("textbox", { name: "Chat title" });
 		await user.clear(input);

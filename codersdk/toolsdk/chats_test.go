@@ -134,8 +134,7 @@ func TestChatTools(t *testing.T) {
 		require.Equal(t, client.URL.String()+"/agents/"+created.ID, created.URL)
 
 		settled := coderdtest.WaitForChatSettled(ctx, t, api, chatID)
-		// The title equals the prompt-derived fallback on purpose: only
-		// provenance keeps a caller-supplied title from being generated over.
+		// The same text the fallback would produce.
 		require.Equal(t, "Say hello.", settled.Title)
 		require.Equal(t, database.ChatTitleSourceUser, settled.TitleSource)
 

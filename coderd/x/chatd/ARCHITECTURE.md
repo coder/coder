@@ -38,11 +38,6 @@ We say that the following data constitutes a chat's **execution state**:
 There is other data that is held in the database and is associated with a chat, but it's not part of the execution state:
 
 - title;
-  <!-- TODO(CODAGT-1047): document `title_source` (fallback | generated | user).
-  Automatic title generation only replaces a fallback title, enforced by
-  the provenance predicate in `UpdateChatTitleByID`; a rename always records
-  `user`, including a same-text rename. Title writes never bump
-  `updated_at`. -->
 - labels;
 - pin order;
 - workspace binding;
@@ -53,6 +48,8 @@ There is other data that is held in the database and is associated with a chat, 
 We call it **metadata**. The core state machine concerns itself with **execution state**. As a general guideline, a piece of data is execution state if the core state machine needs it to decide what the next state transition may be, or if it's directly modified by a state transition. For example, a queued message is part of the execution state because it impacts what the next action of the agent loop can be. If the agent loop finishes processing a user message and would otherwise stop, but there's a queued message, the agent loop will start processing the queued message instead. On the other hand, a chat's title does not impact the agent loop at all - it's just a label that helps the user identify the chat.
 
 File links are metadata, but they are written inside transitions: if a transition persists message content that references uploaded files (chat create, message send, queued send, or message edit), it records the file links in the same transaction. Two invariants are enforced when links are written. A file belongs to at most one chat: attaching a file that another chat already holds is refused in the same way as attaching a file that no longer exists. There is an upper bound on the number of files a chat holds. When a message's files would push the chat over the cap, the oldest files on the chat are deleted to make room, and their links go with them. Files in the same message are never evicted by that message, so only a message that is on its own larger than the cap is rejected. Files created by tools during a run take the same path, so a tool's attachment can evict a user's upload and vice versa.
+
+Each title has a source: `fallback` for a title derived from the first prompt, `generated` for a title written by automatic title generation, and `user` for a title the caller supplied. A `user` title replaces any title. Any other title replaces only a `fallback` title. Title writes do not change `updated_at`.
 
 Eviction means that a persisted message may reference a file that no longer exists. That's expected: the UI shows the attachment as expired, and when the history is sent to the model, an evicted user upload is replaced with a short placeholder saying the content has expired, while evicted assistant and tool files are dropped. Editing a message that still references an evicted file is refused until the attachment is removed from the edit.
 
@@ -452,17 +449,11 @@ This endpoint uses `Create(initialMessages)`:
 
 No other input states are supported.
 
-<!-- TODO(CODAGT-1047): document the optional `title` request field. When
-set, the title is stored with `title_source = user` and no automatic title
-generation is scheduled; when omitted, a fallback title is derived from the
-prompt (re-derived if a UserPromptSubmit hook overrides the prompt) and
-detached generation replaces it. -->
+If the request sets `title`, the chat is created with a `user` title and automatic title generation does not run. Otherwise the chat is created with a `fallback` title derived from the prompt, after any `UserPromptSubmit` override, and automatic title generation runs after the response is sent.
 
 ### `PATCH /api/experimental/chats/{chat}`
 
-<!-- TODO(CODAGT-1047): document `title` semantics. A rename records
-`title_source = user` even when the text is unchanged, so confirming a
-fallback title stops generation from replacing it. -->
+Setting `title` writes a `user` title. The write happens even when the text is unchanged, unless the title is already a `user` title.
 
 When archiving or unarchiving a root chat, the operation applies `SetArchived(archived)` to the root and all descendants atomically. If any chat in the family cannot apply the requested archived-state transition, the whole operation fails without changing any chat. Unarchiving an individual child chat remains guarded: it must fail while its parent is archived
 

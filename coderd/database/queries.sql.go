@@ -13651,10 +13651,8 @@ type UpdateChatTitleByIDParams struct {
 	ID          uuid.UUID       `db:"id" json:"id"`
 }
 
-// Writes a title together with its provenance. Anything may replace a
-// fallback (placeholder) title; only a user-supplied title may replace a
-// generated or user title. Returns no rows when the write is refused,
-// which is how automatic title generation loses to a concurrent rename.
+// Returns no rows when the write is refused: only a user title may
+// replace a generated or user title.
 func (q *sqlQuerier) UpdateChatTitleByID(ctx context.Context, arg UpdateChatTitleByIDParams) (Chat, error) {
 	row := q.db.QueryRowContext(ctx, updateChatTitleByID, arg.Title, arg.TitleSource, arg.ID)
 	var i Chat

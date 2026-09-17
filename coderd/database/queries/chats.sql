@@ -1057,10 +1057,8 @@ SELECT *
 FROM chats_expanded;
 
 -- name: UpdateChatTitleByID :one
--- Writes a title together with its provenance. Anything may replace a
--- fallback (placeholder) title; only a user-supplied title may replace a
--- generated or user title. Returns no rows when the write is refused,
--- which is how automatic title generation loses to a concurrent rename.
+-- Returns no rows when the write is refused: only a user title may
+-- replace a generated or user title.
 WITH updated_chat AS (
 UPDATE
     chats

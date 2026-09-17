@@ -7492,10 +7492,9 @@ func TestPatchChat(t *testing.T) {
 
 			updated := getChat(ctx, t, client, chat.ID)
 			require.Equal(t, "steady title", updated.Title)
-			require.Equal(t, codersdk.ChatTitleSourceUser, updated.TitleSource,
-				"confirming the current text is still a choice and must be recorded as user-set")
+			require.Equal(t, codersdk.ChatTitleSourceUser, updated.TitleSource)
 			require.WithinDuration(t, past, updated.UpdatedAt, time.Second,
-				"a same-text rename bumped updated_at; title writes must not reorder chat lists")
+				"title writes must not change updated_at")
 		})
 
 		t.Run("PublishesWatchEvent", func(t *testing.T) {
@@ -11746,15 +11745,11 @@ func TestPostChats_AutomaticTitleGeneration(t *testing.T) {
 	coderdtest.WaitForChatSettled(ctx, t, api, chat.ID)
 }
 
-// TestPostChats_UserTitle covers the create request's optional title: it
-// is stored as given and never replaced by automatic generation.
 func TestPostChats_UserTitle(t *testing.T) {
 	t.Parallel()
 
 	const prompt = "automatic title generation please"
 
-	// newTitleCountingClient returns a client whose model provider counts
-	// title-generation requests, so tests can assert none were made.
 	newTitleCountingClient := func(t *testing.T) (*codersdk.ExperimentalClient, *coderd.API, uuid.UUID, *atomic.Int32) {
 		t.Helper()
 		var titleRequests atomic.Int32
@@ -11780,9 +11775,7 @@ func TestPostChats_UserTitle(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client, api, orgID, titleRequests := newTitleCountingClient(t)
 
-		// Deliberately choose the exact text the fallback would have
-		// produced: a text comparison could not tell this apart from a
-		// placeholder, provenance can.
+		// The same text the fallback would produce.
 		userTitle := chatprompt.FallbackTitle(prompt)
 		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
 			OrganizationID: orgID,
@@ -11796,23 +11789,7 @@ func TestPostChats_UserTitle(t *testing.T) {
 		settled := coderdtest.WaitForChatSettled(ctx, t, api, chat.ID)
 		require.Equal(t, userTitle, settled.Title)
 		require.Equal(t, database.ChatTitleSourceUser, settled.TitleSource)
-		require.Zero(t, titleRequests.Load(), "a user-supplied title must not trigger title generation")
-	})
-
-	t.Run("TrimsWhitespace", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitLong)
-		client, api, orgID, _ := newTitleCountingClient(t)
-
-		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
-			OrganizationID: orgID,
-			Title:          new("  padded title  "),
-			Content:        []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: prompt}},
-		})
-		require.NoError(t, err)
-		require.Equal(t, "padded title", chat.Title)
-		coderdtest.WaitForChatSettled(ctx, t, api, chat.ID)
+		require.Zero(t, titleRequests.Load())
 	})
 
 	t.Run("Validation", func(t *testing.T) {

@@ -378,11 +378,7 @@ func (p *Server) maybeGenerateChatTitle(
 		return
 	}
 
-	// A generated title only replaces a fallback. A rename that landed
-	// while the model call was in flight wins; the generated title is
-	// discarded rather than overwriting the user's choice. The same text as
-	// the fallback is still written so provenance records that generation
-	// completed.
+	// The write is refused when a rename was committed during the model call.
 	updatedChat, err := p.db.UpdateChatTitleByID(ctx, database.UpdateChatTitleByIDParams{
 		ID:          chat.ID,
 		Title:       title,
@@ -392,10 +388,8 @@ func (p *Server) maybeGenerateChatTitle(
 		logger.Debug(ctx, "title changed during generation, keeping user title",
 			slog.F("chat_id", chat.ID),
 		)
-		// The model call was billed even though nothing changed. Publish a
-		// cost-only event: the generator holds no authoritative title, and
-		// a title_change built from a reloaded row could replay an older
-		// user title over a newer rename.
+		// The chat's cost changed. No title_change is published because
+		// this goroutine did not write the current title.
 		p.publishChatPubsubEvent(chat, codersdk.ChatWatchEventKindCostChange, nil)
 		return
 	}
@@ -608,8 +602,6 @@ func titleInput(
 		return "", false
 	}
 
-	// Only a fallback title is a placeholder. Provenance, not title text,
-	// decides: a user may choose the exact text the fallback produced.
 	if chat.TitleSource != database.ChatTitleSourceFallback {
 		return "", false
 	}

@@ -1253,7 +1253,7 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	contentBlocks, titleSource, inputError := createChatInputFromRequest(ctx, api.Database, req)
+	contentBlocks, titleText, inputError := createChatInputFromRequest(ctx, api.Database, req)
 	if inputError != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, *inputError)
 		return
@@ -1265,8 +1265,8 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	title := chatprompt.FallbackTitle(titleSource)
-	titleProvenance := database.ChatTitleSourceFallback
+	title := chatprompt.FallbackTitle(titleText)
+	titleSource := database.ChatTitleSourceFallback
 	if req.Title != nil {
 		userTitle, invalid := normalizeChatTitle(*req.Title)
 		if invalid != nil {
@@ -1274,7 +1274,7 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 			return
 		}
 		title = userTitle
-		titleProvenance = database.ChatTitleSourceUser
+		titleSource = database.ChatTitleSourceUser
 	}
 
 	modelConfigID, personalOverrideEffort, modelConfigStatus, modelConfigError := api.resolveCreateChatModelConfigID(ctx, apiKey.UserID, req)
@@ -1391,7 +1391,7 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		OwnerID:            apiKey.UserID,
 		WorkspaceID:        workspaceSelection.WorkspaceID,
 		Title:              title,
-		TitleSource:        titleProvenance,
+		TitleSource:        titleSource,
 		ModelConfigID:      modelConfigID,
 		ReasoningEffort:    reasoningEffort,
 		PlanMode:           planModeToNullChatPlanMode(req.PlanMode),
@@ -1463,8 +1463,7 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 	// Kick off best-effort automatic title generation now that the
 	// chat and its initial user message are persisted. It runs
 	// detached so it never blocks the create response, and only acts
-	// on the first user turn. A user-supplied title is final, so no
-	// generation is scheduled for it.
+	// on the first user turn.
 	if chat.TitleSource == database.ChatTitleSourceFallback {
 		api.chatDaemon.GenerateChatTitleAsync(ctx, chat)
 	}
@@ -2130,8 +2129,8 @@ func (api *API) watchChatDesktop(rw http.ResponseWriter, r *http.Request) {
 // maxChatTitleRunes bounds user-supplied chat titles on create and rename.
 const maxChatTitleRunes = 200
 
-// normalizeChatTitle trims a user-supplied title and validates it. The
-// returned response is non-nil when the title is rejected.
+// normalizeChatTitle trims and validates a user-supplied title. The
+// response is non-nil when the title is rejected.
 func normalizeChatTitle(rawTitle string) (string, *codersdk.Response) {
 	title := strings.TrimSpace(rawTitle)
 	if title == "" {
@@ -2157,8 +2156,6 @@ func (api *API) applyChatTitleUpdate(
 		return chat, true
 	}
 
-	// RenameChatTitle decides whether a write is needed from the fresh
-	// row: a same-text rename still records the title as user-set.
 	updatedChat, wrote, err := api.chatDaemon.RenameChatTitle(ctx, chat, trimmedTitle)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -6527,18 +6524,17 @@ func createChatInputFromRequest(ctx context.Context, db database.Store, req code
 	if inputError != nil {
 		return nil, "", inputError
 	}
-	// Derive titleSource through the same chatprompt.TitleText used at
-	// generation time; auto-titling gates on that equality. Paste blobs
-	// are copied only when text and file-reference parts yield nothing.
-	titleSource := chatprompt.TitleText(content, nil)
-	if titleSource == "" && len(pasteData) > 0 {
+	// Paste blobs are copied only when text and file-reference parts
+	// yield nothing.
+	titleText := chatprompt.TitleText(content, nil)
+	if titleText == "" && len(pasteData) > 0 {
 		pasteText := make(map[uuid.UUID]string, len(pasteData))
 		for id, data := range pasteData {
 			pasteText[id] = chatprompt.TitlePasteText(data)
 		}
-		titleSource = chatprompt.TitleText(content, pasteText)
+		titleText = chatprompt.TitleText(content, pasteText)
 	}
-	return content, titleSource, nil
+	return content, titleText, nil
 }
 
 // createChatInputFromParts validates input parts and converts them to

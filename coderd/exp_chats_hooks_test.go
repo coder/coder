@@ -480,14 +480,11 @@ func TestChatHooksFileLinksAfterPromptOverride(t *testing.T) {
 	}, sendResp.Message.Content)
 }
 
-// TestChatHooksPromptOverrideTitle checks how a prompt override from a
-// UserPromptSubmit hook interacts with the create title: a derived
-// fallback is recomputed from the replaced prompt so the original text
-// does not leak, while a title the caller supplied is kept.
 func TestChatHooksPromptOverrideTitle(t *testing.T) {
 	t.Parallel()
 
 	const secret = "test-hook-secret-32-bytes-minimum!!"
+	ctx := testutil.Context(t, testutil.WaitLong)
 	modelURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
 		if !req.Stream {
 			return chattest.OpenAINonStreamingResponse(`{"title": "Generated Title"}`)
@@ -516,35 +513,28 @@ func TestChatHooksPromptOverrideTitle(t *testing.T) {
 	user := coderdtest.CreateFirstUser(t, client.Client)
 	model := createChatModelWithBaseURL(t, client, modelURL)
 
-	t.Run("DerivedTitleFollowsOverride", func(t *testing.T) {
-		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitLong)
-		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
-			OrganizationID: user.OrganizationID,
-			ModelConfigID:  &model.ID,
-			Content:        []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: "REDACTME secret"}},
-		})
-		require.NoError(t, err)
-		require.Equal(t, "redacted", chat.Title, "the original prompt must not leak through the fallback title")
-		require.Equal(t, codersdk.ChatTitleSourceFallback, chat.TitleSource)
-		coderdtest.WaitForChatSettled(ctx, t, api, chat.ID)
+	derived, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+		OrganizationID: user.OrganizationID,
+		ModelConfigID:  &model.ID,
+		Content:        []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: "REDACTME secret"}},
 	})
+	require.NoError(t, err)
+	require.Equal(t, "redacted", derived.Title, "the fallback title must be derived from the replacement prompt")
+	require.Equal(t, codersdk.ChatTitleSourceFallback, derived.TitleSource)
 
-	t.Run("UserTitleKept", func(t *testing.T) {
-		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitLong)
-		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
-			OrganizationID: user.OrganizationID,
-			ModelConfigID:  &model.ID,
-			Title:          new("Chosen title"),
-			Content:        []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: "REDACTME secret"}},
-		})
-		require.NoError(t, err)
-		require.Equal(t, "Chosen title", chat.Title)
-		require.Equal(t, codersdk.ChatTitleSourceUser, chat.TitleSource)
-		settled := coderdtest.WaitForChatSettled(ctx, t, api, chat.ID)
-		require.Equal(t, "Chosen title", settled.Title)
+	chosen, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+		OrganizationID: user.OrganizationID,
+		ModelConfigID:  &model.ID,
+		Title:          new("Chosen title"),
+		Content:        []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: "REDACTME secret"}},
 	})
+	require.NoError(t, err)
+	require.Equal(t, "Chosen title", chosen.Title)
+	require.Equal(t, codersdk.ChatTitleSourceUser, chosen.TitleSource)
+
+	coderdtest.WaitForChatSettled(ctx, t, api, derived.ID)
+	settled := coderdtest.WaitForChatSettled(ctx, t, api, chosen.ID)
+	require.Equal(t, "Chosen title", settled.Title)
 }
 
 func TestChatHookNoticeMessagesInResponses(t *testing.T) {

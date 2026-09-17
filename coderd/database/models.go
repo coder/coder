@@ -1916,7 +1916,7 @@ func AllChatStatusValues() []ChatStatus {
 	}
 }
 
-// Provenance of chats.title. fallback: derived from the first prompt at creation. generated: written by automatic title generation. user: supplied by the user at creation or by rename.
+// Where a chat title came from. fallback: derived from the first prompt. generated: written by automatic title generation. user: supplied by the caller at creation or by rename.
 type ChatTitleSource string
 
 const (
@@ -5371,7 +5371,7 @@ type ChatTable struct {
 	CompactionRequestedAt sql.NullTime   `db:"compaction_requested_at" json:"compaction_requested_at"`
 	Summary               sql.NullString `db:"summary" json:"summary"`
 	SummaryGeneratedAt    sql.NullTime   `db:"summary_generated_at" json:"summary_generated_at"`
-	// Provenance of title. Automatic title generation only replaces a fallback title.
+	// Where title came from. Only a user title may replace a generated or user title.
 	TitleSource ChatTitleSource `db:"title_source" json:"title_source"`
 }
 

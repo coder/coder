@@ -29,8 +29,7 @@ type CreateChatInput struct {
 	RootChatID        uuid.NullUUID
 	LastModelConfigID uuid.UUID
 	Title             string
-	// TitleSource records where Title came from. The zero value defers to
-	// the column default (fallback).
+	// TitleSource defaults to fallback.
 	TitleSource     database.ChatTitleSource
 	Mode            database.NullChatMode
 	PlanMode        database.NullChatPlanMode

@@ -1,20 +1,15 @@
--- Title provenance. Automatic title generation may only replace a
--- 'fallback' title; a 'user' title is never replaced automatically.
--- Persisting intent (rather than comparing title text) makes the rule
--- hold even when a chosen title happens to equal the derived fallback,
--- or when a user renames back to an earlier value.
 CREATE TYPE chat_title_source AS ENUM (
     'fallback',
     'generated',
     'user'
 );
 
-COMMENT ON TYPE chat_title_source IS 'Provenance of chats.title. fallback: derived from the first prompt at creation. generated: written by automatic title generation. user: supplied by the user at creation or by rename.';
+COMMENT ON TYPE chat_title_source IS 'Where a chat title came from. fallback: derived from the first prompt. generated: written by automatic title generation. user: supplied by the caller at creation or by rename.';
 
 ALTER TABLE chats
     ADD COLUMN title_source chat_title_source NOT NULL DEFAULT 'fallback';
 
-COMMENT ON COLUMN chats.title_source IS 'Provenance of title. Automatic title generation only replaces a fallback title.';
+COMMENT ON COLUMN chats.title_source IS 'Where title came from. Only a user title may replace a generated or user title.';
 
 -- Refresh chats_expanded to include the new chat column. The gentest
 -- TestViewSubsetChat requires every chats column to appear in the view.

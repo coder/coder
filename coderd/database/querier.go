@@ -1527,10 +1527,8 @@ type sqlcQuerier interface {
 	// The history_version fence lets background summary writes ignore worker-only
 	// updates while losing to newer message history.
 	UpdateChatSummary(ctx context.Context, arg UpdateChatSummaryParams) (int64, error)
-	// Writes a title together with its provenance. Anything may replace a
-	// fallback (placeholder) title; only a user-supplied title may replace a
-	// generated or user title. Returns no rows when the write is refused,
-	// which is how automatic title generation loses to a concurrent rename.
+	// Returns no rows when the write is refused: only a user title may
+	// replace a generated or user title.
 	UpdateChatTitleByID(ctx context.Context, arg UpdateChatTitleByIDParams) (Chat, error)
 	UpdateChatWorkspaceBinding(ctx context.Context, arg UpdateChatWorkspaceBindingParams) (Chat, error)
 	UpdateCryptoKeyDeletesAt(ctx context.Context, arg UpdateCryptoKeyDeletesAtParams) (CryptoKey, error)

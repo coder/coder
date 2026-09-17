@@ -1015,8 +1015,7 @@ func TestRenameChatTitle(t *testing.T) {
 
 		got, wrote, err := server.RenameChatTitle(ctx, stored, "keep this")
 		require.NoError(t, err)
-		require.True(t, wrote,
-			"choosing the current fallback text is still a choice; it must be recorded so generation cannot replace it")
+		require.True(t, wrote)
 		require.Equal(t, updated, got)
 	})
 }
