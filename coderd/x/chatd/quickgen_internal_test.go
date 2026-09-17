@@ -25,6 +25,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	dbpubsub "github.com/coder/coder/v2/coderd/database/pubsub"
+	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
@@ -406,14 +407,14 @@ func Test_titleInput(t *testing.T) {
 	}{
 		{
 			name:      "text message with fallback title is eligible",
-			chat:      database.Chat{Title: chatprompt.FallbackTitle("summarize build logs")},
+			chat:      database.Chat{Title: chatprompt.FallbackTitle("summarize build logs"), TitleSource: database.ChatTitleSourceFallback},
 			messages:  []database.ChatMessage{textMessage},
 			wantInput: "summarize build logs",
 			wantOK:    true,
 		},
 		{
 			name:      "paste only message with resolved paste text is eligible",
-			chat:      database.Chat{Title: chatprompt.FallbackTitle(pasteContent)},
+			chat:      database.Chat{Title: chatprompt.FallbackTitle(pasteContent), TitleSource: database.ChatTitleSourceFallback},
 			messages:  []database.ChatMessage{pasteMessage},
 			pasteText: map[uuid.UUID]string{pasteFileID: pasteContent},
 			wantInput: pasteContent,
@@ -421,20 +422,34 @@ func Test_titleInput(t *testing.T) {
 		},
 		{
 			name:     "paste only message without resolved paste text is skipped",
-			chat:     database.Chat{Title: "New Chat"},
+			chat:     database.Chat{Title: "New Chat", TitleSource: database.ChatTitleSourceFallback},
 			messages: []database.ChatMessage{pasteMessage},
 			wantOK:   false,
 		},
 		{
-			name:      "paste only message with user renamed title is skipped",
-			chat:      database.Chat{Title: "my custom name"},
+			name:      "user title is skipped",
+			chat:      database.Chat{Title: "my custom name", TitleSource: database.ChatTitleSourceUser},
 			messages:  []database.ChatMessage{pasteMessage},
 			pasteText: map[uuid.UUID]string{pasteFileID: pasteContent},
 			wantOK:    false,
 		},
 		{
+			// Provenance, not title text, decides eligibility: a user may
+			// deliberately pick the same text the fallback would produce.
+			name:     "user title identical to fallback text is skipped",
+			chat:     database.Chat{Title: chatprompt.FallbackTitle("summarize build logs"), TitleSource: database.ChatTitleSourceUser},
+			messages: []database.ChatMessage{textMessage},
+			wantOK:   false,
+		},
+		{
+			name:     "already generated title is skipped",
+			chat:     database.Chat{Title: "Build log summary", TitleSource: database.ChatTitleSourceGenerated},
+			messages: []database.ChatMessage{textMessage},
+			wantOK:   false,
+		},
+		{
 			name: "assistant reply disables generation",
-			chat: database.Chat{Title: chatprompt.FallbackTitle(pasteContent)},
+			chat: database.Chat{Title: chatprompt.FallbackTitle(pasteContent), TitleSource: database.ChatTitleSourceFallback},
 			messages: []database.ChatMessage{
 				pasteMessage,
 				mustChatMessage(t, database.ChatMessageRoleAssistant, database.ChatMessageVisibilityBoth,
@@ -600,6 +615,7 @@ func TestMaybeGenerateChatTitlePreservesUpdatedAt(t *testing.T) {
 	fetched, err := db.GetChatByID(ctx, chat.ID)
 	require.NoError(t, err)
 	require.Equal(t, wantTitle, fetched.Title)
+	require.Equal(t, database.ChatTitleSourceGenerated, fetched.TitleSource)
 	require.True(t, fetched.UpdatedAt.Equal(expectedUpdatedAt),
 		"updated_at = %s, want same instant as %s",
 		fetched.UpdatedAt,
@@ -609,6 +625,114 @@ func TestMaybeGenerateChatTitlePreservesUpdatedAt(t *testing.T) {
 	gotTitle, ok := generated.Load()
 	require.True(t, ok)
 	require.Equal(t, wantTitle, gotTitle)
+}
+
+// TestMaybeGenerateChatTitleKeepsTitleRenamedDuringGeneration covers the
+// window between the eligibility snapshot and the generated-title write.
+// A rename that lands in that window must win, and watchers must still
+// receive a title_change event (the model call was billed and the
+// frontend refreshes cost on that event) that carries the user's title.
+func TestMaybeGenerateChatTitleKeepsTitleRenamedDuringGeneration(t *testing.T) {
+	t.Parallel()
+
+	const userPrompt = "summarize failed workspace build logs"
+	fallback := chatprompt.FallbackTitle(userPrompt)
+
+	cases := []struct {
+		name    string
+		renames []string
+	}{
+		{name: "renamed to a new title", renames: []string{"My build investigation"}},
+		{name: "renamed to the fallback text", renames: []string{fallback}},
+		{name: "renamed away and back", renames: []string{"Temporary", fallback}},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			db, _ := dbtestutil.NewDB(t)
+			ctx := testutil.Context(t, testutil.WaitMedium)
+			owner := dbgen.User(t, db, database.User{})
+			org := dbgen.Organization(t, db, database.Organization{})
+			dbgen.OrganizationMember(t, db, database.OrganizationMember{
+				UserID:         owner.ID,
+				OrganizationID: org.ID,
+			})
+			dbgen.ChatProvider(t, db, database.ChatProvider{
+				Provider:             "openai",
+				DisplayName:          "OpenAI",
+				APIKey:               "test-key",
+				Enabled:              true,
+				CentralApiKeyEnabled: true,
+			})
+			modelConfig := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{Model: "test-model"})
+			chat := dbgen.Chat(t, db, database.Chat{
+				OrganizationID:    org.ID,
+				OwnerID:           owner.ID,
+				LastModelConfigID: modelConfig.ID,
+				Title:             fallback,
+				Status:            database.ChatStatusWaiting,
+				ClientType:        database.ChatClientTypeUi,
+			})
+
+			wantTitle := chat.Title
+			model := &chattest.FakeModel{
+				GenerateObjectFn: func(_ context.Context, _ fantasy.ObjectCall) (*fantasy.ObjectResponse, error) {
+					// The user renames while the model call is in flight.
+					for _, title := range tc.renames {
+						_, err := db.UpdateChatTitleByID(ctx, database.UpdateChatTitleByIDParams{ID: chat.ID, Title: title})
+						require.NoError(t, err)
+						wantTitle = title
+					}
+					return &fantasy.ObjectResponse{Object: map[string]any{"title": "Generated title"}}, nil
+				},
+			}
+
+			ps := dbpubsub.NewInMemory()
+			events := make(chan codersdk.ChatWatchEvent, 4)
+			cancelSub, err := ps.Subscribe(coderdpubsub.ChatWatchEventChannel(owner.ID), func(_ context.Context, payload []byte) {
+				var event codersdk.ChatWatchEvent
+				require.NoError(t, json.Unmarshal(payload, &event))
+				events <- event
+			})
+			require.NoError(t, err)
+			defer cancelSub()
+
+			message := mustChatMessage(t, database.ChatMessageRoleUser, database.ChatMessageVisibilityBoth, codersdk.ChatMessageText(userPrompt))
+			message.ID = 1
+
+			generated := &generatedChatTitle{}
+			server := &Server{db: db, pubsub: ps, logger: slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})}
+			server.maybeGenerateChatTitle(
+				ctx,
+				chat,
+				[]database.ChatMessage{message},
+				nil,
+				resolvedModelCall{
+					model:    chatprovider.NewModel(model, nil),
+					dbConfig: database.ChatModelConfig{Model: "test-model"},
+				},
+				modelBuildOptions{},
+				generated,
+				server.logger,
+				nil,
+			)
+
+			fetched, err := db.GetChatByID(ctx, chat.ID)
+			require.NoError(t, err)
+			require.Equal(t, wantTitle, fetched.Title, "user rename must survive in-flight generation")
+			require.Equal(t, database.ChatTitleSourceUser, fetched.TitleSource)
+
+			_, ok := generated.Load()
+			require.False(t, ok, "a discarded generated title must not be reported as applied")
+
+			event := testutil.RequireReceive(ctx, t, events)
+			require.Equal(t, codersdk.ChatWatchEventKindTitleChange, event.Kind)
+			require.Equal(t, wantTitle, event.Chat.Title, "watchers must never see the discarded generated title")
+			require.Equal(t, codersdk.ChatTitleSourceUser, event.Chat.TitleSource)
+		})
+	}
 }
 
 func TestMaybeGenerateChatTitleAppliesModelConfigReasoningEffort(t *testing.T) {
@@ -644,7 +768,7 @@ func TestMaybeGenerateChatTitleAppliesModelConfigReasoningEffort(t *testing.T) {
 
 	db := dbmock.NewMockStore(gomock.NewController(t))
 	db.EXPECT().GetChatOrganizationModelOverride(gomock.Any(), titleGenerationOverrideParams(chat)).Return(database.ChatOrganizationModelOverride{}, sql.ErrNoRows)
-	db.EXPECT().UpdateChatTitleByID(gomock.Any(), database.UpdateChatTitleByIDParams{
+	db.EXPECT().UpdateChatGeneratedTitleByID(gomock.Any(), database.UpdateChatGeneratedTitleByIDParams{
 		ID:    chat.ID,
 		Title: "Reasoning title",
 	}).Return(chatWithTitle(chat, "Reasoning title"), nil)

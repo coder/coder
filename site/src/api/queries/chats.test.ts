@@ -196,6 +196,7 @@ const makeChat = (
 	mcp_server_ids: [],
 	labels: {},
 	title: `Chat ${id}`,
+	title_source: "generated",
 	status: "running",
 	created_at: "2025-01-01T00:00:00.000Z",
 	updated_at: "2025-01-01T00:00:00.000Z",
@@ -677,17 +678,19 @@ describe("updateChatTitle cache update", () => {
 		const mutation = updateChatTitle(queryClient);
 		mutation.onSuccess(undefined, { chatId, title: "New" });
 
+		// The patch marks the title user-set so a stale generated
+		// title_change cannot replace it before the refetch lands.
 		expect(
-			queryClient.getQueryData<TypesGen.Chat>(chatEntityKey(chatId))?.title,
-		).toBe("New");
+			queryClient.getQueryData<TypesGen.Chat>(chatEntityKey(chatId)),
+		).toMatchObject({ title: "New", title_source: "user" });
 		expect(
 			readInfiniteChats(queryClient)?.find((chat) => chat.id === chatId),
-		).toMatchObject({ title: "New" });
+		).toMatchObject({ title: "New", title_source: "user" });
 		expect(
 			readInfiniteChats(queryClient, { archived: true })?.find(
 				(chat) => chat.id === chatId,
 			),
-		).toMatchObject({ title: "New" });
+		).toMatchObject({ title: "New", title_source: "user" });
 	});
 
 	it("does not return pending invalidation promises from settlement", () => {
@@ -3060,6 +3063,61 @@ describe("mergeWatchedChatSummary", () => {
 			title: "Newer generated title",
 			updated_at: "2025-01-01T00:10:00.000Z",
 		});
+	});
+
+	it("keeps a user title when a stale generated title_change arrives after it", () => {
+		const cachedChat = makeChat("chat-1", {
+			title: "Chosen by user",
+			title_source: "user",
+		});
+		const watchedChat = makeChat("chat-1", {
+			title: "Generated later",
+			title_source: "generated",
+		});
+
+		const merged = mergeWatchedChatSummary(cachedChat, watchedChat, {
+			eventKind: "title_change",
+		});
+		expect(merged.title).toBe("Chosen by user");
+		expect(merged.title_source).toBe("user");
+	});
+
+	it("replaces a fallback or generated title with a generated title_change", () => {
+		for (const source of ["fallback", "generated"] as const) {
+			const cachedChat = makeChat("chat-1", {
+				title: "Placeholder",
+				title_source: source,
+			});
+			const watchedChat = makeChat("chat-1", {
+				title: "Generated title",
+				title_source: "generated",
+			});
+
+			expect(
+				mergeWatchedChatSummary(cachedChat, watchedChat, {
+					eventKind: "title_change",
+				}),
+			).toMatchObject({ title: "Generated title", title_source: "generated" });
+		}
+	});
+
+	it("applies a user title_change over any cached title", () => {
+		for (const source of ["fallback", "generated", "user"] as const) {
+			const cachedChat = makeChat("chat-1", {
+				title: "Before",
+				title_source: source,
+			});
+			const watchedChat = makeChat("chat-1", {
+				title: "Renamed",
+				title_source: "user",
+			});
+
+			expect(
+				mergeWatchedChatSummary(cachedChat, watchedChat, {
+					eventKind: "title_change",
+				}),
+			).toMatchObject({ title: "Renamed", title_source: "user" });
+		}
 	});
 
 	it("merges fresh diff status updates without clobbering status or title", () => {

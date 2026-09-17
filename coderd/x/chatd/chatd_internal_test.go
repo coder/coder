@@ -972,6 +972,7 @@ func TestRenameChatTitle(t *testing.T) {
 		}
 		landed := stale
 		landed.Title = "landed-concurrently"
+		landed.TitleSource = database.ChatTitleSourceUser
 
 		server := &Server{db: db, logger: logger}
 
@@ -982,6 +983,39 @@ func TestRenameChatTitle(t *testing.T) {
 		require.False(t, wrote,
 			"must report wrote=false when the stored row already matches newTitle so the handler suppresses a redundant title_change event")
 		require.Equal(t, landed, got)
+	})
+
+	t.Run("WritesWhenSameTitleIsNotYetUserSet", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		ctrl := gomock.NewController(t)
+		db := dbmock.NewMockStore(ctrl)
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+
+		chatID := uuid.New()
+		stored := database.Chat{
+			ID:          chatID,
+			Status:      database.ChatStatusRunning,
+			Title:       "keep this",
+			TitleSource: database.ChatTitleSourceFallback,
+		}
+		updated := stored
+		updated.TitleSource = database.ChatTitleSourceUser
+
+		server := &Server{db: db, logger: logger}
+
+		db.EXPECT().GetChatByID(gomock.Any(), chatID).Return(stored, nil)
+		db.EXPECT().UpdateChatTitleByID(gomock.Any(), database.UpdateChatTitleByIDParams{
+			ID:    chatID,
+			Title: "keep this",
+		}).Return(updated, nil)
+
+		got, wrote, err := server.RenameChatTitle(ctx, stored, "keep this")
+		require.NoError(t, err)
+		require.True(t, wrote,
+			"choosing the current fallback text is still a choice; it must be recorded so generation cannot replace it")
+		require.Equal(t, updated, got)
 	})
 }
 

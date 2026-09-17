@@ -7492,8 +7492,10 @@ func TestPatchChat(t *testing.T) {
 
 			updated := getChat(ctx, t, client, chat.ID)
 			require.Equal(t, "steady title", updated.Title)
+			require.Equal(t, codersdk.ChatTitleSourceUser, updated.TitleSource,
+				"confirming the current text is still a choice and must be recorded as user-set")
 			require.WithinDuration(t, past, updated.UpdatedAt, time.Second,
-				"no-op rename bumped updated_at; it should have been short-circuited before the write")
+				"a same-text rename bumped updated_at; title writes must not reorder chat lists")
 		})
 
 		t.Run("PublishesWatchEvent", func(t *testing.T) {
@@ -11729,6 +11731,7 @@ func TestPostChats_AutomaticTitleGeneration(t *testing.T) {
 	// The create response carries the synchronous fallback title derived from
 	// the message, not the asynchronously generated one.
 	require.Equal(t, "automatic title generation please", chat.Title)
+	require.Equal(t, codersdk.ChatTitleSourceFallback, chat.TitleSource)
 
 	// The create endpoint kicks off detached title generation; the provider
 	// should receive the title request without any further client action.
@@ -11741,6 +11744,115 @@ func TestPostChats_AutomaticTitleGeneration(t *testing.T) {
 	// Drain background work so the detached goroutine finishes before the test
 	// (and its fake provider) tears down.
 	coderdtest.WaitForChatSettled(ctx, t, api, chat.ID)
+}
+
+// TestPostChats_UserTitle covers the create request's optional title: it
+// is stored as given and never replaced by automatic generation.
+func TestPostChats_UserTitle(t *testing.T) {
+	t.Parallel()
+
+	const prompt = "automatic title generation please"
+
+	// newTitleCountingClient returns a client whose model provider counts
+	// title-generation requests, so tests can assert none were made.
+	newTitleCountingClient := func(t *testing.T) (*codersdk.ExperimentalClient, *coderd.API, uuid.UUID, *atomic.Int32) {
+		t.Helper()
+		var titleRequests atomic.Int32
+		baseURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+			if req.Stream {
+				return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("Hello from test server.")...)
+			}
+			if bytes.Contains(req.RawBody, []byte("propose_title")) {
+				titleRequests.Add(1)
+			}
+			return chattest.OpenAINonStreamingResponse(`{"title": "Generated Title"}`)
+		})
+		client, _, api := newChatClientWithoutAIBridge(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModelWithBaseURL(t, client, baseURL)
+		aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
+		return client, api, firstUser.OrganizationID, &titleRequests
+	}
+
+	t.Run("StoredAndNeverGenerated", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, api, orgID, titleRequests := newTitleCountingClient(t)
+
+		// Deliberately choose the exact text the fallback would have
+		// produced: a text comparison could not tell this apart from a
+		// placeholder, provenance can.
+		userTitle := chatprompt.FallbackTitle(prompt)
+		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: orgID,
+			Title:          &userTitle,
+			Content:        []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: prompt}},
+		})
+		require.NoError(t, err)
+		require.Equal(t, userTitle, chat.Title)
+		require.Equal(t, codersdk.ChatTitleSourceUser, chat.TitleSource)
+
+		settled := coderdtest.WaitForChatSettled(ctx, t, api, chat.ID)
+		require.Equal(t, userTitle, settled.Title)
+		require.Equal(t, database.ChatTitleSourceUser, settled.TitleSource)
+		require.Zero(t, titleRequests.Load(), "a user-supplied title must not trigger title generation")
+	})
+
+	t.Run("TrimsWhitespace", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, api, orgID, _ := newTitleCountingClient(t)
+
+		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: orgID,
+			Title:          ptr.Ref("  padded title  "),
+			Content:        []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: prompt}},
+		})
+		require.NoError(t, err)
+		require.Equal(t, "padded title", chat.Title)
+		coderdtest.WaitForChatSettled(ctx, t, api, chat.ID)
+	})
+
+	t.Run("Validation", func(t *testing.T) {
+		t.Parallel()
+
+		cases := []struct {
+			name  string
+			title string
+			ok    bool
+		}{
+			{name: "empty", title: ""},
+			{name: "whitespace", title: "   "},
+			{name: "max length multibyte", title: strings.Repeat("ä", 200), ok: true},
+			{name: "over max length multibyte", title: strings.Repeat("ä", 201)},
+			{name: "padding does not extend the limit", title: " " + strings.Repeat("a", 200) + " ", ok: true},
+		}
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				ctx := testutil.Context(t, testutil.WaitLong)
+				client, api, orgID, _ := newTitleCountingClient(t)
+
+				chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+					OrganizationID: orgID,
+					Title:          &tc.title,
+					Content:        []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: prompt}},
+				})
+				if !tc.ok {
+					var sdkErr *codersdk.Error
+					require.ErrorAs(t, err, &sdkErr)
+					require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+					return
+				}
+				require.NoError(t, err)
+				require.Equal(t, strings.TrimSpace(tc.title), chat.Title)
+				coderdtest.WaitForChatSettled(ctx, t, api, chat.ID)
+			})
+		}
+	})
 }
 
 func TestPostChats_AutomaticTitleGenerationPasteOnly(t *testing.T) {

@@ -103,6 +103,7 @@ func Chat(t testing.TB, db database.Store, seed database.Chat) database.Chat {
 		RootChatID:        seed.RootChatID,
 		LastModelConfigID: takeFirst(seed.LastModelConfigID, uuid.New()),
 		Title:             takeFirst(seed.Title, testutil.GetRandomName(t)),
+		TitleSource:       database.NullChatTitleSource{ChatTitleSource: seed.TitleSource, Valid: seed.TitleSource != ""},
 		Mode:              seed.Mode,
 		PlanMode:          seed.PlanMode,
 		Status:            takeFirst(seed.Status, database.ChatStatusWaiting),

@@ -103,25 +103,45 @@ const (
 	ChatClientTypeAPI ChatClientType = "api"
 )
 
+// ChatTitleSource records where a chat's title came from. Automatic
+// title generation only replaces a fallback title, so a title supplied
+// by the user (at creation or by rename) is never overwritten. Clients
+// apply the same rule when reconciling out-of-order title_change events.
+type ChatTitleSource string
+
+const (
+	// ChatTitleSourceFallback is a title derived from the first prompt at
+	// creation. It is a placeholder until generation replaces it.
+	ChatTitleSourceFallback ChatTitleSource = "fallback"
+	// ChatTitleSourceGenerated is a title written by automatic title
+	// generation.
+	ChatTitleSourceGenerated ChatTitleSource = "generated"
+	// ChatTitleSourceUser is a title supplied by the user, either in the
+	// create request or by renaming the chat.
+	ChatTitleSourceUser ChatTitleSource = "user"
+)
+
 // Chat represents a chat session with an AI agent.
 type Chat struct {
-	ID                  uuid.UUID    `json:"id" format:"uuid"`
-	OrganizationID      uuid.UUID    `json:"organization_id" format:"uuid"`
-	OwnerID             uuid.UUID    `json:"owner_id" format:"uuid"`
-	OwnerUsername       string       `json:"owner_username,omitempty"`
-	OwnerName           string       `json:"owner_name,omitempty"`
-	WorkspaceID         *uuid.UUID   `json:"workspace_id,omitempty" format:"uuid"`
-	BuildID             *uuid.UUID   `json:"build_id,omitempty" format:"uuid"`
-	AgentID             *uuid.UUID   `json:"agent_id,omitempty" format:"uuid"`
-	ParentChatID        *uuid.UUID   `json:"parent_chat_id,omitempty" format:"uuid"`
-	RootChatID          *uuid.UUID   `json:"root_chat_id,omitempty" format:"uuid"`
-	LastModelConfigID   uuid.UUID    `json:"last_model_config_id" format:"uuid"`
-	LastReasoningEffort *string      `json:"last_reasoning_effort,omitempty"`
-	Title               string       `json:"title"`
-	Status              ChatStatus   `json:"status"`
-	PlanMode            ChatPlanMode `json:"plan_mode,omitempty"`
-	LastError           *ChatError   `json:"last_error,omitempty"`
-	LastTurnSummary     *string      `json:"last_turn_summary"`
+	ID                  uuid.UUID  `json:"id" format:"uuid"`
+	OrganizationID      uuid.UUID  `json:"organization_id" format:"uuid"`
+	OwnerID             uuid.UUID  `json:"owner_id" format:"uuid"`
+	OwnerUsername       string     `json:"owner_username,omitempty"`
+	OwnerName           string     `json:"owner_name,omitempty"`
+	WorkspaceID         *uuid.UUID `json:"workspace_id,omitempty" format:"uuid"`
+	BuildID             *uuid.UUID `json:"build_id,omitempty" format:"uuid"`
+	AgentID             *uuid.UUID `json:"agent_id,omitempty" format:"uuid"`
+	ParentChatID        *uuid.UUID `json:"parent_chat_id,omitempty" format:"uuid"`
+	RootChatID          *uuid.UUID `json:"root_chat_id,omitempty" format:"uuid"`
+	LastModelConfigID   uuid.UUID  `json:"last_model_config_id" format:"uuid"`
+	LastReasoningEffort *string    `json:"last_reasoning_effort,omitempty"`
+	Title               string     `json:"title"`
+	// TitleSource records where Title came from. See ChatTitleSource.
+	TitleSource     ChatTitleSource `json:"title_source"`
+	Status          ChatStatus      `json:"status"`
+	PlanMode        ChatPlanMode    `json:"plan_mode,omitempty"`
+	LastError       *ChatError      `json:"last_error,omitempty"`
+	LastTurnSummary *string         `json:"last_turn_summary"`
 	// Summary is the persisted whole-chat summary, generated in the background.
 	// It is nil until the first summary has been produced.
 	Summary    *string         `json:"summary"`
@@ -566,8 +586,13 @@ type ToolResult struct {
 
 // CreateChatRequest is the request to create a new chat.
 type CreateChatRequest struct {
-	OrganizationID  uuid.UUID         `json:"organization_id" format:"uuid"`
-	Content         []ChatInputPart   `json:"content"`
+	OrganizationID uuid.UUID       `json:"organization_id" format:"uuid"`
+	Content        []ChatInputPart `json:"content"`
+	// Title sets the chat title. When provided it is stored as-is (after
+	// trimming surrounding whitespace) and automatic title generation is
+	// skipped. When omitted, a title is derived from the first prompt and
+	// later replaced by a generated one.
+	Title           *string           `json:"title,omitempty"`
 	SystemPrompt    string            `json:"system_prompt,omitempty"`
 	WorkspaceID     *uuid.UUID        `json:"workspace_id,omitempty" format:"uuid"`
 	ModelConfigID   *uuid.UUID        `json:"model_config_id,omitempty" format:"uuid"`

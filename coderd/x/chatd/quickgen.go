@@ -2,6 +2,7 @@ package chatd
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"net/http"
@@ -262,7 +263,7 @@ func (p *Server) GenerateChatTitleAsync(ctx context.Context, chat database.Chat)
 
 // maybeGenerateChatTitle generates an AI title for the chat when
 // appropriate (first user message, no assistant reply yet, and the
-// current title is either empty or still the fallback truncation).
+// current title is still the creation-time fallback).
 // It uses the configured title generation model override when set.
 // Otherwise, it tries cheap, fast models first and falls back to the
 // user's chat model. It is a best-effort operation that logs and
@@ -377,10 +378,31 @@ func (p *Server) maybeGenerateChatTitle(
 		return
 	}
 
-	_, err = p.db.UpdateChatTitleByID(ctx, database.UpdateChatTitleByIDParams{
+	// The write is guarded on title_source = fallback. A rename that landed
+	// while the model call was in flight wins; the generated title is
+	// discarded rather than overwriting the user's choice.
+	updatedChat, err := p.db.UpdateChatGeneratedTitleByID(ctx, database.UpdateChatGeneratedTitleByIDParams{
 		ID:    chat.ID,
 		Title: title,
 	})
+	if errors.Is(err, sql.ErrNoRows) {
+		logger.Debug(ctx, "title changed during generation, keeping user title",
+			slog.F("chat_id", chat.ID),
+		)
+		// Watchers still need a title_change event: the model call was
+		// billed and the frontend refreshes cost on it. Publish the
+		// current row so the payload carries the title that won.
+		currentChat, err := p.db.GetChatByID(ctx, chat.ID)
+		if err != nil {
+			logger.Debug(ctx, "failed to load chat after skipped generated title",
+				slog.F("chat_id", chat.ID),
+				slog.Error(err),
+			)
+			return
+		}
+		p.publishChatPubsubEvent(currentChat, codersdk.ChatWatchEventKindTitleChange, nil)
+		return
+	}
 	if err != nil {
 		logger.Warn(ctx, "failed to update generated chat title",
 			slog.F("chat_id", chat.ID),
@@ -388,9 +410,8 @@ func (p *Server) maybeGenerateChatTitle(
 		)
 		return
 	}
-	chat.Title = title
 	generatedTitle.Store(title)
-	p.publishChatPubsubEvent(chat, codersdk.ChatWatchEventKindTitleChange, nil)
+	p.publishChatPubsubEvent(updatedChat, codersdk.ChatWatchEventKindTitleChange, nil)
 }
 
 const titleMaxOutputTokens = int64(256)
@@ -591,12 +612,9 @@ func titleInput(
 		return "", false
 	}
 
-	currentTitle := strings.TrimSpace(chat.Title)
-	if currentTitle == "" {
-		return firstUserText, true
-	}
-
-	if currentTitle != chatprompt.FallbackTitle(firstUserText) {
+	// Only a fallback title is a placeholder. Provenance, not title text,
+	// decides: a user may choose the exact text the fallback produced.
+	if chat.TitleSource != database.ChatTitleSourceFallback {
 		return "", false
 	}
 

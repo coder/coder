@@ -18,6 +18,7 @@ import (
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/x/agenthooks"
@@ -478,6 +479,73 @@ func TestChatHooksFileLinksAfterPromptOverride(t *testing.T) {
 		codersdk.ChatMessageText("redacted"),
 		codersdk.ChatMessageFile(overriddenFile, "image/png", "overridden.png"),
 	}, sendResp.Message.Content)
+}
+
+// TestChatHooksPromptOverrideTitle checks how a prompt override from a
+// UserPromptSubmit hook interacts with the create title: a derived
+// fallback is recomputed from the replaced prompt so the original text
+// does not leak, while a title the caller supplied is kept.
+func TestChatHooksPromptOverrideTitle(t *testing.T) {
+	t.Parallel()
+
+	const secret = "test-hook-secret-32-bytes-minimum!!"
+	modelURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse(`{"title": "Generated Title"}`)
+		}
+		return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("done")...)
+	})
+	consumer := newHookConsumer(t, secret, agenthooks.Hooks{
+		UserPromptSubmit: func(_ context.Context, _ agenthooks.Meta, data agenthooks.UserPromptSubmitData) (agenthooks.Response, error) {
+			if strings.Contains(data.Prompt, "REDACTME") {
+				return agenthooks.Response{Permission: &agenthooks.Permission{
+					Decision:      agenthooks.PermissionAllow,
+					InputOverride: json.RawMessage(`{"prompt":"redacted"}`),
+				}}, nil
+			}
+			return agenthooks.Response{}, nil
+		},
+	})
+	t.Cleanup(consumer.Close)
+
+	client, api := newChatClientWithAPI(t, func(opts *coderdtest.Options) {
+		require.NoError(t, opts.DeploymentValues.AI.Chat.HookURL.Set(consumer.URL))
+		opts.DeploymentValues.AI.Chat.HookSecret = serpent.String(secret)
+		opts.DeploymentValues.AI.Chat.HookTimeout = serpent.Duration(time.Second)
+		opts.DeploymentValues.AI.Chat.HookEnabled = serpent.Bool(true)
+	})
+	user := coderdtest.CreateFirstUser(t, client.Client)
+	model := createChatModelWithBaseURL(t, client, modelURL)
+
+	t.Run("DerivedTitleFollowsOverride", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: user.OrganizationID,
+			ModelConfigID:  &model.ID,
+			Content:        []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: "REDACTME secret"}},
+		})
+		require.NoError(t, err)
+		require.Equal(t, "redacted", chat.Title, "the original prompt must not leak through the fallback title")
+		require.Equal(t, codersdk.ChatTitleSourceFallback, chat.TitleSource)
+		coderdtest.WaitForChatSettled(ctx, t, api, chat.ID)
+	})
+
+	t.Run("UserTitleKept", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: user.OrganizationID,
+			ModelConfigID:  &model.ID,
+			Title:          ptr.Ref("Chosen title"),
+			Content:        []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: "REDACTME secret"}},
+		})
+		require.NoError(t, err)
+		require.Equal(t, "Chosen title", chat.Title)
+		require.Equal(t, codersdk.ChatTitleSourceUser, chat.TitleSource)
+		settled := coderdtest.WaitForChatSettled(ctx, t, api, chat.ID)
+		require.Equal(t, "Chosen title", settled.Title)
+	})
 }
 
 func TestChatHookNoticeMessagesInResponses(t *testing.T) {

@@ -2263,6 +2263,140 @@ func TestLinkChatFilesDeduplicatesInput(t *testing.T) {
 	require.Equal(t, file.ID, files[0].ID)
 }
 
+// TestChatTitleSource verifies the title provenance rule enforced by the
+// title queries: a generated title only replaces a fallback title, and a
+// user title is never replaced by generation, regardless of title text.
+func TestChatTitleSource(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.SkipNow()
+	}
+
+	newChat := func(t *testing.T, db database.Store, seed database.Chat) database.Chat {
+		t.Helper()
+		user := dbgen.User(t, db, database.User{})
+		org := dbgen.Organization(t, db, database.Organization{})
+		model := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{})
+		seed.OrganizationID = org.ID
+		seed.OwnerID = user.ID
+		seed.LastModelConfigID = model.ID
+		return dbgen.Chat(t, db, seed)
+	}
+
+	t.Run("InsertDefaultsToFallback", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		chat := newChat(t, db, database.Chat{Title: "first prompt"})
+		require.Equal(t, database.ChatTitleSourceFallback, chat.TitleSource)
+	})
+
+	t.Run("GeneratedReplacesFallbackOnce", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		db, _ := dbtestutil.NewDB(t)
+		chat := newChat(t, db, database.Chat{Title: "first prompt"})
+
+		updated, err := db.UpdateChatGeneratedTitleByID(ctx, database.UpdateChatGeneratedTitleByIDParams{
+			ID:    chat.ID,
+			Title: "Generated",
+		})
+		require.NoError(t, err)
+		require.Equal(t, "Generated", updated.Title)
+		require.Equal(t, database.ChatTitleSourceGenerated, updated.TitleSource)
+		require.True(t, updated.UpdatedAt.Equal(chat.UpdatedAt), "title writes must not reorder chat lists")
+
+		_, err = db.UpdateChatGeneratedTitleByID(ctx, database.UpdateChatGeneratedTitleByIDParams{
+			ID:    chat.ID,
+			Title: "Generated again",
+		})
+		require.ErrorIs(t, err, sql.ErrNoRows, "a second generation must not replace the first")
+
+		fetched, err := db.GetChatByID(ctx, chat.ID)
+		require.NoError(t, err)
+		require.Equal(t, "Generated", fetched.Title)
+	})
+
+	t.Run("UserTitleBlocksGeneration", func(t *testing.T) {
+		t.Parallel()
+
+		const fallback = "first prompt"
+		cases := []struct {
+			name    string
+			seed    database.Chat
+			renames []string
+		}{
+			{
+				name: "user title supplied at creation",
+				seed: database.Chat{Title: "Chosen", TitleSource: database.ChatTitleSourceUser},
+			},
+			{
+				name: "user title identical to the fallback text",
+				seed: database.Chat{Title: fallback, TitleSource: database.ChatTitleSourceUser},
+			},
+			{
+				name:    "renamed after creation",
+				seed:    database.Chat{Title: fallback},
+				renames: []string{"Chosen"},
+			},
+			{
+				name:    "renamed to the same text",
+				seed:    database.Chat{Title: fallback},
+				renames: []string{fallback},
+			},
+			{
+				name:    "renamed away and back",
+				seed:    database.Chat{Title: fallback},
+				renames: []string{"Other", fallback},
+			},
+		}
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				ctx := testutil.Context(t, testutil.WaitMedium)
+				db, _ := dbtestutil.NewDB(t)
+				chat := newChat(t, db, tc.seed)
+
+				want := chat.Title
+				for _, title := range tc.renames {
+					renamed, err := db.UpdateChatTitleByID(ctx, database.UpdateChatTitleByIDParams{
+						ID:    chat.ID,
+						Title: title,
+					})
+					require.NoError(t, err)
+					require.Equal(t, database.ChatTitleSourceUser, renamed.TitleSource)
+					want = title
+				}
+
+				_, err := db.UpdateChatGeneratedTitleByID(ctx, database.UpdateChatGeneratedTitleByIDParams{
+					ID:    chat.ID,
+					Title: "Generated",
+				})
+				require.ErrorIs(t, err, sql.ErrNoRows)
+
+				fetched, err := db.GetChatByID(ctx, chat.ID)
+				require.NoError(t, err)
+				require.Equal(t, want, fetched.Title)
+				require.Equal(t, database.ChatTitleSourceUser, fetched.TitleSource)
+			})
+		}
+	})
+
+	t.Run("UserRenameReplacesGenerated", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		db, _ := dbtestutil.NewDB(t)
+		chat := newChat(t, db, database.Chat{Title: "Generated", TitleSource: database.ChatTitleSourceGenerated})
+
+		renamed, err := db.UpdateChatTitleByID(ctx, database.UpdateChatTitleByIDParams{
+			ID:    chat.ID,
+			Title: "Chosen",
+		})
+		require.NoError(t, err)
+		require.Equal(t, "Chosen", renamed.Title)
+		require.Equal(t, database.ChatTitleSourceUser, renamed.TitleSource)
+	})
+}
+
 func TestLinkChatFilesEvictsOldest(t *testing.T) {
 	t.Parallel()
 	if testing.Short() {

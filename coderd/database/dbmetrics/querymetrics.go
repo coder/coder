@@ -5281,6 +5281,14 @@ func (m queryMetricsStore) UpdateChatExecutionState(ctx context.Context, arg dat
 	return r0, r1
 }
 
+func (m queryMetricsStore) UpdateChatGeneratedTitleByID(ctx context.Context, arg database.UpdateChatGeneratedTitleByIDParams) (database.Chat, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpdateChatGeneratedTitleByID(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateChatGeneratedTitleByID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateChatGeneratedTitleByID").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) UpdateChatHeartbeats(ctx context.Context, arg database.UpdateChatHeartbeatsParams) ([]uuid.UUID, error) {
 	start := time.Now()
 	r0, r1 := m.s.UpdateChatHeartbeats(ctx, arg)

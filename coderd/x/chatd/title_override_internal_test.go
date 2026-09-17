@@ -64,7 +64,7 @@ func TestMaybeGenerateChatTitle_TitleGenerationOverrideUnset(t *testing.T) {
 		}
 
 		db.EXPECT().GetChatOrganizationModelOverride(gomock.Any(), titleGenerationOverrideParams(chat)).Return(database.ChatOrganizationModelOverride{}, sql.ErrNoRows)
-		db.EXPECT().UpdateChatTitleByID(gomock.Any(), database.UpdateChatTitleByIDParams{
+		db.EXPECT().UpdateChatGeneratedTitleByID(gomock.Any(), database.UpdateChatGeneratedTitleByIDParams{
 			ID:    chat.ID,
 			Title: wantTitle,
 		}).Return(chatWithTitle(chat, wantTitle), nil)
@@ -114,7 +114,7 @@ func TestMaybeGenerateChatTitle_TitleGenerationOverrideReadDBError(t *testing.T)
 	}
 
 	db.EXPECT().GetChatOrganizationModelOverride(gomock.Any(), titleGenerationOverrideParams(chat)).Return(database.ChatOrganizationModelOverride{}, sql.ErrConnDone)
-	db.EXPECT().UpdateChatTitleByID(gomock.Any(), database.UpdateChatTitleByIDParams{
+	db.EXPECT().UpdateChatGeneratedTitleByID(gomock.Any(), database.UpdateChatGeneratedTitleByIDParams{
 		ID:    chat.ID,
 		Title: wantTitle,
 	}).Return(chatWithTitle(chat, wantTitle), nil)
@@ -200,7 +200,7 @@ func TestMaybeGenerateChatTitle_TitleGenerationOverrideSetUsable(t *testing.T) {
 		ProviderID: providerID,
 		APIKey:     "test-key",
 	}}, nil).AnyTimes()
-	db.EXPECT().UpdateChatTitleByID(gomock.Any(), database.UpdateChatTitleByIDParams{
+	db.EXPECT().UpdateChatGeneratedTitleByID(gomock.Any(), database.UpdateChatGeneratedTitleByIDParams{
 		ID:    chat.ID,
 		Title: wantTitle,
 	}).Return(chatWithTitle(chat, wantTitle), nil)
@@ -646,9 +646,10 @@ func titleOverrideTestChatAndMessages(t *testing.T) (database.Chat, []database.C
 
 	userPrompt := "review pull request 123 and fix comments"
 	chat := database.Chat{
-		ID:      uuid.New(),
-		OwnerID: uuid.New(),
-		Title:   chatprompt.FallbackTitle(userPrompt),
+		ID:          uuid.New(),
+		OwnerID:     uuid.New(),
+		Title:       chatprompt.FallbackTitle(userPrompt),
+		TitleSource: database.ChatTitleSourceFallback,
 	}
 	message := mustChatMessage(
 		t,

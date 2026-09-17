@@ -1127,25 +1127,29 @@ var (
 
 // CreateOptions controls chat creation in the shared chat mutation path.
 type CreateOptions struct {
-	OrganizationID          uuid.UUID
-	OwnerID                 uuid.UUID
-	WorkspaceID             uuid.NullUUID
-	BuildID                 uuid.NullUUID
-	AgentID                 uuid.NullUUID
-	ParentChatID            uuid.NullUUID
-	RootChatID              uuid.NullUUID
-	Title                   string
-	TitleDerivedFromContent bool
-	ModelConfigID           uuid.UUID
-	ReasoningEffort         *string
-	ChatMode                database.NullChatMode
-	PlanMode                database.NullChatPlanMode
-	ClientType              database.ChatClientType
-	SystemPrompt            string
-	InitialUserContent      []codersdk.ChatMessagePart
-	MCPServerIDs            []uuid.UUID
-	Labels                  database.StringMap
-	DynamicTools            json.RawMessage
+	OrganizationID uuid.UUID
+	OwnerID        uuid.UUID
+	WorkspaceID    uuid.NullUUID
+	BuildID        uuid.NullUUID
+	AgentID        uuid.NullUUID
+	ParentChatID   uuid.NullUUID
+	RootChatID     uuid.NullUUID
+	Title          string
+	// TitleSource records where Title came from. A fallback title is
+	// re-derived when a hook overrides the prompt and is later replaced
+	// by automatic generation; a user title is never replaced. The zero
+	// value means fallback.
+	TitleSource        database.ChatTitleSource
+	ModelConfigID      uuid.UUID
+	ReasoningEffort    *string
+	ChatMode           database.NullChatMode
+	PlanMode           database.NullChatPlanMode
+	ClientType         database.ChatClientType
+	SystemPrompt       string
+	InitialUserContent []codersdk.ChatMessagePart
+	MCPServerIDs       []uuid.UUID
+	Labels             database.StringMap
+	DynamicTools       json.RawMessage
 }
 
 // SendMessageBusyBehavior controls what happens when a chat is already active.
@@ -1312,6 +1316,7 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 	if strings.TrimSpace(opts.Title) == "" {
 		return database.Chat{}, xerrors.New("title is required")
 	}
+	opts.TitleSource = cmp.Or(opts.TitleSource, database.ChatTitleSourceFallback)
 	if len(opts.InitialUserContent) == 0 {
 		return database.Chat{}, xerrors.New("initial user content is required")
 	}
@@ -1379,7 +1384,7 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 		}
 		contentParts = composed
 		// Avoid deriving titles from the prompt that policy replaced.
-		if overridden && opts.TitleDerivedFromContent {
+		if overridden && opts.TitleSource == database.ChatTitleSourceFallback {
 			opts.Title = chatprompt.FallbackTitle(chatprompt.TitleText(contentParts, nil))
 		}
 	}
@@ -1432,6 +1437,7 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 		RootChatID:        opts.RootChatID,
 		LastModelConfigID: opts.ModelConfigID,
 		Title:             opts.Title,
+		TitleSource:       opts.TitleSource,
 		Mode:              opts.ChatMode,
 		PlanMode:          opts.PlanMode,
 		MCPServerIDs:      opts.MCPServerIDs,
@@ -2605,7 +2611,9 @@ func (t *generatedChatTitle) Load() (string, bool) {
 	return t.title, true
 }
 
-// RenameChatTitle persists a user-supplied chat title.
+// RenameChatTitle persists a user-supplied chat title. Choosing the text
+// the chat already shows still counts as a choice: the write records the
+// title as user-set so automatic generation cannot replace it later.
 func (p *Server) RenameChatTitle(
 	ctx context.Context,
 	chat database.Chat,
@@ -2615,7 +2623,7 @@ func (p *Server) RenameChatTitle(
 	if err != nil {
 		return database.Chat{}, false, xerrors.Errorf("get chat for rename: %w", err)
 	}
-	if newTitle == currentChat.Title {
+	if newTitle == currentChat.Title && currentChat.TitleSource == database.ChatTitleSourceUser {
 		return currentChat, false, nil
 	}
 

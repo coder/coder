@@ -19633,6 +19633,14 @@ const docTemplate = `{
                 "title": {
                     "type": "string"
                 },
+                "title_source": {
+                    "description": "TitleSource records where Title came from. See ChatTitleSource.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ChatTitleSource"
+                        }
+                    ]
+                },
                 "updated_at": {
                     "type": "string",
                     "format": "date-time"
@@ -21361,6 +21369,19 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.ChatTitleSource": {
+            "type": "string",
+            "enum": [
+                "fallback",
+                "generated",
+                "user"
+            ],
+            "x-enum-varnames": [
+                "ChatTitleSourceFallback",
+                "ChatTitleSourceGenerated",
+                "ChatTitleSourceUser"
+            ]
+        },
         "codersdk.ChatUnsupportedProvider": {
             "type": "object",
             "properties": {
@@ -21842,6 +21863,10 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "system_prompt": {
+                    "type": "string"
+                },
+                "title": {
+                    "description": "Title sets the chat title. When provided it is stored as-is (after\ntrimming surrounding whitespace) and automatic title generation is\nskipped. When omitted, a title is derived from the first prompt and\nlater replaced by a generated one.",
                     "type": "string"
                 },
                 "unsafe_dynamic_tools": {
