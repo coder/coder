@@ -51,10 +51,7 @@ func resolveRedirectURIs(callbackURL string, redirectURIs, stored []string) []st
 // and reports each failure against the request field that caused it. Every
 // entry passes ValidateOAuth2RedirectURIShape; entries of a public app also
 // pass ValidateRedirectURI.
-//
-// URIs already in stored are skipped, and the count cap applies only when the
-// list grew. This keeps apps registered before the caps existed editable.
-func validateAppRedirectURIFields(uris []string, clientType codersdk.OAuth2ClientType, fromCallback string, stored []string) []codersdk.ValidationError {
+func validateAppRedirectURIFields(uris []string, clientType codersdk.OAuth2ClientType, fromCallback string) []codersdk.ValidationError {
 	// A failure on the request's callback_url is reported against that field
 	// and without a list index, since the caller never sent a list.
 	invalid := func(i int, uri, detail string) []codersdk.ValidationError {
@@ -72,16 +69,13 @@ func validateAppRedirectURIFields(uris []string, clientType codersdk.OAuth2Clien
 			Detail: "at least one redirect URI is required",
 		}}
 	}
-	if len(uris) > codersdk.OAuth2RedirectURIsMaxCount && len(uris) > len(stored) {
+	if len(uris) > codersdk.OAuth2RedirectURIsMaxCount {
 		return []codersdk.ValidationError{{
 			Field:  "redirect_uris",
 			Detail: fmt.Sprintf("at most %d redirect URIs are allowed", codersdk.OAuth2RedirectURIsMaxCount),
 		}}
 	}
 	for i, uri := range uris {
-		if slices.Contains(stored, uri) {
-			continue
-		}
 		if len(uri) > codersdk.OAuth2RedirectURIMaxBytes {
 			return invalid(i, uri, fmt.Sprintf("must be at most %d bytes", codersdk.OAuth2RedirectURIMaxBytes))
 		}
@@ -164,7 +158,7 @@ func CreateApp(db database.Store, accessURL *url.URL, auditor *audit.Auditor, lo
 			return
 		}
 		redirectURIs := resolveRedirectURIs(req.CallbackURL, nil, nil)
-		if errs := validateAppRedirectURIFields(redirectURIs, codersdk.OAuth2ClientTypeConfidential, req.CallbackURL, nil); errs != nil {
+		if errs := validateAppRedirectURIFields(redirectURIs, codersdk.OAuth2ClientTypeConfidential, req.CallbackURL); errs != nil {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message:     "Validation failed.",
 				Validations: errs,
@@ -234,9 +228,8 @@ func UpdateApp(db database.Store, accessURL *url.URL, auditor *audit.Auditor, lo
 		if app.IsPublic() {
 			clientType = codersdk.OAuth2ClientTypePublic
 		}
-		stored := app.RegisteredRedirectURIs()
-		redirectURIs := resolveRedirectURIs(req.CallbackURL, nil, stored)
-		if errs := validateAppRedirectURIFields(redirectURIs, clientType, req.CallbackURL, stored); errs != nil {
+		redirectURIs := resolveRedirectURIs(req.CallbackURL, nil, app.RegisteredRedirectURIs())
+		if errs := validateAppRedirectURIFields(redirectURIs, clientType, req.CallbackURL); errs != nil {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message:     "Validation failed.",
 				Validations: errs,
