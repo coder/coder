@@ -1040,6 +1040,12 @@ describe(chatCostIdToInvalidate.name, () => {
 			expected: "chat-1",
 		},
 		{
+			name: "invalidates when a billed call changed nothing else",
+			updatedChat: chatForFilterInvalidation({ status: "running" }),
+			eventKind: "cost_change",
+			expected: "chat-1",
+		},
+		{
 			name: "invalidates the root's tree cost for a subagent summary change",
 			updatedChat: chatForFilterInvalidation({
 				id: "child-1",

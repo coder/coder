@@ -374,13 +374,15 @@ func (p *Server) maybeGenerateChatTitle(
 		}
 		return
 	}
-	if title == "" || title == chat.Title {
+	if title == "" {
 		return
 	}
 
 	// The write is guarded on title_source = fallback. A rename that landed
 	// while the model call was in flight wins; the generated title is
-	// discarded rather than overwriting the user's choice.
+	// discarded rather than overwriting the user's choice. The same text as
+	// the fallback is still written so provenance records that generation
+	// completed.
 	updatedChat, err := p.db.UpdateChatGeneratedTitleByID(ctx, database.UpdateChatGeneratedTitleByIDParams{
 		ID:    chat.ID,
 		Title: title,
@@ -389,18 +391,11 @@ func (p *Server) maybeGenerateChatTitle(
 		logger.Debug(ctx, "title changed during generation, keeping user title",
 			slog.F("chat_id", chat.ID),
 		)
-		// Watchers still need a title_change event: the model call was
-		// billed and the frontend refreshes cost on it. Publish the
-		// current row so the payload carries the title that won.
-		currentChat, err := p.db.GetChatByID(ctx, chat.ID)
-		if err != nil {
-			logger.Debug(ctx, "failed to load chat after skipped generated title",
-				slog.F("chat_id", chat.ID),
-				slog.Error(err),
-			)
-			return
-		}
-		p.publishChatPubsubEvent(currentChat, codersdk.ChatWatchEventKindTitleChange, nil)
+		// The model call was billed even though nothing changed. Publish a
+		// cost-only event: the generator holds no authoritative title, and
+		// a title_change built from a reloaded row could replay an older
+		// user title over a newer rename.
+		p.publishChatPubsubEvent(chat, codersdk.ChatWatchEventKindCostChange, nil)
 		return
 	}
 	if err != nil {

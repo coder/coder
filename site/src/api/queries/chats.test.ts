@@ -3120,6 +3120,23 @@ describe("mergeWatchedChatSummary", () => {
 		}
 	});
 
+	it("keeps the cached title on a cost_change carrying a stale snapshot", () => {
+		const cachedChat = makeChat("chat-1", {
+			title: "Chosen by user",
+			title_source: "user",
+		});
+		const watchedChat = makeChat("chat-1", {
+			title: "creation-time fallback",
+			title_source: "fallback",
+		});
+
+		expect(
+			mergeWatchedChatSummary(cachedChat, watchedChat, {
+				eventKind: "cost_change",
+			}),
+		).toMatchObject({ title: "Chosen by user", title_source: "user" });
+	});
+
 	it("merges fresh diff status updates without clobbering status or title", () => {
 		const cachedDiffStatus = {
 			chat_id: "chat-1",
@@ -3768,6 +3785,7 @@ describe("semantic cache operations: prefix invalidations", () => {
 			action_required: true,
 			chat_summary_change: false,
 			context_dirty: false,
+			cost_change: false,
 			created: false,
 			deleted: false,
 			diff_status_change: false,
@@ -3847,6 +3865,7 @@ describe("semantic cache operations: prefix invalidations", () => {
 			action_required: true,
 			chat_summary_change: false,
 			context_dirty: false,
+			cost_change: false,
 			created: false,
 			deleted: false,
 			diff_status_change: true,

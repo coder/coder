@@ -18,7 +18,6 @@ import (
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/x/agenthooks"
@@ -537,7 +536,7 @@ func TestChatHooksPromptOverrideTitle(t *testing.T) {
 		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
 			OrganizationID: user.OrganizationID,
 			ModelConfigID:  &model.ID,
-			Title:          ptr.Ref("Chosen title"),
+			Title:          new("Chosen title"),
 			Content:        []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: "REDACTME secret"}},
 		})
 		require.NoError(t, err)

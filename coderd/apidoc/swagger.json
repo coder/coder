@@ -19416,6 +19416,7 @@
 				"deleted",
 				"diff_status_change",
 				"action_required",
+				"cost_change",
 				"context_dirty"
 			],
 			"x-enum-varnames": [
@@ -19427,6 +19428,7 @@
 				"ChatWatchEventKindDeleted",
 				"ChatWatchEventKindDiffStatusChange",
 				"ChatWatchEventKindActionRequired",
+				"ChatWatchEventKindCostChange",
 				"ChatWatchEventKindContextDirty"
 			]
 		},

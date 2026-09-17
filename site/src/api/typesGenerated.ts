@@ -3578,6 +3578,7 @@ export type ChatWatchEventKind =
 	| "action_required"
 	| "chat_summary_change"
 	| "context_dirty"
+	| "cost_change"
 	| "created"
 	| "deleted"
 	| "diff_status_change"
@@ -3589,6 +3590,7 @@ export const ChatWatchEventKinds: ChatWatchEventKind[] = [
 	"action_required",
 	"chat_summary_change",
 	"context_dirty",
+	"cost_change",
 	"created",
 	"deleted",
 	"diff_status_change",

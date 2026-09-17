@@ -135,10 +135,12 @@ export const shouldInvalidateFilteredChatList = (
 
 // Summary and title generation can bill after the turn reports a non-active
 // status, so invalidate the root-keyed cost query when those events arrive.
+// cost_change is published when a billed call changed nothing else.
 const POST_TURN_BILLED_EVENT_KINDS = new Set<TypesGen.ChatWatchEventKind>([
 	"chat_summary_change",
 	"summary_change",
 	"title_change",
+	"cost_change",
 ]);
 
 export const chatCostIdToInvalidate = (
@@ -571,8 +573,14 @@ const AgentsPageLayout: FC = () => {
 					const prevStatus = readInfiniteChatsCache(queryClient)?.find(
 						(chat) => chat.id === updatedChat.id,
 					)?.status;
+					// Only a status_change carries an authoritative status. Other
+					// kinds publish row snapshots whose status may be stale, and
+					// a stale waiting after a newer running would chime mid-turn.
 					// Only play the chime for top-level chats, not sub-agents.
-					if (!updatedChat.parent_chat_id) {
+					if (
+						chatEvent.kind === "status_change" &&
+						!updatedChat.parent_chat_id
+					) {
 						maybePlayChime(
 							prevStatus,
 							updatedChat.status,

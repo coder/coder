@@ -682,7 +682,9 @@ func titleOverrideModelConfig(model string, enabled bool) database.ChatModelConf
 	}
 }
 
+// chatWithTitle mirrors the row UpdateChatGeneratedTitleByID returns.
 func chatWithTitle(chat database.Chat, title string) database.Chat {
 	chat.Title = title
+	chat.TitleSource = database.ChatTitleSourceGenerated
 	return chat
 }

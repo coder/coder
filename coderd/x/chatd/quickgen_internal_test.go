@@ -596,7 +596,9 @@ func TestMaybeGenerateChatTitlePreservesUpdatedAt(t *testing.T) {
 
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
 	generated := &generatedChatTitle{}
-	server := &Server{db: db, pubsub: dbpubsub.NewInMemory()}
+	ps := dbpubsub.NewInMemory()
+	events := subscribeChatWatchEvents(t, ps, owner.ID)
+	server := &Server{db: db, pubsub: ps, logger: logger}
 	server.maybeGenerateChatTitle(
 		ctx,
 		chat,
@@ -625,13 +627,112 @@ func TestMaybeGenerateChatTitlePreservesUpdatedAt(t *testing.T) {
 	gotTitle, ok := generated.Load()
 	require.True(t, ok)
 	require.Equal(t, wantTitle, gotTitle)
+
+	// The event carries the written row, so clients can tell a generated
+	// title from a user one when reconciling out-of-order events.
+	event := testutil.RequireReceive(ctx, t, events)
+	require.Equal(t, codersdk.ChatWatchEventKindTitleChange, event.Kind)
+	require.Equal(t, wantTitle, event.Chat.Title)
+	require.Equal(t, codersdk.ChatTitleSourceGenerated, event.Chat.TitleSource)
+}
+
+// TestMaybeGenerateChatTitleSameTextStillCompletes covers a model that
+// proposes the exact fallback text. Provenance must still flip to
+// generated (the title is no longer a placeholder) and watchers must
+// still hear about the billed call.
+func TestMaybeGenerateChatTitleSameTextStillCompletes(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitMedium)
+	owner, chat := seedTitleGenerationChat(t, db, chatprompt.FallbackTitle("summarize failed workspace build logs"))
+
+	model := &chattest.FakeModel{
+		GenerateObjectFn: func(_ context.Context, _ fantasy.ObjectCall) (*fantasy.ObjectResponse, error) {
+			return &fantasy.ObjectResponse{Object: map[string]any{"title": chat.Title}}, nil
+		},
+	}
+	message := mustChatMessage(t, database.ChatMessageRoleUser, database.ChatMessageVisibilityBoth, codersdk.ChatMessageText("summarize failed workspace build logs"))
+	message.ID = 1
+
+	ps := dbpubsub.NewInMemory()
+	events := subscribeChatWatchEvents(t, ps, owner.ID)
+	generated := &generatedChatTitle{}
+	server := &Server{db: db, pubsub: ps, logger: slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})}
+	server.maybeGenerateChatTitle(
+		ctx,
+		chat,
+		[]database.ChatMessage{message},
+		nil,
+		resolvedModelCall{
+			model:    chatprovider.NewModel(model, nil),
+			dbConfig: database.ChatModelConfig{Model: "test-model"},
+		},
+		modelBuildOptions{},
+		generated,
+		server.logger,
+		nil,
+	)
+
+	fetched, err := db.GetChatByID(ctx, chat.ID)
+	require.NoError(t, err)
+	require.Equal(t, chat.Title, fetched.Title)
+	require.Equal(t, database.ChatTitleSourceGenerated, fetched.TitleSource)
+
+	event := testutil.RequireReceive(ctx, t, events)
+	require.Equal(t, codersdk.ChatWatchEventKindTitleChange, event.Kind)
+	require.Equal(t, codersdk.ChatTitleSourceGenerated, event.Chat.TitleSource)
+}
+
+// seedTitleGenerationChat creates the owner, model config, and a chat
+// with a fallback title that automatic title generation can act on.
+func seedTitleGenerationChat(t *testing.T, db database.Store, title string) (database.User, database.Chat) {
+	t.Helper()
+	owner := dbgen.User(t, db, database.User{})
+	org := dbgen.Organization(t, db, database.Organization{})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{
+		UserID:         owner.ID,
+		OrganizationID: org.ID,
+	})
+	dbgen.ChatProvider(t, db, database.ChatProvider{
+		Provider:             "openai",
+		DisplayName:          "OpenAI",
+		APIKey:               "test-key",
+		Enabled:              true,
+		CentralApiKeyEnabled: true,
+	})
+	modelConfig := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{Model: "test-model"})
+	chat := dbgen.Chat(t, db, database.Chat{
+		OrganizationID:    org.ID,
+		OwnerID:           owner.ID,
+		LastModelConfigID: modelConfig.ID,
+		Title:             title,
+		Status:            database.ChatStatusWaiting,
+		ClientType:        database.ChatClientTypeUi,
+	})
+	return owner, chat
+}
+
+// subscribeChatWatchEvents returns a channel of decoded watch events for
+// the owner. The subscription is released when the test ends.
+func subscribeChatWatchEvents(t *testing.T, ps dbpubsub.Pubsub, ownerID uuid.UUID) <-chan codersdk.ChatWatchEvent {
+	t.Helper()
+	events := make(chan codersdk.ChatWatchEvent, 8)
+	cancel, err := ps.Subscribe(coderdpubsub.ChatWatchEventChannel(ownerID), func(_ context.Context, payload []byte) {
+		var event codersdk.ChatWatchEvent
+		require.NoError(t, json.Unmarshal(payload, &event))
+		events <- event
+	})
+	require.NoError(t, err)
+	t.Cleanup(cancel)
+	return events
 }
 
 // TestMaybeGenerateChatTitleKeepsTitleRenamedDuringGeneration covers the
 // window between the eligibility snapshot and the generated-title write.
-// A rename that lands in that window must win, and watchers must still
-// receive a title_change event (the model call was billed and the
-// frontend refreshes cost on that event) that carries the user's title.
+// A rename that lands in that window must win. The generator holds no
+// authoritative title at that point, so it must not publish one; it
+// publishes a cost-only event because the model call was billed.
 func TestMaybeGenerateChatTitleKeepsTitleRenamedDuringGeneration(t *testing.T) {
 	t.Parallel()
 
@@ -653,28 +754,7 @@ func TestMaybeGenerateChatTitleKeepsTitleRenamedDuringGeneration(t *testing.T) {
 
 			db, _ := dbtestutil.NewDB(t)
 			ctx := testutil.Context(t, testutil.WaitMedium)
-			owner := dbgen.User(t, db, database.User{})
-			org := dbgen.Organization(t, db, database.Organization{})
-			dbgen.OrganizationMember(t, db, database.OrganizationMember{
-				UserID:         owner.ID,
-				OrganizationID: org.ID,
-			})
-			dbgen.ChatProvider(t, db, database.ChatProvider{
-				Provider:             "openai",
-				DisplayName:          "OpenAI",
-				APIKey:               "test-key",
-				Enabled:              true,
-				CentralApiKeyEnabled: true,
-			})
-			modelConfig := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{Model: "test-model"})
-			chat := dbgen.Chat(t, db, database.Chat{
-				OrganizationID:    org.ID,
-				OwnerID:           owner.ID,
-				LastModelConfigID: modelConfig.ID,
-				Title:             fallback,
-				Status:            database.ChatStatusWaiting,
-				ClientType:        database.ChatClientTypeUi,
-			})
+			owner, chat := seedTitleGenerationChat(t, db, fallback)
 
 			wantTitle := chat.Title
 			model := &chattest.FakeModel{
@@ -690,14 +770,7 @@ func TestMaybeGenerateChatTitleKeepsTitleRenamedDuringGeneration(t *testing.T) {
 			}
 
 			ps := dbpubsub.NewInMemory()
-			events := make(chan codersdk.ChatWatchEvent, 4)
-			cancelSub, err := ps.Subscribe(coderdpubsub.ChatWatchEventChannel(owner.ID), func(_ context.Context, payload []byte) {
-				var event codersdk.ChatWatchEvent
-				require.NoError(t, json.Unmarshal(payload, &event))
-				events <- event
-			})
-			require.NoError(t, err)
-			defer cancelSub()
+			events := subscribeChatWatchEvents(t, ps, owner.ID)
 
 			message := mustChatMessage(t, database.ChatMessageRoleUser, database.ChatMessageVisibilityBoth, codersdk.ChatMessageText(userPrompt))
 			message.ID = 1
@@ -728,9 +801,13 @@ func TestMaybeGenerateChatTitleKeepsTitleRenamedDuringGeneration(t *testing.T) {
 			require.False(t, ok, "a discarded generated title must not be reported as applied")
 
 			event := testutil.RequireReceive(ctx, t, events)
-			require.Equal(t, codersdk.ChatWatchEventKindTitleChange, event.Kind)
-			require.Equal(t, wantTitle, event.Chat.Title, "watchers must never see the discarded generated title")
-			require.Equal(t, codersdk.ChatTitleSourceUser, event.Chat.TitleSource)
+			require.Equal(t, codersdk.ChatWatchEventKindCostChange, event.Kind,
+				"a discarded generation must not publish a title; only the billed call")
+			select {
+			case extra := <-events:
+				t.Fatalf("unexpected second event %q", extra.Kind)
+			default:
+			}
 		})
 	}
 }

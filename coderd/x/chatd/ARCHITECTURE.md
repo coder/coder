@@ -38,6 +38,11 @@ We say that the following data constitutes a chat's **execution state**:
 There is other data that is held in the database and is associated with a chat, but it's not part of the execution state:
 
 - title;
+  <!-- TODO(CODAGT-1047): document `title_source` (fallback | generated | user).
+  Automatic title generation only replaces a fallback title, enforced by
+  the guarded `UpdateChatGeneratedTitleByID` write; a rename always records
+  `user`, including a same-text rename. Title writes never bump
+  `updated_at`. -->
 - labels;
 - pin order;
 - workspace binding;
@@ -447,7 +452,17 @@ This endpoint uses `Create(initialMessages)`:
 
 No other input states are supported.
 
+<!-- TODO(CODAGT-1047): document the optional `title` request field. When
+set, the title is stored with `title_source = user` and no automatic title
+generation is scheduled; when omitted, a fallback title is derived from the
+prompt (re-derived if a UserPromptSubmit hook overrides the prompt) and
+detached generation replaces it. -->
+
 ### `PATCH /api/experimental/chats/{chat}`
+
+<!-- TODO(CODAGT-1047): document `title` semantics. A rename records
+`title_source = user` even when the text is unchanged, so confirming a
+fallback title stops generation from replacing it. -->
 
 When archiving or unarchiving a root chat, the operation applies `SetArchived(archived)` to the root and all descendants atomically. If any chat in the family cannot apply the requested archived-state transition, the whole operation fails without changing any chat. Unarchiving an individual child chat remains guarded: it must fail while its parent is archived
 

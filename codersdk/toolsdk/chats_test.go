@@ -125,6 +125,7 @@ func TestChatTools(t *testing.T) {
 		created, err := testTool(t, toolsdk.CreateChat, tb, toolsdk.CreateChatArgs{
 			Prompt:         "Say hello.",
 			OrganizationID: firstUser.OrganizationID.String(),
+			Title:          "Say hello.",
 			Labels:         map[string]string{"purpose": "toolsdk-test"},
 		})
 		require.NoError(t, err)
@@ -132,7 +133,11 @@ func TestChatTools(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, client.URL.String()+"/agents/"+created.ID, created.URL)
 
-		coderdtest.WaitForChatSettled(ctx, t, api, chatID)
+		settled := coderdtest.WaitForChatSettled(ctx, t, api, chatID)
+		// The title equals the prompt-derived fallback on purpose: only
+		// provenance keeps a caller-supplied title from being generated over.
+		require.Equal(t, "Say hello.", settled.Title)
+		require.Equal(t, database.ChatTitleSourceUser, settled.TitleSource)
 
 		got, err := testTool(t, toolsdk.GetChat, tb, toolsdk.GetChatArgs{ChatID: created.ID})
 		require.NoError(t, err)

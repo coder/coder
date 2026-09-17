@@ -116,8 +116,9 @@ const (
 	// ChatTitleSourceGenerated is a title written by automatic title
 	// generation.
 	ChatTitleSourceGenerated ChatTitleSource = "generated"
-	// ChatTitleSourceUser is a title supplied by the user, either in the
-	// create request or by renaming the chat.
+	// ChatTitleSourceUser is a title supplied by the caller, either in the
+	// create request (a user, or a parent agent spawning a subagent) or by
+	// renaming the chat.
 	ChatTitleSourceUser ChatTitleSource = "user"
 )
 
@@ -1901,6 +1902,13 @@ const (
 	ChatWatchEventKindDeleted           ChatWatchEventKind = "deleted"
 	ChatWatchEventKindDiffStatusChange  ChatWatchEventKind = "diff_status_change"
 	ChatWatchEventKindActionRequired    ChatWatchEventKind = "action_required"
+	// ChatWatchEventKindCostChange signals that a billed model call
+	// completed without changing any other chat field, so clients can
+	// refresh cost. Automatic title generation publishes it when a user
+	// title made the generated title unusable; a title_change would
+	// carry a title the generator did not author and could replay an
+	// older user title over a newer one.
+	ChatWatchEventKindCostChange ChatWatchEventKind = "cost_change"
 	// ChatWatchEventKindContextDirty signals that the chat's pinned
 	// workspace context changed: it drifted from the agent's latest
 	// pushed snapshot, or hydration first populated it (a first-turn

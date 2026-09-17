@@ -885,6 +885,17 @@ func TestCreateChildSubagentChatInheritsWorkspaceBinding(t *testing.T) {
 	require.Equal(t, parentChat.WorkspaceID, childChat.WorkspaceID)
 	require.Equal(t, parentChat.BuildID, childChat.BuildID)
 	require.Equal(t, parentChat.AgentID, childChat.AgentID)
+	require.Equal(t, subagentFallbackChatTitle("inspect bindings"), childChat.Title)
+	require.Equal(t, database.ChatTitleSourceFallback, childChat.TitleSource,
+		"a derived subagent title is a placeholder")
+
+	titled, err := server.createChildSubagentChatWithOptions(ctx, parentChat, "inspect bindings", "Binding audit", childSubagentChatOptions{})
+	require.NoError(t, err)
+	titledChat, err := db.GetChatByID(ctx, titled.ID)
+	require.NoError(t, err)
+	require.Equal(t, "Binding audit", titledChat.Title)
+	require.Equal(t, database.ChatTitleSourceUser, titledChat.TitleSource,
+		"a title the parent agent supplied is a choice, not a placeholder")
 }
 
 func createInternalParentChat(

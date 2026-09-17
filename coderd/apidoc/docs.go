@@ -21455,6 +21455,7 @@ const docTemplate = `{
                 "deleted",
                 "diff_status_change",
                 "action_required",
+                "cost_change",
                 "context_dirty"
             ],
             "x-enum-varnames": [
@@ -21466,6 +21467,7 @@ const docTemplate = `{
                 "ChatWatchEventKindDeleted",
                 "ChatWatchEventKindDiffStatusChange",
                 "ChatWatchEventKindActionRequired",
+                "ChatWatchEventKindCostChange",
                 "ChatWatchEventKindContextDirty"
             ]
         },

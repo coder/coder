@@ -11807,7 +11807,7 @@ func TestPostChats_UserTitle(t *testing.T) {
 
 		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
 			OrganizationID: orgID,
-			Title:          ptr.Ref("  padded title  "),
+			Title:          new("  padded title  "),
 			Content:        []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: prompt}},
 		})
 		require.NoError(t, err)

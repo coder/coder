@@ -230,6 +230,12 @@ export const RenameChatDialog: FC<RenameChatDialogProps> = ({
 		setIsRenamingChat(false);
 	};
 
+	// Re-saving the current text is a no-op only once the title is already
+	// the user's. Confirming a placeholder title records it as user-set so
+	// automatic title generation cannot replace it.
+	const isUnchangedUserTitle =
+		renameTitle.trim() === chat?.title && chat?.title_source === "user";
+
 	return (
 		<Dialog
 			open={chat !== null}
@@ -335,7 +341,7 @@ export const RenameChatDialog: FC<RenameChatDialogProps> = ({
 							size="sm"
 							disabled={
 								!renameTitle.trim() ||
-								renameTitle.trim() === chat?.title ||
+								isUnchangedUserTitle ||
 								isRenamingChat ||
 								isGeneratingTitle ||
 								isTypingGeneratedTitle
