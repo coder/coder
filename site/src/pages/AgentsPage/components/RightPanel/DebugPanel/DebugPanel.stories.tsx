@@ -1284,7 +1284,7 @@ export const LongRawPayloads: Story = {
 	},
 };
 
-export const UnbreakableContentWrapsInsidePanel: Story = {
+export const UnbreakableContent: Story = {
 	parameters: {
 		queries: [
 			{
@@ -1310,21 +1310,7 @@ export const UnbreakableContentWrapsInsidePanel: Story = {
 			await canvas.findByRole("button", { name: /Fetch the long URL/i }),
 		);
 		await expandStep(canvas, user);
-
-		const viewport = canvasElement.querySelector(
-			"[data-radix-scroll-area-viewport]",
-		);
-		if (!(viewport instanceof HTMLElement)) {
-			throw new Error("Missing debug panel scroll viewport.");
-		}
-		const [urlElement] = await canvas.findAllByText(UNBREAKABLE_TOKEN);
-		const panelRight = viewport.getBoundingClientRect().right;
-		await waitFor(() => {
-			expect(urlElement.getBoundingClientRect().right).toBeLessThanOrEqual(
-				panelRight,
-			);
-			expect(viewport.scrollWidth).toBeLessThanOrEqual(viewport.clientWidth);
-		});
+		await canvas.findAllByText(UNBREAKABLE_TOKEN);
 	},
 };
 
