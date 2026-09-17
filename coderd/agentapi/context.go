@@ -185,13 +185,18 @@ func (a *ContextAPI) PushContextState(ctx context.Context, req *agentproto.PushC
 		staleRun = false
 		publishDirty = nil
 
-		// A concurrent UpdateStartup from a newer process that commits
-		// after this read is caught by the snapshot upsert: both
-		// processes write the same snapshot row, so repeatable read
-		// aborts the loser and this closure re-runs against the new
-		// run id. An empty request run id is checked too: a current
-		// legacy process cleared the row in UpdateStartup, so a
-		// nonempty row means a newer process has since registered.
+		// The agent row is not locked, so a newer process's
+		// UpdateStartup can commit between this read and the upsert
+		// and the previous process's push still lands. That window is
+		// harmless: readers compare the stored run id against the row
+		// and treat the snapshot as stale until the new process's
+		// first push, which is marked initial and replaces it. When
+		// the two processes push concurrently, they write the same
+		// snapshot row and repeatable read aborts the loser, so this
+		// closure re-runs against the new run id. An empty request
+		// run id is checked too: a current legacy process cleared the
+		// row in UpdateStartup, so a nonempty row means a newer
+		// process has since registered.
 		agent, err := tx.GetWorkspaceAgentByID(ctx, a.AgentID)
 		if err != nil {
 			return xerrors.Errorf("get workspace agent: %w", err)

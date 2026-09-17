@@ -199,6 +199,12 @@ func (a *LifecycleAPI) UpdateStartup(ctx context.Context, req *agentproto.Update
 	}
 	slices.Sort(dbSubsystems)
 
+	// The push path caps the run id at the same size; an oversized value
+	// here would land in the row and then fail every matching push.
+	if len(req.Startup.AgentRunId) > maxContextAgentRunIDBytes {
+		return nil, xerrors.Errorf("agent run id is %d bytes, exceeds %d byte cap", len(req.Startup.AgentRunId), maxContextAgentRunIDBytes)
+	}
+
 	err = a.Database.UpdateWorkspaceAgentStartupByID(ctx, database.UpdateWorkspaceAgentStartupByIDParams{
 		ID:                workspaceAgent.ID,
 		Version:           req.Startup.Version,
