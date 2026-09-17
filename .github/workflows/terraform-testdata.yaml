@@ -2,8 +2,6 @@ name: terraform-testdata
 
 on:
   workflow_call:
-  schedule:
-    - cron: "17 9 * * 1"
   workflow_dispatch:
 
 permissions: {}

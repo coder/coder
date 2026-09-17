@@ -49,7 +49,7 @@ fingerprint() {
 		*.tfplan.json | *.tfstate.json | *.tfplan.dot | *.tfstate.dot | ./.terraform.lock.hcl | */.terraform.lock.hcl | *.tfstate | *.tfstate.* | *.tfplan | *.golden | *.md | */.gitignore) continue ;;
 		esac
 		files+=("$file")
-	done < <(find . -type d -name .terraform -prune -o \( -type f -o -type l \) -print0 | LC_ALL=C sort -z)
+	done < <(find . -type d \( -name .terraform -o -name .coder \) -prune -o \( -type f -o -type l \) -print0 | LC_ALL=C sort -z)
 	{
 		printf 'terraform\0%s\0' "$version"
 		printf '%s\0' "${files[@]}"
@@ -264,7 +264,7 @@ trap 'exit 143' TERM
 mkdir -p "$workdir/result/resources" "$workdir/providers"
 (
 	cd "$scriptdir"
-	tar --exclude='.terraform' --exclude='*.tfstate' --exclude='*.tfstate.*' \
+	tar --exclude='.terraform' --exclude='.coder' --exclude='*.tfstate' --exclude='*.tfstate.*' \
 		--exclude='*.tfplan' -cf - resources generate.sh
 ) | tar -xf - -C "$workdir"
 cd "$workdir/resources"
