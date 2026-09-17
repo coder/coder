@@ -1,10 +1,4 @@
-import {
-	type RefObject,
-	useCallback,
-	useLayoutEffect,
-	useRef,
-	useState,
-} from "react";
+import { useCallback, useLayoutEffect, useRef, useState } from "react";
 import {
 	type AnnotationSubmission,
 	type HighlightItem,
@@ -13,23 +7,31 @@ import {
 } from "#/annotator/protocol";
 
 type UseAnnotatorBridgeOptions = {
-	frameRef: RefObject<HTMLIFrameElement | null>;
-	// Changes whenever the iframe element is remounted so listeners rebind.
-	frameKey: number;
-	// Origin the iframe is expected to load from. Messages from any other
+	// Resolves the window hosting the overlay: the preview iframe's content
+	// window, or a popout the dashboard opened. Read through a ref, so a new
+	// function identity per render does not rebind anything.
+	getTargetWindow: () => Window | null | undefined;
+	// Changes whenever the target is replaced (iframe remount, popout opened
+	// or closed) so listeners rebind and state resets.
+	targetKey: number;
+	// Origin the target is expected to load from. Messages from any other
 	// origin or window are ignored.
-	frameOrigin: string | undefined;
+	targetOrigin: string | undefined;
+	// Whether the target is an iframe, whose load event (`frameLoaded`)
+	// starts the unavailable timeout. A popout has no observable load, so
+	// its timeout starts when it becomes the target.
+	targetIsFrame: boolean;
 	// Nothing is listened to until the user has asked for the overlay, so a
 	// preview that was never annotated cannot talk to the dashboard.
 	enabled: boolean;
-	// How long after the frame loads to wait for the overlay before
-	// declaring it unavailable (blocked by CSP, non-HTML page, and so on).
+	// How long to wait for the overlay before declaring it unavailable
+	// (blocked by CSP, non-HTML page, and so on).
 	readyTimeoutMs?: number;
 	onSubmit: (submission: AnnotationSubmission) => void;
 };
 
 type BridgeState = {
-	// The overlay in the frame's current document announced itself.
+	// The overlay in the target's current document announced itself.
 	ready: boolean;
 	// A requested overlay never announced itself within the timeout.
 	unavailable: boolean;
@@ -64,23 +66,29 @@ type AnnotatorBridge = BridgeState & {
 
 /**
  * Talks to the annotation overlay the app proxy injects into a proxied
- * preview. The overlay is cross-origin and shares its window with the
+ * preview, whether it lives in the right panel's iframe or in a popout
+ * window. The overlay is cross-origin and shares its window with the
  * previewed app, so every inbound message is validated and bounded before
  * it reaches the caller, and submissions are only accepted while the
  * dashboard itself has switched annotate mode on for the document
- * currently in the frame. The frame can forge any message, so nothing it
- * sends ever grants that authorization; the most it can do is give it up.
+ * currently in the target. The target can forge any message, so nothing
+ * it sends ever grants that authorization; the most it can do is give it
+ * up.
  *
  * Callers own the frame: when `setPicking(true)` is called while the
  * overlay is neither ready nor loading, they must reload the frame with
- * the marker parameter so the proxy injects the overlay.
+ * the marker parameter so the proxy injects the overlay. A popout is
+ * opened to annotate in, so it is asked to pick as soon as it is ready;
+ * when it hands back to the frame the session ends, since the frame's
+ * overlay, if it is still there, will not announce itself again.
  *
  * The returned callbacks are stable so effects can depend on them.
  */
 export function useAnnotatorBridge({
-	frameRef,
-	frameKey,
-	frameOrigin,
+	getTargetWindow,
+	targetKey,
+	targetOrigin,
+	targetIsFrame,
 	enabled,
 	readyTimeoutMs = 5000,
 	onSubmit,
@@ -95,9 +103,11 @@ export function useAnnotatorBridge({
 	// Picking requested before the overlay was ready; delivered, and the
 	// authorization granted, once its ready message arrives.
 	const pendingPickingRef = useRef(false);
+	const previousTargetIsFrameRef = useRef(true);
 	const readyTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 	const onSubmitRef = useRef(onSubmit);
-	const frameOriginRef = useRef(frameOrigin);
+	const getTargetRef = useRef(getTargetWindow);
+	const targetOriginRef = useRef(targetOrigin);
 	const readyTimeoutRef = useRef(readyTimeoutMs);
 	const enabledRef = useRef(enabled);
 	// Layout effects run in the commit, before the browser can deliver the
@@ -105,26 +115,24 @@ export function useAnnotatorBridge({
 	// from the previous render.
 	useLayoutEffect(() => {
 		onSubmitRef.current = onSubmit;
-		frameOriginRef.current = frameOrigin;
+		getTargetRef.current = getTargetWindow;
+		targetOriginRef.current = targetOrigin;
 		readyTimeoutRef.current = readyTimeoutMs;
 		enabledRef.current = enabled;
-	}, [onSubmit, frameOrigin, readyTimeoutMs, enabled]);
+	}, [onSubmit, getTargetWindow, targetOrigin, readyTimeoutMs, enabled]);
 
 	const update = useCallback((patch: Partial<BridgeState>) => {
 		stateRef.current = { ...stateRef.current, ...patch };
 		setState(stateRef.current);
 	}, []);
 
-	const post = useCallback(
-		(message: HostToAnnotatorMessage) => {
-			const frameWindow = frameRef.current?.contentWindow;
-			const origin = frameOriginRef.current;
-			if (frameWindow && origin) {
-				frameWindow.postMessage(message, origin);
-			}
-		},
-		[frameRef],
-	);
+	const post = useCallback((message: HostToAnnotatorMessage) => {
+		const target = getTargetRef.current();
+		const origin = targetOriginRef.current;
+		if (target && origin) {
+			target.postMessage(message, origin);
+		}
+	}, []);
 
 	// Every load is a new document, which nothing has authorized yet. A
 	// load the dashboard asked for starts the clock on the overlay
@@ -159,17 +167,25 @@ export function useAnnotatorBridge({
 	// Also bound in the commit, so for a remounted frame the old listener is
 	// gone and the state reset before its load event can reach `frameLoaded`.
 	useLayoutEffect(() => {
-		if (!enabled || !frameOrigin) {
+		if (!enabled || !targetOrigin) {
 			return;
 		}
-		const frame = frameRef.current;
+		const handback = !previousTargetIsFrameRef.current && targetIsFrame;
+		previousTargetIsFrameRef.current = targetIsFrame;
+		if (!targetIsFrame) {
+			// A popout is opened to annotate in: ask it to pick once ready.
+			pendingPickingRef.current = true;
+			update({ requested: true, loading: true });
+			frameLoaded();
+		} else if (handback) {
+			// The frame was not reloaded, so nothing is loading and its overlay
+			// will not announce itself again. The next request reloads it.
+			pendingPickingRef.current = false;
+			update({ requested: false, loading: false });
+		}
 		const handler = (event: MessageEvent) => {
-			const frameWindow = frame?.contentWindow;
-			if (
-				event.origin !== frameOrigin ||
-				!frameWindow ||
-				event.source !== frameWindow
-			) {
+			const target = getTargetRef.current();
+			if (event.origin !== targetOrigin || !target || event.source !== target) {
 				return;
 			}
 			const message = parseAnnotatorToHostMessage(event.data);
@@ -177,7 +193,7 @@ export function useAnnotatorBridge({
 				return;
 			}
 			const send = (outbound: HostToAnnotatorMessage) =>
-				frameWindow.postMessage(outbound, frameOrigin);
+				target.postMessage(outbound, targetOrigin);
 			switch (message.type) {
 				case "coder-annotator:ready":
 					clearTimeout(readyTimerRef.current);
@@ -222,13 +238,13 @@ export function useAnnotatorBridge({
 		return () => {
 			clearTimeout(readyTimerRef.current);
 			window.removeEventListener("message", handler);
-			// The frame is being replaced: forget what the old one reported,
+			// The target is being replaced: forget what the old one reported,
 			// but keep what the dashboard asked for, since it asked for the
 			// replacement and its load is what `frameLoaded` will report next.
 			authorizedRef.current = false;
 			update({ ready: false, unavailable: false, picking: false });
 		};
-	}, [frameRef, frameKey, frameOrigin, enabled, update]);
+	}, [targetKey, targetOrigin, targetIsFrame, enabled, update, frameLoaded]);
 
 	const setPicking = useCallback(
 		(next: boolean) => {
