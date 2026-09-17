@@ -237,6 +237,7 @@ func TestOAuth2ProviderAppValidation(t *testing.T) {
 			{name: "Fragment", callbackURL: "https://example.com/callback#fragment"},
 			{name: "LoopbackHTTP", callbackURL: "http://127.0.0.1:8080/callback", valid: true},
 			{name: "Native", callbackURL: "com.example.app:/oauth2redirect", valid: true},
+			{name: "OpaqueNative", callbackURL: "com.example.app:oauth2redirect"},
 			{name: "HTTPS", callbackURL: "https://example.com/updated-callback", valid: true},
 		}
 		for _, test := range tests {

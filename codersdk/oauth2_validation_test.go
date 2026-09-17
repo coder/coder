@@ -23,6 +23,8 @@ func TestValidateOAuth2RedirectURIShape(t *testing.T) {
 		{url: "cursor://anysphere.cursor-mcp/oauth/callback", valid: true},
 		{url: "vscode://coder.coder-remote/oauth/callback", valid: true},
 		{url: "com.example.app:/oauth2redirect", valid: true},
+		{url: "com.example.app://auth/oauth2redirect", valid: true},
+		{url: "com.example.app:oauth2redirect", valid: false},
 		{url: "urn:ietf:wg:oauth:2.0:oob", valid: true},
 		{url: "", valid: false},
 		{url: "javascript:alert(1)", valid: false},

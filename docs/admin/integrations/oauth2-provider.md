@@ -710,6 +710,7 @@ The current implementation has these limitations:
 - Implicit grant (`response_type=token`) is not supported; OAuth 2.1 deprecated this flow due to token leakage risks, and a request for it redirects to the registered callback with `unsupported_response_type`
 - Limited to opaque access tokens (no JWT support)
 - An application may register at most 32 redirect URIs of at most 2048 bytes each. An application that stored a longer list before this limit existed keeps working, but it cannot be saved again until the list fits. To fix it, delete the application and create or register it again. A later release lets administrators edit the list directly.
+- A redirect URI with a private-use scheme must name a path or an authority, as in `com.example.app:/callback` or `com.example.app://auth/callback`. The bare form `com.example.app:callback` is rejected. Dynamic Client Registration accepted it in earlier versions, so a client that registered one must re-register with one of the other two forms.
 
 The `redirect_uris` list is now the source of truth for an application's callbacks, and its first entry is the primary:
 
