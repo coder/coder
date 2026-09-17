@@ -3037,7 +3037,7 @@ func (api *API) deleteChatQueuedMessage(rw http.ResponseWriter, r *http.Request)
 			// response already written
 		case errors.Is(err, chatstate.ErrTransitionNotAllowed):
 			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
-				Message: "Chat is not in a state that accepts queued message deletion.",
+				Message: "Chat has no queued messages to delete.",
 				Detail:  err.Error(),
 			})
 		default:
@@ -3127,7 +3127,7 @@ func (api *API) promoteChatQueuedMessage(rw http.ResponseWriter, r *http.Request
 			// response already written
 		case errors.Is(txErr, chatstate.ErrTransitionNotAllowed):
 			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
-				Message: "Chat is not in a state that accepts queued message promotion.",
+				Message: "Chat has no queued messages to promote.",
 				Detail:  txErr.Error(),
 			})
 		default:
@@ -3238,46 +3238,46 @@ func (api *API) patchChatQueuedMessage(rw http.ResponseWriter, r *http.Request) 
 		opts.ReasoningEffort = req.ReasoningEffort
 	}
 
-	editErr := api.chatDaemon.EditQueuedMessage(ctx, opts)
-	if editErr != nil {
-		if writeChatHookErr(ctx, rw, editErr, "Chat message denied by lifecycle hook.") {
+	err = api.chatDaemon.EditQueuedMessage(ctx, opts)
+	if err != nil {
+		if writeChatHookErr(ctx, rw, err, "Chat message denied by lifecycle hook.") {
 			return
 		}
-		if writeChatFileError(ctx, rw, editErr) {
+		if writeChatFileError(ctx, rw, err) {
 			return
 		}
 		switch {
-		case xerrors.Is(editErr, chatd.ErrChatArchived):
+		case xerrors.Is(err, chatd.ErrChatArchived):
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: "Cannot edit queued messages in an archived chat.",
 			})
-		case xerrors.Is(editErr, chatstate.ErrQueuedMessageNotFound):
+		case xerrors.Is(err, chatstate.ErrQueuedMessageNotFound):
 			httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
 				Message: "Queued message not found.",
 			})
-		case xerrors.Is(editErr, chatd.ErrInvalidModelConfigID):
+		case xerrors.Is(err, chatd.ErrInvalidModelConfigID):
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: "Invalid model config ID.",
 			})
-		case xerrors.Is(editErr, chatd.ErrNoDefaultChatModelConfig):
+		case xerrors.Is(err, chatd.ErrNoDefaultChatModelConfig):
 			writeNoLocalChatModelResponse(ctx, rw)
-		case errors.Is(editErr, chatstate.ErrChatNotFound):
+		case errors.Is(err, chatstate.ErrChatNotFound):
 			httpapi.ResourceNotFound(rw)
-		case writeChatInvalidState(ctx, rw, editErr):
+		case writeChatInvalidState(ctx, rw, err):
 			// response already written
-		case errors.Is(editErr, chatstate.ErrPausedQueuedHeadUnderEdit):
+		case errors.Is(err, chatstate.ErrPausedQueuedHeadUnderEdit):
 			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
 				Message: "The chat is paused at a queued message under edit. Finish editing, send, or remove it before editing another.",
 			})
-		case errors.Is(editErr, chatstate.ErrTransitionNotAllowed):
+		case errors.Is(err, chatstate.ErrTransitionNotAllowed):
 			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
-				Message: "Chat is not in a state that accepts queued message edits.",
-				Detail:  editErr.Error(),
+				Message: "Chat has no queued messages to edit.",
+				Detail:  err.Error(),
 			})
 		default:
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 				Message: "Failed to edit queued message.",
-				Detail:  editErr.Error(),
+				Detail:  err.Error(),
 			})
 		}
 		return
