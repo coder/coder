@@ -86,7 +86,7 @@ const CompatibilityModeAlert: FC<{ templates: readonly Template[] }> = ({
 		>
 			<AlertTitle>
 				{singleTemplate
-					? `The "${singleTemplate.display_name || singleTemplate.name}" template is using parameter compatibility mode`
+					? "1 template is using parameter compatibility mode"
 					: `${templates.length} templates are using parameter compatibility mode`}
 			</AlertTitle>
 			<AlertDescription>

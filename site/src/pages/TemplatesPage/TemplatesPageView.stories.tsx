@@ -321,7 +321,7 @@ export const SingleClassicParameterFlowWarning: Story = {
 		const alert = canvas.getByRole("alert");
 		expect(
 			within(alert).getByText(
-				'The "Classic One" template is using parameter compatibility mode',
+				"1 template is using parameter compatibility mode",
 			),
 		).toBeVisible();
 		expect(
