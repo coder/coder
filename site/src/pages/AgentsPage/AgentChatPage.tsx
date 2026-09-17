@@ -616,7 +616,8 @@ const AgentChatPage: FC = () => {
 		});
 
 	// A 404 means the row was sent or removed. Drop it locally; a
-	// queue_update for it may never arrive.
+	// queue_update for it may never arrive. Every failure is reported
+	// here, so callers only decide whether to continue.
 	const patchQueuedMessage = async (
 		id: number,
 		req: TypesGen.EditChatQueuedMessageRequest,
@@ -656,18 +657,18 @@ const AgentChatPage: FC = () => {
 	const queuedEditRow = useChatSelector(store, (s) =>
 		s.queuedMessages.find((row) => row.id === queuedEditTargetID),
 	);
-	const queuedEditSeenIDRef = useRef<number | null>(null);
-	useEffect(() => {
-		const next = trackQueuedEditTarget(
-			queuedEditTargetID,
-			queuedEditRow,
-			queuedEditSeenIDRef.current,
-		);
-		queuedEditSeenIDRef.current = next.seenID;
-		if (next.lost) {
-			editing.leaveEdit();
-		}
-	}, [queuedEditTargetID, queuedEditRow, editing.leaveEdit]);
+	const [queuedEditSeenID, setQueuedEditSeenID] = useState<number | null>(null);
+	const queuedEdit = trackQueuedEditTarget(
+		queuedEditTargetID,
+		queuedEditRow,
+		queuedEditSeenID,
+	);
+	if (queuedEdit.seenID !== queuedEditSeenID) {
+		setQueuedEditSeenID(queuedEdit.seenID);
+	}
+	if (queuedEdit.lost) {
+		editing.leaveEdit();
+	}
 
 	const endQueuedEditBeforeLeaving = async (): Promise<boolean> => {
 		if (queuedEditTargetID === null) {

@@ -1899,7 +1899,8 @@ export const editChatQueuedMessage = (
 		queuedMessageId: number;
 		req: TypesGen.EditChatQueuedMessageRequest;
 	}) => API.experimental.editChatQueuedMessage(chatId, queuedMessageId, req),
-	// A 404 means the local queue is stale.
+	// A 404 means the local queue is stale, so invalidation runs on every
+	// outcome.
 	onSettled: async () => {
 		await invalidateChatEntity(queryClient, chatId);
 		await invalidateChatMessages(queryClient, chatId);
