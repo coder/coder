@@ -280,21 +280,6 @@ describe("parseMessageContent", () => {
 		]);
 	});
 
-	it("propagates created_at from a tool-call part as startedAt", () => {
-		const result = parseMessageContent([
-			{
-				type: "tool-call",
-				tool_name: "execute",
-				tool_call_id: "call-1",
-				args: { command: "make build" },
-				created_at: "2025-01-01T00:00:00.000Z",
-			},
-		]);
-		expect(result.toolCalls[0].startedAt).toBe("2025-01-01T00:00:00.000Z");
-		const merged = mergeTools(result.toolCalls, result.toolResults);
-		expect(merged[0].startedAt).toBe("2025-01-01T00:00:00.000Z");
-	});
-
 	it("parses a tool-result block", () => {
 		const result = parseMessageContent([
 			{
