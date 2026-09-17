@@ -126,9 +126,17 @@ const refetchCatalog = async (
 
 describe("OrganizationAgentSettings", () => {
 	it("promotes the selected model to the organization default", async () => {
-		vi.spyOn(API.experimental, "getChatModels").mockResolvedValue(
-			chatModelsResponse([defaultModel, alternateModel]),
-		);
+		vi.spyOn(API.experimental, "getChatModels")
+			.mockResolvedValueOnce(
+				chatModelsResponse([defaultModel, alternateModel, thirdModel]),
+			)
+			.mockResolvedValue(
+				chatModelsResponse([
+					{ ...defaultModel, is_default: false },
+					{ ...alternateModel, is_default: true },
+					thirdModel,
+				]),
+			);
 		const updateChatModel = mockOverridesAndUpdate();
 		const user = userEvent.setup();
 
@@ -153,6 +161,20 @@ describe("OrganizationAgentSettings", () => {
 			expect(updateChatModel).toHaveBeenCalledWith(
 				MockDefaultOrganization.id,
 				alternateModel.id,
+				{ is_default: true },
+			);
+		});
+
+		// A new pick while the saved indicator is still showing must be savable.
+		await within(defaultSection).findByText("Saved");
+		await selectModel(user, alternateModel, thirdModel);
+		await user.click(
+			await within(defaultSection).findByRole("button", { name: "Save" }),
+		);
+		await waitFor(() => {
+			expect(updateChatModel).toHaveBeenLastCalledWith(
+				MockDefaultOrganization.id,
+				thirdModel.id,
 				{ is_default: true },
 			);
 		});

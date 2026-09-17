@@ -22,6 +22,7 @@ interface OrganizationAgentSettingsViewProps {
 	enabledModels: readonly TypesGen.ChatModel[];
 	providerInfoByID: ReadonlyMap<string, ProviderInfo>;
 	isLoading: boolean;
+	isOverridesLoading: boolean;
 	loadError: unknown;
 	refetchError: unknown;
 	modelsError: unknown;
@@ -82,6 +83,7 @@ const OrganizationAgentSettingsView: FC<OrganizationAgentSettingsViewProps> = ({
 	enabledModels,
 	providerInfoByID,
 	isLoading,
+	isOverridesLoading,
 	loadError,
 	refetchError,
 	modelsError,
@@ -138,7 +140,7 @@ const OrganizationAgentSettingsView: FC<OrganizationAgentSettingsViewProps> = ({
 							enabledModels={enabledModels}
 							providerInfoByID={providerInfoByID}
 							modelsError={modelsError}
-							isLoading={isLoading}
+							isLoading={isLoading || isOverridesLoading}
 							onSaveModelOverride={onSave}
 							isSaving={savingContexts.has(setting.context)}
 							isSaveError={errorContexts.has(setting.context)}

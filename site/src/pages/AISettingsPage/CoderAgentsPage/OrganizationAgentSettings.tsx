@@ -141,6 +141,7 @@ const OrganizationAgentSettingsContent: FC<OrganizationAgentSettingsProps> = ({
 			enabledModels={enabledModels}
 			providerInfoByID={providerInfoByID}
 			isLoading={modelsQuery.isLoading}
+			isOverridesLoading={overridesQuery.isLoading}
 			loadError={loadError}
 			refetchError={inlineError}
 			modelsError={modelsQuery.error}

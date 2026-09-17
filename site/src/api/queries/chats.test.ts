@@ -381,7 +381,6 @@ describe("chat model query factories", () => {
 			variables.req,
 		);
 		await mutation.onSuccess(promoted, variables);
-		// The organization catalog is seeded with the result before the refetch.
 		expect(
 			queryClient
 				.getQueryData<TypesGen.OrganizationChatModelsResponse>(

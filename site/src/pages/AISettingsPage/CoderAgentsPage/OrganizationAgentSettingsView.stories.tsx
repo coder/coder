@@ -51,6 +51,7 @@ const meta: Meta<typeof OrganizationAgentSettingsView> = {
 			],
 		]),
 		isLoading: false,
+		isOverridesLoading: false,
 		loadError: null,
 		refetchError: null,
 		modelsError: null,
@@ -173,9 +174,17 @@ export const UnavailableSavedModels: Story = {
 export const Loading: Story = {
 	args: {
 		isLoading: true,
+		isOverridesLoading: true,
 		defaultModelID: undefined,
 		overrides: undefined,
 		enabledModels: [],
+	},
+};
+
+export const OverridesLoading: Story = {
+	args: {
+		isOverridesLoading: true,
+		overrides: undefined,
 	},
 };
 
