@@ -105,8 +105,10 @@ replace github.com/spf13/afero => github.com/aslilac/afero v0.0.0-20250403163713
 //    and gpt-6+ reasoning classification in getResponsesModelConfig; also
 //    carries upstream #354 (gpt-6+ in IsResponsesModel).
 // 10) coder/fantasy#58, keep media tool results in the Gemini prompt.
-// See: https://github.com/coder/fantasy/commits/a511353f83eb
-replace charm.land/fantasy => github.com/coder/fantasy v0.0.0-20260915182717-a511353f83eb
+// 11) coder/fantasy mike/mcp-tool-media-batch-order (unmerged), keep OpenAI
+//    tool-result batches contiguous before attaching user media.
+// See: https://github.com/coder/fantasy/commits/9a3598480a71
+replace charm.land/fantasy => github.com/coder/fantasy v0.0.0-20260917071228-9a3598480a71
 
 // coder/coder uses a fork of charmbracelet's fork of the Anthropic Go SDK
 // with performance improvements and Bedrock header cleanup.

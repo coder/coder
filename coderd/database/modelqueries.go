@@ -145,6 +145,7 @@ func (q *sqlQuerier) GetAuthorizedTemplates(ctx context.Context, arg GetTemplate
 		arg.FuzzyDisplayName,
 		pq.Array(arg.IDs),
 		arg.Deprecated,
+		arg.UseClassicParameterFlow,
 		arg.AgentsAllowed,
 		arg.AuthorID,
 		arg.AuthorUsername,
