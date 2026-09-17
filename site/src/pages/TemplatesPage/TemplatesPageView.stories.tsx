@@ -265,10 +265,15 @@ export const ClassicParameterFlowWarning: Story = {
 
 		const alert = canvas.getByRole("alert");
 		expect(
-			within(alert).getByText("2 templates still use classic parameters"),
+			within(alert).getByText(
+				"2 templates are using parameter compatibility mode",
+			),
 		).toBeVisible();
+		expect(
+			within(alert).getByRole("link", { name: "Review templates" }),
+		).toHaveAttribute("href", "/templates?filter=compatibility_mode%3Atrue");
 		const docsLink = within(alert).getByRole("link", {
-			name: /view docs \(opens in new tab\)/i,
+			name: /how to upgrade \(opens in new tab\)/i,
 		});
 		expect(docsLink).toHaveAttribute(
 			"href",
@@ -312,11 +317,35 @@ export const SingleClassicParameterFlowWarning: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 
+		const alert = canvas.getByRole("alert");
 		expect(
-			within(canvas.getByRole("alert")).getByText(
-				"1 template still uses classic parameters",
+			within(alert).getByText(
+				"Classic One is using parameter compatibility mode",
 			),
 		).toBeVisible();
+		expect(
+			within(alert).getByRole("link", { name: "Update template" }),
+		).toHaveAttribute(
+			"href",
+			`/templates/${MockTemplate.organization_name}/classic-one/settings/parameters`,
+		);
+	},
+};
+
+export const ClassicParameterFlowWarningHiddenWhileFiltering: Story = {
+	args: {
+		...ClassicParameterFlowWarning.args,
+		filterState: getDefaultFilterProps<TemplateFilterState>({
+			menus: { organizations: MockMenu },
+			values: { author: MockUserOwner.username },
+			query: "compatibility_mode:true",
+			used: true,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		expect(canvas.queryByRole("alert")).not.toBeInTheDocument();
 	},
 };
 
