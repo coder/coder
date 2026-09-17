@@ -51,14 +51,9 @@ func boundDiagnostic(msg string) string {
 	return msg[:cut] + truncatedSuffix
 }
 
-// sanitizeMCPError renders err for the discovery report with every
-// configured secret removed: URL userinfo, path, and query string,
-// every env value, every header value, every stdio argument that is
-// not itself a flag, and every inherited value (secrets the agent
-// injects into the server environment). Transport errors echo the URL
-// and a server can echo its command line and environment in a
-// JSON-RPC error, so the raw text is never safe to publish to chats.
-// The result is bounded to maxDiagnosticBytes.
+// sanitizeMCPError redacts potential credentials from discovery errors because
+// servers may echo URLs, arguments, headers, or their launch environment.
+// Short values may remain; output is bounded to maxDiagnosticBytes.
 func sanitizeMCPError(cfg ServerConfig, inherited []string, err error) string {
 	if err == nil {
 		return ""
