@@ -14105,10 +14105,10 @@ func (q *sqlQuerier) UpdateChatWorkspaceBinding(ctx context.Context, arg UpdateC
 
 const upsertChatContextDiscoveredResource = `-- name: UpsertChatContextDiscoveredResource :exec
 INSERT INTO chat_context_resources (
-    chat_id, source, body_kind, body, content_hash, size_bytes, status, error, discovered
+    chat_id, source, body_kind, body, content_hash, size_bytes, status, error, source_path, discovered
 )
 VALUES (
-    $1::uuid, $2, $3, $4, $5, $6, $7, $8, true
+    $1::uuid, $2, $3, $4, $5, $6, $7, $8, $9, true
 )
 ON CONFLICT (chat_id, source) DO UPDATE SET
     body = EXCLUDED.body,
@@ -14116,6 +14116,7 @@ ON CONFLICT (chat_id, source) DO UPDATE SET
     size_bytes = EXCLUDED.size_bytes,
     status = EXCLUDED.status,
     error = EXCLUDED.error,
+    source_path = EXCLUDED.source_path,
     updated_at = now()
 WHERE chat_context_resources.discovered = true
 `
@@ -14129,11 +14130,14 @@ type UpsertChatContextDiscoveredResourceParams struct {
 	SizeBytes   int64                               `db:"size_bytes" json:"size_bytes"`
 	Status      WorkspaceAgentContextResourceStatus `db:"status" json:"status"`
 	Error       string                              `db:"error" json:"error"`
+	SourcePath  string                              `db:"source_path" json:"source_path"`
 }
 
 // Pins an instruction file chatd resolved from a directory a tool touched
-// during the chat. A row the snapshot already covers is left alone, so a
-// discovered copy never shadows the watched one; a discovered row that
+// during the chat. source_path records that directory: the resolver
+// attributes a symlinked file to its target, so the row's directory cannot
+// be derived from source. A row the snapshot already covers is left alone,
+// so a discovered copy never shadows the watched one; a discovered row that
 // exists is refreshed with the latest read.
 func (q *sqlQuerier) UpsertChatContextDiscoveredResource(ctx context.Context, arg UpsertChatContextDiscoveredResourceParams) error {
 	_, err := q.db.ExecContext(ctx, upsertChatContextDiscoveredResource,
@@ -14145,6 +14149,7 @@ func (q *sqlQuerier) UpsertChatContextDiscoveredResource(ctx context.Context, ar
 		arg.SizeBytes,
 		arg.Status,
 		arg.Error,
+		arg.SourcePath,
 	)
 	return err
 }

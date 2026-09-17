@@ -5091,7 +5091,7 @@ type ChatContextResource struct {
 	Status WorkspaceAgentContextResourceStatus `db:"status" json:"status"`
 	// Per-resource error or warning string. Populated whenever status is non-ok; may also carry a non-fatal warning when status is ok.
 	Error string `db:"error" json:"error"`
-	// User-declared scan root that produced this resource. Empty for built-in scan roots.
+	// User-declared scan root that produced this resource, or for a discovered row the directory chatd probed. Empty for built-in scan roots.
 	SourcePath string    `db:"source_path" json:"source_path"`
 	CreatedAt  time.Time `db:"created_at" json:"created_at"`
 	UpdatedAt  time.Time `db:"updated_at" json:"updated_at"`

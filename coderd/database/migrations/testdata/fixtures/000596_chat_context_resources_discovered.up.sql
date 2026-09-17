@@ -22,7 +22,7 @@ SELECT
     10::bigint,
     'ok'::workspace_agent_context_resource_status,
     '',
-    '',
+    '/home/coder/workspace/site',
     true
 FROM (
     SELECT id FROM chats ORDER BY created_at, id LIMIT 1

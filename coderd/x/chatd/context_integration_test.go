@@ -3,6 +3,7 @@ package chatd_test
 import (
 	"context"
 	"database/sql"
+	"path"
 	"slices"
 	"testing"
 
@@ -668,6 +669,7 @@ func TestChatContextAddedResourcesAutoPin(t *testing.T) {
 			ContentHash: hash,
 			SizeBytes:   10,
 			Status:      database.WorkspaceAgentContextResourceStatusOk,
+			SourcePath:  path.Dir(source),
 		}))
 	}
 	discover(rootSource, nestedDiscoveredHash)
@@ -676,7 +678,9 @@ func TestChatContextAddedResourcesAutoPin(t *testing.T) {
 	require.Len(t, pinned, 5)
 	require.False(t, pinned[rootSource].Discovered, "a discovered read never replaces a snapshot row")
 	require.Equal(t, rootV2Hash, pinned[rootSource].ContentHash)
+	require.Empty(t, pinned[rootSource].SourcePath, "a discovered read leaves the snapshot row's scan root alone")
 	require.True(t, pinned[nestedSource].Discovered)
+	require.Equal(t, "/home/coder/repo/site", pinned[nestedSource].SourcePath, "a discovered row records the probed directory")
 
 	otherSource := "/home/coder/other/AGENTS.md"
 	otherHash := []byte{0x51}
@@ -703,6 +707,7 @@ func TestChatContextAddedResourcesAutoPin(t *testing.T) {
 	require.Len(t, pinned, 6)
 	require.False(t, pinned[nestedSource].Discovered, "the snapshot copy replaces the discovered row")
 	require.Equal(t, nestedAgentHash, pinned[nestedSource].ContentHash)
+	require.Empty(t, pinned[nestedSource].SourcePath, "the snapshot copy replaces the probed directory with its own scan root")
 
 	// Reconciling a vanished file removes discovered rows only.
 	docsSource := "/home/coder/repo/docs/AGENTS.md"
