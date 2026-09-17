@@ -370,6 +370,19 @@ func runFakeMCPServer() {
 		_, _ = io.Copy(io.Discard, os.Stdin)
 		return
 	}
+	// TEST_MCP_FAKE_SERVER_ECHO_ENV names an environment variable whose
+	// value the server echoes inside a JSON-RPC error, modeling a server
+	// that leaks its environment: on initialize when
+	// TEST_MCP_FAKE_SERVER_INIT_FAILS=1, and on tools/list while the
+	// file named by TEST_MCP_FAKE_SERVER_LIST_FAILS_IF_FILE exists.
+	echoed := os.Getenv(os.Getenv("TEST_MCP_FAKE_SERVER_ECHO_ENV"))
+	rpcError := func(id json.RawMessage, msg string) map[string]any {
+		return map[string]any{
+			"jsonrpc": "2.0",
+			"id":      id,
+			"error":   map[string]any{"code": -32000, "message": msg + ": " + echoed},
+		}
+	}
 	scanner := bufio.NewScanner(os.Stdin)
 	for scanner.Scan() {
 		line := scanner.Bytes()
@@ -386,6 +399,10 @@ func runFakeMCPServer() {
 		var resp any
 		switch req.Method {
 		case "initialize":
+			if os.Getenv("TEST_MCP_FAKE_SERVER_INIT_FAILS") == "1" {
+				resp = rpcError(req.ID, "initialize rejected")
+				break
+			}
 			resp = map[string]any{
 				"jsonrpc": "2.0",
 				"id":      req.ID,
@@ -404,6 +421,12 @@ func runFakeMCPServer() {
 			// No response needed for notifications.
 			continue
 		case "tools/list":
+			if marker := os.Getenv("TEST_MCP_FAKE_SERVER_LIST_FAILS_IF_FILE"); marker != "" {
+				if _, err := os.Stat(marker); err == nil {
+					resp = rpcError(req.ID, "tools/list rejected")
+					break
+				}
+			}
 			tools := []map[string]any{
 				{
 					"name":        "echo",

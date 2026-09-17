@@ -84,6 +84,10 @@ type Manager struct {
 	// workingDir reports the workspace working directory for stdio
 	// servers, read at connect time. See resolveWorkingDir.
 	workingDir func() string
+	// inheritedSecrets reports values updateEnv injects into every
+	// stdio server's environment (agent token, user secrets); they
+	// are redacted from published diagnostics. See SetInheritedSecrets.
+	inheritedSecrets func() []string
 
 	mu      sync.RWMutex
 	logger  slog.Logger
@@ -211,6 +215,30 @@ func (m *Manager) SetOnReload(fn func()) {
 	m.mu.Lock()
 	m.onChange = fn
 	m.mu.Unlock()
+}
+
+// SetInheritedSecrets registers the source of secret values the agent
+// injects into every stdio server's environment through updateEnv. A
+// server can echo its environment back in a JSON-RPC error, so these
+// values are redacted from published diagnostics like configured ones.
+// It must be called before the first Reload.
+func (m *Manager) SetInheritedSecrets(fn func() []string) {
+	m.mu.Lock()
+	m.inheritedSecrets = fn
+	m.mu.Unlock()
+}
+
+// sanitizeError is sanitizeMCPError with the manager's inherited
+// secrets.
+func (m *Manager) sanitizeError(cfg ServerConfig, err error) string {
+	m.mu.RLock()
+	fn := m.inheritedSecrets
+	m.mu.RUnlock()
+	var inherited []string
+	if fn != nil {
+		inherited = fn()
+	}
+	return sanitizeMCPError(cfg, inherited, err)
 }
 
 // startReloadIfNeeded registers the reload with the singleflight group
@@ -612,7 +640,7 @@ func (m *Manager) connectAll(ctx context.Context, toConnect []ServerConfig, onCo
 					slog.Error(err),
 				)
 				mu.Lock()
-				failed[cfg.Name] = sanitizeMCPError(cfg, err)
+				failed[cfg.Name] = m.sanitizeError(cfg, err)
 				mu.Unlock()
 				return nil // Don't fail the group.
 			}
@@ -652,7 +680,7 @@ func (m *Manager) publishConnected(ctx context.Context, wanted map[string]Server
 	res := m.listServerTools(ctx, cs.name, cs.client)
 	st := ServerStatus{Name: cs.name, Connected: res.err == nil, Tools: res.tools}
 	if res.err != nil {
-		st.Err = sanitizeMCPError(cs.config, res.err)
+		st.Err = m.sanitizeError(cs.config, res.err)
 	}
 
 	m.mu.Lock()
@@ -906,7 +934,10 @@ func (m *Manager) refreshCatalog(
 			st.Tools = res.tools
 			st.Warning = warnings[name]
 		case ok:
-			st.Err = sanitizeMCPError(wanted[name], res.err)
+			// The listed session may be a retained previous connection,
+			// so its error is sanitized with the config it was opened
+			// with, not the config that failed to replace it.
+			st.Err = m.sanitizeError(servers[name].config, res.err)
 		case connectErrors[name] != "":
 			st.Err = connectErrors[name]
 		default:
