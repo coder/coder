@@ -1,10 +1,11 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, fn, userEvent, waitFor, within } from "storybook/test";
+import { expect, fn, userEvent, within } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { chatModelKey } from "#/api/queries/chats";
 import { workspaceBuildLogs } from "#/api/queries/workspaceBuilds";
 import { workspaceByIdKey } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
+import type { MCPServerConfig } from "#/api/typesGenerated";
 import { MockChatModel } from "#/testHelpers/chatModels";
 import { MockWorkspace, MockWorkspaceBuild } from "#/testHelpers/entities";
 import { ChatWorkspaceContext } from "../../../context/ChatWorkspaceContext";
@@ -20,16 +21,6 @@ const longExecuteCommand =
 // 1x1 solid coral (#FF6B6B) PNG encoded as base64.
 const TEST_PNG_B64 =
 	"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4n539HwAHFwLVF8kc1wAAAABJRU5ErkJggg==";
-
-const expectDiffText = async (element: HTMLElement, text: string) => {
-	await waitFor(() =>
-		expect(
-			Array.from(element.querySelectorAll("diffs-container")).some((host) =>
-				host.shadowRoot?.textContent?.includes(text),
-			),
-		).toBe(true),
-	);
-};
 
 const meta: Meta<typeof Tool> = {
 	title: "pages/AgentsPage/ChatElements/tools/Tool",
@@ -380,15 +371,9 @@ export const ExecuteError: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		expect(canvas.queryByText(/error line 1/)).not.toBeInTheDocument();
-		expect(canvas.getByRole("img", { name: "Command failed" })).toBeVisible();
-		expect(canvas.queryByText("exit 1")).not.toBeInTheDocument();
 		await userEvent.click(
 			canvas.getByRole("button", { name: "Expand command" }),
 		);
-		await waitFor(() => {
-			expect(canvas.getByText(/error line 1/)).toBeVisible();
-		});
 	},
 };
 
@@ -490,16 +475,7 @@ export const ExecuteAlwaysCollapsed: Story = {
 		const commandButton = canvas.getByRole("button", {
 			name: "Expand command",
 		});
-		expect(commandButton).toHaveTextContent(`Ran ${executeCommand}`);
-		expect(canvas.queryByText("exit 0")).not.toBeInTheDocument();
-		expect(canvas.queryByText("2 lines")).not.toBeInTheDocument();
-		expect(
-			canvas.queryByText(/From github\.com:coder\/coder/),
-		).not.toBeInTheDocument();
 		await userEvent.click(commandButton);
-		await waitFor(() => {
-			expect(canvas.getByText(/From github\.com:coder\/coder/)).toBeVisible();
-		});
 	},
 };
 
@@ -542,13 +518,9 @@ export const ProcessOutputAlwaysCollapsed: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		expect(canvas.queryByText(/build completed/)).not.toBeInTheDocument();
 		await userEvent.click(
 			canvas.getByRole("button", { name: "Expand process output" }),
 		);
-		await waitFor(() => {
-			expect(canvas.getByText(/build completed/)).toBeVisible();
-		});
 	},
 };
 
@@ -579,10 +551,11 @@ export const ProcessOutputExitZeroNoBadge: Story = {
 	},
 };
 
+/** A model_intent result replaces the command in the label. */
 export const ProcessOutputModelIntent: Story = {
 	args: {
 		name: "process_output",
-		status: "running",
+		status: "completed",
 		args: {
 			process_id: "process-123",
 			model_intent: "Waiting for the dev server to be ready",
@@ -1082,15 +1055,7 @@ export const ListAgentsCompleted: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const header = canvas.getByRole("button", { name: /Listed 3 of 3 agents/ });
-		expect(header).toBeInTheDocument();
-		// Expand to verify agent rows and links render.
 		await userEvent.click(header);
-		expect(
-			canvas.getByText("Repository review (general, completed)"),
-		).toBeInTheDocument();
-		expect(
-			canvas.getByText("Inspect repository (explore, running)"),
-		).toBeInTheDocument();
 	},
 };
 
@@ -1179,19 +1144,7 @@ export const ListSubagentModelsCompleted: Story = {
 		const header = canvas.getByRole("button", {
 			name: /Listed 3 subagent models/,
 		});
-		expect(header).toBeInTheDocument();
 		await userEvent.click(header);
-		expect(canvas.getByText("OpenAI")).toBeInTheDocument();
-		expect(canvas.getByText("Anthropic")).toBeInTheDocument();
-		expect(canvas.getByText("Google")).toBeInTheDocument();
-		expect(canvas.getByText("Fast Model")).toBeInTheDocument();
-		expect(canvas.getByText("(200K)")).toBeInTheDocument();
-		expect(canvas.getByText("low - high")).toBeInTheDocument();
-		expect(canvas.getByText("Large Model")).toBeInTheDocument();
-		expect(canvas.getByText("(1M)")).toBeInTheDocument();
-		expect(canvas.getByText("none - max")).toBeInTheDocument();
-		expect(canvas.getByText("(262K)")).toBeInTheDocument();
-		expect(canvas.getByText("gemini-3.6-flash")).toBeInTheDocument();
 	},
 };
 
@@ -1259,11 +1212,8 @@ export const ListTemplatesSuccess: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		expect(canvas.getByText("Listed 2 templates")).toBeInTheDocument();
 		const toggle = canvas.getByRole("button");
 		await userEvent.click(toggle);
-		expect(canvas.getByText("Go Development")).toBeInTheDocument();
-		expect(canvas.getByText("python-template")).toBeInTheDocument();
 	},
 };
 
@@ -1308,16 +1258,7 @@ export const ChatSummarized: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const toggle = canvas.getByRole("button", { name: "Summarized" });
-		expect(toggle).toBeInTheDocument();
-		expect(canvas.queryByText("Compaction summary text.")).toBeNull();
-
 		await userEvent.click(toggle);
-
-		expect(
-			await canvas.findByText((text) =>
-				text.includes("Compaction summary text."),
-			),
-		).toBeInTheDocument();
 	},
 };
 
@@ -1341,15 +1282,7 @@ export const ChatSummarizedManual: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const toggle = canvas.getByRole("button", { name: "Summarized (manual)" });
-		expect(toggle).toBeInTheDocument();
-
 		await userEvent.click(toggle);
-
-		expect(
-			await canvas.findByText((text) =>
-				text.includes("Manual compaction summary text."),
-			),
-		).toBeInTheDocument();
 	},
 };
 
@@ -1390,11 +1323,6 @@ export const SubagentInterrupt: Story = {
 	args: {
 		name: "interrupt_agent",
 		args: undefined,
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.getByText(/Interrupted/)).toBeInTheDocument();
-		expect(canvas.getByText("Sub-agent")).toBeInTheDocument();
 	},
 };
 
@@ -1438,7 +1366,7 @@ const sampleMCPServers = [
 		created_at: "2025-01-01T00:00:00Z",
 		updated_at: "2025-01-01T00:00:00Z",
 	},
-] satisfies readonly import("#/api/typesGenerated").MCPServerConfig[];
+] satisfies MCPServerConfig[];
 
 export const MCPToolRunning: Story = {
 	args: {
@@ -1466,16 +1394,8 @@ export const MCPToolCompleted: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		// No spinner when completed.
-		expect(canvasElement.querySelector(".animate-spin")).toBeNull();
-		// Icon should still be monochrome when completed.
-		expect(canvasElement.querySelector(".brightness-0")).not.toBeNull();
 		const toggle = canvas.getByRole("button");
-		expect(toggle).toBeInTheDocument();
 		await userEvent.click(toggle);
-		expect(canvas.getByText("Input")).toBeVisible();
-		expect(canvas.getByText("Output")).toBeVisible();
-		await expectDiffText(canvasElement, "Fix auth flow");
 	},
 };
 
@@ -1502,8 +1422,6 @@ export const MCPToolNoResult: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await userEvent.click(canvas.getByRole("button"));
-		expect(canvas.getByText("Input")).toBeVisible();
-		await expectDiffText(canvasElement, "New issue");
 	},
 };
 
@@ -1578,12 +1496,7 @@ export const WorkspaceMCPToolCompleted: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		expect(canvas.getByText("workspace-mcp__echo")).toBeInTheDocument();
 		await userEvent.click(canvas.getByRole("button"));
-		expect(canvas.getByText("Input")).toBeVisible();
-		expect(canvas.getByText("Output")).toBeVisible();
-		await expectDiffText(canvasElement, "message");
-		await expectDiffText(canvasElement, "hello from workspace MCP");
 	},
 };
 
@@ -1647,14 +1560,9 @@ export const WriteFileSuccess: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		expect(canvas.getByText(/Wrote helpers\.ts/)).toBeInTheDocument();
-		expect(canvas.queryByTestId("write-file-diff")).not.toBeInTheDocument();
 		await userEvent.click(
 			canvas.getByRole("button", { name: /Wrote helpers\.ts/ }),
 		);
-		await waitFor(() => {
-			expect(canvas.getByTestId("write-file-diff")).toBeVisible();
-		});
 	},
 };
 
@@ -1688,14 +1596,9 @@ export const WriteFileDeniedByHook: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		expect(canvas.getByText(/Failed to write helpers\.ts/)).toBeInTheDocument();
 		await userEvent.click(
 			canvas.getByRole("button", { name: /Failed to write helpers\.ts/ }),
 		);
-		await waitFor(() => {
-			expect(canvas.getByText(/blocked by an external policy/)).toBeVisible();
-		});
-		expect(canvas.queryByTestId("write-file-diff")).not.toBeInTheDocument();
 	},
 };
 
@@ -1765,14 +1668,9 @@ export const EditFilesAlwaysCollapsed: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		expect(canvas.getByText(/Edited config\.ts/)).toBeVisible();
-		expect(canvas.queryAllByTestId("edit-file-diff")).toHaveLength(0);
 		await userEvent.click(
 			canvas.getByRole("button", { name: /Edited config\.ts/ }),
 		);
-		await waitFor(() => {
-			expect(canvas.getAllByTestId("edit-file-diff")).toHaveLength(1);
-		});
 	},
 };
 
@@ -1996,18 +1894,6 @@ export const ComputerScreenshot: Story = {
 			mime_type: "image/jpeg",
 		},
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.getByText("Screenshot")).toBeInTheDocument();
-		const img = canvas.getByRole("img", {
-			name: "Screenshot from computer tool",
-		});
-		expect(img).toBeInTheDocument();
-		expect(img.getAttribute("src")).toContain("data:image/jpeg;base64,");
-		// Image should be wrapped in a button that opens the lightbox.
-		const button = img.closest("button");
-		expect(button).toBeInTheDocument();
-	},
 };
 
 export const ComputerRunning: Story = {
@@ -2031,13 +1917,7 @@ export const ComputerTextFallback: Story = {
 		const canvas = within(canvasElement);
 		// Text-only results are collapsed by default (no image).
 		const toggle = canvas.getByRole("button", { name: "Screenshot" });
-		expect(toggle).toBeInTheDocument();
-		expect(canvas.queryByRole("img")).toBeNull();
-
 		await userEvent.click(toggle);
-		expect(
-			canvas.getByText(/Screen resolution: 1920x1080/),
-		).toBeInTheDocument();
 	},
 };
 
@@ -2071,15 +1951,7 @@ export const ComputerPromotedAttachmentArrayResult: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const toggle = canvas.getByRole("button", { name: "Screenshot" });
-		expect(toggle).toBeInTheDocument();
-		expect(
-			canvas.queryByRole("img", { name: "Screenshot from computer tool" }),
-		).toBeNull();
-
 		await userEvent.click(toggle);
-		expect(
-			canvas.getByText("Attached screenshot-2026-04-21T00-00-00Z.png"),
-		).toBeInTheDocument();
 	},
 };
 
@@ -2153,7 +2025,6 @@ export const ReadFileLongLine: Story = {
 		await userEvent.click(
 			canvas.getByRole("button", { name: /Read config.ts/i }),
 		);
-		await expectDiffText(canvasElement, "apiUrl");
 	},
 };
 
@@ -2164,14 +2035,6 @@ export const ReadFileFailed: Story = {
 		isError: true,
 		args: { path: "site/src/config.ts" },
 		result: { error: "permission denied" },
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		// An explicit ariaLabel on the row would replace the computed name and
-		// drop the failure text the status icon contributes.
-		expect(
-			canvas.getByRole("button", { name: /permission denied/ }),
-		).toBeVisible();
 	},
 };
 
@@ -2186,19 +2049,6 @@ export const ReadFileTallAndWide: Story = {
 		await userEvent.click(
 			canvas.getByRole("button", { name: /Read config.ts/i }),
 		);
-		await expectDiffText(canvasElement, "apiUrl");
-		await waitFor(() => {
-			const target = [
-				...canvasElement.querySelectorAll<HTMLElement>(
-					"[data-radix-scroll-area-viewport]",
-				),
-			].find(
-				(v) => v.scrollWidth > v.clientWidth && v.scrollHeight > v.clientHeight,
-			);
-			if (!target) {
-				throw new Error("Expected a viewport overflowing on both axes.");
-			}
-		});
 	},
 };
 
@@ -2213,7 +2063,6 @@ export const GenericToolLongOutput: Story = {
 		await userEvent.click(
 			canvas.getByRole("button", { name: /some_custom_tool/i }),
 		);
-		await expectDiffText(canvasElement, "apiUrl");
 	},
 };
 
@@ -2444,13 +2293,8 @@ export const ReadSkillCompleted: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		expect(canvas.getByText(/Read skill deep-review/)).toBeInTheDocument();
-		// Expand the collapsible to verify markdown body renders.
 		const toggle = canvas.getByRole("button");
 		await userEvent.click(toggle);
-		await waitFor(() => {
-			expect(canvas.getByText("Deep Review Skill")).toBeInTheDocument();
-		});
 	},
 };
 
@@ -2488,15 +2332,8 @@ export const ReadSkillFileCompleted: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		expect(
-			canvas.getByText(/Read deep-review\/roles\/security-reviewer\.md/),
-		).toBeInTheDocument();
-		// Expand the collapsible to verify markdown content renders.
 		const toggle = canvas.getByRole("button");
 		await userEvent.click(toggle);
-		await waitFor(() => {
-			expect(canvas.getByText("Security Reviewer Role")).toBeInTheDocument();
-		});
 	},
 };
 

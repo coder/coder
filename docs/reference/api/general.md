@@ -62,6 +62,7 @@ curl -X GET http://coder-server:8080/api/v2/buildinfo \
   "dashboard_url": "string",
   "deployment_id": "string",
   "external_url": "string",
+  "oauth2_provider": true,
   "provisioner_api_version": "string",
   "telemetry": true,
   "upgrade_message": "string",
@@ -301,7 +302,6 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
       "scheme": "string",
       "user": {}
     },
-    "enable_ai_tasks": true,
     "enable_authz_recording": true,
     "enable_terraform_debug_mode": true,
     "ephemeral_deployment": true,
@@ -431,6 +431,9 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
         "default_provider_enable": true,
         "device_flow": true,
         "enterprise_base_url": "string"
+      },
+      "provider": {
+        "enable": true
       }
     },
     "oidc": {
@@ -534,6 +537,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
         "string"
       ],
       "daemons": 0,
+      "disable_module_cache": true,
       "force_cancel_interval": 0
     },
     "proxy_health_status_interval": 0,

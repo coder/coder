@@ -42,6 +42,18 @@ var aiModelPriceSources = []string{
 func (api *API) listAIModelPrices(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
+	provider := r.URL.Query().Get("provider")
+	if provider != "" && !slices.Contains(providers.Supported, database.AIProviderType(provider)) {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid AI model price provider.",
+			Validations: []codersdk.ValidationError{{
+				Field:  "provider",
+				Detail: fmt.Sprintf("Provider %q is not supported. Supported providers: %s.", provider, strings.Join(providers.SupportedStrings(), ", ")),
+			}},
+		})
+		return
+	}
+
 	// An absent source leaves the listing unfiltered.
 	source := r.URL.Query().Get("source")
 	if source != "" && !slices.Contains(aiModelPriceSources, source) {
@@ -56,7 +68,7 @@ func (api *API) listAIModelPrices(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	dbPrices, err := api.Database.GetAIModelPrices(ctx, database.GetAIModelPricesParams{
-		Provider: r.URL.Query().Get("provider"),
+		Provider: provider,
 		Model:    r.URL.Query().Get("model"),
 		Source:   source,
 	})

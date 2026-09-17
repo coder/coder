@@ -11,13 +11,16 @@ import (
 
 	"charm.land/fantasy"
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
@@ -99,6 +102,64 @@ func TestStopWorkspace(t *testing.T) {
 		require.NoError(t, err)
 		require.Contains(t, resp.Content, "workspace was deleted")
 		require.Contains(t, resp.Content, "create_workspace")
+	})
+
+	// Dormancy auto-delete leaves dormant_at set, which switches the row's
+	// RBAC object to workspace_dormant. The chatd actor must still read it
+	// so the deleted-workspace guidance is reached instead of a permission
+	// failure.
+	t.Run("DormantDeletedWorkspace", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		db, _ := dbtestutil.NewDB(t)
+
+		user := dbgen.User(t, db, database.User{})
+		modelCfg := seedModelConfig(t, db)
+		org := dbgen.Organization(t, db, database.Organization{})
+		_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{
+			UserID:         user.ID,
+			OrganizationID: org.ID,
+		})
+		wsResp := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OwnerID:        user.ID,
+			OrganizationID: org.ID,
+			Deleted:        true,
+			DormantAt:      sql.NullTime{Time: time.Now(), Valid: true},
+		}).Seed(database.WorkspaceBuild{
+			Transition: database.WorkspaceTransitionDelete,
+		}).Do()
+		ws := wsResp.Workspace
+
+		chat := dbgen.Chat(t, db, database.Chat{
+			OrganizationID:    org.ID,
+			OwnerID:           user.ID,
+			WorkspaceID:       uuid.NullUUID{UUID: ws.ID, Valid: true},
+			LastModelConfigID: modelCfg.ID,
+			Title:             "test-stop-dormant-deleted-workspace",
+		})
+
+		authzDB := dbauthz.New(
+			db,
+			rbac.NewStrictCachingAuthorizer(prometheus.NewRegistry()),
+			slogtest.Make(t, nil),
+			testAccessControlStorePointer(),
+		)
+		tool := chattool.StopWorkspace(authzDB, chat.ID, chattool.StopWorkspaceOptions{
+			StopFn: func(_ context.Context, _ uuid.UUID, _ uuid.UUID, _ codersdk.CreateWorkspaceBuildRequest) (codersdk.WorkspaceBuild, error) {
+				t.Fatal("StopFn should not be called for deleted workspace")
+				return codersdk.WorkspaceBuild{}, nil
+			},
+			WorkspaceMu: &sync.Mutex{},
+		})
+
+		resp, err := tool.Run(
+			dbauthz.AsChatd(ctx),
+			fantasy.ToolCall{ID: "call-1", Name: "stop_workspace", Input: "{}"},
+		)
+		require.NoError(t, err)
+		require.Contains(t, resp.Content, "workspace was deleted")
+		require.Contains(t, resp.Content, "create_workspace")
+		require.NotContains(t, resp.Content, "forbidden")
 	})
 
 	t.Run("AlreadyStopped", func(t *testing.T) {

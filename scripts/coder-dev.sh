@@ -9,7 +9,7 @@ SCRIPT_DIR=$(dirname "${BASH_SOURCE[0]}")
 source "${SCRIPT_DIR}/lib.sh"
 
 # Ensure that extant environment variables do not override
-# the config dir we use to override auth for dev.coder.com.
+# the config dir we use to override auth for dogfood.cdr.dev.
 unset CODER_SESSION_TOKEN
 unset CODER_URL
 

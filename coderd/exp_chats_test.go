@@ -12651,14 +12651,29 @@ This arrived as octet-stream.
 		requireSDKError(t, err, http.StatusBadRequest)
 	})
 
-	t.Run("SVGBlocked", func(t *testing.T) {
+	t.Run("Success/SVG", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
 		firstUser := coderdtest.CreateFirstUser(t, client.Client)
 
-		_, err := client.UploadChatFile(ctx, firstUser.OrganizationID, "image/svg+xml", "test.svg", bytes.NewReader([]byte("<svg></svg>")))
-		requireSDKError(t, err, http.StatusBadRequest)
+		_, err := client.UploadChatFile(ctx, firstUser.OrganizationID, "image/svg+xml", "test.svg", bytes.NewReader([]byte(`<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>`)))
+		require.NoError(t, err)
+	})
+
+	t.Run("Success/SVGPastedAsText", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+
+		// Large pastes arrive as text/plain; SVG bytes are stored as image/svg+xml.
+		uploaded, err := client.UploadChatFile(ctx, firstUser.OrganizationID, "text/plain", "pasted-text-2026-01-01-00-00-00.txt", bytes.NewReader([]byte(`<?xml version="1.0"?><svg xmlns="http://www.w3.org/2000/svg"><rect/></svg>`)))
+		require.NoError(t, err)
+
+		_, contentType, err := client.GetChatFile(ctx, uploaded.ID)
+		require.NoError(t, err)
+		require.Equal(t, "image/svg+xml", contentType)
 	})
 
 	t.Run("ContentSniffingRejectsPNGAsText", func(t *testing.T) {
@@ -12864,6 +12879,29 @@ func TestGetChatFile(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, "attachment", disposition)
 		require.Equal(t, "report.pdf", params["filename"])
+	})
+
+	t.Run("SVGServedAsAttachment", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+
+		uploaded, err := client.UploadChatFile(ctx, firstUser.OrganizationID, "image/svg+xml", "icon.svg", bytes.NewReader([]byte(`<svg xmlns="http://www.w3.org/2000/svg"/>`)))
+		require.NoError(t, err)
+
+		res, err := client.Request(ctx, http.MethodGet,
+			fmt.Sprintf("/api/experimental/chats/files/%s", uploaded.ID), nil)
+		require.NoError(t, err)
+		defer res.Body.Close()
+		require.Equal(t, http.StatusOK, res.StatusCode)
+		require.Equal(t, "image/svg+xml", res.Header.Get("Content-Type"))
+		require.Equal(t, "nosniff", res.Header.Get("X-Content-Type-Options"))
+
+		disposition, params, err := mime.ParseMediaType(res.Header.Get("Content-Disposition"))
+		require.NoError(t, err)
+		require.Equal(t, "attachment", disposition)
+		require.Equal(t, "icon.svg", params["filename"])
 	})
 
 	t.Run("AgentArtifactZipServedAsAttachment", func(t *testing.T) {

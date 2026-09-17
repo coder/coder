@@ -33,6 +33,7 @@ const (
 	ToolNameGetWorkspace                = "coder_get_workspace"
 	ToolNameCreateWorkspace             = "coder_create_workspace"
 	ToolNameListWorkspaces              = "coder_list_workspaces"
+	ToolNameListOrganizations           = "coder_list_organizations"
 	ToolNameListTemplates               = "coder_list_templates"
 	ToolNameListTemplateVersionParams   = "coder_template_version_parameters"
 	ToolNameGetTemplate                 = "coder_get_template"
@@ -401,6 +402,7 @@ var All = []GenericTool{
 	CreateWorkspace.Generic(),
 	CreateWorkspaceBuild.Generic(),
 	DeleteTemplate.Generic(),
+	ListOrganizations.Generic(),
 	ListTemplates.Generic(),
 	ListTemplateVersionParameters.Generic(),
 	GetTemplate.Generic(),
@@ -700,6 +702,7 @@ var ListWorkspaces = Tool[ListWorkspacesArgs, []MinimalWorkspace]{
 		minimalWorkspaces := make([]MinimalWorkspace, len(workspaces.Workspaces))
 		for i, workspace := range workspaces.Workspaces {
 			minimalWorkspaces[i] = MinimalWorkspace{
+				OrganizationID:          workspace.OrganizationID.String(),
 				ID:                      workspace.ID.String(),
 				Name:                    workspace.Name,
 				TemplateID:              workspace.TemplateID.String(),
@@ -716,6 +719,7 @@ var ListWorkspaces = Tool[ListWorkspacesArgs, []MinimalWorkspace]{
 
 func minimalTemplate(template codersdk.Template) MinimalTemplate {
 	return MinimalTemplate{
+		OrganizationID:  template.OrganizationID.String(),
 		DisplayName:     template.DisplayName,
 		ID:              template.ID.String(),
 		Name:            template.Name,
@@ -991,8 +995,9 @@ connect to the workspace.
 }
 
 type CreateTemplateVersionArgs struct {
-	FileID     string `json:"file_id"`
-	TemplateID string `json:"template_id"`
+	OrganizationID string `json:"organization_id"`
+	FileID         string `json:"file_id"`
+	TemplateID     string `json:"template_id"`
 }
 
 var CreateTemplateVersion = Tool[CreateTemplateVersionArgs, codersdk.TemplateVersion]{
@@ -1450,6 +1455,10 @@ The file_id provided is a reference to a tar file you have uploaded containing t
 `,
 		Schema: aisdk.Schema{
 			Properties: map[string]any{
+				"organization_id": map[string]any{
+					"type":        "string",
+					"description": "Organization UUID.",
+				},
 				"template_id": map[string]any{
 					"type": "string",
 				},
@@ -1462,7 +1471,7 @@ The file_id provided is a reference to a tar file you have uploaded containing t
 	},
 	MCPAnnotations: mcpMutationAnnotations,
 	Handler: func(ctx context.Context, deps Deps, args CreateTemplateVersionArgs) (codersdk.TemplateVersion, error) {
-		me, err := deps.coderClient.User(ctx, "me")
+		organizationID, err := resolveOrganization(ctx, deps, args.OrganizationID)
 		if err != nil {
 			return codersdk.TemplateVersion{}, err
 		}
@@ -1478,7 +1487,7 @@ The file_id provided is a reference to a tar file you have uploaded containing t
 			}
 			templateID = tid
 		}
-		templateVersion, err := deps.coderClient.CreateTemplateVersion(ctx, me.OrganizationIDs[0], codersdk.CreateTemplateVersionRequest{
+		templateVersion, err := deps.coderClient.CreateTemplateVersion(ctx, organizationID, codersdk.CreateTemplateVersionRequest{
 			Message:       "Created by AI",
 			StorageMethod: codersdk.ProvisionerStorageMethodFile,
 			FileID:        fileID,
@@ -1709,11 +1718,12 @@ var UploadTarFile = Tool[UploadTarFileArgs, codersdk.UploadResponse]{
 }
 
 type CreateTemplateArgs struct {
-	Description string `json:"description"`
-	DisplayName string `json:"display_name"`
-	Icon        string `json:"icon"`
-	Name        string `json:"name"`
-	VersionID   string `json:"version_id"`
+	OrganizationID string `json:"organization_id"`
+	Description    string `json:"description"`
+	DisplayName    string `json:"display_name"`
+	Icon           string `json:"icon"`
+	Name           string `json:"name"`
+	VersionID      string `json:"version_id"`
 }
 
 var CreateTemplate = Tool[CreateTemplateArgs, codersdk.Template]{
@@ -1722,6 +1732,10 @@ var CreateTemplate = Tool[CreateTemplateArgs, codersdk.Template]{
 		Description: "Create a new template in Coder. First, you must create a template version.",
 		Schema: aisdk.Schema{
 			Properties: map[string]any{
+				"organization_id": map[string]any{
+					"type":        "string",
+					"description": "Organization UUID.",
+				},
 				"name": map[string]any{
 					"type": "string",
 				},
@@ -1745,7 +1759,7 @@ var CreateTemplate = Tool[CreateTemplateArgs, codersdk.Template]{
 	},
 	MCPAnnotations: mcpMutationAnnotations,
 	Handler: func(ctx context.Context, deps Deps, args CreateTemplateArgs) (codersdk.Template, error) {
-		me, err := deps.coderClient.User(ctx, "me")
+		organizationID, err := resolveOrganization(ctx, deps, args.OrganizationID)
 		if err != nil {
 			return codersdk.Template{}, err
 		}
@@ -1753,7 +1767,7 @@ var CreateTemplate = Tool[CreateTemplateArgs, codersdk.Template]{
 		if err != nil {
 			return codersdk.Template{}, xerrors.Errorf("version_id must be a valid UUID: %w", err)
 		}
-		template, err := deps.coderClient.CreateTemplate(ctx, me.OrganizationIDs[0], codersdk.CreateTemplateRequest{
+		template, err := deps.coderClient.CreateTemplate(ctx, organizationID, codersdk.CreateTemplateRequest{
 			Name:        args.Name,
 			DisplayName: args.DisplayName,
 			Description: args.Description,
@@ -1800,6 +1814,7 @@ var DeleteTemplate = Tool[DeleteTemplateArgs, codersdk.Response]{
 }
 
 type MinimalWorkspace struct {
+	OrganizationID          string    `json:"organization_id"`
 	ID                      string    `json:"id"`
 	Name                    string    `json:"name"`
 	TemplateID              string    `json:"template_id"`
@@ -1811,6 +1826,7 @@ type MinimalWorkspace struct {
 }
 
 type MinimalTemplate struct {
+	OrganizationID  string    `json:"organization_id"`
 	DisplayName     string    `json:"display_name"`
 	ID              string    `json:"id"`
 	Name            string    `json:"name"`
