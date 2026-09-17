@@ -2,7 +2,7 @@ import { LayoutDashboardIcon } from "lucide-react";
 import type { FC } from "react";
 import { useLocation } from "react-router";
 import { SettingsNavItem } from "../../components/ChatsSidebar/settings/SettingsNavItem";
-import { CHAT_BOARD_PATH, useChatBoardEnabled } from "./useChatBoardEnabled";
+import { CHAT_BOARD_PATH, useChatBoardEnabled } from "./chatBoardFlag";
 
 interface ChatBoardNavItemProps {
 	/** Normalized query string the sidebar appends to its own links. */
@@ -13,7 +13,7 @@ interface ChatBoardNavItemProps {
 export const ChatBoardNavItem: FC<ChatBoardNavItemProps> = ({
 	locationSearch,
 }) => {
-	const [enabled] = useChatBoardEnabled();
+	const enabled = useChatBoardEnabled();
 	const location = useLocation();
 	if (!enabled) {
 		return null;

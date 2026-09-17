@@ -6,9 +6,8 @@ import {
 	PencilIcon,
 	Trash2Icon,
 } from "lucide-react";
-import { type FC, useRef, useState } from "react";
+import { type FC, useState } from "react";
 import { Button } from "#/components/Button/Button";
-import { Markdown } from "#/components/Markdown/Markdown";
 import {
 	Popover,
 	PopoverContent,
@@ -18,12 +17,8 @@ import { shortRelativeTime } from "#/utils/time";
 import type { DragData, DropData } from "./BoardCard";
 import type { NoteSlot } from "./boardApi";
 import type { BoardCard, BoardNote } from "./boardLabels";
+import { CompactMarkdown } from "./CompactMarkdown";
 import { dragHandleListeners } from "./dragHandle";
-
-const noteDragId = (card: BoardCard, note: BoardNote) =>
-	`note:${card.id}:${note.index}`;
-const noteDropId = (card: BoardCard, note: BoardNote) =>
-	`drop-note:${card.id}:${note.index}`;
 
 interface NotesSectionProps {
 	readonly card: BoardCard;
@@ -64,10 +59,7 @@ export const NotesSection: FC<NotesSectionProps> = ({
 					onRemove={() => onRemove(note.index)}
 				/>
 			))}
-			{/* Remounts when the note count changes, which clears the draft
-			    once the added note appears in the list. */}
 			<NoteEditor
-				key={notes.length}
 				initial=""
 				placeholder="Add a note..."
 				ariaLabel={`Add a note to ${card.title}`}
@@ -76,15 +68,6 @@ export const NotesSection: FC<NotesSectionProps> = ({
 		</div>
 	);
 };
-
-/** Tightens Markdown block spacing for small text inside a card or popover. */
-export const COMPACT_MARKDOWN_CLASS =
-	"wrap-anywhere [&_p]:mt-0 [&_p]:mb-0 [&_p+p]:mt-1 [&_ul]:my-1 [&_ol]:my-1 [&_ul]:gap-0.5 [&_ol]:gap-0.5 [&_ul]:list-disc [&_ol]:list-decimal [&_ul]:pl-4 [&_ol]:pl-4 [&_li>ul]:mt-0.5 [&_li>ol]:mt-0.5 [&_code]:text-[length:inherit] [&_pre]:my-1 [&_pre]:overflow-x-auto [&_pre]:text-[11px]";
-
-const NOTE_MARKDOWN_CLASS = cn(
-	"text-xs leading-[17px] text-content-primary/80",
-	COMPACT_MARKDOWN_CLASS,
-);
 
 interface NoteProps {
 	readonly card: BoardCard;
@@ -104,9 +87,9 @@ const Note: FC<NoteProps> = ({ card, note, dropSide, onEdit, onRemove }) => {
 		listeners,
 		attributes,
 		isDragging,
-	} = useDraggable({ id: noteDragId(card, note), data: dragData });
+	} = useDraggable({ id: `note:${card.id}:${note.index}`, data: dragData });
 	const { setNodeRef: setDropRef } = useDroppable({
-		id: noteDropId(card, note),
+		id: `drop-note:${card.id}:${note.index}`,
 		data: dropData,
 	});
 	const setRefs = (node: HTMLElement | null) => {
@@ -142,9 +125,9 @@ const Note: FC<NoteProps> = ({ card, note, dropSide, onEdit, onRemove }) => {
 					"shadow-[inset_0_-2px_0_0_var(--color-content-link)]",
 			)}
 		>
-			<Markdown className={cn("min-w-0 flex-1", NOTE_MARKDOWN_CLASS)}>
+			<CompactMarkdown className="min-w-0 flex-1 text-xs leading-[17px] text-content-primary/80">
 				{note.text}
-			</Markdown>
+			</CompactMarkdown>
 			<span className="relative h-[17px] w-12 shrink-0">
 				<span className="absolute inset-0 flex items-center justify-end text-[11px] tabular-nums text-content-secondary/70 group-hover/note:hidden group-has-[[data-state=open]]/note:hidden">
 					{note.timestamp ? shortRelativeTime(note.timestamp) : ""}
@@ -177,9 +160,11 @@ const Note: FC<NoteProps> = ({ card, note, dropSide, onEdit, onRemove }) => {
 	);
 };
 
-const DeleteNoteButton: FC<{ readonly onConfirm: () => void }> = ({
-	onConfirm,
-}) => {
+interface DeleteNoteButtonProps {
+	readonly onConfirm: () => void;
+}
+
+const DeleteNoteButton: FC<DeleteNoteButtonProps> = ({ onConfirm }) => {
 	const [open, setOpen] = useState(false);
 	return (
 		<Popover open={open} onOpenChange={setOpen}>
@@ -233,23 +218,20 @@ const NoteEditor: FC<NoteEditorProps> = ({
 	onCancel,
 }) => {
 	const [draft, setDraft] = useState(initial);
-	// Escape may unmount the field, which can fire a trailing blur; ignore it.
-	const cancelled = useRef(false);
+	const composer = onCancel === undefined;
+	// Enter, blur and the Save button commit; Escape cancels an existing
+	// note's editor and empties the composer. The parent unmounts the editor
+	// on cancel or submit, and React fires no blur for an unmounted field,
+	// so nothing commits twice. The composer stays mounted and clears itself.
 	const commit = () => {
-		if (cancelled.current) return;
 		const text = draft.trim();
-		if (text) onSubmit(text);
-		else onCancel?.();
-	};
-	const cancel = () => {
-		if (onCancel) {
-			cancelled.current = true;
-			onCancel();
+		if (text) {
+			onSubmit(text);
+			if (composer) setDraft("");
 		} else {
-			setDraft("");
+			onCancel?.();
 		}
 	};
-	const composer = onCancel === undefined;
 	return (
 		<div className="-mx-1 flex items-start gap-1.5">
 			<textarea
@@ -272,7 +254,10 @@ const NoteEditor: FC<NoteEditorProps> = ({
 						e.preventDefault();
 						commit();
 					}
-					if (e.key === "Escape") cancel();
+					if (e.key === "Escape") {
+						if (onCancel) onCancel();
+						else setDraft("");
+					}
 				}}
 			/>
 			<button

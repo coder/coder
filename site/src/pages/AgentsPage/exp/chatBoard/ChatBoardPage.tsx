@@ -1,6 +1,4 @@
 import {
-	type Collision,
-	type CollisionDetection,
 	DndContext,
 	type DragEndEvent,
 	type DragMoveEvent,
@@ -8,34 +6,64 @@ import {
 	type DragStartEvent,
 	KeyboardSensor,
 	PointerSensor,
-	pointerWithin,
 	useSensor,
 	useSensors,
 } from "@dnd-kit/core";
-import { ChevronLeftIcon, PlusIcon, SearchIcon } from "lucide-react";
-import { type FC, useEffect, useRef, useState } from "react";
-import { useInfiniteQuery, useQuery } from "react-query";
-import { useNavigate, useParams } from "react-router";
-import { chatSearch, infiniteChats } from "#/api/queries/chats";
+import { cn } from "cn";
+import { type FC, useEffect, useState } from "react";
+import {
+	useInfiniteQuery,
+	useMutation,
+	useQuery,
+	useQueryClient,
+} from "react-query";
+import { useNavigate } from "react-router";
+import { toast } from "sonner";
+import { getErrorMessage } from "#/api/errors";
+import { chatSearch, createChat, updateChatTitle } from "#/api/queries/chats";
 import type { Chat } from "#/api/typesGenerated";
-import { Button } from "#/components/Button/Button";
 import { useDebouncedValue } from "#/hooks/debounce";
 import { pageTitle } from "#/utils/page";
 import { buildChatSearchQuery } from "../../components/ChatsSidebar/dialogs/searchQuery";
-import { type DragData, DragGhost, type DropData } from "./BoardCard";
-import { BoardColumn, NewColumn } from "./BoardColumn";
-import type { NoteSlot } from "./boardApi";
+import type { DragData } from "./BoardCard";
+import { BoardColumns } from "./BoardColumns";
+import { BoardHeader } from "./BoardHeader";
+import { BoardWindows } from "./BoardWindows";
+import type { Plan } from "./boardApi";
+import { boardChats, updateChatLabels } from "./boardChats";
+import {
+	boardCollision,
+	type DropTarget,
+	dragDataOf,
+	dropCommand,
+	targetOf,
+} from "./boardDrag";
 import {
 	type BoardCard as BoardCardModel,
 	buildCards,
 	buildColumns,
-	type CardColor,
+	cardColorByChat,
 } from "./boardLabels";
-import { type ChatWindow, useBoardStorage } from "./boardStorage";
-import { FloatingChat, windowBeside, windowCentered } from "./ChatWindows";
-import { useBlockSelectionWhileDragging } from "./dragHandle";
-import { useBoardApi } from "./useBoardApi";
-import { findAssistant, useCardAssistant } from "./useCardAssistant";
+import {
+	type BoardStorage,
+	type ChatWindow,
+	readBoardStorage,
+	saveBoardStorage,
+} from "./boardStorage";
+import { assistantIds, openCardAssistant } from "./cardAssistant";
+import { DragGhost } from "./DragGhost";
+import { runPlan } from "./runPlan";
+import {
+	changeWindow,
+	closeWindow,
+	dismissTop,
+	dropPreview,
+	previewOf,
+	raise,
+	toFront,
+	windowBeside,
+	windowCentered,
+} from "./windows";
 
 // Hover must be deliberate before a full chat mounts; leaving gives the
 // pointer time to cross into the window.
@@ -48,204 +76,124 @@ const SEARCH_DEBOUNCE_MS = 300;
 // card header does not.
 const DRAG_ACTIVATION_PX = 4;
 
-// Over a card, the top and bottom quarters insert before/after it; the
-// middle half merges.
-const EDGE_ZONE = 0.25;
-
-/** Where a drop would land, resolved from the pointer position. */
-export type DropTarget =
-	| { kind: "merge"; card: BoardCardModel }
-	| { kind: "insert"; column: string; beforeCardId: string | null }
-	| { kind: "column"; name: string; side: "before" | "after" }
-	| { kind: "note"; card: BoardCardModel; slot: NoteSlot }
-	| { kind: "noteCard"; card: BoardCardModel };
-
-const dropDataOf = (hit: Collision): DropData | undefined =>
-	hit.data?.droppableContainer?.data.current as DropData | undefined;
-
-// Resolves the pointer to one target. A column drag lands before or after
-// the column under the pointer. Over a card, see EDGE_ZONE (chats always
-// join). Over column background, insert before the first card whose middle
-// is below the pointer. The target rides along as collision data.
-const boardCollision: CollisionDetection = (args) => {
-	const pointer = args.pointerCoordinates;
-	if (!pointer) return [];
-	const hits = pointerWithin(args);
-	const drag = args.active.data.current as DragData | undefined;
-	if (drag?.type === "note") return noteCollision(args, hits, drag);
-	const columnHit = hits.find((hit) => dropDataOf(hit)?.type === "column");
-	if (!columnHit) return [];
-	const columnData = dropDataOf(columnHit);
-	if (columnData?.type !== "column") return [];
-
-	if (drag?.type === "column") {
-		const rect = args.droppableRects.get(columnHit.id);
-		if (!rect || columnData.name === drag.name) return [];
-		const target: DropTarget = {
-			kind: "column",
-			name: columnData.name,
-			side: pointer.x < rect.left + rect.width / 2 ? "before" : "after",
-		};
-		return [{ id: columnHit.id, data: { ...columnHit.data, target } }];
-	}
-
-	const cardHit = hits.find((hit) => {
-		const data = dropDataOf(hit);
-		return data?.type === "card" && data.card.id !== drag?.card.id;
-	});
-	let target: DropTarget;
-	if (cardHit) {
-		const cardData = dropDataOf(cardHit);
-		const rect = args.droppableRects.get(cardHit.id);
-		if (cardData?.type !== "card" || !rect) return [];
-		const y = (pointer.y - rect.top) / rect.height;
-		const card = cardData.card;
-		if (drag?.type === "chat" || (y > EDGE_ZONE && y < 1 - EDGE_ZONE)) {
-			target = { kind: "merge", card };
-		} else if (y <= EDGE_ZONE) {
-			target = { kind: "insert", column: card.column, beforeCardId: card.id };
-		} else {
-			target = {
-				kind: "insert",
-				column: card.column,
-				beforeCardId: nextCardIdInColumn(args, card),
-			};
-		}
-	} else {
-		const columnRect = args.droppableRects.get(columnHit.id);
-		const below = columnRect
-			? cardsInColumn(args, columnData.name).find(
-					({ rect }) => rect.top + rect.height / 2 > pointer.y,
-				)
-			: undefined;
-		target = {
-			kind: "insert",
-			column: columnData.name,
-			beforeCardId: below?.card.id ?? null,
-		};
-	}
-	const hit = cardHit ?? columnHit;
-	return [{ id: hit.id, data: { ...hit.data, target } }];
-};
-
-// A note lands before or after the note under the pointer, or at the end
-// of another card's notes when over the card itself. Its own card, away
-// from its notes, is not a target.
-const noteCollision = (
-	args: Parameters<CollisionDetection>[0],
-	hits: readonly Collision[],
-	drag: Extract<DragData, { type: "note" }>,
-): Collision[] => {
-	const pointer = args.pointerCoordinates;
-	if (!pointer) return [];
-	const noteHit = hits.find((hit) => {
-		const data = dropDataOf(hit);
-		return (
-			data?.type === "note" &&
-			!(data.card.id === drag.card.id && data.note.index === drag.note.index)
-		);
-	});
-	if (noteHit) {
-		const data = dropDataOf(noteHit);
-		const rect = args.droppableRects.get(noteHit.id);
-		if (data?.type !== "note" || !rect) return [];
-		const target: DropTarget = {
-			kind: "note",
-			card: data.card,
-			slot: {
-				index: data.note.index,
-				side: pointer.y < rect.top + rect.height / 2 ? "before" : "after",
-			},
-		};
-		return [{ id: noteHit.id, data: { ...noteHit.data, target } }];
-	}
-	const cardHit = hits.find((hit) => {
-		const data = dropDataOf(hit);
-		return data?.type === "card" && data.card.id !== drag.card.id;
-	});
-	const cardData = cardHit && dropDataOf(cardHit);
-	if (!cardHit || cardData?.type !== "card") return [];
-	const target: DropTarget = { kind: "noteCard", card: cardData.card };
-	return [{ id: cardHit.id, data: { ...cardHit.data, target } }];
-};
-
-const cardsInColumn = (
-	args: Parameters<CollisionDetection>[0],
-	column: string,
-) =>
-	args.droppableContainers
-		.flatMap((container) => {
-			const data = container.data.current as DropData | undefined;
-			const rect = args.droppableRects.get(container.id);
-			return data?.type === "card" && data.card.column === column && rect
-				? [{ card: data.card, rect }]
-				: [];
-		})
-		.sort((a, b) => a.rect.top - b.rect.top);
-
-const nextCardIdInColumn = (
-	args: Parameters<CollisionDetection>[0],
-	card: BoardCardModel,
-): string | null => {
-	const ordered = cardsInColumn(args, card.column);
-	const index = ordered.findIndex((entry) => entry.card.id === card.id);
-	return ordered[index + 1]?.card.id ?? null;
-};
+/** A preview change waiting for its delay: open beside an anchor, or close. */
+type PendingPreview =
+	| { kind: "open"; chatId: string; anchor: DOMRect }
+	| { kind: "close" };
 
 const ChatBoardPage: FC = () => {
-	const { agentId } = useParams();
 	const navigate = useNavigate();
-	const [storage, updateStorage] = useBoardStorage();
+	const queryClient = useQueryClient();
+	const [storage, setStorage] = useState(readBoardStorage);
 	const [search, setSearch] = useState("");
 	const debouncedSearch = useDebouncedValue(search.trim(), SEARCH_DEBOUNCE_MS);
-	const [addingColumn, setAddingColumn] = useState(false);
 	const [activeDrag, setActiveDrag] = useState<DragData | null>(null);
 	const [dropTarget, setDropTarget] = useState<DropTarget | null>(null);
-	// An unpinned window shown while the pointer rests on a chat icon.
-	const previewTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-	// One list for pinned windows and the hover preview (pinned: false), so
-	// pinning is a flag flip on the same element and a gesture in progress
-	// survives it. Every update is functional: gesture handlers hold stale
-	// closures by the time they commit.
+	const [pendingPreview, setPendingPreview] = useState<PendingPreview | null>(
+		null,
+	);
 	const { windows } = storage;
-	const preview = windows.find((w) => !w.pinned);
 
-	const clearPreviewTimer = () => {
-		if (previewTimer.current) clearTimeout(previewTimer.current);
-		previewTimer.current = null;
-	};
+	// Column order and pinned windows survive a reload.
+	useEffect(() => saveBoardStorage(storage), [storage]);
+
+	useEffect(() => {
+		if (!pendingPreview) return;
+		const timer = setTimeout(
+			() => {
+				setPendingPreview(null);
+				setStorage((prev) => ({
+					...prev,
+					windows:
+						pendingPreview.kind === "open"
+							? [
+									...dropPreview(prev.windows),
+									windowBeside(
+										pendingPreview.chatId,
+										pendingPreview.anchor,
+										false,
+									),
+								]
+							: dropPreview(prev.windows),
+				}));
+			},
+			pendingPreview.kind === "open" ? PREVIEW_OPEN_MS : PREVIEW_CLOSE_MS,
+		);
+		return () => clearTimeout(timer);
+	}, [pendingPreview]);
+
+	const chatsQuery = useInfiniteQuery(boardChats());
+	// Free text has to travel as a search:"..." token; the backend rejects
+	// bare words. Same builder the search dialog uses.
+	const searchQuery = useQuery({
+		...chatSearch({
+			q: `${buildChatSearchQuery([], debouncedSearch) ?? ""} archived:false`,
+		}),
+		enabled: debouncedSearch.length > 0,
+	});
+	const labelsMutation = useMutation({
+		...updateChatLabels(queryClient),
+		onError: (error: unknown) =>
+			toast.error(getErrorMessage(error, "Failed to update chat labels.")),
+	});
+	const titleMutation = useMutation({
+		...updateChatTitle(queryClient),
+		onError: (error: unknown) =>
+			toast.error(getErrorMessage(error, "Failed to rename chat.")),
+	});
+	const createMutation = useMutation(createChat(queryClient));
+	const sensors = useSensors(
+		useSensor(PointerSensor, {
+			activationConstraint: { distance: DRAG_ACTIVATION_PX },
+		}),
+		useSensor(KeyboardSensor),
+	);
+
+	// Updates are functional: a preview timer, a window gesture or the
+	// assistant's request may commit after other windows changed. Defined
+	// after the last hook so the compiler can memoize what depends on them.
+	const updateStorage = (patch: Partial<BoardStorage>) =>
+		setStorage((prev) => ({ ...prev, ...patch }));
 	const setWindows = (
 		next: (prev: readonly ChatWindow[]) => readonly ChatWindow[],
-	) => updateStorage((prev) => ({ windows: next(prev.windows) }));
-	const dropPreview = (list: readonly ChatWindow[]) =>
-		list.filter((w) => w.pinned);
-	// Pinned or raised windows move to the end, which is the front.
-	const toFront = (list: readonly ChatWindow[], win: ChatWindow) => [
-		...list.filter((w) => w.chatId !== win.chatId),
-		{ ...win, pinned: true },
-	];
-	const pinWindow = (win: ChatWindow) => {
-		clearPreviewTimer();
-		setWindows((prev) => toFront(dropPreview(prev), win));
-	};
-	const interact = (chatId: string) => {
-		clearPreviewTimer();
-		setWindows((prev) => {
-			const win = prev.find((w) => w.chatId === chatId);
-			return win ? toFront(prev, win) : prev;
+	) => setStorage((prev) => ({ ...prev, windows: next(prev.windows) }));
+
+	const chats = chatsQuery.data?.pages[0] ?? [];
+	const chatsById = new Map(chats.map((chat) => [chat.id, chat]));
+	const openChatIds = new Set(windows.map((w) => w.chatId));
+	const allCards = buildCards(chats);
+	// Looked up in render: an unknown call taking `chats` inside the handler
+	// would count as a mutation and cost the handler its memoization.
+	const assistantByCard = assistantIds(chats);
+	// Commands act on the full model; the filter only decides what is drawn,
+	// so renaming a column with a filter active still relabels every card.
+	const columns = buildColumns(
+		allCards,
+		storage.columnOrder,
+		storage.emptyColumns,
+	);
+	const boardState = { cards: allCards, columns, storage };
+	const matchingIds =
+		debouncedSearch && searchQuery.data
+			? new Set(searchQuery.data.map((chat) => chat.id))
+			: undefined;
+	const visibleColumns = columns.map((column) => ({
+		...column,
+		cards: column.cards.filter(
+			(card) => !matchingIds || card.members.some((m) => matchingIds.has(m.id)),
+		),
+	}));
+	const visibleCount = visibleColumns.reduce((n, c) => n + c.cards.length, 0);
+
+	const run = (plan: Plan | null) =>
+		runPlan(plan, {
+			write: (chatId, labels) => labelsMutation.mutateAsync({ chatId, labels }),
+			rename: (chatId, title) => titleMutation.mutateAsync({ chatId, title }),
+			updateStorage,
 		});
-	};
-	const changeWindow = (next: ChatWindow) =>
-		setWindows((prev) =>
-			prev.map((w) =>
-				w.chatId === next.chatId ? { ...next, pinned: w.pinned } : w,
-			),
-		);
-	const closeWindow = (chatId: string) =>
-		setWindows((prev) => prev.filter((w) => w.chatId !== chatId));
 
 	const openChat = (chat: Chat, anchor: DOMRect) => {
-		clearPreviewTimer();
+		setPendingPreview(null);
 		setWindows((prev) =>
 			toFront(
 				dropPreview(prev),
@@ -255,239 +203,69 @@ const ChatBoardPage: FC = () => {
 		);
 	};
 	const previewChat = (chat: Chat, anchor: DOMRect) => {
-		clearPreviewTimer();
-		if (windows.some((w) => w.chatId === chat.id)) return;
-		previewTimer.current = setTimeout(
-			() =>
-				setWindows((prev) => [
-					...dropPreview(prev),
-					windowBeside(chat.id, anchor, false),
-				]),
-			PREVIEW_OPEN_MS,
-		);
+		if (openChatIds.has(chat.id)) {
+			setPendingPreview(null);
+			return;
+		}
+		setPendingPreview({ kind: "open", chatId: chat.id, anchor });
 	};
-	const endPreview = () => {
-		clearPreviewTimer();
-		previewTimer.current = setTimeout(
-			() => setWindows(dropPreview),
-			PREVIEW_CLOSE_MS,
-		);
-	};
+	const endPreview = () => setPendingPreview({ kind: "close" });
 
-	// The route param is an "open this chat" request: it becomes a window
-	// and is then cleared so the same link works again later.
-	useEffect(() => {
-		if (!agentId) return;
-		updateStorage((prev) => ({
-			windows: toFront(dropPreview(prev.windows), windowCentered(agentId)),
-		}));
-		void navigate("/agents/board", { replace: true });
-	}, [agentId, navigate, updateStorage]);
-
-	// Escape dismisses the preview, else the frontmost window; the board stays.
-	useEffect(() => {
-		if (windows.length === 0) return;
-		const onKey = (e: KeyboardEvent) => {
-			const target = e.target as HTMLElement | null;
-			const typing =
-				target?.tagName === "INPUT" ||
-				target?.tagName === "TEXTAREA" ||
-				target?.isContentEditable;
-			if (e.key !== "Escape" || typing) return;
-			setWindows((prev) =>
-				prev.some((w) => !w.pinned) ? dropPreview(prev) : prev.slice(0, -1),
-			);
-		};
-		window.addEventListener("keydown", onKey);
-		return () => window.removeEventListener("keydown", onKey);
-	}, [windows]);
-
-	// Same query the sidebar uses, so both views share one cache.
-	const chatsQuery = useInfiniteQuery(infiniteChats({}));
-	const { hasNextPage, isFetchingNextPage, fetchNextPage } = chatsQuery;
-	// The board partitions every chat into columns, so it needs the full list.
-	useEffect(() => {
-		if (hasNextPage && !isFetchingNextPage) void fetchNextPage();
-	}, [hasNextPage, isFetchingNextPage, fetchNextPage]);
-
-	// Free text has to travel as a search:"..." token; the backend rejects
-	// bare words. Same builder the search dialog uses.
-	const searchQuery = useQuery({
-		...chatSearch({
-			q: `${buildChatSearchQuery([], debouncedSearch) ?? ""} archived:false`,
-		}),
-		enabled: debouncedSearch.length > 0,
-	});
-	const sensors = useSensors(
-		useSensor(PointerSensor, {
-			activationConstraint: { distance: DRAG_ACTIVATION_PX },
-		}),
-		useSensor(KeyboardSensor),
-	);
-	useBlockSelectionWhileDragging(activeDrag !== null);
-	const matchingIds =
-		debouncedSearch && searchQuery.data
-			? new Set(searchQuery.data.map((chat) => chat.id))
-			: undefined;
-
-	const chats = chatsQuery.data?.pages.flat() ?? [];
-	const chatsById = new Map(chats.map((chat) => [chat.id, chat]));
-	const openChatIds = new Set(windows.map((w) => w.chatId));
-	const allCards = buildCards(chats);
-	const assistant = useCardAssistant(chats, allCards);
-	// A window wears its card's color, so a window and its card read as one thing.
-	const cardColorByChatId = new Map<string, CardColor>(
-		allCards.flatMap((card) => {
-			const color = card.color;
-			return color
-				? card.members.map((member) => [member.id, color] as const)
-				: [];
-		}),
-	);
-	// Commands act on the full model; the filter only decides what is drawn,
-	// so renaming a column with a filter active still relabels every card.
-	const columns = buildColumns(
-		allCards,
-		storage.columnOrder,
-		storage.emptyColumns,
-	);
-	const board = useBoardApi(
-		{ cards: allCards, columns, storage },
-		updateStorage,
-	);
-	const shown = (card: BoardCardModel) =>
-		!matchingIds || card.members.some((member) => matchingIds.has(member.id));
-	const visibleColumns = columns.map((column) => ({
-		...column,
-		cards: column.cards.filter(shown),
-	}));
-	const visibleCount = visibleColumns.reduce((n, c) => n + c.cards.length, 0);
+	const openAssistant = (card: BoardCardModel) =>
+		openCardAssistant({
+			card,
+			existingId: assistantByCard.get(card.id),
+			create: createMutation.mutateAsync,
+			rename: titleMutation.mutateAsync,
+			queryClient,
+		}).then((chatId) => {
+			if (!chatId) return;
+			setPendingPreview(null);
+			setWindows((prev) => toFront(dropPreview(prev), windowCentered(chatId)));
+		});
 
 	const handleDragStart = ({ active }: DragStartEvent) => {
-		clearPreviewTimer();
-		if (preview) setWindows(dropPreview);
-		setActiveDrag((active.data.current as DragData | undefined) ?? null);
+		setPendingPreview(null);
+		if (previewOf(windows)) setWindows(dropPreview);
+		setActiveDrag(dragDataOf(active) ?? null);
 	};
-
-	const targetOf = (collisions: readonly Collision[] | null | undefined) =>
-		(collisions?.[0]?.data as { target?: DropTarget } | undefined)?.target ??
-		null;
-
 	// onDragOver only fires when the droppable id changes, but the zone within
 	// one card (insert above, merge, insert below) changes without that.
-	const handleDragMove = ({ collisions }: DragMoveEvent) => {
+	const handleDragMove = ({ collisions }: DragMoveEvent) =>
 		setDropTarget(targetOf(collisions));
-	};
-
-	const handleDragEnd = ({ active, collisions }: DragEndEvent) => {
+	const clearDrag = () => {
 		setActiveDrag(null);
 		setDropTarget(null);
-		const drag = active.data.current as DragData | undefined;
+	};
+	const handleDragEnd = ({ active, collisions }: DragEndEvent) => {
+		clearDrag();
+		const drag = dragDataOf(active);
 		const target = targetOf(collisions);
-		if (!drag || !target) return;
-		switch (target.kind) {
-			case "column":
-				if (drag.type === "column") void board.moveColumn(drag.name, target);
-				return;
-			case "note":
-				if (drag.type === "note") {
-					void board.moveNote(
-						drag.card.id,
-						drag.note.index,
-						target.card.id,
-						target.slot,
-					);
-				}
-				return;
-			case "noteCard":
-				if (drag.type === "note") {
-					void board.moveNote(
-						drag.card.id,
-						drag.note.index,
-						target.card.id,
-						null,
-					);
-				}
-				return;
-			case "merge":
-				if (drag.type === "card") {
-					void board.mergeCards(drag.card.id, target.card.id);
-				} else if (drag.type === "chat") {
-					void board.joinCard(drag.chat.id, target.card.id);
-				}
-				return;
-			case "insert":
-				if (drag.type === "card") {
-					void board.moveCard(drag.card.id, target.column, target.beforeCardId);
-				} else if (drag.type === "chat") {
-					void board.detachChat(
-						drag.chat.id,
-						target.column,
-						target.beforeCardId,
-					);
-				}
-				return;
-		}
+		const command = drag && target && dropCommand(drag, target);
+		if (command) void run(command(boardState));
 	};
-
-	const openAssistant = async (card: BoardCardModel) => {
-		const chatId = await assistant.open(card, findAssistant(card, chats));
-		if (chatId) pinWindow(windowCentered(chatId));
-	};
-
-	const floating = (win: ChatWindow) => (
-		<FloatingChat
-			key={win.chatId}
-			window={win}
-			chat={chatsById.get(win.chatId)}
-			color={cardColorByChatId.get(win.chatId)}
-			onChange={changeWindow}
-			onClose={() => closeWindow(win.chatId)}
-			onInteract={() => interact(win.chatId)}
-			onPreviewEnter={clearPreviewTimer}
-			onPreviewLeave={endPreview}
-		/>
-	);
 
 	return (
-		<div className="flex min-h-0 flex-1 flex-col">
+		// No text may be selected while something is dragged over the board.
+		<div
+			className={cn(
+				"flex min-h-0 flex-1 flex-col",
+				activeDrag && "select-none",
+			)}
+		>
 			<title>{pageTitle("Board", "Agents")}</title>
-			<div className="flex h-12 shrink-0 items-center gap-3 border-b border-border pr-4 pl-3">
-				<Button
-					variant="subtle"
-					size="icon"
-					aria-label="Exit board"
-					className="size-7 text-content-secondary"
-					// Leaving lands on the chat in front, or the agents home.
-					onClick={() => {
-						const reading = windows.filter((w) => w.pinned).at(-1)?.chatId;
-						void navigate(reading ? `/agents/${reading}` : "/agents");
-					}}
-				>
-					<ChevronLeftIcon className="size-4" />
-				</Button>
-				<h1 className="m-0 text-sm font-medium tracking-[-0.01em] text-content-primary">
-					Board
-				</h1>
-				<span className="pl-1 text-[11px] text-content-secondary/70">
-					{chats.length} chats · {allCards.length} cards
-				</span>
-				<div className="relative ml-auto flex h-[30px] w-[260px] items-center gap-2 rounded-[7px] border border-border bg-surface-primary px-2.5 focus-within:border-content-link">
-					<SearchIcon className="size-3.5 shrink-0 text-content-secondary" />
-					<input
-						aria-label="Filter cards"
-						placeholder="Filter cards"
-						value={search}
-						onChange={(e) => setSearch(e.target.value)}
-						className="min-w-0 flex-1 border-0 bg-transparent p-0 text-[13px] text-content-primary outline-none placeholder:text-content-secondary/60"
-					/>
-					{matchingIds && (
-						<span className="text-[11px] text-content-secondary">
-							{visibleCount}
-						</span>
-					)}
-				</div>
-			</div>
+			<BoardHeader
+				chatCount={chats.length}
+				cardCount={allCards.length}
+				visibleCount={matchingIds ? visibleCount : undefined}
+				search={search}
+				onSearchChange={setSearch}
+				// Leaving lands on the chat in front, or the agents home.
+				onExit={() => {
+					const reading = windows.filter((w) => w.pinned).at(-1)?.chatId;
+					void navigate(reading ? `/agents/${reading}` : "/agents");
+				}}
+			/>
 			{chatsQuery.isError && (
 				<p className="m-0 px-3 py-2 text-sm text-content-destructive">
 					Failed to load chats.
@@ -499,66 +277,38 @@ const ChatBoardPage: FC = () => {
 				onDragStart={handleDragStart}
 				onDragMove={handleDragMove}
 				onDragEnd={handleDragEnd}
-				onDragCancel={() => {
-					setActiveDrag(null);
-					setDropTarget(null);
-				}}
+				onDragCancel={clearDrag}
 			>
-				<div className="flex min-h-0 flex-1 gap-4 overflow-x-auto bg-surface-secondary px-5 pt-4 pb-3">
-					{visibleColumns.map((column) => (
-						<BoardColumn
-							key={column.name}
-							column={column}
-							openChatIds={openChatIds}
-							dropTarget={dropTarget}
-							onRename={(to) => void board.renameColumn(column.name, to)}
-							onDelete={() => void board.deleteColumn(column.name)}
-							onSetCardTitle={(card, title) =>
-								void board.renameCard(card.id, title)
-							}
-							onSetCardColor={(card, color) =>
-								void board.setCardColor(card.id, color)
-							}
-							onRenameChat={(chat, title) =>
-								void board.renameChat(chat.id, title)
-							}
-							onAssistant={(card) => void openAssistant(card)}
-							onRemoveFromGroup={(chat) => void board.removeFromGroup(chat.id)}
-							onOpen={openChat}
-							onPreview={previewChat}
-							onPreviewEnd={endPreview}
-							onAddNote={(card, text) => void board.addNote(card.id, text)}
-							onEditNote={(card, index, text) =>
-								void board.editNote(card.id, index, text)
-							}
-							onRemoveNote={(card, index) =>
-								void board.removeNote(card.id, index)
-							}
-						/>
-					))}
-					{addingColumn ? (
-						<NewColumn
-							onCreate={(name) => void board.addColumn(name)}
-							onCancel={() => setAddingColumn(false)}
-						/>
-					) : (
-						<button
-							type="button"
-							aria-label="Add column"
-							// Sits on the column header line, matching header height.
-							className="mt-0.5 grid size-7 shrink-0 place-items-center rounded-md border border-dashed border-content-secondary/40 bg-transparent text-content-secondary hover:border-content-link hover:text-content-link"
-							onClick={() => setAddingColumn(true)}
-						>
-							<PlusIcon className="size-3.5" />
-						</button>
-					)}
-				</div>
+				<BoardColumns
+					columns={visibleColumns}
+					board={boardState}
+					run={run}
+					openChatIds={openChatIds}
+					dropTarget={dropTarget}
+					onAssistant={(card) => void openAssistant(card)}
+					onOpen={openChat}
+					onPreview={previewChat}
+					onPreviewEnd={endPreview}
+				/>
 				{/* Portaled above every column so the moving card is never clipped. */}
 				<DragOverlay dropAnimation={null}>
 					{activeDrag && <DragGhost drag={activeDrag} />}
 				</DragOverlay>
 			</DndContext>
-			{windows.map(floating)}
+			<BoardWindows
+				windows={windows}
+				chatsById={chatsById}
+				colorByChatId={cardColorByChat(allCards)}
+				onChange={(next) => setWindows((prev) => changeWindow(prev, next))}
+				onClose={(chatId) => setWindows((prev) => closeWindow(prev, chatId))}
+				onRaise={(chatId) => {
+					setPendingPreview(null);
+					setWindows((prev) => raise(prev, chatId));
+				}}
+				onPreviewEnter={() => setPendingPreview(null)}
+				onPreviewLeave={endPreview}
+				onDismissTop={() => setWindows(dismissTop)}
+			/>
 		</div>
 	);
 };

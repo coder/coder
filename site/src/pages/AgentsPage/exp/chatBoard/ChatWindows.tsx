@@ -5,62 +5,45 @@ import {
 	lazy,
 	type PointerEvent as ReactPointerEvent,
 	Suspense,
-	useRef,
+	useEffect,
+	useEffectEvent,
+	useState,
 } from "react";
 import type { Chat } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import { AgentChatPageSkeleton } from "../../components/AgentsSkeletons";
-import { CARD_COLOR_CLASS, type CardColor } from "./boardLabels";
+import type { CardColor } from "./boardLabels";
 import type { ChatWindow } from "./boardStorage";
+import { cardSwatch } from "./cardColor";
+import { clampWindow, MIN_WINDOW_SIZE } from "./windows";
 
 const AgentChatPage = lazy(() => import("../../AgentChatPage"));
 
-const DEFAULT_SIZE = { width: 520, height: 640 };
-const MIN_SIZE = { width: 320, height: 240 };
-/** Space kept between a window and the viewport edge. */
-const MARGIN = 12;
-/** Space between a window and the card element it opens beside. */
-const ANCHOR_GAP_PX = 8;
+/** A drag of the title bar or the resize corner, from where the pointer went down. */
+interface Gesture {
+	readonly kind: "move" | "resize";
+	readonly startX: number;
+	readonly startY: number;
+	readonly origin: ChatWindow;
+}
 
-// The default size, shrunk on small viewports so the margin survives.
-const fittedSize = () => ({
-	width: Math.min(DEFAULT_SIZE.width, window.innerWidth - 2 * MARGIN),
-	height: Math.min(DEFAULT_SIZE.height, window.innerHeight - 2 * MARGIN),
-});
-
-/** A window beside `anchor`, to its right when there is room, kept on screen. */
-export const windowBeside = (
-	chatId: string,
-	anchor: DOMRect,
-	pinned: boolean,
+const applyGesture = (
+	gesture: Gesture,
+	clientX: number,
+	clientY: number,
 ): ChatWindow => {
-	const { width, height } = fittedSize();
-	const fitsRight =
-		anchor.right + ANCHOR_GAP_PX + width <= window.innerWidth - MARGIN;
-	const x = fitsRight
-		? anchor.right + ANCHOR_GAP_PX
-		: anchor.left - ANCHOR_GAP_PX - width;
-	return clampWindow({ chatId, x, y: anchor.top, width, height, pinned });
+	const dx = clientX - gesture.startX;
+	const dy = clientY - gesture.startY;
+	const { origin } = gesture;
+	if (gesture.kind === "move") {
+		return clampWindow({ ...origin, x: origin.x + dx, y: origin.y + dy });
+	}
+	return clampWindow({
+		...origin,
+		width: Math.max(MIN_WINDOW_SIZE.width, origin.width + dx),
+		height: Math.max(MIN_WINDOW_SIZE.height, origin.height + dy),
+	});
 };
-
-/** A pinned window in the middle of the viewport, for chats opened without a card in view. */
-export const windowCentered = (chatId: string): ChatWindow => {
-	const { width, height } = fittedSize();
-	return {
-		chatId,
-		x: (window.innerWidth - width) / 2,
-		y: (window.innerHeight - height) / 2,
-		width,
-		height,
-		pinned: true,
-	};
-};
-
-const clampWindow = (w: ChatWindow): ChatWindow => ({
-	...w,
-	x: Math.max(MARGIN, Math.min(w.x, window.innerWidth - w.width - MARGIN)),
-	y: Math.max(MARGIN, Math.min(w.y, window.innerHeight - w.height - MARGIN)),
-});
 
 interface FloatingChatProps {
 	readonly window: ChatWindow;
@@ -78,9 +61,9 @@ interface FloatingChatProps {
 
 /**
  * One chat floating over the board. The title bar drags it, the corner
- * handle resizes it, and geometry is committed when the gesture ends so
- * the board does not re-render per pixel. Gestures write to the DOM
- * directly meanwhile, so a preview that gets pinned mid-drag keeps going.
+ * handle resizes it. Geometry is committed when the gesture ends so the
+ * board does not re-render per pixel; meanwhile only this window follows
+ * the pointer.
  */
 export const FloatingChat: FC<FloatingChatProps> = ({
 	window: win,
@@ -92,51 +75,51 @@ export const FloatingChat: FC<FloatingChatProps> = ({
 	onPreviewEnter,
 	onPreviewLeave,
 }) => {
-	const frame = useRef<HTMLDivElement>(null);
-	const colors = color ? CARD_COLOR_CLASS[color] : undefined;
+	const [gesture, setGesture] = useState<Gesture | null>(null);
+	const [live, setLive] = useState<ChatWindow | null>(null);
+	const shown = live ?? win;
 
-	// Pointer capture keeps a gesture alive when the cursor outruns the
-	// element; preventDefault stops text selection from starting under it.
-	const gesture = (
-		e: ReactPointerEvent<HTMLElement>,
-		apply: (dx: number, dy: number) => ChatWindow,
-	) => {
-		if (e.button !== 0) return;
-		const el = frame.current;
-		if (!el) return;
-		e.preventDefault();
-		const handle = e.currentTarget;
-		handle.setPointerCapture(e.pointerId);
-		const startX = e.clientX;
-		const startY = e.clientY;
-		let last = win;
-		const onMove = (ev: PointerEvent) => {
-			last = clampWindow(apply(ev.clientX - startX, ev.clientY - startY));
-			el.style.left = `${last.x}px`;
-			el.style.top = `${last.y}px`;
-			el.style.width = `${last.width}px`;
-			el.style.height = `${last.height}px`;
+	// Listeners on the window, not the handle: the pointer outruns the
+	// element mid-gesture. Moves are drawn once per frame; the release
+	// commits the latest position whether or not that frame ran. Committed
+	// through an event so the latest onChange is used even though the
+	// effect only re-runs when the gesture changes.
+	const commit = useEffectEvent((next: ChatWindow) => onChange(next));
+	useEffect(() => {
+		if (!gesture) return;
+		let last = gesture.origin;
+		let frame: number | null = null;
+		const onMove = (e: PointerEvent) => {
+			last = applyGesture(gesture, e.clientX, e.clientY);
+			if (frame !== null) return;
+			frame = requestAnimationFrame(() => {
+				frame = null;
+				setLive(last);
+			});
 		};
 		const onUp = () => {
-			handle.removeEventListener("pointermove", onMove);
-			handle.removeEventListener("pointerup", onUp);
-			if (last !== win) onChange(last);
+			setGesture(null);
+			setLive(null);
+			if (last !== gesture.origin) commit(last);
 		};
-		handle.addEventListener("pointermove", onMove);
-		handle.addEventListener("pointerup", onUp);
+		window.addEventListener("pointermove", onMove);
+		window.addEventListener("pointerup", onUp);
+		return () => {
+			if (frame !== null) cancelAnimationFrame(frame);
+			window.removeEventListener("pointermove", onMove);
+			window.removeEventListener("pointerup", onUp);
+		};
+	}, [gesture]);
+
+	// preventDefault stops text selection from starting under the handle.
+	const start = (kind: Gesture["kind"]) => (e: ReactPointerEvent) => {
+		if (e.button !== 0) return;
+		e.preventDefault();
+		setGesture({ kind, startX: e.clientX, startY: e.clientY, origin: win });
 	};
-	const startDrag = (e: ReactPointerEvent<HTMLElement>) =>
-		gesture(e, (dx, dy) => ({ ...win, x: win.x + dx, y: win.y + dy }));
-	const startResize = (e: ReactPointerEvent<HTMLElement>) =>
-		gesture(e, (dx, dy) => ({
-			...win,
-			width: Math.max(MIN_SIZE.width, win.width + dx),
-			height: Math.max(MIN_SIZE.height, win.height + dy),
-		}));
 
 	return (
 		<div
-			ref={frame}
 			role="dialog"
 			aria-label={chat?.title ?? "Chat"}
 			className={cn(
@@ -144,10 +127,10 @@ export const FloatingChat: FC<FloatingChatProps> = ({
 				!win.pinned && "border-content-link/50",
 			)}
 			style={{
-				left: win.x,
-				top: win.y,
-				width: win.width,
-				height: win.height,
+				left: shown.x,
+				top: shown.y,
+				width: shown.width,
+				height: shown.height,
 			}}
 			onPointerDownCapture={onInteract}
 			onKeyDownCapture={onInteract}
@@ -156,12 +139,12 @@ export const FloatingChat: FC<FloatingChatProps> = ({
 		>
 			<div
 				className="flex h-8 shrink-0 cursor-grab touch-none select-none items-center gap-2 border-b border-border bg-surface-secondary/60 pr-1 pl-3 text-[12.5px] font-medium text-content-primary active:cursor-grabbing"
-				onPointerDown={startDrag}
+				onPointerDown={start("move")}
 			>
 				<span
 					className={cn(
 						"size-2 shrink-0 rounded-[2px]",
-						colors ? colors.swatch : "bg-content-secondary/30",
+						color ? cardSwatch({ color }) : "bg-content-secondary/30",
 					)}
 				/>
 				<span className="min-w-0 flex-1 truncate">{chat?.title ?? "Chat"}</span>
@@ -191,7 +174,7 @@ export const FloatingChat: FC<FloatingChatProps> = ({
 				role="presentation"
 				aria-hidden="true"
 				className="absolute right-0 bottom-0 z-10 size-4 cursor-nwse-resize touch-none [background:linear-gradient(135deg,transparent_50%,var(--color-border)_50%,var(--color-border)_60%,transparent_60%,transparent_75%,var(--color-border)_75%,var(--color-border)_85%,transparent_85%)]"
-				onPointerDown={startResize}
+				onPointerDown={start("resize")}
 			/>
 		</div>
 	);

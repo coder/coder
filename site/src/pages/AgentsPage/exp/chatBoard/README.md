@@ -117,12 +117,19 @@ snapshot the previous maps of every touched chat so they can be undone.
 - `boardApi.ts` is the commands: pure functions from the full board model
   and ids to a `Plan` of label writes, title writes, storage patch and undo
   text; `null` means no-op.
-- `useBoardApi.ts` is the executor: binds the commands to the current model
-  and applies each `Plan` (optimistic cache patch, error toast, undo).
-- `ChatBoardPage.tsx`, `BoardColumn.tsx`, `BoardCard.tsx` and
+- `runPlan.ts` is the executor: applies one `Plan` through injected write,
+  rename and storage functions (error toast, undo). `boardChats.ts` holds
+  the board's all-chats query and the label mutation that patches the
+  caches before the request.
+- `boardDrag.ts` maps a dnd-kit collision to a drop target and a drop to
+  a command; `windows.ts` is pure window geometry and list edits.
+- `ChatBoardPage.tsx` owns state and mutations; `BoardHeader.tsx`,
+  `BoardColumns.tsx` and `BoardWindows.tsx` are its JSX. Columns, cards and
   `NotesSection.tsx` translate gestures into one command call each; the
   page filters the rendered columns but always hands the full model to the
-  commands.
+  commands. `BoardCard.tsx` composes `CardColorPicker.tsx`,
+  `EditableTitle.tsx`, `ChatStatusLine.tsx` and `ChatInfo.tsx`;
+  `DragGhost.tsx` is the overlay drawn for whatever is being dragged.
 
 ## Not done
 

@@ -37,7 +37,7 @@ export type BoardState = Readonly<{
 	storage: BoardStorage;
 }>;
 
-export type Write = Readonly<{ chat: Chat; labels: Record<string, string> }>;
+type Write = Readonly<{ chat: Chat; labels: Record<string, string> }>;
 
 /** The effects of one command. `undo` present means the user is offered to revert the writes. */
 export type Plan = Readonly<{
