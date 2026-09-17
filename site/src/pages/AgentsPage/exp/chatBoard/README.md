@@ -88,6 +88,10 @@ Assistant
   told to verify against the live chats before answering. It uses a shared
   workspace so it can read transcripts, send follow-ups and check pull
   requests on my behalf when I ask.
+- The board has one assistant of its own, opened from the header. It gets
+  a snapshot of every card with its primary chat id and is told how to read
+  and edit board labels; it proposes changes and acts only on a yes. When it
+  finishes a turn the board refetches the chat list.
 
 Sidebar
 
@@ -106,7 +110,7 @@ Sidebar
 | `board/pos`                 | primary   | placement key; higher sorts first          |
 | `board/comment.N.timestamp` | primary   | note N, Unix milliseconds                  |
 | `board/comment.N.M`         | primary   | note N, chunk M (256 byte label limit)     |
-| `board/assistant`           | assistant | id of the card the assistant belongs to    |
+| `board/assistant`           | assistant | id of the card, or `board`; not a card     |
 
 Writes replace the whole label map of a chat. Regrouping and note moves
 snapshot the previous maps of every touched chat so they can be undone.
@@ -134,6 +138,9 @@ snapshot the previous maps of every touched chat so they can be undone.
   commands. `BoardCard.tsx` composes `CardColorPicker.tsx`,
   `EditableTitle.tsx`, `ChatStatusLine.tsx` and `ChatInfo.tsx`;
   `DragGhost.tsx` is the overlay drawn for whatever is being dragged.
+- `assistantSpecs.ts` writes the prompts and snapshots for the card and
+  board assistants; `assistants.ts` finds or creates the chat for a spec.
+  `DraftChat.tsx` is the regular create form inside a board window.
 
 ## Not done
 

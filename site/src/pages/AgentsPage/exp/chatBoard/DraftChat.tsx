@@ -9,7 +9,7 @@ import {
 	AgentCreateForm,
 	type CreateChatOptions,
 } from "../../components/AgentCreateForm";
-import { lastModelConfigIDStorageKey } from "./cardAssistant";
+import { lastModelConfigIDStorageKey } from "./assistants";
 
 interface DraftChatProps {
 	/** Labels that place the chat on the board, sent with the create request. */
