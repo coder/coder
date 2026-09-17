@@ -31,6 +31,7 @@ import (
 	"github.com/coder/coder/v2/coderd/httpmw"
 	codermcp "github.com/coder/coder/v2/coderd/mcp"
 	"github.com/coder/coder/v2/coderd/notifications"
+	"github.com/coder/coder/v2/coderd/provisionerdserver"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
@@ -225,7 +226,7 @@ func (s *Server) RecordInterception(ctx context.Context, in *proto.RecordInterce
 
 	out, err := json.Marshal(metadata)
 	if err != nil {
-		s.logger.Warn(ctx, "failed to marshal aibridge metadata from proto to JSON", slog.F("metadata", in), slog.Error(err))
+		s.logger.Warn(ctx, "failed to marshal ai gateway metadata from proto to JSON", slog.F("metadata", in), slog.Error(err))
 	}
 
 	providerName := strings.TrimSpace(in.ProviderName)
@@ -241,7 +242,7 @@ func (s *Server) RecordInterception(ctx context.Context, in *proto.RecordInterce
 
 	workspaceID, err := interceptionAttribution(in)
 	if err != nil {
-		return nil, err
+		s.logger.Warn(ctx, "failed to parse interception attribution", slog.F("metadata", in), slog.Error(err))
 	}
 
 	if s.structuredLogging {
@@ -857,7 +858,7 @@ func workspaceAttribution(key database.APIKey) (uuid.UUID, bool, error) {
 		return uuid.Nil, false, nil
 	}
 
-	ownerID, workspaceID, ok := parseWorkspaceSessionTokenName(key.TokenName)
+	ownerID, workspaceID, ok := provisionerdserver.ParseWorkspaceSessionTokenName(key.TokenName)
 	if !ok {
 		return uuid.Nil, false, nil
 	}
@@ -865,27 +866,6 @@ func workspaceAttribution(key database.APIKey) (uuid.UUID, bool, error) {
 		return uuid.Nil, false, ErrWorkspaceAttribution
 	}
 	return workspaceID, true, nil
-}
-
-func parseWorkspaceSessionTokenName(name string) (ownerID, workspaceID uuid.UUID, ok bool) {
-	const suffix = "_session_token"
-	prefix, ok := strings.CutSuffix(name, suffix)
-	if !ok {
-		return uuid.Nil, uuid.Nil, false
-	}
-	parts := strings.Split(prefix, "_")
-	if len(parts) != 2 {
-		return uuid.Nil, uuid.Nil, false
-	}
-	parsedOwnerID, err := uuid.Parse(parts[0])
-	if err != nil {
-		return uuid.Nil, uuid.Nil, false
-	}
-	parsedWorkspaceID, err := uuid.Parse(parts[1])
-	if err != nil {
-		return uuid.Nil, uuid.Nil, false
-	}
-	return parsedOwnerID, parsedWorkspaceID, true
 }
 
 // interceptionAttribution parses the optional workspace_id from the

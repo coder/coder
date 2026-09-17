@@ -17,8 +17,8 @@ type Attribution struct {
 type attributionCtxKey struct{}
 
 // WithAttribution returns a copy of ctx carrying the trusted Attribution.
-// Attribution is set by authentication or delegated in-process code, never by
-// client-provided HTTP headers.
+// Attribution MUST ONLY set by authentication or delegated in-process code,
+// and NEVER by client-provided HTTP headers.
 func WithAttribution(ctx context.Context, attr Attribution) context.Context {
 	return context.WithValue(ctx, attributionCtxKey{}, attr)
 }
@@ -54,12 +54,10 @@ func SourceFromContext(ctx context.Context) Source {
 	return src
 }
 
-type delegatedRequest struct {
-	apiKeyID    string
-	attribution Attribution
-}
-
-type delegatedRequestCtxKey struct{}
+type (
+	deletedAPIKeyIDCtxKey      struct{}
+	delegatedAttributionCtxKey struct{}
+)
 
 // WithDelegatedAPIKeyID returns a copy of ctx carrying an API key ID on whose
 // behalf the request is being made. The in-process aibridge transport requires
@@ -70,31 +68,29 @@ type delegatedRequestCtxKey struct{}
 // has not expired, and belongs to a non-deleted, non-system user. It does not
 // verify the key secret, because the caller never has it.
 func WithDelegatedAPIKeyID(ctx context.Context, id string) context.Context {
-	return WithDelegatedRequest(ctx, id, Attribution{})
+	/*
+		return WithDelegatedRequest(ctx, id, Attribution{})
+	*/
+	return context.WithValue(ctx, deletedAPIKeyIDCtxKey{}, id)
 }
 
-// WithDelegatedRequest returns a copy of ctx carrying a delegated API key ID
-// and its trusted request attribution as one value.
-func WithDelegatedRequest(ctx context.Context, id string, attr Attribution) context.Context {
-	return context.WithValue(ctx, delegatedRequestCtxKey{}, delegatedRequest{
-		apiKeyID:    id,
-		attribution: attr,
-	})
+func WithDelegatedAttribution(ctx context.Context, attr Attribution) context.Context {
+	return context.WithValue(ctx, delegatedAttributionCtxKey{}, attr)
 }
 
 // DelegatedAPIKeyIDFromContext returns the API key ID attached by
 // [WithDelegatedAPIKeyID] and whether a non-empty value was set.
 func DelegatedAPIKeyIDFromContext(ctx context.Context) (string, bool) {
-	req, ok := ctx.Value(delegatedRequestCtxKey{}).(delegatedRequest)
-	return req.apiKeyID, ok && req.apiKeyID != ""
+	id, ok := ctx.Value(deletedAPIKeyIDCtxKey{}).(string)
+	return id, ok && id != ""
 }
 
 // DelegatedAttributionFromContext returns the trusted attribution attached to
 // the delegated request. Its boolean reports whether delegated authentication,
 // rather than attribution itself, was present.
 func DelegatedAttributionFromContext(ctx context.Context) (Attribution, bool) {
-	req, ok := ctx.Value(delegatedRequestCtxKey{}).(delegatedRequest)
-	return req.attribution, ok && req.apiKeyID != ""
+	attr, ok := ctx.Value(delegatedAttributionCtxKey{}).(Attribution)
+	return attr, ok
 }
 
 // TransportFactory returns an [http.RoundTripper] that dispatches an aibridge

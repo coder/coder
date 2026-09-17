@@ -5,6 +5,7 @@ import (
 	crand "crypto/rand"
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/url"
 	"slices"
@@ -5315,4 +5316,61 @@ func TestDownloadFile(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, moduleData, data)
 	})
+}
+
+func TestWorkspaceSessionTokenName(t *testing.T) {
+	t.Parallel()
+
+	ownerID, workspaceID := uuid.New(), uuid.New()
+
+	for _, tc := range []struct {
+		name              string
+		tokenName         string
+		expectOwnerID     string
+		expectWorkspaceID string
+		expectOK          bool
+	}{
+		{
+			name:              "valid",
+			tokenName:         provisionerdserver.WorkspaceSessionTokenName(ownerID, workspaceID),
+			expectOwnerID:     ownerID.String(),
+			expectWorkspaceID: workspaceID.String(),
+			expectOK:          true,
+		},
+		{
+			name:              "missing suffix",
+			tokenName:         fmt.Sprintf("%s_%s", ownerID, workspaceID),
+			expectOwnerID:     uuid.Nil.String(),
+			expectWorkspaceID: uuid.Nil.String(),
+			expectOK:          false,
+		},
+		{
+			name:              "only one uuid",
+			tokenName:         fmt.Sprintf("%s_session_token", ownerID),
+			expectOwnerID:     uuid.Nil.String(),
+			expectWorkspaceID: uuid.Nil.String(),
+			expectOK:          false,
+		},
+		{
+			name:              "invalid",
+			tokenName:         "invalid_invalid_session_token",
+			expectOwnerID:     uuid.Nil.String(),
+			expectWorkspaceID: uuid.Nil.String(),
+			expectOK:          false,
+		},
+		{
+			name:              "empty",
+			tokenName:         "",
+			expectOwnerID:     uuid.Nil.String(),
+			expectWorkspaceID: uuid.Nil.String(),
+			expectOK:          false,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ownerID, workspaceID, ok := provisionerdserver.ParseWorkspaceSessionTokenName(tc.tokenName)
+			require.Equal(t, tc.expectOwnerID, ownerID.String())
+			require.Equal(t, tc.expectWorkspaceID, workspaceID.String())
+			require.Equal(t, tc.expectOK, ok)
+		})
+	}
 }

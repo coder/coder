@@ -3137,6 +3137,28 @@ func WorkspaceSessionTokenName(ownerID, workspaceID uuid.UUID) string {
 	return fmt.Sprintf("%s_%s_session_token", ownerID, workspaceID)
 }
 
+func ParseWorkspaceSessionTokenName(token string) (ownerID, workspaceID uuid.UUID, ok bool) {
+	prefix, ok := strings.CutSuffix(token, "_session_token")
+	if !ok {
+		return uuid.Nil, uuid.Nil, false
+	}
+	parts := strings.Split(prefix, "_")
+	if len(parts) != 2 {
+		return uuid.Nil, uuid.Nil, false
+	}
+	if id, err := uuid.Parse(parts[0]); err == nil {
+		ownerID = id
+	} else {
+		return uuid.Nil, uuid.Nil, false
+	}
+	if id, err := uuid.Parse(parts[1]); err == nil {
+		workspaceID = id
+	} else {
+		return uuid.Nil, uuid.Nil, false
+	}
+	return ownerID, workspaceID, true
+}
+
 func (s *server) regenerateSessionToken(ctx context.Context, user database.User, workspace database.Workspace) (string, error) {
 	// NOTE(Cian): Once a workspace is claimed, there's no reason for the session token to be valid any longer.
 	// Not generating any session token at all for a system user may unintentionally break existing templates,

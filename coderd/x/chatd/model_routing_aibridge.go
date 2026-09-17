@@ -75,7 +75,7 @@ type aiGatewayRoundTripper struct {
 }
 
 func (t *aiGatewayRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
-	ctx := aibridge.WithDelegatedRequest(req.Context(), t.apiKeyID, t.attribution)
+	ctx := aibridge.WithDelegatedAttribution(aibridge.WithDelegatedAPIKeyID(req.Context(), t.apiKeyID), t.attribution)
 	cloned := req.Clone(ctx)
 	for name, value := range t.providerAuth.Headers {
 		cloned.Header.Set(name, value)

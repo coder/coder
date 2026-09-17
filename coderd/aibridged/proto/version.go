@@ -19,7 +19,7 @@ import "github.com/coder/coder/v2/apiversion"
 //     provider set when the provider configuration changes.
 //
 // API v1.3:
-//   - Adds workspace_id to RecordInterceptionRequest and  IsAuthorizedResponse.
+//   - Adds workspace_id to RecordInterceptionRequest and IsAuthorizedResponse.
 const (
 	CurrentMajor = 1
 	CurrentMinor = 3
