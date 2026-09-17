@@ -28,7 +28,7 @@ export const WORKSPACE_NAME = "agents-kanban";
 
 // Shared by both variants; the "Chat:" line differs because with the MCP
 // attached only the fields the tools lack are worth a curl.
-const CURL_LINES = `  - Transcript: curl -sH "$H" "$CODER_URL/api/v2/chats/<id>/messages?limit=50" gives messages oldest to newest; the last assistant messages say what happened. Page further back with before_id=<oldest id seen>. User messages say what a chat is for; read them first.
+const CURL_LINES = `  - Transcript: curl -sH "$H" "$CODER_URL/api/v2/chats/<id>/messages?limit=50" gives messages newest first, so one page shows the latest turns, not the origin; page back with before_id=<lowest id seen> until you have read the user messages, which say what a chat is for.
   - Diff: .../chats/<id>/diff. Cost: .../chats/<id>/cost. All chats: .../chats?q=archived:false.
   - Label write: curl -sH "$H" -H 'Content-Type: application/json' -X PATCH "$CODER_URL/api/v2/chats/<id>" -d '{"labels":{...}}' (the whole map).
   - Chat title (renaming a single-chat card): curl -sH "$H" -H 'Content-Type: application/json' -X PATCH "$CODER_URL/api/v2/chats/<id>" -d '{"title":"..."}'.
@@ -62,8 +62,13 @@ A workspace is required for all of this. If none is attached, create it without 
 const SNAPSHOT_RULE =
 	"The first user message is a snapshot taken when this chat was created. It only sketches the state of things and is not sufficient to answer from. Before answering or proposing anything, read the live data below. Never report from the snapshot alone; state what you verified and when.";
 
-const VERIFY_RULE =
-	"Verify before answering or proposing: read the chat, page through its messages (user messages say what a chat is for), check PR state. Never infer from the snapshot alone; state what you verified and when.";
+const VERIFY_RULE = `Verify before answering or proposing: read the chat, page through its messages (user messages say what a chat is for), check PR state. Never infer from the snapshot alone; state what you verified and when.
+- Before proposing any action on a chat, read its last assistant messages and verify every PR, branch or ticket they reference (gh pr view, git log), because titles, summaries and list metadata are not evidence.
+- A chat older than a day or longer than a handful of turns: read all its user messages in order before classifying it, because chats pivot and the title was set once.
+- Several chats on one repo or tool: establish which implementation line is current (PR list, git log) and judge each chat against it, because chats on a dead line are done however they ended.
+- The last turn mentions uncommitted, unpushed or on-disk work: look up chat.workspace_id, GET $CODER_URL/api/v2/workspaces/<id> for name and latest_build.status, then run coder ssh <name> -- git status before stating what exists, because "not on main" is not "lost".
+- Describe a chat by its subject and outcome, not by how it was produced; before proposing archive, check that the subject (ticket, PR, design) is closed.
+- Refer to chats by title in prose; give the id only where the user needs it to act or to disambiguate.`;
 
 const PROPOSE_RULE =
 	"Propose, then act only on an explicit yes. One to three actions per proposal, in human terms, with chat ids. After acting, list exactly what you did.";
@@ -120,6 +125,11 @@ Reading the board: list every non-archived chat with its labels (see the tools a
 - Position: board/pos on the primary or, when absent, the chat's created_at in Unix ms; higher sorts first within a column.
 - Chats with a board/assistant label are not on the board.
 - Column order, empty columns and window layout are browser-local and out of your reach.
+
+Organizing the board:
+- Group only chats that produce one artifact together (a feature chat and its UAT chats), because members share a column and move together. Use an effort when cards share a theme but ship separately. Archive what has no remaining purpose instead of attaching it to a live card.
+- Title = the subject of the work, stable. Note = current state, where the artifacts are, what is open, when verified. State never goes in a title.
+- Archive is an action like any other: propose it, act on an explicit yes (${tools.coderMcp ? "coder_archive_chat, or " : ""}PATCH $CODER_URL/api/v2/chats/<id> with {"archived": true}).
 
 Label schema:
 ${LABEL_SCHEMA}
