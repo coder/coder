@@ -70,7 +70,7 @@ export const DefaultModelSettings: FC<DefaultModelSettingsProps> = ({
 	return (
 		<AgentSettingLayout
 			title="Default model"
-			description="Preselected for new chats and used by every context without an override."
+			description="Preselected for new chats and used when a chat's model is no longer available."
 			showSave={canSave}
 			isSaving={isSaving}
 			isSavedVisible={isSavedVisible}
