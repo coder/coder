@@ -168,7 +168,7 @@ func (r *Resolver) ResolveContextWithMCP(ctx context.Context, roots []ScanRoot, 
 	}
 	resources = deduplicateSkills(resources)
 	resources, totalBytes := res.applyCaps(resources)
-	applyMCPConfigErrors(resources, mcp.ConfigErrors)
+	resources = applyMCPConfigErrors(resources, mcp.ConfigErrors)
 
 	// Append MCP server resources after the filesystem caps
 	// are applied so a runaway MCP server cannot crowd out

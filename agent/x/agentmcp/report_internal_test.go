@@ -399,4 +399,19 @@ func TestSanitizeMCPError(t *testing.T) {
 	assert.Contains(t, got, "127.0.0.1", "short values are not redacted, so addresses survive")
 	assert.True(t, strings.HasPrefix(got, "dial https://[redacted]@example.com/mcp?[redacted]"), got)
 	assert.Empty(t, sanitizeMCPError(cfg, nil))
+
+	t.Run("PathCredential", func(t *testing.T) {
+		t.Parallel()
+		cfg := ServerConfig{URL: "https://mcp.example.com/api/s/path-sentinel/mcp"}
+		got := sanitizeMCPError(cfg, xerrors.New(`Post "https://mcp.example.com/api/s/path-sentinel/mcp": 404 for /api/s/path-sentinel/mcp`))
+		assert.NotContains(t, got, "path-sentinel")
+		assert.Contains(t, got, "https://mcp.example.com/[redacted]", "scheme and host stay readable")
+	})
+
+	t.Run("BoundedToReceiverCap", func(t *testing.T) {
+		t.Parallel()
+		got := sanitizeMCPError(ServerConfig{}, xerrors.New(strings.Repeat("x", 2*maxDiagnosticBytes)))
+		assert.LessOrEqual(t, len(got), maxDiagnosticBytes)
+		assert.True(t, strings.HasSuffix(got, truncatedSuffix), got)
+	})
 }

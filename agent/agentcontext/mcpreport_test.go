@@ -77,11 +77,15 @@ func TestManager_MCPReportConfigErrorOverlay(t *testing.T) {
 	t.Parallel()
 
 	for _, tc := range []struct {
-		name    string
-		symlink bool
+		name     string
+		fileName string
+		symlink  bool
 	}{
-		{name: "DirectFile"},
-		{name: "SymlinkedFile", symlink: true},
+		{name: "DirectFile", fileName: ".mcp.json"},
+		{name: "SymlinkedFile", fileName: ".mcp.json", symlink: true},
+		// A CODER_AGENT_EXP_MCP_CONFIG_FILES entry the resolver does
+		// not discover by name still surfaces the engine's diagnosis.
+		{name: "CustomNamedFile", fileName: "custom.json"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -89,7 +93,7 @@ func TestManager_MCPReportConfigErrorOverlay(t *testing.T) {
 				t.Skip("symlinks require admin privileges on Windows runners")
 			}
 			dir := t.TempDir()
-			configPath := filepath.Join(dir, ".mcp.json")
+			configPath := filepath.Join(dir, tc.fileName)
 			// Structurally valid JSON; the server entry has neither
 			// command nor url, which only the engine rejects.
 			content := []byte(`{"mcpServers":{"broken":{"args":["x"]}}}`)
