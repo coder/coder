@@ -787,7 +787,12 @@ func TestDetectFileDump(t *testing.T) {
 		{
 			name:    "RgListFiles",
 			command: "rg -l pattern",
-			wantHit: true,
+			wantHit: false,
+		},
+		{
+			name:    "GrepListFiles",
+			command: "grep -l pattern foo.txt",
+			wantHit: false,
 		},
 		{
 			name:    "GrepRecursive",

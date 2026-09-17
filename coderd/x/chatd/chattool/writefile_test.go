@@ -21,6 +21,10 @@ import (
 func TestWriteFile(t *testing.T) {
 	t.Parallel()
 
+	description := chattool.WriteFile(chattool.WriteFileOptions{}).Info().Description
+	require.Contains(t, description, "absolute workspace path")
+	require.Contains(t, description, "Existing content is replaced, not appended")
+
 	t.Run("PlanTurnRejectsNonPlanPath", func(t *testing.T) {
 		t.Parallel()
 		ctrl := gomock.NewController(t)
