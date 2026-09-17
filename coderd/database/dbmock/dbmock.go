@@ -4860,6 +4860,21 @@ func (mr *MockStoreMockRecorder) GetOldUnlinkedChatFileIDs(ctx, arg any) *gomock
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetOldUnlinkedChatFileIDs", reflect.TypeOf((*MockStore)(nil).GetOldUnlinkedChatFileIDs), ctx, arg)
 }
 
+// GetOrchestratorChatByOwnerID mocks base method.
+func (m *MockStore) GetOrchestratorChatByOwnerID(ctx context.Context, ownerID uuid.UUID) (database.Chat, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetOrchestratorChatByOwnerID", ctx, ownerID)
+	ret0, _ := ret[0].(database.Chat)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetOrchestratorChatByOwnerID indicates an expected call of GetOrchestratorChatByOwnerID.
+func (mr *MockStoreMockRecorder) GetOrchestratorChatByOwnerID(ctx, ownerID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetOrchestratorChatByOwnerID", reflect.TypeOf((*MockStore)(nil).GetOrchestratorChatByOwnerID), ctx, ownerID)
+}
+
 // GetOrganizationByID mocks base method.
 func (m *MockStore) GetOrganizationByID(ctx context.Context, id uuid.UUID) (database.Organization, error) {
 	m.ctrl.T.Helper()

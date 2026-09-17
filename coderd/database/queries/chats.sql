@@ -359,6 +359,15 @@ SELECT *
 FROM chats_expanded
 WHERE id = @id::uuid;
 
+-- name: GetOrchestratorChatByOwnerID :one
+-- Returns the owner's single orchestrator chat regardless of archive
+-- state. Uniqueness comes from the deterministic chat ID minted per owner
+-- in chatd, so a concurrent create fails on the primary key.
+SELECT *
+FROM chats_expanded
+WHERE owner_id = @owner_id::uuid
+  AND mode = 'orchestrator'::chat_mode;
+
 -- name: GetChatFamilyIDsByRootID :many
 -- Returns the chat IDs of every chat in a family (root + all children)
 -- in deterministic order. The id parameter must be the root id; the
@@ -745,6 +754,9 @@ WHERE
     -- each parent. Other callers that need the full set should
     -- use a narrower query (e.g. GetChatsByWorkspaceIDs).
     AND chats_expanded.parent_chat_id IS NULL
+    -- Orchestrator chats are surfaced through their dedicated endpoint,
+    -- not the chat list.
+    AND (chats_expanded.mode IS NULL OR chats_expanded.mode != 'orchestrator'::chat_mode)
     -- Authorize Filter clause will be injected below in GetAuthorizedChats
     -- @authorize_filter
 ORDER BY

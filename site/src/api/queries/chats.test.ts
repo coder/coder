@@ -88,6 +88,7 @@ import {
 	mergeWatchedChatIntoCaches,
 	mergeWatchedChatSummary,
 	openChat,
+	orchestratorChatKey,
 	organizationChatModelsKey,
 	patchChatEntity,
 	patchChatMessages,
@@ -1877,6 +1878,22 @@ describe("mutation invalidation scope", () => {
 			queryClient.getQueryState(chatMessagesKey(chatId))?.isInvalidated,
 			"chatMessagesKey should NOT be invalidated",
 		).not.toBe(true);
+	});
+
+	it("createChat caches an orchestrator chat and invalidates sidebar queries", async () => {
+		const queryClient = createTestQueryClient();
+		const chat = makeChat("orchestrator-chat", { mode: "orchestrator" });
+		seedAllActiveQueries(queryClient, chat.id);
+
+		const mutation = createChat(queryClient);
+		mutation.onSuccess(chat);
+
+		await new Promise((resolve) => setTimeout(resolve, 0));
+
+		expect(queryClient.getQueryData(orchestratorChatKey)).toBe(chat);
+		expect(
+			queryClient.getQueryState(chatListKey(toChatListParams()))?.isInvalidated,
+		).toBe(true);
 	});
 
 	it("deleteChatQueuedMessage invalidates only chat detail and messages", async () => {

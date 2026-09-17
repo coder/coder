@@ -1908,6 +1908,7 @@ export interface Chat {
 	readonly last_reasoning_effort?: string;
 	readonly title: string;
 	readonly status: ChatStatus;
+	readonly mode?: ChatMode;
 	readonly plan_mode?: ChatPlanMode;
 	readonly last_error?: ChatError;
 	readonly last_turn_summary: string | null;
@@ -2762,6 +2763,9 @@ export interface ChatMessagesResponse {
 }
 
 // From codersdk/chats.go
+export type ChatMode = "computer_use" | "explore" | "orchestrator";
+
+// From codersdk/chats.go
 /**
  * ChatModel is an org-scoped model configuration.
  */
@@ -3115,6 +3119,12 @@ export interface ChatModelVercelProviderOptions {
 	// empty interface{} type, falling back to unknown
 	readonly extra_body?: Record<string, unknown>;
 }
+
+export const ChatModes: ChatMode[] = [
+	"computer_use",
+	"explore",
+	"orchestrator",
+];
 
 // From codersdk/chats.go
 /**
@@ -3885,6 +3895,12 @@ export interface CreateChatRequest {
 	readonly unsafe_dynamic_tools?: readonly DynamicTool[];
 	readonly plan_mode?: ChatPlanMode;
 	readonly client_type?: ChatClientType;
+	/**
+	 * Orchestrator creates the caller's single orchestrator chat instead of a
+	 * regular chat. Requires the chat-orchestrator experiment. The chat has
+	 * no workspace, so workspace_id and plan_mode must be unset.
+	 */
+	readonly orchestrator?: boolean;
 }
 
 // From codersdk/users.go
@@ -5008,6 +5024,7 @@ export type Experiment =
 	| "agent-lifecycle-hooks"
 	| "auto-fill-parameters"
 	| "chat-advisor"
+	| "chat-orchestrator"
 	| "chat-virtual-desktop"
 	| "example"
 	| "mcp-server-http"
@@ -5023,6 +5040,7 @@ export const Experiments: Experiment[] = [
 	"agent-lifecycle-hooks",
 	"auto-fill-parameters",
 	"chat-advisor",
+	"chat-orchestrator",
 	"chat-virtual-desktop",
 	"example",
 	"mcp-server-http",
@@ -6974,6 +6992,13 @@ export const OptionTypes: OptionType[] = [
 	"number",
 	"string",
 ];
+
+// From codersdk/chats.go
+/**
+ * OrchestratorChatAlias may be used in place of a chat ID in chat routes to
+ * address the caller's own orchestrator chat.
+ */
+export const OrchestratorChatAlias = "orchestrator";
 
 // From codersdk/organizations.go
 /**

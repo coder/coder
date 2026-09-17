@@ -9763,6 +9763,9 @@ WHERE
     -- each parent. Other callers that need the full set should
     -- use a narrower query (e.g. GetChatsByWorkspaceIDs).
     AND chats_expanded.parent_chat_id IS NULL
+    -- Orchestrator chats are surfaced through their dedicated endpoint,
+    -- not the chat list.
+    AND (chats_expanded.mode IS NULL OR chats_expanded.mode != 'orchestrator'::chat_mode)
     -- Authorize Filter clause will be injected below in GetAuthorizedChats
     -- @authorize_filter
 ORDER BY
@@ -10385,6 +10388,71 @@ func (q *sqlQuerier) GetLastChatMessageByRole(ctx context.Context, arg GetLastCh
 		&i.ReasoningEffort,
 		&i.SearchTsv,
 		&i.SearchTsvConfig,
+	)
+	return i, err
+}
+
+const getOrchestratorChatByOwnerID = `-- name: GetOrchestratorChatByOwnerID :one
+SELECT id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, last_reasoning_effort, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, dynamic_tools, organization_id, plan_mode, client_type, last_turn_summary, summary, summary_generated_at, snapshot_version, history_version, queue_version, generation_attempt, retry_state, retry_state_version, runner_id, requires_action_deadline_at, user_acl, group_acl, owner_username, owner_name, context_aggregate_hash, context_dirty_since, context_dirty_resources, context_error, compaction_requested_at
+FROM chats_expanded
+WHERE owner_id = $1::uuid
+  AND mode = 'orchestrator'::chat_mode
+`
+
+// Returns the owner's single orchestrator chat regardless of archive
+// state. Uniqueness comes from the deterministic chat ID minted per owner
+// in chatd, so a concurrent create fails on the primary key.
+func (q *sqlQuerier) GetOrchestratorChatByOwnerID(ctx context.Context, ownerID uuid.UUID) (Chat, error) {
+	row := q.db.QueryRowContext(ctx, getOrchestratorChatByOwnerID, ownerID)
+	var i Chat
+	err := row.Scan(
+		&i.ID,
+		&i.OwnerID,
+		&i.WorkspaceID,
+		&i.Title,
+		&i.Status,
+		&i.WorkerID,
+		&i.StartedAt,
+		&i.HeartbeatAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ParentChatID,
+		&i.RootChatID,
+		&i.LastModelConfigID,
+		&i.LastReasoningEffort,
+		&i.Archived,
+		&i.LastError,
+		&i.Mode,
+		pq.Array(&i.MCPServerIDs),
+		&i.Labels,
+		&i.BuildID,
+		&i.AgentID,
+		&i.PinOrder,
+		&i.LastReadMessageID,
+		&i.DynamicTools,
+		&i.OrganizationID,
+		&i.PlanMode,
+		&i.ClientType,
+		&i.LastTurnSummary,
+		&i.Summary,
+		&i.SummaryGeneratedAt,
+		&i.SnapshotVersion,
+		&i.HistoryVersion,
+		&i.QueueVersion,
+		&i.GenerationAttempt,
+		&i.RetryState,
+		&i.RetryStateVersion,
+		&i.RunnerID,
+		&i.RequiresActionDeadlineAt,
+		&i.UserACL,
+		&i.GroupACL,
+		&i.OwnerUsername,
+		&i.OwnerName,
+		&i.ContextAggregateHash,
+		&i.ContextDirtySince,
+		&i.ContextDirtyResources,
+		&i.ContextError,
+		&i.CompactionRequestedAt,
 	)
 	return i, err
 }

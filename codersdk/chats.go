@@ -119,6 +119,7 @@ type Chat struct {
 	LastReasoningEffort *string      `json:"last_reasoning_effort,omitempty"`
 	Title               string       `json:"title"`
 	Status              ChatStatus   `json:"status"`
+	Mode                ChatMode     `json:"mode,omitempty"`
 	PlanMode            ChatPlanMode `json:"plan_mode,omitempty"`
 	LastError           *ChatError   `json:"last_error,omitempty"`
 	LastTurnSummary     *string      `json:"last_turn_summary"`
@@ -580,6 +581,10 @@ type CreateChatRequest struct {
 	UnsafeDynamicTools []DynamicTool  `json:"unsafe_dynamic_tools,omitempty"`
 	PlanMode           ChatPlanMode   `json:"plan_mode,omitempty"`
 	ClientType         ChatClientType `json:"client_type,omitempty"`
+	// Orchestrator creates the caller's single orchestrator chat instead of a
+	// regular chat. Requires the chat-orchestrator experiment. The chat has
+	// no workspace, so workspace_id and plan_mode must be unset.
+	Orchestrator bool `json:"orchestrator,omitempty"`
 }
 
 // UpdateChatRequest is the request to update a chat.
@@ -617,6 +622,35 @@ const (
 	// conversation order.
 	ChatBusyBehaviorInterrupt ChatBusyBehavior = "interrupt"
 )
+
+// ChatMode marks chats whose tool set differs from a regular chat.
+type ChatMode string
+
+const (
+	// ChatModeComputerUse drives a virtual desktop through a computer use
+	// provider tool.
+	ChatModeComputerUse ChatMode = "computer_use"
+	// ChatModeExplore is a read-only delegated code discovery chat.
+	ChatModeExplore ChatMode = "explore"
+	// ChatModeOrchestrator is the single per-user chat that spawns and
+	// inspects the user's other chats without workspace tools.
+	ChatModeOrchestrator ChatMode = "orchestrator"
+)
+
+// OrchestratorChatAlias may be used in place of a chat ID in chat routes to
+// address the caller's own orchestrator chat.
+const OrchestratorChatAlias = "orchestrator"
+
+// orchestratorChatNamespace seeds the deterministic per-owner orchestrator
+// chat ID so concurrent creates collide on the primary key instead of
+// producing two orchestrators for one user.
+var orchestratorChatNamespace = uuid.MustParse("6f3b1c2e-2c53-4e7a-9a3f-0d3f5a1b7c21")
+
+// OrchestratorChatID returns the deterministic chat ID for a user's
+// orchestrator chat.
+func OrchestratorChatID(ownerID uuid.UUID) uuid.UUID {
+	return uuid.NewSHA1(orchestratorChatNamespace, ownerID[:])
+}
 
 // ChatPlanMode represents the persistent plan mode state of a chat.
 type ChatPlanMode string

@@ -447,6 +447,14 @@ This endpoint uses `Create(initialMessages)`:
 
 No other input states are supported.
 
+<!-- TODO(chat-orchestrator): document `CreateChatRequest.orchestrator`
+(experiment `chat-orchestrator`). It uses the same `Create(initialMessages)`
+transition with `mode = 'orchestrator'` and a deterministic per-owner chat ID
+(`codersdk.OrchestratorChatID`) so concurrent creates collide on the primary
+key. The literal `orchestrator` path segment is rewritten to that ID before
+`ExtractChatParam` on every `/chats/{chat}` route. Orchestrator chats are
+excluded from `GetChats` and reject workspace and plan mode updates. -->
+
 ### `PATCH /api/experimental/chats/{chat}`
 
 When archiving or unarchiving a root chat, the operation applies `SetArchived(archived)` to the root and all descendants atomically. If any chat in the family cannot apply the requested archived-state transition, the whole operation fails without changing any chat. Unarchiving an individual child chat remains guarded: it must fail while its parent is archived
@@ -860,6 +868,12 @@ Retriable conditions include, but are not limited to:
 - LLM API request error, with the exception of hitting the generation attempt limit, which is considered to be a successful completion of the operation the goroutine was meant to perform.
 
 #### Generation goroutine
+
+<!-- TODO(chat-orchestrator): document the orchestrator tool set. Chats with
+`mode = 'orchestrator'` skip every workspace-backed built-in tool, workspace
+MCP tools, and the subagent tools; they receive external MCP tools plus
+`spawn_chat`, `list_chats`, and `read_chat`, which operate on the owner's root
+chats rather than parent/child relationships. -->
 
 The generation goroutine is responsible for calling the LLM API and executing tools. It is spawned when the event indicates the core state machine is in `R0` or `R1` (status is `running`).
 

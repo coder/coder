@@ -1,8 +1,9 @@
 import { type FC, useState } from "react";
 import { useQuery } from "react-query";
 import { useLocation, useParams } from "react-router";
-import { userChatProviderConfigs } from "#/api/queries/chats";
+import { orchestratorChat, userChatProviderConfigs } from "#/api/queries/chats";
 import type { Chat, ChatModel } from "#/api/typesGenerated";
+import { useDashboard } from "#/modules/dashboard/useDashboard";
 import type { AgentSidebarFilters } from "../../utils/agentSidebarFilters";
 import { ChatsPanel } from "./chats/ChatsPanel";
 import { ChatSearchDialog } from "./dialogs/ChatSearchDialog";
@@ -101,6 +102,12 @@ export const ChatsSidebar: FC<ChatsSidebarProps> = (props) => {
 	}>();
 	const activeChatId = agentId ?? chatId;
 	const location = useLocation();
+	const { experiments } = useDashboard();
+	const orchestratorEnabled = experiments.includes("chat-orchestrator");
+	const orchestratorChatQuery = useQuery({
+		...orchestratorChat(),
+		enabled: orchestratorEnabled,
+	});
 	const sidebarView = sidebarViewFromPath(location.pathname);
 	const isSettingsPanel = isSettingsView(sidebarView);
 	const settingsSection = isSettingsPanel ? sidebarView.section : undefined;
@@ -158,6 +165,8 @@ export const ChatsSidebar: FC<ChatsSidebarProps> = (props) => {
 				isChatsActive={!activeChatId && sidebarView.panel === "chats"}
 				location={location}
 				currentUserId={currentUserId}
+				orchestratorEnabled={orchestratorEnabled}
+				orchestratorChatId={orchestratorChatQuery.data?.id}
 			/>
 			<SettingsPanel
 				isSettingsPanel={isSettingsPanel}

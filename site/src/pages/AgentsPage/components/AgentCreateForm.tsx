@@ -140,6 +140,11 @@ interface AgentCreateFormProps {
 	workspaceOptions: readonly TypesGen.Workspace[];
 	workspacesError: unknown;
 	isWorkspacesLoading: boolean;
+	hideWorkspacePicker?: boolean;
+	hidePlanMode?: boolean;
+	placeholder?: string;
+	title?: string;
+	description?: string;
 }
 
 export const AgentCreateForm: FC<AgentCreateFormProps> = ({
@@ -153,6 +158,11 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	workspaceOptions,
 	workspacesError,
 	isWorkspacesLoading,
+	hideWorkspacePicker = false,
+	hidePlanMode = false,
+	placeholder = "Ask Coder to build, fix bugs, or explore your project...",
+	title,
+	description,
 }) => {
 	const { organizations, showOrganizations } = useDashboard();
 	const {
@@ -610,6 +620,18 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 					{personalModelOverridesQuery.error != null && (
 						<ErrorAlert error={personalModelOverridesQuery.error} />
 					)}
+					{title ? (
+						<div className="px-3 pt-1">
+							<h1 className="m-0 text-lg font-semibold text-content-primary">
+								{title}
+							</h1>
+							{description ? (
+								<p className="m-0 pt-1 text-sm text-content-secondary">
+									{description}
+								</p>
+							) : null}
+						</div>
+					) : null}
 					{showOrganizations &&
 						orgSelectionSettled &&
 						permittedOrgs.length > 1 && (
@@ -633,7 +655,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 						)}
 					<AgentChatInput
 						onSend={handleSendWithAttachments}
-						placeholder="Ask Coder to build, fix bugs, or explore your project..."
+						placeholder={placeholder}
 						isDisabled={
 							isCreating ||
 							isForbidden ||
@@ -659,8 +681,8 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 						onReasoningEffortChange={handleReasoningEffortChange}
 						isModelCatalogLoading={isModelDataPending}
 						hasModelOptions={hasModelOptions}
-						planModeEnabled={planModeEnabled}
-						onPlanModeToggle={setPlanModeEnabled}
+						planModeEnabled={hidePlanMode ? undefined : planModeEnabled}
+						onPlanModeToggle={hidePlanMode ? undefined : setPlanModeEnabled}
 						attachments={attachments}
 						// Files attached before org adoption cannot upload and would be discarded
 						// when restoration completes.
@@ -677,15 +699,19 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 							saveMCPSelection(organizationId, ids);
 						}}
 						onMCPAuthComplete={() => void mcpServersQuery.refetch()}
-						workspaceOptions={filteredWorkspaces}
-						selectedWorkspaceId={effectiveWorkspaceId}
+						workspaceOptions={hideWorkspacePicker ? [] : filteredWorkspaces}
+						selectedWorkspaceId={
+							hideWorkspacePicker ? null : effectiveWorkspaceId
+						}
 						// Do not persist a workspace until its organization is authorized.
 						onWorkspaceChange={
-							orgSelectionSettled && !noPermittedOrgs
+							!hideWorkspacePicker && orgSelectionSettled && !noPermittedOrgs
 								? handleWorkspaceChange
 								: undefined
 						}
-						isWorkspaceLoading={isWorkspacesLoading}
+						isWorkspaceLoading={
+							hideWorkspacePicker ? false : isWorkspacesLoading
+						}
 						canConfigureAgentSetup={canConfigureAgentSetup}
 						providerCount={providerCount}
 						modelCount={modelCount}

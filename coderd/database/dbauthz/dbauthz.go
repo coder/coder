@@ -4387,6 +4387,10 @@ func (q *querier) GetOldUnlinkedChatFileIDs(ctx context.Context, arg database.Ge
 	return q.db.GetOldUnlinkedChatFileIDs(ctx, arg)
 }
 
+func (q *querier) GetOrchestratorChatByOwnerID(ctx context.Context, ownerID uuid.UUID) (database.Chat, error) {
+	return fetch(q.log, q.auth, q.db.GetOrchestratorChatByOwnerID)(ctx, ownerID)
+}
+
 func (q *querier) GetOrganizationByID(ctx context.Context, id uuid.UUID) (database.Organization, error) {
 	return fetch(q.log, q.auth, q.db.GetOrganizationByID)(ctx, id)
 }

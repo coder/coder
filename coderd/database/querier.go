@@ -722,6 +722,10 @@ type sqlcQuerier interface {
 	GetOAuth2ProviderAppsByUserID(ctx context.Context, userID uuid.UUID) ([]GetOAuth2ProviderAppsByUserIDRow, error)
 	// Locks candidate rows against foreign-key inserts for the transaction.
 	GetOldUnlinkedChatFileIDs(ctx context.Context, arg GetOldUnlinkedChatFileIDsParams) ([]uuid.UUID, error)
+	// Returns the owner's single orchestrator chat regardless of archive
+	// state. Uniqueness comes from the deterministic chat ID minted per owner
+	// in chatd, so a concurrent create fails on the primary key.
+	GetOrchestratorChatByOwnerID(ctx context.Context, ownerID uuid.UUID) (Chat, error)
 	GetOrganizationByID(ctx context.Context, id uuid.UUID) (Organization, error)
 	GetOrganizationByName(ctx context.Context, arg GetOrganizationByNameParams) (Organization, error)
 	// Returns AI spend limits and aggregate spend for groups in @group_ids that

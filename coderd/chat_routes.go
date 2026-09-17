@@ -139,6 +139,7 @@ func (api *API) registerChatAPIRoutes(r chi.Router, apiKeyMiddleware func(http.H
 			}
 		})
 		r.Route("/{chat}", func(r chi.Router) {
+			r.Use(api.resolveOrchestratorChatAlias)
 			r.Use(httpmw.ExtractChatParam(api.Database))
 			r.Route("/acl", func(r chi.Router) {
 				r.Get("/", api.getChatACL)

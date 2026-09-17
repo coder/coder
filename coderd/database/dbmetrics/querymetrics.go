@@ -2593,6 +2593,14 @@ func (m queryMetricsStore) GetOldUnlinkedChatFileIDs(ctx context.Context, arg da
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetOrchestratorChatByOwnerID(ctx context.Context, ownerID uuid.UUID) (database.Chat, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetOrchestratorChatByOwnerID(ctx, ownerID)
+	m.queryLatencies.WithLabelValues("GetOrchestratorChatByOwnerID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetOrchestratorChatByOwnerID").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetOrganizationByID(ctx context.Context, id uuid.UUID) (database.Organization, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetOrganizationByID(ctx, id)

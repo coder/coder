@@ -149,6 +149,7 @@ curl -X GET http://coder-server:8080/api/v2/chats \
     "mcp_server_ids": [
       "497f6eca-6276-4993-bfeb-53cbbbba6f08"
     ],
+    "mode": "computer_use",
     "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
     "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
     "owner_name": "string",
@@ -248,6 +249,7 @@ Status Code **200**
 | `» last_reasoning_effort` | string                                                                             | false    |              |                                                                                                                                                                                                                                                                            |
 | `» last_turn_summary`     | string                                                                             | false    |              |                                                                                                                                                                                                                                                                            |
 | `» mcp_server_ids`        | array                                                                              | false    |              |                                                                                                                                                                                                                                                                            |
+| `» mode`                  | [codersdk.ChatMode](schemas.md#codersdkchatmode)                                   | false    |              |                                                                                                                                                                                                                                                                            |
 | `» organization_id`       | string(uuid)                                                                       | false    |              |                                                                                                                                                                                                                                                                            |
 | `» owner_id`              | string(uuid)                                                                       | false    |              |                                                                                                                                                                                                                                                                            |
 | `» owner_name`            | string                                                                             | false    |              |                                                                                                                                                                                                                                                                            |
@@ -272,6 +274,7 @@ Status Code **200**
 | `client_type` | `api`, `ui`                                                                                                                                                                                                                                                       |
 | `kind`        | `auth`, `config`, `content_filter`, `generic`, `hook_denied`, `hook_dispatch_failed`, `instruction_file`, `mcp_config`, `mcp_server`, `missing_key`, `overloaded`, `provider_disabled`, `rate_limit`, `skill`, `stream_silence_timeout`, `timeout`, `usage_limit` |
 | `status`      | `error`, `excluded`, `interrupting`, `invalid`, `ok`, `oversize`, `requires_action`, `running`, `unreadable`, `waiting`                                                                                                                                           |
+| `mode`        | `computer_use`, `explore`, `orchestrator`                                                                                                                                                                                                                         |
 | `plan_mode`   | `plan`                                                                                                                                                                                                                                                            |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
@@ -314,6 +317,7 @@ curl -X POST http://coder-server:8080/api/v2/chats \
     "497f6eca-6276-4993-bfeb-53cbbbba6f08"
   ],
   "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
+  "orchestrator": true,
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
   "plan_mode": "plan",
   "reasoning_effort": "string",
@@ -428,6 +432,7 @@ curl -X POST http://coder-server:8080/api/v2/chats \
       "mcp_server_ids": [
         "497f6eca-6276-4993-bfeb-53cbbbba6f08"
       ],
+      "mode": "computer_use",
       "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
       "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
       "owner_name": "string",
@@ -524,6 +529,7 @@ curl -X POST http://coder-server:8080/api/v2/chats \
   "mcp_server_ids": [
     "497f6eca-6276-4993-bfeb-53cbbbba6f08"
   ],
+  "mode": "computer_use",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
   "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
   "owner_name": "string",
@@ -1374,6 +1380,7 @@ curl -X GET http://coder-server:8080/api/v2/chats/watch \
     "mcp_server_ids": [
       "497f6eca-6276-4993-bfeb-53cbbbba6f08"
     ],
+    "mode": "computer_use",
     "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
     "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
     "owner_name": "string",
@@ -1522,6 +1529,7 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat} \
       "mcp_server_ids": [
         "497f6eca-6276-4993-bfeb-53cbbbba6f08"
       ],
+      "mode": "computer_use",
       "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
       "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
       "owner_name": "string",
@@ -1618,6 +1626,7 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat} \
   "mcp_server_ids": [
     "497f6eca-6276-4993-bfeb-53cbbbba6f08"
   ],
+  "mode": "computer_use",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
   "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
   "owner_name": "string",
@@ -1801,6 +1810,7 @@ curl -X PUT http://coder-server:8080/api/v2/chats/{chat}/context \
       "mcp_server_ids": [
         "497f6eca-6276-4993-bfeb-53cbbbba6f08"
       ],
+      "mode": "computer_use",
       "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
       "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
       "owner_name": "string",
@@ -1897,6 +1907,7 @@ curl -X PUT http://coder-server:8080/api/v2/chats/{chat}/context \
   "mcp_server_ids": [
     "497f6eca-6276-4993-bfeb-53cbbbba6f08"
   ],
+  "mode": "computer_use",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
   "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
   "owner_name": "string",
@@ -2128,6 +2139,7 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/interrupt \
       "mcp_server_ids": [
         "497f6eca-6276-4993-bfeb-53cbbbba6f08"
       ],
+      "mode": "computer_use",
       "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
       "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
       "owner_name": "string",
@@ -2224,6 +2236,7 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/interrupt \
   "mcp_server_ids": [
     "497f6eca-6276-4993-bfeb-53cbbbba6f08"
   ],
+  "mode": "computer_use",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
   "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
   "owner_name": "string",
@@ -3149,6 +3162,7 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/reconcile-invalid \
       "mcp_server_ids": [
         "497f6eca-6276-4993-bfeb-53cbbbba6f08"
       ],
+      "mode": "computer_use",
       "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
       "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
       "owner_name": "string",
@@ -3245,6 +3259,7 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/reconcile-invalid \
   "mcp_server_ids": [
     "497f6eca-6276-4993-bfeb-53cbbbba6f08"
   ],
+  "mode": "computer_use",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
   "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
   "owner_name": "string",

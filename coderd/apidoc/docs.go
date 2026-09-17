@@ -19507,6 +19507,9 @@ const docTemplate = `{
                         "format": "uuid"
                     }
                 },
+                "mode": {
+                    "$ref": "#/definitions/codersdk.ChatMode"
+                },
                 "organization_id": {
                     "type": "string",
                     "format": "uuid"
@@ -20385,6 +20388,19 @@ const docTemplate = `{
                     }
                 }
             }
+        },
+        "codersdk.ChatMode": {
+            "type": "string",
+            "enum": [
+                "computer_use",
+                "explore",
+                "orchestrator"
+            ],
+            "x-enum-varnames": [
+                "ChatModeComputerUse",
+                "ChatModeExplore",
+                "ChatModeOrchestrator"
+            ]
         },
         "codersdk.ChatModel": {
             "type": "object",
@@ -21750,6 +21766,10 @@ const docTemplate = `{
                 "model_config_id": {
                     "type": "string",
                     "format": "uuid"
+                },
+                "orchestrator": {
+                    "description": "Orchestrator creates the caller's single orchestrator chat instead of a\nregular chat. Requires the chat-orchestrator experiment. The chat has\nno workspace, so workspace_id and plan_mode must be unset.",
+                    "type": "boolean"
                 },
                 "organization_id": {
                     "type": "string",
@@ -23422,13 +23442,15 @@ const docTemplate = `{
                 "ai-gateway-seat-exclusion",
                 "chat-advisor",
                 "chat-virtual-desktop",
-                "agent-lifecycle-hooks"
+                "agent-lifecycle-hooks",
+                "chat-orchestrator"
             ],
             "x-enum-comments": {
                 "ExperimentAIGatewaySeatExclusion": "Excludes AI Gateway (AI Bridge) usage from AI Governance seat consumption.",
                 "ExperimentAgentLifecycleHooks": "Enables chat lifecycle hook webhooks for agent chats.",
                 "ExperimentAutoFillParameters": "This should not be taken out of experiments until we have redesigned the feature.",
                 "ExperimentChatAdvisor": "Enables the advisor tool for root agent chats.",
+                "ExperimentChatOrchestrator": "Enables the per-user orchestrator chat that spawns and inspects other chats.",
                 "ExperimentChatVirtualDesktop": "Enables virtual desktop and computer use provider for agents.",
                 "ExperimentExample": "This isn't used for anything.",
                 "ExperimentMCPServerHTTP": "Enables the MCP HTTP server functionality.",
@@ -23452,7 +23474,8 @@ const docTemplate = `{
                 "Excludes AI Gateway (AI Bridge) usage from AI Governance seat consumption.",
                 "Enables the advisor tool for root agent chats.",
                 "Enables virtual desktop and computer use provider for agents.",
-                "Enables chat lifecycle hook webhooks for agent chats."
+                "Enables chat lifecycle hook webhooks for agent chats.",
+                "Enables the per-user orchestrator chat that spawns and inspects other chats."
             ],
             "x-enum-varnames": [
                 "ExperimentExample",
@@ -23467,7 +23490,8 @@ const docTemplate = `{
                 "ExperimentAIGatewaySeatExclusion",
                 "ExperimentChatAdvisor",
                 "ExperimentChatVirtualDesktop",
-                "ExperimentAgentLifecycleHooks"
+                "ExperimentAgentLifecycleHooks",
+                "ExperimentChatOrchestrator"
             ]
         },
         "codersdk.ExternalAPIKeyScopes": {

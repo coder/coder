@@ -76,14 +76,18 @@ const dashboardValue = {
 	canViewOrganizationSettings: false,
 };
 
-const Wrapper: FC<PropsWithChildren> = ({ children }) => {
+const Wrapper: FC<
+	PropsWithChildren<{ experiments?: TypesGen.Experiment[] }>
+> = ({ children, experiments = [] }) => {
 	const queryClient = createTestQueryClient();
 	return (
 		<QueryClientProvider client={queryClient}>
 			<ThemeOverride theme={themes[DEFAULT_THEME]}>
 				<TooltipProvider>
 					<MemoryRouter initialEntries={["/agents"]}>
-						<DashboardContext.Provider value={dashboardValue}>
+						<DashboardContext.Provider
+							value={{ ...dashboardValue, experiments }}
+						>
 							{children}
 						</DashboardContext.Provider>
 					</MemoryRouter>
@@ -121,6 +125,31 @@ const defaultProps: React.ComponentProps<typeof ChatsSidebar> = {
 };
 
 // ---- Tests ----
+
+describe("ChatsSidebar orchestrator navigation", () => {
+	it("navigates to the orchestrator when the experiment is enabled", () => {
+		render(
+			<Wrapper experiments={["chat-orchestrator"]}>
+				<ChatsSidebar {...defaultProps} />
+			</Wrapper>,
+		);
+
+		expect(screen.getByRole("link", { name: "Orchestrator" })).toHaveAttribute(
+			"href",
+			"/agents/orchestrator",
+		);
+	});
+
+	it("does not offer orchestrator navigation when the experiment is disabled", () => {
+		render(
+			<Wrapper>
+				<ChatsSidebar {...defaultProps} />
+			</Wrapper>,
+		);
+
+		expect(screen.queryByRole("link", { name: "Orchestrator" })).toBeNull();
+	});
+});
 
 describe("ChatsSidebar sections", () => {
 	it("renders unpinned shared chats in Shared with you before date sections", () => {

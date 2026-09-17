@@ -1866,6 +1866,9 @@ func Chat(c database.Chat, diffStatus *database.ChatDiffStatus, files []database
 	if c.PlanMode.Valid {
 		chat.PlanMode = codersdk.ChatPlanMode(c.PlanMode.ChatPlanMode)
 	}
+	if c.Mode.Valid {
+		chat.Mode = codersdk.ChatMode(c.Mode.ChatMode)
+	}
 	if c.ParentChatID.Valid {
 		parentChatID := c.ParentChatID.UUID
 		chat.ParentChatID = &parentChatID

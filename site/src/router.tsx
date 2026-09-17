@@ -370,6 +370,9 @@ const DesktopPopoutPage = lazy(
 const AgentCreatePage = lazy(
 	() => import("./pages/AgentsPage/AgentCreatePage"),
 );
+const OrchestratorPage = lazy(
+	() => import("./pages/AgentsPage/OrchestratorPage"),
+);
 const AgentSettingsLayout = lazy(
 	() => import("./pages/AgentsPage/AgentSettingsLayout"),
 );
@@ -829,6 +832,14 @@ export const router = createBrowserRouter(
 					}
 				>
 					<Route index element={<AgentCreatePage />} />
+					<Route
+						path="orchestrator"
+						element={
+							<Suspense fallback={<AgentChatPageSkeleton />}>
+								<OrchestratorPage />
+							</Suspense>
+						}
+					/>
 					<Route path="settings" element={<AgentSettingsLayout />}>
 						<Route index element={<AgentSettingsGeneralPage />} />
 						<Route path="general" element={<AgentSettingsGeneralPage />} />
