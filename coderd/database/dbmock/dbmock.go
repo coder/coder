@@ -9148,6 +9148,21 @@ func (mr *MockStoreMockRecorder) ListChatContextResourcesByChatID(ctx, chatID an
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListChatContextResourcesByChatID", reflect.TypeOf((*MockStore)(nil).ListChatContextResourcesByChatID), ctx, chatID)
 }
 
+// ListOrganizationAISpendUsers mocks base method.
+func (m *MockStore) ListOrganizationAISpendUsers(ctx context.Context, arg database.ListOrganizationAISpendUsersParams) ([]database.ListOrganizationAISpendUsersRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListOrganizationAISpendUsers", ctx, arg)
+	ret0, _ := ret[0].([]database.ListOrganizationAISpendUsersRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListOrganizationAISpendUsers indicates an expected call of ListOrganizationAISpendUsers.
+func (mr *MockStoreMockRecorder) ListOrganizationAISpendUsers(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListOrganizationAISpendUsers", reflect.TypeOf((*MockStore)(nil).ListOrganizationAISpendUsers), ctx, arg)
+}
+
 // ListProvisionerKeysByOrganization mocks base method.
 func (m *MockStore) ListProvisionerKeysByOrganization(ctx context.Context, organizationID uuid.UUID) ([]database.ProvisionerKey, error) {
 	m.ctrl.T.Helper()
