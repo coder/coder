@@ -562,7 +562,7 @@ func (s *taskStarter) runGenerationStep(
 		return input, false, s.finishGenerationError(ctx, machine, input, err, generationAttemptNotRequired)
 	}
 
-	stepSpan.SetAttributes(attribute.String(chatloop.AttrGenerationAction, string(decision.kind)))
+	stepSpan.SetGenerationAction(string(decision.kind))
 	var actionErr error
 	switch decision.kind {
 	case generationActionEnterRequiresAction:
