@@ -338,6 +338,9 @@ func TestResolver_ChildProjectInstructionFiles(t *testing.T) {
 		mustWriteFile(t, filepath.Join(dir, ".hidden", "AGENTS.md"), "hidden")
 		mustWriteFile(t, filepath.Join(child, ".mcp.json"), "{}")
 		mustWriteSkill(t, filepath.Join(child, "skills"), "ignored", "ignored skill")
+		// A differently cased name is not an instruction file, even where the
+		// file system would answer a probe for the recognized spelling.
+		mustWriteFile(t, filepath.Join(dir, "wrongcase", "agents.md"), "wrong case")
 
 		r := &agentcontext.Resolver{}
 		snap := r.Resolve([]agentcontext.ScanRoot{{Path: dir, ChildProjects: true}})
