@@ -75,12 +75,6 @@ export const DefaultModelOpen: Story = {
 export const UnavailableDefaultModel: Story = {
 	args: { defaultModelID: "model-gone" },
 };
-export const SavingDefaultModel: Story = {
-	args: { isSavingDefaultModel: true },
-};
-export const DefaultModelSaveError: Story = {
-	args: { isSaveDefaultModelError: true },
-};
 
 export const SetAndUnset: Story = {
 	beforeEach: () => {
