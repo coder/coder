@@ -17,7 +17,13 @@ const win: ChatWindow = {
 	pinned: true,
 };
 
-const renderWindow = (overrides: Partial<ChatWindow> = {}) => {
+const renderWindow = ({
+	overrides = {},
+	onAssistant,
+}: {
+	overrides?: Partial<ChatWindow>;
+	onAssistant?: { cardTitle: string; open: () => void };
+} = {}) => {
 	const onChange = vi.fn();
 	renderComponent(
 		<FloatingChat
@@ -29,6 +35,7 @@ const renderWindow = (overrides: Partial<ChatWindow> = {}) => {
 			onInteract={vi.fn()}
 			onPreviewEnter={vi.fn()}
 			onPreviewLeave={vi.fn()}
+			onAssistant={onAssistant}
 		>
 			<div>chat body</div>
 		</FloatingChat>,
@@ -116,7 +123,9 @@ describe("FloatingChat", () => {
 
 	it("resizes with Shift+arrow and stops at the minimum size", async () => {
 		const user = userEvent.setup();
-		const { onChange } = renderWindow({ width: MIN_WINDOW_SIZE.width });
+		const { onChange } = renderWindow({
+			overrides: { width: MIN_WINDOW_SIZE.width },
+		});
 		screen
 			.getByRole("button", { name: `Move or resize ${MockChat.title}` })
 			.focus();
@@ -153,5 +162,17 @@ describe("FloatingChat", () => {
 		expect(caf).toHaveBeenCalledWith(7);
 		expect(onChange).toHaveBeenCalledTimes(1);
 		expect(onChange).toHaveBeenCalledWith({ ...win, x: 130, y: 120 });
+	});
+
+	it("opens the card's assistant from the title bar", async () => {
+		const user = userEvent.setup();
+		const open = vi.fn();
+		renderWindow({ onAssistant: { cardTitle: "Epic", open } });
+
+		await user.click(
+			screen.getByRole("button", { name: "Assistant for Epic" }),
+		);
+
+		expect(open).toHaveBeenCalledTimes(1);
 	});
 });
