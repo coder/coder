@@ -3146,14 +3146,14 @@ func ParseWorkspaceSessionTokenName(token string) (ownerID, workspaceID uuid.UUI
 	if len(parts) != 2 {
 		return uuid.Nil, uuid.Nil, false
 	}
-	if id, err := uuid.Parse(parts[0]); err != nil { // nolint:revive // author preference
+	if id, err := uuid.Parse(parts[0]); err != nil {
 		return uuid.Nil, uuid.Nil, false
-	} else {
+	} else { // nolint:revive // author preference
 		ownerID = id
 	}
-	if id, err := uuid.Parse(parts[1]); err != nil { // nolint:revive // author preference
+	if id, err := uuid.Parse(parts[1]); err != nil {
 		return uuid.Nil, uuid.Nil, false
-	} else {
+	} else { // nolint:revive // author preference
 		workspaceID = id
 	}
 	return ownerID, workspaceID, true
