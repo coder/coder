@@ -88,9 +88,7 @@ function renderSpend(
 			),
 			...report,
 		}));
-	vi.spyOn(API.experimental, "listAIProviders").mockResolvedValue(
-		MockAIProviders,
-	);
+	vi.spyOn(API, "getAIBridgeProviders").mockResolvedValue(MockAIProviders);
 	vi.spyOn(API, "getAIBridgeClients").mockResolvedValue(["Claude Code"]);
 	vi.spyOn(API, "getAIBridgeModels").mockResolvedValue(["gpt-4o"]);
 	const router = createMemoryRouter(

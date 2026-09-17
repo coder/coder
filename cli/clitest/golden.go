@@ -151,11 +151,6 @@ func Capture(inv *serpent.Invocation) *Output {
 	return output
 }
 
-// Golden returns the formatted output with lines prefixed by "err: " or "out: ".
-func (o *Output) Golden() []byte {
-	return o.combined.Bytes()
-}
-
 // Stdout returns the unprefixed stdout content for parsing (e.g., JSON).
 func (o *Output) Stdout() string {
 	return o.stdout.String()

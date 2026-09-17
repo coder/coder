@@ -77,12 +77,6 @@ func WithClock(clock quartz.Clock) RotatorOption {
 	}
 }
 
-func WithKeyDuration(keyDuration time.Duration) RotatorOption {
-	return func(r *rotator) {
-		r.keyDuration = keyDuration
-	}
-}
-
 // WithFeatures sets the crypto key features the rotator manages, replacing the
 // default set. Use this to opt experiment- or deployment-gated features (such
 // as the NATS cluster CA) into rotation only when their owner is active.

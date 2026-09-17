@@ -190,9 +190,7 @@ const meta = {
 					),
 			}),
 		);
-		spyOn(API.experimental, "listAIProviders").mockResolvedValue(
-			MockAIProviders,
-		);
+		spyOn(API, "getAIBridgeProviders").mockResolvedValue(MockAIProviders);
 		spyOn(API, "getAIBridgeClients").mockResolvedValue(["Claude Code"]);
 		spyOn(API, "getAIBridgeModels").mockResolvedValue(["gpt-4o"]);
 	},

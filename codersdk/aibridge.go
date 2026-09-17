@@ -413,6 +413,32 @@ func (c *Client) AIBridgeListClients(ctx context.Context) ([]string, error) {
 	return clients, ReadBodyAsJSON(res, &clients)
 }
 
+// AIBridgeProvider is the display metadata for a configured AI provider,
+// used to filter AI Gateway sessions by provider_name. It carries no
+// configuration so it can be served to anyone who can read sessions.
+type AIBridgeProvider struct {
+	Name        string         `json:"name"`
+	Type        AIProviderType `json:"type"`
+	DisplayName string         `json:"display_name"`
+	Icon        string         `json:"icon"`
+}
+
+// AIBridgeListProviders returns the providers available for filtering AI
+// Gateway sessions, including disabled and deleted ones that past sessions
+// may still reference.
+func (c *Client) AIBridgeListProviders(ctx context.Context) ([]AIBridgeProvider, error) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/v2/ai-gateway/providers", nil)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return nil, ReadBodyAsError(res)
+	}
+	var providers []AIBridgeProvider
+	return providers, ReadBodyAsJSON(res, &providers)
+}
+
 // OrganizationAISpendFilter narrows the organization per-user AI spend
 // report. Zero values apply no filter: the period falls back to the current
 // budget period on the server, and an empty dimension matches all usage.

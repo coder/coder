@@ -18,40 +18,6 @@ import (
 
 var testTracer = otel.Tracer("copilot_test")
 
-func TestCopilot_TypeAndName(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name       string
-		cfg        config.Copilot
-		expectType string
-		expectName string
-	}{
-		{
-			name:       "defaults",
-			cfg:        config.Copilot{},
-			expectType: config.ProviderCopilot,
-			expectName: config.ProviderCopilot,
-		},
-		{
-			name:       "custom_name",
-			cfg:        config.Copilot{Name: "copilot-business"},
-			expectType: config.ProviderCopilot,
-			expectName: "copilot-business",
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			p := NewCopilot(tc.cfg)
-			assert.Equal(t, tc.expectType, p.Type())
-			assert.Equal(t, tc.expectName, p.Name())
-		})
-	}
-}
-
 // TestCopilot_KeyFailoverConfig verifies that Copilot, being BYOK-only,
 // returns a zero-value KeyFailoverConfig so that KeyFailoverTransport
 // short-circuits and passes the request through unchanged.

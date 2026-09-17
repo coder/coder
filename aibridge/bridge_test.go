@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -87,6 +88,62 @@ func TestRequestBridgeShutdownAdmissionRace(t *testing.T) {
 	_ = codertestutil.TryReceive(ctx, t, req1)
 	_ = codertestutil.TryReceive(ctx, t, req2)
 	_ = codertestutil.TryReceive(ctx, t, shutdown)
+
+	// New requests are refused after graceful shutdown.
+	rejected := httptest.NewRecorder()
+	bridge.ServeHTTP(rejected, httptest.NewRequest(http.MethodGet, "/openai/v1/conversations", nil))
+	require.Equal(t, http.StatusServiceUnavailable, rejected.Code)
+	require.Equal(t, "AI Gateway is shutting down\n", rejected.Body.String())
+}
+
+// TestRequestBridgeShutdownDeadlineCancels verifies that deadline cancellation
+// lets an in-flight proxy request finish without releasing the upstream manually.
+func TestRequestBridgeShutdownDeadlineCancels(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+
+	// Set up an upstream that waits for cancellation or test cleanup.
+	started := make(chan struct{}, 1)
+	release := make(chan struct{})
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		started <- struct{}{}
+		select {
+		case <-release:
+		case <-r.Context().Done():
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+	t.Cleanup(upstream.Close)
+	t.Cleanup(func() { close(release) })
+
+	// Send a request through the bridge to exercise upstream cancellation.
+	rec := testutil.MockRecorder{}
+	prov := aibridge.NewOpenAIProvider(config.OpenAI{BaseURL: upstream.URL})
+	bridge, err := aibridge.NewRequestBridge(ctx, []provider.Provider{prov}, &rec, nil, logger, nil, bridgeTestTracer)
+	require.NoError(t, err)
+
+	reqDone := make(chan struct{})
+	go func() {
+		defer close(reqDone)
+		bridge.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/openai/v1/conversations", nil))
+	}()
+
+	// Wait until the request is in flight in the upstream.
+	_ = codertestutil.TryReceive(ctx, t, started)
+	require.EqualValues(t, 1, bridge.InflightRequests())
+
+	// Shut down with an already-expired context to cancel the blocked request.
+	deadlineCtx, cancelDeadline := context.WithDeadline(context.Background(), time.Now().Add(-time.Second))
+	defer cancelDeadline()
+	require.ErrorIs(t, bridge.Shutdown(deadlineCtx), context.DeadlineExceeded)
+
+	// The request finishes after cancellation while release remains open.
+	// Completion need not precede Shutdown returning.
+	_ = codertestutil.TryReceive(ctx, t, reqDone)
+	require.Zero(t, bridge.InflightRequests())
 }
 
 func TestValidateProviders(t *testing.T) {
