@@ -480,6 +480,136 @@ func TestRefreshKeepsDiscoveredRowsWhenReReadFails(t *testing.T) {
 	require.True(t, bySource[discoveryNestedSource].Discovered, "the discovered row survives a failed re-read")
 	v1 := sha256.Sum256([]byte("site rules v1"))
 	require.Equal(t, v1[:], bySource[discoveryNestedSource].ContentHash)
+	require.Equal(t, discoveryNestedDir, bySource[discoveryNestedSource].SourcePath, "the kept row still knows its probed directory")
+}
+
+// startChatWithDiscoveredFile drives one read_file step on the nested path,
+// answering the probe of its directory chain with firstProbe, and returns
+// the chat once it is waiting with the discovered rows pinned. Probes the
+// test triggers afterwards are its own to expect.
+func startChatWithDiscoveredFile(ctx context.Context, t *testing.T, firstProbe workspacesdk.ResolveContextInstructionsResponse) (database.Store, *chatd.Server, database.Chat, *agentconnmock.MockAgentConn) {
+	t.Helper()
+	db, ps := dbtestutil.NewDB(t)
+	var modelCalls atomic.Int32
+	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse("title")
+		}
+		if modelCalls.Add(1) == 1 {
+			return chattest.OpenAIStreamingResponse(chattest.OpenAIToolCallChunk("read_file", `{"path":"`+discoveryTouchedFile+`"}`))
+		}
+		return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("done")...)
+	})
+	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
+	ws, dbAgent := seedWorkspaceWithAgent(t, db, user.ID)
+	//nolint:gocritic // Seeding agent context as the chatd subject.
+	seedAgentInstructionContext(dbauthz.AsChatd(ctx), t, db, dbAgent.ID, discoveryRootSource, "root rules")
+
+	ctrl := gomock.NewController(t)
+	mockConn := agentconnmock.NewMockAgentConn(ctrl)
+	setupDiscoveryAgentConn(mockConn)
+	mockConn.EXPECT().ReadFileLines(gomock.Any(), discoveryTouchedFile, int64(1), int64(0), gomock.Any()).
+		Return(workspacesdk.ReadFileLinesResponse{Success: true, FileSize: 4, TotalLines: 1, LinesRead: 1, Content: "data"}, nil)
+	mockConn.EXPECT().ResolveContextInstructions(gomock.Any(), workspacesdk.ResolveContextInstructionsRequest{
+		Directories: []string{discoveryNestedDir, discoveryNestedDir + "/src"},
+	}).Return(firstProbe, nil)
+
+	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
+		cfg.AgentConn = func(_ context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+			require.Equal(t, dbAgent.ID, agentID)
+			return mockConn, func() {}, nil
+		}
+	})
+	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
+		WorkspaceID:    uuid.NullUUID{UUID: ws.ID, Valid: true},
+		AgentID:        uuid.NullUUID{UUID: dbAgent.ID, Valid: true},
+		Title:          "lazy-instruction-discovery",
+		ModelConfigID:  model.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("read the app"),
+		},
+	})
+	require.NoError(t, err)
+	waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
+	//nolint:gocritic // Reading the chat as the chatd subject.
+	current, err := db.GetChatByID(dbauthz.AsChatd(ctx), chat.ID)
+	require.NoError(t, err)
+	return db, server, current, mockConn
+}
+
+func pinnedBySource(ctx context.Context, t *testing.T, db database.Store, chatID uuid.UUID) map[string]database.ChatContextResource {
+	t.Helper()
+	//nolint:gocritic // Reading chat-owned rows as the chatd subject.
+	rows, err := db.ListChatContextResourcesByChatID(dbauthz.AsChatd(ctx), chatID)
+	require.NoError(t, err)
+	out := make(map[string]database.ChatContextResource, len(rows))
+	for _, row := range rows {
+		out[row.Source] = row
+	}
+	return out
+}
+
+// TestRefreshProbesDiscoveredRowsByDirectory covers a symlinked instruction
+// file: the resolver attributes it to its target, so the row's source sits
+// in another directory than the one that was probed. Refresh must re-probe
+// the probed directory, where the link still is, not the target's.
+func TestRefreshProbesDiscoveredRowsByDirectory(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	linkedSource := discoveryNestedDir + "/rules/shared.md"
+	db, server, chat, mockConn := startChatWithDiscoveredFile(ctx, t, instructionFileResponse(discoveryNestedDir, linkedSource, "shared rules v1"))
+	before := pinnedBySource(ctx, t, db, chat.ID)
+	require.True(t, before[linkedSource].Discovered)
+	require.Equal(t, discoveryNestedDir, before[linkedSource].SourcePath, "the row records the probed directory")
+
+	mockConn.EXPECT().ResolveContextInstructions(gomock.Any(), workspacesdk.ResolveContextInstructionsRequest{
+		Directories: []string{discoveryNestedDir},
+	}).Return(instructionFileResponse(discoveryNestedDir, linkedSource, "shared rules v2"), nil)
+	_, err := server.RefreshChatContext(ctx, chat)
+	require.NoError(t, err)
+
+	after := pinnedBySource(ctx, t, db, chat.ID)
+	require.Contains(t, after, linkedSource, "refresh probes the link's directory and keeps the row")
+	v2 := sha256.Sum256([]byte("shared rules v2"))
+	require.Equal(t, v2[:], after[linkedSource].ContentHash)
+	require.Equal(t, discoveryNestedDir, after[linkedSource].SourcePath)
+}
+
+// TestRefreshKeepsNewerStepDiscovery races a refresh against a step: while
+// the refresh probe is in flight, a step pins newer bytes for the same file.
+// The probe's older read must not replace them.
+func TestRefreshKeepsNewerStepDiscovery(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	db, server, chat, mockConn := startChatWithDiscoveredFile(ctx, t, instructionFileResponse(discoveryNestedDir, discoveryNestedSource, "site rules v1"))
+	v3 := sha256.Sum256([]byte("site rules v3"))
+	mockConn.EXPECT().ResolveContextInstructions(gomock.Any(), workspacesdk.ResolveContextInstructionsRequest{
+		Directories: []string{discoveryNestedDir},
+	}).DoAndReturn(func(context.Context, workspacesdk.ResolveContextInstructionsRequest) (workspacesdk.ResolveContextInstructionsResponse, error) {
+		//nolint:gocritic // A concurrent step pins as the chatd subject.
+		require.NoError(t, db.UpsertChatContextDiscoveredResource(dbauthz.AsChatd(ctx), database.UpsertChatContextDiscoveredResourceParams{
+			ChatID:      chat.ID,
+			Source:      discoveryNestedSource,
+			BodyKind:    database.WorkspaceAgentContextBodyKindInstructionFile,
+			Body:        pinnedBySource(ctx, t, db, chat.ID)[discoveryNestedSource].Body,
+			ContentHash: v3[:],
+			SizeBytes:   13,
+			Status:      database.WorkspaceAgentContextResourceStatusOk,
+			SourcePath:  discoveryNestedDir,
+		}))
+		return instructionFileResponse(discoveryNestedDir, discoveryNestedSource, "site rules v2"), nil
+	})
+	_, err := server.RefreshChatContext(ctx, chat)
+	require.NoError(t, err)
+
+	after := pinnedBySource(ctx, t, db, chat.ID)
+	require.Equal(t, v3[:], after[discoveryNestedSource].ContentHash, "the step's newer read survives the refresh")
+	require.True(t, after[discoveryNestedSource].Discovered)
 }
 
 // TestLazyInstructionDiscoveryReprobesStaleDirectory checks that a

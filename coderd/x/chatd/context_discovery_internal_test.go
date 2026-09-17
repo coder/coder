@@ -2,6 +2,7 @@ package chatd
 
 import (
 	"context"
+	"path"
 	"testing"
 	"time"
 
@@ -56,8 +57,10 @@ func TestTouchedPaths(t *testing.T) {
 		call("win-read", "read_file", `{"path":"C:\\repo\\site\\App.tsx"}`),
 		call("win-exec", "execute", `{"command":"dir","workdir":"C:\\repo\\pkg"}`),
 		call("win-rel", "read_file", `{"path":"repo\\App.tsx"}`),
-	}, []fantasy.Content{result("win-read"), result("win-exec"), result("win-rel")})
-	require.Equal(t, []string{"C:/repo/site/App.tsx"}, files)
+		call("unc-read", "read_file", `{"path":"\\\\server\\share\\repo\\App.tsx"}`),
+		call("unc-exec", "execute", `{"command":"dir","workdir":"//server/share/repo"}`),
+	}, []fantasy.Content{result("win-read"), result("win-exec"), result("win-rel"), result("unc-read"), result("unc-exec")})
+	require.Equal(t, []string{"C:/repo/site/App.tsx"}, files, "a UNC path is not probed")
 	require.Equal(t, []string{"C:/repo/pkg"}, dirs)
 }
 
@@ -188,7 +191,6 @@ func TestReconcileDiscoveredInstructionFilesKeepsSpelling(t *testing.T) {
 
 	ctrl := gomock.NewController(t)
 	db := dbmock.NewMockStore(ctrl)
-	server := &Server{db: db, logger: testutil.Logger(t)}
 	chatID := uuid.New()
 	rows := []database.ChatContextResource{
 		{Source: "C:\\repo\\site\\AGENTS.md", BodyKind: database.WorkspaceAgentContextBodyKindInstructionFile, Discovered: true},
@@ -198,14 +200,65 @@ func TestReconcileDiscoveredInstructionFilesKeepsSpelling(t *testing.T) {
 		Directory: "c:/Repo/site", Source: "c:/Repo/site/AGENTS.md", Content: "rules", ContentHash: "ab", SizeBytes: 5, Status: "ok",
 	}}
 	db.EXPECT().UpsertChatContextDiscoveredResource(gomock.Any(), gomock.Cond(func(arg database.UpsertChatContextDiscoveredResourceParams) bool {
-		return arg.ChatID == chatID && arg.Source == "C:\\repo\\site\\AGENTS.md"
+		return arg.ChatID == chatID && arg.Source == "C:\\repo\\site\\AGENTS.md" && arg.SourcePath == "c:/Repo/site"
 	})).Return(nil)
 	db.EXPECT().DeleteChatContextDiscoveredResource(gomock.Any(), database.DeleteChatContextDiscoveredResourceParams{ChatID: chatID, Source: "C:\\repo\\site\\CLAUDE.md"}).Return(nil)
 
 	stale := map[string]struct{}{"c:/repo/site": {}}
-	pinned, removed := server.reconcileDiscoveredInstructionFiles(context.Background(), testutil.Logger(t), chatID, rows, resolved, stale, []string{"c:/Repo/site"})
+	pinned, removed, err := reconcileDiscoveredInstructionFiles(context.Background(), db, chatID, rows, resolved, stale, []string{"c:/Repo/site"})
+	require.NoError(t, err)
 	require.Equal(t, 1, pinned)
 	require.Equal(t, 1, removed)
+}
+
+// TestUnchangedDiscoveredRows checks that a rediscovery applied after its
+// probe skips every source a step pinned in between: a captured row whose
+// content changed, one that vanished, and a file the step discovered first.
+func TestUnchangedDiscoveredRows(t *testing.T) {
+	t.Parallel()
+
+	row := func(source string, hash byte, discovered bool) database.ChatContextResource {
+		return database.ChatContextResource{Source: source, ContentHash: []byte{hash}, Discovered: discovered, BodyKind: database.WorkspaceAgentContextBodyKindInstructionFile}
+	}
+	file := func(source string) workspacesdk.ContextInstructionFile {
+		return workspacesdk.ContextInstructionFile{Directory: path.Dir(source), Source: source, Status: "ok"}
+	}
+	captured := []database.ChatContextResource{
+		row("/repo/site/AGENTS.md", 1, true),
+		row("/repo/site/CLAUDE.md", 1, true),
+		row("/repo/docs/AGENTS.md", 1, true),
+	}
+	current := []database.ChatContextResource{
+		row("/repo/AGENTS.md", 9, false),
+		row("/repo/site/AGENTS.md", 1, true),
+		row("/repo/site/CLAUDE.md", 2, true),
+		row("/repo/site/.cursorrules", 3, true),
+	}
+	resolved := []workspacesdk.ContextInstructionFile{
+		file("/repo/site/AGENTS.md"),
+		file("/repo/site/CLAUDE.md"),
+		file("/repo/site/.cursorrules"),
+		file("/repo/docs/AGENTS.md"),
+		file("/repo/lib/AGENTS.md"),
+	}
+
+	rows, files := unchangedDiscoveredRows(captured, current, resolved)
+	sources := func(rows []database.ChatContextResource) []string {
+		out := make([]string, 0, len(rows))
+		for _, r := range rows {
+			out = append(out, r.Source)
+		}
+		return out
+	}
+	require.Equal(t, []string{"/repo/AGENTS.md", "/repo/site/AGENTS.md"}, sources(rows),
+		"snapshot rows and the unchanged discovered row stay; the rewritten and the step-discovered rows are off limits")
+	require.Equal(t, []string{"/repo/site/AGENTS.md", "/repo/lib/AGENTS.md"}, func() []string {
+		out := make([]string, 0, len(files))
+		for _, f := range files {
+			out = append(out, f.Source)
+		}
+		return out
+	}(), "only an unchanged row or a source nobody holds may be written; a rewritten row, a step-discovered file, and a vanished capture are skipped")
 }
 
 // TestResolveInstructionDirsBatches checks that a probe larger than one

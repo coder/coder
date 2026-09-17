@@ -350,6 +350,7 @@ func (p *Server) RefreshChatContext(ctx context.Context, chat database.Chat) (da
 					SizeBytes:   row.SizeBytes,
 					Status:      row.Status,
 					Error:       row.Error,
+					SourcePath:  row.SourcePath,
 				}); err != nil {
 					return xerrors.Errorf("keep discovered context resource: %w", err)
 				}
