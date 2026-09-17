@@ -30,6 +30,9 @@ import (
 // URI with callbackURL and keeps the rest. A create uses callbackURL alone.
 // If the request has neither, the stored list is kept.
 // stored is nil on a create.
+//
+// Only the list-only and callback-only shapes have callers today. The admin
+// API gains redirect_uris in the next PR and sends the other two.
 func resolveRedirectURIs(callbackURL string, redirectURIs, stored []string) []string {
 	list := slice.Unique(redirectURIs)
 	if len(list) == 0 && len(stored) > 0 {
