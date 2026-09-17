@@ -1,7 +1,12 @@
 import { type FC, useEffect, useEffectEvent } from "react";
 import type { Chat } from "#/api/typesGenerated";
-import { type BoardState, cardContext, newChatLabels } from "./boardApi";
-import type { CardColor } from "./boardLabels";
+import {
+	type BoardState,
+	cardContext,
+	cardWith,
+	newChatLabels,
+} from "./boardApi";
+import type { BoardCard, CardColor } from "./boardLabels";
 import { type ChatWindow, type DraftTarget, windowKey } from "./boardStorage";
 import { ChatBody, FloatingChat } from "./ChatWindows";
 import { DraftChat } from "./DraftChat";
@@ -20,6 +25,7 @@ interface BoardWindowsProps {
 	/** Escape outside a text field: the preview goes, else the frontmost window. */
 	readonly onDismissTop: () => void;
 	readonly onDraftCreated: (target: DraftTarget, chatId: string) => void;
+	readonly onCardAssistant: (card: BoardCard) => void;
 }
 
 export const BoardWindows: FC<BoardWindowsProps> = ({
@@ -34,6 +40,7 @@ export const BoardWindows: FC<BoardWindowsProps> = ({
 	onPreviewLeave,
 	onDismissTop,
 	onDraftCreated,
+	onCardAssistant,
 }) => {
 	const hasWindows = windows.length > 0;
 	const dismissTop = useEffectEvent(onDismissTop);
@@ -62,12 +69,20 @@ export const BoardWindows: FC<BoardWindowsProps> = ({
 			onPreviewLeave,
 		};
 		if (win.kind === "chat") {
+			// Assistant chats are on no card, so they get no assistant button.
+			const card = cardWith(board, win.chatId);
 			return (
 				<FloatingChat
 					key={key}
 					{...frame}
 					title={chatsById.get(win.chatId)?.title ?? "Chat"}
 					color={colorByChatId.get(win.chatId)}
+					onAssistant={
+						card && {
+							cardTitle: card.title,
+							open: () => onCardAssistant(card),
+						}
+					}
 				>
 					<ChatBody chatId={win.chatId} />
 				</FloatingChat>

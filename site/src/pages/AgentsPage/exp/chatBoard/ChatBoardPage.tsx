@@ -162,32 +162,11 @@ const ChatBoardPage: FC = () => {
 		useSensor(KeyboardSensor),
 	);
 
-	// Updates are functional: a preview timer, a window gesture or the
-	// assistant's request may commit after other windows changed. Defined
-	// after the last hook so the compiler can memoize what depends on them.
-	const updateStorage = (patch: Partial<BoardStorage>) =>
-		setStorage((prev) => ({ ...prev, ...patch }));
-	const setWindows = (
-		next: (prev: readonly ChatWindow[]) => readonly ChatWindow[],
-	) => setStorage((prev) => ({ ...prev, windows: next(prev.windows) }));
-
 	const chats = chatsQuery.data?.pages[0] ?? [];
 	const chatsById = new Map(chats.map((chat) => [chat.id, chat]));
-	const openChatIds = new Set(
-		windows.flatMap((w) => (w.kind === "chat" ? [w.chatId] : [])),
-	);
-	const allCards = buildCards(chats);
 	// Looked up in render: an unknown call taking `chats` inside the handler
 	// would count as a mutation and cost the handler its memoization.
 	const assistantByKey = assistantIds(chats);
-	// Commands act on the full model; the filter only decides what is drawn,
-	// so renaming a column with a filter active still relabels every card.
-	const columns = buildColumns(
-		allCards,
-		storage.columnOrder,
-		storage.emptyColumns,
-	);
-	const boardState = { cards: allCards, columns, storage };
 	// Watch events carry status but not labels. While the board assistant is
 	// on a turn it may relabel chats, so the turn ending refetches the list.
 	// The effect's cleanup is that ending: it runs when the status leaves the
@@ -200,6 +179,28 @@ const ChatBoardPage: FC = () => {
 		if (!boardAssistantActive) return;
 		return () => void refetchChatListUntilLanded(queryClient);
 	}, [boardAssistantActive, queryClient]);
+
+	// Updates are functional: a preview timer, a window gesture or the
+	// assistant's request may commit after other windows changed. Defined
+	// after the last hook so the compiler can memoize what depends on them.
+	const updateStorage = (patch: Partial<BoardStorage>) =>
+		setStorage((prev) => ({ ...prev, ...patch }));
+	const setWindows = (
+		next: (prev: readonly ChatWindow[]) => readonly ChatWindow[],
+	) => setStorage((prev) => ({ ...prev, windows: next(prev.windows) }));
+
+	const openChatIds = new Set(
+		windows.flatMap((w) => (w.kind === "chat" ? [w.chatId] : [])),
+	);
+	const allCards = buildCards(chats);
+	// Commands act on the full model; the filter only decides what is drawn,
+	// so renaming a column with a filter active still relabels every card.
+	const columns = buildColumns(
+		allCards,
+		storage.columnOrder,
+		storage.emptyColumns,
+	);
+	const boardState = { cards: allCards, columns, storage };
 	const efforts = effortsOf(allCards);
 	// A stored filter whose last card lost the effort falls back to All; once
 	// the list is loaded that is known for sure and the filter is cleared.
@@ -288,7 +289,7 @@ const ChatBoardPage: FC = () => {
 			setWindows((prev) => toFront(dropPreview(prev), windowCentered(chatId)));
 		});
 	const openCardAssistant = (card: BoardCardModel) =>
-		showAssistant(card.id, (tools) => cardAssistantSpec(card, tools));
+		void showAssistant(card.id, (tools) => cardAssistantSpec(card, tools));
 	const openBoardAssistant = () => {
 		const organizationId = chats[0]?.organization_id;
 		if (!organizationId) return;
@@ -368,7 +369,7 @@ const ChatBoardPage: FC = () => {
 					openChatIds={openChatIds}
 					dropTarget={dropTarget}
 					knownEfforts={efforts.map((e) => e.name)}
-					onAssistant={(card) => void openCardAssistant(card)}
+					onAssistant={openCardAssistant}
 					onNewChat={openDraft}
 					onOpen={openChat}
 					onPreview={previewChat}
@@ -396,6 +397,7 @@ const ChatBoardPage: FC = () => {
 				onDraftCreated={(target, chatId) =>
 					setWindows((prev) => draftCreated(prev, target, chatId))
 				}
+				onCardAssistant={openCardAssistant}
 			/>
 		</div>
 	);

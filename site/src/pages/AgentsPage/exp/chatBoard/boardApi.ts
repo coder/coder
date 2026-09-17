@@ -57,7 +57,8 @@ type ColumnSlot = Readonly<{ name: string; side: "before" | "after" }>;
 const cardOf = (state: BoardState, cardId: string) =>
 	state.cards.find((card) => card.id === cardId);
 
-const cardWith = (state: BoardState, chatId: string) =>
+/** The card a chat belongs to, as primary or member. */
+export const cardWith = (state: BoardState, chatId: string) =>
 	state.cards.find((card) => card.members.some((m) => m.id === chatId));
 
 const columnNames = (state: BoardState) => state.columns.map((c) => c.name);

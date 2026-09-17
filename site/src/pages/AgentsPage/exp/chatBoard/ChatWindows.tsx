@@ -1,5 +1,5 @@
 import { cn } from "cn";
-import { XIcon } from "lucide-react";
+import { BotIcon, XIcon } from "lucide-react";
 import {
 	type FC,
 	lazy,
@@ -57,6 +57,8 @@ interface FloatingChatProps {
 	/** Preview only: the pointer entering keeps it, leaving lets it close. */
 	readonly onPreviewEnter: () => void;
 	readonly onPreviewLeave: () => void;
+	/** Present for chats that belong to a card: opens that card's assistant. */
+	readonly onAssistant?: Readonly<{ cardTitle: string; open: () => void }>;
 	readonly children: ReactNode;
 }
 
@@ -86,6 +88,7 @@ export const FloatingChat: FC<FloatingChatProps> = ({
 	onInteract,
 	onPreviewEnter,
 	onPreviewLeave,
+	onAssistant,
 	children,
 }) => {
 	const [gesture, setGesture] = useState<Gesture | null>(null);
@@ -181,6 +184,19 @@ export const FloatingChat: FC<FloatingChatProps> = ({
 					<span className="text-[11px] font-normal text-content-secondary">
 						click or drag to keep
 					</span>
+				)}
+				{onAssistant && (
+					<Button
+						variant="subtle"
+						size="icon"
+						aria-label={`Assistant for ${onAssistant.cardTitle}`}
+						title="Assistant"
+						className="size-6 shrink-0 text-content-secondary hover:text-content-primary"
+						onPointerDown={(e) => e.stopPropagation()}
+						onClick={onAssistant.open}
+					>
+						<BotIcon className="size-3.5" />
+					</Button>
 				)}
 				<Button
 					variant="subtle"
