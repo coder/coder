@@ -577,6 +577,10 @@ site/node_modules/.installed: site/package.json site/pnpm-lock.yaml
 	(cd site/ && ../scripts/pnpm_install.sh)
 	touch "$@"
 
+annotator/node_modules/.installed: annotator/package.json annotator/pnpm-lock.yaml
+	(cd annotator/ && ../scripts/pnpm_install.sh)
+	touch "$@"
+
 scripts/apidocgen/node_modules/.installed: scripts/apidocgen/package.json scripts/apidocgen/pnpm-lock.yaml
 	(cd scripts/apidocgen && ../../scripts/pnpm_install.sh)
 	touch "$@"
@@ -749,9 +753,9 @@ lint/site-icons:
 	./scripts/check_site_icons.sh
 .PHONY: lint/site-icons
 
-lint/ts: site/node_modules/.installed
-	cd site/
-	pnpm lint
+lint/ts: site/node_modules/.installed annotator/node_modules/.installed
+	(cd site/ && pnpm lint)
+	(cd annotator/ && pnpm lint)
 .PHONY: lint/ts
 
 # Cap cold-cache golangci-lint on high-core hosts to stay below memory limits.
@@ -1564,9 +1568,9 @@ test-cli:
 	$(MAKE) test TEST_PACKAGES="./cli..."
 .PHONY: test-cli
 
-test-js: site/node_modules/.installed
-	cd site/
-	pnpm test:ci
+test-js: site/node_modules/.installed annotator/node_modules/.installed
+	(cd site/ && pnpm test:ci)
+	(cd annotator/ && pnpm test)
 .PHONY: test-js
 
 test-storybook: site/node_modules/.installed

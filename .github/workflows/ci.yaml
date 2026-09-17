@@ -114,6 +114,7 @@ jobs:
               - "go.sum"
             site:
               - "site/**"
+              - "annotator/**"
             k8s:
               - "helm/**"
               - "scripts/Dockerfile"
@@ -960,8 +961,16 @@ jobs:
       - name: Install pnpm dependencies
         uses: ./.github/actions/pnpm-install
 
+      - name: Install annotator pnpm dependencies
+        uses: ./.github/actions/pnpm-install
+        with:
+          directory: annotator
+
       - run: pnpm test:ci --max-workers "$(nproc)"
         working-directory: site
+
+      - run: pnpm test
+        working-directory: annotator
 
   test-e2e:
     runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-4' || 'ubuntu-latest' }}
