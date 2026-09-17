@@ -10,6 +10,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
@@ -73,10 +74,15 @@ type mcpDiscoveryProbeStore struct {
 	database.Store
 	calls      atomic.Int32
 	agentRunID atomic.Pointer[string]
-	read       func(context.Context, uuid.UUID) (database.WorkspaceAgentContextSnapshot, error)
+	// agentErr, when set, fails the agent row lookup.
+	agentErr atomic.Pointer[error]
+	read     func(context.Context, uuid.UUID) (database.WorkspaceAgentContextSnapshot, error)
 }
 
 func (s *mcpDiscoveryProbeStore) GetWorkspaceAgentByID(_ context.Context, id uuid.UUID) (database.WorkspaceAgent, error) {
+	if p := s.agentErr.Load(); p != nil {
+		return database.WorkspaceAgent{}, *p
+	}
 	runID := ""
 	if p := s.agentRunID.Load(); p != nil {
 		runID = *p
@@ -159,6 +165,49 @@ func TestMCPDiscoveryAttemptTimedOutExpires(t *testing.T) {
 	require.EqualValues(t, 4, db.calls.Load(), "an expired attempt is spent again")
 	server.mcpDiscoveryMu.Lock()
 	require.Len(t, server.mcpDiscoveryAttempts, 1, "expired attempts for other chats are swept on rearm")
+	server.mcpDiscoveryMu.Unlock()
+}
+
+func TestMCPDiscoveryAttemptKeptWhenRunIDLookupFails(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitLong)
+	db := &mcpDiscoveryProbeStore{read: func(ctx context.Context, _ uuid.UUID) (database.WorkspaceAgentContextSnapshot, error) {
+		<-ctx.Done()
+		return database.WorkspaceAgentContextSnapshot{}, ctx.Err()
+	}}
+	runA := "run-a"
+	db.agentRunID.Store(&runA)
+	server := &Server{db: db, logger: testutil.Logger(t)}
+	chatID, agentID := uuid.New(), uuid.New()
+	attemptCtx, cancel := context.WithCancel(ctx)
+	cancel()
+	server.waitForMCPDiscovery(attemptCtx, chatID, agentID)
+	require.EqualValues(t, 1, db.calls.Load())
+	server.mcpDiscoveryMu.Lock()
+	cached := server.mcpDiscoveryAttempts[chatID]
+	server.mcpDiscoveryMu.Unlock()
+	require.NotNil(t, cached)
+
+	// The run id lookup fails (a canceled turn, a database hiccup): the
+	// cached attempt for the same agent must be kept, not replaced by an
+	// attempt built from the failed context.
+	lookupErr := xerrors.New("lookup failed")
+	db.agentErr.Store(&lookupErr)
+	got := server.waitForMCPDiscovery(attemptCtx, chatID, agentID)
+	require.True(t, got.WaitTimedOut, "the cached outcome is reused")
+	require.EqualValues(t, 1, db.calls.Load(), "no new attempt is started")
+	server.mcpDiscoveryMu.Lock()
+	require.Same(t, cached, server.mcpDiscoveryAttempts[chatID])
+	server.mcpDiscoveryMu.Unlock()
+
+	// Without a cached attempt, a failed lookup fails open without
+	// caching anything.
+	otherChat := uuid.New()
+	got = server.waitForMCPDiscovery(ctx, otherChat, agentID)
+	require.False(t, got.WaitTimedOut)
+	require.EqualValues(t, 1, db.calls.Load())
+	server.mcpDiscoveryMu.Lock()
+	require.Nil(t, server.mcpDiscoveryAttempts[otherChat])
 	server.mcpDiscoveryMu.Unlock()
 }
 

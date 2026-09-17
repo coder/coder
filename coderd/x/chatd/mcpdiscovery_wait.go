@@ -9,6 +9,7 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 // mcpDiscoveryAttemptRetention bounds how long a timed-out attempt stays
@@ -45,29 +46,43 @@ type mcpDiscoveryAttempt struct {
 // fails open: the caller continues with the current-run tools the view
 // exposes.
 func (p *Server) waitForMCPDiscovery(ctx context.Context, chatID, agentID uuid.UUID) chattool.MCPDiscoveryOutcome {
-	var agentRunID string
-	if agent, err := p.db.GetWorkspaceAgentByID(ctx, agentID); err == nil {
-		agentRunID = agent.AgentRunID
-	} else {
-		p.logger.Debug(ctx, "failed to read agent run id before MCP discovery wait",
-			slog.F("chat_id", chatID), slog.F("agent_id", agentID), slog.Error(err))
-	}
-
 	now := time.Now()
 	if p.clock != nil {
 		now = p.clock.Now()
 	}
-	p.mcpDiscoveryMu.Lock()
-	attempt := p.mcpDiscoveryAttempts[chatID]
-	if attempt != nil && attempt.agentID == agentID && attempt.agentRunID == agentRunID &&
-		(attempt.expiresAt.IsZero() || now.Before(attempt.expiresAt)) {
-		p.mcpDiscoveryMu.Unlock()
+	join := func(attempt *mcpDiscoveryAttempt) chattool.MCPDiscoveryOutcome {
 		select {
 		case <-attempt.done:
 			return attempt.outcome
 		case <-ctx.Done():
 			return chattool.MCPDiscoveryOutcome{WaitTimedOut: true}
 		}
+	}
+
+	agent, err := p.db.GetWorkspaceAgentByID(ctx, agentID)
+	if err != nil {
+		// Without the run id the cache key is unknown. Reuse the chat's
+		// attempt for this agent if there is one rather than replacing it
+		// with an attempt built on a failing context; otherwise fail open
+		// without caching anything.
+		p.logger.Debug(ctx, "failed to read agent run id before MCP discovery wait",
+			slog.F("chat_id", chatID), slog.F("agent_id", agentID), slog.Error(err))
+		p.mcpDiscoveryMu.Lock()
+		attempt := p.mcpDiscoveryAttempts[chatID]
+		p.mcpDiscoveryMu.Unlock()
+		if attempt != nil && attempt.agentID == agentID {
+			return join(attempt)
+		}
+		return chattool.MCPDiscoveryOutcome{Phase: codersdk.ChatContextMCPDiscoveryPhaseUnknown}
+	}
+	agentRunID := agent.AgentRunID
+
+	p.mcpDiscoveryMu.Lock()
+	attempt := p.mcpDiscoveryAttempts[chatID]
+	if attempt != nil && attempt.agentID == agentID && attempt.agentRunID == agentRunID &&
+		(attempt.expiresAt.IsZero() || now.Before(attempt.expiresAt)) {
+		p.mcpDiscoveryMu.Unlock()
+		return join(attempt)
 	}
 	for id, expired := range p.mcpDiscoveryAttempts {
 		if !expired.expiresAt.IsZero() && !now.Before(expired.expiresAt) {
