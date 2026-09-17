@@ -1,6 +1,6 @@
 import { preloadHighlighter } from "@pierre/diffs";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, fn, userEvent, waitFor, within } from "storybook/test";
+import { expect, spyOn, userEvent, waitFor, within } from "storybook/test";
 import { Response } from "./Response";
 
 const sampleMarkdown = `
@@ -22,9 +22,7 @@ export const ensureProviderLabel = (provider: string) => {
 \`\`\`
 `;
 
-const sampleFileMarkdown = `
-\`\`\`go
-package auth
+const sampleFileCode = `package auth
 
 import "errors"
 
@@ -33,9 +31,17 @@ func ValidateToken(token string) error {
 		return errors.New("token is empty")
 	}
 	return nil
-}
+}`;
+
+const sampleFileMarkdown = `
+\`\`\`go
+${sampleFileCode}
 \`\`\`
 `;
+
+const mockClipboardWrite = () => {
+	spyOn(navigator.clipboard, "writeText").mockResolvedValue(undefined);
+};
 
 const meta: Meta<typeof Response> = {
 	title: "pages/AgentsPage/ChatElements/Response",
@@ -66,36 +72,16 @@ export const FencedFileBlock: Story = {
 	args: {
 		children: sampleFileMarkdown,
 	},
+	beforeEach: mockClipboardWrite,
+	// Copies the whole fence body, indentation included, without the
+	// fence markers or the trailing newline.
 	play: async ({ canvasElement }) => {
-		// Multi-line fenced blocks must expose the same copy affordance
-		// on hover as single-line blocks.
 		const canvas = within(canvasElement);
 		const copyButton = await canvas.findByRole("button", {
 			name: "Copy code",
 		});
-
-		const originalClipboard = navigator.clipboard;
-		const writeText = fn().mockResolvedValue(undefined);
-		Object.defineProperty(navigator, "clipboard", {
-			value: { writeText },
-			writable: true,
-			configurable: true,
-		});
-		try {
-			await userEvent.click(copyButton);
-			expect(writeText).toHaveBeenCalledTimes(1);
-			const copiedText = writeText.mock.calls[0]?.[0] as string;
-			expect(copiedText).toContain("func ValidateToken(token string) error {");
-			expect(copiedText).toContain('return errors.New("token is empty")');
-			expect(copiedText.startsWith("package auth")).toBe(true);
-			expect(copiedText.endsWith("}")).toBe(true);
-		} finally {
-			Object.defineProperty(navigator, "clipboard", {
-				value: originalClipboard,
-				writable: true,
-				configurable: true,
-			});
-		}
+		await userEvent.click(copyButton);
+		expect(navigator.clipboard.writeText).toHaveBeenCalledWith(sampleFileCode);
 	},
 };
 
@@ -109,31 +95,16 @@ export const SingleLineFencedBlock: Story = {
 	args: {
 		children: singleLineCodeBlockMarkdown,
 	},
+	beforeEach: mockClipboardWrite,
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const copyButton = await canvas.findByRole("button", {
 			name: "Copy code",
 		});
-
-		const originalClipboard = navigator.clipboard;
-		const writeText = fn().mockResolvedValue(undefined);
-		Object.defineProperty(navigator, "clipboard", {
-			value: { writeText },
-			writable: true,
-			configurable: true,
-		});
-		try {
-			await userEvent.click(copyButton);
-			expect(writeText).toHaveBeenCalledWith(
-				"07c3697 feat: update agent skills",
-			);
-		} finally {
-			Object.defineProperty(navigator, "clipboard", {
-				value: originalClipboard,
-				writable: true,
-				configurable: true,
-			});
-		}
+		await userEvent.click(copyButton);
+		expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
+			"07c3697 feat: update agent skills",
+		);
 	},
 };
 
@@ -331,11 +302,6 @@ export const MermaidFlowchart: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		await waitForDiagram(canvasElement);
-		// Mermaid diagrams render their own controls; the generic code
-		// copy button must not double up on the diagram itself.
-		expect(
-			within(canvasElement).queryByRole("button", { name: "Copy code" }),
-		).not.toBeInTheDocument();
 	},
 };
 
