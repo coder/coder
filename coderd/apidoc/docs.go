@@ -17876,7 +17876,7 @@ const docTemplate = `{
                     "format": "uuid"
                 },
                 "interception_attributions": {
-                    "description": "InterceptionAttributions maps every interception ID (UUID string) in this\nthread to its attribution, including tool-less rows. The inner map carries\nworkspace_id when the interception can be attributed to a specific\nworkspace, and is null when the workspace context is unknown. The outer\nmap is always present (serializes as {}, never null) so callers can\ndistinguish an empty thread from a missing field. Use this for\nper-interception attribution and audit rather than AgenticActions, which\nonly covers interceptions that produced tool calls.",
+                    "description": "InterceptionAttributions include per-interception attribution data.",
                     "type": "object",
                     "additionalProperties": {
                         "$ref": "#/definitions/codersdk.AIBridgeAttribution"

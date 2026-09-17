@@ -222,14 +222,7 @@ export interface AIBridgeThread {
 	readonly ended_at?: string;
 	readonly token_usage: AIBridgeSessionThreadsTokenUsage;
 	/**
-	 * InterceptionAttributions maps every interception ID (UUID string) in this
-	 * thread to its attribution, including tool-less rows. The inner map carries
-	 * workspace_id when the interception can be attributed to a specific
-	 * workspace, and is null when the workspace context is unknown. The outer
-	 * map is always present (serializes as {}, never null) so callers can
-	 * distinguish an empty thread from a missing field. Use this for
-	 * per-interception attribution and audit rather than AgenticActions, which
-	 * only covers interceptions that produced tool calls.
+	 * InterceptionAttributions include per-interception attribution data.
 	 */
 	readonly interception_attributions: Record<
 		string,
