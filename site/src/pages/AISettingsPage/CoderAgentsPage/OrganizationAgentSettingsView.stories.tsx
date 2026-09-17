@@ -203,6 +203,15 @@ export const OverridesLoadError: Story = {
 	},
 };
 
+export const NoModelsWithOverridesRefetchError: Story = {
+	args: {
+		enabledModels: [],
+		refetchError: mockApiError({
+			message: "Failed to refresh model overrides.",
+		}),
+	},
+};
+
 export const NoModels: Story = {
 	args: { enabledModels: [] },
 	beforeEach: () => {
