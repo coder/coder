@@ -1901,16 +1901,14 @@ WHERE chat_id = @chat_id::uuid;
 
 -- name: UpsertChatContextDiscoveredResource :exec
 -- Pins an instruction file chatd resolved from a directory a tool touched
--- during the chat. source_path records that directory: the resolver
--- attributes a symlinked file to its target, so the row's directory cannot
--- be derived from source. A row the snapshot already covers is left alone,
--- so a discovered copy never shadows the watched one; a discovered row that
+-- during the chat. A row the snapshot already covers is left alone, so a
+-- discovered copy never shadows the watched one; a discovered row that
 -- exists is refreshed with the latest read.
 INSERT INTO chat_context_resources (
-    chat_id, source, body_kind, body, content_hash, size_bytes, status, error, source_path, discovered
+    chat_id, source, body_kind, body, content_hash, size_bytes, status, error, discovered
 )
 VALUES (
-    @chat_id::uuid, @source, @body_kind, @body, @content_hash, @size_bytes, @status, @error, @source_path, true
+    @chat_id::uuid, @source, @body_kind, @body, @content_hash, @size_bytes, @status, @error, true
 )
 ON CONFLICT (chat_id, source) DO UPDATE SET
     body = EXCLUDED.body,
@@ -1918,7 +1916,6 @@ ON CONFLICT (chat_id, source) DO UPDATE SET
     size_bytes = EXCLUDED.size_bytes,
     status = EXCLUDED.status,
     error = EXCLUDED.error,
-    source_path = EXCLUDED.source_path,
     updated_at = now()
 WHERE chat_context_resources.discovered = true;
 

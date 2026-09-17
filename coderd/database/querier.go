@@ -1721,10 +1721,8 @@ type sqlcQuerier interface {
 	UpsertChatAutoArchiveDays(ctx context.Context, autoArchiveDays int32) error
 	UpsertChatComputerUseProvider(ctx context.Context, provider string) error
 	// Pins an instruction file chatd resolved from a directory a tool touched
-	// during the chat. source_path records that directory: the resolver
-	// attributes a symlinked file to its target, so the row's directory cannot
-	// be derived from source. A row the snapshot already covers is left alone,
-	// so a discovered copy never shadows the watched one; a discovered row that
+	// during the chat. A row the snapshot already covers is left alone, so a
+	// discovered copy never shadows the watched one; a discovered row that
 	// exists is refreshed with the latest read.
 	UpsertChatContextDiscoveredResource(ctx context.Context, arg UpsertChatContextDiscoveredResourceParams) error
 	// UpsertChatDebugLoggingAllowUsers updates the runtime admin setting that
