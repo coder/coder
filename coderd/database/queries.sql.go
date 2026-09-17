@@ -7245,6 +7245,35 @@ func (q *sqlQuerier) UpsertChatUserModelOverride(ctx context.Context, arg Upsert
 	return err
 }
 
+const claimChatProjectMemoryExtraction = `-- name: ClaimChatProjectMemoryExtraction :one
+INSERT INTO chat_project_memory_cursors (chat_id, history_version, claimed_until)
+VALUES ($1::uuid, 0, $2::timestamptz)
+ON CONFLICT (chat_id) DO UPDATE
+SET claimed_until = EXCLUDED.claimed_until
+WHERE chat_project_memory_cursors.claimed_until IS NULL
+    OR chat_project_memory_cursors.claimed_until < now()
+RETURNING chat_id, history_version, extracted_at, claimed_until
+`
+
+type ClaimChatProjectMemoryExtractionParams struct {
+	ChatID       uuid.UUID `db:"chat_id" json:"chat_id"`
+	ClaimedUntil time.Time `db:"claimed_until" json:"claimed_until"`
+}
+
+// Claims the chat for one extractor and returns the current cursor. No row
+// is returned while another unexpired claim holds the chat.
+func (q *sqlQuerier) ClaimChatProjectMemoryExtraction(ctx context.Context, arg ClaimChatProjectMemoryExtractionParams) (ChatProjectMemoryCursor, error) {
+	row := q.db.QueryRowContext(ctx, claimChatProjectMemoryExtraction, arg.ChatID, arg.ClaimedUntil)
+	var i ChatProjectMemoryCursor
+	err := row.Scan(
+		&i.ChatID,
+		&i.HistoryVersion,
+		&i.ExtractedAt,
+		&i.ClaimedUntil,
+	)
+	return i, err
+}
+
 const countChatProjectMemoriesByProjectID = `-- name: CountChatProjectMemoriesByProjectID :one
 SELECT COUNT(*)::bigint
 FROM chat_project_memories
@@ -7407,7 +7436,7 @@ func (q *sqlQuerier) GetChatProjectMemoryByName(ctx context.Context, arg GetChat
 }
 
 const getChatProjectMemoryCursor = `-- name: GetChatProjectMemoryCursor :one
-SELECT chat_id, history_version, extracted_at
+SELECT chat_id, history_version, extracted_at, claimed_until
 FROM chat_project_memory_cursors
 WHERE chat_id = $1::uuid
 `
@@ -7415,7 +7444,12 @@ WHERE chat_id = $1::uuid
 func (q *sqlQuerier) GetChatProjectMemoryCursor(ctx context.Context, chatID uuid.UUID) (ChatProjectMemoryCursor, error) {
 	row := q.db.QueryRowContext(ctx, getChatProjectMemoryCursor, chatID)
 	var i ChatProjectMemoryCursor
-	err := row.Scan(&i.ChatID, &i.HistoryVersion, &i.ExtractedAt)
+	err := row.Scan(
+		&i.ChatID,
+		&i.HistoryVersion,
+		&i.ExtractedAt,
+		&i.ClaimedUntil,
+	)
 	return i, err
 }
 
@@ -7479,6 +7513,25 @@ func (q *sqlQuerier) InsertChatProjectMemory(ctx context.Context, arg InsertChat
 		&i.UpdatedAt,
 	)
 	return i, err
+}
+
+const releaseChatProjectMemoryExtraction = `-- name: ReleaseChatProjectMemoryExtraction :exec
+UPDATE chat_project_memory_cursors
+SET claimed_until = NULL
+WHERE chat_id = $1::uuid
+    AND claimed_until = $2::timestamptz
+`
+
+type ReleaseChatProjectMemoryExtractionParams struct {
+	ChatID       uuid.UUID `db:"chat_id" json:"chat_id"`
+	ClaimedUntil time.Time `db:"claimed_until" json:"claimed_until"`
+}
+
+// Releases a claim only while it is still ours, so an expired claim cannot
+// release a newer extractor's claim.
+func (q *sqlQuerier) ReleaseChatProjectMemoryExtraction(ctx context.Context, arg ReleaseChatProjectMemoryExtractionParams) error {
+	_, err := q.db.ExecContext(ctx, releaseChatProjectMemoryExtraction, arg.ChatID, arg.ClaimedUntil)
+	return err
 }
 
 const updateChatProjectMemoryByID = `-- name: UpdateChatProjectMemoryByID :one
@@ -7597,7 +7650,7 @@ SET
         EXCLUDED.history_version
     ),
     extracted_at = now()
-RETURNING chat_id, history_version, extracted_at
+RETURNING chat_id, history_version, extracted_at, claimed_until
 `
 
 type UpsertChatProjectMemoryCursorParams struct {
@@ -7608,7 +7661,12 @@ type UpsertChatProjectMemoryCursorParams struct {
 func (q *sqlQuerier) UpsertChatProjectMemoryCursor(ctx context.Context, arg UpsertChatProjectMemoryCursorParams) (ChatProjectMemoryCursor, error) {
 	row := q.db.QueryRowContext(ctx, upsertChatProjectMemoryCursor, arg.ChatID, arg.HistoryVersion)
 	var i ChatProjectMemoryCursor
-	err := row.Scan(&i.ChatID, &i.HistoryVersion, &i.ExtractedAt)
+	err := row.Scan(
+		&i.ChatID,
+		&i.HistoryVersion,
+		&i.ExtractedAt,
+		&i.ClaimedUntil,
+	)
 	return i, err
 }
 

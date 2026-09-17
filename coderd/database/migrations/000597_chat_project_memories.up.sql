@@ -30,7 +30,10 @@ CREATE INDEX idx_chat_project_memories_project_updated_at ON chat_project_memori
 CREATE TABLE chat_project_memory_cursors (
     chat_id uuid PRIMARY KEY REFERENCES chats(id) ON DELETE CASCADE,
     history_version bigint NOT NULL,
-    extracted_at timestamptz NOT NULL DEFAULT now()
+    extracted_at timestamptz NOT NULL DEFAULT now(),
+    -- Set while a detached extractor owns the chat so overlapping turns do
+    -- not run two extractors on the same window. Expired claims are stale.
+    claimed_until timestamptz
 );
 
 COMMENT ON TABLE chat_project_memory_cursors IS 'Per-chat cursors for project memory extraction.';

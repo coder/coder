@@ -89,6 +89,9 @@ type sqlcQuerier interface {
 	// Calculates the telemetry summary for a given provider, model, and client
 	// combination for telemetry reporting.
 	CalculateAIBridgeInterceptionsTelemetrySummary(ctx context.Context, arg CalculateAIBridgeInterceptionsTelemetrySummaryParams) (CalculateAIBridgeInterceptionsTelemetrySummaryRow, error)
+	// Claims the chat for one extractor and returns the current cursor. No row
+	// is returned while another unexpired claim holds the chat.
+	ClaimChatProjectMemoryExtraction(ctx context.Context, arg ClaimChatProjectMemoryExtractionParams) (ChatProjectMemoryCursor, error)
 	ClaimPrebuiltWorkspace(ctx context.Context, arg ClaimPrebuiltWorkspaceParams) (ClaimPrebuiltWorkspaceRow, error)
 	CleanTailnetCoordinators(ctx context.Context) error
 	CleanTailnetLostPeers(ctx context.Context) error
@@ -1387,6 +1390,9 @@ type sqlcQuerier interface {
 	ReduceWorkspaceAgentShareLevelToAuthenticatedByTemplate(ctx context.Context, templateID uuid.UUID) error
 	RegisterWorkspaceProxy(ctx context.Context, arg RegisterWorkspaceProxyParams) (WorkspaceProxy, error)
 	ReindexStaleChatMessagesSearchTsv(ctx context.Context, batchSize int32) (int64, error)
+	// Releases a claim only while it is still ours, so an expired claim cannot
+	// release a newer extractor's claim.
+	ReleaseChatProjectMemoryExtraction(ctx context.Context, arg ReleaseChatProjectMemoryExtractionParams) error
 	// The lease is only removed if it is the current lease.
 	ReleaseExternalAuthLinkRefreshLease(ctx context.Context, arg ReleaseExternalAuthLinkRefreshLeaseParams) error
 	RemoveUserFromGroups(ctx context.Context, arg RemoveUserFromGroupsParams) ([]uuid.UUID, error)

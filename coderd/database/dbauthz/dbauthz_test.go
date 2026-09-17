@@ -1152,6 +1152,21 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().UpsertChatProjectMemoryByName(gomock.Any(), arg).Return(memory, nil).AnyTimes()
 		check.Args(arg).Asserts(rbac.ResourceChatProjectMemory.InOrg(arg.OrganizationID), policy.ActionCreate).Returns(memory)
 	}))
+	s.Run("ClaimChatProjectMemoryExtraction", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		chat := testutil.Fake(s.T(), faker, database.Chat{})
+		arg := database.ClaimChatProjectMemoryExtractionParams{ChatID: chat.ID}
+		cursor := testutil.Fake(s.T(), faker, database.ChatProjectMemoryCursor{ChatID: chat.ID})
+		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
+		dbm.EXPECT().ClaimChatProjectMemoryExtraction(gomock.Any(), arg).Return(cursor, nil).AnyTimes()
+		check.Args(arg).Asserts(chat, policy.ActionUpdate).Returns(cursor)
+	}))
+	s.Run("ReleaseChatProjectMemoryExtraction", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		chat := testutil.Fake(s.T(), faker, database.Chat{})
+		arg := database.ReleaseChatProjectMemoryExtractionParams{ChatID: chat.ID}
+		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
+		dbm.EXPECT().ReleaseChatProjectMemoryExtraction(gomock.Any(), arg).Return(nil).AnyTimes()
+		check.Args(arg).Asserts(chat, policy.ActionUpdate)
+	}))
 	s.Run("UpsertChatProjectMemoryCursor", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		chat := testutil.Fake(s.T(), faker, database.Chat{})
 		arg := database.UpsertChatProjectMemoryCursorParams{ChatID: chat.ID}

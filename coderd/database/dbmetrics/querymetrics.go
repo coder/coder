@@ -273,6 +273,14 @@ func (m queryMetricsStore) CalculateAIBridgeInterceptionsTelemetrySummary(ctx co
 	return r0, r1
 }
 
+func (m queryMetricsStore) ClaimChatProjectMemoryExtraction(ctx context.Context, arg database.ClaimChatProjectMemoryExtractionParams) (database.ChatProjectMemoryCursor, error) {
+	start := time.Now()
+	r0, r1 := m.s.ClaimChatProjectMemoryExtraction(ctx, arg)
+	m.queryLatencies.WithLabelValues("ClaimChatProjectMemoryExtraction").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ClaimChatProjectMemoryExtraction").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) ClaimPrebuiltWorkspace(ctx context.Context, arg database.ClaimPrebuiltWorkspaceParams) (database.ClaimPrebuiltWorkspaceRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.ClaimPrebuiltWorkspace(ctx, arg)
@@ -5135,6 +5143,14 @@ func (m queryMetricsStore) ReindexStaleChatMessagesSearchTsv(ctx context.Context
 	m.queryLatencies.WithLabelValues("ReindexStaleChatMessagesSearchTsv").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ReindexStaleChatMessagesSearchTsv").Inc()
 	return r0, r1
+}
+
+func (m queryMetricsStore) ReleaseChatProjectMemoryExtraction(ctx context.Context, arg database.ReleaseChatProjectMemoryExtractionParams) error {
+	start := time.Now()
+	r0 := m.s.ReleaseChatProjectMemoryExtraction(ctx, arg)
+	m.queryLatencies.WithLabelValues("ReleaseChatProjectMemoryExtraction").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ReleaseChatProjectMemoryExtraction").Inc()
+	return r0
 }
 
 func (m queryMetricsStore) ReleaseExternalAuthLinkRefreshLease(ctx context.Context, arg database.ReleaseExternalAuthLinkRefreshLeaseParams) error {

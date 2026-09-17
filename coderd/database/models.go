@@ -5305,9 +5305,10 @@ type ChatProjectMemory struct {
 
 // Per-chat cursors for project memory extraction.
 type ChatProjectMemoryCursor struct {
-	ChatID         uuid.UUID `db:"chat_id" json:"chat_id"`
-	HistoryVersion int64     `db:"history_version" json:"history_version"`
-	ExtractedAt    time.Time `db:"extracted_at" json:"extracted_at"`
+	ChatID         uuid.UUID    `db:"chat_id" json:"chat_id"`
+	HistoryVersion int64        `db:"history_version" json:"history_version"`
+	ExtractedAt    time.Time    `db:"extracted_at" json:"extracted_at"`
+	ClaimedUntil   sql.NullTime `db:"claimed_until" json:"claimed_until"`
 }
 
 type ChatQueuedMessage struct {

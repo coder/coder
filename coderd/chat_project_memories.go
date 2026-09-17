@@ -12,7 +12,6 @@ import (
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
-	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
@@ -72,19 +71,13 @@ func (api *API) postChatProjectMemory(rw http.ResponseWriter, r *http.Request) {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, *resp)
 		return
 	}
-	//nolint:gocritic // Create authorization was already performed against this memory resource.
-	count, err := api.Database.CountChatProjectMemoriesByProjectID(dbauthz.AsSystemRestricted(ctx), project.ID)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{Message: "Failed to count chat project memories.", Detail: err.Error()})
-		return
-	}
-	if count >= chattool.MaxProjectMemories {
+	aReq, commit := audit.InitRequest[database.ChatProjectMemory](rw, &audit.RequestParams{Audit: *api.Auditor.Load(), Log: api.Logger, Request: r, Action: database.AuditActionCreate, OrganizationID: project.OrganizationID})
+	defer commit()
+	memory, err := chattool.InsertProjectMemory(ctx, api.Database, database.InsertChatProjectMemoryParams{ID: uuid.NullUUID{}, ProjectID: project.ID, OrganizationID: project.OrganizationID, Name: normalized.Name, Description: normalized.Description, Body: normalized.Body, SourceChatID: uuid.NullUUID{}, CreatedBy: apiKey.UserID})
+	if errors.Is(err, chattool.ErrProjectMemoryLimit) {
 		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{Message: "Chat project memory limit reached."})
 		return
 	}
-	aReq, commit := audit.InitRequest[database.ChatProjectMemory](rw, &audit.RequestParams{Audit: *api.Auditor.Load(), Log: api.Logger, Request: r, Action: database.AuditActionCreate, OrganizationID: project.OrganizationID})
-	defer commit()
-	memory, err := api.Database.InsertChatProjectMemory(ctx, database.InsertChatProjectMemoryParams{ID: uuid.NullUUID{}, ProjectID: project.ID, OrganizationID: project.OrganizationID, Name: normalized.Name, Description: normalized.Description, Body: normalized.Body, SourceChatID: uuid.NullUUID{}, CreatedBy: apiKey.UserID})
 	if database.IsUniqueViolation(err) {
 		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{Message: "A chat project memory with this name already exists."})
 		return

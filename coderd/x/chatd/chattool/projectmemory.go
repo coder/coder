@@ -2,6 +2,7 @@ package chattool
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"regexp"
 	"strings"
@@ -12,6 +13,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -28,6 +30,72 @@ const (
 )
 
 var projectMemoryNameRE = regexp.MustCompile(`^[a-z0-9][a-z0-9_-]{0,63}$`)
+
+// ErrProjectMemoryLimit is returned when a project already holds
+// MaxProjectMemories memories and a new name cannot be added.
+var ErrProjectMemoryLimit = xerrors.New("project memory limit reached")
+
+// projectMemoryLockID serializes writes that create memories so the cap is
+// checked and enforced in one transaction.
+func projectMemoryLockID(projectID uuid.UUID) int64 {
+	return database.GenLockID("chat-project-memory:" + projectID.String())
+}
+
+// checkProjectMemoryCap fails with ErrProjectMemoryLimit when the project is
+// full. The count runs as the system because the caller has already been
+// authorized to create in this project, and a create-only scope may lack the
+// project read the count would otherwise require.
+func checkProjectMemoryCap(ctx context.Context, tx database.Store, projectID uuid.UUID) error {
+	//nolint:gocritic // See above.
+	count, err := tx.CountChatProjectMemoriesByProjectID(dbauthz.AsSystemRestricted(ctx), projectID)
+	if err != nil {
+		return xerrors.Errorf("count project memories: %w", err)
+	}
+	if count >= MaxProjectMemories {
+		return ErrProjectMemoryLimit
+	}
+	return nil
+}
+
+// InsertProjectMemory creates a memory under the project cap. The count and
+// insert run in one transaction behind a per-project advisory lock so two
+// concurrent writers cannot both observe room and overshoot the cap.
+func InsertProjectMemory(ctx context.Context, store database.Store, params database.InsertChatProjectMemoryParams) (database.ChatProjectMemory, error) {
+	var memory database.ChatProjectMemory
+	err := store.InTx(func(tx database.Store) error {
+		if err := tx.AcquireLock(ctx, projectMemoryLockID(params.ProjectID)); err != nil {
+			return xerrors.Errorf("lock project memories: %w", err)
+		}
+		if err := checkProjectMemoryCap(ctx, tx, params.ProjectID); err != nil {
+			return err
+		}
+		var err error
+		memory, err = tx.InsertChatProjectMemory(ctx, params)
+		return err
+	}, nil)
+	return memory, err
+}
+
+// UpsertProjectMemory saves a memory by name. Updating an existing name is
+// always allowed; creating a new one is subject to the same transactional cap
+// check as InsertProjectMemory.
+func UpsertProjectMemory(ctx context.Context, store database.Store, params database.UpsertChatProjectMemoryByNameParams) (database.ChatProjectMemory, error) {
+	var memory database.ChatProjectMemory
+	err := store.InTx(func(tx database.Store) error {
+		if err := tx.AcquireLock(ctx, projectMemoryLockID(params.ProjectID)); err != nil {
+			return xerrors.Errorf("lock project memories: %w", err)
+		}
+		if _, err := tx.GetChatProjectMemoryByName(ctx, database.GetChatProjectMemoryByNameParams{ProjectID: params.ProjectID, Name: params.Name}); err != nil {
+			if err := checkProjectMemoryCap(ctx, tx, params.ProjectID); err != nil {
+				return err
+			}
+		}
+		var err error
+		memory, err = tx.UpsertChatProjectMemoryByName(ctx, params)
+		return err
+	}, nil)
+	return memory, err
+}
 
 // ProjectMemoryOptions configures the project memory tools.
 type ProjectMemoryOptions struct {
@@ -185,21 +253,14 @@ func SaveProjectMemory(options ProjectMemoryOptions) fantasy.AgentTool {
 		if err != nil {
 			return fantasy.NewTextErrorResponse(err.Error()), nil
 		}
-		_, getErr := options.Store.GetChatProjectMemoryByName(ctx, database.GetChatProjectMemoryByNameParams{ProjectID: options.ProjectID, Name: normalized.Name})
-		if getErr != nil {
-			count, countErr := options.Store.CountChatProjectMemoriesByProjectID(ctx, options.ProjectID)
-			if countErr != nil {
-				return fantasy.NewTextErrorResponse("failed to count project memories"), nil
-			}
-			if count >= MaxProjectMemories {
-				return fantasy.NewTextErrorResponse("project memory limit reached; merge or delete existing memories first"), nil
-			}
-		}
-		memory, err := options.Store.UpsertChatProjectMemoryByName(ctx, database.UpsertChatProjectMemoryByNameParams{
+		memory, err := UpsertProjectMemory(ctx, options.Store, database.UpsertChatProjectMemoryByNameParams{
 			ProjectID: options.ProjectID, OrganizationID: options.OrganizationID,
 			Name: normalized.Name, Description: normalized.Description, Body: normalized.Body,
 			SourceChatID: uuid.NullUUID{UUID: options.ChatID, Valid: options.ChatID != uuid.Nil}, CreatedBy: options.OwnerID,
 		})
+		if errors.Is(err, ErrProjectMemoryLimit) {
+			return fantasy.NewTextErrorResponse("project memory limit reached; merge or delete existing memories first"), nil
+		}
 		if err != nil {
 			return fantasy.NewTextErrorResponse("failed to save project memory"), nil
 		}

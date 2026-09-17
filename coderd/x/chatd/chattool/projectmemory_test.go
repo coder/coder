@@ -58,6 +58,14 @@ func TestReadProjectMemoryDescriptionIncludesIndex(t *testing.T) {
 	require.Contains(t, tool.Info().Description, "- release: Release process")
 }
 
+// expectMemoryTx runs the cap-checking transaction against the same mock.
+func expectMemoryTx(db *dbmock.MockStore) {
+	db.EXPECT().InTx(gomock.Any(), gomock.Any()).DoAndReturn(func(fn func(database.Store) error, _ *database.TxOptions) error {
+		return fn(db)
+	})
+	db.EXPECT().AcquireLock(gomock.Any(), gomock.Any()).Return(nil)
+}
+
 func TestSaveProjectMemoryCapAndUpsert(t *testing.T) {
 	t.Parallel()
 
@@ -66,6 +74,7 @@ func TestSaveProjectMemoryCapAndUpsert(t *testing.T) {
 		controller := gomock.NewController(t)
 		db := dbmock.NewMockStore(controller)
 		projectID := uuid.New()
+		expectMemoryTx(db)
 		db.EXPECT().GetChatProjectMemoryByName(gomock.Any(), gomock.Any()).Return(database.GetChatProjectMemoryByNameRow{}, sql.ErrNoRows)
 		db.EXPECT().CountChatProjectMemoriesByProjectID(gomock.Any(), projectID).Return(int64(chattool.MaxProjectMemories), nil)
 
@@ -84,6 +93,7 @@ func TestSaveProjectMemoryCapAndUpsert(t *testing.T) {
 		organizationID := uuid.New()
 		chatID := uuid.New()
 		ownerID := uuid.New()
+		expectMemoryTx(db)
 		db.EXPECT().GetChatProjectMemoryByName(gomock.Any(), gomock.Any()).Return(database.GetChatProjectMemoryByNameRow{ChatProjectMemory: database.ChatProjectMemory{ID: uuid.New()}}, nil)
 		db.EXPECT().UpsertChatProjectMemoryByName(gomock.Any(), gomock.AssignableToTypeOf(database.UpsertChatProjectMemoryByNameParams{})).DoAndReturn(func(_ context.Context, arg database.UpsertChatProjectMemoryByNameParams) (database.ChatProjectMemory, error) {
 			require.Equal(t, "durable-fact", arg.Name)

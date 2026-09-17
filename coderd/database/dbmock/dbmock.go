@@ -352,6 +352,21 @@ func (mr *MockStoreMockRecorder) CalculateAIBridgeInterceptionsTelemetrySummary(
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CalculateAIBridgeInterceptionsTelemetrySummary", reflect.TypeOf((*MockStore)(nil).CalculateAIBridgeInterceptionsTelemetrySummary), ctx, arg)
 }
 
+// ClaimChatProjectMemoryExtraction mocks base method.
+func (m *MockStore) ClaimChatProjectMemoryExtraction(ctx context.Context, arg database.ClaimChatProjectMemoryExtractionParams) (database.ChatProjectMemoryCursor, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ClaimChatProjectMemoryExtraction", ctx, arg)
+	ret0, _ := ret[0].(database.ChatProjectMemoryCursor)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ClaimChatProjectMemoryExtraction indicates an expected call of ClaimChatProjectMemoryExtraction.
+func (mr *MockStoreMockRecorder) ClaimChatProjectMemoryExtraction(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ClaimChatProjectMemoryExtraction", reflect.TypeOf((*MockStore)(nil).ClaimChatProjectMemoryExtraction), ctx, arg)
+}
+
 // ClaimPrebuiltWorkspace mocks base method.
 func (m *MockStore) ClaimPrebuiltWorkspace(ctx context.Context, arg database.ClaimPrebuiltWorkspaceParams) (database.ClaimPrebuiltWorkspaceRow, error) {
 	m.ctrl.T.Helper()
@@ -9755,6 +9770,20 @@ func (m *MockStore) ReindexStaleChatMessagesSearchTsv(ctx context.Context, batch
 func (mr *MockStoreMockRecorder) ReindexStaleChatMessagesSearchTsv(ctx, batchSize any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReindexStaleChatMessagesSearchTsv", reflect.TypeOf((*MockStore)(nil).ReindexStaleChatMessagesSearchTsv), ctx, batchSize)
+}
+
+// ReleaseChatProjectMemoryExtraction mocks base method.
+func (m *MockStore) ReleaseChatProjectMemoryExtraction(ctx context.Context, arg database.ReleaseChatProjectMemoryExtractionParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ReleaseChatProjectMemoryExtraction", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// ReleaseChatProjectMemoryExtraction indicates an expected call of ReleaseChatProjectMemoryExtraction.
+func (mr *MockStoreMockRecorder) ReleaseChatProjectMemoryExtraction(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReleaseChatProjectMemoryExtraction", reflect.TypeOf((*MockStore)(nil).ReleaseChatProjectMemoryExtraction), ctx, arg)
 }
 
 // ReleaseExternalAuthLinkRefreshLease mocks base method.

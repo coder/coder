@@ -14,6 +14,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/lib/pq"
 	"github.com/sqlc-dev/pqtype"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
@@ -64,7 +65,7 @@ func TestRenderProjectMemoryTranscript(t *testing.T) {
 	require.True(t, strings.HasSuffix(largeTranscript, "tail"))
 }
 
-func TestTurnUsedProjectMemoryTools(t *testing.T) {
+func TestProjectMemoryTurns(t *testing.T) {
 	t.Parallel()
 
 	message := func(t *testing.T, role database.ChatMessageRole, parts []codersdk.ChatMessagePart) database.ChatMessage {
@@ -73,34 +74,50 @@ func TestTurnUsedProjectMemoryTools(t *testing.T) {
 		require.NoError(t, err)
 		return database.ChatMessage{
 			Role:           role,
+			Visibility:     database.ChatMessageVisibilityBoth,
 			Content:        pqtype.NullRawMessage{RawMessage: content.RawMessage, Valid: true},
 			ContentVersion: chatprompt.CurrentContentVersion,
 			Revision:       5,
 		}
 	}
+	user := func(t *testing.T, text string) database.ChatMessage {
+		return message(t, database.ChatMessageRoleUser, []codersdk.ChatMessagePart{codersdk.ChatMessageText(text)})
+	}
+	saveCall := func(t *testing.T, id string) database.ChatMessage {
+		return message(t, database.ChatMessageRoleAssistant, []codersdk.ChatMessagePart{
+			codersdk.ChatMessageToolCall(id, chattool.SaveProjectMemoryToolName, []byte(`{}`)),
+		})
+	}
+	saveResult := func(t *testing.T, id string, isError bool) database.ChatMessage {
+		return message(t, database.ChatMessageRoleTool, []codersdk.ChatMessagePart{
+			codersdk.ChatMessageToolResult(id, chattool.SaveProjectMemoryToolName, []byte(`{}`), isError, false),
+		})
+	}
 
-	t.Run("SuccessfulMatchingResult", func(t *testing.T) {
+	t.Run("SuccessfulSaveSuppressesOnlyItsTurn", func(t *testing.T) {
 		t.Parallel()
-		require.True(t, turnUsedProjectMemoryTools([]database.ChatMessage{
-			message(t, database.ChatMessageRoleAssistant, []codersdk.ChatMessagePart{
-				codersdk.ChatMessageToolCall("save-1", chattool.SaveProjectMemoryToolName, []byte(`{}`)),
-			}),
-			message(t, database.ChatMessageRoleTool, []codersdk.ChatMessagePart{
-				codersdk.ChatMessageToolResult("save-1", chattool.SaveProjectMemoryToolName, []byte(`{}`), false, false),
-			}),
-		}, 3))
+		transcript := renderProjectMemoryTranscript([]database.ChatMessage{
+			user(t, "first turn"), saveCall(t, "save-1"), saveResult(t, "save-1", false),
+			user(t, "second turn"),
+		}, 3)
+		require.NotContains(t, transcript, "first turn")
+		require.Contains(t, transcript, "second turn")
 	})
 
 	t.Run("FailedSaveDoesNotSuppressExtraction", func(t *testing.T) {
 		t.Parallel()
-		require.False(t, turnUsedProjectMemoryTools([]database.ChatMessage{
-			message(t, database.ChatMessageRoleAssistant, []codersdk.ChatMessagePart{
-				codersdk.ChatMessageToolCall("save-1", chattool.SaveProjectMemoryToolName, []byte(`{}`)),
-			}),
-			message(t, database.ChatMessageRoleTool, []codersdk.ChatMessagePart{
-				codersdk.ChatMessageToolResult("save-1", chattool.SaveProjectMemoryToolName, []byte(`{"error":"memory limit reached"}`), true, false),
-			}),
-		}, 3))
+		transcript := renderProjectMemoryTranscript([]database.ChatMessage{
+			user(t, "first turn"), saveCall(t, "save-1"), saveResult(t, "save-1", true),
+		}, 3)
+		require.Contains(t, transcript, "first turn")
+	})
+
+	t.Run("EveryTurnSuppressedYieldsEmptyTranscript", func(t *testing.T) {
+		t.Parallel()
+		transcript := renderProjectMemoryTranscript([]database.ChatMessage{
+			user(t, "first turn"), saveCall(t, "save-1"), saveResult(t, "save-1", false),
+		}, 3)
+		require.Empty(t, transcript)
 	})
 }
 
@@ -214,16 +231,50 @@ func TestExtractProjectMemories(t *testing.T) {
 		}
 	}
 
+	claimedUntil := time.Date(2026, 9, 1, 12, 0, 0, 0, time.UTC)
+	// expectClaim mirrors the claim and release that bracket every pass.
+	expectClaim := func(t *testing.T, db *dbmock.MockStore, chat database.Chat, cursor int64) {
+		t.Helper()
+		db.EXPECT().ClaimChatProjectMemoryExtraction(gomock.Any(), gomock.AssignableToTypeOf(database.ClaimChatProjectMemoryExtractionParams{})).
+			DoAndReturn(func(_ context.Context, arg database.ClaimChatProjectMemoryExtractionParams) (database.ChatProjectMemoryCursor, error) {
+				assert.Equal(t, chat.ID, arg.ChatID)
+				return database.ChatProjectMemoryCursor{ChatID: chat.ID, HistoryVersion: cursor, ClaimedUntil: sql.NullTime{Time: claimedUntil, Valid: true}}, nil
+			})
+		db.EXPECT().ReleaseChatProjectMemoryExtraction(gomock.Any(), database.ReleaseChatProjectMemoryExtractionParams{ChatID: chat.ID, ClaimedUntil: claimedUntil}).Return(nil)
+	}
+	// expectInsertTx runs the transactional cap check against the same mock.
+	expectInsertTx := func(db *dbmock.MockStore) {
+		db.EXPECT().InTx(gomock.Any(), gomock.Any()).DoAndReturn(func(fn func(database.Store) error, _ *database.TxOptions) error {
+			return fn(db)
+		})
+		db.EXPECT().AcquireLock(gomock.Any(), gomock.Any()).Return(nil)
+	}
+	advanceCursor := func(db *dbmock.MockStore, chat database.Chat) *gomock.Call {
+		return db.EXPECT().UpsertChatProjectMemoryCursor(gomock.Any(), database.UpsertChatProjectMemoryCursorParams{
+			ChatID:         chat.ID,
+			HistoryVersion: chat.HistoryVersion,
+		}).Return(database.ChatProjectMemoryCursor{}, nil)
+	}
+
 	t.Run("SkipsWhenCursorCurrent", func(t *testing.T) {
 		t.Parallel()
 
 		ctrl := gomock.NewController(t)
 		db := dbmock.NewMockStore(ctrl)
 		chat := newChat()
+		expectClaim(t, db, chat, chat.HistoryVersion)
 		db.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil)
-		db.EXPECT().GetChatProjectMemoryCursor(gomock.Any(), chat.ID).Return(
-			database.ChatProjectMemoryCursor{ChatID: chat.ID, HistoryVersion: chat.HistoryVersion}, nil,
-		)
+
+		newServer(t, db, nil).extractProjectMemories(t.Context(), slogtest.Make(t, nil), chat)
+	})
+
+	t.Run("ExitsWhenAnotherExtractorHoldsTheClaim", func(t *testing.T) {
+		t.Parallel()
+
+		ctrl := gomock.NewController(t)
+		db := dbmock.NewMockStore(ctrl)
+		chat := newChat()
+		db.EXPECT().ClaimChatProjectMemoryExtraction(gomock.Any(), gomock.Any()).Return(database.ChatProjectMemoryCursor{}, sql.ErrNoRows)
 
 		newServer(t, db, nil).extractProjectMemories(t.Context(), slogtest.Make(t, nil), chat)
 	})
@@ -258,21 +309,17 @@ func TestExtractProjectMemories(t *testing.T) {
 			ContentVersion: chatprompt.CurrentContentVersion,
 			Revision:       5,
 		}
+		expectClaim(t, db, chat, 3)
 		gomock.InOrder(
 			db.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil),
-			db.EXPECT().GetChatProjectMemoryCursor(gomock.Any(), chat.ID).Return(
-				database.ChatProjectMemoryCursor{ChatID: chat.ID, HistoryVersion: 3}, nil,
-			),
 			db.EXPECT().GetChatMessagesForPromptByChatID(gomock.Any(), chat.ID).Return([]database.ChatMessage{
 				message(t, 1, database.ChatMessageRoleUser, "remember this", 5),
 				saveCall,
 				saveResult,
 			}, nil),
 			// The cursor advances without loading memories or calling the model.
-			db.EXPECT().UpsertChatProjectMemoryCursor(gomock.Any(), database.UpsertChatProjectMemoryCursorParams{
-				ChatID:         chat.ID,
-				HistoryVersion: chat.HistoryVersion,
-			}).Return(database.ChatProjectMemoryCursor{}, nil),
+			advanceCursor(db, chat),
+			db.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil),
 		)
 
 		newServer(t, db, nil).extractProjectMemories(t.Context(), slogtest.Make(t, nil), chat)
@@ -317,11 +364,9 @@ func TestExtractProjectMemories(t *testing.T) {
 			CreatedBy:      chat.OwnerID,
 		}
 
+		expectClaim(t, db, chat, 3)
 		gomock.InOrder(
 			db.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil),
-			db.EXPECT().GetChatProjectMemoryCursor(gomock.Any(), chat.ID).Return(
-				database.ChatProjectMemoryCursor{ChatID: chat.ID, HistoryVersion: 3}, nil,
-			),
 			db.EXPECT().GetChatMessagesForPromptByChatID(gomock.Any(), chat.ID).Return([]database.ChatMessage{
 				message(t, 1, database.ChatMessageRoleUser, "old detail", 2),
 				message(t, 2, database.ChatMessageRoleUser, "new durable detail", 5),
@@ -329,13 +374,12 @@ func TestExtractProjectMemories(t *testing.T) {
 			db.EXPECT().GetChatProjectMemoriesByProjectID(gomock.Any(), chat.ProjectID.UUID).Return(nil, nil),
 		)
 		expectModelResolution(db, chat)
+		expectInsertTx(db)
 		gomock.InOrder(
 			db.EXPECT().CountChatProjectMemoriesByProjectID(gomock.Any(), chat.ProjectID.UUID).Return(int64(0), nil),
 			db.EXPECT().InsertChatProjectMemory(gomock.Any(), validUpsert).Return(database.ChatProjectMemory{}, nil),
-			db.EXPECT().UpsertChatProjectMemoryCursor(gomock.Any(), database.UpsertChatProjectMemoryCursorParams{
-				ChatID:         chat.ID,
-				HistoryVersion: chat.HistoryVersion,
-			}).Return(database.ChatProjectMemoryCursor{}, nil),
+			advanceCursor(db, chat),
+			db.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil),
 		)
 
 		server.extractProjectMemories(t.Context(), slogtest.Make(t, nil), chat)
@@ -344,6 +388,49 @@ func TestExtractProjectMemories(t *testing.T) {
 		require.NotContains(t, capturedPrompt, "old detail")
 		// Deletion is intentionally absent from the extraction schema.
 		require.NotContains(t, capturedPrompt, `"deletes"`)
+	})
+
+	t.Run("DrainsTurnsCompletedDuringExtraction", func(t *testing.T) {
+		t.Parallel()
+
+		ctrl := gomock.NewController(t)
+		db := dbmock.NewMockStore(ctrl)
+		chat := newChat()
+		server := newServer(t, db, roundTripFunc(func(req *http.Request) (*http.Response, error) {
+			response := objectResponse(t, map[string]any{"upserts": []map[string]any{}})
+			response.Request = req
+			return response, nil
+		}))
+		advanced := chat
+		advanced.HistoryVersion = chat.HistoryVersion + 2
+
+		// First pass: cursor 3 to 6. The chat moves to 8 meanwhile.
+		expectClaim(t, db, chat, 3)
+		gomock.InOrder(
+			db.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil),
+			db.EXPECT().GetChatMessagesForPromptByChatID(gomock.Any(), chat.ID).Return([]database.ChatMessage{
+				message(t, 1, database.ChatMessageRoleUser, "new durable detail", 5),
+			}, nil),
+			db.EXPECT().GetChatProjectMemoriesByProjectID(gomock.Any(), chat.ProjectID.UUID).Return(nil, nil),
+		)
+		expectModelResolution(db, chat)
+		gomock.InOrder(
+			advanceCursor(db, chat),
+			db.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(advanced, nil),
+		)
+		// Second pass: the same extractor reclaims and drains 6 to 8, which
+		// holds no new user text, so the cursor advances without a model call.
+		expectClaim(t, db, chat, chat.HistoryVersion)
+		gomock.InOrder(
+			db.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(advanced, nil),
+			db.EXPECT().GetChatMessagesForPromptByChatID(gomock.Any(), chat.ID).Return([]database.ChatMessage{
+				message(t, 1, database.ChatMessageRoleUser, "new durable detail", 5),
+			}, nil),
+			advanceCursor(db, advanced),
+			db.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(advanced, nil),
+		)
+
+		server.extractProjectMemories(t.Context(), slogtest.Make(t, nil), chat)
 	})
 
 	t.Run("NeverOverwritesExistingMemory", func(t *testing.T) {
@@ -363,17 +450,16 @@ func TestExtractProjectMemories(t *testing.T) {
 			response.Request = req
 			return response, nil
 		}))
+		expectClaim(t, db, chat, 3)
 		gomock.InOrder(
 			db.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil),
-			db.EXPECT().GetChatProjectMemoryCursor(gomock.Any(), chat.ID).Return(
-				database.ChatProjectMemoryCursor{ChatID: chat.ID, HistoryVersion: 3}, nil,
-			),
 			db.EXPECT().GetChatMessagesForPromptByChatID(gomock.Any(), chat.ID).Return([]database.ChatMessage{
 				message(t, 1, database.ChatMessageRoleUser, "when do we deploy?", 5),
 			}, nil),
 			db.EXPECT().GetChatProjectMemoriesByProjectID(gomock.Any(), chat.ProjectID.UUID).Return(nil, nil),
 		)
 		expectModelResolution(db, chat)
+		expectInsertTx(db)
 		gomock.InOrder(
 			db.EXPECT().CountChatProjectMemoriesByProjectID(gomock.Any(), chat.ProjectID.UUID).Return(int64(0), nil),
 			db.EXPECT().InsertChatProjectMemory(gomock.Any(), database.InsertChatProjectMemoryParams{
@@ -387,10 +473,8 @@ func TestExtractProjectMemories(t *testing.T) {
 				CreatedBy:      chat.OwnerID,
 			}).Return(database.ChatProjectMemory{}, &pq.Error{Code: "23505"}),
 			// A unique constraint conflict leaves the existing memory alone.
-			db.EXPECT().UpsertChatProjectMemoryCursor(gomock.Any(), database.UpsertChatProjectMemoryCursorParams{
-				ChatID:         chat.ID,
-				HistoryVersion: chat.HistoryVersion,
-			}).Return(database.ChatProjectMemoryCursor{}, nil),
+			advanceCursor(db, chat),
+			db.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil),
 		)
 
 		server.extractProjectMemories(t.Context(), slogtest.Make(t, nil), chat)
@@ -414,21 +498,20 @@ func TestExtractProjectMemories(t *testing.T) {
 			return response, nil
 		}))
 
+		expectClaim(t, db, chat, 0)
 		gomock.InOrder(
 			db.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil),
-			db.EXPECT().GetChatProjectMemoryCursor(gomock.Any(), chat.ID).Return(database.ChatProjectMemoryCursor{}, sql.ErrNoRows),
 			db.EXPECT().GetChatMessagesForPromptByChatID(gomock.Any(), chat.ID).Return([]database.ChatMessage{
 				message(t, 1, database.ChatMessageRoleUser, "new durable detail", 5),
 			}, nil),
 			db.EXPECT().GetChatProjectMemoriesByProjectID(gomock.Any(), chat.ProjectID.UUID).Return(nil, nil),
 		)
 		expectModelResolution(db, chat)
+		expectInsertTx(db)
 		gomock.InOrder(
 			db.EXPECT().CountChatProjectMemoriesByProjectID(gomock.Any(), chat.ProjectID.UUID).Return(int64(chattool.MaxProjectMemories), nil),
-			db.EXPECT().UpsertChatProjectMemoryCursor(gomock.Any(), database.UpsertChatProjectMemoryCursorParams{
-				ChatID:         chat.ID,
-				HistoryVersion: chat.HistoryVersion,
-			}).Return(database.ChatProjectMemoryCursor{}, nil),
+			advanceCursor(db, chat),
+			db.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil),
 		)
 
 		server.extractProjectMemories(t.Context(), slogtest.Make(t, nil), chat)
@@ -449,9 +532,9 @@ func TestExtractProjectMemories(t *testing.T) {
 			}, nil
 		}))
 
+		expectClaim(t, db, chat, 0)
 		gomock.InOrder(
 			db.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil),
-			db.EXPECT().GetChatProjectMemoryCursor(gomock.Any(), chat.ID).Return(database.ChatProjectMemoryCursor{}, sql.ErrNoRows),
 			db.EXPECT().GetChatMessagesForPromptByChatID(gomock.Any(), chat.ID).Return([]database.ChatMessage{
 				message(t, 1, database.ChatMessageRoleUser, "new durable detail", 5),
 			}, nil),

@@ -1949,6 +1949,17 @@ func (q *querier) CalculateAIBridgeInterceptionsTelemetrySummary(ctx context.Con
 	return q.db.CalculateAIBridgeInterceptionsTelemetrySummary(ctx, arg)
 }
 
+func (q *querier) ClaimChatProjectMemoryExtraction(ctx context.Context, arg database.ClaimChatProjectMemoryExtractionParams) (database.ChatProjectMemoryCursor, error) {
+	chat, err := q.db.GetChatByID(ctx, arg.ChatID)
+	if err != nil {
+		return database.ChatProjectMemoryCursor{}, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
+		return database.ChatProjectMemoryCursor{}, err
+	}
+	return q.db.ClaimChatProjectMemoryExtraction(ctx, arg)
+}
+
 func (q *querier) ClaimPrebuiltWorkspace(ctx context.Context, arg database.ClaimPrebuiltWorkspaceParams) (database.ClaimPrebuiltWorkspaceRow, error) {
 	empty := database.ClaimPrebuiltWorkspaceRow{}
 
@@ -7263,6 +7274,17 @@ func (q *querier) ReindexStaleChatMessagesSearchTsv(ctx context.Context, batchSi
 		return 0, err
 	}
 	return q.db.ReindexStaleChatMessagesSearchTsv(ctx, batchSize)
+}
+
+func (q *querier) ReleaseChatProjectMemoryExtraction(ctx context.Context, arg database.ReleaseChatProjectMemoryExtractionParams) error {
+	chat, err := q.db.GetChatByID(ctx, arg.ChatID)
+	if err != nil {
+		return err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
+		return err
+	}
+	return q.db.ReleaseChatProjectMemoryExtraction(ctx, arg)
 }
 
 func (q *querier) ReleaseExternalAuthLinkRefreshLease(ctx context.Context, arg database.ReleaseExternalAuthLinkRefreshLeaseParams) error {

@@ -2129,7 +2129,8 @@ COMMENT ON TABLE chat_project_memories IS 'Organization-scoped durable memories 
 CREATE TABLE chat_project_memory_cursors (
     chat_id uuid NOT NULL,
     history_version bigint NOT NULL,
-    extracted_at timestamp with time zone DEFAULT now() NOT NULL
+    extracted_at timestamp with time zone DEFAULT now() NOT NULL,
+    claimed_until timestamp with time zone
 );
 
 COMMENT ON TABLE chat_project_memory_cursors IS 'Per-chat cursors for project memory extraction.';
