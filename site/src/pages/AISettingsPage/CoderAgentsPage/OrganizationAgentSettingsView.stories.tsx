@@ -15,6 +15,7 @@ const alternateModel: TypesGen.ChatModel = {
 	model: "model-two",
 	display_name: "Model Two",
 };
+const saveDefaultModel = fn();
 const saveGeneralOverride = fn();
 const saveExploreOverride = fn();
 const overrides: readonly TypesGen.ChatModelOverrideResponse[] = [
@@ -36,6 +37,10 @@ const meta: Meta<typeof OrganizationAgentSettingsView> = {
 	title: "pages/AISettingsPage/CoderAgentsPage/OrganizationAgentSettingsView",
 	component: OrganizationAgentSettingsView,
 	args: {
+		defaultModelID: model.id,
+		onSaveDefaultModel: saveDefaultModel,
+		isSavingDefaultModel: false,
+		isSaveDefaultModelError: false,
 		overrides,
 		enabledModels: [model, alternateModel],
 		providerInfoByID: new Map([
@@ -56,6 +61,25 @@ const meta: Meta<typeof OrganizationAgentSettingsView> = {
 };
 export default meta;
 type Story = StoryObj<typeof OrganizationAgentSettingsView>;
+
+export const DefaultModelOpen: Story = {
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const defaultSection = canvas.getByRole("form", {
+			name: "Default model",
+		});
+		await userEvent.click(within(defaultSection).getByRole("combobox"));
+	},
+};
+export const UnavailableDefaultModel: Story = {
+	args: { defaultModelID: "model-gone" },
+};
+export const SavingDefaultModel: Story = {
+	args: { isSavingDefaultModel: true },
+};
+export const DefaultModelSaveError: Story = {
+	args: { isSaveDefaultModelError: true },
+};
 
 export const SetAndUnset: Story = {
 	beforeEach: () => {
