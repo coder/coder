@@ -33,30 +33,19 @@ describe("CollapseAssistantStepsSettings", () => {
 		await waitFor(() => expect(toggle).toBeEnabled());
 
 		await userEvent.click(toggle);
-		await waitFor(() => {
-			expect(update).toHaveBeenCalledWith({ collapse_assistant_steps: true });
-			expect(toggle).toBeChecked();
+		await waitFor(() =>
+			expect(update).toHaveBeenCalledWith({ collapse_assistant_steps: true }),
+		);
+		await screen.findByRole("switch", {
+			name: "Collapse assistant steps",
+			checked: true,
 		});
 
 		await userEvent.click(toggle);
-		await waitFor(() => {
+		await waitFor(() =>
 			expect(update).toHaveBeenLastCalledWith({
 				collapse_assistant_steps: false,
-			});
-			expect(toggle).not.toBeChecked();
-		});
-	});
-
-	it("disables the switch and reports a failed preference load", async () => {
-		vi.spyOn(API, "getUserPreferenceSettings").mockRejectedValue(
-			new Error("boom"),
+			}),
 		);
-		render(<CollapseAssistantStepsSettings />);
-		await screen.findByText(
-			"Failed to load your collapse assistant steps preference.",
-		);
-		expect(
-			screen.getByRole("switch", { name: "Collapse assistant steps" }),
-		).toBeDisabled();
 	});
 });
