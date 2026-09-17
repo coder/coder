@@ -275,6 +275,26 @@ export const McpDiscoveryInitializing: Story = {
 	},
 };
 
+// A chat bound to an agent that has not pushed its first snapshot yet: the
+// only thing to show is that discovery is underway.
+export const McpDiscoveryInitializingBeforeFirstSnapshot: Story = {
+	args: {
+		usage: {
+			usedTokens: 12_000,
+			contextLimitTokens: 200_000,
+			context: {
+				...MockChatContextClean,
+				resources: [],
+				mcp_discovery: { phase: "pending", stale: false },
+			},
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const button = within(canvasElement).getByRole("button");
+		await userEvent.hover(button);
+	},
+};
+
 // Discovery finished and no server was declared, so the section states that
 // outcome rather than disappearing.
 export const McpDiscoveryCompleteNoServers: Story = {
