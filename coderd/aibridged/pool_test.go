@@ -460,9 +460,8 @@ func (m *blockingMCPFactory) Build(ctx context.Context, _ aibridged.Request, _ t
 	return nil, context.Canceled
 }
 
-// TestPoolKeyPools verifies KeyPools returns the providers' pools, the pool
-// wires failover metrics into them, and the state collector reflects live
-// pool state, on both the initial set and reload.
+// TestPoolKeyPools verifies KeyPools returns the providers' pools and the state
+// collector reflects live pool state, on both the initial set and reload.
 func TestPoolKeyPools(t *testing.T) {
 	t.Parallel()
 
@@ -533,7 +532,7 @@ func TestPoolKeyPools(t *testing.T) {
 		aibridge.NewOpenAIProvider(config.OpenAI{Name: "c", KeyPool: poolC}),
 	})
 
-	// Then: KeyPools, metric wiring, and pool state all follow the new set.
+	// Then: KeyPools and metrics follow the new provider set.
 	require.Equal(t, []*keypool.Pool{poolA, poolB, poolC}, aibridgePool.KeyPools())
 	gathered, err = reg.Gather()
 	require.NoError(t, err)

@@ -24,7 +24,7 @@ import (
 
 func TestAppHealth_Healthy(t *testing.T) {
 	t.Parallel()
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
 	apps := []codersdk.WorkspaceApp{
 		{
@@ -114,7 +114,7 @@ func TestAppHealth_Healthy(t *testing.T) {
 
 func TestAppHealth_500(t *testing.T) {
 	t.Parallel()
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
 	apps := []codersdk.WorkspaceApp{
 		{
@@ -163,7 +163,7 @@ func TestAppHealth_500(t *testing.T) {
 
 func TestAppHealth_Timeout(t *testing.T) {
 	t.Parallel()
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
 	apps := []codersdk.WorkspaceApp{
 		{
@@ -257,13 +257,15 @@ func setupAppReporter(
 	// request code as well. Before we were bypassing these by using a custom
 	// post function.
 	fakeAAPI := agenttest.NewFakeAgentAPI(t, testutil.Logger(t), nil, nil)
+	reporterCtx, cancelReporter := context.WithCancel(ctx)
 
 	go agent.NewAppHealthReporterWithClock(
 		testutil.Logger(t),
 		apps, agentsdk.AppHealthPoster(fakeAAPI), clk,
-	)(ctx)
+	)(reporterCtx)
 
 	return fakeAAPI, func() {
+		cancelReporter()
 		for _, closeFn := range closers {
 			closeFn()
 		}

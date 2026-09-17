@@ -55,13 +55,30 @@ import {
 	formatTemplateBuildTime,
 } from "#/utils/templates";
 import { EmptyTemplates } from "./EmptyTemplates";
-import { type TemplateFilterState, TemplatesFilter } from "./TemplatesFilter";
+import {
+	CLASSIC_PARAMETER_FLOW_FILTER,
+	type TemplateFilterState,
+	TemplatesFilter,
+} from "./TemplatesFilter";
 
 const ClassicParameterFlowAlert: FC<{ templateCount: number }> = ({
 	templateCount,
 }) => {
 	return (
-		<Alert severity="warning" prominent className="mt-6">
+		<Alert
+			severity="warning"
+			prominent
+			className="mt-6"
+			actions={
+				<Button asChild variant="outline" size="sm">
+					<RouterLink
+						to={`/templates?filter=${encodeURIComponent(CLASSIC_PARAMETER_FLOW_FILTER)}`}
+					>
+						View templates
+					</RouterLink>
+				</Button>
+			}
+		>
 			<AlertTitle>
 				{templateCount === 1
 					? "1 template still uses classic parameters"

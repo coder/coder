@@ -9,6 +9,7 @@ import (
 	"flag"
 	"fmt"
 	"net/http"
+	"net/url"
 	"reflect"
 	"strings"
 	"time"
@@ -49,11 +50,54 @@ func init() {
 		valid := codersdk.NameValid(str)
 		return valid == nil
 	}
-	for _, tag := range []string{"username", "organization_name", "template_name", "workspace_name", "oauth2_app_name"} {
+	for _, tag := range []string{"username", "organization_name", "template_name", "workspace_name"} {
 		err := Validate.RegisterValidation(tag, nameValidator)
 		if err != nil {
 			panic(err)
 		}
+	}
+
+	oauth2AppNameValidator := func(fl validator.FieldLevel) bool {
+		str, ok := fl.Field().Interface().(string)
+		if !ok {
+			return false
+		}
+		return codersdk.OAuth2AppNameValid(str) == nil
+	}
+	err := Validate.RegisterValidation("oauth2_app_name", oauth2AppNameValidator)
+	if err != nil {
+		panic(err)
+	}
+
+	// oauth2_callback_url validates the common callback target shape for OAuth2
+	// app administration. Public clients receive the additional DCR redirect URI
+	// policy in the handler after their stored client type is available.
+	oauth2CallbackURLValidator := func(fl validator.FieldLevel) bool {
+		str, ok := fl.Field().Interface().(string)
+		if !ok {
+			return false
+		}
+		u, err := url.Parse(str)
+		if err != nil {
+			return false
+		}
+		if err := codersdk.ValidateRedirectURIScheme(u); err != nil {
+			return false
+		}
+		if u.Scheme == "urn" {
+			return true
+		}
+		if (u.Scheme == "http" || u.Scheme == "https") && u.Host == "" {
+			return false
+		}
+		if u.Opaque != "" || (u.Host == "" && u.Path == "") {
+			return false
+		}
+		return true
+	}
+	err = Validate.RegisterValidation("oauth2_callback_url", oauth2CallbackURLValidator)
+	if err != nil {
+		panic(err)
 	}
 
 	displayNameValidator := func(fl validator.FieldLevel) bool {
@@ -81,7 +125,7 @@ func init() {
 		valid := codersdk.TemplateVersionNameValid(str)
 		return valid == nil
 	}
-	err := Validate.RegisterValidation("template_version_name", templateVersionNameValidator)
+	err = Validate.RegisterValidation("template_version_name", templateVersionNameValidator)
 	if err != nil {
 		panic(err)
 	}
@@ -557,4 +601,18 @@ func WriteOAuth2Error(ctx context.Context, rw http.ResponseWriter, status int, e
 		Error:            errorCode,
 		ErrorDescription: description,
 	})
+}
+
+// WriteOAuth2RequestTooLarge reports a request body over limit as an RFC 6749
+// error, for the OAuth2 endpoints that read a form body rather than decoding
+// through Read. RFC 6749 defines no error code for a transport rejection, so
+// invalid_request is the closest compliant framing.
+//
+// The limit is the one carried by the *http.MaxBytesError that tripped, so a
+// caller of this function reports the bound that actually applied rather than
+// the one it assumes applied.
+func WriteOAuth2RequestTooLarge(ctx context.Context, rw http.ResponseWriter, limit int64) {
+	RecordRequestBodyLimit(ctx, limit)
+	WriteOAuth2Error(ctx, rw, http.StatusRequestEntityTooLarge, codersdk.OAuth2ErrorCodeInvalidRequest,
+		fmt.Sprintf("Maximum request body size is %d bytes.", limit))
 }
