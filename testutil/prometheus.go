@@ -29,11 +29,6 @@ func PromGaugeAssertion(t testing.TB, metrics []*dto.MetricFamily, assert func(i
 	return assert(getValue(t, metrics, gaugeKind, name, labels...))
 }
 
-func PromCounterAssertion(t testing.TB, metrics []*dto.MetricFamily, assert func(in float64) bool, name string, labels ...string) bool {
-	t.Helper()
-	return assert(getValue(t, metrics, counterKind, name, labels...))
-}
-
 func PromCounterGathered(t testing.TB, metrics []*dto.MetricFamily, name string, labels ...string) bool {
 	t.Helper()
 	return getMetric(t, metrics, name, labels...) != nil

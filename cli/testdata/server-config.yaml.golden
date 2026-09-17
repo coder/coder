@@ -505,6 +505,11 @@ provisioning:
   # templates cannot opt back in.
   # (default: false, type: bool)
   disableModuleCache: false
+# Evaluate every resource in a template when rendering dynamic parameters, instead
+# of only the parameter, preset, and tag blocks and what they reference. Slower,
+# and only needed if a template renders incorrectly with the default.
+# (default: false, type: bool)
+dynamicParametersFullEvaluation: false
 # Enable one or more experiments. These are not ready for production. Separate
 # multiple experiments with commas, or enter '*' to opt-in to all available
 # experiments.

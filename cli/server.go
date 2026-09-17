@@ -2646,12 +2646,6 @@ func isReplicaRelayRequest(r *http.Request) bool {
 	return r.Header.Get("X-Coder-Relay-Source-Replica") != ""
 }
 
-// IsLocalhost returns true if the host points to the local machine. Intended to
-// be called with `u.Hostname()`.
-func IsLocalhost(host string) bool {
-	return host == "localhost" || host == "127.0.0.1" || host == "::1"
-}
-
 // PostgresConnectOptions contains options for connecting to Postgres.
 type PostgresConnectOptions struct {
 	MaxOpenConns int
