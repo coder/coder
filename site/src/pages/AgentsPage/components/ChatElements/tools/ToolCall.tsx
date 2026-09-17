@@ -19,6 +19,7 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { useMessageScrollerLayoutIntent } from "#/vendor/message-scroller";
 import { Shimmer } from "../Shimmer";
 import { TranscriptRow } from "../TranscriptRow";
 import { ToolIcon } from "./ToolIcon";
@@ -158,7 +159,13 @@ const Root: FC<ToolCallRootProps> = ({
 	const collapsible = hasContent;
 	const active = status === "running";
 	const failed = status !== "running" && (isError || status === "error");
+	// A no-op outside a MessageScroller.Viewport, so rows rendered in other
+	// panels or standalone stories toggle without touching any scroller.
+	const userLayoutIntent = useMessageScrollerLayoutIntent();
 	const onToggle = () => {
+		// Signal before the state update so the scroller's latch precedes
+		// the collapse clamp's scroll event and the resize callback.
+		userLayoutIntent();
 		const nextView: ToolCallView = expanded ? "collapsed" : "expanded";
 		if (controlledView === undefined) {
 			setUncontrolledView(nextView);
