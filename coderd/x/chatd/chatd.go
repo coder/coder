@@ -567,20 +567,38 @@ func (c *turnWorkspaceContext) persistBuildAgentBinding(
 	// injecting the previous agent's resources. Workspace lifecycle tools clear
 	// the agent binding while preserving the pin, so a missing prior agent also
 	// requires a re-pin when pinned context exists. Best-effort: a context error
-	// must never fail the binding. The pinned context fields on updatedChat are
-	// background state, reloaded on the next snapshot fetch.
+	// must never fail the binding.
 	hasStaleUnboundContext := !chatSnapshot.AgentID.Valid && chatSnapshot.ContextAggregateHash != nil
 	if hasStaleUnboundContext || (chatSnapshot.AgentID.Valid && chatSnapshot.AgentID.UUID != agentID) {
 		//nolint:gocritic // Chatd re-pins chats it does not own as the daemon subject.
 		repinCtx := dbauthz.AsChatd(ctx)
-		if repinErr := database.ReadModifyUpdate(c.server.db, func(tx database.Store) error {
-			return repinChatContext(repinCtx, tx, chatSnapshot.ID, uuid.NullUUID{UUID: agentID, Valid: true})
-		}); repinErr != nil {
+		var repinned database.Chat
+		repinErr := database.ReadModifyUpdate(c.server.db, func(tx database.Store) error {
+			if err := repinChatContext(repinCtx, tx, chatSnapshot.ID, uuid.NullUUID{UUID: agentID, Valid: true}); err != nil {
+				return err
+			}
+			got, err := tx.GetChatByID(repinCtx, chatSnapshot.ID)
+			if err != nil {
+				return xerrors.Errorf("get chat after re-pin: %w", err)
+			}
+			repinned = got
+			return nil
+		})
+		if repinErr != nil {
 			c.server.logger.Warn(ctx, "re-pin chat context after agent rebind",
 				slog.F("chat_id", chatSnapshot.ID),
 				slog.F("agent_id", agentID),
 				slog.Error(repinErr))
+		} else {
+			updatedChat = repinned
 		}
+		// The single-chat GET derives the pinned inventory and the MCP
+		// discovery state from the bound agent, so an open chat can only
+		// learn about the rebind through an event: agent pushes fan out to
+		// chats bound to the pushing agent, which this chat was not until
+		// now. Published even when the re-pin failed because the binding
+		// itself changed what the GET returns.
+		c.server.publishChatPubsubEvents([]database.Chat{updatedChat}, codersdk.ChatWatchEventKindContextDirty)
 	}
 
 	c.setCurrentChat(updatedChat)

@@ -626,7 +626,11 @@ There are 2 notification channels:
 <!-- TODO: Document that an agent context push which changes only the MCP
 discovery phase or agent run id (no resource row change, no instruction drift)
 still publishes context_dirty to every active chat bound to that agent, without
-setting context_dirty_since. See HydrateAndMarkChatsDirty. -->
+setting context_dirty_since. See HydrateAndMarkChatsDirty. Also document that
+a turn which rebinds a chat to a different agent publishes context_dirty for
+that chat after re-pinning, because agent pushes fan out by the pushing
+agent and cannot reach a chat still bound to the previous one. See
+persistBuildAgentBinding. -->
 
 # Chat worker
 

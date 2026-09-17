@@ -141,25 +141,51 @@ func (p *Server) workspaceMCPViewForPinned(ctx context.Context, chat database.Ch
 	if !chat.AgentID.Valid {
 		return buildWorkspaceMCPView(database.WorkspaceAgent{}, nil, pinned), nil
 	}
-	agent, err := p.db.GetWorkspaceAgentByID(ctx, chat.AgentID.UUID)
-	switch {
-	case errors.Is(err, sql.ErrNoRows):
-		// A bound agent that no longer resolves was soft-deleted by a later
-		// workspace build (SoftDeletePriorWorkspaceAgents also purges its
-		// snapshot). The chat stays bound until its next turn rebinds it, so
-		// project the pinned rows as stale instead of hiding the whole context.
-		return buildReplacedAgentMCPView(pinned), nil
-	case err != nil:
-		return workspaceMCPView{}, xerrors.Errorf("get workspace agent: %w", err)
+	var (
+		agent    database.WorkspaceAgent
+		snapshot *database.WorkspaceAgentContextSnapshot
+		replaced bool
+	)
+	// The freshness rule compares the agent row's run id with the
+	// snapshot's, so both rows must come from one database snapshot: an
+	// agent restart committing between two autocommit reads would pair one
+	// process's row with another process's snapshot. A read-only
+	// repeatable-read transaction cannot hit a serialization failure, so
+	// no retry loop is needed.
+	err := p.db.InTx(func(tx database.Store) error {
+		got, err := tx.GetWorkspaceAgentByID(ctx, chat.AgentID.UUID)
+		switch {
+		case errors.Is(err, sql.ErrNoRows):
+			// A bound agent that no longer resolves was soft-deleted by a
+			// later workspace build (SoftDeletePriorWorkspaceAgents also
+			// purges its snapshot). The chat stays bound until its next turn
+			// rebinds it, so project the pinned rows as stale instead of
+			// hiding the whole context.
+			replaced = true
+			return nil
+		case err != nil:
+			return xerrors.Errorf("get workspace agent: %w", err)
+		}
+		agent = got
+		latest, err := tx.GetLatestWorkspaceAgentContextSnapshot(ctx, agent.ID)
+		switch {
+		case errors.Is(err, sql.ErrNoRows):
+		case err != nil:
+			return xerrors.Errorf("get latest snapshot: %w", err)
+		default:
+			snapshot = &latest
+		}
+		return nil
+	}, &database.TxOptions{
+		Isolation:    sql.LevelRepeatableRead,
+		ReadOnly:     true,
+		TxIdentifier: "workspace_mcp_view",
+	})
+	if err != nil {
+		return workspaceMCPView{}, err
 	}
-	var snapshot *database.WorkspaceAgentContextSnapshot
-	latest, err := p.db.GetLatestWorkspaceAgentContextSnapshot(ctx, agent.ID)
-	switch {
-	case errors.Is(err, sql.ErrNoRows):
-	case err != nil:
-		return workspaceMCPView{}, xerrors.Errorf("get latest snapshot: %w", err)
-	default:
-		snapshot = &latest
+	if replaced {
+		return buildReplacedAgentMCPView(pinned), nil
 	}
 	return buildWorkspaceMCPView(agent, snapshot, pinned), nil
 }
