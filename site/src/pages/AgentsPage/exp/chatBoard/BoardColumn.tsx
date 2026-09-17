@@ -1,4 +1,5 @@
 import { useDraggable, useDroppable } from "@dnd-kit/core";
+import { cva } from "class-variance-authority";
 import { cn } from "cn";
 import { Trash2Icon } from "lucide-react";
 import { type FC, useState } from "react";
@@ -10,24 +11,30 @@ import {
 	type DragData,
 	type DropData,
 } from "./BoardCard";
+import type { DropTarget } from "./boardDrag";
 import type {
 	BoardCard as BoardCardModel,
 	BoardColumn as BoardColumnModel,
 	CardColor,
 } from "./boardLabels";
-import { columnColor, INBOX_COLUMN } from "./boardLabels";
-import type { DropTarget } from "./ChatBoardPage";
+import { columnHue, INBOX_COLUMN } from "./boardLabels";
 import { dragHandleListeners } from "./dragHandle";
 import { InlineEdit } from "./InlineEdit";
 
-const columnDropId = (name: string) => `column:${name}`;
-const columnDragId = (name: string) => `column-drag:${name}`;
+const columnShell = cva("relative flex min-h-0 w-[300px] shrink-0 flex-col", {
+	variants: { dragging: { true: "opacity-40" } },
+});
 
-const columnClass = "relative flex w-[300px] shrink-0 flex-col min-h-0";
 // The header is its own hover group so its controls do not light up while
 // hovering cards below it. It is also the handle for reordering columns.
-const columnHeaderClass =
-	"group/column flex items-center gap-2 px-1.5 pt-0.5 pb-2.5 text-[13px] font-medium text-content-primary";
+const columnHeader = cva(
+	"group/column flex items-center gap-2 px-1.5 pt-0.5 pb-2.5 text-[13px] font-medium text-content-primary",
+	{
+		variants: {
+			draggable: { true: "cursor-grab touch-none active:cursor-grabbing" },
+		},
+	},
+);
 
 interface BoardColumnProps extends ChatOpenHandlers {
 	readonly column: BoardColumnModel;
@@ -72,7 +79,7 @@ export const BoardColumn: FC<BoardColumnProps> = ({
 }) => {
 	const dropData: DropData = { type: "column", name: column.name };
 	const { setNodeRef } = useDroppable({
-		id: columnDropId(column.name),
+		id: `column:${column.name}`,
 		data: dropData,
 	});
 	const dragData: DragData = { type: "column", name: column.name };
@@ -84,7 +91,7 @@ export const BoardColumn: FC<BoardColumnProps> = ({
 		listeners,
 		attributes,
 		isDragging,
-	} = useDraggable({ id: columnDragId(column.name), data: dragData });
+	} = useDraggable({ id: `column-drag:${column.name}`, data: dragData });
 	const setHeaderRefs = (node: HTMLElement | null) => {
 		setDragNodeRef(node);
 		setActivatorNodeRef(node);
@@ -110,11 +117,37 @@ export const BoardColumn: FC<BoardColumnProps> = ({
 			: undefined;
 	const [renaming, setRenaming] = useState(false);
 
+	// Same convention as card titles: click the text to rename it. Inbox is
+	// the implicit column and keeps its name.
+	let title = (
+		<button
+			type="button"
+			title="Click to rename"
+			className="m-0 max-w-full min-w-0 cursor-text truncate border-0 bg-transparent p-0 text-left text-inherit"
+			onClick={() => setRenaming(true)}
+		>
+			{column.name}
+		</button>
+	);
+	if (renaming) {
+		title = (
+			<InlineEdit
+				value={column.name}
+				onSave={onRename}
+				onDone={() => setRenaming(false)}
+				ariaLabel={`${column.name} column name`}
+				className="flex-1"
+			/>
+		);
+	} else if (isInbox) {
+		title = <span className="min-w-0 flex-1 truncate">{column.name}</span>;
+	}
+
 	return (
 		<section
 			ref={setNodeRef}
 			aria-label={`${column.name} column`}
-			className={cn(columnClass, isDragging && "opacity-40")}
+			className={columnShell({ dragging: isDragging })}
 		>
 			{/* Occupies the column gap, so showing it does not shift layout. */}
 			{columnSide && (
@@ -127,35 +160,12 @@ export const BoardColumn: FC<BoardColumnProps> = ({
 			)}
 			<header
 				ref={setHeaderRefs}
-				className={cn(
-					columnHeaderClass,
-					"cursor-grab touch-none active:cursor-grabbing",
-				)}
+				className={columnHeader({ draggable: true })}
 				{...dragHandleListeners(listeners)}
 				{...attributes}
 			>
 				<ColumnDot name={column.name} />
-				{renaming ? (
-					<InlineEdit
-						value={column.name}
-						onSave={onRename}
-						onDone={() => setRenaming(false)}
-						ariaLabel={`${column.name} column name`}
-						className="flex-1"
-					/>
-				) : isInbox ? (
-					<span className="min-w-0 flex-1 truncate">{column.name}</span>
-				) : (
-					// Same convention as card titles: click the text to rename it.
-					<button
-						type="button"
-						title="Click to rename"
-						className="m-0 max-w-full min-w-0 cursor-text truncate border-0 bg-transparent p-0 text-left text-inherit"
-						onClick={() => setRenaming(true)}
-					>
-						{column.name}
-					</button>
-				)}
+				{title}
 				<span className="ml-auto text-[11px] text-content-secondary/70 tabular-nums">
 					{column.cards.length}
 				</span>
@@ -202,14 +212,34 @@ export const BoardColumn: FC<BoardColumnProps> = ({
 	);
 };
 
-const ColumnDot: FC<{ readonly name: string }> = ({ name }) => (
-	<span
-		className={cn("size-2 shrink-0 rounded-[2px]", columnColor(name).dot)}
-	/>
+const dot = cva("size-2 shrink-0 rounded-[2px]", {
+	variants: {
+		hue: {
+			neutral: "bg-content-secondary/40",
+			purple: "bg-highlight-purple",
+			sky: "bg-highlight-sky",
+			green: "bg-highlight-green",
+			orange: "bg-highlight-orange",
+			magenta: "bg-highlight-magenta",
+			red: "bg-highlight-red",
+		},
+	},
+});
+
+interface ColumnDotProps {
+	readonly name: string;
+}
+
+const ColumnDot: FC<ColumnDotProps> = ({ name }) => (
+	<span className={dot({ hue: columnHue(name) })} />
 );
 
+interface InsertionLineProps {
+	readonly visible: boolean;
+}
+
 // Occupies the gap between cards, so showing it does not shift layout.
-const InsertionLine: FC<{ readonly visible: boolean }> = ({ visible }) => (
+const InsertionLine: FC<InsertionLineProps> = ({ visible }) => (
 	<div className="flex h-2.5 items-center">
 		<div
 			className={cn(
@@ -227,8 +257,11 @@ interface NewColumnProps {
 
 /** A column shell with its title in edit mode, so creating looks like renaming. */
 export const NewColumn: FC<NewColumnProps> = ({ onCreate, onCancel }) => (
-	<section aria-label="New column" className={cn(columnClass, "min-h-24")}>
-		<header className={columnHeaderClass}>
+	<section
+		aria-label="New column"
+		className={columnShell({ className: "min-h-24" })}
+	>
+		<header className={columnHeader()}>
 			<span className="size-2 shrink-0 rounded-[2px] bg-content-secondary/40" />
 			<InlineEdit
 				value=""

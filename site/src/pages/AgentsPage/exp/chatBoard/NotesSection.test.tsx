@@ -72,6 +72,50 @@ describe("NotesSection", () => {
 		await user.type(field, "changed{Enter}");
 
 		expect(onEdit).toHaveBeenCalledWith(3, "changed");
+		expect(onEdit).toHaveBeenCalledTimes(1);
+	});
+
+	it("saves an edited note once from the arrow button", async () => {
+		const user = userEvent.setup();
+		const { onEdit } = renderNotes();
+
+		await user.click(screen.getAllByRole("button", { name: "Edit note" })[0]);
+		const field = screen.getByRole("textbox", { name: "Note text" });
+		await user.clear(field);
+		await user.type(field, "changed");
+		await user.click(screen.getAllByRole("button", { name: "Save note" })[0]);
+
+		expect(onEdit).toHaveBeenCalledTimes(1);
+		expect(onEdit).toHaveBeenCalledWith(0, "changed");
+	});
+
+	it("discards an edit on Escape and reopens with the stored text", async () => {
+		const user = userEvent.setup();
+		const { onEdit } = renderNotes();
+
+		await user.click(screen.getAllByRole("button", { name: "Edit note" })[0]);
+		const field = screen.getByRole("textbox", { name: "Note text" });
+		await user.type(field, " discarded{Escape}");
+		await user.click(document.body);
+		expect(onEdit).not.toHaveBeenCalled();
+
+		await user.click(screen.getAllByRole("button", { name: "Edit note" })[0]);
+		expect(screen.getByRole("textbox", { name: "Note text" })).toHaveValue(
+			"first note",
+		);
+	});
+
+	it("clears the composer after a note is added", async () => {
+		const user = userEvent.setup();
+		const { onAdd } = renderNotes();
+		const composer = screen.getByRole("textbox", {
+			name: "Add a note to Epic",
+		});
+
+		await user.type(composer, "one{Enter}");
+		expect(composer).toHaveValue("");
+		await user.type(composer, "two{Enter}");
+		expect(onAdd.mock.calls).toEqual([["one"], ["two"]]);
 	});
 
 	it("removes a note after confirming", async () => {

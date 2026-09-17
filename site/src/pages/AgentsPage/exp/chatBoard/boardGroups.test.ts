@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
 import type { Chat } from "#/api/typesGenerated";
 import { MockChat } from "#/testHelpers/chatEntities";
-import { collectBoardGroups, isBoardGroupMember } from "./boardGroups";
+import {
+	boardSidebarChats,
+	collectBoardGroups,
+	isBoardGroupMember,
+} from "./boardGroups";
 
 const chat = (id: string, labels: Record<string, string> = {}): Chat => ({
 	...MockChat,
@@ -24,5 +28,17 @@ describe("boardGroups", () => {
 		const groups = collectBoardGroups([m1, primary, orphan, m2]);
 		expect([...groups.keys()]).toEqual(["p"]);
 		expect(groups.get("p")?.map((c) => c.id)).toEqual(["m1", "m2"]);
+	});
+
+	it("folds members into their primary's slot only while the board is on", () => {
+		const primary = chat("p");
+		const member = chat("m", { "board/group": "p" });
+		const chats = [primary, member];
+
+		expect(boardSidebarChats(chats, false)).toEqual({ chats, groups: null });
+
+		const on = boardSidebarChats(chats, true);
+		expect(on.chats).toEqual([primary]);
+		expect(on.groups?.get("p")).toEqual([member]);
 	});
 });

@@ -18,34 +18,33 @@ const MAX_LABEL_VALUE_BYTES = 256;
 
 export const INBOX_COLUMN = "Inbox";
 
-/** Theme classes for one column color: header square and sidebar tag. */
-type ColumnColor = Readonly<{
-	dot: string;
-	tagBg: string;
-}>;
+/** A column's hue; the components map it to theme classes. Inbox is always neutral. */
+type ColumnHue =
+	| "neutral"
+	| "purple"
+	| "sky"
+	| "green"
+	| "orange"
+	| "magenta"
+	| "red";
 
-const COLUMN_PALETTE: readonly ColumnColor[] = [
-	{ dot: "bg-highlight-purple", tagBg: "bg-surface-purple" },
-	{ dot: "bg-highlight-sky", tagBg: "bg-surface-sky" },
-	{ dot: "bg-highlight-green", tagBg: "bg-surface-green" },
-	{ dot: "bg-highlight-orange", tagBg: "bg-surface-orange" },
-	{ dot: "bg-highlight-magenta", tagBg: "bg-surface-magenta" },
-	{ dot: "bg-highlight-red", tagBg: "bg-surface-red" },
+const COLUMN_HUES: readonly ColumnHue[] = [
+	"purple",
+	"sky",
+	"green",
+	"orange",
+	"magenta",
+	"red",
 ];
 
-const INBOX_COLOR: ColumnColor = {
-	dot: "bg-content-secondary/40",
-	tagBg: "bg-surface-tertiary",
-};
-
 // Hashing the name keeps the board and the sidebar in agreement without
-// storing a color anywhere. Inbox is always neutral.
-export const columnColor = (name: string): ColumnColor => {
-	if (name === INBOX_COLUMN) return INBOX_COLOR;
+// storing a color anywhere.
+export const columnHue = (name: string): ColumnHue => {
+	if (name === INBOX_COLUMN) return "neutral";
 	let hash = 0;
 	for (const char of name)
 		hash = (hash * 31 + (char.codePointAt(0) ?? 0)) >>> 0;
-	return COLUMN_PALETTE[hash % COLUMN_PALETTE.length] ?? INBOX_COLOR;
+	return COLUMN_HUES[hash % COLUMN_HUES.length] ?? "neutral";
 };
 
 // Card tints map onto the theme's tinted surfaces (bg-surface-<name>), which
@@ -60,46 +59,6 @@ export const CARD_COLORS = [
 ] as const;
 
 export type CardColor = (typeof CARD_COLORS)[number];
-
-/**
- * Theme classes per card color. The highlight tokens flip saturation with
- * the color mode, so one set serves both. Decorative only, never status.
- */
-export const CARD_COLOR_CLASS: Record<
-	CardColor,
-	Readonly<{ accent: string; tint: string; swatch: string }>
-> = {
-	green: {
-		accent: "border-l-highlight-green",
-		tint: "bg-highlight-green/15",
-		swatch: "bg-highlight-green",
-	},
-	orange: {
-		accent: "border-l-highlight-orange",
-		tint: "bg-highlight-orange/15",
-		swatch: "bg-highlight-orange",
-	},
-	sky: {
-		accent: "border-l-highlight-sky",
-		tint: "bg-highlight-sky/15",
-		swatch: "bg-highlight-sky",
-	},
-	red: {
-		accent: "border-l-highlight-red",
-		tint: "bg-highlight-red/15",
-		swatch: "bg-highlight-red",
-	},
-	purple: {
-		accent: "border-l-highlight-purple",
-		tint: "bg-highlight-purple/15",
-		swatch: "bg-highlight-purple",
-	},
-	magenta: {
-		accent: "border-l-highlight-magenta",
-		tint: "bg-highlight-magenta/15",
-		swatch: "bg-highlight-magenta",
-	},
-};
 
 const isCardColor = (value: string | undefined): value is CardColor =>
 	value !== undefined && (CARD_COLORS as readonly string[]).includes(value);
@@ -395,6 +354,18 @@ export const buildCards = (chats: readonly Chat[]): BoardCard[] => {
 	return cards.sort(
 		(a, b) => placementKey(b.primary) - placementKey(a.primary),
 	);
+};
+
+/** Each member chat mapped to its card's color, so a window can wear it. */
+export const cardColorByChat = (
+	cards: readonly BoardCard[],
+): Map<string, CardColor> => {
+	const colors = new Map<string, CardColor>();
+	for (const card of cards) {
+		if (!card.color) continue;
+		for (const member of card.members) colors.set(member.id, card.color);
+	}
+	return colors;
 };
 
 /**

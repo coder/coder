@@ -1,13 +1,11 @@
-import { renderHook } from "@testing-library/react";
-import type { PropsWithChildren } from "react";
-import { QueryClient, QueryClientProvider } from "react-query";
+import { QueryClient } from "react-query";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
 import type { Chat } from "#/api/typesGenerated";
 import { MockChat } from "#/testHelpers/chatEntities";
 import { MockWorkspace } from "#/testHelpers/entities";
 import { addCommentLabels, buildCards } from "./boardLabels";
-import { findAssistant, snapshot, useCardAssistant } from "./useCardAssistant";
+import { assistantIds, openCardAssistant, snapshot } from "./cardAssistant";
 
 vi.mock("sonner", () => ({
 	toast: { error: vi.fn(), success: vi.fn(), warning: vi.fn() },
@@ -26,16 +24,18 @@ const cardFor = (chats: readonly Chat[]) => {
 	return card;
 };
 
-const renderAssistant = (chats: readonly Chat[]) => {
-	const queryClient = new QueryClient({
-		defaultOptions: { mutations: { retry: false } },
+/** Opens with mocked mutations and returns them for inspection. */
+const open = (chats: readonly Chat[], existing: Chat | undefined) => {
+	const create = vi.fn().mockResolvedValue({ ...MockChat, id: "created" });
+	const rename = vi.fn().mockResolvedValue(undefined);
+	const result = openCardAssistant({
+		card: cardFor(chats),
+		existingId: existing?.id,
+		create,
+		rename,
+		queryClient: new QueryClient(),
 	});
-	const wrapper = ({ children }: PropsWithChildren) => (
-		<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-	);
-	return renderHook(() => useCardAssistant(chats, buildCards(chats)), {
-		wrapper,
-	}).result;
+	return { result, create, rename };
 };
 
 describe("snapshot", () => {
@@ -73,7 +73,7 @@ describe("snapshot", () => {
 	});
 });
 
-describe("useCardAssistant", () => {
+describe("openCardAssistant", () => {
 	afterEach(() => {
 		vi.restoreAllMocks();
 		localStorage.clear();
@@ -82,23 +82,20 @@ describe("useCardAssistant", () => {
 	it("finds the assistant chat by its card label", () => {
 		const card = cardFor([chat("p")]);
 		const helper = chat("h", { "board/assistant": "p" });
-		expect(findAssistant(card, [chat("p"), helper])).toBe(helper);
-		expect(findAssistant(card, [chat("p")])).toBeUndefined();
+		expect(assistantIds([chat("p"), helper]).get(card.id)).toBe(helper.id);
+		expect(assistantIds([chat("p")]).get(card.id)).toBeUndefined();
 	});
 
 	it("reuses an existing assistant without any request", async () => {
 		const getWorkspaces = vi.spyOn(API, "getWorkspaces");
-		const createChat = vi.spyOn(API.experimental, "createChat");
-		const chats = [chat("p")];
-
-		const id = await renderAssistant(chats).current.open(
-			cardFor(chats),
+		const { result, create } = open(
+			[chat("p")],
 			chat("h", { "board/assistant": "p" }),
 		);
 
-		expect(id).toBe("h");
+		expect(await result).toBe("h");
 		expect(getWorkspaces).not.toHaveBeenCalled();
-		expect(createChat).not.toHaveBeenCalled();
+		expect(create).not.toHaveBeenCalled();
 	});
 
 	it("creates the assistant in the shared workspace and titles it", async () => {
@@ -106,26 +103,19 @@ describe("useCardAssistant", () => {
 			workspaces: [{ ...MockWorkspace, id: "ws-1", name: "agents-kanban" }],
 			count: 1,
 		});
-		const createChat = vi
-			.spyOn(API.experimental, "createChat")
-			.mockResolvedValue({ ...MockChat, id: "new-assistant" });
-		const updateChat = vi
-			.spyOn(API.experimental, "updateChat")
-			.mockResolvedValue(undefined);
 		localStorage.setItem("agents.last-model-config-id", "model-9");
-		const chats = [chat("p", { "board/title": "Epic" })];
 
-		const id = await renderAssistant(chats).current.open(
-			cardFor(chats),
+		const { result, create, rename } = open(
+			[chat("p", { "board/title": "Epic" })],
 			undefined,
 		);
 
-		expect(id).toBe("new-assistant");
+		expect(await result).toBe("created");
 		expect(API.getWorkspaces).toHaveBeenCalledWith({
 			q: "owner:me name:agents-kanban",
 		});
-		expect(createChat).toHaveBeenCalledTimes(1);
-		const request = createChat.mock.calls[0]?.[0];
+		expect(create).toHaveBeenCalledTimes(1);
+		const request = create.mock.calls[0]?.[0];
 		expect(request).toMatchObject({
 			organization_id: MockChat.organization_id,
 			workspace_id: "ws-1",
@@ -135,7 +125,8 @@ describe("useCardAssistant", () => {
 		});
 		expect(request?.system_prompt).toContain("assistant for one card");
 		expect(request?.content[0]).toMatchObject({ type: "text" });
-		expect(updateChat).toHaveBeenCalledWith("new-assistant", {
+		expect(rename).toHaveBeenCalledWith({
+			chatId: "created",
 			title: "Assistant: Epic",
 		});
 	});
@@ -145,15 +136,11 @@ describe("useCardAssistant", () => {
 			workspaces: [],
 			count: 0,
 		});
-		const createChat = vi
-			.spyOn(API.experimental, "createChat")
-			.mockResolvedValue({ ...MockChat, id: "n" });
-		vi.spyOn(API.experimental, "updateChat").mockResolvedValue(undefined);
-		const chats = [chat("p")];
 
-		await renderAssistant(chats).current.open(cardFor(chats), undefined);
+		const { result, create } = open([chat("p")], undefined);
+		await result;
 
-		const request = createChat.mock.calls[0]?.[0];
+		const request = create.mock.calls[0]?.[0];
 		expect(request?.workspace_id).toBeUndefined();
 		expect(request?.model_config_id).toBeUndefined();
 		const first = request?.content[0];
@@ -165,40 +152,30 @@ describe("useCardAssistant", () => {
 	it("toasts and returns undefined when creation fails", async () => {
 		const { toast } = await import("sonner");
 		vi.spyOn(API, "getWorkspaces").mockRejectedValue(new Error("offline"));
-		const chats = [chat("p")];
 
-		const id = await renderAssistant(chats).current.open(
-			cardFor(chats),
-			undefined,
-		);
+		const { result } = open([chat("p")], undefined);
 
-		expect(id).toBeUndefined();
+		expect(await result).toBeUndefined();
 		expect(toast.error).toHaveBeenCalledWith("offline");
 	});
 
 	it("still opens a created chat when only the rename fails", async () => {
-		const { toast } = await import("sonner");
-		vi.mocked(toast.error).mockClear();
 		vi.spyOn(API, "getWorkspaces").mockResolvedValue({
 			workspaces: [],
 			count: 0,
 		});
-		const createChat = vi
-			.spyOn(API.experimental, "createChat")
-			.mockResolvedValue({ ...MockChat, id: "created" });
-		vi.spyOn(API.experimental, "updateChat").mockRejectedValue(
-			new Error("rename failed"),
-		);
-		const chats = [chat("p")];
+		const create = vi.fn().mockResolvedValue({ ...MockChat, id: "created" });
+		const rename = vi.fn().mockRejectedValue(new Error("rename failed"));
 
-		const id = await renderAssistant(chats).current.open(
-			cardFor(chats),
-			undefined,
-		);
+		const id = await openCardAssistant({
+			card: cardFor([chat("p")]),
+			existingId: undefined,
+			create,
+			rename,
+			queryClient: new QueryClient(),
+		});
 
 		expect(id).toBe("created");
-		expect(createChat).toHaveBeenCalledTimes(1);
-		expect(toast.error).toHaveBeenCalledTimes(1);
-		expect(toast.error).toHaveBeenCalledWith("rename failed");
+		expect(create).toHaveBeenCalledTimes(1);
 	});
 });

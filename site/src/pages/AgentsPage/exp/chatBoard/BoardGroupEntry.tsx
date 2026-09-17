@@ -2,22 +2,22 @@ import { CopyIcon } from "lucide-react";
 import type { FC } from "react";
 import type { Chat } from "#/api/typesGenerated";
 import { ChatTreeNode } from "../../components/ChatsSidebar/tree/ChatTreeNode";
+import { type BoardGroups, isBoardGroupMember } from "./boardGroups";
 import { getColumnLabel, getTitleLabel, INBOX_COLUMN } from "./boardLabels";
 import { ColumnTag } from "./ColumnTag";
 
 interface BoardGroupEntryProps {
 	readonly chat: Chat;
-	readonly members: readonly Chat[] | undefined;
+	readonly groups: BoardGroups;
 }
 
 /**
- * One list entry: a plain node, or a box holding a board primary followed by
- * its members. Members stay top-level nodes, so nothing collapses them.
+ * One sidebar list entry: a plain node, or a box holding a board primary
+ * followed by its members. Members stay top-level nodes, so nothing
+ * collapses them.
  */
-export const BoardGroupEntry: FC<BoardGroupEntryProps> = ({
-	chat,
-	members,
-}) => {
+export const BoardGroupEntry: FC<BoardGroupEntryProps> = ({ chat, groups }) => {
+	const members = groups.get(chat.id);
 	if (!members || members.length === 0) {
 		return <ChatTreeNode chat={chat} />;
 	}
@@ -43,4 +43,25 @@ export const BoardGroupEntry: FC<BoardGroupEntryProps> = ({
 			))}
 		</div>
 	);
+};
+
+interface BoardColumnTagProps {
+	readonly chat: Chat;
+	readonly groups: BoardGroups;
+}
+
+/**
+ * The trailing slot of a sidebar row: the chat's column. A group box names
+ * the column once in its header, so its primary and members carry none.
+ */
+export const BoardColumnTag: FC<BoardColumnTagProps> = ({ chat, groups }) => {
+	const column = getColumnLabel(chat);
+	if (
+		column === INBOX_COLUMN ||
+		isBoardGroupMember(chat) ||
+		groups.has(chat.id)
+	) {
+		return null;
+	}
+	return <ColumnTag name={column} />;
 };

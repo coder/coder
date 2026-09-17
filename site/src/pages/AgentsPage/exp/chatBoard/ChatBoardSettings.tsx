@@ -1,10 +1,10 @@
 import type { FC } from "react";
 import { Switch } from "#/components/Switch/Switch";
-import { useChatBoardEnabled } from "./useChatBoardEnabled";
+import { saveChatBoardEnabled, useChatBoardEnabled } from "./chatBoardFlag";
 
 /** Opt-in switch for the chat board, listed under Experiments in settings. */
 export const ChatBoardSettings: FC = () => {
-	const [enabled, setEnabled] = useChatBoardEnabled();
+	const enabled = useChatBoardEnabled();
 
 	return (
 		<div className="flex flex-col gap-2">
@@ -18,7 +18,7 @@ export const ChatBoardSettings: FC = () => {
 				</p>
 				<Switch
 					checked={enabled}
-					onCheckedChange={(checked) => setEnabled(Boolean(checked))}
+					onCheckedChange={(checked) => saveChatBoardEnabled(Boolean(checked))}
 					aria-label="Chat board"
 				/>
 			</div>

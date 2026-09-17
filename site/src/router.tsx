@@ -894,7 +894,7 @@ export const router = createBrowserRouter(
 						/>
 					</Route>
 					<Route
-						path="board/:agentId?"
+						path="board"
 						element={
 							<Suspense fallback={<AgentChatPageSkeleton />}>
 								<ChatBoardPage />

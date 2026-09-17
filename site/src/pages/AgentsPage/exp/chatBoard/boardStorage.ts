@@ -1,5 +1,3 @@
-import { useCallback, useState } from "react";
-
 const STORAGE_KEY = "agents.board";
 
 /**
@@ -49,7 +47,8 @@ const isWindow = (value: unknown): value is ChatWindow => {
 	);
 };
 
-const readStorage = (): BoardStorage => {
+/** The stored board state, or defaults when absent or unreadable. Previews are never stored. */
+export const readBoardStorage = (): BoardStorage => {
 	const raw = localStorage.getItem(STORAGE_KEY);
 	if (!raw) return DEFAULT_STORAGE;
 	try {
@@ -68,24 +67,6 @@ const readStorage = (): BoardStorage => {
 	}
 };
 
-export const useBoardStorage = () => {
-	const [storage, setStorage] = useState<BoardStorage>(readStorage);
-	const update = useCallback(
-		(
-			patch:
-				| Partial<BoardStorage>
-				| ((prev: BoardStorage) => Partial<BoardStorage>),
-		) => {
-			setStorage((prev) => {
-				const next = {
-					...prev,
-					...(typeof patch === "function" ? patch(prev) : patch),
-				};
-				localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-				return next;
-			});
-		},
-		[],
-	);
-	return [storage, update] as const;
+export const saveBoardStorage = (next: BoardStorage): void => {
+	localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
 };

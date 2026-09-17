@@ -1,5 +1,14 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { windowBeside, windowCentered } from "./ChatWindows";
+import type { ChatWindow } from "./boardStorage";
+import {
+	changeWindow,
+	dismissTop,
+	dropPreview,
+	raise,
+	toFront,
+	windowBeside,
+	windowCentered,
+} from "./windows";
 
 const viewport = (width: number, height: number) => {
 	vi.spyOn(window, "innerWidth", "get").mockReturnValue(width);
@@ -8,6 +17,15 @@ const viewport = (width: number, height: number) => {
 
 const rect = (left: number, top: number, width: number, height: number) =>
 	new DOMRect(left, top, width, height);
+
+const win = (chatId: string, pinned = true): ChatWindow => ({
+	chatId,
+	x: 0,
+	y: 0,
+	width: 100,
+	height: 100,
+	pinned,
+});
 
 describe("window geometry", () => {
 	afterEach(() => {
@@ -65,5 +83,28 @@ describe("window geometry", () => {
 			height: 640,
 			pinned: true,
 		});
+	});
+});
+
+describe("window list", () => {
+	it("brings a window to the front pinned, replacing its old entry", () => {
+		const list = [win("a"), win("b"), win("p", false)];
+		expect(toFront(list, win("a", false)).map((w) => w.chatId)).toEqual([
+			"b",
+			"p",
+			"a",
+		]);
+		expect(toFront(list, win("a", false)).at(-1)?.pinned).toBe(true);
+		expect(raise(list, "p").at(-1)).toEqual(win("p"));
+		expect(raise(list, "nope")).toBe(list);
+	});
+
+	it("keeps pinning when geometry changes and drops the preview on escape", () => {
+		const list = [win("a"), win("p", false)];
+		const moved = changeWindow(list, { ...win("p"), x: 50 });
+		expect(moved[1]).toEqual({ ...win("p", false), x: 50 });
+		expect(dropPreview(list)).toEqual([win("a")]);
+		expect(dismissTop(list)).toEqual([win("a")]);
+		expect(dismissTop([win("a"), win("b")])).toEqual([win("a")]);
 	});
 });

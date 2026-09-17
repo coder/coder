@@ -101,4 +101,26 @@ describe("BoardCard", () => {
 			expect.objectContaining({ top: expect.any(Number) }),
 		);
 	});
+
+	it("anchors a group row's window to that row, not the card", async () => {
+		const user = userEvent.setup();
+		const { card, onOpen, onPreview } = renderCard([
+			chat("p", { "board/group": "p" }),
+			chat("m", { "board/group": "p" }),
+		]);
+		const rect = (top: number) => ({ top }) as DOMRect;
+		vi.spyOn(
+			screen.getByRole("article"),
+			"getBoundingClientRect",
+		).mockReturnValue(rect(10));
+		const [, secondRow] = screen.getAllByRole("listitem");
+		vi.spyOn(secondRow, "getBoundingClientRect").mockReturnValue(rect(120));
+
+		const opener = screen.getAllByTitle("Open chat")[1];
+		await user.hover(opener);
+		await user.click(opener);
+
+		expect(onPreview).toHaveBeenCalledWith(card.members[1], rect(120));
+		expect(onOpen).toHaveBeenCalledWith(card.members[1], rect(120));
+	});
 });

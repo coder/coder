@@ -5,6 +5,7 @@ import {
 	addCommentLabels,
 	buildCards,
 	buildColumns,
+	cardColorByChat,
 	chunkByBytes,
 	INBOX_COLUMN,
 	keyBetween,
@@ -161,6 +162,20 @@ describe("cards", () => {
 		expect(
 			buildCards([chat("q", { "board/color": "plaid" })])[0]?.color,
 		).toBeUndefined();
+	});
+
+	it("maps every member of a colored card to that color", () => {
+		const cards = buildCards([
+			chat("p", { "board/color": "sky" }),
+			chat("m", { "board/group": "p" }),
+			chat("plain"),
+		]);
+		expect(cardColorByChat(cards)).toEqual(
+			new Map([
+				["p", "sky"],
+				["m", "sky"],
+			]),
+		);
 	});
 
 	it("orders columns: Inbox, stored order, then discovered", () => {

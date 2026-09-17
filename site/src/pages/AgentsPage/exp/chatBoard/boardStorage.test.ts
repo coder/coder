@@ -1,6 +1,5 @@
-import { act, renderHook } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
-import { useBoardStorage } from "./boardStorage";
+import { readBoardStorage, saveBoardStorage } from "./boardStorage";
 
 const KEY = "agents.board";
 
@@ -13,14 +12,13 @@ const pinned = {
 	pinned: true,
 };
 
-describe("useBoardStorage", () => {
+describe("boardStorage", () => {
 	afterEach(() => {
 		localStorage.clear();
 	});
 
 	it("starts empty without stored state", () => {
-		const { result } = renderHook(() => useBoardStorage());
-		expect(result.current[0]).toEqual({
+		expect(readBoardStorage()).toEqual({
 			columnOrder: [],
 			emptyColumns: [],
 			windows: [],
@@ -41,8 +39,7 @@ describe("useBoardStorage", () => {
 				],
 			}),
 		);
-		const { result } = renderHook(() => useBoardStorage());
-		expect(result.current[0]).toEqual({
+		expect(readBoardStorage()).toEqual({
 			columnOrder: ["Inbox", "Done"],
 			emptyColumns: [],
 			windows: [pinned],
@@ -51,24 +48,16 @@ describe("useBoardStorage", () => {
 
 	it("falls back to defaults on unreadable storage", () => {
 		localStorage.setItem(KEY, "{not json");
-		const { result } = renderHook(() => useBoardStorage());
-		expect(result.current[0].columnOrder).toEqual([]);
+		expect(readBoardStorage().columnOrder).toEqual([]);
 	});
 
-	it("persists object and functional patches", () => {
-		const { result } = renderHook(() => useBoardStorage());
-		act(() => result.current[1]({ columnOrder: ["Inbox", "Doing"] }));
-		act(() =>
-			result.current[1]((prev) => ({
-				emptyColumns: [...prev.emptyColumns, "Later"],
-			})),
-		);
-		expect(result.current[0].columnOrder).toEqual(["Inbox", "Doing"]);
-		expect(result.current[0].emptyColumns).toEqual(["Later"]);
-		expect(JSON.parse(localStorage.getItem(KEY) ?? "{}")).toEqual({
+	it("round-trips what was saved", () => {
+		const next = {
 			columnOrder: ["Inbox", "Doing"],
 			emptyColumns: ["Later"],
-			windows: [],
-		});
+			windows: [pinned],
+		};
+		saveBoardStorage(next);
+		expect(readBoardStorage()).toEqual(next);
 	});
 });
