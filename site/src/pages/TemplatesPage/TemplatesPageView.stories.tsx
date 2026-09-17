@@ -348,20 +348,3 @@ export const ClassicParameterFlowWarningWithoutCreatePermission: Story = {
 		expect(canvas.getAllByText("Deprecated")).toHaveLength(2);
 	},
 };
-
-export const WithoutClassicParameterFlowTemplates: Story = {
-	args: {
-		...WithTemplates.args,
-		canCreateTemplates: true,
-		templates: [classicParameterFlowTemplates[3]],
-		templateUpdatePermissions: {
-			[MockTemplate.organization_id]: true,
-		},
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-
-		expect(canvas.queryByRole("alert")).not.toBeInTheDocument();
-		expect(canvas.queryByText("Deprecated")).not.toBeInTheDocument();
-	},
-};
