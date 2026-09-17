@@ -73,15 +73,14 @@ export const FencedFileBlock: Story = {
 		children: sampleFileMarkdown,
 	},
 	beforeEach: mockClipboardWrite,
-	// Copies the whole fence body, indentation included, without the
-	// fence markers or the trailing newline.
+	// Clicks the hover-only copy button so the capture shows the
+	// copied confirmation state. Behavior is covered in Response.test.tsx.
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const copyButton = await canvas.findByRole("button", {
 			name: "Copy code",
 		});
 		await userEvent.click(copyButton);
-		expect(navigator.clipboard.writeText).toHaveBeenCalledWith(sampleFileCode);
 	},
 };
 
@@ -96,15 +95,13 @@ export const SingleLineFencedBlock: Story = {
 		children: singleLineCodeBlockMarkdown,
 	},
 	beforeEach: mockClipboardWrite,
+	// Behavior is covered in Response.test.tsx.
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const copyButton = await canvas.findByRole("button", {
 			name: "Copy code",
 		});
 		await userEvent.click(copyButton);
-		expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
-			"07c3697 feat: update agent skills",
-		);
 	},
 };
 
