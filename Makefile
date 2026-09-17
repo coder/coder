@@ -1018,7 +1018,7 @@ GEN_FILES := \
 	docs/admin/setup/configuration-reference.md \
 	coderd/apidoc/swagger.json \
 	docs/manifest.json \
-	provisioner/terraform/testdata/version \
+	provisioner/terraform/testdata/generation.sha1 \
 	scripts/metricsdocgen/generated_metrics \
 	site/e2e/provisionerGenerated.ts \
 	examples/examples.gen.json \
@@ -1465,21 +1465,21 @@ coderd/notifications/.gen-golden: $(wildcard coderd/notifications/testdata/*/*.g
 	TZ=UTC go test ./coderd/notifications -run="Test.*Golden$$" -update
 	touch "$@"
 
-provisioner/terraform/testdata/.gen-golden: $(wildcard provisioner/terraform/testdata/*/*.golden) $(wildcard provisioner/terraform/testdata/*/*/*.golden) $(GO_SRC_FILES) $(wildcard provisioner/terraform/*_test.go)
+# Wait for fixture generation before reading its outputs under make -j.
+provisioner/terraform/testdata/.gen-golden: provisioner/terraform/testdata/generation.sha1 $(wildcard provisioner/terraform/testdata/*/*.golden) $(wildcard provisioner/terraform/testdata/*/*/*.golden) $(GO_SRC_FILES) $(wildcard provisioner/terraform/*_test.go)
 	TZ=UTC go test ./provisioner/terraform -run="Test.*Golden$$" -update
 	touch "$@"
 
-provisioner/terraform/testdata/version:
-	@tf_match=true; \
-	if [[ "$$(cat provisioner/terraform/testdata/version.txt)" != \
-	       "$$(terraform version -json | jq -r '.terraform_version')" ]]; then \
-		tf_match=false; \
-	fi; \
-	if ! $$tf_match || \
-	   ! ./provisioner/terraform/testdata/generate.sh --check; then \
-		./provisioner/terraform/testdata/generate.sh; \
-	fi
-.PHONY: provisioner/terraform/testdata/version
+provisioner/terraform/testdata/generation.sha1: force-terraform-freshness
+	@./provisioner/terraform/testdata/generate.sh --if-needed
+
+force-terraform-freshness:
+.PHONY: force-terraform-freshness
+
+# pre-commit runs gen and fmt concurrently; formatting must finish before hashing.
+ifneq ($(filter fmt,$(MAKECMDGOALS)),)
+provisioner/terraform/testdata/generation.sha1: | fmt/terraform fmt/shfmt
+endif
 
 update-terraform-testdata:
 	./provisioner/terraform/testdata/generate.sh --upgrade

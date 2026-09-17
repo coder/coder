@@ -73,15 +73,15 @@ if [[ ${CODER_HOOK_RUN_ALL:-} == 1 ]]; then
 fi
 
 staged=$(git diff --cached --name-only --diff-filter=d)
-if [[ -z $staged ]]; then
+# Deleted fixture inputs also require regeneration.
+fixtures=$(git diff --cached --name-only -- provisioner/terraform/testdata/)
+if [[ -z $staged && -z $fixtures ]]; then
 	echo "pre-commit: no staged changes, skipping"
 	exit 0
 fi
 
-# If Go, TS, or build-system files changed, run the full
-# pre-commit. Otherwise run the lightweight target that
-# covers everything except gen, Go/TS fmt+lint, and binary build.
-if echo "$staged" | grep -qE '\.(go|ts|tsx|sql|proto)$|^go\.(mod|sum)$|^site/|^Makefile$'; then
+# Fixture-only commits need generation, which pre-commit-light omits.
+if [[ -n $fixtures ]] || echo "$staged" | grep -qE '\.(go|ts|tsx|sql|proto)$|^go\.(mod|sum)$|^site/|^Makefile$'; then
 	exec make pre-commit
 fi
 exec make pre-commit-light

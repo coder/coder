@@ -189,8 +189,6 @@
           vendorHash = "sha256-OuQWmZmofdJKq1hvk43RPkILQwAuFzqhmB22Xf6Z3lA=";
         };
 
-        # Pin to provisioner/terraform/testdata/version.txt for deterministic
-        # `make gen` across platforms.
         terraform_1_15_5 =
           let
             releases = {
@@ -314,6 +312,7 @@
             proto_gen_go_1_30
             protobuf_23_4
             ripgrep
+            rsync
             shellcheck
             (pinnedPkgs.shfmt)
             # sqlc

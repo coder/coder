@@ -47,6 +47,7 @@ jobs:
       offlinedocs-only: ${{ steps.filter.outputs.offlinedocs_count == steps.filter.outputs.all_count }}
       offlinedocs: ${{ steps.filter.outputs.offlinedocs }}
       tailnet-integration: ${{ steps.filter.outputs.tailnet-integration }}
+      terraform-testdata: ${{ steps.filter.outputs.terraform-testdata }}
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
@@ -124,6 +125,9 @@ jobs:
               - ".github/workflows/**"
             offlinedocs:
               - "offlinedocs/**"
+            terraform-testdata:
+              - "provisioner/terraform/testdata/generation.sha1"
+              - ".github/workflows/terraform-testdata.yaml"
             tailnet-integration:
               - "tailnet/**"
               - "go.mod"
@@ -425,6 +429,13 @@ jobs:
           # Used by zizmor to lint third-party GitHub actions.
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+  terraform-testdata:
+    needs: changes
+    if: needs.changes.outputs.terraform-testdata == 'true'
+    permissions:
+      contents: read
+    uses: ./.github/workflows/terraform-testdata.yaml
+
   gen:
     timeout-minutes: 20
     runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
@@ -444,7 +455,7 @@ jobs:
       - name: Set up mise tools
         uses: ./.github/actions/setup-mise
         with:
-          install-args: "go node pnpm terraform protoc protoc-gen-go"
+          install-args: "go node pnpm protoc protoc-gen-go"
 
       - name: Install pnpm dependencies
         uses: ./.github/actions/pnpm-install
@@ -457,6 +468,11 @@ jobs:
 
       - name: Start PostgreSQL container
         run: make test-postgres-docker
+
+      # A changed source without regenerated fixtures must fail, not invoke
+      # Terraform from the shared generation job.
+      - name: Check Terraform fixture record
+        run: ./provisioner/terraform/testdata/generate.sh --check
 
       - name: make gen
         timeout-minutes: 8
@@ -1190,6 +1206,7 @@ jobs:
       - lint-docs
       - lint-actions
       - gen
+      - terraform-testdata
       - test-go-pg
       - test-go-pg-17
       - test-go-race-pg
@@ -1216,6 +1233,7 @@ jobs:
           echo "- lint-docs: ${{ needs.lint-docs.result }}"
           echo "- lint-actions: ${{ needs.lint-actions.result }}"
           echo "- gen: ${{ needs.gen.result }}"
+          echo "- terraform-testdata: ${{ needs.terraform-testdata.result }}"
           echo "- test-go-pg: ${{ needs.test-go-pg.result }}"
           echo "- test-go-pg-17: ${{ needs.test-go-pg-17.result }}"
           echo "- test-go-race-pg: ${{ needs.test-go-race-pg.result }}"
