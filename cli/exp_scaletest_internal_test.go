@@ -10,6 +10,7 @@ import (
 
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/scaletest/loadtestutil"
+	"github.com/coder/serpent"
 )
 
 // TestFilterScaletestUsersByPrefix covers the pure user-selection logic behind
@@ -77,6 +78,92 @@ func scaletestUser(username, email string) codersdk.User {
 			Email:       email,
 		},
 	}
+}
+
+// TestShardingFlagsDefaults asserts that attach installs the "unset" sentinels
+// (index -1, count 0) so requested() can tell an unset flag from a real shard 0
+// or count 0. This is the wiring the CLI relies on, verified without a server.
+func TestShardingFlagsDefaults(t *testing.T) {
+	t.Parallel()
+
+	s := &shardingFlags{}
+	var opts serpent.OptionSet
+	s.attach(&opts)
+	require.NoError(t, opts.SetDefaults())
+
+	require.Equal(t, int64(-1), s.index)
+	require.Equal(t, int64(0), s.count)
+	require.False(t, s.requested())
+}
+
+// TestShardingFlagsValidate covers the flag validation and its mutual exclusion
+// with --target-workspaces directly, without a coderd client. Unset flags are
+// modelled with the sentinels attach installs (index -1, count 0).
+func TestShardingFlagsValidate(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name             string
+		index            int64
+		count            int64
+		targetWorkspaces string
+		errText          string // empty means the input is valid
+	}{
+		{name: "Unset", index: -1, count: 0},
+		{name: "Valid", index: 2, count: 4},
+		{
+			name: "TargetAndShardMutuallyExclusive", index: -1, count: 2,
+			targetWorkspaces: "0:10",
+			errText:          "--target-workspaces cannot be used with --shard-index/--shard-count",
+		},
+		{
+			name: "ShardIndexRequiresShardCount", index: 1, count: 0,
+			errText: "--shard-index requires --shard-count",
+		},
+		{
+			// index 0 is a valid shard, not "unset": a lone --shard-index=0 must
+			// still require --shard-count rather than silently target all.
+			name: "ShardIndexZeroRequiresShardCount", index: 0, count: 0,
+			errText: "--shard-index requires --shard-count",
+		},
+		{
+			name: "ShardCountRequiresShardIndex", index: -1, count: 2,
+			errText: "--shard-count requires --shard-index",
+		},
+		{
+			// A negative count is "set" (not the 0 sentinel) and must error rather
+			// than silently disable sharding.
+			name: "NegativeShardCount", index: 0, count: -1,
+			errText: "--shard-count must be a positive integer, got -1",
+		},
+		{
+			name: "ShardIndexOutOfRange", index: 3, count: 3,
+			errText: "--shard-index 3 is out of range for --shard-count 3",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			s := &shardingFlags{index: tc.index, count: tc.count}
+			err := s.validate(tc.targetWorkspaces)
+			if tc.errText == "" {
+				require.NoError(t, err)
+				return
+			}
+			require.ErrorContains(t, err, tc.errText)
+		})
+	}
+
+	t.Run("NilReceiver", func(t *testing.T) {
+		t.Parallel()
+
+		// chat passes a nil *shardingFlags to mean "no sharding".
+		var s *shardingFlags
+		require.False(t, s.requested())
+		require.NoError(t, s.validate("0:10"))
+	})
 }
 
 // TestWorkspaceShardIndex verifies that hash-based shard assignment is
