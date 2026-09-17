@@ -130,6 +130,7 @@ func TestHydrateAndMarkChatsDirtyPublishesForHydratedAndDirtied(t *testing.T) {
 	db.EXPECT().SyncAgentChatsContextAddedResources(gomock.Any(), database.SyncAgentChatsContextAddedResourcesParams{
 		AgentID:       agentID,
 		AggregateHash: hash,
+		DirtySince:    now,
 	}).Return([]uuid.UUID{addedChat.ID, dirtiedChat.ID}, nil)
 	db.EXPECT().MarkChatsContextDirtyByAgent(gomock.Any(), database.MarkChatsContextDirtyByAgentParams{
 		AgentID:       agentID,

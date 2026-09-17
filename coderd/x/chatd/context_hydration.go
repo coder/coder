@@ -57,6 +57,7 @@ func (p *Server) HydrateAndMarkChatsDirty(ctx context.Context, tx database.Store
 		AgentID:       agentID,
 		AggregateHash: aggregateHash,
 		ContextError:  snapshotError,
+		DirtySince:    now,
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("sync agent chats added context resources: %w", err)
