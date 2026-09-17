@@ -177,6 +177,9 @@ export default defineConfig({
 	},
 	resolve: {
 		alias: {
+			// The annotator overlay is a sibling package with no build step of
+			// its own for the dashboard; import its sources directly.
+			"@coder/annotator": path.resolve(import.meta.dirname, "../annotator/src"),
 			// In profiling builds, swap the usual reconciler for the profiling
 			// variant so that <Profiler> receives actual timing data.
 			...(isProfilingBuild

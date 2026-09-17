@@ -10,6 +10,8 @@
 		"moduleResolution": "bundler",
 		"noEmit": true,
 		"outDir": "build/",
+		// The annotator alias below pulls sources from a sibling directory.
+		"rootDir": "..",
 		"preserveWatchOutput": true,
 		"resolveJsonModule": true,
 		"skipLibCheck": true,
@@ -24,7 +26,8 @@
 			"novnc__novnc"
 		],
 		"paths": {
-			"#/*": ["./src/*"]
+			"#/*": ["./src/*"],
+			"@coder/annotator/*": ["../annotator/src/*"]
 		}
 	},
 	"include": ["**/*"],
