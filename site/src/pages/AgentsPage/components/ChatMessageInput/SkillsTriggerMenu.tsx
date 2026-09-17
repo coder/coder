@@ -72,6 +72,10 @@ type SkillsTriggerMenuProps = {
 	onSelectedIndexChange: (index: number) => void;
 	onSelect: (skill: SkillMenuItem) => void;
 	onClose: () => void;
+	// Radix dismisses on Escape from a document capture-phase listener.
+	// Call `event.preventDefault()` to keep the menu open so the editor's
+	// own Escape handling can close it instead.
+	onEscapeKeyDown?: (event: KeyboardEvent) => void;
 };
 
 const getEmptyMessage = (query: string, workspaceSkillsEnabled: boolean) => {
@@ -165,6 +169,7 @@ export const SkillsTriggerMenu = ({
 	onSelectedIndexChange,
 	onSelect,
 	onClose,
+	onEscapeKeyDown,
 }: SkillsTriggerMenuProps) => {
 	const allSkills = [...commands, ...personalSkills, ...workspaceSkills];
 	const statusItems = [
@@ -232,6 +237,7 @@ export const SkillsTriggerMenu = ({
 				onMouseDown={(event) => event.preventDefault()}
 				onOpenAutoFocus={(event) => event.preventDefault()}
 				onCloseAutoFocus={(event) => event.preventDefault()}
+				onEscapeKeyDown={onEscapeKeyDown}
 			>
 				<Command
 					shouldFilter={false}
