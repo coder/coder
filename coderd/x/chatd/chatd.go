@@ -3829,6 +3829,11 @@ func (p *Server) appendRootChatTools(
 		p.publishChatPubsubEvent(updatedChat, codersdk.ChatWatchEventKindStatusChange, nil)
 	}
 
+	var waitForMCPDiscovery chattool.MCPDiscoveryWaiter
+	if !opts.isPlanModeTurn {
+		waitForMCPDiscovery = p.mcpDiscoveryWaiter(opts.chat.ID)
+	}
+
 	tools = append(tools,
 		chattool.ListTemplates(p.db, opts.chat.OrganizationID, chattool.ListTemplatesOptions{
 			OwnerID: opts.chat.OwnerID,
@@ -3845,7 +3850,7 @@ func (p *Server) appendRootChatTools(
 			AgentInactiveDisconnectTimeout: p.agentInactiveDisconnectTimeout,
 			WorkspaceMu:                    opts.workspaceMu,
 			OnChatUpdated:                  onChatUpdated,
-			WaitForMCPDiscovery:            p.mcpDiscoveryWaiter(opts.chat.ID),
+			WaitForMCPDiscovery:            waitForMCPDiscovery,
 			Logger:                         p.logger,
 		}),
 		chattool.StartWorkspace(p.db, opts.chat.ID, chattool.StartWorkspaceOptions{
@@ -3854,7 +3859,7 @@ func (p *Server) appendRootChatTools(
 			AgentConnFn:         chattool.AgentConnFunc(p.agentConnFn),
 			WorkspaceMu:         opts.workspaceMu,
 			OnChatUpdated:       onChatUpdated,
-			WaitForMCPDiscovery: p.mcpDiscoveryWaiter(opts.chat.ID),
+			WaitForMCPDiscovery: waitForMCPDiscovery,
 			Logger:              p.logger,
 		}),
 		chattool.StopWorkspace(p.db, opts.chat.ID, chattool.StopWorkspaceOptions{

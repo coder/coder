@@ -70,9 +70,8 @@ type CreateWorkspaceOptions struct {
 	AgentInactiveDisconnectTimeout time.Duration
 	WorkspaceMu                    *sync.Mutex
 	OnChatUpdated                  func(database.Chat)
-	// WaitForMCPDiscovery, when set, replaces the direct
-	// WaitForMCPDiscovery poll so the wait shares chatd's per-chat attempt
-	// with the turn's preparation.
+	// WaitForMCPDiscovery shares the turn's discovery attempt.
+	// Nil skips discovery for turns that do not expose workspace MCP tools.
 	WaitForMCPDiscovery MCPDiscoveryWaiter
 	Logger              slog.Logger
 }
@@ -685,12 +684,9 @@ func waitForAgentReady(
 				database.WorkspaceAgentLifecycleStateStarting:
 				// Still in progress, keep polling.
 			case database.WorkspaceAgentLifecycleStateReady:
-				if waitMCP == nil {
-					waitMCP = func(ctx context.Context, id uuid.UUID) MCPDiscoveryOutcome {
-						return WaitForMCPDiscovery(ctx, db, id)
-					}
+				if waitMCP != nil {
+					result["mcp_discovery"] = waitMCP(ctx, agentID)
 				}
-				result["mcp_discovery"] = waitMCP(ctx, agentID)
 				return result
 			default:
 				// Terminal non-ready state.
