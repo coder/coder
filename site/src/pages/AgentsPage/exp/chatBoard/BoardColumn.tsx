@@ -40,6 +40,8 @@ type BoardColumnProps = {
 	readonly column: BoardColumnModel;
 	readonly openChatIds: ReadonlySet<string>;
 	readonly dropTarget: DropTarget | null;
+	/** Every effort on the board, for the card editors. */
+	readonly knownEfforts: readonly string[];
 	readonly onRename: (to: string) => void;
 	readonly onDelete: () => void;
 	readonly onNewChat: () => void;
@@ -47,6 +49,10 @@ type BoardColumnProps = {
 	readonly onSetCardColor: (
 		card: BoardCardModel,
 		color: CardColor | undefined,
+	) => void;
+	readonly onSetCardEfforts: (
+		card: BoardCardModel,
+		names: readonly string[],
 	) => void;
 	readonly onRenameChat: (chat: Chat, title: string) => void;
 	readonly onAssistant: (card: BoardCardModel) => void;
@@ -65,11 +71,13 @@ export const BoardColumn: FC<BoardColumnProps> = ({
 	column,
 	openChatIds,
 	dropTarget,
+	knownEfforts,
 	onRename,
 	onDelete,
 	onNewChat,
 	onSetCardTitle,
 	onSetCardColor,
+	onSetCardEfforts,
 	onRenameChat,
 	onAssistant,
 	onNewChatInCard,
@@ -202,8 +210,10 @@ export const BoardColumn: FC<BoardColumnProps> = ({
 							openChatIds={openChatIds}
 							isDropTarget={dropTargetId === card.id}
 							noteDrop={noteDrop?.card === card.id ? noteDrop.slot : undefined}
+							knownEfforts={knownEfforts}
 							onSetTitle={(title) => onSetCardTitle(card, title)}
 							onSetColor={(color) => onSetCardColor(card, color)}
+							onSetEfforts={(names) => onSetCardEfforts(card, names)}
 							onRenameChat={onRenameChat}
 							onAssistant={() => onAssistant(card)}
 							onNewChat={() => onNewChatInCard(card)}

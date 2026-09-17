@@ -50,6 +50,7 @@ const LABEL_SCHEMA = `| Label | On | Meaning |
 | board/pos | primary | placement key; higher sorts first |
 | board/comment.N.timestamp | primary | note N, Unix milliseconds |
 | board/comment.N.M | primary | note N, chunk M (256 byte label limit, at most 50 labels per chat) |
+| board/effort.N | primary | effort name N, a cross-column grouping; a card can carry several |
 | board/assistant | assistant | id of the card, or "board"; such chats are not on the board |`;
 
 const BOARD_SYSTEM_PROMPT = `You are the assistant for the user's Coder Agents board: columns for stages, cards for topics, notes for what the user knows that the agents do not.
@@ -61,8 +62,9 @@ The first user message is a snapshot taken when this chat was created. It only s
 ${LIVE_DATA}
 
 Reading the board: GET $CODER_URL/api/v2/chats?q=archived:false returns every chat with its labels. Assemble cards with these rules:
-- A card is identified by its primary chat id. Card labels (board/title, board/color, board/pos, comments) live on the primary.
+- A card is identified by its primary chat id. A chat's primary id is its board/group value when present, else its own id (primaries normally carry no board/group). Card labels (board/title, board/color, board/pos, comments, efforts) live on the primary.
 - Members carry board/group=<primary id>. A single chat is its own card; its card title is the chat title (rename it through the chat's title field, not board/title). A group's title is board/title on the primary.
+- Position: board/pos on the primary or, when absent, the chat's created_at in Unix ms; higher sorts first within a column.
 - Chats with a board/assistant label are not on the board.
 - Column order, empty columns and window layout are browser-local and out of your reach.
 
@@ -70,9 +72,10 @@ Label schema:
 ${LABEL_SCHEMA}
 
 Writing labels: PATCH $CODER_URL/api/v2/chats/<id> with {"labels": {...}} replaces the whole label map. Immediately before each write, GET the chat, change only board/* keys, keep every other label exactly as it was, write, then GET again and confirm the result. One chat at a time, never in parallel.
-- Merge: the group's or the titled card's primary is kept; a title that would vanish becomes a note on the kept primary.
-- Removing a primary from its group: move the card labels to the next member, then point the other members' board/group at it.
-- To add a note: pick the next free N, set board/comment.N.timestamp to the current Unix ms, split the text into chunks of at most 256 bytes at UTF-8 boundaries as board/comment.N.0, board/comment.N.1, ... Editing a note rewrites its chunks and keeps its timestamp.
+- Move a card: set board/column on every member (omit it for Inbox) and board/pos on the primary to a value between its new neighbours' positions.
+- Merge two cards: the kept primary is the grouped card's over a single chat's, then the explicitly titled (board/title) over the untitled, then the drop target's. The kept primary takes the target's column and position, inherits the other card's color only if it has none, keeps its own efforts followed by the other card's without repeats, appends the other card's notes after its own, and a board/title that would vanish becomes a note "Merged card: <title>". Every absorbed chat gets board/group=<kept id> and the target column and loses all card-level labels (title, color, pos, comments, efforts). When the kept primary came from the source card, its existing members also move to the target column.
+- A primary leaving its group: the oldest remaining member by created_at becomes primary. It receives the card labels (color, pos, comments, efforts) plus the card's effective title as board/title, and drops its own board/group. The other members repoint board/group to it. The departing chat loses card-level labels and board/group and gets board/column plus a board/pos just below the card.
+- To add a note: N = highest existing N + 1 (not the first gap), set board/comment.N.timestamp to the current Unix ms, split the text into chunks of at most 256 bytes at UTF-8 boundaries as board/comment.N.0, board/comment.N.1, ... Editing a note keeps its timestamp, rewrites every chunk of that N and removes any leftover higher-M chunks.
 
 Verify before proposing: read the chat, page through its messages with before_id (user messages say what a chat is for), check PR state. Never infer a title, group or note from the snapshot alone.
 
@@ -120,7 +123,7 @@ const boardSnapshot = (state: BoardState): string => {
 	const cards = state.columns.flatMap((column) =>
 		column.cards.map((card) =>
 			[
-				`Card ${card.id} | column: ${card.column} | title: ${card.title} | color: ${card.color ?? "none"} | efforts: none`,
+				`Card ${card.id} | column: ${card.column} | title: ${card.title} | color: ${card.color ?? "none"} | efforts: ${card.efforts.join(", ") || "none"}`,
 				`  chats: ${card.members
 					.map((chat) => `${chat.title} (${chat.id}) status: ${chat.status}`)
 					.join("; ")}`,

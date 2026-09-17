@@ -72,7 +72,12 @@ const state: BoardState = (() => {
 		chat("b", { "board/column": "Doing", "board/pos": "100000" }),
 		chat("c"),
 	]);
-	const storage = { columnOrder: [], emptyColumns: [], windows: [] };
+	const storage = {
+		columnOrder: [],
+		emptyColumns: [],
+		windows: [],
+		effortFilter: null,
+	};
 	return { cards, columns: buildColumns(cards, [], []), storage };
 })();
 const cardOf = (id: string) => {

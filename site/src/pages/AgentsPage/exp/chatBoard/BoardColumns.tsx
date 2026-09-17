@@ -15,6 +15,7 @@ import {
 	renameChat,
 	renameColumn,
 	setCardColor,
+	setCardEfforts,
 } from "./boardApi";
 import type { DropTarget } from "./boardDrag";
 import type {
@@ -31,6 +32,8 @@ type BoardColumnsProps = {
 	readonly run: (plan: Plan | null) => Promise<boolean>;
 	readonly openChatIds: ReadonlySet<string>;
 	readonly dropTarget: DropTarget | null;
+	/** Every effort on the board, for the card editors. */
+	readonly knownEfforts: readonly string[];
 	readonly onAssistant: (card: BoardCardModel) => void;
 	/** Opens the create form for a chat born in a column or on a card. */
 	readonly onNewChat: (target: DraftTarget) => void;
@@ -53,6 +56,7 @@ export const BoardColumns: FC<BoardColumnsProps> = ({
 	run,
 	openChatIds,
 	dropTarget,
+	knownEfforts,
 	onAssistant,
 	onNewChat,
 	onOpen,
@@ -69,6 +73,7 @@ export const BoardColumns: FC<BoardColumnsProps> = ({
 					column={column}
 					openChatIds={openChatIds}
 					dropTarget={dropTarget}
+					knownEfforts={knownEfforts}
 					onRename={(to) => void run(renameColumn(board, column.name, to))}
 					onDelete={() => void run(deleteColumn(board, column.name))}
 					onNewChat={() => onNewChat({ column: column.name })}
@@ -77,6 +82,9 @@ export const BoardColumns: FC<BoardColumnsProps> = ({
 					}
 					onSetCardColor={(card, color) =>
 						void run(setCardColor(board, card.id, color))
+					}
+					onSetCardEfforts={(card, names) =>
+						void run(setCardEfforts(board, card.id, names))
 					}
 					onRenameChat={(chat, title) =>
 						void run(renameChat(board, chat.id, title))

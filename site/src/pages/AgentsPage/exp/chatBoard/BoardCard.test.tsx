@@ -24,6 +24,7 @@ const renderCard = (chats: readonly Chat[]) => {
 		onRenameChat: vi.fn(),
 		onAssistant: vi.fn(),
 		onNewChat: vi.fn(),
+		onSetEfforts: vi.fn(),
 		onRemoveFromGroup: vi.fn(),
 		onOpen: vi.fn(),
 		onPreview: vi.fn(),
@@ -42,6 +43,7 @@ const renderCard = (chats: readonly Chat[]) => {
 			openChatIds={new Set()}
 			isDropTarget={false}
 			noteDrop={undefined}
+			knownEfforts={["Q3", "This week"]}
 			{...handlers}
 		/>,
 	);
@@ -105,6 +107,28 @@ describe("BoardCard", () => {
 		);
 
 		expect(onNewChat).toHaveBeenCalledTimes(1);
+	});
+
+	it("edits its efforts from the menu, toggling known ones and coining new ones", async () => {
+		const user = userEvent.setup();
+		const { onSetEfforts } = renderCard([
+			chat("p", { "board/effort.0": "Q3" }),
+		]);
+
+		await user.click(
+			screen.getByRole("button", { name: "Actions for Chat p" }),
+		);
+		await user.click(await screen.findByRole("menuitem", { name: "Efforts" }));
+		await user.click(
+			await screen.findByRole("checkbox", { name: "This week" }),
+		);
+		expect(onSetEfforts).toHaveBeenCalledWith(["Q3", "This week"]);
+
+		await user.type(
+			screen.getByRole("textbox", { name: "New effort" }),
+			"Launch{Enter}",
+		);
+		expect(onSetEfforts).toHaveBeenLastCalledWith(["Q3", "Launch"]);
 	});
 
 	it("opens the chat from its icon with the card as anchor", async () => {

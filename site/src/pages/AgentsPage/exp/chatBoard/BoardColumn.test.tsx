@@ -30,11 +30,13 @@ const renderColumn = (name: string) => {
 			column={column}
 			openChatIds={new Set()}
 			dropTarget={null}
+			knownEfforts={[]}
 			onRename={onRename}
 			onDelete={onDelete}
 			onNewChat={onNewChat}
 			onSetCardTitle={noop}
 			onSetCardColor={noop}
+			onSetCardEfforts={noop}
 			onRenameChat={noop}
 			onAssistant={noop}
 			onNewChatInCard={noop}

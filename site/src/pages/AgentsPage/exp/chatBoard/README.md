@@ -66,6 +66,13 @@ Notes
 - Notes carry the human's reading of the work. When cards merge or a chat
   leaves a group, the notes follow the card.
 
+Efforts
+
+- I can tag a card with one or more efforts, a piece of work whose units
+  sit in different columns or an ad hoc set like "This week", and filter
+  the board to one effort. The filter survives a reload and combines with
+  search.
+
 Status at a glance
 
 - Each chat shows its status icon, last turn, age, unread mark and linked
@@ -110,6 +117,7 @@ Sidebar
 | `board/pos`                 | primary   | placement key; higher sorts first          |
 | `board/comment.N.timestamp` | primary   | note N, Unix milliseconds                  |
 | `board/comment.N.M`         | primary   | note N, chunk M (256 byte label limit)     |
+| `board/effort.N`            | primary   | effort name N; a card can carry several    |
 | `board/assistant`           | assistant | id of the card, or `board`; not a card     |
 
 Writes replace the whole label map of a chat. Regrouping and note moves
@@ -136,11 +144,14 @@ snapshot the previous maps of every touched chat so they can be undone.
   `NotesSection.tsx` translate gestures into one command call each; the
   page filters the rendered columns but always hands the full model to the
   commands. `BoardCard.tsx` composes `CardColorPicker.tsx`,
-  `EditableTitle.tsx`, `ChatStatusLine.tsx` and `ChatInfo.tsx`;
-  `DragGhost.tsx` is the overlay drawn for whatever is being dragged.
+  `CardEffortsMenu.tsx`, `EditableTitle.tsx`, `ChatStatusLine.tsx` and
+  `ChatInfo.tsx`; `DragGhost.tsx` is the overlay drawn for whatever is
+  being dragged. `EffortFilter.tsx` is the pill row under the header.
 - `assistantSpecs.ts` writes the prompts and snapshots for the card and
   board assistants; `assistants.ts` finds or creates the chat for a spec.
-  `DraftChat.tsx` is the regular create form inside a board window.
+  `refreshChatList.ts` refetches the list after a board assistant turn,
+  retrying while watch events cancel it. `DraftChat.tsx` is the regular
+  create form inside a board window.
 
 ## Not done
 
@@ -152,6 +163,7 @@ snapshot the previous maps of every touched chat so they can be undone.
   transferred data.
 - Notes have no id of their own: the list keys them by timestamp, so notes
   stored without one fall back to display order.
+- Renaming or deleting an effort; drop it from every card instead.
 - No Storybook stories: the experiment is off by default and not a Pixel
   target. FE1 exception: the page's loading, error and search-failure states
   and the route guard are asserted through DOM presence in Vitest, because
