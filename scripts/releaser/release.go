@@ -451,43 +451,33 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 		if newVersion.Major == prevVersion.Major && newVersion.Minor == prevVersion.Minor && newVersion.Patch > prevVersion.Patch {
 			infof(w, "Checking for breaking changes in patch release...")
 
+			// Both the "!" title marker and the release/breaking PR
+			// label are evaluated over prevVersion..HEAD only, so
+			// breaking changes shipped in earlier releases on this
+			// branch are not reported again.
 			commitRange := prevVersion.String() + "..HEAD"
 			commits, err := commitLog(commitRange)
 			if err != nil {
 				return xerrors.Errorf("reading commit log: %w", err)
 			}
 
+			prMeta := loadPRMetadata(w, ghAvailable, commits)
+
 			var breakingCommits []commitEntry
 			for _, c := range commits {
-				if breakingCommitRe.MatchString(c.Title) {
+				meta := prMeta.lookupCommit(c.FullSHA, c.PRCount)
+				if categorizeCommit(c.Title, meta.Labels) == "breaking" {
 					breakingCommits = append(breakingCommits, c)
 				}
 			}
 
-			// Check PR labels for release/breaking.
-			var breakingPRLabeled []ghPR
-			if ghAvailable {
-				breakingPRLabeled, err = ghListPRsWithLabel(currentBranch, "release/breaking")
-				if err != nil {
-					warnf(w, "Failed to check PR labels: %v", err)
-				}
-			}
-
-			if len(breakingCommits) > 0 || len(breakingPRLabeled) > 0 {
+			if len(breakingCommits) > 0 {
 				fmt.Fprintln(w)
 				warnf(w, "BREAKING CHANGES detected in a PATCH release — this violates semver!")
 				fmt.Fprintln(w)
-				if len(breakingCommits) > 0 {
-					fmt.Fprintln(w, "  Breaking commits (by conventional commit prefix):")
-					for _, c := range breakingCommits {
-						fmt.Fprintf(w, "    - %s %s\n", c.SHA, c.Title)
-					}
-				}
-				if len(breakingPRLabeled) > 0 {
-					fmt.Fprintln(w, "  PRs labeled release/breaking:")
-					for _, pr := range breakingPRLabeled {
-						fmt.Fprintf(w, "    - #%d %s\n", pr.Number, pr.Title)
-					}
+				fmt.Fprintf(w, "  Breaking changes since %s:\n", prevVersion)
+				for _, c := range breakingCommits {
+					fmt.Fprintf(w, "    - %s %s\n", c.SHA, c.Title)
 				}
 				fmt.Fprintln(w)
 				if err := confirmWithDefault(inv, "Continue with patch release despite breaking changes?", cliui.ConfirmNo); err != nil {
@@ -576,20 +566,7 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 		return xerrors.Errorf("reading commit log: %w", err)
 	}
 
-	// Build PR metadata maps (by SHA and PR number) via gh CLI.
-	var prMeta *prMetadataMaps
-	if ghAvailable {
-		prMeta, err = ghBuildPRMetadataMap(commits)
-		if err != nil {
-			warnf(w, "Failed to fetch PR metadata: %v", err)
-		}
-	}
-	if prMeta == nil {
-		prMeta = &prMetadataMaps{
-			bySHA:    make(map[string]prMetadata),
-			byNumber: make(map[int]prMetadata),
-		}
-	}
+	prMeta := loadPRMetadata(w, ghAvailable, commits)
 
 	type section struct {
 		Key   string
