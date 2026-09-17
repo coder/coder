@@ -59,8 +59,8 @@ func (s ExecutionState) String() string { return string(s) }
 // IsRunnable returns true for the execution states that the chat
 // worker is allowed to acquire and drive forward: R0, R1, I0, I1,
 // A0, and A1. Requires-action states need worker ownership for
-// timeout processing. Other states are idle (W, P, E*, XW, XE*),
-// absent (N), or invalid.
+// timeout processing. Other states are idle (W, E*, XW, XE*),
+// paused (P), absent (N), or invalid.
 func (s ExecutionState) IsRunnable() bool {
 	switch s {
 	case StateR0, StateR1, StateI0, StateI1, StateA0, StateA1:
