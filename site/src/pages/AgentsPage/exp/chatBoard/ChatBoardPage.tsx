@@ -171,6 +171,24 @@ const ChatBoardPage: FC = () => {
 		useSensor(KeyboardSensor),
 	);
 
+	const chats = chatsQuery.data?.pages[0] ?? [];
+	const chatsById = new Map(chats.map((chat) => [chat.id, chat]));
+	// Looked up in render: an unknown call taking `chats` inside the handler
+	// would count as a mutation and cost the handler its memoization.
+	const assistantByKey = assistantIds(chats);
+	// Watch events carry status but not labels. While the board assistant is
+	// on a turn it may relabel chats, so the turn ending refetches the list.
+	// The effect's cleanup is that ending: it runs when the status leaves the
+	// active set, or when the board unmounts mid-turn.
+	const boardAssistantId = assistantByKey.get(BOARD_ASSISTANT_KEY);
+	const boardAssistantActive = isActiveChatStatus(
+		(boardAssistantId ? chatsById.get(boardAssistantId)?.status : null) ?? null,
+	);
+	useEffect(() => {
+		if (!boardAssistantActive) return;
+		return () => void refetchChatListUntilLanded(queryClient);
+	}, [boardAssistantActive, queryClient]);
+
 	// Updates are functional: a preview timer, a window gesture or the
 	// assistant's request may commit after other windows changed. Defined
 	// after the last hook so the compiler can memoize what depends on them.
@@ -180,15 +198,10 @@ const ChatBoardPage: FC = () => {
 		next: (prev: readonly ChatWindow[]) => readonly ChatWindow[],
 	) => setStorage((prev) => ({ ...prev, windows: next(prev.windows) }));
 
-	const chats = chatsQuery.data?.pages[0] ?? [];
-	const chatsById = new Map(chats.map((chat) => [chat.id, chat]));
 	const openChatIds = new Set(
 		windows.flatMap((w) => (w.kind === "chat" ? [w.chatId] : [])),
 	);
 	const allCards = buildCards(chats);
-	// Looked up in render: an unknown call taking `chats` inside the handler
-	// would count as a mutation and cost the handler its memoization.
-	const assistantByKey = assistantIds(chats);
 	// Commands act on the full model; the filter only decides what is drawn,
 	// so renaming a column with a filter active still relabels every card.
 	const columns = buildColumns(
@@ -197,6 +210,19 @@ const ChatBoardPage: FC = () => {
 		storage.emptyColumns,
 	);
 	const boardState = { cards: allCards, columns, storage };
+	const efforts = effortsOf(allCards);
+	// A stored filter whose last card lost the effort falls back to All; once
+	// the list is loaded that is known for sure and the filter is cleared.
+	const effortFilter = efforts.some((e) => e.name === storage.effortFilter)
+		? storage.effortFilter
+		: null;
+	if (
+		storage.effortFilter !== null &&
+		effortFilter === null &&
+		chatsQuery.data !== undefined
+	) {
+		updateStorage({ effortFilter: null });
+	}
 	// A column first seen in the labels is saved at the end of the order.
 	// Unsaved columns follow their newest card, so a move would reorder them.
 	// Skipped while writing: a rename or delete saves the order before its
@@ -212,31 +238,6 @@ const ChatBoardPage: FC = () => {
 		updateStorage({
 			columnOrder: [...storage.columnOrder, ...unsavedColumns],
 		});
-	}
-	// Watch events carry status but not labels. While the board assistant is
-	// on a turn it may relabel chats, so the turn ending refetches the list.
-	// The effect's cleanup is that ending: it runs when the status leaves the
-	// active set, or when the board unmounts mid-turn.
-	const boardAssistantId = assistantByKey.get(BOARD_ASSISTANT_KEY);
-	const boardAssistantActive = isActiveChatStatus(
-		(boardAssistantId ? chatsById.get(boardAssistantId)?.status : null) ?? null,
-	);
-	useEffect(() => {
-		if (!boardAssistantActive) return;
-		return () => void refetchChatListUntilLanded(queryClient);
-	}, [boardAssistantActive, queryClient]);
-	const efforts = effortsOf(allCards);
-	// A stored filter whose last card lost the effort falls back to All; once
-	// the list is loaded that is known for sure and the filter is cleared.
-	const effortFilter = efforts.some((e) => e.name === storage.effortFilter)
-		? storage.effortFilter
-		: null;
-	if (
-		storage.effortFilter !== null &&
-		effortFilter === null &&
-		chatsQuery.data !== undefined
-	) {
-		updateStorage({ effortFilter: null });
 	}
 	const matchingIds =
 		debouncedSearch && searchQuery.data
@@ -314,7 +315,7 @@ const ChatBoardPage: FC = () => {
 			setWindows((prev) => toFront(dropPreview(prev), windowCentered(chatId)));
 		});
 	const openCardAssistant = (card: BoardCardModel) =>
-		showAssistant(card.id, (tools) => cardAssistantSpec(card, tools));
+		void showAssistant(card.id, (tools) => cardAssistantSpec(card, tools));
 	const openBoardAssistant = () => {
 		const organizationId = chats[0]?.organization_id;
 		if (!organizationId) return;
@@ -396,7 +397,7 @@ const ChatBoardPage: FC = () => {
 					openChatIds={openChatIds}
 					dropTarget={dropTarget}
 					knownEfforts={efforts.map((e) => e.name)}
-					onAssistant={(card) => void openCardAssistant(card)}
+					onAssistant={openCardAssistant}
 					onNewChat={openDraft}
 					onOpen={openChat}
 					onPreview={previewChat}
@@ -461,6 +462,7 @@ const ChatBoardPage: FC = () => {
 				onDraftCreated={(target, chatId) =>
 					setWindows((prev) => draftCreated(prev, target, chatId))
 				}
+				onCardAssistant={openCardAssistant}
 			/>
 		</div>
 	);

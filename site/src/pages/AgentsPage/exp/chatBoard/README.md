@@ -84,7 +84,8 @@ Working without leaving the board
 
 - Resting on a chat's icon previews the full chat in a floating window
   beside the card; clicking it, or dragging it, keeps the window. Windows
-  move, resize, stack and survive a reload.
+  move, resize, stack and survive a reload; a chat window has a button for
+  its card's assistant.
 - I can filter the board with the same search the sidebar uses; whole cards
   stay or go, groups are never split by a filter.
 
