@@ -1302,12 +1302,43 @@ describe("isFieldConflictDisabled", () => {
 });
 
 describe("provider-scoped general fields", () => {
-	const form = formWith({ openaiConfig: { useResponsesApi: "true" } });
+	const form = formWith({
+		openaiConfig: { useResponsesApi: "true", reasoningModel: "true" },
+	});
+
+	it.each(["openai", "bedrock"])(
+		"serializes reasoning overrides for %s",
+		(provider) => {
+			for (const value of ["true", "false"]) {
+				const result = buildModelConfigFromForm(
+					provider,
+					formWith({
+						openaiConfig: { useResponsesApi: "true", reasoningModel: value },
+					}),
+				);
+				expect(result.modelConfig?.openai_config).toEqual({
+					...(provider === "openai" ? { use_responses_api: true } : {}),
+					reasoning_model: value === "true",
+				});
+			}
+		},
+	);
+
+	it("omits unset reasoning overrides", () => {
+		const result = buildModelConfigFromForm(
+			"bedrock",
+			formWith({
+				openaiConfig: { useResponsesApi: "true", reasoningModel: "" },
+			}),
+		);
+		expect(result.modelConfig).toBeUndefined();
+	});
 
 	it("serializes a scoped general field for its provider", () => {
 		const result = buildModelConfigFromForm("openai", form);
 		expect(result.modelConfig?.openai_config).toEqual({
 			use_responses_api: true,
+			reasoning_model: true,
 		});
 	});
 
