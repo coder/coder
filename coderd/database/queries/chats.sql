@@ -1716,6 +1716,9 @@ upserted AS (
         m.size_bytes, m.status, m.error, m.source_path
     FROM locked
     CROSS JOIN agent_mcp m
+    -- A prompt row the chat pinned at the same source is left in place: the
+    -- model has read it, so its replacement by a server is a change that
+    -- marks the chat out of date and lands on refresh, not a live sync.
     ON CONFLICT (chat_id, source) DO UPDATE SET
         body_kind = EXCLUDED.body_kind,
         body = EXCLUDED.body,
@@ -1725,6 +1728,7 @@ upserted AS (
         error = EXCLUDED.error,
         source_path = EXCLUDED.source_path,
         updated_at = now()
+    WHERE chat_context_resources.body_kind IN ('mcp_config', 'mcp_server')
 )
 SELECT id FROM locked;
 
@@ -1734,13 +1738,16 @@ SELECT id FROM locked;
 -- drifted from the agent's latest snapshot, so an open chat sees a
 -- repository cloned during the conversation on its next step. Rows the chat
 -- already holds are never rewritten here, and a skill that replaces a
--- pinned skill of the same name is not added. A chat whose additions make its
--- pinned set equal to the snapshot moves to the new hash and stays clean;
--- a chat that also has changed or removed rows keeps its old hash so
+-- pinned skill of the same name is not added. A chat whose pinned prompts
+-- equal the snapshot afterwards moves to the new hash and stays clean; a
+-- chat that also has changed or removed rows keeps its old hash so
 -- MarkChatsContextDirtyByAgent still flags it, which is why only the
 -- statuses that query marks dirty are eligible here; its row is written
--- either way so a concurrent refresh cannot overwrite the additions.
--- Changed chats are locked in ID order like the MCP sync.
+-- either way so a concurrent refresh cannot overwrite the additions. An
+-- out-of-date chat whose pinned prompts have come level with the snapshot
+-- again (a changed file changed back) settles the same way with nothing to
+-- add, since nothing else clears the marker. Changed chats are locked in ID
+-- order like the MCP sync.
 WITH agent_prompt AS (
     SELECT source, body_kind, body, content_hash, size_bytes, status, error, source_path
     FROM workspace_agent_context_resources
@@ -1754,13 +1761,32 @@ changed AS (
         AND chats.archived = false
         AND chats.status IN ('waiting', 'running', 'requires_action')
         AND chats.context_aggregate_hash IS NOT NULL
-        AND chats.context_aggregate_hash IS DISTINCT FROM @aggregate_hash
-        AND EXISTS (
-            SELECT 1 FROM agent_prompt p
-            WHERE NOT EXISTS (
-                SELECT 1 FROM chat_context_resources ccr
-                WHERE ccr.chat_id = chats.id
-                    AND ccr.source = p.source
+        AND (
+            (
+                chats.context_aggregate_hash IS DISTINCT FROM @aggregate_hash
+                AND EXISTS (
+                    SELECT 1 FROM agent_prompt p
+                    WHERE NOT EXISTS (
+                        SELECT 1 FROM chat_context_resources ccr
+                        WHERE ccr.chat_id = chats.id
+                            AND ccr.source = p.source
+                    )
+                )
+            )
+            OR (
+                chats.context_dirty_since IS NOT NULL
+                AND NOT EXISTS (
+                    SELECT 1 FROM chat_context_resources ccr
+                    WHERE ccr.chat_id = chats.id
+                        AND ccr.body_kind NOT IN ('mcp_config', 'mcp_server')
+                        AND NOT EXISTS (
+                            SELECT 1 FROM agent_prompt p
+                            WHERE p.source = ccr.source
+                                AND p.body_kind = ccr.body_kind
+                                AND p.content_hash = ccr.content_hash
+                                AND p.status = ccr.status
+                        )
+                )
             )
         )
 ),

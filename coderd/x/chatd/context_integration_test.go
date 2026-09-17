@@ -569,6 +569,24 @@ func TestChatContextAddedResourcesAutoPin(t *testing.T) {
 	require.Equal(t, rootV1Hash, pinned[rootSource].ContentHash)
 	require.Equal(t, hashV2, pinnedHash())
 
+	// The changed file changing back leaves the pinned prompts level with
+	// the snapshot again, so the chat settles onto its hash without a
+	// refresh even though nothing was added.
+	hashV5 := []byte{0x05}
+	push(5, hashV5, instructionResource(rootSource, "root-v1", rootV1Hash), instructionResource(repoSource, "repo rules", repoHash), skillResource)
+	got, err = expClient.GetChat(ctx, chat.ID)
+	require.NoError(t, err)
+	require.False(t, got.Context.Dirty, "a chat level with the snapshot again is no longer out of date")
+	require.Equal(t, hashV5, pinnedHash())
+	require.Len(t, pinnedResources(), 3)
+
+	hashV6 := []byte{0x06}
+	push(6, hashV6, instructionResource(rootSource, "root-v2", rootV2Hash), instructionResource(repoSource, "repo rules", repoHash), skillResource)
+	got, err = expClient.GetChat(ctx, chat.ID)
+	require.NoError(t, err)
+	require.True(t, got.Context.Dirty, "changing the file again marks the chat out of date again")
+	require.Equal(t, hashV5, pinnedHash())
+
 	// Refresh re-pins everything to the latest snapshot and clears the marker.
 	refreshed, err := expClient.RefreshChatContext(ctx, chat.ID)
 	require.NoError(t, err)
@@ -576,7 +594,7 @@ func TestChatContextAddedResourcesAutoPin(t *testing.T) {
 	pinned = pinnedResources()
 	require.Len(t, pinned, 3)
 	require.Equal(t, rootV2Hash, pinned[rootSource].ContentHash, "refresh adopts the changed file")
-	require.Equal(t, hashV4, pinnedHash())
+	require.Equal(t, hashV6, pinnedHash())
 
 	// A skill with the same name under a new source is the agent's
 	// deduplication winner replacing the pinned one: it is not added, and
@@ -590,8 +608,8 @@ func TestChatContextAddedResourcesAutoPin(t *testing.T) {
 			Skill: &agentproto.SkillMetaBody{Meta: []byte("# deploy v2"), Name: "deploy", Description: "Deploy the app"},
 		},
 	}
-	hashV5 := []byte{0x05}
-	push(5, hashV5, instructionResource(rootSource, "root-v2", rootV2Hash), instructionResource(repoSource, "repo rules", repoHash), replacementSkill)
+	hashV7 := []byte{0x07}
+	push(7, hashV7, instructionResource(rootSource, "root-v2", rootV2Hash), instructionResource(repoSource, "repo rules", repoHash), replacementSkill)
 	got, err = expClient.GetChat(ctx, chat.ID)
 	require.NoError(t, err)
 	require.True(t, got.Context.Dirty, "a replaced skill dirties the chat")
@@ -599,7 +617,7 @@ func TestChatContextAddedResourcesAutoPin(t *testing.T) {
 	require.Len(t, pinned, 3)
 	require.NotContains(t, pinned, replacementSkill.Source, "the replacement is left for refresh")
 	require.Equal(t, skillHash, pinned[skillSource].ContentHash)
-	require.Equal(t, hashV4, pinnedHash())
+	require.Equal(t, hashV6, pinnedHash())
 
 	// Rows share one (chat, source) key across kinds. An MCP server whose
 	// name equals a path a later push publishes an instruction file at must
@@ -608,7 +626,7 @@ func TestChatContextAddedResourcesAutoPin(t *testing.T) {
 	refreshed, err = expClient.RefreshChatContext(ctx, chat.ID)
 	require.NoError(t, err)
 	require.False(t, refreshed.Context.Dirty)
-	v5 := []*agentproto.ContextResource{instructionResource(rootSource, "root-v2", rootV2Hash), instructionResource(repoSource, "repo rules", repoHash), replacementSkill}
+	v7 := []*agentproto.ContextResource{instructionResource(rootSource, "root-v2", rootV2Hash), instructionResource(repoSource, "repo rules", repoHash), replacementSkill}
 	sharedSource := "/home/coder/tools/AGENTS.md"
 	server := &agentproto.ContextResource{
 		Source:      sharedSource,
@@ -619,17 +637,17 @@ func TestChatContextAddedResourcesAutoPin(t *testing.T) {
 			McpServer: &agentproto.MCPServerBody{ServerName: sharedSource},
 		},
 	}
-	push(6, hashV5, append(slices.Clone(v5), server)...)
+	push(8, hashV7, append(slices.Clone(v7), server)...)
 	require.Equal(t, database.WorkspaceAgentContextBodyKindMcpServer, pinnedResources()[sharedSource].BodyKind, "the server is live-synced onto the chat")
 
-	hashV7 := []byte{0x07}
-	push(7, hashV7, append(slices.Clone(v5), instructionResource(sharedSource, "tool rules", []byte{0x42}))...)
+	hashV9 := []byte{0x09}
+	push(9, hashV9, append(slices.Clone(v7), instructionResource(sharedSource, "tool rules", []byte{0x42}))...)
 	got, err = expClient.GetChat(ctx, chat.ID)
 	require.NoError(t, err)
 	require.False(t, got.Context.Dirty, "the file published at the removed server's source is an addition")
 	pinned = pinnedResources()
 	require.Equal(t, database.WorkspaceAgentContextBodyKindInstructionFile, pinned[sharedSource].BodyKind)
-	require.Equal(t, hashV7, pinnedHash())
+	require.Equal(t, hashV9, pinnedHash())
 }
 
 // TestChatContextMCPSyncFromAgentPush verifies that agent pushes live-sync MCP
@@ -843,6 +861,50 @@ func TestChatContextMCPSyncFromAgentPush(t *testing.T) {
 	require.Len(t, pinned, 2)
 	require.Equal(t, toolsV1Hash, pinned[mcpSource].ContentHash, "MCP row syncs even on a dirty chat")
 	require.Equal(t, agentsHash, pinned[agentsSource].ContentHash, "prompt rows stay pinned while dirty")
+
+	// A server published under the pinned instruction file's source is a
+	// change to something the model has read, not a live sync: the prompt
+	// row stays, the chat stays out of date, and an unrelated addition in
+	// the same push does not settle it.
+	extraSource := "/home/coder/extra/AGENTS.md"
+	takeoverHash := []byte{0x05, 0x06}
+	resp, err = aAPI.PushContextState(ctx, &agentproto.PushContextStateRequest{
+		Version:       6,
+		AggregateHash: takeoverHash,
+		Resources: []*agentproto.ContextResource{
+			{
+				Source:      agentsSource,
+				ContentHash: toolsV2Hash,
+				SizeBytes:   32,
+				Status:      agentproto.ContextResource_OK,
+				Body: &agentproto.ContextResource_McpServer{
+					McpServer: &agentproto.MCPServerBody{ServerName: agentsSource},
+				},
+			},
+			{
+				Source:      extraSource,
+				ContentHash: []byte{0x12},
+				SizeBytes:   5,
+				Status:      agentproto.ContextResource_OK,
+				Body: &agentproto.ContextResource_InstructionFile{
+					InstructionFile: &agentproto.InstructionFileBody{Content: []byte("extra")},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+	require.True(t, resp.GetAccepted())
+	got, err = expClient.GetChat(ctx, chat.ID)
+	require.NoError(t, err)
+	require.True(t, got.Context.Dirty, "a prompt replaced by a server keeps the chat out of date")
+	pinned = pinnedResources(chat.ID)
+	require.Equal(t, database.WorkspaceAgentContextBodyKindInstructionFile, pinned[agentsSource].BodyKind, "the pinned prompt row is not overwritten")
+	require.Equal(t, agentsHash, pinned[agentsSource].ContentHash)
+	require.Contains(t, pinned, extraSource, "the unrelated file is still added")
+	require.NotContains(t, pinned, mcpSource, "the removed server is gone")
+	pinnedChat, err := db.GetChatByID(dbauthz.AsChatd(ctx), chat.ID) //nolint:gocritic // Reading the chat as the chatd subject.
+	require.NoError(t, err)
+	require.Equal(t, hash, pinnedChat.ContextAggregateHash, "the chat keeps its pinned hash")
 }
 
 // TestChatContextRefreshFromAgentToken covers the in-workspace

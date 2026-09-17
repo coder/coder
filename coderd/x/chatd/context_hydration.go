@@ -60,8 +60,9 @@ func (p *Server) HydrateAndMarkChatsDirty(ctx context.Context, tx database.Store
 	// Sources the chat has never pinned (a repository cloned mid-chat, a new
 	// skill) are safe to add without rewriting anything the model already
 	// saw, so they land on the next step instead of waiting for a refresh.
-	// Chats whose additions bring them level with the snapshot move to its
-	// hash here, so the dirty marking below skips them.
+	// Chats whose pinned prompts are level with the snapshot afterwards, or
+	// have come level again, move to its hash here, so the dirty marking
+	// below skips them.
 	added, err := tx.SyncAgentChatsContextAddedResources(ctx, database.SyncAgentChatsContextAddedResourcesParams{
 		AgentID:       agentID,
 		AggregateHash: aggregateHash,

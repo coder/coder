@@ -1427,13 +1427,16 @@ type sqlcQuerier interface {
 	// drifted from the agent's latest snapshot, so an open chat sees a
 	// repository cloned during the conversation on its next step. Rows the chat
 	// already holds are never rewritten here, and a skill that replaces a
-	// pinned skill of the same name is not added. A chat whose additions make its
-	// pinned set equal to the snapshot moves to the new hash and stays clean;
-	// a chat that also has changed or removed rows keeps its old hash so
+	// pinned skill of the same name is not added. A chat whose pinned prompts
+	// equal the snapshot afterwards moves to the new hash and stays clean; a
+	// chat that also has changed or removed rows keeps its old hash so
 	// MarkChatsContextDirtyByAgent still flags it, which is why only the
 	// statuses that query marks dirty are eligible here; its row is written
-	// either way so a concurrent refresh cannot overwrite the additions.
-	// Changed chats are locked in ID order like the MCP sync.
+	// either way so a concurrent refresh cannot overwrite the additions. An
+	// out-of-date chat whose pinned prompts have come level with the snapshot
+	// again (a changed file changed back) settles the same way with nothing to
+	// add, since nothing else clears the marker. Changed chats are locked in ID
+	// order like the MCP sync.
 	// A divergent chat keeps its hash, but its row is still written: an
 	// already-dirty chat would otherwise gain rows with no chats version
 	// change, and a refresh that read the previous snapshot under repeatable
