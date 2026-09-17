@@ -36,8 +36,7 @@ export const DefaultModelSettings: FC<DefaultModelSettingsProps> = ({
 }) => {
 	const { isSavedVisible, showSavedState } = useTemporarySavedState();
 	// The unsaved selection is kept apart from the server value so a background
-	// refetch of the model catalog cannot discard it before Save. A pending
-	// model that the refetch no longer lists is dropped instead of being saved.
+	// refetch of the model catalog cannot discard it before Save.
 	const [pendingModelID, setPendingModelID] = useState<string>();
 	const hasLoadedDefault = defaultModelID !== undefined;
 	const savedModelID = defaultModelID ?? "";
@@ -45,11 +44,15 @@ export const DefaultModelSettings: FC<DefaultModelSettingsProps> = ({
 		enabledModels,
 		providerInfoByID,
 	);
-	const selectedModelID =
+	// A pending model the refetched catalog no longer lists is discarded during
+	// render, so it can neither be saved nor come back if the catalog relists it.
+	if (
 		pendingModelID !== undefined &&
-		enabledModelOptions.some((option) => option.id === pendingModelID)
-			? pendingModelID
-			: savedModelID;
+		!enabledModelOptions.some((option) => option.id === pendingModelID)
+	) {
+		setPendingModelID(undefined);
+	}
+	const selectedModelID = pendingModelID ?? savedModelID;
 
 	const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
 		event.preventDefault();
