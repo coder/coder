@@ -152,7 +152,7 @@ export function usePaginatedQuery<
 	const query = useQuery<TQueryFnData, TError, TData, TQueryKey>({
 		...extraOptions,
 		...getQueryOptionsFromPage(currentPage),
-		placeholderData: keepPreviousData,
+		placeholderData: extraOptions.placeholderData ?? keepPreviousData,
 	});
 
 	const count = query.data?.count;

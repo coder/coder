@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { userEvent, within } from "storybook/test";
 import { TokenBadges } from "./TokenBadges";
 
 const meta: Meta<typeof TokenBadges> = {
@@ -27,6 +28,18 @@ export const SmallTokenCounts: Story = {
 	args: {
 		inputTokens: 42,
 		outputTokens: 8,
+	},
+};
+
+export const CacheTokens: Story = {
+	args: {
+		inputTokens: 3200,
+		outputTokens: 800,
+		inputLabel: "Cache read",
+		outputLabel: "Cache write",
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.hover(within(canvasElement).getByText("3.2k"));
 	},
 };
 

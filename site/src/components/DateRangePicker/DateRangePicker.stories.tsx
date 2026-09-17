@@ -165,6 +165,18 @@ export const CancelClosesWithoutApplying: Story = {
 	},
 };
 
+export const ConstrainedRange: Story = {
+	args: {
+		value: defaultValue,
+		onChange: () => {},
+		minDate: new Date("2025-03-10T00:00:00Z"),
+		maxDays: 7,
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.click(within(canvasElement).getByRole("button"));
+	},
+};
+
 export const CustomPresets: Story = {
 	args: {
 		value: defaultValue,

@@ -69,6 +69,45 @@ describe(usePaginatedQuery.name, () => {
 		});
 	});
 
+	describe("placeholder data", () => {
+		it("does not retain data when a custom placeholder rejects a different organization", async () => {
+			type SpendPage = PaginatedData & { rows: readonly string[] };
+			type Props = { organizationId: string };
+			const pending = new Promise<SpendPage>(() => undefined);
+			const options = (
+				organizationId: string,
+			): UsePaginatedQueryOptions<SpendPage> => ({
+				queryKey: () => ["organization", organizationId, "spend"] as const,
+				queryFn: () =>
+					organizationId === "organization-a"
+						? Promise.resolve({ count: 1, rows: ["organization-a"] })
+						: pending,
+				prefetch: false,
+				placeholderData: (previousData, previousQuery) =>
+					previousQuery?.queryKey[1] === organizationId
+						? previousData
+						: undefined,
+			});
+			const { result, rerender } = await renderHookWithAuth(
+				({ organizationId }: Props) =>
+					usePaginatedQuery(options(organizationId)),
+				{
+					renderOptions: { initialProps: { organizationId: "organization-a" } },
+				},
+			);
+
+			await waitFor(() =>
+				expect(result.current.data).toEqual({
+					count: 1,
+					rows: ["organization-a"],
+				}),
+			);
+			await rerender({ organizationId: "organization-b" });
+
+			expect(result.current.data).toBeUndefined();
+		});
+	});
+
 	describe("Querying for current page", () => {
 		const mockQueryKey = vi.fn(() => ["mock"]);
 		const mockQueryFn = vi.fn(() => Promise.resolve({ count: 50 }));
