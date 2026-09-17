@@ -335,12 +335,11 @@ func isSmallFastModel(model string) bool {
 // newMessagesService builds the SDK service used for upstream calls.
 func (i *interceptionBase) newMessagesService(ctx context.Context, opts ...option.RequestOption) (anthropic.MessageService, error) {
 	byok, isBYOK := intercept.AsBYOK(i.cred)
-	// Bedrock BYOK is applied as a bearer token by the Bedrock options below.
 	bedrockBYOK := isBYOK && i.bedrock != nil
 
 	// Only BYOK sets its credential here. Centralized keys are injected
 	// per-attempt in the failover loop.
-	if isBYOK && !bedrockBYOK {
+	if isBYOK && i.bedrock == nil {
 		i.logger.Debug(ctx, "using byok auth",
 			slog.F("auth_header", byok.Header), slog.F("key_hint", byok.Hint()),
 		)
@@ -531,18 +530,8 @@ func (i *interceptionBase) withBedrockMantleBYOKOptions(token string) ([]option.
 	var out []option.RequestOption
 	out = append(out, option.WithBaseURL(cfg.BaseURL))
 	//nolint:bodyclose // The middleware returns the upstream response for the SDK to close.
-	out = append(out, option.WithMiddleware(bedrockMantleBearerMiddleware(token)))
+	out = append(out, option.WithMiddleware(bedrocksig.BearerMiddleware(token)))
 	return out, nil
-}
-
-// bedrockMantleBearerMiddleware sets bearer auth for a mantle passthrough, which
-// forwards the native Messages body unchanged.
-func bedrockMantleBearerMiddleware(token string) func(*http.Request, option.MiddlewareNext) (*http.Response, error) {
-	return func(req *http.Request, next option.MiddlewareNext) (*http.Response, error) {
-		bedrocksig.AppendPRMUserAgent(req)
-		req.Header.Set(intercept.AuthHeaderAuthorization, "Bearer "+token)
-		return next(req)
-	}
 }
 
 // bedrockInvokeModelBearerMiddleware authenticates an InvokeModel request with a

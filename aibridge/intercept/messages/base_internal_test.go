@@ -1493,16 +1493,23 @@ func TestRecordTokenUsage(t *testing.T) {
 	}
 }
 
-// captureNext returns a MiddlewareNext that records the request it receives and
-// a fully buffered copy of its body, then returns a minimal 200 response.
-func captureNext(t *testing.T, out **http.Request, body *[]byte) option.MiddlewareNext {
+// capturedRequest holds the request seen by a captureNext MiddlewareNext and a
+// fully buffered copy of its body.
+type capturedRequest struct {
+	req  *http.Request
+	body []byte
+}
+
+// captureNext returns a MiddlewareNext that records the request it receives into
+// c, then returns a minimal 200 response.
+func captureNext(t *testing.T, c *capturedRequest) option.MiddlewareNext {
 	t.Helper()
 	return func(r *http.Request) (*http.Response, error) {
-		*out = r
+		c.req = r
 		if r.Body != nil {
 			b, err := io.ReadAll(r.Body)
 			require.NoError(t, err)
-			*body = b
+			c.body = b
 		}
 		return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(bytes.NewReader(nil))}, nil
 	}
@@ -1541,11 +1548,11 @@ func TestBedrockInvokeModelBearerMiddleware(t *testing.T) {
 			req.Header.Set("anthropic-beta", "interleaved-thinking-2025-05-14")
 			req.Header.Set("User-Agent", "test-agent")
 
-			var captured *http.Request
-			var capturedBody []byte
+			var c capturedRequest
 			//nolint:bodyclose // captureNext returns a synthetic no-op response body.
-			_, err = bedrockInvokeModelBearerMiddleware(token)(req, captureNext(t, &captured, &capturedBody))
+			_, err = bedrockInvokeModelBearerMiddleware(token)(req, captureNext(t, &c))
 			require.NoError(t, err)
+			captured, capturedBody := c.req, c.body
 			require.NotNil(t, captured)
 
 			// Bearer auth, not SigV4.
@@ -1569,35 +1576,6 @@ func TestBedrockInvokeModelBearerMiddleware(t *testing.T) {
 			require.Contains(t, captured.Header.Get("User-Agent"), bedrocksig.PRMUserAgent)
 		})
 	}
-}
-
-// TestBedrockMantleBearerMiddleware verifies the mantle passthrough forwards the
-// body unchanged and authenticates via Authorization: Bearer without SigV4.
-func TestBedrockMantleBearerMiddleware(t *testing.T) {
-	t.Parallel()
-
-	const token = "bedrock-api-key-mantle" //nolint:gosec // G101: test-only fake credential.
-	body := []byte(`{"model":"anthropic.claude-x","max_tokens":1}`)
-
-	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost,
-		"https://bedrock-mantle.us-east-1.api.aws/anthropic/v1/messages", bytes.NewReader(body))
-	require.NoError(t, err)
-	req.Header.Set("User-Agent", "test-agent")
-
-	var captured *http.Request
-	var capturedBody []byte
-	//nolint:bodyclose // captureNext returns a synthetic no-op response body.
-	_, err = bedrockMantleBearerMiddleware(token)(req, captureNext(t, &captured, &capturedBody))
-	require.NoError(t, err)
-	require.NotNil(t, captured)
-
-	require.Equal(t, "Bearer "+token, captured.Header.Get("Authorization"))
-	require.NotContains(t, captured.Header.Get("Authorization"), "AWS4-HMAC-SHA256")
-	require.Empty(t, captured.Header.Get("X-Amz-Date"))
-	// Native passthrough: model kept, path unchanged.
-	require.Equal(t, "/anthropic/v1/messages", captured.URL.Path)
-	require.Equal(t, "anthropic.claude-x", gjson.GetBytes(capturedBody, "model").String())
-	require.Contains(t, captured.Header.Get("User-Agent"), bedrocksig.PRMUserAgent)
 }
 
 // TestWithBedrockBYOKOptions verifies option assembly and validation for the
