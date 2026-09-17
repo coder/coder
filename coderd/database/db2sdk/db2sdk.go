@@ -1552,6 +1552,20 @@ func OrganizationGroupAISpend(row database.GetOrganizationGroupsAISpendRow) code
 	return group
 }
 
+func OrganizationAISpendUser(row database.ListOrganizationAISpendUsersRow) codersdk.OrganizationAISpendUser {
+	return codersdk.OrganizationAISpendUser{
+		UserID:             row.UserID,
+		Username:           row.Username,
+		Name:               row.Name,
+		AvatarURL:          row.AvatarURL,
+		CostMicros:         row.CostMicros,
+		UnpricedUsageCount: row.UnpricedUsageCount,
+		Providers:          row.Providers,
+		Clients:            row.Clients,
+		Models:             row.Models,
+	}
+}
+
 func GroupMemberAISpend(row database.GetGroupMembersAISpendRow, queriedGroupID uuid.UUID) codersdk.GroupMemberAISpend {
 	member := codersdk.GroupMemberAISpend{
 		UserID:           row.UserID,
