@@ -13,25 +13,26 @@
 set -euo pipefail
 
 # Test packages by CI wall time (test-go-pg ubuntu, Sep 2026), relative to the
-# module path. The heavy packages (40s+) start first and run for most of the
+# module path. The heavy packages (100s+) start first and run for most of the
 # job; the light packages fill the remaining slots and their builds overlap
-# with the heavy runs instead of forming a tail; the medium packages (20-40s)
-# start once heavy slots free up. Roughly right is good enough: packages
-# missing from the pattern set are skipped and everything else keeps go list
-# order.
+# with the heavy runs instead of forming a tail; the medium packages (20-100s)
+# start once heavy slots free up. Starting more than a handful of heavy
+# packages at once only makes each of them slower. Roughly right is good
+# enough: packages missing from the pattern set are skipped and everything
+# else keeps go list order.
 heavy="
 coderd
 enterprise/coderd
 coderd/database
 cli
 coderd/database/migrations
+"
+medium="
 coderd/x/chatd
 enterprise/wsproxy
 enterprise
 enterprise/cli
 codersdk/toolsdk
-"
-medium="
 coderd/database/dbauthz
 enterprise/coderd/prebuilds
 coderd/notifications
