@@ -172,6 +172,13 @@ export const UnpricedUsage: Story = {
 	},
 };
 
+export const ClientsList: Story = {
+	play: async ({ canvasElement }) => {
+		within(canvasElement).getByRole("button", { name: "2 clients" }).focus();
+		await within(canvasElement.ownerDocument.body).findByRole("tooltip");
+	},
+};
+
 export const ModelsList: Story = {
 	play: async ({ canvasElement }) => {
 		await userEvent.hover(

@@ -1,4 +1,4 @@
-import { act, screen, waitFor } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import dayjs from "dayjs";
 import { createMemoryRouter } from "react-router";
@@ -238,28 +238,6 @@ it("holds the date picker until the filtered report brings its retention bound",
 			}),
 		),
 	);
-});
-
-it("opens the count badge lists from the pointer and the keyboard", async () => {
-	const user = userEvent.setup();
-	renderSpend();
-	await screen.findByRole("table", { name: "Spend by user" });
-	const [providerBadge] = screen.getAllByRole("button", {
-		name: "2 providers",
-	});
-	const [clientBadge] = screen.getAllByRole("button", { name: "2 clients" });
-	const [modelBadge] = screen.getAllByRole("button", { name: "2 models" });
-
-	await user.hover(providerBadge);
-	await screen.findByRole("tooltip");
-	await user.unhover(providerBadge);
-
-	act(() => clientBadge.focus());
-	await screen.findByRole("tooltip");
-	act(() => clientBadge.blur());
-
-	act(() => modelBadge.focus());
-	await screen.findByRole("tooltip");
 });
 
 it("applies the provider filter and resets pagination", async () => {

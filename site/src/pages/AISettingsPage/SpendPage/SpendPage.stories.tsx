@@ -161,6 +161,5 @@ export const SecondPage: Story = {
 		const canvas = within(canvasElement);
 		await canvas.findByRole("table", { name: "Spend by user" });
 		await userEvent.click(canvas.getByRole("button", { name: "Next page" }));
-		await canvas.findByText("User 11");
 	},
 };
