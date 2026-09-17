@@ -58,6 +58,10 @@ fi
 
 module="$(go list -m)"
 
+# BSD awk rejects -v values that contain newlines.
+heavy="${heavy//$'\n'/ }"
+medium="${medium//$'\n'/ }"
+
 go list -tags=testsmallbatch "$@" | awk -v heavy="$heavy" -v medium="$medium" -v module="$module" '
 BEGIN {
 	nh = split(heavy, hlist, /[[:space:]]+/)
