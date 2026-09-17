@@ -711,11 +711,12 @@ The current implementation has these limitations:
 - Limited to opaque access tokens (no JWT support)
 - An application may register at most 32 redirect URIs of at most 2048 bytes each. Applications that registered a longer list before this limit existed keep working and can still be edited.
 
-The `redirect_uris` list is now the source of truth for an application's callbacks, and its first entry is the primary.
-Earlier versions stored the primary in a separate `callback_url` field, and the upgrade migration rewrites every application so the list starts with that value.
-During a rolling upgrade, a replica running an earlier version still writes only the old field when an administrator edits a callback URL.
-Replicas running the new version read the list first, so that edit is not visible until the application is saved again.
-Drain replicas running the earlier version before you upgrade, or save the application again after the upgrade.
+The `redirect_uris` list is now the source of truth for an application's callbacks, and its first entry is the primary:
+
+- Earlier versions stored the primary in a separate `callback_url` field. The upgrade migration rewrites every application so the list starts with that value.
+- During a rolling upgrade, a replica running an earlier version still writes only the old field when an administrator edits a callback URL.
+- Replicas running the new version read the list first, so that edit is not visible until the application is saved again.
+- Drain replicas running the earlier version before you upgrade, or save the application again after the upgrade.
 
 A `scope` on a refresh request was parsed and discarded in earlier versions, so a
 client sending one wider than its grant refreshed successfully. It is now
