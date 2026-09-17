@@ -109,7 +109,7 @@ func (api *API) postChatProject(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	aReq.New = project
-	httpapi.Write(ctx, rw, http.StatusCreated, db2sdk.ChatProject(project))
+	httpapi.Write(ctx, rw, http.StatusCreated, db2sdk.ChatProject(project, 0))
 }
 
 // @Summary Get chat project
@@ -216,16 +216,11 @@ func (api *API) patchChatProject(rw http.ResponseWriter, r *http.Request) {
 }
 
 func (api *API) chatProjectResponse(ctx context.Context, project database.ChatProject) (codersdk.ChatProject, error) {
-	projects, err := api.Database.GetChatProjectsByOrganizationID(ctx, project.OrganizationID)
+	chatCount, err := api.Database.CountChatProjectChats(ctx, project.ID)
 	if err != nil {
 		return codersdk.ChatProject{}, err
 	}
-	for _, row := range projects {
-		if row.ChatProject.ID == project.ID {
-			return db2sdk.ChatProjectRow(row), nil
-		}
-	}
-	return db2sdk.ChatProject(project), nil
+	return db2sdk.ChatProject(project, chatCount), nil
 }
 
 // @Summary Delete chat project

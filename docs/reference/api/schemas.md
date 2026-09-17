@@ -474,6 +474,26 @@ title: Schemas
 |--------|--------|----------|--------------|-------------|
 | `text` | string | false    |              |             |
 
+## codersdk.AIBridgeProvider
+
+```json
+{
+  "display_name": "string",
+  "icon": "string",
+  "name": "string",
+  "type": "openai"
+}
+```
+
+### Properties
+
+| Name           | Type                                               | Required | Restrictions | Description |
+|----------------|----------------------------------------------------|----------|--------------|-------------|
+| `display_name` | string                                             | false    |              |             |
+| `icon`         | string                                             | false    |              |             |
+| `name`         | string                                             | false    |              |             |
+| `type`         | [codersdk.AIProviderType](#codersdkaiprovidertype) | false    |              |             |
+
 ## codersdk.AIBridgeProxyConfig
 
 ```json
@@ -3352,6 +3372,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "frequency_penalty": 0,
     "max_output_tokens": 0,
     "openai_config": {
+      "reasoning_model": true,
       "use_responses_api": true
     },
     "presence_penalty": 0,
@@ -3636,6 +3657,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "frequency_penalty": 0,
   "max_output_tokens": 0,
   "openai_config": {
+    "reasoning_model": true,
     "use_responses_api": true
   },
   "presence_penalty": 0,
@@ -3884,6 +3906,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ```json
 {
+  "reasoning_model": true,
   "use_responses_api": true
 }
 ```
@@ -3892,6 +3915,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 | Name                | Type    | Required | Restrictions | Description |
 |---------------------|---------|----------|--------------|-------------|
+| `reasoning_model`   | boolean | false    |              |             |
 | `use_responses_api` | boolean | false    |              |             |
 
 ## codersdk.ChatModelOpenAIProviderOptions
@@ -5961,6 +5985,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "frequency_penalty": 0,
     "max_output_tokens": 0,
     "openai_config": {
+      "reasoning_model": true,
       "use_responses_api": true
     },
     "presence_penalty": 0,
@@ -8918,9 +8943,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                                                                                                                                                                                            |
-|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `agent-lifecycle-hooks`, `ai-gateway-seat-exclusion`, `auto-fill-parameters`, `chat-advisor`, `chat-projects`, `chat-virtual-desktop`, `example`, `mcp-server-http`, `mcp-tool-search`, `nats_pubsub`, `notifications`, `workspace-build-updates`, `workspace-capable-licensing`, `workspace-usage` |
+| Value(s)                                                                                                                                                                                                                                                                                                                        |
+|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `agent-lifecycle-hooks`, `ai-gateway-reverse-proxy`, `ai-gateway-seat-exclusion`, `auto-fill-parameters`, `chat-advisor`, `chat-projects`, `chat-virtual-desktop`, `example`, `mcp-server-http`, `mcp-tool-search`, `nats_pubsub`, `notifications`, `workspace-build-updates`, `workspace-capable-licensing`, `workspace-usage` |
 
 ## codersdk.ExternalAPIKeyScopes
 
@@ -10813,6 +10838,20 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `token_endpoint_auth_method` | [codersdk.OAuth2TokenEndpointAuthMethod](#codersdkoauth2tokenendpointauthmethod)    | false    |              |             |
 | `tos_uri`                    | string                                                                              | false    |              |             |
 
+## codersdk.OAuth2ClientType
+
+```json
+"confidential"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                 |
+|--------------------------|
+| `confidential`, `public` |
+
 ## codersdk.OAuth2Config
 
 ```json
@@ -10956,6 +10995,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 ```json
 {
   "callback_url": "string",
+  "client_type": "confidential",
   "endpoints": {
     "authorization": "string",
     "device_authorization": "string",
@@ -10973,6 +11013,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | Name           | Type                                                       | Required | Restrictions | Description                                                                                                                                                                                             |
 |----------------|------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `callback_url` | string                                                     | false    |              |                                                                                                                                                                                                         |
+| `client_type`  | [codersdk.OAuth2ClientType](#codersdkoauth2clienttype)     | false    |              | Client type is "confidential" or "public".                                                                                                                                                              |
 | `endpoints`    | [codersdk.OAuth2AppEndpoints](#codersdkoauth2appendpoints) | false    |              | Endpoints are included in the app response for easier discovery. The OAuth2 spec does not have a defined place to find these (for comparison, OIDC has a '/.well-known/openid-configuration' endpoint). |
 | `icon`         | string                                                     | false    |              |                                                                                                                                                                                                         |
 | `id`           | string                                                     | false    |              |                                                                                                                                                                                                         |
@@ -11332,6 +11373,103 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `name`                     | string          | false    |              |                                                                                                                                                 |
 | `updated_at`               | string          | true     |              |                                                                                                                                                 |
 
+## codersdk.OrganizationAISpendReport
+
+```json
+{
+  "count": 0,
+  "period_end": "2019-08-24T14:15:22Z",
+  "period_start": "2019-08-24T14:15:22Z",
+  "retention_start": "2019-08-24T14:15:22Z",
+  "totals": {
+    "cost_micros": 0,
+    "unpriced_usage_count": 0
+  },
+  "users": [
+    {
+      "avatar_url": "string",
+      "clients": [
+        "string"
+      ],
+      "cost_micros": 0,
+      "models": [
+        "string"
+      ],
+      "name": "string",
+      "providers": [
+        "string"
+      ],
+      "unpriced_usage_count": 0,
+      "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5",
+      "username": "string"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name              | Type                                                                          | Required | Restrictions | Description                                                                                                                                                                             |
+|-------------------|-------------------------------------------------------------------------------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `count`           | integer                                                                       | false    |              | Count is the number of users with token usage matching the filter.                                                                                                                      |
+| `period_end`      | string                                                                        | false    |              | Period end is the exclusive upper bound of the current budget period.                                                                                                                   |
+| `period_start`    | string                                                                        | false    |              | Period start is the inclusive lower bound of the current budget period.                                                                                                                 |
+| `retention_start` | string                                                                        | false    |              | Retention start is the oldest instant for which token usage is still retained. An explicit period must not start before it. Omitted when the deployment does not purge AI Gateway data. |
+| `totals`          | [codersdk.OrganizationAISpendTotals](#codersdkorganizationaispendtotals)      | false    |              |                                                                                                                                                                                         |
+| `users`           | array of [codersdk.OrganizationAISpendUser](#codersdkorganizationaispenduser) | false    |              | Users is the requested page, most expensive first.                                                                                                                                      |
+
+## codersdk.OrganizationAISpendTotals
+
+```json
+{
+  "cost_micros": 0,
+  "unpriced_usage_count": 0
+}
+```
+
+### Properties
+
+| Name                   | Type    | Required | Restrictions | Description                                                                                          |
+|------------------------|---------|----------|--------------|------------------------------------------------------------------------------------------------------|
+| `cost_micros`          | integer | false    |              | Cost micros is the priced spend of every matching user.                                              |
+| `unpriced_usage_count` | integer | false    |              | Unpriced usage count is the number of token usage records without a cost across every matching user. |
+
+## codersdk.OrganizationAISpendUser
+
+```json
+{
+  "avatar_url": "string",
+  "clients": [
+    "string"
+  ],
+  "cost_micros": 0,
+  "models": [
+    "string"
+  ],
+  "name": "string",
+  "providers": [
+    "string"
+  ],
+  "unpriced_usage_count": 0,
+  "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5",
+  "username": "string"
+}
+```
+
+### Properties
+
+| Name                   | Type            | Required | Restrictions | Description                                                                                                                                       |
+|------------------------|-----------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------------------|
+| `avatar_url`           | string          | false    |              |                                                                                                                                                   |
+| `clients`              | array of string | false    |              | Clients are the clients the user spent through, sorted. Usage without a recorded client is reported as Unknown.                                   |
+| `cost_micros`          | integer         | false    |              | Cost micros is the user's priced spend over the period.                                                                                           |
+| `models`               | array of string | false    |              | Models are the models the user spent through, sorted.                                                                                             |
+| `name`                 | string          | false    |              |                                                                                                                                                   |
+| `providers`            | array of string | false    |              | Providers are the provider types the user spent through, sorted.                                                                                  |
+| `unpriced_usage_count` | integer         | false    |              | Unpriced usage count is the number of the user's token usage records that carry no cost because their model had no price when they were recorded. |
+| `user_id`              | string          | false    |              |                                                                                                                                                   |
+| `username`             | string          | false    |              |                                                                                                                                                   |
+
 ## codersdk.OrganizationChatModelsResponse
 
 ```json
@@ -11351,6 +11489,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
         "frequency_penalty": 0,
         "max_output_tokens": 0,
         "openai_config": {
+          "reasoning_model": true,
           "use_responses_api": true
         },
         "presence_penalty": 0,
@@ -15360,6 +15499,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
     "frequency_penalty": 0,
     "max_output_tokens": 0,
     "openai_config": {
+      "reasoning_model": true,
       "use_responses_api": true
     },
     "presence_penalty": 0,

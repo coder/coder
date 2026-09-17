@@ -542,6 +542,21 @@ func (mr *MockStoreMockRecorder) CountChatCapacityQueuedByPool(ctx, staleSeconds
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CountChatCapacityQueuedByPool", reflect.TypeOf((*MockStore)(nil).CountChatCapacityQueuedByPool), ctx, staleSeconds)
 }
 
+// CountChatProjectChats mocks base method.
+func (m *MockStore) CountChatProjectChats(ctx context.Context, projectID uuid.UUID) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CountChatProjectChats", ctx, projectID)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CountChatProjectChats indicates an expected call of CountChatProjectChats.
+func (mr *MockStoreMockRecorder) CountChatProjectChats(ctx, projectID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CountChatProjectChats", reflect.TypeOf((*MockStore)(nil).CountChatProjectChats), ctx, projectID)
+}
+
 // CountChatQueuedMessages mocks base method.
 func (m *MockStore) CountChatQueuedMessages(ctx context.Context, chatID uuid.UUID) (int64, error) {
 	m.ctrl.T.Helper()

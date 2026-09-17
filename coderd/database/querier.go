@@ -100,6 +100,8 @@ type sqlcQuerier interface {
 	// Excluding the candidate keeps ownership takeover capacity-neutral.
 	CountChatCapacityActiveByPool(ctx context.Context, arg CountChatCapacityActiveByPoolParams) (CountChatCapacityActiveByPoolRow, error)
 	CountChatCapacityQueuedByPool(ctx context.Context, staleSeconds int32) (CountChatCapacityQueuedByPoolRow, error)
+	// Counts the chats shown for a project, matching GetChatProjectsByOrganizationID.
+	CountChatProjectChats(ctx context.Context, projectID uuid.UUID) (int64, error)
 	// Cheap queue-length check used by ChatMachine.Update when deciding
 	// whether the chat is in a "1" sub-state.
 	CountChatQueuedMessages(ctx context.Context, chatID uuid.UUID) (int64, error)

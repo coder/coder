@@ -26,6 +26,14 @@ WHERE chat_projects.organization_id = @organization_id::uuid
 GROUP BY chat_projects.id
 ORDER BY lower(chat_projects.name);
 
+-- name: CountChatProjectChats :one
+-- Counts the chats shown for a project, matching GetChatProjectsByOrganizationID.
+SELECT COUNT(*)::bigint
+FROM chats
+WHERE chats.project_id = @project_id::uuid
+    AND chats.parent_chat_id IS NULL
+    AND chats.archived = false;
+
 -- name: UpdateChatProjectByID :one
 UPDATE chat_projects
 SET

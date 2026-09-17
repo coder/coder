@@ -2043,6 +2043,17 @@ func (q *querier) CountChatCapacityQueuedByPool(ctx context.Context, staleSecond
 	return q.db.CountChatCapacityQueuedByPool(ctx, staleSeconds)
 }
 
+func (q *querier) CountChatProjectChats(ctx context.Context, projectID uuid.UUID) (int64, error) {
+	project, err := q.db.GetChatProjectByID(ctx, projectID)
+	if err != nil {
+		return 0, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionRead, project); err != nil {
+		return 0, err
+	}
+	return q.db.CountChatProjectChats(ctx, projectID)
+}
+
 func (q *querier) CountChatQueuedMessages(ctx context.Context, chatID uuid.UUID) (int64, error) {
 	_, err := q.GetChatByID(ctx, chatID)
 	if err != nil {

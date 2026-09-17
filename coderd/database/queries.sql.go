@@ -7245,6 +7245,22 @@ func (q *sqlQuerier) UpsertChatUserModelOverride(ctx context.Context, arg Upsert
 	return err
 }
 
+const countChatProjectChats = `-- name: CountChatProjectChats :one
+SELECT COUNT(*)::bigint
+FROM chats
+WHERE chats.project_id = $1::uuid
+    AND chats.parent_chat_id IS NULL
+    AND chats.archived = false
+`
+
+// Counts the chats shown for a project, matching GetChatProjectsByOrganizationID.
+func (q *sqlQuerier) CountChatProjectChats(ctx context.Context, projectID uuid.UUID) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countChatProjectChats, projectID)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const deleteChatProjectByID = `-- name: DeleteChatProjectByID :exec
 DELETE FROM chat_projects
 WHERE id = $1::uuid
