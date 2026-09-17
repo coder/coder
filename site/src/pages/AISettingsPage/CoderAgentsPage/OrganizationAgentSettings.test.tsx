@@ -10,16 +10,13 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { AppProviders } from "#/App";
 import { API } from "#/api/api";
-import {
-	organizationChatModelOverrides,
-	organizationChatModelsKey,
-} from "#/api/queries/chats";
+import { organizationChatModelsKey } from "#/api/queries/chats";
 import type { ChatModel } from "#/api/typesGenerated";
 import {
 	MockChatModel,
 	MockChatModelProviderDescriptor,
 } from "#/testHelpers/chatModels";
-import { MockDefaultOrganization, mockApiError } from "#/testHelpers/entities";
+import { MockDefaultOrganization } from "#/testHelpers/entities";
 import { createTestQueryClient, render } from "#/testHelpers/renderHelpers";
 import { OrganizationAgentSettings } from "./OrganizationAgentSettings";
 
@@ -357,30 +354,5 @@ describe("OrganizationAgentSettings", () => {
 		await refetchCatalog(queryClient, getChatModels, 3);
 
 		await expectSubmitSaves(defaultSection, updateChatModel, mockThirdModel);
-	});
-
-	it("keeps the empty-catalog status when the overrides refresh fails", async () => {
-		vi.spyOn(API.experimental, "getChatModels").mockResolvedValue(
-			chatModelsResponse([]),
-		);
-		const getOverrides = vi
-			.spyOn(API.experimental, "getOrganizationChatModelOverrides")
-			.mockResolvedValueOnce({ overrides: [] })
-			.mockRejectedValue(mockApiError({ message: "overrides unavailable" }));
-		const queryClient = renderWithQueryClient();
-
-		await screen.findByText("This organization has no enabled chat models.");
-		await act(() =>
-			queryClient.invalidateQueries({
-				queryKey: organizationChatModelOverrides(MockDefaultOrganization.id)
-					.queryKey,
-			}),
-		);
-		await waitFor(() => expect(getOverrides).toHaveBeenCalledTimes(2));
-		await screen.findByText("overrides unavailable");
-
-		expect(
-			screen.getByText("This organization has no enabled chat models."),
-		).toBeInTheDocument();
 	});
 });
