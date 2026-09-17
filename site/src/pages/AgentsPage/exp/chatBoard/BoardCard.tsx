@@ -17,6 +17,7 @@ import {
 import { shortRelativeTime } from "#/utils/time";
 import { getChatDisplayConfig } from "../../components/ChatsSidebar/tree/statusConfig";
 import { ActionsMenu } from "./ActionsMenu";
+import type { NoteSlot } from "./boardApi";
 import {
 	type BoardCard as BoardCardModel,
 	type BoardNote,
@@ -28,7 +29,6 @@ import { ChatInfoPopover } from "./ChatInfo";
 import { dragHandleListeners } from "./dragHandle";
 import { InlineEdit } from "./InlineEdit";
 import { NotesSection } from "./NotesSection";
-import type { NoteSlot } from "./useBoardMutations";
 
 export type DragData =
 	| { type: "card"; card: BoardCardModel }
@@ -162,7 +162,8 @@ export const BoardCard: FC<BoardCardProps> = ({
 			  Same anatomy for every card: [icon] title [meta]. A single chat is
 			  its own card, so its title is the chat title and there are no rows;
 			  a group shows a stack icon, the card title, and one row per chat.
-			  Click the title text to rename it; click anywhere else on a single
+			  Click the title text to rename it (the board decides whether that
+			  renames the chat or the card); click anywhere else on a single
 			  card's header to open the chat, or rest on its chat icon to preview
 			  it. The band is washed with the accent.
 			*/}
@@ -203,8 +204,7 @@ export const BoardCard: FC<BoardCardProps> = ({
 					onEdit={() => setRenaming(true)}
 					onRenamed={(title) => {
 						setRenaming(false);
-						if (single) onRenameChat(lead, title);
-						else onSetTitle(title);
+						onSetTitle(title);
 					}}
 					onCancel={() => setRenaming(false)}
 				/>

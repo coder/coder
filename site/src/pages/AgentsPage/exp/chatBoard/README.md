@@ -33,7 +33,7 @@ Design rules that came out of building it:
 - Controls that appear on hover must not move anything else.
 - No wall of live mini chat windows. Chats open on demand, beside the board.
 - Prototype scope: no mobile layout, no pagination edge cases, no undo
-  history beyond the last regrouping.
+  history beyond the last regrouping or note move.
 
 ## User stories
 
@@ -107,8 +107,22 @@ Sidebar
 | `board/comment.N.M`         | primary   | note N, chunk M (256 byte label limit)     |
 | `board/assistant`           | assistant | id of the card the assistant belongs to    |
 
-Writes replace the whole label map of a chat. Regrouping snapshots the
-previous maps of every touched chat so it can be undone.
+Writes replace the whole label map of a chat. Regrouping and note moves
+snapshot the previous maps of every touched chat so they can be undone.
+
+## Code layout
+
+- `boardLabels.ts` is the codec: label keys, parsing and editing label maps,
+  and `buildCards` / `buildColumns` from the chat list.
+- `boardApi.ts` is the commands: pure functions from the full board model
+  and ids to a `Plan` of label writes, title writes, storage patch and undo
+  text; `null` means no-op.
+- `useBoardApi.ts` is the executor: binds the commands to the current model
+  and applies each `Plan` (optimistic cache patch, error toast, undo).
+- `ChatBoardPage.tsx`, `BoardColumn.tsx`, `BoardCard.tsx` and
+  `NotesSection.tsx` translate gestures into one command call each; the
+  page filters the rendered columns but always hands the full model to the
+  commands.
 
 ## Not done
 

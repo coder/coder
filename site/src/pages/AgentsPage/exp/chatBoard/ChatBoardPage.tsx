@@ -24,19 +24,17 @@ import { pageTitle } from "#/utils/page";
 import { buildChatSearchQuery } from "../../components/ChatsSidebar/dialogs/searchQuery";
 import { type DragData, DragGhost, type DropData } from "./BoardCard";
 import { BoardColumn, NewColumn } from "./BoardColumn";
+import type { NoteSlot } from "./boardApi";
 import {
 	type BoardCard as BoardCardModel,
 	buildCards,
 	buildColumns,
 	type CardColor,
-	INBOX_COLUMN,
-	keyBetween,
-	placementKey,
 } from "./boardLabels";
 import { type ChatWindow, useBoardStorage } from "./boardStorage";
 import { FloatingChat, windowBeside, windowCentered } from "./ChatWindows";
 import { useBlockSelectionWhileDragging } from "./dragHandle";
-import { type NoteSlot, useBoardMutations } from "./useBoardMutations";
+import { useBoardApi } from "./useBoardApi";
 import { findAssistant, useCardAssistant } from "./useCardAssistant";
 
 // Hover must be deliberate before a full chat mounts; leaving gives the
@@ -198,7 +196,6 @@ const ChatBoardPage: FC = () => {
 	const { agentId } = useParams();
 	const navigate = useNavigate();
 	const [storage, updateStorage] = useBoardStorage();
-	const mutations = useBoardMutations();
 	const [search, setSearch] = useState("");
 	const debouncedSearch = useDebouncedValue(search.trim(), SEARCH_DEBOUNCE_MS);
 	const [addingColumn, setAddingColumn] = useState(false);
@@ -347,16 +344,24 @@ const ChatBoardPage: FC = () => {
 				: [];
 		}),
 	);
-	const cards = matchingIds
-		? allCards.filter((card) =>
-				card.members.some((member) => matchingIds.has(member.id)),
-			)
-		: allCards;
+	// Commands act on the full model; the filter only decides what is drawn,
+	// so renaming a column with a filter active still relabels every card.
 	const columns = buildColumns(
-		cards,
+		allCards,
 		storage.columnOrder,
 		storage.emptyColumns,
 	);
+	const board = useBoardApi(
+		{ cards: allCards, columns, storage },
+		updateStorage,
+	);
+	const shown = (card: BoardCardModel) =>
+		!matchingIds || card.members.some((member) => matchingIds.has(member.id));
+	const visibleColumns = columns.map((column) => ({
+		...column,
+		cards: column.cards.filter(shown),
+	}));
+	const visibleCount = visibleColumns.reduce((n, c) => n + c.cards.length, 0);
 
 	const handleDragStart = ({ active }: DragStartEvent) => {
 		clearPreviewTimer();
@@ -374,129 +379,55 @@ const ChatBoardPage: FC = () => {
 		setDropTarget(targetOf(collisions));
 	};
 
-	// Placement key for the slot before `beforeCardId` in `column`, ignoring
-	// the card being moved so its old slot does not count as a neighbour.
-	const keyForSlot = (
-		column: string,
-		beforeCardId: string | null,
-		movingId: string,
-	) => {
-		const ordered = (
-			columns.find((c) => c.name === column)?.cards ?? []
-		).filter((c) => c.id !== movingId);
-		const index = beforeCardId
-			? ordered.findIndex((c) => c.id === beforeCardId)
-			: ordered.length;
-		const above = index > 0 ? ordered[index - 1] : undefined;
-		const below = index >= 0 ? ordered[index] : undefined;
-		return keyBetween(
-			above && placementKey(above.primary),
-			below && placementKey(below.primary),
-		);
-	};
-
-	const moveColumn = (
-		name: string,
-		target: DropTarget & { kind: "column" },
-	) => {
-		const names = columns.map((c) => c.name).filter((n) => n !== name);
-		const index =
-			names.indexOf(target.name) + (target.side === "after" ? 1 : 0);
-		names.splice(index, 0, name);
-		updateStorage({ columnOrder: names });
-	};
-
 	const handleDragEnd = ({ active, collisions }: DragEndEvent) => {
 		setActiveDrag(null);
 		setDropTarget(null);
 		const drag = active.data.current as DragData | undefined;
 		const target = targetOf(collisions);
 		if (!drag || !target) return;
-		if (target.kind === "column") {
-			if (drag.type === "column") moveColumn(drag.name, target);
-			return;
-		}
-		if (target.kind === "note" || target.kind === "noteCard") {
-			if (drag.type === "note") {
-				void mutations.moveComment(
-					drag.card,
-					drag.note,
-					target.card,
-					target.kind === "note" ? target.slot : null,
-				);
-			}
-			return;
-		}
-		if (drag.type === "column" || drag.type === "note") return;
-		if (target.kind === "merge") {
-			if (drag.type === "card") {
-				void mutations.mergeCards(drag.card, target.card);
-			} else if (drag.card.id !== target.card.id) {
-				void mutations.joinCard(drag.chat, drag.card, target.card);
-			}
-			return;
-		}
-		if (drag.type === "card") {
-			// Dropping back into its own slot is a no-op.
-			const ordered =
-				columns.find((c) => c.name === target.column)?.cards ?? [];
-			const index = ordered.findIndex((c) => c.id === drag.card.id);
-			const nextId = ordered[index + 1]?.id ?? null;
-			if (
-				index >= 0 &&
-				(target.beforeCardId === drag.card.id || target.beforeCardId === nextId)
-			) {
+		switch (target.kind) {
+			case "column":
+				if (drag.type === "column") void board.moveColumn(drag.name, target);
 				return;
-			}
-			void mutations.moveCard(
-				drag.card,
-				target.column,
-				keyForSlot(target.column, target.beforeCardId, drag.card.id),
-			);
-			return;
+			case "note":
+				if (drag.type === "note") {
+					void board.moveNote(
+						drag.card.id,
+						drag.note.index,
+						target.card.id,
+						target.slot,
+					);
+				}
+				return;
+			case "noteCard":
+				if (drag.type === "note") {
+					void board.moveNote(
+						drag.card.id,
+						drag.note.index,
+						target.card.id,
+						null,
+					);
+				}
+				return;
+			case "merge":
+				if (drag.type === "card") {
+					void board.mergeCards(drag.card.id, target.card.id);
+				} else if (drag.type === "chat") {
+					void board.joinCard(drag.chat.id, target.card.id);
+				}
+				return;
+			case "insert":
+				if (drag.type === "card") {
+					void board.moveCard(drag.card.id, target.column, target.beforeCardId);
+				} else if (drag.type === "chat") {
+					void board.detachChat(
+						drag.chat.id,
+						target.column,
+						target.beforeCardId,
+					);
+				}
+				return;
 		}
-		void mutations.detachChat(
-			drag.chat,
-			drag.card,
-			target.column,
-			keyForSlot(target.column, target.beforeCardId, drag.chat.id),
-		);
-	};
-
-	// From the row menu: the chat becomes its own card right under the one it left.
-	const removeFromGroup = (chat: Chat, card: BoardCardModel) =>
-		void mutations.detachChat(
-			chat,
-			card,
-			card.column,
-			placementKey(card.primary) - 1,
-		);
-
-	const addColumn = (name: string) => {
-		if (columns.some((column) => column.name === name)) return;
-		updateStorage({
-			emptyColumns: [...storage.emptyColumns, name],
-			columnOrder: [...columns.map((c) => c.name), name],
-		});
-	};
-
-	const renameColumn = (from: string, to: string) => {
-		if (columns.some((column) => column.name === to)) return;
-		const column = columns.find((c) => c.name === from);
-		if (column) void mutations.renameColumn(column.cards, to);
-		updateStorage({
-			emptyColumns: storage.emptyColumns.map((n) => (n === from ? to : n)),
-			columnOrder: storage.columnOrder.map((n) => (n === from ? to : n)),
-		});
-	};
-
-	const deleteColumn = (name: string) => {
-		const column = columns.find((c) => c.name === name);
-		if (column) void mutations.renameColumn(column.cards, INBOX_COLUMN);
-		updateStorage({
-			emptyColumns: storage.emptyColumns.filter((n) => n !== name),
-			columnOrder: storage.columnOrder.filter((n) => n !== name),
-		});
 	};
 
 	const openAssistant = async (card: BoardCardModel) => {
@@ -552,7 +483,7 @@ const ChatBoardPage: FC = () => {
 					/>
 					{matchingIds && (
 						<span className="text-[11px] text-content-secondary">
-							{cards.length}
+							{visibleCount}
 						</span>
 					)}
 				</div>
@@ -574,40 +505,40 @@ const ChatBoardPage: FC = () => {
 				}}
 			>
 				<div className="flex min-h-0 flex-1 gap-4 overflow-x-auto bg-surface-secondary px-5 pt-4 pb-3">
-					{columns.map((column) => (
+					{visibleColumns.map((column) => (
 						<BoardColumn
 							key={column.name}
 							column={column}
 							openChatIds={openChatIds}
 							dropTarget={dropTarget}
-							onRename={(to) => renameColumn(column.name, to)}
-							onDelete={() => deleteColumn(column.name)}
+							onRename={(to) => void board.renameColumn(column.name, to)}
+							onDelete={() => void board.deleteColumn(column.name)}
 							onSetCardTitle={(card, title) =>
-								void mutations.setCardTitle(card, title)
+								void board.renameCard(card.id, title)
 							}
 							onSetCardColor={(card, color) =>
-								void mutations.setCardColor(card, color)
+								void board.setCardColor(card.id, color)
 							}
 							onRenameChat={(chat, title) =>
-								void mutations.renameChat(chat, title)
+								void board.renameChat(chat.id, title)
 							}
 							onAssistant={(card) => void openAssistant(card)}
-							onRemoveFromGroup={removeFromGroup}
+							onRemoveFromGroup={(chat) => void board.removeFromGroup(chat.id)}
 							onOpen={openChat}
 							onPreview={previewChat}
 							onPreviewEnd={endPreview}
-							onAddNote={(card, text) => void mutations.addComment(card, text)}
+							onAddNote={(card, text) => void board.addNote(card.id, text)}
 							onEditNote={(card, index, text) =>
-								void mutations.editComment(card, index, text)
+								void board.editNote(card.id, index, text)
 							}
 							onRemoveNote={(card, index) =>
-								void mutations.removeComment(card, index)
+								void board.removeNote(card.id, index)
 							}
 						/>
 					))}
 					{addingColumn ? (
 						<NewColumn
-							onCreate={addColumn}
+							onCreate={(name) => void board.addColumn(name)}
 							onCancel={() => setAddingColumn(false)}
 						/>
 					) : (
