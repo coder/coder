@@ -1,9 +1,17 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+	fireEvent,
+	render,
+	screen,
+	waitFor,
+	within,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { createRef, type ReactNode } from "react";
+import { type ComponentProps, createRef, type ReactNode } from "react";
 import { toast } from "sonner";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import { AppProviders } from "#/App";
+import type * as TypesGen from "#/api/typesGenerated";
+import { MockMCPServerConfig } from "#/testHelpers/chatEntities";
 import { createMockFile } from "#/testHelpers/files";
 import { AgentChatInput, type ChatMessageInputRef } from "./AgentChatInput";
 
@@ -19,6 +27,60 @@ const modelOptions = [
 		displayName: "GPT-4o",
 	},
 ] as const;
+
+const inputProps = {
+	onSend: vi.fn(),
+	isDisabled: false,
+	isLoading: false,
+	selectedModel: modelOptions[0].id,
+	onModelChange: vi.fn(),
+	modelOptions,
+	modelSelectorPlaceholder: "Select model",
+	hasModelOptions: true,
+	canConfigureAgentSetup: false,
+} satisfies ComponentProps<typeof AgentChatInput>;
+
+const mockSentryMCP: TypesGen.MCPServerConfig = {
+	...MockMCPServerConfig,
+	id: "mcp-sentry",
+	display_name: "Sentry",
+	availability: "force_on",
+	auth_type: "oauth2",
+	auth_connected: true,
+};
+
+const mockLinearMCP: TypesGen.MCPServerConfig = {
+	...MockMCPServerConfig,
+	id: "mcp-linear",
+	display_name: "Linear",
+	availability: "default_on",
+	auth_type: "api_key",
+};
+
+const mockGitHubMCP: TypesGen.MCPServerConfig = {
+	...MockMCPServerConfig,
+	id: "mcp-github",
+	display_name: "GitHub",
+	availability: "default_on",
+	auth_type: "oauth2",
+	auth_connected: true,
+};
+
+const mockGitHubMCPNeedingAuth: TypesGen.MCPServerConfig = {
+	...mockGitHubMCP,
+	auth_connected: false,
+};
+
+const mockNotionMCP: TypesGen.MCPServerConfig = {
+	...MockMCPServerConfig,
+	id: "mcp-notion",
+	display_name: "Notion",
+	availability: "default_on",
+	auth_type: "api_key",
+};
+
+const mockMCPServers = [mockSentryMCP, mockLinearMCP, mockGitHubMCP];
+const mockSelectedMCPServerIds = mockMCPServers.map((server) => server.id);
 
 const renderInput = (children: ReactNode) => {
 	return render(<AppProviders>{children}</AppProviders>);
@@ -91,5 +153,130 @@ describe("AgentChatInput", () => {
 		expect(toastError).toHaveBeenCalledWith(
 			"Unsupported file type: archive.zip",
 		);
+	});
+
+	it("removes a selected MCP server from the group", async () => {
+		const user = userEvent.setup();
+		const onMCPSelectionChange = vi.fn();
+		renderInput(
+			<AgentChatInput
+				{...inputProps}
+				mcpServers={mockMCPServers}
+				selectedMCPServerIds={mockSelectedMCPServerIds}
+				onMCPSelectionChange={onMCPSelectionChange}
+			/>,
+		);
+
+		await user.click(screen.getByRole("button", { name: "3 MCPs" }));
+		await user.click(
+			within(screen.getByRole("dialog")).getByRole("button", {
+				name: "Remove Linear",
+			}),
+		);
+		expect(onMCPSelectionChange).toHaveBeenCalledWith([
+			mockSentryMCP.id,
+			mockGitHubMCP.id,
+		]);
+	});
+
+	it("enables an unselected MCP server from the plus menu while the group is collapsed", async () => {
+		const user = userEvent.setup();
+		const onMCPSelectionChange = vi.fn();
+		renderInput(
+			<AgentChatInput
+				{...inputProps}
+				mcpServers={[...mockMCPServers, mockNotionMCP]}
+				selectedMCPServerIds={mockSelectedMCPServerIds}
+				onMCPSelectionChange={onMCPSelectionChange}
+			/>,
+		);
+
+		await user.click(screen.getByRole("button", { name: "More options" }));
+		await user.click(
+			await screen.findByRole("switch", { name: "Enable Notion" }),
+		);
+		expect(onMCPSelectionChange).toHaveBeenCalledWith([
+			mockSentryMCP.id,
+			mockLinearMCP.id,
+			mockGitHubMCP.id,
+			mockNotionMCP.id,
+		]);
+	});
+
+	it("keeps two active MCP servers as individual pills", async () => {
+		const user = userEvent.setup();
+		const onMCPSelectionChange = vi.fn();
+		renderInput(
+			<AgentChatInput
+				{...inputProps}
+				mcpServers={[mockLinearMCP, mockGitHubMCP]}
+				selectedMCPServerIds={[mockLinearMCP.id, mockGitHubMCP.id]}
+				onMCPSelectionChange={onMCPSelectionChange}
+			/>,
+		);
+
+		await user.click(screen.getByRole("button", { name: "Remove Linear" }));
+		expect(onMCPSelectionChange).toHaveBeenCalledWith([mockGitHubMCP.id]);
+	});
+
+	it("removes a single MCP server directly from the toolbar", async () => {
+		const user = userEvent.setup();
+		const onMCPSelectionChange = vi.fn();
+		renderInput(
+			<AgentChatInput
+				{...inputProps}
+				mcpServers={[mockLinearMCP]}
+				selectedMCPServerIds={[mockLinearMCP.id]}
+				onMCPSelectionChange={onMCPSelectionChange}
+			/>,
+		);
+
+		await user.click(screen.getByRole("button", { name: "Remove Linear" }));
+		expect(onMCPSelectionChange).toHaveBeenCalledWith([]);
+	});
+
+	it("excludes selected MCP servers that still need OAuth from the group", async () => {
+		const user = userEvent.setup();
+		const onMCPSelectionChange = vi.fn();
+		renderInput(
+			<AgentChatInput
+				{...inputProps}
+				mcpServers={[mockSentryMCP, mockLinearMCP, mockGitHubMCPNeedingAuth]}
+				selectedMCPServerIds={[
+					mockSentryMCP.id,
+					mockLinearMCP.id,
+					mockGitHubMCPNeedingAuth.id,
+				]}
+				onMCPSelectionChange={onMCPSelectionChange}
+			/>,
+		);
+
+		await user.click(screen.getByRole("button", { name: "Remove Linear" }));
+		expect(onMCPSelectionChange).toHaveBeenCalledWith([
+			mockSentryMCP.id,
+			mockGitHubMCPNeedingAuth.id,
+		]);
+	});
+
+	it("allows viewing a disabled MCP group without changing its selection", async () => {
+		const user = userEvent.setup();
+		const onMCPSelectionChange = vi.fn();
+		renderInput(
+			<AgentChatInput
+				{...inputProps}
+				isDisabled
+				mcpServers={mockMCPServers}
+				selectedMCPServerIds={mockSelectedMCPServerIds}
+				onMCPSelectionChange={onMCPSelectionChange}
+			/>,
+		);
+
+		await user.click(screen.getByRole("button", { name: "3 MCPs" }));
+		await user.click(
+			within(screen.getByRole("dialog")).getByRole("button", {
+				name: "Remove Linear",
+			}),
+		);
+		expect(onMCPSelectionChange).not.toHaveBeenCalled();
 	});
 });
