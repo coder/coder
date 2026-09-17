@@ -83,9 +83,8 @@ export const SpendPageView: FC<SpendPageViewProps> = ({
 			<SettingsHeader>
 				<SettingsHeaderTitle>AI spend</SettingsHeaderTitle>
 				<SettingsHeaderDescription>
-					Monitor AI Gateway spend for one organization at a time. Spend is
-					attributed through each user's budget group, so usage outside a group
-					is not shown.
+					Monitor total and per-user AI Gateway spend for the selected
+					organization.
 				</SettingsHeaderDescription>
 			</SettingsHeader>
 			{isOrganizationsLoading ? (

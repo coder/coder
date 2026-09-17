@@ -172,6 +172,29 @@ export const UnpricedUsage: Story = {
 	},
 };
 
+export const UnpricedModelsTooltip: Story = {
+	...UnpricedUsage,
+	play: async ({ canvasElement }) => {
+		const table = within(
+			within(canvasElement).getByRole("table", { name: "Spend by user" }),
+		);
+		await userEvent.hover(
+			table.getByRole("button", { name: "Unpriced models" }),
+		);
+		await within(canvasElement.ownerDocument.body).findByRole("tooltip");
+	},
+};
+
+export const TotalUnpricedModelsKeyboard: Story = {
+	...UnpricedUsage,
+	play: async ({ canvasElement }) => {
+		within(canvasElement)
+			.getAllByRole("button", { name: "Unpriced models" })[0]
+			.focus();
+		await within(canvasElement.ownerDocument.body).findByRole("tooltip");
+	},
+};
+
 export const ClientsList: Story = {
 	play: async ({ canvasElement }) => {
 		within(canvasElement).getByRole("button", { name: "2 clients" }).focus();

@@ -1,4 +1,3 @@
-import { TriangleAlertIcon } from "lucide-react";
 import type { FC } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
@@ -17,9 +16,8 @@ import {
 import { ClientsBadge } from "#/pages/AIBridgePage/ClientsBadge";
 import { ModelsBadge } from "#/pages/AIBridgePage/ModelsBadge";
 import { ProvidersBadge } from "#/pages/AIBridgePage/ProvidersBadge";
-import { formatCostMicros } from "#/utils/currency";
 import type { SpendUsersQuery } from "../SpendPageView";
-import { CostCell } from "./CostCell";
+import { CostCell, SpendAmount } from "./CostCell";
 
 interface SpendUsersTableProps {
 	usersQuery: SpendUsersQuery;
@@ -28,7 +26,7 @@ interface SpendUsersTableProps {
 // A 1024px viewport leaves the table about 580px, which cannot hold five
 // columns at their comfortable widths, so the layout follows the wrapper's
 // container width rather than the viewport.
-const dimensionColumnClassName = "w-28 px-2 @3xl:w-40 @3xl:px-3";
+const dimensionColumnClassName = "w-28 px-3 @3xl:w-36";
 
 export const SpendUsersTable: FC<SpendUsersTableProps> = ({ usersQuery }) => {
 	const retryButton = (
@@ -92,7 +90,7 @@ export const SpendUsersTable: FC<SpendUsersTableProps> = ({ usersQuery }) => {
 									>
 										<TableHeader>
 											<TableRow>
-												<TableHead className="w-32 @3xl:w-auto">User</TableHead>
+												<TableHead className="w-36 @3xl:w-48">User</TableHead>
 												<TableHead className={dimensionColumnClassName}>
 													Providers
 												</TableHead>
@@ -102,8 +100,8 @@ export const SpendUsersTable: FC<SpendUsersTableProps> = ({ usersQuery }) => {
 												<TableHead className={dimensionColumnClassName}>
 													Clients
 												</TableHead>
-												<TableHead className="w-24 text-right @3xl:w-32">
-													Cost
+												<TableHead className="w-24 text-right @3xl:w-28">
+													Spend
 												</TableHead>
 											</TableRow>
 										</TableHeader>
@@ -153,13 +151,10 @@ const SpendTotal: FC<{ report: TypesGen.OrganizationAISpendReport }> = ({
 	<div className="flex flex-col gap-1">
 		<span className="text-sm text-content-secondary">Total spend</span>
 		<span className="text-2xl font-semibold tabular-nums text-content-primary">
-			{formatCostMicros(report.totals.cost_micros)}
+			<SpendAmount
+				costMicros={report.totals.cost_micros}
+				unpricedUsageCount={report.totals.unpriced_usage_count}
+			/>
 		</span>
-		{report.totals.unpriced_usage_count > 0 && (
-			<span className="flex items-center gap-1 text-sm text-content-warning">
-				<TriangleAlertIcon aria-hidden className="size-icon-xs" />
-				Some usage could not be priced and is not included in this total.
-			</span>
-		)}
 	</div>
 );
