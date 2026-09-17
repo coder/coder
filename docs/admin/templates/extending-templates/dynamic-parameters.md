@@ -67,15 +67,15 @@ To use the features described on this page in an existing template:
 1. Users should see the updated workspace creation form.
 
 Dynamic Parameters are backwards compatible: switching a template does not change how its existing parameters behave.
-Templates that were created before Dynamic Parameters must publish a new version to generate the metadata the new form requires.
+If a template's active version was published before Dynamic Parameters, publish a new version to generate the metadata the new form requires.
 
 ## Upgrade from parameter compatibility mode
 
 Parameter compatibility mode keeps a template on the classic parameter flow.
-Coder maintains a separate code path for that flow, and it will be removed in a future release, so templates that
-stay in compatibility mode need to be upgraded before then.
+Coder maintains a separate code path for that flow. It will be removed in a future release, so templates that
+use compatibility mode need to be upgraded before then.
 
-To find the templates that are still in compatibility mode, open the **Templates** page and select the
+To find templates that use compatibility mode, open the **Templates** page and select the
 **Templates using compatibility mode** filter, or search for `compatibility_mode:true`.
 
 For each template:

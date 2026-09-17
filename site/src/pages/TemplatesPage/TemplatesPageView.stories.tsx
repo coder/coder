@@ -5,6 +5,7 @@ import {
 	MockMenu,
 } from "#/components/Filter/storyHelpers";
 import {
+	MockOrganization,
 	MockTemplate,
 	MockTemplateExample,
 	MockTemplateExample2,
@@ -320,7 +321,7 @@ export const SingleClassicParameterFlowWarning: Story = {
 		const alert = canvas.getByRole("alert");
 		expect(
 			within(alert).getByText(
-				"Classic One is using parameter compatibility mode",
+				'The "Classic One" template is using parameter compatibility mode',
 			),
 		).toBeVisible();
 		expect(
@@ -337,8 +338,11 @@ export const ClassicParameterFlowWarningHiddenWhileFiltering: Story = {
 		...ClassicParameterFlowWarning.args,
 		filterState: getDefaultFilterProps<TemplateFilterState>({
 			menus: { organizations: MockMenu },
-			values: { author: MockUserOwner.username },
-			query: "compatibility_mode:true",
+			values: {
+				organization: MockOrganization.name,
+				compatibility_mode: "true",
+			},
+			query: `organization:${MockOrganization.name} compatibility_mode:true`,
 			used: true,
 		}),
 	},

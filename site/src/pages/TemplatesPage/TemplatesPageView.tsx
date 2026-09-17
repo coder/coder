@@ -61,7 +61,7 @@ import {
 	TemplatesFilter,
 } from "./TemplatesFilter";
 
-const ClassicParameterFlowAlert: FC<{ templates: readonly Template[] }> = ({
+const CompatibilityModeAlert: FC<{ templates: readonly Template[] }> = ({
 	templates,
 }) => {
 	const singleTemplate = templates.length === 1 ? templates[0] : undefined;
@@ -86,7 +86,7 @@ const ClassicParameterFlowAlert: FC<{ templates: readonly Template[] }> = ({
 		>
 			<AlertTitle>
 				{singleTemplate
-					? `${singleTemplate.display_name || singleTemplate.name} is using parameter compatibility mode`
+					? `The "${singleTemplate.display_name || singleTemplate.name}" template is using parameter compatibility mode`
 					: `${templates.length} templates are using parameter compatibility mode`}
 			</AlertTitle>
 			<AlertDescription>
@@ -293,20 +293,20 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = ({
 }) => {
 	const isLoading = !templates;
 	const isEmpty = !isLoading && templates.length === 0;
-	const classicParameterFlowTemplates =
+	const compatibilityModeTemplates =
 		templates?.filter(
 			(template) =>
 				template.use_classic_parameter_flow &&
 				templateUpdatePermissions[template.organization_id],
 		) ?? [];
-	const showClassicParameterFlow =
-		classicParameterFlowTemplates.length > 0 &&
-		filterState.filter.query !== CLASSIC_PARAMETER_FLOW_FILTER;
+	const showCompatibilityModeAlert =
+		compatibilityModeTemplates.length > 0 &&
+		filterState.filter.values.compatibility_mode !== "true";
 
 	return (
 		<Margins className="pb-12">
-			{showClassicParameterFlow && (
-				<ClassicParameterFlowAlert templates={classicParameterFlowTemplates} />
+			{showCompatibilityModeAlert && (
+				<CompatibilityModeAlert templates={compatibilityModeTemplates} />
 			)}
 
 			<PageHeader
