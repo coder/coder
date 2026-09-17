@@ -2,7 +2,6 @@ package agentmcp
 
 import (
 	"net/url"
-	"regexp"
 	"sort"
 	"strings"
 	"unicode/utf8"
@@ -17,19 +16,10 @@ const redactedPlaceholder = "[redacted]"
 // addresses and exit codes in the surrounding error text.
 const minRedactLength = 4
 
-// secretEnvName matches environment variable names that conventionally
-// carry credentials. Every stdio server inherits the agent's own
-// environment, so those values are redacted from its diagnostics too;
-// the rest of the ambient environment (HOME, PATH, LANG) legitimately
-// appears in error text and is left alone.
-var secretEnvName = regexp.MustCompile(`(?i)(secret|token|password|passwd|api[_-]?key|private[_-]?key|credential|auth)`)
-
-// secretLikeEnvValues returns the values of env entries whose names
-// look like credentials.
-func secretLikeEnvValues(env []string) []string {
+func envValues(env []string) []string {
 	var values []string
 	for _, kv := range env {
-		if k, v, ok := strings.Cut(kv, "="); ok && secretEnvName.MatchString(k) && len(v) >= minRedactLength {
+		if _, v, ok := strings.Cut(kv, "="); ok && len(v) >= minRedactLength {
 			values = append(values, v)
 		}
 	}

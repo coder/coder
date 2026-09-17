@@ -259,7 +259,6 @@ func TestReport(t *testing.T) {
 			return append(env, "CODER_AGENT_TOKEN=agent-token-sentinel"), nil
 		}, nil)
 		t.Cleanup(func() { _ = m.Close() })
-		m.SetInheritedSecrets(func() []string { return []string{"agent-token-sentinel"} })
 
 		require.NoError(t, m.Reload(ctx, []string{configPath}))
 		got := serverByName(t, m.Report(), "srv")
@@ -269,28 +268,33 @@ func TestReport(t *testing.T) {
 		assert.Contains(t, got.Err, "[redacted]")
 	})
 
-	t.Run("AmbientSecretRedactedFromConnectError", func(t *testing.T) {
-		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitLong)
-		dir := t.TempDir()
-		_, entry := fakeMCPServerConfig(t, "srv")
-		entry.Env["TEST_MCP_FAKE_SERVER_INIT_FAILS"] = "1"
-		entry.Env["TEST_MCP_FAKE_SERVER_ECHO_ENV"] = "AWS_SECRET_ACCESS_KEY"
-		configPath := writeMCPConfig(t, dir, map[string]mcpServerEntry{"srv": entry})
-		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
-		// The credential is in the agent process's own environment, with
-		// nothing registered through SetInheritedSecrets.
-		env := &ambientEnvInfo{extra: []string{"AWS_SECRET_ACCESS_KEY=ambient-sentinel"}}
-		m := NewManager(ctx, logger, agentexec.DefaultExecer, nil, env, nil, nil)
-		t.Cleanup(func() { _ = m.Close() })
+	for name, secret := range map[string]string{
+		"AWS_SECRET_ACCESS_KEY": "ambient-sentinel",
+		"DB_PASS":               "password-sentinel",
+		"DATABASE_URL":          "postgres://user:password-sentinel@db.example/test",
+		"CUSTOM_SETTING":        "custom-sentinel",
+	} {
+		t.Run("AmbientSecretRedacted/"+name, func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitLong)
+			dir := t.TempDir()
+			_, entry := fakeMCPServerConfig(t, "srv")
+			entry.Env["TEST_MCP_FAKE_SERVER_INIT_FAILS"] = "1"
+			entry.Env["TEST_MCP_FAKE_SERVER_ECHO_ENV"] = name
+			configPath := writeMCPConfig(t, dir, map[string]mcpServerEntry{"srv": entry})
+			logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+			// Ambient values are inherited regardless of their variable name.
+			env := &ambientEnvInfo{extra: []string{name + "=" + secret}}
+			m := NewManager(ctx, logger, agentexec.DefaultExecer, nil, env, nil, nil)
+			t.Cleanup(func() { _ = m.Close() })
 
-		require.NoError(t, m.Reload(ctx, []string{configPath}))
-		got := serverByName(t, m.Report(), "srv")
-		assert.False(t, got.Connected)
-		assert.Contains(t, got.Err, "initialize rejected")
-		assert.NotContains(t, got.Err, "ambient-sentinel")
-	})
-
+			require.NoError(t, m.Reload(ctx, []string{configPath}))
+			got := serverByName(t, m.Report(), "srv")
+			assert.False(t, got.Connected)
+			assert.Contains(t, got.Err, "initialize rejected")
+			assert.NotContains(t, got.Err, secret)
+		})
+	}
 	t.Run("RotatedInheritedSecretRedactedForOpenSession", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -314,7 +318,6 @@ func TestReport(t *testing.T) {
 			return append(env, "CODER_AGENT_TOKEN="+currentToken()), nil
 		}, nil)
 		t.Cleanup(func() { _ = m.Close() })
-		m.SetInheritedSecrets(func() []string { return []string{currentToken()} })
 		require.NoError(t, m.Reload(ctx, []string{configPath}))
 		require.Len(t, m.connectedTools(), 1)
 
@@ -569,12 +572,10 @@ func TestSanitizeMCPError(t *testing.T) {
 		assert.Contains(t, got, "401: invalid token [redacted]")
 	})
 
-	t.Run("AmbientSecretLikeEnv", func(t *testing.T) {
+	t.Run("EnvironmentValues", func(t *testing.T) {
 		t.Parallel()
-		// The agent's own environment is inherited by every stdio server;
-		// credential-looking variables are redacted, the rest is not.
-		got := secretLikeEnvValues([]string{"AWS_SECRET_ACCESS_KEY=ambient-sentinel", "GITHUB_TOKEN=gh-sentinel", "HOME=/home/coder", "PATH=/usr/bin", "LANG=C.UTF-8", "OTP=123"})
-		assert.ElementsMatch(t, []string{"ambient-sentinel", "gh-sentinel"}, got)
+		got := envValues([]string{"AWS_SECRET_ACCESS_KEY=ambient-sentinel", "GITHUB_TOKEN=gh-sentinel", "HOME=/home/coder", "PATH=/usr/bin", "LANG=C.UTF-8", "OTP=123"})
+		assert.ElementsMatch(t, []string{"ambient-sentinel", "gh-sentinel", "/home/coder", "/usr/bin", "C.UTF-8"}, got)
 	})
 
 	t.Run("InheritedSecrets", func(t *testing.T) {

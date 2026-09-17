@@ -258,7 +258,7 @@ func TestConnectServer_StdioProcessSurvivesConnect(t *testing.T) {
 
 	ctx := testutil.Context(t, testutil.WaitLong)
 	m := &Manager{execer: agentexec.DefaultExecer, fs: afero.NewOsFs(), envInfo: &usershell.SystemEnvInfo{}, clock: quartz.NewReal()}
-	client, err := m.connectServer(ctx, cfg)
+	client, _, err := m.connectServer(ctx, cfg)
 	require.NoError(t, err, "connectServer should succeed")
 	t.Cleanup(func() { _ = client.Close() })
 
@@ -314,7 +314,7 @@ func TestCreateTransport_StdioSetsWorkingDir(t *testing.T) {
 		func() string { return workDir })
 	t.Cleanup(func() { _ = m.Close() })
 
-	transport, err := m.createTransport(ctx, ServerConfig{
+	transport, _, err := m.createTransport(ctx, ServerConfig{
 		Name:      "fake",
 		Transport: "stdio",
 		Command:   "true",
