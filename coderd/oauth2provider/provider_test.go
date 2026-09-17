@@ -808,5 +808,4 @@ func TestOAuth2ProviderAppRedirectURIs(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, []string{first, second}, config.RedirectURIs)
 	})
-
 }

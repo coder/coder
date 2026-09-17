@@ -91,13 +91,6 @@ func (req *OAuth2ClientRegistrationRequest) Validate() error {
 //
 // Legitimate custom schemes for native apps (e.g. vscode://, jetbrains://)
 // are allowed.
-// ValidateRedirectURIScheme reports whether the callback URL's scheme is
-// safe to use as a redirect target. It returns an error when the scheme
-// is empty, an unsupported URN, or one of the schemes that are dangerous
-// in browser/HTML contexts (javascript, data, file, ftp).
-//
-// Legitimate custom schemes for native apps (e.g. vscode://, jetbrains://)
-// are allowed.
 func ValidateRedirectURIScheme(u *url.URL) error {
 	return validateScheme(u)
 }
@@ -186,6 +179,9 @@ func validateScheme(u *url.URL) error {
 // clientType selects which rules apply and is derived by DetermineClientType,
 // the single owner of that mapping, so this cannot disagree with the type the
 // app is stored as.
+//
+// Stored URIs are checked again on every update. An app that predates the
+// caps and no longer passes must be deleted and registered again.
 func ValidateRedirectURIs(uris []string, clientType OAuth2ClientType) error {
 	if len(uris) == 0 {
 		return xerrors.New("at least one redirect URI is required")
