@@ -1,5 +1,4 @@
-import { useFormik } from "formik";
-import type { FC } from "react";
+import { type FC, type FormEvent, useState } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
 import { useTemporarySavedState } from "#/components/TemporarySavedState/TemporarySavedState";
 import { ModelSelector } from "#/modules/aiModels/ModelSelector";
@@ -36,35 +35,32 @@ export const DefaultModelSettings: FC<DefaultModelSettingsProps> = ({
 	disabled = false,
 }) => {
 	const { isSavedVisible, showSavedState } = useTemporarySavedState();
+	// The unsaved selection is kept apart from the server value so a background
+	// refetch of the model catalog cannot discard it before Save.
+	const [pendingModelID, setPendingModelID] = useState<string>();
 	const hasLoadedDefault = defaultModelID !== undefined;
+	const savedModelID = defaultModelID ?? "";
+	const selectedModelID = pendingModelID ?? savedModelID;
 	const enabledModelOptions = toEnabledModelSelectorOptions(
 		enabledModels,
 		providerInfoByID,
 	);
 
-	const form = useFormik({
-		enableReinitialize: true,
-		initialValues: { model_config_id: defaultModelID ?? "" },
-		onSubmit: (values, { resetForm }) => {
-			onSaveDefaultModel(values.model_config_id, {
-				onSuccess: () => {
-					showSavedState();
-					resetForm({ values });
-				},
-			});
-		},
-	});
+	const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+		event.preventDefault();
+		onSaveDefaultModel(selectedModelID, {
+			onSuccess: () => {
+				showSavedState();
+				setPendingModelID(undefined);
+			},
+		});
+	};
 	const isFormDisabled = disabled || isSaving || isLoading || !hasLoadedDefault;
 	const canSave =
-		hasLoadedDefault &&
-		!disabled &&
-		form.dirty &&
-		form.values.model_config_id !== "";
+		hasLoadedDefault && !disabled && selectedModelID !== savedModelID;
 	const isUnavailableSavedModel =
-		form.values.model_config_id !== "" &&
-		!enabledModelOptions.some(
-			(option) => option.id === form.values.model_config_id,
-		);
+		selectedModelID !== "" &&
+		!enabledModelOptions.some((option) => option.id === selectedModelID);
 
 	return (
 		<AgentSettingLayout
@@ -74,7 +70,7 @@ export const DefaultModelSettings: FC<DefaultModelSettingsProps> = ({
 			isSaving={isSaving}
 			isSavedVisible={isSavedVisible}
 			saveDisabled={isFormDisabled || !canSave}
-			onSubmit={form.handleSubmit}
+			onSubmit={handleSubmit}
 			error={
 				isSaveError ? (
 					<p className="m-0">Failed to save default model.</p>
@@ -84,10 +80,9 @@ export const DefaultModelSettings: FC<DefaultModelSettingsProps> = ({
 			<div className="flex w-88 max-w-full flex-col gap-2">
 				<ModelSelector
 					options={enabledModelOptions}
-					value={form.values.model_config_id}
-					onValueChange={(value) =>
-						void form.setFieldValue("model_config_id", value)
-					}
+					value={selectedModelID}
+					onValueChange={setPendingModelID}
+					triggerAriaLabel="Default model"
 					disabled={isFormDisabled}
 					placeholder={
 						isUnavailableSavedModel ? "Unavailable model" : "Select a model"

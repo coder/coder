@@ -90,7 +90,9 @@ export const SavesOverrideForSelectedOrganization: Story = {
 			name: "Explore subagent",
 		});
 		await userEvent.click(
-			within(exploreSection).getByRole("combobox", { name: "Use default" }),
+			within(exploreSection).getByRole("combobox", {
+				name: "Explore subagent, Use default",
+			}),
 		);
 		await userEvent.click(
 			await screen.findByRole("option", {
