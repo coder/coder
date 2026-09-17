@@ -41,7 +41,10 @@ import {
 } from "./components/ChatConversation/chatStore";
 
 import { QueuedForCapacityCallout } from "./components/ChatConversation/QueuedForCapacityCallout";
-import type { EditingTarget } from "./components/ChatConversation/types";
+import type {
+	EditingTarget,
+	QueuedEditOverride,
+} from "./components/ChatConversation/types";
 import { DesktopPanelContext } from "./components/ChatElements/tools/DesktopPanelContext";
 import type { PendingAttachment } from "./components/ChatPageContent";
 import { ChatPageInput, ChatPageTimeline } from "./components/ChatPageContent";
@@ -172,8 +175,9 @@ interface AgentChatPageViewProps {
 	handleInterrupt: () => void;
 	handleDeleteQueuedMessage: (id: number) => Promise<void>;
 	handlePromoteQueuedMessage: (id: number) => Promise<void>;
-	handleEditQueuedMessage: (id: number) => Promise<void>;
+	handleEditQueuedMessage: (id: number) => void;
 	handleEndQueuedMessageEdit: (id: number) => Promise<void>;
+	queuedEditOverride?: QueuedEditOverride;
 
 	onImplementPlan?: () => Promise<void> | void;
 	onSendAskUserQuestionResponse?: (message: string) => Promise<void> | void;
@@ -324,6 +328,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	handlePromoteQueuedMessage,
 	handleEditQueuedMessage,
 	handleEndQueuedMessageEdit,
+	queuedEditOverride,
 	onImplementPlan,
 	onSendAskUserQuestionResponse,
 	hasMoreMessages,
@@ -998,6 +1003,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 										remountKey={editing.remountKey}
 										onContentChange={editing.handleContentChange}
 										editingTarget={editing.editingTarget}
+										queuedEditOverride={queuedEditOverride}
 										onCancelEdit={editing.handleCancelEdit}
 										editingFileBlocks={editing.editingFileBlocks}
 										mcpServers={mcpServers}

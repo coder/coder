@@ -3,9 +3,10 @@ import type { ChatStore, ChatStoreState } from "./chatStore";
 
 /**
  * Reports whether the queued row under edit was sent, removed, or had its
- * edit ended by another client. The begin request's 204 can arrive before
- * the queue_update that sets editing_since, so a missing marker only
- * counts once a snapshot has shown it (seenID).
+ * edit ended by another client. Edit mode opens before the begin request
+ * is confirmed, so a missing marker only counts as ended once a snapshot
+ * has shown it (seenID). A row that leaves the queue before that never
+ * began its edit.
  *
  * @internal Exported for testing.
  */
@@ -13,14 +14,17 @@ export const trackQueuedEditTarget = (
 	targetID: number | null,
 	row: TypesGen.ChatQueuedMessage | undefined,
 	seenID: number | null,
-): { seenID: number | null; lost: boolean } => {
+): { seenID: number | null; lost: "ended" | "never_began" | false } => {
 	if (targetID === null) {
 		return { seenID: null, lost: false };
 	}
 	if (row?.editing_since) {
 		return { seenID: targetID, lost: false };
 	}
-	return { seenID, lost: row === undefined || seenID === targetID };
+	if (seenID === targetID) {
+		return { seenID, lost: "ended" };
+	}
+	return { seenID, lost: row === undefined ? "never_began" : false };
 };
 
 /** @internal Exported for testing. */

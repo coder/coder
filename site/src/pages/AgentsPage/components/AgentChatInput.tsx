@@ -82,7 +82,10 @@ import {
 	isUploadInProgress,
 	type UploadState,
 } from "./AttachmentPreview";
-import type { EditingTarget } from "./ChatConversation/types";
+import type {
+	EditingTarget,
+	QueuedEditOverride,
+} from "./ChatConversation/types";
 import {
 	ChatMessageInput,
 	type ChatMessageInputRef,
@@ -159,6 +162,7 @@ interface AgentChatInputProps {
 	onEditQueuedMessage?: (id: number) => Promise<void> | void;
 	onEndQueuedMessageEdit?: (id: number) => Promise<void> | void;
 	isChatPaused?: boolean;
+	queuedEditOverride?: QueuedEditOverride;
 	// Editing state, owned by the parent.
 	editingKind?: EditingTarget["kind"];
 	onCancelEdit?: () => void;
@@ -399,6 +403,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	onEditQueuedMessage,
 	onEndQueuedMessageEdit,
 	isChatPaused = false,
+	queuedEditOverride,
 	editingKind,
 	onCancelEdit,
 	userPromptHistory = [],
@@ -937,7 +942,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 
 		// If the input is empty and there are queued messages,
 		// promote the first one instead of submitting, unless the head is
-		// under edit.
+		// under edit or the composer is editing a message.
 		if (
 			!text &&
 			!hasUploadedAttachments &&
@@ -946,6 +951,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 			!isReadOnly &&
 			!isLoading &&
 			!hasActiveUploads &&
+			!isEditingMessage &&
 			queuedMessages.length > 0 &&
 			!queuedMessages[0].editing_since &&
 			onPromoteQueuedMessage
@@ -1118,6 +1124,8 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 					onEdit={onEditQueuedMessage}
 					onEndEdit={onEndQueuedMessageEdit}
 					chatPaused={isChatPaused}
+					queuedEditOverride={queuedEditOverride}
+					enterSendsHead={!isEditingMessage}
 					className="mb-2"
 				/>
 			)}
@@ -1166,7 +1174,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 						<span className="flex items-center gap-1.5 text-xs font-medium text-content-warning">
 							<PencilIcon className="size-3.5" />
 							{editingKind === "queued"
-								? "Editing a queued message. It and the messages behind it wait until you save or cancel."
+								? "Editing a queued message. It is not sent until you save or cancel."
 								: "Editing will delete all subsequent messages and restart the conversation here."}
 						</span>
 						<Button

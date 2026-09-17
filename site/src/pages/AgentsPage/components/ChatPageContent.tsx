@@ -58,7 +58,10 @@ import {
 	parseMessagesWithMergedTools,
 } from "./ChatConversation/messageParsing";
 import { buildStreamTools } from "./ChatConversation/streamState";
-import type { EditingTarget } from "./ChatConversation/types";
+import type {
+	EditingTarget,
+	QueuedEditOverride,
+} from "./ChatConversation/types";
 import { useOnRenderProfiler } from "./ChatConversation/useOnRenderProfiler";
 import type { SkillMetadata } from "./ChatMessageInput/SkillsTriggerMenu";
 import { ChatMessageScroller } from "./ChatMessageScroller";
@@ -261,7 +264,7 @@ interface ChatPageInputProps {
 	) => Promise<void> | void;
 	onDeleteQueuedMessage: (id: number) => Promise<void>;
 	onPromoteQueuedMessage: (id: number) => Promise<void>;
-	onEditQueuedMessage?: (id: number) => Promise<void>;
+	onEditQueuedMessage?: (id: number) => void;
 	onEndQueuedMessageEdit?: (id: number) => Promise<void>;
 	onInterrupt: () => void;
 	isInputDisabled: boolean;
@@ -295,6 +298,7 @@ interface ChatPageInputProps {
 		hasFileReferences: boolean,
 	) => void;
 	editingTarget: EditingTarget | null;
+	queuedEditOverride?: QueuedEditOverride;
 	onCancelEdit: () => void;
 	// File parts from the message being edited, converted to
 	// File objects and pre-populated into attachments.
@@ -348,6 +352,7 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 	remountKey,
 	onContentChange,
 	editingTarget,
+	queuedEditOverride,
 	onCancelEdit,
 	editingFileBlocks,
 	mcpServers,
@@ -590,6 +595,7 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 			onEditQueuedMessage={onEditQueuedMessage}
 			onEndQueuedMessageEdit={onEndQueuedMessageEdit}
 			isChatPaused={chatStatus === "paused"}
+			queuedEditOverride={queuedEditOverride}
 			editingKind={editingTarget?.kind}
 			onCancelEdit={onCancelEdit}
 			userPromptHistory={userPromptHistory}

@@ -438,9 +438,9 @@ describe("trackQueuedEditTarget", () => {
 	const row = { ...MockChatQueuedMessage, id: 5 };
 	const rowUnderEdit = { ...MockEditingChatQueuedMessage, id: 5 };
 
-	it("reports the edit lost only after a snapshot showed the row under edit", () => {
-		// The begin request's 204 can arrive before the queue_update that
-		// sets editing_since, so this first snapshot is stale, not lost.
+	it("reports the edit ended only after a snapshot showed the row under edit", () => {
+		// Edit mode opens before the begin request is confirmed, so this
+		// first snapshot is stale, not lost.
 		let state = trackQueuedEditTarget(5, row, null);
 		expect(state.lost).toBe(false);
 
@@ -449,11 +449,14 @@ describe("trackQueuedEditTarget", () => {
 
 		// Another client ended or moved the edit.
 		state = trackQueuedEditTarget(5, row, state.seenID);
-		expect(state.lost).toBe(true);
+		expect(state.lost).toBe("ended");
 	});
 
-	it("reports the edit lost as soon as the row leaves the queue", () => {
-		expect(trackQueuedEditTarget(5, undefined, null).lost).toBe(true);
+	it("distinguishes a row that leaves the queue before and after its edit began", () => {
+		expect(trackQueuedEditTarget(5, undefined, null).lost).toBe("never_began");
+
+		const { seenID } = trackQueuedEditTarget(5, rowUnderEdit, null);
+		expect(trackQueuedEditTarget(5, undefined, seenID).lost).toBe("ended");
 	});
 
 	it("starts over when the target changes or clears", () => {

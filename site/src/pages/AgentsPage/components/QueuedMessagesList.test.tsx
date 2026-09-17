@@ -160,7 +160,13 @@ describe("QueuedMessagesList", () => {
 		handlers: Partial<
 			Pick<
 				ComponentProps<typeof QueuedMessagesList>,
-				"onDelete" | "onPromote" | "onEdit" | "onEndEdit" | "chatPaused"
+				| "onDelete"
+				| "onPromote"
+				| "onEdit"
+				| "onEndEdit"
+				| "chatPaused"
+				| "queuedEditOverride"
+				| "enterSendsHead"
 			>
 		> = {},
 	) => {
@@ -200,7 +206,7 @@ describe("QueuedMessagesList", () => {
 		expect(onEdit).toHaveBeenNthCalledWith(2, 10);
 	});
 
-	it("offers Edit only on the row under edit while the chat is paused", async () => {
+	it("disables Edit on rows behind the edit while the chat is paused and says why", async () => {
 		const user = userEvent.setup();
 		const { onEdit } = renderList(
 			[
@@ -210,9 +216,52 @@ describe("QueuedMessagesList", () => {
 			{ chatPaused: true },
 		);
 
-		// getByRole fails if the row behind the edit offered Edit too.
-		await user.click(screen.getByRole("button", { name: "Edit" }));
+		const [editUnderEdit, editBehind] = screen.getAllByRole("button", {
+			name: "Edit",
+		});
+		expect(editBehind).toBeDisabled();
+		await user.hover(editBehind);
+		expect(
+			await screen.findByText("Finish the current edit first."),
+		).toBeInTheDocument();
+
+		await user.click(editUnderEdit);
 		expect(onEdit).toHaveBeenCalledWith(9);
+	});
+
+	it("lets the local edit state override the row's marker", () => {
+		renderList(
+			[
+				{ ...MockChatQueuedMessage, id: 9 },
+				{ ...MockChatQueuedMessage, id: 10 },
+			],
+			{ queuedEditOverride: { id: 9, editing: true } },
+		);
+		expect(screen.getByText("Editing")).toBeInTheDocument();
+		expect(screen.getByText("Waiting")).toBeInTheDocument();
+		expect(
+			screen.getByRole("button", { name: "Cancel edit" }),
+		).toBeInTheDocument();
+		cleanup();
+
+		renderList([{ ...MockEditingChatQueuedMessage, id: 9 }], {
+			queuedEditOverride: { id: 9, editing: false },
+		});
+		expect(screen.queryByText("Editing")).not.toBeInTheDocument();
+		expect(
+			screen.queryByRole("button", { name: "Cancel edit" }),
+		).not.toBeInTheDocument();
+	});
+
+	it("hides the Enter hint on the head while Enter saves an edit", () => {
+		renderList([{ ...MockChatQueuedMessage, id: 9 }]);
+		expect(screen.getByText("to send")).toBeInTheDocument();
+		cleanup();
+
+		renderList([{ ...MockChatQueuedMessage, id: 9 }], {
+			enterSendsHead: false,
+		});
+		expect(screen.queryByText("to send")).not.toBeInTheDocument();
 	});
 
 	it("still offers Send now and Remove on a row under edit", async () => {

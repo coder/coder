@@ -93,6 +93,12 @@ export type RetryState = {
  */
 export type EditingTarget = { kind: "history" | "queued"; id: number };
 
+/**
+ * Local edit state of one queued row that the server has not confirmed
+ * yet. It takes precedence over that row's editing_since.
+ */
+export type QueuedEditOverride = { id: number; editing: boolean };
+
 type StreamToolCall = {
 	id: string;
 	name: string;

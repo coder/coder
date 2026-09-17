@@ -18,6 +18,7 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import type { QueuedEditOverride } from "./ChatConversation/types";
 
 interface QueuedMessagesListProps {
 	messages: readonly ChatQueuedMessage[];
@@ -28,6 +29,10 @@ interface QueuedMessagesListProps {
 	// While paused the server refuses edits on rows other than the head,
 	// and ending the head's edit sends it.
 	chatPaused?: boolean;
+	queuedEditOverride?: QueuedEditOverride;
+	// Enter in an empty composer sends the head. False while the composer
+	// edits a message, when Enter saves instead.
+	enterSendsHead?: boolean;
 	className?: string;
 }
 
@@ -70,6 +75,8 @@ interface QueuedMessageActionButtonProps {
 	icon: ReactNode;
 	busy: boolean;
 	disabled: boolean;
+	// Disables the button and replaces the tooltip with the reason.
+	disabledReason?: string;
 	destructive?: boolean;
 	onClick: () => void;
 }
@@ -80,30 +87,36 @@ const QueuedMessageActionButton: FC<QueuedMessageActionButtonProps> = ({
 	icon,
 	busy,
 	disabled,
+	disabledReason,
 	destructive = false,
 	onClick,
 }) => (
 	<Tooltip>
+		{/* A disabled button receives no pointer events, so the span hosts the tooltip. */}
 		<TooltipTrigger asChild>
-			<Button
-				variant="subtle"
-				size="icon"
-				aria-label={label}
-				disabled={disabled}
-				onClick={onClick}
-				className={cn(
-					"size-6 rounded text-content-secondary hover:bg-surface-tertiary",
-					destructive
-						? "hover:text-content-destructive"
-						: "hover:text-content-primary",
-				)}
-			>
-				<Spinner className="h-3.5 w-3.5" loading={busy}>
-					{icon}
-				</Spinner>
-			</Button>
+			<span className="inline-flex">
+				<Button
+					variant="subtle"
+					size="icon"
+					aria-label={label}
+					disabled={disabled || disabledReason !== undefined}
+					onClick={onClick}
+					className={cn(
+						"size-6 rounded text-content-secondary hover:bg-surface-tertiary",
+						destructive
+							? "hover:text-content-destructive"
+							: "hover:text-content-primary",
+					)}
+				>
+					<Spinner className="h-3.5 w-3.5" loading={busy}>
+						{icon}
+					</Spinner>
+				</Button>
+			</span>
 		</TooltipTrigger>
-		<TooltipContent side="top">{tooltip ?? label}</TooltipContent>
+		<TooltipContent side="top">
+			{disabledReason ?? tooltip ?? label}
+		</TooltipContent>
 	</Tooltip>
 );
 
@@ -114,24 +127,37 @@ export const QueuedMessagesList: FC<QueuedMessagesListProps> = ({
 	onEdit,
 	onEndEdit,
 	chatPaused = false,
+	queuedEditOverride,
+	enterSendsHead = true,
 	className,
 }) => {
-	const editingIndex = messages.findIndex((message) => message.editing_since);
+	const isMessageUnderEdit = (message: ChatQueuedMessage) => {
+		// Only one row per chat is under edit, so a local begin also clears
+		// every other row's marker.
+		if (queuedEditOverride?.editing) {
+			return message.id === queuedEditOverride.id;
+		}
+		if (queuedEditOverride?.id === message.id) {
+			return false;
+		}
+		return Boolean(message.editing_since);
+	};
+	const editingIndex = messages.findIndex(isMessageUnderEdit);
 	const items = messages.map((message, index) => {
 		const { displayText, attachmentCount, hookNotices } =
 			getQueuedMessageInfo(message);
-		const isUnderEdit = Boolean(message.editing_since);
+		const isUnderEdit = isMessageUnderEdit(message);
 		const isWaitingBehindEdit = editingIndex !== -1 && index > editingIndex;
 		let badge: { label: string; tooltip: string } | undefined;
 		if (isUnderEdit) {
 			badge = {
 				label: "Editing",
-				tooltip: "Not sent while being edited. Messages behind it wait too.",
+				tooltip: "Not sent until you finish editing.",
 			};
 		} else if (isWaitingBehindEdit) {
 			badge = {
 				label: "Waiting",
-				tooltip: "Waits behind a message that is being edited.",
+				tooltip: "Waits for the edit above to finish.",
 			};
 		}
 		return {
@@ -301,7 +327,7 @@ export const QueuedMessagesList: FC<QueuedMessagesListProps> = ({
 									</TooltipContent>
 								</Tooltip>
 							)}
-							{isFirst && !item.isUnderEdit && (
+							{isFirst && !item.isUnderEdit && enterSendsHead && (
 								<span
 									className={cn(
 										"flex shrink-0 items-center gap-1 text-xs text-content-secondary transition-opacity",
@@ -323,7 +349,7 @@ export const QueuedMessagesList: FC<QueuedMessagesListProps> = ({
 										label="Cancel edit"
 										tooltip={
 											chatPaused
-												? "Cancel edit and send this message as it is"
+												? "Cancel edit and send unchanged"
 												: "Cancel edit"
 										}
 										icon={<XIcon className="size-3.5" />}
@@ -334,12 +360,17 @@ export const QueuedMessagesList: FC<QueuedMessagesListProps> = ({
 										}
 									/>
 								)}
-								{onEdit && (!chatPaused || item.isUnderEdit) && (
+								{onEdit && (
 									<QueuedMessageActionButton
 										label="Edit"
 										icon={<PencilIcon className="size-3.5" />}
 										busy={isItemBusy && busyItem.action === "edit"}
 										disabled={isBusy}
+										disabledReason={
+											chatPaused && !item.isUnderEdit
+												? "Finish the current edit first."
+												: undefined
+										}
 										onClick={() => void runAction(item.id, "edit", onEdit)}
 									/>
 								)}

@@ -180,7 +180,7 @@ export const ChatActionsMenuItems: FC<ChatActionsMenuItemsProps> = ({
 									className="max-w-56 px-2 py-1.5 text-xs text-content-secondary"
 								>
 									{chat.status === "paused"
-										? "Finish editing, send, or remove the queued message under edit first."
+										? "Finish editing the queued message first."
 										: "Interrupt or wait for the agent to finish first."}
 								</div>
 							)}
