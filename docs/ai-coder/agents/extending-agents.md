@@ -221,7 +221,7 @@ to the HTTP endpoint from the workspace.
 ### How discovery works
 
 The agent connects to the servers declared in `.mcp.json` once startup scripts finish.
-A chat turn waits up to 15 seconds for that initial discovery to finish so the model sees the workspace tools; if discovery takes longer, the turn continues with whatever has been discovered so far.
+A chat turn waits up to 15&nbsp;seconds for that initial discovery to finish so the model sees the workspace tools; if discovery takes longer, the turn continues with whatever has been discovered so far.
 Each server is published as soon as it connects, so one slow or unresponsive server does not hold back the tools of the others.
 Servers that fail to connect are listed with their error, servers that connect with no tools are still listed, and the rest contribute their tools.
 
