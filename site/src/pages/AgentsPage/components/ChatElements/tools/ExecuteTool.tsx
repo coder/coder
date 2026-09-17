@@ -224,8 +224,8 @@ const ShellTranscriptBody: React.FC<{
  */
 const ElapsedTime: React.FC<{ startedAt?: string }> = ({ startedAt }) => {
 	const [mountedAt] = useState(() => Date.now());
-	const parsedStart = startedAt ? Date.parse(startedAt) : Number.NaN;
-	const startMs = Number.isNaN(parsedStart) ? mountedAt : parsedStart;
+	// Date.parse yields NaN for missing or malformed input, which falls through.
+	const startMs = Date.parse(startedAt ?? "") || mountedAt;
 	const label = useTime(() => formatElapsedMs(Date.now() - startMs), {
 		interval: 250,
 	});
