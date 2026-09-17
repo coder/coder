@@ -20,22 +20,6 @@ const (
 	subagentTypeGeneral     = "general"
 	subagentTypeExplore     = "explore"
 	subagentTypeComputerUse = "computer_use"
-
-	defaultSystemPromptPlanningGuidance = "1. Use " + spawnAgentToolName +
-		" and wait_agent when delegation helps gather context. Prefer type=\"" +
-		subagentTypeGeneral +
-		"\" for substantial delegated research, analysis, reasoning, review, " +
-		"planning support, or implementation. Use type=\"" + subagentTypeGeneral +
-		"\" even for read-only work when the task is open-ended, multi-step, " +
-		"parallel, requires synthesis, or may later need edits. When planning, " +
-		"type=\"" + subagentTypeGeneral +
-		"\" remains non-mutating until implementation is approved. Use type=\"" +
-		subagentTypeExplore +
-		"\" only for narrow repository-local read-only code discovery or code " +
-		"tracing, such as locating files, callsites, or a bounded existing flow. " +
-		"Do not use type=\"" + subagentTypeExplore +
-		"\" for generic research, broad architecture analysis, planning synthesis, " +
-		"external or web research, parallel research, or tasks that may need edits."
 )
 
 // unbilledSubagentToolNames excludes parent-side orchestration because
@@ -347,7 +331,8 @@ func buildSpawnAgentDescription(
 			"shell commands for exploration and inspection, but only type=\"" +
 			subagentTypeGeneral +
 			"\" should be used for cloning repositories or non-local investigation. " +
-			"They must not implement changes or intentionally modify workspace files."
+			"They must not implement changes or edit existing project files; " +
+			"cloning by type=\"general\" for inspection is the only intentional workspace-write exception."
 	}
 	return description
 }

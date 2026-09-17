@@ -2604,17 +2604,6 @@ func TestSpawnAgent_ExploreFallsBackWhenOverrideCredentialsAreUnavailable(t *tes
 	require.Equal(t, currentTurnModel.ID, childChat.LastModelConfigID)
 }
 
-func TestDefaultSystemPromptPlanningGuidance_SteersSubagentSelection(t *testing.T) {
-	t.Parallel()
-
-	require.Contains(t, defaultSystemPromptPlanningGuidance, `Prefer type="general" for substantial delegated research, analysis, reasoning, review, planning support, or implementation`)
-	require.Contains(t, defaultSystemPromptPlanningGuidance, `Use type="general" even for read-only work when the task is open-ended, multi-step, parallel, requires synthesis, or may later need edits`)
-	require.Contains(t, defaultSystemPromptPlanningGuidance, `Use type="explore" only for narrow repository-local read-only code discovery or code tracing`)
-	require.Contains(t, defaultSystemPromptPlanningGuidance, `Do not use type="explore" for generic research, broad architecture analysis, planning synthesis, external or web research, parallel research, or tasks that may need edits`)
-	require.NotContains(t, defaultSystemPromptPlanningGuidance, "research the codebase")
-	require.NotContains(t, defaultSystemPromptPlanningGuidance, "Reserve type=\"general\" for writable delegated work")
-}
-
 func TestSpawnAgent_DescriptionListsAllAvailableTypes(t *testing.T) {
 	t.Parallel()
 
@@ -2719,7 +2708,8 @@ func TestSpawnAgent_PlanModeDescriptionOmitsComputerUse(t *testing.T) {
 	require.Contains(t, description, `type="explore" is for narrow repository-local lookup or tracing`)
 	require.Contains(t, description, `only type="general" should be used for cloning repositories or non-local investigation`)
 	require.NotContains(t, description, "Both may use shell commands for exploration, such as cloning repositories")
-	require.Contains(t, description, "must not implement changes or intentionally modify workspace files")
+	require.Contains(t, description, "must not implement changes or edit existing project files")
+	require.Contains(t, description, `cloning by type="general" for inspection is the only intentional workspace-write exception`)
 }
 
 func TestSpawnAgent_PlanModeRejectsComputerUse(t *testing.T) {
