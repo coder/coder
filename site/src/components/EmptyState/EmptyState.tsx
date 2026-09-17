@@ -8,6 +8,12 @@ export interface EmptyStateProps extends HTMLAttributes<HTMLDivElement> {
 	description?: string | ReactNode;
 	cta?: ReactNode;
 	image?: ReactNode;
+	/**
+	 * Optional icon rendered in a badge above the message. Provide it already
+	 * sized and colored (e.g. `size-9 text-highlight-sky`); the badge wrapper is
+	 * supplied by this component.
+	 */
+	icon?: ReactNode;
 	isCompact?: boolean;
 }
 
@@ -21,6 +27,7 @@ export const EmptyState: FC<EmptyStateProps> = ({
 	description,
 	cta,
 	image,
+	icon,
 	isCompact,
 	className,
 	...attrs
@@ -34,15 +41,30 @@ export const EmptyState: FC<EmptyStateProps> = ({
 			)}
 			{...attrs}
 		>
-			<h5 className="m-0 font-medium text-content-primary text-lg">
+			{icon && (
+				<div className="mb-4 flex size-12 items-center justify-center rounded-md bg-surface-sky">
+					{icon}
+				</div>
+			)}
+			<h5
+				className={cn(
+					"m-0 text-content-primary",
+					icon ? "font-semibold text-sm" : "font-medium text-lg",
+				)}
+			>
 				{message}
 			</h5>
 			{description && (
-				<p className="mt-4 max-w-md text-content-secondary text-sm">
+				<p
+					className={cn(
+						"max-w-md text-content-secondary text-sm",
+						icon ? "mt-2 mb-0 max-w-[420px]" : "mt-4",
+					)}
+				>
 					{description}
 				</p>
 			)}
-			{cta && <div className="mt-6">{cta}</div>}
+			{cta && <div className={cn("mt-6", icon && "mt-4")}>{cta}</div>}
 			{image}
 		</div>
 	);
