@@ -2,6 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import type * as TypesGen from "#/api/typesGenerated";
 import { MockChatModel } from "#/testHelpers/chatModels";
+import { mockApiError } from "#/testHelpers/entities";
 import OrganizationAgentSettingsView from "./OrganizationAgentSettingsView";
 
 const model: TypesGen.ChatModel = {
@@ -171,6 +172,13 @@ export const UnavailableSavedModels: Story = {
 		await expect(
 			within(generalSection).getByText(/will be ignored/),
 		).toBeVisible();
+	},
+};
+
+export const OverridesLoadError: Story = {
+	args: {
+		overrides: undefined,
+		loadError: mockApiError({ message: "Failed to load model overrides." }),
 	},
 };
 

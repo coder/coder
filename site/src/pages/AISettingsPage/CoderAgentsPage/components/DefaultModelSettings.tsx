@@ -36,15 +36,20 @@ export const DefaultModelSettings: FC<DefaultModelSettingsProps> = ({
 }) => {
 	const { isSavedVisible, showSavedState } = useTemporarySavedState();
 	// The unsaved selection is kept apart from the server value so a background
-	// refetch of the model catalog cannot discard it before Save.
+	// refetch of the model catalog cannot discard it before Save. A pending
+	// model that the refetch no longer lists is dropped instead of being saved.
 	const [pendingModelID, setPendingModelID] = useState<string>();
 	const hasLoadedDefault = defaultModelID !== undefined;
 	const savedModelID = defaultModelID ?? "";
-	const selectedModelID = pendingModelID ?? savedModelID;
 	const enabledModelOptions = toEnabledModelSelectorOptions(
 		enabledModels,
 		providerInfoByID,
 	);
+	const selectedModelID =
+		pendingModelID !== undefined &&
+		enabledModelOptions.some((option) => option.id === pendingModelID)
+			? pendingModelID
+			: savedModelID;
 
 	const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
 		event.preventDefault();
@@ -81,7 +86,9 @@ export const DefaultModelSettings: FC<DefaultModelSettingsProps> = ({
 				<ModelSelector
 					options={enabledModelOptions}
 					value={selectedModelID}
-					onValueChange={setPendingModelID}
+					onValueChange={(value) =>
+						setPendingModelID(value === savedModelID ? undefined : value)
+					}
 					triggerAriaLabel="Default model"
 					disabled={isFormDisabled}
 					placeholder={

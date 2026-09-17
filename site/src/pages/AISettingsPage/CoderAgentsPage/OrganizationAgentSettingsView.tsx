@@ -89,17 +89,20 @@ const OrganizationAgentSettingsView: FC<OrganizationAgentSettingsViewProps> = ({
 	savingContexts,
 	errorContexts,
 }) => {
-	if (loadError) {
-		return <ErrorAlert error={loadError} />;
-	}
-	const visibleSettings = settings.filter(
-		(setting) => setting.context !== "advisor" || showAdvisor,
-	);
+	const error = loadError ?? refetchError;
+	// The default row only needs the model catalog, so a failed overrides
+	// request removes just the override rows.
+	const visibleSettings =
+		loadError == null
+			? settings.filter(
+					(setting) => setting.context !== "advisor" || showAdvisor,
+				)
+			: [];
 
 	return (
 		<div className="flex flex-col gap-6">
-			{refetchError != null && <ErrorAlert error={refetchError} />}
-			{enabledModels.length === 0 && !isLoading && refetchError == null && (
+			{error != null && <ErrorAlert error={error} />}
+			{enabledModels.length === 0 && !isLoading && error == null && (
 				<p role="status" className="m-0 text-content-secondary">
 					This organization has no enabled chat models.
 				</p>
