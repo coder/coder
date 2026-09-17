@@ -189,6 +189,7 @@
           vendorHash = "sha256-OuQWmZmofdJKq1hvk43RPkILQwAuFzqhmB22Xf6Z3lA=";
         };
 
+        # Keep this pin aligned with mise.toml when updating Terraform.
         terraform_1_15_5 =
           let
             releases = {
