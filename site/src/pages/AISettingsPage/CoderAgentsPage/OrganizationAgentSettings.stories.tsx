@@ -162,7 +162,7 @@ export const SavesOverrideForSelectedOrganization: Story = {
 		});
 		await userEvent.click(
 			within(exploreSection).getByRole("combobox", {
-				name: "Explore subagent, Use default",
+				name: "Explore subagent, Use chat model",
 			}),
 		);
 		await userEvent.click(

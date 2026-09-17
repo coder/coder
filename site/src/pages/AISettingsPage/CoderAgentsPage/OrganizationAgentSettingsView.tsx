@@ -147,7 +147,7 @@ const OrganizationAgentSettingsView: FC<OrganizationAgentSettingsViewProps> = ({
 							isSaveError={errorContexts.has(setting.context)}
 							saveErrorMessage={`Failed to save ${setting.title.toLowerCase()} override.`}
 							unavailableModelWarning={setting.unavailableModelWarning}
-							unsetPlaceholder="Use default"
+							unsetPlaceholder="Use chat model"
 							disabled={!canEdit}
 						/>
 					);
