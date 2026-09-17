@@ -45,23 +45,60 @@ const chatModelsResponse = (models: ChatModel[]) => ({
 	unsupported_providers: [],
 });
 
-const selectAlternateModel = async (
+const defaultSectionName = { name: "Default model" };
+const pickerName = (model: ChatModel) => ({
+	name: `Default model, ${model.display_name}`,
+});
+
+const selectModel = async (
 	user: ReturnType<typeof userEvent.setup>,
+	from: ChatModel,
+	to: ChatModel,
 ) => {
-	const defaultSection = await screen.findByRole("form", {
-		name: "Default model",
-	});
+	const defaultSection = await screen.findByRole("form", defaultSectionName);
 	await user.click(
-		await within(defaultSection).findByRole("combobox", {
-			name: `Default model, ${defaultModel.display_name}`,
-		}),
+		await within(defaultSection).findByRole("combobox", pickerName(from)),
 	);
 	await user.click(
-		await screen.findByRole("option", {
-			name: new RegExp(alternateModel.display_name),
-		}),
+		await screen.findByRole("option", { name: new RegExp(to.display_name) }),
 	);
 	return defaultSection;
+};
+
+const mockOverridesAndUpdate = () => {
+	vi.spyOn(
+		API.experimental,
+		"getOrganizationChatModelOverrides",
+	).mockResolvedValue({ overrides: [] });
+	return vi
+		.spyOn(API.experimental, "updateChatModel")
+		.mockResolvedValue({ ...alternateModel, is_default: true });
+};
+
+const renderWithQueryClient = () => {
+	const queryClient = createTestQueryClient();
+	renderWithProviders(
+		<AppProviders queryClient={queryClient}>
+			<OrganizationAgentSettings
+				organization={MockDefaultOrganization}
+				canEdit
+				showAdvisor
+			/>
+		</AppProviders>,
+	);
+	return queryClient;
+};
+
+const refetchCatalog = async (
+	queryClient: ReturnType<typeof createTestQueryClient>,
+	getChatModels: { mock: { calls: unknown[] } },
+) => {
+	await act(() =>
+		queryClient.invalidateQueries({
+			queryKey: organizationChatModelsKey(MockDefaultOrganization.id),
+		}),
+	);
+	await waitFor(() => expect(getChatModels.mock.calls).toHaveLength(2));
 };
 
 describe("OrganizationAgentSettings", () => {
@@ -69,13 +106,7 @@ describe("OrganizationAgentSettings", () => {
 		vi.spyOn(API.experimental, "getChatModels").mockResolvedValue(
 			chatModelsResponse([defaultModel, alternateModel]),
 		);
-		vi.spyOn(
-			API.experimental,
-			"getOrganizationChatModelOverrides",
-		).mockResolvedValue({ overrides: [] });
-		const updateChatModel = vi
-			.spyOn(API.experimental, "updateChatModel")
-			.mockResolvedValue({ ...alternateModel, is_default: true });
+		const updateChatModel = mockOverridesAndUpdate();
 		const user = userEvent.setup();
 
 		render(
@@ -86,7 +117,11 @@ describe("OrganizationAgentSettings", () => {
 			/>,
 		);
 
-		const defaultSection = await selectAlternateModel(user);
+		const defaultSection = await selectModel(
+			user,
+			defaultModel,
+			alternateModel,
+		);
 		await user.click(
 			await within(defaultSection).findByRole("button", { name: "Save" }),
 		);
@@ -113,33 +148,16 @@ describe("OrganizationAgentSettings", () => {
 					{ ...thirdModel, is_default: true },
 				]),
 			);
-		vi.spyOn(
-			API.experimental,
-			"getOrganizationChatModelOverrides",
-		).mockResolvedValue({ overrides: [] });
-		const updateChatModel = vi
-			.spyOn(API.experimental, "updateChatModel")
-			.mockResolvedValue({ ...alternateModel, is_default: true });
-		const queryClient = createTestQueryClient();
+		const updateChatModel = mockOverridesAndUpdate();
 		const user = userEvent.setup();
+		const queryClient = renderWithQueryClient();
 
-		renderWithProviders(
-			<AppProviders queryClient={queryClient}>
-				<OrganizationAgentSettings
-					organization={MockDefaultOrganization}
-					canEdit
-					showAdvisor
-				/>
-			</AppProviders>,
+		const defaultSection = await selectModel(
+			user,
+			defaultModel,
+			alternateModel,
 		);
-
-		const defaultSection = await selectAlternateModel(user);
-		await act(() =>
-			queryClient.invalidateQueries({
-				queryKey: organizationChatModelsKey(MockDefaultOrganization.id),
-			}),
-		);
-		await waitFor(() => expect(getChatModels).toHaveBeenCalledTimes(2));
+		await refetchCatalog(queryClient, getChatModels);
 
 		await user.click(
 			await within(defaultSection).findByRole("button", { name: "Save" }),
@@ -152,5 +170,60 @@ describe("OrganizationAgentSettings", () => {
 				{ is_default: true },
 			);
 		});
+	});
+
+	it("drops an unsaved selection the refetched catalog no longer lists", async () => {
+		const getChatModels = vi
+			.spyOn(API.experimental, "getChatModels")
+			.mockResolvedValueOnce(chatModelsResponse([defaultModel, alternateModel]))
+			.mockResolvedValue(
+				chatModelsResponse([
+					defaultModel,
+					{ ...alternateModel, enabled: false },
+				]),
+			);
+		mockOverridesAndUpdate();
+		const user = userEvent.setup();
+		const queryClient = renderWithQueryClient();
+
+		const defaultSection = await selectModel(
+			user,
+			defaultModel,
+			alternateModel,
+		);
+		await refetchCatalog(queryClient, getChatModels);
+
+		await within(defaultSection).findByRole(
+			"combobox",
+			pickerName(defaultModel),
+		);
+	});
+
+	it("follows a refetched default after the saved model is reselected", async () => {
+		const getChatModels = vi
+			.spyOn(API.experimental, "getChatModels")
+			.mockResolvedValueOnce(
+				chatModelsResponse([defaultModel, alternateModel, thirdModel]),
+			)
+			.mockResolvedValue(
+				chatModelsResponse([
+					{ ...defaultModel, is_default: false },
+					alternateModel,
+					{ ...thirdModel, is_default: true },
+				]),
+			);
+		mockOverridesAndUpdate();
+		const user = userEvent.setup();
+		const queryClient = renderWithQueryClient();
+
+		const defaultSection = await selectModel(
+			user,
+			defaultModel,
+			alternateModel,
+		);
+		await selectModel(user, alternateModel, defaultModel);
+		await refetchCatalog(queryClient, getChatModels);
+
+		await within(defaultSection).findByRole("combobox", pickerName(thirdModel));
 	});
 });

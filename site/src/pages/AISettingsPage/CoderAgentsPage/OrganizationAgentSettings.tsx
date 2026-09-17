@@ -109,9 +109,9 @@ const OrganizationAgentSettingsContent: FC<OrganizationAgentSettingsProps> = ({
 		(modelsQuery.data?.models ?? []).filter((model) => model.enabled),
 		providerInfoByID,
 	);
-	// Only the overrides request gates the page: when the model catalog
-	// fails, the rows must stay rendered with the error inline so a stale
-	// override can still be cleared without the catalog.
+	// Only the overrides request gates the override rows: when the model
+	// catalog fails, the rows must stay rendered with the error inline so a
+	// stale override can still be cleared without the catalog.
 	const { loadError, refetchError } = splitModelQueryErrors(overridesQuery);
 	const inlineError = refetchError ?? modelsQuery.error;
 	const saveByContext = new Map<ChatModelOverrideContext, SaveModelOverride>();
