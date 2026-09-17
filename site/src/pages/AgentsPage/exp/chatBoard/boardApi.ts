@@ -21,7 +21,7 @@ import {
 	takeCardLabels,
 	updateCommentLabels,
 } from "./boardLabels";
-import type { BoardStorage } from "./boardStorage";
+import type { BoardStorage, DraftTarget } from "./boardStorage";
 
 /**
  * What a board action means, as pure functions from the full board model to
@@ -464,3 +464,41 @@ export const moveNote = (
 		undo: same ? "Moved note" : `Moved note to "${to.title}"`,
 	};
 };
+
+/**
+ * Labels for a chat created from the board, sent with the create request so
+ * the chat is born in place and no label write can race the list refetch.
+ * Null for an unknown card.
+ */
+export const newChatLabels = (
+	state: BoardState,
+	target: DraftTarget,
+): Record<string, string> | null => {
+	if ("column" in target) {
+		const first = columnCards(state, target.column)[0];
+		return setPositionLabel(
+			setColumnLabel({}, target.column),
+			keyBetween(undefined, first && placementKey(first.primary)),
+		);
+	}
+	const card = cardOf(state, target.cardId);
+	if (!card) return null;
+	// Members carry no position; the card's primary places the group. The
+	// chat has no id yet, so nothing can equal the primary here.
+	return setColumnLabel(setGroupLabel({}, card.id, ""), card.column);
+};
+
+/** The card as text for a new chat's first message, when the user asks for it. */
+export const cardContext = (card: BoardCard): string =>
+	[
+		"Card context",
+		`Title: ${card.title}`,
+		card.comments.length
+			? ["Notes:", ...card.comments.map((note) => `- ${note.text}`)].join("\n")
+			: "Notes: none",
+		"Chats:",
+		...card.members.map(
+			(chat) =>
+				`- ${chat.title} (${chat.id}) status: ${chat.status}; last turn: ${chat.last_turn_summary ?? "none"}`,
+		),
+	].join("\n");

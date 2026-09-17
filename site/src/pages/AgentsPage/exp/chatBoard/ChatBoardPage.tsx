@@ -47,6 +47,7 @@ import {
 import {
 	type BoardStorage,
 	type ChatWindow,
+	type DraftTarget,
 	readBoardStorage,
 	saveBoardStorage,
 } from "./boardStorage";
@@ -57,6 +58,8 @@ import {
 	changeWindow,
 	closeWindow,
 	dismissTop,
+	draftCreated,
+	draftWindow,
 	dropPreview,
 	previewOf,
 	raise,
@@ -160,7 +163,9 @@ const ChatBoardPage: FC = () => {
 
 	const chats = chatsQuery.data?.pages[0] ?? [];
 	const chatsById = new Map(chats.map((chat) => [chat.id, chat]));
-	const openChatIds = new Set(windows.map((w) => w.chatId));
+	const openChatIds = new Set(
+		windows.flatMap((w) => (w.kind === "chat" ? [w.chatId] : [])),
+	);
 	const allCards = buildCards(chats);
 	// Looked up in render: an unknown call taking `chats` inside the handler
 	// would count as a mutation and cost the handler its memoization.
@@ -185,6 +190,18 @@ const ChatBoardPage: FC = () => {
 	}));
 	const visibleCount = visibleColumns.reduce((n, c) => n + c.cards.length, 0);
 
+	// A draft for a card that was merged away or removed has nowhere to land.
+	// Adjusted in render, not in an effect, so no frame shows an orphan form.
+	const draftTarget = windows.find((w) => w.kind === "draft")?.target;
+	if (
+		chatsQuery.data !== undefined &&
+		draftTarget !== undefined &&
+		"cardId" in draftTarget &&
+		!allCards.some((c) => c.id === draftTarget.cardId)
+	) {
+		setWindows((prev) => closeWindow(prev, "draft"));
+	}
+
 	const run = (plan: Plan | null) =>
 		runPlan(plan, {
 			write: (chatId, labels) => labelsMutation.mutateAsync({ chatId, labels }),
@@ -197,10 +214,16 @@ const ChatBoardPage: FC = () => {
 		setWindows((prev) =>
 			toFront(
 				dropPreview(prev),
-				prev.find((w) => w.chatId === chat.id) ??
+				prev.find((w) => w.kind === "chat" && w.chatId === chat.id) ??
 					windowBeside(chat.id, anchor, true),
 			),
 		);
+	};
+	// The create form keeps one shared draft in localStorage, so a second
+	// draft window would edit the first one's text: toFront replaces it.
+	const openDraft = (target: DraftTarget) => {
+		setPendingPreview(null);
+		setWindows((prev) => toFront(dropPreview(prev), draftWindow(target)));
 	};
 	const previewChat = (chat: Chat, anchor: DOMRect) => {
 		if (openChatIds.has(chat.id)) {
@@ -262,7 +285,9 @@ const ChatBoardPage: FC = () => {
 				onSearchChange={setSearch}
 				// Leaving lands on the chat in front, or the agents home.
 				onExit={() => {
-					const reading = windows.filter((w) => w.pinned).at(-1)?.chatId;
+					const reading = windows
+						.flatMap((w) => (w.kind === "chat" && w.pinned ? [w.chatId] : []))
+						.at(-1);
 					void navigate(reading ? `/agents/${reading}` : "/agents");
 				}}
 			/>
@@ -286,6 +311,7 @@ const ChatBoardPage: FC = () => {
 					openChatIds={openChatIds}
 					dropTarget={dropTarget}
 					onAssistant={(card) => void openAssistant(card)}
+					onNewChat={openDraft}
 					onOpen={openChat}
 					onPreview={previewChat}
 					onPreviewEnd={endPreview}
@@ -299,15 +325,19 @@ const ChatBoardPage: FC = () => {
 				windows={windows}
 				chatsById={chatsById}
 				colorByChatId={cardColorByChat(allCards)}
+				board={boardState}
 				onChange={(next) => setWindows((prev) => changeWindow(prev, next))}
-				onClose={(chatId) => setWindows((prev) => closeWindow(prev, chatId))}
-				onRaise={(chatId) => {
+				onClose={(key) => setWindows((prev) => closeWindow(prev, key))}
+				onRaise={(key) => {
 					setPendingPreview(null);
-					setWindows((prev) => raise(prev, chatId));
+					setWindows((prev) => raise(prev, key));
 				}}
 				onPreviewEnter={() => setPendingPreview(null)}
 				onPreviewLeave={endPreview}
 				onDismissTop={() => setWindows(dismissTop)}
+				onDraftCreated={(target, chatId) =>
+					setWindows((prev) => draftCreated(prev, target, chatId))
+				}
 			/>
 		</div>
 	);

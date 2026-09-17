@@ -5,11 +5,8 @@ import { renderComponent } from "#/testHelpers/renderHelpers";
 import type { ChatWindow } from "./boardStorage";
 import { FloatingChat } from "./ChatWindows";
 
-vi.mock("../../AgentChatPage", () => ({
-	default: () => <div>chat body</div>,
-}));
-
 const win: ChatWindow = {
+	kind: "chat",
 	chatId: MockChat.id,
 	x: 100,
 	y: 80,
@@ -23,14 +20,16 @@ const renderWindow = () => {
 	renderComponent(
 		<FloatingChat
 			window={win}
-			chat={MockChat}
+			title={MockChat.title}
 			color={undefined}
 			onChange={onChange}
 			onClose={vi.fn()}
 			onInteract={vi.fn()}
 			onPreviewEnter={vi.fn()}
 			onPreviewLeave={vi.fn()}
-		/>,
+		>
+			<div>chat body</div>
+		</FloatingChat>,
 	);
 	return { onChange };
 };
