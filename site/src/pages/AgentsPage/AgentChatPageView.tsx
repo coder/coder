@@ -346,13 +346,10 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	);
 	const prNumber = chat.diff_status?.pr_number ?? (parsedPrNumber || undefined);
 
+	const canSubmitChatTurn = !isInputDisabled && !isSubmissionPending;
+
 	// Wrap the git watcher refresh to also invalidate the cached
 	// remote/PR diff contents so the panel re-fetches from GitHub.
-	const canSendAskUserQuestionResponse =
-		!isInputDisabled && !isSubmissionPending
-			? onSendAskUserQuestionResponse
-			: undefined;
-
 	const handleRefresh = () => {
 		const sent = gitWatcher.refresh();
 		if (sent && agentId) {
@@ -915,6 +912,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 								key={agentId}
 								organizationId={organizationId}
 								store={store}
+								chatFiles={chat.files}
 								initialActiveTurnMaxMessageId={initialActiveTurnMaxMessageId}
 								persistedError={persistedError}
 								hasMoreMessages={hasMoreMessages}
@@ -931,12 +929,14 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 								urlTransform={urlTransform}
 								mcpServers={mcpServers}
 								onImplementPlan={
-									isOtherUserReadOnly ? undefined : onImplementPlan
+									isOtherUserReadOnly || !canSubmitChatTurn
+										? undefined
+										: onImplementPlan
 								}
 								onSendAskUserQuestionResponse={
-									isOtherUserReadOnly
+									isOtherUserReadOnly || !canSubmitChatTurn
 										? undefined
-										: canSendAskUserQuestionResponse
+										: onSendAskUserQuestionResponse
 								}
 								footer={
 									chat.queued_for_capacity ? (
@@ -948,54 +948,57 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 									) : undefined
 								}
 							/>
-							<div className="shrink-0 overflow-y-auto px-4 pb-3 md:pb-0 scrollbar-gutter-stable scrollbar-thin">
-								<ChatPageInput
-									chat={chat}
-									store={store}
-									models={models}
-									onSend={editing.handleSendFromInput}
-									onDeleteQueuedMessage={handleDeleteQueuedMessage}
-									onPromoteQueuedMessage={handlePromoteQueuedMessage}
-									onInterrupt={handleInterrupt}
-									isInputDisabled={isInputDisabled}
-									isSendPending={isSubmissionPending}
-									isInterruptPending={isInterruptPending}
-									hasModelOptions={hasModelOptions}
-									canConfigureAgentSetup={canConfigureAgentSetup}
-									providerCount={providerCount}
-									modelCount={modelCount}
-									unsupportedProviderNames={unsupportedProviderNames}
-									aiGatewayDisabled={aiGatewayDisabled}
-									selectedModel={effectiveSelectedModel}
-									onModelChange={setSelectedModel}
-									modelOptions={modelOptions}
-									modelSelectorPlaceholder={modelSelectorPlaceholder}
-									modelSelectorHelp={modelSelectorHelp}
-									reasoningEffort={reasoningEffort}
-									onReasoningEffortChange={onReasoningEffortChange}
-									onPlanModeToggle={onPlanModeToggle}
-									isModelCatalogLoading={isModelCatalogLoading}
-									onWorkspaceChange={onWorkspaceChange}
-									isWorkspaceLoading={isWorkspaceLoading}
-									inputRef={editing.chatInputRef}
-									initialValue={editing.editorInitialValue}
-									initialEditorState={editing.initialEditorState}
-									remountKey={editing.remountKey}
-									onContentChange={editing.handleContentChange}
-									isEditing={isEditing}
-									onCancelHistoryEdit={editing.handleCancelHistoryEdit}
-									editingFileBlocks={editing.editingFileBlocks}
-									mcpServers={mcpServers}
-									selectedMCPServerIds={selectedMCPServerIds}
-									onMCPSelectionChange={onMCPSelectionChange}
-									onMCPAuthComplete={onMCPAuthComplete}
-									workspace={workspace}
-									workspaceAgent={workspaceAgent}
-									sshCommand={sshCommand}
-									attachedWorkspace={attachedWorkspace}
-									folder={preferredFolder}
-								/>
-							</div>
+							{!isArchived && (
+								<div className="shrink-0 overflow-y-auto px-4 pb-3 md:pb-0 scrollbar-gutter-stable scrollbar-thin">
+									<ChatPageInput
+										chat={chat}
+										store={store}
+										models={models}
+										onSend={editing.handleSendFromInput}
+										onDeleteQueuedMessage={handleDeleteQueuedMessage}
+										onPromoteQueuedMessage={handlePromoteQueuedMessage}
+										onInterrupt={handleInterrupt}
+										isInputDisabled={isInputDisabled}
+										isReadOnly={isOtherUserReadOnly}
+										isSendPending={isSubmissionPending}
+										isInterruptPending={isInterruptPending}
+										hasModelOptions={hasModelOptions}
+										canConfigureAgentSetup={canConfigureAgentSetup}
+										providerCount={providerCount}
+										modelCount={modelCount}
+										unsupportedProviderNames={unsupportedProviderNames}
+										aiGatewayDisabled={aiGatewayDisabled}
+										selectedModel={effectiveSelectedModel}
+										onModelChange={setSelectedModel}
+										modelOptions={modelOptions}
+										modelSelectorPlaceholder={modelSelectorPlaceholder}
+										modelSelectorHelp={modelSelectorHelp}
+										reasoningEffort={reasoningEffort}
+										onReasoningEffortChange={onReasoningEffortChange}
+										onPlanModeToggle={onPlanModeToggle}
+										isModelCatalogLoading={isModelCatalogLoading}
+										onWorkspaceChange={onWorkspaceChange}
+										isWorkspaceLoading={isWorkspaceLoading}
+										inputRef={editing.chatInputRef}
+										initialValue={editing.editorInitialValue}
+										initialEditorState={editing.initialEditorState}
+										remountKey={editing.remountKey}
+										onContentChange={editing.handleContentChange}
+										isEditing={isEditing}
+										onCancelHistoryEdit={editing.handleCancelHistoryEdit}
+										editingFileBlocks={editing.editingFileBlocks}
+										mcpServers={mcpServers}
+										selectedMCPServerIds={selectedMCPServerIds}
+										onMCPSelectionChange={onMCPSelectionChange}
+										onMCPAuthComplete={onMCPAuthComplete}
+										workspace={workspace}
+										workspaceAgent={workspaceAgent}
+										sshCommand={sshCommand}
+										attachedWorkspace={attachedWorkspace}
+										folder={preferredFolder}
+									/>
+								</div>
+							)}
 						</div>
 						<RightPanel
 							isOpen={shouldShowSidebar}

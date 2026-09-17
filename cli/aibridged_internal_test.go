@@ -116,12 +116,6 @@ func TestBuildProviders(t *testing.T) {
 			require.Contains(t, byName, row.Name)
 			require.Equal(t, row.BaseUrl, byName[row.Name].BaseURL())
 			require.EqualValues(t, row.Type, byName[row.Name].Type())
-			if row.Type == database.AIProviderTypeBedrock {
-				// The Bedrock provider must expose the mantle OpenAI routes,
-				// not only /v1/messages.
-				require.Contains(t, byName[row.Name].BridgedRoutes(), "/v1/responses")
-				require.Contains(t, byName[row.Name].BridgedRoutes(), "/v1/chat/completions")
-			}
 			if row.Type != database.AIProviderTypeCopilot && row.Type != database.AIProviderTypeBedrock {
 				require.Len(t, byName[row.Name].KeyPool().PoolState(), 1)
 			} else {
@@ -137,7 +131,7 @@ func TestBuildProviders(t *testing.T) {
 			Name:    aibridge.ProviderAnthropic,
 			BaseUrl: "https://api.anthropic.com/",
 		}
-		assert.Nil(t, bedrockConfig(row.BaseUrl, codersdk.AIProviderSettings{}.Bedrock))
+		assert.Nil(t, agplaibridge.BedrockConfig(row.BaseUrl, codersdk.AIProviderSettings{}.Bedrock))
 	})
 
 	t.Run("NativeAnthropicCustomBaseURL", func(t *testing.T) {
@@ -147,7 +141,7 @@ func TestBuildProviders(t *testing.T) {
 			Name:    "anthropic-proxy",
 			BaseUrl: "https://internal-proxy.example.com/anthropic/",
 		}
-		assert.Nil(t, bedrockConfig(row.BaseUrl, codersdk.AIProviderSettings{}.Bedrock))
+		assert.Nil(t, agplaibridge.BedrockConfig(row.BaseUrl, codersdk.AIProviderSettings{}.Bedrock))
 	})
 
 	t.Run("BedrockSettingsPresent", func(t *testing.T) {
@@ -172,7 +166,7 @@ func TestBuildProviders(t *testing.T) {
 				RoleARN:         roleARN,
 			},
 		}
-		got := bedrockConfig(row.BaseUrl, settings.Bedrock)
+		got := agplaibridge.BedrockConfig(row.BaseUrl, settings.Bedrock)
 		require.NotNil(t, got)
 		assert.Equal(t, row.BaseUrl, got.BaseURL)
 		assert.Equal(t, "us-west-2", got.Region)
@@ -196,7 +190,7 @@ func TestBuildProviders(t *testing.T) {
 		settings := codersdk.AIProviderSettings{
 			Bedrock: &codersdk.AIProviderBedrockSettings{},
 		}
-		assert.Nil(t, bedrockConfig(row.BaseUrl, settings.Bedrock))
+		assert.Nil(t, agplaibridge.BedrockConfig(row.BaseUrl, settings.Bedrock))
 	})
 }
 

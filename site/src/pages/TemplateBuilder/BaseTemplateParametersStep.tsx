@@ -11,10 +11,7 @@ import {
 	TemplateBuilderSubtitle,
 	TemplateBuilderTitle,
 } from "#/pages/TemplateBuilder/TemplateBuilderHeader";
-import {
-	type ConfigurationFieldDefinition,
-	ConfigurationFieldLabel,
-} from "./ConfigurationField";
+import type { ConfigurationFieldDefinition } from "./ConfigurationField";
 import { defaultPlaceholder } from "./defaultPlaceholder";
 import { TemplateConfiguration } from "./TemplateConfiguration";
 
@@ -40,7 +37,7 @@ function variableToField(
 	error: boolean,
 ): ConfigurationFieldDefinition {
 	const id = `base-var-${variable.name}`;
-	const label = <ConfigurationFieldLabel variable={variable} />;
+	const label = variable.name;
 
 	if (variable.type === "bool") {
 		return {
@@ -63,7 +60,7 @@ function variableToField(
 		required: variable.required,
 		placeholder:
 			defaultPlaceholder(variable.default) ??
-			(variable.required ? "Required" : "Optional"),
+			(variable.required ? "Required" : ""),
 		field: {
 			name: variable.name,
 			id,

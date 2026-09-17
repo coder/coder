@@ -773,6 +773,7 @@ func New(options *Options) *API {
 		DeploymentID:          api.DeploymentID,
 		WebPushPublicKey:      api.WebpushDispatcher.PublicKey(),
 		Telemetry:             api.Telemetry.Enabled(),
+		OAuth2Provider:        api.DeploymentValues.OAuth2.Provider.Enable.Value(),
 	}
 	api.SiteHandler, err = site.New(&site.Options{
 		CacheDir:                  siteCacheDir,
@@ -1083,6 +1084,10 @@ func New(options *Options) *API {
 	})
 	api.workspaceBuildOrchestrator.Start(api.ctx)
 
+	// The OAuth2 provider is opt-in. The flag is read once at startup, here
+	// and in the build info response and the AI bridge config, so a runtime
+	// toggle would have to update all three.
+	oauth2ProviderEnabled := api.DeploymentValues.OAuth2.Provider.Enable.Value()
 	apiKeyMiddleware := httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
 		DB:                            options.Database,
 		ActivateDormantUser:           ActivateDormantUser(options.Logger, &api.Auditor, options.Database),
@@ -1244,12 +1249,12 @@ func New(options *Options) *API {
 
 	// OAuth2 metadata endpoint for RFC 8414 discovery
 	r.Route("/.well-known/oauth-authorization-server", func(r chi.Router) {
-		r.Use(httpmw.RequireExperimentWithDevBypass(api.Experiments, codersdk.ExperimentOAuth2))
+		r.Use(httpmw.RequireOAuth2Provider(oauth2ProviderEnabled))
 		r.Get("/*", api.oauth2AuthorizationServerMetadata())
 	})
 	// OAuth2 protected resource metadata endpoint for RFC 9728 discovery
 	r.Route("/.well-known/oauth-protected-resource", func(r chi.Router) {
-		r.Use(httpmw.RequireExperimentWithDevBypass(api.Experiments, codersdk.ExperimentOAuth2))
+		r.Use(httpmw.RequireOAuth2Provider(oauth2ProviderEnabled))
 		r.Get("/*", api.oauth2ProtectedResourceMetadata())
 	})
 
@@ -1258,7 +1263,7 @@ func New(options *Options) *API {
 	// logging into Coder with an external OAuth2 provider.
 	r.Route("/oauth2", func(r chi.Router) {
 		r.Use(
-			httpmw.RequireExperimentWithDevBypass(api.Experiments, codersdk.ExperimentOAuth2),
+			httpmw.RequireOAuth2Provider(oauth2ProviderEnabled),
 			// Every response from this tree may carry a credential, so none of
 			// them may be retained by an intermediary cache. Mounted after
 			// the gate, so a request the gate rejects gets no headers. That
@@ -1327,36 +1332,12 @@ func New(options *Options) *API {
 			httpmw.ReportCLITelemetry(api.Logger, options.Telemetry),
 		)
 
+		r.Route("/users/email", func(r chi.Router) {
+			r.Use(apiKeyMiddleware)
+			r.Put("/", api.putUserEmailExperimental)
+		})
+
 		// NOTE(DanielleMaywood):
-		// Tasks have been promoted to stable, but we have guaranteed a single release transition period
-		// where these routes must remain. These should be removed no earlier than Coder v2.30.0
-		//
-		// Coder Tasks is hidden unless the deployment opts in, so the routes are
-		// only registered when CODER_ENABLE_AI_TASKS is set. Requests to an
-		// unregistered path fall through to the route not found handler above.
-		if options.DeploymentValues.EnableAITasks {
-			r.Route("/tasks", func(r chi.Router) {
-				r.Use(apiKeyMiddleware)
-
-				r.Get("/", api.tasksList)
-
-				r.Route("/{user}", func(r chi.Router) {
-					r.Use(httpmw.ExtractOrganizationMembersParam(options.Database, api.HTTPAuth.Authorize))
-					r.Post("/", api.tasksCreate)
-
-					r.Route("/{task}", func(r chi.Router) {
-						r.Use(httpmw.ExtractTaskParam(options.Database))
-						r.Get("/", api.taskGet)
-						r.Delete("/", api.taskDelete)
-						r.Patch("/input", api.taskUpdateInput)
-						r.Post("/send", api.taskSend)
-						r.Get("/logs", api.taskLogs)
-						r.Post("/pause", api.pauseTask)
-						r.Post("/resume", api.resumeTask)
-					})
-				})
-			})
-		}
 		r.Route("/users/{user}/skills", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,
@@ -1398,7 +1379,10 @@ func New(options *Options) *API {
 			api.registerMCPServerOAuth2Routes(r, chatAPIPrefixExperimental)
 			// MCP HTTP transport endpoint with mandatory authentication.
 			r.Route("/http", func(r chi.Router) {
-				r.Use(httpmw.RequireExperimentWithDevBypass(api.Experiments, codersdk.ExperimentOAuth2, codersdk.ExperimentMCPServerHTTP))
+				r.Use(
+					httpmw.RequireOAuth2Provider(oauth2ProviderEnabled),
+					httpmw.RequireExperiment(api.Experiments, codersdk.ExperimentMCPServerHTTP),
+				)
 				r.Mount("/", api.mcpHTTPHandler())
 			})
 		})
@@ -1812,13 +1796,6 @@ func New(options *Options) *API {
 				r.Route("/experimental", func(r chi.Router) {
 					r.Post("/chat-context/refresh", api.workspaceAgentRefreshChatContext)
 				})
-				// Agent-side Coder Tasks reporting, registered only when the
-				// deployment opts in, for the same reason as the /tasks trees.
-				if options.DeploymentValues.EnableAITasks {
-					r.Route("/tasks/{task}", func(r chi.Router) {
-						r.Post("/log-snapshot", api.postWorkspaceAgentTaskLogSnapshot)
-					})
-				}
 			})
 			r.Route("/{workspaceagent}", func(r chi.Router) {
 				r.Use(
@@ -2030,13 +2007,14 @@ func New(options *Options) *API {
 		r.Route("/oauth2-provider", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,
-				httpmw.RequireExperimentWithDevBypass(api.Experiments, codersdk.ExperimentOAuth2),
 				// POST /apps/{app}/secrets returns a plaintext client secret,
 				// so this tree falls under the same RFC 6749 §5.1 requirement
-				// as /oauth2.
+				// as /oauth2. Settings carry no credential but share the
+				// header; that is harmless.
 				httpmw.NoStore,
 			)
 			r.Route("/apps", func(r chi.Router) {
+				r.Use(httpmw.RequireOAuth2Provider(oauth2ProviderEnabled))
 				r.Get("/", api.oAuth2ProviderApps())
 				r.Post("/", api.postOAuth2ProviderApp())
 
@@ -2057,6 +2035,9 @@ func New(options *Options) *API {
 					})
 				})
 			})
+			// Deliberately not gated: settings stay reachable while the
+			// provider is disabled so an admin can configure it before
+			// turning it on.
 			r.Route("/settings", func(r chi.Router) {
 				r.Get("/", api.oauth2ProviderSettings)
 				r.Put("/", api.putOAuth2ProviderSettings)
@@ -2088,32 +2069,6 @@ func New(options *Options) *API {
 			r.Get("/{os}/{arch}", api.initScript)
 		})
 		r.Route("/ai/providers", aiProvidersHandler(api, apiKeyMiddleware))
-		// Coder Tasks is hidden unless the deployment opts in, so the routes are
-		// only registered when CODER_ENABLE_AI_TASKS is set. Requests to an
-		// unregistered path fall through to the route not found handler above.
-		if options.DeploymentValues.EnableAITasks {
-			r.Route("/tasks", func(r chi.Router) {
-				r.Use(apiKeyMiddleware)
-
-				r.Get("/", api.tasksList)
-
-				r.Route("/{user}", func(r chi.Router) {
-					r.Use(httpmw.ExtractOrganizationMembersParam(options.Database, api.HTTPAuth.Authorize))
-					r.Post("/", api.tasksCreate)
-
-					r.Route("/{task}", func(r chi.Router) {
-						r.Use(httpmw.ExtractTaskParam(options.Database))
-						r.Get("/", api.taskGet)
-						r.Delete("/", api.taskDelete)
-						r.Patch("/input", api.taskUpdateInput)
-						r.Post("/send", api.taskSend)
-						r.Get("/logs", api.taskLogs)
-						r.Post("/pause", api.pauseTask)
-						r.Post("/resume", api.resumeTask)
-					})
-				})
-			})
-		}
 	})
 
 	if options.SwaggerEndpoint {

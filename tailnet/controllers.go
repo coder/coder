@@ -1500,12 +1500,6 @@ func NewController(logger slog.Logger, dialer ControlProtocolDialer, opts ...Con
 
 type ControllerOpt func(*Controller)
 
-func WithTestClock(clock quartz.Clock) ControllerOpt {
-	return func(c *Controller) {
-		c.clock = clock
-	}
-}
-
 func WithGracefulTimeout(timeout time.Duration) ControllerOpt {
 	return func(c *Controller) {
 		c.gracefulTimeout = timeout

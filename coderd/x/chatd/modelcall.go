@@ -124,7 +124,7 @@ func (p *Server) resolveModelCall(ctx context.Context, spec modelCallSpec) (reso
 		routeCtx = dbauthz.AsChatd(ctx)
 	}
 	if spec.fixedModel != nil {
-		out.route, err = p.resolveModelRouteForProviderType(routeCtx, spec.chat.OwnerID, spec.fixedModel.providerType, spec.fixedModel.modelName)
+		out.route, err = p.resolveModelRouteForProviderType(routeCtx, spec.chat.OwnerID, spec.fixedModel.providerType)
 	} else {
 		out.route, err = p.resolveModelRouteForConfig(routeCtx, spec.chat.OwnerID, out.dbConfig)
 	}
@@ -167,7 +167,14 @@ func (p *Server) resolveModelCall(ctx context.Context, spec modelCallSpec) (reso
 	}
 	out.model = model
 
-	out.providerOptions = chatprovider.ProviderOptionsForCall(out.model, out.callConfig, spec.requestedEffort)
+	// Only the derived provider options see the coerced config: callConfig
+	// stays as configured so provider substitution (computer use rerouting
+	// to direct OpenAI) starts from the original value.
+	out.providerOptions = chatprovider.ProviderOptionsForCall(
+		out.model,
+		coerceBedrockReasoningSummary(out.route.Provider.Type, modelName, out.callConfig),
+		spec.requestedEffort,
+	)
 
 	p.logger.Debug(ctx, "resolved model call",
 		slog.F("purpose", spec.purpose),

@@ -97,30 +97,38 @@ function useResizableDrag({
 	getPanelMaxWidth: () => number;
 }) {
 	const isDragging = useRef(false);
+	const activePointerId = useRef<number | null>(null);
 	const startX = useRef(0);
 	const startWidth = useRef(0);
 	const sidebarCollapsedByDrag = useRef(false);
 	// Track snap state during a drag. This is state (not a ref) so
 	// the panel visually updates as the user drags across thresholds.
+	// The ref mirrors it for the terminal handlers: a pointerup can
+	// arrive before the state update from the last pointermove has
+	// rendered, and the commit must use the zone the pointer ended in.
 	const [dragSnap, setDragSnap] = useState<
 		"normal" | "expanded" | "closed" | null
 	>(null);
+	const snapRef = useRef<"normal" | "expanded" | "closed" | null>(null);
 
 	const handlePointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
+		if (isDragging.current || e.button !== 0 || !e.isPrimary) {
+			return;
+		}
 		e.preventDefault();
 		isDragging.current = true;
+		activePointerId.current = e.pointerId;
+		snapRef.current = null;
 		setDragSnap(null);
 		sidebarCollapsedByDrag.current = false;
 		startX.current = e.clientX;
-		const panel = (e.target as HTMLElement).closest(
-			"[data-testid='agents-right-panel']",
-		);
+		const panel = e.currentTarget.closest("[data-testid='agents-right-panel']");
 		startWidth.current = panel?.getBoundingClientRect().width ?? width;
-		(e.target as HTMLElement).setPointerCapture(e.pointerId);
+		e.currentTarget.setPointerCapture(e.pointerId);
 	};
 
 	const handlePointerMove = (e: ReactPointerEvent<HTMLDivElement>) => {
-		if (!isDragging.current) {
+		if (!isDragging.current || e.pointerId !== activePointerId.current) {
 			return;
 		}
 		const delta = startX.current - e.clientX;
@@ -150,6 +158,7 @@ function useResizableDrag({
 			nextSnap = "normal";
 			setWidth(Math.min(maxWidth, Math.max(MIN_WIDTH, raw)));
 		}
+		snapRef.current = nextSnap;
 		setDragSnap(nextSnap);
 
 		// Notify parent of the live visual expanded state so
@@ -160,22 +169,53 @@ function useResizableDrag({
 		onVisualExpandedChange?.(nextVisualExpanded);
 	};
 
-	const handlePointerUp = (e: ReactPointerEvent<HTMLDivElement>) => {
-		if (!isDragging.current) {
+	// Ends the drag for the active pointer. A pointerup commits the snap
+	// the pointer ended in; pointercancel and lostpointercapture clear the
+	// drag override without committing and keep the live width. A normal
+	// release also fires lostpointercapture, which the isDragging guard
+	// turns into a no-op.
+	const finishDrag = (
+		e: ReactPointerEvent<HTMLDivElement>,
+		{ commit }: { commit: boolean },
+	) => {
+		if (!isDragging.current || e.pointerId !== activePointerId.current) {
 			return;
 		}
-		const snap = dragSnap;
+		const snap = snapRef.current;
 		isDragging.current = false;
+		activePointerId.current = null;
+		snapRef.current = null;
 		setDragSnap(null);
-		(e.target as HTMLElement).releasePointerCapture(e.pointerId);
+		if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+			e.currentTarget.releasePointerCapture(e.pointerId);
+		}
 
 		// Clear the drag override so parent falls back to its
 		// own committed expanded state.
 		onVisualExpandedChange?.(null);
 
+		if (!commit) {
+			if (
+				sidebarCollapsedByDrag.current &&
+				isSidebarCollapsed &&
+				onToggleSidebarCollapsed
+			) {
+				onToggleSidebarCollapsed();
+			}
+			sidebarCollapsedByDrag.current = false;
+			return;
+		}
 		if (snap) {
 			onSnapCommit(snap);
 		}
+	};
+
+	const handlePointerUp = (e: ReactPointerEvent<HTMLDivElement>) => {
+		finishDrag(e, { commit: true });
+	};
+
+	const handlePointerAbort = (e: ReactPointerEvent<HTMLDivElement>) => {
+		finishDrag(e, { commit: false });
 	};
 
 	// Derive visual state: during a drag the snap overrides the
@@ -193,6 +233,7 @@ function useResizableDrag({
 		handlePointerDown,
 		handlePointerMove,
 		handlePointerUp,
+		handlePointerAbort,
 	};
 }
 
@@ -250,6 +291,7 @@ export const RightPanel = ({
 		handlePointerDown,
 		handlePointerMove,
 		handlePointerUp,
+		handlePointerAbort,
 	} = useResizableDrag({
 		isExpanded,
 		width,
@@ -340,11 +382,14 @@ export const RightPanel = ({
 		>
 			{/* Drag handle (sm+, on the left edge of the panel) */}
 			<div
+				data-testid="agents-right-panel-resize-handle"
 				onPointerDown={handlePointerDown}
 				onPointerMove={handlePointerMove}
 				onPointerUp={handlePointerUp}
+				onPointerCancel={handlePointerAbort}
+				onLostPointerCapture={handlePointerAbort}
 				className={cn(
-					"absolute top-0 left-0 z-20 hidden h-full w-1 cursor-col-resize select-none transition-colors hover:bg-content-link lg:block",
+					"absolute top-0 left-0 z-20 hidden h-full w-1 touch-none cursor-col-resize select-none transition-colors hover:bg-content-link lg:block",
 					visualExpanded && "-left-1",
 				)}
 			/>

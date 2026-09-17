@@ -7,8 +7,10 @@ import (
 	"fmt"
 	"net/http"
 	"slices"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/go-playground/validator/v10"
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
@@ -866,6 +868,156 @@ func (*API) userLoginType(rw http.ResponseWriter, r *http.Request) {
 	})
 }
 
+type updateUserEmailAuditFields struct {
+	OldEmail string `json:"old_email,omitempty"`
+	NewEmail string `json:"new_email,omitempty"`
+}
+
+// putUserEmailExperimental updates a user's email address and revokes all of
+// their Coder credentials.
+//
+// @Summary Update user email
+// @ID update-user-email-experimental
+// @Security CoderSessionToken
+// @Accept json
+// @Tags Users
+// @Param request body codersdk.UpdateUserEmailRequest true "Update email request"
+// @Success 204
+// @Router /api/experimental/users/email [put]
+// @x-apidocgen {"skip": true}
+func (api *API) putUserEmailExperimental(rw http.ResponseWriter, r *http.Request) {
+	var (
+		ctx         = r.Context()
+		apiKey      = httpmw.APIKey(r)
+		auditor     = *api.Auditor.Load()
+		auditFields = &updateUserEmailAuditFields{}
+		aReq, done  = audit.InitRequest[database.User](rw, &audit.RequestParams{
+			Audit:            auditor,
+			Log:              api.Logger,
+			Request:          r,
+			Action:           database.AuditActionWrite,
+			AdditionalFields: auditFields,
+		})
+	)
+	defer done()
+
+	actor, err := api.Database.GetUserByID(ctx, apiKey.UserID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to get acting user.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	aReq.Old = actor
+
+	if !slices.Contains(actor.RBACRoles, rbac.RoleOwner().String()) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+
+	var rawReq struct {
+		OldEmail string `json:"old_email"`
+		NewEmail string `json:"new_email"`
+	}
+	if !httpapi.Read(ctx, rw, r, &rawReq) {
+		return
+	}
+	auditFields.OldEmail = rawReq.OldEmail
+	auditFields.NewEmail = rawReq.NewEmail
+
+	req := codersdk.UpdateUserEmailRequest{
+		OldEmail: rawReq.OldEmail,
+		NewEmail: rawReq.NewEmail,
+	}
+	if err := httpapi.Validate.Struct(req); err != nil {
+		var validationErrors validator.ValidationErrors
+		if errors.As(err, &validationErrors) {
+			apiErrors := make([]codersdk.ValidationError, 0, len(validationErrors))
+			for _, validationError := range validationErrors {
+				apiErrors = append(apiErrors, codersdk.ValidationError{
+					Field:  validationError.Field(),
+					Detail: fmt.Sprintf("Validation failed for tag %q with value: \"%v\"", validationError.Tag(), validationError.Value()),
+				})
+			}
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message:     "Validation failed.",
+				Validations: apiErrors,
+			})
+			return
+		}
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error validating request body payload.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	var updated database.User
+	err = api.Database.InTx(func(tx database.Store) error {
+		target, err := tx.GetUserByEmailOrUsername(ctx, database.GetUserByEmailOrUsernameParams{
+			Email: req.OldEmail,
+		})
+		if err != nil {
+			return err
+		}
+		aReq.Old = target
+
+		if target.ID == actor.ID {
+			return errUpdateUserEmailSelf
+		}
+		if strings.EqualFold(req.OldEmail, req.NewEmail) {
+			return errUpdateUserEmailUnchanged
+		}
+
+		updated, err = tx.UpdateUserEmail(ctx, database.UpdateUserEmailParams{
+			OldEmail:  req.OldEmail,
+			NewEmail:  req.NewEmail,
+			UpdatedAt: dbtime.Now(),
+		})
+		if err != nil {
+			return xerrors.Errorf("update user email: %w", err)
+		}
+
+		//nolint:gocritic // This break-glass operation must revoke all API keys
+		// owned by the target user, not only keys visible to the acting owner.
+		return tx.DeleteAPIKeysByUserID(dbauthz.AsAPIKeyRevoker(ctx, target.ID), target.ID)
+	}, nil)
+	if err != nil {
+		switch {
+		case errors.Is(err, sql.ErrNoRows):
+			httpapi.ResourceNotFound(rw)
+		case errors.Is(err, errUpdateUserEmailSelf):
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "You cannot update your own email address.",
+			})
+		case errors.Is(err, errUpdateUserEmailUnchanged):
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "The old and new email addresses must differ beyond letter casing.",
+			})
+		case database.IsUniqueViolation(err, database.UniqueIndexUsersEmail),
+			database.IsUniqueViolation(err, database.UniqueUsersEmailLowerIndex):
+			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+				Message: "A user with the new email address already exists.",
+			})
+		default:
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Failed to update user email.",
+				Detail:  err.Error(),
+			})
+		}
+		return
+	}
+
+	aReq.New = updated
+	rw.WriteHeader(http.StatusNoContent)
+}
+
+var (
+	errUpdateUserEmailSelf      = xerrors.New("cannot update own email")
+	errUpdateUserEmailUnchanged = xerrors.New("old and new email are equal")
+)
+
 // @Summary Update user profile
 // @ID update-user-profile
 // @Security CoderSessionToken
@@ -1306,17 +1458,6 @@ func (api *API) userPreferenceSettings(rw http.ResponseWriter, r *http.Request) 
 		user = httpmw.UserParam(r)
 	)
 
-	taskAlertDismissed, err := api.Database.GetUserTaskNotificationAlertDismissed(ctx, user.ID)
-	if err != nil {
-		if !errors.Is(err, sql.ErrNoRows) {
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Error reading user preference settings.",
-				Detail:  err.Error(),
-			})
-			return
-		}
-	}
-
 	thinkingMode, err := api.Database.GetUserThinkingDisplayMode(ctx, user.ID)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -1354,11 +1495,10 @@ func (api *API) userPreferenceSettings(rw http.ResponseWriter, r *http.Request) 
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.UserPreferenceSettings{
-		TaskNotificationAlertDismissed: taskAlertDismissed,
-		ThinkingDisplayMode:            sanitizeThinkingDisplayMode(thinkingMode),
-		ShellToolDisplayMode:           sanitizeShellToolDisplayMode(shellToolMode),
-		CodeDiffDisplayMode:            sanitizeAgentDisplayMode(codeDiffMode),
-		AgentChatSendShortcut:          sanitizeAgentChatSendShortcut(agentChatSendShortcut),
+		ThinkingDisplayMode:   sanitizeThinkingDisplayMode(thinkingMode),
+		ShellToolDisplayMode:  sanitizeShellToolDisplayMode(shellToolMode),
+		CodeDiffDisplayMode:   sanitizeAgentDisplayMode(codeDiffMode),
+		AgentChatSendShortcut: sanitizeAgentChatSendShortcut(agentChatSendShortcut),
 	})
 }
 
@@ -1425,22 +1565,6 @@ func (api *API) putUserPreferenceSettings(rw http.ResponseWriter, r *http.Reques
 	}
 	var settings codersdk.UserPreferenceSettings
 	err := api.Database.InTx(func(tx database.Store) error {
-		var err error
-		if params.TaskNotificationAlertDismissed != nil {
-			settings.TaskNotificationAlertDismissed, err = tx.UpdateUserTaskNotificationAlertDismissed(ctx, database.UpdateUserTaskNotificationAlertDismissedParams{
-				UserID:                         user.ID,
-				TaskNotificationAlertDismissed: *params.TaskNotificationAlertDismissed,
-			})
-			if err != nil {
-				return newUserPreferenceSettingsAPIError("Internal error updating user task notification alert dismissed.", err)
-			}
-		} else {
-			settings.TaskNotificationAlertDismissed, err = tx.GetUserTaskNotificationAlertDismissed(ctx, user.ID)
-			if err != nil && !errors.Is(err, sql.ErrNoRows) {
-				return newUserPreferenceSettingsAPIError("Error reading task notification alert dismissed.", err)
-			}
-		}
-
 		if params.ThinkingDisplayMode != "" {
 			updated, err := tx.UpdateUserThinkingDisplayMode(ctx, database.UpdateUserThinkingDisplayModeParams{
 				UserID:              user.ID,

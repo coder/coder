@@ -185,7 +185,7 @@ func TestAWSBedrockValidation(t *testing.T) {
 			t.Parallel()
 
 			base := &interceptionBase{
-				bedrock: NewBedrockRuntime(tt.cfg, credentials.NewStaticCredentialsProvider("test-key", "test-secret", ""), "", ""),
+				bedrock: NewBedrockRuntime(tt.cfg, credentials.NewStaticCredentialsProvider("test-key", "test-secret", "")),
 			}
 			opts, err := base.withBedrockInvokeModelOptions(context.Background())
 
@@ -223,9 +223,11 @@ func TestModelForBedrockInvokeModel(t *testing.T) {
 	)
 
 	runtime := NewBedrockRuntime(config.AWSBedrock{
-		Model:          profileARN,
-		SmallFastModel: smallFastProfileARN,
-	}, nil, "anthropic.claude-opus-4-8", "anthropic.claude-haiku-4-5")
+		Model:                  profileARN,
+		SmallFastModel:         smallFastProfileARN,
+		ResolvedModel:          "anthropic.claude-opus-4-8",
+		ResolvedSmallFastModel: "anthropic.claude-haiku-4-5",
+	}, nil)
 
 	tests := []struct {
 		name             string
@@ -280,9 +282,11 @@ func TestSmallFastModelCapturedAtConstruction(t *testing.T) {
 	)
 
 	runtime := NewBedrockRuntime(config.AWSBedrock{
-		Model:          profileARN,
-		SmallFastModel: smallFastProfileARN,
-	}, nil, "anthropic.claude-opus-4-8", "anthropic.claude-haiku-4-5")
+		Model:                  profileARN,
+		SmallFastModel:         smallFastProfileARN,
+		ResolvedModel:          "anthropic.claude-opus-4-8",
+		ResolvedSmallFastModel: "anthropic.claude-haiku-4-5",
+	}, nil)
 
 	const haikuPayload = `{"model":"claude-haiku-4-5","max_tokens":10000}`
 	const opusPayload = `{"model":"claude-opus-4-8","max_tokens":10000}`
@@ -342,7 +346,7 @@ func TestModelForPlainBedrockModelID(t *testing.T) {
 		bedrock: NewBedrockRuntime(config.AWSBedrock{
 			Model:          "eu.anthropic.claude-opus-4-8",
 			SmallFastModel: "anthropic.claude-haiku-4-5",
-		}, nil, "eu.anthropic.claude-opus-4-8", "anthropic.claude-haiku-4-5"),
+		}, nil),
 		logger: slog.Make(),
 	}
 
@@ -964,18 +968,14 @@ func TestAugmentRequestForBedrock_AdaptiveThinking(t *testing.T) {
 			}
 
 			// Plain model IDs resolve to themselves; an application inference
-			// profile ARN resolves to the model behind it.
-			resolvedModel := tc.resolvedModel
-			if resolvedModel == "" {
-				resolvedModel = tc.bedrockModel
-			}
-
 			i := &interceptionBase{
 				reqPayload: mustMessagesPayload(t, tc.requestBody),
 				bedrock: NewBedrockRuntime(config.AWSBedrock{
-					Model:          tc.bedrockModel,
-					SmallFastModel: "anthropic.claude-haiku-3-5",
-				}, nil, resolvedModel, "anthropic.claude-haiku-3-5"),
+					Model:                  tc.bedrockModel,
+					SmallFastModel:         "anthropic.claude-haiku-3-5",
+					ResolvedModel:          tc.resolvedModel,
+					ResolvedSmallFastModel: "anthropic.claude-haiku-3-5",
+				}, nil),
 				clientHeaders: clientHeaders,
 				logger:        slog.Make(),
 			}
@@ -1328,7 +1328,7 @@ func TestBedrockMantleIsPassthrough(t *testing.T) {
 			Region:   "us-east-1",
 			BaseURL:  "https://bedrock-mantle.us-east-1.api.aws/anthropic",
 			Protocol: config.BedrockProtocolMantle,
-		}, credentials.NewStaticCredentialsProvider("test-key", "test-secret", ""), "", ""),
+		}, credentials.NewStaticCredentialsProvider("test-key", "test-secret", "")),
 		logger: slog.Make(),
 	}
 
@@ -1379,7 +1379,7 @@ func TestAWSMantleOptionsValidation(t *testing.T) {
 			t.Parallel()
 
 			base := &interceptionBase{
-				bedrock: NewBedrockRuntime(tt.cfg, credentials.NewStaticCredentialsProvider("test-key", "test-secret", ""), "", ""),
+				bedrock: NewBedrockRuntime(tt.cfg, credentials.NewStaticCredentialsProvider("test-key", "test-secret", "")),
 			}
 			opts, err := base.withBedrockMantleOptions(t.Context())
 			if tt.errorMsg != "" {

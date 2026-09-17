@@ -1,11 +1,14 @@
 import type { FC, ReactNode } from "react";
 import { Link } from "react-router";
+import type { Organization } from "#/api/typesGenerated";
+import { organizationModelsPath } from "#/pages/AISettingsPage/ModelsPage/organizationModels";
 import { docs } from "#/utils/docs";
 
 interface AgentSetupNoticeProps {
 	isAdmin: boolean;
 	providerCount: number;
 	modelCount: number;
+	organization?: Organization;
 	// Names of configured providers the harness cannot use, populated by
 	// the page only when no supported provider is configured.
 	unsupportedProviderNames?: readonly string[];
@@ -26,12 +29,16 @@ export const AgentSetupNotice: FC<AgentSetupNoticeProps> = ({
 	isAdmin,
 	providerCount,
 	modelCount,
+	organization,
 	unsupportedProviderNames = [],
 	aiGatewayDisabled,
 }) => {
 	const hasProvider = providerCount > 0;
 	const hasModel = modelCount > 0;
 	const hasUnsupportedProviderNames = unsupportedProviderNames.length > 0;
+	const modelsPath = organization
+		? organizationModelsPath(organization)
+		: "/ai/settings/models";
 
 	// AI Gateway can be disabled even when providers/models exist in the DB
 	// catalog, so check it before the provider/model counts below. Unlike
@@ -115,7 +122,7 @@ export const AgentSetupNotice: FC<AgentSetupNoticeProps> = ({
 						{" "}
 						then add a{" "}
 						<Link
-							to="/ai/settings/models"
+							to={modelsPath}
 							className="text-content-link transition-colors hover:text-content-link/80"
 						>
 							model
@@ -132,7 +139,7 @@ export const AgentSetupNotice: FC<AgentSetupNoticeProps> = ({
 		<NoticeContainer>
 			To chat with Coder Agents, set up a{" "}
 			<Link
-				to="/ai/settings/models"
+				to={modelsPath}
 				className="text-content-link transition-colors hover:text-content-link/80"
 			>
 				model

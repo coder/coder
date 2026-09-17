@@ -82,10 +82,17 @@ func CreateTestOAuth2App(t *testing.T, client *codersdk.Client) (*codersdk.OAuth
 // first, and needs owner-level permissions to do so.
 func RegisterPublicClient(t *testing.T, client *codersdk.Client, name, redirectURI string) codersdk.OAuth2ClientRegistrationResponse {
 	t.Helper()
+	return RegisterPublicClientWithRedirectURIs(t, client, name, redirectURI)
+}
+
+// RegisterPublicClientWithRedirectURIs registers a public client with every
+// redirect URI given. The first becomes the primary callback.
+func RegisterPublicClientWithRedirectURIs(t *testing.T, client *codersdk.Client, name string, redirectURIs ...string) codersdk.OAuth2ClientRegistrationResponse {
+	t.Helper()
 
 	ctx := testutil.Context(t, testutil.WaitLong)
 	resp, err := client.PostOAuth2ClientRegistration(ctx, codersdk.OAuth2ClientRegistrationRequest{
-		RedirectURIs:            []string{redirectURI},
+		RedirectURIs:            redirectURIs,
 		ClientName:              fmt.Sprintf("%s-%s", name, testutil.MustRandString(t, 10)),
 		TokenEndpointAuthMethod: codersdk.OAuth2TokenEndpointAuthMethodNone,
 	})

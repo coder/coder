@@ -164,40 +164,6 @@ func generateResponsesPayload(payloadSize int, inputCount int, stream bool) []by
 	return bodyBytes
 }
 
-func TestOpenAI_TypeAndName(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name       string
-		cfg        config.OpenAI
-		expectType string
-		expectName string
-	}{
-		{
-			name:       "defaults",
-			cfg:        config.OpenAI{},
-			expectType: config.ProviderOpenAI,
-			expectName: config.ProviderOpenAI,
-		},
-		{
-			name:       "custom_name",
-			cfg:        config.OpenAI{Name: "openai-custom"},
-			expectType: config.ProviderOpenAI,
-			expectName: "openai-custom",
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			p := NewOpenAI(tc.cfg)
-			assert.Equal(t, tc.expectType, p.Type())
-			assert.Equal(t, tc.expectName, p.Name())
-		})
-	}
-}
-
 func TestOpenAI_CreateInterceptor_Credential(t *testing.T) {
 	t.Parallel()
 

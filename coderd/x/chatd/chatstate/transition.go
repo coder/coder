@@ -1,7 +1,5 @@
 package chatstate
 
-import "slices"
-
 // Transition is the enumeration of transitions implemented by the
 // state machine. Values intentionally match the names of the public
 // methods on [Tx] (and [CreateChat]). The transition matrix below
@@ -34,33 +32,6 @@ const (
 
 // String implements fmt.Stringer.
 func (t Transition) String() string { return string(t) }
-
-// AllExecutionTransitions is the canonical enumeration of every
-// execution-state transition that has an entry in the matrix below.
-// Ownership transitions (Acquire, Abandon) are intentionally not part
-// of this slice because they are validated independently and do not
-// have a (from->to) execution mapping.
-var AllExecutionTransitions = []Transition{
-	TransitionCreateChat,
-	TransitionSetArchived,
-	TransitionSendMessage,
-	TransitionEditMessage,
-	TransitionRequestCompaction,
-	TransitionClearContext,
-	TransitionDeleteQueuedMessage,
-	TransitionPromoteQueuedMessage,
-	TransitionInterrupt,
-	TransitionCompleteRequiresAction,
-	TransitionRecordGenerationAttempt,
-	TransitionRecordRetryState,
-	TransitionCommitStep,
-	TransitionEnterRequiresAction,
-	TransitionFinishInterruption,
-	TransitionFinishTurn,
-	TransitionFinishError,
-	TransitionCancelRequiresAction,
-	TransitionReconcileInvalidState,
-}
 
 // transitionMatrix is the in-code representation of the chat execution
 // state transition table. Each entry maps an input state to the set of
@@ -185,51 +156,4 @@ func requireExecutionTransition(t Transition, from ExecutionState) error {
 		return nil
 	}
 	return newTransitionError(t, from, "")
-}
-
-// AllowedExecutionTransitionsFrom returns a deterministic slice of
-// transitions legal from `from`. Mostly used by tests to enumerate the
-// matrix without leaking the internal map.
-func AllowedExecutionTransitionsFrom(from ExecutionState) []Transition {
-	allowed := transitionMatrix[from]
-	out := make([]Transition, 0, len(allowed))
-	for _, t := range AllExecutionTransitions {
-		if _, ok := allowed[t]; ok {
-			out = append(out, t)
-		}
-	}
-	return out
-}
-
-// AllowedInputStates returns a deterministic slice of execution states
-// from which `tr` is legal per the matrix above. Mostly used by tests
-// to enumerate the matrix without leaking the internal map.
-func AllowedInputStates(tr Transition) []ExecutionState {
-	var out []ExecutionState
-	for _, from := range AllExecutionStates {
-		if isExecutionTransitionAllowed(tr, from) {
-			out = append(out, from)
-		}
-	}
-	return out
-}
-
-// AllowedExecutionTransitionOutputs returns the set of classified
-// post-states that the transition `tr` may produce from `from` per
-// the matrix above. The returned slice is a copy so callers may mutate
-// it without affecting the underlying matrix.
-//
-// When `tr` is not allowed from `from`, an empty (nil) slice is
-// returned. Tests use this helper to enumerate the (transition, from,
-// want) triples that must be exercised by the row-level matrix tests.
-func AllowedExecutionTransitionOutputs(from ExecutionState, tr Transition) []ExecutionState {
-	allowed, ok := transitionMatrix[from]
-	if !ok {
-		return nil
-	}
-	outputs, ok := allowed[tr]
-	if !ok {
-		return nil
-	}
-	return slices.Clone(outputs)
 }
