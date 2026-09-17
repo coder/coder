@@ -31,8 +31,7 @@ import (
 // If the request has neither, the stored list is kept.
 // stored is nil on a create.
 //
-// Only the list-only and callback-only shapes have callers today. The admin
-// API gains redirect_uris in the next PR and sends the other two.
+// Only the list-only and callback-only shapes have callers today.
 func resolveRedirectURIs(callbackURL string, redirectURIs, stored []string) []string {
 	list := slice.Unique(redirectURIs)
 	if len(list) == 0 && len(stored) > 0 {
@@ -93,7 +92,7 @@ func validateAppRedirectURIFields(uris []string, clientType codersdk.OAuth2Clien
 			continue
 		}
 		if err := codersdk.ValidateRedirectURI(uri, clientType); err != nil {
-			return invalid(i, uri, "is rejected for a public client: "+err.Error())
+			return invalid(i, uri, err.Error())
 		}
 	}
 	return nil
