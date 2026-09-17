@@ -1311,6 +1311,14 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if len(req.UnsafeDynamicTools) > 0 && api.DeploymentValues.DisableChatCallerSuppliedTools.Value() {
+		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+			Message: "Caller-supplied tools are disabled on this deployment.",
+			Detail:  "The server runs with --disable-chat-caller-supplied-tools. Remove unsafe_dynamic_tools from the request.",
+		})
+		return
+	}
+
 	if len(req.UnsafeDynamicTools) > 250 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Too many dynamic tools.",
