@@ -14,12 +14,12 @@ import {
 } from "#/utils/portForward";
 import { PortForwardPopoverView } from "./PortForwardButton";
 
-const host = "*.coder.com";
+const HOST = "*.example.com";
 
 const renderPopover = () =>
 	render(
 		<PortForwardPopoverView
-			host={host}
+			host={HOST}
 			workspace={MockWorkspace}
 			agent={MockWorkspaceAgent}
 			template={MockTemplate}
@@ -32,7 +32,7 @@ const renderPopover = () =>
 
 const expectedURL = (port: number) =>
 	portForwardURL(
-		host,
+		HOST,
 		port,
 		MockWorkspaceAgent.name,
 		MockWorkspace.name,

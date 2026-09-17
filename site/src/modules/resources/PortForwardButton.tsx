@@ -141,6 +141,13 @@ const MAX_PORT = 65535;
 const isValidPort = (port: number) =>
 	Number.isInteger(port) && port >= MIN_PORT && port <= MAX_PORT;
 
+// parsePort returns the port a user typed, or undefined when the text is not a
+// usable port number.
+const parsePort = (value: string): number | undefined => {
+	const port = Number.parseInt(value, 10);
+	return isValidPort(port) ? port : undefined;
+};
+
 const openPortSchema = () =>
 	Yup.object({
 		port: Yup.number().required().min(MIN_PORT).max(MAX_PORT),
@@ -247,11 +254,12 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 	const remainingListeningPorts = filteredListeningPorts.filter(
 		(port) => !port.port.toString().startsWith(portQuery),
 	);
-	const customPort = Number(portQuery);
-	const canUseCustomPort =
-		/^\d+$/.test(portQuery) &&
-		isValidPort(customPort) &&
-		unsharedListeningPorts.every((port) => port.port !== customPort);
+	const typedPort = parsePort(portQuery);
+	const customPort = unsharedListeningPorts.some(
+		(port) => port.port === typedPort,
+	)
+		? undefined
+		: typedPort;
 	// only disable the form if shared port controls are entitled and the template doesn't allow sharing ports
 	const canSharePorts = !(
 		portSharingControlsEnabled && template.max_port_share_level === "owner"
@@ -361,7 +369,7 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 								onValueChange={(value) => {
 									focusPortSubmitOnClose.current = true;
 									if (value) {
-										setPortNumber(String(Number(value)));
+										setPortNumber(value);
 									}
 								}}
 								open={portMenuOpen}
@@ -378,8 +386,8 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 									className="mt-2 flex w-full items-center rounded border border-solid border-border focus-within:border-content-link"
 									onSubmit={(event) => {
 										event.preventDefault();
-										const port = Number(portNumber);
-										if (isValidPort(port)) {
+										const port = parsePort(portNumber);
+										if (port !== undefined) {
 											openPort(port);
 										} else {
 											setPortMenuOpen(true);
@@ -442,18 +450,17 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 										pattern="[0-9]*"
 										placeholder="Filter or enter port..."
 										value={portQuery}
-										onValueChange={(value) => {
-											if (/^\d*$/.test(value)) {
-												setPortQuery(value.replace(/^0+(?=\d)/, ""));
-											}
-										}}
+										onValueChange={setPortQuery}
 									/>
 									<ComboboxList>
 										{prefixedListeningPorts.map(renderListeningPortOption)}
-										{canUseCustomPort && (
-											<ComboboxItem value={portQuery} className="px-3">
+										{customPort !== undefined && (
+											<ComboboxItem
+												value={customPort.toString()}
+												className="px-3"
+											>
 												<PlusIcon />
-												<span>Use port {portQuery}</span>
+												<span>Use port {customPort}</span>
 											</ComboboxItem>
 										)}
 										{remainingListeningPorts.map(renderListeningPortOption)}
