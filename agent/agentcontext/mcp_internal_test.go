@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -228,6 +229,16 @@ func TestApplyMCPConfigErrors(t *testing.T) {
 		resources := applyMCPConfigErrors([]Resource{
 			{ID: "instruction_file:/w/AGENTS.md", Kind: KindInstructionFile, Source: "/w/AGENTS.md", Status: StatusOK},
 		}, []MCPConfigError{{Path: "/w/AGENTS.md", Err: "parse"}})
+		require.Len(t, resources, 1)
+		require.Equal(t, StatusOK, resources[0].Status)
+	})
+
+	t.Run("UnmatchedOverlongPathIsDropped", func(t *testing.T) {
+		t.Parallel()
+		// coderd rejects a source above its cap, which would fail the
+		// whole push, so no row is synthesized for it.
+		long := "/opt/" + strings.Repeat("d", maxSourceBytes) + "/custom.json"
+		resources := applyMCPConfigErrors([]Resource{okConfig("/w/.mcp.json")}, []MCPConfigError{{Path: long, Err: "parse"}})
 		require.Len(t, resources, 1)
 		require.Equal(t, StatusOK, resources[0].Status)
 	})
