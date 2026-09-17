@@ -283,7 +283,6 @@ func TestReport(t *testing.T) {
 			entry.Env["TEST_MCP_FAKE_SERVER_ECHO_ENV"] = name
 			configPath := writeMCPConfig(t, dir, map[string]mcpServerEntry{"srv": entry})
 			logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
-			// Ambient values are inherited regardless of their variable name.
 			env := &ambientEnvInfo{extra: []string{name + "=" + secret}}
 			m := NewManager(ctx, logger, agentexec.DefaultExecer, nil, env, nil, nil)
 			t.Cleanup(func() { _ = m.Close() })

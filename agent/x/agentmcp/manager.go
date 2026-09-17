@@ -140,7 +140,7 @@ type Manager struct {
 type serverEntry struct {
 	config ServerConfig
 	client *mcp.ClientSession
-	// Keep the exact subprocess environment after credentials rotate.
+	// Retain launch-time values for redaction after credentials rotate.
 	inherited []string
 }
 
