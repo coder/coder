@@ -87,8 +87,11 @@ func TestBuildWorkspaceMCPView(t *testing.T) {
 		}{
 			{name: "SameRun", agentRun: "run-a", snapshotRun: "run-a"},
 			{name: "DifferentRun", agentRun: "run-b", snapshotRun: "run-a", stale: true},
-			{name: "EmptyAgentRun", agentRun: "", snapshotRun: "run-a"},
-			{name: "EmptySnapshotRun", agentRun: "run-b", snapshotRun: ""},
+			// One known id is enough: a legacy snapshot under a current
+			// agent, or a rollback to a legacy agent over a newer snapshot,
+			// both name a different process.
+			{name: "LegacySnapshotUnderCurrentAgent", agentRun: "run-b", snapshotRun: "", stale: true},
+			{name: "NewerSnapshotUnderLegacyAgent", agentRun: "", snapshotRun: "run-a", stale: true},
 			{name: "BothEmpty"},
 		} {
 			t.Run(tc.name, func(t *testing.T) {

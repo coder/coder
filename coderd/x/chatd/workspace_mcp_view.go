@@ -114,11 +114,15 @@ func (v *workspaceMCPView) projectPinned(pinned []database.ChatContextResource) 
 	}
 }
 
-// workspaceMCPSnapshotStale is the freshness rule: stale only when both
-// run ids are known and differ. Timestamps are deliberately not compared
-// because the snapshot and agent clocks are different machines.
+// workspaceMCPSnapshotStale is the freshness rule: stale when the run ids
+// differ and at least one is known. A process reports the same id in
+// Startup and in every push, and its first push follows its Startup, so
+// a one-sided id also names a different process: a legacy snapshot under
+// a current agent, or a rollback to a legacy agent over a newer snapshot.
+// Only two empty ids are indeterminate. Timestamps are deliberately not
+// compared because the snapshot and agent clocks are different machines.
 func workspaceMCPSnapshotStale(agentRunID, snapshotRunID string) bool {
-	return agentRunID != "" && snapshotRunID != "" && agentRunID != snapshotRunID
+	return agentRunID != snapshotRunID
 }
 
 // loadWorkspaceMCPView lists the chat's pinned rows and builds the view.
