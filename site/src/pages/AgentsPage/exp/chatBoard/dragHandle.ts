@@ -1,5 +1,5 @@
 import type { DraggableSyntheticListeners } from "@dnd-kit/core";
-import { type PointerEvent as ReactPointerEvent, useEffect } from "react";
+import type { PointerEvent as ReactPointerEvent } from "react";
 
 /**
  * dnd-kit listeners for a drag handle. After dnd-kit has seen the pointerdown
@@ -16,17 +16,3 @@ export const dragHandleListeners = (
 		event.preventDefault();
 	},
 });
-
-/**
- * Blocks selections from starting anywhere while a drag is active. dnd-kit
- * clears ranges on selectionchange, but WebKit keeps extending a selection
- * gesture it already started; refusing selectstart stops that at the source.
- */
-export const useBlockSelectionWhileDragging = (dragging: boolean) => {
-	useEffect(() => {
-		if (!dragging) return;
-		const block = (event: Event) => event.preventDefault();
-		document.addEventListener("selectstart", block);
-		return () => document.removeEventListener("selectstart", block);
-	}, [dragging]);
-};

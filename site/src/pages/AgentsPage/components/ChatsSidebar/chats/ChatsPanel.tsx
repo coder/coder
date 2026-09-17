@@ -31,8 +31,13 @@ import { Kbd, KbdGroup } from "#/components/Kbd/Kbd";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { getOSKey } from "#/utils/platform";
+import {
+	BoardColumnTag,
+	BoardGroupEntry,
+} from "../../../exp/chatBoard/BoardGroupEntry";
+import { boardSidebarChats } from "../../../exp/chatBoard/boardGroups";
 import { ChatBoardNavItem } from "../../../exp/chatBoard/ChatBoardNavItem";
-import { useChatBoardSidebar } from "../../../exp/chatBoard/useChatBoardSidebar";
+import { useChatBoardEnabled } from "../../../exp/chatBoard/chatBoardFlag";
 import {
 	AGENT_CHAT_STATUS_ORDER,
 	type AgentSidebarFilters,
@@ -162,11 +167,14 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 		(chat) => chat.shared && chat.owner_id !== currentUserId,
 	);
 	// The board experiment may regroup this list; off, it passes through.
-	const board = useChatBoardSidebar(
+	const boardEnabled = useChatBoardEnabled();
+	const board = boardSidebarChats(
 		unpinnedChats.filter(
 			(chat) => !chat.shared || chat.owner_id === currentUserId,
 		),
+		boardEnabled,
 	);
+	const boardGroups = board.groups;
 	const unpinnedOwnedChats = board.chats;
 	const hasAppliedResultFilters =
 		sidebarFilters.prStatuses.length > 0 ||
@@ -316,7 +324,9 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 		onPinAgent,
 		onUnpinAgent,
 		onOpenRenameDialog,
-		renderTrailing: board.renderTrailing,
+		renderTrailing: boardGroups
+			? (chat) => <BoardColumnTag chat={chat} groups={boardGroups} />
+			: undefined,
 	};
 
 	const chatSections = (
@@ -610,7 +620,15 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 														{isSectionExpanded && (
 															<div className="flex flex-col gap-0.5">
 																{section.chats.map((chat) =>
-																	board.renderEntry(chat),
+																	boardGroups ? (
+																		<BoardGroupEntry
+																			key={chat.id}
+																			chat={chat}
+																			groups={boardGroups}
+																		/>
+																	) : (
+																		<ChatTreeNode key={chat.id} chat={chat} />
+																	),
 																)}
 															</div>
 														)}

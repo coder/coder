@@ -76,7 +76,10 @@ import {
 	sidebarViewFromPath,
 } from "./components/ChatsSidebar/ChatsSidebar";
 import { ResizableChatsSidebarFrame } from "./components/ChatsSidebar/ResizableChatsSidebarFrame";
-import { useIsChatBoardRoute } from "./exp/chatBoard/useChatBoardEnabled";
+import {
+	CHAT_BOARD_PATH,
+	useChatBoardEnabled,
+} from "./exp/chatBoard/chatBoardFlag";
 import { useAgentsPageKeybindings } from "./hooks/useAgentsPageKeybindings";
 import { useAgentsPWA } from "./hooks/useAgentsPWA";
 import { useOrganizationChatModels } from "./hooks/useOrganizationChatModels";
@@ -673,7 +676,8 @@ const AgentsPageLayout: FC = () => {
 	const isSettingsPanel = isSettingsView(sidebarView);
 	const isSettingsIndex = isSettingsPanel && !sidebarView.section;
 	const isSettingsDetail = isSettingsPanel && Boolean(sidebarView.section);
-	const isBoardRoute = useIsChatBoardRoute(location.pathname);
+	const isBoardRoute =
+		useChatBoardEnabled() && location.pathname.startsWith(CHAT_BOARD_PATH);
 
 	// The sidebar expects plain string error messages, but the outlet
 	// context carries structured ChatDetailError objects.

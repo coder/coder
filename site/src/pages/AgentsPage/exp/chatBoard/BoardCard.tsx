@@ -7,27 +7,23 @@ import {
 	PencilIcon,
 	UngroupIcon,
 } from "lucide-react";
-import { type FC, useEffect, useRef, useState } from "react";
+import { type FC, type RefObject, useState } from "react";
 import type { Chat } from "#/api/typesGenerated";
-import {
-	Popover,
-	PopoverContent,
-	PopoverTrigger,
-} from "#/components/Popover/Popover";
 import { shortRelativeTime } from "#/utils/time";
 import { getChatDisplayConfig } from "../../components/ChatsSidebar/tree/statusConfig";
 import { ActionsMenu } from "./ActionsMenu";
 import type { NoteSlot } from "./boardApi";
-import {
-	type BoardCard as BoardCardModel,
-	type BoardNote,
-	CARD_COLOR_CLASS,
-	CARD_COLORS,
-	type CardColor,
+import type {
+	BoardCard as BoardCardModel,
+	BoardNote,
+	CardColor,
 } from "./boardLabels";
+import { CardColorPicker } from "./CardColorPicker";
 import { ChatInfoPopover } from "./ChatInfo";
+import { ChatStatusLine } from "./ChatStatusLine";
+import { cardAccent, cardTint } from "./cardColor";
 import { dragHandleListeners } from "./dragHandle";
-import { InlineEdit } from "./InlineEdit";
+import { EditableTitle } from "./EditableTitle";
 import { NotesSection } from "./NotesSection";
 
 export type DragData =
@@ -41,19 +37,24 @@ export type DropData =
 	| { type: "card"; card: BoardCardModel }
 	| { type: "note"; card: BoardCardModel; note: BoardNote };
 
-const cardDragId = (card: BoardCardModel) => `card:${card.id}`;
-const chatDragId = (chat: Chat) => `chat:${chat.id}`;
-const cardDropId = (card: BoardCardModel) => `drop-card:${card.id}`;
-
-// Chats open in a floating window are marked by their title alone, no chrome.
-const OPEN_TITLE_CLASS = "font-medium text-highlight-purple";
-
 /** How a card hands a chat to the board: with the element to place a window beside. */
 export interface ChatOpenHandlers {
 	readonly onOpen: (chat: Chat, anchor: DOMRect) => void;
 	readonly onPreview: (chat: Chat, anchor: DOMRect) => void;
 	readonly onPreviewEnd: () => void;
 }
+
+/** Inside a card or row the anchor is fixed, so its openers pass only the chat. */
+interface ChatOpeners {
+	readonly onOpen: (chat: Chat) => void;
+	readonly onPreview: (chat: Chat) => void;
+	readonly onPreviewEnd: () => void;
+}
+
+// dnd-kit fills the node ref on mount; before that there is nothing to
+// place a window beside.
+const rectOf = (node: RefObject<HTMLElement | null>) =>
+	node.current?.getBoundingClientRect() ?? new DOMRect();
 
 interface BoardCardProps extends ChatOpenHandlers {
 	readonly card: BoardCardModel;
@@ -92,72 +93,46 @@ export const BoardCard: FC<BoardCardProps> = ({
 	const dropData: DropData = { type: "card", card };
 	const {
 		setNodeRef: setDragRef,
+		node,
 		setActivatorNodeRef,
 		listeners,
 		attributes,
 		isDragging,
-	} = useDraggable({ id: cardDragId(card), data: dragData });
+	} = useDraggable({ id: `card:${card.id}`, data: dragData });
 	const { setNodeRef: setDropRef } = useDroppable({
-		id: cardDropId(card),
+		id: `drop-card:${card.id}`,
 		data: dropData,
 	});
-	const setRefs = (node: HTMLElement | null) => {
-		setDragRef(node);
-		setDropRef(node);
+	// A single chat's window opens beside the card; a row's beside the row.
+	const open = (chat: Chat) => onOpen(chat, rectOf(node));
+	const preview = (chat: Chat) => onPreview(chat, rectOf(node));
+	const setRefs = (el: HTMLElement | null) => {
+		setDragRef(el);
+		setDropRef(el);
 	};
 	const [renaming, setRenaming] = useState(false);
-	const [pickingColor, setPickingColor] = useState(false);
 
 	const single = card.members.length === 1;
 	const lead = card.primary;
 	const leadDisplay = getChatDisplayConfig(lead);
 	const LeadIcon = leadDisplay.icon;
-	const colors = card.color ? CARD_COLOR_CLASS[card.color] : undefined;
-	const titleClass = cn(
-		"text-[14px] font-medium leading-[19px] tracking-[-0.005em]",
-		single && openChatIds.has(lead.id) && OPEN_TITLE_CLASS,
-	);
 	return (
 		<article
 			ref={setRefs}
 			className={cn(
 				"relative flex flex-col overflow-hidden rounded-lg border border-border bg-surface-primary text-sm shadow-[0_1px_2px_rgba(0,0,0,0.04)] transition-shadow hover:shadow-[0_2px_8px_rgba(0,0,0,0.08)]",
-				colors && cn("border-l-[3px]", colors.accent),
+				cardAccent({ color: card.color }),
 				// The moving copy is drawn by DragGhost inside DragOverlay; the
 				// source stays put, faded, so column layout does not shift mid-drag.
 				isDragging && "opacity-40",
 				isMergeTarget && "border-content-link ring-1 ring-content-link",
 			)}
 		>
-			{/*
-			  The stripe shows the color, so the stripe is where you change it. The
-			  swatches float beside it rather than reflowing the header.
-			*/}
-			<Popover open={pickingColor} onOpenChange={setPickingColor}>
-				<PopoverTrigger asChild>
-					<button
-						type="button"
-						title="Card color"
-						aria-label={`Color of ${card.title}`}
-						className="absolute inset-y-0 left-0 z-[1] w-2 border-0 bg-transparent p-0 hover:bg-content-primary/10 data-[state=open]:bg-content-primary/10"
-					/>
-				</PopoverTrigger>
-				<PopoverContent
-					side="right"
-					align="start"
-					sideOffset={6}
-					className="w-auto p-2"
-					onPointerDown={(e) => e.stopPropagation()}
-				>
-					<ColorSwatches
-						value={card.color}
-						onChange={(color) => {
-							setPickingColor(false);
-							onSetColor(color);
-						}}
-					/>
-				</PopoverContent>
-			</Popover>
+			<CardColorPicker
+				title={card.title}
+				value={card.color}
+				onChange={onSetColor}
+			/>
 			{/*
 			  Same anatomy for every card: [icon] title [meta]. A single chat is
 			  its own card, so its title is the chat title and there are no rows;
@@ -171,18 +146,14 @@ export const BoardCard: FC<BoardCardProps> = ({
 				className={cn(
 					"relative grid cursor-grab touch-none grid-cols-[14px_minmax(0,1fr)_auto] gap-x-2 px-3 pt-2.5 active:cursor-grabbing",
 					single ? "pb-2.5" : "pb-1.5",
-					colors?.tint,
+					cardTint({ color: card.color }),
 				)}
 				{...dragHandleListeners(listeners)}
 				{...attributes}
 				ref={setActivatorNodeRef}
 			>
 				{single && (
-					<OpenChatSurface
-						chat={lead}
-						isDragging={isDragging}
-						onOpen={onOpen}
-					/>
+					<OpenChatSurface chat={lead} isDragging={isDragging} onOpen={open} />
 				)}
 				<span className="flex h-[19px] items-center justify-center">
 					{single ? (
@@ -200,7 +171,8 @@ export const BoardCard: FC<BoardCardProps> = ({
 				<EditableTitle
 					value={card.title}
 					renaming={renaming}
-					className={titleClass}
+					open={single && openChatIds.has(lead.id)}
+					className="text-[14px] font-medium leading-[19px] tracking-[-0.005em]"
 					onEdit={() => setRenaming(true)}
 					onRenamed={(title) => {
 						setRenaming(false);
@@ -216,8 +188,8 @@ export const BoardCard: FC<BoardCardProps> = ({
 							<ChatInfoPopover chat={lead} />
 							<ChatOpener
 								chat={lead}
-								onOpen={onOpen}
-								onPreview={onPreview}
+								onOpen={open}
+								onPreview={preview}
 								onPreviewEnd={onPreviewEnd}
 							/>
 						</>
@@ -283,7 +255,11 @@ const UnreadDot: FC = () => (
 	/>
 );
 
-const Age: FC<{ readonly at: string }> = ({ at }) => (
+interface AgeProps {
+	readonly at: string;
+}
+
+const Age: FC<AgeProps> = ({ at }) => (
 	<span className="text-[11px] tabular-nums text-content-secondary/70">
 		{shortRelativeTime(at)}
 	</span>
@@ -292,7 +268,7 @@ const Age: FC<{ readonly at: string }> = ({ at }) => (
 interface OpenChatSurfaceProps {
 	readonly chat: Chat;
 	readonly isDragging: boolean;
-	readonly onOpen: (chat: Chat, anchor: DOMRect) => void;
+	readonly onOpen: (chat: Chat) => void;
 }
 
 /**
@@ -306,31 +282,24 @@ const OpenChatSurface: FC<OpenChatSurfaceProps> = ({
 	onOpen,
 }) => {
 	// A drop that ends where the drag began also fires a click; only a
-	// plain click may open.
-	const dragged = useRef(false);
-	useEffect(() => {
-		if (isDragging) dragged.current = true;
-	}, [isDragging]);
+	// plain click may open. Remembered from render because isDragging is
+	// already false again by the time that click arrives.
+	const [wasDragging, setWasDragging] = useState(false);
+	if (isDragging && !wasDragging) setWasDragging(true);
 	return (
 		<button
 			type="button"
 			aria-label={`Open ${chat.title}`}
 			className="absolute inset-0 cursor-pointer border-0 bg-transparent p-0"
-			onPointerDown={() => {
-				dragged.current = false;
-			}}
-			onClick={(e) => {
-				if (!dragged.current) onOpen(chat, anchorOf(e.currentTarget));
+			onPointerDown={() => setWasDragging(false)}
+			onClick={() => {
+				if (!wasDragging) onOpen(chat);
 			}}
 		/>
 	);
 };
 
-// The header or row the control sits in; the window opens beside it.
-const anchorOf = (el: HTMLElement) =>
-	(el.closest("header, li") ?? el).getBoundingClientRect();
-
-interface ChatOpenerProps extends ChatOpenHandlers {
+interface ChatOpenerProps extends ChatOpeners {
 	readonly chat: Chat;
 }
 
@@ -347,189 +316,13 @@ const ChatOpener: FC<ChatOpenerProps> = ({
 		title="Open chat"
 		className="relative z-[1] grid size-4 place-items-center rounded border-0 bg-transparent p-0 text-content-secondary/60 hover:text-content-primary"
 		onPointerDown={(e) => e.stopPropagation()}
-		onPointerEnter={(e) => onPreview(chat, anchorOf(e.currentTarget))}
+		onPointerEnter={() => onPreview(chat)}
 		onPointerLeave={onPreviewEnd}
-		onClick={(e) => onOpen(chat, anchorOf(e.currentTarget))}
+		onClick={() => onOpen(chat)}
 	>
 		<MessageSquareIcon className="size-3.5" />
 	</button>
 );
-
-interface EditableTitleProps {
-	readonly value: string;
-	readonly renaming: boolean;
-	readonly className: string;
-	readonly onEdit: () => void;
-	readonly onRenamed: (title: string) => void;
-	readonly onCancel: () => void;
-}
-
-/** Two-line title; clicking the text (only the text) edits it in place. */
-const EditableTitle: FC<EditableTitleProps> = ({
-	value,
-	renaming,
-	className,
-	onEdit,
-	onRenamed,
-	onCancel,
-}) => {
-	if (renaming) {
-		return (
-			<InlineEdit
-				value={value}
-				onSave={onRenamed}
-				onDone={onCancel}
-				ariaLabel="title"
-				className={cn("relative z-[1] text-content-primary", className)}
-			/>
-		);
-	}
-	return (
-		<button
-			type="button"
-			title="Click to rename"
-			className={cn(
-				"relative z-[1] m-0 w-fit max-w-full min-w-0 cursor-text justify-self-start border-0 bg-transparent p-0 text-left text-content-primary",
-				className,
-			)}
-			onClick={onEdit}
-		>
-			<span className="line-clamp-2 wrap-anywhere [text-wrap:pretty]">
-				{value}
-			</span>
-		</button>
-	);
-};
-
-interface ColorSwatchesProps {
-	readonly value: CardColor | undefined;
-	readonly onChange: (color: CardColor | undefined) => void;
-}
-
-/** The palette beside the stripe: one swatch per theme accent plus none. */
-const ColorSwatches: FC<ColorSwatchesProps> = ({ value, onChange }) => (
-	<div className="flex items-center gap-1.5">
-		<Swatch
-			label="No color"
-			selected={value === undefined}
-			className="border-border bg-surface-primary"
-			onClick={() => onChange(undefined)}
-		/>
-		{CARD_COLORS.map((name) => (
-			<Swatch
-				key={name}
-				label={name}
-				selected={value === name}
-				className={cn("border-transparent", CARD_COLOR_CLASS[name].swatch)}
-				onClick={() => onChange(name)}
-			/>
-		))}
-	</div>
-);
-
-const Swatch: FC<{
-	readonly label: string;
-	readonly selected: boolean;
-	readonly className: string;
-	readonly onClick: () => void;
-}> = ({ label, selected, className, onClick }) => (
-	<button
-		type="button"
-		aria-label={label}
-		aria-pressed={selected}
-		className={cn(
-			"size-4 rounded-full border p-0 transition-transform hover:scale-110",
-			className,
-			selected &&
-				"ring-2 ring-content-link ring-offset-1 ring-offset-surface-primary",
-		)}
-		onClick={onClick}
-	/>
-);
-
-/** PR chip, line stats, and last turn text; shared by single cards and group rows. */
-const ChatStatusLine: FC<{ readonly chat: Chat }> = ({ chat }) => {
-	const display = getChatDisplayConfig(chat);
-	const pr = display.diffStatus;
-	const hasLineStats =
-		pr !== undefined && (pr.additions > 0 || pr.deletions > 0);
-	if (!chat.last_turn_summary && !pr?.url) return null;
-	return (
-		<div className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs leading-4 text-content-secondary">
-			{pr?.url && display.prIcon && (
-				<a
-					href={pr.url}
-					target="_blank"
-					rel="noreferrer"
-					aria-label={display.prIcon.label}
-					className="relative z-[1] inline-flex h-4 shrink-0 items-center gap-1 rounded bg-content-primary/5 px-1.5 font-mono text-[11px] text-content-secondary no-underline hover:text-content-primary"
-					onPointerDown={(e) => e.stopPropagation()}
-				>
-					<span
-						className={cn(
-							"size-1.5 rounded-full bg-current",
-							display.prIcon.className,
-						)}
-					/>
-					{pr.pr_number ? `#${pr.pr_number}` : "PR"}
-				</a>
-			)}
-			{hasLineStats && (
-				<span className="shrink-0 font-mono text-[11px]">
-					<span className="text-git-added-bright">+{pr.additions}</span>{" "}
-					<span className="text-git-deleted-bright">&minus;{pr.deletions}</span>
-				</span>
-			)}
-			{chat.last_turn_summary && (
-				<span className="min-w-0 flex-1 truncate">
-					{chat.last_turn_summary}
-				</span>
-			)}
-		</div>
-	);
-};
-
-interface DragGhostProps {
-	readonly drag: DragData;
-}
-
-/** Compact stand-in rendered in the DragOverlay while a card, chat, column, or note moves. */
-export const DragGhost: FC<DragGhostProps> = ({ drag }) => {
-	if (drag.type === "note") {
-		return (
-			<div className="w-[276px] cursor-grabbing truncate rounded-md border border-content-link bg-surface-primary px-3 py-1.5 text-xs text-content-primary shadow-lg">
-				{drag.note.text}
-			</div>
-		);
-	}
-	if (drag.type === "column") {
-		return (
-			<div className="w-[300px] cursor-grabbing rounded-md border border-content-link bg-surface-primary px-3 py-1.5 text-[13px] font-medium text-content-primary shadow-lg">
-				{drag.name}
-			</div>
-		);
-	}
-	const title = drag.type === "card" ? drag.card.title : drag.chat.title;
-	const detail =
-		drag.type === "card" && drag.card.members.length > 1
-			? `${drag.card.members.length} chats`
-			: undefined;
-	return (
-		<div
-			className={cn(
-				"w-[300px] cursor-grabbing rounded-lg border border-content-link bg-surface-primary px-3 py-2 text-sm shadow-lg",
-				drag.type === "card" &&
-					drag.card.color &&
-					cn("border-l-[3px]", CARD_COLOR_CLASS[drag.card.color].accent),
-			)}
-		>
-			<div className="font-medium leading-snug text-content-primary">
-				{title}
-			</div>
-			{detail && <div className="text-xs text-content-secondary">{detail}</div>}
-		</div>
-	);
-};
 
 interface ChatRowProps extends ChatOpenHandlers {
 	readonly chat: Chat;
@@ -544,7 +337,7 @@ interface ChatRowProps extends ChatOpenHandlers {
 const ChatRow: FC<ChatRowProps> = ({
 	chat,
 	card,
-	open,
+	open: isOpen,
 	onRename,
 	onRemove,
 	onOpen,
@@ -552,11 +345,16 @@ const ChatRow: FC<ChatRowProps> = ({
 	onPreviewEnd,
 }) => {
 	const dragData: DragData = { type: "chat", chat, card };
-	const { setNodeRef, setActivatorNodeRef, listeners, attributes, isDragging } =
-		useDraggable({
-			id: chatDragId(chat),
-			data: dragData,
-		});
+	const {
+		setNodeRef,
+		node,
+		setActivatorNodeRef,
+		listeners,
+		attributes,
+		isDragging,
+	} = useDraggable({ id: `chat:${chat.id}`, data: dragData });
+	const open = () => onOpen(chat, rectOf(node));
+	const preview = () => onPreview(chat, rectOf(node));
 	const [renaming, setRenaming] = useState(false);
 	const display = getChatDisplayConfig(chat);
 	const StatusIcon = display.icon;
@@ -569,7 +367,7 @@ const ChatRow: FC<ChatRowProps> = ({
 				isDragging && "opacity-40",
 			)}
 		>
-			<OpenChatSurface chat={chat} isDragging={isDragging} onOpen={onOpen} />
+			<OpenChatSurface chat={chat} isDragging={isDragging} onOpen={open} />
 			{/* The status icon doubles as the drag handle so rows need no extra gutter. */}
 			<span
 				ref={setActivatorNodeRef}
@@ -587,7 +385,8 @@ const ChatRow: FC<ChatRowProps> = ({
 				<EditableTitle
 					value={chat.title}
 					renaming={renaming}
-					className={cn("text-[13px] leading-[18px]", open && OPEN_TITLE_CLASS)}
+					open={isOpen}
+					className="text-[13px] leading-[18px]"
 					onEdit={() => setRenaming(true)}
 					onRenamed={(title) => {
 						setRenaming(false);
@@ -605,8 +404,8 @@ const ChatRow: FC<ChatRowProps> = ({
 				<ChatInfoPopover chat={chat} />
 				<ChatOpener
 					chat={chat}
-					onOpen={onOpen}
-					onPreview={onPreview}
+					onOpen={open}
+					onPreview={preview}
 					onPreviewEnd={onPreviewEnd}
 				/>
 				<ActionsMenu

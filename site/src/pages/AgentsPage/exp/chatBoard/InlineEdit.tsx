@@ -1,5 +1,5 @@
 import { cn } from "cn";
-import { type FC, useRef, useState } from "react";
+import { type FC, useState } from "react";
 
 interface InlineEditProps {
 	readonly value: string;
@@ -24,17 +24,13 @@ export const InlineEdit: FC<InlineEditProps> = ({
 	placeholder,
 }) => {
 	const [draft, setDraft] = useState(value);
-	// Escape unmounts the field, which can fire a trailing blur; ignore it.
-	const cancelled = useRef(false);
+	// Enter and blur commit; Escape only reports done. The parent unmounts
+	// the field on done, and React fires no blur for an unmounted field, so
+	// nothing commits after a cancel.
 	const commit = () => {
-		if (cancelled.current) return;
 		const next = draft.trim();
 		onDone();
 		if (next && next !== value) onSave(next);
-	};
-	const cancel = () => {
-		cancelled.current = true;
-		onDone();
 	};
 
 	return (
@@ -63,7 +59,7 @@ export const InlineEdit: FC<InlineEditProps> = ({
 					e.preventDefault();
 					commit();
 				}
-				if (e.key === "Escape") cancel();
+				if (e.key === "Escape") onDone();
 			}}
 		/>
 	);

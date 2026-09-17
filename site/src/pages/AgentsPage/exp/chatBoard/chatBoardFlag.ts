@@ -11,12 +11,22 @@ const KEY = "agents.exp.chat-board";
 export const CHAT_BOARD_PATH = "/agents/board";
 
 // In-tab subscribers. The native "storage" event only fires cross-tab, so
-// the settings toggle notifies same-tab consumers through this set.
+// saving notifies same-tab consumers (settings toggle, nav item) directly.
 const listeners = new Set<() => void>();
+
+export function getChatBoardEnabled(): boolean {
+	return localStorage.getItem(KEY) === "true";
+}
+
+export function saveChatBoardEnabled(value: boolean): void {
+	localStorage.setItem(KEY, String(value));
+	for (const fn of listeners) {
+		fn();
+	}
+}
 
 function subscribe(callback: () => void): () => void {
 	listeners.add(callback);
-
 	// A cleared storage area arrives with a null key, so treat that as a
 	// change to this flag too.
 	const onStorage = (e: StorageEvent) => {
@@ -25,33 +35,13 @@ function subscribe(callback: () => void): () => void {
 		}
 	};
 	window.addEventListener("storage", onStorage);
-
 	return () => {
 		listeners.delete(callback);
 		window.removeEventListener("storage", onStorage);
 	};
 }
 
-function getSnapshot(): boolean {
-	return localStorage.getItem(KEY) === "true";
-}
-
-/** Reactive chat board opt-in. Off unless the user enabled it in settings. */
-export function useChatBoardEnabled(): [boolean, (v: boolean) => void] {
-	const enabled = useSyncExternalStore(subscribe, getSnapshot);
-
-	const setEnabled = (value: boolean) => {
-		localStorage.setItem(KEY, String(value));
-		for (const fn of listeners) {
-			fn();
-		}
-	};
-
-	return [enabled, setEnabled];
-}
-
-/** True while the board is enabled and `pathname` is under its route. */
-export function useIsChatBoardRoute(pathname: string): boolean {
-	const [enabled] = useChatBoardEnabled();
-	return enabled && pathname.startsWith(CHAT_BOARD_PATH);
+/** The opt-in, live: every consumer re-renders when it is saved. */
+export function useChatBoardEnabled(): boolean {
+	return useSyncExternalStore(subscribe, getChatBoardEnabled);
 }
