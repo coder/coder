@@ -1,5 +1,6 @@
 import {
 	act,
+	fireEvent,
 	render as renderWithProviders,
 	screen,
 	waitFor,
@@ -87,6 +88,23 @@ const renderWithQueryClient = () => {
 		</AppProviders>,
 	);
 	return queryClient;
+};
+
+// Submitting the form reports the selection as the request payload, so the
+// assertion does not depend on how the picker renders its label.
+const expectSubmitSaves = async (
+	form: HTMLElement,
+	updateChatModel: ReturnType<typeof mockOverridesAndUpdate>,
+	model: ChatModel,
+) => {
+	fireEvent.submit(form);
+	await waitFor(() => {
+		expect(updateChatModel).toHaveBeenLastCalledWith(
+			MockDefaultOrganization.id,
+			model.id,
+			{ is_default: true },
+		);
+	});
 };
 
 const refetchCatalog = async (
@@ -186,7 +204,7 @@ describe("OrganizationAgentSettings", () => {
 				]),
 			)
 			.mockResolvedValue(chatModelsResponse([defaultModel, alternateModel]));
-		mockOverridesAndUpdate();
+		const updateChatModel = mockOverridesAndUpdate();
 		const user = userEvent.setup();
 		const queryClient = renderWithQueryClient();
 
@@ -196,22 +214,10 @@ describe("OrganizationAgentSettings", () => {
 			alternateModel,
 		);
 		await refetchCatalog(queryClient, getChatModels);
-		await within(defaultSection).findByRole(
-			"combobox",
-			pickerName(defaultModel),
-		);
-
 		// Relisting the dropped model must not resurrect the selection.
 		await refetchCatalog(queryClient, getChatModels, 3);
-		await user.click(
-			await within(defaultSection).findByRole(
-				"combobox",
-				pickerName(defaultModel),
-			),
-		);
-		await screen.findByRole("option", {
-			name: new RegExp(alternateModel.display_name),
-		});
+
+		await expectSubmitSaves(defaultSection, updateChatModel, defaultModel);
 	});
 
 	it("follows a refetched default after the saved model is reselected", async () => {
@@ -227,7 +233,7 @@ describe("OrganizationAgentSettings", () => {
 					{ ...thirdModel, is_default: true },
 				]),
 			);
-		mockOverridesAndUpdate();
+		const updateChatModel = mockOverridesAndUpdate();
 		const user = userEvent.setup();
 		const queryClient = renderWithQueryClient();
 
@@ -239,6 +245,41 @@ describe("OrganizationAgentSettings", () => {
 		await selectModel(user, alternateModel, defaultModel);
 		await refetchCatalog(queryClient, getChatModels);
 
-		await within(defaultSection).findByRole("combobox", pickerName(thirdModel));
+		await expectSubmitSaves(defaultSection, updateChatModel, thirdModel);
+	});
+
+	it("clears a pending selection once the server adopts it", async () => {
+		const getChatModels = vi
+			.spyOn(API.experimental, "getChatModels")
+			.mockResolvedValueOnce(
+				chatModelsResponse([defaultModel, alternateModel, thirdModel]),
+			)
+			.mockResolvedValueOnce(
+				chatModelsResponse([
+					{ ...defaultModel, is_default: false },
+					{ ...alternateModel, is_default: true },
+					thirdModel,
+				]),
+			)
+			.mockResolvedValue(
+				chatModelsResponse([
+					{ ...defaultModel, is_default: false },
+					alternateModel,
+					{ ...thirdModel, is_default: true },
+				]),
+			);
+		const updateChatModel = mockOverridesAndUpdate();
+		const user = userEvent.setup();
+		const queryClient = renderWithQueryClient();
+
+		const defaultSection = await selectModel(
+			user,
+			defaultModel,
+			alternateModel,
+		);
+		await refetchCatalog(queryClient, getChatModels);
+		await refetchCatalog(queryClient, getChatModels, 3);
+
+		await expectSubmitSaves(defaultSection, updateChatModel, thirdModel);
 	});
 });
