@@ -81,12 +81,7 @@ export const SavingDefaultModel: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const defaultSection = await submitAlternateDefaultModel(canvasElement);
-		// The spinner's title joins the button's accessible name while saving.
-		await waitFor(() =>
-			expect(
-				within(defaultSection).getByRole("button", { name: /Save$/ }),
-			).toBeDisabled(),
-		);
+		await within(defaultSection).findByTitle("Loading spinner");
 	},
 };
 

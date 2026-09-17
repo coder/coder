@@ -58,12 +58,7 @@ export const DefaultModelSettings: FC<DefaultModelSettingsProps> = ({
 
 	const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
 		event.preventDefault();
-		onSaveDefaultModel(selectedModelID, {
-			onSuccess: () => {
-				showSavedState();
-				setPendingModelID(undefined);
-			},
-		});
+		onSaveDefaultModel(selectedModelID, { onSuccess: showSavedState });
 	};
 	const isFormDisabled = disabled || isSaving || isLoading || !hasLoadedDefault;
 	const canSave =
