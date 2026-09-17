@@ -220,6 +220,18 @@ func TestApplyMCPConfigErrors(t *testing.T) {
 		}, resources[1])
 	})
 
+	t.Run("UnmatchedPathSharedWithAnotherKindIsDropped", func(t *testing.T) {
+		t.Parallel()
+		// A custom config entry pointing at a file already emitted under
+		// another kind gets no second row: coderd rejects duplicate
+		// sources regardless of kind, which would fail the whole push.
+		resources := applyMCPConfigErrors([]Resource{
+			{ID: "instruction_file:/w/AGENTS.md", Kind: KindInstructionFile, Source: "/w/AGENTS.md", Status: StatusOK},
+		}, []MCPConfigError{{Path: "/w/AGENTS.md", Err: "parse"}})
+		require.Len(t, resources, 1)
+		require.Equal(t, StatusOK, resources[0].Status)
+	})
+
 	t.Run("SymlinkedConfigMatchesTarget", func(t *testing.T) {
 		t.Parallel()
 		if runtime.GOOS == "windows" {

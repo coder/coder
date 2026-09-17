@@ -144,6 +144,12 @@ func applyMCPConfigErrors(resources []Resource, errs []MCPConfigError) []Resourc
 			}
 		}
 		if idx < 0 {
+			// coderd rejects duplicate sources regardless of kind, so a
+			// config entry pointing at a file already emitted as another
+			// kind gets no second row rather than failing the push.
+			if slices.ContainsFunc(resources, func(r Resource) bool { return r.Source == cfgErr.Path }) {
+				continue
+			}
 			resources = append(resources, Resource{
 				ID:     resourceID(KindMCPConfig, cfgErr.Path),
 				Kind:   KindMCPConfig,

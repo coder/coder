@@ -130,6 +130,21 @@ func TestReport(t *testing.T) {
 		assert.Contains(t, got.ConfigErrors[0].Err, "has no command or url")
 	})
 
+	t.Run("ConfigErrorIsBounded", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		configPath := filepath.Join(t.TempDir(), ".mcp.json")
+		// The engine echoes the offending server name in its error.
+		longName := strings.Repeat("n", 2*maxDiagnosticBytes)
+		require.NoError(t, os.WriteFile(configPath, []byte(`{"mcpServers":{"`+longName+`":{"args":["x"]}}}`), 0o600))
+		m, _ := newReportTestManager(t)
+
+		require.NoError(t, m.Reload(ctx, []string{configPath}))
+		got := m.Report()
+		require.Len(t, got.ConfigErrors, 1)
+		assert.LessOrEqual(t, len(got.ConfigErrors[0].Err), maxDiagnosticBytes)
+	})
+
 	t.Run("ZeroToolServerStaysConnected", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -413,5 +428,19 @@ func TestSanitizeMCPError(t *testing.T) {
 		got := sanitizeMCPError(ServerConfig{}, xerrors.New(strings.Repeat("x", 2*maxDiagnosticBytes)))
 		assert.LessOrEqual(t, len(got), maxDiagnosticBytes)
 		assert.True(t, strings.HasSuffix(got, truncatedSuffix), got)
+	})
+
+	t.Run("StdioArguments", func(t *testing.T) {
+		t.Parallel()
+		// Credentials are commonly passed as args; flags themselves stay
+		// readable while their values and every positional arg go.
+		cfg := ServerConfig{Command: "npx", Args: []string{"-y", "@scope/server-pkg", "--token", "arg-sentinel", "--key=eq-sentinel"}}
+		got := sanitizeMCPError(cfg, xerrors.New("exec npx -y @scope/server-pkg --token arg-sentinel --key=eq-sentinel: exit 1"))
+		assert.NotContains(t, got, "arg-sentinel")
+		assert.NotContains(t, got, "eq-sentinel")
+		assert.NotContains(t, got, "server-pkg")
+		assert.Contains(t, got, "--token", "flags are not secrets")
+		assert.Contains(t, got, "--key=", "the flag part of a --flag=value pair stays")
+		assert.Contains(t, got, "exec npx -y", "the command and short flags stay")
 	})
 }

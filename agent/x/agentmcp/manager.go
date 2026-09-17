@@ -529,7 +529,7 @@ func (m *Manager) parseAndDedup(ctx context.Context, mcpConfigFiles []string) ([
 				slog.F("path", configPath),
 				slog.Error(err),
 			)
-			configErrors = append(configErrors, ConfigError{Path: configPath, Err: err.Error()})
+			configErrors = append(configErrors, ConfigError{Path: configPath, Err: boundDiagnostic(err.Error())})
 			continue
 		}
 		allConfigs = append(allConfigs, configs...)
@@ -629,13 +629,16 @@ func (m *Manager) connectAll(ctx context.Context, toConnect []ServerConfig, onCo
 }
 
 // publishConnected installs a server that connected while the reload is
-// still waiting on its siblings and republishes the report from every
-// wanted server with a live client, so one hung server cannot hold back a
-// healthy one past the chat's bounded first-turn wait. The phase stays
-// pending until the whole reload settles. A server that already has an
-// entry (a changed configuration reconnecting) keeps serving its previous
-// client until installServers swaps and closes it, so the old client is
-// never orphaned if the manager closes mid-reload.
+// still waiting on its siblings and publishes it into the report next to
+// the servers already published, so one hung server cannot hold back a
+// healthy one past the chat's bounded first-turn wait. Only the new
+// server is listed; the reload's final refreshCatalog re-lists everything
+// once, so N successful connects cost N interim list calls rather than
+// N squared. The phase stays pending until the whole reload settles. A
+// server that already has an entry (a changed configuration
+// reconnecting) keeps serving its previous client until installServers
+// swaps and closes it, so the old client is never orphaned if the
+// manager closes mid-reload.
 func (m *Manager) publishConnected(ctx context.Context, wanted map[string]ServerConfig, configErrors []ConfigError, cs connectedServer) {
 	m.mu.Lock()
 	if _, exists := m.servers[cs.name]; m.closed || exists {
@@ -644,15 +647,45 @@ func (m *Manager) publishConnected(ctx context.Context, wanted map[string]Server
 	}
 	m.servers[cs.name] = &serverEntry{config: cs.config, client: cs.client}
 	m.serverGen++
-	live := make(map[string]ServerConfig, len(wanted))
-	for name, cfg := range wanted {
-		if _, ok := m.servers[name]; ok {
-			live[name] = cfg
-		}
-	}
 	m.mu.Unlock()
 
-	if m.refreshCatalog(ctx, live, configErrors, nil, nil) {
+	res := m.listServerTools(ctx, cs.name, cs.client)
+	st := ServerStatus{Name: cs.name, Connected: res.err == nil, Tools: res.tools}
+	if res.err != nil {
+		st.Err = sanitizeMCPError(cs.config, res.err)
+	}
+
+	m.mu.Lock()
+	if m.closed {
+		m.mu.Unlock()
+		return
+	}
+	// Keep the published statuses of the other wanted servers that have
+	// a live client and add this one; servers still connecting stay
+	// absent until they publish or the final refresh reports them.
+	catalog := make([]ServerStatus, 0, len(m.catalog)+1)
+	for _, prev := range m.catalog {
+		if _, wantedStill := wanted[prev.Name]; !wantedStill || prev.Name == cs.name {
+			continue
+		}
+		if _, live := m.servers[prev.Name]; live {
+			catalog = append(catalog, prev)
+		}
+	}
+	catalog = append(catalog, st)
+	slices.SortFunc(catalog, func(a, b ServerStatus) int {
+		return strings.Compare(a.Name, b.Name)
+	})
+	if len(configErrors) == 0 {
+		configErrors = nil
+	}
+	changed := !reflect.DeepEqual(m.catalog, catalog) || !reflect.DeepEqual(m.configErrors, configErrors)
+	if changed {
+		m.catalog = catalog
+		m.configErrors = configErrors
+	}
+	m.mu.Unlock()
+	if changed {
 		m.fireOnChange()
 	}
 }
@@ -791,6 +824,35 @@ func (m *Manager) CallTool(ctx context.Context, req workspacesdk.CallMCPToolRequ
 	return convertResult(result), nil
 }
 
+type listResult struct {
+	tools []ToolInfo
+	err   error
+}
+
+// listServerTools performs one bounded tools/list call against a live
+// client.
+func (m *Manager) listServerTools(ctx context.Context, name string, client *mcp.ClientSession) listResult {
+	listCtx, cancel := context.WithTimeout(ctx, connectTimeout)
+	result, err := client.ListTools(listCtx, nil)
+	cancel()
+	if err != nil {
+		m.logger.With(agentchat.Fields(ctx)...).Warn(ctx, "failed to list tools from MCP server",
+			slog.F("server", name),
+			slog.Error(err),
+		)
+		return listResult{err: err}
+	}
+	tools := make([]ToolInfo, 0, len(result.Tools))
+	for _, tool := range result.Tools {
+		tools = append(tools, ToolInfo{
+			Name:        tool.Name,
+			Description: tool.Description,
+			InputSchema: toolInputSchemaMap(tool.InputSchema),
+		})
+	}
+	return listResult{tools: tools}
+}
+
 // refreshCatalog re-lists tools from the connected servers and rebuilds
 // the per-server catalog the agentcontext resolver consumes. Every
 // declared server in wanted appears in the result: a server with a live
@@ -806,8 +868,6 @@ func (m *Manager) refreshCatalog(
 	connectErrors map[string]string,
 	warnings map[string]string,
 ) bool {
-	logger := m.logger.With(agentchat.Fields(ctx)...)
-
 	// Snapshot the connected servers under the read lock.
 	m.mu.RLock()
 	servers := make(map[string]*serverEntry, len(m.servers))
@@ -819,10 +879,6 @@ func (m *Manager) refreshCatalog(
 
 	// List tools from every connected server in parallel, without
 	// holding any lock.
-	type listResult struct {
-		tools []ToolInfo
-		err   error
-	}
 	var (
 		mu      sync.Mutex
 		results = make(map[string]listResult, len(servers))
@@ -830,29 +886,9 @@ func (m *Manager) refreshCatalog(
 	var eg errgroup.Group
 	for name, entry := range servers {
 		eg.Go(func() error {
-			listCtx, cancel := context.WithTimeout(ctx, connectTimeout)
-			result, err := entry.client.ListTools(listCtx, nil)
-			cancel()
-			if err != nil {
-				logger.Warn(ctx, "failed to list tools from MCP server",
-					slog.F("server", name),
-					slog.Error(err),
-				)
-				mu.Lock()
-				results[name] = listResult{err: err}
-				mu.Unlock()
-				return nil
-			}
-			tools := make([]ToolInfo, 0, len(result.Tools))
-			for _, tool := range result.Tools {
-				tools = append(tools, ToolInfo{
-					Name:        tool.Name,
-					Description: tool.Description,
-					InputSchema: toolInputSchemaMap(tool.InputSchema),
-				})
-			}
+			res := m.listServerTools(ctx, name, entry.client)
 			mu.Lock()
-			results[name] = listResult{tools: tools}
+			results[name] = res
 			mu.Unlock()
 			return nil
 		})
