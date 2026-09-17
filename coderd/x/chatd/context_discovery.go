@@ -48,6 +48,11 @@ const (
 	// every pinned body is rendered into every later prompt; files past the
 	// cap are pinned as excluded, without content.
 	maxDiscoveredInstructionBytes = 1 << 20
+	// maxDiscoveredInstructionFiles caps the discovered rows a chat holds,
+	// whatever their status: every row is listed in the inventory and
+	// re-probed on refresh, and the byte cap alone leaves rows without
+	// content unbounded. Files past the cap are not pinned.
+	maxDiscoveredInstructionFiles = 256
 	// pendingProbeTTL is how long a directory a command ran in is re-probed
 	// on every later touch of its tree, so a file the command creates after
 	// its result returned (a background process, a timed-out run) is still
@@ -226,7 +231,10 @@ func touchedPaths(calls []fantasy.ToolCallContent, results []fantasy.Content) (f
 			executed[result.ToolCallID] = struct{}{}
 		}
 	}
+	// The file tools trim their paths before use, so the path they acted
+	// on is the trimmed one.
 	addFile := func(p string) {
+		p = strings.TrimSpace(p)
 		if isUNCPath(p) {
 			return
 		}
@@ -303,13 +311,19 @@ func candidateInstructionDirs(files, dirs []string, workingDir string) []string 
 	for _, dir := range dirs {
 		visit(dir)
 	}
-	slices.SortFunc(out, func(a, b string) int {
+	sortShallowestFirst(out)
+	return out
+}
+
+// sortShallowestFirst orders directories by depth, then name, so caps and
+// budgets applied in order favor the files that govern the most paths.
+func sortShallowestFirst(dirs []string) {
+	slices.SortFunc(dirs, func(a, b string) int {
 		if da, db := strings.Count(a, "/"), strings.Count(b, "/"); da != db {
 			return da - db
 		}
 		return strings.Compare(a, b)
 	})
-	return out
 }
 
 // staleInstructionDirs lists, by pathKey, the directories whose instruction
@@ -459,7 +473,7 @@ func (p *Server) discoverInstructionContext(
 	if len(probed) == 0 {
 		return
 	}
-	pinned, removed, err := reconcileDiscoveredInstructionFiles(dbCtx, p.db, chat.ID, rows, resolved, stale, probed)
+	result, err := reconcileDiscoveredInstructionFiles(dbCtx, p.db, chat.ID, rows, resolved, stale, probed)
 	if err != nil {
 		logger.Warn(ctx, "reconcile discovered instruction files", slog.Error(err))
 		return
@@ -483,11 +497,14 @@ func (p *Server) discoverInstructionContext(
 		}
 		negatives = append(negatives, dir)
 	}
+	// A directory whose files the row cap kept out is not asked again for
+	// a while either; its files would be read for nothing.
+	negatives = append(negatives, result.capped...)
 	p.instructionProbes.markNegative(now, agent.ID, negatives)
-	if pinned == 0 && removed == 0 {
+	if result.pinned == 0 && result.removed == 0 {
 		return
 	}
-	logger.Debug(ctx, "reconciled discovered instruction files", slog.F("pinned", pinned), slog.F("removed", removed))
+	logger.Debug(ctx, "reconciled discovered instruction files", slog.F("pinned", result.pinned), slog.F("removed", result.removed))
 	updated, err := p.db.GetChatByID(dbCtx, chat.ID)
 	if err != nil {
 		logger.Warn(ctx, "read chat after instruction discovery", slog.Error(err))
@@ -496,16 +513,23 @@ func (p *Server) discoverInstructionContext(
 	p.publishChatPubsubEvents([]database.Chat{updated}, codersdk.ChatWatchEventKindContextDirty)
 }
 
-// reconcileDiscoveredInstructionFiles pins the files the agent resolved and
-// removes the discovered rows in stale, probed directories it no longer
-// returned. rows is the chat's inventory before the probe: a file the chat
+// discoveryReconciliation reports what a reconciliation changed.
+type discoveryReconciliation struct {
+	pinned, removed int
+	// capped lists the directories whose new files the row cap kept out.
+	capped []string
+}
+
+// reconcileDiscoveredInstructionFiles removes the discovered rows in stale,
+// probed directories the agent no longer returned, then pins the files it
+// resolved. rows is the chat's inventory before the probe: a file the chat
 // already pins under another spelling of a Windows path reuses that
 // spelling, since the agent echoes the request's casing and the row key is
 // case-sensitive. Readable content past the chat's discovered budget is
-// pinned as excluded; resolved files arrive shallowest directory first, so
-// the budget goes to the files that govern the most. It reports how many
-// rows were pinned and removed, and stops at the first store error so a
-// transaction caller sees it.
+// pinned as excluded, and a new source past the row cap is not pinned;
+// resolved files arrive shallowest directory first, so both go to the files
+// that govern the most. It stops at the first store error so a transaction
+// caller sees it.
 func reconcileDiscoveredInstructionFiles(
 	ctx context.Context,
 	store database.Store,
@@ -514,27 +538,54 @@ func reconcileDiscoveredInstructionFiles(
 	resolved []workspacesdk.ContextInstructionFile,
 	stale map[string]struct{},
 	probed []string,
-) (pinned, removed int, err error) {
+) (discoveryReconciliation, error) {
+	var result discoveryReconciliation
 	spellings := make(map[string]string, len(rows))
 	heldBytes := make(map[string]int64, len(rows))
 	var used int64
+	count := 0
 	for _, row := range rows {
 		if row.BodyKind != database.WorkspaceAgentContextBodyKindInstructionFile {
 			continue
 		}
 		key := pathKey(agentPath(row.Source))
 		spellings[key] = row.Source
-		if row.Discovered && row.Status == database.WorkspaceAgentContextResourceStatusOk {
+		if !row.Discovered {
+			continue
+		}
+		count++
+		if row.Status == database.WorkspaceAgentContextResourceStatusOk {
 			heldBytes[key] = row.SizeBytes
 			used += row.SizeBytes
 		}
 	}
 	returned := make(map[string]struct{}, len(resolved))
 	for _, file := range resolved {
+		returned[pathKey(agentPath(file.Source))] = struct{}{}
+	}
+	// Vanished files go first so a renamed file takes over the budget and
+	// the row its old name held.
+	for _, source := range removedDiscoveredSources(rows, stale, probed, returned) {
+		if err := store.DeleteChatContextDiscoveredResource(ctx, database.DeleteChatContextDiscoveredResourceParams{ChatID: chatID, Source: source}); err != nil {
+			return result, xerrors.Errorf("delete removed instruction file %q: %w", source, err)
+		}
+		key := pathKey(agentPath(source))
+		used -= heldBytes[key]
+		delete(heldBytes, key)
+		delete(spellings, key)
+		count--
+		result.removed++
+	}
+	for _, file := range resolved {
 		key := pathKey(agentPath(file.Source))
-		returned[key] = struct{}{}
-		if source, ok := spellings[key]; ok {
+		source, known := spellings[key]
+		if known {
 			file.Source = source
+		} else if count >= maxDiscoveredInstructionFiles {
+			if dir := agentPath(file.Directory); !slices.Contains(result.capped, dir) {
+				result.capped = append(result.capped, dir)
+			}
+			continue
 		}
 		if file.Status == string(database.WorkspaceAgentContextResourceStatusOk) {
 			// A re-read of a pinned file replaces its bytes rather than
@@ -556,19 +607,18 @@ func reconcileDiscoveredInstructionFiles(
 		}
 		ok, err := pinDiscoveredInstructionFile(ctx, store, chatID, file)
 		if err != nil {
-			return pinned, removed, xerrors.Errorf("pin discovered instruction file %q: %w", file.Source, err)
+			return result, xerrors.Errorf("pin discovered instruction file %q: %w", file.Source, err)
 		}
-		if ok {
-			pinned++
+		if !ok {
+			continue
+		}
+		result.pinned++
+		if !known {
+			spellings[key] = file.Source
+			count++
 		}
 	}
-	for _, source := range removedDiscoveredSources(rows, stale, probed, returned) {
-		if err := store.DeleteChatContextDiscoveredResource(ctx, database.DeleteChatContextDiscoveredResourceParams{ChatID: chatID, Source: source}); err != nil {
-			return pinned, removed, xerrors.Errorf("delete removed instruction file %q: %w", source, err)
-		}
-		removed++
-	}
-	return pinned, removed, nil
+	return result, nil
 }
 
 // pinDiscoveredInstructionFile stores one resolved file as a discovered row.
@@ -645,7 +695,7 @@ func (p *Server) rediscoverInstructionContext(ctx context.Context, chat database
 			return xerrors.Errorf("list chat context resources for rediscovery: %w", err)
 		}
 		rows, files := unchangedDiscoveredRows(captured, current, resolved)
-		_, _, err = reconcileDiscoveredInstructionFiles(ctx, tx, chat.ID, rows, files, stale, probed)
+		_, err = reconcileDiscoveredInstructionFiles(ctx, tx, chat.ID, rows, files, stale, probed)
 		return err
 	})
 	if err != nil {
@@ -737,7 +787,8 @@ func discoveredInstructionRows(rows []database.ChatContextResource) []database.C
 }
 
 // discoveredInstructionDirs lists the directories of a chat's discovered
-// rows, deduplicated, so a refresh can re-resolve them.
+// rows, deduplicated and shallowest first, so a refresh re-resolves them in
+// the order the budget favors rather than the inventory's source order.
 func discoveredInstructionDirs(rows []database.ChatContextResource) []string {
 	seen := make(map[string]struct{})
 	var out []string
@@ -752,5 +803,6 @@ func discoveredInstructionDirs(rows []database.ChatContextResource) []string {
 		seen[pathKey(dir)] = struct{}{}
 		out = append(out, dir)
 	}
+	sortShallowestFirst(out)
 	return out
 }

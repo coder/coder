@@ -2,6 +2,7 @@ package chatd
 
 import (
 	"context"
+	"fmt"
 	"path"
 	"testing"
 	"time"
@@ -33,7 +34,7 @@ func TestTouchedPaths(t *testing.T) {
 
 	calls := []fantasy.ToolCallContent{
 		call("read", "read_file", `{"path":"/home/coder/project/site/src/App.tsx"}`),
-		call("write", "write_file", `{"path":"/home/coder/project/docs/../README.md","content":"x"}`),
+		call("write", "write_file", `{"path":" /home/coder/project/docs/../README.md ","content":"x"}`),
 		call("edit", "edit_files", `{"files":[{"path":"/tmp/repo/a.go","edits":[]},{"path":"relative/b.go","edits":[]}]}`),
 		call("exec", "execute", `{"command":"ls","workdir":"/tmp/repo/pkg"}`),
 		call("exec-default", "execute", `{"command":"ls"}`),
@@ -50,7 +51,7 @@ func TestTouchedPaths(t *testing.T) {
 		"/home/coder/project/site/src/App.tsx",
 		"/home/coder/project/README.md",
 		"/tmp/repo/a.go",
-	}, files, "paths are cleaned; relative paths and calls without a result are ignored")
+	}, files, "paths are trimmed like the file tools do and cleaned; relative paths and calls without a result are ignored")
 	require.Equal(t, []string{"/tmp/repo/pkg"}, dirs, "only an explicit workdir counts")
 
 	// A Windows agent reports drive-rooted paths with backslashes; they
@@ -208,10 +209,10 @@ func TestReconcileDiscoveredInstructionFilesKeepsSpelling(t *testing.T) {
 	db.EXPECT().DeleteChatContextDiscoveredResource(gomock.Any(), database.DeleteChatContextDiscoveredResourceParams{ChatID: chatID, Source: "C:\\repo\\site\\CLAUDE.md"}).Return(nil)
 
 	stale := map[string]struct{}{"c:/repo/site": {}}
-	pinned, removed, err := reconcileDiscoveredInstructionFiles(context.Background(), db, chatID, rows, resolved, stale, []string{"c:/Repo/site"})
+	result, err := reconcileDiscoveredInstructionFiles(context.Background(), db, chatID, rows, resolved, stale, []string{"c:/Repo/site"})
 	require.NoError(t, err)
-	require.Equal(t, 1, pinned)
-	require.Equal(t, 1, removed)
+	require.Equal(t, 1, result.pinned)
+	require.Equal(t, 1, result.removed)
 }
 
 // TestUnchangedDiscoveredRows checks that a rediscovery applied after its
@@ -350,10 +351,10 @@ func TestReconcileDiscoveredInstructionFilesBudget(t *testing.T) {
 			return nil
 		})
 
-	pinned, removed, err := reconcileDiscoveredInstructionFiles(context.Background(), db, chatID, rows, resolved, map[string]struct{}{}, []string{"/repo/site", "/repo/site/docs"})
+	result, err := reconcileDiscoveredInstructionFiles(context.Background(), db, chatID, rows, resolved, map[string]struct{}{}, []string{"/repo/site", "/repo/site/docs"})
 	require.NoError(t, err)
-	require.Equal(t, 3, pinned)
-	require.Zero(t, removed)
+	require.Equal(t, 3, result.pinned)
+	require.Zero(t, result.removed)
 	require.Equal(t, database.WorkspaceAgentContextResourceStatusOk, upserted["/repo/site/AGENTS.md"].Status, "a re-read replaces the held bytes")
 	require.Equal(t, database.WorkspaceAgentContextResourceStatusOk, upserted["/repo/site/CLAUDE.md"].Status, "the remaining budget holds the second file exactly")
 	over := upserted["/repo/site/docs/AGENTS.md"]
@@ -389,8 +390,99 @@ func TestReconcileDiscoveredInstructionFilesReplacesUnreadable(t *testing.T) {
 	})).Return(nil)
 
 	stale := map[string]struct{}{"/repo/site": {}}
-	pinned, removed, err := reconcileDiscoveredInstructionFiles(context.Background(), db, chatID, rows, resolved, stale, []string{"/repo/site"})
+	result, err := reconcileDiscoveredInstructionFiles(context.Background(), db, chatID, rows, resolved, stale, []string{"/repo/site"})
 	require.NoError(t, err)
-	require.Equal(t, 1, pinned)
-	require.Zero(t, removed, "a file the probe returned is not treated as vanished, whatever its status")
+	require.Equal(t, 1, result.pinned)
+	require.Zero(t, result.removed, "a file the probe returned is not treated as vanished, whatever its status")
+}
+
+// TestReconcileDiscoveredInstructionFilesReleasesVanishedBudget checks that
+// a file renamed within a stale directory takes over the bytes its old name
+// held: the vanished row is removed before the replacement is classified, so
+// the replacement is pinned readable rather than excluded.
+func TestReconcileDiscoveredInstructionFilesReleasesVanishedBudget(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+	chatID := uuid.New()
+	const held = maxDiscoveredInstructionBytes - 1
+	rows := []database.ChatContextResource{{
+		Source: "/repo/site/AGENTS.md", BodyKind: database.WorkspaceAgentContextBodyKindInstructionFile,
+		Discovered: true, Status: database.WorkspaceAgentContextResourceStatusOk, SizeBytes: held,
+	}}
+	resolved := []workspacesdk.ContextInstructionFile{{
+		Directory: "/repo/site", Source: "/repo/site/CLAUDE.md", Content: "rules", ContentHash: "ab", SizeBytes: held, Status: "ok",
+	}}
+	gomock.InOrder(
+		db.EXPECT().DeleteChatContextDiscoveredResource(gomock.Any(), database.DeleteChatContextDiscoveredResourceParams{ChatID: chatID, Source: "/repo/site/AGENTS.md"}).Return(nil),
+		db.EXPECT().UpsertChatContextDiscoveredResource(gomock.Any(), gomock.Cond(func(arg database.UpsertChatContextDiscoveredResourceParams) bool {
+			return arg.Source == "/repo/site/CLAUDE.md" && arg.Status == database.WorkspaceAgentContextResourceStatusOk
+		})).Return(nil),
+	)
+
+	stale := map[string]struct{}{"/repo/site": {}}
+	result, err := reconcileDiscoveredInstructionFiles(context.Background(), db, chatID, rows, resolved, stale, []string{"/repo/site"})
+	require.NoError(t, err)
+	require.Equal(t, 1, result.pinned)
+	require.Equal(t, 1, result.removed)
+}
+
+// TestReconcileDiscoveredInstructionFilesRowCap checks that a chat at the
+// discovered row cap still refreshes the sources it holds and takes over a
+// vanished row's slot, but pins no further new source and reports the
+// directories it kept out.
+func TestReconcileDiscoveredInstructionFilesRowCap(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+	chatID := uuid.New()
+	rows := make([]database.ChatContextResource, 0, maxDiscoveredInstructionFiles+1)
+	for i := range maxDiscoveredInstructionFiles {
+		rows = append(rows, database.ChatContextResource{
+			Source: fmt.Sprintf("/repo/pkg%03d/AGENTS.md", i), BodyKind: database.WorkspaceAgentContextBodyKindInstructionFile,
+			Discovered: true, Status: database.WorkspaceAgentContextResourceStatusExcluded,
+		})
+	}
+	rows = append(rows, database.ChatContextResource{Source: "/repo/AGENTS.md", BodyKind: database.WorkspaceAgentContextBodyKindInstructionFile})
+	file := func(source string) workspacesdk.ContextInstructionFile {
+		return workspacesdk.ContextInstructionFile{Directory: path.Dir(source), Source: source, Content: "rules", ContentHash: "ab", SizeBytes: 5, Status: "ok"}
+	}
+	resolved := []workspacesdk.ContextInstructionFile{
+		file("/repo/pkg000/AGENTS.md"),
+		file("/repo/pkg000/CLAUDE.md"),
+		file("/repo/new/AGENTS.md"),
+		file("/repo/new/CLAUDE.md"),
+		file("/repo/other/AGENTS.md"),
+	}
+	upserted := make([]string, 0, 2)
+	db.EXPECT().DeleteChatContextDiscoveredResource(gomock.Any(), database.DeleteChatContextDiscoveredResourceParams{ChatID: chatID, Source: "/repo/pkg001/AGENTS.md"}).Return(nil)
+	db.EXPECT().UpsertChatContextDiscoveredResource(gomock.Any(), gomock.Any()).Times(2).
+		DoAndReturn(func(_ context.Context, arg database.UpsertChatContextDiscoveredResourceParams) error {
+			upserted = append(upserted, arg.Source)
+			return nil
+		})
+
+	stale := map[string]struct{}{"/repo/pkg001": {}}
+	result, err := reconcileDiscoveredInstructionFiles(context.Background(), db, chatID, rows, resolved, stale, []string{"/repo/pkg000", "/repo/pkg001", "/repo/new", "/repo/other"})
+	require.NoError(t, err)
+	require.Equal(t, 1, result.removed)
+	require.Equal(t, 2, result.pinned)
+	require.Equal(t, []string{"/repo/pkg000/AGENTS.md", "/repo/pkg000/CLAUDE.md"}, upserted,
+		"a held source is re-pinned and the freed slot goes to the first new file; the rest stay out")
+	require.Equal(t, []string{"/repo/new", "/repo/other"}, result.capped)
+}
+
+func TestDiscoveredInstructionDirsShallowestFirst(t *testing.T) {
+	t.Parallel()
+
+	rows := []database.ChatContextResource{
+		{Source: "/repo/AGENTS.md"},
+		{Source: "/repo/a/deep/AGENTS.md", Discovered: true},
+		{Source: "/repo/a/deep/CLAUDE.md", Discovered: true},
+		{Source: "/repo/z/AGENTS.md", Discovered: true},
+	}
+	require.Equal(t, []string{"/repo/z", "/repo/a/deep"}, discoveredInstructionDirs(rows),
+		"a refresh probes the directories that govern the most first, whatever the inventory order")
 }
