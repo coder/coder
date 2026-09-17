@@ -489,6 +489,7 @@ func OAuth2ProviderApp(accessURL *url.URL, dbApp database.OAuth2ProviderApp) cod
 		Name:        dbApp.Name,
 		CallbackURL: dbApp.CallbackURL,
 		Icon:        dbApp.Icon,
+		ClientType:  codersdk.OAuth2ClientType(dbApp.ClientType),
 		Endpoints: codersdk.OAuth2AppEndpoints{
 			Authorization: accessURL.ResolveReference(&url.URL{
 				Path: "/oauth2/authorize",
@@ -1549,6 +1550,20 @@ func OrganizationGroupAISpend(row database.GetOrganizationGroupsAISpendRow) code
 		group.TotalSpendLimitMicros = &row.TotalSpendLimitMicros.Int64
 	}
 	return group
+}
+
+func OrganizationAISpendUser(row database.ListOrganizationAISpendUsersRow) codersdk.OrganizationAISpendUser {
+	return codersdk.OrganizationAISpendUser{
+		UserID:             row.UserID,
+		Username:           row.Username,
+		Name:               row.Name,
+		AvatarURL:          row.AvatarURL,
+		CostMicros:         row.CostMicros,
+		UnpricedUsageCount: row.UnpricedUsageCount,
+		Providers:          row.Providers,
+		Clients:            row.Clients,
+		Models:             row.Models,
+	}
 }
 
 func GroupMemberAISpend(row database.GetGroupMembersAISpendRow, queriedGroupID uuid.UUID) codersdk.GroupMemberAISpend {

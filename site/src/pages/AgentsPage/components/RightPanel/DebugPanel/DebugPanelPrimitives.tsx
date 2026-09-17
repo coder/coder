@@ -18,7 +18,7 @@ export const DebugDataSection: FC<DebugDataSectionProps> = ({
 	className,
 }) => {
 	return (
-		<section className={cn("space-y-1.5", className)}>
+		<section className={cn("min-w-0 space-y-1.5", className)}>
 			<h4 className="text-xs font-medium text-content-secondary">{title}</h4>
 			{description ? (
 				<p className="text-xs leading-5 text-content-tertiary">{description}</p>

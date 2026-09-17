@@ -248,6 +248,7 @@ export const MockBuildInfo: TypesGen.BuildInfoResponse = {
 	deployment_id: "510d407f-e521-4180-b559-eab4a6d802b8",
 	webpush_public_key: "fake-public-key",
 	telemetry: true,
+	oauth2_provider: true,
 };
 
 export const MockSupportLinks: TypesGen.LinkConfig[] = [
@@ -1429,10 +1430,11 @@ export const MockWorkspaceResourceMultipleAgents: TypesGen.WorkspaceResource = {
 	],
 };
 
-const _MockWorkspaceResourceHidden: TypesGen.WorkspaceResource = {
+export const MockWorkspaceResourceHidden: TypesGen.WorkspaceResource = {
 	...MockWorkspaceResource,
 	id: "test-workspace-resource-hidden",
 	name: "workspace-resource-hidden",
+	agents: [],
 	hide: true,
 };
 
@@ -4974,6 +4976,7 @@ export const MockOAuth2ProviderApps: TypesGen.OAuth2ProviderApp[] = [
 		name: "foo",
 		callback_url: "http://127.0.0.1:3001",
 		icon: "/icon/github.svg",
+		client_type: "confidential",
 		endpoints: {
 			authorization: "http://127.0.0.1:3001/oauth2/authorize",
 			token: "http://127.0.0.1:3001/oauth2/token",
@@ -4982,6 +4985,20 @@ export const MockOAuth2ProviderApps: TypesGen.OAuth2ProviderApp[] = [
 		},
 	},
 ];
+
+export const MockOAuth2ProviderAppPublic: TypesGen.OAuth2ProviderApp = {
+	id: "2",
+	name: "bar (public)",
+	callback_url: "http://127.0.0.1:3002",
+	icon: "/icon/github.svg",
+	client_type: "public",
+	endpoints: {
+		authorization: "http://127.0.0.1:3002/oauth2/authorize",
+		token: "http://127.0.0.1:3002/oauth2/token",
+		device_authorization: "",
+		token_revoke: "http://127.0.0.1:3002/oauth2/revoke",
+	},
+};
 
 export const MockOAuth2ProviderSettings: TypesGen.OAuth2ProviderSettings = {
 	dynamic_client_registration_enabled: false,

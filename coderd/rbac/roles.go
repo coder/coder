@@ -250,8 +250,6 @@ func orgWorkspaceAccessMemberPerms() []Permission {
 		// stay dead at Member scope.
 		ResourceProvisionerDaemon.Type: {policy.ActionCreate, policy.ActionRead},
 
-		ResourceTask.Type: ResourceTask.AvailableActions(),
-
 		// Intentionally omitted at Member scope (resources without an
 		// Owner field on their RBACObject; Member-level grants never
 		// fire for them). Listed here because these can be common

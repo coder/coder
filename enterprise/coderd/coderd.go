@@ -568,6 +568,7 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 				api.RequireFeatureMW(codersdk.FeatureAIBridge),
 			)
 			r.Get("/export", api.exportOrganizationAISpend)
+			r.Get("/users", api.organizationAISpendUsers)
 		})
 		r.Route("/provisionerkeys", func(r chi.Router) {
 			r.Use(

@@ -20,6 +20,7 @@ import (
 	"github.com/coder/coder/v2/coderd/util/shellparse"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatsanitize"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
+	"github.com/coder/coder/v2/coderd/x/chatfiles"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -1210,11 +1211,11 @@ func IsSyntheticPaste(name string, mediaType string) bool {
 	if err == nil {
 		mediaType = parsedMediaType
 	}
-	if strings.HasPrefix(mediaType, "text/") {
+	if strings.HasPrefix(mediaType, "text/") || chatfiles.IsTextAttachmentMediaType(mediaType) {
 		return true
 	}
 	switch mediaType {
-	case "application/json", "application/xml", "application/javascript", "application/x-yaml":
+	case "application/xml", "application/javascript", "application/x-yaml":
 		return true
 	default:
 		return false
@@ -1236,24 +1237,6 @@ func formatSyntheticPasteText(name string, body []byte) string {
 		_, _ = sb.WriteString(syntheticPasteTruncationWarning)
 	}
 	return sb.String()
-}
-
-// isInlinableTextMediaType reports whether mediaType is a text-family
-// type whose bytes may be decoded and inlined as prompt text. The set
-// is deliberately narrow so binary or unknown content is never decoded.
-// Any new text type added to codersdk.AllChatAttachmentMediaTypes must
-// also be added here, or it will be silently dropped on providers that
-// reject it as a file part.
-func isInlinableTextMediaType(mediaType string) bool {
-	if parsed, _, err := mime.ParseMediaType(mediaType); err == nil {
-		mediaType = parsed
-	}
-	switch mediaType {
-	case "text/plain", "text/markdown", "text/csv", "application/json":
-		return true
-	default:
-		return false
-	}
 }
 
 // formatInlinedFileText renders a file's full content as prompt text
@@ -1541,7 +1524,7 @@ func partsToMessageParts(
 			// synthetic pastes use a truncating path and must not fall
 			// through to the non-truncating inline path.
 			if acceptsFilePart != nil &&
-				isInlinableTextMediaType(mediaType) &&
+				chatfiles.IsTextAttachmentMediaType(mediaType) &&
 				!acceptsFilePart(mediaType) {
 				logger.Info(ctx,
 					"inlining text-family file part as text for provider that would drop it",

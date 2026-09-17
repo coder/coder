@@ -976,7 +976,17 @@ type PprofConfig struct {
 }
 
 type OAuth2Config struct {
-	Github OAuth2GithubConfig `json:"github" typescript:",notnull"`
+	Github   OAuth2GithubConfig   `json:"github" typescript:",notnull"`
+	Provider OAuth2ProviderConfig `json:"provider" typescript:",notnull"`
+}
+
+// OAuth2ProviderConfig configures Coder's own OAuth 2.1 authorization server.
+// This is separate from the GitHub login integration. It is also distinct
+// from OAuth2ProviderSettings: this struct decides whether the server is on
+// at all, while OAuth2ProviderSettings holds runtime behavior such as
+// dynamic client registration that admins change while it runs.
+type OAuth2ProviderConfig struct {
+	Enable serpent.Bool `json:"enable" typescript:",notnull"`
 }
 
 type OAuth2GithubConfig struct {
@@ -1599,13 +1609,18 @@ communicating directly.`,
 		}
 		deploymentGroupOAuth2 = serpent.Group{
 			Name:        "OAuth2",
-			Description: `Configure login and user-provisioning with GitHub via oAuth2.`,
+			Description: `Configure OAuth2: GitHub login and user-provisioning, and Coder's own OAuth 2.1 authorization server.`,
 			YAML:        "oauth2",
 		}
 		deploymentGroupOAuth2GitHub = serpent.Group{
 			Parent: &deploymentGroupOAuth2,
 			Name:   "GitHub",
 			YAML:   "github",
+		}
+		deploymentGroupOAuth2Provider = serpent.Group{
+			Parent: &deploymentGroupOAuth2,
+			Name:   "Provider",
+			YAML:   "provider",
 		}
 		deploymentGroupOIDC = serpent.Group{
 			Name: "OIDC",
@@ -1934,7 +1949,7 @@ communicating directly.`,
 	}
 	aiGatewayInjectCoderMCPTools := serpent.Option{
 		Name:        "AI Gateway Inject Coder MCP tools",
-		Description: "Deprecated: Injected MCP in AI Gateway is deprecated and will be removed in a future release. Whether to inject Coder's MCP tools into intercepted AI Gateway requests (requires the \"oauth2\" and \"mcp-server-http\" experiments to be enabled).",
+		Description: "Deprecated: Injected MCP in AI Gateway is deprecated and will be removed in a future release. Whether to inject Coder's MCP tools into intercepted AI Gateway requests (requires CODER_OAUTH2_PROVIDER_ENABLE and the \"mcp-server-http\" experiment to be enabled).",
 		Flag:        "ai-gateway-inject-coder-mcp-tools",
 		Env:         "CODER_AI_GATEWAY_INJECT_CODER_MCP_TOOLS",
 		Value:       &c.AI.BridgeConfig.InjectCoderMCPTools,
@@ -2699,6 +2714,16 @@ communicating directly.`,
 			Value:       &c.OAuth2.Github.EnterpriseBaseURL,
 			Group:       &deploymentGroupOAuth2GitHub,
 			YAML:        "enterpriseBaseURL",
+		},
+		{
+			Name:        "OAuth2 Provider Enable",
+			Description: "Enable the OAuth 2.1 authorization server, which lets external applications (such as MCP clients) obtain tokens for Coder on behalf of users. Disabled by default. When disabled, the OAuth2 endpoints and discovery documents return 404.",
+			Flag:        "oauth2-provider-enable",
+			Env:         "CODER_OAUTH2_PROVIDER_ENABLE",
+			Value:       &c.OAuth2.Provider.Enable,
+			Group:       &deploymentGroupOAuth2Provider,
+			YAML:        "enable",
+			Default:     "false",
 		},
 		// OIDC settings.
 		{
@@ -5118,6 +5143,9 @@ type BuildInfoResponse struct {
 	DashboardURL string `json:"dashboard_url"`
 	// Telemetry is a boolean that indicates whether telemetry is enabled.
 	Telemetry bool `json:"telemetry"`
+	// OAuth2Provider reports whether the OAuth 2.1 authorization server is
+	// enabled. The dashboard uses it to show or hide OAuth2 navigation.
+	OAuth2Provider bool `json:"oauth2_provider"`
 
 	WorkspaceProxy bool `json:"workspace_proxy"`
 
@@ -5178,13 +5206,13 @@ const (
 	ExperimentAutoFillParameters        Experiment = "auto-fill-parameters"        // This should not be taken out of experiments until we have redesigned the feature.
 	ExperimentNotifications             Experiment = "notifications"               // Sends notifications via SMTP and webhooks following certain events.
 	ExperimentWorkspaceUsage            Experiment = "workspace-usage"             // Enables the new workspace usage tracking.
-	ExperimentOAuth2                    Experiment = "oauth2"                      // Enables OAuth2 provider functionality.
 	ExperimentMCPServerHTTP             Experiment = "mcp-server-http"             // Enables the MCP HTTP server functionality.
 	ExperimentMCPToolSearch             Experiment = "mcp-tool-search"             // Defers MCP tool schemas behind a searchable catalog in agent chats.
 	ExperimentWorkspaceBuildUpdates     Experiment = "workspace-build-updates"     // Enables publishing workspace build updates to the all builds pubsub channel.
 	ExperimentNATSPubsub                Experiment = "nats_pubsub"                 // Enables embedded NATS pubsub.
 	ExperimentWorkspaceCapableLicensing Experiment = "workspace-capable-licensing" // Counts only users holding the workspace-create permission toward the license seat limit.
 	ExperimentAIGatewaySeatExclusion    Experiment = "ai-gateway-seat-exclusion"   // Excludes AI Gateway (AI Bridge) usage from AI Governance seat consumption.
+	ExperimentAIGatewayReverseProxy     Experiment = "ai-gateway-reverse-proxy"    // Uses stateless reverse proxy routing when MCP injection is not configured.
 	ExperimentChatAdvisor               Experiment = "chat-advisor"                // Enables the advisor tool for root agent chats.
 	ExperimentChatVirtualDesktop        Experiment = "chat-virtual-desktop"        // Enables virtual desktop and computer use provider for agents.
 	ExperimentAgentLifecycleHooks       Experiment = "agent-lifecycle-hooks"       // Enables chat lifecycle hook webhooks for agent chats.
@@ -5200,8 +5228,6 @@ func (e Experiment) DisplayName() string {
 		return "SMTP and Webhook Notifications"
 	case ExperimentWorkspaceUsage:
 		return "Workspace Usage Tracking"
-	case ExperimentOAuth2:
-		return "OAuth2 Provider Functionality"
 	case ExperimentMCPServerHTTP:
 		return "MCP HTTP Server Functionality"
 	case ExperimentWorkspaceBuildUpdates:
@@ -5212,6 +5238,8 @@ func (e Experiment) DisplayName() string {
 		return "Workspace-Capable Licensing"
 	case ExperimentAIGatewaySeatExclusion:
 		return "AI Gateway Seat Exclusion"
+	case ExperimentAIGatewayReverseProxy:
+		return "AI Gateway Reverse Proxy"
 	case ExperimentChatAdvisor:
 		return "Chat Advisor"
 	case ExperimentChatVirtualDesktop:
@@ -5232,13 +5260,13 @@ var ExperimentsKnown = Experiments{
 	ExperimentAutoFillParameters,
 	ExperimentNotifications,
 	ExperimentWorkspaceUsage,
-	ExperimentOAuth2,
 	ExperimentMCPServerHTTP,
 	ExperimentMCPToolSearch,
 	ExperimentNATSPubsub,
 	ExperimentWorkspaceBuildUpdates,
 	ExperimentWorkspaceCapableLicensing,
 	ExperimentAIGatewaySeatExclusion,
+	ExperimentAIGatewayReverseProxy,
 	ExperimentChatAdvisor,
 	ExperimentChatVirtualDesktop,
 	ExperimentAgentLifecycleHooks,

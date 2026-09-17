@@ -52,6 +52,7 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/coderd/x/chatd/mcpclient"
 	"github.com/coder/coder/v2/coderd/x/chatd/messagepartbuffer"
+	"github.com/coder/coder/v2/coderd/x/chatfiles"
 	skillspkg "github.com/coder/coder/v2/coderd/x/skills"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
@@ -62,10 +63,10 @@ import (
 const (
 	// DefaultPendingChatAcquireInterval is the default time between attempts to
 	// acquire pending chats.
-	DefaultPendingChatAcquireInterval = time.Second
+	DefaultPendingChatAcquireInterval = 30 * time.Second
 	// DefaultInFlightChatStaleAfter is the default age after which a running
 	// chat is considered stale and should be recovered.
-	DefaultInFlightChatStaleAfter = 5 * time.Minute
+	DefaultInFlightChatStaleAfter = 30 * time.Second
 
 	workspaceDialValidationDelay = 5 * time.Second
 	turnStatusLabelWriteTimeout  = 5 * time.Second
@@ -80,7 +81,7 @@ const (
 	planPathLookupTimeout = defaultDialTimeout + 5*time.Second
 	// DefaultChatHeartbeatInterval is the default time between chat
 	// heartbeat updates while a chat is being processed.
-	DefaultChatHeartbeatInterval = 30 * time.Second
+	DefaultChatHeartbeatInterval = 9 * time.Second
 	maxChatSteps                 = 1200
 
 	// slowPrepareThreshold is the generation-preparation duration
@@ -120,6 +121,7 @@ const (
 
 var (
 	errChatHasNoWorkspaceAgent = xerrors.New("workspace has no running agent: the workspace is likely stopped. Use the start_workspace tool to start it")
+	errChatWorkspaceDeleted    = xerrors.New("the chat's workspace was deleted (for example by dormancy cleanup) and cannot execute tools. Use the create_workspace tool to create a new one")
 	errChatAgentDisconnected   = xerrors.New(
 		"workspace agent has been disconnected for at least 90 seconds " +
 			"and cannot execute tools. To recover, call stop_workspace " +
@@ -624,6 +626,25 @@ func (c *turnWorkspaceContext) loadWorkspaceAgentLocked(
 
 		if !chatSnapshot.WorkspaceID.Valid {
 			return chatSnapshot, database.WorkspaceAgent{}, xerrors.New("this tool requires a workspace and this chat does not have one. Use the create_workspace tool to create one")
+		}
+
+		// A soft-deleted workspace keeps its agent rows, so the bound agent
+		// would otherwise be dialed and fail as merely unreachable.
+		ws, err := c.server.db.GetWorkspaceByID(ctx, chatSnapshot.WorkspaceID.UUID)
+		if err != nil {
+			return chatSnapshot, database.WorkspaceAgent{}, xerrors.Errorf(
+				"load workspace: %w. %s", err, chattool.WorkspaceUnavailableHint,
+			)
+		}
+		if ws.Deleted {
+			// A concurrent create_workspace may have rebound the chat
+			// while the row was read; resolve the replacement instead.
+			latestChat, workspaceMatches := c.currentWorkspaceMatches(chatSnapshot.WorkspaceID)
+			if !workspaceMatches {
+				chatSnapshot = latestChat
+				continue
+			}
+			return chatSnapshot, database.WorkspaceAgent{}, errChatWorkspaceDeleted
 		}
 
 		if chatSnapshot.AgentID.Valid {
@@ -3311,7 +3332,7 @@ func (p *Server) chatFileResolver(provider string) chatprompt.FileResolver {
 		result := make(map[uuid.UUID]chatprompt.FileData, len(files))
 		for _, f := range files {
 			if hasImageCap &&
-				strings.HasPrefix(f.Mimetype, "image/") &&
+				chatfiles.IsRasterImageMediaType(f.Mimetype) &&
 				len(f.Data) >= imageCap {
 				err := xerrors.Errorf(
 					"image attachment %q is %d bytes; %s inline image limit is %d bytes",

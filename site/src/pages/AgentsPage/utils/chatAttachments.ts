@@ -217,6 +217,14 @@ export const isChatAttachmentFile = (file: File): boolean => {
 	return ChatAttachmentMediaTypes.some((mediaType) => mediaType === file.type);
 };
 
+/**
+ * Returns true for media types the UI may draw as a picture. SVG is an
+ * allowlisted attachment with an image/ MIME type, but it is text for the
+ * model and download-only for the browser, so it is never rendered inline.
+ */
+export const isRasterImageMediaType = (mediaType: string): boolean =>
+	mediaType.startsWith("image/") && mediaType !== "image/svg+xml";
+
 // Matches characters that commonly cause trouble downstream: bracketing
 // punctuation, quotes, shell or URL or path metacharacters, path
 // separators, any whitespace, and control characters. ASCII alphanumerics,
