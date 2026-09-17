@@ -2054,10 +2054,6 @@ export interface ChatConfig {
 	readonly hook_timeout: number;
 	readonly hook_enabled: boolean;
 	readonly hook_allow_insecure: boolean;
-	/**
-	 * StreamSilenceTimeout bounds how long a Coder Agents model stream may
-	 * stay silent before the attempt is canceled and retried.
-	 */
 	readonly stream_silence_timeout: number;
 	/**
 	 * @deprecated AI Gateway routing is now the only routing path. Setting this
