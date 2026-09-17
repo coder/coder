@@ -1,6 +1,8 @@
 import type { QueryClient } from "react-query";
 import { API } from "#/api/api";
 import {
+	cancelChatListRefetches,
+	cancelLoadedChatEntityRefetch,
 	invalidateChatEntity,
 	invalidateChatListQueries,
 	patchChatEntity,
@@ -19,7 +21,15 @@ export const updateChatLabels = (queryClient: QueryClient) => ({
 	mutationFn: ({ chatId, labels }: UpdateChatLabelsVariables) =>
 		API.experimental.updateChat(chatId, { labels }),
 
-	onMutate: ({ chatId, labels }: UpdateChatLabelsVariables) => {
+	onMutate: async ({ chatId, labels }: UpdateChatLabelsVariables) => {
+		// A list refetch already in flight carries pre-write labels. If it lands
+		// after the patch below it replaces every page, the board reverts, and
+		// the next write on this chat is built from the stale map. Initial loads
+		// and pagination fetches are left alone by these helpers.
+		await Promise.all([
+			cancelChatListRefetches(queryClient),
+			cancelLoadedChatEntityRefetch(queryClient, chatId),
+		]);
 		updateInfiniteChatsCache(queryClient, (chats) =>
 			chats.map((chat) => (chat.id === chatId ? { ...chat, labels } : chat)),
 		);
