@@ -1,4 +1,4 @@
-import { MessageScroller } from "@shadcn/react/message-scroller";
+import { MessageScroller } from "#/vendor/message-scroller";
 import { ChatStatusCallout } from "./ChatStatusCallout";
 import type { LiveStatusModel } from "./liveStatusModel";
 

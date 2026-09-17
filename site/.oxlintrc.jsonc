@@ -239,11 +239,14 @@
 		]
 	},
 	// typesGenerated.ts is generated, so ignore it entirely rather than
-	// tracking per-rule exceptions for it.
+	// tracking per-rule exceptions for it. src/vendor/ is third-party source
+	// vendored verbatim (minus marked local changes) and must not drift from
+	// upstream patterns to satisfy in-repo lint rules.
 	"ignorePatterns": [
 		"e2e/**/*Generated.ts",
 		"scripts/*.mjs",
-		"**/typesGenerated.ts"
+		"**/typesGenerated.ts",
+		"src/vendor/**"
 	],
 	"overrides": [
 		{
