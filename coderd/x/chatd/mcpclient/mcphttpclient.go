@@ -1,7 +1,10 @@
 package mcpclient
 
 import (
+	"io"
 	"net/http"
+
+	"golang.org/x/xerrors"
 
 	"github.com/coder/safedial"
 )
@@ -39,6 +42,82 @@ func NewHTTPClient(base *http.Client, opts ...safedial.Option) *http.Client {
 		tr.ResponseHeaderTimeout = responseHeaderTimeout
 	}
 	return client
+}
+
+// maxChatAttachedHTTPResponseBytes caps one HTTP response body from a
+// chat-attached MCP server. Chat owners, not org admins, choose these
+// servers, so a hostile server must not be able to exhaust memory with
+// an unbounded tool list or tool result.
+const maxChatAttachedHTTPResponseBytes = 1 << 20
+
+var errChatAttachedResponseTooLarge = xerrors.New("chat-attached MCP response body exceeds maximum size")
+
+// chatAttachedHTTPClient wraps base so every response body is capped at
+// maxChatAttachedHTTPResponseBytes. A nil or transport-less base falls
+// back to the default guarded client, matching httpClientWithHeaders.
+func chatAttachedHTTPClient(base *http.Client) *http.Client {
+	if base == nil || base.Transport == nil {
+		base = NewHTTPClient(base)
+	}
+	client := *base
+	client.Transport = &maxResponseBodyRoundTripper{
+		base:     base.Transport,
+		maxBytes: maxChatAttachedHTTPResponseBytes,
+	}
+	return &client
+}
+
+type maxResponseBodyRoundTripper struct {
+	base     http.RoundTripper
+	maxBytes int64
+}
+
+func (t *maxResponseBodyRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	resp, err := t.base.RoundTrip(req)
+	if err != nil {
+		return nil, err
+	}
+	if resp.Body == nil {
+		return resp, nil
+	}
+	if resp.ContentLength > t.maxBytes {
+		_ = resp.Body.Close()
+		return nil, errChatAttachedResponseTooLarge
+	}
+	resp.Body = &maxResponseReadCloser{
+		body:      resp.Body,
+		remaining: t.maxBytes,
+	}
+	return resp, nil
+}
+
+type maxResponseReadCloser struct {
+	body      io.ReadCloser
+	remaining int64
+}
+
+func (r *maxResponseReadCloser) Read(p []byte) (int, error) {
+	if len(p) == 0 {
+		return r.body.Read(p)
+	}
+	// Read one byte past the cap so an exactly-at-cap body is not
+	// rejected while an over-cap body is detected on this read.
+	maxRead := r.remaining + 1
+	if int64(len(p)) > maxRead {
+		p = p[:maxRead]
+	}
+	n, err := r.body.Read(p)
+	if int64(n) > r.remaining {
+		n = int(r.remaining)
+		r.remaining = 0
+		return n, errChatAttachedResponseTooLarge
+	}
+	r.remaining -= int64(n)
+	return n, err
+}
+
+func (r *maxResponseReadCloser) Close() error {
+	return r.body.Close()
 }
 
 func httpClientWithHeaders(base *http.Client, headers map[string]string) *http.Client {
