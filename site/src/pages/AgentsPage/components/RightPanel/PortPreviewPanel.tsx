@@ -2,6 +2,7 @@ import { formatAnnotations } from "@coder/annotator/formatAnnotations";
 import {
 	type AnnotationSubmission,
 	annotatorQueryParam,
+	type HighlightItem,
 } from "@coder/annotator/protocol";
 import {
 	ExternalLinkIcon,
@@ -29,6 +30,9 @@ import type { UserRightPanelTab } from "../../utils/rightPanelTabs";
 
 const sendRetries = 6;
 const sendRetryMs = 500;
+// A sent annotation whose turn never starts within this window is
+// forgotten rather than left to light up during an unrelated later turn.
+const turnStartGraceMs = 15_000;
 
 // Sends one annotation message, retrying briefly while another submission
 // is in flight so a quick second comment is delayed rather than dropped.
@@ -61,6 +65,9 @@ export const PortPreviewPanel: FC<{
 	// Shows the annotate control. Requires the chat-ui-annotations
 	// experiment so the app proxy injects the overlay.
 	canAnnotate?: boolean;
+	// Drives the shimmer over annotated elements: on while the agent works
+	// on a sent annotation message, cleared when it stops.
+	isAgentWorking?: boolean;
 	annotatorReadyTimeoutMs?: number;
 }> = ({
 	workspace,
@@ -68,6 +75,7 @@ export const PortPreviewPanel: FC<{
 	host,
 	tab,
 	canAnnotate = false,
+	isAgentWorking = false,
 	annotatorReadyTimeoutMs,
 }) => {
 	const url = portForwardURL(
@@ -86,17 +94,36 @@ export const PortPreviewPanel: FC<{
 	// inside the app keeps the overlay; a full navigation drops it until
 	// the user presses Annotate again.
 	const [overlayRequests, setOverlayRequests] = useState(0);
+	// Elements from annotations sent this turn, highlighted in the preview
+	// until the agent's turn ends. `started` guards against a send resolving
+	// before the chat reports the turn as running; further annotations sent
+	// during the same turn accumulate rather than replace each other.
+	const [workingOn, setWorkingOn] = useState<{
+		items: HighlightItem[];
+		started: boolean;
+	}>();
 
 	// Each saved comment goes straight to the agent as its own message.
 	// Sends are serialised so quick successive comments arrive in order.
+	// The shimmer starts once the send is accepted.
 	const sendQueueRef = useRef(Promise.resolve());
 	const handleSubmit = (submission: AnnotationSubmission) => {
 		if (!composer) {
 			return;
 		}
 		const message = formatAnnotations(submission);
+		const items = submission.annotations.map(({ id, element }) => ({
+			id,
+			selector: element.selector,
+			url: submission.page.url,
+		}));
 		sendQueueRef.current = sendQueueRef.current.then(async () => {
-			await deliver(composer, message);
+			if (await deliver(composer, message)) {
+				setWorkingOn((current) => ({
+					items: [...(current?.items ?? []), ...items],
+					started: current?.started ?? false,
+				}));
+			}
 		});
 	};
 
@@ -123,6 +150,36 @@ export const PortPreviewPanel: FC<{
 		}
 		bridge.setPicking(!bridge.picking);
 	};
+
+	// The overlay owns the drawing; this only tells it what to show. Runs
+	// again when the overlay reloads so a pending shimmer is restored.
+	useEffect(() => {
+		if (!workingOn || !bridge.ready) {
+			return;
+		}
+		if (isAgentWorking) {
+			bridge.highlight(workingOn.items);
+			if (!workingOn.started) {
+				setWorkingOn({ ...workingOn, started: true });
+			}
+			return;
+		}
+		if (workingOn.started) {
+			bridge.clearHighlights();
+			setWorkingOn(undefined);
+			return;
+		}
+		// Sent, but the turn has not begun. If it never does (the send was a
+		// no-op, or the turn ended before the status reached us), drop it.
+		const timer = setTimeout(() => setWorkingOn(undefined), turnStartGraceMs);
+		return () => clearTimeout(timer);
+	}, [
+		workingOn,
+		isAgentWorking,
+		bridge.ready,
+		bridge.highlight,
+		bridge.clearHighlights,
+	]);
 
 	// Escape leaves annotate mode from either side. Focus normally stays in
 	// the dashboard when the button is clicked, so move it into the frame
