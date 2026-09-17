@@ -496,7 +496,7 @@ func TestAgent(t *testing.T) {
 						close(fetchLogs)
 						return fetchLogs, closeFunc(func() error { return nil }), nil
 					}
-					err := cliui.Agent(inv.Context(), w, uuid.Nil, tc.opts)
+					_, err := cliui.Agent(inv.Context(), w, uuid.Nil, tc.opts)
 					_ = w.Close()
 					return err
 				},
@@ -540,7 +540,7 @@ func TestAgent(t *testing.T) {
 		cmd := &serpent.Command{
 			Handler: func(inv *serpent.Invocation) error {
 				buf := bytes.Buffer{}
-				err := cliui.Agent(inv.Context(), &buf, uuid.Nil, cliui.AgentOptions{
+				_, err := cliui.Agent(inv.Context(), &buf, uuid.Nil, cliui.AgentOptions{
 					FetchInterval: 10 * time.Millisecond,
 					Fetch: func(ctx context.Context, agentID uuid.UUID) (codersdk.WorkspaceAgent, error) {
 						fetchCalled.Add(1)
@@ -586,7 +586,7 @@ func TestAgent(t *testing.T) {
 
 		cmd := &serpent.Command{
 			Handler: func(inv *serpent.Invocation) error {
-				return cliui.Agent(inv.Context(), io.Discard, agent.ID, cliui.AgentOptions{
+				_, err := cliui.Agent(inv.Context(), io.Discard, agent.ID, cliui.AgentOptions{
 					FetchInterval: time.Millisecond,
 					Wait:          true,
 					Fetch: func(_ context.Context, _ uuid.UUID) (codersdk.WorkspaceAgent, error) {
@@ -602,6 +602,7 @@ func TestAgent(t *testing.T) {
 						return logs, closeFunc(func() error { return nil }), nil
 					},
 				})
+				return err
 			},
 		}
 
@@ -628,6 +629,46 @@ func TestAgent(t *testing.T) {
 		case <-time.After(testutil.WaitShort):
 			t.Fatal("timed out waiting for agent to return after context cancellation")
 		}
+	})
+
+	t.Run("ReturnsLatestAgent", func(t *testing.T) {
+		t.Parallel()
+
+		var agent codersdk.WorkspaceAgent
+
+		cmd := &serpent.Command{
+			Handler: func(inv *serpent.Invocation) error {
+				connectedAt := time.Now()
+				agentID := uuid.New()
+				var fetchCalls atomic.Uint64
+				var err error
+				agent, err = cliui.Agent(inv.Context(), io.Discard, agentID, cliui.AgentOptions{
+					FetchInterval: time.Millisecond,
+					Fetch: func(context.Context, uuid.UUID) (codersdk.WorkspaceAgent, error) {
+						if fetchCalls.Add(1) == 1 {
+							return codersdk.WorkspaceAgent{
+								ID:     agentID,
+								Status: codersdk.WorkspaceAgentConnecting,
+								// No APIVersion yet.
+							}, nil
+						}
+						return codersdk.WorkspaceAgent{
+							ID:               agentID,
+							Status:           codersdk.WorkspaceAgentConnected,
+							LifecycleState:   codersdk.WorkspaceAgentLifecycleReady,
+							FirstConnectedAt: &connectedAt,
+							CreatedAt:        connectedAt,
+							APIVersion:       "2.13",
+						}, nil
+					},
+				})
+				return err
+			},
+		}
+
+		require.NoError(t, cmd.Invoke().Run())
+		require.Equal(t, codersdk.WorkspaceAgentConnected, agent.Status)
+		require.Equal(t, "2.13", agent.APIVersion)
 	})
 }
 

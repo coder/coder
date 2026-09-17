@@ -42,8 +42,9 @@ type agentWaiter struct {
 	fetchAgent func(context.Context) (codersdk.WorkspaceAgent, error)
 }
 
-// Agent displays a spinning indicator that waits for a workspace agent to connect.
-func Agent(ctx context.Context, writer io.Writer, agentID uuid.UUID, opts AgentOptions) error {
+// Agent displays a spinning indicator that waits for a workspace agent to
+// connect.  Once connected, return the latest agent response.
+func Agent(ctx context.Context, writer io.Writer, agentID uuid.UUID, opts AgentOptions) (codersdk.WorkspaceAgent, error) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
@@ -103,7 +104,7 @@ func Agent(ctx context.Context, writer io.Writer, agentID uuid.UUID, opts AgentO
 
 	agent, err := fetch(ctx)
 	if err != nil {
-		return xerrors.Errorf("fetch: %w", err)
+		return agent, xerrors.Errorf("fetch: %w", err)
 	}
 	logSources := map[uuid.UUID]codersdk.WorkspaceAgentLogSource{}
 	for _, source := range agent.LogSources {
@@ -121,7 +122,7 @@ func Agent(ctx context.Context, writer io.Writer, agentID uuid.UUID, opts AgentO
 }
 
 // wait runs the main state machine loop.
-func (aw *agentWaiter) wait(ctx context.Context, agent codersdk.WorkspaceAgent, fetchedAgent chan fetchAgentResult) error {
+func (aw *agentWaiter) wait(ctx context.Context, agent codersdk.WorkspaceAgent, fetchedAgent chan fetchAgentResult) (codersdk.WorkspaceAgent, error) {
 	var err error
 	// Track whether we've gone through a wait state, which determines if we
 	// should show startup logs when connected.
@@ -131,14 +132,14 @@ func (aw *agentWaiter) wait(ctx context.Context, agent codersdk.WorkspaceAgent, 
 		// It doesn't matter if we're connected or not, if the agent is
 		// shutting down, we don't know if it's coming back.
 		if agent.LifecycleState.ShuttingDown() {
-			return errAgentShuttingDown
+			return agent, errAgentShuttingDown
 		}
 
 		switch agent.Status {
 		case codersdk.WorkspaceAgentConnecting, codersdk.WorkspaceAgentTimeout:
 			agent, err = aw.waitForConnection(ctx, agent)
 			if err != nil {
-				return err
+				return agent, err
 			}
 			// Since we were waiting for the agent to connect, also show
 			// startup logs if applicable.
@@ -150,7 +151,7 @@ func (aw *agentWaiter) wait(ctx context.Context, agent codersdk.WorkspaceAgent, 
 		case codersdk.WorkspaceAgentDisconnected:
 			agent, waitedForConnection, err = aw.waitForReconnection(ctx, agent)
 			if err != nil {
-				return err
+				return agent, err
 			}
 		}
 	}
@@ -189,10 +190,10 @@ func (aw *agentWaiter) waitForConnection(ctx context.Context, agent codersdk.Wor
 // This is a terminal state, returns nil on success or error on failure.
 //
 //nolint:revive // Control flag is acceptable for internal method.
-func (aw *agentWaiter) handleConnected(ctx context.Context, agent codersdk.WorkspaceAgent, showStartupLogs bool, fetchedAgent chan fetchAgentResult) error {
+func (aw *agentWaiter) handleConnected(ctx context.Context, agent codersdk.WorkspaceAgent, showStartupLogs bool, fetchedAgent chan fetchAgentResult) (codersdk.WorkspaceAgent, error) {
 	if !showStartupLogs && agent.LifecycleState == codersdk.WorkspaceAgentLifecycleReady {
 		// The workspace is ready, there's nothing to do but connect.
-		return nil
+		return agent, nil
 	}
 
 	// Determine if we should follow/stream logs (blocking mode).
@@ -215,7 +216,7 @@ func (aw *agentWaiter) handleConnected(ctx context.Context, agent codersdk.Works
 		var err error
 		agent, err = aw.streamLogs(ctx, agent, follow, fetchedAgent)
 		if err != nil {
-			return err
+			return agent, err
 		}
 
 		// If we were following, wait until startup completes.
@@ -224,7 +225,7 @@ func (aw *agentWaiter) handleConnected(ctx context.Context, agent codersdk.Works
 				return agent.LifecycleState.Starting()
 			})
 			if err != nil {
-				return err
+				return agent, err
 			}
 		}
 	}
@@ -258,11 +259,11 @@ func (aw *agentWaiter) handleConnected(ctx context.Context, agent codersdk.Works
 			// We no longer know if the startup script failed or not,
 			// but we need to tell the user something.
 			aw.sw.Complete(stage, safeDuration(aw.sw, agent.ReadyAt, agent.StartedAt))
-			return errAgentShuttingDown
+			return agent, errAgentShuttingDown
 		}
 	}
 
-	return nil
+	return agent, nil
 }
 
 // streamLogs handles streaming or fetching startup logs.

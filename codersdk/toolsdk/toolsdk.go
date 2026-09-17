@@ -132,7 +132,7 @@ func openAgentConn(ctx context.Context, deps Deps, workspace string) (workspaces
 		return nil, xerrors.Errorf("failed to find workspace: %w", err)
 	}
 
-	if err := cliui.Agent(ctx, io.Discard, workspaceAgent.ID, cliui.AgentOptions{
+	if _, err := cliui.Agent(ctx, io.Discard, workspaceAgent.ID, cliui.AgentOptions{
 		FetchInterval: 0,
 		Fetch:         deps.coderClient.WorkspaceAgent,
 		FetchLogs:     deps.coderClient.WorkspaceAgentLogsAfter,

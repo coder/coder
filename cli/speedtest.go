@@ -88,7 +88,7 @@ func (r *RootCmd) speedtest() *serpent.Command {
 				return err
 			}
 
-			err = cliui.Agent(ctx, inv.Stderr, workspaceAgent.ID, cliui.AgentOptions{
+			_, err = cliui.Agent(ctx, inv.Stderr, workspaceAgent.ID, cliui.AgentOptions{
 				Fetch:   client.WorkspaceAgent,
 				Wait:    false,
 				DocsURL: appearanceConfig.DocsURL,

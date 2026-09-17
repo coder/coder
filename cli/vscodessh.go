@@ -134,7 +134,7 @@ func (r *RootCmd) vscodeSSH() *serpent.Command {
 				appearanceCfg.DocsURL = codersdk.DefaultDocsURL()
 			}
 
-			err = cliui.Agent(ctx, inv.Stderr, workspaceAgent.ID, cliui.AgentOptions{
+			_, err = cliui.Agent(ctx, inv.Stderr, workspaceAgent.ID, cliui.AgentOptions{
 				Fetch:     client.WorkspaceAgent,
 				FetchLogs: client.WorkspaceAgentLogsAfter,
 				Wait:      wait,
