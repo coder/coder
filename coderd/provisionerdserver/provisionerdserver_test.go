@@ -5367,6 +5367,7 @@ func TestWorkspaceSessionTokenName(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			ownerID, workspaceID, ok := provisionerdserver.ParseWorkspaceSessionTokenName(tc.tokenName)
 			require.Equal(t, tc.expectOwnerID, ownerID.String())
 			require.Equal(t, tc.expectWorkspaceID, workspaceID.String())
