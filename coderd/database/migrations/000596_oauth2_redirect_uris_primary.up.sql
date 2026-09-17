@@ -10,7 +10,9 @@
 --
 -- During a rolling upgrade, a replica older than this migration still writes
 -- only callback_url on an admin update. Replicas at this version read
--- redirect_uris first, so that edit is not seen until the app is saved again.
+-- redirect_uris and ignore callback_url, so that edit is silently discarded
+-- and the app keeps accepting its previous redirect URIs, including any the
+-- admin meant to remove, until the app is saved again on this version.
 -- Drain older replicas before upgrading, or save the app again afterwards.
 UPDATE oauth2_provider_apps
 SET redirect_uris = array_prepend(
