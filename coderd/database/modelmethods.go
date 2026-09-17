@@ -663,6 +663,7 @@ func (a OAuth2ProviderApp) IsPublic() bool {
 
 // RegisteredRedirectURIs returns the redirect URIs the authorize and token
 // endpoints accept, primary first. RedirectUris is the source of truth.
+// The result is never empty: callers index the first entry directly.
 func (a OAuth2ProviderApp) RegisteredRedirectURIs() []string {
 	if len(a.RedirectUris) == 0 {
 		return []string{a.CallbackURL}

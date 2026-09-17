@@ -1,6 +1,7 @@
 package codersdk_test
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -9,7 +10,7 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
-func TestValidateOAuth2CallbackURL(t *testing.T) {
+func TestValidateOAuth2RedirectURIShape(t *testing.T) {
 	t.Parallel()
 
 	cases := []struct {
@@ -35,11 +36,12 @@ func TestValidateOAuth2CallbackURL(t *testing.T) {
 		{url: "vscode:", valid: false},
 		{url: "vscode://", valid: false},
 		{url: "mailto:a@b", valid: false},
+		{url: "https://app.example.com/callback#fragment", valid: false},
 	}
 	for _, tc := range cases {
 		t.Run(tc.url, func(t *testing.T) {
 			t.Parallel()
-			err := codersdk.ValidateOAuth2CallbackURL(tc.url)
+			err := codersdk.ValidateOAuth2RedirectURIShape(tc.url)
 			if tc.valid {
 				require.NoError(t, err)
 			} else {
@@ -52,13 +54,10 @@ func TestValidateOAuth2CallbackURL(t *testing.T) {
 func TestValidateRedirectURIsSize(t *testing.T) {
 	t.Parallel()
 
-	uri := func(i int) string {
-		return "https://example.com/callback/" + strings.Repeat("a", i%7) + string(rune('a'+i%26)) + strings.Repeat("b", i/26)
-	}
 	list := func(n int) []string {
 		out := make([]string, 0, n)
 		for i := range n {
-			out = append(out, uri(i))
+			out = append(out, fmt.Sprintf("https://example.com/callback/%d", i))
 		}
 		return out
 	}

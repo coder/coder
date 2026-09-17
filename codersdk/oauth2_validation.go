@@ -102,13 +102,16 @@ func ValidateRedirectURIScheme(u *url.URL) error {
 	return validateScheme(u)
 }
 
-// ValidateOAuth2CallbackURL checks that a redirect URI parses, uses an
-// allowed scheme, and names a host or a path. The oauth2_callback_url
-// validate tag uses this same check.
-func ValidateOAuth2CallbackURL(raw string) error {
+// ValidateOAuth2RedirectURIShape checks that a redirect URI parses, uses an
+// allowed scheme, names a host or a path, and has no fragment. Every stored
+// redirect URI passes this check. The oauth2_callback_url validate tag uses it.
+func ValidateOAuth2RedirectURIShape(raw string) error {
 	u, err := url.Parse(raw)
 	if err != nil {
 		return xerrors.Errorf("is not a valid URL: %w", err)
+	}
+	if u.Fragment != "" || strings.Contains(raw, "#") {
+		return xerrors.New("must not contain a fragment component")
 	}
 	if err := validateScheme(u); err != nil {
 		return err

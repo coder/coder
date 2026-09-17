@@ -5624,7 +5624,7 @@ type OAuth2ProviderApp struct {
 	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
 	Name      string    `db:"name" json:"name"`
 	Icon      string    `db:"icon" json:"icon"`
-	// Deprecated: the primary redirect URI is redirect_uris[1]. Every writer keeps this column equal to it until the column is dropped.
+	// Deprecated: the primary redirect URI is the first entry of redirect_uris. Every writer keeps this column equal to it until the column is dropped.
 	CallbackURL string `db:"callback_url" json:"callback_url"`
 	// Redirect URIs the authorize and token endpoints accept. The first entry is the primary, used when a request omits redirect_uri.
 	RedirectUris []string `db:"redirect_uris" json:"redirect_uris"`

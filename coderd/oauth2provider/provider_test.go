@@ -769,6 +769,28 @@ func TestOAuth2ProviderAppRedirectURIs(t *testing.T) {
 		requireCallbackURLValidationError(t, err)
 	})
 
+	// Registration stores a deduplicated list, and the configuration
+	// endpoint returns it in that form.
+	t.Run("RegistrationDedupsList", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+		oauth2providertest.EnableDCR(t, client)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		registered, err := client.PostOAuth2ClientRegistration(ctx, codersdk.OAuth2ClientRegistrationRequest{
+			ClientName:   testutil.GetRandomName(t),
+			RedirectURIs: []string{first, second, first},
+		})
+		require.NoError(t, err)
+		require.Equal(t, []string{first, second}, registered.RedirectURIs)
+
+		config, err := client.GetOAuth2ClientConfiguration(ctx, registered.ClientID, registered.RegistrationAccessToken)
+		require.NoError(t, err)
+		require.Equal(t, []string{first, second}, config.RedirectURIs)
+	})
+
 	// An app stored before the caps existed can still be edited. Its stored
 	// list is kept, and only a new callback is checked against the caps.
 	t.Run("StoredListExceedsCaps", func(t *testing.T) {

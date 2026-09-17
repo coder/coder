@@ -76,7 +76,7 @@ func init() {
 		if !ok {
 			return false
 		}
-		return codersdk.ValidateOAuth2CallbackURL(str) == nil
+		return codersdk.ValidateOAuth2RedirectURIShape(str) == nil
 	}
 	err = Validate.RegisterValidation("oauth2_callback_url", oauth2CallbackURLValidator)
 	if err != nil {
