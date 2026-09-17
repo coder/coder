@@ -19774,7 +19774,7 @@ const docTemplate = `{
                     "$ref": "#/definitions/serpent.URL"
                 },
                 "max_attachments_per_chat": {
-                    "description": "MaxAttachmentsPerChat bounds the files linked to one chat.",
+                    "description": "MaxAttachmentsPerChat is the number of most recent attachments a\nchat keeps; older files are removed when new ones are linked.",
                     "type": "integer"
                 },
                 "max_concurrent_recording_uploads": {

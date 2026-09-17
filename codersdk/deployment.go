@@ -5002,7 +5002,8 @@ type ChatConfig struct {
 	// MaxQueuedMessagesPerChat bounds the user messages waiting in a
 	// chat's queue while a turn runs.
 	MaxQueuedMessagesPerChat serpent.Int64 `json:"max_queued_messages_per_chat" typescript:",notnull"`
-	// MaxAttachmentsPerChat bounds the files linked to one chat.
+	// MaxAttachmentsPerChat is the number of most recent attachments a
+	// chat keeps; older files are removed when new ones are linked.
 	MaxAttachmentsPerChat serpent.Int64 `json:"max_attachments_per_chat" typescript:",notnull"`
 	// MaxPromptBytes bounds the deployment system prompt, plan mode
 	// instructions, and per-user custom prompts.
