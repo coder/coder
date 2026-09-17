@@ -108,18 +108,7 @@ certificates, you'll need a domain name that resolves to your Caddy server.
      (does not have to be Coder admin email)
    - `ask http://example.com`: Change this to a URL you control that
      validates the requested hostname before Caddy requests a certificate for
-     it. Caddy calls this endpoint with the candidate hostname as a `domain`
-     query parameter and treats any HTTP `2xx` response as approval to issue
-     a certificate. Your endpoint must read that parameter and check it,
-     for example against your list of Coder workspaces or your wildcard
-     domain; pointing this at a URL that returns `200` for any request
-     (including your own Coder deployment's homepage) provides no
-     validation and approves certificate issuance for any hostname an
-     attacker sends, which can exhaust your domain's Let's Encrypt rate
-     limit. See
-     [on-demand TLS](https://caddyserver.com/docs/caddyfile/options#on-demand-tls)
-     for details on writing an `ask` endpoint, and
-     [this discussion](https://github.com/coder/coder/discussions/29079)
+     it. See [this discussion](https://github.com/coder/coder/discussions/29079#discussioncomment-18462842)
      for a reference implementation.
 
 4. Start Coder. Set `CODER_ACCESS_URL` and `CODER_WILDCARD_ACCESS_URL` to the
@@ -164,18 +153,7 @@ certificates, you'll need a domain name that resolves to your Caddy server.
      `CODER_HTTP_ADDRESS` in the Coder configuration.
    - `ask http://example.com`: Change this to a URL you control that
      validates the requested hostname before Caddy requests a certificate for
-     it. Caddy calls this endpoint with the candidate hostname as a `domain`
-     query parameter and treats any HTTP `2xx` response as approval to issue
-     a certificate. Your endpoint must read that parameter and check it,
-     for example against your list of Coder workspaces or your wildcard
-     domain; pointing this at a URL that returns `200` for any request
-     (including your own Coder deployment's homepage) provides no
-     validation and approves certificate issuance for any hostname an
-     attacker sends, which can exhaust your domain's Let's Encrypt rate
-     limit. See
-     [on-demand TLS](https://caddyserver.com/docs/caddyfile/options#on-demand-tls)
-     for details on writing an `ask` endpoint, and
-     [this discussion](https://github.com/coder/coder/discussions/29079)
+     it. See [this discussion](https://github.com/coder/coder/discussions/29079#discussioncomment-18462842)
      for a reference implementation.
 
 4. [Configure Coder](../admin/setup/index.md) and change the following values:
