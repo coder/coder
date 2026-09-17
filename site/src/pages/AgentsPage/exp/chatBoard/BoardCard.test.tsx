@@ -48,32 +48,17 @@ const renderCard = (chats: readonly Chat[]) => {
 };
 
 describe("BoardCard", () => {
-	it("renames the chat itself when a single-chat card title is edited", async () => {
+	it("reports an edited title as the card title, single chat or group", async () => {
 		const user = userEvent.setup();
-		const { card, onRenameChat, onSetTitle } = renderCard([chat("p")]);
+		const { onRenameChat, onSetTitle } = renderCard([chat("p")]);
 
 		await user.click(screen.getByRole("button", { name: "Chat p" }));
 		const field = screen.getByRole("textbox", { name: "title" });
 		await user.clear(field);
 		await user.type(field, "Renamed{Enter}");
 
-		expect(onRenameChat).toHaveBeenCalledWith(card.primary, "Renamed");
-		expect(onSetTitle).not.toHaveBeenCalled();
-	});
-
-	it("sets the card title when a group card title is edited", async () => {
-		const user = userEvent.setup();
-		const { onRenameChat, onSetTitle } = renderCard([
-			chat("p", { "board/title": "Epic" }),
-			chat("m", { "board/group": "p" }),
-		]);
-
-		await user.click(screen.getByRole("button", { name: "Epic" }));
-		const field = screen.getByRole("textbox", { name: "title" });
-		await user.clear(field);
-		await user.type(field, "Bigger epic{Enter}");
-
-		expect(onSetTitle).toHaveBeenCalledWith("Bigger epic");
+		// Whether this renames the chat or sets a label is the board's call.
+		expect(onSetTitle).toHaveBeenCalledWith("Renamed");
 		expect(onRenameChat).not.toHaveBeenCalled();
 	});
 

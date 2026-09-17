@@ -16,9 +16,9 @@ import {
 } from "#/components/Popover/Popover";
 import { shortRelativeTime } from "#/utils/time";
 import type { DragData, DropData } from "./BoardCard";
+import type { NoteSlot } from "./boardApi";
 import type { BoardCard, BoardNote } from "./boardLabels";
 import { dragHandleListeners } from "./dragHandle";
-import type { NoteSlot } from "./useBoardMutations";
 
 const noteDragId = (card: BoardCard, note: BoardNote) =>
 	`note:${card.id}:${note.index}`;

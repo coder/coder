@@ -16,7 +16,7 @@ export type ChatWindow = Readonly<{
 	pinned: boolean;
 }>;
 
-type BoardStorage = Readonly<{
+export type BoardStorage = Readonly<{
 	columnOrder: readonly string[];
 	/** Columns the user created that have no cards yet. Labels cannot hold these. */
 	emptyColumns: readonly string[];
