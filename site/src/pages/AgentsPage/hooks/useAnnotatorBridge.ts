@@ -1,5 +1,7 @@
 import {
 	type AnnotationSubmission,
+	type HighlightItem,
+	type HighlightState,
 	type HostToAnnotatorMessage,
 	parseAnnotatorToHostMessage,
 } from "@coder/annotator/protocol";
@@ -27,6 +29,8 @@ interface AnnotatorBridge {
 	unavailable: boolean;
 	picking: boolean;
 	setPicking: (picking: boolean) => void;
+	highlight: (items: HighlightItem[], state: HighlightState) => void;
+	clearHighlights: () => void;
 }
 
 /**
@@ -135,5 +139,8 @@ export function useAnnotatorBridge({
 			}
 			post({ type: "coder-annotator:set-picking", picking: next });
 		},
+		highlight: (items, state) =>
+			post({ type: "coder-annotator:highlight", items, state }),
+		clearHighlights: () => post({ type: "coder-annotator:clear-highlights" }),
 	};
 }

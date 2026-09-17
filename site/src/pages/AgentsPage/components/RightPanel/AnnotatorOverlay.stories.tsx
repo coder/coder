@@ -1,5 +1,6 @@
 import { formatAnnotations } from "@coder/annotator/format";
 import { annotatorHostId, mountAnnotator } from "@coder/annotator/mount";
+import type { HighlightState } from "@coder/annotator/protocol";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { type FC, useEffect, useState } from "react";
 import { userEvent, within } from "storybook/test";
@@ -10,7 +11,10 @@ import { userEvent, within } from "storybook/test";
  * document exactly as the injected script would do it, minus the
  * postMessage bridge.
  */
-const DemoPage: FC<{ picking: boolean }> = ({ picking }) => {
+const DemoPage: FC<{
+	picking: boolean;
+	highlight?: HighlightState;
+}> = ({ picking, highlight }) => {
 	const [output, setOutput] = useState<string>();
 
 	useEffect(() => {
@@ -19,8 +23,17 @@ const DemoPage: FC<{ picking: boolean }> = ({ picking }) => {
 			onSubmit: (submission) => setOutput(formatAnnotations(submission)),
 		});
 		handle.setPicking(picking);
+		if (highlight) {
+			handle.setHighlights(
+				[
+					{ id: "1", selector: '[data-testid="save-button"]' },
+					{ id: "2", selector: "h1" },
+				],
+				highlight,
+			);
+		}
 		return () => handle.destroy();
-	}, [picking]);
+	}, [picking, highlight]);
 
 	return (
 		<main className="min-h-[520px] bg-white p-8 font-sans text-neutral-900">
@@ -110,4 +123,12 @@ export const SentOnSave: Story = {
 			await userEvent.type(textarea, "Use the primary style{enter}");
 		}
 	},
+};
+
+export const AgentWorking: Story = {
+	args: { highlight: "pending" },
+};
+
+export const AgentDone: Story = {
+	args: { highlight: "done" },
 };

@@ -218,6 +218,7 @@ interface UserTabContentProps {
 	workspaceAgent: TypesGen.WorkspaceAgent | undefined;
 	wildcardHostname: string;
 	canAnnotate: boolean;
+	isAgentWorking: boolean;
 	sidebarVisible: boolean;
 	isActive: boolean;
 	isPending: boolean;
@@ -231,6 +232,7 @@ const UserTabContent: FC<UserTabContentProps> = ({
 	workspaceAgent,
 	wildcardHostname,
 	canAnnotate,
+	isAgentWorking,
 	sidebarVisible,
 	isActive,
 	isPending,
@@ -283,6 +285,7 @@ const UserTabContent: FC<UserTabContentProps> = ({
 					host={wildcardHostname}
 					tab={tab}
 					canAnnotate={canAnnotate}
+					isAgentWorking={isAgentWorking}
 				/>
 			);
 		}
@@ -768,6 +771,9 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 						workspaceAgent={workspaceAgent}
 						wildcardHostname={wildcardHostname}
 						canAnnotate={experiments.includes("chat-ui-annotations")}
+						isAgentWorking={
+							liveChatStatus === "running" || liveChatStatus === "interrupting"
+						}
 						sidebarVisible={shouldShowSidebar}
 						isActive={effectiveSidebarTabId === userTab.id}
 						isPending={pendingTabId === userTab.id}

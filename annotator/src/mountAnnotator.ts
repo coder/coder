@@ -1,5 +1,11 @@
 import { describeElement } from "./describeElement";
-import type { Annotation, AnnotationSubmission } from "./protocol";
+import { createHighlightLayer } from "./highlights";
+import type {
+	Annotation,
+	AnnotationSubmission,
+	HighlightItem,
+	HighlightState,
+} from "./protocol";
 import { annotatorStyles, pickingCursorStyles } from "./styles";
 
 interface AnnotatorState {
@@ -8,6 +14,7 @@ interface AnnotatorState {
 
 interface AnnotatorHandle {
 	setPicking(picking: boolean): void;
+	setHighlights(items: HighlightItem[], state: HighlightState): void;
 	getState(): AnnotatorState;
 	destroy(): void;
 }
@@ -101,7 +108,11 @@ export function mountAnnotator(
 	const highlightLabel = el(doc, "span", "highlight-label");
 	highlight.append(highlightLabel);
 
-	shadow.append(toolbar, highlight);
+	const highlightsContainer = el(doc, "div", "highlights", {
+		"aria-hidden": "true",
+	});
+	shadow.append(toolbar, highlight, highlightsContainer);
+	const highlights = createHighlightLayer(doc, win, highlightsContainer);
 	doc.body.append(host);
 
 	const cursorStyle = el(doc, "style");
@@ -333,9 +344,11 @@ export function mountAnnotator(
 
 	return {
 		setPicking,
+		setHighlights: highlights.set,
 		getState: () => ({ picking }),
 		destroy: () => {
 			setPicking(false);
+			highlights.destroy();
 			win.removeEventListener("scroll", scheduleLayout, true);
 			win.removeEventListener("resize", scheduleLayout);
 			if (frame !== 0) {
