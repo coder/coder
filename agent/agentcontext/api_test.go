@@ -187,7 +187,7 @@ func TestAPI_ResolveInstructions(t *testing.T) {
 	outside := testutil.TempDirResolved(t)
 	mustWriteFile(t, filepath.Join(root, "site", "AGENTS.md"), "site rules")
 	mustWriteFile(t, filepath.Join(root, "site", "CLAUDE.md"), "claude rules")
-	mustWriteFile(t, filepath.Join(root, "site", "agents.md"), "wrong case")
+	mustWriteFile(t, filepath.Join(root, "wrongcase", "agents.md"), "wrong case")
 	mustWriteFile(t, filepath.Join(root, "plain", "README.md"), "no instructions")
 	mustWriteFile(t, filepath.Join(root, "big", "AGENTS.md"), "this file is too large")
 	mustWriteFile(t, filepath.Join(outside, "AGENTS.md"), "outside")
@@ -215,6 +215,7 @@ func TestAPI_ResolveInstructions(t *testing.T) {
 		filepath.Join(root, "site"),
 		filepath.Join(root, "plain"),
 		filepath.Join(root, "missing"),
+		filepath.Join(root, "wrongcase"),
 		filepath.Join(root, "big"),
 		filepath.Join(root, "linked"),
 		filepath.Join(root, "dirnamed"),
@@ -225,7 +226,7 @@ func TestAPI_ResolveInstructions(t *testing.T) {
 	for _, file := range resp.Files {
 		bySource[file.Source] = file
 	}
-	require.Len(t, bySource, 4, "plain, missing, and directory-named entries contribute nothing: %+v", resp.Files)
+	require.Len(t, bySource, 4, "plain, missing, wrong-case, and directory-named entries contribute nothing: %+v", resp.Files)
 	require.Len(t, resp.Files, 6, "a directory listed twice is read twice")
 
 	site := bySource[filepath.Join(root, "site", "AGENTS.md")]
