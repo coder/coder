@@ -25,6 +25,7 @@ const renderCard = (chats: readonly Chat[]) => {
 		onAssistant: vi.fn(),
 		onNewChat: vi.fn(),
 		onSetEfforts: vi.fn(),
+		onFilterEffort: vi.fn(),
 		onRemoveFromGroup: vi.fn(),
 		onOpen: vi.fn(),
 		onPreview: vi.fn(),
@@ -115,17 +116,35 @@ describe("BoardCard", () => {
 		await user.click(
 			screen.getByRole("button", { name: "Actions for Chat p" }),
 		);
-		await user.click(await screen.findByRole("menuitem", { name: "Efforts" }));
+		// Opened from the keyboard: without layout, jsdom cannot tell a pointer
+		// heading into the sub menu from one leaving it, and would close it.
+		(await screen.findByRole("menuitem", { name: "Efforts" })).focus();
+		await user.keyboard("{ArrowRight}");
 		await user.click(
-			await screen.findByRole("checkbox", { name: "This week" }),
+			await screen.findByRole("menuitemcheckbox", { name: "This week" }),
 		);
 		expect(onSetEfforts).toHaveBeenCalledWith(["Q3", "This week"]);
+
+		// The sub menu stayed open: the next toggle needs no reopening.
+		await user.click(screen.getByRole("menuitemcheckbox", { name: "Q3" }));
+		expect(onSetEfforts).toHaveBeenLastCalledWith([]);
 
 		await user.type(
 			screen.getByRole("textbox", { name: "New effort" }),
 			"Launch{Enter}",
 		);
 		expect(onSetEfforts).toHaveBeenLastCalledWith(["Q3", "Launch"]);
+	});
+
+	it("filters the board by an effort from its tag", async () => {
+		const user = userEvent.setup();
+		const { onFilterEffort } = renderCard([
+			chat("p", { "board/effort.0": "Q3" }),
+		]);
+
+		await user.click(screen.getByRole("button", { name: "Filter by Q3" }));
+
+		expect(onFilterEffort).toHaveBeenCalledWith("Q3");
 	});
 
 	it("opens the chat from its icon with the row as anchor", async () => {

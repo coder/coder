@@ -20,6 +20,7 @@ import {
 	renameCard,
 	renameChat,
 	renameColumn,
+	renameEffort,
 	setCardColor,
 	setCardEfforts,
 } from "./boardApi";
@@ -469,6 +470,43 @@ describe("boardApi", () => {
 			},
 		});
 		expect(setCardEfforts(state, "nope", [])).toBeNull();
+	});
+
+	it("renameEffort relabels every card carrying it, dedupes into an existing name and follows the filter", () => {
+		const state = stateOf(
+			[
+				chat("a", { "board/effort.0": "Q3", "board/title": "A" }),
+				chat("b", { "board/effort.0": "Q3", "board/effort.1": "Launch" }),
+				chat("c", { "board/effort.0": "Launch" }),
+				chat("d"),
+			],
+			{ effortFilter: "Q3" },
+		);
+
+		const plan = renameEffort(state, "Q3", " Q4 ");
+		expect(written(plan)).toEqual({
+			a: { "board/title": "A", "board/effort.0": "Q4" },
+			b: { "board/effort.0": "Q4", "board/effort.1": "Launch" },
+		});
+		expect(plan?.storage).toEqual({ effortFilter: "Q4" });
+
+		// Renaming onto an existing effort merges: b keeps one Launch.
+		expect(written(renameEffort(state, "Q3", "Launch"))).toEqual({
+			a: { "board/title": "A", "board/effort.0": "Launch" },
+			b: { "board/effort.0": "Launch" },
+		});
+
+		// The filter only follows when it pointed at the renamed effort.
+		expect(renameEffort(state, "Launch", "Ship")?.storage).toBeUndefined();
+	});
+
+	it("renameEffort refuses blank, unchanged and unknown names", () => {
+		const state = stateOf([chat("a", { "board/effort.0": "Q3" })]);
+
+		expect(renameEffort(state, "Q3", "  ")).toBeNull();
+		expect(renameEffort(state, "Q3", "Q3")).toBeNull();
+		expect(renameEffort(state, "Q3", " Q3 ")).toBeNull();
+		expect(renameEffort(state, "Nope", "Q4")).toBeNull();
 	});
 
 	it("mergeCards unions efforts, kept primary first, without repeats", () => {

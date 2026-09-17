@@ -37,6 +37,7 @@ const renderColumn = (name: string) => {
 			onSetCardTitle={noop}
 			onSetCardColor={noop}
 			onSetCardEfforts={noop}
+			onFilterEffort={noop}
 			onRenameChat={noop}
 			onAssistant={noop}
 			onNewChatInCard={noop}

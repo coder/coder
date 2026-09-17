@@ -384,6 +384,33 @@ export const setCardEfforts = (
 		setEffortsLabels(card.primary.labels, names),
 	);
 
+/**
+ * Renames an effort on every card carrying it. Renaming onto an existing
+ * effort merges the two; setEffortsLabels drops the repeat. The stored
+ * filter follows when it pointed at the renamed effort.
+ */
+export const renameEffort = (
+	state: BoardState,
+	from: string,
+	to: string,
+): Plan | null => {
+	const name = to.trim();
+	const carrying = state.cards.filter((card) => card.efforts.includes(from));
+	if (!name || name === from || carrying.length === 0) return null;
+	return {
+		writes: carrying.map((card) => ({
+			chat: card.primary,
+			labels: setEffortsLabels(
+				card.primary.labels,
+				card.efforts.map((e) => (e === from ? name : e)),
+			),
+		})),
+		...(state.storage.effortFilter === from
+			? { storage: { effortFilter: name } }
+			: {}),
+	};
+};
+
 /** An effort on the board and how many cards carry it. */
 export type EffortCount = Readonly<{ name: string; count: number }>;
 
