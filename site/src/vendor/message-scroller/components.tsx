@@ -143,6 +143,8 @@ function MessageScrollerViewport({
     preserveScrollOnPrependRef,
     setViewportElement,
     syncAfterScroll,
+    // LOCAL CHANGE
+    userLayoutIntent,
     userScrollIntent,
     viewportRef,
   } = useMessageScrollerContext()
@@ -204,6 +206,29 @@ function MessageScrollerViewport({
       observer.disconnect()
     }
   }, [handleResize, viewportRef])
+
+  // LOCAL CHANGE: disclosure toggles inside the transcript announce their
+  // layout change so the viewport can hold the reader's position instead of
+  // reading the churn as new content to follow or re-anchor to.
+  React.useEffect(() => {
+    const viewport = viewportRef.current
+
+    if (!viewport) {
+      return
+    }
+
+    viewport.addEventListener(
+      "messagescroller:userlayoutintent",
+      userLayoutIntent
+    )
+
+    return () => {
+      viewport.removeEventListener(
+        "messagescroller:userlayoutintent",
+        userLayoutIntent
+      )
+    }
+  }, [userLayoutIntent, viewportRef])
 
   return (
     <div

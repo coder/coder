@@ -12,6 +12,7 @@ import {
 	type ReactNode,
 	useContext,
 	useId,
+	useRef,
 	useState,
 } from "react";
 import {
@@ -158,7 +159,13 @@ const Root: FC<ToolCallRootProps> = ({
 	const collapsible = hasContent;
 	const active = status === "running";
 	const failed = status !== "running" && (isError || status === "error");
+	const wrapperRef = useRef<HTMLDivElement>(null);
 	const onToggle = () => {
+		// Signal before the state update so the scroller's latch precedes
+		// the collapse clamp's scroll event and the resize callback.
+		wrapperRef.current?.dispatchEvent(
+			new CustomEvent("messagescroller:userlayoutintent", { bubbles: true }),
+		);
 		const nextView: ToolCallView = expanded ? "collapsed" : "expanded";
 		if (controlledView === undefined) {
 			setUncontrolledView(nextView);
@@ -181,7 +188,7 @@ const Root: FC<ToolCallRootProps> = ({
 				view,
 			}}
 		>
-			<div className={className} {...divProps}>
+			<div ref={wrapperRef} className={className} {...divProps}>
 				{children}
 			</div>
 		</ToolCallContext.Provider>
