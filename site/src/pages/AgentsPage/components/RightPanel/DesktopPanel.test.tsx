@@ -14,7 +14,6 @@ import {
 	MockWorkspace,
 	MockWorkspaceAgent,
 	MockWorkspaceAgentConnecting,
-	MockWorkspaceAgentDisconnected,
 	MockWorkspaceBuild,
 } from "#/testHelpers/entities";
 import { createTestQueryClient } from "#/testHelpers/renderHelpers";
@@ -72,7 +71,7 @@ describe("DesktopPanel", () => {
 			<DesktopPanel
 				chatId="chat-1"
 				workspace={MockStoppedWorkspace}
-				workspaceAgent={MockWorkspaceAgentDisconnected}
+				workspaceAgent={undefined}
 				isVisible
 			/>,
 		);
@@ -119,7 +118,7 @@ describe("DesktopPanel", () => {
 			<DesktopPanel
 				chatId="chat-1"
 				workspace={MockStoppedWorkspace}
-				workspaceAgent={MockWorkspaceAgentDisconnected}
+				workspaceAgent={undefined}
 				isVisible
 			/>,
 		);

@@ -23,7 +23,8 @@ import { DesktopToolbar, type ScaleMode } from "./DesktopToolbar";
 interface DesktopPanelProps {
 	chatId: string;
 	workspace: Workspace;
-	workspaceAgent: WorkspaceAgent;
+	/** Absent while the workspace is stopped or rebuilding. */
+	workspaceAgent: WorkspaceAgent | undefined;
 	/** When true the panel is the active sidebar tab. */
 	isVisible?: boolean;
 }
@@ -39,7 +40,7 @@ const startableWorkspaceStatuses: readonly WorkspaceStatus[] = [
 // is the precondition for dialing it.
 const isDesktopReachable = (
 	workspaceStatus: WorkspaceStatus,
-	agentStatus: WorkspaceAgentStatus,
+	agentStatus: WorkspaceAgentStatus | undefined,
 ): boolean => workspaceStatus === "running" && agentStatus === "connected";
 
 export const DesktopPanel: FC<DesktopPanelProps> = ({
@@ -80,7 +81,7 @@ export const DesktopPanel: FC<DesktopPanelProps> = ({
 		activated:
 			activated &&
 			!isPoppedOut &&
-			isDesktopReachable(workspace.latest_build.status, workspaceAgent.status),
+			isDesktopReachable(workspace.latest_build.status, workspaceAgent?.status),
 		scaleViewport: scaleMode === "fit",
 	});
 
@@ -140,7 +141,7 @@ export const DesktopPanel: FC<DesktopPanelProps> = ({
 		<DesktopPanelView
 			status={status}
 			workspaceStatus={workspace.latest_build.status}
-			agentStatus={workspaceAgent.status}
+			agentStatus={workspaceAgent?.status}
 			onStartWorkspace={() => start({})}
 			isStartingWorkspace={isStartingWorkspace}
 			reconnect={reconnect}
@@ -158,7 +159,7 @@ export const DesktopPanel: FC<DesktopPanelProps> = ({
 export interface DesktopPanelViewProps {
 	status: DesktopConnectionStatus;
 	workspaceStatus: WorkspaceStatus;
-	agentStatus: WorkspaceAgentStatus;
+	agentStatus: WorkspaceAgentStatus | undefined;
 	onStartWorkspace: () => void;
 	isStartingWorkspace: boolean;
 	reconnect: () => void;
@@ -201,6 +202,14 @@ export const DesktopPanelView: FC<DesktopPanelViewProps> = ({
 					<Spinner loading={isStartingWorkspace} />
 					Start workspace
 				</Button>
+			</div>
+		);
+	}
+
+	if (workspaceStatus === "deleted") {
+		return (
+			<div className="flex h-full flex-col items-center justify-center gap-2 text-content-secondary">
+				<span className="text-sm">The workspace has been deleted.</span>
 			</div>
 		);
 	}

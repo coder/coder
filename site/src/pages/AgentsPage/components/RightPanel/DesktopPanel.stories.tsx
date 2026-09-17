@@ -76,19 +76,23 @@ export const ErrorState: Story = {
 };
 
 export const WorkspaceStopped: Story = {
-	args: { workspaceStatus: "stopped", agentStatus: "disconnected" },
+	args: { workspaceStatus: "stopped", agentStatus: undefined },
 };
 
 export const WorkspaceStarting: Story = {
 	args: {
 		workspaceStatus: "stopped",
-		agentStatus: "disconnected",
+		agentStatus: undefined,
 		isStartingWorkspace: true,
 	},
 };
 
 export const WorkspaceBuildStarting: Story = {
-	args: { workspaceStatus: "starting", agentStatus: "disconnected" },
+	args: { workspaceStatus: "starting", agentStatus: undefined },
+};
+
+export const WorkspaceDeleted: Story = {
+	args: { workspaceStatus: "deleted", agentStatus: undefined },
 };
 
 export const AgentConnecting: Story = {
