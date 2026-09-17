@@ -944,8 +944,9 @@ func TestRenameChatTitle(t *testing.T) {
 
 		db.EXPECT().GetChatByID(gomock.Any(), chatID).Return(stored, nil)
 		db.EXPECT().UpdateChatTitleByID(gomock.Any(), database.UpdateChatTitleByIDParams{
-			ID:    chatID,
-			Title: "renamed",
+			ID:          chatID,
+			Title:       "renamed",
+			TitleSource: database.ChatTitleSourceUser,
 		}).Return(updated, nil)
 
 		got, wrote, err := server.RenameChatTitle(ctx, stored, "renamed")
@@ -1007,8 +1008,9 @@ func TestRenameChatTitle(t *testing.T) {
 
 		db.EXPECT().GetChatByID(gomock.Any(), chatID).Return(stored, nil)
 		db.EXPECT().UpdateChatTitleByID(gomock.Any(), database.UpdateChatTitleByIDParams{
-			ID:    chatID,
-			Title: "keep this",
+			ID:          chatID,
+			Title:       "keep this",
+			TitleSource: database.ChatTitleSourceUser,
 		}).Return(updated, nil)
 
 		got, wrote, err := server.RenameChatTitle(ctx, stored, "keep this")

@@ -1057,8 +1057,10 @@ SELECT *
 FROM chats_expanded;
 
 -- name: UpdateChatTitleByID :one
--- Persists a user-chosen title. Marks the title as user-set so
--- automatic title generation never replaces it.
+-- Writes a title together with its provenance. Anything may replace a
+-- fallback (placeholder) title; only a user-supplied title may replace a
+-- generated or user title. Returns no rows when the write is refused,
+-- which is how automatic title generation loses to a concurrent rename.
 WITH updated_chat AS (
 UPDATE
     chats
@@ -1067,86 +1069,13 @@ SET
     -- changing list ordering when a user renames an older chat
     -- out-of-band.
     title = @title::text,
-    title_source = 'user'::chat_title_source
+    title_source = @title_source::chat_title_source
 WHERE
     id = @id::uuid
-RETURNING *
-),
-chats_expanded AS (
-    SELECT
-        updated_chat.id,
-        updated_chat.owner_id,
-        updated_chat.workspace_id,
-        updated_chat.title,
-        updated_chat.status,
-        updated_chat.worker_id,
-        updated_chat.started_at,
-        updated_chat.heartbeat_at,
-        updated_chat.created_at,
-        updated_chat.updated_at,
-        updated_chat.parent_chat_id,
-        updated_chat.root_chat_id,
-        updated_chat.last_model_config_id,
-        updated_chat.last_reasoning_effort,
-        updated_chat.archived,
-        updated_chat.last_error,
-        updated_chat.mode,
-        updated_chat.mcp_server_ids,
-        updated_chat.labels,
-        updated_chat.build_id,
-        updated_chat.agent_id,
-        updated_chat.pin_order,
-        updated_chat.last_read_message_id,
-        updated_chat.dynamic_tools,
-        updated_chat.organization_id,
-        updated_chat.plan_mode,
-        updated_chat.client_type,
-        updated_chat.last_turn_summary,
-        updated_chat.summary,
-        updated_chat.summary_generated_at,
-        updated_chat.snapshot_version,
-        updated_chat.history_version,
-        updated_chat.queue_version,
-        updated_chat.generation_attempt,
-        updated_chat.retry_state,
-        updated_chat.retry_state_version,
-        updated_chat.runner_id,
-        updated_chat.requires_action_deadline_at,
-        COALESCE(root.user_acl, updated_chat.user_acl) AS user_acl,
-        COALESCE(root.group_acl, updated_chat.group_acl) AS group_acl,
-        owner.username AS owner_username,
-        owner.name AS owner_name,
-        updated_chat.context_aggregate_hash,
-        updated_chat.context_dirty_since,
-        updated_chat.context_dirty_resources,
-        updated_chat.context_error,
-        updated_chat.compaction_requested_at,
-        updated_chat.title_source
-    FROM
-        updated_chat
-    LEFT JOIN chats root ON root.id = COALESCE(updated_chat.root_chat_id, updated_chat.parent_chat_id)
-    JOIN visible_users owner ON owner.id = updated_chat.owner_id
-)
-SELECT *
-FROM chats_expanded;
-
--- name: UpdateChatGeneratedTitleByID :one
--- Persists an automatically generated title. Returns no rows when the
--- title is no longer the creation-time fallback (the user set a title
--- at creation or renamed the chat), so a user-chosen title is never
--- replaced by generation regardless of timing.
-WITH updated_chat AS (
-UPDATE
-    chats
-SET
-    -- NOTE: updated_at is intentionally NOT touched here to avoid
-    -- changing list ordering when a user renames an older chat
-    -- out-of-band.
-    title = @title::text,
-    title_source = 'generated'::chat_title_source
-WHERE
-    id = @id::uuid
-    AND title_source = 'fallback'::chat_title_source
+    AND (
+        title_source = 'fallback'::chat_title_source
+        OR @title_source::chat_title_source = 'user'::chat_title_source
+    )
 RETURNING *
 ),
 chats_expanded AS (

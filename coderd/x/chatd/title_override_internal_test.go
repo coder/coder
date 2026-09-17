@@ -64,9 +64,10 @@ func TestMaybeGenerateChatTitle_TitleGenerationOverrideUnset(t *testing.T) {
 		}
 
 		db.EXPECT().GetChatOrganizationModelOverride(gomock.Any(), titleGenerationOverrideParams(chat)).Return(database.ChatOrganizationModelOverride{}, sql.ErrNoRows)
-		db.EXPECT().UpdateChatGeneratedTitleByID(gomock.Any(), database.UpdateChatGeneratedTitleByIDParams{
-			ID:    chat.ID,
-			Title: wantTitle,
+		db.EXPECT().UpdateChatTitleByID(gomock.Any(), database.UpdateChatTitleByIDParams{
+			ID:          chat.ID,
+			Title:       wantTitle,
+			TitleSource: database.ChatTitleSourceGenerated,
 		}).Return(chatWithTitle(chat, wantTitle), nil)
 
 		generated := &generatedChatTitle{}
@@ -114,9 +115,10 @@ func TestMaybeGenerateChatTitle_TitleGenerationOverrideReadDBError(t *testing.T)
 	}
 
 	db.EXPECT().GetChatOrganizationModelOverride(gomock.Any(), titleGenerationOverrideParams(chat)).Return(database.ChatOrganizationModelOverride{}, sql.ErrConnDone)
-	db.EXPECT().UpdateChatGeneratedTitleByID(gomock.Any(), database.UpdateChatGeneratedTitleByIDParams{
-		ID:    chat.ID,
-		Title: wantTitle,
+	db.EXPECT().UpdateChatTitleByID(gomock.Any(), database.UpdateChatTitleByIDParams{
+		ID:          chat.ID,
+		Title:       wantTitle,
+		TitleSource: database.ChatTitleSourceGenerated,
 	}).Return(chatWithTitle(chat, wantTitle), nil)
 
 	generated := &generatedChatTitle{}
@@ -200,9 +202,10 @@ func TestMaybeGenerateChatTitle_TitleGenerationOverrideSetUsable(t *testing.T) {
 		ProviderID: providerID,
 		APIKey:     "test-key",
 	}}, nil).AnyTimes()
-	db.EXPECT().UpdateChatGeneratedTitleByID(gomock.Any(), database.UpdateChatGeneratedTitleByIDParams{
-		ID:    chat.ID,
-		Title: wantTitle,
+	db.EXPECT().UpdateChatTitleByID(gomock.Any(), database.UpdateChatTitleByIDParams{
+		ID:          chat.ID,
+		Title:       wantTitle,
+		TitleSource: database.ChatTitleSourceGenerated,
 	}).Return(chatWithTitle(chat, wantTitle), nil)
 
 	generated := &generatedChatTitle{}
@@ -682,7 +685,7 @@ func titleOverrideModelConfig(model string, enabled bool) database.ChatModelConf
 	}
 }
 
-// chatWithTitle mirrors the row UpdateChatGeneratedTitleByID returns.
+// chatWithTitle mirrors the row a generated-title write returns.
 func chatWithTitle(chat database.Chat, title string) database.Chat {
 	chat.Title = title
 	chat.TitleSource = database.ChatTitleSourceGenerated

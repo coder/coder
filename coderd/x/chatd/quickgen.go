@@ -378,14 +378,15 @@ func (p *Server) maybeGenerateChatTitle(
 		return
 	}
 
-	// The write is guarded on title_source = fallback. A rename that landed
+	// A generated title only replaces a fallback. A rename that landed
 	// while the model call was in flight wins; the generated title is
 	// discarded rather than overwriting the user's choice. The same text as
 	// the fallback is still written so provenance records that generation
 	// completed.
-	updatedChat, err := p.db.UpdateChatGeneratedTitleByID(ctx, database.UpdateChatGeneratedTitleByIDParams{
-		ID:    chat.ID,
-		Title: title,
+	updatedChat, err := p.db.UpdateChatTitleByID(ctx, database.UpdateChatTitleByIDParams{
+		ID:          chat.ID,
+		Title:       title,
+		TitleSource: database.ChatTitleSourceGenerated,
 	})
 	if errors.Is(err, sql.ErrNoRows) {
 		logger.Debug(ctx, "title changed during generation, keeping user title",

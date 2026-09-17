@@ -761,7 +761,7 @@ func TestMaybeGenerateChatTitleKeepsTitleRenamedDuringGeneration(t *testing.T) {
 				GenerateObjectFn: func(_ context.Context, _ fantasy.ObjectCall) (*fantasy.ObjectResponse, error) {
 					// The user renames while the model call is in flight.
 					for _, title := range tc.renames {
-						_, err := db.UpdateChatTitleByID(ctx, database.UpdateChatTitleByIDParams{ID: chat.ID, Title: title})
+						_, err := db.UpdateChatTitleByID(ctx, database.UpdateChatTitleByIDParams{ID: chat.ID, Title: title, TitleSource: database.ChatTitleSourceUser})
 						require.NoError(t, err)
 						wantTitle = title
 					}
@@ -845,9 +845,10 @@ func TestMaybeGenerateChatTitleAppliesModelConfigReasoningEffort(t *testing.T) {
 
 	db := dbmock.NewMockStore(gomock.NewController(t))
 	db.EXPECT().GetChatOrganizationModelOverride(gomock.Any(), titleGenerationOverrideParams(chat)).Return(database.ChatOrganizationModelOverride{}, sql.ErrNoRows)
-	db.EXPECT().UpdateChatGeneratedTitleByID(gomock.Any(), database.UpdateChatGeneratedTitleByIDParams{
-		ID:    chat.ID,
-		Title: "Reasoning title",
+	db.EXPECT().UpdateChatTitleByID(gomock.Any(), database.UpdateChatTitleByIDParams{
+		ID:          chat.ID,
+		Title:       "Reasoning title",
+		TitleSource: database.ChatTitleSourceGenerated,
 	}).Return(chatWithTitle(chat, "Reasoning title"), nil)
 
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})

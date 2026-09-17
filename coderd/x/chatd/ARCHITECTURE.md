@@ -40,7 +40,7 @@ There is other data that is held in the database and is associated with a chat, 
 - title;
   <!-- TODO(CODAGT-1047): document `title_source` (fallback | generated | user).
   Automatic title generation only replaces a fallback title, enforced by
-  the guarded `UpdateChatGeneratedTitleByID` write; a rename always records
+  the provenance predicate in `UpdateChatTitleByID`; a rename always records
   `user`, including a same-text rename. Title writes never bump
   `updated_at`. -->
 - labels;

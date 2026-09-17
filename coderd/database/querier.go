@@ -1497,11 +1497,6 @@ type sqlcQuerier interface {
 	// fresh retry budget and message part episode keys a history change
 	// would grant, mirroring the chat_messages trigger postcondition.
 	UpdateChatExecutionState(ctx context.Context, arg UpdateChatExecutionStateParams) (Chat, error)
-	// Persists an automatically generated title. Returns no rows when the
-	// title is no longer the creation-time fallback (the user set a title
-	// at creation or renamed the chat), so a user-chosen title is never
-	// replaced by generation regardless of timing.
-	UpdateChatGeneratedTitleByID(ctx context.Context, arg UpdateChatGeneratedTitleByIDParams) (Chat, error)
 	// Bumps the heartbeat timestamp for the given set of chat IDs,
 	// provided they are still running and owned by the specified
 	// worker. Returns the IDs that were actually updated so the
@@ -1532,8 +1527,10 @@ type sqlcQuerier interface {
 	// The history_version fence lets background summary writes ignore worker-only
 	// updates while losing to newer message history.
 	UpdateChatSummary(ctx context.Context, arg UpdateChatSummaryParams) (int64, error)
-	// Persists a user-chosen title. Marks the title as user-set so
-	// automatic title generation never replaces it.
+	// Writes a title together with its provenance. Anything may replace a
+	// fallback (placeholder) title; only a user-supplied title may replace a
+	// generated or user title. Returns no rows when the write is refused,
+	// which is how automatic title generation loses to a concurrent rename.
 	UpdateChatTitleByID(ctx context.Context, arg UpdateChatTitleByIDParams) (Chat, error)
 	UpdateChatWorkspaceBinding(ctx context.Context, arg UpdateChatWorkspaceBindingParams) (Chat, error)
 	UpdateCryptoKeyDeletesAt(ctx context.Context, arg UpdateCryptoKeyDeletesAtParams) (CryptoKey, error)
