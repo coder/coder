@@ -2,7 +2,6 @@ package codersdk_test
 
 import (
 	"fmt"
-	"slices"
 	"strings"
 	"testing"
 
@@ -102,32 +101,6 @@ func TestValidateRedirectURIsSize(t *testing.T) {
 		err := codersdk.ValidateRedirectURIs([]string{huge}, codersdk.OAuth2ClientTypePublic)
 		require.ErrorContains(t, err, "at most 2048 bytes")
 		require.NotContains(t, err.Error(), "javascript")
-	})
-
-	// An update keeps a stored list that is already over the caps, and only
-	// checks what the request adds.
-	t.Run("StoredListExceedsCaps", func(t *testing.T) {
-		t.Parallel()
-		stored := list(codersdk.OAuth2RedirectURIsMaxCount + 1)
-		confidential := codersdk.OAuth2ClientTypeConfidential
-
-		require.NoError(t, codersdk.ValidateRedirectURIsUpdate(stored, stored, confidential))
-
-		grown := append(slices.Clone(stored), "https://example.com/new")
-		err := codersdk.ValidateRedirectURIsUpdate(grown, stored, confidential)
-		require.ErrorContains(t, err, "at most 32 redirect URIs")
-
-		replaced := append([]string{"https://example.com/new"}, stored[1:]...)
-		require.NoError(t, codersdk.ValidateRedirectURIsUpdate(replaced, stored, confidential))
-
-		long := "https://example.com/" + strings.Repeat("a", codersdk.OAuth2RedirectURIMaxBytes)
-		replaced[0] = long
-		err = codersdk.ValidateRedirectURIsUpdate(replaced, stored, confidential)
-		require.ErrorContains(t, err, "at most 2048 bytes")
-
-		// A create has nothing stored, so the same list is refused.
-		err = codersdk.ValidateRedirectURIs(stored, confidential)
-		require.ErrorContains(t, err, "at most 32 redirect URIs")
 	})
 
 	t.Run("IndexIsReported", func(t *testing.T) {

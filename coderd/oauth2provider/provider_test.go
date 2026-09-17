@@ -2,7 +2,6 @@ package oauth2provider_test
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"fmt"
 	"net/http"
@@ -14,7 +13,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/v2/coderd/apikey"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
@@ -859,47 +857,5 @@ func TestOAuth2ProviderAppRedirectURIs(t *testing.T) {
 			CallbackURL: long + "b",
 		})
 		requireCallbackURLValidationError(t, err)
-	})
-
-	// The same applies to a dynamically registered client updating itself
-	// through the RFC 7592 configuration endpoint.
-	t.Run("DCRStoredListExceedsCaps", func(t *testing.T) {
-		t.Parallel()
-
-		db, pubsub := dbtestutil.NewDB(t)
-		client := coderdtest.New(t, &coderdtest.Options{Database: db, Pubsub: pubsub})
-		_ = coderdtest.CreateFirstUser(t, client)
-		oauth2providertest.EnableDCR(t, client)
-		ctx := testutil.Context(t, testutil.WaitLong)
-
-		uris := make([]string, 0, codersdk.OAuth2RedirectURIsMaxCount+1)
-		for i := 0; i <= codersdk.OAuth2RedirectURIsMaxCount; i++ {
-			uris = append(uris, fmt.Sprintf("https://%d.example.com/callback", i))
-		}
-		token := "legacy-registration-token"
-		app := dbgen.OAuth2ProviderApp(t, db, database.OAuth2ProviderApp{
-			CallbackURL:             uris[0],
-			RedirectUris:            uris,
-			DynamicallyRegistered:   sql.NullBool{Bool: true, Valid: true},
-			RegistrationAccessToken: apikey.HashSecret(token),
-			TokenEndpointAuthMethod: sql.NullString{String: string(codersdk.OAuth2TokenEndpointAuthMethodClientSecretBasic), Valid: true},
-		})
-		clientID := app.ID.String()
-		req := codersdk.OAuth2ClientRegistrationRequest{
-			ClientName:              "renamed",
-			RedirectURIs:            uris,
-			TokenEndpointAuthMethod: codersdk.OAuth2TokenEndpointAuthMethodClientSecretBasic,
-		}
-
-		// Resending the stored list is allowed.
-		got, err := client.PutOAuth2ClientConfiguration(ctx, clientID, token, req)
-		require.NoError(t, err)
-		require.Equal(t, "renamed", got.ClientName)
-		require.Equal(t, uris, got.RedirectURIs)
-
-		// Growing it is not.
-		req.RedirectURIs = append(slices.Clone(uris), "https://new.example.com/callback")
-		_, err = client.PutOAuth2ClientConfiguration(ctx, clientID, token, req)
-		require.ErrorContains(t, err, "at most 32 redirect URIs")
 	})
 }

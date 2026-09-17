@@ -302,6 +302,16 @@ func UpdateClientConfiguration(db database.Store, auditor *audit.Auditor, logger
 			return
 		}
 
+		// Validate request
+		if err := req.Validate(); err != nil {
+			writeOAuth2RegistrationError(ctx, rw, http.StatusBadRequest,
+				"invalid_client_metadata", err.Error())
+			return
+		}
+
+		// Apply defaults
+		req = req.ApplyDefaults()
+
 		// Get existing app to verify it exists and is dynamically registered
 		//nolint:gocritic // OAuth2 system context, RFC 7592 client configuration endpoint
 		existingApp, err := db.GetOAuth2ProviderAppByClientID(dbauthz.AsSystemOAuth2(ctx), clientID)
@@ -325,17 +335,6 @@ func UpdateClientConfiguration(db database.Store, auditor *audit.Auditor, logger
 				"invalid_token", "Client was not dynamically registered")
 			return
 		}
-
-		// Redirect URIs the client already has are not checked again, so a
-		// client registered before the caps existed can still update itself.
-		if err := req.ValidateUpdate(existingApp.RegisteredRedirectURIs()); err != nil {
-			writeOAuth2RegistrationError(ctx, rw, http.StatusBadRequest,
-				"invalid_client_metadata", err.Error())
-			return
-		}
-
-		// Apply defaults
-		req = req.ApplyDefaults()
 
 		// A client's type is fixed at registration (RFC 7592 §2.2 permits
 		// rejecting metadata the server will not accept). Flipping it would

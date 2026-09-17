@@ -17,20 +17,7 @@ const (
 	OAuth2RedirectURIMaxBytes = 2048
 )
 
-// Validate checks a registration request. Every redirect URI must pass the
-// caps, since a new client has nothing stored yet.
 func (req *OAuth2ClientRegistrationRequest) Validate() error {
-	return req.validateWithStored(nil)
-}
-
-// ValidateUpdate checks a client configuration update against the redirect
-// URIs the client already has. Stored entries are skipped, so a client
-// registered before the caps existed can still update itself.
-func (req *OAuth2ClientRegistrationRequest) ValidateUpdate(stored []string) error {
-	return req.validateWithStored(stored)
-}
-
-func (req *OAuth2ClientRegistrationRequest) validateWithStored(stored []string) error {
 	// Validate redirect URIs - required for authorization code flow
 	if len(req.RedirectURIs) == 0 {
 		return xerrors.New("redirect_uris is required for authorization code flow")
@@ -38,7 +25,7 @@ func (req *OAuth2ClientRegistrationRequest) validateWithStored(stored []string) 
 
 	// The client type is derived once, by DetermineClientType, so which RFC 8252
 	// rules apply here cannot drift from what gets stored in client_type.
-	if err := ValidateRedirectURIsUpdate(req.RedirectURIs, stored, req.DetermineClientType()); err != nil {
+	if err := ValidateRedirectURIs(req.RedirectURIs, req.DetermineClientType()); err != nil {
 		return xerrors.Errorf("invalid redirect_uris: %w", err)
 	}
 
@@ -97,6 +84,13 @@ func (req *OAuth2ClientRegistrationRequest) validateWithStored(stored []string) 
 	return nil
 }
 
+// ValidateRedirectURIScheme reports whether the callback URL's scheme is
+// safe to use as a redirect target. It returns an error when the scheme
+// is empty, an unsupported URN, or one of the schemes that are dangerous
+// in browser/HTML contexts (javascript, data, file, ftp).
+//
+// Legitimate custom schemes for native apps (e.g. vscode://, jetbrains://)
+// are allowed.
 // ValidateRedirectURIScheme reports whether the callback URL's scheme is
 // safe to use as a redirect target. It returns an error when the scheme
 // is empty, an unsupported URN, or one of the schemes that are dangerous
@@ -193,25 +187,14 @@ func validateScheme(u *url.URL) error {
 // the single owner of that mapping, so this cannot disagree with the type the
 // app is stored as.
 func ValidateRedirectURIs(uris []string, clientType OAuth2ClientType) error {
-	return ValidateRedirectURIsUpdate(uris, nil, clientType)
-}
-
-// ValidateRedirectURIsUpdate is ValidateRedirectURIs for an app that already
-// has redirect URIs. URIs already in stored are skipped, and the count cap
-// applies only when the list grew. This keeps apps registered before the caps
-// existed editable. The admin API applies the same rules in its own validator.
-func ValidateRedirectURIsUpdate(uris, stored []string, clientType OAuth2ClientType) error {
 	if len(uris) == 0 {
 		return xerrors.New("at least one redirect URI is required")
 	}
-	if len(uris) > OAuth2RedirectURIsMaxCount && len(uris) > len(stored) {
+	if len(uris) > OAuth2RedirectURIsMaxCount {
 		return xerrors.Errorf("at most %d redirect URIs are allowed", OAuth2RedirectURIsMaxCount)
 	}
 
 	for i, uriStr := range uris {
-		if slices.Contains(stored, uriStr) {
-			continue
-		}
 		if err := ValidateRedirectURI(uriStr, clientType); err != nil {
 			return xerrors.Errorf("redirect URI at index %d: %w", i, err)
 		}
