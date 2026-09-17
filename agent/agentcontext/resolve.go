@@ -389,19 +389,42 @@ func (r *Resolver) discoverChildProjectInstructionFiles(root ScanRoot, out *[]Re
 
 // readInstructionFilesIn appends the recognized instruction files that sit
 // directly in dir, probed by name with dir as the containment root, and
-// reports whether any was found.
+// reports whether any was found. A probe by fixed name also hits a
+// differently cased file on a case-insensitive file system, so a hit is
+// confirmed against the directory listing, which keeps the exact-name rule
+// the scan roots follow; the listing is read only on a hit, so a large
+// non-project child still costs a few stats.
 func (r *Resolver) readInstructionFilesIn(dir string, out *[]Resource, seenID map[string]int) bool {
 	found := false
+	var names map[string]struct{}
 	for _, name := range instructionFileNames {
 		path := filepath.Join(dir, name)
 		info, err := os.Lstat(path)
 		if err != nil || info.IsDir() {
 			continue
 		}
+		if names == nil {
+			names = directoryEntryNames(dir)
+		}
+		if _, exact := names[name]; !exact {
+			continue
+		}
 		appendResource(out, seenID, r.readInstructionFile(dir, path, info, ""))
 		found = true
 	}
 	return found
+}
+
+func directoryEntryNames(dir string) map[string]struct{} {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return map[string]struct{}{}
+	}
+	names := make(map[string]struct{}, len(entries))
+	for _, e := range entries {
+		names[e.Name()] = struct{}{}
+	}
+	return names
 }
 
 // appendResource adds res to out unless an earlier resource already claimed
