@@ -6689,6 +6689,13 @@ export interface OAuth2ProtectedResourceMetadata {
 export interface OAuth2ProviderApp {
 	readonly id: string;
 	readonly name: string;
+	/**
+	 * RedirectURIs are the app's registered redirect URIs, primary first.
+	 */
+	readonly redirect_uris: readonly string[];
+	/**
+	 * @deprecated equal to RedirectURIs[0]. Read RedirectURIs instead.
+	 */
 	readonly callback_url: string;
 	readonly icon: string;
 	/**
@@ -7440,7 +7447,16 @@ export interface Permission {
 // From codersdk/oauth2.go
 export interface PostOAuth2ProviderAppRequest {
 	readonly name: string;
-	readonly callback_url: string;
+	/**
+	 * RedirectURIs is the ordered list of URIs the app may redirect to. The
+	 * first entry becomes CallbackURL. Send this instead of CallbackURL.
+	 */
+	readonly redirect_uris?: readonly string[];
+	/**
+	 * @deprecated send RedirectURIs instead. If both are set, CallbackURL
+	 * is moved to the front of RedirectURIs.
+	 */
+	readonly callback_url?: string;
 	readonly icon: string;
 }
 
@@ -7954,7 +7970,17 @@ export interface PutExtendWorkspaceRequest {
 // From codersdk/oauth2.go
 export interface PutOAuth2ProviderAppRequest {
 	readonly name: string;
-	readonly callback_url: string;
+	/**
+	 * RedirectURIs is the ordered list of URIs the app may redirect to. The
+	 * first entry becomes CallbackURL. Send this instead of CallbackURL.
+	 * Omit both to keep the stored list.
+	 */
+	readonly redirect_uris?: readonly string[];
+	/**
+	 * @deprecated send RedirectURIs instead. If both are set, CallbackURL
+	 * is moved to the front of RedirectURIs.
+	 */
+	readonly callback_url?: string;
 	readonly icon: string;
 }
 

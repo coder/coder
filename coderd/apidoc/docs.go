@@ -25465,6 +25465,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "callback_url": {
+                    "description": "Deprecated: equal to RedirectURIs[0]. Read RedirectURIs instead.",
                     "type": "string"
                 },
                 "client_type": {
@@ -25492,6 +25493,13 @@ const docTemplate = `{
                 },
                 "name": {
                     "type": "string"
+                },
+                "redirect_uris": {
+                    "description": "RedirectURIs are the app's registered redirect URIs, primary first.",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 }
             }
         },
@@ -26462,11 +26470,11 @@ const docTemplate = `{
         "codersdk.PostOAuth2ProviderAppRequest": {
             "type": "object",
             "required": [
-                "callback_url",
                 "name"
             ],
             "properties": {
                 "callback_url": {
+                    "description": "Deprecated: send RedirectURIs instead. If both are set, CallbackURL\nis moved to the front of RedirectURIs.",
                     "type": "string"
                 },
                 "icon": {
@@ -26474,6 +26482,13 @@ const docTemplate = `{
                 },
                 "name": {
                     "type": "string"
+                },
+                "redirect_uris": {
+                    "description": "RedirectURIs is the ordered list of URIs the app may redirect to. The\nfirst entry becomes CallbackURL. Send this instead of CallbackURL.",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 }
             }
         },
@@ -27303,11 +27318,11 @@ const docTemplate = `{
         "codersdk.PutOAuth2ProviderAppRequest": {
             "type": "object",
             "required": [
-                "callback_url",
                 "name"
             ],
             "properties": {
                 "callback_url": {
+                    "description": "Deprecated: send RedirectURIs instead. If both are set, CallbackURL\nis moved to the front of RedirectURIs.",
                     "type": "string"
                 },
                 "icon": {
@@ -27315,6 +27330,13 @@ const docTemplate = `{
                 },
                 "name": {
                     "type": "string"
+                },
+                "redirect_uris": {
+                    "description": "RedirectURIs is the ordered list of URIs the app may redirect to. The\nfirst entry becomes CallbackURL. Send this instead of CallbackURL.\nOmit both to keep the stored list.",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 }
             }
         },

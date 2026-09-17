@@ -10932,20 +10932,24 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
   },
   "icon": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-  "name": "string"
+  "name": "string",
+  "redirect_uris": [
+    "string"
+  ]
 }
 ```
 
 ### Properties
 
-| Name           | Type                                                       | Required | Restrictions | Description                                                                                                                                                                                             |
-|----------------|------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `callback_url` | string                                                     | false    |              |                                                                                                                                                                                                         |
-| `client_type`  | [codersdk.OAuth2ClientType](#codersdkoauth2clienttype)     | false    |              | Client type is "confidential" or "public".                                                                                                                                                              |
-| `endpoints`    | [codersdk.OAuth2AppEndpoints](#codersdkoauth2appendpoints) | false    |              | Endpoints are included in the app response for easier discovery. The OAuth2 spec does not have a defined place to find these (for comparison, OIDC has a '/.well-known/openid-configuration' endpoint). |
-| `icon`         | string                                                     | false    |              |                                                                                                                                                                                                         |
-| `id`           | string                                                     | false    |              |                                                                                                                                                                                                         |
-| `name`         | string                                                     | false    |              |                                                                                                                                                                                                         |
+| Name            | Type                                                       | Required | Restrictions | Description                                                                                                                                                                                             |
+|-----------------|------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `callback_url`  | string                                                     | false    |              | Deprecated: equal to RedirectURIs[0]. Read RedirectURIs instead.                                                                                                                                        |
+| `client_type`   | [codersdk.OAuth2ClientType](#codersdkoauth2clienttype)     | false    |              | Client type is "confidential" or "public".                                                                                                                                                              |
+| `endpoints`     | [codersdk.OAuth2AppEndpoints](#codersdkoauth2appendpoints) | false    |              | Endpoints are included in the app response for easier discovery. The OAuth2 spec does not have a defined place to find these (for comparison, OIDC has a '/.well-known/openid-configuration' endpoint). |
+| `icon`          | string                                                     | false    |              |                                                                                                                                                                                                         |
+| `id`            | string                                                     | false    |              |                                                                                                                                                                                                         |
+| `name`          | string                                                     | false    |              |                                                                                                                                                                                                         |
+| `redirect_uris` | array of string                                            | false    |              | Redirect uris are the app's registered redirect URIs, primary first.                                                                                                                                    |
 
 ## codersdk.OAuth2ProviderAppSecret
 
@@ -12120,17 +12124,21 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 {
   "callback_url": "string",
   "icon": "string",
-  "name": "string"
+  "name": "string",
+  "redirect_uris": [
+    "string"
+  ]
 }
 ```
 
 ### Properties
 
-| Name           | Type   | Required | Restrictions | Description |
-|----------------|--------|----------|--------------|-------------|
-| `callback_url` | string | true     |              |             |
-| `icon`         | string | false    |              |             |
-| `name`         | string | true     |              |             |
+| Name            | Type            | Required | Restrictions | Description                                                                                                                               |
+|-----------------|-----------------|----------|--------------|-------------------------------------------------------------------------------------------------------------------------------------------|
+| `callback_url`  | string          | false    |              | Deprecated: send RedirectURIs instead. If both are set, CallbackURL is moved to the front of RedirectURIs.                                |
+| `icon`          | string          | false    |              |                                                                                                                                           |
+| `name`          | string          | true     |              |                                                                                                                                           |
+| `redirect_uris` | array of string | false    |              | Redirect uris is the ordered list of URIs the app may redirect to. The first entry becomes CallbackURL. Send this instead of CallbackURL. |
 
 ## codersdk.PostWorkspaceUsageRequest
 
@@ -13007,17 +13015,21 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 {
   "callback_url": "string",
   "icon": "string",
-  "name": "string"
+  "name": "string",
+  "redirect_uris": [
+    "string"
+  ]
 }
 ```
 
 ### Properties
 
-| Name           | Type   | Required | Restrictions | Description |
-|----------------|--------|----------|--------------|-------------|
-| `callback_url` | string | true     |              |             |
-| `icon`         | string | false    |              |             |
-| `name`         | string | true     |              |             |
+| Name            | Type            | Required | Restrictions | Description                                                                                                                                                                  |
+|-----------------|-----------------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `callback_url`  | string          | false    |              | Deprecated: send RedirectURIs instead. If both are set, CallbackURL is moved to the front of RedirectURIs.                                                                   |
+| `icon`          | string          | false    |              |                                                                                                                                                                              |
+| `name`          | string          | true     |              |                                                                                                                                                                              |
+| `redirect_uris` | array of string | false    |              | Redirect uris is the ordered list of URIs the app may redirect to. The first entry becomes CallbackURL. Send this instead of CallbackURL. Omit both to keep the stored list. |
 
 ## codersdk.RBACAction
 

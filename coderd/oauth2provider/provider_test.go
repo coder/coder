@@ -2,6 +2,7 @@ package oauth2provider_test
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -264,6 +265,7 @@ func TestOAuth2ProviderAppValidation(t *testing.T) {
 				}
 				require.NoError(t, err)
 				require.Equal(t, test.callbackURL, updated.CallbackURL)
+				require.Equal(t, []string{test.callbackURL}, updated.RedirectURIs)
 				require.Equal(t, codersdk.OAuth2ClientTypePublic, updated.ClientType)
 
 				// The edit replaces the registered URI rather than adding to it.
@@ -526,6 +528,7 @@ func TestOAuth2ProviderAppOperations(t *testing.T) {
 		require.Equal(t, expectedApps.Default.ID, newApp.ID)
 
 		// The callback is stored as the app's only redirect URI.
+		require.Equal(t, []string{req.CallbackURL}, newApp.RedirectURIs)
 		stored, err := db.GetOAuth2ProviderAppByID(ctx, newApp.ID)
 		require.NoError(t, err)
 		require.Equal(t, []string{req.CallbackURL}, stored.RedirectUris)
@@ -603,13 +606,14 @@ func generateApps(ctx context.Context, t *testing.T, client *codersdk.Client, su
 		name = fmt.Sprintf("%s-%s", name, suffix)
 		//nolint:gocritic // OAuth2 app management requires owner permission.
 		app, err := client.PostOAuth2ProviderApp(ctx, codersdk.PostOAuth2ProviderAppRequest{
-			Name:        name,
-			CallbackURL: callback,
-			Icon:        "",
+			Name:         name,
+			RedirectURIs: []string{callback},
+			Icon:         "",
 		})
 		require.NoError(t, err)
 		require.Equal(t, name, app.Name)
 		require.Equal(t, callback, app.CallbackURL)
+		require.Equal(t, []string{callback}, app.RedirectURIs)
 		return app
 	}
 
@@ -808,5 +812,174 @@ func TestOAuth2ProviderAppRedirectURIs(t *testing.T) {
 		config, err := client.GetOAuth2ClientConfiguration(ctx, registered.ClientID, registered.RegistrationAccessToken)
 		require.NoError(t, err)
 		require.Equal(t, []string{first, second}, config.RedirectURIs)
+	})
+
+	// Creating and updating an app with the redirect_uris field stores and
+	// returns the list as given, with callback_url equal to the first entry.
+	t.Run("ExplicitListOnCreateAndUpdate", func(t *testing.T) {
+		t.Parallel()
+
+		db, pubsub := dbtestutil.NewDB(t)
+		client := coderdtest.New(t, &coderdtest.Options{Database: db, Pubsub: pubsub})
+		_ = coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		//nolint:gocritic // OAuth2 app management requires owner permission.
+		app, err := client.PostOAuth2ProviderApp(ctx, codersdk.PostOAuth2ProviderAppRequest{
+			Name:         "explicit-list",
+			RedirectURIs: []string{first, second},
+		})
+		require.NoError(t, err)
+		require.Equal(t, first, app.CallbackURL)
+		require.Equal(t, []string{first, second}, app.RedirectURIs)
+
+		//nolint:gocritic // OAuth2 app management requires owner permission.
+		updated, err := client.PutOAuth2ProviderApp(ctx, app.ID, codersdk.PutOAuth2ProviderAppRequest{
+			Name:         "explicit-list",
+			RedirectURIs: []string{third, second},
+		})
+		require.NoError(t, err)
+		require.Equal(t, third, updated.CallbackURL)
+		require.Equal(t, []string{third, second}, updated.RedirectURIs)
+
+		stored, err := db.GetOAuth2ProviderAppByID(ctx, app.ID)
+		require.NoError(t, err)
+		require.Equal(t, []string{third, second}, stored.RedirectUris)
+	})
+
+	// Omitting both fields on an update keeps the stored list unchanged.
+	t.Run("NeitherFieldKeepsStoredList", func(t *testing.T) {
+		t.Parallel()
+
+		db, pubsub := dbtestutil.NewDB(t)
+		client := coderdtest.New(t, &coderdtest.Options{Database: db, Pubsub: pubsub})
+		_ = coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		//nolint:gocritic // OAuth2 app management requires owner permission.
+		app, err := client.PostOAuth2ProviderApp(ctx, codersdk.PostOAuth2ProviderAppRequest{
+			Name:         "keep-list",
+			RedirectURIs: []string{first, second},
+		})
+		require.NoError(t, err)
+
+		//nolint:gocritic // OAuth2 app management requires owner permission.
+		updated, err := client.PutOAuth2ProviderApp(ctx, app.ID, codersdk.PutOAuth2ProviderAppRequest{
+			Name: "renamed",
+		})
+		require.NoError(t, err)
+		require.Equal(t, []string{first, second}, updated.RedirectURIs)
+
+		stored, err := db.GetOAuth2ProviderAppByID(ctx, app.ID)
+		require.NoError(t, err)
+		require.Equal(t, []string{first, second}, stored.RedirectUris)
+	})
+
+	// Sending both fields moves callback_url to the front of redirect_uris,
+	// without a 400.
+	t.Run("BothFieldsMovesCallbackToFront", func(t *testing.T) {
+		t.Parallel()
+
+		db, pubsub := dbtestutil.NewDB(t)
+		client := coderdtest.New(t, &coderdtest.Options{Database: db, Pubsub: pubsub})
+		_ = coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		//nolint:gocritic // OAuth2 app management requires owner permission.
+		app, err := client.PostOAuth2ProviderApp(ctx, codersdk.PostOAuth2ProviderAppRequest{
+			Name:         "both-fields",
+			RedirectURIs: []string{first},
+		})
+		require.NoError(t, err)
+
+		//nolint:gocritic // OAuth2 app management requires owner permission.
+		updated, err := client.PutOAuth2ProviderApp(ctx, app.ID, codersdk.PutOAuth2ProviderAppRequest{
+			Name:         "both-fields",
+			CallbackURL:  third,
+			RedirectURIs: []string{first, second},
+		})
+		require.NoError(t, err)
+		require.Equal(t, []string{third, first, second}, updated.RedirectURIs)
+
+		//nolint:gocritic // OAuth2 app management requires owner permission.
+		updated, err = client.PutOAuth2ProviderApp(ctx, app.ID, codersdk.PutOAuth2ProviderAppRequest{
+			Name:         "both-fields",
+			CallbackURL:  second,
+			RedirectURIs: []string{third, first, second},
+		})
+		require.NoError(t, err)
+		require.Equal(t, []string{second, third, first}, updated.RedirectURIs)
+	})
+
+	// An update sending redirect_uris as an empty list, with no callback_url,
+	// is refused rather than silently keeping the stored list.
+	t.Run("EmptyListIsRefused", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		//nolint:gocritic // OAuth2 app management requires owner permission.
+		app, err := client.PostOAuth2ProviderApp(ctx, codersdk.PostOAuth2ProviderAppRequest{
+			Name:         "empty-list-update",
+			RedirectURIs: []string{first},
+		})
+		require.NoError(t, err)
+
+		// The SDK's omitempty tag drops an empty slice before it reaches the
+		// wire, so this sends the raw body to tell "explicit empty list"
+		// apart from "field omitted".
+		//nolint:gocritic // OAuth2 app management requires owner permission.
+		res, err := client.Request(ctx, http.MethodPut, fmt.Sprintf("/api/v2/oauth2-provider/apps/%s", app.ID), map[string]any{
+			"name":          "empty-list-update",
+			"redirect_uris": []string{},
+		})
+		require.NoError(t, err)
+		defer res.Body.Close()
+		require.Equal(t, http.StatusBadRequest, res.StatusCode)
+		var apiErr codersdk.Response
+		require.NoError(t, json.NewDecoder(res.Body).Decode(&apiErr))
+		require.Len(t, apiErr.Validations, 1)
+		require.Equal(t, "redirect_uris", apiErr.Validations[0].Field)
+
+		var sdkErr *codersdk.Error
+
+		//nolint:gocritic // OAuth2 app management requires owner permission.
+		_, err = client.PostOAuth2ProviderApp(ctx, codersdk.PostOAuth2ProviderAppRequest{
+			Name: "empty-list-create",
+		})
+		require.Error(t, err)
+		require.ErrorAs(t, err, &sdkErr)
+		require.Len(t, sdkErr.Validations, 1)
+		require.Equal(t, "redirect_uris", sdkErr.Validations[0].Field)
+	})
+
+	// A malformed entry sent through redirect_uris is attributed to that
+	// field with its index; the same value sent through callback_url is
+	// attributed to callback_url instead.
+	t.Run("AttributionByOriginField", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		//nolint:gocritic // OAuth2 app management requires owner permission.
+		_, err := client.PostOAuth2ProviderApp(ctx, codersdk.PostOAuth2ProviderAppRequest{
+			Name:         "bad-list-entry",
+			RedirectURIs: []string{first, "javascript:alert(1)"},
+		})
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Len(t, sdkErr.Validations, 1)
+		require.Equal(t, "redirect_uris", sdkErr.Validations[0].Field)
+
+		//nolint:gocritic // OAuth2 app management requires owner permission.
+		_, err = client.PostOAuth2ProviderApp(ctx, codersdk.PostOAuth2ProviderAppRequest{
+			Name:        "bad-callback",
+			CallbackURL: "javascript:alert(1)",
+		})
+		requireCallbackURLValidationError(t, err)
 	})
 }

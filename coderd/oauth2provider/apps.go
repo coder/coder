@@ -25,16 +25,16 @@ import (
 // create or update request. The first entry is the primary.
 //
 // If the request has redirectURIs, that list is used. If it also has
-// callbackURL, callbackURL is moved to the front of the list.
+// callbackURL, callbackURL is moved to the front of the list. A redirectURIs
+// sent as an empty list is used as given, so it fails validation rather than
+// falling back to the stored list.
 // If the request has only callbackURL, an update replaces the first stored
 // URI with callbackURL and keeps the rest. A create uses callbackURL alone.
-// If the request has neither, the stored list is kept.
+// If the request has neither field, the stored list is kept.
 // stored is nil on a create.
-//
-// Only the list-only and callback-only shapes have callers today.
 func resolveRedirectURIs(callbackURL string, redirectURIs, stored []string) []string {
 	list := slice.Unique(redirectURIs)
-	if len(list) == 0 && len(stored) > 0 {
+	if redirectURIs == nil && len(stored) > 0 {
 		if callbackURL == "" {
 			return stored
 		}
@@ -160,7 +160,7 @@ func CreateApp(db database.Store, accessURL *url.URL, auditor *audit.Auditor, lo
 		if !httpapi.Read(ctx, rw, r, &req) {
 			return
 		}
-		redirectURIs := resolveRedirectURIs(req.CallbackURL, nil, nil)
+		redirectURIs := resolveRedirectURIs(req.CallbackURL, req.RedirectURIs, nil)
 		if errs := validateAppRedirectURIFields(redirectURIs, codersdk.OAuth2ClientTypeConfidential, req.CallbackURL); errs != nil {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message:     "Validation failed.",
@@ -231,7 +231,7 @@ func UpdateApp(db database.Store, accessURL *url.URL, auditor *audit.Auditor, lo
 		if app.IsPublic() {
 			clientType = codersdk.OAuth2ClientTypePublic
 		}
-		redirectURIs := resolveRedirectURIs(req.CallbackURL, nil, app.RegisteredRedirectURIs())
+		redirectURIs := resolveRedirectURIs(req.CallbackURL, req.RedirectURIs, app.RegisteredRedirectURIs())
 		if errs := validateAppRedirectURIFields(redirectURIs, clientType, req.CallbackURL); errs != nil {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message:     "Validation failed.",

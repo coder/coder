@@ -1527,7 +1527,10 @@ curl -X GET http://coder-server:8080/api/v2/oauth2-provider/apps \
     },
     "icon": "string",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-    "name": "string"
+    "name": "string",
+    "redirect_uris": [
+      "string"
+    ]
   }
 ]
 ```
@@ -1545,7 +1548,7 @@ Status Code **200**
 | Name                      | Type                                                                 | Required | Restrictions | Description                                                                                                                                                                                             |
 |---------------------------|----------------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `[array item]`            | array                                                                | false    |              |                                                                                                                                                                                                         |
-| `» callback_url`          | string                                                               | false    |              |                                                                                                                                                                                                         |
+| `» callback_url`          | string                                                               | false    |              | Deprecated: equal to RedirectURIs[0]. Read RedirectURIs instead.                                                                                                                                        |
 | `» client_type`           | [codersdk.OAuth2ClientType](schemas.md#codersdkoauth2clienttype)     | false    |              | Client type is "confidential" or "public".                                                                                                                                                              |
 | `» endpoints`             | [codersdk.OAuth2AppEndpoints](schemas.md#codersdkoauth2appendpoints) | false    |              | Endpoints are included in the app response for easier discovery. The OAuth2 spec does not have a defined place to find these (for comparison, OIDC has a '/.well-known/openid-configuration' endpoint). |
 | `»» authorization`        | string                                                               | false    |              |                                                                                                                                                                                                         |
@@ -1555,6 +1558,7 @@ Status Code **200**
 | `» icon`                  | string                                                               | false    |              |                                                                                                                                                                                                         |
 | `» id`                    | string(uuid)                                                         | false    |              |                                                                                                                                                                                                         |
 | `» name`                  | string                                                               | false    |              |                                                                                                                                                                                                         |
+| `» redirect_uris`         | array                                                                | false    |              | Redirect uris are the app's registered redirect URIs, primary first.                                                                                                                                    |
 
 #### Enumerated Values
 
@@ -1584,7 +1588,10 @@ curl -X POST http://coder-server:8080/api/v2/oauth2-provider/apps \
 {
   "callback_url": "string",
   "icon": "string",
-  "name": "string"
+  "name": "string",
+  "redirect_uris": [
+    "string"
+  ]
 }
 ```
 
@@ -1610,7 +1617,10 @@ curl -X POST http://coder-server:8080/api/v2/oauth2-provider/apps \
   },
   "icon": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-  "name": "string"
+  "name": "string",
+  "redirect_uris": [
+    "string"
+  ]
 }
 ```
 
@@ -1657,7 +1667,10 @@ curl -X GET http://coder-server:8080/api/v2/oauth2-provider/apps/{app} \
   },
   "icon": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-  "name": "string"
+  "name": "string",
+  "redirect_uris": [
+    "string"
+  ]
 }
 ```
 
@@ -1689,7 +1702,10 @@ curl -X PUT http://coder-server:8080/api/v2/oauth2-provider/apps/{app} \
 {
   "callback_url": "string",
   "icon": "string",
-  "name": "string"
+  "name": "string",
+  "redirect_uris": [
+    "string"
+  ]
 }
 ```
 
@@ -1716,7 +1732,10 @@ curl -X PUT http://coder-server:8080/api/v2/oauth2-provider/apps/{app} \
   },
   "icon": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-  "name": "string"
+  "name": "string",
+  "redirect_uris": [
+    "string"
+  ]
 }
 ```
 

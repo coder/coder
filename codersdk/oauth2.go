@@ -15,10 +15,13 @@ import (
 )
 
 type OAuth2ProviderApp struct {
-	ID          uuid.UUID `json:"id" format:"uuid"`
-	Name        string    `json:"name"`
-	CallbackURL string    `json:"callback_url"`
-	Icon        string    `json:"icon"`
+	ID   uuid.UUID `json:"id" format:"uuid"`
+	Name string    `json:"name"`
+	// RedirectURIs are the app's registered redirect URIs, primary first.
+	RedirectURIs []string `json:"redirect_uris"`
+	// Deprecated: equal to RedirectURIs[0]. Read RedirectURIs instead.
+	CallbackURL string `json:"callback_url"`
+	Icon        string `json:"icon"`
 
 	// ClientType is "confidential" or "public".
 	ClientType OAuth2ClientType `json:"client_type"`
@@ -79,8 +82,13 @@ func (c *Client) OAuth2ProviderApp(ctx context.Context, id uuid.UUID) (OAuth2Pro
 }
 
 type PostOAuth2ProviderAppRequest struct {
-	Name        string `json:"name" validate:"required,oauth2_app_name"`
-	CallbackURL string `json:"callback_url" validate:"required"`
+	Name string `json:"name" validate:"required,oauth2_app_name"`
+	// RedirectURIs is the ordered list of URIs the app may redirect to. The
+	// first entry becomes CallbackURL. Send this instead of CallbackURL.
+	RedirectURIs []string `json:"redirect_uris,omitempty"`
+	// Deprecated: send RedirectURIs instead. If both are set, CallbackURL
+	// is moved to the front of RedirectURIs.
+	CallbackURL string `json:"callback_url,omitempty" validate:"omitempty"`
 	Icon        string `json:"icon" validate:"omitempty"`
 }
 
@@ -100,8 +108,14 @@ func (c *Client) PostOAuth2ProviderApp(ctx context.Context, app PostOAuth2Provid
 }
 
 type PutOAuth2ProviderAppRequest struct {
-	Name        string `json:"name" validate:"required,oauth2_app_name"`
-	CallbackURL string `json:"callback_url" validate:"required"`
+	Name string `json:"name" validate:"required,oauth2_app_name"`
+	// RedirectURIs is the ordered list of URIs the app may redirect to. The
+	// first entry becomes CallbackURL. Send this instead of CallbackURL.
+	// Omit both to keep the stored list.
+	RedirectURIs []string `json:"redirect_uris,omitempty"`
+	// Deprecated: send RedirectURIs instead. If both are set, CallbackURL
+	// is moved to the front of RedirectURIs.
+	CallbackURL string `json:"callback_url,omitempty" validate:"omitempty"`
 	Icon        string `json:"icon" validate:"omitempty"`
 }
 

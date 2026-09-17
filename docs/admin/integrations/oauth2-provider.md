@@ -74,11 +74,13 @@ curl -X POST \
   -H "Content-Type: application/json" \
   -d '{
     "name": "My Application",
-    "callback_url": "https://myapp.example.com/callback",
+    "redirect_uris": ["https://myapp.example.com/callback"],
     "icon": "https://myapp.example.com/icon.png"
   }' \
   "$CODER_URL/api/v2/oauth2-provider/apps"
 ```
+
+`callback_url` is still accepted and still returned, but it is deprecated: it is equal to the first entry in `redirect_uris`. New scripts should send and read `redirect_uris` instead.
 
 Generate a client secret:
 
@@ -131,9 +133,10 @@ Disabling only blocks *new* self-registrations. Applications that already
 registered while it was enabled keep authorizing and exchanging tokens
 normally; disabling does not revoke or otherwise affect them.
 
-A registration may list several `redirect_uris`.
+An application may list several `redirect_uris`, whether it registered itself or an admin created it.
 A request may present any of them, and the code it receives can only be exchanged with that same URI.
 The first entry is the primary callback: it is what the web UI shows for the application, and what a request that omits `redirect_uri` is sent to.
+An admin can edit the list through the management API, and a self-registered client can update its own list with its registration access token.
 
 ## Integration Patterns
 
@@ -454,11 +457,12 @@ Refer to the note under [Client Authentication Methods](#client-authentication-m
 
 ### "Invalid Callback URL" on the consent page
 
-If you see this error when authorizing, the application's registered callback
-URL is not usable: either it does not parse as a URL, or it uses a blocked
-scheme (`javascript:`, `data:`, `file:`, or `ftp:`). The same cause answers
-`server_error` on `POST /oauth2/authorize`. Update the application's callback
-URL (see [Callback URL schemes](#callback-url-schemes)).
+If you see this error when authorizing, one of the application's registered
+redirect URIs is not usable: either it does not parse as a URL, or it uses a
+blocked scheme (`javascript:`, `data:`, `file:`, or `ftp:`). The same cause
+answers `server_error` on `POST /oauth2/authorize`. The application's page
+shows every registered redirect URI; update the one that is broken (see
+[Callback URL schemes](#callback-url-schemes)).
 
 The server log records the application ID and the stored value. The response
 does not, so a bad URL is never echoed back to a browser.
@@ -682,6 +686,8 @@ The following schemes are blocked for security reasons: `javascript:`, `data:`, 
 
 Public clients (`token_endpoint_auth_method: none`) additionally cannot register `mailto:`, `tel:`, or `sms:` redirect URIs, since those schemes hand off to another app rather than returning an authorization code to the client. Confidential clients are not subject to this restriction.
 
+These rules apply to every entry in `redirect_uris`, not only the first one.
+
 ## Security Considerations
 
 - **Use HTTPS**: Always use HTTPS in production to protect tokens in transit
@@ -709,7 +715,7 @@ The current implementation has these limitations:
 - No device authorization grant support (RFC 8628)
 - Implicit grant (`response_type=token`) is not supported; OAuth 2.1 deprecated this flow due to token leakage risks, and a request for it redirects to the registered callback with `unsupported_response_type`
 - Limited to opaque access tokens (no JWT support)
-- An application may register at most 32 redirect URIs of at most 2048 bytes each. An application that stored a longer list before this limit existed keeps working, but it cannot be saved again until the list fits. To fix it, delete the application and create or register it again. A later release lets administrators edit the list directly.
+- An application may register at most 32 redirect URIs of at most 2048 bytes each. An application that stored a longer list before this limit existed keeps working, but it cannot be saved again until the list fits. To fix it, delete the application and create or register it again. Administrators can edit the list through the management API now; a later release adds the web UI editor.
 - A redirect URI with a private-use scheme must name a path or an authority, as in `com.example.app:/callback` or `com.example.app://auth/callback`. The bare form `com.example.app:callback` is rejected. Dynamic Client Registration accepted it in earlier versions, so a client that registered one must re-register with one of the other two forms.
 
 The `redirect_uris` list is now the source of truth for an application's callbacks, and its first entry is the primary:
@@ -718,6 +724,8 @@ The `redirect_uris` list is now the source of truth for an application's callbac
 - During a rolling upgrade, a replica running an earlier version still writes only the old field when an administrator edits a callback URL.
 - Replicas running the new version read the list and ignore the old field, so that edit is silently discarded. The application keeps accepting its previous redirect URIs, including any the administrator meant to remove, until it is saved again on the new version.
 - Drain replicas running the earlier version before you upgrade, or save the application again after the upgrade.
+
+The management API now accepts and returns `redirect_uris` on every OAuth2 application. `callback_url` still works: it is deprecated, and its value is always equal to the first entry in `redirect_uris`. Scripts that create or update applications should move to `redirect_uris`.
 
 A `scope` on a refresh request was parsed and discarded in earlier versions, so a
 client sending one wider than its grant refreshed successfully. It is now
