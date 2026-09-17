@@ -384,6 +384,88 @@ func TestChatContextAddedResourcesVersionDivergentChat(t *testing.T) {
 	require.True(t, after.ContextDirtySince.Valid)
 }
 
+// TestChatContextDiscoveredUpsertRacesRefresh pins a file chatd discovered
+// from a tool-touched directory while a refresh of the chat is in flight. The
+// refresh took its repeatable-read snapshot before the row existed, so its
+// clear does not remove it; the copy of the agent snapshot, which now covers
+// the same source, must retry the transaction instead of failing on the
+// unique key, and the retry leaves the chat with snapshot copies only.
+func TestChatContextDiscoveredUpsertRacesRefresh(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	db, _ := dbtestutil.NewDB(t)
+	//nolint:gocritic // Seeding and refreshing as the chatd subject.
+	chatdCtx := dbauthz.AsChatd(ctx)
+	user, org, model := seedChatDependencies(t, db)
+	ws, agent := seedWorkspaceWithAgent(t, db, user.ID)
+	chat := dbgen.Chat(t, db, database.Chat{
+		OrganizationID:    org.ID,
+		OwnerID:           user.ID,
+		WorkspaceID:       uuid.NullUUID{UUID: ws.ID, Valid: true},
+		AgentID:           uuid.NullUUID{UUID: agent.ID, Valid: true},
+		LastModelConfigID: model.ID,
+		Status:            database.ChatStatusWaiting,
+	})
+
+	rootSource := "/home/coder/AGENTS.md"
+	nestedSource := "/home/coder/repo/AGENTS.md"
+	seedAgentInstructionContext(chatdCtx, t, db, agent.ID, rootSource, "root")
+	_, err := db.HydrateAgentChatsContext(chatdCtx, database.HydrateAgentChatsContextParams{AgentID: agent.ID, AggregateHash: []byte{0x01}})
+	require.NoError(t, err)
+	seedAgentInstructionContext(chatdCtx, t, db, agent.ID, nestedSource, "repo rules")
+	snapshotHash := []byte{0x02}
+
+	// The refresh takes its snapshot, then waits while a tool pins the
+	// nested file the agent has since published.
+	read := make(chan struct{})
+	proceed := make(chan struct{})
+	refreshErr := make(chan error, 1)
+	attempts := 0
+	go func() {
+		refreshErr <- database.ReadModifyUpdate(db, func(tx database.Store) error {
+			if _, err := tx.GetChatByID(chatdCtx, chat.ID); err != nil {
+				return err
+			}
+			attempts++
+			if attempts == 1 {
+				close(read)
+				<-proceed
+			}
+			if err := tx.SetChatContextSnapshot(chatdCtx, database.SetChatContextSnapshotParams{ID: chat.ID, AggregateHash: snapshotHash}); err != nil {
+				return err
+			}
+			if err := tx.DeleteChatContextResourcesByChatID(chatdCtx, chat.ID); err != nil {
+				return err
+			}
+			return tx.InsertAgentContextResourcesIntoChat(chatdCtx, database.InsertAgentContextResourcesIntoChatParams{ChatID: chat.ID, AgentID: agent.ID})
+		})
+	}()
+	<-read
+	body, err := protojson.Marshal(&agentproto.InstructionFileBody{Content: []byte("discovered")})
+	require.NoError(t, err)
+	require.NoError(t, db.UpsertChatContextDiscoveredResource(chatdCtx, database.UpsertChatContextDiscoveredResourceParams{
+		ChatID:      chat.ID,
+		Source:      nestedSource,
+		BodyKind:    database.WorkspaceAgentContextBodyKindInstructionFile,
+		Body:        body,
+		ContentHash: []byte{0x42},
+		SizeBytes:   int64(len(body)),
+		Status:      database.WorkspaceAgentContextResourceStatusOk,
+	}))
+	close(proceed)
+
+	require.NoError(t, <-refreshErr, "the refresh must retry past the discovered row")
+	require.Equal(t, 2, attempts, "the first attempt fails to serialize")
+	rows, err := db.ListChatContextResourcesByChatID(chatdCtx, chat.ID)
+	require.NoError(t, err)
+	require.Len(t, rows, 2)
+	for _, row := range rows {
+		require.False(t, row.Discovered, "%s is a snapshot copy after the refresh", row.Source)
+	}
+	require.Equal(t, []byte("instruction:"+nestedSource), rows[1].ContentHash, "the snapshot copy wins over the discovered read")
+}
+
 // TestChatContextAddedResourcesAutoPin covers the additive pin: prompt
 // resources whose source a hydrated chat has never pinned are added to the
 // chat on the agent push that publishes them, while changed resources still
@@ -714,6 +796,30 @@ func TestChatContextAddedResourcesAutoPin(t *testing.T) {
 	require.Len(t, pinned, 6)
 	require.Contains(t, pinned, nestedSource, "a snapshot row is not a discovered row")
 	require.NotContains(t, pinned, docsSource)
+
+	// A server the agent publishes under a discovered file's source takes
+	// the row over like any snapshot copy: the live sync rewrites it, and the
+	// row is no longer the discovered reconciliation's to drop.
+	discover(docsSource, nestedDiscoveredHash)
+	docsServer := &agentproto.ContextResource{
+		Source:      docsSource,
+		ContentHash: []byte{0x71},
+		SizeBytes:   8,
+		Status:      agentproto.ContextResource_OK,
+		Body: &agentproto.ContextResource_McpServer{
+			McpServer: &agentproto.MCPServerBody{ServerName: docsSource},
+		},
+	}
+	push(12, hashV11, append(slices.Clone(v9), instructionResource(otherSource, "other", otherHash), instructionResource(nestedSource, "site rules", nestedAgentHash), docsServer)...)
+	got, err = expClient.GetChat(ctx, chat.ID)
+	require.NoError(t, err)
+	require.False(t, got.Context.Dirty)
+	pinned = pinnedResources()
+	require.Len(t, pinned, 7)
+	require.Equal(t, database.WorkspaceAgentContextBodyKindMcpServer, pinned[docsSource].BodyKind, "the server is live-synced over the discovered row")
+	require.False(t, pinned[docsSource].Discovered, "the snapshot owns the row")
+	require.NoError(t, db.DeleteChatContextDiscoveredResource(chatdCtx, database.DeleteChatContextDiscoveredResourceParams{ChatID: chat.ID, Source: docsSource}))
+	require.Contains(t, pinnedResources(), docsSource, "the server row survives the discovered delete")
 }
 
 // TestChatContextMCPSyncFromAgentPush verifies that agent pushes live-sync MCP

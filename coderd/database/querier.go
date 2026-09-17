@@ -1139,7 +1139,11 @@ type sqlcQuerier interface {
 	// Copies an agent's current context resources onto a single chat. Pair
 	// with DeleteChatContextResourcesByChatID (clear-then-copy, in a
 	// transaction) to re-pin a chat to its agent's latest snapshot from the
-	// refresh endpoint and on agent rebinding.
+	// refresh endpoint and on agent rebinding. The clear sees only rows in the
+	// caller's repeatable-read snapshot, so a row chatd discovered for one of
+	// these sources after that snapshot was taken survives it; the conflict
+	// path turns that into a serialization failure the caller retries instead
+	// of a unique violation, and the retry's clear removes the row.
 	InsertAgentContextResourcesIntoChat(ctx context.Context, arg InsertAgentContextResourcesIntoChatParams) error
 	// We use the organization_id as the id
 	// for simplicity since all users is

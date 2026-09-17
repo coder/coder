@@ -1720,7 +1720,9 @@ upserted AS (
     CROSS JOIN agent_mcp m
     -- A prompt row the chat pinned at the same source is left in place: the
     -- model has read it, so its replacement by a server is a change that
-    -- marks the chat out of date and lands on refresh, not a live sync.
+    -- marks the chat out of date and lands on refresh, not a live sync. A
+    -- row chatd discovered from a tool-touched directory is not part of the
+    -- pin, so the snapshot's server takes it over like any snapshot copy.
     ON CONFLICT (chat_id, source) DO UPDATE SET
         body_kind = EXCLUDED.body_kind,
         body = EXCLUDED.body,
@@ -1729,8 +1731,10 @@ upserted AS (
         status = EXCLUDED.status,
         error = EXCLUDED.error,
         source_path = EXCLUDED.source_path,
+        discovered = false,
         updated_at = now()
     WHERE chat_context_resources.body_kind IN ('mcp_config', 'mcp_server')
+        OR chat_context_resources.discovered = true
 )
 SELECT id FROM locked;
 
@@ -1882,7 +1886,11 @@ SELECT id FROM locked;
 -- Copies an agent's current context resources onto a single chat. Pair
 -- with DeleteChatContextResourcesByChatID (clear-then-copy, in a
 -- transaction) to re-pin a chat to its agent's latest snapshot from the
--- refresh endpoint and on agent rebinding.
+-- refresh endpoint and on agent rebinding. The clear sees only rows in the
+-- caller's repeatable-read snapshot, so a row chatd discovered for one of
+-- these sources after that snapshot was taken survives it; the conflict
+-- path turns that into a serialization failure the caller retries instead
+-- of a unique violation, and the retry's clear removes the row.
 INSERT INTO chat_context_resources (
     chat_id, source, body_kind, body, content_hash, size_bytes, status, error, source_path
 )
@@ -1890,7 +1898,17 @@ SELECT
     @chat_id::uuid, r.source, r.body_kind, r.body, r.content_hash,
     r.size_bytes, r.status, r.error, r.source_path
 FROM workspace_agent_context_resources r
-WHERE r.workspace_agent_id = @agent_id::uuid;
+WHERE r.workspace_agent_id = @agent_id::uuid
+ON CONFLICT (chat_id, source) DO UPDATE SET
+    body_kind = EXCLUDED.body_kind,
+    body = EXCLUDED.body,
+    content_hash = EXCLUDED.content_hash,
+    size_bytes = EXCLUDED.size_bytes,
+    status = EXCLUDED.status,
+    error = EXCLUDED.error,
+    source_path = EXCLUDED.source_path,
+    discovered = false,
+    updated_at = now();
 
 -- name: DeleteChatContextResourcesByChatID :exec
 -- Clears a chat's pinned context resources. Used as the first half of a
