@@ -35,6 +35,13 @@ const startableWorkspaceStatuses: readonly WorkspaceStatus[] = [
 	"canceled",
 ];
 
+// The desktop endpoint rejects any agent that is not connected, so this
+// is the precondition for dialing it.
+const isDesktopReachable = (
+	workspaceStatus: WorkspaceStatus,
+	agentStatus: WorkspaceAgentStatus,
+): boolean => workspaceStatus === "running" && agentStatus === "connected";
+
 export const DesktopPanel: FC<DesktopPanelProps> = ({
 	chatId,
 	workspace,
@@ -65,14 +72,15 @@ export const DesktopPanel: FC<DesktopPanelProps> = ({
 	const [scaleMode, setScaleMode] = useState<ScaleMode>("fit");
 	const [isPoppedOut, setIsPoppedOut] = useState(false);
 
-	// The desktop endpoint rejects any agent that is not connected, so
-	// gate the connection on the agent state from the workspace watch.
-	// This tears the session down when the workspace stops and dials
-	// again as soon as the agent reconnects, without manual retries.
+	// Gating the connection on the live workspace watch tears the session
+	// down when the workspace stops and dials again as soon as the agent
+	// reconnects, without manual retries.
 	const { status, reconnect, attach } = useDesktopConnection({
 		chatId: isPoppedOut ? undefined : chatId,
 		activated:
-			activated && !isPoppedOut && workspaceAgent.status === "connected",
+			activated &&
+			!isPoppedOut &&
+			isDesktopReachable(workspace.latest_build.status, workspaceAgent.status),
 		scaleViewport: scaleMode === "fit",
 	});
 
@@ -197,7 +205,7 @@ export const DesktopPanelView: FC<DesktopPanelViewProps> = ({
 		);
 	}
 
-	if (workspaceStatus !== "running" || agentStatus !== "connected") {
+	if (!isDesktopReachable(workspaceStatus, agentStatus)) {
 		return (
 			<div className="flex h-full flex-col items-center justify-center gap-2 text-content-secondary">
 				<Spinner loading className="size-6" />
