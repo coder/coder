@@ -172,6 +172,7 @@ export const mergeTools = (
 			modelIntent,
 			parsedCommands: call.parsedCommands,
 			hookRewritten: call.hookRewritten,
+			startedAt: call.startedAt,
 		});
 	}
 
@@ -227,6 +228,7 @@ export const parseMessageContent = (
 					parsedCommands: part.parsed_commands,
 					mcpServerConfigId: part.mcp_server_config_id,
 					hookRewritten: part.hook_rewritten,
+					startedAt: part.created_at,
 				});
 				parsed.blocks = ensureToolBlock(parsed.blocks, id);
 				break;
