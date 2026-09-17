@@ -16,7 +16,6 @@ import { useChatDraftAttachments } from "../hooks/useChatDraftAttachments";
 import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
 import { useFileAttachments } from "../hooks/useFileAttachments";
 import { getChatFileURL } from "../utils/chatAttachments";
-import { isChatTurnActive } from "../utils/chatStatus";
 import {
 	getProviderForModelOption,
 	resolveCompactionThreshold,
@@ -33,6 +32,7 @@ import { ConversationTimeline } from "./ChatConversation/ConversationTimeline";
 import type { ChatDetailError } from "./ChatConversation/chatError";
 import { getLatestContextUsage } from "./ChatConversation/chatHelpers";
 import {
+	isActiveChatStatus,
 	selectChatStatus,
 	selectHasStreamState,
 	selectIsAwaitingFirstStreamChunk,
@@ -516,7 +516,7 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 		wasEditingRef.current = isEditing;
 	}, [isEditing, resetEditAttachments]);
 
-	const isStreaming = hasStreamState || isChatTurnActive(chatStatus);
+	const isStreaming = hasStreamState || isActiveChatStatus(chatStatus);
 
 	const inputElement = (
 		<AgentChatInput
