@@ -1,7 +1,7 @@
 import { cn } from "cn";
 import { OctagonXIcon } from "lucide-react";
 import type React from "react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
 import { CopyButton } from "#/components/CopyButton/CopyButton";
 import {
@@ -9,6 +9,7 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { useTime } from "#/hooks/useTime";
 import {
 	type AgentDisplayState,
 	resolveAgentDisplayState,
@@ -219,21 +220,15 @@ const ShellTranscriptBody: React.FC<{
  * Live elapsed-time readout for a running command, anchored to the tool
  * call's server-side created_at so it survives reloads and reconnects.
  * Falls back to mount time until a valid timestamp arrives. Kept as a
- * leaf so the tick re-renders only this span, and only when the label
- * changes.
+ * leaf so the tick re-renders only this span.
  */
 const ElapsedTime: React.FC<{ startedAt?: string }> = ({ startedAt }) => {
 	const [mountedAt] = useState(() => Date.now());
 	const parsedStart = startedAt ? Date.parse(startedAt) : Number.NaN;
 	const startMs = Number.isNaN(parsedStart) ? mountedAt : parsedStart;
-	const [label, setLabel] = useState("");
-
-	useEffect(() => {
-		const update = () => setLabel(formatElapsedMs(Date.now() - startMs));
-		update();
-		const interval = setInterval(update, 250);
-		return () => clearInterval(interval);
-	}, [startMs]);
+	const label = useTime(() => formatElapsedMs(Date.now() - startMs), {
+		interval: 250,
+	});
 
 	return (
 		<span
