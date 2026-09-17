@@ -38,19 +38,33 @@ func boundDiagnostic(msg string) string {
 
 // sanitizeMCPError renders err for the discovery report with every
 // configured secret removed: URL userinfo, path, and query string,
-// every env value, and every header value. Transport errors echo the
-// URL and subprocess errors can echo the environment, so the raw text
-// is never safe to publish to chats. The result is bounded to
+// every env value, every header value, and every stdio argument that
+// is not itself a flag. Transport errors echo the URL and subprocess
+// errors can echo the command line and environment, so the raw text is
+// never safe to publish to chats. The result is bounded to
 // maxDiagnosticBytes.
 func sanitizeMCPError(cfg ServerConfig, err error) string {
 	if err == nil {
 		return ""
 	}
 	msg := err.Error()
-	secrets := make([]string, 0, len(cfg.Env)+len(cfg.Headers)+2)
+	secrets := make([]string, 0, len(cfg.Env)+len(cfg.Headers)+len(cfg.Args)+2)
 	for _, v := range cfg.Env {
 		if len(v) >= minRedactLength {
 			secrets = append(secrets, v)
+		}
+	}
+	// Credentials are commonly passed as "--token X" or "--token=X".
+	// Flags are public; their values and every positional arg are not.
+	for _, a := range cfg.Args {
+		if strings.HasPrefix(a, "-") {
+			if _, v, ok := strings.Cut(a, "="); ok && len(v) >= minRedactLength {
+				secrets = append(secrets, v)
+			}
+			continue
+		}
+		if len(a) >= minRedactLength {
+			secrets = append(secrets, a)
 		}
 	}
 	for _, v := range cfg.Headers {
