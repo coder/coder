@@ -6,6 +6,14 @@ This is an example configuration of how to use Coder with
 [caddy](https://caddyserver.com/docs). To use Caddy to generate TLS
 certificates, you'll need a domain name that resolves to your Caddy server.
 
+> [!NOTE]
+> The `ask http://example.com` line in the examples below is a placeholder
+> and does not validate that a certificate request corresponds to a real
+> workspace. For a community-contributed script that validates the `ask`
+> request against your Coder deployment before approving certificate
+> issuance, see
+> [this discussion](https://github.com/coder/coder/discussions/29079#discussioncomment-18462842).
+
 ## Getting started
 
 ### With `docker compose`
