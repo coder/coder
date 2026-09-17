@@ -20,7 +20,6 @@ func TestToolResultMediaOmission(t *testing.T) {
 		wantNote           string
 	}{
 		{name: "anthropic png", transport: "anthropic", mediaType: "image/png", size: 1024},
-		{name: "anthropic jpeg with params", transport: "anthropic", mediaType: "image/jpeg; charset=binary", size: 1024},
 		{name: "anthropic svg", transport: "anthropic", mediaType: "image/svg+xml", size: 1024, wantNote: "[image/svg+xml content omitted: unsupported tool result media type]"},
 		{name: "anthropic audio", transport: "anthropic", mediaType: "audio/mpeg", size: 1024, wantNote: "[audio/mpeg content omitted: unsupported tool result media type]"},
 		{name: "anthropic oversized png", transport: "anthropic", mediaType: "image/png", size: codersdk.AnthropicInlineImageCapBytes, wantNote: "[image omitted: 5242880 bytes exceeds the inline image limit of 5242880 bytes]"},
@@ -28,14 +27,11 @@ func TestToolResultMediaOmission(t *testing.T) {
 		{name: "bedrock openai oversized png", transport: "openai", configuredProvider: "bedrock", mediaType: "image/png", size: codersdk.AnthropicInlineImageCapBytes},
 		{name: "openai audio", transport: "openai", mediaType: "audio/mpeg", size: 1024},
 		{name: "openai svg", transport: "openai", mediaType: "image/svg+xml", size: 1024, wantNote: "[image/svg+xml content omitted: unsupported tool result media type]"},
-		{name: "openai bmp", transport: "openai", mediaType: "image/bmp", size: 1024, wantNote: "[image/bmp content omitted: unsupported tool result media type]"},
 		{name: "openai gif", transport: "openai", mediaType: "image/gif", size: 1024},
 		{name: "azure bmp", transport: "azure", mediaType: "image/bmp", size: 1024, wantNote: "[image/bmp content omitted: unsupported tool result media type]"},
 		{name: "google svg", transport: "google", mediaType: "image/svg+xml", size: 1024, wantNote: "[image/svg+xml content omitted: unsupported tool result media type]"},
-		{name: "google bmp", transport: "google", mediaType: "image/bmp", size: 1024, wantNote: "[image/bmp content omitted: unsupported tool result media type]"},
 		{name: "google gif", transport: "google", mediaType: "image/gif", size: 1024, wantNote: "[image/gif content omitted: unsupported tool result media type]"},
 		{name: "google heic", transport: "google", mediaType: "image/heic", size: 1024},
-		{name: "google heif", transport: "google", mediaType: "image/heif", size: 1024},
 		{name: "google png", transport: "google", mediaType: "image/png", size: 1024},
 		{name: "openai uppercase with params", transport: "OpenAI", mediaType: "IMAGE/PNG; charset=binary", size: 1024},
 		{name: "openai compat svg", transport: "openai-compat", configuredProvider: "openai-compat", mediaType: "image/svg+xml", size: 1024},

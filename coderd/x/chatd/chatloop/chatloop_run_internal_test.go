@@ -1453,75 +1453,58 @@ func TestExecuteSingleTool_MediaBase64Encoding(t *testing.T) {
 func TestExecuteSingleTool_NormalizesMedia(t *testing.T) {
 	t.Parallel()
 
-	metrics := NewMetrics(prometheus.NewRegistry())
-	logger := slog.Make()
 	var pngData bytes.Buffer
 	require.NoError(t, png.Encode(&pngData, image.NewRGBA(image.Rect(0, 0, 1, 1))))
 
-	run := func(t *testing.T, mediaType string, data []byte) fantasy.ToolResultContent {
-		tool := fantasy.NewAgentTool(
-			"screenshot",
-			"takes a screenshot",
-			func(_ context.Context, _ struct{}, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
-				return fantasy.ToolResponse{
-					Type:      "media",
-					Data:      data,
-					MediaType: mediaType,
-					Content:   "Ran Playwright code",
-				}, nil
-			},
-		)
-		return executeSingleTool(
-			context.Background(),
-			map[string]fantasy.AgentTool{"screenshot": tool},
-			fantasy.ToolCallContent{ToolCallID: "call-1", ToolName: "screenshot", Input: "{}"},
-			metrics,
-			logger,
-			"openai", "model",
-			map[string]bool{},
-			[]string{"screenshot"},
-			nil,
-			map[string]struct{}{},
-			nil,
-			defaultToolResultBytes,
-			nil,
-		)
+	for _, tc := range []struct {
+		name      string
+		mediaType string
+		data      []byte
+		// wantMediaType is empty when the media is rejected and only text survives.
+		wantMediaType string
+		wantText      string
+	}{
+		{name: "OversizedMediaKeepsText", mediaType: "image/png", data: make([]byte, codersdk.MaxChatFileSizeBytes+1), wantText: "Ran Playwright code\n[image/png content omitted"},
+		{name: "NonImageBytesDeclaredAsImageKeepsText", mediaType: "image/png", data: []byte("<html>not an image</html>"), wantText: "Ran Playwright code\n[image omitted: payload declared as image/png is text/html"},
+		{name: "ImageTypeFollowsBytes", mediaType: "image/jpeg", data: pngData.Bytes(), wantMediaType: "image/png", wantText: "Ran Playwright code"},
+		{name: "NonImageMediaPassesThrough", mediaType: "audio/mpeg", data: []byte{1, 2, 3}, wantMediaType: "audio/mpeg", wantText: "Ran Playwright code"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			tool := fantasy.NewAgentTool("screenshot", "takes a screenshot",
+				func(context.Context, struct{}, fantasy.ToolCall) (fantasy.ToolResponse, error) {
+					return fantasy.ToolResponse{Type: "media", Data: tc.data, MediaType: tc.mediaType, Content: "Ran Playwright code"}, nil
+				},
+			)
+			result := executeSingleTool(
+				context.Background(),
+				map[string]fantasy.AgentTool{"screenshot": tool},
+				fantasy.ToolCallContent{ToolCallID: "call-1", ToolName: "screenshot", Input: "{}"},
+				NewMetrics(prometheus.NewRegistry()),
+				slog.Make(),
+				"openai", "model",
+				map[string]bool{},
+				[]string{"screenshot"},
+				nil,
+				map[string]struct{}{},
+				nil,
+				defaultToolResultBytes,
+				nil,
+			)
+
+			switch out := result.Result.(type) {
+			case fantasy.ToolResultOutputContentMedia:
+				require.Equal(t, tc.wantMediaType, out.MediaType)
+				require.Equal(t, tc.wantText, out.Text)
+			case fantasy.ToolResultOutputContentText:
+				require.Empty(t, tc.wantMediaType, "media rejected: %s", out.Text)
+				require.Contains(t, out.Text, tc.wantText)
+			default:
+				t.Fatalf("unexpected result %T", out)
+			}
+		})
 	}
-	textOf := func(t *testing.T, result fantasy.ToolResultContent) string {
-		t.Helper()
-		text, ok := result.Result.(fantasy.ToolResultOutputContentText)
-		require.True(t, ok, "expected text result, got %T", result.Result)
-		return text.Text
-	}
-
-	t.Run("OversizedMediaKeepsText", func(t *testing.T) {
-		t.Parallel()
-		text := textOf(t, run(t, "image/png", make([]byte, codersdk.MaxChatFileSizeBytes+1)))
-		require.Contains(t, text, "Ran Playwright code\n")
-		require.Contains(t, text, "[image/png content omitted")
-	})
-
-	t.Run("NonImageBytesDeclaredAsImageKeepsText", func(t *testing.T) {
-		t.Parallel()
-		text := textOf(t, run(t, "image/png", []byte("<html>not an image</html>")))
-		require.Contains(t, text, "Ran Playwright code\n")
-		require.Contains(t, text, "[image omitted: payload declared as image/png is text/html")
-	})
-
-	t.Run("ImageTypeFollowsBytes", func(t *testing.T) {
-		t.Parallel()
-		media, ok := run(t, "image/jpeg", pngData.Bytes()).Result.(fantasy.ToolResultOutputContentMedia)
-		require.True(t, ok)
-		require.Equal(t, "image/png", media.MediaType)
-		require.Equal(t, "Ran Playwright code", media.Text)
-	})
-
-	t.Run("NonImageMediaPassesThrough", func(t *testing.T) {
-		t.Parallel()
-		media, ok := run(t, "audio/mpeg", []byte{1, 2, 3}).Result.(fantasy.ToolResultOutputContentMedia)
-		require.True(t, ok)
-		require.Equal(t, "audio/mpeg", media.MediaType)
-	})
 }
 
 func TestExecuteSingleTool_ResolvesToolNameAlias(t *testing.T) {

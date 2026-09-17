@@ -119,104 +119,52 @@ func TestWorkspaceMCPTool_ConvertsMixedContent(t *testing.T) {
 	image := []byte{0x89, 'P', 'N', 'G', 1, 2, 3}
 	audio := []byte("wav-bytes")
 	encoded := func(b []byte) string { return base64.StdEncoding.EncodeToString(b) }
+	text := func(s string) workspacesdk.MCPToolContent { return workspacesdk.MCPToolContent{Type: "text", Text: s} }
+	png := workspacesdk.MCPToolContent{Type: "image", Data: encoded(image), MediaType: "image/png"}
 
-	tests := []struct {
-		name          string
-		resp          workspacesdk.CallMCPToolResponse
-		wantType      string
-		wantData      []byte
-		wantMediaType string
-		wantContent   string
-		wantIsError   bool
+	for _, tc := range []struct {
+		name string
+		resp workspacesdk.CallMCPToolResponse
+		want fantasy.ToolResponse
 	}{
 		{
 			name: "TextThenImage",
-			resp: workspacesdk.CallMCPToolResponse{Content: []workspacesdk.MCPToolContent{
-				{Type: "text", Text: "Ran Playwright code"},
-				{Type: "image", Data: encoded(image), MediaType: "image/png"},
-			}},
-			wantType:      "image",
-			wantData:      image,
-			wantMediaType: "image/png",
-			wantContent:   "Ran Playwright code",
+			resp: workspacesdk.CallMCPToolResponse{Content: []workspacesdk.MCPToolContent{text("Ran Playwright code"), png}},
+			want: fantasy.ToolResponse{Type: "image", Data: image, MediaType: "image/png", Content: "Ran Playwright code"},
 		},
 		{
-			name: "ImageThenText",
+			name: "FirstImageKeptTextJoined",
 			resp: workspacesdk.CallMCPToolResponse{Content: []workspacesdk.MCPToolContent{
-				{Type: "image", Data: encoded(image), MediaType: "image/png"},
-				{Type: "text", Text: "first"},
-				{Type: "text", Text: "second"},
+				png,
+				{Type: "image", Data: encoded(audio), MediaType: "image/jpeg"},
+				text("first"),
+				text("second"),
 			}},
-			wantType:      "image",
-			wantData:      image,
-			wantMediaType: "image/png",
-			wantContent:   "first\nsecond",
+			want: fantasy.ToolResponse{Type: "image", Data: image, MediaType: "image/png", Content: "first\nsecond"},
 		},
 		{
-			name: "AudioWithTextIsMedia",
+			name: "AudioIsMedia",
 			resp: workspacesdk.CallMCPToolResponse{Content: []workspacesdk.MCPToolContent{
-				{Type: "text", Text: "transcript"},
+				text("transcript"),
 				{Type: "audio", Data: encoded(audio), MediaType: "audio/wav"},
 			}},
-			wantType:      "media",
-			wantData:      audio,
-			wantMediaType: "audio/wav",
-			wantContent:   "transcript",
-		},
-		{
-			name: "FirstImageKept",
-			resp: workspacesdk.CallMCPToolResponse{Content: []workspacesdk.MCPToolContent{
-				{Type: "image", Data: encoded(image), MediaType: "image/png"},
-				{Type: "image", Data: encoded(audio), MediaType: "image/jpeg"},
-				{Type: "text", Text: "two shots"},
-			}},
-			wantType:      "image",
-			wantData:      image,
-			wantMediaType: "image/png",
-			wantContent:   "two shots",
+			want: fantasy.ToolResponse{Type: "media", Data: audio, MediaType: "audio/wav", Content: "transcript"},
 		},
 		{
 			name: "ImageWithoutMediaTypeStaysText",
 			resp: workspacesdk.CallMCPToolResponse{Content: []workspacesdk.MCPToolContent{
-				{Type: "text", Text: "captured"},
+				text("captured"),
 				{Type: "image", Data: encoded(image)},
 			}},
-			wantType:    "text",
-			wantContent: "captured",
+			want: fantasy.ToolResponse{Type: "text", Content: "captured"},
 		},
 		{
-			name: "MixedErrorKeepsFlag",
-			resp: workspacesdk.CallMCPToolResponse{IsError: true, Content: []workspacesdk.MCPToolContent{
-				{Type: "text", Text: "boom"},
-				{Type: "image", Data: encoded(image), MediaType: "image/png"},
-			}},
-			wantType:      "image",
-			wantData:      image,
-			wantMediaType: "image/png",
-			wantContent:   "boom",
-			wantIsError:   true,
+			name: "ErrorFlagKept",
+			resp: workspacesdk.CallMCPToolResponse{IsError: true, Content: []workspacesdk.MCPToolContent{text("boom"), png}},
+			want: fantasy.ToolResponse{Type: "image", Data: image, MediaType: "image/png", Content: "boom", IsError: true},
 		},
-		{
-			name: "TextOnly",
-			resp: workspacesdk.CallMCPToolResponse{Content: []workspacesdk.MCPToolContent{
-				{Type: "text", Text: "plain"},
-			}},
-			wantType:    "text",
-			wantContent: "plain",
-		},
-		{
-			name: "ImageOnly",
-			resp: workspacesdk.CallMCPToolResponse{Content: []workspacesdk.MCPToolContent{
-				{Type: "image", Data: encoded(image), MediaType: "image/png"},
-			}},
-			wantType:      "image",
-			wantData:      image,
-			wantMediaType: "image/png",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+	} {
+		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
 			tool := chattool.NewWorkspaceMCPTools(
@@ -224,7 +172,7 @@ func TestWorkspaceMCPTool_ConvertsMixedContent(t *testing.T) {
 				func(context.Context) (workspacesdk.AgentConn, error) {
 					return &fakeAgentConn{
 						callMCPToolFunc: func(context.Context, workspacesdk.CallMCPToolRequest) (workspacesdk.CallMCPToolResponse, error) {
-							return tt.resp, nil
+							return tc.resp, nil
 						},
 					}, nil
 				},
@@ -232,11 +180,7 @@ func TestWorkspaceMCPTool_ConvertsMixedContent(t *testing.T) {
 
 			resp, err := tool.Run(context.Background(), fantasy.ToolCall{Input: "{}"})
 			require.NoError(t, err)
-			assert.Equal(t, tt.wantType, resp.Type)
-			assert.Equal(t, tt.wantData, resp.Data)
-			assert.Equal(t, tt.wantMediaType, resp.MediaType)
-			assert.Equal(t, tt.wantContent, resp.Content)
-			assert.Equal(t, tt.wantIsError, resp.IsError)
+			require.Equal(t, tc.want, resp)
 		})
 	}
 }

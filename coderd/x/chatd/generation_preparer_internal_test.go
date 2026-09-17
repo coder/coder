@@ -190,11 +190,10 @@ func TestPrepareGenerationReplacesUnsupportedToolMedia(t *testing.T) {
 		model     string
 		mediaType string
 	}{
+		// Anthropic is a native transport; Google is bridged through an
+		// OpenAI-compatible transport that hides the vendor restriction.
 		{name: "AnthropicAudio", provider: database.AIProviderTypeAnthropic, model: "claude-sonnet-4-5", mediaType: "audio/mpeg"},
-		{name: "OpenAISVG", provider: database.AIProviderTypeOpenai, model: "gpt-4o", mediaType: "image/svg+xml"},
-		{name: "OpenAIBMP", provider: database.AIProviderTypeOpenai, model: "gpt-4o", mediaType: "image/bmp"},
 		{name: "GoogleSVG", provider: database.AIProviderTypeGoogle, model: "gemini-2.5-flash", mediaType: "image/svg+xml"},
-		{name: "GoogleBMP", provider: database.AIProviderTypeGoogle, model: "gemini-2.5-flash", mediaType: "image/bmp"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()

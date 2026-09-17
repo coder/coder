@@ -1419,18 +1419,6 @@ export const MCPToolImageResult: Story = {
 	},
 };
 
-export const MCPToolImageOnlyResult: Story = {
-	args: {
-		...MCPToolImageResult.args,
-		result: {
-			data: DESKTOP_SCREENSHOT_BASE64,
-			mime_type: "image/jpeg",
-			text: "",
-		},
-	},
-	play: MCPToolImageResult.play,
-};
-
 export const MCPToolImageResultLightboxOpen: Story = {
 	args: MCPToolImageResult.args,
 	play: async ({ canvasElement }) => {

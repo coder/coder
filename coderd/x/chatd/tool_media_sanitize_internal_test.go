@@ -16,89 +16,55 @@ import (
 func TestReplaceUnsupportedToolMedia(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
-	logger := slogtest.Make(t, nil)
-	modelOn := func(transport string) chatprovider.Model {
-		return chatprovider.NewModel(&chattest.FakeModel{ProviderName: transport, ModelName: "m"}, nil)
-	}
-	mediaPart := func(mediaType string, payload []byte) fantasy.ToolResultPart {
-		return fantasy.ToolResultPart{
-			ToolCallID: "call-1",
-			Output: fantasy.ToolResultOutputContentMedia{
-				Data:      base64.StdEncoding.EncodeToString(payload),
-				MediaType: mediaType,
-				Text:      "Ran Playwright code",
-			},
-		}
-	}
-	prompt := func(part fantasy.ToolResultPart) []fantasy.Message {
-		return []fantasy.Message{
-			{Role: fantasy.MessageRoleUser, Content: []fantasy.MessagePart{fantasy.TextPart{Text: "screenshot please"}}},
-			{Role: fantasy.MessageRoleTool, Content: []fantasy.MessagePart{part}},
-		}
-	}
-	textOutput := func(t *testing.T, messages []fantasy.Message) string {
-		t.Helper()
-		result, ok := messages[1].Content[0].(fantasy.ToolResultPart)
-		require.True(t, ok)
-		text, ok := result.Output.(fantasy.ToolResultOutputContentText)
-		require.True(t, ok, "expected text output, got %T", result.Output)
-		return text.Text
-	}
-
-	t.Run("AudioBecomesTextOnAnthropic", func(t *testing.T) {
-		t.Parallel()
-		in := prompt(mediaPart("audio/mpeg", []byte{1, 2, 3}))
-		out := replaceUnsupportedToolMedia(ctx, logger, in, modelOn("anthropic"), "anthropic")
-		text := textOutput(t, out)
-		require.Contains(t, text, "Ran Playwright code\n")
-		require.Contains(t, text, "[audio/mpeg content omitted")
-		_, stillMedia := in[1].Content[0].(fantasy.ToolResultPart).Output.(fantasy.ToolResultOutputContentMedia)
-		require.True(t, stillMedia, "input must not be mutated")
-	})
-
-	t.Run("OversizedImageBecomesTextOnAnthropic", func(t *testing.T) {
-		t.Parallel()
-		in := prompt(mediaPart("image/png", make([]byte, 5*1024*1024)))
-		out := replaceUnsupportedToolMedia(ctx, logger, in, modelOn("anthropic"), "anthropic")
-		require.Contains(t, textOutput(t, out), "[image omitted: 5242880 bytes exceeds the inline image limit")
-	})
-
-	t.Run("OversizedImageStaysMediaOnOpenAI", func(t *testing.T) {
-		t.Parallel()
-		in := prompt(mediaPart("image/png", make([]byte, 5*1024*1024)))
-		out := replaceUnsupportedToolMedia(ctx, logger, in, modelOn("openai"), "openai")
-		require.Equal(t, in, out)
-	})
-
-	t.Run("SmallImageStaysMediaOnAnthropic", func(t *testing.T) {
-		t.Parallel()
-		in := prompt(mediaPart("image/png", []byte{1, 2, 3}))
-		out := replaceUnsupportedToolMedia(ctx, logger, in, modelOn("anthropic"), "anthropic")
-		require.Equal(t, in, out)
-	})
-
-	for _, transport := range []string{"openai", "google"} {
-		t.Run(transport+"UnsupportedImageKeepsText", func(t *testing.T) {
+	for _, tc := range []struct {
+		name      string
+		transport string
+		mediaType string
+		size      int
+		// wantNote is empty when the media part must pass through unchanged.
+		wantNote string
+	}{
+		{name: "AnthropicAudio", transport: "anthropic", mediaType: "audio/mpeg", size: 3, wantNote: "[audio/mpeg content omitted"},
+		{name: "AnthropicOversizedImage", transport: "anthropic", mediaType: "image/png", size: 5 * 1024 * 1024, wantNote: "[image omitted: 5242880 bytes exceeds the inline image limit"},
+		{name: "AnthropicSmallImage", transport: "anthropic", mediaType: "image/png", size: 3},
+		{name: "OpenAIOversizedImage", transport: "openai", mediaType: "image/png", size: 5 * 1024 * 1024},
+		{name: "OpenAIAudio", transport: "openai", mediaType: "audio/mpeg", size: 3},
+		{name: "OpenAISVG", transport: "openai", mediaType: "image/svg+xml", size: 6, wantNote: "[image/svg+xml content omitted"},
+		{name: "GoogleBMP", transport: "google", mediaType: "image/bmp", size: 6, wantNote: "[image/bmp content omitted"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			in := prompt(mediaPart("image/svg+xml", []byte("<svg/>")))
-			in[1].Content = append(in[1].Content, mediaPart("image/bmp", []byte("bitmap")))
-			out := replaceUnsupportedToolMedia(ctx, logger, in, modelOn(transport), transport)
-			require.Contains(t, textOutput(t, out), "Ran Playwright code\n[image/svg+xml content omitted")
-			require.Len(t, out[1].Content, 2)
-			require.IsType(t, fantasy.ToolResultOutputContentText{}, out[1].Content[1].(fantasy.ToolResultPart).Output)
-			require.IsType(t, fantasy.ToolResultOutputContentMedia{}, in[1].Content[0].(fantasy.ToolResultPart).Output)
-			require.IsType(t, fantasy.ToolResultOutputContentMedia{}, in[1].Content[1].(fantasy.ToolResultPart).Output)
+
+			prompt := func() []fantasy.Message {
+				return []fantasy.Message{
+					{Role: fantasy.MessageRoleUser, Content: []fantasy.MessagePart{fantasy.TextPart{Text: "screenshot please"}}},
+					{Role: fantasy.MessageRoleTool, Content: []fantasy.MessagePart{fantasy.ToolResultPart{
+						ToolCallID: "call-1",
+						Output: fantasy.ToolResultOutputContentMedia{
+							Data:      base64.StdEncoding.EncodeToString(make([]byte, tc.size)),
+							MediaType: tc.mediaType,
+							Text:      "Ran Playwright code",
+						},
+					}}},
+				}
+			}
+			in := prompt()
+			model := chatprovider.NewModel(&chattest.FakeModel{ProviderName: tc.transport, ModelName: "m"}, nil)
+			out := replaceUnsupportedToolMedia(context.Background(), slogtest.Make(t, nil), in, model, tc.transport)
+
+			require.Equal(t, prompt(), in, "input must not be mutated")
+			if tc.wantNote == "" {
+				require.Equal(t, in, out)
+				return
+			}
 			require.Equal(t, in[0], out[0])
+			result, ok := out[1].Content[0].(fantasy.ToolResultPart)
+			require.True(t, ok)
+			text, ok := result.Output.(fantasy.ToolResultOutputContentText)
+			require.True(t, ok, "expected text output, got %T", result.Output)
+			require.Contains(t, text.Text, "Ran Playwright code\n"+tc.wantNote)
 		})
 	}
-
-	t.Run("AudioStaysMediaOnOpenAI", func(t *testing.T) {
-		t.Parallel()
-		in := prompt(mediaPart("audio/mpeg", []byte{1, 2, 3}))
-		out := replaceUnsupportedToolMedia(ctx, logger, in, modelOn("openai"), "openai")
-		require.Equal(t, in, out)
-	})
 }
 
 func TestBase64DecodedLen(t *testing.T) {
