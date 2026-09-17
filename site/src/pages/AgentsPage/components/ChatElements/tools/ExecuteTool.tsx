@@ -10,6 +10,7 @@ import {
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import { useTime } from "#/hooks/useTime";
+import { humanDurationShort } from "#/utils/time";
 import {
 	type AgentDisplayState,
 	resolveAgentDisplayState,
@@ -18,7 +19,6 @@ import { TerminalOutput } from "./TerminalOutput";
 import { ToolCall } from "./ToolCall";
 import type { ExecuteTranscriptBlock } from "./toolVisibility";
 import {
-	formatElapsedMs,
 	formatShellDurationMs,
 	sanitizeExecuteModelIntent,
 	signalTooltipLabel,
@@ -226,9 +226,12 @@ const ElapsedTime: React.FC<{ startedAt?: string }> = ({ startedAt }) => {
 	const [mountedAt] = useState(() => Date.now());
 	// Date.parse yields NaN for missing or malformed input, which falls through.
 	const startMs = Date.parse(startedAt ?? "") || mountedAt;
-	const label = useTime(() => formatElapsedMs(Date.now() - startMs), {
-		interval: 250,
-	});
+	const label = useTime(
+		() => humanDurationShort(Math.max(0, Date.now() - startMs)),
+		{
+			interval: 250,
+		},
+	);
 
 	return (
 		<span

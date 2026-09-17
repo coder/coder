@@ -27,12 +27,12 @@ describe("ExecuteTool elapsed time", () => {
 		vi.useFakeTimers({ now: new Date("2025-01-01T00:01:05.000Z") });
 		renderTool({ status: "running", startedAt: "2025-01-01T00:00:00.000Z" });
 
-		expect(screen.getByTitle("Elapsed time")).toHaveTextContent("1m 05s");
+		expect(screen.getByTitle("Elapsed time")).toHaveTextContent("1m 5s");
 
 		act(() => {
 			vi.advanceTimersByTime(55_000);
 		});
-		expect(screen.getByTitle("Elapsed time")).toHaveTextContent("2m 00s");
+		expect(screen.getByTitle("Elapsed time")).toHaveTextContent("2m");
 	});
 
 	it("falls back to mount time when created_at is missing", () => {
