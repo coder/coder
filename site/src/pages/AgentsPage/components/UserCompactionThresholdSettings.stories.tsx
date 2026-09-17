@@ -94,6 +94,32 @@ export const Default: Story = {
 	},
 };
 
+export const ContextWindowTracksDraft: Story = {
+	name: "Context Window Tracks Draft",
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const gpt4oInput = await canvas.findByRole("textbox", {
+			name: /GPT-4o compaction threshold/i,
+		});
+		const gpt4oRow = gpt4oInput.closest("tr");
+		expect(gpt4oRow).not.toBeNull();
+		const row = within(gpt4oRow as HTMLElement);
+
+		// 128K window at the 80% default.
+		expect(row.getByText("128K tokens")).toBeInTheDocument();
+		expect(row.getByText(/Compacts at ~102K/)).toBeInTheDocument();
+
+		// Trigger point follows the typed draft before saving.
+		await userEvent.type(gpt4oInput, "50");
+		expect(row.getByText(/Compacts at ~64K/)).toBeInTheDocument();
+
+		// 100% never auto-compacts, so no trigger point is shown.
+		await userEvent.clear(gpt4oInput);
+		await userEvent.type(gpt4oInput, "100");
+		expect(row.queryByText(/Compacts at/)).not.toBeInTheDocument();
+	},
+};
+
 export const EmptyOrganizationDisplayNameFallsBackToName: Story = {
 	args: {
 		organizations: [organizationWithEmptyDisplayName],
