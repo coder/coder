@@ -902,4 +902,44 @@ func TestOAuth2ProviderAppRedirectURIs(t *testing.T) {
 		_, err = client.PutOAuth2ClientConfiguration(ctx, clientID, token, req)
 		require.ErrorContains(t, err, "at most 32 redirect URIs")
 	})
+
+	// A client registered before the caps may hold duplicates. The list is
+	// returned as stored, so resending it must not count as growth.
+	t.Run("DCRStoredListHasDuplicates", func(t *testing.T) {
+		t.Parallel()
+
+		db, pubsub := dbtestutil.NewDB(t)
+		client := coderdtest.New(t, &coderdtest.Options{Database: db, Pubsub: pubsub})
+		_ = coderdtest.CreateFirstUser(t, client)
+		oauth2providertest.EnableDCR(t, client)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		unique := make([]string, 0, codersdk.OAuth2RedirectURIsMaxCount)
+		for i := 0; i < codersdk.OAuth2RedirectURIsMaxCount-2; i++ {
+			unique = append(unique, fmt.Sprintf("https://%d.example.com/callback", i))
+		}
+		raw := append(slices.Clone(unique), unique[0], unique[1], unique[2], unique[3], unique[4])
+		require.Greater(t, len(raw), codersdk.OAuth2RedirectURIsMaxCount)
+
+		token := "legacy-registration-token"
+		app := dbgen.OAuth2ProviderApp(t, db, database.OAuth2ProviderApp{
+			CallbackURL:             raw[0],
+			RedirectUris:            raw,
+			DynamicallyRegistered:   sql.NullBool{Bool: true, Valid: true},
+			RegistrationAccessToken: apikey.HashSecret(token),
+			TokenEndpointAuthMethod: sql.NullString{String: string(codersdk.OAuth2TokenEndpointAuthMethodClientSecretBasic), Valid: true},
+		})
+
+		config, err := client.GetOAuth2ClientConfiguration(ctx, app.ID.String(), token)
+		require.NoError(t, err)
+		require.Equal(t, raw, config.RedirectURIs)
+
+		got, err := client.PutOAuth2ClientConfiguration(ctx, app.ID.String(), token, codersdk.OAuth2ClientRegistrationRequest{
+			ClientName:              "renamed",
+			RedirectURIs:            config.RedirectURIs,
+			TokenEndpointAuthMethod: codersdk.OAuth2TokenEndpointAuthMethodClientSecretBasic,
+		})
+		require.NoError(t, err)
+		require.Equal(t, unique, got.RedirectURIs)
+	})
 }

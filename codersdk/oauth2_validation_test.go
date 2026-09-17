@@ -130,6 +130,22 @@ func TestValidateRedirectURIsSize(t *testing.T) {
 		require.ErrorContains(t, err, "at most 32 redirect URIs")
 	})
 
+	// A stored list with duplicates is returned to the client as is. Resending
+	// it must not count as growth, even though the stored baseline is
+	// deduplicated.
+	t.Run("StoredListHasDuplicates", func(t *testing.T) {
+		t.Parallel()
+		unique := list(codersdk.OAuth2RedirectURIsMaxCount - 2)
+		raw := append(slices.Clone(unique), unique[0], unique[1], unique[2], unique[3], unique[4])
+		require.Greater(t, len(raw), codersdk.OAuth2RedirectURIsMaxCount)
+
+		require.NoError(t, codersdk.ValidateRedirectURIsUpdate(raw, unique, codersdk.OAuth2ClientTypeConfidential))
+
+		grown := append(slices.Clone(raw), "https://example.com/new", "https://example.com/new2", "https://example.com/new3")
+		err := codersdk.ValidateRedirectURIsUpdate(grown, unique, codersdk.OAuth2ClientTypeConfidential)
+		require.ErrorContains(t, err, "at most 32 redirect URIs")
+	})
+
 	t.Run("IndexIsReported", func(t *testing.T) {
 		t.Parallel()
 		err := codersdk.ValidateRedirectURIs([]string{"https://ok.example/cb", "mailto:a@b"}, codersdk.OAuth2ClientTypePublic)

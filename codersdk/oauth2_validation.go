@@ -6,6 +6,8 @@ import (
 	"strings"
 
 	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/v2/coderd/util/slice"
 )
 
 // RFC 7591 validation functions for Dynamic Client Registration
@@ -200,11 +202,16 @@ func ValidateRedirectURIs(uris []string, clientType OAuth2ClientType) error {
 // has redirect URIs. URIs already in stored are skipped, and the count cap
 // applies only when the list grew. This keeps apps registered before the caps
 // existed editable. The admin API applies the same rules in its own validator.
+//
+// The count is taken after removing duplicates, since that is what gets
+// stored. Apps registered before the caps may hold duplicates, and stored is
+// already deduplicated, so a resent list must not read as grown.
 func ValidateRedirectURIsUpdate(uris, stored []string, clientType OAuth2ClientType) error {
 	if len(uris) == 0 {
 		return xerrors.New("at least one redirect URI is required")
 	}
-	if len(uris) > OAuth2RedirectURIsMaxCount && len(uris) > len(stored) {
+	count := len(slice.Unique(uris))
+	if count > OAuth2RedirectURIsMaxCount && count > len(slice.Unique(stored)) {
 		return xerrors.Errorf("at most %d redirect URIs are allowed", OAuth2RedirectURIsMaxCount)
 	}
 
