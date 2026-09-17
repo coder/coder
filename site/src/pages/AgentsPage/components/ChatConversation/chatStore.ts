@@ -54,22 +54,13 @@ const arraysEqual = <T>(left: readonly T[], right: readonly T[]): boolean => {
 	return true;
 };
 
-// Rows change in place, so editing_since, content and model are compared.
+// Rows change in place (content, editing_since), so identity is not enough.
 export const chatQueuedMessagesEqual = (
 	left: readonly TypesGen.ChatQueuedMessage[],
 	right: readonly TypesGen.ChatQueuedMessage[],
 ): boolean =>
 	left.length === right.length &&
-	left.every((message, index) => {
-		const other = right[index];
-		return (
-			message.id === other.id &&
-			message.editing_since === other.editing_since &&
-			message.model_config_id === other.model_config_id &&
-			(message.content === other.content ||
-				JSON.stringify(message.content) === JSON.stringify(other.content))
-		);
-	});
+	left.every((message, index) => isEqual(message, right[index]));
 
 const retryStatesEqual = (
 	left: RetryState | null,
