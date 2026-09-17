@@ -2704,12 +2704,7 @@ func TestSpawnAgent_PlanModeDescriptionOmitsComputerUse(t *testing.T) {
 	require.Contains(t, description, subagentTypeGeneral)
 	require.Contains(t, description, subagentTypeExplore)
 	require.NotContains(t, description, subagentTypeComputerUse)
-	require.Contains(t, description, `type="general" is for non-mutating substantial investigation and planning support`)
-	require.Contains(t, description, `type="explore" is for narrow repository-local lookup or tracing`)
-	require.Contains(t, description, `only type="general" should be used for cloning repositories or non-local investigation`)
-	require.NotContains(t, description, "Both may use shell commands for exploration, such as cloning repositories")
-	require.Contains(t, description, "must not implement changes or edit existing project files")
-	require.Contains(t, description, `cloning by type="general" for inspection is the only intentional workspace-write exception`)
+	require.Contains(t, description, planningInvestigationGuidance)
 }
 
 func TestSpawnAgent_PlanModeRejectsComputerUse(t *testing.T) {
@@ -2754,7 +2749,7 @@ func TestPlanningOverlaySubagentGuidance_UsesPlanModeSafeDescriptions(t *testing
 	require.Contains(t, guidance, subagentTypeExplore)
 	require.Contains(t, guidance, `Use type="general" for substantial investigation, reasoning, and planning support`)
 	require.Contains(t, guidance, `Use type="explore" only for narrow repository-local lookup or tracing`)
-	require.Contains(t, guidance, "general (non-mutating substantial investigation, analysis, and planning support)")
+	require.Contains(t, guidance, "general (substantial investigation, analysis, and planning support without implementing the proposal)")
 	require.Contains(t, guidance, "explore (narrow repository-local codebase lookup and code tracing)")
 	require.NotContains(t, guidance, subagentTypeComputerUse)
 	require.NotContains(t, guidance, "modify")
