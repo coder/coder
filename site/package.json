@@ -153,6 +153,7 @@
 		"@vitejs/plugin-react": "6.1.0",
 		"@vitest/browser-playwright": "4.1.10",
 		"babel-plugin-react-compiler": "1.0.0",
+		"css.escape": "1.5.1",
 		"dpdm": "3.15.1",
 		"express": "4.22.2",
 		"jest-canvas-mock": "2.5.2",

@@ -1,4 +1,5 @@
 import { Blob as NativeBlob } from "node:buffer";
+import cssEscape from "css.escape";
 import ResizeObserver from "resize-observer-polyfill";
 
 // JSDom `Blob` is missing important methods[1] that have been standardized for
@@ -11,6 +12,13 @@ import ResizeObserver from "resize-observer-polyfill";
 globalThis.Blob = NativeBlob;
 
 globalThis.ResizeObserver = ResizeObserver;
+
+// JSDOM has no `CSS` namespace at all. `CSS.escape` is baseline in every
+// browser, so production code calls it directly and only the tests need
+// this.
+if (typeof globalThis.CSS === "undefined") {
+	globalThis.CSS = { escape: cssEscape } as typeof CSS;
+}
 
 // JSDOM does not implement window.matchMedia. Monaco editor (and other
 // libraries) rely on it for dark/light theme detection.
