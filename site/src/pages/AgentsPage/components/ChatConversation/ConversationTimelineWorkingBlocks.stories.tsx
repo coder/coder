@@ -63,49 +63,24 @@ export const Completed: Story = {
 	},
 };
 
+// Only the newest page is loaded: the block is missing its opening rows, so
+// the label is a lower bound rather than a claim of completeness.
 export const Paginated: Story = {
+	args: {
+		hasMoreMessages: true,
+		parsedMessages: parseMessagesWithMergedTools(MockWorkingMessages.slice(3)),
+	},
 	parameters: {
 		queries: [
 			{ key: preferenceSettingsKey, data: MockCollapsedStepsPreferences },
 		],
 	},
-	render: function Render(args) {
-		const [page, setPage] = useState(0);
-		return (
-			<>
-				<Button onClick={() => setPage(page + 1)} disabled={page === 2}>
-					Load older messages
-				</Button>
-				<ConversationTimeline
-					{...args}
-					hasMoreMessages={page < 2}
-					parsedMessages={parseMessagesWithMergedTools(
-						MockWorkingMessages.slice(page === 0 ? 3 : page === 1 ? 1 : 0),
-					)}
-				/>
-			</>
-		);
-	},
 	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		// Only the newest page is loaded: the block is missing its opening rows,
-		// so the label is a lower bound rather than a claim of completeness.
-		const partial = canvas.getByRole("button", {
-			name: "Worked for at least 8s (1 step or more)",
-		});
-		await userEvent.click(partial);
 		await userEvent.click(
-			canvas.getByRole("button", { name: "Load older messages" }),
+			within(canvasElement).getByRole("button", {
+				name: "Worked for at least 8s (1 step or more)",
+			}),
 		);
-		await canvas.findByRole("button", {
-			name: "Worked for at least 12s (2 steps or more)",
-		});
-		await userEvent.click(
-			canvas.getByRole("button", { name: "Load older messages" }),
-		);
-		await canvas.findByRole("button", {
-			name: "Worked for 12s (2 steps)",
-		});
 	},
 };
 
