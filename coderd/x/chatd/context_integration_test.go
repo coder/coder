@@ -87,10 +87,16 @@ func TestChatContextDirtyFromAgentPush(t *testing.T) {
 		Status:            database.ChatStatusWaiting,
 	})
 
-	// Before any push there is no pinned context.
+	// Before any push there is nothing pinned, but the bound agent's
+	// discovery state is still reported. The agent has not named its
+	// process yet, so nothing can be said about its phase.
 	got, err := expClient.GetChat(ctx, chat.ID)
 	require.NoError(t, err)
-	require.Nil(t, got.Context, "no pinned context before the first push")
+	require.NotNil(t, got.Context, "an agent-bound chat reports discovery before the first push")
+	require.Empty(t, got.Context.Resources)
+	require.Equal(t, &codersdk.ChatContextMCPDiscovery{
+		Phase: codersdk.ChatContextMCPDiscoveryPhaseUnknown,
+	}, got.Context.MCPDiscovery)
 
 	requireChatContextNil := func(id uuid.UUID, msg string) {
 		t.Helper()
@@ -165,6 +171,14 @@ func TestChatContextDirtyFromAgentPush(t *testing.T) {
 		AgentRunId: "run-1",
 	}})
 	require.NoError(t, err)
+
+	// A named process that has not pushed yet is still discovering.
+	got, err = expClient.GetChat(ctx, chat.ID)
+	require.NoError(t, err)
+	require.NotNil(t, got.Context)
+	require.Equal(t, &codersdk.ChatContextMCPDiscovery{
+		Phase: codersdk.ChatContextMCPDiscoveryPhasePending,
+	}, got.Context.MCPDiscovery, "GET reports pending before the current run's first push")
 
 	hashA := []byte{0x01, 0x02, 0x03}
 	resp, err := aAPI.PushContextState(ctx, &agentproto.PushContextStateRequest{
