@@ -10,6 +10,7 @@ import {
 	InputGroupInput,
 } from "#/components/InputGroup/InputGroup";
 import { getOrganizationLabel } from "#/components/OrganizationAutocomplete/OrganizationAutocomplete";
+import { TableSettingsEmpty } from "#/components/SettingsEmptyState/SettingsEmptyState";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
@@ -145,13 +146,14 @@ const MCPServersPageView: FC<MCPServersPageViewProps> = ({
 					{isLoading ? (
 						<TableLoader />
 					) : !error && servers.length === 0 ? (
-						<TableEmpty
+						<TableSettingsEmpty
 							message="No MCP servers configured"
-							description="Add a server to give agents access to external tools."
+							description="Connect external tools and data sources for your agents to use."
 							cta={
 								addOrganization ? (
 									<Button
 										variant="outline"
+										size="sm"
 										onClick={goToAddServer}
 										aria-label={addButtonLabel}
 										title={addButtonLabel}

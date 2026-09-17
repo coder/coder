@@ -10,6 +10,7 @@ import {
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
 import { Link } from "#/components/Link/Link";
+import { TableSettingsEmpty } from "#/components/SettingsEmptyState/SettingsEmptyState";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
@@ -22,7 +23,6 @@ import {
 	TableHeader,
 	TableRow,
 } from "#/components/Table/Table";
-import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
 import { TableLoader } from "#/components/TableLoader/TableLoader";
 import { ProviderIcon } from "#/modules/aiModels/ProviderIcon";
 import { addableProviders } from "#/pages/AISettingsPage/ProvidersPage/components/addableProviderTypes";
@@ -36,14 +36,15 @@ interface ProvidersPageViewProps {
 	providers: AIProvider[];
 }
 
-const AddProviderDropdown: React.FC<{ align?: "start" | "end" }> = ({
-	align = "end",
-}) => {
+const AddProviderDropdown: React.FC<{
+	align?: "start" | "end";
+	size?: "sm" | "lg";
+}> = ({ align = "end", size }) => {
 	const navigate = useNavigate();
 	return (
 		<DropdownMenu>
 			<DropdownMenuTrigger asChild>
-				<Button variant="outline">
+				<Button variant="outline" size={size}>
 					<PlusIcon />
 					<span>Add provider</span>
 					<ChevronDownIcon className="ml-1 size-icon-xs" />
@@ -112,9 +113,10 @@ const ProvidersPageView: React.FC<ProvidersPageViewProps> = ({
 					{isLoading || isFetching ? (
 						<TableLoader />
 					) : providers.length === 0 ? (
-						<TableEmpty
+						<TableSettingsEmpty
 							message="No providers configured"
-							cta={<AddProviderDropdown align="start" />}
+							description="Connect an AI provider to make its models available."
+							cta={<AddProviderDropdown align="start" size="sm" />}
 						/>
 					) : (
 						providers.map((provider) => (
