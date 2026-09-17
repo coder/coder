@@ -99,7 +99,8 @@ export const SecretsTable: FC<SecretsTableProps> = ({
 			<Table aria-label="User secrets">
 				<TableHeader>
 					<TableRow>
-						<TableHead className="w-9"></TableHead>
+						{/* Empty headers align with the toggle and row actions columns. */}
+						<TableHead></TableHead>
 						<TableHead>Name</TableHead>
 						<TableHead className="whitespace-nowrap">Env var</TableHead>
 						<TableHead className="whitespace-nowrap">File path</TableHead>
