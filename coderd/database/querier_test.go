@@ -6213,6 +6213,10 @@ func TestGroupRemovalTrigger(t *testing.T) {
 func TestGetUserStatusCounts(t *testing.T) {
 	t.Parallel()
 
+	// Every leaf subtest runs in its own rolled-back transaction, so one
+	// database serves the whole timezone x date matrix.
+	store, _ := dbtestutil.NewDB(t)
+
 	type testCase struct {
 		timezone    string
 		location    *time.Location
@@ -6269,7 +6273,7 @@ func TestGetUserStatusCounts(t *testing.T) {
 
 			t.Run("No Users", func(t *testing.T) {
 				t.Parallel()
-				db, _ := dbtestutil.NewDB(t)
+				db := dbtestutil.StartRolledBackTx(t, store)
 				ctx := testutil.Context(t, testutil.WaitShort)
 
 				counts, err := db.GetUserStatusCounts(ctx, database.GetUserStatusCountsParams{
@@ -6305,7 +6309,7 @@ func TestGetUserStatusCounts(t *testing.T) {
 				for _, stc := range subTestCases {
 					t.Run(stc.name, func(t *testing.T) {
 						t.Parallel()
-						db, _ := dbtestutil.NewDB(t)
+						db := dbtestutil.StartRolledBackTx(t, store)
 						ctx := testutil.Context(t, testutil.WaitShort)
 
 						dbgen.User(t, db, database.User{
@@ -6486,7 +6490,7 @@ func TestGetUserStatusCounts(t *testing.T) {
 				for _, stc := range subTestCases {
 					t.Run(stc.name, func(t *testing.T) {
 						t.Parallel()
-						db, _ := dbtestutil.NewDB(t)
+						db := dbtestutil.StartRolledBackTx(t, store)
 						ctx := testutil.Context(t, testutil.WaitShort)
 
 						user := dbgen.User(t, db, database.User{
@@ -6621,7 +6625,7 @@ func TestGetUserStatusCounts(t *testing.T) {
 					t.Run(stc.name, func(t *testing.T) {
 						t.Parallel()
 
-						db, _ := dbtestutil.NewDB(t)
+						db := dbtestutil.StartRolledBackTx(t, store)
 						ctx := testutil.Context(t, testutil.WaitShort)
 
 						user1 := dbgen.User(t, db, database.User{
@@ -6700,7 +6704,7 @@ func TestGetUserStatusCounts(t *testing.T) {
 
 			t.Run("User precedes and survives query range", func(t *testing.T) {
 				t.Parallel()
-				db, _ := dbtestutil.NewDB(t)
+				db := dbtestutil.StartRolledBackTx(t, store)
 				ctx := testutil.Context(t, testutil.WaitShort)
 
 				_ = dbgen.User(t, db, database.User{
@@ -6732,7 +6736,7 @@ func TestGetUserStatusCounts(t *testing.T) {
 
 			t.Run("User deleted before query range", func(t *testing.T) {
 				t.Parallel()
-				db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+				db := dbtestutil.StartRolledBackTx(t, store)
 				ctx := testutil.Context(t, testutil.WaitShort)
 
 				user := dbgen.User(t, db, database.User{
@@ -6741,10 +6745,14 @@ func TestGetUserStatusCounts(t *testing.T) {
 					UpdatedAt: userCreatedAt,
 				})
 
-				err := db.UpdateUserDeletedByID(ctx, user.ID)
+				// The deletion trigger records users.updated_at as deleted_at.
+				_, err := db.UpdateUserStatus(ctx, database.UpdateUserStatusParams{
+					ID:        user.ID,
+					Status:    user.Status,
+					UpdatedAt: tc.reportUntil,
+				})
 				require.NoError(t, err)
-
-				_, err = sqlDB.ExecContext(ctx, "UPDATE user_deleted SET deleted_at = $1 WHERE user_id = $2", tc.reportUntil, user.ID)
+				err = db.UpdateUserDeletedByID(ctx, user.ID)
 				require.NoError(t, err)
 
 				userStatusChanges, err := db.GetUserStatusCounts(ctx, database.GetUserStatusCountsParams{
@@ -6759,7 +6767,7 @@ func TestGetUserStatusCounts(t *testing.T) {
 			t.Run("User deleted during query range", func(t *testing.T) {
 				t.Parallel()
 
-				db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+				db := dbtestutil.StartRolledBackTx(t, store)
 				ctx := testutil.Context(t, testutil.WaitShort)
 
 				user := dbgen.User(t, db, database.User{
@@ -6768,10 +6776,14 @@ func TestGetUserStatusCounts(t *testing.T) {
 					UpdatedAt: userCreatedAt,
 				})
 
-				err := db.UpdateUserDeletedByID(ctx, user.ID)
+				// The deletion trigger records users.updated_at as deleted_at.
+				_, err := db.UpdateUserStatus(ctx, database.UpdateUserStatusParams{
+					ID:        user.ID,
+					Status:    user.Status,
+					UpdatedAt: tc.reportUntil,
+				})
 				require.NoError(t, err)
-
-				_, err = sqlDB.ExecContext(ctx, "UPDATE user_deleted SET deleted_at = $1 WHERE user_id = $2", tc.reportUntil, user.ID)
+				err = db.UpdateUserDeletedByID(ctx, user.ID)
 				require.NoError(t, err)
 
 				userStatusChanges, err := db.GetUserStatusCounts(ctx, database.GetUserStatusCountsParams{
