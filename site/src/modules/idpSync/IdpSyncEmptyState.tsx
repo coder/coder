@@ -51,7 +51,7 @@ export const IdpSyncEmptyState: FC<IdpSyncEmptyStateProps> = ({
 					{description}
 				</p>
 			</div>
-			<Button asChild variant="outline" size="sm">
+			<Button asChild size="sm">
 				<a href={docsHref} target="_blank" rel="noreferrer">
 					{ctaLabel}
 				</a>
