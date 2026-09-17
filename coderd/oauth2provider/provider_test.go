@@ -768,4 +768,54 @@ func TestOAuth2ProviderAppRedirectURIs(t *testing.T) {
 		})
 		requireCallbackURLValidationError(t, err)
 	})
+
+	// An app stored before the caps existed can still be edited. Its stored
+	// list is kept, and only a new callback is checked against the caps.
+	t.Run("StoredListExceedsCaps", func(t *testing.T) {
+		t.Parallel()
+
+		db, pubsub := dbtestutil.NewDB(t)
+		client := coderdtest.New(t, &coderdtest.Options{Database: db, Pubsub: pubsub})
+		_ = coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		prefix := "https://example.com/"
+		long := prefix + strings.Repeat("a", codersdk.OAuth2RedirectURIMaxBytes-len(prefix)+1)
+		uris := []string{long}
+		for i := 0; i < codersdk.OAuth2RedirectURIsMaxCount; i++ {
+			uris = append(uris, fmt.Sprintf("https://%d.example.com/callback", i))
+		}
+		app := dbgen.OAuth2ProviderApp(t, db, database.OAuth2ProviderApp{
+			CallbackURL:  long,
+			RedirectUris: uris,
+		})
+
+		//nolint:gocritic // OAuth2 app management requires owner permission.
+		got, err := client.PutOAuth2ProviderApp(ctx, app.ID, codersdk.PutOAuth2ProviderAppRequest{
+			Name:        "renamed",
+			CallbackURL: long,
+		})
+		require.NoError(t, err)
+		require.Equal(t, "renamed", got.Name)
+
+		stored, err := db.GetOAuth2ProviderAppByID(ctx, app.ID)
+		require.NoError(t, err)
+		require.Equal(t, uris, stored.RedirectUris)
+
+		// Replacing the primary keeps the count, so it is allowed.
+		//nolint:gocritic // OAuth2 app management requires owner permission.
+		_, err = client.PutOAuth2ProviderApp(ctx, app.ID, codersdk.PutOAuth2ProviderAppRequest{
+			Name:        "renamed",
+			CallbackURL: first,
+		})
+		require.NoError(t, err)
+
+		// A new oversized callback is still refused.
+		//nolint:gocritic // OAuth2 app management requires owner permission.
+		_, err = client.PutOAuth2ProviderApp(ctx, app.ID, codersdk.PutOAuth2ProviderAppRequest{
+			Name:        "renamed",
+			CallbackURL: long + "b",
+		})
+		requireCallbackURLValidationError(t, err)
+	})
 }
