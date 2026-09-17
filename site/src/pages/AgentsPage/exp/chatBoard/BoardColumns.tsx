@@ -1,7 +1,8 @@
+import { PlusIcon } from "lucide-react";
 import { type FC, useState } from "react";
 import { toast } from "sonner";
 import type { ChatOpenHandlers } from "./BoardCard";
-import { BoardColumn, NewColumn, PlusButton } from "./BoardColumn";
+import { BoardColumn, NewColumn } from "./BoardColumn";
 import {
 	addColumn,
 	addNote,
@@ -37,6 +38,8 @@ type BoardColumnsProps = {
 	readonly onAssistant: (card: BoardCardModel) => void;
 	/** Opens the create form for a chat born in a column or on a card. */
 	readonly onNewChat: (target: DraftTarget) => void;
+	/** A card's effort tag narrows the board to that effort. */
+	readonly onFilterEffort: (name: string) => void;
 } & ChatOpenHandlers;
 
 // The composer clears and the editor closes before the write settles, and
@@ -59,6 +62,7 @@ export const BoardColumns: FC<BoardColumnsProps> = ({
 	knownEfforts,
 	onAssistant,
 	onNewChat,
+	onFilterEffort,
 	onOpen,
 	onPreview,
 	onPreviewEnd,
@@ -86,6 +90,7 @@ export const BoardColumns: FC<BoardColumnsProps> = ({
 					onSetCardEfforts={(card, names) =>
 						void run(setCardEfforts(board, card.id, names))
 					}
+					onFilterEffort={onFilterEffort}
 					onRenameChat={(chat, title) =>
 						void run(renameChat(board, chat.id, title))
 					}
@@ -118,13 +123,15 @@ export const BoardColumns: FC<BoardColumnsProps> = ({
 					onCancel={() => setAddingColumn(false)}
 				/>
 			) : (
-				<PlusButton
-					label="Add column"
-					title="Add column"
+				<button
+					type="button"
+					aria-label="Add column"
 					// Sits on the column header line, matching header height.
-					className="mt-0.5"
+					className="mt-0.5 grid size-7 shrink-0 place-items-center rounded-md border border-dashed border-content-secondary/40 bg-transparent text-content-secondary hover:border-content-link hover:text-content-link"
 					onClick={() => setAddingColumn(true)}
-				/>
+				>
+					<PlusIcon className="size-3.5" />
+				</button>
 			)}
 		</div>
 	);

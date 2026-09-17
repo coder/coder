@@ -19,6 +19,7 @@ import type {
 } from "./boardLabels";
 import { columnHue, INBOX_COLUMN } from "./boardLabels";
 import { dragHandleListeners } from "./dragHandle";
+import { IconButton } from "./IconButton";
 import { InlineEdit } from "./InlineEdit";
 
 const columnShell = cva("relative flex min-h-0 w-[300px] shrink-0 flex-col", {
@@ -54,6 +55,7 @@ type BoardColumnProps = {
 		card: BoardCardModel,
 		names: readonly string[],
 	) => void;
+	readonly onFilterEffort: (name: string) => void;
 	readonly onRenameChat: (chat: Chat, title: string) => void;
 	readonly onAssistant: (card: BoardCardModel) => void;
 	readonly onNewChatInCard: (card: BoardCardModel) => void;
@@ -78,6 +80,7 @@ export const BoardColumn: FC<BoardColumnProps> = ({
 	onSetCardTitle,
 	onSetCardColor,
 	onSetCardEfforts,
+	onFilterEffort,
 	onRenameChat,
 	onAssistant,
 	onNewChatInCard,
@@ -178,28 +181,36 @@ export const BoardColumn: FC<BoardColumnProps> = ({
 			>
 				<span className={dot({ hue: columnHue(column.name) })} />
 				{title}
-				{/* Same control as "add column", so it reads as "add here". */}
-				<PlusButton
-					label={`New chat in ${column.name}`}
-					title="New chat"
-					onClick={onNewChat}
-				/>
-				<span className="ml-auto text-[11px] text-content-secondary/70 tabular-nums">
-					{column.cards.length}
-				</span>
-				{!isInbox && (
-					<ActionsMenu
-						label={`${column.name} column`}
-						items={[
-							{
-								label: "Delete column",
-								icon: Trash2Icon,
-								destructive: true,
-								onSelect: onDelete,
-							},
-						]}
-					/>
-				)}
+				{/*
+				  The new-chat button is last in every column, Inbox included, so
+				  its right edge lines up across the board; the menu keeps its
+				  slot while hidden.
+				*/}
+				<div className="ml-auto flex items-center gap-1.5">
+					<span className="text-[11px] text-content-secondary/70 tabular-nums">
+						{column.cards.length}
+					</span>
+					{!isInbox && (
+						<ActionsMenu
+							label={`${column.name} column`}
+							items={[
+								{
+									label: "Delete column",
+									icon: Trash2Icon,
+									destructive: true,
+									onSelect: onDelete,
+								},
+							]}
+						/>
+					)}
+					<IconButton
+						aria-label={`New chat in ${column.name}`}
+						title="New chat"
+						onClick={onNewChat}
+					>
+						<PlusIcon className="size-3.5" />
+					</IconButton>
+				</div>
 			</header>
 			<div className="flex min-h-16 flex-1 flex-col overflow-y-auto pb-2">
 				{column.cards.map((card) => (
@@ -214,6 +225,7 @@ export const BoardColumn: FC<BoardColumnProps> = ({
 							onSetTitle={(title) => onSetCardTitle(card, title)}
 							onSetColor={(color) => onSetCardColor(card, color)}
 							onSetEfforts={(names) => onSetCardEfforts(card, names)}
+							onFilterEffort={onFilterEffort}
 							onRenameChat={onRenameChat}
 							onAssistant={() => onAssistant(card)}
 							onNewChat={() => onNewChatInCard(card)}
@@ -261,36 +273,6 @@ const InsertionLine: FC<InsertionLineProps> = ({ visible }) => (
 			)}
 		/>
 	</div>
-);
-
-type PlusButtonProps = {
-	readonly label: string;
-	readonly title: string;
-	readonly className?: string;
-	readonly onClick: () => void;
-};
-
-/** The dashed "add here" control, shared by the column header and the add-column slot. */
-export const PlusButton: FC<PlusButtonProps> = ({
-	label,
-	title,
-	className,
-	onClick,
-}) => (
-	<button
-		type="button"
-		aria-label={label}
-		title={title}
-		className={cn(
-			"grid size-7 shrink-0 place-items-center rounded-md border border-dashed border-content-secondary/40 bg-transparent text-content-secondary hover:border-content-link hover:text-content-link",
-			className,
-		)}
-		// Inside a drag handle the press must not start a drag.
-		onPointerDown={(e) => e.stopPropagation()}
-		onClick={onClick}
-	>
-		<PlusIcon className="size-3.5" />
-	</button>
 );
 
 type NewColumnProps = {

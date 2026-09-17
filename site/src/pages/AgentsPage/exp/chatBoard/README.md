@@ -69,9 +69,11 @@ Notes
 Efforts
 
 - I can tag a card with one or more efforts, a piece of work whose units
-  sit in different columns or an ad hoc set like "This week", and filter
-  the board to one effort. The filter survives a reload and combines with
-  search.
+  sit in different columns or an ad hoc set like "This week", from the
+  card's menu. The header has an effort filter that narrows the board to
+  one effort, and a card's effort tag does the same; the selected effort
+  can be renamed from the filter. The filter survives a reload and
+  combines with search.
 
 Status at a glance
 
@@ -147,9 +149,8 @@ snapshot the previous maps of every touched chat so they can be undone.
   `NotesSection.tsx` translate gestures into one command call each; the
   page filters the rendered columns but always hands the full model to the
   commands. `BoardCard.tsx` composes `CardColorPicker.tsx`,
-  `CardEffortsMenu.tsx`, `EditableTitle.tsx`, `ChatStatusLine.tsx` and
-  `ChatInfo.tsx`; `DragGhost.tsx` is the overlay drawn for whatever is
-  being dragged. `EffortFilter.tsx` is the pill row under the header.
+  `EditableTitle.tsx`, `ChatStatusLine.tsx` and `ChatInfo.tsx`;
+  `DragGhost.tsx` is the overlay drawn for whatever is being dragged.
 - `assistantSpecs.ts` writes the prompts and snapshots for the card and
   board assistants; `assistants.ts` finds or creates the chat for a spec.
   `refreshChatList.ts` refetches the list after a board assistant turn,
@@ -179,7 +180,7 @@ Coder MCP gaps seen while a board assistant worked, as of this experiment:
   transferred data.
 - Notes have no id of their own: the list keys them by timestamp, so notes
   stored without one fall back to display order.
-- Renaming or deleting an effort; drop it from every card instead.
+- Deleting an effort; drop it from every card instead.
 - No Storybook stories: the experiment is off by default and not a Pixel
   target. FE1 exception: the page's loading, error and search-failure states
   and the route guard are asserted through DOM presence in Vitest, because

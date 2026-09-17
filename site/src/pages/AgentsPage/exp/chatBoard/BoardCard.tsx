@@ -11,6 +11,10 @@ import {
 } from "lucide-react";
 import { type FC, type RefObject, useState } from "react";
 import type { Chat } from "#/api/typesGenerated";
+import {
+	DropdownMenuCheckboxItem,
+	DropdownMenuSeparator,
+} from "#/components/DropdownMenu/DropdownMenu";
 import { shortRelativeTime } from "#/utils/time";
 import { getChatDisplayConfig } from "../../components/ChatsSidebar/tree/statusConfig";
 import { ActionsMenu } from "./ActionsMenu";
@@ -21,12 +25,13 @@ import type {
 	CardColor,
 } from "./boardLabels";
 import { CardColorPicker } from "./CardColorPicker";
-import { CardEffortsMenu } from "./CardEffortsMenu";
 import { ChatInfoPopover } from "./ChatInfo";
 import { ChatStatusLine } from "./ChatStatusLine";
 import { cardAccent, cardTint } from "./cardColor";
 import { dragHandleListeners } from "./dragHandle";
 import { EditableTitle } from "./EditableTitle";
+import { IconButton } from "./IconButton";
+import { InlineEdit } from "./InlineEdit";
 import { NotesSection } from "./NotesSection";
 
 export type DragData =
@@ -70,6 +75,8 @@ type BoardCardProps = {
 	readonly onSetTitle: (title: string) => void;
 	readonly onSetColor: (color: CardColor | undefined) => void;
 	readonly onSetEfforts: (names: readonly string[]) => void;
+	/** A tag click narrows the board to that effort. */
+	readonly onFilterEffort: (name: string) => void;
 	readonly onRenameChat: (chat: Chat, title: string) => void;
 	readonly onAssistant: () => void;
 	readonly onNewChat: () => void;
@@ -88,6 +95,7 @@ export const BoardCard: FC<BoardCardProps> = ({
 	onSetTitle,
 	onSetColor,
 	onSetEfforts,
+	onFilterEffort,
 	onRenameChat,
 	onAssistant,
 	onNewChat,
@@ -121,7 +129,12 @@ export const BoardCard: FC<BoardCardProps> = ({
 		setDropRef(el);
 	};
 	const [renaming, setRenaming] = useState(false);
-	const [editingEfforts, setEditingEfforts] = useState(false);
+	const toggleEffort = (name: string, on: boolean) =>
+		onSetEfforts(
+			on
+				? [...card.efforts, name]
+				: card.efforts.filter((other) => other !== name),
+		);
 
 	const single = card.members.length === 1;
 	const lead = card.primary;
@@ -186,64 +199,68 @@ export const BoardCard: FC<BoardCardProps> = ({
 					}}
 					onCancel={() => setRenaming(false)}
 				/>
-				<CardEffortsMenu
-					open={editingEfforts}
-					onOpenChange={setEditingEfforts}
-					selected={card.efforts}
-					known={knownEfforts}
-					onChange={onSetEfforts}
-				>
-					<div className="flex h-[19px] items-center gap-1.5">
-						{single ? (
-							<>
-								{lead.has_unread && <UnreadDot />}
-								<Age at={lead.updated_at} />
-								<ChatInfoPopover chat={lead} />
-								<ChatOpener
-									chat={lead}
-									onOpen={open}
-									onPreview={preview}
-									onPreviewEnd={onPreviewEnd}
-								/>
-							</>
-						) : (
-							<span className="text-[11px] text-content-secondary/70">
-								{card.members.length} chats
-							</span>
-						)}
-						<ActionsMenu
-							label={card.title}
-							permanent
-							items={[
-								{ label: "Assistant", icon: BotIcon, onSelect: onAssistant },
-								{
-									label: "New chat in card",
-									icon: MessageSquarePlusIcon,
-									onSelect: onNewChat,
-								},
-								{
-									label: "Efforts",
-									icon: TagsIcon,
-									onSelect: () => setEditingEfforts(true),
-								},
-								{
-									label: "Rename",
-									icon: PencilIcon,
-									onSelect: () => setRenaming(true),
-								},
-							]}
-						/>
-					</div>
-				</CardEffortsMenu>
+				<div className="flex h-[19px] items-center gap-1.5">
+					{single ? (
+						<>
+							{lead.has_unread && <UnreadDot />}
+							<Age at={lead.updated_at} />
+							<ChatInfoPopover chat={lead} />
+							<ChatOpener
+								chat={lead}
+								onOpen={open}
+								onPreview={preview}
+								onPreviewEnd={onPreviewEnd}
+							/>
+						</>
+					) : (
+						<span className="text-[11px] text-content-secondary/70">
+							{card.members.length} chats
+						</span>
+					)}
+					<ActionsMenu
+						label={card.title}
+						permanent
+						items={[
+							{ label: "Assistant", icon: BotIcon, onSelect: onAssistant },
+							{
+								label: "New chat in card",
+								icon: MessageSquarePlusIcon,
+								onSelect: onNewChat,
+							},
+							{
+								label: "Efforts",
+								icon: TagsIcon,
+								children: (
+									<EffortsSubMenu
+										selected={card.efforts}
+										known={knownEfforts}
+										onToggle={toggleEffort}
+									/>
+								),
+							},
+							{
+								label: "Rename",
+								icon: PencilIcon,
+								onSelect: () => setRenaming(true),
+							},
+						]}
+					/>
+				</div>
 				{card.efforts.length > 0 && (
 					<div className="col-start-2 col-end-[-1] mt-1 flex flex-wrap gap-1">
 						{card.efforts.map((name) => (
-							<span
+							// Neutral on purpose: an effort spans columns, so it must never
+							// read as a stage the way a hued ColumnTag does.
+							<button
 								key={name}
-								className="rounded-full bg-content-primary/5 px-1.5 text-[11px] leading-4 text-content-secondary"
+								type="button"
+								aria-label={`Filter by ${name}`}
+								className="relative z-[1] inline-flex h-4 max-w-28 shrink-0 items-center truncate rounded border-0 bg-content-primary/5 px-1.5 text-[11px] text-content-secondary hover:text-content-primary"
+								onPointerDown={(e) => e.stopPropagation()}
+								onClick={() => onFilterEffort(name)}
 							>
 								{name}
-							</span>
+							</button>
 						))}
 					</div>
 				)}
@@ -282,6 +299,54 @@ export const BoardCard: FC<BoardCardProps> = ({
 		</article>
 	);
 };
+
+interface EffortsSubMenuProps {
+	readonly selected: readonly string[];
+	readonly known: readonly string[];
+	readonly onToggle: (name: string, on: boolean) => void;
+}
+
+/** One checkbox per effort on the board, then a line to coin a new one; each change saves. */
+const EffortsSubMenu: FC<EffortsSubMenuProps> = ({
+	selected,
+	known,
+	onToggle,
+}) => (
+	<>
+		{[...new Set([...known, ...selected])].map((name) => (
+			<DropdownMenuCheckboxItem
+				key={name}
+				checked={selected.includes(name)}
+				onCheckedChange={(on) => onToggle(name, on === true)}
+				// The menu stays open so several efforts can be toggled in a row.
+				onSelect={(e) => e.preventDefault()}
+			>
+				{name}
+			</DropdownMenuCheckboxItem>
+		))}
+		<DropdownMenuSeparator />
+		{/*
+		  Typing must not reach the menu: its typeahead would move focus to a
+		  matching item mid-word. Escape still bubbles so the menu closes.
+		*/}
+		<div
+			className="px-2 py-1.5"
+			onKeyDown={(e) => {
+				if (e.key !== "Escape") e.stopPropagation();
+			}}
+		>
+			<InlineEdit
+				key={selected.length}
+				value=""
+				placeholder="New effort"
+				ariaLabel="New effort"
+				className="text-xs text-content-primary"
+				onSave={(name) => onToggle(name, true)}
+				onDone={() => undefined}
+			/>
+		</div>
+	</>
+);
 
 const UnreadDot: FC = () => (
 	<span
@@ -346,18 +411,15 @@ const ChatOpener: FC<ChatOpenerProps> = ({
 	onPreview,
 	onPreviewEnd,
 }) => (
-	<button
-		type="button"
+	<IconButton
 		aria-label={`Open ${chat.title}`}
 		title="Open chat"
-		className="relative z-[1] grid size-4 place-items-center rounded border-0 bg-transparent p-0 text-content-secondary/60 hover:text-content-primary"
-		onPointerDown={(e) => e.stopPropagation()}
 		onPointerEnter={() => onPreview(chat)}
 		onPointerLeave={onPreviewEnd}
 		onClick={() => onOpen(chat)}
 	>
 		<MessageSquareIcon className="size-3.5" />
-	</button>
+	</IconButton>
 );
 
 type ChatRowProps = {
