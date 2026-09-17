@@ -1738,8 +1738,9 @@ SELECT id FROM locked;
 -- pinned set equal to the snapshot moves to the new hash and stays clean;
 -- a chat that also has changed or removed rows keeps its old hash so
 -- MarkChatsContextDirtyByAgent still flags it, which is why only the
--- statuses that query marks dirty are eligible here. Changed chats are
--- locked in ID order like the MCP sync.
+-- statuses that query marks dirty are eligible here; its row is written
+-- either way so a concurrent refresh cannot overwrite the additions.
+-- Changed chats are locked in ID order like the MCP sync.
 WITH agent_prompt AS (
     SELECT source, body_kind, body, content_hash, size_bytes, status, error, source_path
     FROM workspace_agent_context_resources
@@ -1818,6 +1819,18 @@ settled AS (
         context_dirty_since = NULL
     WHERE id IN (SELECT id FROM locked)
         AND id NOT IN (SELECT id FROM divergent)
+),
+-- A divergent chat keeps its hash, but its row is still written: an
+-- already-dirty chat would otherwise gain rows with no chats version
+-- change, and a refresh that read the previous snapshot under repeatable
+-- read before waiting on the lock could then re-pin over the additions
+-- without a serialization failure and commit a hybrid set as clean.
+-- MarkChatsContextDirtyByAgent skips already-dirty chats, so the marker is
+-- set here for chats it would otherwise leave untouched.
+flagged AS (
+    UPDATE chats
+    SET context_dirty_since = COALESCE(chats.context_dirty_since, @dirty_since::timestamptz)
+    WHERE id IN (SELECT id FROM divergent)
 )
 SELECT id FROM locked;
 

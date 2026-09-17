@@ -2,6 +2,7 @@ package chatd_test
 
 import (
 	"context"
+	"database/sql"
 	"testing"
 
 	"github.com/google/uuid"
@@ -15,6 +16,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/codersdk"
@@ -281,6 +283,104 @@ func TestChatContextDirtyFromAgentPush(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, got.Context)
 	require.False(t, got.Context.Dirty, "re-push of the pinned hash stays clean")
+}
+
+// TestChatContextAddedResourcesVersionDivergentChat races the additive sync
+// against a refresh of an already out-of-date chat. The refresh reads the
+// chat under repeatable read, the push then adds a new resource to that chat
+// while another resource stays divergent, and the refresh's write of the
+// chat row must fail with a serialization error: without a version change
+// on the row it would re-pin over the addition and clear the marker.
+func TestChatContextAddedResourcesVersionDivergentChat(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	db, _ := dbtestutil.NewDB(t)
+	//nolint:gocritic // Seeding and pushing as the chatd subject.
+	chatdCtx := dbauthz.AsChatd(ctx)
+	user, org, model := seedChatDependencies(t, db)
+	ws, agent := seedWorkspaceWithAgent(t, db, user.ID)
+	chat := dbgen.Chat(t, db, database.Chat{
+		OrganizationID:    org.ID,
+		OwnerID:           user.ID,
+		WorkspaceID:       uuid.NullUUID{UUID: ws.ID, Valid: true},
+		AgentID:           uuid.NullUUID{UUID: agent.ID, Valid: true},
+		LastModelConfigID: model.ID,
+		Status:            database.ChatStatusWaiting,
+	})
+
+	// Pin the chat to a first snapshot, then publish a second one that
+	// changes the pinned file and adds another, and mark the chat dirty as
+	// the push that carried it would have.
+	rootSource := "/home/coder/AGENTS.md"
+	seedAgentInstructionContext(chatdCtx, t, db, agent.ID, rootSource, "root v1")
+	hashV1 := []byte("instruction:" + rootSource)
+	_, err := db.HydrateAgentChatsContext(chatdCtx, database.HydrateAgentChatsContextParams{AgentID: agent.ID, AggregateHash: hashV1})
+	require.NoError(t, err)
+
+	now := dbtime.Now()
+	hashV2 := []byte{0x02}
+	upsertResource := func(source, content string) {
+		body, err := protojson.Marshal(&agentproto.InstructionFileBody{Content: []byte(content)})
+		require.NoError(t, err)
+		_, err = db.UpsertWorkspaceAgentContextResource(chatdCtx, database.UpsertWorkspaceAgentContextResourceParams{
+			WorkspaceAgentID: agent.ID,
+			Source:           source,
+			BodyKind:         database.WorkspaceAgentContextBodyKindInstructionFile,
+			Body:             body,
+			ContentHash:      []byte("instruction:" + source + ":" + content),
+			SizeBytes:        int64(len(body)),
+			Status:           database.WorkspaceAgentContextResourceStatusOk,
+			Now:              now,
+		})
+		require.NoError(t, err)
+	}
+	upsertResource(rootSource, "root v2")
+	upsertResource("/home/coder/repo/AGENTS.md", "repo rules")
+	_, err = db.MarkChatsContextDirtyByAgent(chatdCtx, database.MarkChatsContextDirtyByAgentParams{
+		AgentID:       agent.ID,
+		AggregateHash: hashV2,
+		DirtySince:    sql.NullTime{Time: now, Valid: true},
+	})
+	require.NoError(t, err)
+	dirty, err := db.GetChatByID(chatdCtx, chat.ID)
+	require.NoError(t, err)
+	require.True(t, dirty.ContextDirtySince.Valid, "the chat starts out of date")
+
+	// The refresh takes its repeatable-read snapshot, then waits while the
+	// push adds the new file to the still-divergent chat.
+	read := make(chan struct{})
+	proceed := make(chan struct{})
+	refreshErr := make(chan error, 1)
+	go func() {
+		refreshErr <- db.InTx(func(tx database.Store) error {
+			if _, err := tx.GetChatByID(chatdCtx, chat.ID); err != nil {
+				return err
+			}
+			close(read)
+			<-proceed
+			return tx.SetChatContextSnapshot(chatdCtx, database.SetChatContextSnapshotParams{ID: chat.ID, AggregateHash: hashV1})
+		}, &database.TxOptions{Isolation: sql.LevelRepeatableRead})
+	}()
+	<-read
+	added, err := db.SyncAgentChatsContextAddedResources(chatdCtx, database.SyncAgentChatsContextAddedResourcesParams{
+		AgentID:       agent.ID,
+		AggregateHash: hashV2,
+		DirtySince:    now,
+	})
+	require.NoError(t, err)
+	require.Equal(t, []uuid.UUID{chat.ID}, added, "the divergent chat still receives the new file")
+	close(proceed)
+
+	err = <-refreshErr
+	require.True(t, database.IsSerializedError(err), "the refresh must not commit over the addition: %v", err)
+	rows, err := db.ListChatContextResourcesByChatID(chatdCtx, chat.ID)
+	require.NoError(t, err)
+	require.Len(t, rows, 2, "the pinned file and the added one")
+	after, err := db.GetChatByID(chatdCtx, chat.ID)
+	require.NoError(t, err)
+	require.Equal(t, hashV1, after.ContextAggregateHash, "a divergent chat keeps its hash")
+	require.True(t, after.ContextDirtySince.Valid)
 }
 
 // TestChatContextAddedResourcesAutoPin covers the additive pin: prompt

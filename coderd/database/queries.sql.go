@@ -11968,6 +11968,11 @@ settled AS (
         context_dirty_since = NULL
     WHERE id IN (SELECT id FROM locked)
         AND id NOT IN (SELECT id FROM divergent)
+),
+flagged AS (
+    UPDATE chats
+    SET context_dirty_since = COALESCE(chats.context_dirty_since, $4::timestamptz)
+    WHERE id IN (SELECT id FROM divergent)
 )
 SELECT id FROM locked
 `
@@ -11976,6 +11981,7 @@ type SyncAgentChatsContextAddedResourcesParams struct {
 	AgentID       uuid.UUID `db:"agent_id" json:"agent_id"`
 	AggregateHash []byte    `db:"aggregate_hash" json:"aggregate_hash"`
 	ContextError  string    `db:"context_error" json:"context_error"`
+	DirtySince    time.Time `db:"dirty_since" json:"dirty_since"`
 }
 
 // Adds newly published prompt resources (instruction files and skills whose
@@ -11987,10 +11993,23 @@ type SyncAgentChatsContextAddedResourcesParams struct {
 // pinned set equal to the snapshot moves to the new hash and stays clean;
 // a chat that also has changed or removed rows keeps its old hash so
 // MarkChatsContextDirtyByAgent still flags it, which is why only the
-// statuses that query marks dirty are eligible here. Changed chats are
-// locked in ID order like the MCP sync.
+// statuses that query marks dirty are eligible here; its row is written
+// either way so a concurrent refresh cannot overwrite the additions.
+// Changed chats are locked in ID order like the MCP sync.
+// A divergent chat keeps its hash, but its row is still written: an
+// already-dirty chat would otherwise gain rows with no chats version
+// change, and a refresh that read the previous snapshot under repeatable
+// read before waiting on the lock could then re-pin over the additions
+// without a serialization failure and commit a hybrid set as clean.
+// MarkChatsContextDirtyByAgent skips already-dirty chats, so the marker is
+// set here for chats it would otherwise leave untouched.
 func (q *sqlQuerier) SyncAgentChatsContextAddedResources(ctx context.Context, arg SyncAgentChatsContextAddedResourcesParams) ([]uuid.UUID, error) {
-	rows, err := q.db.QueryContext(ctx, syncAgentChatsContextAddedResources, arg.AgentID, arg.AggregateHash, arg.ContextError)
+	rows, err := q.db.QueryContext(ctx, syncAgentChatsContextAddedResources,
+		arg.AgentID,
+		arg.AggregateHash,
+		arg.ContextError,
+		arg.DirtySince,
+	)
 	if err != nil {
 		return nil, err
 	}
