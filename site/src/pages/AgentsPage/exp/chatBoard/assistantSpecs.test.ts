@@ -1,0 +1,111 @@
+import { describe, expect, it } from "vitest";
+import type { Chat } from "#/api/typesGenerated";
+import { MockChat } from "#/testHelpers/chatEntities";
+import { boardAssistantSpec, cardAssistantSpec } from "./assistantSpecs";
+import type { BoardState } from "./boardApi";
+import { addCommentLabels, buildCards, buildColumns } from "./boardLabels";
+
+const chat = (id: string, labels: Record<string, string> = {}): Chat => ({
+	...MockChat,
+	id,
+	title: `Chat ${id}`,
+	labels,
+});
+
+const cardFor = (chats: readonly Chat[]) => {
+	const [card] = buildCards(chats);
+	if (!card) throw new Error("card missing");
+	return card;
+};
+
+const stateOf = (chats: readonly Chat[]): BoardState => {
+	const cards = buildCards(chats);
+	return {
+		cards,
+		columns: buildColumns(cards, [], []),
+		storage: { columnOrder: [], emptyColumns: [], windows: [] },
+	};
+};
+
+describe("cardAssistantSpec", () => {
+	it("lists notes oldest first and numbers the chats", () => {
+		const card = cardFor([
+			chat("p", {
+				"board/title": "Epic",
+				"board/column": "Doing",
+				...addCommentLabels(
+					addCommentLabels({}, "later", 2000),
+					"sooner",
+					1000,
+				),
+			}),
+			{
+				...chat("m", { "board/group": "p" }),
+				status: "running",
+				summary: " done \n",
+			},
+		]);
+		const spec = cardAssistantSpec(card);
+		expect(spec).toMatchObject({
+			key: "p",
+			title: "Assistant: Epic",
+			organizationId: MockChat.organization_id,
+		});
+		expect(spec.systemPrompt).toContain("assistant for one card");
+		const text = spec.snapshot;
+		expect(text).toContain('Assistant for card "Epic"');
+		expect(text).toContain("Column: Doing");
+		expect(text.indexOf("sooner")).toBeLessThan(text.indexOf("later"));
+		expect(text).toContain("1. Chat p\n   id: p\n   status: waiting");
+		expect(text).toContain("2. Chat m\n   id: m\n   status: running");
+		expect(text).toContain("summary: done");
+		expect(text).toContain("Notes:\n");
+		expect(cardAssistantSpec(cardFor([chat("s")])).snapshot).toContain(
+			"Notes: none",
+		);
+	});
+});
+
+describe("boardAssistantSpec", () => {
+	it("keys the one board assistant and takes the organization from the list", () => {
+		const chats = [
+			{ ...chat("a"), organization_id: "org-1" },
+			{ ...chat("b"), organization_id: "org-2" },
+		];
+		const spec = boardAssistantSpec(stateOf(chats), chats);
+		expect(spec).toMatchObject({
+			key: "board",
+			title: "Board assistant",
+			organizationId: "org-1",
+		});
+		expect(spec?.systemPrompt).toContain("PATCH");
+		expect(spec?.systemPrompt).toContain("board/comment.N.M");
+		expect(spec?.systemPrompt).toContain(
+			"set board/comment.N.timestamp to the current Unix ms",
+		);
+		expect(boardAssistantSpec(stateOf([]), [])).toBeUndefined();
+	});
+
+	it("snapshots every card with its primary id, column, chats and notes", () => {
+		const chats = [
+			chat("p", {
+				"board/title": "Epic",
+				"board/column": "Doing",
+				"board/color": "sky",
+				...addCommentLabels(addCommentLabels({}, "one", 1), "two", 2),
+			}),
+			{ ...chat("m", { "board/group": "p" }), status: "running" as const },
+			chat("s"),
+		];
+		const spec = boardAssistantSpec(stateOf(chats), chats);
+		if (!spec) throw new Error("spec missing");
+		const text = spec.snapshot;
+		expect(text).toContain("Columns: Inbox, Doing");
+		expect(text).toContain(
+			"Card p | column: Doing | title: Epic | color: sky | efforts: none\n  chats: Chat p (p) status: waiting; Chat m (m) status: running\n  notes: one | two",
+		);
+		expect(text).toContain(
+			"Card s | column: Inbox | title: Chat s | color: none | efforts: none\n  chats: Chat s (s) status: waiting\n  notes: none",
+		);
+	});
+});
