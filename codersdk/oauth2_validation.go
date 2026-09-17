@@ -95,11 +95,11 @@ func ValidateRedirectURIScheme(u *url.URL) error {
 	return validateScheme(u)
 }
 
-// ValidateOAuth2RedirectURIShape checks that a redirect URI parses, uses an
+// ValidateRedirectURIShape checks that a redirect URI parses, uses an
 // allowed scheme, names a host or a path, and has no fragment. Both the admin
 // and dynamic registration paths run this check, so every stored redirect URI
 // passes it.
-func ValidateOAuth2RedirectURIShape(raw string) error {
+func ValidateRedirectURIShape(raw string) error {
 	u, err := url.Parse(raw)
 	if err != nil {
 		return xerrors.Errorf("is not a valid URL: %w", err)
@@ -152,7 +152,7 @@ func RedirectURIMatches(presented, registered *url.URL) bool {
 
 func validateScheme(u *url.URL) error {
 	if u.Scheme == "" {
-		return xerrors.New("redirect URI must have a scheme")
+		return xerrors.New("must have a scheme")
 	}
 
 	// Handle special URNs (RFC 6749 section 3.1.2.1).
@@ -160,7 +160,7 @@ func validateScheme(u *url.URL) error {
 		if u.String() == "urn:ietf:wg:oauth:2.0:oob" {
 			return nil
 		}
-		return xerrors.New("redirect URI uses unsupported URN scheme")
+		return xerrors.New("uses an unsupported URN scheme")
 	}
 
 	// Block dangerous schemes for security (not allowed by RFCs
@@ -168,7 +168,7 @@ func validateScheme(u *url.URL) error {
 	dangerousSchemes := []string{"javascript", "data", "file", "ftp"}
 	for _, dangerous := range dangerousSchemes {
 		if strings.EqualFold(u.Scheme, dangerous) {
-			return xerrors.Errorf("redirect URI uses dangerous scheme %s which is not allowed", dangerous)
+			return xerrors.Errorf("uses the dangerous scheme %s", dangerous)
 		}
 	}
 

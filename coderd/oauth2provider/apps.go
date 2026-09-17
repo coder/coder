@@ -49,7 +49,7 @@ func resolveRedirectURIs(callbackURL string, redirectURIs, stored []string) []st
 
 // validateAppRedirectURIFields checks the list an admin request resolved to
 // and reports each failure against the request field that caused it. Every
-// entry passes ValidateOAuth2RedirectURIShape; entries of a public app also
+// entry passes ValidateRedirectURIShape; entries of a public app also
 // pass ValidateRedirectURI.
 //
 // Stored URIs are checked again on every update. An app that predates the
@@ -82,7 +82,7 @@ func validateAppRedirectURIFields(uris []string, clientType codersdk.OAuth2Clien
 		if len(uri) > codersdk.OAuth2RedirectURIMaxBytes {
 			return invalid(i, uri, fmt.Sprintf("must be at most %d bytes", codersdk.OAuth2RedirectURIMaxBytes))
 		}
-		if err := codersdk.ValidateOAuth2RedirectURIShape(uri); err != nil {
+		if err := codersdk.ValidateRedirectURIShape(uri); err != nil {
 			return invalid(i, uri, err.Error())
 		}
 		if clientType != codersdk.OAuth2ClientTypePublic {

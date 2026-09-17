@@ -10,7 +10,7 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
-func TestValidateOAuth2RedirectURIShape(t *testing.T) {
+func TestValidateRedirectURIShape(t *testing.T) {
 	t.Parallel()
 
 	cases := []struct {
@@ -43,7 +43,7 @@ func TestValidateOAuth2RedirectURIShape(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.url, func(t *testing.T) {
 			t.Parallel()
-			err := codersdk.ValidateOAuth2RedirectURIShape(tc.url)
+			err := codersdk.ValidateRedirectURIShape(tc.url)
 			if tc.valid {
 				require.NoError(t, err)
 				return

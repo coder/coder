@@ -34,7 +34,7 @@ type OAuth2AppFormProps = {
 
 const BACK_HREF = "/deployment/oauth2-provider/apps";
 
-// Mirror codersdk.ValidateOAuth2RedirectURIShape.
+// Mirror codersdk.ValidateRedirectURIShape.
 // The server remains authoritative for URL syntax differences between parsers.
 // oxlint-disable-next-line eslint/no-script-url -- This blocklist rejects the scheme; it is never used as a navigation target.
 const DANGEROUS_CALLBACK_SCHEMES = ["javascript:", "data:", "file:", "ftp:"];
