@@ -10,29 +10,32 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { AppProviders } from "#/App";
 import { API } from "#/api/api";
-import { organizationChatModelsKey } from "#/api/queries/chats";
+import {
+	organizationChatModelOverrides,
+	organizationChatModelsKey,
+} from "#/api/queries/chats";
 import type { ChatModel } from "#/api/typesGenerated";
 import {
 	MockChatModel,
 	MockChatModelProviderDescriptor,
 } from "#/testHelpers/chatModels";
-import { MockDefaultOrganization } from "#/testHelpers/entities";
+import { MockDefaultOrganization, mockApiError } from "#/testHelpers/entities";
 import { createTestQueryClient, render } from "#/testHelpers/renderHelpers";
 import { OrganizationAgentSettings } from "./OrganizationAgentSettings";
 
-const defaultModel: ChatModel = {
+const mockDefaultModel: ChatModel = {
 	...MockChatModel,
 	organization_id: MockDefaultOrganization.id,
 	is_default: true,
 };
-const alternateModel: ChatModel = {
+const mockAlternateModel: ChatModel = {
 	...MockChatModel,
 	organization_id: MockDefaultOrganization.id,
 	id: "model-2",
 	model: "gpt-5-mini",
 	display_name: "GPT-5 Mini",
 };
-const thirdModel: ChatModel = {
+const mockThirdModel: ChatModel = {
 	...MockChatModel,
 	organization_id: MockDefaultOrganization.id,
 	id: "model-3",
@@ -73,7 +76,7 @@ const mockOverridesAndUpdate = () => {
 	).mockResolvedValue({ overrides: [] });
 	return vi
 		.spyOn(API.experimental, "updateChatModel")
-		.mockResolvedValue({ ...alternateModel, is_default: true });
+		.mockResolvedValue({ ...mockAlternateModel, is_default: true });
 };
 
 const renderWithQueryClient = () => {
@@ -128,13 +131,17 @@ describe("OrganizationAgentSettings", () => {
 	it("promotes the selected model to the organization default", async () => {
 		vi.spyOn(API.experimental, "getChatModels")
 			.mockResolvedValueOnce(
-				chatModelsResponse([defaultModel, alternateModel, thirdModel]),
+				chatModelsResponse([
+					mockDefaultModel,
+					mockAlternateModel,
+					mockThirdModel,
+				]),
 			)
 			.mockResolvedValue(
 				chatModelsResponse([
-					{ ...defaultModel, is_default: false },
-					{ ...alternateModel, is_default: true },
-					thirdModel,
+					{ ...mockDefaultModel, is_default: false },
+					{ ...mockAlternateModel, is_default: true },
+					mockThirdModel,
 				]),
 			);
 		const updateChatModel = mockOverridesAndUpdate();
@@ -150,8 +157,8 @@ describe("OrganizationAgentSettings", () => {
 
 		const defaultSection = await selectModel(
 			user,
-			defaultModel,
-			alternateModel,
+			mockDefaultModel,
+			mockAlternateModel,
 		);
 		await user.click(
 			await within(defaultSection).findByRole("button", { name: "Save" }),
@@ -160,21 +167,21 @@ describe("OrganizationAgentSettings", () => {
 		await waitFor(() => {
 			expect(updateChatModel).toHaveBeenCalledWith(
 				MockDefaultOrganization.id,
-				alternateModel.id,
+				mockAlternateModel.id,
 				{ is_default: true },
 			);
 		});
 
 		// A new pick while the saved indicator is still showing must be savable.
 		await within(defaultSection).findByText("Saved");
-		await selectModel(user, alternateModel, thirdModel);
+		await selectModel(user, mockAlternateModel, mockThirdModel);
 		await user.click(
 			await within(defaultSection).findByRole("button", { name: "Save" }),
 		);
 		await waitFor(() => {
 			expect(updateChatModel).toHaveBeenLastCalledWith(
 				MockDefaultOrganization.id,
-				thirdModel.id,
+				mockThirdModel.id,
 				{ is_default: true },
 			);
 		});
@@ -182,7 +189,9 @@ describe("OrganizationAgentSettings", () => {
 
 	it("keeps the saved model when the catalog refresh fails", async () => {
 		vi.spyOn(API.experimental, "getChatModels")
-			.mockResolvedValueOnce(chatModelsResponse([defaultModel, alternateModel]))
+			.mockResolvedValueOnce(
+				chatModelsResponse([mockDefaultModel, mockAlternateModel]),
+			)
 			.mockRejectedValue(new Error("catalog unavailable"));
 		const updateChatModel = mockOverridesAndUpdate();
 		const user = userEvent.setup();
@@ -190,8 +199,8 @@ describe("OrganizationAgentSettings", () => {
 
 		const defaultSection = await selectModel(
 			user,
-			defaultModel,
-			alternateModel,
+			mockDefaultModel,
+			mockAlternateModel,
 		);
 		await user.click(
 			await within(defaultSection).findByRole("button", { name: "Save" }),
@@ -200,20 +209,28 @@ describe("OrganizationAgentSettings", () => {
 		// includes the failed catalog refetch.
 		await within(defaultSection).findByText("Saved");
 
-		await expectSubmitSaves(defaultSection, updateChatModel, alternateModel);
+		await expectSubmitSaves(
+			defaultSection,
+			updateChatModel,
+			mockAlternateModel,
+		);
 	});
 
 	it("keeps an unsaved selection when the model catalog refetches", async () => {
 		const getChatModels = vi
 			.spyOn(API.experimental, "getChatModels")
 			.mockResolvedValueOnce(
-				chatModelsResponse([defaultModel, alternateModel, thirdModel]),
+				chatModelsResponse([
+					mockDefaultModel,
+					mockAlternateModel,
+					mockThirdModel,
+				]),
 			)
 			.mockResolvedValue(
 				chatModelsResponse([
-					{ ...defaultModel, is_default: false },
-					alternateModel,
-					{ ...thirdModel, is_default: true },
+					{ ...mockDefaultModel, is_default: false },
+					mockAlternateModel,
+					{ ...mockThirdModel, is_default: true },
 				]),
 			);
 		const updateChatModel = mockOverridesAndUpdate();
@@ -222,8 +239,8 @@ describe("OrganizationAgentSettings", () => {
 
 		const defaultSection = await selectModel(
 			user,
-			defaultModel,
-			alternateModel,
+			mockDefaultModel,
+			mockAlternateModel,
 		);
 		await refetchCatalog(queryClient, getChatModels);
 
@@ -234,7 +251,7 @@ describe("OrganizationAgentSettings", () => {
 		await waitFor(() => {
 			expect(updateChatModel).toHaveBeenCalledWith(
 				MockDefaultOrganization.id,
-				alternateModel.id,
+				mockAlternateModel.id,
 				{ is_default: true },
 			);
 		});
@@ -243,41 +260,49 @@ describe("OrganizationAgentSettings", () => {
 	it("drops an unsaved selection the refetched catalog no longer lists", async () => {
 		const getChatModels = vi
 			.spyOn(API.experimental, "getChatModels")
-			.mockResolvedValueOnce(chatModelsResponse([defaultModel, alternateModel]))
+			.mockResolvedValueOnce(
+				chatModelsResponse([mockDefaultModel, mockAlternateModel]),
+			)
 			.mockResolvedValueOnce(
 				chatModelsResponse([
-					defaultModel,
-					{ ...alternateModel, enabled: false },
+					mockDefaultModel,
+					{ ...mockAlternateModel, enabled: false },
 				]),
 			)
-			.mockResolvedValue(chatModelsResponse([defaultModel, alternateModel]));
+			.mockResolvedValue(
+				chatModelsResponse([mockDefaultModel, mockAlternateModel]),
+			);
 		const updateChatModel = mockOverridesAndUpdate();
 		const user = userEvent.setup();
 		const queryClient = renderWithQueryClient();
 
 		const defaultSection = await selectModel(
 			user,
-			defaultModel,
-			alternateModel,
+			mockDefaultModel,
+			mockAlternateModel,
 		);
 		await refetchCatalog(queryClient, getChatModels);
 		// Relisting the dropped model must not resurrect the selection.
 		await refetchCatalog(queryClient, getChatModels, 3);
 
-		await expectSubmitSaves(defaultSection, updateChatModel, defaultModel);
+		await expectSubmitSaves(defaultSection, updateChatModel, mockDefaultModel);
 	});
 
 	it("follows a refetched default after the saved model is reselected", async () => {
 		const getChatModels = vi
 			.spyOn(API.experimental, "getChatModels")
 			.mockResolvedValueOnce(
-				chatModelsResponse([defaultModel, alternateModel, thirdModel]),
+				chatModelsResponse([
+					mockDefaultModel,
+					mockAlternateModel,
+					mockThirdModel,
+				]),
 			)
 			.mockResolvedValue(
 				chatModelsResponse([
-					{ ...defaultModel, is_default: false },
-					alternateModel,
-					{ ...thirdModel, is_default: true },
+					{ ...mockDefaultModel, is_default: false },
+					mockAlternateModel,
+					{ ...mockThirdModel, is_default: true },
 				]),
 			);
 		const updateChatModel = mockOverridesAndUpdate();
@@ -286,33 +311,37 @@ describe("OrganizationAgentSettings", () => {
 
 		const defaultSection = await selectModel(
 			user,
-			defaultModel,
-			alternateModel,
+			mockDefaultModel,
+			mockAlternateModel,
 		);
-		await selectModel(user, alternateModel, defaultModel);
+		await selectModel(user, mockAlternateModel, mockDefaultModel);
 		await refetchCatalog(queryClient, getChatModels);
 
-		await expectSubmitSaves(defaultSection, updateChatModel, thirdModel);
+		await expectSubmitSaves(defaultSection, updateChatModel, mockThirdModel);
 	});
 
 	it("clears a pending selection once the server adopts it", async () => {
 		const getChatModels = vi
 			.spyOn(API.experimental, "getChatModels")
 			.mockResolvedValueOnce(
-				chatModelsResponse([defaultModel, alternateModel, thirdModel]),
+				chatModelsResponse([
+					mockDefaultModel,
+					mockAlternateModel,
+					mockThirdModel,
+				]),
 			)
 			.mockResolvedValueOnce(
 				chatModelsResponse([
-					{ ...defaultModel, is_default: false },
-					{ ...alternateModel, is_default: true },
-					thirdModel,
+					{ ...mockDefaultModel, is_default: false },
+					{ ...mockAlternateModel, is_default: true },
+					mockThirdModel,
 				]),
 			)
 			.mockResolvedValue(
 				chatModelsResponse([
-					{ ...defaultModel, is_default: false },
-					alternateModel,
-					{ ...thirdModel, is_default: true },
+					{ ...mockDefaultModel, is_default: false },
+					mockAlternateModel,
+					{ ...mockThirdModel, is_default: true },
 				]),
 			);
 		const updateChatModel = mockOverridesAndUpdate();
@@ -321,12 +350,37 @@ describe("OrganizationAgentSettings", () => {
 
 		const defaultSection = await selectModel(
 			user,
-			defaultModel,
-			alternateModel,
+			mockDefaultModel,
+			mockAlternateModel,
 		);
 		await refetchCatalog(queryClient, getChatModels);
 		await refetchCatalog(queryClient, getChatModels, 3);
 
-		await expectSubmitSaves(defaultSection, updateChatModel, thirdModel);
+		await expectSubmitSaves(defaultSection, updateChatModel, mockThirdModel);
+	});
+
+	it("keeps the empty-catalog status when the overrides refresh fails", async () => {
+		vi.spyOn(API.experimental, "getChatModels").mockResolvedValue(
+			chatModelsResponse([]),
+		);
+		const getOverrides = vi
+			.spyOn(API.experimental, "getOrganizationChatModelOverrides")
+			.mockResolvedValueOnce({ overrides: [] })
+			.mockRejectedValue(mockApiError({ message: "overrides unavailable" }));
+		const queryClient = renderWithQueryClient();
+
+		await screen.findByText("This organization has no enabled chat models.");
+		await act(() =>
+			queryClient.invalidateQueries({
+				queryKey: organizationChatModelOverrides(MockDefaultOrganization.id)
+					.queryKey,
+			}),
+		);
+		await waitFor(() => expect(getOverrides).toHaveBeenCalledTimes(2));
+		await screen.findByText("overrides unavailable");
+
+		expect(
+			screen.getByText("This organization has no enabled chat models."),
+		).toBeInTheDocument();
 	});
 });
