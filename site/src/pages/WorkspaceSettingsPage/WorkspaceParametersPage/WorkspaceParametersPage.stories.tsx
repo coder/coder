@@ -236,13 +236,34 @@ export const RequireActiveVersionEditable: Story = {
 	},
 };
 
-function workspaceRouterParameters(workspace: Workspace) {
+export const RequireActiveVersionUpdating: Story = {
+	parameters: {
+		reactRouter: workspaceRouterParameters(
+			MockOutdatedStoppedWorkspaceRequireActiveVersion,
+			{
+				templateVersionId:
+					MockOutdatedStoppedWorkspaceRequireActiveVersion.template_active_version_id,
+			},
+		),
+		queries: workspaceQueries(
+			MockOutdatedStoppedWorkspaceRequireActiveVersion,
+			{ updateWorkspaceVersion: false },
+		),
+		webSocket: filledWebSocketParams(),
+	},
+};
+
+function workspaceRouterParameters(
+	workspace: Workspace,
+	searchParams?: Record<string, string>,
+) {
 	return reactRouterParameters({
 		location: {
 			pathParams: {
 				username: `@${workspace.owner_name}`,
 				workspace: workspace.name,
 			},
+			searchParams,
 		},
 		routing: reactRouterOutlet(
 			{

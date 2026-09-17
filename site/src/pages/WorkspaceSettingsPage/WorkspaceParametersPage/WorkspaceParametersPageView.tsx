@@ -69,10 +69,14 @@ export const WorkspaceParametersPageView: FC<
 		validateOnBlur: true,
 	});
 
+	const isUpdatingToActiveVersion =
+		templateVersionId === workspace.template_active_version_id;
+
 	const disabled =
 		workspace.outdated &&
 		workspace.template_require_active_version &&
-		!canChangeVersions;
+		!canChangeVersions &&
+		!isUpdatingToActiveVersion;
 
 	// Debounce websocket sends to avoid stale responses overwriting
 	// the form while the user is still typing.
