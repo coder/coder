@@ -126,6 +126,12 @@ func TestResolveScriptOrderSelector(t *testing.T) {
 					managedCoderScript("coder_script.other", "other"),
 					managedCoderScript("coder_script.setup[0]", "setup"),
 					dataCoderScript("data.coder_script.setup", "setup"),
+					{
+						Address: "null_resource.setup",
+						Mode:    tfjson.ManagedResourceMode,
+						Type:    "null_resource",
+						Name:    "setup",
+					},
 				},
 			}},
 			selector: "coder_script.setup",
