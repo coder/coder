@@ -491,7 +491,6 @@ func (a *agent) init() {
 	a.desktopAPI = agentdesktop.NewAPI(a.logger.Named("desktop"), desktop, a.clock)
 	a.mcpManager = agentmcp.NewManager(a.gracefulCtx, a.logger.Named("mcp"), a.execer, a.filesystem, a.envInfo, a.updateCommandEnv, workingDirFn)
 	a.contextConfigAPI = agentcontextconfig.NewAPI(workingDirFn, a.contextConfig)
-	a.mcpManager.SetInheritedSecrets(a.inheritedMCPSecrets)
 	a.mcpAPI = agentmcp.NewAPI(a.mcpManager)
 
 	// agentcontext.Manager is the new consolidated resolver,
@@ -1760,26 +1759,6 @@ func (a *agent) updateCommandEnv(current []string) (updated []string, err error)
 		updated = append(updated, fmt.Sprintf("%s=%s", k, v))
 	}
 	return updated, nil
-}
-
-// inheritedMCPSecrets reports the secret-bearing values updateCommandEnv
-// injects into every MCP server subprocess (the session token, user
-// secrets, and the manifest environment, which carries external-auth
-// tokens), so diagnostics a server echoes back never publish them.
-func (a *agent) inheritedMCPSecrets() []string {
-	values := []string{a.client.GetSessionToken()}
-	if secretsPtr := a.secrets.Load(); secretsPtr != nil {
-		for _, secret := range *secretsPtr {
-			values = append(values, string(secret.Value))
-		}
-	}
-	if manifest := a.manifest.Load(); manifest != nil {
-		for _, v := range manifest.EnvironmentVariables {
-			// Expanded exactly as updateCommandEnv exports it.
-			values = append(values, os.ExpandEnv(v))
-		}
-	}
-	return values
 }
 
 // writeSecretFiles writes user secrets with file_path set to disk.

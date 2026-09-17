@@ -84,10 +84,6 @@ type Manager struct {
 	// workingDir reports the workspace working directory for stdio
 	// servers, read at connect time. See resolveWorkingDir.
 	workingDir func() string
-	// inheritedSecrets reports values updateEnv injects into every
-	// stdio server's environment (agent token, user secrets); they
-	// are redacted from published diagnostics. See SetInheritedSecrets.
-	inheritedSecrets func() []string
 
 	mu      sync.RWMutex
 	logger  slog.Logger
@@ -144,10 +140,7 @@ type Manager struct {
 type serverEntry struct {
 	config ServerConfig
 	client *mcp.ClientSession
-	// inherited is the inheritedSecrets snapshot taken when the session
-	// was opened; a rotated secret stays in this process's environment
-	// and can still be echoed by it, so its errors are sanitized with
-	// the values of both then and now.
+	// Keep the exact subprocess environment after credentials rotate.
 	inherited []string
 }
 
@@ -220,40 +213,6 @@ func (m *Manager) SetOnReload(fn func()) {
 	m.mu.Lock()
 	m.onChange = fn
 	m.mu.Unlock()
-}
-
-// SetInheritedSecrets registers the source of secret values the agent
-// injects into every stdio server's environment through updateEnv. A
-// server can echo its environment back in a JSON-RPC error, so these
-// values are redacted from published diagnostics like configured ones.
-// It must be called before the first Reload.
-func (m *Manager) SetInheritedSecrets(fn func() []string) {
-	m.mu.Lock()
-	m.inheritedSecrets = fn
-	m.mu.Unlock()
-}
-
-// currentInheritedSecrets reads the inherited secret values as they are
-// now: the agent-registered ones plus credential-looking variables from
-// the ambient environment every stdio server is seeded with. Sessions
-// snapshot this when they open.
-func (m *Manager) currentInheritedSecrets() []string {
-	m.mu.RLock()
-	fn := m.inheritedSecrets
-	m.mu.RUnlock()
-	values := secretLikeEnvValues(m.envInfo.Environ())
-	if fn != nil {
-		values = append(values, fn()...)
-	}
-	return values
-}
-
-// sanitizeError is sanitizeMCPError with the session's inherited secret
-// snapshot plus the current values, so neither a rotated nor a fresh
-// secret survives in a published diagnostic.
-func (m *Manager) sanitizeError(cfg ServerConfig, sessionInherited []string, err error) string {
-	inherited := append(slices.Clone(sessionInherited), m.currentInheritedSecrets()...)
-	return sanitizeMCPError(cfg, inherited, err)
 }
 
 // startReloadIfNeeded registers the reload with the singleflight group
@@ -648,8 +607,7 @@ func (m *Manager) connectAll(ctx context.Context, toConnect []ServerConfig, onCo
 	var eg errgroup.Group
 	for _, cfg := range toConnect {
 		eg.Go(func() error {
-			inherited := m.currentInheritedSecrets()
-			c, err := m.connectServer(ctx, cfg)
+			c, inherited, err := m.connectServer(ctx, cfg)
 			if err != nil {
 				logger.Warn(ctx, "skipping MCP server",
 					slog.F("server", cfg.Name),
@@ -657,7 +615,7 @@ func (m *Manager) connectAll(ctx context.Context, toConnect []ServerConfig, onCo
 					slog.Error(err),
 				)
 				mu.Lock()
-				failed[cfg.Name] = m.sanitizeError(cfg, inherited, err)
+				failed[cfg.Name] = sanitizeMCPError(cfg, inherited, err)
 				mu.Unlock()
 				return nil // Don't fail the group.
 			}
@@ -697,7 +655,7 @@ func (m *Manager) publishConnected(ctx context.Context, wanted map[string]Server
 	res := m.listServerTools(ctx, cs.name, cs.client)
 	st := ServerStatus{Name: cs.name, Connected: res.err == nil, Tools: res.tools}
 	if res.err != nil {
-		st.Err = m.sanitizeError(cs.config, cs.inherited, res.err)
+		st.Err = sanitizeMCPError(cs.config, cs.inherited, res.err)
 	}
 
 	m.mu.Lock()
@@ -956,7 +914,7 @@ func (m *Manager) refreshCatalog(
 			// so its error is sanitized with the config and inherited
 			// secrets it was opened with, not the config that failed to
 			// replace it.
-			st.Err = m.sanitizeError(servers[name].config, servers[name].inherited, res.err)
+			st.Err = sanitizeMCPError(servers[name].config, servers[name].inherited, res.err)
 		case connectErrors[name] != "":
 			st.Err = connectErrors[name]
 		default:
@@ -1044,13 +1002,13 @@ func (m *Manager) Close() error {
 }
 
 // connectServer does not modify Manager state.
-func (m *Manager) connectServer(ctx context.Context, cfg ServerConfig) (*mcp.ClientSession, error) {
+func (m *Manager) connectServer(ctx context.Context, cfg ServerConfig) (*mcp.ClientSession, []string, error) {
 	// Use ctx for the transport so a stdio subprocess outlives the
 	// connect handshake. connectCtx bounds only Connect; closing the
 	// session or canceling ctx stops the subprocess.
-	tr, err := m.createTransport(ctx, cfg)
+	tr, inherited, err := m.createTransport(ctx, cfg)
 	if err != nil {
-		return nil, xerrors.Errorf("create transport for %q: %w", cfg.Name, err)
+		return nil, inherited, xerrors.Errorf("create transport for %q: %w", cfg.Name, err)
 	}
 
 	c := mcp.NewClient(&mcp.Implementation{
@@ -1070,32 +1028,32 @@ func (m *Manager) connectServer(ctx context.Context, cfg ServerConfig) (*mcp.Cli
 		if cause := context.Cause(connectCtx); errors.Is(cause, errConnectTimeout) {
 			err = cause
 		}
-		return nil, xerrors.Errorf("connect %q: %w", cfg.Name, err)
+		return nil, inherited, xerrors.Errorf("connect %q: %w", cfg.Name, err)
 	}
 
-	return session, nil
+	return session, inherited, nil
 }
 
-func (m *Manager) createTransport(ctx context.Context, cfg ServerConfig) (mcp.Transport, error) {
+func (m *Manager) createTransport(ctx context.Context, cfg ServerConfig) (mcp.Transport, []string, error) {
 	switch cfg.Transport {
 	case "stdio":
 		env := m.buildEnv(ctx, cfg.Env)
 		cmd := m.execer.CommandContext(ctx, cfg.Command, cfg.Args...)
 		cmd.Env = env
 		cmd.Dir = m.resolveWorkingDir()
-		return &mcp.CommandTransport{Command: cmd}, nil
+		return &mcp.CommandTransport{Command: cmd}, envValues(cmd.Env), nil
 	case "http", "":
 		return &mcp.StreamableClientTransport{
 			Endpoint:   cfg.URL,
 			HTTPClient: httpClientWithHeaders(cfg.Headers),
-		}, nil
+		}, nil, nil
 	case "sse":
 		return &mcp.SSEClientTransport{
 			Endpoint:   cfg.URL,
 			HTTPClient: httpClientWithHeaders(cfg.Headers),
-		}, nil
+		}, nil, nil
 	default:
-		return nil, xerrors.Errorf("unsupported transport %q", cfg.Transport)
+		return nil, nil, xerrors.Errorf("unsupported transport %q", cfg.Transport)
 	}
 }
 
