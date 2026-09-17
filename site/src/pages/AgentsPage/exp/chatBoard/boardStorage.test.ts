@@ -1,10 +1,15 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { readBoardStorage, saveBoardStorage } from "./boardStorage";
+import {
+	type ChatWindow,
+	readBoardStorage,
+	saveBoardStorage,
+} from "./boardStorage";
 
 const USER = "user-a";
 const KEY = `agents.board.${USER}`;
 
-const pinned = {
+const pinned: ChatWindow = {
+	kind: "chat",
 	chatId: "a",
 	x: 10,
 	y: 20,
@@ -26,7 +31,7 @@ describe("boardStorage", () => {
 		});
 	});
 
-	it("keeps valid entries and drops unpinned or malformed windows", () => {
+	it("keeps valid entries and drops unpinned, draft or malformed windows", () => {
 		localStorage.setItem(
 			KEY,
 			JSON.stringify({
@@ -36,6 +41,13 @@ describe("boardStorage", () => {
 					pinned,
 					{ ...pinned, chatId: "preview", pinned: false },
 					{ ...pinned, chatId: "broken", width: "wide" },
+					{
+						...pinned,
+						kind: "draft",
+						chatId: undefined,
+						target: { column: "Done" },
+						withContext: false,
+					},
 					"garbage",
 				],
 			}),

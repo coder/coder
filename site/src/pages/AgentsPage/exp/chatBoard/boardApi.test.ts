@@ -5,6 +5,7 @@ import {
 	addColumn,
 	addNote,
 	type BoardState,
+	cardContext,
 	deleteColumn,
 	detachChat,
 	joinCard,
@@ -12,6 +13,7 @@ import {
 	moveCard,
 	moveColumn,
 	moveNote,
+	newChatLabels,
 	type Plan,
 	removeFromGroup,
 	renameCard,
@@ -415,5 +417,73 @@ describe("boardApi", () => {
 			columnOrder: ["Inbox", "B", "C", "A"],
 		});
 		expect(moveColumn(state, "A", { name: "A", side: "after" })).toBeNull();
+	});
+
+	it("newChatLabels for a column places the chat above the first card", () => {
+		const state = stateOf([
+			chat("a", { "board/column": "Doing", "board/pos": "300000" }),
+			chat("b", { "board/column": "Doing", "board/pos": "100000" }),
+			chat("i", { "board/pos": "500000" }),
+		]);
+
+		expect(newChatLabels(state, { column: "Doing" })).toEqual({
+			"board/column": "Doing",
+			"board/pos": "360000",
+		});
+		// Absent column label means Inbox.
+		expect(newChatLabels(state, { column: "Inbox" })).toEqual({
+			"board/pos": "560000",
+		});
+	});
+
+	it("newChatLabels for a card joins the group without a position", () => {
+		const state = stateOf([
+			chat("p", { "board/column": "Doing", "board/pos": "300000" }),
+			chat("i", { "board/pos": "500000" }),
+		]);
+
+		expect(newChatLabels(state, { cardId: "p" })).toEqual({
+			"board/group": "p",
+			"board/column": "Doing",
+		});
+		expect(newChatLabels(state, { cardId: "i" })).toEqual({
+			"board/group": "i",
+		});
+		expect(newChatLabels(state, { cardId: "nope" })).toBeNull();
+	});
+
+	it("cardContext lists title, notes in order and every chat", () => {
+		const [card] = buildCards([
+			{
+				...chat("p", {
+					"board/title": "Epic",
+					...addCommentLabels(addCommentLabels({}, "first", 1), "second", 2),
+				}),
+				status: "running",
+				last_turn_summary: "Fixed the build",
+			},
+			{
+				...chat("m", { "board/group": "p" }),
+				status: "waiting",
+				last_turn_summary: null,
+			},
+		]);
+		if (!card) throw new Error("card missing");
+
+		expect(cardContext(card)).toBe(
+			[
+				"Card context",
+				"Title: Epic",
+				"Notes:",
+				"- first",
+				"- second",
+				"Chats:",
+				"- Chat p (p) status: running; last turn: Fixed the build",
+				"- Chat m (m) status: waiting; last turn: none",
+			].join("\n"),
+		);
+		const [bare] = buildCards([chat("s")]);
+		if (!bare) throw new Error("card missing");
+		expect(cardContext(bare)).toContain("Notes: none\n");
 	});
 });

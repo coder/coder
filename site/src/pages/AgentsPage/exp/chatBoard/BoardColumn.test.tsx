@@ -22,6 +22,7 @@ const renderColumn = (name: string) => {
 	if (!column) throw new Error("column missing");
 	const onRename = vi.fn();
 	const onDelete = vi.fn();
+	const onNewChat = vi.fn();
 	const noop = vi.fn();
 	// No DndContext, see BoardCard.test.tsx.
 	renderComponent(
@@ -31,10 +32,12 @@ const renderColumn = (name: string) => {
 			dropTarget={null}
 			onRename={onRename}
 			onDelete={onDelete}
+			onNewChat={onNewChat}
 			onSetCardTitle={noop}
 			onSetCardColor={noop}
 			onRenameChat={noop}
 			onAssistant={noop}
+			onNewChatInCard={noop}
 			onRemoveFromGroup={noop}
 			onOpen={noop}
 			onPreview={noop}
@@ -44,10 +47,19 @@ const renderColumn = (name: string) => {
 			onRemoveNote={noop}
 		/>,
 	);
-	return { onRename, onDelete };
+	return { onRename, onDelete, onNewChat };
 };
 
 describe("BoardColumn", () => {
+	it("starts a new chat in the column from the header plus", async () => {
+		const user = userEvent.setup();
+		const { onNewChat } = renderColumn("Doing");
+
+		await user.click(screen.getByRole("button", { name: "New chat in Doing" }));
+
+		expect(onNewChat).toHaveBeenCalledTimes(1);
+	});
+
 	it("renames from the title and deletes from the menu", async () => {
 		const user = userEvent.setup();
 		const { onRename, onDelete } = renderColumn("Doing");

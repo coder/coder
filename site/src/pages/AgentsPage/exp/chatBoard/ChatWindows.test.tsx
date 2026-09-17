@@ -7,11 +7,8 @@ import type { ChatWindow } from "./boardStorage";
 import { FloatingChat } from "./ChatWindows";
 import { MIN_WINDOW_SIZE } from "./windows";
 
-vi.mock("../../AgentChatPage", () => ({
-	default: () => <div>chat body</div>,
-}));
-
 const win: ChatWindow = {
+	kind: "chat",
 	chatId: MockChat.id,
 	x: 100,
 	y: 80,
@@ -25,14 +22,16 @@ const renderWindow = (overrides: Partial<ChatWindow> = {}) => {
 	renderComponent(
 		<FloatingChat
 			window={{ ...win, ...overrides }}
-			chat={MockChat}
+			title={MockChat.title}
 			color={undefined}
 			onChange={onChange}
 			onClose={vi.fn()}
 			onInteract={vi.fn()}
 			onPreviewEnter={vi.fn()}
 			onPreviewLeave={vi.fn()}
-		/>,
+		>
+			<div>chat body</div>
+		</FloatingChat>,
 	);
 	return { onChange };
 };
