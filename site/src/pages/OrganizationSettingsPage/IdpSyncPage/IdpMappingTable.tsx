@@ -1,5 +1,4 @@
 import type { FC } from "react";
-import { Link } from "#/components/Link/Link";
 import {
 	Table,
 	TableBody,
@@ -7,7 +6,7 @@ import {
 	TableHeader,
 	TableRow,
 } from "#/components/Table/Table";
-import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
+import { IdpSyncEmptyState } from "#/modules/idpSync/IdpSyncEmptyState";
 import { docs } from "#/utils/docs";
 
 interface IdpMappingTableProps {
@@ -21,45 +20,40 @@ export const IdpMappingTable: FC<IdpMappingTableProps> = ({
 	rowCount,
 	children,
 }) => {
+	const label = type.toLocaleLowerCase();
+
+	if (rowCount === 0) {
+		return (
+			<IdpSyncEmptyState
+				title={`No IdP ${label} sync configured`}
+				description={
+					type === "Group"
+						? "Automatically assign users to groups based on their identity provider claims."
+						: "Automatically assign roles to users based on their identity provider claims."
+				}
+				ctaLabel={`Set up IdP ${label} sync`}
+				docsHref={docs(`/admin/users/idp-sync#${label}-sync`)}
+			/>
+		);
+	}
+
 	return (
 		<div className="flex flex-col gap-2">
 			<Table>
 				<TableHeader>
 					<TableRow>
-						<TableCell className="w-2/5">
-							IdP {type.toLocaleLowerCase()}
-						</TableCell>
-						<TableCell className="w-3/5">
-							Coder {type.toLocaleLowerCase()}
-						</TableCell>
+						<TableCell className="w-2/5">IdP {label}</TableCell>
+						<TableCell className="w-3/5">Coder {label}</TableCell>
 						<TableCell className="w-auto" />
 					</TableRow>
 				</TableHeader>
-				<TableBody>
-					{rowCount === 0 ? (
-						<TableEmpty
-							message={`No ${type.toLocaleLowerCase()} mappings`}
-							isCompact
-							cta={
-								<Link
-									href={docs(
-										`/admin/users/idp-sync#${type.toLocaleLowerCase()}-sync`,
-									)}
-								>
-									How to setup IdP {type.toLocaleLowerCase()} sync
-								</Link>
-							}
-						/>
-					) : (
-						children
-					)}
-				</TableBody>
+				<TableBody>{children}</TableBody>
 			</Table>
 			<div className="flex justify-end">
 				<div className="text-content-secondary text-xs">
 					Showing <strong className="text-content-primary">{rowCount}</strong>{" "}
-					{type.toLocaleLowerCase()}
-					{(rowCount === 0 || rowCount > 1) && "s"}
+					{label}
+					{rowCount > 1 && "s"}
 				</div>
 			</div>
 		</div>
