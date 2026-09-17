@@ -101,7 +101,7 @@ export const SecretsTable: FC<SecretsTableProps> = ({
 					<TableRow>
 						<TableHead className="w-9"></TableHead>
 						<TableHead>Name</TableHead>
-						<TableHead>Env var</TableHead>
+						<TableHead className="whitespace-nowrap">Env var</TableHead>
 						<TableHead className="whitespace-nowrap">File path</TableHead>
 						<TableHead>Type</TableHead>
 						<TableHead className="w-full">Description</TableHead>
