@@ -44,11 +44,13 @@ export const DefaultModelSettings: FC<DefaultModelSettingsProps> = ({
 		enabledModels,
 		providerInfoByID,
 	);
-	// A pending model the refetched catalog no longer lists is discarded during
-	// render, so it can neither be saved nor come back if the catalog relists it.
+	// A pending model is discarded during render once it matches the server
+	// default or the refetched catalog no longer lists it, so a stale pick can
+	// neither be saved later nor come back if the catalog relists it.
 	if (
 		pendingModelID !== undefined &&
-		!enabledModelOptions.some((option) => option.id === pendingModelID)
+		(pendingModelID === savedModelID ||
+			!enabledModelOptions.some((option) => option.id === pendingModelID))
 	) {
 		setPendingModelID(undefined);
 	}
@@ -89,9 +91,7 @@ export const DefaultModelSettings: FC<DefaultModelSettingsProps> = ({
 				<ModelSelector
 					options={enabledModelOptions}
 					value={selectedModelID}
-					onValueChange={(value) =>
-						setPendingModelID(value === savedModelID ? undefined : value)
-					}
+					onValueChange={setPendingModelID}
 					triggerAriaLabel="Default model"
 					disabled={isFormDisabled}
 					placeholder={
