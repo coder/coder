@@ -3,6 +3,7 @@ package agentcontext_test
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"sync"
 	"testing"
 
@@ -84,6 +85,9 @@ func TestManager_MCPReportConfigErrorOverlay(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
+			if tc.symlink && runtime.GOOS == "windows" {
+				t.Skip("symlinks require admin privileges on Windows runners")
+			}
 			dir := t.TempDir()
 			configPath := filepath.Join(dir, ".mcp.json")
 			// Structurally valid JSON; the server entry has neither

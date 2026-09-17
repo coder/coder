@@ -3,6 +3,7 @@ package agentcontext
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -214,6 +215,9 @@ func TestApplyMCPConfigErrors(t *testing.T) {
 
 	t.Run("SymlinkedConfigMatchesTarget", func(t *testing.T) {
 		t.Parallel()
+		if runtime.GOOS == "windows" {
+			t.Skip("symlinks require admin privileges on Windows runners")
+		}
 		dir := t.TempDir()
 		target := filepath.Join(dir, "real", ".mcp.json")
 		require.NoError(t, os.MkdirAll(filepath.Dir(target), 0o755))
