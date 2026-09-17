@@ -1,6 +1,6 @@
 import { CalendarIcon } from "lucide-react";
 import type { FC } from "react";
-import type { Organization } from "#/api/typesGenerated";
+import { MaxAISpendPeriodDays, type Organization } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import {
 	DateRangePicker,
@@ -26,9 +26,7 @@ import {
 // Narrower than the SelectFilter default, matching the sessions page.
 const FILTER_WIDTH = 150;
 
-// The spend endpoints reject explicit periods longer than this.
-const MAX_SPEND_PERIOD_DAYS = 31;
-const MAX_SPEND_PERIOD_MS = MAX_SPEND_PERIOD_DAYS * 24 * 60 * 60 * 1000;
+const MAX_SPEND_PERIOD_MS = MaxAISpendPeriodDays * 24 * 60 * 60 * 1000;
 
 /**
  * The picker counts local calendar days, so a maximum-length range that
@@ -83,7 +81,7 @@ export const SpendFilters: FC<SpendFiltersProps> = ({
 						organizations,
 					)}`}
 					options={organizations}
-					triggerClassName="w-[150px]"
+					triggerClassName="basis-[150px] grow"
 					optionsTabbable
 					onChange={(next) => {
 						if (next) {
@@ -100,7 +98,7 @@ export const SpendFilters: FC<SpendFiltersProps> = ({
 					now={now}
 					value={dateRange}
 					onChange={(value) => onDateRangeChange(clampSpendPeriod(value))}
-					maxDays={MAX_SPEND_PERIOD_DAYS}
+					maxDays={MaxAISpendPeriodDays}
 					minDate={minDate}
 					disabled={isReportLoading}
 					size="lg"

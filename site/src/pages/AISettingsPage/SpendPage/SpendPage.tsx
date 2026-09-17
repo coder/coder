@@ -69,13 +69,8 @@ export const firstDayWithinRetention = (cutoff: Date, now: Date): Date => {
 };
 
 /**
- * Represents the server-applied UTC window as the local calendar days the
- * picker edits. When the first local day would begin before the reported
- * retention cutoff (the start is the cutoff itself, or a budget boundary
- * whose local midnight falls earlier), the range starts at the first
- * selectable day at or after the cutoff instead, so re-committing the range
- * never asks for a start before retention. When that day is past the window's
- * last day, the range is that single day.
+ * Maps the server's UTC window to local picker days, advancing the start past
+ * retention where possible. If no selectable midnight remains, uses today.
  */
 export const appliedWindowToDateRange = (
 	window: Pick<
