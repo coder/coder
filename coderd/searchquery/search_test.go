@@ -364,10 +364,10 @@ func TestSearchWorkspace(t *testing.T) {
 					ID: uuid.MustParse("3dd8b1b8-dff5-4b22-8ae9-c243ca136ecf"),
 				})
 			},
+			ActorID: uuid.MustParse("3dd8b1b8-dff5-4b22-8ae9-c243ca136ecf"),
 			Expected: database.GetWorkspacesParams{
 				UserID: uuid.MustParse("3dd8b1b8-dff5-4b22-8ae9-c243ca136ecf"),
 			},
-			ActorID: uuid.MustParse("3dd8b1b8-dff5-4b22-8ae9-c243ca136ecf"),
 		},
 		{
 			Name:  "UserByName",
