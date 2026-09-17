@@ -880,6 +880,8 @@ Parallel tool call results must be inserted in bulk after all parallel tool call
 
 The generation goroutine supports:
 
+<!-- TODO: Document capability-specific delegation guidance in tool descriptions after final tool filtering, separate from audience and mode instructions. -->
+
 - chat compaction (automatic and manual, see [Manual compaction](#manual-compaction))
 - MCP tools
 - subagents (`spawn_agent`, `wait_agent`, `message_agent`, `interrupt_agent`, `list_agents`, `list_subagent_models`)

@@ -38,7 +38,7 @@ type spawnAgentArgs struct {
 	Type            string `json:"type"`
 	Prompt          string `json:"prompt"`
 	Title           string `json:"title,omitempty"`
-	ModelConfigID   string `json:"model_config_id,omitempty" description:"Optional model config UUID from list_subagent_models. Runs the child on that model instead of the configured default. Not supported for type 'computer_use'."`
+	ModelConfigID   string `json:"model_config_id,omitempty" description:"Optional model configuration UUID obtained from an available model-discovery tool. Runs the child on that model instead of the configured default. Not supported for type 'computer_use'."`
 	ReasoningEffort string `json:"reasoning_effort,omitempty" description:"Optional reasoning effort for the child: none, minimal, low, medium, high, xhigh, or max. Clamped to the selected model's supported range. Not supported for type 'computer_use'."`
 }
 
@@ -165,16 +165,6 @@ func allSubagentDefinitions() []subagentDefinition {
 			},
 		},
 	}
-}
-
-func subagentDefinitionsByID(ids ...string) []subagentDefinition {
-	defs := make([]subagentDefinition, 0, len(ids))
-	for _, id := range ids {
-		if def, ok := lookupSubagentDefinition(id); ok {
-			defs = append(defs, def)
-		}
-	}
-	return defs
 }
 
 func lookupSubagentDefinition(id string) (subagentDefinition, bool) {
@@ -308,21 +298,18 @@ func buildSpawnAgentDescription(
 		"Do not use type=\"" + subagentTypeExplore +
 		"\" for generic research, broad architecture analysis, planning " +
 		"synthesis, external or web research, parallel research, or tasks that " +
-		"may need edits. Be careful when running parallel subagents: if two " +
-		"subagents modify the same files they will conflict with each other, " +
-		"so ensure parallel subagent tasks are independent. The child agent " +
-		"receives the same workspace tools but cannot spawn its own subagents. " +
-		"You may optionally set model_config_id (a model config UUID from " +
-		listSubagentModelsToolName + ") to run the child on a specific model " +
-		"instead of the configured default, and reasoning_effort to pin the " +
-		"child's reasoning effort; both apply only to type \"" +
-		subagentTypeGeneral + "\" and type \"" + subagentTypeExplore + "\". " +
-		"After spawning, use wait_agent to retrieve the result. Agents persist " +
-		"after completion; reuse an agent via message_agent for follow-up work " +
-		"when it already has relevant context. Spawned agents are your " +
-		"responsibility: do not abandon one in a working state (running); " +
-		"retrieve its result, redirect it with message_agent, or stop " +
-		"it with interrupt_agent."
+		"may need edits. " + subagentDelegationGuidance +
+		" The child does not inherit your conversation history. Its tools " +
+		"depend on its mode and current access; do not assume they match yours. " +
+		"You may optionally set model_config_id to an available model " +
+		"configuration UUID and reasoning_effort to select the child's effort; " +
+		"both apply only to type \"" + subagentTypeGeneral + "\" and type \"" +
+		subagentTypeExplore + "\". Do not invent model identifiers. " +
+		"Track assignments you start and collect the results the task needs. " +
+		"Account for unfinished work using the lifecycle tools available to " +
+		"you; report a missing capability rather than claim work stopped or " +
+		"finished. An error status can be recoverable; address its cause " +
+		"before retrying."
 	if currentChat.PlanMode.Valid && currentChat.PlanMode.ChatPlanMode == database.ChatPlanModePlan {
 		description += " During plan mode, type=\"" + subagentTypeGeneral +
 			"\" is for substantial investigation and planning support. " +
@@ -349,28 +336,4 @@ func formatSubagentDefinitionsWithDescriptionOverrides(
 		parts = append(parts, def.id+" ("+description+")")
 	}
 	return strings.Join(parts, ", ")
-}
-
-func planningOverlaySubagentGuidance() string {
-	planModeDescriptions := map[string]string{
-		subagentTypeGeneral: "substantial investigation, analysis, and planning support without implementing the proposal",
-		subagentTypeExplore: "narrow repository-local codebase lookup and code tracing",
-	}
-
-	return "Use read_file, execute, process_output, list_templates, read_template, " +
-		spawnAgentToolName + ", and approved external MCP tools when available to gather context. " +
-		"Workspace MCP tools are not available in root plan mode, and side-effecting built-in tools such as process_list, process_signal, message_agent, interrupt_agent, and computer-use actions remain unavailable. In Plan Mode, " +
-		spawnAgentToolName + " delegation is for investigation and planning " +
-		"support, not code writing or implementation. Use type=\"" + subagentTypeGeneral +
-		"\" for substantial investigation, reasoning, and planning support. " +
-		"Use type=\"" + subagentTypeExplore +
-		"\" only for narrow repository-local lookup or tracing. Allowed type " +
-		"values in Plan Mode: " +
-		formatSubagentDefinitionsWithDescriptionOverrides(
-			subagentDefinitionsByID(
-				subagentTypeGeneral,
-				subagentTypeExplore,
-			),
-			planModeDescriptions,
-		) + "."
 }

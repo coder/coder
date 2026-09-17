@@ -46,7 +46,6 @@ var nonInteractiveEnvVars = map[string]string{
 var fileDumpPatterns = []*regexp.Regexp{
 	regexp.MustCompile(`^cat\s+`),
 	regexp.MustCompile(`^(rg|grep)\s+.*--include-all`),
-	regexp.MustCompile(`^(rg|grep)\s+-l\s+`),
 }
 
 const (

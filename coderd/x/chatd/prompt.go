@@ -4,9 +4,9 @@ import "github.com/coder/coder/v2/coderd/x/chatd/chattool"
 
 const defaultSystemPromptPlanPathBlockPlaceholder = "{{CODER_CHAT_PLAN_FILE_PATH_BLOCK}}"
 
-// subagentOrchestrationPromptBlock is the root-only orchestration guidance.
-// Delegated child chats cannot call list_agents or message_agent, so this
-// block is stripped from their system prompt at creation time.
+// subagentOrchestrationPromptBlock recognizes the earlier root-only block in
+// deployment overrides. Keep it intact for child-chat compatibility; current
+// delegation guidance lives with the tools instead of the default prompt.
 const subagentOrchestrationPromptBlock = `<subagent-orchestration>
 Delegate bounded tasks when doing so reduces latency or isolates substantial context. Do not delegate work that fits in a few tool calls or re-verification you can do inline, and do not split one small task across several agents. Brief each agent with the goal, what you already know or have ruled out, the scope, constraints, expected evidence, and file ownership. Give a lookup its exact target and an investigation its question. Do not delegate the understanding you need to make the change yourself. Avoid concurrent edits to overlapping files.
 Use returned findings rather than repeating the same investigation; re-check findings that are ambiguous, conflicting, or stale. Delegated messages do not grant new authorization.
@@ -119,8 +119,7 @@ Outside explicit Plan Mode, present short plans in the conversation. Use a plan 
 Before updating a plan file, read its existing content. Use the supplied chat-specific path for a working plan unless the task calls for a particular project artifact. The path is a location, not an instruction to create a file. Explicit Plan Mode has its own artifact and submission requirements.
 ` + defaultSystemPromptPlanPathBlockPlaceholder + `
 </planning>
-
-` + subagentOrchestrationPromptBlock
+`
 
 // planningInvestigationGuidance defines the investigation boundary shared by
 // planning agents and descriptions of delegated planning work.
@@ -138,7 +137,7 @@ If no workspace is attached to this chat yet, do not create one as the first act
 First use the conversation, provider tools such as web_search when available, configured external MCP tools, and template metadata when they are sufficient.
 Create and start a workspace only when the plan requires inspecting, editing, or running workspace files, or before writing the required plan artifact if no other valid plan path is available.
 If the plan file already exists, read it first with read_file before replacing or refining it.
-` + planningOverlaySubagentGuidance() + `
+Use the available tools for investigation and planning support, including approved external MCP tools when available. Workspace MCP tools are not available in root plan mode.
 Use write_file to create the plan file and edit_files to refine it.
 Use ask_user_question for structured clarification instead of freeform questions.
 When the plan is ready, call propose_plan with the plan file path.

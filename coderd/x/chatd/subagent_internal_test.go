@@ -2745,22 +2745,6 @@ func TestSpawnAgent_PlanModeRejectsComputerUse(t *testing.T) {
 	require.Contains(t, resp.Content, `type "computer_use" is unavailable in plan mode`)
 }
 
-func TestPlanningOverlaySubagentGuidance_UsesPlanModeSafeDescriptions(t *testing.T) {
-	t.Parallel()
-
-	guidance := planningOverlaySubagentGuidance()
-
-	require.Contains(t, guidance, subagentTypeGeneral)
-	require.Contains(t, guidance, subagentTypeExplore)
-	require.Contains(t, guidance, `Use type="general" for substantial investigation, reasoning, and planning support`)
-	require.Contains(t, guidance, `Use type="explore" only for narrow repository-local lookup or tracing`)
-	require.Contains(t, guidance, "general (substantial investigation, analysis, and planning support without implementing the proposal)")
-	require.Contains(t, guidance, "explore (narrow repository-local codebase lookup and code tracing)")
-	require.NotContains(t, guidance, subagentTypeComputerUse)
-	require.NotContains(t, guidance, "modify")
-	require.NotContains(t, guidance, "may inspect or modify workspace files")
-}
-
 func TestSpawnAgent_InvalidTypeAndCredentialErrorAreDistinct(t *testing.T) {
 	t.Parallel()
 
