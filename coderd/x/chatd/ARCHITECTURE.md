@@ -427,6 +427,8 @@ This section maps the public endpoints that mutate chat state to the transitions
 
 Chat routes are registered once by `registerChatAPIRoutes` and mounted under both `/api/experimental` and `/api/v2` during a compatibility window. Paths in this document are written with one prefix or the other, but every promoted route answers on both. The routes that were not promoted answer only on `/api/experimental`; at the time of writing these are the `providers` and `user-provider-configs` collections under `/chats`, the `computer-use-provider` and `advisor` routes under `/chats/config`, `GET /chats/{chat}/stream/desktop`, and `GET /chats/{chat}/debug/runs` with `GET /chats/{chat}/debug/runs/{debugRun}`. Each mount reserves the top-level `/chats/<segment>` collection paths it does not serve (`model-configs`, `providers`, and `user-provider-configs` on `/api/v2`; `models` and `model-configs` on `/api/experimental`) so they return 404 instead of matching the `{chat}` wildcard and failing UUID parsing.
 
+TODO: CODAGT-922 removed the `/api/experimental` duplicates, the tombstone `providers` and `user-provider-configs` routes, and the reservations on the experimental mount; promoted routes now answer only on `/api/v2`. Update the paragraph above and the `/api/experimental` route headings in this section.
+
 ### Organization-scoped model discovery
 
 Clients discover models through `GET /api/v2/organizations/{organization}/chats/models`. The handler requires either full API token scope or chat model configuration read scope, then queries only configs in the requested organization that pass the caller's RBAC filter.
