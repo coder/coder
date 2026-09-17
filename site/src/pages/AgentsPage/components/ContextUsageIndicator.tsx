@@ -66,14 +66,26 @@ type ContextMcpServerItem = {
 	readonly source: string;
 	readonly tools: readonly ChatContextTool[];
 };
-// A pinned resource the agent could not use, surfaced with its error so the
-// failure is visible instead of silent.
+// A pinned resource the agent could not use, or an OK resource carrying a
+// non-fatal warning, surfaced with its error so the problem is visible
+// instead of silent.
 type ContextIssueItem = {
 	readonly name: string;
 	readonly kind: ChatContextResourceKind;
-	readonly status: ChatContextResourceStatus;
+	readonly outcome: ChatContextResourceStatus | "warning" | "failed";
 	readonly error: string;
 	readonly source: string;
+};
+
+// The outcome word shown next to an issue. Failed MCP servers carry the
+// storage status "unreadable", which describes files, not connections.
+const issueOutcome = (
+	resource: ChatContextResource,
+): ContextIssueItem["outcome"] => {
+	if (resource.status === "ok") {
+		return "warning";
+	}
+	return resource.kind === "mcp_server" ? "failed" : resource.status;
 };
 
 // Human-readable label per resource kind, used in the issues list.
@@ -334,22 +346,52 @@ export const ContextUsageIndicator: FC<{
 		// Drop entries with no usable name so an empty MCP marker never renders as
 		// a blank row.
 		.filter((server) => server.name.trim().length > 0);
-	const hasMcp = mcpConfigItems.length > 0 || mcpServerItems.length > 0;
+	const mcpServerCount = (pinnedResources ?? []).filter(
+		(resource) => resource.kind === "mcp_server",
+	).length;
+	const mcpDiscovery = context?.mcp_discovery;
+	const isMcpStale = mcpDiscovery?.stale ?? false;
+	const isMcpPending = mcpDiscovery?.phase === "pending";
+	const isMcpComplete = mcpDiscovery?.phase === "complete";
+	let mcpDiscoveryNote = "";
+	if (isMcpStale) {
+		mcpDiscoveryNote =
+			"Discovered by a previous agent run. Tools are withheld until your next message picks up the current agent's discovery.";
+	} else if (isMcpPending) {
+		mcpDiscoveryNote =
+			"Discovery initializing. Servers may appear on a later turn.";
+	} else if (isMcpComplete) {
+		mcpDiscoveryNote =
+			mcpServerCount === 0
+				? "Discovery complete. No MCP servers discovered."
+				: "Discovery complete.";
+	}
+	const hasMcp =
+		mcpConfigItems.length > 0 ||
+		mcpServerItems.length > 0 ||
+		mcpDiscoveryNote !== "";
 	// Pinned resources the agent could not use (invalid skill, unreadable or
 	// oversize file) are surfaced as issues with their error so the failure is
-	// visible rather than a silent omission.
+	// visible rather than a silent omission. An OK row may also carry a
+	// non-fatal warning (for example an MCP server still serving the tools of
+	// its previous connection); it stays listed as usable and the warning is
+	// surfaced here.
 	const issueItems: readonly ContextIssueItem[] = (pinnedResources ?? [])
-		.filter((resource) => resource.status !== "ok")
-		.map((resource) => ({
-			name:
-				resource.skill_name ||
-				getPathBasename(resource.source) ||
-				resource.source,
-			kind: resource.kind,
-			status: resource.status,
-			error: resource.error ?? "",
-			source: resource.source,
-		}))
+		.filter(
+			(resource) => resource.status !== "ok" || (resource.error ?? "") !== "",
+		)
+		.map(
+			(resource): ContextIssueItem => ({
+				name:
+					resource.skill_name ||
+					getPathBasename(resource.source) ||
+					resource.source,
+				kind: resource.kind,
+				outcome: issueOutcome(resource),
+				error: resource.error ?? "",
+				source: resource.source,
+			}),
+		)
 		.filter((issue) => issue.name.trim().length > 0);
 	const hasContextList =
 		fileItems.length > 0 ||
@@ -357,11 +399,18 @@ export const ContextUsageIndicator: FC<{
 		hasMcp ||
 		issueItems.length > 0;
 
+	const hasResourceFailures = issueItems.some(
+		(issue) => issue.outcome !== "warning",
+	);
+	const hasResourceWarnings = issueItems.some(
+		(issue) => issue.outcome === "warning",
+	);
 	const hasResourceIssues = issueItems.length > 0;
-	const needsAttention = isDirty || hasContextError || hasResourceIssues;
+	const needsAttention =
+		isDirty || hasContextError || hasResourceIssues || isMcpStale;
 	const toneClassName = hasContextError
 		? "text-content-destructive"
-		: isDirty || hasResourceIssues
+		: isDirty || hasResourceIssues || isMcpStale
 			? "text-content-warning"
 			: getIndicatorToneClassName(percentUsed);
 	const fileBytes = sumResourceBytes(pinnedResources ?? [], [
@@ -381,7 +430,9 @@ export const ContextUsageIndicator: FC<{
 	const statusNotes = [
 		hasContextError ? "Context error." : "",
 		isDirty ? "Context changed." : "",
-		hasResourceIssues ? "Some context resources failed to load." : "",
+		hasResourceFailures ? "Some context resources failed to load." : "",
+		hasResourceWarnings ? "Some context resources reported warnings." : "",
+		isMcpStale ? "Workspace MCP tools are from a previous agent run." : "",
 	].filter((note) => note !== "");
 	const statusNote = statusNotes.length > 0 ? ` ${statusNotes.join(" ")}` : "";
 	let ariaLabel = "Context usage";
@@ -504,6 +555,22 @@ export const ContextUsageIndicator: FC<{
 								<span>MCP</span>
 								<SectionSize bytes={mcpBytes} />
 							</span>
+							{mcpDiscoveryNote !== "" && (
+								<span
+									className={cn(
+										"flex items-center gap-1.5",
+										isMcpStale && "text-content-warning",
+									)}
+								>
+									{isMcpStale && (
+										<TriangleAlertIcon className="size-3 shrink-0" />
+									)}
+									{isMcpPending && (
+										<Spinner loading className="size-3! shrink-0" />
+									)}
+									<span>{mcpDiscoveryNote}</span>
+								</span>
+							)}
 							<TooltipProvider delayDuration={300}>
 								{mcpConfigItems.map((config) => (
 									<div
@@ -523,6 +590,11 @@ export const ContextUsageIndicator: FC<{
 										>
 											<PlugIcon className="size-3 shrink-0" />
 											<span className="truncate">{mcp.name}</span>
+											{mcp.tools.length === 0 && (
+												<span className="shrink-0 text-content-secondary">
+													(no tools)
+												</span>
+											)}
 										</div>
 										{mcp.tools.length > 0 && (
 											<div className="ml-4 flex flex-col gap-0.5">
@@ -573,11 +645,11 @@ export const ContextUsageIndicator: FC<{
 									<span className="truncate">
 										{issue.name}{" "}
 										<span className="text-content-secondary">
-											({RESOURCE_KIND_LABELS[issue.kind]}: {issue.status})
+											({RESOURCE_KIND_LABELS[issue.kind]}: {issue.outcome})
 										</span>
 									</span>
 									{issue.error && (
-										<span className="text-content-secondary">
+										<span className="wrap-anywhere text-content-secondary">
 											{issue.error}
 										</span>
 									)}
