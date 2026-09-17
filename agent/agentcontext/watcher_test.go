@@ -150,6 +150,44 @@ func TestWatcher_ChildCapPrefersInstructionFiles(t *testing.T) {
 	}
 }
 
+// TestWatcher_ChildCapIgnoresWrongCaseNames fills the working directory with
+// children that hold only a lower-case agents.md, which the resolver does not
+// publish, and checks that a later child with an exact AGENTS.md is still
+// watched: on a case-insensitive file system a fixed-name probe hits the
+// lower-case files, so only the listing check keeps them out of the slots.
+func TestWatcher_ChildCapIgnoresWrongCaseNames(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	for i := range 64 {
+		mustWriteFile(t, filepath.Join(dir, fmt.Sprintf("docs-%02d", i), "agents.md"), "api reference")
+	}
+	published := filepath.Join(dir, "zz-published")
+	mustWriteFile(t, filepath.Join(published, "AGENTS.md"), "rules")
+
+	fired := make(chan struct{}, 1)
+	w, err := agentcontext.NewWatcher(agentcontext.WatcherOptions{
+		Logger:   testutil.Logger(t).Named("watcher"),
+		Debounce: 10 * time.Millisecond,
+		OnChange: func() {
+			select {
+			case fired <- struct{}{}:
+			default:
+			}
+		},
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = w.Close() })
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	w.Sync(ctx, []agentcontext.ScanRoot{{Path: dir, ChildProjects: true}})
+	mustWriteFile(t, filepath.Join(published, "AGENTS.md"), "edited rules")
+	select {
+	case <-fired:
+	case <-ctx.Done():
+		require.Fail(t, "expected callback after editing a published child's AGENTS.md")
+	}
+}
+
 // TestWatcher_GitOnlyChildWatchedWhenPublishedSlotsFull fills the published
 // slots and checks that a clone sorting before them, which has no instruction
 // file yet, still fires when its AGENTS.md is checked out: that file would

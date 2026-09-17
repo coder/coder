@@ -387,16 +387,24 @@ func (r *Resolver) discoverChildProjectInstructionFiles(root ScanRoot, out *[]Re
 	}
 }
 
-// readInstructionFilesIn appends the recognized instruction files that sit
-// directly in dir, probed by name with dir as the containment root, and
-// reports whether any was found. A probe by fixed name also hits a
+// instructionFileEntry is a recognized instruction file that
+// lstatInstructionFiles found directly in a directory.
+type instructionFileEntry struct {
+	path string
+	info fs.FileInfo
+}
+
+// lstatInstructionFiles returns the recognized instruction files that sit
+// directly in dir, probed by fixed name. Such a probe also hits a
 // differently cased file on a case-insensitive file system, so a hit is
 // confirmed against the directory listing, which keeps the exact-name rule
 // the scan roots follow; the listing is read only on a hit, so a large
-// non-project child still costs a few stats.
-func (r *Resolver) readInstructionFilesIn(dir string, out *[]Resource, seenID map[string]int) bool {
-	found := false
-	var names map[string]struct{}
+// non-project directory still costs a few stats.
+func lstatInstructionFiles(dir string) []instructionFileEntry {
+	var (
+		found []instructionFileEntry
+		names map[string]struct{}
+	)
 	for _, name := range instructionFileNames {
 		path := filepath.Join(dir, name)
 		info, err := os.Lstat(path)
@@ -406,13 +414,22 @@ func (r *Resolver) readInstructionFilesIn(dir string, out *[]Resource, seenID ma
 		if names == nil {
 			names = directoryEntryNames(dir)
 		}
-		if _, exact := names[name]; !exact {
-			continue
+		if _, exact := names[name]; exact {
+			found = append(found, instructionFileEntry{path: path, info: info})
 		}
-		appendResource(out, seenID, r.readInstructionFile(dir, path, info, ""))
-		found = true
 	}
 	return found
+}
+
+// readInstructionFilesIn appends the recognized instruction files that sit
+// directly in dir, with dir as the containment root, and reports whether
+// any was found.
+func (r *Resolver) readInstructionFilesIn(dir string, out *[]Resource, seenID map[string]int) bool {
+	files := lstatInstructionFiles(dir)
+	for _, f := range files {
+		appendResource(out, seenID, r.readInstructionFile(dir, f.path, f.info, ""))
+	}
+	return len(files) > 0
 }
 
 func directoryEntryNames(dir string) map[string]struct{} {
