@@ -306,7 +306,10 @@ func (c *cache) cryptoKey(ctx context.Context, sequence int32) (string, interfac
 	}
 
 	c.lastFetch = c.clock.Now()
-	c.refresher.Reset(refreshInterval)
+	// Close stops the timer; do not re-arm it if Close ran during the fetch.
+	if !c.closed {
+		c.refresher.Reset(refreshInterval)
+	}
 	c.keys = keys
 
 	key, ok = c.key(sequence)
@@ -373,8 +376,11 @@ func (c *cache) refresh() {
 	defer c.mu.Unlock()
 	defer func() {
 		// Runs on success and failure so a transient error neither stops
-		// refreshes nor blocks callers until the next restart.
-		c.refresher.Reset(refreshInterval)
+		// refreshes nor blocks callers until the next restart. Close stops
+		// the timer; do not re-arm it if Close ran during the fetch.
+		if !c.closed {
+			c.refresher.Reset(refreshInterval)
+		}
 		c.fetching = false
 		c.cond.Broadcast()
 	}()
