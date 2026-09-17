@@ -5,7 +5,7 @@ const meta: Meta<typeof IdpSyncEmptyState> = {
 	title: "modules/idpSync/IdpSyncEmptyState",
 	component: IdpSyncEmptyState,
 	args: {
-		title: "Set up organization mapping",
+		title: "No IdP organization sync configured",
 		description:
 			"Automatically assign users to organizations based on their identity provider groups.",
 		ctaLabel: "Set up IdP organization sync",
@@ -20,7 +20,7 @@ export const OrganizationMapping: Story = {};
 
 export const GroupMapping: Story = {
 	args: {
-		title: "Set up group mapping",
+		title: "No IdP group sync configured",
 		description:
 			"Automatically assign users to groups based on their identity provider claims.",
 		ctaLabel: "Set up IdP group sync",
@@ -30,7 +30,7 @@ export const GroupMapping: Story = {
 
 export const RoleMapping: Story = {
 	args: {
-		title: "Set up role mapping",
+		title: "No IdP role sync configured",
 		description:
 			"Automatically assign roles to users based on their identity provider claims.",
 		ctaLabel: "Set up IdP role sync",

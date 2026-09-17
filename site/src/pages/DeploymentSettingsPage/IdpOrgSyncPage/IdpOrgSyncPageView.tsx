@@ -395,7 +395,7 @@ const IdpMappingTable: FC<IdpMappingTableProps> = ({ isEmpty, children }) => {
 	if (isEmpty) {
 		return (
 			<IdpSyncEmptyState
-				title="Set up organization mapping"
+				title="No IdP organization sync configured"
 				description="Automatically assign users to organizations based on their identity provider groups."
 				ctaLabel="Set up IdP organization sync"
 				docsHref={docs("/admin/users/idp-sync#organization-sync")}

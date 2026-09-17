@@ -25,7 +25,7 @@ export const IdpMappingTable: FC<IdpMappingTableProps> = ({
 	if (rowCount === 0) {
 		return (
 			<IdpSyncEmptyState
-				title={`Set up ${label} mapping`}
+				title={`No IdP ${label} sync configured`}
 				description={
 					type === "Group"
 						? "Automatically assign users to groups based on their identity provider claims."
