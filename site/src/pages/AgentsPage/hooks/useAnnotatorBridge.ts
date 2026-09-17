@@ -4,26 +4,28 @@ import {
 	type HostToAnnotatorMessage,
 	parseAnnotatorToHostMessage,
 } from "@coder/annotator/protocol";
-import {
-	type RefObject,
-	useCallback,
-	useEffect,
-	useRef,
-	useState,
-} from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 interface UseAnnotatorBridgeOptions {
-	frameRef: RefObject<HTMLIFrameElement | null>;
-	// Changes whenever the iframe element is remounted so listeners rebind.
-	frameKey: number;
-	// Origin the iframe is expected to load from. Messages from any other
+	// Resolves the window hosting the overlay: the preview iframe's content
+	// window, or a popout the dashboard opened. Read through a ref, so a new
+	// function identity per render does not rebind anything.
+	getTargetWindow: () => Window | null | undefined;
+	// Changes whenever the target is replaced (iframe remount, popout opened
+	// or closed) so listeners rebind and state resets.
+	targetKey: number;
+	// Origin the target is expected to load from. Messages from any other
 	// origin or window are ignored.
-	frameOrigin: string | undefined;
+	targetOrigin: string | undefined;
+	// Whether the target is an iframe, whose load event (`frameLoaded`)
+	// starts the unavailable timeout. A popout has no observable load, so
+	// its timeout starts when it becomes the target.
+	targetIsFrame: boolean;
 	// Nothing is listened to until the user has asked for the overlay, so a
 	// preview that was never annotated cannot talk to the dashboard.
 	enabled: boolean;
-	// How long after the frame loads to wait for the overlay before
-	// declaring it unavailable (blocked by CSP, non-HTML page, and so on).
+	// How long to wait for the overlay before declaring it unavailable
+	// (blocked by CSP, non-HTML page, and so on).
 	readyTimeoutMs?: number;
 	onSubmit: (submission: AnnotationSubmission) => void;
 }
@@ -43,7 +45,8 @@ interface AnnotatorBridge {
 
 /**
  * Talks to the annotation overlay the app proxy injects into a proxied
- * preview. The overlay is cross-origin and shares its window with the
+ * preview, whether it lives in the right panel's iframe or in a popout
+ * window. The overlay is cross-origin and shares its window with the
  * previewed app, so every inbound message is validated and bounded before
  * it reaches the caller, and submissions are only accepted while the
  * dashboard itself has annotate mode switched on.
@@ -51,9 +54,10 @@ interface AnnotatorBridge {
  * The returned callbacks are stable so effects can depend on them.
  */
 export function useAnnotatorBridge({
-	frameRef,
-	frameKey,
-	frameOrigin,
+	getTargetWindow,
+	targetKey,
+	targetOrigin,
+	targetIsFrame,
 	enabled,
 	readyTimeoutMs = 5000,
 	onSubmit,
@@ -70,26 +74,25 @@ export function useAnnotatorBridge({
 	const pendingPickingRef = useRef<boolean | null>(null);
 	const readyTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 	const onSubmitRef = useRef(onSubmit);
-	const frameOriginRef = useRef(frameOrigin);
+	const getTargetRef = useRef(getTargetWindow);
+	const targetOriginRef = useRef(targetOrigin);
 	const readyTimeoutRef = useRef(readyTimeoutMs);
 	const enabledRef = useRef(enabled);
 	useEffect(() => {
 		onSubmitRef.current = onSubmit;
-		frameOriginRef.current = frameOrigin;
+		getTargetRef.current = getTargetWindow;
+		targetOriginRef.current = targetOrigin;
 		readyTimeoutRef.current = readyTimeoutMs;
 		enabledRef.current = enabled;
-	}, [onSubmit, frameOrigin, readyTimeoutMs, enabled]);
+	}, [onSubmit, getTargetWindow, targetOrigin, readyTimeoutMs, enabled]);
 
-	const post = useCallback(
-		(message: HostToAnnotatorMessage) => {
-			const frameWindow = frameRef.current?.contentWindow;
-			const origin = frameOriginRef.current;
-			if (frameWindow && origin) {
-				frameWindow.postMessage(message, origin);
-			}
-		},
-		[frameRef],
-	);
+	const post = useCallback((message: HostToAnnotatorMessage) => {
+		const target = getTargetRef.current();
+		const origin = targetOriginRef.current;
+		if (target && origin) {
+			target.postMessage(message, origin);
+		}
+	}, []);
 
 	const markReady = useCallback((next: boolean) => {
 		readyRef.current = next;
@@ -113,17 +116,20 @@ export function useAnnotatorBridge({
 	}, [markReady]);
 
 	useEffect(() => {
-		if (!enabled || !frameOrigin) {
+		if (!enabled || !targetOrigin) {
 			return;
 		}
-		const frame = frameRef.current;
+		// A new target inherits the dashboard's intent: if annotate mode was
+		// on, the new overlay is asked to pick as soon as it is ready.
+		if (armedRef.current) {
+			pendingPickingRef.current = true;
+		}
+		if (!targetIsFrame) {
+			frameLoaded();
+		}
 		const handler = (event: MessageEvent) => {
-			const frameWindow = frame?.contentWindow;
-			if (
-				event.origin !== frameOrigin ||
-				!frameWindow ||
-				event.source !== frameWindow
-			) {
+			const target = getTargetRef.current();
+			if (event.origin !== targetOrigin || !target || event.source !== target) {
 				return;
 			}
 			const message = parseAnnotatorToHostMessage(event.data);
@@ -136,12 +142,12 @@ export function useAnnotatorBridge({
 					markReady(true);
 					setUnavailable(false);
 					if (pendingPickingRef.current !== null) {
-						frameWindow.postMessage(
+						target.postMessage(
 							{
 								type: "coder-annotator:set-picking",
 								picking: pendingPickingRef.current,
 							} satisfies HostToAnnotatorMessage,
-							frameOrigin,
+							targetOrigin,
 						);
 						pendingPickingRef.current = null;
 					}
@@ -171,7 +177,7 @@ export function useAnnotatorBridge({
 			setUnavailable(false);
 			setPickingState(false);
 		};
-	}, [frameRef, frameKey, frameOrigin, enabled, markReady]);
+	}, [targetKey, targetOrigin, targetIsFrame, enabled, markReady, frameLoaded]);
 
 	const setPicking = useCallback(
 		(next: boolean) => {
