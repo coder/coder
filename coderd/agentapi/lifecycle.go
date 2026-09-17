@@ -212,7 +212,8 @@ func (a *LifecycleAPI) UpdateStartup(ctx context.Context, req *agentproto.Update
 		Subsystems:        dbSubsystems,
 		APIVersion:        apiVersion,
 		// Always overwritten so the row names the current process; legacy
-		// agents clear it to empty, which chatd treats as no guarantee.
+		// agents clear it to empty. chatd treats two empty ids as no
+		// guarantee and any other mismatch as a previous process.
 		AgentRunID: req.Startup.AgentRunId,
 	})
 	if err != nil {
