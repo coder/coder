@@ -3,6 +3,7 @@ package chatd_test
 import (
 	"context"
 	"database/sql"
+	"slices"
 	"testing"
 
 	"github.com/google/uuid"
@@ -599,6 +600,36 @@ func TestChatContextAddedResourcesAutoPin(t *testing.T) {
 	require.NotContains(t, pinned, replacementSkill.Source, "the replacement is left for refresh")
 	require.Equal(t, skillHash, pinned[skillSource].ContentHash)
 	require.Equal(t, hashV4, pinnedHash())
+
+	// Rows share one (chat, source) key across kinds. An MCP server whose
+	// name equals a path a later push publishes an instruction file at must
+	// not hide that file: the server's removal is synced first, so the file
+	// is added and the chat stays clean.
+	refreshed, err = expClient.RefreshChatContext(ctx, chat.ID)
+	require.NoError(t, err)
+	require.False(t, refreshed.Context.Dirty)
+	v5 := []*agentproto.ContextResource{instructionResource(rootSource, "root-v2", rootV2Hash), instructionResource(repoSource, "repo rules", repoHash), replacementSkill}
+	sharedSource := "/home/coder/tools/AGENTS.md"
+	server := &agentproto.ContextResource{
+		Source:      sharedSource,
+		ContentHash: []byte{0x41},
+		SizeBytes:   8,
+		Status:      agentproto.ContextResource_OK,
+		Body: &agentproto.ContextResource_McpServer{
+			McpServer: &agentproto.MCPServerBody{ServerName: sharedSource},
+		},
+	}
+	push(6, hashV5, append(slices.Clone(v5), server)...)
+	require.Equal(t, database.WorkspaceAgentContextBodyKindMcpServer, pinnedResources()[sharedSource].BodyKind, "the server is live-synced onto the chat")
+
+	hashV7 := []byte{0x07}
+	push(7, hashV7, append(slices.Clone(v5), instructionResource(sharedSource, "tool rules", []byte{0x42}))...)
+	got, err = expClient.GetChat(ctx, chat.ID)
+	require.NoError(t, err)
+	require.False(t, got.Context.Dirty, "the file published at the removed server's source is an addition")
+	pinned = pinnedResources()
+	require.Equal(t, database.WorkspaceAgentContextBodyKindInstructionFile, pinned[sharedSource].BodyKind)
+	require.Equal(t, hashV7, pinnedHash())
 }
 
 // TestChatContextMCPSyncFromAgentPush verifies that agent pushes live-sync MCP

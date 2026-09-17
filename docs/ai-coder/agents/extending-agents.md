@@ -13,15 +13,15 @@ The workspace agent owns discovery.
 It scans a fixed set of locations for instruction files, skills, and MCP configuration, then pushes the result to Coder as a single context snapshot.
 Chats never scan the workspace themselves; they read the snapshot the agent pushed.
 
-A workspace-attached chat pins one snapshot.
-The pinned copy is what the agent's system prompt and tool list are built from, so a chat keeps working with a consistent view of your skills and MCP tools even while you edit files in the workspace.
+A workspace-attached chat pins its own copy of each resource in the snapshot.
+The pinned copies are what the agent's system prompt and tool list are built from, so a chat keeps working with the files it has already read even while you edit them in the workspace.
 
 The lifecycle of an edit looks like this:
 
 1. You add a skill, edit `.mcp.json`, or change an instruction file in the workspace.
 1. A file watcher notices the change, and the agent re-scans after a short period and then pushes a new snapshot.
 1. Chats that have not pinned a snapshot yet pin the new one immediately.
-1. Active chats that already pinned an older snapshot (waiting, running, or waiting for your input) receive any new instruction files and skills right away, because nothing they have already read changes.
+1. Active chats that already pinned an older snapshot, whether idle, working, or waiting on you, receive any new instruction files and skills right away, because nothing they have already read changes.
    A chat that is in an error state keeps its pin until the first push after it resumes.
 1. Changed or removed instruction files and skills mark the chat out of date instead of being switched over.
    A skill whose name matches one the chat already has counts as a change, not an addition.

@@ -48,6 +48,15 @@ func (p *Server) HydrateAndMarkChatsDirty(ctx context.Context, tx database.Store
 		return nil, xerrors.Errorf("hydrate agent chats context: %w", err)
 	}
 
+	// MCP resources bypass drift detection, so sync them on every agent push.
+	// They go before the additive sync: rows share one (chat, source) key
+	// across kinds, so a server removed in this push must release its row
+	// before a prompt published at the same source is looked for.
+	synced, err := tx.SyncAgentChatsContextMCPResources(ctx, agentID)
+	if err != nil {
+		return nil, xerrors.Errorf("sync agent chats mcp context resources: %w", err)
+	}
+
 	// Sources the chat has never pinned (a repository cloned mid-chat, a new
 	// skill) are safe to add without rewriting anything the model already
 	// saw, so they land on the next step instead of waiting for a refresh.
@@ -70,11 +79,6 @@ func (p *Server) HydrateAndMarkChatsDirty(ctx context.Context, tx database.Store
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("mark chats context dirty: %w", err)
-	}
-	// MCP resources bypass drift detection, so sync them on every agent push.
-	synced, err := tx.SyncAgentChatsContextMCPResources(ctx, agentID)
-	if err != nil {
-		return nil, xerrors.Errorf("sync agent chats mcp context resources: %w", err)
 	}
 
 	// A dirtied chat can also gain rows or be MCP-synced, so publish it only
