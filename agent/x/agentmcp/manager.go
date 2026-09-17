@@ -144,6 +144,11 @@ type Manager struct {
 type serverEntry struct {
 	config ServerConfig
 	client *mcp.ClientSession
+	// inherited is the inheritedSecrets snapshot taken when the session
+	// was opened; a rotated secret stays in this process's environment
+	// and can still be echoed by it, so its errors are sanitized with
+	// the values of both then and now.
+	inherited []string
 }
 
 // NewManager creates a new MCP client manager. The ctx bounds
@@ -228,16 +233,23 @@ func (m *Manager) SetInheritedSecrets(fn func() []string) {
 	m.mu.Unlock()
 }
 
-// sanitizeError is sanitizeMCPError with the manager's inherited
-// secrets.
-func (m *Manager) sanitizeError(cfg ServerConfig, err error) string {
+// currentInheritedSecrets reads the inherited secret values as they are
+// now; sessions snapshot this when they open.
+func (m *Manager) currentInheritedSecrets() []string {
 	m.mu.RLock()
 	fn := m.inheritedSecrets
 	m.mu.RUnlock()
-	var inherited []string
-	if fn != nil {
-		inherited = fn()
+	if fn == nil {
+		return nil
 	}
+	return fn()
+}
+
+// sanitizeError is sanitizeMCPError with the session's inherited secret
+// snapshot plus the current values, so neither a rotated nor a fresh
+// secret survives in a published diagnostic.
+func (m *Manager) sanitizeError(cfg ServerConfig, sessionInherited []string, err error) string {
+	inherited := append(slices.Clone(sessionInherited), m.currentInheritedSecrets()...)
 	return sanitizeMCPError(cfg, inherited, err)
 }
 
@@ -469,9 +481,10 @@ type serverDiff struct {
 }
 
 type connectedServer struct {
-	name   string
-	config ServerConfig
-	client *mcp.ClientSession
+	name      string
+	config    ServerConfig
+	client    *mcp.ClientSession
+	inherited []string
 }
 
 // doReload reads MCP config files and performs a differential
@@ -632,6 +645,7 @@ func (m *Manager) connectAll(ctx context.Context, toConnect []ServerConfig, onCo
 	var eg errgroup.Group
 	for _, cfg := range toConnect {
 		eg.Go(func() error {
+			inherited := m.currentInheritedSecrets()
 			c, err := m.connectServer(ctx, cfg)
 			if err != nil {
 				logger.Warn(ctx, "skipping MCP server",
@@ -640,11 +654,11 @@ func (m *Manager) connectAll(ctx context.Context, toConnect []ServerConfig, onCo
 					slog.Error(err),
 				)
 				mu.Lock()
-				failed[cfg.Name] = m.sanitizeError(cfg, err)
+				failed[cfg.Name] = m.sanitizeError(cfg, inherited, err)
 				mu.Unlock()
 				return nil // Don't fail the group.
 			}
-			cs := connectedServer{name: cfg.Name, config: cfg, client: c}
+			cs := connectedServer{name: cfg.Name, config: cfg, client: c, inherited: inherited}
 			mu.Lock()
 			connected = append(connected, cs)
 			mu.Unlock()
@@ -673,14 +687,14 @@ func (m *Manager) publishConnected(ctx context.Context, wanted map[string]Server
 		m.mu.Unlock()
 		return
 	}
-	m.servers[cs.name] = &serverEntry{config: cs.config, client: cs.client}
+	m.servers[cs.name] = &serverEntry{config: cs.config, client: cs.client, inherited: cs.inherited}
 	m.serverGen++
 	m.mu.Unlock()
 
 	res := m.listServerTools(ctx, cs.name, cs.client)
 	st := ServerStatus{Name: cs.name, Connected: res.err == nil, Tools: res.tools}
 	if res.err != nil {
-		st.Err = m.sanitizeError(cs.config, res.err)
+		st.Err = m.sanitizeError(cs.config, cs.inherited, res.err)
 	}
 
 	m.mu.Lock()
@@ -759,8 +773,9 @@ func (m *Manager) installServers(
 		}
 		if cs, ok := newConnected[wantCfg.Name]; ok {
 			newServers[wantCfg.Name] = &serverEntry{
-				config: cs.config,
-				client: cs.client,
+				config:    cs.config,
+				client:    cs.client,
+				inherited: cs.inherited,
 			}
 			if prev, existed := diff.prev[wantCfg.Name]; existed {
 				replaced = append(replaced, prev)
@@ -935,9 +950,10 @@ func (m *Manager) refreshCatalog(
 			st.Warning = warnings[name]
 		case ok:
 			// The listed session may be a retained previous connection,
-			// so its error is sanitized with the config it was opened
-			// with, not the config that failed to replace it.
-			st.Err = m.sanitizeError(servers[name].config, res.err)
+			// so its error is sanitized with the config and inherited
+			// secrets it was opened with, not the config that failed to
+			// replace it.
+			st.Err = m.sanitizeError(servers[name].config, servers[name].inherited, res.err)
 		case connectErrors[name] != "":
 			st.Err = connectErrors[name]
 		default:

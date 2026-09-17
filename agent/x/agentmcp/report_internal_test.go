@@ -257,6 +257,48 @@ func TestReport(t *testing.T) {
 		assert.Contains(t, got.Err, "[redacted]")
 	})
 
+	t.Run("RotatedInheritedSecretRedactedForOpenSession", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		dir := t.TempDir()
+		_, entry := fakeMCPServerConfig(t, "srv")
+		entry.Env["TEST_MCP_FAKE_SERVER_ECHO_ENV"] = "CODER_AGENT_TOKEN"
+		failMarker := filepath.Join(dir, "fail-list")
+		entry.Env["TEST_MCP_FAKE_SERVER_LIST_FAILS_IF_FILE"] = failMarker
+		configPath := writeMCPConfig(t, dir, map[string]mcpServerEntry{"srv": entry})
+		var (
+			tokenMu sync.Mutex
+			token   = "old-token-sentinel"
+		)
+		currentToken := func() string {
+			tokenMu.Lock()
+			defer tokenMu.Unlock()
+			return token
+		}
+		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+		m := NewManager(ctx, logger, agentexec.DefaultExecer, nil, nil, func(env []string) ([]string, error) {
+			return append(env, "CODER_AGENT_TOKEN="+currentToken()), nil
+		}, nil)
+		t.Cleanup(func() { _ = m.Close() })
+		m.SetInheritedSecrets(func() []string { return []string{currentToken()} })
+		require.NoError(t, m.Reload(ctx, []string{configPath}))
+		require.Len(t, m.connectedTools(), 1)
+
+		// The secret rotates while the session keeps the old value in its
+		// environment; a second server forces a full re-list, and the open
+		// session's error echoes the value it was started with.
+		tokenMu.Lock()
+		token = "new-token-sentinel"
+		tokenMu.Unlock()
+		require.NoError(t, os.WriteFile(failMarker, nil, 0o600))
+		writeMCPConfig(t, dir, map[string]mcpServerEntry{"srv": entry, "other": {Command: filepath.Join(dir, "missing-binary")}})
+		require.NoError(t, m.Reload(ctx, []string{configPath}))
+		got := serverByName(t, m.Report(), "srv")
+		assert.False(t, got.Connected)
+		assert.Contains(t, got.Err, "tools/list rejected")
+		assert.NotContains(t, got.Err, "old-token-sentinel")
+	})
+
 	t.Run("ReconnectFailureRetainsClientWithWarning", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
