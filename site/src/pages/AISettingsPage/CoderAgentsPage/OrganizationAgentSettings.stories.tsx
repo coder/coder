@@ -27,12 +27,12 @@ const meta: Meta<typeof OrganizationAgentSettings> = {
 export default meta;
 type Story = StoryObj<typeof OrganizationAgentSettings>;
 
-const defaultModel = {
+const mockDefaultModel = {
 	...MockChatModel,
 	organization_id: MockDefaultOrganization.id,
 	is_default: true,
 };
-const alternateModel = {
+const mockAlternateModel = {
 	...MockChatModel,
 	organization_id: MockDefaultOrganization.id,
 	id: "model-2",
@@ -42,7 +42,7 @@ const alternateModel = {
 
 const mockTwoModelsWithoutOverrides = () => {
 	spyOn(API.experimental, "getChatModels").mockResolvedValue({
-		models: [defaultModel, alternateModel],
+		models: [mockDefaultModel, mockAlternateModel],
 		providers: [MockChatModelProviderDescriptor],
 		unsupported_providers: [],
 	});
@@ -58,12 +58,12 @@ const submitAlternateDefaultModel = async (canvasElement: HTMLElement) => {
 	});
 	await userEvent.click(
 		await within(defaultSection).findByRole("combobox", {
-			name: `Default model, ${defaultModel.display_name}`,
+			name: `Default model, ${mockDefaultModel.display_name}`,
 		}),
 	);
 	await userEvent.click(
 		await screen.findByRole("option", {
-			name: new RegExp(alternateModel.display_name),
+			name: new RegExp(mockAlternateModel.display_name),
 		}),
 	);
 	await userEvent.click(

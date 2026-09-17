@@ -106,7 +106,7 @@ const OrganizationAgentSettingsView: FC<OrganizationAgentSettingsViewProps> = ({
 	return (
 		<div className="flex flex-col gap-6">
 			{error != null && <ErrorAlert error={error} />}
-			{enabledModels.length === 0 && !isLoading && refetchError == null && (
+			{enabledModels.length === 0 && !isLoading && modelsError == null && (
 				<p role="status" className="m-0 text-content-secondary">
 					This organization has no enabled chat models.
 				</p>
