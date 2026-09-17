@@ -44,9 +44,13 @@ func TestValidateOAuth2RedirectURIShape(t *testing.T) {
 			err := codersdk.ValidateOAuth2RedirectURIShape(tc.url)
 			if tc.valid {
 				require.NoError(t, err)
-			} else {
-				require.Error(t, err)
+				return
 			}
+			require.Error(t, err)
+			// Dynamic registration must not store a URI the shape check
+			// rejects, whatever the client type.
+			require.Error(t, codersdk.ValidateRedirectURI(tc.url, codersdk.OAuth2ClientTypeConfidential))
+			require.Error(t, codersdk.ValidateRedirectURI(tc.url, codersdk.OAuth2ClientTypePublic))
 		})
 	}
 }

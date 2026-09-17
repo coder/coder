@@ -103,18 +103,27 @@ func ValidateRedirectURIScheme(u *url.URL) error {
 }
 
 // ValidateOAuth2RedirectURIShape checks that a redirect URI parses, uses an
-// allowed scheme, names a host or a path, and has no fragment. Every stored
-// redirect URI passes this check. The oauth2_callback_url validate tag uses it.
+// allowed scheme, names a host or a path, and has no fragment. Both the admin
+// and dynamic registration paths run this check, so every stored redirect URI
+// passes it. The oauth2_callback_url validate tag uses it.
 func ValidateOAuth2RedirectURIShape(raw string) error {
 	u, err := url.Parse(raw)
 	if err != nil {
 		return xerrors.Errorf("is not a valid URL: %w", err)
 	}
-	if u.Fragment != "" || strings.Contains(raw, "#") {
-		return xerrors.New("must not contain a fragment component")
-	}
 	if err := validateScheme(u); err != nil {
 		return err
+	}
+	return validateParsedRedirectURIShape(raw, u)
+}
+
+// validateParsedRedirectURIShape checks the rules that apply to every
+// client type: no fragment, and a host or a path is present. The caller
+// has already checked the scheme.
+func validateParsedRedirectURIShape(raw string, u *url.URL) error {
+	// Prevent URI fragments (RFC 6749 section 3.1.2).
+	if u.Fragment != "" || strings.Contains(raw, "#") {
+		return xerrors.New("must not contain a fragment component")
 	}
 	if u.Scheme == "urn" {
 		return nil
@@ -248,9 +257,7 @@ func ValidateRedirectURI(uriStr string, clientType OAuth2ClientType) error {
 		// This check runs only for public clients because that is how
 		// custom-scheme validation was scoped before this change, not
 		// because these three schemes are known to be safe for a
-		// confidential client's redirect; confidential clients were
-		// never subject to any scheme-shape check beyond validateScheme
-		// and remain so here.
+		// confidential client's redirect.
 		switch uri.Scheme {
 		case "mailto", "tel", "sms":
 			return xerrors.Errorf("public clients may not use the %s scheme", uri.Scheme)
@@ -264,12 +271,9 @@ func ValidateRedirectURI(uriStr string, clientType OAuth2ClientType) error {
 	// type exists for; PKCE, not the scheme's spelling, is what secures
 	// the redirect.
 
-	// Prevent URI fragments (RFC 6749 section 3.1.2)
-	if uri.Fragment != "" || strings.Contains(uriStr, "#") {
-		return xerrors.New("must not contain a fragment component")
-	}
-
-	return nil
+	// The client type checks above report the more specific error, so the
+	// shared shape rules run last.
+	return validateParsedRedirectURIShape(uriStr, uri)
 }
 
 // validateGrantTypes validates OAuth2 grant types
