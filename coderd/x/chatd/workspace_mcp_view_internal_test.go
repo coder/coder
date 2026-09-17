@@ -167,6 +167,16 @@ func TestBuildWorkspaceMCPView(t *testing.T) {
 		require.Contains(t, summary, "; and 4 more.")
 		require.Equal(t, summaryMaxEntries, strings.Count(summary, "..."), "each listed diagnostic is trimmed once")
 		require.NotContains(t, summary, "srv-11", "entries past the cap are counted, not listed")
+
+		// Names and paths are bounded too, since each source may be 1 KiB.
+		longName := strings.Repeat("n", 1000)
+		single := buildWorkspaceMCPView(
+			database.WorkspaceAgent{ID: agentID, AgentRunID: "run-a"},
+			&database.WorkspaceAgentContextSnapshot{AgentRunID: "run-a", McpDiscoveryPhase: database.WorkspaceAgentMcpDiscoveryPhasePending},
+			[]database.ChatContextResource{mcpServerResource(t, longName, &agentproto.MCPServerBody{ServerName: longName}, database.WorkspaceAgentContextResourceStatusOk)},
+		).Summary()
+		require.Less(t, len(single), 400, "a 1 KiB server name is trimmed")
+		require.Contains(t, single, "...")
 	})
 
 	t.Run("CompleteWithoutIssuesIsNotIncomplete", func(t *testing.T) {

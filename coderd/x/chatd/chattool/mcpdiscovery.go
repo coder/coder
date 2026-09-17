@@ -71,9 +71,13 @@ func WaitForMCPDiscovery(ctx context.Context, db database.Store, agentID uuid.UU
 			snap  database.WorkspaceAgentContextSnapshot
 			err   error
 		)
-		agent, err = db.GetWorkspaceAgentByID(waitCtx, agentID)
+		// Snapshot first, agent row second: a restart between the two
+		// reads then shows up as a mismatch, whereas the reverse order
+		// could pair the previous process's row with its own complete
+		// snapshot and accept it as current.
+		snap, err = db.GetLatestWorkspaceAgentContextSnapshot(waitCtx, agentID)
 		if err == nil {
-			snap, err = db.GetLatestWorkspaceAgentContextSnapshot(waitCtx, agentID)
+			agent, err = db.GetWorkspaceAgentByID(waitCtx, agentID)
 		}
 		switch {
 		case err != nil && !errors.Is(err, sql.ErrNoRows):
@@ -128,11 +132,12 @@ func WaitForMCPDiscovery(ctx context.Context, db database.Store, agentID uuid.UU
 // and false.
 func CurrentMCPDiscovery(ctx context.Context, db database.Store, agentID uuid.UUID) (MCPDiscoveryOutcome, bool) {
 	outcome := MCPDiscoveryOutcome{Phase: codersdk.ChatContextMCPDiscoveryPhaseUnknown}
-	agent, err := db.GetWorkspaceAgentByID(ctx, agentID)
+	// Same read order as the wait loop, for the same reason.
+	snap, err := db.GetLatestWorkspaceAgentContextSnapshot(ctx, agentID)
 	if err != nil {
 		return outcome, false
 	}
-	snap, err := db.GetLatestWorkspaceAgentContextSnapshot(ctx, agentID)
+	agent, err := db.GetWorkspaceAgentByID(ctx, agentID)
 	if err != nil {
 		return outcome, false
 	}

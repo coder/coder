@@ -225,20 +225,26 @@ func (v workspaceMCPView) Incomplete() bool {
 const (
 	summaryMaxEntries         = 8
 	summaryMaxDiagnosticBytes = 200
+	summaryMaxNameBytes       = 120
 )
 
-// summaryDiagnostic trims a diagnostic for the prompt note on a rune
-// boundary.
-func summaryDiagnostic(s string) string {
-	if len(s) <= summaryMaxDiagnosticBytes {
+// summaryTrim trims s to max bytes on a rune boundary.
+func summaryTrim(s string, limit int) string {
+	if len(s) <= limit {
 		return s
 	}
-	cut := summaryMaxDiagnosticBytes
+	cut := limit
 	for cut > 0 && !utf8.RuneStart(s[cut]) {
 		cut--
 	}
 	return s[:cut] + "..."
 }
+
+// summaryDiagnostic trims a diagnostic for the prompt note.
+func summaryDiagnostic(s string) string { return summaryTrim(s, summaryMaxDiagnosticBytes) }
+
+// summaryName trims a server name or config path for the prompt note.
+func summaryName(s string) string { return summaryTrim(s, summaryMaxNameBytes) }
 
 // summaryList joins at most summaryMaxEntries entries and counts the rest.
 func summaryList(entries []string) string {
@@ -268,11 +274,11 @@ func (v workspaceMCPView) Summary() string {
 	for _, s := range v.servers {
 		switch {
 		case s.ok && s.diagnostic != "":
-			usable = append(usable, fmt.Sprintf("%s (%d tools, warning: %s)", s.name, s.toolCount, summaryDiagnostic(s.diagnostic)))
+			usable = append(usable, fmt.Sprintf("%s (%d tools, warning: %s)", summaryName(s.name), s.toolCount, summaryDiagnostic(s.diagnostic)))
 		case s.ok:
-			usable = append(usable, fmt.Sprintf("%s (%d tools)", s.name, s.toolCount))
+			usable = append(usable, fmt.Sprintf("%s (%d tools)", summaryName(s.name), s.toolCount))
 		default:
-			failed = append(failed, fmt.Sprintf("%s (%s)", s.name, summaryDiagnostic(s.diagnostic)))
+			failed = append(failed, fmt.Sprintf("%s (%s)", summaryName(s.name), summaryDiagnostic(s.diagnostic)))
 		}
 	}
 	if len(usable) > 0 {
@@ -284,7 +290,7 @@ func (v workspaceMCPView) Summary() string {
 	if len(v.configs) > 0 {
 		parts := make([]string, 0, len(v.configs))
 		for _, c := range v.configs {
-			parts = append(parts, fmt.Sprintf("%s (%s)", c.path, summaryDiagnostic(c.diagnostic)))
+			parts = append(parts, fmt.Sprintf("%s (%s)", summaryName(c.path), summaryDiagnostic(c.diagnostic)))
 		}
 		sentences = append(sentences, fmt.Sprintf("Invalid MCP config files: %s.", summaryList(parts)))
 	}
