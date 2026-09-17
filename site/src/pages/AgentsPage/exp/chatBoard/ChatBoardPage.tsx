@@ -20,12 +20,7 @@ import {
 import { useNavigate } from "react-router";
 import { toast } from "sonner";
 import { getErrorMessage } from "#/api/errors";
-import {
-	chatSearch,
-	createChat,
-	invalidateChatListQueries,
-	updateChatTitle,
-} from "#/api/queries/chats";
+import { chatSearch, createChat, updateChatTitle } from "#/api/queries/chats";
 import type { Chat } from "#/api/typesGenerated";
 import { useDebouncedValue } from "#/hooks/debounce";
 import { pageTitle } from "#/utils/page";
@@ -42,7 +37,7 @@ import type { DragData } from "./BoardCard";
 import { BoardColumns } from "./BoardColumns";
 import { BoardHeader } from "./BoardHeader";
 import { BoardWindows } from "./BoardWindows";
-import type { Plan } from "./boardApi";
+import { effortsOf, type Plan } from "./boardApi";
 import { boardChats, updateChatLabels } from "./boardChats";
 import {
 	boardCollision,
@@ -65,6 +60,8 @@ import {
 	saveBoardStorage,
 } from "./boardStorage";
 import { DragGhost } from "./DragGhost";
+import { EffortFilter } from "./EffortFilter";
+import { refetchChatListUntilLanded } from "./refreshChatList";
 import { runPlan } from "./runPlan";
 import {
 	changeWindow,
@@ -200,8 +197,21 @@ const ChatBoardPage: FC = () => {
 	);
 	useEffect(() => {
 		if (!boardAssistantActive) return;
-		return () => void invalidateChatListQueries(queryClient);
+		return () => void refetchChatListUntilLanded(queryClient);
 	}, [boardAssistantActive, queryClient]);
+	const efforts = effortsOf(allCards);
+	// A stored filter whose last card lost the effort falls back to All; once
+	// the list is loaded that is known for sure and the filter is cleared.
+	const effortFilter = efforts.some((e) => e.name === storage.effortFilter)
+		? storage.effortFilter
+		: null;
+	if (
+		storage.effortFilter !== null &&
+		effortFilter === null &&
+		chatsQuery.data !== undefined
+	) {
+		updateStorage({ effortFilter: null });
+	}
 	const matchingIds =
 		debouncedSearch && searchQuery.data
 			? new Set(searchQuery.data.map((chat) => chat.id))
@@ -209,7 +219,9 @@ const ChatBoardPage: FC = () => {
 	const visibleColumns = columns.map((column) => ({
 		...column,
 		cards: column.cards.filter(
-			(card) => !matchingIds || card.members.some((m) => matchingIds.has(m.id)),
+			(card) =>
+				(!matchingIds || card.members.some((m) => matchingIds.has(m.id))) &&
+				(effortFilter === null || card.efforts.includes(effortFilter)),
 		),
 	}));
 	const visibleCount = visibleColumns.reduce((n, c) => n + c.cards.length, 0);
@@ -323,6 +335,12 @@ const ChatBoardPage: FC = () => {
 				}}
 				onAssistant={openBoardAssistant}
 			/>
+			<EffortFilter
+				efforts={efforts}
+				cardCount={allCards.length}
+				value={effortFilter}
+				onChange={(effort) => updateStorage({ effortFilter: effort })}
+			/>
 			{chatsQuery.isError && (
 				<p className="m-0 px-3 py-2 text-sm text-content-destructive">
 					Failed to load chats.
@@ -342,6 +360,7 @@ const ChatBoardPage: FC = () => {
 					run={run}
 					openChatIds={openChatIds}
 					dropTarget={dropTarget}
+					knownEfforts={efforts.map((e) => e.name)}
 					onAssistant={(card) => void openCardAssistant(card)}
 					onNewChat={openDraft}
 					onOpen={openChat}

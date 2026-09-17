@@ -14,6 +14,7 @@ import {
 	setColorLabel,
 	setColumnLabel,
 	setCommentsLabels,
+	setEffortsLabels,
 	setGroupLabel,
 	setPositionLabel,
 	setTitleLabel,
@@ -151,6 +152,7 @@ export const mergeCards = (
 		placementKey(target.primary),
 	);
 	if (!keep.color && join.color) labels = setColorLabel(labels, join.color);
+	labels = setEffortsLabels(labels, [...keep.efforts, ...join.efforts]);
 	let index = nextCommentIndex(keep.comments);
 	const carried = join.comments.map((c) => [c.text, c.timestamp] as const);
 	if (getTitleLabel(join.primary) && getTitleLabel(keep.primary)) {
@@ -371,6 +373,29 @@ export const setCardColor = (
 	primaryWrite(state, cardId, (card) =>
 		setColorLabel(card.primary.labels, color),
 	);
+
+export const setCardEfforts = (
+	state: BoardState,
+	cardId: string,
+	names: readonly string[],
+): Plan | null =>
+	primaryWrite(state, cardId, (card) =>
+		setEffortsLabels(card.primary.labels, names),
+	);
+
+/** An effort on the board and how many cards carry it. */
+export type EffortCount = Readonly<{ name: string; count: number }>;
+
+/** Every effort on the board with its card count, in order of first appearance. */
+export const effortsOf = (cards: readonly BoardCard[]): EffortCount[] => {
+	const counts = new Map<string, number>();
+	for (const card of cards) {
+		for (const name of card.efforts) {
+			counts.set(name, (counts.get(name) ?? 0) + 1);
+		}
+	}
+	return [...counts].map(([name, count]) => ({ name, count }));
+};
 
 // A single chat's card title is the chat title, so renaming the card renames
 // the chat. A group has its own title label.

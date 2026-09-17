@@ -41,12 +41,15 @@ export type BoardStorage = Readonly<{
 	emptyColumns: readonly string[];
 	/** Chat windows, back to front. */
 	windows: readonly ChatWindow[];
+	/** The effort whose cards are shown; null shows every card. */
+	effortFilter: string | null;
 }>;
 
 const DEFAULT_STORAGE: BoardStorage = {
 	columnOrder: [],
 	emptyColumns: [],
 	windows: [],
+	effortFilter: null,
 };
 
 const isStringArray = (value: unknown): value is string[] =>
@@ -94,6 +97,8 @@ export const readBoardStorage = (): BoardStorage => {
 			windows: Array.isArray(obj.windows)
 				? obj.windows.flatMap((w) => readChatWindow(w) ?? [])
 				: [],
+			effortFilter:
+				typeof obj.effortFilter === "string" ? obj.effortFilter : null,
 		};
 	} catch {
 		return DEFAULT_STORAGE;

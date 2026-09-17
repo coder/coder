@@ -8,6 +8,7 @@ import {
 	cardContext,
 	deleteColumn,
 	detachChat,
+	effortsOf,
 	joinCard,
 	mergeCards,
 	moveCard,
@@ -20,6 +21,7 @@ import {
 	renameChat,
 	renameColumn,
 	setCardColor,
+	setCardEfforts,
 } from "./boardApi";
 import { addCommentLabels, buildCards, buildColumns } from "./boardLabels";
 import type { BoardStorage } from "./boardStorage";
@@ -40,6 +42,7 @@ const stateOf = (
 		columnOrder: [],
 		emptyColumns: [],
 		windows: [],
+		effortFilter: null,
 		...storage,
 	};
 	return {
@@ -451,5 +454,68 @@ describe("boardApi", () => {
 		const [bare] = buildCards([chat("s")]);
 		if (!bare) throw new Error("card missing");
 		expect(cardContext(bare)).toContain("Notes: none\n");
+	});
+
+	it("setCardEfforts writes the renumbered list on the primary", () => {
+		const state = stateOf([
+			chat("p", { "board/effort.3": "old", "board/title": "T" }),
+		]);
+
+		expect(written(setCardEfforts(state, "p", ["Q3", "This week"]))).toEqual({
+			p: {
+				"board/title": "T",
+				"board/effort.0": "Q3",
+				"board/effort.1": "This week",
+			},
+		});
+		expect(setCardEfforts(state, "nope", [])).toBeNull();
+	});
+
+	it("mergeCards unions efforts, kept primary first, without repeats", () => {
+		const state = stateOf([
+			chat("t", { "board/pos": "200", "board/effort.0": "Q3" }),
+			chat("s", {
+				"board/pos": "100",
+				"board/effort.0": "This week",
+				"board/effort.1": "Q3",
+			}),
+		]);
+
+		expect(written(mergeCards(state, "s", "t")).t).toMatchObject({
+			"board/effort.0": "Q3",
+			"board/effort.1": "This week",
+		});
+		expect(written(mergeCards(state, "s", "t")).s).not.toHaveProperty(
+			"board/effort.0",
+		);
+	});
+
+	it("a primary handing off its card passes the efforts on", () => {
+		const state = stateOf([
+			chat("p", { "board/effort.0": "Q3", "board/pos": "400000" }),
+			chat("a", { "board/group": "p" }),
+		]);
+
+		const plan = written(detachChat(state, "p", "Inbox", null));
+		expect(plan.a).toMatchObject({ "board/effort.0": "Q3" });
+		expect(plan.p).not.toHaveProperty("board/effort.0");
+	});
+
+	it("effortsOf counts cards per effort in order of first appearance", () => {
+		const cards = buildCards([
+			chat("a", { "board/pos": "300", "board/effort.0": "Q3" }),
+			chat("b", {
+				"board/pos": "200",
+				"board/effort.0": "This week",
+				"board/effort.1": "Q3",
+			}),
+			chat("c", { "board/pos": "100" }),
+		]);
+
+		expect(effortsOf(cards)).toEqual([
+			{ name: "Q3", count: 2 },
+			{ name: "This week", count: 1 },
+		]);
+		expect(effortsOf([])).toEqual([]);
 	});
 });

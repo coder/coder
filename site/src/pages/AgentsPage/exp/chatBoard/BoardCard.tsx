@@ -6,6 +6,7 @@ import {
 	MessageSquareIcon,
 	MessageSquarePlusIcon,
 	PencilIcon,
+	TagsIcon,
 	UngroupIcon,
 } from "lucide-react";
 import { type FC, type RefObject, useState } from "react";
@@ -20,6 +21,7 @@ import type {
 	CardColor,
 } from "./boardLabels";
 import { CardColorPicker } from "./CardColorPicker";
+import { CardEffortsMenu } from "./CardEffortsMenu";
 import { ChatInfoPopover } from "./ChatInfo";
 import { ChatStatusLine } from "./ChatStatusLine";
 import { cardAccent, cardTint } from "./cardColor";
@@ -63,8 +65,11 @@ interface BoardCardProps extends ChatOpenHandlers {
 	readonly isMergeTarget: boolean;
 	/** A dragged note hovering one of this card's notes. */
 	readonly noteDrop: NoteSlot | undefined;
+	/** Every effort on the board, offered as checkboxes. */
+	readonly knownEfforts: readonly string[];
 	readonly onSetTitle: (title: string) => void;
 	readonly onSetColor: (color: CardColor | undefined) => void;
+	readonly onSetEfforts: (names: readonly string[]) => void;
 	readonly onRenameChat: (chat: Chat, title: string) => void;
 	readonly onAssistant: () => void;
 	readonly onNewChat: () => void;
@@ -79,8 +84,10 @@ export const BoardCard: FC<BoardCardProps> = ({
 	openChatIds,
 	isMergeTarget,
 	noteDrop,
+	knownEfforts,
 	onSetTitle,
 	onSetColor,
+	onSetEfforts,
 	onRenameChat,
 	onAssistant,
 	onNewChat,
@@ -114,6 +121,7 @@ export const BoardCard: FC<BoardCardProps> = ({
 		setDropRef(el);
 	};
 	const [renaming, setRenaming] = useState(false);
+	const [editingEfforts, setEditingEfforts] = useState(false);
 
 	const single = card.members.length === 1;
 	const lead = card.primary;
@@ -183,42 +191,67 @@ export const BoardCard: FC<BoardCardProps> = ({
 					}}
 					onCancel={() => setRenaming(false)}
 				/>
-				<div className="flex h-[19px] items-center gap-1.5">
-					{single ? (
-						<>
-							{lead.has_unread && <UnreadDot />}
-							<Age at={lead.updated_at} />
-							<ChatInfoPopover chat={lead} />
-							<ChatOpener
-								chat={lead}
-								onOpen={open}
-								onPreview={preview}
-								onPreviewEnd={onPreviewEnd}
-							/>
-						</>
-					) : (
-						<span className="text-[11px] text-content-secondary/70">
-							{card.members.length} chats
-						</span>
-					)}
-					<ActionsMenu
-						label={card.title}
-						permanent
-						items={[
-							{ label: "Assistant", icon: BotIcon, onSelect: onAssistant },
-							{
-								label: "New chat in card",
-								icon: MessageSquarePlusIcon,
-								onSelect: onNewChat,
-							},
-							{
-								label: "Rename",
-								icon: PencilIcon,
-								onSelect: () => setRenaming(true),
-							},
-						]}
-					/>
-				</div>
+				<CardEffortsMenu
+					open={editingEfforts}
+					onOpenChange={setEditingEfforts}
+					selected={card.efforts}
+					known={knownEfforts}
+					onChange={onSetEfforts}
+				>
+					<div className="flex h-[19px] items-center gap-1.5">
+						{single ? (
+							<>
+								{lead.has_unread && <UnreadDot />}
+								<Age at={lead.updated_at} />
+								<ChatInfoPopover chat={lead} />
+								<ChatOpener
+									chat={lead}
+									onOpen={open}
+									onPreview={preview}
+									onPreviewEnd={onPreviewEnd}
+								/>
+							</>
+						) : (
+							<span className="text-[11px] text-content-secondary/70">
+								{card.members.length} chats
+							</span>
+						)}
+						<ActionsMenu
+							label={card.title}
+							permanent
+							items={[
+								{ label: "Assistant", icon: BotIcon, onSelect: onAssistant },
+								{
+									label: "New chat in card",
+									icon: MessageSquarePlusIcon,
+									onSelect: onNewChat,
+								},
+								{
+									label: "Efforts",
+									icon: TagsIcon,
+									onSelect: () => setEditingEfforts(true),
+								},
+								{
+									label: "Rename",
+									icon: PencilIcon,
+									onSelect: () => setRenaming(true),
+								},
+							]}
+						/>
+					</div>
+				</CardEffortsMenu>
+				{card.efforts.length > 0 && (
+					<div className="col-start-2 col-end-[-1] mt-1 flex flex-wrap gap-1">
+						{card.efforts.map((name) => (
+							<span
+								key={name}
+								className="rounded-full bg-content-primary/5 px-1.5 text-[11px] leading-4 text-content-secondary"
+							>
+								{name}
+							</span>
+						))}
+					</div>
+				)}
 				{single && (
 					<div className="col-start-2 col-end-[-1] mt-0.5">
 						<ChatStatusLine chat={lead} />
