@@ -21,7 +21,7 @@ on:
   #   apply step and SHA/title gathering are gated on main.
   #
   #   Pushes to main: `build_image` retags rolling tags on
-  #   `codercom/oss-dogfood` (`:latest`, `:22.04`, `:26.04`) and
+  #   `codercom/oss-dogfood` (`:latest`, `:26.04`) and
   #   `codercom/oss-dogfood-vscode-coder` (`:latest`), plus a
   #   per-branch tag on each. The image-tooling validation runs as
   #   above before any push, so a broken image never reaches Docker
@@ -39,7 +39,6 @@ on:
       - "mise.toml"
       - "mise.lock"
       - "scripts/dogfood/**"
-      - "scripts/dogfood_test_image.sh"
   pull_request:
     paths:
       - "dogfood/**"
@@ -47,7 +46,6 @@ on:
       - "mise.toml"
       - "mise.lock"
       - "scripts/dogfood/**"
-      - "scripts/dogfood_test_image.sh"
   workflow_dispatch:
 
 permissions:
@@ -58,7 +56,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        image-version: ["22.04", "26.04"]
+        image-version: ["26.04"]
 
     if: github.actor != 'dependabot[bot]' # Skip Dependabot PRs
     runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
@@ -70,7 +68,7 @@ jobs:
       MISE_EXPERIMENTAL: "1"
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@05e31511f85b41b11d1cf0ef85d0992719546e2c # v2.21.0
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
         with:
           egress-policy: audit
 
@@ -79,7 +77,7 @@ jobs:
         with:
           # Depth 2 makes the PR merge commit's first parent (the base
           # branch tip) available so lint/emdash, run inside the image via
-          # scripts/dogfood_test_image.sh, can diff against HEAD^1 without
+          # scripts/dogfood/test_image.sh, can diff against HEAD^1 without
           # fetching the base branch at runtime.
           fetch-depth: 2
           persist-credentials: false
@@ -147,7 +145,7 @@ jobs:
           token: ${{ secrets.DEPOT_TOKEN }}
           buildx-fallback: true
           # Context is the repo root so Dockerfile.base can COPY the
-          # distro-specific files/ tree and configure-chrome-flags.sh.
+          # distro-specific files/ tree.
           context: "{{defaultContext}}"
           file: dogfood/coder/ubuntu-${{ matrix.image-version }}/Dockerfile.base
           pull: true
@@ -204,27 +202,7 @@ jobs:
         if: ${{ !github.event.pull_request.head.repo.fork }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: ./scripts/dogfood_test_image.sh "dogfood-test:${{ matrix.image-version }}"
-
-      - name: Push final Ubuntu 22.04 image
-        if: matrix.image-version == '22.04' && github.ref == 'refs/heads/main'
-        env:
-          FINAL_SHA: ${{ steps.shas.outputs.final_sha }}
-          DOCKER_TAG: ${{ steps.docker-tag-name.outputs.tag }}
-        # --image-dir points at the OCI layout written by the previous
-        # `mise oci build` step. Without it, `mise oci push` rebuilds
-        # from mise.toml and forgets the --from base. --tool crane
-        # forces the registry client mise oci shells out to, so we
-        # don't drift between the apt-shipped skopeo on whatever runner
-        # image we land on.
-        # TODO: move the `latest` tag to 26.04 soon. we don't want to
-        # transition it immediately because that would make workspaces
-        # switch to it automatically without any grace period.
-        run: |
-          set -euo pipefail
-          for tag in "${FINAL_SHA}-22.04" "$DOCKER_TAG" 22.04 latest; do
-            mise oci push --tool crane --image-dir ./mise-oci "codercom/oss-dogfood:$tag"
-          done
+        run: ./scripts/dogfood/test_image.sh "dogfood-test:${{ matrix.image-version }}"
 
       - name: Push final Ubuntu 26.04 image
         if: matrix.image-version == '26.04' && github.ref == 'refs/heads/main'
@@ -233,7 +211,7 @@ jobs:
           DOCKER_TAG: ${{ steps.docker-tag-name.outputs.tag }}
         run: |
           set -euo pipefail
-          for tag in "${FINAL_SHA}-26.04" "$DOCKER_TAG" 26.04; do
+          for tag in "${FINAL_SHA}-26.04" "$DOCKER_TAG" 26.04 latest; do
             mise oci push --tool crane --image-dir ./mise-oci "codercom/oss-dogfood:$tag"
           done
 
@@ -248,7 +226,7 @@ jobs:
           save: true
           push: ${{ github.ref == 'refs/heads/main' }}
           tags: "codercom/oss-dogfood-vscode-coder:${{ steps.docker-tag-name.outputs.tag }},codercom/oss-dogfood-vscode-coder:latest"
-        if: matrix.image-version == '22.04'
+        if: matrix.image-version == '26.04'
 
   deploy_template:
     needs: build_image
@@ -258,7 +236,7 @@ jobs:
       id-token: write
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@05e31511f85b41b11d1cf0ef85d0992719546e2c # v2.21.0
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
         with:
           egress-policy: audit
 

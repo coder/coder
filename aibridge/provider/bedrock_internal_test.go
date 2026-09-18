@@ -482,30 +482,6 @@ func TestBedrock_CircuitBreakerOpenErrorResponse(t *testing.T) {
 	assert.Equal(t, "service_unavailable", openAIEnvelope.Error.Code)
 }
 
-func TestBedrock_TypeAndName(t *testing.T) {
-	t.Parallel()
-
-	p := newTestBedrock(t, config.Anthropic{}, config.AWSBedrock{
-		Region:          "us-west-2",
-		AccessKey:       "test-key",
-		AccessKeySecret: "test-secret",
-		Model:           "m",
-		SmallFastModel:  "s",
-	})
-	assert.Equal(t, config.ProviderBedrock, p.Type())
-	assert.Equal(t, config.ProviderBedrock, p.Name())
-
-	p2 := newTestBedrock(t, config.Anthropic{Name: "bedrock-custom"}, config.AWSBedrock{
-		Region:          "us-west-2",
-		AccessKey:       "test-key",
-		AccessKeySecret: "test-secret",
-		Model:           "m",
-		SmallFastModel:  "s",
-	})
-	assert.Equal(t, config.ProviderBedrock, p2.Type())
-	assert.Equal(t, "bedrock-custom", p2.Name())
-}
-
 func TestBedrock_KeyPool(t *testing.T) {
 	t.Parallel()
 

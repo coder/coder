@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database"
@@ -70,4 +71,36 @@ func (tx *DBTx) Done() error {
 
 	close(tx.done)
 	return <-tx.finalErr
+}
+
+var errRollbackTestTx = xerrors.New("roll back test transaction")
+
+// StartRolledBackTx returns a Store bound to a transaction that is rolled back
+// when the test finishes. It lets parallel subtests that only need query
+// isolation share one database instead of creating one each.
+func StartRolledBackTx(t testing.TB, db database.Store) database.Store {
+	t.Helper()
+	done := make(chan struct{})
+	txC := make(chan database.Store, 1)
+	errC := make(chan error, 1)
+
+	go func() {
+		errC <- db.InTx(func(tx database.Store) error {
+			txC <- tx
+			<-done
+			return errRollbackTestTx
+		}, nil)
+	}()
+
+	var tx database.Store
+	select {
+	case tx = <-txC:
+	case err := <-errC:
+		require.NoError(t, err, "start transaction")
+	}
+	t.Cleanup(func() {
+		close(done)
+		assert.ErrorIs(t, <-errC, errRollbackTestTx)
+	})
+	return tx
 }

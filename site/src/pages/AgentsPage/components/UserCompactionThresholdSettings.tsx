@@ -29,13 +29,23 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { formatContextLimit } from "#/modules/aiModels/ModelSelector";
 import { ProviderIcon } from "#/modules/aiModels/ProviderIcon";
 import { formatProviderLabel } from "#/utils/aiProviders";
+import {
+	compactionTriggerTokens,
+	resolveCompactionContextLimit,
+} from "../utils/modelOptions";
 
 interface UserCompactionThresholdSettingsProps {
 	models: readonly TypesGen.ChatModel[];
 	providerTypeByID: ReadonlyMap<string, string>;
 	organizations: readonly TypesGen.Organization[];
+	/**
+	 * Organization ID to the model config the organization routes compaction
+	 * through. Missing entries mean the chat model summarizes itself.
+	 */
+	compactionModelIDByOrganization?: ReadonlyMap<string, string>;
 	modelsError?: unknown;
 	isLoadingModels?: boolean;
 	thresholds: readonly TypesGen.UserChatCompactionThreshold[] | undefined;
@@ -47,6 +57,8 @@ interface UserCompactionThresholdSettingsProps {
 	) => Promise<unknown>;
 	onResetThreshold: (modelId: string) => Promise<unknown>;
 }
+
+const noCompactionOverrides: ReadonlyMap<string, string> = new Map();
 
 const parseThresholdDraft = (value: string): number | null => {
 	const trimmedValue = value.trim();
@@ -80,6 +92,7 @@ export const UserCompactionThresholdSettings: FC<
 	models,
 	providerTypeByID,
 	organizations,
+	compactionModelIDByOrganization = noCompactionOverrides,
 	modelsError,
 	isLoadingModels,
 	thresholds,
@@ -330,6 +343,7 @@ export const UserCompactionThresholdSettings: FC<
 						<TableHeader>
 							<TableRow>
 								<TableHead className="text-content-secondary">Model</TableHead>
+								<TableHead className="w-0 whitespace-nowrap">Context</TableHead>
 								<TableHead className="w-0 whitespace-nowrap">Default</TableHead>
 								<TableHead className="w-0 whitespace-nowrap">
 									Threshold
@@ -361,6 +375,21 @@ export const UserCompactionThresholdSettings: FC<
 								const organizationName =
 									organizationNameByID.get(modelConfig.organization_id) ??
 									modelConfig.organization_id;
+								// Prefer the typed draft so the trigger point tracks
+								// what the user is about to save.
+								const effectiveThreshold =
+									parsedDraftValue ??
+									existingOverride ??
+									modelConfig.compression_threshold;
+								const contextLimit = resolveCompactionContextLimit(
+									modelConfig,
+									models,
+									compactionModelIDByOrganization,
+								);
+								const triggerTokens = compactionTriggerTokens(
+									contextLimit,
+									effectiveThreshold,
+								);
 
 								return (
 									<TableRow key={modelConfig.id}>
@@ -386,6 +415,20 @@ export const UserCompactionThresholdSettings: FC<
 												>
 													{rowError}
 												</p>
+											)}
+										</TableCell>
+										<TableCell className="w-0 whitespace-nowrap tabular-nums">
+											{contextLimit > 0 ? (
+												<div className="flex flex-col">
+													<span>{formatContextLimit(contextLimit)} tokens</span>
+													{triggerTokens !== undefined && (
+														<span className="text-2xs text-content-secondary">
+															Compacts at ~{formatContextLimit(triggerTokens)}
+														</span>
+													)}
+												</div>
+											) : (
+												<span className="text-content-secondary">Unknown</span>
 											)}
 										</TableCell>
 										<TableCell className="w-0 whitespace-nowrap tabular-nums">
@@ -484,7 +527,7 @@ export const UserCompactionThresholdSettings: FC<
 						</TableBody>
 						<TableFooter className="bg-transparent">
 							<TableRow className="border-0">
-								<TableCell colSpan={3} className="border-0 p-0">
+								<TableCell colSpan={4} className="border-0 p-0">
 									<div className="mt-2 flex h-6 items-center justify-end gap-2 px-3">
 										{isSavedVisible ? (
 											<TemporarySavedState />

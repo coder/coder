@@ -3159,6 +3159,13 @@ func (s *MethodTestSuite) TestUser() {
 		dbm.EXPECT().UpdateUserDeletedByID(gomock.Any(), u.ID).Return(nil).AnyTimes()
 		check.Args(u.ID).Asserts(u, policy.ActionDelete).Returns()
 	}))
+	s.Run("UpdateUserEmail", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		u := testutil.Fake(s.T(), faker, database.User{})
+		arg := database.UpdateUserEmailParams{OldEmail: u.Email, NewEmail: "new@example.com", UpdatedAt: u.UpdatedAt}
+		dbm.EXPECT().GetUserByEmailOrUsername(gomock.Any(), database.GetUserByEmailOrUsernameParams{Email: u.Email}).Return(u, nil).AnyTimes()
+		dbm.EXPECT().UpdateUserEmail(gomock.Any(), arg).Return(u, nil).AnyTimes()
+		check.Args(arg).Asserts(u, policy.ActionUpdate).Returns(u)
+	}))
 	s.Run("UpdateUserGithubComUserID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		u := testutil.Fake(s.T(), faker, database.User{})
 		arg := database.UpdateUserGithubComUserIDParams{ID: u.ID}
@@ -7115,6 +7122,23 @@ func (s *MethodTestSuite) TestAIBridge() {
 			Returns([]database.ExportOrganizationAISpendRow{row1, row2})
 	}))
 
+	s.Run("ListOrganizationAISpendUsers", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		org := testutil.Fake(s.T(), faker, database.Organization{})
+		row1 := testutil.Fake(s.T(), faker, database.ListOrganizationAISpendUsersRow{OrganizationID: org.ID})
+		row2 := testutil.Fake(s.T(), faker, database.ListOrganizationAISpendUsersRow{OrganizationID: org.ID})
+		arg := database.ListOrganizationAISpendUsersParams{
+			OrganizationID: org.ID,
+			PeriodStart:    time.Now().UTC().Truncate(24 * time.Hour),
+			PeriodEnd:      time.Now().UTC(),
+			LimitOpt:       10,
+		}
+		dbm.EXPECT().ListOrganizationAISpendUsers(gomock.Any(), arg).
+			Return([]database.ListOrganizationAISpendUsersRow{row1, row2}, nil).AnyTimes()
+		check.Args(arg).
+			Asserts(rbac.ResourceGroupMember.InOrg(org.ID), policy.ActionRead).
+			Returns([]database.ListOrganizationAISpendUsersRow{row1, row2})
+	}))
+
 	s.Run("GetGroupAIBudget", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		g := testutil.Fake(s.T(), faker, database.Group{})
 		b := testutil.Fake(s.T(), faker, database.GroupAIBudget{GroupID: g.ID})
@@ -7229,6 +7253,13 @@ func (s *MethodTestSuite) TestAIBridge() {
 		provider := testutil.Fake(s.T(), faker, database.AIProvider{})
 		dbm.EXPECT().GetAIProviderByName(gomock.Any(), provider.Name).Return(provider, nil).AnyTimes()
 		check.Args(provider.Name).Asserts(rbac.ResourceAIProvider, policy.ActionRead).Returns(provider)
+	}))
+	s.Run("GetAIProviderFilterOptions", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		options := []database.GetAIProviderFilterOptionsRow{
+			testutil.Fake(s.T(), faker, database.GetAIProviderFilterOptionsRow{}),
+		}
+		dbm.EXPECT().GetAIProviderFilterOptions(gomock.Any()).Return(options, nil).AnyTimes()
+		check.Args().Asserts(rbac.ResourceAibridgeInterception, policy.ActionRead).Returns(options)
 	}))
 	s.Run("GetAIProviders", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		providerA := testutil.Fake(s.T(), faker, database.AIProvider{})
@@ -7743,8 +7774,14 @@ func TestAsChatd(t *testing.T) {
 			require.NoError(t, err, "workspace %s should be allowed", action)
 		}
 
+		// Dormant (including dormancy-deleted) chat workspaces must stay
+		// readable so tools can report their state instead of a
+		// permission failure.
+		err := auth.Authorize(ctx, actor, policy.ActionRead, rbac.ResourceWorkspaceDormant)
+		require.NoError(t, err, "dormant workspace read should be allowed")
+
 		// DeploymentConfig reads are allowed, but writes are not.
-		err := auth.Authorize(ctx, actor, policy.ActionRead, rbac.ResourceDeploymentConfig)
+		err = auth.Authorize(ctx, actor, policy.ActionRead, rbac.ResourceDeploymentConfig)
 		require.NoError(t, err, "deployment config read should be allowed")
 		err = auth.Authorize(ctx, actor, policy.ActionUpdate, rbac.ResourceDeploymentConfig)
 		require.Error(t, err, "deployment config update should not be allowed")
@@ -7775,6 +7812,15 @@ func TestAsChatd(t *testing.T) {
 		// Cannot delete workspaces.
 		err := auth.Authorize(ctx, actor, policy.ActionDelete, rbac.ResourceWorkspace)
 		require.Error(t, err, "workspace delete should be denied")
+
+		// Dormant workspaces are read-only for chatd; starting one runs
+		// under the owner actor.
+		for _, action := range []policy.Action{
+			policy.ActionUpdate, policy.ActionDelete, policy.ActionWorkspaceStop,
+		} {
+			err = auth.Authorize(ctx, actor, action, rbac.ResourceWorkspaceDormant)
+			require.Error(t, err, "dormant workspace %s should be denied", action)
+		}
 
 		// Cannot access users.
 		err = auth.Authorize(ctx, actor, policy.ActionRead, rbac.ResourceUser)

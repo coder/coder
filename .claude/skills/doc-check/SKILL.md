@@ -25,10 +25,13 @@ writing them.
    - For local changes: `git diff main` or `git diff --staged`
    - For a branch: `git diff main...<branch>`
 
-2. **Triage the diff.** Walk the
+2. **Triage the diff.** Check the changed paths against
+   [`path-priors.md`](./path-priors.md) for what they predict, then walk the
    [quick decision checklist](../../../docs/.style/content-guidelines.md#quick-decision-checklist)
    in the content guidelines. Most non-user-facing diffs route out of
    the docs entirely; see [What not to comment on](#what-not-to-comment-on).
+   A prior sets the starting assumption, not the verdict: verify it against
+   the diff either way.
 
 3. **Understand the scope.** Consider what changed:
    - Is this user-facing or internal?
@@ -194,7 +197,11 @@ find this comment.
 ## What not to comment on
 
 Do not produce sticky-comment suggestions for these classes of change.
-They have no user-visible documentation surface.
+They have no user-visible documentation surface. When every changed file
+falls in one of these classes, CI skips the review before this skill
+runs, so a diff in front of you has already passed that gate or a
+maintainer forced the review with the `doc-check` label. See
+[`path-priors.md`](./path-priors.md).
 
 - **Auto-generated CLI docs** under `docs/reference/cli/`. These are
   generated from Go code under `cli/`; suggest edits to the CLI

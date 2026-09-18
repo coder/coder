@@ -19,6 +19,7 @@ import (
 	"github.com/coder/coder/v2/aibridge"
 	"github.com/coder/coder/v2/aibridge/keypool"
 	"github.com/coder/coder/v2/aibridge/mcp"
+	"github.com/coder/coder/v2/aibridge/recorder"
 	"github.com/coder/coder/v2/aibridge/tracing"
 	"github.com/coder/quartz"
 )
@@ -169,16 +170,9 @@ func (p *CachedBridgePool) loadProviders() []aibridge.Provider {
 	return nil
 }
 
-// KeyPools returns the key pools of the current live providers.
+// KeyPools returns the non-nil key pools of the current providers.
 func (p *CachedBridgePool) KeyPools() []*keypool.Pool {
-	providers := p.loadProviders()
-	pools := make([]*keypool.Pool, 0, len(providers))
-	for _, prov := range providers {
-		if pool := prov.KeyPool(); pool != nil {
-			pools = append(pools, pool)
-		}
-	}
-	return pools
+	return aibridge.CollectKeyPools(p.loadProviders())
 }
 
 // Acquire retrieves or creates a [*aibridge.RequestBridge] instance per given key.
@@ -228,7 +222,7 @@ func (p *CachedBridgePool) Acquire(ctx context.Context, req Request, clientFn Cl
 
 	span.AddEvent("cache_miss")
 	providerVersion := p.providerVersion.Load()
-	recorder := aibridge.NewRecorder(
+	rec := aibridge.NewRecorder(
 		p.logger.Named("recorder"),
 		p.tracer,
 		func(clientCtx context.Context) (aibridge.Recorder, error) {
@@ -239,7 +233,7 @@ func (p *CachedBridgePool) Acquire(ctx context.Context, req Request, clientFn Cl
 				return nil, xerrors.Errorf("acquire client: %w", err)
 			}
 
-			return &DRPCRecorder{apiKeyID: req.APIKeyID, client: client}, nil
+			return recorder.NewDRPCRecorder(req.APIKeyID, client), nil
 		},
 	)
 
@@ -266,7 +260,16 @@ func (p *CachedBridgePool) Acquire(ctx context.Context, req Request, clientFn Cl
 			}
 		}
 
-		bridge, err := aibridge.NewRequestBridge(ctx, p.loadProviders(), recorder, mcpServers, p.logger, p.metrics, p.tracer, aibridge.WithClock(p.clock))
+		bridge, err := aibridge.NewRequestBridge(
+			ctx,
+			p.loadProviders(),
+			rec,
+			mcpServers,
+			p.logger,
+			p.metrics,
+			p.tracer,
+			aibridge.WithClock(p.clock),
+		)
 		if err != nil {
 			return nil, xerrors.Errorf("create new request bridge: %w", err)
 		}

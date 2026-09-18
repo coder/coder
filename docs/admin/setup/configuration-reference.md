@@ -418,6 +418,15 @@ Force chat debug logging on for every chat, bypassing the runtime admin and user
 - YAML key: `chat.debugLoggingEnabled`
 - Default value: `false`
 
+### Stream silence timeout
+
+Maximum time to wait for the next streamed part from the chat model before the attempt is canceled and retried. This also bounds the time to first token. Set to 0 to disable. Must be no more than 24h.
+
+- Environment variable: `CODER_CHAT_STREAM_SILENCE_TIMEOUT`
+- CLI flag: [`--chat-stream-silence-timeout`](../../reference/cli/server.md#--chat-stream-silence-timeout)
+- YAML key: `chat.streamSilenceTimeout`
+- Default value: `10m0s`
+
 ## Client
 
 These options change the behavior of how clients interact with the Coder. Clients include the Coder CLI, Coder Desktop, IDE extensions, and the web UI.
@@ -1308,7 +1317,7 @@ The endpoint to which to send webhooks.
 
 ## OAuth2
 
-Configure login and user-provisioning with GitHub via oAuth2.
+Configure OAuth2: GitHub login and user-provisioning, and Coder's own OAuth 2.1 authorization server.
 
 ### GitHub
 
@@ -1384,6 +1393,17 @@ Base URL of a GitHub Enterprise deployment to use for Login with GitHub.
 - Environment variable: `CODER_OAUTH2_GITHUB_ENTERPRISE_BASE_URL`
 - CLI flag: [`--oauth2-github-enterprise-base-url`](../../reference/cli/server.md#--oauth2-github-enterprise-base-url)
 - YAML key: `oauth2.github.enterpriseBaseURL`
+
+### Provider
+
+#### Enable
+
+Enable the OAuth 2.1 authorization server, which lets external applications (such as MCP clients) obtain tokens for Coder on behalf of users. Disabled by default. When disabled, the OAuth2 endpoints and discovery documents return 404.
+
+- Environment variable: `CODER_OAUTH2_PROVIDER_ENABLE`
+- CLI flag: [`--oauth2-provider-enable`](../../reference/cli/server.md#--oauth2-provider-enable)
+- YAML key: `oauth2.provider.enable`
+- Default value: `false`
 
 ## OIDC
 

@@ -924,6 +924,27 @@ func TestSearchTemplates(t *testing.T) {
 			},
 		},
 		{
+			Name:  "UseClassicParameterFlowTrue",
+			Query: "compatibility_mode:true",
+			Expected: database.GetTemplatesWithFilterParams{
+				UseClassicParameterFlow: sql.NullBool{Bool: true, Valid: true},
+			},
+		},
+		{
+			Name:  "UseClassicParameterFlowFalse",
+			Query: "compatibility_mode:false",
+			Expected: database.GetTemplatesWithFilterParams{
+				UseClassicParameterFlow: sql.NullBool{Bool: false, Valid: true},
+			},
+		},
+		{
+			Name:  "UseClassicParameterFlowMissing",
+			Query: "",
+			Expected: database.GetTemplatesWithFilterParams{
+				UseClassicParameterFlow: sql.NullBool{Bool: false, Valid: false},
+			},
+		},
+		{
 			Name:  "HasExternalAgent",
 			Query: "has_external_agent:true",
 			Expected: database.GetTemplatesWithFilterParams{
@@ -1656,4 +1677,15 @@ func TestSearchGroups(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestAIBridgeSessions(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	page := codersdk.Pagination{Limit: 25}
+
+	filter, errs := searchquery.AIBridgeSessions(context.Background(), db, `provider_name:acme-openai`, page, uuid.Nil, "")
+	require.Empty(t, errs)
+	require.Equal(t, "acme-openai", filter.ProviderName)
 }

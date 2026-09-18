@@ -946,6 +946,39 @@ func TestDeploymentValues_Validate_ChatHooks(t *testing.T) {
 	}
 }
 
+func TestDeploymentValues_Validate_ChatStreamSilenceTimeout(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		timeout time.Duration
+		wantErr string
+	}{
+		{name: "Disabled", timeout: 0},
+		{name: "Negative", timeout: -time.Second, wantErr: "chat stream silence timeout"},
+		{name: "Maximum", timeout: 24 * time.Hour},
+		{name: "AboveMaximum", timeout: 24*time.Hour + time.Second, wantErr: "chat stream silence timeout"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			dv := &codersdk.DeploymentValues{}
+			dv.Sessions.DefaultDuration = serpent.Duration(time.Hour)
+			dv.Sessions.RefreshDefaultDuration = serpent.Duration(48 * time.Hour)
+			dv.AI.Chat.StreamSilenceTimeout = serpent.Duration(tt.timeout)
+
+			err := dv.Validate()
+			if tt.wantErr == "" {
+				require.NoError(t, err)
+				return
+			}
+			require.ErrorContains(t, err, tt.wantErr)
+		})
+	}
+}
+
 func TestDeploymentValues_DurationFormatNanoseconds(t *testing.T) {
 	t.Parallel()
 

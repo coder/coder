@@ -461,6 +461,17 @@ Allow all logins, setting this option means allowed orgs and teams must be empty
 
 Base URL of a GitHub Enterprise deployment to use for Login with GitHub.
 
+### --oauth2-provider-enable
+
+|             |                                            |
+|-------------|--------------------------------------------|
+| Type        | <code>bool</code>                          |
+| Environment | <code>$CODER_OAUTH2_PROVIDER_ENABLE</code> |
+| YAML        | <code>oauth2.provider.enable</code>        |
+| Default     | <code>false</code>                         |
+
+Enable the OAuth 2.1 authorization server, which lets external applications (such as MCP clients) obtain tokens for Coder on behalf of users. Disabled by default. When disabled, the OAuth2 endpoints and discovery documents return 404.
+
 ### --oidc-allow-signups
 
 |             |                                        |
@@ -1778,6 +1789,17 @@ How often to reconcile workspace prebuilds state.
 | Default     | <code>false</code>                             |
 
 Force chat debug logging on for every chat, bypassing the runtime admin and user opt-in settings.
+
+### --chat-stream-silence-timeout
+
+|             |                                                 |
+|-------------|-------------------------------------------------|
+| Type        | <code>duration</code>                           |
+| Environment | <code>$CODER_CHAT_STREAM_SILENCE_TIMEOUT</code> |
+| YAML        | <code>chat.streamSilenceTimeout</code>          |
+| Default     | <code>10m0s</code>                              |
+
+Maximum time to wait for the next streamed part from the chat model before the attempt is canceled and retried. This also bounds the time to first token. Set to 0 to disable. Must be no more than 24h.
 
 ### --ai-gateway-enabled
 

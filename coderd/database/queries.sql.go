@@ -660,6 +660,59 @@ func (q *sqlQuerier) GetAIProviderByName(ctx context.Context, name string) (AIPr
 	return i, err
 }
 
+const getAIProviderFilterOptions = `-- name: GetAIProviderFilterOptions :many
+SELECT DISTINCT ON (name)
+    name,
+    type,
+    display_name,
+    icon
+FROM
+    ai_providers
+ORDER BY
+    name ASC,
+    deleted ASC,
+    updated_at DESC
+`
+
+type GetAIProviderFilterOptionsRow struct {
+	Name        string         `db:"name" json:"name"`
+	Type        AIProviderType `db:"type" json:"type"`
+	DisplayName sql.NullString `db:"display_name" json:"display_name"`
+	Icon        string         `db:"icon" json:"icon"`
+}
+
+// Returns the display metadata AI Gateway session viewers need to filter
+// interceptions by provider_name. Soft-deleted and disabled rows are
+// included because interceptions keep referencing them. When a name has
+// been reused, the live row wins so current metadata is shown.
+func (q *sqlQuerier) GetAIProviderFilterOptions(ctx context.Context) ([]GetAIProviderFilterOptionsRow, error) {
+	rows, err := q.db.QueryContext(ctx, getAIProviderFilterOptions)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetAIProviderFilterOptionsRow
+	for rows.Next() {
+		var i GetAIProviderFilterOptionsRow
+		if err := rows.Scan(
+			&i.Name,
+			&i.Type,
+			&i.DisplayName,
+			&i.Icon,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getAIProviders = `-- name: GetAIProviders :many
 SELECT
     id, type, name, display_name, enabled, deleted, base_url, settings, settings_key_id, created_at, updated_at, icon
@@ -3594,6 +3647,129 @@ func (q *sqlQuerier) IncrementUserAIDailySpend(ctx context.Context, arg Incremen
 		&i.SpendMicros,
 	)
 	return i, err
+}
+
+const listOrganizationAISpendUsers = `-- name: ListOrganizationAISpendUsers :many
+SELECT
+	ai.initiator_id AS user_id,
+	users.username AS username,
+	users.name AS name,
+	users.avatar_url AS avatar_url,
+	groups.organization_id AS organization_id,
+	COALESCE(SUM(tu.cost_micros), 0)::BIGINT AS cost_micros,
+	COUNT(*) FILTER (WHERE tu.cost_micros IS NULL)::BIGINT AS unpriced_usage_count,
+	ARRAY_AGG(DISTINCT ai.provider ORDER BY ai.provider)::text[] AS providers,
+	ARRAY_AGG(DISTINCT COALESCE(ai.client, 'Unknown') ORDER BY COALESCE(ai.client, 'Unknown'))::text[] AS clients,
+	ARRAY_AGG(DISTINCT ai.model ORDER BY ai.model)::text[] AS models,
+	COUNT(*) OVER ()::BIGINT AS count,
+	COALESCE(SUM(SUM(tu.cost_micros)) OVER (), 0)::BIGINT AS total_cost_micros,
+	COALESCE(SUM(COUNT(*) FILTER (WHERE tu.cost_micros IS NULL)) OVER (), 0)::BIGINT AS total_unpriced_usage_count
+FROM aibridge_token_usages tu
+JOIN aibridge_interceptions ai ON ai.id = tu.interception_id
+JOIN users ON users.id = ai.initiator_id
+JOIN groups ON groups.id = tu.effective_group_id
+WHERE groups.organization_id = $1
+	AND tu.created_at >= $2::timestamptz
+	AND tu.created_at < $3::timestamptz
+	AND CASE
+		WHEN $4::text != '' THEN ai.provider_name = $4::text
+		ELSE true
+	END
+	AND CASE
+		WHEN $5::text != '' THEN ai.model = $5::text
+		ELSE true
+	END
+	AND CASE
+		WHEN $6::text != '' THEN COALESCE(ai.client, 'Unknown') = $6::text
+		ELSE true
+	END
+GROUP BY
+	ai.initiator_id,
+	users.username,
+	users.name,
+	users.avatar_url,
+	groups.organization_id
+ORDER BY cost_micros DESC, LOWER(users.username), ai.initiator_id
+LIMIT NULLIF($8::int, 0)
+OFFSET $7::int
+`
+
+type ListOrganizationAISpendUsersParams struct {
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	PeriodStart    time.Time `db:"period_start" json:"period_start"`
+	PeriodEnd      time.Time `db:"period_end" json:"period_end"`
+	ProviderName   string    `db:"provider_name" json:"provider_name"`
+	Model          string    `db:"model" json:"model"`
+	Client         string    `db:"client" json:"client"`
+	OffsetOpt      int32     `db:"offset_opt" json:"offset_opt"`
+	LimitOpt       int32     `db:"limit_opt" json:"limit_opt"`
+}
+
+type ListOrganizationAISpendUsersRow struct {
+	UserID                  uuid.UUID `db:"user_id" json:"user_id"`
+	Username                string    `db:"username" json:"username"`
+	Name                    string    `db:"name" json:"name"`
+	AvatarURL               string    `db:"avatar_url" json:"avatar_url"`
+	OrganizationID          uuid.UUID `db:"organization_id" json:"organization_id"`
+	CostMicros              int64     `db:"cost_micros" json:"cost_micros"`
+	UnpricedUsageCount      int64     `db:"unpriced_usage_count" json:"unpriced_usage_count"`
+	Providers               []string  `db:"providers" json:"providers"`
+	Clients                 []string  `db:"clients" json:"clients"`
+	Models                  []string  `db:"models" json:"models"`
+	Count                   int64     `db:"count" json:"count"`
+	TotalCostMicros         int64     `db:"total_cost_micros" json:"total_cost_micros"`
+	TotalUnpricedUsageCount int64     `db:"total_unpriced_usage_count" json:"total_unpriced_usage_count"`
+}
+
+// Returns one page of per-user AI spend for @organization_id over the
+// [period_start, period_end) window, most expensive first, together with the
+// providers, clients, and models each user spent through and the count and
+// totals over every matching user. It must keep the same joins and predicates as
+// ExportOrganizationAISpend so both report the same token usage.
+func (q *sqlQuerier) ListOrganizationAISpendUsers(ctx context.Context, arg ListOrganizationAISpendUsersParams) ([]ListOrganizationAISpendUsersRow, error) {
+	rows, err := q.db.QueryContext(ctx, listOrganizationAISpendUsers,
+		arg.OrganizationID,
+		arg.PeriodStart,
+		arg.PeriodEnd,
+		arg.ProviderName,
+		arg.Model,
+		arg.Client,
+		arg.OffsetOpt,
+		arg.LimitOpt,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListOrganizationAISpendUsersRow
+	for rows.Next() {
+		var i ListOrganizationAISpendUsersRow
+		if err := rows.Scan(
+			&i.UserID,
+			&i.Username,
+			&i.Name,
+			&i.AvatarURL,
+			&i.OrganizationID,
+			&i.CostMicros,
+			&i.UnpricedUsageCount,
+			pq.Array(&i.Providers),
+			pq.Array(&i.Clients),
+			pq.Array(&i.Models),
+			&i.Count,
+			&i.TotalCostMicros,
+			&i.TotalUnpricedUsageCount,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const upsertAIModelPrices = `-- name: UpsertAIModelPrices :exec
@@ -27653,29 +27829,35 @@ WHERE
 			END
 		ELSE true
 	END
-	-- Filter by agents_allowed
+	-- Filter by classic parameter flow
 	AND CASE
 		WHEN $9 :: boolean IS NOT NULL THEN
-			t.agents_allowed = $9 :: boolean
+			t.use_classic_parameter_flow = $9 :: boolean
+		ELSE true
+	END
+	-- Filter by agents_allowed
+	AND CASE
+		WHEN $10 :: boolean IS NOT NULL THEN
+			t.agents_allowed = $10 :: boolean
 		ELSE true
 	END
 	-- Filter by author_id
 	AND CASE
-		  WHEN $10 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
-			  t.created_by = $10
+		  WHEN $11 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+			  t.created_by = $11
 		  ELSE true
 	END
 	-- Filter by author_username
 	AND CASE
-		  WHEN $11 :: text != '' THEN
-			  t.created_by = (SELECT id FROM users WHERE lower(users.username) = lower($11) AND deleted = false)
+		  WHEN $12 :: text != '' THEN
+			  t.created_by = (SELECT id FROM users WHERE lower(users.username) = lower($12) AND deleted = false)
 		  ELSE true
 	END
 
 	-- Filter by has_external_agent in latest version
 	AND CASE
-		WHEN $12 :: boolean IS NOT NULL THEN
-			tv.has_external_agent = $12 :: boolean
+		WHEN $13 :: boolean IS NOT NULL THEN
+			tv.has_external_agent = $13 :: boolean
 		ELSE true
 	END
   -- Authorize Filter clause will be injected below in GetAuthorizedTemplates
@@ -27684,18 +27866,19 @@ ORDER BY (t.name, t.id) ASC
 `
 
 type GetTemplatesWithFilterParams struct {
-	Deleted          bool         `db:"deleted" json:"deleted"`
-	OrganizationID   uuid.UUID    `db:"organization_id" json:"organization_id"`
-	ExactName        string       `db:"exact_name" json:"exact_name"`
-	ExactDisplayName string       `db:"exact_display_name" json:"exact_display_name"`
-	FuzzyName        string       `db:"fuzzy_name" json:"fuzzy_name"`
-	FuzzyDisplayName string       `db:"fuzzy_display_name" json:"fuzzy_display_name"`
-	IDs              []uuid.UUID  `db:"ids" json:"ids"`
-	Deprecated       sql.NullBool `db:"deprecated" json:"deprecated"`
-	AgentsAllowed    sql.NullBool `db:"agents_allowed" json:"agents_allowed"`
-	AuthorID         uuid.UUID    `db:"author_id" json:"author_id"`
-	AuthorUsername   string       `db:"author_username" json:"author_username"`
-	HasExternalAgent sql.NullBool `db:"has_external_agent" json:"has_external_agent"`
+	Deleted                 bool         `db:"deleted" json:"deleted"`
+	OrganizationID          uuid.UUID    `db:"organization_id" json:"organization_id"`
+	ExactName               string       `db:"exact_name" json:"exact_name"`
+	ExactDisplayName        string       `db:"exact_display_name" json:"exact_display_name"`
+	FuzzyName               string       `db:"fuzzy_name" json:"fuzzy_name"`
+	FuzzyDisplayName        string       `db:"fuzzy_display_name" json:"fuzzy_display_name"`
+	IDs                     []uuid.UUID  `db:"ids" json:"ids"`
+	Deprecated              sql.NullBool `db:"deprecated" json:"deprecated"`
+	UseClassicParameterFlow sql.NullBool `db:"use_classic_parameter_flow" json:"use_classic_parameter_flow"`
+	AgentsAllowed           sql.NullBool `db:"agents_allowed" json:"agents_allowed"`
+	AuthorID                uuid.UUID    `db:"author_id" json:"author_id"`
+	AuthorUsername          string       `db:"author_username" json:"author_username"`
+	HasExternalAgent        sql.NullBool `db:"has_external_agent" json:"has_external_agent"`
 }
 
 func (q *sqlQuerier) GetTemplatesWithFilter(ctx context.Context, arg GetTemplatesWithFilterParams) ([]Template, error) {
@@ -27708,6 +27891,7 @@ func (q *sqlQuerier) GetTemplatesWithFilter(ctx context.Context, arg GetTemplate
 		arg.FuzzyDisplayName,
 		pq.Array(arg.IDs),
 		arg.Deprecated,
+		arg.UseClassicParameterFlow,
 		arg.AgentsAllowed,
 		arg.AuthorID,
 		arg.AuthorUsername,
@@ -31813,6 +31997,54 @@ WHERE
 func (q *sqlQuerier) UpdateUserDeletedByID(ctx context.Context, id uuid.UUID) error {
 	_, err := q.db.ExecContext(ctx, updateUserDeletedByID, id)
 	return err
+}
+
+const updateUserEmail = `-- name: UpdateUserEmail :one
+UPDATE
+	users
+SET
+	email = $1,
+	updated_at = $2,
+	hashed_one_time_passcode = NULL,
+	one_time_passcode_expires_at = NULL
+WHERE
+	LOWER(email) = LOWER($3)
+	AND deleted = false
+RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at, is_system, is_service_account, chat_spend_limit_micros
+`
+
+type UpdateUserEmailParams struct {
+	NewEmail  string    `db:"new_email" json:"new_email"`
+	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
+	OldEmail  string    `db:"old_email" json:"old_email"`
+}
+
+func (q *sqlQuerier) UpdateUserEmail(ctx context.Context, arg UpdateUserEmailParams) (User, error) {
+	row := q.db.QueryRowContext(ctx, updateUserEmail, arg.NewEmail, arg.UpdatedAt, arg.OldEmail)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Email,
+		&i.Username,
+		&i.HashedPassword,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Status,
+		&i.RBACRoles,
+		&i.LoginType,
+		&i.AvatarURL,
+		&i.Deleted,
+		&i.LastSeenAt,
+		&i.QuietHoursSchedule,
+		&i.Name,
+		&i.GithubComUserID,
+		&i.HashedOneTimePasscode,
+		&i.OneTimePasscodeExpiresAt,
+		&i.IsSystem,
+		&i.IsServiceAccount,
+		&i.ChatSpendLimitMicros,
+	)
+	return i, err
 }
 
 const updateUserGithubComUserID = `-- name: UpdateUserGithubComUserID :exec

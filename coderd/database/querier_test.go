@@ -1056,6 +1056,63 @@ func TestGetWorkspaceAgentUsageStats(t *testing.T) {
 }
 
 //nolint:tparallel,paralleltest // Subtests share one database seeded by the parent test.
+func TestGetTemplatesWithUseClassicParameterFlowFilter(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitMedium)
+	org := dbgen.Organization(t, db, database.Organization{})
+	user := dbgen.User(t, db, database.User{})
+	classic := dbgen.Template(t, db, database.Template{
+		OrganizationID:          org.ID,
+		CreatedBy:               user.ID,
+		UseClassicParameterFlow: true,
+	})
+	dynamic := dbgen.Template(t, db, database.Template{
+		OrganizationID:          org.ID,
+		CreatedBy:               user.ID,
+		UseClassicParameterFlow: false,
+	})
+
+	tests := []struct {
+		name  string
+		value sql.NullBool
+		want  []uuid.UUID
+	}{
+		{
+			name: "unset",
+			want: []uuid.UUID{classic.ID, dynamic.ID},
+		},
+		{
+			name:  "classic",
+			value: sql.NullBool{Bool: true, Valid: true},
+			want:  []uuid.UUID{classic.ID},
+		},
+		{
+			name:  "dynamic",
+			value: sql.NullBool{Bool: false, Valid: true},
+			want:  []uuid.UUID{dynamic.ID},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := db.GetTemplatesWithFilter(ctx, database.GetTemplatesWithFilterParams{
+				Deleted:                 false,
+				OrganizationID:          org.ID,
+				UseClassicParameterFlow: tt.value,
+			})
+			require.NoError(t, err)
+			gotIDs := make([]uuid.UUID, 0, len(got))
+			for _, template := range got {
+				gotIDs = append(gotIDs, template.ID)
+			}
+			require.ElementsMatch(t, tt.want, gotIDs)
+		})
+	}
+}
+
+//nolint:tparallel,paralleltest // Subtests share one database seeded by the parent test.
 func TestGetTemplatesWithAgentsAllowedFilter(t *testing.T) {
 	t.Parallel()
 
@@ -6156,6 +6213,10 @@ func TestGroupRemovalTrigger(t *testing.T) {
 func TestGetUserStatusCounts(t *testing.T) {
 	t.Parallel()
 
+	// Every leaf subtest runs in its own rolled-back transaction, so one
+	// database serves the whole timezone x date matrix.
+	store, _ := dbtestutil.NewDB(t)
+
 	type testCase struct {
 		timezone    string
 		location    *time.Location
@@ -6212,7 +6273,7 @@ func TestGetUserStatusCounts(t *testing.T) {
 
 			t.Run("No Users", func(t *testing.T) {
 				t.Parallel()
-				db, _ := dbtestutil.NewDB(t)
+				db := dbtestutil.StartRolledBackTx(t, store)
 				ctx := testutil.Context(t, testutil.WaitShort)
 
 				counts, err := db.GetUserStatusCounts(ctx, database.GetUserStatusCountsParams{
@@ -6248,7 +6309,7 @@ func TestGetUserStatusCounts(t *testing.T) {
 				for _, stc := range subTestCases {
 					t.Run(stc.name, func(t *testing.T) {
 						t.Parallel()
-						db, _ := dbtestutil.NewDB(t)
+						db := dbtestutil.StartRolledBackTx(t, store)
 						ctx := testutil.Context(t, testutil.WaitShort)
 
 						dbgen.User(t, db, database.User{
@@ -6429,7 +6490,7 @@ func TestGetUserStatusCounts(t *testing.T) {
 				for _, stc := range subTestCases {
 					t.Run(stc.name, func(t *testing.T) {
 						t.Parallel()
-						db, _ := dbtestutil.NewDB(t)
+						db := dbtestutil.StartRolledBackTx(t, store)
 						ctx := testutil.Context(t, testutil.WaitShort)
 
 						user := dbgen.User(t, db, database.User{
@@ -6564,7 +6625,7 @@ func TestGetUserStatusCounts(t *testing.T) {
 					t.Run(stc.name, func(t *testing.T) {
 						t.Parallel()
 
-						db, _ := dbtestutil.NewDB(t)
+						db := dbtestutil.StartRolledBackTx(t, store)
 						ctx := testutil.Context(t, testutil.WaitShort)
 
 						user1 := dbgen.User(t, db, database.User{
@@ -6643,7 +6704,7 @@ func TestGetUserStatusCounts(t *testing.T) {
 
 			t.Run("User precedes and survives query range", func(t *testing.T) {
 				t.Parallel()
-				db, _ := dbtestutil.NewDB(t)
+				db := dbtestutil.StartRolledBackTx(t, store)
 				ctx := testutil.Context(t, testutil.WaitShort)
 
 				_ = dbgen.User(t, db, database.User{
@@ -6675,7 +6736,7 @@ func TestGetUserStatusCounts(t *testing.T) {
 
 			t.Run("User deleted before query range", func(t *testing.T) {
 				t.Parallel()
-				db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+				db := dbtestutil.StartRolledBackTx(t, store)
 				ctx := testutil.Context(t, testutil.WaitShort)
 
 				user := dbgen.User(t, db, database.User{
@@ -6684,10 +6745,14 @@ func TestGetUserStatusCounts(t *testing.T) {
 					UpdatedAt: userCreatedAt,
 				})
 
-				err := db.UpdateUserDeletedByID(ctx, user.ID)
+				// The deletion trigger records users.updated_at as deleted_at.
+				_, err := db.UpdateUserStatus(ctx, database.UpdateUserStatusParams{
+					ID:        user.ID,
+					Status:    user.Status,
+					UpdatedAt: tc.reportUntil,
+				})
 				require.NoError(t, err)
-
-				_, err = sqlDB.ExecContext(ctx, "UPDATE user_deleted SET deleted_at = $1 WHERE user_id = $2", tc.reportUntil, user.ID)
+				err = db.UpdateUserDeletedByID(ctx, user.ID)
 				require.NoError(t, err)
 
 				userStatusChanges, err := db.GetUserStatusCounts(ctx, database.GetUserStatusCountsParams{
@@ -6702,7 +6767,7 @@ func TestGetUserStatusCounts(t *testing.T) {
 			t.Run("User deleted during query range", func(t *testing.T) {
 				t.Parallel()
 
-				db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+				db := dbtestutil.StartRolledBackTx(t, store)
 				ctx := testutil.Context(t, testutil.WaitShort)
 
 				user := dbgen.User(t, db, database.User{
@@ -6711,10 +6776,14 @@ func TestGetUserStatusCounts(t *testing.T) {
 					UpdatedAt: userCreatedAt,
 				})
 
-				err := db.UpdateUserDeletedByID(ctx, user.ID)
+				// The deletion trigger records users.updated_at as deleted_at.
+				_, err := db.UpdateUserStatus(ctx, database.UpdateUserStatusParams{
+					ID:        user.ID,
+					Status:    user.Status,
+					UpdatedAt: tc.reportUntil,
+				})
 				require.NoError(t, err)
-
-				_, err = sqlDB.ExecContext(ctx, "UPDATE user_deleted SET deleted_at = $1 WHERE user_id = $2", tc.reportUntil, user.ID)
+				err = db.UpdateUserDeletedByID(ctx, user.ID)
 				require.NoError(t, err)
 
 				userStatusChanges, err := db.GetUserStatusCounts(ctx, database.GetUserStatusCountsParams{
@@ -19105,4 +19174,314 @@ func sessionFamilyCounts(t *testing.T, data json.RawMessage) map[codersdk.AppFam
 	counts, err := codersdk.SessionCountsByFamilyJSON(data)
 	require.NoError(t, err)
 	return counts
+}
+
+func TestUpdateUserEmail(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.SkipNow()
+	}
+
+	sqlDB := testSQLDB(t)
+	err := migrations.Up(sqlDB)
+	require.NoError(t, err)
+	db := database.New(sqlDB)
+	ctx := context.Background()
+
+	// SQL-specific: the WHERE clause matches old_email case-insensitively.
+	t.Run("MatchesCaseInsensitively", func(t *testing.T) {
+		t.Parallel()
+		origEmail := "CaseSensitive" + testutil.GetRandomName(t) + "@example.com"
+		user := dbgen.User(t, db, database.User{Email: origEmail})
+		updated, err := db.UpdateUserEmail(ctx, database.UpdateUserEmailParams{
+			OldEmail:  strings.ToLower(origEmail),
+			NewEmail:  "newcase" + testutil.GetRandomName(t) + "@example.com",
+			UpdatedAt: dbtime.Now(),
+		})
+		require.NoError(t, err)
+		require.Equal(t, user.ID, updated.ID, "should match the same user case-insensitively")
+	})
+
+	// SQL-specific: the WHERE clause excludes soft-deleted users.
+	t.Run("DoesNotMatchDeletedUsers", func(t *testing.T) {
+		t.Parallel()
+		user := dbgen.User(t, db, database.User{})
+		err := db.UpdateUserDeletedByID(ctx, user.ID)
+		require.NoError(t, err)
+
+		_, err = db.UpdateUserEmail(ctx, database.UpdateUserEmailParams{
+			OldEmail:  user.Email,
+			NewEmail:  "shouldfail@example.com",
+			UpdatedAt: dbtime.Now(),
+		})
+		require.ErrorIs(t, err, sql.ErrNoRows)
+	})
+
+	// SQL-specific: new_email is stored verbatim (no lower-casing on write).
+	t.Run("PreservesNewEmailCasing", func(t *testing.T) {
+		t.Parallel()
+		user := dbgen.User(t, db, database.User{})
+		mixedCase := "Mixed.Case." + testutil.GetRandomName(t) + "@Example.COM"
+		updated, err := db.UpdateUserEmail(ctx, database.UpdateUserEmailParams{
+			OldEmail:  user.Email,
+			NewEmail:  mixedCase,
+			UpdatedAt: dbtime.Now(),
+		})
+		require.NoError(t, err)
+		require.Equal(t, mixedCase, updated.Email, "new email casing must be preserved exactly")
+	})
+
+	// SQL-specific: the unique index name is users_email_lower_idx and the
+	// constraint fires on a case-variant collision.
+	t.Run("RejectsUniqueEmailCollision", func(t *testing.T) {
+		t.Parallel()
+		user1 := dbgen.User(t, db, database.User{})
+		user2 := dbgen.User(t, db, database.User{})
+		_, err := db.UpdateUserEmail(ctx, database.UpdateUserEmailParams{
+			OldEmail:  user1.Email,
+			NewEmail:  strings.ToUpper(user2.Email),
+			UpdatedAt: dbtime.Now(),
+		})
+		require.True(t, database.IsUniqueViolation(err, database.UniqueUsersEmailLowerIndex),
+			"expected unique_violation on users_email_lower_idx, got: %v", err)
+	})
+}
+
+func TestListOrganizationAISpendUsers(t *testing.T) {
+	t.Parallel()
+	db, _ := dbtestutil.NewDB(t)
+
+	start := time.Date(2030, 1, 1, 0, 0, 0, 0, time.UTC)
+	end := start.Add(24 * time.Hour)
+
+	org := dbgen.Organization(t, db, database.Organization{})
+	group := dbgen.Group(t, db, database.Group{OrganizationID: org.ID})
+	otherOrg := dbgen.Organization(t, db, database.Organization{})
+	otherGroup := dbgen.Group(t, db, database.Group{OrganizationID: otherOrg.ID})
+
+	alice := dbgen.User(t, db, database.User{Username: "alice", Name: "Alice Liddell", AvatarURL: "https://example.com/alice.png"})
+	bob := dbgen.User(t, db, database.User{Username: "bob", Name: "Bob Builder"})
+	carol := dbgen.User(t, db, database.User{Username: "carol", Name: "Carol Idle"})
+	// Deleted users keep their historical spend, matching the CSV export.
+	dave := dbgen.User(t, db, database.User{Username: "dave", Deleted: true})
+
+	type usage struct {
+		user  database.User
+		group uuid.NullUUID
+		// at is when the token usage was recorded; the interception starts at
+		// the same time unless startedAt says otherwise.
+		at           time.Time
+		startedAt    time.Time
+		providerName string
+		model        string
+		client       sql.NullString
+		cost         sql.NullInt64
+	}
+	priced := func(v int64) sql.NullInt64 { return sql.NullInt64{Int64: v, Valid: true} }
+	inGroup := uuid.NullUUID{UUID: group.ID, Valid: true}
+	vscode := sql.NullString{String: "vscode", Valid: true}
+	cursor := sql.NullString{String: "cursor", Valid: true}
+	for _, u := range []usage{
+		// alice: 1500 priced plus one unpriced usage without a recorded client.
+		{user: alice, group: inGroup, at: start, providerName: "anthropic-prod", model: "claude", client: vscode, cost: priced(1000)},
+		{user: alice, group: inGroup, at: start.Add(time.Hour), providerName: "openai-prod", model: "gpt-4", cost: priced(500)},
+		{user: alice, group: inGroup, at: start.Add(2 * time.Hour), providerName: "openai-prod", model: "gpt-4o"},
+		// bob: the most expensive user.
+		{user: bob, group: inGroup, at: start.Add(time.Hour), providerName: "anthropic-prod", model: "claude", client: cursor, cost: priced(3000)},
+		// carol ties with alice on cost and sorts after her by username.
+		{user: carol, group: inGroup, at: start.Add(time.Hour), providerName: "anthropic-prod", model: "claude", client: cursor, cost: priced(1500)},
+		{user: dave, group: inGroup, at: start.Add(time.Hour), providerName: "anthropic-prod", model: "claude", cost: priced(100)},
+		// Excluded: before the window, at the exclusive end, without an
+		// effective group, and attributed to another organization.
+		{user: bob, group: inGroup, at: start.Add(-time.Second), providerName: "anthropic-prod", model: "claude", cost: priced(99_999)},
+		{user: bob, group: inGroup, at: end, providerName: "anthropic-prod", model: "claude", cost: priced(99_999)},
+		{user: bob, at: start.Add(time.Hour), providerName: "anthropic-prod", model: "claude", cost: priced(99_999)},
+		{user: bob, group: uuid.NullUUID{UUID: otherGroup.ID, Valid: true}, at: start.Add(time.Hour), providerName: "anthropic-prod", model: "claude", cost: priced(99_999)},
+		// Excluded: the interception started inside the window but its token
+		// usage was recorded after it, and the window applies to the usage.
+		{user: carol, group: inGroup, at: end.Add(time.Hour), startedAt: start.Add(time.Hour), providerName: "anthropic-prod", model: "claude", client: cursor, cost: priced(700)},
+	} {
+		startedAt := u.startedAt
+		if startedAt.IsZero() {
+			startedAt = u.at
+		}
+		intc := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+			InitiatorID: u.user.ID, Provider: strings.TrimSuffix(u.providerName, "-prod"), ProviderName: u.providerName, Model: u.model, StartedAt: startedAt, Client: u.client,
+		}, nil)
+		dbgen.AIBridgeTokenUsage(t, db, database.InsertAIBridgeTokenUsageParams{
+			InterceptionID: intc.ID, CreatedAt: u.at, EffectiveGroupID: u.group, CostMicros: u.cost,
+		})
+	}
+
+	row := func(user database.User, providers, clients, models []string, cost, unpriced, count, totalCost, totalUnpriced int64) database.ListOrganizationAISpendUsersRow {
+		return database.ListOrganizationAISpendUsersRow{
+			UserID: user.ID, Username: user.Username, Name: user.Name, AvatarURL: user.AvatarURL, OrganizationID: org.ID,
+			CostMicros: cost, UnpricedUsageCount: unpriced, Providers: providers, Clients: clients, Models: models,
+			Count: count, TotalCostMicros: totalCost, TotalUnpricedUsageCount: totalUnpriced,
+		}
+	}
+	base := database.ListOrganizationAISpendUsersParams{OrganizationID: org.ID, PeriodStart: start, PeriodEnd: end}
+
+	t.Run("AllUsers", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		rows, err := db.ListOrganizationAISpendUsers(ctx, base)
+		require.NoError(t, err)
+		require.Equal(t, []database.ListOrganizationAISpendUsersRow{
+			row(bob, []string{"anthropic"}, []string{"cursor"}, []string{"claude"}, 3000, 0, 4, 6100, 1),
+			row(alice, []string{"anthropic", "openai"}, []string{"Unknown", "vscode"}, []string{"claude", "gpt-4", "gpt-4o"}, 1500, 1, 4, 6100, 1),
+			row(carol, []string{"anthropic"}, []string{"cursor"}, []string{"claude"}, 1500, 0, 4, 6100, 1),
+			row(dave, []string{"anthropic"}, []string{"Unknown"}, []string{"claude"}, 100, 0, 4, 6100, 1),
+		}, rows)
+	})
+
+	t.Run("Pagination", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		params := base
+		params.LimitOpt = 2
+		rows, err := db.ListOrganizationAISpendUsers(ctx, params)
+		require.NoError(t, err)
+		// Count and totals cover every matching user, not only the page.
+		require.Equal(t, []database.ListOrganizationAISpendUsersRow{
+			row(bob, []string{"anthropic"}, []string{"cursor"}, []string{"claude"}, 3000, 0, 4, 6100, 1),
+			row(alice, []string{"anthropic", "openai"}, []string{"Unknown", "vscode"}, []string{"claude", "gpt-4", "gpt-4o"}, 1500, 1, 4, 6100, 1),
+		}, rows)
+
+		params.OffsetOpt = 2
+		rows, err = db.ListOrganizationAISpendUsers(ctx, params)
+		require.NoError(t, err)
+		require.Equal(t, []database.ListOrganizationAISpendUsersRow{
+			row(carol, []string{"anthropic"}, []string{"cursor"}, []string{"claude"}, 1500, 0, 4, 6100, 1),
+			row(dave, []string{"anthropic"}, []string{"Unknown"}, []string{"claude"}, 100, 0, 4, 6100, 1),
+		}, rows)
+
+		params.OffsetOpt = 4
+		rows, err = db.ListOrganizationAISpendUsers(ctx, params)
+		require.NoError(t, err)
+		require.Empty(t, rows)
+	})
+
+	t.Run("Filters", func(t *testing.T) {
+		t.Parallel()
+		cases := []struct {
+			name   string
+			mutate func(*database.ListOrganizationAISpendUsersParams)
+			want   []database.ListOrganizationAISpendUsersRow
+		}{
+			{
+				name:   "ProviderName",
+				mutate: func(p *database.ListOrganizationAISpendUsersParams) { p.ProviderName = "openai-prod" },
+				want:   []database.ListOrganizationAISpendUsersRow{row(alice, []string{"openai"}, []string{"Unknown"}, []string{"gpt-4", "gpt-4o"}, 500, 1, 1, 500, 1)},
+			},
+			{
+				name:   "Model",
+				mutate: func(p *database.ListOrganizationAISpendUsersParams) { p.Model = "claude" },
+				want: []database.ListOrganizationAISpendUsersRow{
+					row(bob, []string{"anthropic"}, []string{"cursor"}, []string{"claude"}, 3000, 0, 4, 5600, 0),
+					row(carol, []string{"anthropic"}, []string{"cursor"}, []string{"claude"}, 1500, 0, 4, 5600, 0),
+					row(alice, []string{"anthropic"}, []string{"vscode"}, []string{"claude"}, 1000, 0, 4, 5600, 0),
+					row(dave, []string{"anthropic"}, []string{"Unknown"}, []string{"claude"}, 100, 0, 4, 5600, 0),
+				},
+			},
+			{
+				name:   "Client",
+				mutate: func(p *database.ListOrganizationAISpendUsersParams) { p.Client = "cursor" },
+				want: []database.ListOrganizationAISpendUsersRow{
+					row(bob, []string{"anthropic"}, []string{"cursor"}, []string{"claude"}, 3000, 0, 2, 4500, 0),
+					row(carol, []string{"anthropic"}, []string{"cursor"}, []string{"claude"}, 1500, 0, 2, 4500, 0),
+				},
+			},
+			{
+				// A missing client is reported as Unknown, like the sessions list.
+				name:   "UnknownClient",
+				mutate: func(p *database.ListOrganizationAISpendUsersParams) { p.Client = "Unknown" },
+				want: []database.ListOrganizationAISpendUsersRow{
+					row(alice, []string{"openai"}, []string{"Unknown"}, []string{"gpt-4", "gpt-4o"}, 500, 1, 2, 600, 1),
+					row(dave, []string{"anthropic"}, []string{"Unknown"}, []string{"claude"}, 100, 0, 2, 600, 1),
+				},
+			},
+			{
+				name: "Combined",
+				mutate: func(p *database.ListOrganizationAISpendUsersParams) {
+					p.ProviderName = "anthropic-prod"
+					p.Model = "claude"
+					p.Client = "vscode"
+				},
+				want: []database.ListOrganizationAISpendUsersRow{row(alice, []string{"anthropic"}, []string{"vscode"}, []string{"claude"}, 1000, 0, 1, 1000, 0)},
+			},
+			{
+				name:   "NoMatch",
+				mutate: func(p *database.ListOrganizationAISpendUsersParams) { p.Model = "missing" },
+				want:   nil,
+			},
+		}
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				params := base
+				tc.mutate(&params)
+				ctx := testutil.Context(t, testutil.WaitLong)
+				rows, err := db.ListOrganizationAISpendUsers(ctx, params)
+				require.NoError(t, err)
+				require.Equal(t, tc.want, rows)
+			})
+		}
+	})
+
+	t.Run("PeriodWindow", func(t *testing.T) {
+		t.Parallel()
+		cases := []struct {
+			name       string
+			start, end time.Time
+			want       []database.ListOrganizationAISpendUsersRow
+		}{
+			{
+				// Only alice's unpriced usage is recorded from two hours in.
+				name: "LaterStart", start: start.Add(2 * time.Hour), end: end,
+				want: []database.ListOrganizationAISpendUsersRow{row(alice, []string{"openai"}, []string{"Unknown"}, []string{"gpt-4o"}, 0, 1, 1, 0, 1)},
+			},
+			{
+				// The usage one second before the base window is inside a
+				// window that ends where the base window starts.
+				name: "EarlierWindow", start: start.Add(-time.Hour), end: start,
+				want: []database.ListOrganizationAISpendUsersRow{row(bob, []string{"anthropic"}, []string{"Unknown"}, []string{"claude"}, 99_999, 0, 1, 99_999, 0)},
+			},
+			{
+				// Usage is attributed by when it was recorded, not by when
+				// its interception started: carol's interception started in
+				// the base window but its usage counts here, alongside bob's
+				// usage at the base window's exclusive end.
+				name: "TokenUsageCreatedAt", start: end, end: end.Add(2 * time.Hour),
+				want: []database.ListOrganizationAISpendUsersRow{
+					row(bob, []string{"anthropic"}, []string{"Unknown"}, []string{"claude"}, 99_999, 0, 2, 100_699, 0),
+					row(carol, []string{"anthropic"}, []string{"cursor"}, []string{"claude"}, 700, 0, 2, 100_699, 0),
+				},
+			},
+		}
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				ctx := testutil.Context(t, testutil.WaitLong)
+				params := base
+				params.PeriodStart, params.PeriodEnd = tc.start, tc.end
+				rows, err := db.ListOrganizationAISpendUsers(ctx, params)
+				require.NoError(t, err)
+				require.Equal(t, tc.want, rows)
+			})
+		}
+	})
+
+	t.Run("OtherOrganization", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		params := base
+		params.OrganizationID = otherOrg.ID
+		rows, err := db.ListOrganizationAISpendUsers(ctx, params)
+		require.NoError(t, err)
+		require.Equal(t, []database.ListOrganizationAISpendUsersRow{{
+			UserID: bob.ID, Username: bob.Username, Name: bob.Name, AvatarURL: bob.AvatarURL, OrganizationID: otherOrg.ID,
+			CostMicros: 99_999, Providers: []string{"anthropic"}, Clients: []string{"Unknown"}, Models: []string{"claude"}, Count: 1, TotalCostMicros: 99_999,
+		}}, rows)
+	})
 }
