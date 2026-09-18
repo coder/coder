@@ -28,6 +28,7 @@ const renderColumn = (name: string) => {
 	renderComponent(
 		<BoardColumn
 			column={column}
+			assistants={new Map()}
 			openChatIds={new Set()}
 			dropTarget={null}
 			knownEfforts={[]}
