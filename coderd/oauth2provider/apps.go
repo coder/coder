@@ -27,18 +27,23 @@ import (
 // If the request has redirectURIs, that list is used. If it also has
 // callbackURL, callbackURL is moved to the front of the list. A redirectURIs
 // sent as an empty list is used as given, so it fails validation rather than
-// falling back to the stored list.
+// falling back to the stored list or to callbackURL: a legacy caller that
+// sends both fields does not get callbackURL alone as a side effect of an
+// empty list.
 // If the request has only callbackURL, an update replaces the first stored
 // URI with callbackURL and keeps the rest. A create uses callbackURL alone.
 // If the request has neither field, the stored list is kept.
 // stored is nil on a create.
 func resolveRedirectURIs(callbackURL string, redirectURIs, stored []string) []string {
 	list := slice.Unique(redirectURIs)
-	if redirectURIs == nil && len(stored) > 0 {
+	switch {
+	case redirectURIs == nil && len(stored) > 0:
 		if callbackURL == "" {
 			return stored
 		}
 		list = stored[1:]
+	case redirectURIs != nil && len(redirectURIs) == 0:
+		return list
 	}
 	if callbackURL != "" {
 		list = slices.DeleteFunc(slices.Clone(list), func(s string) bool { return s == callbackURL })

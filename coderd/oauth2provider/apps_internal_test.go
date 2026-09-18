@@ -77,6 +77,19 @@ func TestResolveRedirectURIs(t *testing.T) {
 			name: "NeitherOnCreate",
 			want: []string{},
 		},
+		{
+			name:         "ExplicitEmptyListRejected",
+			redirectURIs: []string{},
+			stored:       []string{a, b},
+			want:         []string{},
+		},
+		{
+			name:         "ExplicitEmptyListWithCallbackRejected",
+			callbackURL:  c,
+			redirectURIs: []string{},
+			stored:       []string{a, b},
+			want:         []string{},
+		},
 	}
 
 	for _, tc := range tests {
