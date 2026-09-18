@@ -1,9 +1,11 @@
 package mcpclient
 
 import (
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/netip"
+	"strings"
 	"sync/atomic"
 	"testing"
 
@@ -84,4 +86,83 @@ func TestMCPTransportTimeouts(t *testing.T) {
 	// later clients that reuse the same address.
 	other := NewHTTPClient(nil)
 	require.NotSame(t, client.Transport, other.Transport)
+}
+
+type staticRoundTripper struct {
+	body          string
+	contentLength int64
+}
+
+func (s *staticRoundTripper) RoundTrip(*http.Request) (*http.Response, error) {
+	return &http.Response{
+		StatusCode:    http.StatusOK,
+		Body:          io.NopCloser(strings.NewReader(s.body)),
+		ContentLength: s.contentLength,
+	}, nil
+}
+
+func TestMaxResponseBodyRoundTripper(t *testing.T) {
+	t.Parallel()
+
+	newReq := func(t *testing.T) *http.Request {
+		req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, "http://example.invalid/", nil)
+		require.NoError(t, err)
+		return req
+	}
+
+	t.Run("ExactlyAtCapPasses", func(t *testing.T) {
+		t.Parallel()
+		body := strings.Repeat("a", 16)
+		rt := &maxResponseBodyRoundTripper{
+			base:     &staticRoundTripper{body: body, contentLength: -1},
+			maxBytes: 16,
+		}
+		resp, err := rt.RoundTrip(newReq(t))
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		got, err := io.ReadAll(resp.Body)
+		require.NoError(t, err)
+		require.Equal(t, body, string(got))
+	})
+
+	t.Run("UnknownLengthOverCapFailsOnRead", func(t *testing.T) {
+		t.Parallel()
+		rt := &maxResponseBodyRoundTripper{
+			base:     &staticRoundTripper{body: strings.Repeat("a", 17), contentLength: -1},
+			maxBytes: 16,
+		}
+		resp, err := rt.RoundTrip(newReq(t))
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		got, err := io.ReadAll(resp.Body)
+		require.ErrorIs(t, err, errChatAttachedResponseTooLarge)
+		require.LessOrEqual(t, len(got), 16)
+	})
+
+	t.Run("ContentLengthOverCapFailsBeforeRead", func(t *testing.T) {
+		t.Parallel()
+		rt := &maxResponseBodyRoundTripper{
+			base:     &staticRoundTripper{body: strings.Repeat("a", 17), contentLength: 17},
+			maxBytes: 16,
+		}
+		resp, err := rt.RoundTrip(newReq(t)) //nolint:bodyclose // resp is nil on error
+		require.ErrorIs(t, err, errChatAttachedResponseTooLarge)
+		require.Nil(t, resp)
+	})
+
+	t.Run("ChatAttachedClientWrapsTransport", func(t *testing.T) {
+		t.Parallel()
+		base := NewHTTPClient(nil)
+		client := chatAttachedHTTPClient(base)
+		require.NotSame(t, base, client)
+		wrapped, ok := client.Transport.(*maxResponseBodyRoundTripper)
+		require.True(t, ok)
+		require.Same(t, base.Transport, wrapped.base)
+		require.EqualValues(t, maxChatAttachedHTTPResponseBytes, wrapped.maxBytes)
+		require.Equal(t, base.Timeout, client.Timeout)
+
+		fallback := chatAttachedHTTPClient(nil)
+		_, ok = fallback.Transport.(*maxResponseBodyRoundTripper)
+		require.True(t, ok)
+	})
 }

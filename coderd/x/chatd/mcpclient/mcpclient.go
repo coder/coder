@@ -1,6 +1,7 @@
 package mcpclient
 
 import (
+	"bytes"
 	"cmp"
 	"context"
 	"encoding/json"
@@ -131,7 +132,38 @@ func ConnectAll(
 ) ([]fantasy.AgentTool, []ConnectSummary, func()) {
 	return connectAllWithHooks(
 		ctx, logger, configs, tokens, userID, oidcSrc, coderHeaders,
-		httpClient, connectTimeout, connectHooks{},
+		connectOptions{
+			httpClient: httpClient,
+			timeout:    connectTimeout,
+			kind:       connectionKindOrg,
+		},
+	)
+}
+
+// ConnectChatAttached connects to MCP servers that a chat owner attached
+// to their own chat. Unlike org-configured servers, these endpoints are
+// chosen by an end user, so the connection is hardened: response bodies,
+// tool counts, tool definitions, and tool results are size-capped, and
+// sensitiveValues (keyed by config ID) are redacted from every string a
+// model or a non-owner chat viewer can see. Chat-attached servers have no
+// OAuth tokens or OIDC identity, so those inputs are always empty. A nil
+// httpClient falls back to the default guarded client.
+func ConnectChatAttached(
+	ctx context.Context,
+	logger slog.Logger,
+	configs []database.MCPServerConfig,
+	coderHeaders map[string]string,
+	httpClient *http.Client,
+	sensitiveValues map[uuid.UUID][]string,
+) ([]fantasy.AgentTool, []ConnectSummary, func()) {
+	return connectAllWithHooks(
+		ctx, logger, configs, nil, uuid.Nil, nil, coderHeaders,
+		connectOptions{
+			httpClient:      chatAttachedHTTPClient(httpClient),
+			timeout:         connectTimeout,
+			kind:            connectionKindChatAttached,
+			sensitiveValues: sensitiveValues,
+		},
 	)
 }
 
@@ -144,6 +176,29 @@ type connectHooks struct {
 	reaperDone func()
 }
 
+// connectionKind selects the trust level of an MCP server connection.
+type connectionKind uint8
+
+const (
+	// connectionKindOrg is a server configured by an org admin.
+	connectionKindOrg connectionKind = iota
+	// connectionKindChatAttached is a server attached to a chat by the
+	// chat owner. It is untrusted and subject to caps and redaction.
+	connectionKindChatAttached
+)
+
+// connectOptions carries the per-connect settings shared by every
+// server in one ConnectAll or ConnectChatAttached call.
+type connectOptions struct {
+	httpClient *http.Client
+	timeout    time.Duration
+	hooks      connectHooks
+	kind       connectionKind
+	// sensitiveValues lists, per config ID, the strings to redact from
+	// model-visible and viewer-visible text. Chat-attached only.
+	sensitiveValues map[uuid.UUID][]string
+}
+
 func connectAllWithHooks(
 	ctx context.Context,
 	logger slog.Logger,
@@ -152,9 +207,7 @@ func connectAllWithHooks(
 	userID uuid.UUID,
 	oidcSrc UserOIDCTokenSource,
 	coderHeaders map[string]string,
-	httpClient *http.Client,
-	timeout time.Duration,
-	hooks connectHooks,
+	opts connectOptions,
 ) ([]fantasy.AgentTool, []ConnectSummary, func()) {
 	// Index tokens by server config ID so auth header
 	// construction is O(1) per server.
@@ -196,10 +249,11 @@ func connectAllWithHooks(
 		}
 
 		eg.Go(func() error {
+			redactor := newSecretRedactor(opts.sensitiveValues[cfg.ID])
 			start := time.Now()
 			serverTools, session, connectErr := connectOne(
 				ctx, logger, cfg, tokensByConfigID, userID, oidcSrc, coderHeaders,
-				httpClient, timeout, hooks,
+				opts, redactor,
 			)
 			duration := time.Since(start)
 			summary := ConnectSummary{
@@ -208,13 +262,19 @@ func connectAllWithHooks(
 				DurationMS: duration.Milliseconds(),
 				ToolCount:  len(serverTools),
 			}
+			// Redact before truncating so a secret cut at the byte cap
+			// cannot leak a prefix into the persisted summary.
+			var errText string
+			if connectErr != nil {
+				errText = redactor.redactString(redactErrorURL(connectErr))
+			}
 			switch {
 			case connectErr != nil && errors.Is(connectErr, context.DeadlineExceeded):
 				summary.Outcome = ConnectOutcomeTimeout
-				summary.Error = summaryError(connectErr)
+				summary.Error = truncateSummaryError(errText)
 			case connectErr != nil:
 				summary.Outcome = ConnectOutcomeError
-				summary.Error = summaryError(connectErr)
+				summary.Error = truncateSummaryError(errText)
 			case len(serverTools) == 0:
 				summary.Outcome = ConnectOutcomeNoTools
 			default:
@@ -227,7 +287,7 @@ func connectAllWithHooks(
 					slog.F("server_slug", cfg.Slug),
 					slog.F("server_url", RedactURL(cfg.Url)),
 					slog.F("duration", duration),
-					slog.F("error", redactErrorURL(connectErr)),
+					slog.F("error", errText),
 				)
 			} else if duration >= slowConnectThreshold {
 				logger.Warn(ctx,
@@ -330,9 +390,8 @@ func connectOne(
 	userID uuid.UUID,
 	oidcSrc UserOIDCTokenSource,
 	coderHeaders map[string]string,
-	httpClient *http.Client,
-	timeout time.Duration,
-	hooks connectHooks,
+	opts connectOptions,
+	redactor secretRedactor,
 ) ([]fantasy.AgentTool, *mcp.ClientSession, error) {
 	headers := buildAuthHeaders(ctx, logger, cfg, tokensByConfigID, userID, oidcSrc)
 
@@ -357,7 +416,7 @@ func connectOne(
 		}
 	}
 
-	tr, err := createTransport(cfg, headers, httpClient)
+	tr, err := createTransport(cfg, headers, opts.httpClient)
 	if err != nil {
 		return nil, nil, xerrors.Errorf(
 			"create transport: %w", err,
@@ -372,7 +431,7 @@ func connectOne(
 	// The timeout covers the entire connect+list sequence, not
 	// each phase individually. The SDK negotiates the protocol
 	// version during Connect; the session outlives connectCtx.
-	connectCtx, cancel := context.WithTimeout(ctx, timeout)
+	connectCtx, cancel := context.WithTimeout(ctx, opts.timeout)
 	defer cancel()
 
 	// Run the connect+list sequence in a goroutine and enforce the
@@ -420,8 +479,8 @@ func connectOne(
 			if late := <-resCh; late.session != nil {
 				_ = late.session.Close()
 			}
-			if hooks.reaperDone != nil {
-				hooks.reaperDone()
+			if opts.hooks.reaperDone != nil {
+				opts.hooks.reaperDone()
 			}
 		}()
 		return nil, nil, xerrors.Errorf("connect: %w", connectCtx.Err())
@@ -430,6 +489,15 @@ func connectOne(
 		return nil, nil, res.err
 	}
 	session, toolsResult := res.session, res.tools
+
+	maxResultBytes := 0
+	if opts.kind == connectionKindChatAttached {
+		if err := validateChatAttachedToolDefinitions(toolsResult.Tools); err != nil {
+			go func() { _ = session.Close() }()
+			return nil, nil, err
+		}
+		maxResultBytes = maxChatAttachedToolResultBytes
+	}
 
 	var tools []fantasy.AgentTool
 	for _, mcpTool := range toolsResult.Tools {
@@ -440,13 +508,13 @@ func connectOne(
 		) {
 			logger.Debug(ctx, "skipping denied MCP tool",
 				slog.F("server_slug", cfg.Slug),
-				slog.F("tool_name", mcpTool.Name),
+				slog.F("tool_name", redactor.redactString(mcpTool.Name)),
 			)
 			continue
 		}
 
 		tools = append(
-			tools, newMCPTool(cfg.ID, cfg.Slug, mcpTool, session, cfg.ModelIntent),
+			tools, newMCPTool(cfg.ID, cfg.Slug, mcpTool, session, cfg.ModelIntent, redactor, maxResultBytes),
 		)
 	}
 
@@ -460,6 +528,53 @@ func connectOne(
 	}
 
 	return tools, session, nil
+}
+
+// Caps for chat-attached servers. Tool definitions are sent to the model
+// on every turn and tool results are persisted into chat messages, so an
+// end-user-chosen server must not be able to inflate either unboundedly.
+const (
+	maxChatAttachedTools                = 64
+	maxChatAttachedToolDefinitionBytes  = 64 << 10
+	maxChatAttachedToolDefinitionsBytes = 256 << 10
+	maxChatAttachedToolResultBytes      = 256 << 10
+)
+
+// validateChatAttachedToolDefinitions rejects a tool list that exceeds
+// the chat-attached count or size caps. The whole server is skipped
+// rather than truncated so the model never sees a partial tool set.
+func validateChatAttachedToolDefinitions(tools []*mcp.Tool) error {
+	if len(tools) > maxChatAttachedTools {
+		return xerrors.Errorf(
+			"chat-attached MCP server returned %d tools, maximum is %d",
+			len(tools), maxChatAttachedTools,
+		)
+	}
+
+	totalBytes := 0
+	for _, tool := range tools {
+		if tool == nil {
+			return xerrors.New("chat-attached MCP server returned a null tool definition")
+		}
+		definition, err := json.Marshal(tool)
+		if err != nil {
+			return xerrors.Errorf("marshal chat-attached MCP tool definition: %w", err)
+		}
+		if len(definition) > maxChatAttachedToolDefinitionBytes {
+			return xerrors.Errorf(
+				"chat-attached MCP tool definition exceeds maximum size of %d bytes",
+				maxChatAttachedToolDefinitionBytes,
+			)
+		}
+		totalBytes += len(definition)
+		if totalBytes > maxChatAttachedToolDefinitionsBytes {
+			return xerrors.Errorf(
+				"chat-attached MCP tool definitions exceed maximum total size of %d bytes",
+				maxChatAttachedToolDefinitionsBytes,
+			)
+		}
+	}
+	return nil
 }
 
 func createTransport(
@@ -678,7 +793,12 @@ const maxSummaryErrorLen = 512
 // credential-bearing URLs are redacted and the result is truncated
 // to maxSummaryErrorLen bytes on a rune boundary.
 func summaryError(err error) string {
-	msg := redactErrorURL(err)
+	return truncateSummaryError(redactErrorURL(err))
+}
+
+// truncateSummaryError caps an already-redacted error message at
+// maxSummaryErrorLen bytes on a rune boundary.
+func truncateSummaryError(msg string) string {
 	if len(msg) <= maxSummaryErrorLen {
 		return msg
 	}
@@ -695,18 +815,156 @@ type MCPToolIdentifier interface {
 	MCPServerConfigID() uuid.UUID
 }
 
+// AppendChatAttached appends chat-attached tools to an existing tool
+// list. When a chat-attached tool has the same name as an existing
+// tool, the existing tool wins and the chat-attached one is dropped
+// with a warning: org-configured and built-in tools must never be
+// shadowed by an end-user-chosen server.
+func AppendChatAttached(
+	ctx context.Context,
+	logger slog.Logger,
+	tools []fantasy.AgentTool,
+	chatAttached []fantasy.AgentTool,
+) []fantasy.AgentTool {
+	if len(chatAttached) == 0 {
+		return tools
+	}
+	existing := make(map[string]struct{}, len(tools))
+	for _, tool := range tools {
+		existing[tool.Info().Name] = struct{}{}
+	}
+	out := slices.Clone(tools)
+	for _, tool := range chatAttached {
+		name := tool.Info().Name
+		if _, ok := existing[name]; ok {
+			var configID uuid.UUID
+			if ident, ok := tool.(MCPToolIdentifier); ok {
+				configID = ident.MCPServerConfigID()
+			}
+			logger.Warn(ctx,
+				"chat-attached MCP tool name collides with an existing tool; chat-attached tool dropped",
+				slog.F("tool_name", name),
+				slog.F("config_id", configID),
+			)
+			continue
+		}
+		existing[name] = struct{}{}
+		out = append(out, tool)
+	}
+	return out
+}
+
+// toolCallIDMetaKey is the _meta key that carries the model's tool
+// call ID on every tools/call request. It is a correlation ID for one
+// model tool call and is stable across chatd retries of that call, so a
+// server MAY use it to deduplicate. No other idempotency guarantee is
+// made. The key is reverse-DNS namespaced per the MCP _meta guidance.
+const toolCallIDMetaKey = "com.coder/tool_call_id"
+
+// secretRedactor replaces a fixed set of sensitive strings with
+// "[REDACTED]". The zero value redacts nothing. Longer values are
+// replaced first so a value that contains another value is redacted
+// whole.
+type secretRedactor struct {
+	values []string
+}
+
+func newSecretRedactor(values []string) secretRedactor {
+	values = slices.Clone(values)
+	values = slices.DeleteFunc(values, func(value string) bool { return value == "" })
+	slices.SortFunc(values, func(a, b string) int {
+		return cmp.Or(cmp.Compare(len(b), len(a)), cmp.Compare(a, b))
+	})
+	values = slices.Compact(values)
+	return secretRedactor{values: values}
+}
+
+func (r secretRedactor) redactString(value string) string {
+	for _, secret := range r.values {
+		value = strings.ReplaceAll(value, secret, "[REDACTED]")
+	}
+	return value
+}
+
+func (r secretRedactor) redactStrings(values []string) []string {
+	if len(values) == 0 || len(r.values) == 0 {
+		return values
+	}
+	redacted := make([]string, len(values))
+	for i, item := range values {
+		redacted[i] = r.redactString(item)
+	}
+	return redacted
+}
+
+func (r secretRedactor) redactBytes(value []byte) []byte {
+	if len(value) == 0 || len(r.values) == 0 {
+		return value
+	}
+	redacted := bytes.Clone(value)
+	for _, secret := range r.values {
+		redacted = bytes.ReplaceAll(redacted, []byte(secret), []byte("[REDACTED]"))
+	}
+	return redacted
+}
+
+func (r secretRedactor) redactMap(value map[string]any) map[string]any {
+	if len(value) == 0 || len(r.values) == 0 {
+		return value
+	}
+	redacted := make(map[string]any, len(value))
+	for key, item := range value {
+		redacted[r.redactString(key)] = r.redactValue(item)
+	}
+	return redacted
+}
+
+func (r secretRedactor) redactValue(value any) any {
+	switch typed := value.(type) {
+	case string:
+		return r.redactString(typed)
+	case map[string]any:
+		return r.redactMap(typed)
+	case []any:
+		redacted := make([]any, len(typed))
+		for i, item := range typed {
+			redacted[i] = r.redactValue(item)
+		}
+		return redacted
+	case []string:
+		return r.redactStrings(typed)
+	default:
+		return value
+	}
+}
+
+func (r secretRedactor) redactResponse(response fantasy.ToolResponse) fantasy.ToolResponse {
+	if len(r.values) == 0 {
+		return response
+	}
+	response.Type = r.redactString(response.Type)
+	response.Content = r.redactString(response.Content)
+	response.Data = r.redactBytes(response.Data)
+	response.MediaType = r.redactString(response.MediaType)
+	response.Metadata = r.redactString(response.Metadata)
+	return response
+}
+
 // mcpToolWrapper adapts a single MCP tool into a
 // fantasy.AgentTool. It stores the prefixed name for Info() but
 // strips the prefix when forwarding calls to the remote server.
 type mcpToolWrapper struct {
-	configID        uuid.UUID
-	prefixedName    string
-	originalName    string
-	description     string
-	parameters      map[string]any
-	required        []string
-	modelIntent     bool
-	session         *mcp.ClientSession
+	configID     uuid.UUID
+	prefixedName string
+	originalName string
+	description  string
+	parameters   map[string]any
+	required     []string
+	modelIntent  bool
+	session      *mcp.ClientSession
+	redactor     secretRedactor
+	// maxResultBytes caps the serialized tool result; 0 means no cap.
+	maxResultBytes  int
 	providerOptions fantasy.ProviderOptions
 }
 
@@ -724,17 +982,24 @@ func newMCPTool(
 	tool *mcp.Tool,
 	session *mcp.ClientSession,
 	modelIntent bool,
+	redactor secretRedactor,
+	maxResultBytes int,
 ) *mcpToolWrapper {
 	properties, required := splitInputSchema(tool.InputSchema)
+	// Model-visible fields are redacted once here. originalName is
+	// deliberately left as is: it is the name sent in tools/call and the
+	// server must recognize it.
 	return &mcpToolWrapper{
-		configID:     configID,
-		prefixedName: truncateToolName(aidmcp.SanitizeToolName(serverSlug) + toolNameSep + aidmcp.SanitizeToolName(tool.Name)),
-		originalName: tool.Name,
-		description:  tool.Description,
-		parameters:   properties,
-		required:     required,
-		modelIntent:  modelIntent,
-		session:      session,
+		configID:       configID,
+		prefixedName:   truncateToolName(aidmcp.SanitizeToolName(serverSlug) + toolNameSep + aidmcp.SanitizeToolName(redactor.redactString(tool.Name))),
+		originalName:   tool.Name,
+		description:    redactor.redactString(tool.Description),
+		parameters:     redactor.redactMap(properties),
+		required:       redactor.redactStrings(required),
+		modelIntent:    modelIntent,
+		session:        session,
+		redactor:       redactor,
+		maxResultBytes: maxResultBytes,
 	}
 }
 
@@ -816,7 +1081,7 @@ func (t *mcpToolWrapper) Run(
 			[]byte(input), &args,
 		); err != nil {
 			return fantasy.NewTextErrorResponse(
-				"invalid JSON input: " + err.Error(),
+				t.redactor.redactString("invalid JSON input: " + err.Error()),
 			), nil
 		}
 	}
@@ -824,18 +1089,32 @@ func (t *mcpToolWrapper) Run(
 	callCtx, cancel := context.WithTimeout(ctx, toolCallTimeout)
 	defer cancel()
 
-	result, err := t.session.CallTool(
-		callCtx,
-		&mcp.CallToolParams{
-			Name:      t.originalName,
-			Arguments: args,
-		},
-	)
+	callParams := &mcp.CallToolParams{
+		Name:      t.originalName,
+		Arguments: args,
+	}
+	if params.ID != "" {
+		callParams.Meta = mcp.Meta{toolCallIDMetaKey: params.ID}
+	}
+	result, err := t.session.CallTool(callCtx, callParams)
 	if err != nil {
-		return fantasy.NewTextErrorResponse(err.Error()), nil
+		return fantasy.NewTextErrorResponse(t.redactor.redactString(err.Error())), nil
 	}
 
-	return convertCallResult(result), nil
+	if t.maxResultBytes > 0 {
+		resultJSON, err := json.Marshal(result)
+		if err != nil {
+			return fantasy.NewTextErrorResponse("tool result could not be validated"), nil
+		}
+		if len(resultJSON) > t.maxResultBytes {
+			return fantasy.NewTextErrorResponse(fmt.Sprintf(
+				"tool result exceeded maximum size of %d bytes",
+				t.maxResultBytes,
+			)), nil
+		}
+	}
+
+	return t.redactor.redactResponse(convertCallResult(result)), nil
 }
 
 func (t *mcpToolWrapper) ProviderOptions() fantasy.ProviderOptions {

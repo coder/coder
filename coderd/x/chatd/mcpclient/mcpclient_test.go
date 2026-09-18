@@ -1710,3 +1710,45 @@ func TestConvertCallResult_UTF8Sanitization(t *testing.T) {
 		})
 	}
 }
+
+func TestToolCallCarriesToolCallID(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+
+	metaTool := testTool{
+		tool: &mcp.Tool{
+			Name:        "meta",
+			Description: "Returns the tool call ID from _meta",
+			InputSchema: map[string]any{"type": "object"},
+		},
+		handler: func(_ context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			id, ok := req.Params.Meta[mcpclient.ToolCallIDMetaKeyForTest]
+			if !ok {
+				return textToolResult("<none>"), nil
+			}
+			idStr, _ := id.(string)
+			return textToolResult(idStr), nil
+		},
+	}
+	ts := newTestMCPServer(t, metaTool)
+	cfg := makeConfig("srv", ts.URL)
+
+	tools, summaries, cleanup := mcpclient.ConnectAllForTest(
+		ctx, logger, []database.MCPServerConfig{cfg}, 10*time.Second, nil,
+	)
+	t.Cleanup(cleanup)
+	require.Len(t, summaries, 1)
+	require.Equal(t, mcpclient.ConnectOutcomeConnected, summaries[0].Outcome)
+	require.Len(t, tools, 1)
+
+	resp, err := tools[0].Run(ctx, fantasy.ToolCall{ID: "call_123", Name: tools[0].Info().Name, Input: "{}"})
+	require.NoError(t, err)
+	require.False(t, resp.IsError)
+	require.Equal(t, "call_123", resp.Content)
+
+	resp, err = tools[0].Run(ctx, fantasy.ToolCall{Name: tools[0].Info().Name, Input: "{}"})
+	require.NoError(t, err)
+	require.False(t, resp.IsError)
+	require.Equal(t, "<none>", resp.Content, "an empty tool call ID must not set the _meta key")
+}
