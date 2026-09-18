@@ -60,6 +60,7 @@ To pick up context in another directory, declare that directory as its own sourc
 A repository often keeps instruction files deeper than the snapshot scans, such as a `site/src/AGENTS.md` two levels below the working directory, or in a subdirectory the child scan skipped.
 The snapshot does not include them, so the chat loads them on demand instead.
 When the agent reads, writes, or edits a file, or runs a command in an explicit working directory, the chat looks for instruction files in that directory and in each parent directory up to the workspace working directory, and adds any it finds to that chat only.
+Loading on demand needs the workspace working directory, which the template sets through `dir` on its `coder_agent` resource; a workspace without one loads nothing on demand.
 These files are pinned like other resources: they appear in the chat's context list and are read again when you select **Refresh context**.
 Edits to a file loaded on demand do not mark the chat out of date, because the agent watches only the directories it scans for the snapshot.
 When the agent writes an instruction file or runs a command in a directory it already loaded from, that directory is read again: new files are added and files that no longer exist are dropped from the chat.

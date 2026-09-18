@@ -208,10 +208,14 @@ func TestPinnedInstructionDirs(t *testing.T) {
 	// it is probed again even though its other file is pinned. docs does
 	// not fit yet, pkg is too large for any budget, and lib's exclusion is
 	// the snapshot's, not this chat's.
-	require.Equal(t, map[string]struct{}{"/repo": {}, "/repo/docs": {}, "/repo/pkg": {}, "/repo/lib": {}}, pinnedInstructionDirs(rows))
+	pinned, freed := pinnedInstructionDirs(rows)
+	require.Equal(t, map[string]struct{}{"/repo": {}, "/repo/docs": {}, "/repo/pkg": {}, "/repo/lib": {}}, pinned)
+	require.Equal(t, map[string]struct{}{"/repo/site": {}}, freed)
 
 	// Removing the large file frees the budget for docs as well.
-	require.Equal(t, map[string]struct{}{"/repo": {}, "/repo/pkg": {}, "/repo/lib": {}}, pinnedInstructionDirs(append(rows[:1:1], rows[2:]...)))
+	pinned, freed = pinnedInstructionDirs(append(rows[:1:1], rows[2:]...))
+	require.Equal(t, map[string]struct{}{"/repo": {}, "/repo/pkg": {}, "/repo/lib": {}}, pinned)
+	require.Equal(t, map[string]struct{}{"/repo/site": {}, "/repo/docs": {}}, freed)
 }
 
 func TestRemovedDiscoveredSources(t *testing.T) {

@@ -389,10 +389,11 @@ func staleInstructionDirs(files, dirs []string) map[string]struct{} {
 }
 
 // pinnedInstructionDirs lists, by pathKey, the directories whose
-// instruction files the chat already holds. A directory is left off when a
-// discovered file the content cap kept out of it would fit the bytes now
-// free, so a later touch re-reads it instead of waiting for a refresh.
-func pinnedInstructionDirs(rows []database.ChatContextResource) map[string]struct{} {
+// instruction files the chat already holds, and separately those left off
+// because a discovered file the content cap kept out of them would fit the
+// bytes now free, so a later touch re-reads them instead of waiting for a
+// refresh.
+func pinnedInstructionDirs(rows []database.ChatContextResource) (pinned, freed map[string]struct{}) {
 	var used int64
 	for _, row := range rows {
 		if row.Discovered && row.BodyKind == database.WorkspaceAgentContextBodyKindInstructionFile && row.Status == database.WorkspaceAgentContextResourceStatusOk {
@@ -400,22 +401,22 @@ func pinnedInstructionDirs(rows []database.ChatContextResource) map[string]struc
 		}
 	}
 	free := maxDiscoveredInstructionBytes - used
-	reprobe := make(map[string]struct{})
-	dirs := make(map[string]struct{}, len(rows))
+	freed = make(map[string]struct{})
+	pinned = make(map[string]struct{}, len(rows))
 	for _, row := range rows {
 		if row.BodyKind != database.WorkspaceAgentContextBodyKindInstructionFile {
 			continue
 		}
 		key := pathKey(instructionRowDir(row))
 		if row.Discovered && row.Status == database.WorkspaceAgentContextResourceStatusExcluded && row.SizeBytes <= free {
-			reprobe[key] = struct{}{}
+			freed[key] = struct{}{}
 		}
-		dirs[key] = struct{}{}
+		pinned[key] = struct{}{}
 	}
-	for key := range reprobe {
-		delete(dirs, key)
+	for key := range freed {
+		delete(pinned, key)
 	}
-	return dirs
+	return pinned, freed
 }
 
 // selectInstructionProbes picks the candidates worth asking the agent
@@ -536,7 +537,13 @@ func (p *Server) discoverInstructionContext(
 		logger.Debug(ctx, "list pinned context for instruction discovery", slog.Error(err))
 		return
 	}
-	probe := selectInstructionProbes(candidates, pinnedInstructionDirs(rows), stale, func(dir string) bool {
+	pinned, freed := pinnedInstructionDirs(rows)
+	// A directory probed again because its excluded file would fit now is
+	// read as authoritatively as a stale one: the file may have vanished
+	// meanwhile, and its row would otherwise keep the slot and the probe
+	// would repeat after every negative expiry.
+	maps.Copy(stale, freed)
+	probe := selectInstructionProbes(candidates, pinned, stale, func(dir string) bool {
 		return p.instructionProbes.negative(now, agent.ID, chat.ID, dir)
 	})
 	if len(probe) == 0 {
@@ -553,14 +560,17 @@ func (p *Server) discoverInstructionContext(
 	// One transaction, so a failure part-way leaves the inventory as it
 	// was rather than half reconciled behind a pinned directory. The
 	// inventory is read again inside it: an agent push during the round
-	// trip may have made one of the resolved sources a snapshot row.
+	// trip may have made one of the resolved sources a snapshot row, and a
+	// refresh may have pinned a newer read of one, which this older read
+	// must not replace.
 	var result discoveryReconciliation
 	err = p.db.InTx(func(tx database.Store) error {
 		current, err := tx.ListChatContextResourcesByChatID(dbCtx, chat.ID)
 		if err != nil {
 			return xerrors.Errorf("list chat context resources: %w", err)
 		}
-		result, err = reconcileDiscoveredInstructionFiles(dbCtx, tx, chat.ID, current, resolved, stale, probed, discoveryBudget{})
+		kept, files, reserved := unchangedDiscoveredRows(rows, current, resolved)
+		result, err = reconcileDiscoveredInstructionFiles(dbCtx, tx, chat.ID, kept, files, stale, probed, reserved)
 		return err
 	}, nil)
 	if err != nil {
@@ -816,14 +826,14 @@ func (p *Server) rediscoverInstructionContext(ctx context.Context, chat database
 	}
 }
 
-// unchangedDiscoveredRows narrows a rediscovery to what a concurrent step has
-// not touched since the refresh captured the discovered rows. It returns the
-// current inventory without the discovered rows a step rewrote or added, so
-// only untouched rows can be rewritten or removed, the resolved files minus
-// those whose source a step pinned meanwhile, whether by rewriting a captured
-// row or by discovering a file the refresh did not know, and the share of the
-// chat's caps the rows it left out hold, so the rediscovery does not spend
-// it again.
+// unchangedDiscoveredRows narrows a probe's result to what another writer
+// (a refresh, a step) has not touched since the caller captured the
+// discovered rows. It returns the current inventory without the discovered
+// rows rewritten or added meanwhile, so only untouched rows can be
+// rewritten or removed, the resolved files minus those whose source was
+// pinned meanwhile, whether by rewriting a captured row or by pinning a file
+// the caller did not know, and the share of the chat's caps the rows it
+// left out hold, so the caller does not spend it again.
 func unchangedDiscoveredRows(
 	captured, current []database.ChatContextResource,
 	resolved []workspacesdk.ContextInstructionFile,
