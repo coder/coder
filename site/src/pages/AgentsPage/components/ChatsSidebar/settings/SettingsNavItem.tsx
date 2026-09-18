@@ -28,7 +28,7 @@ type SettingsNavItemProps = {
 	| { to?: never; replace?: never; state?: never; onClick: () => void }
 );
 
-const navItemClassName = (
+export const navItemClassName = (
 	active: boolean,
 	disabled: boolean | undefined,
 	className: string | undefined,

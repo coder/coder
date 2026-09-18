@@ -34,6 +34,7 @@ interface ChatsSidebarProps {
 	chatPendingRename?: Chat | null;
 	onChatPendingRenameChange?: (chat: Chat | null) => void;
 	onBeforeNewAgent?: () => void;
+	onNewProject?: () => void;
 	isSearchDialogOpen: boolean;
 	onSearchDialogOpenChange: (open: boolean) => void;
 	isCreating: boolean;
@@ -76,6 +77,7 @@ export const ChatsSidebar: FC<ChatsSidebarProps> = (props) => {
 		chatPendingRename: chatPendingRenameProp,
 		onChatPendingRenameChange,
 		onBeforeNewAgent,
+		onNewProject,
 		isSearchDialogOpen,
 		onSearchDialogOpenChange,
 		isCreating,
@@ -139,6 +141,7 @@ export const ChatsSidebar: FC<ChatsSidebarProps> = (props) => {
 				onUnpinAgent={onUnpinAgent}
 				onReorderPinnedAgent={onReorderPinnedAgent}
 				onBeforeNewAgent={onBeforeNewAgent}
+				onNewProject={onNewProject}
 				onOpenSearchDialog={() => onSearchDialogOpenChange(true)}
 				onOpenRenameDialog={onRenameTitle ? setChatPendingRename : undefined}
 				isCreating={isCreating}

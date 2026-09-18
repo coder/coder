@@ -664,6 +664,23 @@ export const MobileHeaderActions: Story = {
 	],
 };
 
+export const SidebarNewMenu: Story = {
+	args: {
+		chats: sectionHeaderChats,
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents" },
+			routing: agentsRouting,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		await userEvent.click(canvas.getByRole("button", { name: "New" }));
+	},
+};
+
 export const SidebarFilterMenu: Story = {
 	args: {
 		chats: sectionHeaderChats,

@@ -194,6 +194,54 @@ describe("ChatsSidebar sections", () => {
 	});
 });
 
+describe("ChatsSidebar new menu", () => {
+	it("calls onBeforeNewAgent when New chat is selected", async () => {
+		const user = userEvent.setup();
+		const onBeforeNewAgent = vi.fn();
+		const onNewProject = vi.fn();
+
+		render(
+			<Wrapper>
+				<ChatsSidebar
+					{...defaultProps}
+					onBeforeNewAgent={onBeforeNewAgent}
+					onNewProject={onNewProject}
+				/>
+			</Wrapper>,
+		);
+
+		await user.click(screen.getByRole("button", { name: "New" }));
+		await user.click(await screen.findByRole("menuitem", { name: "New chat" }));
+
+		expect(onBeforeNewAgent).toHaveBeenCalledTimes(1);
+		expect(onNewProject).not.toHaveBeenCalled();
+	});
+
+	it("calls onNewProject when New project is selected", async () => {
+		const user = userEvent.setup();
+		const onBeforeNewAgent = vi.fn();
+		const onNewProject = vi.fn();
+
+		render(
+			<Wrapper>
+				<ChatsSidebar
+					{...defaultProps}
+					onBeforeNewAgent={onBeforeNewAgent}
+					onNewProject={onNewProject}
+				/>
+			</Wrapper>,
+		);
+
+		await user.click(screen.getByRole("button", { name: "New" }));
+		await user.click(
+			await screen.findByRole("menuitem", { name: "New project" }),
+		);
+
+		expect(onNewProject).toHaveBeenCalledTimes(1);
+		expect(onBeforeNewAgent).not.toHaveBeenCalled();
+	});
+});
+
 describe("ChatsSidebar filters", () => {
 	it("calls the sidebar filter change callback after Apply is clicked", async () => {
 		const user = userEvent.setup();
