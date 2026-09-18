@@ -738,6 +738,7 @@ type DeploymentValues struct {
 	DisableUserSecretFilePath               serpent.Bool                         `json:"disable_user_secret_file_path,omitempty" typescript:",notnull"`
 	ProxyHealthStatusInterval               serpent.Duration                     `json:"proxy_health_status_interval,omitempty" typescript:",notnull"`
 	EnableTerraformDebugMode                serpent.Bool                         `json:"enable_terraform_debug_mode,omitempty" typescript:",notnull"`
+	DynamicParametersFullEvaluation         serpent.Bool                         `json:"dynamic_parameters_full_evaluation,omitempty" typescript:",notnull"`
 	UserQuietHoursSchedule                  UserQuietHoursScheduleConfig         `json:"user_quiet_hours_schedule,omitempty" typescript:",notnull"`
 	WebTerminalRenderer                     serpent.String                       `json:"web_terminal_renderer,omitempty" typescript:",notnull"`
 	// Deprecated: Use the per-template allow_workspace_renames setting instead.
@@ -3345,6 +3346,18 @@ communicating directly.`,
 			YAML:        "enableTerraformDebugMode",
 		},
 		{
+			Name: "Dynamic Parameters Full Evaluation",
+			Description: "Evaluate every resource in a template when rendering dynamic parameters, " +
+				"instead of only the parameter, preset, and tag blocks and what they reference. " +
+				"Slower, and only needed if a template renders incorrectly with the default.",
+			Flag:    "dynamic-parameters-full-evaluation",
+			Env:     "CODER_DYNAMIC_PARAMETERS_FULL_EVALUATION",
+			Default: "false",
+			Value:   &c.DynamicParametersFullEvaluation,
+			Hidden:  true,
+			YAML:    "dynamicParametersFullEvaluation",
+		},
+		{
 			Name: "Additional CSP Policy",
 			Description: "Coder configures a Content Security Policy (CSP) to protect against XSS attacks. " +
 				"This setting allows you to add additional CSP directives, which can open the attack surface of the deployment. " +
@@ -5212,6 +5225,7 @@ const (
 	ExperimentNATSPubsub                Experiment = "nats_pubsub"                 // Enables embedded NATS pubsub.
 	ExperimentWorkspaceCapableLicensing Experiment = "workspace-capable-licensing" // Counts only users holding the workspace-create permission toward the license seat limit.
 	ExperimentAIGatewaySeatExclusion    Experiment = "ai-gateway-seat-exclusion"   // Excludes AI Gateway (AI Bridge) usage from AI Governance seat consumption.
+	ExperimentAIGatewayReverseProxy     Experiment = "ai-gateway-reverse-proxy"    // Uses stateless reverse proxy routing when MCP injection is not configured.
 	ExperimentChatAdvisor               Experiment = "chat-advisor"                // Enables the advisor tool for root agent chats.
 	ExperimentChatVirtualDesktop        Experiment = "chat-virtual-desktop"        // Enables virtual desktop and computer use provider for agents.
 	ExperimentAgentLifecycleHooks       Experiment = "agent-lifecycle-hooks"       // Enables chat lifecycle hook webhooks for agent chats.
@@ -5237,6 +5251,8 @@ func (e Experiment) DisplayName() string {
 		return "Workspace-Capable Licensing"
 	case ExperimentAIGatewaySeatExclusion:
 		return "AI Gateway Seat Exclusion"
+	case ExperimentAIGatewayReverseProxy:
+		return "AI Gateway Reverse Proxy"
 	case ExperimentChatAdvisor:
 		return "Chat Advisor"
 	case ExperimentChatVirtualDesktop:
@@ -5263,6 +5279,7 @@ var ExperimentsKnown = Experiments{
 	ExperimentWorkspaceBuildUpdates,
 	ExperimentWorkspaceCapableLicensing,
 	ExperimentAIGatewaySeatExclusion,
+	ExperimentAIGatewayReverseProxy,
 	ExperimentChatAdvisor,
 	ExperimentChatVirtualDesktop,
 	ExperimentAgentLifecycleHooks,

@@ -1678,3 +1678,14 @@ func TestSearchGroups(t *testing.T) {
 		})
 	}
 }
+
+func TestAIBridgeSessions(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	page := codersdk.Pagination{Limit: 25}
+
+	filter, errs := searchquery.AIBridgeSessions(context.Background(), db, `provider_name:acme-openai`, page, uuid.Nil, "")
+	require.Empty(t, errs)
+	require.Equal(t, "acme-openai", filter.ProviderName)
+}

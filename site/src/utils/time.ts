@@ -80,6 +80,20 @@ export function humanDuration(durationInMs: number) {
 	});
 }
 
+/**
+ * Compact duration for tight UI like a live elapsed counter:
+ * "7s", "1m 5s", "1h 2m". Rounds to whole seconds.
+ */
+export const humanDurationShort = humanizeDuration.humanizer({
+	language: "shortEn",
+	languages: { shortEn: { h: () => "h", m: () => "m", s: () => "s" } },
+	units: ["h", "m", "s"],
+	largest: 2,
+	round: true,
+	spacer: "",
+	delimiter: " ",
+});
+
 export function durationInHours(durationMs: number): number {
 	return durationMs / TIME_CONSTANTS.MS_PER_HOUR;
 }
