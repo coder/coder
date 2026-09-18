@@ -5238,7 +5238,7 @@ const (
 	ExperimentMCPServerHTTP             Experiment = "mcp-server-http"             // Enables the MCP HTTP server functionality.
 	ExperimentMCPToolSearch             Experiment = "mcp-tool-search"             // Defers MCP tool schemas behind a searchable catalog in agent chats.
 	ExperimentWorkspaceBuildUpdates     Experiment = "workspace-build-updates"     // Enables publishing workspace build updates to the all builds pubsub channel.
-	ExperimentNATSPubsub                Experiment = "nats_pubsub"                 // Enables embedded NATS pubsub.
+	ExperimentNoNATSPubsub              Experiment = "no_nats_pubsub"              // Disables the embedded NATS pubsub, falling back to PostgreSQL pubsub.
 	ExperimentWorkspaceCapableLicensing Experiment = "workspace-capable-licensing" // Counts only users holding the workspace-create permission toward the license seat limit.
 	ExperimentAIGatewaySeatExclusion    Experiment = "ai-gateway-seat-exclusion"   // Excludes AI Gateway (AI Bridge) usage from AI Governance seat consumption.
 	ExperimentAIGatewayReverseProxy     Experiment = "ai-gateway-reverse-proxy"    // Uses stateless reverse proxy routing when MCP injection is not configured.
@@ -5261,8 +5261,8 @@ func (e Experiment) DisplayName() string {
 		return "MCP HTTP Server Functionality"
 	case ExperimentWorkspaceBuildUpdates:
 		return "Workspace Build Updates Channel"
-	case ExperimentNATSPubsub:
-		return "NATS Pubsub"
+	case ExperimentNoNATSPubsub:
+		return "No NATS Pubsub"
 	case ExperimentWorkspaceCapableLicensing:
 		return "Workspace-Capable Licensing"
 	case ExperimentAIGatewaySeatExclusion:
@@ -5291,7 +5291,7 @@ var ExperimentsKnown = Experiments{
 	ExperimentWorkspaceUsage,
 	ExperimentMCPServerHTTP,
 	ExperimentMCPToolSearch,
-	ExperimentNATSPubsub,
+	ExperimentNoNATSPubsub,
 	ExperimentWorkspaceBuildUpdates,
 	ExperimentWorkspaceCapableLicensing,
 	ExperimentAIGatewaySeatExclusion,
