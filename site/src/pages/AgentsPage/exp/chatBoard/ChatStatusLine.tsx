@@ -1,21 +1,37 @@
 import { cn } from "cn";
 import type { FC } from "react";
 import type { Chat } from "#/api/typesGenerated";
+import { shortRelativeTime } from "#/utils/time";
+import { isActiveChatStatus } from "../../components/ChatConversation/chatStore";
 import { getChatDisplayConfig } from "../../components/ChatsSidebar/tree/statusConfig";
 
 interface ChatStatusLineProps {
 	readonly chat: Chat;
+	/** Placement in the card grid; the line renders nothing when there is nothing to say. */
+	readonly className?: string;
 }
 
-/** PR chip, line stats, and last turn text; shared by single cards and group rows. */
-export const ChatStatusLine: FC<ChatStatusLineProps> = ({ chat }) => {
+/**
+ * One line under a chat's title: PR chip, last turn text, then the unread
+ * mark and the age at the right edge, since the age is the time of that
+ * turn. While the chat works both would read "now" and say nothing, so they
+ * are omitted until it settles. Shared by single cards and group rows.
+ */
+export const ChatStatusLine: FC<ChatStatusLineProps> = ({
+	chat,
+	className,
+}) => {
 	const display = getChatDisplayConfig(chat);
 	const pr = display.diffStatus;
-	const hasLineStats =
-		pr !== undefined && (pr.additions > 0 || pr.deletions > 0);
-	if (!chat.last_turn_summary && !pr?.url) return null;
+	const settled = !isActiveChatStatus(chat.status);
+	if (!chat.last_turn_summary && !pr?.url && !settled) return null;
 	return (
-		<div className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs leading-4 text-content-secondary">
+		<div
+			className={cn(
+				"flex min-w-0 items-center gap-x-1.5 text-xs leading-4 text-content-secondary",
+				className,
+			)}
+		>
 			{pr?.url && display.prIcon && (
 				<a
 					href={pr.url}
@@ -34,15 +50,25 @@ export const ChatStatusLine: FC<ChatStatusLineProps> = ({ chat }) => {
 					{pr.pr_number ? `#${pr.pr_number}` : "PR"}
 				</a>
 			)}
-			{hasLineStats && (
-				<span className="shrink-0 font-mono text-[11px]">
-					<span className="text-git-added-bright">+{pr.additions}</span>{" "}
-					<span className="text-git-deleted-bright">&minus;{pr.deletions}</span>
-				</span>
-			)}
 			{chat.last_turn_summary && (
 				<span className="min-w-0 flex-1 truncate">
 					{chat.last_turn_summary}
+				</span>
+			)}
+			{settled && (
+				// The ⋮ glyph above ends ~6px inside its button; the age lines up
+				// with the glyph, not the box.
+				<span className="ml-auto flex shrink-0 items-center gap-1.5 pr-1.5">
+					{chat.has_unread && (
+						<span
+							role="img"
+							className="size-[7px] shrink-0 rounded-full bg-content-link"
+							aria-label="Unread"
+						/>
+					)}
+					<span className="text-[11px] tabular-nums text-content-secondary/70">
+						{shortRelativeTime(chat.updated_at)}
+					</span>
 				</span>
 			)}
 		</div>
