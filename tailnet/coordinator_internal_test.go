@@ -163,8 +163,8 @@ func TestCoreDisconnectIgnoresReadyForHandshake(t *testing.T) {
 // fails with ErrWouldBlock, which removes that peer too, and notifying back
 // removes the first peer inside the nested call. The outer removePeerLocked
 // must notice its peer is already gone instead of closing the channel again.
-// lostPeer is the case that matters most: it runs on the Coordinate goroutine
-// where there is no recover.
+// Both request handling and lostPeer cleanup must finish without relying on
+// panic recovery.
 func TestCoreRemovePeerNestedRemoval(t *testing.T) {
 	t.Parallel()
 
@@ -248,19 +248,29 @@ func TestCoreRemovePeerNestedRemoval(t *testing.T) {
 		requireClosed(ctx, t, fp.bResps)
 	}
 
-	t.Run("UpdateSelf", func(t *testing.T) {
-		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitShort)
-		fp := setup(t)
-		var err error
-		require.NotPanics(t, func() {
-			err = fp.core.handleRequest(ctx, fp.a, &proto.CoordinateRequest{
+	for _, name := range []string{"UpdateSelf", "UpdateSelfAddTunnel", "UpdateSelfReadyForHandshake"} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitShort)
+			fp := setup(t)
+			req := &proto.CoordinateRequest{
 				UpdateSelf: &proto.CoordinateRequest_UpdateSelf{Node: &proto.Node{PreferredDerp: 3}},
+			}
+			dstID := uuid.New()
+			switch name {
+			case "UpdateSelfAddTunnel":
+				req.AddTunnel = &proto.CoordinateRequest_Tunnel{Id: dstID[:]}
+			case "UpdateSelfReadyForHandshake":
+				req.ReadyForHandshake = []*proto.CoordinateRequest_ReadyForHandshake{{Id: dstID[:]}}
+			}
+			var err error
+			require.NotPanics(t, func() {
+				err = fp.core.handleRequest(ctx, fp.a, req)
 			})
+			require.NoError(t, err)
+			requireBothRemoved(ctx, t, fp)
 		})
-		require.NoError(t, err)
-		requireBothRemoved(ctx, t, fp)
-	})
+	}
 
 	t.Run("LostPeer", func(t *testing.T) {
 		t.Parallel()

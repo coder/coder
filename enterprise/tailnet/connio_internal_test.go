@@ -36,7 +36,7 @@ func TestConnIOHandleRequestRejectsBeforeMutation(t *testing.T) {
 		}},
 		ReadyForHandshake: []*proto.CoordinateRequest_ReadyForHandshake{nil},
 	})
-	require.EqualError(t, err, "ready_for_handshake entry is required")
+	require.EqualError(t, err, "ready_for_handshake entries must not be nil")
 	require.Contains(t, logbuf.String(), "invalid coordinate request")
 	select {
 	case binding := <-bindings:

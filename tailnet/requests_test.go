@@ -79,12 +79,12 @@ func TestValidateCoordinateRequest(t *testing.T) {
 		{
 			name: "NilReadyForHandshakeEntry",
 			req:  &proto.CoordinateRequest{ReadyForHandshake: []*proto.CoordinateRequest_ReadyForHandshake{nil}},
-			err:  "ready_for_handshake entry is required",
+			err:  "ready_for_handshake entries must not be nil",
 		},
 		{
 			name: "NilReadyForHandshakeAfterValid",
 			req:  &proto.CoordinateRequest{ReadyForHandshake: []*proto.CoordinateRequest_ReadyForHandshake{validRFH, nil}},
-			err:  "ready_for_handshake entry is required",
+			err:  "ready_for_handshake entries must not be nil",
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

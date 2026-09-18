@@ -18,7 +18,7 @@ func ValidateCoordinateRequest(req *proto.CoordinateRequest) error {
 		return err
 	}
 	if slices.Contains(req.ReadyForHandshake, nil) {
-		return xerrors.New("ready_for_handshake entry is required")
+		return xerrors.New("ready_for_handshake entries must not be nil")
 	}
 	return nil
 }

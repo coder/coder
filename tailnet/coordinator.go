@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/netip"
+	runtimedebug "runtime/debug"
 	"sync"
 	"time"
 
@@ -177,6 +178,15 @@ func (c *coordinator) Coordinate(
 	c.wg.Add(1)
 	go func() {
 		defer c.wg.Done()
+		// Peer cleanup can also panic, outside reqLoop's recovery boundary.
+		defer func() {
+			if recovered := recover(); recovered != nil {
+				logger.Error(ctx, "panic coordinating peer (recovered)",
+					slog.F("panic", recovered),
+					slog.F("stack", string(runtimedebug.Stack())),
+				)
+			}
+		}()
 		loopErr := p.reqLoop(ctx, logger, c.core.handleRequest)
 		closeErrStr := ""
 		if loopErr != nil {
@@ -357,6 +367,10 @@ func (c *core) nodeUpdateLocked(p *peer, node *proto.Node) (err error) {
 
 	p.node = node
 	c.updateTunnelPeersLocked(p.id, node, proto.CoordinateResponse_PeerUpdate_NODE, "node update")
+	// Fan-out can recursively remove this peer if its response buffer is full.
+	if c.peers[p.id] != p {
+		return ErrAlreadyRemoved
+	}
 	return nil
 }
 

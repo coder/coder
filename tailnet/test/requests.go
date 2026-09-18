@@ -33,7 +33,7 @@ func InvalidCoordinateRequestTest(ctx context.Context, t *testing.T, coordinator
 		{
 			name: "NilReadyForHandshake",
 			req:  &proto.CoordinateRequest{ReadyForHandshake: []*proto.CoordinateRequest_ReadyForHandshake{nil}},
-			err:  "ready_for_handshake entry is required",
+			err:  "ready_for_handshake entries must not be nil",
 		},
 		{
 			name: "NodeAndNilReadyForHandshake",
@@ -43,7 +43,7 @@ func InvalidCoordinateRequestTest(ctx context.Context, t *testing.T, coordinator
 				}},
 				ReadyForHandshake: []*proto.CoordinateRequest_ReadyForHandshake{nil},
 			},
-			err:              "ready_for_handshake entry is required",
+			err:              "ready_for_handshake entries must not be nil",
 			verifyNoMutation: true,
 		},
 	} {
