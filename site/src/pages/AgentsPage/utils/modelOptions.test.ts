@@ -28,6 +28,7 @@ import {
 	providerTypeByIDFromUserConfigs,
 	resolveCompactionContextLimit,
 	resolveCompactionThreshold,
+	resolveEditModelConfigID,
 	resolveModelOptionId,
 	resolveModelSelector,
 } from "./modelOptions";
@@ -335,6 +336,52 @@ describe("resolveModelOptionId", () => {
 				modelOptions,
 			),
 		).toBe(false);
+	});
+});
+
+describe("resolveEditModelConfigID", () => {
+	const modelOptions = [
+		{
+			id: "config-1",
+			provider: "openai",
+			providerId: "prov-openai",
+			providerLabel: "OpenAI",
+			providerIcon: "",
+			model: "gpt-4o",
+			displayName: "GPT-4o",
+		},
+		{
+			id: "config-2",
+			provider: "anthropic",
+			providerId: "prov-anthropic",
+			providerLabel: "Anthropic",
+			providerIcon: "",
+			model: "claude-sonnet-4-20250514",
+			displayName: "Claude Sonnet",
+		},
+	] as const;
+
+	it("resolves the edit model override from the original and picker models", () => {
+		// Original still selectable and unchanged: keep it.
+		expect(
+			resolveEditModelConfigID("config-1", "config-1", modelOptions),
+		).toBeUndefined();
+		// Original selectable and the user picked another: override.
+		expect(resolveEditModelConfigID("config-1", "config-2", modelOptions)).toBe(
+			"config-2",
+		);
+		// Original unavailable: fall back to the picker.
+		expect(
+			resolveEditModelConfigID("foreign-config", "config-1", modelOptions),
+		).toBe("config-1");
+		// No original recorded: keep the backend default.
+		expect(
+			resolveEditModelConfigID(undefined, "config-1", modelOptions),
+		).toBeUndefined();
+		// Nothing picked: never override.
+		expect(
+			resolveEditModelConfigID("foreign-config", undefined, modelOptions),
+		).toBeUndefined();
 	});
 });
 
