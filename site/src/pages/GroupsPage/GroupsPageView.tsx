@@ -232,7 +232,7 @@ const GroupsTableBody: FC<GroupsTableBodyProps> = ({
 				}
 				cta={
 					canCreateGroup && (
-						<Button asChild>
+						<Button size="sm" asChild>
 							<RouterLink to="create">
 								<PlusIcon />
 								New group

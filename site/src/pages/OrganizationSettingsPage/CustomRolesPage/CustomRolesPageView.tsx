@@ -370,7 +370,7 @@ const RoleTableBody: FC<RoleTableBodyProps> = ({
 				}
 				cta={
 					canCreateOrgRole && (
-						<Button asChild>
+						<Button size="sm" asChild>
 							<RouterLink to="create">
 								<PlusIcon />
 								Create custom role
