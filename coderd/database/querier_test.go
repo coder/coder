@@ -868,9 +868,9 @@ func TestGetTemplateInsightsByTemplate(t *testing.T) {
 	}
 	require.Len(t, byTemplate, 2)
 	require.EqualValues(t, 2, byTemplate[templateID].ActiveUsers)
-	require.JSONEq(t, `{"vscode":120,"jetbrains":60,"reconnecting_pty":60,"ssh":120,"unknown":60}`, string(byTemplate[templateID].SessionAppUsageSeconds))
+	require.Equal(t, database.StringMapOfInt{"vscode": 120, "jetbrains": 60, "reconnecting_pty": 60, "ssh": 120, "unknown": 60}, byTemplate[templateID].SessionAppUsageSeconds)
 	require.EqualValues(t, 1, byTemplate[sharedConnectionTemplateID].ActiveUsers)
-	require.JSONEq(t, `{"vscode":60,"unknown":60}`, string(byTemplate[sharedConnectionTemplateID].SessionAppUsageSeconds))
+	require.Equal(t, database.StringMapOfInt{"vscode": 60, "unknown": 60}, byTemplate[sharedConnectionTemplateID].SessionAppUsageSeconds)
 }
 
 func TestGetWorkspaceAgentUsageStats(t *testing.T) {
@@ -19069,14 +19069,14 @@ func TestSessionCountsAttributeByFamily(t *testing.T) {
 	for _, row := range insights {
 		byTemplate[row.TemplateID] = row
 	}
-	require.JSONEq(t, `{"cursor":60}`, string(byTemplate[cursorTemplate].SessionAppUsageSeconds))
-	require.JSONEq(t, `{"zed":60}`, string(byTemplate[zedTemplate].SessionAppUsageSeconds))
+	require.Equal(t, database.StringMapOfInt{"cursor": 60}, byTemplate[cursorTemplate].SessionAppUsageSeconds)
+	require.Equal(t, database.StringMapOfInt{"zed": 60}, byTemplate[zedTemplate].SessionAppUsageSeconds)
 
 	// An app with no family is still activity, so the user is not counted idle.
 	unknown, ok := byTemplate[unknownTemplate]
 	require.True(t, ok, "a session with no family must still appear as usage")
 	require.Equal(t, int64(1), unknown.ActiveUsers)
-	require.JSONEq(t, `{"some_new_ide":60}`, string(unknown.SessionAppUsageSeconds))
+	require.Equal(t, database.StringMapOfInt{"some_new_ide": 60}, unknown.SessionAppUsageSeconds)
 }
 
 // The rollup stores the app name the agent reported, whether or not the

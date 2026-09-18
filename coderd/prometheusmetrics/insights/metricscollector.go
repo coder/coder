@@ -112,11 +112,7 @@ func (mc *MetricsCollector) Run(ctx context.Context) (func(), error) {
 				mc.logger.Error(ctx, "unable to fetch template insights from database", slog.Error(err))
 				return err
 			}
-			templateInsights, err = convertTemplateInsights(rows)
-			if err != nil {
-				mc.logger.Error(ctx, "unable to convert template insights", slog.Error(err))
-				return err
-			}
+			templateInsights = convertTemplateInsights(rows)
 			return nil
 		})
 		eg.Go(func() error {
@@ -310,22 +306,17 @@ func onlyTemplateNames(templates []database.Template) map[uuid.UUID]string {
 }
 
 // convertTemplateInsights groups each row's per-app session usage into
-// families. A malformed payload errors rather than reporting idle templates,
-// so the collector keeps serving its previous snapshot.
-func convertTemplateInsights(rows []database.GetTemplateInsightsByTemplateRow) ([]templateInsightsRow, error) {
+// families.
+func convertTemplateInsights(rows []database.GetTemplateInsightsByTemplateRow) []templateInsightsRow {
 	converted := make([]templateInsightsRow, 0, len(rows))
 	for _, row := range rows {
-		appSeconds, err := codersdk.DecodeAppMap[int64](row.SessionAppUsageSeconds)
-		if err != nil {
-			return nil, xerrors.Errorf("template %s: %w", row.TemplateID, err)
-		}
 		converted = append(converted, templateInsightsRow{
 			templateID:           row.TemplateID,
 			activeUsers:          row.ActiveUsers,
-			usageSecondsByFamily: codersdk.SumByFamily(appSeconds),
+			usageSecondsByFamily: codersdk.SumByFamily(row.SessionAppUsageSeconds),
 		})
 	}
-	return converted, nil
+	return converted
 }
 
 func convertParameterInsights(rows []database.GetTemplateParameterInsightsRow) []parameterRow {

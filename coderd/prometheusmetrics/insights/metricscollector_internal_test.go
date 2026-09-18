@@ -1,7 +1,6 @@
 package insights
 
 import (
-	"encoding/json"
 	"testing"
 
 	"github.com/google/uuid"
@@ -14,30 +13,13 @@ import (
 func TestConvertTemplateInsights(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Malformed", func(t *testing.T) {
-		t.Parallel()
-
-		// Zero usage would look like an idle template, so the tick must fail.
-		templateID := uuid.New()
-		rows, err := convertTemplateInsights([]database.GetTemplateInsightsByTemplateRow{
-			{TemplateID: templateID, SessionAppUsageSeconds: json.RawMessage(`{"ssh": "sixty"}`)},
-		})
-		require.ErrorContains(t, err, "template "+templateID.String())
-		require.Nil(t, rows)
+	rows := convertTemplateInsights([]database.GetTemplateInsightsByTemplateRow{
+		{
+			TemplateID:             uuid.New(),
+			SessionAppUsageSeconds: database.StringMapOfInt{"vscode": 300, "cursor": 120, "zed": 60},
+		},
 	})
-
-	t.Run("FoldsAppsIntoFamily", func(t *testing.T) {
-		t.Parallel()
-
-		rows, err := convertTemplateInsights([]database.GetTemplateInsightsByTemplateRow{
-			{
-				TemplateID:             uuid.New(),
-				SessionAppUsageSeconds: json.RawMessage(`{"vscode": 300, "cursor": 120, "zed": 60}`),
-			},
-		})
-		require.NoError(t, err)
-		require.Len(t, rows, 1)
-		require.EqualValues(t, 420, rows[0].usageSecondsByFamily[codersdk.AppFamilyVSCode])
-		require.EqualValues(t, 60, rows[0].usageSecondsByFamily[codersdk.AppFamilySSH])
-	})
+	require.Len(t, rows, 1)
+	require.EqualValues(t, 420, rows[0].usageSecondsByFamily[codersdk.AppFamilyVSCode])
+	require.EqualValues(t, 60, rows[0].usageSecondsByFamily[codersdk.AppFamilySSH])
 }

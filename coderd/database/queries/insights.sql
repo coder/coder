@@ -98,7 +98,7 @@ WITH
 		-- One pass over the window: per-user capped minutes and the template
 		-- list. GROUPING tells the two row kinds apart.
 		SELECT
-			GROUPING(template_id) AS is_user_row,
+			GROUPING(template_id) = 1 AS is_user_row,
 			start_time,
 			user_id,
 			template_id,
@@ -121,13 +121,12 @@ WITH
 		FROM
 			base
 		WHERE
-			is_user_row = 1
+			is_user_row
 	),
 	multi_template_buckets AS (
 		-- An app's minutes cap per user per half hour, across templates. Only
-		-- these buckets can reach the cap, and there are usually none, so the
-		-- capped grouping below runs on them alone: 1.8x faster than capping
-		-- every bucket.
+		-- these buckets can reach the cap, and most deployments have few, so
+		-- the capped grouping below runs on them alone.
 		SELECT
 			start_time,
 			user_id
@@ -138,7 +137,8 @@ WITH
 	),
 	app_usage_by_template AS (
 		-- A single row cannot exceed the cap, so these need no per-user
-		-- grouping. The template list per app comes from here too.
+		-- grouping. FILTER, not WHERE: the excluded buckets' minutes belong to
+		-- app_usage_capped, but their templates still belong in the list.
 		SELECT
 			sessions.app_name,
 			sessions.template_id,
@@ -149,7 +149,9 @@ WITH
 			template_usage_stats_session_apps AS sessions
 		WHERE
 			sessions.start_time >= @start_time::timestamptz
-			AND sessions.start_time + '30 minutes'::interval <= @end_time::timestamptz
+			-- The child table has no end_time, hence the bucket width. Keep
+			-- start_time bare so the range stays index-usable.
+			AND sessions.start_time <= (@end_time::timestamptz) - '30 minutes'::interval
 			AND CASE WHEN COALESCE(array_length(@template_ids::uuid[], 1), 0) > 0 THEN sessions.template_id = ANY(@template_ids::uuid[]) ELSE TRUE END
 		GROUP BY
 			sessions.app_name, sessions.template_id
@@ -162,7 +164,7 @@ WITH
 			template_usage_stats_session_apps AS sessions
 		WHERE
 			sessions.start_time >= @start_time::timestamptz
-			AND sessions.start_time + '30 minutes'::interval <= @end_time::timestamptz
+			AND sessions.start_time <= (@end_time::timestamptz) - '30 minutes'::interval
 			AND CASE WHEN COALESCE(array_length(@template_ids::uuid[], 1), 0) > 0 THEN sessions.template_id = ANY(@template_ids::uuid[]) ELSE TRUE END
 			AND EXISTS (
 				SELECT 1
@@ -196,7 +198,7 @@ WITH
 	)
 
 SELECT
-	COALESCE((SELECT array_agg(DISTINCT template_id) FROM base WHERE is_user_row = 0), '{}')::uuid[] AS template_ids, -- Includes app usage.
+	COALESCE((SELECT array_agg(DISTINCT template_id) FROM base WHERE NOT is_user_row), '{}')::uuid[] AS template_ids, -- Includes app usage.
 	COALESCE(COUNT(DISTINCT user_id), 0)::bigint AS active_users, -- Includes app usage.
 	COALESCE(SUM(usage_mins) * 60, 0)::bigint AS usage_total_seconds, -- Includes app usage.
 	-- Keyed by app name; callers fold both into families.
@@ -212,26 +214,12 @@ FROM
 -- Session usage comes out per app name, as in GetTemplateInsights, so either
 -- query reports the same family totals once the names are grouped.
 WITH
-	minute_app AS (
-		-- A minute counts once per app however many of its sessions were open.
-		SELECT DISTINCT
-			was.template_id,
-			was.user_id,
-			date_trunc('minute', was.created_at) AS minute,
-			app_name
-		FROM
-			workspace_agent_stats AS was
-		CROSS JOIN
-			jsonb_object_keys(was.session_counts) AS app_name
-		WHERE
-			was.created_at >= @start_time::timestamptz
-			AND was.created_at < @end_time::timestamptz
-			AND was.session_counts <> '{}'::jsonb
-	),
 	connected AS (
 		-- NOTE(mafredri): connection_count covers one report interval, while
 		-- the session counts are a gauge, so an idle session reports none.
 		-- Hence "any connection within this bucket", pending a better solution.
+		-- Grouped, not a WHERE: one connection anywhere in the window keeps
+		-- every minute of that pair. One row per pair, so no fan-out.
 		SELECT
 			template_id,
 			user_id
@@ -247,20 +235,30 @@ WITH
 			BOOL_OR(connection_count > 0)
 	),
 	insights AS (
+		-- A minute counts once per app however many of its sessions were open,
+		-- which COUNT(DISTINCT) does in the grouping. Deduplicating the
+		-- expanded rows first instead spills to disk once a deployment has a
+		-- few thousand agents.
 		SELECT
-			ma.template_id,
-			ma.user_id,
-			ma.app_name,
-			COUNT(*) AS usage_mins
+			was.template_id,
+			was.user_id,
+			app_name,
+			COUNT(DISTINCT date_trunc('minute', was.created_at)) AS usage_mins
 		FROM
-			minute_app AS ma
+			workspace_agent_stats AS was
+		CROSS JOIN
+			jsonb_object_keys(was.session_counts) AS app_name
 		JOIN
 			connected AS c
 		ON
-			c.template_id = ma.template_id
-			AND c.user_id = ma.user_id
+			c.template_id = was.template_id
+			AND c.user_id = was.user_id
+		WHERE
+			was.created_at >= @start_time::timestamptz
+			AND was.created_at < @end_time::timestamptz
+			AND was.session_counts <> '{}'::jsonb
 		GROUP BY
-			ma.template_id, ma.user_id, ma.app_name
+			was.template_id, was.user_id, app_name
 	),
 	app_usage AS (
 		SELECT
@@ -726,7 +724,7 @@ WITH
 			stats.time_bucket + '30 minutes'::interval AS end_time,
 			stats.template_id,
 			stats.user_id,
-			-- Sum/distinct to handle zero/duplicate values due union and to unnest.
+			-- Distinct to handle duplicate values due union and to unnest.
 			COUNT(DISTINCT minute_bucket) AS usage_mins,
 			array_agg(DISTINCT minute_bucket) AS minute_buckets,
 			-- This is what we unnested, re-nest as json.
