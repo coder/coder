@@ -142,6 +142,21 @@ const users: OrganizationAISpendUser[] = [
 	},
 ];
 
+const routing = { path: "/ai/settings/spend", useStoryElement: true };
+
+// Story parameters deep-merge into the meta's, so the explicit range lives on
+// the stories that want it and the default is the server's budget period.
+const explicitRange = reactRouterParameters({
+	location: {
+		path: "/ai/settings/spend",
+		searchParams: {
+			startDate: "2026-02-10T00:00:00.000Z",
+			endDate: "2026-03-12T00:00:00.000Z",
+		},
+	},
+	routing,
+});
+
 const meta = {
 	title: "pages/AISettingsPage/SpendPage/SpendPage",
 	component: SpendPage,
@@ -152,14 +167,8 @@ const meta = {
 		permissions: { viewAnyAIBridgeInterception: true },
 		features: ["aibridge"],
 		reactRouter: reactRouterParameters({
-			location: {
-				path: "/ai/settings/spend",
-				searchParams: {
-					startDate: "2026-02-10T00:00:00.000Z",
-					endDate: "2026-03-12T00:00:00.000Z",
-				},
-			},
-			routing: { path: "/ai/settings/spend", useStoryElement: true },
+			location: { path: "/ai/settings/spend" },
+			routing,
 		}),
 	},
 	beforeEach: () => {
@@ -199,24 +208,20 @@ export default meta;
 type Story = StoryObj<typeof SpendPage>;
 
 export const FirstPage: Story = {
+	parameters: { reactRouter: explicitRange },
 	play: async ({ canvasElement }) => {
 		await within(canvasElement).findByRole("table", { name: "Spend by user" });
 	},
 };
 
 export const BudgetPeriod: Story = {
-	parameters: {
-		reactRouter: reactRouterParameters({
-			location: { path: "/ai/settings/spend" },
-			routing: { path: "/ai/settings/spend", useStoryElement: true },
-		}),
-	},
 	play: async ({ canvasElement }) => {
 		await within(canvasElement).findByRole("table", { name: "Spend by user" });
 	},
 };
 
 export const ProviderMenu: Story = {
+	parameters: { reactRouter: explicitRange },
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await userEvent.click(
@@ -239,7 +244,7 @@ export const FilteredByProvider: Story = {
 					provider_name: "openai",
 				},
 			},
-			routing: { path: "/ai/settings/spend", useStoryElement: true },
+			routing,
 		}),
 	},
 	play: async ({ canvasElement }) => {
@@ -248,6 +253,7 @@ export const FilteredByProvider: Story = {
 };
 
 export const RetentionLimitedPicker: Story = {
+	parameters: { reactRouter: explicitRange },
 	beforeEach: () => {
 		spyOn(API, "getOrganizationAISpendUsers").mockResolvedValue({
 			...MockOrganizationAISpendReport,
@@ -266,7 +272,26 @@ export const RetentionLimitedPicker: Story = {
 	},
 };
 
+// Less than a day of retention leaves no whole day for the picker to select,
+// so the report keeps the server's default window and the picker stays off.
+export const SubDayRetention: Story = {
+	beforeEach: () => {
+		spyOn(API, "getOrganizationAISpendUsers").mockResolvedValue({
+			...MockOrganizationAISpendReport,
+			period_start: fixedNow.subtract(1, "hour").toISOString(),
+			period_end: fixedNow.add(1, "hour").startOf("hour").toISOString(),
+			retention_start: fixedNow.subtract(1, "hour").toISOString(),
+			count: users.length,
+			users: users.slice(0, 10),
+		});
+	},
+	play: async ({ canvasElement }) => {
+		await within(canvasElement).findByRole("table", { name: "Spend by user" });
+	},
+};
+
 export const SecondPage: Story = {
+	parameters: { reactRouter: explicitRange },
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await canvas.findByRole("table", { name: "Spend by user" });

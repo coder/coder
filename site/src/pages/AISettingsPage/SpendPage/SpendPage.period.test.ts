@@ -36,70 +36,77 @@ it("maps a UTC budget period onto the same local calendar days", () => {
 });
 
 it("starts at the first local midnight after a mid-day retention cutoff", () => {
-	const { startDate, endDate } = appliedWindowToDateRange(
-		clampedToRetention(
-			new Date("2026-02-14T15:32:10Z"),
-			"2026-03-01T00:00:00Z",
+	expect(
+		appliedWindowToDateRange(
+			clampedToRetention(
+				new Date("2026-02-14T15:32:10Z"),
+				"2026-03-01T00:00:00Z",
+			),
+			now,
 		),
-		now,
-	);
-	expect(startDate).toEqual(new Date(2026, 1, 16));
-	expect(endDate).toEqual(new Date(2026, 2, 1));
+	).toEqual({
+		startDate: new Date(2026, 1, 16),
+		endDate: new Date(2026, 2, 1),
+	});
 });
 
 it("treats a retention cutoff at UTC midnight as a cutoff", () => {
-	const { startDate } = appliedWindowToDateRange(
-		clampedToRetention(
-			new Date("2026-02-15T00:00:00Z"),
-			"2026-03-01T00:00:00Z",
+	expect(
+		appliedWindowToDateRange(
+			clampedToRetention(
+				new Date("2026-02-15T00:00:00Z"),
+				"2026-03-01T00:00:00Z",
+			),
+			now,
 		),
-		now,
-	);
-	expect(startDate).toEqual(new Date(2026, 1, 16));
+	).toMatchObject({ startDate: new Date(2026, 1, 16) });
 });
 
 it("keeps a budget start whose local midnight precedes the cutoff inside retention", () => {
-	const { startDate } = appliedWindowToDateRange(
-		{
-			period_start: "2026-02-01T00:00:00Z",
-			period_end: "2026-03-01T00:00:00Z",
-			retention_start: "2026-01-31T23:30:00Z",
-		},
-		now,
-	);
-	expect(startDate).toEqual(new Date(2026, 1, 2));
+	expect(
+		appliedWindowToDateRange(
+			{
+				period_start: "2026-02-01T00:00:00Z",
+				period_end: "2026-03-01T00:00:00Z",
+				retention_start: "2026-01-31T23:30:00Z",
+			},
+			now,
+		),
+	).toMatchObject({ startDate: new Date(2026, 1, 2) });
 });
 
 it("shows the first selectable day when no whole day of the window remains", () => {
-	// 08:30 on April 1 in Asia/Tokyo, still March 31 in UTC.
+	// 08:30 on April 1 in Asia/Tokyo, still March 31 in UTC, with the cutoff
+	// at 23:00 the evening before.
 	const lateNow = new Date("2026-03-31T23:30:00Z");
-	const { startDate, endDate } = appliedWindowToDateRange(
-		clampedToRetention(
-			new Date("2026-03-31T22:30:00Z"),
-			"2026-04-01T00:00:00Z",
+	expect(
+		appliedWindowToDateRange(
+			clampedToRetention(
+				new Date("2026-03-31T14:00:00Z"),
+				"2026-04-01T00:00:00Z",
+			),
+			lateNow,
 		),
-		lateNow,
-	);
-	expect(startDate).toEqual(new Date(2026, 3, 1));
-	expect(endDate).toEqual(new Date(2026, 3, 1, 9));
+	).toEqual({
+		startDate: new Date(2026, 3, 1),
+		endDate: new Date(2026, 3, 1, 9),
+	});
 });
 
-it("starts today when retention is shorter than a day", () => {
+it("offers no range when retention is shorter than a day", () => {
 	const cutoff = new Date(now.getTime() - 60 * 60 * 1000);
-	const { startDate } = appliedWindowToDateRange(
-		clampedToRetention(cutoff, "2026-04-01T00:00:00Z"),
-		now,
-	);
-	expect(startDate).toEqual(new Date(2026, 2, 12));
+	expect(
+		appliedWindowToDateRange(
+			clampedToRetention(cutoff, "2026-04-01T00:00:00Z"),
+			now,
+		),
+	).toBeUndefined();
 });
 
 it("bounds the picker at the first local midnight after the retention cutoff", () => {
 	const cutoff = new Date(2026, 1, 14, 15, 32, 10);
-	expect(firstDayWithinRetention(cutoff, now)).toEqual(new Date(2026, 1, 15));
-	expect(firstDayWithinRetention(new Date(2026, 1, 14), now)).toEqual(
+	expect(firstDayWithinRetention(cutoff)).toEqual(new Date(2026, 1, 15));
+	expect(firstDayWithinRetention(new Date(2026, 1, 14))).toEqual(
 		new Date(2026, 1, 14),
 	);
-	expect(
-		firstDayWithinRetention(new Date(now.getTime() - 60 * 60 * 1000), now),
-	).toEqual(new Date(2026, 2, 12));
 });

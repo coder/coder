@@ -46,25 +46,23 @@ const localDayOf = (instant: Date): Date =>
 /**
  * The first local calendar day the picker can select on or after the moving
  * retention cutoff: the first local midnight at or after it. With less than a
- * day of retention that midnight has not happened yet, so it is today instead
- * of a day the picker cannot select.
+ * day of retention that midnight has not happened yet.
  */
-export const firstDayWithinRetention = (cutoff: Date, now: Date): Date => {
-	let day = new Date(cutoff.getFullYear(), cutoff.getMonth(), cutoff.getDate());
-	if (day < cutoff) {
-		day = new Date(
-			cutoff.getFullYear(),
-			cutoff.getMonth(),
-			cutoff.getDate() + 1,
-		);
-	}
-	const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-	return day > today ? today : day;
+export const firstDayWithinRetention = (cutoff: Date): Date => {
+	const day = new Date(
+		cutoff.getFullYear(),
+		cutoff.getMonth(),
+		cutoff.getDate(),
+	);
+	return day < cutoff
+		? new Date(cutoff.getFullYear(), cutoff.getMonth(), cutoff.getDate() + 1)
+		: day;
 };
 
 /**
  * Maps the server's UTC window to local picker days, advancing the start past
- * retention where possible. If no selectable midnight remains, uses today.
+ * retention where possible. Undefined when no selectable day remains, since
+ * every day the picker could commit would start before the cutoff.
  */
 export const appliedWindowToDateRange = (
 	window: Pick<
@@ -72,7 +70,7 @@ export const appliedWindowToDateRange = (
 		"period_start" | "period_end" | "retention_start"
 	>,
 	now: Date,
-): DateRangeValue => {
+): DateRangeValue | undefined => {
 	const start = new Date(window.period_start);
 	let lastDay = localDayOf(new Date(new Date(window.period_end).getTime() - 1));
 	let firstDay = localDayOf(start);
@@ -80,7 +78,11 @@ export const appliedWindowToDateRange = (
 		window.retention_start !== undefined &&
 		firstDay.getTime() < Date.parse(window.retention_start)
 	) {
-		firstDay = firstDayWithinRetention(new Date(window.retention_start), now);
+		firstDay = firstDayWithinRetention(new Date(window.retention_start));
+		const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+		if (firstDay > today) {
+			return undefined;
+		}
 		if (firstDay > lastDay) {
 			lastDay = firstDay;
 		}
@@ -217,7 +219,7 @@ const SpendPage: FC<SpendPageProps> = ({ now }) => {
 	// offer those days. Absent when the deployment does not purge.
 	const retentionStart = usersQuery.data?.retention_start;
 	const minDate = retentionStart
-		? firstDayWithinRetention(new Date(retentionStart), currentTime)
+		? firstDayWithinRetention(new Date(retentionStart))
 		: undefined;
 
 	return (
