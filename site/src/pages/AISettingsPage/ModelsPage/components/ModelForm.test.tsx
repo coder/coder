@@ -11,8 +11,8 @@ import { renderWithRouter } from "#/testHelpers/renderHelpers";
 import { OrganizationModelsContext } from "../organizationModels";
 import {
 	MockAnthropicProviderState,
+	MockGPT56Pro,
 	MockOpenAIProviderState,
-	mockGPT56Pro,
 } from "../testFixtures";
 import { ModelForm } from "./ModelForm";
 
@@ -67,7 +67,7 @@ const selectOption = async (
 	await user.click(await screen.findByRole("option", { name: option }));
 };
 
-const proModelConfig = mockGPT56Pro.model_config;
+const proModelConfig = MockGPT56Pro.model_config;
 
 describe("ModelForm reasoning mode", () => {
 	it("saves Pro for a new GPT-5.6 model", async () => {
@@ -100,14 +100,14 @@ describe("ModelForm reasoning mode", () => {
 
 	it("changes and clears the mode without touching effort or tier", async () => {
 		const user = userEvent.setup();
-		const { onUpdateModel } = renderModelForm(mockGPT56Pro);
+		const { onUpdateModel } = renderModelForm(MockGPT56Pro);
 
 		await openProviderConfig(user);
 		await selectOption(user, /reasoning mode/i, "Standard");
 		await user.click(screen.getByRole("button", { name: /update model/i }));
 		await waitFor(() =>
 			expect(onUpdateModel).toHaveBeenLastCalledWith(
-				mockGPT56Pro.id,
+				MockGPT56Pro.id,
 				expect.objectContaining({
 					model_config: {
 						...proModelConfig,
@@ -123,7 +123,7 @@ describe("ModelForm reasoning mode", () => {
 		await user.click(screen.getByRole("button", { name: /update model/i }));
 		await waitFor(() =>
 			expect(onUpdateModel).toHaveBeenLastCalledWith(
-				mockGPT56Pro.id,
+				MockGPT56Pro.id,
 				expect.objectContaining({
 					model_config: {
 						...proModelConfig,
@@ -136,7 +136,7 @@ describe("ModelForm reasoning mode", () => {
 
 	it("drops a stale mode when the model stops supporting it", async () => {
 		const user = userEvent.setup();
-		const { onUpdateModel } = renderModelForm(mockGPT56Pro);
+		const { onUpdateModel } = renderModelForm(MockGPT56Pro);
 
 		const modelInput = screen.getByLabelText(/model identifier/i);
 		await user.clear(modelInput);
@@ -146,7 +146,7 @@ describe("ModelForm reasoning mode", () => {
 
 		await waitFor(() =>
 			expect(onUpdateModel).toHaveBeenCalledWith(
-				mockGPT56Pro.id,
+				MockGPT56Pro.id,
 				expect.objectContaining({
 					model: "gpt-5.6-pro",
 					model_config: {

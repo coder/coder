@@ -42,7 +42,7 @@ export const mockClaude: ChatModel = {
 	is_default: false,
 };
 
-export const mockGPT56Pro: ChatModel = {
+export const MockGPT56Pro: ChatModel = {
 	...mockGPT5,
 	id: "model-gpt56-pro",
 	model: "gpt-5.6-sol-2026-08-01",

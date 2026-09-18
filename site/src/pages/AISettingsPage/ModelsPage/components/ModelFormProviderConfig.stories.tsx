@@ -9,8 +9,8 @@ import { withToaster } from "#/testHelpers/storybook";
 import { OrganizationModelsContext } from "../organizationModels";
 import {
 	MockAnthropicProviderState,
+	MockGPT56Pro,
 	MockOpenAIProviderState,
-	mockGPT56Pro,
 } from "../testFixtures";
 import { ModelForm } from "./ModelForm";
 
@@ -132,7 +132,7 @@ export const ProviderConfigOpenAIWebSearch: Story = {
 // Reasoning mode is only offered for GPT-5.6 family and GPT-6 Astra models
 // on OpenAI with the Responses API, so the saved Pro selection is shown here.
 export const ProviderConfigOpenAIReasoningMode: Story = {
-	args: { editingModel: mockGPT56Pro },
+	args: { editingModel: MockGPT56Pro },
 	play: async ({ canvasElement }) => {
 		await openProviderConfig(canvasElement);
 	},
