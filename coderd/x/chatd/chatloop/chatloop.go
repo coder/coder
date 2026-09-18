@@ -145,9 +145,14 @@ type ExecuteLocalToolsOptions struct {
 	ObservedToolCalls []fantasy.ToolCallContent
 
 	ExclusiveToolNames map[string]bool
-	BuiltinToolNames   map[string]bool
-	ModelProvider      string
-	ModelName          string
+	// ExclusiveToolSkippedMessages overrides, per exclusive tool name,
+	// the error text written to the sibling calls skipped because that
+	// tool was in the batch. Tools without an entry get the default
+	// text.
+	ExclusiveToolSkippedMessages map[string]string
+	BuiltinToolNames             map[string]bool
+	ModelProvider                string
+	ModelName                    string
 
 	// ContextLimit is the model's context window in tokens. It is used
 	// to derive a per-result byte budget so a single oversized tool
@@ -500,6 +505,7 @@ func ExecuteLocalTools(ctx context.Context, opts ExecuteLocalToolsOptions) (Pers
 	policyResults, exclusiveViolation := applyExclusiveToolPolicy(
 		localCalls,
 		opts.ExclusiveToolNames,
+		opts.ExclusiveToolSkippedMessages,
 		opts.Metrics,
 		provider,
 		modelName,
@@ -1168,6 +1174,7 @@ func executeTools(
 func applyExclusiveToolPolicy(
 	toolCalls []fantasy.ToolCallContent,
 	exclusiveToolNames map[string]bool,
+	skippedMessages map[string]string,
 	metrics *Metrics,
 	provider, model string,
 ) ([]fantasy.ToolResultContent, bool) {
@@ -1175,7 +1182,7 @@ func applyExclusiveToolPolicy(
 	if !ok {
 		return nil, false
 	}
-	results := exclusiveToolPolicyResults(toolCalls, exclusiveToolNames, blockingToolName)
+	results := exclusiveToolPolicyResults(toolCalls, exclusiveToolNames, skippedMessages, blockingToolName)
 	for _, tr := range results {
 		recordToolResultMetrics(metrics, provider, model, tr)
 	}
@@ -1223,11 +1230,16 @@ func firstExclusiveToolName(
 func exclusiveToolPolicyResults(
 	toolCalls []fantasy.ToolCallContent,
 	exclusiveToolNames map[string]bool,
+	skippedMessages map[string]string,
 	blockingToolName string,
 ) []fantasy.ToolResultContent {
+	skippedMessage, ok := skippedMessages[blockingToolName]
+	if !ok {
+		skippedMessage = exclusiveToolSkippedErrorMessage(blockingToolName)
+	}
 	results := make([]fantasy.ToolResultContent, len(toolCalls))
 	for i, tc := range toolCalls {
-		message := exclusiveToolSkippedErrorMessage(blockingToolName)
+		message := skippedMessage
 		if exclusiveToolNames[tc.ToolName] {
 			message = exclusiveToolMustRunAloneErrorMessage(tc.ToolName)
 		}
