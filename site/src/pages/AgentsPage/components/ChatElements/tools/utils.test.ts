@@ -3,6 +3,7 @@ import {
 	buildEditDiff,
 	buildWriteFileDiff,
 	COLLAPSED_REPORT_HEIGHT,
+	contextBoundarySourceSuffix,
 	DIFFS_FONT_STYLE,
 	diffViewerCSS,
 	fileViewerCSS,
@@ -30,6 +31,19 @@ import {
 	stripSvnIndexHeaders,
 	summarizeParsedCommands,
 } from "./utils";
+
+describe("contextBoundarySourceSuffix", () => {
+	it.each([
+		["manual", " (manual)"],
+		["agent", " (agent)"],
+		["automatic", ""],
+		["", ""],
+		[undefined, ""],
+		["unexpected", ""],
+	])("maps source %j to %j", (source, suffix) => {
+		expect(contextBoundarySourceSuffix(source)).toBe(suffix);
+	});
+});
 
 describe("formatModelIntentLabel", () => {
 	it("returns empty string for empty values", () => {
