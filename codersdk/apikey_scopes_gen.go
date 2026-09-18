@@ -69,6 +69,7 @@ const (
 	APIKeyScopeChatProjectCreate                   APIKeyScope = "chat_project:create"
 	APIKeyScopeChatProjectDelete                   APIKeyScope = "chat_project:delete"
 	APIKeyScopeChatProjectRead                     APIKeyScope = "chat_project:read"
+	APIKeyScopeChatProjectShare                    APIKeyScope = "chat_project:share"
 	APIKeyScopeChatProjectUpdate                   APIKeyScope = "chat_project:update"
 	APIKeyScopeCoderAll                            APIKeyScope = "coder:all"
 	APIKeyScopeCoderApikeysManageSelf              APIKeyScope = "coder:apikeys.manage_self"

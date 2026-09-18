@@ -499,6 +499,8 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"description":     ActionTrack,
 		"created_at":      ActionIgnore,
 		"updated_at":      ActionIgnore,
+		"user_acl":        ActionTrack,
+		"group_acl":       ActionTrack,
 	},
 	&database.ChatModelConfig{}: {
 		"id":                    ActionIgnore, // Conveyed by resource_id.
