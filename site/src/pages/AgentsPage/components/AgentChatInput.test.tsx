@@ -19,7 +19,10 @@ import {
 import { userSkills } from "#/api/queries/userSkills";
 import type * as TypesGen from "#/api/typesGenerated";
 import { toast } from "#/components/Toaster/toast";
-import { MockMCPServerConfig } from "#/testHelpers/chatEntities";
+import {
+	MockChatQueuedMessageUnderEdit,
+	MockMCPServerConfig,
+} from "#/testHelpers/chatEntities";
 import { MockChatProject, MockWorkspace } from "#/testHelpers/entities";
 import { createMockFile } from "#/testHelpers/files";
 import {
@@ -1151,5 +1154,35 @@ describe("AgentChatInput", () => {
 		expect(toastError).toHaveBeenCalledWith(
 			"This file type is uploaded into the chat's workspace. Attach a running workspace to the chat, then try again.",
 		);
+	});
+
+	it("does not promote a queue head under edit on Enter with an empty composer", async () => {
+		const user = userEvent.setup();
+		const onPromoteQueuedMessage = vi.fn();
+
+		renderInput(
+			<AgentChatInput
+				onSend={vi.fn()}
+				isDisabled={false}
+				isLoading={false}
+				selectedModel={modelOptions[0].id}
+				onModelChange={vi.fn()}
+				modelOptions={modelOptions}
+				modelSelectorPlaceholder="Select model"
+				hasModelOptions
+				canConfigureAgentSetup={false}
+				initialValue=""
+				onContentChange={vi.fn()}
+				planModeEnabled={false}
+				onPlanModeToggle={vi.fn()}
+				isModelCatalogLoading={false}
+				queuedMessages={[MockChatQueuedMessageUnderEdit]}
+				onPromoteQueuedMessage={onPromoteQueuedMessage}
+			/>,
+		);
+
+		await user.click(screen.getByRole("textbox", { name: "Chat message" }));
+		await user.keyboard("{Enter}");
+		expect(onPromoteQueuedMessage).not.toHaveBeenCalled();
 	});
 });
