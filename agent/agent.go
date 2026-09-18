@@ -503,18 +503,18 @@ func (a *agent) init() {
 		Clock:          a.clock,
 		WorkingDir:     workingDirFn,
 		InitialSources: initialContextSources(a.contextConfig, workingDirFn),
-		// The manager surfaces MCP servers and their tools as
-		// KindMCPServer resources by reading the shared MCP engine's
-		// catalog (a.mcpManager). That engine owns the single set of
+		// The manager surfaces MCP servers, their tools, and config
+		// diagnostics by reading the shared MCP engine's discovery
+		// report (a.mcpManager). That engine owns the single set of
 		// MCP server connections used for both discovery and tool-call
 		// execution, so each declared server is launched once.
-		MCPCatalog: func() []agentcontext.MCPServerStatus {
-			return mcpCatalogToContext(a.mcpManager.Catalog())
+		MCPReport: func() agentcontext.MCPReport {
+			return mcpReportToContext(a.mcpManager.Report())
 		},
 	})
 	a.contextAPI = agentcontext.NewAPI(a.contextManager)
-	// Re-resolve and re-push KindMCPServer resources whenever the MCP
-	// engine's catalog changes (startup connect, .mcp.json edits).
+	// Re-resolve and re-push MCP resources whenever the MCP engine's
+	// discovery report changes (startup connect, .mcp.json edits).
 	a.mcpManager.SetOnReload(a.contextManager.Trigger)
 	a.reconnectingPTYServer = reconnectingpty.NewServer(
 		a.logger.Named("reconnecting-pty"),
