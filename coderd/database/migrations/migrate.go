@@ -23,7 +23,6 @@ import (
 
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/sloghuman"
-
 	"github.com/coder/retry"
 )
 
