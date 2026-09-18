@@ -80,6 +80,9 @@ type CompactionSource string
 const (
 	CompactionSourceAutomatic CompactionSource = "automatic"
 	CompactionSourceManual    CompactionSource = "manual"
+	// CompactionSourceAgent marks a boundary the assistant requested by
+	// calling a context tool during its own turn.
+	CompactionSourceAgent CompactionSource = "agent"
 )
 
 type CompactionOptions struct {
