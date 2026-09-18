@@ -1,7 +1,7 @@
 import { cn } from "cn";
-import type { FC, HTMLAttributes, ReactNode } from "react";
+import type { ComponentProps, FC, ReactNode } from "react";
 
-export interface EmptyStateProps extends HTMLAttributes<HTMLDivElement> {
+export interface EmptyStateProps extends ComponentProps<"div"> {
 	/** Text Message to display, placed inside Typography component */
 	message: string;
 	/** Longer optional description to display below the message */

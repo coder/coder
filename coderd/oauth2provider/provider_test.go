@@ -18,6 +18,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/oauth2provider/oauth2providertest"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -54,6 +55,22 @@ func TestOAuth2ProviderAppValidation(t *testing.T) {
 				req: codersdk.PostOAuth2ProviderAppRequest{
 					Name:        " foo",
 					CallbackURL: "http://localhost:3000",
+				},
+			},
+			{
+				name: "ScopeTooManyNames",
+				req: codersdk.PostOAuth2ProviderAppRequest{
+					Name:        "foo",
+					CallbackURL: "http://localhost:3000",
+					Scope:       strings.Repeat("s ", codersdk.OAuth2ScopeListMaxNames+1),
+				},
+			},
+			{
+				name: "ScopeTooLong",
+				req: codersdk.PostOAuth2ProviderAppRequest{
+					Name:        "foo",
+					CallbackURL: "http://localhost:3000",
+					Scope:       strings.Repeat("a", codersdk.OAuth2ScopeListMaxBytes+1),
 				},
 			},
 			{
@@ -575,6 +592,116 @@ func TestOAuth2ProviderAppOperations(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.Len(t, apps, 0)
+	})
+
+	t.Run("Scope", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, nil)
+		coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// No scope means unrestricted, same as before this field existed.
+		//nolint:gocritic // OAuth2 app management requires owner permission.
+		app, err := client.PostOAuth2ProviderApp(ctx, codersdk.PostOAuth2ProviderAppRequest{
+			Name:        "scope-test-unrestricted",
+			CallbackURL: "http://coder.com",
+		})
+		require.NoError(t, err)
+		require.Empty(t, app.Scope)
+
+		// A scope is stored and echoed back, and aliases and duplicates are
+		// rewritten to their canonical, deduplicated form.
+		//nolint:gocritic // OAuth2 app management requires owner permission.
+		app, err = client.PostOAuth2ProviderApp(ctx, codersdk.PostOAuth2ProviderAppRequest{
+			Name:        "scope-test-scoped",
+			CallbackURL: "http://coder.com",
+			Scope:       "all workspace:read all",
+		})
+		require.NoError(t, err)
+		require.Equal(t, "coder:all workspace:read", app.Scope)
+
+		//nolint:gocritic // OAuth2 app management requires owner permission.
+		got, err := client.OAuth2ProviderApp(ctx, app.ID)
+		require.NoError(t, err)
+		require.Equal(t, app.Scope, got.Scope)
+
+		// Updating replaces the allowlist rather than merging with it.
+		//nolint:gocritic // OAuth2 app management requires owner permission.
+		app, err = client.PutOAuth2ProviderApp(ctx, app.ID, codersdk.PutOAuth2ProviderAppRequest{
+			Name:        app.Name,
+			CallbackURL: app.CallbackURL,
+			Scope:       ptr.Ref("coder:templates.author"),
+		})
+		require.NoError(t, err)
+		require.Equal(t, "coder:templates.author", app.Scope)
+
+		// Omitting scope on update leaves the allowlist untouched.
+		//nolint:gocritic // OAuth2 app management requires owner permission.
+		app, err = client.PutOAuth2ProviderApp(ctx, app.ID, codersdk.PutOAuth2ProviderAppRequest{
+			Name:        app.Name,
+			CallbackURL: app.CallbackURL,
+		})
+		require.NoError(t, err)
+		require.Equal(t, "coder:templates.author", app.Scope)
+
+		// An oversized scope on update is rejected and leaves the allowlist
+		// untouched.
+		//nolint:gocritic // OAuth2 app management requires owner permission.
+		_, err = client.PutOAuth2ProviderApp(ctx, app.ID, codersdk.PutOAuth2ProviderAppRequest{
+			Name:        app.Name,
+			CallbackURL: app.CallbackURL,
+			Scope:       ptr.Ref(strings.Repeat("s ", codersdk.OAuth2ScopeListMaxNames+1)),
+		})
+		require.ErrorContains(t, err, "at most 100 names")
+		//nolint:gocritic // OAuth2 app management requires owner permission.
+		app, err = client.OAuth2ProviderApp(ctx, app.ID)
+		require.NoError(t, err)
+		require.Equal(t, "coder:templates.author", app.Scope)
+
+		// An explicit empty scope on update clears the allowlist back to
+		// unrestricted.
+		//nolint:gocritic // OAuth2 app management requires owner permission.
+		app, err = client.PutOAuth2ProviderApp(ctx, app.ID, codersdk.PutOAuth2ProviderAppRequest{
+			Name:        app.Name,
+			CallbackURL: app.CallbackURL,
+			Scope:       ptr.Ref(""),
+		})
+		require.NoError(t, err)
+		require.Empty(t, app.Scope)
+	})
+
+	t.Run("ScopeSpellingMatchesAcrossOrigins", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, nil)
+		coderdtest.CreateFirstUser(t, client)
+		oauth2providertest.EnableDCR(t, client)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// The same allowlist written through either path reads back the same
+		// way, even though both store the caller's spelling as given.
+		//nolint:gocritic // OAuth2 app management requires owner permission.
+		admin, err := client.PostOAuth2ProviderApp(ctx, codersdk.PostOAuth2ProviderAppRequest{
+			Name:        "scope-origin-admin",
+			CallbackURL: "http://coder.com",
+			Scope:       "all workspace:read all",
+		})
+		require.NoError(t, err)
+
+		registered, err := client.PostOAuth2ClientRegistration(ctx, codersdk.OAuth2ClientRegistrationRequest{
+			RedirectURIs: []string{"https://coder.com/callback"},
+			ClientName:   "scope-origin-dcr",
+			Scope:        "all workspace:read all",
+		})
+		require.NoError(t, err)
+
+		//nolint:gocritic // OAuth2 app management requires owner permission.
+		dcr, err := client.OAuth2ProviderApp(ctx, uuid.MustParse(registered.ClientID))
+		require.NoError(t, err)
+
+		require.Equal(t, "coder:all workspace:read", admin.Scope)
+		require.Equal(t, admin.Scope, dcr.Scope)
 	})
 }
 

@@ -4035,15 +4035,15 @@ func testMigration000583ChatModelOverrideOrgScope(t *testing.T, db *sql.DB) {
 	require.NoError(t, err)
 }
 
-// Migration 000596 makes redirect_uris the source of truth for an OAuth2
+// Migration 000598 makes redirect_uris the source of truth for an OAuth2
 // app's redirect URIs, with the callback as the first entry. Every row shape
 // the column could hold before the migration must come out with the callback
 // first and nothing lost, and running the statement again must change
 // nothing.
-func TestMigration000596OAuth2RedirectURIsPrimary(t *testing.T) {
+func TestMigration000598OAuth2RedirectURIsPrimary(t *testing.T) {
 	t.Parallel()
 
-	const migrationVersion = 596
+	const migrationVersion = 598
 
 	sqlDB := testSQLDB(t)
 
@@ -4109,7 +4109,7 @@ func TestMigration000596OAuth2RedirectURIsPrimary(t *testing.T) {
 	assertRows()
 
 	// Running the statement again must be a no-op.
-	upSQL, err := os.ReadFile("000596_oauth2_redirect_uris_primary.up.sql")
+	upSQL, err := os.ReadFile("000598_oauth2_redirect_uris_primary.up.sql")
 	require.NoError(t, err)
 	_, err = sqlDB.ExecContext(ctx, string(upSQL))
 	require.NoError(t, err)

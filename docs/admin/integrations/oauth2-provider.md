@@ -80,6 +80,9 @@ curl -X POST \
   "$CODER_URL/api/v2/oauth2-provider/apps"
 ```
 
+Add an optional `scope` field to restrict which scopes the application's clients may request.
+Refer to [Scopes](#scopes) for how the allowlist is applied and how to change it later.
+
 Generate a client secret:
 
 ```sh
@@ -306,7 +309,15 @@ https://coder.example.com/oauth2/authorize?
   redirect_uri=https://yourapp.example.com/callback
 ```
 
-An application registered through [Dynamic Client Registration](#dynamic-client-registration) can declare a `scope` field, which acts as an allowlist. The client may then request anything that allowlist covers, and is granted the whole allowlist if it requests nothing. Applications created through the web UI or the management API declare no allowlist, so any requested scope is honored and a request that names no scope is granted `coder:all`.
+An application can carry a `scope` allowlist.
+The client may then request anything that allowlist covers, and is granted the whole allowlist if it requests nothing.
+An application with no allowlist honors any requested scope, and a request that names no scope is granted `coder:all`.
+
+An application registered through [Dynamic Client Registration](#dynamic-client-registration) declares its allowlist in the `scope` field of its registration.
+An administrator sets one with the optional, space-separated `scope` field when [creating an application](../../reference/api/enterprise.md#create-oauth2-application) through the management API.
+When [updating an application](../../reference/api/enterprise.md#update-oauth2-application), omit `scope` to keep the current allowlist, send a new value to replace it, or send an empty string to clear it and make the application unrestricted.
+The stored value is not checked against the scopes this deployment offers; a name it does not offer fails at authorization, as described under ["invalid_scope" returned to your callback](#invalid_scope-returned-to-your-callback).
+The web UI does not yet set the allowlist.
 
 The consent page states the scope being granted before the user approves it. A refresh keeps the scope originally granted; a refresh that names a narrower `scope` applies it to the access token it mints, leaving the grant itself unchanged.
 
@@ -474,18 +485,14 @@ opens with the requested name that caused the rejection:
   OAuth2 clients. It may not exist, or it may exist and be internal-only, which
   no version offers. Read the current list from `scopes_supported` in
   `GET /.well-known/oauth-authorization-server`.
-- `scope requests permissions beyond this app's allowed scopes`: the name is
-  supported, but the application was registered with a narrower `scope`.
-  Request less, or re-register the application with a wider one.
-- `none of the scopes registered for this app are supported by this
-  deployment`: the application's own registered `scope` names nothing this
-  deployment offers, so no request against it can succeed, including one
-  that omits `scope`. Re-register the application with supported scopes. This
-  description stands alone. Nothing validates a registered `scope`, so the
-  response never echoes it; the server log records the application ID.
+- `scope requests permissions beyond this app's allowed scopes`: the name is supported, but the application's `scope` allowlist does not cover it.
+  Request less, or widen the allowlist.
+- `none of the scopes registered for this app are supported by this deployment`: the application's `scope` allowlist names nothing this deployment offers, so no request against it can succeed, including one that omits `scope`.
+  Update the allowlist with supported scopes.
+  This description stands alone.
+  Nothing checks a stored `scope` against the catalog, so the response never echoes it; the server log records the application ID.
 
-Omitting `scope` requests the application's registered scopes, or full access
-if it was registered without any.
+Omitting `scope` requests the application's allowlist, or full access if it has none.
 
 The negotiated scope is recorded on the authorization, shown on the consent
 page, and applied to the access token issued when the code is exchanged.
@@ -509,26 +516,18 @@ The exchange also re-checks the code's scope against the application's
 registered `scope`, which can change during the ten minutes a code stays valid.
 Two more descriptions can open the `error_description` here:
 
-- `scope is no longer allowed by this app's registered scopes`: the
-  registration narrowed after the code was issued and no longer covers the
-  code's scope. Authorize again to negotiate a scope within the new
-  registration.
-- `none of the scopes registered for this app are supported by this
-  deployment`: the registration names nothing this deployment offers, so no
-  code against it can be redeemed. Re-register the application with supported
-  scopes. As on the authorize endpoint, the registered value stays out of the
-  response.
+- `scope is no longer allowed by this app's registered scopes`: the allowlist narrowed after the code was issued and no longer covers the code's scope.
+  Authorize again to negotiate a scope within the new allowlist.
+- `none of the scopes registered for this app are supported by this deployment`: the allowlist names nothing this deployment offers, so no code against it can be redeemed.
+  Update the allowlist with supported scopes.
+  As on the authorize endpoint, the stored value stays out of the response.
 
 A coverage comparison this deployment cannot decide answers HTTP 500 with
 `error=server_error` and `The requested scope could not be evaluated`; the
 scope that could not be compared is in the server logs, not the response.
 
-Only the application itself can change its registered `scope`, through
-[Dynamic Client Registration](#dynamic-client-registration). No administrator
-surface writes the column, and an application that holds its registration
-access token can widen its own allowlist again before redeeming a code, so
-treat this re-check as reflecting the registration at redemption time rather
-than as a constraint on the client.
+An application's `scope` allowlist can change through [Dynamic Client Registration](#dynamic-client-registration), by the application itself, or through the management API, by an administrator.
+An application that holds its registration access token can widen its own allowlist again before redeeming a code, so treat this re-check as reflecting the allowlist at redemption time rather than as a constraint on the client.
 
 A refresh is not re-checked against the registration. That is a Coder policy
 choice: withdrawing scope from a session already running would break it
@@ -536,11 +535,9 @@ mid-flight, so a narrowing takes effect at the next authorization. A refresh
 token keeps its granted scope until it expires, which can be up to the
 configured refresh lifetime; revoke the token to cut a live session.
 
-Codes issued before the upgrade that added scope columns carry `coder:all`,
-recorded as an unrestricted grant. For an application registered with a
-narrower `scope`, those codes are refused with `scope is no longer allowed by
-this app's registered scopes` until they expire, which takes at most ten
-minutes. Authorizing again issues a code within the current registration.
+Codes issued before the upgrade that added scope columns carry `coder:all`, recorded as an unrestricted grant.
+For an application with a narrower `scope` allowlist, those codes are refused with `scope is no longer allowed by this app's registered scopes` until they expire, which takes at most ten minutes.
+Authorizing again issues a code within the current allowlist.
 
 ### "invalid_scope" for a refresh that names a scope
 
@@ -704,7 +701,7 @@ Public clients (`token_endpoint_auth_method: none`) additionally cannot register
 
 The current implementation has these limitations:
 
-- A scope allowlist can only be declared at [Dynamic Client Registration](#dynamic-client-registration); applications created through the web UI or the management API cannot restrict which scopes a client may request
+- The web UI cannot set or change a scope allowlist; declare one at [Dynamic Client Registration](#dynamic-client-registration) or set it through the management API, as described under [Scopes](#scopes)
 - No client credentials grant support
 - No device authorization grant support (RFC 8628)
 - Implicit grant (`response_type=token`) is not supported; OAuth 2.1 deprecated this flow due to token leakage risks, and a request for it redirects to the registered callback with `unsupported_response_type`
@@ -740,7 +737,7 @@ Turning it back off does not clear the check: Coder validates the stored `scope`
 
 Earlier versions of Coder accepted any `scope` at registration without checking it, and every token for that application had full access.
 Coder now treats the registered `scope` as the list of scopes the application is allowed to request, as described under [Scopes](#scopes).
-Applications that self-registered without a `scope`, and applications created through the web UI or the management API, have no scope list and are not affected; they continue to receive full access.
+Applications that self-registered without a `scope`, and applications created through the web UI or the management API without one, have no scope list and are not affected; they continue to receive full access.
 
 An affected application fails in the following ways:
 
@@ -752,7 +749,8 @@ For the full error details, refer to ["invalid_scope" returned to your callback]
 
 To fix an affected application, the party that holds its `registration_access_token` updates the registration with `PUT /oauth2/clients/{client_id}`, so that `scope` lists only names from `scopes_supported` in `GET /.well-known/oauth-authorization-server`.
 If that token is lost, register the application again.
-A Coder administrator cannot change an application's registered `scope` from the web UI or the management API; only the self-registration path writes that value.
+A Coder administrator can also fix it from the management API by [updating the application](../../reference/api/enterprise.md#update-oauth2-application) with a `scope` that lists supported names, or with an empty `scope` to remove the allowlist.
+The web UI cannot change it.
 
 ## Standards Compliance
 
