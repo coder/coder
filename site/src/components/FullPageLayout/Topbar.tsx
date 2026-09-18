@@ -71,8 +71,6 @@ export const TopbarAvatar: FC<AvatarProps> = (props) => {
 	return <Avatar {...props} variant="icon" size="sm" />;
 };
 
-// HTMLOrSVGElement has no tag equivalent, and this renders no element of its
-// own: it clones whichever icon it is given. Restructuring it is out of scope.
 // oxlint-disable-next-line no-restricted-types
 type TopbarIconProps = HTMLAttributes<HTMLOrSVGElement> & {
 	ref?: Ref<HTMLOrSVGElement>;

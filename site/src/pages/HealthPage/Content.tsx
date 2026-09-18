@@ -172,8 +172,6 @@ export const SectionLabel: FC<ComponentProps<"h4">> = ({
 };
 
 type PillProps = React.ComponentProps<"div"> & {
-	// Not element props: this is the element *type* accepted by cloneElement,
-	// which takes any element carrying standard attributes.
 	// oxlint-disable-next-line no-restricted-types
 	icon: ReactElement<HTMLAttributes<HTMLElement>>;
 };
