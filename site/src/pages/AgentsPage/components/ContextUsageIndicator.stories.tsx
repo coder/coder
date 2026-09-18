@@ -1,10 +1,56 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, fn, userEvent, waitFor, within } from "storybook/test";
+import { type FC, useState } from "react";
+import {
+	expect,
+	fireEvent,
+	fn,
+	userEvent,
+	waitFor,
+	within,
+} from "storybook/test";
+import type { ChatContext, ChatContextResource } from "#/api/typesGenerated";
+import { Button } from "#/components/Button/Button";
 import {
 	MockChatContextClean,
 	MockChatContextDirty,
 } from "#/testHelpers/chatEntities";
-import { ContextUsageIndicator } from "./ContextUsageIndicator";
+import {
+	type AgentContextUsage,
+	ContextUsageIndicator,
+} from "./ContextUsageIndicator";
+
+// Only the OK rows of the shared fixture, so the discovery stories show one
+// MCP state at a time without the fixture's invalid skill under Issues.
+const MockChatContextResourcesHealthy: readonly ChatContextResource[] =
+	MockChatContextClean.resources?.filter(
+		(resource) => resource.status === "ok",
+	) ?? [];
+
+// Pinned context without any MCP rows, so the MCP section is driven by the
+// discovery state alone.
+const MockChatContextResourcesWithoutMcp: readonly ChatContextResource[] =
+	MockChatContextResourcesHealthy.filter(
+		(resource) =>
+			resource.kind !== "mcp_config" && resource.kind !== "mcp_server",
+	);
+
+const MockChatContextMcpPending: ChatContext = {
+	...MockChatContextClean,
+	resources: MockChatContextResourcesWithoutMcp,
+	mcp_discovery: { phase: "pending", stale: false },
+};
+
+const MockChatContextMcpCompleteNoServers: ChatContext = {
+	...MockChatContextClean,
+	resources: MockChatContextResourcesWithoutMcp,
+	mcp_discovery: { phase: "complete", stale: false },
+};
+
+const MockChatContextMcpComplete: ChatContext = {
+	...MockChatContextClean,
+	resources: MockChatContextResourcesHealthy,
+	mcp_discovery: { phase: "complete", stale: false },
+};
 
 const meta: Meta<typeof ContextUsageIndicator> = {
 	title: "pages/AgentsPage/ContextUsageIndicator",
@@ -210,5 +256,242 @@ export const SnapshotError: Story = {
 	play: async ({ canvasElement }) => {
 		const button = within(canvasElement).getByRole("button");
 		await userEvent.hover(button);
+	},
+};
+
+// The agent has not finished its initial MCP reload: the MCP section explains
+// that discovery is still initializing instead of showing an empty list.
+export const McpDiscoveryInitializing: Story = {
+	args: {
+		usage: {
+			usedTokens: 12_000,
+			contextLimitTokens: 200_000,
+			context: MockChatContextMcpPending,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const button = within(canvasElement).getByRole("button");
+		await userEvent.hover(button);
+	},
+};
+
+// A chat bound to an agent that has not pushed its first snapshot yet: the
+// only thing to show is that discovery is underway.
+export const McpDiscoveryInitializingBeforeFirstSnapshot: Story = {
+	args: {
+		usage: {
+			usedTokens: 12_000,
+			contextLimitTokens: 200_000,
+			context: {
+				...MockChatContextClean,
+				resources: [],
+				mcp_discovery: { phase: "pending", stale: false },
+			},
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const button = within(canvasElement).getByRole("button");
+		await userEvent.hover(button);
+	},
+};
+
+// Discovery finished and no server was declared, so the section states that
+// outcome rather than disappearing.
+export const McpDiscoveryCompleteNoServers: Story = {
+	args: {
+		usage: {
+			usedTokens: 12_000,
+			contextLimitTokens: 200_000,
+			context: MockChatContextMcpCompleteNoServers,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const button = within(canvasElement).getByRole("button");
+		await userEvent.hover(button);
+	},
+};
+
+// A discovered server that exposes no tools stays listed with an explicit
+// marker so it is not mistaken for a failed one.
+export const McpServerWithoutTools: Story = {
+	args: {
+		usage: {
+			usedTokens: 12_000,
+			contextLimitTokens: 200_000,
+			context: {
+				...MockChatContextMcpComplete,
+				resources: [
+					...MockChatContextResourcesWithoutMcp,
+					{
+						source: "/home/coder/.mcp.json",
+						kind: "mcp_config",
+						size_bytes: 184,
+						status: "ok",
+					},
+					{
+						source: "linear",
+						kind: "mcp_server",
+						size_bytes: 0,
+						status: "ok",
+						tools: [],
+					},
+				],
+			},
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const button = within(canvasElement).getByRole("button");
+		await userEvent.hover(button);
+	},
+};
+
+// An OK server carrying a non-fatal warning: it keeps its tools in the MCP
+// list and the warning appears under Issues without marking it unavailable.
+export const McpServerWithWarning: Story = {
+	args: {
+		usage: {
+			usedTokens: 12_000,
+			contextLimitTokens: 200_000,
+			context: {
+				...MockChatContextMcpComplete,
+				resources: MockChatContextResourcesHealthy.map((resource) =>
+					resource.kind === "mcp_server"
+						? {
+								...resource,
+								error:
+									"reconnect failed: connection refused; serving tools from the previous connection",
+							}
+						: resource,
+				),
+			},
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const button = within(canvasElement).getByRole("button");
+		await userEvent.hover(button);
+	},
+};
+
+// Failed sources: a semantically invalid .mcp.json and a server that could not
+// be reached are both listed under Issues with their sanitized errors.
+export const McpSourcesFailed: Story = {
+	args: {
+		usage: {
+			usedTokens: 12_000,
+			contextLimitTokens: 200_000,
+			context: {
+				...MockChatContextMcpComplete,
+				resources: [
+					...MockChatContextResourcesWithoutMcp,
+					{
+						source: "/home/coder/.mcp.json",
+						kind: "mcp_config",
+						size_bytes: 184,
+						status: "invalid",
+						error: 'server "github": command and url are mutually exclusive',
+					},
+					{
+						source: "linear",
+						kind: "mcp_server",
+						size_bytes: 0,
+						status: "unreadable",
+						error: "initialize: dial tcp 127.0.0.1:8080: connection refused",
+					},
+				],
+			},
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const button = within(canvasElement).getByRole("button");
+		await userEvent.hover(button);
+	},
+};
+
+// A failed server whose error embeds a long path with no break
+// opportunities: the text must wrap inside the popover instead of widening
+// it into a horizontal scroll.
+export const McpLongError: Story = {
+	args: {
+		usage: {
+			usedTokens: 12_000,
+			contextLimitTokens: 200_000,
+			context: {
+				...MockChatContextMcpComplete,
+				resources: [
+					...MockChatContextResourcesWithoutMcp,
+					{
+						source: "longpath",
+						kind: "mcp_server",
+						size_bytes: 0,
+						status: "unreadable",
+						error: `connect "longpath": fork/exec /home/coder/${"deeplynesteddirectorysegment/".repeat(13)}mcpserverbinary: no such file or directory`,
+					},
+				],
+			},
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const button = within(canvasElement).getByRole("button");
+		await userEvent.hover(button);
+	},
+};
+
+// The pinned MCP rows were published by a previous agent process, so their
+// tools are withheld until the chat picks up the current agent's discovery.
+export const McpDiscoveryStale: Story = {
+	args: {
+		usage: {
+			usedTokens: 12_000,
+			contextLimitTokens: 200_000,
+			context: {
+				...MockChatContextMcpComplete,
+				mcp_discovery: { phase: "complete", stale: true },
+			},
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const button = within(canvasElement).getByRole("button");
+		await userEvent.hover(button);
+	},
+};
+
+// Stands in for the chat detail refetch that the context_dirty watch event
+// triggers: the indicator is prop-driven, so publishing the completed
+// discovery swaps the context while the popover stays open.
+const DiscoveryUpdateHarness: FC = () => {
+	const [context, setContext] = useState<ChatContext>(
+		MockChatContextMcpPending,
+	);
+	const usage: AgentContextUsage = {
+		usedTokens: 12_000,
+		contextLimitTokens: 200_000,
+		context,
+	};
+	return (
+		<div className="flex items-center gap-4">
+			<ContextUsageIndicator usage={usage} />
+			<Button
+				size="xs"
+				variant="outline"
+				onClick={() => setContext(MockChatContextMcpComplete)}
+			>
+				Publish discovery
+			</Button>
+		</div>
+	);
+};
+
+export const McpDiscoveryUpdatesInPlace: Story = {
+	render: () => <DiscoveryUpdateHarness />,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.hover(
+			canvas.getByRole("button", { name: /Context usage/ }),
+		);
+		// fireEvent keeps the pointer over the indicator so the open popover
+		// re-renders with the published discovery instead of closing.
+		await fireEvent.click(
+			canvas.getByRole("button", { name: "Publish discovery" }),
+		);
 	},
 };
