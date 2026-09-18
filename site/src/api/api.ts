@@ -4032,13 +4032,13 @@ function createWebSocket(
 }
 
 // Other non-API methods defined here to make it a little easier to find them.
-type ClientApi = {
+type ClientApi = ApiMethods & {
 	getCsrfToken: () => string;
 	setSessionToken: (token: string) => void;
 	getSessionToken: () => string | undefined;
 	setHost: (host: string | undefined) => void;
 	getAxiosInstance: () => AxiosInstance;
-} & ApiMethods;
+};
 
 /** @public Exported for use by external consumers (e.g., VS Code extension). */
 export class Api extends ApiMethods implements ClientApi {

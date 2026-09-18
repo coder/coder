@@ -5,14 +5,17 @@ import type {
 	TemplateAutostopRequirementDaysValue,
 } from "#/utils/schedule";
 
-export type TemplateScheduleFormValues = {
+export type TemplateScheduleFormValues = Omit<
+	UpdateTemplateMeta,
+	"autostop_requirement" | "autostart_requirement"
+> & {
 	autostart_requirement_days_of_week: TemplateAutostartRequirementDaysValue[];
 	autostop_requirement_days_of_week: TemplateAutostopRequirementDaysValue;
 	autostop_requirement_weeks: number;
 	failure_cleanup_enabled: boolean;
 	inactivity_cleanup_enabled: boolean;
 	dormant_autodeletion_cleanup_enabled: boolean;
-} & Omit<UpdateTemplateMeta, "autostop_requirement" | "autostart_requirement">;
+};
 
 const MAX_TTL_DAYS = 30;
 

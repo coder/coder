@@ -102,10 +102,10 @@ const EarlierMessages: FC<EarlierMessagesProps> = ({
 	);
 };
 
-type ChatMessageScrollerProps = {
+type ChatMessageScrollerProps = EarlierMessagesProps & {
 	/** One `MessageScroller.Item` per transcript row, and nothing else. */
 	children: ReactNode;
-} & EarlierMessagesProps;
+};
 
 export const ChatMessageScroller: FC<ChatMessageScrollerProps> = ({
 	children,

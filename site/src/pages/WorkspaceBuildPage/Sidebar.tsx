@@ -18,9 +18,9 @@ export const Sidebar: FC<HTMLAttributes<HTMLElement>> = ({
 	);
 };
 
-type SidebarItemProps = {
+type SidebarItemProps = HTMLAttributes<HTMLElement> & {
 	active?: boolean;
-} & HTMLAttributes<HTMLElement>;
+};
 
 export const SidebarItem: FC<SidebarItemProps> = ({
 	children,

@@ -73,9 +73,9 @@ export const ActivateButton: FC<ActionButtonProps> = ({
 	);
 };
 
-type ActionButtonPropsWithWorkspace = {
+type ActionButtonPropsWithWorkspace = ActionButtonProps & {
 	workspace: Workspace;
-} & ActionButtonProps;
+};
 
 export const StartButton: FC<ActionButtonPropsWithWorkspace> = ({
 	handleAction,

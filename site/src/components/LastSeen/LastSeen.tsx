@@ -3,12 +3,12 @@ import type dayjs from "dayjs";
 import type { FC, HTMLAttributes } from "react";
 import { isAfter, subtractTime, timeFrom } from "#/utils/time";
 
-type LastSeenProps = {
+type LastSeenProps = Omit<HTMLAttributes<HTMLSpanElement>, "children"> & {
 	at: dayjs.ConfigType;
 	// Injectable reference time so the component is deterministic in tests.
 	now?: dayjs.ConfigType;
 	"data-pixel"?: string; // prevents a type error in the stories
-} & Omit<HTMLAttributes<HTMLSpanElement>, "children">;
+};
 
 const displayFor = (
 	at: dayjs.ConfigType,

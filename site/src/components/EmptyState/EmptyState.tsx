@@ -1,7 +1,7 @@
 import { cn } from "cn";
 import type { FC, HTMLAttributes, ReactNode } from "react";
 
-export type EmptyStateProps = {
+export type EmptyStateProps = HTMLAttributes<HTMLDivElement> & {
 	/** Text Message to display, placed inside Typography component */
 	message: string;
 	/** Longer optional description to display below the message */
@@ -9,7 +9,7 @@ export type EmptyStateProps = {
 	cta?: ReactNode;
 	image?: ReactNode;
 	isCompact?: boolean;
-} & HTMLAttributes<HTMLDivElement>;
+};
 
 /**
  * Component to place on screens or in lists that have no content. Optionally

@@ -35,10 +35,10 @@ function useCombobox() {
 	return context;
 }
 
-type ComboboxProps = {
+type ComboboxProps = React.ComponentProps<typeof Popover> & {
 	value?: string;
 	onValueChange?: (value: string | undefined) => void;
-} & React.ComponentProps<typeof Popover>;
+};
 
 export const Combobox = ({
 	children,
@@ -65,11 +65,11 @@ export const Combobox = ({
 
 export const ComboboxTrigger = PopoverTrigger;
 
-type ComboboxButtonProps = {
+type ComboboxButtonProps = React.ComponentPropsWithRef<"button"> & {
 	width?: number;
 	selectedOption?: SelectFilterOption;
 	placeholder?: string;
-} & React.ComponentPropsWithRef<"button">;
+};
 
 export const ComboboxButton = ({
 	children,

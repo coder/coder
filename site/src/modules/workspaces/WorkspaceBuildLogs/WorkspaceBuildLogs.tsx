@@ -39,13 +39,13 @@ const getStageDurationInSeconds = (logs: ProvisionerJobLog[]) => {
 	return completedAt.diff(startedAt, "seconds");
 };
 
-type WorkspaceBuildLogsProps = {
+type WorkspaceBuildLogsProps = HTMLAttributes<HTMLDivElement> & {
 	hideTimestamps?: boolean;
 	sticky?: boolean;
 	logs: ProvisionerJobLog[];
 	build?: WorkspaceBuild;
 	disableAutoscroll?: boolean;
-} & HTMLAttributes<HTMLDivElement>;
+};
 
 export const WorkspaceBuildLogs: FC<WorkspaceBuildLogsProps> = ({
 	hideTimestamps,

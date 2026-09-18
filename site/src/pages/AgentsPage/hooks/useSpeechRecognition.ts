@@ -21,17 +21,17 @@ type SpeechRecognitionResultList = {
 	[index: number]: SpeechRecognitionResult;
 };
 
-type SpeechRecognitionEvent = {
+type SpeechRecognitionEvent = Event & {
 	readonly resultIndex: number;
 	readonly results: SpeechRecognitionResultList;
-} & Event;
+};
 
-type SpeechRecognitionErrorEvent = {
+type SpeechRecognitionErrorEvent = Event & {
 	readonly error: string;
 	readonly message: string;
-} & Event;
+};
 
-type SpeechRecognitionInstance = {
+type SpeechRecognitionInstance = EventTarget & {
 	lang: string;
 	continuous: boolean;
 	interimResults: boolean;
@@ -41,7 +41,7 @@ type SpeechRecognitionInstance = {
 	start(): void;
 	stop(): void;
 	abort(): void;
-} & EventTarget;
+};
 
 type SpeechRecognitionConstructor = {
 	new (): SpeechRecognitionInstance;

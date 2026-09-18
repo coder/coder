@@ -1,14 +1,14 @@
 import { cn } from "cn";
 import { ChevronDownIcon as LucideChevronDown } from "lucide-react";
 
-type ChevronDownIconProps = {
+type ChevronDownIconProps = React.ComponentProps<typeof LucideChevronDown> & {
 	/**
 	 * Explicitly control rotation state. When omitted, rotation is
 	 * driven by Radix's data-state attribute on a parent element
 	 * with className="group".
 	 */
 	open?: boolean;
-} & React.ComponentProps<typeof LucideChevronDown>;
+};
 
 export const ChevronDownIcon: React.FC<ChevronDownIconProps> = ({
 	open,

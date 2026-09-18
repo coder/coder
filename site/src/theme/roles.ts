@@ -63,10 +63,10 @@ export type Role = {
 };
 
 /** Provides additional colors which can indicate different states for interactive elements */
-export type InteractiveRole = {
+export type InteractiveRole = Role & {
 	/** A set of colors which can indicate a disabled state */
 	disabled: Role;
 
 	/** A set of colors which can indicate mouse hover (or keyboard focus)  */
 	hover: Role;
-} & Role;
+};

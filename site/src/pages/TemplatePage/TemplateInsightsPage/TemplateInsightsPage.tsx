@@ -262,11 +262,11 @@ export const TemplateInsightsPageView: FC<TemplateInsightsPageViewProps> = ({
 	);
 };
 
-type ActiveUsersPanelProps = {
+type ActiveUsersPanelProps = PanelProps & {
 	data: TemplateInsightsResponse["interval_reports"] | undefined;
 	error: unknown;
 	interval: InsightsInterval;
-} & PanelProps;
+};
 
 const ActiveUsersPanel: FC<ActiveUsersPanelProps> = ({
 	data,
@@ -302,10 +302,10 @@ const ActiveUsersPanel: FC<ActiveUsersPanelProps> = ({
 	);
 };
 
-type UsersLatencyPanelProps = {
+type UsersLatencyPanelProps = PanelProps & {
 	data: UserLatencyInsightsResponse | undefined;
 	error: unknown;
-} & PanelProps;
+};
 
 const UsersLatencyPanel: FC<UsersLatencyPanelProps> = ({
 	data,
@@ -354,10 +354,10 @@ const UsersLatencyPanel: FC<UsersLatencyPanelProps> = ({
 	);
 };
 
-type UsersActivityPanelProps = {
+type UsersActivityPanelProps = PanelProps & {
 	data: UserActivityInsightsResponse | undefined;
 	error: unknown;
-} & PanelProps;
+};
 
 const UsersActivityPanel: FC<UsersActivityPanelProps> = ({
 	data,
@@ -402,10 +402,10 @@ const UsersActivityPanel: FC<UsersActivityPanelProps> = ({
 	);
 };
 
-type TemplateUsagePanelProps = {
+type TemplateUsagePanelProps = PanelProps & {
 	data: readonly TemplateAppUsage[] | undefined;
 	error: unknown;
-} & PanelProps;
+};
 
 const TemplateUsagePanel: FC<TemplateUsagePanelProps> = ({
 	data,
@@ -481,10 +481,10 @@ const TemplateUsagePanel: FC<TemplateUsagePanelProps> = ({
 	);
 };
 
-type TemplateParametersUsagePanelProps = {
+type TemplateParametersUsagePanelProps = PanelProps & {
 	data: readonly TemplateParameterUsage[] | undefined;
 	error: unknown;
-} & PanelProps;
+};
 
 const TemplateParametersUsagePanel: FC<TemplateParametersUsagePanelProps> = ({
 	data,
@@ -694,10 +694,10 @@ const PanelTitle: FC<HTMLAttributes<HTMLDivElement>> = ({
 	);
 };
 
-type PanelContentProps = {
+type PanelContentProps = HTMLAttributes<HTMLDivElement> & {
 	error: unknown | undefined;
 	data: readonly unknown[] | undefined;
-} & HTMLAttributes<HTMLDivElement>;
+};
 
 const PanelContent: FC<PanelContentProps> = ({ error, data, children }) => {
 	return (
@@ -713,9 +713,9 @@ const PanelContent: FC<PanelContentProps> = ({ error, data, children }) => {
 	);
 };
 
-type NoDataAvailableProps = {
+type NoDataAvailableProps = HTMLAttributes<HTMLDivElement> & {
 	error: unknown;
-} & HTMLAttributes<HTMLDivElement>;
+};
 
 const NoDataAvailable: FC<NoDataAvailableProps> = ({ error, ...props }) => {
 	return (

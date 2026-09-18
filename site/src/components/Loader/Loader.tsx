@@ -2,14 +2,14 @@ import { cn } from "cn";
 import type { FC, HTMLAttributes } from "react";
 import { Spinner } from "#/components/Spinner/Spinner";
 
-type LoaderProps = {
+type LoaderProps = HTMLAttributes<HTMLDivElement> & {
 	fullscreen?: boolean;
 	size?: "sm" | "lg";
 	/**
 	 * A label for the loader. This is used for accessibility purposes.
 	 */
 	label?: string;
-} & HTMLAttributes<HTMLDivElement>;
+};
 
 export const Loader: FC<LoaderProps> = ({
 	fullscreen,

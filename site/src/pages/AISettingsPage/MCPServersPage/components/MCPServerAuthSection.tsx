@@ -24,9 +24,9 @@ type MCPServerAuthFieldsProps = {
 	disabled: boolean;
 };
 
-type MCPServerAuthSectionProps = {
+type MCPServerAuthSectionProps = MCPServerAuthFieldsProps & {
 	canSelectUserOIDC: boolean;
-} & MCPServerAuthFieldsProps;
+};
 
 export const MCPServerAuthSection: FC<MCPServerAuthSectionProps> = ({
 	form,

@@ -44,9 +44,9 @@ const RightPanelHarness: FC<HarnessProps> = ({
 	);
 };
 
-type SidebarHarnessProps = {
+type SidebarHarnessProps = HarnessProps & {
 	onSidebarCollapsedChange?: (isCollapsed: boolean) => void;
-} & HarnessProps;
+};
 
 /**
  * Supplies the outlet context the panel uses to collapse the chats

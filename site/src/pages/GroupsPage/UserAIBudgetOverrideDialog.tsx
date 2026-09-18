@@ -234,14 +234,14 @@ const ReadOnlyBudget: FC<BudgetProps> = (props) => (
 	</p>
 );
 
-type OverrideFormProps = {
+type OverrideFormProps = BudgetProps & {
 	// Group marked "(default)" in the picker; null marks none.
 	defaultGroupId: string | null;
 	isSubmitting: boolean;
 	onSave: (request: UpsertUserAIBudgetOverrideRequest) => Promise<unknown>;
 	onRemove: () => Promise<unknown>;
 	onClose: () => void;
-} & BudgetProps;
+};
 
 /** Mounted only after budget data loads, so state seeds from it without a sync effect. */
 const OverrideForm: FC<OverrideFormProps> = ({

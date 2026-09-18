@@ -25,9 +25,9 @@ export const SidebarLink: FC<LinkProps> = ({ className, ...props }) => {
 	);
 };
 
-type SidebarItemProps = {
+type SidebarItemProps = HTMLAttributes<HTMLButtonElement> & {
 	isActive?: boolean;
-} & HTMLAttributes<HTMLButtonElement>;
+};
 
 export const SidebarItem: FC<SidebarItemProps> = ({
 	isActive,
@@ -55,9 +55,9 @@ export const SidebarCaption: FC<HTMLAttributes<HTMLSpanElement>> = (props) => {
 	);
 };
 
-type SidebarIconButtonProps = {
+type SidebarIconButtonProps = ComponentProps<typeof TopbarIconButton> & {
 	isActive: boolean;
-} & ComponentProps<typeof TopbarIconButton>;
+};
 
 export const SidebarIconButton: FC<SidebarIconButtonProps> = ({
 	isActive,

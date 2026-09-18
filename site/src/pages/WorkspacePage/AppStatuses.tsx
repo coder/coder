@@ -29,10 +29,10 @@ type AppStatusesProps = {
 };
 
 // Extend the API status type to include the app icon and the app itself
-type StatusWithAppInfo = {
+type StatusWithAppInfo = APIWorkspaceAppStatus & {
 	appIcon?: string; // Kept for potential future use, but we'll primarily use app.icon
 	app?: WorkspaceApp; // Store the full app object
-} & APIWorkspaceAppStatus;
+};
 
 export const AppStatuses: FC<AppStatusesProps> = ({
 	workspace,
