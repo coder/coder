@@ -21,23 +21,27 @@ function query<T extends Element>(selector: string): T {
 	return node;
 }
 
-function click(target: Element) {
+function click(target: Element, init: MouseEventInit = {}) {
 	target.dispatchEvent(
-		new MouseEvent("click", { bubbles: true, cancelable: true }),
+		new MouseEvent("click", { bubbles: true, cancelable: true, ...init }),
 	);
 }
 
-function comment(target: Element, text: string) {
+function comment(target: Element, text: string, hold = false) {
 	click(target);
 	const textarea = query<HTMLTextAreaElement>(".popup textarea");
 	textarea.value = text;
 	textarea.dispatchEvent(new Event("input", { bubbles: true }));
-	click(query(".popup .button:not(.outline)"));
+	click(query(".popup .button:not(.outline)"), { shiftKey: hold });
 }
 
 describe("mountAnnotator", () => {
 	beforeEach(() => {
-		document.body.innerHTML = `<main><button id="save">Save</button></main>`;
+		document.body.innerHTML = `<main><h1 id="title">Hi</h1><button id="save">Save</button></main>`;
+		for (const node of document.querySelectorAll("main *")) {
+			(node as HTMLElement).getBoundingClientRect = () =>
+				new DOMRect(10, 10, 100, 30);
+		}
 		document.title = "App";
 		window.history.replaceState(null, "", "/");
 	});
@@ -105,6 +109,50 @@ describe("mountAnnotator", () => {
 		expect(page.title).toHaveLength(maxFieldLength);
 		expect(page.url).toHaveLength(maxFieldLength);
 		expect(page.url.startsWith(window.location.origin)).toBe(true);
+		handle.destroy();
+	});
+
+	it("sends held comments together with the next Send", () => {
+		const onSubmit = vi.fn<(submission: AnnotationSubmission) => void>();
+		const handle = mountAnnotator({ document, onSubmit });
+		handle.setPicking(true);
+		const title = document.getElementById("title") as HTMLElement;
+		const save = document.getElementById("save") as HTMLElement;
+
+		comment(title, "Bigger", true);
+		expect(onSubmit).not.toHaveBeenCalled();
+		expect(query(".held-badge").textContent).toBe("1");
+		expect(shadow().querySelectorAll(".held-outline")).toHaveLength(1);
+		expect(handle.getState().picking).toBe(true);
+
+		comment(save, "Primary", false);
+		expect(onSubmit).toHaveBeenCalledTimes(1);
+		const [submission] = onSubmit.mock.calls[0];
+		expect(submission.annotations.map((a) => a.comment)).toEqual([
+			"Bigger",
+			"Primary",
+		]);
+		expect(submission.annotations.map((a) => a.element.selector)).toEqual([
+			"#title",
+			"#save",
+		]);
+		expect(shadow().querySelectorAll(".held-outline")).toHaveLength(0);
+		expect(query<HTMLElement>(".held-badge").style.display).toBe("none");
+		handle.destroy();
+	});
+
+	it("discards held comments from the toolbar badge", () => {
+		const onSubmit = vi.fn();
+		const handle = mountAnnotator({ document, onSubmit });
+		handle.setPicking(true);
+		comment(document.getElementById("title") as HTMLElement, "Bigger", true);
+		click(query(".held-badge"));
+		expect(shadow().querySelectorAll(".held-outline")).toHaveLength(0);
+		expect(
+			document
+				.getElementById("title")
+				?.hasAttribute("data-coder-annotation-id"),
+		).toBe(false);
 		handle.destroy();
 	});
 });
