@@ -2016,6 +2016,25 @@ func TestPostUserChats(t *testing.T) {
 		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
 		require.Equal(t, "Chat owner must be an active user.", sdkErr.Message)
 	})
+
+	t.Run("OwnerWithoutChatPermission", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModel(t, client)
+		// Organization service accounts deliberately hold no chat permissions.
+		serviceAccount := dbgen.User(t, db, database.User{IsServiceAccount: true})
+		dbgen.OrganizationMember(t, db, database.OrganizationMember{
+			OrganizationID: firstUser.OrganizationID,
+			UserID:         serviceAccount.ID,
+		})
+
+		_, err := client.CreateUserChat(ctx, serviceAccount.ID.String(), helloRequest(firstUser.OrganizationID))
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Equal(t, "Chat owner does not have permission to use chats.", sdkErr.Message)
+	})
 }
 
 // TestChats_ForceOnMCPServerEnforced is the endpoint-level regression

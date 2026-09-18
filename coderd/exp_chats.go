@@ -1316,6 +1316,14 @@ func (api *API) createChat(rw http.ResponseWriter, r *http.Request, resolveOwner
 		// the owner, who is the one the chat runs as: chatd re-resolves
 		// them under the owner's ACLs and would silently fall back.
 		ownerCtx = dbauthz.As(ctx, owner)
+		// Service accounts and custom roles may lack chat permissions
+		// entirely; the owner could then never read the chat.
+		if !api.HTTPAuth.AuthorizeContext(ownerCtx, policy.ActionCreate, rbac.ResourceChat.WithOwner(ownerID.String()).InOrg(req.OrganizationID)) {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Chat owner does not have permission to use chats.",
+			})
+			return
+		}
 	}
 
 	contentBlocks, titleSource, inputError := createChatInputFromRequest(ctx, api.Database, req)
