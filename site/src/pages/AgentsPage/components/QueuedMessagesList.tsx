@@ -4,7 +4,9 @@ import {
 	CornerDownLeftIcon,
 	ImageIcon,
 	InfoIcon,
+	PencilIcon,
 	Trash2Icon,
+	XIcon,
 } from "lucide-react";
 import { type FC, type ReactNode, useEffect, useState } from "react";
 import type { ChatQueuedMessage } from "#/api/typesGenerated";
@@ -16,11 +18,19 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import type { LocalQueuedEditMarker } from "./ChatConversation/types";
 
 type QueuedMessagesListProps = {
 	messages: readonly ChatQueuedMessage[];
 	onDelete: (id: number) => Promise<void> | void;
 	onPromote: (id: number) => Promise<void> | void;
+	onEdit?: (id: number) => Promise<void> | void;
+	onEndEdit?: (id: number) => Promise<void> | void;
+	// Paused chat: Edit is disabled on rows other than the one under edit, and
+	// Cancel edit sends that row.
+	chatPaused?: boolean;
+	localQueuedEditMarker?: LocalQueuedEditMarker;
+	showEnterToSendHint?: boolean;
 	className?: string;
 };
 
@@ -54,7 +64,20 @@ export const getQueuedMessageInfo = (
 	};
 };
 
-type QueuedMessageAction = "delete" | "promote";
+export const isQueuedMessageUnderEdit = (
+	message: ChatQueuedMessage,
+	localMarker?: LocalQueuedEditMarker,
+): boolean => {
+	if (localMarker?.editing) {
+		return message.id === localMarker.id;
+	}
+	if (localMarker?.id === message.id) {
+		return false;
+	}
+	return Boolean(message.editing_since);
+};
+
+type QueuedMessageAction = "delete" | "promote" | "edit" | "end_edit";
 
 type QueuedMessageActionButtonProps = {
 	label: string;
@@ -63,6 +86,8 @@ type QueuedMessageActionButtonProps = {
 	icon: ReactNode;
 	busy: boolean;
 	disabled: boolean;
+	// Disables the button and replaces the tooltip with the reason.
+	disabledReason?: string;
 	destructive?: boolean;
 	onClick: () => void;
 };
@@ -73,6 +98,7 @@ const QueuedMessageActionButton: FC<QueuedMessageActionButtonProps> = ({
 	icon,
 	busy,
 	disabled,
+	disabledReason,
 	destructive = false,
 	onClick,
 }) => (
@@ -84,7 +110,7 @@ const QueuedMessageActionButton: FC<QueuedMessageActionButtonProps> = ({
 					variant="subtle"
 					size="icon"
 					aria-label={label}
-					disabled={disabled}
+					disabled={disabled || disabledReason !== undefined}
 					onClick={onClick}
 					className={cn(
 						"size-6 rounded text-content-secondary hover:bg-surface-tertiary",
@@ -99,7 +125,9 @@ const QueuedMessageActionButton: FC<QueuedMessageActionButtonProps> = ({
 				</Button>
 			</span>
 		</TooltipTrigger>
-		<TooltipContent side="top">{tooltip ?? label}</TooltipContent>
+		<TooltipContent side="top">
+			{disabledReason ?? tooltip ?? label}
+		</TooltipContent>
 	</Tooltip>
 );
 
@@ -107,13 +135,23 @@ export const QueuedMessagesList: FC<QueuedMessagesListProps> = ({
 	messages,
 	onDelete,
 	onPromote,
+	onEdit,
+	onEndEdit,
+	chatPaused = false,
+	localQueuedEditMarker,
+	showEnterToSendHint,
 	className,
 }) => {
-	const underEditIndex = messages.findIndex((message) => message.editing_since);
+	const underEditIndex = messages.findIndex((message) =>
+		isQueuedMessageUnderEdit(message, localQueuedEditMarker),
+	);
 	const items = messages.map((message, index) => {
 		const { displayText, attachmentCount, hookNotices } =
 			getQueuedMessageInfo(message);
-		const isUnderEdit = Boolean(message.editing_since);
+		const isUnderEdit = isQueuedMessageUnderEdit(
+			message,
+			localQueuedEditMarker,
+		);
 		const isWaitingBehindEdit = underEditIndex !== -1 && index > underEditIndex;
 		let badge: { label: string; tooltip: string } | undefined;
 		if (isUnderEdit) {
@@ -189,18 +227,23 @@ export const QueuedMessagesList: FC<QueuedMessagesListProps> = ({
 		});
 	}, [messages]);
 
-	// Both actions remove the row, so it is hidden optimistically.
+	// Delete and promote remove the row, so they hide it optimistically.
 	const runAction = async (
 		id: number,
 		action: QueuedMessageAction,
 		run: (id: number) => Promise<void> | void,
 	) => {
+		const hidesRow = action === "delete" || action === "promote";
 		setPendingAction({ id, action });
-		hideItemOptimistically(id);
+		if (hidesRow) {
+			hideItemOptimistically(id);
+		}
 		try {
 			await run(id);
 		} catch {
-			restoreHiddenItem(id);
+			if (hidesRow) {
+				restoreHiddenItem(id);
+			}
 		}
 		setPendingAction((current) => (current?.id === id ? null : current));
 	};
@@ -290,7 +333,7 @@ export const QueuedMessagesList: FC<QueuedMessagesListProps> = ({
 									</TooltipContent>
 								</Tooltip>
 							)}
-							{isFirst && !item.isUnderEdit && (
+							{isFirst && showEnterToSendHint && (
 								<span
 									className={cn(
 										"flex shrink-0 items-center gap-1 text-xs text-content-secondary transition-opacity",
@@ -303,10 +346,40 @@ export const QueuedMessagesList: FC<QueuedMessagesListProps> = ({
 							)}
 							<div
 								className={cn(
-									"flex shrink-0 items-center gap-0.5 transition-opacity",
+									"flex shrink-0 items-center gap-0.5 transition-opacity focus-within:opacity-100",
 									showActions ? "opacity-100" : "opacity-0",
 								)}
 							>
+								{item.isUnderEdit && onEndEdit && (
+									<QueuedMessageActionButton
+										label="Cancel edit"
+										tooltip={
+											chatPaused
+												? "Cancel edit and send unchanged"
+												: "Cancel edit"
+										}
+										icon={<XIcon className="size-3.5" />}
+										busy={isRowPending && pendingAction.action === "end_edit"}
+										disabled={isBusy}
+										onClick={() =>
+											void runAction(item.id, "end_edit", onEndEdit)
+										}
+									/>
+								)}
+								{onEdit && (
+									<QueuedMessageActionButton
+										label="Edit"
+										icon={<PencilIcon className="size-3.5" />}
+										busy={isRowPending && pendingAction.action === "edit"}
+										disabled={isBusy}
+										disabledReason={
+											chatPaused && !item.isUnderEdit
+												? "Finish the current edit first."
+												: undefined
+										}
+										onClick={() => void runAction(item.id, "edit", onEdit)}
+									/>
+								)}
 								<QueuedMessageActionButton
 									label="Send now"
 									icon={<ArrowUpIcon className="size-3.5" />}

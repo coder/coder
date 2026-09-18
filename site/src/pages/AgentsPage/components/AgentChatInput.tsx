@@ -82,7 +82,10 @@ import {
 	isUploadInProgress,
 	type UploadState,
 } from "./AttachmentPreview";
-import type { EditingTarget } from "./ChatConversation/types";
+import type {
+	EditingTarget,
+	LocalQueuedEditMarker,
+} from "./ChatConversation/types";
 import {
 	ChatMessageInput,
 	type ChatMessageInputRef,
@@ -91,7 +94,10 @@ import type { SkillMetadata } from "./ChatMessageInput/SkillsTriggerMenu";
 import type { AgentContextUsage } from "./ContextUsageIndicator";
 import { ContextUsageIndicator } from "./ContextUsageIndicator";
 import { ImageLightbox } from "./ImageLightbox";
-import { QueuedMessagesList } from "./QueuedMessagesList";
+import {
+	isQueuedMessageUnderEdit,
+	QueuedMessagesList,
+} from "./QueuedMessagesList";
 import { TextPreviewDialog } from "./TextPreviewDialog";
 import { WorkspacePill } from "./WorkspacePill";
 
@@ -156,11 +162,14 @@ interface AgentChatInputProps {
 	queuedMessages?: readonly ChatQueuedMessage[];
 	onDeleteQueuedMessage?: (id: number) => Promise<void> | void;
 	onPromoteQueuedMessage?: (id: number) => Promise<void> | void;
+	onEditQueuedMessage?: (id: number) => Promise<void> | void;
+	onEndQueuedMessageEdit?: (id: number) => Promise<void> | void;
 	// A paused chat appends new sends to its queue.
 	isChatPaused?: boolean;
 	// Editing state, owned by the parent.
 	// The kind selects the banner and the send label.
 	editingKind?: EditingTarget["kind"];
+	localQueuedEditMarker?: LocalQueuedEditMarker;
 	onCancelEdit?: () => void;
 	// Newest-first list of non-empty user prompts for local history cycling.
 	userPromptHistory?: readonly string[];
@@ -396,8 +405,11 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	queuedMessages = [],
 	onDeleteQueuedMessage,
 	onPromoteQueuedMessage,
+	onEditQueuedMessage,
+	onEndQueuedMessageEdit,
 	isChatPaused = false,
 	editingKind,
+	localQueuedEditMarker,
 	onCancelEdit,
 	userPromptHistory = [],
 	contextUsage,
@@ -429,6 +441,10 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	slashCommands,
 }) => {
 	const isEditingMessage = editingKind !== undefined;
+	const enterSendsHead =
+		!isEditingMessage &&
+		queuedMessages.length > 0 &&
+		!isQueuedMessageUnderEdit(queuedMessages[0], localQueuedEditMarker);
 	const preferencesQuery = useQuery(preferenceSettings());
 	const sendShortcut = getAgentChatSendShortcut(
 		preferencesQuery.data?.agent_chat_send_shortcut,
@@ -942,8 +958,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 			!isReadOnly &&
 			!isLoading &&
 			!hasActiveUploads &&
-			queuedMessages.length > 0 &&
-			!queuedMessages[0].editing_since &&
+			enterSendsHead &&
 			onPromoteQueuedMessage
 		) {
 			void onPromoteQueuedMessage(queuedMessages[0].id);
@@ -1112,6 +1127,11 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 					messages={queuedMessages}
 					onDelete={(id) => onDeleteQueuedMessage?.(id)}
 					onPromote={(id) => onPromoteQueuedMessage?.(id)}
+					onEdit={onEditQueuedMessage}
+					onEndEdit={onEndQueuedMessageEdit}
+					chatPaused={isChatPaused}
+					localQueuedEditMarker={localQueuedEditMarker}
+					showEnterToSendHint={enterSendsHead}
 					className="mb-2"
 				/>
 			)}
@@ -1159,8 +1179,9 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 					<div className="flex items-center justify-between border-b border-border-default/70 px-3 py-1.5">
 						<span className="flex items-center gap-1.5 text-xs font-medium text-content-warning">
 							<PencilIcon className="size-3.5" />
-							Editing will delete all subsequent messages and restart the
-							conversation here.
+							{editingKind === "queued"
+								? "Editing a queued message. It is not sent until you save or cancel."
+								: "Editing will delete all subsequent messages and restart the conversation here."}
 						</span>
 						<Button
 							type="button"

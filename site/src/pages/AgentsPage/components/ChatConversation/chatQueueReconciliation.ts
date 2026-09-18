@@ -1,6 +1,35 @@
 import type * as TypesGen from "#/api/typesGenerated";
 import type { ChatStore, ChatStoreState } from "./chatStore";
 
+/**
+ * Compares the composer's queued target with the server marker. A marker
+ * that disappears after a snapshot showed it was cleared by the server; a
+ * row that leaves the queue before any snapshot showed its marker was sent
+ * before the begin took effect.
+ */
+export const reconcileQueuedEditMarker = (
+	targetID: number | null,
+	row: TypesGen.ChatQueuedMessage | undefined,
+	markerSeenID: number | null,
+): {
+	markerSeenID: number | null;
+	lost: "marker_cleared" | "row_gone_before_marker" | false;
+} => {
+	if (targetID === null) {
+		return { markerSeenID: null, lost: false };
+	}
+	if (row?.editing_since) {
+		return { markerSeenID: targetID, lost: false };
+	}
+	if (markerSeenID === targetID) {
+		return { markerSeenID, lost: "marker_cleared" };
+	}
+	return {
+		markerSeenID,
+		lost: row === undefined ? "row_gone_before_marker" : false,
+	};
+};
+
 /** @internal Exported for testing. */
 export const restoreOptimisticRequestSnapshot = (
 	store: Pick<

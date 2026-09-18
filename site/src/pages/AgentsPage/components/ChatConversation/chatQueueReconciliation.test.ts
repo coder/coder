@@ -3,10 +3,12 @@ import type { ChatMessage, ChatQueuedMessage } from "#/api/typesGenerated";
 import {
 	MockChatMessage,
 	MockChatQueuedMessage,
+	MockChatQueuedMessageUnderEdit,
 } from "#/testHelpers/chatEntities";
 import {
 	buildInactiveChatQueueReconciliation,
 	reconcilePromotedQueueHead,
+	reconcileQueuedEditMarker,
 	restoreOptimisticRequestSnapshot,
 	runPromoteQueuedMessage,
 	settlePromotedQueueHead,
@@ -429,5 +431,47 @@ describe("submitEdit", () => {
 		expect(onError).toHaveBeenCalledWith(
 			expect.objectContaining({ message: "boom" }),
 		);
+	});
+});
+
+describe("reconcileQueuedEditMarker", () => {
+	const row = { ...MockChatQueuedMessage, id: 5 };
+	const rowUnderEdit = { ...MockChatQueuedMessageUnderEdit, id: 5 };
+
+	it("treats a missing marker as cleared only after a snapshot showed it", () => {
+		// The composer opens before the begin request is confirmed, so this
+		// first snapshot is stale, not lost.
+		let state = reconcileQueuedEditMarker(5, row, null);
+		expect(state.lost).toBe(false);
+
+		state = reconcileQueuedEditMarker(5, rowUnderEdit, state.markerSeenID);
+		expect(state.lost).toBe(false);
+
+		state = reconcileQueuedEditMarker(5, row, state.markerSeenID);
+		expect(state.lost).toBe("marker_cleared");
+	});
+
+	it("reports a row that leaves the queue before its marker was seen as sent early", () => {
+		expect(reconcileQueuedEditMarker(5, undefined, null).lost).toBe(
+			"row_gone_before_marker",
+		);
+
+		const { markerSeenID } = reconcileQueuedEditMarker(5, rowUnderEdit, null);
+		expect(reconcileQueuedEditMarker(5, undefined, markerSeenID).lost).toBe(
+			"marker_cleared",
+		);
+	});
+
+	it("forgets the seen marker when the target changes or clears", () => {
+		const { markerSeenID } = reconcileQueuedEditMarker(5, rowUnderEdit, null);
+
+		// Row 6 has not been shown under edit yet, so it is not lost.
+		expect(
+			reconcileQueuedEditMarker(6, { ...row, id: 6 }, markerSeenID).lost,
+		).toBe(false);
+		expect(reconcileQueuedEditMarker(null, undefined, markerSeenID)).toEqual({
+			markerSeenID: null,
+			lost: false,
+		});
 	});
 });

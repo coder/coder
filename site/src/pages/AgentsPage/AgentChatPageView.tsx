@@ -41,7 +41,10 @@ import {
 } from "./components/ChatConversation/chatStore";
 
 import { QueuedForCapacityCallout } from "./components/ChatConversation/QueuedForCapacityCallout";
-import type { EditingTarget } from "./components/ChatConversation/types";
+import type {
+	EditingTarget,
+	LocalQueuedEditMarker,
+} from "./components/ChatConversation/types";
 import { DesktopPanelContext } from "./components/ChatElements/tools/DesktopPanelContext";
 import type { PendingAttachment } from "./components/ChatPageContent";
 import { ChatPageInput, ChatPageTimeline } from "./components/ChatPageContent";
@@ -172,6 +175,9 @@ interface AgentChatPageViewProps {
 	handleInterrupt: () => void;
 	handleDeleteQueuedMessage: (id: number) => Promise<void>;
 	handlePromoteQueuedMessage: (id: number) => Promise<void>;
+	handleEditQueuedMessage: (id: number) => void;
+	handleEndQueuedMessageEdit: (id: number) => Promise<void>;
+	localQueuedEditMarker?: LocalQueuedEditMarker;
 
 	onImplementPlan?: () => Promise<void> | void;
 	onSendAskUserQuestionResponse?: (message: string) => Promise<void> | void;
@@ -320,6 +326,9 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	handleInterrupt,
 	handleDeleteQueuedMessage,
 	handlePromoteQueuedMessage,
+	handleEditQueuedMessage,
+	handleEndQueuedMessageEdit,
+	localQueuedEditMarker,
 	onImplementPlan,
 	onSendAskUserQuestionResponse,
 	hasMoreMessages,
@@ -958,6 +967,14 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 										onSend={editing.handleSendFromInput}
 										onDeleteQueuedMessage={handleDeleteQueuedMessage}
 										onPromoteQueuedMessage={handlePromoteQueuedMessage}
+										onEditQueuedMessage={
+											isOtherUserReadOnly ? undefined : handleEditQueuedMessage
+										}
+										onEndQueuedMessageEdit={
+											isOtherUserReadOnly
+												? undefined
+												: handleEndQueuedMessageEdit
+										}
 										onInterrupt={handleInterrupt}
 										isInputDisabled={isInputDisabled}
 										isReadOnly={isOtherUserReadOnly}
@@ -986,6 +1003,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 										remountKey={editing.remountKey}
 										onContentChange={editing.handleContentChange}
 										editingTarget={editing.editingTarget}
+										localQueuedEditMarker={localQueuedEditMarker}
 										onCancelEdit={editing.handleCancelEdit}
 										editingFileBlocks={editing.editingFileBlocks}
 										mcpServers={mcpServers}

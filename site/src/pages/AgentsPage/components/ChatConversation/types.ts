@@ -91,7 +91,14 @@ export type RetryState = {
  * The message the composer is editing. History rows and queued rows have
  * independent ID spaces, so the kind is required to interpret the ID.
  */
-export type EditingTarget = { kind: "history"; id: number };
+export type EditingTarget = { kind: "history" | "queued"; id: number };
+
+/**
+ * This client's expected edit marker for one queued row, ahead of the
+ * server. While editing is true it is the only row under edit; while
+ * false, that row's editing_since is ignored.
+ */
+export type LocalQueuedEditMarker = { id: number; editing: boolean };
 
 type StreamToolCall = {
 	id: string;
