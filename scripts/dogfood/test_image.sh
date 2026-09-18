@@ -3,10 +3,10 @@
 # Validates dogfood image tooling by running gen, fmt, lint, and build inside
 # the image. Can be run locally or in CI (mirrors the test_image workflow job).
 #
-# Usage: ./scripts/dogfood_test_image.sh <image>
+# Usage: ./scripts/dogfood/test_image.sh <image>
 #
 # Arguments:
-#   image   Docker image to test, e.g. dogfood-test:22.04 or
+#   image   Docker image to test, e.g. dogfood-test:26.04 or
 #           ghcr.io/coder/dogfood:latest
 #
 # Environment:
@@ -20,12 +20,12 @@
 #                     Valid values: gen fmt lint build check-unstaged
 #
 # Example:
-#   ./scripts/dogfood_test_image.sh dogfood-test:22.04
-#   STEPS="gen fmt" ./scripts/dogfood_test_image.sh dogfood-test:26.04
+#   ./scripts/dogfood/test_image.sh dogfood-test:26.04
+#   STEPS="gen fmt" ./scripts/dogfood/test_image.sh dogfood-test:26.04
 
 set -euo pipefail
 # shellcheck source=scripts/lib.sh
-source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
+source "$(dirname "${BASH_SOURCE[0]}")/../lib.sh"
 cdroot
 
 if [[ $# -lt 1 ]]; then

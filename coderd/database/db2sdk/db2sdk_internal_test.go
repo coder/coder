@@ -14,239 +14,136 @@ import (
 func TestAggregateTokenMetadata(t *testing.T) {
 	t.Parallel()
 
-	t.Run("empty_input", func(t *testing.T) {
-		t.Parallel()
-		result := aggregateTokenMetadata(nil)
-		require.Empty(t, result)
-	})
-
-	t.Run("sums_across_rows", func(t *testing.T) {
-		t.Parallel()
-		tokens := []database.AIBridgeTokenUsage{
-			{
-				ID: uuid.New(),
-				Metadata: pqtype.NullRawMessage{
-					RawMessage: json.RawMessage(`{"cache_read_tokens":100,"reasoning_tokens":50}`),
-					Valid:      true,
-				},
+	cases := []struct {
+		name string
+		rows []pqtype.NullRawMessage
+		want map[string]any
+	}{
+		{
+			name: "empty_input",
+			want: map[string]any{},
+		},
+		{
+			name: "sums_across_rows",
+			rows: []pqtype.NullRawMessage{
+				{RawMessage: json.RawMessage(`{"cache_read_tokens":100,"reasoning_tokens":50}`), Valid: true},
+				{RawMessage: json.RawMessage(`{"cache_read_tokens":200,"reasoning_tokens":75}`), Valid: true},
 			},
-			{
-				ID: uuid.New(),
-				Metadata: pqtype.NullRawMessage{
-					RawMessage: json.RawMessage(`{"cache_read_tokens":200,"reasoning_tokens":75}`),
-					Valid:      true,
-				},
+			want: map[string]any{
+				"cache_read_tokens": int64(300),
+				"reasoning_tokens":  int64(125),
 			},
-		}
-
-		result := aggregateTokenMetadata(tokens)
-		require.Equal(t, int64(300), result["cache_read_tokens"])
-		require.Equal(t, int64(125), result["reasoning_tokens"])
-		require.Len(t, result, 2)
-	})
-
-	t.Run("skips_null_and_invalid_metadata", func(t *testing.T) {
-		t.Parallel()
-		tokens := []database.AIBridgeTokenUsage{
-			{
-				ID:       uuid.New(),
-				Metadata: pqtype.NullRawMessage{Valid: false},
+		},
+		{
+			name: "skips_null_and_invalid_metadata",
+			rows: []pqtype.NullRawMessage{
+				{Valid: false},
+				{RawMessage: nil, Valid: true},
+				{RawMessage: json.RawMessage(`{"tokens":42}`), Valid: true},
 			},
-			{
-				ID: uuid.New(),
-				Metadata: pqtype.NullRawMessage{
-					RawMessage: nil,
-					Valid:      true,
-				},
+			want: map[string]any{"tokens": int64(42)},
+		},
+		{
+			// Float values fail json.Number.Int64(), so they are silently
+			// dropped.
+			name: "skips_non_integer_values",
+			rows: []pqtype.NullRawMessage{
+				{RawMessage: json.RawMessage(`{"good":10,"fractional":1.5}`), Valid: true},
 			},
-			{
-				ID: uuid.New(),
-				Metadata: pqtype.NullRawMessage{
-					RawMessage: json.RawMessage(`{"tokens":42}`),
-					Valid:      true,
-				},
+			want: map[string]any{"good": int64(10)},
+		},
+		{
+			// The malformed row is skipped, the valid one is counted.
+			name: "skips_malformed_json",
+			rows: []pqtype.NullRawMessage{
+				{RawMessage: json.RawMessage(`not json`), Valid: true},
+				{RawMessage: json.RawMessage(`{"tokens":5}`), Valid: true},
 			},
-		}
-
-		result := aggregateTokenMetadata(tokens)
-		require.Equal(t, int64(42), result["tokens"])
-		require.Len(t, result, 1)
-	})
-
-	t.Run("skips_non_integer_values", func(t *testing.T) {
-		t.Parallel()
-		tokens := []database.AIBridgeTokenUsage{
-			{
-				ID: uuid.New(),
-				Metadata: pqtype.NullRawMessage{
-					// Float values fail json.Number.Int64(), so they
-					// are silently dropped.
-					RawMessage: json.RawMessage(`{"good":10,"fractional":1.5}`),
-					Valid:      true,
-				},
+			want: map[string]any{"tokens": int64(5)},
+		},
+		{
+			// Arrays are skipped.
+			name: "flattens_nested_objects",
+			rows: []pqtype.NullRawMessage{
+				{RawMessage: json.RawMessage(`{
+					"cache_read_tokens": 100,
+					"cache": {"creation_tokens": 40, "read_tokens": 60},
+					"reasoning_tokens": 50,
+					"tags": ["a", "b"]
+				}`), Valid: true},
+				{RawMessage: json.RawMessage(`{
+					"cache_read_tokens": 200,
+					"cache": {"creation_tokens": 10}
+				}`), Valid: true},
 			},
-		}
-
-		result := aggregateTokenMetadata(tokens)
-		require.Equal(t, int64(10), result["good"])
-		_, hasFractional := result["fractional"]
-		require.False(t, hasFractional)
-	})
-
-	t.Run("skips_malformed_json", func(t *testing.T) {
-		t.Parallel()
-		tokens := []database.AIBridgeTokenUsage{
-			{
-				ID: uuid.New(),
-				Metadata: pqtype.NullRawMessage{
-					RawMessage: json.RawMessage(`not json`),
-					Valid:      true,
-				},
+			want: map[string]any{
+				"cache_read_tokens":     int64(300),
+				"reasoning_tokens":      int64(50),
+				"cache.creation_tokens": int64(50),
+				"cache.read_tokens":     int64(60),
 			},
-			{
-				ID: uuid.New(),
-				Metadata: pqtype.NullRawMessage{
-					RawMessage: json.RawMessage(`{"tokens":5}`),
-					Valid:      true,
-				},
+		},
+		{
+			name: "flattens_deeply_nested_objects",
+			rows: []pqtype.NullRawMessage{
+				{RawMessage: json.RawMessage(`{
+					"provider": {
+						"anthropic": {"cache_creation_tokens": 100, "cache_read_tokens": 200},
+						"openai": {"reasoning_tokens": 50}
+					},
+					"total": 500
+				}`), Valid: true},
 			},
-		}
-
-		result := aggregateTokenMetadata(tokens)
-		// The malformed row is skipped, the valid one is counted.
-		require.Equal(t, int64(5), result["tokens"])
-		require.Len(t, result, 1)
-	})
-
-	t.Run("flattens_nested_objects", func(t *testing.T) {
-		t.Parallel()
-		tokens := []database.AIBridgeTokenUsage{
-			{
-				ID: uuid.New(),
-				Metadata: pqtype.NullRawMessage{
-					RawMessage: json.RawMessage(`{
-						"cache_read_tokens": 100,
-						"cache": {"creation_tokens": 40, "read_tokens": 60},
-						"reasoning_tokens": 50,
-						"tags": ["a", "b"]
-					}`),
-					Valid: true,
-				},
+			want: map[string]any{
+				"provider.anthropic.cache_creation_tokens": int64(100),
+				"provider.anthropic.cache_read_tokens":     int64(200),
+				"provider.openai.reasoning_tokens":         int64(50),
+				"total":                                    int64(500),
 			},
-			{
-				ID: uuid.New(),
-				Metadata: pqtype.NullRawMessage{
-					RawMessage: json.RawMessage(`{
-						"cache_read_tokens": 200,
-						"cache": {"creation_tokens": 10}
-					}`),
-					Valid: true,
-				},
+		},
+		{
+			// Real-world provider metadata shapes from
+			// https://github.com/coder/aibridge/issues/150: Anthropic keeps
+			// cache fields top-level and two rows sum, OpenAI nests them
+			// inside input_tokens_details and they flatten with dot notation.
+			name: "aggregates_real_provider_metadata",
+			rows: []pqtype.NullRawMessage{
+				{RawMessage: json.RawMessage(`{
+					"cache_creation_input_tokens": 0,
+					"cache_read_input_tokens": 23490
+				}`), Valid: true},
+				{RawMessage: json.RawMessage(`{
+					"input_tokens_details": {"cached_tokens": 11904}
+				}`), Valid: true},
+				{RawMessage: json.RawMessage(`{
+					"cache_creation_input_tokens": 500,
+					"cache_read_input_tokens": 10000
+				}`), Valid: true},
 			},
-		}
-
-		result := aggregateTokenMetadata(tokens)
-		require.Equal(t, int64(300), result["cache_read_tokens"])
-		require.Equal(t, int64(50), result["reasoning_tokens"])
-		require.Equal(t, int64(50), result["cache.creation_tokens"])
-		require.Equal(t, int64(60), result["cache.read_tokens"])
-		// Arrays are skipped.
-		_, hasTags := result["tags"]
-		require.False(t, hasTags)
-		require.Len(t, result, 4)
-	})
-
-	t.Run("flattens_deeply_nested_objects", func(t *testing.T) {
-		t.Parallel()
-		tokens := []database.AIBridgeTokenUsage{
-			{
-				ID: uuid.New(),
-				Metadata: pqtype.NullRawMessage{
-					RawMessage: json.RawMessage(`{
-						"provider": {
-							"anthropic": {"cache_creation_tokens": 100, "cache_read_tokens": 200},
-							"openai": {"reasoning_tokens": 50}
-						},
-						"total": 500
-					}`),
-					Valid: true,
-				},
+			want: map[string]any{
+				"cache_creation_input_tokens":        int64(500),
+				"cache_read_input_tokens":            int64(33490),
+				"input_tokens_details.cached_tokens": int64(11904),
 			},
-		}
-
-		result := aggregateTokenMetadata(tokens)
-		require.Equal(t, int64(100), result["provider.anthropic.cache_creation_tokens"])
-		require.Equal(t, int64(200), result["provider.anthropic.cache_read_tokens"])
-		require.Equal(t, int64(50), result["provider.openai.reasoning_tokens"])
-		require.Equal(t, int64(500), result["total"])
-		require.Len(t, result, 4)
-	})
-
-	// Real-world provider metadata shapes from
-	// https://github.com/coder/aibridge/issues/150.
-	t.Run("aggregates_real_provider_metadata", func(t *testing.T) {
-		t.Parallel()
-		tokens := []database.AIBridgeTokenUsage{
-			{
-				// Anthropic-style: cache fields are top-level.
-				ID: uuid.New(),
-				Metadata: pqtype.NullRawMessage{
-					RawMessage: json.RawMessage(`{
-						"cache_creation_input_tokens": 0,
-						"cache_read_input_tokens": 23490
-					}`),
-					Valid: true,
-				},
+		},
+		{
+			name: "skips_string_boolean_null_values",
+			rows: []pqtype.NullRawMessage{
+				{RawMessage: json.RawMessage(`{"tokens":10,"name":"test","enabled":true,"nothing":null}`), Valid: true},
 			},
-			{
-				// OpenAI-style: cache fields are nested inside
-				// input_tokens_details.
-				ID: uuid.New(),
-				Metadata: pqtype.NullRawMessage{
-					RawMessage: json.RawMessage(`{
-						"input_tokens_details": {"cached_tokens": 11904}
-					}`),
-					Valid: true,
-				},
-			},
-			{
-				// Second Anthropic row to verify summing.
-				ID: uuid.New(),
-				Metadata: pqtype.NullRawMessage{
-					RawMessage: json.RawMessage(`{
-						"cache_creation_input_tokens": 500,
-						"cache_read_input_tokens": 10000
-					}`),
-					Valid: true,
-				},
-			},
-		}
-
-		result := aggregateTokenMetadata(tokens)
-		// Anthropic fields are summed across two rows.
-		require.Equal(t, int64(500), result["cache_creation_input_tokens"])
-		require.Equal(t, int64(33490), result["cache_read_input_tokens"])
-		// OpenAI nested field is flattened with dot notation.
-		require.Equal(t, int64(11904), result["input_tokens_details.cached_tokens"])
-		require.Len(t, result, 3)
-	})
-
-	t.Run("skips_string_boolean_null_values", func(t *testing.T) {
-		t.Parallel()
-		tokens := []database.AIBridgeTokenUsage{
-			{
-				ID: uuid.New(),
-				Metadata: pqtype.NullRawMessage{
-					RawMessage: json.RawMessage(`{"tokens":10,"name":"test","enabled":true,"nothing":null}`),
-					Valid:      true,
-				},
-			},
-		}
-
-		result := aggregateTokenMetadata(tokens)
-		require.Equal(t, int64(10), result["tokens"])
-		require.Len(t, result, 1)
-	})
+			want: map[string]any{"tokens": int64(10)},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			tokens := make([]database.AIBridgeTokenUsage, 0, len(tc.rows))
+			for _, metadata := range tc.rows {
+				tokens = append(tokens, database.AIBridgeTokenUsage{ID: uuid.New(), Metadata: metadata})
+			}
+			require.Equal(t, tc.want, aggregateTokenMetadata(tokens))
+		})
+	}
 }
 
 func TestAggregateTokenUsage(t *testing.T) {
