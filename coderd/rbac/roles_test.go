@@ -1416,6 +1416,16 @@ func TestRolePermissions(t *testing.T) {
 			},
 		},
 		{
+			// Another member's project stays private until it is shared.
+			Name:     "ChatProjectReadOtherOwner",
+			Actions:  []policy.Action{policy.ActionRead},
+			Resource: rbac.ResourceChatProject.WithID(uuid.New()).InOrg(orgID).WithOwner(uuid.NewString()),
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true:  {owner, orgAdmin},
+				false: {setOtherOrg, memberMe, orgMemberMe, userAdmin, templateAdmin, orgTemplateAdmin, orgUserAdmin, orgAuditor, orgWorkspaceAccessUser},
+			},
+		},
+		{
 			Name:     "ChatProjectCreate",
 			Actions:  []policy.Action{policy.ActionCreate},
 			Resource: rbac.ResourceChatProject.WithID(uuid.New()).InOrg(orgID).WithOwner(currentUser.String()),

@@ -74,20 +74,40 @@ func TestChatProjectsAuthorizationAndCrossOrganizationBinding(t *testing.T) {
 	_ = createChatModel(t, client)
 	project := createChatProject(t, client, firstUser.OrganizationID, "Protected Project")
 
+	// Projects are private to their creator until shared: another member
+	// neither sees nor can bind chats to it.
 	memberRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
 	member := codersdk.NewExperimentalClient(memberRaw)
-	fetched, err := member.GetChatProject(ctx, project.ID)
-	require.NoError(t, err)
-	require.Equal(t, project.ID, fetched.ID)
+	_, err := member.GetChatProject(ctx, project.ID)
+	require.Equal(t, 404, coderdtest.SDKError(t, err).StatusCode())
 	projects, err := member.ListChatProjects(ctx, firstUser.OrganizationID)
 	require.NoError(t, err)
-	require.Len(t, projects, 1)
-	require.Equal(t, project.ID, projects[0].ID)
+	require.Empty(t, projects)
+	_, err = member.CreateChat(ctx, codersdk.CreateChatRequest{
+		OrganizationID: firstUser.OrganizationID,
+		ProjectID:      &project.ID,
+		Content: []codersdk.ChatInputPart{{
+			Type: codersdk.ChatInputPartTypeText,
+			Text: "reject private project",
+		}},
+	})
+	require.Equal(t, 400, coderdtest.SDKError(t, err).StatusCode())
 
 	_, err = member.UpdateChatProject(ctx, project.ID, codersdk.UpdateChatProjectRequest{})
 	require.Equal(t, 404, coderdtest.SDKError(t, err).StatusCode())
 	err = member.DeleteChatProject(ctx, project.ID)
 	require.Equal(t, 404, coderdtest.SDKError(t, err).StatusCode())
+
+	// Members still create their own projects, which only they see.
+	memberProject := createChatProject(t, member, firstUser.OrganizationID, "Member Project")
+	projects, err = member.ListChatProjects(ctx, firstUser.OrganizationID)
+	require.NoError(t, err)
+	require.Len(t, projects, 1)
+	require.Equal(t, memberProject.ID, projects[0].ID)
+	// The first user holds the site owner role and therefore sees both.
+	projects, err = client.ListChatProjects(ctx, firstUser.OrganizationID)
+	require.NoError(t, err)
+	require.Len(t, projects, 2)
 
 	otherOrganization := dbgen.Organization(t, db, database.Organization{IsDefault: false})
 	otherProject := dbgen.ChatProject(t, db, database.ChatProject{

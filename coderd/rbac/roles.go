@@ -1151,7 +1151,9 @@ func OrgMemberPermissions(org OrgSettings) OrgRolePermissions {
 		ResourceOrganization.Type: {policy.ActionRead},
 		// Can read available roles.
 		ResourceAssignOrgRole.Type: {policy.ActionRead},
-		ResourceChatProject.Type:   {policy.ActionRead, policy.ActionCreate},
+		// Projects are private to their creator until shared; members may
+		// only create them.
+		ResourceChatProject.Type: {policy.ActionCreate},
 	}
 
 	// In all modes of workspace sharing but `none`, members need to
@@ -1210,7 +1212,7 @@ func OrgMemberPermissions(org OrgSettings) OrgRolePermissions {
 			policy.ActionShare,
 			policy.ActionUpdate,
 		},
-		ResourceChatProject.Type: {policy.ActionUpdate, policy.ActionDelete},
+		ResourceChatProject.Type: {policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
 	})
 
 	if org.ShareableWorkspaceOwners != ShareableWorkspaceOwnersEveryone {
