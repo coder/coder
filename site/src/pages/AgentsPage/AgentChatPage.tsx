@@ -25,6 +25,7 @@ import {
 	createChatMessage,
 	deleteChatQueuedMessage,
 	editChatMessage,
+	editChatQueuedMessage,
 	getOpenChatPollInterval,
 	interruptChat,
 	invalidateChatEntity,
@@ -79,6 +80,7 @@ import {
 	useChatSelector,
 	useChatStore,
 } from "./components/ChatConversation/chatStore";
+import { getEditableContentPayload } from "./components/ChatConversation/messageParsing";
 import type { EditingTarget } from "./components/ChatConversation/types";
 import { useChatToolInvalidations } from "./components/ChatConversation/useChatToolInvalidations";
 import { useWorkspaceWatch } from "./components/ChatConversation/useWorkspaceWatch";
@@ -97,6 +99,7 @@ import {
 	useConversationEditingState,
 } from "./hooks/useConversationEditingState";
 import { useGitWatcher } from "./hooks/useGitWatcher";
+import { useQueuedMessageEdit } from "./hooks/useQueuedMessageEdit";
 import {
 	draftInputStorageKeyPrefix,
 	parseStoredDraft,
@@ -359,6 +362,13 @@ const AgentChatPage: FC = () => {
 	const { mutateAsync: promoteQueuedMessage } = useMutation(
 		promoteChatQueuedMessage(queryClient, agentId),
 	);
+	const { isPending: isSaveQueuedPending, mutateAsync: saveQueuedMessage } =
+		useMutation(editChatQueuedMessage(queryClient, agentId));
+	// Marker requests must not mark the composer pending, so they use a
+	// separate mutation instance.
+	const { mutateAsync: markQueuedMessageEditing } = useMutation(
+		editChatQueuedMessage(queryClient, agentId),
+	);
 	const updateChatWorkspaceBase = updateChatWorkspace(queryClient);
 	const {
 		isPending: isUpdateChatWorkspacePending,
@@ -527,6 +537,7 @@ const AgentChatPage: FC = () => {
 	const isSubmissionPending =
 		isSendPending ||
 		isEditPending ||
+		isSaveQueuedPending ||
 		isInterruptPending ||
 		isCompactPending ||
 		isClearPending;
@@ -609,12 +620,59 @@ const AgentChatPage: FC = () => {
 			onError: handleRequestError,
 		});
 
+	// A 404 means the row was sent or removed: drop it locally, since no
+	// queue_update for it may arrive. Every failure is toasted before it is
+	// rethrown.
+	const patchQueuedMessage = async (
+		id: number,
+		req: TypesGen.EditChatQueuedMessageRequest,
+		failureMessage: string,
+	) => {
+		const mutate = req.content ? saveQueuedMessage : markQueuedMessageEditing;
+		try {
+			await mutate({ queuedMessageId: id, req });
+		} catch (error) {
+			if (getErrorStatus(error) === 404) {
+				store.setQueuedMessages(
+					store.getSnapshot().queuedMessages.filter((row) => row.id !== id),
+				);
+				toast.error("Queued message was already sent or removed.");
+			} else {
+				toast.error(getErrorMessage(error, failureMessage));
+			}
+			throw error;
+		}
+	};
+
 	const editing = useConversationEditingState({
 		chatID: agentId,
 		onSend: handleSend,
 		chatInputRef,
 		inputValueRef,
 	});
+
+	const beginEditFromRow = (row: TypesGen.ChatQueuedMessage) => {
+		const { text, fileBlocks } = getEditableContentPayload(row.content);
+		isEditReasoningEffortDirtyRef.current = false;
+		editing.handleBeginEdit({ kind: "queued", id: row.id }, text, fileBlocks);
+	};
+	const {
+		localQueuedEditMarker,
+		handleEditQueuedMessage,
+		handleEndQueuedMessageEdit,
+		handleCancelEdit,
+	} = useQueuedMessageEdit({
+		store,
+		composer: editing,
+		beginEditFromRow,
+		patchQueuedMessage,
+		restore: {
+			queuedMessages: chatQueuedMessages,
+			ready: chat !== undefined && chatMessagesQuery.isFetchedAfterMount,
+			allowed: !isViewerNotOwner,
+		},
+	});
+
 	const handleBeginHistoryEdit = (
 		messageId: number,
 		text: string,
@@ -806,6 +864,36 @@ const AgentChatPage: FC = () => {
 		const editReasoningEffort = isEditReasoningEffortDirtyRef.current
 			? effectiveReasoningEffort
 			: undefined;
+
+		if (editingTarget?.kind === "queued") {
+			const queuedMessageId = editingTarget.id;
+			const originalRow = store
+				.getSnapshot()
+				.queuedMessages.find((row) => row.id === queuedMessageId);
+			const editSelectedModelConfigID = resolveEditModelConfigID(
+				originalRow?.model_config_id,
+				selectedModelConfigID,
+				modelOptions,
+			);
+			const request: TypesGen.EditChatQueuedMessageRequest = {
+				content,
+				model_config_id: editSelectedModelConfigID,
+				reasoning_effort: editReasoningEffort,
+				editing: false,
+			};
+			await patchQueuedMessage(
+				queuedMessageId,
+				request,
+				"Failed to save the queued message.",
+			);
+			if (editSelectedModelConfigID) {
+				localStorage.setItem(
+					lastModelConfigIDStorageKey,
+					editSelectedModelConfigID,
+				);
+			}
+			return;
+		}
 
 		if (editingTarget?.kind === "history") {
 			const editedMessageID = editingTarget.id;
@@ -1047,7 +1135,7 @@ const AgentChatPage: FC = () => {
 					workspaceAgent={workspaceAgent}
 					store={store}
 					initialMessages={chatMessagesList ?? []}
-					editing={{ ...editing, handleBeginHistoryEdit }}
+					editing={{ ...editing, handleBeginHistoryEdit, handleCancelEdit }}
 					effectiveSelectedModel={effectiveSelectedModel}
 					setSelectedModel={setSelectedModel}
 					modelOptions={modelOptions}
@@ -1087,6 +1175,9 @@ const AgentChatPage: FC = () => {
 					handleInterrupt={handleInterrupt}
 					handleDeleteQueuedMessage={handleDeleteQueuedMessage}
 					handlePromoteQueuedMessage={handlePromoteQueuedMessage}
+					handleEditQueuedMessage={handleEditQueuedMessage}
+					handleEndQueuedMessageEdit={handleEndQueuedMessageEdit}
+					localQueuedEditMarker={localQueuedEditMarker}
 					onImplementPlan={handleImplementPlan}
 					onSendAskUserQuestionResponse={handleSendAskUserQuestionResponse}
 					urlTransform={urlTransform}

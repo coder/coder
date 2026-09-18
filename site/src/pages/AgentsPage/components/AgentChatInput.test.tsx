@@ -4,7 +4,10 @@ import { createRef, type ReactNode } from "react";
 import { toast } from "sonner";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import { AppProviders } from "#/App";
-import { MockChatQueuedMessageUnderEdit } from "#/testHelpers/chatEntities";
+import {
+	MockChatQueuedMessage,
+	MockChatQueuedMessageUnderEdit,
+} from "#/testHelpers/chatEntities";
 import { createMockFile } from "#/testHelpers/files";
 import { AgentChatInput, type ChatMessageInputRef } from "./AgentChatInput";
 
@@ -92,6 +95,32 @@ describe("AgentChatInput", () => {
 		expect(toastError).toHaveBeenCalledWith(
 			"Unsupported file type: archive.zip",
 		);
+	});
+
+	it("does not send the queue head on Enter while the composer edits a message", async () => {
+		const user = userEvent.setup();
+		const onPromoteQueuedMessage = vi.fn();
+
+		renderInput(
+			<AgentChatInput
+				onSend={vi.fn()}
+				isDisabled={false}
+				isLoading={false}
+				selectedModel={modelOptions[0].id}
+				onModelChange={vi.fn()}
+				modelOptions={modelOptions}
+				modelSelectorPlaceholder="Select model"
+				hasModelOptions
+				canConfigureAgentSetup={false}
+				editingKind="queued"
+				queuedMessages={[MockChatQueuedMessage]}
+				onPromoteQueuedMessage={onPromoteQueuedMessage}
+			/>,
+		);
+
+		await user.click(screen.getByRole("textbox", { name: "Chat message" }));
+		await user.keyboard("{Enter}");
+		expect(onPromoteQueuedMessage).not.toHaveBeenCalled();
 	});
 
 	it("does not promote a queue head under edit on Enter with an empty composer", async () => {

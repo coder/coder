@@ -675,4 +675,84 @@ describe("useConversationEditingState", () => {
 		expect(localStorage.getItem(expectedKey)).toBe("draft");
 		unmount();
 	});
+
+	describe("queued message editing", () => {
+		it("send passes the queued target and restores the prior draft on success", async () => {
+			localStorage.setItem(expectedKey, "draft");
+			const { result, onSend, unmount } = renderEditing();
+			const mockInput = createMockChatInputHandle("queued edit");
+			result.current.chatInputRef.current = mockInput.handle;
+			const attachments: PendingAttachment[] = [
+				{ fileId: "file-1", mediaType: "image/png" },
+			];
+
+			act(() => {
+				result.current.handleContentChange("draft", "draft", false);
+				result.current.handleBeginEdit(
+					{ kind: "queued", id: 42 },
+					"queued text",
+				);
+			});
+			// A queued target does not highlight a history message.
+			expect(result.current.editingMessageId).toBeNull();
+
+			await act(async () => {
+				await result.current.handleSendFromInput("queued edit", attachments);
+			});
+
+			expect(onSend).toHaveBeenCalledWith("queued edit", attachments, {
+				kind: "queued",
+				id: 42,
+			});
+			expect(mockInput.clear).toHaveBeenCalled();
+			expect(mockInput.focus).toHaveBeenCalled();
+			expect(result.current.editingTarget).toBeNull();
+			expect(result.current.editingFileBlocks).toEqual([]);
+			expect(result.current.editorInitialValue).toBe("draft");
+			expect(result.current.inputValueRef.current).toBe("draft");
+			expect(localStorage.getItem(expectedKey)).toBe("draft");
+			unmount();
+		});
+
+		it("leaving an edit without cancel keeps the typed text as the draft and does not remount the editor", () => {
+			const { result, unmount } = renderEditing();
+			const fileBlocks = [
+				{ type: "file", file_id: "file-1", media_type: "image/png" },
+			] as const;
+
+			act(() => {
+				result.current.handleContentChange("draft", "draft", false);
+				result.current.handleBeginEdit(
+					{ kind: "queued", id: 42 },
+					"queued text",
+					fileBlocks,
+				);
+			});
+			act(() => {
+				result.current.handleContentChange("queued edit", "queued edit", false);
+			});
+			const remountKeyWhileEditing = result.current.remountKey;
+
+			act(() => {
+				result.current.leaveEditKeepingText();
+			});
+
+			expect(result.current.editingTarget).toBeNull();
+			expect(result.current.editingFileBlocks).toEqual([]);
+			expect(result.current.remountKey).toBe(remountKeyWhileEditing);
+			expect(result.current.inputValueRef.current).toBe("queued edit");
+			expect(localStorage.getItem(expectedKey)).toBe("queued edit");
+
+			// Outside edit mode, typing persists the draft.
+			act(() => {
+				result.current.handleContentChange(
+					"queued edit more",
+					"queued edit more",
+					false,
+				);
+			});
+			expect(localStorage.getItem(expectedKey)).toBe("queued edit more");
+			unmount();
+		});
+	});
 });

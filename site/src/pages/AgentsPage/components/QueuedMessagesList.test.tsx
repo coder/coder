@@ -4,7 +4,10 @@ import type { ComponentProps } from "react";
 import { describe, expect, it, vi } from "vitest";
 import type { ChatQueuedMessage } from "#/api/typesGenerated";
 import { TooltipProvider } from "#/components/Tooltip/Tooltip";
-import { MockChatQueuedMessage } from "#/testHelpers/chatEntities";
+import {
+	MockChatQueuedMessage,
+	MockChatQueuedMessageUnderEdit,
+} from "#/testHelpers/chatEntities";
 import { getQueuedMessageInfo, QueuedMessagesList } from "./QueuedMessagesList";
 
 const buildMessage = (
@@ -155,22 +158,34 @@ describe("QueuedMessagesList", () => {
 	const renderList = (
 		messages: readonly ChatQueuedMessage[],
 		handlers: Partial<
-			Pick<ComponentProps<typeof QueuedMessagesList>, "onDelete" | "onPromote">
+			Pick<
+				ComponentProps<typeof QueuedMessagesList>,
+				| "onDelete"
+				| "onPromote"
+				| "onEdit"
+				| "onEndEdit"
+				| "chatPaused"
+				| "localQueuedEditMarker"
+			>
 		> = {},
 	) => {
 		const onDelete = vi.fn();
 		const onPromote = vi.fn();
+		const onEdit = vi.fn();
+		const onEndEdit = vi.fn();
 		render(
 			<TooltipProvider>
 				<QueuedMessagesList
 					messages={messages}
 					onDelete={onDelete}
 					onPromote={onPromote}
+					onEdit={onEdit}
+					onEndEdit={onEndEdit}
 					{...handlers}
 				/>
 			</TooltipProvider>,
 		);
-		return { onDelete, onPromote };
+		return { onDelete, onPromote, onEdit, onEndEdit };
 	};
 
 	it.each([
@@ -219,5 +234,121 @@ describe("QueuedMessagesList", () => {
 		});
 		await user.click(removeHead);
 		expect(onDelete).toHaveBeenCalledWith(7);
+	});
+
+	it("forwards Edit and Cancel edit with the row id", async () => {
+		const user = userEvent.setup();
+		const { onEdit, onEndEdit } = renderList([
+			{ ...MockChatQueuedMessageUnderEdit, id: 9 },
+			{ ...MockChatQueuedMessage, id: 10 },
+		]);
+
+		await user.click(screen.getByRole("button", { name: "Cancel edit" }));
+		expect(onEndEdit).toHaveBeenCalledWith(9);
+
+		const editButtons = screen.getAllByRole("button", { name: "Edit" });
+		await user.click(editButtons[0]);
+		await user.click(editButtons[1]);
+		expect(onEdit).toHaveBeenNthCalledWith(1, 9);
+		expect(onEdit).toHaveBeenNthCalledWith(2, 10);
+	});
+
+	it("disables Edit on rows behind the edit while the chat is paused", async () => {
+		const user = userEvent.setup();
+		const { onEdit } = renderList(
+			[
+				{ ...MockChatQueuedMessageUnderEdit, id: 9 },
+				{ ...MockChatQueuedMessage, id: 10 },
+			],
+			{ chatPaused: true },
+		);
+
+		const [editUnderEdit, editBehind] = screen.getAllByRole("button", {
+			name: "Edit",
+		});
+		await user.click(editBehind);
+		expect(onEdit).not.toHaveBeenCalled();
+
+		await user.click(editUnderEdit);
+		expect(onEdit).toHaveBeenCalledWith(9);
+	});
+
+	it("reaches a non-head row's Edit by keyboard", async () => {
+		const user = userEvent.setup();
+		const { onEdit } = renderList([
+			{ ...MockChatQueuedMessage, id: 9 },
+			{ ...MockChatQueuedMessage, id: 10 },
+		]);
+
+		const editBehind = screen.getAllByRole("button", { name: "Edit" })[1];
+		const buttons = screen.getAllByRole("button");
+		for (let i = 0; i < buttons.length; i++) {
+			await user.tab();
+			if (document.activeElement === editBehind) {
+				break;
+			}
+		}
+		expect(document.activeElement).toBe(editBehind);
+		await user.keyboard("{Enter}");
+		expect(onEdit).toHaveBeenCalledWith(10);
+	});
+
+	it("offers Cancel edit on the row the local marker marks", async () => {
+		const user = userEvent.setup();
+		const { onEndEdit } = renderList(
+			[
+				{ ...MockChatQueuedMessage, id: 9 },
+				{ ...MockChatQueuedMessage, id: 10 },
+			],
+			{ localQueuedEditMarker: { id: 9, editing: true } },
+		);
+
+		await user.click(screen.getByRole("button", { name: "Cancel edit" }));
+		expect(onEndEdit).toHaveBeenCalledWith(9);
+	});
+
+	it.each([
+		["Send now", "onPromote"],
+		["Remove from queue", "onDelete"],
+	] as const)(
+		"forwards %s with the row id on a row under edit",
+		async (name, handler) => {
+			const user = userEvent.setup();
+			const handlers = renderList([
+				{ ...MockChatQueuedMessageUnderEdit, id: 9 },
+			]);
+			await user.click(screen.getByRole("button", { name }));
+			expect(handlers[handler]).toHaveBeenCalledWith(9);
+		},
+	);
+
+	it("does not run Send now on a row while its Edit is pending, and runs it after the Edit fails", async () => {
+		const user = userEvent.setup();
+		let rejectEdit: ((error: Error) => void) | undefined;
+		const onEdit = vi.fn(
+			() =>
+				new Promise<void>((_, reject) => {
+					rejectEdit = reject;
+				}),
+		);
+		const { onPromote } = renderList([{ ...MockChatQueuedMessage, id: 7 }], {
+			onEdit,
+		});
+
+		await user.click(screen.getByRole("button", { name: "Edit" }));
+		expect(onEdit).toHaveBeenCalledWith(7);
+		await user.click(screen.getByRole("button", { name: "Send now" }));
+		expect(onPromote).not.toHaveBeenCalled();
+
+		const failEdit = rejectEdit;
+		if (!failEdit) {
+			throw new Error("onEdit was not invoked");
+		}
+		await act(async () => {
+			failEdit(new Error("begin failed"));
+		});
+
+		await user.click(screen.getByRole("button", { name: "Send now" }));
+		expect(onPromote).toHaveBeenCalledWith(7);
 	});
 });

@@ -114,6 +114,24 @@ export function useConversationEditingState(deps: {
 		setEditingFileBlocks([]);
 	};
 
+	const leaveEditKeepingText = () => {
+		setEditingTarget(null);
+		setDraftBeforeEdit(null);
+		setEditingFileBlocks([]);
+		if (draftStorageKey) {
+			const draft = serializedEditorStateRef.current ?? inputValueRef.current;
+			if (inputValueRef.current.trim()) {
+				try {
+					localStorage.setItem(draftStorageKey, draft);
+				} catch {
+					// QuotaExceededError, silently discard the draft.
+				}
+			} else {
+				localStorage.removeItem(draftStorageKey);
+			}
+		}
+	};
+
 	// Clears the composer for an in-flight edit and returns a rollback
 	// function that restores the editing draft if the send fails.
 	const clearInputForEdit = (message: string) => {
@@ -180,6 +198,15 @@ export function useConversationEditingState(deps: {
 			throw error;
 		}
 
+		if (target?.kind === "queued") {
+			// A saved queued row does not start a turn; the pre-edit draft
+			// is restored.
+			restoreDraftBeforeEdit();
+			if (!isMobileViewport()) {
+				chatInputRef.current?.focus();
+			}
+			return;
+		}
 		finalizeSuccessfulSend(target);
 	};
 
@@ -237,6 +264,7 @@ export function useConversationEditingState(deps: {
 		editingFileBlocks,
 		handleBeginEdit,
 		handleCancelEdit: restoreDraftBeforeEdit,
+		leaveEditKeepingText,
 		handleSendFromInput,
 		handleContentChange,
 		handleLoadingDraftChange,

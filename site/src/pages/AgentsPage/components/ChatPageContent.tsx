@@ -58,7 +58,10 @@ import {
 	parseMessagesWithMergedTools,
 } from "./ChatConversation/messageParsing";
 import { buildStreamTools } from "./ChatConversation/streamState";
-import type { EditingTarget } from "./ChatConversation/types";
+import type {
+	EditingTarget,
+	LocalQueuedEditMarker,
+} from "./ChatConversation/types";
 import { useOnRenderProfiler } from "./ChatConversation/useOnRenderProfiler";
 import type { SkillMetadata } from "./ChatMessageInput/SkillsTriggerMenu";
 import { ChatMessageScroller } from "./ChatMessageScroller";
@@ -261,6 +264,8 @@ interface ChatPageInputProps {
 	) => Promise<void> | void;
 	onDeleteQueuedMessage: (id: number) => Promise<void>;
 	onPromoteQueuedMessage: (id: number) => Promise<void>;
+	onEditQueuedMessage?: (id: number) => void;
+	onEndQueuedMessageEdit?: (id: number) => Promise<void>;
 	onInterrupt: () => void;
 	isInputDisabled: boolean;
 	isReadOnly?: boolean;
@@ -293,6 +298,7 @@ interface ChatPageInputProps {
 		hasFileReferences: boolean,
 	) => void;
 	editingTarget: EditingTarget | null;
+	localQueuedEditMarker?: LocalQueuedEditMarker;
 	onCancelEdit: () => void;
 	// File parts from the message being edited, converted to
 	// File objects and pre-populated into attachments.
@@ -318,6 +324,8 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 	onSend,
 	onDeleteQueuedMessage,
 	onPromoteQueuedMessage,
+	onEditQueuedMessage,
+	onEndQueuedMessageEdit,
 	onInterrupt,
 	isInputDisabled,
 	isReadOnly = false,
@@ -344,6 +352,7 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 	remountKey,
 	onContentChange,
 	editingTarget,
+	localQueuedEditMarker,
 	onCancelEdit,
 	editingFileBlocks,
 	mcpServers,
@@ -583,7 +592,10 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 			queuedMessages={queuedMessages}
 			onDeleteQueuedMessage={onDeleteQueuedMessage}
 			onPromoteQueuedMessage={onPromoteQueuedMessage}
+			onEditQueuedMessage={onEditQueuedMessage}
+			onEndQueuedMessageEdit={onEndQueuedMessageEdit}
 			isChatPaused={chatStatus === "paused"}
+			localQueuedEditMarker={localQueuedEditMarker}
 			editingKind={editingTarget?.kind}
 			onCancelEdit={onCancelEdit}
 			userPromptHistory={userPromptHistory}
