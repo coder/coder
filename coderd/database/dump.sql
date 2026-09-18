@@ -2118,7 +2118,7 @@ CREATE TABLE chat_queued_messages (
 
 COMMENT ON COLUMN chat_queued_messages.reasoning_effort IS 'Stores the selected effort until the queued row is promoted.';
 
-COMMENT ON COLUMN chat_queued_messages.editing_since IS 'Set while the owner edits the row. The state machine does not promote a row under edit.';
+COMMENT ON COLUMN chat_queued_messages.editing_since IS 'Set while the owner edits the row. A row under edit is not promoted into history until the edit ends.';
 
 CREATE SEQUENCE chat_queued_messages_id_seq
     START WITH 1

@@ -92,8 +92,9 @@ const (
 	ChatStatusError          ChatStatus = "error"
 	ChatStatusRequiresAction ChatStatus = "requires_action"
 	ChatStatusInterrupting   ChatStatus = "interrupting"
-	// ChatStatusPaused: the chat is not running and its queued messages
-	// wait until it resumes. A send queues.
+	// ChatStatusPaused: a turn finished at a queued message under edit.
+	// The chat resumes when that edit ends or the message is sent or
+	// removed; a send queues behind it.
 	ChatStatusPaused ChatStatus = "paused"
 )
 

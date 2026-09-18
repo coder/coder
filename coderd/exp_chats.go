@@ -2349,10 +2349,8 @@ func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
 				return
 			}
 			if errors.Is(err, chatstate.ErrTransitionNotAllowed) {
-				// Archive only succeeds from idle / error execution
-				// states (W, E0, E1) per the chatd RFC; active
-				// chats refuse archive instead of being silently
-				// transitioned to waiting first.
+				// Archive only succeeds from W, E0, E1, and E1P; busy
+				// and paused chats refuse it.
 				message := "Cannot archive an active chat. Interrupt or wait for the chat to finish first."
 				if chat.Status == database.ChatStatusPaused {
 					message = "Cannot archive a paused chat. Finish editing, send, or remove the queued message under edit first."
@@ -3095,8 +3093,8 @@ func (api *API) patchChatQueuedMessage(rw http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	// Ending an edit can trigger LLM inference, requiring update
-	// permission on the org-scoped chat resource.
+	// Ending the edit of a paused chat's head triggers LLM inference,
+	// requiring update permission on the org-scoped chat resource.
 	if !api.Authorize(r, policy.ActionUpdate, chat.RBACObject()) {
 		httpapi.ResourceNotFound(rw)
 		return

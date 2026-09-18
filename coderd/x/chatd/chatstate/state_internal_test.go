@@ -24,35 +24,34 @@ func TestClassifyExecutionState_Valid(t *testing.T) {
 	t.Parallel()
 
 	cases := []struct {
-		name          string
-		status        database.ChatStatus
-		archived      bool
-		queueNonEmpty bool
-		paused        bool
-		exists        bool
-		want          ExecutionState
+		name     string
+		status   database.ChatStatus
+		archived bool
+		hasRows  bool
+		paused   bool
+		exists   bool
+		want     ExecutionState
 	}{
 		{name: "N", exists: false, want: StateN},
 		{name: "W", status: database.ChatStatusWaiting, exists: true, want: StateW},
 		{name: "E0", status: database.ChatStatusError, exists: true, want: StateE0},
-		{name: "E1", status: database.ChatStatusError, queueNonEmpty: true, exists: true, want: StateE1},
-		{name: "E1P", status: database.ChatStatusError, queueNonEmpty: true, paused: true, exists: true, want: StateE1P},
+		{name: "E1", status: database.ChatStatusError, hasRows: true, exists: true, want: StateE1},
+		{name: "E1P", status: database.ChatStatusError, hasRows: true, paused: true, exists: true, want: StateE1P},
 		{name: "R0", status: database.ChatStatusRunning, exists: true, want: StateR0},
-		{name: "R1", status: database.ChatStatusRunning, queueNonEmpty: true, exists: true, want: StateR1},
-		{name: "R1P", status: database.ChatStatusRunning, queueNonEmpty: true, paused: true, exists: true, want: StateR1P},
+		{name: "R1", status: database.ChatStatusRunning, hasRows: true, exists: true, want: StateR1},
+		{name: "R1P", status: database.ChatStatusRunning, hasRows: true, paused: true, exists: true, want: StateR1P},
 		{name: "I0", status: database.ChatStatusInterrupting, exists: true, want: StateI0},
-		{name: "I1", status: database.ChatStatusInterrupting, queueNonEmpty: true, exists: true, want: StateI1},
-		{name: "I1P", status: database.ChatStatusInterrupting, queueNonEmpty: true, paused: true, exists: true, want: StateI1P},
+		{name: "I1", status: database.ChatStatusInterrupting, hasRows: true, exists: true, want: StateI1},
+		{name: "I1P", status: database.ChatStatusInterrupting, hasRows: true, paused: true, exists: true, want: StateI1P},
 		{name: "A0", status: database.ChatStatusRequiresAction, exists: true, want: StateA0},
-		{name: "A1", status: database.ChatStatusRequiresAction, queueNonEmpty: true, exists: true, want: StateA1},
-		{name: "A1P", status: database.ChatStatusRequiresAction, queueNonEmpty: true, paused: true, exists: true, want: StateA1P},
+		{name: "A1", status: database.ChatStatusRequiresAction, hasRows: true, exists: true, want: StateA1},
+		{name: "A1P", status: database.ChatStatusRequiresAction, hasRows: true, paused: true, exists: true, want: StateA1P},
 		{name: "XW", status: database.ChatStatusWaiting, archived: true, exists: true, want: StateXW},
 		{name: "XE0", status: database.ChatStatusError, archived: true, exists: true, want: StateXE0},
-		{name: "XE1", status: database.ChatStatusError, archived: true, queueNonEmpty: true, exists: true, want: StateXE1},
-		{name: "XE1P", status: database.ChatStatusError, archived: true, queueNonEmpty: true, paused: true, exists: true, want: StateXE1P},
-		{name: "P", status: database.ChatStatusPaused, queueNonEmpty: true, paused: true, exists: true, want: StateP},
-		// The pause condition is read only when the queue has rows.
-		{name: "R0PausedFlag", status: database.ChatStatusRunning, paused: true, exists: true, want: StateR0},
+		{name: "XE1", status: database.ChatStatusError, archived: true, hasRows: true, exists: true, want: StateXE1},
+		{name: "XE1P", status: database.ChatStatusError, archived: true, hasRows: true, paused: true, exists: true, want: StateXE1P},
+		{name: "P", status: database.ChatStatusPaused, hasRows: true, paused: true, exists: true, want: StateP},
+		{name: "R0IgnoresPausedWithoutRows", status: database.ChatStatusRunning, paused: true, exists: true, want: StateR0},
 	}
 	for _, tc := range cases {
 		tc := tc
@@ -62,7 +61,7 @@ func TestClassifyExecutionState_Valid(t *testing.T) {
 			if tc.exists {
 				chat = chatWithStatus(tc.status, tc.archived)
 			}
-			queue := QueueState{HasRows: tc.queueNonEmpty, Paused: tc.paused}
+			queue := QueueState{HasRows: tc.hasRows, Paused: tc.paused}
 			require.Equal(t, tc.want, ClassifyExecutionState(chat, queue, tc.exists))
 		})
 	}
@@ -75,25 +74,25 @@ func TestClassifyExecutionState_Invalid(t *testing.T) {
 	t.Parallel()
 
 	cases := []struct {
-		name          string
-		status        database.ChatStatus
-		archived      bool
-		queueNonEmpty bool
-		paused        bool
+		name     string
+		status   database.ChatStatus
+		archived bool
+		hasRows  bool
+		paused   bool
 	}{
 		// Legacy statuses (pending/completed) are invalid.
 		{name: "LegacyPending", status: "pending"},
 		{name: "LegacyCompleted", status: "completed"},
 
 		// Waiting never has rows.
-		{name: "WaitingWithQueue", status: database.ChatStatusWaiting, queueNonEmpty: true},
-		{name: "WaitingPaused", status: database.ChatStatusWaiting, queueNonEmpty: true, paused: true},
-		{name: "WaitingArchivedWithQueue", status: database.ChatStatusWaiting, archived: true, queueNonEmpty: true},
+		{name: "WaitingWithQueue", status: database.ChatStatusWaiting, hasRows: true},
+		{name: "WaitingPaused", status: database.ChatStatusWaiting, hasRows: true, paused: true},
+		{name: "WaitingArchivedWithQueue", status: database.ChatStatusWaiting, archived: true, hasRows: true},
 
 		// Paused requires a pause condition and is never archived.
 		{name: "PausedNoRows", status: database.ChatStatusPaused},
-		{name: "PausedWithoutCondition", status: database.ChatStatusPaused, queueNonEmpty: true},
-		{name: "PausedArchived", status: database.ChatStatusPaused, archived: true, queueNonEmpty: true, paused: true},
+		{name: "PausedWithoutCondition", status: database.ChatStatusPaused, hasRows: true},
+		{name: "PausedArchived", status: database.ChatStatusPaused, archived: true, hasRows: true, paused: true},
 
 		// Archived busy statuses are invalid.
 		{name: "ArchivedRunning", status: database.ChatStatusRunning, archived: true},
@@ -104,7 +103,7 @@ func TestClassifyExecutionState_Invalid(t *testing.T) {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			queue := QueueState{HasRows: tc.queueNonEmpty, Paused: tc.paused}
+			queue := QueueState{HasRows: tc.hasRows, Paused: tc.paused}
 			got := ClassifyExecutionState(chatWithStatus(tc.status, tc.archived), queue, true)
 			require.Equal(t, StateInvalid, got)
 		})

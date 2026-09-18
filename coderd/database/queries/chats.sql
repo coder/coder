@@ -2837,7 +2837,8 @@ DELETE FROM chat_queued_messages
 WHERE chat_id = @chat_id::uuid;
 
 -- name: UpdateChatQueuedMessageEditing :one
--- Sets or clears editing_since on one row; an existing value is kept.
+-- Begins (@editing = true) or ends the row's edit. Beginning keeps an
+-- existing editing_since, so the timestamp marks the first begin.
 UPDATE chat_queued_messages
 SET editing_since = CASE WHEN @editing::boolean THEN COALESCE(editing_since, NOW()) ELSE NULL END
 WHERE id = @id::bigint AND chat_id = @chat_id::uuid
@@ -2944,8 +2945,8 @@ WITH to_archive AS (
       AND c.parent_chat_id IS NULL -- roots only
       -- Redundant filter helps the planner use the partial index on created_at.
       AND c.created_at < @archive_cutoff::timestamptz
-      -- New active statuses must be added here to prevent archiving.
-      AND c.status NOT IN ('running', 'requires_action', 'paused')
+      -- Statuses the state machine refuses to archive. Add new busy or paused statuses here.
+      AND c.status NOT IN ('running', 'interrupting', 'requires_action', 'paused')
       AND COALESCE(activity.last_activity_at, c.created_at) < @archive_cutoff::timestamptz
     -- Sorting by created_at lets Postgres drive the scan from the
     -- partial index instead of evaluating every LATERAL subquery

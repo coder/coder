@@ -42,9 +42,10 @@ const (
 	scenarioMulti scenario = "multi"
 	// scenarioHeadTarget marks multi-queued PromoteQueuedMessage
 	// cases that target the queue head. For R1/I1 head-target is
-	// reorder-only: no rows are updated, so queue order and
-	// queue_version are unchanged. For E1/A1 head-target still
-	// pops the head into history.
+	// reorder-only: no rows are reordered, so queue order is
+	// unchanged and queue_version advances only when the head's
+	// edit had to end. For E1/A1 head-target still pops the head
+	// into history.
 	scenarioHeadTarget scenario = "head_target"
 	// scenarioNonHead marks multi-queued PromoteQueuedMessage cases
 	// that target a non-head queued message so the target moves to
@@ -60,10 +61,28 @@ const (
 	// FinishInterruption case that exercises the precondition
 	// rejecting outstanding non-dynamic tool calls.
 	scenarioRejectNonDynamicOutstandingToolCall scenario = "reject_non_dynamic_outstanding_tool_call"
-	// scenarioExposeEdit marks cases seeded with a ready head and an
-	// edit on the row behind it, so removing or promoting the head
+	// scenarioEditBehindHead marks cases seeded with a ready head and
+	// an edit on the row behind it, so removing or promoting the head
 	// exposes a blocked head.
-	scenarioExposeEdit scenario = "expose_edit"
+	scenarioEditBehindHead scenario = "edit_behind_head"
+	// scenarioBeginEdit marks EditQueuedMessage cases that begin an
+	// edit on the head.
+	scenarioBeginEdit scenario = "begin_edit"
+	// scenarioContentEdit marks EditQueuedMessage cases that rewrite
+	// the head's content without changing its edit marker.
+	scenarioContentEdit scenario = "content_edit"
+	// scenarioMoveEdit marks EditQueuedMessage cases that begin an
+	// edit on the row behind the head, ending the head's edit.
+	scenarioMoveEdit scenario = "move_edit"
+	// scenarioEndEdit marks EditQueuedMessage cases that end a row's
+	// edit.
+	scenarioEndEdit scenario = "end_edit"
+	// scenarioTargetBehindHead marks cases whose target is the row
+	// behind the head, so the head and its edit marker stay in place.
+	scenarioTargetBehindHead scenario = "target_behind_head"
+	// scenarioRefused marks the EditQueuedMessage case P rejects with
+	// ErrPausedQueuedHeadUnderEdit.
+	scenarioRefused scenario = "refused"
 )
 
 func transitionAllowed(tr chatstate.Transition, from chatstate.ExecutionState) bool {
@@ -806,7 +825,7 @@ func matrixCases() []transitionCaseSpec {
 		// the net queue delta is zero. An edit on the row behind the
 		// head makes that row the blocked head of the resumed turn.
 		sendMessageQueueCase(chatstate.StateE1, chatstate.StateR1, false, 0),
-		withSeed(sendMessageQueueCase(chatstate.StateE1, chatstate.StateR1P, false, 0), scenarioExposeEdit, multiEditingBehind),
+		withSeed(sendMessageQueueCase(chatstate.StateE1, chatstate.StateR1P, false, 0), scenarioEditBehindHead, multiEditingBehind),
 		sendMessageQueueCase(chatstate.StateR0, chatstate.StateR1, false, +1),
 		sendMessageQueueCase(chatstate.StateR1, chatstate.StateR1, false, +1),
 		sendMessageQueueCase(chatstate.StateR1P, chatstate.StateR1P, false, +1),
@@ -830,7 +849,7 @@ func matrixCases() []transitionCaseSpec {
 		sendMessageInterruptCase(chatstate.StateW, chatstate.StateR0),
 		sendMessageInterruptCase(chatstate.StateE0, chatstate.StateR0),
 		sendMessageInterruptCase(chatstate.StateE1, chatstate.StateR1),
-		withSeed(sendMessageInterruptCase(chatstate.StateE1, chatstate.StateR1P), scenarioExposeEdit, multiEditingBehind),
+		withSeed(sendMessageInterruptCase(chatstate.StateE1, chatstate.StateR1P), scenarioEditBehindHead, multiEditingBehind),
 		sendMessageInterruptCase(chatstate.StateR0, chatstate.StateI1),
 		sendMessageInterruptCase(chatstate.StateR1, chatstate.StateI1),
 		sendMessageInterruptCase(chatstate.StateR1P, chatstate.StateI1P),
@@ -894,7 +913,7 @@ func matrixCases() []transitionCaseSpec {
 		// non-head target.
 		promoteQueuedCase(chatstate.StateE1, chatstate.StateR0, queueShapeDefault, 0),
 		promoteQueuedCase(chatstate.StateE1, chatstate.StateR1, queueShapeMulti, 0),
-		withSeed(promoteQueuedCase(chatstate.StateE1, chatstate.StateR1P, queueShapeDefault, 0), scenarioExposeEdit, multiEditingBehind),
+		withSeed(promoteQueuedCase(chatstate.StateE1, chatstate.StateR1P, queueShapeDefault, 0), scenarioEditBehindHead, multiEditingBehind),
 		promoteQueuedCase(chatstate.StateE1P, chatstate.StateR0, queueShapeDefault, 0),
 		promoteQueuedCase(chatstate.StateE1P, chatstate.StateR1, queueShapeMulti, 0),
 		promoteQueuedCase(chatstate.StateE1P, chatstate.StateR1P, queueShapeMulti, 1),
@@ -907,7 +926,7 @@ func matrixCases() []transitionCaseSpec {
 		promoteQueuedCase(chatstate.StateI1P, chatstate.StateI1, queueShapeMulti, 1),
 		promoteQueuedCase(chatstate.StateA1, chatstate.StateR0, queueShapeDefault, 0),
 		promoteQueuedCase(chatstate.StateA1, chatstate.StateR1, queueShapeMulti, 0),
-		withSeed(promoteQueuedCase(chatstate.StateA1, chatstate.StateR1P, queueShapeDefault, 0), scenarioExposeEdit,
+		withSeed(promoteQueuedCase(chatstate.StateA1, chatstate.StateR1P, queueShapeDefault, 0), scenarioEditBehindHead,
 			withEditingRow(func(t *testing.T, f *testFixture, _ chatstate.ExecutionState) seededChat {
 				return seedA1WithMixedOutstandingToolCalls(t, f, 2, "seed_tool_a1_promote_expose")
 			}, 1)),
@@ -966,13 +985,13 @@ func matrixCases() []transitionCaseSpec {
 		finishInterruptionRejectsOutstandingToolCallCase(),
 		finishInterruptionCase(chatstate.StateI1, chatstate.StateR0, queueShapeDefault),
 		finishInterruptionCase(chatstate.StateI1, chatstate.StateR1, queueShapeMulti),
-		withSeed(finishInterruptionCase(chatstate.StateI1, chatstate.StateR1P, queueShapeDefault), scenarioExposeEdit, multiEditingBehind),
+		withSeed(finishInterruptionCase(chatstate.StateI1, chatstate.StateR1P, queueShapeDefault), scenarioEditBehindHead, multiEditingBehind),
 
 		// FinishTurn cases.
 		finishTurnCase(chatstate.StateR0, chatstate.StateW, queueShapeDefault),
 		finishTurnCase(chatstate.StateR1, chatstate.StateR0, queueShapeDefault),
 		finishTurnCase(chatstate.StateR1, chatstate.StateR1, queueShapeMulti),
-		withSeed(finishTurnCase(chatstate.StateR1, chatstate.StateR1P, queueShapeDefault), scenarioExposeEdit, multiEditingBehind),
+		withSeed(finishTurnCase(chatstate.StateR1, chatstate.StateR1P, queueShapeDefault), scenarioEditBehindHead, multiEditingBehind),
 
 		// FinishError cases.
 		finishErrorCase(chatstate.StateR0, chatstate.StateE0),
@@ -981,7 +1000,7 @@ func matrixCases() []transitionCaseSpec {
 		finishErrorCase(chatstate.StateW, chatstate.StateE0),
 
 		// ReconcileInvalidState cases: Invalid with empty queue
-		// lands in E0; Invalid with non-empty queue lands in E1, or
+		// reaches E0; Invalid with non-empty queue reaches E1, or
 		// E1P when its head is under edit.
 		reconcileInvalidStateCase(chatstate.StateE0, queueShapeDefault),
 		reconcileInvalidStateCase(chatstate.StateE1, queueShapeMulti),
@@ -999,8 +1018,8 @@ func matrixCases() []transitionCaseSpec {
 		cases = append(cases,
 			deleteQueuedCase(blocked, empty, queueShapeDefault),
 			deleteQueuedCase(blocked, ready, queueShapeMulti),
-			deleteQueuedCaseAt(blocked, blocked, scenarioBehindEdit, seedStateMultiQueued, 1),
-			deleteQueuedCaseAt(ready, blocked, scenarioExposeEdit, multiEditingBehind, 0),
+			deleteQueuedCaseAt(blocked, blocked, scenarioTargetBehindHead, seedStateMultiQueued, 1),
+			deleteQueuedCaseAt(ready, blocked, scenarioEditBehindHead, multiEditingBehind, 0),
 		)
 	}
 	return append(cases, editingQueueMatrixCases()...)
@@ -1508,7 +1527,7 @@ func promoteQueuedCase(from, want chatstate.ExecutionState, shape queueShape, ta
 				assertQueueBodiesInOrder(ctx, t, f, seeded.chatID,
 					remainingBodiesExcluding(seeded.queuedMessageBodies, targetIdx))
 				// A different row under edit keeps its marker; the
-				// target's own edit left with it.
+				// target's edit ended when it was promoted.
 				assertQueueEditMarkers(ctx, t, f, seeded.chatID, seeded.editingQueuedID)
 				// New active history adds exactly the inserted
 				// user message plus any synthetic cancellations.
