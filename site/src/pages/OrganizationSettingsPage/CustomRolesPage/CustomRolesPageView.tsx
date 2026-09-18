@@ -365,8 +365,8 @@ const RoleTableBody: FC<RoleTableBodyProps> = ({
 				message="No custom roles yet"
 				description={
 					canCreateOrgRole
-						? "Create your first custom role"
-						: "You don't have permission to create a custom role"
+						? "Grant users a tailored set of granular permissions."
+						: "You don't have permission to create custom roles."
 				}
 				cta={
 					canCreateOrgRole && (

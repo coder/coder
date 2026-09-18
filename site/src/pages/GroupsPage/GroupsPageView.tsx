@@ -227,8 +227,8 @@ const GroupsTableBody: FC<GroupsTableBodyProps> = ({
 				message="No groups yet"
 				description={
 					canCreateGroup
-						? "Create your first group"
-						: "You don't have permission to create a group"
+						? "Organize members into groups to manage access and resources."
+						: "You don't have permission to create groups."
 				}
 				cta={
 					canCreateGroup && (
