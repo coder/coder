@@ -261,7 +261,7 @@ export const OAuth2AppForm: FC<OAuth2AppFormProps> = ({
 						disabled={
 							formDisabled || scopesQuery.isLoading || scopesQuery.isError
 						}
-						hidePlaceholderWhenSelected
+						hidePlaceholderWhenSelected={!scopesQuery.isLoading}
 						placeholder={
 							scopesQuery.isLoading ? "Loading scopes..." : "Select scopes"
 						}

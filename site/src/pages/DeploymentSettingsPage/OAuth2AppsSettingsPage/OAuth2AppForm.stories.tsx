@@ -63,6 +63,18 @@ export const ScopeCatalogError: Story = {
 	},
 };
 
+// Existing selections must not hide the loading message while the catalog
+// request is pending.
+export const ConfiguredScopesWithCatalogLoading: Story = {
+	args: { app: appWithScopes },
+	parameters: { queries: [] },
+	beforeEach: () => {
+		spyOn(API, "getExternalAPIKeyScopes").mockReturnValue(
+			new Promise(() => {}),
+		);
+	},
+};
+
 // An unreachable catalog must not hide an allowlist the app already has.
 export const ConfiguredScopesWithCatalogError: Story = {
 	args: { app: appWithScopes },
