@@ -74,7 +74,7 @@ const dotVariants = cva("rounded-full inline-block border-4 border-solid", {
 });
 
 interface StatusIndicatorDotProps
-	extends React.HTMLAttributes<HTMLDivElement>,
+	extends React.ComponentProps<"div">,
 		VariantProps<typeof dotVariants> {}
 
 export const StatusIndicatorDot: FC<StatusIndicatorDotProps> = ({

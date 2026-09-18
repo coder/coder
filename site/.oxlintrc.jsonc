@@ -1,4 +1,8 @@
 {
+	// oxlint config for the Coder frontend. Biome (see biome.jsonc) remains the
+	// authoritative JS/TS linter; oxlint runs alongside it and enforces the rules
+	// that already match Biome's behavior, plus a few Coder-specific rules that
+	// Biome has no equivalent for. See the migration backlog below.
 	"$schema": "./node_modules/oxlint/configuration_schema.json",
 	"plugins": ["typescript", "unicorn", "oxc", "react", "jsx-a11y", "vitest"],
 	// Turn every default-on category off so nothing runs unless explicitly
@@ -235,6 +239,12 @@
 			}
 		],
 
+		// --- coder-specific (no Biome equivalent) ---
+		// React 19's ComponentProps already includes ref, so the ref-variant
+		// helpers are dead weight. Element props belong to a tag, so name the tag
+		// the component actually renders: ComponentProps<"div">, not
+		// HTMLAttributes<HTMLDivElement>. Both the bare and React-qualified
+		// spellings need listing; the rule matches on the name as written.
 		"no-restricted-types": [
 			"error",
 			{
@@ -250,6 +260,12 @@
 					},
 					"React.ComponentPropsWithoutRef": {
 						"message": "Use React.ComponentProps instead. Under React 19 it already includes ref."
+					},
+					"HTMLAttributes": {
+						"message": "Use ComponentProps<\"tag\"> instead, naming the tag the component renders."
+					},
+					"React.HTMLAttributes": {
+						"message": "Use React.ComponentProps<\"tag\"> instead, naming the tag the component renders."
 					}
 				}
 			}

@@ -2,6 +2,7 @@ import { cn } from "cn";
 import {
 	cloneElement,
 	type FC,
+	type ComponentProps,
 	type HTMLAttributes,
 	type ReactElement,
 	type Ref,
@@ -9,7 +10,7 @@ import {
 import { Avatar, type AvatarProps } from "#/components/Avatar/Avatar";
 import { Button, type ButtonProps } from "#/components/Button/Button";
 
-export const Topbar: FC<HTMLAttributes<HTMLElement>> = ({
+export const Topbar: FC<ComponentProps<"header">> = ({
 	className,
 	...props
 }) => {
@@ -44,7 +45,7 @@ export const TopbarButton: React.FC<ButtonProps> = ({ ...props }) => {
 	return <Button variant="outline" size="sm" {...props} />;
 };
 
-export const TopbarData: FC<HTMLAttributes<HTMLDivElement>> = ({
+export const TopbarData: FC<ComponentProps<"div">> = ({
 	className,
 	...props
 }) => {
@@ -57,7 +58,7 @@ export const TopbarData: FC<HTMLAttributes<HTMLDivElement>> = ({
 };
 
 export const TopbarDivider: FC<
-	Omit<HTMLAttributes<HTMLSpanElement>, "children">
+	Omit<ComponentProps<"span">, "children">
 > = ({ className, ...props }) => {
 	return (
 		<span {...props} className={cn("text-border", className)}>
@@ -70,6 +71,9 @@ export const TopbarAvatar: FC<AvatarProps> = (props) => {
 	return <Avatar {...props} variant="icon" size="sm" />;
 };
 
+// HTMLOrSVGElement has no tag equivalent, and this renders no element of its
+// own: it clones whichever icon it is given. Restructuring it is out of scope.
+// oxlint-disable-next-line no-restricted-types
 type TopbarIconProps = HTMLAttributes<HTMLOrSVGElement> & {
 	ref?: Ref<HTMLOrSVGElement>;
 };

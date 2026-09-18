@@ -2,7 +2,7 @@ import { cn } from "cn";
 import dayjs from "dayjs";
 import {
 	type FC,
-	type HTMLAttributes,
+	type ComponentProps,
 	useEffect,
 	useLayoutEffect,
 	useRef,
@@ -220,7 +220,7 @@ const MetadataItem: FC<MetadataItemProps> = ({ item }) => {
 	);
 };
 
-const StaticWidth: FC<HTMLAttributes<HTMLDivElement>> = ({
+const StaticWidth: FC<ComponentProps<"div">> = ({
 	children,
 	...attrs
 }) => {
@@ -240,7 +240,7 @@ const StaticWidth: FC<HTMLAttributes<HTMLDivElement>> = ({
 	}, [children]);
 
 	return (
-		<div ref={ref} {...attrs}>
+		<div {...attrs} ref={ref}>
 			{children}
 		</div>
 	);

@@ -101,7 +101,7 @@ const tableRowVariants = cva(
 	},
 );
 
-export type TableRowProps = React.HTMLAttributes<HTMLTableRowElement> &
+export type TableRowProps = React.ComponentProps<"tr"> &
 	VariantProps<typeof tableRowVariants>;
 
 export const TableRow: React.FC<TableRowProps> = ({

@@ -18,7 +18,7 @@ import { docs } from "#/utils/docs";
 
 const CONTENT_PADDING = 36;
 
-export const Header: FC<HTMLAttributes<HTMLDivElement>> = ({
+export const Header: FC<ComponentProps<"header">> = ({
 	className,
 	style,
 	children,
@@ -35,7 +35,7 @@ export const Header: FC<HTMLAttributes<HTMLDivElement>> = ({
 	);
 };
 
-export const HeaderTitle: FC<HTMLAttributes<HTMLDivElement>> = ({
+export const HeaderTitle: FC<ComponentProps<"h2">> = ({
 	className,
 	children,
 	...props
@@ -90,7 +90,7 @@ export const HealthyDot: FC<HealthyDotProps> = ({ severity }) => {
 	);
 };
 
-export const Main: FC<HTMLAttributes<HTMLDivElement>> = ({
+export const Main: FC<ComponentProps<"div">> = ({
 	className,
 	style,
 	children,
@@ -110,7 +110,7 @@ export const Main: FC<HTMLAttributes<HTMLDivElement>> = ({
 	);
 };
 
-export const GridData: FC<HTMLAttributes<HTMLDivElement>> = ({
+export const GridData: FC<ComponentProps<"div">> = ({
 	className,
 	children,
 	...props
@@ -129,7 +129,7 @@ export const GridData: FC<HTMLAttributes<HTMLDivElement>> = ({
 	);
 };
 
-export const GridDataLabel: FC<HTMLAttributes<HTMLSpanElement>> = ({
+export const GridDataLabel: FC<ComponentProps<"span">> = ({
 	className,
 	children,
 	...props
@@ -144,7 +144,7 @@ export const GridDataLabel: FC<HTMLAttributes<HTMLSpanElement>> = ({
 	);
 };
 
-export const GridDataValue: FC<HTMLAttributes<HTMLSpanElement>> = ({
+export const GridDataValue: FC<ComponentProps<"span">> = ({
 	className,
 	children,
 	...props
@@ -156,7 +156,7 @@ export const GridDataValue: FC<HTMLAttributes<HTMLSpanElement>> = ({
 	);
 };
 
-export const SectionLabel: FC<HTMLAttributes<HTMLHeadingElement>> = ({
+export const SectionLabel: FC<ComponentProps<"h4">> = ({
 	className,
 	children,
 	...props
@@ -172,6 +172,9 @@ export const SectionLabel: FC<HTMLAttributes<HTMLHeadingElement>> = ({
 };
 
 type PillProps = React.ComponentProps<"div"> & {
+	// Not element props: this is the element *type* accepted by cloneElement,
+	// which takes any element carrying standard attributes.
+	// oxlint-disable-next-line no-restricted-types
 	icon: ReactElement<HTMLAttributes<HTMLElement>>;
 };
 
@@ -235,7 +238,7 @@ export const BooleanPill: FC<BooleanPillProps> = ({
 	);
 };
 
-type LogsProps = HTMLAttributes<HTMLDivElement> & { lines: readonly string[] };
+type LogsProps = ComponentProps<"div"> & { lines: readonly string[] };
 
 export const Logs: FC<LogsProps> = ({ className, lines, ...divProps }) => {
 	return (

@@ -3,7 +3,7 @@ import dayjs from "dayjs";
 import {
 	type FC,
 	Fragment,
-	type HTMLAttributes,
+	type ComponentProps,
 	useLayoutEffect,
 	useRef,
 } from "react";
@@ -39,7 +39,7 @@ const getStageDurationInSeconds = (logs: ProvisionerJobLog[]) => {
 	return completedAt.diff(startedAt, "seconds");
 };
 
-interface WorkspaceBuildLogsProps extends HTMLAttributes<HTMLDivElement> {
+interface WorkspaceBuildLogsProps extends ComponentProps<"div"> {
 	hideTimestamps?: boolean;
 	sticky?: boolean;
 	logs: ProvisionerJobLog[];
@@ -68,9 +68,9 @@ export const WorkspaceBuildLogs: FC<WorkspaceBuildLogsProps> = ({
 
 	return (
 		<div
-			ref={ref}
 			className={cn("font-mono border border-border rounded-lg", className)}
 			{...attrs}
+			ref={ref}
 		>
 			{Object.entries(groupedLogsByStage).map(([stage, logs]) => {
 				const isEmpty = logs.every((log) => log.output === "");
