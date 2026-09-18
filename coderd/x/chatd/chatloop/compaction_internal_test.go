@@ -326,6 +326,55 @@ func TestGenerateCompaction_ForceBypassesThresholdGates(t *testing.T) {
 	}
 }
 
+// TestGenerateCompaction_SystemSummaryPrefixBySource verifies the
+// default system summary prefix depends on the source and that an
+// explicit prefix wins regardless of source.
+func TestGenerateCompaction_SystemSummaryPrefixBySource(t *testing.T) {
+	t.Parallel()
+
+	newModel := func() *chattest.FakeModel {
+		return &chattest.FakeModel{
+			ProviderName: "fake",
+			ModelName:    "fake-model",
+			GenerateFn: func(_ context.Context, _ fantasy.Call) (*fantasy.Response, error) {
+				return &fantasy.Response{
+					Content: []fantasy.Content{fantasy.TextContent{Text: "summary body"}},
+				}, nil
+			},
+		}
+	}
+	cases := []struct {
+		name       string
+		source     CompactionSource
+		prefix     string
+		wantPrefix string
+	}{
+		{name: "agent default", source: CompactionSourceAgent, wantPrefix: agentCompactionSystemSummaryPrefix},
+		{name: "manual default", source: CompactionSourceManual, wantPrefix: defaultCompactionSystemSummaryPrefix},
+		{name: "automatic default", source: CompactionSourceAutomatic, wantPrefix: defaultCompactionSystemSummaryPrefix},
+		{name: "explicit prefix wins", source: CompactionSourceAgent, prefix: "custom prefix", wantPrefix: "custom prefix"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			result, err := GenerateCompaction(context.Background(), GenerateCompactionOptions{
+				Model:               newModel(),
+				Messages:            []fantasy.Message{textMessage(fantasy.MessageRoleUser, "hello")},
+				ThresholdPercent:    70,
+				ContextLimit:        1000,
+				StepUsage:           fantasy.Usage{InputTokens: 900},
+				Source:              tc.source,
+				Force:               true,
+				SystemSummaryPrefix: tc.prefix,
+				Clock:               quartz.NewMock(t),
+			})
+			require.NoError(t, err)
+			require.Equal(t, tc.wantPrefix+"\n\nsummary body", result.SystemSummary)
+			require.Equal(t, tc.source, result.Source)
+		})
+	}
+}
+
 // TestGenerateCompaction_DefaultSourceAutomatic verifies an unforced
 // over-threshold run reports the automatic source by default.
 func TestGenerateCompaction_DefaultSourceAutomatic(t *testing.T) {

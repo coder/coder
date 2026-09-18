@@ -18,7 +18,8 @@ import (
 )
 
 const (
-	clearContextToolName = "clear_context"
+	clearContextToolName   = "clear_context"
+	compactContextToolName = "compact_context"
 	// contextFollowUpMaxRunes bounds the follow_up argument. Larger
 	// state belongs in a workspace file referenced by path.
 	contextFollowUpMaxRunes = 8000
@@ -26,7 +27,7 @@ const (
 
 // contextToolNames lists the tools that create a context boundary
 // from inside a turn. Each is exclusive in its batch.
-var contextToolNames = []string{clearContextToolName}
+var contextToolNames = []string{clearContextToolName, compactContextToolName}
 
 // contextToolArgs is the argument shape shared by the context tools.
 // follow_up has no omitempty so the generated schema marks it required.
@@ -47,6 +48,11 @@ const contextToolSharedDescription = "\n\n" +
 
 const clearContextToolDescription = "Clear your own context and continue from a follow-up note. " +
 	"Everything before this call leaves your context; only the system prompt, a short notice that you cleared your context, and your follow_up remain." +
+	contextToolSharedDescription
+
+const compactContextToolDescription = "Compact your own context into a summary and continue from a follow-up note. " +
+	"Everything before this call is replaced by a model-written summary; you then continue from the system prompt, the summary, and your follow_up. " +
+	"Prefer clear_context when a summary of the earlier work is not needed." +
 	contextToolSharedDescription
 
 // exclusiveContextToolSkippedMessage is written to the sibling calls of
@@ -77,6 +83,33 @@ func clearContextTool(messages []database.ChatMessage) fantasy.AgentTool {
 }
 
 const nothingNewSinceBoundaryMessage = "nothing has happened since the last context boundary; do some work before clearing or compacting again"
+
+const compactionAlreadyFailedMessage = "an earlier compact_context call in this context segment did not produce a boundary; use clear_context with a follow-up or continue working"
+
+// compactContextTool returns the compact_context tool. messages is the
+// decision-view history of the step executing the call; the handler
+// only validates and returns text, the compaction request is recorded
+// by the step that persists the result.
+func compactContextTool(messages []database.ChatMessage) fantasy.AgentTool {
+	return fantasy.NewAgentTool(
+		compactContextToolName,
+		compactContextToolDescription,
+		func(_ context.Context, args contextToolArgs, call fantasy.ToolCall) (fantasy.ToolResponse, error) {
+			if response, ok := validateContextToolArgs(args); !ok {
+				return response, nil
+			}
+			if !hasContextSinceLastBoundary(messages, call.ID) {
+				return fantasy.NewTextErrorResponse(nothingNewSinceBoundaryMessage), nil
+			}
+			// A successful compact_context result that is still after the
+			// latest boundary means its compaction never produced one.
+			if hasSuccessfulToolResultAfterBoundary(messages, compactContextToolName) {
+				return fantasy.NewTextErrorResponse(compactionAlreadyFailedMessage), nil
+			}
+			return fantasy.NewTextResponse("Compaction scheduled. Follow-up: " + args.FollowUp), nil
+		},
+	)
+}
 
 // validateContextToolArgs rejects a blank or oversized follow_up.
 // Returns the error response and false when the arguments are invalid.
@@ -123,6 +156,57 @@ func messageHasToolCall(msg database.ChatMessage, toolCallID string) bool {
 		}
 	}
 	return false
+}
+
+// messageHasSuccessfulToolResult reports whether msg carries a
+// non-error tool result for toolName.
+func messageHasSuccessfulToolResult(msg database.ChatMessage, toolName string) bool {
+	parts, err := chatprompt.ParseContent(msg)
+	if err != nil {
+		return false
+	}
+	for _, part := range parts {
+		if part.Type == codersdk.ChatMessagePartTypeToolResult && part.ToolName == toolName && !part.IsError {
+			return true
+		}
+	}
+	return false
+}
+
+// hasSuccessfulToolResultAfterBoundary reports whether any active,
+// uncompressed tool-role row after the latest context boundary carries
+// a successful result for toolName.
+func hasSuccessfulToolResultAfterBoundary(messages []database.ChatMessage, toolName string) bool {
+	boundary := latestContextBoundaryIndex(messages)
+	for i := boundary + 1; i < len(messages); i++ {
+		msg := messages[i]
+		if msg.Deleted || msg.Compressed || msg.Role != database.ChatMessageRoleTool {
+			continue
+		}
+		if messageHasSuccessfulToolResult(msg, toolName) {
+			return true
+		}
+	}
+	return false
+}
+
+// compactionSourceFromHistory labels a forced compaction decision. The
+// source is agent when the last active, uncompressed, non-system row
+// after the latest context boundary is a tool-role row carrying a
+// successful compact_context result, and manual otherwise.
+func compactionSourceFromHistory(messages []database.ChatMessage) chatloop.CompactionSource {
+	boundary := latestContextBoundaryIndex(messages)
+	for i := len(messages) - 1; i > boundary; i-- {
+		msg := messages[i]
+		if msg.Deleted || msg.Compressed || msg.Role == database.ChatMessageRoleSystem {
+			continue
+		}
+		if msg.Role == database.ChatMessageRoleTool && messageHasSuccessfulToolResult(msg, compactContextToolName) {
+			return chatloop.CompactionSourceAgent
+		}
+		break
+	}
+	return chatloop.CompactionSourceManual
 }
 
 // contextBoundaryEffect is the boundary a committed tool batch asks
@@ -177,8 +261,11 @@ func isContextToolName(name string) bool {
 // applyContextBoundaryEffect appends the boundary rows for effect to a
 // tool step commit. For clear_context the order is: step rows, the
 // chat_cleared triplet, post_tool_use hook rows, then the follow-up as
-// the last row. Hook rows sit after the triplet so a model_context
-// effect lands after the new prompt anchor instead of behind it.
+// the last row; hook rows sit after the triplet, which is the prompt
+// anchor. For compact_context the order is: step rows, hook rows,
+// follow-up, and the commit sets the compaction marker; the follow-up
+// is the last row and follows every tool-role row, so the trailing
+// user-role run holds only hook model context and the follow-up.
 func applyContextBoundaryEffect(
 	messages stepMessagesForCommit,
 	effect contextBoundaryEffect,
@@ -196,6 +283,8 @@ func applyContextBoundaryEffect(
 			return stepMessagesForCommit{}, xerrors.Errorf("build clear messages: %w", err)
 		}
 		messages.Messages = append(messages.Messages, triplet...)
+	case compactContextToolName:
+		messages.RequestCompaction = true
 	default:
 		return stepMessagesForCommit{}, xerrors.Errorf("unknown context tool %q", effect.tool)
 	}

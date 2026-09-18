@@ -627,6 +627,67 @@ func TestBuildClearMessages_AgentSource(t *testing.T) {
 	require.JSONEq(t, `{"source":"agent"}`, string(resultParts[0].Result))
 }
 
+func TestDecisionForcedCompactionSource(t *testing.T) {
+	t.Parallel()
+
+	requestedChat := database.Chat{
+		CompactionRequestedAt: sql.NullTime{Time: time.Now(), Valid: true},
+	}
+
+	t.Run("agent after a successful compact_context result", func(t *testing.T) {
+		t.Parallel()
+		messages := []database.ChatMessage{
+			dbMessage(t, 1, database.ChatMessageRoleUser, false, codersdk.ChatMessageText("question")),
+			dbMessage(t, 2, database.ChatMessageRoleAssistant, false, codersdk.ChatMessageToolCall("compact-1", compactContextToolName, json.RawMessage(`{"follow_up":"resume"}`))),
+			dbMessage(t, 3, database.ChatMessageRoleTool, false, codersdk.ChatMessageToolResult("compact-1", compactContextToolName, json.RawMessage(`{"output":"Compaction scheduled."}`), false, false)),
+		}
+		decision, err := decideGenerationAction(generationDecisionInput{chat: requestedChat, messages: messages})
+		require.NoError(t, err)
+		require.Equal(t, generationActionCompact, decision.kind)
+		require.True(t, decision.forced)
+		require.Equal(t, chatloop.CompactionSourceAgent, decision.compactionSource)
+		require.Equal(t, chatloop.CompactionSourceAgent, compactionSourceForDecision(decision))
+	})
+
+	t.Run("manual without a compact_context result", func(t *testing.T) {
+		t.Parallel()
+		messages := []database.ChatMessage{
+			dbMessage(t, 1, database.ChatMessageRoleUser, false, codersdk.ChatMessageText("question")),
+			dbMessage(t, 2, database.ChatMessageRoleAssistant, false, codersdk.ChatMessageText("answer")),
+		}
+		decision, err := decideGenerationAction(generationDecisionInput{chat: requestedChat, messages: messages})
+		require.NoError(t, err)
+		require.Equal(t, generationActionCompact, decision.kind)
+		require.Equal(t, chatloop.CompactionSourceManual, decision.compactionSource)
+		require.Equal(t, chatloop.CompactionSourceManual, compactionSourceForDecision(decision))
+	})
+
+	t.Run("threshold compaction is automatic", func(t *testing.T) {
+		t.Parallel()
+		require.Equal(t, chatloop.CompactionSourceAutomatic, compactionSourceForDecision(generationDecision{kind: generationActionCompact}))
+	})
+}
+
+func TestPendingUserSegmentStart_CompactContextFollowUpTail(t *testing.T) {
+	t.Parallel()
+
+	usage := dbMessage(t, 4, database.ChatMessageRoleTool, false, codersdk.ChatMessagePart{Type: toolBatchUsagePartType, Result: json.RawMessage(`{"billed_ms":5,"billed_calls":1}`)})
+	usage.Visibility = database.ChatMessageVisibilityModel
+	hookContext := dbMessage(t, 5, database.ChatMessageRoleUser, false, codersdk.ChatMessageText("post_tool_use context"))
+	hookContext.Visibility = database.ChatMessageVisibilityModel
+	followUp := dbMessage(t, 6, database.ChatMessageRoleUser, false, codersdk.ChatMessageText("resume"))
+	followUp.Visibility = database.ChatMessageVisibilityModel
+	rows := []database.ChatMessage{
+		dbMessage(t, 1, database.ChatMessageRoleUser, false, codersdk.ChatMessageText("question")),
+		dbMessage(t, 2, database.ChatMessageRoleAssistant, false, codersdk.ChatMessageToolCall("compact-1", compactContextToolName, json.RawMessage(`{"follow_up":"resume"}`))),
+		dbMessage(t, 3, database.ChatMessageRoleTool, false, codersdk.ChatMessageToolResult("compact-1", compactContextToolName, json.RawMessage(`{"output":"Compaction scheduled."}`), false, false)),
+		usage,
+		hookContext,
+		followUp,
+	}
+	require.Equal(t, 4, pendingUserSegmentStart(rows), "the hook context and the follow-up form the pending tail")
+}
+
 func TestDecisionGeneratesAfterToolCommittedClear(t *testing.T) {
 	t.Parallel()
 

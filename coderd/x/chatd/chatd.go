@@ -3877,7 +3877,7 @@ func (p *Server) appendRootChatTools(
 		}))
 	}
 	if p.experiments.Enabled(codersdk.ExperimentChatContextTools) {
-		tools = append(tools, clearContextTool(opts.messages))
+		tools = append(tools, clearContextTool(opts.messages), compactContextTool(opts.messages))
 	}
 
 	return append(tools, p.subagentTools(ctx, func() database.Chat {
