@@ -2163,6 +2163,11 @@ func TestTemplateInsights_BadRequest(t *testing.T) {
 func TestTemplateInsights_RBAC(t *testing.T) {
 	t.Parallel()
 
+	client := coderdtest.New(t, nil)
+	owner := coderdtest.CreateFirstUser(t, client)
+	templateAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleTemplateAdmin())
+	regular, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+
 	y, m, d := time.Now().UTC().Date()
 	today := time.Date(y, m, d, 0, 0, 0, 0, time.UTC)
 
@@ -2185,9 +2190,6 @@ func TestTemplateInsights_RBAC(t *testing.T) {
 			t.Run("AsOwner", func(t *testing.T) {
 				t.Parallel()
 
-				client := coderdtest.New(t, nil)
-				owner := coderdtest.CreateFirstUser(t, client)
-
 				ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 				defer cancel()
 
@@ -2209,11 +2211,6 @@ func TestTemplateInsights_RBAC(t *testing.T) {
 			t.Run("AsTemplateAdmin", func(t *testing.T) {
 				t.Parallel()
 
-				client := coderdtest.New(t, nil)
-				owner := coderdtest.CreateFirstUser(t, client)
-
-				templateAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleTemplateAdmin())
-
 				ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 				defer cancel()
 
@@ -2234,11 +2231,6 @@ func TestTemplateInsights_RBAC(t *testing.T) {
 			})
 			t.Run("AsRegularUser", func(t *testing.T) {
 				t.Parallel()
-
-				client := coderdtest.New(t, nil)
-				owner := coderdtest.CreateFirstUser(t, client)
-
-				regular, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
 
 				ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 				defer cancel()
@@ -2267,6 +2259,11 @@ func TestTemplateInsights_RBAC(t *testing.T) {
 
 func TestGenericInsights_RBAC(t *testing.T) {
 	t.Parallel()
+
+	client := coderdtest.New(t, nil)
+	owner := coderdtest.CreateFirstUser(t, client)
+	templateAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleTemplateAdmin())
+	regular, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
 
 	y, m, d := time.Now().UTC().Date()
 	today := time.Date(y, m, d, 0, 0, 0, 0, time.UTC)
@@ -2309,9 +2306,6 @@ func TestGenericInsights_RBAC(t *testing.T) {
 				t.Run("AsOwner", func(t *testing.T) {
 					t.Parallel()
 
-					client := coderdtest.New(t, nil)
-					owner := coderdtest.CreateFirstUser(t, client)
-
 					ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 					defer cancel()
 
@@ -2331,11 +2325,6 @@ func TestGenericInsights_RBAC(t *testing.T) {
 				t.Run("AsTemplateAdmin", func(t *testing.T) {
 					t.Parallel()
 
-					client := coderdtest.New(t, nil)
-					owner := coderdtest.CreateFirstUser(t, client)
-
-					templateAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleTemplateAdmin())
-
 					ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 					defer cancel()
 
@@ -2354,11 +2343,6 @@ func TestGenericInsights_RBAC(t *testing.T) {
 				})
 				t.Run("AsRegularUser", func(t *testing.T) {
 					t.Parallel()
-
-					client := coderdtest.New(t, nil)
-					owner := coderdtest.CreateFirstUser(t, client)
-
-					regular, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
 
 					ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 					defer cancel()
