@@ -91,6 +91,7 @@ func setResourceBody(entry *agentproto.ContextResource, r Resource) {
 		entry.Body = &agentproto.ContextResource_InstructionFile{
 			InstructionFile: &agentproto.InstructionFileBody{
 				Content: append([]byte(nil), r.Payload...),
+				Global:  r.Global,
 			},
 		}
 	case KindSkill:

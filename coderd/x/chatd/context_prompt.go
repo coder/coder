@@ -146,17 +146,18 @@ func splitMCPInputSchema(schema *structpb.Struct) (properties map[string]any, re
 }
 
 // decodeInstructionContent decodes an instruction-file resource body and
-// returns its sanitized content. decoded is false when the body cannot be
+// returns its sanitized content and whether the agent marked the file as
+// global (directly in ~/.coder). decoded is false when the body cannot be
 // decoded, letting the prompt path count it as malformed; content is empty
 // when the file sanitizes to nothing, in which case callers skip it. Shared by
 // the prompt builder and the API resource listing so both interpret an
 // instruction file the same way.
-func decodeInstructionContent(body json.RawMessage) (content string, decoded bool) {
+func decodeInstructionContent(body json.RawMessage) (content string, global, decoded bool) {
 	decodedBody, ok := decodeInstructionFileBody(body)
 	if !ok {
-		return "", false
+		return "", false, false
 	}
-	return codersdk.SanitizePromptText(string(decodedBody.GetContent())), true
+	return codersdk.SanitizePromptText(string(decodedBody.GetContent())), decodedBody.GetGlobal(), true
 }
 
 // decodeSkillIdentity decodes a skill resource body and returns its name and
@@ -279,7 +280,7 @@ func contextResourcesToPrompt(
 		}
 		switch r.BodyKind {
 		case database.WorkspaceAgentContextBodyKindInstructionFile:
-			content, decoded := decodeInstructionContent(r.Body)
+			content, isGlobal, decoded := decodeInstructionContent(r.Body)
 			if !decoded {
 				malformed++
 				omitted = append(omitted, r.Source+" (malformed)")
@@ -294,13 +295,11 @@ func contextResourcesToPrompt(
 				ContextFilePath:    r.Source,
 				ContextFileContent: content,
 			})
-			// ~/.coder is a built-in scan root, so its files arrive with
-			// the snapshot and no user-declared source. A .coder directory
-			// the user registered or a tool discovered below the working
-			// directory is a nested one like any other, and a working
-			// directory named .coder holds root files.
-			global[r.Source] = !r.Discovered && r.SourcePath == "" && isGlobalInstructionPath(r.Source) &&
-				pathKey(instructionRowDir(r)) != pathKey(agentPath(directory))
+			// Only the agent knows which .coder directory is ~/.coder; it
+			// marks those files, whichever scan root reached them. A .coder
+			// directory the user registered elsewhere or a tool discovered
+			// below the working directory is a nested one like any other.
+			global[r.Source] = isGlobal
 		case database.WorkspaceAgentContextBodyKindSkill:
 			decodedBody, ok := decodeSkillMetaBody(r.Body)
 			if !ok {
@@ -369,13 +368,6 @@ func pathDepth(p string) int {
 	return strings.Count(p, "/") + strings.Count(p, "\\")
 }
 
-// isGlobalInstructionPath reports whether p sits directly in a .coder
-// directory, the location the scope line declares global.
-func isGlobalInstructionPath(p string) bool {
-	dir := p[:max(strings.LastIndexAny(p, "/\\"), 0)]
-	return dir[strings.LastIndexAny(dir, "/\\")+1:] == ".coder"
-}
-
 // ContextResources returns the chat's pinned context resource list (metadata
 // only). It is read-only and intended for the single-chat GET handler; list
 // and watch payloads omit this detail to stay lightweight.
@@ -438,7 +430,7 @@ func pinnedContextResources(resources []database.ChatContextResource) []codersdk
 		}
 		switch r.BodyKind {
 		case database.WorkspaceAgentContextBodyKindInstructionFile:
-			content, decoded := decodeInstructionContent(r.Body)
+			content, _, decoded := decodeInstructionContent(r.Body)
 			if !decoded || content == "" {
 				continue
 			}

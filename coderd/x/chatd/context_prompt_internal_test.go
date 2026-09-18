@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"path"
 	"strings"
 	"testing"
 
@@ -44,6 +45,16 @@ func instructionResource(t *testing.T, source, content string, status database.W
 		Body:     mustMarshalContextBody(t, &agentproto.InstructionFileBody{Content: []byte(content)}),
 		Status:   status,
 	}
+}
+
+// globalInstructionResource is a ~/.coder file as the agent publishes it:
+// marked global in the body and attributed to the default ~/.coder source.
+func globalInstructionResource(t *testing.T, source, content string) database.ChatContextResource {
+	t.Helper()
+	resource := instructionResource(t, source, content, database.WorkspaceAgentContextResourceStatusOk)
+	resource.SourcePath = path.Dir(source)
+	resource.Body = mustMarshalContextBody(t, &agentproto.InstructionFileBody{Content: []byte(content), Global: true})
+	return resource
 }
 
 func skillResource(t *testing.T, source, name, description string, status database.WorkspaceAgentContextResourceStatus) database.ChatContextResource {
@@ -132,14 +143,14 @@ func TestContextResourcesToPrompt(t *testing.T) {
 			discoveredDotCoder,
 			registeredDotCoder,
 			instructionResource(t, "/repo/AGENTS.md", "repo", database.WorkspaceAgentContextResourceStatusOk),
-			instructionResource(t, "/home/coder/.coder/AGENTS.md", "global", database.WorkspaceAgentContextResourceStatusOk),
+			globalInstructionResource(t, "/home/coder/.coder/AGENTS.md", "global"),
 		}
 		instruction, _, _ := contextResourcesToPrompt(resources, "linux", "/repo", workspaceContextNoInstructionFilesNote)
 
 		// A working directory outside the home directory is shallower than
-		// ~/.coder, yet the global file still leads. A .coder directory
-		// discovered inside the repository, or registered by the user as a
-		// source, is nested, not global.
+		// ~/.coder, yet the file the agent marked global still leads. A
+		// .coder directory discovered inside the repository, or registered
+		// by the user as a source, is nested, not global.
 		global := strings.Index(instruction, "Source: /home/coder/.coder/AGENTS.md")
 		root := strings.Index(instruction, "Source: /repo/AGENTS.md")
 		nested := strings.Index(instruction, "Source: /repo/site/AGENTS.md")
@@ -150,11 +161,20 @@ func TestContextResourcesToPrompt(t *testing.T) {
 		require.Less(t, dotCoder, nested)
 		require.Less(t, nested, registered)
 
-		// A working directory named .coder holds root files, and the
-		// deeper ~/.coder file still leads them.
+		// The home directory as the working directory makes ~/.coder one
+		// of its child directories, deeper than the root file; the marked
+		// file still leads.
+		instruction, _, _ = contextResourcesToPrompt([]database.ChatContextResource{
+			instructionResource(t, "/home/coder/AGENTS.md", "root", database.WorkspaceAgentContextResourceStatusOk),
+			globalInstructionResource(t, "/home/coder/.coder/AGENTS.md", "global"),
+		}, "linux", "/home/coder", workspaceContextNoInstructionFilesNote)
+		require.Less(t, strings.Index(instruction, "Source: /home/coder/.coder/AGENTS.md"), strings.Index(instruction, "Source: /home/coder/AGENTS.md"))
+
+		// A working directory named .coder holds unmarked root files, and
+		// the deeper ~/.coder file still leads them.
 		instruction, _, _ = contextResourcesToPrompt([]database.ChatContextResource{
 			instructionResource(t, "/repo/.coder/AGENTS.md", "repo", database.WorkspaceAgentContextResourceStatusOk),
-			instructionResource(t, "/home/coder/.coder/AGENTS.md", "global", database.WorkspaceAgentContextResourceStatusOk),
+			globalInstructionResource(t, "/home/coder/.coder/AGENTS.md", "global"),
 		}, "linux", "/repo/.coder", workspaceContextNoInstructionFilesNote)
 		require.Less(t, strings.Index(instruction, "Source: /home/coder/.coder/AGENTS.md"), strings.Index(instruction, "Source: /repo/.coder/AGENTS.md"))
 	})
