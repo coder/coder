@@ -7567,7 +7567,12 @@ export interface PostOAuth2ProviderAppRequest {
 // From codersdk/workspaces.go
 export interface PostWorkspaceUsageRequest {
 	readonly agent_id: string;
-	readonly app_name: UsageAppName;
+	/**
+	 * AppName is any name for the app reporting usage. The server normalizes
+	 * it at ingestion, so a new app needs no server change. The UsageAppName
+	 * constants are the well-known names.
+	 */
+	readonly app_name: string;
 }
 
 // From codersdk/deployment.go
