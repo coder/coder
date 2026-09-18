@@ -9,7 +9,8 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
-var reasoningModeModels = regexp.MustCompile(`^(gpt-5\.6(-(sol|terra|luna))?|gpt-6-astra)(-[0-9]{4}-[0-9]{2}-[0-9]{2})?$`)
+// gpt-daybreak-blue-latest is OpenAI's alias for gpt-5.6-sol.
+var reasoningModeModels = regexp.MustCompile(`^((gpt-5\.6(-(sol|terra|luna))?|gpt-6-astra)(-[0-9]{4}-[0-9]{2}-[0-9]{2})?|gpt-daybreak-blue-latest)$`)
 
 // ValidateReasoningMode checks explicit modes against the provider, model,
 // and transport.

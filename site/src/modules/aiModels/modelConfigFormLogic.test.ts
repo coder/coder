@@ -191,6 +191,8 @@ describe("OpenAI reasoning mode", () => {
 		"gpt-5.6-mini",
 		"gpt-5.6-nano",
 		"gpt-5.6-codex",
+		"gpt-daybreak-red-latest",
+		"gpt-daybreak-blue-latest-2026-08-01",
 	])(
 		"filters stale mode for unsupported model %s, preserving effort and tier",
 		(model) => {
@@ -211,6 +213,22 @@ describe("OpenAI reasoning mode", () => {
 			});
 		},
 	);
+
+	it("supports the gpt-daybreak-blue-latest alias only with explicit Responses", () => {
+		const build = (useResponsesApi: string) =>
+			buildModelConfigFromForm(
+				"openai",
+				formWith({
+					openaiConfig: { useResponsesApi },
+					openai: { reasoningMode: "pro" },
+				}),
+				"gpt-daybreak-blue-latest",
+			);
+		expect(build("true").modelConfig?.provider_options?.openai).toEqual({
+			reasoning_mode: "pro",
+		});
+		expect(build("").modelConfig?.provider_options).toBeUndefined();
+	});
 
 	it.each(["azure", "openaicompat", "anthropic", "openrouter"])(
 		"filters stale mode for %s",
