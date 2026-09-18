@@ -22,7 +22,7 @@ The lifecycle of an edit looks like this:
 1. A file watcher notices the change, and the agent re-scans after a short period and then pushes a new snapshot.
 1. Chats that have not pinned a snapshot yet pin the new one immediately.
 1. Active chats that already pinned an older snapshot, whether idle, working, or waiting on you, receive any new instruction files and skills right away, because nothing they have already read changes.
-   A chat that is in an error state keeps its pin until the first push after it resumes.
+   A chat that is in an error state or is being stopped keeps its pin until the first push after it leaves that state.
 1. Changed or removed instruction files and skills mark the chat out of date instead of being switched over.
    A skill whose name matches one the chat already has counts as a change, not an addition.
 1. Selecting **Refresh context** in the chat re-pins that chat to the latest snapshot.
