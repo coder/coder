@@ -220,7 +220,10 @@ const MetadataItem: FC<MetadataItemProps> = ({ item }) => {
 	);
 };
 
-const StaticWidth: FC<ComponentProps<"div">> = ({ children, ...attrs }) => {
+const StaticWidth: FC<Omit<ComponentProps<"div">, "ref">> = ({
+	children,
+	...attrs
+}) => {
 	const ref = useRef<HTMLDivElement>(null);
 
 	useLayoutEffect(() => {
@@ -237,7 +240,7 @@ const StaticWidth: FC<ComponentProps<"div">> = ({ children, ...attrs }) => {
 	}, [children]);
 
 	return (
-		<div {...attrs} ref={ref}>
+		<div ref={ref} {...attrs}>
 			{children}
 		</div>
 	);
