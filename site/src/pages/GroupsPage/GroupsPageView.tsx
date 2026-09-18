@@ -223,7 +223,7 @@ const GroupsTableBody: FC<GroupsTableBodyProps> = ({
 		}
 		return (
 			<TableEmpty
-				icon={<AddPlusIcon className="size-9 text-highlight-sky" />}
+				icon={<AddPlusIcon className="size-icon-sm text-highlight-sky" />}
 				message="No groups yet"
 				description={
 					canCreateGroup
