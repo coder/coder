@@ -290,7 +290,8 @@ CREATE TYPE api_key_scope AS ENUM (
     'chat_project:create',
     'chat_project:read',
     'chat_project:update',
-    'chat_project:delete'
+    'chat_project:delete',
+    'chat_project:share'
 );
 
 CREATE TYPE app_sharing_level AS ENUM (
@@ -2113,10 +2114,18 @@ CREATE TABLE chat_projects (
     description text DEFAULT ''::text NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    CONSTRAINT chat_projects_name_not_blank CHECK ((length(btrim(name)) > 0))
+    user_acl jsonb DEFAULT '{}'::jsonb NOT NULL,
+    group_acl jsonb DEFAULT '{}'::jsonb NOT NULL,
+    CONSTRAINT chat_projects_group_acl_is_object CHECK ((jsonb_typeof(group_acl) = 'object'::text)),
+    CONSTRAINT chat_projects_name_not_blank CHECK ((length(btrim(name)) > 0)),
+    CONSTRAINT chat_projects_user_acl_is_object CHECK ((jsonb_typeof(user_acl) = 'object'::text))
 );
 
 COMMENT ON TABLE chat_projects IS 'Organization-scoped projects that group agent chats.';
+
+COMMENT ON COLUMN chat_projects.user_acl IS 'Per-user permissions granted on the project, keyed by user ID. Same shape as chats.user_acl.';
+
+COMMENT ON COLUMN chat_projects.group_acl IS 'Per-group permissions granted on the project, keyed by group ID. Same shape as chats.group_acl.';
 
 CREATE SEQUENCE chat_queued_messages_position_seq
     START WITH 1

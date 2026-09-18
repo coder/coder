@@ -55,6 +55,7 @@ type customQuerier interface {
 	chatQuerier
 	chatModelConfigQuerier
 	mcpServerConfigQuerier
+	chatProjectQuerier
 }
 
 type chatModelConfigQuerier interface {
@@ -1326,6 +1327,55 @@ func (q *sqlQuerier) GetAuthorizedMCPServerConfigs(ctx context.Context, organiza
 			&i.OrganizationID,
 			&i.GroupACL,
 			&i.UserACL,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+type chatProjectQuerier interface {
+	GetAuthorizedChatProjects(ctx context.Context, organizationID uuid.UUID, prepared rbac.PreparedAuthorized) ([]ChatProject, error)
+}
+
+// GetAuthorizedChatProjects lists the projects in an organization the actor
+// may read, applying the RBAC policy (owner and ACL grants) in SQL so private
+// projects are never loaded only to be filtered out.
+func (q *sqlQuerier) GetAuthorizedChatProjects(ctx context.Context, organizationID uuid.UUID, prepared rbac.PreparedAuthorized) ([]ChatProject, error) {
+	authorizedFilter, err := prepared.CompileToSQL(ctx, rbac.ConfigChatProjects())
+	if err != nil {
+		return nil, xerrors.Errorf("compile authorized filter: %w", err)
+	}
+
+	filtered, err := insertAuthorizedFilter(getChatProjectsByOrganizationID, fmt.Sprintf(" AND %s", authorizedFilter))
+	if err != nil {
+		return nil, xerrors.Errorf("insert authorized filter: %w", err)
+	}
+
+	// The name comment is for metric tracking
+	query := fmt.Sprintf("-- name: GetAuthorizedChatProjects :many\n%s", filtered)
+	rows, err := q.db.QueryContext(ctx, query, organizationID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ChatProject
+	for rows.Next() {
+		var i ChatProject
+		if err := rows.Scan(
+			&i.ID,
+			&i.OrganizationID,
+			&i.CreatedBy,
+			&i.Name,
+			&i.Description,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.UserACL,
+			&i.GroupACL,
 		); err != nil {
 			return nil, err
 		}

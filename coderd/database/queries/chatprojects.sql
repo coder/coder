@@ -18,6 +18,8 @@ WHERE id = @id::uuid;
 SELECT *
 FROM chat_projects
 WHERE organization_id = @organization_id::uuid
+    -- Authorize Filter clause will be injected below in GetAuthorizedChatProjects
+    -- @authorize_filter
 ORDER BY lower(name);
 
 -- name: UpdateChatProjectByID :one
@@ -31,4 +33,25 @@ RETURNING *;
 
 -- name: DeleteChatProjectByID :exec
 DELETE FROM chat_projects
+WHERE id = @id::uuid;
+
+-- name: GetChatProjectByIDForUpdate :one
+SELECT *
+FROM chat_projects
+WHERE id = @id::uuid
+FOR UPDATE;
+
+-- name: GetChatProjectACLByID :one
+SELECT
+    user_acl AS users,
+    group_acl AS groups
+FROM chat_projects
+WHERE id = @id::uuid;
+
+-- name: UpdateChatProjectACLByID :exec
+UPDATE chat_projects
+SET
+    user_acl = @user_acl,
+    group_acl = @group_acl,
+    updated_at = now()
 WHERE id = @id::uuid;

@@ -1,0 +1,30 @@
+{
+  "_version": "1.1",
+  "msg_id": "00000000-0000-0000-0000-000000000000",
+  "payload": {
+    "_version": "1.2",
+    "notification_name": "Chat Project Shared",
+    "notification_template_id": "00000000-0000-0000-0000-000000000000",
+    "user_id": "00000000-0000-0000-0000-000000000000",
+    "user_email": "bobby@coder.com",
+    "user_name": "Bobby",
+    "user_username": "bobby",
+    "actions": [
+      {
+        "label": "Open project",
+        "url": "http://test.com/agents/projects/00000000-0000-0000-0000-000000000000"
+      }
+    ],
+    "labels": {
+      "initiator": "alice",
+      "project_id": "00000000-0000-0000-0000-000000000000",
+      "project_name": "Platform migration"
+    },
+    "data": {},
+    "targets": null
+  },
+  "title": "alice shared a project with you",
+  "title_markdown": "alice shared a project with you",
+  "body": "alice shared the project \"Platform migration\" with you.",
+  "body_markdown": "alice shared the project \"**Platform migration**\" with you."
+}
