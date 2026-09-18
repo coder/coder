@@ -482,6 +482,7 @@ const compareUpdatedAtInstants = (a: string, b: string): number => {
 type MergeWatchedChatOptions = {
 	readonly eventKind: TypesGen.ChatWatchEventKind;
 	readonly activeChatId?: string;
+	readonly changedDiffStatus?: TypesGen.ChangedDiffStatus;
 };
 
 // Do not compare refreshed_at and stale_at: they change on every
@@ -516,6 +517,69 @@ const diffStatusEqual = (
 	);
 };
 
+const diffStatusRefKey = (
+	status: TypesGen.ChatDiffStatus | TypesGen.DiffStatusRef,
+): string => `${status.remote_origin ?? ""}\u0000${status.git_branch ?? ""}`;
+
+// The server sends a status without ref fields when the ref has no
+// row anymore. It carries only chat_id, with no URL or PR data.
+const isDiffStatusTombstone = (status: TypesGen.ChatDiffStatus): boolean =>
+	!status.remote_origin &&
+	!status.git_branch &&
+	!status.url &&
+	!status.pr_number &&
+	!status.pull_request_state &&
+	!status.pull_request_title;
+
+const diffStatusesEqual = (
+	a: readonly TypesGen.ChatDiffStatus[] | undefined,
+	b: readonly TypesGen.ChatDiffStatus[] | undefined,
+): boolean => {
+	if (a === b) {
+		return true;
+	}
+	if (!a || !b || a.length !== b.length) {
+		return false;
+	}
+	// Order is part of the contract: the first row is the primary.
+	return a.every((s, i) => diffStatusEqual(s, b[i]));
+};
+
+const mergeDiffStatuses = (
+	cached: readonly TypesGen.ChatDiffStatus[] | undefined,
+	incoming: readonly TypesGen.ChatDiffStatus[] | undefined,
+	primary?: TypesGen.ChatDiffStatus,
+	removedRef?: TypesGen.DiffStatusRef,
+): TypesGen.ChatDiffStatus[] | undefined => {
+	const merged = new Map((cached ?? []).map((s) => [diffStatusRefKey(s), s]));
+	for (const s of incoming ?? []) {
+		merged.set(diffStatusRefKey(s), s);
+	}
+	// The embedded primary can be older than cached rows by
+	// delivery delay; only adopt it when the merge missed its row.
+	const primaryKey = primary ? diffStatusRefKey(primary) : undefined;
+	if (primary && primaryKey && !merged.has(primaryKey)) {
+		merged.set(primaryKey, primary);
+	}
+	// A tombstone removes its ref instead of adding a blank entry;
+	// the delete runs after the adoption so a removed primary
+	// cannot come back through the embedded snapshot.
+	if (removedRef) {
+		merged.delete(diffStatusRefKey(removedRef));
+	}
+	const statuses = [...merged.values()];
+	if (primaryKey) {
+		const primaryIndex = statuses.findIndex(
+			(s) => diffStatusRefKey(s) === primaryKey,
+		);
+		if (primaryIndex > 0) {
+			const [row] = statuses.splice(primaryIndex, 1);
+			statuses.unshift(row);
+		}
+	}
+	return statuses.length > 0 ? statuses : undefined;
+};
+
 /**
  * Merges event-scoped chat fields into a cached summary, using updated_at
  * as a stale guard while still adopting the latest DB-backed model config.
@@ -523,7 +587,7 @@ const diffStatusEqual = (
 export const mergeWatchedChatSummary = (
 	cachedChat: TypesGen.Chat,
 	watchedChat: TypesGen.Chat,
-	{ eventKind, activeChatId }: MergeWatchedChatOptions,
+	{ eventKind, activeChatId, changedDiffStatus }: MergeWatchedChatOptions,
 ): TypesGen.Chat => {
 	const isTitleEvent = eventKind === "title_change";
 	const isStatusEvent = eventKind === "status_change";
@@ -541,11 +605,22 @@ export const mergeWatchedChatSummary = (
 	// maybeGenerateChatTitle can publish a previously loaded chat snapshot, so
 	// apply title_change payloads even when the chat summary timestamp is older.
 	const nextTitle = isTitleEvent ? watchedChat.title : cachedChat.title;
-	// Diff status freshness is tracked outside chats.updated_at, so apply
-	// diff_status_change payloads even when the chat summary timestamp is older.
-	const nextDiffStatus = isDiffStatusEvent
-		? watchedChat.diff_status
-		: cachedChat.diff_status;
+	// A diff_status_change carries the changed ref and the
+	// embedded primary. Merge by ref key so other refs stay
+	// cached, and adopt the embedded primary so the first row keeps
+	// the server order. A tombstone status means the ref has no row
+	// anymore, so remove it.
+	const changedStatus = changedDiffStatus?.status ?? undefined;
+	const changedIsTombstone =
+		changedStatus !== undefined && isDiffStatusTombstone(changedStatus);
+	const nextDiffStatuses = isDiffStatusEvent
+		? mergeDiffStatuses(
+				cachedChat.diff_statuses,
+				changedStatus && !changedIsTombstone ? [changedStatus] : undefined,
+				watchedChat.diff_status,
+				changedIsTombstone ? changedDiffStatus?.ref : undefined,
+			)
+		: cachedChat.diff_statuses;
 	// Context drift is tracked outside chats.updated_at (it is driven by
 	// agent context pushes), so apply context_dirty payloads regardless of
 	// the summary timestamp. Merge rather than replace so the pinned
@@ -597,7 +672,7 @@ export const mergeWatchedChatSummary = (
 	if (
 		nextStatus === cachedChat.status &&
 		nextTitle === cachedChat.title &&
-		diffStatusEqual(nextDiffStatus, cachedChat.diff_status) &&
+		diffStatusesEqual(nextDiffStatuses, cachedChat.diff_statuses) &&
 		nextWorkspaceId === cachedChat.workspace_id &&
 		nextBuildId === cachedChat.build_id &&
 		nextLastModelConfigId === cachedChat.last_model_config_id &&
@@ -615,7 +690,7 @@ export const mergeWatchedChatSummary = (
 		...cachedChat,
 		status: nextStatus,
 		title: nextTitle,
-		diff_status: nextDiffStatus,
+		diff_statuses: nextDiffStatuses,
 		workspace_id: nextWorkspaceId,
 		build_id: nextBuildId,
 		last_model_config_id: nextLastModelConfigId,
@@ -786,8 +861,8 @@ export const invalidateChatDiffContents = (
 	chatId: string,
 ) =>
 	queryClient.invalidateQueries({
-		queryKey: chatDiffContentsKey(chatId),
-		exact: true,
+		// Prefix match: invalidates every ref's diff contents.
+		queryKey: [...chatEntityKey(chatId), "diff-contents"],
 	});
 
 export const invalidateChatPrompts = (
@@ -1890,12 +1965,23 @@ export const promoteChatQueuedMessage = (
 	},
 });
 
-export const chatDiffContentsKey = (chatId: string) =>
-	[...chatEntityKey(chatId), "diff-contents"] as const;
+export const chatDiffContentsKey = (
+	chatId: string,
+	ref?: TypesGen.DiffStatusRef,
+) =>
+	[
+		...chatEntityKey(chatId),
+		"diff-contents",
+		ref?.remote_origin ?? "",
+		ref?.git_branch ?? "",
+	] as const;
 
-export const chatDiffContents = (chatId: string) => ({
-	queryKey: chatDiffContentsKey(chatId),
-	queryFn: () => API.experimental.getChatDiffContents(chatId),
+export const chatDiffContents = (
+	chatId: string,
+	ref?: TypesGen.DiffStatusRef,
+) => ({
+	queryKey: chatDiffContentsKey(chatId, ref),
+	queryFn: () => API.experimental.getChatDiffContents(chatId, ref),
 });
 
 const chatSystemPromptKey = [...chatConfigKey, "system-prompt"] as const;

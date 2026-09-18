@@ -609,6 +609,7 @@ const AgentsPageLayout: FC = () => {
 						mergeWatchedChatIntoCaches(queryClient, updatedChat, {
 							eventKind: chatEvent.kind,
 							activeChatId: activeChatIDRef.current,
+							changedDiffStatus: chatEvent.changed_diff_status,
 						});
 						if (shouldInvalidateFilteredChatList(updatedChat, chatEvent.kind)) {
 							void invalidateChatListQueries(queryClient);
