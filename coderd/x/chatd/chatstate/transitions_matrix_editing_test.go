@@ -19,18 +19,9 @@ import (
 
 // Matrix cases for queued-message edits: the boundary transitions that
 // reach P, EditQueuedMessage between each "1" state and its blocked-head
-// sibling, and P's own row. The harness asserts the post-state and the
-// snapshot bump; the cases below add only the fact that distinguishes
-// each cell.
-
-const (
-	scenarioBeginEdit   scenario = "begin_edit"
-	scenarioContentEdit scenario = "content_edit"
-	scenarioMoveEdit    scenario = "move_edit"
-	scenarioEndEdit     scenario = "end_edit"
-	scenarioBehindEdit  scenario = "behind_edit"
-	scenarioRefused     scenario = "refused"
-)
+// sibling, and every transition admitted from P. The harness asserts the
+// post-state and the snapshot bump; the cases below add only the fact
+// that distinguishes each cell.
 
 // beginQueuedMessageEdit sets editing_since directly, bypassing the state machine,
 // so the transition under test is the only one exercised.
@@ -44,9 +35,9 @@ func beginQueuedMessageEdit(ctx context.Context, t *testing.T, f *testFixture, c
 	require.NoError(t, err)
 }
 
-// seedEditingHead seeds the blocked-head sibling of a "1" state (E1, R1,
+// seedBlockedHead seeds the blocked-head sibling of a "1" state (E1, R1,
 // I1, A1): the head is under edit, with extra rows behind it.
-func seedEditingHead(t *testing.T, f *testFixture, from chatstate.ExecutionState, extra int) seededChat {
+func seedBlockedHead(t *testing.T, f *testFixture, from chatstate.ExecutionState, extra int) seededChat {
 	t.Helper()
 	ctx := testutil.Context(t, testutil.WaitShort)
 	rows := 1 + extra
@@ -88,7 +79,7 @@ func seedEditingHead(t *testing.T, f *testFixture, from chatstate.ExecutionState
 			queuedMessageBodies:  bodies,
 		}
 	default:
-		t.Fatalf("seedEditingHead: %s has no rows", from)
+		t.Fatalf("seedBlockedHead: %s has no rows", from)
 	}
 	beginQueuedMessageEdit(ctx, t, f, seeded.chatID, seeded.queuedMessageIDs[0])
 	seeded.editingQueuedID = seeded.queuedMessageIDs[0]
@@ -99,7 +90,7 @@ func seedEditingHead(t *testing.T, f *testFixture, from chatstate.ExecutionState
 // after FinishTurn from R1P.
 func seedPaused(t *testing.T, f *testFixture, extra int) seededChat {
 	t.Helper()
-	seeded := seedEditingHead(t, f, chatstate.StateR1, extra)
+	seeded := seedBlockedHead(t, f, chatstate.StateR1, extra)
 	m := chatstate.NewChatMachine(f.DB, f.Pub, seeded.chatID)
 	require.NoError(t, m.Update(testutil.Context(t, testutil.WaitShort), func(tx *chatstate.Tx, _ database.Store) error {
 		_, err := tx.FinishTurn(chatstate.FinishTurnInput{})
@@ -189,8 +180,8 @@ func headOnly(s seededChat) []int64 { return s.queuedMessageIDs[:1] }
 // editingQueueMatrixCases enumerates every matrix cell that exists because
 // of queued-message edits.
 func editingQueueMatrixCases() []transitionCaseSpec {
-	seedEditing := func(from chatstate.ExecutionState, extra int) func(*testing.T, *testFixture) seededChat {
-		return func(t *testing.T, f *testFixture) seededChat { return seedEditingHead(t, f, from, extra) }
+	seedBlocked := func(from chatstate.ExecutionState, extra int) func(*testing.T, *testFixture) seededChat {
+		return func(t *testing.T, f *testFixture) seededChat { return seedBlockedHead(t, f, from, extra) }
 	}
 	seedP := func(extra int) func(*testing.T, *testFixture) seededChat {
 		return func(t *testing.T, f *testFixture) seededChat { return seedPaused(t, f, extra) }
@@ -204,31 +195,31 @@ func editingQueueMatrixCases() []transitionCaseSpec {
 		}
 	}
 	cases := []transitionCaseSpec{
-		// Boundaries with a blocked head pause instead of promoting.
-		editingCase(chatstate.TransitionFinishTurn, chatstate.StateR1P, chatstate.StateP, "", seedEditing(chatstate.StateR1, 0), applyFinishTurn, allRows, 0),
-		editingCase(chatstate.TransitionFinishInterruption, chatstate.StateI1P, chatstate.StateP, "", seedEditing(chatstate.StateI1, 0), applyFinishInterruption, allRows, 0),
+		// Turn boundaries with a blocked head pause the chat.
+		editingCase(chatstate.TransitionFinishTurn, chatstate.StateR1P, chatstate.StateP, "", seedBlocked(chatstate.StateR1, 0), applyFinishTurn, allRows, 0),
+		editingCase(chatstate.TransitionFinishInterruption, chatstate.StateI1P, chatstate.StateP, "", seedBlocked(chatstate.StateI1, 0), applyFinishInterruption, allRows, 0),
 		// A send queues behind the blocked head whatever its busy behavior.
-		sendBehindEditingCase(chatstate.StateE1P, seedEditing(chatstate.StateE1, 0), scenarioQueue, applySendMessageQueue),
-		sendBehindEditingCase(chatstate.StateE1P, seedEditing(chatstate.StateE1, 0), scenarioInterrupt, applySendMessageInterrupt),
+		sendBehindEditingCase(chatstate.StateE1P, seedBlocked(chatstate.StateE1, 0), scenarioQueue, applySendMessageQueue),
+		sendBehindEditingCase(chatstate.StateE1P, seedBlocked(chatstate.StateE1, 0), scenarioInterrupt, applySendMessageInterrupt),
 		sendBehindEditingCase(chatstate.StateP, seedP(0), scenarioQueue, applySendMessageQueue),
 		sendBehindEditingCase(chatstate.StateP, seedP(0), scenarioInterrupt, applySendMessageInterrupt),
 		// P: content edit keeps the pause; ending the head's edit resumes.
 		editingCase(chatstate.TransitionEditQueuedMessage, chatstate.StateP, chatstate.StateP, scenarioContentEdit, seedP(0), applyContentEdit, allRows, 0),
 		editingCase(chatstate.TransitionEditQueuedMessage, chatstate.StateP, chatstate.StateR0, scenarioEndEdit, seedP(0), applySetEditing(0, false), noRows, -1),
 		editingCase(chatstate.TransitionEditQueuedMessage, chatstate.StateP, chatstate.StateR1, scenarioEndEdit, seedP(1), applySetEditing(0, false), tailRows, -1),
-		// P: deleting the head resumes with the next row, or idles; deleting
-		// a row behind the head keeps the pause.
+		// P: deleting the head resumes with the next row, or sets W when the
+		// queue empties; deleting a row behind the head keeps the pause.
 		editingCase(chatstate.TransitionDeleteQueuedMessage, chatstate.StateP, chatstate.StateW, "", seedP(0), applyDeleteQueuedMessage, noRows, -1),
 		editingCase(chatstate.TransitionDeleteQueuedMessage, chatstate.StateP, chatstate.StateR0, "", seedP(1), applyDeleteQueuedMessage, noRows, -1),
 		editingCase(chatstate.TransitionDeleteQueuedMessage, chatstate.StateP, chatstate.StateR1, "", seedP(2), applyDeleteQueuedMessage,
 			func(s seededChat) []int64 { return append([]int64{}, s.queuedMessageIDs[2:]...) }, -1),
-		editingCase(chatstate.TransitionDeleteQueuedMessage, chatstate.StateP, chatstate.StateP, scenarioBehindEdit, seedP(1), applyDeleteQueuedMessageAt(1), headOnly, 0),
-		// P: send now on the blocked head ends its edit and sends it; send
-		// now on the row behind it sends that row and leaves the head
-		// blocked, so the resumed turn runs as R1P.
+		editingCase(chatstate.TransitionDeleteQueuedMessage, chatstate.StateP, chatstate.StateP, scenarioTargetBehindHead, seedP(1), applyDeleteQueuedMessageAt(1), headOnly, 0),
+		// P: promoting the blocked head ends its edit and sends it; promoting
+		// the row behind it sends that row and leaves the head blocked, so
+		// the resumed turn runs as R1P.
 		editingCase(chatstate.TransitionPromoteQueuedMessage, chatstate.StateP, chatstate.StateR0, "", seedP(0), applyPromoteQueuedMessage, noRows, -1),
 		editingCase(chatstate.TransitionPromoteQueuedMessage, chatstate.StateP, chatstate.StateR1, "", seedP(1), applyPromoteQueuedMessage, tailRows, -1),
-		editingCase(chatstate.TransitionPromoteQueuedMessage, chatstate.StateP, chatstate.StateR1P, scenarioBehindEdit, seedP(1), applyPromoteQueuedMessageAt(1), headOnly, 0),
+		editingCase(chatstate.TransitionPromoteQueuedMessage, chatstate.StateP, chatstate.StateR1P, scenarioTargetBehindHead, seedP(1), applyPromoteQueuedMessageAt(1), headOnly, 0),
 		// P: a history edit clears the queue.
 		editingCase(chatstate.TransitionEditMessage, chatstate.StateP, chatstate.StateR0, "", seedP(1), applyEditMessage, noRows, -1),
 	}
@@ -240,12 +231,12 @@ func editingQueueMatrixCases() []transitionCaseSpec {
 		ready := readyHeadOf[blocked]
 		cases = append(cases,
 			editingCase(chatstate.TransitionEditQueuedMessage, ready, blocked, scenarioBeginEdit, seedMulti(ready), applySetEditing(0, true), allRows, 0),
-			editingCase(chatstate.TransitionEditQueuedMessage, ready, ready, scenarioBehindEdit, seedMulti(ready), applySetEditing(1, true), allRows, 1),
+			editingCase(chatstate.TransitionEditQueuedMessage, ready, ready, scenarioTargetBehindHead, seedMulti(ready), applySetEditing(1, true), allRows, 1),
 			editingCase(chatstate.TransitionEditQueuedMessage, ready, ready, scenarioEndEdit, seedMultiEditingBehind(ready), applySetEditing(1, false), allRows, -1),
-			editingCase(chatstate.TransitionEditQueuedMessage, blocked, blocked, scenarioBeginEdit, seedEditing(ready, 1), applySetEditing(0, true), allRows, 0),
-			editingCase(chatstate.TransitionEditQueuedMessage, blocked, blocked, scenarioContentEdit, seedEditing(ready, 1), applyContentEdit, allRows, 0),
-			editingCase(chatstate.TransitionEditQueuedMessage, blocked, ready, scenarioMoveEdit, seedEditing(ready, 1), applySetEditing(1, true), allRows, 1),
-			editingCase(chatstate.TransitionEditQueuedMessage, blocked, ready, scenarioEndEdit, seedEditing(ready, 1), applySetEditing(0, false), allRows, -1),
+			editingCase(chatstate.TransitionEditQueuedMessage, blocked, blocked, scenarioBeginEdit, seedBlocked(ready, 1), applySetEditing(0, true), allRows, 0),
+			editingCase(chatstate.TransitionEditQueuedMessage, blocked, blocked, scenarioContentEdit, seedBlocked(ready, 1), applyContentEdit, allRows, 0),
+			editingCase(chatstate.TransitionEditQueuedMessage, blocked, ready, scenarioMoveEdit, seedBlocked(ready, 1), applySetEditing(1, true), allRows, 1),
+			editingCase(chatstate.TransitionEditQueuedMessage, blocked, ready, scenarioEndEdit, seedBlocked(ready, 1), applySetEditing(0, false), allRows, -1),
 		)
 	}
 	// P refuses to move the edit off its head.

@@ -87,7 +87,8 @@ type QueueState struct {
 	// HasRows is the "1" queue sub-state.
 	HasRows bool
 	// Paused is [queuePaused] of the head: the "P" suffix of the "1"
-	// sub-state, and the condition P requires.
+	// sub-state. P requires it so a paused status whose head is ready
+	// classifies invalid and is reconciled, like waiting with rows.
 	Paused bool
 }
 
@@ -123,9 +124,11 @@ func LoadQueueState(ctx context.Context, store database.Store, chatID uuid.UUID)
 // The classifier is a single flat switch over the valid (status,
 // archived, queue) tuples in the chat execution state model. A
 // non-empty queue classifies by its head: ready ("1") or blocked by a
-// pause condition ("1P"). Anything outside that set (archived busy
-// states, waiting with a non-empty queue, paused without a pause
-// condition, future enum values) falls through to [StateInvalid].
+// pause condition ("1P"). A head with a pause condition is blocked; a
+// chat whose turn ends at a blocked head is paused. Anything outside
+// that set (archived busy states, waiting with a non-empty queue,
+// paused without a pause condition, future enum values) falls through
+// to [StateInvalid].
 //
 //nolint:revive // exists is a simple classifier input.
 func ClassifyExecutionState(chat database.Chat, queue QueueState, exists bool) ExecutionState {
@@ -137,8 +140,6 @@ func ClassifyExecutionState(chat database.Chat, queue QueueState, exists bool) E
 	switch {
 	case chat.Status == database.ChatStatusWaiting && !chat.Archived && !queue.HasRows:
 		return StateW
-	case chat.Status == database.ChatStatusPaused && !chat.Archived && blocked:
-		return StateP
 	case chat.Status == database.ChatStatusWaiting && chat.Archived && !queue.HasRows:
 		return StateXW
 	case chat.Status == database.ChatStatusError && !chat.Archived && !queue.HasRows:
@@ -171,6 +172,8 @@ func ClassifyExecutionState(chat database.Chat, queue QueueState, exists bool) E
 		return StateA1
 	case chat.Status == database.ChatStatusRequiresAction && !chat.Archived && blocked:
 		return StateA1P
+	case chat.Status == database.ChatStatusPaused && !chat.Archived && blocked:
+		return StateP
 	}
 	return StateInvalid
 }
