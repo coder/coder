@@ -94,6 +94,36 @@ type Story = StoryObj<typeof meta>;
 
 export const Idle: Story = {};
 
+export const HoldingComments: Story = {
+	args: { picking: true },
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const root = () => document.getElementById(annotatorHostId)?.shadowRoot;
+		await userEvent.click(canvas.getByText("Acme Settings"));
+		const first = root()?.querySelector("textarea");
+		if (first) {
+			await userEvent.type(first, "Shorter title");
+		}
+		const send = root()?.querySelector<HTMLButtonElement>(
+			".popup .button:not(.outline)",
+		);
+		// userEvent does not carry held modifiers into shadow-root clicks,
+		// so the Shift+click is dispatched directly.
+		send?.dispatchEvent(
+			new MouseEvent("click", {
+				bubbles: true,
+				cancelable: true,
+				shiftKey: true,
+			}),
+		);
+		await userEvent.click(canvas.getByTestId("save-button"));
+		const second = root()?.querySelector("textarea");
+		if (second) {
+			await userEvent.type(second, "Make this primary");
+		}
+	},
+};
+
 export const FirstRunHint: Story = {
 	args: { picking: true, hint: true },
 };

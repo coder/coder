@@ -50,6 +50,9 @@ const sendIcon =
 const closeIcon =
 	'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>';
 
+const plusIcon =
+	'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="M12 5v14"/></svg>';
+
 const checkIcon =
 	'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>';
 
@@ -123,7 +126,16 @@ export function mountAnnotator(
 		"data-tip": "Click an element to annotate it",
 	});
 	pickButton.innerHTML = pointerIcon;
-	toolbar.append(pickButton);
+	const heldBadge = el(doc, "button", "held-badge", {
+		type: "button",
+		"aria-label": "Discard held comments",
+		"data-tip": "Comments waiting to be sent. Click to discard.",
+	});
+	heldBadge.style.display = "none";
+	// A sibling rather than a child: buttons cannot nest.
+	const pickWrap = el(doc, "span", "pick-wrap");
+	pickWrap.append(pickButton, heldBadge);
+	toolbar.append(pickWrap);
 
 	// First-run hint: a pill at the top of the page while picking, until
 	// the user closes it or sends a first comment.
@@ -169,6 +181,10 @@ export function mountAnnotator(
 	cursorStyle.textContent = pickingCursorStyles;
 
 	let picking = false;
+	// Comments held back with Shift+Send, sent together with the next
+	// plain Send as one submission. Their elements keep a dashed outline.
+	const held: { annotation: Annotation; target: Element; node: HTMLElement }[] =
+		[];
 	let hovered: Element | null = null;
 	let popup: HTMLDivElement | null = null;
 	// Element the open popup is about; outlined while the popup is open so
@@ -189,7 +205,10 @@ export function mountAnnotator(
 	});
 
 	// Every saved comment is its own submission; there is no batching.
-	const submitAnnotation = (session: PopupSession, comment: string) => {
+	const createAnnotation = (
+		session: PopupSession,
+		comment: string,
+	): Annotation => {
 		const annotation: Annotation = {
 			id: crypto.randomUUID(),
 			comment,
@@ -199,19 +218,80 @@ export function mountAnnotator(
 		// Stamped after describing so the marker never leaks into the
 		// captured selector or opening tag.
 		session.target.setAttribute(annotationIdAttribute, annotation.id);
+		return annotation;
+	};
+
+	const updateHeldBadge = () => {
+		heldBadge.textContent = String(held.length);
+		heldBadge.style.display = held.length > 0 ? "flex" : "none";
+	};
+
+	const positionHeld = () => {
+		for (const item of held) {
+			const box = viewportBox(
+				item.target.getBoundingClientRect(),
+				win,
+				outlineInset,
+			);
+			item.node.style.left = `${box.left}px`;
+			item.node.style.top = `${box.top}px`;
+			item.node.style.width = `${box.width}px`;
+			item.node.style.height = `${box.height}px`;
+		}
+	};
+
+	const discardHeld = () => {
+		for (const item of held.splice(0)) {
+			item.node.remove();
+			item.target.removeAttribute(annotationIdAttribute);
+		}
+		updateHeldBadge();
+	};
+	heldBadge.addEventListener("click", (event) => {
+		event.stopPropagation();
+		discardHeld();
+	});
+
+	// Shift+Send: keep the comment and stay in picking mode so several
+	// elements can be described before anything goes to the agent.
+	const holdAnnotation = (session: PopupSession, comment: string) => {
+		const annotation = createAnnotation(session, comment);
+		const node = el(doc, "div", "held-outline", { "aria-hidden": "true" });
+		shadow.append(node);
+		held.push({ annotation, target: session.target, node });
+		positionHeld();
+		updateHeldBadge();
+		dismissHint();
+	};
+
+	// Plain Send: this comment plus anything held goes as one submission.
+	const submitAnnotation = (session: PopupSession, comment: string) => {
+		const annotations = [
+			...held.map((item) => item.annotation),
+			createAnnotation(session, comment),
+		];
+		const targets = [...held.map((item) => item.target), session.target];
+		for (const item of held.splice(0)) {
+			item.node.remove();
+		}
+		updateHeldBadge();
 		const page = pageInfo();
-		options.onSubmit({ page, annotations: [annotation] });
-		flashSent(session.target);
+		options.onSubmit({ page, annotations });
+		for (const target of targets) {
+			flashSent(target);
+		}
 		// A first comment proves the hint has done its job.
 		dismissHint();
-		// Hold a quiet ring on the element until the dashboard reports the
-		// agent working on it, so the send and the shimmer read as one
+		// Hold a quiet ring on the elements until the dashboard reports the
+		// agent working on them, so the send and the shimmer read as one
 		// continuous state rather than two events with a gap between.
-		highlights.markPending({
-			id: annotation.id,
-			selector: annotation.element.selector,
-			url: page.url,
-		});
+		for (const annotation of annotations) {
+			highlights.markPending({
+				id: annotation.id,
+				selector: annotation.element.selector,
+				url: page.url,
+			});
+		}
 	};
 
 	// A one-shot pulse of the outline plus a "Sent" chip where the badge
@@ -283,6 +363,7 @@ export function mountAnnotator(
 		frame = win.requestAnimationFrame(() => {
 			frame = 0;
 			positionHighlight();
+			positionHeld();
 		});
 	};
 
@@ -317,26 +398,43 @@ export function mountAnnotator(
 			type: "button",
 			disabled: "",
 		});
-		send.innerHTML = sendIcon;
-		send.append("Send");
-		const submit = () => {
+		send.setAttribute(
+			"data-tip",
+			"Shift+click to hold this comment and pick more",
+		);
+		const setSendLabel = (hold: boolean) => {
+			send.innerHTML = hold ? plusIcon : sendIcon;
+			send.append(
+				hold ? "Add" : held.length > 0 ? `Send ${held.length + 1}` : "Send",
+			);
+		};
+		setSendLabel(false);
+		const submit = (hold: boolean) => {
 			const comment = textarea.value.trim();
 			if (!comment) {
 				textarea.focus();
 				return;
 			}
-			submitAnnotation(session, comment);
+			if (hold) {
+				holdAnnotation(session, comment);
+			} else {
+				submitAnnotation(session, comment);
+			}
 			closePopup();
 		};
-		send.addEventListener("click", submit);
+		send.addEventListener("click", (event) => submit(event.shiftKey));
 		textarea.addEventListener("input", () => {
 			send.disabled = textarea.value.trim() === "";
 		});
+		// Holding Shift previews what the button will do.
+		const onShift = (event: KeyboardEvent) => setSendLabel(event.shiftKey);
+		node.addEventListener("keydown", onShift);
+		node.addEventListener("keyup", onShift);
 		actions.append(cancel, send);
 		textarea.addEventListener("keydown", (event) => {
 			if (event.key === "Enter" && !event.shiftKey) {
 				event.preventDefault();
-				submit();
+				submit(false);
 			}
 		});
 		node.append(title, textarea, actions);
@@ -467,6 +565,7 @@ export function mountAnnotator(
 		getState: () => ({ picking }),
 		destroy: () => {
 			setPicking(false);
+			discardHeld();
 			highlights.destroy();
 			win.removeEventListener("scroll", scheduleLayout, true);
 			win.removeEventListener("resize", scheduleLayout);
