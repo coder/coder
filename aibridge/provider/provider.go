@@ -107,3 +107,11 @@ type Provider interface {
 	// Empty string is returned when API dumping is not enabled.
 	APIDumpDir() string
 }
+
+// UpstreamHeadersProvider is implemented by providers that expose
+// admin-configured custom headers sent on every upstream request for the
+// provider. The passthrough router reads it; intercepted routes read the
+// same configuration from intercept.Config instead.
+type UpstreamHeadersProvider interface {
+	UpstreamHeaders() map[string]string
+}
