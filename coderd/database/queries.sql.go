@@ -7245,22 +7245,6 @@ func (q *sqlQuerier) UpsertChatUserModelOverride(ctx context.Context, arg Upsert
 	return err
 }
 
-const countChatProjectChats = `-- name: CountChatProjectChats :one
-SELECT COUNT(*)::bigint
-FROM chats
-WHERE chats.project_id = $1::uuid
-    AND chats.parent_chat_id IS NULL
-    AND chats.archived = false
-`
-
-// Counts the chats shown for a project, matching GetChatProjectsByOrganizationID.
-func (q *sqlQuerier) CountChatProjectChats(ctx context.Context, projectID uuid.UUID) (int64, error) {
-	row := q.db.QueryRowContext(ctx, countChatProjectChats, projectID)
-	var column_1 int64
-	err := row.Scan(&column_1)
-	return column_1, err
-}
-
 const deleteChatProjectByID = `-- name: DeleteChatProjectByID :exec
 DELETE FROM chat_projects
 WHERE id = $1::uuid
@@ -7293,41 +7277,29 @@ func (q *sqlQuerier) GetChatProjectByID(ctx context.Context, id uuid.UUID) (Chat
 }
 
 const getChatProjectsByOrganizationID = `-- name: GetChatProjectsByOrganizationID :many
-SELECT
-    chat_projects.id, chat_projects.organization_id, chat_projects.created_by, chat_projects.name, chat_projects.description, chat_projects.created_at, chat_projects.updated_at,
-    COUNT(chats.id)::bigint AS chat_count
+SELECT id, organization_id, created_by, name, description, created_at, updated_at
 FROM chat_projects
-LEFT JOIN chats ON chats.project_id = chat_projects.id
-    AND chats.parent_chat_id IS NULL
-    AND chats.archived = false
-WHERE chat_projects.organization_id = $1::uuid
-GROUP BY chat_projects.id
-ORDER BY lower(chat_projects.name)
+WHERE organization_id = $1::uuid
+ORDER BY lower(name)
 `
 
-type GetChatProjectsByOrganizationIDRow struct {
-	ChatProject ChatProject `db:"chat_project" json:"chat_project"`
-	ChatCount   int64       `db:"chat_count" json:"chat_count"`
-}
-
-func (q *sqlQuerier) GetChatProjectsByOrganizationID(ctx context.Context, organizationID uuid.UUID) ([]GetChatProjectsByOrganizationIDRow, error) {
+func (q *sqlQuerier) GetChatProjectsByOrganizationID(ctx context.Context, organizationID uuid.UUID) ([]ChatProject, error) {
 	rows, err := q.db.QueryContext(ctx, getChatProjectsByOrganizationID, organizationID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []GetChatProjectsByOrganizationIDRow
+	var items []ChatProject
 	for rows.Next() {
-		var i GetChatProjectsByOrganizationIDRow
+		var i ChatProject
 		if err := rows.Scan(
-			&i.ChatProject.ID,
-			&i.ChatProject.OrganizationID,
-			&i.ChatProject.CreatedBy,
-			&i.ChatProject.Name,
-			&i.ChatProject.Description,
-			&i.ChatProject.CreatedAt,
-			&i.ChatProject.UpdatedAt,
-			&i.ChatCount,
+			&i.ID,
+			&i.OrganizationID,
+			&i.CreatedBy,
+			&i.Name,
+			&i.Description,
+			&i.CreatedAt,
+			&i.UpdatedAt,
 		); err != nil {
 			return nil, err
 		}

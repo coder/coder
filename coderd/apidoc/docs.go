@@ -1669,6 +1669,13 @@ const docTemplate = `{
                         "description": "Page offset",
                         "name": "offset",
                         "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Only chats in this project. Requires the chat-projects experiment.",
+                        "name": "project_id",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -21370,9 +21377,6 @@ const docTemplate = `{
         "codersdk.ChatProject": {
             "type": "object",
             "properties": {
-                "chat_count": {
-                    "type": "integer"
-                },
                 "created_at": {
                     "type": "string",
                     "format": "date-time"

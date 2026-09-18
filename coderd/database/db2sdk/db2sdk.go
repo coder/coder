@@ -1832,24 +1832,16 @@ func decodeChatLastError(raw pqtype.NullRawMessage) *codersdk.ChatError {
 	return &payload
 }
 
-// ChatProject converts a project with its chat count. The count is a
-// required argument because every endpoint returns the same schema and a
-// silently zeroed count is wrong for existing projects.
-func ChatProject(project database.ChatProject, chatCount int64) codersdk.ChatProject {
+func ChatProject(project database.ChatProject) codersdk.ChatProject {
 	return codersdk.ChatProject{
 		ID:             project.ID,
 		OrganizationID: project.OrganizationID,
 		CreatedBy:      project.CreatedBy,
 		Name:           project.Name,
 		Description:    project.Description,
-		ChatCount:      chatCount,
 		CreatedAt:      project.CreatedAt,
 		UpdatedAt:      project.UpdatedAt,
 	}
-}
-
-func ChatProjectRow(row database.GetChatProjectsByOrganizationIDRow) codersdk.ChatProject {
-	return ChatProject(row.ChatProject, row.ChatCount)
 }
 
 // Chat converts a database.Chat to a codersdk.Chat. It coalesces

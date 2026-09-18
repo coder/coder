@@ -4558,7 +4558,6 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ```json
 {
-  "chat_count": 0,
   "created_at": "2019-08-24T14:15:22Z",
   "created_by": "ee824cad-d7a6-4f48-87dc-e8461a9201c4",
   "description": "string",
@@ -4571,16 +4570,15 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name              | Type    | Required | Restrictions | Description |
-|-------------------|---------|----------|--------------|-------------|
-| `chat_count`      | integer | false    |              |             |
-| `created_at`      | string  | false    |              |             |
-| `created_by`      | string  | false    |              |             |
-| `description`     | string  | false    |              |             |
-| `id`              | string  | false    |              |             |
-| `name`            | string  | false    |              |             |
-| `organization_id` | string  | false    |              |             |
-| `updated_at`      | string  | false    |              |             |
+| Name              | Type   | Required | Restrictions | Description |
+|-------------------|--------|----------|--------------|-------------|
+| `created_at`      | string | false    |              |             |
+| `created_by`      | string | false    |              |             |
+| `description`     | string | false    |              |             |
+| `id`              | string | false    |              |             |
+| `name`            | string | false    |              |             |
+| `organization_id` | string | false    |              |             |
+| `updated_at`      | string | false    |              |             |
 
 ## codersdk.ChatPrompt
 

@@ -353,14 +353,6 @@ func (m queryMetricsStore) CountChatCapacityQueuedByPool(ctx context.Context, st
 	return r0, r1
 }
 
-func (m queryMetricsStore) CountChatProjectChats(ctx context.Context, projectID uuid.UUID) (int64, error) {
-	start := time.Now()
-	r0, r1 := m.s.CountChatProjectChats(ctx, projectID)
-	m.queryLatencies.WithLabelValues("CountChatProjectChats").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "CountChatProjectChats").Inc()
-	return r0, r1
-}
-
 func (m queryMetricsStore) CountChatQueuedMessages(ctx context.Context, chatID uuid.UUID) (int64, error) {
 	start := time.Now()
 	r0, r1 := m.s.CountChatQueuedMessages(ctx, chatID)
@@ -1785,7 +1777,7 @@ func (m queryMetricsStore) GetChatProjectByID(ctx context.Context, id uuid.UUID)
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetChatProjectsByOrganizationID(ctx context.Context, organizationID uuid.UUID) ([]database.GetChatProjectsByOrganizationIDRow, error) {
+func (m queryMetricsStore) GetChatProjectsByOrganizationID(ctx context.Context, organizationID uuid.UUID) ([]database.ChatProject, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetChatProjectsByOrganizationID(ctx, organizationID)
 	m.queryLatencies.WithLabelValues("GetChatProjectsByOrganizationID").Observe(time.Since(start).Seconds())

@@ -15,24 +15,10 @@ FROM chat_projects
 WHERE id = @id::uuid;
 
 -- name: GetChatProjectsByOrganizationID :many
-SELECT
-    sqlc.embed(chat_projects),
-    COUNT(chats.id)::bigint AS chat_count
+SELECT *
 FROM chat_projects
-LEFT JOIN chats ON chats.project_id = chat_projects.id
-    AND chats.parent_chat_id IS NULL
-    AND chats.archived = false
-WHERE chat_projects.organization_id = @organization_id::uuid
-GROUP BY chat_projects.id
-ORDER BY lower(chat_projects.name);
-
--- name: CountChatProjectChats :one
--- Counts the chats shown for a project, matching GetChatProjectsByOrganizationID.
-SELECT COUNT(*)::bigint
-FROM chats
-WHERE chats.project_id = @project_id::uuid
-    AND chats.parent_chat_id IS NULL
-    AND chats.archived = false;
+WHERE organization_id = @organization_id::uuid
+ORDER BY lower(name);
 
 -- name: UpdateChatProjectByID :one
 UPDATE chat_projects

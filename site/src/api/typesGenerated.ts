@@ -3213,7 +3213,6 @@ export interface ChatProject {
 	readonly created_by: string;
 	readonly name: string;
 	readonly description: string;
-	readonly chat_count: number;
 	readonly created_at: string;
 	readonly updated_at: string;
 }

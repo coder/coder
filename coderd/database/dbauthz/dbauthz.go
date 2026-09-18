@@ -2043,17 +2043,6 @@ func (q *querier) CountChatCapacityQueuedByPool(ctx context.Context, staleSecond
 	return q.db.CountChatCapacityQueuedByPool(ctx, staleSeconds)
 }
 
-func (q *querier) CountChatProjectChats(ctx context.Context, projectID uuid.UUID) (int64, error) {
-	project, err := q.db.GetChatProjectByID(ctx, projectID)
-	if err != nil {
-		return 0, err
-	}
-	if err := q.authorizeContext(ctx, policy.ActionRead, project); err != nil {
-		return 0, err
-	}
-	return q.db.CountChatProjectChats(ctx, projectID)
-}
-
 func (q *querier) CountChatQueuedMessages(ctx context.Context, chatID uuid.UUID) (int64, error) {
 	_, err := q.GetChatByID(ctx, chatID)
 	if err != nil {
@@ -3631,7 +3620,7 @@ func (q *querier) GetChatProjectByID(ctx context.Context, id uuid.UUID) (databas
 	return fetch(q.log, q.auth, q.db.GetChatProjectByID)(ctx, id)
 }
 
-func (q *querier) GetChatProjectsByOrganizationID(ctx context.Context, organizationID uuid.UUID) ([]database.GetChatProjectsByOrganizationIDRow, error) {
+func (q *querier) GetChatProjectsByOrganizationID(ctx context.Context, organizationID uuid.UUID) ([]database.ChatProject, error) {
 	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetChatProjectsByOrganizationID)(ctx, organizationID)
 }
 

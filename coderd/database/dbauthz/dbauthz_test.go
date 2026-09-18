@@ -1267,15 +1267,9 @@ func (s *MethodTestSuite) TestChats() {
 	s.Run("GetChatProjectsByOrganizationID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		organizationID := uuid.New()
 		project := testutil.Fake(s.T(), faker, database.ChatProject{OrganizationID: organizationID})
-		rows := []database.GetChatProjectsByOrganizationIDRow{{ChatProject: project}}
+		rows := []database.ChatProject{project}
 		dbm.EXPECT().GetChatProjectsByOrganizationID(gomock.Any(), organizationID).Return(rows, nil).AnyTimes()
 		check.Args(organizationID).Asserts(project, policy.ActionRead).Returns(rows)
-	}))
-	s.Run("CountChatProjectChats", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
-		project := testutil.Fake(s.T(), faker, database.ChatProject{})
-		dbm.EXPECT().GetChatProjectByID(gomock.Any(), project.ID).Return(project, nil).AnyTimes()
-		dbm.EXPECT().CountChatProjectChats(gomock.Any(), project.ID).Return(int64(2), nil).AnyTimes()
-		check.Args(project.ID).Asserts(project, policy.ActionRead).Returns(int64(2))
 	}))
 	s.Run("GetChatProjectByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		project := testutil.Fake(s.T(), faker, database.ChatProject{})
