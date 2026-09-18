@@ -1470,11 +1470,11 @@ provisioner/terraform/testdata/.gen-golden: provisioner/terraform/testdata/gener
 	TZ=UTC go test ./provisioner/terraform -run="Test.*Golden$$" -update
 	touch "$@"
 
-provisioner/terraform/testdata/generation.sha1: force-terraform-freshness
+provisioner/terraform/testdata/generation.sha1: FORCE
 	@./provisioner/terraform/testdata/generate.sh --if-needed
 
-force-terraform-freshness:
-.PHONY: force-terraform-freshness
+FORCE:
+.PHONY: FORCE
 
 # pre-commit runs gen and fmt concurrently; formatting must finish before hashing.
 ifneq ($(filter fmt,$(MAKECMDGOALS)),)
