@@ -19,6 +19,10 @@ type OAuth2ProviderApp struct {
 	Name        string    `json:"name"`
 	CallbackURL string    `json:"callback_url"`
 	Icon        string    `json:"icon"`
+	// Scope is the space-separated list of scopes this app's tokens may be
+	// granted. Empty means unrestricted. A non-empty value with no names is a
+	// configured allowlist that grants nothing.
+	Scope string `json:"scope"`
 
 	// ClientType is "confidential" or "public".
 	ClientType OAuth2ClientType `json:"client_type"`
@@ -82,6 +86,9 @@ type PostOAuth2ProviderAppRequest struct {
 	Name        string `json:"name" validate:"required,oauth2_app_name"`
 	CallbackURL string `json:"callback_url" validate:"required,oauth2_callback_url"`
 	Icon        string `json:"icon" validate:"omitempty"`
+	// Scope is the space-separated list of scopes this app's tokens may be
+	// granted. Leave empty, or omit, for unrestricted.
+	Scope string `json:"scope,omitempty" validate:"omitempty"`
 }
 
 // PostOAuth2ProviderApp adds an application that can authenticate using Coder
@@ -103,6 +110,10 @@ type PutOAuth2ProviderAppRequest struct {
 	Name        string `json:"name" validate:"required,oauth2_app_name"`
 	CallbackURL string `json:"callback_url" validate:"required,oauth2_callback_url"`
 	Icon        string `json:"icon" validate:"omitempty"`
+	// Scope replaces the app's current allowlist. Omit to leave the existing
+	// allowlist untouched. Set to an empty string to clear it, making the app
+	// unrestricted.
+	Scope *string `json:"scope,omitempty" validate:"omitempty"`
 }
 
 // PutOAuth2ProviderApp updates an application that can authenticate using Coder

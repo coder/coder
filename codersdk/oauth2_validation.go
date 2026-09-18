@@ -10,6 +10,32 @@ import (
 
 // RFC 7591 validation functions for Dynamic Client Registration
 
+const (
+	// OAuth2ScopeListMaxBytes bounds the length of an app's stored scope list.
+	// The full public catalog fits in well under this.
+	OAuth2ScopeListMaxBytes = 4096
+	// OAuth2ScopeListMaxNames bounds how many space-separated names an app's
+	// scope list may hold. The public catalog is about half this size.
+	OAuth2ScopeListMaxNames = 100
+)
+
+// ValidateOAuth2ScopeList bounds the size of a scope list before it is stored
+// as an app's allowlist. Names are not checked against the catalog: an
+// unknown name is rejected at authorization, where the client learns which
+// name to drop. Dynamic client registration is unauthenticated, so without a
+// cap the stored list is bounded only by the request body limit and is read on
+// every app response. The length check runs first so an oversized list is
+// never split.
+func ValidateOAuth2ScopeList(raw string) error {
+	if len(raw) > OAuth2ScopeListMaxBytes {
+		return xerrors.Errorf("must be at most %d bytes", OAuth2ScopeListMaxBytes)
+	}
+	if names := len(strings.Fields(raw)); names > OAuth2ScopeListMaxNames {
+		return xerrors.Errorf("must list at most %d names", OAuth2ScopeListMaxNames)
+	}
+	return nil
+}
+
 func (req *OAuth2ClientRegistrationRequest) Validate() error {
 	// Validate redirect URIs - required for authorization code flow
 	if len(req.RedirectURIs) == 0 {
