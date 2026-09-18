@@ -277,4 +277,38 @@ describe("AgentChatInput", () => {
 		);
 		expect(cancel).toHaveBeenCalledTimes(1);
 	});
+
+	it("lets a recording start while a turn is streaming", async () => {
+		const user = userEvent.setup();
+		const start = vi.fn();
+		mockedUseSpeechRecognition.mockReturnValue({
+			isSupported: true,
+			isRecording: false,
+			transcript: "",
+			error: null,
+			start,
+			stop: vi.fn(),
+			cancel: vi.fn(),
+		});
+
+		renderInput(
+			<AgentChatInput
+				onSend={vi.fn()}
+				isDisabled={false}
+				isLoading={false}
+				isStreaming
+				onInterrupt={vi.fn()}
+				selectedModel={modelOptions[0].id}
+				onModelChange={vi.fn()}
+				modelOptions={modelOptions}
+				modelSelectorPlaceholder="Select model"
+				hasModelOptions
+				canConfigureAgentSetup={false}
+			/>,
+		);
+
+		await user.click(screen.getByRole("button", { name: "Voice input" }));
+		expect(start).toHaveBeenCalledTimes(1);
+		expect(screen.getByRole("button", { name: "Stop" })).toBeEnabled();
+	});
 });

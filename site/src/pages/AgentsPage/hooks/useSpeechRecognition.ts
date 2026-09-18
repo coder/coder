@@ -71,6 +71,11 @@ export function isSpeechRecognitionSupported(): boolean {
 	return getSpeechRecognitionCtor() !== undefined;
 }
 
+/**
+ * How long a recognition error stays exposed before the hook clears it.
+ */
+export const SPEECH_ERROR_DISMISS_MS = 5000;
+
 export function useSpeechRecognition(): {
 	isSupported: boolean;
 	isRecording: boolean;
@@ -165,6 +170,14 @@ export function useSpeechRecognition(): {
 		setTranscript("");
 		setError(null);
 	}, []);
+
+	useEffect(() => {
+		if (error === null) {
+			return;
+		}
+		const timer = setTimeout(() => setError(null), SPEECH_ERROR_DISMISS_MS);
+		return () => clearTimeout(timer);
+	}, [error]);
 
 	useEffect(() => {
 		return () => {

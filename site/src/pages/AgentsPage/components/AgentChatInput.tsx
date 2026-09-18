@@ -1654,7 +1654,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 						</div>
 					</div>
 					<div className="flex shrink-0 items-center gap-2">
-						{speech.isSupported && (!isStreaming || speech.isRecording) && (
+						{speech.isSupported && (
 							<>
 								<Button
 									type="button"
@@ -1693,10 +1693,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 							<div
 								className={cn(
 									"flex",
-									speech.isSupported &&
-										(!isStreaming || speech.isRecording) &&
-										!speech.error &&
-										"-ml-2",
+									speech.isSupported && !speech.error && "-ml-2",
 								)}
 							>
 								<ContextUsageIndicator
