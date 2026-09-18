@@ -320,6 +320,11 @@ title: Schemas
 
 ```json
 {
+  "attribution": {
+    "property1": "string",
+    "property2": "string"
+  },
+  "interception_id": "34d9b688-63ad-46f4-88b5-665c1e7f7824",
   "model": "string",
   "thinking": [
     {
@@ -357,12 +362,29 @@ title: Schemas
 
 ### Properties
 
-| Name          | Type                                                                                   | Required | Restrictions | Description |
-|---------------|----------------------------------------------------------------------------------------|----------|--------------|-------------|
-| `model`       | string                                                                                 | false    |              |             |
-| `thinking`    | array of [codersdk.AIBridgeModelThought](#codersdkaibridgemodelthought)                | false    |              |             |
-| `token_usage` | [codersdk.AIBridgeSessionThreadsTokenUsage](#codersdkaibridgesessionthreadstokenusage) | false    |              |             |
-| `tool_calls`  | array of [codersdk.AIBridgeToolCall](#codersdkaibridgetoolcall)                        | false    |              |             |
+| Name              | Type                                                                                   | Required | Restrictions | Description                                                                                                         |
+|-------------------|----------------------------------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------|
+| `attribution`     | [codersdk.AIBridgeAttribution](#codersdkaibridgeattribution)                           | false    |              | Attribution contains attribution data from this interception. Unknown attribution is serialized as an empty object. |
+| `interception_id` | string                                                                                 | false    |              |                                                                                                                     |
+| `model`           | string                                                                                 | false    |              |                                                                                                                     |
+| `thinking`        | array of [codersdk.AIBridgeModelThought](#codersdkaibridgemodelthought)                | false    |              |                                                                                                                     |
+| `token_usage`     | [codersdk.AIBridgeSessionThreadsTokenUsage](#codersdkaibridgesessionthreadstokenusage) | false    |              |                                                                                                                     |
+| `tool_calls`      | array of [codersdk.AIBridgeToolCall](#codersdkaibridgetoolcall)                        | false    |              |                                                                                                                     |
+
+## codersdk.AIBridgeAttribution
+
+```json
+{
+  "property1": "string",
+  "property2": "string"
+}
+```
+
+### Properties
+
+| Name             | Type   | Required | Restrictions | Description |
+|------------------|--------|----------|--------------|-------------|
+| `[any property]` | string | false    |              |             |
 
 ## codersdk.AIBridgeConfig
 
@@ -682,6 +704,11 @@ title: Schemas
       "agent_firewall_session_id": "3735294f-18b1-4e7a-a269-99c30f0b30e7",
       "agentic_actions": [
         {
+          "attribution": {
+            "property1": "string",
+            "property2": "string"
+          },
+          "interception_id": "34d9b688-63ad-46f4-88b5-665c1e7f7824",
           "model": "string",
           "thinking": [
             {
@@ -716,6 +743,10 @@ title: Schemas
           ]
         }
       ],
+      "attribution": {
+        "property1": "string",
+        "property2": "string"
+      },
       "credential_hint": "string",
       "credential_kind": "string",
       "ended_at": "2019-08-24T14:15:22Z",
@@ -827,6 +858,11 @@ title: Schemas
   "agent_firewall_session_id": "3735294f-18b1-4e7a-a269-99c30f0b30e7",
   "agentic_actions": [
     {
+      "attribution": {
+        "property1": "string",
+        "property2": "string"
+      },
+      "interception_id": "34d9b688-63ad-46f4-88b5-665c1e7f7824",
       "model": "string",
       "thinking": [
         {
@@ -861,6 +897,10 @@ title: Schemas
       ]
     }
   ],
+  "attribution": {
+    "property1": "string",
+    "property2": "string"
+  },
   "credential_hint": "string",
   "credential_kind": "string",
   "ended_at": "2019-08-24T14:15:22Z",
@@ -891,6 +931,7 @@ title: Schemas
 | `agent_firewall_sequence_number` | integer                                                                                | false    |              | Agent firewall sequence number is the firewall sequence number from the root interception. Used to determine the position of this LLM request in the firewall event stream. Nil when the request did not pass through the agent firewall. |
 | `agent_firewall_session_id`      | string                                                                                 | false    |              | Agent firewall session ID links this thread to an agent firewall confinement session. Nil when the request did not pass through the agent firewall.                                                                                       |
 | `agentic_actions`                | array of [codersdk.AIBridgeAgenticAction](#codersdkaibridgeagenticaction)              | false    |              |                                                                                                                                                                                                                                           |
+| `attribution`                    | [codersdk.AIBridgeAttribution](#codersdkaibridgeattribution)                           | false    |              | Attribution contains attribution data from the root interception. Unknown attribution is serialized as an empty object.                                                                                                                   |
 | `credential_hint`                | string                                                                                 | false    |              |                                                                                                                                                                                                                                           |
 | `credential_kind`                | string                                                                                 | false    |              |                                                                                                                                                                                                                                           |
 | `ended_at`                       | string                                                                                 | false    |              |                                                                                                                                                                                                                                           |
@@ -1026,7 +1067,8 @@ title: Schemas
       "rawQuery": "string",
       "scheme": "string",
       "user": {}
-    }
+    },
+    "stream_silence_timeout": 0
   }
 }
 ```
@@ -2515,21 +2557,23 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "rawQuery": "string",
     "scheme": "string",
     "user": {}
-  }
+  },
+  "stream_silence_timeout": 0
 }
 ```
 
 ### Properties
 
-| Name                    | Type                       | Required | Restrictions | Description |
-|-------------------------|----------------------------|----------|--------------|-------------|
-| `acquire_batch_size`    | integer                    | false    |              |             |
-| `debug_logging_enabled` | boolean                    | false    |              |             |
-| `hook_allow_insecure`   | boolean                    | false    |              |             |
-| `hook_enabled`          | boolean                    | false    |              |             |
-| `hook_secret`           | string                     | false    |              |             |
-| `hook_timeout`          | integer                    | false    |              |             |
-| `hook_url`              | [serpent.URL](#serpenturl) | false    |              |             |
+| Name                     | Type                       | Required | Restrictions | Description |
+|--------------------------|----------------------------|----------|--------------|-------------|
+| `acquire_batch_size`     | integer                    | false    |              |             |
+| `debug_logging_enabled`  | boolean                    | false    |              |             |
+| `hook_allow_insecure`    | boolean                    | false    |              |             |
+| `hook_enabled`           | boolean                    | false    |              |             |
+| `hook_secret`            | string                     | false    |              |             |
+| `hook_timeout`           | integer                    | false    |              |             |
+| `hook_url`               | [serpent.URL](#serpenturl) | false    |              |             |
+| `stream_silence_timeout` | integer                    | false    |              |             |
 
 ## codersdk.ChatContext
 
@@ -7311,7 +7355,8 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
           "rawQuery": "string",
           "scheme": "string",
           "user": {}
-        }
+        },
+        "stream_silence_timeout": 0
       }
     },
     "allow_workspace_renames": true,
@@ -7922,7 +7967,8 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         "rawQuery": "string",
         "scheme": "string",
         "user": {}
-      }
+      },
+      "stream_silence_timeout": 0
     }
   },
   "allow_workspace_renames": true,
@@ -8894,9 +8940,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                                                                                                                                                                                                       |
-|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `agent-lifecycle-hooks`, `ai-gateway-reverse-proxy`, `ai-gateway-seat-exclusion`, `auto-fill-parameters`, `chat-advisor`, `chat-virtual-desktop`, `example`, `mcp-server-http`, `mcp-tool-search`, `nats_pubsub`, `notifications`, `workspace-build-updates`, `workspace-capable-licensing`, `workspace-usage` |
+| Value(s)                                                                                                                                                                                                                                                                                                          |
+|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `agent-lifecycle-hooks`, `ai-gateway-reverse-proxy`, `ai-gateway-seat-exclusion`, `auto-fill-parameters`, `chat-advisor`, `chat-virtual-desktop`, `example`, `mcp-server-http`, `mcp-tool-search`, `no_nats_pubsub`, `notifications`, `workspace-build-updates`, `workspace-capable-licensing`, `workspace-usage` |
 
 ## codersdk.ExternalAPIKeyScopes
 

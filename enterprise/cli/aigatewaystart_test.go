@@ -28,6 +28,7 @@ import (
 
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/v2/enterprise/coderd/license"
@@ -183,10 +184,20 @@ func setupAIGatewayDeployment(ctx context.Context, t *testing.T, opts ...aiGatew
 	}
 }
 
+// withAIGatewayEnv sets an environment variable on the gateway invocation. The
+// command resolves its options from the invocation's environment, so a test
+// configures the gateway process the way a deployment would, without mutating
+// the test process's environment.
+func withAIGatewayEnv(name, value string) func(*serpent.Invocation) {
+	return func(inv *serpent.Invocation) {
+		inv.Environ.Set(name, value)
+	}
+}
+
 // startAIGatewayCommand runs `ai-gateway start` and returns the base URL of
 // its HTTP listener, discovered from the startup log line, together with the
-// command's error waiter.
-func startAIGatewayCommand(ctx context.Context, t *testing.T, coderURL, key string) (string, *clitest.ErrorWaiter) {
+// command's error waiter. Each option mutates the invocation before it starts.
+func startAIGatewayCommand(ctx context.Context, t *testing.T, coderURL, key string, opts ...func(*serpent.Invocation)) (string, *clitest.ErrorWaiter) {
 	t.Helper()
 
 	inv, _ := newCLI(t,
@@ -196,6 +207,9 @@ func startAIGatewayCommand(ctx context.Context, t *testing.T, coderURL, key stri
 		"--http-address", "127.0.0.1:0",
 	)
 	inv = inv.WithContext(ctx)
+	for _, opt := range opts {
+		opt(inv)
+	}
 	pty := ptytest.New(t).Attach(inv)
 	waiter := clitest.StartWithWaiter(t, inv)
 
@@ -292,6 +306,115 @@ func TestAIGatewayStartE2E(t *testing.T) {
 	waiter.Cancel()
 	// Then: it exits cleanly.
 	require.NoError(t, waiter.Wait())
+}
+
+// TestAIGatewayStartE2E_ReverseProxyExperiment covers the startup mode
+// selection of the standalone gateway. The gateway process reads the
+// experiment from its own environment, and the selected mode decides which
+// handler serves LLM traffic: the reverse proxy router, whose provider routes
+// are not registered yet, or the interception pool.
+func TestAIGatewayStartE2E_ReverseProxyExperiment(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name string
+		// gatewayExperiments is CODER_EXPERIMENTS for the gateway process.
+		gatewayExperiments string
+		coderdOptions      func(*coderdenttest.Options)
+		wantStatus         int
+		wantBody           string
+		wantUpstreamHits   int32
+		wantSessions       int
+	}{
+		{
+			// Proxy mode is selected, and an enabled provider has no routes
+			// yet, so its requests fall through to the router's catch-all.
+			name:               "ProxyModeWithoutMCP",
+			gatewayExperiments: string(codersdk.ExperimentAIGatewayReverseProxy),
+			wantStatus:         http.StatusNotFound,
+			wantBody:           "route not supported",
+			wantUpstreamHits:   0,
+			wantSessions:       0,
+		},
+		{
+			// The experiment is a property of the gateway process, so coderd
+			// enabling it does not change the gateway's mode.
+			name: "InterceptionWhenGatewayExperimentUnset",
+			coderdOptions: func(opts *coderdenttest.Options) {
+				opts.DeploymentValues.Experiments = serpent.StringArray{string(codersdk.ExperimentAIGatewayReverseProxy)}
+			},
+			wantStatus:       http.StatusOK,
+			wantBody:         "standalone gateway e2e response",
+			wantUpstreamHits: 1,
+			wantSessions:     1,
+		},
+		{
+			// MCP injection requires interception, so a configured MCP server
+			// makes the gateway fall back to it despite the experiment.
+			name:               "InterceptionFallbackWhenMCPConfigured",
+			gatewayExperiments: string(codersdk.ExperimentAIGatewayReverseProxy),
+			coderdOptions: func(opts *coderdenttest.Options) {
+				opts.ExternalAuthConfigs = []*externalauth.Config{{
+					ID: "mcp-provider",
+					// The user holds no external auth link, so no MCP proxy
+					// is built for the request and this URL is never dialed.
+					MCPURL: "http://127.0.0.1:1/mcp",
+				}}
+			},
+			wantStatus:       http.StatusOK,
+			wantBody:         "standalone gateway e2e response",
+			wantUpstreamHits: 1,
+			wantSessions:     1,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitLong)
+			// Given: a coderd entitled for the AI Gateway, with a key and an
+			// enabled provider backed by a mock upstream.
+			var depOpts []aiGatewayDeploymentOption
+			if tc.coderdOptions != nil {
+				depOpts = append(depOpts, withAIGatewayCoderdOptions(tc.coderdOptions))
+			}
+			dep := setupAIGatewayDeployment(ctx, t, depOpts...)
+
+			// When: the gateway starts with that environment.
+			var invOpts []func(*serpent.Invocation)
+			if tc.gatewayExperiments != "" {
+				invOpts = append(invOpts, withAIGatewayEnv("CODER_EXPERIMENTS", tc.gatewayExperiments))
+			}
+			baseURL, waiter := startAIGatewayCommand(ctx, t, dep.client.URL.String(), dep.key, invOpts...)
+
+			// Then: it becomes ready in either mode, which requires the mode
+			// selection and the initial provider load to have completed.
+			requireAIGatewayStatus(ctx, t, baseURL+aiGatewayHealthzPath, http.StatusOK)
+			requireEventualAIGatewayStatus(ctx, t, baseURL+aiGatewayReadyzPath, http.StatusOK)
+
+			// When: a user sends an LLM request to the gateway.
+			result := postChatCompletionAndRead(ctx, baseURL+aiGatewayChatCompletionPath,
+				dep.userClient.SessionToken(), aiGatewayChatCompletionRequest)
+
+			// Then: the selected handler serves it.
+			require.NoError(t, result.err)
+			require.Equal(t, tc.wantStatus, result.status, "body: %s", result.body)
+			require.Contains(t, string(result.body), tc.wantBody)
+			require.NotContains(t, string(result.body), "sk-e2e", "provider credentials must not reach the caller")
+			require.Equal(t, tc.wantUpstreamHits, dep.upstreamHits.Load())
+
+			// Then: coderd records an interception only for a served request.
+			sessions := requireAIGatewaySessions(ctx, t, dep, tc.wantSessions)
+			if tc.wantSessions > 0 {
+				require.Equal(t, dep.user.Username, sessions[0].Initiator.Username)
+			}
+
+			// When: the command is canceled. Then: it exits cleanly.
+			waiter.Cancel()
+			require.NoError(t, waiter.Wait())
+		})
+	}
 }
 
 // TestAIGatewayStartE2E_InvalidKey covers the fatal error plumbing: a gateway
