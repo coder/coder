@@ -112,6 +112,8 @@ export const isReasoningModeSupported = (
 	if (provider.trim().toLowerCase() !== "openai") return false;
 	const useResponsesApi = deepGet(form, ["openaiConfig", "useResponsesApi"]);
 	if (useResponsesApi === "false") return false;
+	if (deepGet(form, ["openaiConfig", "reasoningModel"]) === "false")
+		return false;
 	const modelID = model.trim();
 	if (modelID === "gpt-daybreak-blue-latest") return useResponsesApi === "true";
 	return /^(gpt-5\.6(-(sol|terra|luna))?|gpt-6-astra)(-[0-9]{4}-[0-9]{2}-[0-9]{2})?$/.test(

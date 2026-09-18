@@ -28,6 +28,9 @@ func ValidateReasoningMode(provider, modelID string, config *codersdk.ChatModelC
 	var override *bool
 	if config.OpenAIConfig != nil {
 		override = config.OpenAIConfig.UseResponsesAPI
+		if config.OpenAIConfig.ReasoningModel != nil && !*config.OpenAIConfig.ReasoningModel {
+			return xerrors.New("provider_options.openai.reasoning_mode requires a reasoning model")
+		}
 	}
 	if !UsesResponsesAPI(modelID, override) {
 		return xerrors.New("provider_options.openai.reasoning_mode requires the Responses API")

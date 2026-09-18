@@ -829,6 +829,13 @@ func ModelFromConfig(
 		if callConfig != nil && callConfig.ProviderOptions != nil && callConfig.ProviderOptions.OpenAI != nil {
 			if mode := callConfig.ProviderOptions.OpenAI.ReasoningMode; mode != nil {
 				options = append(options, fantasyopenai.WithSDKOptions(option.WithJSONSet(`reasoning\.mode`, *mode)))
+				// A mode implies a reasoning model. Left to the SDK's known-model
+				// list, an unknown alias such as gpt-daybreak-blue-latest would
+				// carry the mode but lose effort and summary and keep sending
+				// temperature.
+				if openAIConfig == nil || openAIConfig.ReasoningModel == nil {
+					options = append(options, fantasyopenai.WithReasoningModelFunc(func(string) bool { return true }))
+				}
 			}
 		}
 		providerClient, err = fantasyopenai.New(options...)

@@ -261,6 +261,22 @@ describe("OpenAI reasoning mode", () => {
 		});
 	});
 
+	it("filters stale mode when the model is forced to plain sampling", () => {
+		expect(
+			buildModelConfigFromForm(
+				"openai",
+				formWith({
+					openaiConfig: { reasoningModel: "false" },
+					openai: { reasoningMode: "pro" },
+				}),
+				"gpt-5.6",
+			),
+		).toEqual({
+			fieldErrors: {},
+			modelConfig: { openai_config: { reasoning_model: false } },
+		});
+	});
+
 	it("omits a cleared mode without changing effort or tier", () => {
 		expect(
 			buildModelConfigFromForm(
