@@ -375,10 +375,18 @@ func (m *Manager) closeErr() error {
 	return nil
 }
 
+// markFirstSyncSettled moves the discovery phase to complete after the
+// first reload body reached a terminal result. It fires onChange once
+// even when the catalog is unchanged, because a zero-server workspace
+// must still publish a complete report.
 func (m *Manager) markFirstSyncSettled() {
 	m.mu.Lock()
+	alreadySettled := m.firstSyncSettled
 	m.firstSyncSettled = true
 	m.mu.Unlock()
+	if !alreadySettled {
+		m.fireOnChange()
+	}
 }
 
 // SnapshotChanged checks whether any config file has changed
@@ -775,14 +783,19 @@ func captureSnapshot(paths []string) map[string]fileSnapshot {
 	return snap
 }
 
-// Report returns a deep copy of the current discovery report: one
-// status per declared server and one entry per unusable config file.
-// It never blocks on I/O: the agentcontext resolver calls it on every
-// re-resolve to build the MCP resources.
+// Report returns a deep copy of the current discovery report: the
+// discovery phase, one status per declared server, and one entry per
+// unusable config file. It never blocks on I/O: the agentcontext
+// resolver calls it on every re-resolve to build the MCP resources.
 func (m *Manager) Report() Report {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
+	phase := DiscoveryPending
+	if m.firstSyncSettled {
+		phase = DiscoveryComplete
+	}
 	return Report{
+		Phase:        phase,
 		Servers:      cloneServerStatuses(m.catalog),
 		ConfigErrors: slices.Clone(m.configErrors),
 	}
@@ -1205,10 +1218,24 @@ type ConfigError struct {
 	Err  string
 }
 
+// DiscoveryPhase reports whether the initial MCP reload has finished.
+type DiscoveryPhase int
+
+const (
+	// DiscoveryPending means the initial reload has not reached a
+	// terminal result yet; Servers may be incomplete.
+	DiscoveryPending DiscoveryPhase = iota + 1
+	// DiscoveryComplete means the initial reload finished (success,
+	// failure, or zero servers). Later reloads update Servers but the
+	// phase never moves back for the lifetime of the process.
+	DiscoveryComplete
+)
+
 // Report is the manager's complete discovery result. Servers holds one
 // status per declared server, including connected servers with zero
 // tools; ConfigErrors holds one entry per unusable config file.
 type Report struct {
+	Phase        DiscoveryPhase
 	Servers      []ServerStatus
 	ConfigErrors []ConfigError
 }
