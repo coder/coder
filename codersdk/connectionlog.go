@@ -100,7 +100,10 @@ type ConnectionLogSSHInfo struct {
 // ConnectionLogEgressInfo describes an outbound flow observed by an exit
 // node.
 type ConnectionLogEgressInfo struct {
-	// Destination is "<host or ip>:<port>" as dialed by the workspace.
+	// Protocol is tcp, udp, or dns.
+	Protocol ExitNodeProtocol `json:"protocol"`
+	// Destination is "<host or ip>:<port>" as dialed by the workspace. For
+	// dns flows it is the query name.
 	Destination string `json:"destination"`
 	// DestinationIP is the resolved destination address.
 	DestinationIP string               `json:"destination_ip,omitempty"`

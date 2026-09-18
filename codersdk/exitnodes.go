@@ -18,6 +18,31 @@ const (
 	// ExitNodeTailnetPort is the port an exit node listens on inside the
 	// tailnet for HTTP CONNECT requests from workspace agents.
 	ExitNodeTailnetPort = 3128
+
+	// ExitNodeProtocolHeader selects what a CONNECT stream carries. Absent or
+	// "tcp" means a raw TCP tunnel to the target. "udp" means a stream of
+	// length-prefixed datagrams relayed to one UDP peer. "dns" means a
+	// stream of length-prefixed DNS messages resolved by the exit node.
+	ExitNodeProtocolHeader = "X-Coder-Protocol"
+	// ExitNodeOriginalHostHeader carries the hostname the workspace dialed
+	// when the CONNECT target is an IP literal.
+	ExitNodeOriginalHostHeader = "X-Coder-Original-Host"
+	// ExitNodeDenyReasonHeader explains a 403 CONNECT response.
+	ExitNodeDenyReasonHeader = "X-Coder-Deny-Reason"
+	// ExitNodeDenyRuleHeader names the policy rule behind a 403 CONNECT
+	// response, when one matched.
+	ExitNodeDenyRuleHeader = "X-Coder-Deny-Rule"
+)
+
+// ExitNodeProtocol is the transport of a flow observed by an exit node.
+type ExitNodeProtocol string
+
+const (
+	ExitNodeProtocolTCP ExitNodeProtocol = "tcp"
+	ExitNodeProtocolUDP ExitNodeProtocol = "udp"
+	// ExitNodeProtocolDNS is a DNS query resolved by the exit node on behalf
+	// of the workspace. Host carries the query name and Reason the type.
+	ExitNodeProtocolDNS ExitNodeProtocol = "dns"
 )
 
 // ExitNode is a tailnet peer that terminates workspace egress, enforces
@@ -77,10 +102,12 @@ const (
 // same FlowID is sent twice for allowed flows: once on connect and once on
 // disconnect with byte counts filled in.
 type ExitNodeFlowReport struct {
-	FlowID          uuid.UUID `json:"flow_id" format:"uuid"`
-	AgentID         uuid.UUID `json:"agent_id" format:"uuid"`
-	DestinationIP   string    `json:"destination_ip"`
-	DestinationPort int       `json:"destination_port"`
+	FlowID  uuid.UUID `json:"flow_id" format:"uuid"`
+	AgentID uuid.UUID `json:"agent_id" format:"uuid"`
+	// Protocol defaults to tcp when empty.
+	Protocol        ExitNodeProtocol `json:"protocol,omitempty"`
+	DestinationIP   string           `json:"destination_ip"`
+	DestinationPort int              `json:"destination_port"`
 	// Host is the hostname learned from TLS SNI or the HTTP Host header, or
 	// empty when neither was present.
 	Host           string               `json:"host,omitempty"`
