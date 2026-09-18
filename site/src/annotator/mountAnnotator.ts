@@ -2,6 +2,7 @@ import { type CommentPopup, createCommentPopup } from "./commentPopup";
 import { describeElement } from "./describeElement";
 import { el, flagCutEdges, placeOver } from "./dom";
 import { outlineInset, viewportBox } from "./geometry";
+import { createHeldComments } from "./heldComments";
 import { createHighlightLayer } from "./highlights";
 import { createHintPill } from "./hintPill";
 import { checkIcon, pointerIcon } from "./icons";
@@ -105,7 +106,11 @@ export function mountAnnotator(
 		"data-tip": "Stop annotating",
 	});
 	stopButton.innerHTML = pointerIcon;
-	toolbar.append(stopButton);
+	const held = createHeldComments(win, shadow);
+	// A sibling rather than a child: buttons cannot nest.
+	const stopWrap = el(doc, "span", "pick-wrap");
+	stopWrap.append(stopButton, held.badge);
+	toolbar.append(stopWrap);
 	toolbar.style.display = "none";
 
 	const hint = createHintPill(doc, () => options.onHintDismissed?.());
@@ -150,12 +155,11 @@ export function mountAnnotator(
 		viewport: { width: win.innerWidth, height: win.innerHeight },
 	});
 
-	// Every saved comment is its own submission; there is no batching.
-	const submitComment = (
+	const createAnnotation = (
 		target: Element,
 		comment: string,
 		selectedText: string | undefined,
-	) => {
+	): Annotation => {
 		const annotation: Annotation = {
 			id: randomId(),
 			comment,
@@ -165,19 +169,50 @@ export function mountAnnotator(
 		// Stamped after describing so the marker never leaks into the
 		// captured selector or opening tag.
 		target.setAttribute(annotationIdAttribute, annotation.id);
+		return annotation;
+	};
+
+	// Shift+Send: keep the comment and stay in picking mode so several
+	// elements can be described before anything goes to the agent.
+	const holdComment = (
+		target: Element,
+		comment: string,
+		selectedText: string | undefined,
+	) => {
+		held.hold(createAnnotation(target, comment, selectedText), target);
+		hint.dismiss();
+	};
+
+	// Plain Send: this comment plus anything held goes as one submission.
+	const submitComment = (
+		target: Element,
+		comment: string,
+		selectedText: string | undefined,
+	) => {
+		const sent = [
+			...held.take(),
+			{ annotation: createAnnotation(target, comment, selectedText), target },
+		];
 		const page = pageInfo();
-		options.onSubmit({ page, annotations: [annotation] });
-		flashSent(target);
+		options.onSubmit({
+			page,
+			annotations: sent.map((item) => item.annotation),
+		});
+		for (const item of sent) {
+			flashSent(item.target);
+		}
 		// A first comment proves the hint has done its job.
 		hint.dismiss();
-		// Hold a quiet ring on the element until the dashboard reports the
-		// agent working on it, so the send and the shimmer read as one
+		// Hold a quiet ring on the elements until the dashboard reports the
+		// agent working on them, so the send and the shimmer read as one
 		// continuous state rather than two events with a gap between.
-		highlights.markPending({
-			id: annotation.id,
-			selector: annotation.element.selector,
-			url: page.url,
-		});
+		for (const { annotation } of sent) {
+			highlights.markPending({
+				id: annotation.id,
+				selector: annotation.element.selector,
+				url: page.url,
+			});
+		}
 	};
 
 	// A one-shot pulse of the outline plus a "Sent" chip where the badge
@@ -201,6 +236,7 @@ export function mountAnnotator(
 	// otherwise follows the pointer.
 	const layout = () => {
 		outline.follow(picking ? (session?.target ?? hovered) : null);
+		held.reposition();
 	};
 
 	const scheduleLayout = () => {
@@ -223,9 +259,14 @@ export function mountAnnotator(
 		closePopup();
 		const popup = createCommentPopup(win, {
 			target,
+			heldCount: held.count(),
 			onCancel: closePopup,
-			onSubmit: (comment) => {
-				submitComment(target, comment, selectedText);
+			onSubmit: (comment, hold) => {
+				if (hold) {
+					holdComment(target, comment, selectedText);
+				} else {
+					submitComment(target, comment, selectedText);
+				}
 				closePopup();
 			},
 		});
@@ -334,6 +375,7 @@ export function mountAnnotator(
 		getState: () => ({ picking }),
 		destroy: () => {
 			setPicking(false);
+			held.discard();
 			highlights.destroy();
 			win.removeEventListener("scroll", scheduleLayout, true);
 			win.removeEventListener("resize", scheduleLayout);
