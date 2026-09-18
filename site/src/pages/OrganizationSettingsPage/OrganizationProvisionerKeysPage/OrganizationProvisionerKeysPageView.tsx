@@ -1,3 +1,4 @@
+import { LightbulbIcon } from "lucide-react";
 import type { FC } from "react";
 import {
 	type ProvisionerKeyDaemons,
@@ -86,6 +87,7 @@ export const OrganizationProvisionerKeysPageView: FC<
 						{filteredProvisionerKeyDaemons ? (
 							filteredProvisionerKeyDaemons.length === 0 ? (
 								<TableEmpty
+									icon={<LightbulbIcon className="size-9 text-highlight-sky" />}
 									message="No provisioner keys"
 									description="Create your first provisioner key to authenticate external provisioner daemons."
 								/>

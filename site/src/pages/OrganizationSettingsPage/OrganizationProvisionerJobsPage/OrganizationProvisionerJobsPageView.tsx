@@ -1,4 +1,4 @@
-import { XIcon } from "lucide-react";
+import { LightbulbIcon, XIcon } from "lucide-react";
 import type { FC } from "react";
 import type {
 	Organization,
@@ -193,7 +193,14 @@ const OrganizationProvisionerJobsPageView: FC<
 									/>
 								))
 							) : (
-								<TableEmpty message="No provisioner jobs found" />
+								<TableEmpty
+									icon={
+										filter.status || filter.ids ? undefined : (
+											<LightbulbIcon className="size-9 text-highlight-sky" />
+										)
+									}
+									message="No provisioner jobs found"
+								/>
 							)
 						) : error ? (
 							<TableEmpty

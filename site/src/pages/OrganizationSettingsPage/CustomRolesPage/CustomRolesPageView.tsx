@@ -1,4 +1,4 @@
-import { EllipsisVerticalIcon, PlusIcon } from "lucide-react";
+import { EllipsisVerticalIcon, LightbulbIcon, PlusIcon } from "lucide-react";
 import { type FC, useState } from "react";
 import { useMutation } from "react-query";
 import { Link as RouterLink, useNavigate } from "react-router";
@@ -360,6 +360,7 @@ const RoleTableBody: FC<RoleTableBodyProps> = ({
 		}
 		return (
 			<TableEmpty
+				icon={<LightbulbIcon className="size-9 text-highlight-sky" />}
 				message="No custom roles yet"
 				description={
 					canCreateOrgRole

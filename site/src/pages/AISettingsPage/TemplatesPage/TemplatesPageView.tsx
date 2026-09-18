@@ -1,3 +1,4 @@
+import { LightbulbIcon } from "lucide-react";
 import type { FC } from "react";
 import {
 	DetailedError,
@@ -165,6 +166,11 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = ({
 							<TableLoader />
 						) : templates.length === 0 ? (
 							<TableEmpty
+								icon={
+									filterState.filter.used ? undefined : (
+										<LightbulbIcon className="size-9 text-highlight-sky" />
+									)
+								}
 								message={
 									filterState.filter.used
 										? "No results matched your search."

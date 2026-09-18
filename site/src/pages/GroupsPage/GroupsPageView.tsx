@@ -1,4 +1,4 @@
-import { ChevronRightIcon, PlusIcon } from "lucide-react";
+import { ChevronRightIcon, LightbulbIcon, PlusIcon } from "lucide-react";
 import type { FC } from "react";
 import { useQuery } from "react-query";
 import { Link as RouterLink, useNavigate } from "react-router";
@@ -222,6 +222,7 @@ const GroupsTableBody: FC<GroupsTableBodyProps> = ({
 		}
 		return (
 			<TableEmpty
+				icon={<LightbulbIcon className="size-9 text-highlight-sky" />}
 				message="No groups yet"
 				description={
 					canCreateGroup
