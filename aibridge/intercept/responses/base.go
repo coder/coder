@@ -29,7 +29,7 @@ import (
 	aibcontext "github.com/coder/coder/v2/aibridge/context"
 	"github.com/coder/coder/v2/aibridge/intercept"
 	"github.com/coder/coder/v2/aibridge/intercept/apidump"
-	"github.com/coder/coder/v2/aibridge/intercept/bedrocksig"
+	"github.com/coder/coder/v2/aibridge/intercept/awssig"
 	"github.com/coder/coder/v2/aibridge/keypool"
 	"github.com/coder/coder/v2/aibridge/mcp"
 	"github.com/coder/coder/v2/aibridge/recorder"
@@ -50,7 +50,7 @@ type responsesInterceptionBase struct {
 	// bedrockMantle is nil for non-Bedrock providers. When set, upstream
 	// calls target the Bedrock Mantle endpoint and are SigV4-signed, or
 	// bearer-authenticated when the request carries a user Bedrock API key.
-	bedrockMantle *bedrocksig.MantleConfig
+	bedrockMantle *awssig.MantleConfig
 
 	// clientHeaders are the original HTTP headers from the client request.
 	clientHeaders http.Header
@@ -81,7 +81,7 @@ func sumUsage(ref responses.ResponseUsage, in responses.ResponseUsage) responses
 func (i *responsesInterceptionBase) newResponsesService(ctx context.Context) responses.ResponseService {
 	var opts []option.RequestOption
 	if i.bedrockMantle != nil {
-		base, err := bedrocksig.BaseURLForModel(i.bedrockMantle.BaseURL, i.Model())
+		base, err := awssig.BaseURLForModel(i.bedrockMantle.BaseURL, i.Model())
 		if err != nil {
 			// Fail the request loudly: a malformed base URL is a provider
 			// misconfiguration, not a retryable upstream error.
@@ -122,13 +122,19 @@ func (i *responsesInterceptionBase) newResponsesService(ctx context.Context) res
 	// HTTP send) after all other headers are set. A user Bedrock API key is
 	// sent as a bearer token; otherwise the request is SigV4-signed.
 	if i.bedrockMantle != nil {
+		// Bedrock traffic carries Coder's PRM attribution marker. This runs
+		// before SigV4 signing so the marker is covered by the signature.
+		opts = append(opts, option.WithMiddleware(func(req *http.Request, next option.MiddlewareNext) (*http.Response, error) {
+			awssig.AppendPRMUserAgent(req)
+			return next(req)
+		}))
 		if byok, ok := intercept.AsBYOK(i.cred); ok {
 			i.logger.Debug(ctx, "using byok auth", slog.F("key_hint", byok.Hint()))
 			//nolint:bodyclose // The middleware returns the upstream response for the SDK to close.
-			opts = append(opts, option.WithMiddleware(bedrocksig.BearerMiddleware(byok.Secret)))
+			opts = append(opts, option.WithMiddleware(awssig.BearerMiddleware(byok.Secret)))
 		} else {
-			//nolint:bodyclose // signing middleware hands the response to the transport, which closes the body.
-			opts = append(opts, option.WithMiddleware(bedrocksig.SignMiddleware(i.bedrockMantle.Creds, i.bedrockMantle.Region)))
+			//nolint:bodyclose // SignMiddleware reads and closes only the request body.
+			opts = append(opts, option.WithMiddleware(awssig.SignMiddleware(i.bedrockMantle.Creds, i.bedrockMantle.Region, awssig.ServiceBedrockMantle)))
 		}
 	}
 

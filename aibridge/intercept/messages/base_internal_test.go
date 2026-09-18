@@ -24,7 +24,7 @@ import (
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/aibridge/config"
 	"github.com/coder/coder/v2/aibridge/intercept"
-	"github.com/coder/coder/v2/aibridge/intercept/bedrocksig"
+	"github.com/coder/coder/v2/aibridge/intercept/awssig"
 	"github.com/coder/coder/v2/aibridge/internal/testutil"
 	"github.com/coder/coder/v2/aibridge/keypool"
 	"github.com/coder/coder/v2/aibridge/mcp"
@@ -1573,7 +1573,7 @@ func TestBedrockInvokeModelBearerMiddleware(t *testing.T) {
 			require.Empty(t, captured.Header.Get("anthropic-beta"))
 
 			// PRM attribution appended.
-			require.Contains(t, captured.Header.Get("User-Agent"), bedrocksig.PRMUserAgent)
+			require.Contains(t, captured.Header.Get("User-Agent"), awssig.PRMUserAgent)
 		})
 	}
 }
