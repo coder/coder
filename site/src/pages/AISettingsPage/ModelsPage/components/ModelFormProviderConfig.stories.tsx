@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, within } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
+import { MockGPT56Pro } from "#/testHelpers/chatModels";
 import {
 	MockDefaultOrganization,
 	MockOrganizationPermissions,
@@ -9,7 +10,6 @@ import { withToaster } from "#/testHelpers/storybook";
 import { OrganizationModelsContext } from "../organizationModels";
 import {
 	MockAnthropicProviderState,
-	MockGPT56Pro,
 	MockOpenAIProviderState,
 } from "../testFixtures";
 import { ModelForm } from "./ModelForm";

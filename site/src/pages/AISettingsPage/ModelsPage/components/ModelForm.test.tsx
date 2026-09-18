@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { createMemoryRouter } from "react-router";
 import { describe, expect, it, vi } from "vitest";
 import type { ChatModel } from "#/api/typesGenerated";
+import { MockGPT56Pro } from "#/testHelpers/chatModels";
 import {
 	MockDefaultOrganization,
 	MockOrganizationPermissions,
@@ -11,7 +12,6 @@ import { renderWithRouter } from "#/testHelpers/renderHelpers";
 import { OrganizationModelsContext } from "../organizationModels";
 import {
 	MockAnthropicProviderState,
-	MockGPT56Pro,
 	MockOpenAIProviderState,
 } from "../testFixtures";
 import { ModelForm } from "./ModelForm";

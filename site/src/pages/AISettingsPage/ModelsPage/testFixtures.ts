@@ -42,20 +42,6 @@ export const mockClaude: ChatModel = {
 	is_default: false,
 };
 
-export const MockGPT56Pro: ChatModel = {
-	...mockGPT5,
-	id: "model-gpt56-pro",
-	model: "gpt-5.6-sol-2026-08-01",
-	display_name: "GPT-5.6 Sol (Pro)",
-	is_default: false,
-	model_config: {
-		reasoning_effort: { default: "medium", max: "high" },
-		provider_options: {
-			openai: { reasoning_mode: "pro", service_tier: "priority" },
-		},
-	},
-};
-
 export const mockDisabledModel: ChatModel = {
 	...mockGPT5,
 	id: "model-disabled",
