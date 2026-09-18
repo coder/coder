@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, fn, userEvent, within } from "storybook/test";
+import { expect, fn, screen, userEvent, waitFor, within } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
+import type { ChatModel } from "#/api/typesGenerated";
 import {
 	MockDefaultOrganization,
 	MockOrganizationPermissions,
@@ -10,6 +11,7 @@ import { OrganizationModelsContext } from "../organizationModels";
 import {
 	MockAnthropicProviderState,
 	MockOpenAIProviderState,
+	mockGPT5,
 } from "../testFixtures";
 import { ModelForm } from "./ModelForm";
 
@@ -125,5 +127,154 @@ export const ProviderConfigOpenAIWebSearch: Story = {
 			canvas.getByRole("combobox", { name: /search context size/i }),
 		).toBeInTheDocument();
 		await expect(canvas.getByLabelText(/allowed domains/i)).toBeInTheDocument();
+	},
+};
+
+const mockProModel: ChatModel = {
+	...mockGPT5,
+	model: "gpt-5.6-sol-2026-08-01",
+	model_config: {
+		reasoning_effort: { default: "medium", max: "high" },
+		provider_options: {
+			openai: { reasoning_mode: "pro", service_tier: "priority" },
+		},
+	},
+};
+
+const selectOption = async (
+	canvasElement: HTMLElement,
+	name: RegExp,
+	option: string,
+) => {
+	await userEvent.click(within(canvasElement).getByRole("combobox", { name }));
+	await userEvent.click(await screen.findByRole("option", { name: option }));
+	await waitFor(() =>
+		expect(screen.queryByRole("listbox")).not.toBeInTheDocument(),
+	);
+};
+
+const expectEffortAndTier = async (canvasElement: HTMLElement) => {
+	const canvas = within(canvasElement);
+	await expect(
+		canvas.getByRole("combobox", { name: /default reasoning effort/i }),
+	).toHaveTextContent("Medium");
+	await expect(
+		canvas.getByRole("combobox", { name: /max reasoning effort/i }),
+	).toHaveTextContent("High");
+	await expect(
+		canvas.getByRole("combobox", { name: /service tier/i }),
+	).toHaveTextContent("Priority");
+};
+
+export const AddProReasoningMode: Story = {
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		await userEvent.type(canvas.getByLabelText(/model identifier/i), "gpt-5.6");
+		await userEvent.click(
+			await screen.findByRole("option", { name: /GPT-5.6 Sol/i }),
+		);
+		await waitFor(() =>
+			expect(screen.queryByRole("listbox")).not.toBeInTheDocument(),
+		);
+		await userEvent.clear(canvas.getByLabelText(/context limit/i));
+		await userEvent.type(canvas.getByLabelText(/context limit/i), "200000");
+		await openProviderConfig(canvasElement);
+		await expect(
+			canvas.getByRole("combobox", { name: /reasoning mode/i }),
+		).toHaveTextContent("Default");
+		await selectOption(canvasElement, /reasoning mode/i, "Pro");
+		await selectOption(canvasElement, /default reasoning effort/i, "Medium");
+		await selectOption(canvasElement, /max reasoning effort/i, "High");
+		await selectOption(canvasElement, /service tier/i, "Priority");
+		await expectEffortAndTier(canvasElement);
+		await userEvent.click(canvas.getByRole("button", { name: /add model/i }));
+		await expect(args.onCreateModel).toHaveBeenCalledWith(
+			expect.objectContaining({
+				model: "gpt-5.6-sol",
+				model_config: {
+					reasoning_effort: { default: "medium", max: "high" },
+					provider_options: {
+						openai: {
+							reasoning_mode: "pro",
+							service_tier: "priority",
+							max_completion_tokens: 128000,
+						},
+					},
+				},
+			}),
+		);
+	},
+};
+
+export const EditAndClearReasoningMode: Story = {
+	args: { editingModel: mockProModel },
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		await openProviderConfig(canvasElement);
+		await expect(
+			canvas.getByRole("combobox", { name: /reasoning mode/i }),
+		).toHaveTextContent("Pro");
+		await selectOption(canvasElement, /reasoning mode/i, "Standard");
+		await expectEffortAndTier(canvasElement);
+		await userEvent.click(
+			canvas.getByRole("button", { name: /update model/i }),
+		);
+		await expect(args.onUpdateModel).toHaveBeenLastCalledWith(
+			mockProModel.id,
+			expect.objectContaining({
+				model_config: {
+					reasoning_effort: { default: "medium", max: "high" },
+					provider_options: {
+						openai: { reasoning_mode: "standard", service_tier: "priority" },
+					},
+				},
+			}),
+		);
+		await selectOption(canvasElement, /reasoning mode/i, "Default");
+		await expectEffortAndTier(canvasElement);
+		await userEvent.click(
+			canvas.getByRole("button", { name: /update model/i }),
+		);
+		await expect(args.onUpdateModel).toHaveBeenLastCalledWith(
+			mockProModel.id,
+			expect.objectContaining({
+				model_config: {
+					reasoning_effort: { default: "medium", max: "high" },
+					provider_options: { openai: { service_tier: "priority" } },
+				},
+			}),
+		);
+	},
+};
+
+export const ReasoningModeFiltersUnsupportedModel: Story = {
+	args: { editingModel: mockProModel },
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		await openProviderConfig(canvasElement);
+		await expect(
+			canvas.getByRole("combobox", { name: /reasoning mode/i }),
+		).toHaveTextContent("Pro");
+		const modelInput = canvas.getByLabelText(/model identifier/i);
+		await userEvent.clear(modelInput);
+		await userEvent.type(modelInput, "gpt-5.6-pro");
+		await userEvent.tab();
+		await expect(
+			canvas.queryByRole("combobox", { name: /reasoning mode/i }),
+		).not.toBeInTheDocument();
+		await expectEffortAndTier(canvasElement);
+		await userEvent.click(
+			canvas.getByRole("button", { name: /update model/i }),
+		);
+		await expect(args.onUpdateModel).toHaveBeenCalledWith(
+			mockProModel.id,
+			expect.objectContaining({
+				model: "gpt-5.6-pro",
+				model_config: {
+					reasoning_effort: { default: "medium", max: "high" },
+					provider_options: { openai: { service_tier: "priority" } },
+				},
+			}),
+		);
 	},
 };

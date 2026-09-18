@@ -17,6 +17,7 @@ import (
 	fantasyopenrouter "charm.land/fantasy/providers/openrouter"
 	fantasyvercel "charm.land/fantasy/providers/vercel"
 	"github.com/google/uuid"
+	"github.com/openai/openai-go/v3/option"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database"
@@ -699,8 +700,8 @@ func openAIResponsesAPIOverride(config *codersdk.ChatModelOpenAIConfig) *bool {
 // userAgent is sent as the User-Agent header on every outgoing LLM
 // API request. extraHeaders, when non-nil, are sent as additional
 // HTTP headers on every request. httpClient, when non-nil, is used for
-// all provider HTTP requests. openAIConfig carries the model's OpenAI client
-// settings, including the transport override applied here.
+// all provider HTTP requests. callConfig carries the model's client-scoped
+// OpenAI settings applied here: the transport override and reasoning mode.
 func ModelFromConfig(
 	providerHint string,
 	modelName string,
@@ -708,11 +709,20 @@ func ModelFromConfig(
 	userAgent string,
 	extraHeaders map[string]string,
 	httpClient *http.Client,
-	openAIConfig *codersdk.ChatModelOpenAIConfig,
+	callConfig *codersdk.ChatModelCallConfig,
 ) (Model, error) {
 	provider, modelID, err := ResolveModelWithProviderHint(modelName, providerHint)
 	if err != nil {
 		return Model{}, err
+	}
+
+	if err := chatopenai.ValidateReasoningMode(provider, modelID, callConfig); err != nil {
+		return Model{}, err
+	}
+
+	var openAIConfig *codersdk.ChatModelOpenAIConfig
+	if callConfig != nil {
+		openAIConfig = callConfig.OpenAIConfig
 	}
 
 	apiKey := providerKeys.APIKey(provider)
@@ -813,6 +823,13 @@ func ModelFromConfig(
 		if openAIConfig != nil && openAIConfig.ReasoningModel != nil {
 			reasoningModel := *openAIConfig.ReasoningModel
 			options = append(options, fantasyopenai.WithReasoningModelFunc(func(string) bool { return reasoningModel }))
+		}
+		// The pinned SDK reinterprets pre-serialization overlay keys as JSON paths.
+		// Escape the dot so its merge adds mode without replacing reasoning.
+		if callConfig != nil && callConfig.ProviderOptions != nil && callConfig.ProviderOptions.OpenAI != nil {
+			if mode := callConfig.ProviderOptions.OpenAI.ReasoningMode; mode != nil {
+				options = append(options, fantasyopenai.WithSDKOptions(option.WithJSONSet(`reasoning\.mode`, *mode)))
+			}
 		}
 		providerClient, err = fantasyopenai.New(options...)
 	case fantasyopenaicompat.Name:

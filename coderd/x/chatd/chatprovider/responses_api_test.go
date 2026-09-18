@@ -15,6 +15,31 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
+func TestModelFromConfig_ReasoningModeOnly(t *testing.T) {
+	t.Parallel()
+	for _, modelID := range []string{"gpt-5.6", "gpt-6-astra"} {
+		t.Run(modelID, func(t *testing.T) {
+			t.Parallel()
+			seen := make(chan []byte, 1)
+			serverURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+				seen <- req.RawBody
+				return chattest.OpenAINonStreamingResponse("ok")
+			})
+			config := &codersdk.ChatModelCallConfig{ProviderOptions: &codersdk.ChatModelProviderOptions{OpenAI: &codersdk.ChatModelOpenAIProviderOptions{ReasoningMode: new("pro")}}}
+			model, err := chatprovider.ModelFromConfig("openai", modelID, chatprovider.ProviderAPIKeys{ByProvider: map[string]string{"openai": "test-key"}, BaseURLByProvider: map[string]string{"openai": serverURL}}, chatprovider.UserAgent(), nil, nil, config)
+			require.NoError(t, err)
+			*config.ProviderOptions.OpenAI.ReasoningMode = "standard"
+			_, err = model.LanguageModel().Generate(t.Context(), fantasy.Call{Prompt: []fantasy.Message{{Role: fantasy.MessageRoleUser, Content: []fantasy.MessagePart{fantasy.TextPart{Text: "hello"}}}}})
+			require.NoError(t, err)
+			var body map[string]any
+			require.NoError(t, json.Unmarshal(<-seen, &body))
+			require.Equal(t, map[string]any{"mode": "pro"}, body["reasoning"])
+			require.NotContains(t, body, "reasoning.mode")
+			require.Equal(t, modelID, body["model"])
+		})
+	}
+}
+
 func TestModelFromConfig_OpenAIResponsesAPIOverride(t *testing.T) {
 	t.Parallel()
 
@@ -64,7 +89,7 @@ func TestModelFromConfig_OpenAIResponsesAPIOverride(t *testing.T) {
 				chatprovider.UserAgent(),
 				nil,
 				nil,
-				&codersdk.ChatModelOpenAIConfig{UseResponsesAPI: tc.override},
+				&codersdk.ChatModelCallConfig{OpenAIConfig: &codersdk.ChatModelOpenAIConfig{UseResponsesAPI: tc.override}},
 			)
 			require.NoError(t, err)
 
@@ -152,7 +177,7 @@ func TestModelTransportConsumersAgree(t *testing.T) {
 				chatprovider.UserAgent(),
 				nil,
 				nil,
-				&codersdk.ChatModelOpenAIConfig{UseResponsesAPI: tc.override},
+				&codersdk.ChatModelCallConfig{OpenAIConfig: &codersdk.ChatModelOpenAIConfig{UseResponsesAPI: tc.override}},
 			)
 			require.NoError(t, err)
 
@@ -219,7 +244,7 @@ func TestModelFromConfig_OpenAIReasoningModelOverride(t *testing.T) {
 					BaseURLByProvider: map[string]string{fantasyopenai.Name: serverURL},
 				},
 				chatprovider.UserAgent(), nil, nil,
-				&codersdk.ChatModelOpenAIConfig{UseResponsesAPI: new(true), ReasoningModel: tc.override},
+				&codersdk.ChatModelCallConfig{OpenAIConfig: &codersdk.ChatModelOpenAIConfig{UseResponsesAPI: new(true), ReasoningModel: tc.override}},
 			)
 			require.NoError(t, err)
 			// Client construction must snapshot the override, not retain its pointer.

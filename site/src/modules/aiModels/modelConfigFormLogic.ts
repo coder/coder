@@ -98,6 +98,18 @@ export function deepGet(obj: unknown, path: string[]): unknown {
 const hasObjectKeys = (value: Record<string, unknown>): boolean =>
 	Object.keys(value).length > 0;
 
+/** Whether the selected model can send an explicit OpenAI reasoning mode. */
+export const isReasoningModeSupported = (
+	provider: string,
+	model: string,
+	form: ModelConfigFormState,
+): boolean =>
+	provider.trim().toLowerCase() === "openai" &&
+	deepGet(form, ["openaiConfig", "useResponsesApi"]) !== "false" &&
+	/^(gpt-5\.6(-(sol|terra|luna))?|gpt-6-astra)(-[0-9]{4}-[0-9]{2}-[0-9]{2})?$/.test(
+		model.trim(),
+	);
+
 export const isVisibleWhenSatisfied = (
 	field: FieldSchema,
 	readSiblingValue: (jsonName: string) => unknown,
@@ -516,6 +528,7 @@ function collectYupErrors(
 export const buildModelConfigFromForm = (
 	provider: string | null | undefined,
 	form: ModelConfigFormState,
+	model = "",
 ): ModelConfigFormBuildResult => {
 	const fieldErrors: FieldErrors = {};
 
@@ -569,6 +582,12 @@ export const buildModelConfigFromForm = (
 			deepGet(providerFormState, jsonName.split(".").map(snakeToCamel));
 
 		for (const field of getProviderFields(resolved)) {
+			if (
+				field.json_name === "reasoning_mode" &&
+				!isReasoningModeSupported(rawProvider, model, form)
+			)
+				continue;
+
 			// Skip fields hidden by an unsatisfied `visible_when` gate so
 			// stale values left in form state are not serialized.
 			if (!isVisibleWhenSatisfied(field, readProviderValue)) continue;
