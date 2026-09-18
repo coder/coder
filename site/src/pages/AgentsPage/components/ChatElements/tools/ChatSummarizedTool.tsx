@@ -6,9 +6,8 @@ import { contextBoundarySourceSuffix, type ToolStatus } from "./utils";
 
 /**
  * Collapsed-by-default rendering for `chat_summarized` tool calls.
- * Shows "Summarized" and reveals the summary only when expanded.
- * Manual (/compact) and agent (compact_context) compactions carry
- * their source in the label; automatic ones do not.
+ * The label reads "Summarized" followed by the source suffix, if any,
+ * and the summary is revealed only when expanded.
  */
 export const ChatSummarizedTool: React.FC<{
 	summary: string;
