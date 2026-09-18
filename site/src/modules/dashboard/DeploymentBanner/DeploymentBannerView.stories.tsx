@@ -23,8 +23,7 @@ const withSessionCount = (
 	},
 });
 
-// Seven apps: four visible, three behind "+3 more", one of them without a
-// bundled icon.
+// Seven apps: four visible, three behind "+3 more", one with no icon.
 const manyApps = withSessionCount({
 	...MockDeploymentStats.session_count.apps,
 	zed: { count: 7, display_name: "Zed", icon: "/icon/zed.svg" },
@@ -44,9 +43,8 @@ type Story = StoryObj<typeof DeploymentBannerView>;
 
 export const Example: Story = {};
 
-// Session count edge cases in one screenshot: no apps, an unrecognized app, a
-// long display name, apps without a bundled icon, and the overflow trigger. An
-// app renders its name whenever no bundled icon stands in for it.
+// Edge cases in one screenshot: no apps, an unrecognized app, a long display
+// name, apps with no bundled icon, an offsite icon, and the overflow trigger.
 export const SessionCountVariants: Story = {
 	render: () => (
 		<div className="grid gap-2">
@@ -105,8 +103,7 @@ export const OverflowNarrow: Story = {
 	],
 };
 
-// The server caps a report at 64 app names, so the popover must stay usable
-// when nearly all of them overflow.
+// The server caps a report at 64 app names; the popover must stay usable.
 export const OverflowCapped: Story = {
 	args: {
 		stats: withSessionCount(
@@ -130,7 +127,7 @@ export const FamilyTotals: Story = {
 		await userEvent.hover(
 			within(canvasElement).getByRole("button", { name: "Active Connections" }),
 		);
-		// Wait for the tooltip to open before the screenshot.
+		// Let the tooltip open before the screenshot.
 		await waitFor(() => screen.getByRole("tooltip"));
 	},
 };

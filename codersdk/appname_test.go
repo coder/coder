@@ -240,8 +240,7 @@ func TestDecodeAppMap(t *testing.T) {
 		require.Equal(t, map[string]int64{"cursor": 60}, got)
 	})
 
-	// A query with no matching rows aggregates to SQL NULL, which is not an
-	// error, just no usage.
+	// A query with no rows aggregates to SQL NULL: no usage, not an error.
 	for name, raw := range map[string]json.RawMessage{
 		"Absent":      nil,
 		"EmptyObject": json.RawMessage(`{}`),
@@ -293,8 +292,7 @@ func TestSessionCountApps(t *testing.T) {
 func TestSessionCountAppIcons(t *testing.T) {
 	t.Parallel()
 
-	// Every icon is a bundled, clean path, so the frontend never renders an
-	// arbitrary URL.
+	// Every icon is a bundled, clean path, never an arbitrary URL.
 	for name := range codersdk.SessionCountAppFamilies() {
 		app := codersdk.SessionCountApps(map[string]int64{name: 1})[name]
 		require.NotEmpty(t, app.DisplayName, name)

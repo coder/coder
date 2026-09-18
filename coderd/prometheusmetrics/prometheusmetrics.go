@@ -610,7 +610,7 @@ func AgentStats(ctx context.Context, logger slog.Logger, registerer prometheus.R
 					agentStatsConnectionCountGauge.WithLabelValues(VectorOperationSet, float64(agentStat.ConnectionCount), labelValues...)
 					agentStatsConnectionMedianLatencyGauge.WithLabelValues(VectorOperationSet, agentStat.ConnectionMedianLatencyMS/1000.0 /* (to seconds) */, labelValues...)
 
-					// A malformed payload leaves the other gauges for this agent intact.
+					// A malformed payload leaves this agent's other gauges intact.
 					appCounts, err := codersdk.DecodeAppMap[int64](agentStat.SessionCounts)
 					if err != nil {
 						logger.Error(ctx, "can't decode agent session counts",
@@ -624,9 +624,8 @@ func AgentStats(ctx context.Context, logger slog.Logger, registerer prometheus.R
 					for appName, count := range appCounts {
 						family := codersdk.AppNameFamily(appName)
 						sessionCounts[family] += count
-						// The gauge retains the slice, so give each series its own. Add
-						// rather than Set, because aggregateByLabels can omit identity
-						// labels and collapse several agents onto one series.
+						// The gauge retains the slice, so give each series its own. Add,
+						// not Set: aggregateByLabels can collapse agents onto one series.
 						appLabels := append(slices.Clone(labelValues), appName, string(family))
 						agentStatsSessionCountGauge.WithLabelValues(VectorOperationAdd, float64(count), appLabels...)
 					}

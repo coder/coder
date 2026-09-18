@@ -34,14 +34,12 @@ const (
 	AppFamilyUnknown AppFamilyName = "unknown"
 )
 
-// SessionCountApp is one app's live session count and how to present it.
+// SessionCountApp is one app's session count and how to present it.
 type SessionCountApp struct {
 	Count int64 `json:"count"`
-	// DisplayName is the name to show, falling back to the app name itself for
-	// an app this version does not recognize.
+	// DisplayName falls back to the app name for an unregistered app.
 	DisplayName string `json:"display_name"`
-	// Icon is a bundled icon path relative to the server root, empty if the app
-	// has none.
+	// Icon is a bundled path under /icon/, empty if the app has none.
 	Icon string `json:"icon,omitempty"`
 }
 
@@ -52,8 +50,7 @@ type sessionApp struct {
 }
 
 // sessionApps owns app attribution and presentation, keyed by normalized app
-// name. An unregistered name is shown as-is and aggregates under
-// AppFamilyUnknown.
+// name. An unregistered name shows as-is under AppFamilyUnknown.
 var sessionApps = map[string]sessionApp{
 	"vscode":          {AppFamilyVSCode, "VS Code", "/icon/code.svg"},
 	"vscode_insiders": {AppFamilyVSCode, "VS Code Insiders", "/icon/code-insiders.svg"},
@@ -69,7 +66,7 @@ var sessionApps = map[string]sessionApp{
 	"kiro":            {AppFamilyVSCode, "Kiro", "/icon/kiro.svg"},
 	"devin":           {AppFamilyVSCode, "Devin", "/icon/devin.svg"},
 	"jetbrains":       {AppFamilyJetBrains, "JetBrains", "/icon/jetbrains.svg"},
-	// No agent reports sftp; it keeps the family for history sftp_mins recorded.
+	// No agent reports sftp; the family covers the sftp_mins history.
 	"sftp": {AppFamilySFTP, "SFTP", "/icon/terminal.svg"},
 	// Zed speaks SSH, so it counts toward the SSH total.
 	"zed":              {AppFamilySSH, "Zed", "/icon/zed.svg"},
@@ -100,11 +97,10 @@ func SessionCountAppFamilies() map[string]AppFamilyName {
 	return families
 }
 
-// SumByFamily totals a per-app map by family. Apps of one family add together,
-// and an unregistered name totals under AppFamilyUnknown.
+// SumByFamily totals a per-app map by family. An unregistered name totals
+// under AppFamilyUnknown.
 func SumByFamily(byApp map[string]int64) map[AppFamilyName]int64 {
-	// Sized by family rather than by app: the cap allows 65 app names, but they
-	// only ever fold into the handful of families above.
+	// Unsized: 65 app names fold into the few families above.
 	byFamily := make(map[AppFamilyName]int64)
 	for appName, value := range byApp {
 		byFamily[AppNameFamily(appName)] += value
@@ -165,8 +161,8 @@ func NormalizeAppName(appName string) string {
 }
 
 // DecodeAppMap decodes a JSONB payload keyed by app name. An absent or null
-// payload decodes to an empty map, because an empty aggregate returns SQL NULL.
-// A malformed one is an error, so a failed read never looks like zero usage.
+// payload is empty, because an empty aggregate returns SQL NULL. A malformed
+// one errors, so a failed read never looks like zero usage.
 func DecodeAppMap[V any](raw json.RawMessage) (map[string]V, error) {
 	var decoded map[string]V
 	if len(raw) > 0 {

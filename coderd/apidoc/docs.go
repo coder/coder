@@ -28036,11 +28036,11 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "display_name": {
-                    "description": "DisplayName is the name to show, falling back to the app name itself for\nan app this version does not recognize.",
+                    "description": "DisplayName falls back to the app name for an unregistered app.",
                     "type": "string"
                 },
                 "icon": {
-                    "description": "Icon is a bundled icon path relative to the server root, empty if the app\nhas none.",
+                    "description": "Icon is a bundled path under /icon/, empty if the app has none.",
                     "type": "string"
                 }
             }
@@ -28049,7 +28049,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "apps": {
-                    "description": "Apps holds one entry per app name agents reported. The fields below are\nfamily totals kept for older clients.",
+                    "description": "Apps holds one entry per reported app name. The fields below are family\ntotals kept for older clients.",
                     "type": "object",
                     "additionalProperties": {
                         "$ref": "#/definitions/codersdk.SessionCountApp"

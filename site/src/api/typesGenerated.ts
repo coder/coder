@@ -8746,18 +8746,16 @@ export interface ServiceBannerConfig {
 
 // From codersdk/appname.go
 /**
- * SessionCountApp is one app's live session count and how to present it.
+ * SessionCountApp is one app's session count and how to present it.
  */
 export interface SessionCountApp {
 	readonly count: number;
 	/**
-	 * DisplayName is the name to show, falling back to the app name itself for
-	 * an app this version does not recognize.
+	 * DisplayName falls back to the app name for an unregistered app.
 	 */
 	readonly display_name: string;
 	/**
-	 * Icon is a bundled icon path relative to the server root, empty if the app
-	 * has none.
+	 * Icon is a bundled path under /icon/, empty if the app has none.
 	 */
 	readonly icon?: string;
 }
@@ -8765,8 +8763,8 @@ export interface SessionCountApp {
 // From codersdk/deployment.go
 export interface SessionCountDeploymentStats {
 	/**
-	 * Apps holds one entry per app name agents reported. The fields below are
-	 * family totals kept for older clients.
+	 * Apps holds one entry per reported app name. The fields below are family
+	 * totals kept for older clients.
 	 */
 	readonly apps: Record<string, SessionCountApp>;
 	/**

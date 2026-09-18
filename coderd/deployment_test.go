@@ -69,7 +69,7 @@ func TestDeploymentStats(t *testing.T) {
 		stats, err = client.DeploymentStats(tctx)
 		return err == nil
 	}, testutil.IntervalMedium), "failed to get deployment stats in time")
-	// The legacy total folds both known names into the VS Code family.
+	// The legacy total folds both known names into VS Code.
 	require.Equal(t, codersdk.SessionCountDeploymentStats{
 		Apps: map[string]codersdk.SessionCountApp{
 			"vscode":     {Count: 1, DisplayName: "VS Code", Icon: "/icon/code.svg"},

@@ -20,7 +20,7 @@ describe("sortSessionApps", () => {
 			negative: app(-1, "negative"),
 		});
 
-		// Both VSCodium builds share a display name, so the id breaks the tie.
+		// Both VSCodium builds share a display name, so id breaks the tie.
 		expect(ordered.map((app) => app.id)).toEqual([
 			"zulu",
 			"echo",

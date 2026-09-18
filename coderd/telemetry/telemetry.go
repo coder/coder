@@ -1145,7 +1145,7 @@ func ConvertWorkspaceAgentVolumeResourceMonitor(monitor database.WorkspaceAgentV
 	}
 }
 
-// ConvertWorkspaceAgentStat reports raw per-app counts beside the family totals.
+// ConvertWorkspaceAgentStat reports raw per-app counts beside family totals.
 func ConvertWorkspaceAgentStat(stat database.GetWorkspaceAgentStatsRow) (WorkspaceAgentStat, error) {
 	sessionCounts, err := codersdk.DecodeAppMap[int64](stat.SessionCounts)
 	if err != nil {
@@ -1651,7 +1651,7 @@ type WorkspaceAgentStat struct {
 	ConnectionLatency50 float64          `json:"connection_latency_50"`
 	ConnectionLatency95 float64          `json:"connection_latency_95"`
 	SessionCounts       map[string]int64 `json:"session_counts,omitempty"`
-	// The four counts below are family totals derived from SessionCounts.
+	// The counts below are family totals derived from SessionCounts.
 	SessionCountVSCode          int64 `json:"session_count_vscode"`
 	SessionCountJetBrains       int64 `json:"session_count_jetbrains"`
 	SessionCountReconnectingPTY int64 `json:"session_count_reconnecting_pty"`

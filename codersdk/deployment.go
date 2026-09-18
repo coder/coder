@@ -5462,8 +5462,8 @@ type WorkspaceDeploymentStats struct {
 }
 
 type SessionCountDeploymentStats struct {
-	// Apps holds one entry per app name agents reported. The fields below are
-	// family totals kept for older clients.
+	// Apps holds one entry per reported app name. The fields below are family
+	// totals kept for older clients.
 	Apps map[string]SessionCountApp `json:"apps"`
 	// Deprecated: use Apps.
 	VSCode int64 `json:"vscode"`

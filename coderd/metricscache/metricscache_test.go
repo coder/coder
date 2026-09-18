@@ -329,15 +329,14 @@ func TestCache_DeploymentStats(t *testing.T) {
 				SessionCounts:             dbgen.SessionCounts(t, counts),
 			})
 
-			// Wait for both ticker functions (template build times and
-			// deployment stats).
+			// Both ticker functions: template build times and deployment stats.
 			tickerTrap.MustWait(ctx).MustRelease(ctx)
 			tickerTrap.MustWait(ctx).MustRelease(ctx)
 			clock.Advance(time.Minute).MustWait(ctx)
 
 			stat, ok := cache.DeploymentStats()
 			require.True(t, ok, "cache should be populated after refresh")
-			// The legacy totals fold cursor into VS Code and zed into SSH.
+			// Legacy totals fold cursor into VS Code and zed into SSH.
 			require.Equal(t, codersdk.SessionCountDeploymentStats{
 				Apps: map[string]codersdk.SessionCountApp{
 					"vscode":           {Count: 1, DisplayName: "VS Code", Icon: "/icon/code.svg"},

@@ -282,8 +282,8 @@ func (c *Cache) TemplateWorkspaceOwners(id uuid.UUID) (int, bool) {
 	return resp, true
 }
 
-// DeploymentStats returns the latest published snapshot. Its maps are shared
-// with the cache and must not be mutated.
+// DeploymentStats returns the latest snapshot. Its maps are shared with the
+// cache and must not be mutated.
 func (c *Cache) DeploymentStats() (codersdk.DeploymentStats, bool) {
 	deploymentStats := c.deploymentStatsResponse.Load()
 	if deploymentStats == nil {

@@ -338,9 +338,8 @@ const SESSION_FAMILIES: readonly {
 
 const APP_COLLATOR = new Intl.Collator("en-US");
 
-// sortSessionApps drops idle apps and orders the rest busiest first. The final
-// tie-break on id keeps apps that share a display name, such as codium and
-// vscodium, in a stable order across refreshes.
+// Busiest first. The id tie-break keeps apps that share a display name, such
+// as codium and vscodium, stably ordered across refreshes.
 export const sortSessionApps = (
 	apps: SessionCountDeploymentStats["apps"] = {},
 ) =>
@@ -354,8 +353,8 @@ export const sortSessionApps = (
 				(first.id < second.id ? -1 : 1),
 		);
 
-// The banner rerenders every second to tick its refresh countdown, so memo
-// keeps that out of the connection rows, which only change once per poll.
+// The banner rerenders every second for its refresh countdown; these rows
+// only change once per poll.
 const ActiveConnections = memo(function ActiveConnections({
 	sessionCount,
 }: {
@@ -480,17 +479,17 @@ const ActiveConnection: FC<{
 	</Tooltip>
 );
 
-// AppLabel renders the app's bundled icon, or a generic icon plus the display
-// name when the app has none or it fails to load.
+// AppLabel falls back to a generic icon plus the name when the app has no
+// bundled icon or it fails to load.
 const AppLabel: FC<{
 	icon?: string;
 	name: string;
 	showName?: boolean;
 	nameClassName?: string;
 }> = ({ icon, name, showName, nameClassName }) => {
-	// Keyed by path rather than a boolean so a later icon change retries.
+	// Keyed by path, not a boolean, so a later icon change retries.
 	const [failedIcon, setFailedIcon] = useState<string>();
-	// Only server-curated "/icon/" paths are ever used as an image source.
+	// Only server-curated "/icon/" paths reach an image source.
 	const src =
 		icon?.startsWith("/icon/") && icon !== failedIcon ? icon : undefined;
 

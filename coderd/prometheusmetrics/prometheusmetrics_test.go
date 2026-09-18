@@ -787,8 +787,7 @@ func TestAgentStats(t *testing.T) {
 	assert.EqualValues(t, golden, collected)
 }
 
-// sessionStatsStore hands each poll the next scripted response, so the test
-// controls what every snapshot sees.
+// sessionStatsStore hands each poll the next scripted response.
 type sessionStatsStore struct {
 	database.Store
 	responses chan sessionStatsResponse
@@ -817,9 +816,9 @@ func (s *sessionStatsStore) GetWorkspaceAgentUsageStatsAndLabels(ctx context.Con
 	return converted, err
 }
 
-// TestAgentStatsSessionCounts covers the per-app gauge across successive polls:
-// agents sharing labels are summed, unknown names are kept, malformed rows are
-// skipped, and only a non-empty poll replaces the last snapshot.
+// TestAgentStatsSessionCounts covers the per-app gauge across polls: shared
+// labels sum, unknown names survive, malformed rows are skipped, and only a
+// non-empty poll replaces the snapshot.
 func TestAgentStatsSessionCounts(t *testing.T) {
 	t.Parallel()
 
@@ -847,8 +846,7 @@ func TestAgentStatsSessionCounts(t *testing.T) {
 				require.NoError(t, err)
 				return metrics
 			}
-			// poll feeds one response and waits for that poll to finish, using
-			// the execution histogram as the signal.
+			// poll feeds one response, then waits on the execution histogram.
 			polls := uint64(0)
 			poll := func(response sessionStatsResponse) {
 				t.Helper()
@@ -877,8 +875,7 @@ func TestAgentStatsSessionCounts(t *testing.T) {
 						for _, label := range m.Label {
 							labels[label.GetName()] = label.GetValue()
 						}
-						// aggregateByLabels asked for username alone, so the gauge
-						// carries it plus the two labels this metric adds.
+						// username alone was requested, plus this metric's two labels.
 						require.Len(t, labels, 3)
 						require.Equal(t, "alice", labels["username"])
 						result[labels["app_name"]+":"+labels["family"]] = m.GetGauge().GetValue()
