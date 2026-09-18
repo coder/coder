@@ -12,7 +12,7 @@ import {
 // caller decides whether to retry.
 export type ComposerSendResult = "sent" | "busy";
 
-interface ComposerHandle {
+export interface ComposerHandle {
 	// Sends a message on the user's behalf without touching their draft.
 	send: (message: string) => Promise<ComposerSendResult>;
 }

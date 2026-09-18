@@ -20,12 +20,38 @@ import {
 } from "#/components/Tooltip/Tooltip";
 import { WorkspaceIframe } from "#/modules/apps/WorkspaceAppFrame";
 import { portForwardURL } from "#/utils/portForward";
-import { useComposer } from "../../context/ComposerContext";
+import {
+	type ComposerHandle,
+	useComposer,
+} from "../../context/ComposerContext";
 import { useAnnotatorBridge } from "../../hooks/useAnnotatorBridge";
 import type { UserRightPanelTab } from "../../utils/rightPanelTabs";
 
 const sendRetries = 6;
 const sendRetryMs = 500;
+
+// Sends one annotation message, retrying briefly while another submission
+// is in flight so a quick second comment is delayed rather than dropped.
+// Failures are reported to the user here; the result says whether the
+// message was accepted. Kept outside the component because the React
+// Compiler does not yet handle loops inside try/catch.
+async function deliver(
+	composer: ComposerHandle,
+	message: string,
+): Promise<boolean> {
+	try {
+		for (let attempt = 0; attempt < sendRetries; attempt++) {
+			if ((await composer.send(message)) === "sent") {
+				return true;
+			}
+			await new Promise((resolve) => setTimeout(resolve, sendRetryMs));
+		}
+		toast.error("The chat is busy; the UI annotation was not sent.");
+	} catch (error) {
+		toast.error(getErrorMessage(error, "Failed to send UI annotation."));
+	}
+	return false;
+}
 
 export const PortPreviewPanel: FC<{
 	workspace: Workspace;
@@ -62,9 +88,7 @@ export const PortPreviewPanel: FC<{
 	const [overlayRequests, setOverlayRequests] = useState(0);
 
 	// Each saved comment goes straight to the agent as its own message.
-	// Sends are serialised so quick successive comments arrive in order,
-	// and a send that lost to a concurrent submission is retried briefly
-	// rather than dropped.
+	// Sends are serialised so quick successive comments arrive in order.
 	const sendQueueRef = useRef(Promise.resolve());
 	const handleSubmit = (submission: AnnotationSubmission) => {
 		if (!composer) {
@@ -72,17 +96,7 @@ export const PortPreviewPanel: FC<{
 		}
 		const message = formatAnnotations(submission);
 		sendQueueRef.current = sendQueueRef.current.then(async () => {
-			try {
-				for (let attempt = 0; attempt < sendRetries; attempt++) {
-					if ((await composer.send(message)) === "sent") {
-						return;
-					}
-					await new Promise((resolve) => setTimeout(resolve, sendRetryMs));
-				}
-				toast.error("The chat is busy; the UI annotation was not sent.");
-			} catch (error) {
-				toast.error(getErrorMessage(error, "Failed to send UI annotation."));
-			}
+			await deliver(composer, message);
 		});
 	};
 
