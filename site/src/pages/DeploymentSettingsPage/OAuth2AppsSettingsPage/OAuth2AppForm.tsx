@@ -4,7 +4,11 @@ import { type FC, useEffect, useRef } from "react";
 import { Link } from "react-router";
 import * as Yup from "yup";
 import type * as TypesGen from "#/api/typesGenerated";
-import { OAuth2AppNameMaxBytes } from "#/api/typesGenerated";
+import {
+	OAuth2AppNameMaxBytes,
+	OAuth2RedirectURIMaxBytes,
+	OAuth2RedirectURIsMaxCount,
+} from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
 import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
@@ -15,10 +19,11 @@ import { Label } from "#/components/Label/Label";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { useUnsavedChangesPrompt } from "#/hooks/useUnsavedChangesPrompt";
 import { getFormHelpers, iconValidator } from "#/utils/formUtils";
+import { RedirectURIsField } from "./RedirectURIsField";
 
 type OAuth2AppFormValues = {
 	name: string;
-	callback_url: string;
+	redirect_uris: string[];
 	icon: string;
 };
 
@@ -95,13 +100,26 @@ const validationSchema = (isPublicClient: boolean) =>
 				(value) =>
 					new TextEncoder().encode(value).length <= OAuth2AppNameMaxBytes,
 			),
-		callback_url: Yup.string()
-			.trim()
-			.required("Please enter a callback URL.")
-			.test(
-				"valid-callback-url",
-				"Please enter a valid callback URL.",
-				(value) => isValidCallbackURL(value, isPublicClient),
+		redirect_uris: Yup.array()
+			.of(
+				Yup.string()
+					.test(
+						"redirect-uri-byte-length",
+						`A redirect URI cannot be longer than ${OAuth2RedirectURIMaxBytes} UTF-8 bytes.`,
+						(value) =>
+							new TextEncoder().encode(value).length <=
+							OAuth2RedirectURIMaxBytes,
+					)
+					.test(
+						"valid-redirect-uri",
+						"Please enter a valid redirect URI.",
+						(value) => isValidCallbackURL(value, isPublicClient),
+					),
+			)
+			.min(1, "At least one redirect URI is required.")
+			.max(
+				OAuth2RedirectURIsMaxCount,
+				`At most ${OAuth2RedirectURIsMaxCount} redirect URIs are allowed.`,
 			),
 		icon: iconValidator,
 	});
@@ -116,25 +134,39 @@ export const OAuth2AppForm: FC<OAuth2AppFormProps> = ({
 	onIconChange,
 }) => {
 	const didSubmit = useRef(false);
+	const isPublicClient = app?.client_type === "public";
 	const form = useFormik<OAuth2AppFormValues>({
 		initialValues: {
 			name: app?.name ?? defaultValues?.name ?? "",
-			callback_url: app?.callback_url ?? defaultValues?.callback_url ?? "",
+			redirect_uris: app
+				? [...app.redirect_uris]
+				: defaultValues?.redirect_uris?.length
+					? [...defaultValues.redirect_uris]
+					: [""],
 			icon: app?.icon ?? defaultValues?.icon ?? "",
 		},
-		validationSchema: validationSchema(app?.client_type === "public"),
+		validationSchema: validationSchema(isPublicClient),
 		validateOnMount: true,
 		onSubmit: async (values) => {
 			didSubmit.current = true;
+			const redirectURIs = values.redirect_uris
+				.map((uri) => uri.trim())
+				.filter(Boolean);
 			await onSubmit({
 				...values,
 				name: values.name.trim(),
-				callback_url: values.callback_url.trim(),
+				redirect_uris: Array.from(new Set(redirectURIs)),
 			});
 		},
 	});
 	const getFieldHelpers = getFormHelpers(form, error);
 	const iconField = getFieldHelpers("icon");
+	const redirectURIsField = getFieldHelpers("redirect_uris");
+	const redirectURIsErrors = form.errors.redirect_uris;
+	const redirectURIsRowErrors =
+		form.touched.redirect_uris && Array.isArray(redirectURIsErrors)
+			? redirectURIsErrors
+			: undefined;
 	const formDisabled = disabled || isUpdating;
 	const editing = Boolean(app);
 	const submitDisabled =
@@ -164,6 +196,22 @@ export const OAuth2AppForm: FC<OAuth2AppFormProps> = ({
 		onIconChange?.(value);
 	};
 
+	const handleRedirectURIsChange = (values: string[]) => {
+		void form.setFieldValue("redirect_uris", values);
+	};
+	// Touched is set on blur rather than on every keystroke. Setting it in
+	// handleRedirectURIsChange as well would fire a second concurrent
+	// validateForm per keystroke; Formik does not guarantee those resolve in
+	// order, so the result of an earlier keystroke can overwrite the latest.
+	const handleRedirectURIsBlur = () => {
+		void form.setFieldTouched("redirect_uris", true);
+	};
+	// The overall-list message (min/max count, or a server validation error)
+	// is shown once below the rows; a per-row message is shown on its row
+	// instead, so this excludes the case where Yup reports one message per row.
+	const showRedirectURIsListError =
+		redirectURIsField.error && !Array.isArray(redirectURIsErrors);
+
 	return (
 		<Form onSubmit={form.handleSubmit}>
 			<FormFields>
@@ -176,13 +224,21 @@ export const OAuth2AppForm: FC<OAuth2AppFormProps> = ({
 					autoFocus
 					required
 				/>
-				<FormField
-					field={getFieldHelpers("callback_url")}
-					label="Callback URL"
-					description="The full URL to redirect to after a user authorizes an installation."
-					disabled={formDisabled}
-					required
-				/>
+				<div className="flex flex-col gap-2">
+					<RedirectURIsField
+						values={form.values.redirect_uris}
+						onChange={handleRedirectURIsChange}
+						onBlur={handleRedirectURIsBlur}
+						disabled={formDisabled}
+						isPublicClient={isPublicClient}
+						errors={redirectURIsRowErrors}
+					/>
+					{showRedirectURIsListError && (
+						<span className="text-xs text-content-destructive">
+							{redirectURIsField.helperText}
+						</span>
+					)}
+				</div>
 				<div className="flex flex-col gap-2">
 					<Label htmlFor="icon">Icon</Label>
 					<div className="text-xs text-content-secondary">
