@@ -12,6 +12,7 @@ import {
 	renderComponent,
 } from "#/testHelpers/renderHelpers";
 import { ConversationTimeline } from "./ConversationTimeline";
+
 import {
 	getPendingToolCallIDs,
 	parseMessagesWithMergedTools,
@@ -24,6 +25,8 @@ import {
 	WORKING_FIXTURE_START,
 	workingFixtureTime,
 } from "./storyFixtures";
+import { buildStreamTools, createEmptyStreamState } from "./streamState";
+import type { StreamState } from "./types";
 
 const time = workingFixtureTime;
 const MockWorkingMessages = buildWorkingConversation();
@@ -214,5 +217,154 @@ describe("ConversationTimeline working blocks", () => {
 			...stream,
 		});
 		expect(summary).toHaveFocus();
+	});
+});
+
+const streamingStep = (
+	id: string,
+	command: string,
+	at: string,
+): StreamState => ({
+	startedAt: at,
+	blocks: [{ type: "tool", id }],
+	toolCalls: {
+		[id]: { id, name: "execute", args: { command }, createdAt: at },
+	},
+	toolResults: {},
+	sources: [],
+});
+
+const streamingStage = (
+	messages: ChatMessage[],
+	stream: StreamState,
+): TimelineStage => ({
+	messages,
+	chatStatus: "running",
+	streamState: stream,
+	streamTools: buildStreamTools(stream.toolCalls, stream.toolResults),
+	liveStatus: { phase: "streaming", hasAccumulatedOutput: true },
+});
+
+const idleLive = { phase: "idle", hasAccumulatedOutput: false } as const;
+
+describe("ConversationTimeline live working blocks", () => {
+	it("keeps an open block mounted from streaming steps through durable completion", async () => {
+		const user = userEvent.setup();
+		const { rerenderStage } = renderTimeline(
+			streamingStage(
+				MockWorkingMessages.slice(0, 1),
+				streamingStep("first", "echo first", time(1)),
+			),
+		);
+		const summary = screen.getByRole("button", { name: "Working for 12s" });
+		await user.click(summary);
+
+		rerenderStage(
+			streamingStage(
+				MockWorkingMessages.slice(0, 3),
+				streamingStep("second", "echo second", time(5)),
+			),
+		);
+		expect(summary).toHaveFocus();
+		const copyCommand = within(
+			screen.getByTestId("chat-message-message:2"),
+		).getByRole("button", { name: "Copy command" });
+		copyCommand.focus();
+
+		rerenderStage({
+			messages: MockWorkingMessages,
+			chatStatus: "waiting",
+			streamState: null,
+			streamTools: [],
+			liveStatus: idleLive,
+		});
+		expect(copyCommand).toHaveFocus();
+	});
+
+	it("keeps an open block mounted when a running turn without a stream completes", async () => {
+		const user = userEvent.setup();
+		const messages = MockWorkingMessages.slice(0, 4);
+		const { rerenderStage } = renderTimeline({
+			messages,
+			pendingToolCallIDs: getPendingToolCallIDs(messages, "running"),
+			chatStatus: "running",
+			liveStatus: idleLive,
+		});
+		await user.click(screen.getByRole("button", { name: "Working for 12s" }));
+		const copyCommand = within(
+			screen.getByTestId("chat-message-message:2"),
+		).getByRole("button", { name: "Copy command" });
+		copyCommand.focus();
+
+		rerenderStage({ messages, chatStatus: "waiting", liveStatus: idleLive });
+		expect(copyCommand).toHaveFocus();
+	});
+
+	it("keeps the live disclosure mounted while the next step starts", () => {
+		const messages = MockWorkingMessages.slice(0, 5);
+		const { rerenderStage } = renderTimeline({
+			messages,
+			chatStatus: "running",
+			streamState: null,
+			streamTools: [],
+			liveStatus: { phase: "starting", hasAccumulatedOutput: false },
+		});
+		const summary = screen.getByRole("button", { name: "Working for 12s" });
+		summary.focus();
+
+		rerenderStage({
+			messages,
+			chatStatus: "running",
+			streamState: createEmptyStreamState(),
+			streamTools: [],
+			liveStatus: { phase: "streaming", hasAccumulatedOutput: false },
+		});
+		expect(summary).toHaveFocus();
+
+		rerenderStage({
+			messages,
+			chatStatus: "running",
+			...buildStreamRenderState([
+				{
+					type: "reasoning",
+					text: "Planning the inspection",
+					created_at: time(1),
+				},
+			]),
+		});
+		expect(summary).toHaveFocus();
+	});
+
+	it("keeps an open promptless block mounted through completion and prompt prepend", async () => {
+		const user = userEvent.setup();
+		const { rerenderStage } = renderTimeline({
+			messages: MockWorkingMessages.slice(1, 4),
+			pendingToolCallIDs: new Set(["second"]),
+			hasMoreMessages: true,
+			chatStatus: "running",
+			liveStatus: idleLive,
+		});
+		await user.click(
+			screen.getByRole("button", { name: "Working for at least 12s" }),
+		);
+		const copyCommand = within(
+			screen.getByTestId("chat-message-message:2"),
+		).getByRole("button", { name: "Copy command" });
+		copyCommand.focus();
+
+		rerenderStage({
+			messages: MockWorkingMessages.slice(1),
+			hasMoreMessages: true,
+			chatStatus: "waiting",
+			liveStatus: idleLive,
+		});
+		expect(copyCommand).toHaveFocus();
+
+		rerenderStage({
+			messages: MockWorkingMessages,
+			chatStatus: "waiting",
+			liveStatus: idleLive,
+		});
+		expect(copyCommand).toHaveFocus();
 	});
 });
