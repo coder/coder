@@ -7521,7 +7521,7 @@ export interface PostOAuth2ProviderAppRequest {
 	readonly redirect_uris?: readonly string[];
 	/**
 	 * @deprecated send RedirectURIs instead. If both are set, CallbackURL
-	 * is moved to the front of RedirectURIs.
+	 * must equal the first entry of RedirectURIs.
 	 */
 	readonly callback_url?: string;
 	readonly icon: string;
@@ -8050,7 +8050,7 @@ export interface PutOAuth2ProviderAppRequest {
 	readonly redirect_uris?: readonly string[];
 	/**
 	 * @deprecated send RedirectURIs instead. If both are set, CallbackURL
-	 * is moved to the front of RedirectURIs.
+	 * must equal the first entry of RedirectURIs.
 	 */
 	readonly callback_url?: string;
 	readonly icon: string;

@@ -91,7 +91,7 @@ type PostOAuth2ProviderAppRequest struct {
 	// first entry becomes CallbackURL. Send this instead of CallbackURL.
 	RedirectURIs []string `json:"redirect_uris,omitempty"`
 	// Deprecated: send RedirectURIs instead. If both are set, CallbackURL
-	// is moved to the front of RedirectURIs.
+	// must equal the first entry of RedirectURIs.
 	CallbackURL string `json:"callback_url,omitempty" validate:"omitempty"`
 	Icon        string `json:"icon" validate:"omitempty"`
 	// Scope is the space-separated list of scopes this app's tokens may be
@@ -121,7 +121,7 @@ type PutOAuth2ProviderAppRequest struct {
 	// Omit both to keep the stored list.
 	RedirectURIs []string `json:"redirect_uris,omitempty"`
 	// Deprecated: send RedirectURIs instead. If both are set, CallbackURL
-	// is moved to the front of RedirectURIs.
+	// must equal the first entry of RedirectURIs.
 	CallbackURL string `json:"callback_url,omitempty" validate:"omitempty"`
 	Icon        string `json:"icon" validate:"omitempty"`
 	// Scope replaces the app's current allowlist. Omit to leave the existing

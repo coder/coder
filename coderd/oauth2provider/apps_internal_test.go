@@ -34,16 +34,11 @@ func TestResolveRedirectURIs(t *testing.T) {
 			want:         []string{c},
 		},
 		{
-			name:         "ListWithNewCallback",
-			callbackURL:  c,
+			name:         "ListWithMatchingCallback",
+			callbackURL:  a,
 			redirectURIs: []string{a, b},
-			want:         []string{c, a, b},
-		},
-		{
-			name:         "ListWithCallbackFromList",
-			callbackURL:  b,
-			redirectURIs: []string{a, b},
-			want:         []string{b, a},
+			stored:       []string{c},
+			want:         []string{a, b},
 		},
 		{
 			name:        "CallbackOnlyCreate",
@@ -101,6 +96,43 @@ func TestResolveRedirectURIs(t *testing.T) {
 			if len(tc.want) > 0 {
 				require.Equal(t, tc.want, got)
 			}
+		})
+	}
+}
+
+func TestValidateRedirectURIFieldsAgree(t *testing.T) {
+	t.Parallel()
+
+	const (
+		a = "https://a.example.com/callback"
+		b = "https://b.example.com/callback"
+	)
+
+	tests := []struct {
+		name         string
+		callbackURL  string
+		redirectURIs []string
+		wantErr      bool
+	}{
+		{name: "ListOnly", redirectURIs: []string{a, b}},
+		{name: "CallbackOnly", callbackURL: a},
+		{name: "CallbackWithEmptyList", callbackURL: a, redirectURIs: []string{}},
+		{name: "CallbackMatchesFirst", callbackURL: a, redirectURIs: []string{a, b}},
+		{name: "CallbackMatchesLater", callbackURL: b, redirectURIs: []string{a, b}, wantErr: true},
+		{name: "CallbackNotInList", callbackURL: "https://c.example.com/callback", redirectURIs: []string{a, b}, wantErr: true},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			errs := validateRedirectURIFieldsAgree(tc.callbackURL, tc.redirectURIs)
+			if !tc.wantErr {
+				require.Nil(t, errs)
+				return
+			}
+			require.Len(t, errs, 1)
+			require.Equal(t, "callback_url", errs[0].Field)
 		})
 	}
 }

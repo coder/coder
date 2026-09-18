@@ -22,35 +22,40 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
+// validateRedirectURIFieldsAgree returns an error when a request sets both
+// callback_url and redirect_uris but they name a different first URI. The two
+// fields mean the same thing, so a mismatch means the client edited one and
+// forgot the other. Rejecting it avoids guessing which edit was intended.
+func validateRedirectURIFieldsAgree(callbackURL string, redirectURIs []string) []codersdk.ValidationError {
+	if callbackURL == "" || len(redirectURIs) == 0 || redirectURIs[0] == callbackURL {
+		return nil
+	}
+	return []codersdk.ValidationError{{
+		Field:  "callback_url",
+		Detail: "callback URL must equal the first redirect URI when both are sent",
+	}}
+}
+
 // resolveRedirectURIs returns the redirect URIs an app should have after a
 // create or update request. The first entry is the primary.
 //
-// If the request has redirectURIs, that list is used. If it also has
-// callbackURL, callbackURL is moved to the front of the list. A redirectURIs
-// sent as an empty list is used as given, so it fails validation rather than
-// falling back to the stored list or to callbackURL: a legacy caller that
-// sends both fields does not get callbackURL alone as a side effect of an
-// empty list.
-// If the request has only callbackURL, an update replaces the first stored
-// URI with callbackURL and keeps the rest. A create uses callbackURL alone.
-// If the request has neither field, the stored list is kept.
-// stored is nil on a create.
+// A redirectURIs that was sent, even as an empty list, is used as given. The
+// caller has already checked that callbackURL, if also sent, equals its first
+// entry. Otherwise callbackURL replaces the first stored URI and keeps the
+// rest, and a request with neither field keeps the stored list. stored is nil
+// on a create.
 func resolveRedirectURIs(callbackURL string, redirectURIs, stored []string) []string {
-	list := slice.Unique(redirectURIs)
-	switch {
-	case redirectURIs == nil && len(stored) > 0:
-		if callbackURL == "" {
-			return stored
-		}
-		list = stored[1:]
-	case redirectURIs != nil && len(redirectURIs) == 0:
-		return list
+	if redirectURIs != nil {
+		return slice.Unique(redirectURIs)
 	}
-	if callbackURL != "" {
-		list = slices.DeleteFunc(slices.Clone(list), func(s string) bool { return s == callbackURL })
-		list = append([]string{callbackURL}, list...)
+	if callbackURL == "" {
+		return stored
 	}
-	return list
+	if len(stored) == 0 {
+		return []string{callbackURL}
+	}
+	rest := slices.DeleteFunc(slices.Clone(stored[1:]), func(s string) bool { return s == callbackURL })
+	return append([]string{callbackURL}, rest...)
 }
 
 // validateAppRedirectURIFields checks the list an admin request resolved to
@@ -195,7 +200,11 @@ func CreateApp(db database.Store, accessURL *url.URL, auditor *audit.Auditor, lo
 			return
 		}
 		redirectURIs := resolveRedirectURIs(req.CallbackURL, req.RedirectURIs, nil)
-		if errs := validateAppRedirectURIFields(redirectURIs, codersdk.OAuth2ClientTypeConfidential, req.CallbackURL); errs != nil {
+		errs := validateRedirectURIFieldsAgree(req.CallbackURL, req.RedirectURIs)
+		if errs == nil {
+			errs = validateAppRedirectURIFields(redirectURIs, codersdk.OAuth2ClientTypeConfidential, req.CallbackURL)
+		}
+		if errs != nil {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message:     "Validation failed.",
 				Validations: errs,
@@ -269,7 +278,11 @@ func UpdateApp(db database.Store, accessURL *url.URL, auditor *audit.Auditor, lo
 			clientType = codersdk.OAuth2ClientTypePublic
 		}
 		redirectURIs := resolveRedirectURIs(req.CallbackURL, req.RedirectURIs, app.RegisteredRedirectURIs())
-		if errs := validateAppRedirectURIFields(redirectURIs, clientType, req.CallbackURL); errs != nil {
+		errs := validateRedirectURIFieldsAgree(req.CallbackURL, req.RedirectURIs)
+		if errs == nil {
+			errs = validateAppRedirectURIFields(redirectURIs, clientType, req.CallbackURL)
+		}
+		if errs != nil {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message:     "Validation failed.",
 				Validations: errs,

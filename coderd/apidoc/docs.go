@@ -26581,7 +26581,7 @@ const docTemplate = `{
             ],
             "properties": {
                 "callback_url": {
-                    "description": "Deprecated: send RedirectURIs instead. If both are set, CallbackURL\nis moved to the front of RedirectURIs.",
+                    "description": "Deprecated: send RedirectURIs instead. If both are set, CallbackURL\nmust equal the first entry of RedirectURIs.",
                     "type": "string"
                 },
                 "icon": {
@@ -27433,7 +27433,7 @@ const docTemplate = `{
             ],
             "properties": {
                 "callback_url": {
-                    "description": "Deprecated: send RedirectURIs instead. If both are set, CallbackURL\nis moved to the front of RedirectURIs.",
+                    "description": "Deprecated: send RedirectURIs instead. If both are set, CallbackURL\nmust equal the first entry of RedirectURIs.",
                     "type": "string"
                 },
                 "icon": {

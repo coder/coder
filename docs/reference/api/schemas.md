@@ -12207,7 +12207,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 | Name            | Type            | Required | Restrictions | Description                                                                                                                               |
 |-----------------|-----------------|----------|--------------|-------------------------------------------------------------------------------------------------------------------------------------------|
-| `callback_url`  | string          | false    |              | Deprecated: send RedirectURIs instead. If both are set, CallbackURL is moved to the front of RedirectURIs.                                |
+| `callback_url`  | string          | false    |              | Deprecated: send RedirectURIs instead. If both are set, CallbackURL must equal the first entry of RedirectURIs.                           |
 | `icon`          | string          | false    |              |                                                                                                                                           |
 | `name`          | string          | true     |              |                                                                                                                                           |
 | `redirect_uris` | array of string | false    |              | Redirect uris is the ordered list of URIs the app may redirect to. The first entry becomes CallbackURL. Send this instead of CallbackURL. |
@@ -13100,7 +13100,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 | Name            | Type            | Required | Restrictions | Description                                                                                                                                                                  |
 |-----------------|-----------------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `callback_url`  | string          | false    |              | Deprecated: send RedirectURIs instead. If both are set, CallbackURL is moved to the front of RedirectURIs.                                                                   |
+| `callback_url`  | string          | false    |              | Deprecated: send RedirectURIs instead. If both are set, CallbackURL must equal the first entry of RedirectURIs.                                                              |
 | `icon`          | string          | false    |              |                                                                                                                                                                              |
 | `name`          | string          | true     |              |                                                                                                                                                                              |
 | `redirect_uris` | array of string | false    |              | Redirect uris is the ordered list of URIs the app may redirect to. The first entry becomes CallbackURL. Send this instead of CallbackURL. Omit both to keep the stored list. |
