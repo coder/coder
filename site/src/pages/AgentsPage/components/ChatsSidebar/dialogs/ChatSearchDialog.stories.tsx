@@ -32,7 +32,7 @@ const mockChat: Chat = {
 	diff_statuses: [mockDiffStatus],
 };
 
-const chat2DiffStatus: NonNullable<Chat["diff_status"]> = {
+const mockChat2DiffStatus: NonNullable<Chat["diff_status"]> = {
 	...mockDiffStatus,
 	chat_id: "chat-2",
 	pull_request_title: "Fix flaky story",
@@ -52,11 +52,11 @@ const mockChats: Chat[] = [
 		created_at: "2026-05-20T05:00:00.000Z",
 		updated_at: "2026-05-20T08:45:00.000Z",
 		has_unread: false,
-		diff_status: chat2DiffStatus,
-		diff_statuses: [chat2DiffStatus],
+		diff_status: mockChat2DiffStatus,
+		diff_statuses: [mockChat2DiffStatus],
 	},
 ];
-const overflowDiffStatus: NonNullable<Chat["diff_status"]> = {
+const mockOverflowDiffStatus: NonNullable<Chat["diff_status"]> = {
 	...mockDiffStatus,
 	chat_id: "chat-long-1",
 };
@@ -72,8 +72,8 @@ const overflowMockChats: Chat[] = [
 		created_at: "2026-05-20T05:00:00.000Z",
 		updated_at: "2026-05-20T09:30:00.000Z",
 		has_unread: false,
-		diff_status: overflowDiffStatus,
-		diff_statuses: [overflowDiffStatus],
+		diff_status: mockOverflowDiffStatus,
+		diff_statuses: [mockOverflowDiffStatus],
 	},
 ];
 const cappedMockChats: Chat[] = Array.from(

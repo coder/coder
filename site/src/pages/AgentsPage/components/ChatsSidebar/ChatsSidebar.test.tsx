@@ -1426,7 +1426,7 @@ describe("ChatsSidebar load-more behavior", () => {
 });
 
 describe("ChatsSidebar PR icon", () => {
-	const multiPRChat = buildChat({
+	const mockMultiPRChat = buildChat({
 		id: "multi-pr",
 		title: "Multiple pull requests",
 		diff_statuses: [
@@ -1489,7 +1489,7 @@ describe("ChatsSidebar PR icon", () => {
 	it("announces the tracked pull request count when the chat tracks several", () => {
 		render(
 			<Wrapper>
-				<ChatsSidebar {...defaultProps} chats={[multiPRChat]} />
+				<ChatsSidebar {...defaultProps} chats={[mockMultiPRChat]} />
 			</Wrapper>,
 		);
 
