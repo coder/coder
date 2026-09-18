@@ -205,6 +205,28 @@ func TestChatCompletionRequestBodyWithoutCacheControlIsUnchanged(t *testing.T) {
 	require.Equal(t, typed, body)
 }
 
+func TestPreservedCacheControlFieldsAreCapped(t *testing.T) {
+	t.Parallel()
+
+	var parts []string
+	for i := range maxPreservedCacheControlFields + 2 {
+		parts = append(parts, fmt.Sprintf(`{"type":"text","text":"part %d","cache_control":{"type":"ephemeral"}}`, i))
+	}
+	var req ChatCompletionNewParamsWrapper
+	require.NoError(t, json.Unmarshal([]byte(`{"model":"anthropic/claude-haiku-4.5","messages":[{"role":"user","content":[`+strings.Join(parts, ",")+`]}]}`), &req))
+	require.Len(t, req.PreservedFields, maxPreservedCacheControlFields)
+
+	body, err := (&interceptionBase{
+		req: &req,
+		cfg: intercept.Config{BaseURL: "https://openrouter.ai/api/v1"},
+	}).chatCompletionRequestBody()
+	require.NoError(t, err)
+	for i := range maxPreservedCacheControlFields + 2 {
+		path := fmt.Sprintf("messages.0.content.%d.cache_control", i)
+		require.Equal(t, i < maxPreservedCacheControlFields, gjson.GetBytes(body, path).Exists(), path)
+	}
+}
+
 func TestApplyPreservedFieldsSkipsMissingParents(t *testing.T) {
 	t.Parallel()
 
