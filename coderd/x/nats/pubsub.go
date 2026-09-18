@@ -357,7 +357,7 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (pubSub *Pubsub,
 		}
 	}()
 
-	logger.Info(context.Background(), "embedded nats server started",
+	logger.Debug(context.Background(), "embedded nats server started",
 		slog.F("client_url", ns.ClientURL()),
 	)
 
