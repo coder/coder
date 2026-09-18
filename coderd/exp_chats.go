@@ -47,6 +47,7 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/searchquery"
 	"github.com/coder/coder/v2/coderd/tracing"
+	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/coderd/workspaceapps"
 	"github.com/coder/coder/v2/coderd/wsbuilder"
 	"github.com/coder/coder/v2/coderd/x/agenthooks/dispatch"
@@ -3555,44 +3556,22 @@ func (api *API) getChatDiffContents(rw http.ResponseWriter, r *http.Request) {
 
 // chatRenderTemplateParameters evaluates a template version's parameters
 // for the chat owner with no inputs, which is the form state the owner would
-// see on the workspace creation page. ctx must already carry the owner's
-// RBAC subject. It returns chattool.ErrTemplateVersionNotReady while the
-// import job is running and chattool.ErrTemplateVersionStaticParameters when
-// the version predates dynamic parameters, so the tool can label the
-// import-time fallback accurately instead of treating either as a failure.
+// see on the workspace creation page. It authorizes as the owner itself, like
+// the other chat hooks. Prepare selects the static renderer for versions that
+// predate dynamic parameters and returns
+// dynamicparameters.ErrTemplateVersionNotReady while the import job runs.
 func (api *API) chatRenderTemplateParameters(
 	ctx context.Context,
 	ownerID uuid.UUID,
 	templateVersionID uuid.UUID,
 ) ([]codersdk.PreviewParameter, []codersdk.FriendlyDiagnostic, error) {
-	templateVersion, err := api.Database.GetTemplateVersionByID(ctx, templateVersionID)
+	actor, _, err := httpmw.UserRBACSubject(ctx, api.Database, ownerID, rbac.ScopeAll)
 	if err != nil {
-		return nil, nil, xerrors.Errorf("get template version: %w", err)
+		return nil, nil, xerrors.Errorf("load user authorization: %w", err)
 	}
-	job, err := api.Database.GetProvisionerJobByID(ctx, templateVersion.JobID)
-	if err != nil {
-		return nil, nil, xerrors.Errorf("get template version job: %w", err)
-	}
-	if !job.CompletedAt.Valid {
-		return nil, nil, chattool.ErrTemplateVersionNotReady
-	}
-	tfValues, err := api.Database.GetTemplateVersionTerraformValues(ctx, templateVersionID)
-	if err != nil {
-		if !errors.Is(err, sql.ErrNoRows) {
-			return nil, nil, xerrors.Errorf("get template version terraform values: %w", err)
-		}
-		// Versions imported before dynamic parameters have no row; the
-		// empty provisioner version below routes them to the static path.
-		tfValues = database.TemplateVersionTerraformValue{TemplateVersionID: templateVersionID}
-	}
-	if !dynamicparameters.ProvisionerVersionSupportsDynamicParameters(tfValues.ProvisionerdVersion) {
-		return nil, nil, chattool.ErrTemplateVersionStaticParameters
-	}
+	ctx = dbauthz.As(ctx, actor)
 
 	renderer, err := dynamicparameters.Prepare(ctx, api.Database, api.FileCache, templateVersionID,
-		dynamicparameters.WithTemplateVersion(templateVersion),
-		dynamicparameters.WithProvisionerJob(job),
-		dynamicparameters.WithTerraformValues(tfValues),
 		dynamicparameters.WithPreviewOptions(dynamicparameters.PreviewOptions(api.DeploymentValues)...),
 	)
 	if err != nil {
@@ -3603,10 +3582,7 @@ func (api *API) chatRenderTemplateParameters(
 	output, diags := renderer.Render(ctx, ownerID, map[string]string{})
 	var params []codersdk.PreviewParameter
 	if output != nil {
-		params = make([]codersdk.PreviewParameter, 0, len(output.Parameters))
-		for _, p := range output.Parameters {
-			params = append(params, db2sdk.PreviewParameter(p))
-		}
+		params = slice.List(output.Parameters, db2sdk.PreviewParameter)
 	}
 	return params, db2sdk.HCLDiagnostics(diags), nil
 }

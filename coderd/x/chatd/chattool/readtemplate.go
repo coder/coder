@@ -15,7 +15,9 @@ import (
 	"cdr.dev/slog/v3"
 
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/dynamicparameters"
 	"github.com/coder/coder/v2/codersdk"
+	previewtypes "github.com/coder/preview/types"
 )
 
 // ReadTemplateReadmeMaxRunes bounds the full README returned by read_template
@@ -23,37 +25,26 @@ import (
 const ReadTemplateReadmeMaxRunes = 8000
 
 const (
-	readTemplateOwnerDefaultsNote = "Parameter defaults were evaluated for " +
-		"the workspace owner. Omitting a parameter in create_workspace uses " +
-		"the listed default, and the build matches a preset by the resulting " +
-		"values; a preset marked default is not applied implicitly."
-	readTemplateImportDefaultsNote = "Parameter defaults are the values " +
-		"recorded at template import and may differ from what the workspace " +
-		"owner receives. Pass parameters or a preset_id explicitly when the " +
-		"value matters."
+	readTemplateBuildDefaultsNote = "Parameter defaults are the values a " +
+		"build for this workspace owner uses when create_workspace omits the " +
+		"parameter. The build matches a preset by the resulting values; a " +
+		"preset marked default is not applied implicitly."
+	readTemplateImportDefaultsNote = "Parameter defaults could not be " +
+		"evaluated for the workspace owner and are the values recorded at " +
+		"template import, which may differ from what a build uses. Pass " +
+		"parameters or a preset_id explicitly when the value matters."
 	readTemplateImportingNote = "The active template version is still " +
 		"importing, so its parameters are not available yet. Retry " +
 		"read_template shortly."
 	readTemplateBuildTimeDefaultNote = "resolved on the provisioner at " +
 		"build time; showing the value recorded at template import"
-	// diagnosticCodeRequired mirrors preview's types.DiagnosticCodeRequired,
-	// attached to required parameters rendered without a value.
-	diagnosticCodeRequired = "required"
-)
-
-var (
-	// ErrTemplateVersionNotReady reports that the active version's import
-	// job has not finished, so no parameters exist to evaluate yet.
-	ErrTemplateVersionNotReady = xerrors.New("template version import has not finished")
-	// ErrTemplateVersionStaticParameters reports that the version was
-	// imported by a provisioner that predates dynamic parameters, so its
-	// defaults cannot be evaluated per owner.
-	ErrTemplateVersionStaticParameters = xerrors.New("template version does not support dynamic parameters")
 )
 
 // RenderTemplateParametersFn evaluates a template version's parameters as the
 // workspace owner would see them on the creation form, so defaults derived
 // from owner attributes such as groups resolve to the values a build uses.
+// It returns dynamicparameters.ErrTemplateVersionNotReady while the version
+// is still importing.
 type RenderTemplateParametersFn func(
 	ctx context.Context,
 	ownerID uuid.UUID,
@@ -84,11 +75,11 @@ func ReadTemplate(db database.Store, organizationID uuid.UUID, options ReadTempl
 		"read_template",
 		"Get details about a workspace template, including its "+
 			"configurable parameters, available presets, and the active "+
-			"version README. Parameter defaults are evaluated for the "+
-			"workspace owner, so they are the values create_workspace uses "+
-			"when a parameter is omitted. Use this after list_templates when "+
-			"you need parameter details, preset IDs, or the README before "+
-			"create_workspace.",
+			"version README. Parameter defaults are the values "+
+			"create_workspace uses when a parameter is omitted, unless "+
+			"parameters_note in the result says otherwise. Use this after "+
+			"list_templates when you need parameter details, preset IDs, or "+
+			"the README before create_workspace.",
 		func(ctx context.Context, args readTemplateArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
 			templateIDStr := strings.TrimSpace(args.TemplateID)
 			if templateIDStr == "" {
@@ -223,70 +214,66 @@ func readTemplateParameters(
 	template database.Template,
 	options ReadTemplateOptions,
 ) ([]map[string]any, string) {
-	params, err := db.GetTemplateVersionParameters(ctx, template.ActiveVersionID)
+	rows, err := db.GetTemplateVersionParameters(ctx, template.ActiveVersionID)
 	if err != nil {
 		return nil, xerrors.Errorf("failed to get template parameters: %w", err).Error()
 	}
-	staticByName := make(map[string]database.TemplateVersionParameter, len(params))
-	for _, p := range params {
-		staticByName[p.Name] = p
+	importEntries := func() []map[string]any {
+		paramList := make([]map[string]any, 0, len(rows))
+		for _, p := range rows {
+			paramList = append(paramList, staticParameterEntry(p))
+		}
+		return paramList
 	}
 
-	note := readTemplateImportDefaultsNote
-	if options.RenderParameters != nil {
-		start := time.Now()
-		rendered, diags, err := options.RenderParameters(ctx, options.OwnerID, template.ActiveVersionID)
-		fields := []slog.Field{
-			slog.F("template_id", template.ID),
-			slog.F("template_version_id", template.ActiveVersionID),
-			slog.F("owner_id", options.OwnerID),
-			slog.F("duration", time.Since(start)),
-		}
-		switch {
-		case err == nil && !hasErrorDiagnostic(diags):
-			paramList := make([]map[string]any, 0, len(rendered))
-			var invalid []string
-			for _, p := range rendered {
-				var static *database.TemplateVersionParameter
-				if row, ok := staticByName[p.Name]; ok {
-					static = &row
-				}
-				entry := renderedParameterEntry(p, static)
-				if _, ok := entry["error"]; ok {
-					invalid = append(invalid, p.Name)
-				}
-				paramList = append(paramList, entry)
-			}
-			if len(invalid) > 0 {
-				options.Logger.Warn(ctx, "read_template evaluated parameters for owner with invalid defaults",
-					append(fields, slog.F("parameters", invalid))...)
-			} else {
-				options.Logger.Debug(ctx, "read_template evaluated parameters for owner", fields...)
-			}
-			return paramList, readTemplateOwnerDefaultsNote
-		case errors.Is(err, ErrTemplateVersionNotReady):
-			options.Logger.Debug(ctx, "read_template skipped owner evaluation, template version still importing", fields...)
-			note = readTemplateImportingNote
-		case errors.Is(err, ErrTemplateVersionStaticParameters):
-			options.Logger.Debug(ctx, "read_template skipped owner evaluation, template version predates dynamic parameters", fields...)
-		default:
-			if err != nil {
-				fields = append(fields, slog.Error(err))
-			}
-			for _, d := range diags {
-				if d.Severity == codersdk.DiagnosticSeverityError {
-					fields = append(fields, slog.F("diagnostic", d.Summary+": "+d.Detail))
-				}
-			}
-			options.Logger.Warn(ctx, "read_template failed to evaluate parameters for owner, using import defaults", fields...)
-		}
+	// Builds for classic-flow templates resolve parameters from the import
+	// rows (wsbuilder.getClassicParameters), so those are the build values.
+	if template.UseClassicParameterFlow {
+		return importEntries(), readTemplateBuildDefaultsNote
+	}
+	if options.RenderParameters == nil {
+		return importEntries(), readTemplateImportDefaultsNote
 	}
 
-	paramList := make([]map[string]any, 0, len(params))
-	for _, p := range params {
-		paramList = append(paramList, staticParameterEntry(p))
+	start := time.Now()
+	rendered, diags, err := options.RenderParameters(ctx, options.OwnerID, template.ActiveVersionID)
+	fields := []slog.Field{
+		slog.F("template_id", template.ID),
+		slog.F("template_version_id", template.ActiveVersionID),
+		slog.F("owner_id", options.OwnerID),
+		slog.F("duration", time.Since(start)),
 	}
-	return paramList, note
+	switch {
+	case err == nil && !hasErrorDiagnostic(diags):
+		options.Logger.Debug(ctx, "read_template evaluated parameters for owner", fields...)
+		importByName := make(map[string]database.TemplateVersionParameter, len(rows))
+		for _, p := range rows {
+			importByName[p.Name] = p
+		}
+		paramList := make([]map[string]any, 0, len(rendered))
+		for _, p := range rendered {
+			var imported *database.TemplateVersionParameter
+			if row, ok := importByName[p.Name]; ok {
+				imported = &row
+			}
+			paramList = append(paramList, renderedParameterEntry(p, imported))
+		}
+		return paramList, readTemplateBuildDefaultsNote
+	case errors.Is(err, dynamicparameters.ErrTemplateVersionNotReady):
+		options.Logger.Debug(ctx, "read_template skipped owner evaluation, template version still importing", fields...)
+		return importEntries(), readTemplateImportingNote
+	default:
+		if err != nil {
+			fields = append(fields, slog.Error(err))
+		}
+		for _, d := range diags {
+			if d.Severity == codersdk.DiagnosticSeverityError {
+				fields = append(fields, slog.F("diagnostic", d.Summary+": "+d.Detail))
+			}
+		}
+		options.Logger.Warn(ctx, "read_template failed to evaluate parameters for owner, using import defaults", fields...)
+		return importEntries(), readTemplateImportDefaultsNote
+	}
 }
 
 func hasErrorDiagnostic(diags []codersdk.FriendlyDiagnostic) bool {
@@ -300,8 +287,8 @@ func hasErrorDiagnostic(diags []codersdk.FriendlyDiagnostic) bool {
 
 // renderedParameterEntry converts an owner-evaluated parameter into the same
 // shape as staticParameterEntry so the model sees one schema either way.
-// static is the import-time row for the same parameter, or nil.
-func renderedParameterEntry(p codersdk.PreviewParameter, static *database.TemplateVersionParameter) map[string]any {
+// imported is the import-time row for the same parameter, or nil.
+func renderedParameterEntry(p codersdk.PreviewParameter, imported *database.TemplateVersionParameter) map[string]any {
 	param := map[string]any{
 		"name":     p.Name,
 		"type":     string(p.Type),
@@ -319,7 +306,7 @@ func renderedParameterEntry(p codersdk.PreviewParameter, static *database.Templa
 		// Rendering with no inputs tags every required parameter with a
 		// "required" error; that state is already conveyed by required
 		// being true with no default, so it is not a broken default.
-		if d.Severity != codersdk.DiagnosticSeverityError || d.Extra.Code == diagnosticCodeRequired {
+		if d.Severity != codersdk.DiagnosticSeverityError || d.Extra.Code == previewtypes.DiagnosticCodeRequired {
 			continue
 		}
 		paramErr = strings.TrimSpace(d.Summary + ": " + d.Detail)
@@ -338,10 +325,10 @@ func renderedParameterEntry(p codersdk.PreviewParameter, static *database.Templa
 		if p.DefaultValue.Value != "" {
 			param["default"] = p.DefaultValue.Value
 		}
-	case !p.Required && static != nil && static.DefaultValue != "":
+	case !p.Required && imported != nil && imported.DefaultValue != "":
 		// Unknown before the build, for example data.coder_provisioner
 		// attributes. The import-time value is the best available estimate.
-		param["default"] = static.DefaultValue
+		param["default"] = imported.DefaultValue
 		param["default_note"] = readTemplateBuildTimeDefaultNote
 	}
 	if p.Ephemeral {

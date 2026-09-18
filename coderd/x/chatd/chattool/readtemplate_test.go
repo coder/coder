@@ -12,9 +12,12 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/v3/sloggers/slogtest"
+
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/dynamicparameters"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
@@ -346,17 +349,18 @@ func TestReadTemplate_OwnerEvaluatedParameters(t *testing.T) {
 		},
 	}
 
-	readParams := func(t *testing.T, render chattool.RenderTemplateParametersFn) (map[string]any, string) {
+	readTemplateParams := func(t *testing.T, templateID uuid.UUID, render chattool.RenderTemplateParametersFn) (map[string]any, string) {
 		t.Helper()
 		ctx := testutil.Context(t, testutil.WaitShort)
 		tool := chattool.ReadTemplate(db, org.ID, chattool.ReadTemplateOptions{
 			OwnerID:          user.ID,
 			RenderParameters: render,
+			Logger:           slogtest.Make(t, nil),
 		})
 		resp, err := tool.Run(ctx, fantasy.ToolCall{
 			ID:    "call-owner",
 			Name:  "read_template",
-			Input: `{"template_id":"` + tmpl.ID.String() + `"}`,
+			Input: `{"template_id":"` + templateID.String() + `"}`,
 		})
 		require.NoError(t, err)
 		require.False(t, resp.IsError, "unexpected error: %s", resp.Content)
@@ -368,6 +372,10 @@ func TestReadTemplate_OwnerEvaluatedParameters(t *testing.T) {
 		require.Len(t, params, 1)
 		note, _ := result["parameters_note"].(string)
 		return params[0].(map[string]any), note
+	}
+	readParams := func(t *testing.T, render chattool.RenderTemplateParametersFn) (map[string]any, string) {
+		t.Helper()
+		return readTemplateParams(t, tmpl.ID, render)
 	}
 
 	t.Run("OwnerDefaultsWin", func(t *testing.T) {
@@ -387,7 +395,7 @@ func TestReadTemplate_OwnerEvaluatedParameters(t *testing.T) {
 		require.True(t, ok)
 		require.Len(t, opts, 2)
 		require.Equal(t, "eu-helsinki", opts[1].(map[string]any)["value"])
-		require.Contains(t, note, "evaluated for the workspace owner")
+		require.Contains(t, note, "values a build for this workspace owner uses")
 	})
 
 	t.Run("ParameterErrorIsReported", func(t *testing.T) {
@@ -409,7 +417,7 @@ func TestReadTemplate_OwnerEvaluatedParameters(t *testing.T) {
 		_, hasDefault := region["default"]
 		require.False(t, hasDefault, "an errored default must not be asserted")
 		require.Equal(t, `Value must be a valid option: not-an-option is not one of the options; the evaluated default "not-an-option" cannot be used, pass a value explicitly`, region["error"])
-		require.Contains(t, note, "evaluated for the workspace owner")
+		require.Contains(t, note, "values a build for this workspace owner uses")
 	})
 
 	t.Run("RequiredWithoutValueIsNotAnError", func(t *testing.T) {
@@ -439,7 +447,7 @@ func TestReadTemplate_OwnerEvaluatedParameters(t *testing.T) {
 		require.False(t, hasDefault)
 		_, hasErr := region["error"]
 		require.False(t, hasErr)
-		require.Contains(t, note, "evaluated for the workspace owner")
+		require.Contains(t, note, "values a build for this workspace owner uses")
 	})
 
 	t.Run("RenderErrorFallsBack", func(t *testing.T) {
@@ -464,19 +472,39 @@ func TestReadTemplate_OwnerEvaluatedParameters(t *testing.T) {
 	t.Run("NotReadyReportsImporting", func(t *testing.T) {
 		t.Parallel()
 		region, note := readParams(t, func(context.Context, uuid.UUID, uuid.UUID) ([]codersdk.PreviewParameter, []codersdk.FriendlyDiagnostic, error) {
-			return nil, nil, xerrors.Errorf("prepare: %w", chattool.ErrTemplateVersionNotReady)
+			return nil, nil, xerrors.Errorf("prepare: %w", dynamicparameters.ErrTemplateVersionNotReady)
 		})
 		require.Equal(t, "us-pittsburgh", region["default"])
 		require.Contains(t, note, "still importing")
 	})
 
-	t.Run("LegacyProvisionerUsesImportDefaults", func(t *testing.T) {
+	t.Run("ClassicFlowSkipsOwnerEvaluation", func(t *testing.T) {
 		t.Parallel()
-		region, note := readParams(t, func(context.Context, uuid.UUID, uuid.UUID) ([]codersdk.PreviewParameter, []codersdk.FriendlyDiagnostic, error) {
-			return nil, nil, chattool.ErrTemplateVersionStaticParameters
+		// Builds for classic-flow templates use the import rows, so those are
+		// reported as the build values without consulting the renderer.
+		classicVersion := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+			OrganizationID: org.ID,
+			CreatedBy:      user.ID,
+		})
+		classic := dbgen.Template(t, db, database.Template{
+			OrganizationID:          org.ID,
+			CreatedBy:               user.ID,
+			ActiveVersionID:         classicVersion.ID,
+			AgentsAllowed:           true,
+			UseClassicParameterFlow: true,
+		})
+		_ = dbgen.TemplateVersionParameter(t, db, database.TemplateVersionParameter{
+			TemplateVersionID: classicVersion.ID,
+			Name:              "Region",
+			Type:              "string",
+			DefaultValue:      "us-pittsburgh",
+		})
+		region, note := readTemplateParams(t, classic.ID, func(context.Context, uuid.UUID, uuid.UUID) ([]codersdk.PreviewParameter, []codersdk.FriendlyDiagnostic, error) {
+			t.Fatal("renderer must not run for classic-flow templates")
+			return nil, nil, nil
 		})
 		require.Equal(t, "us-pittsburgh", region["default"])
-		require.Contains(t, note, "recorded at template import")
+		require.Contains(t, note, "values a build for this workspace owner uses")
 	})
 
 	t.Run("BuildTimeDefaultUsesImportValue", func(t *testing.T) {
@@ -491,7 +519,7 @@ func TestReadTemplate_OwnerEvaluatedParameters(t *testing.T) {
 		require.Contains(t, region["default_note"], "recorded at template import")
 		_, hasErr := region["error"]
 		require.False(t, hasErr)
-		require.Contains(t, note, "evaluated for the workspace owner")
+		require.Contains(t, note, "values a build for this workspace owner uses")
 	})
 
 	t.Run("NoRendererUsesImportDefaults", func(t *testing.T) {
