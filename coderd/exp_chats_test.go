@@ -13046,7 +13046,7 @@ func TestChatSystemPrompt(t *testing.T) {
 
 	const workspaceAwareness = `No workspace is attached to this chat yet.
 Use the conversation and available tools, skills, and MCPs when they are sufficient for the request.
-Workspace tools such as execute, read_file, write_file, and edit_files require an attached workspace. If missing tools, skills, MCPs, or context prevent progress, or workspace-backed work is needed, create a suitable workspace with create_workspace or start an existing one with start_workspace. Use the workspace's available context and capabilities to continue the user's request.
+Workspace tools such as execute, read_file, write_file, and edit_files require an attached workspace. If missing tools, skills, MCPs, or context prevent progress, or workspace-backed work is needed, create a suitable workspace with create_workspace. Use the workspace's available context and capabilities to continue the user's request.
 If a workspace is needed, use list_templates before create_workspace and follow its next_step. Call read_template only when you need template parameter or preset details.`
 
 	updateChatSystemPrompt := func(t *testing.T, ctx context.Context, req codersdk.UpdateChatSystemPromptRequest) {

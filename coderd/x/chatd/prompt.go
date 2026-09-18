@@ -21,7 +21,7 @@ const workspaceDetachedAwarenessBase = `No workspace is attached to this chat ye
 Use the conversation and available tools, skills, and MCPs when they are sufficient for the request.
 Workspace tools such as execute, read_file, write_file, and edit_files require an attached workspace.`
 
-const workspaceDetachedAwareness = workspaceDetachedAwarenessBase + ` If missing tools, skills, MCPs, or context prevent progress, or workspace-backed work is needed, create a suitable workspace with create_workspace or start an existing one with start_workspace. Use the workspace's available context and capabilities to continue the user's request.
+const workspaceDetachedAwareness = workspaceDetachedAwarenessBase + ` If missing tools, skills, MCPs, or context prevent progress, or workspace-backed work is needed, create a suitable workspace with create_workspace. Use the workspace's available context and capabilities to continue the user's request.
 If a workspace is needed, use list_templates before create_workspace and follow its ` + chattool.NextStepField + `. Call read_template only when you need template parameter or preset details.`
 
 const workspaceDetachedNoCreateAwareness = workspaceDetachedAwarenessBase + ` This delegated chat cannot create or start a workspace. If workspace-backed work is required, report that need to the parent agent instead of trying workspace tools.`
@@ -48,7 +48,7 @@ Do not expose credentials or other secrets in messages, commands, logs, or commi
 
 <tool-use>
 Use tools to obtain missing evidence or take action, not to maximize tool calls. Answer from existing context when it is sufficient; verify repository claims and current external facts with evidence.
-Use available tools, skills, MCPs, and conversation context when they are sufficient for the request. If missing tools, skills, MCPs, or context prevent progress, or workspace-backed work is needed, root chats should create or start a suitable workspace if none is attached, then use its available context and capabilities to continue the user's request. Delegated chats must report workspace needs to the parent agent instead of attempting to create or start a workspace.
+Use available tools, skills, MCPs, and conversation context when they are sufficient for the request. If missing tools, skills, MCPs, or context prevent progress, or workspace-backed work is needed, root chats should create a suitable workspace if none is attached, then use its available context and capabilities to continue the user's request. Reuse an attached workspace; root chats can use start_workspace if it is stopped. Delegated chats must report workspace needs to the parent agent instead of attempting to create or start a workspace.
 Use the tools actually available to you and follow their schemas. Do not invent tool names, existing-resource identifiers, or results; obtain missing required inputs before calling a tool.
 When workspace file tools are available, use read_file, edit_files, and write_file for reading and changing files instead of cat, sed, or shell redirection; use execute for searches, builds, tests, and other commands.
 Batch independent lookups when useful. Run dependent operations sequentially, checking each result before acting on it. Do not run edits concurrently with checks that depend on those edits, or publish changes before required checks finish.
@@ -113,7 +113,7 @@ Propose a plan when the user asks for one or a material decision needs review be
 Do not require plan approval for routine implementation that the user has already authorized.
 
 Use the conversation, available tools, skills, MCPs, and template metadata when they are sufficient for planning.
-If no workspace is attached, root chats should create or start one when missing tools, skills, or context block planning, when the plan requires inspecting, editing, or running workspace files, or before writing the required plan artifact if no other valid plan path is available. Delegated chats must report workspace needs to the parent agent. Use the workspace's available context and capabilities to continue planning.
+If no workspace is attached, root chats should create one when missing tools, skills, or context block planning, when the plan requires inspecting, editing, or running workspace files, or before writing the required plan artifact if no other valid plan path is available. Delegated chats must report workspace needs to the parent agent. Use the workspace's available context and capabilities to continue planning.
 In Plan Mode, workspace MCP tools remain unavailable after workspace creation; do not provision a workspace solely to access them.
 Once a workspace is available:
 ` + defaultSystemPromptPlanningGuidance + `
@@ -137,7 +137,7 @@ You may use execute and process_output for exploration, including cloning reposi
 Before cloning, inspect the current workspace and reuse existing repositories when they are already available.
 Do not use Plan Mode to implement the requested changes or intentionally modify project files outside the plan file.
 Use the conversation, available tools, skills, MCPs, and template metadata when they are sufficient for planning.
-If no workspace is attached, root chats should create or start one when missing tools, skills, or context block planning, when the plan requires inspecting, editing, or running workspace files, or before writing the required plan artifact if no other valid plan path is available. Delegated chats must report workspace needs to the parent agent. Use the workspace's available context and capabilities to continue planning.
+If no workspace is attached, root chats should create one when missing tools, skills, or context block planning, when the plan requires inspecting, editing, or running workspace files, or before writing the required plan artifact if no other valid plan path is available. Delegated chats must report workspace needs to the parent agent. Use the workspace's available context and capabilities to continue planning.
 In Plan Mode, workspace MCP tools remain unavailable after workspace creation; do not provision a workspace solely to access them.
 If the plan file already exists, read it first with read_file before replacing or refining it.
 ` + planningOverlaySubagentGuidance() + `

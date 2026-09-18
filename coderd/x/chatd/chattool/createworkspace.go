@@ -93,8 +93,9 @@ func CreateWorkspace(db database.Store, organizationID, chatID uuid.UUID, option
 			"MCPs, or context prevent progress, when workspace-backed work is "+
 			"needed, or when the user explicitly asks for one. Use the "+
 			"workspace's available context and capabilities to continue the "+
-			"request. Prefer existing tools and context when they are "+
-			"sufficient. Requires a "+
+			"request. In Plan Mode, workspace MCP tools remain unavailable; "+
+			"do not create a workspace solely to access them. Prefer existing "+
+			"tools and context when they are sufficient. Requires a "+
 			"template_id from list_templates; follow its "+NextStepField+" "+
 			"before calling. Optionally provide a name (one is generated if "+
 			"omitted), parameter values, and a preset_id from read_template "+
