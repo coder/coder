@@ -91,6 +91,12 @@ const ChatSharingTopBarButton: FC<ChatSharingTopBarButtonProps> = ({
 	);
 };
 
+// The PR number as a string, from the column or parsed from the
+// URL. Branch rows carry a /tree URL and have none, which is what
+// keeps them out of the PR chips.
+const prNumber = (status: TypesGen.ChatDiffStatus): string | undefined =>
+	status.pr_number?.toString() ?? parsePullRequestUrl(status.url)?.number;
+
 export const ChatTopBar: FC<ChatTopBarProps> = ({
 	chat,
 	liveChatStatus,
@@ -155,11 +161,9 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 	const showPinAction = Boolean(requestPinAgent && requestUnpinAgent);
 
 	// A chat tracks one status row per ref, ordered newest first.
-	// Only rows that point to a pull request become chips; branch
-	// rows carry a /tree URL instead of a PR URL. The first row is
-	// the primary.
-	const prStatuses = (chat?.diff_statuses ?? []).filter((status) =>
-		Boolean(status.pr_number ?? parsePullRequestUrl(status.url)),
+	// The first row is the primary.
+	const prStatuses = (chat?.diff_statuses ?? []).filter(
+		(status) => prNumber(status) !== undefined,
 	);
 	const hasMultiplePRs = prStatuses.length > 1;
 
@@ -322,30 +326,28 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 						</button>
 					</DropdownMenuTrigger>
 					<DropdownMenuContent align="start" className="min-w-[240px] p-1">
-						{prStatuses.map((status) => {
-							const parsed = parsePullRequestUrl(status.url);
-							const number = status.pr_number?.toString() ?? parsed?.number;
-							return (
-								<DropdownMenuItem
-									key={`${status.remote_origin}/${status.git_branch}`}
-									onSelect={() => {
-										if (status.url) {
-											window.open(status.url, "_blank", "noreferrer");
-										}
-									}}
-									className="flex items-center gap-2 rounded-sm px-2 py-1.5 text-xs"
-								>
-									<PrStateIcon
-										state={status.pull_request_state}
-										draft={status.pull_request_draft}
-										className="size-3.5! shrink-0"
-									/>
-									{/* The number keeps every item distinguishable when
+						{prStatuses.map((status) => (
+							<DropdownMenuItem
+								key={`${status.remote_origin}/${status.git_branch}`}
+								onSelect={() => {
+									if (status.url) {
+										window.open(status.url, "_blank", "noreferrer");
+									}
+								}}
+								className="flex items-center gap-2 rounded-sm px-2 py-1.5 text-xs"
+							>
+								<PrStateIcon
+									state={status.pull_request_state}
+									draft={status.pull_request_draft}
+									className="size-3.5! shrink-0"
+								/>
+								{/* The number keeps every item distinguishable when
 										two PRs share a title. */}
-									<span className="truncate">{`PR #${number} ${status.pull_request_title}`}</span>
-								</DropdownMenuItem>
-							);
-						})}
+								<span className="truncate">
+									{`PR #${prNumber(status)} ${status.pull_request_title}`}
+								</span>
+							</DropdownMenuItem>
+						))}
 					</DropdownMenuContent>
 				</DropdownMenu>
 			) : (
@@ -392,8 +394,7 @@ type PrLinkProps = {
 // The PR chip in the top bar. On mobile it shows the number, on
 // desktop the title.
 const PrLink: FC<PrLinkProps> = ({ status, className }) => {
-	const parsed = parsePullRequestUrl(status.url);
-	const number = status.pr_number?.toString() ?? parsed?.number;
+	const number = prNumber(status);
 
 	return (
 		<a
