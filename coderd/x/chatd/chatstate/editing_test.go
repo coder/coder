@@ -13,9 +13,9 @@ import (
 )
 
 // Scenario tests for queued-message edits (multi-step flows the matrix
-// cells do not cover) and the queries the edit marker depends on.
+// cells do not cover) and the queue queries the edit endpoints read.
 
-func setEditing(t *testing.T, f *testFixture, m *chatstate.ChatMachine, id int64, editing bool) chatstate.EditQueuedMessageResult {
+func setEditing(t *testing.T, m *chatstate.ChatMachine, id int64, editing bool) chatstate.EditQueuedMessageResult {
 	t.Helper()
 	var res chatstate.EditQueuedMessageResult
 	require.NoError(t, m.Update(testutil.Context(t, testutil.WaitShort), func(tx *chatstate.Tx, _ database.Store) error {
@@ -26,7 +26,7 @@ func setEditing(t *testing.T, f *testFixture, m *chatstate.ChatMachine, id int64
 	return res
 }
 
-func finishTurn(t *testing.T, f *testFixture, m *chatstate.ChatMachine) chatstate.FinishTurnResult {
+func finishTurn(t *testing.T, m *chatstate.ChatMachine) chatstate.FinishTurnResult {
 	t.Helper()
 	var res chatstate.FinishTurnResult
 	require.NoError(t, m.Update(testutil.Context(t, testutil.WaitShort), func(tx *chatstate.Tx, _ database.Store) error {
@@ -51,18 +51,18 @@ func TestEditing_WhileRunning(t *testing.T) {
 	for i := 1; i <= 5; i++ {
 		ids = append(ids, sendQueuedMessage(t, f, m, "row").QueuedMessage.ID)
 	}
-	setEditing(t, f, m, ids[2], true)
+	setEditing(t, m, ids[2], true)
 	require.Equal(t, chatstate.StateR1, f.classify(ctx, t, chatID), "an edit behind the head changes nothing")
 
-	require.NotNil(t, finishTurn(t, f, m).PromotedMessage, "row 1 promoted")
-	require.NotNil(t, finishTurn(t, f, m).PromotedMessage, "row 2 promoted")
-	third := finishTurn(t, f, m)
+	require.NotNil(t, finishTurn(t, m).PromotedMessage, "row 1 promoted")
+	require.NotNil(t, finishTurn(t, m).PromotedMessage, "row 2 promoted")
+	third := finishTurn(t, m)
 	require.Nil(t, third.PromotedMessage, "row 3 is under edit")
 	require.Equal(t, chatstate.StateP, f.classify(ctx, t, chatID))
 	require.Equal(t, ids[2:], queuedIDsByPosition(ctx, t, f, chatID))
 
 	// Ending the edit resumes with row 3.
-	setEditing(t, f, m, ids[2], false)
+	setEditing(t, m, ids[2], false)
 	require.Equal(t, chatstate.StateR1, f.classify(ctx, t, chatID))
 	require.Equal(t, ids[3:], queuedIDsByPosition(ctx, t, f, chatID))
 }
@@ -143,8 +143,8 @@ func TestGetStaleChats_ExcludesPaused(t *testing.T) {
 	require.True(t, contains(stale), "waiting with rows is reported")
 }
 
-// TestGetChatQueuedMessages_OrdersByPosition: the listing follows
-// position, which "send now" on a later row changes.
+// The listing follows position, which PromoteQueuedMessage on a later
+// row changes.
 func TestGetChatQueuedMessages_OrdersByPosition(t *testing.T) {
 	t.Parallel()
 	f := newTestFixture(t)
