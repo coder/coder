@@ -135,6 +135,7 @@ textarea:focus-visible {
 	pointer-events: none;
 }
 
+
 .highlight {
 	position: fixed;
 	z-index: 2147483646;
@@ -203,6 +204,110 @@ textarea:focus-visible {
 	text-overflow: ellipsis;
 }
 
+
+/* "Agent working" state: a faint tint, a comet of light circling the
+   border, and an occasional soft diagonal glint. Everything animates on
+   the compositor (transform only) and never obscures the element. */
+.shimmer {
+	position: fixed;
+	z-index: 2147483645;
+	pointer-events: none;
+	overflow: hidden;
+	border-radius: var(--radius-lg);
+	background: hsl(213 94% 68% / 0.06);
+}
+
+/* A ring the same width as the selection outline: the element is masked
+   to its padding box edge so only the border area shows, and the rotating
+   conic gradient inside it reads as a beam travelling around a steady
+   dim outline. */
+.shimmer .beam {
+	position: absolute;
+	inset: 0;
+	padding: var(--outline-width);
+	border-radius: inherit;
+	-webkit-mask:
+		linear-gradient(#000 0 0) content-box,
+		linear-gradient(#000 0 0);
+	-webkit-mask-composite: xor;
+	mask:
+		linear-gradient(#000 0 0) content-box,
+		linear-gradient(#000 0 0);
+	mask-composite: exclude;
+}
+
+.shimmer .beam::before {
+	content: "";
+	position: absolute;
+	left: 50%;
+	top: 50%;
+	width: var(--diagonal, 100%);
+	height: var(--diagonal, 100%);
+	margin: calc(var(--diagonal, 100%) / -2) 0 0 calc(var(--diagonal, 100%) / -2);
+	border-radius: 50%;
+	background: conic-gradient(
+		from 0deg,
+		hsl(213 94% 68% / 0.3) 0 55%,
+		hsl(213 94% 68% / 0.5) 75%,
+		hsl(213 94% 68%) 88%,
+		hsl(0 0% 85%) 94%,
+		hsl(213 94% 68% / 0.3) 100%
+	);
+	animation: coder-beam 3s linear infinite;
+	will-change: transform;
+}
+
+/* A -32deg #D9D9D9 glint that crosses the box, rests off-screen, then
+   returns. The band is a rotated strip with its gradient running across
+   its own width, so its edges sit exactly on the transparent stops and
+   there is no hard seam where the layer ends. It is sized from the box
+   diagonal so it always spans the box, and slides along its own axis. */
+.shimmer::after {
+	content: "";
+	position: absolute;
+	left: 50%;
+	top: 50%;
+	width: calc(var(--diagonal, 100%) * 0.6);
+	height: calc(var(--diagonal, 100%) * 2);
+	margin: calc(var(--diagonal, 100%) * -1) 0 0
+		calc(var(--diagonal, 100%) * -0.3);
+	background: linear-gradient(
+		90deg,
+		hsl(0 0% 85% / 0) 0%,
+		hsl(0 0% 85% / 0.16) 50%,
+		hsl(0 0% 85% / 0) 100%
+	);
+	animation: coder-glint 3.6s cubic-bezier(0.45, 0, 0.2, 1) infinite;
+	will-change: transform;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.shimmer .beam::before,
+	.shimmer::after {
+		animation: none;
+	}
+
+	/* A steady ring stands in for the moving beam. */
+	.shimmer .beam::before {
+		background: hsl(213 94% 68% / 0.6);
+	}
+}
+
+@keyframes coder-beam {
+	to {
+		transform: rotate(1turn);
+	}
+}
+
+@keyframes coder-glint {
+	0% {
+		transform: rotate(-32deg) translateX(-200%);
+	}
+	55%,
+	100% {
+		transform: rotate(-32deg) translateX(200%);
+	}
+}
 
 .popup {
 	position: fixed;

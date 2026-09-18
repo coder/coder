@@ -50,10 +50,27 @@ export type AnnotatorToHostMessage =
 	| { type: "coder-annotator:state"; picking: boolean }
 	| ({ type: "coder-annotator:submit" } & AnnotationSubmission);
 
-export type HostToAnnotatorMessage = {
-	type: "coder-annotator:set-picking";
-	picking: boolean;
-};
+/**
+ * Attribute the overlay stamps on an element when a comment about it is
+ * sent, valued with the annotation id. Highlights look the element up by
+ * it first, so a same-shaped element on another page is not mistaken for
+ * the annotated one.
+ */
+export const annotationIdAttribute = "data-coder-annotation-id";
+
+export interface HighlightItem {
+	id: string;
+	selector: string;
+	// Page the annotation was made on. The selector is only trusted as a
+	// fallback while the preview is still on that page.
+	url: string;
+}
+
+export type HostToAnnotatorMessage =
+	| { type: "coder-annotator:set-picking"; picking: boolean }
+	// Marks previously annotated elements while the agent works on them.
+	| { type: "coder-annotator:highlight"; items: HighlightItem[] }
+	| { type: "coder-annotator:clear-highlights" };
 
 const messagePrefix = "coder-annotator:";
 
@@ -255,6 +272,10 @@ export function isHostToAnnotatorMessage(
 	switch (value.type) {
 		case "coder-annotator:set-picking":
 			return "picking" in value && typeof value.picking === "boolean";
+		case "coder-annotator:clear-highlights":
+			return true;
+		case "coder-annotator:highlight":
+			return "items" in value && Array.isArray(value.items);
 		default:
 			return false;
 	}

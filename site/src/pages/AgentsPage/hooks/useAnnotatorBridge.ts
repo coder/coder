@@ -1,5 +1,6 @@
 import {
 	type AnnotationSubmission,
+	type HighlightItem,
 	type HostToAnnotatorMessage,
 	parseAnnotatorToHostMessage,
 } from "@coder/annotator/protocol";
@@ -36,6 +37,8 @@ interface AnnotatorBridge {
 	// Call from the iframe's onLoad. A React prop is attached before the
 	// frame can load, unlike a listener added from an effect.
 	frameLoaded: () => void;
+	highlight: (items: HighlightItem[]) => void;
+	clearHighlights: () => void;
 }
 
 /**
@@ -182,5 +185,23 @@ export function useAnnotatorBridge({
 		[post],
 	);
 
-	return { ready, unavailable, picking, setPicking, frameLoaded };
+	const highlight = useCallback(
+		(items: HighlightItem[]) =>
+			post({ type: "coder-annotator:highlight", items }),
+		[post],
+	);
+	const clearHighlights = useCallback(
+		() => post({ type: "coder-annotator:clear-highlights" }),
+		[post],
+	);
+
+	return {
+		ready,
+		unavailable,
+		picking,
+		setPicking,
+		frameLoaded,
+		highlight,
+		clearHighlights,
+	};
 }
