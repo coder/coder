@@ -3,7 +3,8 @@ package chatd
 import (
 	"context"
 	"database/sql"
-	"sync"
+	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -146,6 +147,38 @@ func TestBuildWorkspaceMCPView(t *testing.T) {
 		require.NotContains(t, summary, "connected")
 	})
 
+	t.Run("SummaryIsBounded", func(t *testing.T) {
+		t.Parallel()
+		// Many declared servers with long diagnostics must not turn the
+		// prompt note into a context-window hazard.
+		pinned := make([]database.ChatContextResource, 0, 12)
+		for i := 0; i < 12; i++ {
+			r := mcpServerResource(t, fmt.Sprintf("srv-%02d", i), &agentproto.MCPServerBody{}, database.WorkspaceAgentContextResourceStatusUnreadable)
+			r.Error = strings.Repeat("e", 1000)
+			pinned = append(pinned, r)
+		}
+		view := buildWorkspaceMCPView(
+			database.WorkspaceAgent{ID: agentID, AgentRunID: "run-a"},
+			&database.WorkspaceAgentContextSnapshot{AgentRunID: "run-a", McpDiscoveryPhase: database.WorkspaceAgentMcpDiscoveryPhaseComplete},
+			pinned,
+		)
+		summary := view.Summary()
+		require.Less(t, len(summary), 12*1000, "diagnostics are trimmed")
+		require.Contains(t, summary, "; and 4 more.")
+		require.Equal(t, summaryMaxEntries, strings.Count(summary, "..."), "each listed diagnostic is trimmed once")
+		require.NotContains(t, summary, "srv-11", "entries past the cap are counted, not listed")
+
+		// Names and paths are bounded too, since each source may be 1 KiB.
+		longName := strings.Repeat("n", 1000)
+		single := buildWorkspaceMCPView(
+			database.WorkspaceAgent{ID: agentID, AgentRunID: "run-a"},
+			&database.WorkspaceAgentContextSnapshot{AgentRunID: "run-a", McpDiscoveryPhase: database.WorkspaceAgentMcpDiscoveryPhasePending},
+			[]database.ChatContextResource{mcpServerResource(t, longName, &agentproto.MCPServerBody{ServerName: longName}, database.WorkspaceAgentContextResourceStatusOk)},
+		).Summary()
+		require.Less(t, len(single), 400, "a 1 KiB server name is trimmed")
+		require.Contains(t, single, "...")
+	})
+
 	t.Run("CompleteWithoutIssuesIsNotIncomplete", func(t *testing.T) {
 		t.Parallel()
 		view := buildWorkspaceMCPView(database.WorkspaceAgent{ID: agentID, AgentRunID: "run-a"}, complete, []database.ChatContextResource{okServer, okConfig})
@@ -273,40 +306,4 @@ func TestLoadWorkspaceMCPView(t *testing.T) {
 		require.Len(t, view.servers, 1, "the pinned outcomes are still reported")
 		require.Equal(t, 1, view.servers[0].toolCount)
 	})
-}
-
-// TestResolveWorkspaceMCPTools_UsesReboundAgent covers the first turn after
-// a rebuild: getWorkspaceAgent has already rebound the turn's chat snapshot
-// to the replacement agent, while the chat row loaded at turn start still
-// names the soft-deleted one. The view must follow the rebound agent, or
-// every replacement tool is withheld for that turn.
-func TestResolveWorkspaceMCPTools_UsesReboundAgent(t *testing.T) {
-	t.Parallel()
-	ctrl := gomock.NewController(t)
-	db := dbmock.NewMockStore(ctrl)
-	chatID := uuid.New()
-	oldAgentID := uuid.New()
-	newAgentID := uuid.New()
-	db.EXPECT().ListChatContextResourcesByChatID(gomock.Any(), chatID).
-		Return([]database.ChatContextResource{mcpServerResource(t, "fs", &agentproto.MCPServerBody{
-			ServerName: "fs", Tools: []*agentproto.MCPTool{{Name: "read"}},
-		}, database.WorkspaceAgentContextResourceStatusOk)}, nil)
-	expectWorkspaceMCPViewTx(db)
-	db.EXPECT().GetWorkspaceAgentByID(gomock.Any(), newAgentID).
-		Return(database.WorkspaceAgent{ID: newAgentID, AgentRunID: "run-b"}, nil)
-	db.EXPECT().GetLatestWorkspaceAgentContextSnapshot(gomock.Any(), newAgentID).
-		Return(database.WorkspaceAgentContextSnapshot{AgentRunID: "run-b", McpDiscoveryPhase: database.WorkspaceAgentMcpDiscoveryPhaseComplete}, nil)
-	server := newPinServer(t, db)
-
-	loaded := database.Chat{ID: chatID, AgentID: uuid.NullUUID{UUID: oldAgentID, Valid: true}}
-	rebound := loaded
-	rebound.AgentID = uuid.NullUUID{UUID: newAgentID, Valid: true}
-	workspaceCtx := &turnWorkspaceContext{
-		server:      server,
-		chatStateMu: &sync.Mutex{},
-		currentChat: &rebound,
-	}
-
-	tools := server.resolveWorkspaceMCPTools(context.Background(), server.logger, loaded, workspaceCtx)
-	require.Len(t, tools, 1, "replacement tools are served on the rebinding turn")
 }

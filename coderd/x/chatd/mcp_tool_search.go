@@ -113,15 +113,20 @@ func workspaceMCPServerName(tool fantasy.AgentTool) string {
 
 type mcpToolSearchInput struct {
 	experimentEnabled bool
-	candidates        []deferredMCPTool
-	dynamicToolNames  map[string]bool
+	// allowEmpty keeps find_tools available with no candidates so a
+	// workspace created or started later in the turn can still have its
+	// tools discovered in the same batch. Only regular root execution
+	// turns qualify.
+	allowEmpty       bool
+	candidates       []deferredMCPTool
+	dynamicToolNames map[string]bool
 }
 
 // decideMCPToolSearch reports whether MCP tool schemas are deferred
 // behind find_tools. With the experiment enabled, every generation with
 // deferrable candidates defers.
 func decideMCPToolSearch(input mcpToolSearchInput) bool {
-	if !input.experimentEnabled || len(input.candidates) == 0 {
+	if !input.experimentEnabled || (len(input.candidates) == 0 && !input.allowEmpty) {
 		return false
 	}
 	// A client-executed dynamic tool named find_tools would otherwise be

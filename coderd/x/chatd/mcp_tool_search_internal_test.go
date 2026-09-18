@@ -43,6 +43,7 @@ func TestDecideMCPToolSearch(t *testing.T) {
 	tests := []struct {
 		name         string
 		experiment   bool
+		allowEmpty   bool
 		candidates   []deferredMCPTool
 		dynamicNames map[string]bool
 		want         bool
@@ -50,6 +51,9 @@ func TestDecideMCPToolSearch(t *testing.T) {
 		{name: "experiment on", experiment: true, candidates: candidates, want: true},
 		{name: "experiment off", candidates: candidates},
 		{name: "empty", experiment: true},
+		{name: "empty workspace catalog", experiment: true, allowEmpty: true, want: true},
+		{name: "empty experiment off", allowEmpty: true},
+		{name: "empty dynamic collision", experiment: true, allowEmpty: true, dynamicNames: map[string]bool{chattool.FindToolsName: true}},
 		{name: "collision", experiment: true, candidates: []deferredMCPTool{testDeferredTool(chattool.FindToolsName, "collision", nil)}},
 		{name: "dynamic collision", experiment: true, candidates: candidates, dynamicNames: map[string]bool{chattool.FindToolsName: true}},
 		{name: "dynamic no collision", experiment: true, candidates: candidates, dynamicNames: map[string]bool{"other": true}, want: true},
@@ -59,6 +63,7 @@ func TestDecideMCPToolSearch(t *testing.T) {
 			t.Parallel()
 			require.Equal(t, tt.want, decideMCPToolSearch(mcpToolSearchInput{
 				experimentEnabled: tt.experiment,
+				allowEmpty:        tt.allowEmpty,
 				candidates:        tt.candidates,
 				dynamicToolNames:  tt.dynamicNames,
 			}))
