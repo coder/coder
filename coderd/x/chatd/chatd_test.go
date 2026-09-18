@@ -1984,9 +1984,10 @@ func TestCreateChatInsertsWorkspaceAwarenessMessage(t *testing.T) {
 		require.Equal(t, database.ChatMessageRoleSystem, workspaceMsg.Role)
 		require.Equal(t, database.ChatMessageVisibilityModel, workspaceMsg.Visibility)
 		workspaceContent := string(workspaceMsg.Content.RawMessage)
-		require.Contains(t, workspaceContent, "Do not create or start a workspace by default")
-		require.Contains(t, workspaceContent, "Only call create_workspace or start_workspace")
-		require.NotContains(t, workspaceContent, "Create one using the create_workspace tool before using workspace tools")
+		require.Contains(t, workspaceContent, "missing tools, skills, MCPs, or context prevent progress")
+		require.Contains(t, workspaceContent, "create a suitable workspace with create_workspace or start an existing one with start_workspace")
+		require.Contains(t, workspaceContent, "Use the workspace's available context and capabilities to continue the user's request")
+		require.NotContains(t, workspaceContent, "Do not create or start a workspace by default")
 	})
 }
 
