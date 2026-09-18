@@ -571,6 +571,18 @@ func (p *Server) discoverInstructionContext(
 	// the retry sees its rows.
 	var result discoveryReconciliation
 	err = database.ReadModifyUpdate(p.db, func(tx database.Store) error {
+		// The probe answered for the agent the tools reached. Locking the
+		// chat keeps a rebind from landing in between: one that already
+		// committed shows another agent here and the answer is dropped,
+		// one that has not waits for this transaction and then clears the
+		// rows.
+		locked, err := tx.GetChatByIDForUpdate(dbCtx, chat.ID)
+		if err != nil {
+			return xerrors.Errorf("lock chat for instruction discovery: %w", err)
+		}
+		if locked.AgentID.UUID != agent.ID {
+			return nil
+		}
 		current, err := tx.ListChatContextResourcesByChatID(dbCtx, chat.ID)
 		if err != nil {
 			return xerrors.Errorf("list chat context resources: %w", err)
