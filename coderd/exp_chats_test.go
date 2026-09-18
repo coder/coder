@@ -1931,6 +1931,29 @@ func TestPostUserChats(t *testing.T) {
 		require.Equal(t, "Workspace not found or you do not have access to this resource", sdkErr.Message)
 	})
 
+	t.Run("ModelConfigNotAccessibleToOwner", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModel(t, client)
+		provider := createAIProviderForTest(t, client, "openai-compat", "test-api-key")
+		privateConfig := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+			AIProviderID: uuid.NullUUID{UUID: provider.ID, Valid: true}, OrganizationID: firstUser.OrganizationID,
+			Model: "private-" + uuid.NewString(), Enabled: true, GroupACL: database.ChatACL{},
+		})
+		_, member := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
+
+		// The admin can read the private model; the member cannot, and
+		// chatd would silently fall back to the default at run time.
+		req := helloRequest(firstUser.OrganizationID)
+		req.ModelConfigID = &privateConfig.ID
+		_, err := client.CreateUserChat(ctx, member.Username, req)
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Equal(t, "Invalid model_config_id: model config not found or disabled.", sdkErr.Message)
+	})
+
 	t.Run("OrgAdminForbidden", func(t *testing.T) {
 		t.Parallel()
 

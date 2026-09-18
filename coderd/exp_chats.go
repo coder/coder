@@ -1312,8 +1312,9 @@ func (api *API) createChat(rw http.ResponseWriter, r *http.Request, resolveOwner
 			httpapi.InternalServerError(rw, err)
 			return
 		}
-		// The workspace must be usable by the owner, who is the one the
-		// chat will connect as, not merely visible to the caller.
+		// The workspace, model config, and MCP servers must be usable by
+		// the owner, who is the one the chat runs as: chatd re-resolves
+		// them under the owner's ACLs and would silently fall back.
 		ownerCtx = dbauthz.As(ctx, owner)
 	}
 
@@ -1331,7 +1332,7 @@ func (api *API) createChat(rw http.ResponseWriter, r *http.Request, resolveOwner
 
 	title := chatprompt.FallbackTitle(titleSource)
 
-	modelConfigID, personalOverrideEffort, modelConfigStatus, modelConfigError := api.resolveCreateChatModelConfigID(ctx, ownerID, req)
+	modelConfigID, personalOverrideEffort, modelConfigStatus, modelConfigError := api.resolveCreateChatModelConfigID(ownerCtx, ownerID, req)
 	if modelConfigError != nil {
 		httpapi.Write(ctx, rw, modelConfigStatus, *modelConfigError)
 		return
@@ -1344,7 +1345,7 @@ func (api *API) createChat(rw http.ResponseWriter, r *http.Request, resolveOwner
 		return
 	}
 
-	normalizedMCPServerIDs, invalidMCPServerIDs, err := validateChatMCPServerIDs(ctx, api.Database, req.OrganizationID, req.MCPServerIDs)
+	normalizedMCPServerIDs, invalidMCPServerIDs, err := validateChatMCPServerIDs(ownerCtx, api.Database, req.OrganizationID, req.MCPServerIDs)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to validate MCP server IDs.",
