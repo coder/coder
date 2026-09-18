@@ -1,6 +1,6 @@
 import type { Decorator, Meta, StoryObj } from "@storybook/react-vite";
 import type { FC } from "react";
-import { expect, userEvent, within } from "storybook/test";
+import { expect, spyOn, userEvent, within } from "storybook/test";
 import { MockWorkspace, MockWorkspaceAgent } from "#/testHelpers/entities";
 import {
 	ComposerProvider,
@@ -158,5 +158,29 @@ export const AnnotateUnavailable: Story = {
 		if (wrapper) {
 			await userEvent.hover(wrapper);
 		}
+	},
+};
+
+export const PoppedOut: Story = {
+	args: { canAnnotate: true },
+	decorators: [withComposer],
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		// A hidden iframe stands in for the popout window; the panel only
+		// needs a Window handle it can post to and poll `closed` on.
+		const holder = document.createElement("iframe");
+		holder.style.display = "none";
+		document.body.appendChild(holder);
+		const open = spyOn(window, "open").mockReturnValue(holder.contentWindow);
+		try {
+			await userEvent.click(
+				canvas.getByRole("button", { name: "Open port in new tab" }),
+			);
+		} finally {
+			open.mockRestore();
+		}
+		await userEvent.hover(
+			canvas.getByRole("button", { name: "Open port in new tab" }),
+		);
 	},
 };

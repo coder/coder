@@ -7,7 +7,9 @@ import {
 /**
  * Entry point for the script the app proxy injects into proxied HTML. The
  * proxy sets `data-coder-origin` on the script tag so we only ever talk to
- * the dashboard that embedded us, never to an arbitrary parent frame.
+ * the dashboard that opened us, never to an arbitrary parent or opener.
+ * The dashboard is either the embedding frame's parent or, for a popped
+ * out preview, the window that opened this one.
  */
 function bootstrap() {
 	const script = document.currentScript;
@@ -15,12 +17,13 @@ function bootstrap() {
 		script instanceof HTMLScriptElement
 			? script.dataset.coderOrigin
 			: undefined;
-	if (!hostOrigin || window.parent === window) {
+	const hostWindow = window.parent !== window ? window.parent : window.opener;
+	if (!hostOrigin || !hostWindow) {
 		return;
 	}
 
 	const post = (message: AnnotatorToHostMessage) => {
-		window.parent.postMessage(message, hostOrigin);
+		hostWindow.postMessage(message, hostOrigin);
 	};
 
 	const start = () => {
@@ -35,7 +38,7 @@ function bootstrap() {
 		window.addEventListener("message", (event) => {
 			if (
 				event.origin !== hostOrigin ||
-				event.source !== window.parent ||
+				event.source !== hostWindow ||
 				!isHostToAnnotatorMessage(event.data)
 			) {
 				return;
