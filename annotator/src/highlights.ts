@@ -20,8 +20,15 @@ const highlightGraceMs = 3000;
 
 interface HighlightLayer {
 	set(items: HighlightItem[]): void;
+	// Draws a quiet ring for an annotation that was just sent, until the
+	// dashboard replaces it with the working state or it times out.
+	markPending(item: HighlightItem): void;
 	destroy(): void;
 }
+
+// How long a just-sent annotation keeps its quiet ring when the agent
+// never starts on it. Matches the dashboard's own grace period.
+const pendingRingMs = 15_000;
 
 /**
  * Draws shimmering boxes over elements the agent is currently changing.
@@ -135,28 +142,24 @@ export function createHighlightLayer(
 		}
 	};
 
-	const set = (items: HighlightItem[]) => {
-		const previous = placed.map((item) => item.id);
-		clear();
-		if (items.length === 0) {
-			unstamp(previous);
-		}
-		for (const item of items) {
-			const node = doc.createElement("div");
-			node.className = "shimmer";
-			node.style.display = "none";
-			const beam = doc.createElement("div");
-			beam.className = "beam";
-			node.append(beam);
-			container.append(node);
-			placed.push({ ...item, node, lastBox: "" });
-		}
-		if (placed.length === 0) {
+	const place = (item: HighlightItem, className: string) => {
+		const node = doc.createElement("div");
+		node.className = className;
+		node.style.display = "none";
+		const beam = doc.createElement("div");
+		beam.className = "beam";
+		node.append(beam);
+		container.append(node);
+		placed.push({ ...item, node, lastBox: "" });
+	};
+
+	// Highlights must track layout changes the page makes on its own
+	// (agent-driven HMR updates), so they run a frame loop while any exist
+	// instead of piggybacking on scroll and resize events.
+	const ensureLoop = () => {
+		if (loop !== 0 || placed.length === 0) {
 			return;
 		}
-		// Pending highlights must track layout changes the page makes on its
-		// own (agent-driven HMR updates), so they run a frame loop while any
-		// exist instead of piggybacking on scroll and resize events.
 		const tick = () => {
 			position();
 			loop = win.requestAnimationFrame(tick);
@@ -164,11 +167,42 @@ export function createHighlightLayer(
 		loop = win.requestAnimationFrame(tick);
 	};
 
+	let pendingTimer = 0;
+
+	const set = (items: HighlightItem[]) => {
+		const previous = placed.map((item) => item.id);
+		clear();
+		win.clearTimeout(pendingTimer);
+		if (items.length === 0) {
+			unstamp(previous);
+		}
+		for (const item of items) {
+			place(item, "shimmer");
+		}
+		ensureLoop();
+	};
+
+	const markPending = (item: HighlightItem) => {
+		// Only quiet rings can be pending; once the dashboard has taken over
+		// with the working state, its message is the source of truth.
+		if (
+			placed.some((existing) => !existing.node.classList.contains("pending"))
+		) {
+			return;
+		}
+		place(item, "shimmer pending");
+		ensureLoop();
+		win.clearTimeout(pendingTimer);
+		pendingTimer = win.setTimeout(() => set([]), pendingRingMs);
+	};
+
 	return {
 		set,
+		markPending,
 		destroy: () => {
 			const ids = placed.map((item) => item.id);
 			clear();
+			win.clearTimeout(pendingTimer);
 			unstamp(ids);
 		},
 	};

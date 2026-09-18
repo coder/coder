@@ -281,6 +281,85 @@ textarea:focus-visible {
 	will-change: transform;
 }
 
+/* Just sent, agent not yet working: a steady dim ring with no motion. */
+.shimmer.pending .beam::before,
+.shimmer.pending::after {
+	animation: none;
+}
+
+.shimmer.pending .beam::before {
+	background: hsl(213 94% 68% / 0.3);
+}
+
+.shimmer.pending::after {
+	display: none;
+}
+
+/* One-shot confirmation drawn over the element when a comment is sent. */
+.sent-flash {
+	position: fixed;
+	z-index: 2147483646;
+	pointer-events: none;
+	border: var(--outline-width) solid var(--content-link);
+	border-radius: var(--radius-lg);
+	animation: coder-sent-flash 600ms ease-out forwards;
+}
+
+.sent-chip {
+	position: absolute;
+	top: -2px;
+	right: -2px;
+	transform: translateX(calc(100% + 6px));
+	display: inline-flex;
+	align-items: center;
+	gap: 0.25rem;
+	height: 18px;
+	padding: 0 0.375rem;
+	border-radius: 6px;
+	background: var(--content-link);
+	color: var(--content-primary);
+	font-size: 0.6875rem;
+	line-height: 1;
+	font-weight: 600;
+	white-space: nowrap;
+	animation: coder-sent-chip 1.6s ease-out forwards;
+}
+
+.sent-chip svg {
+	width: 12px;
+	height: 12px;
+}
+
+.sent-flash.at-right .sent-chip {
+	right: 6px;
+	transform: none;
+}
+
+.sent-flash.at-top .sent-chip {
+	top: 6px;
+}
+
+@keyframes coder-sent-flash {
+	0% {
+		opacity: 1;
+		box-shadow: 0 0 0 0 hsl(213 94% 68% / 0.5);
+	}
+	100% {
+		opacity: 0;
+		box-shadow: 0 0 0 8px hsl(213 94% 68% / 0);
+	}
+}
+
+@keyframes coder-sent-chip {
+	0%,
+	70% {
+		opacity: 1;
+	}
+	100% {
+		opacity: 0;
+	}
+}
+
 @media (prefers-reduced-motion: reduce) {
 	.shimmer .beam::before,
 	.shimmer::after {
