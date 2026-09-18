@@ -60,6 +60,12 @@ const titleGenerationPrompt = "Write a short title for the user's message. " +
 // reject the parameter at the API instead.
 const quickgenTemperature = 0.0
 
+// quickgenMaxRetries bounds transient provider retries for background
+// generations such as titles, summaries, and turn status labels. They
+// never fail the turn, so they keep a fixed budget instead of following
+// the deployment's generation retry limit.
+const quickgenMaxRetries = 24
+
 // generateQuickgenObject generates a structured object with provider
 // retries and the pinned quickgen temperature. Model aliases served
 // through gateways such as AI Bridge are not recognized by fantasy's
@@ -73,7 +79,7 @@ func generateQuickgenObject[T any](
 ) (*fantasy.ObjectResult[T], error) {
 	call.Temperature = new(quickgenTemperature)
 	var result *fantasy.ObjectResult[T]
-	err := chatretry.Retry(ctx, func(retryCtx context.Context) error {
+	err := chatretry.Retry(ctx, quickgenMaxRetries, func(retryCtx context.Context) error {
 		var genErr error
 		result, genErr = object.Generate[T](retryCtx, model, call)
 		if call.Temperature != nil && isTemperatureRejectedError(genErr) {
@@ -1075,7 +1081,7 @@ func generateChatSummary(
 
 	call.Prompt = quickgenPrompt(chatSummaryGenerationPrompt, transcript)
 	var result *fantasy.ObjectResult[generatedChatSummary]
-	err := chatretry.Retry(ctx, func(retryCtx context.Context) error {
+	err := chatretry.Retry(ctx, quickgenMaxRetries, func(retryCtx context.Context) error {
 		var genErr error
 		result, genErr = object.Generate[generatedChatSummary](retryCtx, model, call)
 		return genErr

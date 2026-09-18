@@ -633,13 +633,13 @@ func TestNewAdvisorRuntime(t *testing.T) {
 			"zero max uses must be replaced with the per-turn step limit")
 	})
 
-	t.Run("ZeroMaxUsesFollowsConfiguredStepLimit", func(t *testing.T) {
+	t.Run("FollowsConfiguredLimits", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitShort)
 		chat, store := advisorChatModelFixture(t, nil)
 		p := newAdvisorTestServer(ctx, t, store)
 		p.aibridgeTransportFactory = aibridgeTestFactoryPointer(advisorTestTransportFactory())
-		p.chatLimits = Limits{MaxStepsPerTurn: 7}
+		p.chatLimits = Limits{MaxStepsPerTurn: 7, MaxGenerationRetries: 3}
 
 		rt, err := p.newAdvisorRuntime(ctx, chat, advisorRuntimeConfig{
 			Enabled:         true,
@@ -647,7 +647,8 @@ func TestNewAdvisorRuntime(t *testing.T) {
 		}, modelBuildOptions{ActiveAPIKeyID: uuid.NewString()}, logger)
 		require.NoError(t, err)
 		require.NotNil(t, rt)
-		require.Equal(t, 7, rt.RemainingUses())
+		require.Equal(t, 7, rt.RemainingUses(), "zero max uses must follow the configured step limit")
+		require.Equal(t, 3, rt.MaxRetries(), "nested advisor calls must follow the configured retry limit")
 	})
 
 	t.Run("NegativeMaxUsesReturnsNil", func(t *testing.T) {

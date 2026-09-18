@@ -69,7 +69,7 @@ func (rt *Runtime) RunAdvisor(
 	}
 
 	var outcome chatloop.AssistantOutcome
-	if err := chatretry.Retry(ctx, func(retryCtx context.Context) error {
+	if err := chatretry.Retry(ctx, rt.cfg.MaxRetries, func(retryCtx context.Context) error {
 		var err error
 		outcome, err = chatloop.GenerateAssistant(retryCtx, assistantOpts)
 		return err

@@ -49,6 +49,8 @@ We call it **metadata**. The core state machine concerns itself with **execution
 
 File links are metadata, but they are written inside transitions: if a transition persists message content that references uploaded files (chat create, message send, queued send, or message edit), it records the file links in the same transaction. Two invariants are enforced when links are written. A file belongs to at most one chat: attaching a file that another chat already holds is refused in the same way as attaching a file that no longer exists. There is an upper bound on the number of files a chat holds. When a message's files would push the chat over the cap, the oldest files on the chat are deleted to make room, and their links go with them. Files in the same message are never evicted by that message, so only a message that is on its own larger than the cap is rejected. Files created by tools during a run take the same path, so a tool's attachment can evict a user's upload and vice versa.
 
+TODO: the file cap is now the `CODER_CHAT_MAX_ATTACHMENTS_PER_CHAT` deployment option (default 50); describe the configurable cap here.
+
 Eviction means that a persisted message may reference a file that no longer exists. That's expected: the UI shows the attachment as expired, and when the history is sent to the model, an evicted user upload is replaced with a short placeholder saying the content has expired, while evicted assistant and tool files are dropped. Editing a message that still references an evicted file is refused until the attachment is removed from the edit.
 
 If the distinction isn't completely clear to you at this point, don't worry. It should become clearer as you learn more about the core state machine.
@@ -867,6 +869,8 @@ It inspects the chat's message history, and decides what's the next step to take
 - `FinishTurn`: applied when the chat processing logic determines that there's no more work to do for the current message history (no pending tool calls, user message is not the last message in the history, etc.).
 - `FinishError`: applied when the LLM API call fails and the retry limit is reached, determined by the `generation_attempt` value.
 - `EnterRequiresAction`: applied when there are pending dynamic tool calls.
+
+TODO: the retry limit is now the `CODER_CHAT_MAX_GENERATION_RETRIES` deployment option (default 25 retries) and also bounds each nested advisor model call; the per-turn step limit is `CODER_CHAT_MAX_STEPS_PER_TURN` (default 1200). Describe both configurable ceilings here.
 
 The generation goroutine also applies the `RecordGenerationAttempt` transition every time before calling the LLM API. It may apply this transition multiple times in case of retries. When an LLM API call fails with a retryable error and the goroutine will retry after a backoff, it applies `RecordRetryState(payload)` with the retry payload that should be sent to clients.
 

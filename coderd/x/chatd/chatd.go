@@ -398,6 +398,7 @@ func (p *Server) newAdvisorRuntime(
 		MaxUsesPerRun:        maxUsesPerRun,
 		MaxOutputTokens:      maxOutputTokens,
 		StreamSilenceTimeout: p.streamSilenceTimeout,
+		MaxRetries:           p.limits().MaxGenerationRetries,
 	})
 	if err != nil {
 		logger.Warn(
