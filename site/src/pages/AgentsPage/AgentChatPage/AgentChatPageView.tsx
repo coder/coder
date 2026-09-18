@@ -29,6 +29,7 @@ import {
 } from "../components/ChatConversation/chatStore";
 
 import { QueuedForCapacityCallout } from "../components/ChatConversation/QueuedForCapacityCallout";
+import type { EditingTarget } from "../components/ChatConversation/types";
 import { DesktopPanelContext } from "../components/ChatElements/tools/DesktopPanelContext";
 import type { SendChatMessageOptions } from "../components/ChatPageContent";
 import { ChatPageInput, ChatPageTimeline } from "../components/ChatPageContent";
@@ -75,15 +76,18 @@ type EditingState = {
 	editorInitialValue: string;
 	initialEditorState: string | undefined;
 	remountKey: number;
+	editingTarget: EditingTarget | null;
+	// editingTarget as a history message ID; null when the target is not a
+	// history row.
 	editingMessageId: number | null;
 	editingFileBlocks: readonly ChatMessagePart[];
-	handleEditUserMessage: (
+	handleBeginHistoryEdit: (
 		messageId: number,
 		text: string,
 		fileBlocks?: readonly ChatMessagePart[],
 		editorState?: string,
 	) => void;
-	handleCancelHistoryEdit: () => void;
+	handleCancelEdit: () => void;
 	handleSendFromInput: (options: SendChatMessageOptions) => void;
 	handleContentChange: (
 		content: string,
@@ -764,8 +768,6 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 		};
 	});
 
-	const isEditing = editing.editingMessageId !== null;
-
 	const chatOwnerUsername = chat.owner_username?.trim();
 	const chatOwnerLabel =
 		chat.owner_name?.trim() ||
@@ -848,7 +850,7 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 								onEditUserMessage={
 									isOtherUserReadOnly
 										? undefined
-										: editing.handleEditUserMessage
+										: editing.handleBeginHistoryEdit
 								}
 								editingMessageId={editing.editingMessageId}
 								urlTransform={urlTransform}
@@ -903,8 +905,8 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 									initialEditorState={editing.initialEditorState}
 									remountKey={editing.remountKey}
 									onContentChange={editing.handleContentChange}
-									isEditing={isEditing}
-									onCancelHistoryEdit={editing.handleCancelHistoryEdit}
+									editingTarget={editing.editingTarget}
+									onCancelEdit={editing.handleCancelEdit}
 									editingFileBlocks={editing.editingFileBlocks}
 									mcpServers={mcpServers}
 									selectedMCPServerIds={selectedMCPServerIds}
