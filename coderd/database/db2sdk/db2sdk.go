@@ -1992,6 +1992,41 @@ func nullRawJSONObject(raw pqtype.NullRawMessage) map[string]any {
 	return rawJSONObject(raw.RawMessage)
 }
 
+// ChatMCPServer converts a database.ChatMCPServer to its redacted
+// codersdk.ChatMCPServer view. Header values are dropped; only sorted
+// header names remain.
+func ChatMCPServer(row database.ChatMCPServer) (codersdk.ChatMCPServer, error) {
+	var headers map[string]string
+	if err := json.Unmarshal([]byte(row.Headers), &headers); err != nil {
+		return codersdk.ChatMCPServer{}, xerrors.Errorf("parse headers for chat MCP server %q: %w", row.Slug, err)
+	}
+	headerNames := make([]string, 0, len(headers))
+	for name := range headers {
+		headerNames = append(headerNames, name)
+	}
+	slices.Sort(headerNames)
+	return codersdk.ChatMCPServer{
+		ID:                  row.ID,
+		Slug:                row.Slug,
+		URL:                 row.Url,
+		HeaderNames:         headerNames,
+		ToolAllowList:       nonNilStrings(row.ToolAllowList),
+		ToolDenyList:        nonNilStrings(row.ToolDenyList),
+		AllowInPlanMode:     row.AllowInPlanMode,
+		AllowInSubagents:    row.AllowInSubagents,
+		ForwardCoderHeaders: row.ForwardCoderHeaders,
+		CreatedAt:           row.CreatedAt,
+		UpdatedAt:           row.UpdatedAt,
+	}, nil
+}
+
+func nonNilStrings(values []string) []string {
+	if values == nil {
+		return []string{}
+	}
+	return values
+}
+
 // ChatDebugRunSummary converts a database.ChatDebugRun to a
 // codersdk.ChatDebugRunSummary.
 func ChatDebugRunSummary(r database.ChatDebugRun) codersdk.ChatDebugRunSummary {

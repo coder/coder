@@ -176,6 +176,7 @@ func (api *API) registerChatAPIRoutes(r chi.Router, apiKeyMiddleware func(http.H
 					r.Get("/runs", api.getChatDebugRuns)
 					r.Get("/runs/{debugRun}", api.getChatDebugRun)
 				})
+				r.Get("/mcp-servers", api.getChatMCPServers)
 			}
 		})
 	})

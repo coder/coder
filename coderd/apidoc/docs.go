@@ -154,6 +154,45 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/experimental/chats/{chat}/mcp-servers": {
+            "get": {
+                "description": "Lists the chat-attached MCP servers declared on the chat. Header values are never returned.\nExperimental: this endpoint is subject to change.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Get chat MCP servers",
+                "operationId": "get-chat-mcp-servers",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat ID",
+                        "name": "chat",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.ChatMCPServer"
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
         "/api/experimental/chats/{chat}/stream/desktop": {
             "get": {
                 "description": "Raw binary WebSocket stream of the chat workspace desktop.\nExperimental: this endpoint is subject to change.",
@@ -20226,6 +20265,94 @@ const docTemplate = `{
                 "ChatInputPartTypeFileReference"
             ]
         },
+        "codersdk.ChatMCPServer": {
+            "type": "object",
+            "properties": {
+                "allow_in_plan_mode": {
+                    "type": "boolean"
+                },
+                "allow_in_subagents": {
+                    "type": "boolean"
+                },
+                "created_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "forward_coder_headers": {
+                    "type": "boolean"
+                },
+                "header_names": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "slug": {
+                    "type": "string"
+                },
+                "tool_allow_list": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "tool_deny_list": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "updated_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "url": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.ChatMCPServerRequest": {
+            "type": "object",
+            "properties": {
+                "allow_in_plan_mode": {
+                    "type": "boolean"
+                },
+                "allow_in_subagents": {
+                    "type": "boolean"
+                },
+                "forward_coder_headers": {
+                    "type": "boolean"
+                },
+                "headers": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "slug": {
+                    "type": "string"
+                },
+                "tool_allow_list": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "tool_deny_list": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "url": {
+                    "type": "string"
+                }
+            }
+        },
         "codersdk.ChatMessage": {
             "type": "object",
             "properties": {
@@ -21776,6 +21903,13 @@ const docTemplate = `{
                         "format": "uuid"
                     }
                 },
+                "mcp_servers": {
+                    "description": "MCPServers replaces the chat-attached MCP servers.\nnil: no change, empty: remove all.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.ChatMCPServerRequest"
+                    }
+                },
                 "model_config_id": {
                     "type": "string",
                     "format": "uuid"
@@ -21873,6 +22007,13 @@ const docTemplate = `{
                     "items": {
                         "type": "string",
                         "format": "uuid"
+                    }
+                },
+                "mcp_servers": {
+                    "description": "MCPServers declares chat-attached MCP servers. Experimental.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.ChatMCPServerRequest"
                     }
                 },
                 "model_config_id": {
@@ -23557,7 +23698,8 @@ const docTemplate = `{
                 "ai-gateway-reverse-proxy",
                 "chat-advisor",
                 "chat-virtual-desktop",
-                "agent-lifecycle-hooks"
+                "agent-lifecycle-hooks",
+                "chat-mcp-servers"
             ],
             "x-enum-comments": {
                 "ExperimentAIGatewayReverseProxy": "Uses stateless reverse proxy routing when MCP injection is not configured.",
@@ -23565,6 +23707,7 @@ const docTemplate = `{
                 "ExperimentAgentLifecycleHooks": "Enables chat lifecycle hook webhooks for agent chats.",
                 "ExperimentAutoFillParameters": "This should not be taken out of experiments until we have redesigned the feature.",
                 "ExperimentChatAdvisor": "Enables the advisor tool for root agent chats.",
+                "ExperimentChatMCPServers": "Enables chat-attached MCP servers declared on POST /chats.",
                 "ExperimentChatVirtualDesktop": "Enables virtual desktop and computer use provider for agents.",
                 "ExperimentExample": "This isn't used for anything.",
                 "ExperimentMCPServerHTTP": "Enables the MCP HTTP server functionality.",
@@ -23589,7 +23732,8 @@ const docTemplate = `{
                 "Uses stateless reverse proxy routing when MCP injection is not configured.",
                 "Enables the advisor tool for root agent chats.",
                 "Enables virtual desktop and computer use provider for agents.",
-                "Enables chat lifecycle hook webhooks for agent chats."
+                "Enables chat lifecycle hook webhooks for agent chats.",
+                "Enables chat-attached MCP servers declared on POST /chats."
             ],
             "x-enum-varnames": [
                 "ExperimentExample",
@@ -23605,7 +23749,8 @@ const docTemplate = `{
                 "ExperimentAIGatewayReverseProxy",
                 "ExperimentChatAdvisor",
                 "ExperimentChatVirtualDesktop",
-                "ExperimentAgentLifecycleHooks"
+                "ExperimentAgentLifecycleHooks",
+                "ExperimentChatMCPServers"
             ]
         },
         "codersdk.ExternalAPIKeyScopes": {

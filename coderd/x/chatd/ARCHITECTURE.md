@@ -447,6 +447,8 @@ This endpoint uses `Create(initialMessages)`:
 
 No other input states are supported.
 
+TODO(chat-attached MCP servers): document the optional `mcp_servers` field: `validateChatMCPServers` in `coderd/chat_mcp_servers.go`, the `--disable-chat-caller-supplied-tools` and `chat-mcp-servers` experiment checks in `postChats`, and persistence via `chatstate.ReplaceChatMCPServers` inside `insertChat`.
+
 ### `PATCH /api/experimental/chats/{chat}`
 
 When archiving or unarchiving a root chat, the operation applies `SetArchived(archived)` to the root and all descendants atomically. If any chat in the family cannot apply the requested archived-state transition, the whole operation fails without changing any chat. Unarchiving an individual child chat remains guarded: it must fail while its parent is archived
@@ -465,6 +467,8 @@ If the request does not change `archived`, this endpoint doesn't emit any state 
 Other execution-state classes are not supported for archive/unarchive.
 
 ### `POST /api/experimental/chats/{chat}/messages`
+
+TODO(chat-attached MCP servers): document the optional `mcp_servers` field: `nil` keeps the current set, `[]` clears it, non-empty replaces it (`applyRequestedChatMCPServers` inside the `SendMessage` transaction), and the root-chat-only rule enforced in `postChatMessages`.
 
 For `busy_behavior=queue`, `SendMessage(m, queue)` supports:
 
@@ -860,6 +864,8 @@ Retriable conditions include, but are not limited to:
 #### Generation goroutine
 
 The generation goroutine is responsible for calling the LLM API and executing tools. It is spawned when the event indicates the core state machine is in `R0` or `R1` (status is `running`).
+
+TODO(chat-attached MCP servers): document `loadChatMCPServers` in `prepareGeneration` (skipped when `disableCallerSuppliedTools` is set; root chats load their rows, non-explore children load the root's `allow_in_subagents` rows, explore chats load none), the plan-mode filter through `filterExternalMCPConfigsForTurn` with the approved-id merge into `approvedPlanMCPConfigIDs`, `mcpclient.ConnectChatAttached` with per-server sensitive values, and `mcpclient.AppendChatAttached` after `filterToolsForTurn`.
 
 It inspects the chat's message history, and decides what's the next step to take. The result of that step is the application of one of the following core state machine transitions:
 
