@@ -560,6 +560,19 @@ func parseCanonicalModelRef(modelRef string) (provider string, model string, ok 
 	return "", "", false
 }
 
+// IsAnthropicFamilyModelID reports whether a model ID names a Claude
+// model regardless of the transport it is served through: OpenRouter and
+// Vercel namespaces ("anthropic/claude-haiku-4.5"), Bedrock IDs
+// ("anthropic.claude-...", "us.anthropic.claude-..."), and bare Claude
+// IDs on generic OpenAI-compatible gateways.
+func IsAnthropicFamilyModelID(modelID string) bool {
+	normalized := strings.ToLower(strings.TrimSpace(modelID))
+	return strings.HasPrefix(normalized, "anthropic/") ||
+		strings.HasPrefix(normalized, "anthropic.") ||
+		strings.Contains(normalized, ".anthropic.") ||
+		strings.Contains(normalized, "claude")
+}
+
 func isChatModelForProvider(provider, modelID string) bool {
 	normalizedProvider := NormalizeProvider(provider)
 	normalizedModel := strings.ToLower(strings.TrimSpace(modelID))

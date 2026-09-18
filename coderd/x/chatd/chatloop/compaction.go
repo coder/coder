@@ -434,10 +434,10 @@ func generateCompactionSummary(
 		Role:    fantasy.MessageRoleUser,
 		Content: summaryParts,
 	})
-	// Anthropic only reads the cache at explicit breakpoints, so without
+	// Claude only reads the cache at explicit breakpoints, so without
 	// these the shared tool and history prefix is never a cache hit.
-	if shouldApplyAnthropicPromptCaching(model) {
-		addAnthropicPromptCaching(summaryPrompt)
+	if applyPromptCaching := promptCachingStrategyFor(model, model.Model()); applyPromptCaching != nil {
+		applyPromptCaching(summaryPrompt)
 	}
 
 	summaryCtx, finishDebugRun := startCompactionDebugRun(ctx, options)
