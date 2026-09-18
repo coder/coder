@@ -16821,57 +16821,118 @@ func (q *sqlQuerier) GetTemplateAppInsightsByTemplate(ctx context.Context, arg G
 
 const getTemplateInsights = `-- name: GetTemplateInsights :one
 WITH
-	insights AS (
+	base AS (
+		-- One pass over the window: per-user capped minutes and the template
+		-- list. GROUPING tells the two row kinds apart.
 		SELECT
+			GROUPING(template_id) = 1 AS is_user_row,
+			start_time,
 			user_id,
-			-- See motivation in GetTemplateInsights for LEAST(SUM(n), 30).
-			LEAST(SUM(usage_mins), 30) AS usage_mins,
-			LEAST(SUM(ssh_mins), 30) AS ssh_mins,
-			LEAST(SUM(sftp_mins), 30) AS sftp_mins,
-			LEAST(SUM(reconnecting_pty_mins), 30) AS reconnecting_pty_mins,
-			LEAST(SUM(vscode_mins), 30) AS vscode_mins,
-			LEAST(SUM(jetbrains_mins), 30) AS jetbrains_mins
+			template_id,
+			COUNT(*) AS template_count,
+			LEAST(SUM(usage_mins), 30) AS usage_mins
 		FROM
 			template_usage_stats
 		WHERE
 			start_time >= $1::timestamptz
 			AND end_time <= $2::timestamptz
 			AND CASE WHEN COALESCE(array_length($3::uuid[], 1), 0) > 0 THEN template_id = ANY($3::uuid[]) ELSE TRUE END
-		GROUP BY
-			start_time, user_id
+		GROUP BY GROUPING SETS ((start_time, user_id), (template_id))
 	),
-	templates AS (
+	users AS (
 		SELECT
-			array_agg(DISTINCT template_id) AS template_ids,
-			array_agg(DISTINCT template_id) FILTER (WHERE ssh_mins > 0) AS ssh_template_ids,
-			array_agg(DISTINCT template_id) FILTER (WHERE sftp_mins > 0) AS sftp_template_ids,
-			array_agg(DISTINCT template_id) FILTER (WHERE reconnecting_pty_mins > 0) AS reconnecting_pty_template_ids,
-			array_agg(DISTINCT template_id) FILTER (WHERE vscode_mins > 0) AS vscode_template_ids,
-			array_agg(DISTINCT template_id) FILTER (WHERE jetbrains_mins > 0) AS jetbrains_template_ids
+			start_time,
+			user_id,
+			template_count,
+			usage_mins
 		FROM
-			template_usage_stats
+			base
 		WHERE
-			start_time >= $1::timestamptz
-			AND end_time <= $2::timestamptz
-			AND CASE WHEN COALESCE(array_length($3::uuid[], 1), 0) > 0 THEN template_id = ANY($3::uuid[]) ELSE TRUE END
+			is_user_row
+	),
+	multi_template_buckets AS (
+		-- An app's minutes cap per user per half hour, across templates. Only
+		-- these buckets can reach the cap, and most deployments have few, so
+		-- the capped grouping below runs on them alone.
+		SELECT
+			start_time,
+			user_id
+		FROM
+			users
+		WHERE
+			template_count > 1
+	),
+	app_usage_by_template AS (
+		-- A single row cannot exceed the cap, so these need no per-user
+		-- grouping. FILTER, not WHERE: the excluded buckets' minutes belong to
+		-- app_usage_capped, but their templates still belong in the list.
+		SELECT
+			sessions.app_name,
+			sessions.template_id,
+			SUM(sessions.usage_mins) FILTER (
+				WHERE (sessions.start_time, sessions.user_id) NOT IN (SELECT start_time, user_id FROM multi_template_buckets)
+			) AS usage_mins
+		FROM
+			template_usage_stats_session_apps AS sessions
+		WHERE
+			sessions.start_time >= $1::timestamptz
+			-- The child table has no end_time, hence the bucket width. Keep
+			-- start_time bare so the range stays index-usable.
+			AND sessions.start_time <= ($2::timestamptz) - '30 minutes'::interval
+			AND CASE WHEN COALESCE(array_length($3::uuid[], 1), 0) > 0 THEN sessions.template_id = ANY($3::uuid[]) ELSE TRUE END
+		GROUP BY
+			sessions.app_name, sessions.template_id
+	),
+	app_usage_capped AS (
+		SELECT
+			sessions.app_name,
+			LEAST(SUM(sessions.usage_mins), 30) AS usage_mins
+		FROM
+			template_usage_stats_session_apps AS sessions
+		WHERE
+			sessions.start_time >= $1::timestamptz
+			AND sessions.start_time <= ($2::timestamptz) - '30 minutes'::interval
+			AND CASE WHEN COALESCE(array_length($3::uuid[], 1), 0) > 0 THEN sessions.template_id = ANY($3::uuid[]) ELSE TRUE END
+			AND EXISTS (
+				SELECT 1
+				FROM multi_template_buckets AS buckets
+				WHERE buckets.start_time = sessions.start_time
+					AND buckets.user_id = sessions.user_id
+			)
+		GROUP BY
+			sessions.start_time, sessions.user_id, sessions.app_name
+	),
+	app_usage AS (
+		SELECT
+			app_name,
+			(SUM(usage_mins) * 60)::bigint AS usage_seconds
+		FROM (
+			SELECT app_name, usage_mins FROM app_usage_by_template
+			UNION ALL
+			SELECT app_name, usage_mins FROM app_usage_capped
+		) AS parts
+		GROUP BY
+			app_name
+	),
+	app_templates AS (
+		SELECT
+			app_name,
+			array_agg(DISTINCT template_id) AS template_ids
+		FROM
+			app_usage_by_template
+		GROUP BY
+			app_name
 	)
 
 SELECT
-	COALESCE((SELECT template_ids FROM templates), '{}')::uuid[] AS template_ids, -- Includes app usage.
-	COALESCE((SELECT ssh_template_ids FROM templates), '{}')::uuid[] AS ssh_template_ids,
-	COALESCE((SELECT sftp_template_ids FROM templates), '{}')::uuid[] AS sftp_template_ids,
-	COALESCE((SELECT reconnecting_pty_template_ids FROM templates), '{}')::uuid[] AS reconnecting_pty_template_ids,
-	COALESCE((SELECT vscode_template_ids FROM templates), '{}')::uuid[] AS vscode_template_ids,
-	COALESCE((SELECT jetbrains_template_ids FROM templates), '{}')::uuid[] AS jetbrains_template_ids,
+	COALESCE((SELECT array_agg(DISTINCT template_id) FROM base WHERE NOT is_user_row), '{}')::uuid[] AS template_ids, -- Includes app usage.
 	COALESCE(COUNT(DISTINCT user_id), 0)::bigint AS active_users, -- Includes app usage.
 	COALESCE(SUM(usage_mins) * 60, 0)::bigint AS usage_total_seconds, -- Includes app usage.
-	COALESCE(SUM(ssh_mins) * 60, 0)::bigint AS usage_ssh_seconds,
-	COALESCE(SUM(sftp_mins) * 60, 0)::bigint AS usage_sftp_seconds,
-	COALESCE(SUM(reconnecting_pty_mins) * 60, 0)::bigint AS usage_reconnecting_pty_seconds,
-	COALESCE(SUM(vscode_mins) * 60, 0)::bigint AS usage_vscode_seconds,
-	COALESCE(SUM(jetbrains_mins) * 60, 0)::bigint AS usage_jetbrains_seconds
+	-- Keyed by app name; callers fold both into families.
+	COALESCE((SELECT jsonb_object_agg(app_name, usage_seconds) FROM app_usage), '{}'::jsonb)::jsonb AS session_app_usage_seconds,
+	COALESCE((SELECT jsonb_object_agg(app_name, template_ids) FROM app_templates), '{}'::jsonb)::jsonb AS session_app_template_ids
 FROM
-	insights
+	users
 `
 
 type GetTemplateInsightsParams struct {
@@ -16881,24 +16942,18 @@ type GetTemplateInsightsParams struct {
 }
 
 type GetTemplateInsightsRow struct {
-	TemplateIDs                 []uuid.UUID `db:"template_ids" json:"template_ids"`
-	SshTemplateIds              []uuid.UUID `db:"ssh_template_ids" json:"ssh_template_ids"`
-	SftpTemplateIds             []uuid.UUID `db:"sftp_template_ids" json:"sftp_template_ids"`
-	ReconnectingPtyTemplateIds  []uuid.UUID `db:"reconnecting_pty_template_ids" json:"reconnecting_pty_template_ids"`
-	VscodeTemplateIds           []uuid.UUID `db:"vscode_template_ids" json:"vscode_template_ids"`
-	JetbrainsTemplateIds        []uuid.UUID `db:"jetbrains_template_ids" json:"jetbrains_template_ids"`
-	ActiveUsers                 int64       `db:"active_users" json:"active_users"`
-	UsageTotalSeconds           int64       `db:"usage_total_seconds" json:"usage_total_seconds"`
-	UsageSshSeconds             int64       `db:"usage_ssh_seconds" json:"usage_ssh_seconds"`
-	UsageSftpSeconds            int64       `db:"usage_sftp_seconds" json:"usage_sftp_seconds"`
-	UsageReconnectingPtySeconds int64       `db:"usage_reconnecting_pty_seconds" json:"usage_reconnecting_pty_seconds"`
-	UsageVscodeSeconds          int64       `db:"usage_vscode_seconds" json:"usage_vscode_seconds"`
-	UsageJetbrainsSeconds       int64       `db:"usage_jetbrains_seconds" json:"usage_jetbrains_seconds"`
+	TemplateIDs            []uuid.UUID     `db:"template_ids" json:"template_ids"`
+	ActiveUsers            int64           `db:"active_users" json:"active_users"`
+	UsageTotalSeconds      int64           `db:"usage_total_seconds" json:"usage_total_seconds"`
+	SessionAppUsageSeconds json.RawMessage `db:"session_app_usage_seconds" json:"session_app_usage_seconds"`
+	SessionAppTemplateIds  json.RawMessage `db:"session_app_template_ids" json:"session_app_template_ids"`
 }
 
 // GetTemplateInsights returns the aggregate user-produced usage of all
 // workspaces in a given timeframe. The template IDs, active users, and
 // usage_seconds all reflect any usage in the template, including apps.
+//
+// Session usage comes out per app name; callers group the names into families.
 //
 // When combining data from multiple templates, we must make a guess at
 // how the user behaved for the 30 minute interval. In this case we make
@@ -16910,18 +16965,10 @@ func (q *sqlQuerier) GetTemplateInsights(ctx context.Context, arg GetTemplateIns
 	var i GetTemplateInsightsRow
 	err := row.Scan(
 		pq.Array(&i.TemplateIDs),
-		pq.Array(&i.SshTemplateIds),
-		pq.Array(&i.SftpTemplateIds),
-		pq.Array(&i.ReconnectingPtyTemplateIds),
-		pq.Array(&i.VscodeTemplateIds),
-		pq.Array(&i.JetbrainsTemplateIds),
 		&i.ActiveUsers,
 		&i.UsageTotalSeconds,
-		&i.UsageSshSeconds,
-		&i.UsageSftpSeconds,
-		&i.UsageReconnectingPtySeconds,
-		&i.UsageVscodeSeconds,
-		&i.UsageJetbrainsSeconds,
+		&i.SessionAppUsageSeconds,
+		&i.SessionAppTemplateIds,
 	)
 	return i, err
 }
@@ -17015,93 +17062,111 @@ func (q *sqlQuerier) GetTemplateInsightsByInterval(ctx context.Context, arg GetT
 
 const getTemplateInsightsByTemplate = `-- name: GetTemplateInsightsByTemplate :many
 WITH
-	-- app_families maps each attributed family to its app names, so the
-	-- probes below stay one expression per family: adding a family needs a
-	-- new list in fams plus one probe here, because sqlc output columns are
-	-- static. fams turns the jsonb parameter into arrays once for the whole
-	-- query. These probes only ask whether any app of a family is present,
-	-- so the jsonb key-existence operator beats decomposing session_counts
-	-- per row (measured ~2.4x faster on a 1M row scan).
-	fams AS (
-		SELECT
-			ARRAY(SELECT jsonb_array_elements_text($1::jsonb -> 'ssh')) AS ssh,
-			ARRAY(SELECT jsonb_array_elements_text($1::jsonb -> 'reconnecting_pty')) AS reconnecting_pty,
-			ARRAY(SELECT jsonb_array_elements_text($1::jsonb -> 'vscode')) AS vscode,
-			ARRAY(SELECT jsonb_array_elements_text($1::jsonb -> 'jetbrains')) AS jetbrains
-	),
-	-- Deduplicate activity by template, user, and minute.
-	minute_activity AS (
+	connected AS (
+		-- NOTE(mafredri): connection_count covers one report interval, while
+		-- the session counts are a gauge, so an idle session reports none.
+		-- Hence "any connection within this bucket", pending a better solution.
+		-- Grouped, not a WHERE: one connection anywhere in the window keeps
+		-- every minute of that pair. One row per pair, so no fan-out.
 		SELECT
 			template_id,
-			user_id,
-			date_trunc('minute', created_at) AS minute,
-			BOOL_OR(session_counts ?| fams.ssh) AS ssh,
-			BOOL_OR(session_counts ?| fams.reconnecting_pty) AS reconnecting_pty,
-			BOOL_OR(session_counts ?| fams.vscode) AS vscode,
-			BOOL_OR(session_counts ?| fams.jetbrains) AS jetbrains,
-			BOOL_OR(connection_count > 0) AS has_connection
+			user_id
 		FROM
-			workspace_agent_stats, fams
+			workspace_agent_stats
 		WHERE
-			created_at >= $2::timestamptz
-			AND created_at < $3::timestamptz
+			created_at >= $1::timestamptz
+			AND created_at < $2::timestamptz
 			AND session_counts <> '{}'::jsonb
 		GROUP BY
-			template_id, user_id, minute
+			template_id, user_id
+		HAVING
+			BOOL_OR(connection_count > 0)
 	),
 	insights AS (
+		-- A minute counts once per app however many of its sessions were open,
+		-- which COUNT(DISTINCT) does in the grouping. Deduplicating the
+		-- expanded rows first instead spills to disk once a deployment has a
+		-- few thousand agents.
+		SELECT
+			was.template_id,
+			was.user_id,
+			app_name,
+			COUNT(DISTINCT date_trunc('minute', was.created_at)) AS usage_mins
+		FROM
+			workspace_agent_stats AS was
+		CROSS JOIN
+			jsonb_object_keys(was.session_counts) AS app_name
+		JOIN
+			connected AS c
+		ON
+			c.template_id = was.template_id
+			AND c.user_id = was.user_id
+		WHERE
+			was.created_at >= $1::timestamptz
+			AND was.created_at < $2::timestamptz
+			AND was.session_counts <> '{}'::jsonb
+		GROUP BY
+			was.template_id, was.user_id, app_name
+	),
+	app_usage AS (
 		SELECT
 			template_id,
-			user_id,
-			COUNT(*) FILTER (WHERE ssh) AS ssh_mins,
-			COUNT(*) FILTER (WHERE reconnecting_pty) AS reconnecting_pty_mins,
-			COUNT(*) FILTER (WHERE vscode) AS vscode_mins,
-			COUNT(*) FILTER (WHERE jetbrains) AS jetbrains_mins,
-			-- NOTE(mafredri): The agent stats are currently very unreliable, and
-			-- sometimes the connections are missing, even during active sessions.
-			-- Since we can't fully rely on this, we check for "any connection
-			-- within this bucket". A better solution here would be preferable.
-			BOOL_OR(has_connection) AS has_connection
-		FROM
-			minute_activity
+			jsonb_object_agg(app_name, usage_seconds) AS session_app_usage_seconds
+		FROM (
+			SELECT
+				template_id,
+				app_name,
+				(SUM(usage_mins) * 60)::bigint AS usage_seconds
+			FROM
+				insights
+			GROUP BY
+				template_id, app_name
+		) AS app_seconds
 		GROUP BY
-			template_id, user_id
+			template_id
+	),
+	active_users AS (
+		SELECT
+			template_id,
+			COUNT(DISTINCT user_id)::bigint AS active_users
+		FROM
+			insights
+		GROUP BY
+			template_id
 	)
 
 SELECT
-	template_id,
-	COUNT(DISTINCT user_id)::bigint AS active_users,
-	(SUM(vscode_mins) * 60)::bigint AS usage_vscode_seconds,
-	(SUM(jetbrains_mins) * 60)::bigint AS usage_jetbrains_seconds,
-	(SUM(reconnecting_pty_mins) * 60)::bigint AS usage_reconnecting_pty_seconds,
-	(SUM(ssh_mins) * 60)::bigint AS usage_ssh_seconds
+	active_users.template_id,
+	active_users.active_users,
+	app_usage.session_app_usage_seconds
 FROM
-	insights
-WHERE
-	has_connection
-GROUP BY
-	template_id
+	active_users
+JOIN
+	-- Every counted template has at least one app; both sides come from
+	-- insights.
+	app_usage
+ON
+	app_usage.template_id = active_users.template_id
 `
 
 type GetTemplateInsightsByTemplateParams struct {
-	AppFamilies json.RawMessage `db:"app_families" json:"app_families"`
-	StartTime   time.Time       `db:"start_time" json:"start_time"`
-	EndTime     time.Time       `db:"end_time" json:"end_time"`
+	StartTime time.Time `db:"start_time" json:"start_time"`
+	EndTime   time.Time `db:"end_time" json:"end_time"`
 }
 
 type GetTemplateInsightsByTemplateRow struct {
-	TemplateID                  uuid.UUID `db:"template_id" json:"template_id"`
-	ActiveUsers                 int64     `db:"active_users" json:"active_users"`
-	UsageVscodeSeconds          int64     `db:"usage_vscode_seconds" json:"usage_vscode_seconds"`
-	UsageJetbrainsSeconds       int64     `db:"usage_jetbrains_seconds" json:"usage_jetbrains_seconds"`
-	UsageReconnectingPtySeconds int64     `db:"usage_reconnecting_pty_seconds" json:"usage_reconnecting_pty_seconds"`
-	UsageSshSeconds             int64     `db:"usage_ssh_seconds" json:"usage_ssh_seconds"`
+	TemplateID             uuid.UUID      `db:"template_id" json:"template_id"`
+	ActiveUsers            int64          `db:"active_users" json:"active_users"`
+	SessionAppUsageSeconds StringMapOfInt `db:"session_app_usage_seconds" json:"session_app_usage_seconds"`
 }
 
 // GetTemplateInsightsByTemplate is used for Prometheus metrics. Keep
 // in sync with GetTemplateInsights and UpsertTemplateUsageStats.
+//
+// Session usage comes out per app name, as in GetTemplateInsights, so either
+// query reports the same family totals once the names are grouped.
 func (q *sqlQuerier) GetTemplateInsightsByTemplate(ctx context.Context, arg GetTemplateInsightsByTemplateParams) ([]GetTemplateInsightsByTemplateRow, error) {
-	rows, err := q.db.QueryContext(ctx, getTemplateInsightsByTemplate, arg.AppFamilies, arg.StartTime, arg.EndTime)
+	rows, err := q.db.QueryContext(ctx, getTemplateInsightsByTemplate, arg.StartTime, arg.EndTime)
 	if err != nil {
 		return nil, err
 	}
@@ -17109,14 +17174,7 @@ func (q *sqlQuerier) GetTemplateInsightsByTemplate(ctx context.Context, arg GetT
 	var items []GetTemplateInsightsByTemplateRow
 	for rows.Next() {
 		var i GetTemplateInsightsByTemplateRow
-		if err := rows.Scan(
-			&i.TemplateID,
-			&i.ActiveUsers,
-			&i.UsageVscodeSeconds,
-			&i.UsageJetbrainsSeconds,
-			&i.UsageReconnectingPtySeconds,
-			&i.UsageSshSeconds,
-		); err != nil {
+		if err := rows.Scan(&i.TemplateID, &i.ActiveUsers, &i.SessionAppUsageSeconds); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -17238,7 +17296,7 @@ func (q *sqlQuerier) GetTemplateParameterInsights(ctx context.Context, arg GetTe
 
 const getTemplateUsageStats = `-- name: GetTemplateUsageStats :many
 SELECT
-	start_time, end_time, template_id, user_id, median_latency_ms, usage_mins, ssh_mins, sftp_mins, reconnecting_pty_mins, vscode_mins, jetbrains_mins, app_usage_mins
+	start_time, end_time, template_id, user_id, median_latency_ms, usage_mins, app_usage_mins
 FROM
 	template_usage_stats
 WHERE
@@ -17269,11 +17327,6 @@ func (q *sqlQuerier) GetTemplateUsageStats(ctx context.Context, arg GetTemplateU
 			&i.UserID,
 			&i.MedianLatencyMs,
 			&i.UsageMins,
-			&i.SshMins,
-			&i.SftpMins,
-			&i.ReconnectingPtyMins,
-			&i.VscodeMins,
-			&i.JetbrainsMins,
 			&i.AppUsageMins,
 		); err != nil {
 			return nil, err
@@ -17597,20 +17650,6 @@ func (q *sqlQuerier) GetUserStatusCounts(ctx context.Context, arg GetUserStatusC
 
 const upsertTemplateUsageStats = `-- name: UpsertTemplateUsageStats :exec
 WITH
-	-- app_families maps each attributed family to its app names, so the
-	-- probes below stay one expression per family: adding a family needs a
-	-- new list in fams plus one probe here, because sqlc output columns are
-	-- static. fams turns the jsonb parameter into arrays once for the whole
-	-- query. These probes only ask whether any app of a family is present,
-	-- so the jsonb key-existence operator beats decomposing session_counts
-	-- per row (measured ~2.4x faster on a 1M row scan).
-	fams AS (
-		SELECT
-			ARRAY(SELECT jsonb_array_elements_text($1::jsonb -> 'ssh')) AS ssh,
-			ARRAY(SELECT jsonb_array_elements_text($1::jsonb -> 'reconnecting_pty')) AS reconnecting_pty,
-			ARRAY(SELECT jsonb_array_elements_text($1::jsonb -> 'vscode')) AS vscode,
-			ARRAY(SELECT jsonb_array_elements_text($1::jsonb -> 'jetbrains')) AS jetbrains
-	),
 	latest_start AS (
 		SELECT
 			-- Truncate to hour so that we always look at even ranges of data.
@@ -17680,34 +17719,64 @@ WITH
 		GROUP BY
 			time_bucket, w.template_id, fas.user_id, fas.access_method, fas.slug_or_port
 	),
-	agent_stats_buckets AS (
+	agent_stats_rows AS (
+		-- One filtered pass feeds both groupings below.
 		SELECT
-			-- Truncate the minute to the nearest half hour, this is the bucket size
-			-- for the data.
 			date_trunc('hour', created_at) + trunc(date_part('minute', created_at) / 30) * 30 * '1 minute'::interval AS time_bucket,
 			template_id,
 			user_id,
-			-- Store each unique minute bucket for later merge between datasets.
-			array_agg(DISTINCT date_trunc('minute', created_at)) AS minute_buckets,
-			COUNT(DISTINCT CASE WHEN session_counts ?| fams.ssh THEN date_trunc('minute', created_at) ELSE NULL END) AS ssh_mins,
-			COUNT(DISTINCT CASE WHEN session_counts ?| fams.reconnecting_pty THEN date_trunc('minute', created_at) ELSE NULL END) AS reconnecting_pty_mins,
-			COUNT(DISTINCT CASE WHEN session_counts ?| fams.vscode THEN date_trunc('minute', created_at) ELSE NULL END) AS vscode_mins,
-			COUNT(DISTINCT CASE WHEN session_counts ?| fams.jetbrains THEN date_trunc('minute', created_at) ELSE NULL END) AS jetbrains_mins,
-			-- NOTE(mafredri): The agent stats are currently very unreliable, and
-			-- sometimes the connections are missing, even during active sessions.
-			-- Since we can't fully rely on this, we check for "any connection
-			-- during this half-hour". A better solution here would be preferable.
-			MAX(connection_count) > 0 AS has_connection
+			date_trunc('minute', created_at) AS minute_bucket,
+			connection_count,
+			session_counts
 		FROM
-			workspace_agent_stats, fams
+			workspace_agent_stats
 		WHERE
 			-- created_at >= @start_time::timestamptz
 			-- AND created_at < @end_time::timestamptz
 			created_at >= (SELECT t FROM latest_start)
 			AND created_at < NOW()
 			AND session_counts <> '{}'::jsonb
+	),
+	agent_stats_buckets AS (
+		SELECT
+			time_bucket,
+			template_id,
+			user_id,
+			-- Store each unique minute bucket for later merge between datasets.
+			array_agg(DISTINCT minute_bucket) AS minute_buckets,
+			-- NOTE(mafredri): connection_count covers one report interval,
+			-- while the session counts are a gauge, so an idle session reports
+			-- none. Hence "any connection during this half-hour", pending a
+			-- better solution.
+			MAX(connection_count) > 0 AS has_connection
+		FROM
+			agent_stats_rows
 		GROUP BY
 			time_bucket, template_id, user_id
+	),
+	agent_stats_session_minutes AS (
+		-- A minute counts once per app however many of its sessions were open.
+		SELECT
+			agent_stats.time_bucket,
+			agent_stats.template_id,
+			agent_stats.user_id,
+			app_name,
+			COUNT(DISTINCT agent_stats.minute_bucket)::smallint AS usage_mins
+		FROM
+			agent_stats_rows AS agent_stats
+		JOIN
+			agent_stats_buckets AS buckets
+		ON
+			buckets.time_bucket = agent_stats.time_bucket
+			AND buckets.template_id = agent_stats.template_id
+			AND buckets.user_id = agent_stats.user_id
+			-- Same gate as the union below, so an app-stats-only bucket
+			-- records no session usage.
+			AND buckets.has_connection
+		CROSS JOIN
+			jsonb_object_keys(agent_stats.session_counts) AS app_name
+		GROUP BY
+			agent_stats.time_bucket, agent_stats.template_id, agent_stats.user_id, app_name
 	),
 	stats AS (
 		SELECT
@@ -17715,14 +17784,9 @@ WITH
 			stats.time_bucket + '30 minutes'::interval AS end_time,
 			stats.template_id,
 			stats.user_id,
-			-- Sum/distinct to handle zero/duplicate values due union and to unnest.
+			-- Distinct to handle duplicate values due union and to unnest.
 			COUNT(DISTINCT minute_bucket) AS usage_mins,
 			array_agg(DISTINCT minute_bucket) AS minute_buckets,
-			SUM(DISTINCT stats.ssh_mins) AS ssh_mins,
-			SUM(DISTINCT stats.sftp_mins) AS sftp_mins,
-			SUM(DISTINCT stats.reconnecting_pty_mins) AS reconnecting_pty_mins,
-			SUM(DISTINCT stats.vscode_mins) AS vscode_mins,
-			SUM(DISTINCT stats.jetbrains_mins) AS jetbrains_mins,
 			-- This is what we unnested, re-nest as json.
 			jsonb_object_agg(stats.app_name, stats.app_minutes) FILTER (WHERE stats.app_name IS NOT NULL) AS app_usage_mins
 		FROM (
@@ -17730,11 +17794,6 @@ WITH
 				time_bucket,
 				template_id,
 				user_id,
-				0 AS ssh_mins,
-				0 AS sftp_mins,
-				0 AS reconnecting_pty_mins,
-				0 AS vscode_mins,
-				0 AS jetbrains_mins,
 				app_name,
 				app_minutes,
 				minute_buckets
@@ -17747,12 +17806,6 @@ WITH
 				time_bucket,
 				template_id,
 				user_id,
-				ssh_mins,
-				-- TODO(mafredri): Enable when we have the column.
-				0 AS sftp_mins,
-				reconnecting_pty_mins,
-				vscode_mins,
-				jetbrains_mins,
 				NULL AS app_name,
 				NULL AS app_minutes,
 				minute_buckets
@@ -17799,67 +17852,105 @@ WITH
 			AND was.connection_median_latency_ms > 0
 		GROUP BY
 			mb.start_time, mb.template_id, mb.user_id
+	),
+	upsert_stats AS (
+		INSERT INTO template_usage_stats AS tus (
+			start_time,
+			end_time,
+			template_id,
+			user_id,
+			usage_mins,
+			median_latency_ms,
+			app_usage_mins
+		) (
+			SELECT
+				stats.start_time,
+				stats.end_time,
+				stats.template_id,
+				stats.user_id,
+				stats.usage_mins,
+				latencies.median_latency_ms,
+				stats.app_usage_mins
+			FROM
+				stats
+			LEFT JOIN
+				latencies
+			ON
+				-- The latencies group-by ensures there at most one row.
+				latencies.start_time = stats.start_time
+				AND latencies.template_id = stats.template_id
+				AND latencies.user_id = stats.user_id
+		)
+		ON CONFLICT
+			(start_time, template_id, user_id)
+		DO UPDATE
+		SET
+			usage_mins = EXCLUDED.usage_mins,
+			median_latency_ms = EXCLUDED.median_latency_ms,
+			app_usage_mins = EXCLUDED.app_usage_mins
+		WHERE
+			(tus.*) IS DISTINCT FROM (EXCLUDED.*)
+	),
+	-- The child writes share this statement, so the foreign keys are checked
+	-- once it completes and see the main rows the upsert added; Postgres runs
+	-- that upsert whether or not the statement reads it.
+	--
+	-- NOT IN, not NOT EXISTS: the planner has no statistics for the CTE and
+	-- turns NOT EXISTS into a nested loop that rescans it per row, 20 seconds
+	-- per rollup. Every column is non-null, so both delete the same rows.
+	delete_apps AS (
+		DELETE FROM
+			template_usage_stats_session_apps AS apps
+		USING
+			agent_stats_buckets AS buckets
+		WHERE
+			apps.start_time = buckets.time_bucket
+			AND apps.template_id = buckets.template_id
+			AND apps.user_id = buckets.user_id
+			AND (apps.start_time, apps.template_id, apps.user_id, apps.app_name) NOT IN (
+				SELECT time_bucket, template_id, user_id, app_name
+				FROM agent_stats_session_minutes
+			)
 	)
 
-INSERT INTO template_usage_stats AS tus (
+INSERT INTO template_usage_stats_session_apps AS apps (
 	start_time,
-	end_time,
 	template_id,
 	user_id,
-	usage_mins,
-	median_latency_ms,
-	ssh_mins,
-	sftp_mins,
-	reconnecting_pty_mins,
-	vscode_mins,
-	jetbrains_mins,
-	app_usage_mins
+	app_name,
+	usage_mins
 ) (
 	SELECT
-		stats.start_time,
-		stats.end_time,
-		stats.template_id,
-		stats.user_id,
-		stats.usage_mins,
-		latencies.median_latency_ms,
-		stats.ssh_mins,
-		stats.sftp_mins,
-		stats.reconnecting_pty_mins,
-		stats.vscode_mins,
-		stats.jetbrains_mins,
-		stats.app_usage_mins
+		time_bucket,
+		template_id,
+		user_id,
+		app_name,
+		usage_mins
 	FROM
-		stats
-	LEFT JOIN
-		latencies
-	ON
-		-- The latencies group-by ensures there at most one row.
-		latencies.start_time = stats.start_time
-		AND latencies.template_id = stats.template_id
-		AND latencies.user_id = stats.user_id
+		agent_stats_session_minutes
 )
 ON CONFLICT
-	(start_time, template_id, user_id)
+	(start_time, template_id, user_id, app_name)
 DO UPDATE
 SET
-	usage_mins = EXCLUDED.usage_mins,
-	median_latency_ms = EXCLUDED.median_latency_ms,
-	ssh_mins = EXCLUDED.ssh_mins,
-	sftp_mins = EXCLUDED.sftp_mins,
-	reconnecting_pty_mins = EXCLUDED.reconnecting_pty_mins,
-	vscode_mins = EXCLUDED.vscode_mins,
-	jetbrains_mins = EXCLUDED.jetbrains_mins,
-	app_usage_mins = EXCLUDED.app_usage_mins
+	usage_mins = EXCLUDED.usage_mins
 WHERE
-	(tus.*) IS DISTINCT FROM (EXCLUDED.*)
+	apps.usage_mins IS DISTINCT FROM EXCLUDED.usage_mins
 `
 
 // This query aggregates the workspace_agent_stats and workspace_app_stats data
 // into a single table for efficient storage and querying. Half-hour buckets are
 // used to store the data, and the minutes are summed for each user and template
 // combination. The result is stored in the template_usage_stats table.
-func (q *sqlQuerier) UpsertTemplateUsageStats(ctx context.Context, appFamilies json.RawMessage) error {
-	_, err := q.db.ExecContext(ctx, upsertTemplateUsageStats, appFamilies)
+//
+// Session usage is stored per app name in the child table, so the main row
+// carries no session columns at all. Every recomputed bucket rewrites its own
+// child rows: app names that disappeared are deleted, the rest are upserted.
+// The keys come from the computed set rather than from the main upsert,
+// because the no-op guard below suppresses main rows whose columns did not
+// change while their session usage still has to be corrected.
+func (q *sqlQuerier) UpsertTemplateUsageStats(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, upsertTemplateUsageStats)
 	return err
 }
 

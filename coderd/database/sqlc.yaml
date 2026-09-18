@@ -118,6 +118,9 @@ sql:
           - column: "template_usage_stats.app_usage_mins"
             go_type:
               type: "StringMapOfInt"
+          - column: "app_usage.session_app_usage_seconds"
+            go_type:
+              type: "StringMapOfInt"
           - column: "tasks_with_status.workspace_user_acl"
             go_type:
               type: "WorkspaceACL"
