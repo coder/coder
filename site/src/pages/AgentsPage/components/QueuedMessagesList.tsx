@@ -6,7 +6,7 @@ import {
 	InfoIcon,
 	Trash2Icon,
 } from "lucide-react";
-import { type FC, useEffect, useState } from "react";
+import { type FC, type ReactNode, useEffect, useState } from "react";
 import type { ChatQueuedMessage } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import { Spinner } from "#/components/Spinner/Spinner";
@@ -16,18 +16,18 @@ import {
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 
-interface QueuedMessagesListProps {
+type QueuedMessagesListProps = {
 	messages: readonly ChatQueuedMessage[];
 	onDelete: (id: number) => Promise<void> | void;
 	onPromote: (id: number) => Promise<void> | void;
 	className?: string;
-}
+};
 
-interface QueuedMessageInfo {
+type QueuedMessageInfo = {
 	displayText: string;
 	attachmentCount: number;
 	hookNotices: string[];
-}
+};
 
 export const getQueuedMessageInfo = (
 	message: ChatQueuedMessage,
@@ -53,6 +53,55 @@ export const getQueuedMessageInfo = (
 	};
 };
 
+type QueuedMessageAction = "delete" | "promote";
+
+type QueuedMessageActionButtonProps = {
+	label: string;
+	// Defaults to label.
+	tooltip?: string;
+	icon: ReactNode;
+	busy: boolean;
+	disabled: boolean;
+	destructive?: boolean;
+	onClick: () => void;
+};
+
+const QueuedMessageActionButton: FC<QueuedMessageActionButtonProps> = ({
+	label,
+	tooltip,
+	icon,
+	busy,
+	disabled,
+	destructive = false,
+	onClick,
+}) => (
+	<Tooltip>
+		{/* A disabled button receives no pointer events, so the span hosts the tooltip. */}
+		<TooltipTrigger asChild>
+			<span className="inline-flex">
+				<Button
+					variant="subtle"
+					size="icon"
+					aria-label={label}
+					disabled={disabled}
+					onClick={onClick}
+					className={cn(
+						"size-6 rounded text-content-secondary hover:bg-surface-tertiary",
+						destructive
+							? "hover:text-content-destructive"
+							: "hover:text-content-primary",
+					)}
+				>
+					<Spinner className="h-3.5 w-3.5" loading={busy}>
+						{icon}
+					</Spinner>
+				</Button>
+			</span>
+		</TooltipTrigger>
+		<TooltipContent side="top">{tooltip ?? label}</TooltipContent>
+	</Tooltip>
+);
+
 export const QueuedMessagesList: FC<QueuedMessagesListProps> = ({
 	messages,
 	onDelete,
@@ -69,7 +118,7 @@ export const QueuedMessagesList: FC<QueuedMessagesListProps> = ({
 	// Tracks which item has an async action in flight and what kind.
 	const [busyItem, setBusyItem] = useState<{
 		id: number;
-		action: "delete" | "promote";
+		action: QueuedMessageAction;
 	} | null>(null);
 	const [optimisticallyHiddenIDs, setOptimisticallyHiddenIDs] = useState<
 		ReadonlySet<number>
@@ -116,28 +165,20 @@ export const QueuedMessagesList: FC<QueuedMessagesListProps> = ({
 		});
 	}, [messages]);
 
-	const handleDelete = async (id: number) => {
-		setBusyItem({ id, action: "delete" });
+	// Both actions remove the row, so it is hidden optimistically.
+	const runAction = async (
+		id: number,
+		action: QueuedMessageAction,
+		run: (id: number) => Promise<void> | void,
+	) => {
+		setBusyItem({ id, action });
 		hideItemOptimistically(id);
 		try {
-			await onDelete(id);
-			setBusyItem((current) => (current?.id === id ? null : current));
+			await run(id);
 		} catch {
 			restoreHiddenItem(id);
-			setBusyItem((current) => (current?.id === id ? null : current));
 		}
-	};
-
-	const handlePromote = async (id: number) => {
-		setBusyItem({ id, action: "promote" });
-		hideItemOptimistically(id);
-		try {
-			await onPromote(id);
-			setBusyItem((current) => (current?.id === id ? null : current));
-		} catch {
-			restoreHiddenItem(id);
-			setBusyItem((current) => (current?.id === id ? null : current));
-		}
+		setBusyItem((current) => (current?.id === id ? null : current));
 	};
 
 	const visibleItems = items.filter(
@@ -162,7 +203,6 @@ export const QueuedMessagesList: FC<QueuedMessagesListProps> = ({
 				const isItemBusy = busyItem !== null && busyItem.id === item.id;
 				const isHovered = hoveredID === item.id;
 				const showActions = isHovered || (isFirst && hoveredID === null);
-
 				return (
 					<div
 						key={item.id}
@@ -220,44 +260,22 @@ export const QueuedMessagesList: FC<QueuedMessagesListProps> = ({
 									showActions ? "opacity-100" : "opacity-0",
 								)}
 							>
-								<Tooltip>
-									<TooltipTrigger asChild>
-										<Button
-											variant="subtle"
-											size="icon"
-											aria-label="Send now"
-											disabled={isBusy}
-											onClick={() => void handlePromote(item.id)}
-											className="size-6 rounded text-content-secondary hover:bg-surface-tertiary hover:text-content-primary"
-										>
-											{isItemBusy && busyItem.action === "promote" ? (
-												<Spinner className="h-3.5 w-3.5" loading />
-											) : (
-												<ArrowUpIcon className="size-3.5" />
-											)}
-										</Button>
-									</TooltipTrigger>
-									<TooltipContent side="top">Send now</TooltipContent>
-								</Tooltip>
-								<Tooltip>
-									<TooltipTrigger asChild>
-										<Button
-											variant="subtle"
-											size="icon"
-											aria-label="Remove from queue"
-											disabled={isBusy}
-											onClick={() => void handleDelete(item.id)}
-											className="size-6 rounded text-content-secondary hover:bg-surface-tertiary hover:text-content-destructive"
-										>
-											{isItemBusy && busyItem.action === "delete" ? (
-												<Spinner className="h-3.5 w-3.5" loading />
-											) : (
-												<Trash2Icon className="size-3.5" />
-											)}
-										</Button>
-									</TooltipTrigger>
-									<TooltipContent side="top">Remove</TooltipContent>
-								</Tooltip>
+								<QueuedMessageActionButton
+									label="Send now"
+									icon={<ArrowUpIcon className="size-3.5" />}
+									busy={isItemBusy && busyItem.action === "promote"}
+									disabled={isBusy}
+									onClick={() => void runAction(item.id, "promote", onPromote)}
+								/>
+								<QueuedMessageActionButton
+									label="Remove from queue"
+									tooltip="Remove"
+									icon={<Trash2Icon className="size-3.5" />}
+									busy={isItemBusy && busyItem.action === "delete"}
+									disabled={isBusy}
+									destructive
+									onClick={() => void runAction(item.id, "delete", onDelete)}
+								/>
 							</div>
 						</div>
 					</div>

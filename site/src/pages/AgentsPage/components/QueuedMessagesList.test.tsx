@@ -1,7 +1,11 @@
-import { describe, expect, it } from "vitest";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import type { ComponentProps } from "react";
+import { describe, expect, it, vi } from "vitest";
 import type { ChatQueuedMessage } from "#/api/typesGenerated";
+import { TooltipProvider } from "#/components/Tooltip/Tooltip";
 import { MockChatQueuedMessage } from "#/testHelpers/chatEntities";
-import { getQueuedMessageInfo } from "./QueuedMessagesList";
+import { getQueuedMessageInfo, QueuedMessagesList } from "./QueuedMessagesList";
 
 const buildMessage = (
 	content: ChatQueuedMessage["content"],
@@ -144,5 +148,81 @@ describe("getQueuedMessageInfo", () => {
 			attachmentCount: 2,
 			hookNotices: [],
 		});
+	});
+});
+
+describe("QueuedMessagesList", () => {
+	const renderList = (
+		messages: readonly ChatQueuedMessage[],
+		handlers: Partial<
+			Pick<ComponentProps<typeof QueuedMessagesList>, "onDelete" | "onPromote">
+		> = {},
+	) => {
+		const onDelete = vi.fn();
+		const onPromote = vi.fn();
+		render(
+			<TooltipProvider>
+				<QueuedMessagesList
+					messages={messages}
+					onDelete={onDelete}
+					onPromote={onPromote}
+					{...handlers}
+				/>
+			</TooltipProvider>,
+		);
+		return { onDelete, onPromote };
+	};
+
+	it("forwards Send now and Remove with the row id", async () => {
+		const user = userEvent.setup();
+		const row = { ...MockChatQueuedMessage, id: 9 };
+
+		const { onPromote } = renderList([row]);
+		await user.click(screen.getByRole("button", { name: "Send now" }));
+		expect(onPromote).toHaveBeenCalledWith(9);
+		cleanup();
+
+		const { onDelete } = renderList([row]);
+		await user.click(screen.getByRole("button", { name: "Remove from queue" }));
+		expect(onDelete).toHaveBeenCalledWith(9);
+	});
+
+	it("hides the row and disables sibling actions while onPromote is pending, and restores them after it fails", async () => {
+		const user = userEvent.setup();
+		let rejectPromote: ((error: Error) => void) | undefined;
+		const onPromote = vi.fn(
+			() =>
+				new Promise<void>((_, reject) => {
+					rejectPromote = reject;
+				}),
+		);
+		const { onDelete } = renderList(
+			[
+				{ ...MockChatQueuedMessage, id: 7 },
+				{ ...MockChatQueuedMessage, id: 8 },
+			],
+			{ onPromote },
+		);
+
+		const [sendHead] = screen.getAllByRole("button", { name: "Send now" });
+		await user.click(sendHead);
+		expect(onPromote).toHaveBeenCalledWith(7);
+		const sendBehind = screen.getByRole("button", { name: "Send now" });
+		expect(sendBehind).toBeDisabled();
+
+		if (!rejectPromote) {
+			throw new Error("onPromote was not invoked");
+		}
+		rejectPromote(new Error("promote failed"));
+
+		await waitFor(() =>
+			expect(
+				screen.getAllByRole("button", { name: "Remove from queue" }),
+			).toHaveLength(2),
+		);
+		await user.click(
+			screen.getAllByRole("button", { name: "Remove from queue" })[0],
+		);
+		expect(onDelete).toHaveBeenCalledWith(7);
 	});
 });

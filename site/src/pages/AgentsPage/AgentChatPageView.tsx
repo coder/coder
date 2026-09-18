@@ -41,6 +41,7 @@ import {
 } from "./components/ChatConversation/chatStore";
 
 import { QueuedForCapacityCallout } from "./components/ChatConversation/QueuedForCapacityCallout";
+import type { EditingTarget } from "./components/ChatConversation/types";
 import { DesktopPanelContext } from "./components/ChatElements/tools/DesktopPanelContext";
 import type { PendingAttachment } from "./components/ChatPageContent";
 import { ChatPageInput, ChatPageTimeline } from "./components/ChatPageContent";
@@ -88,6 +89,8 @@ interface EditingState {
 	editorInitialValue: string;
 	initialEditorState: string | undefined;
 	remountKey: number;
+	editingTarget: EditingTarget | null;
+	// Null unless a history message is being edited.
 	editingMessageId: number | null;
 	editingFileBlocks: readonly ChatMessagePart[];
 	handleEditUserMessage: (
@@ -95,7 +98,7 @@ interface EditingState {
 		text: string,
 		fileBlocks?: readonly ChatMessagePart[],
 	) => void;
-	handleCancelHistoryEdit: () => void;
+	handleCancelEdit: () => void;
 	handleSendFromInput: (
 		message: string,
 		attachments?: readonly PendingAttachment[],
@@ -814,8 +817,6 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 		};
 	});
 
-	const isEditing = editing.editingMessageId !== null;
-
 	const chatOwnerUsername = chat.owner_username?.trim();
 	const chatOwnerLabel =
 		chat.owner_name?.trim() ||
@@ -984,8 +985,8 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 										initialEditorState={editing.initialEditorState}
 										remountKey={editing.remountKey}
 										onContentChange={editing.handleContentChange}
-										isEditing={isEditing}
-										onCancelHistoryEdit={editing.handleCancelHistoryEdit}
+										editingTarget={editing.editingTarget}
+										onCancelEdit={editing.handleCancelEdit}
 										editingFileBlocks={editing.editingFileBlocks}
 										mcpServers={mcpServers}
 										selectedMCPServerIds={selectedMCPServerIds}
