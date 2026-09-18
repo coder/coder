@@ -6165,7 +6165,7 @@ func (api *API) deleteUserChatCompactionThreshold(rw http.ResponseWriter, r *htt
 // @ID upload-chat-file
 // @Security CoderSessionToken
 // @Tags Chats
-// @Accept image/png,image/jpeg,image/gif,image/webp,text/plain,text/markdown,text/csv,application/json,application/pdf
+// @Accept image/png,image/jpeg,image/gif,image/webp,image/svg+xml,text/plain,text/markdown,text/csv,application/json,application/pdf
 // @Produce json
 // @Param organization query string true "Organization ID" format(uuid)
 // @Param Content-Disposition header string true "Attachment disposition carrying the file name" example(attachment; filename="image.png")
@@ -6393,7 +6393,7 @@ func (api *API) postChatFileDownloadURL(rw http.ResponseWriter, r *http.Request)
 // @Summary Download chat file with signed token
 // @ID download-chat-file-with-signed-token
 // @Tags Chats
-// @Produce image/png,image/jpeg,image/gif,image/webp,text/plain,text/markdown,text/csv,application/json,application/pdf
+// @Produce image/png,image/jpeg,image/gif,image/webp,image/svg+xml,text/plain,text/markdown,text/csv,application/json,application/pdf
 // @Param file path string true "File ID" format(uuid)
 // @Param token query string true "Signed download token"
 // @Success 200
@@ -6443,7 +6443,7 @@ func (api *API) downloadChatFile(rw http.ResponseWriter, r *http.Request) {
 // @ID get-chat-file
 // @Security CoderSessionToken
 // @Tags Chats
-// @Produce image/png,image/jpeg,image/gif,image/webp,text/plain,text/markdown,text/csv,application/json,application/pdf
+// @Produce image/png,image/jpeg,image/gif,image/webp,image/svg+xml,text/plain,text/markdown,text/csv,application/json,application/pdf
 // @Param file path string true "File ID" format(uuid)
 // @Success 200
 // @Router /api/v2/chats/files/{file} [get]
@@ -8042,7 +8042,7 @@ func isZeroChatModelCallConfig(config *codersdk.ChatModelCallConfig) bool {
 }
 
 func isZeroChatModelOpenAIConfig(config *codersdk.ChatModelOpenAIConfig) bool {
-	return config == nil || config.UseResponsesAPI == nil
+	return config == nil || (config.UseResponsesAPI == nil && config.ReasoningModel == nil)
 }
 
 func isZeroChatModelProviderOptions(options *codersdk.ChatModelProviderOptions) bool {

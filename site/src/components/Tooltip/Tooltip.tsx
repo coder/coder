@@ -8,6 +8,12 @@ import { Tooltip as TooltipPrimitive } from "radix-ui";
 
 export const TooltipProvider = TooltipPrimitive.Provider;
 
+/**
+ * Shared open delay (ms) for tooltips. Used by the app-wide provider and by
+ * self-contained tooltips such as InfoTooltip so hover timing stays consistent.
+ */
+export const TOOLTIP_DELAY_DURATION = 100;
+
 export const Tooltip = TooltipPrimitive.Root;
 
 export const TooltipTrigger = TooltipPrimitive.Trigger;
@@ -47,3 +53,23 @@ export const TooltipContent: React.FC<TooltipContentProps> = ({
 		<TooltipPrimitive.Portal>{content}</TooltipPrimitive.Portal>
 	);
 };
+
+export const TooltipTitle: React.FC<React.ComponentProps<"p">> = ({
+	className,
+	...props
+}) => (
+	<p
+		className={cn("m-0 mb-1 font-semibold text-content-primary", className)}
+		{...props}
+	/>
+);
+
+export const TooltipMessage: React.FC<React.ComponentProps<"p">> = ({
+	className,
+	...props
+}) => (
+	<p
+		className={cn("m-0 text-content-secondary [&_a]:mt-2", className)}
+		{...props}
+	/>
+);

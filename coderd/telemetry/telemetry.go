@@ -1027,12 +1027,6 @@ func (r *remoteReporter) collectUserSecretsSummary(ctx context.Context) (*UserSe
 	}, nil
 }
 
-// HashContent returns a SHA256 hash of the content as a hex string.
-// This is useful for hashing sensitive content like prompts for telemetry.
-func HashContent(content string) string {
-	return fmt.Sprintf("%x", sha256.Sum256([]byte(content)))
-}
-
 // ConvertAPIKey anonymizes an API key.
 func ConvertAPIKey(apiKey database.APIKey) APIKey {
 	a := APIKey{

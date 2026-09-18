@@ -274,7 +274,8 @@ func mergeBasicClientAuth(r *http.Request, clientID, clientSecret string) (merge
 // returns the matched secret row. Every authentication failure returns
 // errBadSecret so the response does not reveal which step failed; a
 // datastore failure returns the underlying error. Callers skip it for public
-// clients, which have no secret.
+// clients, which have no secret and are bound by PKCE and the token's app id
+// instead.
 func authenticateClient(ctx context.Context, db database.Store, app database.OAuth2ProviderApp, clientSecret string) (database.OAuth2ProviderAppSecret, error) {
 	secret, err := ParseFormattedSecret(clientSecret)
 	if err != nil {
@@ -324,6 +325,14 @@ func Tokens(db database.Store, lifetimes codersdk.SessionLifetime, logger slog.L
 
 		req, validationErrs, err := extractTokenRequest(r, logger, primary, alternates, app)
 		if err != nil {
+			// ExtractOAuth2ProviderAppWithOAuth2Errors bounds the body, but it
+			// parses the form only when client_id is absent from the query
+			// string. When it is present, extractTokenRequest performs the first
+			// read and the bound trips here rather than in the middleware.
+			if maxBytesErr, ok := errors.AsType[*http.MaxBytesError](err); ok {
+				httpapi.WriteOAuth2RequestTooLarge(ctx, rw, maxBytesErr.Limit)
+				return
+			}
 			if errors.Is(err, errConflictingClientAuth) {
 				writeTokenError(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidRequest, "Conflicting client credentials between Authorization header and request body")
 				return
@@ -379,6 +388,12 @@ func Tokens(db database.Store, lifetimes codersdk.SessionLifetime, logger slog.L
 		}
 
 		if errors.Is(err, errBadSecret) {
+			// A missing, wrong, or foreign secret is what a replayed stolen token
+			// looks like, so the refusal is logged. The request body stays out of
+			// the log: the caller never proved its credential, and the token it
+			// sent should not be recorded.
+			logger.Warn(ctx, "oauth2 token request refused: client authentication failed",
+				slog.F("grant_type", req.GrantType), slog.F("app_id", app.ID))
 			writeTokenError(ctx, rw, http.StatusUnauthorized, codersdk.OAuth2ErrorCodeInvalidClient, "The client credentials are invalid")
 			return
 		}
@@ -674,6 +689,12 @@ func authorizationCodeGrant(ctx context.Context, db database.Store, logger slog.
 }
 
 func refreshTokenGrant(ctx context.Context, db database.Store, logger slog.Logger, app database.OAuth2ProviderApp, lifetimes codersdk.SessionLifetime, req codersdk.OAuth2TokenRequest) (codersdk.OAuth2TokenResponse, error) {
+	if !app.IsPublic() {
+		if _, err := authenticateClient(ctx, db, app, req.ClientSecret); err != nil {
+			return codersdk.OAuth2TokenResponse{}, err
+		}
+	}
+
 	// Validate the token.
 	token, err := ParseFormattedSecret(req.RefreshToken)
 	if err != nil {
