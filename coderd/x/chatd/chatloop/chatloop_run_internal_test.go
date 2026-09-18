@@ -551,6 +551,7 @@ func TestExclusiveToolPolicy_MixedBatchErrors(t *testing.T) {
 			{ToolCallID: "read-1", ToolName: "read_file", Input: `{"path":"main.go"}`},
 		},
 		map[string]bool{"advisor": true},
+		nil,
 		NopMetrics(),
 		"fake",
 		"",
@@ -572,6 +573,36 @@ func TestExclusiveToolPolicy_MixedBatchErrors(t *testing.T) {
 	)
 }
 
+func TestExclusiveToolPolicy_MessageOverride(t *testing.T) {
+	t.Parallel()
+
+	results, violated := applyExclusiveToolPolicy(
+		[]fantasy.ToolCallContent{
+			{ToolCallID: "read-1", ToolName: "read_file", Input: `{"path":"main.go"}`},
+			{ToolCallID: "clear-1", ToolName: "clear_context", Input: `{"follow_up":"next"}`},
+			{ToolCallID: "advisor-1", ToolName: "advisor", Input: `{}`},
+		},
+		map[string]bool{"clear_context": true, "advisor": true},
+		map[string]ExclusiveToolMessages{"clear_context": {
+			Skipped:      "custom skipped text",
+			MustRunAlone: "custom must run alone text",
+		}},
+		NopMetrics(),
+		"fake",
+		"",
+	)
+
+	require.True(t, violated)
+	require.Len(t, results, 3)
+	requireToolResultErrorMessage(t, results[0], "custom skipped text")
+	requireToolResultErrorMessage(t, results[1], "custom must run alone text")
+	requireToolResultErrorMessage(
+		t,
+		results[2],
+		"advisor must be called alone, without other tools in the same batch. If you need more information to feed into the advisor call, execute the other tools first, then retry with only the advisor call.",
+	)
+}
+
 func TestApplyExclusiveToolPolicy_RecordsErrorMetrics(t *testing.T) {
 	t.Parallel()
 
@@ -584,6 +615,7 @@ func TestApplyExclusiveToolPolicy_RecordsErrorMetrics(t *testing.T) {
 			{ToolCallID: "read-1", ToolName: "read_file", Input: `{"path":"main.go"}`},
 		},
 		map[string]bool{"advisor": true},
+		nil,
 		m,
 		"fake",
 		"claude-test",
@@ -607,6 +639,7 @@ func TestExclusiveToolPolicy_MultipleExclusive(t *testing.T) {
 			{ToolCallID: "advisor-2", ToolName: "advisor", Input: `{"mode":"second-opinion"}`},
 		},
 		map[string]bool{"advisor": true},
+		nil,
 		NopMetrics(),
 		"fake",
 		"",
