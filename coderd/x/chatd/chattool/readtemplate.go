@@ -40,6 +40,9 @@ const (
 		"read_template shortly."
 	readTemplateBuildTimeDefaultNote = "resolved on the provisioner at " +
 		"build time; showing the value recorded at template import"
+	readTemplateUnresolvedDefaultNote = "no default could be evaluated for " +
+		"this owner before the build; omit the parameter to let the build " +
+		"resolve it, or pass a value explicitly"
 )
 
 // RenderTemplateParametersFn evaluates a template version's parameters as the
@@ -248,25 +251,23 @@ func readTemplateParameters(
 	switch {
 	case err == nil && !hasErrorDiagnostic(diags):
 		options.Logger.Debug(ctx, "read_template evaluated parameters for owner", fields...)
-		importByName := make(map[string]database.TemplateVersionParameter, len(rows))
-		for _, p := range rows {
-			importByName[p.Name] = p
-		}
+		renderedNames := make(map[string]struct{}, len(rendered))
 		paramList := make([]map[string]any, 0, len(rows))
 		for _, p := range rendered {
-			var imported *database.TemplateVersionParameter
-			if row, ok := importByName[p.Name]; ok {
-				imported = &row
-				delete(importByName, p.Name)
-			}
-			paramList = append(paramList, renderedParameterEntry(p, imported))
+			renderedNames[p.Name] = struct{}{}
+			paramList = append(paramList, renderedParameterEntry(p))
 		}
 		// A module preview could not load takes every parameter it declares
 		// out of the render, but provisionerd still resolves the module at
-		// build time, so the import rows stand in for those parameters.
+		// build time, so the import rows stand in for those parameters. This
+		// is the only import-row fill: the diagnostic code is a reliable
+		// signal, whereas preview's output cannot distinguish a default,
+		// option set, or validation bound that is unknown before the build
+		// from one that evaluates to null for this owner, so those are shown
+		// exactly as evaluated, as the create-workspace form does.
 		if incompleteRender(diags) {
 			for _, row := range rows {
-				if _, missing := importByName[row.Name]; !missing {
+				if _, ok := renderedNames[row.Name]; ok {
 					continue
 				}
 				entry := staticParameterEntry(row)
@@ -316,12 +317,7 @@ func incompleteRender(diags []codersdk.FriendlyDiagnostic) bool {
 
 // renderedParameterEntry converts an owner-evaluated parameter into the same
 // shape as staticParameterEntry so the model sees one schema either way.
-// imported is the import-time row for the same parameter, or nil. Anything
-// preview could not evaluate before the build, such as a default, option
-// value, or validation bound that depends on data.coder_provisioner, is
-// omitted from the rendered entry and then filled from the import row, which
-// recorded what the provisioner produced, with a note naming the source.
-func renderedParameterEntry(p codersdk.PreviewParameter, imported *database.TemplateVersionParameter) map[string]any {
+func renderedParameterEntry(p codersdk.PreviewParameter) map[string]any {
 	param := map[string]any{
 		"name":     p.Name,
 		"type":     string(p.Type),
@@ -345,10 +341,6 @@ func renderedParameterEntry(p codersdk.PreviewParameter, imported *database.Temp
 		paramErr = strings.TrimSpace(d.Summary + ": " + d.Detail)
 		break
 	}
-	// The import default may stand in only when preview could not evaluate
-	// the default at all. A default preview rejected, an empty default, or
-	// a required parameter must not acquire one.
-	fillDefault := imported != nil && paramErr == "" && !p.DefaultValue.Valid && !p.Required
 	switch {
 	case paramErr != "":
 		// A parameter-scoped error does not fail the whole render, but a
@@ -358,8 +350,15 @@ func renderedParameterEntry(p codersdk.PreviewParameter, imported *database.Temp
 			paramErr += fmt.Sprintf("; the evaluated default %q cannot be used, pass a value explicitly", p.DefaultValue.Value)
 		}
 		param["error"] = paramErr
-	case p.DefaultValue.Valid && p.DefaultValue.Value != "":
-		param["default"] = p.DefaultValue.Value
+	case p.DefaultValue.Valid:
+		if p.DefaultValue.Value != "" {
+			param["default"] = p.DefaultValue.Value
+		}
+	case !p.Required:
+		// An invalid default is one preview could not evaluate before the
+		// build (data.coder_provisioner) or one that is null for this
+		// owner; the two are indistinguishable, so no value is guessed.
+		param["default_note"] = readTemplateUnresolvedDefaultNote
 	}
 	if p.Ephemeral {
 		param["ephemeral"] = true
@@ -367,12 +366,7 @@ func renderedParameterEntry(p codersdk.PreviewParameter, imported *database.Temp
 	if p.FormType != "" {
 		param["form_type"] = string(p.FormType)
 	}
-	// Option labels can depend on the owner, so a partially unknown list is
-	// replaced as a whole rather than matched option by option. An evaluated
-	// empty list is a real result, since option blocks can be generated per
-	// owner, and must not be filled from the import row.
-	opts, optionsKnown := renderedOptions(p.Options)
-	if len(opts) > 0 {
+	if opts := renderedOptions(p.Options); len(opts) > 0 {
 		param["options"] = opts
 	}
 	for _, v := range p.Validations {
@@ -386,42 +380,18 @@ func renderedParameterEntry(p codersdk.PreviewParameter, imported *database.Temp
 			param["validation_max"] = *v.Max
 		}
 	}
-
-	if imported == nil {
-		return param
-	}
-	fromImport := staticParameterEntry(*imported)
-	for _, f := range []struct{ key, note string }{
-		{"default", "default_note"},
-		{"options", "options_note"},
-		{"validation_regex", "validation_note"},
-		{"validation_min", "validation_note"},
-		{"validation_max", "validation_note"},
-	} {
-		if (f.key == "default" && !fillDefault) || (f.key == "options" && optionsKnown) {
-			continue
-		}
-		if _, ok := param[f.key]; ok {
-			continue
-		}
-		value, ok := fromImport[f.key]
-		if !ok {
-			continue
-		}
-		param[f.key] = value
-		param[f.note] = readTemplateBuildTimeDefaultNote
-	}
 	return param
 }
 
-// renderedOptions converts the rendered options, reporting false when any
-// value is unknown before the build so the caller can substitute the import
-// row's list instead of presenting an empty value. An empty list is known.
-func renderedOptions(options []codersdk.PreviewParameterOption) ([]map[string]any, bool) {
+// renderedOptions converts the rendered options, omitting any whose value is
+// unknown before the build rather than presenting an empty value. Preview
+// flags the parameter with an invalid-options error in that case, which the
+// entry surfaces as error.
+func renderedOptions(options []codersdk.PreviewParameterOption) []map[string]any {
 	opts := make([]map[string]any, 0, len(options))
 	for _, o := range options {
 		if !o.Value.Valid {
-			return nil, false
+			continue
 		}
 		opt := map[string]any{
 			"name":  o.Name,
@@ -435,7 +405,7 @@ func renderedOptions(options []codersdk.PreviewParameterOption) ([]map[string]an
 		}
 		opts = append(opts, opt)
 	}
-	return opts, true
+	return opts
 }
 
 // staticParameterEntry converts an import-time parameter row into the tool's

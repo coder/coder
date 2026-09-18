@@ -421,8 +421,6 @@ func TestReadTemplate_OwnerEvaluatedParameters(t *testing.T) {
 		require.Len(t, opts, 2)
 		require.Equal(t, "eu-helsinki", opts[1].(map[string]any)["value"])
 		require.NotContains(t, region, "default_note")
-		require.NotContains(t, region, "options_note")
-		require.NotContains(t, region, "validation_note")
 		require.Contains(t, note, "values a build for this workspace owner uses")
 	})
 
@@ -512,14 +510,18 @@ func TestReadTemplate_OwnerEvaluatedParameters(t *testing.T) {
 		require.Contains(t, note, "values a build for this workspace owner uses")
 	})
 
-	t.Run("BuildTimeDefaultUsesImportValue", func(t *testing.T) {
+	t.Run("UnresolvedDefaultIsNotFilledFromImport", func(t *testing.T) {
 		t.Parallel()
+		// Preview renders a default that depends on data.coder_provisioner
+		// and a default that evaluates to null for this owner identically:
+		// Valid is false and there is no diagnostic. The import row cannot
+		// tell them apart, so its value must not stand in.
 		unknown := ownerRendered[0]
 		unknown.DefaultValue = codersdk.NullHCLString{}
 		unknown.Value = codersdk.NullHCLString{}
 		region, note := readParams(t, renderStatic(unknown))
-		require.Equal(t, "us-pittsburgh", region["default"])
-		require.Contains(t, region["default_note"], "recorded at template import")
+		require.NotContains(t, region, "default", "import default must not stand in for an unevaluated one")
+		require.Contains(t, region["default_note"], "no default could be evaluated")
 		require.NotContains(t, region, "error")
 		require.Contains(t, note, "values a build for this workspace owner uses")
 	})
@@ -549,18 +551,17 @@ func TestReadTemplate_OwnerEvaluatedParameters(t *testing.T) {
 		require.Contains(t, note, "values a build for this workspace owner uses")
 	})
 
-	t.Run("UnknownOptionValuesUseImportOptions", func(t *testing.T) {
+	t.Run("UnknownOptionValuesAreOmitted", func(t *testing.T) {
 		t.Parallel()
 		// An option value that depends on data preview cannot see, such as
 		// data.coder_provisioner attributes, renders as invalid and preview
-		// flags the parameter. The import row recorded the options the
-		// provisioner produced, so the whole list comes from there: option
-		// labels may themselves be owner-dependent, so they cannot key the
-		// recovery.
+		// flags the parameter. The option is left out rather than shown with
+		// an empty value or replaced from the import row, and the error
+		// tells the model to pass a value explicitly.
 		unknownOption := ownerRendered[0]
 		unknownOption.Options = []codersdk.PreviewParameterOption{
 			{Name: "Pittsburgh", Value: codersdk.NullHCLString{Value: "us-pittsburgh", Valid: true}},
-			{Name: "Falkenstein (" + user.Username + ")", Value: codersdk.NullHCLString{}},
+			{Name: "Native (" + user.Username + ")", Value: codersdk.NullHCLString{}},
 		}
 		unknownOption.Diagnostics = []codersdk.FriendlyDiagnostic{{
 			Severity: codersdk.DiagnosticSeverityError,
@@ -571,32 +572,15 @@ func TestReadTemplate_OwnerEvaluatedParameters(t *testing.T) {
 		require.Contains(t, region["error"], "invalid options")
 		opts, ok := region["options"].([]any)
 		require.True(t, ok)
-		require.Len(t, opts, 2)
+		require.Len(t, opts, 1, "only options with a known value are listed")
 		require.Equal(t, "us-pittsburgh", opts[0].(map[string]any)["value"])
-		require.Equal(t, "Falkenstein", opts[1].(map[string]any)["name"], "import options replace the rendered list")
-		require.Equal(t, "eu-helsinki", opts[1].(map[string]any)["value"])
-		require.Contains(t, region["options_note"], "recorded at template import")
 	})
 
-	t.Run("EvaluatedEmptyOptionsStayEmpty", func(t *testing.T) {
+	t.Run("ValidationIsNotFilledFromImport", func(t *testing.T) {
 		t.Parallel()
-		// Option blocks can be generated per owner, so an evaluated empty
-		// list is a real result (free-form input for this owner), not a
-		// gap to fill from the importer's options.
-		freeForm := ownerRendered[0]
-		freeForm.Options = nil
-		freeForm.FormType = codersdk.ParameterFormTypeInput
-		region, _ := readParams(t, renderStatic(freeForm))
-		require.Equal(t, "eu-helsinki", region["default"])
-		require.NotContains(t, region, "options", "import options must not replace an evaluated empty list")
-		require.NotContains(t, region, "options_note")
-	})
-
-	t.Run("UnknownValidationUsesImportValues", func(t *testing.T) {
-		t.Parallel()
-		// A validation attribute preview cannot evaluate comes back nil, the
-		// same as an absent one, but the provisioner enforces it at build
-		// time. The import row is the only record of it.
+		// Preview returns a nil bound both for one that evaluates to null
+		// for this owner and for one it could not evaluate, so the import
+		// row's bound must not stand in for a missing one.
 		constrained := regionRow
 		constrained.Name = "cpu"
 		constrained.Type = "number"
@@ -605,22 +589,21 @@ func TestReadTemplate_OwnerEvaluatedParameters(t *testing.T) {
 		constrained.ValidationMin = sql.NullInt32{Int32: 2, Valid: true}
 		constrained.ValidationMax = sql.NullInt32{Int32: 16, Valid: true}
 		withValidation := newTemplate(t, database.Template{}, constrained)
-		min := int64(2)
+		maxCPU := int64(16)
 		params, _ := readAll(t, withValidation.ID, renderStatic(codersdk.PreviewParameter{
 			PreviewParameterData: codersdk.PreviewParameterData{
 				Name:         "cpu",
 				Type:         codersdk.OptionTypeNumber,
 				Mutable:      true,
 				DefaultValue: codersdk.NullHCLString{Value: "4", Valid: true},
-				Validations:  []codersdk.PreviewParameterValidation{{Min: &min}},
+				Validations:  []codersdk.PreviewParameterValidation{{Max: &maxCPU}},
 			},
 			Value: codersdk.NullHCLString{Value: "4", Valid: true},
 		}))
 		cpu := params["cpu"]
 		require.Equal(t, "4", cpu["default"])
-		require.EqualValues(t, 2, cpu["validation_min"], "known constraints come from the render")
-		require.EqualValues(t, 16, cpu["validation_max"], "unknown constraint recovered from the import row")
-		require.Contains(t, cpu["validation_note"], "recorded at template import")
+		require.EqualValues(t, 16, cpu["validation_max"], "evaluated bounds come from the render")
+		require.NotContains(t, cpu, "validation_min", "import bound must not stand in for a null one")
 		require.NotContains(t, cpu, "default_note")
 	})
 
