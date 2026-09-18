@@ -68,8 +68,8 @@ func resolveRedirectURIs(callbackURL string, redirectURIs, stored []string) []st
 // entry passes ValidateRedirectURIShape; entries of a public app also
 // pass ValidateRedirectURI.
 //
-// Stored URIs are checked again on every update. An app that predates the
-// caps and no longer passes must be deleted and created again.
+// Stored URIs are checked again on every update, so an app that predates the
+// caps cannot be saved until a request sends a list that fits.
 func validateAppRedirectURIFields(uris []string, clientType codersdk.OAuth2ClientType, fromCallback string) []codersdk.ValidationError {
 	// A failure on the request's callback_url is reported against that field
 	// and without a list index, since the caller never sent a list.
