@@ -58,18 +58,20 @@ export const ChatStatusLine: FC<ChatStatusLineProps> = ({
 			{settled && (
 				// The ⋮ glyph above ends ~6px inside its button; the age lines up
 				// with the glyph, not the box.
-				<span className="ml-auto flex shrink-0 items-center gap-1.5 pr-1.5">
-					{chat.has_unread && (
-						<span
-							role="img"
-							className="size-[7px] shrink-0 rounded-full bg-content-link"
-							aria-label="Unread"
-						/>
+				<time
+					dateTime={chat.updated_at}
+					className={cn(
+						"ml-auto shrink-0 pr-1.5 text-[11px] tabular-nums",
+						// Unread is the sidebar's blue, worn by the age itself: the new
+						// thing is what happened at that time.
+						chat.has_unread
+							? "font-medium text-content-link"
+							: "text-content-secondary/70",
 					)}
-					<span className="text-[11px] tabular-nums text-content-secondary/70">
-						{shortRelativeTime(chat.updated_at)}
-					</span>
-				</span>
+				>
+					{chat.has_unread && <span className="sr-only">Unread, </span>}
+					{shortRelativeTime(chat.updated_at)}
+				</time>
 			)}
 		</div>
 	);
