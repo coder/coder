@@ -62,7 +62,7 @@ const makeRepo = (
 	...overrides,
 });
 
-const defaultDiffContents: ChatDiffContents = {
+const mockDiffContents: ChatDiffContents = {
 	chat_id: "test-chat",
 };
 
@@ -105,7 +105,7 @@ const meta: Meta<typeof GitPanel> = {
 	],
 	beforeEach: () => {
 		spyOn(API.experimental, "getChatDiffContents").mockResolvedValue(
-			defaultDiffContents,
+			mockDiffContents,
 		);
 	},
 };
@@ -126,7 +126,7 @@ export const PullRequestAndWorkingChanges: Story = {
 	},
 	beforeEach: () => {
 		spyOn(API.experimental, "getChatDiffContents").mockResolvedValue({
-			...defaultDiffContents,
+			...mockDiffContents,
 			diff: sampleDiff,
 		});
 	},
@@ -161,7 +161,7 @@ export const MultiplePullRequests: Story = {
 	},
 	beforeEach: () => {
 		spyOn(API.experimental, "getChatDiffContents").mockResolvedValue({
-			...defaultDiffContents,
+			...mockDiffContents,
 			diff: sampleDiff,
 		});
 	},
@@ -201,7 +201,7 @@ export const ViewSwitcherOpen: Story = {
 	},
 	beforeEach: () => {
 		spyOn(API.experimental, "getChatDiffContents").mockResolvedValue({
-			...defaultDiffContents,
+			...mockDiffContents,
 			diff: sampleDiff,
 		});
 	},
@@ -238,7 +238,7 @@ export const DraftPullRequest: Story = {
 	},
 	beforeEach: () => {
 		spyOn(API.experimental, "getChatDiffContents").mockResolvedValue({
-			...defaultDiffContents,
+			...mockDiffContents,
 			diff: sampleDiff,
 		});
 	},
@@ -260,7 +260,7 @@ export const MergedPullRequest: Story = {
 	},
 	beforeEach: () => {
 		spyOn(API.experimental, "getChatDiffContents").mockResolvedValue({
-			...defaultDiffContents,
+			...mockDiffContents,
 			diff: sampleDiff,
 		});
 	},
@@ -282,7 +282,7 @@ export const ClosedPullRequest: Story = {
 	},
 	beforeEach: () => {
 		spyOn(API.experimental, "getChatDiffContents").mockResolvedValue({
-			...defaultDiffContents,
+			...mockDiffContents,
 			diff: sampleDiff,
 		});
 	},
@@ -343,7 +343,7 @@ export const BranchPrimarySelectedPr: Story = {
 	},
 	beforeEach: () => {
 		spyOn(API.experimental, "getChatDiffContents").mockResolvedValue({
-			...defaultDiffContents,
+			...mockDiffContents,
 			diff: sampleDiff,
 		});
 	},
@@ -391,7 +391,7 @@ export const MultipleRepos: Story = {
 	},
 	beforeEach: () => {
 		spyOn(API.experimental, "getChatDiffContents").mockResolvedValue({
-			...defaultDiffContents,
+			...mockDiffContents,
 			diff: sampleDiff,
 		});
 	},
@@ -440,7 +440,7 @@ export const InlineCommentInput: Story = {
 	],
 	beforeEach: () => {
 		spyOn(API.experimental, "getChatDiffContents").mockResolvedValue({
-			...defaultDiffContents,
+			...mockDiffContents,
 			diff: sampleDiff,
 		});
 	},

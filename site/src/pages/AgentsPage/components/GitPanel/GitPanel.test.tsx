@@ -19,7 +19,7 @@ vi.mock("../DiffViewer/LocalDiffPanel", () => ({
 	LocalDiffPanel: () => null,
 }));
 
-const diffContents = (chatId: string): ChatDiffContents => ({
+const mockDiffContents = (chatId: string): ChatDiffContents => ({
 	chat_id: chatId,
 });
 
@@ -140,7 +140,7 @@ describe("GitPanel per-ref views", () => {
 		const user = userEvent.setup();
 		const getDiff = vi
 			.spyOn(API.experimental, "getChatDiffContents")
-			.mockResolvedValue(diffContents("test-chat"));
+			.mockResolvedValue(mockDiffContents("test-chat"));
 
 		renderPanel({
 			remoteDiffStats: [
@@ -192,7 +192,7 @@ describe("GitPanel per-ref views", () => {
 	it("fetches a branch-only ref's diff even without a PR URL", async () => {
 		const getDiff = vi
 			.spyOn(API.experimental, "getChatDiffContents")
-			.mockResolvedValue(diffContents("test-chat"));
+			.mockResolvedValue(mockDiffContents("test-chat"));
 
 		renderPanel({
 			remoteDiffStats: [
@@ -223,7 +223,7 @@ describe("GitPanel per-ref views", () => {
 	it("adopts the first refs when they arrive after mount", async () => {
 		const getDiff = vi
 			.spyOn(API.experimental, "getChatDiffContents")
-			.mockResolvedValue(diffContents("test-chat"));
+			.mockResolvedValue(mockDiffContents("test-chat"));
 
 		const view = renderPanel({ remoteDiffStats: undefined });
 
@@ -258,7 +258,7 @@ describe("GitPanel per-ref views", () => {
 	it("fetches the new primary's diff when a keyless primary is superseded", async () => {
 		const getDiff = vi
 			.spyOn(API.experimental, "getChatDiffContents")
-			.mockResolvedValue(diffContents("test-chat"));
+			.mockResolvedValue(mockDiffContents("test-chat"));
 
 		const legacyKeyless = {
 			...MockChatDiffStatus,
