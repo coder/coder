@@ -33,7 +33,7 @@
 	},
 	"devDependencies": {
 		"@biomejs/biome": "2.5.13",
-		"@types/hast": "3.0.4",
+		"@types/hast": "3.0.5",
 		"@types/lodash": "4.17.25",
 		"@types/node": "22.20.2",
 		"@types/react": "18.3.12",
