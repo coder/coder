@@ -2,6 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import type * as TypesGen from "#/api/typesGenerated";
 import { MockChatModel } from "#/testHelpers/chatModels";
+import { mockApiError } from "#/testHelpers/entities";
 import OrganizationAgentSettingsView from "./OrganizationAgentSettingsView";
 
 const model: TypesGen.ChatModel = {
@@ -15,6 +16,7 @@ const alternateModel: TypesGen.ChatModel = {
 	model: "model-two",
 	display_name: "Model Two",
 };
+const saveDefaultModel = fn();
 const saveGeneralOverride = fn();
 const saveExploreOverride = fn();
 const overrides: readonly TypesGen.ChatModelOverrideResponse[] = [
@@ -36,6 +38,10 @@ const meta: Meta<typeof OrganizationAgentSettingsView> = {
 	title: "pages/AISettingsPage/CoderAgentsPage/OrganizationAgentSettingsView",
 	component: OrganizationAgentSettingsView,
 	args: {
+		defaultModelID: model.id,
+		onSaveDefaultModel: saveDefaultModel,
+		isSavingDefaultModel: false,
+		isSaveDefaultModelError: false,
 		overrides,
 		enabledModels: [model, alternateModel],
 		providerInfoByID: new Map([
@@ -45,8 +51,10 @@ const meta: Meta<typeof OrganizationAgentSettingsView> = {
 			],
 		]),
 		isLoading: false,
+		isOverridesLoading: false,
 		loadError: null,
 		refetchError: null,
+		modelsError: null,
 		canEdit: true,
 		showAdvisor: true,
 		saveByContext,
@@ -56,6 +64,19 @@ const meta: Meta<typeof OrganizationAgentSettingsView> = {
 };
 export default meta;
 type Story = StoryObj<typeof OrganizationAgentSettingsView>;
+
+export const DefaultModelOpen: Story = {
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const defaultSection = canvas.getByRole("form", {
+			name: "Default model",
+		});
+		await userEvent.click(within(defaultSection).getByRole("combobox"));
+	},
+};
+export const UnavailableDefaultModel: Story = {
+	args: { defaultModelID: "model-gone" },
+};
 
 export const SetAndUnset: Story = {
 	beforeEach: () => {
@@ -73,7 +94,9 @@ export const SetAndUnset: Story = {
 		});
 
 		await userEvent.click(
-			within(exploreSection).getByRole("combobox", { name: "Use default" }),
+			within(exploreSection).getByRole("combobox", {
+				name: "Explore subagent, Use chat model",
+			}),
 		);
 		await userEvent.click(
 			await body.findByRole("option", { name: /Model Two/i }),
@@ -145,6 +168,47 @@ export const UnavailableSavedModels: Story = {
 		await expect(
 			within(generalSection).getByText(/will be ignored/),
 		).toBeVisible();
+	},
+};
+
+export const Loading: Story = {
+	args: {
+		isLoading: true,
+		isOverridesLoading: true,
+		defaultModelID: undefined,
+		overrides: undefined,
+		enabledModels: [],
+	},
+};
+
+export const OverridesLoading: Story = {
+	args: {
+		isOverridesLoading: true,
+		overrides: undefined,
+	},
+};
+
+export const OverridesRefetchError: Story = {
+	args: {
+		refetchError: mockApiError({
+			message: "Failed to refresh model overrides.",
+		}),
+	},
+};
+
+export const OverridesLoadError: Story = {
+	args: {
+		overrides: undefined,
+		loadError: mockApiError({ message: "Failed to load model overrides." }),
+	},
+};
+
+export const NoModelsWithOverridesRefetchError: Story = {
+	args: {
+		enabledModels: [],
+		refetchError: mockApiError({
+			message: "Failed to refresh model overrides.",
+		}),
 	},
 };
 

@@ -347,30 +347,53 @@ describe("chat model query factories", () => {
 
 	it("scopes update variables and invalidation to the organization", async () => {
 		const queryClient = createTestQueryClient();
-		queryClient.setQueryData(organizationChatModelsKey(organizationId), {});
+		const previousDefault: TypesGen.ChatModel = {
+			...MockChatModel,
+			id: "previous-default",
+			is_default: true,
+		};
+		const catalog: TypesGen.OrganizationChatModelsResponse = {
+			models: [previousDefault, MockChatModel],
+			providers: [],
+			unsupported_providers: [],
+		};
+		queryClient.setQueryData(
+			organizationChatModelsKey(organizationId),
+			catalog,
+		);
 		queryClient.setQueryData(
 			organizationChatModelsKey(otherOrganizationId),
-			{},
+			catalog,
 		);
-		vi.mocked(API.experimental.updateChatModel).mockResolvedValue(
-			MockChatModel,
-		);
+		const promoted: TypesGen.ChatModel = { ...MockChatModel, is_default: true };
+		vi.mocked(API.experimental.updateChatModel).mockResolvedValue(promoted);
 		const variables = {
 			organizationId,
 			modelId,
-			req: { enabled: true },
+			req: { is_default: true },
 		};
 		const mutation = updateChatModel(queryClient);
 
-		await expect(mutation.mutationFn(variables)).resolves.toEqual(
-			MockChatModel,
-		);
+		await expect(mutation.mutationFn(variables)).resolves.toEqual(promoted);
 		expect(API.experimental.updateChatModel).toHaveBeenCalledWith(
 			organizationId,
 			modelId,
 			variables.req,
 		);
-		await mutation.onSuccess(MockChatModel, variables);
+		await mutation.onSuccess(promoted, variables);
+		expect(
+			queryClient
+				.getQueryData<TypesGen.OrganizationChatModelsResponse>(
+					organizationChatModelsKey(organizationId),
+				)
+				?.models.map((model) => [model.id, model.is_default]),
+		).toEqual([
+			[previousDefault.id, false],
+			[modelId, true],
+		]);
+		expect(
+			queryClient.getQueryData(organizationChatModelsKey(otherOrganizationId)),
+		).toBe(catalog);
 		expect(
 			queryClient.getQueryState(organizationChatModelsKey(organizationId))
 				?.isInvalidated,

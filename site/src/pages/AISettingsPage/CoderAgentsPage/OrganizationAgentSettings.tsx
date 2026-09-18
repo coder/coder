@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "react-query";
 import {
 	chatModels,
 	organizationChatModelOverrides,
+	updateChatModel,
 	updateOrganizationChatModelOverride,
 } from "#/api/queries/chats";
 import type {
@@ -97,6 +98,10 @@ const OrganizationAgentSettingsContent: FC<OrganizationAgentSettingsProps> = ({
 		compactionMutation,
 		advisorMutation,
 	] as const;
+	const defaultModelMutation = useMutation(updateChatModel(queryClient));
+	const defaultModelID = modelsQuery.data
+		? (modelsQuery.data.models.find((model) => model.is_default)?.id ?? "")
+		: undefined;
 	const providerInfoByID = providerInfoByIDFromDescriptors(
 		modelsQuery.data?.providers,
 	);
@@ -104,9 +109,9 @@ const OrganizationAgentSettingsContent: FC<OrganizationAgentSettingsProps> = ({
 		(modelsQuery.data?.models ?? []).filter((model) => model.enabled),
 		providerInfoByID,
 	);
-	// Only the overrides request gates the page: when the model catalog
-	// fails, the rows must stay rendered with the error inline so a stale
-	// override can still be cleared without the catalog.
+	// Only the overrides request gates the override rows: when the model
+	// catalog fails, the rows must stay rendered with the error inline so a
+	// stale override can still be cleared without the catalog.
 	const { loadError, refetchError } = splitModelQueryErrors(overridesQuery);
 	const inlineError = refetchError ?? modelsQuery.error;
 	const saveByContext = new Map<ChatModelOverrideContext, SaveModelOverride>();
@@ -119,12 +124,27 @@ const OrganizationAgentSettingsContent: FC<OrganizationAgentSettingsProps> = ({
 
 	return (
 		<OrganizationAgentSettingsView
+			defaultModelID={defaultModelID}
+			onSaveDefaultModel={(modelId, options) =>
+				defaultModelMutation.mutate(
+					{
+						organizationId: organization.id,
+						modelId,
+						req: { is_default: true },
+					},
+					options,
+				)
+			}
+			isSavingDefaultModel={defaultModelMutation.isPending}
+			isSaveDefaultModelError={defaultModelMutation.isError}
 			overrides={overridesQuery.data?.overrides}
 			enabledModels={enabledModels}
 			providerInfoByID={providerInfoByID}
-			isLoading={modelsQuery.isLoading || overridesQuery.isLoading}
+			isLoading={modelsQuery.isLoading}
+			isOverridesLoading={overridesQuery.isLoading}
 			loadError={loadError}
 			refetchError={inlineError}
+			modelsError={modelsQuery.error}
 			canEdit={canEdit}
 			showAdvisor={showAdvisor}
 			saveByContext={saveByContext}
