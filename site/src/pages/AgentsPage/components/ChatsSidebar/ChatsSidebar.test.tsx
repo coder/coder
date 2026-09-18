@@ -68,7 +68,7 @@ const buildChat = (overrides: Partial<Chat> = {}): Chat => ({
 	...overrides,
 });
 
-const dashboardValue = {
+const mockDashboardValue = {
 	entitlements: MockEntitlements,
 	experiments: [] as TypesGen.Experiment[],
 	appearance: MockAppearanceConfig,
@@ -93,7 +93,7 @@ const Wrapper: React.FC<WrapperProps> = ({
 			<ThemeOverride theme={themes[DEFAULT_THEME]}>
 				<TooltipProvider>
 					<MemoryRouter initialEntries={[initialPath]}>
-						<DashboardContext.Provider value={dashboardValue}>
+						<DashboardContext.Provider value={mockDashboardValue}>
 							{children}
 						</DashboardContext.Provider>
 					</MemoryRouter>
@@ -755,7 +755,7 @@ describe("ChatsSidebar load-more behavior", () => {
 });
 
 describe("ChatsSidebar PR icon", () => {
-	const multiPRChat = buildChat({
+	const mockMultiPRChat = buildChat({
 		id: "multi-pr",
 		title: "Multiple pull requests",
 		diff_statuses: [
@@ -818,7 +818,7 @@ describe("ChatsSidebar PR icon", () => {
 	it("announces the tracked pull request count when the chat tracks several", () => {
 		render(
 			<Wrapper>
-				<ChatsSidebar {...defaultProps} chats={[multiPRChat]} />
+				<ChatsSidebar {...defaultProps} chats={[mockMultiPRChat]} />
 			</Wrapper>,
 		);
 
