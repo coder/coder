@@ -37,7 +37,7 @@ import {
 	DEFAULT_AGENT_SIDEBAR_FILTERS,
 } from "../../../utils/agentSidebarFilters";
 import { getTimeGroup, TIME_GROUPS } from "../../../utils/timeGroups";
-import { FilterPopover } from "../filters/FilterPopover";
+import { FilterMenu } from "../filters/FilterMenu";
 import { normalizeLocationSearch } from "../locationSearch";
 import { SettingsNavItem } from "../settings/SettingsNavItem";
 import {
@@ -442,7 +442,7 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 									<SearchIcon />
 								</Button>
 							)}
-							<FilterPopover
+							<FilterMenu
 								filters={sidebarFilters}
 								onFiltersChange={onSidebarFiltersChange}
 							/>

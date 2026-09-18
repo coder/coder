@@ -13,21 +13,45 @@ export const AGENT_CHAT_STATUS_ORDER = [
 	"read",
 ] as const satisfies readonly ChatListStatusFilter[];
 export const AGENT_PR_STATUS_ORDER = CHAT_LIST_PR_STATUS_ORDER;
-export const AGENT_SOURCE_ORDER = CHAT_SOURCE_ORDER;
+const AGENT_SOURCE_ORDER = CHAT_SOURCE_ORDER;
+export const AGENT_TIME_RANGE_ORDER = [
+	"1d",
+	"7d",
+	"15d",
+	"30d",
+	"all",
+] as const;
+export const AGENT_CHAT_ATTRIBUTE_ORDER = [
+	"shared_with_me",
+	"shared_with_others",
+	"has_error",
+] as const;
 
 export type AgentArchiveStatusFilter =
 	(typeof AGENT_ARCHIVE_STATUS_ORDER)[number];
-export type AgentChatStatusFilter = ChatListStatusFilter;
+type AgentChatStatusFilter = ChatListStatusFilter;
 export type AgentPRStatusFilter = ChatListPRStatusFilter;
 export type AgentSidebarGroupBy = "date" | "chat_status";
 export type AgentSourceFilter = (typeof AGENT_SOURCE_ORDER)[number];
+export type AgentTimeRangeFilter = (typeof AGENT_TIME_RANGE_ORDER)[number];
+export type AgentChatAttributeFilter =
+	(typeof AGENT_CHAT_ATTRIBUTE_ORDER)[number];
 
+/**
+ * Sidebar filter state persisted in the URL.
+ *
+ * `timeRange` and `attributes` are not yet applied to the chat list: the
+ * chats search API has no matching terms. They are persisted so the filter
+ * menu can reflect them until the backend supports them.
+ */
 export type AgentSidebarFilters = Readonly<{
 	archiveStatus: AgentArchiveStatusFilter;
 	groupBy: AgentSidebarGroupBy;
 	prStatuses: readonly AgentPRStatusFilter[];
 	chatStatuses: readonly AgentChatStatusFilter[];
 	sources: readonly AgentSourceFilter[];
+	timeRange: AgentTimeRangeFilter;
+	attributes: readonly AgentChatAttributeFilter[];
 }>;
 
 type AgentSidebarFiltersResult = readonly [
@@ -40,7 +64,9 @@ export const DEFAULT_AGENT_SIDEBAR_FILTERS: AgentSidebarFilters = {
 	groupBy: "date",
 	prStatuses: [],
 	chatStatuses: AGENT_CHAT_STATUS_ORDER,
-	sources: ["created_by_me"],
+	sources: ["created_by_me", "shared_with_me"],
+	timeRange: "all",
+	attributes: [],
 };
 
 const clearSidebarFilterParams = (searchParams: URLSearchParams) => {
@@ -49,7 +75,12 @@ const clearSidebarFilterParams = (searchParams: URLSearchParams) => {
 	searchParams.delete("pr_status");
 	searchParams.delete("chat_status");
 	searchParams.delete("source");
+	searchParams.delete("time_range");
+	searchParams.delete("attributes");
 };
+
+const isTimeRange = (value: string): value is AgentTimeRangeFilter =>
+	AGENT_TIME_RANGE_ORDER.some((range) => range === value);
 
 const writeSidebarFilters = (
 	searchParams: URLSearchParams,
@@ -81,6 +112,14 @@ const writeSidebarFilters = (
 	) {
 		searchParams.set("source", filters.sources.join(","));
 	}
+
+	if (filters.timeRange !== DEFAULT_AGENT_SIDEBAR_FILTERS.timeRange) {
+		searchParams.set("time_range", filters.timeRange);
+	}
+
+	if (filters.attributes.length > 0) {
+		searchParams.set("attributes", filters.attributes.join(","));
+	}
 };
 
 export const getAgentSidebarFilters = (
@@ -102,6 +141,13 @@ export const getAgentSidebarFilters = (
 	const sources = AGENT_SOURCE_ORDER.filter((source) =>
 		rawSources.includes(source),
 	);
+	const rawTimeRange = searchParams.get("time_range") ?? "";
+	const rawAttributes = (searchParams.get("attributes") ?? "")
+		.split(",")
+		.filter(Boolean);
+	const attributes = AGENT_CHAT_ATTRIBUTE_ORDER.filter((attribute) =>
+		rawAttributes.includes(attribute),
+	);
 
 	const filters: AgentSidebarFilters = {
 		archiveStatus:
@@ -117,6 +163,10 @@ export const getAgentSidebarFilters = (
 				: DEFAULT_AGENT_SIDEBAR_FILTERS.chatStatuses,
 		sources:
 			sources.length > 0 ? sources : DEFAULT_AGENT_SIDEBAR_FILTERS.sources,
+		timeRange: isTimeRange(rawTimeRange)
+			? rawTimeRange
+			: DEFAULT_AGENT_SIDEBAR_FILTERS.timeRange,
+		attributes,
 	};
 
 	const setFilters = (next: AgentSidebarFilters) => {
