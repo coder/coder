@@ -61,7 +61,7 @@ export const WorkspacesEmpty: FC<WorkspacesEmptyProps> = ({
 					<div className="absolute inset-x-0 top-0 h-[88.9%] overflow-hidden rounded-[10px]">
 						<div
 							aria-hidden="true"
-							className="absolute inset-0 bg-(image:--supergraphic-square-url) bg-size-[140%_auto] bg-position-[0%_15%] bg-no-repeat"
+							className="absolute inset-0 bg-(image:--supergraphic-square-url) bg-size-[190%_auto] bg-position-[14%_0%] bg-no-repeat"
 						/>
 						<div
 							aria-hidden="true"
