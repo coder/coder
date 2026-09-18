@@ -164,6 +164,7 @@ export const DeleteDialogOpen: Story = {
 export const DynamicallyRegisteredValues: Story = {
 	parameters: {
 		queries: [
+			{ key: externalScopesKey, data: MockExternalAPIKeyScopes },
 			{
 				key: oauth2ProviderAppKey(appId),
 				data: {
@@ -189,6 +190,7 @@ export const DynamicallyRegisteredValues: Story = {
 export const PublicClient: Story = {
 	parameters: {
 		queries: [
+			{ key: externalScopesKey, data: MockExternalAPIKeyScopes },
 			{
 				key: oauth2ProviderAppKey(MockOAuth2ProviderAppPublic.id),
 				data: MockOAuth2ProviderAppPublic,
