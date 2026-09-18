@@ -1673,6 +1673,10 @@ func New(options *Options) *API {
 						// organization member. This endpoint should match the authz story of
 						// postWorkspacesByOrganization
 						r.Post("/workspaces", api.postUserWorkspaces)
+						// Creating a chat on behalf of a user follows the same authz story:
+						// permission is checked on the owner-scoped chat resource, not on
+						// the user object.
+						r.Post("/chats", api.postUserChats)
 						r.Route("/workspace/{workspacename}", func(r chi.Router) {
 							r.Get("/", api.workspaceByOwnerAndName)
 							r.Get("/builds/{buildnumber}", api.workspaceBuildByBuildNumber)

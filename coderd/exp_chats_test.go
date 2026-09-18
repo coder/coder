@@ -1804,6 +1804,134 @@ func TestPostChats(t *testing.T) {
 	})
 }
 
+// TestPostUserChats covers creating a chat on behalf of another user via
+// POST /users/{user}/chats, mirroring the coverage for the equivalent
+// workspace endpoint.
+func TestPostUserChats(t *testing.T) {
+	t.Parallel()
+
+	t.Run("OwnerCreatesChatForMember", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		ownerClient, db := newChatClientWithDatabase(t)
+		first := coderdtest.CreateFirstUser(t, ownerClient.Client)
+		_ = createChatModel(t, ownerClient)
+		_, member := coderdtest.CreateAnotherUser(t, ownerClient.Client, first.OrganizationID)
+
+		chat, err := ownerClient.CreateUserChat(ctx, member.ID.String(), codersdk.CreateChatRequest{
+			OrganizationID: first.OrganizationID,
+			Content: []codersdk.ChatInputPart{{
+				Type: codersdk.ChatInputPartTypeText,
+				Text: "hello on behalf of a member",
+			}},
+		})
+		require.NoError(t, err)
+		require.Equal(t, member.ID, chat.OwnerID)
+
+		// The chat is persisted with the target user as owner, not the
+		// caller who created it.
+		dbChat, err := db.GetChatByID(dbauthz.AsSystemRestricted(ctx), chat.ID)
+		require.NoError(t, err)
+		require.Equal(t, member.ID, dbChat.OwnerID)
+	})
+
+	t.Run("MemberCannotCreateChatForAnotherMember", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		ownerClient, _ := newChatClientWithDatabase(t)
+		first := coderdtest.CreateFirstUser(t, ownerClient.Client)
+		_ = createChatModel(t, ownerClient)
+		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, ownerClient.Client, first.OrganizationID)
+		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
+		_, otherMember := coderdtest.CreateAnotherUser(t, ownerClient.Client, first.OrganizationID)
+
+		_, err := memberClient.CreateUserChat(ctx, otherMember.ID.String(), codersdk.CreateChatRequest{
+			OrganizationID: first.OrganizationID,
+			Content: []codersdk.ChatInputPart{{
+				Type: codersdk.ChatInputPartTypeText,
+				Text: "should be rejected",
+			}},
+		})
+		_ = requireSDKError(t, err, http.StatusForbidden)
+	})
+
+	t.Run("OwnerRejectedWhenTargetOutsideRequestedOrganization", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		ownerClient, db := newChatClientWithDatabase(t)
+		first := coderdtest.CreateFirstUser(t, ownerClient.Client)
+		_ = createChatModel(t, ownerClient)
+		otherOrg := dbgen.Organization(t, db, database.Organization{IsDefault: false})
+		_, member := coderdtest.CreateAnotherUser(t, ownerClient.Client, first.OrganizationID)
+
+		// A chat's RBACObject is org-scoped, so the target owner must
+		// belong to the requested organization even though the caller
+		// can read the owner's User object directly; otherwise the
+		// owner could never read or use their own chat.
+		_, err := ownerClient.CreateUserChat(ctx, member.ID.String(), codersdk.CreateChatRequest{
+			OrganizationID: otherOrg.ID,
+			Content: []codersdk.ChatInputPart{{
+				Type: codersdk.ChatInputPartTypeText,
+				Text: "cross-org on behalf of a member",
+			}},
+		})
+		_ = requireSDKError(t, err, http.StatusNotFound)
+	})
+
+	t.Run("OwnerCannotBindChatToWorkspaceOwnerCannotAccess", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		ownerClient, db := newChatClientWithDatabase(t)
+		first := coderdtest.CreateFirstUser(t, ownerClient.Client)
+		_ = createChatModel(t, ownerClient)
+		_, member := coderdtest.CreateAnotherUser(t, ownerClient.Client, first.OrganizationID)
+		// A workspace owned by the caller (not the target member): the
+		// member has no SSH access to it.
+		workspaceBuild := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OrganizationID: first.OrganizationID,
+			OwnerID:        first.UserID,
+		}).WithAgent().Do()
+
+		_, err := ownerClient.CreateUserChat(ctx, member.ID.String(), codersdk.CreateChatRequest{
+			OrganizationID: first.OrganizationID,
+			Content: []codersdk.ChatInputPart{{
+				Type: codersdk.ChatInputPartTypeText,
+				Text: "hello",
+			}},
+			WorkspaceID: &workspaceBuild.Workspace.ID,
+		})
+		_ = requireSDKError(t, err, http.StatusBadRequest)
+	})
+
+	t.Run("MeAliasBehavesLikeSelfServiceForOwnWorkspace", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		ownerClient, db := newChatClientWithDatabase(t)
+		first := coderdtest.CreateFirstUser(t, ownerClient.Client)
+		_ = createChatModel(t, ownerClient)
+		workspaceBuild := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OrganizationID: first.OrganizationID,
+			OwnerID:        first.UserID,
+		}).WithAgent().Do()
+
+		chat, err := ownerClient.CreateUserChat(ctx, codersdk.Me, codersdk.CreateChatRequest{
+			OrganizationID: first.OrganizationID,
+			Content: []codersdk.ChatInputPart{{
+				Type: codersdk.ChatInputPartTypeText,
+				Text: "hello",
+			}},
+			WorkspaceID: &workspaceBuild.Workspace.ID,
+		})
+		require.NoError(t, err)
+		require.Equal(t, first.UserID, chat.OwnerID)
+	})
+}
+
 // TestChats_ForceOnMCPServerEnforced is the endpoint-level regression
 // test for Cure53 CDM-02-010: a regular user who strips force_on MCP
 // server IDs from mcp_server_ids when creating a chat or sending a

@@ -2749,6 +2749,23 @@ func (c *Client) CreateChat(ctx context.Context, req CreateChatRequest) (Chat, e
 	return chat, ReadBodyAsJSON(res, &chat)
 }
 
+// CreateUserChat creates a new chat owned by user, on behalf of that
+// user. The caller must have permission to create chats owned by that
+// user, such as a deployment owner; other callers should use CreateChat
+// to create a chat for themselves.
+func (c *Client) CreateUserChat(ctx context.Context, user string, req CreateChatRequest) (Chat, error) {
+	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/users/%s/chats", user), req)
+	if err != nil {
+		return Chat{}, err
+	}
+	if res.StatusCode != http.StatusCreated {
+		return Chat{}, ReadBodyAsError(res)
+	}
+	defer res.Body.Close()
+	var chat Chat
+	return chat, ReadBodyAsJSON(res, &chat)
+}
+
 // StreamChatOptions are optional parameters for StreamChat.
 type StreamChatOptions struct {
 	// AfterID limits the initial snapshot to messages created

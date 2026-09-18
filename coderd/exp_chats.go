@@ -1201,8 +1201,46 @@ func invalidChatMCPServerIDsResponse(ids []uuid.UUID) codersdk.Response {
 // @Failure 413 {object} codersdk.Response "Request body exceeds 256 KiB"
 // @Router /api/v2/chats [post]
 func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
+	api.createChat(rw, r, apiKey.UserID, nil)
+}
+
+// Create a new chat for the given user, on behalf of that user.
+//
+// @Summary Create chat for user
+// @ID create-chat-for-user
+// @Security CoderSessionToken
+// @Accept json
+// @Produce json
+// @Tags Chats
+// @Param user path string true "Username, UUID, or me"
+// @Param request body codersdk.CreateChatRequest true "Create chat request"
+// @Success 201 {object} codersdk.Chat
+// @Router /api/v2/users/{user}/chats [post]
+func (api *API) postUserChats(rw http.ResponseWriter, r *http.Request) {
+	mems := httpmw.OrganizationMembersParam(r)
+	ownerID := mems.UserID()
+	if ownerID == uuid.Nil {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+	api.createChat(rw, r, ownerID, &mems)
+}
+
+// createChat creates a new chat owned by ownerID. mems is nil for the
+// self-service /chats route, where the caller is always the owner. For
+// the /users/{user}/chats route, mems carries the target owner's
+// resolved organization memberships from httpmw.OrganizationMembersParam.
+//
+// Creating a chat does not require permission on the User object, only
+// the organization member; this mirrors the authz story of
+// postUserWorkspaces. Unlike postUserWorkspaces, the owner must always
+// belong to the requested organization: a chat's RBACObject is
+// org-scoped, so an owner outside the organization could never read or
+// use their own chat afterward. The RBAC check below still
+// independently authorizes the caller to act as that owner.
+func (api *API) createChat(rw http.ResponseWriter, r *http.Request, ownerID uuid.UUID, mems *httpmw.OrganizationMembers) {
+	ctx := r.Context()
 
 	if !api.requireChatDaemon(ctx, rw) {
 		return
@@ -1230,25 +1268,47 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	isMember, err := httpmw.UserAuthorization(ctx).HasOrganizationMembership(req.OrganizationID)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to validate organization membership.",
-			Detail:  xerrors.Errorf("check organization membership: %w", err).Error(),
+	if mems == nil {
+		// Self-service /chats route: the caller must be a member of the
+		// organization they are posting into.
+		isMember, err := httpmw.UserAuthorization(ctx).HasOrganizationMembership(req.OrganizationID)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Failed to validate organization membership.",
+				Detail:  xerrors.Errorf("check organization membership: %w", err).Error(),
+			})
+			return
+		}
+		if !isMember {
+			httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+				Message: "You are not a member of the specified organization.",
+			})
+			return
+		}
+	} else {
+		// /users/{user}/chats route: unlike postUserWorkspaces (which
+		// derives the organization from the template and tolerates an
+		// owner outside it), a chat's RBACObject is org-scoped
+		// (InOrg(OrganizationID)), so the owner must actually belong to
+		// the requested organization, or they could never read or use
+		// their own chat afterward. mems.Memberships only contains
+		// memberships the caller can read (see
+		// httpmw.ExtractOrganizationMember). Any caller who passes the
+		// RBAC check below for this organization can also read
+		// memberships in it, so the org that matters is always visible.
+		orgIndex := slices.IndexFunc(mems.Memberships, func(mem httpmw.OrganizationMember) bool {
+			return mem.OrganizationID == req.OrganizationID
 		})
-		return
-	}
-	if !isMember {
-		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
-			Message: "You are not a member of the specified organization.",
-		})
-		return
+		if orgIndex == -1 {
+			httpapi.ResourceNotFound(rw)
+			return
+		}
 	}
 	// NOTE: This authorize check is intentionally placed after request
 	// parsing because we need req.OrganizationID to scope the RBAC check
 	// to the correct org. The request body is bounded by the ReadLimit above,
 	// limiting the cost of parsing before rejection.
-	if !api.Authorize(r, policy.ActionCreate, rbac.ResourceChat.WithOwner(apiKey.UserID.String()).InOrg(req.OrganizationID)) {
+	if !api.Authorize(r, policy.ActionCreate, rbac.ResourceChat.WithOwner(ownerID.String()).InOrg(req.OrganizationID)) {
 		httpapi.Forbidden(rw)
 		return
 	}
@@ -1259,7 +1319,7 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	workspaceSelection, validationStatus, validationError := api.validateCreateChatWorkspaceSelection(ctx, r, req)
+	workspaceSelection, validationStatus, validationError := api.validateCreateChatWorkspaceSelection(ctx, r, ownerID, mems, req)
 	if validationError != nil {
 		httpapi.Write(ctx, rw, validationStatus, *validationError)
 		return
@@ -1267,7 +1327,7 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 
 	title := chatprompt.FallbackTitle(titleSource)
 
-	modelConfigID, personalOverrideEffort, modelConfigStatus, modelConfigError := api.resolveCreateChatModelConfigID(ctx, apiKey.UserID, req)
+	modelConfigID, personalOverrideEffort, modelConfigStatus, modelConfigError := api.resolveCreateChatModelConfigID(ctx, ownerID, req)
 	if modelConfigError != nil {
 		httpapi.Write(ctx, rw, modelConfigStatus, *modelConfigError)
 		return
@@ -1378,7 +1438,7 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 
 	chat, err := api.chatDaemon.CreateChat(ctx, chatd.CreateOptions{
 		OrganizationID:          req.OrganizationID,
-		OwnerID:                 apiKey.UserID,
+		OwnerID:                 ownerID,
 		WorkspaceID:             workspaceSelection.WorkspaceID,
 		Title:                   title,
 		TitleDerivedFromContent: true,
@@ -4205,6 +4265,8 @@ func (api *API) validateChatWorkspaceSelection(
 func (api *API) validateCreateChatWorkspaceSelection(
 	ctx context.Context,
 	r *http.Request,
+	ownerID uuid.UUID,
+	mems *httpmw.OrganizationMembers,
 	req codersdk.CreateChatRequest,
 ) (
 	createChatWorkspaceSelection,
@@ -4223,6 +4285,20 @@ func (api *API) validateCreateChatWorkspaceSelection(
 	if workspace.OrganizationID != req.OrganizationID {
 		return selection, http.StatusBadRequest, &codersdk.Response{
 			Message: "Workspace does not belong to the specified organization.",
+		}
+	}
+	// validateChatWorkspaceSelection authorizes ActionSSH against the
+	// caller, not the chat's owner. That is correct for the self-service
+	// /chats route, and for /users/{user}/chats when the path resolves to
+	// the caller themselves (e.g. the "me" alias), since they are the
+	// same subject there too. Otherwise, on /users/{user}/chats it would
+	// let a caller bind a chat it does not own to a workspace the owner
+	// cannot access, for example one the caller administers but the
+	// owner has no SSH access to. Require owner and workspace to match
+	// in that case instead of re-deriving the owner's own authorization.
+	if mems != nil && workspace.OwnerID != ownerID && httpmw.APIKey(r).UserID != ownerID {
+		return selection, http.StatusBadRequest, &codersdk.Response{
+			Message: "Workspace not found or you do not have access to this resource",
 		}
 	}
 
