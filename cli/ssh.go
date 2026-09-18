@@ -401,7 +401,7 @@ func (r *RootCmd) ssh() *serpent.Command {
 
 			// OpenSSH passes stderr directly to the calling TTY.
 			// This is required in "stdio" mode so a connecting indicator can be displayed.
-			err = cliui.Agent(ctx, inv.Stderr, workspaceAgent.ID, cliui.AgentOptions{
+			workspaceAgent, err = cliui.Agent(ctx, inv.Stderr, workspaceAgent.ID, cliui.AgentOptions{
 				FetchInterval: 0,
 				Fetch:         client.WorkspaceAgent,
 				FetchLogs:     client.WorkspaceAgentLogsAfter,

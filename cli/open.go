@@ -153,7 +153,7 @@ func (r *RootCmd) openVSCode() *serpent.Command {
 			if !insideThisWorkspace {
 				// Wait for the agent to connect, we don't care about readiness
 				// otherwise (e.g. wait).
-				err = cliui.Agent(ctx, inv.Stderr, workspaceAgent.ID, cliui.AgentOptions{
+				_, err = cliui.Agent(ctx, inv.Stderr, workspaceAgent.ID, cliui.AgentOptions{
 					Fetch:     client.WorkspaceAgent,
 					FetchLogs: nil,
 					Wait:      false,
