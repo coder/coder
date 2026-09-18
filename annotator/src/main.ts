@@ -54,6 +54,9 @@ function bootstrap() {
 				case "coder-annotator:clear-highlights":
 					annotator.setHighlights([]);
 					break;
+				case "coder-annotator:resolved":
+					annotator.resolveHighlights(event.data.ids);
+					break;
 			}
 		});
 

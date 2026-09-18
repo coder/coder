@@ -20,6 +20,9 @@ const highlightGraceMs = 3000;
 
 interface HighlightLayer {
 	set(items: HighlightItem[]): void;
+	// Acknowledges the listed highlights as changed by the agent for a
+	// moment, drops the rest, then clears everything.
+	resolve(ids: string[]): void;
 	// Draws a quiet ring for an annotation that was just sent, until the
 	// dashboard replaces it with the working state or it times out.
 	markPending(item: HighlightItem): void;
@@ -29,6 +32,24 @@ interface HighlightLayer {
 // How long a just-sent annotation keeps its quiet ring when the agent
 // never starts on it. Matches the dashboard's own grace period.
 const pendingRingMs = 15_000;
+// How long the "Updated" acknowledgement stays on a changed element.
+const resolvedRingMs = 3000;
+
+const checkIcon =
+	'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>';
+
+/**
+ * Small check-marked label hung off the top-right corner of an outline
+ * ("Sent", "Updated"). The parent's `at-top` and `at-right` classes pull
+ * it inside the box when that corner is clamped to the viewport.
+ */
+export function statusChip(doc: Document, label: string): HTMLSpanElement {
+	const chip = doc.createElement("span");
+	chip.className = "status-chip";
+	chip.innerHTML = checkIcon;
+	chip.append(label);
+	return chip;
+}
 
 /**
  * Draws shimmering boxes over elements the agent is currently changing.
@@ -48,7 +69,7 @@ export function createHighlightLayer(
 	// The stamp is authoritative. The selector only fills in while the
 	// stamped node is missing (mid re-render, HMR swap) and the preview is
 	// still on the annotated page.
-	const resolve = (item: PlacedHighlight): Element | null => {
+	const resolveElement = (item: PlacedHighlight): Element | null => {
 		if (item.element?.isConnected) {
 			return item.element;
 		}
@@ -72,7 +93,7 @@ export function createHighlightLayer(
 	const position = () => {
 		const now = performance.now();
 		for (const item of placed) {
-			const target = resolve(item);
+			const target = resolveElement(item);
 			let rect = target?.getBoundingClientRect();
 			if (rect && (rect.width > 0 || rect.height > 0)) {
 				item.lastRect = rect;
@@ -105,6 +126,8 @@ export function createHighlightLayer(
 			item.node.style.top = `${box.top}px`;
 			item.node.style.width = `${box.width}px`;
 			item.node.style.height = `${box.height}px`;
+			item.node.classList.toggle("at-top", box.clampedTop);
+			item.node.classList.toggle("at-right", box.clampedRight);
 			// The beam's rotating gradient must cover the box's corners at
 			// any angle, so it is sized from the diagonal.
 			item.node.style.setProperty(
@@ -167,12 +190,13 @@ export function createHighlightLayer(
 		loop = win.requestAnimationFrame(tick);
 	};
 
-	let pendingTimer = 0;
+	// Ends the pending ring or the acknowledgement once it has had its time.
+	let expiryTimer = 0;
 
 	const set = (items: HighlightItem[]) => {
 		const previous = placed.map((item) => item.id);
 		clear();
-		win.clearTimeout(pendingTimer);
+		win.clearTimeout(expiryTimer);
 		if (items.length === 0) {
 			unstamp(previous);
 		}
@@ -180,6 +204,36 @@ export function createHighlightLayer(
 			place(item, "shimmer");
 		}
 		ensureLoop();
+	};
+
+	// Highlights the agent's edits did not reach go straight away; the rest
+	// settle into a steady ring with an "Updated" chip before they clear.
+	const resolve = (ids: string[]) => {
+		const changed = new Set(ids);
+		const dropped = placed.filter((item) => !changed.has(item.id));
+		unstamp(dropped.map((item) => item.id));
+		for (const item of dropped) {
+			item.node.remove();
+		}
+		placed.splice(
+			0,
+			placed.length,
+			...placed.filter((item) => changed.has(item.id)),
+		);
+		win.clearTimeout(expiryTimer);
+		if (placed.length === 0) {
+			stop();
+			return;
+		}
+		for (const item of placed) {
+			if (item.node.classList.contains("resolved")) {
+				continue;
+			}
+			item.node.className = "shimmer resolved";
+			item.node.append(statusChip(doc, "Updated"));
+		}
+		ensureLoop();
+		expiryTimer = win.setTimeout(() => set([]), resolvedRingMs);
 	};
 
 	const markPending = (item: HighlightItem) => {
@@ -192,17 +246,18 @@ export function createHighlightLayer(
 		}
 		place(item, "shimmer pending");
 		ensureLoop();
-		win.clearTimeout(pendingTimer);
-		pendingTimer = win.setTimeout(() => set([]), pendingRingMs);
+		win.clearTimeout(expiryTimer);
+		expiryTimer = win.setTimeout(() => set([]), pendingRingMs);
 	};
 
 	return {
 		set,
+		resolve,
 		markPending,
 		destroy: () => {
 			const ids = placed.map((item) => item.id);
 			clear();
-			win.clearTimeout(pendingTimer);
+			win.clearTimeout(expiryTimer);
 			unstamp(ids);
 		},
 	};

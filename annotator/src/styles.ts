@@ -396,6 +396,21 @@ textarea:focus-visible {
 	pointer-events: none;
 }
 
+/* The agent changed this element: the ring settles to a steady line and
+   an "Updated" chip appears, held briefly before everything clears. */
+.shimmer.resolved {
+	overflow: visible;
+}
+
+.shimmer.resolved .beam::before {
+	animation: none;
+	background: var(--content-link);
+}
+
+.shimmer.resolved::after {
+	display: none;
+}
+
 /* Just sent, agent not yet working: a steady dim ring with no motion. */
 .shimmer.pending .beam::before,
 .shimmer.pending::after {
@@ -420,7 +435,9 @@ textarea:focus-visible {
 	animation: coder-sent-flash 600ms ease-out forwards;
 }
 
-.sent-chip {
+/* Check-marked label hung off a box's top-right corner, where the
+   selection badge sits. */
+.status-chip {
 	position: absolute;
 	top: -2px;
 	right: -2px;
@@ -437,21 +454,25 @@ textarea:focus-visible {
 	line-height: 1;
 	font-weight: 600;
 	white-space: nowrap;
-	animation: coder-sent-chip 1.6s ease-out forwards;
 }
 
-.sent-chip svg {
+.status-chip svg {
 	width: 12px;
 	height: 12px;
 }
 
-.sent-flash.at-right .sent-chip {
+/* Clamped corners pull the chip inside the box so it stays on screen. */
+.at-right > .status-chip {
 	right: 6px;
 	transform: none;
 }
 
-.sent-flash.at-top .sent-chip {
+.at-top > .status-chip {
 	top: 6px;
+}
+
+.sent-flash .status-chip {
+	animation: coder-sent-chip 1.6s ease-out forwards;
 }
 
 @keyframes coder-sent-flash {
