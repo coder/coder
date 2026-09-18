@@ -7122,6 +7122,23 @@ func (s *MethodTestSuite) TestAIBridge() {
 			Returns([]database.ExportOrganizationAISpendRow{row1, row2})
 	}))
 
+	s.Run("ListOrganizationAISpendUsers", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		org := testutil.Fake(s.T(), faker, database.Organization{})
+		row1 := testutil.Fake(s.T(), faker, database.ListOrganizationAISpendUsersRow{OrganizationID: org.ID})
+		row2 := testutil.Fake(s.T(), faker, database.ListOrganizationAISpendUsersRow{OrganizationID: org.ID})
+		arg := database.ListOrganizationAISpendUsersParams{
+			OrganizationID: org.ID,
+			PeriodStart:    time.Now().UTC().Truncate(24 * time.Hour),
+			PeriodEnd:      time.Now().UTC(),
+			LimitOpt:       10,
+		}
+		dbm.EXPECT().ListOrganizationAISpendUsers(gomock.Any(), arg).
+			Return([]database.ListOrganizationAISpendUsersRow{row1, row2}, nil).AnyTimes()
+		check.Args(arg).
+			Asserts(rbac.ResourceGroupMember.InOrg(org.ID), policy.ActionRead).
+			Returns([]database.ListOrganizationAISpendUsersRow{row1, row2})
+	}))
+
 	s.Run("GetGroupAIBudget", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		g := testutil.Fake(s.T(), faker, database.Group{})
 		b := testutil.Fake(s.T(), faker, database.GroupAIBudget{GroupID: g.ID})
@@ -7236,6 +7253,13 @@ func (s *MethodTestSuite) TestAIBridge() {
 		provider := testutil.Fake(s.T(), faker, database.AIProvider{})
 		dbm.EXPECT().GetAIProviderByName(gomock.Any(), provider.Name).Return(provider, nil).AnyTimes()
 		check.Args(provider.Name).Asserts(rbac.ResourceAIProvider, policy.ActionRead).Returns(provider)
+	}))
+	s.Run("GetAIProviderFilterOptions", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		options := []database.GetAIProviderFilterOptionsRow{
+			testutil.Fake(s.T(), faker, database.GetAIProviderFilterOptionsRow{}),
+		}
+		dbm.EXPECT().GetAIProviderFilterOptions(gomock.Any()).Return(options, nil).AnyTimes()
+		check.Args().Asserts(rbac.ResourceAibridgeInterception, policy.ActionRead).Returns(options)
 	}))
 	s.Run("GetAIProviders", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		providerA := testutil.Fake(s.T(), faker, database.AIProvider{})

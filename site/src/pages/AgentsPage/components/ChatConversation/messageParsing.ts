@@ -167,11 +167,13 @@ export const mergeTools = (
 			args: call.args,
 			result: result?.result,
 			isError: result?.isError ?? false,
+			isMedia: result?.isMedia,
 			status,
 			mcpServerConfigId: call.mcpServerConfigId || result?.mcpServerConfigId,
 			modelIntent,
 			parsedCommands: call.parsedCommands,
 			hookRewritten: call.hookRewritten,
+			startedAt: call.startedAt,
 		});
 	}
 
@@ -182,6 +184,7 @@ export const mergeTools = (
 				name: result.name,
 				result: result.result,
 				isError: result.isError,
+				isMedia: result.isMedia,
 				status: result.isError ? "error" : "completed",
 				mcpServerConfigId: result.mcpServerConfigId,
 			});
@@ -227,6 +230,7 @@ export const parseMessageContent = (
 					parsedCommands: part.parsed_commands,
 					mcpServerConfigId: part.mcp_server_config_id,
 					hookRewritten: part.hook_rewritten,
+					startedAt: part.created_at,
 				});
 				parsed.blocks = ensureToolBlock(parsed.blocks, id);
 				break;
@@ -247,6 +251,7 @@ export const parseMessageContent = (
 					name,
 					result: part.result,
 					isError: parseToolResultIsError(name, part, part.result),
+					isMedia: part.is_media,
 					mcpServerConfigId: part.mcp_server_config_id,
 				});
 				parsed.blocks = ensureToolBlock(parsed.blocks, id);

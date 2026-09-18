@@ -592,6 +592,9 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 			Name:     fmt.Sprintf("%db", options.DeploymentValues.DERP.Server.RegionID),
 			RegionID: int(options.DeploymentValues.DERP.Server.RegionID.Value()),
 			IPv4:     "127.0.0.1",
+			// Skip the IPv6 dial. The server only listens on IPv4, and the
+			// failed IPv6 dial can leave a goroutine behind that goleak reports.
+			IPv6:     "none",
 			DERPPort: derpPort,
 			// STUN port is added as a separate node by tailnet.NewDERPMap() if
 			// direct connections are enabled.

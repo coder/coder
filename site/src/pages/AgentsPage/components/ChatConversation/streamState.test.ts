@@ -123,6 +123,24 @@ describe("applyMessagePartToStreamState", () => {
 		]);
 	});
 
+	it("keeps startedAt when a later delta omits created_at", () => {
+		const finalized = applyMessagePartToStreamState(null, {
+			type: "tool-call",
+			tool_name: "execute",
+			tool_call_id: "tc-1",
+			args: { command: "make build" },
+			created_at: "2025-01-01T00:00:00.000Z",
+		});
+		const afterDelta = applyMessagePartToStreamState(finalized, {
+			type: "tool-call",
+			tool_call_id: "tc-1",
+			args_delta: "",
+		});
+		expect(afterDelta!.toolCalls["tc-1"].startedAt).toBe(
+			"2025-01-01T00:00:00.000Z",
+		);
+	});
+
 	it("generates fallback tool call ID when missing", () => {
 		const result = applyMessagePartToStreamState(null, {
 			type: "tool-call",
@@ -211,6 +229,18 @@ describe("applyMessagePartToStreamState", () => {
 			result: { output: "file.txt" },
 			isError: false,
 		});
+	});
+
+	it("keeps the media flag on a streamed tool result", () => {
+		const state = applyMessagePartToStreamState(null, {
+			type: "tool-result",
+			tool_name: "playwright__browser_take_screenshot",
+			tool_call_id: "tc-1",
+			result: { data: "AAAA", mime_type: "image/png", text: "done" },
+			is_media: true,
+		});
+		expect(state?.toolResults["tc-1"].isMedia).toBe(true);
+		expect(buildStreamTools({}, state?.toolResults)[0].isMedia).toBe(true);
 	});
 
 	it("accumulates tool result deltas until a final result arrives", () => {
