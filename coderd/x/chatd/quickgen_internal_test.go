@@ -624,11 +624,17 @@ func TestMaybeGenerateChatTitle(t *testing.T) {
 		events := subscribeChatWatchEvents(t, ps, owner.ID)
 
 		const renamed = "My build investigation"
+		switchedModel := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{Model: "switched-model"})
 		model := newFakeModel(func() {
 			_, err := db.UpdateChatTitleByID(ctx, database.UpdateChatTitleByIDParams{
 				ID:          chat.ID,
 				Title:       renamed,
 				TitleSource: database.ChatTitleSourceUser,
+			})
+			require.NoError(t, err)
+			_, err = db.UpdateChatLastModelConfigByID(ctx, database.UpdateChatLastModelConfigByIDParams{
+				ID:                chat.ID,
+				LastModelConfigID: switchedModel.ID,
 			})
 			require.NoError(t, err)
 		}, "Generated title")
@@ -643,8 +649,13 @@ func TestMaybeGenerateChatTitle(t *testing.T) {
 		_, ok := generated.Load()
 		require.False(t, ok)
 
+		// The event must describe the chat as it is now, not as it was
+		// before the model call.
 		event := testutil.RequireReceive(ctx, t, events)
 		require.Equal(t, codersdk.ChatWatchEventKindCostChange, event.Kind)
+		require.Equal(t, renamed, event.Chat.Title)
+		require.Equal(t, codersdk.ChatTitleSourceUser, event.Chat.TitleSource)
+		require.Equal(t, switchedModel.ID, event.Chat.LastModelConfigID)
 		select {
 		case extra := <-events:
 			t.Fatalf("unexpected second event %q", extra.Kind)
