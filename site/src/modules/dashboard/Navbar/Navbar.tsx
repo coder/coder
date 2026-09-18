@@ -10,6 +10,7 @@ import {
 	canViewDeploymentSettings,
 } from "#/modules/permissions";
 import { useCanShareOrganizationMCPServers } from "#/pages/AISettingsPage/MCPServersPage/organizationSharing";
+import { useCanViewAISpend } from "#/pages/AISettingsPage/SpendPage/spendAccess";
 import { useFeatureVisibility } from "../useFeatureVisibility";
 import { NavbarView } from "./NavbarView";
 
@@ -46,8 +47,13 @@ export const Navbar: React.FC = () => {
 		organizations,
 		{ enabled: !canViewSiteWideAISettings },
 	);
+	const spendAccess = useCanViewAISpend({
+		enabled: !canViewSiteWideAISettings,
+	});
 	const canViewAISettings =
-		canViewSiteWideAISettings || organizationMCPSharing.canShare;
+		canViewSiteWideAISettings ||
+		organizationMCPSharing.canShare ||
+		spendAccess.canView;
 	const canCreateChat = permissions.createChat;
 
 	const uniqueLinks = new Map<string, LinkConfig>();
