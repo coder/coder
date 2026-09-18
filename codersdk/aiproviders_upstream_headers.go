@@ -76,6 +76,8 @@ var deniedAIProviderUpstreamHeaders = map[string]struct{}{
 	"proxy-connection":    {},
 	"te":                  {},
 	"trailer":             {},
+	"cookie":              {},
+	"set-cookie":          {},
 }
 
 // validateAIProviderUpstreamHeaders checks a headers blob for structural

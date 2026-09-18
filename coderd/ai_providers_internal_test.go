@@ -89,8 +89,8 @@ func TestMergeAIProviderSettingsExternalID(t *testing.T) {
 }
 
 // TestMergeAIProviderSettingsUpstreamHeaders verifies PATCH merge semantics
-// for the headers variant: a headers patch replaces stored settings verbatim
-// (headers carry no secrets to carry forward), and a zero patch clears.
+// for the independent headers variant: a headers patch replaces only the
+// headers while preserving Bedrock settings, and a zero patch clears.
 func TestMergeAIProviderSettingsUpstreamHeaders(t *testing.T) {
 	t.Parallel()
 
@@ -100,12 +100,12 @@ func TestMergeAIProviderSettingsUpstreamHeaders(t *testing.T) {
 		}
 	}
 
-	t.Run("HeadersPatchReplacesBedrock", func(t *testing.T) {
+	t.Run("HeadersPatchPreservesBedrock", func(t *testing.T) {
 		t.Parallel()
 		existing := codersdk.AIProviderSettings{Bedrock: &codersdk.AIProviderBedrockSettings{Region: "us-east-1"}}
 		patch := headers(map[string]string{"X-A": "b"})
 		merged := mergeAIProviderSettings(existing, patch)
-		require.Nil(t, merged.Bedrock)
+		require.Equal(t, "us-east-1", merged.Bedrock.Region)
 		require.Equal(t, map[string]string{"X-A": "b"}, merged.UpstreamHeaders.Headers)
 	})
 
@@ -135,7 +135,7 @@ func TestMergeAIProviderSettingsUpstreamHeaders(t *testing.T) {
 			AccessKeySecret: &secret,
 		}}
 		merged := mergeAIProviderSettings(existing, patch)
-		require.Nil(t, merged.UpstreamHeaders)
+		require.Equal(t, map[string]string{"X-Old": "1"}, merged.UpstreamHeaders.Headers)
 		require.NotNil(t, merged.Bedrock)
 		require.Equal(t, "us-east-1", merged.Bedrock.Region)
 		require.Equal(t, &secret, merged.Bedrock.AccessKeySecret)

@@ -42,16 +42,24 @@ func TestAIProviderSettings_UpstreamHeadersMarshal(t *testing.T) {
 		}
 	})
 
-	t.Run("BedrockAndHeadersRefusesMarshal", func(t *testing.T) {
+	t.Run("BedrockAndHeadersMarshalTogether", func(t *testing.T) {
 		t.Parallel()
-		// The wire form carries a single discriminator, so a value holding
-		// both variants must fail loudly rather than drop one silently.
-		// Request validation rejects this shape before it can be stored.
-		_, err := json.Marshal(codersdk.AIProviderSettings{
+		got, err := json.Marshal(codersdk.AIProviderSettings{
 			Bedrock:         &codersdk.AIProviderBedrockSettings{Region: "us-east-1"},
 			UpstreamHeaders: &codersdk.AIProviderUpstreamHeadersSettings{Headers: map[string]string{"X-A": "b"}},
 		})
-		require.ErrorContains(t, err, "cannot combine bedrock and upstream-headers")
+		require.NoError(t, err)
+		require.JSONEq(t, `{
+			"_type": "bedrock",
+			"_version": 1,
+			"region": "us-east-1",
+			"headers": {"X-A": "b"}
+		}`, string(got))
+
+		var roundtrip codersdk.AIProviderSettings
+		require.NoError(t, json.Unmarshal(got, &roundtrip))
+		require.Equal(t, "us-east-1", roundtrip.Bedrock.Region)
+		require.Equal(t, map[string]string{"X-A": "b"}, roundtrip.UpstreamHeaders.Headers)
 	})
 }
 
@@ -146,7 +154,7 @@ func TestAIProviderRequest_ValidateUpstreamHeaders(t *testing.T) {
 
 	t.Run("DeniedHeaders", func(t *testing.T) {
 		t.Parallel()
-		for _, name := range []string{"Authorization", "X-Api-Key", "Host", "Content-Length"} {
+		for _, name := range []string{"Authorization", "X-Api-Key", "Host", "Content-Length", "Cookie", "Set-Cookie"} {
 			req := valid()
 			req.Settings.UpstreamHeaders.Headers = map[string]string{name: "v"}
 			errs := req.Validate()
@@ -242,27 +250,31 @@ func TestAIProviderRequest_ValidateUpstreamHeaders(t *testing.T) {
 		require.Contains(t, errs[0].Detail, "unterminated")
 	})
 
-	t.Run("BedrockAndHeadersRejected", func(t *testing.T) {
+	t.Run("BedrockAndHeadersAccepted", func(t *testing.T) {
 		t.Parallel()
 		req := valid()
 		req.Type = codersdk.AIProviderTypeAnthropic
-		req.Settings.Bedrock = &codersdk.AIProviderBedrockSettings{Region: "us-east-1"}
-		errs := req.Validate()
-		require.NotEmpty(t, errs)
-		require.Contains(t, errs[0].Detail, "only one settings type")
+		req.Settings.Bedrock = &codersdk.AIProviderBedrockSettings{
+			Region:         "us-east-1",
+			Model:          "model",
+			SmallFastModel: "small-model",
+		}
+		require.Empty(t, req.Validate())
 	})
 
-	t.Run("UpdateRejectsCombo", func(t *testing.T) {
+	t.Run("UpdateAcceptsCombo", func(t *testing.T) {
 		t.Parallel()
 		req := codersdk.UpdateAIProviderRequest{
 			Settings: &codersdk.AIProviderSettings{
-				Bedrock:         &codersdk.AIProviderBedrockSettings{Region: "us-east-1"},
+				Bedrock: &codersdk.AIProviderBedrockSettings{
+					Region:         "us-east-1",
+					Model:          "model",
+					SmallFastModel: "small-model",
+				},
 				UpstreamHeaders: &codersdk.AIProviderUpstreamHeadersSettings{Headers: map[string]string{"X-A": "b"}},
 			},
 		}
-		errs := req.Validate()
-		require.NotEmpty(t, errs)
-		require.Contains(t, errs[0].Detail, "only one settings type")
+		require.Empty(t, req.Validate())
 	})
 
 	t.Run("UpdateValidatesHeaders", func(t *testing.T) {

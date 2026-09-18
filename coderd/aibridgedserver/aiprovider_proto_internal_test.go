@@ -44,6 +44,28 @@ func TestAIProviderToProtoUpstreamHeaders(t *testing.T) {
 		require.Equal(t, map[string]string{"x-opencode-session": "{{chat_id}}"}, p.GetUpstreamHeaders())
 	})
 
+	t.Run("BedrockSettingsRetainHeaders", func(t *testing.T) {
+		t.Parallel()
+		p, err := aiProviderToProto(database.AIProvider{
+			Name:    "bedrock",
+			Type:    database.AIProviderTypeBedrock,
+			Enabled: true,
+			BaseUrl: "https://bedrock.example.com",
+			Settings: mustEncodeAIProviderSettings(t, codersdk.AIProviderSettings{
+				Bedrock: &codersdk.AIProviderBedrockSettings{
+					Region:         "us-east-1",
+					Model:          "model",
+					SmallFastModel: "small-model",
+				},
+				UpstreamHeaders: &codersdk.AIProviderUpstreamHeadersSettings{
+					Headers: map[string]string{"x-session": "{{chat_id}}"},
+				},
+			}),
+		}, nil)
+		require.NoError(t, err)
+		require.Equal(t, map[string]string{"x-session": "{{chat_id}}"}, p.GetUpstreamHeaders())
+	})
+
 	t.Run("AbsentMeansEmpty", func(t *testing.T) {
 		t.Parallel()
 		p, err := aiProviderToProto(database.AIProvider{

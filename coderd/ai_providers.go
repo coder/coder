@@ -897,32 +897,40 @@ func lookupAndMergeSettings(ctx context.Context, db database.Store, idOrName str
 }
 
 // mergeAIProviderSettings overlays a patch onto an existing settings
-// value. The patch is a full replacement: omitting every variant clears
-// the settings. Write-only fields (Bedrock AccessKey and AccessKeySecret)
-// use pointers so the patch can distinguish "omitted, keep existing" (nil)
-// from "explicitly clear" (pointer to empty string) - e.g. when an
-// admin migrates from static AWS credentials to IAM role-based auth
-// in a single PATCH. Upstream headers carry no secrets and are replaced
-// verbatim.
+// value. Omitting every variant clears the settings. Bedrock and upstream
+// headers are independent variants: a patch containing one preserves the
+// other. Write-only fields (Bedrock AccessKey and AccessKeySecret) use
+// pointers so the patch can distinguish "omitted, keep existing" (nil) from
+// "explicitly clear" (pointer to empty string) - e.g. when an admin migrates
+// from static AWS credentials to IAM role-based auth in a single PATCH.
 func mergeAIProviderSettings(existing, patch codersdk.AIProviderSettings) codersdk.AIProviderSettings {
-	if patch.IsZero() {
+	if patch.Bedrock == nil && patch.UpstreamHeaders == nil {
 		// Patch carries no type-specific data; treat as a clear.
 		return codersdk.AIProviderSettings{}
 	}
-	merged := patch
-	if patch.Bedrock != nil && existing.Bedrock != nil {
+	merged := existing
+	if patch.Bedrock != nil {
 		b := *patch.Bedrock
-		if b.AccessKey == nil {
-			b.AccessKey = existing.Bedrock.AccessKey
+		if existing.Bedrock != nil {
+			if b.AccessKey == nil {
+				b.AccessKey = existing.Bedrock.AccessKey
+			}
+			if b.AccessKeySecret == nil {
+				b.AccessKeySecret = existing.Bedrock.AccessKeySecret
+			}
+			// The external ID is server-owned and stable: carry the stored value
+			// forward so a patch can't change it. A patch that sets a different
+			// value is rejected upstream.
+			b.ExternalID = existing.Bedrock.ExternalID
 		}
-		if b.AccessKeySecret == nil {
-			b.AccessKeySecret = existing.Bedrock.AccessKeySecret
-		}
-		// The external ID is server-owned and stable: carry the stored value
-		// forward so a patch can't change it. A patch that sets a different
-		// value is rejected upstream.
-		b.ExternalID = existing.Bedrock.ExternalID
 		merged.Bedrock = &b
+	}
+	if patch.UpstreamHeaders != nil {
+		if patch.UpstreamHeaders.IsZero() {
+			merged.UpstreamHeaders = nil
+		} else {
+			merged.UpstreamHeaders = patch.UpstreamHeaders
+		}
 	}
 	return merged
 }
