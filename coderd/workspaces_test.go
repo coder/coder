@@ -6366,3 +6366,123 @@ func mustSchedule(t *testing.T, s string) *cron.Schedule {
 	require.NoError(t, err)
 	return sched
 }
+
+// TestWorkspaceIncludeRelated verifies the include_related query parameter on
+// GET /workspaces/{workspace}: omitting it returns everything, while a path
+// list narrows the related data loaded, and an invalid value is rejected.
+func TestWorkspaceIncludeRelated(t *testing.T) {
+	t.Parallel()
+
+	client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+	user := coderdtest.CreateFirstUser(t, client)
+	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+		Parse:         echo.ParseComplete,
+		ProvisionPlan: echo.PlanComplete,
+		ProvisionApply: []*proto.Response{{
+			Type: &proto.Response_Apply{
+				Apply: &proto.ApplyComplete{},
+			},
+		}},
+		ProvisionGraph: []*proto.Response{{
+			Type: &proto.Response_Graph{
+				Graph: &proto.GraphComplete{
+					Resources: []*proto.Resource{{
+						Name: "example",
+						Type: "aws_instance",
+						Agents: []*proto.Agent{{
+							Id:   uuid.NewString(),
+							Name: "dev",
+							Auth: &proto.Agent_Token{Token: uuid.NewString()},
+						}},
+					}},
+				},
+			},
+		}},
+	})
+	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+	workspace := coderdtest.CreateWorkspace(t, client, template.ID)
+	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+
+	get := func(ctx context.Context, t *testing.T, includeRelated string) (codersdk.Workspace, int) {
+		t.Helper()
+		resp, err := client.Request(ctx, http.MethodGet,
+			fmt.Sprintf("/api/v2/workspaces/%s", workspace.ID), nil,
+			codersdk.WithQueryParam("include_related", includeRelated))
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			return codersdk.Workspace{}, resp.StatusCode
+		}
+		var w codersdk.Workspace
+		require.NoError(t, json.NewDecoder(resp.Body).Decode(&w))
+		return w, resp.StatusCode
+	}
+
+	t.Run("Full", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		// Without the parameter, the build and template are both returned.
+		full, err := client.Workspace(ctx, workspace.ID)
+		require.NoError(t, err)
+		require.Equal(t, workspace.LatestBuild.ID, full.LatestBuild.ID)
+		require.Equal(t, version.ID, full.TemplateActiveVersionID)
+	})
+
+	t.Run("TemplateOnly", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		w, code := get(ctx, t, "template")
+		require.Equal(t, http.StatusOK, code)
+		require.Equal(t, workspace.ID, w.ID)
+		// The build was not requested, so it is omitted (zero value).
+		require.Equal(t, uuid.Nil, w.LatestBuild.ID)
+		// The template was requested, so template-derived fields are populated.
+		require.Equal(t, version.ID, w.TemplateActiveVersionID)
+	})
+
+	t.Run("LatestBuildOnly", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		w, code := get(ctx, t, "latest_build.*")
+		require.Equal(t, http.StatusOK, code)
+		require.Equal(t, workspace.ID, w.ID)
+		// The build was requested, so it is populated.
+		require.Equal(t, workspace.LatestBuild.ID, w.LatestBuild.ID)
+		// The template was not requested, so template-derived fields are zero.
+		require.Equal(t, uuid.Nil, w.TemplateActiveVersionID)
+	})
+
+	t.Run("Invalid", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		_, code := get(ctx, t, "bogus")
+		require.Equal(t, http.StatusBadRequest, code)
+	})
+
+	t.Run("LatestBuildWithoutJob", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		w, code := get(ctx, t, "latest_build")
+		require.Equal(t, http.StatusOK, code)
+		require.Equal(t, workspace.LatestBuild.ID, w.LatestBuild.ID)
+		// The job was not requested, so it is zero.
+		require.Equal(t, uuid.Nil, w.LatestBuild.Job.ID)
+		// The template version was not requested, so its name is empty.
+		require.Empty(t, w.LatestBuild.TemplateVersionName)
+		// Resources were not requested, so none are returned.
+		require.Empty(t, w.LatestBuild.Resources)
+	})
+
+	t.Run("LatestBuildResourcesWithoutJob", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		// Resources hang off the build, not the job, so they load even when the
+		// job is omitted from the selection.
+		w, code := get(ctx, t, "latest_build.resources.*")
+		require.Equal(t, http.StatusOK, code)
+		require.Equal(t, workspace.LatestBuild.ID, w.LatestBuild.ID)
+		require.Equal(t, uuid.Nil, w.LatestBuild.Job.ID)
+		require.NotEmpty(t, w.LatestBuild.Resources)
+	})
+}
