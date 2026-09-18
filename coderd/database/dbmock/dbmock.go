@@ -11,7 +11,6 @@ package dbmock
 
 import (
 	context "context"
-	json "encoding/json"
 	reflect "reflect"
 	time "time"
 
@@ -555,21 +554,6 @@ func (m *MockStore) CountChatCapacityQueuedByPool(ctx context.Context, staleSeco
 func (mr *MockStoreMockRecorder) CountChatCapacityQueuedByPool(ctx, staleSeconds any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CountChatCapacityQueuedByPool", reflect.TypeOf((*MockStore)(nil).CountChatCapacityQueuedByPool), ctx, staleSeconds)
-}
-
-// CountChatProjectChats mocks base method.
-func (m *MockStore) CountChatProjectChats(ctx context.Context, projectID uuid.UUID) (int64, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CountChatProjectChats", ctx, projectID)
-	ret0, _ := ret[0].(int64)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// CountChatProjectChats indicates an expected call of CountChatProjectChats.
-func (mr *MockStoreMockRecorder) CountChatProjectChats(ctx, projectID any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CountChatProjectChats", reflect.TypeOf((*MockStore)(nil).CountChatProjectChats), ctx, projectID)
 }
 
 // CountChatProjectMemoriesByProjectID mocks base method.
@@ -3463,10 +3447,10 @@ func (mr *MockStoreMockRecorder) GetChatProjectMemoryCursor(ctx, chatID any) *go
 }
 
 // GetChatProjectsByOrganizationID mocks base method.
-func (m *MockStore) GetChatProjectsByOrganizationID(ctx context.Context, organizationID uuid.UUID) ([]database.GetChatProjectsByOrganizationIDRow, error) {
+func (m *MockStore) GetChatProjectsByOrganizationID(ctx context.Context, organizationID uuid.UUID) ([]database.ChatProject, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetChatProjectsByOrganizationID", ctx, organizationID)
-	ret0, _ := ret[0].([]database.GetChatProjectsByOrganizationIDRow)
+	ret0, _ := ret[0].([]database.ChatProject)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -12628,17 +12612,17 @@ func (mr *MockStoreMockRecorder) UpsertTelemetryItem(ctx, arg any) *gomock.Call 
 }
 
 // UpsertTemplateUsageStats mocks base method.
-func (m *MockStore) UpsertTemplateUsageStats(ctx context.Context, appFamilies json.RawMessage) error {
+func (m *MockStore) UpsertTemplateUsageStats(ctx context.Context) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpsertTemplateUsageStats", ctx, appFamilies)
+	ret := m.ctrl.Call(m, "UpsertTemplateUsageStats", ctx)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // UpsertTemplateUsageStats indicates an expected call of UpsertTemplateUsageStats.
-func (mr *MockStoreMockRecorder) UpsertTemplateUsageStats(ctx, appFamilies any) *gomock.Call {
+func (mr *MockStoreMockRecorder) UpsertTemplateUsageStats(ctx any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertTemplateUsageStats", reflect.TypeOf((*MockStore)(nil).UpsertTemplateUsageStats), ctx, appFamilies)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertTemplateUsageStats", reflect.TypeOf((*MockStore)(nil).UpsertTemplateUsageStats), ctx)
 }
 
 // UpsertUserAIBudgetOverride mocks base method.

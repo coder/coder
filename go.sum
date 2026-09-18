@@ -208,8 +208,8 @@ github.com/aws/aws-sdk-go-v2/service/sso v1.35.1 h1:B6WFn91tobD6gG4724ONHaqrpKso
 github.com/aws/aws-sdk-go-v2/service/sso v1.35.1/go.mod h1:tWuiVBUtPBr8/rgRiYS8Uf85sHcAN+G7XS3D3CEoUh8=
 github.com/aws/aws-sdk-go-v2/service/ssooidc v1.40.1 h1:6yeYCWFvgbI2TI3K6jr9LtBNhXgJ7g4xqD+DEiaDDmM=
 github.com/aws/aws-sdk-go-v2/service/ssooidc v1.40.1/go.mod h1:naFe83jSMuYkH+QjQPX8n1MLhBkeCFM5Lsnh5m5wz3c=
-github.com/aws/aws-sdk-go-v2/service/sts v1.50.0 h1:khXV3+K5D3f4e8xtplaRdSFn1bEg3gj5EBHQvbCOZbQ=
-github.com/aws/aws-sdk-go-v2/service/sts v1.50.0/go.mod h1:/8JRcdTt//hG0Q4BTmGbuOplT7ABe+5rdtqUHqXvYIM=
+github.com/aws/aws-sdk-go-v2/service/sts v1.51.0 h1:Zpnqa6XtrNzXZnwbdCqHOXpXhMsa01ql/pcRQ1sb4hk=
+github.com/aws/aws-sdk-go-v2/service/sts v1.51.0/go.mod h1:/8JRcdTt//hG0Q4BTmGbuOplT7ABe+5rdtqUHqXvYIM=
 github.com/aws/smithy-go v1.28.1 h1:R/nXH00c8qcfCzQVELtRw+eLQWtzv+VAIEFJ1/xxXlQ=
 github.com/aws/smithy-go v1.28.1/go.mod h1:YE2RhdIuDbA5E5bTdciG9KrW3+TiEONeUWCqxX9i1Fc=
 github.com/aymanbagabas/go-osc52/v2 v2.0.1 h1:HwpRHbFMcZLEVr42D4p7XBqjyuxQH5SMiErDT4WkJ2k=
@@ -347,8 +347,8 @@ github.com/coder/pq v1.10.5-0.20250807075151-6ad9b0a25151 h1:YAxwg3lraGNRwoQ18H7
 github.com/coder/pq v1.10.5-0.20250807075151-6ad9b0a25151/go.mod h1:AlVN5x4E4T544tWzH6hKfbfQvm3HdbOxrmggDNAPY9o=
 github.com/coder/pretty v0.0.0-20230908205945-e89ba86370e0 h1:3A0ES21Ke+FxEM8CXx9n47SZOKOpgSE1bbJzlE4qPVs=
 github.com/coder/pretty v0.0.0-20230908205945-e89ba86370e0/go.mod h1:5UuS2Ts+nTToAMeOjNlnHFkPahrtDkmpydBen/3wgZc=
-github.com/coder/preview v1.0.10-0.20260521153517-34deb0946c4f h1:U6WdJ2l2jalMD3RcCzmlYYYB0m8mkEhmwZXoWwSHLSc=
-github.com/coder/preview v1.0.10-0.20260521153517-34deb0946c4f/go.mod h1:e8KzGukwyNOCkrJv8NuY/ToG5PwcE/aN+ktKptZQ5Gw=
+github.com/coder/preview v1.0.10-0.20260915135839-c0dfdeecbd89 h1:+kJUF615ZZHOTO1v6ULYHZYvmB7IYymBPUV5pOLBcqs=
+github.com/coder/preview v1.0.10-0.20260915135839-c0dfdeecbd89/go.mod h1:TnxVWWvShY7jJ/5Z8j6XqQl3nx30TDXEhfeZOSAky38=
 github.com/coder/quartz v0.3.0 h1:bUoSEJ77NBfKtUqv6CPSC0AS8dsjqAqqAv7bN02m1mg=
 github.com/coder/quartz v0.3.0/go.mod h1:BgE7DOj/8NfvRgvKw0jPLDQH/2Lya2kxcTaNJ8X0rZk=
 github.com/coder/retry v1.5.1 h1:iWu8YnD8YqHs3XwqrqsjoBTAVqT9ml6z9ViJ2wlMiqc=
@@ -365,8 +365,8 @@ github.com/coder/terraform-config-inspect v0.0.0-20250107175719-6d06d90c630e h1:
 github.com/coder/terraform-config-inspect v0.0.0-20250107175719-6d06d90c630e/go.mod h1:Gz/z9Hbn+4KSp8A2FBtNszfLSdT2Tn/uAKGuVqqWmDI=
 github.com/coder/terraform-provider-coder/v2 v2.19.0 h1:ShiwZiUZ3wyUt4+ccrdWlUKu+24aDgzMLD6Yf6xKtAw=
 github.com/coder/terraform-provider-coder/v2 v2.19.0/go.mod h1:MWTw/k+oQxySR4/wZIunBxTlFva8hH6t2hLikTpyomU=
-github.com/coder/trivy v0.0.0-20260309164037-c413f5a2f511 h1:wJS3Pk13VuCbV8hjrQRnOBCUwP3Islk91sMvbSdY0Vk=
-github.com/coder/trivy v0.0.0-20260309164037-c413f5a2f511/go.mod h1:+zF17ZBOdhFWwD3+GkLxZ/vkmKLudoOtt+hgnc1TQpA=
+github.com/coder/trivy v0.0.0-20260911135535-15b949537506 h1:A9f2UisugOgV2JlhibP0GZdzpqn+sWPIcz4q3bsgopI=
+github.com/coder/trivy v0.0.0-20260911135535-15b949537506/go.mod h1:+zF17ZBOdhFWwD3+GkLxZ/vkmKLudoOtt+hgnc1TQpA=
 github.com/coder/websocket v1.8.14 h1:9L0p0iKiNOibykf283eHkKUHHrpG7f65OE3BhhO7v9g=
 github.com/coder/websocket v1.8.14/go.mod h1:NX3SzP+inril6yawo5CQXx8+fk145lPDC6pumgx0mVg=
 github.com/coder/wgtunnel v0.2.0 h1:yy9dE9ntoNdx/q98CH9uV2cQk1UEKSwPgITy3Xx+Wiw=
@@ -1558,8 +1558,8 @@ golang.zx2c4.com/wireguard/windows v0.5.3 h1:On6j2Rpn3OEMXqBq00QEDC7bWSZrPIHKIus
 golang.zx2c4.com/wireguard/windows v0.5.3/go.mod h1:9TEe8TJmtwyQebdFwAkEWOPr3prrtqm+REGFifP60hI=
 gonum.org/v1/gonum v0.17.0 h1:VbpOemQlsSMrYmn7T2OUvQ4dqxQXU+ouZFQsZOx50z4=
 gonum.org/v1/gonum v0.17.0/go.mod h1:El3tOrEuMpv2UdMrbNlKEh9vd86bmQ6vqIcDwxEOc1E=
-google.golang.org/api v0.295.0 h1:SSqFeEVjnK5SKo6t7D0E0M7EfX8SP7K0+OJd2Ly5FzU=
-google.golang.org/api v0.295.0/go.mod h1:02qB8+Ox1ZFzcaKFMguy1nQLJmSIyvV6Ff4txJEXtl4=
+google.golang.org/api v0.298.0 h1:YW18RkHBMZBA1ergX0m4biagzgbiPTb2uTsRsDPWNRY=
+google.golang.org/api v0.298.0/go.mod h1:02qB8+Ox1ZFzcaKFMguy1nQLJmSIyvV6Ff4txJEXtl4=
 google.golang.org/appengine v1.1.0/go.mod h1:EbEs0AVv82hx2wNQdGPgUI5lhzA/G0D9YwlJXL52JkM=
 google.golang.org/appengine v1.6.8 h1:IhEN5q69dyKagZPYMSdIjS2HqprW324FRQZJcGqPAsM=
 google.golang.org/appengine v1.6.8/go.mod h1:1jJ3jBArFh5pcgW8gCtRJnepW8FzD1V44FJffLiz/Ds=

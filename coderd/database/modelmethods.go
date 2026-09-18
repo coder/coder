@@ -175,10 +175,6 @@ func (p ChatProject) RBACObject() rbac.Object {
 	return rbac.ResourceChatProject.WithID(p.ID).InOrg(p.OrganizationID).WithOwner(p.CreatedBy.String())
 }
 
-func (r GetChatProjectsByOrganizationIDRow) RBACObject() rbac.Object {
-	return r.ChatProject.RBACObject()
-}
-
 func (m ChatProjectMemory) RBACObject() rbac.Object {
 	return rbac.ResourceChatProjectMemory.WithID(m.ID).InOrg(m.OrganizationID)
 }

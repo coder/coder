@@ -4,9 +4,9 @@
  */
 
 import { cn } from "cn";
-import type { ComponentPropsWithRef, FC } from "react";
+import type { ComponentProps, FC } from "react";
 
-type InputProps = ComponentPropsWithRef<"input">;
+type InputProps = ComponentProps<"input">;
 
 export const Input: FC<InputProps> = ({ className, type, ...props }) => {
 	return (

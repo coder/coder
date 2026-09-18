@@ -374,6 +374,20 @@ WHERE
 			workspaces.group_acl ? (@shared_with_group_id :: uuid) :: text
 		ELSE true
 	END
+	-- Filter by user_id: workspaces the user owns, or that are shared with
+	-- them directly or through a group they belong to.
+	AND CASE
+		WHEN @user_id :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+			workspaces.owner_id = @user_id
+			OR workspaces.user_acl ? (@user_id :: uuid) :: text
+			OR EXISTS (
+				SELECT 1
+				FROM group_members_expanded
+				WHERE group_members_expanded.user_id = @user_id
+					AND workspaces.group_acl ? group_members_expanded.group_id :: text
+			)
+		ELSE true
+	END
 
 	-- Authorize Filter clause will be injected below in GetAuthorizedWorkspaces
 	-- @authorize_filter

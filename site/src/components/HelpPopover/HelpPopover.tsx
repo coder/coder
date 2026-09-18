@@ -14,7 +14,7 @@ type Size = "small" | "medium";
 
 export const HelpPopoverTrigger = PopoverTrigger;
 
-export const HelpPopoverIcon = CircleHelpIcon;
+const HelpPopoverIcon = CircleHelpIcon;
 
 export const HelpPopover = Popover;
 
@@ -36,7 +36,7 @@ export const HelpPopoverContent: FC<PopoverContentProps> = ({
 	);
 };
 
-type HelpPopoverIconTriggerProps = React.ComponentPropsWithRef<"button"> & {
+type HelpPopoverIconTriggerProps = React.ComponentProps<"button"> & {
 	size?: Size;
 	hoverEffect?: boolean;
 };
