@@ -47,12 +47,13 @@ func TestScaleTestWorkspaceTraffic_UseHostLogin(t *testing.T) {
 	)
 	// nolint:gocritic // We are intentionally testing this as the owner.
 	clitest.SetupConfig(t, client, root)
-	var stdoutBuf bytes.Buffer
-	inv.Stdout = &stdoutBuf
+	// The ownership warning is a diagnostic written to stderr, not stdout.
+	var stderrBuf bytes.Buffer
+	inv.Stderr = &stderrBuf
 
 	err := inv.WithContext(ctx).Run()
 	require.ErrorContains(t, err, "no scaletest workspaces exist")
-	require.Contains(t, stdoutBuf.String(), `1 workspace(s) were skipped`)
+	require.Contains(t, stderrBuf.String(), `1 workspace(s) were skipped`)
 
 	// Test once again with --use-host-login.
 	inv, root = clitest.New(t, "exp", "scaletest", "workspace-traffic",
@@ -61,10 +62,10 @@ func TestScaleTestWorkspaceTraffic_UseHostLogin(t *testing.T) {
 	)
 	// nolint:gocritic // We are intentionally testing this as the owner.
 	clitest.SetupConfig(t, client, root)
-	stdoutBuf.Reset()
-	inv.Stdout = &stdoutBuf
+	stderrBuf.Reset()
+	inv.Stderr = &stderrBuf
 
 	err = inv.WithContext(ctx).Run()
 	require.ErrorContains(t, err, "no scaletest workspaces exist")
-	require.NotContains(t, stdoutBuf.String(), `1 workspace(s) were skipped`)
+	require.NotContains(t, stderrBuf.String(), `1 workspace(s) were skipped`)
 }

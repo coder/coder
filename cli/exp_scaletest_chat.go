@@ -67,7 +67,7 @@ func (r *RootCmd) scaletestChat() *serpent.Command {
 				Header:    BypassHeader,
 			}
 
-			workspaces, err := targetFlags.getTargetedWorkspaces(ctx, client, me.OrganizationIDs, inv.Stdout)
+			workspaces, err := targetFlags.getTargetedWorkspaces(ctx, client, me.OrganizationIDs, nil, inv.Stderr)
 			if err != nil {
 				return err
 			}

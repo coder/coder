@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"hash/fnv"
 	"io"
 	"math/rand"
 	"net/http"
@@ -425,15 +426,98 @@ func (f *workspaceTargetFlags) attach(opts *serpent.OptionSet) {
 	)
 }
 
-// getTargetedWorkspaces retrieves the workspaces based on the template filter and target range. warnWriter is where to
-// write a warning message if any workspaces were skipped due to ownership mismatch.
-func (f *workspaceTargetFlags) getTargetedWorkspaces(ctx context.Context, client *codersdk.Client, organizationIDs []uuid.UUID, warnWriter io.Writer) ([]codersdk.Workspace, error) {
+// shardingFlags splits the running workspaces across load-generator replicas.
+// Kept off the shared workspaceTargetFlags so non-sharding commands don't
+// publish the flags; a nil *shardingFlags means "no sharding".
+type shardingFlags struct {
+	index int64
+	count int64
+}
+
+// newShardingFlags sets the -1 "unset" sentinel for index, since 0 is a valid shard.
+func newShardingFlags() *shardingFlags {
+	return &shardingFlags{index: -1}
+}
+
+// attach registers the sharding flags; only sharding commands call it.
+func (s *shardingFlags) attach(opts *serpent.OptionSet) {
+	*opts = append(*opts,
+		serpent.Option{
+			Flag:        "shard-index",
+			Env:         "CODER_SCALETEST_SHARD_INDEX",
+			Default:     "-1",
+			Description: "Zero-based index of this shard when partitioning workspaces across multiple load generator replicas. Requires --shard-count and is mutually exclusive with --target-workspaces.",
+			Value:       serpent.Int64Of(&s.index),
+		},
+		serpent.Option{
+			Flag:        "shard-count",
+			Env:         "CODER_SCALETEST_SHARD_COUNT",
+			Default:     "0",
+			Description: "Total number of shards partitioning the running workspaces across load generator replicas. Each running workspace is assigned to exactly one shard by a stable hash of its ID, so shards are disjoint and roughly even. Each replica fetches the full running workspace list and keeps only its shard, so per-replica startup cost scales with the total workspace count, not the shard size. Requires --shard-index and is mutually exclusive with --target-workspaces.",
+			Value:       serpent.Int64Of(&s.count),
+		},
+	)
+}
+
+// requested reports whether either flag was set (nil-safe). Gating on set-ness,
+// not value, keeps a lone or negative flag from silently targeting everything.
+func (s *shardingFlags) requested() bool {
+	return s != nil && (s.count != 0 || s.index != -1)
+}
+
+// validate rejects invalid or conflicting flags; a no-op when not requested.
+func (s *shardingFlags) validate(targetWorkspaces string) error {
+	if !s.requested() {
+		return nil
+	}
+	if targetWorkspaces != "" {
+		return xerrors.New("--target-workspaces cannot be used with --shard-index/--shard-count")
+	}
+	if s.count == 0 {
+		return xerrors.New("--shard-index requires --shard-count")
+	}
+	if s.count < 1 {
+		return xerrors.Errorf("--shard-count must be a positive integer, got %d", s.count)
+	}
+	if s.index == -1 {
+		return xerrors.New("--shard-count requires --shard-index")
+	}
+	if s.index < 0 {
+		return xerrors.Errorf("--shard-index must be >= 0, got %d", s.index)
+	}
+	if s.index >= s.count {
+		return xerrors.Errorf("--shard-index %d is out of range for --shard-count %d (must be in [0, %d))", s.index, s.count, s.count)
+	}
+	return nil
+}
+
+// selectShard returns this replica's shard. It takes an already-fetched list,
+// not a client, so it is unit-testable. Zero running workspaces is an error.
+func (s *shardingFlags) selectShard(workspaces []codersdk.Workspace, warnWriter io.Writer) ([]codersdk.Workspace, error) {
+	shard, runningCount := shardWorkspaces(workspaces, s.index, s.count)
+	if runningCount == 0 {
+		return nil, xerrors.New("no running scaletest workspaces exist")
+	}
+	// Log shard sizes so an empty shard (a pod exiting 0 with no work) is visible.
+	_, _ = fmt.Fprintf(warnWriter, "shard %d of %d: targeting %d of %d running workspaces\n",
+		s.index, s.count, len(shard), runningCount)
+	return shard, nil
+}
+
+// getTargetedWorkspaces returns the workspaces to load-test. warnWriter must be
+// stderr, not stdout, or diagnostics corrupt --output json. A nil sharding
+// disables sharding.
+func (f *workspaceTargetFlags) getTargetedWorkspaces(ctx context.Context, client *codersdk.Client, organizationIDs []uuid.UUID, sharding *shardingFlags, warnWriter io.Writer) ([]codersdk.Workspace, error) {
 	// Validate template if provided
 	if f.template != "" {
 		_, err := parseTemplate(ctx, client, organizationIDs, f.template)
 		if err != nil {
 			return nil, xerrors.Errorf("parse template: %w", err)
 		}
+	}
+
+	if err := sharding.validate(f.targetWorkspaces); err != nil {
+		return nil, err
 	}
 
 	// Parse target range
@@ -457,6 +541,10 @@ func (f *workspaceTargetFlags) getTargetedWorkspaces(ctx context.Context, client
 		cliui.Warnf(warnWriter, "CODER_DISABLE_OWNER_WORKSPACE_ACCESS is set on the deployment.\n\t%d workspace(s) were skipped due to ownership mismatch.\n\tSet --use-host-login to only target workspaces you own.", numSkipped)
 	}
 
+	if sharding.requested() {
+		return sharding.selectShard(workspaces, warnWriter)
+	}
+
 	// Adjust targetEnd if not specified
 	if targetEnd == 0 {
 		targetEnd = len(workspaces)
@@ -475,6 +563,29 @@ func (f *workspaceTargetFlags) getTargetedWorkspaces(ctx context.Context, client
 
 	// Return the sliced workspaces
 	return workspaces[targetStart:targetEnd], nil
+}
+
+// shardWorkspaces returns the running workspaces assigned to shardIndex and the
+// total running count. Hashing the workspace ID keeps shards disjoint and
+// churn-stable without replicas coordinating, at the cost of only roughly even
+// sizes. shardCount must be >= 1.
+func shardWorkspaces(workspaces []codersdk.Workspace, shardIndex, shardCount int64) (shard []codersdk.Workspace, runningCount int) {
+	// One hasher, reset per workspace, to avoid an allocation on every iteration.
+	h := fnv.New64a()
+	for _, ws := range workspaces {
+		if ws.LatestBuild.Status != codersdk.WorkspaceStatusRunning {
+			continue
+		}
+		runningCount++
+		h.Reset()
+		_, _ = h.Write(ws.ID[:])
+		// #nosec G115 -- shardCount is validated >= 1, so the result is in
+		// [0, shardCount) and always fits in int64.
+		if int64(h.Sum64()%uint64(shardCount)) == shardIndex {
+			shard = append(shard, ws)
+		}
+	}
+	return shard, runningCount
 }
 
 func RequireAdmin(ctx context.Context, client *codersdk.Client) (codersdk.User, error) {
@@ -1456,6 +1567,7 @@ func (r *RootCmd) scaletestWorkspaceTraffic() *serpent.Command {
 		workspaceProxyURL string
 
 		targetFlags     = &workspaceTargetFlags{}
+		sharding        = newShardingFlags()
 		tracingFlags    = &scaletestTracingFlags{}
 		strategy        = &scaletestStrategyFlags{}
 		cleanupStrategy = newScaletestCleanupStrategy()
@@ -1490,7 +1602,7 @@ func (r *RootCmd) scaletestWorkspaceTraffic() *serpent.Command {
 			prometheusSrvClose := ServeHandler(ctx, logger, promhttp.HandlerFor(reg, promhttp.HandlerOpts{}), prometheusFlags.Address, "prometheus")
 			defer prometheusSrvClose()
 
-			workspaces, err := targetFlags.getTargetedWorkspaces(ctx, client, me.OrganizationIDs, inv.Stdout)
+			workspaces, err := targetFlags.getTargetedWorkspaces(ctx, client, me.OrganizationIDs, sharding, inv.Stderr)
 			if err != nil {
 				return err
 			}
@@ -1682,6 +1794,7 @@ func (r *RootCmd) scaletestWorkspaceTraffic() *serpent.Command {
 	}
 
 	targetFlags.attach(&cmd.Options)
+	sharding.attach(&cmd.Options)
 	tracingFlags.attach(&cmd.Options)
 	strategy.attach(&cmd.Options)
 	cleanupStrategy.attach(&cmd.Options)
