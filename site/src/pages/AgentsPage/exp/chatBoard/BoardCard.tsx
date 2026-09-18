@@ -3,6 +3,7 @@ import { cn } from "cn";
 import {
 	BotIcon,
 	CopyIcon,
+	type LucideIcon,
 	MessageSquareIcon,
 	MessageSquarePlusIcon,
 	PencilIcon,
@@ -15,6 +16,7 @@ import {
 	DropdownMenuCheckboxItem,
 	DropdownMenuSeparator,
 } from "#/components/DropdownMenu/DropdownMenu";
+import { isActiveChatStatus } from "../../components/ChatConversation/chatStore";
 import { getChatDisplayConfig } from "../../components/ChatsSidebar/tree/statusConfig";
 import { ActionsMenu } from "./ActionsMenu";
 import type { NoteSlot } from "./boardApi";
@@ -138,7 +140,6 @@ export const BoardCard: FC<BoardCardProps> = ({
 	const single = card.members.length === 1;
 	const lead = card.primary;
 	const leadDisplay = getChatDisplayConfig(lead);
-	const LeadIcon = leadDisplay.icon;
 	return (
 		<article
 			ref={setRefs}
@@ -175,14 +176,18 @@ export const BoardCard: FC<BoardCardProps> = ({
 				)}
 				<span className="flex h-[19px] items-center justify-center">
 					{single ? (
-						<LeadIcon
-							className={cn("size-[13px]", leadDisplay.className)}
-							aria-label={leadDisplay.label}
+						<StatusGlyph
+							icon={leadDisplay.icon}
+							className={leadDisplay.className}
+							label={leadDisplay.label}
+							unread={hasUnread(lead)}
 						/>
 					) : (
-						<CopyIcon
-							className="size-[13px] text-content-secondary"
-							aria-label={`Group of ${card.members.length} chats`}
+						<StatusGlyph
+							icon={CopyIcon}
+							className="text-content-secondary"
+							label={`Group of ${card.members.length} chats`}
+							unread={card.members.some(hasUnread)}
 						/>
 					)}
 				</span>
@@ -392,21 +397,51 @@ const ChatOpener: FC<ChatOpenerProps> = ({
 	onPreviewEnd,
 }) => (
 	<IconButton
-		aria-label={
-			chat.has_unread ? `Open ${chat.title}, unread` : `Open ${chat.title}`
-		}
-		title={chat.has_unread ? "Open chat (unread)" : "Open chat"}
-		// Unread lives on the chat icon in the sidebar's blue: the chat is what
-		// holds the unread messages.
-		className={cn(
-			chat.has_unread && "text-content-link hover:text-content-link",
-		)}
+		aria-label={`Open ${chat.title}`}
+		title="Open chat"
 		onPointerEnter={() => onPreview(chat)}
 		onPointerLeave={onPreviewEnd}
 		onClick={() => onOpen(chat)}
 	>
 		<MessageSquareIcon className="size-3.5" />
 	</IconButton>
+);
+
+// While the chat works the mark would flicker on with every token; the
+// spinner already says "look here", so it is shown once the chat settles.
+const hasUnread = (chat: Chat): boolean =>
+	chat.has_unread && !isActiveChatStatus(chat.status);
+
+type StatusGlyphProps = {
+	readonly icon: LucideIcon;
+	readonly className?: string;
+	readonly label: string;
+	readonly unread: boolean;
+};
+
+/**
+ * The 13px status icon with the unread dot at its top-right corner. The dot
+ * is positioned, so it costs no width, and it sits in the same place on a
+ * single card, a group's stack icon, and every member row. It stays just
+ * outside the glyph rather than wearing a ring: no token matches the tinted
+ * header, so a ring would show as a halo there.
+ */
+const StatusGlyph: FC<StatusGlyphProps> = ({
+	icon: Icon,
+	className,
+	label,
+	unread,
+}) => (
+	<span className="relative flex">
+		<Icon className={cn("size-[13px]", className)} aria-label={label} />
+		{unread && (
+			<span
+				role="img"
+				aria-label="Unread"
+				className="absolute -right-[3px] -top-[3px] size-[5px] rounded-full bg-content-link"
+			/>
+		)}
+	</span>
 );
 
 type ChatRowProps = {
@@ -442,7 +477,6 @@ const ChatRow: FC<ChatRowProps> = ({
 	const preview = () => onPreview(chat, rectOf(node));
 	const [renaming, setRenaming] = useState(false);
 	const display = getChatDisplayConfig(chat);
-	const StatusIcon = display.icon;
 
 	return (
 		<li
@@ -461,9 +495,11 @@ const ChatRow: FC<ChatRowProps> = ({
 				className="relative z-[1] flex h-[18px] cursor-grab touch-none items-center justify-center active:cursor-grabbing"
 				title="Drag to move this chat"
 			>
-				<StatusIcon
-					className={cn("size-[13px]", display.className)}
-					aria-label={display.label}
+				<StatusGlyph
+					icon={display.icon}
+					className={display.className}
+					label={display.label}
+					unread={hasUnread(chat)}
 				/>
 			</span>
 			{/*

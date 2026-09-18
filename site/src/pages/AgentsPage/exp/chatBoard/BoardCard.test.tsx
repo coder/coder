@@ -1,4 +1,4 @@
-import { screen } from "@testing-library/react";
+import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ComponentProps } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -183,5 +183,23 @@ describe("BoardCard", () => {
 
 		expect(onPreview).toHaveBeenCalledWith(card.members[1], rect(120));
 		expect(onOpen).toHaveBeenCalledWith(card.members[1], rect(120));
+	});
+
+	it("marks unread on the group and on the settled member, not the working one", () => {
+		renderCard([
+			chat("p", { "board/group": "p" }),
+			{ ...chat("m", { "board/group": "p" }), has_unread: true },
+			{
+				...chat("r", { "board/group": "p" }),
+				has_unread: true,
+				status: "running",
+			},
+		]);
+
+		const dot = { name: "Unread" };
+		const [, rowM, rowR] = screen.getAllByRole("listitem");
+		expect(within(rowM).getByRole("img", dot)).toBeDefined();
+		expect(within(rowR).queryByRole("img", dot)).toBeNull();
+		expect(screen.getAllByRole("img", dot)).toHaveLength(2);
 	});
 });
