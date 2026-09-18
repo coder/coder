@@ -21917,7 +21917,7 @@ const docTemplate = `{
                     "$ref": "#/definitions/codersdk.ExitNodeFlowDecision"
                 },
                 "destination": {
-                    "description": "Destination is \"\u003chost or ip\u003e:\u003cport\u003e\" as dialed by the workspace.",
+                    "description": "Destination is \"\u003chost or ip\u003e:\u003cport\u003e\" as dialed by the workspace. For\ndns flows it is the query name.",
                     "type": "string"
                 },
                 "destination_ip": {
@@ -21928,6 +21928,14 @@ const docTemplate = `{
                     "description": "DisconnectTime is omitted while the flow is still open.",
                     "type": "string",
                     "format": "date-time"
+                },
+                "protocol": {
+                    "description": "Protocol is tcp, udp, or dns.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ExitNodeProtocol"
+                        }
+                    ]
                 },
                 "reason": {
                     "description": "Reason is the human-readable explanation from the exit node. For\ncompleted flows it carries a \"(in=\u003cbytes\u003e out=\u003cbytes\u003e)\" suffix.",
@@ -24054,6 +24062,14 @@ const docTemplate = `{
                     "description": "Host is the hostname learned from TLS SNI or the HTTP Host header, or\nempty when neither was present.",
                     "type": "string"
                 },
+                "protocol": {
+                    "description": "Protocol defaults to tcp when empty.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ExitNodeProtocol"
+                        }
+                    ]
+                },
                 "reason": {
                     "type": "string"
                 },
@@ -24061,6 +24077,19 @@ const docTemplate = `{
                     "type": "string"
                 }
             }
+        },
+        "codersdk.ExitNodeProtocol": {
+            "type": "string",
+            "enum": [
+                "tcp",
+                "udp",
+                "dns"
+            ],
+            "x-enum-varnames": [
+                "ExitNodeProtocolTCP",
+                "ExitNodeProtocolUDP",
+                "ExitNodeProtocolDNS"
+            ]
         },
         "codersdk.Experiment": {
             "type": "string",

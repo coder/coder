@@ -10,16 +10,24 @@ import (
 
 	"golang.org/x/xerrors"
 	"gopkg.in/yaml.v3"
+
+	"github.com/coder/coder/v2/codersdk"
 )
 
-// FlowInfo describes a single outbound TCP flow for policy evaluation.
+// FlowInfo describes a single outbound flow for policy evaluation.
 type FlowInfo struct {
-	// Host is the destination name learned from TLS SNI or the HTTP Host
-	// header. It is empty when no name could be learned.
+	// Protocol is tcp, udp, or dns. Empty means tcp.
+	Protocol codersdk.ExitNodeProtocol
+	// Host is the destination name. For tcp it comes from the CONNECT
+	// target, TLS SNI, or the HTTP Host header; for udp from the CONNECT
+	// target; for dns it is the query name. It is empty when no name could
+	// be learned.
 	Host string
-	// IP is the destination address requested by the agent.
+	// IP is the destination address requested by the agent or resolved by
+	// the exit node. It is unset for dns flows.
 	IP netip.Addr
-	// Port is the destination port requested by the agent.
+	// Port is the destination port requested by the agent. It is ignored
+	// for dns flows.
 	Port int
 	// HostUnknown reports that the host has not been sniffed yet. While set,
 	// host-based allow rules match provisionally and host-based deny rules
@@ -73,8 +81,25 @@ const (
 //	      ports: [443]
 //	  - deny:
 //	      cidrs: ["10.0.0.0/8", "192.168.0.0/16"]
+//	  - id: no-quic
+//	    deny:
+//	      protocols: [udp]
+//	      ports: [443]
 //	  - allow:
 //	      ports: ["8000-8999"]
+//
+// tcp and udp flows are evaluated identically: hosts, cidrs, ports, and
+// protocols must all match, and default applies when no rule matches.
+//
+// dns flows are different because the exit node resolves names on behalf of
+// the workspace and a name must resolve before any tcp or udp rule can allow
+// a connection to it. For a dns flow only the query name and the protocol
+// are considered: cidrs and ports are ignored, and a rule is eligible only
+// when it lists dns in protocols or when it has host criteria and no
+// protocol restriction. The first eligible rule whose hosts match decides.
+// When no rule matches, the query is allowed regardless of default. To block
+// resolution of a name, add a deny rule with hosts and no protocols (which
+// also blocks tcp and udp to that name) or with protocols: [dns].
 type PolicyFile struct {
 	Default Action     `yaml:"default"`
 	Rules   []RuleFile `yaml:"rules"`
@@ -92,10 +117,14 @@ type MatchFile struct {
 	// Hosts are exact names or "*.suffix" globs. A glob matches subdomains
 	// only, so "*.example.com" does not match "example.com".
 	Hosts []string `yaml:"hosts"`
-	// CIDRs are prefixes or single addresses.
+	// CIDRs are prefixes or single addresses. Ignored for dns flows.
 	CIDRs []string `yaml:"cidrs"`
-	// Ports are integers or "start-end" ranges.
+	// Ports are integers or "start-end" ranges. Ignored for dns flows.
 	Ports []PortRange `yaml:"ports"`
+	// Protocols restricts the rule to some of tcp, udp, and dns. Omitted
+	// matches all protocols, except that a rule without host criteria is
+	// never applied to dns flows unless it lists dns explicitly.
+	Protocols []codersdk.ExitNodeProtocol `yaml:"protocols"`
 }
 
 // PortRange is an inclusive port range. A single port is a range with equal
@@ -177,10 +206,34 @@ type compiledRule struct {
 	anyHost bool
 	cidrs   []netip.Prefix
 	ports   []PortRange
+	// protocols is empty when the rule applies to every protocol.
+	protocols []codersdk.ExitNodeProtocol
 }
 
 func (r *compiledRule) hasHostCriteria() bool {
 	return r.anyHost || len(r.hosts) > 0
+}
+
+func (r *compiledRule) matchesProtocol(proto codersdk.ExitNodeProtocol) bool {
+	if len(r.protocols) == 0 {
+		return true
+	}
+	for _, p := range r.protocols {
+		if p == proto {
+			return true
+		}
+	}
+	return false
+}
+
+// eligibleForDNS reports whether the rule can decide a dns flow. Rules that
+// only carry cidrs or ports have nothing to say about a query name and are
+// skipped unless they opt in with protocols: [dns].
+func (r *compiledRule) eligibleForDNS() bool {
+	if !r.matchesProtocol(codersdk.ExitNodeProtocolDNS) {
+		return false
+	}
+	return len(r.protocols) > 0 || r.hasHostCriteria()
 }
 
 // matchesIPPort checks the criteria that do not depend on the host.
@@ -290,15 +343,20 @@ func (p *Policy) Reload() error {
 }
 
 // Evaluate walks the rules in order and returns the first match, falling back
-// to the default action. See FlowInfo.HostUnknown for provisional semantics.
+// to the default action. See FlowInfo.HostUnknown for provisional semantics
+// and PolicyFile for how dns flows differ.
 func (p *Policy) Evaluate(flow FlowInfo) Decision {
 	p.mu.RLock()
 	compiled := p.compiled
 	p.mu.RUnlock()
 
+	proto := normalizeProtocol(flow.Protocol)
 	host := NormalizeHost(flow.Host)
+	if proto == codersdk.ExitNodeProtocolDNS {
+		return compiled.evaluateDNS(host)
+	}
 	for _, rule := range compiled.rules {
-		if !rule.matchesIPPort(flow) {
+		if !rule.matchesProtocol(proto) || !rule.matchesIPPort(flow) {
 			continue
 		}
 		if flow.HostUnknown && rule.hasHostCriteria() {
@@ -326,6 +384,29 @@ func (p *Policy) Evaluate(flow FlowInfo) Decision {
 		Allow:  compiled.def == ActionAllow,
 		Reason: fmt.Sprintf("default %s", compiled.def),
 	}
+}
+
+// evaluateDNS applies the dns semantics documented on PolicyFile: only the
+// query name is matched, and no match means allow.
+func (c *compiledPolicy) evaluateDNS(host string) Decision {
+	for _, rule := range c.rules {
+		if !rule.eligibleForDNS() || !rule.matchesHost(host) {
+			continue
+		}
+		return Decision{
+			Allow:  rule.action == ActionAllow,
+			RuleID: rule.id,
+			Reason: fmt.Sprintf("matched rule %s", rule.id),
+		}
+	}
+	return Decision{Allow: true, Reason: "no dns rule matched"}
+}
+
+func normalizeProtocol(proto codersdk.ExitNodeProtocol) codersdk.ExitNodeProtocol {
+	if proto == "" {
+		return codersdk.ExitNodeProtocolTCP
+	}
+	return proto
 }
 
 // NormalizeHost lowercases a host name and strips a trailing dot and any
@@ -458,8 +539,18 @@ func compileRule(index int, rf RuleFile) (*compiledRule, error) {
 
 	rule.ports = append(rule.ports, match.Ports...)
 
-	if !rule.hasHostCriteria() && len(rule.cidrs) == 0 && len(rule.ports) == 0 {
-		return nil, xerrors.Errorf("rule %s: must specify at least one of hosts, cidrs, or ports", id)
+	for _, raw := range match.Protocols {
+		proto := codersdk.ExitNodeProtocol(strings.ToLower(strings.TrimSpace(string(raw))))
+		switch proto {
+		case codersdk.ExitNodeProtocolTCP, codersdk.ExitNodeProtocolUDP, codersdk.ExitNodeProtocolDNS:
+			rule.protocols = append(rule.protocols, proto)
+		default:
+			return nil, xerrors.Errorf("rule %s: invalid protocol %q: must be tcp, udp, or dns", id, raw)
+		}
+	}
+
+	if !rule.hasHostCriteria() && len(rule.cidrs) == 0 && len(rule.ports) == 0 && len(rule.protocols) == 0 {
+		return nil, xerrors.Errorf("rule %s: must specify at least one of hosts, cidrs, ports, or protocols", id)
 	}
 	return rule, nil
 }

@@ -493,6 +493,7 @@ curl -X GET http://coder-server:8080/api/v2/connectionlog?limit=0 \
         "destination": "string",
         "destination_ip": "string",
         "disconnect_time": "2019-08-24T14:15:22Z",
+        "protocol": "tcp",
         "reason": "string",
         "rule_id": "string"
       },

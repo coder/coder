@@ -3713,7 +3713,12 @@ export interface ConnectionLog {
  */
 export interface ConnectionLogEgressInfo {
 	/**
-	 * Destination is "<host or ip>:<port>" as dialed by the workspace.
+	 * Protocol is tcp, udp, or dns.
+	 */
+	readonly protocol: ExitNodeProtocol;
+	/**
+	 * Destination is "<host or ip>:<port>" as dialed by the workspace. For
+	 * dns flows it is the query name.
 	 */
 	readonly destination: string;
 	/**
@@ -5124,6 +5129,19 @@ export interface ExitNode {
 }
 
 // From codersdk/exitnodes.go
+/**
+ * ExitNodeDenyReasonHeader explains a 403 CONNECT response.
+ */
+export const ExitNodeDenyReasonHeader = "X-Coder-Deny-Reason";
+
+// From codersdk/exitnodes.go
+/**
+ * ExitNodeDenyRuleHeader names the policy rule behind a 403 CONNECT
+ * response, when one matched.
+ */
+export const ExitNodeDenyRuleHeader = "X-Coder-Deny-Rule";
+
+// From codersdk/exitnodes.go
 export type ExitNodeFlowDecision = "allow" | "deny";
 
 export const ExitNodeFlowDecisions: ExitNodeFlowDecision[] = ["allow", "deny"];
@@ -5137,6 +5155,10 @@ export const ExitNodeFlowDecisions: ExitNodeFlowDecision[] = ["allow", "deny"];
 export interface ExitNodeFlowReport {
 	readonly flow_id: string;
 	readonly agent_id: string;
+	/**
+	 * Protocol defaults to tcp when empty.
+	 */
+	readonly protocol?: ExitNodeProtocol;
 	readonly destination_ip: string;
 	readonly destination_port: number;
 	/**
@@ -5155,6 +5177,27 @@ export interface ExitNodeFlowReport {
 
 // From codersdk/exitnodes.go
 /**
+ * ExitNodeOriginalHostHeader carries the hostname the workspace dialed
+ * when the CONNECT target is an IP literal.
+ */
+export const ExitNodeOriginalHostHeader = "X-Coder-Original-Host";
+
+// From codersdk/exitnodes.go
+export type ExitNodeProtocol = "dns" | "tcp" | "udp";
+
+// From codersdk/exitnodes.go
+/**
+ * ExitNodeProtocolHeader selects what a CONNECT stream carries. Absent or
+ * "tcp" means a raw TCP tunnel to the target. "udp" means a stream of
+ * length-prefixed datagrams relayed to one UDP peer. "dns" means a
+ * stream of length-prefixed DNS messages resolved by the exit node.
+ */
+export const ExitNodeProtocolHeader = "X-Coder-Protocol";
+
+export const ExitNodeProtocols: ExitNodeProtocol[] = ["dns", "tcp", "udp"];
+
+// From codersdk/exitnodes.go
+/**
  * ExitNodeTailnetPort is the port an exit node listens on inside the
  * tailnet for HTTP CONNECT requests from workspace agents.
  */
@@ -5165,7 +5208,7 @@ export const ExitNodeTailnetPort = 3128;
  * ExitNodeTokenHeader authenticates an exit node to coderd. The value is
  * "<exit node ID>:<secret>", mirroring workspace proxy tokens.
  */
-export const ExitNodeTokenHeader = "Coder-Exit-Node-Token";
+export const ExitNodeTokenHeader = "Coder-Exit-Node-Token"; //nolint:gosec // Header name, not a credential.
 
 // From codersdk/deployment.go
 export type Experiment =

@@ -186,11 +186,14 @@ func convertConnectionLog(dblog database.GetConnectionLogsOffsetRow) codersdk.Co
 
 // convertEgressInfo decodes the egress encoding written by
 // (*API).reportExitNodeFlows: code 403 marks a denied flow, slug_or_port
-// holds the dialed destination, and disconnect_reason is
-// "<rule id>: <reason>" with an optional byte-count suffix.
+// holds the dialed destination with an optional protocol prefix, and
+// disconnect_reason is "<rule id>: <reason>" with an optional byte-count
+// suffix.
 func convertEgressInfo(clog database.ConnectionLog, ip *netip.Addr) *codersdk.ConnectionLogEgressInfo {
+	protocol, destination := decodeEgressDestination(clog.SlugOrPort.String)
 	info := &codersdk.ConnectionLogEgressInfo{
-		Destination: clog.SlugOrPort.String,
+		Protocol:    protocol,
+		Destination: destination,
 		Decision:    codersdk.ExitNodeFlowAllow,
 	}
 	if ip != nil {
@@ -212,4 +215,17 @@ func convertEgressInfo(clog database.ConnectionLog, ip *netip.Addr) *codersdk.Co
 		info.DisconnectTime = &clog.DisconnectTime.Time
 	}
 	return info
+}
+
+// decodeEgressDestination splits the slug_or_port encoding produced by
+// exitNodeFlowDestination into its protocol and destination. Values without
+// a recognized prefix are tcp.
+func decodeEgressDestination(encoded string) (codersdk.ExitNodeProtocol, string) {
+	if prefix, rest, ok := strings.Cut(encoded, " "); ok {
+		switch protocol := codersdk.ExitNodeProtocol(prefix); protocol {
+		case codersdk.ExitNodeProtocolUDP, codersdk.ExitNodeProtocolDNS:
+			return protocol, rest
+		}
+	}
+	return codersdk.ExitNodeProtocolTCP, encoded
 }

@@ -120,9 +120,12 @@ export const ConnectionLogDescription: FC<ConnectionLogDescriptionProps> = ({
 
 		case "egress": {
 			if (!egress_info) return null;
-			const { destination, decision } = egress_info;
+			const { destination, decision, protocol } = egress_info;
 			const action =
 				decision === "deny" ? "was denied egress to" : "connected to";
+			// tcp is the norm and stays implicit; udp and dns are called out.
+			const protocolLabel =
+				protocol && protocol !== "tcp" ? ` (${protocol})` : "";
 			return (
 				<span>
 					{workspace_owner_username}'s{" "}
@@ -132,6 +135,7 @@ export const ConnectionLogDescription: FC<ConnectionLogDescriptionProps> = ({
 						</RouterLink>
 					</Link>{" "}
 					workspace {action} <strong>{destination}</strong>
+					{protocolLabel}
 				</span>
 			);
 		}

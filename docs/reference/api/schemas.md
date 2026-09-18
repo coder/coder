@@ -5416,6 +5416,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "destination": "string",
     "destination_ip": "string",
     "disconnect_time": "2019-08-24T14:15:22Z",
+    "protocol": "tcp",
     "reason": "string",
     "rule_id": "string"
   },
@@ -5497,6 +5498,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "destination": "string",
   "destination_ip": "string",
   "disconnect_time": "2019-08-24T14:15:22Z",
+  "protocol": "tcp",
   "reason": "string",
   "rule_id": "string"
 }
@@ -5507,9 +5509,10 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | Name              | Type                                                           | Required | Restrictions | Description                                                                                                                      |
 |-------------------|----------------------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------|
 | `decision`        | [codersdk.ExitNodeFlowDecision](#codersdkexitnodeflowdecision) | false    |              |                                                                                                                                  |
-| `destination`     | string                                                         | false    |              | Destination is "<host or ip>:<port>" as dialed by the workspace.                                                                 |
+| `destination`     | string                                                         | false    |              | Destination is "<host or ip>:<port>" as dialed by the workspace. For dns flows it is the query name.                             |
 | `destination_ip`  | string                                                         | false    |              | Destination ip is the resolved destination address.                                                                              |
 | `disconnect_time` | string                                                         | false    |              | Disconnect time is omitted while the flow is still open.                                                                         |
+| `protocol`        | [codersdk.ExitNodeProtocol](#codersdkexitnodeprotocol)         | false    |              | Protocol is tcp, udp, or dns.                                                                                                    |
 | `reason`          | string                                                         | false    |              | Reason is the human-readable explanation from the exit node. For completed flows it carries a "(in=<bytes> out=<bytes>)" suffix. |
 | `rule_id`         | string                                                         | false    |              | Rule ID is the policy rule that produced the decision, if any.                                                                   |
 
@@ -5526,6 +5529,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         "destination": "string",
         "destination_ip": "string",
         "disconnect_time": "2019-08-24T14:15:22Z",
+        "protocol": "tcp",
         "reason": "string",
         "rule_id": "string"
       },
@@ -9085,6 +9089,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
   "disconnect_time": "2019-08-24T14:15:22Z",
   "flow_id": "0746f03b-16cc-49fb-9833-df3713d407d2",
   "host": "string",
+  "protocol": "tcp",
   "reason": "string",
   "rule_id": "string"
 }
@@ -9104,8 +9109,23 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `disconnect_time`  | string                                                         | false    |              |                                                                                                       |
 | `flow_id`          | string                                                         | false    |              |                                                                                                       |
 | `host`             | string                                                         | false    |              | Host is the hostname learned from TLS SNI or the HTTP Host header, or empty when neither was present. |
+| `protocol`         | [codersdk.ExitNodeProtocol](#codersdkexitnodeprotocol)         | false    |              | Protocol defaults to tcp when empty.                                                                  |
 | `reason`           | string                                                         | false    |              |                                                                                                       |
 | `rule_id`          | string                                                         | false    |              |                                                                                                       |
+
+## codersdk.ExitNodeProtocol
+
+```json
+"tcp"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)            |
+|---------------------|
+| `dns`, `tcp`, `udp` |
 
 ## codersdk.Experiment
 
@@ -13589,6 +13609,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
       "disconnect_time": "2019-08-24T14:15:22Z",
       "flow_id": "0746f03b-16cc-49fb-9833-df3713d407d2",
       "host": "string",
+      "protocol": "tcp",
       "reason": "string",
       "rule_id": "string"
     }

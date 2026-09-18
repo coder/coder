@@ -8,6 +8,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/exitnode"
 )
 
@@ -17,6 +18,10 @@ rules:
   - id: block-metadata
     deny:
       cidrs: ["169.254.169.254"]
+  - id: no-quic
+    deny:
+      protocols: [udp]
+      ports: [443]
   - id: github
     allow:
       hosts: ["github.com", "*.github.com"]
@@ -82,7 +87,7 @@ func TestPolicyEvaluate(t *testing.T) {
 			name:   "cidr and port range allow without host",
 			flow:   exitnode.FlowInfo{IP: netip.MustParseAddr("10.20.30.40"), Port: 8080},
 			allow:  true,
-			ruleID: "rule-4",
+			ruleID: "rule-5",
 		},
 		{
 			name:  "port outside range falls to default",
@@ -93,7 +98,7 @@ func TestPolicyEvaluate(t *testing.T) {
 			name:   "host glob deny",
 			flow:   exitnode.FlowInfo{Host: "db.internal.example", IP: netip.MustParseAddr("10.20.30.40"), Port: 8080},
 			allow:  false,
-			ruleID: "rule-3",
+			ruleID: "rule-4",
 		},
 		{
 			name:   "wildcard host requires a host",
@@ -128,12 +133,54 @@ func TestPolicyEvaluate(t *testing.T) {
 			name:   "host unknown: host deny is skipped, later allow applies",
 			flow:   exitnode.FlowInfo{IP: netip.MustParseAddr("10.20.30.40"), Port: 8080, HostUnknown: true},
 			allow:  true,
-			ruleID: "rule-4",
+			ruleID: "rule-5",
 		},
 		{
 			name:  "host unknown: nothing could allow falls to default",
 			flow:  exitnode.FlowInfo{IP: netip.MustParseAddr("8.8.8.8"), Port: 53, HostUnknown: true},
 			allow: false,
+		},
+		{
+			name:   "udp 443 denied by protocol rule",
+			flow:   exitnode.FlowInfo{Protocol: codersdk.ExitNodeProtocolUDP, Host: "github.com", IP: netip.MustParseAddr("140.82.112.3"), Port: 443},
+			allow:  false,
+			ruleID: "no-quic",
+		},
+		{
+			name:   "tcp 443 to the same host is unaffected by the udp rule",
+			flow:   exitnode.FlowInfo{Protocol: codersdk.ExitNodeProtocolTCP, Host: "github.com", IP: netip.MustParseAddr("140.82.112.3"), Port: 443},
+			allow:  true,
+			ruleID: "github",
+		},
+		{
+			name:   "udp 443 with unknown host is denied before sniffing",
+			flow:   exitnode.FlowInfo{Protocol: codersdk.ExitNodeProtocolUDP, IP: netip.MustParseAddr("140.82.112.3"), Port: 443, HostUnknown: true},
+			allow:  false,
+			ruleID: "no-quic",
+		},
+		{
+			name:   "udp on another port follows the ordinary rules",
+			flow:   exitnode.FlowInfo{Protocol: codersdk.ExitNodeProtocolUDP, IP: netip.MustParseAddr("10.1.1.1"), Port: 8500},
+			allow:  true,
+			ruleID: "rule-5",
+		},
+		{
+			name:   "dns: host allow matches regardless of port",
+			flow:   exitnode.FlowInfo{Protocol: codersdk.ExitNodeProtocolDNS, Host: "api.github.com."},
+			allow:  true,
+			ruleID: "github",
+		},
+		{
+			name:   "dns: host deny applies",
+			flow:   exitnode.FlowInfo{Protocol: codersdk.ExitNodeProtocolDNS, Host: "db.internal.example"},
+			allow:  false,
+			ruleID: "rule-4",
+		},
+		{
+			name:   "dns: wildcard host rule is eligible",
+			flow:   exitnode.FlowInfo{Protocol: codersdk.ExitNodeProtocolDNS, Host: "anything.test"},
+			allow:  true,
+			ruleID: "any-host-http",
 		},
 	}
 	for _, tt := range tests {
@@ -145,6 +192,67 @@ func TestPolicyEvaluate(t *testing.T) {
 			require.NotEmpty(t, got.Reason)
 		})
 	}
+}
+
+func TestPolicyDNS(t *testing.T) {
+	t.Parallel()
+
+	// Rules with only cidrs or ports never decide dns; an explicit
+	// protocols: [dns] rule may, even without hosts.
+	policy, err := exitnode.ParsePolicy([]byte(`
+default: deny
+rules:
+  - id: ports-only
+    deny:
+      ports: [53]
+  - id: dns-only-evil
+    deny:
+      protocols: [dns]
+      hosts: ["*.evil.example"]
+  - id: cidr-only
+    deny:
+      cidrs: ["0.0.0.0/0"]
+  - id: allow-good
+    allow:
+      hosts: ["good.example"]
+  - id: no-other-dns
+    deny:
+      protocols: [dns]
+`))
+	require.NoError(t, err)
+
+	dns := func(host string) exitnode.Decision {
+		return policy.Evaluate(exitnode.FlowInfo{Protocol: codersdk.ExitNodeProtocolDNS, Host: host})
+	}
+	got := dns("good.example")
+	require.True(t, got.Allow, got.Reason)
+	require.Equal(t, "allow-good", got.RuleID)
+
+	got = dns("x.evil.example")
+	require.False(t, got.Allow)
+	require.Equal(t, "dns-only-evil", got.RuleID)
+
+	got = dns("other.example")
+	require.False(t, got.Allow)
+	require.Equal(t, "no-other-dns", got.RuleID)
+
+	// The dns-only deny has no effect on tcp to the same name.
+	got = policy.Evaluate(exitnode.FlowInfo{Host: "x.evil.example", IP: netip.MustParseAddr("1.2.3.4"), Port: 443})
+	require.False(t, got.Allow)
+	require.Equal(t, "cidr-only", got.RuleID)
+
+	// With no eligible rule at all, default: deny does not apply to dns.
+	policy, err = exitnode.ParsePolicy([]byte(`
+default: deny
+rules:
+  - deny:
+      cidrs: ["0.0.0.0/0"]
+`))
+	require.NoError(t, err)
+	got = policy.Evaluate(exitnode.FlowInfo{Protocol: codersdk.ExitNodeProtocolDNS, Host: "random.example"})
+	require.True(t, got.Allow, got.Reason)
+	require.Empty(t, got.RuleID)
+	require.False(t, policy.Evaluate(exitnode.FlowInfo{IP: netip.MustParseAddr("1.2.3.4"), Port: 443}).Allow)
 }
 
 func TestPolicyDefaultAllow(t *testing.T) {
@@ -179,6 +287,7 @@ func TestPolicyParseErrors(t *testing.T) {
 		{"both actions", "rules:\n  - allow: {ports: [1]}\n    deny: {ports: [2]}\n", "not both"},
 		{"no action", "rules:\n  - id: x\n", "must specify allow or deny"},
 		{"empty match", "rules:\n  - allow: {}\n", "at least one of"},
+		{"bad protocol", "rules:\n  - allow: {protocols: [quic]}\n", "invalid protocol"},
 		{"bad glob", "rules:\n  - allow: {hosts: [\"foo.*.com\"]}\n", "invalid host glob"},
 		{"bad cidr", "rules:\n  - allow: {cidrs: [\"nope\"]}\n", "invalid cidr"},
 		{"bad port", "rules:\n  - allow: {ports: [70000]}\n", "invalid port"},

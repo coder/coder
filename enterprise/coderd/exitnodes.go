@@ -449,7 +449,10 @@ func (api *API) resolveExitNodeFlowAgent(ctx context.Context, node database.Exit
 //   - id and connection_id are the flow ID, so connect and disconnect
 //     reports for one flow collapse into a single row.
 //   - type is "egress" and ip is the destination address.
-//   - slug_or_port is "<host or ip>:<port>", the destination as dialed.
+//   - slug_or_port is the destination as dialed: "<host or ip>:<port>" for
+//     tcp, "udp <host or ip>:<port>" for udp, and "dns <query name>" for
+//     dns. The protocol prefix is separated by a space, which cannot occur
+//     in a host, so unprefixed values decode as tcp.
 //   - code is 0 for allowed flows and 403 for denied flows.
 //   - disconnect_reason is "<rule id>: <reason>". Completed flows append
 //     " (in=<bytes in> out=<bytes out>)". The database keeps the first
@@ -468,11 +471,7 @@ func exitNodeFlowConnectionLogs(info exitNodeFlowAgent, flow codersdk.ExitNodeFl
 		code = http.StatusForbidden
 	}
 
-	host := flow.Host
-	if host == "" {
-		host = flow.DestinationIP
-	}
-	destination := net.JoinHostPort(host, strconv.Itoa(flow.DestinationPort))
+	destination := exitNodeFlowDestination(flow)
 
 	base := database.UpsertConnectionLogParams{
 		ID:               flow.FlowID,
@@ -513,6 +512,27 @@ func exitNodeFlowConnectionLogs(info exitNodeFlowAgent, flow codersdk.ExitNodeFl
 		Valid:  true,
 	}
 	return []database.UpsertConnectionLogParams{connect, disconnect}
+}
+
+// exitNodeFlowDestination builds the slug_or_port encoding described on
+// exitNodeFlowConnectionLogs. decodeEgressDestination reverses it.
+func exitNodeFlowDestination(flow codersdk.ExitNodeFlowReport) string {
+	switch flow.Protocol {
+	case codersdk.ExitNodeProtocolDNS:
+		return string(codersdk.ExitNodeProtocolDNS) + " " + flow.Host
+	case codersdk.ExitNodeProtocolUDP:
+		return string(codersdk.ExitNodeProtocolUDP) + " " + exitNodeFlowHostPort(flow)
+	default:
+		return exitNodeFlowHostPort(flow)
+	}
+}
+
+func exitNodeFlowHostPort(flow codersdk.ExitNodeFlowReport) string {
+	host := flow.Host
+	if host == "" {
+		host = flow.DestinationIP
+	}
+	return net.JoinHostPort(host, strconv.Itoa(flow.DestinationPort))
 }
 
 // exitNodeFlowReason builds the "<rule id>: <reason>" prefix of the

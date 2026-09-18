@@ -52,6 +52,15 @@ type Options struct {
 	DialTimeout time.Duration
 	// SniffTimeout bounds host sniffing. Defaults to DefaultSniffTimeout.
 	SniffTimeout time.Duration
+	// UDPIdleTimeout closes idle udp streams. Defaults to
+	// DefaultUDPIdleTimeout.
+	UDPIdleTimeout time.Duration
+	// DNSExchanger answers dns streams. Defaults to the servers in
+	// /etc/resolv.conf.
+	DNSExchanger DNSExchanger
+	// DNSReportSampleRate reports one in N allowed dns queries. Defaults to
+	// DefaultDNSReportSampleRate.
+	DNSReportSampleRate int
 }
 
 // Server is a running exit node.
@@ -194,13 +203,16 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (*Server, error)
 	})
 
 	s.proxy = NewConnectProxy(ConnectProxyOptions{
-		Logger:       logger.Named("connect"),
-		Policy:       opts.Policy,
-		Agents:       s.agents,
-		Flows:        s.flows,
-		Metrics:      s.metrics,
-		DialTimeout:  opts.DialTimeout,
-		SniffTimeout: opts.SniffTimeout,
+		Logger:              logger.Named("connect"),
+		Policy:              opts.Policy,
+		Agents:              s.agents,
+		Flows:               s.flows,
+		Metrics:             s.metrics,
+		DialTimeout:         opts.DialTimeout,
+		SniffTimeout:        opts.SniffTimeout,
+		UDPIdleTimeout:      opts.UDPIdleTimeout,
+		DNSExchanger:        opts.DNSExchanger,
+		DNSReportSampleRate: opts.DNSReportSampleRate,
 	})
 
 	s.listener, err = s.conn.Listen("tcp", fmt.Sprintf(":%d", opts.ListenPort))

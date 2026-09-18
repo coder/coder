@@ -2,6 +2,7 @@ package coderd_test
 
 import (
 	"context"
+	"database/sql"
 	"net/http"
 	"testing"
 	"time"
@@ -247,6 +248,8 @@ func TestExitNodes(t *testing.T) {
 		disconnectTime := connectTime.Add(30 * time.Second)
 		allowedID := uuid.New()
 		deniedID := uuid.New()
+		udpID := uuid.New()
+		dnsID := uuid.New()
 		unboundID := uuid.New()
 		unknownAgentID := uuid.New()
 
@@ -281,6 +284,33 @@ func TestExitNodes(t *testing.T) {
 				RuleID:          "rule-3",
 				Reason:          "denied host",
 				ConnectTime:     connectTime,
+			},
+			// udp and dns flows carry a protocol prefix in the destination.
+			codersdk.ExitNodeFlowReport{
+				FlowID:          udpID,
+				AgentID:         agent.ID,
+				Protocol:        codersdk.ExitNodeProtocolUDP,
+				DestinationIP:   "198.51.100.10",
+				DestinationPort: 443,
+				Host:            "quic.example",
+				Decision:        codersdk.ExitNodeFlowDeny,
+				RuleID:          "no-quic",
+				Reason:          "matched rule no-quic",
+				ConnectTime:     connectTime,
+			},
+			codersdk.ExitNodeFlowReport{
+				FlowID:          dnsID,
+				AgentID:         agent.ID,
+				Protocol:        codersdk.ExitNodeProtocolDNS,
+				DestinationIP:   "10.0.0.53",
+				DestinationPort: 53,
+				Host:            "api.example.com",
+				Decision:        codersdk.ExitNodeFlowAllow,
+				Reason:          "no dns rule matched (TXT query)",
+				BytesIn:         120,
+				BytesOut:        45,
+				ConnectTime:     connectTime,
+				DisconnectTime:  &disconnectTime,
 			},
 			// Unknown agents are skipped without failing the report.
 			codersdk.ExitNodeFlowReport{
@@ -317,13 +347,17 @@ func TestExitNodes(t *testing.T) {
 			ConnectTime:     connectTime,
 		})
 
-		var allowed, denied, unbound []database.UpsertConnectionLogParams
+		var allowed, denied, udp, dns, unbound []database.UpsertConnectionLogParams
 		for _, clog := range connLogger.ConnectionLogs() {
 			switch clog.ID {
 			case allowedID:
 				allowed = append(allowed, clog)
 			case deniedID:
 				denied = append(denied, clog)
+			case udpID:
+				udp = append(udp, clog)
+			case dnsID:
+				dns = append(dns, clog)
 			case unboundID:
 				unbound = append(unbound, clog)
 			}
@@ -357,6 +391,104 @@ func TestExitNodes(t *testing.T) {
 		assert.EqualValues(t, http.StatusForbidden, denied[0].Code.Int32)
 		assert.Equal(t, "198.51.100.7:22", denied[0].SlugOrPort.String)
 		assert.Equal(t, "rule-3: denied host", denied[0].DisconnectReason.String)
+
+		require.Len(t, udp, 1)
+		assert.EqualValues(t, http.StatusForbidden, udp[0].Code.Int32)
+		assert.Equal(t, "udp quic.example:443", udp[0].SlugOrPort.String)
+		assert.Equal(t, "198.51.100.10", udp[0].IP.IPNet.IP.String())
+		assert.Equal(t, "no-quic: matched rule no-quic", udp[0].DisconnectReason.String)
+
+		// A dns report carries its disconnect, so it yields both rows.
+		require.Len(t, dns, 2)
+		assert.Equal(t, "dns api.example.com", dns[0].SlugOrPort.String)
+		assert.Equal(t, "10.0.0.53", dns[0].IP.IPNet.IP.String())
+		assert.EqualValues(t, 0, dns[0].Code.Int32)
+		assert.Equal(t, database.ConnectionStatusDisconnected, dns[1].ConnectionStatus)
+		assert.Equal(t, "no dns rule matched (TXT query) (in=120 out=45)", dns[1].DisconnectReason.String)
+	})
+
+	t.Run("EgressInfoDecode", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// Rows written straight to the database in the flow encoding must
+		// decode into typed egress info on the way out.
+		disconnectTime := time.Now().UTC().Truncate(time.Millisecond)
+		tests := []struct {
+			name        string
+			slugOrPort  string
+			code        int32
+			reason      string
+			protocol    codersdk.ExitNodeProtocol
+			destination string
+			decision    codersdk.ExitNodeFlowDecision
+			ruleID      string
+			wantReason  string
+		}{
+			{
+				name:        "tcp",
+				slugOrPort:  "example.com:443",
+				reason:      "rule-1: allowed host (in=1 out=2)",
+				protocol:    codersdk.ExitNodeProtocolTCP,
+				destination: "example.com:443",
+				decision:    codersdk.ExitNodeFlowAllow,
+				ruleID:      "rule-1",
+				wantReason:  "allowed host (in=1 out=2)",
+			},
+			{
+				name:        "udp",
+				slugOrPort:  "udp quic.example:443",
+				code:        http.StatusForbidden,
+				reason:      "no-quic: matched rule no-quic",
+				protocol:    codersdk.ExitNodeProtocolUDP,
+				destination: "quic.example:443",
+				decision:    codersdk.ExitNodeFlowDeny,
+				ruleID:      "no-quic",
+				wantReason:  "matched rule no-quic",
+			},
+			{
+				name:        "dns",
+				slugOrPort:  "dns api.example.com",
+				reason:      "no dns rule matched (TXT query) (in=120 out=45)",
+				protocol:    codersdk.ExitNodeProtocolDNS,
+				destination: "api.example.com",
+				decision:    codersdk.ExitNodeFlowAllow,
+				wantReason:  "no dns rule matched (TXT query) (in=120 out=45)",
+			},
+		}
+		for _, tt := range tests {
+			connectionID := uuid.New()
+			dbgen.ConnectionLog(t, db, database.UpsertConnectionLogParams{
+				ID:               connectionID,
+				OrganizationID:   orgID,
+				WorkspaceOwnerID: workspace.OwnerID,
+				WorkspaceID:      workspace.ID,
+				WorkspaceName:    workspace.Name,
+				AgentName:        agent.Name,
+				Type:             database.ConnectionTypeEgress,
+				Code:             sql.NullInt32{Int32: tt.code, Valid: true},
+				SlugOrPort:       sql.NullString{String: tt.slugOrPort, Valid: true},
+				ConnectionID:     uuid.NullUUID{UUID: connectionID, Valid: true},
+				DisconnectReason: sql.NullString{String: tt.reason, Valid: true},
+				Time:             disconnectTime,
+				ConnectionStatus: database.ConnectionStatusDisconnected,
+			})
+
+			logs, err := client.ConnectionLogs(ctx, codersdk.ConnectionLogsRequest{
+				SearchQuery: "connection_id:" + connectionID.String(),
+			})
+			require.NoError(t, err, tt.name)
+			require.Len(t, logs.ConnectionLogs, 1, tt.name)
+			clog := logs.ConnectionLogs[0]
+			require.Equal(t, codersdk.ConnectionTypeEgress, clog.Type, tt.name)
+			require.NotNil(t, clog.EgressInfo, tt.name)
+			assert.Equal(t, tt.protocol, clog.EgressInfo.Protocol, tt.name)
+			assert.Equal(t, tt.destination, clog.EgressInfo.Destination, tt.name)
+			assert.Equal(t, tt.decision, clog.EgressInfo.Decision, tt.name)
+			assert.Equal(t, tt.ruleID, clog.EgressInfo.RuleID, tt.name)
+			assert.Equal(t, tt.wantReason, clog.EgressInfo.Reason, tt.name)
+			assert.Equal(t, "127.0.0.1", clog.EgressInfo.DestinationIP, tt.name)
+		}
 	})
 
 	t.Run("Coordinate", func(t *testing.T) {
