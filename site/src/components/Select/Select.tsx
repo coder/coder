@@ -18,9 +18,7 @@ export const SelectGroup = SelectPrimitive.Group;
 
 export const SelectValue = SelectPrimitive.Value;
 
-type SelectTriggerProps = React.ComponentPropsWithRef<
-	typeof SelectPrimitive.Trigger
->;
+type SelectTriggerProps = React.ComponentProps<typeof SelectPrimitive.Trigger>;
 
 export const SelectTrigger: React.FC<SelectTriggerProps> = ({
 	className,
@@ -46,7 +44,7 @@ export const SelectTrigger: React.FC<SelectTriggerProps> = ({
 );
 
 const SelectScrollUpButton: React.FC<
-	React.ComponentPropsWithRef<typeof SelectPrimitive.ScrollUpButton>
+	React.ComponentProps<typeof SelectPrimitive.ScrollUpButton>
 > = ({ className, ...props }) => (
 	<SelectPrimitive.ScrollUpButton
 		className={cn(
@@ -60,7 +58,7 @@ const SelectScrollUpButton: React.FC<
 );
 
 const SelectScrollDownButton: React.FC<
-	React.ComponentPropsWithRef<typeof SelectPrimitive.ScrollDownButton>
+	React.ComponentProps<typeof SelectPrimitive.ScrollDownButton>
 > = ({ className, ...props }) => {
 	return (
 		<SelectPrimitive.ScrollDownButton
@@ -76,7 +74,7 @@ const SelectScrollDownButton: React.FC<
 };
 
 export const SelectContent: React.FC<
-	React.ComponentPropsWithRef<typeof SelectPrimitive.Content>
+	React.ComponentProps<typeof SelectPrimitive.Content>
 > = ({ className, children, position = "popper", ...props }) => (
 	<SelectPrimitive.Portal>
 		<SelectPrimitive.Content
@@ -111,7 +109,7 @@ export const SelectContent: React.FC<
 );
 
 export const SelectLabel: React.FC<
-	React.ComponentPropsWithRef<typeof SelectPrimitive.Label>
+	React.ComponentProps<typeof SelectPrimitive.Label>
 > = ({ className, ...props }) => {
 	return (
 		<SelectPrimitive.Label
@@ -122,7 +120,7 @@ export const SelectLabel: React.FC<
 };
 
 export const SelectItem: React.FC<
-	React.ComponentPropsWithRef<typeof SelectPrimitive.Item>
+	React.ComponentProps<typeof SelectPrimitive.Item>
 > = ({ className, children, ...props }) => (
 	<SelectPrimitive.Item
 		className={cn(

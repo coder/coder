@@ -1502,7 +1502,7 @@ class ApiMethods {
 	};
 
 	createUser = async (
-		user: TypesGen.CreateUserRequestWithOrgs,
+		user: TypesGen.CreateUserRequest,
 	): Promise<TypesGen.User> => {
 		const response = await this.axios.post<TypesGen.User>(
 			"/api/v2/users",

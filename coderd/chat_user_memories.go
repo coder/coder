@@ -103,12 +103,12 @@ func (api *API) postChatUserMemory(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	aReq.New = memory
-	row, err := api.Database.GetChatUserMemoryByID(ctx, memory.ID)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{Message: "Failed to read chat user memory.", Detail: err.Error()})
-		return
-	}
-	httpapi.Write(ctx, rw, http.StatusCreated, db2sdk.ChatUserMemory(row))
+	// Built from the insert result: a create-only token has no read scope
+	// for the lookup that would otherwise follow.
+	httpapi.Write(ctx, rw, http.StatusCreated, db2sdk.ChatUserMemory(database.GetChatUserMemoryByIDRow{
+		ChatUserMemory:    memory,
+		CreatedByUsername: httpmw.UserAuthorization(ctx).FriendlyName,
+	}))
 }
 
 // @Summary Get chat user memory
@@ -185,12 +185,10 @@ func (api *API) patchChatUserMemory(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	aReq.New = updated
-	row, err := api.Database.GetChatUserMemoryByID(ctx, updated.ID)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{Message: "Failed to read chat user memory.", Detail: err.Error()})
-		return
-	}
-	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.ChatUserMemory(row))
+	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.ChatUserMemory(database.GetChatUserMemoryByIDRow{
+		ChatUserMemory:    updated,
+		CreatedByUsername: memoryRow.CreatedByUsername,
+	}))
 }
 
 // @Summary Delete chat user memory

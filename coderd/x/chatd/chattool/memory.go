@@ -191,6 +191,10 @@ type MemoryStore interface {
 	// GetForUpdate reads a memory and locks its row until the enclosing
 	// InTx commits, so a revalidated row cannot change before it is written.
 	GetForUpdate(ctx context.Context, name string) (Memory, error)
+	// Lock takes the scope's advisory lock for the enclosing InTx. Writers
+	// take this lock before any row lock, so callers that lock rows must
+	// call Lock first to keep the same order.
+	Lock(ctx context.Context) error
 	List(ctx context.Context) ([]MemoryIndexEntry, error)
 	ListFull(ctx context.Context) ([]Memory, error)
 	Count(ctx context.Context) (int64, error)
@@ -297,6 +301,10 @@ func (s projectMemoryStore) Delete(ctx context.Context, name string) error {
 	return err
 }
 
+func (s projectMemoryStore) Lock(ctx context.Context) error {
+	return s.db.AcquireLock(ctx, projectMemoryLockID(s.projectID))
+}
+
 func (s projectMemoryStore) InTx(fn func(MemoryStore) error) error {
 	return s.db.InTx(func(tx database.Store) error {
 		return fn(projectMemoryStore{db: tx, projectID: s.projectID, organizationID: s.organizationID, chatID: s.chatID, ownerID: s.ownerID})
@@ -392,6 +400,10 @@ func (s personalMemoryStore) Delete(ctx context.Context, name string) error {
 		return ErrMemoryNotFound
 	}
 	return err
+}
+
+func (s personalMemoryStore) Lock(ctx context.Context) error {
+	return s.db.AcquireLock(ctx, userMemoryLockID(s.userID, s.organizationID))
 }
 
 func (s personalMemoryStore) InTx(fn func(MemoryStore) error) error {

@@ -6,7 +6,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"maps"
 	"net/http"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -72,10 +74,29 @@ func TestValidateMemoryConsolidationMutations(t *testing.T) {
 		}}, memories, now)
 		require.Empty(t, mutations)
 	})
+
+	t.Run("RequiresASourceWhenTargetExists", func(t *testing.T) {
+		t.Parallel()
+
+		// Every source is filtered out (unknown or the target itself), which
+		// would leave a bare overwrite of the existing memory.
+		mutations := validateMemoryConsolidationMutations([]memoryConsolidationMutation{{
+			Op:          "merge",
+			Into:        "old-a",
+			From:        []string{"old-a", "missing"},
+			Description: "Merged",
+			Body:        "Merged body",
+		}}, memories, now)
+		require.Empty(t, mutations)
+	})
 }
 
 type memoryConsolidationStore struct {
 	memories map[string]chattool.Memory
+	// limit, when set, rejects new names once len(memories) reaches it,
+	// mirroring insertUnderCap.
+	limit  int
+	locked bool
 }
 
 func (s *memoryConsolidationStore) Get(_ context.Context, name string) (chattool.Memory, error) {
@@ -88,6 +109,11 @@ func (s *memoryConsolidationStore) Get(_ context.Context, name string) (chattool
 
 func (s *memoryConsolidationStore) GetForUpdate(ctx context.Context, name string) (chattool.Memory, error) {
 	return s.Get(ctx, name)
+}
+
+func (s *memoryConsolidationStore) Lock(context.Context) error {
+	s.locked = true
+	return nil
 }
 
 func (*memoryConsolidationStore) List(context.Context) ([]chattool.MemoryIndexEntry, error) {
@@ -103,6 +129,9 @@ func (s *memoryConsolidationStore) Count(context.Context) (int64, error) {
 }
 
 func (s *memoryConsolidationStore) Upsert(_ context.Context, input chattool.MemoryInput) (chattool.Memory, error) {
+	if _, exists := s.memories[input.Name]; !exists && s.limit > 0 && len(s.memories) >= s.limit {
+		return chattool.Memory{}, chattool.ErrMemoryLimit
+	}
 	memory := chattool.Memory{Name: input.Name, Description: input.Description, Body: input.Body}
 	s.memories[input.Name] = memory
 	return memory, nil
@@ -139,6 +168,58 @@ func TestApplyMemoryConsolidationMutations(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, applied)
 	require.Equal(t, "Old", store.memories["memory"].Description)
+	require.True(t, store.locked, "the scope lock precedes row locks")
+
+	t.Run("MergeIntoNewNameAtCapFreesSourcesFirst", func(t *testing.T) {
+		t.Parallel()
+
+		old := now.Add(-48 * time.Hour)
+		snapshot := []chattool.Memory{
+			{Name: "dup-a", Description: "A", Body: "A", UpdatedAt: old},
+			{Name: "dup-b", Description: "B", Body: "B", UpdatedAt: old},
+		}
+		store := &memoryConsolidationStore{limit: 2, memories: map[string]chattool.Memory{
+			"dup-a": snapshot[0],
+			"dup-b": snapshot[1],
+		}}
+
+		applied, err := applyMemoryConsolidationMutations(t.Context(), store, []memoryConsolidationMutation{{
+			Op:          "merge",
+			Into:        "merged",
+			From:        []string{"dup-a", "dup-b"},
+			Description: "Merged",
+			Body:        "Merged body",
+		}}, snapshot, now)
+		require.NoError(t, err)
+		require.Len(t, applied, 1)
+		require.Equal(t, []string{"merged"}, slices.Sorted(maps.Keys(store.memories)))
+	})
+
+	t.Run("SkipsMergeWhenTargetAppearedSinceSnapshot", func(t *testing.T) {
+		t.Parallel()
+
+		old := now.Add(-48 * time.Hour)
+		snapshot := []chattool.Memory{
+			{Name: "dup-a", Description: "A", Body: "A", UpdatedAt: old},
+			{Name: "dup-b", Description: "B", Body: "B", UpdatedAt: old},
+		}
+		store := &memoryConsolidationStore{memories: map[string]chattool.Memory{
+			"dup-a":  snapshot[0],
+			"dup-b":  snapshot[1],
+			"merged": {Name: "merged", Description: "Fresh", Body: "Written by a user meanwhile", UpdatedAt: now},
+		}}
+
+		applied, err := applyMemoryConsolidationMutations(t.Context(), store, []memoryConsolidationMutation{{
+			Op:          "merge",
+			Into:        "merged",
+			From:        []string{"dup-a", "dup-b"},
+			Description: "Merged",
+			Body:        "Merged body",
+		}}, snapshot, now)
+		require.NoError(t, err)
+		require.Empty(t, applied)
+		require.Equal(t, "Fresh", store.memories["merged"].Description)
+	})
 }
 
 func TestMemoryConsolidationCandidates(t *testing.T) {
@@ -427,9 +508,15 @@ func TestConsolidateMemories(t *testing.T) {
 			}).Return(record, nil),
 			db.EXPECT().GetChatProjectMemoriesByProjectID(gomock.Any(), chat.ProjectID.UUID).Return(projectRows(memories), nil),
 			inTx(db),
+			// The scope lock precedes every row lock, matching save_memory.
+			db.EXPECT().AcquireLock(gomock.Any(), gomock.Any()).Return(nil),
 			forUpdate("alpha-copy"),
 			forUpdate("alpha-secondary"),
 			forUpdate("alpha"),
+			// Sources are removed before the target is written so a merge at
+			// the cap has room.
+			db.EXPECT().DeleteChatProjectMemoryByName(gomock.Any(), database.DeleteChatProjectMemoryByNameParams{ProjectID: chat.ProjectID.UUID, Name: "alpha-copy"}).Return(nil),
+			db.EXPECT().DeleteChatProjectMemoryByName(gomock.Any(), database.DeleteChatProjectMemoryByNameParams{ProjectID: chat.ProjectID.UUID, Name: "alpha-secondary"}).Return(nil),
 			// The merge target is written through the cap-checking transaction,
 			// which reuses the enclosing one.
 			inTx(db),
@@ -444,8 +531,6 @@ func TestConsolidateMemories(t *testing.T) {
 				SourceChatID:   uuid.NullUUID{UUID: chat.ID, Valid: true},
 				CreatedBy:      chat.OwnerID,
 			}).Return(database.ChatProjectMemory{}, nil),
-			db.EXPECT().DeleteChatProjectMemoryByName(gomock.Any(), database.DeleteChatProjectMemoryByNameParams{ProjectID: chat.ProjectID.UUID, Name: "alpha-copy"}).Return(nil),
-			db.EXPECT().DeleteChatProjectMemoryByName(gomock.Any(), database.DeleteChatProjectMemoryByNameParams{ProjectID: chat.ProjectID.UUID, Name: "alpha-secondary"}).Return(nil),
 			forUpdate("stale"),
 			db.EXPECT().DeleteChatProjectMemoryByName(gomock.Any(), database.DeleteChatProjectMemoryByNameParams{ProjectID: chat.ProjectID.UUID, Name: "stale"}).Return(nil),
 		)

@@ -34,11 +34,13 @@ import (
 )
 
 const (
-	// defaultStreamSilenceTimeout bounds how long an individual
+	// DefaultStreamSilenceTimeout bounds how long an individual
 	// model attempt may go without receiving a stream part before
 	// the attempt is canceled and retried.
-	defaultStreamSilenceTimeout = 10 * time.Minute
-	streamSilenceGuardTimerTag  = "streamSilenceGuard"
+	DefaultStreamSilenceTimeout = 10 * time.Minute
+	// StreamSilenceTimeoutDisabled turns the silence guard off.
+	StreamSilenceTimeoutDisabled time.Duration = -1
+	streamSilenceGuardTimerTag                 = "streamSilenceGuard"
 )
 
 var (
@@ -277,8 +279,8 @@ func GenerateAssistant(ctx context.Context, opts GenerateAssistantOptions) (Assi
 	if opts.Model == nil {
 		return AssistantOutcome{}, xerrors.New("chat model is required")
 	}
-	if opts.StreamSilenceTimeout <= 0 {
-		opts.StreamSilenceTimeout = defaultStreamSilenceTimeout
+	if opts.StreamSilenceTimeout == 0 {
+		opts.StreamSilenceTimeout = DefaultStreamSilenceTimeout
 	}
 	if opts.Clock == nil {
 		opts.Clock = quartz.NewReal()
@@ -691,6 +693,9 @@ func newStreamSilenceGuard(
 		cancel:  cancel,
 		timeout: timeout,
 	}
+	if timeout < 0 {
+		return guard
+	}
 	guard.timer = clock.AfterFunc(
 		timeout,
 		guard.onTimeout,
@@ -719,14 +724,14 @@ func (g *streamSilenceGuard) onTimeout() {
 func (g *streamSilenceGuard) Reset() {
 	g.mu.Lock()
 	defer g.mu.Unlock()
-	if g.settled {
+	if g.settled || g.timer == nil {
 		return
 	}
 	g.timer.Reset(g.timeout, streamSilenceGuardTimerTag)
 }
 
 func (g *streamSilenceGuard) Disarm() {
-	if !g.settle() {
+	if !g.settle() || g.timer == nil {
 		return
 	}
 	g.timer.Stop()
@@ -750,6 +755,14 @@ func classifyStreamSilenceTimeout(
 	})
 }
 
+type streamWatchdogKey struct{}
+
+// WithStreamWatchdog returns a context whose guarded streams call kick
+// with the silence timeout whenever the guard arms or resets.
+func WithStreamWatchdog(ctx context.Context, kick func(silence time.Duration)) context.Context {
+	return context.WithValue(ctx, streamWatchdogKey{}, kick)
+}
+
 func guardedStream(
 	parent context.Context,
 	provider, model string,
@@ -759,7 +772,12 @@ func guardedStream(
 	metrics *Metrics,
 ) (guardedAttempt, error) {
 	attemptCtx, cancelAttempt := context.WithCancelCause(parent)
+	kick, _ := parent.Value(streamWatchdogKey{}).(func(time.Duration))
+	if kick == nil {
+		kick = func(time.Duration) {}
+	}
 	guard := newStreamSilenceGuard(clock, timeout, cancelAttempt)
+	kick(timeout)
 	var releaseOnce sync.Once
 	release := func() {
 		releaseOnce.Do(func() {
@@ -786,6 +804,7 @@ func guardedStream(
 		stream: fantasy.StreamResponse(func(yield func(fantasy.StreamPart) bool) {
 			for part := range stream {
 				guard.Reset()
+				kick(timeout)
 				recordTTFT()
 				if !yield(part) {
 					return
