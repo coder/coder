@@ -10,7 +10,6 @@ import {
 	Streamdown,
 	type UrlTransform,
 } from "streamdown";
-import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import { useTheme } from "#/theme/context";
 import { MarkdownImage } from "./MarkdownImage";
 import { MermaidDiagram } from "./MermaidDiagram";
@@ -233,30 +232,34 @@ const createComponents = (
 						? "text"
 						: (lang as SupportedLanguages);
 					const codeBlock = (
-						<ScrollArea
-							orientation="both"
-							className="my-4 rounded-md border border-solid border-border-default bg-surface-primary"
-							scrollBarClassName="w-1.5"
-							horizontalScrollBarClassName="h-1.5"
-						>
-							<FileViewer
-								file={{
-									name: `block.${viewerLang}`,
-									lang: viewerLang,
-									contents: content,
-									cacheKey: content,
-								}}
-								options={{
-									overflow: "scroll",
-									themeType: fileViewerThemeType,
-									disableFileHeader: true,
-									disableLineNumbers: true,
-									theme: viewerTheme,
-									unsafeCSS: markdownFileViewerCSS,
-								}}
-								style={markdownFileViewerStyle}
-							/>
-						</ScrollArea>
+						// A plain scroll container rather than ScrollArea: Radix
+						// renders a <style> element per instance, and adding or
+						// removing a stylesheet makes WebKit restyle the whole
+						// document (seconds on long transcripts) every time a code
+						// block mounts or unmounts. The `table min-w-full` wrapper
+						// sizes the viewer to its longest line, as ScrollArea's
+						// viewport did, so long lines scroll instead of clipping.
+						<div className="my-4 overflow-auto rounded-md border border-solid border-border-default bg-surface-primary scrollbar-thin [scrollbar-color:hsl(var(--surface-quaternary))_transparent]">
+							<div className="table min-w-full">
+								<FileViewer
+									file={{
+										name: `block.${viewerLang}`,
+										lang: viewerLang,
+										contents: content,
+										cacheKey: content,
+									}}
+									options={{
+										overflow: "scroll",
+										themeType: fileViewerThemeType,
+										disableFileHeader: true,
+										disableLineNumbers: true,
+										theme: viewerTheme,
+										unsafeCSS: markdownFileViewerCSS,
+									}}
+									style={markdownFileViewerStyle}
+								/>
+							</div>
+						</div>
 					);
 					if (isMermaid) {
 						return <MermaidDiagram source={content} fallback={codeBlock} />;
