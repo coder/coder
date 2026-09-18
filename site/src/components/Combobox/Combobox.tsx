@@ -65,7 +65,7 @@ export const Combobox = ({
 
 export const ComboboxTrigger = PopoverTrigger;
 
-interface ComboboxButtonProps extends React.ComponentPropsWithRef<"button"> {
+interface ComboboxButtonProps extends React.ComponentProps<"button"> {
 	width?: number;
 	selectedOption?: SelectFilterOption;
 	placeholder?: string;
@@ -97,9 +97,7 @@ export const ComboboxButton = ({
 	);
 };
 
-type ComboboxContentProps = React.ComponentPropsWithRef<
-	typeof PopoverContent
-> & {
+type ComboboxContentProps = React.ComponentProps<typeof PopoverContent> & {
 	shouldFilter?: boolean;
 };
 
@@ -129,7 +127,7 @@ export const ComboboxContent = ({
 export const ComboboxInput = CommandInput;
 
 export const ComboboxList: React.FC<
-	React.ComponentPropsWithRef<typeof CommandList>
+	React.ComponentProps<typeof CommandList>
 > = ({ className, ...props }) => {
 	return (
 		<CommandList
@@ -145,7 +143,7 @@ export const ComboboxItem = ({
 	onSelect,
 	value,
 	...props
-}: React.ComponentPropsWithRef<typeof CommandItem>) => {
+}: React.ComponentProps<typeof CommandItem>) => {
 	const { setOpen, value: selectedValue, onValueChange } = useCombobox();
 	const isSelected = value === selectedValue;
 

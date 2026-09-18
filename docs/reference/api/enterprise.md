@@ -1527,7 +1527,8 @@ curl -X GET http://coder-server:8080/api/v2/oauth2-provider/apps \
     },
     "icon": "string",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-    "name": "string"
+    "name": "string",
+    "scope": "string"
   }
 ]
 ```
@@ -1555,6 +1556,7 @@ Status Code **200**
 | `» icon`                  | string                                                               | false    |              |                                                                                                                                                                                                         |
 | `» id`                    | string(uuid)                                                         | false    |              |                                                                                                                                                                                                         |
 | `» name`                  | string                                                               | false    |              |                                                                                                                                                                                                         |
+| `» scope`                 | string                                                               | false    |              | Scope is the space-separated list of scopes this app's tokens may be granted. Empty means unrestricted. A non-empty value with no names is a configured allowlist that grants nothing.                  |
 
 #### Enumerated Values
 
@@ -1584,7 +1586,8 @@ curl -X POST http://coder-server:8080/api/v2/oauth2-provider/apps \
 {
   "callback_url": "string",
   "icon": "string",
-  "name": "string"
+  "name": "string",
+  "scope": "string"
 }
 ```
 
@@ -1610,7 +1613,8 @@ curl -X POST http://coder-server:8080/api/v2/oauth2-provider/apps \
   },
   "icon": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-  "name": "string"
+  "name": "string",
+  "scope": "string"
 }
 ```
 
@@ -1657,7 +1661,8 @@ curl -X GET http://coder-server:8080/api/v2/oauth2-provider/apps/{app} \
   },
   "icon": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-  "name": "string"
+  "name": "string",
+  "scope": "string"
 }
 ```
 
@@ -1689,7 +1694,8 @@ curl -X PUT http://coder-server:8080/api/v2/oauth2-provider/apps/{app} \
 {
   "callback_url": "string",
   "icon": "string",
-  "name": "string"
+  "name": "string",
+  "scope": "string"
 }
 ```
 
@@ -1716,7 +1722,8 @@ curl -X PUT http://coder-server:8080/api/v2/oauth2-provider/apps/{app} \
   },
   "icon": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-  "name": "string"
+  "name": "string",
+  "scope": "string"
 }
 ```
 

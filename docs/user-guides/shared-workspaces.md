@@ -56,6 +56,11 @@ To list shared workspaces:
 - `coder list --search shared_with_user:<user>`
 - `coder list --search shared_with_group:<group>`
 
+To list the workspaces you own together with the ones shared with you,
+directly or through a group:
+
+- `coder list --search user:me`
+
 ### UI
 
 #### Sharing your Workspace

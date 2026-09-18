@@ -6,7 +6,7 @@ import { Command as CommandPrimitive, useCommandState } from "cmdk";
 import { cn } from "cn";
 import { InfoIcon, XIcon } from "lucide-react";
 import {
-	type ComponentPropsWithoutRef,
+	type ComponentProps,
 	type KeyboardEvent,
 	type ReactNode,
 	type Ref,
@@ -95,10 +95,10 @@ interface MultiSelectComboboxProps {
 	/** Allow user to create option when there is no option matched. */
 	creatable?: boolean;
 	/** Props of `Command` */
-	commandProps?: ComponentPropsWithoutRef<typeof Command>;
+	commandProps?: ComponentProps<typeof Command>;
 	/** Props of `CommandInput` */
 	inputProps?: Omit<
-		ComponentPropsWithoutRef<typeof CommandPrimitive.Input>,
+		ComponentProps<typeof CommandPrimitive.Input>,
 		"value" | "placeholder" | "disabled"
 	>;
 	/** hide or show the button that clears all the selected options. */
@@ -160,7 +160,7 @@ function isOptionsExist(groupOption: GroupOption, targetOption: Option[]) {
  * @reference: https://github.com/hsuanyi-chou/shadcn-ui-expansions/issues/34#issuecomment-1949561607
  **/
 const CommandEmpty: React.FC<
-	React.ComponentPropsWithRef<typeof CommandPrimitive.Empty>
+	React.ComponentProps<typeof CommandPrimitive.Empty>
 > = ({ className, ...props }) => {
 	const render = useCommandState((state) => state.filtered.count === 0);
 

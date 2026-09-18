@@ -8,7 +8,7 @@ export const EnabledBadge: React.FC = () => {
 	);
 };
 
-export const DisabledBadge: React.FC<React.ComponentPropsWithRef<"div">> = ({
+export const DisabledBadge: React.FC<React.ComponentProps<"div">> = ({
 	...props
 }) => {
 	return (
