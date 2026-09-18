@@ -23551,6 +23551,7 @@ const docTemplate = `{
                 "ai-gateway-reverse-proxy",
                 "chat-advisor",
                 "chat-virtual-desktop",
+                "chat-ui-annotations",
                 "agent-lifecycle-hooks"
             ],
             "x-enum-comments": {
@@ -23559,6 +23560,7 @@ const docTemplate = `{
                 "ExperimentAgentLifecycleHooks": "Enables chat lifecycle hook webhooks for agent chats.",
                 "ExperimentAutoFillParameters": "This should not be taken out of experiments until we have redesigned the feature.",
                 "ExperimentChatAdvisor": "Enables the advisor tool for root agent chats.",
+                "ExperimentChatUIAnnotations": "Injects the UI annotation overlay into app previews opened from agent chats.",
                 "ExperimentChatVirtualDesktop": "Enables virtual desktop and computer use provider for agents.",
                 "ExperimentExample": "This isn't used for anything.",
                 "ExperimentMCPServerHTTP": "Enables the MCP HTTP server functionality.",
@@ -23583,6 +23585,7 @@ const docTemplate = `{
                 "Uses stateless reverse proxy routing when MCP injection is not configured.",
                 "Enables the advisor tool for root agent chats.",
                 "Enables virtual desktop and computer use provider for agents.",
+                "Injects the UI annotation overlay into app previews opened from agent chats.",
                 "Enables chat lifecycle hook webhooks for agent chats."
             ],
             "x-enum-varnames": [
@@ -23599,6 +23602,7 @@ const docTemplate = `{
                 "ExperimentAIGatewayReverseProxy",
                 "ExperimentChatAdvisor",
                 "ExperimentChatVirtualDesktop",
+                "ExperimentChatUIAnnotations",
                 "ExperimentAgentLifecycleHooks"
             ]
         },

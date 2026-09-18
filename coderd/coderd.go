@@ -1066,6 +1066,7 @@ func New(options *Options) *API {
 
 		DisablePathApps:          options.DeploymentValues.DisablePathApps.Value(),
 		CookiesConfig:            options.DeploymentValues.HTTPCookies,
+		Experiments:              api.Experiments,
 		APIKeyEncryptionKeycache: options.AppEncryptionKeyCache,
 	})
 
