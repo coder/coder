@@ -22,6 +22,8 @@ Use the conversation and available tools, skills, and MCPs when they are suffici
 Workspace tools such as execute, read_file, write_file, and edit_files require an attached workspace.`
 
 const workspaceDetachedAwareness = workspaceDetachedAwarenessBase + ` If no workspace is attached, create a suitable workspace with create_workspace when missing tools, skills, MCPs, or context prevent progress, or workspace-backed work is needed. Use the workspace's available context and capabilities to continue the user's request. Workspace readiness does not guarantee that skills, MCP tools, or context have finished loading. Use capabilities that are actually exposed, and continue with workspace file and shell tools where possible instead of recreating the workspace.
+Requests such as "fix this bug" or "build this app" authorize the workspace setup needed to complete them; the user does not need to request a workspace separately. Do not refuse solely because no workspace is attached. If setup is blocked, explain the specific blocker or required user choice.
+Answer questions and self-contained code examples directly when the conversation and available tools are sufficient.
 If a workspace is needed, use list_templates before create_workspace and follow its ` + chattool.NextStepField + `. Call read_template only when you need template parameter or preset details.`
 
 const workspaceDetachedNoCreateAwareness = workspaceDetachedAwarenessBase + ` This delegated chat cannot create or start a workspace. If workspace-backed work is required, report that need to the parent agent instead of trying workspace tools.`

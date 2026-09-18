@@ -77,6 +77,8 @@ Not every chat requires a workspace.
 The agent uses the conversation and available tools when they're sufficient for your request.
 If missing tools, skills, MCP integrations, or context block progress, the agent creates a suitable workspace and uses its capabilities to continue.
 Workspaces also support reading code, running commands, and editing files.
+Requests to fix a bug or build an app authorize the necessary workspace setup; you don't need to ask for a workspace separately.
+Questions and self-contained code examples don't need a workspace when the conversation and available tools are sufficient.
 
 This means:
 

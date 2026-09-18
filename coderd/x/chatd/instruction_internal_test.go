@@ -216,6 +216,11 @@ func TestWorkspaceAwarenessSupportsWorkspaceFallback(t *testing.T) {
 	require.Contains(t, detached, "create a suitable workspace with create_workspace")
 	require.NotContains(t, detached, "start_workspace")
 	require.Contains(t, detached, "Use the workspace's available context and capabilities to continue the user's request")
+	require.Contains(t, detached, `Requests such as "fix this bug" or "build this app" authorize the workspace setup needed to complete them`)
+	require.Contains(t, detached, "the user does not need to request a workspace separately")
+	require.Contains(t, detached, "Do not refuse solely because no workspace is attached")
+	require.Contains(t, detached, "If setup is blocked, explain the specific blocker or required user choice")
+	require.Contains(t, detached, "Answer questions and self-contained code examples directly when the conversation and available tools are sufficient")
 	require.Contains(t, detached, "use list_templates before create_workspace")
 	require.NotContains(t, detached, "Do not create or start a workspace by default")
 	require.NotContains(t, detached, "Only call create_workspace or start_workspace")
@@ -224,6 +229,7 @@ func TestWorkspaceAwarenessSupportsWorkspaceFallback(t *testing.T) {
 	require.Contains(t, delegated, "This delegated chat cannot create or start a workspace")
 	require.Contains(t, delegated, "report that need to the parent agent")
 	require.NotContains(t, delegated, "create a suitable workspace with create_workspace")
+	require.NotContains(t, delegated, "authorize the workspace setup needed to complete them")
 
 	attached := workspaceAttachedAwareness
 	require.Contains(t, attached, "This chat is attached to a workspace")

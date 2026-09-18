@@ -31,11 +31,14 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 	"golang.org/x/xerrors"
+	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/types/known/structpb"
 
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/agent/agentcontextconfig"
 	"github.com/coder/coder/v2/agent/agenttest"
+	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/aibridge"
 	"github.com/coder/coder/v2/coderd/aibridgedtest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
@@ -45,6 +48,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	dbpubsub "github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/coderd/workspacestats"
@@ -4530,9 +4534,19 @@ func filterMessageEvents(events []codersdk.ChatStreamEvent) []codersdk.ChatStrea
 func TestCreateWorkspaceTool_EndToEnd(t *testing.T) {
 	t.Parallel()
 
+	const (
+		instruction      = "Run the workspace checks before reporting completion."
+		skillName        = "workspace-checks"
+		skillDescription = "Validate the newly created workspace."
+		mcpToolName      = "workspace__check"
+	)
+
 	ctx := testutil.Context(t, testutil.WaitLong)
+	deploymentValues := coderdtest.DeploymentValues(t)
+	// Keep the seeded published snapshot independent of agent discovery.
+	deploymentValues.DisableWorkspaceAgentContextSync = true
 	client, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
-		DeploymentValues:         coderdtest.DeploymentValues(t),
+		DeploymentValues:         deploymentValues,
 		IncludeProvisionerDaemon: true,
 	})
 	aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
@@ -4558,10 +4572,6 @@ func TestCreateWorkspaceTool_EndToEnd(t *testing.T) {
 	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 
-	// Start the test workspace agent so create_workspace can wait for
-	// the agent to become reachable before returning.
-	_ = agenttest.New(t, client.URL, agentToken)
-
 	workspaceName := "chat-ws-" + strings.ReplaceAll(uuid.NewString(), "-", "")[:8]
 	createWorkspaceArgs := fmt.Sprintf(
 		`{"template_id":%q,"name":%q}`,
@@ -4571,7 +4581,7 @@ func TestCreateWorkspaceTool_EndToEnd(t *testing.T) {
 
 	var streamedCallCount atomic.Int32
 	var streamedCallsMu sync.Mutex
-	streamedCalls := make([][]chattest.OpenAIMessage, 0, 2)
+	streamedCalls := make([]recordedOpenAIRequest, 0, 2)
 
 	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
 		if !req.Stream {
@@ -4579,7 +4589,7 @@ func TestCreateWorkspaceTool_EndToEnd(t *testing.T) {
 		}
 
 		streamedCallsMu.Lock()
-		streamedCalls = append(streamedCalls, append([]chattest.OpenAIMessage(nil), req.Messages...))
+		streamedCalls = append(streamedCalls, recordOpenAIRequest(req))
 		streamedCallsMu.Unlock()
 
 		if streamedCallCount.Add(1) == 1 {
@@ -4604,6 +4614,67 @@ func TestCreateWorkspaceTool_EndToEnd(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
+
+	var workspaceAgentID uuid.UUID
+	require.Eventually(t, func() bool {
+		got, getErr := expClient.GetChat(ctx, chat.ID)
+		if getErr != nil || got.WorkspaceID == nil {
+			return false
+		}
+		workspace, getErr := client.Workspace(ctx, *got.WorkspaceID)
+		if getErr != nil || workspace.LatestBuild.Status != codersdk.WorkspaceStatusRunning {
+			return false
+		}
+		for _, resource := range workspace.LatestBuild.Resources {
+			for _, workspaceAgent := range resource.Agents {
+				workspaceAgentID = workspaceAgent.ID
+			}
+		}
+		return workspaceAgentID != uuid.Nil
+	}, testutil.WaitLong, testutil.IntervalFast)
+	require.EqualValues(t, 1, streamedCallCount.Load())
+
+	// Publish before the agent connects so the same-turn continuation has
+	// a complete snapshot. This does not test startup discovery readiness.
+	instructionBody, err := protojson.Marshal(&agentproto.InstructionFileBody{Content: []byte(instruction)})
+	require.NoError(t, err)
+	skillBody, err := protojson.Marshal(&agentproto.SkillMetaBody{
+		Name:        skillName,
+		Description: skillDescription,
+		Meta:        []byte("---\nname: " + skillName + "\ndescription: " + skillDescription + "\n---\nRun workspace checks.\n"),
+	})
+	require.NoError(t, err)
+	schema, err := structpb.NewStruct(map[string]any{"type": "object"})
+	require.NoError(t, err)
+	mcpBody, err := protojson.Marshal(&agentproto.MCPServerBody{
+		ServerName: "workspace",
+		Tools:      []*agentproto.MCPTool{{Name: "check", Description: "Check the workspace.", InputSchema: schema}},
+	})
+	require.NoError(t, err)
+
+	systemCtx := dbauthz.AsSystemRestricted(ctx)
+	now := dbtime.Now()
+	for _, resource := range []database.UpsertWorkspaceAgentContextResourceParams{
+		{Source: "/workspace/AGENTS.md", BodyKind: database.WorkspaceAgentContextBodyKindInstructionFile, Body: instructionBody},
+		{Source: "/workspace/skills/" + skillName, BodyKind: database.WorkspaceAgentContextBodyKindSkill, Body: skillBody},
+		{Source: "workspace", BodyKind: database.WorkspaceAgentContextBodyKindMcpServer, Body: mcpBody},
+	} {
+		resource.WorkspaceAgentID = workspaceAgentID
+		resource.ContentHash = []byte(resource.Source)
+		resource.SizeBytes = int64(len(resource.Body))
+		resource.Status = database.WorkspaceAgentContextResourceStatusOk
+		resource.Now = now
+		_, err = api.Database.UpsertWorkspaceAgentContextResource(systemCtx, resource)
+		require.NoError(t, err)
+	}
+	_, err = api.Database.UpsertWorkspaceAgentContextSnapshot(systemCtx, database.UpsertWorkspaceAgentContextSnapshotParams{
+		WorkspaceAgentID: workspaceAgentID,
+		Version:          1,
+		AggregateHash:    []byte("created-workspace-context"),
+		ReceivedAt:       now,
+	})
+	require.NoError(t, err)
+	_ = agenttest.New(t, client.URL, agentToken)
 
 	var chatResult codersdk.Chat
 	require.Eventually(t, func() bool {
@@ -4650,6 +4721,9 @@ func TestCreateWorkspaceTool_EndToEnd(t *testing.T) {
 		}
 	}
 	require.True(t, foundCreateWorkspaceResult, "expected create_workspace tool result message")
+	require.Len(t, slice.Filter(chatMsgs.Messages, func(message codersdk.ChatMessage) bool {
+		return message.Role == codersdk.ChatMessageRoleUser
+	}), 1, "workspace context should be available without another user turn")
 
 	// Verify that the tool waited for startup scripts to
 	// complete. The agent should be in "ready" state by the
@@ -4665,14 +4739,34 @@ func TestCreateWorkspaceTool_EndToEnd(t *testing.T) {
 	require.Equal(t, codersdk.WorkspaceAgentLifecycleReady, agentLifecycle,
 		"agent should be ready after create_workspace returns; startup scripts were not awaited")
 
-	require.GreaterOrEqual(t, streamedCallCount.Load(), int32(2))
 	streamedCallsMu.Lock()
-	recordedStreamCalls := append([][]chattest.OpenAIMessage(nil), streamedCalls...)
+	recordedStreamCalls := append([]recordedOpenAIRequest(nil), streamedCalls...)
 	streamedCallsMu.Unlock()
-	require.GreaterOrEqual(t, len(recordedStreamCalls), 2)
+	require.Len(t, recordedStreamCalls, 2)
+
+	for i, call := range recordedStreamCalls {
+		var systemContent string
+		for _, message := range call.Messages {
+			if message.Role == "system" {
+				systemContent += message.Content + "\n"
+			}
+		}
+		if i == 0 {
+			require.NotContains(t, systemContent, instruction)
+			require.NotContains(t, systemContent, skillName)
+			require.NotContains(t, call.Tools, mcpToolName)
+			continue
+		}
+		require.Contains(t, systemContent, "<workspace-context>")
+		require.Contains(t, systemContent, instruction)
+		require.Contains(t, systemContent, "<available-skills>")
+		require.Contains(t, systemContent, skillName)
+		require.Contains(t, systemContent, skillDescription)
+		require.Contains(t, call.Tools, mcpToolName)
+	}
 
 	var foundToolResultInSecondCall bool
-	for _, message := range recordedStreamCalls[1] {
+	for _, message := range recordedStreamCalls[1].Messages {
 		if message.Role != "tool" {
 			continue
 		}
