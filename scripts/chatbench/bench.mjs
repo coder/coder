@@ -28,6 +28,7 @@
 //   --prep=<a.js>[,<b.js>]     evaluated in the page in order after mount,
 //                             before the phases; a step may report by
 //                             assigning window.__prepResult (see prep/)
+//   --init=<a.js>[,<b.js>]     added as init scripts before the app loads
 //   --browser-env=K=V[,K=V]   extra environment for the browser process
 //                             (for example WEBKIT_DISABLE_COMPOSITING_MODE=1)
 //   --only=idle-focus         focus switching without streaming
@@ -429,6 +430,11 @@ async function main() {
 	});
 	const wantReact = args.react === "1";
 	if (wantReact) await page.addInitScript(reactDevtoolsInitScript());
+	// --init=<a.js>[,<b.js>]: scripts that must run before the app loads,
+	// for example to wrap a browser API the app captures at mount.
+	for (const file of (args.init ?? "").split(",").filter(Boolean)) {
+		await page.addInitScript(fs.readFileSync(file, "utf8"));
+	}
 	await page.addInitScript(instrument);
 
 	let cdp;
@@ -552,18 +558,18 @@ async function main() {
 			s.scrollTop = edge === "top" ? 0 : s.scrollHeight;
 	};
 	// Load the whole history of every pane: scroll each transcript to the
-	// top until no more rows arrive. Bounded by the number of pages that can
-	// exist for the seeded turn count (the API pages 50 messages at a time).
+	// top until no more rows arrive. Every bench run adds a turn, so the
+	// seeded turn count in state.json understates the history; stop on
+	// no progress instead, with a generous page cap as a safety net.
 	const loadFullHistory = async () => {
-		const maxPages = Math.ceil((state.turns * 2) / 50) + 2;
-		for (let i = 0; i < maxPages; i++) {
+		for (let i = 0; i < 200; i++) {
 			const before = await rowCountNow();
 			await page.evaluate(scrollTranscripts, [ROW_SELECTOR, "top"]);
 			try {
 				await page.waitForFunction(
 					([selector, n]) => document.querySelectorAll(selector).length > n,
 					[ROW_SELECTOR, before],
-					{ timeout: 5000 },
+					{ timeout: 20000 },
 				);
 			} catch {
 				break;
@@ -618,6 +624,9 @@ async function main() {
 			window.__bench.eventTiming = [];
 			window.__bench.marks = [];
 			window.__bench.domEvents = [];
+			// Prep scripts may install per-phase probes, see
+			// prep/geometry-probe.js.
+			window.__bench.probeReset?.();
 		});
 	const collect = () =>
 		page.evaluate(() => ({
@@ -626,6 +635,7 @@ async function main() {
 			eventTiming: window.__bench.eventTiming,
 			marks: window.__bench.marks,
 			domEvents: window.__bench.domEvents,
+			probe: window.__bench.probe?.(),
 		}));
 
 	const typeWord = async (composer, word) => {
@@ -702,6 +712,7 @@ async function main() {
 			.map((f) => `@${f.start}ms:${f.dur}ms`);
 		if (bigFrames.length)
 			log(`  frames >=300ms at page time: ${bigFrames.join(" ")}`);
+		if (raw.probe) log(`  probe: ${JSON.stringify(raw.probe)}`);
 		for (const f of raw.longFrames.filter((f) => f.dur >= 300)) {
 			const near = raw.domEvents.filter(
 				(e) => e.t >= f.start - 1500 && e.t <= f.start + f.dur,
