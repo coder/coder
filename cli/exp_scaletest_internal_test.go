@@ -164,37 +164,46 @@ func TestShardingFlagsValidate(t *testing.T) {
 	})
 }
 
-// TestWorkspaceShardIndex checks the hash assignment is deterministic and in
-// range; determinism is also what keeps it stable as the running set churns.
-func TestWorkspaceShardIndex(t *testing.T) {
+// TestShardWorkspacesStable asserts churn stability: a workspace keeps the same
+// shard when other workspaces disappear. This is the property that lets replicas
+// observe different running sets without double-assigning or dropping a
+// workspace.
+func TestShardWorkspacesStable(t *testing.T) {
 	t.Parallel()
 
-	counts := []int64{1, 2, 3, 7, 27}
-
-	// A fixed pool of workspace IDs.
-	ids := make([]uuid.UUID, 1000)
-	for i := range ids {
-		ids[i] = uuid.New()
+	const shardCount = 12
+	all := make([]codersdk.Workspace, 500)
+	for i := range all {
+		all[i] = codersdk.Workspace{ID: uuid.New()}
+		all[i].LatestBuild.Status = codersdk.WorkspaceStatusRunning
 	}
 
-	for _, count := range counts {
-		t.Run(fmt.Sprintf("count=%d", count), func(t *testing.T) {
-			t.Parallel()
-
-			for _, id := range ids {
-				idx := workspaceShardIndex(id, count)
-
-				// In range [0, count).
-				require.GreaterOrEqual(t, idx, int64(0))
-				require.Less(t, idx, count)
-
-				// Deterministic: same inputs, same output. This is also what makes
-				// assignment stable as the running set churns, since the result
-				// depends only on the ID and the count, not on the other
-				// workspaces present.
-				require.Equal(t, idx, workspaceShardIndex(id, count))
+	// shardOf maps each running workspace to the shard it lands in.
+	shardOf := func(workspaces []codersdk.Workspace) map[uuid.UUID]int64 {
+		m := make(map[uuid.UUID]int64)
+		for idx := range int64(shardCount) {
+			shard, _ := shardWorkspaces(workspaces, idx, shardCount)
+			for _, ws := range shard {
+				m[ws.ID] = idx
 			}
-		})
+		}
+		return m
+	}
+
+	before := shardOf(all)
+
+	// Drop half the workspaces; the survivors must keep their shard.
+	var survivors []codersdk.Workspace
+	for i, ws := range all {
+		if i%2 == 0 {
+			survivors = append(survivors, ws)
+		}
+	}
+	after := shardOf(survivors)
+
+	for _, ws := range survivors {
+		require.Equal(t, before[ws.ID], after[ws.ID],
+			"a workspace's shard must not change when others disappear")
 	}
 }
 
@@ -238,8 +247,6 @@ func TestShardWorkspaces(t *testing.T) {
 					// Only running workspaces are selected.
 					_, isRunning := runningIDs[ws.ID]
 					require.True(t, isRunning, "non-running workspace must not be targeted")
-					// This workspace really belongs to this shard.
-					require.Equal(t, idx, workspaceShardIndex(ws.ID, shardCount))
 					// No workspace appears in more than one shard.
 					_, dup := seen[ws.ID]
 					require.False(t, dup, "workspace assigned to more than one shard")
@@ -289,7 +296,6 @@ func TestSelectShard(t *testing.T) {
 
 		for _, ws := range got {
 			require.Equal(t, codersdk.WorkspaceStatusRunning, ws.LatestBuild.Status)
-			require.Equal(t, int64(1), workspaceShardIndex(ws.ID, 4))
 		}
 		require.Equal(t,
 			fmt.Sprintf("shard 1 of 4: targeting %d of 300 running workspaces\n", len(got)),
@@ -316,18 +322,17 @@ func TestSelectShard(t *testing.T) {
 
 		const shardCount = 8
 		workspaces := make([]codersdk.Workspace, 0, 3)
-		occupied := make(map[int64]struct{})
 		for range 3 {
 			ws := codersdk.Workspace{ID: uuid.New()}
 			ws.LatestBuild.Status = codersdk.WorkspaceStatusRunning
 			workspaces = append(workspaces, ws)
-			occupied[workspaceShardIndex(ws.ID, shardCount)] = struct{}{}
 		}
 
-		// With 3 running workspaces across 8 shards at least one shard is empty.
+		// With 3 running workspaces across 8 shards at least one shard is empty;
+		// find one via shardWorkspaces.
 		var emptyIndex int64 = -1
 		for idx := range int64(shardCount) {
-			if _, ok := occupied[idx]; !ok {
+			if shard, _ := shardWorkspaces(workspaces, idx, shardCount); len(shard) == 0 {
 				emptyIndex = idx
 				break
 			}

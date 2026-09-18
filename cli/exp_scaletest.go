@@ -575,33 +575,29 @@ func (f *workspaceTargetFlags) getTargetedWorkspaces(ctx context.Context, client
 
 // shardWorkspaces returns the running workspaces assigned to shardIndex and the
 // total running count. Non-running workspaces are skipped so load isn't wasted
-// on ones that failed to start. Assignment is by stable ID hash, so shards are
-// disjoint and cover the whole running set without replicas coordinating, at the
-// cost of being only roughly even. A width cap is avoided because it would
-// reintroduce the churn instability the hash avoids. shardCount must be >= 1.
+// on ones that failed to start. Assignment is by a stable hash of the workspace
+// ID, so shards are disjoint and cover the whole running set without replicas
+// coordinating, and stay stable as workspaces come and go (churn never
+// reassigns the survivors), at the cost of being only roughly even. A width cap
+// is avoided because it would reintroduce the churn instability the hash avoids.
+// shardCount must be >= 1.
 func shardWorkspaces(workspaces []codersdk.Workspace, shardIndex, shardCount int64) (shard []codersdk.Workspace, runningCount int) {
+	// One hasher, reset per workspace, to avoid an allocation on every iteration.
+	h := fnv.New64a()
 	for _, ws := range workspaces {
 		if ws.LatestBuild.Status != codersdk.WorkspaceStatusRunning {
 			continue
 		}
 		runningCount++
-		if workspaceShardIndex(ws.ID, shardCount) == shardIndex {
+		h.Reset()
+		_, _ = h.Write(ws.ID[:])
+		// #nosec G115 -- shardCount is validated >= 1, so the result is in
+		// [0, shardCount) and always fits in int64.
+		if int64(h.Sum64()%uint64(shardCount)) == shardIndex {
 			shard = append(shard, ws)
 		}
 	}
 	return shard, runningCount
-}
-
-// workspaceShardIndex hashes the workspace ID to a shard. Depending only on the
-// ID and shardCount keeps the assignment identical across replicas and stable as
-// workspaces come and go, so churn never reassigns the survivors. shardCount
-// must be >= 1.
-func workspaceShardIndex(id uuid.UUID, shardCount int64) int64 {
-	h := fnv.New64a()
-	_, _ = h.Write(id[:])
-	// #nosec G115 -- shardCount is validated >= 1; the modulo result is in
-	// [0, shardCount) and always fits in int64.
-	return int64(h.Sum64() % uint64(shardCount))
 }
 
 func RequireAdmin(ctx context.Context, client *codersdk.Client) (codersdk.User, error) {
