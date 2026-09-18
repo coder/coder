@@ -15,13 +15,102 @@ import (
 	"time"
 
 	"github.com/golang-migrate/migrate/v4"
+	"github.com/golang-migrate/migrate/v4/database"
 	"github.com/golang-migrate/migrate/v4/source"
 	"github.com/golang-migrate/migrate/v4/source/iofs"
+	"github.com/lib/pq"
 	"golang.org/x/xerrors"
+
+	"cdr.dev/slog/v3"
+	"cdr.dev/slog/v3/sloggers/sloghuman"
+
+	"github.com/coder/retry"
 )
 
 //go:embed *.sql
 var migrations embed.FS
+
+const (
+	// LockTimeoutEnv overrides the Postgres lock_timeout applied to the
+	// migration transaction. It accepts a Go duration such as "5s". A value
+	// of 0 disables the timeout so migrations wait for locks indefinitely.
+	LockTimeoutEnv = "CODER_PG_MIGRATION_LOCK_TIMEOUT"
+	// DefaultLockTimeout is the lock_timeout used when LockTimeoutEnv is not
+	// set. Migrations that cannot acquire a relation lock within this window
+	// fail and are retried instead of queueing behind application traffic,
+	// where their pending DDL would in turn block every later query on the
+	// same relation.
+	DefaultLockTimeout = 3 * time.Second
+
+	// maxAttempts bounds how many times a migration batch is retried after
+	// losing a lock race.
+	maxAttempts = 5
+
+	// SQLSTATE codes that indicate the batch lost a lock race rather than
+	// hit a genuine migration bug.
+	pgCodeLockNotAvailable pq.ErrorCode = "55P03"
+	pgCodeDeadlockDetected pq.ErrorCode = "40P01"
+)
+
+// Option configures Up, UpWithFS, and Down.
+type Option func(*options)
+
+type options struct {
+	ctx    context.Context
+	logger slog.Logger
+	// lockTimeout is only honored when lockTimeoutSet is true; otherwise it is
+	// resolved from LockTimeoutEnv or DefaultLockTimeout.
+	lockTimeout    time.Duration
+	lockTimeoutSet bool
+}
+
+// WithContext bounds the migration run, including retry backoff, by ctx.
+func WithContext(ctx context.Context) Option {
+	return func(o *options) {
+		o.ctx = ctx
+	}
+}
+
+// WithLogger sets the logger used to report lock retries.
+func WithLogger(logger slog.Logger) Option {
+	return func(o *options) {
+		o.logger = logger
+	}
+}
+
+// WithLockTimeout sets the Postgres lock_timeout for the migration
+// transaction, overriding LockTimeoutEnv. Zero waits for locks indefinitely.
+func WithLockTimeout(timeout time.Duration) Option {
+	return func(o *options) {
+		o.lockTimeout = timeout
+		o.lockTimeoutSet = true
+	}
+}
+
+func newOptions(opts []Option) (options, error) {
+	o := options{
+		ctx:    context.Background(),
+		logger: slog.Make(sloghuman.Sink(os.Stderr)).Named("migrations"),
+	}
+	for _, opt := range opts {
+		opt(&o)
+	}
+	if o.lockTimeoutSet {
+		return o, nil
+	}
+	o.lockTimeout = DefaultLockTimeout
+	if raw, ok := os.LookupEnv(LockTimeoutEnv); ok {
+		timeout, err := time.ParseDuration(raw)
+		if err != nil {
+			return o, xerrors.Errorf("parse %s=%q: %w", LockTimeoutEnv, raw, err)
+		}
+		if timeout < 0 {
+			return o, xerrors.Errorf("parse %s=%q: must not be negative", LockTimeoutEnv, raw)
+		}
+		o.lockTimeout = timeout
+	}
+	return o, nil
+}
 
 var (
 	migrationsHash     string
@@ -73,11 +162,11 @@ func GetMigrationsHash() string {
 	return migrationsHash
 }
 
-func setup(db *sql.DB, migs fs.FS) (source.Driver, *migrate.Migrate, error) {
+func setup(db *sql.DB, migs fs.FS, opts options) (source.Driver, *migrate.Migrate, error) {
 	if migs == nil {
 		migs = migrations
 	}
-	ctx := context.Background()
+	ctx := opts.ctx
 	sourceDriver, err := iofs.New(migs, ".")
 	if err != nil {
 		return nil, nil, xerrors.Errorf("create iofs: %w", err)
@@ -91,7 +180,7 @@ func setup(db *sql.DB, migs fs.FS) (source.Driver, *migrate.Migrate, error) {
 		return nil, nil, xerrors.New("currently connected to a Coder v1 database, aborting database setup")
 	}
 
-	dbDriver := &pgTxnDriver{ctx: context.Background(), db: db}
+	dbDriver := &pgTxnDriver{ctx: ctx, db: db, lockTimeout: opts.lockTimeout}
 	err = dbDriver.ensureVersionTable()
 	if err != nil {
 		return nil, nil, xerrors.Errorf("ensure version table: %w", err)
@@ -118,8 +207,23 @@ func Up(db *sql.DB) error {
 }
 
 // UpWithFS runs SQL migrations in the given fs.
-func UpWithFS(db *sql.DB, migs fs.FS) (retErr error) {
-	_, m, err := setup(db, migs)
+//
+// Every pending migration runs in one transaction under a bounded Postgres
+// lock_timeout. If the batch fails because it lost a lock race, it is rolled
+// back and retried from scratch with exponential backoff. Any other failure is
+// returned immediately.
+func UpWithFS(db *sql.DB, migs fs.FS, opts ...Option) error {
+	o, err := newOptions(opts)
+	if err != nil {
+		return err
+	}
+	return runWithLockRetry(o, "up", func() error {
+		return upOnce(db, migs, o)
+	})
+}
+
+func upOnce(db *sql.DB, migs fs.FS, opts options) (retErr error) {
+	_, m, err := setup(db, migs, opts)
 	if err != nil {
 		return xerrors.Errorf("migrate setup: %w", err)
 	}
@@ -148,9 +252,20 @@ func UpWithFS(db *sql.DB, migs fs.FS) (retErr error) {
 	return nil
 }
 
-// Down runs all down SQL migrations.
-func Down(db *sql.DB) error {
-	_, m, err := setup(db, migrations)
+// Down runs all down SQL migrations. It retries lost lock races the same way
+// UpWithFS does.
+func Down(db *sql.DB, opts ...Option) error {
+	o, err := newOptions(opts)
+	if err != nil {
+		return err
+	}
+	return runWithLockRetry(o, "down", func() error {
+		return downOnce(db, o)
+	})
+}
+
+func downOnce(db *sql.DB, opts options) error {
+	_, m, err := setup(db, migrations, opts)
 	if err != nil {
 		return xerrors.Errorf("migrate setup: %w", err)
 	}
@@ -168,11 +283,92 @@ func Down(db *sql.DB) error {
 	return nil
 }
 
+// runWithLockRetry runs one migration batch attempt at a time until it
+// succeeds, fails for a reason other than lock contention, exhausts
+// maxAttempts, or opts.ctx is done. Each attempt must rebuild its own driver
+// because pgTxnDriver.Unlock commits or rolls back the batch transaction.
+func runWithLockRetry(opts options, direction string, attemptFn func() error) error {
+	backoff := retry.New(250*time.Millisecond, 5*time.Second)
+	backoff.Jitter = 0.2
+
+	var lastErr error
+	// The first Wait returns immediately, so the first attempt is not delayed.
+	for attempt := 1; backoff.Wait(opts.ctx); attempt++ {
+		lastErr = attemptFn()
+		if lastErr == nil {
+			return nil
+		}
+		pgErr, ok := lockContentionError(lastErr)
+		if !ok {
+			return lastErr
+		}
+		if attempt >= maxAttempts {
+			return xerrors.Errorf("migration %s lost lock race on all %d attempts: %w", direction, attempt, lastErr)
+		}
+		opts.logger.Warn(opts.ctx, "database migration lost a lock race and was rolled back, retrying whole batch",
+			slog.F("direction", direction),
+			slog.F("attempt", attempt),
+			slog.F("max_attempts", maxAttempts),
+			slog.F("lock_timeout", opts.lockTimeout),
+			slog.F("sqlstate", pgErr.Code),
+			slog.F("message", pgErr.Message),
+			slog.F("detail", pgErr.Detail),
+			slog.F("relation", pgErr.Table),
+			slog.Error(lastErr),
+		)
+	}
+	return xerrors.Errorf("migration %s canceled while waiting to retry after %v: %w", direction, lastErr, opts.ctx.Err())
+}
+
+// lockContentionError returns the Postgres error behind err when it reports
+// that a statement lost a lock race: lock_not_available (55P03), raised when
+// lock_timeout expires, or deadlock_detected (40P01).
+//
+// golang-migrate wraps driver failures in database.Error, which does not
+// implement Unwrap, so the chain is walked through OrigErr explicitly.
+func lockContentionError(err error) (*pq.Error, bool) {
+	pgErr, ok := pqError(err)
+	if !ok {
+		return nil, false
+	}
+	switch pgErr.Code {
+	case pgCodeLockNotAvailable, pgCodeDeadlockDetected:
+		return pgErr, true
+	default:
+		return nil, false
+	}
+}
+
+func pqError(err error) (*pq.Error, bool) {
+	for err != nil {
+		var pgErr *pq.Error
+		if xerrors.As(err, &pgErr) {
+			return pgErr, true
+		}
+		var dbErrPtr *database.Error
+		if xerrors.As(err, &dbErrPtr) && dbErrPtr != nil {
+			err = dbErrPtr.OrigErr
+			continue
+		}
+		var dbErr database.Error
+		if xerrors.As(err, &dbErr) {
+			err = dbErr.OrigErr
+			continue
+		}
+		return nil, false
+	}
+	return nil, false
+}
+
 // EnsureClean checks whether all migrations for the current version have been
 // applied, without making any changes to the database. If not, returns a
 // non-nil error.
 func EnsureClean(db *sql.DB) error {
-	sourceDriver, m, err := setup(db, migrations)
+	opts, err := newOptions(nil)
+	if err != nil {
+		return err
+	}
+	sourceDriver, m, err := setup(db, migrations, opts)
 	if err != nil {
 		return xerrors.Errorf("migrate setup: %w", err)
 	}
@@ -238,7 +434,11 @@ func CheckLatestVersion(sourceDriver source.Driver, currentVersion uint) error {
 // Stepper cannot be closed pre-emptively, it must be run to completion
 // (or until an error is encountered).
 func Stepper(db *sql.DB) (next func() (version uint, more bool, err error), err error) {
-	_, m, err := setup(db, migrations)
+	opts, err := newOptions(nil)
+	if err != nil {
+		return nil, err
+	}
+	_, m, err := setup(db, migrations, opts)
 	if err != nil {
 		return nil, xerrors.Errorf("migrate setup: %w", err)
 	}

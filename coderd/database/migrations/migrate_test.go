@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -11,9 +12,11 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"testing/fstest"
 	"time"
 
 	"github.com/golang-migrate/migrate/v4"
+	migratedatabase "github.com/golang-migrate/migrate/v4/database"
 	migratepostgres "github.com/golang-migrate/migrate/v4/database/postgres"
 	"github.com/golang-migrate/migrate/v4/source"
 	"github.com/golang-migrate/migrate/v4/source/iofs"
@@ -24,6 +27,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 	"golang.org/x/sync/errgroup"
+
+	"cdr.dev/slog/v3"
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
@@ -99,6 +104,318 @@ func testSQLDB(t testing.TB) *sql.DB {
 	t.Cleanup(func() { _ = db.Close() })
 
 	return db
+}
+
+// lockTestMigrations returns a two-step migration set where the second step
+// needs an ACCESS EXCLUSIVE lock on the table created by the first, so a
+// competing lock holder on that table makes the second step contend.
+func lockTestMigrations() fstest.MapFS {
+	return fstest.MapFS{
+		"000001_create.up.sql":   {Data: []byte("CREATE TABLE lock_test (id int);")},
+		"000001_create.down.sql": {Data: []byte("DROP TABLE lock_test;")},
+		"000002_alter.up.sql":    {Data: []byte("ALTER TABLE lock_test ADD COLUMN name text;")},
+		"000002_alter.down.sql":  {Data: []byte("ALTER TABLE lock_test DROP COLUMN name;")},
+	}
+}
+
+// holdAccessExclusiveLock takes an ACCESS EXCLUSIVE lock on table from a
+// dedicated connection and returns a function that releases it. The lock is
+// released at test cleanup if the returned function is never called.
+func holdAccessExclusiveLock(ctx context.Context, t *testing.T, db *sql.DB, table string) (release func()) {
+	t.Helper()
+
+	conn, err := db.Conn(ctx)
+	require.NoError(t, err)
+	tx, err := conn.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	_, err = tx.ExecContext(ctx, "LOCK TABLE "+table+" IN ACCESS EXCLUSIVE MODE")
+	require.NoError(t, err)
+
+	var once sync.Once
+	release = func() {
+		once.Do(func() {
+			_ = tx.Rollback()
+			_ = conn.Close()
+		})
+	}
+	t.Cleanup(release)
+	return release
+}
+
+// warnSink records warning entries and signals warned the first time one
+// arrives.
+type warnSink struct {
+	mu      sync.Mutex
+	entries []slog.SinkEntry
+	warned  chan struct{}
+}
+
+func newWarnSink() *warnSink {
+	return &warnSink{warned: make(chan struct{})}
+}
+
+func (s *warnSink) LogEntry(_ context.Context, e slog.SinkEntry) {
+	if e.Level < slog.LevelWarn {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.entries = append(s.entries, e)
+	if len(s.entries) == 1 {
+		close(s.warned)
+	}
+}
+
+func (*warnSink) Sync() {}
+
+func (s *warnSink) Entries() []slog.SinkEntry {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return slices.Clone(s.entries)
+}
+
+func schemaVersion(ctx context.Context, t *testing.T, db *sql.DB) (version int, dirty bool) {
+	t.Helper()
+	err := db.QueryRowContext(ctx, "SELECT version, dirty FROM schema_migrations").Scan(&version, &dirty)
+	require.NoError(t, err)
+	return version, dirty
+}
+
+func TestMigrateLockTimeout(t *testing.T) {
+	t.Parallel()
+
+	if testing.Short() {
+		t.SkipNow()
+		return
+	}
+
+	// Short enough that five attempts plus backoff finish in a few seconds,
+	// long enough that a healthy statement never trips it.
+	const lockTimeout = 500 * time.Millisecond
+
+	t.Run("FailsFastWhenLockHeld", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		db := testSQLDB(t)
+		migs := lockTestMigrations()
+
+		// Apply only the first migration so the table exists and can be
+		// locked before the second one contends for it.
+		first := fstest.MapFS{
+			"000001_create.up.sql":   migs["000001_create.up.sql"],
+			"000001_create.down.sql": migs["000001_create.down.sql"],
+		}
+		require.NoError(t, migrations.UpWithFS(db, first, migrations.WithLogger(testutil.Logger(t))))
+		holdAccessExclusiveLock(ctx, t, db, "lock_test")
+
+		sink := newWarnSink()
+		start := time.Now()
+		err := migrations.UpWithFS(db, migs,
+			migrations.WithContext(ctx),
+			migrations.WithLogger(slog.Make(sink)),
+			migrations.WithLockTimeout(lockTimeout),
+		)
+		elapsed := time.Since(start)
+
+		require.Error(t, err)
+		require.ErrorContains(t, err, "lost lock race on all 5 attempts")
+		require.ErrorContains(t, err, "canceling statement due to lock timeout")
+		var pgErr *pq.Error
+		require.True(t, migrationPQError(err, &pgErr), "error should expose the Postgres error")
+		require.Equal(t, pq.ErrorCode("55P03"), pgErr.Code)
+		// Far below golang-migrate's two minute advisory LockTimeout, which
+		// is what a queued migration used to wait for.
+		require.Less(t, elapsed, testutil.WaitLong)
+
+		// One warning per failed attempt except the last, which is returned.
+		entries := sink.Entries()
+		require.Len(t, entries, 4)
+		for i, entry := range entries {
+			require.Equal(t, slog.LevelWarn, entry.Level)
+			require.Contains(t, entry.Fields, slog.F("attempt", i+1))
+			require.Contains(t, entry.Fields, slog.F("sqlstate", pq.ErrorCode("55P03")))
+		}
+
+		// The batch rolled back, so the schema is still at version 1 and
+		// clean.
+		version, dirty := schemaVersion(ctx, t, db)
+		require.Equal(t, 1, version)
+		require.False(t, dirty)
+	})
+
+	t.Run("RetrySucceedsAfterLockReleased", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		db := testSQLDB(t)
+		migs := lockTestMigrations()
+
+		first := fstest.MapFS{
+			"000001_create.up.sql":   migs["000001_create.up.sql"],
+			"000001_create.down.sql": migs["000001_create.down.sql"],
+		}
+		require.NoError(t, migrations.UpWithFS(db, first, migrations.WithLogger(testutil.Logger(t))))
+		release := holdAccessExclusiveLock(ctx, t, db, "lock_test")
+
+		sink := newWarnSink()
+		done := make(chan error, 1)
+		go func() {
+			done <- migrations.UpWithFS(db, migs,
+				migrations.WithContext(ctx),
+				migrations.WithLogger(slog.Make(sink)),
+				migrations.WithLockTimeout(lockTimeout),
+			)
+		}()
+
+		// Wait for the first attempt to lose the race, then get out of the
+		// way so a later attempt can win.
+		testutil.TryReceive(ctx, t, sink.warned)
+		release()
+
+		require.NoError(t, testutil.RequireReceive(ctx, t, done))
+		require.NotEmpty(t, sink.Entries())
+
+		version, dirty := schemaVersion(ctx, t, db)
+		require.Equal(t, 2, version)
+		require.False(t, dirty)
+
+		var exists bool
+		err := db.QueryRowContext(ctx, `SELECT EXISTS (
+			SELECT 1 FROM information_schema.columns
+			WHERE table_name = 'lock_test' AND column_name = 'name'
+		)`).Scan(&exists)
+		require.NoError(t, err)
+		require.True(t, exists, "second migration should have been applied")
+	})
+
+	t.Run("ZeroWaitsIndefinitely", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		db := testSQLDB(t)
+		migs := lockTestMigrations()
+
+		first := fstest.MapFS{
+			"000001_create.up.sql":   migs["000001_create.up.sql"],
+			"000001_create.down.sql": migs["000001_create.down.sql"],
+		}
+		require.NoError(t, migrations.UpWithFS(db, first, migrations.WithLogger(testutil.Logger(t))))
+		release := holdAccessExclusiveLock(ctx, t, db, "lock_test")
+
+		sink := newWarnSink()
+		done := make(chan error, 1)
+		go func() {
+			done <- migrations.UpWithFS(db, migs,
+				migrations.WithContext(ctx),
+				migrations.WithLogger(slog.Make(sink)),
+				migrations.WithLockTimeout(0),
+			)
+		}()
+
+		// With no lock_timeout the ALTER TABLE queues on the lock instead of
+		// erroring, which is visible as a backend blocked on a Lock wait.
+		require.True(t, testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+			select {
+			case err := <-done:
+				t.Fatalf("migration finished while lock was held: %v", err)
+			default:
+			}
+			var waiting int
+			err := db.QueryRowContext(ctx, `
+				SELECT count(*) FROM pg_stat_activity
+				WHERE datname = current_database()
+				  AND wait_event_type = 'Lock'
+				  AND query LIKE 'ALTER TABLE lock_test%'
+			`).Scan(&waiting)
+			require.NoError(t, err)
+			return waiting == 1
+		}, testutil.IntervalFast), "migration should be queued on the table lock")
+		require.Empty(t, sink.Entries(), "waiting must not be reported as a lost race")
+
+		release()
+		require.NoError(t, testutil.RequireReceive(ctx, t, done))
+		require.Empty(t, sink.Entries())
+
+		version, dirty := schemaVersion(ctx, t, db)
+		require.Equal(t, 2, version)
+		require.False(t, dirty)
+	})
+
+	t.Run("BrokenMigrationDoesNotRetry", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		db := testSQLDB(t)
+
+		migs := fstest.MapFS{
+			"000001_create.up.sql":   {Data: []byte("CREATE TABLE lock_test (id int);")},
+			"000001_create.down.sql": {Data: []byte("DROP TABLE lock_test;")},
+			"000002_broken.up.sql":   {Data: []byte("ALTER TABLE does_not_exist ADD COLUMN name text;")},
+			"000002_broken.down.sql": {Data: []byte("SELECT 1;")},
+		}
+
+		sink := newWarnSink()
+		err := migrations.UpWithFS(db, migs,
+			migrations.WithContext(ctx),
+			migrations.WithLogger(slog.Make(sink)),
+			migrations.WithLockTimeout(lockTimeout),
+		)
+		require.Error(t, err)
+		require.ErrorContains(t, err, `relation "does_not_exist" does not exist`)
+		require.NotContains(t, err.Error(), "lost lock race")
+		require.Empty(t, sink.Entries(), "a genuine migration bug must fail on the first attempt")
+
+		// The single transaction rolled back, so the first migration was not
+		// left behind.
+		var exists bool
+		err = db.QueryRowContext(ctx, `SELECT EXISTS (
+			SELECT 1 FROM information_schema.tables WHERE table_name = 'lock_test'
+		)`).Scan(&exists)
+		require.NoError(t, err)
+		require.False(t, exists)
+	})
+}
+
+// TestMigrateLockTimeoutEnv mutates the process environment, so it cannot run
+// in parallel with other tests.
+//
+//nolint:paralleltest
+func TestMigrateLockTimeoutEnv(t *testing.T) {
+	if testing.Short() {
+		t.SkipNow()
+		return
+	}
+
+	t.Setenv(migrations.LockTimeoutEnv, "not-a-duration")
+
+	db := testSQLDB(t)
+	err := migrations.UpWithFS(db, lockTestMigrations())
+	require.Error(t, err)
+	require.ErrorContains(t, err, migrations.LockTimeoutEnv)
+}
+
+// migrationPQError finds the *pq.Error inside an error returned by the
+// migrations package, descending through golang-migrate's database.Error which
+// does not implement Unwrap.
+func migrationPQError(err error, target **pq.Error) bool {
+	for err != nil {
+		if errors.As(err, target) {
+			return true
+		}
+		var dbErr migratedatabase.Error
+		if errors.As(err, &dbErr) {
+			err = dbErr.OrigErr
+			continue
+		}
+		var dbErrPtr *migratedatabase.Error
+		if errors.As(err, &dbErrPtr) && dbErrPtr != nil {
+			err = dbErrPtr.OrigErr
+			continue
+		}
+		return false
+	}
+	return false
 }
 
 // paralleltest linter doesn't correctly handle table-driven tests (https://github.com/kunwardeep/paralleltest/issues/8)
