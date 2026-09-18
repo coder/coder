@@ -12,15 +12,29 @@ export interface ACLAvailable {
 
 // From codersdk/aibridge.go
 /**
- * AIBridgeAgenticAction represents a tool call with associated
- * thinking blocks and token usage from one or more interceptions.
+ * AIBridgeAgenticAction represents data from one interception, including
+ * tool calls, thinking blocks, and token usage. Tool-less child interceptions
+ * are represented as actions with an empty ToolCalls slice.
  */
 export interface AIBridgeAgenticAction {
+	readonly interception_id: string;
 	readonly model: string;
+	/**
+	 * Attribution contains attribution data from this interception.
+	 * Unknown attribution is serialized as an empty object.
+	 */
+	readonly attribution: AIBridgeAttribution;
 	readonly token_usage: AIBridgeSessionThreadsTokenUsage;
 	readonly thinking: readonly AIBridgeModelThought[];
 	readonly tool_calls: readonly AIBridgeToolCall[];
 }
+
+// From codersdk/aibridge.go
+/**
+ * AIBridgeAttribution contains the attribution fields recorded for one
+ * interception.
+ */
+export type AIBridgeAttribution = Record<string, string>;
 
 // From codersdk/deployment.go
 export interface AIBridgeConfig {
@@ -227,6 +241,11 @@ export interface AIBridgeThread {
 	readonly started_at: string;
 	readonly ended_at?: string;
 	readonly token_usage: AIBridgeSessionThreadsTokenUsage;
+	/**
+	 * Attribution contains attribution data from the root interception.
+	 * Unknown attribution is serialized as an empty object.
+	 */
+	readonly attribution: AIBridgeAttribution;
 	readonly agentic_actions: readonly AIBridgeAgenticAction[];
 	/**
 	 * ErrorType is the categorized terminal upstream error from the root
