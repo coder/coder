@@ -1653,6 +1653,11 @@ test-postgres-docker:
 	# database in memory (--tmpfs).
 	#
 	# https://www.postgresql.org/docs/current/runtime-config-resource.html#GUC-WORK-MEM
+	#
+	# JIT is disabled because test databases are tiny and have no planner
+	# statistics, so cost estimates for complex queries are wildly inflated
+	# and trigger LLVM compilation that takes hundreds of milliseconds per
+	# query (e.g. GetUserStatusCounts: 318ms with JIT vs 0.3ms without).
 	docker run \
 		--env POSTGRES_PASSWORD=postgres \
 		--env POSTGRES_USER=postgres \
@@ -1672,6 +1677,7 @@ test-postgres-docker:
 		-c fsync=off \
 		-c synchronous_commit=off \
 		-c full_page_writes=off \
+		-c jit=off \
 		-c log_statement=$(TEST_POSTGRES_LOG_STATEMENT)
 	while ! pg_isready -h 127.0.0.1
 	do

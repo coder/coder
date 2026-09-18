@@ -85,6 +85,10 @@ func main() {
 		`ALTER SYSTEM SET max_connections = '1000';`,
 		`ALTER SYSTEM SET shared_buffers = '1GB';`,
 		`ALTER SYSTEM SET synchronous_commit = 'off';`,
+		// Test databases are tiny and have no planner statistics, so cost
+		// estimates for complex queries are inflated enough to trigger JIT
+		// compilation, which costs hundreds of milliseconds per query.
+		`ALTER SYSTEM SET jit = 'off';`,
 		`ALTER SYSTEM SET client_encoding = 'UTF8';`,
 		// Enable PostgreSQL's own log collector so the running server persists
 		// logs to <data>/log/postgresql.log. The embedded-postgres library only

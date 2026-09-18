@@ -128,7 +128,7 @@ func NewWithAPI(t *testing.T, options *Options) (
 		provisionerCloser = coderdtest.NewProvisionerDaemon(t, coderAPI.AGPL)
 	}
 
-	t.Cleanup(func() {
+	testutil.Cleanup(t, func() {
 		cancelFunc()
 		_ = provisionerCloser.Close()
 		_ = coderAPI.Close()
@@ -352,7 +352,7 @@ func CreateOrganization(t *testing.T, client *codersdk.Client, opts CreateOrgani
 
 	if opts.IncludeProvisionerDaemon {
 		closer := NewExternalProvisionerDaemon(t, client, org.ID, map[string]string{})
-		t.Cleanup(func() {
+		testutil.Cleanup(t, func() {
 			_ = closer.Close()
 		})
 	}
@@ -370,18 +370,40 @@ func NewExternalProvisionerDaemon(t testing.TB, client *codersdk.Client, org uui
 	return newExternalProvisionerDaemon(t, client, org, tags, codersdk.ProvisionerTypeEcho)
 }
 
+// ExternalProvisionerOption configures an external provisioner daemon
+// started by NewExternalProvisionerDaemonTerraform.
+type ExternalProvisionerOption func(*externalProvisionerOptions)
+
+type externalProvisionerOptions struct {
+	terraformCLIConfigPath string
+}
+
+// WithTerraformCLIConfigPath passes a Terraform CLI config file to the
+// provisioner instead of relying on TF_CLI_CONFIG_FILE in the test process
+// environment, which would force the test to be sequential (t.Setenv).
+func WithTerraformCLIConfigPath(path string) ExternalProvisionerOption {
+	return func(o *externalProvisionerOptions) {
+		o.terraformCLIConfigPath = path
+	}
+}
+
 // NewExternalProvisionerDaemonTerraform runs an external provisioner daemon in
 // a goroutine and returns a closer to stop it. The terraform provisioner is
 // used here. Avoid using this unless you need to test terraform-specific
 // behaviors!
-func NewExternalProvisionerDaemonTerraform(t testing.TB, client *codersdk.Client, org uuid.UUID, tags map[string]string) io.Closer {
+func NewExternalProvisionerDaemonTerraform(t testing.TB, client *codersdk.Client, org uuid.UUID, tags map[string]string, opts ...ExternalProvisionerOption) io.Closer {
 	t.Helper()
-	return newExternalProvisionerDaemon(t, client, org, tags, codersdk.ProvisionerTypeTerraform)
+	return newExternalProvisionerDaemon(t, client, org, tags, codersdk.ProvisionerTypeTerraform, opts...)
 }
 
 // nolint // This function is a helper for tests and should not be linted.
-func newExternalProvisionerDaemon(t testing.TB, client *codersdk.Client, org uuid.UUID, tags map[string]string, provisionerType codersdk.ProvisionerType) io.Closer {
+func newExternalProvisionerDaemon(t testing.TB, client *codersdk.Client, org uuid.UUID, tags map[string]string, provisionerType codersdk.ProvisionerType, opts ...ExternalProvisionerOption) io.Closer {
 	t.Helper()
+
+	var options externalProvisionerOptions
+	for _, opt := range opts {
+		opt(&options)
+	}
 
 	entitlements, err := client.Entitlements(context.Background())
 	if err != nil {
@@ -400,7 +422,7 @@ func newExternalProvisionerDaemon(t testing.TB, client *codersdk.Client, org uui
 	provisionerClient, provisionerSrv := drpcsdk.MemTransportPipe()
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	serveDone := make(chan struct{})
-	t.Cleanup(func() {
+	testutil.Cleanup(t, func() {
 		_ = provisionerClient.Close()
 		_ = provisionerSrv.Close()
 		cancelFunc()
@@ -418,8 +440,9 @@ func newExternalProvisionerDaemon(t testing.TB, client *codersdk.Client, org uui
 		go func() {
 			defer close(serveDone)
 			assert.NoError(t, terraform.Serve(ctx, &terraform.ServeOptions{
-				BinaryPath: terraformPath,
-				CachePath:  t.TempDir(),
+				BinaryPath:    terraformPath,
+				CachePath:     t.TempDir(),
+				CliConfigPath: options.terraformCLIConfigPath,
 				ServeOptions: &provisionersdk.ServeOptions{
 					Listener:      provisionerSrv,
 					WorkDirectory: t.TempDir(),
@@ -456,7 +479,7 @@ func newExternalProvisionerDaemon(t testing.TB, client *codersdk.Client, org uui
 		},
 	})
 	closer := coderdtest.NewProvisionerDaemonCloser(daemon)
-	t.Cleanup(func() {
+	testutil.Cleanup(t, func() {
 		_ = closer.Close()
 	})
 

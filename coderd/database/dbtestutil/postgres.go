@@ -184,7 +184,7 @@ func createDatabaseFromTemplate(t TBSubset, connParams ConnectionParams, db *sql
 	if emptyTemplateDBName {
 		templateDBName = fmt.Sprintf("tpl_%s", migrations.GetMigrationsHash()[:32])
 	}
-	_, err := db.Exec("CREATE DATABASE " + newDBName + " WITH TEMPLATE " + templateDBName)
+	_, err := db.Exec(createDatabaseSQL(db, newDBName, templateDBName))
 	if err == nil {
 		// Template database already exists and we successfully created the new database.
 		return nil
@@ -212,10 +212,35 @@ func createDatabaseFromTemplate(t TBSubset, connParams ConnectionParams, db *sql
 	}
 
 	// Try to create the database again now that a template exists.
-	if _, err = db.Exec("CREATE DATABASE " + newDBName + " WITH TEMPLATE " + templateDBName); err != nil {
+	if _, err = db.Exec(createDatabaseSQL(db, newDBName, templateDBName)); err != nil {
 		return xerrors.Errorf("create db with template after migrations: %w", err)
 	}
 	return nil
+}
+
+var (
+	createStrategyOnce   sync.Once
+	createStrategyClause string
+)
+
+// createDatabaseSQL builds the CREATE DATABASE statement used to clone the
+// template database. PostgreSQL 15 changed the default clone strategy to
+// WAL_LOG, which WAL-logs every page of the template. For the small,
+// short-lived, fsync=off test databases created here that roughly doubles
+// the CPU cost of each clone, so FILE_COPY is requested when the server
+// supports the STRATEGY option. Older servers only implement FILE_COPY and
+// reject the option, so it is omitted there.
+func createDatabaseSQL(db *sql.DB, newDBName string, templateDBName string) string {
+	createStrategyOnce.Do(func() {
+		var versionNum int
+		if err := db.QueryRow("SHOW server_version_num").Scan(&versionNum); err != nil {
+			return
+		}
+		if versionNum >= 150000 {
+			createStrategyClause = " STRATEGY = FILE_COPY"
+		}
+	})
+	return "CREATE DATABASE " + newDBName + " WITH TEMPLATE " + templateDBName + createStrategyClause
 }
 
 func createAndInitDatabase(t TBSubset, connParams ConnectionParams, db *sql.DB, name string, initialize func(*sql.DB) error) error {
@@ -373,7 +398,9 @@ func openContainer(t TBSubset, opts DBContainerOptions) (container, func(), erro
 				// This isn't used anyways, since we override PGDATA.
 				fmt.Sprintf("%s:/var/lib/postgresql/data", tempDir),
 			},
-			Cmd: []string{"-c", "max_connections=1000"},
+			// jit=off matches the Makefile's test-postgres-docker target; see
+			// the comment there for the rationale.
+			Cmd: []string{"-c", "max_connections=1000", "-c", "jit=off"},
 		}
 		if opts.Name != "" {
 			runOptions.Name = opts.Name
