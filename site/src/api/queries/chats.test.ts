@@ -2724,19 +2724,19 @@ describe("updateChildInParentCache", () => {
 });
 
 describe("mergeWatchedChatSummary", () => {
-	// A tracked-ref fixture for the diff-status merge tests.
-	const makeDiffStatusRef = (git_branch: string, additions = 1) => ({
+	// A tracked-ref row for the diff-status merge tests.
+	const mockDiffStatusRef: TypesGen.ChatDiffStatus = {
 		chat_id: "chat-1",
 		remote_origin: "https://github.com/o/r.git",
-		git_branch,
+		git_branch: "feature-a",
 		pull_request_state: "open",
 		pull_request_title: "A",
 		pull_request_draft: false,
 		changes_requested: false,
-		additions,
+		additions: 1,
 		deletions: 0,
 		changed_files: 1,
-	});
+	};
 
 	it("applies context_dirty flags while preserving the pinned resource list", () => {
 		const cachedChat = makeChat("chat-1", {
@@ -3320,11 +3320,19 @@ describe("mergeWatchedChatSummary", () => {
 	});
 
 	it("adopts the embedded primary when the cache missed its row", () => {
-		const cachedRef = makeDiffStatusRef("feature-a");
-		const refreshedRef = makeDiffStatusRef("feature-b", 2);
+		const cachedRef = { ...mockDiffStatusRef, git_branch: "feature-a" };
+		const refreshedRef = {
+			...mockDiffStatusRef,
+			git_branch: "feature-b",
+			additions: 2,
+		};
 		// The server's primary row was never cached, but every
 		// event embeds it as the deprecated diff_status.
-		const primaryRef = makeDiffStatusRef("feature-newest", 3);
+		const primaryRef = {
+			...mockDiffStatusRef,
+			git_branch: "feature-newest",
+			additions: 3,
+		};
 		const cachedChat = makeChat("chat-1", {
 			diff_statuses: [cachedRef],
 		});
@@ -3347,10 +3355,22 @@ describe("mergeWatchedChatSummary", () => {
 	});
 
 	it("keeps the cached primary row over the embedded snapshot", () => {
-		const cachedRef = makeDiffStatusRef("feature-a", 9);
-		const refreshedRef = makeDiffStatusRef("feature-b", 2);
+		const cachedRef = {
+			...mockDiffStatusRef,
+			git_branch: "feature-a",
+			additions: 9,
+		};
+		const refreshedRef = {
+			...mockDiffStatusRef,
+			git_branch: "feature-b",
+			additions: 2,
+		};
 		// An older snapshot of the primary, delivered late.
-		const stalePrimary = makeDiffStatusRef("feature-a", 1);
+		const stalePrimary = {
+			...mockDiffStatusRef,
+			git_branch: "feature-a",
+			additions: 1,
+		};
 		const cachedChat = makeChat("chat-1", {
 			diff_statuses: [cachedRef],
 		});
@@ -3376,8 +3396,16 @@ describe("mergeWatchedChatSummary", () => {
 		// A chat loaded before its first push has no cached rows;
 		// a later refresh event for an older ref still embeds the
 		// server's primary.
-		const changedRef = makeDiffStatusRef("feature-old", 1);
-		const primaryRef = makeDiffStatusRef("feature-new", 2);
+		const changedRef = {
+			...mockDiffStatusRef,
+			git_branch: "feature-old",
+			additions: 1,
+		};
+		const primaryRef = {
+			...mockDiffStatusRef,
+			git_branch: "feature-new",
+			additions: 2,
+		};
 		const cachedChat = makeChat("chat-1", {
 			diff_statuses: undefined,
 		});
