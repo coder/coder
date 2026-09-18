@@ -439,7 +439,6 @@ func TestExtractTokenParams_Scopes(t *testing.T) {
 			// Set PostForm and Form directly to bypass the need for a request body
 			req := &http.Request{
 				Method:   http.MethodPost,
-				URL:      &url.URL{},
 				PostForm: form,
 				Form:     form, // Form is the combination of PostForm and URL query
 			}
@@ -503,7 +502,6 @@ func TestExtractTokenParams_ScopesURLEncoded(t *testing.T) {
 			// Create request with form data already parsed
 			req := &http.Request{
 				Method:   http.MethodPost,
-				URL:      &url.URL{},
 				PostForm: values,
 				Form:     values,
 			}
@@ -588,7 +586,6 @@ func TestExtractTokenParams_ScopesEdgeCases(t *testing.T) {
 			form := tc.setupForm()
 			req := &http.Request{
 				Method:   http.MethodPost,
-				URL:      &url.URL{},
 				PostForm: form,
 				Form:     form,
 			}
@@ -829,7 +826,6 @@ func TestExtractTokenRequest_ClientSecretRequirement(t *testing.T) {
 
 			req := &http.Request{
 				Method:   http.MethodPost,
-				URL:      &url.URL{},
 				PostForm: form,
 				Form:     form,
 			}
@@ -888,7 +884,6 @@ func TestExtractTokenRequest_UnrecognizedParametersLogged(t *testing.T) {
 
 			req := &http.Request{
 				Method:   http.MethodPost,
-				URL:      &url.URL{},
 				PostForm: form,
 				Form:     form,
 			}
@@ -1038,7 +1033,6 @@ func TestRefreshTokenGrant_Scopes(t *testing.T) {
 
 	req := &http.Request{
 		Method:   http.MethodPost,
-		URL:      &url.URL{},
 		PostForm: form,
 		Form:     form,
 	}

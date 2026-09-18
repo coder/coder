@@ -1462,6 +1462,28 @@ func TestOAuth2ProviderRevokeClientAuthentication(t *testing.T) {
 		require.Contains(t, oauthErr.ErrorDescription, "client_secret")
 		require.True(t, works(), "a refused revocation must not end the session")
 	})
+
+	// A correct secret in the body does not excuse a copy in the URL. The
+	// revocation endpoint reads the body with r.Form.Get, which merges the query
+	// string and does not reject a repeated parameter, so the URL copy has to be
+	// refused before the form is read.
+	t.Run("SecretInQueryStringAndBody", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		userClient, refreshToken, works := newSession(ctx, t)
+
+		form := url.Values{}
+		form.Set("token", refreshToken)
+		form.Set("client_id", apps.Default.ID.String())
+		form.Set("client_secret", secret.ClientSecretFull)
+		status, _, oauthErr := postRevoke(ctx, t, userClient, form, func(r *http.Request) {
+			r.URL.RawQuery = url.Values{"client_secret": {secret.ClientSecretFull}}.Encode()
+		})
+		require.Equal(t, http.StatusBadRequest, status)
+		require.Equal(t, codersdk.OAuth2ErrorCodeInvalidRequest, oauthErr.Error)
+		require.Contains(t, oauthErr.ErrorDescription, "client_secret")
+		require.True(t, works(), "a refused revocation must not end the session")
+	})
 }
 
 func TestOAuth2ProviderPublicClientTokenLifecycle(t *testing.T) {

@@ -32,9 +32,6 @@ var (
 )
 
 func extractRevocationRequest(r *http.Request) (codersdk.OAuth2TokenRevocationRequest, error) {
-	if err := rejectClientSecretInQuery(r); err != nil {
-		return codersdk.OAuth2TokenRevocationRequest{}, err
-	}
 	if err := r.ParseForm(); err != nil {
 		return codersdk.OAuth2TokenRevocationRequest{}, xerrors.Errorf("invalid form data: %w", err)
 	}
@@ -81,13 +78,14 @@ func RevokeToken(db database.Store, logger slog.Logger) http.HandlerFunc {
 			return
 		}
 
-		req, err := extractRevocationRequest(r)
-		if errors.Is(err, errConflictingClientAuth) {
-			httpapi.WriteOAuth2Error(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidRequest, "Conflicting client credentials between Authorization header and request body")
+		if clientSecretInQuery(r) {
+			httpapi.WriteOAuth2Error(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidRequest, errMsgClientSecretInQuery)
 			return
 		}
-		if errors.Is(err, errClientSecretInQuery) {
-			httpapi.WriteOAuth2Error(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidRequest, "The client_secret must be sent in the request body or the Authorization header, not in the URL")
+
+		req, err := extractRevocationRequest(r)
+		if errors.Is(err, errConflictingClientAuth) {
+			httpapi.WriteOAuth2Error(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidRequest, errMsgConflictingClientAuth)
 			return
 		}
 		if err != nil {
