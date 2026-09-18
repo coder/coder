@@ -536,8 +536,9 @@ export const mergeWatchedChatSummary = (
 	const isFreshEnough = updatedAtComparison <= 0;
 	const nextStatus =
 		isFreshEnough && isStatusEvent ? watchedChat.status : cachedChat.status;
-	// A generated title_change received after a user rename is stale: on
-	// the server only a user title can replace a user title.
+	// Title writes do not change updated_at, so isFreshEnough cannot order
+	// title events. A generated title_change received after a user rename
+	// is stale: on the server only a user title can replace a user title.
 	const isStaleGeneratedTitle =
 		cachedChat.title_source === "user" &&
 		watchedChat.title_source === "generated";

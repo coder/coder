@@ -388,9 +388,17 @@ func (p *Server) maybeGenerateChatTitle(
 		logger.Debug(ctx, "title changed during generation, keeping user title",
 			slog.F("chat_id", chat.ID),
 		)
-		// The chat's cost changed. No title_change is published because
-		// this goroutine did not write the current title.
-		p.publishChatPubsubEvent(chat, codersdk.ChatWatchEventKindCostChange, nil)
+		// Only the cost changed. Publish the current row, not the one
+		// captured before the model call.
+		currentChat, err := p.db.GetChatByID(ctx, chat.ID)
+		if err != nil {
+			logger.Warn(ctx, "failed to load chat after refused title write",
+				slog.F("chat_id", chat.ID),
+				slog.Error(err),
+			)
+			return
+		}
+		p.publishChatPubsubEvent(currentChat, codersdk.ChatWatchEventKindCostChange, nil)
 		return
 	}
 	if err != nil {
