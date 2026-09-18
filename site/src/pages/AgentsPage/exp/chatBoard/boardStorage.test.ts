@@ -1,9 +1,14 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { readBoardStorage, saveBoardStorage } from "./boardStorage";
+import {
+	type ChatWindow,
+	readBoardStorage,
+	saveBoardStorage,
+} from "./boardStorage";
 
 const KEY = "agents.board";
 
-const pinned = {
+const pinned: ChatWindow = {
+	kind: "chat",
 	chatId: "a",
 	x: 10,
 	y: 20,
@@ -22,10 +27,18 @@ describe("boardStorage", () => {
 			columnOrder: [],
 			emptyColumns: [],
 			windows: [],
+			effortFilter: null,
 		});
 	});
 
-	it("keeps valid entries and drops unpinned or malformed windows", () => {
+	it("keeps a stored effort filter and drops other values", () => {
+		localStorage.setItem(KEY, JSON.stringify({ effortFilter: "Q3" }));
+		expect(readBoardStorage().effortFilter).toBe("Q3");
+		localStorage.setItem(KEY, JSON.stringify({ effortFilter: 7 }));
+		expect(readBoardStorage().effortFilter).toBeNull();
+	});
+
+	it("keeps valid entries and drops unpinned, draft or malformed windows", () => {
 		localStorage.setItem(
 			KEY,
 			JSON.stringify({
@@ -35,6 +48,13 @@ describe("boardStorage", () => {
 					pinned,
 					{ ...pinned, chatId: "preview", pinned: false },
 					{ ...pinned, chatId: "broken", width: "wide" },
+					{
+						...pinned,
+						kind: "draft",
+						chatId: undefined,
+						target: { column: "Done" },
+						withContext: false,
+					},
 					"garbage",
 				],
 			}),
@@ -43,6 +63,7 @@ describe("boardStorage", () => {
 			columnOrder: ["Inbox", "Done"],
 			emptyColumns: [],
 			windows: [pinned],
+			effortFilter: null,
 		});
 	});
 
@@ -56,6 +77,7 @@ describe("boardStorage", () => {
 			columnOrder: ["Inbox", "Doing"],
 			emptyColumns: ["Later"],
 			windows: [pinned],
+			effortFilter: "Q3",
 		};
 		saveBoardStorage(next);
 		expect(readBoardStorage()).toEqual(next);

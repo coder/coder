@@ -1,8 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { ChatWindow } from "./boardStorage";
+import { type ChatWindow, windowKey } from "./boardStorage";
 import {
 	changeWindow,
+	closeWindow,
 	dismissTop,
+	draftCreated,
+	draftWindow,
 	dropPreview,
 	raise,
 	toFront,
@@ -19,6 +22,7 @@ const rect = (left: number, top: number, width: number, height: number) =>
 	new DOMRect(left, top, width, height);
 
 const win = (chatId: string, pinned = true): ChatWindow => ({
+	kind: "chat",
 	chatId,
 	x: 0,
 	y: 0,
@@ -36,6 +40,7 @@ describe("window geometry", () => {
 		viewport(1400, 900);
 		const win = windowBeside("c", rect(100, 200, 300, 40), true);
 		expect(win).toMatchObject({
+			kind: "chat",
 			chatId: "c",
 			x: 100 + 300 + 8,
 			y: 200,
@@ -76,7 +81,22 @@ describe("window geometry", () => {
 	it("centres a pinned window", () => {
 		viewport(1400, 900);
 		expect(windowCentered("c")).toEqual({
+			kind: "chat",
 			chatId: "c",
+			x: (1400 - 520) / 2,
+			y: (900 - 640) / 2,
+			width: 520,
+			height: 640,
+			pinned: true,
+		});
+	});
+
+	it("centres a draft window, pinned, with context off", () => {
+		viewport(1400, 900);
+		expect(draftWindow({ column: "Doing" })).toEqual({
+			kind: "draft",
+			target: { column: "Doing" },
+			withContext: false,
 			x: (1400 - 520) / 2,
 			y: (900 - 640) / 2,
 			width: 520,
@@ -89,7 +109,7 @@ describe("window geometry", () => {
 describe("window list", () => {
 	it("brings a window to the front pinned, replacing its old entry", () => {
 		const list = [win("a"), win("b"), win("p", false)];
-		expect(toFront(list, win("a", false)).map((w) => w.chatId)).toEqual([
+		expect(toFront(list, win("a", false)).map(windowKey)).toEqual([
 			"b",
 			"p",
 			"a",
@@ -106,5 +126,39 @@ describe("window list", () => {
 		expect(dropPreview(list)).toEqual([win("a")]);
 		expect(dismissTop(list)).toEqual([win("a")]);
 		expect(dismissTop([win("a"), win("b")])).toEqual([win("a")]);
+	});
+
+	it("keeps one draft, keyed apart from chats, and toggles its option in place", () => {
+		viewport(1400, 900);
+		const draft = draftWindow({ column: "Doing" });
+		const list = toFront([win("a"), draft], draftWindow({ cardId: "p" }));
+		expect(list.map((w) => w.kind)).toEqual(["chat", "draft"]);
+		expect(list[1]).toMatchObject({ target: { cardId: "p" } });
+		const toggled = changeWindow(list, {
+			...draftWindow({ cardId: "p" }),
+			withContext: true,
+		});
+		expect(toggled[1]).toMatchObject({ kind: "draft", withContext: true });
+		expect(closeWindow(toggled, "draft")).toEqual([win("a")]);
+		expect(raise(toggled, "draft").at(-1)?.kind).toBe("draft");
+	});
+
+	it("hands the draft's frame to the chat it created, else opens the chat centred", () => {
+		viewport(1400, 900);
+		const draft = { ...draftWindow({ cardId: "p" }), x: 30, y: 40 };
+		const list = [draft, win("a")];
+		expect(draftCreated(list, { cardId: "p" }, "n")).toEqual([
+			{ ...win("n"), x: 30, y: 40, width: 520, height: 640 },
+			win("a"),
+		]);
+		expect(draftCreated(list, { column: "Doing" }, "n")).toEqual([
+			draft,
+			win("a"),
+			windowCentered("n"),
+		]);
+		expect(draftCreated([win("a")], { cardId: "p" }, "n")).toEqual([
+			win("a"),
+			windowCentered("n"),
+		]);
 	});
 });

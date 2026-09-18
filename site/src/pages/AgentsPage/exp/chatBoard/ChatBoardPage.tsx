@@ -24,12 +24,21 @@ import { chatSearch, createChat, updateChatTitle } from "#/api/queries/chats";
 import type { Chat } from "#/api/typesGenerated";
 import { useDebouncedValue } from "#/hooks/debounce";
 import { pageTitle } from "#/utils/page";
+import { isActiveChatStatus } from "../../components/ChatConversation/chatStore";
 import { buildChatSearchQuery } from "../../components/ChatsSidebar/dialogs/searchQuery";
+import {
+	type AssistantSpec,
+	type AssistantTools,
+	BOARD_ASSISTANT_KEY,
+	boardAssistantSpec,
+	cardAssistantSpec,
+} from "./assistantSpecs";
+import { assistantIds, openAssistant } from "./assistants";
 import type { DragData } from "./BoardCard";
 import { BoardColumns } from "./BoardColumns";
 import { BoardHeader } from "./BoardHeader";
 import { BoardWindows } from "./BoardWindows";
-import type { Plan } from "./boardApi";
+import { effortsOf, type Plan, renameEffort } from "./boardApi";
 import { boardChats, updateChatLabels } from "./boardChats";
 import {
 	boardCollision,
@@ -47,16 +56,19 @@ import {
 import {
 	type BoardStorage,
 	type ChatWindow,
+	type DraftTarget,
 	readBoardStorage,
 	saveBoardStorage,
 } from "./boardStorage";
-import { assistantIds, openCardAssistant } from "./cardAssistant";
 import { DragGhost } from "./DragGhost";
+import { refetchChatListUntilLanded } from "./refreshChatList";
 import { runPlan } from "./runPlan";
 import {
 	changeWindow,
 	closeWindow,
 	dismissTop,
+	draftCreated,
+	draftWindow,
 	dropPreview,
 	previewOf,
 	raise,
@@ -149,6 +161,35 @@ const ChatBoardPage: FC = () => {
 		useSensor(KeyboardSensor),
 	);
 
+	const chats = chatsQuery.data?.pages[0] ?? [];
+	const chatsById = new Map(chats.map((chat) => [chat.id, chat]));
+	// Looked up in render: an unknown call taking `chats` inside the handler
+	// would count as a mutation and cost the handler its memoization.
+	const assistantByKey = assistantIds(chats);
+	// The board list is filtered `archived:false` and the archive cache helper
+	// drops an archived chat from it, so an archived assistant leaves this map
+	// on its own.
+	const cardAssistants = new Map(
+		[...assistantByKey].flatMap(([key, id]) => {
+			const assistant = chatsById.get(id);
+			return key !== BOARD_ASSISTANT_KEY && assistant
+				? [[key, assistant] as const]
+				: [];
+		}),
+	);
+	// Watch events carry status but not labels. While the board assistant is
+	// on a turn it may relabel chats, so the turn ending refetches the list.
+	// The effect's cleanup is that ending: it runs when the status leaves the
+	// active set, or when the board unmounts mid-turn.
+	const boardAssistantId = assistantByKey.get(BOARD_ASSISTANT_KEY);
+	const boardAssistantActive = isActiveChatStatus(
+		(boardAssistantId ? chatsById.get(boardAssistantId)?.status : null) ?? null,
+	);
+	useEffect(() => {
+		if (!boardAssistantActive) return;
+		return () => void refetchChatListUntilLanded(queryClient);
+	}, [boardAssistantActive, queryClient]);
+
 	// Updates are functional: a preview timer, a window gesture or the
 	// assistant's request may commit after other windows changed. Defined
 	// after the last hook so the compiler can memoize what depends on them.
@@ -158,13 +199,10 @@ const ChatBoardPage: FC = () => {
 		next: (prev: readonly ChatWindow[]) => readonly ChatWindow[],
 	) => setStorage((prev) => ({ ...prev, windows: next(prev.windows) }));
 
-	const chats = chatsQuery.data?.pages[0] ?? [];
-	const chatsById = new Map(chats.map((chat) => [chat.id, chat]));
-	const openChatIds = new Set(windows.map((w) => w.chatId));
+	const openChatIds = new Set(
+		windows.flatMap((w) => (w.kind === "chat" ? [w.chatId] : [])),
+	);
 	const allCards = buildCards(chats);
-	// Looked up in render: an unknown call taking `chats` inside the handler
-	// would count as a mutation and cost the handler its memoization.
-	const assistantByCard = assistantIds(chats);
 	// Commands act on the full model; the filter only decides what is drawn,
 	// so renaming a column with a filter active still relabels every card.
 	const columns = buildColumns(
@@ -173,6 +211,19 @@ const ChatBoardPage: FC = () => {
 		storage.emptyColumns,
 	);
 	const boardState = { cards: allCards, columns, storage };
+	const efforts = effortsOf(allCards);
+	// A stored filter whose last card lost the effort falls back to All; once
+	// the list is loaded that is known for sure and the filter is cleared.
+	const effortFilter = efforts.some((e) => e.name === storage.effortFilter)
+		? storage.effortFilter
+		: null;
+	if (
+		storage.effortFilter !== null &&
+		effortFilter === null &&
+		chatsQuery.data !== undefined
+	) {
+		updateStorage({ effortFilter: null });
+	}
 	const matchingIds =
 		debouncedSearch && searchQuery.data
 			? new Set(searchQuery.data.map((chat) => chat.id))
@@ -180,10 +231,24 @@ const ChatBoardPage: FC = () => {
 	const visibleColumns = columns.map((column) => ({
 		...column,
 		cards: column.cards.filter(
-			(card) => !matchingIds || card.members.some((m) => matchingIds.has(m.id)),
+			(card) =>
+				(!matchingIds || card.members.some((m) => matchingIds.has(m.id))) &&
+				(effortFilter === null || card.efforts.includes(effortFilter)),
 		),
 	}));
 	const visibleCount = visibleColumns.reduce((n, c) => n + c.cards.length, 0);
+
+	// A draft for a card that was merged away or removed has nowhere to land.
+	// Adjusted in render, not in an effect, so no frame shows an orphan form.
+	const draftTarget = windows.find((w) => w.kind === "draft")?.target;
+	if (
+		chatsQuery.data !== undefined &&
+		draftTarget !== undefined &&
+		"cardId" in draftTarget &&
+		!allCards.some((c) => c.id === draftTarget.cardId)
+	) {
+		setWindows((prev) => closeWindow(prev, "draft"));
+	}
 
 	const run = (plan: Plan | null) =>
 		runPlan(plan, {
@@ -197,10 +262,16 @@ const ChatBoardPage: FC = () => {
 		setWindows((prev) =>
 			toFront(
 				dropPreview(prev),
-				prev.find((w) => w.chatId === chat.id) ??
+				prev.find((w) => w.kind === "chat" && w.chatId === chat.id) ??
 					windowBeside(chat.id, anchor, true),
 			),
 		);
+	};
+	// The create form keeps one shared draft in localStorage, so a second
+	// draft window would edit the first one's text: toFront replaces it.
+	const openDraft = (target: DraftTarget) => {
+		setPendingPreview(null);
+		setWindows((prev) => toFront(dropPreview(prev), draftWindow(target)));
 	};
 	const previewChat = (chat: Chat, anchor: DOMRect) => {
 		if (openChatIds.has(chat.id)) {
@@ -211,10 +282,14 @@ const ChatBoardPage: FC = () => {
 	};
 	const endPreview = () => setPendingPreview({ kind: "close" });
 
-	const openAssistant = (card: BoardCardModel) =>
-		openCardAssistant({
-			card,
-			existingId: assistantByCard.get(card.id),
+	// Opens the chat for the assistant labelled `key`, creating it on first use.
+	const showAssistant = (
+		key: string,
+		spec: (tools: AssistantTools) => AssistantSpec,
+	) =>
+		openAssistant({
+			spec,
+			existingId: assistantByKey.get(key),
 			create: createMutation.mutateAsync,
 			rename: titleMutation.mutateAsync,
 			queryClient,
@@ -223,6 +298,15 @@ const ChatBoardPage: FC = () => {
 			setPendingPreview(null);
 			setWindows((prev) => toFront(dropPreview(prev), windowCentered(chatId)));
 		});
+	const openCardAssistant = (card: BoardCardModel) =>
+		void showAssistant(card.id, (tools) => cardAssistantSpec(card, tools));
+	const openBoardAssistant = () => {
+		const organizationId = chats[0]?.organization_id;
+		if (!organizationId) return;
+		void showAssistant(BOARD_ASSISTANT_KEY, (tools) =>
+			boardAssistantSpec(boardState, organizationId, tools),
+		);
+	};
 
 	const handleDragStart = ({ active }: DragStartEvent) => {
 		setPendingPreview(null);
@@ -262,9 +346,18 @@ const ChatBoardPage: FC = () => {
 				onSearchChange={setSearch}
 				// Leaving lands on the chat in front, or the agents home.
 				onExit={() => {
-					const reading = windows.filter((w) => w.pinned).at(-1)?.chatId;
+					const reading = windows
+						.flatMap((w) => (w.kind === "chat" && w.pinned ? [w.chatId] : []))
+						.at(-1);
 					void navigate(reading ? `/agents/${reading}` : "/agents");
 				}}
+				onAssistant={openBoardAssistant}
+				efforts={efforts}
+				effortFilter={effortFilter}
+				onEffortFilter={(effort) => updateStorage({ effortFilter: effort })}
+				onRenameEffort={(from, to) =>
+					void run(renameEffort(boardState, from, to))
+				}
 			/>
 			{chatsQuery.isError && (
 				<p className="m-0 px-3 py-2 text-sm text-content-destructive">
@@ -283,9 +376,13 @@ const ChatBoardPage: FC = () => {
 					columns={visibleColumns}
 					board={boardState}
 					run={run}
+					assistants={cardAssistants}
 					openChatIds={openChatIds}
 					dropTarget={dropTarget}
-					onAssistant={(card) => void openAssistant(card)}
+					knownEfforts={efforts.map((e) => e.name)}
+					onAssistant={openCardAssistant}
+					onNewChat={openDraft}
+					onFilterEffort={(effort) => updateStorage({ effortFilter: effort })}
 					onOpen={openChat}
 					onPreview={previewChat}
 					onPreviewEnd={endPreview}
@@ -299,15 +396,20 @@ const ChatBoardPage: FC = () => {
 				windows={windows}
 				chatsById={chatsById}
 				colorByChatId={cardColorByChat(allCards)}
+				board={boardState}
 				onChange={(next) => setWindows((prev) => changeWindow(prev, next))}
-				onClose={(chatId) => setWindows((prev) => closeWindow(prev, chatId))}
-				onRaise={(chatId) => {
+				onClose={(key) => setWindows((prev) => closeWindow(prev, key))}
+				onRaise={(key) => {
 					setPendingPreview(null);
-					setWindows((prev) => raise(prev, chatId));
+					setWindows((prev) => raise(prev, key));
 				}}
 				onPreviewEnter={() => setPendingPreview(null)}
 				onPreviewLeave={endPreview}
 				onDismissTop={() => setWindows(dismissTop)}
+				onDraftCreated={(target, chatId) =>
+					setWindows((prev) => draftCreated(prev, target, chatId))
+				}
+				onCardAssistant={openCardAssistant}
 			/>
 		</div>
 	);

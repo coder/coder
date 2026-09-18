@@ -65,6 +65,15 @@ Notes
 - Notes carry the human's reading of the work. When cards merge or a chat
   leaves a group, the notes follow the card.
 
+Efforts
+
+- I can tag a card with one or more efforts, a piece of work whose units
+  sit in different columns or an ad hoc set like "This week", from the
+  card's menu. The header has an effort filter that narrows the board to
+  one effort, and a card's effort tag does the same; the selected effort
+  can be renamed from the filter. The filter survives a reload and
+  combines with search.
+
 Status at a glance
 
 - Each chat shows its status icon, last turn, age, unread mark and linked
@@ -76,7 +85,8 @@ Working without leaving the board
 
 - Resting on a chat's icon previews the full chat in a floating window
   beside the card; clicking it, or dragging it, keeps the window. Windows
-  move, resize, stack and survive a reload.
+  move, resize, stack and survive a reload; a chat window has a button for
+  its card's assistant.
 - I can filter the board with the same search the sidebar uses; whole cards
   stay or go, groups are never split by a filter.
 
@@ -87,6 +97,12 @@ Assistant
   told to verify against the live chats before answering. It uses a shared
   workspace so it can read transcripts, send follow-ups and check pull
   requests on my behalf when I ask.
+- The board has one assistant of its own, opened from the header. It gets
+  a snapshot of every card with its primary chat id and is told how to read
+  and edit board labels; it proposes changes and acts only on a yes. When it
+  finishes a turn the board refetches the chat list.
+- When the Coder MCP is connected it is attached to the assistant, which
+  then needs a workspace only for label writes and a few fields.
 
 Sidebar
 
@@ -105,7 +121,8 @@ Sidebar
 | `board/pos`                 | primary   | placement key; higher sorts first          |
 | `board/comment.N.timestamp` | primary   | note N, Unix milliseconds                  |
 | `board/comment.N.M`         | primary   | note N, chunk M (256 byte label limit)     |
-| `board/assistant`           | assistant | id of the card the assistant belongs to    |
+| `board/effort.N`            | primary   | effort name N; a card can carry several    |
+| `board/assistant`           | assistant | id of the card, or `board`; not a card     |
 
 Writes replace the whole label map of a chat. Regrouping and note moves
 snapshot the previous maps of every touched chat so they can be undone.
@@ -130,9 +147,28 @@ snapshot the previous maps of every touched chat so they can be undone.
   commands. `BoardCard.tsx` composes `CardColorPicker.tsx`,
   `EditableTitle.tsx`, `ChatStatusLine.tsx` and `ChatInfo.tsx`;
   `DragGhost.tsx` is the overlay drawn for whatever is being dragged.
+- `assistantSpecs.ts` writes the prompts and snapshots for the card and
+  board assistants; `assistants.ts` finds or creates the chat for a spec.
+  `refreshChatList.ts` refetches the list after a board assistant turn,
+  retrying while watch events cancel it. `DraftChat.tsx` is the regular
+  create form inside a board window.
+
+## Findings
+
+Coder MCP gaps seen while a board assistant worked, as of this experiment:
+
+- No tool writes labels or titles; label edits need the API.
+- `coder_get_chat` and `coder_list_chats` lack `created_at`, `summary`,
+  `diff_status` and cost.
+- `coder_get_chat_messages` applies `limit` before dropping tool-only
+  messages, so busy chats return empty pages, and it omits tool calls, so a
+  running chat's activity is invisible.
+- `coder_list_chats` caps at 100 with no cursor.
+- `coder_get_chat` returns the chat's full file list.
 
 ## Not done
 
 - Multi pull request chats show the first pull request only.
 - The assistant is not told when its snapshot is stale on return.
 - Concurrent edits from two browsers are last write wins.
+- Deleting an effort; drop it from every card instead.

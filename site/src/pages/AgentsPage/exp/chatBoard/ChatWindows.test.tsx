@@ -1,15 +1,13 @@
 import { fireEvent, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { MockChat } from "#/testHelpers/chatEntities";
 import { renderComponent } from "#/testHelpers/renderHelpers";
 import type { ChatWindow } from "./boardStorage";
 import { FloatingChat } from "./ChatWindows";
 
-vi.mock("../../AgentChatPage", () => ({
-	default: () => <div>chat body</div>,
-}));
-
 const win: ChatWindow = {
+	kind: "chat",
 	chatId: MockChat.id,
 	x: 100,
 	y: 80,
@@ -18,19 +16,25 @@ const win: ChatWindow = {
 	pinned: true,
 };
 
-const renderWindow = () => {
+const renderWindow = (onAssistant?: {
+	cardTitle: string;
+	open: () => void;
+}) => {
 	const onChange = vi.fn();
 	renderComponent(
 		<FloatingChat
 			window={win}
-			chat={MockChat}
+			title={MockChat.title}
 			color={undefined}
 			onChange={onChange}
 			onClose={vi.fn()}
 			onInteract={vi.fn()}
 			onPreviewEnter={vi.fn()}
 			onPreviewLeave={vi.fn()}
-		/>,
+			onAssistant={onAssistant}
+		>
+			<div>chat body</div>
+		</FloatingChat>,
 	);
 	return { onChange };
 };
@@ -112,5 +116,17 @@ describe("FloatingChat", () => {
 		expect(caf).toHaveBeenCalledWith(7);
 		expect(onChange).toHaveBeenCalledTimes(1);
 		expect(onChange).toHaveBeenCalledWith({ ...win, x: 130, y: 120 });
+	});
+
+	it("opens the card's assistant from the title bar", async () => {
+		const user = userEvent.setup();
+		const open = vi.fn();
+		renderWindow({ cardTitle: "Epic", open });
+
+		await user.click(
+			screen.getByRole("button", { name: "Assistant for Epic" }),
+		);
+
+		expect(open).toHaveBeenCalledTimes(1);
 	});
 });

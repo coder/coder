@@ -14,6 +14,7 @@ import {
 	setColorLabel,
 	setColumnLabel,
 	setCommentsLabels,
+	setEffortsLabels,
 	setGroupLabel,
 	setPositionLabel,
 	setTitleLabel,
@@ -21,7 +22,7 @@ import {
 	takeCardLabels,
 	updateCommentLabels,
 } from "./boardLabels";
-import type { BoardStorage } from "./boardStorage";
+import type { BoardStorage, DraftTarget } from "./boardStorage";
 
 /**
  * What a board action means, as pure functions from the full board model to
@@ -56,7 +57,8 @@ type ColumnSlot = Readonly<{ name: string; side: "before" | "after" }>;
 const cardOf = (state: BoardState, cardId: string) =>
 	state.cards.find((card) => card.id === cardId);
 
-const cardWith = (state: BoardState, chatId: string) =>
+/** The card a chat belongs to, as primary or member. */
+export const cardWith = (state: BoardState, chatId: string) =>
 	state.cards.find((card) => card.members.some((m) => m.id === chatId));
 
 const columnNames = (state: BoardState) => state.columns.map((c) => c.name);
@@ -151,6 +153,7 @@ export const mergeCards = (
 		placementKey(target.primary),
 	);
 	if (!keep.color && join.color) labels = setColorLabel(labels, join.color);
+	labels = setEffortsLabels(labels, [...keep.efforts, ...join.efforts]);
 	let index = nextCommentIndex(keep.comments);
 	const carried = join.comments.map((c) => [c.text, c.timestamp] as const);
 	if (getTitleLabel(join.primary) && getTitleLabel(keep.primary)) {
@@ -372,6 +375,56 @@ export const setCardColor = (
 		setColorLabel(card.primary.labels, color),
 	);
 
+export const setCardEfforts = (
+	state: BoardState,
+	cardId: string,
+	names: readonly string[],
+): Plan | null =>
+	primaryWrite(state, cardId, (card) =>
+		setEffortsLabels(card.primary.labels, names),
+	);
+
+/**
+ * Renames an effort on every card carrying it. Renaming onto an existing
+ * effort merges the two; setEffortsLabels drops the repeat. The stored
+ * filter follows when it pointed at the renamed effort.
+ */
+export const renameEffort = (
+	state: BoardState,
+	from: string,
+	to: string,
+): Plan | null => {
+	const name = to.trim();
+	const carrying = state.cards.filter((card) => card.efforts.includes(from));
+	if (!name || name === from || carrying.length === 0) return null;
+	return {
+		writes: carrying.map((card) => ({
+			chat: card.primary,
+			labels: setEffortsLabels(
+				card.primary.labels,
+				card.efforts.map((e) => (e === from ? name : e)),
+			),
+		})),
+		...(state.storage.effortFilter === from
+			? { storage: { effortFilter: name } }
+			: {}),
+	};
+};
+
+/** An effort on the board and how many cards carry it. */
+export type EffortCount = Readonly<{ name: string; count: number }>;
+
+/** Every effort on the board with its card count, in order of first appearance. */
+export const effortsOf = (cards: readonly BoardCard[]): EffortCount[] => {
+	const counts = new Map<string, number>();
+	for (const card of cards) {
+		for (const name of card.efforts) {
+			counts.set(name, (counts.get(name) ?? 0) + 1);
+		}
+	}
+	return [...counts].map(([name, count]) => ({ name, count }));
+};
+
 // A single chat's card title is the chat title, so renaming the card renames
 // the chat. A group has its own title label.
 export const renameCard = (
@@ -464,3 +517,41 @@ export const moveNote = (
 		undo: same ? "Moved note" : `Moved note to "${to.title}"`,
 	};
 };
+
+/**
+ * Labels for a chat created from the board, sent with the create request so
+ * the chat is born in place and no label write can race the list refetch.
+ * Null for an unknown card.
+ */
+export const newChatLabels = (
+	state: BoardState,
+	target: DraftTarget,
+): Record<string, string> | null => {
+	if ("column" in target) {
+		const first = columnCards(state, target.column)[0];
+		return setPositionLabel(
+			setColumnLabel({}, target.column),
+			keyBetween(undefined, first && placementKey(first.primary)),
+		);
+	}
+	const card = cardOf(state, target.cardId);
+	if (!card) return null;
+	// Members carry no position; the card's primary places the group. The
+	// chat has no id yet, so nothing can equal the primary here.
+	return setColumnLabel(setGroupLabel({}, card.id, ""), card.column);
+};
+
+/** The card as text for a new chat's first message, when the user asks for it. */
+export const cardContext = (card: BoardCard): string =>
+	[
+		"Card context",
+		`Title: ${card.title}`,
+		card.comments.length
+			? ["Notes:", ...card.comments.map((note) => `- ${note.text}`)].join("\n")
+			: "Notes: none",
+		"Chats:",
+		...card.members.map(
+			(chat) =>
+				`- ${chat.title} (${chat.id}) status: ${chat.status}; last turn: ${chat.last_turn_summary ?? "none"}`,
+		),
+	].join("\n");
