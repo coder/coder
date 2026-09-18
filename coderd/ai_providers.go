@@ -897,30 +897,34 @@ func lookupAndMergeSettings(ctx context.Context, db database.Store, idOrName str
 }
 
 // mergeAIProviderSettings overlays a patch onto an existing settings
-// value. Write-only fields (Bedrock AccessKey and AccessKeySecret) use
-// pointers so the patch can distinguish "omitted, keep existing" (nil)
+// value. The patch is a full replacement: omitting every variant clears
+// the settings. Write-only fields (Bedrock AccessKey and AccessKeySecret)
+// use pointers so the patch can distinguish "omitted, keep existing" (nil)
 // from "explicitly clear" (pointer to empty string) - e.g. when an
 // admin migrates from static AWS credentials to IAM role-based auth
-// in a single PATCH.
+// in a single PATCH. Upstream headers carry no secrets and are replaced
+// verbatim.
 func mergeAIProviderSettings(existing, patch codersdk.AIProviderSettings) codersdk.AIProviderSettings {
-	if patch.Bedrock == nil {
+	if patch.IsZero() {
 		// Patch carries no type-specific data; treat as a clear.
 		return codersdk.AIProviderSettings{}
 	}
-	merged := *patch.Bedrock
-	if existing.Bedrock != nil {
-		if merged.AccessKey == nil {
-			merged.AccessKey = existing.Bedrock.AccessKey
+	merged := patch
+	if patch.Bedrock != nil && existing.Bedrock != nil {
+		b := *patch.Bedrock
+		if b.AccessKey == nil {
+			b.AccessKey = existing.Bedrock.AccessKey
 		}
-		if merged.AccessKeySecret == nil {
-			merged.AccessKeySecret = existing.Bedrock.AccessKeySecret
+		if b.AccessKeySecret == nil {
+			b.AccessKeySecret = existing.Bedrock.AccessKeySecret
 		}
 		// The external ID is server-owned and stable: carry the stored value
 		// forward so a patch can't change it. A patch that sets a different
 		// value is rejected upstream.
-		merged.ExternalID = existing.Bedrock.ExternalID
+		b.ExternalID = existing.Bedrock.ExternalID
+		merged.Bedrock = &b
 	}
-	return codersdk.AIProviderSettings{Bedrock: &merged}
+	return merged
 }
 
 // validateBedrockExternalIDUnchanged rejects a patch that sets a Bedrock

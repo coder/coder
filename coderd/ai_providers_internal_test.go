@@ -87,3 +87,57 @@ func TestMergeAIProviderSettingsExternalID(t *testing.T) {
 	require.Equal(t, roleARN, merged.Bedrock.RoleARN)
 	require.Equal(t, "stored-value", merged.Bedrock.ExternalID)
 }
+
+// TestMergeAIProviderSettingsUpstreamHeaders verifies PATCH merge semantics
+// for the headers variant: a headers patch replaces stored settings verbatim
+// (headers carry no secrets to carry forward), and a zero patch clears.
+func TestMergeAIProviderSettingsUpstreamHeaders(t *testing.T) {
+	t.Parallel()
+
+	headers := func(h map[string]string) codersdk.AIProviderSettings {
+		return codersdk.AIProviderSettings{
+			UpstreamHeaders: &codersdk.AIProviderUpstreamHeadersSettings{Headers: h},
+		}
+	}
+
+	t.Run("HeadersPatchReplacesBedrock", func(t *testing.T) {
+		t.Parallel()
+		existing := codersdk.AIProviderSettings{Bedrock: &codersdk.AIProviderBedrockSettings{Region: "us-east-1"}}
+		patch := headers(map[string]string{"X-A": "b"})
+		merged := mergeAIProviderSettings(existing, patch)
+		require.Nil(t, merged.Bedrock)
+		require.Equal(t, map[string]string{"X-A": "b"}, merged.UpstreamHeaders.Headers)
+	})
+
+	t.Run("HeadersPatchReplacesHeaders", func(t *testing.T) {
+		t.Parallel()
+		existing := headers(map[string]string{"X-Old": "1"})
+		patch := headers(map[string]string{"X-New": "2"})
+		merged := mergeAIProviderSettings(existing, patch)
+		require.Equal(t, map[string]string{"X-New": "2"}, merged.UpstreamHeaders.Headers)
+	})
+
+	t.Run("ZeroPatchClears", func(t *testing.T) {
+		t.Parallel()
+		existing := headers(map[string]string{"X-Old": "1"})
+		merged := mergeAIProviderSettings(existing, codersdk.AIProviderSettings{})
+		require.True(t, merged.IsZero())
+	})
+
+	t.Run("BedrockPatchPreservesSecrets", func(t *testing.T) {
+		t.Parallel()
+		// A bedrock patch over headers-only settings has no stored secrets
+		// to carry forward; it applies verbatim.
+		secret := "secret"
+		existing := headers(map[string]string{"X-Old": "1"})
+		patch := codersdk.AIProviderSettings{Bedrock: &codersdk.AIProviderBedrockSettings{
+			Region:          "us-east-1",
+			AccessKeySecret: &secret,
+		}}
+		merged := mergeAIProviderSettings(existing, patch)
+		require.Nil(t, merged.UpstreamHeaders)
+		require.NotNil(t, merged.Bedrock)
+		require.Equal(t, "us-east-1", merged.Bedrock.Region)
+		require.Equal(t, &secret, merged.Bedrock.AccessKeySecret)
+	})
+}
