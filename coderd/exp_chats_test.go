@@ -17163,6 +17163,12 @@ func TestPostChats_DynamicToolValidation(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.NotEqual(t, uuid.Nil, chat.ID)
+
+		err = client.SubmitToolResults(ctx, chat.ID, codersdk.SubmitToolResultsRequest{
+			Results: []codersdk.ToolResult{{ToolCallID: "call_abc", Output: json.RawMessage(`"result"`)}},
+		})
+		sdkErr = requireSDKError(t, err, http.StatusForbidden)
+		require.Equal(t, "Caller-supplied tools are disabled on this deployment.", sdkErr.Message)
 	})
 }
 

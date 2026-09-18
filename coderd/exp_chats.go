@@ -8173,6 +8173,14 @@ func (api *API) postChatToolResults(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if api.DeploymentValues.DisableChatCallerSuppliedTools.Value() {
+		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+			Message: "Caller-supplied tools are disabled on this deployment.",
+			Detail:  "The server runs with --disable-chat-caller-supplied-tools. Interrupt the chat to cancel the pending tool calls.",
+		})
+		return
+	}
+
 	// Cap the raw request body to prevent excessive memory use.
 	var req codersdk.SubmitToolResultsRequest
 
