@@ -199,8 +199,7 @@ data "coder_parameter" "enable_kvm" {
   mutable     = true
 }
 
-# dogfood/main.tf injects this value from a GH Actions secret;
-# `coderd_template.dogfood` passes the value injected by .github/workflows/dogfood.yaml in `TF_VAR_CODER_DOGFOOD_ANTHROPIC_API_KEY` and `TF_VAR_CODER_DOGFOOD_OPENAI_API_KEY`.
+# Injected by the pipeline that pushes this template.
 # Currently unused since AI Gateway is always enabled, but kept for emergency fallback.
 variable "anthropic_api_key" {
   type        = string

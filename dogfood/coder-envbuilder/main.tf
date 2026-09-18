@@ -16,7 +16,7 @@ terraform {
 locals {
   // These are cluster service addresses mapped to Tailscale nodes.
   // Ask #dogfood-admins for help.
-  // NOTE: keep these up to date with those in ../dogfood/main.tf!
+  // NOTE: keep these up to date with those in ../coder/main.tf!
   docker_host = {
     ""              = "tcp://rubinsky-pit-cdr-dev.tailscale.svc.cluster.local:2375"
     "us-pittsburgh" = "tcp://rubinsky-pit-cdr-dev.tailscale.svc.cluster.local:2375"

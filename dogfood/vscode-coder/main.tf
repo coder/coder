@@ -123,8 +123,8 @@ data "coder_parameter" "use_ai_gateway" {
   mutable     = true
 }
 
-# Fallback when AI Gateway is disabled. Injected by dogfood/main.tf
-# from the CODER_DOGFOOD_ANTHROPIC_API_KEY secret.
+# Fallback when AI Gateway is disabled. Injected by the pipeline that
+# pushes this template.
 variable "anthropic_api_key" {
   type        = string
   description = "Anthropic API key, used when AI Gateway is disabled."
