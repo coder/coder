@@ -100,10 +100,6 @@ func (req *OAuth2ClientRegistrationRequest) Validate() error {
 		}
 	}
 
-	if err := ValidateOAuth2ScopeList(req.Scope); err != nil {
-		return xerrors.Errorf("invalid scope: %w", err)
-	}
-
 	return nil
 }
 
