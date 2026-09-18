@@ -683,6 +683,23 @@ export const SidebarFilterMenu: Story = {
 	},
 };
 
+export const SidebarAreaMenuOpen: Story = {
+	args: {
+		chats: sectionHeaderChats,
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents" },
+			routing: agentsRouting,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		await userEvent.click(canvas.getByRole("button", { name: "Agents" }));
+	},
+};
+
 export const SearchDialogKeyboardShortcut: Story = {
 	render: ChatsSidebarWithKeybindings,
 	args: {
