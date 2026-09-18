@@ -3,7 +3,7 @@ import {
 	type SupportedLanguages,
 } from "@pierre/diffs/react";
 import { cn } from "cn";
-import type { ComponentProps, ReactNode } from "react";
+import { type ComponentProps, type ReactNode, useState } from "react";
 import {
 	type Components,
 	defaultRehypePlugins,
@@ -13,6 +13,7 @@ import {
 import { useTheme } from "#/theme/context";
 import { MarkdownImage } from "./MarkdownImage";
 import { MermaidDiagram } from "./MermaidDiagram";
+import { createStreamingBlockParser } from "./streamingBlockParser";
 
 interface ResponseProps extends Omit<ComponentProps<"div">, "children"> {
 	children: string;
@@ -293,6 +294,10 @@ export const Response = ({
 	const fileViewerThemeType: FileViewerThemeType =
 		theme.palette.mode === "dark" ? "dark" : "light";
 	const components = componentsByTheme[fileViewerThemeType];
+	// One parser per Response instance so its cache follows this message's
+	// text. It is only used while streaming; the switch back to Streamdown's
+	// own parser at the end of the stream re-splits the final text once.
+	const [parseStreamingBlocks] = useState(() => createStreamingBlockParser());
 
 	return (
 		<div
@@ -310,6 +315,7 @@ export const Response = ({
 				rehypePlugins={chatRehypePlugins}
 				mode={streaming ? "streaming" : "static"}
 				parseIncompleteMarkdown={streaming}
+				parseMarkdownIntoBlocksFn={streaming ? parseStreamingBlocks : undefined}
 				// Streamdown only flags the trailing block as an
 				// incomplete code fence while isAnimating is set, which
 				// MermaidDiagram relies on to defer rendering.
