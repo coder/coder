@@ -208,7 +208,7 @@ func (p *Server) extractProjectMemoriesOnce(ctx context.Context, logger slog.Log
 func applyProjectMemoryUpsert(ctx context.Context, store database.Store, chat database.Chat, upsert projectMemoryExtractionUpsert) error {
 	normalized, err := normalizeProjectMemoryExtraction(upsert)
 	if err != nil {
-		return xerrors.Errorf("%w: %w", errInvalidProjectMemoryUpsert, err)
+		return xerrors.Errorf("%w: %v", errInvalidProjectMemoryUpsert, err)
 	}
 	_, err = chattool.InsertProjectMemory(ctx, store, database.InsertChatProjectMemoryParams{
 		ID: uuid.NullUUID{}, ProjectID: chat.ProjectID.UUID, OrganizationID: chat.OrganizationID,
