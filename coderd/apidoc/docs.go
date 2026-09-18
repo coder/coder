@@ -19764,6 +19764,9 @@ const docTemplate = `{
                 },
                 "hook_url": {
                     "$ref": "#/definitions/serpent.URL"
+                },
+                "stream_silence_timeout": {
+                    "type": "integer"
                 }
             }
         },
