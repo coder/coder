@@ -262,6 +262,7 @@ Notice that the `Acquire` and `Abandon` transitions only affect ownership state,
 - Any transition that's not `CompleteRequiresAction` which supports `A0` or `A1` as input states, and lands in output states different from `A0` and `A1`, must insert synthetic, cancellation tool-call results for pending dynamic tool calls to avoid corrupting the message history.
 - Any transition that inserts a new user message into active history must answer outstanding tool calls in active history before inserting the user message. It may do this by inserting synthetic cancellation tool-call results.
 - Any transition leaving `E0` or `E1` (except `SetArchived(true)`) should clear the `last_error` field.
+    <!-- TODO(compaction-tools): CommitStep(RequestCompaction) sets compaction_requested_at from R0 and R1 while the turn continues; it carries the rest of the execution state forward and grants no history epoch beyond the insert trigger. RequestCompaction and ConsumeCompactionRequest on one CommitStep is a transition error. The chats.compaction_requested_at column comment still says the marker is set only by a manual request. -->
 
 ### Invalid states
 
@@ -1030,6 +1031,8 @@ Users can also request a compaction on demand via `POST /api/experimental/chats/
 4. The compaction `CommitStep` consumes the request by clearing `compaction_requested_at` in the same transaction that commits the summary triplet. The next decision pass finds the history complete and finishes the turn, so a chat with an empty queue returns to `waiting` with no assistant follow-up; a chat compacted from `E1` proceeds to its queued messages instead. A `post_compact` hook effect is the one exception: because the decision reads user-visible history, an effect that commits a user-visible message leaves the history incomplete and the turn continues with an assistant response. A model-only effect such as `model_context` reaches the model without resuming generation.
 
 The `compaction_requested_at` marker is one-shot: transitions that keep an active turn alive (`Acquire`, `Abandon`, `SetArchived`, queueing a message on a busy chat) carry it forward, while every other transition that rewrites the execution state (`FinishTurn`, `FinishError`, `Interrupt`, `EditMessage`, `PromoteQueuedMessage`, `CancelRequiresAction`, `ReconcileInvalidState`, and so on) clears it by construction, so a stale request can never replay on a later turn.
+
+<!-- TODO(compaction-tools): CommitStep(RequestCompaction) is a second setter of the marker, used by the worker mid-turn; the same one-shot rules apply to it. -->
 
 # Lifecycle hooks
 
