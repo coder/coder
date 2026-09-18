@@ -63,7 +63,6 @@ const meta = {
 		organizations: [MockOrganization, MockOrganization2],
 		organization: MockOrganization,
 		onOrganizationChange: fn(),
-		requestedOrganizationDenied: false,
 		isOrganizationsLoading: false,
 		organizationsError: null,
 		dateRange: defaultDateRange,
@@ -230,7 +229,7 @@ export const OrganizationMenu: Story = {
 };
 
 export const RequestedOrganizationDenied: Story = {
-	args: { requestedOrganizationDenied: true },
+	args: { organization: undefined },
 };
 
 export const Mobile: Story = {

@@ -5,6 +5,7 @@ import { Alert } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import type { DateRangeValue } from "#/components/DateRangePicker/DateRangePicker";
 import { Loader } from "#/components/Loader/Loader";
+import { OrganizationAutocomplete } from "#/components/OrganizationAutocomplete/OrganizationAutocomplete";
 import type { PaginationResult } from "#/components/PaginationWidget/PaginationContainer";
 import {
 	SettingsHeader,
@@ -42,7 +43,6 @@ interface SpendPageViewProps {
 	organizations: readonly TypesGen.Organization[];
 	organization: TypesGen.Organization | undefined;
 	onOrganizationChange: (organization: TypesGen.Organization) => void;
-	requestedOrganizationDenied: boolean;
 	isOrganizationsLoading: boolean;
 	organizationsError: unknown;
 	dateRange: DateRangeValue | undefined;
@@ -60,7 +60,6 @@ export const SpendPageView: FC<SpendPageViewProps> = ({
 	organizations,
 	organization,
 	onOrganizationChange,
-	requestedOrganizationDenied,
 	isOrganizationsLoading,
 	organizationsError,
 	dateRange,
@@ -90,7 +89,7 @@ export const SpendPageView: FC<SpendPageViewProps> = ({
 			</SettingsHeader>
 			{isOrganizationsLoading ? (
 				<Loader />
-			) : organization === undefined ? (
+			) : organizations.length === 0 ? (
 				organizationsError != null ? (
 					<ErrorAlert error={organizationsError} />
 				) : (
@@ -103,24 +102,44 @@ export const SpendPageView: FC<SpendPageViewProps> = ({
 					{organizationsError != null && (
 						<ErrorAlert error={organizationsError} />
 					)}
-					<SpendFilters
-						organizations={organizations}
-						organization={organization}
-						onOrganizationChange={onOrganizationChange}
-						menus={filterMenus}
-						now={now}
-						dateRange={dateRange && toInclusiveDateRange(dateRange)}
-						minDate={minDate}
-						isReportLoading={usersQuery.isLoading}
-						onDateRangeChange={onDateRangeChange}
-					/>
-					{requestedOrganizationDenied && (
-						<Alert severity="warning">
-							The requested organization is not available. Showing spend for{" "}
-							{organization.display_name || organization.name} instead.
-						</Alert>
+					{organization ? (
+						<>
+							<SpendFilters
+								organizations={organizations}
+								organization={organization}
+								onOrganizationChange={onOrganizationChange}
+								menus={filterMenus}
+								now={now}
+								dateRange={dateRange && toInclusiveDateRange(dateRange)}
+								minDate={minDate}
+								isReportLoading={usersQuery.isLoading}
+								onDateRangeChange={onDateRangeChange}
+							/>
+							<SpendUsersTable usersQuery={usersQuery} />
+						</>
+					) : (
+						// The URL requested an organization outside the permitted list,
+						// so nothing is selected and no report is shown.
+						<>
+							<OrganizationAutocomplete
+								value={null}
+								ariaLabel="Organization"
+								options={organizations}
+								required
+								triggerClassName="w-60"
+								optionsTabbable
+								onChange={(next) => {
+									if (next) {
+										onOrganizationChange(next);
+									}
+								}}
+							/>
+							<Alert severity="warning">
+								This organization is unavailable, or you don't have access to
+								it.
+							</Alert>
+						</>
 					)}
-					<SpendUsersTable usersQuery={usersQuery} />
 				</>
 			)}
 		</div>

@@ -149,17 +149,29 @@ it("requests the server's budget period when the URL has no dates", async () => 
 	expect(spendSpy.mock.calls[0][1]).not.toHaveProperty("period_end");
 });
 
-it("falls back to the default organization when the requested one is not permitted", async () => {
-	const { spendSpy } = renderSpend(`${initialSearch}&organization=missing`);
-	await screen.findByRole("table", { name: "Spend by user" });
-	expect(spendSpy).toHaveBeenCalledWith(
-		MockOrganization.id,
-		expect.objectContaining(period),
+it("requests no spend for a denied organization until another one is picked", async () => {
+	const user = userEvent.setup();
+	const { router, spendSpy } = renderSpend(
+		`${initialSearch}&organization=missing`,
+	);
+	await screen.findByRole("alert");
+	expect(spendSpy).not.toHaveBeenCalled();
+
+	await user.click(screen.getByRole("button", { name: "Organization" }));
+	await user.click(
+		await screen.findByRole("option", { name: /My Organization 2/ }),
+	);
+	await waitFor(() =>
+		expect(spendSpy).toHaveBeenCalledWith(
+			MockOrganization2.id,
+			expect.objectContaining(period),
+		),
 	);
 	expect(spendSpy).not.toHaveBeenCalledWith(
-		MockOrganization2.id,
+		MockOrganization.id,
 		expect.anything(),
 	);
+	expect(searchParam(router, "organization")).toBe(MockOrganization2.name);
 });
 
 it("applies a date preset and resets pagination", async () => {

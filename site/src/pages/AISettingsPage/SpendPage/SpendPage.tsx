@@ -132,7 +132,11 @@ const SpendPage: FC<SpendPageProps> = ({ now }) => {
 		organizationsQuery.data ?? [],
 		searchParams.get(organizationSearchParam),
 	);
-	const organization = organizationSelection.organization;
+	// A requested organization the viewer cannot see gets a warning, not
+	// another organization's spend.
+	const organization = organizationSelection.requestedOrganizationDenied
+		? undefined
+		: organizationSelection.organization;
 
 	const dimensions: SpendDimensions = canFilterDimensions
 		? {
@@ -227,9 +231,6 @@ const SpendPage: FC<SpendPageProps> = ({ now }) => {
 				organization={organization}
 				onOrganizationChange={(next) =>
 					setFilterParams({ [organizationSearchParam]: next.name })
-				}
-				requestedOrganizationDenied={
-					organizationSelection.requestedOrganizationDenied
 				}
 				isOrganizationsLoading={organizationsQuery.isLoading}
 				organizationsError={organizationsQuery.error}
