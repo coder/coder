@@ -22,6 +22,7 @@ func (r *RootCmd) enterpriseOnly() []*serpent.Command {
 		r.agentFirewall(),
 		r.boundaryAlias(),
 		r.workspaceProxy(),
+		r.exitNode(),
 		r.features(),
 		r.licenses(),
 		r.groups(),
