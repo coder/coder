@@ -137,11 +137,11 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, depth = 0 }) => {
 	// When exactly one PR is tracked, pair its icon with its line
 	// stats. The primary row can be a newer branch-only ref whose
 	// counts are zeroed.
-	const diffStatus = prStatuses.length === 1 ? prStatuses[0] : undefined;
-	const hasLinkedDiffStatus = Boolean(diffStatus?.url);
-	const changedFiles = diffStatus?.changed_files ?? 0;
-	const additions = diffStatus?.additions ?? 0;
-	const deletions = diffStatus?.deletions ?? 0;
+	const solePR = prStatuses.length === 1 ? prStatuses[0] : undefined;
+	const hasLinkedDiffStatus = Boolean(solePR?.url);
+	const changedFiles = solePR?.changed_files ?? 0;
+	const additions = solePR?.additions ?? 0;
+	const deletions = solePR?.deletions ?? 0;
 	const hasLineStats = additions > 0 || deletions > 0 || changedFiles > 0;
 	const filesChangedLabel = `${changedFiles} ${
 		changedFiles === 1 ? "file" : "files"
