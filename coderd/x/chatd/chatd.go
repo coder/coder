@@ -3876,7 +3876,7 @@ func (p *Server) appendRootChatTools(
 			StoreFile:        opts.storeFile,
 		}))
 	}
-	tools = append(tools, clearContextTool(opts.messages))
+	tools = append(tools, clearContextTool(opts.messages), compactContextTool(opts.messages))
 
 	return append(tools, p.subagentTools(ctx, func() database.Chat {
 		return opts.chat

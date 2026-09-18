@@ -126,6 +126,71 @@ func TestRequestCompaction_ConsumedByCommitStep(t *testing.T) {
 		"CommitStep with ConsumeCompactionRequest clears the marker")
 }
 
+// TestCommitStep_RequestCompaction verifies a running turn can set the
+// marker from a step commit, that ordinary commits leave it set, that
+// the consume path clears it, and that both flags together are rejected.
+func TestCommitStep_RequestCompaction(t *testing.T) {
+	t.Parallel()
+	f := newTestFixture(t)
+	ctx := testutil.Context(t, testutil.WaitShort)
+	seeded := seedState(t, f, chatstate.StateR0)
+	m := chatstate.NewChatMachine(f.DB, f.Pub, seeded.chatID)
+	before := f.readChat(ctx, t, seeded.chatID)
+	require.False(t, before.CompactionRequestedAt.Valid)
+
+	step := func(role database.ChatMessageRole, text string) chatstate.Message {
+		msg := userTextMessage(text, f.User.ID, f.Model.ID)
+		msg.Role = role
+		return msg
+	}
+
+	require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+		_, err := tx.CommitStep(chatstate.CommitStepInput{
+			Messages:          []chatstate.Message{step(database.ChatMessageRoleTool, "compaction scheduled")},
+			RequestCompaction: true,
+		})
+		return err
+	}))
+	chat := f.readChat(ctx, t, seeded.chatID)
+	require.True(t, chat.CompactionRequestedAt.Valid, "CommitStep with RequestCompaction sets the marker")
+	require.Equal(t, before.Status, chat.Status)
+	require.Equal(t, before.WorkerID, chat.WorkerID)
+	require.Equal(t, before.RunnerID, chat.RunnerID)
+	require.Equal(t, before.LastError, chat.LastError)
+	require.Equal(t, before.Archived, chat.Archived)
+
+	require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+		_, err := tx.CommitStep(chatstate.CommitStepInput{
+			Messages: []chatstate.Message{step(database.ChatMessageRoleAssistant, "mid-step")},
+		})
+		return err
+	}))
+	chat = f.readChat(ctx, t, seeded.chatID)
+	require.True(t, chat.CompactionRequestedAt.Valid, "a plain CommitStep preserves the marker")
+
+	err := m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+		_, err := tx.CommitStep(chatstate.CommitStepInput{
+			Messages:                 []chatstate.Message{step(database.ChatMessageRoleAssistant, "both")},
+			RequestCompaction:        true,
+			ConsumeCompactionRequest: true,
+		})
+		return err
+	})
+	require.Error(t, err, "request and consume together is a transition error")
+	chat = f.readChat(ctx, t, seeded.chatID)
+	require.True(t, chat.CompactionRequestedAt.Valid)
+
+	require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+		_, err := tx.CommitStep(chatstate.CommitStepInput{
+			Messages:                 []chatstate.Message{step(database.ChatMessageRoleAssistant, "summary")},
+			ConsumeCompactionRequest: true,
+		})
+		return err
+	}))
+	chat = f.readChat(ctx, t, seeded.chatID)
+	require.False(t, chat.CompactionRequestedAt.Valid, "the consume path clears a step-requested marker")
+}
+
 // TestRequestCompaction_ClearedOnTerminalTransitions verifies that
 // every turn-terminal transition reachable from a pending request
 // clears the marker so it never replays on a later turn.
