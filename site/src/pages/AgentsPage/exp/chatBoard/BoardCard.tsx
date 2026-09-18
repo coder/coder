@@ -397,8 +397,15 @@ const ChatOpener: FC<ChatOpenerProps> = ({
 	onPreviewEnd,
 }) => (
 	<IconButton
-		aria-label={`Open ${chat.title}`}
-		title="Open chat"
+		aria-label={
+			chat.has_unread ? `Open ${chat.title}, unread` : `Open ${chat.title}`
+		}
+		title={chat.has_unread ? "Open chat (unread)" : "Open chat"}
+		// Unread lives on the chat icon in the sidebar's blue: the chat is what
+		// holds the unread messages.
+		className={cn(
+			chat.has_unread && "text-content-link hover:text-content-link",
+		)}
 		onPointerEnter={() => onPreview(chat)}
 		onPointerLeave={onPreviewEnd}
 		onClick={() => onOpen(chat)}

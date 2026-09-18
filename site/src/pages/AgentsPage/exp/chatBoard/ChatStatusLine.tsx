@@ -60,16 +60,8 @@ export const ChatStatusLine: FC<ChatStatusLineProps> = ({
 				// with the glyph, not the box.
 				<time
 					dateTime={chat.updated_at}
-					className={cn(
-						"ml-auto shrink-0 pr-1.5 text-[11px] tabular-nums",
-						// Unread is the sidebar's blue, worn by the age itself: the new
-						// thing is what happened at that time.
-						chat.has_unread
-							? "font-medium text-content-link"
-							: "text-content-secondary/70",
-					)}
+					className="ml-auto shrink-0 pr-1.5 text-[11px] tabular-nums text-content-secondary/70"
 				>
-					{chat.has_unread && <span className="sr-only">Unread, </span>}
 					{shortRelativeTime(chat.updated_at)}
 				</time>
 			)}
