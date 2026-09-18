@@ -158,9 +158,9 @@ func (t *Trigger) Trigger(
 	case agenthooks.EventPostToolUse:
 		data = agenthooks.PostToolUseData{ToolUseID: msg.ToolUseID, ToolName: msg.ToolName, ToolResponse: msg.ToolResponse, ToolError: msg.ToolError}
 	case agenthooks.EventPreCompact:
-		data = agenthooks.PreCompactData{}
+		data = agenthooks.PreCompactData{Source: msg.Source}
 	case agenthooks.EventPostCompact:
-		data = agenthooks.PostCompactData{}
+		data = agenthooks.PostCompactData{Source: msg.Source}
 	case agenthooks.EventStop:
 		data = agenthooks.StopData{}
 	default:

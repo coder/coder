@@ -1896,6 +1896,7 @@ var partNulFields = []partNulField{
 	{name: "ContextFileContent", policy: nulEncode, str: func(p *codersdk.ChatMessagePart) *string { return &p.ContextFileContent }},
 	{name: "SkillDescription", policy: nulEncode, str: func(p *codersdk.ChatMessagePart) *string { return &p.SkillDescription }},
 	{name: "Type", policy: nulReject, str: func(p *codersdk.ChatMessagePart) *string { return (*string)(&p.Type) }},
+	{name: "Severity", policy: nulReject, str: func(p *codersdk.ChatMessagePart) *string { return (*string)(&p.Severity) }},
 	{name: "ToolCallID", policy: nulReject, str: func(p *codersdk.ChatMessagePart) *string { return &p.ToolCallID }},
 	{name: "ToolName", policy: nulReject, str: func(p *codersdk.ChatMessagePart) *string { return &p.ToolName }},
 	{name: "ParsedCommands", policy: nulReject, grid: func(p *codersdk.ChatMessagePart) [][]string { return p.ParsedCommands }},

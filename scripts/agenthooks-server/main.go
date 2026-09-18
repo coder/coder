@@ -236,11 +236,15 @@ func run() error {
 			entry.ToolError = data.ToolError
 			return agenthooks.Response{}, logEvent(entry)
 		},
-		PreCompact: func(_ context.Context, meta agenthooks.Meta, _ agenthooks.PreCompactData) (agenthooks.Response, error) {
-			return agenthooks.Response{}, logEvent(baseEvent(agenthooks.EventPreCompact, meta))
+		PreCompact: func(_ context.Context, meta agenthooks.Meta, data agenthooks.PreCompactData) (agenthooks.Response, error) {
+			entry := baseEvent(agenthooks.EventPreCompact, meta)
+			entry.Source = data.Source
+			return agenthooks.Response{}, logEvent(entry)
 		},
-		PostCompact: func(_ context.Context, meta agenthooks.Meta, _ agenthooks.PostCompactData) (agenthooks.Response, error) {
-			return agenthooks.Response{}, logEvent(baseEvent(agenthooks.EventPostCompact, meta))
+		PostCompact: func(_ context.Context, meta agenthooks.Meta, data agenthooks.PostCompactData) (agenthooks.Response, error) {
+			entry := baseEvent(agenthooks.EventPostCompact, meta)
+			entry.Source = data.Source
+			return agenthooks.Response{}, logEvent(entry)
 		},
 		Stop: func(_ context.Context, meta agenthooks.Meta, _ agenthooks.StopData) (agenthooks.Response, error) {
 			return agenthooks.Response{}, logEvent(baseEvent(agenthooks.EventStop, meta))

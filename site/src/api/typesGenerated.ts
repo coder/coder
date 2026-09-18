@@ -1487,9 +1487,12 @@ export const AgentHookPermissionDecisions: AgentHookPermissionDecision[] = [
 
 // From agenthooks/types.go
 /**
- * PostCompactData is empty; Meta identifies the compacted chat.
+ * PostCompactData reports what triggered the compaction. Source takes
+ * the same values as PreCompactData.Source.
  */
-export interface AgentHookPostCompactData {}
+export interface AgentHookPostCompactData {
+	readonly source: string;
+}
 
 // From agenthooks/types.go
 /**
@@ -1505,9 +1508,13 @@ export interface AgentHookPostToolUseData {
 
 // From agenthooks/types.go
 /**
- * PreCompactData is empty; Meta identifies the chat being compacted.
+ * PreCompactData reports what triggered the compaction. Source is
+ * "automatic" (context usage threshold), "manual" (a user request), or
+ * "agent" (the compact_context tool).
  */
-export interface AgentHookPreCompactData {}
+export interface AgentHookPreCompactData {
+	readonly source: string;
+}
 
 // From agenthooks/types.go
 /**
@@ -3101,6 +3108,11 @@ export const ChatMessageRoles: ChatMessageRole[] = [
 	"user",
 ];
 
+export const ChatMessageSeverities: ChatMessageSeverity[] = ["warning"];
+
+// From codersdk/chats.go
+export type ChatMessageSeverity = "warning";
+
 // From codersdk/chats.go
 /**
  * ChatMessageUsage contains token usage information for a chat message.
@@ -3896,6 +3908,11 @@ export interface ChatSystemPromptResponse {
 export interface ChatTextPart {
 	readonly type: "text";
 	readonly text: string;
+	/**
+	 * Severity marks a text part written by the server as a status
+	 * notice. Absent on ordinary text.
+	 */
+	readonly severity?: ChatMessageSeverity;
 }
 
 // From codersdk/chats.go

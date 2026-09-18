@@ -29,12 +29,15 @@ func TestCompactionHooksHintAndPostCommitResponses(t *testing.T) {
 	t.Parallel()
 
 	var postSawCommitted atomic.Bool
+	var preSource, postSource atomic.Value
 	fixture := startCompactionHookChat(t,
 		func(t *testing.T, db database.Store, request agenthooks.Request) (int, string) {
 			switch request.Type {
 			case agenthooks.EventPreCompact:
+				preSource.Store(compactHookSource(t, request))
 				return http.StatusOK, `{"model_context":"preserve deployment constraints","user_message":"compaction starting"}`
 			case agenthooks.EventPostCompact:
+				postSource.Store(compactHookSource(t, request))
 				postSawCommitted.Store(hasCompactionRows(t, db, request.Meta.ChatID))
 				return http.StatusOK, `{"model_context":"post compact context","user_message":"compaction complete"}`
 			default:
@@ -56,6 +59,8 @@ func TestCompactionHooksHintAndPostCommitResponses(t *testing.T) {
 	require.Equal(t, int32(1), fixture.compactionCalls.Load())
 	require.Equal(t, int32(2), fixture.streamCalls.Load(),
 		"automatic compaction continues the turn, and hook effects must not suppress that")
+	require.Equal(t, "automatic", preSource.Load())
+	require.Equal(t, "automatic", postSource.Load())
 
 	userMessages := chatMessages(fixture.ctx, t, fixture.db, fixture.chat.ID)
 	promptMessages, err := fixture.db.GetChatMessagesForPromptByChatID(fixture.ctx, fixture.chat.ID)
@@ -164,11 +169,16 @@ func TestManualCompactionPostCompactEffects(t *testing.T) {
 			user, org, model := seedAnthropicChatDependencies(t, db, anthropicURL)
 			model = updateChatModelCompressionThreshold(t, db, model, 100, 70)
 
+			var preSource, postSource atomic.Value
 			consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				var request agenthooks.Request
 				require.NoError(t, json.NewDecoder(r.Body).Decode(&request))
 				body := `{}`
-				if request.Type == agenthooks.EventPostCompact {
+				switch request.Type {
+				case agenthooks.EventPreCompact:
+					preSource.Store(compactHookSource(t, request))
+				case agenthooks.EventPostCompact:
+					postSource.Store(compactHookSource(t, request))
 					body = test.postCompact
 				}
 				_, err := w.Write([]byte(body))
@@ -189,6 +199,8 @@ func TestManualCompactionPostCompactEffects(t *testing.T) {
 			chat = waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
 			require.False(t, chat.LastError.Valid)
 			require.Equal(t, int32(1), compactionCalls.Load())
+			require.Equal(t, "manual", preSource.Load())
+			require.Equal(t, "manual", postSource.Load())
 
 			wantStreams := int32(1)
 			if test.wantFollowUp {
@@ -201,6 +213,15 @@ func TestManualCompactionPostCompactEffects(t *testing.T) {
 			}
 		})
 	}
+}
+
+// compactHookSource decodes the source of a pre_compact or post_compact
+// request; both events share the data shape.
+func compactHookSource(t *testing.T, request agenthooks.Request) string {
+	t.Helper()
+	var data agenthooks.PreCompactData
+	require.NoError(t, json.Unmarshal(request.Data, &data))
+	return data.Source
 }
 
 type compactionHookFixture struct {
