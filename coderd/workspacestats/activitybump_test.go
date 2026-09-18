@@ -283,7 +283,7 @@ func Test_ActivityBumpWorkspace(t *testing.T) {
 				}
 				assert.NotEqual(t, bld.UpdatedAt.UTC(), updatedBuild.UpdatedAt.UTC(), "should have bumped updated_at")
 				if tt.maxDeadlineOffset != nil {
-					assert.Equal(t, bld.MaxDeadline.UTC(), updatedBuild.MaxDeadline.UTC(), "new deadline must equal original max deadline")
+					assert.Equal(t, bld.MaxDeadline.UTC(), updatedBuild.Deadline.UTC(), "new deadline must equal original max deadline")
 					return
 				}
 
