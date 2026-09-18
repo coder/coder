@@ -1264,7 +1264,7 @@ export const ChatSummarized: Story = {
 };
 
 // Automatic compactions include source: "automatic" but keep the
-// plain "Summarized" label; only manual ones are called out.
+// plain "Summarized" label; only manual and agent ones are called out.
 export const ChatSummarizedAutomaticSource: Story = {
 	args: {
 		name: "chat_summarized",
@@ -1298,11 +1298,46 @@ export const ChatSummarizedManualRunning: Story = {
 	},
 };
 
+// A compaction the assistant requested with compact_context.
+export const ChatSummarizedAgent: Story = {
+	args: {
+		name: "chat_summarized",
+		args: JSON.stringify({ source: "agent" }),
+		result: {
+			summary: "Agent-requested compaction summary text.",
+			source: "agent",
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const toggle = canvas.getByRole("button", { name: "Summarized (agent)" });
+		await userEvent.click(toggle);
+	},
+};
+
 export const ChatCleared: Story = {
 	args: {
 		name: "chat_cleared",
 		args: JSON.stringify({ source: "manual" }),
 		result: { source: "manual" },
+	},
+};
+
+// A clear the assistant requested with clear_context.
+export const ChatClearedAgent: Story = {
+	args: {
+		name: "chat_cleared",
+		args: JSON.stringify({ source: "agent" }),
+		result: { source: "agent" },
+	},
+};
+
+// An automatic source keeps the plain label, matching chat_summarized.
+export const ChatClearedAutomaticSource: Story = {
+	args: {
+		name: "chat_cleared",
+		args: JSON.stringify({ source: "automatic" }),
+		result: { source: "automatic" },
 	},
 };
 

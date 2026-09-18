@@ -640,15 +640,21 @@ const ReadTemplateRenderer: FC<ToolRendererProps> = ({
 
 const ChatClearedRenderer: FC<ToolRendererProps> = ({
 	status,
+	args,
 	result,
 	isError,
 }) => {
 	const rec = asRecord(result);
+	const argsRec = parseArgs(args);
+	const source =
+		(rec ? asString(rec.source) : "") ||
+		(argsRec ? asString(argsRec.source) : "");
 	return (
 		<ChatClearedTool
 			status={status}
 			isError={isError}
 			errorMessage={rec ? asString(rec.error || rec.message) : undefined}
+			source={source || undefined}
 		/>
 	);
 };
