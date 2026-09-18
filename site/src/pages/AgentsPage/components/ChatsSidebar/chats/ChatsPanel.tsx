@@ -15,12 +15,7 @@ import {
 	verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { cn } from "cn";
-import {
-	PanelLeftCloseIcon,
-	SearchIcon,
-	SettingsIcon,
-	SquarePenIcon,
-} from "lucide-react";
+import { PanelLeftCloseIcon, SearchIcon, SettingsIcon } from "lucide-react";
 import { type FC, useEffect, useRef, useState } from "react";
 import { Link, type Location, NavLink } from "react-router";
 import type { Chat, ChatModel } from "#/api/typesGenerated";
@@ -57,6 +52,7 @@ import {
 	PINNED_SECTION_KEY,
 } from "./ChatSectionHeader";
 import { LoadMoreSentinel } from "./LoadMoreSentinel";
+import { NewMenu } from "./NewMenu";
 import { UserSidebarFooter } from "./UserSidebarFooter";
 
 const UNREAD_SECTION_KEY = "Unread";
@@ -78,6 +74,7 @@ interface ChatsPanelProps {
 	readonly onUnpinAgent: (chatId: string) => void;
 	readonly onReorderPinnedAgent?: (chatId: string, pinOrder: number) => void;
 	readonly onBeforeNewAgent?: () => void;
+	readonly onNewProject?: () => void;
 	readonly onOpenSearchDialog?: () => void;
 	readonly onOpenRenameDialog?: (chat: Chat) => void;
 	readonly isCreating: boolean;
@@ -111,6 +108,7 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 	onUnpinAgent,
 	onReorderPinnedAgent,
 	onBeforeNewAgent,
+	onNewProject,
 	onOpenSearchDialog,
 	onOpenRenameDialog,
 	isCreating,
@@ -399,13 +397,12 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 						)}
 					</div>
 				</div>
-				<SettingsNavItem
-					icon={SquarePenIcon}
-					label="New chat"
+				<NewMenu
 					active={isChatsActive}
-					to={{ pathname: "/agents", search: locationSearch }}
-					onClick={onBeforeNewAgent}
 					disabled={isCreating}
+					newChatTo={{ pathname: "/agents", search: locationSearch }}
+					onNewChat={onBeforeNewAgent}
+					onNewProject={onNewProject}
 				/>
 				{onOpenSearchDialog && (
 					<SettingsNavItem
@@ -424,6 +421,7 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 					/>
 				)}
 			</nav>
+			<hr className="m-0 hidden w-full border-0 border-t border-solid sm:block" />
 			<div className="relative min-h-0 flex-1 flex flex-col">
 				<div className="mx-2 pt-6 mb-1.5">
 					<div className="ml-2.5 mr-2 flex h-7 items-center justify-between">
