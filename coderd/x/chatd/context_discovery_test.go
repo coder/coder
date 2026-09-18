@@ -933,16 +933,39 @@ func TestLazyInstructionDiscoveryReadsInventoryInsideTransaction(t *testing.T) {
 func TestLazyInstructionDiscoveryFollowsSwitchedAgent(t *testing.T) {
 	t.Parallel()
 
+	// The workspace is rebuilt after the step is prepared, either while the
+	// model answers, so the tools' connection switches the turn to the new
+	// agent, or while the read runs, so discovery's own connection lookup
+	// does. Either way discovery must work from the agent it reaches.
+	for _, tc := range []struct {
+		name string
+		at   rebuildPoint
+	}{{name: "BeforeTools", at: rebuildWhileModelAnswers}, {name: "DuringTool", at: rebuildWhileToolRuns}} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			runSwitchedAgentDiscovery(t, tc.at)
+		})
+	}
+}
+
+// rebuildPoint is when runSwitchedAgentDiscovery rebuilds the workspace.
+type rebuildPoint int
+
+const (
+	rebuildWhileModelAnswers rebuildPoint = iota
+	rebuildWhileToolRuns
+)
+
+func runSwitchedAgentDiscovery(t *testing.T, at rebuildPoint) {
 	ctx := testutil.Context(t, testutil.WaitLong)
 	db, ps := dbtestutil.NewDB(t)
 	//nolint:gocritic // Seeding and reading workspace rows as the chatd subject.
 	chatdCtx := dbauthz.AsChatd(ctx)
 
-	// The workspace is rebuilt after the step is prepared: the model's
-	// first answer finds the prepared agent disconnected and a new build's
-	// agent, which works one directory up, in its place. The same touched
-	// file therefore has one more nested scope below the working directory.
-	// The rows the answer needs are seeded below, before the chat exists.
+	// The prepared agent is marked disconnected and a new build's agent,
+	// which works one directory up, takes its place. The same touched file
+	// therefore has one more nested scope below the working directory. The
+	// rows the rebuild needs are seeded below, before the chat exists.
 	var (
 		user         database.User
 		org          database.Organization
@@ -952,30 +975,35 @@ func TestLazyInstructionDiscoveryFollowsSwitchedAgent(t *testing.T) {
 		currentAgent atomic.Pointer[database.WorkspaceAgent]
 		modelCalls   atomic.Int32
 	)
+	rebuild := func() {
+		now := dbtime.Now()
+		require.NoError(t, db.UpdateWorkspaceAgentConnectionByID(chatdCtx, database.UpdateWorkspaceAgentConnectionByIDParams{
+			ID:                     staleAgent.ID,
+			FirstConnectedAt:       sql.NullTime{Time: now.Add(-2 * time.Hour), Valid: true},
+			LastConnectedAt:        sql.NullTime{Time: now.Add(-2 * time.Hour), Valid: true},
+			DisconnectedAt:         sql.NullTime{Time: now.Add(-time.Hour), Valid: true},
+			UpdatedAt:              now,
+			LastConnectedReplicaID: uuid.NullUUID{},
+		}))
+		job := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{InitiatorID: user.ID, OrganizationID: org.ID})
+		_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+			TemplateVersionID: build.TemplateVersionID,
+			WorkspaceID:       ws.ID,
+			JobID:             job.ID,
+			BuildNumber:       build.BuildNumber + 1,
+		})
+		resource := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{Transition: database.WorkspaceTransitionStart, JobID: job.ID})
+		agent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{ResourceID: resource.ID, Directory: "/home/coder", OperatingSystem: "linux"})
+		currentAgent.Store(&agent)
+	}
 	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
 		if !req.Stream {
 			return chattest.OpenAINonStreamingResponse("title")
 		}
 		if modelCalls.Add(1) == 1 {
-			now := dbtime.Now()
-			require.NoError(t, db.UpdateWorkspaceAgentConnectionByID(chatdCtx, database.UpdateWorkspaceAgentConnectionByIDParams{
-				ID:                     staleAgent.ID,
-				FirstConnectedAt:       sql.NullTime{Time: now.Add(-2 * time.Hour), Valid: true},
-				LastConnectedAt:        sql.NullTime{Time: now.Add(-2 * time.Hour), Valid: true},
-				DisconnectedAt:         sql.NullTime{Time: now.Add(-time.Hour), Valid: true},
-				UpdatedAt:              now,
-				LastConnectedReplicaID: uuid.NullUUID{},
-			}))
-			job := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{InitiatorID: user.ID, OrganizationID: org.ID})
-			_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
-				TemplateVersionID: build.TemplateVersionID,
-				WorkspaceID:       ws.ID,
-				JobID:             job.ID,
-				BuildNumber:       build.BuildNumber + 1,
-			})
-			resource := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{Transition: database.WorkspaceTransitionStart, JobID: job.ID})
-			agent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{ResourceID: resource.ID, Directory: "/home/coder", OperatingSystem: "linux"})
-			currentAgent.Store(&agent)
+			if at == rebuildWhileModelAnswers {
+				rebuild()
+			}
 			return chattest.OpenAIStreamingResponse(chattest.OpenAIToolCallChunk("read_file", `{"path":"`+discoveryTouchedFile+`"}`))
 		}
 		return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("done")...)
@@ -992,7 +1020,12 @@ func TestLazyInstructionDiscoveryFollowsSwitchedAgent(t *testing.T) {
 	mockConn := agentconnmock.NewMockAgentConn(ctrl)
 	setupDiscoveryAgentConn(mockConn)
 	mockConn.EXPECT().ReadFileLines(gomock.Any(), discoveryTouchedFile, int64(1), int64(0), gomock.Any()).
-		Return(workspacesdk.ReadFileLinesResponse{Success: true, FileSize: 4, TotalLines: 1, LinesRead: 1, Content: "data"}, nil)
+		DoAndReturn(func(context.Context, string, int64, int64, workspacesdk.ReadFileLinesLimits) (workspacesdk.ReadFileLinesResponse, error) {
+			if at == rebuildWhileToolRuns {
+				rebuild()
+			}
+			return workspacesdk.ReadFileLinesResponse{Success: true, FileSize: 4, TotalLines: 1, LinesRead: 1, Content: "data"}, nil
+		})
 	mockConn.EXPECT().ResolveContextInstructions(gomock.Any(), workspacesdk.ResolveContextInstructionsRequest{
 		Directories: []string{"/home/coder/project", discoveryNestedDir, discoveryNestedDir + "/src"},
 	}).Return(instructionFileResponse(discoveryNestedDir, discoveryNestedSource, "site rules"), nil)
@@ -1029,6 +1062,6 @@ func TestLazyInstructionDiscoveryFollowsSwitchedAgent(t *testing.T) {
 	current, err := db.GetChatByID(chatdCtx, chat.ID)
 	require.NoError(t, err)
 	require.NotNil(t, currentAgent.Load(), "the model was called")
-	require.Equal(t, currentAgent.Load().ID, current.AgentID.UUID, "the tools rebound the chat to the current agent")
+	require.Equal(t, currentAgent.Load().ID, current.AgentID.UUID, "the turn rebound the chat to the current agent")
 	require.True(t, pinnedBySource(ctx, t, db, chat.ID)[discoveryNestedSource].Discovered)
 }

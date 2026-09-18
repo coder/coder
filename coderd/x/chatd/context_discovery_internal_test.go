@@ -45,32 +45,51 @@ func TestTouchedPaths(t *testing.T) {
 	results := []fantasy.Content{
 		result("read"), result("write"), result("edit"), result("exec"), result("exec-default"), result("other"), result("bad"),
 	}
+	touched := func(operatingSystem string, calls []fantasy.ToolCallContent, results []fantasy.Content) (files, dirs []string) {
+		files, dirs = touchedPaths(calls, results)
+		return agentTouchedPaths(files, dirs, operatingSystem)
+	}
 
 	files, dirs := touchedPaths(calls, results)
 	require.Equal(t, []string{
 		"/home/coder/project/site/src/App.tsx",
+		"/home/coder/project/docs/../README.md",
+		"/tmp/repo/a.go",
+		"relative/b.go",
+	}, files, "paths are trimmed like the file tools do; calls without a result are ignored")
+	require.Equal(t, []string{"/tmp/repo/pkg"}, dirs, "only an explicit workdir counts")
+
+	files, dirs = touched("linux", calls, results)
+	require.Equal(t, []string{
+		"/home/coder/project/site/src/App.tsx",
 		"/home/coder/project/README.md",
 		"/tmp/repo/a.go",
-	}, files, "paths are trimmed like the file tools do and cleaned; relative paths and calls without a result are ignored")
-	require.Equal(t, []string{"/tmp/repo/pkg"}, dirs, "only an explicit workdir counts")
+	}, files, "paths are cleaned and relative paths dropped")
+	require.Equal(t, []string{"/tmp/repo/pkg"}, dirs)
 
 	// A Windows agent reports drive-rooted paths with backslashes; they
 	// are normalized to forward slashes so the same logic applies.
-	files, dirs = touchedPaths([]fantasy.ToolCallContent{
+	winCalls := []fantasy.ToolCallContent{
 		call("win-read", "read_file", `{"path":"C:\\repo\\site\\App.tsx"}`),
 		call("win-exec", "execute", `{"command":"dir","workdir":"C:\\repo\\pkg"}`),
 		call("win-rel", "read_file", `{"path":"repo\\App.tsx"}`),
 		call("unc-read", "read_file", `{"path":"\\\\server\\share\\repo\\App.tsx"}`),
 		call("unc-exec", "execute", `{"command":"dir","workdir":"//server/share/repo"}`),
-	}, []fantasy.Content{result("win-read"), result("win-exec"), result("win-rel"), result("unc-read"), result("unc-exec")})
+	}
+	winResults := []fantasy.Content{result("win-read"), result("win-exec"), result("win-rel"), result("unc-read"), result("unc-exec")}
+	files, dirs = touched("windows", winCalls, winResults)
 	require.Equal(t, []string{"C:/repo/site/App.tsx"}, files, "a UNC path is not probed")
 	require.Equal(t, []string{"C:/repo/pkg"}, dirs)
 
-	// On POSIX a backslash is an ordinary character in a name and stays one.
-	files, _ = touchedPaths([]fantasy.ToolCallContent{
+	// On POSIX a backslash is an ordinary character in a name and stays
+	// one, and a doubled leading slash is the root.
+	files, dirs = touched("linux", []fantasy.ToolCallContent{
 		call("posix-read", "read_file", `{"path":"/repo/dir\\name/file.go"}`),
-	}, []fantasy.Content{result("posix-read")})
-	require.Equal(t, []string{"/repo/dir\\name/file.go"}, files)
+		call("posix-double", "read_file", `{"path":"//repo/site/file.go"}`),
+		call("posix-double-exec", "execute", `{"command":"ls","workdir":"//repo/pkg"}`),
+	}, []fantasy.Content{result("posix-read"), result("posix-double"), result("posix-double-exec")})
+	require.Equal(t, []string{"/repo/dir\\name/file.go", "/repo/site/file.go"}, files)
+	require.Equal(t, []string{"/repo/pkg"}, dirs)
 }
 
 func TestCandidateInstructionDirs(t *testing.T) {

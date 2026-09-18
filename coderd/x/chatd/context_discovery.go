@@ -243,10 +243,11 @@ func isRootAgentPath(dir string) bool {
 	return dir == "/" || dir == "." || (len(dir) == 2 && dir[1] == ':')
 }
 
-// touchedPaths returns the absolute paths the executed tool calls addressed:
-// the read_file, write_file, and edit_files paths and the explicit execute
-// workdir. Relative paths are dropped because the agent rejects them; the
-// default execute directory is already a scan root.
+// touchedPaths returns the paths the executed tool calls addressed, as the
+// tools received them: the read_file, write_file, and edit_files paths and
+// the explicit execute workdir. The default execute directory is already a
+// scan root. agentTouchedPaths makes them comparable once the agent's file
+// system is known.
 func touchedPaths(calls []fantasy.ToolCallContent, results []fantasy.Content) (files, dirs []string) {
 	executed := make(map[string]struct{}, len(results))
 	for _, block := range results {
@@ -259,11 +260,7 @@ func touchedPaths(calls []fantasy.ToolCallContent, results []fantasy.Content) (f
 	// The file tools trim their paths before use, so the path they acted
 	// on is the trimmed one.
 	addFile := func(p string) {
-		p = strings.TrimSpace(p)
-		if isUNCPath(p) {
-			return
-		}
-		if p = agentPath(p); isAbsAgentPath(p) {
+		if p = strings.TrimSpace(p); p != "" {
 			files = append(files, p)
 		}
 	}
@@ -294,14 +291,37 @@ func touchedPaths(calls []fantasy.ToolCallContent, results []fantasy.Content) (f
 			var args struct {
 				WorkDir *string `json:"workdir"`
 			}
-			if json.Unmarshal([]byte(call.Input), &args) == nil && args.WorkDir != nil && !isUNCPath(*args.WorkDir) {
-				if dir := agentPath(*args.WorkDir); isAbsAgentPath(dir) {
-					dirs = append(dirs, dir)
-				}
+			if json.Unmarshal([]byte(call.Input), &args) == nil && args.WorkDir != nil && *args.WorkDir != "" {
+				dirs = append(dirs, *args.WorkDir)
 			}
 		}
 	}
 	return files, dirs
+}
+
+// agentTouchedPaths normalizes touched paths for the agent's file system
+// and drops the ones discovery cannot probe. Relative paths are dropped
+// because the agent rejects them. On Windows a network path is dropped too:
+// agentPath would fold its leading separators into a POSIX root, which the
+// agent rejects as relative and fails the whole probe batch with. On POSIX
+// a doubled leading slash is the root and cleans to it.
+func agentTouchedPaths(files, dirs []string, operatingSystem string) (outFiles, outDirs []string) {
+	keep := func(out []string, p string) []string {
+		if operatingSystem == "windows" && isUNCPath(p) {
+			return out
+		}
+		if p = agentPath(p); isAbsAgentPath(p) {
+			out = append(out, p)
+		}
+		return out
+	}
+	for _, file := range files {
+		outFiles = keep(outFiles, file)
+	}
+	for _, dir := range dirs {
+		outDirs = keep(outDirs, dir)
+	}
+	return outFiles, outDirs
 }
 
 // candidateInstructionDirs lists the directories whose instruction files
@@ -458,14 +478,7 @@ func agentWorkingDirectory(agent database.WorkspaceAgent) string {
 // so the agent connection the tools already dialed is reused.
 func (p *Server) newInstructionDiscoverer(workspaceCtx *turnWorkspaceContext, chat database.Chat) instructionDiscoverer {
 	return func(ctx context.Context, calls []fantasy.ToolCallContent, results []fantasy.Content) {
-		// Dialing for the tools may have switched the turn to the
-		// workspace's current agent, whose directory bounds the candidate
-		// walk and whose ID keys the probe caches.
-		agent, err := workspaceCtx.getWorkspaceAgent(ctx)
-		if err != nil || agent.ID == uuid.Nil || agentWorkingDirectory(agent) == "" {
-			return
-		}
-		p.discoverInstructionContext(ctx, workspaceCtx, chat, agent, calls, results)
+		p.discoverInstructionContext(ctx, workspaceCtx, chat, calls, results)
 	}
 }
 
@@ -477,11 +490,27 @@ func (p *Server) discoverInstructionContext(
 	ctx context.Context,
 	workspaceCtx *turnWorkspaceContext,
 	chat database.Chat,
-	agent database.WorkspaceAgent,
 	calls []fantasy.ToolCallContent,
 	results []fantasy.Content,
 ) {
 	files, dirs := touchedPaths(calls, results)
+	if len(files) == 0 && len(dirs) == 0 {
+		return
+	}
+	// The connection comes first: taking it may switch the turn to the
+	// workspace's current agent, and the agent read after it is the one
+	// the probes reach, whose directory bounds the candidate walk and
+	// whose ID keys the probe caches.
+	conn, err := workspaceCtx.getWorkspaceConn(ctx)
+	if err != nil {
+		p.logger.Debug(ctx, "connect to agent for instruction discovery", slog.F("chat_id", chat.ID), slog.Error(err))
+		return
+	}
+	agent, err := workspaceCtx.getWorkspaceAgent(ctx)
+	if err != nil || agent.ID == uuid.Nil || agentWorkingDirectory(agent) == "" {
+		return
+	}
+	files, dirs = agentTouchedPaths(files, dirs, agent.OperatingSystem)
 	candidates := candidateInstructionDirs(files, dirs, agentWorkingDirectory(agent))
 	if len(candidates) == 0 {
 		return
@@ -517,11 +546,6 @@ func (p *Server) discoverInstructionContext(
 		probe = probe[:maxInstructionProbesPerStep]
 	}
 
-	conn, err := workspaceCtx.getWorkspaceConn(ctx)
-	if err != nil {
-		logger.Debug(ctx, "connect to agent for instruction discovery", slog.Error(err))
-		return
-	}
 	resolved, probed := resolveInstructionDirs(ctx, logger, conn, probe)
 	if len(probed) == 0 {
 		return
