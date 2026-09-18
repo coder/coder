@@ -14,6 +14,7 @@ import { toast } from "sonner";
 import { getErrorMessage } from "#/api/errors";
 import type { Workspace, WorkspaceAgent } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
+import { Spinner } from "#/components/Spinner/Spinner";
 import {
 	Tooltip,
 	TooltipContent,
@@ -288,16 +289,20 @@ export const PortPreviewPanel: FC<{
 											: undefined
 									}
 								>
-									<MessageSquarePlusIcon />
+									<Spinner loading={overlayPending} size="sm">
+										<MessageSquarePlusIcon />
+									</Spinner>
 								</Button>
 							</span>
 						</TooltipTrigger>
 						<TooltipContent side="bottom">
 							{bridge.unavailable
 								? "The annotation overlay could not load in this app. It may block external scripts or not serve HTML."
-								: bridge.picking
-									? "Click elements in the preview to annotate them"
-									: "Annotate elements in the preview; each comment is sent to the agent"}
+								: overlayPending
+									? "Loading the annotation overlay"
+									: bridge.picking
+										? "Click elements in the preview to annotate them"
+										: "Annotate elements in the preview; each comment is sent to the agent"}
 						</TooltipContent>
 					</Tooltip>
 				)}
