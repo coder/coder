@@ -34,7 +34,7 @@ type StatusIndicatorContextValue = VariantProps<typeof statusIndicatorVariants>;
 
 const StatusIndicatorContext = createContext<StatusIndicatorContextValue>({});
 
-export type StatusIndicatorProps = React.ComponentPropsWithRef<"div"> &
+export type StatusIndicatorProps = React.ComponentProps<"div"> &
 	StatusIndicatorContextValue;
 
 export const StatusIndicator: React.FC<StatusIndicatorProps> = ({

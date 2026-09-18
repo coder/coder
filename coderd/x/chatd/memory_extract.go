@@ -92,8 +92,19 @@ func (p *Server) resolveMemoryScope(ctx context.Context, chat database.Chat) (ch
 	return chattool.NewPersonalMemoryStore(p.db, chat.OwnerID, chat.OrganizationID, chat.ID), chattool.MemoryScope{Kind: chattool.MemoryScopePersonal}, memoryScopeAvailable
 }
 
+// errInvalidMemoryUpsert marks a proposal the model got wrong, which is
+// dropped, as opposed to a storage failure, which must not advance the cursor.
+var errInvalidMemoryUpsert = xerrors.New("invalid memory upsert")
+
 func (p *Server) maybeExtractMemoriesAsync(ctx context.Context, logger slog.Logger, chat database.Chat) {
 	if !p.experiments.Enabled(codersdk.ExperimentChatProjects) || chat.ParentChatID.Valid {
+		return
+	}
+	// FinishTurn promotes a queued message and hands back a chat that is
+	// already running that turn. Extracting now would process the promoted
+	// user message before its assistant could save memory itself; the
+	// promoted turn's own completion covers both.
+	if chat.Status == database.ChatStatusRunning {
 		return
 	}
 	extractCtx, cancel := p.inflightContext(ctx)
@@ -131,79 +142,84 @@ func (p *Server) extractMemories(ctx context.Context, logger slog.Logger, chat d
 			logger.Debug(ctx, "failed to claim memory extraction", slog.F("chat_id", chat.ID), slog.Error(err))
 			return
 		}
-		processed, more := p.extractMemoriesOnce(ctx, logger, chat.ID, claim.HistoryVersion)
+		processedTo, ok := p.extractMemoriesOnce(ctx, logger, chat.ID, claim.HistoryVersion)
 		if err := p.db.ReleaseChatMemoryExtraction(ctx, database.ReleaseChatMemoryExtractionParams{ChatID: chat.ID, ClaimedUntil: claim.ClaimedUntil.Time}); err != nil {
 			logger.Debug(ctx, "failed to release memory extraction claim", slog.F("chat_id", chat.ID), slog.Error(err))
 		}
-		if !processed || !more {
+		if !ok {
+			return
+		}
+		// A turn that completed while the claim was held spawned an
+		// extractor that could not claim and exited, so only this check
+		// after the release can pick that work up.
+		current, err := p.db.GetChatByID(ctx, chat.ID)
+		if err != nil || current.HistoryVersion <= processedTo {
 			return
 		}
 	}
 }
 
 // extractMemoriesOnce runs one extraction pass from the cursor to the chat's
-// current history version. It reports whether the cursor advanced and
-// whether the chat has moved on since, in which case the caller loops.
-func (p *Server) extractMemoriesOnce(ctx context.Context, logger slog.Logger, chatID uuid.UUID, cursor int64) (processed, more bool) {
+// history version captured at the start of the pass. It returns that version
+// and whether the cursor advanced to it; the caller decides whether the chat
+// has moved on since.
+func (p *Server) extractMemoriesOnce(ctx context.Context, logger slog.Logger, chatID uuid.UUID, cursor int64) (processedTo int64, ok bool) {
 	chat, err := p.db.GetChatByID(ctx, chatID)
 	if err != nil {
 		logger.Debug(ctx, "failed to re-read chat for memory extraction", slog.Error(err))
-		return false, false
+		return 0, false
 	}
 	if chat.HistoryVersion <= cursor {
-		return false, false
+		return 0, false
 	}
-	advance := func() bool {
+	advance := func() (int64, bool) {
 		if _, err := p.db.UpsertChatMemoryCursor(ctx, database.UpsertChatMemoryCursorParams{ChatID: chat.ID, HistoryVersion: chat.HistoryVersion}); err != nil {
 			logger.Debug(ctx, "failed to advance memory cursor", slog.F("chat_id", chat.ID), slog.Error(err))
-			return false
+			return 0, false
 		}
-		return true
-	}
-	hasMore := func() bool {
-		current, err := p.db.GetChatByID(ctx, chat.ID)
-		return err == nil && current.HistoryVersion > chat.HistoryVersion
+		return chat.HistoryVersion, true
 	}
 
 	store, scope, status := p.resolveMemoryScope(ctx, chat)
 	switch status {
 	case memoryScopeUnavailable:
-		return false, false
+		return 0, false
 	case memoryScopeDisabled:
 		// Fence the turns completed while memory was off so re-enabling it
 		// later never extracts them retroactively.
-		return advance(), false
+		return advance()
 	case memoryScopeAvailable:
 	}
 
 	messages, err := p.db.GetChatMessagesForPromptByChatID(ctx, chat.ID)
 	if err != nil {
 		logger.Debug(ctx, "failed to load memory transcript", slog.F("chat_id", chat.ID), slog.Error(err))
-		return false, false
+		return 0, false
 	}
 	// Turns where the main agent curated memory itself are excluded per
 	// turn, not for the whole window: running the extractor over them
 	// mostly produced split duplicates, but later turns in a lagging window
-	// still deserve extraction.
-	transcript := renderMemoryTranscript(messages, cursor)
+	// still deserve extraction. The window is closed at the captured
+	// history version so a turn that lands mid-pass is not sent twice.
+	transcript := renderMemoryTranscript(messages, cursor, chat.HistoryVersion)
 	if transcript == "" {
-		return advance(), hasMore()
+		return advance()
 	}
 	entries, err := store.List(ctx)
 	if err != nil {
 		logger.Debug(ctx, "failed to load memories for extraction", slog.F("chat_id", chat.ID), slog.Error(err))
-		return false, false
+		return 0, false
 	}
 
 	apiKeyID, err := p.ensureSyntheticAPIKeyID(ctx, chat.OwnerID)
 	if err != nil {
 		logger.Debug(ctx, "failed to ensure synthetic API key for memory extraction", slog.Error(err))
-		return false, false
+		return 0, false
 	}
 	resolved, err := p.resolveModelCall(ctx, modelCallSpec{purpose: "memory_extraction", chat: chat, buildOptions: modelBuildOptions{ActiveAPIKeyID: apiKeyID}})
 	if err != nil {
 		logger.Debug(ctx, "failed to resolve model for memory extraction", slog.Error(err))
-		return false, false
+		return 0, false
 	}
 	call := resolved.newObjectCall("memory_extraction", "Record new durable memories stated by the user in this turn.", memoryExtractionMaxOutputTokens)
 	call.Prompt = quickgenPrompt(fmt.Sprintf(memoryExtractionPrompt, scope.Intro(), scope.Guidance()), fmt.Sprintf("Current memory index:\n%s\n\nNew user messages:\n%s", chattool.FormatMemoryIndexForTool(entries), transcript))
@@ -212,14 +228,27 @@ func (p *Server) extractMemoriesOnce(ctx context.Context, logger slog.Logger, ch
 	result, err := generateQuickgenObject[memoryExtraction](modelCtx, resolved.model.LanguageModel(), call)
 	if err != nil {
 		logger.Debug(ctx, "failed to generate memory extraction", slog.F("chat_id", chat.ID), slog.Error(err))
-		return false, false
+		return 0, false
 	}
+	// A rejected proposal is dropped, but a storage failure leaves the
+	// cursor in place so the window is retried; inserts that did succeed
+	// are skipped on retry by the create-only existence check.
+	stored := true
 	for _, upsert := range result.Object.Upserts {
-		if err := applyMemoryUpsert(ctx, store, upsert); err != nil {
+		err := applyMemoryUpsert(ctx, store, upsert)
+		switch {
+		case err == nil:
+		case errors.Is(err, errInvalidMemoryUpsert), errors.Is(err, chattool.ErrMemoryLimit):
 			logger.Debug(ctx, "ignored invalid memory upsert", slog.F("chat_id", chat.ID), slog.F("name", upsert.Name), slog.Error(err))
+		default:
+			stored = false
+			logger.Debug(ctx, "failed to store extracted memory", slog.F("chat_id", chat.ID), slog.F("name", upsert.Name), slog.Error(err))
 		}
 	}
-	return advance(), hasMore()
+	if !stored {
+		return 0, false
+	}
+	return advance()
 }
 
 // applyMemoryUpsert records a memory the extractor proposed. It only creates:
@@ -227,7 +256,7 @@ func (p *Server) extractMemoriesOnce(ctx context.Context, logger slog.Logger, ch
 func applyMemoryUpsert(ctx context.Context, store chattool.MemoryStore, upsert memoryExtractionUpsert) error {
 	input, err := normalizeMemoryExtraction(upsert)
 	if err != nil {
-		return err
+		return xerrors.Errorf("%w: %v", errInvalidMemoryUpsert, err)
 	}
 	_, err = store.Insert(ctx, input)
 	if errors.Is(err, chattool.ErrMemoryExists) {
@@ -260,16 +289,16 @@ type memoryTurn struct {
 	usedTools bool
 }
 
-// memoryTurns splits the messages written after the given history version
-// into turns. Message revisions hold the snapshot version that wrote them,
-// so this window matches the cursor fence exactly instead of relying on
-// wall-clock timestamps. A tool call counts only when its result was not an
-// error; a failed save must not suppress extraction.
-func memoryTurns(messages []database.ChatMessage, afterHistoryVersion int64) []memoryTurn {
+// memoryTurns splits the messages written after afterHistoryVersion and up
+// to upToHistoryVersion into turns. Message revisions hold the snapshot
+// version that wrote them, so this window matches the cursor fence exactly
+// instead of relying on wall-clock timestamps. A tool call counts only when
+// its result was not an error; a failed save must not suppress extraction.
+func memoryTurns(messages []database.ChatMessage, afterHistoryVersion, upToHistoryVersion int64) []memoryTurn {
 	var turns []memoryTurn
 	callTurn := make(map[string]int)
 	for _, message := range messages {
-		if message.Revision <= afterHistoryVersion {
+		if message.Revision <= afterHistoryVersion || message.Revision > upToHistoryVersion {
 			continue
 		}
 		parts, err := chatprompt.ParseContent(message)
@@ -318,9 +347,9 @@ func memoryTurns(messages []database.ChatMessage, afterHistoryVersion int64) []m
 // Assistant text is excluded on purpose: the extractor records what the user
 // said, and dogfooding showed it re-recording the assistant's restatement of
 // existing memories.
-func renderMemoryTranscript(messages []database.ChatMessage, afterHistoryVersion int64) string {
+func renderMemoryTranscript(messages []database.ChatMessage, afterHistoryVersion, upToHistoryVersion int64) string {
 	var lines []string
-	for _, turn := range memoryTurns(messages, afterHistoryVersion) {
+	for _, turn := range memoryTurns(messages, afterHistoryVersion, upToHistoryVersion) {
 		if turn.usedTools {
 			continue
 		}

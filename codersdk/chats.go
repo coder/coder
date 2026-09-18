@@ -164,7 +164,6 @@ type ChatProject struct {
 	CreatedBy      uuid.UUID `json:"created_by" format:"uuid"`
 	Name           string    `json:"name"`
 	Description    string    `json:"description"`
-	ChatCount      int64     `json:"chat_count"`
 	CreatedAt      time.Time `json:"created_at" format:"date-time"`
 	UpdatedAt      time.Time `json:"updated_at" format:"date-time"`
 }

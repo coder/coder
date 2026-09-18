@@ -1,7 +1,6 @@
 package coderd
 
 import (
-	"context"
 	"database/sql"
 	"errors"
 	"net/http"
@@ -46,7 +45,7 @@ func (api *API) listChatProjects(rw http.ResponseWriter, r *http.Request) {
 
 	response := make([]codersdk.ChatProject, len(projects))
 	for i, project := range projects {
-		response[i] = db2sdk.ChatProjectRow(project)
+		response[i] = db2sdk.ChatProject(project)
 	}
 	httpapi.Write(ctx, rw, http.StatusOK, response)
 }
@@ -109,7 +108,7 @@ func (api *API) postChatProject(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	aReq.New = project
-	httpapi.Write(ctx, rw, http.StatusCreated, db2sdk.ChatProject(project, 0))
+	httpapi.Write(ctx, rw, http.StatusCreated, db2sdk.ChatProject(project))
 }
 
 // @Summary Get chat project
@@ -130,15 +129,7 @@ func (api *API) getChatProject(rw http.ResponseWriter, r *http.Request) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}
-	response, err := api.chatProjectResponse(ctx, project)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to get chat project.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-	httpapi.Write(ctx, rw, http.StatusOK, response)
+	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.ChatProject(project))
 }
 
 // @Summary Update chat project
@@ -204,23 +195,7 @@ func (api *API) patchChatProject(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	aReq.New = updated
-	response, err := api.chatProjectResponse(ctx, updated)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to get updated chat project.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-	httpapi.Write(ctx, rw, http.StatusOK, response)
-}
-
-func (api *API) chatProjectResponse(ctx context.Context, project database.ChatProject) (codersdk.ChatProject, error) {
-	chatCount, err := api.Database.CountChatProjectChats(ctx, project.ID)
-	if err != nil {
-		return codersdk.ChatProject{}, err
-	}
-	return db2sdk.ChatProject(project, chatCount), nil
+	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.ChatProject(updated))
 }
 
 // @Summary Delete chat project

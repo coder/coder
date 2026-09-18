@@ -15,6 +15,19 @@
 		},
 		{
 			"provider": "anthropic",
+			"modelIdentifier": "claude-mythos-5-1",
+			"displayName": "Claude Mythos 5.1",
+			"aliases": [],
+			"contextLimit": 1000000,
+			"maxOutputTokens": 128000,
+			"reasoningEffort": "high",
+			"inputCost": 10,
+			"outputCost": 50,
+			"cacheReadCost": 0.25,
+			"cacheWriteCost": 12.5
+		},
+		{
+			"provider": "anthropic",
 			"modelIdentifier": "claude-fable-5",
 			"displayName": "Claude Fable 5",
 			"aliases": [],
@@ -171,6 +184,18 @@
 		},
 		{
 			"provider": "azure",
+			"modelIdentifier": "claude-mythos-5",
+			"displayName": "Claude Mythos 5",
+			"aliases": [],
+			"contextLimit": 1000000,
+			"maxOutputTokens": 128000,
+			"inputCost": 10,
+			"outputCost": 50,
+			"cacheReadCost": 1,
+			"cacheWriteCost": 12.5
+		},
+		{
+			"provider": "azure",
 			"modelIdentifier": "claude-opus-5",
 			"displayName": "Claude Opus 5",
 			"aliases": [],
@@ -207,6 +232,18 @@
 		},
 		{
 			"provider": "azure",
+			"modelIdentifier": "claude-opus-4-7",
+			"displayName": "Claude Opus 4.7",
+			"aliases": [],
+			"contextLimit": 1000000,
+			"maxOutputTokens": 128000,
+			"inputCost": 5,
+			"outputCost": 25,
+			"cacheReadCost": 0.5,
+			"cacheWriteCost": 6.25
+		},
+		{
+			"provider": "azure",
 			"modelIdentifier": "claude-sonnet-4-6",
 			"displayName": "Claude Sonnet 4.6",
 			"aliases": [],
@@ -228,6 +265,18 @@
 			"outputCost": 5,
 			"cacheReadCost": 0.1,
 			"cacheWriteCost": 1.25
+		},
+		{
+			"provider": "azure",
+			"modelIdentifier": "gpt-6-astra",
+			"displayName": "GPT-6 Astra",
+			"aliases": [],
+			"contextLimit": 1050000,
+			"maxOutputTokens": 128000,
+			"inputCost": 10,
+			"outputCost": 50,
+			"cacheReadCost": 1,
+			"cacheWriteCost": 12.5
 		},
 		{
 			"provider": "azure",
@@ -275,6 +324,39 @@
 			"inputCost": 5,
 			"outputCost": 30,
 			"cacheReadCost": 0.5
+		},
+		{
+			"provider": "azure",
+			"modelIdentifier": "gpt-5.4",
+			"displayName": "GPT-5.4",
+			"aliases": [],
+			"contextLimit": 1050000,
+			"maxOutputTokens": 128000,
+			"inputCost": 2.5,
+			"outputCost": 15,
+			"cacheReadCost": 0.25
+		},
+		{
+			"provider": "azure",
+			"modelIdentifier": "gpt-5.4-mini",
+			"displayName": "GPT-5.4 Mini",
+			"aliases": [],
+			"contextLimit": 400000,
+			"maxOutputTokens": 128000,
+			"inputCost": 0.75,
+			"outputCost": 4.5,
+			"cacheReadCost": 0.075
+		},
+		{
+			"provider": "azure",
+			"modelIdentifier": "gpt-5.3-codex",
+			"displayName": "GPT-5.3 Codex",
+			"aliases": [],
+			"contextLimit": 400000,
+			"maxOutputTokens": 128000,
+			"inputCost": 1.75,
+			"outputCost": 14,
+			"cacheReadCost": 0.175
 		},
 		{
 			"provider": "azure",
@@ -371,6 +453,18 @@
 			"outputCost": 25,
 			"cacheReadCost": 0.5,
 			"cacheWriteCost": 6.25
+		},
+		{
+			"provider": "bedrock",
+			"modelIdentifier": "anthropic.claude-opus-4-7",
+			"displayName": "Claude Opus 4.7",
+			"aliases": ["global.anthropic.claude-opus-4-7"],
+			"contextLimit": 1000000,
+			"maxOutputTokens": 128000,
+			"inputCost": 5,
+			"outputCost": 25,
+			"cacheReadCost": 0.5,
+			"cacheWriteCost": 6.25
 		}
 	],
 	"google": [
@@ -417,6 +511,39 @@
 			"inputCost": 0.75,
 			"outputCost": 3.75,
 			"cacheReadCost": 0.075
+		},
+		{
+			"provider": "google",
+			"modelIdentifier": "gemini-3.1-pro-preview",
+			"displayName": "Gemini 3.1 Pro Preview",
+			"aliases": [],
+			"contextLimit": 1048576,
+			"maxOutputTokens": 65536,
+			"inputCost": 2,
+			"outputCost": 12,
+			"cacheReadCost": 0.2
+		},
+		{
+			"provider": "google",
+			"modelIdentifier": "gemini-flash-lite-latest",
+			"displayName": "Gemini Flash-Lite Latest",
+			"aliases": [],
+			"contextLimit": 1048576,
+			"maxOutputTokens": 65536,
+			"inputCost": 0.3,
+			"outputCost": 2.5,
+			"cacheReadCost": 0.03
+		},
+		{
+			"provider": "google",
+			"modelIdentifier": "gemini-3.5-flash-lite",
+			"displayName": "Gemini 3.5 Flash Lite",
+			"aliases": [],
+			"contextLimit": 1048576,
+			"maxOutputTokens": 65536,
+			"inputCost": 0.3,
+			"outputCost": 2.5,
+			"cacheReadCost": 0.03
 		}
 	],
 	"openai": [
@@ -545,6 +672,18 @@
 	"openrouter": [
 		{
 			"provider": "openrouter",
+			"modelIdentifier": "openai/gpt-6-astra",
+			"displayName": "GPT-6 Astra",
+			"aliases": [],
+			"contextLimit": 1050000,
+			"maxOutputTokens": 128000,
+			"inputCost": 10,
+			"outputCost": 50,
+			"cacheReadCost": 1,
+			"cacheWriteCost": 12.5
+		},
+		{
+			"provider": "openrouter",
 			"modelIdentifier": "openai/gpt-5.6-sol",
 			"displayName": "GPT-5.6 Sol",
 			"aliases": [],
@@ -581,13 +720,36 @@
 		},
 		{
 			"provider": "openrouter",
+			"modelIdentifier": "openai/gpt-5.5",
+			"displayName": "GPT-5.5",
+			"aliases": [],
+			"contextLimit": 1050000,
+			"maxOutputTokens": 128000,
+			"inputCost": 5,
+			"outputCost": 30,
+			"cacheReadCost": 0.5
+		},
+		{
+			"provider": "openrouter",
+			"modelIdentifier": "openai/gpt-5.4-mini",
+			"displayName": "GPT-5.4 mini",
+			"aliases": [],
+			"contextLimit": 400000,
+			"maxOutputTokens": 128000,
+			"inputCost": 0.75,
+			"outputCost": 4.5,
+			"cacheReadCost": 0.075
+		},
+		{
+			"provider": "openrouter",
 			"modelIdentifier": "openai/gpt-oss-120b",
 			"displayName": "GPT OSS 120B",
 			"aliases": [],
 			"contextLimit": 131072,
-			"maxOutputTokens": 117964,
-			"inputCost": 0.037,
-			"outputCost": 0.17
+			"maxOutputTokens": 65536,
+			"inputCost": 0.15,
+			"outputCost": 0.6,
+			"cacheReadCost": 0.075
 		},
 		{
 			"provider": "openrouter",
@@ -596,9 +758,20 @@
 			"aliases": [],
 			"contextLimit": 1048576,
 			"maxOutputTokens": 943718,
-			"inputCost": 3,
-			"outputCost": 15,
-			"cacheReadCost": 0.3
+			"inputCost": 2.1,
+			"outputCost": 10.95,
+			"cacheReadCost": 0.23
+		},
+		{
+			"provider": "openrouter",
+			"modelIdentifier": "moonshotai/kimi-k2.7-code",
+			"displayName": "Kimi K2.7 Code",
+			"aliases": [],
+			"contextLimit": 262144,
+			"maxOutputTokens": 235929,
+			"inputCost": 0.7062,
+			"outputCost": 3.21,
+			"cacheReadCost": 0.18
 		},
 		{
 			"provider": "openrouter",
@@ -606,10 +779,21 @@
 			"displayName": "GLM-5.3",
 			"aliases": [],
 			"contextLimit": 1310720,
-			"maxOutputTokens": 943717,
-			"inputCost": 1.4,
-			"outputCost": 4.4,
-			"cacheReadCost": 0.26
+			"maxOutputTokens": 131072,
+			"inputCost": 0.91,
+			"outputCost": 2.86,
+			"cacheReadCost": 0.169
+		},
+		{
+			"provider": "openrouter",
+			"modelIdentifier": "z-ai/glm-5.3-flash",
+			"displayName": "GLM-5.3-Flash",
+			"aliases": [],
+			"contextLimit": 1310720,
+			"maxOutputTokens": 131072,
+			"inputCost": 0.09,
+			"outputCost": 0.3,
+			"cacheReadCost": 0.018
 		},
 		{
 			"provider": "openrouter",
@@ -618,9 +802,9 @@
 			"aliases": [],
 			"contextLimit": 1048576,
 			"maxOutputTokens": 131072,
-			"inputCost": 1.4,
-			"outputCost": 4.4,
-			"cacheReadCost": 0.14
+			"inputCost": 0.5544,
+			"outputCost": 1.7424,
+			"cacheReadCost": 0.10296
 		},
 		{
 			"provider": "openrouter",
@@ -684,6 +868,18 @@
 		},
 		{
 			"provider": "openrouter",
+			"modelIdentifier": "anthropic/claude-opus-4.7",
+			"displayName": "Claude Opus 4.7",
+			"aliases": [],
+			"contextLimit": 1000000,
+			"maxOutputTokens": 128000,
+			"inputCost": 5,
+			"outputCost": 25,
+			"cacheReadCost": 0.5,
+			"cacheWriteCost": 6.25
+		},
+		{
+			"provider": "openrouter",
 			"modelIdentifier": "anthropic/claude-sonnet-4.6",
 			"displayName": "Claude Sonnet 4.6",
 			"aliases": [],
@@ -708,14 +904,61 @@
 		},
 		{
 			"provider": "openrouter",
+			"modelIdentifier": "google/gemini-3.8-flash",
+			"displayName": "Gemini 3.8 Flash",
+			"aliases": [],
+			"contextLimit": 1048576,
+			"maxOutputTokens": 65536,
+			"inputCost": 0.75,
+			"outputCost": 3.75,
+			"cacheReadCost": 0.075,
+			"cacheWriteCost": 0.041667
+		},
+		{
+			"provider": "openrouter",
+			"modelIdentifier": "google/gemini-3.7-flash",
+			"displayName": "Gemini 3.7 Flash",
+			"aliases": [],
+			"contextLimit": 1048576,
+			"maxOutputTokens": 65536,
+			"inputCost": 0.75,
+			"outputCost": 3.75,
+			"cacheReadCost": 0.075,
+			"cacheWriteCost": 0.041667
+		},
+		{
+			"provider": "openrouter",
+			"modelIdentifier": "google/gemini-3.6-flash",
+			"displayName": "Gemini 3.6 Flash",
+			"aliases": [],
+			"contextLimit": 1048576,
+			"maxOutputTokens": 65536,
+			"inputCost": 0.75,
+			"outputCost": 3.75,
+			"cacheReadCost": 0.075,
+			"cacheWriteCost": 0.041667
+		},
+		{
+			"provider": "openrouter",
+			"modelIdentifier": "deepseek/deepseek-v4.1-flash",
+			"displayName": "DeepSeek V4.1 Flash",
+			"aliases": [],
+			"contextLimit": 1048576,
+			"maxOutputTokens": 384000,
+			"inputCost": 0.15,
+			"outputCost": 0.6,
+			"cacheReadCost": 0.003
+		},
+		{
+			"provider": "openrouter",
 			"modelIdentifier": "deepseek/deepseek-v4-flash",
 			"displayName": "DeepSeek V4 Flash",
 			"aliases": [],
 			"contextLimit": 1048576,
 			"maxOutputTokens": 384000,
-			"inputCost": 0.088606,
-			"outputCost": 0.177212,
-			"cacheReadCost": 0.017721
+			"inputCost": 0.04956,
+			"outputCost": 0.09912,
+			"cacheReadCost": 0.009912
 		},
 		{
 			"provider": "openrouter",
@@ -742,6 +985,18 @@
 		},
 		{
 			"provider": "openrouter",
+			"modelIdentifier": "qwen/qwen3.8-flash",
+			"displayName": "Qwen3.8 Flash",
+			"aliases": [],
+			"contextLimit": 1000000,
+			"maxOutputTokens": 131072,
+			"inputCost": 0.15,
+			"outputCost": 0.47,
+			"cacheReadCost": 0.016,
+			"cacheWriteCost": 0.2
+		},
+		{
+			"provider": "openrouter",
 			"modelIdentifier": "qwen/qwen3-coder-next",
 			"displayName": "Qwen3 Coder Next",
 			"aliases": [],
@@ -750,9 +1005,43 @@
 			"inputCost": 0.12,
 			"outputCost": 0.8,
 			"cacheReadCost": 0.07
+		},
+		{
+			"provider": "openrouter",
+			"modelIdentifier": "x-ai/grok-4.6",
+			"displayName": "Grok 4.6",
+			"aliases": [],
+			"contextLimit": 500000,
+			"maxOutputTokens": 450000,
+			"inputCost": 2,
+			"outputCost": 6,
+			"cacheReadCost": 0.5
+		},
+		{
+			"provider": "openrouter",
+			"modelIdentifier": "minimax/minimax-m3",
+			"displayName": "MiniMax-M3",
+			"aliases": [],
+			"contextLimit": 1048576,
+			"maxOutputTokens": 512000,
+			"inputCost": 0.3,
+			"outputCost": 1.2,
+			"cacheReadCost": 0.06
 		}
 	],
 	"vercel": [
+		{
+			"provider": "vercel",
+			"modelIdentifier": "openai/gpt-6-astra",
+			"displayName": "GPT-6 Astra",
+			"aliases": [],
+			"contextLimit": 1050000,
+			"maxOutputTokens": 128000,
+			"inputCost": 10,
+			"outputCost": 50,
+			"cacheReadCost": 1,
+			"cacheWriteCost": 12.5
+		},
 		{
 			"provider": "vercel",
 			"modelIdentifier": "openai/gpt-5.6-sol",
@@ -791,6 +1080,28 @@
 		},
 		{
 			"provider": "vercel",
+			"modelIdentifier": "openai/gpt-5.5",
+			"displayName": "GPT 5.5",
+			"aliases": [],
+			"contextLimit": 1000000,
+			"maxOutputTokens": 128000,
+			"inputCost": 5,
+			"outputCost": 30,
+			"cacheReadCost": 0.5
+		},
+		{
+			"provider": "vercel",
+			"modelIdentifier": "openai/gpt-5.4-mini",
+			"displayName": "GPT 5.4 Mini",
+			"aliases": [],
+			"contextLimit": 400000,
+			"maxOutputTokens": 128000,
+			"inputCost": 0.75,
+			"outputCost": 4.5,
+			"cacheReadCost": 0.075
+		},
+		{
+			"provider": "vercel",
 			"modelIdentifier": "openai/gpt-oss-120b",
 			"displayName": "GPT OSS 120B",
 			"aliases": [],
@@ -812,6 +1123,17 @@
 		},
 		{
 			"provider": "vercel",
+			"modelIdentifier": "moonshotai/kimi-k2.7-code",
+			"displayName": "Kimi K2.7 Code",
+			"aliases": [],
+			"contextLimit": 256000,
+			"maxOutputTokens": 32768,
+			"inputCost": 0.95,
+			"outputCost": 4,
+			"cacheReadCost": 0.16
+		},
+		{
+			"provider": "vercel",
 			"modelIdentifier": "zai/glm-5.3",
 			"displayName": "GLM 5.3",
 			"aliases": [],
@@ -820,6 +1142,17 @@
 			"inputCost": 1.4,
 			"outputCost": 4.4,
 			"cacheReadCost": 0.14
+		},
+		{
+			"provider": "vercel",
+			"modelIdentifier": "zai/glm-5.3-flash",
+			"displayName": "GLM 5.3 Flash",
+			"aliases": [],
+			"contextLimit": 1000000,
+			"maxOutputTokens": 131000,
+			"inputCost": 0.15,
+			"outputCost": 0.5,
+			"cacheReadCost": 0.03
 		},
 		{
 			"provider": "vercel",
@@ -894,6 +1227,18 @@
 		},
 		{
 			"provider": "vercel",
+			"modelIdentifier": "anthropic/claude-opus-4.7",
+			"displayName": "Claude Opus 4.7",
+			"aliases": [],
+			"contextLimit": 1000000,
+			"maxOutputTokens": 128000,
+			"inputCost": 5,
+			"outputCost": 25,
+			"cacheReadCost": 0.5,
+			"cacheWriteCost": 6.25
+		},
+		{
+			"provider": "vercel",
 			"modelIdentifier": "anthropic/claude-sonnet-4.6",
 			"displayName": "Claude Sonnet 4.6",
 			"aliases": [],
@@ -918,6 +1263,50 @@
 		},
 		{
 			"provider": "vercel",
+			"modelIdentifier": "google/gemini-3.8-flash",
+			"displayName": "Gemini 3.8 Flash",
+			"aliases": [],
+			"contextLimit": 1000000,
+			"maxOutputTokens": 65536,
+			"inputCost": 0.75,
+			"outputCost": 3.75,
+			"cacheReadCost": 0.075
+		},
+		{
+			"provider": "vercel",
+			"modelIdentifier": "google/gemini-3.7-flash",
+			"displayName": "Gemini 3.7 Flash",
+			"aliases": [],
+			"contextLimit": 1000000,
+			"maxOutputTokens": 65536,
+			"inputCost": 0.75,
+			"outputCost": 3.75,
+			"cacheReadCost": 0.075
+		},
+		{
+			"provider": "vercel",
+			"modelIdentifier": "google/gemini-3.6-flash",
+			"displayName": "Gemini 3.6 Flash",
+			"aliases": [],
+			"contextLimit": 1000000,
+			"maxOutputTokens": 64000,
+			"inputCost": 0.75,
+			"outputCost": 3.75,
+			"cacheReadCost": 0.075
+		},
+		{
+			"provider": "vercel",
+			"modelIdentifier": "deepseek/deepseek-v4.1-flash",
+			"displayName": "DeepSeek V4.1 Flash",
+			"aliases": [],
+			"contextLimit": 1048576,
+			"maxOutputTokens": 32768,
+			"inputCost": 0.3,
+			"outputCost": 1.2,
+			"cacheReadCost": 0.03
+		},
+		{
+			"provider": "vercel",
 			"modelIdentifier": "deepseek/deepseek-v4-flash",
 			"displayName": "DeepSeek V4 Flash",
 			"aliases": [],
@@ -937,6 +1326,40 @@
 			"inputCost": 0.66,
 			"outputCost": 1.98,
 			"cacheReadCost": 0.022
+		},
+		{
+			"provider": "vercel",
+			"modelIdentifier": "alibaba/qwen3.8-flash",
+			"displayName": "Qwen 3.8 Flash",
+			"aliases": [],
+			"contextLimit": 991000,
+			"maxOutputTokens": 128000,
+			"inputCost": 0.15,
+			"outputCost": 0.47,
+			"cacheReadCost": 0.016,
+			"cacheWriteCost": 0.2
+		},
+		{
+			"provider": "vercel",
+			"modelIdentifier": "spacexai/grok-4.6",
+			"displayName": "Grok 4.6",
+			"aliases": [],
+			"contextLimit": 500000,
+			"maxOutputTokens": 500000,
+			"inputCost": 2,
+			"outputCost": 6,
+			"cacheReadCost": 0.5
+		},
+		{
+			"provider": "vercel",
+			"modelIdentifier": "minimax/minimax-m3",
+			"displayName": "MiniMax M3",
+			"aliases": [],
+			"contextLimit": 512000,
+			"maxOutputTokens": 512000,
+			"inputCost": 0.3,
+			"outputCost": 1.2,
+			"cacheReadCost": 0.06
 		}
 	]
 }

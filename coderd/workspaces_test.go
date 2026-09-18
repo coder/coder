@@ -1604,7 +1604,10 @@ func TestCreateWorkspaceExternalAuth(t *testing.T) {
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusForbidden, apiErr.StatusCode())
 		require.Equal(t, externalAuthRequiredMessage, apiErr.Message)
-		require.Equal(t, "The workspace owner must authenticate with the following external auth providers: GitHub.", apiErr.Detail)
+		require.Equal(t, fmt.Sprintf(
+			"The workspace owner must authenticate with the following external auth providers: GitHub (%s/external-auth/github).",
+			strings.TrimSuffix(client.URL.String(), "/"),
+		), apiErr.Detail)
 		require.Equal(t, []codersdk.ValidationError{{
 			Field:  "external_auth",
 			Detail: "github",
@@ -2078,355 +2081,6 @@ func TestWorkspaceFilterAllStatus(t *testing.T) {
 		}
 		cancel()
 	}
-}
-
-// TestWorkspaceFilter creates a set of workspaces, users, and organizations
-// to run various filters against for testing.
-func TestWorkspaceFilter(t *testing.T) {
-	t.Parallel()
-	// Manual tests still occur below, so this is safe to disable.
-	t.Skip("This test is slow and flaky. See: https://github.com/coder/coder/issues/2854")
-	// nolint:unused
-	type coderUser struct {
-		*codersdk.Client
-		User codersdk.User
-		Org  codersdk.Organization
-	}
-
-	client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
-	first := coderdtest.CreateFirstUser(t, client)
-
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-	t.Cleanup(cancel)
-
-	users := make([]coderUser, 0)
-	for i := 0; i < 10; i++ {
-		userClient, user := coderdtest.CreateAnotherUser(t, client, first.OrganizationID, rbac.RoleOwner())
-
-		if i%3 == 0 {
-			var err error
-			user, err = client.UpdateUserProfile(ctx, user.ID.String(), codersdk.UpdateUserProfileRequest{
-				Username: strings.ToUpper(user.Username),
-			})
-			require.NoError(t, err, "uppercase username")
-		}
-
-		org, err := userClient.CreateOrganization(ctx, codersdk.CreateOrganizationRequest{
-			Name: user.Username + "-org",
-		})
-		require.NoError(t, err, "create org")
-
-		users = append(users, coderUser{
-			Client: userClient,
-			User:   user,
-			Org:    org,
-		})
-	}
-
-	type madeWorkspace struct {
-		Owner     codersdk.User
-		Workspace codersdk.Workspace
-		Template  codersdk.Template
-	}
-
-	availTemplates := make([]codersdk.Template, 0)
-	allWorkspaces := make([]madeWorkspace, 0)
-	upperTemplates := make([]string, 0)
-
-	// Create some random workspaces
-	var count int
-	for i, user := range users {
-		version := coderdtest.CreateTemplateVersion(t, client, user.Org.ID, nil)
-
-		// Create a template & workspace in the user's org
-		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
-
-		var template codersdk.Template
-		if i%3 == 0 {
-			template = coderdtest.CreateTemplate(t, client, user.Org.ID, version.ID, func(request *codersdk.CreateTemplateRequest) {
-				request.Name = strings.ToUpper(request.Name)
-			})
-			upperTemplates = append(upperTemplates, template.Name)
-		} else {
-			template = coderdtest.CreateTemplate(t, client, user.Org.ID, version.ID)
-		}
-
-		availTemplates = append(availTemplates, template)
-		workspace := coderdtest.CreateWorkspace(t, user.Client, template.ID, func(request *codersdk.CreateWorkspaceRequest) {
-			if count%3 == 0 {
-				request.Name = strings.ToUpper(request.Name)
-			}
-		})
-		allWorkspaces = append(allWorkspaces, madeWorkspace{
-			Workspace: workspace,
-			Template:  template,
-			Owner:     user.User,
-		})
-
-		// Make a workspace with a random template
-		idx, _ := cryptorand.Intn(len(availTemplates))
-		randTemplate := availTemplates[idx]
-		randWorkspace := coderdtest.CreateWorkspace(t, user.Client, randTemplate.ID)
-		allWorkspaces = append(allWorkspaces, madeWorkspace{
-			Workspace: randWorkspace,
-			Template:  randTemplate,
-			Owner:     user.User,
-		})
-	}
-
-	// Make sure all workspaces are done. Do it after all are made
-	for i, w := range allWorkspaces {
-		latest := coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, w.Workspace.LatestBuild.ID)
-		allWorkspaces[i].Workspace.LatestBuild = latest
-	}
-
-	// --- Setup done ---
-	testCases := []struct {
-		Name   string
-		Filter codersdk.WorkspaceFilter
-		// If FilterF is true, we include it in the expected results
-		FilterF func(f codersdk.WorkspaceFilter, workspace madeWorkspace) bool
-	}{
-		{
-			Name:   "All",
-			Filter: codersdk.WorkspaceFilter{},
-			FilterF: func(_ codersdk.WorkspaceFilter, _ madeWorkspace) bool {
-				return true
-			},
-		},
-		{
-			Name: "Owner",
-			Filter: codersdk.WorkspaceFilter{
-				Owner: strings.ToUpper(users[2].User.Username),
-			},
-			FilterF: func(f codersdk.WorkspaceFilter, workspace madeWorkspace) bool {
-				return strings.EqualFold(workspace.Owner.Username, f.Owner)
-			},
-		},
-		{
-			Name: "TemplateName",
-			Filter: codersdk.WorkspaceFilter{
-				Template: strings.ToUpper(allWorkspaces[5].Template.Name),
-			},
-			FilterF: func(f codersdk.WorkspaceFilter, workspace madeWorkspace) bool {
-				return strings.EqualFold(workspace.Template.Name, f.Template)
-			},
-		},
-		{
-			Name: "UpperTemplateName",
-			Filter: codersdk.WorkspaceFilter{
-				Template: upperTemplates[0],
-			},
-			FilterF: func(f codersdk.WorkspaceFilter, workspace madeWorkspace) bool {
-				return strings.EqualFold(workspace.Template.Name, f.Template)
-			},
-		},
-		{
-			Name: "Name",
-			Filter: codersdk.WorkspaceFilter{
-				// Use a common letter... one has to have this letter in it
-				Name: "a",
-			},
-			FilterF: func(f codersdk.WorkspaceFilter, workspace madeWorkspace) bool {
-				return strings.ContainsAny(workspace.Workspace.Name, "Aa")
-			},
-		},
-		{
-			Name: "Q-Owner/Name",
-			Filter: codersdk.WorkspaceFilter{
-				FilterQuery: allWorkspaces[5].Owner.Username + "/" + strings.ToUpper(allWorkspaces[5].Workspace.Name),
-			},
-			FilterF: func(f codersdk.WorkspaceFilter, workspace madeWorkspace) bool {
-				if strings.EqualFold(workspace.Owner.Username, allWorkspaces[5].Owner.Username) &&
-					strings.Contains(strings.ToLower(workspace.Workspace.Name), strings.ToLower(allWorkspaces[5].Workspace.Name)) {
-					return true
-				}
-
-				return false
-			},
-		},
-		{
-			Name: "Many filters",
-			Filter: codersdk.WorkspaceFilter{
-				Owner:    allWorkspaces[3].Owner.Username,
-				Template: allWorkspaces[3].Template.Name,
-				Name:     allWorkspaces[3].Workspace.Name,
-			},
-			FilterF: func(f codersdk.WorkspaceFilter, workspace madeWorkspace) bool {
-				if strings.EqualFold(workspace.Owner.Username, f.Owner) &&
-					strings.Contains(strings.ToLower(workspace.Workspace.Name), strings.ToLower(f.Name)) &&
-					strings.EqualFold(workspace.Template.Name, f.Template) {
-					return true
-				}
-				return false
-			},
-		},
-	}
-
-	for _, c := range testCases {
-		t.Run(c.Name, func(t *testing.T) {
-			t.Parallel()
-			ctx := testutil.Context(t, testutil.WaitShort)
-			workspaces, err := client.Workspaces(ctx, c.Filter)
-			require.NoError(t, err, "fetch workspaces")
-
-			exp := make([]codersdk.Workspace, 0)
-			for _, made := range allWorkspaces {
-				if c.FilterF(c.Filter, made) {
-					exp = append(exp, made.Workspace)
-				}
-			}
-			require.ElementsMatch(t, exp, workspaces, "expected workspaces returned")
-		})
-	}
-
-	t.Run("Shared", func(t *testing.T) {
-		t.Parallel()
-
-		dv := coderdtest.DeploymentValues(t)
-
-		var (
-			client, db = coderdtest.NewWithDatabase(t, &coderdtest.Options{
-				DeploymentValues: dv,
-			})
-			orgOwner          = coderdtest.CreateFirstUser(t, client)
-			_, workspaceOwner = coderdtest.CreateAnotherUser(t, client, orgOwner.OrganizationID, rbac.ScopedRoleOrgAuditor(orgOwner.OrganizationID))
-			sharedWorkspace   = dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
-				OwnerID:        workspaceOwner.ID,
-				OrganizationID: orgOwner.OrganizationID,
-			}).Do().Workspace
-			_ = dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
-				OwnerID:        workspaceOwner.ID,
-				OrganizationID: orgOwner.OrganizationID,
-			}).Do().Workspace
-			_, toShareWithUser = coderdtest.CreateAnotherUser(t, client, orgOwner.OrganizationID)
-			ctx                = testutil.Context(t, testutil.WaitMedium)
-		)
-
-		client.UpdateWorkspaceACL(ctx, sharedWorkspace.ID, codersdk.UpdateWorkspaceACL{
-			UserRoles: map[string]codersdk.WorkspaceRole{
-				toShareWithUser.ID.String(): codersdk.WorkspaceRoleUse,
-			},
-		})
-
-		workspaces, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
-			Shared: ptr.Ref(true),
-		})
-		require.NoError(t, err, "fetch workspaces")
-		require.Equal(t, 1, workspaces.Count, "expected only one workspace")
-		require.Equal(t, workspaces.Workspaces[0].ID, sharedWorkspace.ID)
-	})
-
-	t.Run("NotShared", func(t *testing.T) {
-		t.Parallel()
-
-		dv := coderdtest.DeploymentValues(t)
-
-		var (
-			client, db = coderdtest.NewWithDatabase(t, &coderdtest.Options{
-				DeploymentValues: dv,
-			})
-			orgOwner          = coderdtest.CreateFirstUser(t, client)
-			_, workspaceOwner = coderdtest.CreateAnotherUser(t, client, orgOwner.OrganizationID, rbac.ScopedRoleOrgAuditor(orgOwner.OrganizationID))
-			sharedWorkspace   = dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
-				OwnerID:        workspaceOwner.ID,
-				OrganizationID: orgOwner.OrganizationID,
-			}).Do().Workspace
-			notSharedWorkspace = dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
-				OwnerID:        workspaceOwner.ID,
-				OrganizationID: orgOwner.OrganizationID,
-			}).Do().Workspace
-			_, toShareWithUser = coderdtest.CreateAnotherUser(t, client, orgOwner.OrganizationID)
-			ctx                = testutil.Context(t, testutil.WaitMedium)
-		)
-
-		client.UpdateWorkspaceACL(ctx, sharedWorkspace.ID, codersdk.UpdateWorkspaceACL{
-			UserRoles: map[string]codersdk.WorkspaceRole{
-				toShareWithUser.ID.String(): codersdk.WorkspaceRoleUse,
-			},
-		})
-
-		workspaces, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
-			Shared: ptr.Ref(false),
-		})
-		require.NoError(t, err, "fetch workspaces")
-		require.Equal(t, 1, workspaces.Count, "expected only one workspace")
-		require.Equal(t, workspaces.Workspaces[0].ID, notSharedWorkspace.ID)
-	})
-
-	t.Run("SharedWithUserByID", func(t *testing.T) {
-		t.Parallel()
-
-		dv := coderdtest.DeploymentValues(t)
-
-		var (
-			client, db = coderdtest.NewWithDatabase(t, &coderdtest.Options{
-				DeploymentValues: dv,
-			})
-			orgOwner          = coderdtest.CreateFirstUser(t, client)
-			_, workspaceOwner = coderdtest.CreateAnotherUser(t, client, orgOwner.OrganizationID, rbac.ScopedRoleOrgAuditor(orgOwner.OrganizationID))
-			sharedWorkspace   = dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
-				OwnerID:        workspaceOwner.ID,
-				OrganizationID: orgOwner.OrganizationID,
-			}).Do().Workspace
-			_ = dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
-				OwnerID:        workspaceOwner.ID,
-				OrganizationID: orgOwner.OrganizationID,
-			}).Do().Workspace
-			_, toShareWithUser = coderdtest.CreateAnotherUser(t, client, orgOwner.OrganizationID)
-			ctx                = testutil.Context(t, testutil.WaitMedium)
-		)
-
-		client.UpdateWorkspaceACL(ctx, sharedWorkspace.ID, codersdk.UpdateWorkspaceACL{
-			UserRoles: map[string]codersdk.WorkspaceRole{
-				toShareWithUser.ID.String(): codersdk.WorkspaceRoleUse,
-			},
-		})
-
-		workspaces, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
-			SharedWithUser: toShareWithUser.ID.String(),
-		})
-		require.NoError(t, err, "fetch workspaces")
-		require.Equal(t, 1, workspaces.Count, "expected only one workspace")
-		require.Equal(t, workspaces.Workspaces[0].ID, sharedWorkspace.ID)
-	})
-
-	t.Run("SharedWithUserByUsername", func(t *testing.T) {
-		t.Parallel()
-
-		dv := coderdtest.DeploymentValues(t)
-
-		var (
-			client, db = coderdtest.NewWithDatabase(t, &coderdtest.Options{
-				DeploymentValues: dv,
-			})
-			orgOwner          = coderdtest.CreateFirstUser(t, client)
-			_, workspaceOwner = coderdtest.CreateAnotherUser(t, client, orgOwner.OrganizationID, rbac.ScopedRoleOrgAuditor(orgOwner.OrganizationID))
-			sharedWorkspace   = dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
-				OwnerID:        workspaceOwner.ID,
-				OrganizationID: orgOwner.OrganizationID,
-			}).Do().Workspace
-			_ = dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
-				OwnerID:        workspaceOwner.ID,
-				OrganizationID: orgOwner.OrganizationID,
-			}).Do().Workspace
-			_, toShareWithUser = coderdtest.CreateAnotherUser(t, client, orgOwner.OrganizationID)
-			ctx                = testutil.Context(t, testutil.WaitMedium)
-		)
-
-		client.UpdateWorkspaceACL(ctx, sharedWorkspace.ID, codersdk.UpdateWorkspaceACL{
-			UserRoles: map[string]codersdk.WorkspaceRole{
-				toShareWithUser.ID.String(): codersdk.WorkspaceRoleUse,
-			},
-		})
-
-		workspaces, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
-			SharedWithUser: toShareWithUser.Username,
-		})
-		require.NoError(t, err, "fetch workspaces")
-		require.Equal(t, 1, workspaces.Count, "expected only one workspace")
-		require.Equal(t, workspaces.Workspaces[0].ID, sharedWorkspace.ID)
-	})
 }
 
 // TestWorkspaceFilterManual runs some specific setups with basic checks.
@@ -3315,6 +2969,73 @@ func TestWorkspaceFilterManual(t *testing.T) {
 			require.NoError(t, err)
 			expectIDs(t, []codersdk.Workspace{foo, bar, baz}, all.Workspaces)
 		})
+	})
+
+	// The user filter matches workspaces the user owns, plus workspaces
+	// shared with them directly or through a group they belong to.
+	t.Run("User", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			client, db        = coderdtest.NewWithDatabase(t, nil)
+			orgOwner          = coderdtest.CreateFirstUser(t, client)
+			_, workspaceOwner = coderdtest.CreateAnotherUser(t, client, orgOwner.OrganizationID)
+			userClient, user  = coderdtest.CreateAnotherUser(t, client, orgOwner.OrganizationID)
+			group             = dbgen.Group(t, db, database.Group{OrganizationID: orgOwner.OrganizationID})
+			ownedWorkspace    = dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+				OwnerID:        user.ID,
+				OrganizationID: orgOwner.OrganizationID,
+			}).Do().Workspace
+			userSharedWorkspace = dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+				OwnerID:        workspaceOwner.ID,
+				OrganizationID: orgOwner.OrganizationID,
+			}).Do().Workspace
+			groupSharedWorkspace = dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+				OwnerID:        workspaceOwner.ID,
+				OrganizationID: orgOwner.OrganizationID,
+			}).Do().Workspace
+			_ = dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+				OwnerID:        workspaceOwner.ID,
+				OrganizationID: orgOwner.OrganizationID,
+			}).Do().Workspace
+			ctx = testutil.Context(t, testutil.WaitMedium)
+		)
+
+		dbgen.GroupMember(t, db, database.GroupMemberTable{
+			GroupID: group.ID,
+			UserID:  user.ID,
+		})
+
+		err := client.UpdateWorkspaceACL(ctx, userSharedWorkspace.ID, codersdk.UpdateWorkspaceACL{
+			UserRoles: map[string]codersdk.WorkspaceRole{
+				user.ID.String(): codersdk.WorkspaceRoleUse,
+			},
+		})
+		require.NoError(t, err)
+		err = client.UpdateWorkspaceACL(ctx, groupSharedWorkspace.ID, codersdk.UpdateWorkspaceACL{
+			GroupRoles: map[string]codersdk.WorkspaceRole{
+				group.ID.String(): codersdk.WorkspaceRoleUse,
+			},
+		})
+		require.NoError(t, err)
+
+		expected := []codersdk.Workspace{
+			{ID: ownedWorkspace.ID},
+			{ID: userSharedWorkspace.ID},
+			{ID: groupSharedWorkspace.ID},
+		}
+
+		byUsername, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
+			User: user.Username,
+		})
+		require.NoError(t, err, "fetch workspaces by username")
+		expectIDs(t, expected, byUsername.Workspaces)
+
+		asMe, err := userClient.Workspaces(ctx, codersdk.WorkspaceFilter{
+			User: codersdk.Me,
+		})
+		require.NoError(t, err, "fetch workspaces as me")
+		expectIDs(t, expected, asMe.Workspaces)
 	})
 }
 

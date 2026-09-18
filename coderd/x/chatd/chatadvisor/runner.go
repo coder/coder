@@ -52,9 +52,10 @@ func (rt *Runtime) RunAdvisor(
 	resetProviderOptionsForNestedCall(nestedCall.ProviderOptions)
 
 	assistantOpts := chatloop.GenerateAssistantOptions{
-		Model:        rt.cfg.Model,
-		Messages:     BuildAdvisorMessages(question, conversationSnapshot),
-		CallTemplate: nestedCall,
+		Model:                rt.cfg.Model,
+		Messages:             BuildAdvisorMessages(question, conversationSnapshot),
+		CallTemplate:         nestedCall,
+		StreamSilenceTimeout: rt.cfg.StreamSilenceTimeout,
 	}
 	if opts != nil && opts.OnAdviceDelta != nil {
 		assistantOpts.PublishMessagePart = func(role codersdk.ChatMessageRole, part codersdk.ChatMessagePart) {

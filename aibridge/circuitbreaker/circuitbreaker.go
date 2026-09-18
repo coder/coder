@@ -7,7 +7,6 @@ import (
 	"net"
 	"net/http"
 	"sync"
-	"time"
 
 	"github.com/sony/gobreaker/v2"
 	"golang.org/x/xerrors"
@@ -185,22 +184,6 @@ func (p *ProviderCircuitBreakers) Execute(endpoint, model string, w http.Respons
 	}
 
 	return handlerErr
-}
-
-// Timeout returns the configured timeout duration for this circuit breaker.
-func (p *ProviderCircuitBreakers) Timeout() time.Duration {
-	return p.config.Timeout
-}
-
-// Provider returns the provider name for this circuit breaker.
-func (p *ProviderCircuitBreakers) Provider() string {
-	return p.provider
-}
-
-// OpenErrorResponse returns the error response body when the circuit is open.
-// This is exposed for handlers to use when responding to rejected requests.
-func (p *ProviderCircuitBreakers) OpenErrorResponse() []byte {
-	return p.openErrBody()
 }
 
 // StateToGaugeValue converts gobreaker.State to a gauge value.
