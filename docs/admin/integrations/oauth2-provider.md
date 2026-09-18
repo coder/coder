@@ -460,8 +460,10 @@ Refer to the note under [Client Authentication Methods](#client-authentication-m
 If you see this error when authorizing, one of the application's registered
 redirect URIs is not usable: either it does not parse as a URL, or it uses a
 blocked scheme (`javascript:`, `data:`, `file:`, or `ftp:`). The same cause
-answers `server_error` on `POST /oauth2/authorize`. The application's page
-shows every registered redirect URI; update the one that is broken (see
+answers `server_error` on `POST /oauth2/authorize`. Use
+`GET /api/v2/oauth2-provider/apps/{app}` to see every registered redirect
+URI, and `PUT` the same endpoint with a corrected `redirect_uris` list to fix
+the one that is broken (see
 [Callback URL schemes](#callback-url-schemes)).
 
 The server log records the application ID and the stored value. The response
