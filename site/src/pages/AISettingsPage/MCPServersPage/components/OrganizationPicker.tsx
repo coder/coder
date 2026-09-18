@@ -2,7 +2,7 @@ import type { FC } from "react";
 import type { Organization } from "#/api/typesGenerated";
 import { OrganizationField } from "#/components/OrganizationAutocomplete/OrganizationAutocomplete";
 
-interface OrganizationPickerProps {
+type OrganizationPickerProps = {
 	id: string;
 	organizations: readonly Organization[];
 	organization: Organization;
@@ -11,7 +11,7 @@ interface OrganizationPickerProps {
 	disabled?: boolean;
 	showLabel?: boolean;
 	showSingleOrganization?: boolean;
-}
+};
 
 export const OrganizationPicker: FC<OrganizationPickerProps> = ({
 	id,

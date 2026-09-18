@@ -54,10 +54,10 @@ export const useClientFilterMenu = ({
 
 export type ClientFilterMenu = ReturnType<typeof useClientFilterMenu>;
 
-interface ClientFilterProps {
+type ClientFilterProps = {
 	menu: ClientFilterMenu;
 	width?: number;
-}
+};
 
 export const ClientFilter: React.FC<ClientFilterProps> = ({ menu, width }) => {
 	return (

@@ -17,14 +17,14 @@ import {
 } from "#/components/Tooltip/Tooltip";
 import { BuildParametersPopover } from "./BuildParametersPopover";
 
-export interface ActionButtonProps {
+export type ActionButtonProps = {
 	loading?: boolean;
 	handleAction: (buildParameters?: WorkspaceBuildParameter[]) => void;
 	disabled?: boolean;
 	tooltipText?: string;
 	isRunning?: boolean;
 	requireActiveVersion?: boolean;
-}
+};
 
 export const UpdateButton: FC<ActionButtonProps> = ({
 	handleAction,
@@ -73,9 +73,9 @@ export const ActivateButton: FC<ActionButtonProps> = ({
 	);
 };
 
-interface ActionButtonPropsWithWorkspace extends ActionButtonProps {
+type ActionButtonPropsWithWorkspace = {
 	workspace: Workspace;
-}
+} & ActionButtonProps;
 
 export const StartButton: FC<ActionButtonPropsWithWorkspace> = ({
 	handleAction,
@@ -167,9 +167,9 @@ export const CancelButton: FC<ActionButtonProps> = ({ handleAction }) => {
 	);
 };
 
-interface DisabledButtonProps {
+type DisabledButtonProps = {
 	label: string;
-}
+};
 
 export const DisabledButton: FC<DisabledButtonProps> = ({ label }) => {
 	return (
@@ -180,11 +180,11 @@ export const DisabledButton: FC<DisabledButtonProps> = ({ label }) => {
 	);
 };
 
-interface FavoriteButtonProps {
+type FavoriteButtonProps = {
 	onToggle: (workspaceID: string) => void;
 	workspaceID: string;
 	isFavorite: boolean;
-}
+};
 
 export const FavoriteButton: FC<FavoriteButtonProps> = ({
 	onToggle,

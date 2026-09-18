@@ -13,12 +13,12 @@ import {
 } from "#/components/TemporarySavedState/TemporarySavedState";
 import { countInvisibleCharacters } from "#/utils/invisibleUnicode";
 
-interface MutationCallbacks {
+type MutationCallbacks = {
 	onSuccess?: () => void;
 	onError?: () => void;
-}
+};
 
-interface PersonalInstructionsSettingsProps {
+type PersonalInstructionsSettingsProps = {
 	userPromptData: TypesGen.UserChatCustomPrompt | undefined;
 	onSaveUserPrompt: (
 		req: TypesGen.UserChatCustomPrompt,
@@ -27,7 +27,7 @@ interface PersonalInstructionsSettingsProps {
 	isSavingUserPrompt: boolean;
 	isSaveUserPromptError: boolean;
 	isAnyPromptSaving: boolean;
-}
+};
 
 export const PersonalInstructionsSettings: FC<
 	PersonalInstructionsSettingsProps

@@ -1,12 +1,12 @@
 import type { ReactNode } from "react";
 import { Link } from "react-router";
 
-interface GetModelSelectorHelpOptions {
+type GetModelSelectorHelpOptions = {
 	isModelCatalogLoading: boolean;
 	hasModelOptions: boolean;
 	hasConfiguredModels: boolean;
 	hasUserFixableModelProviders: boolean;
-}
+};
 
 export const getModelSelectorHelp = ({
 	isModelCatalogLoading,

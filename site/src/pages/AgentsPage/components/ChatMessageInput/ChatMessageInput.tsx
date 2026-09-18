@@ -432,12 +432,12 @@ const InsertTextPlugin: FC<{
 /**
  * Structured data for a file reference extracted from the editor.
  */
-interface FileReferenceData {
+type FileReferenceData = {
 	readonly fileName: string;
 	readonly startLine: number;
 	readonly endLine: number;
 	readonly content: string;
-}
+};
 
 /**
  * A content part extracted from the Lexical editor in document order.
@@ -460,7 +460,7 @@ type MutableFileRefPart = {
 };
 type MutableContentPart = MutableTextPart | MutableFileRefPart;
 
-export interface ChatMessageInputRef {
+export type ChatMessageInputRef = {
 	setValue: (text: string) => void;
 	insertText: (text: string) => void;
 	clear: () => void;
@@ -477,10 +477,9 @@ export interface ChatMessageInputRef {
 	 * paragraph are merged, and paragraphs are separated by newlines.
 	 */
 	getContentParts: () => EditorContentPart[];
-}
+};
 
-interface ChatMessageInputProps
-	extends Omit<React.ComponentProps<"div">, "onChange" | "role" | "ref"> {
+type ChatMessageInputProps = {
 	placeholder?: string;
 	initialValue?: string;
 	/**
@@ -530,7 +529,7 @@ interface ChatMessageInputProps
 	 */
 	skillsMenuAnchor?: HTMLElement | null;
 	"aria-label"?: string;
-}
+} & Omit<React.ComponentProps<"div">, "onChange" | "role" | "ref">;
 
 // Keeps the Lexical editor's editable state in sync with the
 // disabled prop so that the underlying contentEditable element

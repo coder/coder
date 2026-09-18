@@ -67,14 +67,14 @@ type DeletedWorkspaceBannerProps = Readonly<{
 	templateName: string;
 }>;
 
-interface WorkspaceBuildPageViewProps {
+type WorkspaceBuildPageViewProps = {
 	logs: ProvisionerJobLog[] | undefined;
 	build: WorkspaceBuild | undefined;
 	buildError?: unknown;
 	deletedWorkspaceBanner?: DeletedWorkspaceBannerProps;
 	builds: WorkspaceBuild[] | undefined;
 	activeBuildNumber: number;
-}
+};
 
 export const WorkspaceBuildPageView: FC<WorkspaceBuildPageViewProps> = ({
 	logs,

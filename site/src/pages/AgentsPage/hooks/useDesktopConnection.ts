@@ -10,15 +10,15 @@ export type DesktopConnectionStatus =
 	| "disconnected"
 	| "error";
 
-interface UseDesktopConnectionOptions {
+type UseDesktopConnectionOptions = {
 	chatId: string | undefined;
 	/** When false the hook stays dormant, no WebSocket, no RFB. */
 	activated: boolean;
 	/** When true the viewport is scaled to fit the container. Default: false (native 100%). */
 	scaleViewport?: boolean;
-}
+};
 
-export interface UseDesktopConnectionResult {
+export type UseDesktopConnectionResult = {
 	/** Current connection status. */
 	status: DesktopConnectionStatus;
 	/** Whether the connection has ever been established. */
@@ -39,7 +39,7 @@ export interface UseDesktopConnectionResult {
 	remoteClipboardText: string | null;
 	/** The underlying RFB instance, if connected. */
 	rfb: RFB | null;
-}
+};
 
 const MAX_BACKOFF_MS = 30_000;
 const MAX_RECONNECT_ATTEMPTS = 10;

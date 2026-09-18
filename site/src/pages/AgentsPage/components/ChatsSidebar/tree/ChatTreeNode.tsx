@@ -37,10 +37,10 @@ import { getParentChatID } from "./chatTree";
 import { getModelDisplayName } from "./modelDisplayName";
 import { getChatDisplayConfig } from "./statusConfig";
 
-interface ChatTreeNodeProps {
+type ChatTreeNodeProps = {
 	readonly chat: Chat;
 	readonly depth?: number;
-}
+};
 
 const CHILD_INDENT_PX = 26;
 

@@ -17,10 +17,10 @@ import {
 	persistLeftSidebarWidth,
 } from "./sidebarWidth";
 
-interface ResizableChatsSidebarFrameProps {
+type ResizableChatsSidebarFrameProps = {
 	children: ReactNode;
 	className?: string;
-}
+};
 
 export const ResizableChatsSidebarFrame = ({
 	children,

@@ -22,11 +22,11 @@ const groupByDate = <TData,>(
 	return itemsByDate;
 };
 
-interface TimelineProps<TData> {
+type TimelineProps<TData> = {
 	items: readonly TData[];
 	getDate: GetDateFn<TData>;
 	row: (item: TData) => JSX.Element;
-}
+};
 
 export const Timeline = <TData,>({
 	items,

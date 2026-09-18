@@ -6,10 +6,10 @@ import { Section } from "../Section";
 import { SingleModeSection } from "./SingleModeSection";
 import { SyncModeSection } from "./SyncModeSection";
 
-interface ThemeModeSectionsStoryProps {
+type ThemeModeSectionsStoryProps = {
 	activeScheme: "dark" | "light";
 	mode: "single" | "sync";
-}
+};
 
 const meta: Meta<ThemeModeSectionsStoryProps> = {
 	title: "pages/UserSettingsPage/ThemeModeSections",
