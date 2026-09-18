@@ -144,13 +144,21 @@ func buildRules(proxyPort uint16, exemptions []hostExemption) ruleSet {
 // enforcement, since a missing exemption fails closed.
 func (e *Enforcer) resolveExemptions(ctx context.Context) []hostExemption {
 	var out []hostExemption
+	seen := make(map[hostExemption]struct{})
+	add := func(ex hostExemption) {
+		if _, ok := seen[ex]; ok {
+			return
+		}
+		seen[ex] = struct{}{}
+		out = append(out, ex)
+	}
 	for _, hostport := range e.hosts {
 		host, port := splitHostPortDefault(hostport, 0)
 		if host == "" {
 			continue
 		}
 		if addr, err := netip.ParseAddr(host); err == nil {
-			out = append(out, hostExemption{addr: addr.Unmap(), port: port})
+			add(hostExemption{addr: addr.Unmap(), port: port})
 			continue
 		}
 		addrs, err := e.resolver.LookupNetIP(ctx, "ip", host)
@@ -160,7 +168,7 @@ func (e *Enforcer) resolveExemptions(ctx context.Context) []hostExemption {
 			continue
 		}
 		for _, addr := range addrs {
-			out = append(out, hostExemption{addr: addr.Unmap(), port: port})
+			add(hostExemption{addr: addr.Unmap(), port: port})
 		}
 	}
 	return out

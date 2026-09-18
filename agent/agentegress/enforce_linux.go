@@ -82,6 +82,8 @@ func (e *Enforcer) probe(ctx context.Context) error {
 		}
 		errs = append(errs, err)
 	}
+	// xerrors only supports a single trailing %w, so wrap with fmt to keep
+	// both the sentinel and the probe output in the chain.
 	return xerrors.Errorf("%w: %w", ErrEnforcementUnavailable, errors.Join(errs...))
 }
 
