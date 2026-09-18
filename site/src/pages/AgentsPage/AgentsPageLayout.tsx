@@ -133,12 +133,6 @@ export const shouldInvalidateFilteredChatList = (
 ): boolean =>
 	!chat.parent_chat_id && FILTER_MEMBERSHIP_EVENT_KINDS.has(eventKind);
 
-// The status in other event kinds may be older than the cached status.
-export const shouldEvaluateChime = (
-	chat: TypesGen.Chat,
-	eventKind: TypesGen.ChatWatchEventKind,
-): boolean => eventKind === "status_change" && !chat.parent_chat_id;
-
 // Summary and title generation can bill after the turn reports a non-active
 // status, so invalidate the root-keyed cost query when those events arrive.
 const POST_TURN_BILLED_EVENT_KINDS = new Set<TypesGen.ChatWatchEventKind>([
@@ -578,7 +572,8 @@ const AgentsPageLayout: FC = () => {
 					const prevStatus = readInfiniteChatsCache(queryClient)?.find(
 						(chat) => chat.id === updatedChat.id,
 					)?.status;
-					if (shouldEvaluateChime(updatedChat, chatEvent.kind)) {
+					// Only play the chime for top-level chats, not sub-agents.
+					if (!updatedChat.parent_chat_id) {
 						maybePlayChime(
 							prevStatus,
 							updatedChat.status,
