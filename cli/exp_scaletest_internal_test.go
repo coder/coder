@@ -164,6 +164,22 @@ func TestShardingFlagsValidate(t *testing.T) {
 	})
 }
 
+// shardMembership sweeps every shard index and returns the shard each running
+// workspace landed in, asserting no workspace lands in more than one shard.
+func shardMembership(t *testing.T, workspaces []codersdk.Workspace, shardCount int64) map[uuid.UUID]int64 {
+	t.Helper()
+	membership := make(map[uuid.UUID]int64)
+	for idx := range shardCount {
+		shard, _ := shardWorkspaces(workspaces, idx, shardCount)
+		for _, ws := range shard {
+			_, dup := membership[ws.ID]
+			require.False(t, dup, "workspace assigned to more than one shard")
+			membership[ws.ID] = idx
+		}
+	}
+	return membership
+}
+
 // TestShardWorkspacesStable asserts churn stability: a workspace keeps the same
 // shard when other workspaces disappear. This is the property that lets replicas
 // observe different running sets without double-assigning or dropping a
@@ -178,19 +194,7 @@ func TestShardWorkspacesStable(t *testing.T) {
 		all[i].LatestBuild.Status = codersdk.WorkspaceStatusRunning
 	}
 
-	// shardOf maps each running workspace to the shard it lands in.
-	shardOf := func(workspaces []codersdk.Workspace) map[uuid.UUID]int64 {
-		m := make(map[uuid.UUID]int64)
-		for idx := range int64(shardCount) {
-			shard, _ := shardWorkspaces(workspaces, idx, shardCount)
-			for _, ws := range shard {
-				m[ws.ID] = idx
-			}
-		}
-		return m
-	}
-
-	before := shardOf(all)
+	before := shardMembership(t, all, shardCount)
 
 	// Drop half the workspaces; the survivors must keep their shard.
 	var survivors []codersdk.Workspace
@@ -199,7 +203,7 @@ func TestShardWorkspacesStable(t *testing.T) {
 			survivors = append(survivors, ws)
 		}
 	}
-	after := shardOf(survivors)
+	after := shardMembership(t, survivors, shardCount)
 
 	for _, ws := range survivors {
 		require.Equal(t, before[ws.ID], after[ws.ID],
@@ -236,30 +240,23 @@ func TestShardWorkspaces(t *testing.T) {
 		t.Run(fmt.Sprintf("count=%d", shardCount), func(t *testing.T) {
 			t.Parallel()
 
-			seen := make(map[uuid.UUID]struct{})
-			for idx := range shardCount {
-				shard, running := shardWorkspaces(workspaces, idx, shardCount)
+			membership := shardMembership(t, workspaces, shardCount)
 
-				// Total running is reported consistently on every call.
-				require.Equal(t, len(runningIDs), running)
-
-				for _, ws := range shard {
-					// Only running workspaces are selected.
-					_, isRunning := runningIDs[ws.ID]
-					require.True(t, isRunning, "non-running workspace must not be targeted")
-					// No workspace appears in more than one shard.
-					_, dup := seen[ws.ID]
-					require.False(t, dup, "workspace assigned to more than one shard")
-					seen[ws.ID] = struct{}{}
-				}
-			}
-
-			// The union of all shards is exactly the running set.
-			require.Len(t, seen, len(runningIDs))
+			// The shards cover exactly the running set: every running workspace is
+			// assigned, and only running ones are.
+			require.Len(t, membership, len(runningIDs))
 			for id := range runningIDs {
-				_, ok := seen[id]
+				_, ok := membership[id]
 				require.True(t, ok, "every running workspace must be covered by some shard")
 			}
+			for id := range membership {
+				_, isRunning := runningIDs[id]
+				require.True(t, isRunning, "non-running workspace must not be targeted")
+			}
+
+			// runningCount is the total running regardless of shard index.
+			_, running := shardWorkspaces(workspaces, 0, shardCount)
+			require.Equal(t, len(runningIDs), running)
 		})
 	}
 }
