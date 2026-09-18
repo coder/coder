@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { userEvent, within } from "storybook/test";
+import { screen, userEvent, within } from "storybook/test";
 import {
 	MockListeningPortsResponse,
 	MockSharedPortsResponse,
@@ -34,10 +34,37 @@ const meta: Meta<typeof PortForwardPopoverView> = {
 export default meta;
 type Story = StoryObj<typeof PortForwardPopoverView>;
 
+const listeningPortsWithSubstringMatch = [
+	...MockListeningPortsResponse.ports,
+	{ process_name: "substring-match", network: "", port: 18080 },
+];
+
+const typeInPortPicker = async (canvasElement: HTMLElement, text: string) => {
+	await userEvent.click(
+		within(canvasElement).getByRole("button", { name: "Connect to port..." }),
+	);
+	await userEvent.type(
+		screen.getByRole("combobox", { name: "Filter or enter port" }),
+		text,
+	);
+};
+
 export const WithPorts: Story = {
 	args: {
 		listeningPorts: MockListeningPortsResponse.ports,
 		sharedPorts: MockSharedPortsResponse.shares,
+	},
+};
+
+export const FilterPorts: Story = {
+	args: {
+		listeningPorts: listeningPortsWithSubstringMatch,
+		sharedPorts: MockSharedPortsResponse.shares.filter(
+			(share) => share.port !== 8081,
+		),
+	},
+	play: async ({ canvasElement }) => {
+		await typeInPortPicker(canvasElement, "808");
 	},
 };
 
@@ -55,6 +82,9 @@ export const Empty: Story = {
 	args: {
 		listeningPorts: [],
 		sharedPorts: [],
+	},
+	play: async ({ canvasElement }) => {
+		await typeInPortPicker(canvasElement, "5");
 	},
 };
 
