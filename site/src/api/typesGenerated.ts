@@ -7483,9 +7483,9 @@ export interface PostOAuth2ProviderAppRequest {
 export interface PostWorkspaceUsageRequest {
 	readonly agent_id: string;
 	/**
-	 * AppName is an arbitrary name for the app reporting usage. The server
-	 * normalizes it at ingestion, so new clients need no server change. See
-	 * the UsageAppName constants for the well-known names.
+	 * AppName is any name for the app reporting usage. The server normalizes
+	 * it at ingestion, so a new app needs no server change. The UsageAppName
+	 * constants are the well-known names.
 	 */
 	readonly app_name: string;
 }

@@ -12212,10 +12212,10 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 ### Properties
 
-| Name       | Type   | Required | Restrictions | Description                                                                                                                                                                                      |
-|------------|--------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `agent_id` | string | false    |              |                                                                                                                                                                                                  |
-| `app_name` | string | false    |              | App name is an arbitrary name for the app reporting usage. The server normalizes it at ingestion, so new clients need no server change. See the UsageAppName constants for the well-known names. |
+| Name       | Type   | Required | Restrictions | Description                                                                                                                                                                        |
+|------------|--------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `agent_id` | string | false    |              |                                                                                                                                                                                    |
+| `app_name` | string | false    |              | App name is any name for the app reporting usage. The server normalizes it at ingestion, so a new app needs no server change. The UsageAppName constants are the well-known names. |
 
 ## codersdk.PprofConfig
 

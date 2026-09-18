@@ -24366,7 +24366,7 @@
 					"format": "uuid"
 				},
 				"app_name": {
-					"description": "AppName is an arbitrary name for the app reporting usage. The server\nnormalizes it at ingestion, so new clients need no server change. See\nthe UsageAppName constants for the well-known names.",
+					"description": "AppName is any name for the app reporting usage. The server normalizes\nit at ingestion, so a new app needs no server change. The UsageAppName\nconstants are the well-known names.",
 					"type": "string"
 				}
 			}
