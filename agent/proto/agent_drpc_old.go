@@ -105,3 +105,9 @@ type DRPCAgentClient210 interface {
 type DRPCAgentClient211 interface {
 	DRPCAgentClient210
 }
+
+// DRPCAgentClient213 is the Agent API at v2.13. It supports reading a client
+// session ID off SSH connections for correlating connection logs.
+type DRPCAgentClient213 interface {
+	DRPCAgentClient211
+}

@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"strconv"
 	"sync"
 	"testing"
 	"time"
@@ -282,6 +283,11 @@ func TestCoderConnectStdio(t *testing.T) {
 	ln, err := net.Listen("tcp", server.server.Addr)
 	require.NoError(t, err)
 
+	host, sport, err := net.SplitHostPort(ln.Addr().String())
+	require.NoError(t, err)
+	port, err := strconv.ParseUint(sport, 10, 16)
+	require.NoError(t, err)
+
 	go func() {
 		_ = server.Serve(ln)
 	}()
@@ -289,9 +295,11 @@ func TestCoderConnectStdio(t *testing.T) {
 		_ = server.Close()
 	})
 
+	sessionID := "0123456789abcdef0123456789abcdef"
 	stdioDone := make(chan struct{})
 	go func() {
-		err = runCoderConnectStdio(ctx, ln.Addr().String(), clientOutput, serverInput, stack, logger)
+		// #nosec G115 - valid ports fall within uint16.
+		err = runCoderConnectStdio(ctx, host, uint16(port), sessionID, clientOutput, serverInput, stack, logger)
 		assert.NoError(t, err)
 		close(stdioDone)
 	}()

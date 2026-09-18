@@ -35,6 +35,7 @@ import (
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/sloghuman"
 	"github.com/coder/coder/v2/agent/agentssh"
+	"github.com/coder/coder/v2/apiversion"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/cli/cliutil"
 	"github.com/coder/coder/v2/coderd/autobuild/notify"
@@ -211,9 +212,7 @@ func (r *RootCmd) ssh() *serpent.Command {
 			return completions
 		},
 		Handler: func(inv *serpent.Invocation) (retErr error) {
-			// Get the session ID to additionally propagate it to tailnet telemetry.
 			sessionID := clientSessionIDFromContext(inv.Context())
-
 			client, err := r.InitClient(inv)
 			if err != nil {
 				return err
@@ -406,6 +405,7 @@ func (r *RootCmd) ssh() *serpent.Command {
 				Fetch:         client.WorkspaceAgent,
 				FetchLogs:     client.WorkspaceAgentLogsAfter,
 				Wait:          wait,
+				WaitVersion:   true,
 				DocsURL:       appearanceConfig.DocsURL,
 			})
 			if err != nil {
@@ -413,6 +413,19 @@ func (r *RootCmd) ssh() *serpent.Command {
 					return cliui.ErrCanceled
 				}
 				return err
+			}
+
+			// The session ID is sent on the SSH connection itself, done on a separate
+			// port so old agents do not get confused and new agents do not wait for a
+			// preamble that may never come from old clients.  The new port was added
+			// along with 2.13 of the agent API that can forward the ID to the
+			// connection logs table, so use that as the indicator.
+			var port uint16 = workspacesdk.AgentStandardSSHPort
+			if sessionID != "" {
+				major, minor, err := apiversion.Parse(workspaceAgent.APIVersion)
+				if err == nil && (major > 2 || (major == 2 && minor >= 13)) {
+					port = workspacesdk.AgentPreambleSSHPort
+				}
 			}
 
 			// If we're in stdio mode, check to see if we can use Coder Connect.
@@ -463,7 +476,8 @@ func (r *RootCmd) ssh() *serpent.Command {
 						})
 						defer closeUsage()
 					}
-					return runCoderConnectStdio(ctx, fmt.Sprintf("%s:22", coderConnectHost), stdioReader, stdioWriter, stack, logger)
+
+					return runCoderConnectStdio(ctx, coderConnectHost, port, sessionID, stdioReader, stdioWriter, stack, logger)
 				}
 			}
 
@@ -528,7 +542,7 @@ func (r *RootCmd) ssh() *serpent.Command {
 			}
 
 			if stdio {
-				rawSSH, err := conn.SSH(ctx)
+				rawSSH, err := conn.SSHOnPort(ctx, port)
 				if err != nil {
 					return xerrors.Errorf("connect SSH: %w", err)
 				}
@@ -557,7 +571,7 @@ func (r *RootCmd) ssh() *serpent.Command {
 				return nil
 			}
 
-			sshClient, err := conn.SSHClient(ctx)
+			sshClient, err := conn.SSHClientOnPort(ctx, port)
 			if err != nil {
 				return xerrors.Errorf("ssh client: %w", err)
 			}
@@ -1699,9 +1713,11 @@ func testOrDefaultDialer(ctx context.Context) coderConnectDialer {
 	return dialer
 }
 
-func runCoderConnectStdio(ctx context.Context, addr string, stdin io.Reader, stdout io.Writer, stack *closerStack, logger slog.Logger) error {
+func runCoderConnectStdio(ctx context.Context, host string, port uint16, sessionID string, stdin io.Reader, stdout io.Writer, stack *closerStack, logger slog.Logger) error {
 	dialer := testOrDefaultDialer(ctx)
 	var conn net.Conn
+
+	addr := fmt.Sprintf("%s:%d", host, port)
 	if err := retryWithInterval(ctx, logger, sshRetryInterval, sshMaxAttempts, func() error {
 		var err error
 		conn, err = dialer.DialContext(ctx, "tcp", addr)
@@ -1712,6 +1728,14 @@ func runCoderConnectStdio(ctx context.Context, addr string, stdin io.Reader, std
 	}); err != nil {
 		return err
 	}
+
+	if port == workspacesdk.AgentPreambleSSHPort {
+		err := tailnet.WritePreamble(conn, sessionID)
+		if err != nil {
+			return errors.Join(err, conn.Close())
+		}
+	}
+
 	if err := stack.push("tcp conn", conn); err != nil {
 		return err
 	}

@@ -41,7 +41,8 @@ func TestReportConnectionEmpty(t *testing.T) {
 		hardCtx: ctx,
 		logger:  logger,
 	}
-	disconnected := uut.reportConnection(connID, proto.Connection_TYPE_UNSPECIFIED, "")
+	clientSessionID := "0123456789abcdef0123456789abcdef"
+	disconnected := uut.reportConnection(connID, proto.Connection_TYPE_UNSPECIFIED, "", clientSessionID)
 
 	require.Len(t, uut.reportConnections, 1)
 	req0 := uut.reportConnections[0]
@@ -49,6 +50,7 @@ func TestReportConnectionEmpty(t *testing.T) {
 	require.Equal(t, "", req0.GetConnection().Ip)
 	require.Equal(t, connID[:], req0.GetConnection().GetId())
 	require.Equal(t, proto.Connection_CONNECT, req0.GetConnection().GetAction())
+	require.Equal(t, clientSessionID, req0.GetConnection().GetClientSessionId())
 
 	disconnected(0, "because")
 	require.Len(t, uut.reportConnections, 2)
@@ -57,6 +59,7 @@ func TestReportConnectionEmpty(t *testing.T) {
 	require.Equal(t, "", req1.GetConnection().Ip)
 	require.Equal(t, connID[:], req1.GetConnection().GetId())
 	require.Equal(t, proto.Connection_DISCONNECT, req1.GetConnection().GetAction())
+	require.Equal(t, clientSessionID, req0.GetConnection().GetClientSessionId())
 	require.Equal(t, "because", req1.GetConnection().GetReason())
 }
 

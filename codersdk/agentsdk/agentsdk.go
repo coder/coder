@@ -375,6 +375,19 @@ func (c *Client) ConnectRPC211WithRole(ctx context.Context, role string) (
 	return proto.NewDRPCAgentClient(conn), tailnetproto.NewDRPCTailnetClient(conn), nil
 }
 
+// ConnectRPC213WithRole returns a dRPC client to the agent API v2.13, which
+// supports a client session ID in SSH connection logs. Pass role "agent" for
+// workspace agents to enable connection monitoring.
+func (c *Client) ConnectRPC213WithRole(ctx context.Context, role string) (
+	proto.DRPCAgentClient213, tailnetproto.DRPCTailnetClient28, error,
+) {
+	conn, err := c.connectRPCVersion(ctx, apiversion.New(2, 13), role)
+	if err != nil {
+		return nil, nil, err
+	}
+	return proto.NewDRPCAgentClient(conn), tailnetproto.NewDRPCTailnetClient(conn), nil
+}
+
 // ConnectRPC connects to the workspace agent API and tailnet API.
 // It does not send a role query parameter, so the server will apply
 // its default behavior (currently: enable connection monitoring for

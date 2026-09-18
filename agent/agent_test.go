@@ -71,7 +71,11 @@ func TestMain(m *testing.M) {
 	goleak.VerifyTestMain(m, testutil.GoleakOptions...)
 }
 
-var sshPorts = []uint16{workspacesdk.AgentSSHPort, workspacesdk.AgentStandardSSHPort}
+var sshPorts = []uint16{
+	workspacesdk.AgentSSHPort,
+	workspacesdk.AgentStandardSSHPort,
+	workspacesdk.AgentPreambleSSHPort,
+}
 
 // TestAgent_CloseWhileStarting is a regression test for https://github.com/coder/coder/issues/17328
 func TestAgent_ImmediateClose(t *testing.T) {
@@ -134,8 +138,13 @@ func TestAgent_Stats_SSH(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 			defer cancel()
 
+			clientSessionID := ""
+			if port == workspacesdk.AgentPreambleSSHPort {
+				clientSessionID = "0123456789abcdef0123456789abcdef"
+			}
+
 			//nolint:dogsled
-			conn, _, stats, _, _ := setupAgent(t, agentsdk.Manifest{}, 0)
+			conn, agentClient, stats, _, _ := setupAgentWithClientSessionID(t, agentsdk.Manifest{}, nil, 0, clientSessionID)
 
 			sshClient, err := conn.SSHClientOnPort(ctx, port)
 			require.NoError(t, err)
@@ -158,8 +167,38 @@ func TestAgent_Stats_SSH(t *testing.T) {
 			_ = stdin.Close()
 			err = session.Wait()
 			require.NoError(t, err, "waiting for session to exit")
+
+			assertConnectionReport(t, agentClient, proto.Connection_SSH, 0, "", clientSessionID)
 		})
 	}
+
+	t.Run("BadSessionID", func(t *testing.T) {
+		t.Parallel()
+		tests := []struct {
+			name string
+			id   string
+		}{
+			{
+				name: "Empty",
+				id:   "",
+			},
+			{
+				name: "Invalid",
+				id:   "invalid",
+			},
+		}
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+				defer cancel()
+				//nolint:dogsled
+				conn, _, _, _, _ := setupAgentWithClientSessionID(t, agentsdk.Manifest{}, nil, 0, tc.id)
+				_, err := conn.SSHClientOnPort(ctx, workspacesdk.AgentPreambleSSHPort)
+				require.Error(t, err)
+			})
+		}
+	})
 
 	// Regression test for CODAGT-517: the barrier blocks reportLoop's
 	// initial UpdateStats, so on unfixed code the connstats callback is
@@ -365,7 +404,7 @@ func TestAgent_Stats_Magic(t *testing.T) {
 		err = session.Wait()
 		require.NoError(t, err)
 
-		assertConnectionReport(t, agentClient, proto.Connection_VSCODE, 0, "")
+		assertConnectionReport(t, agentClient, proto.Connection_VSCODE, 0, "", "")
 	})
 
 	t.Run("TracksJetBrains", func(t *testing.T) {
@@ -438,7 +477,7 @@ func TestAgent_Stats_Magic(t *testing.T) {
 			"never saw stats after conn closes",
 		)
 
-		assertConnectionReport(t, agentClient, proto.Connection_JETBRAINS, 0, "")
+		assertConnectionReport(t, agentClient, proto.Connection_JETBRAINS, 0, "", "")
 	})
 }
 
@@ -873,8 +912,9 @@ func TestAgent_Session_TTY_MOTD_Update(t *testing.T) {
 	setSBInterval := func(_ *agenttest.Client, opts *agent.Options) {
 		opts.ServiceBannerRefreshInterval = testutil.IntervalFast
 	}
+	clientSessionID := "0123456789abcdef0123456789abcdef"
 	//nolint:dogsled // Allow the blank identifiers.
-	conn, client, _, _, _ := setupAgent(t, agentsdk.Manifest{}, 0, setSBInterval)
+	conn, client, _, _, _ := setupAgentWithClientSessionID(t, agentsdk.Manifest{}, nil, 0, clientSessionID, setSBInterval)
 
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
@@ -1396,7 +1436,7 @@ func TestAgent_SFTP(t *testing.T) {
 
 		// Close the client to trigger disconnect event.
 		_ = client.Close()
-		assertConnectionReport(t, agentClient, proto.Connection_SSH, 0, "")
+		assertConnectionReport(t, agentClient, proto.Connection_SSH, 0, "", "")
 	})
 
 	t.Run("CustomWorkingDirectory", func(t *testing.T) {
@@ -1429,7 +1469,7 @@ func TestAgent_SFTP(t *testing.T) {
 
 		// Close the client to trigger disconnect event.
 		_ = client.Close()
-		assertConnectionReport(t, agentClient, proto.Connection_SSH, 0, "")
+		assertConnectionReport(t, agentClient, proto.Connection_SSH, 0, "", "")
 	})
 
 	t.Run("MissingWorkingDirectory", func(t *testing.T) {
@@ -1484,7 +1524,7 @@ func TestAgent_SCP(t *testing.T) {
 
 	// Close the client to trigger disconnect event.
 	scpClient.Close()
-	assertConnectionReport(t, agentClient, proto.Connection_SSH, 0, "")
+	assertConnectionReport(t, agentClient, proto.Connection_SSH, 0, "", "")
 }
 
 func TestAgent_FileTransferBlocked(t *testing.T) {
@@ -1519,7 +1559,7 @@ func TestAgent_FileTransferBlocked(t *testing.T) {
 		require.Error(t, err)
 		assertFileTransferBlocked(t, err.Error())
 
-		assertConnectionReport(t, agentClient, proto.Connection_SSH, agentssh.BlockedFileTransferErrorCode, "")
+		assertConnectionReport(t, agentClient, proto.Connection_SSH, agentssh.BlockedFileTransferErrorCode, "", "")
 	})
 
 	t.Run("SCP with go-scp package", func(t *testing.T) {
@@ -1543,7 +1583,7 @@ func TestAgent_FileTransferBlocked(t *testing.T) {
 		require.Error(t, err)
 		assertFileTransferBlocked(t, err.Error())
 
-		assertConnectionReport(t, agentClient, proto.Connection_SSH, agentssh.BlockedFileTransferErrorCode, "")
+		assertConnectionReport(t, agentClient, proto.Connection_SSH, agentssh.BlockedFileTransferErrorCode, "", "")
 	})
 
 	t.Run("Forbidden commands", func(t *testing.T) {
@@ -1580,7 +1620,7 @@ func TestAgent_FileTransferBlocked(t *testing.T) {
 				require.NoError(t, err)
 				assertFileTransferBlocked(t, string(msg))
 
-				assertConnectionReport(t, agentClient, proto.Connection_SSH, agentssh.BlockedFileTransferErrorCode, "")
+				assertConnectionReport(t, agentClient, proto.Connection_SSH, agentssh.BlockedFileTransferErrorCode, "", "")
 			})
 		}
 	})
@@ -2286,7 +2326,7 @@ func TestAgent_ReconnectingPTY(t *testing.T) {
 			netConn0, err := conn.ReconnectingPTY(ctx, idConnectionReport, 80, 80, "bash --norc")
 			require.NoError(t, err)
 			_ = netConn0.Close()
-			assertConnectionReport(t, agentClient, proto.Connection_RECONNECTING_PTY, 0, "")
+			assertConnectionReport(t, agentClient, proto.Connection_RECONNECTING_PTY, 0, "", "")
 
 			// --norc disables executing .bashrc, which is often used to customize the bash prompt
 			netConn1, err := conn.ReconnectingPTY(ctx, id, 80, 80, "bash --norc")
@@ -3976,8 +4016,12 @@ func setupSSHSessionOnPort(
 			return []codersdk.BannerConfig{banner}, nil
 		})
 	})
+	clientSessionID := ""
+	if port == workspacesdk.AgentPreambleSSHPort {
+		clientSessionID = "0123456789abcdef0123456789abcdef"
+	}
 	//nolint:dogsled
-	conn, _, _, fs, _ := setupAgent(t, manifest, 0, opts...)
+	conn, _, _, fs, _ := setupAgentWithClientSessionID(t, manifest, nil, 0, clientSessionID, opts...)
 	if prepareFS != nil {
 		prepareFS(fs)
 	}
@@ -4009,6 +4053,21 @@ func setupAgent(t testing.TB, metadata agentsdk.Manifest, ptyTimeout time.Durati
 // because agentsdk.Manifest intentionally does not carry secrets; see
 // the Manifest doc comment in codersdk/agentsdk.
 func setupAgentWithSecrets(t testing.TB, metadata agentsdk.Manifest, secrets []agentsdk.WorkspaceSecret, ptyTimeout time.Duration, opts ...func(*agenttest.Client, *agent.Options)) (
+	workspacesdk.AgentConn,
+	*agenttest.Client,
+	<-chan *proto.Stats,
+	afero.Fs,
+	agent.Agent,
+) {
+	return setupAgentWithClientSessionID(t, metadata, secrets, ptyTimeout, "", opts...)
+}
+
+func setupAgentWithClientSessionID(t testing.TB,
+	metadata agentsdk.Manifest,
+	secrets []agentsdk.WorkspaceSecret,
+	ptyTimeout time.Duration,
+	clientSessionID string,
+	opts ...func(*agenttest.Client, *agent.Options)) (
 	workspacesdk.AgentConn,
 	*agenttest.Client,
 	<-chan *proto.Stats,
@@ -4090,7 +4149,8 @@ func setupAgentWithSecrets(t testing.TB, metadata agentsdk.Manifest, secrets []a
 		}
 	})
 	agentConn := workspacesdk.NewAgentConn(conn, workspacesdk.AgentConnOptions{
-		AgentID: metadata.AgentID,
+		AgentID:         metadata.AgentID,
+		ClientSessionID: clientSessionID,
 	})
 	t.Cleanup(func() {
 		_ = agentConn.Close()
@@ -4400,7 +4460,12 @@ func requireEcho(t *testing.T, conn net.Conn) {
 	require.Equal(t, "test", string(b))
 }
 
-func assertConnectionReport(t testing.TB, agentClient *agenttest.Client, connectionType proto.Connection_Type, status int, reason string) {
+func assertConnectionReport(t testing.TB,
+	agentClient *agenttest.Client,
+	connectionType proto.Connection_Type,
+	status int,
+	reason, clientSessionID string,
+) {
 	t.Helper()
 
 	var reports []*proto.ReportConnectionRequest
@@ -4430,4 +4495,5 @@ func assertConnectionReport(t testing.TB, agentClient *agenttest.Client, connect
 	} else {
 		t.Logf("connection report disconnect reason: %s", reports[1].GetConnection().GetReason())
 	}
+	assert.Equal(t, clientSessionID, reports[0].GetConnection().GetClientSessionId(), "client session id should be %s", clientSessionID)
 }

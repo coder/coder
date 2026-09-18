@@ -33,10 +33,11 @@ type JetbrainsChannelWatcher struct {
 	startSession     startSessionFunc
 	logger           slog.Logger
 	originAddr       string
+	clientSessionID  string
 	reportConnection reportConnectionFunc
 }
 
-func NewJetbrainsChannelWatcher(ctx ssh.Context, logger slog.Logger, reportConnection reportConnectionFunc, newChannel gossh.NewChannel, startSession startSessionFunc) gossh.NewChannel {
+func NewJetbrainsChannelWatcher(ctx ssh.Context, logger slog.Logger, reportConnection reportConnectionFunc, newChannel gossh.NewChannel, startSession startSessionFunc, clientSessionID string) gossh.NewChannel {
 	d := localForwardChannelData{}
 	if err := gossh.Unmarshal(newChannel.ExtraData(), &d); err != nil {
 		// If the data fails to unmarshal, do nothing.
@@ -68,12 +69,13 @@ func NewJetbrainsChannelWatcher(ctx ssh.Context, logger slog.Logger, reportConne
 		startSession:     startSession,
 		logger:           logger.With(slog.F("destination_port", d.DestPort)),
 		originAddr:       d.OriginAddr,
+		clientSessionID:  clientSessionID,
 		reportConnection: reportConnection,
 	}
 }
 
 func (w *JetbrainsChannelWatcher) Accept() (gossh.Channel, <-chan *gossh.Request, error) {
-	disconnected := w.reportConnection(uuid.New(), string(codersdk.AppFamilyJetBrains), w.originAddr)
+	disconnected := w.reportConnection(uuid.New(), string(codersdk.AppFamilyJetBrains), w.originAddr, w.clientSessionID)
 
 	c, r, err := w.NewChannel.Accept()
 	if err != nil {

@@ -28,8 +28,11 @@ import (
 var ErrSkipClose = xerrors.New("skip tailnet close")
 
 const (
-	AgentSSHPort             = tailnet.WorkspaceAgentSSHPort
-	AgentStandardSSHPort     = tailnet.WorkspaceAgentStandardSSHPort
+	AgentSSHPort         = tailnet.WorkspaceAgentSSHPort
+	AgentStandardSSHPort = tailnet.WorkspaceAgentStandardSSHPort
+	// AgentPreambleSSHPort is an SSH port that can send a blob before the actual
+	// SSH bytes, which allows transmitting things like a session ID.
+	AgentPreambleSSHPort     = tailnet.WorkspaceAgentPreambleSSHPort
 	AgentReconnectingPTYPort = tailnet.WorkspaceAgentReconnectingPTYPort
 	AgentSpeedtestPort       = tailnet.WorkspaceAgentSpeedtestPort
 	// AgentHTTPAPIServerPort serves a HTTP server with endpoints for e.g.
@@ -38,7 +41,7 @@ const (
 
 	// AgentMinimumListeningPort is the minimum port that the listening-ports
 	// endpoint will return to the client, and the minimum port that is accepted
-	// by the proxy applications endpoint. Coder consumes ports 1-4 at the
+	// by the proxy applications endpoint. Coder consumes ports 1-5 at the
 	// moment, and we reserve some extra ports for future use. Port 9 and up are
 	// available for the user.
 	//
@@ -192,9 +195,8 @@ type DialAgentOptions struct {
 	// Whether the client will send network telemetry events.
 	// Enable instead of Disable so it's initialized to false (in tests).
 	EnableTelemetry bool
-	// ClientSessionID, when set, is attached to network telemetry events as
-	// client_session_id so the session can be correlated across the client's
-	// logs, requests, and telemetry.
+	// ClientSessionID is attached to events so the client session can be
+	// correlated across the agent's and client's logs, requests, and telemetry.
 	ClientSessionID string
 }
 
@@ -347,7 +349,8 @@ func (c *Client) DialAgent(dialCtx context.Context, agentID uuid.UUID, options *
 			<-controller.Closed()
 			return conn.Close()
 		},
-		Logger: options.Logger,
+		Logger:          options.Logger,
+		ClientSessionID: options.ClientSessionID,
 	})
 
 	// Agent HTTP API requests use a separate per-request HTTP client that does

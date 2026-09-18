@@ -922,51 +922,111 @@ func TestWorkspaceAgentTailnet(t *testing.T) {
 
 func TestWorkspaceAgentClientCoordinate_ConnectionLog(t *testing.T) {
 	t.Parallel()
-	connLogger := connectionlog.NewFake()
-	client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
-		ConnectionLogger: connLogger,
-	})
-	user := coderdtest.CreateFirstUser(t, client)
 
-	r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
-		OrganizationID: user.OrganizationID,
-		OwnerID:        user.UserID,
-	}).WithAgent().Do()
+	tests := []struct {
+		name  string
+		id    string // Client session ID to set on the dial options.
+		port  uint16 // If provided, make an ssh connection on this port.
+		error string // Expected ssh connection error.
+	}{
+		{name: "TunnelOnly"},
+		{
+			name: "NoPreamble",
+			port: workspacesdk.AgentSSHPort,
+		},
+		{
+			name:  "EmptyID",
+			port:  workspacesdk.AgentPreambleSSHPort,
+			error: "invalid preamble session id",
+		},
+		{
+			name:  "InvalidID",
+			port:  workspacesdk.AgentPreambleSSHPort,
+			id:    "invalid",
+			error: "invalid preamble session id",
+		},
+		{
+			name: "ValidID",
+			port: workspacesdk.AgentPreambleSSHPort,
+			id:   "0123456789abcdef0123456789abcdef",
+		},
+	}
 
-	_ = agenttest.New(t, client.URL, r.AgentToken)
-	resources := coderdtest.AwaitWorkspaceAgents(t, client, r.Workspace.ID)
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			connLogger := connectionlog.NewFake()
+			client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
+				ConnectionLogger: connLogger,
+			})
+			user := coderdtest.CreateFirstUser(t, client)
 
-	ctx := testutil.Context(t, testutil.WaitLong)
+			r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+				OrganizationID: user.OrganizationID,
+				OwnerID:        user.UserID,
+			}).WithAgent().Do()
 
-	conn, err := workspacesdk.New(client).
-		DialAgent(ctx, resources[0].Agents[0].ID, &workspacesdk.DialAgentOptions{
-			Logger: testutil.Logger(t).Named("client"),
+			_ = agenttest.New(t, client.URL, r.AgentToken)
+			resources := coderdtest.AwaitWorkspaceAgents(t, client, r.Workspace.ID)
+
+			ctx := testutil.Context(t, testutil.WaitLong)
+
+			conn, err := workspacesdk.New(client).
+				DialAgent(ctx, resources[0].Agents[0].ID, &workspacesdk.DialAgentOptions{
+					Logger:          testutil.Logger(t).Named("client"),
+					ClientSessionID: tc.id,
+				})
+			require.NoError(t, err)
+			defer conn.Close()
+			require.True(t, conn.AwaitReachable(ctx))
+
+			// If provided a port, make an SSH connection (the client session ID is
+			// sent on the actual SSH connection).
+			ctype := database.ConnectionTypeTunnel
+			if tc.port != 0 {
+				ctype = database.ConnectionTypeSsh
+				sshClient, err := conn.SSHClientOnPort(ctx, tc.port)
+				if tc.error != "" {
+					require.Error(t, err)
+					require.ErrorContains(t, err, tc.error)
+				} else {
+					require.NoError(t, err)
+					session, err := sshClient.NewSession()
+					require.NoError(t, err)
+					output, err := session.CombinedOutput("echo test")
+					require.NoError(t, err)
+					require.Equal(t, "test", strings.TrimSpace(string(output)))
+					_ = session.Close()
+					_ = sshClient.Close()
+				}
+			}
+
+			if tc.error == "" {
+				require.Eventually(t, func() bool {
+					return connLogger.Contains(t, database.UpsertConnectionLogParams{
+						OrganizationID:   user.OrganizationID,
+						WorkspaceOwnerID: user.UserID,
+						WorkspaceID:      r.Workspace.ID,
+						WorkspaceName:    r.Workspace.Name,
+						AgentName:        resources[0].Agents[0].Name,
+						Type:             ctype,
+						Code: sql.NullInt32{
+							Int32: 0,
+							Valid: tc.port != 0,
+						},
+						ConnectionStatus: database.ConnectionStatusConnected,
+						ClientSessionID: sql.NullString{
+							String: tc.id,
+							Valid:  tc.id != "",
+						},
+					})
+				}, testutil.WaitShort, testutil.IntervalFast)
+			}
+
+			err = conn.Close()
+			require.NoError(t, err)
 		})
-	require.NoError(t, err)
-	defer conn.Close()
-	require.True(t, conn.AwaitReachable(ctx))
-
-	require.Eventually(t, func() bool {
-		return connLogger.Contains(t, database.UpsertConnectionLogParams{
-			OrganizationID:   user.OrganizationID,
-			WorkspaceOwnerID: user.UserID,
-			WorkspaceID:      r.Workspace.ID,
-			WorkspaceName:    r.Workspace.Name,
-			AgentName:        resources[0].Agents[0].Name,
-			Type:             database.ConnectionTypeTunnel,
-			Code: sql.NullInt32{
-				Int32: http.StatusSwitchingProtocols,
-				Valid: true,
-			},
-			ConnectionStatus: database.ConnectionStatusConnected,
-			UserID: uuid.NullUUID{
-				UUID:  user.UserID,
-				Valid: true,
-			},
-		})
-	}, testutil.WaitShort, testutil.IntervalFast)
-	err = conn.Close()
-	require.NoError(t, err)
+	}
 }
 
 func TestWorkspaceAgentClientCoordinate_BadVersion(t *testing.T) {
