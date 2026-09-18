@@ -461,7 +461,7 @@ export const SubmissionPending: Story = {
 /** Right sidebar panel is open with diff status data. */
 export const WithSidebarPanel: Story = {
 	render: () => {
-		const diffStatus = {
+		const mockDiffStatus = {
 			...MockChatDiffStatus,
 			chat_id: AGENT_ID,
 			pull_request_title: "fix: resolve race condition in workspace builds",
@@ -472,7 +472,7 @@ export const WithSidebarPanel: Story = {
 		return (
 			<StoryAgentChatPageView
 				showSidebarPanel
-				chat={{ diff_status: diffStatus, diff_statuses: [diffStatus] }}
+				chat={{ diff_status: mockDiffStatus, diff_statuses: [mockDiffStatus] }}
 			/>
 		);
 	},
@@ -522,7 +522,7 @@ export const NarrowWithSidebarPanel: Story = {
  */
 export const RefreshInvalidatesPRDiff: Story = {
 	render: () => {
-		const diffStatus = {
+		const mockDiffStatus = {
 			...MockChatDiffStatus,
 			chat_id: AGENT_ID,
 			pull_request_title: "fix: resolve race condition in workspace builds",
@@ -533,7 +533,7 @@ export const RefreshInvalidatesPRDiff: Story = {
 		return (
 			<StoryAgentChatPageView
 				showSidebarPanel
-				chat={{ diff_status: diffStatus, diff_statuses: [diffStatus] }}
+				chat={{ diff_status: mockDiffStatus, diff_statuses: [mockDiffStatus] }}
 			/>
 		);
 	},
