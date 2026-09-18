@@ -605,6 +605,13 @@ A copy in the body does not excuse one in the URL: the request is refused on
 the query string alone, whatever the body holds. The refusal issues no token
 and revokes nothing, so the retry needs no new authorization.
 
+Rotate the secret that was in the URL. It is still valid, and a URL is
+recorded by reverse proxies, load balancers, CDN access logs, shell history,
+and client libraries. Coder does not log query strings, so an empty result
+when you search the Coder logs does not mean the secret stayed private.
+Deleting a secret also revokes the tokens issued under it, so the client has
+to authorize again.
+
 Earlier releases accepted the parameter in the query string. An integration
 that relied on that has to move it into the body or the header.
 

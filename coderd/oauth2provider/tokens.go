@@ -29,7 +29,7 @@ import (
 // Error descriptions shared by the token and revocation endpoints, which reject
 // these two cases identically.
 const (
-	errMsgClientSecretInQuery   = "client_secret was sent in the URL query string; send it in the request body or the Authorization header" //nolint:gosec // G101: message text, not a hardcoded credential.
+	errMsgClientSecretInQuery   = "client_secret was sent in the URL query string; send it in the request body or the Authorization header, and rotate the secret that was exposed" //nolint:gosec // G101: message text, not a hardcoded credential.
 	errMsgConflictingClientAuth = "Conflicting client credentials between Authorization header and request body"
 )
 
@@ -337,6 +337,8 @@ func Tokens(db database.Store, lifetimes codersdk.SessionLifetime, logger slog.L
 		app := httpmw.OAuth2ProviderApp(r)
 
 		if clientSecretInQuery(r) {
+			logger.Warn(ctx, "oauth2 token request refused: client_secret in query string",
+				slog.F("app_id", app.ID))
 			writeTokenError(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidRequest, errMsgClientSecretInQuery)
 			return
 		}
