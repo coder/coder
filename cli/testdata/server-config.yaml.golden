@@ -505,6 +505,11 @@ provisioning:
   # templates cannot opt back in.
   # (default: false, type: bool)
   disableModuleCache: false
+# Evaluate every resource in a template when rendering dynamic parameters, instead
+# of only the parameter, preset, and tag blocks and what they reference. Slower,
+# and only needed if a template renders incorrectly with the default.
+# (default: false, type: bool)
+dynamicParametersFullEvaluation: false
 # Enable one or more experiments. These are not ready for production. Separate
 # multiple experiments with commas, or enter '*' to opt-in to all available
 # experiments.
@@ -850,6 +855,11 @@ chat:
   # has no effect. This option will be removed in a future release.
   # (default: true, type: bool)
   aiGatewayRoutingEnabled: true
+  # Maximum time to wait for the next streamed part from the chat model before the
+  # attempt is canceled and retried. This also bounds the time to first token. Set
+  # to 0 to disable. Must be no more than 24h.
+  # (default: 10m0s, type: duration)
+  streamSilenceTimeout: 10m0s
 aibridge:
   # Deprecated: use --ai-gateway-enabled or CODER_AI_GATEWAY_ENABLED instead.
   # Whether to start an in-memory aibridged instance.
@@ -926,8 +936,8 @@ ai_gateway:
   enabled: true
   # Deprecated: Injected MCP in AI Gateway is deprecated and will be removed in a
   # future release. Whether to inject Coder's MCP tools into intercepted AI Gateway
-  # requests (requires the "oauth2" and "mcp-server-http" experiments to be
-  # enabled).
+  # requests (requires CODER_OAUTH2_PROVIDER_ENABLE and the "mcp-server-http"
+  # experiment to be enabled).
   # (default: false, type: bool)
   inject_coder_mcp_tools: false
   # Length of time to retain data such as interceptions and all related records

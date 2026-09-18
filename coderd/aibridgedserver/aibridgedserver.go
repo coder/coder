@@ -31,6 +31,7 @@ import (
 	"github.com/coder/coder/v2/coderd/httpmw"
 	codermcp "github.com/coder/coder/v2/coderd/mcp"
 	"github.com/coder/coder/v2/coderd/notifications"
+	"github.com/coder/coder/v2/coderd/provisionerdserver"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
@@ -46,14 +47,15 @@ var (
 	// matching.
 	// TODO: return these errors to the client in a more structured/comparable
 	//       way.
-	ErrInvalidKey    = xerrors.New("invalid key")
-	ErrUnknownKey    = xerrors.New("unknown key")
-	ErrExpired       = xerrors.New("expired")
-	ErrUnknownUser   = xerrors.New("unknown user")
-	ErrDeletedUser   = xerrors.New("deleted user")
-	ErrInactiveUser  = xerrors.New("inactive user")
-	ErrSystemUser    = xerrors.New("system user")
-	ErrAmbiguousAuth = xerrors.New("both key and key_id set; exactly one required")
+	ErrInvalidKey           = xerrors.New("invalid key")
+	ErrUnknownKey           = xerrors.New("unknown key")
+	ErrExpired              = xerrors.New("expired")
+	ErrUnknownUser          = xerrors.New("unknown user")
+	ErrDeletedUser          = xerrors.New("deleted user")
+	ErrInactiveUser         = xerrors.New("inactive user")
+	ErrSystemUser           = xerrors.New("system user")
+	ErrAmbiguousAuth        = xerrors.New("both key and key_id set; exactly one required")
+	ErrWorkspaceAttribution = xerrors.New("invalid workspace attribution")
 
 	ErrNoExternalAuthLinkFound = xerrors.New("no external auth link found")
 )
@@ -94,7 +96,6 @@ type store interface {
 	// Authorizer-related queries.
 	GetAPIKeyByID(ctx context.Context, id string) (database.APIKey, error)
 	GetUserByID(ctx context.Context, id uuid.UUID) (database.User, error)
-
 	// ProviderConfigurator-related queries. InTx wraps the provider and key
 	// reads in a single read-only transaction.
 	GetAIProviders(ctx context.Context, arg database.GetAIProvidersParams) ([]database.AIProvider, error)
@@ -142,6 +143,9 @@ type Options struct {
 	GatewayCfg          codersdk.AIBridgeConfig
 	ExternalAuthConfigs []*externalauth.Config
 	Experiments         codersdk.Experiments
+	// OAuth2ProviderEnabled gates the internal MCP server, which is
+	// unavailable when it is off.
+	OAuth2ProviderEnabled bool
 
 	Logger  slog.Logger
 	Clock   quartz.Clock
@@ -182,7 +186,7 @@ func NewServer(lifecycleCtx context.Context, opts Options) (*Server, error) {
 
 	if opts.GatewayCfg.InjectCoderMCPTools {
 		opts.Logger.Warn(lifecycleCtx, "inject MCP tools option is deprecated and will be removed in a future release")
-		coderMCPConfig, err := getCoderMCPServerConfig(opts.Experiments, opts.AccessURL)
+		coderMCPConfig, err := getCoderMCPServerConfig(opts.Experiments, opts.OAuth2ProviderEnabled, opts.AccessURL)
 		if err != nil {
 			opts.Logger.Warn(lifecycleCtx, "failed to retrieve coder MCP server config, Coder MCP will not be available", slog.Error(err))
 		}
@@ -220,8 +224,29 @@ func (s *Server) RecordInterception(ctx context.Context, in *proto.RecordInterce
 	// Look up the interception lineage using the correlating tool call ID.
 	parentID, rootID := s.findInterceptionLineage(ctx, in.GetCorrelatingToolCallId())
 
+	out, err := json.Marshal(metadata)
+	if err != nil {
+		s.logger.Warn(ctx, "failed to marshal ai gateway metadata from proto to JSON", slog.F("metadata", in), slog.Error(err))
+	}
+
+	providerName := strings.TrimSpace(in.ProviderName)
+	if providerName == "" {
+		providerName = in.Provider
+	}
+
+	agentFirewallSessionID, err := parseOptionalUUID(in.AgentFirewallSessionId)
+	if err != nil {
+		s.logger.Warn(ctx, "invalid agent firewall session ID in interception request",
+			slog.F("agent_firewall_session_id", in.GetAgentFirewallSessionId()), slog.Error(err))
+	}
+
+	workspaceID, err := interceptionAttribution(in)
+	if err != nil {
+		s.logger.Warn(ctx, "failed to parse interception attribution", slog.F("metadata", in), slog.Error(err))
+	}
+
 	if s.structuredLogging {
-		s.logger.Info(ctx, InterceptionLogMarker,
+		fields := []slog.Field{
 			slog.F("record_type", "interception_start"),
 			slog.F("interception_id", intcID.String()),
 			slog.F("initiator_id", initID.String()),
@@ -235,23 +260,11 @@ func (s *Server) RecordInterception(ctx context.Context, in *proto.RecordInterce
 			slog.F("correlating_tool_call_id", in.GetCorrelatingToolCallId()),
 			slog.F("thread_parent_id", parentID),
 			slog.F("thread_root_id", rootID),
-		)
-	}
-
-	out, err := json.Marshal(metadata)
-	if err != nil {
-		s.logger.Warn(ctx, "failed to marshal aibridge metadata from proto to JSON", slog.F("metadata", in), slog.Error(err))
-	}
-
-	providerName := strings.TrimSpace(in.ProviderName)
-	if providerName == "" {
-		providerName = in.Provider
-	}
-
-	agentFirewallSessionID, err := parseOptionalUUID(in.AgentFirewallSessionId)
-	if err != nil {
-		s.logger.Warn(ctx, "invalid agent firewall session ID in interception request",
-			slog.F("agent_firewall_session_id", in.GetAgentFirewallSessionId()), slog.Error(err))
+		}
+		if workspaceID.Valid {
+			fields = append(fields, slog.F("workspace_id", workspaceID.UUID))
+		}
+		s.logger.Info(ctx, InterceptionLogMarker, fields...)
 	}
 
 	_, err = s.store.InsertAIBridgeInterception(ctx, database.InsertAIBridgeInterceptionParams{
@@ -271,6 +284,7 @@ func (s *Server) RecordInterception(ctx context.Context, in *proto.RecordInterce
 		CredentialHint:              in.CredentialHint,
 		AgentFirewallSessionID:      agentFirewallSessionID,
 		AgentFirewallSequenceNumber: parseOptionalInt32(in.AgentFirewallSequenceNumber),
+		WorkspaceID:                 workspaceID,
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("start interception: %w", err)
@@ -817,11 +831,55 @@ func (s *Server) IsAuthorized(ctx context.Context, in *proto.IsAuthorizedRequest
 		return nil, ErrSystemUser
 	}
 
-	return &proto.IsAuthorizedResponse{
+	resp := &proto.IsAuthorizedResponse{
 		OwnerId:  key.UserID.String(),
 		ApiKeyId: key.ID,
 		Username: user.Username,
-	}, nil
+	}
+	if !delegated {
+		workspaceID, ok, err := workspaceAttribution(key)
+		if err != nil {
+			return nil, err
+		}
+		if ok {
+			resp.WorkspaceId = workspaceID.String()
+		}
+	}
+	return resp, nil
+}
+
+// workspaceAttribution parses the workspace UUID from a strict server-minted
+// token name without performing any database lookup. It returns the workspace
+// UUID and true when the token name matches the expected pattern and the
+// embedded owner UUID equals key.UserID. It fails closed (ErrWorkspaceAttribution)
+// when the embedded owner does not match.
+func workspaceAttribution(key database.APIKey) (uuid.UUID, bool, error) {
+	if key.LoginType == database.LoginTypeToken {
+		return uuid.Nil, false, nil
+	}
+
+	ownerID, workspaceID, ok := provisionerdserver.ParseWorkspaceSessionTokenName(key.TokenName)
+	if !ok {
+		return uuid.Nil, false, nil
+	}
+	if ownerID != key.UserID {
+		return uuid.Nil, false, ErrWorkspaceAttribution
+	}
+	return workspaceID, true, nil
+}
+
+// interceptionAttribution parses the optional workspace_id from the
+// interception request. The returned NullUUID is valid only when a non-empty
+// workspace_id was provided.
+func interceptionAttribution(in *proto.RecordInterceptionRequest) (workspaceID uuid.NullUUID, err error) {
+	if in.GetWorkspaceId() == "" {
+		return uuid.NullUUID{}, nil
+	}
+	id, err := uuid.Parse(in.GetWorkspaceId())
+	if err != nil {
+		return uuid.NullUUID{}, xerrors.Errorf("invalid workspace ID: %w", err)
+	}
+	return uuid.NullUUID{UUID: id, Valid: true}, nil
 }
 
 // IsBudgetExceeded reports whether the user's AI spend has reached their
@@ -1061,14 +1119,15 @@ func (s *Server) WatchAIProviders(_ *proto.WatchAIProvidersRequest, stream proto
 }
 
 // Deprecated: Injected MCP in AI Bridge is deprecated and will be removed in a future release.
-func getCoderMCPServerConfig(experiments codersdk.Experiments, accessURL string) (*proto.MCPServerConfig, error) {
-	// Both the MCP & OAuth2 experiments are currently required in order to use our
-	// internal MCP server.
+//
+//nolint:revive // The flag is fixed for the life of the process.
+func getCoderMCPServerConfig(experiments codersdk.Experiments, oauth2ProviderEnabled bool, accessURL string) (*proto.MCPServerConfig, error) {
+	// The internal MCP server needs the MCP experiment and the OAuth2 provider.
 	if !experiments.Enabled(codersdk.ExperimentMCPServerHTTP) {
 		return nil, xerrors.Errorf("%q experiment not enabled", codersdk.ExperimentMCPServerHTTP)
 	}
-	if !experiments.Enabled(codersdk.ExperimentOAuth2) {
-		return nil, xerrors.Errorf("%q experiment not enabled", codersdk.ExperimentOAuth2)
+	if !oauth2ProviderEnabled {
+		return nil, xerrors.New("OAuth2 provider is disabled; set CODER_OAUTH2_PROVIDER_ENABLE=true")
 	}
 
 	u, err := url.JoinPath(accessURL, codermcp.MCPEndpoint)

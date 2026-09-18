@@ -320,6 +320,11 @@ title: Schemas
 
 ```json
 {
+  "attribution": {
+    "property1": "string",
+    "property2": "string"
+  },
+  "interception_id": "34d9b688-63ad-46f4-88b5-665c1e7f7824",
   "model": "string",
   "thinking": [
     {
@@ -357,12 +362,29 @@ title: Schemas
 
 ### Properties
 
-| Name          | Type                                                                                   | Required | Restrictions | Description |
-|---------------|----------------------------------------------------------------------------------------|----------|--------------|-------------|
-| `model`       | string                                                                                 | false    |              |             |
-| `thinking`    | array of [codersdk.AIBridgeModelThought](#codersdkaibridgemodelthought)                | false    |              |             |
-| `token_usage` | [codersdk.AIBridgeSessionThreadsTokenUsage](#codersdkaibridgesessionthreadstokenusage) | false    |              |             |
-| `tool_calls`  | array of [codersdk.AIBridgeToolCall](#codersdkaibridgetoolcall)                        | false    |              |             |
+| Name              | Type                                                                                   | Required | Restrictions | Description                                                                                                         |
+|-------------------|----------------------------------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------|
+| `attribution`     | [codersdk.AIBridgeAttribution](#codersdkaibridgeattribution)                           | false    |              | Attribution contains attribution data from this interception. Unknown attribution is serialized as an empty object. |
+| `interception_id` | string                                                                                 | false    |              |                                                                                                                     |
+| `model`           | string                                                                                 | false    |              |                                                                                                                     |
+| `thinking`        | array of [codersdk.AIBridgeModelThought](#codersdkaibridgemodelthought)                | false    |              |                                                                                                                     |
+| `token_usage`     | [codersdk.AIBridgeSessionThreadsTokenUsage](#codersdkaibridgesessionthreadstokenusage) | false    |              |                                                                                                                     |
+| `tool_calls`      | array of [codersdk.AIBridgeToolCall](#codersdkaibridgetoolcall)                        | false    |              |                                                                                                                     |
+
+## codersdk.AIBridgeAttribution
+
+```json
+{
+  "property1": "string",
+  "property2": "string"
+}
+```
+
+### Properties
+
+| Name             | Type   | Required | Restrictions | Description |
+|------------------|--------|----------|--------------|-------------|
+| `[any property]` | string | false    |              |             |
 
 ## codersdk.AIBridgeConfig
 
@@ -473,6 +495,26 @@ title: Schemas
 | Name   | Type   | Required | Restrictions | Description |
 |--------|--------|----------|--------------|-------------|
 | `text` | string | false    |              |             |
+
+## codersdk.AIBridgeProvider
+
+```json
+{
+  "display_name": "string",
+  "icon": "string",
+  "name": "string",
+  "type": "openai"
+}
+```
+
+### Properties
+
+| Name           | Type                                               | Required | Restrictions | Description |
+|----------------|----------------------------------------------------|----------|--------------|-------------|
+| `display_name` | string                                             | false    |              |             |
+| `icon`         | string                                             | false    |              |             |
+| `name`         | string                                             | false    |              |             |
+| `type`         | [codersdk.AIProviderType](#codersdkaiprovidertype) | false    |              |             |
 
 ## codersdk.AIBridgeProxyConfig
 
@@ -662,6 +704,11 @@ title: Schemas
       "agent_firewall_session_id": "3735294f-18b1-4e7a-a269-99c30f0b30e7",
       "agentic_actions": [
         {
+          "attribution": {
+            "property1": "string",
+            "property2": "string"
+          },
+          "interception_id": "34d9b688-63ad-46f4-88b5-665c1e7f7824",
           "model": "string",
           "thinking": [
             {
@@ -696,6 +743,10 @@ title: Schemas
           ]
         }
       ],
+      "attribution": {
+        "property1": "string",
+        "property2": "string"
+      },
       "credential_hint": "string",
       "credential_kind": "string",
       "ended_at": "2019-08-24T14:15:22Z",
@@ -807,6 +858,11 @@ title: Schemas
   "agent_firewall_session_id": "3735294f-18b1-4e7a-a269-99c30f0b30e7",
   "agentic_actions": [
     {
+      "attribution": {
+        "property1": "string",
+        "property2": "string"
+      },
+      "interception_id": "34d9b688-63ad-46f4-88b5-665c1e7f7824",
       "model": "string",
       "thinking": [
         {
@@ -841,6 +897,10 @@ title: Schemas
       ]
     }
   ],
+  "attribution": {
+    "property1": "string",
+    "property2": "string"
+  },
   "credential_hint": "string",
   "credential_kind": "string",
   "ended_at": "2019-08-24T14:15:22Z",
@@ -871,6 +931,7 @@ title: Schemas
 | `agent_firewall_sequence_number` | integer                                                                                | false    |              | Agent firewall sequence number is the firewall sequence number from the root interception. Used to determine the position of this LLM request in the firewall event stream. Nil when the request did not pass through the agent firewall. |
 | `agent_firewall_session_id`      | string                                                                                 | false    |              | Agent firewall session ID links this thread to an agent firewall confinement session. Nil when the request did not pass through the agent firewall.                                                                                       |
 | `agentic_actions`                | array of [codersdk.AIBridgeAgenticAction](#codersdkaibridgeagenticaction)              | false    |              |                                                                                                                                                                                                                                           |
+| `attribution`                    | [codersdk.AIBridgeAttribution](#codersdkaibridgeattribution)                           | false    |              | Attribution contains attribution data from the root interception. Unknown attribution is serialized as an empty object.                                                                                                                   |
 | `credential_hint`                | string                                                                                 | false    |              |                                                                                                                                                                                                                                           |
 | `credential_kind`                | string                                                                                 | false    |              |                                                                                                                                                                                                                                           |
 | `ended_at`                       | string                                                                                 | false    |              |                                                                                                                                                                                                                                           |
@@ -1006,7 +1067,8 @@ title: Schemas
       "rawQuery": "string",
       "scheme": "string",
       "user": {}
-    }
+    },
+    "stream_silence_timeout": 0
   }
 }
 ```
@@ -1331,9 +1393,9 @@ None
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
-|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `ai_gateway_key:*`, `ai_gateway_key:create`, `ai_gateway_key:delete`, `ai_gateway_key:read`, `ai_gateway_key:update`, `ai_model_price:*`, `ai_model_price:read`, `ai_model_price:update`, `ai_provider:*`, `ai_provider:create`, `ai_provider:delete`, `ai_provider:read`, `ai_provider:update`, `ai_seat:*`, `ai_seat:create`, `ai_seat:read`, `aibridge_interception:*`, `aibridge_interception:create`, `aibridge_interception:read`, `aibridge_interception:update`, `all`, `api_key:*`, `api_key:create`, `api_key:delete`, `api_key:read`, `api_key:update`, `application_connect`, `assign_org_role:*`, `assign_org_role:assign`, `assign_org_role:create`, `assign_org_role:delete`, `assign_org_role:read`, `assign_org_role:unassign`, `assign_org_role:update`, `assign_role:*`, `assign_role:assign`, `assign_role:read`, `assign_role:unassign`, `audit_log:*`, `audit_log:create`, `audit_log:read`, `boundary_log:*`, `boundary_log:create`, `boundary_log:delete`, `boundary_log:read`, `boundary_usage:*`, `boundary_usage:delete`, `boundary_usage:read`, `boundary_usage:update`, `chat:*`, `chat:create`, `chat:delete`, `chat:read`, `chat:share`, `chat:update`, `chat_model_config:*`, `chat_model_config:create`, `chat_model_config:delete`, `chat_model_config:read`, `chat_model_config:share`, `chat_model_config:update`, `coder:all`, `coder:apikeys.manage_self`, `coder:application_connect`, `coder:templates.author`, `coder:templates.build`, `coder:workspaces.access`, `coder:workspaces.create`, `coder:workspaces.delete`, `coder:workspaces.operate`, `connection_log:*`, `connection_log:read`, `connection_log:update`, `crypto_key:*`, `crypto_key:create`, `crypto_key:delete`, `crypto_key:read`, `crypto_key:update`, `debug_info:*`, `debug_info:read`, `deployment_config:*`, `deployment_config:read`, `deployment_config:update`, `deployment_stats:*`, `deployment_stats:read`, `file:*`, `file:create`, `file:read`, `group:*`, `group:create`, `group:delete`, `group:read`, `group:update`, `group_member:*`, `group_member:read`, `idpsync_settings:*`, `idpsync_settings:read`, `idpsync_settings:update`, `inbox_notification:*`, `inbox_notification:create`, `inbox_notification:read`, `inbox_notification:update`, `license:*`, `license:create`, `license:delete`, `license:read`, `mcp_server_config:*`, `mcp_server_config:create`, `mcp_server_config:delete`, `mcp_server_config:read`, `mcp_server_config:share`, `mcp_server_config:update`, `notification_message:*`, `notification_message:create`, `notification_message:delete`, `notification_message:read`, `notification_message:update`, `notification_preference:*`, `notification_preference:read`, `notification_preference:update`, `notification_template:*`, `notification_template:read`, `notification_template:update`, `oauth2_app:*`, `oauth2_app:create`, `oauth2_app:delete`, `oauth2_app:read`, `oauth2_app:update`, `oauth2_app_code_token:*`, `oauth2_app_code_token:create`, `oauth2_app_code_token:delete`, `oauth2_app_code_token:read`, `oauth2_app_secret:*`, `oauth2_app_secret:create`, `oauth2_app_secret:delete`, `oauth2_app_secret:read`, `oauth2_app_secret:update`, `organization:*`, `organization:create`, `organization:delete`, `organization:read`, `organization:update`, `organization_member:*`, `organization_member:create`, `organization_member:delete`, `organization_member:read`, `organization_member:update`, `prebuilt_workspace:*`, `prebuilt_workspace:delete`, `prebuilt_workspace:update`, `provisioner_daemon:*`, `provisioner_daemon:create`, `provisioner_daemon:delete`, `provisioner_daemon:read`, `provisioner_daemon:update`, `provisioner_jobs:*`, `provisioner_jobs:create`, `provisioner_jobs:read`, `provisioner_jobs:update`, `replicas:*`, `replicas:read`, `system:*`, `system:create`, `system:delete`, `system:read`, `system:update`, `tailnet_coordinator:*`, `tailnet_coordinator:create`, `tailnet_coordinator:delete`, `tailnet_coordinator:read`, `tailnet_coordinator:update`, `task:*`, `task:create`, `task:delete`, `task:read`, `task:update`, `template:*`, `template:create`, `template:delete`, `template:read`, `template:update`, `template:use`, `template:view_insights`, `usage_event:*`, `usage_event:create`, `usage_event:read`, `usage_event:update`, `user:*`, `user:create`, `user:delete`, `user:read`, `user:read_personal`, `user:update`, `user:update_personal`, `user_secret:*`, `user_secret:create`, `user_secret:delete`, `user_secret:read`, `user_secret:update`, `user_skill:*`, `user_skill:create`, `user_skill:delete`, `user_skill:read`, `user_skill:update`, `webpush_subscription:*`, `webpush_subscription:create`, `webpush_subscription:delete`, `webpush_subscription:read`, `workspace:*`, `workspace:application_connect`, `workspace:create`, `workspace:create_agent`, `workspace:delete`, `workspace:delete_agent`, `workspace:read`, `workspace:share`, `workspace:ssh`, `workspace:start`, `workspace:stop`, `workspace:update`, `workspace:update_agent`, `workspace_agent_devcontainers:*`, `workspace_agent_devcontainers:create`, `workspace_agent_resource_monitor:*`, `workspace_agent_resource_monitor:create`, `workspace_agent_resource_monitor:read`, `workspace_agent_resource_monitor:update`, `workspace_build_orchestration:*`, `workspace_build_orchestration:create`, `workspace_build_orchestration:delete`, `workspace_build_orchestration:read`, `workspace_build_orchestration:update`, `workspace_dormant:*`, `workspace_dormant:application_connect`, `workspace_dormant:create`, `workspace_dormant:create_agent`, `workspace_dormant:delete`, `workspace_dormant:delete_agent`, `workspace_dormant:read`, `workspace_dormant:share`, `workspace_dormant:ssh`, `workspace_dormant:start`, `workspace_dormant:stop`, `workspace_dormant:update`, `workspace_dormant:update_agent`, `workspace_proxy:*`, `workspace_proxy:create`, `workspace_proxy:delete`, `workspace_proxy:read`, `workspace_proxy:update` |
+| Value(s)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `ai_gateway_key:*`, `ai_gateway_key:create`, `ai_gateway_key:delete`, `ai_gateway_key:read`, `ai_gateway_key:update`, `ai_model_price:*`, `ai_model_price:read`, `ai_model_price:update`, `ai_provider:*`, `ai_provider:create`, `ai_provider:delete`, `ai_provider:read`, `ai_provider:update`, `ai_seat:*`, `ai_seat:create`, `ai_seat:read`, `aibridge_interception:*`, `aibridge_interception:create`, `aibridge_interception:read`, `aibridge_interception:update`, `all`, `api_key:*`, `api_key:create`, `api_key:delete`, `api_key:read`, `api_key:update`, `application_connect`, `assign_org_role:*`, `assign_org_role:assign`, `assign_org_role:create`, `assign_org_role:delete`, `assign_org_role:read`, `assign_org_role:unassign`, `assign_org_role:update`, `assign_role:*`, `assign_role:assign`, `assign_role:read`, `assign_role:unassign`, `audit_log:*`, `audit_log:create`, `audit_log:read`, `boundary_log:*`, `boundary_log:create`, `boundary_log:delete`, `boundary_log:read`, `boundary_usage:*`, `boundary_usage:delete`, `boundary_usage:read`, `boundary_usage:update`, `chat:*`, `chat:create`, `chat:delete`, `chat:read`, `chat:share`, `chat:update`, `chat_model_config:*`, `chat_model_config:create`, `chat_model_config:delete`, `chat_model_config:read`, `chat_model_config:share`, `chat_model_config:update`, `coder:all`, `coder:apikeys.manage_self`, `coder:application_connect`, `coder:templates.author`, `coder:templates.build`, `coder:workspaces.access`, `coder:workspaces.create`, `coder:workspaces.delete`, `coder:workspaces.operate`, `connection_log:*`, `connection_log:read`, `connection_log:update`, `crypto_key:*`, `crypto_key:create`, `crypto_key:delete`, `crypto_key:read`, `crypto_key:update`, `debug_info:*`, `debug_info:read`, `deployment_config:*`, `deployment_config:read`, `deployment_config:update`, `deployment_stats:*`, `deployment_stats:read`, `file:*`, `file:create`, `file:read`, `group:*`, `group:create`, `group:delete`, `group:read`, `group:update`, `group_member:*`, `group_member:read`, `idpsync_settings:*`, `idpsync_settings:read`, `idpsync_settings:update`, `inbox_notification:*`, `inbox_notification:create`, `inbox_notification:read`, `inbox_notification:update`, `license:*`, `license:create`, `license:delete`, `license:read`, `mcp_server_config:*`, `mcp_server_config:create`, `mcp_server_config:delete`, `mcp_server_config:read`, `mcp_server_config:share`, `mcp_server_config:update`, `notification_message:*`, `notification_message:create`, `notification_message:delete`, `notification_message:read`, `notification_message:update`, `notification_preference:*`, `notification_preference:read`, `notification_preference:update`, `notification_template:*`, `notification_template:read`, `notification_template:update`, `oauth2_app:*`, `oauth2_app:create`, `oauth2_app:delete`, `oauth2_app:read`, `oauth2_app:update`, `oauth2_app_code_token:*`, `oauth2_app_code_token:create`, `oauth2_app_code_token:delete`, `oauth2_app_code_token:read`, `oauth2_app_secret:*`, `oauth2_app_secret:create`, `oauth2_app_secret:delete`, `oauth2_app_secret:read`, `oauth2_app_secret:update`, `organization:*`, `organization:create`, `organization:delete`, `organization:read`, `organization:update`, `organization_member:*`, `organization_member:create`, `organization_member:delete`, `organization_member:read`, `organization_member:update`, `prebuilt_workspace:*`, `prebuilt_workspace:delete`, `prebuilt_workspace:update`, `provisioner_daemon:*`, `provisioner_daemon:create`, `provisioner_daemon:delete`, `provisioner_daemon:read`, `provisioner_daemon:update`, `provisioner_jobs:*`, `provisioner_jobs:create`, `provisioner_jobs:read`, `provisioner_jobs:update`, `replicas:*`, `replicas:read`, `system:*`, `system:create`, `system:delete`, `system:read`, `system:update`, `tailnet_coordinator:*`, `tailnet_coordinator:create`, `tailnet_coordinator:delete`, `tailnet_coordinator:read`, `tailnet_coordinator:update`, `template:*`, `template:create`, `template:delete`, `template:read`, `template:update`, `template:use`, `template:view_insights`, `usage_event:*`, `usage_event:create`, `usage_event:read`, `usage_event:update`, `user:*`, `user:create`, `user:delete`, `user:read`, `user:read_personal`, `user:update`, `user:update_personal`, `user_secret:*`, `user_secret:create`, `user_secret:delete`, `user_secret:read`, `user_secret:update`, `user_skill:*`, `user_skill:create`, `user_skill:delete`, `user_skill:read`, `user_skill:update`, `webpush_subscription:*`, `webpush_subscription:create`, `webpush_subscription:delete`, `webpush_subscription:read`, `workspace:*`, `workspace:application_connect`, `workspace:create`, `workspace:create_agent`, `workspace:delete`, `workspace:delete_agent`, `workspace:read`, `workspace:share`, `workspace:ssh`, `workspace:start`, `workspace:stop`, `workspace:update`, `workspace:update_agent`, `workspace_agent_devcontainers:*`, `workspace_agent_devcontainers:create`, `workspace_agent_resource_monitor:*`, `workspace_agent_resource_monitor:create`, `workspace_agent_resource_monitor:read`, `workspace_agent_resource_monitor:update`, `workspace_build_orchestration:*`, `workspace_build_orchestration:create`, `workspace_build_orchestration:delete`, `workspace_build_orchestration:read`, `workspace_build_orchestration:update`, `workspace_dormant:*`, `workspace_dormant:application_connect`, `workspace_dormant:create`, `workspace_dormant:create_agent`, `workspace_dormant:delete`, `workspace_dormant:delete_agent`, `workspace_dormant:read`, `workspace_dormant:share`, `workspace_dormant:ssh`, `workspace_dormant:start`, `workspace_dormant:stop`, `workspace_dormant:update`, `workspace_dormant:update_agent`, `workspace_proxy:*`, `workspace_proxy:create`, `workspace_proxy:delete`, `workspace_proxy:read`, `workspace_proxy:update` |
 
 ## codersdk.AddLicenseRequest
 
@@ -2495,21 +2557,23 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "rawQuery": "string",
     "scheme": "string",
     "user": {}
-  }
+  },
+  "stream_silence_timeout": 0
 }
 ```
 
 ### Properties
 
-| Name                    | Type                       | Required | Restrictions | Description |
-|-------------------------|----------------------------|----------|--------------|-------------|
-| `acquire_batch_size`    | integer                    | false    |              |             |
-| `debug_logging_enabled` | boolean                    | false    |              |             |
-| `hook_allow_insecure`   | boolean                    | false    |              |             |
-| `hook_enabled`          | boolean                    | false    |              |             |
-| `hook_secret`           | string                     | false    |              |             |
-| `hook_timeout`          | integer                    | false    |              |             |
-| `hook_url`              | [serpent.URL](#serpenturl) | false    |              |             |
+| Name                     | Type                       | Required | Restrictions | Description |
+|--------------------------|----------------------------|----------|--------------|-------------|
+| `acquire_batch_size`     | integer                    | false    |              |             |
+| `debug_logging_enabled`  | boolean                    | false    |              |             |
+| `hook_allow_insecure`    | boolean                    | false    |              |             |
+| `hook_enabled`           | boolean                    | false    |              |             |
+| `hook_secret`            | string                     | false    |              |             |
+| `hook_timeout`           | integer                    | false    |              |             |
+| `hook_url`               | [serpent.URL](#serpenturl) | false    |              |             |
+| `stream_silence_timeout` | integer                    | false    |              |             |
 
 ## codersdk.ChatContext
 
@@ -3349,6 +3413,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "frequency_penalty": 0,
     "max_output_tokens": 0,
     "openai_config": {
+      "reasoning_model": true,
       "use_responses_api": true
     },
     "presence_penalty": 0,
@@ -3633,6 +3698,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "frequency_penalty": 0,
   "max_output_tokens": 0,
   "openai_config": {
+    "reasoning_model": true,
     "use_responses_api": true
   },
   "presence_penalty": 0,
@@ -3881,6 +3947,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ```json
 {
+  "reasoning_model": true,
   "use_responses_api": true
 }
 ```
@@ -3889,6 +3956,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 | Name                | Type    | Required | Restrictions | Description |
 |---------------------|---------|----------|--------------|-------------|
+| `reasoning_model`   | boolean | false    |              |             |
 | `use_responses_api` | boolean | false    |              |             |
 
 ## codersdk.ChatModelOpenAIProviderOptions
@@ -5929,6 +5997,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "frequency_penalty": 0,
     "max_output_tokens": 0,
     "openai_config": {
+      "reasoning_model": true,
       "use_responses_api": true
     },
     "presence_penalty": 0,
@@ -7286,7 +7355,8 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
           "rawQuery": "string",
           "scheme": "string",
           "user": {}
-        }
+        },
+        "stream_silence_timeout": 0
       }
     },
     "allow_workspace_renames": true,
@@ -7359,6 +7429,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "scheme": "string",
       "user": {}
     },
+    "dynamic_parameters_full_evaluation": true,
     "enable_authz_recording": true,
     "enable_terraform_debug_mode": true,
     "ephemeral_deployment": true,
@@ -7896,7 +7967,8 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         "rawQuery": "string",
         "scheme": "string",
         "user": {}
-      }
+      },
+      "stream_silence_timeout": 0
     }
   },
   "allow_workspace_renames": true,
@@ -7969,6 +8041,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     "scheme": "string",
     "user": {}
   },
+  "dynamic_parameters_full_evaluation": true,
   "enable_authz_recording": true,
   "enable_terraform_debug_mode": true,
   "ephemeral_deployment": true,
@@ -8360,6 +8433,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `disable_workspace_agent_context_sync`         | boolean                                                                                              | false    |              |                                                                           |
 | `disable_workspace_sharing`                    | boolean                                                                                              | false    |              |                                                                           |
 | `docs_url`                                     | [serpent.URL](#serpenturl)                                                                           | false    |              |                                                                           |
+| `dynamic_parameters_full_evaluation`           | boolean                                                                                              | false    |              |                                                                           |
 | `enable_authz_recording`                       | boolean                                                                                              | false    |              |                                                                           |
 | `enable_terraform_debug_mode`                  | boolean                                                                                              | false    |              |                                                                           |
 | `ephemeral_deployment`                         | boolean                                                                                              | false    |              |                                                                           |
@@ -8866,9 +8940,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                                                                                                                                                                                     |
-|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `agent-lifecycle-hooks`, `ai-gateway-seat-exclusion`, `auto-fill-parameters`, `chat-advisor`, `chat-virtual-desktop`, `example`, `mcp-server-http`, `mcp-tool-search`, `nats_pubsub`, `notifications`, `oauth2`, `workspace-build-updates`, `workspace-capable-licensing`, `workspace-usage` |
+| Value(s)                                                                                                                                                                                                                                                                                                          |
+|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `agent-lifecycle-hooks`, `ai-gateway-reverse-proxy`, `ai-gateway-seat-exclusion`, `auto-fill-parameters`, `chat-advisor`, `chat-virtual-desktop`, `example`, `mcp-server-http`, `mcp-tool-search`, `no_nats_pubsub`, `notifications`, `workspace-build-updates`, `workspace-capable-licensing`, `workspace-usage` |
 
 ## codersdk.ExternalAPIKeyScopes
 
@@ -10761,6 +10835,20 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `token_endpoint_auth_method` | [codersdk.OAuth2TokenEndpointAuthMethod](#codersdkoauth2tokenendpointauthmethod)    | false    |              |             |
 | `tos_uri`                    | string                                                                              | false    |              |             |
 
+## codersdk.OAuth2ClientType
+
+```json
+"confidential"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                 |
+|--------------------------|
+| `confidential`, `public` |
+
 ## codersdk.OAuth2Config
 
 ```json
@@ -10904,6 +10992,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 ```json
 {
   "callback_url": "string",
+  "client_type": "confidential",
   "endpoints": {
     "authorization": "string",
     "device_authorization": "string",
@@ -10921,6 +11010,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | Name           | Type                                                       | Required | Restrictions | Description                                                                                                                                                                                             |
 |----------------|------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `callback_url` | string                                                     | false    |              |                                                                                                                                                                                                         |
+| `client_type`  | [codersdk.OAuth2ClientType](#codersdkoauth2clienttype)     | false    |              | Client type is "confidential" or "public".                                                                                                                                                              |
 | `endpoints`    | [codersdk.OAuth2AppEndpoints](#codersdkoauth2appendpoints) | false    |              | Endpoints are included in the app response for easier discovery. The OAuth2 spec does not have a defined place to find these (for comparison, OIDC has a '/.well-known/openid-configuration' endpoint). |
 | `icon`         | string                                                     | false    |              |                                                                                                                                                                                                         |
 | `id`           | string                                                     | false    |              |                                                                                                                                                                                                         |
@@ -11280,6 +11370,103 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `name`                     | string          | false    |              |                                                                                                                                                 |
 | `updated_at`               | string          | true     |              |                                                                                                                                                 |
 
+## codersdk.OrganizationAISpendReport
+
+```json
+{
+  "count": 0,
+  "period_end": "2019-08-24T14:15:22Z",
+  "period_start": "2019-08-24T14:15:22Z",
+  "retention_start": "2019-08-24T14:15:22Z",
+  "totals": {
+    "cost_micros": 0,
+    "unpriced_usage_count": 0
+  },
+  "users": [
+    {
+      "avatar_url": "string",
+      "clients": [
+        "string"
+      ],
+      "cost_micros": 0,
+      "models": [
+        "string"
+      ],
+      "name": "string",
+      "providers": [
+        "string"
+      ],
+      "unpriced_usage_count": 0,
+      "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5",
+      "username": "string"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name              | Type                                                                          | Required | Restrictions | Description                                                                                                                                                                             |
+|-------------------|-------------------------------------------------------------------------------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `count`           | integer                                                                       | false    |              | Count is the number of users with token usage matching the filter.                                                                                                                      |
+| `period_end`      | string                                                                        | false    |              | Period end is the exclusive upper bound of the current budget period.                                                                                                                   |
+| `period_start`    | string                                                                        | false    |              | Period start is the inclusive lower bound of the current budget period.                                                                                                                 |
+| `retention_start` | string                                                                        | false    |              | Retention start is the oldest instant for which token usage is still retained. An explicit period must not start before it. Omitted when the deployment does not purge AI Gateway data. |
+| `totals`          | [codersdk.OrganizationAISpendTotals](#codersdkorganizationaispendtotals)      | false    |              |                                                                                                                                                                                         |
+| `users`           | array of [codersdk.OrganizationAISpendUser](#codersdkorganizationaispenduser) | false    |              | Users is the requested page, most expensive first.                                                                                                                                      |
+
+## codersdk.OrganizationAISpendTotals
+
+```json
+{
+  "cost_micros": 0,
+  "unpriced_usage_count": 0
+}
+```
+
+### Properties
+
+| Name                   | Type    | Required | Restrictions | Description                                                                                          |
+|------------------------|---------|----------|--------------|------------------------------------------------------------------------------------------------------|
+| `cost_micros`          | integer | false    |              | Cost micros is the priced spend of every matching user.                                              |
+| `unpriced_usage_count` | integer | false    |              | Unpriced usage count is the number of token usage records without a cost across every matching user. |
+
+## codersdk.OrganizationAISpendUser
+
+```json
+{
+  "avatar_url": "string",
+  "clients": [
+    "string"
+  ],
+  "cost_micros": 0,
+  "models": [
+    "string"
+  ],
+  "name": "string",
+  "providers": [
+    "string"
+  ],
+  "unpriced_usage_count": 0,
+  "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5",
+  "username": "string"
+}
+```
+
+### Properties
+
+| Name                   | Type            | Required | Restrictions | Description                                                                                                                                       |
+|------------------------|-----------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------------------|
+| `avatar_url`           | string          | false    |              |                                                                                                                                                   |
+| `clients`              | array of string | false    |              | Clients are the clients the user spent through, sorted. Usage without a recorded client is reported as Unknown.                                   |
+| `cost_micros`          | integer         | false    |              | Cost micros is the user's priced spend over the period.                                                                                           |
+| `models`               | array of string | false    |              | Models are the models the user spent through, sorted.                                                                                             |
+| `name`                 | string          | false    |              |                                                                                                                                                   |
+| `providers`            | array of string | false    |              | Providers are the provider types the user spent through, sorted.                                                                                  |
+| `unpriced_usage_count` | integer         | false    |              | Unpriced usage count is the number of the user's token usage records that carry no cost because their model had no price when they were recorded. |
+| `user_id`              | string          | false    |              |                                                                                                                                                   |
+| `username`             | string          | false    |              |                                                                                                                                                   |
+
 ## codersdk.OrganizationChatModelsResponse
 
 ```json
@@ -11299,6 +11486,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
         "frequency_penalty": 0,
         "max_output_tokens": 0,
         "openai_config": {
+          "reasoning_model": true,
           "use_responses_api": true
         },
         "presence_penalty": 0,
@@ -12924,9 +13112,9 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
-|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `*`, `ai_gateway_key`, `ai_model_price`, `ai_provider`, `ai_seat`, `aibridge_interception`, `api_key`, `assign_org_role`, `assign_role`, `audit_log`, `boundary_log`, `boundary_usage`, `chat`, `chat_model_config`, `connection_log`, `crypto_key`, `debug_info`, `deployment_config`, `deployment_stats`, `file`, `group`, `group_member`, `idpsync_settings`, `inbox_notification`, `license`, `mcp_server_config`, `notification_message`, `notification_preference`, `notification_template`, `oauth2_app`, `oauth2_app_code_token`, `oauth2_app_secret`, `organization`, `organization_member`, `prebuilt_workspace`, `provisioner_daemon`, `provisioner_jobs`, `replicas`, `system`, `tailnet_coordinator`, `task`, `template`, `usage_event`, `user`, `user_secret`, `user_skill`, `webpush_subscription`, `workspace`, `workspace_agent_devcontainers`, `workspace_agent_resource_monitor`, `workspace_build_orchestration`, `workspace_dormant`, `workspace_proxy` |
+| Value(s)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `*`, `ai_gateway_key`, `ai_model_price`, `ai_provider`, `ai_seat`, `aibridge_interception`, `api_key`, `assign_org_role`, `assign_role`, `audit_log`, `boundary_log`, `boundary_usage`, `chat`, `chat_model_config`, `connection_log`, `crypto_key`, `debug_info`, `deployment_config`, `deployment_stats`, `file`, `group`, `group_member`, `idpsync_settings`, `inbox_notification`, `license`, `mcp_server_config`, `notification_message`, `notification_preference`, `notification_template`, `oauth2_app`, `oauth2_app_code_token`, `oauth2_app_secret`, `organization`, `organization_member`, `prebuilt_workspace`, `provisioner_daemon`, `provisioner_jobs`, `replicas`, `system`, `tailnet_coordinator`, `template`, `usage_event`, `user`, `user_secret`, `user_skill`, `webpush_subscription`, `workspace`, `workspace_agent_devcontainers`, `workspace_agent_resource_monitor`, `workspace_build_orchestration`, `workspace_dormant`, `workspace_proxy` |
 
 ## codersdk.RateLimitConfig
 
@@ -15308,6 +15496,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
     "frequency_penalty": 0,
     "max_output_tokens": 0,
     "openai_config": {
+      "reasoning_model": true,
       "use_responses_api": true
     },
     "presence_penalty": 0,

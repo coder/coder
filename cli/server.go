@@ -865,8 +865,18 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				options.PrometheusRegistry.MustRegister(pgPubsub)
 			}
 
-			// Use NATS for pubsub if the experiment is enabled.
-			if experiments.Enabled(codersdk.ExperimentNATSPubsub) {
+			useNATSPubsub := !experiments.Enabled(codersdk.ExperimentNoNATSPubsub)
+			// NATS clustering needs this replica's routable address (clusterHost,
+			// from --cluster-host or the DERP relay URL). Neither being set is a
+			// valid legacy config (DERP disabled on the primary), so fall back to
+			// PG pubsub rather than start a NATS node that can never cluster.
+			if useNATSPubsub && options.ClusterHost == "" {
+				logger.Error(ctx, "embedded NATS pubsub is enabled but this replica has no cluster host; "+
+					"set --cluster-host (CODER_CLUSTER_HOST) to this replica's routable IP address, "+
+					"or configure the DERP relay URL; falling back to PostgreSQL pubsub")
+				useNATSPubsub = false
+			}
+			if useNATSPubsub {
 				token := fmt.Sprintf("%x", sha256.Sum256([]byte(dbURL)))
 				natsps, err := nats.New(ctx, logger.Named("nats_pubsub"), nats.Options{
 					ClusterAuthToken: token,
@@ -1025,6 +1035,8 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 					return xerrors.Errorf("configure github oauth2: %w", err)
 				}
 			}
+
+			coderd.LogOAuth2ProviderState(ctx, logger, options.Database, vals.OAuth2.Provider)
 
 			options.RuntimeConfig = runtimeconfig.NewManager()
 
@@ -2642,12 +2654,6 @@ func isDERPPath(p string) bool {
 // request to identify itself.
 func isReplicaRelayRequest(r *http.Request) bool {
 	return r.Header.Get("X-Coder-Relay-Source-Replica") != ""
-}
-
-// IsLocalhost returns true if the host points to the local machine. Intended to
-// be called with `u.Hostname()`.
-func IsLocalhost(host string) bool {
-	return host == "localhost" || host == "127.0.0.1" || host == "::1"
 }
 
 // PostgresConnectOptions contains options for connecting to Postgres.

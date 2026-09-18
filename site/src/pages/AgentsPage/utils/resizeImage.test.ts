@@ -61,8 +61,8 @@ describe("resizeImageToMaxBytes", () => {
 		// Unsupported MIME + over budget: refuse rather than
 		// silently produce garbage.
 		const bytes = new Uint8Array(2 * 1024 * 1024);
-		const file = new File([bytes], "diagram.svg", {
-			type: "image/svg+xml",
+		const file = new File([bytes], "scan.bmp", {
+			type: "image/bmp",
 		});
 		const result = await resizeImageToMaxBytes(file, 1024 * 1024);
 		expect(result).toBeNull();

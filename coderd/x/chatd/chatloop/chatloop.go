@@ -7,6 +7,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"slices"
 	"strconv"
 	"strings"
@@ -27,16 +28,19 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatsanitize"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
+	"github.com/coder/coder/v2/coderd/x/chatfiles"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/quartz"
 )
 
 const (
-	// defaultStreamSilenceTimeout bounds how long an individual
+	// DefaultStreamSilenceTimeout bounds how long an individual
 	// model attempt may go without receiving a stream part before
 	// the attempt is canceled and retried.
-	defaultStreamSilenceTimeout = 10 * time.Minute
-	streamSilenceGuardTimerTag  = "streamSilenceGuard"
+	DefaultStreamSilenceTimeout = 10 * time.Minute
+	// StreamSilenceTimeoutDisabled turns the silence guard off.
+	StreamSilenceTimeoutDisabled time.Duration = -1
+	streamSilenceGuardTimerTag                 = "streamSilenceGuard"
 )
 
 var (
@@ -275,8 +279,8 @@ func GenerateAssistant(ctx context.Context, opts GenerateAssistantOptions) (Assi
 	if opts.Model == nil {
 		return AssistantOutcome{}, xerrors.New("chat model is required")
 	}
-	if opts.StreamSilenceTimeout <= 0 {
-		opts.StreamSilenceTimeout = defaultStreamSilenceTimeout
+	if opts.StreamSilenceTimeout == 0 {
+		opts.StreamSilenceTimeout = DefaultStreamSilenceTimeout
 	}
 	if opts.Clock == nil {
 		opts.Clock = quartz.NewReal()
@@ -689,6 +693,9 @@ func newStreamSilenceGuard(
 		cancel:  cancel,
 		timeout: timeout,
 	}
+	if timeout < 0 {
+		return guard
+	}
 	guard.timer = clock.AfterFunc(
 		timeout,
 		guard.onTimeout,
@@ -717,14 +724,14 @@ func (g *streamSilenceGuard) onTimeout() {
 func (g *streamSilenceGuard) Reset() {
 	g.mu.Lock()
 	defer g.mu.Unlock()
-	if g.settled {
+	if g.settled || g.timer == nil {
 		return
 	}
 	g.timer.Reset(g.timeout, streamSilenceGuardTimerTag)
 }
 
 func (g *streamSilenceGuard) Disarm() {
-	if !g.settle() {
+	if !g.settle() || g.timer == nil {
 		return
 	}
 	g.timer.Stop()
@@ -748,6 +755,14 @@ func classifyStreamSilenceTimeout(
 	})
 }
 
+type streamWatchdogKey struct{}
+
+// WithStreamWatchdog returns a context whose guarded streams call kick
+// with the silence timeout whenever the guard arms or resets.
+func WithStreamWatchdog(ctx context.Context, kick func(silence time.Duration)) context.Context {
+	return context.WithValue(ctx, streamWatchdogKey{}, kick)
+}
+
 func guardedStream(
 	parent context.Context,
 	provider, model string,
@@ -757,7 +772,12 @@ func guardedStream(
 	metrics *Metrics,
 ) (guardedAttempt, error) {
 	attemptCtx, cancelAttempt := context.WithCancelCause(parent)
+	kick, _ := parent.Value(streamWatchdogKey{}).(func(time.Duration))
+	if kick == nil {
+		kick = func(time.Duration) {}
+	}
 	guard := newStreamSilenceGuard(clock, timeout, cancelAttempt)
+	kick(timeout)
 	var releaseOnce sync.Once
 	release := func() {
 		releaseOnce.Do(func() {
@@ -784,6 +804,7 @@ func guardedStream(
 		stream: fantasy.StreamResponse(func(yield func(fantasy.StreamPart) bool) {
 			for part := range stream {
 				guard.Reset()
+				kick(timeout)
 				recordTTFT()
 				if !yield(part) {
 					return
@@ -1220,7 +1241,7 @@ func exclusiveToolPolicyResults(
 }
 
 func exclusiveToolMustRunAloneErrorMessage(toolName string) string {
-	return toolName + " must be called alone, without other tools in the same batch. Retry with only the " + toolName + " call."
+	return toolName + " must be called alone, without other tools in the same batch. If you need more information to feed into the " + toolName + " call, execute the other tools first, then retry with only the " + toolName + " call."
 }
 
 func exclusiveToolSkippedErrorMessage(toolName string) string {
@@ -1313,10 +1334,8 @@ func executeSingleTool(
 
 	result.ClientMetadata = resp.Metadata
 
-	// Cap tool output so a single oversized result (most often a large
-	// MCP response) cannot overflow the model's context window on the
-	// next request. Only the text payload is bounded; binary media data
-	// is passed through untouched.
+	// Bound text so one tool result cannot overflow the model's context window.
+	// Media limits are applied separately by normalizeToolMedia.
 	content := resp.Content
 	if truncated, didTruncate := truncateToolResultText(content, maxResultBytes); didTruncate {
 		metrics.RecordToolResultTruncated(provider, model, tc.ToolName)
@@ -1340,10 +1359,24 @@ func executeSingleTool(
 			slog.F("tool_error", content),
 		)
 	case resp.Type == "image" || resp.Type == "media":
+		text := strings.ToValidUTF8(content, "\uFFFD")
+		if note, rejected := normalizeToolMedia(&resp); rejected {
+			logger.Warn(ctx, "tool result media rejected, keeping text only",
+				slog.F("tool_name", tc.ToolName),
+				slog.F("tool_call_id", tc.ToolCallID),
+				slog.F("media_type", resp.MediaType),
+				slog.F("media_bytes", len(resp.Data)),
+			)
+			if text != "" {
+				text += "\n"
+			}
+			result.Result = fantasy.ToolResultOutputContentText{Text: text + note}
+			break
+		}
 		result.Result = fantasy.ToolResultOutputContentMedia{
 			Data:      base64.StdEncoding.EncodeToString(resp.Data),
 			MediaType: resp.MediaType,
-			Text:      strings.ToValidUTF8(content, "\uFFFD"),
+			Text:      text,
 		}
 	default:
 		result.Result = fantasy.ToolResultOutputContentText{
@@ -1363,6 +1396,29 @@ func executeSingleTool(
 		}
 	}
 	return result
+}
+
+// normalizeToolMedia bounds persisted payloads and corrects image MIME types
+// by signature, not full image decoding. Transport limits apply at prompt build.
+func normalizeToolMedia(resp *fantasy.ToolResponse) (string, bool) {
+	if len(resp.Data) > codersdk.MaxChatFileSizeBytes {
+		return fmt.Sprintf(
+			"[%s content omitted: %d bytes exceeds the %d byte tool media limit]",
+			resp.MediaType, len(resp.Data), codersdk.MaxChatFileSizeBytes,
+		), true
+	}
+	if !strings.HasPrefix(chatfiles.BaseMediaType(resp.MediaType), "image/") {
+		return "", false
+	}
+	detected := chatfiles.DetectMediaType(resp.Data)
+	if !strings.HasPrefix(detected, "image/") {
+		return fmt.Sprintf(
+			"[image omitted: payload declared as %s is %s]",
+			resp.MediaType, detected,
+		), true
+	}
+	resp.MediaType = detected
+	return "", false
 }
 
 func isToolActive(name string, activeTools []string) bool {

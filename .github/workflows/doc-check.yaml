@@ -47,7 +47,7 @@ jobs:
       ) &&
       (github.event.pull_request.draft == false || github.event_name == 'workflow_dispatch') &&
       (github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository)
-    timeout-minutes: 30
+    timeout-minutes: 45
     permissions:
       contents: read
       pull-requests: write
@@ -74,8 +74,115 @@ jobs:
             echo "skip=false" >> "${GITHUB_OUTPUT}"
           fi
 
-      - name: Determine PR Context
+      # A review costs the full skill context before it can conclude anything,
+      # so decide here instead of in the model when no changed file can have a
+      # documentation surface. Path classes live in
+      # .claude/skills/doc-check/path-priors.md; keep the two in sync.
+      - name: Classify changed paths
+        if: steps.check-secrets.outputs.skip != 'true' && github.event_name == 'pull_request'
+        id: filter
+        uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+        with:
+          filters: |
+            all:
+              - "**"
+            nodocs:
+              # Extension patterns use the `**/*` form, not `**`. The globber
+              # treats a `**` glued to a suffix inconsistently: `**.test.ts`
+              # matches at any depth, but `**_test.go` only matches the repo
+              # root. `**/*` behaves the same at every depth, including the
+              # root, so every pattern here uses it.
+              # Tests, stories, and fixtures.
+              - "**/*_test.go"
+              - "**/*.test.ts"
+              - "**/*.test.tsx"
+              - "**/*.stories.tsx"
+              - "**/testdata/**"
+              # Generated output. Changes belong in the generator.
+              - "docs/reference/cli/**"
+              - "site/src/api/typesGenerated.ts"
+              - "**/*.pb.go"
+              - "**/*.golden"
+              - "coderd/apidoc/swagger.json"
+              - "coderd/apidoc/docs.go"
+              # Dependency and toolchain manifests.
+              - "go.mod"
+              - "go.sum"
+              - "package.json"
+              - "pnpm-lock.yaml"
+              - "site/package.json"
+              - "site/pnpm-lock.yaml"
+              - "**/mise.toml"
+              # Build, lint, and CI plumbing. Docs-affecting CI is carved back
+              # out by the ci_docs filter below.
+              - ".github/**"
+              - "Makefile"
+              - ".golangci.yaml"
+              - ".editorconfig"
+              - ".gitattributes"
+              - ".gitignore"
+              - "**/biome.jsonc"
+              - "**/.markdownlint.jsonc"
+              - "**/.markdownlint-cli2.jsonc"
+              # Styling only. A restyle changes no documented behavior.
+              - "**/*.css"
+              - "site/components.json"
+              # Internal environments and vendored trees.
+              - "dogfood/**"
+              - "**/vendor/**"
+            ci_docs:
+              # CI that builds, deploys, previews, or reviews the docs. A change
+              # here can change the docs themselves, so it earns a review even
+              # though it sits under .github.
+              - ".github/workflows/ci.yaml"
+              - ".github/workflows/doc-check.yaml"
+              - ".github/workflows/deploy-docs.yaml"
+              - ".github/workflows/docs-preview.yaml"
+              - ".github/workflows/audit-docs-paths.yaml"
+              - ".github/workflows/weekly-docs.yaml"
+              - ".github/workflows/test-deploy-docs-diff.sh"
+              - ".github/workflows/test-deploy-docs-release.sh"
+              - ".github/workflows/test-docs-preview-mapper.sh"
+
+      - name: Decide whether to review
         if: steps.check-secrets.outputs.skip != 'true'
+        id: check-paths
+        env:
+          # The doc-check label and a manual dispatch always force a review, so
+          # any skip below stays overridable from the pull request.
+          FORCED: ${{ github.event_name == 'workflow_dispatch' || github.event.label.name == 'doc-check' }}
+          ALL_COUNT: ${{ steps.filter.outputs.all_count }}
+          NODOCS_COUNT: ${{ steps.filter.outputs.nodocs_count }}
+          CI_DOCS_COUNT: ${{ steps.filter.outputs.ci_docs_count }}
+        run: |
+          set -euo pipefail
+
+          if [[ "${FORCED}" == "true" ]]; then
+            echo "skip=false" >> "${GITHUB_OUTPUT}"
+            echo "Review forced by label or manual dispatch; path classes ignored."
+            exit 0
+          fi
+
+          # Comparing against all_count is what makes this "every changed file".
+          # A pull request that mixes a test file with a CLI flag still gets a
+          # full review, because the counts differ.
+          if [[ -n "${ALL_COUNT}" && "${ALL_COUNT}" != "0" &&
+                "${NODOCS_COUNT}" == "${ALL_COUNT}" && "${CI_DOCS_COUNT}" == "0" ]]; then
+            echo "skip=true" >> "${GITHUB_OUTPUT}"
+            echo "All ${ALL_COUNT} changed file(s) are in path classes with no documentation surface."
+            {
+              echo "### Documentation check skipped"
+              echo ""
+              echo "All ${ALL_COUNT} changed file(s) are in path classes with no documentation surface, so no review ran."
+              echo ""
+              echo "Add the \`doc-check\` label to review anyway."
+            } >> "${GITHUB_STEP_SUMMARY}"
+          else
+            echo "skip=false" >> "${GITHUB_OUTPUT}"
+          fi
+
+      - name: Determine PR Context
+        if: steps.check-secrets.outputs.skip != 'true' && steps.check-paths.outputs.skip != 'true'
         id: determine-context
         env:
           GITHUB_EVENT_NAME: ${{ github.event_name }}
@@ -132,7 +239,7 @@ jobs:
           fi
 
       - name: Check the review workspace is usable
-        if: steps.check-secrets.outputs.skip != 'true'
+        if: steps.check-secrets.outputs.skip != 'true' && steps.check-paths.outputs.skip != 'true'
         id: check-workspace
         env:
           CODER_URL: ${{ secrets.DOC_CHECK_CODER_URL }}
@@ -172,7 +279,7 @@ jobs:
           echo "Workspace state is usable."
 
       - name: Build chat prompt
-        if: steps.check-secrets.outputs.skip != 'true'
+        if: steps.check-secrets.outputs.skip != 'true' && steps.check-paths.outputs.skip != 'true'
         id: extract-context
         env:
           PR_NUMBER: ${{ steps.determine-context.outputs.pr_number }}
@@ -212,8 +319,9 @@ jobs:
           Use \`gh\` to read the PR details, the diff, and every comment.
 
           Follow the skill in full: its evidence discipline, its comment
-          rules, and its comment format. **Do not comment if no
-          documentation changes are needed.**
+          rules, and its comment format. Every item links its page, and the
+          comment ends with \`<!-- doc-check-sticky -->\` on its own line.
+          **Do not comment if no documentation changes are needed.**
 
           ## When the workspace is broken
 
@@ -240,7 +348,7 @@ jobs:
           } >> "${GITHUB_OUTPUT}"
 
       - name: Run doc-check via Coder Agent Chat
-        if: steps.check-secrets.outputs.skip != 'true'
+        if: steps.check-secrets.outputs.skip != 'true' && steps.check-paths.outputs.skip != 'true'
         uses: coder/agents-chat-action@3e20636f47ed88d1486b767ade8cb1e13a1effa7 # v0.5.0
         with:
           coder-url: ${{ secrets.DOC_CHECK_CODER_URL }}
@@ -261,7 +369,11 @@ jobs:
           github-url: ${{ steps.determine-context.outputs.pr_url }}
           github-token: ${{ github.token }}
           wait: complete
-          wait-timeout-seconds: "600"
+          # The chat keeps running in Coder after this job stops watching, so
+          # a timeout here only turns a finished review red. A review on the
+          # local model takes 5 to 30 minutes; 40 minutes covers every normal
+          # run seen so far and leaves the job cap above room for setup.
+          wait-timeout-seconds: "2400"
           # The doc-check agent posts its own sticky comment when there
           # are findings; failures surface in the workflow run log.
           comment-on-issue: "false"

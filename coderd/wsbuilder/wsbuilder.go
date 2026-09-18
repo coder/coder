@@ -728,6 +728,7 @@ func (b *Builder) getDynamicParameterRenderer() (dynamicparameters.Renderer, err
 		dynamicparameters.WithProvisionerJob(*job),
 		dynamicparameters.WithTerraformValues(*tfVals),
 		dynamicparameters.WithTemplateVariableValues(variableValues),
+		dynamicparameters.WithPreviewOptions(dynamicparameters.PreviewOptions(b.deploymentValues)...),
 	)
 	if err != nil {
 		return nil, xerrors.Errorf("get template version renderer: %w", err)
