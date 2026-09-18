@@ -77,7 +77,7 @@ The Coder backend is organized into multiple packages and directories, each with
   * [queries](../../../coderd/database/queries): contains SQL files with queries, `sqlc` compiles them to [Go functions](../../../coderd/database/queries.sql.go)
   * [sqlc.yaml](../../../coderd/database/sqlc.yaml): defines mappings between SQL types and custom Go structures
 * [codersdk](../../../codersdk): user-facing API entities used by CLI and site to communicate with `coderd` endpoints
-* [dogfood](../../../dogfood): Terraform definition of the dogfood cluster deployment
+* [dogfood](../../../dogfood): build inputs for the images used by Coder's dogfood workspaces. The workspace templates that consume these images live in the Coder infrastructure repository.
 * [enterprise](../../../enterprise): enterprise-only features, notice similar file structure to repository root (`audit`, `cli`, `cmd`, `coderd`, etc.)
   * [coderd](../../../enterprise/coderd)
     * [prebuilds](../../../enterprise/coderd/prebuilds): core logic of prebuilt workspaces - reconciliation loop
