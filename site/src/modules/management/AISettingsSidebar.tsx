@@ -26,7 +26,10 @@ export const AISettingsSidebar: FC = () => {
 	return (
 		<AISettingsSidebarView
 			permissions={permissions}
-			canViewAISpend={(spendOrganizationsQuery.data?.length ?? 0) > 0}
+			canViewAISpend={
+				entitlements.features.aibridge.enabled &&
+				(spendOrganizationsQuery.data?.length ?? 0) > 0
+			}
 			canAccessOrganizationModels={
 				(accessibleOrgsQuery.organizations.length ?? 0) > 0
 			}
