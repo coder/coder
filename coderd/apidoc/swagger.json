@@ -10317,7 +10317,7 @@
 						"in": "body",
 						"required": true,
 						"schema": {
-							"$ref": "#/definitions/codersdk.CreateUserRequestWithOrgs"
+							"$ref": "#/definitions/codersdk.CreateUserRequest"
 						}
 					}
 				],
@@ -20480,7 +20480,7 @@
 				}
 			}
 		},
-		"codersdk.CreateUserRequestWithOrgs": {
+		"codersdk.CreateUserRequest": {
 			"type": "object",
 			"required": ["username"],
 			"properties": {

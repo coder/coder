@@ -6699,7 +6699,7 @@ This is required on creation to enable a user-flow of validating a template work
 |-----------|--------|----------|--------------|-------------|
 | `api_key` | string | false    |              |             |
 
-## codersdk.CreateUserRequestWithOrgs
+## codersdk.CreateUserRequest
 
 ```json
 {
