@@ -3,8 +3,8 @@ import { ToolCall } from "./ToolCall";
 import { contextBoundarySourceSuffix, type ToolStatus } from "./utils";
 
 /**
- * Static row for `chat_cleared` boundary markers. Manual (/clear) and
- * agent (clear_context) clears carry their source in the label.
+ * Static row for `chat_cleared` boundary markers. The label reads
+ * "Context cleared" followed by the source suffix, if any.
  */
 export const ChatClearedTool: React.FC<{
 	status: ToolStatus;

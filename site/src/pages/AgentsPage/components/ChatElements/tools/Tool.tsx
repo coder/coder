@@ -15,6 +15,7 @@ import { ComputerTool } from "./ComputerTool";
 import {
 	type ContextRequestKind,
 	ContextRequestTool,
+	getContextRequestErrorMessage,
 	getContextRequestFollowUp,
 } from "./ContextRequestTool";
 import { CreateWorkspaceTool } from "./CreateWorkspaceTool";
@@ -52,6 +53,7 @@ import {
 	formatModelIntentLabel,
 	formatResultOutput,
 	formatToolInput,
+	getContextBoundarySource,
 	getFileContentForViewer,
 	getFileViewerOptions,
 	getFileViewerOptionsNoHeader,
@@ -650,16 +652,12 @@ const ChatClearedRenderer: FC<ToolRendererProps> = ({
 	isError,
 }) => {
 	const rec = asRecord(result);
-	const argsRec = parseArgs(args);
-	const source =
-		(rec ? asString(rec.source) : "") ||
-		(argsRec ? asString(argsRec.source) : "");
 	return (
 		<ChatClearedTool
 			status={status}
 			isError={isError}
 			errorMessage={rec ? asString(rec.error || rec.message) : undefined}
-			source={source || undefined}
+			source={getContextBoundarySource(args, result)}
 		/>
 	);
 };
@@ -674,12 +672,6 @@ const ChatSummarizedRenderer: FC<ToolRendererProps> = ({
 	const summary =
 		(rec ? asString(rec.summary) : "") ||
 		(typeof result === "string" ? result : "");
-	// The result carries the source once committed; while streaming,
-	// only the call args are available.
-	const argsRec = parseArgs(args);
-	const source =
-		(rec ? asString(rec.source) : "") ||
-		(argsRec ? asString(argsRec.source) : "");
 
 	return (
 		<ChatSummarizedTool
@@ -687,28 +679,22 @@ const ChatSummarizedRenderer: FC<ToolRendererProps> = ({
 			status={status}
 			isError={isError}
 			errorMessage={rec ? asString(rec.error || rec.message) : undefined}
-			source={source || undefined}
+			source={getContextBoundarySource(args, result)}
 		/>
 	);
 };
 
 const createContextRequestRenderer =
 	(kind: ContextRequestKind): FC<ToolRendererProps> =>
-	({ status, args, result, isError }) => {
-		const rec = asRecord(result);
-		const errorMessage =
-			(rec ? asString(rec.error || rec.message) : "") ||
-			(typeof result === "string" && isError ? result : "");
-		return (
-			<ContextRequestTool
-				kind={kind}
-				followUp={getContextRequestFollowUp(args, result)}
-				status={status}
-				isError={isError}
-				errorMessage={errorMessage || undefined}
-			/>
-		);
-	};
+	({ status, args, result, isError }) => (
+		<ContextRequestTool
+			kind={kind}
+			followUp={getContextRequestFollowUp(args, result)}
+			status={status}
+			isError={isError}
+			errorMessage={getContextRequestErrorMessage(result, isError)}
+		/>
+	);
 
 const ClearContextRenderer = createContextRequestRenderer("clear");
 const CompactContextRenderer = createContextRequestRenderer("compact");

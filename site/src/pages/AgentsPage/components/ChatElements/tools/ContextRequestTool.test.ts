@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+	getContextRequestErrorMessage,
 	getContextRequestFollowUp,
 	getContextRequestLabel,
+	isContextRequestExpandedByDefault,
 } from "./ContextRequestTool";
 
 describe("getContextRequestFollowUp", () => {
@@ -45,12 +47,39 @@ describe("getContextRequestFollowUp", () => {
 	});
 });
 
+describe("getContextRequestErrorMessage", () => {
+	it("reads the error field of a record result", () => {
+		expect(
+			getContextRequestErrorMessage({ error: "follow_up is required" }, true),
+		).toBe("follow_up is required");
+	});
+
+	it("falls back to the message field", () => {
+		expect(
+			getContextRequestErrorMessage({ error: "", message: "denied" }, true),
+		).toBe("denied");
+	});
+
+	it("uses a string result only when the call is flagged as an error", () => {
+		expect(getContextRequestErrorMessage("boom", true)).toBe("boom");
+		expect(getContextRequestErrorMessage("boom", false)).toBeUndefined();
+	});
+
+	it("returns undefined for success results and empty values", () => {
+		expect(
+			getContextRequestErrorMessage({ output: "Context cleared." }, false),
+		).toBeUndefined();
+		expect(getContextRequestErrorMessage(undefined, true)).toBeUndefined();
+		expect(getContextRequestErrorMessage("", true)).toBeUndefined();
+	});
+});
+
 describe("getContextRequestLabel", () => {
 	it.each([
 		["clear", "running", false, "Clearing context…"],
 		["compact", "running", false, "Compacting context…"],
-		["clear", "completed", false, "Clearing context"],
-		["compact", "completed", false, "Compacting context"],
+		["clear", "completed", false, "Context clear requested"],
+		["compact", "completed", false, "Compaction requested"],
 		["clear", "completed", true, "Context clear rejected"],
 		["compact", "completed", true, "Compaction rejected"],
 		["clear", "error", false, "Context clear rejected"],
@@ -59,6 +88,23 @@ describe("getContextRequestLabel", () => {
 		"labels kind=%s status=%s isError=%s as %j",
 		(kind, status, isError, label) => {
 			expect(getContextRequestLabel({ kind, status, isError })).toBe(label);
+		},
+	);
+});
+
+describe("isContextRequestExpandedByDefault", () => {
+	it.each([
+		["running", false, true],
+		["completed", false, false],
+		["completed", true, true],
+		["error", false, true],
+		["error", true, true],
+	] as const)(
+		"status=%s isError=%s expands by default: %s",
+		(status, isError, expanded) => {
+			expect(isContextRequestExpandedByDefault({ status, isError })).toBe(
+				expanded,
+			);
 		},
 	);
 });

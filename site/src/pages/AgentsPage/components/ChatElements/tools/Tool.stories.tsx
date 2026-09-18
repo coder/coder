@@ -1346,7 +1346,9 @@ export const ChatClearedAgent: Story = {
 	},
 };
 
-// An automatic source keeps the plain label, matching chat_summarized.
+// An automatic source keeps the plain label, the same treatment as an
+// unknown source. The backend does not currently write this source for
+// chat_cleared; the story fixes the treatment should it start to.
 export const ChatClearedAutomaticSource: Story = {
 	args: {
 		name: "chat_cleared",
@@ -1375,11 +1377,20 @@ export const ClearContextRunning: Story = {
 	},
 };
 
+// Completed rows start collapsed; the play expands the row so the
+// screenshot shows the follow_up body.
 export const ClearContext: Story = {
 	args: {
 		name: "clear_context",
 		args: JSON.stringify({ follow_up: contextFollowUp }),
 		result: { output: `Context cleared. Follow-up: ${contextFollowUp}` },
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const toggle = canvas.getByRole("button", {
+			name: "Context clear requested",
+		});
+		await userEvent.click(toggle);
 	},
 };
 
@@ -1397,6 +1408,19 @@ export const ClearContextRejected: Story = {
 	},
 };
 
+// Validation rejects a blank follow_up before anything runs.
+export const ClearContextRejectedBlankFollowUp: Story = {
+	args: {
+		name: "clear_context",
+		args: JSON.stringify({ follow_up: "" }),
+		result: {
+			error: "follow_up is required and must not be blank",
+		},
+		status: "error",
+		isError: true,
+	},
+};
+
 export const CompactContextRunning: Story = {
 	args: {
 		name: "compact_context",
@@ -1406,11 +1430,31 @@ export const CompactContextRunning: Story = {
 	},
 };
 
+// The call has started streaming but no args have arrived yet, so the
+// row is a header only.
+export const CompactContextRunningNoArgs: Story = {
+	args: {
+		name: "compact_context",
+		args: undefined,
+		status: "running",
+		result: undefined,
+	},
+};
+
+// Completed rows start collapsed; the play expands the row so the
+// screenshot shows the follow_up body.
 export const CompactContext: Story = {
 	args: {
 		name: "compact_context",
 		args: JSON.stringify({ follow_up: contextFollowUp }),
 		result: { output: `Compaction scheduled. Follow-up: ${contextFollowUp}` },
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const toggle = canvas.getByRole("button", {
+			name: "Compaction requested",
+		});
+		await userEvent.click(toggle);
 	},
 };
 

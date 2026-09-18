@@ -55,9 +55,9 @@ export const formatModelIntentLabel = (
 };
 
 /**
- * Label suffix for a context boundary marker's `source`. Only sources
- * that were requested (`manual`, `agent`) are called out; automatic
- * threshold compactions and unknown values keep the plain label.
+ * Returns " (manual)" or " (agent)" for those `source` values and an
+ * empty string for any other value, including `automatic` and
+ * `undefined`.
  */
 export const contextBoundarySourceSuffix = (
 	source: string | undefined,
@@ -70,6 +70,26 @@ export const contextBoundarySourceSuffix = (
 		default:
 			return "";
 	}
+};
+
+/**
+ * Returns the `source` string of a `chat_cleared` or `chat_summarized`
+ * call. The result value wins when present; otherwise the call args
+ * are read, which is all that exists while the call is streaming.
+ * Returns undefined when neither carries a non-empty string.
+ */
+export const getContextBoundarySource = (
+	args: unknown,
+	result: unknown,
+): string | undefined => {
+	const rec = asRecord(result);
+	const fromResult = rec ? asString(rec.source) : "";
+	if (fromResult) {
+		return fromResult;
+	}
+	const argsRec = parseArgs(args);
+	const fromArgs = argsRec ? asString(argsRec.source) : "";
+	return fromArgs || undefined;
 };
 
 const trailingDurationPattern =
