@@ -70,12 +70,17 @@ func sanitizeMCPError(cfg ServerConfig, inherited []string, err error) string {
 			secrets = append(secrets, v)
 		}
 	}
-	// Credentials are commonly passed as "--token X" or "--token=X".
-	// Flags are public; their values and every positional arg are not.
+	// Credentials are commonly passed as "--token X", "--token=X", or
+	// attached to a short option as "-pX". Flags and option letters are
+	// public; their values and every positional arg are not.
 	for _, a := range cfg.Args {
 		if strings.HasPrefix(a, "-") {
-			if _, v, ok := strings.Cut(a, "="); ok && len(v) >= minRedactLength {
-				secrets = append(secrets, v)
+			if _, v, ok := strings.Cut(a, "="); ok {
+				if len(v) >= minRedactLength {
+					secrets = append(secrets, v)
+				}
+			} else if !strings.HasPrefix(a, "--") && len(a) > 2 && len(a[2:]) >= minRedactLength {
+				secrets = append(secrets, a[2:])
 			}
 			continue
 		}

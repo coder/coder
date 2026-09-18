@@ -212,7 +212,7 @@ func TestReport(t *testing.T) {
 			assert.False(t, s.Connected)
 			assert.NotEmpty(t, s.Err)
 		}
-		assert.Equal(t, 1, fires())
+		assert.Equal(t, 2, fires(), "each failure is published as it settles")
 	})
 
 	t.Run("RetainedSessionErrorRedactedWithItsOwnConfig", func(t *testing.T) {
@@ -445,6 +445,53 @@ func TestReport(t *testing.T) {
 		require.Empty(t, reports, "an unchanged reload must not republish")
 	})
 
+	t.Run("HungSiblingDoesNotHoldBackFailures", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		dir := t.TempDir()
+		_, hung := fakeMCPServerConfig(t, "hung")
+		hung.Env["TEST_MCP_FAKE_SERVER_HANG"] = "1"
+		configPath := writeMCPConfig(t, dir, map[string]mcpServerEntry{
+			"hung":   hung,
+			"broken": {Command: filepath.Join(dir, "missing-binary")},
+		})
+		badPath := filepath.Join(dir, "custom-mcp.json")
+		require.NoError(t, os.WriteFile(badPath, []byte("{not json"), 0o600))
+		m, reports, clock := newIncrementalReportTestManager(t)
+		connectTrap := clock.Trap().AfterFunc("agentmcp", "connect")
+		defer connectTrap.Close()
+
+		done := make(chan error, 1)
+		go func() { done <- m.Reload(ctx, []string{configPath, badPath}) }()
+		for range 2 {
+			connectTrap.MustWait(ctx).MustRelease(ctx)
+		}
+
+		// The config error is published before any connect attempt, and the
+		// immediate connect failure while the hung handshake is still
+		// outstanding.
+		interimCtx, cancel := context.WithTimeout(ctx, testutil.WaitShort)
+		defer cancel()
+		first := testutil.RequireReceive(interimCtx, t, reports)
+		require.Empty(t, first.Servers)
+		require.Len(t, first.ConfigErrors, 1)
+		require.Equal(t, badPath, first.ConfigErrors[0].Path)
+		interim := testutil.RequireReceive(interimCtx, t, reports)
+		require.Len(t, interim.Servers, 1, "a server still connecting is not reported yet")
+		broken := serverByName(t, interim, "broken")
+		require.False(t, broken.Connected)
+		require.Contains(t, broken.Err, "missing-binary")
+		require.Len(t, interim.ConfigErrors, 1)
+
+		clock.Advance(connectTimeout).MustWait(ctx)
+		require.NoError(t, testutil.RequireReceive(ctx, t, done))
+		final := m.Report()
+		require.Len(t, final.Servers, 2)
+		require.Contains(t, serverByName(t, final, "hung").Err, errConnectTimeout.Error())
+		require.Contains(t, serverByName(t, final, "broken").Err, "missing-binary")
+		require.Len(t, final.ConfigErrors, 1)
+	})
+
 	t.Run("CloseDuringIncrementalReload", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -569,6 +616,16 @@ func TestSanitizeMCPError(t *testing.T) {
 		assert.NotContains(t, got, "bearer-sentinel")
 		assert.NotContains(t, got, "key-sentinel")
 		assert.Contains(t, got, "401: invalid token [redacted]")
+	})
+
+	t.Run("AttachedShortOptionValue", func(t *testing.T) {
+		t.Parallel()
+		// mysql-style "-pSECRET" attaches the value to the option letter.
+		cfg := ServerConfig{Args: []string{"-v", "-pshort-sentinel", "--verbose", "-Dtoken=prop-sentinel"}}
+		got := sanitizeMCPError(cfg, nil, xerrors.New("exec: argv [-v -pshort-sentinel --verbose -Dtoken=prop-sentinel] exited 1"))
+		assert.NotContains(t, got, "short-sentinel")
+		assert.NotContains(t, got, "prop-sentinel")
+		assert.Contains(t, got, "-v -p[redacted] --verbose -Dtoken=[redacted]", "option letters and long flags stay readable")
 	})
 
 	t.Run("EnvironmentValues", func(t *testing.T) {

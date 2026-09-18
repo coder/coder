@@ -466,8 +466,13 @@ func (m *Manager) doReload(ctx context.Context, mcpConfigFiles []string) error {
 		return err
 	}
 
-	connected, connectErrors := m.connectAll(ctx, diff.toConnect, func(cs connectedServer) {
-		m.publishConnected(ctx, wanted, configErrors, cs)
+	// Config errors are known before any connect attempt starts, so a
+	// hung sibling must not delay them either.
+	if len(configErrors) > 0 && len(diff.toConnect) > 0 {
+		m.publishInterim(wanted, configErrors, nil)
+	}
+	connected, connectErrors := m.connectAll(ctx, diff.toConnect, func(cs connectedServer, connectErr string) {
+		m.publishSettled(ctx, wanted, configErrors, cs, connectErr)
 	})
 
 	replaced, warnings, err := m.installServers(wanted, diff, connected, connectErrors, snap)
@@ -590,9 +595,10 @@ func (m *Manager) classifyServers(wanted map[string]ServerConfig) (*serverDiff, 
 
 // connectAll runs connectServer in parallel for the given configs.
 // Failed connects are logged and reported by name with a sanitized
-// error so the discovery report can attribute them. onConnected runs
-// for each successful connect while siblings may still be connecting.
-func (m *Manager) connectAll(ctx context.Context, toConnect []ServerConfig, onConnected func(connectedServer)) ([]connectedServer, map[string]string) {
+// error so the discovery report can attribute them. onSettled runs for
+// each attempt as it finishes, while siblings may still be connecting;
+// connectErr is empty for a successful connect.
+func (m *Manager) connectAll(ctx context.Context, toConnect []ServerConfig, onSettled func(cs connectedServer, connectErr string)) ([]connectedServer, map[string]string) {
 	logger := m.logger.With(agentchat.Fields(ctx)...)
 
 	if hook := m.connectStartedHook; hook != nil {
@@ -614,16 +620,18 @@ func (m *Manager) connectAll(ctx context.Context, toConnect []ServerConfig, onCo
 					slog.F("transport", cfg.Transport),
 					slog.Error(err),
 				)
+				msg := sanitizeMCPError(cfg, inherited, err)
 				mu.Lock()
-				failed[cfg.Name] = sanitizeMCPError(cfg, inherited, err)
+				failed[cfg.Name] = msg
 				mu.Unlock()
+				onSettled(connectedServer{name: cfg.Name, config: cfg, inherited: inherited}, msg)
 				return nil // Don't fail the group.
 			}
 			cs := connectedServer{name: cfg.Name, config: cfg, client: c, inherited: inherited}
 			mu.Lock()
 			connected = append(connected, cs)
 			mu.Unlock()
-			onConnected(cs)
+			onSettled(cs, "")
 			return nil
 		})
 	}
@@ -631,21 +639,27 @@ func (m *Manager) connectAll(ctx context.Context, toConnect []ServerConfig, onCo
 	return connected, failed
 }
 
-// publishConnected installs a server that connected while the reload is
-// still waiting on its siblings and publishes it into the report next to
-// the servers already published, so one hung server cannot hold back a
-// healthy one past the chat's bounded first-turn wait. Only the new
-// server is listed; the reload's final refreshCatalog re-lists everything
-// once, so N successful connects cost N interim list calls rather than
-// N squared. The phase stays pending until the whole reload settles. A
-// server that already has an entry (a changed configuration
-// reconnecting) keeps serving its previous client until installServers
-// swaps and closes it, so the old client is never orphaned if the
-// manager closes mid-reload.
-func (m *Manager) publishConnected(ctx context.Context, wanted map[string]ServerConfig, configErrors []ConfigError, cs connectedServer) {
+// publishSettled publishes the outcome of one connect attempt while the
+// reload is still waiting on its siblings, so one hung server cannot hold
+// back a healthy server's tools or a broken server's diagnostic past the
+// chat's bounded first-turn wait. A connected server is installed and only
+// it is listed; the reload's final refreshCatalog re-lists everything once,
+// so N successful connects cost N interim list calls rather than N
+// squared. The phase stays pending until the whole reload settles. A
+// server that already has an entry (a changed configuration reconnecting)
+// is skipped: it keeps serving its previous client until installServers
+// swaps and closes it, so the old client is never orphaned if the manager
+// closes mid-reload, and a failed reconnect is reported with its warning
+// by the final refresh instead of as an outage here.
+func (m *Manager) publishSettled(ctx context.Context, wanted map[string]ServerConfig, configErrors []ConfigError, cs connectedServer, connectErr string) {
 	m.mu.Lock()
 	if _, exists := m.servers[cs.name]; m.closed || exists {
 		m.mu.Unlock()
+		return
+	}
+	if connectErr != "" {
+		m.mu.Unlock()
+		m.publishInterim(wanted, configErrors, &ServerStatus{Name: cs.name, Err: connectErr})
 		return
 	}
 	m.servers[cs.name] = &serverEntry{config: cs.config, client: cs.client, inherited: cs.inherited}
@@ -657,28 +671,38 @@ func (m *Manager) publishConnected(ctx context.Context, wanted map[string]Server
 	if res.err != nil {
 		st.Err = sanitizeMCPError(cs.config, cs.inherited, res.err)
 	}
+	m.publishInterim(wanted, configErrors, &st)
+}
 
+// publishInterim merges one settled status (nil for config errors alone)
+// into the report mid-reload and notifies when the report changed. It
+// keeps the published statuses of the other wanted servers that have a
+// live client or a recorded failure; servers still connecting stay absent
+// until they settle or the final refresh reports them.
+func (m *Manager) publishInterim(wanted map[string]ServerConfig, configErrors []ConfigError, st *ServerStatus) {
 	m.mu.Lock()
 	if m.closed {
 		m.mu.Unlock()
 		return
 	}
-	// Keep the published statuses of the other wanted servers that have
-	// a live client and add this one; servers still connecting stay
-	// absent until they publish or the final refresh reports them.
 	catalog := make([]ServerStatus, 0, len(m.catalog)+1)
 	for _, prev := range m.catalog {
-		if _, wantedStill := wanted[prev.Name]; !wantedStill || prev.Name == cs.name {
+		if _, wantedStill := wanted[prev.Name]; !wantedStill || (st != nil && prev.Name == st.Name) {
 			continue
 		}
-		if _, live := m.servers[prev.Name]; live {
+		if _, live := m.servers[prev.Name]; live || !prev.Connected {
 			catalog = append(catalog, prev)
 		}
 	}
-	catalog = append(catalog, st)
+	if st != nil {
+		catalog = append(catalog, *st)
+	}
 	slices.SortFunc(catalog, func(a, b ServerStatus) int {
 		return strings.Compare(a.Name, b.Name)
 	})
+	if len(catalog) == 0 {
+		catalog = nil
+	}
 	if len(configErrors) == 0 {
 		configErrors = nil
 	}
