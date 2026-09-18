@@ -4753,6 +4753,7 @@ func TestBatchUpsertConnectionLogs(t *testing.T) {
 			ConnectionID:     []uuid.UUID{connID},
 			DisconnectReason: []string{""},
 			DisconnectTime:   []time.Time{zeroTime},
+			ClientSessionID:  []string{""},
 		})
 		require.NoError(t, err)
 
@@ -4791,6 +4792,7 @@ func TestBatchUpsertConnectionLogs(t *testing.T) {
 			ConnectionID:     []uuid.UUID{connID},
 			DisconnectReason: []string{""},
 			DisconnectTime:   []time.Time{zeroTime},
+			ClientSessionID:  []string{""},
 		})
 		require.NoError(t, err)
 
@@ -4814,6 +4816,7 @@ func TestBatchUpsertConnectionLogs(t *testing.T) {
 			ConnectionID:     []uuid.UUID{connID},
 			DisconnectReason: []string{"test disconnect"},
 			DisconnectTime:   []time.Time{disconnectTime},
+			ClientSessionID:  []string{""},
 		})
 		require.NoError(t, err)
 
@@ -4855,6 +4858,7 @@ func TestBatchUpsertConnectionLogs(t *testing.T) {
 				ConnectionID:     []uuid.UUID{connID},
 				DisconnectReason: []string{""},
 				DisconnectTime:   []time.Time{zeroTime},
+				ClientSessionID:  []string{""},
 			}
 		}
 
@@ -4914,6 +4918,7 @@ func TestBatchUpsertConnectionLogs(t *testing.T) {
 			ConnectionID:     []uuid.UUID{connID},
 			DisconnectReason: []string{"bye"},
 			DisconnectTime:   []time.Time{disconnectTime},
+			ClientSessionID:  []string{""},
 		})
 		require.NoError(t, err)
 
@@ -4936,6 +4941,7 @@ func TestBatchUpsertConnectionLogs(t *testing.T) {
 			ConnectionID:     []uuid.UUID{connID},
 			DisconnectReason: []string{""},
 			DisconnectTime:   []time.Time{zeroTime},
+			ClientSessionID:  []string{""},
 		})
 		require.NoError(t, err)
 
@@ -4973,6 +4979,7 @@ func TestBatchUpsertConnectionLogs(t *testing.T) {
 				ConnectionID:     []uuid.UUID{connID},
 				DisconnectReason: []string{reason},
 				DisconnectTime:   []time.Time{disconnectTime},
+				ClientSessionID:  []string{""},
 			}
 		}
 
@@ -4991,6 +4998,51 @@ func TestBatchUpsertConnectionLogs(t *testing.T) {
 			"disconnect_reason should not be overwritten")
 		require.Equal(t, int32(1), row.Code.Int32,
 			"code should not be overwritten")
+	})
+
+	t.Run("ClientSessionIDIsWriteOnce", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		ctx := context.Background()
+		ws := createWorkspace(t, db)
+		connID := uuid.New()
+		connectTime := dbtime.Now()
+
+		mkParams := func(id string) database.BatchUpsertConnectionLogsParams {
+			return database.BatchUpsertConnectionLogsParams{
+				ID:               []uuid.UUID{uuid.New()},
+				ConnectTime:      []time.Time{connectTime},
+				OrganizationID:   []uuid.UUID{ws.OrganizationID},
+				WorkspaceOwnerID: []uuid.UUID{ws.OwnerID},
+				WorkspaceID:      []uuid.UUID{ws.ID},
+				WorkspaceName:    []string{ws.Name},
+				AgentName:        []string{"agent"},
+				Type:             []database.ConnectionType{database.ConnectionTypeSsh},
+				Code:             []int32{0},
+				CodeValid:        []bool{true},
+				Ip:               []pqtype.Inet{defaultIP},
+				UserAgent:        []string{""},
+				UserID:           []uuid.UUID{uuid.Nil},
+				SlugOrPort:       []string{""},
+				ConnectionID:     []uuid.UUID{connID},
+				DisconnectReason: []string{""},
+				DisconnectTime:   []time.Time{zeroTime},
+				ClientSessionID:  []string{id},
+			}
+		}
+
+		err := db.BatchUpsertConnectionLogs(ctx, mkParams("0123456789abcdef0123456789abcdef"))
+		require.NoError(t, err)
+
+		err = db.BatchUpsertConnectionLogs(ctx, mkParams(""))
+		require.NoError(t, err)
+
+		rows, err := db.GetConnectionLogsOffset(ctx, database.GetConnectionLogsOffsetParams{LimitOpt: 10})
+		require.NoError(t, err)
+		require.Len(t, rows, 1)
+		row := rows[0].ConnectionLog
+		require.Equal(t, "0123456789abcdef0123456789abcdef", row.ClientSessionID.String,
+			"client_session_id should not be overwritten")
 	})
 
 	t.Run("ConnectAfterDisconnectIsNoOp", func(t *testing.T) {
@@ -5020,6 +5072,7 @@ func TestBatchUpsertConnectionLogs(t *testing.T) {
 			ConnectionID:     []uuid.UUID{connID},
 			DisconnectReason: []string{"server shutdown"},
 			DisconnectTime:   []time.Time{disconnectTime},
+			ClientSessionID:  []string{""},
 		})
 		require.NoError(t, err)
 
@@ -5049,6 +5102,7 @@ func TestBatchUpsertConnectionLogs(t *testing.T) {
 			ConnectionID:     []uuid.UUID{connID},
 			DisconnectReason: []string{""},
 			DisconnectTime:   []time.Time{zeroTime},
+			ClientSessionID:  []string{""},
 		})
 		require.NoError(t, err)
 
@@ -5090,6 +5144,7 @@ func TestBatchUpsertConnectionLogs(t *testing.T) {
 			ConnectionID:     []uuid.UUID{connID},
 			DisconnectReason: []string{"normal"},
 			DisconnectTime:   []time.Time{now},
+			ClientSessionID:  []string{""},
 		})
 		require.NoError(t, err)
 
@@ -5127,6 +5182,7 @@ func TestBatchUpsertConnectionLogs(t *testing.T) {
 			ConnectionID:     []uuid.UUID{connID},
 			DisconnectReason: []string{""},
 			DisconnectTime:   []time.Time{zeroTime},
+			ClientSessionID:  []string{""},
 		})
 		require.NoError(t, err)
 
@@ -5165,6 +5221,7 @@ func TestBatchUpsertConnectionLogs(t *testing.T) {
 				ConnectionID:     []uuid.UUID{uuid.Nil},
 				DisconnectReason: []string{""},
 				DisconnectTime:   []time.Time{zeroTime},
+				ClientSessionID:  []string{""},
 			})
 			require.NoError(t, err)
 		}
@@ -5200,6 +5257,7 @@ func TestBatchUpsertConnectionLogs(t *testing.T) {
 		connIDs := make([]uuid.UUID, n)
 		disconnectReasons := make([]string, n)
 		disconnectTimes := make([]time.Time, n)
+		clientSessionIDs := make([]string, n)
 
 		for i := range n {
 			ids[i] = uuid.New()
@@ -5219,6 +5277,7 @@ func TestBatchUpsertConnectionLogs(t *testing.T) {
 			connIDs[i] = uuid.New()
 			disconnectReasons[i] = ""
 			disconnectTimes[i] = zeroTime
+			clientSessionIDs[i] = ""
 		}
 
 		err := db.BatchUpsertConnectionLogs(ctx, database.BatchUpsertConnectionLogsParams{
@@ -5239,6 +5298,7 @@ func TestBatchUpsertConnectionLogs(t *testing.T) {
 			ConnectionID:     connIDs,
 			DisconnectReason: disconnectReasons,
 			DisconnectTime:   disconnectTimes,
+			ClientSessionID:  clientSessionIDs,
 		})
 		require.NoError(t, err)
 
