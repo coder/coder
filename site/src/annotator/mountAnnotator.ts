@@ -41,11 +41,18 @@ export const annotatorHostId = "coder-annotator-host";
 // happens to share the id.
 const mountedHosts = new WeakMap<Document, HTMLElement>();
 
+// Matches the `sent-flash` animation length in styles plus the chip's
+// linger.
+const sentFlashMs = 1600;
+
 const pointerIcon =
 	'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4.1 12 6"/><path d="m5.1 8-2.9-.8"/><path d="m6 12-1.9 2"/><path d="M7.2 2.2 8 5.1"/><path d="M9.037 9.69a.498.498 0 0 1 .653-.653l11 4.5a.5.5 0 0 1-.074.949l-4.349 1.041a1 1 0 0 0-.74.739l-1.04 4.35a.5.5 0 0 1-.95.074z"/></svg>';
 
 const sendIcon =
 	'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z"/><path d="m21.854 2.147-10.94 10.939"/></svg>';
+
+const checkIcon =
+	'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>';
 
 const sparklesIcon =
 	'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11.017 2.814a1 1 0 0 1 1.966 0l1.051 5.558a2 2 0 0 0 1.594 1.594l5.558 1.051a1 1 0 0 1 0 1.966l-5.558 1.051a2 2 0 0 0-1.594 1.594l-1.051 5.558a1 1 0 0 1-1.966 0l-1.051-5.558a2 2 0 0 0-1.594-1.594l-5.558-1.051a1 1 0 0 1 0-1.966l5.558-1.051a2 2 0 0 0 1.594-1.594z"/><path d="M20 2v4"/><path d="M22 4h-4"/><circle cx="4" cy="20" r="2"/></svg>';
@@ -177,7 +184,36 @@ export function mountAnnotator(
 		// Stamped after describing so the marker never leaks into the
 		// captured selector or opening tag.
 		session.target.setAttribute(annotationIdAttribute, annotation.id);
-		options.onSubmit({ page: pageInfo(), annotations: [annotation] });
+		const page = pageInfo();
+		options.onSubmit({ page, annotations: [annotation] });
+		flashSent(session.target);
+		// Hold a quiet ring on the element until the dashboard reports the
+		// agent working on it, so the send and the shimmer read as one
+		// continuous state rather than two events with a gap between.
+		highlights.markPending({
+			id: annotation.id,
+			selector: annotation.element.selector,
+			url: page.url,
+		});
+	};
+
+	// A one-shot pulse of the outline plus a "Sent" chip where the badge
+	// sits, so the user sees the comment went without looking away.
+	const flashSent = (target: Element) => {
+		const box = viewportBox(target.getBoundingClientRect(), win, outlineInset);
+		const flash = el(doc, "div", "sent-flash", { "aria-hidden": "true" });
+		flash.style.left = `${box.left}px`;
+		flash.style.top = `${box.top}px`;
+		flash.style.width = `${box.width}px`;
+		flash.style.height = `${box.height}px`;
+		flash.classList.toggle("at-top", box.clampedTop);
+		flash.classList.toggle("at-right", box.clampedRight);
+		const chip = el(doc, "span", "sent-chip");
+		chip.innerHTML = checkIcon;
+		chip.append("Sent");
+		flash.append(chip);
+		shadow.append(flash);
+		win.setTimeout(() => flash.remove(), sentFlashMs);
 	};
 
 	const isOwnNode = (node: EventTarget | null): boolean =>
