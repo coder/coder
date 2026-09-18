@@ -30,6 +30,7 @@ func (s *memoryStore) Get(_ context.Context, name string) (chattool.Memory, erro
 	}
 	return memory, nil
 }
+
 func (s *memoryStore) GetForUpdate(ctx context.Context, name string) (chattool.Memory, error) {
 	return s.Get(ctx, name)
 }
