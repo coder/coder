@@ -250,13 +250,29 @@ func readTemplateParameters(
 		for _, p := range rows {
 			importByName[p.Name] = p
 		}
-		paramList := make([]map[string]any, 0, len(rendered))
+		paramList := make([]map[string]any, 0, len(rows))
 		for _, p := range rendered {
 			var imported *database.TemplateVersionParameter
 			if row, ok := importByName[p.Name]; ok {
 				imported = &row
+				delete(importByName, p.Name)
 			}
 			paramList = append(paramList, renderedParameterEntry(p, imported))
+		}
+		// A module preview could not load takes every parameter it declares
+		// out of the render, but provisionerd still resolves the module at
+		// build time, so the import rows stand in for those parameters.
+		if incompleteRender(diags) {
+			for _, row := range rows {
+				if _, missing := importByName[row.Name]; !missing {
+					continue
+				}
+				entry := staticParameterEntry(row)
+				if row.DefaultValue != "" {
+					entry["default_note"] = readTemplateBuildTimeDefaultNote
+				}
+				paramList = append(paramList, entry)
+			}
 		}
 		return paramList, readTemplateBuildDefaultsNote
 	case errors.Is(err, dynamicparameters.ErrTemplateVersionNotReady):
@@ -279,6 +295,17 @@ func readTemplateParameters(
 func hasErrorDiagnostic(diags []codersdk.FriendlyDiagnostic) bool {
 	for _, d := range diags {
 		if d.Severity == codersdk.DiagnosticSeverityError {
+			return true
+		}
+	}
+	return false
+}
+
+// incompleteRender mirrors dynamicparameters.incompleteRender: a module the
+// renderer could not load omits its parameters without an error.
+func incompleteRender(diags []codersdk.FriendlyDiagnostic) bool {
+	for _, d := range diags {
+		if d.Extra.Code == previewtypes.DiagnosticModuleNotLoaded {
 			return true
 		}
 	}
@@ -338,11 +365,27 @@ func renderedParameterEntry(p codersdk.PreviewParameter, imported *database.Temp
 		param["form_type"] = string(p.FormType)
 	}
 	if len(p.Options) > 0 {
+		var importedValues map[string]string
+		recovered := false
 		opts := make([]map[string]any, 0, len(p.Options))
 		for _, o := range p.Options {
+			value := o.Value.Value
+			if !o.Value.Valid {
+				// Unknown before the build for the same reason as a
+				// build-time default; the import row recorded the value the
+				// provisioner produced. Without one the option is unusable.
+				if importedValues == nil {
+					importedValues = importedOptionValues(imported)
+				}
+				v, ok := importedValues[o.Name]
+				if !ok {
+					continue
+				}
+				value, recovered = v, true
+			}
 			opt := map[string]any{
 				"name":  o.Name,
-				"value": o.Value.Value,
+				"value": value,
 			}
 			if desc := strings.TrimSpace(o.Description); desc != "" {
 				opt["description"] = desc
@@ -352,7 +395,12 @@ func renderedParameterEntry(p codersdk.PreviewParameter, imported *database.Temp
 			}
 			opts = append(opts, opt)
 		}
-		param["options"] = opts
+		if len(opts) > 0 {
+			param["options"] = opts
+		}
+		if recovered {
+			param["options_note"] = readTemplateBuildTimeDefaultNote
+		}
 	}
 	for _, v := range p.Validations {
 		if v.Regex != nil && *v.Regex != "" {
@@ -366,6 +414,27 @@ func renderedParameterEntry(p codersdk.PreviewParameter, imported *database.Temp
 		}
 	}
 	return param
+}
+
+// importedOptionValues maps option names to the values recorded at template
+// import. It returns an empty map when there is no row or the options cannot
+// be decoded.
+func importedOptionValues(imported *database.TemplateVersionParameter) map[string]string {
+	values := map[string]string{}
+	if imported == nil {
+		return values
+	}
+	var opts []struct {
+		Name  string `json:"name"`
+		Value string `json:"value"`
+	}
+	if err := json.Unmarshal(imported.Options, &opts); err != nil {
+		return values
+	}
+	for _, o := range opts {
+		values[o.Name] = o.Value
+	}
+	return values
 }
 
 // staticParameterEntry converts an import-time parameter row into the tool's

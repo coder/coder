@@ -522,6 +522,92 @@ func TestReadTemplate_OwnerEvaluatedParameters(t *testing.T) {
 		require.Contains(t, note, "values a build for this workspace owner uses")
 	})
 
+	t.Run("IncompleteRenderKeepsModuleParameters", func(t *testing.T) {
+		t.Parallel()
+		// preview drops every parameter declared by a module it cannot load
+		// and reports that as a module_not_loaded warning, not an error.
+		// provisionerd still resolves the module at build time, so the
+		// import row is the best estimate for those parameters.
+		moduleVersion := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+			OrganizationID: org.ID,
+			CreatedBy:      user.ID,
+		})
+		moduleTmpl := dbgen.Template(t, db, database.Template{
+			OrganizationID:  org.ID,
+			CreatedBy:       user.ID,
+			ActiveVersionID: moduleVersion.ID,
+			AgentsAllowed:   true,
+		})
+		_ = dbgen.TemplateVersionParameter(t, db, database.TemplateVersionParameter{
+			TemplateVersionID: moduleVersion.ID,
+			Name:              "Region",
+			Type:              "string",
+			DefaultValue:      "us-pittsburgh",
+		})
+		_ = dbgen.TemplateVersionParameter(t, db, database.TemplateVersionParameter{
+			TemplateVersionID: moduleVersion.ID,
+			Name:              "jetbrains_ide",
+			Type:              "string",
+			DefaultValue:      "GO",
+		})
+		ctx := testutil.Context(t, testutil.WaitShort)
+		tool := chattool.ReadTemplate(db, org.ID, chattool.ReadTemplateOptions{
+			OwnerID: user.ID,
+			RenderParameters: func(context.Context, uuid.UUID, uuid.UUID) ([]codersdk.PreviewParameter, []codersdk.FriendlyDiagnostic, error) {
+				return ownerRendered, []codersdk.FriendlyDiagnostic{{
+					Severity: codersdk.DiagnosticSeverityWarning,
+					Summary:  "Module not loaded. Did you run `terraform init`?",
+					Extra:    codersdk.DiagnosticExtra{Code: "module_not_loaded"},
+				}}, nil
+			},
+			Logger: slogtest.Make(t, nil),
+		})
+		resp, err := tool.Run(ctx, fantasy.ToolCall{
+			ID:    "call-module",
+			Name:  "read_template",
+			Input: `{"template_id":"` + moduleTmpl.ID.String() + `"}`,
+		})
+		require.NoError(t, err)
+		require.False(t, resp.IsError, "unexpected error: %s", resp.Content)
+		var result struct {
+			Parameters []map[string]any `json:"parameters"`
+			Note       string           `json:"parameters_note"`
+		}
+		require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
+		require.Len(t, result.Parameters, 2)
+		byName := make(map[string]map[string]any, len(result.Parameters))
+		for _, p := range result.Parameters {
+			byName[p["name"].(string)] = p
+		}
+		require.Equal(t, "eu-helsinki", byName["Region"]["default"], "rendered parameters keep the owner default")
+		require.Equal(t, "GO", byName["jetbrains_ide"]["default"], "module parameter recovered from the import row")
+		require.Contains(t, byName["jetbrains_ide"]["default_note"], "recorded at template import")
+		require.Contains(t, result.Note, "values a build for this workspace owner uses")
+	})
+
+	t.Run("UnknownOptionValueUsesImportValue", func(t *testing.T) {
+		t.Parallel()
+		// An option value that depends on data preview cannot see, such as
+		// data.coder_provisioner attributes, renders as invalid. The import
+		// row recorded what the provisioner produced, so use that rather
+		// than an empty string the model might pass to create_workspace.
+		unknownOption := ownerRendered[0]
+		unknownOption.Options = []codersdk.PreviewParameterOption{
+			{Name: "Pittsburgh", Value: codersdk.NullHCLString{Value: "us-pittsburgh", Valid: true}},
+			{Name: "Falkenstein", Value: codersdk.NullHCLString{}},
+			{Name: "Unrecorded", Value: codersdk.NullHCLString{}},
+		}
+		region, _ := readParams(t, func(context.Context, uuid.UUID, uuid.UUID) ([]codersdk.PreviewParameter, []codersdk.FriendlyDiagnostic, error) {
+			return []codersdk.PreviewParameter{unknownOption}, nil, nil
+		})
+		opts, ok := region["options"].([]any)
+		require.True(t, ok)
+		require.Len(t, opts, 2, "an unknown option with no import counterpart is omitted")
+		require.Equal(t, "us-pittsburgh", opts[0].(map[string]any)["value"])
+		require.Equal(t, "eu-helsinki", opts[1].(map[string]any)["value"], "unknown option value recovered from the import row")
+		require.Contains(t, region["options_note"], "recorded at template import")
+	})
+
 	t.Run("NoRendererUsesImportDefaults", func(t *testing.T) {
 		t.Parallel()
 		region, note := readParams(t, nil)
