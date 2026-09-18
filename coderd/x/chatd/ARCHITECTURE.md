@@ -447,6 +447,8 @@ This endpoint uses `Create(initialMessages)`:
 
 No other input states are supported.
 
+TODO: document `POST /api/v2/users/{user}/chats`, which creates a chat owned by another user through the same transition. The caller must hold org-scoped `chat:create` for that owner and the authority to create API keys for that user, because processing runs with the owner's credentials. The initial user message is attributed to the caller rather than the owner.
+
 ### `PATCH /api/experimental/chats/{chat}`
 
 When archiving or unarchiving a root chat, the operation applies `SetArchived(archived)` to the root and all descendants atomically. If any chat in the family cannot apply the requested archived-state transition, the whole operation fails without changing any chat. Unarchiving an individual child chat remains guarded: it must fail while its parent is archived

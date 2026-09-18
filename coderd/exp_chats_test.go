@@ -1804,6 +1804,140 @@ func TestPostChats(t *testing.T) {
 	})
 }
 
+func TestPostUserChats(t *testing.T) {
+	t.Parallel()
+
+	helloRequest := func(organizationID uuid.UUID) codersdk.CreateChatRequest {
+		return codersdk.CreateChatRequest{
+			OrganizationID: organizationID,
+			Content: []codersdk.ChatInputPart{{
+				Type: codersdk.ChatInputPartTypeText,
+				Text: "hello on behalf of another user",
+			}},
+		}
+	}
+
+	t.Run("OwnerCreatesForMember", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModel(t, client)
+		memberClientRaw, member := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
+		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
+
+		chat, err := client.CreateUserChat(ctx, member.Username, helloRequest(firstUser.OrganizationID))
+		require.NoError(t, err)
+		require.Equal(t, member.ID, chat.OwnerID)
+
+		// The member owns the chat while the prompt stays attributed to the
+		// admin who submitted it.
+		fetched, err := memberClient.GetChat(ctx, chat.ID)
+		require.NoError(t, err)
+		require.Equal(t, member.ID, fetched.OwnerID)
+		messages, err := db.GetChatMessagesByChatID(dbauthz.AsSystemRestricted(ctx), database.GetChatMessagesByChatIDParams{
+			ChatID: chat.ID,
+		})
+		require.NoError(t, err)
+		userMsg := findUserMessage(t, messages)
+		require.Equal(t, uuid.NullUUID{UUID: firstUser.UserID, Valid: true}, userMsg.CreatedBy)
+	})
+
+	t.Run("OwnerServiceAccountCreatesForMember", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModel(t, client)
+		_, member := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
+
+		// Service accounts are a licensed feature, so seed one directly. It
+		// is not an organization member: site-wide authority is sufficient.
+		serviceAccount := dbgen.User(t, db, database.User{
+			IsServiceAccount: true,
+			RBACRoles:        []string{rbac.RoleOwner().String()},
+		})
+		_, token := dbgen.APIKey(t, db, database.APIKey{
+			UserID:    serviceAccount.ID,
+			LoginType: database.LoginTypeToken,
+		})
+		serviceAccountClient := codersdk.New(
+			client.URL,
+			codersdk.WithSessionToken(token),
+			codersdk.WithHTTPClient(coderdtest.NewIsolatedHTTPClient(client.URL)),
+		)
+		t.Cleanup(serviceAccountClient.HTTPClient.CloseIdleConnections)
+
+		chat, err := serviceAccountClient.CreateUserChat(ctx, member.ID.String(), helloRequest(firstUser.OrganizationID))
+		require.NoError(t, err)
+		require.Equal(t, member.ID, chat.OwnerID)
+	})
+
+	t.Run("MeMatchesPostChats", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModel(t, client)
+		memberClientRaw, member := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
+		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
+
+		chat, err := memberClient.CreateUserChat(ctx, codersdk.Me, helloRequest(firstUser.OrganizationID))
+		require.NoError(t, err)
+		require.Equal(t, member.ID, chat.OwnerID)
+	})
+
+	t.Run("OrgAdminForbidden", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModel(t, client)
+		orgAdminClientRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID, rbac.ScopedRoleOrgAdmin(firstUser.OrganizationID))
+		orgAdminClient := codersdk.NewExperimentalClient(orgAdminClientRaw)
+		_, member := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
+
+		// Org admins hold org-scoped chat:create, but a chat runs with its
+		// owner's credentials, so acting as another user needs site-wide
+		// authority.
+		_, err := orgAdminClient.CreateUserChat(ctx, member.Username, helloRequest(firstUser.OrganizationID))
+		requireSDKError(t, err, http.StatusForbidden)
+	})
+
+	t.Run("MemberForbidden", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModel(t, client)
+		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
+		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
+		_, other := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
+
+		_, err := memberClient.CreateUserChat(ctx, other.Username, helloRequest(firstUser.OrganizationID))
+		requireSDKError(t, err, http.StatusForbidden)
+	})
+
+	t.Run("OwnerNotInOrganization", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModel(t, client)
+		otherOrg := dbgen.Organization(t, db, database.Organization{})
+		_, member := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
+
+		_, err := client.CreateUserChat(ctx, member.Username, helloRequest(otherOrg.ID))
+		requireSDKError(t, err, http.StatusNotFound)
+	})
+}
+
 // TestChats_ForceOnMCPServerEnforced is the endpoint-level regression
 // test for Cure53 CDM-02-010: a regular user who strips force_on MCP
 // server IDs from mcp_server_ids when creating a chat or sending a

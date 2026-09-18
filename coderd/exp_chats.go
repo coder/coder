@@ -1201,6 +1201,58 @@ func invalidChatMCPServerIDsResponse(ids []uuid.UUID) codersdk.Response {
 // @Failure 413 {object} codersdk.Response "Request body exceeds 256 KiB"
 // @Router /api/v2/chats [post]
 func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
+	apiKey := httpmw.APIKey(r)
+	api.createChat(rw, r, func(ctx context.Context, organizationID uuid.UUID) (uuid.UUID, int, *codersdk.Response) {
+		isMember, err := httpmw.UserAuthorization(ctx).HasOrganizationMembership(organizationID)
+		if err != nil {
+			return uuid.Nil, http.StatusInternalServerError, &codersdk.Response{
+				Message: "Failed to validate organization membership.",
+				Detail:  xerrors.Errorf("check organization membership: %w", err).Error(),
+			}
+		}
+		if !isMember {
+			return uuid.Nil, http.StatusForbidden, &codersdk.Response{
+				Message: "You are not a member of the specified organization.",
+			}
+		}
+		return apiKey.UserID, 0, nil
+	})
+}
+
+// @Summary Create user chat
+// @ID create-user-chat
+// @Security CoderSessionToken
+// @Tags Chats
+// @Accept json
+// @Produce json
+// @Param user path string true "Username, UUID, or me"
+// @Param request body codersdk.CreateChatRequest true "Create chat request"
+// @Success 201 {object} codersdk.Chat
+// @Failure 413 {object} codersdk.Response "Request body exceeds 256 KiB"
+// @Router /api/v2/users/{user}/chats [post]
+func (api *API) postUserChats(rw http.ResponseWriter, r *http.Request) {
+	mems := httpmw.OrganizationMembersParam(r)
+	api.createChat(rw, r, func(_ context.Context, organizationID uuid.UUID) (uuid.UUID, int, *codersdk.Response) {
+		// The memberships are already limited to what the caller may read,
+		// so a missing match stays a vague 404 like postUserWorkspaces.
+		idx := slices.IndexFunc(mems.Memberships, func(member httpmw.OrganizationMember) bool {
+			return member.OrganizationID == organizationID
+		})
+		if idx == -1 {
+			return uuid.Nil, http.StatusNotFound, &httpapi.ResourceNotFoundResponse
+		}
+		return mems.Memberships[idx].UserID, 0, nil
+	})
+}
+
+// createChatOwnerResolver returns the owner of a new chat once the requested
+// organization is known, or the response that rejects the request.
+type createChatOwnerResolver func(ctx context.Context, organizationID uuid.UUID) (uuid.UUID, int, *codersdk.Response)
+
+// createChat is the shared body of the chat creation endpoints. It parses
+// the request, resolves the owner, authorizes the caller, and creates the
+// chat.
+func (api *API) createChat(rw http.ResponseWriter, r *http.Request, resolveOwner createChatOwnerResolver) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
 
@@ -1223,32 +1275,31 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 	})
 	defer commitAudit()
 
-	// Validate organization membership.
 	if req.OrganizationID == uuid.Nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "organization_id is required.",
 		})
 		return
 	}
-	isMember, err := httpmw.UserAuthorization(ctx).HasOrganizationMembership(req.OrganizationID)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to validate organization membership.",
-			Detail:  xerrors.Errorf("check organization membership: %w", err).Error(),
-		})
-		return
-	}
-	if !isMember {
-		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
-			Message: "You are not a member of the specified organization.",
-		})
+	ownerID, ownerStatus, ownerError := resolveOwner(ctx, req.OrganizationID)
+	if ownerError != nil {
+		httpapi.Write(ctx, rw, ownerStatus, *ownerError)
 		return
 	}
 	// NOTE: This authorize check is intentionally placed after request
 	// parsing because we need req.OrganizationID to scope the RBAC check
 	// to the correct org. The request body is bounded by the ReadLimit above,
 	// limiting the cost of parsing before rejection.
-	if !api.Authorize(r, policy.ActionCreate, rbac.ResourceChat.WithOwner(apiKey.UserID.String()).InOrg(req.OrganizationID)) {
+	if !api.Authorize(r, policy.ActionCreate, rbac.ResourceChat.WithOwner(ownerID.String()).InOrg(req.OrganizationID)) {
+		httpapi.Forbidden(rw)
+		return
+	}
+	// Chat processing runs with the owner's credentials (workspace access,
+	// OIDC and provider tokens), so creating a chat for another user is
+	// acting as that user. Org-scoped chat permissions are not enough:
+	// require the same authority the token endpoint demands to mint a
+	// session for that user.
+	if ownerID != apiKey.UserID && !api.Authorize(r, policy.ActionCreate, rbac.ResourceApiKey.WithOwner(ownerID.String())) {
 		httpapi.Forbidden(rw)
 		return
 	}
@@ -1267,7 +1318,7 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 
 	title := chatprompt.FallbackTitle(titleSource)
 
-	modelConfigID, personalOverrideEffort, modelConfigStatus, modelConfigError := api.resolveCreateChatModelConfigID(ctx, apiKey.UserID, req)
+	modelConfigID, personalOverrideEffort, modelConfigStatus, modelConfigError := api.resolveCreateChatModelConfigID(ctx, ownerID, req)
 	if modelConfigError != nil {
 		httpapi.Write(ctx, rw, modelConfigStatus, *modelConfigError)
 		return
@@ -1378,7 +1429,8 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 
 	chat, err := api.chatDaemon.CreateChat(ctx, chatd.CreateOptions{
 		OrganizationID:          req.OrganizationID,
-		OwnerID:                 apiKey.UserID,
+		OwnerID:                 ownerID,
+		CreatedBy:               apiKey.UserID,
 		WorkspaceID:             workspaceSelection.WorkspaceID,
 		Title:                   title,
 		TitleDerivedFromContent: true,
