@@ -11820,7 +11820,7 @@ func (q *sqlQuerier) ReorderChatQueuedMessageToHead(ctx context.Context, arg Reo
 const setChatContextSnapshot = `-- name: SetChatContextSnapshot :exec
 UPDATE chats
 SET
-    context_aggregate_hash = $1,
+    context_aggregate_hash = NULLIF($1::bytea, ''::bytea),
     context_error = $2,
     context_dirty_since = NULL
 WHERE id = $3::uuid
@@ -11835,7 +11835,9 @@ type SetChatContextSnapshotParams struct {
 // Pins a single chat to the supplied context snapshot hash and error
 // and clears any dirty marker. Used by chat-create hydration and the
 // refresh endpoint. Does not bump updated_at: context pinning is
-// background state and must not reorder chat lists.
+// background state and must not reorder chat lists. An empty hash
+// unpins the chat: a nil Go []byte reaches the driver as an empty
+// bytea, not NULL, and only NULL reads as "never pinned" elsewhere.
 func (q *sqlQuerier) SetChatContextSnapshot(ctx context.Context, arg SetChatContextSnapshotParams) error {
 	_, err := q.db.ExecContext(ctx, setChatContextSnapshot, arg.AggregateHash, arg.ContextError, arg.ID)
 	return err

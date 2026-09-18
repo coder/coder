@@ -3,6 +3,7 @@ package chatd
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"strings"
 
 	"golang.org/x/xerrors"
@@ -169,10 +170,23 @@ func decodeSkillIdentity(body json.RawMessage) (name, description string, decode
 	return decodedBody.GetName(), decodedBody.GetDescription(), true
 }
 
+// Notes rendered in place of the instruction-file list so the model learns
+// why <workspace-context> lists no files instead of receiving no block.
+const (
+	workspaceContextUnpublishedNote        = "Workspace context has not been published yet; the workspace may still be starting."
+	workspaceContextNoInstructionFilesNote = "No instruction files (AGENTS.md, CLAUDE.md, .cursorrules) were found in the working directory or the other scanned locations."
+	workspaceContextOmittedFilesNote       = "Instruction files were found but could not be included: "
+	// maxOmittedInstructionFilesNamed bounds the omitted-file note; the
+	// resolver keeps every excluded resource, so a workspace with many
+	// sources could otherwise grow the prompt without limit.
+	maxOmittedInstructionFilesNamed = 20
+)
+
 // pinnedWorkspaceContext builds the system-prompt instruction block and
 // workspace skills from the chat's pinned context resources
 // (chat_context_resources), populated at hydrate and refresh time. A chat
-// with no pinned rows yields no context. A read error is returned rather than
+// with no pinned instruction file still gets the block header with a note
+// saying why no file is listed. A read error is returned rather than
 // swallowed, matching the other prompt-input reads in prepareGeneration.
 //
 // agent only decorates the instruction header with its OS and directory; an
@@ -187,15 +201,18 @@ func (server *Server) pinnedWorkspaceContext(
 	if err != nil {
 		return "", nil, xerrors.Errorf("list chat context resources: %w", err)
 	}
-	if len(resources) == 0 {
-		return "", nil, nil
+	// An unpinned chat has no rows because its agent has not pushed yet; a
+	// pinned chat without instruction rows saw a snapshot that held none.
+	emptyNote := workspaceContextNoInstructionFilesNote
+	if len(resources) == 0 && chat.ContextAggregateHash == nil {
+		emptyNote = workspaceContextUnpublishedNote
 	}
 
 	directory := agent.ExpandedDirectory
 	if directory == "" {
 		directory = agent.Directory
 	}
-	instruction, skills, malformed := contextResourcesToPrompt(resources, agent.OperatingSystem, directory)
+	instruction, skills, malformed := contextResourcesToPrompt(resources, agent.OperatingSystem, directory, emptyNote)
 	if malformed > 0 {
 		// A status-OK resource whose body cannot be decoded means the pin
 		// hydrated content that is now unreadable; surface it so a proto
@@ -239,16 +256,23 @@ func (server *Server) resolveTurnWorkspaceContext(
 // omitted when empty. Only OK resources of a prompt body kind contribute;
 // other statuses, body kinds, and malformed bodies are skipped. malformed
 // counts OK resources whose body failed to decode, so the caller can surface
-// an otherwise silent drop. The header is emitted only when at least one
-// instruction file has content, so a skill-only pin produces no instruction
-// block, matching the per-turn path.
+// an otherwise silent drop. emptyNote replaces the file list when no
+// instruction file has content, so a skill-only pin still yields the header.
+// Instruction files the pin holds but cannot render are always named, so
+// the model reads neither an empty nor a partial list as complete.
 func contextResourcesToPrompt(
 	resources []database.ChatContextResource,
-	operatingSystem, directory string,
+	operatingSystem, directory, emptyNote string,
 ) (instruction string, skills []chattool.SkillMeta, malformed int) {
-	var contextFileParts []codersdk.ChatMessagePart
+	var (
+		contextFileParts []codersdk.ChatMessagePart
+		omitted          []string
+	)
 	for _, r := range resources {
 		if r.Status != database.WorkspaceAgentContextResourceStatusOk {
+			if r.BodyKind == database.WorkspaceAgentContextBodyKindInstructionFile {
+				omitted = append(omitted, r.Source+" ("+string(r.Status)+")")
+			}
 			continue
 		}
 		switch r.BodyKind {
@@ -256,9 +280,11 @@ func contextResourcesToPrompt(
 			content, decoded := decodeInstructionContent(r.Body)
 			if !decoded {
 				malformed++
+				omitted = append(omitted, r.Source+" (malformed)")
 				continue
 			}
 			if content == "" {
+				omitted = append(omitted, r.Source+" (empty)")
 				continue
 			}
 			contextFileParts = append(contextFileParts, codersdk.ChatMessagePart{
@@ -287,10 +313,29 @@ func contextResourcesToPrompt(
 		}
 	}
 
-	if len(contextFileParts) == 0 {
-		return "", skills, malformed
+	note := ""
+	switch {
+	case len(omitted) > 0:
+		note = omittedInstructionFilesNote(omitted)
+	case len(contextFileParts) == 0:
+		note = emptyNote
 	}
-	return formatSystemInstructions(operatingSystem, directory, contextFileParts), skills, malformed
+	return formatSystemInstructions(operatingSystem, directory, note, contextFileParts), skills, malformed
+}
+
+// omittedInstructionFilesNote names the pinned instruction files that could
+// not be rendered, bounded so the diagnostic itself cannot flood the prompt.
+func omittedInstructionFilesNote(omitted []string) string {
+	extra := 0
+	if len(omitted) > maxOmittedInstructionFilesNamed {
+		extra = len(omitted) - maxOmittedInstructionFilesNamed
+		omitted = omitted[:maxOmittedInstructionFilesNamed]
+	}
+	note := workspaceContextOmittedFilesNote + strings.Join(omitted, ", ")
+	if extra > 0 {
+		note += fmt.Sprintf(", and %d more", extra)
+	}
+	return note + "."
 }
 
 // ContextResources returns the chat's pinned context resource list (metadata
