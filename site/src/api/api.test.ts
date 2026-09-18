@@ -768,4 +768,34 @@ describe("api.ts", () => {
 			);
 		});
 	});
+
+	describe("getWorkspace", () => {
+		it("passes include_related through as a query param", async () => {
+			const getSpy = vi
+				.spyOn(axiosInstance, "get")
+				.mockResolvedValueOnce({ data: MockWorkspace });
+
+			const params: TypesGen.WorkspaceOptions = { include_related: "template" };
+			const result = await API.getWorkspace(MockWorkspace.id, params);
+
+			expect(getSpy).toHaveBeenCalledWith(
+				`/api/v2/workspaces/${MockWorkspace.id}`,
+				{ params },
+			);
+			expect(result).toBe(MockWorkspace);
+		});
+
+		it("omits params when none are given", async () => {
+			const getSpy = vi
+				.spyOn(axiosInstance, "get")
+				.mockResolvedValueOnce({ data: MockWorkspace });
+
+			await API.getWorkspace(MockWorkspace.id);
+
+			expect(getSpy).toHaveBeenCalledWith(
+				`/api/v2/workspaces/${MockWorkspace.id}`,
+				{ params: undefined },
+			);
+		});
+	});
 });
