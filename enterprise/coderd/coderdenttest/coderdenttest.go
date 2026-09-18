@@ -498,7 +498,7 @@ func GetRunningPrebuilds(
 
 		t.Logf("found %d running prebuilds so far, want %d", len(runningPrebuilds), desiredPrebuilds)
 		return len(runningPrebuilds) == desiredPrebuilds
-	}, testutil.IntervalSlow, "found %d running prebuilds, expected %d", len(runningPrebuilds), desiredPrebuilds)
+	}, testutil.IntervalFast, "found %d running prebuilds, expected %d", len(runningPrebuilds), desiredPrebuilds)
 
 	return runningPrebuilds
 }
