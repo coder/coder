@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"slices"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -720,6 +721,51 @@ func requireCallbackURLValidationError(t *testing.T, err error) {
 	}), "expected callback_url validation error, got: %+v", apiErr.Validations)
 }
 
+// competingRedirectURIWriteStore removes the second redirect URI of an app
+// right after the middleware reads it, once armed, and returns the row as it
+// was before the removal. This stands in for another admin whose update
+// commits while a request is in flight.
+type competingRedirectURIWriteStore struct {
+	database.Store
+
+	armed atomic.Bool
+}
+
+func (s *competingRedirectURIWriteStore) GetOAuth2ProviderAppByID(ctx context.Context, id uuid.UUID) (database.OAuth2ProviderApp, error) {
+	app, err := s.Store.GetOAuth2ProviderAppByID(ctx, id)
+	if err != nil || !s.armed.CompareAndSwap(true, false) {
+		return app, err
+	}
+	_, err = s.UpdateOAuth2ProviderAppByID(ctx, database.UpdateOAuth2ProviderAppByIDParams{
+		ID:                      app.ID,
+		UpdatedAt:               app.UpdatedAt,
+		Name:                    app.Name,
+		Icon:                    app.Icon,
+		CallbackURL:             app.RedirectUris[0],
+		RedirectUris:            app.RedirectUris[:1],
+		ClientType:              app.ClientType,
+		DynamicallyRegistered:   app.DynamicallyRegistered,
+		ClientSecretExpiresAt:   app.ClientSecretExpiresAt,
+		GrantTypes:              app.GrantTypes,
+		ResponseTypes:           app.ResponseTypes,
+		TokenEndpointAuthMethod: app.TokenEndpointAuthMethod,
+		Scope:                   app.Scope,
+		Contacts:                app.Contacts,
+		ClientUri:               app.ClientUri,
+		LogoUri:                 app.LogoUri,
+		TosUri:                  app.TosUri,
+		PolicyUri:               app.PolicyUri,
+		JwksUri:                 app.JwksUri,
+		Jwks:                    app.Jwks,
+		SoftwareID:              app.SoftwareID,
+		SoftwareVersion:         app.SoftwareVersion,
+	})
+	if err != nil {
+		return database.OAuth2ProviderApp{}, err
+	}
+	return app, nil
+}
+
 type provisionedApps struct {
 	Default   codersdk.OAuth2ProviderApp
 	NoPort    codersdk.OAuth2ProviderApp
@@ -1068,6 +1114,40 @@ func TestOAuth2ProviderAppRedirectURIs(t *testing.T) {
 		stored, err := db.GetOAuth2ProviderAppByID(ctx, app.ID)
 		require.NoError(t, err)
 		require.Equal(t, []string{first, second}, stored.RedirectUris)
+	})
+
+	// A rename-only update writes the stored redirect URIs back, so a change
+	// to them that lands between the middleware read and the update must not
+	// be undone.
+	t.Run("RenameKeepsConcurrentRedirectURIChange", func(t *testing.T) {
+		t.Parallel()
+
+		db, pubsub := dbtestutil.NewDB(t)
+		store := &competingRedirectURIWriteStore{Store: db}
+		client := coderdtest.New(t, &coderdtest.Options{Database: store, Pubsub: pubsub})
+		_ = coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		//nolint:gocritic // OAuth2 app management requires owner permission.
+		app, err := client.PostOAuth2ProviderApp(ctx, codersdk.PostOAuth2ProviderAppRequest{
+			Name:         "concurrent",
+			RedirectURIs: []string{first, second},
+		})
+		require.NoError(t, err)
+
+		store.armed.Store(true)
+		//nolint:gocritic // OAuth2 app management requires owner permission.
+		updated, err := client.PutOAuth2ProviderApp(ctx, app.ID, codersdk.PutOAuth2ProviderAppRequest{
+			Name: "renamed",
+		})
+		require.NoError(t, err)
+		require.False(t, store.armed.Load(), "the competing write did not run")
+		require.Equal(t, "renamed", updated.Name)
+		require.Equal(t, []string{first}, updated.RedirectURIs)
+
+		stored, err := db.GetOAuth2ProviderAppByID(ctx, app.ID)
+		require.NoError(t, err)
+		require.Equal(t, []string{first}, stored.RedirectUris)
 	})
 
 	// An update sending redirect_uris as an empty list, with no callback_url,
