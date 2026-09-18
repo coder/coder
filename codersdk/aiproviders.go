@@ -90,19 +90,29 @@ type AIProviderSettings struct {
 	// AWS Bedrock instead of api.anthropic.com. Only meaningful for
 	// AIProviderTypeAnthropic.
 	Bedrock *AIProviderBedrockSettings `json:"-"`
+	// UpstreamHeaders, when set, carries custom headers sent on every
+	// upstream request for the provider (e.g. a routing session header
+	// required by OpenAI-compatible endpoints such as OpenCode Zen).
+	// At most one of Bedrock and UpstreamHeaders may be set: the wire
+	// form carries a single _type discriminator.
+	UpstreamHeaders *AIProviderUpstreamHeadersSettings `json:"-"`
 }
 
 // IsZero reports whether the settings carry no type-specific data.
 func (s AIProviderSettings) IsZero() bool {
-	return s.Bedrock == nil
+	return s.Bedrock == nil && (s.UpstreamHeaders == nil || s.UpstreamHeaders.IsZero())
 }
 
 // MarshalJSON emits the discriminated wire form. Empty settings encode
 // as JSON null so the column round-trips cleanly through SQL NULL.
 func (s AIProviderSettings) MarshalJSON() ([]byte, error) {
 	switch {
+	case s.Bedrock != nil && s.UpstreamHeaders != nil && !s.UpstreamHeaders.IsZero():
+		return nil, xerrors.New("settings cannot combine bedrock and upstream-headers")
 	case s.Bedrock != nil:
 		return marshalSettings(*s.Bedrock)
+	case s.UpstreamHeaders != nil && !s.UpstreamHeaders.IsZero():
+		return marshalSettings(*s.UpstreamHeaders)
 	default:
 		return []byte("null"), nil
 	}
@@ -136,6 +146,17 @@ func (s *AIProviderSettings) UnmarshalJSON(data []byte) error {
 			return xerrors.Errorf("decode bedrock settings: %w", err)
 		}
 		s.Bedrock = &b
+		return nil
+	case AIProviderSettingsTypeUpstreamHeaders:
+		if header.Version != AIProviderUpstreamHeadersSettingsVersion {
+			return xerrors.Errorf("unsupported %q settings version %d (expected %d)",
+				header.Type, header.Version, AIProviderUpstreamHeadersSettingsVersion)
+		}
+		var h AIProviderUpstreamHeadersSettings
+		if err := json.Unmarshal(data, &h); err != nil {
+			return xerrors.Errorf("decode upstream-headers settings: %w", err)
+		}
+		s.UpstreamHeaders = &h
 		return nil
 	default:
 		return xerrors.Errorf("unknown settings type %q", header.Type)
@@ -264,6 +285,15 @@ func (req CreateAIProviderRequest) Validate() []ValidationError {
 	validations = append(validations, validateAIProviderName(req.Name)...)
 	validations = append(validations, validateRequiredAIProviderBaseURL(req.BaseURL)...)
 	validations = append(validations, validateAIProviderAPIKeys(req.APIKeys)...)
+	if req.Settings.Bedrock != nil && req.Settings.UpstreamHeaders != nil && !req.Settings.UpstreamHeaders.IsZero() {
+		validations = append(validations, ValidationError{
+			Field:  "settings",
+			Detail: "only one settings type may be set",
+		})
+	}
+	if req.Settings.UpstreamHeaders != nil {
+		validations = append(validations, validateAIProviderUpstreamHeaders(*req.Settings.UpstreamHeaders)...)
+	}
 	if req.Settings.Bedrock != nil &&
 		req.Type != AIProviderTypeAnthropic &&
 		req.Type != AIProviderTypeBedrock {
@@ -344,6 +374,18 @@ func (req UpdateAIProviderRequest) Validate() []ValidationError {
 	}
 	if req.APIKeys != nil {
 		validations = append(validations, validateAIProviderKeyMutations(*req.APIKeys)...)
+	}
+	// Despite arriving on a PATCH, an upstream-headers settings blob is a
+	// full replacement rather than a per-field patch, matching the bedrock
+	// blob semantics described below: omitting the blob clears it.
+	if req.Settings != nil && req.Settings.Bedrock != nil && req.Settings.UpstreamHeaders != nil && !req.Settings.UpstreamHeaders.IsZero() {
+		validations = append(validations, ValidationError{
+			Field:  "settings",
+			Detail: "only one settings type may be set",
+		})
+	}
+	if req.Settings != nil && req.Settings.UpstreamHeaders != nil {
+		validations = append(validations, validateAIProviderUpstreamHeaders(*req.Settings.UpstreamHeaders)...)
 	}
 	// Despite arriving on a PATCH, a bedrock settings blob is a full
 	// replacement rather than a per-field patch: the caller must set every
