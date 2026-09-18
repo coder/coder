@@ -29,6 +29,7 @@ import (
 	io_prometheus_client "github.com/prometheus/client_model/go"
 	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/require"
+	"github.com/tidwall/gjson"
 	"go.uber.org/mock/gomock"
 	"golang.org/x/xerrors"
 
@@ -6593,6 +6594,110 @@ func TestActiveServer_BasicAssistantGenerationAndPromptPreparation(t *testing.T)
 	toolNames = anthropicRequestToolNames(planRequest)
 	require.Contains(t, toolNames, "read_file")
 	require.NotContains(t, toolNames, "write_file")
+}
+
+// Claude models routed through an OpenRouter provider use the openai-compat
+// fantasy client, which must still emit Anthropic cache_control markers
+// on array-form content blocks. Other model families get none.
+func TestActiveServer_OpenRouterAnthropicPromptCaching(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		modelID     string
+		wantCaching bool
+	}{
+		{name: "Claude", modelID: "anthropic/claude-haiku-4.5", wantCaching: true},
+		{name: "GPT", modelID: "openai/gpt-5-mini", wantCaching: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitLong)
+			db, ps := dbtestutil.NewDB(t)
+			var (
+				mu        sync.Mutex
+				streaming [][]byte
+			)
+			openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+				if !req.Stream {
+					return chattest.OpenAINonStreamingResponse(`{"title":"caching"}`)
+				}
+				mu.Lock()
+				streaming = append(streaming, req.RawBody)
+				mu.Unlock()
+				return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("done")...)
+			})
+
+			user := dbgen.User(t, db, database.User{})
+			org := dbgen.Organization(t, db, database.Organization{})
+			dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: user.ID, OrganizationID: org.ID})
+			provider := dbgen.AIProvider(t, db, database.AIProvider{Type: database.AIProviderTypeOpenrouter}, func(params *database.InsertAIProviderParams) {
+				params.BaseUrl = openAIURL
+			})
+			dbgen.AIProviderKey(t, db, database.AIProviderKey{ProviderID: provider.ID})
+			model := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+				Model:          tt.modelID,
+				IsDefault:      true,
+				AIProviderID:   uuid.NullUUID{UUID: provider.ID, Valid: true},
+				OrganizationID: org.ID,
+			})
+
+			server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+				cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
+			})
+			chat := createChatThroughServer(ctx, t, db, server, org.ID, user.ID, model.ID, "hello")
+			waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
+			_, err := server.SendMessage(ctx, chatd.SendMessageOptions{
+				ChatID:        chat.ID,
+				CreatedBy:     user.ID,
+				ModelConfigID: model.ID,
+				Content:       []codersdk.ChatMessagePart{codersdk.ChatMessageText("continue")},
+				BusyBehavior:  chatd.SendMessageBusyBehaviorQueue,
+			})
+			require.NoError(t, err)
+			waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
+
+			mu.Lock()
+			defer mu.Unlock()
+			require.Len(t, streaming, 2)
+			body := streaming[1]
+			require.Equal(t, tt.modelID, gjson.GetBytes(body, "model").String())
+			messages := gjson.GetBytes(body, "messages").Array()
+			require.GreaterOrEqual(t, len(messages), 4)
+			require.Equal(t, "system", messages[0].Get("role").String())
+			firstUser := slices.IndexFunc(messages, func(msg gjson.Result) bool {
+				return msg.Get("role").String() == "user"
+			})
+			require.Positive(t, firstUser)
+			require.Equal(t, "hello", messages[firstUser].Get("content").String(), "earlier user message keeps string content")
+			require.NotContains(t, messages[firstUser].Raw, "cache_control")
+			last := messages[len(messages)-1]
+			require.Equal(t, "user", last.Get("role").String())
+
+			if !tt.wantCaching {
+				require.NotContains(t, string(body), "cache_control")
+				require.Equal(t, "continue", last.Get("content").String())
+				return
+			}
+			// The breakpoint sits on the last system message so the whole
+			// system prefix is cached, and only that message switches to
+			// array-form content.
+			lastSystem := messages[firstUser-1]
+			require.Equal(t, "system", lastSystem.Get("role").String())
+			for _, msg := range messages[:firstUser-1] {
+				require.NotContains(t, msg.Raw, "cache_control")
+			}
+			systemParts := lastSystem.Get("content").Array()
+			require.True(t, lastSystem.Get("content").IsArray(), "system content must be array form to carry cache_control")
+			require.Equal(t, "ephemeral", systemParts[len(systemParts)-1].Get("cache_control.type").String())
+			require.True(t, last.Get("content").IsArray(), "user content must be array form to carry cache_control")
+			userParts := last.Get("content").Array()
+			require.Equal(t, "continue", userParts[len(userParts)-1].Get("text").String())
+			require.Equal(t, "ephemeral", userParts[len(userParts)-1].Get("cache_control.type").String())
+		})
+	}
 }
 
 func TestActiveServer_ToolExecutionAndPolicy(t *testing.T) {
