@@ -338,15 +338,6 @@ enum PrebuiltWorkspaceBuildStage {
   CLAIM = 2;  // A prebuilt workspace is being claimed.
 }
 
-message AITaskSidebarApp {
-  string id = 1;
-}
-
-message AITask {
-  string id = 1;
-  optional AITaskSidebarApp sidebar_app = 2;
-  string app_id = 3;
-}
 
 // Metadata is information about a workspace used in the execution of a build
 message Metadata {
@@ -371,8 +362,8 @@ message Metadata {
   repeated Role workspace_owner_rbac_roles = 19;
   PrebuiltWorkspaceBuildStage prebuilt_workspace_build_stage = 20; // Indicates that a prebuilt workspace is being built.
   repeated RunningAgentAuthToken running_agent_auth_tokens = 21;
-  string task_id = 22;
-  string task_prompt = 23;
+  reserved 22, 23;
+  reserved "task_id", "task_prompt";
   string template_version_id = 24;
   string template_version_modules_file = 25;
 }
@@ -445,7 +436,8 @@ message PlanComplete {
   bytes plan = 3;
   int32 dailyCost = 4;
   repeated ResourceReplacement resource_replacements = 5;
-  int32 ai_task_count = 6;
+  reserved 6;
+  reserved "ai_task_count";
 }
 
 // ApplyRequest asks the provisioner to apply the changes.  Apply MUST be preceded by a successful plan request/response
@@ -479,10 +471,8 @@ message GraphComplete {
   repeated RichParameter parameters = 4;
   repeated ExternalAuthProviderResource external_auth_providers = 5;
   repeated Preset presets = 6;
-  // Whether actual `coder_ai_task` resource instances exist.
-  // Resources defined with count = 0 do not set this flag.
-  bool has_ai_tasks = 7;
-  repeated provisioner.AITask ai_tasks = 8;
+  reserved 7, 8;
+  reserved "has_ai_tasks", "ai_tasks";
   bool has_external_agents = 9;
 }
 

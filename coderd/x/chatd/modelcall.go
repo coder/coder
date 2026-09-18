@@ -161,15 +161,20 @@ func (p *Server) resolveModelCall(ctx context.Context, spec modelCallSpec) (reso
 
 	if out.debugEnabled {
 		model = model.WithLanguageModel(chatdebug.WrapModel(model.LanguageModel(), debugSvc, chatdebug.RecorderOptions{
-			ChatID:   spec.chat.ID,
-			OwnerID:  spec.chat.OwnerID,
-			Provider: out.resolvedProvider,
-			Model:    out.resolvedModel,
+			ChatID:  spec.chat.ID,
+			OwnerID: spec.chat.OwnerID,
 		}))
 	}
 	out.model = model
 
-	out.providerOptions = chatprovider.ProviderOptionsForCall(out.model, out.callConfig, spec.requestedEffort)
+	// Only the derived provider options see the coerced config: callConfig
+	// stays as configured so provider substitution (computer use rerouting
+	// to direct OpenAI) starts from the original value.
+	out.providerOptions = chatprovider.ProviderOptionsForCall(
+		out.model,
+		coerceBedrockReasoningSummary(out.route.Provider.Type, modelName, out.callConfig),
+		spec.requestedEffort,
+	)
 
 	p.logger.Debug(ctx, "resolved model call",
 		slog.F("purpose", spec.purpose),

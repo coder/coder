@@ -47,14 +47,6 @@ func NewWriterAttachedToSSHSession(t *testing.T, l slog.Logger, session *ssh.Ses
 	}
 }
 
-func (w *Writer) Write(r rune) {
-	w.t.Helper()
-	_, err := w.w.Write([]byte{byte(r)})
-	if assert.NoError(w.t, err, "write failed") {
-		w.l.Debug(context.Background(), "wrote rune", slog.F("rune", r))
-	}
-}
-
 func (w *Writer) WriteLine(str string) {
 	w.t.Helper()
 

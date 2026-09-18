@@ -5,15 +5,16 @@ import type { UrlTransform } from "streamdown";
 import { preferenceSettings } from "#/api/queries/users";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { ThinkingDisplayMode } from "#/api/typesGenerated";
-import { Response, Tool } from "../ChatElements";
-import { WebSearchSources } from "../ChatElements/tools";
+import { Response } from "../ChatElements/Response";
 import { ReadFilesTool } from "../ChatElements/tools/ReadFilesTool";
 import {
 	getReadFileToolData,
 	ReadFileTool,
 } from "../ChatElements/tools/ReadFileTool";
 import type { SubagentVariant } from "../ChatElements/tools/subagentDescriptor";
+import { Tool } from "../ChatElements/tools/Tool";
 import { ToolCall } from "../ChatElements/tools/ToolCall";
+import WebSearchSources from "../ChatElements/tools/WebSearchSources";
 import {
 	AttachmentBlock,
 	type PreviewTextAttachment,
@@ -359,6 +360,7 @@ export const BlockList: FC<BlockListProps> = ({
 								result={tool.result}
 								status={tool.status}
 								isError={tool.isError}
+								isMedia={tool.isMedia}
 								killedBySignal={tool.killedBySignal}
 								shellToolDisplayMode={shellToolDisplayMode}
 								codeDiffDisplayMode={codeDiffDisplayMode}
@@ -384,6 +386,7 @@ export const BlockList: FC<BlockListProps> = ({
 								}
 								modelIntent={tool.modelIntent}
 								parsedCommands={tool.parsedCommands}
+								startedAt={tool.startedAt}
 								hookRewritten={tool.hookRewritten}
 							/>
 						);
@@ -421,6 +424,7 @@ export const BlockList: FC<BlockListProps> = ({
 					result={tool.result}
 					status={tool.status}
 					isError={tool.isError}
+					isMedia={tool.isMedia}
 					killedBySignal={tool.killedBySignal}
 					shellToolDisplayMode={shellToolDisplayMode}
 					codeDiffDisplayMode={codeDiffDisplayMode}
@@ -446,6 +450,7 @@ export const BlockList: FC<BlockListProps> = ({
 					}
 					modelIntent={tool.modelIntent}
 					parsedCommands={tool.parsedCommands}
+					startedAt={tool.startedAt}
 					hookRewritten={tool.hookRewritten}
 				/>
 			))}

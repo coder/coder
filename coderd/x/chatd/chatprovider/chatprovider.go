@@ -2,7 +2,7 @@ package chatprovider
 
 import (
 	"context"
-	"mime"
+	"fmt"
 	"net/http"
 	"slices"
 	"strings"
@@ -22,6 +22,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatopenai"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatutil"
+	"github.com/coder/coder/v2/coderd/x/chatfiles"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -110,14 +111,43 @@ func InlineImageCapBytes(provider string) (int, bool) {
 	}
 }
 
+// ToolResultMediaOmission reports media unsupported by the transport or upstream
+// provider. configuredProvider supplies vendor limits hidden by a shared
+// OpenAI-compatible transport.
+func ToolResultMediaOmission(transportProvider, configuredProvider, mediaType string, size int) (string, bool) {
+	provider := NormalizeProvider(transportProvider)
+	if provider == fantasyopenaicompat.Name {
+		provider = NormalizeProvider(configuredProvider)
+	}
+	baseType := chatfiles.BaseMediaType(mediaType)
+	isImage := strings.HasPrefix(baseType, "image/")
+	accepted := true
+	switch provider {
+	case fantasyanthropic.Name, fantasybedrock.Name:
+		accepted = slices.Contains([]string{"image/jpeg", "image/png", "image/gif", "image/webp"}, baseType)
+	case fantasyopenai.Name, fantasyazure.Name:
+		accepted = !isImage || slices.Contains([]string{"image/jpeg", "image/png", "image/gif", "image/webp"}, baseType)
+	case fantasygoogle.Name:
+		accepted = !isImage || slices.Contains([]string{"image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"}, baseType)
+	}
+	if !accepted {
+		return fmt.Sprintf("[%s content omitted: unsupported tool result media type]", mediaType), true
+	}
+	if imageCap, hasCap := InlineImageCapBytes(provider); hasCap && size >= imageCap {
+		return fmt.Sprintf("[image omitted: %d bytes exceeds the inline image limit of %d bytes]", size, imageCap), true
+	}
+	return "", false
+}
+
 // AcceptsFilePartMediaType reports whether m's provider accepts mediaType as a
 // file content part rather than silently dropping it. Callers replace rejected
 // parts with text, so a false negative costs fidelity while a false positive
 // loses the attachment entirely. Unknown providers therefore return false.
 func (m Model) AcceptsFilePartMediaType(mediaType string) bool {
-	baseType := mediaType
-	if parsed, _, err := mime.ParseMediaType(mediaType); err == nil {
-		baseType = parsed
+	baseType := chatfiles.BaseMediaType(mediaType)
+	// No provider accepts SVG as a native part; it is inlined as text.
+	if baseType == string(codersdk.ChatAttachmentMediaTypeImageSVG) {
+		return false
 	}
 	isImage := strings.HasPrefix(baseType, "image/")
 	isText := strings.HasPrefix(baseType, "text/")
@@ -296,39 +326,6 @@ func mergedFromFallback(fallback ProviderAPIKeys) ProviderAPIKeys {
 	if merged.Anthropic != "" {
 		merged.ByProvider[fantasyanthropic.Name] = merged.Anthropic
 	}
-	return merged
-}
-
-// MergeProviderAPIKeys overlays configured provider keys over fallback keys.
-func MergeProviderAPIKeys(fallback ProviderAPIKeys, providers []ConfiguredProvider) ProviderAPIKeys {
-	merged := mergedFromFallback(fallback)
-
-	for _, provider := range providers {
-		normalizedProvider := NormalizeProvider(provider.Provider)
-		if normalizedProvider == "" {
-			continue
-		}
-
-		if key := strings.TrimSpace(provider.APIKey); key != "" {
-			merged.ByProvider[normalizedProvider] = key
-		}
-		if url := strings.TrimSpace(provider.BaseURL); url != "" {
-			merged.BaseURLByProvider[normalizedProvider] = url
-		}
-		merged.setRegion(normalizedProvider, provider.Region)
-
-		switch normalizedProvider {
-		case fantasyopenai.Name:
-			if key := strings.TrimSpace(provider.APIKey); key != "" {
-				merged.OpenAI = key
-			}
-		case fantasyanthropic.Name:
-			if key := strings.TrimSpace(provider.APIKey); key != "" {
-				merged.Anthropic = key
-			}
-		}
-	}
-
 	return merged
 }
 
@@ -813,6 +810,10 @@ func ModelFromConfig(
 		if httpClient != nil {
 			options = append(options, fantasyopenai.WithHTTPClient(httpClient))
 		}
+		if openAIConfig != nil && openAIConfig.ReasoningModel != nil {
+			reasoningModel := *openAIConfig.ReasoningModel
+			options = append(options, fantasyopenai.WithReasoningModelFunc(func(string) bool { return reasoningModel }))
+		}
 		providerClient, err = fantasyopenai.New(options...)
 	case fantasyopenaicompat.Name:
 		httpClient = withOpenAICompatRequestPatches(httpClient, baseURL, modelID)
@@ -861,7 +862,7 @@ func ModelFromConfig(
 		return Model{}, xerrors.Errorf("unsupported model provider %q", provider)
 	}
 	if err != nil {
-		return Model{}, providerCreationError(provider, err)
+		return Model{}, xerrors.Errorf("create %s provider: %w", provider, err)
 	}
 
 	model, err := providerClient.LanguageModel(context.Background(), modelID)
@@ -869,10 +870,6 @@ func ModelFromConfig(
 		return Model{}, xerrors.Errorf("load %s model: %w", provider, err)
 	}
 	return NewModel(model, openAIConfig), nil
-}
-
-func providerCreationError(provider string, err error) error {
-	return xerrors.Errorf("create %s provider: %w", provider, err)
 }
 
 // Providers that allow ambient credentials, such as Bedrock, bypass

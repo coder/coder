@@ -42,7 +42,7 @@ export const SortableChatTreeNode: FC<{
 			{...attributes}
 			{...listeners}
 		>
-			<ChatTreeNode chat={chat} isChildNode={false} />
+			<ChatTreeNode chat={chat} />
 		</div>
 	);
 };

@@ -1,9 +1,11 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { expect, within } from "storybook/test";
 import {
 	getDefaultFilterProps,
 	MockMenu,
 } from "#/components/Filter/storyHelpers";
 import {
+	MockOrganization,
 	MockTemplate,
 	MockTemplateExample,
 	MockTemplateExample2,
@@ -32,6 +34,7 @@ const meta: Meta<typeof TemplatesPageView> = {
 	args: {
 		filterState: defaultFilterProps,
 		templateBuilderEnabled: false,
+		templateUpdatePermissions: {},
 	},
 };
 
@@ -213,5 +216,185 @@ export const WithValidationError: Story = {
 		templates: undefined,
 		examples: undefined,
 		canCreateTemplates: false,
+	},
+};
+
+const classicParameterFlowTemplates = [
+	{
+		...MockTemplate,
+		id: "template-classic-1",
+		name: "classic-one",
+		display_name: "Classic One",
+		use_classic_parameter_flow: true,
+	},
+	{
+		...MockTemplate,
+		id: "template-classic-2",
+		name: "classic-two",
+		display_name: "Classic Two",
+		use_classic_parameter_flow: true,
+	},
+	{
+		...MockTemplate,
+		id: "template-classic-without-permission",
+		organization_id: "other-organization",
+		name: "classic-without-permission",
+		display_name: "Classic Without Permission",
+		use_classic_parameter_flow: true,
+	},
+	{
+		...MockTemplate,
+		id: "template-dynamic",
+		name: "dynamic-one",
+		display_name: "Dynamic One",
+		use_classic_parameter_flow: false,
+	},
+];
+
+export const ClassicParameterFlowWarning: Story = {
+	args: {
+		...WithTemplates.args,
+		canCreateTemplates: true,
+		templates: classicParameterFlowTemplates,
+		templateUpdatePermissions: {
+			[MockTemplate.organization_id]: true,
+			"other-organization": false,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		const alert = canvas.getByRole("alert");
+		expect(
+			within(alert).getByText(
+				"2 templates are using parameter compatibility mode",
+			),
+		).toBeVisible();
+		expect(
+			within(alert).getByRole("link", { name: "Review templates" }),
+		).toHaveAttribute("href", "/templates?filter=compatibility_mode%3Atrue");
+		const docsLink = within(alert).getByRole("link", {
+			name: /how to upgrade \(opens in new tab\)/i,
+		});
+		expect(docsLink).toHaveAttribute(
+			"href",
+			expect.stringContaining(
+				"/admin/templates/extending-templates/dynamic-parameters",
+			),
+		);
+		expect(docsLink).toHaveAttribute("target", "_blank");
+		expect(docsLink).toHaveAttribute("rel", "noreferrer");
+
+		const classicCell = canvas.getByRole("cell", { name: /Classic One/ });
+		expect(within(classicCell).getByText("Deprecated")).toBeVisible();
+
+		const inaccessibleCell = canvas.getByRole("cell", {
+			name: /Classic Without Permission/,
+		});
+		expect(
+			within(inaccessibleCell).queryByText("Deprecated"),
+		).not.toBeInTheDocument();
+
+		const dynamicCell = canvas.getByRole("cell", { name: /Dynamic One/ });
+		expect(
+			within(dynamicCell).queryByText("Deprecated"),
+		).not.toBeInTheDocument();
+	},
+};
+
+export const SingleClassicParameterFlowWarning: Story = {
+	args: {
+		...WithTemplates.args,
+		canCreateTemplates: true,
+		templates: [
+			classicParameterFlowTemplates[0],
+			// The dynamic-flow template ensures only the classic template is counted.
+			classicParameterFlowTemplates[3],
+		],
+		templateUpdatePermissions: {
+			[MockTemplate.organization_id]: true,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		const alert = canvas.getByRole("alert");
+		expect(
+			within(alert).getByText(
+				"1 template is using parameter compatibility mode",
+			),
+		).toBeVisible();
+		expect(
+			within(alert).getByRole("link", { name: "Update template" }),
+		).toHaveAttribute(
+			"href",
+			`/templates/${MockTemplate.organization_name}/classic-one/settings/parameters`,
+		);
+	},
+};
+
+export const ClassicParameterFlowWarningHiddenWhileFiltering: Story = {
+	args: {
+		...ClassicParameterFlowWarning.args,
+		filterState: getDefaultFilterProps<TemplateFilterState>({
+			menus: { organizations: MockMenu },
+			values: {
+				organization: MockOrganization.name,
+				compatibility_mode: "true",
+			},
+			query: `organization:${MockOrganization.name} compatibility_mode:true`,
+			used: true,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		expect(canvas.queryByRole("alert")).not.toBeInTheDocument();
+	},
+};
+
+export const ClassicParameterFlowWarningHiddenWithoutPermission: Story = {
+	args: {
+		...ClassicParameterFlowWarning.args,
+		canCreateTemplates: true,
+		templateUpdatePermissions: {
+			[MockTemplate.organization_id]: false,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		expect(canvas.queryByRole("alert")).not.toBeInTheDocument();
+		expect(canvas.queryByText("Deprecated")).not.toBeInTheDocument();
+	},
+};
+
+export const ClassicParameterFlowWarningWithoutCreatePermission: Story = {
+	args: {
+		...ClassicParameterFlowWarning.args,
+		canCreateTemplates: false,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		expect(canvas.getByRole("alert")).toBeVisible();
+		expect(canvas.getAllByText("Deprecated")).toHaveLength(2);
+	},
+};
+
+export const WithoutClassicParameterFlowTemplates: Story = {
+	args: {
+		...WithTemplates.args,
+		canCreateTemplates: true,
+		templates: [classicParameterFlowTemplates[3]],
+		templateUpdatePermissions: {
+			[MockTemplate.organization_id]: true,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		expect(canvas.queryByRole("alert")).not.toBeInTheDocument();
+		expect(canvas.queryByText("Deprecated")).not.toBeInTheDocument();
 	},
 };

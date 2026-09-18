@@ -182,8 +182,8 @@ WHERE user_id = @user_id
 -- belong to @organization_id, on or after period_start until NOW.
 -- spend_limit_micros is the per-member limit, null when the group has no budget.
 -- total_spend_limit_micros is the combined budget of the members attributed to
--- the group, with each member's override replacing their share. It is null when
--- the group has no budget.
+-- the group, with each member's override replacing their share. System users
+-- are excluded. It is null when the group has no budget.
 -- The period_start parameter is normalized to its UTC calendar day.
 -- TODO(AIGOV-527): unify effective group resolution in a single place.
 WITH queried_groups AS (
@@ -199,6 +199,7 @@ candidate_users AS (
 	SELECT DISTINCT member.user_id
 	FROM group_members_expanded member
 	WHERE member.group_id IN (SELECT id FROM queried_groups)
+		AND member.user_is_system = false
 ),
 user_highest_group AS (
 	-- Per user, the highest-limit group they belong to. Uses
@@ -383,16 +384,20 @@ ORDER BY effective.user_id;
 
 -- name: GetOverBudgetUsersPerGroup :many
 -- Returns, per effective group, the number of users at or over their spend
--- limit since period_start. Only users with an enforceable limit (override or
--- budgeted group) count, and the unlimited Everyone fallback does not.
+-- limit since period_start. Only non-system users with an enforceable limit
+-- (override or budgeted group) count, and the unlimited Everyone fallback does not.
 -- TODO(AIGOV-527): unify effective group resolution in a single place.
 WITH budgeted_users AS (
-	-- Users with an override or membership in a budgeted group.
-	SELECT user_id FROM user_ai_budget_overrides
+	-- Non-system users with an override or membership in a budgeted group.
+	SELECT override.user_id
+	FROM user_ai_budget_overrides override
+	JOIN users ON users.id = override.user_id
+	WHERE users.is_system = false
 	UNION
 	SELECT DISTINCT member.user_id
 	FROM group_ai_budgets budget
 	JOIN group_members_expanded member ON member.group_id = budget.group_id
+	WHERE member.user_is_system = false
 ),
 user_highest_group AS (
 	-- Per user, their highest-limit group ("highest" budget policy).
@@ -482,6 +487,55 @@ GROUP BY
 	ai.provider,
 	ai.provider_name
 ORDER BY ai.initiator_id, tu.effective_group_id, ai.provider, ai.provider_name, ai.model;
+
+-- name: ListOrganizationAISpendUsers :many
+-- Returns one page of per-user AI spend for @organization_id over the
+-- [period_start, period_end) window, most expensive first, together with the
+-- providers, clients, and models each user spent through and the count and
+-- totals over every matching user. It must keep the same joins and predicates as
+-- ExportOrganizationAISpend so both report the same token usage.
+SELECT
+	ai.initiator_id AS user_id,
+	users.username AS username,
+	users.name AS name,
+	users.avatar_url AS avatar_url,
+	groups.organization_id AS organization_id,
+	COALESCE(SUM(tu.cost_micros), 0)::BIGINT AS cost_micros,
+	COUNT(*) FILTER (WHERE tu.cost_micros IS NULL)::BIGINT AS unpriced_usage_count,
+	ARRAY_AGG(DISTINCT ai.provider ORDER BY ai.provider)::text[] AS providers,
+	ARRAY_AGG(DISTINCT COALESCE(ai.client, 'Unknown') ORDER BY COALESCE(ai.client, 'Unknown'))::text[] AS clients,
+	ARRAY_AGG(DISTINCT ai.model ORDER BY ai.model)::text[] AS models,
+	COUNT(*) OVER ()::BIGINT AS count,
+	COALESCE(SUM(SUM(tu.cost_micros)) OVER (), 0)::BIGINT AS total_cost_micros,
+	COALESCE(SUM(COUNT(*) FILTER (WHERE tu.cost_micros IS NULL)) OVER (), 0)::BIGINT AS total_unpriced_usage_count
+FROM aibridge_token_usages tu
+JOIN aibridge_interceptions ai ON ai.id = tu.interception_id
+JOIN users ON users.id = ai.initiator_id
+JOIN groups ON groups.id = tu.effective_group_id
+WHERE groups.organization_id = @organization_id
+	AND tu.created_at >= @period_start::timestamptz
+	AND tu.created_at < @period_end::timestamptz
+	AND CASE
+		WHEN @provider_name::text != '' THEN ai.provider_name = @provider_name::text
+		ELSE true
+	END
+	AND CASE
+		WHEN @model::text != '' THEN ai.model = @model::text
+		ELSE true
+	END
+	AND CASE
+		WHEN @client::text != '' THEN COALESCE(ai.client, 'Unknown') = @client::text
+		ELSE true
+	END
+GROUP BY
+	ai.initiator_id,
+	users.username,
+	users.name,
+	users.avatar_url,
+	groups.organization_id
+ORDER BY cost_micros DESC, LOWER(users.username), ai.initiator_id
+LIMIT NULLIF(@limit_opt::int, 0)
+OFFSET @offset_opt::int;
 
 -- name: GetUnpricedAIModelsSince :many
 -- Returns the models used since the given time that hold no price, most used

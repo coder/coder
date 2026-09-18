@@ -203,3 +203,109 @@ func TestClassifyProvisionerError(t *testing.T) {
 		require.Equal(t, "terraform plan: exit status 1", result)
 	})
 }
+
+func TestClassifyProvisionerErrorCategory(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		jobError string
+		logs     []string
+		expected templatebuilder.ProvisionerErrorCategory
+	}{
+		{
+			name:     "DNSFailure",
+			jobError: "init failed",
+			logs:     []string{"dial tcp: lookup registry.terraform.io: no such host"},
+			expected: templatebuilder.ProvisionerErrorNetwork,
+		},
+		{
+			name:     "TLSTimeout",
+			jobError: "init error",
+			logs:     []string{"net/http: TLS handshake timeout"},
+			expected: templatebuilder.ProvisionerErrorNetwork,
+		},
+		{
+			name:     "AWSNoCredentials",
+			jobError: "terraform plan: exit status 1",
+			logs:     []string{"Error: No valid credential sources found"},
+			expected: templatebuilder.ProvisionerErrorAuth,
+		},
+		{
+			name:     "CaseInsensitiveAuth",
+			jobError: "terraform plan: exit status 1",
+			logs:     []string{"Error: ACCESSDENIED on resource"},
+			expected: templatebuilder.ProvisionerErrorAuth,
+		},
+		{
+			name:     "NetworkTakesPrecedenceOverAuth",
+			jobError: "connection refused",
+			logs:     []string{"AccessDenied: check credentials"},
+			expected: templatebuilder.ProvisionerErrorNetwork,
+		},
+		{
+			name:     "TerraformSyntaxError",
+			jobError: "terraform plan: exit status 1",
+			logs:     []string{"Error: Unsupported block type"},
+			expected: templatebuilder.ProvisionerErrorUnknown,
+		},
+		{
+			name:     "Empty",
+			jobError: "",
+			logs:     nil,
+			expected: templatebuilder.ProvisionerErrorUnknown,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			require.Equal(t, tc.expected,
+				templatebuilder.ClassifyProvisionerErrorCategory(tc.jobError, tc.logs))
+		})
+	}
+}
+
+// The message shown to the user and the category reported as telemetry are
+// derived from the same classification, so they must agree.
+func TestClassifyProvisionerErrorMessageMatchesCategory(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name            string
+		jobError        string
+		logs            []string
+		category        templatebuilder.ProvisionerErrorCategory
+		messageContains string
+	}{
+		{
+			name:            "Network",
+			jobError:        "terraform init: connection refused",
+			category:        templatebuilder.ProvisionerErrorNetwork,
+			messageContains: "unreachable from your provisioner",
+		},
+		{
+			name:            "Auth",
+			jobError:        "AccessDenied: you are not allowed",
+			category:        templatebuilder.ProvisionerErrorAuth,
+			messageContains: "Cloud provider authentication failed",
+		},
+		{
+			name:            "Unknown",
+			jobError:        "terraform plan: exit status 1",
+			category:        templatebuilder.ProvisionerErrorUnknown,
+			messageContains: "terraform plan: exit status 1",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			require.Equal(t, tc.category,
+				templatebuilder.ClassifyProvisionerErrorCategory(tc.jobError, tc.logs))
+			require.Contains(t,
+				templatebuilder.ClassifyProvisionerError(tc.jobError, tc.logs),
+				tc.messageContains)
+		})
+	}
+}

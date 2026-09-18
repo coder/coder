@@ -96,8 +96,7 @@ type store interface {
 	GetUserByID(ctx context.Context, id uuid.UUID) (database.User, error)
 
 	// ProviderConfigurator-related queries. InTx wraps the provider and key
-	// reads in a single read-only transaction; AcquireLock serializes against
-	// any in-flight env seed holding LockIDAIProvidersEnvSeed.
+	// reads in a single read-only transaction.
 	GetAIProviders(ctx context.Context, arg database.GetAIProvidersParams) ([]database.AIProvider, error)
 	GetAIProviderKeysByProviderIDs(ctx context.Context, providerIDs []uuid.UUID) ([]database.AIProviderKey, error)
 
@@ -143,6 +142,9 @@ type Options struct {
 	GatewayCfg          codersdk.AIBridgeConfig
 	ExternalAuthConfigs []*externalauth.Config
 	Experiments         codersdk.Experiments
+	// OAuth2ProviderEnabled gates the internal MCP server, which is
+	// unavailable when it is off.
+	OAuth2ProviderEnabled bool
 
 	Logger  slog.Logger
 	Clock   quartz.Clock
@@ -183,7 +185,7 @@ func NewServer(lifecycleCtx context.Context, opts Options) (*Server, error) {
 
 	if opts.GatewayCfg.InjectCoderMCPTools {
 		opts.Logger.Warn(lifecycleCtx, "inject MCP tools option is deprecated and will be removed in a future release")
-		coderMCPConfig, err := getCoderMCPServerConfig(opts.Experiments, opts.AccessURL)
+		coderMCPConfig, err := getCoderMCPServerConfig(opts.Experiments, opts.OAuth2ProviderEnabled, opts.AccessURL)
 		if err != nil {
 			opts.Logger.Warn(lifecycleCtx, "failed to retrieve coder MCP server config, Coder MCP will not be available", slog.Error(err))
 		}
@@ -936,14 +938,8 @@ func (s *Server) checkUserAIBudget(ctx context.Context, userID uuid.UUID, period
 }
 
 // GetAIProviders returns the full AI provider set (enabled and disabled) from
-// the database, which is the single source of truth seeded from coderd's
-// environment. Embedded and standalone AI Gateway daemons call this over DRPC
+// the database. Embedded and standalone AI Gateway daemons call this over DRPC
 // to build their provider pool instead of reading the database directly.
-//
-// The handler reads under a read-only transaction that first acquires
-// LockIDAIProvidersEnvSeed, so it blocks until any in-flight env seed commits
-// or rolls back. This guarantees the response is never a partial, mid-seed
-// snapshot.
 //
 // Keys are populated only for enabled providers; disabled providers never call
 // upstream, so their secrets are withheld.
@@ -959,15 +955,8 @@ func (s *Server) GetAIProviders(ctx context.Context, _ *proto.GetAIProvidersRequ
 		keysByProvider map[uuid.UUID][]database.AIProviderKey
 	)
 	// Wrap both reads in a read-only transaction so the provider list and the
-	// key list are consistent with each other, and so the seed lock is held
-	// for the duration of the reads.
+	// key list are consistent with each other.
 	err := s.store.InTx(func(tx database.Store) error {
-		// Block on any in-flight seed transaction holding the advisory lock so
-		// the response reflects a fully-seeded snapshot.
-		if err := tx.AcquireLock(ctx, database.LockIDAIProvidersEnvSeed); err != nil {
-			return xerrors.Errorf("acquire ai providers env seed lock: %w", err)
-		}
-
 		var err error
 		rows, err = tx.GetAIProviders(ctx, database.GetAIProvidersParams{IncludeDisabled: true})
 		if err != nil {
@@ -1075,14 +1064,15 @@ func (s *Server) WatchAIProviders(_ *proto.WatchAIProvidersRequest, stream proto
 }
 
 // Deprecated: Injected MCP in AI Bridge is deprecated and will be removed in a future release.
-func getCoderMCPServerConfig(experiments codersdk.Experiments, accessURL string) (*proto.MCPServerConfig, error) {
-	// Both the MCP & OAuth2 experiments are currently required in order to use our
-	// internal MCP server.
+//
+//nolint:revive // The flag is fixed for the life of the process.
+func getCoderMCPServerConfig(experiments codersdk.Experiments, oauth2ProviderEnabled bool, accessURL string) (*proto.MCPServerConfig, error) {
+	// The internal MCP server needs the MCP experiment and the OAuth2 provider.
 	if !experiments.Enabled(codersdk.ExperimentMCPServerHTTP) {
 		return nil, xerrors.Errorf("%q experiment not enabled", codersdk.ExperimentMCPServerHTTP)
 	}
-	if !experiments.Enabled(codersdk.ExperimentOAuth2) {
-		return nil, xerrors.Errorf("%q experiment not enabled", codersdk.ExperimentOAuth2)
+	if !oauth2ProviderEnabled {
+		return nil, xerrors.New("OAuth2 provider is disabled; set CODER_OAUTH2_PROVIDER_ENABLE=true")
 	}
 
 	u, err := url.JoinPath(accessURL, codermcp.MCPEndpoint)
@@ -1205,14 +1195,16 @@ func aiProviderToProto(row database.AIProvider, keys []database.AIProviderKey) (
 	}
 	if settings.Bedrock != nil {
 		p.Bedrock = &proto.AIProviderKindBedrock{
-			Region:          settings.Bedrock.Region,
-			AccessKey:       ptr.NilToEmpty(settings.Bedrock.AccessKey),
-			AccessKeySecret: ptr.NilToEmpty(settings.Bedrock.AccessKeySecret),
-			Model:           settings.Bedrock.Model,
-			SmallFastModel:  settings.Bedrock.SmallFastModel,
-			RoleArn:         settings.Bedrock.RoleARN,
-			ExternalId:      settings.Bedrock.ExternalID,
-			Protocol:        string(settings.Bedrock.Protocol),
+			Region:                 settings.Bedrock.Region,
+			AccessKey:              ptr.NilToEmpty(settings.Bedrock.AccessKey),
+			AccessKeySecret:        ptr.NilToEmpty(settings.Bedrock.AccessKeySecret),
+			Model:                  settings.Bedrock.Model,
+			SmallFastModel:         settings.Bedrock.SmallFastModel,
+			RoleArn:                settings.Bedrock.RoleARN,
+			ExternalId:             settings.Bedrock.ExternalID,
+			Protocol:               string(settings.Bedrock.Protocol),
+			ResolvedModel:          settings.Bedrock.ResolvedModel,
+			ResolvedSmallFastModel: settings.Bedrock.ResolvedSmallFastModel,
 		}
 	}
 

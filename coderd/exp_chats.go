@@ -3022,7 +3022,6 @@ func (api *API) promoteChatQueuedMessage(rw http.ResponseWriter, r *http.Request
 
 	_, txErr := api.chatDaemon.PromoteQueued(ctx, chatd.PromoteQueuedOptions{
 		ChatID:          chatID,
-		CreatedBy:       apiKey.UserID,
 		QueuedMessageID: queuedMessageID,
 	})
 
@@ -6166,7 +6165,7 @@ func (api *API) deleteUserChatCompactionThreshold(rw http.ResponseWriter, r *htt
 // @ID upload-chat-file
 // @Security CoderSessionToken
 // @Tags Chats
-// @Accept image/png,image/jpeg,image/gif,image/webp,text/plain,text/markdown,text/csv,application/json,application/pdf
+// @Accept image/png,image/jpeg,image/gif,image/webp,image/svg+xml,text/plain,text/markdown,text/csv,application/json,application/pdf
 // @Produce json
 // @Param organization query string true "Organization ID" format(uuid)
 // @Param Content-Disposition header string true "Attachment disposition carrying the file name" example(attachment; filename="image.png")
@@ -6394,7 +6393,7 @@ func (api *API) postChatFileDownloadURL(rw http.ResponseWriter, r *http.Request)
 // @Summary Download chat file with signed token
 // @ID download-chat-file-with-signed-token
 // @Tags Chats
-// @Produce image/png,image/jpeg,image/gif,image/webp,text/plain,text/markdown,text/csv,application/json,application/pdf
+// @Produce image/png,image/jpeg,image/gif,image/webp,image/svg+xml,text/plain,text/markdown,text/csv,application/json,application/pdf
 // @Param file path string true "File ID" format(uuid)
 // @Param token query string true "Signed download token"
 // @Success 200
@@ -6444,7 +6443,7 @@ func (api *API) downloadChatFile(rw http.ResponseWriter, r *http.Request) {
 // @ID get-chat-file
 // @Security CoderSessionToken
 // @Tags Chats
-// @Produce image/png,image/jpeg,image/gif,image/webp,text/plain,text/markdown,text/csv,application/json,application/pdf
+// @Produce image/png,image/jpeg,image/gif,image/webp,image/svg+xml,text/plain,text/markdown,text/csv,application/json,application/pdf
 // @Param file path string true "File ID" format(uuid)
 // @Success 200
 // @Router /api/v2/chats/files/{file} [get]
@@ -6627,7 +6626,7 @@ func writeChatFileError(ctx context.Context, rw http.ResponseWriter, err error) 
 	case errors.Is(err, chatstate.ErrChatFileCapExceeded):
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Chat attachment limit reached.",
-			Detail:  fmt.Sprintf("A chat can reference at most %d attachments. Remove some attachments or start a new chat.", codersdk.MaxChatFileIDs),
+			Detail:  fmt.Sprintf("A message can include at most %d attachments. Remove some attachments and retry.", codersdk.MaxChatFileIDs),
 		})
 	case errors.Is(err, chatstate.ErrChatFileUnavailable):
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -8043,7 +8042,7 @@ func isZeroChatModelCallConfig(config *codersdk.ChatModelCallConfig) bool {
 }
 
 func isZeroChatModelOpenAIConfig(config *codersdk.ChatModelOpenAIConfig) bool {
-	return config == nil || config.UseResponsesAPI == nil
+	return config == nil || (config.UseResponsesAPI == nil && config.ReasoningModel == nil)
 }
 
 func isZeroChatModelProviderOptions(options *codersdk.ChatModelProviderOptions) bool {
@@ -8094,7 +8093,7 @@ func ChatProviderAPIKeysFromDeploymentValues(
 	_ *codersdk.DeploymentValues,
 ) chatprovider.ProviderAPIKeys {
 	// AI bridge deployment config is intentionally not reused for chat
-	// provider credentials. Bridge keys serve the AI task subsystem and
+	// provider credentials. Bridge keys serve AI Bridge interception and
 	// should not silently broaden into chat execution paths.
 	return chatprovider.ProviderAPIKeys{}
 }
@@ -8161,17 +8160,11 @@ func (api *API) postChatToolResults(rw http.ResponseWriter, r *http.Request) {
 	// invalid-state response for chats that are not in a valid
 	// execution state at all.
 
-	var dynamicTools json.RawMessage
-	if chat.DynamicTools.Valid {
-		dynamicTools = chat.DynamicTools.RawMessage
-	}
-
 	err := api.chatDaemon.SubmitToolResults(ctx, chatd.SubmitToolResultsOptions{
 		ChatID:        chat.ID,
 		UserID:        apiKey.UserID,
 		ModelConfigID: chat.LastModelConfigID,
 		Results:       req.Results,
-		DynamicTools:  dynamicTools,
 	})
 	if err != nil {
 		if hookErr, ok := errors.AsType[*dispatch.Error](err); ok {

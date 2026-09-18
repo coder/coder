@@ -41,7 +41,7 @@ export const UsersPageView: FC<UsersPageViewProps> = ({
 						<Button asChild>
 							<Link to="create">
 								<UserPlusIcon />
-								Create user
+								New user
 							</Link>
 						</Button>
 					)

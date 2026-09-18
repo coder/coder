@@ -43,13 +43,13 @@ export const AgentLatency: FC<AgentLatencyProps> = ({ agent }) => {
 	return (
 		<HelpPopover>
 			<HelpPopoverTrigger asChild>
-				<span
-					role="presentation"
+				<button
+					type="button"
 					aria-label="latency"
 					className={cn("cursor-pointer", latency.color)}
 				>
 					{Math.round(latency.latency_ms)}ms
-				</span>
+				</button>
 			</HelpPopoverTrigger>
 			<HelpPopoverContent>
 				<HelpPopoverTitle>Latency</HelpPopoverTitle>

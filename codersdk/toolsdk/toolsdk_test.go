@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"os"
@@ -182,6 +183,211 @@ func TestGenericToolMCPAnnotations(t *testing.T) {
 	}
 }
 
+func TestGenericToolArgumentValidation(t *testing.T) {
+	t.Parallel()
+
+	type arguments struct {
+		Mode  string `json:"mode"`
+		Value int64  `json:"value"`
+	}
+	tests := []struct {
+		name      string
+		arguments string
+		contains  []string
+	}{
+		{
+			name:      "MissingRequiredProperty",
+			arguments: `{"mode":"allowed"}`,
+			contains:  []string{"required", "value"},
+		},
+		{
+			name:      "IncorrectPropertyType",
+			arguments: `{"mode":"allowed","value":false}`,
+			contains:  []string{"type", "value"},
+		},
+		{
+			name:      "BelowMinimum",
+			arguments: `{"mode":"allowed","value":0}`,
+			contains:  []string{"minimum", "value"},
+		},
+		{
+			name:      "InvalidEnumValue",
+			arguments: `{"mode":"denied","value":1}`,
+			contains:  []string{"enum", "mode"},
+		},
+		{
+			name:      "UnknownProperty",
+			arguments: `{"mode":"allowed","value":1,"unknown":true}`,
+			contains:  []string{"unexpected additional properties", "unknown"},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			called := false
+			tool := toolsdk.Tool[arguments, struct{}]{
+				Tool: aisdk.Tool{
+					Name: "test_validation",
+					Schema: aisdk.Schema{
+						Properties: map[string]any{
+							"mode": map[string]any{
+								"type": "string",
+								"enum": []string{"allowed"},
+							},
+							"value": map[string]any{
+								"type":    "integer",
+								"minimum": 1,
+							},
+						},
+						Required: []string{"mode", "value"},
+					},
+				},
+				Handler: func(context.Context, toolsdk.Deps, arguments) (struct{}, error) {
+					called = true
+					return struct{}{}, nil
+				},
+			}.Generic()
+
+			result, err := tool.Handler(t.Context(), toolsdk.Deps{}, json.RawMessage(test.arguments))
+			require.Nil(t, result)
+			var validationErr *toolsdk.ArgumentValidationError
+			require.ErrorAs(t, err, &validationErr)
+			for _, expected := range test.contains {
+				require.ErrorContains(t, validationErr, expected)
+			}
+			require.False(t, called)
+		})
+	}
+}
+
+func TestGenericToolArgumentValidation_TypedDecode(t *testing.T) {
+	t.Parallel()
+
+	type arguments struct {
+		Port int `json:"port"`
+	}
+	called := false
+	tool := toolsdk.Tool[arguments, struct{}]{
+		Tool: aisdk.Tool{
+			Name: "test_typed_decode",
+			Schema: aisdk.Schema{
+				Properties: map[string]any{
+					"port": map[string]any{"type": "number"},
+				},
+				Required: []string{"port"},
+			},
+		},
+		Handler: func(context.Context, toolsdk.Deps, arguments) (struct{}, error) {
+			called = true
+			return struct{}{}, nil
+		},
+	}.Generic()
+
+	result, err := tool.Handler(t.Context(), toolsdk.Deps{}, json.RawMessage(`{"port":8080.5}`))
+	require.Nil(t, result)
+	var validationErr *toolsdk.ArgumentValidationError
+	require.True(t, errors.As(err, &validationErr))
+	require.ErrorContains(t, validationErr, "cannot unmarshal number")
+	require.False(t, called)
+}
+
+func TestGenericToolArgumentValidation_PreservesLargeInteger(t *testing.T) {
+	t.Parallel()
+
+	type arguments struct {
+		Value int64 `json:"value"`
+	}
+	const value = int64(9007199254740993)
+	var received int64
+	tool := toolsdk.Tool[arguments, struct{}]{
+		Tool: aisdk.Tool{
+			Name: "test_large_integer",
+			Schema: aisdk.Schema{
+				Properties: map[string]any{
+					"value": map[string]any{"type": "integer"},
+				},
+				Required: []string{"value"},
+			},
+		},
+		Handler: func(_ context.Context, _ toolsdk.Deps, args arguments) (struct{}, error) {
+			received = args.Value
+			return struct{}{}, nil
+		},
+	}.Generic()
+
+	result, err := tool.Handler(t.Context(), toolsdk.Deps{}, json.RawMessage(`{"value":9007199254740993}`))
+	require.NoError(t, err)
+	require.JSONEq(t, `{}`, string(result))
+	require.Equal(t, value, received)
+}
+
+func TestGenericToolArgumentValidation_OmittedArguments(t *testing.T) {
+	t.Parallel()
+
+	called := false
+	tool := toolsdk.Tool[toolsdk.NoArgs, struct{}]{
+		Tool: aisdk.Tool{
+			Name:   "test_omitted_arguments",
+			Schema: aisdk.Schema{Properties: map[string]any{}},
+		},
+		Handler: func(context.Context, toolsdk.Deps, toolsdk.NoArgs) (struct{}, error) {
+			called = true
+			return struct{}{}, nil
+		},
+	}.Generic()
+
+	result, err := tool.Handler(t.Context(), toolsdk.Deps{}, nil)
+	require.NoError(t, err)
+	require.JSONEq(t, `{}`, string(result))
+	require.True(t, called)
+}
+
+func TestGenericToolArgumentValidation_Concurrent(t *testing.T) {
+	t.Parallel()
+
+	type arguments struct {
+		Labels map[string]string `json:"labels"`
+	}
+	tool := toolsdk.Tool[arguments, struct{}]{
+		Tool: aisdk.Tool{
+			Name: "test_concurrent_validation",
+			Schema: aisdk.Schema{
+				Properties: map[string]any{
+					"labels": map[string]any{
+						"type": "object",
+						"patternProperties": map[string]any{
+							"^label_": map[string]any{"type": "string"},
+						},
+					},
+				},
+				Required: []string{"labels"},
+			},
+		},
+		Handler: func(context.Context, toolsdk.Deps, arguments) (struct{}, error) {
+			return struct{}{}, nil
+		},
+	}.Generic()
+
+	const callers = 32
+	start := make(chan struct{})
+	errs := make(chan error, callers)
+	var wg sync.WaitGroup
+	for range callers {
+		wg.Go(func() {
+			<-start
+			_, err := tool.Handler(t.Context(), toolsdk.Deps{}, json.RawMessage(`{"labels":{"label_one":"value"}}`))
+			errs <- err
+		})
+	}
+	close(start)
+	wg.Wait()
+	close(errs)
+	for err := range errs {
+		require.NoError(t, err)
+	}
+}
+
 // These tests are dependent on the state of the coder server.
 // Running them in parallel is prone to racy behavior.
 // nolint:tparallel,paralleltest
@@ -328,6 +534,7 @@ func TestTools(t *testing.T) {
 		})
 		for i, template := range result {
 			require.Equal(t, expected[i].ID.String(), template.ID)
+			require.Equal(t, expected[i].OrganizationID.String(), template.OrganizationID)
 			require.Equal(t, expected[i].AgentsAllowed, template.AgentsAllowed)
 		}
 	})
@@ -350,6 +557,7 @@ func TestTools(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, result, 1, "expected 1 workspace")
 		workspace := result[0]
+		require.Equal(t, r.Workspace.OrganizationID.String(), workspace.OrganizationID)
 		require.Equal(t, r.Workspace.ID.String(), workspace.ID, "expected the workspace to match the one we created")
 	})
 
@@ -694,6 +902,7 @@ func TestTools(t *testing.T) {
 
 			// MinimalTemplate fields populated.
 			require.Equal(t, gtBuild.Template.ID.String(), result.ID)
+			require.Equal(t, gtBuild.Template.OrganizationID.String(), result.OrganizationID)
 			require.Equal(t, gtBuild.Template.Name, result.Name)
 			require.Equal(t, gtBuild.Template.ActiveVersionID, result.ActiveVersionID)
 
@@ -737,6 +946,7 @@ func TestTools(t *testing.T) {
 			b, err := json.Marshal(result)
 			require.NoError(t, err)
 			require.NotContains(t, string(b), `"presets"`)
+			require.Contains(t, string(b), `"organization_id":"`+gtNoPresetBuild.Template.OrganizationID.String()+`"`)
 		})
 
 		t.Run("InvalidID", func(t *testing.T) {
@@ -853,26 +1063,38 @@ func TestTools(t *testing.T) {
 			require.NoError(t, err)
 			require.NotEmpty(t, tv)
 		})
+		t.Run("ExplicitOrganization", func(t *testing.T) {
+			organization := dbgen.Organization(t, store, database.Organization{})
+			tv, err := testTool(t, toolsdk.CreateTemplateVersion, tb, toolsdk.CreateTemplateVersionArgs{
+				OrganizationID: organization.ID.String(),
+				FileID:         file.ID.String(),
+			})
+			require.NoError(t, err)
+			require.Equal(t, organization.ID, tv.OrganizationID)
+		})
 	})
 
 	t.Run("CreateTemplate", func(t *testing.T) {
 		tb, err := toolsdk.NewDeps(client)
 		require.NoError(t, err)
+		organization := dbgen.Organization(t, store, database.Organization{})
 		// Create a new template version for use here.
 		tv := dbfake.TemplateVersion(t, store).
 			// nolint:gocritic // This is in a test package and does not end up in the build
-			Seed(database.TemplateVersion{OrganizationID: owner.OrganizationID, CreatedBy: owner.UserID}).
+			Seed(database.TemplateVersion{OrganizationID: organization.ID, CreatedBy: owner.UserID}).
 			SkipCreateTemplate().Do()
 
 		// We're going to re-use the pre-existing template version
-		_, err = testTool(t, toolsdk.CreateTemplate, tb, toolsdk.CreateTemplateArgs{
-			Name:        testutil.GetRandomNameHyphenated(t),
-			DisplayName: "Test Template",
-			Description: "This is a test template",
-			VersionID:   tv.TemplateVersion.ID.String(),
+		created, err := testTool(t, toolsdk.CreateTemplate, tb, toolsdk.CreateTemplateArgs{
+			OrganizationID: organization.ID.String(),
+			Name:           testutil.GetRandomNameHyphenated(t),
+			DisplayName:    "Test Template",
+			Description:    "This is a test template",
+			VersionID:      tv.TemplateVersion.ID.String(),
 		})
 
 		require.NoError(t, err)
+		require.Equal(t, organization.ID, created.OrganizationID)
 	})
 
 	t.Run("CreateWorkspace", func(t *testing.T) {
@@ -1040,9 +1262,9 @@ func TestTools(t *testing.T) {
 
 		t.Run("RejectsInvalidTemplateID", func(t *testing.T) {
 			_, err := testTool(t, toolsdk.CreateWorkspace, tb, toolsdk.CreateWorkspaceArgs{
-				User:       "me",
-				Name:       testutil.GetRandomNameHyphenated(t),
-				TemplateID: "not-a-uuid",
+				Name:           testutil.GetRandomNameHyphenated(t),
+				TemplateID:     "not-a-uuid",
+				RichParameters: map[string]string{},
 			})
 			require.ErrorContains(t, err, "template_id must be a valid UUID")
 		})
@@ -1052,6 +1274,7 @@ func TestTools(t *testing.T) {
 				User:              "me",
 				Name:              testutil.GetRandomNameHyphenated(t),
 				TemplateVersionID: "not-a-uuid",
+				RichParameters:    map[string]string{},
 			})
 			require.ErrorContains(t, err, "template_version_id must be a valid UUID")
 		})
@@ -1062,6 +1285,7 @@ func TestTools(t *testing.T) {
 				Name:                    testutil.GetRandomNameHyphenated(t),
 				TemplateVersionID:       uuid.NewString(),
 				TemplateVersionPresetID: "not-a-uuid",
+				RichParameters:          map[string]string{},
 			})
 			require.ErrorContains(t, err, "template_version_preset_id must be a valid UUID")
 		})
@@ -1441,6 +1665,7 @@ func TestTools(t *testing.T) {
 		_, err = testTool(t, toolsdk.WorkspaceEditFile, tb, toolsdk.WorkspaceEditFileArgs{
 			Workspace: workspace.Name,
 			Path:      filePath,
+			Edits:     []workspacesdk.FileEdit{},
 		})
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "must specify at least one edit")
@@ -1484,6 +1709,7 @@ func TestTools(t *testing.T) {
 
 		_, err = testTool(t, toolsdk.WorkspaceEditFiles, tb, toolsdk.WorkspaceEditFilesArgs{
 			Workspace: workspace.Name,
+			Files:     []workspacesdk.FileEdits{},
 		})
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "must specify at least one file")
@@ -1736,7 +1962,12 @@ func testTool[Arg, Ret any](t *testing.T, tool toolsdk.Tool[Arg, Ret], tb toolsd
 	require.NoError(t, err, "failed to marshal args")
 	result, err := tool.Generic().Handler(t.Context(), tb, toolArgs)
 	var ret Ret
-	require.NoError(t, json.Unmarshal(result, &ret), "failed to unmarshal result %q", string(result))
+	if err == nil {
+		require.NotEmpty(t, result, "tool returned an empty successful result")
+	}
+	if len(result) > 0 {
+		require.NoError(t, json.Unmarshal(result, &ret), "failed to unmarshal result %q", string(result))
+	}
 	return ret, err
 }
 

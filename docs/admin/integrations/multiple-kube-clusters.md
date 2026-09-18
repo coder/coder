@@ -1,4 +1,6 @@
-# Additional clusters
+---
+title: Additional clusters
+---
 
 With Coder, you can deploy workspaces in additional Kubernetes clusters using
 different

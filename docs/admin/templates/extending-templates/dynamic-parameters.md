@@ -66,7 +66,39 @@ To use the features described on this page in an existing template:
 
 1. Users should see the updated workspace creation form.
 
-Dynamic Parameters features are backwards compatible, so all existing templates may be upgraded in-place.
+Dynamic Parameters are backwards compatible: switching a template does not change how its existing parameters behave.
+If a template's active version was published before Dynamic Parameters, publish a new version to generate the metadata the new form requires.
+
+## Upgrade from parameter compatibility mode
+
+Parameter compatibility mode keeps a template on the classic parameter flow.
+Coder maintains a separate code path for that flow. It will be removed in a future release, so templates that
+use compatibility mode need to be upgraded before then.
+
+To find templates that use compatibility mode, open the **Templates** page and select the
+**Templates using compatibility mode** filter, or search for `compatibility_mode:true`.
+
+For each template:
+
+1. Confirm your versions meet the requirements:
+
+   - `coder/coder`: >= [v2.25.0](https://github.com/coder/coder/releases/tag/v2.25.0)
+   - `coder/terraform-provider-coder`: >= [v2.5.3](https://github.com/coder/terraform-provider-coder/releases/tag/v2.5.3)
+
+1. Select **Settings** > **Parameters** on the template, then clear
+   **Use parameter compatibility mode for workspace builds**.
+
+1. Publish a new template version so Coder can resolve the parameter metadata.
+   If you don't need to change the Terraform, [refresh the template data](../managing-templates/index.md#refresh-template-data)
+   to publish a new version from the existing source files.
+
+1. Open the workspace creation form and confirm the parameters render as expected.
+
+You can make the same change through the `use_classic_parameter_flow` field in the
+[templates API](../../../reference/api/templates.md#update-template-settings-by-id).
+
+If a template does not work after the switch, you can [revert it to compatibility mode](#revert-to-classic-parameters)
+and [file an issue](https://github.com/coder/coder/issues/new?labels=parameters) with the `parameters` label.
 
 ## Data sources and cached template data
 

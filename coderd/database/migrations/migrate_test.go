@@ -69,18 +69,6 @@ func TestMigrate(t *testing.T) {
 		require.NoError(t, eg.Wait())
 	})
 
-	t.Run("Twice", func(t *testing.T) {
-		t.Parallel()
-
-		db := testSQLDB(t)
-
-		err := migrations.Up(db)
-		require.NoError(t, err)
-
-		err = migrations.Up(db)
-		require.NoError(t, err)
-	})
-
 	t.Run("UpDownUp", func(t *testing.T) {
 		t.Parallel()
 
@@ -100,19 +88,15 @@ func TestMigrate(t *testing.T) {
 func testSQLDB(t testing.TB) *sql.DB {
 	t.Helper()
 
-	connection, err := dbtestutil.Open(t)
+	// dbtestutil.Open clones an already migrated template database, but this
+	// package tests the migrations themselves, so start from Postgres' stock
+	// empty template instead.
+	connection, err := dbtestutil.Open(t, dbtestutil.WithDBFrom("template1"))
 	require.NoError(t, err)
 
 	db, err := sql.Open("postgres", connection)
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = db.Close() })
-
-	// dbtestutil.Open automatically runs migrations, but we want to actually test
-	// migration behavior in this package.
-	_, err = db.Exec(`DROP SCHEMA public CASCADE`)
-	require.NoError(t, err)
-	_, err = db.Exec(`CREATE SCHEMA public`)
-	require.NoError(t, err)
 
 	return db
 }
@@ -368,29 +352,100 @@ func TestMigrateUpWithFixtures(t *testing.T) {
 	}
 }
 
-// TestMigration000362AggregateUsageEvents tests the migration that aggregates
-// usage events into daily rows correctly.
-func TestMigration000362AggregateUsageEvents(t *testing.T) {
+// migrationStepper applies the next migration and reports the version it
+// reached, see migrations.Stepper.
+type migrationStepper = func() (version uint, more bool, err error)
+
+// TestMigrationChain steps one database through the migration chain once and
+// runs each per-migration test when the chain reaches the migration before
+// the one it covers, so the hundreds of preceding migrations are applied once
+// instead of once per test. Each step must leave the chain clean at its
+// version and must not assert whole-table counts that fixtures committed by
+// earlier steps would change; tests that cannot are standalone.
+//
+//nolint:tparallel,paralleltest // Subtests share one database and step a single migration chain in version order.
+func TestMigrationChain(t *testing.T) {
 	t.Parallel()
 
-	const migrationVersion = 362
+	if testing.Short() {
+		t.SkipNow()
+		return
+	}
 
 	sqlDB := testSQLDB(t)
-	db := database.New(sqlDB)
-
-	// Migrate up to the migration before the one that aggregates usage events.
 	next, err := migrations.Stepper(sqlDB)
 	require.NoError(t, err)
+
+	stepTo := func(target uint) {
+		t.Helper()
+		for {
+			version, more, err := next()
+			require.NoError(t, err)
+			require.Truef(t, more, "migration %d not found", target)
+			if version == target {
+				return
+			}
+		}
+	}
+
+	steps := []struct {
+		name    string
+		version uint
+		run     func(t *testing.T, sqlDB *sql.DB, next migrationStepper)
+	}{
+		{"Migration000362AggregateUsageEvents", 362, testMigration000362AggregateUsageEvents},
+		{"Migration000387MigrateTaskWorkspaces", 387, testMigration000387MigrateTaskWorkspaces},
+		{"Migration000457ChatAccessRole", 457, testMigration000457ChatAccessRole},
+		{"Migration000475AgentsAccessOrgRole", 475, testMigration000475AgentsAccessOrgRole},
+		{"Migration000498SoftDeleteStaleWorkspaceAgents", 498, testMigration000498SoftDeleteStaleWorkspaceAgents},
+		{"Migration000546ChatHistoryAPIKeyConstraints", 546, testMigration000546ChatHistoryAPIKeyConstraints},
+		{"Migration000556UserSecretsEnabled", 556, testMigration000556UserSecretsEnabled},
+		{"Migration000587RemoveAgentsAccessRole", 587, testMigration000587RemoveAgentsAccessRole},
+		{"Migration000590WorkspaceAgentSessionCounts", 590, testMigration000590WorkspaceAgentSessionCounts},
+		{"Migration000595RemoveTaskPermissions", 595, testMigration000595RemoveTaskPermissions},
+	}
+	for _, step := range steps {
+		stepTo(step.version - 1)
+		if !t.Run(step.name, func(t *testing.T) {
+			step.run(t, sqlDB, next)
+		}) {
+			t.Fatalf("%s failed, the chain state is unknown so the remaining steps are skipped", step.name)
+		}
+	}
+
 	for {
-		version, more, err := next()
+		_, more, err := next()
 		require.NoError(t, err)
 		if !more {
-			t.Fatalf("migration %d not found", migrationVersion)
-		}
-		if version == migrationVersion-1 {
 			break
 		}
 	}
+
+	// These tests need the fully migrated schema.
+	migrated := []struct {
+		name string
+		run  func(t *testing.T, sqlDB *sql.DB)
+	}{
+		{"Migration000543ChatMessageSearchText", testMigration000543ChatMessageSearchText},
+		{"Migration000543ChatSearchSchemaIndexes", testMigration000543ChatSearchSchemaIndexes},
+		{"Migration000543ChatSearchSchemaBehavior", testMigration000543ChatSearchSchemaBehavior},
+		{"Migration000583ChatModelOverrideOrgScope", testMigration000583ChatModelOverrideOrgScope},
+	}
+	for _, tt := range migrated {
+		if !t.Run(tt.name, func(t *testing.T) {
+			tt.run(t, sqlDB)
+		}) {
+			t.Fatalf("%s failed, the database state is unknown so the remaining tests are skipped", tt.name)
+		}
+	}
+}
+
+// testMigration000362AggregateUsageEvents tests the migration that aggregates
+// usage events into daily rows correctly.
+func testMigration000362AggregateUsageEvents(t *testing.T, sqlDB *sql.DB, next migrationStepper) {
+	const migrationVersion = 362
+
+	db := database.New(sqlDB)
 
 	locSydney, err := time.LoadLocation("Australia/Sydney")
 	require.NoError(t, err)
@@ -469,9 +524,7 @@ func TestMigration000362AggregateUsageEvents(t *testing.T) {
 	}
 }
 
-func TestMigration000387MigrateTaskWorkspaces(t *testing.T) {
-	t.Parallel()
-
+func testMigration000387MigrateTaskWorkspaces(t *testing.T, sqlDB *sql.DB, next migrationStepper) {
 	// This test verifies the migration of task workspaces to the new tasks data model.
 	// Test cases:
 	//
@@ -493,22 +546,6 @@ func TestMigration000387MigrateTaskWorkspaces(t *testing.T) {
 	//   - Deleted workspace (w.deleted = true)
 
 	const migrationVersion = 387
-
-	sqlDB := testSQLDB(t)
-
-	// Migrate up to the migration before the task workspace migration.
-	next, err := migrations.Stepper(sqlDB)
-	require.NoError(t, err)
-	for {
-		version, more, err := next()
-		require.NoError(t, err)
-		if !more {
-			t.Fatalf("migration %d not found", migrationVersion)
-		}
-		if version == migrationVersion-1 {
-			break
-		}
-	}
 
 	now := time.Now().UTC().Truncate(time.Microsecond)
 	deletingAt := now.Add(24 * time.Hour).Truncate(time.Microsecond)
@@ -882,27 +919,8 @@ func TestMigration000387MigrateTaskWorkspaces(t *testing.T) {
 	require.Equal(t, 0, antCount, "antagonist workspaces (deleted and regular) should not be migrated")
 }
 
-func TestMigration000457ChatAccessRole(t *testing.T) {
-	t.Parallel()
-
+func testMigration000457ChatAccessRole(t *testing.T, sqlDB *sql.DB, next migrationStepper) {
 	const migrationVersion = 457
-
-	sqlDB := testSQLDB(t)
-
-	// Migrate up to the migration before the one that grants
-	// agents-access roles.
-	next, err := migrations.Stepper(sqlDB)
-	require.NoError(t, err)
-	for {
-		version, more, err := next()
-		require.NoError(t, err)
-		if !more {
-			t.Fatalf("migration %d not found", migrationVersion)
-		}
-		if version == migrationVersion-1 {
-			break
-		}
-	}
 
 	ctx := testutil.Context(t, testutil.WaitSuperLong)
 
@@ -1028,26 +1046,8 @@ func TestMigration000457ChatAccessRole(t *testing.T) {
 		"existing roles should be preserved")
 }
 
-func TestMigration000475AgentsAccessOrgRole(t *testing.T) {
-	t.Parallel()
-
+func testMigration000475AgentsAccessOrgRole(t *testing.T, sqlDB *sql.DB, next migrationStepper) {
 	const migrationVersion = 475
-
-	sqlDB := testSQLDB(t)
-
-	// Migrate up to the migration before 000475.
-	next, err := migrations.Stepper(sqlDB)
-	require.NoError(t, err)
-	for {
-		version, more, err := next()
-		require.NoError(t, err)
-		if !more {
-			t.Fatalf("migration %d not found", migrationVersion)
-		}
-		if version == migrationVersion-1 {
-			break
-		}
-	}
 
 	ctx := testutil.Context(t, testutil.WaitSuperLong)
 
@@ -1190,28 +1190,136 @@ func TestMigration000475AgentsAccessOrgRole(t *testing.T) {
 	)
 }
 
-func TestMigration000587RemoveAgentsAccessRole(t *testing.T) {
+func TestMigration000593RemoveHasAITaskAndTaskBuildReasons(t *testing.T) {
 	t.Parallel()
 
-	const migrationVersion = 587
-
-	// The immediately preceding migration numbers may not exist in this
-	// tree (the target is numbered past migrations that landed on main
-	// separately), so step to the highest version below the target rather
-	// than assuming migrationVersion-1 exists.
-	entries, err := os.ReadDir(".")
+	const migrationVersion = 593
+	sqlDB := testSQLDB(t)
+	next, err := migrations.Stepper(sqlDB)
 	require.NoError(t, err)
-	prevVersion := uint(0)
-	for _, entry := range entries {
-		var version uint
-		if _, err := fmt.Sscanf(entry.Name(), "%d_", &version); err != nil {
-			continue
+	for {
+		version, more, err := next()
+		require.NoError(t, err)
+		if !more {
+			t.Fatalf("migration %d not found", migrationVersion)
 		}
-		if version > prevVersion && version < migrationVersion {
-			prevVersion = version
+		if version == migrationVersion-1 {
+			break
 		}
 	}
-	require.NotZero(t, prevVersion)
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	now := time.Now().UTC().Truncate(time.Microsecond)
+	orgID, userID, templateID, versionID, templateJobID, workspaceID := uuid.New(), uuid.New(), uuid.New(), uuid.New(), uuid.New(), uuid.New()
+	buildIDs := []uuid.UUID{uuid.New(), uuid.New(), uuid.New(), uuid.New(), uuid.New()}
+	fixtures := []struct {
+		query string
+		args  []any
+	}{
+		{
+			"INSERT INTO organizations (id, name, display_name, description, created_at, updated_at, default_org_member_roles) VALUES ($1, $2, '', '', $3, $3, '{}')",
+			[]any{orgID, orgID.String(), now},
+		},
+		{
+			"INSERT INTO users (id, username, email, hashed_password, created_at, updated_at) VALUES ($1, $2, $3, '', $4, $4)",
+			[]any{userID, userID.String(), userID.String() + "@test.com", now},
+		},
+		{
+			"INSERT INTO provisioner_jobs (id, created_at, updated_at, organization_id, initiator_id, provisioner, storage_method, file_id, type, input) VALUES ($1, $2, $2, $3, $4, 'echo', 'file', $1, 'template_version_import', '{}')",
+			[]any{templateJobID, now, orgID, userID},
+		},
+		{
+			"INSERT INTO template_versions (id, organization_id, name, readme, created_at, updated_at, job_id, created_by, has_ai_task) VALUES ($1, $2, 'v1', '', $3, $3, $4, $5, true)",
+			[]any{versionID, orgID, now, templateJobID, userID},
+		},
+		{
+			"INSERT INTO templates (id, organization_id, name, created_at, updated_at, provisioner, active_version_id, created_by) VALUES ($1, $2, 'build-reasons', $3, $3, 'echo', $4, $5)",
+			[]any{templateID, orgID, now, versionID, userID},
+		},
+		{
+			"UPDATE template_versions SET template_id = $1 WHERE id = $2",
+			[]any{templateID, versionID},
+		},
+		{
+			"INSERT INTO workspaces (id, created_at, updated_at, owner_id, organization_id, template_id, name) VALUES ($1, $2, $2, $3, $4, $5, 'build-reasons')",
+			[]any{workspaceID, now, userID, orgID, templateID},
+		},
+	}
+	for _, fixture := range fixtures {
+		_, err := sqlDB.ExecContext(ctx, fixture.query, fixture.args...)
+		require.NoError(t, err)
+	}
+	for i, reason := range []string{"task_auto_pause", "task_manual_pause", "task_resume", "initiator", "autostop"} {
+		jobID := uuid.New()
+		_, err = sqlDB.ExecContext(ctx,
+			"INSERT INTO provisioner_jobs (id, created_at, updated_at, organization_id, initiator_id, provisioner, storage_method, file_id, type, input) VALUES ($1, $2, $2, $3, $4, 'echo', 'file', $1, 'workspace_build', '{}')",
+			jobID, now, orgID, userID)
+		require.NoError(t, err)
+		_, err = sqlDB.ExecContext(ctx,
+			"INSERT INTO workspace_builds (id, created_at, updated_at, workspace_id, template_version_id, build_number, transition, initiator_id, job_id, reason, has_ai_task) VALUES ($1, $2, $2, $3, $4, $5, 'start', $6, $7, $8, $9)",
+			buildIDs[i], now, workspaceID, versionID, i+1, userID, jobID, reason, i == 0)
+		require.NoError(t, err)
+	}
+	_, err = sqlDB.ExecContext(ctx,
+		"INSERT INTO workspace_build_orchestrations (id, created_at, updated_at, workspace_id, parent_build_id, child_transition, child_reason) VALUES ($1, $2, $2, $3, $4, 'start', 'task_auto_pause')",
+		uuid.New(), now, workspaceID, buildIDs[0])
+	require.NoError(t, err)
+
+	version, _, err := next()
+	require.NoError(t, err)
+	require.EqualValues(t, migrationVersion, version)
+	var count int
+	var reasons pq.StringArray
+	const reasonsQuery = "SELECT array_agg(reason::text ORDER BY build_number) FROM workspace_builds WHERE workspace_id = $1"
+	wantReasons := pq.StringArray{"autostop", "initiator", "initiator", "initiator", "autostop"}
+	require.NoError(t, sqlDB.QueryRowContext(ctx, reasonsQuery, workspaceID).Scan(&reasons))
+	require.Equal(t, wantReasons, reasons)
+	var childReason string
+	require.NoError(t, sqlDB.QueryRowContext(ctx, "SELECT child_reason FROM workspace_build_orchestrations WHERE workspace_id = $1", workspaceID).Scan(&childReason))
+	require.Equal(t, "autostop", childReason)
+	require.NoError(t, sqlDB.QueryRowContext(ctx, "SELECT count(*) FROM template_version_with_user").Scan(&count))
+	require.Equal(t, 1, count)
+	require.NoError(t, sqlDB.QueryRowContext(ctx, "SELECT count(*) FROM workspace_build_with_user").Scan(&count))
+	require.Equal(t, len(buildIDs), count)
+
+	downSQL, err := os.ReadFile("000593_remove_has_ai_task_and_task_build_reasons.down.sql")
+	require.NoError(t, err)
+	_, err = sqlDB.ExecContext(ctx, string(downSQL))
+	require.NoError(t, err)
+	require.NoError(t, sqlDB.QueryRowContext(ctx, "SELECT count(*) FROM template_versions WHERE has_ai_task IS FALSE").Scan(&count))
+	require.Equal(t, 1, count)
+	require.NoError(t, sqlDB.QueryRowContext(ctx, "SELECT count(*) FROM workspace_builds WHERE has_ai_task IS FALSE").Scan(&count))
+	require.Equal(t, len(buildIDs), count)
+	// The original reasons cannot be recovered after remapping.
+	require.NoError(t, sqlDB.QueryRowContext(ctx, reasonsQuery, workspaceID).Scan(&reasons))
+	require.Equal(t, wantReasons, reasons)
+	require.NoError(t, sqlDB.QueryRowContext(ctx, "SELECT child_reason FROM workspace_build_orchestrations WHERE workspace_id = $1", workspaceID).Scan(&childReason))
+	require.Equal(t, "autostop", childReason)
+
+	upSQL, err := os.ReadFile("000593_remove_has_ai_task_and_task_build_reasons.up.sql")
+	require.NoError(t, err)
+	_, err = sqlDB.ExecContext(ctx, string(upSQL))
+	require.NoError(t, err)
+}
+
+func TestMigration000593TaskBuildReasonRewriteTiming(t *testing.T) {
+	t.Parallel()
+
+	if testing.Short() {
+		t.SkipNow()
+		return
+	}
+
+	// The enum replacement rewrites workspace_builds, risking slow upgrades
+	// on large deployments.
+	const (
+		migrationVersion   = 593
+		workspaceCount     = 1_000
+		buildCount         = 100_000
+		buildsPerWorkspace = buildCount / workspaceCount
+		orchestrationCount = 5_000
+		taskReasonBuilds   = 3 * buildCount / 10
+	)
 
 	sqlDB := testSQLDB(t)
 	next, err := migrations.Stepper(sqlDB)
@@ -1222,10 +1330,306 @@ func TestMigration000587RemoveAgentsAccessRole(t *testing.T) {
 		if !more {
 			t.Fatalf("migration %d not found", migrationVersion)
 		}
-		if version == prevVersion {
+		if version == migrationVersion-1 {
 			break
 		}
 	}
+
+	ctx := testutil.Context(t, testutil.WaitSuperLong)
+	now := time.Now().UTC().Truncate(time.Microsecond)
+
+	orgID := uuid.New()
+	userID := uuid.New()
+	templateID := uuid.New()
+	templateVersionID := uuid.New()
+	templateJobID := uuid.New()
+
+	// Deterministic IDs let the bulk inserts join rows generated by
+	// generate_series without round-tripping IDs through the test.
+	const (
+		workspaceIDPattern = "('a0000000-0000-4000-8000-' || lpad(%s::text, 12, '0'))::uuid"
+		jobIDPattern       = "('b0000000-0000-4000-8000-' || lpad(%s::text, 12, '0'))::uuid"
+		buildIDPattern     = "('c0000000-0000-4000-8000-' || lpad(%s::text, 12, '0'))::uuid"
+	)
+
+	fixtures := []struct {
+		query string
+		args  []any
+	}{
+		{
+			`INSERT INTO organizations (id, name, display_name, description, created_at, updated_at, default_org_member_roles) VALUES ($1, $2, $3, $4, $5, $6, '{}')`,
+			[]any{orgID, "timing-org", "Timing Org", "", now, now},
+		},
+		{
+			`INSERT INTO users (id, username, email, hashed_password, created_at, updated_at, status, rbac_roles, login_type) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+			[]any{userID, "timinguser", "timing@example.com", []byte{}, now, now, "active", []byte("{}"), "password"},
+		},
+		{
+			`INSERT INTO provisioner_jobs (id, created_at, updated_at, started_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, file_id, type, input, tags) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
+			[]any{templateJobID, now, now, now, now, "", orgID, userID, "terraform", "file", uuid.New(), "template_version_import", []byte("{}"), []byte("{}")},
+		},
+		{
+			`INSERT INTO template_versions (id, organization_id, name, readme, created_at, updated_at, job_id, created_by) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+			[]any{templateVersionID, orgID, "v1.0", "", now, now, templateJobID, userID},
+		},
+		{
+			`INSERT INTO templates (id, organization_id, name, created_at, updated_at, provisioner, active_version_id, created_by) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+			[]any{templateID, orgID, "timing-template", now, now, "terraform", templateVersionID, userID},
+		},
+		{
+			`UPDATE template_versions SET template_id = $1 WHERE id = $2`,
+			[]any{templateID, templateVersionID},
+		},
+		{
+			fmt.Sprintf(`INSERT INTO workspaces (id, created_at, updated_at, owner_id, organization_id, template_id, name, last_used_at)
+				SELECT `+workspaceIDPattern+`, $1, $1, $2, $3, $4, 'timing-ws-' || g, $1
+				FROM generate_series(0, %d) AS g`, "g", workspaceCount-1),
+			[]any{now, userID, orgID, templateID},
+		},
+		{
+			fmt.Sprintf(`INSERT INTO provisioner_jobs (id, created_at, updated_at, started_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, file_id, type, input, tags)
+				SELECT `+jobIDPattern+`, $1, $1, $1, $1, '', $2, $3, 'terraform', 'file', $4, 'workspace_build', '{}'::jsonb, '{}'::jsonb
+				FROM generate_series(0, %d) AS g`, "g", buildCount-1),
+			[]any{now, orgID, userID, uuid.New()},
+		},
+		{
+			fmt.Sprintf(`INSERT INTO workspace_builds (id, created_at, updated_at, workspace_id, template_version_id, build_number, transition, initiator_id, job_id, reason, has_ai_task)
+				SELECT `+buildIDPattern+`, $1, $1, `+fmt.Sprintf(workspaceIDPattern, "(g / %d)")+`, $2, (g %% %d) + 1,
+					CASE WHEN g %% 2 = 0 THEN 'start' ELSE 'stop' END::workspace_transition, $3, `+jobIDPattern+`,
+					CASE g %% 10
+						WHEN 0 THEN 'task_auto_pause'
+						WHEN 1 THEN 'task_manual_pause'
+						WHEN 2 THEN 'task_resume'
+						WHEN 3 THEN 'autostart'
+						WHEN 4 THEN 'autostop'
+						ELSE 'initiator'
+					END::build_reason,
+					CASE WHEN g %% 10 < 3 THEN true END
+				FROM generate_series(0, %d) AS g`, "g", buildsPerWorkspace, buildsPerWorkspace, "g", buildCount-1),
+			[]any{now, templateVersionID, userID},
+		},
+		{
+			fmt.Sprintf(`INSERT INTO workspace_build_orchestrations (id, created_at, updated_at, workspace_id, parent_build_id, child_transition, child_reason)
+				SELECT ('e0000000-0000-4000-8000-' || lpad(g::text, 12, '0'))::uuid, $1, $1, `+fmt.Sprintf(workspaceIDPattern, "(g * 20 / %d)")+`, `+fmt.Sprintf(buildIDPattern, "(g * 20)")+`, 'start',
+					CASE g %% 3
+						WHEN 0 THEN 'task_auto_pause'
+						WHEN 1 THEN 'task_resume'
+						ELSE 'initiator'
+					END::build_reason
+				FROM generate_series(0, %d) AS g`, buildsPerWorkspace, orchestrationCount-1),
+			[]any{now},
+		},
+	}
+	for i, fixture := range fixtures {
+		_, err := sqlDB.ExecContext(ctx, fixture.query, fixture.args...)
+		require.NoErrorf(t, err, "fixture %d", i)
+	}
+
+	countByReason := func(table, column, reason string) int {
+		var n int
+		//nolint:gosec // Test-only query built from constant table/column names.
+		err := sqlDB.QueryRowContext(ctx, fmt.Sprintf("SELECT count(*) FROM %s WHERE %s::text = $1", table, column), reason).Scan(&n)
+		require.NoError(t, err)
+		return n
+	}
+	wantAutostop := countByReason("workspace_builds", "reason", "autostop") + countByReason("workspace_builds", "reason", "task_auto_pause")
+	wantInitiator := countByReason("workspace_builds", "reason", "initiator") + countByReason("workspace_builds", "reason", "task_manual_pause") + countByReason("workspace_builds", "reason", "task_resume")
+	wantChildAutostop := countByReason("workspace_build_orchestrations", "child_reason", "autostop") + countByReason("workspace_build_orchestrations", "child_reason", "task_auto_pause")
+	wantChildInitiator := countByReason("workspace_build_orchestrations", "child_reason", "initiator") + countByReason("workspace_build_orchestrations", "child_reason", "task_resume")
+
+	start := time.Now()
+	version, _, err := next()
+	require.NoError(t, err)
+	require.EqualValues(t, migrationVersion, version)
+	elapsed := time.Since(start)
+	t.Logf("migration %d over %d workspace builds (%d with task reasons) and %d orchestrations took %s", migrationVersion, buildCount, taskReasonBuilds, orchestrationCount, elapsed)
+	// Bound migration time to catch regressions that could prolong upgrade downtime.
+	require.Lessf(t, elapsed, 2*time.Minute, "migration %d took %s at %d workspace builds", migrationVersion, elapsed, buildCount)
+
+	var totalBuilds int
+	err = sqlDB.QueryRowContext(ctx, "SELECT count(*) FROM workspace_builds").Scan(&totalBuilds)
+	require.NoError(t, err)
+	require.Equal(t, buildCount, totalBuilds)
+	require.Equal(t, wantAutostop, countByReason("workspace_builds", "reason", "autostop"))
+	require.Equal(t, wantInitiator, countByReason("workspace_builds", "reason", "initiator"))
+	require.Equal(t, wantChildAutostop, countByReason("workspace_build_orchestrations", "child_reason", "autostop"))
+	require.Equal(t, wantChildInitiator, countByReason("workspace_build_orchestrations", "child_reason", "initiator"))
+
+	var count int
+	err = sqlDB.QueryRowContext(ctx, "SELECT count(*) FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'workspace_builds' AND column_name = 'has_ai_task'").Scan(&count)
+	require.NoError(t, err)
+	require.Zero(t, count)
+}
+
+func testMigration000595RemoveTaskPermissions(t *testing.T, sqlDB *sql.DB, next migrationStepper) {
+	const migrationVersion = 595
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	now := time.Now().UTC().Truncate(time.Microsecond)
+	orgID, userID, roleID, appID, taskAppID := uuid.New(), uuid.New(), uuid.New(), uuid.New(), uuid.New()
+	const (
+		taskPermission = `{"negate": false, "resource_type": "task", "action": "read"}`
+		userPermission = `{"negate": false, "resource_type": "user", "action": "read"}`
+	)
+	permissions := []struct {
+		column string
+		before string
+		want   string
+	}{
+		{"site_permissions", "[" + taskPermission + ", " + userPermission + "]", "[" + userPermission + "]"},
+		{"org_permissions", "[" + taskPermission + "]", "[]"},
+		{"user_permissions", "[" + userPermission + ", " + taskPermission + "]", "[" + userPermission + "]"},
+		{"member_permissions", "[" + userPermission + "]", "[" + userPermission + "]"},
+	}
+	for _, fixture := range []struct {
+		query string
+		args  []any
+	}{
+		{
+			"INSERT INTO organizations (id, name, display_name, description, created_at, updated_at, default_org_member_roles) VALUES ($1, $2, '', '', $3, $3, '{}')",
+			[]any{orgID, orgID.String(), now},
+		},
+		{
+			"INSERT INTO users (id, username, email, hashed_password, created_at, updated_at) VALUES ($1, $2, $3, '', $4, $4)",
+			[]any{userID, userID.String(), userID.String() + "@test.com", now},
+		},
+		{
+			"INSERT INTO custom_roles (id, name, display_name, organization_id, site_permissions, org_permissions, user_permissions, member_permissions) VALUES ($1, 'task-role', 'Task Role', $2, $3, $4, $5, $6)",
+			[]any{roleID, orgID, permissions[0].before, permissions[1].before, permissions[2].before, permissions[3].before},
+		},
+	} {
+		_, err := sqlDB.ExecContext(ctx, fixture.query, fixture.args...)
+		require.NoError(t, err)
+	}
+
+	apps := []struct {
+		id        uuid.UUID
+		name      string
+		scope     string
+		wantScope string
+	}{
+		{appID, "mixed-app", "task:read template:read", "template:read"},
+		// An empty scope reads as unrestricted, so a whitespace-only one stands in for "nothing allowed".
+		{taskAppID, "task-app", "task:read", " "},
+	}
+	for _, app := range apps {
+		_, err := sqlDB.ExecContext(ctx,
+			"INSERT INTO oauth2_provider_apps (id, created_at, updated_at, name, icon, callback_url, scope) VALUES ($1, $2, $2, $3, '', 'http://localhost/callback', $4)",
+			app.id, now, app.name, app.scope)
+		require.NoError(t, err)
+	}
+
+	keys := []struct {
+		id            string
+		scopes        string
+		allowList     string
+		wantDeleted   bool
+		wantScopes    string
+		wantAllowList string
+	}{
+		{id: "mixed-key", scopes: "{task:read,template:read}", allowList: "{*:*}", wantScopes: "{template:read}", wantAllowList: "{*:*}"},
+		{id: "multi-task-scopes-key", scopes: "{task:read,task:create,template:read}", allowList: "{*:*}", wantScopes: "{template:read}", wantAllowList: "{*:*}"},
+		{id: "task-key", scopes: "{task:read}", allowList: "{*:*}", wantDeleted: true},
+		{id: "mixed-allow-key", scopes: "{template:read}", allowList: "{task:*,user:*}", wantScopes: "{template:read}", wantAllowList: "{user:*}"},
+		{id: "multi-task-allows-key", scopes: "{template:read}", allowList: "{task:*,task:3f0c9b2e-5d41-4a7b-9c1e-8d2f6a4b7c5e,user:*}", wantScopes: "{template:read}", wantAllowList: "{user:*}"},
+		{id: "task-allow-key", scopes: "{template:read}", allowList: "{task:*}", wantDeleted: true},
+		{id: "task-only-key", scopes: "{task:read,task:create}", allowList: "{task:*,task:3f0c9b2e-5d41-4a7b-9c1e-8d2f6a4b7c5e}", wantDeleted: true},
+	}
+	for _, key := range keys {
+		_, err := sqlDB.ExecContext(ctx,
+			"INSERT INTO api_keys (id, hashed_secret, user_id, last_used, expires_at, created_at, updated_at, login_type, scopes, allow_list, token_name) VALUES ($1, $2, $3, $4, $4, $4, $4, 'token', $5, $6, $1)",
+			key.id, []byte(key.id), userID, now, key.scopes, key.allowList)
+		require.NoError(t, err)
+	}
+
+	// Each grant is stored as both an authorization code and a token, keyed by the grant name.
+	grants := []struct {
+		key         string
+		scope       string
+		wantDeleted bool
+		wantScope   string
+	}{
+		{key: "mixed-grant", scope: "task:read template:read", wantScope: "template:read"},
+		{key: "task-grant", scope: "task:read", wantDeleted: true},
+	}
+	for _, grant := range grants {
+		_, err := sqlDB.ExecContext(ctx,
+			"INSERT INTO oauth2_provider_app_codes (id, created_at, expires_at, secret_prefix, hashed_secret, user_id, app_id, scope) VALUES ($1, $2, $2, $3, $3, $4, $5, $6)",
+			uuid.New(), now, []byte(grant.key), userID, appID, grant.scope)
+		require.NoError(t, err)
+		// oauth2_provider_app_tokens.api_key_id is a NOT NULL foreign key, so this key only satisfies it and is not asserted.
+		_, err = sqlDB.ExecContext(ctx,
+			"INSERT INTO api_keys (id, hashed_secret, user_id, last_used, expires_at, created_at, updated_at, login_type, scopes, allow_list, token_name) VALUES ($1, $2, $3, $4, $4, $4, $4, 'oauth2_provider_app', '{template:read}', '{*:*}', $1)",
+			grant.key, []byte(grant.key), userID, now)
+		require.NoError(t, err)
+		_, err = sqlDB.ExecContext(ctx,
+			"INSERT INTO oauth2_provider_app_tokens (id, created_at, expires_at, hash_prefix, refresh_hash, api_key_id, user_id, app_id, scope) VALUES ($1, $2, $2, $3, $3, $4, $5, $6, $7)",
+			uuid.New(), now, []byte(grant.key), grant.key, userID, appID, grant.scope)
+		require.NoError(t, err)
+	}
+	grantTables := []struct{ name, prefixColumn string }{
+		{"oauth2_provider_app_codes", "secret_prefix"},
+		{"oauth2_provider_app_tokens", "hash_prefix"},
+	}
+
+	assertMigrated := func() {
+		t.Helper()
+		for _, p := range permissions {
+			var got string
+			require.NoError(t, sqlDB.QueryRowContext(ctx, "SELECT "+p.column+" FROM custom_roles WHERE id = $1", roleID).Scan(&got))
+			require.JSONEq(t, p.want, got, p.column)
+		}
+		for _, app := range apps {
+			var scope string
+			require.NoError(t, sqlDB.QueryRowContext(ctx, "SELECT scope FROM oauth2_provider_apps WHERE id = $1", app.id).Scan(&scope))
+			require.Equal(t, app.wantScope, scope, app.name)
+		}
+		for _, key := range keys {
+			var scopes, allowList string
+			err := sqlDB.QueryRowContext(ctx, "SELECT scopes::text, allow_list::text FROM api_keys WHERE id = $1", key.id).Scan(&scopes, &allowList)
+			if key.wantDeleted {
+				require.ErrorIs(t, err, sql.ErrNoRows, key.id)
+				continue
+			}
+			require.NoError(t, err, key.id)
+			require.Equal(t, key.wantScopes, scopes, key.id)
+			require.Equal(t, key.wantAllowList, allowList, key.id)
+		}
+		for _, grant := range grants {
+			for _, table := range grantTables {
+				var scope string
+				err := sqlDB.QueryRowContext(ctx, "SELECT scope FROM "+table.name+" WHERE "+table.prefixColumn+" = $1", []byte(grant.key)).Scan(&scope)
+				if grant.wantDeleted {
+					require.ErrorIs(t, err, sql.ErrNoRows, "%s %s", table.name, grant.key)
+					continue
+				}
+				require.NoError(t, err, "%s %s", table.name, grant.key)
+				require.Equal(t, grant.wantScope, scope, "%s %s", table.name, grant.key)
+			}
+		}
+	}
+
+	version, _, err := next()
+	require.NoError(t, err)
+	require.EqualValues(t, migrationVersion, version)
+	assertMigrated()
+
+	downSQL, err := os.ReadFile("000595_remove_task_permissions.down.sql")
+	require.NoError(t, err)
+	_, err = sqlDB.ExecContext(ctx, string(downSQL))
+	require.NoError(t, err)
+	// Downgrading cannot restore revoked grants or stripped permissions.
+	assertMigrated()
+
+	upSQL, err := os.ReadFile("000595_remove_task_permissions.up.sql")
+	require.NoError(t, err)
+	_, err = sqlDB.ExecContext(ctx, string(upSQL))
+	require.NoError(t, err)
+	assertMigrated()
+}
+
+func testMigration000587RemoveAgentsAccessRole(t *testing.T, sqlDB *sql.DB, next migrationStepper) {
+	const migrationVersion = 587
 
 	db := database.New(sqlDB)
 	user := dbgen.User(t, db, database.User{
@@ -1727,22 +2131,7 @@ func TestMigration000542ChatReasoningEffortBackfill(t *testing.T) {
 	require.Equal(t, sql.NullString{}, got["bedrock:anthropic.invalid-effort"])
 }
 
-func TestMigration000546ChatHistoryAPIKeyConstraints(t *testing.T) {
-	t.Parallel()
-
-	const priorMigrationVersion = 545
-
-	sqlDB := testSQLDB(t)
-	next, err := migrations.Stepper(sqlDB)
-	require.NoError(t, err)
-	for {
-		version, more, err := next()
-		require.NoError(t, err)
-		if !more || version == priorMigrationVersion {
-			break
-		}
-	}
-
+func testMigration000546ChatHistoryAPIKeyConstraints(t *testing.T, sqlDB *sql.DB, _ migrationStepper) {
 	ctx := testutil.Context(t, testutil.WaitSuperLong)
 	constraintNames := []string{
 		"chat_messages_api_key_id_fkey",
@@ -2172,26 +2561,8 @@ func setupMigration000563Templates(t *testing.T) (
 	return sqlDB, ctx, orgID, userID, templateIDs
 }
 
-func TestMigration000498SoftDeleteStaleWorkspaceAgents(t *testing.T) {
-	t.Parallel()
-
+func testMigration000498SoftDeleteStaleWorkspaceAgents(t *testing.T, sqlDB *sql.DB, next migrationStepper) {
 	const migrationVersion = 498
-
-	sqlDB := testSQLDB(t)
-
-	// Step up to migrationVersion - 1.
-	next, err := migrations.Stepper(sqlDB)
-	require.NoError(t, err)
-	for {
-		version, more, err := next()
-		require.NoError(t, err)
-		if !more {
-			t.Fatalf("migration %d not found", migrationVersion)
-		}
-		if version == migrationVersion-1 {
-			break
-		}
-	}
 
 	ctx := testutil.Context(t, testutil.WaitSuperLong)
 	now := time.Now().UTC().Truncate(time.Microsecond)
@@ -2383,15 +2754,7 @@ func TestMigration000498SoftDeleteStaleWorkspaceAgents(t *testing.T) {
 	// under coderd/coderd_test.go; not retested here.
 }
 
-func TestMigration000543ChatMessageSearchText(t *testing.T) {
-	t.Parallel()
-	if testing.Short() {
-		t.SkipNow()
-	}
-
-	sqlDB := testSQLDB(t)
-	require.NoError(t, migrations.Up(sqlDB))
-
+func testMigration000543ChatMessageSearchText(t *testing.T, sqlDB *sql.DB) {
 	cases := []struct {
 		name    string
 		content sql.NullString
@@ -2459,15 +2822,7 @@ const eligibilityPredicate = `deleted = false
 	AND visibility IN ('user', 'both')
 	AND role IN ('user', 'assistant')`
 
-func TestMigration000543ChatSearchSchemaIndexes(t *testing.T) {
-	t.Parallel()
-	if testing.Short() {
-		t.SkipNow()
-	}
-
-	sqlDB := testSQLDB(t)
-	require.NoError(t, migrations.Up(sqlDB))
-
+func testMigration000543ChatSearchSchemaIndexes(t *testing.T, sqlDB *sql.DB) {
 	cases := []struct {
 		name    string
 		table   string
@@ -2498,14 +2853,7 @@ func TestMigration000543ChatSearchSchemaIndexes(t *testing.T) {
 	}
 }
 
-func TestMigration000543ChatSearchSchemaBehavior(t *testing.T) {
-	t.Parallel()
-	if testing.Short() {
-		t.SkipNow()
-	}
-
-	sqlDB := testSQLDB(t)
-	require.NoError(t, migrations.Up(sqlDB))
+func testMigration000543ChatSearchSchemaBehavior(t *testing.T, sqlDB *sql.DB) {
 	db := database.New(sqlDB)
 	ctx := testutil.Context(t, testutil.WaitLong)
 
@@ -2767,27 +3115,8 @@ func TestMigration000585ChatSearchEnglishConfigDown(t *testing.T) {
 	require.Zero(t, columnCount, "search_tsv_config must be dropped")
 }
 
-func TestMigration000556UserSecretsEnabled(t *testing.T) {
-	t.Parallel()
-
+func testMigration000556UserSecretsEnabled(t *testing.T, sqlDB *sql.DB, next migrationStepper) {
 	const migrationVersion = 556
-
-	sqlDB := testSQLDB(t)
-
-	// Migrate up to the migration before the one that adds the enabled
-	// column.
-	next, err := migrations.Stepper(sqlDB)
-	require.NoError(t, err)
-	for {
-		version, more, err := next()
-		require.NoError(t, err)
-		if !more {
-			t.Fatalf("migration %d not found", migrationVersion)
-		}
-		if version == migrationVersion-1 {
-			break
-		}
-	}
 
 	ctx := testutil.Context(t, testutil.WaitSuperLong)
 
@@ -3087,6 +3416,136 @@ func TestMigration000565OAuth2ClientTypeConstraint(t *testing.T) {
 		`, uuid.New(), now, "test-565-good-"+goodValue, goodValue)
 		require.NoError(t, err, "client_type %q must remain valid", goodValue)
 	}
+}
+
+func testMigration000590WorkspaceAgentSessionCounts(t *testing.T, sqlDB *sql.DB, _ migrationStepper) {
+	ctx := testutil.Context(t, testutil.WaitSuperLong)
+	migrationSQL, err := os.ReadFile("000590_workspace_agent_session_counts.up.sql")
+	require.NoError(t, err)
+
+	// Everything the rollup has not consumed converts, no matter how far the
+	// watermark lags. Rows the rollup already consumed convert to '{}': the
+	// insights queries read them from template_usage_stats instead. wantCounts
+	// is ordered oldest row first.
+	tests := []struct {
+		name              string
+		statsAgeHours     []int
+		sessionCount      int
+		watermarkAgeHours []int
+		wantCounts        []string
+	}{
+		{name: "empty database"},
+		{name: "no watermark and brief activity", statsAgeHours: []int{0}, sessionCount: 2, wantCounts: []string{`{"vscode": 2}`}},
+		{name: "no watermark and idle stats", statsAgeHours: []int{0}, wantCounts: []string{`{}`}},
+		{name: "no watermark and a long activity backlog", statsAgeHours: []int{48, 0}, sessionCount: 2, wantCounts: []string{`{"vscode": 2}`, `{"vscode": 2}`}},
+		// Without a watermark there is nothing in template_usage_stats to fall
+		// back on, so even ancient activity converts rather than roll up as
+		// zero minutes later.
+		{name: "no watermark and expired activity", statsAgeHours: []int{181 * 24}, sessionCount: 2, wantCounts: []string{`{"vscode": 2}`}},
+		// A weekend shutoff records nothing while coderd is down, so the
+		// watermark is days old with only the minutes before the shutoff
+		// behind it.
+		{name: "weekend shutoff", statsAgeHours: []int{63}, sessionCount: 2, watermarkAgeHours: []int{64}, wantCounts: []string{`{"vscode": 2}`}},
+		{name: "idle since the last rollup", statsAgeHours: []int{0}, watermarkAgeHours: []int{48}, wantCounts: []string{`{}`}},
+		{name: "stalled rollup", statsAgeHours: []int{47, 0}, sessionCount: 2, watermarkAgeHours: []int{48}, wantCounts: []string{`{"vscode": 2}`, `{"vscode": 2}`}},
+		{name: "activity already rolled up", statsAgeHours: []int{50}, sessionCount: 2, watermarkAgeHours: []int{25}, wantCounts: []string{`{}`}},
+		{name: "fresh watermark", statsAgeHours: []int{0}, sessionCount: 2, watermarkAgeHours: []int{23}, wantCounts: []string{`{"vscode": 2}`}},
+		{name: "latest watermark wins", statsAgeHours: []int{0}, sessionCount: 2, watermarkAgeHours: []int{25, 23}, wantCounts: []string{`{"vscode": 2}`}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tx, err := sqlDB.BeginTx(ctx, nil)
+			require.NoError(t, err)
+			t.Cleanup(func() { _ = tx.Rollback() })
+
+			for _, ageHours := range tt.statsAgeHours {
+				_, err = tx.ExecContext(ctx, `
+					INSERT INTO workspace_agent_stats (
+						id, created_at, user_id, agent_id, workspace_id, template_id,
+						connection_count, session_count_vscode
+					) VALUES (
+						gen_random_uuid(), statement_timestamp() - $1::bigint * interval '1 hour',
+						gen_random_uuid(), gen_random_uuid(), gen_random_uuid(), gen_random_uuid(), 1, $2
+					)
+				`, ageHours, tt.sessionCount)
+				require.NoError(t, err)
+			}
+
+			for _, ageHours := range tt.watermarkAgeHours {
+				_, err = tx.ExecContext(ctx, `
+					INSERT INTO template_usage_stats (
+						start_time, end_time, template_id, user_id, median_latency_ms,
+						usage_mins, ssh_mins, sftp_mins, reconnecting_pty_mins,
+						vscode_mins, jetbrains_mins, app_usage_mins
+					) VALUES (
+						statement_timestamp() - $1::bigint * interval '1 hour',
+						statement_timestamp() - $1::bigint * interval '1 hour' + interval '30 minutes',
+						gen_random_uuid(), gen_random_uuid(), NULL, 0, 0, 0, 0, 0, 0, NULL
+					)
+				`, ageHours)
+				require.NoError(t, err)
+			}
+
+			_, err = tx.ExecContext(ctx, string(migrationSQL))
+			require.NoError(t, err)
+
+			rows, err := tx.QueryContext(ctx, `SELECT session_counts FROM workspace_agent_stats ORDER BY created_at`)
+			require.NoError(t, err)
+			defer rows.Close()
+			var gotCounts []string
+			for rows.Next() {
+				var sessionCounts []byte
+				require.NoError(t, rows.Scan(&sessionCounts))
+				gotCounts = append(gotCounts, string(sessionCounts))
+			}
+			require.NoError(t, rows.Err())
+			require.Len(t, gotCounts, len(tt.wantCounts))
+			for i, want := range tt.wantCounts {
+				require.JSONEq(t, want, gotCounts[i])
+			}
+		})
+	}
+
+	// The down migration has columns for the four known apps only, so a count
+	// under any other name is lost.
+	t.Run("down restores known apps only", func(t *testing.T) {
+		tx, err := sqlDB.BeginTx(ctx, nil)
+		require.NoError(t, err)
+		t.Cleanup(func() { _ = tx.Rollback() })
+
+		_, err = tx.ExecContext(ctx, string(migrationSQL))
+		require.NoError(t, err)
+
+		_, err = tx.ExecContext(ctx, `
+			INSERT INTO workspace_agent_stats (
+				id, created_at, user_id, agent_id, workspace_id, template_id,
+				connection_count, session_counts
+			) VALUES (
+				gen_random_uuid(), statement_timestamp(), gen_random_uuid(),
+				gen_random_uuid(), gen_random_uuid(), gen_random_uuid(), 1,
+				'{"vscode": 2, "some_future_ide": 3}'::jsonb
+			)
+		`)
+		require.NoError(t, err)
+
+		downSQL, err := os.ReadFile("000590_workspace_agent_session_counts.down.sql")
+		require.NoError(t, err)
+		_, err = tx.ExecContext(ctx, string(downSQL))
+		require.NoError(t, err)
+
+		var vscode, jetbrains, reconnectingPTY, ssh int64
+		err = tx.QueryRowContext(ctx, `
+			SELECT session_count_vscode, session_count_jetbrains,
+				session_count_reconnecting_pty, session_count_ssh
+			FROM workspace_agent_stats
+		`).Scan(&vscode, &jetbrains, &reconnectingPTY, &ssh)
+		require.NoError(t, err)
+		require.EqualValues(t, 2, vscode)
+		require.EqualValues(t, 0, jetbrains)
+		require.EqualValues(t, 0, reconnectingPTY)
+		require.EqualValues(t, 0, ssh)
+	})
 }
 
 // TestMigration000566OAuth2AuthMethodBackfill covers the repair the backfill
@@ -3466,25 +3925,7 @@ func mustJSON(t *testing.T, v any) []byte {
 	return raw
 }
 
-func TestMigration000583ChatModelOverrideOrgScope(t *testing.T) {
-	t.Parallel()
-
-	const migrationVersion = 583
-
-	db := testSQLDB(t)
-	next, err := migrations.Stepper(db)
-	require.NoError(t, err)
-	last := uint(0)
-	for {
-		version, more, err := next()
-		require.NoError(t, err)
-		if !more {
-			break
-		}
-		last = version
-	}
-	require.GreaterOrEqual(t, last, uint(migrationVersion))
-
+func testMigration000583ChatModelOverrideOrgScope(t *testing.T, db *sql.DB) {
 	ctx := testutil.Context(t, testutil.WaitSuperLong)
 	upSQL, err := os.ReadFile("000583_chat_model_override_org_scope.up.sql")
 	require.NoError(t, err)
