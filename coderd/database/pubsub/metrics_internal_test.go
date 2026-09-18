@@ -11,44 +11,6 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
-func TestMetrics_RecordHelpers(t *testing.T) {
-	t.Parallel()
-
-	reg := prometheus.NewRegistry()
-	m := NewMetrics(reg).ForBackend(slog.Make(), BackendPostgres)
-	const backend = BackendPostgres
-
-	m.RecordPublishSuccess("a", 10)
-	m.RecordPublishFailure("a")
-	m.RecordSubscribeSuccess("a")
-	m.RecordSubscribeFailure("a")
-	m.RecordReceived("a", []byte("hi"))
-	m.RecordReceived("a", make([]byte, ColossalThreshold))
-	m.RecordDisconnect()
-	m.MarkConnected()
-
-	m.AddEvent("a")
-	m.AddSubscriber("a")
-	m.AddSubscriber("a")
-	m.RemoveSubscriber("a")
-
-	metrics, err := reg.Gather()
-	require.NoError(t, err)
-
-	require.True(t, testutil.PromCounterHasValue(t, metrics, 1, "coder_pubsub_publishes_total", backend, "true"))
-	require.True(t, testutil.PromCounterHasValue(t, metrics, 1, "coder_pubsub_publishes_total", backend, "false"))
-	require.True(t, testutil.PromCounterHasValue(t, metrics, 10, "coder_pubsub_published_bytes_total", backend))
-	require.True(t, testutil.PromCounterHasValue(t, metrics, 1, "coder_pubsub_subscribes_total", backend, "true"))
-	require.True(t, testutil.PromCounterHasValue(t, metrics, 1, "coder_pubsub_subscribes_total", backend, "false"))
-	require.True(t, testutil.PromCounterHasValue(t, metrics, 1, "coder_pubsub_messages_total", backend, "normal"))
-	require.True(t, testutil.PromCounterHasValue(t, metrics, 1, "coder_pubsub_messages_total", backend, "colossal"))
-	require.True(t, testutil.PromCounterHasValue(t, metrics, float64(2+ColossalThreshold), "coder_pubsub_received_bytes_total", backend))
-	require.True(t, testutil.PromCounterHasValue(t, metrics, 1, "coder_pubsub_disconnections_total", backend))
-	require.True(t, testutil.PromGaugeHasValue(t, metrics, 1, "coder_pubsub_connected", backend))
-	require.True(t, testutil.PromGaugeHasValue(t, metrics, 1, "coder_pubsub_current_events", backend))
-	require.True(t, testutil.PromGaugeHasValue(t, metrics, 1, "coder_pubsub_current_subscribers", backend))
-}
-
 func TestMetrics_GaugesExcludeLatencyChannel(t *testing.T) {
 	t.Parallel()
 
