@@ -405,10 +405,10 @@ func computeNotificationLatencies(
 	return nil
 }
 
-// testTemplatePrefix is the name prefix for every template created by the
-// notifications load generator. Cleanup matches on it, so it must stay in sync
-// with the names used when creating templates.
-const testTemplatePrefix = "scaletest-test-template-"
+// notificationsTemplatePrefix is the name prefix for every template created by
+// the notifications load generator. Cleanup matches on it, so it must stay in
+// sync with the names used when creating templates.
+const notificationsTemplatePrefix = "scaletest-test-template-"
 
 // deleteScaletestNotificationTemplates best-effort deletes every template
 // created by this load generator, matched by name prefix. It never returns an
@@ -416,7 +416,7 @@ const testTemplatePrefix = "scaletest-test-template-"
 func deleteScaletestNotificationTemplates(ctx context.Context, logger slog.Logger, client *codersdk.Client, orgID uuid.UUID) {
 	templates, err := client.Templates(ctx, codersdk.TemplateFilter{
 		OrganizationID: orgID,
-		FuzzyName:      testTemplatePrefix,
+		FuzzyName:      notificationsTemplatePrefix,
 	})
 	if err != nil {
 		logger.Error(ctx, "list scaletest templates for cleanup", slog.Error(err))
@@ -424,7 +424,7 @@ func deleteScaletestNotificationTemplates(ctx context.Context, logger slog.Logge
 	}
 	for _, tmpl := range templates {
 		// FuzzyName is a substring match, so guard against unrelated templates.
-		if !strings.HasPrefix(tmpl.Name, testTemplatePrefix) {
+		if !strings.HasPrefix(tmpl.Name, notificationsTemplatePrefix) {
 			continue
 		}
 		if err := client.DeleteTemplate(ctx, tmpl.ID); err != nil {
@@ -517,7 +517,7 @@ func triggerNotifications(
 			return
 		}
 
-		templateName := fmt.Sprintf("%s%d", testTemplatePrefix, i)
+		templateName := fmt.Sprintf("%s%d", notificationsTemplatePrefix, i)
 		testTemplate, err := client.CreateTemplate(ctx, orgID, codersdk.CreateTemplateRequest{
 			Name:        templateName,
 			Description: "scaletest-test-template",
