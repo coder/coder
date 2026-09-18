@@ -7557,8 +7557,8 @@ WITH to_archive AS (
       AND c.parent_chat_id IS NULL -- roots only
       -- Redundant filter helps the planner use the partial index on created_at.
       AND c.created_at < $1::timestamptz
-      -- New active statuses must be added here to prevent archiving.
-      AND c.status NOT IN ('running', 'requires_action', 'paused')
+      -- Statuses the state machine refuses to archive. Add new busy or paused statuses here.
+      AND c.status NOT IN ('running', 'interrupting', 'requires_action', 'paused')
       AND COALESCE(activity.last_activity_at, c.created_at) < $1::timestamptz
     -- Sorting by created_at lets Postgres drive the scan from the
     -- partial index instead of evaluating every LATERAL subquery
@@ -13373,7 +13373,8 @@ type UpdateChatQueuedMessageEditingParams struct {
 	ChatID  uuid.UUID `db:"chat_id" json:"chat_id"`
 }
 
-// Sets or clears editing_since on one row; an existing value is kept.
+// Begins (@editing = true) or ends the row's edit. Beginning keeps an
+// existing editing_since, so the timestamp marks the first begin.
 func (q *sqlQuerier) UpdateChatQueuedMessageEditing(ctx context.Context, arg UpdateChatQueuedMessageEditingParams) (ChatQueuedMessage, error) {
 	row := q.db.QueryRowContext(ctx, updateChatQueuedMessageEditing, arg.Editing, arg.ID, arg.ChatID)
 	var i ChatQueuedMessage

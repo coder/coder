@@ -2147,7 +2147,7 @@ func (p *Server) DeleteQueued(
 		}); err != nil {
 			return err
 		}
-		after, statusChanged, err = reloadChatStatusChanged(ctx, store, before)
+		after, statusChanged, err = reloadChatAndStatusChanged(ctx, store, before)
 		return err
 	})
 	if err != nil {
@@ -2159,9 +2159,9 @@ func (p *Server) DeleteQueued(
 	return nil
 }
 
-// reloadChatStatusChanged reloads the chat and reports whether its
-// status differs from before.
-func reloadChatStatusChanged(ctx context.Context, store database.Store, before database.Chat) (database.Chat, bool, error) {
+// reloadChatAndStatusChanged re-reads the chat after a transition and
+// reports whether its status differs from before.
+func reloadChatAndStatusChanged(ctx context.Context, store database.Store, before database.Chat) (database.Chat, bool, error) {
 	after, err := store.GetChatByID(ctx, before.ID)
 	if err != nil {
 		return database.Chat{}, false, xerrors.Errorf("reload chat: %w", err)
@@ -2170,8 +2170,7 @@ func reloadChatStatusChanged(ctx context.Context, store database.Store, before d
 }
 
 // EditQueuedMessageOptions controls [Server.EditQueuedMessage]. Zero
-// values leave the corresponding attribute untouched; ModelConfigID and
-// ReasoningEffort apply only together with Content.
+// values leave the corresponding attribute untouched.
 type EditQueuedMessageOptions struct {
 	ChatID          uuid.UUID
 	QueuedMessageID int64
@@ -2282,7 +2281,7 @@ func (p *Server) EditQueuedMessage(
 				return err
 			}
 		}
-		after, statusChanged, err = reloadChatStatusChanged(ctx, store, lockedChat)
+		after, statusChanged, err = reloadChatAndStatusChanged(ctx, store, lockedChat)
 		return err
 	})
 	if err != nil {
@@ -2296,7 +2295,7 @@ func (p *Server) EditQueuedMessage(
 
 // PromoteQueued promotes a queued message through the chatstate state
 // machine. From running / interrupting states the state machine
-// transitions the chat to `interrupting` so the worker can drain the
+// transitions the chat to `interrupting` so the worker can finish the
 // in-flight generation before promoting; from idle / error / requires
 // action states it inserts the user message into history
 // synchronously.
@@ -2685,9 +2684,9 @@ func (p *Server) ClearChat(
 
 // ReconcileInvalidStateChat recovers a chat stuck in an invalid
 // execution-state combination by running the
-// chatstate.ReconcileInvalidState transition. The chat lands in an
-// error state (E0/E1); queued messages are preserved and pending
-// dynamic-tool calls are closed with synthetic cancellations.
+// chatstate.ReconcileInvalidState transition. The chat reaches an
+// error state (E0, E1, or E1P); queued messages are preserved and
+// pending dynamic-tool calls are closed with synthetic cancellations.
 //
 // Returns the post-transition chat. When the chat is not actually in an
 // invalid state the transition returns a wrapped

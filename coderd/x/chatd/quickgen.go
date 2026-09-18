@@ -1492,12 +1492,12 @@ func turnStatusLabelStateContext(status database.ChatStatus) string {
 	switch status {
 	case database.ChatStatusWaiting:
 		return "The turn finished and the chat is idle."
-	case database.ChatStatusPaused:
-		return "The turn finished and the chat is paused."
 	case database.ChatStatusRequiresAction:
 		return "The chat is waiting for user input or action."
 	case database.ChatStatusError:
 		return "The chat ended with an error."
+	case database.ChatStatusPaused:
+		return "The turn finished and the chat is paused."
 	default:
 		return "The chat state is unknown."
 	}

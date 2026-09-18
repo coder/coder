@@ -1,9 +1,9 @@
--- Re-add `paused` to the chat_status enum (removed by 000543).
+-- 'paused': a turn finished at a queued message under edit. IF NOT EXISTS tolerates databases where the value survived earlier enum rewrites.
 ALTER TYPE chat_status ADD VALUE IF NOT EXISTS 'paused';
 
 ALTER TABLE chat_queued_messages ADD COLUMN editing_since timestamptz;
 
-COMMENT ON COLUMN chat_queued_messages.editing_since IS 'Set while the owner edits the row. The state machine does not promote a row under edit.';
+COMMENT ON COLUMN chat_queued_messages.editing_since IS 'Set while the owner edits the row. A row under edit is not promoted into history until the edit ends.';
 
 -- At most one row under edit per chat.
 CREATE UNIQUE INDEX chat_queued_messages_one_editing_per_chat

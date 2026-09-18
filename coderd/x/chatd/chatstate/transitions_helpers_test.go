@@ -239,10 +239,10 @@ func seedState(t *testing.T, f *testFixture, state chatstate.ExecutionState) see
 		return seedPaused(t, f, 0)
 
 	case chatstate.StateE1P, chatstate.StateR1P, chatstate.StateI1P, chatstate.StateA1P:
-		return seedEditingHead(t, f, readyHeadOf[state], 0)
+		return seedBlockedHead(t, f, readyHeadOf[state], 0)
 
 	case chatstate.StateXE1P:
-		seeded := seedEditingHead(t, f, chatstate.StateE1, 0)
+		seeded := seedBlockedHead(t, f, chatstate.StateE1, 0)
 		m := chatstate.NewChatMachine(f.DB, f.Pub, seeded.chatID)
 		require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
 			_, err := tx.SetArchived(chatstate.SetArchivedInput{Archived: true})
@@ -462,7 +462,7 @@ func seedStateMultiQueued(t *testing.T, f *testFixture, state chatstate.Executio
 	ctx := testutil.Context(t, testutil.WaitShort)
 	switch state {
 	case chatstate.StateE1P, chatstate.StateR1P, chatstate.StateI1P, chatstate.StateA1P:
-		return seedEditingHead(t, f, readyHeadOf[state], 1)
+		return seedBlockedHead(t, f, readyHeadOf[state], 1)
 
 	case chatstate.StateE1:
 		created := createTestChat(t, f)
