@@ -1,4 +1,4 @@
-package aibridge_test
+package proxy_test
 
 import (
 	"net/http"
@@ -11,46 +11,48 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
-	"github.com/coder/coder/v2/aibridge"
 	"github.com/coder/coder/v2/aibridge/config"
 	"github.com/coder/coder/v2/aibridge/internal/testutil"
 	"github.com/coder/coder/v2/aibridge/keypool"
+	"github.com/coder/coder/v2/aibridge/provider"
+	"github.com/coder/coder/v2/aibridge/routing"
+	"github.com/coder/coder/v2/aibridge/x/proxy"
 )
 
 type keyPoolProvider struct {
-	aibridge.Provider
+	provider.Provider
 	pool *keypool.Pool
 }
 
 func (p keyPoolProvider) KeyPool() *keypool.Pool { return p.pool }
 
-func TestNewProxyRouterValidatesProviders(t *testing.T) {
+func TestNewRouterValidatesProviders(t *testing.T) {
 	t.Parallel()
 
 	for _, tc := range []struct {
 		name        string
-		providers   []aibridge.Provider
+		providers   []provider.Provider
 		errContains string
 	}{
 		{
 			name:      "ValidNames",
-			providers: []aibridge.Provider{&testutil.MockProvider{NameStr: "openai"}, &testutil.MockProvider{NameStr: "anthropic-eu-1"}},
+			providers: []provider.Provider{&testutil.MockProvider{NameStr: "openai"}, &testutil.MockProvider{NameStr: "anthropic-eu-1"}},
 		},
 		{
 			name:        "InvalidName",
-			providers:   []aibridge.Provider{&testutil.MockProvider{NameStr: "OpenAI_1"}},
+			providers:   []provider.Provider{&testutil.MockProvider{NameStr: "OpenAI_1"}},
 			errContains: `invalid provider name "OpenAI_1"`,
 		},
 		{
 			name:        "DuplicateName",
-			providers:   []aibridge.Provider{&testutil.MockProvider{NameStr: "openai"}, &testutil.MockProvider{NameStr: "openai"}},
+			providers:   []provider.Provider{&testutil.MockProvider{NameStr: "openai"}, &testutil.MockProvider{NameStr: "openai"}},
 			errContains: `duplicate provider name: "openai"`,
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			router, err := aibridge.NewProxyRouter(tc.providers, slogtest.Make(t, nil))
+			router, err := proxy.NewRouter(tc.providers, slogtest.Make(t, nil))
 			if tc.errContains != "" {
 				require.ErrorContains(t, err, tc.errContains)
 				require.Nil(t, router)
@@ -62,10 +64,10 @@ func TestNewProxyRouterValidatesProviders(t *testing.T) {
 	}
 }
 
-// TestProxyRouterDisabledProvider asserts that every path under a disabled
+// TestRouterDisabledProvider asserts that every path under a disabled
 // provider's name serves the 503 sentinel, while a sibling enabled provider
 // has no routes yet and falls through to the catch-all.
-func TestProxyRouterDisabledProvider(t *testing.T) {
+func TestRouterDisabledProvider(t *testing.T) {
 	t.Parallel()
 
 	// Any upstream call would fail loudly: the base URL points nowhere and
@@ -76,8 +78,8 @@ func TestProxyRouterDisabledProvider(t *testing.T) {
 		Bridged:     []string{"/v1/chat/completions"},
 		Passthrough: []string{"/v1/models"},
 	}
-	router, err := aibridge.NewProxyRouter(
-		[]aibridge.Provider{enabled, aibridge.NewDisabledProviderStub("disabled-openai", "openai")},
+	router, err := proxy.NewRouter(
+		[]provider.Provider{enabled, provider.NewDisabledStub("disabled-openai", "openai")},
 		slogtest.Make(t, nil),
 	)
 	require.NoError(t, err)
@@ -88,9 +90,9 @@ func TestProxyRouterDisabledProvider(t *testing.T) {
 		wantStatus int
 		wantBody   string
 	}{
-		{name: "DisabledBridgedRoute", path: "/disabled-openai/v1/chat/completions", wantStatus: http.StatusServiceUnavailable, wantBody: aibridge.ErrorCodeProviderDisabled},
-		{name: "DisabledPassthroughRoute", path: "/disabled-openai/v1/models", wantStatus: http.StatusServiceUnavailable, wantBody: aibridge.ErrorCodeProviderDisabled},
-		{name: "DisabledUnknownRoute", path: "/disabled-openai/anything/else", wantStatus: http.StatusServiceUnavailable, wantBody: aibridge.ErrorCodeProviderDisabled},
+		{name: "DisabledBridgedRoute", path: "/disabled-openai/v1/chat/completions", wantStatus: http.StatusServiceUnavailable, wantBody: routing.ErrorCodeProviderDisabled},
+		{name: "DisabledPassthroughRoute", path: "/disabled-openai/v1/models", wantStatus: http.StatusServiceUnavailable, wantBody: routing.ErrorCodeProviderDisabled},
+		{name: "DisabledUnknownRoute", path: "/disabled-openai/anything/else", wantStatus: http.StatusServiceUnavailable, wantBody: routing.ErrorCodeProviderDisabled},
 		{name: "EnabledBridgedRoute", path: "/openai/v1/chat/completions", wantStatus: http.StatusNotFound, wantBody: "route not supported"},
 		{name: "EnabledPassthroughRoute", path: "/openai/v1/models", wantStatus: http.StatusNotFound, wantBody: "route not supported"},
 		{name: "UnknownProvider", path: "/unknown/v1/models", wantStatus: http.StatusNotFound, wantBody: "route not supported"},
@@ -108,18 +110,18 @@ func TestProxyRouterDisabledProvider(t *testing.T) {
 	}
 }
 
-// TestProxyRouterSnapshotsProviders asserts the router routes and reports key
+// TestRouterSnapshotsProviders asserts the router routes and reports key
 // pools from its own snapshot. Mutating the caller's slice afterwards has
 // no effect.
-func TestProxyRouterSnapshotsProviders(t *testing.T) {
+func TestRouterSnapshotsProviders(t *testing.T) {
 	t.Parallel()
 
 	pool := testutil.SingleKeyPool(config.ProviderOpenAI, "test-key")
-	providers := []aibridge.Provider{
-		keyPoolProvider{Provider: aibridge.NewDisabledProviderStub("disabled-openai", "openai"), pool: pool},
+	providers := []provider.Provider{
+		keyPoolProvider{Provider: provider.NewDisabledStub("disabled-openai", "openai"), pool: pool},
 	}
 
-	router, err := aibridge.NewProxyRouter(providers, slogtest.Make(t, nil))
+	router, err := proxy.NewRouter(providers, slogtest.Make(t, nil))
 	require.NoError(t, err)
 
 	// Replace the caller's entry with a provider the router never saw.
@@ -140,4 +142,24 @@ key_pool_state{provider="openai",state="permanent"} 0
 	resp = httptest.NewRecorder()
 	router.ServeHTTP(resp, httptest.NewRequest(http.MethodPost, "/swapped/v1/models", nil))
 	assert.Equal(t, http.StatusNotFound, resp.Code)
+}
+
+// Disabled providers return 503 without reading the body, even if it is oversized.
+func TestRouterDisabledProviderOversizedBody(t *testing.T) {
+	t.Parallel()
+
+	router, err := proxy.NewRouter(
+		[]provider.Provider{provider.NewDisabledStub("disabled-openai", "openai")},
+		slogtest.Make(t, nil),
+	)
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(http.MethodPost, "/disabled-openai/v1/chat/completions", strings.NewReader("x"))
+	req.ContentLength = routing.MaxRequestBodyBytes + 1
+
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	assert.Equal(t, http.StatusServiceUnavailable, rec.Code)
+	assert.Contains(t, rec.Body.String(), routing.ErrorCodeProviderDisabled)
 }
