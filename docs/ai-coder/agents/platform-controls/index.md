@@ -155,7 +155,8 @@ Refer to [Spend management](./spend-management.md) for details.
 ### Turn and payload limits
 
 Coder bounds each chat turn and the data a chat can carry with deployment-wide limits.
-The defaults suit most deployments, and you can change any of them with a server flag, environment variable, or YAML key:
+The defaults suit most deployments, and you can change any of them with a server flag, environment variable, or YAML key.
+Setting a limit to 0 restores its default rather than removing the limit:
 
 | Limit                                                 | Default               | Setting                                                                                                                           |
 |-------------------------------------------------------|-----------------------|-----------------------------------------------------------------------------------------------------------------------------------|

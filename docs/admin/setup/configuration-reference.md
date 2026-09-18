@@ -420,7 +420,7 @@ Force chat debug logging on for every chat, bypassing the runtime admin and user
 
 ### Debug max body bytes
 
-Maximum number of bytes of streamed model output and of each recorded provider HTTP request or response body kept in chat debug run records.
+Maximum number of bytes of streamed model output and of each recorded provider HTTP request or response body kept in chat debug run records. Set to 0 to use the default.
 
 - Environment variable: `CODER_CHAT_DEBUG_MAX_BODY_BYTES`
 - CLI flag: [`--chat-debug-max-body-bytes`](../../reference/cli/server.md#--chat-debug-max-body-bytes)
@@ -429,7 +429,7 @@ Maximum number of bytes of streamed model output and of each recorded provider H
 
 ### Debug max text runes
 
-Maximum number of characters of each message part, tool argument, and tool result kept in chat debug run records. Longer text is truncated.
+Maximum number of characters of each message part, tool argument, and tool result kept in chat debug run records. Longer text is truncated. Set to 0 to use the default.
 
 - Environment variable: `CODER_CHAT_DEBUG_MAX_TEXT_RUNES`
 - CLI flag: [`--chat-debug-max-text-runes`](../../reference/cli/server.md#--chat-debug-max-text-runes)
@@ -438,7 +438,7 @@ Maximum number of characters of each message part, tool argument, and tool resul
 
 ### Max attachments per chat
 
-Number of most recent attachments a chat keeps, counting uploads and files the agent attaches from the workspace. Older attachments are removed when the cap is reached, and a single message cannot include more files than the cap.
+Number of most recent attachments a chat keeps, counting uploads and files the agent attaches from the workspace. Older attachments are removed when the cap is reached, and a single message cannot include more files than the cap. Set to 0 to use the default.
 
 - Environment variable: `CODER_CHAT_MAX_ATTACHMENTS_PER_CHAT`
 - CLI flag: [`--chat-max-attachments-per-chat`](../../reference/cli/server.md#--chat-max-attachments-per-chat)
@@ -447,7 +447,7 @@ Number of most recent attachments a chat keeps, counting uploads and files the a
 
 ### Max concurrent recording uploads
 
-Maximum number of virtual desktop recordings the chat daemon stores concurrently. Each upload buffers the whole recording in memory, so this bounds the daemon's peak memory use for recordings.
+Maximum number of virtual desktop recordings the chat daemon stores concurrently. Each upload buffers the whole recording in memory, so this bounds the daemon's peak memory use for recordings. Set to 0 to use the default.
 
 - Environment variable: `CODER_CHAT_MAX_CONCURRENT_RECORDING_UPLOADS`
 - CLI flag: [`--chat-max-concurrent-recording-uploads`](../../reference/cli/server.md#--chat-max-concurrent-recording-uploads)
@@ -456,7 +456,7 @@ Maximum number of virtual desktop recordings the chat daemon stores concurrently
 
 ### Max dynamic tools per chat
 
-Maximum number of client-provided dynamic tools a chat can be created with.
+Maximum number of client-provided dynamic tools a chat can be created with. Set to 0 to use the default.
 
 - Environment variable: `CODER_CHAT_MAX_DYNAMIC_TOOLS_PER_CHAT`
 - CLI flag: [`--chat-max-dynamic-tools-per-chat`](../../reference/cli/server.md#--chat-max-dynamic-tools-per-chat)
@@ -465,7 +465,7 @@ Maximum number of client-provided dynamic tools a chat can be created with.
 
 ### Max generation retries
 
-Maximum number of times a chat turn retries a model call that failed with a transient provider error, such as a rate limit or an overloaded response, before the turn fails.
+Maximum number of times a chat turn retries a model call that failed with a transient provider error, such as a rate limit or an overloaded response, before the turn fails. Set to 0 to use the default.
 
 - Environment variable: `CODER_CHAT_MAX_GENERATION_RETRIES`
 - CLI flag: [`--chat-max-generation-retries`](../../reference/cli/server.md#--chat-max-generation-retries)
@@ -474,7 +474,7 @@ Maximum number of times a chat turn retries a model call that failed with a tran
 
 ### Max prompt bytes
 
-Maximum size in bytes of the deployment system prompt, the plan mode instructions, and each user's custom prompt.
+Maximum size in bytes of the deployment system prompt, the plan mode instructions, and each user's custom prompt. Set to 0 to use the default.
 
 - Environment variable: `CODER_CHAT_MAX_PROMPT_BYTES`
 - CLI flag: [`--chat-max-prompt-bytes`](../../reference/cli/server.md#--chat-max-prompt-bytes)
@@ -483,7 +483,7 @@ Maximum size in bytes of the deployment system prompt, the plan mode instruction
 
 ### Max queued messages per chat
 
-Maximum number of user messages that can wait in a chat's queue while a turn is running.
+Maximum number of user messages that can wait in a chat's queue while a turn is running. Set to 0 to use the default.
 
 - Environment variable: `CODER_CHAT_MAX_QUEUED_MESSAGES_PER_CHAT`
 - CLI flag: [`--chat-max-queued-messages-per-chat`](../../reference/cli/server.md#--chat-max-queued-messages-per-chat)
@@ -492,7 +492,7 @@ Maximum number of user messages that can wait in a chat's queue while a turn is 
 
 ### Max steps per turn
 
-Maximum number of model and tool steps a single agent chat turn may run before Coder stops the turn.
+Maximum number of model and tool steps a single agent chat turn may run before Coder stops the turn. Set to 0 to use the default.
 
 - Environment variable: `CODER_CHAT_MAX_STEPS_PER_TURN`
 - CLI flag: [`--chat-max-steps-per-turn`](../../reference/cli/server.md#--chat-max-steps-per-turn)
@@ -501,7 +501,7 @@ Maximum number of model and tool steps a single agent chat turn may run before C
 
 ### Max tool output bytes
 
-Maximum number of bytes of workspace command output the execute and process tools return to the model. Longer output is truncated.
+Maximum number of bytes of workspace command output the execute and process tools return to the model. Longer output is truncated. Set to 0 to use the default.
 
 - Environment variable: `CODER_CHAT_MAX_TOOL_OUTPUT_BYTES`
 - CLI flag: [`--chat-max-tool-output-bytes`](../../reference/cli/server.md#--chat-max-tool-output-bytes)

@@ -1799,7 +1799,7 @@ Force chat debug logging on for every chat, bypassing the runtime admin and user
 | YAML        | <code>chat.maxStepsPerTurn</code>           |
 | Default     | <code>1200</code>                           |
 
-Maximum number of model and tool steps a single agent chat turn may run before Coder stops the turn.
+Maximum number of model and tool steps a single agent chat turn may run before Coder stops the turn. Set to 0 to use the default.
 
 ### --chat-max-generation-retries
 
@@ -1810,7 +1810,7 @@ Maximum number of model and tool steps a single agent chat turn may run before C
 | YAML        | <code>chat.maxGenerationRetries</code>          |
 | Default     | <code>25</code>                                 |
 
-Maximum number of times a chat turn retries a model call that failed with a transient provider error, such as a rate limit or an overloaded response, before the turn fails.
+Maximum number of times a chat turn retries a model call that failed with a transient provider error, such as a rate limit or an overloaded response, before the turn fails. Set to 0 to use the default.
 
 ### --chat-max-queued-messages-per-chat
 
@@ -1821,7 +1821,7 @@ Maximum number of times a chat turn retries a model call that failed with a tran
 | YAML        | <code>chat.maxQueuedMessagesPerChat</code>            |
 | Default     | <code>20</code>                                       |
 
-Maximum number of user messages that can wait in a chat's queue while a turn is running.
+Maximum number of user messages that can wait in a chat's queue while a turn is running. Set to 0 to use the default.
 
 ### --chat-max-attachments-per-chat
 
@@ -1832,7 +1832,7 @@ Maximum number of user messages that can wait in a chat's queue while a turn is 
 | YAML        | <code>chat.maxAttachmentsPerChat</code>           |
 | Default     | <code>50</code>                                   |
 
-Number of most recent attachments a chat keeps, counting uploads and files the agent attaches from the workspace. Older attachments are removed when the cap is reached, and a single message cannot include more files than the cap.
+Number of most recent attachments a chat keeps, counting uploads and files the agent attaches from the workspace. Older attachments are removed when the cap is reached, and a single message cannot include more files than the cap. Set to 0 to use the default.
 
 ### --chat-max-prompt-bytes
 
@@ -1843,7 +1843,7 @@ Number of most recent attachments a chat keeps, counting uploads and files the a
 | YAML        | <code>chat.maxPromptBytes</code>          |
 | Default     | <code>131072</code>                       |
 
-Maximum size in bytes of the deployment system prompt, the plan mode instructions, and each user's custom prompt.
+Maximum size in bytes of the deployment system prompt, the plan mode instructions, and each user's custom prompt. Set to 0 to use the default.
 
 ### --chat-max-dynamic-tools-per-chat
 
@@ -1854,7 +1854,7 @@ Maximum size in bytes of the deployment system prompt, the plan mode instruction
 | YAML        | <code>chat.maxDynamicToolsPerChat</code>            |
 | Default     | <code>250</code>                                    |
 
-Maximum number of client-provided dynamic tools a chat can be created with.
+Maximum number of client-provided dynamic tools a chat can be created with. Set to 0 to use the default.
 
 ### --chat-max-tool-output-bytes
 
@@ -1865,7 +1865,7 @@ Maximum number of client-provided dynamic tools a chat can be created with.
 | YAML        | <code>chat.maxToolOutputBytes</code>           |
 | Default     | <code>32768</code>                             |
 
-Maximum number of bytes of workspace command output the execute and process tools return to the model. Longer output is truncated.
+Maximum number of bytes of workspace command output the execute and process tools return to the model. Longer output is truncated. Set to 0 to use the default.
 
 ### --chat-max-concurrent-recording-uploads
 
@@ -1876,7 +1876,7 @@ Maximum number of bytes of workspace command output the execute and process tool
 | YAML        | <code>chat.maxConcurrentRecordingUploads</code>           |
 | Default     | <code>25</code>                                           |
 
-Maximum number of virtual desktop recordings the chat daemon stores concurrently. Each upload buffers the whole recording in memory, so this bounds the daemon's peak memory use for recordings.
+Maximum number of virtual desktop recordings the chat daemon stores concurrently. Each upload buffers the whole recording in memory, so this bounds the daemon's peak memory use for recordings. Set to 0 to use the default.
 
 ### --chat-debug-max-text-runes
 
@@ -1887,7 +1887,7 @@ Maximum number of virtual desktop recordings the chat daemon stores concurrently
 | YAML        | <code>chat.debugMaxTextRunes</code>           |
 | Default     | <code>10000</code>                            |
 
-Maximum number of characters of each message part, tool argument, and tool result kept in chat debug run records. Longer text is truncated.
+Maximum number of characters of each message part, tool argument, and tool result kept in chat debug run records. Longer text is truncated. Set to 0 to use the default.
 
 ### --chat-debug-max-body-bytes
 
@@ -1898,7 +1898,7 @@ Maximum number of characters of each message part, tool argument, and tool resul
 | YAML        | <code>chat.debugMaxBodyBytes</code>           |
 | Default     | <code>50000</code>                            |
 
-Maximum number of bytes of streamed model output and of each recorded provider HTTP request or response body kept in chat debug run records.
+Maximum number of bytes of streamed model output and of each recorded provider HTTP request or response body kept in chat debug run records. Set to 0 to use the default.
 
 ### --chat-stream-silence-timeout
 

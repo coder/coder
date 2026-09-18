@@ -6,16 +6,36 @@ import "github.com/coder/coder/v2/codersdk"
 // the payloads chatd stores. A zero field means "use the default" so
 // callers can leave fields unset; New and LimitsFromConfig resolve them.
 type Limits struct {
-	MaxStepsPerTurn               int
-	MaxGenerationRetries          int
-	MaxQueuedMessagesPerChat      int
-	MaxAttachmentsPerChat         int
-	MaxPromptBytes                int
-	MaxDynamicToolsPerChat        int
-	MaxToolOutputBytes            int
+	// MaxStepsPerTurn bounds the model and tool steps one turn may run.
+	MaxStepsPerTurn int
+	// MaxGenerationRetries bounds how many times a turn, or one nested
+	// advisor call, retries a model call that failed with a transient
+	// provider error.
+	MaxGenerationRetries int
+	// MaxQueuedMessagesPerChat bounds the user messages waiting in a
+	// chat's queue while a turn runs.
+	MaxQueuedMessagesPerChat int
+	// MaxAttachmentsPerChat is the number of most recent attachments a
+	// chat keeps; older files are removed when new ones are linked.
+	MaxAttachmentsPerChat int
+	// MaxPromptBytes bounds the deployment system prompt, plan mode
+	// instructions, and per-user custom prompts.
+	MaxPromptBytes int
+	// MaxDynamicToolsPerChat bounds the client-provided dynamic tools a
+	// chat is created with.
+	MaxDynamicToolsPerChat int
+	// MaxToolOutputBytes bounds the command output the execute and
+	// process tools return to the model.
+	MaxToolOutputBytes int
+	// MaxConcurrentRecordingUploads bounds the virtual desktop recordings
+	// chatd stores concurrently.
 	MaxConcurrentRecordingUploads int
-	DebugMaxTextRunes             int
-	DebugMaxBodyBytes             int
+	// DebugMaxTextRunes bounds each text, argument, and result field kept
+	// in chat debug records.
+	DebugMaxTextRunes int
+	// DebugMaxBodyBytes bounds accumulated streamed model output and each
+	// recorded provider HTTP body in chat debug runs.
+	DebugMaxBodyBytes int
 }
 
 // LimitsFromConfig resolves the configured chat limits, substituting

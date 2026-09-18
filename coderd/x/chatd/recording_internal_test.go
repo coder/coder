@@ -846,6 +846,44 @@ func TestStopAndStoreRecording_EvictsOldestAtCap(t *testing.T) {
 	require.ErrorIs(t, err, sql.ErrNoRows)
 }
 
+// TestStopAndStoreRecording_KeepsRecordingAtCapOne verifies that when the
+// attachment cap is one, storing the thumbnail does not evict the video
+// whose ID is returned to the model.
+func TestStopAndStoreRecording_KeepsRecordingAtCapOne(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	ctx := chatdTestContext(t)
+
+	ctrl := gomock.NewController(t)
+	mockConn := agentconnmock.NewMockAgentConn(ctrl)
+
+	user, org, model := seedInternalChatDeps(t, db)
+	workspace, _, _ := seedWorkspaceBinding(t, db, user.ID)
+
+	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
+	server.chatLimits = Limits{MaxAttachmentsPerChat: 1}
+	parent, _ := createParentChildChats(ctx, t, server, user, org, model)
+
+	mockConn.EXPECT().
+		StopDesktopRecording(gomock.Any(), gomock.Any()).
+		Return(buildMultipartResponse(
+			partSpec{"video/mp4", validRecordingMP4(1000, 0xDE)},
+			partSpec{"image/jpeg", validRecordingJPEG(492, 0xD8)},
+		), nil).
+		Times(1)
+
+	result := server.stopAndStoreRecording(
+		ctx, mockConn, uuid.New().String(), parent.ID, user.ID,
+		uuid.NullUUID{UUID: workspace.ID, Valid: true},
+	)
+
+	require.NotEmpty(t, result.recordingFileID)
+	_, err := db.GetChatFileByID(ctx, uuid.MustParse(result.recordingFileID))
+	require.NoError(t, err, "the returned recording must still exist")
+	assert.Empty(t, result.thumbnailFileID, "no second slot for a thumbnail")
+}
+
 // TestStopAndStoreRecording_WithThumbnail verifies that a multipart
 // response containing both a video/mp4 part and an image/jpeg part
 // results in both files being stored with correct mimetypes.
