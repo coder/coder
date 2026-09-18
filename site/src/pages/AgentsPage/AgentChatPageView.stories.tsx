@@ -24,7 +24,7 @@ import type * as TypesGen from "#/api/typesGenerated";
 import type { ChatDiffStatus, ChatMessagePart } from "#/api/typesGenerated";
 import type { ModelSelectorOption } from "#/modules/aiModels/ModelSelector";
 import { AGENT_BROWSER_APP_SLUG } from "#/modules/apps/apps";
-import { MockChat } from "#/testHelpers/chatEntities";
+import { MockChat, MockChatQueuedMessage } from "#/testHelpers/chatEntities";
 import {
 	MockDefaultOrganization,
 	MockGroup,
@@ -851,10 +851,14 @@ const buildMessage = (
 const buildStoreWithMessages = (
 	msgs: TypesGen.ChatMessage[],
 	status: TypesGen.ChatStatus = "waiting",
+	queuedMessages?: TypesGen.ChatQueuedMessage[],
 ) => {
 	const store = createChatStore();
 	store.replaceMessages(msgs);
 	store.setChatStatus(status);
+	if (queuedMessages) {
+		store.setQueuedMessages(queuedMessages);
+	}
 	return store;
 };
 
@@ -922,6 +926,29 @@ export const EditingMessage: Story = {
 				editingTarget: { kind: "history", id: 3 },
 				editorInitialValue: "Now tell me a joke",
 			}}
+		/>
+	),
+};
+
+/** The turn finished while the queue head was under edit. The composer
+ *  queues a send. */
+export const PausedAtQueuedEdit: Story = {
+	render: () => (
+		<StoryAgentChatPageView
+			store={buildStoreWithMessages(editingMessages, "paused", [
+				{
+					...MockChatQueuedMessage,
+					id: 1,
+					content: [{ type: "text", text: "Run the migrations" }],
+					editing_since: "2024-01-01T00:00:00Z",
+				},
+				{
+					...MockChatQueuedMessage,
+					id: 2,
+					content: [{ type: "text", text: "Start the dev server" }],
+				},
+			])}
+			chat={{ status: "paused" }}
 		/>
 	),
 };

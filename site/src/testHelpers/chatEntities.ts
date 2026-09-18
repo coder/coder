@@ -160,3 +160,8 @@ export const MockChatQueuedMessage: ChatQueuedMessage = {
 	content: [{ type: "text", text: "Queued message" }],
 	created_at: MOCK_TIMESTAMP,
 };
+
+export const MockChatQueuedMessageUnderEdit: ChatQueuedMessage = {
+	...MockChatQueuedMessage,
+	editing_since: MOCK_TIMESTAMP,
+};

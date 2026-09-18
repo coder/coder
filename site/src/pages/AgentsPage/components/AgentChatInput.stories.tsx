@@ -7,6 +7,8 @@ import { preferenceSettingsKey } from "#/api/queries/users";
 import type * as TypesGen from "#/api/typesGenerated";
 import {
 	MockChatContextClean,
+	MockChatQueuedMessage,
+	MockChatQueuedMessageUnderEdit,
 	MockMCPServerConfig,
 } from "#/testHelpers/chatEntities";
 import {
@@ -126,6 +128,25 @@ export const PromptHistorySuppressedWhileLoading: Story = {
 	args: {
 		isLoading: true,
 		userPromptHistory: promptHistory,
+	},
+};
+
+// The chat is paused at the queue head under edit; the send button queues.
+export const ChatPaused: Story = {
+	args: {
+		isChatPaused: true,
+		queuedMessages: [
+			MockChatQueuedMessageUnderEdit,
+			{ ...MockChatQueuedMessage, id: 2 },
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.type(
+			canvas.getByRole("textbox", { name: "Chat message" }),
+			"Also update the docs",
+		);
+		await userEvent.hover(canvas.getByRole("button", { name: "Queue" }));
 	},
 };
 
