@@ -75,6 +75,60 @@ Alias: also available at /api/v2/aibridge/models for backward compatibility.
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## List AI Gateway providers
+
+### Code samples
+
+```sh
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/ai-gateway/providers \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /api/v2/ai-gateway/providers`
+
+### Example responses
+
+> 200 Response
+
+```json
+[
+  {
+    "display_name": "string",
+    "icon": "string",
+    "name": "string",
+    "type": "openai"
+  }
+]
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                    |
+|--------|---------------------------------------------------------|-------------|---------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [codersdk.AIBridgeProvider](schemas.md#codersdkaibridgeprovider) |
+
+<h3 id="list-ai-gateway-providers-responseschema">Response Schema</h3>
+
+Status Code **200**
+
+| Name             | Type                                                         | Required | Restrictions | Description |
+|------------------|--------------------------------------------------------------|----------|--------------|-------------|
+| `[array item]`   | array                                                        | false    |              |             |
+| `» display_name` | string                                                       | false    |              |             |
+| `» icon`         | string                                                       | false    |              |             |
+| `» name`         | string                                                       | false    |              |             |
+| `» type`         | [codersdk.AIProviderType](schemas.md#codersdkaiprovidertype) | false    |              |             |
+
+#### Enumerated Values
+
+| Property | Value(s)                                                                                                |
+|----------|---------------------------------------------------------------------------------------------------------|
+| `type`   | `anthropic`, `azure`, `bedrock`, `copilot`, `google`, `openai`, `openai-compat`, `openrouter`, `vercel` |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## List AI Gateway sessions
 
 ### Code samples
@@ -237,6 +291,11 @@ Alias: also available at /api/v2/aibridge/sessions/{session_id} for backward com
       "agent_firewall_session_id": "3735294f-18b1-4e7a-a269-99c30f0b30e7",
       "agentic_actions": [
         {
+          "attribution": {
+            "property1": "string",
+            "property2": "string"
+          },
+          "interception_id": "34d9b688-63ad-46f4-88b5-665c1e7f7824",
           "model": "string",
           "thinking": [
             {
@@ -271,6 +330,10 @@ Alias: also available at /api/v2/aibridge/sessions/{session_id} for backward com
           ]
         }
       ],
+      "attribution": {
+        "property1": "string",
+        "property2": "string"
+      },
       "credential_hint": "string",
       "credential_kind": "string",
       "ended_at": "2019-08-24T14:15:22Z",

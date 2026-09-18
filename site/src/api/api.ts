@@ -1511,7 +1511,7 @@ class ApiMethods {
 	};
 
 	createUser = async (
-		user: TypesGen.CreateUserRequestWithOrgs,
+		user: TypesGen.CreateUserRequest,
 	): Promise<TypesGen.User> => {
 		const response = await this.axios.post<TypesGen.User>(
 			"/api/v2/users",
@@ -3073,6 +3073,13 @@ class ApiMethods {
 		const url = getURLWithSearchParams(`${aiGatewayPath}/clients`, options);
 
 		const response = await this.axios.get<string[]>(url);
+		return response.data;
+	};
+
+	getAIBridgeProviders = async () => {
+		const response = await this.axios.get<TypesGen.AIBridgeProvider[]>(
+			`${aiGatewayPath}/providers`,
+		);
 		return response.data;
 	};
 

@@ -15,6 +15,7 @@ import (
 	"tailscale.com/derp"
 	"tailscale.com/derp/derphttp"
 	"tailscale.com/ipn"
+	"tailscale.com/net/stun/stuntest"
 	"tailscale.com/tailcfg"
 	"tailscale.com/types/key"
 
@@ -366,6 +367,7 @@ func TestDERP(t *testing.T) {
 
 	t.Run("STUNOnly/WarnsNoDERP", func(t *testing.T) {
 		t.Parallel()
+		stunPort := serveSTUN(t)
 
 		var (
 			ctx    = context.Background()
@@ -378,8 +380,9 @@ func TestDERP(t *testing.T) {
 						Nodes: []*tailcfg.DERPNode{{
 							Name:             "999stun0",
 							RegionID:         999,
-							HostName:         "stun.l.google.com",
-							STUNPort:         19302,
+							IPv4:             "127.0.0.1",
+							IPv6:             "none",
+							STUNPort:         stunPort,
 							STUNOnly:         true,
 							InsecureForTests: true,
 							ForceHTTP:        true,
@@ -433,6 +436,7 @@ func TestDERP(t *testing.T) {
 
 	t.Run("STUNOnly/OneBadOneGood", func(t *testing.T) {
 		t.Parallel()
+		goodSTUNPort := serveSTUN(t)
 
 		var (
 			ctx    = context.Background()
@@ -446,7 +450,7 @@ func TestDERP(t *testing.T) {
 							Nodes: []*tailcfg.DERPNode{{
 								Name:             "badstun",
 								RegionID:         999,
-								HostName:         "badstun.example.com",
+								STUNTestIP:       "not-an-ip",
 								STUNPort:         19302,
 								STUNOnly:         true,
 								InsecureForTests: true,
@@ -454,8 +458,9 @@ func TestDERP(t *testing.T) {
 							}, {
 								Name:             "goodstun",
 								RegionID:         999,
-								HostName:         "stun.l.google.com",
-								STUNPort:         19302,
+								IPv4:             "127.0.0.1",
+								IPv6:             "none",
+								STUNPort:         goodSTUNPort,
 								STUNOnly:         true,
 								InsecureForTests: true,
 								ForceHTTP:        true,
@@ -509,7 +514,7 @@ func TestDERP(t *testing.T) {
 							Nodes: []*tailcfg.DERPNode{{
 								Name:             "badstun",
 								RegionID:         999,
-								HostName:         "badstun.example.com",
+								STUNTestIP:       "not-an-ip",
 								STUNPort:         19302,
 								STUNOnly:         true,
 								InsecureForTests: true,
@@ -537,6 +542,13 @@ func TestDERP(t *testing.T) {
 			}
 		}
 	})
+}
+
+func serveSTUN(t testing.TB) int {
+	t.Helper()
+	addr, cleanup := stuntest.Serve(t)
+	t.Cleanup(cleanup)
+	return addr.Port
 }
 
 func tsDERPMap(ctx context.Context, t testing.TB) *tailcfg.DERPMap {

@@ -116,6 +116,36 @@ func TestScaleTestCreateUsers(t *testing.T) {
 	require.Equal(t, 1, templateAdmins)
 }
 
+func TestScaleTestNotifications_TemplateDeletionCountValidation(t *testing.T) {
+	t.Parallel()
+
+	if testutil.RaceEnabled() {
+		t.Skip("Skipping due to race detector")
+	}
+
+	ctx, cancelFunc := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancelFunc()
+
+	log := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	client := coderdtest.New(t, &coderdtest.Options{
+		Logger: &log,
+	})
+	_ = coderdtest.CreateFirstUser(t, client)
+
+	inv, root := clitest.New(t, "exp", "scaletest", "notifications",
+		"--user-count", "1",
+		"--template-deletion-count", "0",
+		"--dial-timeout", "5s",
+		"--notification-timeout", "5s",
+		"--scaletest-prometheus-address", "127.0.0.1:0",
+		"--scaletest-prometheus-wait", "0s",
+		"--output", "text",
+	)
+	clitest.SetupConfig(t, client, root)
+	err := inv.WithContext(ctx).Run()
+	require.ErrorContains(t, err, "--template-deletion-count must be at least 1")
+}
+
 // TestScaleTestNotifications_ReuseUsersInsufficient verifies that the
 // notifications scaletest checks the user pool up front and exits with an
 // actionable error when not enough scaletest users (or template admins) exist,
