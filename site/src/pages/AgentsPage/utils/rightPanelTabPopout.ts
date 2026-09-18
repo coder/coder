@@ -17,7 +17,7 @@ export type TabPopoutMessage =
 	// The chat page asks the window to close.
 	| { type: "bring-back" }
 	// Chat state the tab renders, sent whenever it changes.
-	| { type: "chat-state"; isAgentWorking: boolean }
+	| { type: "chat-state"; isAgentWorking: boolean; editedFiles: string }
 	// The window asks the chat page to send a message through its
 	// composer, and hears back how that went.
 	| { type: "send"; id: string; message: string }

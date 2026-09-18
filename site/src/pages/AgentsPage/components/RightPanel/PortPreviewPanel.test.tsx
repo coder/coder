@@ -41,7 +41,11 @@ function frameWindow(frame: HTMLIFrameElement): Window {
 }
 
 function renderPanel(onSend = sent(), readyTimeoutMs?: number) {
-	const panel = (send: Send | undefined, isAgentWorking: boolean) => (
+	const panel = (
+		send: Send | undefined,
+		isAgentWorking: boolean,
+		editedFiles?: string,
+	) => (
 		<ComposerContext value={send ? { send } : undefined}>
 			<PortPreviewPanel
 				chatId="chat-1"
@@ -51,13 +55,14 @@ function renderPanel(onSend = sent(), readyTimeoutMs?: number) {
 				tab={tab}
 				canAnnotate
 				isAgentWorking={isAgentWorking}
+				editedFiles={editedFiles}
 				annotatorReadyTimeoutMs={readyTimeoutMs}
 			/>
 		</ComposerContext>
 	);
 	const { rerender, unmount } = renderComponent(panel(onSend, false));
-	const setAgentWorking = (isAgentWorking: boolean) =>
-		rerender(panel(onSend, isAgentWorking));
+	const setAgentWorking = (isAgentWorking: boolean, editedFiles?: string) =>
+		rerender(panel(onSend, isAgentWorking, editedFiles));
 	// Requesting the overlay remounts the iframe, so always look it up fresh.
 	const frame = () => screen.getByTitle<HTMLIFrameElement>("Preview :3000");
 	const frameOrigin = new URL(frame().src).origin;
@@ -619,6 +624,66 @@ describe("PortPreviewPanel annotations", () => {
 		);
 	});
 
+	it("acknowledges the annotations whose source files the agent edited", async () => {
+		const { frame, frameOrigin, receive, onSend, setAgentWorking } =
+			renderPanel();
+		await requestOverlay();
+		receive({ type: "coder-annotator:ready" });
+		const postMessage = vi.spyOn(frameWindow(frame()), "postMessage");
+		const annotation = submission.annotations[0];
+		receive({
+			...submission,
+			annotations: [
+				{
+					...annotation,
+					element: {
+						...annotation.element,
+						sourceLocation: "/app/src/components/SaveButton.tsx:14",
+					},
+				},
+				{
+					...annotation,
+					id: "b",
+					element: {
+						...annotation.element,
+						selector: "h1",
+						sourceLocation: "/app/src/components/Title.tsx:3",
+					},
+				},
+				{ ...annotation, id: "c" },
+			],
+		});
+		await waitFor(() => expect(onSend).toHaveBeenCalledTimes(1));
+
+		setAgentWorking(true);
+		await waitFor(() =>
+			expect(postMessage).toHaveBeenCalledWith(
+				expect.objectContaining({ type: "coder-annotator:highlight" }),
+				frameOrigin,
+			),
+		);
+
+		// The agent edited the button's file under the workspace root, not the
+		// container path the app reported, and touched an unrelated file.
+		setAgentWorking(
+			false,
+			[
+				"/home/coder/app/src/components/SaveButton.tsx",
+				"/home/coder/app/src/components/Other.tsx",
+			].join("\n"),
+		);
+		await waitFor(() =>
+			expect(postMessage).toHaveBeenLastCalledWith(
+				{ type: "coder-annotator:resolved", ids: ["a"] },
+				frameOrigin,
+			),
+		);
+		expect(postMessage).not.toHaveBeenCalledWith(
+			{ type: "coder-annotator:clear-highlights" },
+			frameOrigin,
+		);
+	});
+
 	it("steps aside while the tab is shown in its own window", async () => {
 		const open = vi.spyOn(window, "open").mockReturnValue(window);
 		const popoutWindow = new BroadcastChannel(tabPopoutChannelName(tab.id));
@@ -656,6 +721,7 @@ describe("PortPreviewPanel annotations", () => {
 				expect(fromChat).toContainEqual({
 					type: "chat-state",
 					isAgentWorking: false,
+					editedFiles: "",
 				} satisfies TabPopoutMessage),
 			);
 

@@ -76,6 +76,7 @@ export default function RightPanelTabPopoutPage() {
 						host={proxy.preferredWildcardHostname}
 						canAnnotate={experiments.includes("chat-ui-annotations")}
 						isAgentWorking={popout.chatState.isAgentWorking}
+						editedFiles={popout.chatState.editedFiles}
 						send={popout.send}
 					/>
 				)}
@@ -91,8 +92,18 @@ const PortPreviewTab: React.FC<{
 	host: string;
 	canAnnotate: boolean;
 	isAgentWorking: boolean;
+	editedFiles: string;
 	send: ComposerHandle["send"];
-}> = ({ chatId, tab, workspace, host, canAnnotate, isAgentWorking, send }) => {
+}> = ({
+	chatId,
+	tab,
+	workspace,
+	host,
+	canAnnotate,
+	isAgentWorking,
+	editedFiles,
+	send,
+}) => {
 	const agent = findWorkspaceAgent(workspace, tab.agentId);
 	if (!agent) {
 		return <Message>This port preview tab is no longer available.</Message>;
@@ -107,6 +118,7 @@ const PortPreviewTab: React.FC<{
 				tab={tab}
 				canAnnotate={canAnnotate}
 				isAgentWorking={isAgentWorking}
+				editedFiles={editedFiles}
 				isPopoutWindow
 			/>
 		</ComposerContext>
