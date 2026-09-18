@@ -18,6 +18,7 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import type { QueuedEditOverride } from "./ChatConversation/types";
 
 type QueuedMessagesListProps = {
 	messages: readonly ChatQueuedMessage[];
@@ -28,6 +29,10 @@ type QueuedMessagesListProps = {
 	// While paused the server refuses edits on rows other than the head,
 	// and ending the head's edit sends it.
 	chatPaused?: boolean;
+	queuedEditOverride?: QueuedEditOverride;
+	// Enter in an empty composer sends the head. False while the composer
+	// edits a message, when Enter saves instead.
+	enterSendsHead?: boolean;
 	className?: string;
 };
 
@@ -122,13 +127,26 @@ export const QueuedMessagesList: FC<QueuedMessagesListProps> = ({
 	onEdit,
 	onEndEdit,
 	chatPaused = false,
+	queuedEditOverride,
+	enterSendsHead = true,
 	className,
 }) => {
-	const editingIndex = messages.findIndex((message) => message.editing_since);
+	const isMessageUnderEdit = (message: ChatQueuedMessage) => {
+		// Only one row per chat is under edit, so a local begin also clears
+		// every other row's marker.
+		if (queuedEditOverride?.editing) {
+			return message.id === queuedEditOverride.id;
+		}
+		if (queuedEditOverride?.id === message.id) {
+			return false;
+		}
+		return Boolean(message.editing_since);
+	};
+	const editingIndex = messages.findIndex(isMessageUnderEdit);
 	const items = messages.map((message, index) => {
 		const { displayText, attachmentCount, hookNotices } =
 			getQueuedMessageInfo(message);
-		const isUnderEdit = Boolean(message.editing_since);
+		const isUnderEdit = isMessageUnderEdit(message);
 		const isWaitingBehindEdit = editingIndex !== -1 && index > editingIndex;
 		let badge: { label: string; tooltip: string } | undefined;
 		if (isUnderEdit) {
@@ -309,7 +327,7 @@ export const QueuedMessagesList: FC<QueuedMessagesListProps> = ({
 									</TooltipContent>
 								</Tooltip>
 							)}
-							{isFirst && !item.isUnderEdit && (
+							{isFirst && !item.isUnderEdit && enterSendsHead && (
 								<span
 									className={cn(
 										"flex shrink-0 items-center gap-1 text-xs text-content-secondary transition-opacity",

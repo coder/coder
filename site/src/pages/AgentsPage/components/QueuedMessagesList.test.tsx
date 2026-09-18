@@ -160,7 +160,12 @@ describe("QueuedMessagesList", () => {
 		handlers: Partial<
 			Pick<
 				ComponentProps<typeof QueuedMessagesList>,
-				"onDelete" | "onPromote" | "onEdit" | "onEndEdit" | "chatPaused"
+				| "onDelete"
+				| "onPromote"
+				| "onEdit"
+				| "onEndEdit"
+				| "chatPaused"
+				| "queuedEditOverride"
 			>
 		> = {},
 	) => {
@@ -239,6 +244,20 @@ describe("QueuedMessagesList", () => {
 		expect(document.activeElement).toBe(editBehind);
 		await user.keyboard("{Enter}");
 		expect(onEdit).toHaveBeenCalledWith(10);
+	});
+
+	it("offers Cancel edit on the row the local edit state marks", async () => {
+		const user = userEvent.setup();
+		const { onEndEdit } = renderList(
+			[
+				{ ...MockChatQueuedMessage, id: 9 },
+				{ ...MockChatQueuedMessage, id: 10 },
+			],
+			{ queuedEditOverride: { id: 9, editing: true } },
+		);
+
+		await user.click(screen.getByRole("button", { name: "Cancel edit" }));
+		expect(onEndEdit).toHaveBeenCalledWith(9);
 	});
 
 	it("still offers Send now and Remove on a row under edit", async () => {

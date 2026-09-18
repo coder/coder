@@ -1899,6 +1899,10 @@ export const editChatQueuedMessage = (
 		queuedMessageId: number;
 		req: TypesGen.EditChatQueuedMessageRequest;
 	}) => API.experimental.editChatQueuedMessage(chatId, queuedMessageId, req),
+	// Same-scope mutations run one at a time, so an end or save is never
+	// applied before the begin it follows, across every instance of this
+	// mutation.
+	scope: { id: `chat-queued-messages-${chatId}` },
 	// A 404 means the local queue is stale, so invalidation runs on every
 	// outcome.
 	onSettled: () => {

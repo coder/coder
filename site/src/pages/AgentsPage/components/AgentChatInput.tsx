@@ -82,7 +82,10 @@ import {
 	isUploadInProgress,
 	type UploadState,
 } from "./AttachmentPreview";
-import type { EditingTarget } from "./ChatConversation/types";
+import type {
+	EditingTarget,
+	QueuedEditOverride,
+} from "./ChatConversation/types";
 import {
 	ChatMessageInput,
 	type ChatMessageInputRef,
@@ -159,6 +162,7 @@ interface AgentChatInputProps {
 	onEditQueuedMessage?: (id: number) => Promise<void> | void;
 	onEndQueuedMessageEdit?: (id: number) => Promise<void> | void;
 	isChatPaused?: boolean;
+	queuedEditOverride?: QueuedEditOverride;
 	// Editing state, owned by the parent.
 	editingKind?: EditingTarget["kind"];
 	onCancelEdit?: () => void;
@@ -399,6 +403,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	onEditQueuedMessage,
 	onEndQueuedMessageEdit,
 	isChatPaused = false,
+	queuedEditOverride,
 	editingKind,
 	onCancelEdit,
 	userPromptHistory = [],
@@ -1120,6 +1125,8 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 					onEdit={onEditQueuedMessage}
 					onEndEdit={onEndQueuedMessageEdit}
 					chatPaused={isChatPaused}
+					queuedEditOverride={queuedEditOverride}
+					enterSendsHead={!isEditingMessage}
 					className="mb-2"
 				/>
 			)}

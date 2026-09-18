@@ -220,6 +220,36 @@ export const PausedEditBehindHead: Story = {
 	},
 };
 
+// The composer opened an edit on the head and the server has not confirmed
+// it yet: the row shows the local edit state and the Enter hint is hidden
+// because Enter saves the edit.
+export const LocalEditBeforeServerConfirms: Story = {
+	args: {
+		queuedEditOverride: { id: 1, editing: true },
+		enterSendsHead: false,
+		messages: [
+			buildMessage(1, textContent("Run the test suite")),
+			buildMessage(2, textContent("Open the browser")),
+		],
+	},
+};
+
+// The edit was ended locally and the server still reports the marker: the
+// row shows no edit state.
+export const LocalEndBeforeServerConfirms: Story = {
+	args: {
+		queuedEditOverride: { id: 1, editing: false },
+		messages: [
+			{
+				...MockEditingChatQueuedMessage,
+				id: 1,
+				content: textContent("Run the test suite"),
+			},
+			buildMessage(2, textContent("Open the browser")),
+		],
+	},
+};
+
 let rejectQueuedDelete: ((error: Error) => void) | undefined;
 
 // Deleting hides the row optimistically and disables sibling actions while

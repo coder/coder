@@ -82,7 +82,10 @@ import {
 	useChatStore,
 } from "./components/ChatConversation/chatStore";
 import { getEditableContentPayload } from "./components/ChatConversation/messageParsing";
-import type { EditingTarget } from "./components/ChatConversation/types";
+import type {
+	EditingTarget,
+	QueuedEditOverride,
+} from "./components/ChatConversation/types";
 import { useChatToolInvalidations } from "./components/ChatConversation/useChatToolInvalidations";
 import { useWorkspaceWatch } from "./components/ChatConversation/useWorkspaceWatch";
 import { isChatAgentBindingUnresolved } from "./components/ChatConversation/watchedWorkspace";
@@ -364,6 +367,11 @@ const AgentChatPage: FC = () => {
 	);
 	const { isPending: isEditQueuedPending, mutateAsync: editQueuedMessage } =
 		useMutation(editChatQueuedMessage(queryClient, agentId));
+	// Begin and end markers are not submissions, so they run on their own
+	// mutation and never mark the composer pending.
+	const { mutateAsync: setQueuedMessageEditing } = useMutation(
+		editChatQueuedMessage(queryClient, agentId),
+	);
 	const updateChatWorkspaceBase = updateChatWorkspace(queryClient);
 	const {
 		isPending: isUpdateChatWorkspacePending,
@@ -623,8 +631,9 @@ const AgentChatPage: FC = () => {
 		req: TypesGen.EditChatQueuedMessageRequest,
 		failureMessage: string,
 	) => {
+		const mutate = req.content ? editQueuedMessage : setQueuedMessageEditing;
 		try {
-			await editQueuedMessage({ queuedMessageId: id, req });
+			await mutate({ queuedMessageId: id, req });
 		} catch (error) {
 			if (getErrorStatus(error) === 404) {
 				store.setQueuedMessages(
@@ -637,13 +646,6 @@ const AgentChatPage: FC = () => {
 			throw error;
 		}
 	};
-
-	const handleEndQueuedMessageEdit = (id: number) =>
-		patchQueuedMessage(
-			id,
-			{ editing: false },
-			"Failed to stop editing the queued message.",
-		);
 
 	const editing = useConversationEditingState({
 		chatID: agentId,
@@ -696,29 +698,83 @@ const AgentChatPage: FC = () => {
 	if (queuedEdit.seenID !== queuedEditSeenID) {
 		setQueuedEditSeenID(queuedEdit.seenID);
 	}
-	if (queuedEdit.lost) {
+	// The begin request settles after the click's render, so its failure
+	// goes through state. The composer then follows the row the server
+	// has under edit, if any.
+	const [failedQueuedEditBeginID, setFailedQueuedEditBeginID] = useState<
+		number | null
+	>(null);
+	const queuedEditBeginFailed =
+		failedQueuedEditBeginID !== null &&
+		failedQueuedEditBeginID === queuedEditTargetID;
+	if (failedQueuedEditBeginID !== null) {
+		setFailedQueuedEditBeginID(null);
+	}
+	const serverEditRow = useChatSelector(store, (s) =>
+		s.queuedMessages.find((row) => row.editing_since),
+	);
+	if (queuedEdit.lost === "ended") {
 		editing.leaveEdit();
+	} else if (queuedEditBeginFailed && serverEditRow) {
+		const { text, fileBlocks } = getEditableContentPayload(
+			serverEditRow.content,
+		);
+		editing.handleBeginEdit(
+			{ kind: "queued", id: serverEditRow.id },
+			text,
+			fileBlocks,
+		);
+	} else if (queuedEdit.lost === "never_began" || queuedEditBeginFailed) {
+		editing.handleCancelEdit();
 	}
 
-	const endQueuedEditBeforeLeaving = async (): Promise<boolean> => {
-		if (queuedEditTargetID === null) {
-			return true;
-		}
-		try {
-			await handleEndQueuedMessageEdit(queuedEditTargetID);
-			return true;
-		} catch {
-			return false;
-		}
+	// Rows show the local edit state before the server confirms it. The
+	// composer target covers a begin; an end is tracked until the row's
+	// marker clears or the request fails.
+	const [endingQueuedEditID, setEndingQueuedEditID] = useState<number | null>(
+		null,
+	);
+	const endingQueuedEditRow = useChatSelector(store, (s) =>
+		s.queuedMessages.find((row) => row.id === endingQueuedEditID),
+	);
+	if (endingQueuedEditID !== null && !endingQueuedEditRow?.editing_since) {
+		setEndingQueuedEditID(null);
+	}
+	let queuedEditOverride: QueuedEditOverride | undefined;
+	if (queuedEditTargetID !== null) {
+		queuedEditOverride = { id: queuedEditTargetID, editing: true };
+	} else if (endingQueuedEditID !== null) {
+		queuedEditOverride = { id: endingQueuedEditID, editing: false };
+	}
+
+	const endQueuedMessageEdit = (id: number) => {
+		setEndingQueuedEditID(id);
+		return patchQueuedMessage(
+			id,
+			{ editing: false },
+			"Failed to stop editing the queued message.",
+		).catch((error: unknown) => {
+			setEndingQueuedEditID((current) => (current === id ? null : current));
+			throw error;
+		});
 	};
 
-	const handleEditUserMessage = async (
+	// Failures are reported by patchQueuedMessage; the row keeps offering
+	// Cancel edit while its marker remains.
+	const handleEndQueuedMessageEdit = (id: number) => {
+		if (id === queuedEditTargetID) {
+			editing.handleCancelEdit();
+		}
+		return endQueuedMessageEdit(id);
+	};
+
+	const handleEditUserMessage = (
 		messageId: number,
 		text: string,
 		fileBlocks?: readonly TypesGen.ChatMessagePart[],
 	) => {
-		if (!(await endQueuedEditBeforeLeaving())) {
-			return;
+		if (queuedEditTargetID !== null) {
+			void endQueuedMessageEdit(queuedEditTargetID).catch(() => undefined);
 		}
 		isEditReasoningEffortDirtyRef.current = false;
 		editing.handleBeginEdit(
@@ -728,32 +784,36 @@ const AgentChatPage: FC = () => {
 		);
 	};
 
-	const handleEditQueuedMessage = async (id: number) => {
+	// A stale attempt's failure must not cancel a newer edit of the same row.
+	const queuedEditBeginAttemptRef = useRef(0);
+	const handleEditQueuedMessage = (id: number) => {
 		const row = store
 			.getSnapshot()
 			.queuedMessages.find((message) => message.id === id);
 		if (!row || queuedEditTargetID === id) {
 			return;
 		}
-		try {
-			await patchQueuedMessage(
-				id,
-				{ editing: true },
-				"Failed to edit queued message.",
-			);
-		} catch {
-			return;
-		}
 		const { text, fileBlocks } = getEditableContentPayload(row.content);
 		isEditReasoningEffortDirtyRef.current = false;
 		editing.handleBeginEdit({ kind: "queued", id }, text, fileBlocks);
+		const attempt = ++queuedEditBeginAttemptRef.current;
+		patchQueuedMessage(
+			id,
+			{ editing: true },
+			"Failed to edit queued message.",
+		).catch(() => {
+			if (attempt === queuedEditBeginAttemptRef.current) {
+				setFailedQueuedEditBeginID(id);
+			}
+		});
 	};
 
-	const handleCancelEdit = async () => {
-		if (!(await endQueuedEditBeforeLeaving())) {
+	const handleCancelEdit = () => {
+		if (queuedEditTargetID === null) {
+			editing.handleCancelEdit();
 			return;
 		}
-		editing.handleCancelEdit();
+		void handleEndQueuedMessageEdit(queuedEditTargetID).catch(() => undefined);
 	};
 
 	const chatTitle = chatQuery.data?.title;
@@ -1248,6 +1308,7 @@ const AgentChatPage: FC = () => {
 					handlePromoteQueuedMessage={handlePromoteQueuedMessage}
 					handleEditQueuedMessage={handleEditQueuedMessage}
 					handleEndQueuedMessageEdit={handleEndQueuedMessageEdit}
+					queuedEditOverride={queuedEditOverride}
 					onImplementPlan={handleImplementPlan}
 					onSendAskUserQuestionResponse={handleSendAskUserQuestionResponse}
 					urlTransform={urlTransform}
