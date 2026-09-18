@@ -852,6 +852,7 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 			automationNames={automationNames}
 			onDeleteQueuedMessage={onDeleteQueuedMessage}
 			onPromoteQueuedMessage={onPromoteQueuedMessage}
+			isChatPaused={chatStatus === "paused"}
 			editingKind={editingTarget?.kind}
 			onCancelEdit={onCancelEdit}
 			userPromptHistory={userPromptHistory}

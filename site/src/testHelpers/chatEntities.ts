@@ -195,3 +195,8 @@ export const MockWebhookChatAutomation: ChatAutomation = {
 	schedule_cron: undefined,
 	schedule_time_zone: undefined,
 };
+
+export const MockChatQueuedMessageUnderEdit: ChatQueuedMessage = {
+	...MockChatQueuedMessage,
+	editing_since: MOCK_TIMESTAMP,
+};
