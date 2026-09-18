@@ -78,7 +78,6 @@ export const ComboboxButton = ({
 	selectedOption,
 	placeholder,
 	variant = "outline",
-	size,
 	ref,
 	...props
 }: ComboboxButtonProps) => {
@@ -87,7 +86,6 @@ export const ComboboxButton = ({
 			className="flex items-center justify-between shrink-0 grow gap-2 pr-1.5"
 			style={{ flexBasis: width }}
 			variant={variant}
-			size={size}
 			ref={ref}
 			{...props}
 		>
@@ -125,7 +123,7 @@ export const ComboboxContent = ({
 			{...props}
 		>
 			<Command
-				className="min-h-0 flex-1 bg-surface-secondary"
+				className="min-h-0 flex-1"
 				label={commandLabel}
 				shouldFilter={shouldFilter}
 			>
