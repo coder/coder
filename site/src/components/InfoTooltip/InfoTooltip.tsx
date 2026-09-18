@@ -9,7 +9,7 @@ import {
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 
-type InfoTooltipType = "info" | "warning";
+export type InfoTooltipType = "info" | "warning";
 
 type InfoTooltipSize = "small" | "medium";
 
