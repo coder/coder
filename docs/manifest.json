@@ -1200,6 +1200,11 @@
 									"path": "./ai-coder/agent-firewall/rules-engine.md"
 								},
 								{
+									"title": "Example Policy",
+									"description": "Review a broad Agent Firewall allowlist policy for multi-language workspaces.",
+									"path": "./ai-coder/agent-firewall/example-policy.md"
+								},
+								{
 									"title": "Version Compatibility",
 									"description": "Check the Coder and Claude Code module version requirements for running Agent Firewall.",
 									"path": "./ai-coder/agent-firewall/version.md"

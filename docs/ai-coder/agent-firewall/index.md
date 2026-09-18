@@ -83,9 +83,7 @@ Firewall, see the
 
 For a basic recommendation of what to allow for agents, see the
 [Anthropic documentation on default allowed domains](https://code.claude.com/docs/en/claude-code-on-the-web#default-allowed-domains).
-For a comprehensive example of a production Agent Firewall configuration, see
-the
-[Coder dogfood policy example](../../../dogfood/coder/boundary-config.yaml).
+For a comprehensive configuration covering multi-language development, check out the [example policy](./example-policy.md).
 
 To load the policy from a `config.yaml` file in your template directory instead,
 pass it via `agent_firewall_config`. The module writes the config to the workspace
