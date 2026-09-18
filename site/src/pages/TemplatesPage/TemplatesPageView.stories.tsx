@@ -4,7 +4,6 @@ import {
 	MockMenu,
 } from "#/components/Filter/storyHelpers";
 import {
-	MockOrganization,
 	MockTemplate,
 	MockTemplateExample,
 	MockTemplateExample2,
