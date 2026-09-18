@@ -6195,6 +6195,32 @@ const docTemplate = `{
                         "description": "Exclusive upper bound (RFC3339)",
                         "name": "period_end",
                         "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "User ID",
+                        "name": "user_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Effective group ID",
+                        "name": "group_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Configured provider name",
+                        "name": "provider_name",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Model name",
+                        "name": "model",
+                        "in": "query"
                     }
                 ],
                 "responses": {

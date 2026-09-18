@@ -544,25 +544,63 @@ type OrganizationAISpendReport struct {
 	Users []OrganizationAISpendUser `json:"users"`
 }
 
+// OrganizationAISpendDetailsFilter narrows organization AI spend.
+type OrganizationAISpendDetailsFilter struct {
+	PeriodStart  time.Time `json:"period_start,omitempty" format:"date-time"`
+	PeriodEnd    time.Time `json:"period_end,omitempty" format:"date-time"`
+	UserID       uuid.UUID `json:"user_id,omitempty" format:"uuid"`
+	GroupID      uuid.UUID `json:"group_id,omitempty" format:"uuid"`
+	ProviderName string    `json:"provider_name,omitempty"`
+	Model        string    `json:"model,omitempty"`
+}
+
+// asRequestOption returns a function that applies the filter's query
+// parameters to a request.
+func (f OrganizationAISpendDetailsFilter) asRequestOption() RequestOption {
+	return func(r *http.Request) {
+		q := r.URL.Query()
+		if !f.PeriodStart.IsZero() {
+			q.Set("period_start", f.PeriodStart.UTC().Format(time.RFC3339Nano))
+		}
+		if !f.PeriodEnd.IsZero() {
+			q.Set("period_end", f.PeriodEnd.UTC().Format(time.RFC3339Nano))
+		}
+		if f.UserID != uuid.Nil {
+			q.Set("user_id", f.UserID.String())
+		}
+		if f.GroupID != uuid.Nil {
+			q.Set("group_id", f.GroupID.String())
+		}
+		if f.ProviderName != "" {
+			q.Set("provider_name", f.ProviderName)
+		}
+		if f.Model != "" {
+			q.Set("model", f.Model)
+		}
+		r.URL.RawQuery = q.Encode()
+	}
+}
+
 // ExportOrganizationAISpend returns a CSV of per-user, per-group, per-model,
 // per-provider AI spend for the organization over the requested period. Both
 // bounds are optional and interpreted as UTC, and zero values fall back to the
 // current budget period on the server. The caller is responsible for closing
 // the returned ReadCloser.
 func (c *Client) ExportOrganizationAISpend(ctx context.Context, organization uuid.UUID, opts AISpendPeriodWindow) (io.ReadCloser, error) {
+	return c.ExportOrganizationAISpendWithFilter(ctx, organization, OrganizationAISpendDetailsFilter{
+		PeriodStart: opts.PeriodStart,
+		PeriodEnd:   opts.PeriodEnd,
+	})
+}
+
+// ExportOrganizationAISpendWithFilter returns organization AI spend as CSV,
+// narrowed by the supplied filter. The caller is responsible for closing the
+// returned ReadCloser.
+func (c *Client) ExportOrganizationAISpendWithFilter(ctx context.Context, organization uuid.UUID, filter OrganizationAISpendDetailsFilter) (io.ReadCloser, error) {
 	res, err := c.Request(ctx, http.MethodGet,
 		fmt.Sprintf("/api/v2/organizations/%s/ai/spend/export", organization.String()),
 		nil,
-		func(r *http.Request) {
-			q := r.URL.Query()
-			if !opts.PeriodStart.IsZero() {
-				q.Set("period_start", opts.PeriodStart.UTC().Format(time.RFC3339Nano))
-			}
-			if !opts.PeriodEnd.IsZero() {
-				q.Set("period_end", opts.PeriodEnd.UTC().Format(time.RFC3339Nano))
-			}
-			r.URL.RawQuery = q.Encode()
-		},
+		filter.asRequestOption(),
 	)
 	if err != nil {
 		return nil, xerrors.Errorf("make request: %w", err)
