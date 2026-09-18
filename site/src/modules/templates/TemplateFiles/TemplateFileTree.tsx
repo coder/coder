@@ -201,9 +201,9 @@ const FileNode: FC<TreeNodeProps> = ({
 	);
 };
 
-type FolderNodeProps = {
+type FolderNodeProps = Omit<TreeNodeProps, "icon"> & {
 	children: React.ReactNode;
-} & Omit<TreeNodeProps, "icon">;
+};
 
 const FolderNode: FC<FolderNodeProps> = ({
 	label,

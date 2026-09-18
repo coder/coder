@@ -479,7 +479,10 @@ export type ChatMessageInputRef = {
 	getContentParts: () => EditorContentPart[];
 };
 
-type ChatMessageInputProps = {
+type ChatMessageInputProps = Omit<
+	React.ComponentProps<"div">,
+	"onChange" | "role" | "ref"
+> & {
 	placeholder?: string;
 	initialValue?: string;
 	/**
@@ -529,7 +532,7 @@ type ChatMessageInputProps = {
 	 */
 	skillsMenuAnchor?: HTMLElement | null;
 	"aria-label"?: string;
-} & Omit<React.ComponentProps<"div">, "onChange" | "role" | "ref">;
+};
 
 // Keeps the Lexical editor's editable state in sync with the
 // disabled prop so that the underlying contentEditable element

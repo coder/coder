@@ -262,9 +262,9 @@ type RoleTableBodyProps = {
 	onDeleteRole: (role: Role) => void;
 };
 
-type RoleTableProps = {
+type RoleTableProps = RoleTableBodyProps & {
 	"aria-label": string;
-} & RoleTableBodyProps;
+};
 
 const RoleTable: FC<RoleTableProps> = ({
 	"aria-label": ariaLabel,

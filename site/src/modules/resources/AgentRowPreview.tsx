@@ -12,9 +12,9 @@ type AgentRowPreviewStyles = {
 	// When it is only one row, it is better to have than "flex" and not hard aligned
 	alignValues?: boolean;
 };
-type AgentRowPreviewProps = {
+type AgentRowPreviewProps = AgentRowPreviewStyles & {
 	agent: WorkspaceAgent;
-} & AgentRowPreviewStyles;
+};
 
 export const AgentRowPreview: FC<AgentRowPreviewProps> = ({
 	agent,

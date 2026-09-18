@@ -413,11 +413,11 @@ const JSONField: FC<
 
 // ── Schema-driven field renderer ───────────────────────────────
 
-type SchemaFieldProps = {
+type SchemaFieldProps = FieldRenderContext & {
 	field: FieldSchema;
 	fieldKey: string;
 	errorKey: string;
-} & FieldRenderContext;
+};
 
 /**
  * Render a single field from the schema using the appropriate
