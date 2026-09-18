@@ -422,6 +422,12 @@ func TestPGCoordinator_Unhealthy(t *testing.T) {
 	trap.MustWait(ctx).MustRelease(ctx)
 	agent1 := agpltest.NewAgent(ctx, t, uut, "agent1")
 	defer agent1.Close(ctx)
+	require.Eventually(t, func() bool {
+		uut.querier.mu.Lock()
+		defer uut.querier.mu.Unlock()
+		_, connected := uut.querier.mappers[mKey(agent1.ID)]
+		return connected
+	}, testutil.WaitShort, testutil.IntervalFast, "agent must be connected before heartbeats fail")
 	for range 3 {
 		mClock.Advance(HeartbeatPeriod).MustWait(ctx)
 	}
