@@ -13,7 +13,7 @@ the repository's `mise.toml` and `mise.lock` with `mise oci build`, validates th
 result by running `make gen`, `fmt`, `lint`, and a Linux build inside it, and
 pushes to Docker Hub on `main`. Use `coder/Makefile` to build locally.
 
-The workspace templates that consume these images live in the Coder
+The workspace templates that consume these images live in an internal Coder
 infrastructure repository, not here. The only contract between the two is the
 published image tag, which the templates resolve to a digest. Template changes
-therefore go to the infrastructure repository; image changes go here.
+therefore go to the internal infrastructure repository; image changes go here.
