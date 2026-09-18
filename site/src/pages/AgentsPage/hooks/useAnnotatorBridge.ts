@@ -81,6 +81,9 @@ type AnnotatorBridge = BridgeState & {
 	frameLoaded: () => void;
 	highlight: (items: HighlightItem[]) => void;
 	clearHighlights: () => void;
+	// Ends the working state: the listed annotations are acknowledged as
+	// changed, the rest are cleared.
+	resolveHighlights: (ids: string[]) => void;
 };
 
 /**
@@ -299,6 +302,17 @@ export function useAnnotatorBridge({
 		() => post({ type: "coder-annotator:clear-highlights" }),
 		[post],
 	);
+	const resolveHighlights = useCallback(
+		(ids: string[]) => post({ type: "coder-annotator:resolved", ids }),
+		[post],
+	);
 
-	return { ...state, setPicking, frameLoaded, highlight, clearHighlights };
+	return {
+		...state,
+		setPicking,
+		frameLoaded,
+		highlight,
+		clearHighlights,
+		resolveHighlights,
+	};
 }

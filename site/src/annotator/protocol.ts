@@ -69,12 +69,19 @@ export type HighlightItem = {
 	url: string;
 };
 
+// Which annotated elements the agent's turn actually changed, so the
+// overlay can acknowledge them rather than just stop shimmering.
+type ResolvedHighlights = {
+	ids: string[];
+};
+
 export type HostToAnnotatorMessage =
 	// `hint` asks the overlay to show the first-run hint while picking.
 	| { type: "coder-annotator:set-picking"; picking: boolean; hint?: boolean }
 	// Marks previously annotated elements while the agent works on them.
 	| { type: "coder-annotator:highlight"; items: HighlightItem[] }
-	| { type: "coder-annotator:clear-highlights" };
+	| { type: "coder-annotator:clear-highlights" }
+	| ({ type: "coder-annotator:resolved" } & ResolvedHighlights);
 
 const messagePrefix = "coder-annotator:";
 
@@ -290,6 +297,12 @@ export function isHostToAnnotatorMessage(
 			return true;
 		case "coder-annotator:highlight":
 			return "items" in value && Array.isArray(value.items);
+		case "coder-annotator:resolved":
+			return (
+				"ids" in value &&
+				Array.isArray(value.ids) &&
+				value.ids.every((id) => typeof id === "string")
+			);
 		default:
 			return false;
 	}

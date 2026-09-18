@@ -12,8 +12,11 @@ import { annotatorHostId, mountAnnotator } from "#/annotator/mountAnnotator";
 const DemoPage: FC<{
 	picking: boolean;
 	highlight?: boolean;
+	// With `highlight`, ends the turn with the save button acknowledged as
+	// changed and the title cleared.
+	resolved?: boolean;
 	hint?: boolean;
-}> = ({ picking, highlight, hint }) => {
+}> = ({ picking, highlight, resolved, hint }) => {
 	const [output, setOutput] = useState<string>();
 
 	useEffect(() => {
@@ -31,9 +34,12 @@ const DemoPage: FC<{
 				},
 				{ id: "2", selector: "h1", url: window.location.href },
 			]);
+			if (resolved) {
+				handle.resolveHighlights(["1"]);
+			}
 		}
 		return () => handle.destroy();
-	}, [picking, highlight, hint]);
+	}, [picking, highlight, resolved, hint]);
 
 	return (
 		<main className="min-h-[520px] bg-white p-8 font-sans text-neutral-900">
@@ -161,4 +167,8 @@ export const SentOnSave: Story = {
 
 export const AgentWorking: Story = {
 	args: { highlight: true },
+};
+
+export const AgentUpdated: Story = {
+	args: { highlight: true, resolved: true },
 };
