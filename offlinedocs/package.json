@@ -32,7 +32,7 @@
 		"unist-util-visit": "5.0.0"
 	},
 	"devDependencies": {
-		"@biomejs/biome": "2.5.10",
+		"@biomejs/biome": "2.5.13",
 		"@types/hast": "3.0.4",
 		"@types/lodash": "4.17.25",
 		"@types/node": "22.20.2",
