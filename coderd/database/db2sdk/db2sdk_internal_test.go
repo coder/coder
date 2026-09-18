@@ -354,83 +354,238 @@ func TestAIBridgeInterceptionAttribution(t *testing.T) {
 			ID:          uuid.New(),
 			WorkspaceID: uuid.NullUUID{UUID: wsID, Valid: true},
 		}
-		got := aiBridgeInterceptionAttribution(intc)
-		require.Equal(t, map[string]string{
+		want := codersdk.AIBridgeAttribution{
 			"workspace_id": wsID.String(),
-		}, got)
+		}
+		require.Equal(t, want, aiBridgeInterceptionAttribution(intc))
 	})
 }
 
-// TestBuildAIBridgeThreadInterceptions verifies that every interception,
-// including tool-less rows, appears in the map keyed by interception ID string,
-// with nil attribution for unknown-workspace rows.
-func TestBuildAIBridgeThreadInterceptions(t *testing.T) {
+// TestBuildAIBridgeThreadAttributionAndActions verifies that attribution comes
+// from the root only and that non-root interceptions become actions, including
+// tool-less interceptions.
+func TestBuildAIBridgeThreadAttributionAndActions(t *testing.T) {
 	t.Parallel()
 
-	threadID := uuid.New()
-	i1 := uuid.New()
-	i2 := uuid.New()
-	wsID := uuid.New()
-
-	interceptions := []database.AIBridgeInterception{
+	tests := []struct {
+		name          string
+		rootWorkspace uuid.NullUUID
+		wantRoot      codersdk.AIBridgeAttribution
+	}{
 		{
-			// Root interception, tool-less, no attribution.
-			ID:       i1,
-			Model:    "gpt-4",
-			Provider: "openai",
+			name: "known_root",
+			rootWorkspace: uuid.NullUUID{
+				UUID:  uuid.MustParse("11111111-1111-1111-1111-111111111111"),
+				Valid: true,
+			},
+			wantRoot: codersdk.AIBridgeAttribution{
+				"workspace_id": "11111111-1111-1111-1111-111111111111",
+			},
 		},
 		{
-			// Agentic child with workspace attribution.
-			ID:          i2,
-			Model:       "gpt-4",
-			Provider:    "openai",
-			WorkspaceID: uuid.NullUUID{UUID: wsID, Valid: true},
+			name:     "unknown_root",
+			wantRoot: nil,
 		},
 	}
 
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			threadID := uuid.MustParse("00000000-0000-0000-0000-000000000001")
+			childWithWorkspaceID := uuid.MustParse("00000000-0000-0000-0000-000000000002")
+			toolLessChildID := uuid.MustParse("00000000-0000-0000-0000-000000000003")
+			childWorkspaceID := uuid.MustParse("22222222-2222-2222-2222-222222222222")
+			rootTools := []database.AIBridgeToolUsage{
+				{
+					ID:             uuid.MustParse("00000000-0000-0000-0000-000000000010"),
+					InterceptionID: threadID,
+					Tool:           "root_tool",
+				},
+			}
+			interceptions := []database.AIBridgeInterception{
+				{
+					// The root ID must match threadID. Attribution on children must
+					// not replace this value.
+					ID:          threadID,
+					Model:       "root-model",
+					Provider:    "openai",
+					WorkspaceID: tt.rootWorkspace,
+				},
+				{
+					ID:          childWithWorkspaceID,
+					Model:       "child-model",
+					Provider:    "openai",
+					WorkspaceID: uuid.NullUUID{UUID: childWorkspaceID, Valid: true},
+				},
+				{
+					ID:       toolLessChildID,
+					Model:    "tool-less-child-model",
+					Provider: "openai",
+				},
+			}
+
+			thread := buildAIBridgeThread(
+				threadID,
+				interceptions,
+				make(map[uuid.UUID][]database.AIBridgeTokenUsage),
+				map[uuid.UUID][]database.AIBridgeToolUsage{
+					threadID: rootTools,
+				},
+				make(map[uuid.UUID][]database.AIBridgeUserPrompt),
+				make(map[uuid.UUID][]database.AIBridgeModelThought),
+			)
+
+			require.Equal(t, tt.wantRoot, thread.Attribution)
+			require.Len(t, thread.AgenticActions, 3)
+
+			rootAction := thread.AgenticActions[0]
+			require.Equal(t, threadID, rootAction.InterceptionID)
+			require.Equal(t, tt.wantRoot, rootAction.Attribution)
+			require.Len(t, rootAction.ToolCalls, 1)
+			require.Equal(t, "root_tool", rootAction.ToolCalls[0].Tool)
+
+			childAction := thread.AgenticActions[1]
+			require.Equal(t, childWithWorkspaceID, childAction.InterceptionID)
+			want := codersdk.AIBridgeAttribution{
+				"workspace_id": childWorkspaceID.String(),
+			}
+			require.Equal(t, want, childAction.Attribution)
+			require.Empty(t, childAction.ToolCalls)
+			require.NotNil(t, childAction.ToolCalls)
+
+			toolLessChildAction := thread.AgenticActions[2]
+			require.Equal(t, toolLessChildID, toolLessChildAction.InterceptionID)
+			require.Empty(t, toolLessChildAction.Attribution)
+			require.Empty(t, toolLessChildAction.ToolCalls)
+			require.NotNil(t, toolLessChildAction.ToolCalls)
+
+			var raw map[string]json.RawMessage
+			jsonBytes, err := json.Marshal(thread)
+			require.NoError(t, err)
+			require.NoError(t, json.Unmarshal(jsonBytes, &raw))
+			require.NotContains(t, raw, "interception_attributions")
+			wantRootJSON, err := json.Marshal(tt.wantRoot)
+			require.NoError(t, err)
+			require.JSONEq(t, string(wantRootJSON), string(raw["attribution"]))
+			if tt.wantRoot == nil {
+				require.JSONEq(t, `{}`, string(raw["attribution"]))
+			}
+
+			var rawActions []struct {
+				Attribution json.RawMessage `json:"attribution"`
+			}
+			require.NoError(t, json.Unmarshal(raw["agentic_actions"], &rawActions))
+			require.JSONEq(t, `{}`, string(rawActions[2].Attribution))
+			require.NotContains(t, string(raw["attribution"]), childWithWorkspaceID.String())
+			require.NotContains(t, string(raw["attribution"]), toolLessChildID.String())
+		})
+	}
+}
+
+func TestBuildAIBridgeThreadMissingRoot(t *testing.T) {
+	t.Parallel()
+
+	threadID := uuid.MustParse("00000000-0000-0000-0000-000000000101")
+	childID := uuid.MustParse("00000000-0000-0000-0000-000000000102")
+	childWorkspaceID := uuid.MustParse("33333333-3333-3333-3333-333333333333")
+
 	thread := buildAIBridgeThread(
 		threadID,
-		interceptions,
+		[]database.AIBridgeInterception{
+			{
+				// This is the fallback interception, not the actual root.
+				ID:          childID,
+				Model:       "child-model",
+				Provider:    "openai",
+				WorkspaceID: uuid.NullUUID{UUID: childWorkspaceID, Valid: true},
+			},
+		},
 		make(map[uuid.UUID][]database.AIBridgeTokenUsage),
 		make(map[uuid.UUID][]database.AIBridgeToolUsage),
 		make(map[uuid.UUID][]database.AIBridgeUserPrompt),
 		make(map[uuid.UUID][]database.AIBridgeModelThought),
 	)
 
-	// Both interceptions must appear in the map.
-	require.Len(t, thread.InterceptionAttributions, 2)
+	require.Empty(t, thread.Attribution)
+	require.Len(t, thread.AgenticActions, 1)
+	require.Equal(t, childID, thread.AgenticActions[0].InterceptionID)
+	want := codersdk.AIBridgeAttribution{
+		"workspace_id": childWorkspaceID.String(),
+	}
+	require.Equal(t, want, thread.AgenticActions[0].Attribution)
+	require.Empty(t, thread.AgenticActions[0].ToolCalls)
+	require.NotNil(t, thread.AgenticActions[0].ToolCalls)
 
-	// First: no attribution (workspace unknown) -> nil inner map.
-	attrib1, ok1 := thread.InterceptionAttributions[i1.String()]
-	require.True(t, ok1, "interception i1 must be in map")
-	require.Nil(t, attrib1)
-
-	// Second: workspace attribution -> populated inner map.
-	attrib2, ok2 := thread.InterceptionAttributions[i2.String()]
-	require.True(t, ok2, "interception i2 must be in map")
-	require.Equal(t, &codersdk.AIBridgeAttribution{
-		"workspace_id": wsID.String(),
-	}, attrib2)
-
-	// Empty thread: outer map is non-nil and serializes as {}.
-	emptyThread := buildAIBridgeThread(
-		uuid.New(),
-		nil,
-		make(map[uuid.UUID][]database.AIBridgeTokenUsage),
-		make(map[uuid.UUID][]database.AIBridgeToolUsage),
-		make(map[uuid.UUID][]database.AIBridgeUserPrompt),
-		make(map[uuid.UUID][]database.AIBridgeModelThought),
-	)
-	require.NotNil(t, emptyThread.InterceptionAttributions, "InterceptionAttributions must not be nil")
-	require.IsType(t, map[string]*codersdk.AIBridgeAttribution{}, emptyThread.InterceptionAttributions)
-	require.Empty(t, emptyThread.InterceptionAttributions)
-
-	// Verify serialization: empty thread -> {} and nil attribution -> null.
-	jsonBytes, err := json.Marshal(emptyThread.InterceptionAttributions)
+	var raw struct {
+		Attribution    json.RawMessage `json:"attribution"`
+		AgenticActions []struct {
+			Attribution json.RawMessage `json:"attribution"`
+		} `json:"agentic_actions"`
+	}
+	jsonBytes, err := json.Marshal(thread)
 	require.NoError(t, err)
-	require.Equal(t, `{}`, string(jsonBytes))
+	require.NoError(t, json.Unmarshal(jsonBytes, &raw))
+	require.JSONEq(t, `{}`, string(raw.Attribution))
+}
 
-	jsonBytes, err = json.Marshal(thread.InterceptionAttributions[i1.String()])
-	require.NoError(t, err)
-	require.Equal(t, `null`, string(jsonBytes))
+func TestBuildAIBridgeThreadStandaloneRootActions(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name            string
+		workspaceID     uuid.NullUUID
+		wantAttribution codersdk.AIBridgeAttribution
+	}{
+		{
+			name: "known_root",
+			workspaceID: uuid.NullUUID{
+				UUID:  uuid.MustParse("44444444-4444-4444-4444-444444444444"),
+				Valid: true,
+			},
+			wantAttribution: codersdk.AIBridgeAttribution{
+				"workspace_id": "44444444-4444-4444-4444-444444444444",
+			},
+		},
+		{name: "unknown_root"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			threadID := uuid.MustParse("00000000-0000-0000-0000-000000000201")
+			thread := buildAIBridgeThread(
+				threadID,
+				[]database.AIBridgeInterception{{
+					ID:          threadID,
+					Model:       "root-model",
+					Provider:    "openai",
+					WorkspaceID: tt.workspaceID,
+				}},
+				make(map[uuid.UUID][]database.AIBridgeTokenUsage),
+				make(map[uuid.UUID][]database.AIBridgeToolUsage),
+				make(map[uuid.UUID][]database.AIBridgeUserPrompt),
+				make(map[uuid.UUID][]database.AIBridgeModelThought),
+			)
+
+			require.Equal(t, tt.wantAttribution, thread.Attribution)
+			require.Empty(t, thread.AgenticActions)
+			require.NotNil(t, thread.AgenticActions)
+
+			var raw struct {
+				Attribution json.RawMessage `json:"attribution"`
+			}
+			jsonBytes, err := json.Marshal(thread)
+			require.NoError(t, err)
+			require.NoError(t, json.Unmarshal(jsonBytes, &raw))
+			if tt.wantAttribution == nil {
+				require.JSONEq(t, `{}`, string(raw.Attribution))
+			} else {
+				wantJSON, err := json.Marshal(tt.wantAttribution)
+				require.NoError(t, err)
+				require.JSONEq(t, string(wantJSON), string(raw.Attribution))
+			}
+		})
+	}
 }

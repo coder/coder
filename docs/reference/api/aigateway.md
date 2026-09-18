@@ -237,6 +237,11 @@ Alias: also available at /api/v2/aibridge/sessions/{session_id} for backward com
       "agent_firewall_session_id": "3735294f-18b1-4e7a-a269-99c30f0b30e7",
       "agentic_actions": [
         {
+          "attribution": {
+            "property1": "string",
+            "property2": "string"
+          },
+          "interception_id": "34d9b688-63ad-46f4-88b5-665c1e7f7824",
           "model": "string",
           "thinking": [
             {
@@ -271,22 +276,16 @@ Alias: also available at /api/v2/aibridge/sessions/{session_id} for backward com
           ]
         }
       ],
+      "attribution": {
+        "property1": "string",
+        "property2": "string"
+      },
       "credential_hint": "string",
       "credential_kind": "string",
       "ended_at": "2019-08-24T14:15:22Z",
       "error_message": "string",
       "error_type": "string",
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-      "interception_attributions": {
-        "property1": {
-          "property1": "string",
-          "property2": "string"
-        },
-        "property2": {
-          "property1": "string",
-          "property2": "string"
-        }
-      },
       "model": "string",
       "prompt": "string",
       "provider": "string",

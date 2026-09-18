@@ -2,6 +2,7 @@ package codersdk
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -229,6 +230,14 @@ type AIBridgeSessionThreadsTokenUsage struct {
 // interception.
 type AIBridgeAttribution map[string]string
 
+// MarshalJSON encodes unknown attribution as an empty object.
+func (a AIBridgeAttribution) MarshalJSON() ([]byte, error) {
+	if a == nil {
+		return []byte("{}"), nil
+	}
+	return json.Marshal(map[string]string(a))
+}
+
 // AIBridgeThread represents a single thread within a session.
 // A thread groups interceptions by their thread_root_id.
 type AIBridgeThread struct {
@@ -241,9 +250,10 @@ type AIBridgeThread struct {
 	StartedAt      time.Time                        `json:"started_at" format:"date-time"`
 	EndedAt        *time.Time                       `json:"ended_at,omitempty" format:"date-time"`
 	TokenUsage     AIBridgeSessionThreadsTokenUsage `json:"token_usage"`
-	// InterceptionAttributions include per-interception attribution data.
-	InterceptionAttributions map[string]*AIBridgeAttribution `json:"interception_attributions"`
-	AgenticActions           []AIBridgeAgenticAction         `json:"agentic_actions"`
+	// Attribution contains attribution data from the root interception.
+	// Unknown attribution is serialized as an empty object.
+	Attribution    AIBridgeAttribution     `json:"attribution"`
+	AgenticActions []AIBridgeAgenticAction `json:"agentic_actions"`
 	// ErrorType is the categorized terminal upstream error from the root
 	// interception, or nil when the interception succeeded. See the
 	// aibridge_interception_error_type enum for possible values.
@@ -262,13 +272,18 @@ type AIBridgeThread struct {
 	AgentFirewallSequenceNumber *int32 `json:"agent_firewall_sequence_number,omitempty"`
 }
 
-// AIBridgeAgenticAction represents a tool call with associated
-// thinking blocks and token usage from one or more interceptions.
+// AIBridgeAgenticAction represents data from one interception, including
+// tool calls, thinking blocks, and token usage. Tool-less child interceptions
+// are represented as actions with an empty ToolCalls slice.
 type AIBridgeAgenticAction struct {
-	Model      string                           `json:"model"`
-	TokenUsage AIBridgeSessionThreadsTokenUsage `json:"token_usage"`
-	Thinking   []AIBridgeModelThought           `json:"thinking"`
-	ToolCalls  []AIBridgeToolCall               `json:"tool_calls"`
+	InterceptionID uuid.UUID `json:"interception_id" format:"uuid"`
+	Model          string    `json:"model"`
+	// Attribution contains attribution data from this interception.
+	// Unknown attribution is serialized as an empty object.
+	Attribution AIBridgeAttribution              `json:"attribution"`
+	TokenUsage  AIBridgeSessionThreadsTokenUsage `json:"token_usage"`
+	Thinking    []AIBridgeModelThought           `json:"thinking"`
+	ToolCalls   []AIBridgeToolCall               `json:"tool_calls"`
 }
 
 // AIBridgeModelThought represents a single thinking block from

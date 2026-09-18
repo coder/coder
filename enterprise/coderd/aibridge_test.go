@@ -2005,6 +2005,8 @@ func TestAIBridgeGetSessionThreads(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		now := dbtime.Now()
+		rootWorkspaceID := uuid.New()
+		childWorkspaceID := uuid.New()
 
 		// Create a session with one thread. Root interception + child
 		// interception sharing thread_root_id.
@@ -2015,6 +2017,7 @@ func TestAIBridgeGetSessionThreads(t *testing.T) {
 			Model:           "claude-4",
 			StartedAt:       now,
 			ClientSessionID: sql.NullString{String: "thread-session", Valid: true},
+			WorkspaceID:     uuid.NullUUID{UUID: rootWorkspaceID, Valid: true},
 		}, &rootEndedAt)
 
 		childEndedAt := now.Add(2 * time.Minute)
@@ -2026,7 +2029,19 @@ func TestAIBridgeGetSessionThreads(t *testing.T) {
 			ClientSessionID:            sql.NullString{String: "thread-session", Valid: true},
 			ThreadRootInterceptionID:   uuid.NullUUID{UUID: root.ID, Valid: true},
 			ThreadParentInterceptionID: uuid.NullUUID{UUID: root.ID, Valid: true},
+			WorkspaceID:                uuid.NullUUID{UUID: childWorkspaceID, Valid: true},
 		}, &childEndedAt)
+
+		unknownChildEndedAt := now.Add(3 * time.Minute)
+		unknownChild := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+			InitiatorID:                firstUser.UserID,
+			Provider:                   "anthropic",
+			Model:                      "claude-4",
+			StartedAt:                  now.Add(2 * time.Minute),
+			ClientSessionID:            sql.NullString{String: "thread-session", Valid: true},
+			ThreadRootInterceptionID:   uuid.NullUUID{UUID: root.ID, Valid: true},
+			ThreadParentInterceptionID: uuid.NullUUID{UUID: child.ID, Valid: true},
+		}, &unknownChildEndedAt)
 
 		// Add a user prompt on the root.
 		dbgen.AIBridgeUserPrompt(t, db, database.InsertAIBridgeUserPromptParams{
@@ -2082,15 +2097,6 @@ func TestAIBridgeGetSessionThreads(t *testing.T) {
 			CreatedAt:            now.Add(time.Minute),
 		})
 
-		// Add another tool usage on child.
-		dbgen.AIBridgeToolUsage(t, db, database.InsertAIBridgeToolUsageParams{
-			InterceptionID:     child.ID,
-			ProviderResponseID: "resp-2",
-			Tool:               "write_file",
-			Input:              `{"path": "/login.go"}`,
-			CreatedAt:          now.Add(time.Minute + time.Second),
-		})
-
 		res, err := client.AIBridgeGetSessionThreads(ctx, "thread-session", uuid.Nil, uuid.Nil, 0)
 		require.NoError(t, err)
 		require.Equal(t, "thread-session", res.ID)
@@ -2100,7 +2106,7 @@ func TestAIBridgeGetSessionThreads(t *testing.T) {
 		require.NotNil(t, res.PageStartedAt)
 		require.NotNil(t, res.PageEndedAt)
 		require.True(t, res.PageStartedAt.Equal(now), "PageStartedAt should equal root started_at")
-		require.True(t, res.PageEndedAt.Equal(childEndedAt), "PageEndedAt should equal child ended_at")
+		require.True(t, res.PageEndedAt.Equal(unknownChildEndedAt), "PageEndedAt should equal last child ended_at")
 
 		thread := res.Threads[0]
 		require.Equal(t, root.ID, thread.ID)
@@ -2108,6 +2114,10 @@ func TestAIBridgeGetSessionThreads(t *testing.T) {
 		require.Equal(t, "implement login feature", *thread.Prompt)
 		require.Equal(t, "claude-4", thread.Model)
 		require.Equal(t, "anthropic", thread.Provider)
+		rootAttribution := codersdk.AIBridgeAttribution{
+			"workspace_id": rootWorkspaceID.String(),
+		}
+		require.Equal(t, rootAttribution, thread.Attribution)
 
 		// Thread-level token aggregation
 		require.EqualValues(t, 300, thread.TokenUsage.InputTokens)
@@ -2118,10 +2128,16 @@ func TestAIBridgeGetSessionThreads(t *testing.T) {
 		require.EqualValues(t, int64(50), thread.TokenUsage.Metadata["cache_read_input"])
 		require.EqualValues(t, int64(10), thread.TokenUsage.Metadata["cache_creation_input"])
 
-		// Two agentic actions (one per interception with tool calls).
-		require.Len(t, thread.AgenticActions, 2)
+		// One action is emitted for every interception. Child actions remain
+		// present even without tool calls.
+		require.Len(t, thread.AgenticActions, 3)
 
 		action1 := thread.AgenticActions[0]
+		require.Equal(t, root.ID, action1.InterceptionID)
+		rootActionAttribution := codersdk.AIBridgeAttribution{
+			"workspace_id": rootWorkspaceID.String(),
+		}
+		require.Equal(t, rootActionAttribution, action1.Attribution)
 		// Root interception has two tool calls.
 		require.Len(t, action1.ToolCalls, 2)
 		require.Equal(t, "read_file", action1.ToolCalls[0].Tool)
@@ -2133,9 +2149,32 @@ func TestAIBridgeGetSessionThreads(t *testing.T) {
 		require.EqualValues(t, 50, action1.TokenUsage.OutputTokens)
 
 		action2 := thread.AgenticActions[1]
-		require.Len(t, action2.ToolCalls, 1)
-		require.Equal(t, "write_file", action2.ToolCalls[0].Tool)
+		require.Equal(t, child.ID, action2.InterceptionID)
+		childAttribution := codersdk.AIBridgeAttribution{
+			"workspace_id": childWorkspaceID.String(),
+		}
+		require.Equal(t, childAttribution, action2.Attribution)
+		require.Empty(t, action2.ToolCalls)
 		require.Empty(t, action2.Thinking)
+
+		action3 := thread.AgenticActions[2]
+		require.Equal(t, unknownChild.ID, action3.InterceptionID)
+		require.NotNil(t, action3.Attribution)
+		require.Empty(t, action3.Attribution)
+		require.Empty(t, action3.ToolCalls)
+		require.Empty(t, action3.Thinking)
+
+		var raw struct {
+			Threads []struct {
+				AgenticActions []struct {
+					Attribution json.RawMessage `json:"attribution"`
+				} `json:"agentic_actions"`
+			} `json:"threads"`
+		}
+		jsonBytes, err := json.Marshal(res)
+		require.NoError(t, err)
+		require.NoError(t, json.Unmarshal(jsonBytes, &raw))
+		require.JSONEq(t, `{}`, string(raw.Threads[0].AgenticActions[2].Attribution))
 
 		// Session-level token aggregation.
 		require.EqualValues(t, 300, res.TokenUsageSummary.InputTokens)
