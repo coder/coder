@@ -95,6 +95,22 @@ export const CanAnnotate: Story = {
 	decorators: [withComposer],
 };
 
+export const AnnotateLoading: Story = {
+	args: { canAnnotate: true },
+	decorators: [withComposer],
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			canvas.getByRole("button", { name: "Annotate elements" }),
+		);
+		// The request is on, so the control already reads as such while the
+		// overlay loads.
+		await userEvent.hover(
+			canvas.getByRole("button", { name: "Stop annotating" }),
+		);
+	},
+};
+
 export const AnnotatePicking: Story = {
 	args: { canAnnotate: true },
 	decorators: [withComposer],

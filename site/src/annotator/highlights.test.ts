@@ -84,3 +84,30 @@ describe("highlight layer", () => {
 		layer.destroy();
 	});
 });
+
+describe("pending highlights", () => {
+	it("holds a quiet ring until the dashboard takes over", async () => {
+		document.body.innerHTML = `<button ${annotationIdAttribute}="a">Save</button>`;
+		const button = document.querySelector("button") as HTMLElement;
+		button.getBoundingClientRect = () => new DOMRect(10, 10, 60, 20);
+		const container = document.createElement("div");
+		document.body.append(container);
+		const layer = createHighlightLayer(document, window, container);
+		const item = { id: "a", selector: "button", url: window.location.href };
+
+		layer.markPending(item);
+		await nextFrame();
+		expect(container.querySelector(".shimmer.pending")).not.toBeNull();
+
+		layer.set([item]);
+		await nextFrame();
+		expect(container.querySelector(".shimmer.pending")).toBeNull();
+		expect(container.querySelectorAll(".shimmer")).toHaveLength(1);
+
+		// Once the working state owns the element, a later pending mark for
+		// another annotation does not demote it back to a quiet ring.
+		layer.markPending({ ...item, id: "b" });
+		expect(container.querySelectorAll(".shimmer")).toHaveLength(1);
+		layer.destroy();
+	});
+});
