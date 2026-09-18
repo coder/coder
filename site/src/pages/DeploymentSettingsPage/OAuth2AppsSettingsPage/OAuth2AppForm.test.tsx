@@ -2,6 +2,10 @@ import { act, screen, waitFor } from "@testing-library/react";
 import userEvent, { type UserEvent } from "@testing-library/user-event";
 import { API } from "#/api/api";
 import {
+	OAuth2ScopeListMaxBytes,
+	OAuth2ScopeListMaxNames,
+} from "#/api/typesGenerated";
+import {
 	MockExternalAPIKeyScopes,
 	MockOAuth2ProviderAppPublic,
 	MockOAuth2ProviderApps,
@@ -84,7 +88,6 @@ describe("OAuth2AppForm", () => {
 				name: "Cursor MCP Extension",
 				callback_url: "vscode://coder.coder-remote/oauth/callback",
 				icon: app.icon,
-				scope: "",
 			});
 		});
 	});
@@ -234,7 +237,6 @@ describe("OAuth2AppForm", () => {
 						name: `${MockOAuth2ProviderAppPublic.name} updated`,
 						callback_url: callback,
 						icon: MockOAuth2ProviderAppPublic.icon,
-						scope: "",
 					}),
 				);
 			} else {
@@ -323,34 +325,57 @@ describe("OAuth2AppForm", () => {
 		);
 	});
 
-	it("keeps a configured scope the catalog does not list", async () => {
-		const onSubmit = vi.fn();
-		const user = userEvent.setup();
-		render(
-			<OAuth2AppForm
-				app={{ ...MockOAuth2ProviderApps[0], scope: "legacy:scope coder:all" }}
-				onSubmit={onSubmit}
-				isUpdating={false}
-				disabled={false}
-			/>,
-		);
+	// The stored list is left out of a name-only update because the form cannot
+	// resend it faithfully. Whitespace-only would come back as "" and lift the
+	// restriction, and oversized legacy lists fail the current size limits.
+	const untouchedScopes = [
+		{
+			label: "a scope the catalog does not list",
+			scope: "legacy:scope coder:all",
+		},
+		{ label: "a whitespace-only scope", scope: "   " },
+		{
+			label: "more names than the limit allows",
+			scope: Array.from(
+				{ length: OAuth2ScopeListMaxNames + 1 },
+				(_, i) => `legacy:scope${i}`,
+			).join(" "),
+		},
+		{
+			label: "a scope longer than the byte limit",
+			scope: `legacy:${"a".repeat(OAuth2ScopeListMaxBytes)}`,
+		},
+	];
 
-		await user.type(screen.getByLabelText(/^name/i), "-updated");
-		await user.click(
-			screen.getByRole("button", { name: /update application/i }),
-		);
+	it.each(untouchedScopes)(
+		"omits $label from a name-only update",
+		async ({ scope }) => {
+			const onSubmit = vi.fn();
+			const user = userEvent.setup();
+			render(
+				<OAuth2AppForm
+					app={{ ...MockOAuth2ProviderApps[0], scope }}
+					onSubmit={onSubmit}
+					isUpdating={false}
+					disabled={false}
+				/>,
+			);
 
-		await waitFor(() =>
-			expect(onSubmit).toHaveBeenCalledWith(
-				expect.objectContaining({
-					name: "foo-updated",
-					scope: "legacy:scope coder:all",
-				}),
-			),
-		);
-	});
+			await user.type(screen.getByLabelText(/^name/i), "-updated");
+			await user.click(
+				screen.getByRole("button", { name: /update application/i }),
+			);
 
-	it("keeps the configured scopes when the catalog fails to load", async () => {
+			await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+			expect(onSubmit.mock.calls[0][0]).toStrictEqual({
+				name: "foo-updated",
+				callback_url: MockOAuth2ProviderApps[0].callback_url,
+				icon: MockOAuth2ProviderApps[0].icon,
+			});
+		},
+	);
+
+	it("omits a whitespace-only scope when the catalog fails to load", async () => {
 		vi.spyOn(API, "getExternalAPIKeyScopes").mockRejectedValue(
 			new Error("catalog unavailable"),
 		);
@@ -358,7 +383,7 @@ describe("OAuth2AppForm", () => {
 		const user = userEvent.setup();
 		render(
 			<OAuth2AppForm
-				app={{ ...MockOAuth2ProviderApps[0], scope: "coder:all workspace:ssh" }}
+				app={{ ...MockOAuth2ProviderApps[0], scope: "   " }}
 				onSubmit={onSubmit}
 				isUpdating={false}
 				disabled={false}
@@ -370,12 +395,34 @@ describe("OAuth2AppForm", () => {
 			screen.getByRole("button", { name: /update application/i }),
 		);
 
+		await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+		expect(onSubmit.mock.calls[0][0]).toStrictEqual({
+			name: "foo-updated",
+			callback_url: MockOAuth2ProviderApps[0].callback_url,
+			icon: MockOAuth2ProviderApps[0].icon,
+		});
+	});
+
+	it("sends the scope when a selection is added to an existing allowlist", async () => {
+		const onSubmit = vi.fn();
+		const user = userEvent.setup();
+		render(
+			<OAuth2AppForm
+				app={{ ...MockOAuth2ProviderApps[0], scope: "legacy:scope" }}
+				onSubmit={onSubmit}
+				isUpdating={false}
+				disabled={false}
+			/>,
+		);
+
+		await selectScope(user, "workspace:ssh");
+		await user.click(
+			screen.getByRole("button", { name: /update application/i }),
+		);
+
 		await waitFor(() =>
 			expect(onSubmit).toHaveBeenCalledWith(
-				expect.objectContaining({
-					name: "foo-updated",
-					scope: "coder:all workspace:ssh",
-				}),
+				expect.objectContaining({ scope: "legacy:scope workspace:ssh" }),
 			),
 		);
 	});

@@ -138,13 +138,19 @@ export const OAuth2AppForm: FC<OAuth2AppFormProps> = ({
 		},
 		validationSchema: validationSchema(app?.client_type === "public"),
 		validateOnMount: true,
-		onSubmit: async (values) => {
+		onSubmit: async ({ scope: selectedScopes, ...values }) => {
 			didSubmit.current = true;
+			const scope = selectedScopes.join(" ");
+			// An untouched allowlist is left out of updates rather than echoed
+			// back. The form cannot round-trip a stored list exactly: a whitespace
+			// only list grants nothing but would resend as "" and lift the
+			// restriction, and a legacy list may exceed the current size limits.
+			const scopeChanged = !app || scope !== form.initialValues.scope.join(" ");
 			await onSubmit({
 				...values,
 				name: values.name.trim(),
 				callback_url: values.callback_url.trim(),
-				scope: values.scope.join(" "),
+				...(scopeChanged ? { scope } : {}),
 			});
 		},
 	});
