@@ -1470,6 +1470,9 @@ provisioner/terraform/testdata/.gen-golden: provisioner/terraform/testdata/gener
 	TZ=UTC go test ./provisioner/terraform -run="Test.*Golden$$" -update
 	touch "$@"
 
+# Terraform reads ~/.terraformrc unless TF_CLI_CONFIG_FILE selects another file.
+# Local provider rebuilds are not fingerprinted. Regenerate explicitly with:
+# ./provisioner/terraform/testdata/generate.sh
 provisioner/terraform/testdata/generation.sha1: FORCE
 	@./provisioner/terraform/testdata/generate.sh --if-needed
 
