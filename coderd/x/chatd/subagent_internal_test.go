@@ -4210,7 +4210,7 @@ func TestWaitAgentToolSchema(t *testing.T) {
 	assert.Equal(t, "Defaults to 5 minutes.", timeoutSeconds["description"])
 	assert.Contains(t, tool.Info().Description, "Returns immediately when the agent finishes")
 	assert.Contains(t, tool.Info().Description, "A timeout does not stop the child")
-	assert.Contains(t, tool.Info().Description, "A timeout with status paused is expected")
+	assert.Contains(t, tool.Info().Description, "A timeout with status paused means the child's owner is editing")
 }
 
 func TestWaitAgentTimeoutReturnsInformationalPayload(t *testing.T) {
