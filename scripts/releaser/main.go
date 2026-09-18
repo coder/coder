@@ -41,19 +41,6 @@ func main() {
 				return xerrors.New("git is required but not found in PATH")
 			}
 
-			// --- Check GPG signing ---
-			signingKey, _ := gitOutput("config", "--get", "user.signingkey")
-			gpgFormat, _ := gitOutput("config", "--get", "gpg.format")
-			gpgConfigured := signingKey != "" || gpgFormat != ""
-			if !gpgConfigured {
-				warnf(w, "GPG signing is not configured. Tags will be unsigned — there will be no way to verify who pushed the tag.")
-				_, _ = fmt.Fprintf(w, "  To fix: set git config user.signingkey or gpg.format\n")
-				if err := confirmWithDefault(inv, "Continue without signing?", cliui.ConfirmNo); err != nil {
-					return err
-				}
-				_, _ = fmt.Fprintln(w)
-			}
-
 			// --- Check gh CLI auth ---
 			ghAvailable := checkGHAuth()
 			if !ghAvailable {
@@ -71,7 +58,7 @@ func main() {
 				executor = &liveExecutor{}
 			}
 
-			return runRelease(ctx, inv, executor, ghAvailable, gpgConfigured, dryRun)
+			return runRelease(ctx, inv, executor, ghAvailable, dryRun)
 		},
 	}
 
