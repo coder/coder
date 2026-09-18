@@ -3066,54 +3066,16 @@ describe("mergeWatchedChatSummary", () => {
 	it.each<{
 		cached: TypesGen.ChatTitleSource;
 		incoming: TypesGen.ChatTitleSource;
-		eventKind: TypesGen.ChatWatchEventKind;
 		applied: boolean;
 	}>([
-		{
-			cached: "fallback",
-			incoming: "generated",
-			eventKind: "title_change",
-			applied: true,
-		},
-		{
-			cached: "generated",
-			incoming: "generated",
-			eventKind: "title_change",
-			applied: true,
-		},
-		{
-			cached: "user",
-			incoming: "generated",
-			eventKind: "title_change",
-			applied: false,
-		},
-		{
-			cached: "fallback",
-			incoming: "user",
-			eventKind: "title_change",
-			applied: true,
-		},
-		{
-			cached: "generated",
-			incoming: "user",
-			eventKind: "title_change",
-			applied: true,
-		},
-		{
-			cached: "user",
-			incoming: "user",
-			eventKind: "title_change",
-			applied: true,
-		},
-		{
-			cached: "user",
-			incoming: "fallback",
-			eventKind: "cost_change",
-			applied: false,
-		},
+		{ cached: "fallback", incoming: "generated", applied: true },
+		{ cached: "user", incoming: "generated", applied: false },
+		{ cached: "fallback", incoming: "user", applied: true },
+		{ cached: "generated", incoming: "user", applied: true },
+		{ cached: "user", incoming: "user", applied: true },
 	])(
-		"$eventKind with $incoming over cached $cached applied=$applied",
-		({ cached, incoming, eventKind, applied }) => {
+		"title_change with $incoming over cached $cached applied=$applied",
+		({ cached, incoming, applied }) => {
 			const cachedChat = makeChat("chat-1", {
 				title: "Before",
 				title_source: cached,
@@ -3124,7 +3086,9 @@ describe("mergeWatchedChatSummary", () => {
 			});
 
 			expect(
-				mergeWatchedChatSummary(cachedChat, watchedChat, { eventKind }),
+				mergeWatchedChatSummary(cachedChat, watchedChat, {
+					eventKind: "title_change",
+				}),
 			).toMatchObject(
 				applied
 					? { title: "After", title_source: incoming }

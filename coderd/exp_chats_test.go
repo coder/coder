@@ -11749,87 +11749,48 @@ func TestPostChats_UserTitle(t *testing.T) {
 	t.Parallel()
 
 	const prompt = "automatic title generation please"
+	ctx := testutil.Context(t, testutil.WaitLong)
 
-	newTitleCountingClient := func(t *testing.T) (*codersdk.ExperimentalClient, *coderd.API, uuid.UUID, *atomic.Int32) {
-		t.Helper()
-		var titleRequests atomic.Int32
-		baseURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
-			if req.Stream {
-				return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("Hello from test server.")...)
-			}
-			if bytes.Contains(req.RawBody, []byte("propose_title")) {
-				titleRequests.Add(1)
-			}
-			return chattest.OpenAINonStreamingResponse(`{"title": "Generated Title"}`)
-		})
-		client, _, api := newChatClientWithoutAIBridge(t)
-		firstUser := coderdtest.CreateFirstUser(t, client.Client)
-		_ = createChatModelWithBaseURL(t, client, baseURL)
-		aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
-		return client, api, firstUser.OrganizationID, &titleRequests
-	}
-
-	t.Run("StoredAndNeverGenerated", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitLong)
-		client, api, orgID, titleRequests := newTitleCountingClient(t)
-
-		// The same text the fallback would produce.
-		userTitle := chatprompt.FallbackTitle(prompt)
-		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
-			OrganizationID: orgID,
-			Title:          &userTitle,
-			Content:        []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: prompt}},
-		})
-		require.NoError(t, err)
-		require.Equal(t, userTitle, chat.Title)
-		require.Equal(t, codersdk.ChatTitleSourceUser, chat.TitleSource)
-
-		settled := coderdtest.WaitForChatSettled(ctx, t, api, chat.ID)
-		require.Equal(t, userTitle, settled.Title)
-		require.Equal(t, database.ChatTitleSourceUser, settled.TitleSource)
-		require.Zero(t, titleRequests.Load())
-	})
-
-	t.Run("Validation", func(t *testing.T) {
-		t.Parallel()
-
-		cases := []struct {
-			name  string
-			title string
-			ok    bool
-		}{
-			{name: "empty", title: ""},
-			{name: "whitespace", title: "   "},
-			{name: "max length multibyte", title: strings.Repeat("ä", 200), ok: true},
-			{name: "over max length multibyte", title: strings.Repeat("ä", 201)},
-			{name: "padding does not extend the limit", title: " " + strings.Repeat("a", 200) + " ", ok: true},
+	var titleRequests atomic.Int32
+	baseURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if req.Stream {
+			return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("Hello from test server.")...)
 		}
-		for _, tc := range cases {
-			t.Run(tc.name, func(t *testing.T) {
-				t.Parallel()
-
-				ctx := testutil.Context(t, testutil.WaitLong)
-				client, api, orgID, _ := newTitleCountingClient(t)
-
-				chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
-					OrganizationID: orgID,
-					Title:          &tc.title,
-					Content:        []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: prompt}},
-				})
-				if !tc.ok {
-					var sdkErr *codersdk.Error
-					require.ErrorAs(t, err, &sdkErr)
-					require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
-					return
-				}
-				require.NoError(t, err)
-				require.Equal(t, strings.TrimSpace(tc.title), chat.Title)
-				coderdtest.WaitForChatSettled(ctx, t, api, chat.ID)
-			})
+		if bytes.Contains(req.RawBody, []byte("propose_title")) {
+			titleRequests.Add(1)
 		}
+		return chattest.OpenAINonStreamingResponse(`{"title": "Generated Title"}`)
 	})
+	client, _, api := newChatClientWithoutAIBridge(t)
+	firstUser := coderdtest.CreateFirstUser(t, client.Client)
+	_ = createChatModelWithBaseURL(t, client, baseURL)
+	aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
+
+	// Title text is validated by the same rules as PATCH; see TestPatchChat/Title.
+	_, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+		OrganizationID: firstUser.OrganizationID,
+		Title:          new("   "),
+		Content:        []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: prompt}},
+	})
+	var sdkErr *codersdk.Error
+	require.ErrorAs(t, err, &sdkErr)
+	require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+
+	// The same text the fallback would produce.
+	userTitle := chatprompt.FallbackTitle(prompt)
+	chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+		OrganizationID: firstUser.OrganizationID,
+		Title:          new("  " + userTitle + "  "),
+		Content:        []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: prompt}},
+	})
+	require.NoError(t, err)
+	require.Equal(t, userTitle, chat.Title)
+	require.Equal(t, codersdk.ChatTitleSourceUser, chat.TitleSource)
+
+	settled := coderdtest.WaitForChatSettled(ctx, t, api, chat.ID)
+	require.Equal(t, userTitle, settled.Title)
+	require.Equal(t, database.ChatTitleSourceUser, settled.TitleSource)
+	require.Zero(t, titleRequests.Load())
 }
 
 func TestPostChats_AutomaticTitleGenerationPasteOnly(t *testing.T) {

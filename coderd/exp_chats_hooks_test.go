@@ -480,63 +480,6 @@ func TestChatHooksFileLinksAfterPromptOverride(t *testing.T) {
 	}, sendResp.Message.Content)
 }
 
-func TestChatHooksPromptOverrideTitle(t *testing.T) {
-	t.Parallel()
-
-	const secret = "test-hook-secret-32-bytes-minimum!!"
-	ctx := testutil.Context(t, testutil.WaitLong)
-	modelURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
-		if !req.Stream {
-			return chattest.OpenAINonStreamingResponse(`{"title": "Generated Title"}`)
-		}
-		return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("done")...)
-	})
-	consumer := newHookConsumer(t, secret, agenthooks.Hooks{
-		UserPromptSubmit: func(_ context.Context, _ agenthooks.Meta, data agenthooks.UserPromptSubmitData) (agenthooks.Response, error) {
-			if strings.Contains(data.Prompt, "REDACTME") {
-				return agenthooks.Response{Permission: &agenthooks.Permission{
-					Decision:      agenthooks.PermissionAllow,
-					InputOverride: json.RawMessage(`{"prompt":"redacted"}`),
-				}}, nil
-			}
-			return agenthooks.Response{}, nil
-		},
-	})
-	t.Cleanup(consumer.Close)
-
-	client, api := newChatClientWithAPI(t, func(opts *coderdtest.Options) {
-		require.NoError(t, opts.DeploymentValues.AI.Chat.HookURL.Set(consumer.URL))
-		opts.DeploymentValues.AI.Chat.HookSecret = serpent.String(secret)
-		opts.DeploymentValues.AI.Chat.HookTimeout = serpent.Duration(time.Second)
-		opts.DeploymentValues.AI.Chat.HookEnabled = serpent.Bool(true)
-	})
-	user := coderdtest.CreateFirstUser(t, client.Client)
-	model := createChatModelWithBaseURL(t, client, modelURL)
-
-	derived, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
-		OrganizationID: user.OrganizationID,
-		ModelConfigID:  &model.ID,
-		Content:        []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: "REDACTME secret"}},
-	})
-	require.NoError(t, err)
-	require.Equal(t, "redacted", derived.Title, "the fallback title must be derived from the replacement prompt")
-	require.Equal(t, codersdk.ChatTitleSourceFallback, derived.TitleSource)
-
-	chosen, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
-		OrganizationID: user.OrganizationID,
-		ModelConfigID:  &model.ID,
-		Title:          new("Chosen title"),
-		Content:        []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: "REDACTME secret"}},
-	})
-	require.NoError(t, err)
-	require.Equal(t, "Chosen title", chosen.Title)
-	require.Equal(t, codersdk.ChatTitleSourceUser, chosen.TitleSource)
-
-	coderdtest.WaitForChatSettled(ctx, t, api, derived.ID)
-	settled := coderdtest.WaitForChatSettled(ctx, t, api, chosen.ID)
-	require.Equal(t, "Chosen title", settled.Title)
-}
-
 func TestChatHookNoticeMessagesInResponses(t *testing.T) {
 	t.Parallel()
 

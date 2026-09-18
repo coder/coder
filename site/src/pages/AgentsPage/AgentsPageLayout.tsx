@@ -134,7 +134,6 @@ export const shouldInvalidateFilteredChatList = (
 	!chat.parent_chat_id && FILTER_MEMBERSHIP_EVENT_KINDS.has(eventKind);
 
 // The status in other event kinds may be older than the cached status.
-// Only top-level chats chime.
 export const shouldEvaluateChime = (
 	chat: TypesGen.Chat,
 	eventKind: TypesGen.ChatWatchEventKind,

@@ -427,17 +427,11 @@ func Test_titleInput(t *testing.T) {
 			wantOK:   false,
 		},
 		{
-			name:      "user title is skipped",
-			chat:      database.Chat{Title: "my custom name", TitleSource: database.ChatTitleSourceUser},
+			name:      "user title identical to fallback text is skipped",
+			chat:      database.Chat{Title: chatprompt.FallbackTitle(pasteContent), TitleSource: database.ChatTitleSourceUser},
 			messages:  []database.ChatMessage{pasteMessage},
 			pasteText: map[uuid.UUID]string{pasteFileID: pasteContent},
 			wantOK:    false,
-		},
-		{
-			name:     "user title identical to fallback text is skipped",
-			chat:     database.Chat{Title: chatprompt.FallbackTitle("summarize build logs"), TitleSource: database.ChatTitleSourceUser},
-			messages: []database.ChatMessage{textMessage},
-			wantOK:   false,
 		},
 		{
 			name:     "already generated title is skipped",

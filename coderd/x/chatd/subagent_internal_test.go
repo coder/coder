@@ -887,13 +887,6 @@ func TestCreateChildSubagentChatInheritsWorkspaceBinding(t *testing.T) {
 	require.Equal(t, parentChat.AgentID, childChat.AgentID)
 	require.Equal(t, subagentFallbackChatTitle("inspect bindings"), childChat.Title)
 	require.Equal(t, database.ChatTitleSourceFallback, childChat.TitleSource)
-
-	titled, err := server.createChildSubagentChatWithOptions(ctx, parentChat, "inspect bindings", "Binding audit", childSubagentChatOptions{})
-	require.NoError(t, err)
-	titledChat, err := db.GetChatByID(ctx, titled.ID)
-	require.NoError(t, err)
-	require.Equal(t, "Binding audit", titledChat.Title)
-	require.Equal(t, database.ChatTitleSourceUser, titledChat.TitleSource)
 }
 
 func createInternalParentChat(
@@ -2447,6 +2440,8 @@ func TestCreateChildSubagentChatWithOptions_ExplorePersistsMCPSnapshot(t *testin
 	childChat, err := db.GetChatByID(ctx, child.ID)
 	require.NoError(t, err)
 	require.ElementsMatch(t, []uuid.UUID{mcpCfg.ID}, childChat.MCPServerIDs)
+	require.Equal(t, "explore-snapshot", childChat.Title)
+	require.Equal(t, database.ChatTitleSourceUser, childChat.TitleSource)
 }
 
 func TestSpawnAgent_ExploreSnapshotsTurnStateParentState(t *testing.T) {
