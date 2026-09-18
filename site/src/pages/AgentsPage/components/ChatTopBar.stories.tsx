@@ -358,7 +358,7 @@ export const MobileWithClosedPR: Story = {
 	},
 };
 
-const multiPRStatuses = [
+const mockPRStatuses = [
 	{
 		chat_id: "chat-1",
 		remote_origin: "https://github.com/coder/coder.git",
@@ -391,7 +391,7 @@ export const WithMultiplePRs: Story = {
 	args: {
 		chat: {
 			...MockChat,
-			diff_statuses: multiPRStatuses,
+			diff_statuses: mockPRStatuses,
 		},
 	},
 	play: async ({ canvasElement }) => {
