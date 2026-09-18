@@ -280,6 +280,9 @@ func mergeBasicClientAuth(r *http.Request, clientID, clientSecret string) (merge
 // from the merged form carry no such prohibition and stay accepted; PLAT-660
 // tracks them.
 //
+// It reads the URL query rather than r.Form, which cannot tell a body value
+// from a query value. Nothing constrains where a caller places the check.
+//
 // RFC 6749 §3.2: a parameter sent without a value counts as omitted.
 func clientSecretInQuery(r *http.Request) bool {
 	return slices.ContainsFunc(r.URL.Query()["client_secret"], func(v string) bool {

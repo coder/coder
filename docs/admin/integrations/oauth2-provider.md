@@ -602,8 +602,8 @@ OAuth 2.1 section 2.4.1 allows the secret in the request body or the
 following [Client Authentication Methods](#client-authentication-methods).
 
 A copy in the body does not excuse one in the URL: the request is refused on
-the query string alone, before the body is read. The refusal mints nothing and
-revokes nothing, so the retry needs no new authorization.
+the query string alone, whatever the body holds. The refusal issues no token
+and revokes nothing, so the retry needs no new authorization.
 
 Earlier releases accepted the parameter in the query string. An integration
 that relied on that has to move it into the body or the header.

@@ -1461,10 +1461,7 @@ func TestOAuth2ProviderRevokeClientAuthentication(t *testing.T) {
 		require.True(t, works(), "a refused revocation must not end the session")
 	})
 
-	// A correct secret in the body does not excuse a copy in the URL. The
-	// revocation endpoint reads the body with r.Form.Get, which merges the query
-	// string and does not reject a repeated parameter, so the URL copy has to be
-	// refused before the form is read.
+	// A correct secret in the body does not excuse a copy in the URL.
 	t.Run("SecretInQueryStringAndBody", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
