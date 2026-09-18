@@ -13,6 +13,7 @@ import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
 import { formatCostMicros } from "#/utils/currency";
 import { DATE_FORMAT, formatDateTime } from "#/utils/time";
 import { getChatCostTreeID } from "../../components/ChatConversation/chatHelpers";
+import { getChatDisplayConfig } from "../../components/ChatsSidebar/tree/statusConfig";
 import { CompactMarkdown } from "./CompactMarkdown";
 
 type ChatInfoPopoverProps = {
@@ -123,6 +124,7 @@ const ChatInfoBody: FC<ChatInfoBodyProps> = ({ chat }) => {
 	if (costQuery.data) cost = formatCostMicros(costQuery.data.total_cost_micros);
 	else if (costQuery.isError) cost = "unavailable";
 	const unpricedRequests = costQuery.data?.unpriced_request_count ?? 0;
+	const pr = getChatDisplayConfig(detail ?? chat).diffStatus;
 
 	return (
 		<div className="max-h-[60vh] overflow-y-auto px-3.5 py-3 text-[12.5px] leading-[1.45] text-content-primary">
@@ -145,6 +147,27 @@ const ChatInfoBody: FC<ChatInfoBodyProps> = ({ chat }) => {
 				<dd className="m-0 text-content-primary">
 					{formatDateTime(chat.updated_at, DATE_FORMAT.MEDIUM_DATE)}
 				</dd>
+				{pr?.url && (
+					<>
+						<dt>Changes</dt>
+						<dd className="m-0 flex items-center gap-2 font-mono text-content-primary">
+							<a
+								href={pr.url}
+								target="_blank"
+								rel="noreferrer"
+								className="text-content-link no-underline hover:underline"
+							>
+								{pr.pr_number ? `#${pr.pr_number}` : "branch"}
+							</a>
+							<span>
+								<span className="text-git-added-bright">+{pr.additions}</span>{" "}
+								<span className="text-git-deleted-bright">
+									&minus;{pr.deletions}
+								</span>
+							</span>
+						</dd>
+					</>
+				)}
 				{showCost && (
 					<>
 						<dt>Cost</dt>
