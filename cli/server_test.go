@@ -387,8 +387,6 @@ func TestServer(t *testing.T) {
 	})
 
 	t.Run("OAuth2GitHubDefaultProvider", func(t *testing.T) {
-		t.Parallel()
-
 		type testCase struct {
 			name                                  string
 			githubDefaultProviderEnabled          string
