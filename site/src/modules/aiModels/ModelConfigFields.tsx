@@ -44,6 +44,7 @@ import {
 } from "./knownModels/catalog";
 import {
 	isFieldConflictDisabled,
+	isReasoningModeSupported,
 	isVisibleWhenSatisfied,
 	type ModelConfigFormBuildResult,
 	type ModelFormValues,
@@ -545,7 +546,13 @@ export const ModelConfigFields: FC<ModelConfigFieldsProps> = ({
 		getIn(form.values, `config.${toFormFieldKey(resolved, jsonName)}`);
 
 	const isFieldVisible = (field: FieldSchema): boolean =>
-		isVisibleWhenSatisfied(field, fieldValueByName);
+		isVisibleWhenSatisfied(field, fieldValueByName) &&
+		(field.json_name !== "reasoning_mode" ||
+			isReasoningModeSupported(
+				normalized,
+				form.values.model,
+				form.values.config,
+			));
 
 	// Sort wider fields to the end so compact fields fill the
 	// grid first, keeping the layout dense.

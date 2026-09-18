@@ -471,6 +471,65 @@ func TestResponsesOutputMatchesUpstream(t *testing.T) {
 	}
 }
 
+func TestResponsesReasoningModeForwarded(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name string
+		mode string
+	}{
+		{name: "default"},
+		{name: "standard", mode: "standard"},
+		{name: "pro", mode: "pro"},
+	} {
+		for i, streaming := range []bool{false, true} {
+			t.Run(fmt.Sprintf("%s/streaming=%v", tc.name, streaming), func(t *testing.T) {
+				t.Parallel()
+
+				ctx, cancel := context.WithTimeout(t.Context(), testutil.WaitLong)
+				t.Cleanup(cancel)
+				fix := fixtures.Parse(t, [2][]byte{fixtures.OaiResponsesBlockingSimple, fixtures.OaiResponsesStreamingSimple}[i])
+				upstream := testutil.NewMockUpstream(ctx, t, testutil.NewFixtureResponse(fix))
+				bridge := newBridgeTestServer(ctx, t, upstream.URL, withMCP(setupMCPForTest(t, defaultTracer)))
+
+				reasoning := map[string]any{"effort": "high", "summary": "detailed"}
+				if tc.mode != "" {
+					reasoning["mode"] = tc.mode
+				}
+				reqBody, err := json.Marshal(map[string]any{
+					"model":               "gpt-5.5",
+					"input":               "tell me a joke",
+					"stream":              streaming,
+					"reasoning":           reasoning,
+					"service_tier":        "priority",
+					"parallel_tool_calls": true,
+				})
+				require.NoError(t, err)
+
+				resp, err := bridge.makeRequest(t, http.MethodPost, pathOpenAIResponses, reqBody)
+				require.NoError(t, err)
+				defer resp.Body.Close()
+				require.Equal(t, http.StatusOK, resp.StatusCode)
+				_, err = io.Copy(io.Discard, resp.Body)
+				require.NoError(t, err)
+
+				received := upstream.ReceivedRequests()
+				require.Len(t, received, 1)
+				assert.Equal(t, http.MethodPost, received[0].Method)
+				assert.Equal(t, "/responses", received[0].Path)
+				var body map[string]any
+				require.NoError(t, json.Unmarshal(received[0].Body, &body))
+				assert.Equal(t, reasoning, body["reasoning"])
+				assert.Equal(t, "gpt-5.5", body["model"])
+				assert.Equal(t, "priority", body["service_tier"])
+				assert.Equal(t, streaming, body["stream"])
+				assert.Equal(t, false, body["parallel_tool_calls"])
+				assert.NotEmpty(t, body["tools"])
+			})
+		}
+	}
+}
+
 func TestResponsesBackgroundModeForbidden(t *testing.T) {
 	t.Parallel()
 

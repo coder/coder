@@ -98,6 +98,29 @@ export function deepGet(obj: unknown, path: string[]): unknown {
 const hasObjectKeys = (value: Record<string, unknown>): boolean =>
 	Object.keys(value).length > 0;
 
+/**
+ * Whether the selected model can send an explicit OpenAI reasoning mode.
+ * Mirrors chatopenai.ValidateReasoningMode: the GPT-5.6 family and GPT-6
+ * Astra default to the Responses API, while gpt-daybreak-blue-latest (OpenAI's
+ * alias for gpt-5.6-sol) is unknown to the SDK and needs the transport forced.
+ */
+export const isReasoningModeSupported = (
+	provider: string,
+	model: string,
+	form: ModelConfigFormState,
+): boolean => {
+	if (provider.trim().toLowerCase() !== "openai") return false;
+	const useResponsesApi = deepGet(form, ["openaiConfig", "useResponsesApi"]);
+	if (useResponsesApi === "false") return false;
+	if (deepGet(form, ["openaiConfig", "reasoningModel"]) === "false")
+		return false;
+	const modelID = model.trim();
+	if (modelID === "gpt-daybreak-blue-latest") return useResponsesApi === "true";
+	return /^(gpt-5\.6(-(sol|terra|luna))?|gpt-6-astra)(-[0-9]{4}-[0-9]{2}-[0-9]{2})?$/.test(
+		modelID,
+	);
+};
+
 export const isVisibleWhenSatisfied = (
 	field: FieldSchema,
 	readSiblingValue: (jsonName: string) => unknown,
@@ -516,6 +539,7 @@ function collectYupErrors(
 export const buildModelConfigFromForm = (
 	provider: string | null | undefined,
 	form: ModelConfigFormState,
+	model = "",
 ): ModelConfigFormBuildResult => {
 	const fieldErrors: FieldErrors = {};
 
@@ -569,6 +593,12 @@ export const buildModelConfigFromForm = (
 			deepGet(providerFormState, jsonName.split(".").map(snakeToCamel));
 
 		for (const field of getProviderFields(resolved)) {
+			if (
+				field.json_name === "reasoning_mode" &&
+				!isReasoningModeSupported(rawProvider, model, form)
+			)
+				continue;
+
 			// Skip fields hidden by an unsatisfied `visible_when` gate so
 			// stale values left in form state are not serialized.
 			if (!isVisibleWhenSatisfied(field, readProviderValue)) continue;

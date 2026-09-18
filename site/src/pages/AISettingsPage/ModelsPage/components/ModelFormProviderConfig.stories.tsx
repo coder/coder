@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, within } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
+import { MockGPT56Pro } from "#/testHelpers/chatModels";
 import {
 	MockDefaultOrganization,
 	MockOrganizationPermissions,
@@ -125,5 +126,14 @@ export const ProviderConfigOpenAIWebSearch: Story = {
 			canvas.getByRole("combobox", { name: /search context size/i }),
 		).toBeInTheDocument();
 		await expect(canvas.getByLabelText(/allowed domains/i)).toBeInTheDocument();
+	},
+};
+
+// Reasoning mode is only offered for GPT-5.6 family and GPT-6 Astra models
+// on OpenAI with the Responses API, so the saved Pro selection is shown here.
+export const ProviderConfigOpenAIReasoningMode: Story = {
+	args: { editingModel: MockGPT56Pro },
+	play: async ({ canvasElement }) => {
+		await openProviderConfig(canvasElement);
 	},
 };

@@ -121,6 +121,200 @@ describe("buildInitialModelFormValues", () => {
 	});
 });
 
+describe("OpenAI reasoning mode", () => {
+	it.each(["standard", "pro"])(
+		"round-trips %s without changing effort or service tier",
+		(mode) => {
+			const model: TypesGen.ChatModel = {
+				...baseChatModel,
+				model: "gpt-5.6",
+				model_config: {
+					reasoning_effort: { default: "medium", max: "high" },
+					provider_options: {
+						openai: { reasoning_mode: mode, service_tier: "priority" },
+					},
+				},
+			};
+			const form = buildInitialModelFormValues(model);
+			expect(deepGet(form.config, ["openai", "reasoningMode"])).toBe(mode);
+			expect(
+				buildModelConfigFromForm("openai", form.config, form.model),
+			).toEqual({
+				modelConfig: model.model_config,
+				fieldErrors: {},
+			});
+		},
+	);
+
+	it.each([
+		"gpt-5.6",
+		"gpt-5.6-sol",
+		"gpt-5.6-terra",
+		"gpt-5.6-luna",
+		"gpt-5.6-terra-2026-08-01",
+		"gpt-5.6-luna-2026-08-01",
+		" gpt-5.6 ",
+		"gpt-6-astra",
+		"gpt-5.6-2026-08-01",
+		"gpt-5.6-sol-2026-08-01",
+		"gpt-6-astra-2026-08-01",
+	])("supports %s with automatic or explicit Responses", (model) => {
+		for (const useResponsesApi of ["", "true"]) {
+			const result = buildModelConfigFromForm(
+				"openai",
+				formWith({
+					openaiConfig: { useResponsesApi },
+					openai: { reasoningMode: "pro" },
+				}),
+				model,
+			);
+			expect(result.fieldErrors).toEqual({});
+			expect(result.modelConfig?.provider_options?.openai?.reasoning_mode).toBe(
+				"pro",
+			);
+		}
+	});
+
+	it.each([
+		"",
+		"gpt-5.6-pro",
+		"gpt-5.6-sol-pro",
+		"gpt-6",
+		"gpt-6-astra-pro",
+		"gpt-5.6-preview",
+		"gpt-5.6-2026-08-01-extra",
+		"gpt-5.6-2026-8-1",
+		"gpt-5",
+		"o3-pro",
+		"openai/gpt-5.6",
+		"GPT-5.6",
+		"gpt-5.6-mini",
+		"gpt-5.6-nano",
+		"gpt-5.6-codex",
+		"gpt-daybreak-red-latest",
+		"gpt-daybreak-blue-latest-2026-08-01",
+	])(
+		"filters stale mode for unsupported model %s, preserving effort and tier",
+		(model) => {
+			const result = buildModelConfigFromForm(
+				"openai",
+				formWith({
+					reasoningEffort: { default: "medium", max: "high" },
+					openai: { reasoningMode: "pro", serviceTier: "priority" },
+				}),
+				model,
+			);
+			expect(result).toEqual({
+				fieldErrors: {},
+				modelConfig: {
+					reasoning_effort: { default: "medium", max: "high" },
+					provider_options: { openai: { service_tier: "priority" } },
+				},
+			});
+		},
+	);
+
+	it("supports the gpt-daybreak-blue-latest alias only with explicit Responses", () => {
+		const build = (useResponsesApi: string) =>
+			buildModelConfigFromForm(
+				"openai",
+				formWith({
+					openaiConfig: { useResponsesApi },
+					openai: { reasoningMode: "pro" },
+				}),
+				"gpt-daybreak-blue-latest",
+			);
+		expect(build("true").modelConfig?.provider_options?.openai).toEqual({
+			reasoning_mode: "pro",
+		});
+		expect(build("").modelConfig?.provider_options).toBeUndefined();
+	});
+
+	it.each(["azure", "openaicompat", "anthropic", "openrouter"])(
+		"filters stale mode for %s",
+		(provider) => {
+			const result = buildModelConfigFromForm(
+				provider,
+				formWith({ openai: { reasoningMode: "pro" } }),
+				"gpt-5.6",
+			);
+			expect(result).toEqual({ fieldErrors: {} });
+		},
+	);
+
+	it("filters stale mode when Responses is explicitly disabled", () => {
+		expect(
+			buildModelConfigFromForm(
+				"openai",
+				formWith({
+					openaiConfig: { useResponsesApi: "false" },
+					openai: { reasoningMode: "pro", serviceTier: "priority" },
+				}),
+				"gpt-5.6",
+			),
+		).toEqual({
+			fieldErrors: {},
+			modelConfig: {
+				openai_config: { use_responses_api: false },
+				provider_options: { openai: { service_tier: "priority" } },
+			},
+		});
+	});
+
+	it("filters stale mode when the model is forced to plain sampling", () => {
+		expect(
+			buildModelConfigFromForm(
+				"openai",
+				formWith({
+					openaiConfig: { reasoningModel: "false" },
+					openai: { reasoningMode: "pro" },
+				}),
+				"gpt-5.6",
+			),
+		).toEqual({
+			fieldErrors: {},
+			modelConfig: { openai_config: { reasoning_model: false } },
+		});
+	});
+
+	it("omits a cleared mode without changing effort or tier", () => {
+		expect(
+			buildModelConfigFromForm(
+				"openai",
+				formWith({
+					reasoningEffort: { default: "medium", max: "high" },
+					openai: { reasoningMode: "", serviceTier: "priority" },
+				}),
+				"gpt-5.6",
+			),
+		).toEqual({
+			fieldErrors: {},
+			modelConfig: {
+				reasoning_effort: { default: "medium", max: "high" },
+				provider_options: { openai: { service_tier: "priority" } },
+			},
+		});
+	});
+
+	it("does not set a mode for a new form", () => {
+		const values = buildInitialModelFormValues();
+		expect(deepGet(values.config, ["openai", "reasoningMode"])).toBe("");
+		expect(
+			buildModelConfigFromForm("openai", values.config, "gpt-5.6"),
+		).toEqual({ fieldErrors: {} });
+	});
+
+	it("rejects a mode outside the schema enum", () => {
+		const result = buildModelConfigFromForm(
+			"openai",
+			formWith({ openai: { reasoningMode: "fast" } }),
+			"gpt-5.6",
+		);
+		expect(result.fieldErrors["openai.reasoningMode"]).toBeDefined();
+		expect(result.modelConfig).toBeUndefined();
+	});
+});
+
 // ── parsePositiveInteger ───────────────────────────────────────
 
 describe("parsePositiveInteger", () => {

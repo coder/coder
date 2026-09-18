@@ -376,6 +376,15 @@
 					"hidden": true
 				},
 				{
+					"json_name": "reasoning_mode",
+					"go_name": "ReasoningMode",
+					"type": "string",
+					"description": "Reasoning mode for supported Responses models. Pro increases model work, latency, and token usage.",
+					"required": false,
+					"enum": ["standard", "pro"],
+					"input_type": "select"
+				},
+				{
 					"json_name": "service_tier",
 					"go_name": "ServiceTier",
 					"type": "string",

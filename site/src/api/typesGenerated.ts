@@ -2940,6 +2940,7 @@ export interface ChatModelOpenAIProviderOptions {
 	readonly metadata?: Record<string, unknown>;
 	readonly prompt_cache_key?: string;
 	readonly safety_identifier?: string;
+	readonly reasoning_mode?: string;
 	readonly service_tier?: string;
 	readonly structured_outputs?: boolean;
 	readonly strict_json_schema?: boolean;

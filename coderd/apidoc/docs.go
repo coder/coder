@@ -20826,6 +20826,9 @@ const docTemplate = `{
                 "prompt_cache_key": {
                     "type": "string"
                 },
+                "reasoning_mode": {
+                    "type": "string"
+                },
                 "reasoning_summary": {
                     "type": "string"
                 },
