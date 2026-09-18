@@ -63,6 +63,7 @@ type RemoteDiffPanelProps = {
 	chatInputRef?: RefObject<ChatMessageInputRef | null>;
 	diffStyle: DiffStyle;
 	diffStatus?: TypesGen.ChatDiffStatus;
+	remoteRef?: TypesGen.DiffStatusRef;
 };
 
 export const RemoteDiffPanel: FC<RemoteDiffPanelProps> = ({
@@ -71,13 +72,17 @@ export const RemoteDiffPanel: FC<RemoteDiffPanelProps> = ({
 	chatInputRef,
 	diffStyle,
 	diffStatus,
+	remoteRef,
 }) => {
 	// ---------------------------------------------------------------
 	// Data fetching
 	// ---------------------------------------------------------------
 	const diffContentsQuery = useQuery({
-		...chatDiffContents(chatId),
-		enabled: Boolean(diffStatus?.url),
+		...chatDiffContents(chatId, remoteRef),
+		// A ref without a PR URL still has a fetchable branch diff.
+		enabled:
+			Boolean(diffStatus?.url) ||
+			Boolean(remoteRef?.remote_origin && remoteRef?.git_branch),
 	});
 
 	const diffContent = diffContentsQuery.data?.diff;
@@ -108,16 +113,20 @@ export const RemoteDiffPanel: FC<RemoteDiffPanelProps> = ({
 	// ---------------------------------------------------------------
 	const pullRequestUrl = diffStatus?.url;
 	const parsedPr = pullRequestUrl ? parsePullRequestUrl(pullRequestUrl) : null;
+	// The server synthesizes /tree/<branch> URLs for refs without
+	// a PR, so classify before rendering the PR link.
+	const hasPullRequest = Boolean(diffStatus?.pr_number ?? parsedPr);
 	const baseBranch = diffStatus?.base_branch;
-	const headBranch = diffStatus?.head_branch;
+	// A cleared PR clears head_branch but keeps git_branch.
+	const headBranch = diffStatus?.head_branch || diffStatus?.git_branch;
 
 	// ---------------------------------------------------------------
 	// Render
 	// ---------------------------------------------------------------
 	return (
 		<div className="flex h-full flex-col">
-			{/* Compact PR sub-header */}
-			{pullRequestUrl && (
+			{/* Compact PR/branch sub-header */}
+			{(pullRequestUrl || baseBranch || headBranch) && (
 				<div className="flex shrink-0 items-center gap-2 border-0 border-b border-solid border-border-default px-3 py-1.5">
 					<div className="flex min-w-0 items-center gap-1.5 text-[13px] text-content-secondary">
 						{baseBranch || headBranch ? (
@@ -149,19 +158,24 @@ export const RemoteDiffPanel: FC<RemoteDiffPanelProps> = ({
 								deletions={diffStatus.deletions}
 							/>
 						) : null}
-						<a
-							href={pullRequestUrl}
-							target="_blank"
-							rel="noreferrer"
-							className="inline-flex items-center gap-1 rounded-sm border border-solid border-border-default px-2 text-[13px] font-medium leading-5 text-content-primary no-underline transition-colors hover:bg-surface-secondary"
-						>
-							View PR
-							<ExternalLinkIcon className="size-3" />
-						</a>
+						{pullRequestUrl && hasPullRequest && (
+							<a
+								href={pullRequestUrl}
+								target="_blank"
+								rel="noreferrer"
+								className="inline-flex items-center gap-1 rounded-sm border border-solid border-border-default px-2 text-[13px] font-medium leading-5 text-content-primary no-underline transition-colors hover:bg-surface-secondary"
+							>
+								View PR
+								<ExternalLinkIcon className="size-3" />
+							</a>
+						)}
 					</div>
 				</div>
 			)}
+			{/* A remount per ref keeps any open inline comment box
+				from leaking into a different PR's diff. */}
 			<CommentableDiffViewer
+				key={`${remoteRef?.remote_origin ?? ""}/${remoteRef?.git_branch ?? ""}`}
 				parsedFiles={parsedFiles}
 				isExpanded={isExpanded}
 				diffStyle={diffStyle}
