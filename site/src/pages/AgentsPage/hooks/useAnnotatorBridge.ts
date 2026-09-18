@@ -30,6 +30,25 @@ interface UseAnnotatorBridgeOptions {
 	onSubmit: (submission: AnnotationSubmission) => void;
 }
 
+// Remembered across chats and sessions; the hint only needs to land once.
+const hintDismissedKey = "coder.annotator.hint-dismissed";
+
+function hintDismissed(): boolean {
+	try {
+		return window.localStorage.getItem(hintDismissedKey) === "1";
+	} catch {
+		return true;
+	}
+}
+
+function rememberHintDismissed() {
+	try {
+		window.localStorage.setItem(hintDismissedKey, "1");
+	} catch {
+		// Storage unavailable; the hint simply shows again next time.
+	}
+}
+
 interface AnnotatorBridge {
 	ready: boolean;
 	// The frame finished loading without the overlay announcing itself.
@@ -146,11 +165,15 @@ export function useAnnotatorBridge({
 							{
 								type: "coder-annotator:set-picking",
 								picking: pendingPickingRef.current,
+								hint: !hintDismissed(),
 							} satisfies HostToAnnotatorMessage,
 							targetOrigin,
 						);
 						pendingPickingRef.current = null;
 					}
+					break;
+				case "coder-annotator:hint-dismissed":
+					rememberHintDismissed();
 					break;
 				case "coder-annotator:state":
 					setPickingState(message.picking);
@@ -186,7 +209,11 @@ export function useAnnotatorBridge({
 				pendingPickingRef.current = next;
 				return;
 			}
-			post({ type: "coder-annotator:set-picking", picking: next });
+			post({
+				type: "coder-annotator:set-picking",
+				picking: next,
+				hint: !hintDismissed(),
+			});
 		},
 		[post],
 	);

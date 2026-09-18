@@ -48,6 +48,9 @@ export interface AnnotationSubmission {
 export type AnnotatorToHostMessage =
 	| { type: "coder-annotator:ready" }
 	| { type: "coder-annotator:state"; picking: boolean }
+	// The user closed the first-run hint (or sent a first comment); the
+	// dashboard remembers so it is not shown again.
+	| { type: "coder-annotator:hint-dismissed" }
 	| ({ type: "coder-annotator:submit" } & AnnotationSubmission);
 
 /**
@@ -67,7 +70,8 @@ export interface HighlightItem {
 }
 
 export type HostToAnnotatorMessage =
-	| { type: "coder-annotator:set-picking"; picking: boolean }
+	// `hint` asks the overlay to show the first-run hint while picking.
+	| { type: "coder-annotator:set-picking"; picking: boolean; hint?: boolean }
 	// Marks previously annotated elements while the agent works on them.
 	| { type: "coder-annotator:highlight"; items: HighlightItem[] }
 	| { type: "coder-annotator:clear-highlights" };
@@ -249,6 +253,7 @@ export function parseAnnotatorToHostMessage(
 	}
 	switch (value.type) {
 		case "coder-annotator:ready":
+		case "coder-annotator:hint-dismissed":
 			return { type: value.type };
 		case "coder-annotator:state": {
 			const state: Record<string, unknown> = value;
@@ -271,7 +276,13 @@ export function isHostToAnnotatorMessage(
 	}
 	switch (value.type) {
 		case "coder-annotator:set-picking":
-			return "picking" in value && typeof value.picking === "boolean";
+			return (
+				"picking" in value &&
+				typeof value.picking === "boolean" &&
+				(!("hint" in value) ||
+					value.hint === undefined ||
+					typeof value.hint === "boolean")
+			);
 		case "coder-annotator:clear-highlights":
 			return true;
 		case "coder-annotator:highlight":

@@ -111,7 +111,7 @@ describe("PortPreviewPanel annotations", () => {
 
 		receive({ type: "coder-annotator:ready" });
 		expect(postMessage).toHaveBeenCalledWith(
-			{ type: "coder-annotator:set-picking", picking: true },
+			{ type: "coder-annotator:set-picking", picking: true, hint: true },
 			frameOrigin,
 		);
 	});
@@ -140,7 +140,7 @@ describe("PortPreviewPanel annotations", () => {
 
 		await userEvent.keyboard("{Escape}");
 		expect(postMessage).toHaveBeenLastCalledWith(
-			{ type: "coder-annotator:set-picking", picking: false },
+			{ type: "coder-annotator:set-picking", picking: false, hint: true },
 			frameOrigin,
 		);
 	});
@@ -180,6 +180,28 @@ describe("PortPreviewPanel annotations", () => {
 		expect(onSend.mock.calls[0][0]).toContain("> Make this red");
 		expect(onSend.mock.calls[1][0]).toContain("> Make this red");
 		expect(onSend.mock.calls[2][0]).toContain("> Then this");
+	});
+
+	it("stops asking for the first-run hint once it was dismissed", async () => {
+		window.localStorage.removeItem("coder.annotator.hint-dismissed");
+		const { frame, frameOrigin, receive } = renderPanel();
+		await requestOverlay();
+		receive({ type: "coder-annotator:ready" });
+		receive({ type: "coder-annotator:hint-dismissed" });
+		expect(window.localStorage.getItem("coder.annotator.hint-dismissed")).toBe(
+			"1",
+		);
+
+		const postMessage = vi.spyOn(frameWindow(frame()), "postMessage");
+		await act(async () => {
+			receive({ type: "coder-annotator:state", picking: true });
+		});
+		await userEvent.keyboard("{Escape}");
+		expect(postMessage).toHaveBeenLastCalledWith(
+			{ type: "coder-annotator:set-picking", picking: false, hint: false },
+			frameOrigin,
+		);
+		window.localStorage.removeItem("coder.annotator.hint-dismissed");
 	});
 
 	it("ignores the frame until the user requests the overlay", () => {
@@ -303,7 +325,7 @@ describe("PortPreviewPanel annotations", () => {
 		);
 		// The frame's overlay is switched off, not left picking alongside.
 		expect(framePost).toHaveBeenCalledWith(
-			{ type: "coder-annotator:set-picking", picking: false },
+			{ type: "coder-annotator:set-picking", picking: false, hint: true },
 			frameOrigin,
 		);
 
@@ -317,7 +339,7 @@ describe("PortPreviewPanel annotations", () => {
 			);
 		fromPopout({ type: "coder-annotator:ready" });
 		expect(popoutPost).toHaveBeenCalledWith(
-			{ type: "coder-annotator:set-picking", picking: true },
+			{ type: "coder-annotator:set-picking", picking: true, hint: true },
 			frameOrigin,
 		);
 		fromPopout(submission);
@@ -379,7 +401,7 @@ describe("PortPreviewPanel annotations", () => {
 		receive({ type: "coder-annotator:ready" });
 		await waitFor(() =>
 			expect(postMessage).toHaveBeenCalledWith(
-				{ type: "coder-annotator:set-picking", picking: true },
+				{ type: "coder-annotator:set-picking", picking: true, hint: true },
 				frameOrigin,
 			),
 		);
