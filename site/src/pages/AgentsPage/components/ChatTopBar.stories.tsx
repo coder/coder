@@ -72,6 +72,8 @@ const defaultProps = {
 const meta: Meta<typeof ChatTopBar> = {
 	title: "pages/AgentsPage/ChatTopBar",
 	component: ChatTopBar,
+	// ChatTopBar reads experiments for the project and memory actions.
+	decorators: [withDashboardProvider],
 	beforeEach: () => {
 		requestArchiveAgent.mockClear();
 		requestArchiveAndDeleteWorkspace.mockClear();
@@ -570,7 +572,7 @@ export const PreservesArchivedFilterOnMobileBack: Story = {
 };
 
 export const ShareChatButton: Story = {
-	decorators: [withAuthProvider, withDashboardProvider],
+	decorators: [withAuthProvider],
 	args: {
 		chat: {
 			...MockChat,
