@@ -10,6 +10,9 @@ type MCPServerFormDialogsProps = {
 	setConfirmingDelete: (open: boolean) => void;
 	onDeleteServer?: (serverId: string) => Promise<void>;
 	isDeleting: boolean;
+	confirmingRegenerateSigningSecret: boolean;
+	setConfirmingRegenerateSigningSecret: (open: boolean) => void;
+	onRegenerateSigningSecret?: () => void;
 	unsavedChanges: ReturnType<typeof useUnsavedChangesPrompt>;
 };
 
@@ -19,6 +22,9 @@ export const MCPServerFormDialogs: FC<MCPServerFormDialogsProps> = ({
 	setConfirmingDelete,
 	onDeleteServer,
 	isDeleting,
+	confirmingRegenerateSigningSecret,
+	setConfirmingRegenerateSigningSecret,
+	onRegenerateSigningSecret,
 	unsavedChanges,
 }) => {
 	return (
@@ -33,6 +39,20 @@ export const MCPServerFormDialogs: FC<MCPServerFormDialogsProps> = ({
 					description={`Delete "${server.display_name}"? Agents will no longer be able to use this server.`}
 					onConfirm={() => void onDeleteServer(server.id)}
 					confirmLoading={isDeleting}
+				/>
+			)}
+			{server && onRegenerateSigningSecret && (
+				<ConfirmDialog
+					type="delete"
+					open={confirmingRegenerateSigningSecret}
+					onClose={() => setConfirmingRegenerateSigningSecret(false)}
+					title="Regenerate signing secret?"
+					confirmText="Regenerate"
+					description={`Regenerating the signing secret for "${server.display_name}" immediately invalidates the current secret. Requests signed with it will fail until the MCP server is updated with the new secret.`}
+					onConfirm={() => {
+						setConfirmingRegenerateSigningSecret(false);
+						onRegenerateSigningSecret();
+					}}
 				/>
 			)}
 			<ConfirmDialog

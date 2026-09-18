@@ -1,4 +1,4 @@
-import type { FC } from "react";
+import { type FC, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import {
 	Navigate,
@@ -11,6 +11,7 @@ import { getErrorMessage, isApiError } from "#/api/errors";
 import {
 	deleteMCPServerConfig,
 	mcpServerConfig,
+	regenerateMCPServerConfigSigningSecret,
 	updateMCPServerConfig,
 } from "#/api/queries/chats";
 import { organizationsPermissions } from "#/api/queries/organizations";
@@ -20,6 +21,7 @@ import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { RequirePermission } from "#/modules/permissions/RequirePermission";
 import { pageTitle } from "#/utils/page";
+import { MCPServerSigningSecretDialog } from "../components/MCPServerSigningSecretDialog";
 import {
 	mcpServersPath,
 	orgSearchParam,
@@ -89,6 +91,13 @@ const UpdateMCPServerPage: FC = () => {
 	const deleteMutation = useMutation(
 		deleteMCPServerConfig(queryClient, organization?.id ?? ""),
 	);
+	const regenerateSigningSecretMutation = useMutation(
+		regenerateMCPServerConfigSigningSecret(queryClient, organization?.id ?? ""),
+	);
+	const [signingSecret, setSigningSecret] = useState<{
+		value: string;
+		navigateAfterClose: boolean;
+	}>();
 	// A 404 must win over cached data: a refetch failure keeps stale data,
 	// which would otherwise render a form for a deleted or concealed server.
 	const notFound =
@@ -153,6 +162,9 @@ const UpdateMCPServerPage: FC = () => {
 								listPath={listPath}
 								isSaving={updateMutation.isPending}
 								isDeleting={deleteMutation.isPending}
+								isRegeneratingSigningSecret={
+									regenerateSigningSecretMutation.isPending
+								}
 								canSelectUserOIDC={permissions.editDeploymentConfig}
 								canShareServer={canShare}
 								onCancel={() => void navigate(listPath)}
@@ -167,7 +179,18 @@ const UpdateMCPServerPage: FC = () => {
 													toast.success(
 														`MCP server "${updated.display_name}" updated.`,
 													);
-													await navigate(listPath);
+													return {
+														afterSave: () => {
+															if (updated.signing_secret) {
+																setSigningSecret({
+																	value: updated.signing_secret,
+																	navigateAfterClose: true,
+																});
+																return;
+															}
+															void navigate(listPath);
+														},
+													};
 												} catch (error) {
 													toast.error(
 														getErrorMessage(
@@ -175,6 +198,7 @@ const UpdateMCPServerPage: FC = () => {
 															"Failed to update MCP server.",
 														),
 													);
+													return undefined;
 												}
 											}
 										: undefined
@@ -199,13 +223,50 @@ const UpdateMCPServerPage: FC = () => {
 											}
 										: undefined
 								}
+								onRegenerateSigningSecret={
+									canUpdateServer
+										? () => {
+												regenerateSigningSecretMutation.mutate(server.id, {
+													onSuccess: (updated) => {
+														if (!updated.signing_secret) {
+															toast.error(
+																"The regenerated signing secret was not returned.",
+															);
+															return;
+														}
+														setSigningSecret({
+															value: updated.signing_secret,
+															navigateAfterClose: false,
+														});
+														toast.success(
+															`MCP server "${server.display_name}" signing secret regenerated.`,
+														);
+													},
+													onError: (error) => {
+														toast.error(
+															getErrorMessage(
+																error,
+																"Failed to regenerate MCP server signing secret.",
+															),
+														);
+													},
+												});
+											}
+										: undefined
+								}
 								onToggleEnabled={
 									canUpdateServer
 										? (enabled) => {
 												updateMutation.mutate(
 													{ id: server.id, req: { enabled } },
 													{
-														onSuccess: () => {
+														onSuccess: (updated) => {
+															if (updated.signing_secret) {
+																setSigningSecret({
+																	value: updated.signing_secret,
+																	navigateAfterClose: false,
+																});
+															}
 															toast.success(
 																`MCP server "${server.display_name}" ${enabled ? "enabled" : "disabled"}.`,
 															);
@@ -223,6 +284,16 @@ const UpdateMCPServerPage: FC = () => {
 											}
 										: undefined
 								}
+							/>
+							<MCPServerSigningSecretDialog
+								secret={signingSecret?.value ?? ""}
+								onClose={() => {
+									const navigateAfterClose = signingSecret?.navigateAfterClose;
+									setSigningSecret(undefined);
+									if (navigateAfterClose) {
+										void navigate(listPath);
+									}
+								}}
 							/>
 						</>
 					)}

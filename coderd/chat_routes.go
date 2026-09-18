@@ -149,6 +149,8 @@ func (api *API) registerOrganizationChatRoutes(r chi.Router) {
 			r.With(httpmw.ExtractMCPServerConfigParam(api.Database, api.HTTPAuth.Authorize,
 				policy.ActionUpdate)).Patch("/", api.updateMCPServerConfig)
 			r.With(httpmw.ExtractMCPServerConfigParam(api.Database, api.HTTPAuth.Authorize,
+				policy.ActionUpdate)).Post("/regenerate-signing-secret", api.regenerateMCPServerConfigSigningSecret)
+			r.With(httpmw.ExtractMCPServerConfigParam(api.Database, api.HTTPAuth.Authorize,
 				policy.ActionDelete)).Delete("/", api.deleteMCPServerConfig)
 			r.With(httpmw.ExtractMCPServerConfigParam(api.Database, api.HTTPAuth.Authorize,
 				policy.ActionShare)).Get("/acl", api.mcpServerConfigACL)

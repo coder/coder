@@ -1,5 +1,5 @@
 import { cn } from "cn";
-import { ArrowLeftIcon, Share2Icon } from "lucide-react";
+import { ArrowLeftIcon, RefreshCwIcon, Share2Icon } from "lucide-react";
 import { type FC, useId } from "react";
 import { Link } from "react-router";
 import type * as TypesGen from "#/api/typesGenerated";
@@ -33,6 +33,7 @@ type MCPServerFormHeaderProps = {
 	isEditing: boolean;
 	isDisabled: boolean;
 	onRequestDelete?: () => void;
+	onRequestRegenerateSigningSecret?: () => void;
 	onShareServer?: () => void;
 	onToggleEnabled?: (enabled: boolean) => void;
 };
@@ -45,6 +46,7 @@ export const MCPServerFormHeader: FC<MCPServerFormHeaderProps> = ({
 	isEditing,
 	isDisabled,
 	onRequestDelete,
+	onRequestRegenerateSigningSecret,
 	onShareServer,
 	onToggleEnabled,
 }) => {
@@ -55,31 +57,47 @@ export const MCPServerFormHeader: FC<MCPServerFormHeaderProps> = ({
 		<>
 			<div className="flex items-center justify-between">
 				{listPath && <MCPServerFormBackLink to={listPath} />}
-				{isEditing && server && (onShareServer || onRequestDelete) && (
-					<div className="flex items-center gap-2">
-						{onShareServer && (
-							<Button
-								type="button"
-								variant="outline"
-								disabled={isDisabled}
-								onClick={onShareServer}
-							>
-								<Share2Icon />
-								<span>Manage permissions</span>
-							</Button>
-						)}
-						{onRequestDelete && (
-							<Button
-								type="button"
-								variant="destructive"
-								disabled={isDisabled}
-								onClick={onRequestDelete}
-							>
-								<span>Delete</span>
-							</Button>
-						)}
-					</div>
-				)}
+				{isEditing &&
+					server &&
+					(onShareServer ||
+						(server.has_signing_secret && onRequestRegenerateSigningSecret) ||
+						onRequestDelete) && (
+						<div className="flex items-center gap-2">
+							{onShareServer && (
+								<Button
+									type="button"
+									variant="outline"
+									disabled={isDisabled}
+									onClick={onShareServer}
+								>
+									<Share2Icon />
+									<span>Manage permissions</span>
+								</Button>
+							)}
+							{server.has_signing_secret &&
+								onRequestRegenerateSigningSecret && (
+									<Button
+										type="button"
+										variant="outline"
+										disabled={isDisabled}
+										onClick={onRequestRegenerateSigningSecret}
+									>
+										<RefreshCwIcon />
+										<span>Regenerate signing secret</span>
+									</Button>
+								)}
+							{onRequestDelete && (
+								<Button
+									type="button"
+									variant="destructive"
+									disabled={isDisabled}
+									onClick={onRequestDelete}
+								>
+									<span>Delete</span>
+								</Button>
+							)}
+						</div>
+					)}
 			</div>
 			<div className="flex items-center gap-4 pt-6 min-w-0">
 				{isEditing && (
@@ -98,6 +116,11 @@ export const MCPServerFormHeader: FC<MCPServerFormHeaderProps> = ({
 				{isEditing && server && !server.enabled && (
 					<Badge variant="default">Disabled</Badge>
 				)}
+				{isEditing &&
+					server?.forward_coder_headers &&
+					server.has_signing_secret && (
+						<Badge variant="default">Signing enabled</Badge>
+					)}
 			</div>
 			{isEditing && server && (
 				<div className="flex items-center justify-between w-full pt-6">
