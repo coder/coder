@@ -17,6 +17,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
+	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
@@ -50,15 +51,23 @@ func TestRenderProjectMemoryTranscript(t *testing.T) {
 		message(t, 3, database.ChatMessageRoleAssistant, "assistant restatement", 5),
 		message(t, 4, database.ChatMessageRoleUser, "new user detail", 5),
 	}
-	transcript := renderProjectMemoryTranscript(messages, 3)
+	transcript := renderProjectMemoryTranscript(messages, 3, 5)
 	require.NotContains(t, transcript, "old user detail")
 	require.NotContains(t, transcript, "tool output")
 	require.NotContains(t, transcript, "assistant restatement")
 	require.Contains(t, transcript, "new user detail")
 
+	// A turn committed after the pass captured its history version waits
+	// for the next pass instead of being sent twice.
+	fenced := renderProjectMemoryTranscript(append(messages,
+		message(t, 5, database.ChatMessageRoleUser, "mid-pass detail", 8),
+	), 3, 5)
+	require.Contains(t, fenced, "new user detail")
+	require.NotContains(t, fenced, "mid-pass detail")
+
 	largeTranscript := renderProjectMemoryTranscript([]database.ChatMessage{
 		message(t, 5, database.ChatMessageRoleUser, strings.Repeat("界", projectMemoryExtractionTranscriptMaxBytes)+"tail", 5),
-	}, 3)
+	}, 3, 1<<62)
 	require.LessOrEqual(t, len(largeTranscript), projectMemoryExtractionTranscriptMaxBytes)
 	require.True(t, utf8.ValidString(largeTranscript))
 	require.True(t, strings.HasPrefix(largeTranscript, "[truncated] "))
@@ -99,7 +108,7 @@ func TestProjectMemoryTurns(t *testing.T) {
 		transcript := renderProjectMemoryTranscript([]database.ChatMessage{
 			user(t, "first turn"), saveCall(t, "save-1"), saveResult(t, "save-1", false),
 			user(t, "second turn"),
-		}, 3)
+		}, 3, 1<<62)
 		require.NotContains(t, transcript, "first turn")
 		require.Contains(t, transcript, "second turn")
 	})
@@ -108,7 +117,7 @@ func TestProjectMemoryTurns(t *testing.T) {
 		t.Parallel()
 		transcript := renderProjectMemoryTranscript([]database.ChatMessage{
 			user(t, "first turn"), saveCall(t, "save-1"), saveResult(t, "save-1", true),
-		}, 3)
+		}, 3, 1<<62)
 		require.Contains(t, transcript, "first turn")
 	})
 
@@ -116,7 +125,7 @@ func TestProjectMemoryTurns(t *testing.T) {
 		t.Parallel()
 		transcript := renderProjectMemoryTranscript([]database.ChatMessage{
 			user(t, "first turn"), saveCall(t, "save-1"), saveResult(t, "save-1", false),
-		}, 3)
+		}, 3, 1<<62)
 		require.Empty(t, transcript)
 	})
 }
@@ -517,6 +526,43 @@ func TestExtractProjectMemories(t *testing.T) {
 		server.extractProjectMemories(t.Context(), slogtest.Make(t, nil), chat)
 	})
 
+	t.Run("StorageFailureDoesNotAdvanceCursor", func(t *testing.T) {
+		t.Parallel()
+
+		ctrl := gomock.NewController(t)
+		db := dbmock.NewMockStore(ctrl)
+		chat := newChat()
+		server := newServer(t, db, roundTripFunc(func(req *http.Request) (*http.Response, error) {
+			response := objectResponse(t, map[string]any{
+				"upserts": []map[string]any{{
+					"name":        "release_notes",
+					"description": "Durable release process",
+					"body":        "Run the release checklist.",
+				}},
+			})
+			response.Request = req
+			return response, nil
+		}))
+
+		expectClaim(t, db, chat, 0)
+		gomock.InOrder(
+			db.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil),
+			db.EXPECT().GetChatMessagesForPromptByChatID(gomock.Any(), chat.ID).Return([]database.ChatMessage{
+				message(t, 1, database.ChatMessageRoleUser, "new durable detail", 5),
+			}, nil),
+			db.EXPECT().GetChatProjectMemoriesByProjectID(gomock.Any(), chat.ProjectID.UUID).Return(nil, nil),
+		)
+		expectModelResolution(db, chat)
+		expectInsertTx(db)
+		gomock.InOrder(
+			db.EXPECT().CountChatProjectMemoriesByProjectID(gomock.Any(), chat.ProjectID.UUID).Return(int64(0), nil),
+			// A transient insert failure keeps the cursor so the window is retried.
+			db.EXPECT().InsertChatProjectMemory(gomock.Any(), gomock.Any()).Return(database.ChatProjectMemory{}, xerrors.New("connection reset")),
+		)
+
+		server.extractProjectMemories(t.Context(), slogtest.Make(t, nil), chat)
+	})
+
 	t.Run("ModelFailureDoesNotAdvanceCursor", func(t *testing.T) {
 		t.Parallel()
 
@@ -574,6 +620,17 @@ func TestMaybeExtractProjectMemoriesAsyncSkips(t *testing.T) {
 				ID:        uuid.New(),
 				ProjectID: uuid.NullUUID{UUID: uuid.New(), Valid: true},
 			},
+		},
+		{
+			// FinishTurn promoted a queued message; that turn's own
+			// completion runs extraction for both turns.
+			name: "PromotedTurnStillRunning",
+			chat: database.Chat{
+				ID:        uuid.New(),
+				ProjectID: uuid.NullUUID{UUID: uuid.New(), Valid: true},
+				Status:    database.ChatStatusRunning,
+			},
+			experiments: codersdk.Experiments{codersdk.ExperimentChatProjects},
 		},
 	}
 
