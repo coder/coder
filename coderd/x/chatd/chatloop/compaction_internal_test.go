@@ -16,11 +16,22 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatdebug"
+	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
 )
+
+func compactionStream(parts ...fantasy.StreamPart) fantasy.StreamResponse {
+	return func(yield func(fantasy.StreamPart) bool) {
+		for _, part := range parts {
+			if !yield(part) {
+				return
+			}
+		}
+	}
+}
 
 func TestStartCompactionDebugRun_DoesNotReportDebugErrors(t *testing.T) {
 	t.Parallel()
@@ -181,7 +192,7 @@ func TestGenerateCompactionSummary_PanicFinalizesAsError(t *testing.T) {
 
 	model := &chattest.FakeModel{
 		ProviderName: "fake",
-		GenerateFn: func(_ context.Context, _ fantasy.Call) (*fantasy.Response, error) {
+		StreamFn: func(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
 			panic("compaction model crash")
 		},
 	}
@@ -220,16 +231,21 @@ func TestGenerateCompactionSummary_UsesCallerContext(t *testing.T) {
 
 	type contextKey string
 	testCtx := context.WithValue(context.Background(), contextKey("key"), "value")
-	var ctxSeen context.Context
+	var (
+		ctxSeen   context.Context
+		errAtCall error
+	)
 	model := &chattest.FakeModel{
 		ProviderName: "fake",
-		GenerateFn: func(ctx context.Context, _ fantasy.Call) (*fantasy.Response, error) {
+		StreamFn: func(ctx context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
 			ctxSeen = ctx
-			return &fantasy.Response{
-				Content: []fantasy.Content{
-					fantasy.TextContent{Text: "summary"},
-				},
-			}, nil
+			errAtCall = ctx.Err()
+			return compactionStream(
+				fantasy.StreamPart{Type: fantasy.StreamPartTypeTextStart, ID: "text"},
+				fantasy.StreamPart{Type: fantasy.StreamPartTypeTextDelta, ID: "text", Delta: "summary"},
+				fantasy.StreamPart{Type: fantasy.StreamPartTypeTextEnd, ID: "text"},
+				fantasy.StreamPart{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonStop},
+			), nil
 		},
 	}
 
@@ -239,11 +255,159 @@ func TestGenerateCompactionSummary_UsesCallerContext(t *testing.T) {
 	)
 	require.NoError(t, err)
 	require.Equal(t, "summary", summary)
-	require.Same(t, testCtx, ctxSeen)
-	require.NoError(t, ctxSeen.Err())
+	// The silence guard wraps the caller context in a cancelable child that
+	// is released after the summary completes, so assert inheritance rather
+	// than identity: values propagate, the context is live at call time, and
+	// no deadline is attached (the guard uses a timer, not a context
+	// deadline).
+	require.NoError(t, errAtCall)
 	_, ok := ctxSeen.Deadline()
 	require.False(t, ok)
 	require.Equal(t, "value", ctxSeen.Value(contextKey("key")))
+}
+
+func TestGenerateCompactionSummary_Stream(t *testing.T) {
+	t.Parallel()
+
+	t.Run("joins text blocks", func(t *testing.T) {
+		t.Parallel()
+
+		model := &chattest.FakeModel{
+			ProviderName: "fake",
+			StreamFn: func(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
+				return compactionStream(
+					fantasy.StreamPart{Type: fantasy.StreamPartTypeTextStart, ID: "first"},
+					fantasy.StreamPart{Type: fantasy.StreamPartTypeTextDelta, ID: "first", Delta: " first "},
+					fantasy.StreamPart{Type: fantasy.StreamPartTypeTextEnd, ID: "first"},
+					fantasy.StreamPart{Type: fantasy.StreamPartTypeTextStart, ID: "second"},
+					fantasy.StreamPart{Type: fantasy.StreamPartTypeTextDelta, ID: "second", Delta: " second "},
+					fantasy.StreamPart{Type: fantasy.StreamPartTypeTextEnd, ID: "second"},
+					fantasy.StreamPart{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonStop},
+				), nil
+			},
+		}
+
+		summary, err := generateCompactionSummary(context.Background(), model, nil, CompactionOptions{})
+		require.NoError(t, err)
+		require.Equal(t, "first second", summary)
+	})
+
+	t.Run("reports output cap truncation", func(t *testing.T) {
+		t.Parallel()
+
+		model := &chattest.FakeModel{
+			ProviderName: "fake",
+			StreamFn: func(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
+				return compactionStream(
+					fantasy.StreamPart{Type: fantasy.StreamPartTypeReasoningStart, ID: "reasoning"},
+					fantasy.StreamPart{Type: fantasy.StreamPartTypeReasoningDelta, ID: "reasoning", Delta: "thinking"},
+					fantasy.StreamPart{Type: fantasy.StreamPartTypeReasoningEnd, ID: "reasoning"},
+					fantasy.StreamPart{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonLength},
+				), nil
+			},
+		}
+
+		summary, err := generateCompactionSummary(context.Background(), model, nil, CompactionOptions{})
+		require.Empty(t, summary)
+		require.EqualError(t, err, "compaction summary was truncated at the output token cap")
+	})
+
+	t.Run("rejects stream without finish part", func(t *testing.T) {
+		t.Parallel()
+
+		model := &chattest.FakeModel{
+			ProviderName: "fake",
+			StreamFn: func(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
+				return compactionStream(
+					fantasy.StreamPart{Type: fantasy.StreamPartTypeTextStart, ID: "text"},
+					fantasy.StreamPart{Type: fantasy.StreamPartTypeTextDelta, ID: "text", Delta: "partial summary"},
+				), nil
+			},
+		}
+
+		summary, err := generateCompactionSummary(context.Background(), model, nil, CompactionOptions{})
+		require.Empty(t, summary)
+		require.EqualError(t, err, "compaction summary stream ended without a finish part")
+	})
+
+	t.Run("classifies canceled stream open as transport reset", func(t *testing.T) {
+		t.Parallel()
+
+		model := &chattest.FakeModel{
+			ProviderName: "fake",
+			StreamFn: func(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
+				return nil, context.Canceled
+			},
+		}
+
+		summary, err := generateCompactionSummary(context.Background(), model, nil, CompactionOptions{
+			ResolvedProvider: "fake",
+		})
+		require.Empty(t, summary)
+		require.ErrorIs(t, err, chaterror.ErrProviderTransportReset)
+		classified := chaterror.Classify(err)
+		require.True(t, classified.Retryable)
+		require.Equal(t, "fake", classified.Provider)
+	})
+
+	t.Run("classifies canceled error part as transport reset", func(t *testing.T) {
+		t.Parallel()
+
+		model := &chattest.FakeModel{
+			ProviderName: "fake",
+			StreamFn: func(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
+				return compactionStream(
+					fantasy.StreamPart{Type: fantasy.StreamPartTypeError, Error: context.Canceled},
+				), nil
+			},
+		}
+
+		summary, err := generateCompactionSummary(context.Background(), model, nil, CompactionOptions{
+			ResolvedProvider: "fake",
+		})
+		require.Empty(t, summary)
+		require.ErrorIs(t, err, chaterror.ErrProviderTransportReset)
+		classified := chaterror.Classify(err)
+		require.True(t, classified.Retryable)
+		require.Equal(t, "fake", classified.Provider)
+	})
+
+	t.Run("classifies stream silence", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		clock := quartz.NewMock(t)
+		trap := clock.Trap().AfterFunc(streamSilenceGuardTimerTag)
+		defer trap.Close()
+		model := &chattest.FakeModel{
+			ProviderName: "openai",
+			StreamFn: func(ctx context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
+				return func(yield func(fantasy.StreamPart) bool) {
+					<-ctx.Done()
+				}, nil
+			},
+		}
+
+		done := make(chan error, 1)
+		go func() {
+			_, err := generateCompactionSummary(context.Background(), model, nil, CompactionOptions{
+				ResolvedProvider:     "openai",
+				Clock:                clock,
+				StreamSilenceTimeout: 5 * time.Millisecond,
+			})
+			done <- err
+		}()
+
+		trap.MustWait(ctx).MustRelease(ctx)
+		_, waiter := clock.AdvanceNext()
+		waiter.MustWait(ctx)
+		err := <-done
+		require.Error(t, err)
+		classified := chaterror.Classify(err)
+		require.Equal(t, codersdk.ChatErrorKindStreamSilenceTimeout, classified.Kind)
+		require.Equal(t, "openai", classified.Provider)
+		require.True(t, classified.Retryable)
+	})
 }
 
 // TestGenerateCompaction_ForceBypassesThresholdGates verifies the
@@ -258,13 +422,14 @@ func TestGenerateCompaction_ForceBypassesThresholdGates(t *testing.T) {
 		return &chattest.FakeModel{
 			ProviderName: "fake",
 			ModelName:    "fake-model",
-			GenerateFn: func(_ context.Context, _ fantasy.Call) (*fantasy.Response, error) {
+			StreamFn: func(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
 				*calls++
-				return &fantasy.Response{
-					Content: []fantasy.Content{
-						fantasy.TextContent{Text: "forced summary"},
-					},
-				}, nil
+				return compactionStream(
+					fantasy.StreamPart{Type: fantasy.StreamPartTypeTextStart, ID: "text"},
+					fantasy.StreamPart{Type: fantasy.StreamPartTypeTextDelta, ID: "text", Delta: "forced summary"},
+					fantasy.StreamPart{Type: fantasy.StreamPartTypeTextEnd, ID: "text"},
+					fantasy.StreamPart{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonStop},
+				), nil
 			},
 		}
 	}
@@ -326,6 +491,60 @@ func TestGenerateCompaction_ForceBypassesThresholdGates(t *testing.T) {
 	}
 }
 
+// TestGenerateCompaction_ClampsSummaryCapToRemainingWindow pins the
+// summary output cap bound: sum-enforcing providers reject requests
+// whose input plus max_tokens exceeds the context window, so the cap
+// shrinks to the remaining window and degenerate cases stay unchanged.
+func TestGenerateCompaction_ClampsSummaryCapToRemainingWindow(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name         string
+		contextLimit int64
+		inputTokens  int64
+		cap          int64
+		wantCap      int64
+	}{
+		{name: "clamps to remaining window", contextLimit: 100, inputTokens: 80, cap: 64_000, wantCap: 20},
+		{name: "keeps cap that fits", contextLimit: 200_000, inputTokens: 140_000, cap: 50_000, wantCap: 50_000},
+		{name: "usage at limit leaves cap unchanged", contextLimit: 100, inputTokens: 100, cap: 64_000, wantCap: 64_000},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			var gotCap *int64
+			model := &chattest.FakeModel{
+				ProviderName: "fake",
+				ModelName:    "fake-model",
+				StreamFn: func(_ context.Context, call fantasy.Call) (fantasy.StreamResponse, error) {
+					gotCap = call.MaxOutputTokens
+					return compactionStream(
+						fantasy.StreamPart{Type: fantasy.StreamPartTypeTextStart, ID: "text"},
+						fantasy.StreamPart{Type: fantasy.StreamPartTypeTextDelta, ID: "text", Delta: "summary"},
+						fantasy.StreamPart{Type: fantasy.StreamPartTypeTextEnd, ID: "text"},
+						fantasy.StreamPart{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonStop},
+					), nil
+				},
+			}
+			capTokens := tc.cap
+			result, err := GenerateCompaction(context.Background(), GenerateCompactionOptions{
+				Model:            model,
+				Messages:         []fantasy.Message{textMessage(fantasy.MessageRoleUser, "hello")},
+				Clock:            quartz.NewMock(t),
+				ThresholdPercent: 70,
+				ContextLimit:     tc.contextLimit,
+				StepUsage:        fantasy.Usage{InputTokens: tc.inputTokens},
+				SummaryCall:      fantasy.Call{MaxOutputTokens: &capTokens},
+			})
+			require.NoError(t, err)
+			require.Equal(t, "summary", result.SummaryReport)
+			require.NotNil(t, gotCap)
+			require.Equal(t, tc.wantCap, *gotCap)
+		})
+	}
+}
+
 // TestGenerateCompaction_DefaultSourceAutomatic verifies an unforced
 // over-threshold run reports the automatic source by default.
 func TestGenerateCompaction_DefaultSourceAutomatic(t *testing.T) {
@@ -334,12 +553,13 @@ func TestGenerateCompaction_DefaultSourceAutomatic(t *testing.T) {
 	model := &chattest.FakeModel{
 		ProviderName: "fake",
 		ModelName:    "fake-model",
-		GenerateFn: func(_ context.Context, _ fantasy.Call) (*fantasy.Response, error) {
-			return &fantasy.Response{
-				Content: []fantasy.Content{
-					fantasy.TextContent{Text: "auto summary"},
-				},
-			}, nil
+		StreamFn: func(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
+			return compactionStream(
+				fantasy.StreamPart{Type: fantasy.StreamPartTypeTextStart, ID: "text"},
+				fantasy.StreamPart{Type: fantasy.StreamPartTypeTextDelta, ID: "text", Delta: "auto summary"},
+				fantasy.StreamPart{Type: fantasy.StreamPartTypeTextEnd, ID: "text"},
+				fantasy.StreamPart{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonStop},
+			), nil
 		},
 	}
 	result, err := GenerateCompaction(context.Background(), GenerateCompactionOptions{
@@ -363,11 +583,13 @@ func TestGenerateCompaction_SummaryEstimate(t *testing.T) {
 			var parts []codersdk.ChatMessagePart
 			result, err := GenerateCompaction(t.Context(), GenerateCompactionOptions{
 				Model: &chattest.FakeModel{
-					GenerateFn: func(context.Context, fantasy.Call) (*fantasy.Response, error) {
-						return &fantasy.Response{
-							Content: []fantasy.Content{fantasy.TextContent{Text: "界x"}},
-							Usage:   fantasy.Usage{InputTokens: 900, OutputTokens: 400},
-						}, nil
+					StreamFn: func(context.Context, fantasy.Call) (fantasy.StreamResponse, error) {
+						return compactionStream(
+							fantasy.StreamPart{Type: fantasy.StreamPartTypeTextStart, ID: "text"},
+							fantasy.StreamPart{Type: fantasy.StreamPartTypeTextDelta, ID: "text", Delta: "界x"},
+							fantasy.StreamPart{Type: fantasy.StreamPartTypeTextEnd, ID: "text"},
+							fantasy.StreamPart{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonStop},
+						), nil
 					},
 				},
 				Messages:            []fantasy.Message{textMessage(fantasy.MessageRoleUser, "hello")},
