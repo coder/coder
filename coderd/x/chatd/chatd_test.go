@@ -1974,7 +1974,7 @@ func TestCreateChatInsertsWorkspaceAwarenessMessage(t *testing.T) {
 		for _, msg := range messages {
 			if msg.Role == database.ChatMessageRoleSystem {
 				content := string(msg.Content.RawMessage)
-				if strings.Contains(content, "No workspace is attached to this chat yet") {
+				if strings.Contains(content, "This chat started without an attached workspace") {
 					workspaceMsg = &msg
 					break
 				}

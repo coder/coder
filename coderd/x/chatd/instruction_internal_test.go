@@ -205,7 +205,12 @@ func TestWorkspaceAwarenessSupportsWorkspaceFallback(t *testing.T) {
 	t.Parallel()
 
 	detached := workspaceDetachedAwareness
-	require.Contains(t, detached, "No workspace is attached to this chat yet")
+	require.Contains(t, detached, "This chat started without an attached workspace")
+	require.Contains(t, detached, "Follow subsequent workspace tool results and context for its current state")
+	require.Contains(t, detached, "If no workspace is attached, create")
+	require.Contains(t, detached, "Workspace readiness does not guarantee that skills, MCP tools, or context have finished loading")
+	require.Contains(t, detached, "continue with workspace file and shell tools where possible instead of recreating the workspace")
+	require.NotContains(t, detached, "No workspace is attached to this chat yet")
 	require.Contains(t, detached, "when they are sufficient for the request")
 	require.Contains(t, detached, "missing tools, skills, MCPs, or context prevent progress")
 	require.Contains(t, detached, "create a suitable workspace with create_workspace")
@@ -233,6 +238,7 @@ func TestDefaultSystemPromptSupportsWorkspaceFallback(t *testing.T) {
 	require.Contains(t, DefaultSystemPrompt, "Reuse an attached workspace; root chats can use start_workspace if it is stopped")
 	require.Contains(t, DefaultSystemPrompt, "Delegated chats must report workspace needs to the parent agent instead of attempting to create or start a workspace")
 	require.Contains(t, DefaultSystemPrompt, "use its available context and capabilities to continue the user's request")
+	require.Contains(t, DefaultSystemPrompt, "Workspace readiness does not guarantee that skills, MCP tools, or context have finished loading")
 	require.Contains(t, DefaultSystemPrompt, "root chats should create one when missing tools, skills, or context block planning")
 	require.Contains(t, DefaultSystemPrompt, "In Plan Mode, workspace MCP tools remain unavailable after workspace creation; do not provision a workspace solely to access them")
 	require.NotContains(t, DefaultSystemPrompt, "missing tools, skills, MCPs, or context block planning")

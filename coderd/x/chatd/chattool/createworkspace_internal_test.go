@@ -46,6 +46,8 @@ func TestCreateWorkspaceDescriptionSupportsWorkspaceFallback(t *testing.T) {
 	require.Contains(t, info.Description, "Use the workspace's available context and capabilities to continue the request")
 	require.Contains(t, info.Description, "user explicitly asks")
 	require.Contains(t, info.Description, "Prefer existing tools and context when they are sufficient")
+	require.Contains(t, info.Description, "Readiness does not guarantee skills, MCP tools, or context have finished loading")
+	require.Contains(t, info.Description, "Do not recreate the workspace to retry discovery")
 	require.Contains(t, info.Description, "In Plan Mode, workspace MCP tools remain unavailable; do not create a workspace solely to access them")
 	require.NotContains(t, info.Description, "only when workspace-backed")
 	require.NotContains(t, info.Description, "Do not use this as a default first step")
