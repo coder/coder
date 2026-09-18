@@ -306,6 +306,16 @@ fields appear dynamically in the admin UI when you select a provider.
 > Bedrock uses the same model configuration options as Anthropic (thinking
 > budget, reasoning effort).
 
+### Prompt caching
+
+Coder Agents adds Anthropic prompt cache breakpoints automatically; there is
+no option to configure. Claude models receive them on the Anthropic and AWS
+Bedrock providers, and on OpenRouter, Vercel AI Gateway, and OpenAI
+Compatible providers when the model identifier is Anthropic-family (for
+example `anthropic/claude-haiku-4.5` or `claude-sonnet-4-5`). Cached tokens
+appear as cache-read usage in the chat cost breakdown and in AI Gateway
+session usage.
+
 ## How developers select models
 
 Developers see a model selector dropdown when starting or continuing a chat on the Agents page.
