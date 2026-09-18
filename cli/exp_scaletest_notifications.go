@@ -343,6 +343,10 @@ func (r *RootCmd) scaletestNotifications() *serpent.Command {
 	return cmd
 }
 
+// deletionNotificationID is the TemplateTemplateDeleted notification ID, the
+// only notification this load generator triggers.
+var deletionNotificationID = notificationsLib.TemplateTemplateDeleted.String()
+
 func computeNotificationLatencies(
 	ctx context.Context,
 	logger slog.Logger,
@@ -356,10 +360,6 @@ func computeNotificationLatencies(
 	}
 
 	logger.Info(ctx, "computing notification latencies", slog.F("trigger_time", triggerTime))
-
-	// Only template deletions are triggered, so every latency sample carries that
-	// notification ID.
-	deletionID := notificationsLib.TemplateTemplateDeleted.String()
 
 	var totalLatencies int
 	for runID, runResult := range results.Runs {
@@ -378,7 +378,7 @@ func computeNotificationLatencies(
 		if wsReceiptTimes, ok := runResult.Metrics[notifications.WebsocketNotificationReceiptTimeMetric].([]time.Time); ok {
 			for _, receiptTime := range wsReceiptTimes {
 				latency := receiptTime.Sub(triggerTime)
-				metrics.RecordLatency(latency, deletionID, notifications.NotificationTypeWebsocket)
+				metrics.RecordLatency(latency, deletionNotificationID, notifications.NotificationTypeWebsocket)
 				totalLatencies++
 				logger.Debug(ctx, "computed websocket latency",
 					slog.F("run_id", runID),
@@ -389,7 +389,7 @@ func computeNotificationLatencies(
 		if smtpReceiptTimes, ok := runResult.Metrics[notifications.SMTPNotificationReceiptTimeMetric].([]time.Time); ok {
 			for _, receiptTime := range smtpReceiptTimes {
 				latency := receiptTime.Sub(triggerTime)
-				metrics.RecordLatency(latency, deletionID, notifications.NotificationTypeSMTP)
+				metrics.RecordLatency(latency, deletionNotificationID, notifications.NotificationTypeSMTP)
 				totalLatencies++
 				logger.Debug(ctx, "computed SMTP latency",
 					slog.F("run_id", runID),
