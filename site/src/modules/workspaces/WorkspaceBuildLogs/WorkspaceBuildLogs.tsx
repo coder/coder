@@ -1,9 +1,9 @@
 import { cn } from "cn";
 import dayjs from "dayjs";
 import {
+	type ComponentProps,
 	type FC,
 	Fragment,
-	type ComponentProps,
 	useLayoutEffect,
 	useRef,
 } from "react";

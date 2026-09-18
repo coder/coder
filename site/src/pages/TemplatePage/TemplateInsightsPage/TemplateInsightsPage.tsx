@@ -5,9 +5,9 @@ import {
 	SquareArrowOutUpRightIcon,
 } from "lucide-react";
 import {
+	type ComponentProps,
 	type FC,
 	Fragment,
-	type ComponentProps,
 	type PropsWithChildren,
 	type ReactNode,
 	useId,

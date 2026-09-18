@@ -1,9 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import type {
-	ComponentProps,
-	FC,
-	PropsWithChildren,
-} from "react";
+import type { ComponentProps, FC, PropsWithChildren } from "react";
 import { PaginationContainer } from "./PaginationContainer";
 import {
 	mockInitialRenderResult,

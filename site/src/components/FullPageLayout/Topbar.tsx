@@ -1,8 +1,8 @@
 import { cn } from "cn";
 import {
+	type ComponentProps,
 	cloneElement,
 	type FC,
-	type ComponentProps,
 	type HTMLAttributes,
 	type ReactElement,
 	type Ref,
@@ -57,9 +57,10 @@ export const TopbarData: FC<ComponentProps<"div">> = ({
 	);
 };
 
-export const TopbarDivider: FC<
-	Omit<ComponentProps<"span">, "children">
-> = ({ className, ...props }) => {
+export const TopbarDivider: FC<Omit<ComponentProps<"span">, "children">> = ({
+	className,
+	...props
+}) => {
 	return (
 		<span {...props} className={cn("text-border", className)}>
 			/
