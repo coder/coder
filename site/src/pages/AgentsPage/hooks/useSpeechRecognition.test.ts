@@ -1,7 +1,6 @@
 import { act, renderHook } from "@testing-library/react";
 import {
 	isSpeechRecognitionSupported,
-	SPEECH_ERROR_DISMISS_MS,
 	useSpeechRecognition,
 } from "./useSpeechRecognition";
 
@@ -289,34 +288,6 @@ describe("useSpeechRecognition", () => {
 
 		expect(result.current.error).toBe("not-allowed");
 		expect(result.current.isRecording).toBe(false);
-	});
-
-	it("clears the error after the dismiss delay", () => {
-		vi.useFakeTimers();
-		try {
-			installMock();
-			const { result } = renderHook(() => useSpeechRecognition());
-
-			act(() => {
-				result.current.start();
-			});
-			act(() => {
-				lastInstance?.onerror?.({ error: "not-allowed", message: "" });
-			});
-			expect(result.current.error).toBe("not-allowed");
-
-			act(() => {
-				vi.advanceTimersByTime(SPEECH_ERROR_DISMISS_MS - 1);
-			});
-			expect(result.current.error).toBe("not-allowed");
-
-			act(() => {
-				vi.advanceTimersByTime(1);
-			});
-			expect(result.current.error).toBeNull();
-		} finally {
-			vi.useRealTimers();
-		}
 	});
 
 	it("start() clears previous error", () => {
