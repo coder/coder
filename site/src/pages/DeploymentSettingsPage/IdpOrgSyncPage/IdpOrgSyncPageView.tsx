@@ -25,12 +25,7 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "#/components/Dialog/Dialog";
-import {
-	HelpPopover,
-	HelpPopoverContent,
-	HelpPopoverIconTrigger,
-	HelpPopoverText,
-} from "#/components/HelpPopover/HelpPopover";
+import { InfoTooltip } from "#/components/InfoTooltip/InfoTooltip";
 import { Input } from "#/components/Input/Input";
 import { Label } from "#/components/Label/Label";
 import { Link } from "#/components/Link/Link";
@@ -49,6 +44,7 @@ import {
 	TableRow,
 } from "#/components/Table/Table";
 import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
+import { TooltipMessage } from "#/components/Tooltip/Tooltip";
 import { IdpUnseenClaimWarning } from "#/modules/idpSync/IdpUnseenClaimWarning";
 import { docs } from "#/utils/docs";
 import { isUUID } from "#/utils/uuid";
@@ -463,14 +459,11 @@ const OrganizationRow: FC<OrganizationRowProps> = ({
 
 const AssignDefaultOrgHelpPopover: FC = () => {
 	return (
-		<HelpPopover>
-			<HelpPopoverIconTrigger />
-			<HelpPopoverContent>
-				<HelpPopoverText>
-					Disabling will remove all users from the default organization if a
-					mapping for the default organization is not defined.
-				</HelpPopoverText>
-			</HelpPopoverContent>
-		</HelpPopover>
+		<InfoTooltip>
+			<TooltipMessage>
+				Disabling will remove all users from the default organization if a
+				mapping for the default organization is not defined.
+			</TooltipMessage>
+		</InfoTooltip>
 	);
 };

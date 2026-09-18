@@ -267,6 +267,7 @@ type StringMapOfInt map[string]int64
 
 func (m *StringMapOfInt) Scan(src interface{}) error {
 	if src == nil {
+		*m = nil
 		return nil
 	}
 	switch src := src.(type) {
