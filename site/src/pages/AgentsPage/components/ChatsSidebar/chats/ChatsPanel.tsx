@@ -57,6 +57,7 @@ import {
 	PINNED_SECTION_KEY,
 } from "./ChatSectionHeader";
 import { LoadMoreSentinel } from "./LoadMoreSentinel";
+import { SidebarAreaMenu } from "./SidebarAreaMenu";
 import { UserSidebarFooter } from "./UserSidebarFooter";
 
 const UNREAD_SECTION_KEY = "Unread";
@@ -363,10 +364,11 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 				className="hidden px-2 py-1.5 sm:flex sm:flex-col sm:gap-0.5"
 			>
 				<div className="flex items-center justify-between mb-2.5 ml-2.5">
-					<div className="flex items-center gap-2">
+					<div className="flex items-center gap-1.5">
 						<NavLink to="/workspaces" className="inline-flex">
 							<ProductLogo className="size-6" />
 						</NavLink>
+						<SidebarAreaMenu />
 					</div>
 					<div className="flex items-center gap-0.5 -mr-1.5">
 						<Button

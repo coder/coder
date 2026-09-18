@@ -1,8 +1,8 @@
-import { act, render, screen } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { FC, PropsWithChildren } from "react";
 import { QueryClientProvider } from "react-query";
-import { MemoryRouter } from "react-router";
+import { MemoryRouter, useLocation } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { Chat } from "#/api/typesGenerated";
@@ -121,6 +121,32 @@ const defaultProps: React.ComponentProps<typeof ChatsSidebar> = {
 };
 
 // ---- Tests ----
+
+describe("ChatsSidebar area menu", () => {
+	const LocationProbe: FC = () => {
+		const location = useLocation();
+		return <output data-testid="location">{location.pathname}</output>;
+	};
+
+	it("navigates to the selected area", async () => {
+		const user = userEvent.setup();
+		render(
+			<Wrapper>
+				<ChatsSidebar {...defaultProps} />
+				<LocationProbe />
+			</Wrapper>,
+		);
+
+		await user.click(screen.getByRole("button", { name: "Agents" }));
+		const item = await screen.findByRole("menuitem", { name: "Workspaces" });
+		act(() => item.focus());
+		await user.keyboard("{Enter}");
+
+		await waitFor(() => {
+			expect(screen.getByTestId("location")).toHaveTextContent("/workspaces");
+		});
+	});
+});
 
 describe("ChatsSidebar sections", () => {
 	it("renders unpinned shared chats in Shared with you before date sections", () => {
