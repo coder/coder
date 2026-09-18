@@ -130,10 +130,10 @@ func validateAIProviderUpstreamHeaders(h AIProviderUpstreamHeadersSettings) []Va
 				Detail: fmt.Sprintf("header value must be at most %d bytes, got %d", MaxAIProviderUpstreamHeaderValueLen, len(value)),
 			})
 		}
-		if strings.ContainsAny(value, "\r\n") {
+		if !isHTTPFieldValue(value) {
 			validations = append(validations, ValidationError{
 				Field:  field,
-				Detail: "header value must not contain CR or LF",
+				Detail: "header value contains invalid HTTP control character",
 			})
 		}
 		validations = append(validations, validateAIProviderUpstreamHeaderPlaceholders(field, value)...)
@@ -187,6 +187,21 @@ func isHTTPToken(s string) bool {
 		case '(', ')', '<', '>', '@', ',', ';', ':', '\\', '"', '/', '[', ']', '?', '=', '{', '}':
 			return false
 		}
+	}
+	return true
+}
+
+// isHTTPFieldValue reports whether value is valid for an HTTP field value.
+// Horizontal tab is permitted, as are visible bytes and bytes from 0x80
+// through 0xfe. Other control characters, DEL, and 0xff are rejected before
+// the value reaches net/http.
+func isHTTPFieldValue(value string) bool {
+	for i := 0; i < len(value); i++ {
+		c := value[i]
+		if c == '\t' || (c >= 0x20 && c <= 0x7e) || (c >= 0x80 && c <= 0xfe) {
+			continue
+		}
+		return false
 	}
 	return true
 }

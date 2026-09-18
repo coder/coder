@@ -170,7 +170,36 @@ func TestAIProviderRequest_ValidateUpstreamHeaders(t *testing.T) {
 		req.Settings.UpstreamHeaders.Headers = map[string]string{"X-A": "a\r\nB: c"}
 		errs := req.Validate()
 		require.Len(t, errs, 1)
-		require.Contains(t, errs[0].Detail, "CR or LF")
+		require.Contains(t, errs[0].Detail, "invalid HTTP control character")
+	})
+
+	t.Run("HTTPFieldValueCharacters", func(t *testing.T) {
+		t.Parallel()
+		for _, tc := range []struct {
+			name  string
+			value string
+			valid bool
+		}{
+			{name: "HorizontalTab", value: "a\tb", valid: true},
+			{name: "Space", value: " ", valid: true},
+			{name: "ByteFE", value: string([]byte{0xfe}), valid: true},
+			{name: "NUL", value: string([]byte{0}), valid: false},
+			{name: "DEL", value: string([]byte{0x7f}), valid: false},
+			{name: "ByteFF", value: string([]byte{0xff}), valid: false},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				req := valid()
+				req.Settings.UpstreamHeaders.Headers = map[string]string{"X-A": tc.value}
+				errs := req.Validate()
+				if tc.valid {
+					require.Empty(t, errs)
+					return
+				}
+				require.Len(t, errs, 1)
+				require.Contains(t, errs[0].Detail, "invalid HTTP control character")
+			})
+		}
 	})
 
 	t.Run("DuplicateCaseInsensitive", func(t *testing.T) {

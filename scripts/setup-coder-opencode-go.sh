@@ -110,8 +110,10 @@ if [[ -z "$organization_id" ]]; then
 fi
 
 models=$(api_get "$(api_url "/api/v2/organizations/$organization_id/chats/models")")
-model_id=$(jq -r --arg model "$OPENCODE_MODEL" \
-	'[.models[] | select(.model == $model) | .id] | first // empty' <<<"$models")
+model_id=$(jq -r \
+	--arg model "$OPENCODE_MODEL" \
+	--arg provider_id "$provider_id" \
+	'[.models[] | select(.model == $model and .ai_provider_id == $provider_id) | .id] | first // empty' <<<"$models")
 
 model_payload=$(jq -nc \
 	--arg provider_id "$provider_id" \
