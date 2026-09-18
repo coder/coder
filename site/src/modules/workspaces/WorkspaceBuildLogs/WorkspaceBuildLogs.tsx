@@ -1,9 +1,9 @@
 import { cn } from "cn";
 import dayjs from "dayjs";
 import {
+	type ComponentProps,
 	type FC,
 	Fragment,
-	type HTMLAttributes,
 	useLayoutEffect,
 	useRef,
 } from "react";
@@ -39,7 +39,7 @@ const getStageDurationInSeconds = (logs: ProvisionerJobLog[]) => {
 	return completedAt.diff(startedAt, "seconds");
 };
 
-interface WorkspaceBuildLogsProps extends HTMLAttributes<HTMLDivElement> {
+interface WorkspaceBuildLogsProps extends Omit<ComponentProps<"div">, "ref"> {
 	hideTimestamps?: boolean;
 	sticky?: boolean;
 	logs: ProvisionerJobLog[];

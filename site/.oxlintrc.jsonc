@@ -250,6 +250,12 @@
 					},
 					"React.ComponentPropsWithoutRef": {
 						"message": "Use React.ComponentProps instead. Under React 19 it already includes ref."
+					},
+					"HTMLAttributes": {
+						"message": "Use ComponentProps<\"tag\"> instead, naming the tag the component renders."
+					},
+					"React.HTMLAttributes": {
+						"message": "Use React.ComponentProps<\"tag\"> instead, naming the tag the component renders."
 					}
 				}
 			}

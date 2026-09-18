@@ -95,11 +95,11 @@ interface MultiSelectComboboxProps {
 	/** Allow user to create option when there is no option matched. */
 	creatable?: boolean;
 	/** Props of `Command` */
-	commandProps?: ComponentProps<typeof Command>;
+	commandProps?: Omit<ComponentProps<typeof Command>, "ref">;
 	/** Props of `CommandInput` */
 	inputProps?: Omit<
 		ComponentProps<typeof CommandPrimitive.Input>,
-		"value" | "placeholder" | "disabled"
+		"ref" | "value" | "placeholder" | "disabled"
 	>;
 	/** hide or show the button that clears all the selected options. */
 	hideClearAllButton?: boolean;
