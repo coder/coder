@@ -4416,7 +4416,7 @@ func formatPlanPathBlock(chatPath, home string) string {
 	_, _ = b.WriteString("Your plan file path for this chat is: ")
 	_, _ = b.WriteString(chatPath)
 	_, _ = b.WriteString("\n")
-	_, _ = b.WriteString("Always use this exact path when creating or proposing plan files. Do not use ")
+	_, _ = b.WriteString("Use this path for the chat's working plan. Explicit Plan Mode requires this path for its submitted plan. Outside Plan Mode, use a project-specific path when the task calls for it. Do not use ")
 	_, _ = b.WriteString(avoidPlanPath)
 	_, _ = b.WriteString(".\n")
 	_, _ = b.WriteString("</plan-file-path>")
