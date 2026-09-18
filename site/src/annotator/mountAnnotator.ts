@@ -3,6 +3,7 @@ import { describeElement } from "./describeElement";
 import { el, flagCutEdges, placeOver } from "./dom";
 import { outlineInset, viewportBox } from "./geometry";
 import { createHighlightLayer } from "./highlights";
+import { createHintPill } from "./hintPill";
 import { checkIcon, pointerIcon } from "./icons";
 import pickingCursorStyles from "./pickingCursor.css?inline";
 import { createPickOutline } from "./pickOutline";
@@ -22,7 +23,8 @@ type AnnotatorState = {
 };
 
 type AnnotatorHandle = {
-	setPicking(picking: boolean): void;
+	// `hint` shows the first-run hint alongside picking mode.
+	setPicking(picking: boolean, hint?: boolean): void;
 	setHighlights(items: HighlightItem[]): void;
 	getState(): AnnotatorState;
 	destroy(): void;
@@ -32,6 +34,8 @@ type MountAnnotatorOptions = {
 	document: Document;
 	onSubmit(submission: AnnotationSubmission): void;
 	onStateChange?(state: AnnotatorState): void;
+	// The user closed the first-run hint or sent their first comment.
+	onHintDismissed?(): void;
 };
 
 // The comment being written and which element it is about. The outline
@@ -103,11 +107,18 @@ export function mountAnnotator(
 	toolbar.append(stopButton);
 	toolbar.style.display = "none";
 
+	const hint = createHintPill(doc, () => options.onHintDismissed?.());
 	const outline = createPickOutline(win);
 	const highlightsContainer = el(doc, "div", "highlights", {
 		"aria-hidden": "true",
 	});
-	shadow.append(style, toolbar, outline.element, highlightsContainer);
+	shadow.append(
+		style,
+		toolbar,
+		hint.element,
+		outline.element,
+		highlightsContainer,
+	);
 	const highlights = createHighlightLayer(doc, win, highlightsContainer);
 	doc.body.append(host);
 
@@ -156,6 +167,8 @@ export function mountAnnotator(
 		const page = pageInfo();
 		options.onSubmit({ page, annotations: [annotation] });
 		flashSent(target);
+		// A first comment proves the hint has done its job.
+		hint.dismiss();
 		// Hold a quiet ring on the element until the dashboard reports the
 		// agent working on it, so the send and the shimmer read as one
 		// continuous state rather than two events with a gap between.
@@ -275,7 +288,11 @@ export function mountAnnotator(
 		}
 	};
 
-	const setPicking = (next: boolean) => {
+	const setPicking = (next: boolean, withHint = false) => {
+		if (next && withHint) {
+			hint.want();
+		}
+		hint.sync(next);
 		if (next === picking) {
 			return;
 		}
