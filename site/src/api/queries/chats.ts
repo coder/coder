@@ -532,17 +532,19 @@ const isDiffStatusTombstone = (status: TypesGen.ChatDiffStatus): boolean =>
 	!status.pull_request_title;
 
 const diffStatusesEqual = (
-	a: readonly TypesGen.ChatDiffStatus[] | undefined,
-	b: readonly TypesGen.ChatDiffStatus[] | undefined,
+	cached: readonly TypesGen.ChatDiffStatus[] | undefined,
+	incoming: readonly TypesGen.ChatDiffStatus[] | undefined,
 ): boolean => {
-	if (a === b) {
+	if (cached === incoming) {
 		return true;
 	}
-	if (!a || !b || a.length !== b.length) {
+	if (!cached || !incoming || cached.length !== incoming.length) {
 		return false;
 	}
 	// Order is part of the contract: the first row is the primary.
-	return a.every((s, i) => diffStatusEqual(s, b[i]));
+	return cached.every((status, index) =>
+		diffStatusEqual(status, incoming[index]),
+	);
 };
 
 const mergeDiffStatuses = (
@@ -551,9 +553,11 @@ const mergeDiffStatuses = (
 	primary?: TypesGen.ChatDiffStatus,
 	removedRef?: TypesGen.DiffStatusRef,
 ): TypesGen.ChatDiffStatus[] | undefined => {
-	const merged = new Map((cached ?? []).map((s) => [diffStatusRefKey(s), s]));
-	for (const s of incoming ?? []) {
-		merged.set(diffStatusRefKey(s), s);
+	const merged = new Map(
+		(cached ?? []).map((status) => [diffStatusRefKey(status), status]),
+	);
+	for (const status of incoming ?? []) {
+		merged.set(diffStatusRefKey(status), status);
 	}
 	// The embedded primary can be older than cached rows by
 	// delivery delay; only adopt it when the merge missed its row.
@@ -570,11 +574,11 @@ const mergeDiffStatuses = (
 	const statuses = [...merged.values()];
 	if (primaryKey) {
 		const primaryIndex = statuses.findIndex(
-			(s) => diffStatusRefKey(s) === primaryKey,
+			(status) => diffStatusRefKey(status) === primaryKey,
 		);
 		if (primaryIndex > 0) {
-			const [row] = statuses.splice(primaryIndex, 1);
-			statuses.unshift(row);
+			const [primaryRow] = statuses.splice(primaryIndex, 1);
+			statuses.unshift(primaryRow);
 		}
 	}
 	return statuses.length > 0 ? statuses : undefined;
@@ -613,12 +617,23 @@ export const mergeWatchedChatSummary = (
 	const changedStatus = changedDiffStatus?.status ?? undefined;
 	const changedIsTombstone =
 		changedStatus !== undefined && isDiffStatusTombstone(changedStatus);
+
+	// A tombstone event only names the ref it removed. Every other
+	// event carries one changed row to merge.
+	let incomingRows: readonly TypesGen.ChatDiffStatus[] | undefined;
+	let removedRef: TypesGen.DiffStatusRef | undefined;
+	if (changedIsTombstone) {
+		removedRef = changedDiffStatus?.ref;
+	} else if (changedStatus !== undefined) {
+		incomingRows = [changedStatus];
+	}
+
 	const nextDiffStatuses = isDiffStatusEvent
 		? mergeDiffStatuses(
 				cachedChat.diff_statuses,
-				changedStatus && !changedIsTombstone ? [changedStatus] : undefined,
+				incomingRows,
 				watchedChat.diff_status,
-				changedIsTombstone ? changedDiffStatus?.ref : undefined,
+				removedRef,
 			)
 		: cachedChat.diff_statuses;
 	// Context drift is tracked outside chats.updated_at (it is driven by
@@ -856,13 +871,17 @@ export const invalidateChatDebugRuns = (
 		queryKey: chatDebugRunsKey(chatId),
 	});
 
+// Every per-ref diff-contents query key starts with this prefix,
+// so invalidating it drops every ref's cached diff at once.
+const chatDiffContentsFamilyKey = (chatId: string) =>
+	[...chatEntityKey(chatId), "diff-contents"] as const;
+
 export const invalidateChatDiffContents = (
 	queryClient: QueryClient,
 	chatId: string,
 ) =>
 	queryClient.invalidateQueries({
-		// Prefix match: invalidates every ref's diff contents.
-		queryKey: [...chatEntityKey(chatId), "diff-contents"],
+		queryKey: chatDiffContentsFamilyKey(chatId),
 	});
 
 export const invalidateChatPrompts = (
@@ -1970,8 +1989,7 @@ export const chatDiffContentsKey = (
 	ref?: TypesGen.DiffStatusRef,
 ) =>
 	[
-		...chatEntityKey(chatId),
-		"diff-contents",
+		...chatDiffContentsFamilyKey(chatId),
 		ref?.remote_origin ?? "",
 		ref?.git_branch ?? "",
 	] as const;
