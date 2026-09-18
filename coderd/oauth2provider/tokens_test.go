@@ -812,7 +812,9 @@ func TestOAuth2RefreshClientAuthentication(t *testing.T) {
 		form := refreshForm(app, refreshToken)
 		form.Del("client_secret")
 		status, _, body := postForm(ctx, t, form, func(r *http.Request) {
-			r.URL.RawQuery = url.Values{"client_secret": {app.ClientSecret}}.Encode()
+			q := r.URL.Query()
+			q.Set("client_secret", app.ClientSecret)
+			r.URL.RawQuery = q.Encode()
 		})
 		desc := requireTokenError(t, status, body, codersdk.OAuth2ErrorCodeInvalidRequest)
 		require.Contains(t, desc, "URL query string")
@@ -831,7 +833,9 @@ func TestOAuth2RefreshClientAuthentication(t *testing.T) {
 		refreshToken := seedRefreshToken(ctx, t, db, app, owner.UserID, "workspace:ssh")
 
 		status, _, body := postForm(ctx, t, refreshForm(app, refreshToken), func(r *http.Request) {
-			r.URL.RawQuery = url.Values{"client_secret": {app.ClientSecret}}.Encode()
+			q := r.URL.Query()
+			q.Set("client_secret", app.ClientSecret)
+			r.URL.RawQuery = q.Encode()
 		})
 		desc := requireTokenError(t, status, body, codersdk.OAuth2ErrorCodeInvalidRequest)
 		require.Contains(t, desc, "URL query string")

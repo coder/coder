@@ -26,8 +26,7 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
-// Error descriptions shared by the token and revocation endpoints, which reject
-// these two cases identically.
+// Shared by the token and revocation endpoints.
 const (
 	errMsgClientSecretInQuery   = "client_secret was sent in the URL query string; send it in the request body or the Authorization header, and rotate the secret that was exposed" //nolint:gosec // G101: message text, not a hardcoded credential.
 	errMsgConflictingClientAuth = "Conflicting client credentials between Authorization header and request body"
