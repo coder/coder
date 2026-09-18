@@ -1262,7 +1262,7 @@ func New(options *Options) *API {
 			httpmw.NoStore,
 			// Routes here accept client credentials from callers with no API
 			// key, so the whole tree shares the login rate limit.
-			httpmw.RateLimitByRouteGroup(options.LoginRateLimit, time.Minute, "oauth2"),
+			httpmw.RateLimitOAuth2(options.LoginRateLimit, time.Minute),
 		)
 		r.Route("/authorize", func(r chi.Router) {
 			r.Use(

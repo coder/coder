@@ -42,8 +42,12 @@ func TestOAuth2RateLimit(t *testing.T) {
 			require.Equal(t, wantStatus, resp.StatusCode, "request %d should be inside the limit", i+1)
 		}
 		resp := send()
-		_ = resp.Body.Close()
+		defer resp.Body.Close()
 		require.Equal(t, http.StatusTooManyRequests, resp.StatusCode, "request %d should be rate limited", rateLimit+1)
+
+		var oauthErr codersdk.OAuth2Error
+		require.NoError(t, json.NewDecoder(resp.Body).Decode(&oauthErr), "a refusal should carry an RFC 6749 body")
+		require.Equal(t, codersdk.OAuth2ErrorCodeTemporarilyUnavailable, oauthErr.Error)
 	}
 
 	t.Run("Tokens", func(t *testing.T) {
