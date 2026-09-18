@@ -4,8 +4,8 @@ import {
 	type FC,
 	type JSX,
 	type ReactNode,
-	type Ref,
 	useCallback,
+	useEffect,
 	useLayoutEffect,
 	useRef,
 } from "react";
@@ -32,15 +32,26 @@ const fallbackLog: WorkspaceAgentLogSource = {
 	workspace_agent_id: "",
 };
 
+// tolerates fractional scroll positions at non-integer zoom levels
+const AT_BOTTOM_THRESHOLD_PX = 2;
+
 type AgentLogsProps = Omit<
 	React.ComponentPropsWithoutRef<typeof List>,
-	"children" | "itemSize" | "itemCount" | "itemKey"
+	| "children"
+	| "itemSize"
+	| "itemCount"
+	| "itemKey"
+	| "outerRef"
+	| "innerRef"
+	| "onScroll"
 > & {
 	logs: readonly Line[];
 	sources: readonly WorkspaceAgentLogSource[];
 	overflowed: boolean;
 	showSourceIcons?: boolean;
-	ref?: Ref<List>;
+	// keeps the newest line in view; scrolling away reports false
+	follow?: boolean;
+	onFollowChange?: (follow: boolean) => void;
 };
 
 export const AgentLogs: FC<AgentLogsProps> = ({
@@ -49,24 +60,73 @@ export const AgentLogs: FC<AgentLogsProps> = ({
 	overflowed,
 	className,
 	showSourceIcons = true,
-	ref,
+	follow,
+	onFollowChange,
 	...listProps
 }) => {
 	const logSourceById = Object.fromEntries(sources.map((s) => [s.id, s]));
 	const getLogSource = (id: string) => logSourceById[id] || fallbackLog;
 
 	const listRef = useRef<List>(null);
-	const mergeListRef = useCallback(
-		(instance: List | null) => {
-			listRef.current = instance;
-			if (typeof ref === "function") {
-				ref(instance);
-			} else if (ref) {
-				ref.current = instance;
+	const outerRef = useRef<HTMLDivElement>(null);
+	const innerRef = useRef<HTMLDivElement>(null);
+
+	const followRef = useRef(follow === true);
+	const lastScrollTopRef = useRef(0);
+	const followEnabled = follow !== undefined;
+
+	// not scrollToItem: react-window re-applies a requested offset on every re-render
+	const scrollToBottom = useCallback(() => {
+		const outer = outerRef.current;
+		if (outer) {
+			outer.scrollTop = outer.scrollHeight;
+			lastScrollTopRef.current = outer.scrollTop;
+		}
+	}, []);
+
+	useLayoutEffect(() => {
+		followRef.current = follow === true;
+		if (follow) {
+			scrollToBottom();
+		}
+	}, [follow, scrollToBottom]);
+
+	// re-pins on any content height change; same-frame scroll events run first
+	useEffect(() => {
+		const inner = innerRef.current;
+		if (!followEnabled || !inner) {
+			return;
+		}
+		const observer = new ResizeObserver(() => {
+			if (followRef.current) {
+				scrollToBottom();
 			}
-		},
-		[ref],
-	);
+		});
+		observer.observe(inner);
+		return () => observer.disconnect();
+	}, [followEnabled, scrollToBottom]);
+
+	useEffect(() => {
+		const outer = outerRef.current;
+		if (!followEnabled || !outer) {
+			return;
+		}
+		const handleScroll = () => {
+			const { scrollTop, scrollHeight, clientHeight } = outer;
+			const atBottom =
+				scrollHeight - scrollTop - clientHeight <= AT_BOTTOM_THRESHOLD_PX;
+			const scrolledUp = scrollTop < lastScrollTopRef.current;
+			lastScrollTopRef.current = scrollTop;
+
+			const next = atBottom ? true : scrolledUp ? false : followRef.current;
+			if (next !== followRef.current) {
+				followRef.current = next;
+				onFollowChange?.(next);
+			}
+		};
+		outer.addEventListener("scroll", handleScroll);
+		return () => outer.removeEventListener("scroll", handleScroll);
+	}, [followEnabled, onFollowChange]);
 
 	// A log line's real height depends on its content (long lines wrap, so a
 	// single log entry can span multiple visual rows). A fixed itemSize makes
@@ -118,7 +178,9 @@ export const AgentLogs: FC<AgentLogsProps> = ({
 		<div className="bg-surface-secondary relative">
 			<List
 				{...listProps}
-				ref={mergeListRef}
+				ref={listRef}
+				outerRef={outerRef}
+				innerRef={innerRef}
 				itemCount={logs.length}
 				itemSize={getRowHeight}
 				estimatedItemSize={AGENT_LOG_LINE_HEIGHT}
