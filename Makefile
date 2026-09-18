@@ -1471,7 +1471,7 @@ provisioner/terraform/testdata/.gen-golden: provisioner/terraform/testdata/gener
 	touch "$@"
 
 # Terraform reads ~/.terraformrc unless TF_CLI_CONFIG_FILE selects another file.
-# Local provider rebuilds are not fingerprinted. Regenerate explicitly with:
+# After rebuilding a local provider or changing its override, regenerate with:
 # ./provisioner/terraform/testdata/generate.sh
 provisioner/terraform/testdata/generation.sha1: FORCE
 	@./provisioner/terraform/testdata/generate.sh --if-needed

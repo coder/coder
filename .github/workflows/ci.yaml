@@ -458,8 +458,7 @@ jobs:
       - name: Start PostgreSQL container
         run: make test-postgres-docker
 
-      # A changed source without regenerated fixtures must fail, not invoke
-      # Terraform from the shared generation job.
+      # Reject an outdated input record before make gen could invoke Terraform.
       - name: Check Terraform fixture record
         run: ./provisioner/terraform/testdata/generate.sh --check
 
