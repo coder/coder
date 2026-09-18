@@ -29,7 +29,7 @@ import (
 // Error descriptions shared by the token and revocation endpoints, which reject
 // these two cases identically.
 const (
-	errMsgClientSecretInQuery   = "The client_secret must be sent in the request body or the Authorization header, not in the URL" //nolint:gosec // G101: message text, not a hardcoded credential.
+	errMsgClientSecretInQuery   = "client_secret was sent in the URL query string; send it in the request body or the Authorization header" //nolint:gosec // G101: message text, not a hardcoded credential.
 	errMsgConflictingClientAuth = "Conflicting client credentials between Authorization header and request body"
 )
 
@@ -276,12 +276,11 @@ func mergeBasicClientAuth(r *http.Request, clientID, clientSecret string) (merge
 }
 
 // clientSecretInQuery reports whether the request carries client_secret in the
-// URL. OAuth 2.1 §2.4.1 allows it only in the request body or the Authorization
-// header. A URL is recorded by proxies and access logs.
+// query string. OAuth 2.1 §2.4.1 prohibits it there. The other parameters read
+// from the merged form carry no such prohibition and stay accepted; PLAT-660
+// tracks them.
 //
-// RFC 6749 §3.2: a parameter sent without a value is the omitted case, so
-// ?client_secret= carries no secret. Every value is checked because the first
-// of a repeated parameter may be the empty one.
+// RFC 6749 §3.2: a parameter sent without a value counts as omitted.
 func clientSecretInQuery(r *http.Request) bool {
 	return slices.ContainsFunc(r.URL.Query()["client_secret"], func(v string) bool {
 		return v != ""

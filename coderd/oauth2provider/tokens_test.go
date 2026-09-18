@@ -802,8 +802,6 @@ func TestOAuth2RefreshClientAuthentication(t *testing.T) {
 		_ = tokenRow(ctx, t, db, refreshToken)
 	})
 
-	// OAuth 2.1 §2.4.1: the secret may be sent in the body or the Authorization
-	// header, never in the URL.
 	t.Run("SecretInQueryString", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -817,7 +815,7 @@ func TestOAuth2RefreshClientAuthentication(t *testing.T) {
 			r.URL.RawQuery = url.Values{"client_secret": {app.ClientSecret}}.Encode()
 		})
 		desc := requireTokenError(t, status, body, codersdk.OAuth2ErrorCodeInvalidRequest)
-		require.Contains(t, desc, "not in the URL")
+		require.Contains(t, desc, "URL query string")
 		requireNothingConsumed(ctx, t, app, refreshToken)
 	})
 
@@ -836,7 +834,7 @@ func TestOAuth2RefreshClientAuthentication(t *testing.T) {
 			r.URL.RawQuery = url.Values{"client_secret": {app.ClientSecret}}.Encode()
 		})
 		desc := requireTokenError(t, status, body, codersdk.OAuth2ErrorCodeInvalidRequest)
-		require.Contains(t, desc, "not in the URL")
+		require.Contains(t, desc, "URL query string")
 		// The body was already correct, so dropping the URL copy is the only
 		// change the retry makes: the copy alone caused the refusal.
 		requireNothingConsumed(ctx, t, app, refreshToken)

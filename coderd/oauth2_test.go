@@ -1444,8 +1444,6 @@ func TestOAuth2ProviderRevokeClientAuthentication(t *testing.T) {
 		require.True(t, works(), "a refused revocation must not end the session")
 	})
 
-	// OAuth 2.1 §2.4.1: the secret may be sent in the body or the Authorization
-	// header, never in the URL.
 	t.Run("SecretInQueryString", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -1517,7 +1515,7 @@ func TestOAuth2ProviderRevokeClientAuthentication(t *testing.T) {
 		})
 		require.Equal(t, http.StatusBadRequest, status)
 		require.Equal(t, codersdk.OAuth2ErrorCodeInvalidRequest, oauthErr.Error)
-		require.Contains(t, oauthErr.ErrorDescription, "not in the URL")
+		require.Contains(t, oauthErr.ErrorDescription, "URL query string")
 		require.True(t, works(), "a refused revocation must not end the session")
 	})
 }

@@ -150,7 +150,7 @@ Coder supports the following OAuth2 client authentication methods at the token e
 
 Coder supports both secret-based methods for compatibility; existing integrations using `client_secret_post` do not need to change.
 
-Send `client_secret` in the request body or in the `Authorization` header. A request that puts `client_secret` in the URL query string is rejected with `invalid_request`, because URLs are recorded by proxies and access logs. This applies to both `POST /oauth2/tokens` and `POST /oauth2/revoke`.
+Send `client_secret` in the request body or in the `Authorization` header. A request that puts `client_secret` in the URL query string is rejected with `invalid_request`, because OAuth 2.1 section 2.4.1 does not allow it there. This applies to both `POST /oauth2/tokens` and `POST /oauth2/revoke`. The rule covers `client_secret` only. Coder still reads `refresh_token`, `code`, and the revocation `token` from the query string, so send those in the request body as well.
 
 Public clients suit native, mobile, and CLI applications that cannot keep a secret confidential. Note the redirect URI restrictions below before choosing one.
 
@@ -598,9 +598,8 @@ secret and never receive this error for omitting one.
 `POST /oauth2/tokens` and `POST /oauth2/revoke` answer HTTP 400 with
 `error=invalid_request` when `client_secret` appears in the URL query string.
 OAuth 2.1 section 2.4.1 allows the secret in the request body or the
-`Authorization` header only, because a URL is recorded by proxies and access
-logs. Send it as a form parameter or as HTTP Basic, following
-[Client Authentication Methods](#client-authentication-methods).
+`Authorization` header only. Send it as a form parameter or as HTTP Basic,
+following [Client Authentication Methods](#client-authentication-methods).
 
 A copy in the body does not excuse one in the URL: the request is refused on
 the query string alone, before the body is read. The refusal mints nothing and
