@@ -135,8 +135,14 @@ const buildAttachmentMediaTypes = (
 	);
 };
 
-const AgentChatPage: FC = () => {
-	const { agentId } = useParams() as { agentId: string };
+interface AgentChatPageProps {
+	/** Overrides the route param so several chat panes can render at once. */
+	readonly chatId?: string;
+}
+
+const AgentChatPage: FC<AgentChatPageProps> = ({ chatId }) => {
+	const params = useParams() as { agentId: string };
+	const agentId = chatId ?? params.agentId;
 	const {
 		chatErrorReasons,
 		setChatErrorReason,
@@ -1112,8 +1118,9 @@ const AgentChatPage: FC = () => {
 // Keyed so that navigating between agents (changing the :agentId param)
 // fully remounts the component, resetting all internal state (drafts,
 // editing, queries, scroller) cleanly.
-const KeyedAgentChatPage: FC = () => {
-	const { agentId } = useParams<{ agentId: string }>();
+const KeyedAgentChatPage: FC<AgentChatPageProps> = ({ chatId }) => {
+	const params = useParams<{ agentId: string }>();
+	const agentId = chatId ?? params.agentId;
 	if (!agentId) {
 		return <AgentChatPageNotFoundView />;
 	}
@@ -1123,7 +1130,7 @@ const KeyedAgentChatPage: FC = () => {
 			autoScroll
 			defaultScrollPosition="end"
 		>
-			<AgentChatPage />
+			<AgentChatPage chatId={agentId} />
 		</MessageScroller.Provider>
 	);
 };

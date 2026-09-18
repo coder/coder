@@ -66,6 +66,7 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, depth = 0 }) => {
 		onPinAgent,
 		onUnpinAgent,
 		onOpenRenameDialog,
+		renderTrailing,
 	} = useChatTree();
 	const chatID = chat.id;
 	const isActiveChat = activeChatId === chatID;
@@ -148,6 +149,7 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, depth = 0 }) => {
 	const isExpanded = normalizedSearch ? true : (expandedById[chatID] ?? false);
 
 	const hasMenuActions = chatHasMenuActions(chat);
+	const trailing = renderTrailing?.(chat);
 
 	const hoverLayout =
 		"[@media(hover:hover)]:hover:-mx-2 [@media(hover:hover)]:hover:pl-3 [@media(hover:hover)]:hover:pr-3.5 [@media(hover:hover)]:hover:rounded-none";
@@ -292,7 +294,13 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, depth = 0 }) => {
 								</div>
 							)}
 						</NavLink>
-						<div className="relative my-1 flex w-7 shrink-0 flex-col items-end self-stretch">
+						<div
+							className={cn(
+								"relative my-1 flex w-7 shrink-0 flex-col items-end self-stretch",
+								// Slot content can be wider than the age, so let the column grow.
+								trailing && "w-auto min-w-7",
+							)}
+						>
 							<div className="flex h-6 w-7 shrink-0 items-center justify-end">
 								{isArchivingThisChat ? (
 									<Spinner
@@ -333,6 +341,7 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, depth = 0 }) => {
 									</span>
 								)}
 							</div>
+							{trailing}
 							{isSharedChat && (
 								<UsersIcon
 									className="mt-auto size-3.5 text-content-secondary"
@@ -347,6 +356,9 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, depth = 0 }) => {
 											variant="subtle"
 											className={cn(
 												"absolute inset-0 flex h-6 w-7 min-w-0 justify-end rounded-none px-0 opacity-0 text-content-secondary hover:text-content-primary [@media(hover:hover)]:group-hover:opacity-100 data-[state=open]:opacity-100",
+												// inset-0 pins both edges; in a wider column the fixed
+												// width wins from the left, so release that edge.
+												trailing && "left-auto",
 												isActiveChat && "opacity-100",
 											)}
 											aria-label={`Open actions for ${chat.title}`}
