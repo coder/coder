@@ -179,6 +179,20 @@ const allToolShowcaseItems: ToolShowcaseItem[] = [
 		result: { source: "manual" },
 	},
 	{
+		name: "clear_context",
+		args: { follow_up: "Resume from PLAN.md step 3." },
+		result: {
+			output: "Context cleared. Follow-up: Resume from PLAN.md step 3.",
+		},
+	},
+	{
+		name: "compact_context",
+		args: { follow_up: "Resume from PLAN.md step 3." },
+		result: {
+			output: "Compaction scheduled. Follow-up: Resume from PLAN.md step 3.",
+		},
+	},
+	{
 		name: "propose_plan",
 		args: { path: "/home/coder/.coder/plans/PLAN-example.md" },
 		result: { path: "/home/coder/.coder/plans/PLAN-example.md" },
@@ -1338,6 +1352,94 @@ export const ChatClearedAutomaticSource: Story = {
 		name: "chat_cleared",
 		args: JSON.stringify({ source: "automatic" }),
 		result: { source: "automatic" },
+	},
+};
+
+// ---------------------------------------------------------------------------
+// clear_context and compact_context stories
+// ---------------------------------------------------------------------------
+
+const contextFollowUp = [
+	"Implementation checkpoint sent. Plan: /home/coder/plans/demo/PLAN.md,",
+	"review: /home/coder/plans/demo/REVIEW-diff.md. Wait for the",
+	"orchestrator reply, then apply the accepted corrections and push",
+	"branch scott/demo. Child agent: 4f1c2b7e-review.",
+].join(" ");
+
+export const ClearContextRunning: Story = {
+	args: {
+		name: "clear_context",
+		args: JSON.stringify({ follow_up: contextFollowUp }),
+		status: "running",
+		result: undefined,
+	},
+};
+
+export const ClearContext: Story = {
+	args: {
+		name: "clear_context",
+		args: JSON.stringify({ follow_up: contextFollowUp }),
+		result: { output: `Context cleared. Follow-up: ${contextFollowUp}` },
+	},
+};
+
+// The nothing-new guard rejects a call made right after a boundary.
+export const ClearContextRejected: Story = {
+	args: {
+		name: "clear_context",
+		args: JSON.stringify({ follow_up: contextFollowUp }),
+		result: {
+			error:
+				"nothing has happened since the last context boundary; do some work before clearing or compacting again",
+		},
+		status: "error",
+		isError: true,
+	},
+};
+
+export const CompactContextRunning: Story = {
+	args: {
+		name: "compact_context",
+		args: JSON.stringify({ follow_up: contextFollowUp }),
+		status: "running",
+		result: undefined,
+	},
+};
+
+export const CompactContext: Story = {
+	args: {
+		name: "compact_context",
+		args: JSON.stringify({ follow_up: contextFollowUp }),
+		result: { output: `Compaction scheduled. Follow-up: ${contextFollowUp}` },
+	},
+};
+
+// A second compact_context call while an earlier one in the same
+// segment produced no boundary.
+export const CompactContextRejected: Story = {
+	args: {
+		name: "compact_context",
+		args: JSON.stringify({ follow_up: contextFollowUp }),
+		result: {
+			error:
+				"an earlier compact_context call in this context segment did not produce a boundary; use clear_context with a follow-up or continue working",
+		},
+		status: "error",
+		isError: true,
+	},
+};
+
+// A pre_tool_use hook denied the call.
+export const CompactContextDenied: Story = {
+	args: {
+		name: "compact_context",
+		args: JSON.stringify({ follow_up: contextFollowUp }),
+		result: {
+			error:
+				"This tool usage was blocked by an external policy (the deployment's lifecycle hook); the tool call was not executed. Reason: agent compaction is disabled for this deployment. This is an administrative policy decision, not a tool or workspace failure; retrying the same call will be denied again. Explain the policy block to the user and adjust your approach.",
+		},
+		status: "error",
+		isError: true,
 	},
 };
 
