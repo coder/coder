@@ -175,6 +175,17 @@ const ChatBoardPage: FC = () => {
 	// Looked up in render: an unknown call taking `chats` inside the handler
 	// would count as a mutation and cost the handler its memoization.
 	const assistantByKey = assistantIds(chats);
+	// The board list is filtered `archived:false` and the archive cache helper
+	// drops an archived chat from it, so an archived assistant leaves this map
+	// on its own.
+	const cardAssistants = new Map(
+		[...assistantByKey].flatMap(([key, id]) => {
+			const assistant = chatsById.get(id);
+			return key !== BOARD_ASSISTANT_KEY && assistant
+				? [[key, assistant] as const]
+				: [];
+		}),
+	);
 	// Watch events carry status but not labels. While the board assistant is
 	// on a turn it may relabel chats, so the turn ending refetches the list.
 	// The effect's cleanup is that ending: it runs when the status leaves the
@@ -393,6 +404,7 @@ const ChatBoardPage: FC = () => {
 					columns={visibleColumns}
 					board={boardState}
 					run={run}
+					assistants={cardAssistants}
 					openChatIds={openChatIds}
 					dropTarget={dropTarget}
 					knownEfforts={efforts.map((e) => e.name)}

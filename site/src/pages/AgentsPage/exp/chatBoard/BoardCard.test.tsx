@@ -15,7 +15,7 @@ const chat = (id: string, labels: Record<string, string> = {}): Chat => ({
 	labels,
 });
 
-const renderCard = (chats: readonly Chat[]) => {
+const renderCard = (chats: readonly Chat[], assistant?: Chat) => {
 	const [card] = buildCards(chats);
 	if (!card) throw new Error("card missing");
 	const handlers = {
@@ -41,6 +41,7 @@ const renderCard = (chats: readonly Chat[]) => {
 	renderComponent(
 		<BoardCard
 			card={card}
+			assistant={assistant}
 			openChatIds={new Set()}
 			isDropTarget={false}
 			noteDrop={undefined}
@@ -203,5 +204,41 @@ describe("BoardCard", () => {
 		).toBeDefined();
 		expect(within(rowR).queryByRole("img", dot)).toBeNull();
 		expect(screen.getAllByRole("img", dot)).toHaveLength(1);
+	});
+
+	it("previews and opens the assistant from its icon, anchored to the card", async () => {
+		const user = userEvent.setup();
+		const assistant = chat("a", { "board/assistant": "p" });
+		const { onOpen, onPreview } = renderCard([chat("p")], assistant);
+		const rect = { top: 10 } as DOMRect;
+		vi.spyOn(
+			screen.getByRole("article"),
+			"getBoundingClientRect",
+		).mockReturnValue(rect);
+
+		const opener = screen.getByRole("button", { name: "Assistant" });
+		await user.hover(opener);
+		await user.click(opener);
+
+		expect(onPreview).toHaveBeenCalledWith(assistant, rect);
+		expect(onOpen).toHaveBeenCalledWith(assistant, rect);
+	});
+
+	it("marks a settled assistant's reply unread and a working one as busy", () => {
+		renderCard([chat("p")], {
+			...chat("a", { "board/assistant": "p" }),
+			has_unread: true,
+		});
+		renderCard([chat("q")], {
+			...chat("b", { "board/assistant": "q" }),
+			has_unread: true,
+			status: "running",
+		});
+
+		const dot = { name: "Unread" };
+		const settled = screen.getByRole("button", { name: "Assistant" });
+		expect(within(settled).getByRole("img", dot)).toBeDefined();
+		const working = screen.getByRole("button", { name: "Assistant working" });
+		expect(within(working).queryByRole("img", dot)).toBeNull();
 	});
 });
