@@ -16,6 +16,7 @@ type InfoTooltipSize = "small" | "medium";
 interface InfoTooltipProps {
 	type?: InfoTooltipType;
 	size?: InfoTooltipSize;
+	ariaLabel?: string;
 	children: ReactNode;
 }
 
@@ -38,6 +39,7 @@ export const InfoTooltip: FC<InfoTooltipProps> = ({
 	children,
 	type = "info",
 	size = "medium",
+	ariaLabel = "More info",
 }) => {
 	const Icon = typeIcon[type];
 
@@ -46,7 +48,7 @@ export const InfoTooltip: FC<InfoTooltipProps> = ({
 			<Tooltip>
 				<TooltipTrigger
 					type="button"
-					aria-label="More info"
+					aria-label={ariaLabel}
 					className={cn(
 						"flex items-center justify-center p-0",
 						"border-0 border-none bg-transparent cursor-default",

@@ -313,7 +313,11 @@ Visibility follows the viewer's role:
 | Every user                                           | Their own spend and budget, or unlimited state, in their avatar menu |
 | Members of a group                                   | The group's spend and budget, and their own member row               |
 | Owners, User Admins, and organization administrators | Spend and budgets for every group and every member                   |
+| Readers of an organization's group members           | Each organization's total and per-user spend on the **Spend** page   |
 
+- The **Spend** page under **Admin settings** > **AI** shows total and per-user AI Gateway spend for the selected organization and reporting period.
+  It opens for anyone who can read the organization's group members: Owners, Auditors, Template Admins, User Admins, and their organization-scoped equivalents.
+  Users who can also view AI sessions can filter it by provider, model, and client.
 - The **Groups** page compares each group's spend with the combined limits of
   the members it covers.
 - The **Members** tab of a group reports each member's spend, their budget, and
@@ -332,11 +336,9 @@ Administrators can also use the
 [Get user AI spend](../../reference/api/enterprise.md#get-user-ai-spend) API
 endpoint to see a user's current effective group.
 
-### CSV Export
+### Spend export
 
-Users who can read group-member data for the organization can export approximate
-spend for reporting and internal cost allocation. The export is available through
-the API only.
+Users who can read group-member data for the organization can export approximate spend for reporting and internal cost allocation.
 
 ```sh
 curl -H "Coder-Session-Token: $CODER_SESSION_TOKEN" \
@@ -346,8 +348,10 @@ curl -H "Coder-Session-Token: $CODER_SESSION_TOKEN" \
 - Without parameters, the export covers the current budget period.
 - To select a range, pass `period_start` and `period_end` together as RFC 3339
   timestamps. A range can span at most 31 days.
-- Each row breaks spend down by user, group, model, and provider, with the
-  underlying token counts.
+- Spend is attributed through each request's effective budget group, which falls back to the organization's `Everyone` group when no budget applies, so only usage recorded without any effective group is excluded.
+- Each CSV row breaks spend down by user, group, model, and provider, with the underlying token counts.
+
+For programmatic per-user reporting, refer to the [List organization AI spend by user API reference](../../reference/api/enterprise.md#list-organization-ai-spend-by-user).
 
 ### Prometheus Metrics
 

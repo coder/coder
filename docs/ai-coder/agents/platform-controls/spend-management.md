@@ -53,26 +53,16 @@ Both appear only when the deployment has the AI Gateway entitlement.
 
 ## Spend details
 
-Coder has no dedicated deployment-wide spend dashboard.
 Spend is shown where it is actionable:
 
+- **Admin settings** > **AI** > **Spend**: total and per-user AI Gateway spend for the selected organization and reporting period.
+  Users who can also view AI sessions can filter it by provider, model, and client.
 - **Agents page and user menu**: the signed-in user's spend against their budget, as described previously.
 - **Group settings**: each member's spend against the group's budget, for admins who can manage the group.
 - **Chat summary panel**: the cost of one chat tree, on a chat's Summary tab.
   A subagent reports the total for its whole tree, including the chat that started it.
 
-Organization administrators can export per-user, per-group, per-model, and per-provider spend to CSV:
-
-```sh
-curl -X GET "https://coder.example.com/api/v2/organizations/$ORGANIZATION/ai/spend/export" \
-  -H "Coder-Session-Token: $CODER_SESSION_TOKEN"
-```
-
-A successful response has the `Content-Type` header `text/csv; charset=utf-8` and starts with this CSV header:
-
-```csv
-user_id,username,group_id,group_name,organization_id,organization_name,model,provider,provider_name,input_tokens,output_tokens,cache_read_tokens,cache_write_tokens,cost_micros,period_start,period_end
-```
+For organization spend exports, refer to [AI Gateway spend export](../../ai-gateway/cost-controls.md#spend-export).
 
 The AI Gateway [sessions views](../../ai-gateway/audit.md#navigating-the-ui) show per-request token usage, which is the input to those costs rather than the costs themselves.
 

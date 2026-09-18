@@ -83,6 +83,11 @@ interface DateRangePickerProps {
 	now?: Date;
 	presets?: DateRangePreset[];
 	size?: ButtonProps["size"];
+	/** Longest range the calendar lets the user select, in inclusive days. */
+	maxDays?: number;
+	/** Earliest selectable day. Presets that would start before it are hidden. */
+	minDate?: Date;
+	disabled?: boolean;
 }
 
 /**
@@ -91,7 +96,7 @@ interface DateRangePickerProps {
  * rounded up to the next hour (if it falls on today) or to the start of
  * the following day.
  */
-function toBoundary(from: Date, to: Date, now: Date): DateRangeValue {
+export function toBoundary(from: Date, to: Date, now: Date): DateRangeValue {
 	const currentTime = dayjs(now);
 	const start = dayjs(from).startOf("day").toDate();
 	const end = dayjs(to).isSame(currentTime, "day")
@@ -121,10 +126,15 @@ export const DateRangePicker: FC<DateRangePickerProps> = ({
 	now,
 	presets,
 	size = "sm",
+	maxDays,
+	minDate,
+	disabled,
 }) => {
 	const [open, setOpen] = useState(false);
 	const currentTime = now ?? new Date();
-	const resolvedPresets = presets ?? buildDefaultPresets(now);
+	const resolvedPresets = (presets ?? buildDefaultPresets(now)).filter(
+		(preset) => minDate === undefined || preset.range().from >= minDate,
+	);
 
 	// Internal selection state kept separate from the committed value
 	// so the user can freely adjust the range before applying. This
@@ -173,13 +183,13 @@ export const DateRangePicker: FC<DateRangePickerProps> = ({
 			selection.to.getTime() !== committed.to?.getTime());
 
 	return (
-		<Popover open={open} onOpenChange={handleOpenChange}>
+		<Popover open={open && !disabled} onOpenChange={handleOpenChange}>
 			<PopoverTrigger asChild>
-				<Button variant="outline" size={size}>
+				<Button variant="outline" size={size} disabled={disabled}>
 					<CalendarIcon className="size-4 text-content-secondary" />
-					<span>{dayjs(value.startDate).format("MMM D, YYYY")}</span>
+					<span>{dayjs(committed.from).format("MMM D, YYYY")}</span>
 					<MoveRightIcon className="size-3.5 text-content-secondary" />
-					<span>{dayjs(value.endDate).format("MMM D, YYYY")}</span>
+					<span>{dayjs(committed.to).format("MMM D, YYYY")}</span>
 				</Button>
 			</PopoverTrigger>
 			<PopoverContent
@@ -245,7 +255,12 @@ export const DateRangePicker: FC<DateRangePickerProps> = ({
 								selected={selection}
 								onSelect={handleCalendarSelect}
 								numberOfMonths={2}
-								disabled={{ after: currentTime }}
+								max={maxDays === undefined ? undefined : maxDays - 1}
+								disabled={
+									minDate === undefined
+										? { after: currentTime }
+										: [{ before: minDate }, { after: currentTime }]
+								}
 								today={currentTime}
 							/>
 						</div>

@@ -20,6 +20,9 @@ import (
 // $1,000,000 per member per budget period.
 const MaxAISpendLimitMicros int64 = 1_000_000_000_000
 
+// MaxAISpendPeriodDays bounds explicit AI spend reporting windows.
+const MaxAISpendPeriodDays = 31
+
 // AIBudgetLimitSource identifies which tier produced the user's
 // effective budget limit.
 type AIBudgetLimitSource string

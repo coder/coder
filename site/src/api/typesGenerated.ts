@@ -6133,6 +6133,12 @@ export const MaxAIModelPricesBytes = 1048576; // 1 MiB
  */
 export const MaxAISpendLimitMicros = 1000000000000;
 
+// From codersdk/aibridge.go
+/**
+ * MaxAISpendPeriodDays bounds explicit AI spend reporting windows.
+ */
+export const MaxAISpendPeriodDays = 31;
+
 // From codersdk/chats.go
 /**
  * MaxChatFileIDs is the number of most recent attachments a chat
