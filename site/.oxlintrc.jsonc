@@ -95,8 +95,8 @@
 				"ignoreRestSiblings": true,
 				"argsIgnorePattern": "^_",
 				"varsIgnorePattern": "^_",
-				"caughtErrorsIgnorePattern": "^_",
-			},
+				"caughtErrorsIgnorePattern": "^_"
+			}
 		],
 		"void-dom-elements-no-children": "error",
 		"use-isnan": "error",
@@ -187,7 +187,7 @@
 		"no-redeclare": "error",
 		"no-use-before-define": [
 			"error",
-			{ "functions": false, "classes": false, "variables": false },
+			{ "functions": false, "classes": false, "variables": false }
 		],
 
 		// ==========================================================
@@ -223,16 +223,16 @@
 					{
 						"name": "#/contexts/auth/AuthProvider",
 						"importNames": ["AuthContext"],
-						"message": "Use the useAuthContext() or useAuthenticated() hooks instead of the raw AuthContext.",
-					},
+						"message": "Use the useAuthContext() or useAuthenticated() hooks instead of the raw AuthContext."
+					}
 				],
 				"patterns": [
 					{
 						"group": ["**/e2e", "**/e2e/**"],
-						"message": "Application code must never import from the Playwright e2e suite.",
-					},
-				],
-			},
+						"message": "Application code must never import from the Playwright e2e suite."
+					}
+				]
+			}
 		],
 
 		"no-restricted-types": [
@@ -240,35 +240,35 @@
 			{
 				"types": {
 					"ComponentPropsWithRef": {
-						"message": "Use ComponentProps instead. Under React 19 it already includes ref.",
+						"message": "Use ComponentProps instead. Under React 19 it already includes ref."
 					},
 					"React.ComponentPropsWithRef": {
-						"message": "Use React.ComponentProps instead. Under React 19 it already includes ref.",
+						"message": "Use React.ComponentProps instead. Under React 19 it already includes ref."
 					},
 					"ComponentPropsWithoutRef": {
-						"message": "Use ComponentProps instead. Under React 19 it already includes ref.",
+						"message": "Use ComponentProps instead. Under React 19 it already includes ref."
 					},
 					"React.ComponentPropsWithoutRef": {
-						"message": "Use React.ComponentProps instead. Under React 19 it already includes ref.",
-					},
-				},
-			},
-		],
+						"message": "Use React.ComponentProps instead. Under React 19 it already includes ref."
+					}
+				}
+			}
+		]
 	},
 	// typesGenerated.ts is generated, so ignore it entirely rather than
 	// tracking per-rule exceptions for it.
 	"ignorePatterns": [
 		"e2e/**/*Generated.ts",
 		"scripts/*.mjs",
-		"**/typesGenerated.ts",
+		"**/typesGenerated.ts"
 	],
 	"overrides": [
 		{
 			"files": [
 				"**/DiffViewer/parseDiff.ts",
-				"**/DiffViewer/parseDiff.test.ts",
+				"**/DiffViewer/parseDiff.test.ts"
 			],
-			"rules": { "no-restricted-imports": "off" },
+			"rules": { "no-restricted-imports": "off" }
 		},
 		{
 			"files": ["src/components/**/*.ts", "src/components/**/*.tsx"],
@@ -279,16 +279,16 @@
 						"patterns": [
 							{
 								"group": ["**/pages", "**/pages/**"],
-								"message": "components/ must not import from pages/. Move shared code down into components/.",
+								"message": "components/ must not import from pages/. Move shared code down into components/."
 							},
 							{
 								"group": ["**/modules", "**/modules/**"],
-								"message": "components/ must not import from modules/. Maintain imports from other components/.",
-							},
-						],
-					},
-				],
-			},
-		},
-	],
+								"message": "components/ must not import from modules/. Maintain imports from other components/."
+							}
+						]
+					}
+				]
+			}
+		}
+	]
 }
