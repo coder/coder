@@ -1,9 +1,50 @@
 import { describe, expect, it } from "vitest";
-import { SmoothTextEngine, STREAM_SMOOTHING } from "./SmoothText";
+import {
+	SmoothTextEngine,
+	STREAM_SMOOTHING,
+	sliceAtGraphemeBoundary,
+} from "./SmoothText";
 
 function makeText(length: number): string {
 	return "x".repeat(length);
 }
+
+describe("sliceAtGraphemeBoundary", () => {
+	const segmenter = new Intl.Segmenter(undefined, { granularity: "grapheme" });
+
+	// Reference: the largest cluster end that fits, found by walking every
+	// cluster from the start of the text.
+	function referenceSlice(text: string, max: number): string {
+		let safeEnd = 0;
+		for (const { index, segment } of segmenter.segment(text)) {
+			if (index + segment.length > max) {
+				break;
+			}
+			safeEnd = index + segment.length;
+		}
+		return text.slice(0, safeEnd);
+	}
+
+	const samples = [
+		"plain ascii text",
+		"family 👨‍👩‍👧‍👦 flags 🇺🇸🇬🇧🇫🇷 skin 👍🏽 done",
+		"combining e\u0301 a\u0308 and hangul 한글 and 🙂",
+		"newline\nand\ttab\r\nend",
+		"🇺🇸🇬🇧🇫🇷",
+		"\u0301\u0301x",
+	];
+
+	it.each(samples)(
+		"slices at the same boundary as a full cluster walk in %j",
+		(text) => {
+			for (let max = -1; max <= text.length + 1; max++) {
+				const sliced = sliceAtGraphemeBoundary(text, max);
+				expect(sliced).toBe(referenceSlice(text, Math.max(0, max)));
+				expect(sliced.length).toBeLessThanOrEqual(Math.max(0, max));
+			}
+		},
+	);
+});
 
 describe("SmoothTextEngine", () => {
 	it("reveals text steadily and reaches full length", () => {
