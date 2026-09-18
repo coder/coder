@@ -958,6 +958,7 @@ func New(options *Options) *API {
 				CreateWorkspace:                api.chatCreateWorkspace,
 				StartWorkspace:                 api.chatStartWorkspace,
 				StopWorkspace:                  api.chatStopWorkspace,
+				RenderTemplateParameters:       api.chatRenderTemplateParameters,
 				WebpushDispatcher:              options.WebPushDispatcher,
 				HookDispatcher:                 hookDispatcher,
 				UsageTracker:                   options.WorkspaceUsageTracker,

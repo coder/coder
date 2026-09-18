@@ -3553,6 +3553,34 @@ func (api *API) getChatDiffContents(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, diff)
 }
 
+// chatRenderTemplateParameters evaluates a template version's parameters
+// for the chat owner with no inputs, which is the form state the owner would
+// see on the workspace creation page. ctx must already carry the owner's
+// RBAC subject.
+func (api *API) chatRenderTemplateParameters(
+	ctx context.Context,
+	ownerID uuid.UUID,
+	templateVersionID uuid.UUID,
+) ([]codersdk.PreviewParameter, []codersdk.FriendlyDiagnostic, error) {
+	renderer, err := dynamicparameters.Prepare(ctx, api.Database, api.FileCache, templateVersionID,
+		dynamicparameters.WithPreviewOptions(dynamicparameters.PreviewOptions(api.DeploymentValues)...),
+	)
+	if err != nil {
+		return nil, nil, xerrors.Errorf("prepare template version renderer: %w", err)
+	}
+	defer renderer.Close()
+
+	output, diags := renderer.Render(ctx, ownerID, map[string]string{})
+	var params []codersdk.PreviewParameter
+	if output != nil {
+		params = make([]codersdk.PreviewParameter, 0, len(output.Parameters))
+		for _, p := range output.Parameters {
+			params = append(params, db2sdk.PreviewParameter(p))
+		}
+	}
+	return params, db2sdk.HCLDiagnostics(diags), nil
+}
+
 // chatCreateWorkspace provides workspace creation for the chat
 // processor. RBAC authorization uses context-based checks via
 // dbauthz.As rather than fake *http.Request objects.

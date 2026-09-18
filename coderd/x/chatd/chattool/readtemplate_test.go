@@ -1,6 +1,7 @@
 package chattool_test
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"strings"
@@ -9,11 +10,13 @@ import (
 	"charm.land/fantasy"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -287,5 +290,129 @@ func TestReadTemplate_Readme(t *testing.T) {
 		tmplInfo := readTemplateInfo(t, uuid.New())
 		_, ok := tmplInfo["readme"]
 		require.False(t, ok, "readme should be omitted when the version is missing")
+	})
+}
+
+// TestReadTemplate_OwnerEvaluatedParameters covers the parameter source
+// selection: owner-evaluated parameters replace the import-time rows, and
+// any failure to evaluate falls back to those rows with a note saying so.
+func TestReadTemplate_OwnerEvaluatedParameters(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	user := dbgen.User(t, db, database.User{})
+	org := dbgen.Organization(t, db, database.Organization{})
+	_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{
+		UserID:         user.ID,
+		OrganizationID: org.ID,
+	})
+	tv := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+		OrganizationID: org.ID,
+		CreatedBy:      user.ID,
+	})
+	tmpl := dbgen.Template(t, db, database.Template{
+		OrganizationID:  org.ID,
+		CreatedBy:       user.ID,
+		ActiveVersionID: tv.ID,
+		AgentsAllowed:   true,
+	})
+	// The import-time row records the default seen by the template
+	// importer, which is what the fallback path must report.
+	_ = dbgen.TemplateVersionParameter(t, db, database.TemplateVersionParameter{
+		TemplateVersionID: tv.ID,
+		Name:              "Region",
+		Type:              "string",
+		DefaultValue:      "us-pittsburgh",
+		Mutable:           false,
+		Options:           json.RawMessage(`[{"name":"Pittsburgh","value":"us-pittsburgh"},{"name":"Falkenstein","value":"eu-helsinki"}]`),
+	})
+
+	regex := "^[a-z-]+$"
+	ownerRendered := []codersdk.PreviewParameter{
+		{
+			PreviewParameterData: codersdk.PreviewParameterData{
+				Name:         "Region",
+				Type:         codersdk.OptionTypeString,
+				FormType:     codersdk.ParameterFormTypeRadio,
+				Mutable:      false,
+				DefaultValue: codersdk.NullHCLString{Value: "eu-helsinki", Valid: true},
+				Options: []codersdk.PreviewParameterOption{
+					{Name: "Pittsburgh", Value: codersdk.NullHCLString{Value: "us-pittsburgh", Valid: true}},
+					{Name: "Falkenstein", Value: codersdk.NullHCLString{Value: "eu-helsinki", Valid: true}},
+				},
+				Validations: []codersdk.PreviewParameterValidation{{Regex: &regex}},
+			},
+			Value: codersdk.NullHCLString{Value: "eu-helsinki", Valid: true},
+		},
+	}
+
+	readParams := func(t *testing.T, render chattool.RenderTemplateParametersFn) (map[string]any, string) {
+		t.Helper()
+		ctx := testutil.Context(t, testutil.WaitShort)
+		tool := chattool.ReadTemplate(db, org.ID, chattool.ReadTemplateOptions{
+			OwnerID:          user.ID,
+			RenderParameters: render,
+		})
+		resp, err := tool.Run(ctx, fantasy.ToolCall{
+			ID:    "call-owner",
+			Name:  "read_template",
+			Input: `{"template_id":"` + tmpl.ID.String() + `"}`,
+		})
+		require.NoError(t, err)
+		require.False(t, resp.IsError, "unexpected error: %s", resp.Content)
+
+		var result map[string]any
+		require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
+		params, ok := result["parameters"].([]any)
+		require.True(t, ok)
+		require.Len(t, params, 1)
+		note, _ := result["parameters_note"].(string)
+		return params[0].(map[string]any), note
+	}
+
+	t.Run("OwnerDefaultsWin", func(t *testing.T) {
+		t.Parallel()
+		var gotOwner, gotVersion uuid.UUID
+		region, note := readParams(t, func(_ context.Context, ownerID, versionID uuid.UUID) ([]codersdk.PreviewParameter, []codersdk.FriendlyDiagnostic, error) {
+			gotOwner, gotVersion = ownerID, versionID
+			return ownerRendered, []codersdk.FriendlyDiagnostic{{Severity: codersdk.DiagnosticSeverityWarning, Summary: "ignored"}}, nil
+		})
+		require.Equal(t, user.ID, gotOwner)
+		require.Equal(t, tv.ID, gotVersion)
+		require.Equal(t, "eu-helsinki", region["default"])
+		require.Equal(t, false, region["mutable"])
+		require.Equal(t, "radio", region["form_type"])
+		require.Equal(t, regex, region["validation_regex"])
+		opts, ok := region["options"].([]any)
+		require.True(t, ok)
+		require.Len(t, opts, 2)
+		require.Equal(t, "eu-helsinki", opts[1].(map[string]any)["value"])
+		require.Contains(t, note, "evaluated for the workspace owner")
+	})
+
+	t.Run("RenderErrorFallsBack", func(t *testing.T) {
+		t.Parallel()
+		region, note := readParams(t, func(context.Context, uuid.UUID, uuid.UUID) ([]codersdk.PreviewParameter, []codersdk.FriendlyDiagnostic, error) {
+			return nil, nil, xerrors.New("boom")
+		})
+		require.Equal(t, "us-pittsburgh", region["default"])
+		require.Equal(t, false, region["mutable"])
+		require.Contains(t, note, "recorded at template import")
+	})
+
+	t.Run("ErrorDiagnosticFallsBack", func(t *testing.T) {
+		t.Parallel()
+		region, note := readParams(t, func(context.Context, uuid.UUID, uuid.UUID) ([]codersdk.PreviewParameter, []codersdk.FriendlyDiagnostic, error) {
+			return ownerRendered, []codersdk.FriendlyDiagnostic{{Severity: codersdk.DiagnosticSeverityError, Summary: "bad template"}}, nil
+		})
+		require.Equal(t, "us-pittsburgh", region["default"])
+		require.Contains(t, note, "recorded at template import")
+	})
+
+	t.Run("NoRendererUsesImportDefaults", func(t *testing.T) {
+		t.Parallel()
+		region, note := readParams(t, nil)
+		require.Equal(t, "us-pittsburgh", region["default"])
+		require.Contains(t, note, "recorded at template import")
 	})
 }
