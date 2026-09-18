@@ -1443,6 +1443,25 @@ func TestOAuth2ProviderRevokeClientAuthentication(t *testing.T) {
 		require.Contains(t, oauthErr.ErrorDescription, "Conflicting client credentials")
 		require.True(t, works(), "a refused revocation must not end the session")
 	})
+
+	// OAuth 2.1 §2.4.1: the secret may be sent in the body or the Authorization
+	// header, never in the URL.
+	t.Run("SecretInQueryString", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		userClient, refreshToken, works := newSession(ctx, t)
+
+		form := url.Values{}
+		form.Set("token", refreshToken)
+		form.Set("client_id", apps.Default.ID.String())
+		status, _, oauthErr := postRevoke(ctx, t, userClient, form, func(r *http.Request) {
+			r.URL.RawQuery = url.Values{"client_secret": {secret.ClientSecretFull}}.Encode()
+		})
+		require.Equal(t, http.StatusBadRequest, status)
+		require.Equal(t, codersdk.OAuth2ErrorCodeInvalidRequest, oauthErr.Error)
+		require.Contains(t, oauthErr.ErrorDescription, "client_secret")
+		require.True(t, works(), "a refused revocation must not end the session")
+	})
 }
 
 func TestOAuth2ProviderPublicClientTokenLifecycle(t *testing.T) {

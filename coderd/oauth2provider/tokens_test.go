@@ -793,6 +793,44 @@ func TestOAuth2RefreshClientAuthentication(t *testing.T) {
 		_ = tokenRow(ctx, t, db, refreshToken)
 	})
 
+	// OAuth 2.1 §2.4.1: the secret may be sent in the body or the Authorization
+	// header, never in the URL.
+	t.Run("SecretInQueryString", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		app := seedAppWithSecret(t, db, sql.NullString{})
+		refreshToken := seedRefreshToken(ctx, t, db, app, owner.UserID, "workspace:ssh")
+
+		form := refreshForm(app, refreshToken)
+		form.Del("client_secret")
+		status, _, body := postForm(ctx, t, form, func(r *http.Request) {
+			r.URL.RawQuery = url.Values{"client_secret": {app.ClientSecret}}.Encode()
+		})
+		desc := requireTokenError(t, status, body, codersdk.OAuth2ErrorCodeInvalidRequest)
+		require.Contains(t, desc, "client_secret")
+		_ = tokenRow(ctx, t, db, refreshToken)
+
+		// The same secret in the body is accepted.
+		status, body = postTokenRequest(ctx, t, client, refreshForm(app, refreshToken))
+		requireTokenResponse(t, status, body)
+	})
+
+	// A correct secret in the body does not excuse a copy in the URL.
+	t.Run("SecretInQueryStringAndBody", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		app := seedAppWithSecret(t, db, sql.NullString{})
+		refreshToken := seedRefreshToken(ctx, t, db, app, owner.UserID, "workspace:ssh")
+
+		status, _, body := postForm(ctx, t, refreshForm(app, refreshToken), func(r *http.Request) {
+			r.URL.RawQuery = url.Values{"client_secret": {app.ClientSecret}}.Encode()
+		})
+		requireTokenError(t, status, body, codersdk.OAuth2ErrorCodeInvalidRequest)
+		_ = tokenRow(ctx, t, db, refreshToken)
+	})
+
 	// A public client has no secret to check; the token's app binding and
 	// single-use rotation are what tie its refresh to the client.
 	t.Run("PublicClientNoSecret", func(t *testing.T) {

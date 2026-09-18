@@ -40,6 +40,8 @@ var (
 	// errConflictingClientAuth means the client provided credentials in both the
 	// request body and HTTP Basic, but they did not match.
 	errConflictingClientAuth = xerrors.New("conflicting client authentication")
+	// errClientSecretInQuery means the client sent client_secret in the URL.
+	errClientSecretInQuery = xerrors.New("client_secret in query string")
 	// errUnmintableScope means the scope stored on a grant names something no
 	// API key can be minted from.
 	errUnmintableScope = xerrors.New("scope is not a valid API key scope")
@@ -159,6 +161,9 @@ func scopeStringToAPIKeyScopes(scope string) (database.APIKeyScopes, error) {
 // type.
 func extractTokenRequest(r *http.Request, logger slog.Logger, primary *url.URL, alternates []*url.URL, app database.OAuth2ProviderApp) (codersdk.OAuth2TokenRequest, []codersdk.ValidationError, error) {
 	p := httpapi.NewQueryParamParser()
+	if err := rejectClientSecretInQuery(r); err != nil {
+		return codersdk.OAuth2TokenRequest{}, nil, err
+	}
 	err := r.ParseForm()
 	if err != nil {
 		return codersdk.OAuth2TokenRequest{}, nil, xerrors.Errorf("parse form: %w", err)
@@ -268,6 +273,16 @@ func mergeBasicClientAuth(r *http.Request, clientID, clientSecret string) (merge
 	return user, pass, nil
 }
 
+// rejectClientSecretInQuery refuses a request that carries client_secret in the
+// URL. OAuth 2.1 §2.4.1 allows it only in the request body or the Authorization
+// header. A URL is recorded by proxies and access logs.
+func rejectClientSecretInQuery(r *http.Request) error {
+	if r.URL.Query().Has("client_secret") {
+		return errClientSecretInQuery
+	}
+	return nil
+}
+
 // authenticateClient checks a client secret and confirms it belongs to the
 // app named by client_id. That id arrives unverified, so without the app
 // check a valid secret for one app could issue a token for another. It
@@ -335,6 +350,10 @@ func Tokens(db database.Store, lifetimes codersdk.SessionLifetime, logger slog.L
 			}
 			if errors.Is(err, errConflictingClientAuth) {
 				writeTokenError(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidRequest, "Conflicting client credentials between Authorization header and request body")
+				return
+			}
+			if errors.Is(err, errClientSecretInQuery) {
+				writeTokenError(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidRequest, "The client_secret must be sent in the request body or the Authorization header, not in the URL")
 				return
 			}
 

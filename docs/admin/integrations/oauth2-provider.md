@@ -147,6 +147,8 @@ Coder supports the following OAuth2 client authentication methods at the token e
 
 Coder supports both secret-based methods for compatibility; existing integrations using `client_secret_post` do not need to change.
 
+Send `client_secret` in the request body or in the `Authorization` header. A request that puts `client_secret` in the URL query string is rejected with `invalid_request`, because URLs are recorded by proxies and access logs.
+
 Public clients suit native, mobile, and CLI applications that cannot keep a secret confidential. Note the redirect URI restrictions below before choosing one.
 
 Opening a public client on the **OAuth2 Applications** page shows no client secrets section, since a public client has no secret to display or generate.
