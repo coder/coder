@@ -185,7 +185,7 @@ describe("BoardCard", () => {
 		expect(onOpen).toHaveBeenCalledWith(card.members[1], rect(120));
 	});
 
-	it("marks unread on the group and on the settled member, not the working one", () => {
+	it("marks unread on the settled member's chat icon, not the working one's", () => {
 		renderCard([
 			chat("p", { "board/group": "p" }),
 			{ ...chat("m", { "board/group": "p" }), has_unread: true },
@@ -198,8 +198,10 @@ describe("BoardCard", () => {
 
 		const dot = { name: "Unread" };
 		const [, rowM, rowR] = screen.getAllByRole("listitem");
-		expect(within(rowM).getByRole("img", dot)).toBeDefined();
+		expect(
+			within(within(rowM).getByTitle("Open chat")).getByRole("img", dot),
+		).toBeDefined();
 		expect(within(rowR).queryByRole("img", dot)).toBeNull();
-		expect(screen.getAllByRole("img", dot)).toHaveLength(2);
+		expect(screen.getAllByRole("img", dot)).toHaveLength(1);
 	});
 });
