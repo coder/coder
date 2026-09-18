@@ -1,10 +1,7 @@
 import { cn } from "cn";
 import type { ComponentProps, FC } from "react";
 
-export const Sidebar: FC<ComponentProps<"nav">> = ({
-	children,
-	...attrs
-}) => {
+export const Sidebar: FC<ComponentProps<"nav">> = ({ children, ...attrs }) => {
 	return (
 		<nav
 			className={cn(
