@@ -432,7 +432,7 @@ func (api *API) GetUsers(rw http.ResponseWriter, r *http.Request) ([]database.Us
 // @Accept json
 // @Produce json
 // @Tags Users
-// @Param request body codersdk.CreateUserRequestWithOrgs true "Create user request"
+// @Param request body codersdk.CreateUserRequest true "Create user request"
 // @Success 201 {object} codersdk.User
 // @Router /api/v2/users [post]
 func (api *API) postUser(rw http.ResponseWriter, r *http.Request) {

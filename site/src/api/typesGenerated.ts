@@ -4227,7 +4227,7 @@ export interface CreateUserChatProviderKeyRequest {
 }
 
 // From codersdk/users.go
-export interface CreateUserRequestWithOrgs {
+export interface CreateUserRequest {
 	readonly email: string;
 	readonly username: string;
 	readonly name: string;

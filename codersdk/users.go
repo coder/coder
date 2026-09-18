@@ -181,6 +181,9 @@ type CreateUserRequest struct {
 	Roles []string `json:"roles,omitempty"`
 }
 
+// CreateUserRequestWithOrgs is kept for callers that predate the rename.
+// Deprecated: Use CreateUserRequest instead.
+// @typescript-ignore CreateUserRequestWithOrgs
 type CreateUserRequestWithOrgs = CreateUserRequest
 
 type UpdateUserProfileRequest struct {
@@ -501,26 +504,8 @@ func (c *Client) CreateFirstUser(ctx context.Context, req CreateFirstUserRequest
 	return resp, ReadBodyAsJSON(res, &resp)
 }
 
-// CreateUser
-// Deprecated: Use CreateUserWithOrgs instead. This will be removed.
-// TODO: When removing, we should rename CreateUserWithOrgs -> CreateUser
-// with an alias of CreateUserWithOrgs.
+// CreateUser creates a new user.
 func (c *Client) CreateUser(ctx context.Context, req CreateUserRequest) (User, error) {
-	if req.DisableLogin {
-		req.UserLoginType = LoginTypeNone
-	}
-	return c.CreateUserWithOrgs(ctx, CreateUserRequestWithOrgs{
-		Email:           req.Email,
-		Username:        req.Username,
-		Name:            req.Name,
-		Password:        req.Password,
-		UserLoginType:   req.UserLoginType,
-		OrganizationIDs: []uuid.UUID{req.OrganizationID},
-	})
-}
-
-// CreateUserWithOrgs creates a new user.
-func (c *Client) CreateUserWithOrgs(ctx context.Context, req CreateUserRequestWithOrgs) (User, error) {
 	res, err := c.Request(ctx, http.MethodPost, "/api/v2/users", req)
 	if err != nil {
 		return User{}, err
@@ -531,6 +516,12 @@ func (c *Client) CreateUserWithOrgs(ctx context.Context, req CreateUserRequestWi
 	}
 	var user User
 	return user, ReadBodyAsJSON(res, &user)
+}
+
+// CreateUserWithOrgs creates a new user.
+// Deprecated: Use CreateUser instead.
+func (c *Client) CreateUserWithOrgs(ctx context.Context, req CreateUserRequest) (User, error) {
+	return c.CreateUser(ctx, req)
 }
 
 // DeleteUser deletes a user.
