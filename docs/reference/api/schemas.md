@@ -16153,6 +16153,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 {
   "agent_chat_send_shortcut": "enter",
   "code_diff_display_mode": "auto",
+  "collapse_assistant_steps": true,
   "shell_tool_display_mode": "auto",
   "thinking_display_mode": "auto"
 }
@@ -16164,6 +16165,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 |----------------------------|------------------------------------------------------------------|----------|--------------|-------------|
 | `agent_chat_send_shortcut` | [codersdk.AgentChatSendShortcut](#codersdkagentchatsendshortcut) | false    |              |             |
 | `code_diff_display_mode`   | [codersdk.AgentDisplayMode](#codersdkagentdisplaymode)           | false    |              |             |
+| `collapse_assistant_steps` | boolean                                                          | false    |              |             |
 | `shell_tool_display_mode`  | [codersdk.AgentDisplayMode](#codersdkagentdisplaymode)           | false    |              |             |
 | `thinking_display_mode`    | [codersdk.ThinkingDisplayMode](#codersdkthinkingdisplaymode)     | false    |              |             |
 
@@ -17015,6 +17017,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 {
   "agent_chat_send_shortcut": "enter",
   "code_diff_display_mode": "auto",
+  "collapse_assistant_steps": true,
   "shell_tool_display_mode": "auto",
   "thinking_display_mode": "auto"
 }
@@ -17026,6 +17029,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 |----------------------------|------------------------------------------------------------------|----------|--------------|-------------|
 | `agent_chat_send_shortcut` | [codersdk.AgentChatSendShortcut](#codersdkagentchatsendshortcut) | false    |              |             |
 | `code_diff_display_mode`   | [codersdk.AgentDisplayMode](#codersdkagentdisplaymode)           | false    |              |             |
+| `collapse_assistant_steps` | boolean                                                          | false    |              |             |
 | `shell_tool_display_mode`  | [codersdk.AgentDisplayMode](#codersdkagentdisplaymode)           | false    |              |             |
 | `thinking_display_mode`    | [codersdk.ThinkingDisplayMode](#codersdkthinkingdisplaymode)     | false    |              |             |
 

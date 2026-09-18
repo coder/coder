@@ -10267,6 +10267,7 @@ export interface UpdateUserPreferenceSettingsRequest {
 	readonly thinking_display_mode?: ThinkingDisplayMode;
 	readonly shell_tool_display_mode?: AgentDisplayMode;
 	readonly code_diff_display_mode?: AgentDisplayMode;
+	readonly collapse_assistant_steps?: boolean;
 	readonly agent_chat_send_shortcut?: AgentChatSendShortcut;
 }
 
@@ -10760,6 +10761,7 @@ export interface UserPreferenceSettings {
 	readonly thinking_display_mode: ThinkingDisplayMode;
 	readonly shell_tool_display_mode: AgentDisplayMode;
 	readonly code_diff_display_mode: AgentDisplayMode;
+	readonly collapse_assistant_steps: boolean;
 	readonly agent_chat_send_shortcut: AgentChatSendShortcut;
 }
 
