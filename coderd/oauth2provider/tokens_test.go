@@ -689,15 +689,24 @@ func TestOAuth2RefreshClientAuthentication(t *testing.T) {
 		return status, header, body
 	}
 
-	// The token must survive the refusal and redeem on the next, correct
-	// attempt: nothing was consumed.
+	// A refusal must leave the grant untouched: the row is still there and the
+	// single-use refresh token still redeems on the next, correct attempt.
+	// Neither is visible from the error response the call site sees.
+	requireNothingConsumed := func(ctx context.Context, t *testing.T, app appWithSecret, refreshToken string) {
+		t.Helper()
+
+		_ = tokenRow(ctx, t, db, refreshToken)
+		status, body := postTokenRequest(ctx, t, client, refreshForm(app, refreshToken))
+		requireTokenResponse(t, status, body)
+	}
+
+	// A client authentication failure is a 401 invalid_client that costs the
+	// grant nothing.
 	requireRefused := func(ctx context.Context, t *testing.T, app appWithSecret, refreshToken string, status int, body string) {
 		t.Helper()
 
 		requireTokenClientError(t, status, body)
-		_ = tokenRow(ctx, t, db, refreshToken)
-		status, body = postTokenRequest(ctx, t, client, refreshForm(app, refreshToken))
-		requireTokenResponse(t, status, body)
+		requireNothingConsumed(ctx, t, app, refreshToken)
 	}
 
 	t.Run("MissingSecret", func(t *testing.T) {
@@ -809,11 +818,7 @@ func TestOAuth2RefreshClientAuthentication(t *testing.T) {
 		})
 		desc := requireTokenError(t, status, body, codersdk.OAuth2ErrorCodeInvalidRequest)
 		require.Contains(t, desc, "not in the URL")
-		_ = tokenRow(ctx, t, db, refreshToken)
-
-		// The same secret in the body is accepted.
-		status, body = postTokenRequest(ctx, t, client, refreshForm(app, refreshToken))
-		requireTokenResponse(t, status, body)
+		requireNothingConsumed(ctx, t, app, refreshToken)
 	})
 
 	// A correct secret in the body does not excuse a copy in the URL. The copy
@@ -832,7 +837,9 @@ func TestOAuth2RefreshClientAuthentication(t *testing.T) {
 		})
 		desc := requireTokenError(t, status, body, codersdk.OAuth2ErrorCodeInvalidRequest)
 		require.Contains(t, desc, "not in the URL")
-		_ = tokenRow(ctx, t, db, refreshToken)
+		// The body was already correct, so dropping the URL copy is the only
+		// change the retry makes: the copy alone caused the refusal.
+		requireNothingConsumed(ctx, t, app, refreshToken)
 	})
 
 	// A public client has no secret to check; the token's app binding and
