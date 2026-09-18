@@ -10,7 +10,6 @@ import (
 	"unicode/utf8"
 
 	"github.com/google/uuid"
-
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
