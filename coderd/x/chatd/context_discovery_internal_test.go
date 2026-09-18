@@ -65,6 +65,12 @@ func TestTouchedPaths(t *testing.T) {
 	}, []fantasy.Content{result("win-read"), result("win-exec"), result("win-rel"), result("unc-read"), result("unc-exec")})
 	require.Equal(t, []string{"C:/repo/site/App.tsx"}, files, "a UNC path is not probed")
 	require.Equal(t, []string{"C:/repo/pkg"}, dirs)
+
+	// On POSIX a backslash is an ordinary character in a name and stays one.
+	files, _ = touchedPaths([]fantasy.ToolCallContent{
+		call("posix-read", "read_file", `{"path":"/repo/dir\\name/file.go"}`),
+	}, []fantasy.Content{result("posix-read")})
+	require.Equal(t, []string{"/repo/dir\\name/file.go"}, files)
 }
 
 func TestCandidateInstructionDirs(t *testing.T) {
@@ -209,7 +215,7 @@ func TestReconcileDiscoveredInstructionFilesKeepsSpelling(t *testing.T) {
 	db.EXPECT().DeleteChatContextDiscoveredResource(gomock.Any(), database.DeleteChatContextDiscoveredResourceParams{ChatID: chatID, Source: "C:\\repo\\site\\CLAUDE.md"}).Return(nil)
 
 	stale := map[string]struct{}{"c:/repo/site": {}}
-	result, err := reconcileDiscoveredInstructionFiles(context.Background(), db, chatID, rows, resolved, stale, []string{"c:/Repo/site"})
+	result, err := reconcileDiscoveredInstructionFiles(context.Background(), db, chatID, rows, resolved, stale, []string{"c:/Repo/site"}, discoveryBudget{})
 	require.NoError(t, err)
 	require.Equal(t, 1, result.pinned)
 	require.Equal(t, 1, result.removed)
@@ -222,7 +228,7 @@ func TestUnchangedDiscoveredRows(t *testing.T) {
 	t.Parallel()
 
 	row := func(source string, hash byte, discovered bool) database.ChatContextResource {
-		return database.ChatContextResource{Source: source, ContentHash: []byte{hash}, Discovered: discovered, BodyKind: database.WorkspaceAgentContextBodyKindInstructionFile, Status: database.WorkspaceAgentContextResourceStatusOk}
+		return database.ChatContextResource{Source: source, ContentHash: []byte{hash}, Discovered: discovered, BodyKind: database.WorkspaceAgentContextBodyKindInstructionFile, Status: database.WorkspaceAgentContextResourceStatusOk, SizeBytes: int64(hash) * 10}
 	}
 	file := func(source string) workspacesdk.ContextInstructionFile {
 		return workspacesdk.ContextInstructionFile{Directory: path.Dir(source), Source: source, Status: "ok"}
@@ -253,7 +259,7 @@ func TestUnchangedDiscoveredRows(t *testing.T) {
 		file("/repo/site/pkg/AGENTS.md"),
 	}
 
-	rows, files := unchangedDiscoveredRows(captured, current, resolved)
+	rows, files, reserved := unchangedDiscoveredRows(captured, current, resolved)
 	sources := func(rows []database.ChatContextResource) []string {
 		out := make([]string, 0, len(rows))
 		for _, r := range rows {
@@ -270,6 +276,8 @@ func TestUnchangedDiscoveredRows(t *testing.T) {
 		}
 		return out
 	}(), "only an unchanged row or a source nobody holds may be written; a rewritten row, a step-discovered file, and a vanished capture are skipped")
+	require.Equal(t, discoveryBudget{bytes: 90, files: 3}, reserved,
+		"the rows a step owns still count toward the chat's caps, so the rediscovery cannot hand their share out again")
 }
 
 // TestResolveInstructionDirsBatches checks that a probe larger than one
@@ -358,7 +366,7 @@ func TestReconcileDiscoveredInstructionFilesBudget(t *testing.T) {
 			return nil
 		})
 
-	result, err := reconcileDiscoveredInstructionFiles(context.Background(), db, chatID, rows, resolved, map[string]struct{}{}, []string{"/repo/site", "/repo/site/docs"})
+	result, err := reconcileDiscoveredInstructionFiles(context.Background(), db, chatID, rows, resolved, map[string]struct{}{}, []string{"/repo/site", "/repo/site/docs"}, discoveryBudget{})
 	require.NoError(t, err)
 	require.Equal(t, 3, result.pinned)
 	require.Zero(t, result.removed)
@@ -397,7 +405,7 @@ func TestReconcileDiscoveredInstructionFilesReplacesUnreadable(t *testing.T) {
 	})).Return(nil)
 
 	stale := map[string]struct{}{"/repo/site": {}}
-	result, err := reconcileDiscoveredInstructionFiles(context.Background(), db, chatID, rows, resolved, stale, []string{"/repo/site"})
+	result, err := reconcileDiscoveredInstructionFiles(context.Background(), db, chatID, rows, resolved, stale, []string{"/repo/site"}, discoveryBudget{})
 	require.NoError(t, err)
 	require.Equal(t, 1, result.pinned)
 	require.Zero(t, result.removed, "a file the probe returned is not treated as vanished, whatever its status")
@@ -429,7 +437,7 @@ func TestReconcileDiscoveredInstructionFilesReleasesVanishedBudget(t *testing.T)
 	)
 
 	stale := map[string]struct{}{"/repo/site": {}}
-	result, err := reconcileDiscoveredInstructionFiles(context.Background(), db, chatID, rows, resolved, stale, []string{"/repo/site"})
+	result, err := reconcileDiscoveredInstructionFiles(context.Background(), db, chatID, rows, resolved, stale, []string{"/repo/site"}, discoveryBudget{})
 	require.NoError(t, err)
 	require.Equal(t, 1, result.pinned)
 	require.Equal(t, 1, result.removed)
@@ -472,7 +480,7 @@ func TestReconcileDiscoveredInstructionFilesRowCap(t *testing.T) {
 		})
 
 	stale := map[string]struct{}{"/repo/pkg001": {}}
-	result, err := reconcileDiscoveredInstructionFiles(context.Background(), db, chatID, rows, resolved, stale, []string{"/repo/pkg000", "/repo/pkg001", "/repo/new", "/repo/other"})
+	result, err := reconcileDiscoveredInstructionFiles(context.Background(), db, chatID, rows, resolved, stale, []string{"/repo/pkg000", "/repo/pkg001", "/repo/new", "/repo/other"}, discoveryBudget{})
 	require.NoError(t, err)
 	require.Equal(t, 1, result.removed)
 	require.Equal(t, 2, result.pinned)
@@ -492,4 +500,106 @@ func TestDiscoveredInstructionDirsShallowestFirst(t *testing.T) {
 	}
 	require.Equal(t, []string{"/repo/z", "/repo/a/deep"}, discoveredInstructionDirs(rows),
 		"a refresh probes the directories that govern the most first, whatever the inventory order")
+}
+
+// TestReconcileDiscoveredInstructionFilesReleasesBytesOfNonOKReRead checks
+// that a pinned file re-read as unreadable gives its bytes back before the
+// next file is classified, so the freed budget holds that file.
+func TestReconcileDiscoveredInstructionFilesReleasesBytesOfNonOKReRead(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+	chatID := uuid.New()
+	const held = maxDiscoveredInstructionBytes - 16
+	rows := []database.ChatContextResource{{
+		Source: "/repo/site/AGENTS.md", BodyKind: database.WorkspaceAgentContextBodyKindInstructionFile,
+		Discovered: true, Status: database.WorkspaceAgentContextResourceStatusOk, SizeBytes: held,
+	}}
+	resolved := []workspacesdk.ContextInstructionFile{
+		{Directory: "/repo/site", Source: "/repo/site/AGENTS.md", Status: "unreadable", Error: "permission denied"},
+		{Directory: "/repo/site", Source: "/repo/site/CLAUDE.md", Content: "rules", ContentHash: "ab", SizeBytes: 32, Status: "ok"},
+	}
+	statuses := make(map[string]database.WorkspaceAgentContextResourceStatus)
+	db.EXPECT().UpsertChatContextDiscoveredResource(gomock.Any(), gomock.Any()).Times(2).
+		DoAndReturn(func(_ context.Context, arg database.UpsertChatContextDiscoveredResourceParams) error {
+			statuses[arg.Source] = arg.Status
+			return nil
+		})
+
+	stale := map[string]struct{}{"/repo/site": {}}
+	_, err := reconcileDiscoveredInstructionFiles(context.Background(), db, chatID, rows, resolved, stale, []string{"/repo/site"}, discoveryBudget{})
+	require.NoError(t, err)
+	require.Equal(t, database.WorkspaceAgentContextResourceStatusUnreadable, statuses["/repo/site/AGENTS.md"])
+	require.Equal(t, database.WorkspaceAgentContextResourceStatusOk, statuses["/repo/site/CLAUDE.md"], "the bytes the unreadable file held are free again")
+}
+
+// TestReconcileDiscoveredInstructionFilesLeavesSnapshotRows checks that a
+// probe of a stale directory returning a file the agent snapshot already
+// pins neither writes that row nor charges its bytes to the discovered cap.
+func TestReconcileDiscoveredInstructionFilesLeavesSnapshotRows(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+	chatID := uuid.New()
+	rows := []database.ChatContextResource{
+		{Source: "/repo/site/AGENTS.md", BodyKind: database.WorkspaceAgentContextBodyKindInstructionFile, Status: database.WorkspaceAgentContextResourceStatusOk, SizeBytes: 1 << 16},
+		{Source: "/repo/site/docs/AGENTS.md", BodyKind: database.WorkspaceAgentContextBodyKindInstructionFile, Discovered: true, Status: database.WorkspaceAgentContextResourceStatusOk, SizeBytes: maxDiscoveredInstructionBytes - 16},
+	}
+	resolved := []workspacesdk.ContextInstructionFile{
+		{Directory: "/repo/site", Source: "/repo/site/AGENTS.md", Content: "rules", ContentHash: "ab", SizeBytes: 1 << 16, Status: "ok"},
+		{Directory: "/repo/site", Source: "/repo/site/CLAUDE.md", Content: "rules", ContentHash: "ab", SizeBytes: 16, Status: "ok"},
+	}
+	db.EXPECT().UpsertChatContextDiscoveredResource(gomock.Any(), gomock.Cond(func(arg database.UpsertChatContextDiscoveredResourceParams) bool {
+		return arg.Source == "/repo/site/CLAUDE.md" && arg.Status == database.WorkspaceAgentContextResourceStatusOk
+	})).Return(nil)
+
+	stale := map[string]struct{}{"/repo/site": {}}
+	result, err := reconcileDiscoveredInstructionFiles(context.Background(), db, chatID, rows, resolved, stale, []string{"/repo/site"}, discoveryBudget{})
+	require.NoError(t, err)
+	require.Equal(t, 1, result.pinned, "the snapshot's file is not counted as pinned")
+}
+
+// TestReconcileDiscoveredInstructionFilesHonorsReservedBudget checks that
+// the share of the caps held by rows outside the reconciliation's reach is
+// spent before the resolved files are classified.
+func TestReconcileDiscoveredInstructionFilesHonorsReservedBudget(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+	chatID := uuid.New()
+	resolved := []workspacesdk.ContextInstructionFile{
+		{Directory: "/repo/site", Source: "/repo/site/AGENTS.md", Content: "rules", ContentHash: "ab", SizeBytes: 32, Status: "ok"},
+		{Directory: "/repo/docs", Source: "/repo/docs/AGENTS.md", Content: "rules", ContentHash: "ab", SizeBytes: 1, Status: "ok"},
+	}
+	db.EXPECT().UpsertChatContextDiscoveredResource(gomock.Any(), gomock.Cond(func(arg database.UpsertChatContextDiscoveredResourceParams) bool {
+		return arg.Source == "/repo/site/AGENTS.md" && arg.Status == database.WorkspaceAgentContextResourceStatusExcluded
+	})).Return(nil)
+
+	reserved := discoveryBudget{bytes: maxDiscoveredInstructionBytes - 16, files: maxDiscoveredInstructionFiles - 1}
+	result, err := reconcileDiscoveredInstructionFiles(context.Background(), db, chatID, nil, resolved, map[string]struct{}{}, []string{"/repo/site", "/repo/docs"}, reserved)
+	require.NoError(t, err)
+	require.Equal(t, 1, result.pinned, "the reserved bytes leave no room for the first file's content and the reserved rows leave one slot")
+	require.Equal(t, []string{"/repo/docs"}, result.capped)
+}
+
+// TestInstructionProbeCachePendingCoversTree checks that a command's
+// working directory keeps its whole tree pending, since the command may
+// write anywhere below it, while a sibling tree is unaffected.
+func TestInstructionProbeCachePendingCoversTree(t *testing.T) {
+	t.Parallel()
+
+	var cache instructionProbeCache
+	agentID := uuid.New()
+	now := time.Now()
+
+	cache.markPending(now, agentID, []string{"/repo/site", "C:/Repo/win"})
+	require.True(t, cache.isPending(now, agentID, "/repo/site"))
+	require.True(t, cache.isPending(now, agentID, "/repo/site/src/components"), "a descendant of the command's directory is pending")
+	require.False(t, cache.isPending(now, agentID, "/repo/docs"), "a sibling tree is not")
+	require.False(t, cache.isPending(now, agentID, "/repo"), "nor is a parent")
+	require.True(t, cache.isPending(now, agentID, "c:/repo/WIN/src"), "Windows trees match case-insensitively")
+	require.False(t, cache.isPending(now.Add(pendingProbeTTL), agentID, "/repo/site/src"), "pending entries expire")
 }

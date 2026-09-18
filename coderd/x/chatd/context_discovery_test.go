@@ -3,11 +3,13 @@ package chatd_test
 import (
 	"context"
 	"crypto/sha256"
+	"database/sql"
 	"encoding/hex"
 	"io"
 	"strings"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
@@ -18,6 +20,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/x/chatd"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
 	"github.com/coder/coder/v2/codersdk"
@@ -762,4 +765,194 @@ func TestLazyInstructionDiscoveryReprobesAfterBackgroundCommand(t *testing.T) {
 	require.Len(t, pinned, 2)
 	require.True(t, pinned[discoveryNestedSource].Discovered)
 	require.True(t, pinned[generatedSource].Discovered, "the file the command created after its result is pinned by the next read")
+}
+
+// discoveryWriteFailStore fails the discovered-row upsert for one source, in
+// and out of transactions, so a reconciliation can be interrupted part-way.
+type discoveryWriteFailStore struct {
+	database.Store
+	failSource string
+}
+
+func (s *discoveryWriteFailStore) InTx(fn func(database.Store) error, opts *database.TxOptions) error {
+	return s.Store.InTx(func(tx database.Store) error {
+		return fn(&discoveryWriteFailStore{Store: tx, failSource: s.failSource})
+	}, opts)
+}
+
+func (s *discoveryWriteFailStore) UpsertChatContextDiscoveredResource(ctx context.Context, arg database.UpsertChatContextDiscoveredResourceParams) error {
+	if arg.Source == s.failSource {
+		return xerrors.New("injected discovered row write failure")
+	}
+	return s.Store.UpsertChatContextDiscoveredResource(ctx, arg)
+}
+
+// TestLazyInstructionDiscoveryReconcilesAtomically checks that a store
+// failure part-way through pinning a probe's files leaves none of them
+// behind: a half-pinned directory would otherwise be skipped by later
+// touches while the model never sees the file that failed.
+func TestLazyInstructionDiscoveryReconcilesAtomically(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	db, ps := dbtestutil.NewDB(t)
+	var modelCalls atomic.Int32
+	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse("title")
+		}
+		if modelCalls.Add(1) == 1 {
+			return chattest.OpenAIStreamingResponse(chattest.OpenAIToolCallChunk("read_file", `{"path":"`+discoveryTouchedFile+`"}`))
+		}
+		return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("done")...)
+	})
+	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
+	ws, dbAgent := seedWorkspaceWithAgent(t, db, user.ID)
+	//nolint:gocritic // Seeding agent context as the chatd subject.
+	seedAgentInstructionContext(dbauthz.AsChatd(ctx), t, db, dbAgent.ID, discoveryRootSource, "root rules")
+
+	ctrl := gomock.NewController(t)
+	mockConn := agentconnmock.NewMockAgentConn(ctrl)
+	setupDiscoveryAgentConn(mockConn)
+	mockConn.EXPECT().ReadFileLines(gomock.Any(), discoveryTouchedFile, int64(1), int64(0), gomock.Any()).
+		Return(workspacesdk.ReadFileLinesResponse{Success: true, FileSize: 4, TotalLines: 1, LinesRead: 1, Content: "data"}, nil)
+	secondSource := discoveryNestedDir + "/CLAUDE.md"
+	probe := instructionFileResponse(discoveryNestedDir, discoveryNestedSource, "site rules")
+	probe.Files = append(probe.Files, instructionFileResponse(discoveryNestedDir, secondSource, "claude rules").Files...)
+	mockConn.EXPECT().ResolveContextInstructions(gomock.Any(), workspacesdk.ResolveContextInstructionsRequest{
+		Directories: []string{discoveryNestedDir, discoveryNestedDir + "/src"},
+	}).Return(probe, nil)
+
+	server := newActiveTestServer(t, &discoveryWriteFailStore{Store: db, failSource: secondSource}, ps, func(cfg *chatd.Config) {
+		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
+		cfg.AgentConn = func(_ context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+			require.Equal(t, dbAgent.ID, agentID)
+			return mockConn, func() {}, nil
+		}
+	})
+	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
+		WorkspaceID:    uuid.NullUUID{UUID: ws.ID, Valid: true},
+		AgentID:        uuid.NullUUID{UUID: dbAgent.ID, Valid: true},
+		Title:          "lazy-instruction-discovery-atomic",
+		ModelConfigID:  model.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("read the app"),
+		},
+	})
+	require.NoError(t, err)
+	waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
+
+	pinned := pinnedBySource(ctx, t, db, chat.ID)
+	require.Len(t, pinned, 1, "the failed reconciliation pinned nothing")
+	require.False(t, pinned[discoveryRootSource].Discovered)
+}
+
+// TestLazyInstructionDiscoveryFollowsSwitchedAgent checks that when the
+// chat's agent drops between the step's preparation and its tools, and the
+// tools' dial rebinds the turn to the rebuilt workspace's agent, discovery
+// walks from that agent's working directory rather than the one the step
+// was prepared with.
+func TestLazyInstructionDiscoveryFollowsSwitchedAgent(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	db, ps := dbtestutil.NewDB(t)
+	//nolint:gocritic // Seeding and reading workspace rows as the chatd subject.
+	chatdCtx := dbauthz.AsChatd(ctx)
+
+	// The workspace is rebuilt after the step is prepared: the model's
+	// first answer finds the prepared agent disconnected and a new build's
+	// agent, which works one directory up, in its place. The same touched
+	// file therefore has one more nested scope below the working directory.
+	// The rows the answer needs are seeded below, before the chat exists.
+	var (
+		user         database.User
+		org          database.Organization
+		ws           database.WorkspaceTable
+		staleAgent   database.WorkspaceAgent
+		build        database.WorkspaceBuild
+		currentAgent atomic.Pointer[database.WorkspaceAgent]
+		modelCalls   atomic.Int32
+	)
+	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse("title")
+		}
+		if modelCalls.Add(1) == 1 {
+			now := dbtime.Now()
+			require.NoError(t, db.UpdateWorkspaceAgentConnectionByID(chatdCtx, database.UpdateWorkspaceAgentConnectionByIDParams{
+				ID:                     staleAgent.ID,
+				FirstConnectedAt:       sql.NullTime{Time: now.Add(-2 * time.Hour), Valid: true},
+				LastConnectedAt:        sql.NullTime{Time: now.Add(-2 * time.Hour), Valid: true},
+				DisconnectedAt:         sql.NullTime{Time: now.Add(-time.Hour), Valid: true},
+				UpdatedAt:              now,
+				LastConnectedReplicaID: uuid.NullUUID{},
+			}))
+			job := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{InitiatorID: user.ID, OrganizationID: org.ID})
+			_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+				TemplateVersionID: build.TemplateVersionID,
+				WorkspaceID:       ws.ID,
+				JobID:             job.ID,
+				BuildNumber:       build.BuildNumber + 1,
+			})
+			resource := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{Transition: database.WorkspaceTransitionStart, JobID: job.ID})
+			agent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{ResourceID: resource.ID, Directory: "/home/coder", OperatingSystem: "linux"})
+			currentAgent.Store(&agent)
+			return chattest.OpenAIStreamingResponse(chattest.OpenAIToolCallChunk("read_file", `{"path":"`+discoveryTouchedFile+`"}`))
+		}
+		return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("done")...)
+	})
+	var model database.ChatModelConfig
+	user, org, model = seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
+	ws, staleAgent = seedWorkspaceWithAgent(t, db, user.ID)
+	seedAgentInstructionContext(chatdCtx, t, db, staleAgent.ID, discoveryRootSource, "root rules")
+	var err error
+	build, err = db.GetLatestWorkspaceBuildByWorkspaceID(chatdCtx, ws.ID)
+	require.NoError(t, err)
+
+	ctrl := gomock.NewController(t)
+	mockConn := agentconnmock.NewMockAgentConn(ctrl)
+	setupDiscoveryAgentConn(mockConn)
+	mockConn.EXPECT().ReadFileLines(gomock.Any(), discoveryTouchedFile, int64(1), int64(0), gomock.Any()).
+		Return(workspacesdk.ReadFileLinesResponse{Success: true, FileSize: 4, TotalLines: 1, LinesRead: 1, Content: "data"}, nil)
+	mockConn.EXPECT().ResolveContextInstructions(gomock.Any(), workspacesdk.ResolveContextInstructionsRequest{
+		Directories: []string{"/home/coder/project", discoveryNestedDir, discoveryNestedDir + "/src"},
+	}).Return(instructionFileResponse(discoveryNestedDir, discoveryNestedSource, "site rules"), nil)
+
+	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
+		cfg.AgentConn = func(_ context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+			current := currentAgent.Load()
+			switch {
+			case current == nil:
+				require.Equal(t, staleAgent.ID, agentID)
+			case agentID == staleAgent.ID:
+				return nil, nil, xerrors.New("agent gone")
+			default:
+				require.Equal(t, current.ID, agentID)
+			}
+			return mockConn, func() {}, nil
+		}
+	})
+	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
+		WorkspaceID:    uuid.NullUUID{UUID: ws.ID, Valid: true},
+		AgentID:        uuid.NullUUID{UUID: staleAgent.ID, Valid: true},
+		Title:          "lazy-instruction-discovery-switched-agent",
+		ModelConfigID:  model.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("read the app"),
+		},
+	})
+	require.NoError(t, err)
+	waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
+
+	current, err := db.GetChatByID(chatdCtx, chat.ID)
+	require.NoError(t, err)
+	require.NotNil(t, currentAgent.Load(), "the model was called")
+	require.Equal(t, currentAgent.Load().ID, current.AgentID.UUID, "the tools rebound the chat to the current agent")
+	require.True(t, pinnedBySource(ctx, t, db, chat.ID)[discoveryNestedSource].Discovered)
 }

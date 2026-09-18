@@ -268,6 +268,7 @@ func contextResourcesToPrompt(
 	var (
 		contextFileParts []codersdk.ChatMessagePart
 		omitted          []string
+		global           = make(map[string]bool)
 	)
 	for _, r := range resources {
 		if r.Status != database.WorkspaceAgentContextResourceStatusOk {
@@ -293,6 +294,10 @@ func contextResourcesToPrompt(
 				ContextFilePath:    r.Source,
 				ContextFileContent: content,
 			})
+			// ~/.coder is a scan root, so its files arrive with the
+			// snapshot; a .coder directory discovered below the working
+			// directory is a nested one like any other.
+			global[r.Source] = !r.Discovered && isGlobalInstructionPath(r.Source)
 		case database.WorkspaceAgentContextBodyKindSkill:
 			decodedBody, ok := decodeSkillMetaBody(r.Body)
 			if !ok {
@@ -326,7 +331,7 @@ func contextResourcesToPrompt(
 	// would put a working directory outside the home directory ahead of
 	// ~/.coder.
 	slices.SortStableFunc(contextFileParts, func(a, b codersdk.ChatMessagePart) int {
-		if ga, gb := isGlobalInstructionPath(a.ContextFilePath), isGlobalInstructionPath(b.ContextFilePath); ga != gb {
+		if ga, gb := global[a.ContextFilePath], global[b.ContextFilePath]; ga != gb {
 			if ga {
 				return -1
 			}

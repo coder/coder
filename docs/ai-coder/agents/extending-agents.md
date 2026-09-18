@@ -57,11 +57,11 @@ To pick up context in another directory, declare that directory as its own sourc
 
 ### Nested instruction files
 
-A repository often keeps extra instruction files below its root, such as a `site/AGENTS.md` for the frontend.
+A repository often keeps instruction files deeper than the snapshot scans, such as a `site/src/AGENTS.md` two levels below the working directory, or in a subdirectory the child scan skipped.
 The snapshot does not include them, so the chat loads them on demand instead.
 When the agent reads, writes, or edits a file, or runs a command in an explicit working directory, the chat looks for instruction files in that directory and in each parent directory up to the workspace working directory, and adds any it finds to that chat only.
 These files are pinned like other resources: they appear in the chat's context list and are read again when you select **Refresh context**.
-Edits to a nested file do not mark the chat out of date, because the agent does not watch nested directories.
+Edits to a file loaded on demand do not mark the chat out of date, because the agent watches only the directories it scans for the snapshot.
 When the agent writes an instruction file or runs a command in a directory it already loaded from, that directory is read again: new files are added and files that no longer exist are dropped from the chat.
 For a while after a command, later reads in that tree read its directory again too, because the command may still have been writing when it returned.
 A chat holds at most 1&nbsp;MiB of nested instruction content; files past that cap are listed as excluded with no content, like a snapshot's.

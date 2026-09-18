@@ -328,7 +328,7 @@ func (server *Server) prepareGeneration(
 			cleanup()
 			return generationPrepared{}, resolveErr
 		}
-		discoverInstructions = server.newInstructionDiscoverer(&workspaceCtx, chat, agent)
+		discoverInstructions = server.newInstructionDiscoverer(&workspaceCtx, chat)
 	}
 
 	// Build the debug context before the connect phase so its
