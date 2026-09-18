@@ -121,6 +121,8 @@ export const MenuSkeleton: FC = () => {
 	return <BaseSkeleton className="min-w-[200px] shrink-0" />;
 };
 
+const identityQuery = (query: string): string => query;
+
 type FilterProps = ComponentProps<"div"> & {
 	filter: ReturnType<typeof useFilter>;
 	optionsSkeleton: ReactNode;
@@ -131,6 +133,8 @@ type FilterProps = ComponentProps<"div"> & {
 	error?: unknown;
 	options?: ReactNode;
 	presets: PresetFilter[];
+	formatQuery?: (query: string) => string;
+	parseQuery?: (query: string) => string;
 };
 
 export const Filter: FC<FilterProps> = ({
@@ -143,6 +147,8 @@ export const Filter: FC<FilterProps> = ({
 	learnMoreLabel2,
 	learnMoreLink2,
 	presets,
+	formatQuery = identityQuery,
+	parseQuery = identityQuery,
 	className,
 	...props
 }) => {
@@ -150,7 +156,7 @@ export const Filter: FC<FilterProps> = ({
 	// aggressively without re-renders rippling out to the rest of the app every
 	// single time. Exists for performance reasons - not really a good way to
 	// remove this; render keys would cause the component to remount too often
-	const [queryCopy, setQueryCopy] = useState(filter.query);
+	const [queryCopy, setQueryCopy] = useState(formatQuery(filter.query));
 	const textboxInputRef = useRef<HTMLInputElement>(null);
 
 	// Conditionally re-syncs the parent and local filter queries
@@ -162,9 +168,9 @@ export const Filter: FC<FilterProps> = ({
 		// user removes focus just after this synchronizing effect fires. Also need
 		// to rely on onBlur behavior as an extra safety measure
 		if (!hasSelfOrInnerFocus) {
-			setQueryCopy(filter.query);
+			setQueryCopy(formatQuery(filter.query));
 		}
-	}, [filter.query]);
+	}, [filter.query, formatQuery]);
 
 	const shouldDisplayError = hasError(error) && isApiValidationError(error);
 
@@ -199,7 +205,7 @@ export const Filter: FC<FilterProps> = ({
 							aria-invalid={shouldDisplayError}
 							onChange={(query) => {
 								setQueryCopy(query);
-								filter.debounceUpdate(query);
+								filter.debounceUpdate(parseQuery(query));
 							}}
 							onClear={() => {
 								setQueryCopy("");
@@ -207,8 +213,9 @@ export const Filter: FC<FilterProps> = ({
 								filter.update("");
 							}}
 							onBlur={() => {
-								if (queryCopy === filter.query) return;
-								setQueryCopy(filter.query);
+								const formattedQuery = formatQuery(filter.query);
+								if (queryCopy === formattedQuery) return;
+								setQueryCopy(formattedQuery);
 							}}
 							placeholder="Search..."
 						/>
