@@ -961,9 +961,20 @@ func TestAgent_Session_TTY_QuietLogin(t *testing.T) {
 
 	// Only the MOTD should be silenced when hushlogin is present.
 	t.Run("Hushlogin", func(t *testing.T) {
+		// The agent writes banners and the MOTD before starting the
+		// login shell. The working theory is that, under CI contention,
+		// the host login shell can stall during startup and fail to
+		// process the PTY exit command, leaving session.Wait blocked.
+		// Use a self-terminating test shell so unrelated host-shell
+		// behavior cannot block the quiet-login assertions.
+		shellPath := filepath.Join(t.TempDir(), "shell")
+		//nolint:gosec // Executable test shell with test-controlled content.
+		err := os.WriteFile(shellPath, []byte("#!/bin/sh\nexit 0\n"), 0o700)
+		require.NoError(t, err, "write test shell")
+
 		session := setupSSHSession(t, agentsdk.Manifest{
 			MOTDFile: motdPath,
-		}, codersdk.ServiceBannerConfig{
+		}, codersdk.BannerConfig{
 			Enabled: true,
 			Message: wantServiceBanner,
 		}, func(fs afero.Fs) {
@@ -974,6 +985,8 @@ func TestAgent_Session_TTY_QuietLogin(t *testing.T) {
 			// isQuietLogin lookup succeeds and showMOTD is skipped.
 			err = afero.WriteFile(fs, hushloginPath, []byte{}, 0o600)
 			require.NoError(t, err, "write hushlogin file")
+		}, func(_ *agenttest.Client, opts *agent.Options) {
+			opts.EnvInfo = shellOverrideEnvInfo{shell: shellPath}
 		})
 		err = session.RequestPty("xterm", 128, 128, ssh.TerminalModes{})
 		require.NoError(t, err)
@@ -981,23 +994,13 @@ func TestAgent_Session_TTY_QuietLogin(t *testing.T) {
 		stdout := testutil.NewWaitBuffer()
 
 		session.Stdout = stdout
-		stdin, err := session.StdinPipe()
-		require.NoError(t, err)
 		require.NoError(t, session.Shell())
 
 		ctx := testutil.Context(t, testutil.WaitShort)
-		context.AfterFunc(ctx, func() { _ = session.Close() })
-
-		testutil.Go(t, func() {
-			for {
-				if _, err := stdin.Write([]byte("exit 0\n")); err != nil {
-					return
-				}
-				time.Sleep(testutil.IntervalFast)
-			}
-		})
+		stopClose := context.AfterFunc(ctx, func() { _ = session.Close() })
 
 		err = session.Wait()
+		stopClose()
 		require.NoError(t, err)
 
 		require.Contains(t, stdout.String(), wantServiceBanner, "should show service banner")

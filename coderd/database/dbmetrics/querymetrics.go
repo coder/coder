@@ -5,7 +5,6 @@ package dbmetrics
 
 import (
 	"context"
-	"encoding/json"
 	"slices"
 	"time"
 
@@ -1198,6 +1197,14 @@ func (m queryMetricsStore) GetAIProviderByName(ctx context.Context, name string)
 	r0, r1 := m.s.GetAIProviderByName(ctx, name)
 	m.queryLatencies.WithLabelValues("GetAIProviderByName").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAIProviderByName").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetAIProviderFilterOptions(ctx context.Context) ([]database.GetAIProviderFilterOptionsRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetAIProviderFilterOptions(ctx)
+	m.queryLatencies.WithLabelValues("GetAIProviderFilterOptions").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAIProviderFilterOptions").Inc()
 	return r0, r1
 }
 
@@ -4825,6 +4832,14 @@ func (m queryMetricsStore) ListChatContextResourcesByChatID(ctx context.Context,
 	return r0, r1
 }
 
+func (m queryMetricsStore) ListOrganizationAISpendUsers(ctx context.Context, arg database.ListOrganizationAISpendUsersParams) ([]database.ListOrganizationAISpendUsersRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.ListOrganizationAISpendUsers(ctx, arg)
+	m.queryLatencies.WithLabelValues("ListOrganizationAISpendUsers").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ListOrganizationAISpendUsers").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) ListProvisionerKeysByOrganization(ctx context.Context, organizationID uuid.UUID) ([]database.ProvisionerKey, error) {
 	start := time.Now()
 	r0, r1 := m.s.ListProvisionerKeysByOrganization(ctx, organizationID)
@@ -6545,9 +6560,9 @@ func (m queryMetricsStore) UpsertTelemetryItem(ctx context.Context, arg database
 	return r0
 }
 
-func (m queryMetricsStore) UpsertTemplateUsageStats(ctx context.Context, arg json.RawMessage) error {
+func (m queryMetricsStore) UpsertTemplateUsageStats(ctx context.Context) error {
 	start := time.Now()
-	r0 := m.s.UpsertTemplateUsageStats(ctx, arg)
+	r0 := m.s.UpsertTemplateUsageStats(ctx)
 	m.queryLatencies.WithLabelValues("UpsertTemplateUsageStats").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpsertTemplateUsageStats").Inc()
 	return r0
