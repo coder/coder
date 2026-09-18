@@ -1604,7 +1604,10 @@ func TestCreateWorkspaceExternalAuth(t *testing.T) {
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusForbidden, apiErr.StatusCode())
 		require.Equal(t, externalAuthRequiredMessage, apiErr.Message)
-		require.Equal(t, "The workspace owner must authenticate with the following external auth providers: GitHub.", apiErr.Detail)
+		require.Equal(t, fmt.Sprintf(
+			"The workspace owner must authenticate with the following external auth providers: GitHub (%s/external-auth/github).",
+			strings.TrimSuffix(client.URL.String(), "/"),
+		), apiErr.Detail)
 		require.Equal(t, []codersdk.ValidationError{{
 			Field:  "external_auth",
 			Detail: "github",
@@ -2966,6 +2969,73 @@ func TestWorkspaceFilterManual(t *testing.T) {
 			require.NoError(t, err)
 			expectIDs(t, []codersdk.Workspace{foo, bar, baz}, all.Workspaces)
 		})
+	})
+
+	// The user filter matches workspaces the user owns, plus workspaces
+	// shared with them directly or through a group they belong to.
+	t.Run("User", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			client, db        = coderdtest.NewWithDatabase(t, nil)
+			orgOwner          = coderdtest.CreateFirstUser(t, client)
+			_, workspaceOwner = coderdtest.CreateAnotherUser(t, client, orgOwner.OrganizationID)
+			userClient, user  = coderdtest.CreateAnotherUser(t, client, orgOwner.OrganizationID)
+			group             = dbgen.Group(t, db, database.Group{OrganizationID: orgOwner.OrganizationID})
+			ownedWorkspace    = dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+				OwnerID:        user.ID,
+				OrganizationID: orgOwner.OrganizationID,
+			}).Do().Workspace
+			userSharedWorkspace = dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+				OwnerID:        workspaceOwner.ID,
+				OrganizationID: orgOwner.OrganizationID,
+			}).Do().Workspace
+			groupSharedWorkspace = dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+				OwnerID:        workspaceOwner.ID,
+				OrganizationID: orgOwner.OrganizationID,
+			}).Do().Workspace
+			_ = dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+				OwnerID:        workspaceOwner.ID,
+				OrganizationID: orgOwner.OrganizationID,
+			}).Do().Workspace
+			ctx = testutil.Context(t, testutil.WaitMedium)
+		)
+
+		dbgen.GroupMember(t, db, database.GroupMemberTable{
+			GroupID: group.ID,
+			UserID:  user.ID,
+		})
+
+		err := client.UpdateWorkspaceACL(ctx, userSharedWorkspace.ID, codersdk.UpdateWorkspaceACL{
+			UserRoles: map[string]codersdk.WorkspaceRole{
+				user.ID.String(): codersdk.WorkspaceRoleUse,
+			},
+		})
+		require.NoError(t, err)
+		err = client.UpdateWorkspaceACL(ctx, groupSharedWorkspace.ID, codersdk.UpdateWorkspaceACL{
+			GroupRoles: map[string]codersdk.WorkspaceRole{
+				group.ID.String(): codersdk.WorkspaceRoleUse,
+			},
+		})
+		require.NoError(t, err)
+
+		expected := []codersdk.Workspace{
+			{ID: ownedWorkspace.ID},
+			{ID: userSharedWorkspace.ID},
+			{ID: groupSharedWorkspace.ID},
+		}
+
+		byUsername, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
+			User: user.Username,
+		})
+		require.NoError(t, err, "fetch workspaces by username")
+		expectIDs(t, expected, byUsername.Workspaces)
+
+		asMe, err := userClient.Workspaces(ctx, codersdk.WorkspaceFilter{
+			User: codersdk.Me,
+		})
+		require.NoError(t, err, "fetch workspaces as me")
+		expectIDs(t, expected, asMe.Workspaces)
 	})
 }
 

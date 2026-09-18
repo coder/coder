@@ -663,7 +663,7 @@ export const MockImportedUserSecrets: TypesGen.UserSecret[] = [
 	},
 ];
 
-export const MockAIGatewayEnabled: boolean = true;
+export const MockAIGatewayEnabled = true;
 
 export const MockOrganizationMember: TypesGen.OrganizationMemberWithUserData = {
 	organization_id: MockOrganization.id,
@@ -4977,6 +4977,7 @@ export const MockOAuth2ProviderApps: TypesGen.OAuth2ProviderApp[] = [
 		redirect_uris: ["http://127.0.0.1:3001"],
 		callback_url: "http://127.0.0.1:3001",
 		icon: "/icon/github.svg",
+		scope: "",
 		client_type: "confidential",
 		endpoints: {
 			authorization: "http://127.0.0.1:3001/oauth2/authorize",
@@ -4993,6 +4994,7 @@ export const MockOAuth2ProviderAppPublic: TypesGen.OAuth2ProviderApp = {
 	redirect_uris: ["http://127.0.0.1:3002"],
 	callback_url: "http://127.0.0.1:3002",
 	icon: "/icon/github.svg",
+	scope: "",
 	client_type: "public",
 	endpoints: {
 		authorization: "http://127.0.0.1:3002/oauth2/authorize",
@@ -5425,9 +5427,16 @@ export const MockAIBridgeThread: TypesGen.AIBridgeThread = {
 		cache_write_input_tokens: 140,
 		metadata: {},
 	},
+	attribution: {
+		workspace_id: "workspace-1",
+	},
 	agentic_actions: [
 		{
+			interception_id: "interception-1",
 			model: "claude-opus-4-6",
+			attribution: {
+				workspace_id: "workspace-1",
+			},
 			token_usage: {
 				input_tokens: 620,
 				output_tokens: 160,

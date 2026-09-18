@@ -22,6 +22,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/oauth2provider"
 	"github.com/coder/coder/v2/coderd/oauth2provider/oauth2providertest"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/site"
 	"github.com/coder/coder/v2/testutil"
@@ -545,6 +546,49 @@ func TestOAuth2AuthorizeScopeNegotiation(t *testing.T) {
 		require.Empty(t, failure.Get("code"),
 			"a rejected request must not appear to carry a code")
 		require.Equal(t, "acme", failure.Get("tenant"))
+	})
+}
+
+// An app created through the admin API (not seeded directly at the database
+// layer, and not DCR-registered) narrows a request the same way any other app
+// does, once its allowlist is set through PostOAuth2ProviderApp.
+func TestOAuth2AuthorizeAdminCreatedAppAllowlist(t *testing.T) {
+	t.Parallel()
+
+	db, pubsub := dbtestutil.NewDB(t)
+	client := coderdtest.New(t, &coderdtest.Options{
+		Database: db,
+		Pubsub:   pubsub,
+	})
+	_ = coderdtest.CreateFirstUser(t, client)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	//nolint:gocritic // OAuth2 app management requires owner permission.
+	app, err := client.PostOAuth2ProviderApp(ctx, codersdk.PostOAuth2ProviderAppRequest{
+		Name:        "admin-created-app-allowlist",
+		CallbackURL: appCallbackURL,
+		Scope:       scopeInCatalog,
+	})
+	require.NoError(t, err)
+
+	t.Run("OutOfAllowlistRejected", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		resp := authorizeRequest(ctx, t, client, http.MethodPost, app.ID.String(), scopeOutOfAllowlist)
+		defer resp.Body.Close()
+
+		requireInvalidScope(t, resp, reasonScopeNotAllowed)
+	})
+
+	t.Run("OmittedScopeDefaultsToAllowlist", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		resp := authorizeRequest(ctx, t, client, http.MethodPost, app.ID.String(), "")
+		defer resp.Body.Close()
+
+		require.Equal(t, scopeInCatalog, persistedCodeScope(ctx, t, db, resp))
 	})
 }
 
@@ -1274,7 +1318,7 @@ func TestOAuth2AuthorizeFollowsCallbackEdit(t *testing.T) {
 }
 
 // A callback_url that is not in the list is not registered. Such a row can
-// only be written by a binary older than migration 000596.
+// only be written by a binary older than migration 000598.
 func TestOAuth2AuthorizeIgnoresCallbackColumn(t *testing.T) {
 	t.Parallel()
 
@@ -1303,4 +1347,75 @@ func TestOAuth2AuthorizeIgnoresCallbackColumn(t *testing.T) {
 	resp = sendAuthorizeRequest(ctx, t, client, http.MethodGet, query)
 	defer resp.Body.Close()
 	require.Equal(t, http.StatusOK, resp.StatusCode, readBody(t, resp))
+}
+
+// A whitespace-only allowlist is configured and grants nothing. It must read
+// back as non-empty from every write origin, since empty means unrestricted,
+// and authorization must fail closed on it.
+func TestOAuth2AuthorizeWhitespaceOnlyAllowlist(t *testing.T) {
+	t.Parallel()
+
+	const whitespaceOnly = "   "
+
+	client := coderdtest.New(t, nil)
+	_ = coderdtest.CreateFirstUser(t, client)
+	oauth2providertest.EnableDCR(t, client)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	//nolint:gocritic // OAuth2 app management requires owner permission.
+	created, err := client.PostOAuth2ProviderApp(ctx, codersdk.PostOAuth2ProviderAppRequest{
+		Name:        "whitespace-allowlist-create",
+		CallbackURL: appCallbackURL,
+		Scope:       whitespaceOnly,
+	})
+	require.NoError(t, err)
+
+	//nolint:gocritic // OAuth2 app management requires owner permission.
+	updated, err := client.PostOAuth2ProviderApp(ctx, codersdk.PostOAuth2ProviderAppRequest{
+		Name:        "whitespace-allowlist-update",
+		CallbackURL: appCallbackURL,
+		Scope:       scopeInCatalog,
+	})
+	require.NoError(t, err)
+	//nolint:gocritic // OAuth2 app management requires owner permission.
+	updated, err = client.PutOAuth2ProviderApp(ctx, updated.ID, codersdk.PutOAuth2ProviderAppRequest{
+		Name:        updated.Name,
+		CallbackURL: updated.CallbackURL,
+		Scope:       ptr.Ref(whitespaceOnly),
+	})
+	require.NoError(t, err)
+
+	registration, err := client.PostOAuth2ClientRegistration(ctx, codersdk.OAuth2ClientRegistrationRequest{
+		RedirectURIs: []string{appCallbackURL},
+		ClientName:   testutil.GetRandomName(t),
+		Scope:        whitespaceOnly,
+	})
+	require.NoError(t, err)
+	//nolint:gocritic // OAuth2 app management requires owner permission.
+	registered, err := client.OAuth2ProviderApp(ctx, uuid.MustParse(registration.ClientID))
+	require.NoError(t, err)
+
+	apps := map[string]codersdk.OAuth2ProviderApp{
+		"AdminCreate": created,
+		"AdminUpdate": updated,
+		"DCR":         registered,
+	}
+	for name, app := range apps {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitLong)
+
+			require.NotEmpty(t, app.Scope, "a configured allowlist must not read back as unrestricted")
+			require.Empty(t, strings.TrimSpace(app.Scope), "a whitespace-only allowlist names nothing")
+
+			//nolint:gocritic // OAuth2 app management requires owner permission.
+			got, err := client.OAuth2ProviderApp(ctx, app.ID)
+			require.NoError(t, err)
+			require.Equal(t, app.Scope, got.Scope)
+
+			resp := authorizeRequest(ctx, t, client, http.MethodPost, app.ID.String(), "")
+			defer resp.Body.Close()
+			requireInvalidScope(t, resp, reasonNoGrantableScope)
+		})
+	}
 }

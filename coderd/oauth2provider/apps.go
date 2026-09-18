@@ -1,6 +1,7 @@
 package oauth2provider
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"net/http"
@@ -148,6 +149,34 @@ func GetApp(accessURL *url.URL) http.HandlerFunc {
 	}
 }
 
+// scopeAllowlist wraps a scope list for storage. Every write path stores the
+// spelling as given; readers canonicalize. An empty list stores as an empty,
+// valid string, meaning no allowlist.
+func scopeAllowlist(raw string) sql.NullString {
+	return sql.NullString{
+		String: raw,
+		Valid:  true,
+	}
+}
+
+// writeInvalidScopeError writes a 400 when a scope list is too large and
+// reports whether it did. The check is explicit rather than a validate tag so
+// the response names the limit instead of echoing the value back.
+func writeInvalidScopeError(ctx context.Context, rw http.ResponseWriter, raw string) bool {
+	err := codersdk.ValidateOAuth2ScopeList(raw)
+	if err == nil {
+		return false
+	}
+	httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+		Message: "Invalid scope.",
+		Validations: []codersdk.ValidationError{{
+			Field:  "scope",
+			Detail: err.Error(),
+		}},
+	})
+	return true
+}
+
 // CreateApp returns an http.HandlerFunc that handles POST /oauth2-provider/apps
 func CreateApp(db database.Store, accessURL *url.URL, auditor *audit.Auditor, logger slog.Logger) http.HandlerFunc {
 	return func(rw http.ResponseWriter, r *http.Request) {
@@ -173,6 +202,9 @@ func CreateApp(db database.Store, accessURL *url.URL, auditor *audit.Auditor, lo
 			})
 			return
 		}
+		if writeInvalidScopeError(ctx, rw, req.Scope) {
+			return
+		}
 		app, err := db.InsertOAuth2ProviderApp(ctx, database.InsertOAuth2ProviderAppParams{
 			ID:                      uuid.New(),
 			CreatedAt:               dbtime.Now(),
@@ -188,7 +220,7 @@ func CreateApp(db database.Store, accessURL *url.URL, auditor *audit.Auditor, lo
 			GrantTypes:              []string{"authorization_code", "refresh_token"},
 			ResponseTypes:           []string{"code"},
 			TokenEndpointAuthMethod: sql.NullString{String: "client_secret_post", Valid: true},
-			Scope:                   sql.NullString{},
+			Scope:                   scopeAllowlist(req.Scope),
 			Contacts:                []string{},
 			ClientUri:               sql.NullString{},
 			LogoUri:                 sql.NullString{},
@@ -244,6 +276,13 @@ func UpdateApp(db database.Store, accessURL *url.URL, auditor *audit.Auditor, lo
 			})
 			return
 		}
+		scope := app.Scope // Keep existing value
+		if req.Scope != nil {
+			if writeInvalidScopeError(ctx, rw, *req.Scope) {
+				return
+			}
+			scope = scopeAllowlist(*req.Scope)
+		}
 		app, err := db.UpdateOAuth2ProviderAppByID(ctx, database.UpdateOAuth2ProviderAppByIDParams{
 			ID:                      app.ID,
 			UpdatedAt:               dbtime.Now(),
@@ -257,16 +296,16 @@ func UpdateApp(db database.Store, accessURL *url.URL, auditor *audit.Auditor, lo
 			GrantTypes:              app.GrantTypes,              // Keep existing value
 			ResponseTypes:           app.ResponseTypes,           // Keep existing value
 			TokenEndpointAuthMethod: app.TokenEndpointAuthMethod, // Keep existing value
-			Scope:                   app.Scope,                   // Keep existing value
-			Contacts:                app.Contacts,                // Keep existing value
-			ClientUri:               app.ClientUri,               // Keep existing value
-			LogoUri:                 app.LogoUri,                 // Keep existing value
-			TosUri:                  app.TosUri,                  // Keep existing value
-			PolicyUri:               app.PolicyUri,               // Keep existing value
-			JwksUri:                 app.JwksUri,                 // Keep existing value
-			Jwks:                    app.Jwks,                    // Keep existing value
-			SoftwareID:              app.SoftwareID,              // Keep existing value
-			SoftwareVersion:         app.SoftwareVersion,         // Keep existing value
+			Scope:                   scope,
+			Contacts:                app.Contacts,        // Keep existing value
+			ClientUri:               app.ClientUri,       // Keep existing value
+			LogoUri:                 app.LogoUri,         // Keep existing value
+			TosUri:                  app.TosUri,          // Keep existing value
+			PolicyUri:               app.PolicyUri,       // Keep existing value
+			JwksUri:                 app.JwksUri,         // Keep existing value
+			Jwks:                    app.Jwks,            // Keep existing value
+			SoftwareID:              app.SoftwareID,      // Keep existing value
+			SoftwareVersion:         app.SoftwareVersion, // Keep existing value
 		})
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{

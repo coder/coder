@@ -69,9 +69,10 @@ func firstUnknownScope(names []string) (string, bool) {
 }
 
 // noScopeAllowlist reports whether an app has no scope allowlist. NULL and ""
-// are the same state: admin-created apps store NULL, DCR-registered apps store
-// a possibly empty req.Scope. Whitespace-only is a configured allowlist that
-// grants nothing, so it is not this state.
+// are the same state: apps created before the scope column existed store
+// NULL, and every write path since stores a possibly empty string.
+// Whitespace-only is a configured allowlist that grants nothing, so it is not
+// this state.
 func noScopeAllowlist(appScope sql.NullString) bool {
 	return !appScope.Valid || appScope.String == ""
 }

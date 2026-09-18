@@ -1530,7 +1530,8 @@ curl -X GET http://coder-server:8080/api/v2/oauth2-provider/apps \
     "name": "string",
     "redirect_uris": [
       "string"
-    ]
+    ],
+    "scope": "string"
   }
 ]
 ```
@@ -1559,6 +1560,7 @@ Status Code **200**
 | `» id`                    | string(uuid)                                                         | false    |              |                                                                                                                                                                                                         |
 | `» name`                  | string                                                               | false    |              |                                                                                                                                                                                                         |
 | `» redirect_uris`         | array                                                                | false    |              | Redirect uris are the app's registered redirect URIs, primary first.                                                                                                                                    |
+| `» scope`                 | string                                                               | false    |              | Scope is the space-separated list of scopes this app's tokens may be granted. Empty means unrestricted. A non-empty value with no names is a configured allowlist that grants nothing.                  |
 
 #### Enumerated Values
 
@@ -1591,7 +1593,8 @@ curl -X POST http://coder-server:8080/api/v2/oauth2-provider/apps \
   "name": "string",
   "redirect_uris": [
     "string"
-  ]
+  ],
+  "scope": "string"
 }
 ```
 
@@ -1620,7 +1623,8 @@ curl -X POST http://coder-server:8080/api/v2/oauth2-provider/apps \
   "name": "string",
   "redirect_uris": [
     "string"
-  ]
+  ],
+  "scope": "string"
 }
 ```
 
@@ -1670,7 +1674,8 @@ curl -X GET http://coder-server:8080/api/v2/oauth2-provider/apps/{app} \
   "name": "string",
   "redirect_uris": [
     "string"
-  ]
+  ],
+  "scope": "string"
 }
 ```
 
@@ -1705,7 +1710,8 @@ curl -X PUT http://coder-server:8080/api/v2/oauth2-provider/apps/{app} \
   "name": "string",
   "redirect_uris": [
     "string"
-  ]
+  ],
+  "scope": "string"
 }
 ```
 
@@ -1735,7 +1741,8 @@ curl -X PUT http://coder-server:8080/api/v2/oauth2-provider/apps/{app} \
   "name": "string",
   "redirect_uris": [
     "string"
-  ]
+  ],
+  "scope": "string"
 }
 ```
 
@@ -2000,11 +2007,15 @@ Requires organization-level administrator permissions.
 
 ### Parameters
 
-| Name           | In    | Type              | Required | Description                     |
-|----------------|-------|-------------------|----------|---------------------------------|
-| `organization` | path  | string(uuid)      | true     | Organization ID                 |
-| `period_start` | query | string(date-time) | false    | Inclusive lower bound (RFC3339) |
-| `period_end`   | query | string(date-time) | false    | Exclusive upper bound (RFC3339) |
+| Name            | In    | Type              | Required | Description                     |
+|-----------------|-------|-------------------|----------|---------------------------------|
+| `organization`  | path  | string(uuid)      | true     | Organization ID                 |
+| `period_start`  | query | string(date-time) | false    | Inclusive lower bound (RFC3339) |
+| `period_end`    | query | string(date-time) | false    | Exclusive upper bound (RFC3339) |
+| `user_id`       | query | string(uuid)      | false    | User ID                         |
+| `group_id`      | query | string(uuid)      | false    | Effective group ID              |
+| `provider_name` | query | string            | false    | Configured provider name        |
+| `model`         | query | string            | false    | Model name                      |
 
 ### Responses
 

@@ -22,6 +22,10 @@ type OAuth2ProviderApp struct {
 	// Deprecated: equal to RedirectURIs[0]. Read RedirectURIs instead.
 	CallbackURL string `json:"callback_url"`
 	Icon        string `json:"icon"`
+	// Scope is the space-separated list of scopes this app's tokens may be
+	// granted. Empty means unrestricted. A non-empty value with no names is a
+	// configured allowlist that grants nothing.
+	Scope string `json:"scope"`
 
 	// ClientType is "confidential" or "public".
 	ClientType OAuth2ClientType `json:"client_type"`
@@ -90,6 +94,9 @@ type PostOAuth2ProviderAppRequest struct {
 	// is moved to the front of RedirectURIs.
 	CallbackURL string `json:"callback_url,omitempty" validate:"omitempty"`
 	Icon        string `json:"icon" validate:"omitempty"`
+	// Scope is the space-separated list of scopes this app's tokens may be
+	// granted. Leave empty, or omit, for unrestricted.
+	Scope string `json:"scope,omitempty" validate:"omitempty"`
 }
 
 // PostOAuth2ProviderApp adds an application that can authenticate using Coder
@@ -117,6 +124,10 @@ type PutOAuth2ProviderAppRequest struct {
 	// is moved to the front of RedirectURIs.
 	CallbackURL string `json:"callback_url,omitempty" validate:"omitempty"`
 	Icon        string `json:"icon" validate:"omitempty"`
+	// Scope replaces the app's current allowlist. Omit to leave the existing
+	// allowlist untouched. Set to an empty string to clear it, making the app
+	// unrestricted.
+	Scope *string `json:"scope,omitempty" validate:"omitempty"`
 }
 
 // PutOAuth2ProviderApp updates an application that can authenticate using Coder

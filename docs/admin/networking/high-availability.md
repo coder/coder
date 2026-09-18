@@ -47,13 +47,22 @@ rendezvous for the Coder nodes.
 `CODER_DERP_SERVER_RELAY_URL` will never be `CODER_ACCESS_URL` because
 `CODER_ACCESS_URL` is a load balancer to all Coder nodes.
 
+Coder also clusters its inter-node pubsub across HA nodes and needs each
+replica's routable address to do so. This address comes from
+`CODER_CLUSTER_HOST`, falling back to the host in `CODER_DERP_SERVER_RELAY_URL`
+when it is unset. Set `CODER_CLUSTER_HOST` to each node's routable IP address.
+Setting it is required when you use [custom relays](./index.md#custom-relays),
+because `CODER_DERP_SERVER_RELAY_URL` is ignored and no fallback address is
+available. If a node has neither value set, Coder logs an error and falls back
+to PostgreSQL for pubsub.
+
 Here's an example 3-node network configuration setup:
 
-| Name      | `CODER_HTTP_ADDRESS` | `CODER_DERP_SERVER_RELAY_URL` | `CODER_ACCESS_URL`       |
-|-----------|----------------------|-------------------------------|--------------------------|
-| `coder-1` | `*:80`               | `http://10.0.0.1:80`          | `https://coder.big.corp` |
-| `coder-2` | `*:80`               | `http://10.0.0.2:80`          | `https://coder.big.corp` |
-| `coder-3` | `*:80`               | `http://10.0.0.3:80`          | `https://coder.big.corp` |
+| Name      | `CODER_HTTP_ADDRESS` | `CODER_DERP_SERVER_RELAY_URL` | `CODER_CLUSTER_HOST` | `CODER_ACCESS_URL`       |
+|-----------|----------------------|-------------------------------|----------------------|--------------------------|
+| `coder-1` | `*:80`               | `http://10.0.0.1:80`          | `10.0.0.1`           | `https://coder.big.corp` |
+| `coder-2` | `*:80`               | `http://10.0.0.2:80`          | `10.0.0.2`           | `https://coder.big.corp` |
+| `coder-3` | `*:80`               | `http://10.0.0.3:80`          | `10.0.0.3`           | `https://coder.big.corp` |
 
 ## Kubernetes
 
@@ -72,6 +81,8 @@ env:
         fieldPath: status.podIP
   - name: CODER_DERP_SERVER_RELAY_URL
     value: http://$(POD_IP)
+  - name: CODER_CLUSTER_HOST
+    value: $(POD_IP)
 ```
 
 Then, increase the number of pods.

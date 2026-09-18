@@ -5,7 +5,7 @@
 import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "cn";
 
-type TableProps = React.ComponentPropsWithRef<"table"> & {
+type TableProps = React.ComponentProps<"table"> & {
 	wrapperClassName?: string;
 };
 
@@ -27,7 +27,7 @@ export const Table: React.FC<TableProps> = ({
 	);
 };
 
-export const TableHeader: React.FC<React.ComponentPropsWithRef<"thead">> = ({
+export const TableHeader: React.FC<React.ComponentProps<"thead">> = ({
 	className,
 	...props
 }) => {
@@ -42,7 +42,7 @@ const tableBodyVariants = cva(null, {
 	},
 });
 
-type TableBodyProps = React.ComponentPropsWithRef<"tbody"> &
+type TableBodyProps = React.ComponentProps<"tbody"> &
 	VariantProps<typeof tableBodyVariants>;
 
 export const TableBody: React.FC<TableBodyProps> = ({
@@ -65,7 +65,7 @@ export const TableBody: React.FC<TableBodyProps> = ({
 	);
 };
 
-export const TableFooter: React.FC<React.ComponentPropsWithRef<"tfoot">> = ({
+export const TableFooter: React.FC<React.ComponentProps<"tfoot">> = ({
 	className,
 	...props
 }) => {
@@ -101,7 +101,7 @@ const tableRowVariants = cva(
 	},
 );
 
-export type TableRowProps = React.HTMLAttributes<HTMLTableRowElement> &
+export type TableRowProps = React.ComponentProps<"tr"> &
 	VariantProps<typeof tableRowVariants>;
 
 export const TableRow: React.FC<TableRowProps> = ({
@@ -121,7 +121,7 @@ export const TableRow: React.FC<TableRowProps> = ({
 	);
 };
 
-export const TableHead: React.FC<React.ComponentPropsWithRef<"th">> = ({
+export const TableHead: React.FC<React.ComponentProps<"th">> = ({
 	className,
 	scope = "col",
 	...props
@@ -139,7 +139,7 @@ export const TableHead: React.FC<React.ComponentPropsWithRef<"th">> = ({
 	);
 };
 
-export const TableCell: React.FC<React.ComponentPropsWithRef<"td">> = ({
+export const TableCell: React.FC<React.ComponentProps<"td">> = ({
 	className,
 	...props
 }) => {
