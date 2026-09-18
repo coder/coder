@@ -92,6 +92,7 @@ import {
 	isUploadInProgress,
 	type UploadState,
 } from "./AttachmentPreview";
+import type { EditingTarget } from "./ChatConversation/types";
 import {
 	ChatMessageInput,
 	type ChatMessageInputRef,
@@ -192,9 +193,9 @@ type AgentChatInputProps = {
 	warning?: string;
 	// When set, also hides the editor and every control (view-only mode).
 	readOnlyNotice?: string;
-	// History editing state, owned by the parent.
-	isEditingHistoryMessage?: boolean;
-	onCancelHistoryEdit?: () => void;
+	// Editing state, owned by the parent.
+	editingKind?: EditingTarget["kind"];
+	onCancelEdit?: () => void;
 	// Newest-first list of non-empty user prompts for local history cycling.
 	userPromptHistory?: readonly string[];
 
@@ -532,8 +533,8 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 	onPromoteQueuedMessage,
 	warning,
 	readOnlyNotice,
-	isEditingHistoryMessage = false,
-	onCancelHistoryEdit,
+	editingKind,
+	onCancelEdit,
 	userPromptHistory = [],
 	contextUsage,
 	onRefreshContext,
@@ -565,6 +566,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 	slashCommands,
 	fillWidth = false,
 }) => {
+	const isEditingMessage = editingKind !== undefined;
 	const warningId = useId();
 	const preferencesQuery = useQuery(preferenceSettings());
 	const sendShortcut = getAgentChatSendShortcut(
@@ -1140,8 +1142,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 	const handleSubmit = () => {
 		const text = internalRef.current?.getValue()?.trim() ?? "";
 
-		// If the input is empty and there are queued messages,
-		// promote the first one instead of submitting.
+		// An empty composer sends the queue head.
 		if (
 			!text &&
 			!hasUploadedAttachments &&
@@ -1205,9 +1206,9 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 
 	const handleComposerKeyDown = (e: React.KeyboardEvent) => {
 		if (e.key === "Escape") {
-			if (isEditingHistoryMessage) {
+			if (isEditingMessage) {
 				e.preventDefault();
-				onCancelHistoryEdit?.();
+				onCancelEdit?.();
 			} else if (isStreaming && onInterrupt && !isInterruptPending) {
 				e.preventDefault();
 				onInterrupt();
@@ -1234,7 +1235,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 		// streaming so the user can prepare the next prompt. Escape is
 		// cycle-aware so it does not accidentally interrupt streaming.
 		const isPromptCyclingSuppressed =
-			isEditingHistoryMessage || isReadOnly || isLoading;
+			isEditingMessage || isReadOnly || isLoading;
 		if (isPromptCyclingSuppressed) {
 			return;
 		}
@@ -1297,7 +1298,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 		applyCycleValue(nextPrompt);
 	};
 
-	const sendButtonLabel = isEditingHistoryMessage
+	const sendButtonLabel = isEditingMessage
 		? "Save Edit"
 		: isStreaming
 			? "Queue"
@@ -1307,7 +1308,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 	// recording also takes precedence over history editing.
 	const draftOccupiesSlot =
 		hasSendableContent || hasActiveUploads || speech.isRecording;
-	const editingHoldsStop = isEditingHistoryMessage && !speech.isRecording;
+	const editingHoldsStop = isEditingMessage && !speech.isRecording;
 	const showStopButton =
 		!isReadOnlyView &&
 		isStreaming &&
@@ -1336,7 +1337,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 			className={cn(
 				"mx-auto w-full pb-0 sm:pb-4",
 				fillWidth ? "max-w-full" : chatWidthClass(chatFullWidth),
-				isEditingHistoryMessage && "pt-1",
+				isEditingMessage && "pt-1",
 			)}
 		>
 			{queuedMessages.length > 0 && (
@@ -1377,7 +1378,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 					"relative z-10 rounded-2xl bg-surface-secondary sm:bg-surface-secondary/45 p-1 shadow-xs has-[textarea:focus]:ring-2 has-[textarea:focus]:ring-content-link/40",
 					showAgentSetupNotice && "sm:bg-surface-secondary",
 					isDragging && "ring-2 ring-content-link/40",
-					(isEditingHistoryMessage || warning) &&
+					(isEditingMessage || warning) &&
 						"shadow-[0_0_0_2px_hsla(var(--border-warning),0.6)]",
 					isReadOnlyView && "border border-solid border-border",
 				)}
@@ -1395,7 +1396,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 						{warning}
 					</div>
 				)}
-				{isEditingHistoryMessage && (
+				{isEditingMessage && (
 					<div className="flex items-center justify-between border-b border-border/70 px-3 py-1.5">
 						<span className="flex items-center gap-1.5 text-xs font-medium text-content-warning">
 							<PencilIcon className="size-3.5" />
@@ -1407,7 +1408,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 							variant="subtle"
 							size="icon"
 							aria-label="Cancel editing"
-							onClick={onCancelHistoryEdit}
+							onClick={onCancelEdit}
 							disabled={isLoading}
 							className="size-6 rounded text-content-warning hover:text-content-primary"
 						>
