@@ -23,6 +23,7 @@ import {
 	normalizeStatus,
 	parseArgs,
 	parseEditFilesArgs,
+	parseMediaToolResult,
 	parseServerEditDiffText,
 	parseServerEditResults,
 	sanitizeExecuteModelIntent,
@@ -314,6 +315,24 @@ describe("formatToolInput", () => {
 
 	it("preserves non-JSON string input", () => {
 		expect(formatToolInput("search text")).toBe("search text");
+	});
+});
+
+describe("parseMediaToolResult", () => {
+	it("normalizes the MIME type to a lowercase base type", () => {
+		expect(
+			parseMediaToolResult({
+				data: "AAAA",
+				mime_type: "Image/PNG; charset=binary",
+				text: "shot",
+			}),
+		).toEqual({ data: "AAAA", mimeType: "image/png", text: "shot" });
+	});
+
+	it("rejects results without a string payload and MIME type", () => {
+		expect(parseMediaToolResult({ data: "AAAA" })).toBeNull();
+		expect(parseMediaToolResult({ output: "plain" })).toBeNull();
+		expect(parseMediaToolResult("text")).toBeNull();
 	});
 });
 

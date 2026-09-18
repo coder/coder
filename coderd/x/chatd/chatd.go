@@ -63,10 +63,10 @@ import (
 const (
 	// DefaultPendingChatAcquireInterval is the default time between attempts to
 	// acquire pending chats.
-	DefaultPendingChatAcquireInterval = time.Second
+	DefaultPendingChatAcquireInterval = 30 * time.Second
 	// DefaultInFlightChatStaleAfter is the default age after which a running
 	// chat is considered stale and should be recovered.
-	DefaultInFlightChatStaleAfter = 5 * time.Minute
+	DefaultInFlightChatStaleAfter = 30 * time.Second
 
 	workspaceDialValidationDelay = 5 * time.Second
 	turnStatusLabelWriteTimeout  = 5 * time.Second
@@ -81,7 +81,7 @@ const (
 	planPathLookupTimeout = defaultDialTimeout + 5*time.Second
 	// DefaultChatHeartbeatInterval is the default time between chat
 	// heartbeat updates while a chat is being processed.
-	DefaultChatHeartbeatInterval = 30 * time.Second
+	DefaultChatHeartbeatInterval = 9 * time.Second
 	maxChatSteps                 = 1200
 
 	// slowPrepareThreshold is the generation-preparation duration
@@ -210,6 +210,7 @@ type Server struct {
 
 	// Configuration
 	inFlightChatStaleAfter time.Duration
+	streamSilenceTimeout   time.Duration
 }
 
 func (p *Server) loadAdvisorConfig(ctx context.Context, logger slog.Logger) advisorRuntimeConfig {
@@ -399,10 +400,11 @@ func (p *Server) newAdvisorRuntime(
 	}
 
 	rt, err := chatadvisor.NewRuntime(chatadvisor.RuntimeConfig{
-		Model:           advisor.model.LanguageModel(),
-		CallTemplate:    advisor.newCall(),
-		MaxUsesPerRun:   maxUsesPerRun,
-		MaxOutputTokens: maxOutputTokens,
+		Model:                advisor.model.LanguageModel(),
+		CallTemplate:         advisor.newCall(),
+		MaxUsesPerRun:        maxUsesPerRun,
+		MaxOutputTokens:      maxOutputTokens,
+		StreamSilenceTimeout: p.streamSilenceTimeout,
 	})
 	if err != nil {
 		logger.Warn(
@@ -2970,6 +2972,7 @@ type Config struct {
 	MaxChatsPerAcquire             int32
 	InFlightChatStaleAfter         time.Duration
 	ChatHeartbeatInterval          time.Duration
+	StreamSilenceTimeout           time.Duration
 	AgentConn                      AgentConnFunc
 	AgentInactiveDisconnectTimeout time.Duration
 	CreateWorkspace                chattool.CreateWorkspaceFn
@@ -3024,6 +3027,11 @@ func New(ps pubsub.Pubsub, cfg Config) *Server {
 	chatHeartbeatInterval := cfg.ChatHeartbeatInterval
 	if chatHeartbeatInterval == 0 {
 		chatHeartbeatInterval = DefaultChatHeartbeatInterval
+	}
+
+	streamSilenceTimeout := cfg.StreamSilenceTimeout
+	if streamSilenceTimeout == 0 {
+		streamSilenceTimeout = chatloop.DefaultStreamSilenceTimeout
 	}
 
 	clk := cfg.Clock
@@ -3095,6 +3103,7 @@ func New(ps pubsub.Pubsub, cfg Config) *Server {
 		aibridgeTransportFactory: cfg.AIBridgeTransportFactory,
 		experiments:              cfg.Experiments,
 		inFlightChatStaleAfter:   inFlightChatStaleAfter,
+		streamSilenceTimeout:     streamSilenceTimeout,
 		usageTracker:             cfg.UsageTracker,
 		clock:                    clk,
 		recordingSem:             make(chan struct{}, maxConcurrentRecordingUploads),

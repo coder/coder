@@ -59,7 +59,7 @@ func TestCredential(t *testing.T) {
 			// masked. AWS signs the request, so there is no auth header.
 			name: "centralized_bedrock_static",
 			newCred: func(*testing.T) intercept.Credential {
-				return intercept.Bedrock{AccessKey: "AKIAIOSFODNN7EXAMPLE"}
+				return intercept.AWSSigV4{AccessKey: "AKIAIOSFODNN7EXAMPLE"}
 			},
 			expectKind:       intercept.CredentialKindCentralized,
 			expectAuthHeader: "",
@@ -71,7 +71,7 @@ func TestCredential(t *testing.T) {
 			// no static key to mask, so the hint is a descriptive placeholder.
 			name: "centralized_bedrock_dynamic",
 			newCred: func(*testing.T) intercept.Credential {
-				return intercept.Bedrock{AccessKey: ""}
+				return intercept.AWSSigV4{AccessKey: ""}
 			},
 			expectKind:       intercept.CredentialKindCentralized,
 			expectAuthHeader: "",

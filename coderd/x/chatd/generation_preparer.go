@@ -366,6 +366,7 @@ func (server *Server) prepareGeneration(
 		if err != nil {
 			return xerrors.Errorf("build chat prompt: %w", err)
 		}
+		prompt = replaceUnsupportedToolMedia(ctx, logger, prompt, model, providerType)
 		if pendingRowsStart < len(promptRows) {
 			pendingPrompt, err = chatprompt.ConvertMessagesWithFiles(ctx, promptRows[pendingRowsStart:], server.chatFileResolver(providerType), logger, acceptsFilePart)
 			if err != nil {
