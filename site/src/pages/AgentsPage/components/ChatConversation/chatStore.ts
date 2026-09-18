@@ -54,12 +54,13 @@ const arraysEqual = <T>(left: readonly T[], right: readonly T[]): boolean => {
 	return true;
 };
 
-export const chatQueuedMessagesEqualByID = (
+// Rows change in place (content, editing_since), so identity is not enough.
+export const chatQueuedMessagesEqual = (
 	left: readonly TypesGen.ChatQueuedMessage[],
 	right: readonly TypesGen.ChatQueuedMessage[],
 ): boolean =>
 	left.length === right.length &&
-	left.every((message, index) => message.id === right[index].id);
+	left.every((message, index) => isEqual(message, right[index]));
 
 const retryStatesEqual = (
 	left: RetryState | null,
@@ -108,6 +109,15 @@ export const isActiveChatStatus = (
 	status === "running" ||
 	status === "requires_action" ||
 	status === "interrupting";
+
+/**
+ * Statuses a turn completes in without failing. `error` is excluded on
+ * purpose: a failed turn plays no completion chime, and a late part from
+ * it still renders.
+ */
+export const isTurnFinishedChatStatus = (
+	status: TypesGen.ChatStatus,
+): boolean => status === "waiting" || status === "paused";
 
 export type ChatStoreState = {
 	messagesByID: Map<number, TypesGen.ChatMessage>;
@@ -406,10 +416,7 @@ export const createChatStore = (): ChatStore => {
 			const nextQueuedMessages = queuedMessages ?? [];
 			setState((current) => {
 				if (
-					chatQueuedMessagesEqualByID(
-						current.queuedMessages,
-						nextQueuedMessages,
-					)
+					chatQueuedMessagesEqual(current.queuedMessages, nextQueuedMessages)
 				) {
 					return current;
 				}
@@ -453,7 +460,7 @@ export const createChatStore = (): ChatStore => {
 					nextSuppressed.size === 0
 						? incoming
 						: incoming.filter((message) => !nextSuppressed.has(message.id));
-				const sameQueue = chatQueuedMessagesEqualByID(
+				const sameQueue = chatQueuedMessagesEqual(
 					current.queuedMessages,
 					filtered,
 				);
@@ -506,10 +513,7 @@ export const createChatStore = (): ChatStore => {
 					: incoming.filter((message) => !suppressed.has(message.id));
 			setState((current) => ({
 				...current,
-				queuedMessages: chatQueuedMessagesEqualByID(
-					current.queuedMessages,
-					applied,
-				)
+				queuedMessages: chatQueuedMessagesEqual(current.queuedMessages, applied)
 					? current.queuedMessages
 					: applied,
 				suppressedQueuedMessageIDs: suppressed,

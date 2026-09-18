@@ -19,26 +19,33 @@ import type {
 } from "#/components/DropdownMenu/DropdownMenu";
 import { getParentChatID } from "./ChatConversation/chatHelpers";
 
-// Backend chatstate permits archive only from W, E0, and E1. Unknown status
-// stays fail-open so the server conflict response remains the backstop.
-const chatStatusAllowsArchive = (
+// Backend chatstate permits archive only from W, E0, and E1, and archive
+// cascades atomically over the family, so any active child refuses it too.
+// Children are embedded on chat records (depth capped at 1). Unknown status
+// and a missing children array stay fail-open so the server conflict
+// response remains the backstop.
+type ArchiveBlockedReason = "active" | "paused";
+
+const isActiveChatStatus = (
 	status: TypesGen.ChatStatus | null | undefined,
 ): boolean =>
-	status === undefined ||
-	status === null ||
-	status === "waiting" ||
-	status === "error";
+	status === "running" ||
+	status === "requires_action" ||
+	status === "interrupting";
 
-// Archive cascades atomically over the whole family, so the backend
-// rejects it when any child is still active, not just the root. Children
-// are embedded on chat records (depth capped at 1); a missing children
-// array stays fail-open like an unknown status.
-export const chatFamilyAllowsArchive = (
+export const getArchiveBlockedReason = (
 	status: TypesGen.ChatStatus | null | undefined,
 	children: readonly TypesGen.Chat[] | null | undefined,
-): boolean =>
-	chatStatusAllowsArchive(status) &&
-	(children ?? []).every((child) => chatStatusAllowsArchive(child.status));
+): ArchiveBlockedReason | undefined => {
+	const statuses = [status, ...(children ?? []).map((child) => child.status)];
+	if (statuses.some(isActiveChatStatus)) {
+		return "active";
+	}
+	if (statuses.some((s) => s === "paused")) {
+		return "paused";
+	}
+	return undefined;
+};
 
 type ItemComponent = typeof DropdownMenuItem | typeof ContextMenuItem;
 type SeparatorComponent =
@@ -60,7 +67,7 @@ interface ChatActionsMenuItemsProps {
 	readonly chat: TypesGen.Chat;
 	readonly hasWorkspace: boolean;
 	readonly isArchiving?: boolean;
-	readonly isArchiveBlocked?: boolean;
+	readonly archiveBlockedReason?: ArchiveBlockedReason;
 	readonly subagentCount?: number;
 	readonly isSubagentsExpanded?: boolean;
 	readonly onToggleSubagents?: () => void;
@@ -79,7 +86,7 @@ export const ChatActionsMenuItems: FC<ChatActionsMenuItemsProps> = ({
 	chat,
 	hasWorkspace,
 	isArchiving = false,
-	isArchiveBlocked = false,
+	archiveBlockedReason,
 	subagentCount = 0,
 	isSubagentsExpanded = false,
 	onToggleSubagents,
@@ -100,6 +107,7 @@ export const ChatActionsMenuItems: FC<ChatActionsMenuItemsProps> = ({
 		!isArchived && !isChildChat && Boolean(onPinAgent && onUnpinAgent);
 	const showArchiveActions = !isArchived && !isChildChat;
 	const archiveBlockedHintId = useId();
+	const isArchiveBlocked = archiveBlockedReason !== undefined;
 	const archiveBlockedDescribedBy = isArchiveBlocked
 		? archiveBlockedHintId
 		: undefined;
@@ -179,7 +187,9 @@ export const ChatActionsMenuItems: FC<ChatActionsMenuItemsProps> = ({
 									id={archiveBlockedHintId}
 									className="max-w-56 px-2 py-1.5 text-xs text-content-secondary"
 								>
-									Interrupt or wait for the agent to finish first.
+									{archiveBlockedReason === "paused"
+										? "Finish editing the queued message first."
+										: "Interrupt or wait for the agent to finish first."}
 								</div>
 							)}
 						</>

@@ -583,6 +583,7 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 			queuedMessages={queuedMessages}
 			onDeleteQueuedMessage={onDeleteQueuedMessage}
 			onPromoteQueuedMessage={onPromoteQueuedMessage}
+			isChatPaused={chatStatus === "paused"}
 			editingKind={editingTarget?.kind}
 			onCancelEdit={onCancelEdit}
 			userPromptHistory={userPromptHistory}

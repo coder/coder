@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { type FC, type ReactNode, useEffect, useState } from "react";
 import type { ChatQueuedMessage } from "#/api/typesGenerated";
+import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
 import { Spinner } from "#/components/Spinner/Spinner";
 import {
@@ -108,10 +109,33 @@ export const QueuedMessagesList: FC<QueuedMessagesListProps> = ({
 	onPromote,
 	className,
 }) => {
-	const items = messages.map((message) => {
+	const editingIndex = messages.findIndex((message) => message.editing_since);
+	const items = messages.map((message, index) => {
 		const { displayText, attachmentCount, hookNotices } =
 			getQueuedMessageInfo(message);
-		return { id: message.id, displayText, attachmentCount, hookNotices };
+		const isUnderEdit = Boolean(message.editing_since);
+		const isWaitingBehindEdit = editingIndex !== -1 && index > editingIndex;
+		let badge: { label: string; tooltip: string } | undefined;
+		if (isUnderEdit) {
+			badge = {
+				label: "Editing",
+				tooltip: "Not sent until you finish editing.",
+			};
+		} else if (isWaitingBehindEdit) {
+			badge = {
+				label: "Waiting",
+				tooltip: "Waits for the edit above to finish.",
+			};
+		}
+		return {
+			id: message.id,
+			displayText,
+			attachmentCount,
+			hookNotices,
+			isUnderEdit,
+			isWaitingBehindEdit,
+			badge,
+		};
 	});
 
 	const [hoveredID, setHoveredID] = useState<number | null>(null);
@@ -206,7 +230,12 @@ export const QueuedMessagesList: FC<QueuedMessagesListProps> = ({
 				return (
 					<div
 						key={item.id}
-						className="my-1 opacity-40 transition-opacity hover:opacity-80"
+						className={cn(
+							"my-1 transition-opacity",
+							item.isWaitingBehindEdit
+								? "opacity-25 hover:opacity-60"
+								: "opacity-40 hover:opacity-80",
+						)}
 						onMouseEnter={() => setHoveredID(item.id)}
 						onMouseLeave={() =>
 							setHoveredID((current) => (current === item.id ? null : current))
@@ -217,6 +246,23 @@ export const QueuedMessagesList: FC<QueuedMessagesListProps> = ({
 								{item.displayText.split("\n")[0]}
 								{item.displayText.includes("\n") ? "…" : ""}
 							</span>
+							{item.badge && (
+								<Tooltip>
+									<TooltipTrigger asChild>
+										<Badge
+											asChild
+											variant={item.isUnderEdit ? "warning" : "default"}
+											size="xs"
+											className="shrink-0 cursor-default"
+										>
+											<button type="button">{item.badge.label}</button>
+										</Badge>
+									</TooltipTrigger>
+									<TooltipContent side="top">
+										{item.badge.tooltip}
+									</TooltipContent>
+								</Tooltip>
+							)}
 							{item.attachmentCount > 0 && (
 								<span
 									role="img"
@@ -243,7 +289,7 @@ export const QueuedMessagesList: FC<QueuedMessagesListProps> = ({
 									</TooltipContent>
 								</Tooltip>
 							)}
-							{isFirst && (
+							{isFirst && !item.isUnderEdit && (
 								<span
 									className={cn(
 										"flex shrink-0 items-center gap-1 text-xs text-content-secondary transition-opacity",

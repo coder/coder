@@ -28,8 +28,8 @@ import type { AgentsPageOutletContext } from "../AgentsPageLayout";
 import { parsePullRequestUrl } from "../utils/pullRequest";
 import {
 	ChatActionsMenuItems,
-	chatFamilyAllowsArchive,
 	chatHasMenuActions,
+	getArchiveBlockedReason,
 } from "./ChatActionsMenuItems";
 import { getParentChatID } from "./ChatConversation/chatHelpers";
 import { ChatSharingPopoverContent } from "./ChatSharingPopover";
@@ -144,12 +144,9 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 			(archivingChatId === undefined || archivingChatId === chat.id),
 	);
 	// The per-chat stream updates this before the global chat record catches up.
-	const isArchiveBlocked = chat
-		? !chatFamilyAllowsArchive(
-				liveChatStatus ?? chat.status,
-				activeChatChildren,
-			)
-		: false;
+	const archiveBlockedReason = chat
+		? getArchiveBlockedReason(liveChatStatus ?? chat.status, activeChatChildren)
+		: undefined;
 	const showPinAction = Boolean(requestPinAgent && requestUnpinAgent);
 	const diffStatus = chat?.diff_status;
 
@@ -253,7 +250,7 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 								chat={chat}
 								hasWorkspace={hasWorkspace}
 								isArchiving={isArchivingThisChat}
-								isArchiveBlocked={isArchiveBlocked}
+								archiveBlockedReason={archiveBlockedReason}
 								onPinAgent={
 									showPinAction && !isArchived
 										? () => {
