@@ -16,6 +16,7 @@ import {
 	DropdownMenuSeparator,
 } from "#/components/DropdownMenu/DropdownMenu";
 import { shortRelativeTime } from "#/utils/time";
+import { isActiveChatStatus } from "../../components/ChatConversation/chatStore";
 import { getChatDisplayConfig } from "../../components/ChatsSidebar/tree/statusConfig";
 import { ActionsMenu } from "./ActionsMenu";
 import type { NoteSlot } from "./boardApi";
@@ -207,8 +208,7 @@ export const BoardCard: FC<BoardCardProps> = ({
 				<div className="flex h-[19px] items-center gap-1.5">
 					{single ? (
 						<>
-							{lead.has_unread && <UnreadDot />}
-							<Age at={lead.updated_at} />
+							<Activity chat={lead} />
 							<ChatInfoPopover chat={lead} />
 							<ChatOpener
 								chat={lead}
@@ -353,23 +353,29 @@ const EffortsSubMenu: FC<EffortsSubMenuProps> = ({
 	</>
 );
 
-const UnreadDot: FC = () => (
-	<span
-		role="img"
-		className="size-[7px] shrink-0 rounded-full bg-content-link"
-		aria-label="Unread"
-	/>
-);
-
-interface AgeProps {
-	readonly at: string;
+interface ActivityProps {
+	readonly chat: Chat;
 }
 
-const Age: FC<AgeProps> = ({ at }) => (
-	<span className="text-[11px] tabular-nums text-content-secondary/70">
-		{shortRelativeTime(at)}
-	</span>
-);
+// Unread mark and age. While the chat works, both would read "now" and say
+// nothing, so the slot is empty until it settles.
+const Activity: FC<ActivityProps> = ({ chat }) => {
+	if (isActiveChatStatus(chat.status)) return null;
+	return (
+		<>
+			{chat.has_unread && (
+				<span
+					role="img"
+					className="size-[7px] shrink-0 rounded-full bg-content-link"
+					aria-label="Unread"
+				/>
+			)}
+			<span className="text-[11px] tabular-nums text-content-secondary/70">
+				{shortRelativeTime(chat.updated_at)}
+			</span>
+		</>
+	);
+};
 
 interface OpenChatSurfaceProps {
 	readonly chat: Chat;
@@ -502,8 +508,7 @@ const ChatRow: FC<ChatRowProps> = ({
 				</div>
 			</div>
 			<div className="flex h-[18px] items-center gap-1.5">
-				{chat.has_unread && <UnreadDot />}
-				<Age at={chat.updated_at} />
+				<Activity chat={chat} />
 				<ChatInfoPopover chat={chat} />
 				<ChatOpener
 					chat={chat}
