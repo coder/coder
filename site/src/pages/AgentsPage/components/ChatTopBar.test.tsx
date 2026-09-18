@@ -27,7 +27,7 @@ vi.mock("#/hooks/useAuthenticated", () => ({
 	}),
 }));
 
-const dashboardValue = {
+const mockDashboardValue = {
 	entitlements: MockEntitlements,
 	experiments: [],
 	appearance: MockAppearanceConfig,
@@ -43,7 +43,7 @@ const Wrapper: React.FC<React.PropsWithChildren> = ({ children }) => {
 		<QueryClientProvider client={queryClient}>
 			<ThemeOverride theme={themes[DEFAULT_THEME]}>
 				<TooltipProvider>
-					<DashboardContext.Provider value={dashboardValue}>
+					<DashboardContext.Provider value={mockDashboardValue}>
 						<MemoryRouter initialEntries={["/agents/chat-1"]}>
 							{children}
 						</MemoryRouter>
