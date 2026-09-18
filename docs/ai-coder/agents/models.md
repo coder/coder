@@ -312,8 +312,9 @@ no option to configure. Claude models receive them on the Anthropic and AWS
 Bedrock providers, and on OpenRouter, Vercel AI Gateway, and OpenAI
 Compatible providers when the model identifier is Anthropic-family (for
 example `anthropic/claude-haiku-4.5` or `claude-sonnet-4-5`). Cached tokens
-appear as cache-read usage in the chat cost breakdown and in AI Gateway
-session usage.
+are reported as `cache_read_tokens` in each assistant message's usage and as
+cache-read input tokens in AI Gateway session usage, where they are priced at
+the model's cache-read rate.
 
 ## How developers select models
 
