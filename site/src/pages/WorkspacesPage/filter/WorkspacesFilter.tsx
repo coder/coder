@@ -4,7 +4,7 @@ import {
 	LayoutPanelTopIcon,
 	TagsIcon,
 	UserIcon,
-	UsersIcon,
+	UserKeyIcon,
 } from "lucide-react";
 import { type FC, useCallback, useMemo } from "react";
 import { useQueryClient } from "react-query";
@@ -102,13 +102,13 @@ export const WorkspacesFilter: FC<WorkspaceFilterProps> = ({
 				// Workspaces the user owns or that are shared with them.
 				key: "user",
 				label: "User",
-				icon: <UsersIcon />,
+				icon: <UserIcon />,
 				getOptions: getUserOptions,
 			},
 			{
 				key: "owner",
 				label: "Owner",
-				icon: <UserIcon />,
+				icon: <UserKeyIcon />,
 				getOptions: getUserOptions,
 			},
 		);
