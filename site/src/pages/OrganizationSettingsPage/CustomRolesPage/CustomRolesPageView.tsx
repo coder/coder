@@ -13,7 +13,6 @@ import {
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
 import { AddPlusIcon } from "#/components/Icons/AddPlusIcon";
-import { LightbulbIcon } from "#/components/Icons/LightbulbIcon";
 import { PREMIUM_PAGE_PATH } from "#/components/Paywall/Paywall";
 import {
 	SettingsHeader,
@@ -362,7 +361,7 @@ const RoleTableBody: FC<RoleTableBodyProps> = ({
 		}
 		return (
 			<TableEmpty
-				icon={<LightbulbIcon className="size-9 text-highlight-sky" />}
+				icon={<AddPlusIcon className="size-9 text-highlight-sky" />}
 				message="No custom roles yet"
 				description={
 					canCreateOrgRole
@@ -373,7 +372,7 @@ const RoleTableBody: FC<RoleTableBodyProps> = ({
 					canCreateOrgRole && (
 						<Button asChild>
 							<RouterLink to="create">
-								<AddPlusIcon className="text-highlight-sky" />
+								<PlusIcon />
 								Create custom role
 							</RouterLink>
 						</Button>

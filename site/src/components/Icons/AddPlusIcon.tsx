@@ -2,10 +2,10 @@ import { cn } from "cn";
 import type { FC } from "react";
 
 /**
- * Plus glyph used inside add/create empty-state CTAs. Rendered with
- * `currentColor`; set the color via a text utility (e.g. `text-highlight-sky`).
- * Defaults to an 18x18 size and forces it with `!` so it wins over the button's
- * default icon sizing.
+ * Plus glyph used as the empty-state badge icon (the visual above the headline)
+ * for empty states whose CTA is an add/create action. Rendered with
+ * `currentColor`; set the color and size via utilities (e.g.
+ * `size-9 text-highlight-sky`).
  */
 export const AddPlusIcon: FC<React.ComponentProps<"svg">> = ({
 	className,
@@ -16,7 +16,7 @@ export const AddPlusIcon: FC<React.ComponentProps<"svg">> = ({
 		fill="none"
 		xmlns="http://www.w3.org/2000/svg"
 		aria-hidden="true"
-		className={cn("size-icon-sm!", className)}
+		className={cn(className)}
 		{...props}
 	>
 		<path

@@ -19,7 +19,6 @@ import { EmptyState } from "#/components/EmptyState/EmptyState";
 import type { useFilter } from "#/components/Filter/Filter";
 import { GroupsFilter } from "#/components/Filter/GroupsFilter";
 import { AddPlusIcon } from "#/components/Icons/AddPlusIcon";
-import { LightbulbIcon } from "#/components/Icons/LightbulbIcon";
 import { PaginationContainer } from "#/components/PaginationWidget/PaginationContainer";
 import {
 	SettingsHeader,
@@ -224,7 +223,7 @@ const GroupsTableBody: FC<GroupsTableBodyProps> = ({
 		}
 		return (
 			<TableEmpty
-				icon={<LightbulbIcon className="size-9 text-highlight-sky" />}
+				icon={<AddPlusIcon className="size-9 text-highlight-sky" />}
 				message="No groups yet"
 				description={
 					canCreateGroup
@@ -235,7 +234,7 @@ const GroupsTableBody: FC<GroupsTableBodyProps> = ({
 					canCreateGroup && (
 						<Button asChild>
 							<RouterLink to="create">
-								<AddPlusIcon className="text-highlight-sky" />
+								<PlusIcon />
 								New group
 							</RouterLink>
 						</Button>
