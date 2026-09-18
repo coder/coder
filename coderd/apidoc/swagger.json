@@ -3546,6 +3546,94 @@
 				]
 			}
 		},
+		"/api/v2/exitnodes/me/coordinate": {
+			"get": {
+				"tags": ["Enterprise"],
+				"summary": "Exit node coordinate",
+				"operationId": "exit-node-coordinate",
+				"responses": {
+					"101": {
+						"description": "Switching Protocols"
+					}
+				},
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
+				"x-apidocgen": {
+					"skip": true
+				}
+			}
+		},
+		"/api/v2/exitnodes/me/flows": {
+			"post": {
+				"consumes": ["application/json"],
+				"tags": ["Enterprise"],
+				"summary": "Report exit node flows",
+				"operationId": "report-exit-node-flows",
+				"parameters": [
+					{
+						"description": "Flow reports",
+						"name": "request",
+						"in": "body",
+						"required": true,
+						"schema": {
+							"$ref": "#/definitions/codersdk.ReportExitNodeFlowsRequest"
+						}
+					}
+				],
+				"responses": {
+					"204": {
+						"description": "No Content"
+					}
+				},
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
+				"x-apidocgen": {
+					"skip": true
+				}
+			}
+		},
+		"/api/v2/exitnodes/me/register": {
+			"post": {
+				"consumes": ["application/json"],
+				"produces": ["application/json"],
+				"tags": ["Enterprise"],
+				"summary": "Register exit node",
+				"operationId": "register-exit-node",
+				"parameters": [
+					{
+						"description": "Register exit node request",
+						"name": "request",
+						"in": "body",
+						"required": true,
+						"schema": {
+							"$ref": "#/definitions/codersdk.RegisterExitNodeRequest"
+						}
+					}
+				],
+				"responses": {
+					"201": {
+						"description": "Created",
+						"schema": {
+							"$ref": "#/definitions/codersdk.RegisterExitNodeResponse"
+						}
+					}
+				},
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
+				"x-apidocgen": {
+					"skip": true
+				}
+			}
+		},
 		"/api/v2/experiments": {
 			"get": {
 				"produces": ["application/json"],
@@ -6017,6 +6105,149 @@
 				"x-apidocgen": {
 					"skip": true
 				}
+			}
+		},
+		"/api/v2/organizations/{organization}/exitnodes": {
+			"get": {
+				"produces": ["application/json"],
+				"tags": ["Enterprise"],
+				"summary": "List exit nodes",
+				"operationId": "list-exit-nodes",
+				"parameters": [
+					{
+						"type": "string",
+						"format": "uuid",
+						"description": "Organization ID",
+						"name": "organization",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"type": "array",
+							"items": {
+								"$ref": "#/definitions/codersdk.ExitNode"
+							}
+						}
+					}
+				},
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				]
+			},
+			"post": {
+				"consumes": ["application/json"],
+				"produces": ["application/json"],
+				"tags": ["Enterprise"],
+				"summary": "Create exit node",
+				"operationId": "create-exit-node",
+				"parameters": [
+					{
+						"type": "string",
+						"format": "uuid",
+						"description": "Organization ID",
+						"name": "organization",
+						"in": "path",
+						"required": true
+					},
+					{
+						"description": "Create exit node request",
+						"name": "request",
+						"in": "body",
+						"required": true,
+						"schema": {
+							"$ref": "#/definitions/codersdk.CreateExitNodeRequest"
+						}
+					}
+				],
+				"responses": {
+					"201": {
+						"description": "Created",
+						"schema": {
+							"$ref": "#/definitions/codersdk.CreateExitNodeResponse"
+						}
+					}
+				},
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				]
+			}
+		},
+		"/api/v2/organizations/{organization}/exitnodes/{exitnode}": {
+			"get": {
+				"produces": ["application/json"],
+				"tags": ["Enterprise"],
+				"summary": "Get exit node",
+				"operationId": "get-exit-node",
+				"parameters": [
+					{
+						"type": "string",
+						"format": "uuid",
+						"description": "Organization ID",
+						"name": "organization",
+						"in": "path",
+						"required": true
+					},
+					{
+						"type": "string",
+						"description": "Exit node ID or name",
+						"name": "exitnode",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/codersdk.ExitNode"
+						}
+					}
+				},
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				]
+			},
+			"delete": {
+				"tags": ["Enterprise"],
+				"summary": "Delete exit node",
+				"operationId": "delete-exit-node",
+				"parameters": [
+					{
+						"type": "string",
+						"format": "uuid",
+						"description": "Organization ID",
+						"name": "organization",
+						"in": "path",
+						"required": true
+					},
+					{
+						"type": "string",
+						"description": "Exit node ID or name",
+						"name": "exitnode",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"204": {
+						"description": "No Content"
+					}
+				},
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				]
 			}
 		},
 		"/api/v2/organizations/{organization}/groups": {
@@ -19559,6 +19790,14 @@
 					"type": "string",
 					"format": "date-time"
 				},
+				"egress_info": {
+					"description": "EgressInfo is only set when `type` is `ConnectionTypeEgress`.",
+					"allOf": [
+						{
+							"$ref": "#/definitions/codersdk.ConnectionLogEgressInfo"
+						}
+					]
+				},
 				"id": {
 					"type": "string",
 					"format": "uuid"
@@ -19600,6 +19839,35 @@
 					"format": "uuid"
 				},
 				"workspace_owner_username": {
+					"type": "string"
+				}
+			}
+		},
+		"codersdk.ConnectionLogEgressInfo": {
+			"type": "object",
+			"properties": {
+				"decision": {
+					"$ref": "#/definitions/codersdk.ExitNodeFlowDecision"
+				},
+				"destination": {
+					"description": "Destination is \"\u003chost or ip\u003e:\u003cport\u003e\" as dialed by the workspace.",
+					"type": "string"
+				},
+				"destination_ip": {
+					"description": "DestinationIP is the resolved destination address.",
+					"type": "string"
+				},
+				"disconnect_time": {
+					"description": "DisconnectTime is omitted while the flow is still open.",
+					"type": "string",
+					"format": "date-time"
+				},
+				"reason": {
+					"description": "Reason is the human-readable explanation from the exit node. For\ncompleted flows it carries a \"(in=\u003cbytes\u003e out=\u003cbytes\u003e)\" suffix.",
+					"type": "string"
+				},
+				"rule_id": {
+					"description": "RuleID is the policy rule that produced the decision, if any.",
 					"type": "string"
 				}
 			}
@@ -19919,6 +20187,66 @@
 				"workspace_id": {
 					"type": "string",
 					"format": "uuid"
+				}
+			}
+		},
+		"codersdk.CreateExitNodeRequest": {
+			"type": "object",
+			"required": ["name"],
+			"properties": {
+				"display_name": {
+					"type": "string"
+				},
+				"name": {
+					"type": "string"
+				}
+			}
+		},
+		"codersdk.CreateExitNodeResponse": {
+			"type": "object",
+			"properties": {
+				"created_at": {
+					"type": "string",
+					"format": "date-time"
+				},
+				"display_name": {
+					"type": "string"
+				},
+				"id": {
+					"type": "string",
+					"format": "uuid"
+				},
+				"last_seen_at": {
+					"type": "string",
+					"format": "date-time"
+				},
+				"name": {
+					"type": "string"
+				},
+				"organization_id": {
+					"type": "string",
+					"format": "uuid"
+				},
+				"tailnet_address": {
+					"description": "TailnetAddress is the deterministic tailnet IP agents dial, derived\nfrom the exit node ID.",
+					"type": "string"
+				},
+				"token": {
+					"type": "string"
+				},
+				"updated_at": {
+					"type": "string",
+					"format": "date-time"
+				},
+				"version": {
+					"type": "string"
+				},
+				"wireguard_endpoints": {
+					"description": "WireguardEndpoints are the public ip:port pairs agents may use for\ndirect WireGuard connections. Agents exempt them from enforcement.",
+					"type": "array",
+					"items": {
+						"type": "string"
+					}
 				}
 			}
 		},
@@ -21485,6 +21813,102 @@
 					"items": {
 						"type": "string"
 					}
+				}
+			}
+		},
+		"codersdk.ExitNode": {
+			"type": "object",
+			"properties": {
+				"created_at": {
+					"type": "string",
+					"format": "date-time"
+				},
+				"display_name": {
+					"type": "string"
+				},
+				"id": {
+					"type": "string",
+					"format": "uuid"
+				},
+				"last_seen_at": {
+					"type": "string",
+					"format": "date-time"
+				},
+				"name": {
+					"type": "string"
+				},
+				"organization_id": {
+					"type": "string",
+					"format": "uuid"
+				},
+				"tailnet_address": {
+					"description": "TailnetAddress is the deterministic tailnet IP agents dial, derived\nfrom the exit node ID.",
+					"type": "string"
+				},
+				"updated_at": {
+					"type": "string",
+					"format": "date-time"
+				},
+				"version": {
+					"type": "string"
+				},
+				"wireguard_endpoints": {
+					"description": "WireguardEndpoints are the public ip:port pairs agents may use for\ndirect WireGuard connections. Agents exempt them from enforcement.",
+					"type": "array",
+					"items": {
+						"type": "string"
+					}
+				}
+			}
+		},
+		"codersdk.ExitNodeFlowDecision": {
+			"type": "string",
+			"enum": ["allow", "deny"],
+			"x-enum-varnames": ["ExitNodeFlowAllow", "ExitNodeFlowDeny"]
+		},
+		"codersdk.ExitNodeFlowReport": {
+			"type": "object",
+			"properties": {
+				"agent_id": {
+					"type": "string",
+					"format": "uuid"
+				},
+				"bytes_in": {
+					"type": "integer"
+				},
+				"bytes_out": {
+					"type": "integer"
+				},
+				"connect_time": {
+					"type": "string",
+					"format": "date-time"
+				},
+				"decision": {
+					"$ref": "#/definitions/codersdk.ExitNodeFlowDecision"
+				},
+				"destination_ip": {
+					"type": "string"
+				},
+				"destination_port": {
+					"type": "integer"
+				},
+				"disconnect_time": {
+					"type": "string",
+					"format": "date-time"
+				},
+				"flow_id": {
+					"type": "string",
+					"format": "uuid"
+				},
+				"host": {
+					"description": "Host is the hostname learned from TLS SNI or the HTTP Host header, or\nempty when neither was present.",
+					"type": "string"
+				},
+				"reason": {
+					"type": "string"
+				},
+				"rule_id": {
+					"type": "string"
 				}
 			}
 		},
@@ -25452,6 +25876,42 @@
 				}
 			}
 		},
+		"codersdk.RegisterExitNodeRequest": {
+			"type": "object",
+			"properties": {
+				"hostname": {
+					"type": "string"
+				},
+				"version": {
+					"type": "string"
+				},
+				"wireguard_endpoints": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					}
+				}
+			}
+		},
+		"codersdk.RegisterExitNodeResponse": {
+			"type": "object",
+			"properties": {
+				"agent_ids": {
+					"description": "AgentIDs are the workspace agents this exit node must open tunnels\nto. Coderd computes the set from templates bound to the exit node.",
+					"type": "array",
+					"items": {
+						"type": "string",
+						"format": "uuid"
+					}
+				},
+				"derp_force_websockets": {
+					"type": "boolean"
+				},
+				"derp_map": {
+					"$ref": "#/definitions/tailcfg.DERPMap"
+				}
+			}
+		},
 		"codersdk.Replica": {
 			"type": "object",
 			"properties": {
@@ -25484,6 +25944,17 @@
 				"relay_address": {
 					"description": "RelayAddress is the accessible address to relay DERP connections.",
 					"type": "string"
+				}
+			}
+		},
+		"codersdk.ReportExitNodeFlowsRequest": {
+			"type": "object",
+			"properties": {
+				"flows": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/codersdk.ExitNodeFlowReport"
+					}
 				}
 			}
 		},

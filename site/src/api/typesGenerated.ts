@@ -3700,6 +3700,40 @@ export interface ConnectionLog {
 	 * - `ConnectionTypeJetBrains`
 	 */
 	readonly ssh_info?: ConnectionLogSSHInfo;
+	/**
+	 * EgressInfo is only set when `type` is `ConnectionTypeEgress`.
+	 */
+	readonly egress_info?: ConnectionLogEgressInfo;
+}
+
+// From codersdk/connectionlog.go
+/**
+ * ConnectionLogEgressInfo describes an outbound flow observed by an exit
+ * node.
+ */
+export interface ConnectionLogEgressInfo {
+	/**
+	 * Destination is "<host or ip>:<port>" as dialed by the workspace.
+	 */
+	readonly destination: string;
+	/**
+	 * DestinationIP is the resolved destination address.
+	 */
+	readonly destination_ip?: string;
+	readonly decision: ExitNodeFlowDecision;
+	/**
+	 * RuleID is the policy rule that produced the decision, if any.
+	 */
+	readonly rule_id?: string;
+	/**
+	 * Reason is the human-readable explanation from the exit node. For
+	 * completed flows it carries a "(in=<bytes> out=<bytes>)" suffix.
+	 */
+	readonly reason?: string;
+	/**
+	 * DisconnectTime is omitted while the flow is still open.
+	 */
+	readonly disconnect_time?: string;
 }
 
 // From codersdk/connectionlog.go

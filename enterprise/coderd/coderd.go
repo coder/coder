@@ -436,6 +436,27 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 			})
 		})
 
+		// Exit node self-service routes authenticate with the exit node
+		// token instead of an API key, like /workspaceproxies/me.
+		r.Route("/exitnodes/me", func(r chi.Router) {
+			r.Use(httpmw.ExtractExitNode(options.Database))
+			r.Post("/register", api.registerExitNode)
+			r.Get("/coordinate", api.exitNodeCoordinate)
+			r.Post("/flows", api.reportExitNodeFlows)
+		})
+		r.Route("/organizations/{organization}/exitnodes", func(r chi.Router) {
+			r.Use(
+				apiKeyMiddleware,
+				httpmw.ExtractOrganizationParam(api.Database),
+			)
+			r.Post("/", api.postExitNode)
+			r.Get("/", api.exitNodes)
+			r.Route("/{exitnode}", func(r chi.Router) {
+				r.Get("/", api.exitNode)
+				r.Delete("/", api.deleteExitNode)
+			})
+		})
+
 		r.Group(func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,

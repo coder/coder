@@ -34,6 +34,9 @@ type ConnectionLog struct {
 	// - `ConnectionTypeVSCode`
 	// - `ConnectionTypeJetBrains`
 	SSHInfo *ConnectionLogSSHInfo `json:"ssh_info,omitempty"`
+
+	// EgressInfo is only set when `type` is `ConnectionTypeEgress`.
+	EgressInfo *ConnectionLogEgressInfo `json:"egress_info,omitempty"`
 }
 
 // ConnectionType is the type of connection that the agent is receiving.
@@ -92,6 +95,23 @@ type ConnectionLogSSHInfo struct {
 	// ExitCode is the exit code of the SSH session. It is omitted if a
 	// disconnect event with the same connection ID has not yet been seen.
 	ExitCode *int32 `json:"exit_code,omitempty"`
+}
+
+// ConnectionLogEgressInfo describes an outbound flow observed by an exit
+// node.
+type ConnectionLogEgressInfo struct {
+	// Destination is "<host or ip>:<port>" as dialed by the workspace.
+	Destination string `json:"destination"`
+	// DestinationIP is the resolved destination address.
+	DestinationIP string               `json:"destination_ip,omitempty"`
+	Decision      ExitNodeFlowDecision `json:"decision"`
+	// RuleID is the policy rule that produced the decision, if any.
+	RuleID string `json:"rule_id,omitempty"`
+	// Reason is the human-readable explanation from the exit node. For
+	// completed flows it carries a "(in=<bytes> out=<bytes>)" suffix.
+	Reason string `json:"reason,omitempty"`
+	// DisconnectTime is omitted while the flow is still open.
+	DisconnectTime *time.Time `json:"disconnect_time,omitempty" format:"date-time"`
 }
 
 type ConnectionLogsRequest struct {

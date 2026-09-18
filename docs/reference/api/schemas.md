@@ -5411,6 +5411,14 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 {
   "agent_name": "string",
   "connect_time": "2019-08-24T14:15:22Z",
+  "egress_info": {
+    "decision": "allow",
+    "destination": "string",
+    "destination_ip": "string",
+    "disconnect_time": "2019-08-24T14:15:22Z",
+    "reason": "string",
+    "rule_id": "string"
+  },
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "ip": "string",
   "organization": {
@@ -5465,20 +5473,45 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name                       | Type                                                           | Required | Restrictions | Description                                                                                                                                              |
-|----------------------------|----------------------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `agent_name`               | string                                                         | false    |              |                                                                                                                                                          |
-| `connect_time`             | string                                                         | false    |              |                                                                                                                                                          |
-| `id`                       | string                                                         | false    |              |                                                                                                                                                          |
-| `ip`                       | string                                                         | false    |              |                                                                                                                                                          |
-| `organization`             | [codersdk.MinimalOrganization](#codersdkminimalorganization)   | false    |              |                                                                                                                                                          |
-| `ssh_info`                 | [codersdk.ConnectionLogSSHInfo](#codersdkconnectionlogsshinfo) | false    |              | Ssh info is only set when `type` is one of: - `ConnectionTypeSSH` - `ConnectionTypeReconnectingPTY` - `ConnectionTypeVSCode` - `ConnectionTypeJetBrains` |
-| `type`                     | [codersdk.ConnectionType](#codersdkconnectiontype)             | false    |              |                                                                                                                                                          |
-| `web_info`                 | [codersdk.ConnectionLogWebInfo](#codersdkconnectionlogwebinfo) | false    |              | Web info is only set when `type` is one of: - `ConnectionTypePortForwarding` - `ConnectionTypeWorkspaceApp` - `ConnectionTypeTunnel`                     |
-| `workspace_id`             | string                                                         | false    |              |                                                                                                                                                          |
-| `workspace_name`           | string                                                         | false    |              |                                                                                                                                                          |
-| `workspace_owner_id`       | string                                                         | false    |              |                                                                                                                                                          |
-| `workspace_owner_username` | string                                                         | false    |              |                                                                                                                                                          |
+| Name                       | Type                                                                 | Required | Restrictions | Description                                                                                                                                              |
+|----------------------------|----------------------------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `agent_name`               | string                                                               | false    |              |                                                                                                                                                          |
+| `connect_time`             | string                                                               | false    |              |                                                                                                                                                          |
+| `egress_info`              | [codersdk.ConnectionLogEgressInfo](#codersdkconnectionlogegressinfo) | false    |              | Egress info is only set when `type` is `ConnectionTypeEgress`.                                                                                           |
+| `id`                       | string                                                               | false    |              |                                                                                                                                                          |
+| `ip`                       | string                                                               | false    |              |                                                                                                                                                          |
+| `organization`             | [codersdk.MinimalOrganization](#codersdkminimalorganization)         | false    |              |                                                                                                                                                          |
+| `ssh_info`                 | [codersdk.ConnectionLogSSHInfo](#codersdkconnectionlogsshinfo)       | false    |              | Ssh info is only set when `type` is one of: - `ConnectionTypeSSH` - `ConnectionTypeReconnectingPTY` - `ConnectionTypeVSCode` - `ConnectionTypeJetBrains` |
+| `type`                     | [codersdk.ConnectionType](#codersdkconnectiontype)                   | false    |              |                                                                                                                                                          |
+| `web_info`                 | [codersdk.ConnectionLogWebInfo](#codersdkconnectionlogwebinfo)       | false    |              | Web info is only set when `type` is one of: - `ConnectionTypePortForwarding` - `ConnectionTypeWorkspaceApp` - `ConnectionTypeTunnel`                     |
+| `workspace_id`             | string                                                               | false    |              |                                                                                                                                                          |
+| `workspace_name`           | string                                                               | false    |              |                                                                                                                                                          |
+| `workspace_owner_id`       | string                                                               | false    |              |                                                                                                                                                          |
+| `workspace_owner_username` | string                                                               | false    |              |                                                                                                                                                          |
+
+## codersdk.ConnectionLogEgressInfo
+
+```json
+{
+  "decision": "allow",
+  "destination": "string",
+  "destination_ip": "string",
+  "disconnect_time": "2019-08-24T14:15:22Z",
+  "reason": "string",
+  "rule_id": "string"
+}
+```
+
+### Properties
+
+| Name              | Type                                                           | Required | Restrictions | Description                                                                                                                      |
+|-------------------|----------------------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------|
+| `decision`        | [codersdk.ExitNodeFlowDecision](#codersdkexitnodeflowdecision) | false    |              |                                                                                                                                  |
+| `destination`     | string                                                         | false    |              | Destination is "<host or ip>:<port>" as dialed by the workspace.                                                                 |
+| `destination_ip`  | string                                                         | false    |              | Destination ip is the resolved destination address.                                                                              |
+| `disconnect_time` | string                                                         | false    |              | Disconnect time is omitted while the flow is still open.                                                                         |
+| `reason`          | string                                                         | false    |              | Reason is the human-readable explanation from the exit node. For completed flows it carries a "(in=<bytes> out=<bytes>)" suffix. |
+| `rule_id`         | string                                                         | false    |              | Rule ID is the policy rule that produced the decision, if any.                                                                   |
 
 ## codersdk.ConnectionLogResponse
 
@@ -5488,6 +5521,14 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     {
       "agent_name": "string",
       "connect_time": "2019-08-24T14:15:22Z",
+      "egress_info": {
+        "decision": "allow",
+        "destination": "string",
+        "destination_ip": "string",
+        "disconnect_time": "2019-08-24T14:15:22Z",
+        "reason": "string",
+        "rule_id": "string"
+      },
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "ip": "string",
       "organization": {
@@ -6220,6 +6261,58 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `system_prompt`        | string                                                    | false    |              |                                                                                                                                            |
 | `unsafe_dynamic_tools` | array of [codersdk.DynamicTool](#codersdkdynamictool)     | false    |              | Unsafe dynamic tools declares client-executed tools that the LLM can invoke. This API is highly experimental and highly subject to change. |
 | `workspace_id`         | string                                                    | false    |              |                                                                                                                                            |
+
+## codersdk.CreateExitNodeRequest
+
+```json
+{
+  "display_name": "string",
+  "name": "string"
+}
+```
+
+### Properties
+
+| Name           | Type   | Required | Restrictions | Description |
+|----------------|--------|----------|--------------|-------------|
+| `display_name` | string | false    |              |             |
+| `name`         | string | true     |              |             |
+
+## codersdk.CreateExitNodeResponse
+
+```json
+{
+  "created_at": "2019-08-24T14:15:22Z",
+  "display_name": "string",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "last_seen_at": "2019-08-24T14:15:22Z",
+  "name": "string",
+  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "tailnet_address": "string",
+  "token": "string",
+  "updated_at": "2019-08-24T14:15:22Z",
+  "version": "string",
+  "wireguard_endpoints": [
+    "string"
+  ]
+}
+```
+
+### Properties
+
+| Name                  | Type            | Required | Restrictions | Description                                                                                                                            |
+|-----------------------|-----------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------|
+| `created_at`          | string          | false    |              |                                                                                                                                        |
+| `display_name`        | string          | false    |              |                                                                                                                                        |
+| `id`                  | string          | false    |              |                                                                                                                                        |
+| `last_seen_at`        | string          | false    |              |                                                                                                                                        |
+| `name`                | string          | false    |              |                                                                                                                                        |
+| `organization_id`     | string          | false    |              |                                                                                                                                        |
+| `tailnet_address`     | string          | false    |              | Tailnet address is the deterministic tailnet IP agents dial, derived from the exit node ID.                                            |
+| `token`               | string          | false    |              |                                                                                                                                        |
+| `updated_at`          | string          | false    |              |                                                                                                                                        |
+| `version`             | string          | false    |              |                                                                                                                                        |
+| `wireguard_endpoints` | array of string | false    |              | Wireguard endpoints are the public ip:port pairs agents may use for direct WireGuard connections. Agents exempt them from enforcement. |
 
 ## codersdk.CreateFirstUserOnboardingInfo
 
@@ -8929,6 +9022,90 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `require_telemetry` | boolean                              | false    |              |             |
 | `trial`             | boolean                              | false    |              |             |
 | `warnings`          | array of string                      | false    |              |             |
+
+## codersdk.ExitNode
+
+```json
+{
+  "created_at": "2019-08-24T14:15:22Z",
+  "display_name": "string",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "last_seen_at": "2019-08-24T14:15:22Z",
+  "name": "string",
+  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "tailnet_address": "string",
+  "updated_at": "2019-08-24T14:15:22Z",
+  "version": "string",
+  "wireguard_endpoints": [
+    "string"
+  ]
+}
+```
+
+### Properties
+
+| Name                  | Type            | Required | Restrictions | Description                                                                                                                            |
+|-----------------------|-----------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------|
+| `created_at`          | string          | false    |              |                                                                                                                                        |
+| `display_name`        | string          | false    |              |                                                                                                                                        |
+| `id`                  | string          | false    |              |                                                                                                                                        |
+| `last_seen_at`        | string          | false    |              |                                                                                                                                        |
+| `name`                | string          | false    |              |                                                                                                                                        |
+| `organization_id`     | string          | false    |              |                                                                                                                                        |
+| `tailnet_address`     | string          | false    |              | Tailnet address is the deterministic tailnet IP agents dial, derived from the exit node ID.                                            |
+| `updated_at`          | string          | false    |              |                                                                                                                                        |
+| `version`             | string          | false    |              |                                                                                                                                        |
+| `wireguard_endpoints` | array of string | false    |              | Wireguard endpoints are the public ip:port pairs agents may use for direct WireGuard connections. Agents exempt them from enforcement. |
+
+## codersdk.ExitNodeFlowDecision
+
+```json
+"allow"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)        |
+|-----------------|
+| `allow`, `deny` |
+
+## codersdk.ExitNodeFlowReport
+
+```json
+{
+  "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
+  "bytes_in": 0,
+  "bytes_out": 0,
+  "connect_time": "2019-08-24T14:15:22Z",
+  "decision": "allow",
+  "destination_ip": "string",
+  "destination_port": 0,
+  "disconnect_time": "2019-08-24T14:15:22Z",
+  "flow_id": "0746f03b-16cc-49fb-9833-df3713d407d2",
+  "host": "string",
+  "reason": "string",
+  "rule_id": "string"
+}
+```
+
+### Properties
+
+| Name               | Type                                                           | Required | Restrictions | Description                                                                                           |
+|--------------------|----------------------------------------------------------------|----------|--------------|-------------------------------------------------------------------------------------------------------|
+| `agent_id`         | string                                                         | false    |              |                                                                                                       |
+| `bytes_in`         | integer                                                        | false    |              |                                                                                                       |
+| `bytes_out`        | integer                                                        | false    |              |                                                                                                       |
+| `connect_time`     | string                                                         | false    |              |                                                                                                       |
+| `decision`         | [codersdk.ExitNodeFlowDecision](#codersdkexitnodeflowdecision) | false    |              |                                                                                                       |
+| `destination_ip`   | string                                                         | false    |              |                                                                                                       |
+| `destination_port` | integer                                                        | false    |              |                                                                                                       |
+| `disconnect_time`  | string                                                         | false    |              |                                                                                                       |
+| `flow_id`          | string                                                         | false    |              |                                                                                                       |
+| `host`             | string                                                         | false    |              | Host is the hostname learned from TLS SNI or the HTTP Host header, or empty when neither was present. |
+| `reason`           | string                                                         | false    |              |                                                                                                       |
+| `rule_id`          | string                                                         | false    |              |                                                                                                       |
 
 ## codersdk.Experiment
 
@@ -13272,6 +13449,104 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 |-----------|-------------------------------------------------------------|----------|--------------|-------------|
 | `regions` | array of [codersdk.WorkspaceProxy](#codersdkworkspaceproxy) | false    |              |             |
 
+## codersdk.RegisterExitNodeRequest
+
+```json
+{
+  "hostname": "string",
+  "version": "string",
+  "wireguard_endpoints": [
+    "string"
+  ]
+}
+```
+
+### Properties
+
+| Name                  | Type            | Required | Restrictions | Description |
+|-----------------------|-----------------|----------|--------------|-------------|
+| `hostname`            | string          | false    |              |             |
+| `version`             | string          | false    |              |             |
+| `wireguard_endpoints` | array of string | false    |              |             |
+
+## codersdk.RegisterExitNodeResponse
+
+```json
+{
+  "agent_ids": [
+    "497f6eca-6276-4993-bfeb-53cbbbba6f08"
+  ],
+  "derp_force_websockets": true,
+  "derp_map": {
+    "homeParams": {
+      "regionScore": {
+        "property1": 0,
+        "property2": 0
+      }
+    },
+    "omitDefaultRegions": true,
+    "regions": {
+      "property1": {
+        "avoid": true,
+        "embeddedRelay": true,
+        "nodes": [
+          {
+            "canPort80": true,
+            "certName": "string",
+            "derpport": 0,
+            "forceHTTP": true,
+            "hostName": "string",
+            "insecureForTests": true,
+            "ipv4": "string",
+            "ipv6": "string",
+            "name": "string",
+            "regionID": 0,
+            "stunonly": true,
+            "stunport": 0,
+            "stuntestIP": "string"
+          }
+        ],
+        "regionCode": "string",
+        "regionID": 0,
+        "regionName": "string"
+      },
+      "property2": {
+        "avoid": true,
+        "embeddedRelay": true,
+        "nodes": [
+          {
+            "canPort80": true,
+            "certName": "string",
+            "derpport": 0,
+            "forceHTTP": true,
+            "hostName": "string",
+            "insecureForTests": true,
+            "ipv4": "string",
+            "ipv6": "string",
+            "name": "string",
+            "regionID": 0,
+            "stunonly": true,
+            "stunport": 0,
+            "stuntestIP": "string"
+          }
+        ],
+        "regionCode": "string",
+        "regionID": 0,
+        "regionName": "string"
+      }
+    }
+  }
+}
+```
+
+### Properties
+
+| Name                    | Type                               | Required | Restrictions | Description                                                                                                                            |
+|-------------------------|------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------|
+| `agent_ids`             | array of string                    | false    |              | Agent ids are the workspace agents this exit node must open tunnels to. Coderd computes the set from templates bound to the exit node. |
+| `derp_force_websockets` | boolean                            | false    |              |                                                                                                                                        |
+| `derp_map`              | [tailcfg.DERPMap](#tailcfgderpmap) | false    |              |                                                                                                                                        |
+
 ## codersdk.Replica
 
 ```json
@@ -13297,6 +13572,35 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `id`               | string  | false    |              | ID is the unique identifier for the replica.                       |
 | `region_id`        | integer | false    |              | Region ID is the region of the replica.                            |
 | `relay_address`    | string  | false    |              | Relay address is the accessible address to relay DERP connections. |
+
+## codersdk.ReportExitNodeFlowsRequest
+
+```json
+{
+  "flows": [
+    {
+      "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
+      "bytes_in": 0,
+      "bytes_out": 0,
+      "connect_time": "2019-08-24T14:15:22Z",
+      "decision": "allow",
+      "destination_ip": "string",
+      "destination_port": 0,
+      "disconnect_time": "2019-08-24T14:15:22Z",
+      "flow_id": "0746f03b-16cc-49fb-9833-df3713d407d2",
+      "host": "string",
+      "reason": "string",
+      "rule_id": "string"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name    | Type                                                                | Required | Restrictions | Description |
+|---------|---------------------------------------------------------------------|----------|--------------|-------------|
+| `flows` | array of [codersdk.ExitNodeFlowReport](#codersdkexitnodeflowreport) | false    |              |             |
 
 ## codersdk.RequestOneTimePasscodeRequest
 

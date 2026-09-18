@@ -3,6 +3,7 @@ package coderd
 import (
 	"net/http"
 	"net/netip"
+	"strings"
 
 	"github.com/google/uuid"
 
@@ -128,8 +129,9 @@ func convertConnectionLog(dblog database.GetConnectionLogsOffsetRow) codersdk.Co
 	}
 
 	var (
-		webInfo *codersdk.ConnectionLogWebInfo
-		sshInfo *codersdk.ConnectionLogSSHInfo
+		webInfo    *codersdk.ConnectionLogWebInfo
+		sshInfo    *codersdk.ConnectionLogSSHInfo
+		egressInfo *codersdk.ConnectionLogEgressInfo
 	)
 
 	switch dblog.ConnectionLog.Type {
@@ -156,6 +158,8 @@ func convertConnectionLog(dblog database.GetConnectionLogsOffsetRow) codersdk.Co
 		if dblog.ConnectionLog.Code.Valid {
 			sshInfo.ExitCode = &dblog.ConnectionLog.Code.Int32
 		}
+	case database.ConnectionTypeEgress:
+		egressInfo = convertEgressInfo(dblog.ConnectionLog, ip)
 	}
 
 	return codersdk.ConnectionLog{
@@ -176,5 +180,36 @@ func convertConnectionLog(dblog database.GetConnectionLogsOffsetRow) codersdk.Co
 		IP:                     ip,
 		WebInfo:                webInfo,
 		SSHInfo:                sshInfo,
+		EgressInfo:             egressInfo,
 	}
+}
+
+// convertEgressInfo decodes the egress encoding written by
+// (*API).reportExitNodeFlows: code 403 marks a denied flow, slug_or_port
+// holds the dialed destination, and disconnect_reason is
+// "<rule id>: <reason>" with an optional byte-count suffix.
+func convertEgressInfo(clog database.ConnectionLog, ip *netip.Addr) *codersdk.ConnectionLogEgressInfo {
+	info := &codersdk.ConnectionLogEgressInfo{
+		Destination: clog.SlugOrPort.String,
+		Decision:    codersdk.ExitNodeFlowAllow,
+	}
+	if ip != nil {
+		info.DestinationIP = ip.String()
+	}
+	if clog.Code.Valid && clog.Code.Int32 == http.StatusForbidden {
+		info.Decision = codersdk.ExitNodeFlowDeny
+	}
+	if clog.DisconnectReason.Valid {
+		ruleID, reason, ok := strings.Cut(clog.DisconnectReason.String, ": ")
+		if ok {
+			info.RuleID = ruleID
+			info.Reason = reason
+		} else {
+			info.Reason = clog.DisconnectReason.String
+		}
+	}
+	if clog.DisconnectTime.Valid {
+		info.DisconnectTime = &clog.DisconnectTime.Time
+	}
+	return info
 }

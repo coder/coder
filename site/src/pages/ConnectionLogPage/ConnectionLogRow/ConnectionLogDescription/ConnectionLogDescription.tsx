@@ -11,8 +11,13 @@ interface ConnectionLogDescriptionProps {
 export const ConnectionLogDescription: FC<ConnectionLogDescriptionProps> = ({
 	connectionLog,
 }) => {
-	const { type, workspace_owner_username, workspace_name, web_info } =
-		connectionLog;
+	const {
+		type,
+		workspace_owner_username,
+		workspace_name,
+		web_info,
+		egress_info,
+	} = connectionLog;
 
 	switch (type) {
 		case "port_forwarding":
@@ -109,6 +114,24 @@ export const ConnectionLogDescription: FC<ConnectionLogDescriptionProps> = ({
 						</RouterLink>
 					</Link>{" "}
 					workspace
+				</span>
+			);
+		}
+
+		case "egress": {
+			if (!egress_info) return null;
+			const { destination, decision } = egress_info;
+			const action =
+				decision === "deny" ? "was denied egress to" : "connected to";
+			return (
+				<span>
+					{workspace_owner_username}'s{" "}
+					<Link asChild showExternalIcon={false} className="text-base">
+						<RouterLink to={`/@${workspace_owner_username}/${workspace_name}`}>
+							<strong>{workspace_name}</strong>
+						</RouterLink>
+					</Link>{" "}
+					workspace {action} <strong>{destination}</strong>
 				</span>
 			);
 		}

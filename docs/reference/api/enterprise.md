@@ -488,6 +488,14 @@ curl -X GET http://coder-server:8080/api/v2/connectionlog?limit=0 \
     {
       "agent_name": "string",
       "connect_time": "2019-08-24T14:15:22Z",
+      "egress_info": {
+        "decision": "allow",
+        "destination": "string",
+        "destination_ip": "string",
+        "disconnect_time": "2019-08-24T14:15:22Z",
+        "reason": "string",
+        "rule_id": "string"
+      },
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "ip": "string",
       "organization": {
@@ -2080,6 +2088,210 @@ Requires organization-level administrator permissions.
 | Status | Meaning                                                 | Description | Schema                                                                             |
 |--------|---------------------------------------------------------|-------------|------------------------------------------------------------------------------------|
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.OrganizationAISpendReport](schemas.md#codersdkorganizationaispendreport) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## List exit nodes
+
+### Code samples
+
+```sh
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/exitnodes \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /api/v2/organizations/{organization}/exitnodes`
+
+### Parameters
+
+| Name           | In   | Type         | Required | Description     |
+|----------------|------|--------------|----------|-----------------|
+| `organization` | path | string(uuid) | true     | Organization ID |
+
+### Example responses
+
+> 200 Response
+
+```json
+[
+  {
+    "created_at": "2019-08-24T14:15:22Z",
+    "display_name": "string",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "last_seen_at": "2019-08-24T14:15:22Z",
+    "name": "string",
+    "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+    "tailnet_address": "string",
+    "updated_at": "2019-08-24T14:15:22Z",
+    "version": "string",
+    "wireguard_endpoints": [
+      "string"
+    ]
+  }
+]
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                    |
+|--------|---------------------------------------------------------|-------------|-----------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [codersdk.ExitNode](schemas.md#codersdkexitnode) |
+
+<h3 id="list-exit-nodes-responseschema">Response Schema</h3>
+
+Status Code **200**
+
+| Name                    | Type              | Required | Restrictions | Description                                                                                                                            |
+|-------------------------|-------------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------|
+| `[array item]`          | array             | false    |              |                                                                                                                                        |
+| `» created_at`          | string(date-time) | false    |              |                                                                                                                                        |
+| `» display_name`        | string            | false    |              |                                                                                                                                        |
+| `» id`                  | string(uuid)      | false    |              |                                                                                                                                        |
+| `» last_seen_at`        | string(date-time) | false    |              |                                                                                                                                        |
+| `» name`                | string            | false    |              |                                                                                                                                        |
+| `» organization_id`     | string(uuid)      | false    |              |                                                                                                                                        |
+| `» tailnet_address`     | string            | false    |              | Tailnet address is the deterministic tailnet IP agents dial, derived from the exit node ID.                                            |
+| `» updated_at`          | string(date-time) | false    |              |                                                                                                                                        |
+| `» version`             | string            | false    |              |                                                                                                                                        |
+| `» wireguard_endpoints` | array             | false    |              | Wireguard endpoints are the public ip:port pairs agents may use for direct WireGuard connections. Agents exempt them from enforcement. |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Create exit node
+
+### Code samples
+
+```sh
+# Example request using curl
+curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/exitnodes \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`POST /api/v2/organizations/{organization}/exitnodes`
+
+> Body parameter
+
+```json
+{
+  "display_name": "string",
+  "name": "string"
+}
+```
+
+### Parameters
+
+| Name           | In   | Type                                                                       | Required | Description              |
+|----------------|------|----------------------------------------------------------------------------|----------|--------------------------|
+| `organization` | path | string(uuid)                                                               | true     | Organization ID          |
+| `body`         | body | [codersdk.CreateExitNodeRequest](schemas.md#codersdkcreateexitnoderequest) | true     | Create exit node request |
+
+### Example responses
+
+> 201 Response
+
+```json
+{
+  "created_at": "2019-08-24T14:15:22Z",
+  "display_name": "string",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "last_seen_at": "2019-08-24T14:15:22Z",
+  "name": "string",
+  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "tailnet_address": "string",
+  "token": "string",
+  "updated_at": "2019-08-24T14:15:22Z",
+  "version": "string",
+  "wireguard_endpoints": [
+    "string"
+  ]
+}
+```
+
+### Responses
+
+| Status | Meaning                                                      | Description | Schema                                                                       |
+|--------|--------------------------------------------------------------|-------------|------------------------------------------------------------------------------|
+| 201    | [Created](https://tools.ietf.org/html/rfc7231#section-6.3.2) | Created     | [codersdk.CreateExitNodeResponse](schemas.md#codersdkcreateexitnoderesponse) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Get exit node
+
+### Code samples
+
+```sh
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/exitnodes/{exitnode} \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /api/v2/organizations/{organization}/exitnodes/{exitnode}`
+
+### Parameters
+
+| Name           | In   | Type         | Required | Description          |
+|----------------|------|--------------|----------|----------------------|
+| `organization` | path | string(uuid) | true     | Organization ID      |
+| `exitnode`     | path | string       | true     | Exit node ID or name |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "created_at": "2019-08-24T14:15:22Z",
+  "display_name": "string",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "last_seen_at": "2019-08-24T14:15:22Z",
+  "name": "string",
+  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "tailnet_address": "string",
+  "updated_at": "2019-08-24T14:15:22Z",
+  "version": "string",
+  "wireguard_endpoints": [
+    "string"
+  ]
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                           |
+|--------|---------------------------------------------------------|-------------|--------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.ExitNode](schemas.md#codersdkexitnode) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Delete exit node
+
+### Code samples
+
+```sh
+# Example request using curl
+curl -X DELETE http://coder-server:8080/api/v2/organizations/{organization}/exitnodes/{exitnode} \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`DELETE /api/v2/organizations/{organization}/exitnodes/{exitnode}`
+
+### Parameters
+
+| Name           | In   | Type         | Required | Description          |
+|----------------|------|--------------|----------|----------------------|
+| `organization` | path | string(uuid) | true     | Organization ID      |
+| `exitnode`     | path | string       | true     | Exit node ID or name |
+
+### Responses
+
+| Status | Meaning                                                         | Description | Schema |
+|--------|-----------------------------------------------------------------|-------------|--------|
+| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | No Content  |        |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 

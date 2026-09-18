@@ -29,6 +29,12 @@ export const ConnectionLogRow: FC<ConnectionLogRowProps> = ({
 	const isWeb = connectionTypeIsWeb(connectionLog.type);
 	const code =
 		connectionLog.web_info?.status_code ?? connectionLog.ssh_info?.exit_code;
+	const disconnectTime =
+		connectionLog.ssh_info?.disconnect_time ??
+		connectionLog.egress_info?.disconnect_time;
+	const disconnectReason =
+		connectionLog.ssh_info?.disconnect_reason ??
+		connectionLog.egress_info?.reason;
 
 	return (
 		<TimelineEntry
@@ -57,8 +63,8 @@ export const ConnectionLogRow: FC<ConnectionLogRowProps> = ({
 								<ConnectionLogDescription connectionLog={connectionLog} />
 								<span className="text-content-secondary text-xs">
 									{new Date(connectionLog.connect_time).toLocaleTimeString()}
-									{connectionLog.ssh_info?.disconnect_time &&
-										` → ${new Date(connectionLog.ssh_info.disconnect_time).toLocaleTimeString()}`}
+									{disconnectTime &&
+										` → ${new Date(disconnectTime).toLocaleTimeString()}`}
 								</span>
 							</div>
 
@@ -121,12 +127,12 @@ export const ConnectionLogRow: FC<ConnectionLogRowProps> = ({
 													</Link>
 												</div>
 											)}
-											{connectionLog.ssh_info?.disconnect_reason && (
+											{disconnectReason && (
 												<div>
 													<h4 className="m-0 text-content-primary text-sm leading-[150%] font-semibold">
 														Close Reason:
 													</h4>
-													<div>{connectionLog.ssh_info?.disconnect_reason}</div>
+													<div>{disconnectReason}</div>
 												</div>
 											)}
 										</div>
