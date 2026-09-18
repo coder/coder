@@ -6856,9 +6856,8 @@ func TestActiveServer_OpenRouterAnthropicPromptCaching(t *testing.T) {
 				require.Equal(t, "continue", last.Get("content").String())
 				return
 			}
-			// The breakpoint sits on the last system message so the whole
-			// system prefix is cached, and only that message switches to
-			// array-form content.
+			// Only the last system message carries the breakpoint and
+			// switches to array-form content.
 			lastSystem := messages[firstUser-1]
 			require.Equal(t, "system", lastSystem.Get("role").String())
 			for _, msg := range messages[:firstUser-1] {

@@ -1,17 +1,13 @@
 package chatloop
 
 import (
-	"context"
-	"io"
-	"net/http"
-	"net/http/httptest"
+	"slices"
 	"testing"
 
 	"charm.land/fantasy"
 	fantasyanthropic "charm.land/fantasy/providers/anthropic"
 	fantasyopenaicompat "charm.land/fantasy/providers/openaicompat"
 	"github.com/stretchr/testify/require"
-	"github.com/tidwall/gjson"
 
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
 )
@@ -19,9 +15,7 @@ import (
 func TestPromptCachingStrategyFor(t *testing.T) {
 	t.Parallel()
 
-	// Each strategy is identified by the marker it leaves on a minimal
-	// prompt: Anthropic writes message-level options, the OpenAI-compatible
-	// path writes part-level ContentExtraFields, and nil leaves both unset.
+	// Strategies are told apart by the marker they leave on a minimal prompt.
 	const (
 		strategyNone         = "none"
 		strategyAnthropic    = "anthropic"
@@ -127,27 +121,31 @@ func TestAddOpenAICompatPromptCaching(t *testing.T) {
 		require.Equal(t, map[string]any{"cache_control": map[string]string{"type": "ephemeral"}}, marker.Fields)
 	})
 
+	// Each step re-prepares the prompt from the canonical messages, so the
+	// breakpoints must follow the conversation tail.
 	t.Run("MarkersMoveAsConversationGrows", func(t *testing.T) {
 		t.Parallel()
-		prompt := []fantasy.Message{
+		canonical := []fantasy.Message{
 			textMessage(fantasy.MessageRoleSystem, "sys"),
 			textMessage(fantasy.MessageRoleUser, "first question"),
 			textMessage(fantasy.MessageRoleAssistant, "first answer"),
 		}
-		addOpenAICompatPromptCaching(prompt)
-		require.Equal(t, []int{0}, openAICompatCacheMarkerIndexes(prompt[1]))
-		require.Equal(t, []int{0}, openAICompatCacheMarkerIndexes(prompt[2]))
+		first := slices.Clone(canonical)
+		addOpenAICompatPromptCaching(first)
+		require.Equal(t, []int{0}, openAICompatCacheMarkerIndexes(first[1]))
+		require.Equal(t, []int{0}, openAICompatCacheMarkerIndexes(first[2]))
 
-		prompt = append(prompt,
+		canonical = append(canonical,
 			textMessage(fantasy.MessageRoleUser, "second question"),
 			textMessage(fantasy.MessageRoleAssistant, "second answer"),
 		)
-		addOpenAICompatPromptCaching(prompt)
-		require.Equal(t, []int{0}, openAICompatCacheMarkerIndexes(prompt[0]))
-		require.Empty(t, openAICompatCacheMarkerIndexes(prompt[1]))
-		require.Empty(t, openAICompatCacheMarkerIndexes(prompt[2]))
-		require.Equal(t, []int{0}, openAICompatCacheMarkerIndexes(prompt[3]))
-		require.Equal(t, []int{0}, openAICompatCacheMarkerIndexes(prompt[4]))
+		second := slices.Clone(canonical)
+		addOpenAICompatPromptCaching(second)
+		require.Equal(t, []int{0}, openAICompatCacheMarkerIndexes(second[0]))
+		require.Empty(t, openAICompatCacheMarkerIndexes(second[1]))
+		require.Empty(t, openAICompatCacheMarkerIndexes(second[2]))
+		require.Equal(t, []int{0}, openAICompatCacheMarkerIndexes(second[3]))
+		require.Equal(t, []int{0}, openAICompatCacheMarkerIndexes(second[4]))
 	})
 
 	t.Run("DoesNotMutateCanonicalMessages", func(t *testing.T) {
@@ -171,48 +169,4 @@ func TestAddOpenAICompatPromptCaching(t *testing.T) {
 		require.True(t, ok)
 		require.Equal(t, map[string]any{"stale": true}, stale.Fields)
 	})
-}
-
-// The openai-compat client must serialize the part-level markers as
-// cache_control on array-form content blocks; this is the exact JSON the
-// AI Gateway preserves on its way to the upstream.
-func TestAddOpenAICompatPromptCachingReachesWire(t *testing.T) {
-	t.Parallel()
-
-	received := make(chan []byte, 1)
-	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		body, err := io.ReadAll(r.Body)
-		require.NoError(t, err)
-		received <- body
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"id":"chatcmpl-1","object":"chat.completion","created":0,"model":"anthropic/claude-haiku-4.5","choices":[{"index":0,"message":{"role":"assistant","content":"ok"},"finish_reason":"stop"}],"usage":{"prompt_tokens":1,"completion_tokens":1,"total_tokens":2}}`))
-	}))
-	t.Cleanup(upstream.Close)
-
-	provider, err := fantasyopenaicompat.New(
-		fantasyopenaicompat.WithBaseURL(upstream.URL),
-		fantasyopenaicompat.WithAPIKey("test-key"),
-	)
-	require.NoError(t, err)
-	model, err := provider.LanguageModel(context.Background(), "anthropic/claude-haiku-4.5")
-	require.NoError(t, err)
-
-	prompt := []fantasy.Message{
-		textMessage(fantasy.MessageRoleSystem, "You are helpful."),
-		textMessage(fantasy.MessageRoleUser, "first question"),
-		textMessage(fantasy.MessageRoleAssistant, "first answer"),
-		textMessage(fantasy.MessageRoleUser, "second question"),
-	}
-	strategy := promptCachingStrategyFor(model, model.Model())
-	require.NotNil(t, strategy)
-	strategy(prompt)
-
-	_, err = model.Generate(context.Background(), fantasy.Call{Prompt: prompt})
-	require.NoError(t, err)
-
-	body := <-received
-	require.Equal(t, "ephemeral", gjson.GetBytes(body, "messages.0.content.0.cache_control.type").String())
-	require.Equal(t, "first question", gjson.GetBytes(body, "messages.1.content").String(), "unmarked messages keep string content")
-	require.Equal(t, "ephemeral", gjson.GetBytes(body, "messages.2.content.0.cache_control.type").String())
-	require.Equal(t, "ephemeral", gjson.GetBytes(body, "messages.3.content.0.cache_control.type").String())
 }

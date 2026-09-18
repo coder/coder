@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"slices"
 	"strconv"
 	"strings"
@@ -1603,28 +1604,19 @@ func addAnthropicPromptCaching(messages []fantasy.Message) {
 	}
 }
 
-// addOpenAICompatPromptCaching marks cache breakpoints as content-part
-// ContentExtraFields on the last text part of the last system message
-// and of the final two text-bearing user or assistant messages. Tool
-// messages and tool-call-only assistant messages have no text block on
-// the OpenAI-compatible wire, so they are skipped. Markers stay at the
-// part level because message-level options share a key with
-// openaicompat.ProviderOptions. Existing markers are cleared first so the
-// breakpoints move as the conversation grows.
+// addOpenAICompatPromptCaching marks breakpoints on the last text part
+// of the last system message and of the final two text-bearing user or
+// assistant messages; tool messages have no text block on the
+// OpenAI-compatible wire. Markers are part-level because message-level
+// ContentExtraFields shares a key with openaicompat.ProviderOptions.
 func addOpenAICompatPromptCaching(messages []fantasy.Message) {
 	marker := &fantasyopenaicompat.ContentExtraFields{
 		Fields: map[string]any{"cache_control": map[string]string{"type": "ephemeral"}},
 	}
 	lastSystemIdx := -1
 	for i := range messages {
-		// Content is shared with the canonical messages; copy before
-		// touching any part.
+		// Content slices are shared with the canonical messages.
 		messages[i].Content = slices.Clone(messages[i].Content)
-		for j, part := range messages[i].Content {
-			if textPart, ok := part.(fantasy.TextPart); ok && textPart.ProviderOptions[fantasyopenaicompat.Name] != nil {
-				messages[i].Content[j] = textPartWithOpenAICompatOptions(textPart, nil)
-			}
-		}
 		if messages[i].Role == fantasy.MessageRoleSystem {
 			lastSystemIdx = i
 		}
@@ -1643,39 +1635,23 @@ func addOpenAICompatPromptCaching(messages []fantasy.Message) {
 	}
 }
 
-// markLastTextPart sets marker on the last non-blank text part of
-// content and reports whether one was found.
 func markLastTextPart(content []fantasy.MessagePart, marker fantasy.ProviderOptionsData) bool {
 	for j := len(content) - 1; j >= 0; j-- {
 		textPart, ok := content[j].(fantasy.TextPart)
 		if !ok || strings.TrimSpace(textPart.Text) == "" {
 			continue
 		}
-		content[j] = textPartWithOpenAICompatOptions(textPart, marker)
+		// The options map is shared with the canonical part; never mutate it.
+		options := maps.Clone(textPart.ProviderOptions)
+		if options == nil {
+			options = fantasy.ProviderOptions{}
+		}
+		options[fantasyopenaicompat.Name] = marker
+		textPart.ProviderOptions = options
+		content[j] = textPart
 		return true
 	}
 	return false
-}
-
-// textPartWithOpenAICompatOptions returns part with a fresh
-// ProviderOptions map whose openai-compat entry is replaced by opt, or
-// removed when opt is nil. The original map is left untouched because
-// it is shared with the canonical messages.
-func textPartWithOpenAICompatOptions(part fantasy.TextPart, opt fantasy.ProviderOptionsData) fantasy.TextPart {
-	options := make(fantasy.ProviderOptions, len(part.ProviderOptions)+1)
-	for name, value := range part.ProviderOptions {
-		if name != fantasyopenaicompat.Name {
-			options[name] = value
-		}
-	}
-	if opt != nil {
-		options[fantasyopenaicompat.Name] = opt
-	}
-	if len(options) == 0 {
-		options = nil
-	}
-	part.ProviderOptions = options
-	return part
 }
 
 // recordToolResultTimestamp lazily initializes the
