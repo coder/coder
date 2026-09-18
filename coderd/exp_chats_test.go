@@ -1977,6 +1977,22 @@ func TestPostUserChats(t *testing.T) {
 		_, err := client.CreateUserChat(ctx, member.Username, helloRequest(otherOrg.ID))
 		requireSDKError(t, err, http.StatusNotFound)
 	})
+
+	t.Run("OwnerSuspended", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModel(t, client)
+		_, member := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
+		_, err := client.UpdateUserStatus(ctx, member.ID.String(), codersdk.UserStatusSuspended)
+		require.NoError(t, err)
+
+		_, err = client.CreateUserChat(ctx, member.Username, helloRequest(firstUser.OrganizationID))
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Equal(t, "Chat owner must be an active user.", sdkErr.Message)
+	})
 }
 
 // TestChats_ForceOnMCPServerEnforced is the endpoint-level regression

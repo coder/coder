@@ -1241,6 +1241,13 @@ func (api *API) postUserChats(rw http.ResponseWriter, r *http.Request) {
 		if idx == -1 {
 			return uuid.Nil, httperror.ErrResourceNotFound
 		}
+		// AI Bridge refuses to authorize inactive and system users, so a
+		// chat owned by one could never run.
+		if mems.User != nil && (mems.User.Status != database.UserStatusActive || mems.User.IsSystem) {
+			return uuid.Nil, httperror.NewResponseError(http.StatusBadRequest, codersdk.Response{
+				Message: "Chat owner must be an active user.",
+			})
+		}
 		return mems.Memberships[idx].UserID, nil
 	})
 }
