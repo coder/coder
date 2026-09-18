@@ -41,6 +41,7 @@ import (
 	"github.com/coder/coder/v2/agent/agentcontainers"
 	"github.com/coder/coder/v2/agent/agentcontext"
 	"github.com/coder/coder/v2/agent/agentcontextconfig"
+	"github.com/coder/coder/v2/agent/agentegress"
 	"github.com/coder/coder/v2/agent/agentexec"
 	"github.com/coder/coder/v2/agent/agentfiles"
 	"github.com/coder/coder/v2/agent/agentgit"
@@ -367,6 +368,12 @@ type agent struct {
 	socketServerEnabled bool
 	socketPath          string
 	socketServer        *agentsocket.Server
+
+	// egressMu protects the egress proxy and enforcer, which are (re)created
+	// whenever a manifest arrives with a different egress configuration.
+	egressMu       sync.Mutex
+	egressProxy    *agentegress.Proxy
+	egressEnforcer *agentegress.Enforcer
 
 	derpTLSConfig *tls.Config
 }
@@ -1423,6 +1430,10 @@ func (a *agent) handleManifest(manifestOK *checkpoint) func(ctx context.Context,
 		manifestOK.complete(nil)
 		sentResult = true
 
+		// Start (or reconfigure) the egress proxy before the startup scripts
+		// run so their environment already points at it.
+		a.updateEgress(ctx, manifest.Egress)
+
 		// Manifest just landed; the agentcontext manager now has
 		// a working directory to scan and a known set of scan
 		// roots. Re-seed sources from CODER_AGENT_EXP_*_DIRS so
@@ -1666,6 +1677,7 @@ func (a *agent) createOrUpdateNetwork(manifestOK, networkOK *checkpoint) func(co
 // - Predefined workspace environment variables
 // - Environment variables currently set (overriding predefined)
 // - Environment variables passed via the agent manifest (overriding predefined and current)
+// - Egress proxy variables when an exit node is configured (overriding the above)
 // - User secret variables passed via the agent manifest (overriding predefined, current, and manifest env vars)
 // - Agent-level environment variables (overriding all)
 func (a *agent) updateCommandEnv(current []string) (updated []string, err error) {
@@ -1726,6 +1738,12 @@ func (a *agent) updateCommandEnv(current []string) (updated []string, err error)
 		// of the $PATH, among other variables. Customers can prepend
 		// or append to the $PATH, so allowing expand is required!
 		envs[k] = os.ExpandEnv(v)
+	}
+
+	// Point workspace processes at the egress proxy. Agent-level variables
+	// below still win so operators can override the proxy settings.
+	for k, v := range a.egressProxyEnv() {
+		envs[k] = v
 	}
 
 	// User secrets override manifest env vars so that secrets
@@ -2238,6 +2256,115 @@ func (a *agent) requireNetwork() (*tailnet.Conn, bool) {
 	return a.network, a.network != nil
 }
 
+// dialTailnetTCP is the egress proxy's path to the exit node. The proxy is
+// started when the manifest lands, before the tailnet exists, so the network
+// is looked up per dial and connections fail until it is up.
+func (a *agent) dialTailnetTCP(ctx context.Context, addr netip.AddrPort) (net.Conn, error) {
+	network, ok := a.requireNetwork()
+	if !ok {
+		return nil, xerrors.New("tailnet is not connected yet")
+	}
+	conn, err := network.DialContextTCP(ctx, addr)
+	if err != nil {
+		return nil, xerrors.Errorf("dial %s over tailnet: %w", addr, err)
+	}
+	return conn, nil
+}
+
+// updateEgress reconciles the running egress proxy and enforcer with cfg.
+// A nil cfg stops both. An unchanged cfg is a no-op so reconnects do not
+// disturb established tunnels.
+func (a *agent) updateEgress(ctx context.Context, cfg *agentsdk.EgressConfig) {
+	a.egressMu.Lock()
+	defer a.egressMu.Unlock()
+
+	if a.egressProxy != nil {
+		if cfg != nil && agentegress.ConfigEqual(a.egressProxy.Config(), *cfg) {
+			return
+		}
+		a.stopEgressLocked(ctx)
+	}
+	if cfg == nil {
+		return
+	}
+
+	logger := a.logger.Named("egress")
+	proxy, err := agentegress.New(logger, agentegress.Options{
+		Dialer: agentegress.DialerFunc(a.dialTailnetTCP),
+		Config: *cfg,
+	})
+	if err != nil {
+		logger.Error(ctx, "invalid egress configuration, egress is unmanaged", slog.Error(err))
+		return
+	}
+	// The proxy outlives the API connection that delivered the manifest.
+	if err := proxy.Start(a.gracefulCtx); err != nil {
+		logger.Error(ctx, "start egress proxy, egress is unmanaged", slog.Error(err))
+		return
+	}
+	a.egressProxy = proxy
+	logger.Info(ctx, "egress proxy started",
+		slog.F("listen_addr", proxy.Addr().String()),
+		slog.F("exit_node_id", cfg.ExitNodeID),
+		slog.F("enforce", cfg.Enforce),
+	)
+	if !cfg.Enforce {
+		return
+	}
+
+	enforcer, err := agentegress.NewEnforcer(logger, agentegress.EnforcerOptions{
+		Execer:            a.execer,
+		ProxyPort:         proxy.Addr().Port(),
+		ControlPlaneHosts: cfg.ControlPlaneHosts,
+	})
+	if err != nil {
+		logger.Error(ctx, "egress enforcement unavailable, running in advisory proxy mode", slog.Error(err))
+		return
+	}
+	if err := enforcer.Install(ctx); err != nil {
+		if errors.Is(err, agentegress.ErrEnforcementUnavailable) {
+			logger.Warn(ctx, "egress enforcement unavailable, running in advisory proxy mode", slog.Error(err))
+			return
+		}
+		logger.Error(ctx, "install egress enforcement rules, running in advisory proxy mode", slog.Error(err))
+		// A partial install must not leave half a policy behind.
+		if rmErr := enforcer.Remove(ctx); rmErr != nil {
+			logger.Error(ctx, "remove partially installed egress rules", slog.Error(rmErr))
+		}
+		return
+	}
+	a.egressEnforcer = enforcer
+	logger.Info(ctx, "egress enforcement active", slog.F("proxy_port", proxy.Addr().Port()))
+}
+
+// stopEgressLocked removes netfilter rules first so no new connections are
+// redirected into a proxy that is about to close. Callers hold egressMu.
+func (a *agent) stopEgressLocked(ctx context.Context) {
+	if a.egressEnforcer != nil {
+		if err := a.egressEnforcer.Remove(ctx); err != nil {
+			a.logger.Error(ctx, "remove egress enforcement rules", slog.Error(err))
+		}
+		a.egressEnforcer = nil
+	}
+	if a.egressProxy != nil {
+		if err := a.egressProxy.Close(); err != nil {
+			a.logger.Error(ctx, "close egress proxy", slog.Error(err))
+		}
+		a.egressProxy = nil
+	}
+}
+
+// egressProxyEnv returns the proxy environment for workspace processes, or
+// nil when egress is unmanaged.
+func (a *agent) egressProxyEnv() map[string]string {
+	a.egressMu.Lock()
+	defer a.egressMu.Unlock()
+	if a.egressProxy == nil {
+		return nil
+	}
+	return agentegress.ProxyEnv(a.egressProxy.Addr().String(), a.egressProxy.Config())
+}
+
 func (a *agent) HandleHTTPDebugMagicsock(w http.ResponseWriter, r *http.Request) {
 	network, ok := a.requireNetwork()
 	if !ok {
@@ -2376,6 +2503,10 @@ func (a *agent) Close() error {
 	if err != nil {
 		a.logger.Error(a.hardCtx, "script runner close", slog.Error(err))
 	}
+
+	// Shutdown scripts above may still need egress, so the proxy and its
+	// netfilter rules go away only after they finish.
+	a.updateEgress(a.hardCtx, nil)
 
 	if a.socketServer != nil {
 		if err := a.socketServer.Close(); err != nil {
