@@ -33,6 +33,8 @@ export interface AgentSettingsGeneralPageViewProps {
 	isSavingUserDebugLogging: boolean;
 	isSaveUserDebugLoggingError: boolean;
 	personalMemoryData: TypesGen.ChatPersonalMemorySettings | undefined;
+	personalMemoryError?: unknown;
+	onRetryPersonalMemory?: () => void;
 	onSavePersonalMemory: UseMutateFunction<
 		void,
 		Error,
@@ -55,6 +57,8 @@ export const AgentSettingsGeneralPageView: FC<
 	isSavingUserDebugLogging,
 	isSaveUserDebugLoggingError,
 	personalMemoryData,
+	personalMemoryError,
+	onRetryPersonalMemory,
 	onSavePersonalMemory,
 	isSavingPersonalMemory,
 	isSavePersonalMemoryError,
@@ -79,6 +83,8 @@ export const AgentSettingsGeneralPageView: FC<
 			<CodeDiffDisplaySettings />
 			<PersonalMemorySettings
 				settings={personalMemoryData}
+				loadError={personalMemoryError}
+				onRetryLoad={onRetryPersonalMemory}
 				onSaveSettings={onSavePersonalMemory}
 				isSavingSettings={isSavingPersonalMemory}
 				isSaveSettingsError={isSavePersonalMemoryError}

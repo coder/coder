@@ -16,6 +16,25 @@ describe("PersonalMemorySettings", () => {
 		expect(container).toBeEmptyDOMElement();
 	});
 
+	it("offers a retry when the settings failed to load", async () => {
+		const user = userEvent.setup();
+		const onRetryLoad = vi.fn();
+		render(
+			<PersonalMemorySettings
+				settings={undefined}
+				loadError={new Error("boom")}
+				onRetryLoad={onRetryLoad}
+				onSaveSettings={vi.fn()}
+				isSavingSettings={false}
+				isSaveSettingsError={false}
+			/>,
+		);
+
+		await user.click(screen.getByRole("button", { name: "Retry" }));
+
+		expect(onRetryLoad).toHaveBeenCalledTimes(1);
+	});
+
 	it("saves the toggled value", async () => {
 		const user = userEvent.setup();
 		const onSaveSettings = vi.fn();

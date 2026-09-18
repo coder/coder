@@ -140,6 +140,12 @@ interface AgentCreateFormProps {
 	workspaceOptions: readonly TypesGen.Workspace[];
 	workspacesError: unknown;
 	isWorkspacesLoading: boolean;
+	/**
+	 * Pins the form to one organization: the selector is hidden and every
+	 * organization-dependent choice (workspace, model, MCP servers,
+	 * attachments) resolves against it. Used when creating inside a project.
+	 */
+	lockedOrganizationId?: string;
 	/** Rendered above the composer, in the same column. */
 	header?: ReactNode;
 	/** Rendered below the composer, in the same column. */
@@ -157,6 +163,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	workspaceOptions,
 	workspacesError,
 	isWorkspacesLoading,
+	lockedOrganizationId,
 	header,
 	footer,
 }) => {
@@ -206,9 +213,12 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	// Disabled queries retain cached data. When the dashboard hides organization
 	// selection, its organization list is authoritative so a removed org cannot
 	// remain selected for submission.
-	const permittedOrgs = showOrganizations
+	const allPermittedOrgs = showOrganizations
 		? (permittedOrgsQuery.data ?? [])
 		: organizations;
+	const permittedOrgs = lockedOrganizationId
+		? allPermittedOrgs.filter((org) => org.id === lockedOrganizationId)
+		: allPermittedOrgs;
 	// Treat the dashboard org as provisional until permissions resolve so
 	// sends and persisted attachments cannot use an unpermitted org.
 	const orgSelectionSettled =
@@ -277,7 +287,9 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		}
 	}
 	useEffect(() => {
-		if (!orgSelectionSettled) {
+		// A locked organization is the project's choice, not the user's, so
+		// it must not replace their remembered default.
+		if (!orgSelectionSettled || lockedOrganizationId) {
 			return;
 		}
 		if (selectedOrg) {
@@ -285,7 +297,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		} else {
 			localStorage.removeItem(selectedOrganizationIdStorageKey);
 		}
-	}, [orgSelectionSettled, selectedOrg]);
+	}, [orgSelectionSettled, selectedOrg, lockedOrganizationId]);
 	useEffect(() => {
 		if (selectedWorkspaceId === null) {
 			localStorage.removeItem(selectedWorkspaceIdStorageKey);

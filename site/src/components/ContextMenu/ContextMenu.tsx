@@ -59,7 +59,7 @@ export const ContextMenuItem: React.FC<ContextMenuItemProps> = ({
 export const ContextMenuSub = ContextMenuPrimitive.Sub;
 
 export const ContextMenuSubTrigger: React.FC<
-	React.ComponentPropsWithRef<typeof ContextMenuPrimitive.SubTrigger>
+	React.ComponentProps<typeof ContextMenuPrimitive.SubTrigger>
 > = ({ className, children, ...props }) => {
 	return (
 		<ContextMenuPrimitive.SubTrigger
@@ -72,7 +72,7 @@ export const ContextMenuSubTrigger: React.FC<
 };
 
 export const ContextMenuSubContent: React.FC<
-	React.ComponentPropsWithRef<typeof ContextMenuPrimitive.SubContent>
+	React.ComponentProps<typeof ContextMenuPrimitive.SubContent>
 > = ({ className, ...props }) => {
 	return (
 		<ContextMenuPrimitive.Portal>

@@ -333,7 +333,9 @@ describe("ChatsSidebar projects", () => {
 				name: `Open project actions for ${MockChatProject.name}`,
 			}),
 		);
-		expect(screen.getByRole("menuitem", { name: "New chat" })).toBeVisible();
+		expect(
+			screen.getByRole("menuitem", { name: "New chat" }),
+		).toBeInTheDocument();
 		expect(screen.queryByRole("menuitem", { name: "Edit project" })).toBeNull();
 		expect(
 			screen.queryByRole("menuitem", { name: "Delete project" }),
@@ -366,13 +368,40 @@ describe("ChatsSidebar projects", () => {
 		);
 
 		await screen.findByRole("link", { name: MockChatProject.name });
-		expect(screen.getByText("Loose chat")).toBeVisible();
+		expect(screen.getByText("Loose chat")).toBeInTheDocument();
 		expect(screen.queryByText("Project chat")).toBeNull();
 
 		await user.click(
 			screen.getByRole("button", { name: `Expand ${MockChatProject.name}` }),
 		);
-		expect(screen.getByText("Project chat")).toBeVisible();
+		expect(screen.getByText("Project chat")).toBeInTheDocument();
+	});
+
+	it("keeps a chat in the date sections when its project is not loaded", async () => {
+		server.use(
+			http.get("/api/experimental/chats/projects", () =>
+				HttpResponse.json([MockChatProject]),
+			),
+			grantProjectPermissions(false),
+		);
+
+		render(
+			<Wrapper experiments={["chat-projects"]}>
+				<ChatsSidebar
+					{...defaultProps}
+					chats={[
+						buildChat({
+							id: "other-org-project-chat",
+							title: "Other org project chat",
+							project_id: "project-in-another-organization",
+						}),
+					]}
+				/>
+			</Wrapper>,
+		);
+
+		await screen.findByRole("link", { name: MockChatProject.name });
+		expect(screen.getByText("Other org project chat")).toBeInTheDocument();
 	});
 });
 

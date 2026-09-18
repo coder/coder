@@ -60,7 +60,6 @@ export const MockChatProject: TypesGen.ChatProject = {
 	created_by: "user-owner-id",
 	name: "Launch",
 	description: "Chats for the launch work.",
-	chat_count: 2,
 	created_at: "2026-09-01T12:00:00Z",
 	updated_at: "2026-09-02T12:00:00Z",
 };

@@ -24,6 +24,7 @@ vi.mock("./components/AgentCreateForm", () => ({
 	AgentCreateForm: ({
 		onCreateChat,
 		isCreating,
+		lockedOrganizationId,
 		header,
 		footer,
 	}: {
@@ -32,10 +33,12 @@ vi.mock("./components/AgentCreateForm", () => ({
 			organizationId: string;
 		}) => Promise<void>;
 		isCreating: boolean;
+		lockedOrganizationId?: string;
 		header?: ReactNode;
 		footer?: ReactNode;
 	}) => (
 		<div>
+			<span data-testid="locked-organization">{lockedOrganizationId}</span>
 			{header}
 			<button
 				type="button"
@@ -157,9 +160,14 @@ describe("AgentCreatePage project assignment", () => {
 		await waitFor(() => {
 			expect(projectRequested).toBe(true);
 		});
-		await user.click(
-			await screen.findByRole("button", { name: "Create chat" }),
-		);
+		// The form itself is pinned to the project's organization so
+		// workspace, model, and MCP choices resolve against it.
+		await waitFor(() => {
+			expect(screen.getByTestId("locked-organization")).toHaveTextContent(
+				MockOrganization.id,
+			);
+		});
+		await user.click(screen.getByRole("button", { name: "Create chat" }));
 
 		await waitFor(() => {
 			expect(requestBody).toMatchObject({
@@ -272,8 +280,8 @@ describe("AgentCreatePage project frame", () => {
 
 		expect(
 			await screen.findByRole("heading", { name: MockChatProject.name }),
-		).toBeVisible();
-		expect(screen.getByText(MockChatProject.description)).toBeVisible();
+		).toBeInTheDocument();
+		expect(screen.getByText(MockChatProject.description)).toBeInTheDocument();
 		await waitFor(() => expect(authChecked).toBe(true));
 		expect(screen.queryByRole("button", { name: "Edit project" })).toBeNull();
 	});

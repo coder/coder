@@ -180,11 +180,18 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 	const unpinnedOwnedChats = unpinnedChats.filter(
 		(chat) => !chat.shared || chat.owner_id === currentUserId,
 	);
-	// Chats in a project render inside their folder and nowhere else.
+	// Chats in a project render inside their folder and nowhere else. A chat
+	// whose project is not loaded (another organization, or a failed fetch)
+	// stays in the date sections so it never disappears.
+	const loadedProjectIds = new Set(projects.map((project) => project.id));
 	const chatsByProjectId = new Map<string, Chat[]>();
 	const unfiledOwnedChats: Chat[] = [];
 	for (const chat of unpinnedOwnedChats) {
-		if (chatProjectsEnabled && chat.project_id) {
+		if (
+			chatProjectsEnabled &&
+			chat.project_id &&
+			loadedProjectIds.has(chat.project_id)
+		) {
 			const bucket = chatsByProjectId.get(chat.project_id);
 			if (bucket) {
 				bucket.push(chat);

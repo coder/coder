@@ -43,6 +43,8 @@ const AgentSettingsGeneralPage: FC = () => {
 			isSavingUserDebugLogging={saveUserDebugLoggingMutation.isPending}
 			isSaveUserDebugLoggingError={saveUserDebugLoggingMutation.isError}
 			personalMemoryData={personalMemoryQuery.data}
+			personalMemoryError={personalMemoryQuery.error ?? undefined}
+			onRetryPersonalMemory={() => void personalMemoryQuery.refetch()}
 			onSavePersonalMemory={savePersonalMemoryMutation.mutate}
 			isSavingPersonalMemory={savePersonalMemoryMutation.isPending}
 			isSavePersonalMemoryError={savePersonalMemoryMutation.isError}

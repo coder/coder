@@ -147,6 +147,7 @@ const AgentCreatePage: FC = () => {
 				/>
 			)}
 			<AgentCreateForm
+				lockedOrganizationId={selectedProject?.organization_id}
 				header={
 					selectedProject && <ProjectComposerHeader project={selectedProject} />
 				}
