@@ -317,7 +317,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/ssm v1.67.4 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sso v1.35.1 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.40.1 // indirect
-	github.com/aws/aws-sdk-go-v2/service/sts v1.50.0
+	github.com/aws/aws-sdk-go-v2/service/sts v1.51.0
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
 	github.com/aymerick/douceur v0.2.0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
