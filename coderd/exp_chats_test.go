@@ -1831,11 +1831,9 @@ func TestPostUserChats(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, member.ID, chat.OwnerID)
 
-		// The member owns the chat while the prompt stays attributed to the
-		// admin who submitted it.
-		fetched, err := memberClient.GetChat(ctx, chat.ID)
+		// The member can read the chat; the prompt stays attributed to the admin.
+		_, err = memberClient.GetChat(ctx, chat.ID)
 		require.NoError(t, err)
-		require.Equal(t, member.ID, fetched.OwnerID)
 		messages, err := db.GetChatMessagesByChatID(dbauthz.AsSystemRestricted(ctx), database.GetChatMessagesByChatIDParams{
 			ChatID: chat.ID,
 		})
@@ -1875,7 +1873,7 @@ func TestPostUserChats(t *testing.T) {
 		require.Equal(t, member.ID, chat.OwnerID)
 	})
 
-	t.Run("MeMatchesPostChats", func(t *testing.T) {
+	t.Run("MeCreatesOwnChat", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -1888,6 +1886,49 @@ func TestPostUserChats(t *testing.T) {
 		chat, err := memberClient.CreateUserChat(ctx, codersdk.Me, helloRequest(firstUser.OrganizationID))
 		require.NoError(t, err)
 		require.Equal(t, member.ID, chat.OwnerID)
+	})
+
+	t.Run("WorkspaceOwnedByMember", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModel(t, client)
+		_, member := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
+		workspaceBuild := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OrganizationID: firstUser.OrganizationID,
+			OwnerID:        member.ID,
+		}).WithAgent().Do()
+
+		req := helloRequest(firstUser.OrganizationID)
+		req.WorkspaceID = &workspaceBuild.Workspace.ID
+		chat, err := client.CreateUserChat(ctx, member.Username, req)
+		require.NoError(t, err)
+		require.NotNil(t, chat.WorkspaceID)
+		require.Equal(t, workspaceBuild.Workspace.ID, *chat.WorkspaceID)
+	})
+
+	t.Run("WorkspaceNotAccessibleToOwner", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModel(t, client)
+		_, member := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
+		workspaceBuild := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OrganizationID: firstUser.OrganizationID,
+			OwnerID:        firstUser.UserID,
+		}).WithAgent().Do()
+
+		// The admin can reach their own workspace, but the chat connects
+		// as the member, who cannot.
+		req := helloRequest(firstUser.OrganizationID)
+		req.WorkspaceID = &workspaceBuild.Workspace.ID
+		_, err := client.CreateUserChat(ctx, member.Username, req)
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Equal(t, "Workspace not found or you do not have access to this resource", sdkErr.Message)
 	})
 
 	t.Run("OrgAdminForbidden", func(t *testing.T) {

@@ -1131,8 +1131,7 @@ var (
 type CreateOptions struct {
 	OrganizationID uuid.UUID
 	OwnerID        uuid.UUID
-	// CreatedBy attributes the initial user message. It falls back to
-	// OwnerID when unset.
+	// CreatedBy attributes the initial user message; defaults to OwnerID.
 	CreatedBy               uuid.UUID
 	WorkspaceID             uuid.NullUUID
 	BuildID                 uuid.NullUUID

@@ -447,7 +447,7 @@ This endpoint uses `Create(initialMessages)`:
 
 No other input states are supported.
 
-TODO: document `POST /api/v2/users/{user}/chats`, which creates a chat owned by another user through the same transition. The caller must hold org-scoped `chat:create` for that owner and the authority to create API keys for that user, because processing runs with the owner's credentials. The initial user message is attributed to the caller rather than the owner.
+TODO: document `POST /api/v2/users/{user}/chats`, which creates a chat owned by another user through the same transition. The caller must hold org-scoped `chat:create` for that owner and the authority to create API keys for that user, because processing runs with the owner's credentials; the workspace binding is validated as the owner for the same reason. The initial user message is attributed to the caller rather than the owner.
 
 ### `PATCH /api/experimental/chats/{chat}`
 

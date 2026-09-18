@@ -1202,20 +1202,20 @@ func invalidChatMCPServerIDsResponse(ids []uuid.UUID) codersdk.Response {
 // @Router /api/v2/chats [post]
 func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 	apiKey := httpmw.APIKey(r)
-	api.createChat(rw, r, func(ctx context.Context, organizationID uuid.UUID) (uuid.UUID, int, *codersdk.Response) {
+	api.createChat(rw, r, func(ctx context.Context, organizationID uuid.UUID) (uuid.UUID, error) {
 		isMember, err := httpmw.UserAuthorization(ctx).HasOrganizationMembership(organizationID)
 		if err != nil {
-			return uuid.Nil, http.StatusInternalServerError, &codersdk.Response{
+			return uuid.Nil, httperror.NewResponseError(http.StatusInternalServerError, codersdk.Response{
 				Message: "Failed to validate organization membership.",
 				Detail:  xerrors.Errorf("check organization membership: %w", err).Error(),
-			}
+			})
 		}
 		if !isMember {
-			return uuid.Nil, http.StatusForbidden, &codersdk.Response{
+			return uuid.Nil, httperror.NewResponseError(http.StatusForbidden, codersdk.Response{
 				Message: "You are not a member of the specified organization.",
-			}
+			})
 		}
-		return apiKey.UserID, 0, nil
+		return apiKey.UserID, nil
 	})
 }
 
@@ -1232,27 +1232,22 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 // @Router /api/v2/users/{user}/chats [post]
 func (api *API) postUserChats(rw http.ResponseWriter, r *http.Request) {
 	mems := httpmw.OrganizationMembersParam(r)
-	api.createChat(rw, r, func(_ context.Context, organizationID uuid.UUID) (uuid.UUID, int, *codersdk.Response) {
+	api.createChat(rw, r, func(_ context.Context, organizationID uuid.UUID) (uuid.UUID, error) {
 		// The memberships are already limited to what the caller may read,
 		// so a missing match stays a vague 404 like postUserWorkspaces.
 		idx := slices.IndexFunc(mems.Memberships, func(member httpmw.OrganizationMember) bool {
 			return member.OrganizationID == organizationID
 		})
 		if idx == -1 {
-			return uuid.Nil, http.StatusNotFound, &httpapi.ResourceNotFoundResponse
+			return uuid.Nil, httperror.ErrResourceNotFound
 		}
-		return mems.Memberships[idx].UserID, 0, nil
+		return mems.Memberships[idx].UserID, nil
 	})
 }
 
-// createChatOwnerResolver returns the owner of a new chat once the requested
-// organization is known, or the response that rejects the request.
-type createChatOwnerResolver func(ctx context.Context, organizationID uuid.UUID) (uuid.UUID, int, *codersdk.Response)
-
-// createChat is the shared body of the chat creation endpoints. It parses
-// the request, resolves the owner, authorizes the caller, and creates the
-// chat.
-func (api *API) createChat(rw http.ResponseWriter, r *http.Request, resolveOwner createChatOwnerResolver) {
+// createChat backs both chat creation endpoints. resolveOwner runs after the
+// body is parsed because the owner depends on req.OrganizationID.
+func (api *API) createChat(rw http.ResponseWriter, r *http.Request, resolveOwner func(ctx context.Context, organizationID uuid.UUID) (uuid.UUID, error)) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
 
@@ -1281,9 +1276,9 @@ func (api *API) createChat(rw http.ResponseWriter, r *http.Request, resolveOwner
 		})
 		return
 	}
-	ownerID, ownerStatus, ownerError := resolveOwner(ctx, req.OrganizationID)
-	if ownerError != nil {
-		httpapi.Write(ctx, rw, ownerStatus, *ownerError)
+	ownerID, err := resolveOwner(ctx, req.OrganizationID)
+	if err != nil {
+		httperror.WriteResponseError(ctx, rw, err)
 		return
 	}
 	// NOTE: This authorize check is intentionally placed after request
@@ -1299,9 +1294,20 @@ func (api *API) createChat(rw http.ResponseWriter, r *http.Request, resolveOwner
 	// acting as that user. Org-scoped chat permissions are not enough:
 	// require the same authority the token endpoint demands to mint a
 	// session for that user.
-	if ownerID != apiKey.UserID && !api.Authorize(r, policy.ActionCreate, rbac.ResourceApiKey.WithOwner(ownerID.String())) {
-		httpapi.Forbidden(rw)
-		return
+	ownerCtx := ctx
+	if ownerID != apiKey.UserID {
+		if !api.Authorize(r, policy.ActionCreate, rbac.ResourceApiKey.WithOwner(ownerID.String())) {
+			httpapi.Forbidden(rw)
+			return
+		}
+		owner, _, err := httpmw.UserRBACSubject(ctx, api.Database, ownerID, rbac.ScopeAll)
+		if err != nil {
+			httpapi.InternalServerError(rw, err)
+			return
+		}
+		// The workspace must be usable by the owner, who is the one the
+		// chat will connect as, not merely visible to the caller.
+		ownerCtx = dbauthz.As(ctx, owner)
 	}
 
 	contentBlocks, titleSource, inputError := createChatInputFromRequest(ctx, api.Database, req)
@@ -1310,7 +1316,7 @@ func (api *API) createChat(rw http.ResponseWriter, r *http.Request, resolveOwner
 		return
 	}
 
-	workspaceSelection, validationStatus, validationError := api.validateCreateChatWorkspaceSelection(ctx, r, req)
+	workspaceSelection, validationStatus, validationError := api.validateCreateChatWorkspaceSelection(ownerCtx, req)
 	if validationError != nil {
 		httpapi.Write(ctx, rw, validationStatus, *validationError)
 		return
@@ -2495,7 +2501,7 @@ func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
 		if *req.WorkspaceID != uuid.Nil {
 			var status int
 			var resp *codersdk.Response
-			workspaceID, workspace, status, resp = api.validateChatWorkspaceSelection(ctx, r, req.WorkspaceID)
+			workspaceID, workspace, status, resp = api.validateChatWorkspaceSelection(ctx, req.WorkspaceID)
 			if resp != nil {
 				httpapi.Write(ctx, rw, status, *resp)
 				return
@@ -4216,7 +4222,6 @@ type createChatWorkspaceSelection struct {
 
 func (api *API) validateChatWorkspaceSelection(
 	ctx context.Context,
-	r *http.Request,
 	workspaceID *uuid.UUID,
 ) (
 	uuid.NullUUID,
@@ -4245,7 +4250,7 @@ func (api *API) validateChatWorkspaceSelection(
 		UUID:  workspace.ID,
 		Valid: true,
 	}
-	if !api.Authorize(r, policy.ActionSSH, workspace) {
+	if !api.HTTPAuth.AuthorizeContext(ctx, policy.ActionSSH, workspace) {
 		return uuid.NullUUID{}, database.Workspace{}, http.StatusBadRequest, &codersdk.Response{
 			Message: "Workspace not found or you do not have access to this resource",
 		}
@@ -4256,7 +4261,6 @@ func (api *API) validateChatWorkspaceSelection(
 
 func (api *API) validateCreateChatWorkspaceSelection(
 	ctx context.Context,
-	r *http.Request,
 	req codersdk.CreateChatRequest,
 ) (
 	createChatWorkspaceSelection,
@@ -4264,7 +4268,7 @@ func (api *API) validateCreateChatWorkspaceSelection(
 	*codersdk.Response,
 ) {
 	selection := createChatWorkspaceSelection{}
-	workspaceID, workspace, status, resp := api.validateChatWorkspaceSelection(ctx, r, req.WorkspaceID)
+	workspaceID, workspace, status, resp := api.validateChatWorkspaceSelection(ctx, req.WorkspaceID)
 	if resp != nil {
 		return selection, status, resp
 	}
