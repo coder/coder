@@ -1466,7 +1466,7 @@ coderd/notifications/.gen-golden: $(wildcard coderd/notifications/testdata/*/*.g
 	touch "$@"
 
 # Wait for fixture generation before reading its outputs under make -j.
-provisioner/terraform/testdata/.gen-golden: provisioner/terraform/testdata/generation.sha1 $(wildcard provisioner/terraform/testdata/*/*.golden) $(wildcard provisioner/terraform/testdata/*/*/*.golden) $(GO_SRC_FILES) $(wildcard provisioner/terraform/*_test.go)
+provisioner/terraform/testdata/.gen-golden: provisioner/terraform/testdata/generation.sha1 $(wildcard provisioner/terraform/testdata/resources/*/*.tfplan.* provisioner/terraform/testdata/resources/*/*.tfstate.*) $(wildcard provisioner/terraform/testdata/*/*.golden) $(wildcard provisioner/terraform/testdata/*/*/*.golden) $(GO_SRC_FILES) $(wildcard provisioner/terraform/*_test.go)
 	TZ=UTC go test ./provisioner/terraform -run="Test.*Golden$$" -update
 	touch "$@"
 
