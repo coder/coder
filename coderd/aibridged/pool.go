@@ -52,6 +52,14 @@ type PoolOptions struct {
 	MaxItems int64
 	TTL      time.Duration
 	Clock    quartz.Clock
+
+	// StructuredLogging makes each bridge emit AI Gateway interception
+	// records in the format described by [recorder.InterceptionLogMarker].
+	StructuredLogging bool
+	// DisableContentRecording stops prompts, tool call arguments and model
+	// thoughts from being recorded. Interceptions and token usage are still
+	// recorded, so AI spend accounting and budget enforcement are unaffected.
+	DisableContentRecording bool
 }
 
 var DefaultPoolOptions = PoolOptions{MaxItems: 5000, TTL: time.Minute * 15}
@@ -67,6 +75,10 @@ type CachedBridgePool struct {
 	providerVersion atomic.Int64
 	logger          slog.Logger
 	options         PoolOptions
+
+	// recorderMiddleware is the record policy derived from options, resolved
+	// once here rather than on every cache miss.
+	recorderMiddleware []recorder.Middleware
 
 	singleflight *singleflight.Group[string, *aibridge.RequestBridge]
 
@@ -115,6 +127,15 @@ func NewCachedBridgePool(options PoolOptions, providers []aibridge.Provider, log
 		clk = quartz.NewReal()
 	}
 
+	var recorderMiddleware []recorder.Middleware
+	if options.DisableContentRecording {
+		recorderMiddleware = append(recorderMiddleware, recorder.WithoutRecords(recorder.DisabledRecords{
+			PromptUsage:  true,
+			ToolUsage:    true,
+			ModelThought: true,
+		}))
+	}
+
 	pool := &CachedBridgePool{
 		cache:   cache,
 		clock:   clk,
@@ -122,6 +143,8 @@ func NewCachedBridgePool(options PoolOptions, providers []aibridge.Provider, log
 		metrics: metrics,
 		tracer:  tracer,
 		logger:  logger,
+
+		recorderMiddleware: recorderMiddleware,
 
 		singleflight: &singleflight.Group[string, *aibridge.RequestBridge]{},
 
@@ -226,6 +249,8 @@ func (p *CachedBridgePool) Acquire(ctx context.Context, req Request, clientFn Cl
 	rec := aibridge.NewRecorder(
 		p.logger.Named("recorder"),
 		p.tracer,
+		req.APIKeyID,
+		p.options.StructuredLogging,
 		func(clientCtx context.Context) (aibridge.Recorder, error) {
 			// The recorder outlives this Acquire call, so the client is acquired
 			// against the context of the record call being served.
@@ -236,6 +261,7 @@ func (p *CachedBridgePool) Acquire(ctx context.Context, req Request, clientFn Cl
 
 			return recorder.NewDRPCRecorder(req.APIKeyID, client), nil
 		},
+		p.recorderMiddleware...,
 	)
 
 	// Slow path.
