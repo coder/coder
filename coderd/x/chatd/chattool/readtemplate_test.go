@@ -578,6 +578,20 @@ func TestReadTemplate_OwnerEvaluatedParameters(t *testing.T) {
 		require.Contains(t, region["options_note"], "recorded at template import")
 	})
 
+	t.Run("EvaluatedEmptyOptionsStayEmpty", func(t *testing.T) {
+		t.Parallel()
+		// Option blocks can be generated per owner, so an evaluated empty
+		// list is a real result (free-form input for this owner), not a
+		// gap to fill from the importer's options.
+		freeForm := ownerRendered[0]
+		freeForm.Options = nil
+		freeForm.FormType = codersdk.ParameterFormTypeInput
+		region, _ := readParams(t, renderStatic(freeForm))
+		require.Equal(t, "eu-helsinki", region["default"])
+		require.NotContains(t, region, "options", "import options must not replace an evaluated empty list")
+		require.NotContains(t, region, "options_note")
+	})
+
 	t.Run("UnknownValidationUsesImportValues", func(t *testing.T) {
 		t.Parallel()
 		// A validation attribute preview cannot evaluate comes back nil, the

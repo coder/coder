@@ -27,8 +27,10 @@ const ReadTemplateReadmeMaxRunes = 8000
 const (
 	readTemplateBuildDefaultsNote = "Parameter defaults are the values a " +
 		"build for this workspace owner uses when create_workspace omits the " +
-		"parameter. The build matches a preset by the resulting values; a " +
-		"preset marked default is not applied implicitly."
+		"parameter. To use a preset, pass its preset_id: a prebuilt workspace " +
+		"is claimed only for a preset given explicitly or matched by the " +
+		"parameter values passed to create_workspace, never by defaults, and " +
+		"a preset marked default is not applied implicitly."
 	readTemplateImportDefaultsNote = "Parameter defaults could not be " +
 		"evaluated for the workspace owner and are the values recorded at " +
 		"template import, which may differ from what a build uses. Pass " +
@@ -366,8 +368,11 @@ func renderedParameterEntry(p codersdk.PreviewParameter, imported *database.Temp
 		param["form_type"] = string(p.FormType)
 	}
 	// Option labels can depend on the owner, so a partially unknown list is
-	// replaced as a whole rather than matched option by option.
-	if opts, known := renderedOptions(p.Options); known {
+	// replaced as a whole rather than matched option by option. An evaluated
+	// empty list is a real result, since option blocks can be generated per
+	// owner, and must not be filled from the import row.
+	opts, optionsKnown := renderedOptions(p.Options)
+	if len(opts) > 0 {
 		param["options"] = opts
 	}
 	for _, v := range p.Validations {
@@ -393,7 +398,7 @@ func renderedParameterEntry(p codersdk.PreviewParameter, imported *database.Temp
 		{"validation_min", "validation_note"},
 		{"validation_max", "validation_note"},
 	} {
-		if f.key == "default" && !fillDefault {
+		if (f.key == "default" && !fillDefault) || (f.key == "options" && optionsKnown) {
 			continue
 		}
 		if _, ok := param[f.key]; ok {
@@ -411,11 +416,8 @@ func renderedParameterEntry(p codersdk.PreviewParameter, imported *database.Temp
 
 // renderedOptions converts the rendered options, reporting false when any
 // value is unknown before the build so the caller can substitute the import
-// row's list instead of presenting an empty value.
+// row's list instead of presenting an empty value. An empty list is known.
 func renderedOptions(options []codersdk.PreviewParameterOption) ([]map[string]any, bool) {
-	if len(options) == 0 {
-		return nil, false
-	}
 	opts := make([]map[string]any, 0, len(options))
 	for _, o := range options {
 		if !o.Value.Valid {
