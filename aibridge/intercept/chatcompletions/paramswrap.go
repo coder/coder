@@ -64,25 +64,24 @@ func (c *ChatCompletionNewParamsWrapper) UnmarshalJSON(raw []byte) error {
 	return nil
 }
 
+// maxPreservedCacheControlFields bounds the per-field body rewrites in
+// applyPreservedFields, which each copy the whole body. Anthropic accepts
+// at most four cache_control breakpoints per request, so a valid client
+// never reaches the cap; markers past it are dropped.
+const maxPreservedCacheControlFields = 4
+
 func preservedCacheControlFields(raw []byte) []preservedJSONField {
 	var fields []preservedJSONField
+	record := func(path string, cc gjson.Result) {
+		if cc.Exists() && len(fields) < maxPreservedCacheControlFields {
+			fields = append(fields, preservedJSONField{Path: path, Raw: json.RawMessage(cc.Raw)})
+		}
+	}
 	for i, message := range gjson.GetBytes(raw, "messages").Array() {
-		if cc := message.Get("cache_control"); cc.Exists() {
-			fields = append(fields, preservedJSONField{
-				Path: fmt.Sprintf("messages.%d.cache_control", i),
-				Raw:  json.RawMessage(cc.Raw),
-			})
-		}
-		content := message.Get("content")
-		if !content.IsArray() {
-			continue
-		}
-		for j, part := range content.Array() {
-			if cc := part.Get("cache_control"); cc.Exists() {
-				fields = append(fields, preservedJSONField{
-					Path: fmt.Sprintf("messages.%d.content.%d.cache_control", i, j),
-					Raw:  json.RawMessage(cc.Raw),
-				})
+		record(fmt.Sprintf("messages.%d.cache_control", i), message.Get("cache_control"))
+		if content := message.Get("content"); content.IsArray() {
+			for j, part := range content.Array() {
+				record(fmt.Sprintf("messages.%d.content.%d.cache_control", i, j), part.Get("cache_control"))
 			}
 		}
 	}
