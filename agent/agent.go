@@ -2315,7 +2315,7 @@ func (a *agent) updateEgress(ctx context.Context, cfg *agentsdk.EgressConfig) {
 	enforcer, err := agentegress.NewEnforcer(logger, agentegress.EnforcerOptions{
 		Execer:            a.execer,
 		ProxyPort:         proxy.Addr().Port(),
-		ControlPlaneHosts: cfg.ControlPlaneHosts,
+		ControlPlaneHosts: a.egressExemptHosts(*cfg),
 	})
 	if err != nil {
 		logger.Error(ctx, "egress enforcement unavailable, running in advisory proxy mode", slog.Error(err))
@@ -2335,6 +2335,18 @@ func (a *agent) updateEgress(ctx context.Context, cfg *agentsdk.EgressConfig) {
 	}
 	a.egressEnforcer = enforcer
 	logger.Info(ctx, "egress enforcement active", slog.F("proxy_port", proxy.Addr().Port()))
+}
+
+// egressExemptHosts extends the manifest's control plane hosts with the URL
+// this agent actually uses to reach coderd. They can differ when the agent
+// reaches coderd through an alias such as host.docker.internal, and redirecting
+// the agent's own API connection into the proxy would sever the control plane.
+func (a *agent) egressExemptHosts(cfg agentsdk.EgressConfig) []string {
+	hosts := append([]string(nil), cfg.ControlPlaneHosts...)
+	if client, ok := a.client.(*agentsdk.Client); ok && client.SDK.URL != nil {
+		hosts = append(hosts, client.SDK.URL.Host)
+	}
+	return hosts
 }
 
 // stopEgressLocked removes netfilter rules first so no new connections are
@@ -2362,7 +2374,9 @@ func (a *agent) egressProxyEnv() map[string]string {
 	if a.egressProxy == nil {
 		return nil
 	}
-	return agentegress.ProxyEnv(a.egressProxy.Addr().String(), a.egressProxy.Config())
+	cfg := a.egressProxy.Config()
+	cfg.ControlPlaneHosts = a.egressExemptHosts(cfg)
+	return agentegress.ProxyEnv(a.egressProxy.Addr().String(), cfg)
 }
 
 func (a *agent) HandleHTTPDebugMagicsock(w http.ResponseWriter, r *http.Request) {
