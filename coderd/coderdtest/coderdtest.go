@@ -1417,11 +1417,6 @@ func AgentsReady(agent codersdk.WorkspaceAgent) bool {
 	return agent.LifecycleState == codersdk.WorkspaceAgentLifecycleReady
 }
 
-// AgentsNotReady checks that the latest lifecycle state of an agent is anything except "Ready".
-func AgentsNotReady(agent codersdk.WorkspaceAgent) bool {
-	return !AgentsReady(agent)
-}
-
 // WaitFor waits for the given criteria and fails the test if they are not met before the
 // waiter's context is canceled.
 func (w WorkspaceAgentWaiter) WaitFor(criteria ...WaitForAgentFn) {

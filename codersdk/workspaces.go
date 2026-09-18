@@ -559,6 +559,9 @@ type WorkspaceFilter struct {
 	SharedWithUser string `json:"shared_with_user,omitempty" typescript:"-"`
 	// SharedWithGroup is the group name, group ID, or <org name>/<group name> of the group that the workspace is shared with
 	SharedWithGroup string `json:"shared_with_group,omitempty" typescript:"-"`
+	// User is "me", a username, or a user ID. It matches workspaces the user
+	// owns or that are shared with them directly or through a group.
+	User string `json:"user,omitempty" typescript:"-"`
 	// IncludeAgentMetadata expands each agent in the response with the
 	// named metadata keys. It does not filter the returned workspaces.
 	IncludeAgentMetadata []string `json:"include_agent_metadata,omitempty" typescript:"-"`
@@ -596,6 +599,9 @@ func (f WorkspaceFilter) asRequestOption() RequestOption {
 		}
 		if f.SharedWithGroup != "" {
 			params = append(params, fmt.Sprintf("shared_with_group:%q", f.SharedWithGroup))
+		}
+		if f.User != "" {
+			params = append(params, fmt.Sprintf("user:%q", f.User))
 		}
 		for _, key := range f.IncludeAgentMetadata {
 			params = append(params, fmt.Sprintf("include_agent_metadata:%q", key))

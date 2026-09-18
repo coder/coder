@@ -1268,6 +1268,10 @@ func (api *API) aiSpendPeriod(ctx context.Context, rw http.ResponseWriter, r *ht
 // @Param organization path string true "Organization ID" format(uuid)
 // @Param period_start query string false "Inclusive lower bound (RFC3339)" format(date-time)
 // @Param period_end query string false "Exclusive upper bound (RFC3339)" format(date-time)
+// @Param user_id query string false "User ID" format(uuid)
+// @Param group_id query string false "Effective group ID" format(uuid)
+// @Param provider_name query string false "Configured provider name"
+// @Param model query string false "Model name"
 // @Success 200
 // @Router /api/v2/organizations/{organization}/ai/spend/export [get]
 func (api *API) exportOrganizationAISpend(rw http.ResponseWriter, r *http.Request) {
@@ -1282,7 +1286,13 @@ func (api *API) exportOrganizationAISpend(rw http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	period, ok := api.aiSpendPeriod(ctx, rw, r, httpapi.NewQueryParamParser())
+	parser := httpapi.NewQueryParamParser()
+	query := r.URL.Query()
+	userID := parser.UUID(query, uuid.Nil, "user_id")
+	groupID := parser.UUID(query, uuid.Nil, "group_id")
+	providerName := parser.String(query, "", "provider_name")
+	model := parser.String(query, "", "model")
+	period, ok := api.aiSpendPeriod(ctx, rw, r, parser)
 	if !ok {
 		return
 	}
@@ -1296,6 +1306,12 @@ func (api *API) exportOrganizationAISpend(rw http.ResponseWriter, r *http.Reques
 		OrganizationID: org.ID,
 		PeriodStart:    periodStart,
 		PeriodEnd:      periodEnd,
+		UserID:         userID,
+		GroupID:        groupID,
+		ProviderName:   providerName,
+		Model:          model,
+		LimitOpt:       0,
+		OffsetOpt:      0,
 	})
 	if err != nil {
 		logger.Error(ctx, "failed to export organization AI spend", slog.Error(err))

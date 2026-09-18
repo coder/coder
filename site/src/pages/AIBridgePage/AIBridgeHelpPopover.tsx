@@ -1,32 +1,21 @@
 import type { FC } from "react";
-import {
-	HelpPopover,
-	HelpPopoverContent,
-	HelpPopoverIconTrigger,
-	HelpPopoverLink,
-	HelpPopoverLinksGroup,
-	HelpPopoverText,
-	HelpPopoverTitle,
-} from "#/components/HelpPopover/HelpPopover";
+import { InfoTooltip } from "#/components/InfoTooltip/InfoTooltip";
+import { Link } from "#/components/Link/Link";
+import { TooltipMessage, TooltipTitle } from "#/components/Tooltip/Tooltip";
 import { docs } from "#/utils/docs";
 
 export const AIBridgeHelpPopover: FC = () => {
 	return (
-		<HelpPopover>
-			<HelpPopoverIconTrigger />
-
-			<HelpPopoverContent>
-				<HelpPopoverTitle>What is AI Gateway?</HelpPopoverTitle>
-				<HelpPopoverText>
-					AI Gateway is a smart gateway for AI that provides centralized
-					management, auditing, and attribution for LLM usage.
-				</HelpPopoverText>
-				<HelpPopoverLinksGroup>
-					<HelpPopoverLink href={docs("/ai-coder/ai-gateway")}>
-						Read the docs
-					</HelpPopoverLink>
-				</HelpPopoverLinksGroup>
-			</HelpPopoverContent>
-		</HelpPopover>
+		<InfoTooltip>
+			<TooltipTitle>What is AI Gateway?</TooltipTitle>
+			<TooltipMessage>
+				AI Gateway is a smart gateway for AI that provides centralized
+				management, auditing, and attribution for LLM usage.
+				<br />
+				<Link size="sm" href={docs("/ai-coder/ai-gateway")}>
+					Read the docs
+				</Link>
+			</TooltipMessage>
+		</InfoTooltip>
 	);
 };
