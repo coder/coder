@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"slices"
 	"strconv"
 	"strings"
@@ -17,6 +18,9 @@ import (
 
 	"charm.land/fantasy"
 	fantasyanthropic "charm.land/fantasy/providers/anthropic"
+	fantasyopenaicompat "charm.land/fantasy/providers/openaicompat"
+	fantasyopenrouter "charm.land/fantasy/providers/openrouter"
+	fantasyvercel "charm.land/fantasy/providers/vercel"
 	"charm.land/fantasy/schema"
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
@@ -26,6 +30,7 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chatdebug"
 	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatsanitize"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/coderd/x/chatfiles"
@@ -656,8 +661,8 @@ func prepareMessagesForRequest(
 		)
 		return nil, err
 	}
-	if shouldApplyAnthropicPromptCaching(model) {
-		addAnthropicPromptCaching(prompt)
+	if applyPromptCaching := promptCachingStrategyFor(model, modelName); applyPromptCaching != nil {
+		applyPromptCaching(prompt)
 	}
 	return prompt, nil
 }
@@ -1581,11 +1586,34 @@ func buildToolDefinitions(tools []fantasy.AgentTool, activeTools []string, provi
 	return prepared
 }
 
-func shouldApplyAnthropicPromptCaching(model fantasy.LanguageModel) bool {
+// promptCachingStrategy marks prompt cache breakpoints on a prepared
+// prompt in the shape the model's fantasy client serializes.
+type promptCachingStrategy func(messages []fantasy.Message)
+
+// promptCachingStrategyFor returns the breakpoint marker for Claude models
+// on transports that forward Anthropic prompt caching, or nil.
+func promptCachingStrategyFor(model fantasy.LanguageModel, modelName string) promptCachingStrategy {
 	if model == nil {
-		return false
+		return nil
 	}
-	return model.Provider() == fantasyanthropic.Name
+	switch model.Provider() {
+	case fantasyanthropic.Name:
+		return addAnthropicPromptCaching
+	case fantasyopenrouter.Name, fantasyvercel.Name:
+		// Both clients translate Anthropic-keyed cache options into
+		// cache_control on the OpenAI-compatible wire.
+		if chatprovider.IsAnthropicFamilyModelID(modelName) {
+			return addAnthropicPromptCaching
+		}
+	case fantasyopenaicompat.Name:
+		// The client only knows ContentExtraFields, and the AI Gateway
+		// re-applies client-sent cache_control when it rebuilds the
+		// upstream body, so the marker reaches OpenRouter-style upstreams.
+		if chatprovider.IsAnthropicFamilyModelID(modelName) {
+			return addOpenAICompatPromptCaching
+		}
+	}
+	return nil
 }
 
 // addAnthropicPromptCaching mutates messages in-place, setting
@@ -1615,6 +1643,56 @@ func addAnthropicPromptCaching(messages []fantasy.Message) {
 			messages[i].ProviderOptions = providerOption
 		}
 	}
+}
+
+// addOpenAICompatPromptCaching marks breakpoints on the last text part
+// of the last system message and of the final two text-bearing user or
+// assistant messages; tool messages have no text block on the
+// OpenAI-compatible wire. Markers are part-level because message-level
+// ContentExtraFields shares a key with openaicompat.ProviderOptions.
+func addOpenAICompatPromptCaching(messages []fantasy.Message) {
+	marker := &fantasyopenaicompat.ContentExtraFields{
+		Fields: map[string]any{"cache_control": map[string]string{"type": "ephemeral"}},
+	}
+	lastSystemIdx := -1
+	for i := range messages {
+		// Content slices are shared with the canonical messages.
+		messages[i].Content = slices.Clone(messages[i].Content)
+		if messages[i].Role == fantasy.MessageRoleSystem {
+			lastSystemIdx = i
+		}
+	}
+	if lastSystemIdx >= 0 {
+		markLastTextPart(messages[lastSystemIdx].Content, marker)
+	}
+	remaining := 2
+	for i := len(messages) - 1; i >= 0 && remaining > 0; i-- {
+		if messages[i].Role != fantasy.MessageRoleUser && messages[i].Role != fantasy.MessageRoleAssistant {
+			continue
+		}
+		if markLastTextPart(messages[i].Content, marker) {
+			remaining--
+		}
+	}
+}
+
+func markLastTextPart(content []fantasy.MessagePart, marker fantasy.ProviderOptionsData) bool {
+	for j := len(content) - 1; j >= 0; j-- {
+		textPart, ok := content[j].(fantasy.TextPart)
+		if !ok || strings.TrimSpace(textPart.Text) == "" {
+			continue
+		}
+		// The options map is shared with the canonical part; never mutate it.
+		options := maps.Clone(textPart.ProviderOptions)
+		if options == nil {
+			options = fantasy.ProviderOptions{}
+		}
+		options[fantasyopenaicompat.Name] = marker
+		textPart.ProviderOptions = options
+		content[j] = textPart
+		return true
+	}
+	return false
 }
 
 // recordToolResultTimestamp lazily initializes the
