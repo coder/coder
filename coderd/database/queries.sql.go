@@ -11359,8 +11359,8 @@ inserted AS (
     ON CONFLICT (chat_id, file_id) DO NOTHING
     RETURNING file_id
 )
-SELECT (SELECT COUNT(*)::int FROM genuinely_new)
-     - (SELECT COUNT(*)::int FROM inserted) AS rejected_new_files
+SELECT (CASE WHEN (SELECT ok FROM fits) THEN 0
+             ELSE (SELECT COUNT(*) FROM new_links) END)::int AS rejected_files
 `
 
 type LinkChatFilesAfterLockParams struct {
@@ -11376,9 +11376,9 @@ type LinkChatFilesAfterLockParams struct {
 // exceeds the cap.
 func (q *sqlQuerier) LinkChatFilesAfterLock(ctx context.Context, arg LinkChatFilesAfterLockParams) (int32, error) {
 	row := q.db.QueryRowContext(ctx, linkChatFilesAfterLock, pq.Array(arg.FileIds), arg.MaxFileLinks, arg.ChatID)
-	var rejected_new_files int32
-	err := row.Scan(&rejected_new_files)
-	return rejected_new_files, err
+	var rejected_files int32
+	err := row.Scan(&rejected_files)
+	return rejected_files, err
 }
 
 const listChatContextResourcesByChatID = `-- name: ListChatContextResourcesByChatID :many

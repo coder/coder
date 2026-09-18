@@ -2263,6 +2263,58 @@ func TestLinkChatFilesDeduplicatesInput(t *testing.T) {
 	require.Equal(t, file.ID, files[0].ID)
 }
 
+// TestLinkChatFilesRejectsOverCapBatchOfLinkedFiles verifies that a batch
+// larger than the cap is rejected even when every file in it is already
+// linked, which happens after the cap is lowered below a chat's file count.
+func TestLinkChatFilesRejectsOverCapBatchOfLinkedFiles(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.SkipNow()
+	}
+
+	ctx := testutil.Context(t, testutil.WaitMedium)
+	sqlDB := testSQLDB(t)
+	err := migrations.Up(sqlDB)
+	require.NoError(t, err)
+	db := database.New(sqlDB)
+
+	user := dbgen.User(t, db, database.User{})
+	org := dbgen.Organization(t, db, database.Organization{})
+	model := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{})
+	chat := dbgen.Chat(t, db, database.Chat{
+		OrganizationID:    org.ID,
+		OwnerID:           user.ID,
+		LastModelConfigID: model.ID,
+	})
+	fileIDs := make([]uuid.UUID, 0, 3)
+	for i := range 3 {
+		file, err := db.InsertChatFile(ctx, database.InsertChatFileParams{
+			OwnerID:        user.ID,
+			OrganizationID: org.ID,
+			Name:           fmt.Sprintf("linked-%d.txt", i),
+			Mimetype:       "text/plain",
+			Data:           []byte("linked"),
+		})
+		require.NoError(t, err)
+		fileIDs = append(fileIDs, file.ID)
+	}
+	rejected, err := db.LinkChatFiles(ctx, database.LinkChatFilesParams{
+		ChatID:       chat.ID,
+		FileIds:      fileIDs,
+		MaxFileLinks: 5,
+	})
+	require.NoError(t, err)
+	require.Zero(t, rejected)
+
+	rejected, err = db.LinkChatFiles(ctx, database.LinkChatFilesParams{
+		ChatID:       chat.ID,
+		FileIds:      fileIDs,
+		MaxFileLinks: 2,
+	})
+	require.NoError(t, err)
+	require.EqualValues(t, 3, rejected, "a batch above the lowered cap must be rejected even though nothing is new")
+}
+
 func TestLinkChatFilesEvictsOldest(t *testing.T) {
 	t.Parallel()
 	if testing.Short() {
