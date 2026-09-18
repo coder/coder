@@ -9100,7 +9100,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `no_refresh`                       | boolean         | false    |              |                                                                                                                                                                                               |
 | `redirect_url`                     | string          | false    |              | Redirect URL is optional, defaulting to 'ACCESS_URL'. Only useful in niche situations where the OAuth callback domain is different from the ACCESS_URL domain. The path component is ignored. |
 |`regex`|string|false||Regex allows API requesters to match an auth config by a string (e.g. coder.com) instead of by it's type.
-Git clone makes use of this by parsing the URL from: 'Username for "https://github.com":' And sending it to the Coder server to match against the Regex.|
+Git clone makes use of this by parsing the URL from: 'Username for "https://github.com":' And sending it to the control plane to match against the Regex.|
 |`revoke_url`|string|false|||
 |`scopes`|array of string|false|||
 |`token_url`|string|false|||

@@ -5161,7 +5161,7 @@ export interface ExternalAuthConfig {
 	 *
 	 * Git clone makes use of this by parsing the URL from:
 	 * 'Username for "https://github.com":'
-	 * And sending it to the Coder server to match against the Regex.
+	 * And sending it to the control plane to match against the Regex.
 	 */
 	readonly regex: string;
 	/**
