@@ -1984,6 +1984,7 @@ const (
 	ConnectionTypeWorkspaceApp    ConnectionType = "workspace_app"
 	ConnectionTypePortForwarding  ConnectionType = "port_forwarding"
 	ConnectionTypeTunnel          ConnectionType = "tunnel"
+	ConnectionTypeEgress          ConnectionType = "egress"
 )
 
 func (e *ConnectionType) Scan(src interface{}) error {
@@ -2029,7 +2030,8 @@ func (e ConnectionType) Valid() bool {
 		ConnectionTypeReconnectingPty,
 		ConnectionTypeWorkspaceApp,
 		ConnectionTypePortForwarding,
-		ConnectionTypeTunnel:
+		ConnectionTypeTunnel,
+		ConnectionTypeEgress:
 		return true
 	}
 	return false
@@ -2044,6 +2046,7 @@ func AllConnectionTypeValues() []ConnectionType {
 		ConnectionTypeWorkspaceApp,
 		ConnectionTypePortForwarding,
 		ConnectionTypeTunnel,
+		ConnectionTypeEgress,
 	}
 }
 
@@ -3667,6 +3670,7 @@ const (
 	ResourceTypeMCPServerConfig             ResourceType = "mcp_server_config"
 	ResourceTypeChatModelConfig             ResourceType = "chat_model_config"
 	ResourceTypeChatOperationalSettings     ResourceType = "chat_operational_settings"
+	ResourceTypeExitNode                    ResourceType = "exit_node"
 )
 
 func (e *ResourceType) Scan(src interface{}) error {
@@ -3745,7 +3749,8 @@ func (e ResourceType) Valid() bool {
 		ResourceTypeChatInstructionSettings,
 		ResourceTypeMCPServerConfig,
 		ResourceTypeChatModelConfig,
-		ResourceTypeChatOperationalSettings:
+		ResourceTypeChatOperationalSettings,
+		ResourceTypeExitNode:
 		return true
 	}
 	return false
@@ -3793,6 +3798,7 @@ func AllResourceTypeValues() []ResourceType {
 		ResourceTypeMCPServerConfig,
 		ResourceTypeChatModelConfig,
 		ResourceTypeChatOperationalSettings,
+		ResourceTypeExitNode,
 	}
 }
 
@@ -5401,6 +5407,24 @@ type DBCryptKey struct {
 	Test string `db:"test" json:"test"`
 }
 
+// Tailnet peers that terminate workspace egress, enforce policy, and report flows.
+type ExitNode struct {
+	ID             uuid.UUID `db:"id" json:"id"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	Name           string    `db:"name" json:"name"`
+	DisplayName    string    `db:"display_name" json:"display_name"`
+	CreatedAt      time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt      time.Time `db:"updated_at" json:"updated_at"`
+	// Boolean indicator of a deleted exit node. Exit nodes are soft-deleted.
+	Deleted bool `db:"deleted" json:"deleted"`
+	// Hashed secret used to authenticate the exit node to coderd.
+	TokenHashedSecret []byte       `db:"token_hashed_secret" json:"token_hashed_secret"`
+	Version           string       `db:"version" json:"version"`
+	LastSeenAt        sql.NullTime `db:"last_seen_at" json:"last_seen_at"`
+	// Public ip:port pairs agents may use for direct WireGuard connections to the exit node.
+	WireguardEndpoints []string `db:"wireguard_endpoints" json:"wireguard_endpoints"`
+}
+
 type ExternalAuthLink struct {
 	ProviderID        string    `db:"provider_id" json:"provider_id"`
 	UserID            uuid.UUID `db:"user_id" json:"user_id"`
@@ -5963,6 +5987,8 @@ type Template struct {
 	TimeTilAutostopNotify         int64           `db:"time_til_autostop_notify" json:"time_til_autostop_notify"`
 	AgentsAllowed                 bool            `db:"agents_allowed" json:"agents_allowed"`
 	AllowWorkspaceRenames         bool            `db:"allow_workspace_renames" json:"allow_workspace_renames"`
+	ExitNodeID                    uuid.NullUUID   `db:"exit_node_id" json:"exit_node_id"`
+	ExitNodeEnforce               bool            `db:"exit_node_enforce" json:"exit_node_enforce"`
 	CreatedByAvatarURL            string          `db:"created_by_avatar_url" json:"created_by_avatar_url"`
 	CreatedByUsername             string          `db:"created_by_username" json:"created_by_username"`
 	CreatedByName                 string          `db:"created_by_name" json:"created_by_name"`
@@ -6019,6 +6045,10 @@ type TemplateTable struct {
 	AgentsAllowed bool `db:"agents_allowed" json:"agents_allowed"`
 	// Whether workspaces built from this template may be renamed. Renaming can be destructive for templates whose Terraform references the workspace name.
 	AllowWorkspaceRenames bool `db:"allow_workspace_renames" json:"allow_workspace_renames"`
+	// Exit node that terminates egress for workspaces built from this template. NULL routes egress directly.
+	ExitNodeID uuid.NullUUID `db:"exit_node_id" json:"exit_node_id"`
+	// Whether agents transparently enforce that workspace egress goes through the exit node.
+	ExitNodeEnforce bool `db:"exit_node_enforce" json:"exit_node_enforce"`
 }
 
 // Records aggregated usage statistics for templates/users. All usage is rounded up to the nearest minute.

@@ -18554,6 +18554,11 @@ const docTemplate = `{
                 "deployment_config:update",
                 "deployment_stats:*",
                 "deployment_stats:read",
+                "exit_node:*",
+                "exit_node:create",
+                "exit_node:delete",
+                "exit_node:read",
+                "exit_node:update",
                 "file:*",
                 "file:create",
                 "file:read",
@@ -18801,6 +18806,11 @@ const docTemplate = `{
                 "APIKeyScopeDeploymentConfigUpdate",
                 "APIKeyScopeDeploymentStatsAll",
                 "APIKeyScopeDeploymentStatsRead",
+                "APIKeyScopeExitNodeAll",
+                "APIKeyScopeExitNodeCreate",
+                "APIKeyScopeExitNodeDelete",
+                "APIKeyScopeExitNodeRead",
+                "APIKeyScopeExitNodeUpdate",
                 "APIKeyScopeFileAll",
                 "APIKeyScopeFileCreate",
                 "APIKeyScopeFileRead",
@@ -21704,7 +21714,8 @@ const docTemplate = `{
                 "reconnecting_pty",
                 "workspace_app",
                 "port_forwarding",
-                "tunnel"
+                "tunnel",
+                "egress"
             ],
             "x-enum-varnames": [
                 "ConnectionTypeSSH",
@@ -21713,7 +21724,8 @@ const docTemplate = `{
                 "ConnectionTypeReconnectingPTY",
                 "ConnectionTypeWorkspaceApp",
                 "ConnectionTypePortForwarding",
-                "ConnectionTypeTunnel"
+                "ConnectionTypeTunnel",
+                "ConnectionTypeEgress"
             ]
         },
         "codersdk.ConvertLoginRequest": {
@@ -27498,6 +27510,7 @@ const docTemplate = `{
                 "debug_info",
                 "deployment_config",
                 "deployment_stats",
+                "exit_node",
                 "file",
                 "group",
                 "group_member",
@@ -27552,6 +27565,7 @@ const docTemplate = `{
                 "ResourceDebugInfo",
                 "ResourceDeploymentConfig",
                 "ResourceDeploymentStats",
+                "ResourceExitNode",
                 "ResourceFile",
                 "ResourceGroup",
                 "ResourceGroupMember",
@@ -27808,7 +27822,8 @@ const docTemplate = `{
                 "user_secret",
                 "user_skill",
                 "chat_instruction_settings",
-                "chat_operational_settings"
+                "chat_operational_settings",
+                "exit_node"
             ],
             "x-enum-varnames": [
                 "ResourceTypeTemplate",
@@ -27850,7 +27865,8 @@ const docTemplate = `{
                 "ResourceTypeUserSecret",
                 "ResourceTypeUserSkill",
                 "ResourceTypeChatInstructionSettings",
-                "ResourceTypeChatOperationalSettings"
+                "ResourceTypeChatOperationalSettings",
+                "ResourceTypeExitNode"
             ]
         },
         "codersdk.Response": {
@@ -28321,6 +28337,15 @@ const docTemplate = `{
                 },
                 "display_name": {
                     "type": "string"
+                },
+                "exit_node_enforce": {
+                    "description": "ExitNodeEnforce requests transparent enforcement in the workspace so\ntraffic cannot bypass the exit node. Ignored when ExitNodeID is nil.",
+                    "type": "boolean"
+                },
+                "exit_node_id": {
+                    "description": "ExitNodeID routes egress from workspaces built from this template\nthrough the given exit node. Nil leaves egress unmanaged.",
+                    "type": "string",
+                    "format": "uuid"
                 },
                 "failure_ttl_ms": {
                     "description": "FailureTTLMillis, TimeTilDormantMillis, and TimeTilDormantAutoDeleteMillis are enterprise-only. Their\nvalues are used if your license is entitled to use the advanced\ntemplate scheduling feature.",
@@ -29983,6 +30008,15 @@ const docTemplate = `{
                 },
                 "display_name": {
                     "type": "string"
+                },
+                "exit_node_enforce": {
+                    "description": "ExitNodeEnforce toggles transparent enforcement for the exit node\nbinding. Omitting the field keeps the existing value.",
+                    "type": "boolean"
+                },
+                "exit_node_id": {
+                    "description": "ExitNodeID binds the template to an exit node. Set to the nil UUID to\nclear the binding. Omitting the field keeps the existing value.",
+                    "type": "string",
+                    "format": "uuid"
                 },
                 "failure_ttl_ms": {
                     "type": "integer"

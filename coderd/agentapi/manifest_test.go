@@ -50,6 +50,10 @@ func TestGetManifest(t *testing.T) {
 			OwnerID:       owner.ID,
 			OwnerUsername: owner.Username,
 			Name:          "cool-workspace",
+			TemplateID:    uuid.New(),
+		}
+		template = database.Template{
+			ID: workspace.TemplateID,
 		}
 		agent = database.WorkspaceAgent{
 			ID:   uuid.New(),
@@ -336,6 +340,7 @@ func TestGetManifest(t *testing.T) {
 		}).Return(metadata, nil)
 		mDB.EXPECT().GetWorkspaceAgentDevcontainersByAgentID(gomock.Any(), agent.ID).Return(devcontainers, nil)
 		mDB.EXPECT().GetWorkspaceByID(gomock.Any(), workspace.ID).Return(workspace, nil)
+		mDB.EXPECT().GetTemplateByID(gomock.Any(), workspace.TemplateID).Return(template, nil)
 		mDB.EXPECT().ListUserSecretsWithValues(gomock.Any(), workspace.OwnerID).Return(nil, nil)
 
 		got, err := api.GetManifest(context.Background(), &agentproto.GetManifestRequest{})
@@ -403,6 +408,7 @@ func TestGetManifest(t *testing.T) {
 		}).Return([]database.WorkspaceAgentMetadatum{}, nil)
 		mDB.EXPECT().GetWorkspaceAgentDevcontainersByAgentID(gomock.Any(), childAgent.ID).Return([]database.WorkspaceAgentDevcontainer{}, nil)
 		mDB.EXPECT().GetWorkspaceByID(gomock.Any(), workspace.ID).Return(workspace, nil)
+		mDB.EXPECT().GetTemplateByID(gomock.Any(), workspace.TemplateID).Return(template, nil)
 		mDB.EXPECT().ListUserSecretsWithValues(gomock.Any(), workspace.OwnerID).Return(nil, nil)
 
 		got, err := api.GetManifest(context.Background(), &agentproto.GetManifestRequest{})
@@ -466,6 +472,7 @@ func TestGetManifest(t *testing.T) {
 		}).Return([]database.WorkspaceAgentMetadatum{}, nil)
 		mDB.EXPECT().GetWorkspaceAgentDevcontainersByAgentID(gomock.Any(), childAgent.ID).Return([]database.WorkspaceAgentDevcontainer{}, nil)
 		mDB.EXPECT().GetWorkspaceByID(gomock.Any(), workspace.ID).Return(workspace, nil)
+		mDB.EXPECT().GetTemplateByID(gomock.Any(), workspace.TemplateID).Return(template, nil)
 
 		// Return a mix of secrets: env-only, file-only, both, and
 		// one explicitly disabled. The disabled secret should be
@@ -586,6 +593,7 @@ func TestGetManifest(t *testing.T) {
 		}).Return(metadata, nil)
 		mDB.EXPECT().GetWorkspaceAgentDevcontainersByAgentID(gomock.Any(), agent.ID).Return(devcontainers, nil)
 		mDB.EXPECT().GetWorkspaceByID(gomock.Any(), workspace.ID).Return(workspace, nil)
+		mDB.EXPECT().GetTemplateByID(gomock.Any(), workspace.TemplateID).Return(template, nil)
 		mDB.EXPECT().ListUserSecretsWithValues(gomock.Any(), workspace.OwnerID).Return(nil, nil)
 
 		got, err := api.GetManifest(context.Background(), &agentproto.GetManifestRequest{})
@@ -620,5 +628,120 @@ func TestGetManifest(t *testing.T) {
 		// t.Log("expected:\n" + spew.Sdump(expected))
 
 		require.Equal(t, expected, got)
+	})
+
+	t.Run("OK/Egress", func(t *testing.T) {
+		t.Parallel()
+
+		exitNode := database.ExitNode{
+			ID:                 uuid.New(),
+			OrganizationID:     uuid.New(),
+			Name:               "egress",
+			WireguardEndpoints: []string{"203.0.113.10:41641", "203.0.113.10:41641"},
+		}
+		egressTemplate := database.Template{
+			ID:              workspace.TemplateID,
+			ExitNodeID:      uuid.NullUUID{UUID: exitNode.ID, Valid: true},
+			ExitNodeEnforce: true,
+		}
+		egressDERPMap := func() *tailcfg.DERPMap {
+			return &tailcfg.DERPMap{
+				Regions: map[int]*tailcfg.DERPRegion{
+					1: {
+						RegionName: "embedded",
+						Nodes: []*tailcfg.DERPNode{
+							{HostName: "example.com", STUNPort: 3478, DERPPort: 443},
+						},
+					},
+					2: {
+						RegionName: "remote",
+						Nodes: []*tailcfg.DERPNode{
+							{HostName: "derp.example.org", IPv4: "198.51.100.7", IPv6: "none", STUNPort: -1},
+						},
+					},
+				},
+			}
+		}
+
+		mDB := dbmock.NewMockStore(gomock.NewController(t))
+
+		api := &agentapi.ManifestAPI{
+			AccessURL: &url.URL{Scheme: "https", Host: "example.com:8443"},
+
+			AgentFn:     func(ctx context.Context) (database.WorkspaceAgent, error) { return agent, nil },
+			WorkspaceID: workspace.ID,
+			Database:    mDB,
+			DerpMapFn:   egressDERPMap,
+		}
+
+		mDB.EXPECT().GetWorkspaceAppsByAgentID(gomock.Any(), agent.ID).Return([]database.WorkspaceApp{}, nil)
+		mDB.EXPECT().GetWorkspaceAgentScriptsByAgentIDs(gomock.Any(), []uuid.UUID{agent.ID}).Return([]database.GetWorkspaceAgentScriptsByAgentIDsRow{}, nil)
+		mDB.EXPECT().GetWorkspaceAgentMetadata(gomock.Any(), database.GetWorkspaceAgentMetadataParams{
+			WorkspaceAgentID: agent.ID,
+			Keys:             nil, // all
+		}).Return([]database.WorkspaceAgentMetadatum{}, nil)
+		mDB.EXPECT().GetWorkspaceAgentDevcontainersByAgentID(gomock.Any(), agent.ID).Return([]database.WorkspaceAgentDevcontainer{}, nil)
+		mDB.EXPECT().GetWorkspaceByID(gomock.Any(), workspace.ID).Return(workspace, nil)
+		mDB.EXPECT().GetTemplateByID(gomock.Any(), workspace.TemplateID).Return(egressTemplate, nil)
+		mDB.EXPECT().GetExitNodeByID(gomock.Any(), exitNode.ID).Return(exitNode, nil)
+		mDB.EXPECT().ListUserSecretsWithValues(gomock.Any(), workspace.OwnerID).Return(nil, nil)
+
+		got, err := api.GetManifest(context.Background(), &agentproto.GetManifestRequest{})
+		require.NoError(t, err)
+
+		require.Equal(t, &agentproto.EgressConfig{
+			ExitNodeId:   exitNode.ID[:],
+			ExitNodePort: codersdk.ExitNodeTailnetPort,
+			Enforce:      true,
+			ControlPlaneHosts: []string{
+				"198.51.100.7",
+				"203.0.113.10:41641",
+				"derp.example.org",
+				"example.com",
+				"example.com:3478",
+				"example.com:443",
+				"example.com:8443",
+			},
+		}, got.Egress)
+	})
+
+	t.Run("OK/EgressDeletedExitNode", func(t *testing.T) {
+		t.Parallel()
+
+		exitNode := database.ExitNode{
+			ID:      uuid.New(),
+			Deleted: true,
+		}
+		egressTemplate := database.Template{
+			ID:         workspace.TemplateID,
+			ExitNodeID: uuid.NullUUID{UUID: exitNode.ID, Valid: true},
+		}
+
+		mDB := dbmock.NewMockStore(gomock.NewController(t))
+
+		api := &agentapi.ManifestAPI{
+			AccessURL: &url.URL{Scheme: "https", Host: "example.com"},
+
+			AgentFn:     func(ctx context.Context) (database.WorkspaceAgent, error) { return agent, nil },
+			WorkspaceID: workspace.ID,
+			Database:    mDB,
+			DerpMapFn:   derpMapFn,
+		}
+
+		mDB.EXPECT().GetWorkspaceAppsByAgentID(gomock.Any(), agent.ID).Return([]database.WorkspaceApp{}, nil)
+		mDB.EXPECT().GetWorkspaceAgentScriptsByAgentIDs(gomock.Any(), []uuid.UUID{agent.ID}).Return([]database.GetWorkspaceAgentScriptsByAgentIDsRow{}, nil)
+		mDB.EXPECT().GetWorkspaceAgentMetadata(gomock.Any(), database.GetWorkspaceAgentMetadataParams{
+			WorkspaceAgentID: agent.ID,
+			Keys:             nil, // all
+		}).Return([]database.WorkspaceAgentMetadatum{}, nil)
+		mDB.EXPECT().GetWorkspaceAgentDevcontainersByAgentID(gomock.Any(), agent.ID).Return([]database.WorkspaceAgentDevcontainer{}, nil)
+		mDB.EXPECT().GetWorkspaceByID(gomock.Any(), workspace.ID).Return(workspace, nil)
+		mDB.EXPECT().GetTemplateByID(gomock.Any(), workspace.TemplateID).Return(egressTemplate, nil)
+		mDB.EXPECT().GetExitNodeByID(gomock.Any(), exitNode.ID).Return(exitNode, nil)
+		mDB.EXPECT().ListUserSecretsWithValues(gomock.Any(), workspace.OwnerID).Return(nil, nil)
+
+		got, err := api.GetManifest(context.Background(), &agentproto.GetManifestRequest{})
+		require.NoError(t, err)
+		require.Nil(t, got.Egress)
 	})
 }

@@ -604,6 +604,12 @@ func (w WorkspaceProxy) IsPrimary() bool {
 	return w.Name == "primary"
 }
 
+func (e ExitNode) RBACObject() rbac.Object {
+	return rbac.ResourceExitNode.
+		WithID(e.ID).
+		InOrg(e.OrganizationID)
+}
+
 func (f File) RBACObject() rbac.Object {
 	return rbac.ResourceFile.
 		WithID(f.ID).

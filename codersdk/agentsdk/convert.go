@@ -48,6 +48,10 @@ func ManifestFromProto(manifest *proto.Manifest) (Manifest, error) {
 	if err != nil {
 		return Manifest{}, xerrors.Errorf("error converting workspace agent devcontainers: %w", err)
 	}
+	egress, err := EgressConfigFromProto(manifest.Egress)
+	if err != nil {
+		return Manifest{}, xerrors.Errorf("error converting workspace agent egress config: %w", err)
+	}
 	return Manifest{
 		ParentID:                 parentID,
 		AgentID:                  agentID,
@@ -67,6 +71,7 @@ func ManifestFromProto(manifest *proto.Manifest) (Manifest, error) {
 		DisableDirectConnections: manifest.DisableDirectConnections,
 		Metadata:                 MetadataDescriptionsFromProto(manifest.Metadata),
 		Devcontainers:            devcontainers,
+		Egress:                   egress,
 	}, nil
 }
 
@@ -98,7 +103,41 @@ func ProtoFromManifest(manifest Manifest) (*proto.Manifest, error) {
 		Apps:                     apps,
 		Metadata:                 ProtoFromMetadataDescriptions(manifest.Metadata),
 		Devcontainers:            ProtoFromDevcontainers(manifest.Devcontainers),
+		Egress:                   ProtoFromEgressConfig(manifest.Egress),
 	}, nil
+}
+
+// EgressConfigFromProto converts the proto egress config. A nil proto yields
+// a nil config, meaning egress is unmanaged.
+func EgressConfigFromProto(egress *proto.EgressConfig) (*EgressConfig, error) {
+	if egress == nil {
+		return nil, nil //nolint:nilnil // Nil egress means the workspace routes traffic directly.
+	}
+	exitNodeID, err := uuid.FromBytes(egress.ExitNodeId)
+	if err != nil {
+		return nil, xerrors.Errorf("error converting exit node ID: %w", err)
+	}
+	return &EgressConfig{
+		ExitNodeID:        exitNodeID,
+		ExitNodePort:      int(egress.ExitNodePort),
+		Enforce:           egress.Enforce,
+		ControlPlaneHosts: egress.ControlPlaneHosts,
+	}, nil
+}
+
+// ProtoFromEgressConfig converts the SDK egress config to proto. A nil config
+// yields a nil proto so the manifest field stays unset.
+func ProtoFromEgressConfig(egress *EgressConfig) *proto.EgressConfig {
+	if egress == nil {
+		return nil
+	}
+	return &proto.EgressConfig{
+		ExitNodeId: egress.ExitNodeID[:],
+		// #nosec G115 - Ports are bounded by 65535 and always fit in int32.
+		ExitNodePort:      int32(egress.ExitNodePort),
+		Enforce:           egress.Enforce,
+		ControlPlaneHosts: egress.ControlPlaneHosts,
+	}
 }
 
 func MetadataDescriptionsFromProto(descriptions []*proto.WorkspaceAgentMetadata_Description) []codersdk.WorkspaceAgentMetadataDescription {

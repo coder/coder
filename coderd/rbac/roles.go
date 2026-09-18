@@ -513,6 +513,8 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 			ResourcePrebuiltWorkspace.Type: {policy.ActionUpdate, policy.ActionDelete},
 			// CRUD to provisioner daemons for now.
 			ResourceProvisionerDaemon.Type: {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
+			// Binding a template to an exit node requires reading it.
+			ResourceExitNode.Type: {policy.ActionRead},
 			// Needs to read all organizations since
 			ResourceUser.Type:               {policy.ActionRead},
 			ResourceGroup.Type:              {policy.ActionRead},
@@ -685,6 +687,8 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 							// a lot of overlap.
 							ResourceProvisionerDaemon.Type: {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
 							ResourceProvisionerJobs.Type:   {policy.ActionRead, policy.ActionUpdate, policy.ActionCreate},
+							// Binding a template to an exit node requires reading it.
+							ResourceExitNode.Type: {policy.ActionRead},
 						}),
 						Member: []Permission{},
 					},

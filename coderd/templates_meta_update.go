@@ -4,6 +4,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
+
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/schedule"
 	"github.com/coder/coder/v2/coderd/util/ptr"
@@ -35,6 +37,8 @@ type templateMetaUpdate struct {
 	useClassicTemplateFlow               bool
 	disableModuleCache                   bool
 	allowWorkspaceRenames                bool
+	exitNodeID                           uuid.NullUUID
+	exitNodeEnforce                      bool
 	corsBehavior                         database.CorsBehavior
 	autostopRequirementDaysOfWeekParsed  uint8
 	autostartRequirementDaysOfWeekParsed uint8
@@ -99,6 +103,8 @@ func resolveTemplateMetaUpdate(
 		useClassicTemplateFlow:         ptr.NilToDefault(req.UseClassicParameterFlow, template.UseClassicParameterFlow),
 		disableModuleCache:             disableModuleCache,
 		allowWorkspaceRenames:          ptr.NilToDefault(req.AllowWorkspaceRenames, template.AllowWorkspaceRenames),
+		exitNodeID:                     template.ExitNodeID,
+		exitNodeEnforce:                ptr.NilToDefault(req.ExitNodeEnforce, template.ExitNodeEnforce),
 		groupACL:                       template.GroupACL,
 
 		// Default to the original values
@@ -114,6 +120,12 @@ func resolveTemplateMetaUpdate(
 	// that treats a zero value as omitted.
 	if out.name == "" {
 		out.name = template.Name
+	}
+
+	// The nil UUID clears the exit node binding; any other value is
+	// validated against the database by the caller.
+	if req.ExitNodeID != nil {
+		out.exitNodeID = uuid.NullUUID{UUID: *req.ExitNodeID, Valid: *req.ExitNodeID != uuid.Nil}
 	}
 
 	// Override autostop if provided is non-nil

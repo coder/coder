@@ -1645,6 +1645,29 @@ func TestAgent_CoderEnvVars(t *testing.T) {
 	}
 }
 
+func TestAgent_EgressProxyEnvVars(t *testing.T) {
+	t.Parallel()
+
+	manifest := agentsdk.Manifest{
+		Egress: &agentsdk.EgressConfig{
+			ExitNodeID:        uuid.New(),
+			ExitNodePort:      codersdk.ExitNodeTailnetPort,
+			ControlPlaneHosts: []string{"coder.example.com:443"},
+		},
+	}
+	session := setupSSHSession(t, manifest, codersdk.ServiceBannerConfig{}, nil)
+	command := "sh -c 'echo $HTTPS_PROXY; echo $NO_PROXY'"
+	if runtime.GOOS == "windows" {
+		command = "cmd.exe /c echo %HTTPS_PROXY% && echo %NO_PROXY%"
+	}
+	output, err := session.Output(command)
+	require.NoError(t, err)
+	lines := strings.Split(strings.TrimSpace(string(output)), "\n")
+	require.Len(t, lines, 2)
+	require.Regexp(t, `^http://127\.0\.0\.1:\d+$`, strings.TrimSpace(lines[0]))
+	require.Equal(t, "localhost,127.0.0.1,::1,coder.example.com", strings.TrimSpace(lines[1]))
+}
+
 func TestAgent_SSHConnectionEnvVars(t *testing.T) {
 	t.Parallel()
 

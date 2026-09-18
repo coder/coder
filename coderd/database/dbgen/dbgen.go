@@ -1497,6 +1497,34 @@ func WorkspaceProxy(t testing.TB, db database.Store, orig database.WorkspaceProx
 	return proxy, secret
 }
 
+// ExitNode inserts an exit node and returns it with the plaintext token secret.
+func ExitNode(t testing.TB, db database.Store, orig database.ExitNode) (database.ExitNode, string) {
+	secret, hashedSecret, err := apikey.GenerateSecret(64)
+	require.NoError(t, err, "generate secret")
+
+	node, err := db.InsertExitNode(genCtx, database.InsertExitNodeParams{
+		ID:                takeFirst(orig.ID, uuid.New()),
+		OrganizationID:    takeFirst(orig.OrganizationID, uuid.New()),
+		Name:              takeFirst(orig.Name, testutil.GetRandomName(t)),
+		DisplayName:       takeFirst(orig.DisplayName, testutil.GetRandomName(t)),
+		TokenHashedSecret: hashedSecret,
+		CreatedAt:         takeFirst(orig.CreatedAt, dbtime.Now()),
+		UpdatedAt:         takeFirst(orig.UpdatedAt, dbtime.Now()),
+	})
+	require.NoError(t, err, "insert exit node")
+
+	if orig.Version != "" || len(orig.WireguardEndpoints) > 0 || orig.LastSeenAt.Valid {
+		node, err = db.UpdateExitNodeRegistration(genCtx, database.UpdateExitNodeRegistrationParams{
+			ID:                 node.ID,
+			Version:            orig.Version,
+			LastSeenAt:         takeFirst(orig.LastSeenAt.Time, dbtime.Now()),
+			WireguardEndpoints: takeFirstSlice(orig.WireguardEndpoints, []string{}),
+		})
+		require.NoError(t, err, "register exit node")
+	}
+	return node, secret
+}
+
 func File(t testing.TB, db database.Store, orig database.File) database.File {
 	file, err := db.InsertFile(genCtx, database.InsertFileParams{
 		ID:        takeFirst(orig.ID, uuid.New()),

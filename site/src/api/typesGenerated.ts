@@ -726,6 +726,11 @@ export type APIKeyScope =
 	| "deployment_config:update"
 	| "deployment_stats:*"
 	| "deployment_stats:read"
+	| "exit_node:*"
+	| "exit_node:create"
+	| "exit_node:delete"
+	| "exit_node:read"
+	| "exit_node:update"
 	| "file:*"
 	| "file:create"
 	| "file:read"
@@ -973,6 +978,11 @@ export const APIKeyScopes: APIKeyScope[] = [
 	"deployment_config:update",
 	"deployment_stats:*",
 	"deployment_stats:read",
+	"exit_node:*",
+	"exit_node:create",
+	"exit_node:delete",
+	"exit_node:read",
+	"exit_node:update",
 	"file:*",
 	"file:create",
 	"file:read",
@@ -3753,6 +3763,7 @@ export const ConnectionMethods: ConnectionMethod[] = ["derp", "direct", ""];
 
 // From codersdk/connectionlog.go
 export type ConnectionType =
+	| "egress"
 	| "jetbrains"
 	| "port_forwarding"
 	| "reconnecting_pty"
@@ -3762,6 +3773,7 @@ export type ConnectionType =
 	| "workspace_app";
 
 export const ConnectionTypes: ConnectionType[] = [
+	"egress",
 	"jetbrains",
 	"port_forwarding",
 	"reconnecting_pty",
@@ -3918,6 +3930,21 @@ export interface CreateChatRequest {
 	readonly unsafe_dynamic_tools?: readonly DynamicTool[];
 	readonly plan_mode?: ChatPlanMode;
 	readonly client_type?: ChatClientType;
+}
+
+// From codersdk/exitnodes.go
+export interface CreateExitNodeRequest {
+	readonly name: string;
+	readonly display_name?: string;
+}
+
+// From codersdk/exitnodes.go
+/**
+ * CreateExitNodeResponse carries the token exactly once; coderd stores only a
+ * hash.
+ */
+export interface CreateExitNodeResponse extends ExitNode {
+	readonly token: string;
 }
 
 // From codersdk/users.go
@@ -5035,6 +5062,76 @@ export interface Entitlements {
  * EntitlementsWarnings contains active warnings for the user's entitlements.
  */
 export const EntitlementsWarningHeader = "X-Coder-Entitlements-Warning";
+
+// From codersdk/exitnodes.go
+/**
+ * ExitNode is a tailnet peer that terminates workspace egress, enforces
+ * policy, and reports flows back to coderd.
+ */
+export interface ExitNode {
+	readonly id: string;
+	readonly organization_id: string;
+	readonly name: string;
+	readonly display_name: string;
+	readonly created_at: string;
+	readonly updated_at: string;
+	readonly last_seen_at?: string;
+	readonly version: string;
+	/**
+	 * WireguardEndpoints are the public ip:port pairs agents may use for
+	 * direct WireGuard connections. Agents exempt them from enforcement.
+	 */
+	readonly wireguard_endpoints: readonly string[];
+	/**
+	 * TailnetAddress is the deterministic tailnet IP agents dial, derived
+	 * from the exit node ID.
+	 */
+	readonly tailnet_address: string;
+}
+
+// From codersdk/exitnodes.go
+export type ExitNodeFlowDecision = "allow" | "deny";
+
+export const ExitNodeFlowDecisions: ExitNodeFlowDecision[] = ["allow", "deny"];
+
+// From codersdk/exitnodes.go
+/**
+ * ExitNodeFlowReport describes one TCP flow observed by an exit node. The
+ * same FlowID is sent twice for allowed flows: once on connect and once on
+ * disconnect with byte counts filled in.
+ */
+export interface ExitNodeFlowReport {
+	readonly flow_id: string;
+	readonly agent_id: string;
+	readonly destination_ip: string;
+	readonly destination_port: number;
+	/**
+	 * Host is the hostname learned from TLS SNI or the HTTP Host header, or
+	 * empty when neither was present.
+	 */
+	readonly host?: string;
+	readonly decision: ExitNodeFlowDecision;
+	readonly rule_id?: string;
+	readonly reason?: string;
+	readonly bytes_in: number;
+	readonly bytes_out: number;
+	readonly connect_time: string;
+	readonly disconnect_time?: string;
+}
+
+// From codersdk/exitnodes.go
+/**
+ * ExitNodeTailnetPort is the port an exit node listens on inside the
+ * tailnet for HTTP CONNECT requests from workspace agents.
+ */
+export const ExitNodeTailnetPort = 3128;
+
+// From codersdk/exitnodes.go
+/**
+ * ExitNodeTokenHeader authenticates an exit node to coderd. The value is
+ * "<exit node ID>:<secret>", mirroring workspace proxy tokens.
+ */
+export const ExitNodeTokenHeader = "Coder-Exit-Node-Token";
 
 // From codersdk/deployment.go
 export type Experiment =
@@ -8086,6 +8183,7 @@ export type RBACResource =
 	| "debug_info"
 	| "deployment_config"
 	| "deployment_stats"
+	| "exit_node"
 	| "file"
 	| "group"
 	| "group_member"
@@ -8140,6 +8238,7 @@ export const RBACResources: RBACResource[] = [
 	"debug_info",
 	"deployment_config",
 	"deployment_stats",
+	"exit_node",
 	"file",
 	"group",
 	"group_member",
@@ -8234,6 +8333,24 @@ export interface RegionsResponse<R extends RegionTypes> {
 	readonly regions: readonly R[];
 }
 
+// From codersdk/exitnodes.go
+export interface RegisterExitNodeRequest {
+	readonly version: string;
+	readonly hostname: string;
+	readonly wireguard_endpoints: readonly string[];
+}
+
+// From codersdk/exitnodes.go
+export interface RegisterExitNodeResponse {
+	readonly derp_map: TailDERPMap | null;
+	readonly derp_force_websockets: boolean;
+	/**
+	 * AgentIDs are the workspace agents this exit node must open tunnels
+	 * to. Coderd computes the set from templates bound to the exit node.
+	 */
+	readonly agent_ids: readonly string[];
+}
+
 // From codersdk/replicas.go
 export interface Replica {
 	/**
@@ -8266,6 +8383,11 @@ export interface Replica {
 	readonly database_latency: number;
 }
 
+// From codersdk/exitnodes.go
+export interface ReportExitNodeFlowsRequest {
+	readonly flows: readonly ExitNodeFlowReport[];
+}
+
 // From codersdk/users.go
 /**
  * RequestOneTimePasscodeRequest enables callers to request a one-time-passcode to change their password.
@@ -8292,6 +8414,7 @@ export type ResourceType =
 	| "chat_operational_settings"
 	| "convert_login"
 	| "custom_role"
+	| "exit_node"
 	| "git_ssh_key"
 	| "group"
 	| "group_ai_budget"
@@ -8334,6 +8457,7 @@ export const ResourceTypes: ResourceType[] = [
 	"chat_operational_settings",
 	"convert_login",
 	"custom_role",
+	"exit_node",
 	"git_ssh_key",
 	"group",
 	"group_ai_budget",
@@ -8921,6 +9045,58 @@ export interface TLSConfig {
 
 // From tailcfg/derpmap.go
 /**
+ * DERPHomeParams contains parameters from the server related to selecting a
+ * DERP home region (sometimes referred to as the "preferred DERP").
+ */
+export interface TailDERPHomeParams {
+	/**
+	 * RegionScore scales latencies of DERP regions by a given scaling
+	 * factor when determining which region to use as the home
+	 * ("preferred") DERP. Scores in the range (0, 1) will cause this
+	 * region to be proportionally more preferred, and scores in the range
+	 * (1, ∞) will penalize a region.
+	 *
+	 * If a region is not present in this map, it is treated as having a
+	 * score of 1.0.
+	 *
+	 * Scores should not be 0 or negative; such scores will be ignored.
+	 *
+	 * A nil map means no change from the previous value (if any); an empty
+	 * non-nil map can be sent to reset all scores back to 1.0.
+	 */
+	readonly RegionScore?: Record<number, number>;
+}
+
+// From tailcfg/derpmap.go
+/**
+ * DERPMap describes the set of DERP packet relay servers that are available.
+ */
+export interface TailDERPMap {
+	/**
+	 * HomeParams, if non-nil, is a change in home parameters.
+	 *
+	 * The rest of the DEPRMap fields, if zero, means unchanged.
+	 */
+	readonly HomeParams?: TailDERPHomeParams;
+	/**
+	 * Regions is the set of geographic regions running DERP node(s).
+	 *
+	 * It's keyed by the DERPRegion.RegionID.
+	 *
+	 * The numbers are not necessarily contiguous.
+	 */
+	readonly Regions: Record<number, TailDERPRegion | null>;
+	/**
+	 * OmitDefaultRegions specifies to not use Tailscale's DERP servers, and only use those
+	 * specified in this DERPMap. If there are none set outside of the defaults, this is a noop.
+	 *
+	 * This field is only meaningful if the Regions map is non-nil (indicating a change).
+	 */
+	readonly omitDefaultRegions?: boolean;
+}
+
+// From tailcfg/derpmap.go
+/**
  * DERPNode describes a DERP packet relay node running within a DERPRegion.
  */
 export interface TailDERPNode {
@@ -9167,6 +9343,16 @@ export interface Template {
 	 * references the workspace name.
 	 */
 	readonly allow_workspace_renames: boolean;
+	/**
+	 * ExitNodeID routes egress from workspaces built from this template
+	 * through the given exit node. Nil leaves egress unmanaged.
+	 */
+	readonly exit_node_id?: string;
+	/**
+	 * ExitNodeEnforce requests transparent enforcement in the workspace so
+	 * traffic cannot bypass the exit node. Ignored when ExitNodeID is nil.
+	 */
+	readonly exit_node_enforce: boolean;
 }
 
 // From codersdk/templates.go
@@ -10182,6 +10368,16 @@ export interface UpdateTemplateMeta {
 	 * references the workspace name.
 	 */
 	readonly allow_workspace_renames?: boolean;
+	/**
+	 * ExitNodeID binds the template to an exit node. Set to the nil UUID to
+	 * clear the binding. Omitting the field keeps the existing value.
+	 */
+	readonly exit_node_id?: string;
+	/**
+	 * ExitNodeEnforce toggles transparent enforcement for the exit node
+	 * binding. Omitting the field keeps the existing value.
+	 */
+	readonly exit_node_enforce?: boolean;
 }
 
 // From codersdk/users.go

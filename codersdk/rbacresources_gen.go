@@ -23,6 +23,7 @@ const (
 	ResourceDebugInfo                     RBACResource = "debug_info"
 	ResourceDeploymentConfig              RBACResource = "deployment_config"
 	ResourceDeploymentStats               RBACResource = "deployment_stats"
+	ResourceExitNode                      RBACResource = "exit_node"
 	ResourceFile                          RBACResource = "file"
 	ResourceGroup                         RBACResource = "group"
 	ResourceGroupMember                   RBACResource = "group_member"
@@ -103,6 +104,7 @@ var RBACResourceActions = map[RBACResource][]RBACAction{
 	ResourceDebugInfo:                     {ActionRead},
 	ResourceDeploymentConfig:              {ActionRead, ActionUpdate},
 	ResourceDeploymentStats:               {ActionRead},
+	ResourceExitNode:                      {ActionCreate, ActionDelete, ActionRead, ActionUpdate},
 	ResourceFile:                          {ActionCreate, ActionRead},
 	ResourceGroup:                         {ActionCreate, ActionDelete, ActionRead, ActionUpdate},
 	ResourceGroupMember:                   {ActionRead},

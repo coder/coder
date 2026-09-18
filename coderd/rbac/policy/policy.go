@@ -149,6 +149,14 @@ var RBACPermissions = map[string]PermissionDefinition{
 			ActionRead:   "read and use a workspace proxy",
 		},
 	},
+	"exit_node": {
+		Actions: map[Action]ActionDefinition{
+			ActionCreate: "create an exit node",
+			ActionDelete: "delete an exit node",
+			ActionUpdate: "update an exit node",
+			ActionRead:   "read an exit node",
+		},
+	},
 	"workspace_build_orchestration": {
 		Actions: map[Action]ActionDefinition{
 			ActionCreate: "create a workspace build orchestration",

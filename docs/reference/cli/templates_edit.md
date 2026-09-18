@@ -185,6 +185,23 @@ Requires workspace builds to use the active template version. This setting does 
 
 Disable the default behavior of granting template access to the 'everyone' group. The template permissions must be updated to allow non-admin users to use this template.
 
+### --exit-node
+
+|      |                     |
+|------|---------------------|
+| Type | <code>string</code> |
+
+Route egress from workspaces on this template through the exit node with this name or ID. Pass an empty string to clear the binding.
+
+### --exit-node-enforce
+
+|         |                    |
+|---------|--------------------|
+| Type    | <code>bool</code>  |
+| Default | <code>false</code> |
+
+Transparently enforce that workspace egress goes through the exit node. Has no effect without --exit-node.
+
 ### -y, --yes
 
 |      |                   |

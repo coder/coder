@@ -537,6 +537,7 @@ var (
 					rbac.ResourceWorkspaceDormant.Type:            {policy.ActionUpdate, policy.ActionDelete, policy.ActionWorkspaceStop},
 					rbac.ResourceWorkspace.Type:                   {policy.ActionUpdate, policy.ActionDelete, policy.ActionWorkspaceStart, policy.ActionWorkspaceStop, policy.ActionSSH, policy.ActionCreateAgent, policy.ActionDeleteAgent, policy.ActionUpdateAgent},
 					rbac.ResourceWorkspaceProxy.Type:              {policy.ActionCreate, policy.ActionUpdate, policy.ActionDelete},
+					rbac.ResourceExitNode.Type:                    {policy.ActionUpdate},
 					rbac.ResourceWorkspaceBuildOrchestration.Type: {policy.ActionUpdate, policy.ActionRead},
 					rbac.ResourceDeploymentConfig.Type:            {policy.ActionCreate, policy.ActionUpdate, policy.ActionDelete},
 					rbac.ResourceNotificationMessage.Type:         {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
@@ -2309,6 +2310,10 @@ func (q *querier) DeleteCustomRole(ctx context.Context, arg database.DeleteCusto
 	return q.db.DeleteCustomRole(ctx, arg)
 }
 
+func (q *querier) DeleteExitNodeByID(ctx context.Context, id uuid.UUID) error {
+	return deleteQ(q.log, q.auth, q.db.GetExitNodeByID, q.db.DeleteExitNodeByID)(ctx, id)
+}
+
 func (q *querier) DeleteExpiredAPIKeys(ctx context.Context, arg database.DeleteExpiredAPIKeysParams) (int64, error) {
 	// Requires DELETE across all API keys.
 	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceApiKey); err != nil {
@@ -3950,6 +3955,18 @@ func (q *querier) GetEnabledMCPServerConfigsByOrganizationAndIDs(ctx context.Con
 	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetEnabledMCPServerConfigsByOrganizationAndIDs)(ctx, arg)
 }
 
+func (q *querier) GetExitNodeByID(ctx context.Context, id uuid.UUID) (database.ExitNode, error) {
+	return fetch(q.log, q.auth, q.db.GetExitNodeByID)(ctx, id)
+}
+
+func (q *querier) GetExitNodeByOrgAndName(ctx context.Context, arg database.GetExitNodeByOrgAndNameParams) (database.ExitNode, error) {
+	return fetch(q.log, q.auth, q.db.GetExitNodeByOrgAndName)(ctx, arg)
+}
+
+func (q *querier) GetExitNodesByOrganization(ctx context.Context, organizationID uuid.UUID) ([]database.ExitNode, error) {
+	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetExitNodesByOrganization)(ctx, organizationID)
+}
+
 // GetExternalAgentTokensByTemplateID is used for scaletesting purposes; the
 // scaletest agentfake path calls this query directly via a connection to the
 // database. There is no production code path that uses this method, and it is
@@ -5520,6 +5537,19 @@ func (q *querier) GetWorkspaceAgentDevcontainersByAgentID(ctx context.Context, w
 	return q.db.GetWorkspaceAgentDevcontainersByAgentID(ctx, workspaceAgentID)
 }
 
+func (q *querier) GetWorkspaceAgentIDsByExitNode(ctx context.Context, exitNodeID uuid.UUID) ([]uuid.UUID, error) {
+	// The exit node registration path calls this with a system context. The
+	// agent IDs span workspaces owned by many users, so reading the exit node
+	// is the gate rather than per-workspace authorization.
+	if _, err := q.GetExitNodeByID(ctx, exitNodeID); err != nil {
+		return nil, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return nil, err
+	}
+	return q.db.GetWorkspaceAgentIDsByExitNode(ctx, exitNodeID)
+}
+
 func (q *querier) GetWorkspaceAgentLifecycleStateByID(ctx context.Context, id uuid.UUID) (database.GetWorkspaceAgentLifecycleStateByIDRow, error) {
 	_, err := q.GetWorkspaceAgentByID(ctx, id)
 	if err != nil {
@@ -6295,6 +6325,10 @@ func (q *querier) InsertDeploymentID(ctx context.Context, value string) error {
 		return err
 	}
 	return q.db.InsertDeploymentID(ctx, value)
+}
+
+func (q *querier) InsertExitNode(ctx context.Context, arg database.InsertExitNodeParams) (database.ExitNode, error) {
+	return insert(q.log, q.auth, rbac.ResourceExitNode.InOrg(arg.OrganizationID).WithID(arg.ID), q.db.InsertExitNode)(ctx, arg)
 }
 
 func (q *querier) InsertExternalAuthLink(ctx context.Context, arg database.InsertExternalAuthLinkParams) (database.ExternalAuthLink, error) {
@@ -7783,6 +7817,13 @@ func (q *querier) UpdateEncryptedUserAIProviderKey(ctx context.Context, arg data
 		return database.UserAIProviderKey{}, err
 	}
 	return q.db.UpdateEncryptedUserAIProviderKey(ctx, arg)
+}
+
+func (q *querier) UpdateExitNodeRegistration(ctx context.Context, arg database.UpdateExitNodeRegistrationParams) (database.ExitNode, error) {
+	fetch := func(ctx context.Context, arg database.UpdateExitNodeRegistrationParams) (database.ExitNode, error) {
+		return q.db.GetExitNodeByID(ctx, arg.ID)
+	}
+	return updateWithReturn(q.log, q.auth, fetch, q.db.UpdateExitNodeRegistration)(ctx, arg)
 }
 
 func (q *querier) UpdateExternalAuthLink(ctx context.Context, arg database.UpdateExternalAuthLinkParams) (database.ExternalAuthLink, error) {

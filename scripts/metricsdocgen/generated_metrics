@@ -82,6 +82,27 @@ coder_derp_server_unknown_frames_total 0
 # HELP coder_derp_server_watchers Current watchers.
 # TYPE coder_derp_server_watchers gauge
 coder_derp_server_watchers 0
+# HELP coder_exit_node_active_flows Number of TCP flows currently being proxied.
+# TYPE coder_exit_node_active_flows gauge
+coder_exit_node_active_flows 0
+# HELP coder_exit_node_bytes_total Total number of bytes proxied by direction.
+# TYPE coder_exit_node_bytes_total counter
+coder_exit_node_bytes_total{direction=""} 0
+# HELP coder_exit_node_flow_reports_dropped_total Flow reports dropped because the outgoing queue was full.
+# TYPE coder_exit_node_flow_reports_dropped_total counter
+coder_exit_node_flow_reports_dropped_total 0
+# HELP coder_exit_node_flow_reports_sent_total Flow reports delivered to coderd.
+# TYPE coder_exit_node_flow_reports_sent_total counter
+coder_exit_node_flow_reports_sent_total 0
+# HELP coder_exit_node_flows_total Total number of TCP flows handled by policy decision.
+# TYPE coder_exit_node_flows_total counter
+coder_exit_node_flows_total{decision=""} 0
+# HELP coder_exit_node_policy_reload_total Policy reload attempts by result.
+# TYPE coder_exit_node_policy_reload_total counter
+coder_exit_node_policy_reload_total{result=""} 0
+# HELP coder_exit_node_unknown_source_total Connections rejected because the source address was not a known agent.
+# TYPE coder_exit_node_unknown_source_total counter
+coder_exit_node_unknown_source_total 0
 # HELP coder_nats_pubsub_connected Whether we are connected (1) or not connected (0) to nats
 # TYPE coder_nats_pubsub_connected gauge
 coder_nats_pubsub_connected 0

@@ -974,6 +974,24 @@ func TestRolePermissions(t *testing.T) {
 			},
 		},
 		{
+			Name:     "ExitNode",
+			Actions:  []policy.Action{policy.ActionCreate, policy.ActionUpdate, policy.ActionDelete},
+			Resource: rbac.ResourceExitNode.InOrg(orgID),
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true:  {owner, orgAdmin},
+				false: {setOtherOrg, orgAuditor, orgUserAdmin, orgTemplateAdmin, memberMe, templateAdmin, userAdmin, orgWorkspaceAccessUser},
+			},
+		},
+		{
+			Name:     "ExitNodeRead",
+			Actions:  []policy.Action{policy.ActionRead},
+			Resource: rbac.ResourceExitNode.InOrg(orgID),
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true:  {owner, orgAdmin, orgTemplateAdmin, templateAdmin},
+				false: {setOtherOrg, orgAuditor, orgUserAdmin, memberMe, userAdmin, orgWorkspaceAccessUser},
+			},
+		},
+		{
 			Name:     "WorkspaceBuildOrchestration",
 			Actions:  crud,
 			Resource: rbac.ResourceWorkspaceBuildOrchestration.InOrg(orgID),

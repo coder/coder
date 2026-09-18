@@ -100,6 +100,18 @@ message Manifest {
 	repeated WorkspaceAgentMetadata.Description metadata = 12;
 	repeated WorkspaceAgentDevcontainer devcontainers = 17;
 	repeated WorkspaceSecret secrets = 19;
+	optional EgressConfig egress = 20;
+}
+
+// EgressConfig tells the agent how to route and enforce workspace egress
+// through an exit node. Absent when the template has no exit node.
+message EgressConfig {
+	bytes exit_node_id = 1;
+	int32 exit_node_port = 2;
+	bool enforce = 3;
+	// control_plane_hosts are exempt from enforcement so the agent keeps
+	// reaching coderd, DERP relays, and the exit node itself.
+	repeated string control_plane_hosts = 4;
 }
 
 // WorkspaceSecret is a secret included in the agent manifest

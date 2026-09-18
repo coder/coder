@@ -394,7 +394,8 @@ CREATE TYPE connection_type AS ENUM (
     'reconnecting_pty',
     'workspace_app',
     'port_forwarding',
-    'tunnel'
+    'tunnel',
+    'egress'
 );
 
 CREATE TYPE cors_behavior AS ENUM (
@@ -616,7 +617,8 @@ CREATE TYPE resource_type AS ENUM (
     'chat_instruction_settings',
     'mcp_server_config',
     'chat_model_config',
-    'chat_operational_settings'
+    'chat_operational_settings',
+    'exit_node'
 );
 
 CREATE TYPE shareable_workspace_owners AS ENUM (
@@ -2425,6 +2427,28 @@ COMMENT ON COLUMN dbcrypt_keys.revoked_at IS 'The time at which the key was revo
 
 COMMENT ON COLUMN dbcrypt_keys.test IS 'A column used to test the encryption.';
 
+CREATE TABLE exit_nodes (
+    id uuid NOT NULL,
+    organization_id uuid NOT NULL,
+    name text NOT NULL,
+    display_name text DEFAULT ''::text NOT NULL,
+    created_at timestamp with time zone NOT NULL,
+    updated_at timestamp with time zone NOT NULL,
+    deleted boolean DEFAULT false NOT NULL,
+    token_hashed_secret bytea NOT NULL,
+    version text DEFAULT ''::text NOT NULL,
+    last_seen_at timestamp with time zone,
+    wireguard_endpoints text[] DEFAULT '{}'::text[] NOT NULL
+);
+
+COMMENT ON TABLE exit_nodes IS 'Tailnet peers that terminate workspace egress, enforce policy, and report flows.';
+
+COMMENT ON COLUMN exit_nodes.deleted IS 'Boolean indicator of a deleted exit node. Exit nodes are soft-deleted.';
+
+COMMENT ON COLUMN exit_nodes.token_hashed_secret IS 'Hashed secret used to authenticate the exit node to coderd.';
+
+COMMENT ON COLUMN exit_nodes.wireguard_endpoints IS 'Public ip:port pairs agents may use for direct WireGuard connections to the exit node.';
+
 CREATE TABLE files (
     hash character varying(64) NOT NULL,
     created_at timestamp with time zone NOT NULL,
@@ -3295,7 +3319,9 @@ CREATE TABLE templates (
     disable_module_cache boolean DEFAULT false NOT NULL,
     time_til_autostop_notify bigint DEFAULT 0 NOT NULL,
     agents_allowed boolean DEFAULT true NOT NULL,
-    allow_workspace_renames boolean DEFAULT false NOT NULL
+    allow_workspace_renames boolean DEFAULT false NOT NULL,
+    exit_node_id uuid,
+    exit_node_enforce boolean DEFAULT false NOT NULL
 );
 
 COMMENT ON COLUMN templates.default_ttl IS 'The default duration for autostop for workspaces created from this template.';
@@ -3323,6 +3349,10 @@ COMMENT ON COLUMN templates.time_til_autostop_notify IS 'How long before the wor
 COMMENT ON COLUMN templates.agents_allowed IS 'Whether Coder Agents can create workspaces using this template.';
 
 COMMENT ON COLUMN templates.allow_workspace_renames IS 'Whether workspaces built from this template may be renamed. Renaming can be destructive for templates whose Terraform references the workspace name.';
+
+COMMENT ON COLUMN templates.exit_node_id IS 'Exit node that terminates egress for workspaces built from this template. NULL routes egress directly.';
+
+COMMENT ON COLUMN templates.exit_node_enforce IS 'Whether agents transparently enforce that workspace egress goes through the exit node.';
 
 CREATE VIEW template_with_names AS
  SELECT templates.id,
@@ -3359,6 +3389,8 @@ CREATE VIEW template_with_names AS
     templates.time_til_autostop_notify,
     templates.agents_allowed,
     templates.allow_workspace_renames,
+    templates.exit_node_id,
+    templates.exit_node_enforce,
     COALESCE(visible_users.avatar_url, ''::text) AS created_by_avatar_url,
     COALESCE(visible_users.username, ''::text) AS created_by_username,
     COALESCE(visible_users.name, ''::text) AS created_by_name,
@@ -4348,6 +4380,9 @@ ALTER TABLE ONLY dbcrypt_keys
 ALTER TABLE ONLY dbcrypt_keys
     ADD CONSTRAINT dbcrypt_keys_revoked_key_digest_key UNIQUE (revoked_key_digest);
 
+ALTER TABLE ONLY exit_nodes
+    ADD CONSTRAINT exit_nodes_pkey PRIMARY KEY (id);
+
 ALTER TABLE ONLY files
     ADD CONSTRAINT files_hash_created_by_key UNIQUE (hash, created_by);
 
@@ -4670,6 +4705,8 @@ CREATE INDEX api_keys_last_used_idx ON api_keys USING btree (last_used DESC);
 COMMENT ON INDEX api_keys_last_used_idx IS 'Index for optimizing api_keys queries filtering by last_used';
 
 CREATE INDEX chat_heartbeats_heartbeat_at_idx ON chat_heartbeats USING btree (heartbeat_at);
+
+CREATE UNIQUE INDEX exit_nodes_organization_id_lower_name_idx ON exit_nodes USING btree (organization_id, lower(name)) WHERE (deleted = false);
 
 CREATE INDEX idx_agent_stats_created_at ON workspace_agent_stats USING btree (created_at);
 
@@ -5225,6 +5262,9 @@ ALTER TABLE ONLY connection_logs
 ALTER TABLE ONLY crypto_keys
     ADD CONSTRAINT crypto_keys_secret_key_id_fkey FOREIGN KEY (secret_key_id) REFERENCES dbcrypt_keys(active_key_digest);
 
+ALTER TABLE ONLY exit_nodes
+    ADD CONSTRAINT exit_nodes_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
+
 ALTER TABLE ONLY chat_debug_steps
     ADD CONSTRAINT fk_chat_debug_steps_run_chat FOREIGN KEY (run_id, chat_id) REFERENCES chat_debug_runs(id, chat_id) ON DELETE CASCADE;
 
@@ -5398,6 +5438,9 @@ ALTER TABLE ONLY template_versions
 
 ALTER TABLE ONLY templates
     ADD CONSTRAINT templates_created_by_fkey FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE RESTRICT;
+
+ALTER TABLE ONLY templates
+    ADD CONSTRAINT templates_exit_node_id_fkey FOREIGN KEY (exit_node_id) REFERENCES exit_nodes(id) ON DELETE SET NULL;
 
 ALTER TABLE ONLY templates
     ADD CONSTRAINT templates_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;

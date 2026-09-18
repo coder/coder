@@ -184,7 +184,9 @@ SET
 	cors_behavior = $11,
 	disable_module_cache = $12,
 	agents_allowed = $13,
-	allow_workspace_renames = $14
+	allow_workspace_renames = $14,
+	exit_node_id = $15,
+	exit_node_enforce = $16
 WHERE
 	id = $1
 ;

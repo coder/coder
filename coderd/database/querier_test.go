@@ -8523,6 +8523,90 @@ func TestUpsertWorkspaceAppCannotRebindAcrossWorkspaces(t *testing.T) {
 	require.Equal(t, agentA.ID, rebound.AgentID)
 }
 
+func TestGetWorkspaceAgentIDsByExitNode(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	org := dbgen.Organization(t, db, database.Organization{})
+	owner := dbgen.User(t, db, database.User{})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: org.ID, UserID: owner.ID})
+	exitNode, _ := dbgen.ExitNode(t, db, database.ExitNode{OrganizationID: org.ID})
+
+	// bindTemplate creates a template and optionally routes it through the
+	// exit node.
+	bindTemplate := func(bound bool) database.Template {
+		tpl := dbfake.TemplateVersion(t, db).Seed(database.TemplateVersion{
+			OrganizationID: org.ID,
+			CreatedBy:      owner.ID,
+		}).Do().Template
+		if !bound {
+			return tpl
+		}
+		err := db.UpdateTemplateMetaByID(ctx, database.UpdateTemplateMetaByIDParams{
+			ID:                           tpl.ID,
+			UpdatedAt:                    dbtime.Now(),
+			Description:                  tpl.Description,
+			Name:                         tpl.Name,
+			Icon:                         tpl.Icon,
+			DisplayName:                  tpl.DisplayName,
+			AllowUserCancelWorkspaceJobs: tpl.AllowUserCancelWorkspaceJobs,
+			GroupACL:                     tpl.GroupACL,
+			MaxPortSharingLevel:          tpl.MaxPortSharingLevel,
+			UseClassicParameterFlow:      tpl.UseClassicParameterFlow,
+			CorsBehavior:                 tpl.CorsBehavior,
+			DisableModuleCache:           tpl.DisableModuleCache,
+			AgentsAllowed:                tpl.AgentsAllowed,
+			AllowWorkspaceRenames:        tpl.AllowWorkspaceRenames,
+			ExitNodeID:                   uuid.NullUUID{UUID: exitNode.ID, Valid: true},
+			ExitNodeEnforce:              true,
+		})
+		require.NoError(t, err)
+		return tpl
+	}
+	boundTemplate := bindTemplate(true)
+	unboundTemplate := bindTemplate(false)
+
+	// Running workspace on the bound template: included.
+	running := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+		OwnerID:        owner.ID,
+		OrganizationID: org.ID,
+		TemplateID:     boundTemplate.ID,
+	}).WithAgent().Do()
+	require.Len(t, running.Agents, 1)
+
+	// Stopped workspace on the bound template: excluded.
+	dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+		OwnerID:        owner.ID,
+		OrganizationID: org.ID,
+		TemplateID:     boundTemplate.ID,
+	}).Seed(database.WorkspaceBuild{Transition: database.WorkspaceTransitionStop}).WithAgent().Do()
+
+	// Running workspace on an unbound template: excluded.
+	dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+		OwnerID:        owner.ID,
+		OrganizationID: org.ID,
+		TemplateID:     unboundTemplate.ID,
+	}).WithAgent().Do()
+
+	// Deleted workspace on the bound template: excluded.
+	dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+		OwnerID:        owner.ID,
+		OrganizationID: org.ID,
+		TemplateID:     boundTemplate.ID,
+		Deleted:        true,
+	}).WithAgent().Do()
+
+	got, err := db.GetWorkspaceAgentIDsByExitNode(ctx, exitNode.ID)
+	require.NoError(t, err)
+	require.Equal(t, []uuid.UUID{running.Agents[0].ID}, got)
+
+	got, err = db.GetWorkspaceAgentIDsByExitNode(ctx, uuid.New())
+	require.NoError(t, err)
+	require.Empty(t, got)
+}
+
 func TestGetWorkspaceAgentsByParentID(t *testing.T) {
 	t.Parallel()
 

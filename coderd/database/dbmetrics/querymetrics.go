@@ -584,6 +584,14 @@ func (m queryMetricsStore) DeleteCustomRole(ctx context.Context, arg database.De
 	return r0
 }
 
+func (m queryMetricsStore) DeleteExitNodeByID(ctx context.Context, id uuid.UUID) error {
+	start := time.Now()
+	r0 := m.s.DeleteExitNodeByID(ctx, id)
+	m.queryLatencies.WithLabelValues("DeleteExitNodeByID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteExitNodeByID").Inc()
+	return r0
+}
+
 func (m queryMetricsStore) DeleteExpiredAPIKeys(ctx context.Context, arg database.DeleteExpiredAPIKeysParams) (int64, error) {
 	start := time.Now()
 	r0, r1 := m.s.DeleteExpiredAPIKeys(ctx, arg)
@@ -2088,6 +2096,30 @@ func (m queryMetricsStore) GetEnabledMCPServerConfigsByOrganizationAndIDs(ctx co
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetExitNodeByID(ctx context.Context, id uuid.UUID) (database.ExitNode, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetExitNodeByID(ctx, id)
+	m.queryLatencies.WithLabelValues("GetExitNodeByID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetExitNodeByID").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetExitNodeByOrgAndName(ctx context.Context, arg database.GetExitNodeByOrgAndNameParams) (database.ExitNode, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetExitNodeByOrgAndName(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetExitNodeByOrgAndName").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetExitNodeByOrgAndName").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetExitNodesByOrganization(ctx context.Context, organizationID uuid.UUID) ([]database.ExitNode, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetExitNodesByOrganization(ctx, organizationID)
+	m.queryLatencies.WithLabelValues("GetExitNodesByOrganization").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetExitNodesByOrganization").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetExternalAgentTokensByTemplateID(ctx context.Context, arg database.GetExternalAgentTokensByTemplateIDParams) ([]database.GetExternalAgentTokensByTemplateIDRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetExternalAgentTokensByTemplateID(ctx, arg)
@@ -3552,6 +3584,14 @@ func (m queryMetricsStore) GetWorkspaceAgentDevcontainersByAgentID(ctx context.C
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetWorkspaceAgentIDsByExitNode(ctx context.Context, exitNodeID uuid.UUID) ([]uuid.UUID, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetWorkspaceAgentIDsByExitNode(ctx, exitNodeID)
+	m.queryLatencies.WithLabelValues("GetWorkspaceAgentIDsByExitNode").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetWorkspaceAgentIDsByExitNode").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetWorkspaceAgentLifecycleStateByID(ctx context.Context, id uuid.UUID) (database.GetWorkspaceAgentLifecycleStateByIDRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetWorkspaceAgentLifecycleStateByID(ctx, id)
@@ -4254,6 +4294,14 @@ func (m queryMetricsStore) InsertDeploymentID(ctx context.Context, value string)
 	m.queryLatencies.WithLabelValues("InsertDeploymentID").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertDeploymentID").Inc()
 	return r0
+}
+
+func (m queryMetricsStore) InsertExitNode(ctx context.Context, arg database.InsertExitNodeParams) (database.ExitNode, error) {
+	start := time.Now()
+	r0, r1 := m.s.InsertExitNode(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertExitNode").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertExitNode").Inc()
+	return r0, r1
 }
 
 func (m queryMetricsStore) InsertExternalAuthLink(ctx context.Context, arg database.InsertExternalAuthLinkParams) (database.ExternalAuthLink, error) {
@@ -5445,6 +5493,14 @@ func (m queryMetricsStore) UpdateEncryptedUserAIProviderKey(ctx context.Context,
 	r0, r1 := m.s.UpdateEncryptedUserAIProviderKey(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpdateEncryptedUserAIProviderKey").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateEncryptedUserAIProviderKey").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) UpdateExitNodeRegistration(ctx context.Context, arg database.UpdateExitNodeRegistrationParams) (database.ExitNode, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpdateExitNodeRegistration(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateExitNodeRegistration").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateExitNodeRegistration").Inc()
 	return r0, r1
 }
 

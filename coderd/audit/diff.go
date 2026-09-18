@@ -45,7 +45,8 @@ type Auditable interface {
 		database.UserSecret |
 		database.UserSkill |
 		database.ChatInstructionSettings |
-		database.ChatOperationalSettings
+		database.ChatOperationalSettings |
+		database.ExitNode
 }
 
 // Map is a map of changed fields in an audited resource. It maps field names to

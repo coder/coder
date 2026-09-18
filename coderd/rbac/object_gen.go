@@ -179,6 +179,16 @@ var (
 		Type: "deployment_stats",
 	}
 
+	// ResourceExitNode
+	// Valid Actions
+	//  - "ActionCreate" :: create an exit node
+	//  - "ActionDelete" :: delete an exit node
+	//  - "ActionRead" :: read an exit node
+	//  - "ActionUpdate" :: update an exit node
+	ResourceExitNode = Object{
+		Type: "exit_node",
+	}
+
 	// ResourceFile
 	// Valid Actions
 	//  - "ActionCreate" :: create a file
@@ -529,6 +539,7 @@ func AllResources() []Objecter {
 		ResourceDebugInfo,
 		ResourceDeploymentConfig,
 		ResourceDeploymentStats,
+		ResourceExitNode,
 		ResourceFile,
 		ResourceGroup,
 		ResourceGroupMember,

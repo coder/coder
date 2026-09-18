@@ -24,20 +24,20 @@ const (
 // ExitNode is a tailnet peer that terminates workspace egress, enforces
 // policy, and reports flows back to coderd.
 type ExitNode struct {
-	ID             uuid.UUID  `json:"id" format:"uuid"`
-	OrganizationID uuid.UUID  `json:"organization_id" format:"uuid"`
-	Name           string     `json:"name"`
-	DisplayName    string     `json:"display_name"`
-	CreatedAt      time.Time  `json:"created_at" format:"date-time"`
-	UpdatedAt      time.Time  `json:"updated_at" format:"date-time"`
-	LastSeenAt     *time.Time `json:"last_seen_at,omitempty" format:"date-time"`
-	Version        string     `json:"version"`
+	ID             uuid.UUID  `json:"id" format:"uuid" table:"id"`
+	OrganizationID uuid.UUID  `json:"organization_id" format:"uuid" table:"organization id"`
+	Name           string     `json:"name" table:"name,default_sort"`
+	DisplayName    string     `json:"display_name" table:"display name"`
+	CreatedAt      time.Time  `json:"created_at" format:"date-time" table:"created at"`
+	UpdatedAt      time.Time  `json:"updated_at" format:"date-time" table:"updated at"`
+	LastSeenAt     *time.Time `json:"last_seen_at,omitempty" format:"date-time" table:"last seen at"`
+	Version        string     `json:"version" table:"version"`
 	// WireguardEndpoints are the public ip:port pairs agents may use for
 	// direct WireGuard connections. Agents exempt them from enforcement.
-	WireguardEndpoints []string `json:"wireguard_endpoints"`
+	WireguardEndpoints []string `json:"wireguard_endpoints" table:"wireguard endpoints"`
 	// TailnetAddress is the deterministic tailnet IP agents dial, derived
 	// from the exit node ID.
-	TailnetAddress string `json:"tailnet_address"`
+	TailnetAddress string `json:"tailnet_address" table:"tailnet address"`
 }
 
 type CreateExitNodeRequest struct {
@@ -78,10 +78,10 @@ const (
 // same FlowID is sent twice for allowed flows: once on connect and once on
 // disconnect with byte counts filled in.
 type ExitNodeFlowReport struct {
-	FlowID          uuid.UUID            `json:"flow_id" format:"uuid"`
-	AgentID         uuid.UUID            `json:"agent_id" format:"uuid"`
-	DestinationIP   string               `json:"destination_ip"`
-	DestinationPort int                  `json:"destination_port"`
+	FlowID          uuid.UUID `json:"flow_id" format:"uuid"`
+	AgentID         uuid.UUID `json:"agent_id" format:"uuid"`
+	DestinationIP   string    `json:"destination_ip"`
+	DestinationPort int       `json:"destination_port"`
 	// Host is the hostname learned from TLS SNI or the HTTP Host header, or
 	// empty when neither was present.
 	Host           string               `json:"host,omitempty"`

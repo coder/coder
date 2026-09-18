@@ -100,6 +100,12 @@ export const RBACResourceActions: Partial<
 	deployment_stats: {
 		read: "read deployment stats",
 	},
+	exit_node: {
+		create: "create an exit node",
+		delete: "delete an exit node",
+		read: "read an exit node",
+		update: "update an exit node",
+	},
 	file: {
 		create: "create a file",
 		read: "read files",

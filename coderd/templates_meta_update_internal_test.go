@@ -45,6 +45,8 @@ func baselineTemplate() database.Template {
 		CorsBehavior:                  database.CorsBehaviorPassthru,
 		DisableModuleCache:            true,
 		AllowWorkspaceRenames:         true,
+		ExitNodeID:                    uuid.NullUUID{UUID: uuid.MustParse("00000000-0000-0000-0000-0000000000e1"), Valid: true},
+		ExitNodeEnforce:               true,
 		GroupACL: database.TemplateACL{
 			orgID.String(): {"read"},
 		},
@@ -89,6 +91,8 @@ func baselineResolved() templateMetaUpdate {
 		useClassicTemplateFlow:               tpl.UseClassicParameterFlow,
 		disableModuleCache:                   tpl.DisableModuleCache,
 		allowWorkspaceRenames:                tpl.AllowWorkspaceRenames,
+		exitNodeID:                           tpl.ExitNodeID,
+		exitNodeEnforce:                      tpl.ExitNodeEnforce,
 		corsBehavior:                         tpl.CorsBehavior,
 		autostopRequirementDaysOfWeekParsed:  0b0000001,
 		autostartRequirementDaysOfWeekParsed: 0b1000000,
@@ -297,6 +301,29 @@ func TestResolveTemplateMetaUpdate(t *testing.T) {
 			req:  codersdk.UpdateTemplateMeta{AllowWorkspaceRenames: new(false)},
 			expected: expected{override: func(r *templateMetaUpdate) {
 				r.allowWorkspaceRenames = false
+			}},
+		},
+
+		// Exit node binding.
+		{
+			name: "ExitNodeIDChange",
+			req:  codersdk.UpdateTemplateMeta{ExitNodeID: new(uuid.MustParse("00000000-0000-0000-0000-0000000000e2"))},
+			expected: expected{override: func(r *templateMetaUpdate) {
+				r.exitNodeID = uuid.NullUUID{UUID: uuid.MustParse("00000000-0000-0000-0000-0000000000e2"), Valid: true}
+			}},
+		},
+		{
+			name: "ExitNodeIDNilUUIDClears",
+			req:  codersdk.UpdateTemplateMeta{ExitNodeID: new(uuid.Nil)},
+			expected: expected{override: func(r *templateMetaUpdate) {
+				r.exitNodeID = uuid.NullUUID{}
+			}},
+		},
+		{
+			name: "ExitNodeEnforce",
+			req:  codersdk.UpdateTemplateMeta{ExitNodeEnforce: new(false)},
+			expected: expected{override: func(r *templateMetaUpdate) {
+				r.exitNodeEnforce = false
 			}},
 		},
 

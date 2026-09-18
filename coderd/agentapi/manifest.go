@@ -4,7 +4,11 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"maps"
+	"net"
 	"net/url"
+	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -99,6 +103,12 @@ func (a *ManifestAPI) GetManifest(ctx context.Context, _ *agentproto.GetManifest
 		return nil, xerrors.Errorf("getting user secrets: %w", err)
 	}
 
+	derpMap := a.DerpMapFn()
+	egress, err := a.egressConfig(ctx, workspace.TemplateID, derpMap)
+	if err != nil {
+		return nil, xerrors.Errorf("getting egress config: %w", err)
+	}
+
 	appSlug := appurl.ApplicationURL{
 		AppSlugOrPort: "{{port}}",
 		AgentName:     workspaceAgent.Name,
@@ -150,13 +160,98 @@ func (a *ManifestAPI) GetManifest(ctx context.Context, _ *agentproto.GetManifest
 		DerpForceWebsockets:      a.DerpForceWebSockets,
 		ParentId:                 parentID,
 
-		DerpMap:       tailnet.DERPMapToProto(a.DerpMapFn()),
+		DerpMap:       tailnet.DERPMapToProto(derpMap),
 		Scripts:       dbAgentScriptsToProto(scripts),
 		Apps:          apps,
 		Metadata:      dbAgentMetadataToProtoDescription(metadata),
 		Devcontainers: dbAgentDevcontainersToProto(devcontainers),
 		Secrets:       dbUserSecretsToProto(userSecrets, secretFilePathPolicy),
+		Egress:        egress,
 	}, nil
+}
+
+// egressConfig returns the egress configuration for a workspace built from
+// templateID, or nil when the template is not bound to a live exit node.
+func (a *ManifestAPI) egressConfig(ctx context.Context, templateID uuid.UUID, derpMap *tailcfg.DERPMap) (*agentproto.EgressConfig, error) {
+	// The agent's scope only covers its own workspace and template, so the
+	// template and exit node lookups run as system. Both are deployment
+	// configuration rather than user data.
+	//nolint:gocritic // See above.
+	systemCtx := dbauthz.AsSystemRestricted(ctx)
+	template, err := a.Database.GetTemplateByID(systemCtx, templateID)
+	if err != nil {
+		return nil, xerrors.Errorf("get template: %w", err)
+	}
+	if !template.ExitNodeID.Valid {
+		return nil, nil //nolint:nilnil // Nil egress means the template routes traffic directly.
+	}
+	exitNode, err := a.Database.GetExitNodeByID(systemCtx, template.ExitNodeID.UUID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil //nolint:nilnil // A dangling binding degrades to direct egress.
+		}
+		return nil, xerrors.Errorf("get exit node: %w", err)
+	}
+	if exitNode.Deleted {
+		return nil, nil //nolint:nilnil // A soft-deleted exit node degrades to direct egress.
+	}
+
+	return &agentproto.EgressConfig{
+		ExitNodeId:        exitNode.ID[:],
+		ExitNodePort:      codersdk.ExitNodeTailnetPort,
+		Enforce:           template.ExitNodeEnforce,
+		ControlPlaneHosts: controlPlaneHosts(a.AccessURL, derpMap, exitNode.WireguardEndpoints),
+	}, nil
+}
+
+// controlPlaneHosts lists the host[:port] destinations an agent must keep
+// reaching directly when egress enforcement is on: coderd itself, every DERP
+// and STUN server it may relay through, and the exit node's own WireGuard
+// endpoints. The result is deduplicated and sorted so the manifest is stable.
+func controlPlaneHosts(accessURL *url.URL, derpMap *tailcfg.DERPMap, wireguardEndpoints []string) []string {
+	hosts := make(map[string]struct{})
+	add := func(host string) {
+		if host == "" {
+			return
+		}
+		hosts[host] = struct{}{}
+	}
+
+	if accessURL != nil {
+		add(accessURL.Host)
+	}
+	if derpMap != nil {
+		for _, region := range derpMap.Regions {
+			if region == nil {
+				continue
+			}
+			for _, node := range region.Nodes {
+				if node == nil {
+					continue
+				}
+				add(node.HostName)
+				// Tailscale uses "none" as an explicit sentinel for a missing
+				// address literal.
+				if node.IPv4 != "" && node.IPv4 != "none" {
+					add(node.IPv4)
+				}
+				if node.IPv6 != "" && node.IPv6 != "none" {
+					add(node.IPv6)
+				}
+				if node.HostName != "" && node.STUNPort > 0 {
+					add(net.JoinHostPort(node.HostName, strconv.Itoa(node.STUNPort)))
+				}
+				if node.HostName != "" && node.DERPPort > 0 {
+					add(net.JoinHostPort(node.HostName, strconv.Itoa(node.DERPPort)))
+				}
+			}
+		}
+	}
+	for _, endpoint := range wireguardEndpoints {
+		add(endpoint)
+	}
+
+	return slices.Sorted(maps.Keys(hosts))
 }
 
 func vscodeProxyURI(app appurl.ApplicationURL, accessURL *url.URL, appHost string) string {

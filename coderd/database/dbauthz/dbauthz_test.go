@@ -2767,6 +2767,52 @@ func (s *MethodTestSuite) TestWorkspaceProxy() {
 	}))
 }
 
+func (s *MethodTestSuite) TestExitNode() {
+	s.Run("InsertExitNode", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.InsertExitNodeParams{ID: uuid.New(), OrganizationID: uuid.New()}
+		dbm.EXPECT().InsertExitNode(gomock.Any(), arg).Return(database.ExitNode{}, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceExitNode.InOrg(arg.OrganizationID).WithID(arg.ID), policy.ActionCreate)
+	}))
+	s.Run("GetExitNodeByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		n := testutil.Fake(s.T(), faker, database.ExitNode{})
+		dbm.EXPECT().GetExitNodeByID(gomock.Any(), n.ID).Return(n, nil).AnyTimes()
+		check.Args(n.ID).Asserts(n, policy.ActionRead).Returns(n)
+	}))
+	s.Run("GetExitNodeByOrgAndName", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		n := testutil.Fake(s.T(), faker, database.ExitNode{})
+		arg := database.GetExitNodeByOrgAndNameParams{OrganizationID: n.OrganizationID, Name: n.Name}
+		dbm.EXPECT().GetExitNodeByOrgAndName(gomock.Any(), arg).Return(n, nil).AnyTimes()
+		check.Args(arg).Asserts(n, policy.ActionRead).Returns(n)
+	}))
+	s.Run("GetExitNodesByOrganization", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		orgID := uuid.New()
+		n1 := testutil.Fake(s.T(), faker, database.ExitNode{OrganizationID: orgID})
+		n2 := testutil.Fake(s.T(), faker, database.ExitNode{OrganizationID: orgID})
+		dbm.EXPECT().GetExitNodesByOrganization(gomock.Any(), orgID).Return([]database.ExitNode{n1, n2}, nil).AnyTimes()
+		check.Args(orgID).Asserts(n1, policy.ActionRead, n2, policy.ActionRead).Returns(slice.New(n1, n2))
+	}))
+	s.Run("UpdateExitNodeRegistration", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		n := testutil.Fake(s.T(), faker, database.ExitNode{})
+		arg := database.UpdateExitNodeRegistrationParams{ID: n.ID}
+		dbm.EXPECT().GetExitNodeByID(gomock.Any(), n.ID).Return(n, nil).AnyTimes()
+		dbm.EXPECT().UpdateExitNodeRegistration(gomock.Any(), arg).Return(n, nil).AnyTimes()
+		check.Args(arg).Asserts(n, policy.ActionUpdate).Returns(n)
+	}))
+	s.Run("DeleteExitNodeByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		n := testutil.Fake(s.T(), faker, database.ExitNode{})
+		dbm.EXPECT().GetExitNodeByID(gomock.Any(), n.ID).Return(n, nil).AnyTimes()
+		dbm.EXPECT().DeleteExitNodeByID(gomock.Any(), n.ID).Return(nil).AnyTimes()
+		check.Args(n.ID).Asserts(n, policy.ActionDelete)
+	}))
+	s.Run("GetWorkspaceAgentIDsByExitNode", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		n := testutil.Fake(s.T(), faker, database.ExitNode{})
+		ids := []uuid.UUID{uuid.New()}
+		dbm.EXPECT().GetExitNodeByID(gomock.Any(), n.ID).Return(n, nil).AnyTimes()
+		dbm.EXPECT().GetWorkspaceAgentIDsByExitNode(gomock.Any(), n.ID).Return(ids, nil).AnyTimes()
+		check.Args(n.ID).Asserts(n, policy.ActionRead, rbac.ResourceSystem, policy.ActionRead).Returns(ids)
+	}))
+}
+
 func (s *MethodTestSuite) TestTemplate() {
 	s.Run("GetPreviousTemplateVersion", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		t1 := testutil.Fake(s.T(), faker, database.Template{})

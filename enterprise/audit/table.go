@@ -136,6 +136,8 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"time_til_autostop_notify":          ActionTrack,
 		"agents_allowed":                    ActionTrack,
 		"allow_workspace_renames":           ActionTrack,
+		"exit_node_id":                      ActionTrack,
+		"exit_node_enforce":                 ActionTrack,
 	},
 	&database.TemplateVersion{}: {
 		"id":                      ActionTrack,
@@ -318,6 +320,19 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"derp_only":           ActionTrack,
 		"region_id":           ActionTrack,
 		"version":             ActionTrack,
+	},
+	&database.ExitNode{}: {
+		"id":                  ActionTrack,
+		"organization_id":     ActionIgnore, // Never changes.
+		"name":                ActionTrack,
+		"display_name":        ActionTrack,
+		"created_at":          ActionTrack,
+		"updated_at":          ActionIgnore,
+		"deleted":             ActionIgnore,
+		"token_hashed_secret": ActionSecret,
+		"version":             ActionTrack,
+		"last_seen_at":        ActionIgnore, // Changes on every heartbeat.
+		"wireguard_endpoints": ActionTrack,
 	},
 	&database.OAuth2ProviderApp{}: {
 		"id":                     ActionIgnore,

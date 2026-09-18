@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/cli/cliui"
@@ -36,6 +37,8 @@ func (r *RootCmd) templateEdit() *serpent.Command {
 		requireActiveVersion           bool
 		deprecationMessage             string
 		disableEveryone                bool
+		exitNode                       string
+		exitNodeEnforce                bool
 		orgContext                     = NewOrganizationContext()
 	)
 
@@ -182,6 +185,24 @@ func (r *RootCmd) templateEdit() *serpent.Command {
 				disableEveryoneGroup = disableEveryone
 			}
 
+			// An empty --exit-node clears the binding; otherwise resolve the
+			// name or ID within the template's organization.
+			var exitNodeID *uuid.UUID
+			if userSetOption(inv, "exit-node") {
+				exitNodeID = new(uuid.Nil)
+				if exitNode != "" {
+					node, err := client.ExitNodeByName(inv.Context(), template.OrganizationID, exitNode)
+					if err != nil {
+						return xerrors.Errorf("get exit node %q: %w", exitNode, err)
+					}
+					exitNodeID = &node.ID
+				}
+			}
+			var exitNodeEnforcePtr *bool
+			if userSetOption(inv, "exit-node-enforce") {
+				exitNodeEnforcePtr = &exitNodeEnforce
+			}
+
 			req := codersdk.UpdateTemplateMeta{
 				Name:                        &name,
 				DisplayName:                 &displayName,
@@ -207,6 +228,8 @@ func (r *RootCmd) templateEdit() *serpent.Command {
 				RequireActiveVersion:           &requireActiveVersion,
 				DeprecationMessage:             deprecated,
 				DisableEveryoneGroupAccess:     &disableEveryoneGroup,
+				ExitNodeID:                     exitNodeID,
+				ExitNodeEnforce:                exitNodeEnforcePtr,
 				// TODO(Emyrk): now that the API accepts partial updates,
 				// rewrite this CLI to only set pointers for flags the user
 				// explicitly provided via userSetOption. The current
@@ -333,6 +356,17 @@ func (r *RootCmd) templateEdit() *serpent.Command {
 				"The template permissions must be updated to allow non-admin users to use this template.",
 			Value:   serpent.BoolOf(&disableEveryone),
 			Default: "false",
+		},
+		{
+			Flag:        "exit-node",
+			Description: "Route egress from workspaces on this template through the exit node with this name or ID. Pass an empty string to clear the binding.",
+			Value:       serpent.StringOf(&exitNode),
+		},
+		{
+			Flag:        "exit-node-enforce",
+			Description: "Transparently enforce that workspace egress goes through the exit node. Has no effect without --exit-node.",
+			Value:       serpent.BoolOf(&exitNodeEnforce),
+			Default:     "false",
 		},
 		cliui.SkipPromptOption(),
 	}

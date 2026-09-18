@@ -752,6 +752,29 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// A new exit node binding must reference a live exit node in the
+	// template's organization.
+	if resolved.exitNodeID.Valid && resolved.exitNodeID != template.ExitNodeID {
+		exitNode, err := api.Database.GetExitNodeByID(ctx, resolved.exitNodeID.UUID)
+		if err != nil && !httpapi.Is404Error(err) {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Internal error fetching exit node.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		if err != nil || exitNode.Deleted || exitNode.OrganizationID != template.OrganizationID {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Invalid request to update template metadata!",
+				Validations: []codersdk.ValidationError{{
+					Field:  "exit_node_id",
+					Detail: "Exit node not found in the template's organization.",
+				}},
+			})
+			return
+		}
+	}
+
 	var updated database.Template
 	err = api.Database.InTx(func(tx database.Store) error {
 		if template.MaxPortSharingLevel != maxPortShareLevel {
@@ -785,6 +808,8 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 			DisableModuleCache:           resolved.disableModuleCache,
 			AgentsAllowed:                resolved.agentsAllowed,
 			AllowWorkspaceRenames:        resolved.allowWorkspaceRenames,
+			ExitNodeID:                   resolved.exitNodeID,
+			ExitNodeEnforce:              resolved.exitNodeEnforce,
 		})
 		if err != nil {
 			return xerrors.Errorf("update template metadata: %w", err)
@@ -1018,6 +1043,11 @@ func (api *API) convertTemplate(
 	portSharer := *(api.PortSharer.Load())
 	maxPortShareLevel := portSharer.ConvertMaxLevel(template.MaxPortSharingLevel)
 
+	var exitNodeID *uuid.UUID
+	if template.ExitNodeID.Valid {
+		exitNodeID = new(template.ExitNodeID.UUID)
+	}
+
 	return codersdk.Template{
 		ID:                             template.ID,
 		CreatedAt:                      template.CreatedAt,
@@ -1064,6 +1094,8 @@ func (api *API) convertTemplate(
 		ModuleCacheDisabledByDeployment: codersdk.ModuleCacheDisabledByDeployment(api.DeploymentValues),
 		AgentsAllowed:                   template.AgentsAllowed,
 		AllowWorkspaceRenames:           template.AllowWorkspaceRenames,
+		ExitNodeID:                      exitNodeID,
+		ExitNodeEnforce:                 template.ExitNodeEnforce,
 	}
 }
 

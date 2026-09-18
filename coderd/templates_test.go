@@ -1903,6 +1903,68 @@ func TestPatchTemplateMeta(t *testing.T) {
 		assert.False(t, updated.AllowWorkspaceRenames, "expected false")
 	})
 
+	t.Run("ExitNode", func(t *testing.T) {
+		t.Parallel()
+
+		client, db := coderdtest.NewWithDatabase(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		require.Nil(t, template.ExitNodeID, "default is unbound")
+		require.False(t, template.ExitNodeEnforce, "default is false")
+
+		exitNode, _ := dbgen.ExitNode(t, db, database.ExitNode{OrganizationID: user.OrganizationID})
+		otherOrg := dbgen.Organization(t, db, database.Organization{})
+		foreignExitNode, _ := dbgen.ExitNode(t, db, database.ExitNode{OrganizationID: otherOrg.ID})
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// Bind to an exit node in the same organization with enforcement.
+		updated, err := client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
+			ExitNodeID:      &exitNode.ID,
+			ExitNodeEnforce: new(true),
+		})
+		require.NoError(t, err)
+		require.NotNil(t, updated.ExitNodeID)
+		assert.Equal(t, exitNode.ID, *updated.ExitNodeID)
+		assert.True(t, updated.ExitNodeEnforce)
+
+		// Omitting both fields preserves the binding.
+		_, err = client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
+			Description: new("unrelated change"),
+		})
+		require.NoError(t, err)
+		updated, err = client.Template(ctx, template.ID)
+		require.NoError(t, err)
+		require.NotNil(t, updated.ExitNodeID)
+		assert.Equal(t, exitNode.ID, *updated.ExitNodeID)
+		assert.True(t, updated.ExitNodeEnforce)
+
+		// An exit node from another organization is rejected.
+		_, err = client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
+			ExitNodeID: &foreignExitNode.ID,
+		})
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		assert.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
+
+		// An unknown exit node is rejected.
+		_, err = client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
+			ExitNodeID: new(uuid.New()),
+		})
+		require.ErrorAs(t, err, &apiErr)
+		assert.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
+
+		// The nil UUID clears the binding.
+		updated, err = client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
+			ExitNodeID:      new(uuid.Nil),
+			ExitNodeEnforce: new(false),
+		})
+		require.NoError(t, err)
+		assert.Nil(t, updated.ExitNodeID)
+		assert.False(t, updated.ExitNodeEnforce)
+	})
+
 	t.Run("SupportEmptyOrDefaultFields", func(t *testing.T) {
 		t.Parallel()
 
