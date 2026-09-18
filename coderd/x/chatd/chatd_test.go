@@ -5635,6 +5635,7 @@ func TestActiveServer_ManualCompaction(t *testing.T) {
 				if strings.Contains(body, "You are performing a context compaction") {
 					compactionRequests.Add(1)
 					require.Contains(t, body, "hello from the user")
+					require.True(t, anthropicMessageHasEphemeralCacheControl(t, req.Messages[len(req.Messages)-1]))
 					return anthropicCompactionResponse(compactionSummary)
 				}
 				return chattest.AnthropicNonStreamingResponse("title")
@@ -5771,6 +5772,69 @@ func TestActiveServer_ManualCompaction(t *testing.T) {
 		compressed := compressedChatSummarizedMessages(t, append(promptMessages, messages...))
 		require.Len(t, compressed.summaries, 1,
 			"prompt history contains the compressed summary boundary")
+	})
+
+	t.Run("retries the summary without tools when the prompt exceeds the context window", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		db, ps := dbtestutil.NewDB(t)
+		var mu sync.Mutex
+		var compactionToolCounts []int
+		anthropicURL := chattest.NewAnthropic(t, func(req *chattest.AnthropicRequest) chattest.AnthropicResponse {
+			body := anthropicRequestBody(t, *req)
+			if !req.Stream {
+				if strings.Contains(body, "You are performing a context compaction") {
+					mu.Lock()
+					compactionToolCounts = append(compactionToolCounts, len(req.Tools))
+					mu.Unlock()
+					// The tool definitions push the summary request past
+					// the window that the tool-less request still fits.
+					if len(req.Tools) > 0 {
+						return chattest.AnthropicResponse{Error: &chattest.ErrorResponse{
+							StatusCode: http.StatusBadRequest,
+							Type:       "invalid_request_error",
+							Message:    "prompt is too long: 20000 tokens > 16385 maximum",
+						}}
+					}
+					return anthropicCompactionResponse(compactionSummary)
+				}
+				return chattest.AnthropicNonStreamingResponse("title")
+			}
+			return chattest.AnthropicStreamingResponse(chattest.AnthropicTextChunks("assistant answer")...)
+		})
+		user, org, model := seedAnthropicChatDependencies(t, db, anthropicURL)
+
+		server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+			cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, anthropicURL, chattest.WithPreservePath()))
+		})
+		chat := createChatThroughServer(ctx, t, db, server, org.ID, user.ID, model.ID, "hello from the user")
+		chat = waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
+
+		compacted, err := server.CompactChat(ctx, chat)
+		require.NoError(t, err)
+		require.Equal(t, database.ChatStatusRunning, compacted.Status)
+
+		chat = waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
+		require.False(t, chat.LastError.Valid)
+		require.False(t, chat.CompactionRequestedAt.Valid)
+
+		mu.Lock()
+		toolCounts := slices.Clone(compactionToolCounts)
+		mu.Unlock()
+		require.Len(t, toolCounts, 2, "one rejected request with tools, one tool-less retry")
+		require.Positive(t, toolCounts[0], "the first summary request carries the turn's tool definitions")
+		require.Zero(t, toolCounts[1], "the retry drops the tool definitions")
+
+		messages := chatMessages(ctx, t, db, chat.ID)
+		promptMessages, err := db.GetChatMessagesForPromptByChatID(ctx, chat.ID)
+		require.NoError(t, err)
+		compressed := compressedChatSummarizedMessages(t, append(promptMessages, messages...))
+		require.Len(t, compressed.results, 1)
+		resultPart := singlePartOfType(t, compressed.results[0], codersdk.ChatMessagePartTypeToolResult)
+		var result map[string]any
+		require.NoError(t, json.Unmarshal(resultPart.Result, &result))
+		require.Equal(t, compactionSummary, result["summary"])
 	})
 
 	t.Run("busy chat rejects manual compaction", func(t *testing.T) {
@@ -6219,6 +6283,7 @@ func TestActiveServer_CompactionModelOverride(t *testing.T) {
 		name                 string
 		overrideModel        string
 		effort               string
+		keepsTools           bool
 		assertSummaryRequest func(t *testing.T, req *chattest.AnthropicRequest)
 	}{
 		{
@@ -6252,6 +6317,15 @@ func TestActiveServer_CompactionModelOverride(t *testing.T) {
 				require.Contains(t, string(req.Thinking), `"type":"adaptive"`)
 			},
 		},
+		{
+			// Only an override resolving to the chat model itself shares
+			// its prompt cache, so only then do the tool definitions stay.
+			name:                 "override resolves to the chat model",
+			overrideModel:        chatModelName,
+			effort:               "low",
+			keepsTools:           true,
+			assertSummaryRequest: func(*testing.T, *chattest.AnthropicRequest) {},
+		},
 	}
 
 	for _, tc := range routingCases {
@@ -6267,6 +6341,11 @@ func TestActiveServer_CompactionModelOverride(t *testing.T) {
 				if !req.Stream {
 					if strings.Contains(body, "You are performing a context compaction") {
 						require.Equal(t, tc.overrideModel, req.Model)
+						if tc.keepsTools {
+							require.NotEmpty(t, req.Tools)
+						} else {
+							require.Empty(t, req.Tools, "a different model shares no prompt cache, so the summary carries no tool definitions")
+						}
 						tc.assertSummaryRequest(t, req)
 						return anthropicCompactionResponse(compactionSummary)
 					}
