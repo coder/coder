@@ -131,7 +131,7 @@ func TestPubsub_ordering(t *testing.T) {
 		// sleep a random amount of time to simulate handlers taking different amount of time
 		// to process, depending on the message
 		// nolint: gosec
-		n := rand.Intn(100)
+		n := rand.Intn(10)
 		time.Sleep(time.Duration(n) * time.Millisecond)
 		messageChannel <- message
 	})
