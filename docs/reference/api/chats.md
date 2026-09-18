@@ -8,6 +8,83 @@ description: "REST endpoints for Coder Agents Chats API (programmatic agent sess
 
 Programmatic API for Coder Agents (the user-facing "Coder Agents" / "Chats" product). Use these endpoints to create, list, and manage AI coding agent sessions.
 
+## Get chat MCP servers
+
+### Code samples
+
+```sh
+# Example request using curl
+curl -X GET http://coder-server:8080/api/experimental/chats/{chat}/mcp-servers \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /api/experimental/chats/{chat}/mcp-servers`
+
+Lists the chat-attached MCP servers declared on the chat. Header values are never returned.
+Experimental: this endpoint is subject to change.
+
+### Parameters
+
+| Name   | In   | Type         | Required | Description |
+|--------|------|--------------|----------|-------------|
+| `chat` | path | string(uuid) | true     | Chat ID     |
+
+### Example responses
+
+> 200 Response
+
+```json
+[
+  {
+    "allow_in_plan_mode": true,
+    "allow_in_subagents": true,
+    "created_at": "2019-08-24T14:15:22Z",
+    "forward_coder_headers": true,
+    "header_names": [
+      "string"
+    ],
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "slug": "string",
+    "tool_allow_list": [
+      "string"
+    ],
+    "tool_deny_list": [
+      "string"
+    ],
+    "updated_at": "2019-08-24T14:15:22Z",
+    "url": "string"
+  }
+]
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                              |
+|--------|---------------------------------------------------------|-------------|---------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [codersdk.ChatMCPServer](schemas.md#codersdkchatmcpserver) |
+
+<h3 id="get-chat-mcp-servers-responseschema">Response Schema</h3>
+
+Status Code **200**
+
+| Name                      | Type              | Required | Restrictions | Description |
+|---------------------------|-------------------|----------|--------------|-------------|
+| `[array item]`            | array             | false    |              |             |
+| `» allow_in_plan_mode`    | boolean           | false    |              |             |
+| `» allow_in_subagents`    | boolean           | false    |              |             |
+| `» created_at`            | string(date-time) | false    |              |             |
+| `» forward_coder_headers` | boolean           | false    |              |             |
+| `» header_names`          | array             | false    |              |             |
+| `» id`                    | string(uuid)      | false    |              |             |
+| `» slug`                  | string            | false    |              |             |
+| `» tool_allow_list`       | array             | false    |              |             |
+| `» tool_deny_list`        | array             | false    |              |             |
+| `» updated_at`            | string(date-time) | false    |              |             |
+| `» url`                   | string            | false    |              |             |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Connect to chat workspace desktop via WebSockets
 
 ### Code samples
@@ -312,6 +389,25 @@ curl -X POST http://coder-server:8080/api/v2/chats \
   },
   "mcp_server_ids": [
     "497f6eca-6276-4993-bfeb-53cbbbba6f08"
+  ],
+  "mcp_servers": [
+    {
+      "allow_in_plan_mode": true,
+      "allow_in_subagents": true,
+      "forward_coder_headers": true,
+      "headers": {
+        "property1": "string",
+        "property2": "string"
+      },
+      "slug": "string",
+      "tool_allow_list": [
+        "string"
+      ],
+      "tool_deny_list": [
+        "string"
+      ],
+      "url": "string"
+    }
   ],
   "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
@@ -2463,6 +2559,25 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/messages \
   ],
   "mcp_server_ids": [
     "497f6eca-6276-4993-bfeb-53cbbbba6f08"
+  ],
+  "mcp_servers": [
+    {
+      "allow_in_plan_mode": true,
+      "allow_in_subagents": true,
+      "forward_coder_headers": true,
+      "headers": {
+        "property1": "string",
+        "property2": "string"
+      },
+      "slug": "string",
+      "tool_allow_list": [
+        "string"
+      ],
+      "tool_deny_list": [
+        "string"
+      ],
+      "url": "string"
+    }
   ],
   "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
   "plan_mode": "plan",

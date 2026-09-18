@@ -36,6 +36,12 @@ const MaxChatFileIDs = 50
 // attachments.
 const MaxChatFileSizeBytes = 10 * 1024 * 1024
 
+// MaxChatMCPServers caps chat-attached MCP servers per chat.
+const MaxChatMCPServers = 5
+
+// MaxChatMCPServersBytes caps the aggregate size of one mcp_servers declaration.
+const MaxChatMCPServersBytes = 24 * 1024
+
 // AnthropicInlineImageCapBytes is Anthropic's documented per-image
 // wire limit; the same cap applies to Bedrock-hosted Claude. Other
 // providers have no documented per-image cap.
@@ -581,9 +587,39 @@ type CreateChatRequest struct {
 	// UnsafeDynamicTools declares client-executed tools that the
 	// LLM can invoke. This API is highly experimental and highly
 	// subject to change.
-	UnsafeDynamicTools []DynamicTool  `json:"unsafe_dynamic_tools,omitempty"`
-	PlanMode           ChatPlanMode   `json:"plan_mode,omitempty"`
-	ClientType         ChatClientType `json:"client_type,omitempty"`
+	UnsafeDynamicTools []DynamicTool `json:"unsafe_dynamic_tools,omitempty"`
+	// MCPServers declares chat-attached MCP servers. Experimental.
+	MCPServers []ChatMCPServerRequest `json:"mcp_servers,omitempty"`
+	PlanMode   ChatPlanMode           `json:"plan_mode,omitempty"`
+	ClientType ChatClientType         `json:"client_type,omitempty"`
+}
+
+// ChatMCPServerRequest declares a streamable HTTP MCP server attached to
+// one chat. Header values are stored encrypted and never returned.
+type ChatMCPServerRequest struct {
+	Slug                string            `json:"slug"`
+	URL                 string            `json:"url"`
+	Headers             map[string]string `json:"headers,omitempty"`
+	ToolAllowList       []string          `json:"tool_allow_list,omitempty"`
+	ToolDenyList        []string          `json:"tool_deny_list,omitempty"`
+	AllowInPlanMode     bool              `json:"allow_in_plan_mode,omitempty"`
+	AllowInSubagents    bool              `json:"allow_in_subagents,omitempty"`
+	ForwardCoderHeaders bool              `json:"forward_coder_headers,omitempty"`
+}
+
+// ChatMCPServer is the redacted view of a chat-attached MCP server.
+type ChatMCPServer struct {
+	ID                  uuid.UUID `json:"id" format:"uuid"`
+	Slug                string    `json:"slug"`
+	URL                 string    `json:"url"`
+	HeaderNames         []string  `json:"header_names"`
+	ToolAllowList       []string  `json:"tool_allow_list"`
+	ToolDenyList        []string  `json:"tool_deny_list"`
+	AllowInPlanMode     bool      `json:"allow_in_plan_mode"`
+	AllowInSubagents    bool      `json:"allow_in_subagents"`
+	ForwardCoderHeaders bool      `json:"forward_coder_headers"`
+	CreatedAt           time.Time `json:"created_at" format:"date-time"`
+	UpdatedAt           time.Time `json:"updated_at" format:"date-time"`
 }
 
 // UpdateChatRequest is the request to update a chat.
@@ -632,10 +668,13 @@ const (
 
 // CreateChatMessageRequest is the request to add a message to a chat.
 type CreateChatMessageRequest struct {
-	Content       []ChatInputPart  `json:"content"`
-	ModelConfigID *uuid.UUID       `json:"model_config_id,omitempty" format:"uuid"`
-	MCPServerIDs  *[]uuid.UUID     `json:"mcp_server_ids,omitempty" format:"uuid"`
-	BusyBehavior  ChatBusyBehavior `json:"busy_behavior,omitempty" enums:"queue,interrupt"`
+	Content       []ChatInputPart `json:"content"`
+	ModelConfigID *uuid.UUID      `json:"model_config_id,omitempty" format:"uuid"`
+	MCPServerIDs  *[]uuid.UUID    `json:"mcp_server_ids,omitempty" format:"uuid"`
+	// MCPServers replaces the chat-attached MCP servers.
+	// nil: no change, empty: remove all.
+	MCPServers   *[]ChatMCPServerRequest `json:"mcp_servers,omitempty"`
+	BusyBehavior ChatBusyBehavior        `json:"busy_behavior,omitempty" enums:"queue,interrupt"`
 	// PlanMode switches the chat's persistent plan mode.
 	// nil: no change, ptr to "plan": enable, ptr to "": clear.
 	PlanMode        *ChatPlanMode `json:"plan_mode,omitempty"`
@@ -2838,6 +2877,20 @@ func (c *ExperimentalClient) GetChatDebugRuns(ctx context.Context, chatID uuid.U
 		return nil, ReadBodyAsError(res)
 	}
 	var resp []ChatDebugRunSummary
+	return resp, ReadBodyAsJSON(res, &resp)
+}
+
+// GetChatMCPServers returns the chat-attached MCP servers with header values omitted.
+func (c *ExperimentalClient) GetChatMCPServers(ctx context.Context, chatID uuid.UUID) ([]ChatMCPServer, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/experimental/chats/%s/mcp-servers", chatID), nil)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return nil, ReadBodyAsError(res)
+	}
+	var resp []ChatMCPServer
 	return resp, ReadBodyAsJSON(res, &resp)
 }
 

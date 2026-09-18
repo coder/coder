@@ -1107,6 +1107,7 @@ type CreateOptions struct {
 	SystemPrompt            string
 	InitialUserContent      []codersdk.ChatMessagePart
 	MCPServerIDs            []uuid.UUID
+	MCPServers              []codersdk.ChatMCPServerRequest
 	Labels                  database.StringMap
 	DynamicTools            json.RawMessage
 }
@@ -1134,6 +1135,8 @@ type SendMessageOptions struct {
 	BusyBehavior    SendMessageBusyBehavior
 	PlanMode        *database.NullChatPlanMode
 	MCPServerIDs    *[]uuid.UUID
+	// MCPServers replaces the chat-attached MCP servers. nil: no change.
+	MCPServers *[]codersdk.ChatMCPServerRequest
 }
 
 // SendMessageResult contains the outcome of user message processing.
@@ -1260,6 +1263,17 @@ func (p *Server) applyRequestedMCPServerIDs(ctx context.Context, store database.
 		return database.Chat{}, xerrors.Errorf("update chat mcp server ids: %w", err)
 	}
 	return updated, nil
+}
+
+func (p *Server) applyRequestedChatMCPServers(ctx context.Context, store database.Store, lockedChat database.Chat, requested *[]codersdk.ChatMCPServerRequest) error {
+	if requested == nil {
+		return nil
+	}
+	if isExploreSubagentMode(lockedChat.Mode) {
+		p.logger.Warn(ctx, "ignoring chat-attached MCP servers for explore chat", slog.F("chat_id", lockedChat.ID))
+		return nil
+	}
+	return chatstate.ReplaceChatMCPServers(ctx, store, lockedChat.ID, *requested)
 }
 
 // CreateChat creates a chat with its initial history through
@@ -1398,6 +1412,7 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 		Mode:              opts.ChatMode,
 		PlanMode:          opts.PlanMode,
 		MCPServerIDs:      opts.MCPServerIDs,
+		MCPServers:        opts.MCPServers,
 		Labels: pqtype.NullRawMessage{
 			RawMessage: labelsJSON,
 			Valid:      true,
@@ -1536,6 +1551,10 @@ func (p *Server) SendMessage(
 		lockedChat, err = p.applyRequestedMCPServerIDs(ctx, store, lockedChat, requestedMCPServerIDs)
 		if err != nil {
 			return err
+		}
+
+		if err := p.applyRequestedChatMCPServers(ctx, store, lockedChat, opts.MCPServers); err != nil {
+			return xerrors.Errorf("replace chat MCP servers: %w", err)
 		}
 
 		messageCreatedBy := opts.CreatedBy

@@ -3751,7 +3751,7 @@ communicating directly.`,
 		},
 		{
 			Name:        "Disable Chat Caller-supplied Tools",
-			Description: "Disable caller-supplied tools in chats. Chat creation requests that include unsafe_dynamic_tools are rejected, and existing chats run without their dynamic tools.",
+			Description: "Disable caller-supplied tools in chats. Chat requests that include unsafe_dynamic_tools or mcp_servers are rejected, and existing chats run without their dynamic tools and chat-attached MCP servers.",
 			Flag:        "disable-chat-caller-supplied-tools",
 			Env:         "CODER_DISABLE_CHAT_CALLER_SUPPLIED_TOOLS",
 
@@ -5255,6 +5255,7 @@ const (
 	ExperimentChatAdvisor               Experiment = "chat-advisor"                // Enables the advisor tool for root agent chats.
 	ExperimentChatVirtualDesktop        Experiment = "chat-virtual-desktop"        // Enables virtual desktop and computer use provider for agents.
 	ExperimentAgentLifecycleHooks       Experiment = "agent-lifecycle-hooks"       // Enables chat lifecycle hook webhooks for agent chats.
+	ExperimentChatMCPServers            Experiment = "chat-mcp-servers"            // Enables chat-attached MCP servers declared on POST /chats.
 )
 
 func (e Experiment) DisplayName() string {
@@ -5285,6 +5286,8 @@ func (e Experiment) DisplayName() string {
 		return "Chat Virtual Desktop"
 	case ExperimentAgentLifecycleHooks:
 		return "Agent Lifecycle Hooks"
+	case ExperimentChatMCPServers:
+		return "Chat MCP Servers"
 	default:
 		// Split on hyphen and convert to title case
 		// e.g. "mcp-server-http" -> "Mcp Server Http"
@@ -5309,6 +5312,7 @@ var ExperimentsKnown = Experiments{
 	ExperimentChatAdvisor,
 	ExperimentChatVirtualDesktop,
 	ExperimentAgentLifecycleHooks,
+	ExperimentChatMCPServers,
 }
 
 // ExperimentsSafe should include all experiments that are safe for

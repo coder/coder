@@ -1378,12 +1378,20 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if len(req.UnsafeDynamicTools) > 0 && api.DeploymentValues.DisableChatCallerSuppliedTools.Value() {
-		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
-			Message: "Caller-supplied tools are disabled on this deployment.",
-			Detail:  "The server runs with --disable-chat-caller-supplied-tools. Remove unsafe_dynamic_tools from the request.",
-		})
+	if (len(req.UnsafeDynamicTools) > 0 || len(req.MCPServers) > 0) && api.DeploymentValues.DisableChatCallerSuppliedTools.Value() {
+		writeChatCallerSuppliedToolsDisabled(ctx, rw)
 		return
+	}
+
+	if len(req.MCPServers) > 0 {
+		if !api.Experiments.Enabled(codersdk.ExperimentChatMCPServers) {
+			writeChatMCPServersExperimentRequired(ctx, rw)
+			return
+		}
+		if validations := validateChatMCPServers(req.MCPServers, api.MCPAllowedPrivateCIDRs); len(validations) > 0 {
+			writeChatMCPServersInvalid(ctx, rw, validations)
+			return
+		}
 	}
 
 	if len(req.UnsafeDynamicTools) > 250 {
@@ -1465,6 +1473,7 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		SystemPrompt:            req.SystemPrompt,
 		InitialUserContent:      contentBlocks,
 		MCPServerIDs:            mcpServerIDs,
+		MCPServers:              req.MCPServers,
 		Labels:                  labels,
 		DynamicTools:            dynamicToolsJSON,
 		// IMPORTANT: users can only create root chats at the time of writing.
@@ -1801,6 +1810,60 @@ func (api *API) getChatCost(rw http.ResponseWriter, r *http.Request) {
 		RequestCount:         row.RequestCount,
 		UnpricedRequestCount: row.UnpricedRequestCount,
 	})
+}
+
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
+//
+// @Summary Get chat MCP servers
+// @ID get-chat-mcp-servers
+// @Security CoderSessionToken
+// @Tags Chats
+// @Produce json
+// @Param chat path string true "Chat ID" format(uuid)
+// @Success 200 {array} codersdk.ChatMCPServer
+// @Router /api/experimental/chats/{chat}/mcp-servers [get]
+// @Description Lists the chat-attached MCP servers declared on the chat. Header values are never returned.
+// @Description Experimental: this endpoint is subject to change.
+//
+//nolint:revive // HTTP handler writes to ResponseWriter.
+func (api *API) getChatMCPServers(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	chat := httpmw.ChatParam(r)
+	apiKey := httpmw.APIKey(r)
+
+	if apiKey.UserID != chat.OwnerID {
+		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+			Message: "Only the chat owner may view chat MCP servers.",
+		})
+		return
+	}
+	if !api.Experiments.Enabled(codersdk.ExperimentChatMCPServers) {
+		writeChatMCPServersExperimentRequired(ctx, rw)
+		return
+	}
+
+	rows, err := api.Database.GetChatMCPServersByChatID(ctx, chat.ID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to get chat MCP servers.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	servers := make([]codersdk.ChatMCPServer, 0, len(rows))
+	for _, row := range rows {
+		server, err := db2sdk.ChatMCPServer(row)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Failed to convert chat MCP server.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		servers = append(servers, server)
+	}
+	httpapi.Write(ctx, rw, http.StatusOK, servers)
 }
 
 // @Summary List chat user prompts
@@ -2694,6 +2757,27 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 	}
 	req.MCPServerIDs = normalizedMCPServerIDs
 
+	if req.MCPServers != nil && len(*req.MCPServers) > 0 {
+		if api.DeploymentValues.DisableChatCallerSuppliedTools.Value() {
+			writeChatCallerSuppliedToolsDisabled(ctx, rw)
+			return
+		}
+		if !api.Experiments.Enabled(codersdk.ExperimentChatMCPServers) {
+			writeChatMCPServersExperimentRequired(ctx, rw)
+			return
+		}
+		if chat.ParentChatID.Valid {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "mcp_servers can only be declared on a root chat.",
+			})
+			return
+		}
+		if validations := validateChatMCPServers(*req.MCPServers, api.MCPAllowedPrivateCIDRs); len(validations) > 0 {
+			writeChatMCPServersInvalid(ctx, rw, validations)
+			return
+		}
+	}
+
 	if req.PlanMode != nil {
 		if !validateChatPlanMode(*req.PlanMode) {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -2749,6 +2833,7 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 			BusyBehavior:    busyBehavior,
 			PlanMode:        sendPlanMode,
 			MCPServerIDs:    req.MCPServerIDs,
+			MCPServers:      req.MCPServers,
 		},
 	)
 	if sendErr != nil {

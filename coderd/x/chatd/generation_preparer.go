@@ -86,9 +86,11 @@ func (server *Server) prepareGeneration(
 	}()
 
 	var (
-		promptRows []database.ChatMessage
-		mcpConfigs []database.MCPServerConfig
-		mcpTokens  []database.MCPServerUserToken
+		promptRows       []database.ChatMessage
+		mcpConfigs       []database.MCPServerConfig
+		mcpTokens        []database.MCPServerUserToken
+		chatMCPConfigs   []database.MCPServerConfig
+		chatMCPSensitive map[uuid.UUID][]string
 	)
 
 	var g errgroup.Group
@@ -105,6 +107,17 @@ func (server *Server) prepareGeneration(
 		mcpConfigs, err = server.effectiveMCPServerConfigs(ctx, logger, chat)
 		return err
 	})
+	if !server.disableCallerSuppliedTools {
+		g.Go(func() error {
+			var err error
+			chatMCPConfigs, chatMCPSensitive, err = server.loadChatMCPServers(ctx, chat)
+			if err != nil {
+				logger.Warn(ctx, "failed to load chat-attached MCP servers", slog.Error(err))
+				chatMCPConfigs, chatMCPSensitive = nil, nil
+			}
+			return nil
+		})
+	}
 	if err := g.Wait(); err != nil {
 		return generationPrepared{}, err
 	}
@@ -179,6 +192,10 @@ func (server *Server) prepareGeneration(
 	if isExploreSubagent && isRootChat {
 		mcpConnectConfigs = nil
 		approvedPlanMCPConfigIDs = map[uuid.UUID]struct{}{}
+	}
+	chatMCPConnectConfigs, approvedChatMCPConfigIDs := filterExternalMCPConfigsForTurn(chatMCPConfigs, currentPlanMode, chat.ParentChatID)
+	for id := range approvedChatMCPConfigIDs {
+		approvedPlanMCPConfigIDs[id] = struct{}{}
 	}
 
 	planModeInstructions := server.loadPlanModeInstructions(ctx, currentPlanMode, logger)
@@ -274,6 +291,9 @@ func (server *Server) prepareGeneration(
 		mcpTools           []fantasy.AgentTool
 		mcpSummaries       []mcpclient.ConnectSummary
 		mcpCleanup         func()
+		chatMCPTools       []fantasy.AgentTool
+		chatMCPSummaries   []mcpclient.ConnectSummary
+		chatMCPCleanup     func()
 		workspaceMCPTools  []fantasy.AgentTool
 		workspaceSkills    []chattool.SkillMeta
 		personalSkills     []skillspkg.Skill
@@ -417,6 +437,19 @@ func (server *Server) prepareGeneration(
 			return nil
 		})
 	}
+	if len(chatMCPConnectConfigs) > 0 {
+		g2.Go(func() error {
+			chatMCPTools, chatMCPSummaries, chatMCPCleanup = mcpclient.ConnectChatAttached(
+				ctx,
+				logger,
+				chatMCPConnectConfigs,
+				chatprovider.CoderHeaders(chat),
+				server.mcpHTTPClient,
+				chatMCPSensitive,
+			)
+			return nil
+		})
+	}
 	if chat.WorkspaceID.Valid && !isPlanModeTurn && !isExploreSubagent {
 		g2.Go(func() error {
 			workspaceMCPTools = server.resolveWorkspaceMCPTools(ctx, logger, chat, &workspaceCtx)
@@ -435,6 +468,7 @@ func (server *Server) prepareGeneration(
 		})
 	}
 	g2Err := g2.Wait()
+	mcpSummaries = append(mcpSummaries, chatMCPSummaries...)
 	// Record connect outcomes before acting on any preparation error:
 	// ConnectAll has already run, so a failure below (or in g2 itself)
 	// would otherwise discard this attempt's outcomes.
@@ -450,6 +484,13 @@ func (server *Server) prepareGeneration(
 		previousCleanup := cleanup
 		cleanup = func() {
 			mcpCleanup()
+			previousCleanup()
+		}
+	}
+	if chatMCPCleanup != nil {
+		previousCleanup := cleanup
+		cleanup = func() {
+			chatMCPCleanup()
 			previousCleanup()
 		}
 	}
@@ -619,6 +660,7 @@ func (server *Server) prepareGeneration(
 		tools = append(tools, workspaceMCPTools...)
 	}
 	tools = filterToolsForTurn(tools, currentPlanMode, chat.ParentChatID, approvedPlanMCPConfigIDs)
+	tools = mcpclient.AppendChatAttached(ctx, logger, tools, chatMCPTools)
 
 	var dynamicToolNames map[string]bool
 	if server.disableCallerSuppliedTools {

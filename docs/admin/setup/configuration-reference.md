@@ -55,7 +55,7 @@ The default lifetime duration for API tokens. This value is used when creating a
 
 ### Disable chat caller-supplied tools
 
-Disable caller-supplied tools in chats. Chat creation requests that include unsafe_dynamic_tools are rejected, and existing chats run without their dynamic tools.
+Disable caller-supplied tools in chats. Chat requests that include unsafe_dynamic_tools or mcp_servers are rejected, and existing chats run without their dynamic tools and chat-attached MCP servers.
 
 - Environment variable: `CODER_DISABLE_CHAT_CALLER_SUPPLIED_TOOLS`
 - CLI flag: [`--disable-chat-caller-supplied-tools`](../../reference/cli/server.md#--disable-chat-caller-supplied-tools)
