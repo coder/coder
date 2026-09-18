@@ -346,7 +346,7 @@ curl -H "Coder-Session-Token: $CODER_SESSION_TOKEN" \
 - Without parameters, the export covers the current budget period.
 - To select a range, pass `period_start` and `period_end` together as RFC 3339
   timestamps. A range can span at most 31 days.
-- Spend is attributed through the group whose budget applied to each request, so usage that no budget group covers is not included.
+- Spend is attributed through each request's effective budget group, which falls back to the organization's `Everyone` group when no budget applies, so only usage recorded without any effective group is excluded.
 - Each CSV row breaks spend down by user, group, model, and provider, with the underlying token counts.
 
 For programmatic per-user reporting, refer to the [List organization AI spend by user API reference](../../reference/api/enterprise.md#list-organization-ai-spend-by-user).
