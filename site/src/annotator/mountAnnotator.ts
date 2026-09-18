@@ -5,6 +5,7 @@ import { outlineInset, viewportBox } from "./geometry";
 import { createHighlightLayer } from "./highlights";
 import { createHintPill } from "./hintPill";
 import { checkIcon, pointerIcon } from "./icons";
+import { carryMarkerAcrossNavigation } from "./navigation";
 import pickingCursorStyles from "./pickingCursor.css?inline";
 import { createPickOutline } from "./pickOutline";
 import { isOwnEvent, pickTarget } from "./pickTarget";
@@ -324,6 +325,7 @@ export function mountAnnotator(
 	stopButton.addEventListener("click", () => setPicking(false));
 	win.addEventListener("scroll", scheduleLayout, true);
 	win.addEventListener("resize", scheduleLayout);
+	const stopCarryingMarker = carryMarkerAcrossNavigation(doc, win);
 	notify();
 
 	const handle: AnnotatorHandle = {
@@ -335,6 +337,7 @@ export function mountAnnotator(
 			highlights.destroy();
 			win.removeEventListener("scroll", scheduleLayout, true);
 			win.removeEventListener("resize", scheduleLayout);
+			stopCarryingMarker();
 			if (layoutFrame !== 0) {
 				win.cancelAnimationFrame(layoutFrame);
 			}
