@@ -734,6 +734,7 @@ type DeploymentValues struct {
 	DisableOwnerWorkspaceExec               serpent.Bool                         `json:"disable_owner_workspace_exec,omitempty" typescript:",notnull"`
 	DisableWorkspaceSharing                 serpent.Bool                         `json:"disable_workspace_sharing,omitempty" typescript:",notnull"`
 	DisableChatSharing                      serpent.Bool                         `json:"disable_chat_sharing,omitempty" typescript:",notnull"`
+	DisableChatCallerSuppliedTools          serpent.Bool                         `json:"disable_chat_caller_supplied_tools,omitempty" typescript:",notnull"`
 	DisableWorkspaceAgentContextSync        serpent.Bool                         `json:"disable_workspace_agent_context_sync,omitempty" typescript:",notnull"`
 	DisableUserSecretFilePath               serpent.Bool                         `json:"disable_user_secret_file_path,omitempty" typescript:",notnull"`
 	ProxyHealthStatusInterval               serpent.Duration                     `json:"proxy_health_status_interval,omitempty" typescript:",notnull"`
@@ -3747,6 +3748,15 @@ communicating directly.`,
 
 			Value: &c.DisableChatSharing,
 			YAML:  "disableChatSharing",
+		},
+		{
+			Name:        "Disable Chat Caller-supplied Tools",
+			Description: "Disable caller-supplied tools in chats. Chat creation requests that include unsafe_dynamic_tools are rejected, and existing chats run without their dynamic tools.",
+			Flag:        "disable-chat-caller-supplied-tools",
+			Env:         "CODER_DISABLE_CHAT_CALLER_SUPPLIED_TOOLS",
+
+			Value: &c.DisableChatCallerSuppliedTools,
+			YAML:  "disableChatCallerSuppliedTools",
 		},
 		{
 			Name:        "Disable Workspace Agent Context Sync",

@@ -607,10 +607,17 @@ func (server *Server) prepareGeneration(
 	}
 	tools = filterToolsForTurn(tools, currentPlanMode, chat.ParentChatID, approvedPlanMCPConfigIDs)
 
-	tools, dynamicToolNames, err := appendDynamicTools(ctx, logger, tools, chat.DynamicTools, currentPlanMode, chat.Mode)
-	if err != nil {
-		cleanup()
-		return generationPrepared{}, err
+	var dynamicToolNames map[string]bool
+	if server.disableCallerSuppliedTools {
+		if chat.DynamicTools.Valid {
+			logger.Debug(ctx, "skipping dynamic tools: caller-supplied tools are disabled on this deployment")
+		}
+	} else {
+		tools, dynamicToolNames, err = appendDynamicTools(ctx, logger, tools, chat.DynamicTools, currentPlanMode, chat.Mode)
+		if err != nil {
+			cleanup()
+			return generationPrepared{}, err
+		}
 	}
 
 	var providerTools []chatloop.ProviderTool
