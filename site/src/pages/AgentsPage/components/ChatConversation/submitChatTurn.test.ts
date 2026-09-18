@@ -59,6 +59,7 @@ const buildParams = (
 		effectiveReasoningEffort: undefined,
 		mcpServerIds: ["mcp-1"],
 		editMessage: vi.fn().mockResolvedValue(undefined),
+		saveQueuedMessage: vi.fn().mockResolvedValue(undefined),
 		sendMessage: vi.fn().mockResolvedValue({ queued: false }),
 		onRequestError: vi.fn(),
 		invalidateChat: vi.fn(),
@@ -264,6 +265,37 @@ describe("submitChatTurn", () => {
 		expect(store.getSnapshot().queuedMessages).toEqual(
 			queueUpdate ? updated : [queued],
 		);
+	});
+
+	it("saves a queued row with the marker cleared and sends nothing", async () => {
+		const store = createChatStore();
+		store.setActiveChatID("chat-1");
+		store.setQueuedMessages([
+			{ ...MockChatQueuedMessage, id: 7, model_config_id: "stale-model" },
+		]);
+		const saveQueuedMessage = vi.fn().mockResolvedValue(undefined);
+		const editMessage = vi.fn();
+		const sendMessage = vi.fn();
+
+		await submitChatTurn(
+			buildParams({
+				message: "new text",
+				editingTarget: { kind: "queued", id: 7 },
+				store,
+				saveQueuedMessage,
+				editMessage,
+				sendMessage,
+			}),
+		);
+
+		expect(saveQueuedMessage).toHaveBeenCalledWith(7, {
+			content: [{ type: "text", text: "new text" }],
+			model_config_id: pickerModel.id,
+			reasoning_effort: undefined,
+			editing: false,
+		});
+		expect(editMessage).not.toHaveBeenCalled();
+		expect(sendMessage).not.toHaveBeenCalled();
 	});
 
 	it("omits reasoning effort on edit until the picker is dirty", async () => {

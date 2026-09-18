@@ -348,6 +348,37 @@ describe("AgentChatInput", () => {
 		expect(onInterrupt).toHaveBeenCalledTimes(2);
 	});
 
+	it.each([
+		["history", "Stop", "onInterrupt"],
+		["queued", "Save Edit", "onSend"],
+	] as const)(
+		"a %s edit while streaming puts %s in the footer slot",
+		async (editingKind, buttonName, calledHandler) => {
+			const user = userEvent.setup();
+			const handlers = { onSend: vi.fn(), onInterrupt: vi.fn() };
+
+			renderInput(
+				<AgentChatInput
+					{...handlers}
+					isDisabled={false}
+					isLoading={false}
+					isStreaming
+					editingKind={editingKind}
+					initialValue="Edited text"
+					selectedModel={modelOptions[0].id}
+					onModelChange={vi.fn()}
+					modelOptions={modelOptions}
+					modelSelectorPlaceholder="Select model"
+					hasModelOptions
+					canConfigureAgentSetup={false}
+				/>,
+			);
+
+			await user.click(await screen.findByRole("button", { name: buttonName }));
+			expect(handlers[calledHandler]).toHaveBeenCalledTimes(1);
+		},
+	);
+
 	it("shows a disabled Queue button without a spinner while an interrupt is pending", async () => {
 		const user = userEvent.setup();
 		const onSend = vi.fn();
@@ -720,8 +751,18 @@ describe("AgentChatInput", () => {
 	it.each([
 		["sends the queue head when nothing is under edit", {}, true],
 		[
+			"does not send the queue head while the composer edits a message",
+			{ editingKind: "queued" },
+			false,
+		],
+		[
 			"does not send a queue head the server marks as under edit",
 			{ queuedMessages: [MockChatQueuedMessageUnderEdit] },
+			false,
+		],
+		[
+			"does not send a queue head whose begin request is pending",
+			{ queuedMessageUnderEditID: MockChatQueuedMessage.id },
 			false,
 		],
 	] satisfies Array<
@@ -750,7 +791,7 @@ describe("AgentChatInput", () => {
 		// Plain Enter sends only once the shortcut preference has loaded.
 		await waitFor(() => {
 			expect(
-				screen.getByRole("button", { name: /^(Send|Queue)$/ }),
+				screen.getByRole("button", { name: /^(Send|Queue|Save Edit)$/ }),
 			).toHaveAttribute("aria-keyshortcuts", "Enter");
 		});
 		await user.click(screen.getByRole("textbox", { name: "Chat message" }));

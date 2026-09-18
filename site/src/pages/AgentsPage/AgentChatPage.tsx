@@ -19,6 +19,7 @@ import {
 	createChatMessage,
 	deleteChatQueuedMessage,
 	editChatMessage,
+	editChatQueuedMessage,
 	getOpenChatPollInterval,
 	interruptChat,
 	invalidateChatEntity,
@@ -83,6 +84,10 @@ import {
 	useConversationEditingState,
 } from "./hooks/useConversationEditingState";
 import { useGitWatcher } from "./hooks/useGitWatcher";
+import {
+	type ComposerMode,
+	useQueuedMessageEdit,
+} from "./hooks/useQueuedMessageEdit";
 import {
 	draftInputStorageKeyPrefix,
 	parseStoredDraft,
@@ -336,6 +341,16 @@ const AgentChatPage: React.FC<{ readonly chatId: string }> = ({
 	const { mutateAsync: promoteQueuedMessage } = useMutation(
 		promoteChatQueuedMessage(queryClient, agentId),
 	);
+	const { isPending: isSaveQueuedPending, mutateAsync: saveQueuedMessage } =
+		useMutation(editChatQueuedMessage(queryClient, agentId));
+	// Marker requests must not mark the composer pending, so they use a
+	// separate mutation instance. Its state tells the composer which begin or
+	// end is in flight.
+	const {
+		isPending: isMarkerPending,
+		variables: markerVariables,
+		mutateAsync: markQueuedMessageEditing,
+	} = useMutation(editChatQueuedMessage(queryClient, agentId));
 	const updateChatManageAutomationsBase =
 		updateChatManageAutomations(queryClient);
 	const {
@@ -506,6 +521,7 @@ const AgentChatPage: React.FC<{ readonly chatId: string }> = ({
 	const isSubmissionPending =
 		isSendPending ||
 		isEditPending ||
+		isSaveQueuedPending ||
 		isInterruptPending ||
 		isCompactPending ||
 		isClearPending;
@@ -585,23 +601,119 @@ const AgentChatPage: React.FC<{ readonly chatId: string }> = ({
 			onError: handleRequestError,
 		});
 
+	// A 404 means the row was sent or removed. It is dropped locally because a
+	// queue_update without it is not guaranteed to arrive. Every failure is
+	// toasted before it is rethrown. A settled marker request is written into
+	// the row so the composer does not wait for the queue_update.
+	const patchQueuedMessage = async (
+		id: number,
+		req: TypesGen.EditChatQueuedMessageRequest,
+		failureMessage: string,
+	) => {
+		const mutate = req.content ? saveQueuedMessage : markQueuedMessageEditing;
+		try {
+			await mutate({ queuedMessageId: id, req });
+		} catch (error) {
+			if (getErrorStatus(error) === 404) {
+				store.setQueuedMessages(
+					store.getSnapshot().queuedMessages.filter((row) => row.id !== id),
+				);
+				toast.error("Queued message was already sent or removed.");
+			} else {
+				toast.error(getErrorMessage(error, failureMessage));
+			}
+			throw error;
+		}
+		if (req.editing !== undefined) {
+			// The server allows one row under edit per chat, so a begin ends any
+			// other row's edit.
+			const editingSince = req.editing ? new Date().toISOString() : undefined;
+			store.setQueuedMessages(
+				store.getSnapshot().queuedMessages.map((row) => {
+					if (row.id === id) {
+						return { ...row, editing_since: editingSince };
+					}
+					return req.editing && row.editing_since
+						? { ...row, editing_since: undefined }
+						: row;
+				}),
+			);
+		}
+	};
+
+	const isOwner = chat !== undefined && !isViewerNotOwner;
+	const [composerMode, setComposerMode] = useState<ComposerMode>(undefined);
+	const {
+		serverMarkedID,
+		queuedMessageUnderEditID,
+		composerTarget,
+		handleEditQueuedMessage: beginQueuedMessageEdit,
+		handleEndQueuedMessageEdit: requestEndQueuedMessageEdit,
+	} = useQueuedMessageEdit({
+		store,
+		composerMode,
+		setComposerMode,
+		isOwner,
+		marker: {
+			isPending: isMarkerPending,
+			variables: markerVariables,
+		},
+		patchQueuedMessage,
+	});
+	const composerTargetContent = useChatSelector(store, (s) => {
+		if (composerTarget === null) {
+			return undefined;
+		}
+		if (composerTarget.kind === "queued") {
+			return s.queuedMessages.find((row) => row.id === composerTarget.id)
+				?.content;
+		}
+		return s.messagesByID.get(composerTarget.id)?.content;
+	});
+
 	const editing = useConversationEditingState({
 		chatID: agentId,
 		onSend: handleSend,
 		chatInputRef,
 		inputValueRef,
+		composerMode,
+		setComposerMode,
+		target: composerTarget,
+		targetContent: composerTargetContent,
 	});
-	const handleBeginHistoryEdit = (
-		messageId: number,
-		text: string,
-		fileBlocks?: readonly TypesGen.ChatMessagePart[],
-	) => {
+
+	const handleEditQueuedMessage = (id: number) => {
 		isEditReasoningEffortDirtyRef.current = false;
-		editing.handleBeginEdit(
-			{ kind: "history", id: messageId },
-			text,
-			fileBlocks,
-		);
+		beginQueuedMessageEdit(id);
+	};
+
+	const handleEndQueuedMessageEdit = (id: number) => {
+		if (composerTarget?.kind === "queued" && composerTarget.id === id) {
+			editing.handleCancelEdit();
+		}
+		return requestEndQueuedMessageEdit(id);
+	};
+
+	const handleCancelEdit = () => {
+		if (composerTarget?.kind === "queued") {
+			void handleEndQueuedMessageEdit(composerTarget.id).catch(() => undefined);
+			return;
+		}
+		if (
+			composerTarget?.kind === "history" &&
+			isOwner &&
+			serverMarkedID !== null
+		) {
+			isEditReasoningEffortDirtyRef.current = false;
+			setComposerMode({ kind: "queued", id: serverMarkedID });
+			return;
+		}
+		editing.handleCancelEdit();
+	};
+
+	const handleBeginHistoryEdit = (messageId: number) => {
+		isEditReasoningEffortDirtyRef.current = false;
+		setComposerMode({ kind: "history", id: messageId });
 	};
 
 	const chatTitle = chatQuery.data?.title;
@@ -667,6 +779,15 @@ const AgentChatPage: React.FC<{ readonly chatId: string }> = ({
 		effectiveReasoningEffort,
 		mcpServerIds: effectiveMCPServerIds,
 		editMessage,
+		saveQueuedMessage: (
+			queuedMessageId: number,
+			req: TypesGen.EditChatQueuedMessageRequest,
+		) =>
+			patchQueuedMessage(
+				queuedMessageId,
+				req,
+				"Failed to save the queued message.",
+			),
 		sendMessage,
 		onRequestError: handleRequestError,
 		invalidateChat: (chatId: string) => {
@@ -765,7 +886,7 @@ const AgentChatPage: React.FC<{ readonly chatId: string }> = ({
 					workspaceAgent={workspaceAgent}
 					store={store}
 					initialMessages={chatMessagesList ?? []}
-					editing={{ ...editing, handleBeginHistoryEdit }}
+					editing={{ ...editing, handleBeginHistoryEdit, handleCancelEdit }}
 					effectiveSelectedModel={effectiveSelectedModel}
 					setSelectedModel={setSelectedModel}
 					modelOptions={modelOptions}
@@ -818,6 +939,9 @@ const AgentChatPage: React.FC<{ readonly chatId: string }> = ({
 					handleInterrupt={handleInterrupt}
 					handleDeleteQueuedMessage={handleDeleteQueuedMessage}
 					handlePromoteQueuedMessage={handlePromoteQueuedMessage}
+					handleEditQueuedMessage={handleEditQueuedMessage}
+					handleEndQueuedMessageEdit={handleEndQueuedMessageEdit}
+					queuedMessageUnderEditID={queuedMessageUnderEditID}
 					onImplementPlan={handleImplementPlan}
 					onSendAskUserQuestionResponse={handleSendAskUserQuestionResponse}
 					urlTransform={urlTransform}
