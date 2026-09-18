@@ -72,23 +72,32 @@ type instructionDiscoverer func(ctx context.Context, calls []fantasy.ToolCallCon
 // reported as holding no instruction file, so a step that keeps touching
 // the same tree does not re-ask on every tool call, and directories a
 // command ran in, which later touches re-probe for a while because the
-// command may still be writing.
+// command may still be writing. An empty directory is empty for every chat
+// on the agent; a directory one chat's row cap kept out is remembered for
+// that chat alone.
 type instructionProbeCache struct {
 	mu      sync.Mutex
 	entries map[instructionProbeKey]time.Time
 	pending map[instructionProbeKey]time.Time
 }
 
+// instructionProbeKey scopes an entry to an agent and, for a chat-specific
+// entry, a chat; chatID is uuid.Nil for entries every chat shares.
 type instructionProbeKey struct {
 	agentID uuid.UUID
+	chatID  uuid.UUID
 	dir     string
 }
 
-func (c *instructionProbeCache) negative(now time.Time, agentID uuid.UUID, dir string) bool {
+func (c *instructionProbeCache) negative(now time.Time, agentID, chatID uuid.UUID, dir string) bool {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	expiry, ok := c.entries[instructionProbeKey{agentID: agentID, dir: pathKey(dir)}]
-	return ok && now.Before(expiry)
+	for _, scope := range []uuid.UUID{uuid.Nil, chatID} {
+		if expiry, ok := c.entries[instructionProbeKey{agentID: agentID, chatID: scope, dir: pathKey(dir)}]; ok && now.Before(expiry) {
+			return true
+		}
+	}
+	return false
 }
 
 // markPending records directories a command ran in. The set is bounded
@@ -135,7 +144,7 @@ func (c *instructionProbeCache) isPending(now time.Time, agentID uuid.UUID, dir 
 	}
 }
 
-func (c *instructionProbeCache) markNegative(now time.Time, agentID uuid.UUID, dirs []string) {
+func (c *instructionProbeCache) markNegative(now time.Time, agentID, chatID uuid.UUID, dirs []string) {
 	if len(dirs) == 0 {
 		return
 	}
@@ -155,15 +164,18 @@ func (c *instructionProbeCache) markNegative(now time.Time, agentID uuid.UUID, d
 		}
 	}
 	for _, dir := range dirs {
-		c.entries[instructionProbeKey{agentID: agentID, dir: pathKey(dir)}] = now.Add(instructionProbeTTL)
+		c.entries[instructionProbeKey{agentID: agentID, chatID: chatID, dir: pathKey(dir)}] = now.Add(instructionProbeTTL)
 	}
 }
 
-func (c *instructionProbeCache) forget(agentID uuid.UUID, dirs []string) {
+// forget drops the shared and the chat's own entry for each dir.
+func (c *instructionProbeCache) forget(agentID, chatID uuid.UUID, dirs []string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	for _, dir := range dirs {
-		delete(c.entries, instructionProbeKey{agentID: agentID, dir: pathKey(dir)})
+		for _, scope := range []uuid.UUID{uuid.Nil, chatID} {
+			delete(c.entries, instructionProbeKey{agentID: agentID, chatID: scope, dir: pathKey(dir)})
+		}
 	}
 }
 
@@ -356,6 +368,36 @@ func staleInstructionDirs(files, dirs []string) map[string]struct{} {
 	return stale
 }
 
+// pinnedInstructionDirs lists, by pathKey, the directories whose
+// instruction files the chat already holds. A directory is left off when a
+// discovered file the content cap kept out of it would fit the bytes now
+// free, so a later touch re-reads it instead of waiting for a refresh.
+func pinnedInstructionDirs(rows []database.ChatContextResource) map[string]struct{} {
+	var used int64
+	for _, row := range rows {
+		if row.Discovered && row.BodyKind == database.WorkspaceAgentContextBodyKindInstructionFile && row.Status == database.WorkspaceAgentContextResourceStatusOk {
+			used += row.SizeBytes
+		}
+	}
+	free := maxDiscoveredInstructionBytes - used
+	reprobe := make(map[string]struct{})
+	dirs := make(map[string]struct{}, len(rows))
+	for _, row := range rows {
+		if row.BodyKind != database.WorkspaceAgentContextBodyKindInstructionFile {
+			continue
+		}
+		key := pathKey(instructionRowDir(row))
+		if row.Discovered && row.Status == database.WorkspaceAgentContextResourceStatusExcluded && row.SizeBytes <= free {
+			reprobe[key] = struct{}{}
+		}
+		dirs[key] = struct{}{}
+	}
+	for key := range reprobe {
+		delete(dirs, key)
+	}
+	return dirs
+}
+
 // selectInstructionProbes picks the candidates worth asking the agent
 // about. A stale directory is always probed; otherwise a directory that
 // already contributed a pinned instruction file, or that is a fresh
@@ -456,7 +498,7 @@ func (p *Server) discoverInstructionContext(
 			stale[pathKey(dir)] = struct{}{}
 		}
 	}
-	p.instructionProbes.forget(agent.ID, slices.Collect(maps.Keys(stale)))
+	p.instructionProbes.forget(agent.ID, chat.ID, slices.Collect(maps.Keys(stale)))
 
 	//nolint:gocritic // Chatd pins discovered rows onto a chat it does not own.
 	dbCtx := dbauthz.AsChatd(ctx)
@@ -465,14 +507,8 @@ func (p *Server) discoverInstructionContext(
 		logger.Debug(ctx, "list pinned context for instruction discovery", slog.Error(err))
 		return
 	}
-	pinnedDirs := make(map[string]struct{}, len(rows))
-	for _, row := range rows {
-		if row.BodyKind == database.WorkspaceAgentContextBodyKindInstructionFile {
-			pinnedDirs[pathKey(instructionRowDir(row))] = struct{}{}
-		}
-	}
-	probe := selectInstructionProbes(candidates, pinnedDirs, stale, func(dir string) bool {
-		return p.instructionProbes.negative(now, agent.ID, dir)
+	probe := selectInstructionProbes(candidates, pinnedInstructionDirs(rows), stale, func(dir string) bool {
+		return p.instructionProbes.negative(now, agent.ID, chat.ID, dir)
 	})
 	if len(probe) == 0 {
 		return
@@ -491,11 +527,16 @@ func (p *Server) discoverInstructionContext(
 		return
 	}
 	// One transaction, so a failure part-way leaves the inventory as it
-	// was rather than half reconciled behind a pinned directory.
+	// was rather than half reconciled behind a pinned directory. The
+	// inventory is read again inside it: an agent push during the round
+	// trip may have made one of the resolved sources a snapshot row.
 	var result discoveryReconciliation
 	err = p.db.InTx(func(tx database.Store) error {
-		var err error
-		result, err = reconcileDiscoveredInstructionFiles(dbCtx, tx, chat.ID, rows, resolved, stale, probed, discoveryBudget{})
+		current, err := tx.ListChatContextResourcesByChatID(dbCtx, chat.ID)
+		if err != nil {
+			return xerrors.Errorf("list chat context resources: %w", err)
+		}
+		result, err = reconcileDiscoveredInstructionFiles(dbCtx, tx, chat.ID, current, resolved, stale, probed, discoveryBudget{})
 		return err
 	}, nil)
 	if err != nil {
@@ -521,10 +562,11 @@ func (p *Server) discoverInstructionContext(
 		}
 		negatives = append(negatives, dir)
 	}
-	// A directory whose files the row cap kept out is not asked again for
-	// a while either; its files would be read for nothing.
-	negatives = append(negatives, result.capped...)
-	p.instructionProbes.markNegative(now, agent.ID, negatives)
+	p.instructionProbes.markNegative(now, agent.ID, uuid.Nil, negatives)
+	// A directory whose files this chat's row cap kept out is not asked
+	// again for a while either; its files would be read for nothing. The
+	// cap is the chat's, so another chat on the agent still probes it.
+	p.instructionProbes.markNegative(now, agent.ID, chat.ID, result.capped)
 	if result.pinned == 0 && result.removed == 0 {
 		return
 	}

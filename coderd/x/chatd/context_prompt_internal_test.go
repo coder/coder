@@ -125,9 +125,12 @@ func TestContextResourcesToPrompt(t *testing.T) {
 
 		discoveredDotCoder := instructionResource(t, "/repo/.coder/AGENTS.md", "repo tooling", database.WorkspaceAgentContextResourceStatusOk)
 		discoveredDotCoder.Discovered = true
+		registeredDotCoder := instructionResource(t, "/repo/vendor/.coder/AGENTS.md", "vendor tooling", database.WorkspaceAgentContextResourceStatusOk)
+		registeredDotCoder.SourcePath = "/repo/vendor/.coder"
 		resources := []database.ChatContextResource{
 			instructionResource(t, "/repo/site/AGENTS.md", "site", database.WorkspaceAgentContextResourceStatusOk),
 			discoveredDotCoder,
+			registeredDotCoder,
 			instructionResource(t, "/repo/AGENTS.md", "repo", database.WorkspaceAgentContextResourceStatusOk),
 			instructionResource(t, "/home/coder/.coder/AGENTS.md", "global", database.WorkspaceAgentContextResourceStatusOk),
 		}
@@ -135,14 +138,17 @@ func TestContextResourcesToPrompt(t *testing.T) {
 
 		// A working directory outside the home directory is shallower than
 		// ~/.coder, yet the global file still leads. A .coder directory
-		// discovered inside the repository is nested, not global.
+		// discovered inside the repository, or registered by the user as a
+		// source, is nested, not global.
 		global := strings.Index(instruction, "Source: /home/coder/.coder/AGENTS.md")
 		root := strings.Index(instruction, "Source: /repo/AGENTS.md")
 		nested := strings.Index(instruction, "Source: /repo/site/AGENTS.md")
 		dotCoder := strings.Index(instruction, "Source: /repo/.coder/AGENTS.md")
+		registered := strings.Index(instruction, "Source: /repo/vendor/.coder/AGENTS.md")
 		require.Less(t, global, root)
 		require.Less(t, root, dotCoder)
 		require.Less(t, dotCoder, nested)
+		require.Less(t, nested, registered)
 	})
 
 	t.Run("NamesOmittedFilesNextToRenderedOnes", func(t *testing.T) {

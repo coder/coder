@@ -168,6 +168,33 @@ func TestSelectInstructionProbes(t *testing.T) {
 	require.Equal(t, []string{"C:/repo/docs"}, got)
 }
 
+func TestPinnedInstructionDirs(t *testing.T) {
+	t.Parallel()
+
+	instruction := func(source string, discovered bool, status database.WorkspaceAgentContextResourceStatus, size int64) database.ChatContextResource {
+		return database.ChatContextResource{Source: source, BodyKind: database.WorkspaceAgentContextBodyKindInstructionFile, Discovered: discovered, Status: status, SizeBytes: size}
+	}
+	const ok, excluded, oversize = database.WorkspaceAgentContextResourceStatusOk, database.WorkspaceAgentContextResourceStatusExcluded, database.WorkspaceAgentContextResourceStatusOversize
+	rows := []database.ChatContextResource{
+		instruction("/repo/AGENTS.md", false, ok, 10),
+		instruction("/repo/site/AGENTS.md", true, ok, maxDiscoveredInstructionBytes-100),
+		instruction("/repo/site/CLAUDE.md", true, excluded, 100),
+		instruction("/repo/docs/AGENTS.md", true, excluded, 101),
+		instruction("/repo/pkg/AGENTS.md", true, oversize, 5),
+		instruction("/repo/lib/AGENTS.md", false, excluded, 1),
+		{Source: "/repo/cmd/skill", BodyKind: database.WorkspaceAgentContextBodyKindSkill, Discovered: true, Status: ok},
+	}
+
+	// site holds a file the cap kept out that fits the 100 free bytes, so
+	// it is probed again even though its other file is pinned. docs does
+	// not fit yet, pkg is too large for any budget, and lib's exclusion is
+	// the snapshot's, not this chat's.
+	require.Equal(t, map[string]struct{}{"/repo": {}, "/repo/docs": {}, "/repo/pkg": {}, "/repo/lib": {}}, pinnedInstructionDirs(rows))
+
+	// Removing the large file frees the budget for docs as well.
+	require.Equal(t, map[string]struct{}{"/repo": {}, "/repo/pkg": {}, "/repo/lib": {}}, pinnedInstructionDirs(append(rows[:1:1], rows[2:]...)))
+}
+
 func TestRemovedDiscoveredSources(t *testing.T) {
 	t.Parallel()
 
@@ -309,31 +336,40 @@ func TestInstructionProbeCache(t *testing.T) {
 
 	var cache instructionProbeCache
 	agentID := uuid.New()
+	chatA, chatB := uuid.New(), uuid.New()
 	now := time.Now()
 
-	require.False(t, cache.negative(now, agentID, "/tmp"))
-	cache.markNegative(now, agentID, []string{"/tmp", "/tmp/repo"})
-	require.True(t, cache.negative(now, agentID, "/tmp"))
-	require.False(t, cache.negative(now, uuid.New(), "/tmp"), "negatives are per agent")
-	require.False(t, cache.negative(now.Add(instructionProbeTTL), agentID, "/tmp"), "entries expire")
+	require.False(t, cache.negative(now, agentID, chatA, "/tmp"))
+	cache.markNegative(now, agentID, uuid.Nil, []string{"/tmp", "/tmp/repo"})
+	require.True(t, cache.negative(now, agentID, chatA, "/tmp"))
+	require.True(t, cache.negative(now, agentID, chatB, "/tmp"), "an empty directory is empty for every chat on the agent")
+	require.False(t, cache.negative(now, uuid.New(), chatA, "/tmp"), "negatives are per agent")
+	require.False(t, cache.negative(now.Add(instructionProbeTTL), agentID, chatA, "/tmp"), "entries expire")
 
-	cache.forget(agentID, []string{"/tmp/repo"})
-	require.False(t, cache.negative(now, agentID, "/tmp/repo"))
-	require.True(t, cache.negative(now, agentID, "/tmp"))
+	cache.forget(agentID, chatA, []string{"/tmp/repo"})
+	require.False(t, cache.negative(now, agentID, chatA, "/tmp/repo"))
+	require.True(t, cache.negative(now, agentID, chatA, "/tmp"))
 
-	cache.markNegative(now, agentID, []string{"C:/Repo/site"})
-	require.True(t, cache.negative(now, agentID, "c:/repo/site"), "Windows directories match case-insensitively")
-	cache.forget(agentID, []string{"c:/REPO/site"})
-	require.False(t, cache.negative(now, agentID, "C:/Repo/site"))
+	// A directory one chat's row cap kept out is that chat's business only.
+	cache.markNegative(now, agentID, chatA, []string{"/tmp/capped"})
+	require.True(t, cache.negative(now, agentID, chatA, "/tmp/capped"))
+	require.False(t, cache.negative(now, agentID, chatB, "/tmp/capped"), "another chat on the agent still probes the directory")
+	cache.forget(agentID, chatA, []string{"/tmp/capped"})
+	require.False(t, cache.negative(now, agentID, chatA, "/tmp/capped"))
+
+	cache.markNegative(now, agentID, uuid.Nil, []string{"C:/Repo/site"})
+	require.True(t, cache.negative(now, agentID, chatA, "c:/repo/site"), "Windows directories match case-insensitively")
+	cache.forget(agentID, chatA, []string{"c:/REPO/site"})
+	require.False(t, cache.negative(now, agentID, chatA, "C:/Repo/site"))
 
 	// Filling the cache past its bound resets it instead of growing.
 	many := make([]string, 0, maxInstructionProbeEntries)
 	for i := range maxInstructionProbeEntries {
 		many = append(many, "/bulk/"+uuid.NewString()+string(rune('a'+i%26)))
 	}
-	cache.markNegative(now, agentID, many)
+	cache.markNegative(now, agentID, uuid.Nil, many)
 	require.LessOrEqual(t, len(cache.entries), maxInstructionProbeEntries)
-	require.False(t, cache.negative(now, agentID, "/tmp"))
+	require.False(t, cache.negative(now, agentID, chatA, "/tmp"))
 }
 
 // TestReconcileDiscoveredInstructionFilesBudget checks the per-chat cap on

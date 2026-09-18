@@ -849,6 +849,82 @@ func TestLazyInstructionDiscoveryReconcilesAtomically(t *testing.T) {
 	require.False(t, pinned[discoveryRootSource].Discovered)
 }
 
+// TestLazyInstructionDiscoveryReadsInventoryInsideTransaction checks that
+// a resolved file which an agent push made a snapshot row during the probe
+// round trip is neither charged to the discovered budget nor counted, so
+// the other file the probe returned is still pinned readable.
+func TestLazyInstructionDiscoveryReadsInventoryInsideTransaction(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	db, ps := dbtestutil.NewDB(t)
+	var modelCalls atomic.Int32
+	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse("title")
+		}
+		if modelCalls.Add(1) == 1 {
+			return chattest.OpenAIStreamingResponse(chattest.OpenAIToolCallChunk("read_file", `{"path":"`+discoveryTouchedFile+`"}`))
+		}
+		return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("done")...)
+	})
+	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
+	ws, dbAgent := seedWorkspaceWithAgent(t, db, user.ID)
+	//nolint:gocritic // Seeding agent context as the chatd subject.
+	chatdCtx := dbauthz.AsChatd(ctx)
+	seedAgentInstructionContext(chatdCtx, t, db, dbAgent.ID, discoveryRootSource, "root rules")
+
+	ctrl := gomock.NewController(t)
+	mockConn := agentconnmock.NewMockAgentConn(ctrl)
+	setupDiscoveryAgentConn(mockConn)
+	mockConn.EXPECT().ReadFileLines(gomock.Any(), discoveryTouchedFile, int64(1), int64(0), gomock.Any()).
+		Return(workspacesdk.ReadFileLinesResponse{Success: true, FileSize: 4, TotalLines: 1, LinesRead: 1, Content: "data"}, nil)
+	secondSource := discoveryNestedDir + "/CLAUDE.md"
+	var chatID atomic.Pointer[uuid.UUID]
+	mockConn.EXPECT().ResolveContextInstructions(gomock.Any(), workspacesdk.ResolveContextInstructionsRequest{
+		Directories: []string{discoveryNestedDir, discoveryNestedDir + "/src"},
+	}).DoAndReturn(func(context.Context, workspacesdk.ResolveContextInstructionsRequest) (workspacesdk.ResolveContextInstructionsResponse, error) {
+		// The agent publishes the nested file while the probe is in flight,
+		// so its chat row is a snapshot copy by the time the answer lands.
+		seedAgentInstructionContext(chatdCtx, t, db, dbAgent.ID, discoveryNestedSource, "site rules")
+		require.NoError(t, db.InsertAgentContextResourcesIntoChat(chatdCtx, database.InsertAgentContextResourcesIntoChatParams{
+			ChatID: *chatID.Load(), AgentID: dbAgent.ID,
+		}))
+		probe := instructionFileResponse(discoveryNestedDir, discoveryNestedSource, "site rules")
+		probe.Files[0].SizeBytes = 1 << 20
+		probe.Files = append(probe.Files, instructionFileResponse(discoveryNestedDir, secondSource, "claude rules").Files...)
+		return probe, nil
+	})
+
+	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
+		cfg.AgentConn = func(_ context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+			require.Equal(t, dbAgent.ID, agentID)
+			return mockConn, func() {}, nil
+		}
+	})
+	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
+		WorkspaceID:    uuid.NullUUID{UUID: ws.ID, Valid: true},
+		AgentID:        uuid.NullUUID{UUID: dbAgent.ID, Valid: true},
+		Title:          "lazy-instruction-discovery-inventory-in-tx",
+		ModelConfigID:  model.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("read the app"),
+		},
+	})
+	require.NoError(t, err)
+	chatID.Store(&chat.ID)
+	waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
+
+	pinned := pinnedBySource(ctx, t, db, chat.ID)
+	require.False(t, pinned[discoveryNestedSource].Discovered, "the snapshot's row is left to the agent")
+	second := pinned[secondSource]
+	require.True(t, second.Discovered)
+	require.Equal(t, database.WorkspaceAgentContextResourceStatusOk, second.Status, "the snapshot-owned file's bytes are not charged to the discovered budget")
+}
+
 // TestLazyInstructionDiscoveryFollowsSwitchedAgent checks that when the
 // chat's agent drops between the step's preparation and its tools, and the
 // tools' dial rebinds the turn to the rebuilt workspace's agent, discovery
