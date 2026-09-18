@@ -1,6 +1,7 @@
 import { describeElement } from "./describeElement";
 import { outlineInset, viewportBox } from "./geometry";
 import { createHighlightLayer } from "./highlights";
+import { carryMarkerAcrossNavigation } from "./navigation";
 import {
 	type Annotation,
 	type AnnotationSubmission,
@@ -457,6 +458,7 @@ export function mountAnnotator(
 	pickButton.addEventListener("click", () => setPicking(!picking));
 	win.addEventListener("scroll", scheduleLayout, true);
 	win.addEventListener("resize", scheduleLayout);
+	const stopCarryingMarker = carryMarkerAcrossNavigation(doc, win);
 	notify();
 
 	return {
@@ -468,6 +470,7 @@ export function mountAnnotator(
 			highlights.destroy();
 			win.removeEventListener("scroll", scheduleLayout, true);
 			win.removeEventListener("resize", scheduleLayout);
+			stopCarryingMarker();
 			if (frame !== 0) {
 				win.cancelAnimationFrame(frame);
 			}
