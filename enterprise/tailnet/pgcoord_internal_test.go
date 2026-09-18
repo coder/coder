@@ -26,6 +26,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	agpl "github.com/coder/coder/v2/tailnet"
 	"github.com/coder/coder/v2/tailnet/proto"
+	agpltest "github.com/coder/coder/v2/tailnet/test"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
 )
@@ -372,6 +373,74 @@ func TestGetDebug(t *testing.T) {
 	require.Equal(t, coordID, debug.Tunnels[0].CoordinatorID)
 	require.Equal(t, peerID, debug.Tunnels[0].SrcID)
 	require.Equal(t, dstID, debug.Tunnels[0].DstID)
+}
+
+func TestPGCoordinator_Unhealthy(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
+	defer cancel()
+	ctrl := gomock.NewController(t)
+	mStore := dbmock.NewMockStore(ctrl)
+	ps := pubsub.NewInMemory()
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+
+	mClock := quartz.NewMock(t)
+	trap := mClock.Trap().TickerFunc("heartbeats", "sendBeats")
+	defer trap.Close()
+
+	// first call succeeds, so that our Agent will successfully connect.
+	firstSucceeds := mStore.EXPECT().UpsertTailnetCoordinator(gomock.Any(), gomock.Any()).
+		Times(1).
+		Return(database.TailnetCoordinator{}, nil)
+	// next 3 fail, so the Coordinator becomes unhealthy, and we test that it disconnects the agent
+	threeMissed := mStore.EXPECT().UpsertTailnetCoordinator(gomock.Any(), gomock.Any()).
+		After(firstSucceeds).
+		Times(3).
+		Return(database.TailnetCoordinator{}, xerrors.New("test disconnect"))
+	mStore.EXPECT().UpsertTailnetCoordinator(gomock.Any(), gomock.Any()).
+		Times(2).
+		After(threeMissed).
+		Return(database.TailnetCoordinator{}, nil)
+	// extra calls we don't particularly care about for this test
+	mStore.EXPECT().CleanTailnetCoordinators(gomock.Any()).AnyTimes().Return(nil)
+	mStore.EXPECT().CleanTailnetLostPeers(gomock.Any()).AnyTimes().Return(nil)
+	mStore.EXPECT().CleanTailnetTunnels(gomock.Any()).AnyTimes().Return(nil)
+	mStore.EXPECT().GetTailnetTunnelPeerIDsBatch(gomock.Any(), gomock.Any()).AnyTimes().Return(nil, nil)
+	mStore.EXPECT().GetTailnetTunnelPeerBindingsBatch(gomock.Any(), gomock.Any()).AnyTimes().Return(nil, nil)
+	mStore.EXPECT().DeleteTailnetPeer(gomock.Any(), gomock.Any()).
+		AnyTimes().Return(database.DeleteTailnetPeerRow{}, nil)
+	mStore.EXPECT().DeleteAllTailnetTunnels(gomock.Any(), gomock.Any()).AnyTimes().Return(nil, nil)
+	mStore.EXPECT().UpdateTailnetPeerStatusByCoordinator(gomock.Any(), gomock.Any())
+
+	uut, err := newPGCoordInternal(ctx, logger, ps, mStore, mClock)
+	require.NoError(t, err)
+	defer func() {
+		err := uut.Close()
+		require.NoError(t, err)
+	}()
+	trap.MustWait(ctx).MustRelease(ctx)
+	agent1 := agpltest.NewAgent(ctx, t, uut, "agent1")
+	defer agent1.Close(ctx)
+	for range 3 {
+		mClock.Advance(HeartbeatPeriod).MustWait(ctx)
+	}
+	// connected agent should be disconnected
+	agent1.AssertEventuallyResponsesClosed(CloseErrUnhealthy)
+
+	// new agent should immediately disconnect
+	agent2 := agpltest.NewAgent(ctx, t, uut, "agent2")
+	defer agent2.Close(ctx)
+	agent2.AssertEventuallyResponsesClosed(CloseErrUnhealthy)
+
+	// next heartbeats succeed, so we are healthy
+	for range 2 {
+		mClock.Advance(HeartbeatPeriod).MustWait(ctx)
+	}
+	require.Eventually(t, uut.querier.isHealthy, testutil.WaitShort, testutil.IntervalFast)
+	agent3 := agpltest.NewAgent(ctx, t, uut, "agent3")
+	defer agent3.Close(ctx)
+	agent3.AssertNotClosed(time.Second)
 }
 
 // TestPGCoordinatorUnhealthy tests that when the coordinator fails to send heartbeats and is
