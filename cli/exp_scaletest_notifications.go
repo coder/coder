@@ -238,9 +238,7 @@ func (r *RootCmd) scaletestNotifications() *serpent.Command {
 
 			res := th.Results()
 
-			// triggerNotifications always sends exactly one result, so block for
-			// it here rather than letting the latency computation race the
-			// trigger goroutine.
+			// triggerNotifications sends exactly one result; block to avoid a race.
 			triggerTime := <-triggerCh
 			if err := computeNotificationLatencies(ctx, logger, triggerTime, res, metrics); err != nil {
 				return xerrors.Errorf("compute notification latencies: %w", err)
@@ -343,8 +341,7 @@ func (r *RootCmd) scaletestNotifications() *serpent.Command {
 	return cmd
 }
 
-// deletionNotificationID is the TemplateTemplateDeleted notification ID, the
-// only notification this load generator triggers.
+// deletionNotificationID is the only notification this generator triggers.
 var deletionNotificationID = notificationsLib.TemplateTemplateDeleted.String()
 
 func computeNotificationLatencies(
@@ -373,8 +370,7 @@ func computeNotificationLatencies(
 			continue
 		}
 
-		// Every receipt is measured against the batch trigger time; see
-		// triggerNotifications for why the resulting drift is acceptable.
+		// Measured against the batch trigger time (see triggerNotifications).
 		if wsReceiptTimes, ok := runResult.Metrics[notifications.WebsocketNotificationReceiptTimeMetric].([]time.Time); ok {
 			for _, receiptTime := range wsReceiptTimes {
 				latency := receiptTime.Sub(triggerTime)
@@ -405,14 +401,10 @@ func computeNotificationLatencies(
 	return nil
 }
 
-// notificationsTemplatePrefix is the name prefix for every template created by
-// the notifications load generator. Cleanup matches on it, so it must stay in
-// sync with the names used when creating templates.
 const notificationsTemplatePrefix = "scaletest-test-template-"
 
-// deleteScaletestNotificationTemplates best-effort deletes every template
-// created by this load generator, matched by name prefix. It never returns an
-// error: failures are logged so it can be called from a defer on any exit.
+// deleteScaletestNotificationTemplates best-effort deletes this generator's
+// templates by name prefix, logging failures instead of returning them.
 func deleteScaletestNotificationTemplates(ctx context.Context, logger slog.Logger, client *codersdk.Client, orgID uuid.UUID) {
 	templates, err := client.Templates(ctx, codersdk.TemplateFilter{
 		OrganizationID: orgID,
@@ -435,10 +427,8 @@ func deleteScaletestNotificationTemplates(ctx context.Context, logger slog.Logge
 	}
 }
 
-// triggerNotifications waits for all test users to connect, then creates and
-// deletes deletionCount templates to trigger notification events. Each deletion
-// notifies every template admin, so an admin watching this run expects
-// deletionCount TemplateTemplateDeleted notifications.
+// triggerNotifications waits for all users to connect, then creates and deletes
+// deletionCount templates. Each deletion notifies every template admin.
 func triggerNotifications(
 	ctx context.Context,
 	logger slog.Logger,
@@ -449,20 +439,15 @@ func triggerNotifications(
 	deletionCount int,
 	triggerCh chan<- time.Time,
 ) {
-	// Always send exactly one batch-start time so the caller can block on a
-	// single deterministic receive instead of racing this goroutine. A failure
-	// before any deletion sends a zero time, which the caller treats as nothing
-	// measurable.
+	// Always send exactly one batch-start time so the caller can block for it; a
+	// failure before any deletion sends the zero time.
 	var batchStart time.Time
 	defer func() { triggerCh <- batchStart }()
 
-	// Best-effort cleanup on any exit: delete every template this generator may
-	// have created (matched by name), whether the run succeeded or errored out
-	// early. Deletes here also fire notifications, but the test is finished by
-	// now so they are harmless.
+	// Clean up on any exit. These deletes also fire notifications, but the test
+	// is done by now so they are harmless.
 	defer func() {
-		// Use a fresh context so cleanup still runs when the run ended because its
-		// context was canceled (for example on interrupt).
+		// Fresh context so cleanup runs even if ctx was canceled (e.g. interrupt).
 		cleanupCtx, cancel := context.WithTimeout(context.Background(), time.Minute)
 		defer cancel()
 		deleteScaletestNotificationTemplates(cleanupCtx, logger, client, orgID)
@@ -494,8 +479,7 @@ func triggerNotifications(
 
 	logger.Info(ctx, "creating test templates to trigger notifications", slog.F("count", deletionCount))
 
-	// The echo provisioner ignores template contents, so reuse one empty
-	// archive for every template version.
+	// The echo provisioner ignores contents, so reuse one empty archive.
 	file, err := client.Upload(ctx, codersdk.ContentTypeTar, bytes.NewReader([]byte{}))
 	if err != nil {
 		logger.Error(ctx, "upload test template", slog.Error(err))
@@ -503,8 +487,7 @@ func triggerNotifications(
 	}
 	logger.Info(ctx, "test template uploaded", slog.F("file_id", file.ID))
 
-	// Create every template before deleting any so the deletions, which are what
-	// enqueue the notifications, happen back to back.
+	// Create all templates first so the deletions happen back to back.
 	templateIDs := make([]uuid.UUID, 0, deletionCount)
 	for i := range deletionCount {
 		version, err := client.CreateTemplateVersion(ctx, orgID, codersdk.CreateTemplateVersionRequest{
@@ -531,12 +514,9 @@ func triggerNotifications(
 	}
 	logger.Info(ctx, "test templates created", slog.F("count", len(templateIDs)))
 
-	// Delete every template to trigger the notifications. batchStart is captured
-	// once here, just before the deletions, and every receipt is measured against
-	// it. We accept that there may be some small amount of drift (in ms) based on
-	// batch start, this is okay because at scale notification delivery is on the
-	// order of minutes and this drift does not meaningfully impact our testing
-	// results.
+	// Capture batchStart once, just before the deletions; every receipt is
+	// measured against it. The ms-scale drift is fine because delivery takes
+	// minutes at scale.
 	batchStart = time.Now()
 	for _, templateID := range templateIDs {
 		if err := client.DeleteTemplate(ctx, templateID); err != nil {
