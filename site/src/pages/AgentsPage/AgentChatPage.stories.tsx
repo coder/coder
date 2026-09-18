@@ -318,6 +318,7 @@ const buildQueries = (
 	const chatWithDiffStatus: TypesGen.Chat = {
 		...chat,
 		diff_status: diffStatus,
+		diff_statuses: [diffStatus],
 	};
 	return [
 		{ key: chatEntityKey(CHAT_ID), data: chatWithDiffStatus },
