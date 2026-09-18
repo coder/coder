@@ -68,6 +68,11 @@ func CreateDynamicClientRegistration(db database.Store, accessURL *url.URL, audi
 				"invalid_client_metadata", err.Error())
 			return
 		}
+		if err := codersdk.ValidateOAuth2ScopeList(req.Scope); err != nil {
+			writeOAuth2RegistrationError(ctx, rw, http.StatusBadRequest,
+				"invalid_client_metadata", "invalid scope: "+err.Error())
+			return
+		}
 
 		// Apply defaults
 		req = req.ApplyDefaults()
@@ -332,6 +337,18 @@ func UpdateClientConfiguration(db database.Store, auditor *audit.Auditor, logger
 			writeOAuth2RegistrationError(ctx, rw, http.StatusForbidden,
 				"invalid_token", "Client was not dynamically registered")
 			return
+		}
+
+		// Apps registered before the size limit existed may already store a
+		// scope list that exceeds it. Skip the check when the request resends
+		// the stored value unchanged, so those apps can still update other
+		// fields.
+		if req.Scope != existingApp.Scope.String {
+			if err := codersdk.ValidateOAuth2ScopeList(req.Scope); err != nil {
+				writeOAuth2RegistrationError(ctx, rw, http.StatusBadRequest,
+					"invalid_client_metadata", "invalid scope: "+err.Error())
+				return
+			}
 		}
 
 		// A client's type is fixed at registration (RFC 7592 §2.2 permits
