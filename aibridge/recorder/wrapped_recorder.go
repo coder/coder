@@ -2,7 +2,6 @@ package recorder
 
 import (
 	"context"
-	"time"
 
 	"golang.org/x/xerrors"
 )
@@ -10,7 +9,7 @@ import (
 var _ Recorder = &WrappedRecorder{}
 
 // WrappedRecorder is a convenience struct which implements Recorder and resolves a client before calling each method.
-// It also sets the start/creation time of each record.
+// Records are stamped with their time by [LogRecorder], above this recorder in the chain.
 type WrappedRecorder struct {
 	clientFn func(context.Context) (Recorder, error)
 }
@@ -21,7 +20,6 @@ func (r *WrappedRecorder) RecordInterception(ctx context.Context, req *Intercept
 		return xerrors.Errorf("acquire client: %w", err)
 	}
 
-	req.StartedAt = time.Now()
 	return client.RecordInterception(ctx, req)
 }
 
@@ -31,7 +29,6 @@ func (r *WrappedRecorder) RecordInterceptionEnded(ctx context.Context, req *Inte
 		return xerrors.Errorf("acquire client: %w", err)
 	}
 
-	req.EndedAt = time.Now().UTC()
 	return client.RecordInterceptionEnded(ctx, req)
 }
 
@@ -41,7 +38,6 @@ func (r *WrappedRecorder) RecordPromptUsage(ctx context.Context, req *PromptUsag
 		return xerrors.Errorf("acquire client: %w", err)
 	}
 
-	req.CreatedAt = time.Now()
 	return client.RecordPromptUsage(ctx, req)
 }
 
@@ -51,7 +47,6 @@ func (r *WrappedRecorder) RecordTokenUsage(ctx context.Context, req *TokenUsageR
 		return xerrors.Errorf("acquire client: %w", err)
 	}
 
-	req.CreatedAt = time.Now()
 	return client.RecordTokenUsage(ctx, req)
 }
 
@@ -61,7 +56,6 @@ func (r *WrappedRecorder) RecordToolUsage(ctx context.Context, req *ToolUsageRec
 		return xerrors.Errorf("acquire client: %w", err)
 	}
 
-	req.CreatedAt = time.Now()
 	return client.RecordToolUsage(ctx, req)
 }
 
@@ -71,7 +65,6 @@ func (r *WrappedRecorder) RecordModelThought(ctx context.Context, req *ModelThou
 		return xerrors.Errorf("acquire client: %w", err)
 	}
 
-	req.CreatedAt = time.Now()
 	return client.RecordModelThought(ctx, req)
 }
 

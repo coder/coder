@@ -2,6 +2,7 @@ package recorder
 
 import (
 	"context"
+	"time"
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/util/ptr"
@@ -16,6 +17,12 @@ var _ Recorder = &LogRecorder{}
 // Logs were taken from [WrappedRecorder] and [AsyncRecorder] for backwards
 // compatibility. A single failure therefore still produces two lines for
 // most records. This is suboptimal, but a requirement for backwards compatibility.
+//
+// LogRecorder also stamps each record's time. It is the outermost decorator,
+// and therefore the first place a record can be given a consistent time: the
+// value stamped here is the one carried by both the log line and, via the
+// recorders below, the wire. Stamping lower in the chain would leave the logs
+// with zero times, and would skip any record dropped before it.
 type LogRecorder struct {
 	logger  slog.Logger
 	wrapped Recorder
@@ -37,6 +44,8 @@ func WithLogging(logger slog.Logger) Middleware {
 }
 
 func (r *LogRecorder) RecordInterception(ctx context.Context, req *InterceptionRecord) error {
+	req.StartedAt = time.Now()
+
 	var err error
 	if r.wrapped != nil {
 		err = r.wrapped.RecordInterception(ctx, req)
@@ -65,6 +74,8 @@ func (r *LogRecorder) RecordInterception(ctx context.Context, req *InterceptionR
 }
 
 func (r *LogRecorder) RecordInterceptionEnded(ctx context.Context, req *InterceptionRecordEnded) error {
+	req.EndedAt = time.Now().UTC()
+
 	var err error
 	if r.wrapped != nil {
 		err = r.wrapped.RecordInterceptionEnded(ctx, req)
@@ -86,6 +97,8 @@ func (r *LogRecorder) RecordInterceptionEnded(ctx context.Context, req *Intercep
 }
 
 func (r *LogRecorder) RecordPromptUsage(ctx context.Context, req *PromptUsageRecord) error {
+	req.CreatedAt = time.Now()
+
 	var err error
 	if r.wrapped != nil {
 		err = r.wrapped.RecordPromptUsage(ctx, req)
@@ -107,6 +120,8 @@ func (r *LogRecorder) RecordPromptUsage(ctx context.Context, req *PromptUsageRec
 }
 
 func (r *LogRecorder) RecordTokenUsage(ctx context.Context, req *TokenUsageRecord) error {
+	req.CreatedAt = time.Now()
+
 	var err error
 	if r.wrapped != nil {
 		err = r.wrapped.RecordTokenUsage(ctx, req)
@@ -132,6 +147,8 @@ func (r *LogRecorder) RecordTokenUsage(ctx context.Context, req *TokenUsageRecor
 }
 
 func (r *LogRecorder) RecordToolUsage(ctx context.Context, req *ToolUsageRecord) error {
+	req.CreatedAt = time.Now()
+
 	var err error
 	if r.wrapped != nil {
 		err = r.wrapped.RecordToolUsage(ctx, req)
@@ -162,6 +179,8 @@ func (r *LogRecorder) RecordToolUsage(ctx context.Context, req *ToolUsageRecord)
 }
 
 func (r *LogRecorder) RecordModelThought(ctx context.Context, req *ModelThoughtRecord) error {
+	req.CreatedAt = time.Now()
+
 	var err error
 	if r.wrapped != nil {
 		err = r.wrapped.RecordModelThought(ctx, req)
