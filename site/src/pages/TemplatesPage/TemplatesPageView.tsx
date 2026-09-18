@@ -220,7 +220,7 @@ const TemplateRow: FC<TemplateRowProps> = ({
 									className="border-0 shadow-none"
 								>
 									<TriangleAlertIcon aria-hidden="true" />
-									Deprecated
+									Compatibility mode
 								</Badge>
 							)}
 						</span>
