@@ -53,10 +53,17 @@ const (
 	// scenarioWithQueue marks ReconcileInvalidState cases seeded
 	// with a non-empty queue.
 	scenarioWithQueue scenario = "with_queue"
+	// scenarioWithBlockedQueue marks ReconcileInvalidState cases
+	// seeded with a queue whose head is under edit.
+	scenarioWithBlockedQueue scenario = "with_blocked_queue"
 	// scenarioRejectNonDynamicOutstandingToolCall marks the
 	// FinishInterruption case that exercises the precondition
 	// rejecting outstanding non-dynamic tool calls.
 	scenarioRejectNonDynamicOutstandingToolCall scenario = "reject_non_dynamic_outstanding_tool_call"
+	// scenarioExposeEdit marks cases seeded with a ready head and an
+	// edit on the row behind it, so removing or promoting the head
+	// exposes a blocked head.
+	scenarioExposeEdit scenario = "expose_edit"
 )
 
 func transitionAllowed(tr chatstate.Transition, from chatstate.ExecutionState) bool {
@@ -101,7 +108,7 @@ func applySetArchived(t *testing.T, _ *testFixture, tx *chatstate.Tx, _ seededCh
 	// states the value does not matter; the transition fails first.
 	archived := true
 	switch from {
-	case chatstate.StateXW, chatstate.StateXE0, chatstate.StateXE1:
+	case chatstate.StateXW, chatstate.StateXE0, chatstate.StateXE1, chatstate.StateXE1P:
 		archived = false
 	}
 	_, err := tx.SetArchived(chatstate.SetArchivedInput{Archived: archived})
@@ -777,30 +784,38 @@ func TestTransitionMatrix_AllCombinations(t *testing.T) {
 // change.
 
 func matrixCases() []transitionCaseSpec {
+	multiEditingBehind := withEditingRow(seedStateMultiQueued, 1)
 	cases := []transitionCaseSpec{
 		// SetArchived cases: each archived/unarchived pair flips the
-		// archived flag, preserves status, history and last_error,
-		// and does not insert anything new.
+		// archived flag, preserves status, history, last_error, and the
+		// queue with its edit marker, and does not insert anything new.
 		setArchivedCase(chatstate.StateW, chatstate.StateXW, database.ChatStatusWaiting),
 		setArchivedCase(chatstate.StateE0, chatstate.StateXE0, database.ChatStatusError),
 		setArchivedCase(chatstate.StateE1, chatstate.StateXE1, database.ChatStatusError),
+		setArchivedCase(chatstate.StateE1P, chatstate.StateXE1P, database.ChatStatusError),
 		setArchivedCase(chatstate.StateXW, chatstate.StateW, database.ChatStatusWaiting),
 		setArchivedCase(chatstate.StateXE0, chatstate.StateE0, database.ChatStatusError),
 		setArchivedCase(chatstate.StateXE1, chatstate.StateE1, database.ChatStatusError),
+		setArchivedCase(chatstate.StateXE1P, chatstate.StateE1P, database.ChatStatusError),
 
 		// SendMessage(queue) cases: idle states insert directly,
 		// busy states append to the queue tail.
 		sendMessageQueueCase(chatstate.StateW, chatstate.StateR0, true, 0),
 		sendMessageQueueCase(chatstate.StateE0, chatstate.StateR0, true, 0),
 		// E1 promotes the queue head and queues the new tail, so
-		// the net queue delta is zero.
+		// the net queue delta is zero. An edit on the row behind the
+		// head makes that row the blocked head of the resumed turn.
 		sendMessageQueueCase(chatstate.StateE1, chatstate.StateR1, false, 0),
+		withSeed(sendMessageQueueCase(chatstate.StateE1, chatstate.StateR1P, false, 0), scenarioExposeEdit, multiEditingBehind),
 		sendMessageQueueCase(chatstate.StateR0, chatstate.StateR1, false, +1),
 		sendMessageQueueCase(chatstate.StateR1, chatstate.StateR1, false, +1),
+		sendMessageQueueCase(chatstate.StateR1P, chatstate.StateR1P, false, +1),
 		sendMessageQueueCase(chatstate.StateI0, chatstate.StateI1, false, +1),
 		sendMessageQueueCase(chatstate.StateI1, chatstate.StateI1, false, +1),
+		sendMessageQueueCase(chatstate.StateI1P, chatstate.StateI1P, false, +1),
 		sendMessageQueueCase(chatstate.StateA0, chatstate.StateA1, false, +1),
 		sendMessageQueueCase(chatstate.StateA1, chatstate.StateA1, false, +1),
+		sendMessageQueueCase(chatstate.StateA1P, chatstate.StateA1P, false, +1),
 
 		// SendMessage(interrupt) cases. The interrupt applier runs
 		// with body "sm-interrupt" so the assertion can prove the
@@ -815,12 +830,16 @@ func matrixCases() []transitionCaseSpec {
 		sendMessageInterruptCase(chatstate.StateW, chatstate.StateR0),
 		sendMessageInterruptCase(chatstate.StateE0, chatstate.StateR0),
 		sendMessageInterruptCase(chatstate.StateE1, chatstate.StateR1),
+		withSeed(sendMessageInterruptCase(chatstate.StateE1, chatstate.StateR1P), scenarioExposeEdit, multiEditingBehind),
 		sendMessageInterruptCase(chatstate.StateR0, chatstate.StateI1),
 		sendMessageInterruptCase(chatstate.StateR1, chatstate.StateI1),
+		sendMessageInterruptCase(chatstate.StateR1P, chatstate.StateI1P),
 		sendMessageInterruptCase(chatstate.StateI0, chatstate.StateI1),
 		sendMessageInterruptCase(chatstate.StateI1, chatstate.StateI1),
+		sendMessageInterruptCase(chatstate.StateI1P, chatstate.StateI1P),
 		sendMessageInterruptCase(chatstate.StateA0, chatstate.StateR1),
 		sendMessageInterruptCase(chatstate.StateA1, chatstate.StateR1),
+		sendMessageInterruptCase(chatstate.StateA1P, chatstate.StateR1P),
 
 		// EditMessage cases: every allowed source state lands in R0
 		// with the queue cleared, last_error reset, and a
@@ -828,17 +847,22 @@ func matrixCases() []transitionCaseSpec {
 		editMessageCase(chatstate.StateW),
 		editMessageCase(chatstate.StateE0),
 		editMessageCase(chatstate.StateE1),
+		editMessageCase(chatstate.StateE1P),
 		editMessageCase(chatstate.StateR0),
 		editMessageCase(chatstate.StateR1),
+		editMessageCase(chatstate.StateR1P),
 		editMessageCase(chatstate.StateI0),
 		editMessageCase(chatstate.StateI1),
+		editMessageCase(chatstate.StateI1P),
 		editMessageCase(chatstate.StateA0),
 		editMessageCase(chatstate.StateA1),
+		editMessageCase(chatstate.StateA1P),
 
 		// RequestCompaction cases.
 		requestCompactionCase(chatstate.StateW, chatstate.StateR0),
 		requestCompactionCase(chatstate.StateE0, chatstate.StateR0),
 		requestCompactionCase(chatstate.StateE1, chatstate.StateR1),
+		requestCompactionCase(chatstate.StateE1P, chatstate.StateR1P),
 
 		// ClearContext cases.
 		clearContextCase(chatstate.StateW),
@@ -846,7 +870,10 @@ func matrixCases() []transitionCaseSpec {
 
 		// DeleteQueuedMessage cases. Empty-tail want collapses the
 		// classified state (E1->E0, R1->R0, I1->I0, A1->A0). The
-		// non-empty-tail cases need a multi-queued seed.
+		// non-empty-tail cases need a multi-queued seed. Deleting a
+		// ready head exposes an edit on the row behind it; deleting
+		// a blocked head exposes a ready successor; deleting behind
+		// a blocked head keeps it blocked.
 		deleteQueuedCase(chatstate.StateE1, chatstate.StateE0, queueShapeDefault),
 		deleteQueuedCase(chatstate.StateE1, chatstate.StateE1, queueShapeMulti),
 		deleteQueuedCase(chatstate.StateR1, chatstate.StateR0, queueShapeDefault),
@@ -861,79 +888,148 @@ func matrixCases() []transitionCaseSpec {
 		// inserting history. R1/I1 has both a head-target
 		// scenario (zero rows updated, queue_version unchanged)
 		// and a non-head scenario (target moves to head,
-		// queue_version advances).
+		// queue_version advances). The target's edit ends, so the
+		// new head is ready even from a blocked-head state; a
+		// different blocked head stays blocked behind a promoted
+		// non-head target.
 		promoteQueuedCase(chatstate.StateE1, chatstate.StateR0, queueShapeDefault, 0),
 		promoteQueuedCase(chatstate.StateE1, chatstate.StateR1, queueShapeMulti, 0),
+		withSeed(promoteQueuedCase(chatstate.StateE1, chatstate.StateR1P, queueShapeDefault, 0), scenarioExposeEdit, multiEditingBehind),
+		promoteQueuedCase(chatstate.StateE1P, chatstate.StateR0, queueShapeDefault, 0),
+		promoteQueuedCase(chatstate.StateE1P, chatstate.StateR1, queueShapeMulti, 0),
+		promoteQueuedCase(chatstate.StateE1P, chatstate.StateR1P, queueShapeMulti, 1),
 		promoteQueuedCase(chatstate.StateR1, chatstate.StateI1, queueShapeMulti, 0),
 		promoteQueuedCase(chatstate.StateR1, chatstate.StateI1, queueShapeMulti, 1),
+		promoteQueuedCase(chatstate.StateR1P, chatstate.StateI1, queueShapeMulti, 0),
+		promoteQueuedCase(chatstate.StateR1P, chatstate.StateI1, queueShapeMulti, 1),
 		promoteQueuedCase(chatstate.StateI1, chatstate.StateI1, queueShapeMulti, 1),
+		promoteQueuedCase(chatstate.StateI1P, chatstate.StateI1, queueShapeMulti, 0),
+		promoteQueuedCase(chatstate.StateI1P, chatstate.StateI1, queueShapeMulti, 1),
 		promoteQueuedCase(chatstate.StateA1, chatstate.StateR0, queueShapeDefault, 0),
 		promoteQueuedCase(chatstate.StateA1, chatstate.StateR1, queueShapeMulti, 0),
+		withSeed(promoteQueuedCase(chatstate.StateA1, chatstate.StateR1P, queueShapeDefault, 0), scenarioExposeEdit,
+			withEditingRow(func(t *testing.T, f *testFixture, _ chatstate.ExecutionState) seededChat {
+				return seedA1WithMixedOutstandingToolCalls(t, f, 2, "seed_tool_a1_promote_expose")
+			}, 1)),
+		promoteQueuedCase(chatstate.StateA1P, chatstate.StateR0, queueShapeDefault, 0),
+		promoteQueuedCase(chatstate.StateA1P, chatstate.StateR1, queueShapeMulti, 0),
+		promoteQueuedCase(chatstate.StateA1P, chatstate.StateR1P, queueShapeMulti, 1),
 
 		// Interrupt cases.
 		interruptCase(chatstate.StateR0, chatstate.StateI0),
 		interruptCase(chatstate.StateR1, chatstate.StateI1),
+		interruptCase(chatstate.StateR1P, chatstate.StateI1P),
 		interruptCase(chatstate.StateA0, chatstate.StateR0),
 		interruptCase(chatstate.StateA1, chatstate.StateR1),
+		interruptCase(chatstate.StateA1P, chatstate.StateR1P),
 
-		// CompleteRequiresAction cases: A0->R0, A1->R1.
+		// CompleteRequiresAction cases: A0->R0, A1->R1, A1P->R1P. Tool
+		// results resume the current turn; the blocked head waits.
 		completeRequiresActionCase(chatstate.StateA0, chatstate.StateR0),
 		completeRequiresActionCase(chatstate.StateA1, chatstate.StateR1),
+		completeRequiresActionCase(chatstate.StateA1P, chatstate.StateR1P),
 
-		// CancelRequiresAction cases: A0->R0, A1->R1.
+		// CancelRequiresAction cases: A0->R0, A1->R1, A1P->R1P.
 		cancelRequiresActionCase(chatstate.StateA0, chatstate.StateR0),
 		cancelRequiresActionCase(chatstate.StateA1, chatstate.StateR1),
+		cancelRequiresActionCase(chatstate.StateA1P, chatstate.StateR1P),
 
 		// RecordGenerationAttempt cases: from-state preserved.
 		recordGenerationAttemptCase(chatstate.StateR0),
 		recordGenerationAttemptCase(chatstate.StateR1),
+		recordGenerationAttemptCase(chatstate.StateR1P),
 
 		// RecordRetryState cases: from-state preserved.
 		recordRetryStateCase(chatstate.StateR0),
 		recordRetryStateCase(chatstate.StateR1),
+		recordRetryStateCase(chatstate.StateR1P),
 
 		// CommitStep cases: from-state preserved, history grows by
 		// one message.
 		commitStepCase(chatstate.StateR0),
 		commitStepCase(chatstate.StateR1),
+		commitStepCase(chatstate.StateR1P),
 
-		// EnterRequiresAction cases. R0/R1 need a pending tool call
+		// EnterRequiresAction cases. R* need a pending tool call
 		// seeded; use seedForEnterRequiresAction so the precondition
 		// is met.
 		enterRequiresActionCase(chatstate.StateR0, chatstate.StateA0),
 		enterRequiresActionCase(chatstate.StateR1, chatstate.StateA1),
+		enterRequiresActionCase(chatstate.StateR1P, chatstate.StateA1P),
 
 		// FinishInterruption cases: I0->W, I1->R0 (head promoted into
 		// history when only one queued), I1->R1 (with more than one
 		// queued, the head is promoted but the queue stays
-		// non-empty).
+		// non-empty), I1->R1P (the row exposed as the new head is
+		// under edit; the promoted turn still runs).
 		finishInterruptionCase(chatstate.StateI0, chatstate.StateW, queueShapeDefault),
 		finishInterruptionRejectsOutstandingToolCallCase(),
 		finishInterruptionCase(chatstate.StateI1, chatstate.StateR0, queueShapeDefault),
 		finishInterruptionCase(chatstate.StateI1, chatstate.StateR1, queueShapeMulti),
+		withSeed(finishInterruptionCase(chatstate.StateI1, chatstate.StateR1P, queueShapeDefault), scenarioExposeEdit, multiEditingBehind),
 
 		// FinishTurn cases.
 		finishTurnCase(chatstate.StateR0, chatstate.StateW, queueShapeDefault),
 		finishTurnCase(chatstate.StateR1, chatstate.StateR0, queueShapeDefault),
 		finishTurnCase(chatstate.StateR1, chatstate.StateR1, queueShapeMulti),
+		withSeed(finishTurnCase(chatstate.StateR1, chatstate.StateR1P, queueShapeDefault), scenarioExposeEdit, multiEditingBehind),
 
 		// FinishError cases.
 		finishErrorCase(chatstate.StateR0, chatstate.StateE0),
 		finishErrorCase(chatstate.StateR1, chatstate.StateE1),
+		finishErrorCase(chatstate.StateR1P, chatstate.StateE1P),
 		finishErrorCase(chatstate.StateW, chatstate.StateE0),
 
 		// ReconcileInvalidState cases: Invalid with empty queue
-		// lands in E0; Invalid with non-empty queue lands in E1.
+		// lands in E0; Invalid with non-empty queue lands in E1, or
+		// E1P when its head is under edit.
 		reconcileInvalidStateCase(chatstate.StateE0, queueShapeDefault),
 		reconcileInvalidStateCase(chatstate.StateE1, queueShapeMulti),
+		withSeed(reconcileInvalidStateCase(chatstate.StateE1P, queueShapeDefault), scenarioWithBlockedQueue,
+			withEditingRow(func(t *testing.T, f *testFixture, _ chatstate.ExecutionState) seededChat {
+				return seedInvalidWithQueue(t, f)
+			}, 0)),
+	}
+	// Deleting from a blocked-head state: the head (collapsing or
+	// exposing a ready successor) or the row behind it (keeping the
+	// blocked head). Deleting a ready head exposes an edited successor.
+	for _, blocked := range []chatstate.ExecutionState{chatstate.StateE1P, chatstate.StateR1P, chatstate.StateI1P, chatstate.StateA1P} {
+		ready := readyHeadOf[blocked]
+		empty := emptyQueueSibling[ready]
+		cases = append(cases,
+			deleteQueuedCase(blocked, empty, queueShapeDefault),
+			deleteQueuedCase(blocked, ready, queueShapeMulti),
+			deleteQueuedCaseAt(blocked, blocked, scenarioBehindEdit, seedStateMultiQueued, 1),
+			deleteQueuedCaseAt(ready, blocked, scenarioExposeEdit, multiEditingBehind, 0),
+		)
 	}
 	return append(cases, editingQueueMatrixCases()...)
+}
+
+// emptyQueueSibling maps each ready-head state to the sibling with the
+// same status and no queued rows.
+var emptyQueueSibling = map[chatstate.ExecutionState]chatstate.ExecutionState{
+	chatstate.StateE1: chatstate.StateE0,
+	chatstate.StateR1: chatstate.StateR0,
+	chatstate.StateI1: chatstate.StateI0,
+	chatstate.StateA1: chatstate.StateA0,
+}
+
+// withSeed replaces a case's seeder and appends sc to its label, so an
+// existing builder's assertions run against a differently shaped queue.
+func withSeed(spec transitionCaseSpec, sc scenario, seed seederFn) transitionCaseSpec {
+	if spec.scenario != "" {
+		sc = spec.scenario + "_" + sc
+	}
+	spec.scenario = sc
+	spec.seed = seed
+	return spec
 }
 
 func setArchivedCase(from, want chatstate.ExecutionState, wantStatus database.ChatStatus) transitionCaseSpec {
 	wantArchived := false
 	switch want {
-	case chatstate.StateXW, chatstate.StateXE0, chatstate.StateXE1:
+	case chatstate.StateXW, chatstate.StateXE0, chatstate.StateXE1, chatstate.StateXE1P:
 		wantArchived = true
 	}
 	return transitionCaseSpec{
@@ -959,6 +1055,7 @@ func setArchivedCase(from, want chatstate.ExecutionState, wantStatus database.Ch
 				"SetArchived does not mutate queued messages")
 			require.Equal(t, base.queueIDs, queuedIDsByPosition(ctx, t, f, seeded.chatID),
 				"SetArchived leaves queued messages unchanged")
+			assertQueueEditMarkers(ctx, t, f, seeded.chatID, seeded.editingQueuedID)
 		},
 	}
 }
@@ -1009,7 +1106,8 @@ func sendMessageQueueCase(from, want chatstate.ExecutionState, directInsert bool
 			case from == chatstate.StateE1:
 				// E1: the previous head is promoted into history
 				// and replaced by the new tail. Net queue size
-				// unchanged.
+				// unchanged; rows behind the head keep their order
+				// and edit marker.
 				require.NotNil(t, result.sendMessage.QueuedMessage,
 					"SendMessage(queue) from E1 returns the new queued tail")
 				require.Len(t, result.sendMessage.InsertedMessages, 1,
@@ -1026,23 +1124,26 @@ func sendMessageQueueCase(from, want chatstate.ExecutionState, directInsert bool
 				require.NotEmpty(t, base.queueIDs,
 					chatstate.StateE1.String()+" seed must have a queue head")
 				requireQueuedMessageDeleted(ctx, t, f, seeded.chatID, base.queueIDs[0])
-				require.Equal(t, []int64{newQueued.ID}, afterQueueIDs,
-					chatstate.StateE1.String()+" -> "+chatstate.StateR1.String()+
-						": queue must end with only the new tail")
+				wantQueue := append(append([]int64{}, base.queueIDs[1:]...), newQueued.ID)
+				require.Equal(t, wantQueue, afterQueueIDs,
+					chatstate.StateE1.String()+" -> "+want.String()+
+						": queue must end with the old tail followed by the new tail")
+				assertQueueEditMarkers(ctx, t, f, seeded.chatID, seeded.editingQueuedID)
 				require.False(t, after.LastError.Valid,
-					chatstate.StateE1.String()+" -> "+chatstate.StateR1.String()+
+					chatstate.StateE1.String()+" -> "+want.String()+
 						" clears last_error")
 				require.Equal(t, database.ChatStatusRunning, after.Status)
 				require.Equal(t, []int64{promoted.ID}, newActiveMessageIDs(base, afterHistory),
-					chatstate.StateE1.String()+" -> "+chatstate.StateR1.String()+
+					chatstate.StateE1.String()+" -> "+want.String()+
 						" inserts only the promoted user message")
 				require.Greater(t, after.QueueVersion, base.queueVersion,
-					chatstate.StateE1.String()+" -> "+chatstate.StateR1.String()+
+					chatstate.StateE1.String()+" -> "+want.String()+
 						" advances queue_version")
 
 			default:
 				// Busy states: the new user message is appended at
-				// the queue tail; history is untouched.
+				// the queue tail; history and the edit marker are
+				// untouched.
 				require.NotNil(t, result.sendMessage.QueuedMessage,
 					"SendMessage(queue) from busy states returns the queued message")
 				require.Empty(t, result.sendMessage.InsertedMessages,
@@ -1052,20 +1153,21 @@ func sendMessageQueueCase(from, want chatstate.ExecutionState, directInsert bool
 				wantQueue := append(append([]int64{}, base.queueIDs...), newQueued.ID)
 				require.Equal(t, wantQueue, afterQueueIDs,
 					"SendMessage(queue) from busy states appends to the queue tail")
+				assertQueueEditMarkers(ctx, t, f, seeded.chatID, seeded.editingQueuedID)
 				require.Equal(t, base.historyIDs, afterHistory,
 					"SendMessage(queue) from busy states does not change history")
 				require.Greater(t, after.QueueVersion, base.queueVersion,
 					"SendMessage(queue) from busy states advances queue_version")
 				switch from {
-				case chatstate.StateA0, chatstate.StateA1:
+				case chatstate.StateA0, chatstate.StateA1, chatstate.StateA1P:
 					require.True(t, after.RequiresActionDeadlineAt.Valid,
 						"SendMessage(queue) from A* preserves requires_action_deadline_at")
 					require.Equal(t, base.chat.RequiresActionDeadlineAt, after.RequiresActionDeadlineAt,
 						"SendMessage(queue) from A* preserves the deadline value")
 					require.Equal(t, database.ChatStatusRequiresAction, after.Status)
-				case chatstate.StateI0, chatstate.StateI1:
+				case chatstate.StateI0, chatstate.StateI1, chatstate.StateI1P:
 					require.Equal(t, database.ChatStatusInterrupting, after.Status)
-				case chatstate.StateR0, chatstate.StateR1:
+				case chatstate.StateR0, chatstate.StateR1, chatstate.StateR1P:
 					require.Equal(t, database.ChatStatusRunning, after.Status)
 				}
 			}
@@ -1133,19 +1235,21 @@ func sendMessageInterruptCase(from, want chatstate.ExecutionState) transitionCas
 				require.NotEmpty(t, base.queueIDs,
 					chatstate.StateE1.String()+" seed must have a queue head")
 				requireQueuedMessageDeleted(ctx, t, f, seeded.chatID, base.queueIDs[0])
-				require.Equal(t, []int64{newQueued.ID}, afterQueueIDs,
-					chatstate.StateE1.String()+" -> "+chatstate.StateR1.String()+
-						" interrupt: queue must end with only the new tail")
+				wantQueue := append(append([]int64{}, base.queueIDs[1:]...), newQueued.ID)
+				require.Equal(t, wantQueue, afterQueueIDs,
+					chatstate.StateE1.String()+" -> "+want.String()+
+						" interrupt: queue must end with the old tail followed by the new tail")
+				assertQueueEditMarkers(ctx, t, f, seeded.chatID, seeded.editingQueuedID)
 				require.False(t, after.LastError.Valid)
 				require.Equal(t, database.ChatStatusRunning, after.Status)
 				require.Equal(t, []int64{promoted.ID}, newActiveMessageIDs(base, afterHistory),
-					chatstate.StateE1.String()+" -> "+chatstate.StateR1.String()+
+					chatstate.StateE1.String()+" -> "+want.String()+
 						" interrupt inserts only the promoted user message")
 				require.Greater(t, after.QueueVersion, base.queueVersion,
-					chatstate.StateE1.String()+" -> "+chatstate.StateR1.String()+
+					chatstate.StateE1.String()+" -> "+want.String()+
 						" interrupt advances queue_version")
 
-			case chatstate.StateI0, chatstate.StateI1:
+			case chatstate.StateI0, chatstate.StateI1, chatstate.StateI1P:
 				// I*: append to queue tail, history untouched, status
 				// stays interrupting.
 				require.Equal(t, base.queueCount+1, afterQueue,
@@ -1165,8 +1269,9 @@ func sendMessageInterruptCase(from, want chatstate.ExecutionState) transitionCas
 					"SendMessage(interrupt) from I* keeps status interrupting")
 				require.Greater(t, after.QueueVersion, base.queueVersion,
 					"SendMessage(interrupt) from I* advances queue_version")
+				assertQueueEditMarkers(ctx, t, f, seeded.chatID, seeded.editingQueuedID)
 
-			case chatstate.StateR0, chatstate.StateR1:
+			case chatstate.StateR0, chatstate.StateR1, chatstate.StateR1P:
 				require.Equal(t, base.queueCount+1, afterQueue,
 					"SendMessage(interrupt) from R* appends one queued message")
 				require.NotNil(t, result.sendMessage.QueuedMessage,
@@ -1182,8 +1287,9 @@ func sendMessageInterruptCase(from, want chatstate.ExecutionState) transitionCas
 					"R* -> I1 sets status interrupting")
 				require.Equal(t, base.historyIDs, afterHistory,
 					"SendMessage(interrupt) from R* must not touch history")
+				assertQueueEditMarkers(ctx, t, f, seeded.chatID, seeded.editingQueuedID)
 
-			case chatstate.StateA0, chatstate.StateA1:
+			case chatstate.StateA0, chatstate.StateA1, chatstate.StateA1P:
 				require.Equal(t, base.queueCount+1, afterQueue,
 					"SendMessage(interrupt) from A* appends one queued message")
 				require.NotNil(t, result.sendMessage.QueuedMessage,
@@ -1199,6 +1305,7 @@ func sendMessageInterruptCase(from, want chatstate.ExecutionState) transitionCas
 					"A* -> R1 cancels pending dynamic calls and resumes running")
 				require.False(t, after.RequiresActionDeadlineAt.Valid,
 					"A* -> R1 clears requires_action_deadline_at")
+				assertQueueEditMarkers(ctx, t, f, seeded.chatID, seeded.editingQueuedID)
 				// Cancellation messages for the pending dynamic
 				// tool call should land in active history. They are
 				// not returned via SendMessageResult, so we fetch
@@ -1275,11 +1382,23 @@ func editMessageCase(from chatstate.ExecutionState) transitionCaseSpec {
 }
 
 func deleteQueuedCase(from, want chatstate.ExecutionState, shape queueShape) transitionCaseSpec {
-	spec := transitionCaseSpec{
+	if shape.isMulti() {
+		return deleteQueuedCaseAt(from, want, scenarioMulti, seedStateMultiQueued, 0)
+	}
+	return deleteQueuedCaseAt(from, want, "", nil, 0)
+}
+
+// deleteQueuedCaseAt deletes the queued row at targetIdx. The rows
+// left keep their order and edit markers; only the classified state
+// reflects which row is now the head.
+func deleteQueuedCaseAt(from, want chatstate.ExecutionState, sc scenario, seed seederFn, targetIdx int) transitionCaseSpec {
+	return transitionCaseSpec{
 		transition: chatstate.TransitionDeleteQueuedMessage,
 		from:       from,
 		want:       want,
-		apply:      applyDeleteQueuedMessage,
+		scenario:   sc,
+		seed:       seed,
+		apply:      applyDeleteQueuedMessageAt(targetIdx),
 		assert: func(ctx context.Context, t *testing.T, f *testFixture, seeded seededChat, base snapshotBaseline, result transitionCaseResult) {
 			afterQueue, err := f.DB.CountChatQueuedMessages(ctx, seeded.chatID)
 			require.NoError(t, err)
@@ -1289,32 +1408,30 @@ func deleteQueuedCase(from, want chatstate.ExecutionState, shape queueShape) tra
 			require.NoError(t, err)
 			require.Greater(t, after.QueueVersion, base.queueVersion,
 				"DeleteQueuedMessage advances queue_version")
+			require.Equal(t, base.chat.Status, after.Status,
+				"DeleteQueuedMessage outside P keeps the status")
+			require.Equal(t, base.chat.LastError, after.LastError,
+				"DeleteQueuedMessage keeps last_error")
+			require.Equal(t, base.chat.RequiresActionDeadlineAt, after.RequiresActionDeadlineAt,
+				"DeleteQueuedMessage keeps requires_action_deadline_at")
 
-			// The target queued message is the seeded head. It must
-			// be returned in DeletedQueuedMessage, and it must no
-			// longer be fetchable.
-			require.NotEmpty(t, seeded.queuedMessageIDs)
-			targetID := seeded.queuedMessageIDs[0]
+			// The target must be returned in DeletedQueuedMessage, and
+			// it must no longer be fetchable.
+			require.Less(t, targetIdx, len(seeded.queuedMessageIDs))
+			targetID := seeded.queuedMessageIDs[targetIdx]
 			require.Equal(t, targetID, result.deleteQueuedMessage.DeletedQueuedMessage.ID,
 				"DeletedQueuedMessage returns the targeted queued message")
 			require.Equal(t, seeded.chatID, result.deleteQueuedMessage.DeletedQueuedMessage.ChatID)
 			requireQueuedMessageDeleted(ctx, t, f, seeded.chatID, targetID)
 
-			// Remaining queue IDs are the baseline tail.
-			wantRemaining := append([]int64{}, base.queueIDs[1:]...)
-			require.Equal(t, wantRemaining, queuedIDsByPosition(ctx, t, f, seeded.chatID),
+			// Remaining queue IDs are the baseline minus the target.
+			require.Equal(t, remainingExcluding(base.queueIDs, targetIdx), queuedIDsByPosition(ctx, t, f, seeded.chatID),
 				"DeleteQueuedMessage preserves remaining queue order")
+			assertQueueEditMarkers(ctx, t, f, seeded.chatID, seeded.editingQueuedID)
 			require.Equal(t, base.historyIDs, activeHistoryIDs(ctx, t, f, seeded.chatID),
 				"DeleteQueuedMessage does not touch history")
 		},
 	}
-	if shape.isMulti() {
-		spec.scenario = scenarioMulti
-		spec.seed = func(t *testing.T, f *testFixture, _ chatstate.ExecutionState) seededChat {
-			return seedStateMultiQueued(t, f, from)
-		}
-	}
-	return spec
 }
 
 func promoteQueuedCase(from, want chatstate.ExecutionState, shape queueShape, targetIdx int) transitionCaseSpec {
@@ -1356,7 +1473,7 @@ func promoteQueuedCase(from, want chatstate.ExecutionState, shape queueShape, ta
 				"PromoteQueuedMessage returns the targeted queued message")
 
 			switch from {
-			case chatstate.StateE1, chatstate.StateA1:
+			case chatstate.StateE1, chatstate.StateE1P, chatstate.StateA1, chatstate.StateA1P:
 				// Head is popped into history.
 				require.Equal(t, base.queueCount-1, afterQueue,
 					"E1/A1 promote pops the head into history")
@@ -1390,12 +1507,15 @@ func promoteQueuedCase(from, want chatstate.ExecutionState, shape queueShape, ta
 					"E1/A1 promote leaves the remaining queue order intact")
 				assertQueueBodiesInOrder(ctx, t, f, seeded.chatID,
 					remainingBodiesExcluding(seeded.queuedMessageBodies, targetIdx))
+				// A different row under edit keeps its marker; the
+				// target's own edit left with it.
+				assertQueueEditMarkers(ctx, t, f, seeded.chatID, seeded.editingQueuedID)
 				// New active history adds exactly the inserted
 				// user message plus any synthetic cancellations.
 				newIDs := newActiveMessageIDs(base, afterHistory)
 				require.Contains(t, newIDs, inserted.ID,
 					"newly-active history contains the promoted user message")
-				if from == chatstate.StateA1 {
+				if from == chatstate.StateA1 || from == chatstate.StateA1P {
 					// A1: every outstanding tool call must be
 					// canceled before the promoted user message.
 					require.Len(t, result.promoteQueuedMessage.CancellationMessages, len(seeded.pendingToolCallIDs),
@@ -1424,7 +1544,7 @@ func promoteQueuedCase(from, want chatstate.ExecutionState, shape queueShape, ta
 					require.Empty(t, result.promoteQueuedMessage.CancellationMessages,
 						"E1 promote has no synthetic cancellations")
 				}
-			case chatstate.StateR1, chatstate.StateI1:
+			case chatstate.StateR1, chatstate.StateR1P, chatstate.StateI1, chatstate.StateI1P:
 				// Reorder-only: status flips to interrupting, no
 				// history insert, queue cardinality unchanged.
 				require.Equal(t, base.queueCount, afterQueue,
@@ -1437,22 +1557,36 @@ func promoteQueuedCase(from, want chatstate.ExecutionState, shape queueShape, ta
 					"R1/I1 promote has no synthetic cancellations")
 				require.Equal(t, base.historyIDs, afterHistory,
 					"R1/I1 promote leaves history unchanged")
-				// Target must still be present and now at the head.
+				// Target must still be present, now at the head, and
+				// ready: its own edit is ended, another row's edit
+				// stays.
 				queued := requireQueuedMessageByID(ctx, t, f, seeded.chatID, targetID)
 				require.Equal(t, targetID, queued.ID)
+				require.False(t, queued.EditingSince.Valid,
+					"R1/I1 promote ends the target's edit")
+				wantEditing := seeded.editingQueuedID
+				if wantEditing == targetID {
+					wantEditing = 0
+				}
+				assertQueueEditMarkers(ctx, t, f, seeded.chatID, wantEditing)
 				require.NotEmpty(t, afterQueueIDs)
 				require.Equal(t, targetID, afterQueueIDs[0],
 					"R1/I1 promote brings the target to the queue head")
 				require.NotEmpty(t, seeded.queuedMessageBodies,
 					"R1/I1 seed must record queued message bodies")
 				if targetIdx == 0 {
-					// Head-target: zero rows updated, so the
-					// queue order is unchanged and queue_version
-					// stays put.
+					// Head-target: zero rows reordered, so the
+					// queue order is unchanged. queue_version only
+					// advances when the head's edit had to end.
 					require.Equal(t, base.queueIDs, afterQueueIDs,
 						"head-target promote preserves queue order")
-					require.Equal(t, base.queueVersion, after.QueueVersion,
-						"head-target promote leaves queue_version unchanged")
+					if seeded.editingQueuedID == targetID {
+						require.Greater(t, after.QueueVersion, base.queueVersion,
+							"head-target promote of a blocked head advances queue_version by ending its edit")
+					} else {
+						require.Equal(t, base.queueVersion, after.QueueVersion,
+							"head-target promote leaves queue_version unchanged")
+					}
 					assertQueueBodiesInOrder(ctx, t, f, seeded.chatID, seeded.queuedMessageBodies)
 				} else {
 					// Non-head: target moves to the head, the rest
@@ -1469,15 +1603,20 @@ func promoteQueuedCase(from, want chatstate.ExecutionState, shape queueShape, ta
 			}
 		},
 	}
-	if from == chatstate.StateA1 {
-		spec.seed = func(t *testing.T, f *testFixture, _ chatstate.ExecutionState) seededChat {
+	switch {
+	case from == chatstate.StateA1 || from == chatstate.StateA1P:
+		seed := func(t *testing.T, f *testFixture, _ chatstate.ExecutionState) seededChat {
 			queuedExtras := 1
 			if shape.isMulti() {
 				queuedExtras = 2
 			}
 			return seedA1WithMixedOutstandingToolCalls(t, f, queuedExtras, "seed_tool_a1_promote")
 		}
-	} else if shape.isMulti() {
+		if from == chatstate.StateA1P {
+			seed = withEditingRow(seed, 0)
+		}
+		spec.seed = seed
+	case shape.isMulti():
 		spec.seed = func(t *testing.T, f *testFixture, _ chatstate.ExecutionState) seededChat {
 			return seedStateMultiQueued(t, f, from)
 		}
@@ -1574,16 +1713,17 @@ func interruptCase(from, want chatstate.ExecutionState) transitionCaseSpec {
 			afterQueueIDs := queuedIDsByPosition(ctx, t, f, seeded.chatID)
 			require.Equal(t, base.queueIDs, afterQueueIDs,
 				"Interrupt does not touch queued messages")
+			assertQueueEditMarkers(ctx, t, f, seeded.chatID, seeded.editingQueuedID)
 
 			switch from {
-			case chatstate.StateR0, chatstate.StateR1:
+			case chatstate.StateR0, chatstate.StateR1, chatstate.StateR1P:
 				require.Equal(t, database.ChatStatusInterrupting, after.Status,
 					"Interrupt from R* sets status interrupting")
 				require.Equal(t, base.historyIDs, afterHistory,
 					"Interrupt from R* leaves history unchanged")
 				require.Empty(t, result.interrupt.CancellationMessages,
 					"Interrupt from R* does not synthesize tool cancellations")
-			case chatstate.StateA0, chatstate.StateA1:
+			case chatstate.StateA0, chatstate.StateA1, chatstate.StateA1P:
 				require.Equal(t, database.ChatStatusRunning, after.Status,
 					"Interrupt from A* cancels pending dynamic calls and resumes running")
 				require.False(t, after.RequiresActionDeadlineAt.Valid,
@@ -1615,6 +1755,7 @@ func completeRequiresActionCase(from, want chatstate.ExecutionState) transitionC
 				"CompleteRequiresAction clears requires_action_deadline_at")
 			require.Equal(t, base.queueIDs, queuedIDsByPosition(ctx, t, f, seeded.chatID),
 				"CompleteRequiresAction preserves queued messages")
+			assertQueueEditMarkers(ctx, t, f, seeded.chatID, seeded.editingQueuedID)
 
 			// The user-submitted tool result must be inserted as a
 			// tool-role message that references the seeded
@@ -1643,6 +1784,7 @@ func cancelRequiresActionCase(from, want chatstate.ExecutionState) transitionCas
 				"CancelRequiresAction clears requires_action_deadline_at")
 			require.Equal(t, base.queueIDs, queuedIDsByPosition(ctx, t, f, seeded.chatID),
 				"CancelRequiresAction preserves queued messages")
+			assertQueueEditMarkers(ctx, t, f, seeded.chatID, seeded.editingQueuedID)
 
 			// One synthetic tool-result cancellation per pending call.
 			require.Len(t, result.cancelRequiresAction.CancellationMessages, 1,
@@ -1673,6 +1815,7 @@ func recordGenerationAttemptCase(from chatstate.ExecutionState) transitionCaseSp
 				"RecordGenerationAttempt does not change queue_version")
 			require.Equal(t, base.queueIDs, queuedIDsByPosition(ctx, t, f, seeded.chatID),
 				"RecordGenerationAttempt does not change queue order")
+			assertQueueEditMarkers(ctx, t, f, seeded.chatID, seeded.editingQueuedID)
 			require.Equal(t, base.historyIDs, activeHistoryIDs(ctx, t, f, seeded.chatID),
 				"RecordGenerationAttempt does not change history messages")
 		},
@@ -1710,6 +1853,7 @@ func recordRetryStateCase(from chatstate.ExecutionState) transitionCaseSpec {
 				"RecordRetryState does not change generation_attempt")
 			require.Equal(t, base.queueIDs, queuedIDsByPosition(ctx, t, f, seeded.chatID),
 				"RecordRetryState does not change queue order")
+			assertQueueEditMarkers(ctx, t, f, seeded.chatID, seeded.editingQueuedID)
 			require.Equal(t, base.historyIDs, activeHistoryIDs(ctx, t, f, seeded.chatID),
 				"RecordRetryState does not change history messages")
 		},
@@ -1741,6 +1885,7 @@ func commitStepCase(from chatstate.ExecutionState) transitionCaseSpec {
 			assertChatMessageText(t, inserted, "assistant")
 			require.Equal(t, base.queueIDs, queuedIDsByPosition(ctx, t, f, seeded.chatID),
 				"CommitStep does not change queue order")
+			assertQueueEditMarkers(ctx, t, f, seeded.chatID, seeded.editingQueuedID)
 			require.Equal(t, base.queueVersion, after.QueueVersion,
 				"CommitStep does not change queue_version")
 		},
@@ -1767,6 +1912,7 @@ func enterRequiresActionCase(from, want chatstate.ExecutionState) transitionCase
 				"EnterRequiresAction returned deadline matches the persisted value")
 			require.Equal(t, base.queueIDs, queuedIDsByPosition(ctx, t, f, seeded.chatID),
 				"EnterRequiresAction preserves queued messages")
+			assertQueueEditMarkers(ctx, t, f, seeded.chatID, seeded.editingQueuedID)
 			require.Equal(t, base.queueVersion, after.QueueVersion,
 				"EnterRequiresAction does not bump queue_version")
 			require.Equal(t, base.historyIDs, activeHistoryIDs(ctx, t, f, seeded.chatID),
@@ -1858,6 +2004,7 @@ func finishInterruptionCase(from, want chatstate.ExecutionState, shape queueShap
 					"FinishInterruption from I1 preserves the queue tail order")
 				assertQueueBodiesInOrder(ctx, t, f, seeded.chatID,
 					seeded.queuedMessageBodies[1:])
+				assertQueueEditMarkers(ctx, t, f, seeded.chatID, seeded.editingQueuedID)
 			}
 		},
 	}
@@ -1911,6 +2058,7 @@ func finishTurnCase(from, want chatstate.ExecutionState, shape queueShape) trans
 					"FinishTurn from R1 preserves the queue tail order")
 				assertQueueBodiesInOrder(ctx, t, f, seeded.chatID,
 					seeded.queuedMessageBodies[1:])
+				assertQueueEditMarkers(ctx, t, f, seeded.chatID, seeded.editingQueuedID)
 			}
 		},
 	}
@@ -1945,6 +2093,7 @@ func finishErrorCase(from, want chatstate.ExecutionState) transitionCaseSpec {
 				"FinishError does not change queue_version")
 			require.Equal(t, base.queueIDs, queuedIDsByPosition(ctx, t, f, seeded.chatID),
 				"FinishError preserves queued messages")
+			assertQueueEditMarkers(ctx, t, f, seeded.chatID, seeded.editingQueuedID)
 			require.Equal(t, base.historyIDs, activeHistoryIDs(ctx, t, f, seeded.chatID),
 				"FinishError preserves history messages")
 		},
@@ -1968,6 +2117,7 @@ func reconcileInvalidStateCase(want chatstate.ExecutionState, shape queueShape) 
 				"ReconcileInvalidState sets a default last_error")
 			require.Equal(t, base.queueIDs, queuedIDsByPosition(ctx, t, f, seeded.chatID),
 				"ReconcileInvalidState preserves queued messages")
+			assertQueueEditMarkers(ctx, t, f, seeded.chatID, seeded.editingQueuedID)
 			// For the current invalid seeds there are no pending
 			// dynamic tool calls, so no cancellation messages are
 			// expected. Still, if any are returned we fetch them

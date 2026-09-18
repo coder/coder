@@ -36,18 +36,23 @@ func TestClassifyExecutionState_Valid(t *testing.T) {
 		{name: "W", status: database.ChatStatusWaiting, exists: true, want: StateW},
 		{name: "E0", status: database.ChatStatusError, exists: true, want: StateE0},
 		{name: "E1", status: database.ChatStatusError, queueNonEmpty: true, exists: true, want: StateE1},
+		{name: "E1P", status: database.ChatStatusError, queueNonEmpty: true, paused: true, exists: true, want: StateE1P},
 		{name: "R0", status: database.ChatStatusRunning, exists: true, want: StateR0},
 		{name: "R1", status: database.ChatStatusRunning, queueNonEmpty: true, exists: true, want: StateR1},
+		{name: "R1P", status: database.ChatStatusRunning, queueNonEmpty: true, paused: true, exists: true, want: StateR1P},
 		{name: "I0", status: database.ChatStatusInterrupting, exists: true, want: StateI0},
 		{name: "I1", status: database.ChatStatusInterrupting, queueNonEmpty: true, exists: true, want: StateI1},
+		{name: "I1P", status: database.ChatStatusInterrupting, queueNonEmpty: true, paused: true, exists: true, want: StateI1P},
 		{name: "A0", status: database.ChatStatusRequiresAction, exists: true, want: StateA0},
 		{name: "A1", status: database.ChatStatusRequiresAction, queueNonEmpty: true, exists: true, want: StateA1},
+		{name: "A1P", status: database.ChatStatusRequiresAction, queueNonEmpty: true, paused: true, exists: true, want: StateA1P},
 		{name: "XW", status: database.ChatStatusWaiting, archived: true, exists: true, want: StateXW},
 		{name: "XE0", status: database.ChatStatusError, archived: true, exists: true, want: StateXE0},
 		{name: "XE1", status: database.ChatStatusError, archived: true, queueNonEmpty: true, exists: true, want: StateXE1},
+		{name: "XE1P", status: database.ChatStatusError, archived: true, queueNonEmpty: true, paused: true, exists: true, want: StateXE1P},
 		{name: "P", status: database.ChatStatusPaused, queueNonEmpty: true, paused: true, exists: true, want: StateP},
-		// A head under edit changes nothing outside paused.
-		{name: "R1Paused", status: database.ChatStatusRunning, queueNonEmpty: true, paused: true, exists: true, want: StateR1},
+		// The pause condition is read only when the queue has rows.
+		{name: "R0PausedFlag", status: database.ChatStatusRunning, paused: true, exists: true, want: StateR0},
 	}
 	for _, tc := range cases {
 		tc := tc
@@ -134,14 +139,15 @@ func TestClassifyExecutionState_RejectsAllUnlistedCombinations(t *testing.T) {
 			}
 		}
 	}
-	// Each valid state maps from one (status, archived, rows) tuple. Only
-	// P reads the pause condition, so every other state is reached with
-	// it both set and unset.
+	// Each valid state maps from one (status, archived, rows) tuple. The
+	// states with rows read the pause condition, so each of them is
+	// reached once; the states without rows ignore it and are reached
+	// with it both set and unset.
 	require.Zero(t, tuplesByState[StateN], "N requires a missing chat")
 	for _, state := range AllExecutionStates {
 		switch state {
 		case StateN, StateInvalid:
-		case StateP:
+		case StateE1, StateE1P, StateR1, StateR1P, StateI1, StateI1P, StateA1, StateA1P, StateP, StateXE1, StateXE1P:
 			require.Equal(t, 1, tuplesByState[state], "%s", state)
 		default:
 			require.Equal(t, 2, tuplesByState[state], "%s", state)
@@ -154,10 +160,10 @@ func TestClassifyExecutionState_RejectsAllUnlistedCombinations(t *testing.T) {
 func TestAllExecutionStates_Enumeration(t *testing.T) {
 	t.Parallel()
 	want := map[ExecutionState]bool{
-		StateN: true, StateW: true, StateE0: true, StateE1: true,
-		StateR0: true, StateR1: true, StateI0: true, StateI1: true,
-		StateA0: true, StateA1: true, StateP: true, StateXW: true,
-		StateXE0: true, StateXE1: true, StateInvalid: true,
+		StateN: true, StateW: true, StateE0: true, StateE1: true, StateE1P: true,
+		StateR0: true, StateR1: true, StateR1P: true, StateI0: true, StateI1: true, StateI1P: true,
+		StateA0: true, StateA1: true, StateA1P: true, StateP: true, StateXW: true,
+		StateXE0: true, StateXE1: true, StateXE1P: true, StateInvalid: true,
 	}
 	require.Len(t, AllExecutionStates, len(want))
 	seen := make(map[ExecutionState]bool, len(want))
@@ -174,8 +180,9 @@ func TestExecutionState_IsRunnable(t *testing.T) {
 	t.Parallel()
 
 	runnable := map[ExecutionState]bool{
-		StateR0: true, StateR1: true, StateI0: true, StateI1: true,
-		StateA0: true, StateA1: true,
+		StateR0: true, StateR1: true, StateR1P: true,
+		StateI0: true, StateI1: true, StateI1P: true,
+		StateA0: true, StateA1: true, StateA1P: true,
 	}
 	for _, s := range AllExecutionStates {
 		require.Equal(t, runnable[s], s.IsRunnable(), "IsRunnable(%s)", s)
