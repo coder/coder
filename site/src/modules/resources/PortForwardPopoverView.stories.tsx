@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { screen, userEvent, within } from "storybook/test";
+import { userEvent, within } from "storybook/test";
 import {
 	MockListeningPortsResponse,
 	MockSharedPortsResponse,
@@ -40,11 +40,8 @@ const listeningPortsWithSubstringMatch = [
 ];
 
 const typeInPortPicker = async (canvasElement: HTMLElement, text: string) => {
-	await userEvent.click(
-		within(canvasElement).getByRole("button", { name: "Connect to port..." }),
-	);
 	await userEvent.type(
-		screen.getByRole("combobox", { name: "Filter or enter port" }),
+		within(canvasElement).getByRole("combobox", { name: "Connect to port" }),
 		text,
 	);
 };

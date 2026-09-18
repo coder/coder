@@ -271,61 +271,63 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 
 	return (
 		<>
-			<div className="max-h-80 overflow-y-auto">
-				<div className="flex flex-col p-5">
-					<div className="flex flex-row justify-between items-start">
-						<HelpPopoverTitle>Listening Ports</HelpPopoverTitle>
-						<HelpPopoverLink
-							href={docs("/admin/networking/port-forwarding#dashboard")}
+			<div className="flex flex-col p-5 pb-0">
+				<div className="flex flex-row justify-between items-start">
+					<HelpPopoverTitle>Listening Ports</HelpPopoverTitle>
+					<HelpPopoverLink
+						href={docs("/admin/networking/port-forwarding#dashboard")}
+					>
+						Learn more
+					</HelpPopoverLink>
+				</div>
+				<div className="flex flex-col gap-1">
+					<HelpPopoverText>
+						The listening ports are exclusively accessible to you. Selecting
+						HTTP/S will change the protocol for all listening ports.
+					</HelpPopoverText>
+					<div className="flex flex-row gap-2 pb-2">
+						<Select
+							value={listeningPortProtocol}
+							onValueChange={(value) => {
+								if (!isListeningPortProtocol(value)) {
+									return;
+								}
+								setListeningPortProtocol(value);
+								saveWorkspaceListeningPortsProtocol(workspace.id, value);
+							}}
 						>
-							Learn more
-						</HelpPopoverLink>
-					</div>
-					<div className="flex flex-col gap-1">
-						<HelpPopoverText>
-							The listening ports are exclusively accessible to you. Selecting
-							HTTP/S will change the protocol for all listening ports.
-						</HelpPopoverText>
-						<div className="flex flex-row gap-2 pb-2">
-							<Select
-								value={listeningPortProtocol}
-								onValueChange={(value) => {
-									if (!isListeningPortProtocol(value)) {
-										return;
-									}
-									setListeningPortProtocol(value);
-									saveWorkspaceListeningPortsProtocol(workspace.id, value);
-								}}
+							<SelectTrigger
+								aria-label="Listening port protocol"
+								className="h-[34px] min-w-[100px] mt-2 w-auto"
 							>
-								<SelectTrigger
-									aria-label="Listening port protocol"
-									className="h-[34px] min-w-[100px] mt-2 w-auto"
-								>
-									<SelectValue />
-								</SelectTrigger>
-								<SelectContent>
-									<SelectItem value="http">HTTP</SelectItem>
-									<SelectItem value="https">HTTPS</SelectItem>
-								</SelectContent>
-							</Select>
-							<PortPicker
-								listeningPorts={unsharedListeningPorts}
-								onConnect={(port) => {
-									window.open(
-										portForwardURL(
-											host,
-											port,
-											agent.name,
-											workspace.name,
-											workspace.owner_name,
-											listeningPortProtocol,
-										),
-										"_blank",
-									);
-								}}
-							/>
-						</div>
+								<SelectValue />
+							</SelectTrigger>
+							<SelectContent>
+								<SelectItem value="http">HTTP</SelectItem>
+								<SelectItem value="https">HTTPS</SelectItem>
+							</SelectContent>
+						</Select>
+						<PortPicker
+							listeningPorts={unsharedListeningPorts}
+							onConnect={(port) => {
+								window.open(
+									portForwardURL(
+										host,
+										port,
+										agent.name,
+										workspace.name,
+										workspace.owner_name,
+										listeningPortProtocol,
+									),
+									"_blank",
+								);
+							}}
+						/>
 					</div>
+				</div>
+			</div>
+			<div className="max-h-64 overflow-y-auto px-5 pb-5">
+				<div className="flex flex-col">
 					{unsharedListeningPorts.length === 0 && (
 						<HelpPopoverText className="text-content-secondary pt-5 pb-2.5 text-center">
 							No open ports were detected.
