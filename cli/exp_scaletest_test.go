@@ -150,6 +150,36 @@ func TestScaleTestNotifications_ReuseUsersInsufficient(t *testing.T) {
 	require.ErrorContains(t, err, "not enough scaletest users to reuse")
 }
 
+// TestScaleTestAutostart_ReuseUsersInsufficient verifies that --reuse-users
+// checks the user pool up front and exits with an actionable error when not
+// enough scaletest users exist, rather than creating any.
+func TestScaleTestAutostart_ReuseUsersInsufficient(t *testing.T) {
+	t.Parallel()
+
+	if testutil.RaceEnabled() {
+		t.Skip("Skipping due to race detector")
+	}
+
+	ctx, cancelFunc := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancelFunc()
+
+	log := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	client := coderdtest.New(t, &coderdtest.Options{
+		Logger: &log,
+	})
+	_ = coderdtest.CreateFirstUser(t, client)
+
+	inv, root := clitest.New(t, "exp", "scaletest", "autostart",
+		"--workspace-count", "2",
+		"--template", "doesnotexist",
+		"--reuse-users",
+		"--output", "text",
+	)
+	clitest.SetupConfig(t, client, root)
+	err := inv.WithContext(ctx).Run()
+	require.ErrorContains(t, err, "not enough scaletest users to reuse")
+}
+
 // This test just validates that the CLI command accepts its known arguments.
 // A more comprehensive test is performed in workspacetraffic/run_test.go
 func TestScaleTestWorkspaceTraffic(t *testing.T) {
