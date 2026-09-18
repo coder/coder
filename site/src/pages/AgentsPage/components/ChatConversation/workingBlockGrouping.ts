@@ -14,9 +14,9 @@ import type {
  */
 export type WorkingBlock = {
 	/**
-	 * React key. Complete blocks key off their newest row, which pagination
-	 * never changes; the live block uses liveKey so appended steps never
-	 * remount it.
+	 * Complete blocks key off their newest row, which pagination never
+	 * changes; the live block uses liveKey so appended steps never remount
+	 * it.
 	 */
 	key: string;
 	/**
