@@ -104,10 +104,10 @@ export const HelpPopoverText: FC<HTMLAttributes<HTMLParagraphElement>> = ({
 	);
 };
 
-interface HelpPopoverLinkProps {
+type HelpPopoverLinkProps = {
 	children?: ReactNode;
 	href: string;
-}
+};
 
 export const HelpPopoverLink: FC<HelpPopoverLinkProps> = ({
 	children,
@@ -126,12 +126,12 @@ export const HelpPopoverLink: FC<HelpPopoverLinkProps> = ({
 	);
 };
 
-interface HelpPopoverActionProps {
+type HelpPopoverActionProps = {
 	children?: ReactNode;
 	icon: Icon;
 	onClick: () => void;
 	ariaLabel?: string;
-}
+};
 
 export const HelpPopoverAction: FC<HelpPopoverActionProps> = ({
 	children,

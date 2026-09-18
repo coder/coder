@@ -4,17 +4,17 @@ import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
 import { Switch } from "#/components/Switch/Switch";
 
-interface MutationCallbacks {
+type MutationCallbacks = {
 	onSuccess?: () => void;
 	onError?: () => void;
-}
+};
 
 export type SavePersonalModelOverridesAdminSetting = (
 	req: TypesGen.UpdateChatPersonalModelOverridesAdminSettingsRequest,
 	options?: MutationCallbacks,
 ) => void;
 
-interface AdminPersonalModelOverridesSettingsProps {
+type AdminPersonalModelOverridesSettingsProps = {
 	adminSettings: TypesGen.ChatPersonalModelOverridesAdminSettings | undefined;
 	adminSettingsError?: unknown;
 	onRetryAdminSettings?: () => void;
@@ -22,7 +22,7 @@ interface AdminPersonalModelOverridesSettingsProps {
 	onSaveAdminSetting: SavePersonalModelOverridesAdminSetting;
 	isSavingAdminSetting: boolean;
 	isSaveAdminSettingError: boolean;
-}
+};
 
 export const AdminPersonalModelOverridesSettings: FC<
 	AdminPersonalModelOverridesSettingsProps

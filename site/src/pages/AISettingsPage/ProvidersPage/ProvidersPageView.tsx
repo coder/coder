@@ -29,12 +29,12 @@ import { addableProviders } from "#/pages/AISettingsPage/ProvidersPage/component
 import { ProviderRow } from "#/pages/AISettingsPage/ProvidersPage/components/ProviderRow";
 import { docs } from "#/utils/docs";
 
-interface ProvidersPageViewProps {
+type ProvidersPageViewProps = {
 	isLoading: boolean;
 	isFetching: boolean;
 	error: unknown;
 	providers: AIProvider[];
-}
+};
 
 const AddProviderDropdown: React.FC<{ align?: "start" | "end" }> = ({
 	align = "end",

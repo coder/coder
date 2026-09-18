@@ -174,7 +174,7 @@ export const InlinePromptInput: FC<{
 // CommentableDiffViewer
 // -------------------------------------------------------------------
 
-interface CommentableDiffViewerProps {
+type CommentableDiffViewerProps = {
 	/** Parsed file diffs to render. */
 	parsedFiles: readonly FileDiffMetadata[];
 	/** Whether the panel is in expanded mode. */
@@ -193,7 +193,7 @@ interface CommentableDiffViewerProps {
 	scrollToFile?: string | null;
 	/** Called after scrollToFile has been processed. */
 	onScrollToFileComplete?: () => void;
-}
+};
 
 /**
  * Wraps `DiffViewer` with inline commenting support. Click a line

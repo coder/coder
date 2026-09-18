@@ -21,18 +21,18 @@ import { useAppLink } from "#/modules/apps/useAppLink";
 import { timeFrom } from "#/utils/time";
 import { truncateURI } from "#/utils/uri";
 
-interface AppStatusesProps {
+type AppStatusesProps = {
 	workspace: Workspace;
 	agent: WorkspaceAgent;
 	/** Optional reference date for calculating relative time. Defaults to Date.now(). Useful for Storybook. */
 	referenceDate?: Date;
-}
+};
 
 // Extend the API status type to include the app icon and the app itself
-interface StatusWithAppInfo extends APIWorkspaceAppStatus {
+type StatusWithAppInfo = {
 	appIcon?: string; // Kept for potential future use, but we'll primarily use app.icon
 	app?: WorkspaceApp; // Store the full app object
-}
+} & APIWorkspaceAppStatus;
 
 export const AppStatuses: FC<AppStatusesProps> = ({
 	workspace,

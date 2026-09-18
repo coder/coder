@@ -34,7 +34,7 @@ import type { Permissions } from "#/modules/permissions";
 import { DefaultRolesDialog } from "./DefaultRolesDialog";
 import { PermissionPillsList } from "./PermissionPillsList";
 
-interface CustomRolesPageViewProps {
+type CustomRolesPageViewProps = {
 	organization: Organization;
 	builtInRoles: AssignableRoles[] | undefined;
 	customRoles: AssignableRoles[] | undefined;
@@ -49,7 +49,7 @@ interface CustomRolesPageViewProps {
 	availableOrgRoles?: AssignableRoles[];
 	onUpdateDefaultRoles?: (roles: string[]) => Promise<void>;
 	isUpdatingDefaultRoles?: boolean;
-}
+};
 
 export const CustomRolesPageView: FC<CustomRolesPageViewProps> = ({
 	organization,
@@ -148,14 +148,14 @@ export const CustomRolesPageView: FC<CustomRolesPageViewProps> = ({
 	);
 };
 
-interface DefaultRolesSectionProps {
+type DefaultRolesSectionProps = {
 	organization: Organization;
 	availableOrgRoles?: AssignableRoles[];
 	canEditDefaultRoles: boolean;
 	defaultRolesEntitled: boolean;
 	isUpdatingDefaultRoles: boolean;
 	onUpdateDefaultRoles: (roles: string[]) => Promise<void>;
-}
+};
 
 const DefaultRolesSection: FC<DefaultRolesSectionProps> = ({
 	organization,
@@ -230,10 +230,10 @@ const DefaultRolesSection: FC<DefaultRolesSectionProps> = ({
 	);
 };
 
-interface DefaultRolesSummaryProps {
+type DefaultRolesSummaryProps = {
 	roleNames: readonly string[];
 	availableRoles?: AssignableRoles[];
-}
+};
 
 const DefaultRolesSummary: FC<DefaultRolesSummaryProps> = ({
 	roleNames,
@@ -253,18 +253,18 @@ const DefaultRolesSummary: FC<DefaultRolesSummaryProps> = ({
 	);
 };
 
-interface RoleTableBodyProps {
+type RoleTableBodyProps = {
 	roles: AssignableRoles[] | undefined;
 	isCustomRolesEnabled: boolean;
 	canCreateOrgRole: boolean;
 	canUpdateOrgRole: boolean;
 	canDeleteOrgRole: boolean;
 	onDeleteRole: (role: Role) => void;
-}
+};
 
-interface RoleTableProps extends RoleTableBodyProps {
+type RoleTableProps = {
 	"aria-label": string;
-}
+} & RoleTableBodyProps;
 
 const RoleTable: FC<RoleTableProps> = ({
 	"aria-label": ariaLabel,
@@ -339,12 +339,12 @@ const RoleTableBody: FC<RoleTableBodyProps> = ({
 	);
 };
 
-interface RoleRowProps {
+type RoleRowProps = {
 	role: AssignableRoles;
 	canUpdateOrgRole: boolean;
 	canDeleteOrgRole: boolean;
 	onDelete: () => void;
-}
+};
 
 const RoleRow: FC<RoleRowProps> = ({
 	role,

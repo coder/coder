@@ -21,12 +21,12 @@ const _repoFieldGuard: Record<keyof _ComparedRepoFields, true> = {
 	unified_diff: true,
 };
 
-interface UseGitWatcherOptions {
+type UseGitWatcherOptions = {
 	chatId: string | undefined;
 	agentStatus: WorkspaceAgentStatus | undefined;
-}
+};
 
-interface UseGitWatcherResult {
+type UseGitWatcherResult = {
 	/** Current repo state, keyed by repo root path. */
 	repositories: ReadonlyMap<string, WorkspaceAgentRepoChanges>;
 	/**
@@ -41,7 +41,7 @@ interface UseGitWatcherResult {
 	hasReceivedChanges: boolean;
 	/** Send a refresh request. Returns true if sent, false if disconnected. */
 	refresh: () => boolean;
-}
+};
 
 export function useGitWatcher({
 	chatId,

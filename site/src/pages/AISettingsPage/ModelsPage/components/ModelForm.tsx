@@ -51,7 +51,7 @@ const validationSchema = Yup.object({
 	isDefault: Yup.boolean(),
 });
 
-interface ModelFormProps {
+type ModelFormProps = {
 	editingModel?: TypesGen.ChatModel;
 	duplicateSourceModel?: TypesGen.ChatModel;
 	providerStates: readonly ProviderState[];
@@ -71,7 +71,7 @@ interface ModelFormProps {
 	onSetDefault?: () => void;
 	onDuplicate?: () => void;
 	onToggleEnabled?: (enabled: boolean) => void;
-}
+};
 
 export const ModelForm: FC<ModelFormProps> = ({
 	editingModel,

@@ -3,14 +3,14 @@ import type * as TypesGen from "#/api/typesGenerated";
 import { CodeExample } from "#/components/CodeExample/CodeExample";
 import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
 
-interface ResetPasswordDialogProps {
+type ResetPasswordDialogProps = {
 	open: boolean;
 	onClose: () => void;
 	onConfirm: () => void;
 	user?: TypesGen.User;
 	newPassword?: string;
 	loading: boolean;
-}
+};
 
 export const ResetPasswordDialog: FC<ResetPasswordDialogProps> = ({
 	open,

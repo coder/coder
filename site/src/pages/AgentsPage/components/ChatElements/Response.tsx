@@ -15,14 +15,14 @@ import { useTheme } from "#/theme/context";
 import { MarkdownImage } from "./MarkdownImage";
 import { MermaidDiagram } from "./MermaidDiagram";
 
-interface ResponseProps extends Omit<ComponentPropsWithRef<"div">, "children"> {
+type ResponseProps = {
 	children: string;
 	urlTransform?: UrlTransform;
 	/** Enable streaming-mode Streamdown with incomplete-markdown
 	 * preprocessing (remend). Pass true only for live-streaming
 	 * output. */
 	streaming?: boolean;
-}
+} & Omit<ComponentPropsWithRef<"div">, "children">;
 
 // Omit rehype-raw so HTML-like syntax in LLM output is rendered as
 // escaped text instead of being parsed by the HTML5 engine. Without

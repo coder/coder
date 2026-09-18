@@ -19,10 +19,10 @@ export const Stats: FC<HTMLAttributes<HTMLDivElement>> = ({
 	);
 };
 
-interface StatsItemProps extends HTMLAttributes<HTMLDivElement> {
+type StatsItemProps = {
 	label: string;
 	value: ReactNode;
-}
+} & HTMLAttributes<HTMLDivElement>;
 
 export const StatsItem: FC<StatsItemProps> = ({
 	label,
