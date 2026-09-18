@@ -134,6 +134,18 @@ export const PromptHistorySuppressedWhileLoading: Story = {
 	},
 };
 
+export const EditingQueuedMessage: Story = {
+	args: {
+		editingKind: "queued",
+		queuedMessages: [
+			MockChatQueuedMessageUnderEdit,
+			{ ...MockChatQueuedMessage, id: 2 },
+		],
+		onEditQueuedMessage: fn(),
+		onEndQueuedMessageEdit: fn(),
+	},
+};
+
 export const ChatPaused: Story = {
 	args: {
 		isChatPaused: true,
@@ -141,6 +153,8 @@ export const ChatPaused: Story = {
 			MockChatQueuedMessageUnderEdit,
 			{ ...MockChatQueuedMessage, id: 2 },
 		],
+		onEditQueuedMessage: fn(),
+		onEndQueuedMessageEdit: fn(),
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
