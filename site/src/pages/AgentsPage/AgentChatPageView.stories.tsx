@@ -190,6 +190,8 @@ const StoryAgentChatPageView: FC<StoryProps> = ({
 		handleInterrupt: fn(),
 		handleDeleteQueuedMessage: fn(),
 		handlePromoteQueuedMessage: fn(),
+		handleEditQueuedMessage: fn(),
+		handleEndQueuedMessageEdit: fn(),
 		hasMoreMessages: false,
 		isFetchingMoreMessages: false,
 		isHydratingMessages: false,
@@ -942,13 +944,27 @@ const buildPausedStore = () => {
 	return store;
 };
 
-/** The turn finished while the queue head was under edit. The composer
- *  queues a send. */
+/** The turn finished while the queue head was under edit. Cancelling the
+ *  head's edit sends it, and the composer queues a send. */
 export const PausedAtQueuedEdit: Story = {
 	render: () => (
 		<StoryAgentChatPageView
 			store={buildPausedStore()}
 			chat={{ status: "paused" }}
+		/>
+	),
+};
+
+/** The composer is editing the paused chat's queue head. */
+export const EditingQueuedMessageWhilePaused: Story = {
+	render: () => (
+		<StoryAgentChatPageView
+			store={buildPausedStore()}
+			chat={{ status: "paused" }}
+			editing={{
+				editingTarget: { kind: "queued", id: 1 },
+				editorInitialValue: "Run the migrations",
+			}}
 		/>
 	),
 };

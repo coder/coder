@@ -261,6 +261,8 @@ interface ChatPageInputProps {
 	) => Promise<void> | void;
 	onDeleteQueuedMessage: (id: number) => Promise<void>;
 	onPromoteQueuedMessage: (id: number) => Promise<void>;
+	onEditQueuedMessage?: (id: number) => Promise<void>;
+	onEndQueuedMessageEdit?: (id: number) => Promise<void>;
 	onInterrupt: () => void;
 	isInputDisabled: boolean;
 	isReadOnly?: boolean;
@@ -318,6 +320,8 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 	onSend,
 	onDeleteQueuedMessage,
 	onPromoteQueuedMessage,
+	onEditQueuedMessage,
+	onEndQueuedMessageEdit,
 	onInterrupt,
 	isInputDisabled,
 	isReadOnly = false,
@@ -583,6 +587,8 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 			queuedMessages={queuedMessages}
 			onDeleteQueuedMessage={onDeleteQueuedMessage}
 			onPromoteQueuedMessage={onPromoteQueuedMessage}
+			onEditQueuedMessage={onEditQueuedMessage}
+			onEndQueuedMessageEdit={onEndQueuedMessageEdit}
 			isChatPaused={chatStatus === "paused"}
 			editingKind={editingTarget?.kind}
 			onCancelEdit={onCancelEdit}

@@ -3,6 +3,7 @@ import type { ChatMessage, ChatQueuedMessage } from "#/api/typesGenerated";
 import {
 	MockChatMessage,
 	MockChatQueuedMessage,
+	MockEditingChatQueuedMessage,
 } from "#/testHelpers/chatEntities";
 import {
 	buildInactiveChatQueueReconciliation,
@@ -11,6 +12,7 @@ import {
 	runPromoteQueuedMessage,
 	settlePromotedQueueHead,
 	submitEdit,
+	trackQueuedEditTarget,
 } from "./chatQueueReconciliation";
 import { createChatStore } from "./chatStore";
 
@@ -429,5 +431,41 @@ describe("submitEdit", () => {
 		expect(onError).toHaveBeenCalledWith(
 			expect.objectContaining({ message: "boom" }),
 		);
+	});
+});
+
+describe("trackQueuedEditTarget", () => {
+	const row = { ...MockChatQueuedMessage, id: 5 };
+	const rowUnderEdit = { ...MockEditingChatQueuedMessage, id: 5 };
+
+	it("reports the edit lost only after a snapshot showed the row under edit", () => {
+		// The begin request's 204 can arrive before the queue_update that
+		// sets editing_since, so this first snapshot is stale, not lost.
+		let state = trackQueuedEditTarget(5, row, null);
+		expect(state.lost).toBe(false);
+
+		state = trackQueuedEditTarget(5, rowUnderEdit, state.seenID);
+		expect(state.lost).toBe(false);
+
+		// Another client ended or moved the edit.
+		state = trackQueuedEditTarget(5, row, state.seenID);
+		expect(state.lost).toBe(true);
+	});
+
+	it("reports the edit lost as soon as the row leaves the queue", () => {
+		expect(trackQueuedEditTarget(5, undefined, null).lost).toBe(true);
+	});
+
+	it("starts over when the target changes or clears", () => {
+		const { seenID } = trackQueuedEditTarget(5, rowUnderEdit, null);
+
+		// Row 6 has not been shown under edit yet, so it is not lost.
+		expect(trackQueuedEditTarget(6, { ...row, id: 6 }, seenID).lost).toBe(
+			false,
+		);
+		expect(trackQueuedEditTarget(null, undefined, seenID)).toEqual({
+			seenID: null,
+			lost: false,
+		});
 	});
 });

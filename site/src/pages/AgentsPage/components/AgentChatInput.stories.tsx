@@ -116,6 +116,18 @@ export const PromptHistorySuppressedWhileEditingHistoryMessage: Story = {
 	},
 };
 
+export const EditingQueuedMessage: Story = {
+	args: {
+		editingKind: "queued",
+		queuedMessages: [
+			MockEditingChatQueuedMessage,
+			{ ...MockChatQueuedMessage, id: 2 },
+		],
+		onEditQueuedMessage: fn(),
+		onEndQueuedMessageEdit: fn(),
+	},
+};
+
 // The chat is paused at the queue head under edit; the send button queues.
 export const ChatPaused: Story = {
 	args: {
@@ -124,6 +136,8 @@ export const ChatPaused: Story = {
 			MockEditingChatQueuedMessage,
 			{ ...MockChatQueuedMessage, id: 2 },
 		],
+		onEditQueuedMessage: fn(),
+		onEndQueuedMessageEdit: fn(),
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);

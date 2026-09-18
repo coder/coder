@@ -94,6 +94,31 @@ describe("AgentChatInput", () => {
 		);
 	});
 
+	it("cancels an edit on Escape", async () => {
+		const user = userEvent.setup();
+		const onCancelEdit = vi.fn();
+
+		renderInput(
+			<AgentChatInput
+				onSend={vi.fn()}
+				isDisabled={false}
+				isLoading={false}
+				selectedModel={modelOptions[0].id}
+				onModelChange={vi.fn()}
+				modelOptions={modelOptions}
+				modelSelectorPlaceholder="Select model"
+				hasModelOptions
+				canConfigureAgentSetup={false}
+				editingKind="queued"
+				onCancelEdit={onCancelEdit}
+			/>,
+		);
+
+		await user.click(screen.getByRole("textbox", { name: "Chat message" }));
+		await user.keyboard("{Escape}");
+		expect(onCancelEdit).toHaveBeenCalledTimes(1);
+	});
+
 	it("does not promote a queue head under edit on Enter with an empty composer", async () => {
 		const user = userEvent.setup();
 		const onPromoteQueuedMessage = vi.fn();

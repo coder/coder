@@ -1,6 +1,28 @@
 import type * as TypesGen from "#/api/typesGenerated";
 import type { ChatStore, ChatStoreState } from "./chatStore";
 
+/**
+ * Reports whether the queued row under edit was sent, removed, or had its
+ * edit ended by another client. The begin request's 204 can arrive before
+ * the queue_update that sets editing_since, so a missing marker only
+ * counts once a snapshot has shown it (seenID).
+ *
+ * @internal Exported for testing.
+ */
+export const trackQueuedEditTarget = (
+	targetID: number | null,
+	row: TypesGen.ChatQueuedMessage | undefined,
+	seenID: number | null,
+): { seenID: number | null; lost: boolean } => {
+	if (targetID === null) {
+		return { seenID: null, lost: false };
+	}
+	if (row?.editing_since) {
+		return { seenID: targetID, lost: false };
+	}
+	return { seenID, lost: row === undefined || seenID === targetID };
+};
+
 /** @internal Exported for testing. */
 export const restoreOptimisticRequestSnapshot = (
 	store: Pick<

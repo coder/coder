@@ -156,6 +156,8 @@ interface AgentChatInputProps {
 	queuedMessages?: readonly ChatQueuedMessage[];
 	onDeleteQueuedMessage?: (id: number) => Promise<void> | void;
 	onPromoteQueuedMessage?: (id: number) => Promise<void> | void;
+	onEditQueuedMessage?: (id: number) => Promise<void> | void;
+	onEndQueuedMessageEdit?: (id: number) => Promise<void> | void;
 	isChatPaused?: boolean;
 	// Editing state, owned by the parent.
 	editingKind?: EditingTarget["kind"];
@@ -394,6 +396,8 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	queuedMessages = [],
 	onDeleteQueuedMessage,
 	onPromoteQueuedMessage,
+	onEditQueuedMessage,
+	onEndQueuedMessageEdit,
 	isChatPaused = false,
 	editingKind,
 	onCancelEdit,
@@ -933,7 +937,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 
 		// If the input is empty and there are queued messages,
 		// promote the first one instead of submitting, unless the head is
-		// under edit.
+		// under edit or the composer is editing a message.
 		if (
 			!text &&
 			!hasUploadedAttachments &&
@@ -942,6 +946,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 			!isReadOnly &&
 			!isLoading &&
 			!hasActiveUploads &&
+			!isEditingMessage &&
 			queuedMessages.length > 0 &&
 			!queuedMessages[0].editing_since &&
 			onPromoteQueuedMessage
@@ -1112,6 +1117,9 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 					messages={queuedMessages}
 					onDelete={(id) => onDeleteQueuedMessage?.(id)}
 					onPromote={(id) => onPromoteQueuedMessage?.(id)}
+					onEdit={onEditQueuedMessage}
+					onEndEdit={onEndQueuedMessageEdit}
+					chatPaused={isChatPaused}
 					className="mb-2"
 				/>
 			)}
@@ -1159,8 +1167,9 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 					<div className="flex items-center justify-between border-b border-border-default/70 px-3 py-1.5">
 						<span className="flex items-center gap-1.5 text-xs font-medium text-content-warning">
 							<PencilIcon className="size-3.5" />
-							Editing will delete all subsequent messages and restart the
-							conversation here.
+							{editingKind === "queued"
+								? "Editing a queued message. It is not sent until you save or cancel."
+								: "Editing will delete all subsequent messages and restart the conversation here."}
 						</span>
 						<Button
 							type="button"
