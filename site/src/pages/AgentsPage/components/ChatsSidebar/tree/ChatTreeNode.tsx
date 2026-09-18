@@ -27,8 +27,8 @@ import { Spinner } from "#/components/Spinner/Spinner";
 import { shortRelativeTime } from "#/utils/time";
 import {
 	ChatActionsMenuItems,
-	chatFamilyAllowsArchive,
 	chatHasMenuActions,
+	getArchiveBlockedReason,
 } from "../../ChatActionsMenuItems";
 import { asNonEmptyString } from "../../ChatConversation/blockUtils";
 import { normalizeLocationSearch } from "../locationSearch";
@@ -157,7 +157,7 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, depth = 0 }) => {
 		chat,
 		hasWorkspace: Boolean(workspaceId),
 		isArchiving,
-		isArchiveBlocked: !chatFamilyAllowsArchive(chat.status, chat.children),
+		archiveBlockedReason: getArchiveBlockedReason(chat.status, chat.children),
 		subagentCount: childIDs.length,
 		isSubagentsExpanded: isExpanded,
 		onToggleSubagents: () => toggleExpanded(chatID),
