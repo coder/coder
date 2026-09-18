@@ -196,6 +196,8 @@ type AgentChatInputProps = {
 	onPromoteQueuedMessage?: (id: number) => Promise<void> | void;
 	// Caution shown at the top of the composer, owned by the parent.
 	warning?: string;
+	// A paused chat appends new sends to its queue.
+	isChatPaused?: boolean;
 	// Editing state, owned by the parent.
 	editingKind?: EditingTarget["kind"];
 	onCancelEdit?: () => void;
@@ -588,6 +590,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 	onDeleteQueuedMessage,
 	onPromoteQueuedMessage,
 	warning,
+	isChatPaused = false,
 	editingKind,
 	onCancelEdit,
 	userPromptHistory = [],
@@ -1195,7 +1198,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 	const handleSubmit = () => {
 		const text = internalRef.current?.getValue()?.trim() ?? "";
 
-		// An empty composer sends the queue head.
+		// An empty composer sends the queue head unless the head is under edit.
 		if (
 			!text &&
 			!hasUploadedAttachments &&
@@ -1205,6 +1208,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 			!isLoading &&
 			!hasActiveUploads &&
 			queuedMessages.length > 0 &&
+			!queuedMessages[0].editing_since &&
 			onPromoteQueuedMessage
 		) {
 			void onPromoteQueuedMessage(queuedMessages[0].id);
@@ -1353,7 +1357,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 
 	const sendButtonLabel = isEditingMessage
 		? "Save Edit"
-		: isStreaming
+		: isStreaming || isChatPaused
 			? "Queue"
 			: "Send";
 	// Stop and the send button are mutually exclusive while streaming; a
