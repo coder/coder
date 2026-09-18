@@ -79,6 +79,12 @@ const seedAvatars = (
 
 export const Default: Story = {};
 
+export const Empty: Story = {
+	args: {
+		groups: [],
+	},
+};
+
 export const NotEnabled: Story = {
 	args: {
 		groups: [mockGroupWithSpend],

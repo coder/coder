@@ -18,6 +18,7 @@ import { Button } from "#/components/Button/Button";
 import { EmptyState } from "#/components/EmptyState/EmptyState";
 import type { useFilter } from "#/components/Filter/Filter";
 import { GroupsFilter } from "#/components/Filter/GroupsFilter";
+import { AddPlusIcon } from "#/components/Icons/AddPlusIcon";
 import { PaginationContainer } from "#/components/PaginationWidget/PaginationContainer";
 import {
 	SettingsHeader,
@@ -222,15 +223,16 @@ const GroupsTableBody: FC<GroupsTableBodyProps> = ({
 		}
 		return (
 			<TableEmpty
+				icon={<AddPlusIcon className="size-icon-sm text-highlight-sky" />}
 				message="No groups yet"
 				description={
 					canCreateGroup
-						? "Create your first group"
-						: "You don't have permission to create a group"
+						? "Organize members into groups to manage access and resources."
+						: "You don't have permission to create groups."
 				}
 				cta={
 					canCreateGroup && (
-						<Button asChild>
+						<Button size="sm" asChild>
 							<RouterLink to="create">
 								<PlusIcon />
 								New group

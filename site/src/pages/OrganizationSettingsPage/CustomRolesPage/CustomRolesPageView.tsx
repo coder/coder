@@ -12,6 +12,7 @@ import {
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
+import { AddPlusIcon } from "#/components/Icons/AddPlusIcon";
 import { PREMIUM_PAGE_PATH } from "#/components/Paywall/Paywall";
 import {
 	SettingsHeader,
@@ -360,15 +361,16 @@ const RoleTableBody: FC<RoleTableBodyProps> = ({
 		}
 		return (
 			<TableEmpty
+				icon={<AddPlusIcon className="size-icon-sm text-highlight-sky" />}
 				message="No custom roles yet"
 				description={
 					canCreateOrgRole
-						? "Create your first custom role"
-						: "You don't have permission to create a custom role"
+						? "Grant users a tailored set of granular permissions."
+						: "You don't have permission to create custom roles."
 				}
 				cta={
 					canCreateOrgRole && (
-						<Button asChild>
+						<Button size="sm" asChild>
 							<RouterLink to="create">
 								<PlusIcon />
 								Create custom role

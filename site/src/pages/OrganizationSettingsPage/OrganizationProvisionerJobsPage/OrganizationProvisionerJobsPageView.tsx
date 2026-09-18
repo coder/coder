@@ -8,6 +8,7 @@ import type {
 import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
 import { EmptyState } from "#/components/EmptyState/EmptyState";
+import { LightbulbIcon } from "#/components/Icons/LightbulbIcon";
 import { Link } from "#/components/Link/Link";
 import {
 	Select,
@@ -193,7 +194,14 @@ const OrganizationProvisionerJobsPageView: FC<
 									/>
 								))
 							) : (
-								<TableEmpty message="No provisioner jobs found" />
+								<TableEmpty
+									icon={
+										filter.status || filter.ids ? undefined : (
+											<LightbulbIcon className="size-9 text-highlight-sky" />
+										)
+									}
+									message="No provisioner jobs found"
+								/>
 							)
 						) : error ? (
 							<TableEmpty

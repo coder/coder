@@ -10,6 +10,7 @@ import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { AvatarData } from "#/components/Avatar/AvatarData";
 import { Button } from "#/components/Button/Button";
+import { LightbulbIcon } from "#/components/Icons/LightbulbIcon";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
@@ -165,6 +166,11 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = ({
 							<TableLoader />
 						) : templates.length === 0 ? (
 							<TableEmpty
+								icon={
+									filterState.filter.used ? undefined : (
+										<LightbulbIcon className="size-9 text-highlight-sky" />
+									)
+								}
 								message={
 									filterState.filter.used
 										? "No results matched your search."

@@ -6,6 +6,7 @@ import {
 	ProvisionerKeyIDUserAuth,
 } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
+import { LightbulbIcon } from "#/components/Icons/LightbulbIcon";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
@@ -86,6 +87,7 @@ export const OrganizationProvisionerKeysPageView: FC<
 						{filteredProvisionerKeyDaemons ? (
 							filteredProvisionerKeyDaemons.length === 0 ? (
 								<TableEmpty
+									icon={<LightbulbIcon className="size-9 text-highlight-sky" />}
 									message="No provisioner keys"
 									description="Create your first provisioner key to authenticate external provisioner daemons."
 								/>
