@@ -5462,9 +5462,16 @@ type WorkspaceDeploymentStats struct {
 }
 
 type SessionCountDeploymentStats struct {
-	VSCode          int64 `json:"vscode"`
-	SSH             int64 `json:"ssh"`
-	JetBrains       int64 `json:"jetbrains"`
+	// Apps holds one entry per reported app name. The fields below are family
+	// totals kept for older clients.
+	Apps map[string]SessionCountApp `json:"apps"`
+	// Deprecated: use Apps.
+	VSCode int64 `json:"vscode"`
+	// Deprecated: use Apps.
+	SSH int64 `json:"ssh"`
+	// Deprecated: use Apps.
+	JetBrains int64 `json:"jetbrains"`
+	// Deprecated: use Apps.
 	ReconnectingPTY int64 `json:"reconnecting_pty"`
 }
 

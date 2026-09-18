@@ -7842,6 +7842,18 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
   "collected_at": "2019-08-24T14:15:22Z",
   "next_update_at": "2019-08-24T14:15:22Z",
   "session_count": {
+    "apps": {
+      "property1": {
+        "count": 0,
+        "display_name": "string",
+        "icon": "string"
+      },
+      "property2": {
+        "count": 0,
+        "display_name": "string",
+        "icon": "string"
+      }
+    },
     "jetbrains": 0,
     "reconnecting_pty": 0,
     "ssh": 0,
@@ -13543,10 +13555,40 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 |-------------------------|
 | `data`, `error`, `ping` |
 
+## codersdk.SessionCountApp
+
+```json
+{
+  "count": 0,
+  "display_name": "string",
+  "icon": "string"
+}
+```
+
+### Properties
+
+| Name           | Type    | Required | Restrictions | Description                                                      |
+|----------------|---------|----------|--------------|------------------------------------------------------------------|
+| `count`        | integer | false    |              |                                                                  |
+| `display_name` | string  | false    |              | Display name falls back to the app name for an unregistered app. |
+| `icon`         | string  | false    |              | Icon is a bundled path under /icon/, empty if the app has none.  |
+
 ## codersdk.SessionCountDeploymentStats
 
 ```json
 {
+  "apps": {
+    "property1": {
+      "count": 0,
+      "display_name": "string",
+      "icon": "string"
+    },
+    "property2": {
+      "count": 0,
+      "display_name": "string",
+      "icon": "string"
+    }
+  },
   "jetbrains": 0,
   "reconnecting_pty": 0,
   "ssh": 0,
@@ -13556,12 +13598,14 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 ### Properties
 
-| Name               | Type    | Required | Restrictions | Description |
-|--------------------|---------|----------|--------------|-------------|
-| `jetbrains`        | integer | false    |              |             |
-| `reconnecting_pty` | integer | false    |              |             |
-| `ssh`              | integer | false    |              |             |
-| `vscode`           | integer | false    |              |             |
+| Name               | Type                                                 | Required | Restrictions | Description                                                                                            |
+|--------------------|------------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------------|
+| `apps`             | object                                               | false    |              | Apps holds one entry per reported app name. The fields below are family totals kept for older clients. |
+| » `[any property]` | [codersdk.SessionCountApp](#codersdksessioncountapp) | false    |              |                                                                                                        |
+| `jetbrains`        | integer                                              | false    |              | Deprecated: use Apps.                                                                                  |
+| `reconnecting_pty` | integer                                              | false    |              | Deprecated: use Apps.                                                                                  |
+| `ssh`              | integer                                              | false    |              | Deprecated: use Apps.                                                                                  |
+| `vscode`           | integer                                              | false    |              | Deprecated: use Apps.                                                                                  |
 
 ## codersdk.SessionLifetime
 

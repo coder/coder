@@ -1,6 +1,7 @@
 package codersdk
 
 import (
+	"cmp"
 	"encoding/json"
 	"maps"
 	"slices"
@@ -33,44 +34,74 @@ const (
 	AppFamilyUnknown AppFamilyName = "unknown"
 )
 
-// appNameFamilies is the only place an app name is attributed to a family.
-// Storage keeps the raw name, so a missing alias only costs an
-// AppFamilyUnknown attribution. Keys are normalized registry module IDs.
-var appNameFamilies = map[string]AppFamilyName{
-	"vscode":          AppFamilyVSCode,
-	"vscode_insiders": AppFamilyVSCode,
-	"vscode_web":      AppFamilyVSCode,
-	"code_server":     AppFamilyVSCode,
-	"cursor":          AppFamilyVSCode,
-	"windsurf":        AppFamilyVSCode,
-	"positron":        AppFamilyVSCode,
-	"vscodium":        AppFamilyVSCode,
-	"codium":          AppFamilyVSCode,
-	"antigravity":     AppFamilyVSCode,
-	"trae":            AppFamilyVSCode,
-	"kiro":            AppFamilyVSCode,
-	"devin":           AppFamilyVSCode,
-
-	"jetbrains": AppFamilyJetBrains,
-	"sftp":      AppFamilySFTP,
-	// Zed has no Connection_Type or session count field of its own, so it
-	// rolls up under SSH. The raw name still reaches storage.
-	"zed":              AppFamilySSH,
-	"ssh":              AppFamilySSH,
-	"reconnecting_pty": AppFamilyReconnectingPTY,
+// SessionCountApp is one app's session count and how to present it.
+type SessionCountApp struct {
+	Count int64 `json:"count"`
+	// DisplayName falls back to the app name for an unregistered app.
+	DisplayName string `json:"display_name"`
+	// Icon is a bundled path under /icon/, empty if the app has none.
+	Icon string `json:"icon,omitempty"`
 }
 
-// SessionCountAppFamilies returns the attribution registry, one entry per
-// known app name. Registering an app means editing appNameFamilies alone.
+type sessionApp struct {
+	family      AppFamilyName
+	displayName string
+	icon        string
+}
+
+// sessionApps owns app attribution and presentation, keyed by normalized app
+// name. An unregistered name shows as-is under AppFamilyUnknown.
+var sessionApps = map[string]sessionApp{
+	"vscode":          {AppFamilyVSCode, "VS Code", "/icon/code.svg"},
+	"vscode_insiders": {AppFamilyVSCode, "VS Code Insiders", "/icon/code-insiders.svg"},
+	"vscode_web":      {AppFamilyVSCode, "VS Code Web", "/icon/code.svg"},
+	"code_server":     {AppFamilyVSCode, "code-server", "/icon/code.svg"},
+	"cursor":          {AppFamilyVSCode, "Cursor", "/icon/cursor.svg"},
+	"windsurf":        {AppFamilyVSCode, "Windsurf", "/icon/windsurf.svg"},
+	"positron":        {AppFamilyVSCode, "Positron", "/icon/positron.svg"},
+	"vscodium":        {AppFamilyVSCode, "VSCodium", ""},
+	"codium":          {AppFamilyVSCode, "VSCodium", ""},
+	"antigravity":     {AppFamilyVSCode, "Antigravity", "/icon/antigravity.svg"},
+	"trae":            {AppFamilyVSCode, "Trae", ""},
+	"kiro":            {AppFamilyVSCode, "Kiro", "/icon/kiro.svg"},
+	"devin":           {AppFamilyVSCode, "Devin", "/icon/devin.svg"},
+	"jetbrains":       {AppFamilyJetBrains, "JetBrains", "/icon/jetbrains.svg"},
+	// No agent reports sftp; the family covers the sftp_mins history.
+	"sftp": {AppFamilySFTP, "SFTP", "/icon/terminal.svg"},
+	// Zed speaks SSH, so it counts toward the SSH total.
+	"zed":              {AppFamilySSH, "Zed", "/icon/zed.svg"},
+	"ssh":              {AppFamilySSH, "SSH", "/icon/terminal.svg"},
+	"reconnecting_pty": {AppFamilyReconnectingPTY, "Web Terminal", ""},
+}
+
+// SessionCountApps pairs each count with its presentation, keyed by app name.
+func SessionCountApps(counts map[string]int64) map[string]SessionCountApp {
+	apps := make(map[string]SessionCountApp, len(counts))
+	for appName, count := range counts {
+		app := sessionApps[NormalizeAppName(appName)]
+		apps[appName] = SessionCountApp{
+			Count:       count,
+			DisplayName: cmp.Or(app.displayName, appName),
+			Icon:        app.icon,
+		}
+	}
+	return apps
+}
+
+// SessionCountAppFamilies returns a copy of the registry's app-to-family mapping.
 func SessionCountAppFamilies() map[string]AppFamilyName {
-	return maps.Clone(appNameFamilies)
+	families := make(map[string]AppFamilyName, len(sessionApps))
+	for appName, app := range sessionApps {
+		families[appName] = app.family
+	}
+	return families
 }
 
-// SumByFamily folds a per-app map into per-family totals. Values are
-// additive, so usage two apps of one family share counts in each. An
-// unregistered name totals under AppFamilyUnknown.
+// SumByFamily totals a per-app map by family. An unregistered name totals
+// under AppFamilyUnknown.
 func SumByFamily(byApp map[string]int64) map[AppFamilyName]int64 {
-	byFamily := make(map[AppFamilyName]int64, len(byApp))
+	// Unsized: 65 app names fold into the few families above.
+	byFamily := make(map[AppFamilyName]int64)
 	for appName, value := range byApp {
 		byFamily[AppNameFamily(appName)] += value
 	}
@@ -98,24 +129,11 @@ func UnionByFamily(byApp map[string][]uuid.UUID) map[AppFamilyName][]uuid.UUID {
 	return byFamily
 }
 
-// SessionCountsByFamilyJSON is SumByFamily over the session counts a query
-// returns. An absent object means no sessions, because a query with no rows
-// aggregates to SQL NULL.
-func SessionCountsByFamilyJSON(appCounts json.RawMessage) (map[AppFamilyName]int64, error) {
-	var counts map[string]int64
-	if len(appCounts) > 0 {
-		if err := json.Unmarshal(appCounts, &counts); err != nil {
-			return nil, xerrors.Errorf("unmarshal session counts by app name: %w", err)
-		}
-	}
-	return SumByFamily(counts), nil
-}
-
 // AppNameFamily normalizes an app name and returns its family, or
 // AppFamilyUnknown.
 func AppNameFamily(appName string) AppFamilyName {
-	if family, ok := appNameFamilies[NormalizeAppName(appName)]; ok {
-		return family
+	if app, ok := sessionApps[NormalizeAppName(appName)]; ok {
+		return app.family
 	}
 	return AppFamilyUnknown
 }
@@ -142,16 +160,18 @@ func NormalizeAppName(appName string) string {
 	return strings.ReplaceAll(strings.ToLower(appName), "-", "_")
 }
 
-// DecodeAppMap decodes a JSONB payload keyed by app name. An absent payload
-// is empty, a malformed one an error, so callers never report zero usage for
-// data they failed to read.
+// DecodeAppMap decodes a JSONB payload keyed by app name. An absent or null
+// payload is empty, because an empty aggregate returns SQL NULL. A malformed
+// one errors, so a failed read never looks like zero usage.
 func DecodeAppMap[V any](raw json.RawMessage) (map[string]V, error) {
-	if len(raw) == 0 {
-		return map[string]V{}, nil
-	}
 	var decoded map[string]V
-	if err := json.Unmarshal(raw, &decoded); err != nil {
-		return nil, xerrors.Errorf("unmarshal session app map: %w", err)
+	if len(raw) > 0 {
+		if err := json.Unmarshal(raw, &decoded); err != nil {
+			return nil, xerrors.Errorf("unmarshal session app map: %w", err)
+		}
+	}
+	if decoded == nil {
+		decoded = map[string]V{}
 	}
 	return decoded, nil
 }

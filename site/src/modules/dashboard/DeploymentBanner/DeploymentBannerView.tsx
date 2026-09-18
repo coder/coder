@@ -8,13 +8,15 @@ import {
 	GitCompareArrowsIcon,
 	RocketIcon,
 	RotateCwIcon,
-	SquareTerminalIcon,
 	WrenchIcon,
 } from "lucide-react";
 import prettyBytes from "pretty-bytes";
 import {
 	type FC,
+	Fragment,
+	memo,
 	type PropsWithChildren,
+	type ReactNode,
 	useEffect,
 	useMemo,
 	useState,
@@ -23,6 +25,7 @@ import { Link as RouterLink } from "react-router";
 import type {
 	DeploymentStats,
 	HealthcheckReport,
+	SessionCountDeploymentStats,
 	WorkspaceStatus,
 } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
@@ -30,6 +33,12 @@ import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 import { HelpPopoverTitle } from "#/components/HelpPopover/HelpPopover";
 import { Link } from "#/components/Link/Link";
 import {
+	Popover,
+	PopoverContent,
+	PopoverTrigger,
+} from "#/components/Popover/Popover";
+import {
+	TOOLTIP_DELAY_DURATION,
 	Tooltip,
 	TooltipContent,
 	TooltipProvider,
@@ -237,77 +246,7 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = ({
 				</div>
 			</div>
 
-			<div className="flex items-center">
-				<div className="mr-4 text-content-primary">Active Connections</div>
-
-				<div className="flex gap-2 text-content-secondary">
-					<TooltipProvider delayDuration={100}>
-						<Tooltip>
-							<TooltipTrigger asChild>
-								<div className="flex items-center gap-1">
-									<ExternalImage
-										src="/icon/code.svg"
-										alt=""
-										className="size-icon-xs"
-									/>
-									{typeof stats?.session_count.vscode === "undefined"
-										? "-"
-										: stats?.session_count.vscode}
-								</div>
-							</TooltipTrigger>
-							<TooltipContent>
-								VS Code Editors with the Coder Remote Extension
-							</TooltipContent>
-						</Tooltip>
-					</TooltipProvider>
-					<ValueSeparator />
-					<TooltipProvider delayDuration={100}>
-						<Tooltip>
-							<TooltipTrigger asChild>
-								<div className="flex items-center gap-1">
-									<ExternalImage
-										src="/icon/jetbrains.svg"
-										alt=""
-										className="size-icon-xs"
-									/>
-									{typeof stats?.session_count.jetbrains === "undefined"
-										? "-"
-										: stats?.session_count.jetbrains}
-								</div>
-							</TooltipTrigger>
-							<TooltipContent>JetBrains Editors</TooltipContent>
-						</Tooltip>
-					</TooltipProvider>
-					<ValueSeparator />
-					<TooltipProvider delayDuration={100}>
-						<Tooltip>
-							<TooltipTrigger asChild>
-								<div className="flex items-center gap-1">
-									<SquareTerminalIcon className="size-icon-xs" />
-									{typeof stats?.session_count.ssh === "undefined"
-										? "-"
-										: stats?.session_count.ssh}
-								</div>
-							</TooltipTrigger>
-							<TooltipContent>SSH Sessions</TooltipContent>
-						</Tooltip>
-					</TooltipProvider>
-					<ValueSeparator />
-					<TooltipProvider delayDuration={100}>
-						<Tooltip>
-							<TooltipTrigger asChild>
-								<div className="flex items-center gap-1">
-									<AppWindowIcon className="size-icon-xs" />
-									{typeof stats?.session_count.reconnecting_pty === "undefined"
-										? "-"
-										: stats?.session_count.reconnecting_pty}
-								</div>
-							</TooltipTrigger>
-							<TooltipContent>Web Terminal Sessions</TooltipContent>
-						</Tooltip>
-					</TooltipProvider>
-				</div>
-			</div>
+			<ActiveConnections sessionCount={stats?.session_count} />
 
 			<div className="ml-auto flex mr-3 items-center gap-8 text-content-primary">
 				<TooltipProvider delayDuration={100}>
@@ -355,6 +294,221 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = ({
 				</TooltipProvider>
 			</div>
 		</div>
+	);
+};
+
+const MAX_VISIBLE_APPS = 4;
+
+const SESSION_FAMILIES: readonly {
+	key: Exclude<keyof SessionCountDeploymentStats, "apps">;
+	name: string;
+	icon: ReactNode;
+}[] = [
+	{
+		key: "vscode",
+		name: "VS Code",
+		icon: (
+			<ExternalImage src="/icon/code.svg" alt="" className="size-icon-xs" />
+		),
+	},
+	{
+		key: "jetbrains",
+		name: "JetBrains",
+		icon: (
+			<ExternalImage
+				src="/icon/jetbrains.svg"
+				alt=""
+				className="size-icon-xs"
+			/>
+		),
+	},
+	{
+		key: "ssh",
+		name: "SSH",
+		icon: (
+			<ExternalImage src="/icon/terminal.svg" alt="" className="size-icon-xs" />
+		),
+	},
+	{
+		key: "reconnecting_pty",
+		name: "Web Terminal",
+		icon: <AppWindowIcon className="size-icon-xs" />,
+	},
+];
+
+const APP_COLLATOR = new Intl.Collator("en-US");
+
+// Busiest first. The id tie-break keeps apps that share a display name, such
+// as codium and vscodium, stably ordered across refreshes.
+export const sortSessionApps = (
+	apps: SessionCountDeploymentStats["apps"] = {},
+) =>
+	Object.entries(apps)
+		.filter(([, app]) => app.count > 0)
+		.map(([id, app]) => ({ ...app, id }))
+		.sort(
+			(first, second) =>
+				second.count - first.count ||
+				APP_COLLATOR.compare(first.display_name, second.display_name) ||
+				(first.id < second.id ? -1 : 1),
+		);
+
+// The banner rerenders every second for its refresh countdown; these rows
+// only change once per poll.
+const ActiveConnections = memo(
+	({ sessionCount }: { sessionCount?: SessionCountDeploymentStats }) => {
+		const { visible, overflow } = useMemo(() => {
+			const apps = sortSessionApps(sessionCount?.apps);
+			return {
+				visible: apps.slice(0, MAX_VISIBLE_APPS),
+				overflow: apps.slice(MAX_VISIBLE_APPS),
+			};
+		}, [sessionCount]);
+
+		return (
+			<TooltipProvider delayDuration={TOOLTIP_DELAY_DURATION}>
+				<div className="flex items-center">
+					<Tooltip>
+						<TooltipTrigger asChild>
+							<Button
+								variant="subtle"
+								size="xs"
+								className="mr-4 p-0 font-mono text-xs text-content-primary"
+							>
+								Active Connections
+							</Button>
+						</TooltipTrigger>
+						<TooltipContent
+							side="top"
+							hideWhenDetached
+							className="w-72 p-4 font-sans font-normal shadow-md"
+						>
+							<HelpPopoverTitle>Connections by family</HelpPopoverTitle>
+							<dl className="m-0 grid gap-3 py-2 text-sm">
+								{SESSION_FAMILIES.map(({ key, name, icon }) => (
+									<div
+										key={key}
+										className="flex items-center justify-between gap-4"
+									>
+										<dt className="flex items-center gap-3">
+											{icon}
+											{name}
+										</dt>
+										<dd className="m-0 font-mono font-medium tabular-nums text-content-primary">
+											{sessionCount?.[key] ?? "-"}
+										</dd>
+									</div>
+								))}
+							</dl>
+							<p className="mb-0 mt-3 border-0 border-t border-solid border-border pt-3 text-xs leading-relaxed text-content-secondary">
+								Includes all apps in each family. Unrecognized apps are not
+								included.
+							</p>
+						</TooltipContent>
+					</Tooltip>
+					<div className="flex gap-2 text-content-secondary">
+						{visible.length === 0 && (
+							<div>{sessionCount ? "No active connections" : "-"}</div>
+						)}
+						{visible.map(({ id, count, display_name, icon }, index) => (
+							<Fragment key={id}>
+								{index > 0 && <ValueSeparator />}
+								<ActiveConnection
+									count={count}
+									name={display_name}
+									icon={icon}
+								/>
+							</Fragment>
+						))}
+						{overflow.length > 0 && (
+							<Popover>
+								<PopoverTrigger asChild>
+									<Button
+										variant="subtle"
+										size="xs"
+										className="p-0 font-mono text-xs"
+									>
+										+{overflow.length} more
+									</Button>
+								</PopoverTrigger>
+								<PopoverContent
+									side="top"
+									aria-label="More active connections"
+									hideWhenDetached
+									className="p-3 text-xs"
+								>
+									<ul className="m-0 grid list-none gap-3 p-0">
+										{overflow.map(({ id, display_name, count, icon }) => (
+											<li key={id} className="flex items-center gap-2">
+												<AppLabel
+													icon={icon}
+													name={display_name}
+													showName
+													nameClassName="min-w-0 flex-1 break-words"
+												/>
+												<span>{count}</span>
+											</li>
+										))}
+									</ul>
+								</PopoverContent>
+							</Popover>
+						)}
+					</div>
+				</div>
+			</TooltipProvider>
+		);
+	},
+);
+
+const ActiveConnection: FC<{
+	icon?: string;
+	count: number;
+	name: string;
+}> = ({ icon, count, name }) => (
+	<Tooltip>
+		<TooltipTrigger asChild>
+			<Button
+				variant="subtle"
+				size="xs"
+				aria-label={`${name}: ${count} active connections`}
+				className="gap-1 p-0 font-mono text-xs"
+			>
+				<AppLabel icon={icon} name={name} nameClassName="max-w-32 truncate" />
+				{count}
+			</Button>
+		</TooltipTrigger>
+		<TooltipContent>{name}</TooltipContent>
+	</Tooltip>
+);
+
+// AppLabel falls back to a generic icon plus the name when the app has no
+// bundled icon or it fails to load.
+const AppLabel: FC<{
+	icon?: string;
+	name: string;
+	showName?: boolean;
+	nameClassName?: string;
+}> = ({ icon, name, showName, nameClassName }) => {
+	// Keyed by path, not a boolean, so a later icon change retries.
+	const [failedIcon, setFailedIcon] = useState<string>();
+	// Only server-curated "/icon/" paths reach an image source.
+	const src =
+		icon?.startsWith("/icon/") && icon !== failedIcon ? icon : undefined;
+
+	return (
+		<>
+			{src ? (
+				<ExternalImage
+					src={src}
+					alt={`${name} icon`}
+					className="size-icon-xs shrink-0"
+					onError={() => setFailedIcon(src)}
+				/>
+			) : (
+				<AppWindowIcon className="size-icon-xs shrink-0" />
+			)}
+			{(showName || !src) && <span className={nameClassName}>{name}</span>}
+		</>
 	);
 };
 

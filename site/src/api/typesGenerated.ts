@@ -8744,11 +8744,44 @@ export interface ServiceBannerConfig {
 	readonly background_color?: string;
 }
 
+// From codersdk/appname.go
+/**
+ * SessionCountApp is one app's session count and how to present it.
+ */
+export interface SessionCountApp {
+	readonly count: number;
+	/**
+	 * DisplayName falls back to the app name for an unregistered app.
+	 */
+	readonly display_name: string;
+	/**
+	 * Icon is a bundled path under /icon/, empty if the app has none.
+	 */
+	readonly icon?: string;
+}
+
 // From codersdk/deployment.go
 export interface SessionCountDeploymentStats {
+	/**
+	 * Apps holds one entry per reported app name. The fields below are family
+	 * totals kept for older clients.
+	 */
+	readonly apps: Record<string, SessionCountApp>;
+	/**
+	 * @deprecated use Apps.
+	 */
 	readonly vscode: number;
+	/**
+	 * @deprecated use Apps.
+	 */
 	readonly ssh: number;
+	/**
+	 * @deprecated use Apps.
+	 */
 	readonly jetbrains: number;
+	/**
+	 * @deprecated use Apps.
+	 */
 	readonly reconnecting_pty: number;
 }
 

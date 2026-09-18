@@ -214,6 +214,9 @@ coderd_agentstats_currently_reachable_peers{connection_type=""} 0
 # HELP coderd_agentstats_rx_bytes Agent Rx bytes
 # TYPE coderd_agentstats_rx_bytes gauge
 coderd_agentstats_rx_bytes 0
+# HELP coderd_agentstats_session_count The number of sessions established by app name and family
+# TYPE coderd_agentstats_session_count gauge
+coderd_agentstats_session_count 0
 # HELP coderd_agentstats_session_count_jetbrains The number of session established by JetBrains
 # TYPE coderd_agentstats_session_count_jetbrains gauge
 coderd_agentstats_session_count_jetbrains 0
