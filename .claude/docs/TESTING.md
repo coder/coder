@@ -28,6 +28,29 @@ it should use `time.Sleep`, read through https://github.com/coder/quartz
 and specifically the README to better understand how to handle timing
 issues.
 
+Do not wait on real time either: when a ticker, heartbeat, or deadline is
+under test, inject `quartz.NewMock(t)` and advance it instead of
+constructing the code under test with `quartz.NewReal()`.
+
+### Fixture Cost
+
+`coderdtest.New` clones a Postgres database and starts an in-process NATS
+server (about 150ms before the test does any work) and `dbtestutil.NewDB`
+clones a database (about 50ms). Multiplied across a table, fixtures
+dominate package wall time.
+
+- Build the server or database once per `Test` func and share it across
+  subtests that only read from it or create uniquely named resources. Give
+  a subtest its own fixture only when it changes deployment values,
+  licenses, feature flags, or rows other subtests read.
+- Use `dbtestutil.NewDB` only when SQL behavior is under test. For many
+  parallel query-only leaves, bind each leaf to a rolled-back transaction
+  on one shared database instead of cloning a database per leaf.
+- Measure the per-leaf floor before restructuring: `EXPLAIN (ANALYZE)` for
+  a slow query, phase timers for a slow fixture. Past root causes were a
+  query that Postgres JIT-compiled on every call and a 5s ticker before the
+  first DERP map fetch, not the fixtures themselves.
+
 ### Test Package Naming
 
 - **Black-box tests**: Default to a `package foo_test` test file (e.g.,
@@ -231,3 +254,16 @@ Run benchmarks with:
 ```bash
 go test -bench=. -benchmem ./package/path
 ```
+
+### Suite Cost
+
+- `make test-timings TEST_PACKAGES=./package/path/` writes per-test elapsed
+  times to `test-timings.tsv`, slowest first. A parent's elapsed time
+  includes its sequential children and queue waits, so attribute cost to
+  leaves.
+- To find production code kept alive only by tests, run
+  `go run golang.org/x/tools/cmd/deadcode@latest -tags testsmallbatch -test ./...`
+  and the same command without `-test` on `./cmd/... ./enterprise/cmd/...`.
+  Symbols in both outputs are dead everywhere; symbols only in the second
+  are reachable from tests alone. The `unused` linter cannot see this class
+  because tests count as usage.

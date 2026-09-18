@@ -39,6 +39,23 @@ WHERE
 ORDER BY
     name ASC;
 
+-- name: GetAIProviderFilterOptions :many
+-- Returns the display metadata AI Gateway session viewers need to filter
+-- interceptions by provider_name. Soft-deleted and disabled rows are
+-- included because interceptions keep referencing them. When a name has
+-- been reused, the live row wins so current metadata is shown.
+SELECT DISTINCT ON (name)
+    name,
+    type,
+    display_name,
+    icon
+FROM
+    ai_providers
+ORDER BY
+    name ASC,
+    deleted ASC,
+    updated_at DESC;
+
 -- name: InsertAIProvider :one
 INSERT INTO ai_providers (
     id,

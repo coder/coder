@@ -743,6 +743,7 @@ func (s *taskStarter) generateAssistant(
 		CallTemplate:         prepared.CallTemplate,
 		PublishMessagePart:   attempt.publish,
 		OnModelStreamStart:   attempt.startModelInvocation,
+		StreamSilenceTimeout: s.server.streamSilenceTimeout,
 		Logger:               s.opts.Logger,
 		Clock:                s.opts.Clock,
 		Metrics:              s.server.metrics,
@@ -1027,6 +1028,7 @@ func (s *taskStarter) generateCompaction(
 			logger,
 			compactionOpts.Messages,
 			overrideModel.model,
+			overrideModel.resolvedProvider,
 			prepared.Compaction.ChatModelConfig,
 			overrideModel.dbConfig,
 		)

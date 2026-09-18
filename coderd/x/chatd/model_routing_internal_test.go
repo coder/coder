@@ -459,6 +459,50 @@ func TestAIGatewayModelBedrockInferredOpenAIDefaultsToResponses(t *testing.T) {
 	require.Equal(t, "/v1/responses", <-paths)
 }
 
+func TestAIGatewayModelBedrockReasoningModelOverride(t *testing.T) {
+	t.Parallel()
+
+	bodies := make(chan []byte, 1)
+	factory := &aibridgeTestFactory{rt: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		bodyBytes, err := io.ReadAll(req.Body)
+		if err != nil {
+			return nil, err
+		}
+		bodies <- bodyBytes
+		body := `{"id":"resp_test","object":"response","created_at":0,"status":"completed","model":"openai.brand-new-model","output":[{"id":"msg_test","type":"message","role":"assistant","content":[{"type":"output_text","text":"hello"}]}],"usage":{"input_tokens":1,"output_tokens":1,"total_tokens":2}}`
+		if strings.HasSuffix(req.URL.Path, "/chat/completions") {
+			body = `{"id":"chatcmpl_test","object":"chat.completion","created":0,"model":"openai.brand-new-model","choices":[{"index":0,"message":{"role":"assistant","content":"hello"},"finish_reason":"stop"}],"usage":{"prompt_tokens":1,"completion_tokens":1,"total_tokens":2}}`
+		}
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     http.Header{"Content-Type": []string{"application/json"}},
+			Body:       io.NopCloser(strings.NewReader(body)),
+			Request:    req,
+		}, nil
+	})}
+	server := &Server{aibridgeTransportFactory: aibridgeTestFactoryPointer(factory)}
+	provider := aibridgeTestAIProvider(uuid.New(), "primary-bedrock", database.AIProviderTypeBedrock)
+	route := newAIGatewayModelRoute(provider, string(provider.Type), aiGatewayProviderAuth{})
+	req := aibridgeTestRequest(database.Chat{ID: uuid.New(), OwnerID: uuid.New()}, "openai.brand-new-model")
+	req.CallConfig = codersdk.ChatModelCallConfig{
+		OpenAIConfig:    &codersdk.ChatModelOpenAIConfig{ReasoningModel: new(true)},
+		ReasoningEffort: &codersdk.ChatModelReasoningEffortConfig{Default: new(codersdk.ChatModelReasoningEffortHigh), Max: new(codersdk.ChatModelReasoningEffortHigh)},
+	}
+	model, err := server.newModel(t.Context(), req, route, modelBuildOptions{ActiveAPIKeyID: uuid.NewString()})
+	require.NoError(t, err)
+	_, err = model.LanguageModel().Generate(t.Context(), fantasy.Call{Temperature: new(0.7), TopP: new(0.9), ProviderOptions: chatprovider.ProviderOptionsForCall(model, req.CallConfig, nil), Prompt: []fantasy.Message{{
+		Role:    fantasy.MessageRoleUser,
+		Content: []fantasy.MessagePart{fantasy.TextPart{Text: "hello"}},
+	}}})
+	require.NoError(t, err)
+
+	var body map[string]any
+	require.NoError(t, json.Unmarshal(<-bodies, &body))
+	require.Equal(t, map[string]any{"effort": "high"}, body["reasoning"])
+	require.NotContains(t, body, "temperature")
+	require.NotContains(t, body, "top_p")
+}
+
 func TestBedrockReasoningSummary(t *testing.T) {
 	t.Parallel()
 
@@ -995,4 +1039,145 @@ func TestAIBridgeDelegatedContextPropagation(t *testing.T) {
 	require.True(t, got.ok)
 	require.Equal(t, "/v1/responses", got.path)
 	require.Equal(t, apiKeyID, got.apiKeyID)
+}
+
+const openaiResponseBody = `{"id":"resp_test","object":"response","created_at":0,"status":"completed","model":"gpt-4","output":[{"id":"msg_test","type":"message","role":"assistant","content":[{"type":"output_text","text":"hello"}]}],"usage":{"input_tokens":1,"output_tokens":1,"total_tokens":2}}`
+
+func openaiRoundTrip(t *testing.T, fn func(*http.Request)) roundTripFunc {
+	t.Helper()
+	return roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		if fn != nil {
+			fn(req)
+		}
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     http.Header{"Content-Type": []string{"application/json"}},
+			Body:       io.NopCloser(strings.NewReader(openaiResponseBody)),
+			Request:    req,
+		}, nil
+	})
+}
+
+// TestNewModelAttribution verifies that newModel resolves Attribution from the
+// chat's persisted WorkspaceID without any DB lookup and stamps it on every
+// RoundTrip context alongside the delegated API key ID.
+func TestNewModelAttribution(t *testing.T) {
+	t.Parallel()
+
+	// nolint:gosec // Test-only identifier, not a credential.
+	const apiKeyID = "test-api-key-id"
+	provider := aibridgeTestAIProvider(uuid.New(), "primary-openai", database.AIProviderTypeOpenai)
+
+	t.Run("NoWorkspace", func(t *testing.T) {
+		// When the chat has no workspace bound, Attribution has a zero WorkspaceID.
+		t.Parallel()
+
+		chat := database.Chat{
+			ID:      uuid.New(),
+			OwnerID: uuid.New(),
+			// WorkspaceID is zero (not valid): no workspace bound.
+		}
+
+		seen := make(chan aibridge.Attribution, 1)
+		factory := &aibridgeTestFactory{rt: openaiRoundTrip(t, func(req *http.Request) {
+			attr, _ := aibridge.DelegatedAttributionFromContext(req.Context())
+			seen <- attr
+		})}
+		server := &Server{aibridgeTransportFactory: aibridgeTestFactoryPointer(factory)}
+
+		model, err := server.newModel(t.Context(), aibridgeTestRequest(chat, "gpt-4"), aibridgeTestRoute(provider), modelBuildOptions{ActiveAPIKeyID: apiKeyID})
+		require.NoError(t, err)
+		_, err = model.LanguageModel().Generate(t.Context(), fantasy.Call{Prompt: []fantasy.Message{{
+			Role:    fantasy.MessageRoleUser,
+			Content: []fantasy.MessagePart{fantasy.TextPart{Text: "hello"}},
+		}}})
+		require.NoError(t, err)
+
+		got := <-seen
+		require.Equal(t, uuid.Nil, got.WorkspaceID)
+	})
+
+	t.Run("WithWorkspace", func(t *testing.T) {
+		// When the chat has a persisted WorkspaceID, Attribution carries it
+		// directly without any DB lookup.
+		t.Parallel()
+
+		wsID := uuid.New()
+		chat := database.Chat{
+			ID:          uuid.New(),
+			OwnerID:     uuid.New(),
+			WorkspaceID: uuid.NullUUID{UUID: wsID, Valid: true},
+		}
+
+		seen := make(chan aibridge.Attribution, 1)
+		factory := &aibridgeTestFactory{rt: openaiRoundTrip(t, func(req *http.Request) {
+			attr, _ := aibridge.DelegatedAttributionFromContext(req.Context())
+			seen <- attr
+		})}
+		// No db mock: attribution must not require a DB lookup.
+		server := &Server{aibridgeTransportFactory: aibridgeTestFactoryPointer(factory)}
+
+		model, err := server.newModel(t.Context(), aibridgeTestRequest(chat, "gpt-4"), aibridgeTestRoute(provider), modelBuildOptions{ActiveAPIKeyID: apiKeyID})
+		require.NoError(t, err)
+		_, err = model.LanguageModel().Generate(t.Context(), fantasy.Call{Prompt: []fantasy.Message{{
+			Role:    fantasy.MessageRoleUser,
+			Content: []fantasy.MessagePart{fantasy.TextPart{Text: "hello"}},
+		}}})
+		require.NoError(t, err)
+
+		got := <-seen
+		require.Equal(t, wsID, got.WorkspaceID)
+	})
+}
+
+// TestNewModelAttributionImmutablePerRequest verifies that a chat retaining the
+// same synthetic API key receives attribution from its current workspace
+// binding. Detaching and reattaching must not retain an earlier workspace ID.
+func TestNewModelAttributionImmutablePerRequest(t *testing.T) {
+	t.Parallel()
+
+	const sharedAPIKeyID = "shared-synthetic-key"
+	provider := aibridgeTestAIProvider(uuid.New(), "primary-openai", database.AIProviderTypeOpenai)
+	wsID1 := uuid.New()
+	wsID2 := uuid.New()
+	chat := database.Chat{ID: uuid.New(), OwnerID: uuid.New()}
+	workspaceBindings := []uuid.NullUUID{
+		{UUID: wsID1, Valid: true},
+		{},
+		{UUID: wsID2, Valid: true},
+	}
+
+	type seenRequest struct {
+		apiKeyID    string
+		workspaceID uuid.UUID
+	}
+	seen := make(chan seenRequest, len(workspaceBindings))
+	factory := &aibridgeTestFactory{rt: openaiRoundTrip(t, func(req *http.Request) {
+		apiKeyID, _ := aibridge.DelegatedAPIKeyIDFromContext(req.Context())
+		attr, _ := aibridge.DelegatedAttributionFromContext(req.Context())
+		seen <- seenRequest{apiKeyID: apiKeyID, workspaceID: attr.WorkspaceID}
+	})}
+	server := &Server{aibridgeTransportFactory: aibridgeTestFactoryPointer(factory)}
+	call := fantasy.Call{Prompt: []fantasy.Message{{
+		Role:    fantasy.MessageRoleUser,
+		Content: []fantasy.MessagePart{fantasy.TextPart{Text: "hello"}},
+	}}}
+
+	for _, workspaceID := range workspaceBindings {
+		chat.WorkspaceID = workspaceID
+		model, err := server.newModel(t.Context(), aibridgeTestRequest(chat, "gpt-4"), aibridgeTestRoute(provider), modelBuildOptions{ActiveAPIKeyID: sharedAPIKeyID})
+		require.NoError(t, err)
+		_, err = model.LanguageModel().Generate(t.Context(), call)
+		require.NoError(t, err)
+	}
+
+	got := make([]seenRequest, 0, len(workspaceBindings))
+	for range workspaceBindings {
+		got = append(got, <-seen)
+	}
+	require.Equal(t, []seenRequest{
+		{apiKeyID: sharedAPIKeyID, workspaceID: wsID1},
+		{apiKeyID: sharedAPIKeyID, workspaceID: uuid.Nil},
+		{apiKeyID: sharedAPIKeyID, workspaceID: wsID2},
+	}, got)
 }

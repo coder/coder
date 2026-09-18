@@ -26,6 +26,9 @@ var (
 	ErrTokenNotBelongsToClient = xerrors.New("token does not belong to requesting client")
 	// ErrInvalidTokenFormat is returned when a token has an invalid format
 	ErrInvalidTokenFormat = xerrors.New("invalid token format")
+	// ErrTokenNotRevocable is returned when the presented token is not an
+	// OAuth2 token this client can revoke.
+	ErrTokenNotRevocable = xerrors.New("token not revocable")
 )
 
 func extractRevocationRequest(r *http.Request) (codersdk.OAuth2TokenRevocationRequest, error) {
@@ -81,6 +84,14 @@ func RevokeToken(db database.Store, logger slog.Logger) http.HandlerFunc {
 			return
 		}
 		if err != nil {
+			// ExtractOAuth2ProviderAppWithOAuth2Errors bounds the body, but it
+			// parses the form only when client_id is absent from the query
+			// string. When it is present, extractRevocationRequest performs the
+			// first read and the bound trips here rather than in the middleware.
+			if maxBytesErr, ok := errors.AsType[*http.MaxBytesError](err); ok {
+				httpapi.WriteOAuth2RequestTooLarge(ctx, rw, maxBytesErr.Limit)
+				return
+			}
 			httpapi.WriteOAuth2Error(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidRequest, err.Error())
 			return
 		}
@@ -133,6 +144,15 @@ func RevokeToken(db database.Store, logger slog.Logger) http.HandlerFunc {
 				rw.WriteHeader(http.StatusOK)
 				return
 			}
+			if errors.Is(err, ErrTokenNotRevocable) {
+				// RFC 7009 §2.2 answers 200 for an invalid token, so the reply
+				// says nothing about which tokens exist.
+				logger.Debug(ctx, "token revocation failed: presented token is not a revocable OAuth2 token",
+					slog.F("client_id", app.ID.String()),
+					slog.F("app_name", app.Name))
+				rw.WriteHeader(http.StatusOK)
+				return
+			}
 			if errors.Is(err, ErrInvalidTokenFormat) {
 				// Invalid token format should return 400 bad request
 				logger.Debug(ctx, "token revocation failed: invalid token format",
@@ -174,7 +194,7 @@ func revokeRefreshTokenInTx(ctx context.Context, db database.Store, token string
 
 	equal := apikey.ValidateHash(dbToken.RefreshHash, parsedToken.Secret)
 	if !equal {
-		return xerrors.Errorf("invalid refresh token")
+		return ErrTokenNotRevocable
 	}
 
 	// Verify ownership via AppID. AppSecretID is NULL for public clients, so
@@ -214,12 +234,12 @@ func revokeAPIKeyInTx(ctx context.Context, db database.Store, token string, appI
 	// Checking to see if the provided secret matches the stored hashed secret
 	hashedSecret := sha256.Sum256([]byte(secret))
 	if subtle.ConstantTimeCompare(apiKey.HashedSecret, hashedSecret[:]) != 1 {
-		return xerrors.Errorf("invalid api key")
+		return ErrTokenNotRevocable
 	}
 
 	// Verify the API key was created by OAuth2
 	if apiKey.LoginType != database.LoginTypeOAuth2ProviderApp {
-		return xerrors.New("api key is not an oauth2 token")
+		return ErrTokenNotRevocable
 	}
 
 	// Find the associated OAuth2 token to verify ownership

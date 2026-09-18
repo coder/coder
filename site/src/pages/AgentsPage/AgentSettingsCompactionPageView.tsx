@@ -7,6 +7,7 @@ export interface AgentSettingsCompactionPageViewProps {
 	models: readonly TypesGen.ChatModel[] | undefined;
 	providerTypeByID: ReadonlyMap<string, string>;
 	organizations: readonly TypesGen.Organization[];
+	compactionModelIDByOrganization?: ReadonlyMap<string, string>;
 	modelsError: unknown;
 	isLoadingModels: boolean;
 	thresholds: readonly TypesGen.UserChatCompactionThreshold[] | undefined;
@@ -25,6 +26,7 @@ export const AgentSettingsCompactionPageView: FC<
 	models,
 	providerTypeByID,
 	organizations,
+	compactionModelIDByOrganization,
 	modelsError,
 	isLoadingModels,
 	thresholds,
@@ -43,6 +45,7 @@ export const AgentSettingsCompactionPageView: FC<
 				models={models ?? []}
 				providerTypeByID={providerTypeByID}
 				organizations={organizations}
+				compactionModelIDByOrganization={compactionModelIDByOrganization}
 				modelsError={modelsError}
 				isLoadingModels={isLoadingModels}
 				thresholds={thresholds}

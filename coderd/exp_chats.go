@@ -8042,7 +8042,7 @@ func isZeroChatModelCallConfig(config *codersdk.ChatModelCallConfig) bool {
 }
 
 func isZeroChatModelOpenAIConfig(config *codersdk.ChatModelOpenAIConfig) bool {
-	return config == nil || config.UseResponsesAPI == nil
+	return config == nil || (config.UseResponsesAPI == nil && config.ReasoningModel == nil)
 }
 
 func isZeroChatModelProviderOptions(options *codersdk.ChatModelProviderOptions) bool {

@@ -94,6 +94,36 @@ export const Default: Story = {
 	},
 };
 
+export const ContextWindowTracksDraft: Story = {
+	name: "Context Window Tracks Draft",
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const gpt4oInput = await canvas.findByRole("textbox", {
+			name: /GPT-4o compaction threshold/i,
+		});
+
+		// 128K window: default 80% compacts at ~102K, the draft moves it to ~64K.
+		await userEvent.type(gpt4oInput, "50");
+	},
+};
+
+export const CompactionOverrideShrinksWindow: Story = {
+	name: "Compaction Override Shrinks Window",
+	args: {
+		// The organization summarizes with the 16K model, so both enabled
+		// models show a 16K compaction window instead of their own.
+		compactionModelIDByOrganization: new Map([
+			[MockChatModel.organization_id, "model-3"],
+		]),
+	},
+};
+
+export const UnknownContextWindow: Story = {
+	args: {
+		models: [{ ...mockModels[0], context_limit: 0 }],
+	},
+};
+
 export const EmptyOrganizationDisplayNameFallsBackToName: Story = {
 	args: {
 		organizations: [organizationWithEmptyDisplayName],
