@@ -1,7 +1,10 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, within } from "storybook/test";
 import type { ChatQueuedMessage } from "#/api/typesGenerated";
-import { MockChatQueuedMessage } from "#/testHelpers/chatEntities";
+import {
+	MockChatQueuedMessage,
+	MockChatQueuedMessageUnderEdit,
+} from "#/testHelpers/chatEntities";
 import { QueuedMessagesList } from "./QueuedMessagesList";
 
 // Helper to build a ChatQueuedMessage with minimal boilerplate.
@@ -139,6 +142,44 @@ export const AttachmentsOnly: Story = {
 export const ActionsExcludeEdit: Story = {
 	args: {
 		messages: [buildMessage(1, textContent("Run the linter"))],
+	},
+};
+
+// A row under edit behind the head: the head stays sendable; rows behind the edit wait.
+export const RowUnderEditWithWaitingTail: Story = {
+	args: {
+		messages: [
+			buildMessage(1, textContent("Install dependencies")),
+			{
+				...MockChatQueuedMessageUnderEdit,
+				id: 2,
+				content: textContent("Run database migrations"),
+			},
+			buildMessage(3, textContent("Start the dev server")),
+			buildMessage(4, textContent("Open the browser")),
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.hover(canvas.getByText("Run database migrations"));
+	},
+};
+
+// The queue head is under edit, so the Enter-to-send hint is hidden.
+export const HeadUnderEdit: Story = {
+	args: {
+		messages: [
+			{
+				...MockChatQueuedMessageUnderEdit,
+				id: 1,
+				content: textContent("Run the test suite"),
+			},
+			buildMessage(2, textContent("Open the browser")),
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.hover(canvas.getByText("Run the test suite"));
 	},
 };
 

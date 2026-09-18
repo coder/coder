@@ -542,6 +542,26 @@ export const ActiveChatArchiveActionsDisabled: Story = {
 	},
 };
 
+// The paused hint names what unblocks archiving: the queued message under
+// edit.
+export const PausedChatArchiveActionsDisabled: Story = {
+	args: {
+		chat: {
+			...MockChat,
+			status: "paused",
+			workspace_id: "workspace-1",
+		},
+		liveChatStatus: "paused",
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(canvas.getByLabelText("Open agent actions"));
+		await within(document.body).findByRole("menuitem", {
+			name: "Archive agent",
+		});
+	},
+};
+
 export const PreservesArchivedFilterOnMobileBack: Story = {
 	decorators: mobileDecorator,
 	parameters: {

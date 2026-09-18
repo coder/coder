@@ -357,6 +357,19 @@ export const ChatWithTurnSummaryAndError: Story = {
 	},
 };
 
+export const PausedChat: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "chat-paused",
+				title: "Migrate the database",
+				status: "paused",
+				last_turn_summary: "Generated the migration files",
+			}),
+		],
+	},
+};
+
 export const RunningDelegatedChat: Story = {
 	args: {
 		chats: [
