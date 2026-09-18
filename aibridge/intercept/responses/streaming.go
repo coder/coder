@@ -105,7 +105,11 @@ func (i *StreamingResponsesInterceptor) ProcessRequest(w http.ResponseWriter, r 
 		return err
 	}
 
-	i.injectTools()
+	// Only injected tools let the inner agentic loop rerun upstream, which
+	// requires holding back everything but the final response so response.id
+	// stays consistent. Otherwise events are relayed as they arrive: buffering
+	// starves the client of headers and bytes until upstream completes.
+	toolsInjected := i.injectTools()
 
 	events := eventstream.NewEventStream(ctx, i.logger.Named("sse-sender"), nil, quartz.NewReal())
 	go events.Start(w, r)
@@ -247,12 +251,7 @@ func (i *StreamingResponsesInterceptor) ProcessRequest(w http.ResponseWriter, r 
 					completedResponse = &completedEvent.Response
 				}
 
-				// If no MCP proxy is provided then no tools are injected.
-				// Inner loop will never iterate more than once, so events can be forwarded as soon as received.
-				//
-				// Otherwise inner loop could iterate. Only last response should be forwarded.
-				// This is needed to keep consistency between response.id and response.previous_response_id fields.
-				if i.mcpProxy == nil {
+				if !toolsInjected {
 					if err := events.Send(ctx, respCopy.buff.readDelta()); err != nil {
 						err = xerrors.Errorf("failed to relay chunk: %w", err)
 						return err
@@ -275,7 +274,7 @@ func (i *StreamingResponsesInterceptor) ProcessRequest(w http.ResponseWriter, r 
 			i.recordTokenUsage(ctx, completedResponse)
 		}
 
-		if i.mcpProxy != nil && completedResponse != nil {
+		if toolsInjected && completedResponse != nil {
 			pending := i.getPendingInjectedToolCalls(completedResponse)
 			shouldLoop, innerLoopErr = i.handleInnerAgenticLoop(ctx, pending, completedResponse)
 			if innerLoopErr != nil {
@@ -300,7 +299,12 @@ func (i *StreamingResponsesInterceptor) ProcessRequest(w http.ResponseWriter, r 
 
 	b, err := respCopy.readAll()
 	if err != nil {
-		return xerrors.Errorf("failed to read response body: %w", err)
+		err = xerrors.Errorf("failed to read response body: %w", err)
+		// Returning without a response would let the server emit an empty 200.
+		if !events.IsStreaming() {
+			i.sendCustomErr(ctx, w, http.StatusBadGateway, err)
+		}
+		return err
 	}
 
 	err = events.Send(ctx, b)
