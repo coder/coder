@@ -35,9 +35,6 @@ export const ChatNodePRIcon: FC<ChatNodePRIconProps> = ({ prStatuses }) => {
 		);
 	}
 
-	const prLabel = (status: ChatDiffStatus): string =>
-		status.pull_request_title.trim() || status.url || "Pull request";
-
 	return (
 		<Tooltip>
 			<TooltipTrigger
@@ -65,18 +62,25 @@ export const ChatNodePRIcon: FC<ChatNodePRIconProps> = ({ prStatuses }) => {
 						return null;
 					}
 					const Icon = config.icon;
+					// The label, trimmed, with a URL fallback so the row
+					// always shows something readable.
+					const label =
+						status.pull_request_title.trim() || status.url || "Pull request";
+					// Prefer the stored number; parse it from the URL when
+					// the row predates the column.
 					const parsed = parsePullRequestUrl(status.url);
 					const prNumber =
-						status.pr_number ?? (parsed ? Number(parsed.number) : undefined);
-					const prName = prNumber ? `#${prNumber}` : prLabel(status);
+						status.pr_number ?? (parsed && Number(parsed.number));
 					return (
 						<div
 							key={`${status.remote_origin ?? ""}/${status.git_branch ?? ""}/${index}`}
 							className="flex items-center gap-1.5 text-left"
 						>
 							<Icon className={cn("size-3.5 shrink-0", config.className)} />
-							<span className="shrink-0 font-semibold">PR {prName}</span>
-							<span className="min-w-0 truncate">{prLabel(status)}</span>
+							<span className="shrink-0 font-semibold">
+								PR {prNumber ? `#${prNumber}` : label}
+							</span>
+							<span className="min-w-0 truncate">{label}</span>
 						</div>
 					);
 				})}
