@@ -8,6 +8,7 @@ import (
 
 	"charm.land/fantasy"
 	fantasyopenai "charm.land/fantasy/providers/openai"
+	fantasyopenaicompat "charm.land/fantasy/providers/openaicompat"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
@@ -79,6 +80,79 @@ func TestModelFromConfig_OpenAIResponsesAPIOverride(t *testing.T) {
 			mu.Lock()
 			defer mu.Unlock()
 			require.Equal(t, tc.wantPath, gotPath)
+		})
+	}
+}
+
+func TestModelFromConfig_OpenAICompatUsesConfiguredTransport(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name        string
+		model       string
+		override    *bool
+		wantPath    string
+		wantBodyKey string
+	}{
+		{
+			name:        "ResponsesModel",
+			model:       "muse-spark-1.3-contributor",
+			override:    new(true),
+			wantPath:    "/responses",
+			wantBodyKey: "input",
+		},
+		{
+			name:        "ChatCompletionsModel",
+			model:       "kimi-k3",
+			override:    new(false),
+			wantPath:    "/chat/completions",
+			wantBodyKey: "messages",
+		},
+		{
+			name:        "UnknownModelDefaultsToChatCompletions",
+			model:       "new-chat-model",
+			wantPath:    "/chat/completions",
+			wantBodyKey: "messages",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			requests := make(chan *chattest.OpenAIRequest, 1)
+			serverURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+				requests <- req
+				return chattest.OpenAINonStreamingResponse("ok")
+			})
+			model, err := chatprovider.ModelFromConfig(
+				fantasyopenaicompat.Name,
+				tc.model,
+				chatprovider.ProviderAPIKeys{
+					ByProvider:        map[string]string{fantasyopenaicompat.Name: "test-key"},
+					BaseURLByProvider: map[string]string{fantasyopenaicompat.Name: serverURL},
+				},
+				chatprovider.UserAgent(),
+				map[string]string{"x-opencode-session": "test-session"},
+				nil,
+				&codersdk.ChatModelOpenAIConfig{UseResponsesAPI: tc.override},
+			)
+			require.NoError(t, err)
+
+			_, err = model.LanguageModel().Generate(context.Background(), fantasy.Call{
+				Prompt: []fantasy.Message{{
+					Role:    fantasy.MessageRoleUser,
+					Content: []fantasy.MessagePart{fantasy.TextPart{Text: "Test message"}},
+				}},
+			})
+			require.NoError(t, err)
+
+			req := <-requests
+			require.Equal(t, tc.wantPath, req.URL.Path)
+			require.Equal(t, "test-session", req.Header.Get("x-opencode-session"))
+			var body map[string]any
+			require.NoError(t, json.Unmarshal(req.RawBody, &body))
+			require.Contains(t, body, tc.wantBodyKey)
 		})
 	}
 }

@@ -77,7 +77,7 @@
 				"label": "Use Responses API",
 				"required": false,
 				"input_type": "select",
-				"visible_for_providers": ["openai"]
+				"visible_for_providers": ["openai", "openaicompat"]
 			},
 			{
 				"json_name": "openai_config.reasoning_model",

@@ -817,8 +817,18 @@ func ModelFromConfig(
 		providerClient, err = fantasyopenai.New(options...)
 	case fantasyopenaicompat.Name:
 		httpClient = withOpenAICompatRequestPatches(httpClient, baseURL, modelID)
+		// Keep the OpenAI-compatible client in sync with the transport recorded
+		// by NewModel. Without these options it always defaults to Chat
+		// Completions, even when the model config selects Responses.
+		useResponses := chatopenai.TransportFor(
+			fantasyopenaicompat.Name,
+			modelID,
+			openAIResponsesAPIOverride(openAIConfig),
+		).UsesResponses()
 		options := []fantasyopenaicompat.Option{
 			fantasyopenaicompat.WithAPIKey(apiKey),
+			fantasyopenaicompat.WithUseResponsesAPI(),
+			fantasyopenaicompat.WithResponsesAPIFunc(func(string) bool { return useResponses }),
 			fantasyopenaicompat.WithUserAgent(userAgent),
 		}
 		if len(extraHeaders) > 0 {
