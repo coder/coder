@@ -10,5 +10,6 @@ names, an allowlisted opening tag, and the visible text.
 
 The dashboard side lives in `site/src/pages/AgentsPage` and consumes
 `@coder/annotator/protocol` (message types and the bounded parser) and
-`@coder/annotator/format` (markdown output). The Go side is
+`@coder/annotator/formatAnnotations` (markdown output) through a path
+alias onto `src/`. The Go side is
 `coderd/workspaceapps/annotation.go`.

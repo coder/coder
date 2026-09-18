@@ -1007,6 +1007,13 @@ jobs:
       - name: Install pnpm dependencies
         uses: ./.github/actions/pnpm-install
 
+      # The site type-checks the annotator sources it aliases, so their
+      # dependencies must be present for `pnpm build`.
+      - name: Install annotator pnpm dependencies
+        uses: ./.github/actions/pnpm-install
+        with:
+          directory: annotator
+
       # Assume that the checked-in versions are up-to-date
       - run: make gen/mark-fresh
         name: make gen
