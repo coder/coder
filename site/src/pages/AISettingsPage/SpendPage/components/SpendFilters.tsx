@@ -51,7 +51,7 @@ interface SpendFiltersProps {
 	organizations: readonly Organization[];
 	organization: Organization;
 	onOrganizationChange: (organization: Organization) => void;
-	menus: SpendFilterMenus;
+	menus?: SpendFilterMenus;
 	now?: Date;
 	dateRange: DateRangeValue | undefined;
 	minDate: Date | undefined;
@@ -90,9 +90,13 @@ export const SpendFilters: FC<SpendFiltersProps> = ({
 					}}
 				/>
 			)}
-			<ProviderFilter menu={menus.provider} width={FILTER_WIDTH} />
-			<ModelFilter menu={menus.model} width={FILTER_WIDTH} />
-			<ClientFilter menu={menus.client} width={FILTER_WIDTH} />
+			{menus && (
+				<>
+					<ProviderFilter menu={menus.provider} width={FILTER_WIDTH} />
+					<ModelFilter menu={menus.model} width={FILTER_WIDTH} />
+					<ClientFilter menu={menus.client} width={FILTER_WIDTH} />
+				</>
+			)}
 			{dateRange ? (
 				<DateRangePicker
 					now={now}

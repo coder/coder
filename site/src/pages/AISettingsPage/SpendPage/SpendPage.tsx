@@ -2,8 +2,10 @@ import type dayjs from "dayjs";
 import type { FC } from "react";
 import { useQuery } from "react-query";
 import { useSearchParams } from "react-router";
-import { paginatedOrganizationAISpend } from "#/api/queries/aiBridge";
-import { permittedOrganizations } from "#/api/queries/organizations";
+import {
+	aiSpendOrganizations,
+	paginatedOrganizationAISpend,
+} from "#/api/queries/aiBridge";
 import type {
 	OrganizationAISpendFilter,
 	OrganizationAISpendReport,
@@ -15,7 +17,6 @@ import {
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { usePaginatedQuery } from "#/hooks/usePaginatedQuery";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
-import { RequirePermission } from "#/modules/permissions/RequirePermission";
 import { useClientFilterMenu } from "#/pages/AIBridgePage/filters/ClientFilter";
 import { useModelFilterMenu } from "#/pages/AIBridgePage/filters/ModelFilter";
 import { useProviderFilterMenu } from "#/pages/AIBridgePage/filters/ProviderFilter";
@@ -33,13 +34,6 @@ type SpendDimensions = Pick<
 	OrganizationAISpendFilter,
 	"provider_name" | "client" | "model"
 >;
-
-// The spend endpoints authorize on reading the organization's group members,
-// so the picker offers exactly the organizations they would serve.
-const spendOrganizationsCheck = {
-	object: { resource_type: "group_member" },
-	action: "read",
-} as const;
 
 // Local midnight of the UTC calendar date that the instant falls on.
 const localDayOf = (instant: Date): Date =>
@@ -101,11 +95,14 @@ interface SpendPageProps {
 const SpendPage: FC<SpendPageProps> = ({ now }) => {
 	const { permissions } = useAuthenticated();
 	const { entitlements } = useDashboard();
-	const { isEntitled, isEnabled, hasPermission } = getAIBridgePermissions(
+	const { isEntitled, isEnabled } = getAIBridgePermissions(
 		entitlements,
 		permissions,
 	);
-	const canViewSpend = isEntitled && isEnabled && hasPermission;
+	const isSpendAvailable = isEntitled && isEnabled;
+	// The provider, model, and client options come from deployment-wide AI
+	// Gateway endpoints, so only viewers of every session get those filters.
+	const canFilterDimensions = permissions.viewAnyAIBridgeInterception;
 
 	const [searchParams, setSearchParams] = useSearchParams();
 
@@ -128,8 +125,8 @@ const SpendPage: FC<SpendPageProps> = ({ now }) => {
 	};
 
 	const organizationsQuery = useQuery({
-		...permittedOrganizations(spendOrganizationsCheck),
-		enabled: canViewSpend,
+		...aiSpendOrganizations(),
+		enabled: isSpendAvailable,
 	});
 	const organizationSelection = selectModelOrganization(
 		organizationsQuery.data ?? [],
@@ -137,26 +134,28 @@ const SpendPage: FC<SpendPageProps> = ({ now }) => {
 	);
 	const organization = organizationSelection.organization;
 
-	const dimensions: SpendDimensions = {
-		provider_name: searchParams.get("provider_name") || undefined,
-		client: searchParams.get("client") || undefined,
-		model: searchParams.get("model") || undefined,
-	};
+	const dimensions: SpendDimensions = canFilterDimensions
+		? {
+				provider_name: searchParams.get("provider_name") || undefined,
+				client: searchParams.get("client") || undefined,
+				model: searchParams.get("model") || undefined,
+			}
+		: {};
 	const filterMenus = {
 		provider: useProviderFilterMenu({
 			value: dimensions.provider_name,
 			onChange: (option) => setFilterParams({ provider_name: option?.value }),
-			enabled: canViewSpend,
+			enabled: isSpendAvailable && canFilterDimensions,
 		}),
 		client: useClientFilterMenu({
 			value: dimensions.client,
 			onChange: (option) => setFilterParams({ client: option?.value }),
-			enabled: canViewSpend,
+			enabled: isSpendAvailable && canFilterDimensions,
 		}),
 		model: useModelFilterMenu({
 			value: dimensions.model,
 			onChange: (option) => setFilterParams({ model: option?.value }),
-			enabled: canViewSpend,
+			enabled: isSpendAvailable && canFilterDimensions,
 		}),
 	};
 
@@ -203,7 +202,7 @@ const SpendPage: FC<SpendPageProps> = ({ now }) => {
 		...paginatedOrganizationAISpend(organization?.id ?? "", spendFilter),
 		recordsPerPage: SPEND_USERS_PAGE_SIZE,
 		preventScrollReset: true,
-		enabled: canViewSpend && organization !== undefined,
+		enabled: isSpendAvailable && organization !== undefined,
 	});
 
 	const currentTime = now?.toDate() ?? new Date();
@@ -218,7 +217,7 @@ const SpendPage: FC<SpendPageProps> = ({ now }) => {
 		: undefined;
 
 	return (
-		<RequirePermission isFeatureVisible={hasPermission}>
+		<>
 			<title>{pageTitle("AI Spend")}</title>
 			<SpendPageView
 				isEntitled={isEntitled}
@@ -237,10 +236,10 @@ const SpendPage: FC<SpendPageProps> = ({ now }) => {
 				dateRange={appliedDateRange}
 				minDate={minDate}
 				onDateRangeChange={onDateRangeChange}
-				filterMenus={filterMenus}
+				filterMenus={canFilterDimensions ? filterMenus : undefined}
 				usersQuery={usersQuery}
 			/>
-		</RequirePermission>
+		</>
 	);
 };
 

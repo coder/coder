@@ -8,6 +8,7 @@ import type {
 	OrganizationAISpendReport,
 	OrganizationAISpendUser,
 } from "#/api/typesGenerated";
+import type { Permissions } from "#/modules/permissions";
 import {
 	MockAIProviders,
 	MockEntitlements,
@@ -21,10 +22,15 @@ import {
 import { renderWithRouter } from "#/testHelpers/renderHelpers";
 import SpendPage from "./SpendPage";
 
+const sessionViewerPermissions: Permissions = {
+	...MockNoPermissions,
+	viewAnyAIBridgeInterception: true,
+};
+const auth = { permissions: sessionViewerPermissions };
 vi.mock("#/hooks/useAuthenticated", () => ({
 	useAuthenticated: () => ({
 		user: MockUserMember,
-		permissions: { ...MockNoPermissions, viewAnyAIBridgeInterception: true },
+		permissions: auth.permissions,
 	}),
 }));
 vi.mock("#/modules/dashboard/useDashboard", () => ({
@@ -40,6 +46,7 @@ vi.mock("#/modules/dashboard/useDashboard", () => ({
 
 afterEach(() => {
 	vi.restoreAllMocks();
+	auth.permissions = sessionViewerPermissions;
 });
 
 const fixedNow = dayjs("2026-03-12T12:00:00Z");
@@ -236,6 +243,20 @@ it("holds the date picker until the filtered report brings its retention bound",
 			}),
 		),
 	);
+});
+
+it("shows spend without dimension filters to viewers who cannot read AI sessions", async () => {
+	auth.permissions = MockNoPermissions;
+	const { spendSpy } = renderSpend(`${initialSearch}&provider_name=openai`);
+	await screen.findByRole("table", { name: "Spend by user" });
+	expect(API.getAIBridgeProviders).not.toHaveBeenCalled();
+	expect(API.getAIBridgeModels).not.toHaveBeenCalled();
+	expect(API.getAIBridgeClients).not.toHaveBeenCalled();
+	expect(spendSpy).toHaveBeenCalledWith(
+		MockOrganization.id,
+		expect.objectContaining(period),
+	);
+	expect(spendSpy.mock.calls[0][1]).not.toHaveProperty("provider_name");
 });
 
 it("applies the provider filter and resets pagination", async () => {

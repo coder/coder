@@ -53,8 +53,7 @@ Both appear only when the deployment has the AI Gateway entitlement.
 
 ## Spend details
 
-Organization spend is shown under **Admin settings** > **AI** > **Spend**.
-Spend is also shown where it is actionable:
+Spend is shown where it is actionable:
 
 - **Admin settings** > **AI** > **Spend**: total and per-user AI Gateway spend for the selected organization and reporting period, with provider, model, and client filters.
 - **Agents page and user menu**: the signed-in user's spend against their budget, as described previously.

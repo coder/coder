@@ -1,4 +1,6 @@
 import type { FC } from "react";
+import { useQuery } from "react-query";
+import { aiSpendOrganizations } from "#/api/queries/aiBridge";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import AISettingsSidebarView from "#/modules/management/AISettingsSidebarView";
@@ -16,14 +18,15 @@ export const AISettingsSidebar: FC = () => {
 		organizations,
 		{ enabled: !permissions.editDeploymentConfig },
 	);
+	const spendOrganizationsQuery = useQuery({
+		...aiSpendOrganizations(),
+		enabled: entitlements.features.aibridge.enabled,
+	});
 
 	return (
 		<AISettingsSidebarView
 			permissions={permissions}
-			canViewAISpend={
-				entitlements.features.aibridge.enabled &&
-				permissions.viewAnyAIBridgeInterception
-			}
+			canViewAISpend={(spendOrganizationsQuery.data?.length ?? 0) > 0}
 			canAccessOrganizationModels={
 				(accessibleOrgsQuery.organizations.length ?? 0) > 0
 			}

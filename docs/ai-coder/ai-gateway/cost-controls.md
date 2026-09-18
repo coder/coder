@@ -308,14 +308,13 @@ Prometheus metrics report enforcement and pricing gaps.
 
 Visibility follows the viewer's role:
 
-| Who                                                                     | Sees                                                                 |
-|-------------------------------------------------------------------------|----------------------------------------------------------------------|
-| Every user                                                              | Their own spend and budget, or unlimited state, in their avatar menu |
-| Members of a group                                                      | The group's spend and budget, and their own member row               |
-| Owners, User Admins, and organization administrators                    | Spend and budgets for every group and every member                   |
-| Users who can view AI sessions and read an organization's group members | That organization's total and per-user spend on the **Spend** page   |
+| Who                                                  | Sees                                                                                                                       |
+|------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------|
+| Every user                                           | Their own spend and budget, or unlimited state, in their avatar menu                                                       |
+| Members of a group                                   | The group's spend and budget, and their own member row                                                                     |
+| Owners, User Admins, and organization administrators | Spend and budgets for every group and every member, and each organization's total and per-user spend on the **Spend** page |
 
-- The **Spend** page under **Admin settings** > **AI** shows total and per-user AI Gateway spend for the selected organization and reporting period, with provider, model, and client filters.
+- The **Spend** page under **Admin settings** > **AI** shows total and per-user AI Gateway spend for the selected organization and reporting period. Users who can also view AI sessions can filter it by provider, model, and client.
 - The **Groups** page compares each group's spend with the combined limits of
   the members it covers.
 - The **Members** tab of a group reports each member's spend, their budget, and

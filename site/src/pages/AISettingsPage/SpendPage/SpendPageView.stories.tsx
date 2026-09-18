@@ -211,6 +211,10 @@ export const ModelsList: Story = {
 	},
 };
 
+export const WithoutDimensionFilters: Story = {
+	args: { filterMenus: undefined },
+};
+
 export const SingleOrganization: Story = {
 	args: { organizations: [MockOrganization] },
 };

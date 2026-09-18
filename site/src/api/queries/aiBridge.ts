@@ -8,6 +8,7 @@ import type {
 } from "#/api/typesGenerated";
 import { useFilterParamsKey } from "#/components/Filter/Filter";
 import type { UsePaginatedQueryOptions } from "#/hooks/usePaginatedQuery";
+import { permittedOrganizations } from "./organizations";
 
 const SESSION_THREADS_INFINITE_PAGE_SIZE = 20;
 
@@ -28,6 +29,14 @@ export const paginatedSessions = (
 			}),
 	};
 };
+
+// The spend endpoints authorize on reading the organization's group members,
+// so this lists exactly the organizations they would serve.
+export const aiSpendOrganizations = () =>
+	permittedOrganizations({
+		object: { resource_type: "group_member" },
+		action: "read",
+	});
 
 export const organizationAISpendKey = (
 	organizationId: string,

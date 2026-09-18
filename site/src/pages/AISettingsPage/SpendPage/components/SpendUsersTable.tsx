@@ -152,6 +152,7 @@ const SpendTotal: FC<{ report: TypesGen.OrganizationAISpendReport }> = ({
 		<span className="text-sm text-content-secondary">Total spend</span>
 		<span className="text-2xl font-semibold tabular-nums text-content-primary">
 			<SpendAmount
+				scope="organization"
 				costMicros={report.totals.cost_micros}
 				unpricedUsageCount={report.totals.unpriced_usage_count}
 			/>

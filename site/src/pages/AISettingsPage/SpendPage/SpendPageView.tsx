@@ -48,7 +48,8 @@ interface SpendPageViewProps {
 	dateRange: DateRangeValue | undefined;
 	minDate: Date | undefined;
 	onDateRangeChange: (value: DateRangeValue) => void;
-	filterMenus: SpendFilterMenus;
+	/** Absent when the viewer cannot list the deployment's dimension values. */
+	filterMenus?: SpendFilterMenus;
 	usersQuery: SpendUsersQuery;
 }
 
