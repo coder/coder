@@ -1,11 +1,12 @@
 {
 	// oxlint config for the Coder frontend. Biome (see biome.jsonc) remains the
-	// authoritative JS/TS linter; oxlint runs alongside it and enforces only the
-	// rules that already match Biome's behavior. See the migration backlog below.
+	// authoritative JS/TS linter; oxlint runs alongside it and enforces the rules
+	// that already match Biome's behavior, plus a few Coder-specific rules that
+	// Biome has no equivalent for. See the migration backlog below.
 	"$schema": "./node_modules/oxlint/configuration_schema.json",
 	"plugins": ["typescript", "unicorn", "oxc", "react", "jsx-a11y", "vitest"],
 	// Turn every default-on category off so nothing runs unless explicitly
-	// enabled below. This keeps oxlint to "nothing more" than Biome.
+	// enabled below.
 	"categories": { "correctness": "off" },
 	"rules": {
 		// --- a11y (jsx-a11y) ---
@@ -235,6 +236,30 @@
 						"message": "Application code must never import from the Playwright e2e suite."
 					}
 				]
+			}
+		],
+
+		// --- coder-specific (no Biome equivalent) ---
+		// React 19's ComponentProps already includes ref, so the ref-variant
+		// helpers are dead weight. Both the bare and React-qualified spellings
+		// have to be listed; the rule matches on written name.
+		"no-restricted-types": [
+			"error",
+			{
+				"types": {
+					"ComponentPropsWithRef": {
+						"message": "Use ComponentProps instead. Under React 19 it already includes ref."
+					},
+					"React.ComponentPropsWithRef": {
+						"message": "Use React.ComponentProps instead. Under React 19 it already includes ref."
+					},
+					"ComponentPropsWithoutRef": {
+						"message": "Use ComponentProps instead. Under React 19 it already includes ref."
+					},
+					"React.ComponentPropsWithoutRef": {
+						"message": "Use React.ComponentProps instead. Under React 19 it already includes ref."
+					}
+				}
 			}
 		]
 	},
