@@ -435,8 +435,8 @@ func TestQueueUpdateContentUpdatesQueueVersion(t *testing.T) {
 }
 
 // TestQueueUpdateEditingSinceUpdatesQueueVersion verifies that setting and
-// clearing editing_since bumps queue_version, so open streams learn about a
-// edit marker through the regular queue_update event.
+// clearing editing_since bumps queue_version, so open streams learn about an
+// edit marker change through the regular queue_update event.
 func TestQueueUpdateEditingSinceUpdatesQueueVersion(t *testing.T) {
 	t.Parallel()
 	tf := newTriggerFixture(t)

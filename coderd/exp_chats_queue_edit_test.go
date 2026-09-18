@@ -92,7 +92,7 @@ func TestPatchChatQueuedMessage(t *testing.T) {
 		err = client.EditChatQueuedMessage(ctx, chat.ID, head.ID, codersdk.EditChatQueuedMessageRequest{Editing: boolPtr(true)})
 		require.Equal(t, "Queued message not found.", requireSDKError(t, err, http.StatusNotFound).Message)
 
-		// Pause at the remaining row and delete it: the chat idles.
+		// Pause at the remaining row and delete it: the chat returns to waiting.
 		require.NoError(t, client.EditChatQueuedMessage(ctx, chat.ID, next.ID, codersdk.EditChatQueuedMessageRequest{Editing: boolPtr(true)}))
 		_, err = db.UpdateChatStatus(sysCtx, database.UpdateChatStatusParams{ID: chat.ID, Status: database.ChatStatusPaused})
 		require.NoError(t, err)
