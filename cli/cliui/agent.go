@@ -16,6 +16,7 @@ import (
 	"github.com/coder/coder/v2/codersdk/healthsdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/tailnet"
+	"github.com/coder/quartz"
 )
 
 var errAgentShuttingDown = xerrors.New("agent is shutting down")
@@ -31,7 +32,9 @@ type AgentOptions struct {
 	Fetch         func(ctx context.Context, agentID uuid.UUID) (codersdk.WorkspaceAgent, error)
 	FetchLogs     func(ctx context.Context, agentID uuid.UUID, after int64, follow bool) (<-chan []codersdk.WorkspaceAgentLog, io.Closer, error)
 	Wait          bool // If true, wait for the agent to be ready (startup script).
+	WaitVersion   bool // If true, wait for the API version to populate.
 	DocsURL       string
+	Clock         quartz.Clock
 }
 
 // agentWaiter encapsulates the state machine for waiting on a workspace agent.
@@ -58,13 +61,16 @@ func Agent(ctx context.Context, writer io.Writer, agentID uuid.UUID, opts AgentO
 			return c, closeFunc(func() error { return nil }), nil
 		}
 	}
+	if opts.Clock == nil {
+		opts.Clock = quartz.NewReal()
+	}
 
 	fetchedAgent := make(chan fetchAgentResult, 1)
 	go func() {
-		t := time.NewTimer(0)
+		t := opts.Clock.NewTimer(0)
 		defer t.Stop()
 
-		startTime := time.Now()
+		startTime := opts.Clock.Now()
 		baseInterval := opts.FetchInterval
 
 		for {
@@ -84,7 +90,7 @@ func Agent(ctx context.Context, writer io.Writer, agentID uuid.UUID, opts AgentO
 				fetchedAgent <- fetchAgentResult{agent: agent}
 
 				// Adjust the interval based on how long we've been waiting.
-				elapsed := time.Since(startTime)
+				elapsed := opts.Clock.Since(startTime)
 				currentInterval := GetProgressiveInterval(baseInterval, elapsed)
 				t.Reset(currentInterval)
 			}
@@ -146,7 +152,16 @@ func (aw *agentWaiter) wait(ctx context.Context, agent codersdk.WorkspaceAgent, 
 			waitedForConnection = true
 
 		case codersdk.WorkspaceAgentConnected:
-			return aw.handleConnected(ctx, agent, waitedForConnection, fetchedAgent)
+			agent, err = aw.handleConnected(ctx, agent, waitedForConnection, fetchedAgent)
+			if err != nil {
+				return agent, err
+			}
+			if aw.opts.WaitVersion && agent.APIVersion == "" {
+				return aw.pollWhile(ctx, agent, func(agent codersdk.WorkspaceAgent) bool {
+					return agent.APIVersion == ""
+				})
+			}
+			return agent, nil
 
 		case codersdk.WorkspaceAgentDisconnected:
 			agent, waitedForConnection, err = aw.waitForReconnection(ctx, agent)

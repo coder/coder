@@ -405,6 +405,7 @@ func (r *RootCmd) ssh() *serpent.Command {
 				Fetch:         client.WorkspaceAgent,
 				FetchLogs:     client.WorkspaceAgentLogsAfter,
 				Wait:          wait,
+				WaitVersion:   true,
 				DocsURL:       appearanceConfig.DocsURL,
 			})
 			if err != nil {

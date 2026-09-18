@@ -26,6 +26,7 @@ import (
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/tailnet"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/quartz"
 	"github.com/coder/serpent"
 )
 
@@ -631,45 +632,90 @@ func TestAgent(t *testing.T) {
 		}
 	})
 
-	t.Run("ReturnsLatestAgent", func(t *testing.T) {
-		t.Parallel()
+	tests := []struct {
+		name        string
+		fetches     uint64
+		version     string
+		waitVersion bool
+	}{
+		{
+			name:        "NoWaitForVersion",
+			fetches:     2,
+			waitVersion: false,
+		},
+		{
+			name:        "WaitForVersion",
+			fetches:     3,
+			version:     "2.13",
+			waitVersion: true,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 
-		var agent codersdk.WorkspaceAgent
+			var (
+				ctx         = testutil.Context(t, testutil.WaitShort)
+				mClock      = quartz.NewMock(t)
+				trap        = mClock.Trap().TimerReset()
+				done        = make(chan codersdk.WorkspaceAgent, 1)
+				agentID     = uuid.New()
+				fetchCalls  atomic.Uint64
+				connectedAt = mClock.Now()
+			)
+			defer trap.Close()
 
-		cmd := &serpent.Command{
-			Handler: func(inv *serpent.Invocation) error {
-				connectedAt := time.Now()
-				agentID := uuid.New()
-				var fetchCalls atomic.Uint64
-				var err error
-				agent, err = cliui.Agent(inv.Context(), io.Discard, agentID, cliui.AgentOptions{
+			go func() {
+				agent, err := cliui.Agent(ctx, io.Discard, agentID, cliui.AgentOptions{
 					FetchInterval: time.Millisecond,
 					Fetch: func(context.Context, uuid.UUID) (codersdk.WorkspaceAgent, error) {
-						if fetchCalls.Add(1) == 1 {
+						switch fetchCalls.Add(1) {
+						case 1:
 							return codersdk.WorkspaceAgent{
 								ID:     agentID,
 								Status: codersdk.WorkspaceAgentConnecting,
 								// No APIVersion yet.
 							}, nil
+						case 2:
+							return codersdk.WorkspaceAgent{
+								ID:               agentID,
+								Status:           codersdk.WorkspaceAgentConnected,
+								LifecycleState:   codersdk.WorkspaceAgentLifecycleReady,
+								FirstConnectedAt: &connectedAt,
+								CreatedAt:        connectedAt,
+								// Still no APIVersion.
+							}, nil
+						default:
+							return codersdk.WorkspaceAgent{
+								ID:               agentID,
+								Status:           codersdk.WorkspaceAgentConnected,
+								LifecycleState:   codersdk.WorkspaceAgentLifecycleReady,
+								FirstConnectedAt: &connectedAt,
+								CreatedAt:        connectedAt,
+								APIVersion:       "2.13",
+							}, nil
 						}
-						return codersdk.WorkspaceAgent{
-							ID:               agentID,
-							Status:           codersdk.WorkspaceAgentConnected,
-							LifecycleState:   codersdk.WorkspaceAgentLifecycleReady,
-							FirstConnectedAt: &connectedAt,
-							CreatedAt:        connectedAt,
-							APIVersion:       "2.13",
-						}, nil
 					},
+					Clock:       mClock,
+					WaitVersion: tc.waitVersion,
 				})
-				return err
-			},
-		}
+				assert.NoError(t, err)
+				done <- agent
+			}()
 
-		require.NoError(t, cmd.Invoke().Run())
-		require.Equal(t, codersdk.WorkspaceAgentConnected, agent.Status)
-		require.Equal(t, "2.13", agent.APIVersion)
-	})
+			// The first fetch happens immediately, all others wait on the timer.
+			for range tc.fetches - 1 {
+				call := trap.MustWait(ctx)
+				call.MustRelease(ctx)
+				mClock.Advance(call.Duration).MustWait(ctx)
+			}
+
+			agent := testutil.RequireReceive(ctx, t, done)
+			require.Equal(t, codersdk.WorkspaceAgentConnected, agent.Status)
+			require.Equal(t, tc.version, agent.APIVersion)
+			require.Equal(t, tc.fetches, fetchCalls.Load())
+		})
+	}
 }
 
 func TestPeerDiagnostics(t *testing.T) {
