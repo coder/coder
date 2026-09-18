@@ -325,6 +325,77 @@ textarea:focus-visible {
 	will-change: transform;
 }
 
+/* Comments held back with Shift+Send, waiting for the next Send. */
+.held-outline {
+	position: fixed;
+	z-index: 2147483645;
+	pointer-events: none;
+	border: var(--outline-width) dashed hsl(213 94% 68% / 0.5);
+	border-radius: var(--radius-lg);
+}
+
+.pick-wrap {
+	position: relative;
+	display: inline-flex;
+}
+
+.held-badge {
+	position: absolute;
+	top: -4px;
+	right: -4px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	min-width: 16px;
+	height: 16px;
+	padding: 0 4px;
+	border-radius: 8px;
+	background: var(--content-link);
+	color: var(--content-invert);
+	font-size: 0.625rem;
+	line-height: 1;
+	font-weight: 700;
+	pointer-events: auto;
+}
+
+.held-badge[data-tip]:hover::after {
+	content: attr(data-tip);
+	position: absolute;
+	bottom: calc(100% + 6px);
+	right: 0;
+	padding: 0.5rem 0.75rem;
+	border-radius: var(--radius-md);
+	background: var(--surface-primary);
+	border: 1px solid var(--border);
+	color: var(--content-secondary);
+	font-size: 0.75rem;
+	line-height: 1rem;
+	font-weight: 500;
+	white-space: nowrap;
+	pointer-events: none;
+}
+
+.button[data-tip] {
+	position: relative;
+}
+
+.button[data-tip]:hover::after {
+	content: attr(data-tip);
+	position: absolute;
+	bottom: calc(100% + 6px);
+	right: 0;
+	padding: 0.5rem 0.75rem;
+	border-radius: var(--radius-md);
+	background: var(--surface-primary);
+	border: 1px solid var(--border);
+	color: var(--content-secondary);
+	font-size: 0.75rem;
+	line-height: 1rem;
+	font-weight: 500;
+	white-space: nowrap;
+	pointer-events: none;
+}
+
 /* Just sent, agent not yet working: a steady dim ring with no motion. */
 .shimmer.pending .beam::before,
 .shimmer.pending::after {
