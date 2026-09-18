@@ -119,8 +119,7 @@ func TestShardingFlagsValidate(t *testing.T) {
 			errText: "--shard-index requires --shard-count",
 		},
 		{
-			// index 0 is a valid shard, not "unset": a lone --shard-index=0 must
-			// still require --shard-count rather than silently target all.
+			// index 0 is a valid shard, not "unset": a lone --shard-index=0 must error.
 			name: "ShardIndexZeroRequiresShardCount", index: 0, count: 0,
 			errText: "--shard-index requires --shard-count",
 		},
@@ -129,8 +128,7 @@ func TestShardingFlagsValidate(t *testing.T) {
 			errText: "--shard-count requires --shard-index",
 		},
 		{
-			// A negative count is "set" (not the 0 sentinel) and must error rather
-			// than silently disable sharding.
+			// A negative count is "set" (not the 0 sentinel), so it must error.
 			name: "NegativeShardCount", index: 0, count: -1,
 			errText: "--shard-count must be a positive integer, got -1",
 		},
@@ -164,8 +162,8 @@ func TestShardingFlagsValidate(t *testing.T) {
 	})
 }
 
-// shardMembership sweeps every shard index and returns the shard each running
-// workspace landed in, asserting no workspace lands in more than one shard.
+// shardMembership returns the shard each running workspace lands in, asserting
+// none lands in more than one.
 func shardMembership(t *testing.T, workspaces []codersdk.Workspace, shardCount int64) map[uuid.UUID]int64 {
 	t.Helper()
 	membership := make(map[uuid.UUID]int64)
@@ -180,10 +178,8 @@ func shardMembership(t *testing.T, workspaces []codersdk.Workspace, shardCount i
 	return membership
 }
 
-// TestShardWorkspacesStable asserts churn stability: a workspace keeps the same
-// shard when other workspaces disappear. This is the property that lets replicas
-// observe different running sets without double-assigning or dropping a
-// workspace.
+// TestShardWorkspacesStable asserts churn stability: a workspace keeps its shard
+// when others disappear, so replicas observing different running sets agree.
 func TestShardWorkspacesStable(t *testing.T) {
 	t.Parallel()
 
@@ -310,10 +306,8 @@ func TestSelectShard(t *testing.T) {
 		require.Empty(t, buf.String())
 	})
 
-	// An over-provisioned pod (more shards than running workspaces map to it) must
-	// exit 0 with a diagnostic, not error: this is the empty-but-running case the
-	// per-shard diagnostic was added for. A regression that errored here would
-	// silently fail every over-provisioned pod's Indexed Job.
+	// An over-provisioned pod whose shard gets no running workspaces must exit 0,
+	// not error, or every such pod's Indexed Job fails silently.
 	t.Run("EmptyShardExitsZero", func(t *testing.T) {
 		t.Parallel()
 
@@ -325,8 +319,7 @@ func TestSelectShard(t *testing.T) {
 			workspaces = append(workspaces, ws)
 		}
 
-		// With 3 running workspaces across 8 shards at least one shard is empty;
-		// find one via shardWorkspaces.
+		// With 3 workspaces across 8 shards at least one shard is empty.
 		var emptyIndex int64 = -1
 		for idx := range int64(shardCount) {
 			if shard, _ := shardWorkspaces(workspaces, idx, shardCount); len(shard) == 0 {

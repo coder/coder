@@ -427,22 +427,19 @@ func (f *workspaceTargetFlags) attach(opts *serpent.OptionSet) {
 }
 
 // shardingFlags splits the running workspaces across load-generator replicas.
-// It is kept off the shared workspaceTargetFlags so non-sharding commands (e.g.
-// exp scaletest chat) neither publish the flags nor carry the unset sentinel. A
-// nil *shardingFlags means "no sharding" and every method is safe to call on it.
+// Kept off the shared workspaceTargetFlags so non-sharding commands don't
+// publish the flags; a nil *shardingFlags means "no sharding".
 type shardingFlags struct {
 	index int64
 	count int64
 }
 
-// newShardingFlags sets index to the -1 "unset" sentinel because 0 is a valid
-// shard; attach installs the same default.
+// newShardingFlags sets the -1 "unset" sentinel for index, since 0 is a valid shard.
 func newShardingFlags() *shardingFlags {
 	return &shardingFlags{index: -1}
 }
 
-// attach registers the sharding flags. Only sharding commands call it, so the
-// flags stay off commands that merely target workspaces.
+// attach registers the sharding flags; only sharding commands call it.
 func (s *shardingFlags) attach(opts *serpent.OptionSet) {
 	*opts = append(*opts,
 		serpent.Option{
@@ -462,15 +459,13 @@ func (s *shardingFlags) attach(opts *serpent.OptionSet) {
 	)
 }
 
-// requested reports whether either flag was set. Gating on set-ness (not value)
-// stops a negative count or a lone --shard-index from silently targeting every
-// workspace. Nil-safe: a nil *shardingFlags is "not requested".
+// requested reports whether either flag was set (nil-safe). Gating on set-ness,
+// not value, keeps a lone or negative flag from silently targeting everything.
 func (s *shardingFlags) requested() bool {
 	return s != nil && (s.count != 0 || s.index != -1)
 }
 
-// validate rejects invalid or conflicting sharding flags. It is a no-op when
-// sharding was not requested (including a nil receiver).
+// validate rejects invalid or conflicting flags; a no-op when not requested.
 func (s *shardingFlags) validate(targetWorkspaces string) error {
 	if !s.requested() {
 		return nil
@@ -496,25 +491,22 @@ func (s *shardingFlags) validate(targetWorkspaces string) error {
 	return nil
 }
 
-// selectShard returns this replica's shard of the running workspaces. It takes
-// an already-fetched list (not a client) so it is unit-testable. Zero running
-// workspaces is an error because workspace-traffic then has nothing to do.
+// selectShard returns this replica's shard. It takes an already-fetched list,
+// not a client, so it is unit-testable. Zero running workspaces is an error.
 func (s *shardingFlags) selectShard(workspaces []codersdk.Workspace, warnWriter io.Writer) ([]codersdk.Workspace, error) {
 	shard, runningCount := shardWorkspaces(workspaces, s.index, s.count)
 	if runningCount == 0 {
 		return nil, xerrors.New("no running scaletest workspaces exist")
 	}
-	// Log the shard sizes so an empty shard (a pod that exits 0 with no work) is
-	// visible instead of a silent no-op.
+	// Log shard sizes so an empty shard (a pod exiting 0 with no work) is visible.
 	_, _ = fmt.Fprintf(warnWriter, "shard %d of %d: targeting %d of %d running workspaces\n",
 		s.index, s.count, len(shard), runningCount)
 	return shard, nil
 }
 
-// getTargetedWorkspaces returns the workspaces to load-test. warnWriter takes
-// diagnostics and must be stderr, not stdout, or it corrupts --output json.
-// With a non-nil sharding it returns only this replica's shard; pass nil to
-// disable sharding.
+// getTargetedWorkspaces returns the workspaces to load-test. warnWriter must be
+// stderr, not stdout, or diagnostics corrupt --output json. A nil sharding
+// disables sharding.
 func (f *workspaceTargetFlags) getTargetedWorkspaces(ctx context.Context, client *codersdk.Client, organizationIDs []uuid.UUID, sharding *shardingFlags, warnWriter io.Writer) ([]codersdk.Workspace, error) {
 	// Validate template if provided
 	if f.template != "" {
@@ -574,13 +566,9 @@ func (f *workspaceTargetFlags) getTargetedWorkspaces(ctx context.Context, client
 }
 
 // shardWorkspaces returns the running workspaces assigned to shardIndex and the
-// total running count. Non-running workspaces are skipped so load isn't wasted
-// on ones that failed to start. Assignment is by a stable hash of the workspace
-// ID, so shards are disjoint and cover the whole running set without replicas
-// coordinating, and stay stable as workspaces come and go (churn never
-// reassigns the survivors), at the cost of being only roughly even. A width cap
-// is avoided because it would reintroduce the churn instability the hash avoids.
-// shardCount must be >= 1.
+// total running count. Hashing the workspace ID keeps shards disjoint and
+// churn-stable without replicas coordinating, at the cost of only roughly even
+// sizes. shardCount must be >= 1.
 func shardWorkspaces(workspaces []codersdk.Workspace, shardIndex, shardCount int64) (shard []codersdk.Workspace, runningCount int) {
 	// One hasher, reset per workspace, to avoid an allocation on every iteration.
 	h := fnv.New64a()
@@ -1614,7 +1602,6 @@ func (r *RootCmd) scaletestWorkspaceTraffic() *serpent.Command {
 			prometheusSrvClose := ServeHandler(ctx, logger, promhttp.HandlerFor(reg, promhttp.HandlerOpts{}), prometheusFlags.Address, "prometheus")
 			defer prometheusSrvClose()
 
-			// stderr so diagnostics don't corrupt the --output json result on stdout.
 			workspaces, err := targetFlags.getTargetedWorkspaces(ctx, client, me.OrganizationIDs, sharding, inv.Stderr)
 			if err != nil {
 				return err
