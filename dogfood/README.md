@@ -5,8 +5,7 @@ dogfood workspaces:
 
 | Path                      | Image                                      |
 | ------------------------- | ------------------------------------------ |
-| `coder/ubuntu-22.04/`     | `codercom/oss-dogfood:22.04`, `:latest`    |
-| `coder/ubuntu-26.04/`     | `codercom/oss-dogfood:26.04`               |
+| `coder/ubuntu-26.04/`     | `codercom/oss-dogfood:26.04`, `:latest`    |
 | `vscode-coder/Dockerfile` | `codercom/oss-dogfood-vscode-coder:latest` |
 
 `.github/workflows/dogfood.yaml` builds each base image, layers the tools from
