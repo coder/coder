@@ -211,6 +211,7 @@ Guardrails:
 
 - The agent creates a workspace when missing tools, skills, MCP integrations, or context block progress, when workspace access is needed, or when you ask.
   It prefers existing tools and context when they're sufficient.
+  Creating a workspace doesn't make workspace MCP tools available in Plan Mode.
   It follows the `next_step` from `list_templates`, asking you to choose when no template is recommended.
 - The tool is idempotent: if the chat already has a workspace building or
   running, that workspace is returned instead of creating a duplicate.

@@ -98,6 +98,7 @@ Refer to [Platform Controls](./platform-controls/index.md#template-routing) for 
 
 The examples in the first column assume the available tools and context are sufficient.
 Any request, including planning or Q&A, can require a workspace if the agent lacks the capabilities or context to complete it.
+Creating a workspace doesn't change the current mode's tool restrictions: workspace MCP tools remain unavailable in Plan Mode.
 
 | No workspace needed                                  | Workspace provisioned                                    |
 |------------------------------------------------------|----------------------------------------------------------|
