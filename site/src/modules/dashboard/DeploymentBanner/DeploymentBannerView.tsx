@@ -355,108 +355,110 @@ export const sortSessionApps = (
 
 // The banner rerenders every second for its refresh countdown; these rows
 // only change once per poll.
-const ActiveConnections = memo(function ActiveConnections({
-	sessionCount,
-}: {
-	sessionCount?: SessionCountDeploymentStats;
-}) {
-	const { visible, overflow } = useMemo(() => {
-		const apps = sortSessionApps(sessionCount?.apps);
-		return {
-			visible: apps.slice(0, MAX_VISIBLE_APPS),
-			overflow: apps.slice(MAX_VISIBLE_APPS),
-		};
-	}, [sessionCount]);
+const ActiveConnections = memo(
+	({ sessionCount }: { sessionCount?: SessionCountDeploymentStats }) => {
+		const { visible, overflow } = useMemo(() => {
+			const apps = sortSessionApps(sessionCount?.apps);
+			return {
+				visible: apps.slice(0, MAX_VISIBLE_APPS),
+				overflow: apps.slice(MAX_VISIBLE_APPS),
+			};
+		}, [sessionCount]);
 
-	return (
-		<TooltipProvider delayDuration={TOOLTIP_DELAY_DURATION}>
-			<div className="flex items-center">
-				<Tooltip>
-					<TooltipTrigger asChild>
-						<Button
-							variant="subtle"
-							size="xs"
-							className="mr-4 p-0 font-mono text-xs text-content-primary"
-						>
-							Active Connections
-						</Button>
-					</TooltipTrigger>
-					<TooltipContent
-						side="top"
-						hideWhenDetached
-						className="w-72 p-4 font-sans font-normal shadow-md"
-					>
-						<HelpPopoverTitle>Connections by family</HelpPopoverTitle>
-						<dl className="m-0 grid gap-3 py-2 text-sm">
-							{SESSION_FAMILIES.map(({ key, name, icon }) => (
-								<div
-									key={key}
-									className="flex items-center justify-between gap-4"
-								>
-									<dt className="flex items-center gap-3">
-										{icon}
-										{name}
-									</dt>
-									<dd className="m-0 font-mono font-medium tabular-nums text-content-primary">
-										{sessionCount?.[key] ?? "-"}
-									</dd>
-								</div>
-							))}
-						</dl>
-						<p className="mb-0 mt-3 border-0 border-t border-solid border-border pt-3 text-xs leading-relaxed text-content-secondary">
-							Includes all apps in each family. Unrecognized apps are not
-							included.
-						</p>
-					</TooltipContent>
-				</Tooltip>
-				<div className="flex gap-2 text-content-secondary">
-					{visible.length === 0 && (
-						<div>{sessionCount ? "No active connections" : "-"}</div>
-					)}
-					{visible.map(({ id, count, display_name, icon }, index) => (
-						<Fragment key={id}>
-							{index > 0 && <ValueSeparator />}
-							<ActiveConnection count={count} name={display_name} icon={icon} />
-						</Fragment>
-					))}
-					{overflow.length > 0 && (
-						<Popover>
-							<PopoverTrigger asChild>
-								<Button
-									variant="subtle"
-									size="xs"
-									className="p-0 font-mono text-xs"
-								>
-									+{overflow.length} more
-								</Button>
-							</PopoverTrigger>
-							<PopoverContent
-								side="top"
-								aria-label="More active connections"
-								hideWhenDetached
-								className="p-3 text-xs"
+		return (
+			<TooltipProvider delayDuration={TOOLTIP_DELAY_DURATION}>
+				<div className="flex items-center">
+					<Tooltip>
+						<TooltipTrigger asChild>
+							<Button
+								variant="subtle"
+								size="xs"
+								className="mr-4 p-0 font-mono text-xs text-content-primary"
 							>
-								<ul className="m-0 grid list-none gap-3 p-0">
-									{overflow.map(({ id, display_name, count, icon }) => (
-										<li key={id} className="flex items-center gap-2">
-											<AppLabel
-												icon={icon}
-												name={display_name}
-												showName
-												nameClassName="min-w-0 flex-1 break-words"
-											/>
-											<span>{count}</span>
-										</li>
-									))}
-								</ul>
-							</PopoverContent>
-						</Popover>
-					)}
+								Active Connections
+							</Button>
+						</TooltipTrigger>
+						<TooltipContent
+							side="top"
+							hideWhenDetached
+							className="w-72 p-4 font-sans font-normal shadow-md"
+						>
+							<HelpPopoverTitle>Connections by family</HelpPopoverTitle>
+							<dl className="m-0 grid gap-3 py-2 text-sm">
+								{SESSION_FAMILIES.map(({ key, name, icon }) => (
+									<div
+										key={key}
+										className="flex items-center justify-between gap-4"
+									>
+										<dt className="flex items-center gap-3">
+											{icon}
+											{name}
+										</dt>
+										<dd className="m-0 font-mono font-medium tabular-nums text-content-primary">
+											{sessionCount?.[key] ?? "-"}
+										</dd>
+									</div>
+								))}
+							</dl>
+							<p className="mb-0 mt-3 border-0 border-t border-solid border-border pt-3 text-xs leading-relaxed text-content-secondary">
+								Includes all apps in each family. Unrecognized apps are not
+								included.
+							</p>
+						</TooltipContent>
+					</Tooltip>
+					<div className="flex gap-2 text-content-secondary">
+						{visible.length === 0 && (
+							<div>{sessionCount ? "No active connections" : "-"}</div>
+						)}
+						{visible.map(({ id, count, display_name, icon }, index) => (
+							<Fragment key={id}>
+								{index > 0 && <ValueSeparator />}
+								<ActiveConnection
+									count={count}
+									name={display_name}
+									icon={icon}
+								/>
+							</Fragment>
+						))}
+						{overflow.length > 0 && (
+							<Popover>
+								<PopoverTrigger asChild>
+									<Button
+										variant="subtle"
+										size="xs"
+										className="p-0 font-mono text-xs"
+									>
+										+{overflow.length} more
+									</Button>
+								</PopoverTrigger>
+								<PopoverContent
+									side="top"
+									aria-label="More active connections"
+									hideWhenDetached
+									className="p-3 text-xs"
+								>
+									<ul className="m-0 grid list-none gap-3 p-0">
+										{overflow.map(({ id, display_name, count, icon }) => (
+											<li key={id} className="flex items-center gap-2">
+												<AppLabel
+													icon={icon}
+													name={display_name}
+													showName
+													nameClassName="min-w-0 flex-1 break-words"
+												/>
+												<span>{count}</span>
+											</li>
+										))}
+									</ul>
+								</PopoverContent>
+							</Popover>
+						)}
+					</div>
 				</div>
-			</div>
-		</TooltipProvider>
-	);
-});
+			</TooltipProvider>
+		);
+	},
+);
 
 const ActiveConnection: FC<{
 	icon?: string;
