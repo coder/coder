@@ -12,10 +12,10 @@ interface ChatStatusLineProps {
 }
 
 /**
- * One line under a chat's title: PR chip, last turn text, then the unread
- * mark and the age at the right edge, since the age is the time of that
- * turn. While the chat works both would read "now" and say nothing, so they
- * are omitted until it settles. Shared by single cards and group rows.
+ * One line under a chat's title: PR chip, last turn text, then the age at
+ * the right edge, since the age is the time of that turn. While the chat
+ * works it would read "now" and say nothing, so it is omitted until the
+ * chat settles. Shared by single cards and group rows.
  */
 export const ChatStatusLine: FC<ChatStatusLineProps> = ({
 	chat,
