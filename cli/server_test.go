@@ -387,6 +387,8 @@ func TestServer(t *testing.T) {
 	})
 
 	t.Run("OAuth2GitHubDefaultProvider", func(t *testing.T) {
+		t.Parallel()
+
 		type testCase struct {
 			name                                  string
 			githubDefaultProviderEnabled          string
@@ -612,13 +614,12 @@ func TestServer(t *testing.T) {
 
 		root, _ := clitest.New(t,
 			"server",
-			dbArg(t),
 			"--http-address", "127.0.0.1:0",
 			"--access-url", "google.com",
 			"--cache-dir", t.TempDir(),
 		)
 		err := root.WithContext(ctx).Run()
-		require.Error(t, err)
+		require.ErrorContains(t, err, "access-url must include a scheme")
 	})
 
 	t.Run("TLSBadVersion", func(t *testing.T) {
@@ -628,7 +629,6 @@ func TestServer(t *testing.T) {
 
 		root, _ := clitest.New(t,
 			"server",
-			dbArg(t),
 			"--http-address", "",
 			"--access-url", "http://example.com",
 			"--tls-enable",
@@ -637,7 +637,7 @@ func TestServer(t *testing.T) {
 			"--cache-dir", t.TempDir(),
 		)
 		err := root.WithContext(ctx).Run()
-		require.Error(t, err)
+		require.ErrorContains(t, err, "unrecognized tls version")
 	})
 	t.Run("TLSBadClientAuth", func(t *testing.T) {
 		t.Parallel()
@@ -646,7 +646,6 @@ func TestServer(t *testing.T) {
 
 		root, _ := clitest.New(t,
 			"server",
-			dbArg(t),
 			"--http-address", "",
 			"--access-url", "http://example.com",
 			"--tls-enable",
@@ -655,7 +654,7 @@ func TestServer(t *testing.T) {
 			"--cache-dir", t.TempDir(),
 		)
 		err := root.WithContext(ctx).Run()
-		require.Error(t, err)
+		require.ErrorContains(t, err, "unrecognized tls client auth")
 	})
 	t.Run("TLSInvalid", func(t *testing.T) {
 		t.Parallel()
@@ -698,7 +697,6 @@ func TestServer(t *testing.T) {
 
 				args := []string{
 					"server",
-					dbArg(t),
 					"--http-address", "127.0.0.1:0",
 					"--access-url", "http://example.com",
 					"--cache-dir", t.TempDir(),
@@ -1114,7 +1112,6 @@ func TestServer(t *testing.T) {
 
 		inv, _ := clitest.New(t,
 			"server",
-			dbArg(t),
 			"--http-address", ":80",
 			"--tls-enable=false",
 			"--tls-address", "",
@@ -1131,7 +1128,6 @@ func TestServer(t *testing.T) {
 
 		inv, _ := clitest.New(t,
 			"server",
-			dbArg(t),
 			"--tls-enable=true",
 			"--tls-address", "",
 		)
