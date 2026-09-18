@@ -128,6 +128,10 @@ type Resolver struct {
 	// wires this to its MCP runner's snapshot; tests inject a
 	// closure directly.
 	MCPResources func() []Resource
+
+	// globalDirs holds the paths of the Global scan roots for the
+	// pass in progress. walk fills it on the normalized copy.
+	globalDirs map[string]struct{}
 }
 
 // ScanRoot describes a single directory or file the resolver
@@ -145,6 +149,11 @@ type ScanRoot struct {
 	// cloned below the working directory is discovered without a
 	// declared source. Set only for the working-directory root.
 	ChildProjects bool
+	// Global marks the root whose top-level instruction files apply
+	// to the whole conversation (~/.coder). A file reached through
+	// another root, such as a user source naming the same directory
+	// or file, is still classified by the directory it sits in.
+	Global bool
 }
 
 // Resolve walks the supplied scan roots and returns a Snapshot.
@@ -246,9 +255,13 @@ func (r *Resolver) walk(ctx context.Context, roots []ScanRoot) (resources []Reso
 	// discovery requested by any occurrence is kept.
 	seenRoot := make(map[string]int, len(roots))
 	dedup := make([]ScanRoot, 0, len(roots))
+	r.globalDirs = make(map[string]struct{})
 	for _, root := range roots {
 		if root.Path == "" {
 			continue
+		}
+		if root.Global {
+			r.globalDirs[root.Path] = struct{}{}
 		}
 		if previous, ok := seenRoot[root.Path]; ok {
 			dedup[previous].ChildProjects = dedup[previous].ChildProjects || root.ChildProjects
@@ -270,10 +283,7 @@ func (r *Resolver) walk(ctx context.Context, roots []ScanRoot) (resources []Reso
 		}
 		r.discoverIn(root, &resources, seenID)
 	}
-	resources = slices.DeleteFunc(resources, func(resource Resource) bool {
-		return resource.ID == ""
-	})
-	return resources, snapErrs
+	return compactResources(resources), snapErrs
 }
 
 // deduplicateSkills keeps the first valid skill with each name. walk returns
@@ -444,6 +454,42 @@ func directoryEntryNames(dir string) map[string]struct{} {
 	return names
 }
 
+// ResolveInstructionFiles reads the instruction files that sit directly
+// in dir, applying the same name, symlink-containment, and size rules as
+// snapshot discovery with dir as the containment root. It backs the
+// on-demand instructions endpoint chatd calls for directories a tool
+// touched, so nested files match what a scan root would have produced.
+// A missing or non-directory dir yields nothing.
+//
+// Unlike a snapshot resource, a symlinked file keeps the link's path as
+// its Source: the file was resolved for dir and its instructions apply
+// there, not in the target's directory. Aliases within dir still collapse
+// through the target-based ID.
+func (r *Resolver) ResolveInstructionFiles(dir string) []Resource {
+	r = r.normalize()
+	info, err := os.Stat(dir)
+	if err != nil || !info.IsDir() {
+		return nil
+	}
+	var out []Resource
+	seenID := make(map[string]int)
+	for _, f := range lstatInstructionFiles(dir) {
+		res := r.readInstructionFile(dir, f.path, f.info, "")
+		res.Source = f.path
+		appendResource(&out, seenID, res)
+	}
+	return compactResources(out)
+}
+
+// compactResources drops the tombstones appendResource leaves behind when a
+// later valid occurrence replaces an earlier one, so no caller ships an
+// empty resource.
+func compactResources(resources []Resource) []Resource {
+	return slices.DeleteFunc(resources, func(resource Resource) bool {
+		return resource.ID == ""
+	})
+}
+
 // appendResource adds res to out unless an earlier resource already claimed
 // its ID. A valid occurrence replaces an earlier invalid one because the same
 // path can be outside a narrow scan root but valid inside a later broader root.
@@ -543,10 +589,27 @@ func (r *Resolver) classifyFile(scanRoot, path string, info fs.FileInfo, userSou
 // payloads must sanitize themselves.
 func (r *Resolver) readInstructionFile(scanRoot, path string, info fs.FileInfo, userSource string) Resource {
 	res := r.readFileResource(KindInstructionFile, scanRoot, path, info, userSource)
+	res.Global = r.isGlobalDir(filepath.Dir(path))
 	if res.Status == StatusOK {
 		res.Description = firstLine(string(res.Payload))
 	}
 	return res
+}
+
+// isGlobalDir reports whether dir is a Global scan root of the pass in
+// progress. A seeded source keeps its lexical path while built-in roots
+// are canonical, so a home directory behind a symlink is matched through
+// its resolved form.
+func (r *Resolver) isGlobalDir(dir string) bool {
+	if _, ok := r.globalDirs[dir]; ok {
+		return true
+	}
+	resolved, err := filepath.EvalSymlinks(dir)
+	if err != nil {
+		return false
+	}
+	_, ok := r.globalDirs[resolved]
+	return ok
 }
 
 // readMCPConfig reads a .mcp.json file and produces a
@@ -1069,6 +1132,9 @@ type Resource struct {
 	// SourcePath is the user-declared source that contributed
 	// the resource; empty for built-in scan roots.
 	SourcePath string
+	// Global is set for a KindInstructionFile that sits directly in
+	// a Global scan root and so applies to the whole conversation.
+	Global bool
 	// Tools is populated for KindMCPServer with the live
 	// server's tool list; empty otherwise.
 	Tools []MCPTool

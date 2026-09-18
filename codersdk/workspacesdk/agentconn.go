@@ -98,6 +98,7 @@ type AgentConn interface {
 	CallMCPTool(ctx context.Context, req CallMCPToolRequest) (CallMCPToolResponse, error)
 	Close() error
 	ContextConfig(ctx context.Context) (ContextConfigResponse, error)
+	ResolveContextInstructions(ctx context.Context, req ResolveContextInstructionsRequest) (ResolveContextInstructionsResponse, error)
 	DebugLogs(ctx context.Context, opts ...DebugLogsOption) ([]byte, error)
 	DebugMagicsock(ctx context.Context) ([]byte, error)
 	DebugManifest(ctx context.Context) ([]byte, error)
@@ -1364,6 +1365,60 @@ func (c *agentConn) ContextConfig(ctx context.Context) (ContextConfigResponse, e
 		return ContextConfigResponse{}, codersdk.ReadBodyAsError(res)
 	}
 	var resp ContextConfigResponse
+	return resp, decodeAgentJSON(res, &resp)
+}
+
+// MaxContextInstructionDirectories caps the directories one
+// ResolveContextInstructions request may name.
+const MaxContextInstructionDirectories = 32
+
+// ResolveContextInstructionsRequest asks the agent for the instruction
+// files (AGENTS.md, CLAUDE.md, .cursorrules) that sit directly in each
+// listed directory.
+type ResolveContextInstructionsRequest struct {
+	// Directories are absolute paths. Missing directories are skipped.
+	Directories []string `json:"directories"`
+}
+
+// ContextInstructionFile is one instruction file the agent resolved for
+// ResolveContextInstructions. Status and Error use the agent context
+// snapshot resource statuses; Content is set only when Status is "ok".
+type ContextInstructionFile struct {
+	// Directory is the requested directory the file was found in.
+	Directory string `json:"directory"`
+	// Source is the absolute path of the file in Directory. A symlink is
+	// reported under its own path, not its target's.
+	Source      string `json:"source"`
+	Content     string `json:"content,omitempty"`
+	ContentHash string `json:"content_hash"`
+	// SizeBytes is the length of Content when Status is ok and the file's
+	// size on disk otherwise.
+	SizeBytes uint64 `json:"size_bytes"`
+	Status    string `json:"status"`
+	Error     string `json:"error,omitempty"`
+}
+
+// ResolveContextInstructionsResponse lists the instruction files found in
+// the requested directories.
+type ResolveContextInstructionsResponse struct {
+	Files []ContextInstructionFile `json:"files"`
+}
+
+// ResolveContextInstructions asks the agent for the instruction files
+// that sit directly in the requested directories, read with the same
+// rules as the context snapshot.
+func (c *agentConn) ResolveContextInstructions(ctx context.Context, req ResolveContextInstructionsRequest) (ResolveContextInstructionsResponse, error) {
+	ctx, span := tracing.StartSpan(ctx)
+	defer span.End()
+	res, err := c.apiRequest(ctx, http.MethodPost, "/api/v0/context/instructions", req)
+	if err != nil {
+		return ResolveContextInstructionsResponse{}, xerrors.Errorf("do request: %w", err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ResolveContextInstructionsResponse{}, codersdk.ReadBodyAsError(res)
+	}
+	var resp ResolveContextInstructionsResponse
 	return resp, decodeAgentJSON(res, &resp)
 }
 

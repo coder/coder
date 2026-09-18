@@ -4,14 +4,18 @@ import (
 	"context"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/url"
+	"path/filepath"
 	"strconv"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
 
 // SourceResponse is the on-wire representation of a Source.
@@ -59,6 +63,7 @@ type SnapshotResponse struct {
 //	GET    /api/v0/context/sources/{path}
 //	DELETE /api/v0/context/sources/{path}
 //	POST   /api/v0/context/resync
+//	POST   /api/v0/context/instructions  { directories }
 //
 // {path} is URL-encoded canonical path. Callers pass either the
 // canonical or original path; the handler canonicalizes before
@@ -66,6 +71,11 @@ type SnapshotResponse struct {
 type API struct {
 	manager *Manager
 }
+
+// maxInstructionResponseBytes bounds the file content one instructions
+// response carries so a request spanning many directories cannot flood
+// the caller; files past the cap are reported as excluded.
+const maxInstructionResponseBytes = 1 << 20
 
 // NewAPI wraps the supplied Manager.
 func NewAPI(m *Manager) *API {
@@ -83,6 +93,7 @@ func (a *API) Routes() http.Handler {
 		r.Delete("/{path}", a.handleRemoveSource)
 	})
 	r.Post("/resync", a.handleResync)
+	r.Post("/instructions", a.handleResolveInstructions)
 	return r
 }
 
@@ -173,6 +184,66 @@ func (a *API) handleResync(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	httpapi.Write(r.Context(), rw, http.StatusOK, snapshotResponse(snap))
+}
+
+// handleResolveInstructions reads the instruction files that sit directly
+// in each requested directory. It is the synchronous counterpart of
+// snapshot discovery for directories outside the scan roots, such as a
+// nested package a chat tool touched.
+func (a *API) handleResolveInstructions(rw http.ResponseWriter, r *http.Request) {
+	var req workspacesdk.ResolveContextInstructionsRequest
+	if !httpapi.Read(r.Context(), rw, r, &req) {
+		return
+	}
+	if len(req.Directories) > workspacesdk.MaxContextInstructionDirectories {
+		httpapi.Write(r.Context(), rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Too many directories.",
+			Detail:  fmt.Sprintf("At most %d directories may be resolved per request.", workspacesdk.MaxContextInstructionDirectories),
+		})
+		return
+	}
+	for _, dir := range req.Directories {
+		if !filepath.IsAbs(dir) {
+			httpapi.Write(r.Context(), rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Directories must be absolute.",
+				Detail:  "Relative directory " + strconv.Quote(dir) + " cannot be resolved.",
+			})
+			return
+		}
+	}
+
+	resp := workspacesdk.ResolveContextInstructionsResponse{Files: []workspacesdk.ContextInstructionFile{}}
+	var contentBytes int
+	for _, dir := range req.Directories {
+		dir = filepath.Clean(dir)
+		for _, res := range a.manager.resolver.ResolveInstructionFiles(dir) {
+			file := workspacesdk.ContextInstructionFile{
+				Directory:   dir,
+				Source:      res.Source,
+				ContentHash: hex.EncodeToString(res.ContentHash[:]),
+				SizeBytes:   res.SizeBytes,
+				Status:      res.Status.String(),
+				Error:       res.Error,
+			}
+			if res.Status == StatusOK {
+				// The content travels as JSON text, which cannot carry
+				// invalid UTF-8; replacing it here, before the bytes are
+				// counted, keeps every cap on what is actually shipped,
+				// stored, and rendered rather than on the file's size.
+				content := strings.ToValidUTF8(string(res.Payload), "\uFFFD")
+				if contentBytes+len(content) > maxInstructionResponseBytes {
+					file.Status = StatusExcluded.String()
+					file.Error = fmt.Sprintf("response content cap of %d bytes exceeded", maxInstructionResponseBytes)
+				} else {
+					file.Content = content
+					file.SizeBytes = uint64(len(content))
+					contentBytes += len(content)
+				}
+			}
+			resp.Files = append(resp.Files, file)
+		}
+	}
+	httpapi.Write(r.Context(), rw, http.StatusOK, resp)
 }
 
 // snapshotResponse converts a Snapshot to the JSON form returned by

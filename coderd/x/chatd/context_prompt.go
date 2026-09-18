@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"slices"
 	"strings"
 
 	"golang.org/x/xerrors"
@@ -145,17 +146,18 @@ func splitMCPInputSchema(schema *structpb.Struct) (properties map[string]any, re
 }
 
 // decodeInstructionContent decodes an instruction-file resource body and
-// returns its sanitized content. decoded is false when the body cannot be
+// returns its sanitized content and whether the agent marked the file as
+// global (directly in ~/.coder). decoded is false when the body cannot be
 // decoded, letting the prompt path count it as malformed; content is empty
 // when the file sanitizes to nothing, in which case callers skip it. Shared by
 // the prompt builder and the API resource listing so both interpret an
 // instruction file the same way.
-func decodeInstructionContent(body json.RawMessage) (content string, decoded bool) {
+func decodeInstructionContent(body json.RawMessage) (content string, global, decoded bool) {
 	decodedBody, ok := decodeInstructionFileBody(body)
 	if !ok {
-		return "", false
+		return "", false, false
 	}
-	return codersdk.SanitizePromptText(string(decodedBody.GetContent())), true
+	return codersdk.SanitizePromptText(string(decodedBody.GetContent())), decodedBody.GetGlobal(), true
 }
 
 // decodeSkillIdentity decodes a skill resource body and returns its name and
@@ -267,6 +269,7 @@ func contextResourcesToPrompt(
 	var (
 		contextFileParts []codersdk.ChatMessagePart
 		omitted          []string
+		global           = make(map[string]bool)
 	)
 	for _, r := range resources {
 		if r.Status != database.WorkspaceAgentContextResourceStatusOk {
@@ -277,7 +280,7 @@ func contextResourcesToPrompt(
 		}
 		switch r.BodyKind {
 		case database.WorkspaceAgentContextBodyKindInstructionFile:
-			content, decoded := decodeInstructionContent(r.Body)
+			content, isGlobal, decoded := decodeInstructionContent(r.Body)
 			if !decoded {
 				malformed++
 				omitted = append(omitted, r.Source+" (malformed)")
@@ -292,6 +295,11 @@ func contextResourcesToPrompt(
 				ContextFilePath:    r.Source,
 				ContextFileContent: content,
 			})
+			// Only the agent knows which .coder directory is ~/.coder; it
+			// marks those files, whichever scan root reached them. A .coder
+			// directory the user registered elsewhere or a tool discovered
+			// below the working directory is a nested one like any other.
+			global[r.Source] = isGlobal
 		case database.WorkspaceAgentContextBodyKindSkill:
 			decodedBody, ok := decodeSkillMetaBody(r.Body)
 			if !ok {
@@ -320,6 +328,22 @@ func contextResourcesToPrompt(
 	case len(contextFileParts) == 0:
 		note = emptyNote
 	}
+	// The global files come first, then root files before the nested files
+	// that refine them, whatever order the rows were pinned in. Depth alone
+	// would put a working directory outside the home directory ahead of
+	// ~/.coder.
+	slices.SortStableFunc(contextFileParts, func(a, b codersdk.ChatMessagePart) int {
+		if ga, gb := global[a.ContextFilePath], global[b.ContextFilePath]; ga != gb {
+			if ga {
+				return -1
+			}
+			return 1
+		}
+		if da, db := pathDepth(a.ContextFilePath), pathDepth(b.ContextFilePath); da != db {
+			return da - db
+		}
+		return strings.Compare(a.ContextFilePath, b.ContextFilePath)
+	})
 	return formatSystemInstructions(operatingSystem, directory, note, contextFileParts), skills, malformed
 }
 
@@ -336,6 +360,12 @@ func omittedInstructionFilesNote(omitted []string) string {
 		note += fmt.Sprintf(", and %d more", extra)
 	}
 	return note + "."
+}
+
+// pathDepth counts separators of either kind so Windows agent paths sort
+// like POSIX ones.
+func pathDepth(p string) int {
+	return strings.Count(p, "/") + strings.Count(p, "\\")
 }
 
 // ContextResources returns the chat's pinned context resource list (metadata
@@ -400,7 +430,7 @@ func pinnedContextResources(resources []database.ChatContextResource) []codersdk
 		}
 		switch r.BodyKind {
 		case database.WorkspaceAgentContextBodyKindInstructionFile:
-			content, decoded := decodeInstructionContent(r.Body)
+			content, _, decoded := decodeInstructionContent(r.Body)
 			if !decoded || content == "" {
 				continue
 			}

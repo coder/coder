@@ -614,6 +614,50 @@ func TestResolver_UserSourceAttribution(t *testing.T) {
 	require.Equal(t, dir, snap.Resources[0].SourcePath)
 }
 
+// TestResolver_GlobalRootMarksItsFiles uses the manager's root order: user
+// sources (a file in ~/.coder, the seeded ~/.coder directory, a registered
+// .coder elsewhere), the built-in global root, then the working directory
+// (the home directory, so ~/.coder is also one of its children). The files
+// directly in ~/.coder are global whichever root reached them first, and keep
+// the attribution of that root.
+func TestResolver_GlobalRootMarksItsFiles(t *testing.T) {
+	t.Parallel()
+	home := testutil.TempDirResolved(t)
+	global := filepath.Join(home, ".coder")
+	globalFile := filepath.Join(global, "CLAUDE.md")
+	vendor := filepath.Join(home, "repo", "vendor", ".coder")
+	mustWriteFile(t, filepath.Join(global, "AGENTS.md"), "global")
+	mustWriteFile(t, globalFile, "global claude")
+	mustWriteFile(t, filepath.Join(home, "AGENTS.md"), "root")
+	mustWriteFile(t, filepath.Join(vendor, "AGENTS.md"), "vendor")
+
+	r := &agentcontext.Resolver{}
+	snap := r.Resolve([]agentcontext.ScanRoot{
+		{Path: globalFile, UserSource: globalFile},
+		{Path: global, UserSource: global},
+		{Path: vendor, UserSource: vendor},
+		{Path: global, Global: true},
+		{Path: home, ChildProjects: true},
+	})
+
+	got := map[string]bool{}
+	attribution := map[string]string{}
+	for _, res := range snap.Resources {
+		if res.Kind == agentcontext.KindInstructionFile {
+			got[res.Source] = res.Global
+			attribution[res.Source] = res.SourcePath
+		}
+	}
+	require.Equal(t, map[string]bool{
+		filepath.Join(global, "AGENTS.md"): true,
+		globalFile:                         true,
+		filepath.Join(home, "AGENTS.md"):   false,
+		filepath.Join(vendor, "AGENTS.md"): false,
+	}, got)
+	require.Equal(t, global, attribution[filepath.Join(global, "AGENTS.md")])
+	require.Equal(t, globalFile, attribution[globalFile])
+}
+
 func TestResolver_MissingRootSilentlyIgnored(t *testing.T) {
 	t.Parallel()
 	r := &agentcontext.Resolver{}
