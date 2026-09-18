@@ -7,8 +7,7 @@ type UseCanViewAISpendOptions = {
 };
 
 // Top-level navigation must admit organization group member readers without
-// site-wide AI settings permissions. The organization query keeps its cached
-// result once disabled, so the answer follows the entitlement itself.
+// site-wide AI settings permissions.
 export const useCanViewAISpend = (options: UseCanViewAISpendOptions = {}) => {
 	const { entitlements } = useDashboard();
 	const isEnabled = entitlements.features.aibridge.enabled;

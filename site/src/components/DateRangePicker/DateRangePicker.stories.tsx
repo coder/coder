@@ -29,6 +29,15 @@ export const Closed: Story = {
 	},
 };
 
+// A midnight end is the exclusive boundary the picker emits, so the label
+// shows the day before it.
+export const ClosedExclusiveEnd: Story = {
+	args: {
+		value: { startDate: new Date(2025, 2, 1), endDate: new Date(2025, 2, 8) },
+		onChange: () => {},
+	},
+};
+
 export const Open: Story = {
 	args: {
 		value: defaultValue,

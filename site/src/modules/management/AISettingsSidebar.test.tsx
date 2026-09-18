@@ -12,13 +12,13 @@ import {
 import { renderWithRouter } from "#/testHelpers/renderHelpers";
 import { AISettingsSidebar } from "./AISettingsSidebar";
 
-const entitlementsFor = (aibridgeEnabled: boolean) => ({
+const mockAIGatewayEntitlements = {
 	...MockEntitlements,
 	features: withDefaultFeatures({
-		aibridge: { enabled: aibridgeEnabled, entitlement: "entitled" },
+		aibridge: { enabled: true, entitlement: "entitled" },
 	}),
-});
-const dashboard = { entitlements: entitlementsFor(true) };
+};
+const dashboard = { entitlements: mockAIGatewayEntitlements };
 
 vi.mock("#/hooks/useAuthenticated", () => ({
 	useAuthenticated: () => ({
@@ -34,7 +34,7 @@ vi.mock("#/modules/dashboard/useDashboard", () => ({
 }));
 
 afterEach(() => {
-	dashboard.entitlements = entitlementsFor(true);
+	dashboard.entitlements = mockAIGatewayEntitlements;
 });
 
 const grantSpendOrganization = () => {
@@ -83,7 +83,12 @@ it("hides the Spend link once AI Gateway is disabled after the organizations loa
 	renderWithRouter(router);
 	await screen.findByRole("link", { name: "Spend" });
 
-	dashboard.entitlements = entitlementsFor(false);
+	dashboard.entitlements = {
+		...mockAIGatewayEntitlements,
+		features: withDefaultFeatures({
+			aibridge: { enabled: false, entitlement: "entitled" },
+		}),
+	};
 	await router.navigate("/ai/settings?refresh=1");
 	await waitFor(() =>
 		expect(screen.queryByRole("link", { name: "Spend" })).toBeNull(),

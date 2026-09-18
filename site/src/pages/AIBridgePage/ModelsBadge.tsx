@@ -2,7 +2,11 @@ import type { FC } from "react";
 import { DimensionBadge } from "./DimensionBadge";
 import { AIBridgeModelIcon } from "./icons/AIBridgeModelIcon";
 
-export const ModelsBadge: FC<{ models: readonly string[] }> = ({ models }) => (
+type ModelsBadgeProps = {
+	models: readonly string[];
+};
+
+export const ModelsBadge: FC<ModelsBadgeProps> = ({ models }) => (
 	<DimensionBadge
 		noun="models"
 		items={models.map((model) => ({

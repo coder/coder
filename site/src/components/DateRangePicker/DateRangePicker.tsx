@@ -85,10 +85,7 @@ interface DateRangePickerProps {
 	size?: ButtonProps["size"];
 	/** Longest range the calendar lets the user select, in inclusive days. */
 	maxDays?: number;
-	/**
-	 * Earliest day the calendar lets the user select. Presets that would start
-	 * before it are hidden.
-	 */
+	/** Earliest selectable day. Presets that would start before it are hidden. */
 	minDate?: Date;
 	disabled?: boolean;
 }
@@ -190,9 +187,9 @@ export const DateRangePicker: FC<DateRangePickerProps> = ({
 			<PopoverTrigger asChild>
 				<Button variant="outline" size={size} disabled={disabled}>
 					<CalendarIcon className="size-4 text-content-secondary" />
-					<span>{dayjs(value.startDate).format("MMM D, YYYY")}</span>
+					<span>{dayjs(committed.from).format("MMM D, YYYY")}</span>
 					<MoveRightIcon className="size-3.5 text-content-secondary" />
-					<span>{dayjs(value.endDate).format("MMM D, YYYY")}</span>
+					<span>{dayjs(committed.to).format("MMM D, YYYY")}</span>
 				</Button>
 			</PopoverTrigger>
 			<PopoverContent

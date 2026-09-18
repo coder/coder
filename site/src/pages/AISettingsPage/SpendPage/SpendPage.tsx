@@ -1,4 +1,3 @@
-import type dayjs from "dayjs";
 import type { FC } from "react";
 import { useQuery } from "react-query";
 import { useSearchParams } from "react-router";
@@ -28,7 +27,6 @@ import { SpendPageView } from "./SpendPageView";
 const organizationSearchParam = "organization";
 const startDateSearchParam = "startDate";
 const endDateSearchParam = "endDate";
-const SPEND_USERS_PAGE_SIZE = 10;
 
 type SpendDimensions = Pick<
 	OrganizationAISpendFilter,
@@ -65,20 +63,22 @@ export const firstDayWithinRetention = (cutoff: Date): Date => {
  * every day the picker could commit would start before the cutoff.
  */
 export const appliedWindowToDateRange = (
-	window: Pick<
+	reportWindow: Pick<
 		OrganizationAISpendReport,
 		"period_start" | "period_end" | "retention_start"
 	>,
 	now: Date,
 ): DateRangeValue | undefined => {
-	const start = new Date(window.period_start);
-	let lastDay = localDayOf(new Date(new Date(window.period_end).getTime() - 1));
+	const start = new Date(reportWindow.period_start);
+	let lastDay = localDayOf(
+		new Date(new Date(reportWindow.period_end).getTime() - 1),
+	);
 	let firstDay = localDayOf(start);
 	if (
-		window.retention_start !== undefined &&
-		firstDay.getTime() < Date.parse(window.retention_start)
+		reportWindow.retention_start !== undefined &&
+		firstDay.getTime() < Date.parse(reportWindow.retention_start)
 	) {
-		firstDay = firstDayWithinRetention(new Date(window.retention_start));
+		firstDay = firstDayWithinRetention(new Date(reportWindow.retention_start));
 		const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 		if (firstDay > today) {
 			return undefined;
@@ -90,9 +90,9 @@ export const appliedWindowToDateRange = (
 	return toBoundary(firstDay, lastDay, now);
 };
 
-interface SpendPageProps {
-	now?: dayjs.Dayjs;
-}
+type SpendPageProps = {
+	now?: Date;
+};
 
 const SpendPage: FC<SpendPageProps> = ({ now }) => {
 	const { permissions } = useAuthenticated();
@@ -204,31 +204,32 @@ const SpendPage: FC<SpendPageProps> = ({ now }) => {
 			[endDateSearchParam]: value.endDate.toISOString(),
 		});
 
-	const usersQuery = usePaginatedQuery({
+	const reportQuery = usePaginatedQuery({
 		...paginatedOrganizationAISpend(organization?.id ?? "", spendFilter),
-		recordsPerPage: SPEND_USERS_PAGE_SIZE,
+		recordsPerPage: 10,
 		preventScrollReset: true,
 		enabled: isSpendAvailable && organization !== undefined,
 	});
 
-	const currentTime = now?.toDate() ?? new Date();
+	const currentTime = now ?? new Date();
 	const appliedDateRange =
 		dateRange ??
-		(usersQuery.data && appliedWindowToDateRange(usersQuery.data, currentTime));
+		(reportQuery.data &&
+			appliedWindowToDateRange(reportQuery.data, currentTime));
 	// Usage before the retention cutoff has been purged, so the picker does not
 	// offer those days. Absent when the deployment does not purge.
-	const retentionStart = usersQuery.data?.retention_start;
+	const retentionStart = reportQuery.data?.retention_start;
 	const minDate = retentionStart
 		? firstDayWithinRetention(new Date(retentionStart))
 		: undefined;
 
 	return (
 		<>
-			<title>{pageTitle("AI Spend")}</title>
+			<title>{pageTitle("Spend", "AI Settings")}</title>
 			<SpendPageView
 				isEntitled={isEntitled}
 				isEnabled={isEnabled}
-				now={now?.toDate()}
+				now={now}
 				organizations={organizationsQuery.data ?? []}
 				organization={organization}
 				onOrganizationChange={(next) =>
@@ -240,7 +241,7 @@ const SpendPage: FC<SpendPageProps> = ({ now }) => {
 				minDate={minDate}
 				onDateRangeChange={onDateRangeChange}
 				filterMenus={canFilterDimensions ? filterMenus : undefined}
-				usersQuery={usersQuery}
+				reportQuery={reportQuery}
 			/>
 		</>
 	);

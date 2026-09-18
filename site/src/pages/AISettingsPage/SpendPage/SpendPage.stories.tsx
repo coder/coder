@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import dayjs from "dayjs";
-import { spyOn, userEvent, within } from "storybook/test";
+import { screen, spyOn, userEvent, within } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { API } from "#/api/api";
 import type { OrganizationAISpendUser } from "#/api/typesGenerated";
@@ -19,7 +19,7 @@ import {
 import SpendPage from "./SpendPage";
 
 const fixedNow = dayjs("2026-03-12T12:00:00Z");
-const users: OrganizationAISpendUser[] = [
+const mockSpendUsers: OrganizationAISpendUser[] = [
 	{
 		...MockOrganizationAISpendUser,
 		user_id: "user-1",
@@ -144,8 +144,8 @@ const users: OrganizationAISpendUser[] = [
 
 const routing = { path: "/ai/settings/spend", useStoryElement: true };
 
-// Story parameters deep-merge into the meta's, so the explicit range lives on
-// the stories that want it and the default is the server's budget period.
+// Story parameters deep-merge into the meta's, so a story cannot drop a range
+// the meta sets.
 const explicitRange = reactRouterParameters({
 	location: {
 		path: "/ai/settings/spend",
@@ -161,7 +161,7 @@ const meta = {
 	title: "pages/AISettingsPage/SpendPage/SpendPage",
 	component: SpendPage,
 	decorators: [withAuthProvider, withDashboardProvider],
-	args: { now: fixedNow },
+	args: { now: fixedNow.toDate() },
 	parameters: {
 		user: MockUserMember,
 		permissions: { viewAnyAIBridgeInterception: true },
@@ -185,18 +185,12 @@ const meta = {
 				...MockOrganizationAISpendReport,
 				period_start: params.period_start ?? "2026-03-01T00:00:00.000Z",
 				period_end: params.period_end ?? "2026-04-01T00:00:00.000Z",
-				count: users.length,
+				count: mockSpendUsers.length,
 				totals: { cost_micros: 78_000_000, unpriced_usage_count: 0 },
-				users: users
-					.slice(
-						params.offset ?? 0,
-						(params.offset ?? 0) + (params.limit ?? 10),
-					)
-					.map((user) =>
-						params.provider_name
-							? { ...user, providers: [params.provider_name] }
-							: user,
-					),
+				users: mockSpendUsers.slice(
+					params.offset ?? 0,
+					(params.offset ?? 0) + (params.limit ?? 10),
+				),
 			}),
 		);
 		spyOn(API, "getAIBridgeProviders").mockResolvedValue(MockAIProviders);
@@ -227,9 +221,7 @@ export const ProviderMenu: Story = {
 		await userEvent.click(
 			await canvas.findByRole("button", { name: "Select provider" }),
 		);
-		await within(canvasElement.ownerDocument.body).findByRole("option", {
-			name: /OpenAI/,
-		});
+		await screen.findByRole("option", { name: /OpenAI/ });
 	},
 };
 
@@ -247,6 +239,18 @@ export const FilteredByProvider: Story = {
 			routing,
 		}),
 	},
+	beforeEach: () => {
+		spyOn(API, "getOrganizationAISpendUsers").mockResolvedValue({
+			...MockOrganizationAISpendReport,
+			count: 3,
+			totals: { cost_micros: 27_000_000, unpriced_usage_count: 0 },
+			users: [
+				{ ...mockSpendUsers[0], providers: ["openai"] },
+				{ ...mockSpendUsers[3], providers: ["openai"] },
+				{ ...mockSpendUsers[6], providers: ["openai"] },
+			],
+		});
+	},
 	play: async ({ canvasElement }) => {
 		await within(canvasElement).findByRole("table", { name: "Spend by user" });
 	},
@@ -258,17 +262,15 @@ export const RetentionLimitedPicker: Story = {
 		spyOn(API, "getOrganizationAISpendUsers").mockResolvedValue({
 			...MockOrganizationAISpendReport,
 			retention_start: fixedNow.subtract(10, "day").toISOString(),
-			count: users.length,
-			users: users.slice(0, 10),
+			count: mockSpendUsers.length,
+			users: mockSpendUsers.slice(0, 10),
 		});
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await canvas.findByRole("table", { name: "Spend by user" });
 		await userEvent.click(canvas.getByRole("button", { name: /Feb 10, 2026/ }));
-		await within(canvasElement.ownerDocument.body).findByRole("button", {
-			name: "Apply",
-		});
+		await screen.findByRole("button", { name: "Apply" });
 	},
 };
 
@@ -281,8 +283,8 @@ export const SubDayRetention: Story = {
 			period_start: fixedNow.subtract(1, "hour").toISOString(),
 			period_end: fixedNow.add(1, "hour").startOf("hour").toISOString(),
 			retention_start: fixedNow.subtract(1, "hour").toISOString(),
-			count: users.length,
-			users: users.slice(0, 10),
+			count: mockSpendUsers.length,
+			users: mockSpendUsers.slice(0, 10),
 		});
 	},
 	play: async ({ canvasElement }) => {

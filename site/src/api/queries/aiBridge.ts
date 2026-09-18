@@ -38,11 +38,10 @@ export const aiSpendOrganizations = () =>
 		action: "read",
 	});
 
-export const organizationAISpendKey = (
+const organizationAISpendScopeKey = (
 	organizationId: string,
 	filter: OrganizationAISpendFilter,
-	pageNumber: number,
-) => ["organizations", organizationId, "aiSpend", filter, pageNumber] as const;
+) => ["organizations", organizationId, "aiSpend", filter] as const;
 
 export const paginatedOrganizationAISpend = (
 	organizationId: string,
@@ -53,25 +52,25 @@ export const paginatedOrganizationAISpend = (
 > => {
 	return {
 		queryPayload: () => filter,
-		queryKey: ({ payload, pageNumber }) =>
-			organizationAISpendKey(organizationId, payload, pageNumber),
+		queryKey: ({ payload, pageNumber }) => [
+			...organizationAISpendScopeKey(organizationId, payload),
+			pageNumber,
+		],
 		queryFn: ({ payload, limit, offset }) =>
 			API.getOrganizationAISpendUsers(organizationId, {
 				...payload,
 				limit,
 				offset,
 			}),
-		// Every page aggregates the whole organization window, so the adjacent
-		// pages are not fetched speculatively.
+		// Every page aggregates the whole organization window.
 		prefetch: false,
-		staleTime: 60_000,
 		// Rows from another organization or filter must not appear under the
 		// new selection while its report loads; only a page change keeps the
 		// previous rows behind the refresh overlay.
 		placeholderData: (previousData, previousQuery) =>
 			previousQuery &&
-			hashKey(previousQuery.queryKey.slice(0, 4)) ===
-				hashKey(organizationAISpendKey(organizationId, filter, 0).slice(0, 4))
+			hashKey(previousQuery.queryKey.slice(0, -1)) ===
+				hashKey(organizationAISpendScopeKey(organizationId, filter))
 				? previousData
 				: undefined,
 	};

@@ -23,42 +23,35 @@ import {
 	type ProviderFilterMenu,
 } from "#/pages/AIBridgePage/filters/ProviderFilter";
 
-// Narrower than the SelectFilter default, matching the sessions page.
 const FILTER_WIDTH = 150;
 
-const MAX_SPEND_PERIOD_MS = MaxAISpendPeriodDays * 24 * 60 * 60 * 1000;
-
-/**
- * The picker counts local calendar days, so a maximum-length range that
- * crosses a fall daylight-saving transition lasts an hour longer than the
- * endpoint's absolute limit. Trim that hour from the end rather than let the
- * request fail.
- */
+// A maximum-length range of local calendar days that crosses a fall
+// daylight-saving transition runs an hour past the endpoint's limit.
 export const clampSpendPeriod = (range: DateRangeValue): DateRangeValue => {
-	const limit = range.startDate.getTime() + MAX_SPEND_PERIOD_MS;
+	const limit =
+		range.startDate.getTime() + MaxAISpendPeriodDays * 24 * 60 * 60 * 1000;
 	return range.endDate.getTime() > limit
 		? { startDate: range.startDate, endDate: new Date(limit) }
 		: range;
 };
 
-export interface SpendFilterMenus {
+export type SpendFilterMenus = {
 	provider: ProviderFilterMenu;
 	model: ModelFilterMenu;
 	client: ClientFilterMenu;
-}
+};
 
-interface SpendFiltersProps {
+type SpendFiltersProps = {
 	organizations: readonly Organization[];
 	organization: Organization;
 	onOrganizationChange: (organization: Organization) => void;
-	menus?: SpendFilterMenus;
-	now?: Date;
+	menus: SpendFilterMenus | undefined;
+	now: Date | undefined;
 	dateRange: DateRangeValue | undefined;
 	minDate: Date | undefined;
-	// The retention bound comes from the report, so the picker waits for it.
 	isReportLoading: boolean;
 	onDateRangeChange: (value: DateRangeValue) => void;
-}
+};
 
 export const SpendFilters: FC<SpendFiltersProps> = ({
 	organizations,

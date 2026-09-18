@@ -82,28 +82,36 @@ function renderSpend(
 		[MockOrganization.id]: true,
 		[MockOrganization2.id]: true,
 	});
+	const buildReport = (
+		params: Parameters<typeof API.getOrganizationAISpendUsers>[1],
+	): OrganizationAISpendReport => ({
+		...MockOrganizationAISpendReport,
+		...period,
+		count: users.length,
+		totals: { cost_micros: 30_000_000, unpriced_usage_count: 0 },
+		users: users.slice(
+			params.offset ?? 0,
+			(params.offset ?? 0) + (params.limit ?? 10),
+		),
+		...report,
+	});
 	const spendSpy = vi
 		.spyOn(API, "getOrganizationAISpendUsers")
-		.mockImplementation(async (_organizationId, params) => ({
-			...MockOrganizationAISpendReport,
-			...period,
-			count: users.length,
-			totals: { cost_micros: 30_000_000, unpriced_usage_count: 0 },
-			users: users.slice(
-				params.offset ?? 0,
-				(params.offset ?? 0) + (params.limit ?? 10),
-			),
-			...report,
-		}));
+		.mockImplementation(async (_organizationId, params) => buildReport(params));
 	vi.spyOn(API, "getAIBridgeProviders").mockResolvedValue(MockAIProviders);
 	vi.spyOn(API, "getAIBridgeClients").mockResolvedValue(["Claude Code"]);
 	vi.spyOn(API, "getAIBridgeModels").mockResolvedValue(["gpt-4o"]);
 	const router = createMemoryRouter(
-		[{ path: "/ai/settings/spend", element: <SpendPage now={fixedNow} /> }],
+		[
+			{
+				path: "/ai/settings/spend",
+				element: <SpendPage now={fixedNow.toDate()} />,
+			},
+		],
 		{ initialEntries: [`/ai/settings/spend?${search}`] },
 	);
 	renderWithRouter(router);
-	return { router, spendSpy };
+	return { router, spendSpy, buildReport };
 }
 
 const searchParam = (
@@ -199,7 +207,7 @@ it("applies a date preset and resets pagination", async () => {
 
 it("holds the date picker until the filtered report brings its retention bound", async () => {
 	const user = userEvent.setup();
-	const { router, spendSpy } = renderSpend(initialSearch, {
+	const { router, spendSpy, buildReport } = renderSpend(initialSearch, {
 		retention_start: fixedNow.subtract(10, "day").toISOString(),
 	});
 	await screen.findByRole("table", { name: "Spend by user" });
@@ -207,14 +215,13 @@ it("holds the date picker until the filtered report brings its retention bound",
 		name: /Feb 10, 2026.*Mar 11, 2026/,
 	});
 
-	const loadedReport = await spendSpy.mock.results[0].value;
 	let deliverReport = () => {};
 	spendSpy.mockImplementationOnce(
-		() =>
+		(_organizationId, params) =>
 			new Promise((resolve) => {
 				deliverReport = () =>
 					resolve({
-						...loadedReport,
+						...buildReport(params),
 						count: 0,
 						totals: { cost_micros: 0, unpriced_usage_count: 0 },
 						users: [],
@@ -243,7 +250,7 @@ it("holds the date picker until the filtered report brings its retention bound",
 	expect(searchParam(router, "startDate")).toBe(period.period_start);
 
 	deliverReport();
-	await screen.findByText("No AI Gateway spend matches these filters.");
+	await screen.findByText("No AI Gateway spend found");
 	await user.click(picker);
 	await user.click(await screen.findByRole("button", { name: "Last 7 days" }));
 	await waitFor(() =>
@@ -299,4 +306,35 @@ it("requests the next page offset", async () => {
 		),
 	);
 	expect(searchParam(router, "page")).toBe("2");
+});
+
+it("keeps the loaded rows while paging but not across organizations", async () => {
+	const user = userEvent.setup();
+	const { spendSpy, buildReport } = renderSpend();
+	await screen.findByRole("table", { name: "Spend by user" });
+
+	let deliverPage = () => {};
+	spendSpy.mockImplementationOnce(
+		(_organizationId, params) =>
+			new Promise((resolve) => {
+				deliverPage = () => resolve(buildReport(params));
+			}),
+	);
+	await user.click(screen.getByRole("button", { name: "Next page" }));
+	await screen.findByRole("status", { name: "Refreshing spend" });
+	screen.getByText("@user01");
+	deliverPage();
+	await screen.findByText("@user11");
+
+	spendSpy.mockImplementation(() => new Promise(() => {}));
+	await user.click(
+		screen.getByRole("button", {
+			name: `Organization ${MockOrganization.display_name}`,
+		}),
+	);
+	await user.click(
+		await screen.findByRole("option", { name: /My Organization 2/ }),
+	);
+	await screen.findByRole("status", { name: "Loading spend" });
+	expect(screen.queryByText("@user11")).toBeNull();
 });

@@ -55,8 +55,8 @@ const renderDashboardLayout = async ({
 				},
 			});
 		}),
-		// Unhandled requests pass through to the network, where a local dev
-		// server would answer the inbox request with HTML.
+		// The inbox request fires once the permission queries settle and has no
+		// default handler.
 		http.get("/api/v2/notifications/inbox", () => {
 			return HttpResponse.json({ notifications: [], unread_count: 0 });
 		}),

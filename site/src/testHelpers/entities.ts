@@ -5602,12 +5602,12 @@ export const MockOrganizationAISpendReport: TypesGen.OrganizationAISpendReport =
 		users: [
 			MockOrganizationAISpendUser,
 			{
+				...MockOrganizationAISpendUser,
 				user_id: "5e1a2b3c-4d5e-4f60-8a9b-0c1d2e3f4a5b",
 				username: "alice",
 				name: "Alice Liddell",
 				avatar_url: "",
 				cost_micros: 1_000_000,
-				unpriced_usage_count: 0,
 				providers: ["anthropic"],
 				clients: ["Unknown"],
 				models: ["claude-opus-4-6"],

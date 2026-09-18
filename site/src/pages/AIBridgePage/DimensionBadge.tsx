@@ -3,7 +3,6 @@ import { Badge } from "#/components/Badge/Badge";
 import {
 	Tooltip,
 	TooltipContent,
-	TooltipProvider,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 
@@ -13,44 +12,42 @@ type DimensionBadgeItem = {
 	icon: ReactNode;
 };
 
-/**
- * Names a single value of a session dimension (provider, client, model) with
- * its icon, or counts them when there are several and lists them on hover or
- * focus. Renders nothing for an empty list.
- */
-export const DimensionBadge: FC<{
+type DimensionBadgeProps = {
 	items: readonly DimensionBadgeItem[];
+	/** Plural label for the count badge, such as "providers". */
 	noun: string;
-}> = ({ items, noun }) => {
+};
+
+/** Renders nothing for an empty list. */
+export const DimensionBadge: FC<DimensionBadgeProps> = ({ items, noun }) => {
 	if (items.length === 0) {
 		return null;
 	}
 	if (items.length > 1) {
 		return (
-			<TooltipProvider>
-				<Tooltip>
-					<TooltipTrigger asChild>
-						<Badge asChild hover className="max-w-full">
-							<button
-								type="button"
-								onClick={(event) => event.stopPropagation()}
-							>
-								{items.length} {noun}
-							</button>
-						</Badge>
-					</TooltipTrigger>
-					<TooltipContent side="top" align="start">
-						<ul className="m-0 flex list-none flex-col gap-1 p-0">
-							{items.map((item) => (
-								<li key={item.key} className="flex items-center gap-1.5">
-									{item.icon}
-									{item.label}
-								</li>
-							))}
-						</ul>
-					</TooltipContent>
-				</Tooltip>
-			</TooltipProvider>
+			<Tooltip>
+				<TooltipTrigger asChild>
+					<Badge asChild hover className="max-w-full">
+						<button
+							type="button"
+							// Opening the list must not also open the clickable session row.
+							onClick={(event) => event.stopPropagation()}
+						>
+							{items.length} {noun}
+						</button>
+					</Badge>
+				</TooltipTrigger>
+				<TooltipContent side="top" align="start">
+					<ul className="m-0 flex list-none flex-col gap-1 p-0">
+						{items.map((item) => (
+							<li key={item.key} className="flex items-center gap-1.5">
+								{item.icon}
+								{item.label}
+							</li>
+						))}
+					</ul>
+				</TooltipContent>
+			</Tooltip>
 		);
 	}
 	const [item] = items;

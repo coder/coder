@@ -68,7 +68,7 @@ export const ListSessionsRow: FC<ListSessionsRowProps> = ({
 			</TableCell>
 			<TableCell className="w-40 max-w-40">
 				<div className="min-w-0 overflow-hidden">
-					<ClientsBadge clients={[session.client]} />
+					<ClientsBadge clients={[session.client ?? "Unknown"]} />
 				</div>
 			</TableCell>
 			<TableCell className="w-32">

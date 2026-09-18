@@ -3,9 +3,11 @@ import { DimensionBadge } from "./DimensionBadge";
 import { AIBridgeProviderIcon } from "./icons/AIBridgeProviderIcon";
 import { getProviderDisplayName } from "./utils";
 
-export const ProvidersBadge: FC<{ providers: readonly string[] }> = ({
-	providers,
-}) => (
+type ProvidersBadgeProps = {
+	providers: readonly string[];
+};
+
+export const ProvidersBadge: FC<ProvidersBadgeProps> = ({ providers }) => (
 	<DimensionBadge
 		noun="providers"
 		items={providers.map((provider) => ({
