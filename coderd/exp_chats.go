@@ -29,6 +29,7 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/agent/agentssh"
+	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/cryptokeys"
 	"github.com/coder/coder/v2/coderd/database"
@@ -407,6 +408,7 @@ func (api *API) chatsByWorkspace(rw http.ResponseWriter, r *http.Request) {
 // @Param after_id query string false "After ID" format(uuid)
 // @Param limit query int false "Page limit"
 // @Param offset query int false "Page offset"
+// @Param project_id query string false "Only chats in this project. Requires the chat-projects experiment." format(uuid)
 // @Success 200 {array} codersdk.Chat
 // @Router /api/v2/chats [get]
 func (api *API) listChats(rw http.ResponseWriter, r *http.Request) {
@@ -471,6 +473,22 @@ func (api *API) listChats(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	projectID := uuid.NullUUID{}
+	if rawProjectID := r.URL.Query().Get("project_id"); rawProjectID != "" {
+		// Ignoring the filter would return every chat as if it were the
+		// project's contents, so reject it like create and update do.
+		if !api.Experiments.Enabled(codersdk.ExperimentChatProjects) && !buildinfo.IsDev() {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{Message: "chat projects experiment is not enabled"})
+			return
+		}
+		parsedProjectID, err := uuid.Parse(rawProjectID)
+		if err != nil || parsedProjectID == uuid.Nil {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{Message: "Invalid project_id query parameter."})
+			return
+		}
+		projectID = uuid.NullUUID{UUID: parsedProjectID, Valid: true}
+	}
+
 	params := database.GetChatsParams{
 		OwnedOnly:           searchParams.OwnedOnly,
 		ViewerID:            apiKey.UserID,
@@ -488,6 +506,7 @@ func (api *API) listChats(rw http.ResponseWriter, r *http.Request) {
 		RepoQuery:           searchParams.RepoQuery,
 		PrTitleQuery:        searchParams.PrTitleQuery,
 		Search:              searchParams.Search,
+		ProjectID:           projectID,
 		// #nosec G115 - Pagination offsets are small and fit in int32
 		OffsetOpt: int32(paginationParams.Offset),
 		// #nosec G115 - Pagination limits are small and fit in int32
@@ -1253,6 +1272,24 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if req.ProjectID != nil && !api.Experiments.Enabled(codersdk.ExperimentChatProjects) && !buildinfo.IsDev() {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{Message: "chat projects experiment is not enabled"})
+		return
+	}
+	projectID := uuid.NullUUID{}
+	if req.ProjectID != nil {
+		project, err := api.Database.GetChatProjectByID(ctx, *req.ProjectID)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{Message: "Invalid chat project."})
+			return
+		}
+		if project.OrganizationID != req.OrganizationID {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{Message: "Project does not belong to this chat's organization."})
+			return
+		}
+		projectID = uuid.NullUUID{UUID: project.ID, Valid: true}
+	}
+
 	contentBlocks, titleSource, inputError := createChatInputFromRequest(ctx, api.Database, req)
 	if inputError != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, *inputError)
@@ -1379,6 +1416,7 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 	chat, err := api.chatDaemon.CreateChat(ctx, chatd.CreateOptions{
 		OrganizationID:          req.OrganizationID,
 		OwnerID:                 apiKey.UserID,
+		ProjectID:               projectID,
 		WorkspaceID:             workspaceSelection.WorkspaceID,
 		Title:                   title,
 		TitleDerivedFromContent: true,
@@ -2474,6 +2512,40 @@ func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
 			return
 		}
 		chat = updatedChat
+	}
+
+	if req.ProjectID != nil {
+		if !api.Experiments.Enabled(codersdk.ExperimentChatProjects) && !buildinfo.IsDev() {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{Message: "chat projects experiment is not enabled"})
+			return
+		}
+		if chat.ParentChatID.Valid {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{Message: "Only root chats belong to projects."})
+			return
+		}
+		projectID := uuid.NullUUID{}
+		if *req.ProjectID != uuid.Nil {
+			project, err := api.Database.GetChatProjectByID(ctx, *req.ProjectID)
+			if err != nil {
+				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{Message: "Invalid chat project."})
+				return
+			}
+			if project.OrganizationID != chat.OrganizationID {
+				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{Message: "Project does not belong to this chat's organization."})
+				return
+			}
+			projectID = uuid.NullUUID{UUID: project.ID, Valid: true}
+		}
+		_, err := api.Database.UpdateChatProjectBinding(ctx, database.UpdateChatProjectBindingParams{ID: chat.ID, ProjectID: projectID})
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{Message: "Failed to update chat project.", Detail: err.Error()})
+			return
+		}
+		chat, err = api.Database.GetChatByID(ctx, chat.ID)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{Message: "Failed to read updated chat project.", Detail: err.Error()})
+			return
+		}
 	}
 
 	if planModeUpdate != nil {

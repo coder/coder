@@ -81,6 +81,20 @@ func AuditLog(t testing.TB, db database.Store, seed database.AuditLog) database.
 	return log
 }
 
+func ChatProject(t testing.TB, db database.Store, seed database.ChatProject) database.ChatProject {
+	t.Helper()
+
+	project, err := db.InsertChatProject(genCtx, database.InsertChatProjectParams{
+		ID:             uuid.NullUUID{UUID: seed.ID, Valid: seed.ID != uuid.Nil},
+		OrganizationID: takeFirst(seed.OrganizationID, uuid.New()),
+		CreatedBy:      takeFirst(seed.CreatedBy, uuid.New()),
+		Name:           takeFirst(seed.Name, testutil.GetRandomName(t)),
+		Description:    seed.Description,
+	})
+	require.NoError(t, err, "insert chat project")
+	return project
+}
+
 func Chat(t testing.TB, db database.Store, seed database.Chat) database.Chat {
 	t.Helper()
 
@@ -95,6 +109,7 @@ func Chat(t testing.TB, db database.Store, seed database.Chat) database.Chat {
 		ID:                uuid.NullUUID{UUID: seed.ID, Valid: seed.ID != uuid.Nil},
 		OrganizationID:    takeFirst(seed.OrganizationID, uuid.New()),
 		OwnerID:           takeFirst(seed.OwnerID, uuid.New()),
+		ProjectID:         seed.ProjectID,
 		WorkspaceID:       seed.WorkspaceID,
 		BuildID:           seed.BuildID,
 		AgentID:           seed.AgentID,
