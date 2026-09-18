@@ -1,4 +1,4 @@
-import { act, screen, waitFor } from "@testing-library/react";
+import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { Outlet, useParams } from "react-router";
@@ -7,7 +7,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
 import { archiveAndDeleteChatKey, chatEntityKey } from "#/api/queries/chats";
 import type { Chat, WorkspaceBuild } from "#/api/typesGenerated";
-import { MockChat } from "#/testHelpers/chatEntities";
+import { MockChat, MockChatDiffStatus } from "#/testHelpers/chatEntities";
 import { createDeferred } from "#/testHelpers/deferred";
 import {
 	MockWorkspace,
@@ -412,5 +412,35 @@ describe("ChatTopBar archive and delete", () => {
 			await act(async () => pendingDelete.resolve(MockWorkspaceBuildDelete));
 			await waitFor(() => expect(queryClient.isMutating()).toBe(0));
 		}
+	});
+});
+
+describe("ChatTopBar PR chip", () => {
+	it("opens the selected PR's URL when the chat tracks several", async () => {
+		const user = userEvent.setup();
+		const open = vi.spyOn(window, "open").mockReturnValue(null);
+
+		// Both PRs share a title, so the numbers must name them apart.
+		const primary = { ...MockChatDiffStatus };
+		const secondary = {
+			...MockChatDiffStatus,
+			url: "https://github.com/coder/coder/pull/456",
+			pr_number: 456,
+			git_branch: "feat/two",
+		};
+		renderTopBar({
+			...chat,
+			diff_statuses: [primary, secondary],
+		});
+
+		await user.click(await screen.findByRole("button", { name: /2 PRs/ }));
+		const menu = await screen.findByRole("menu");
+		await user.click(within(menu).getByRole("menuitem", { name: /PR #456/ }));
+
+		expect(open).toHaveBeenCalledWith(
+			"https://github.com/coder/coder/pull/456",
+			"_blank",
+			"noreferrer",
+		);
 	});
 });
