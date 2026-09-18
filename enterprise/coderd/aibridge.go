@@ -1296,6 +1296,12 @@ func (api *API) exportOrganizationAISpend(rw http.ResponseWriter, r *http.Reques
 		OrganizationID: org.ID,
 		PeriodStart:    periodStart,
 		PeriodEnd:      periodEnd,
+		UserID:         uuid.Nil,
+		GroupID:        uuid.Nil,
+		ProviderName:   "",
+		Model:          "",
+		LimitOpt:       0,
+		OffsetOpt:      0,
 	})
 	if err != nil {
 		logger.Error(ctx, "failed to export organization AI spend", slog.Error(err))

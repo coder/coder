@@ -467,7 +467,8 @@ SELECT
 	COALESCE(SUM(tu.output_tokens), 0)::BIGINT AS output_tokens,
 	COALESCE(SUM(tu.cache_read_input_tokens), 0)::BIGINT AS cache_read_tokens,
 	COALESCE(SUM(tu.cache_write_input_tokens), 0)::BIGINT AS cache_write_tokens,
-	COALESCE(SUM(tu.cost_micros), 0)::BIGINT AS cost_micros
+	COALESCE(SUM(tu.cost_micros), 0)::BIGINT AS cost_micros,
+	COUNT(*) OVER()::BIGINT AS count
 FROM aibridge_token_usages tu
 JOIN aibridge_interceptions ai ON ai.id = tu.interception_id
 JOIN users ON users.id = ai.initiator_id
@@ -476,6 +477,10 @@ JOIN organizations ON organizations.id = groups.organization_id
 WHERE groups.organization_id = @organization_id
 	AND tu.created_at >= @period_start::timestamptz
 	AND tu.created_at < @period_end::timestamptz
+	AND (@user_id::uuid = '00000000-0000-0000-0000-000000000000'::uuid OR ai.initiator_id = @user_id)
+	AND (@group_id::uuid = '00000000-0000-0000-0000-000000000000'::uuid OR tu.effective_group_id = @group_id)
+	AND (@provider_name::text = '' OR ai.provider_name = @provider_name)
+	AND (@model::text = '' OR ai.model = @model)
 GROUP BY
 	ai.initiator_id,
 	users.username,
@@ -486,7 +491,9 @@ GROUP BY
 	ai.model,
 	ai.provider,
 	ai.provider_name
-ORDER BY ai.initiator_id, tu.effective_group_id, ai.provider, ai.provider_name, ai.model;
+ORDER BY ai.initiator_id, tu.effective_group_id, ai.provider, ai.provider_name, ai.model
+OFFSET @offset_opt
+LIMIT NULLIF(@limit_opt::int, 0);
 
 -- name: ListOrganizationAISpendUsers :many
 -- Returns one page of per-user AI spend for @organization_id over the
