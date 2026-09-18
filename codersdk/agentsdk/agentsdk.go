@@ -135,6 +135,25 @@ type Manifest struct {
 	Metadata                 []codersdk.WorkspaceAgentMetadataDescription `json:"metadata"`
 	Scripts                  []codersdk.WorkspaceAgentScript              `json:"scripts"`
 	Devcontainers            []codersdk.WorkspaceAgentDevcontainer        `json:"devcontainers"`
+	// Egress is set when the workspace's template routes outbound traffic
+	// through an exit node. Nil means egress is unmanaged.
+	Egress *EgressConfig `json:"egress,omitempty"`
+}
+
+// EgressConfig tells the agent how to route and enforce workspace egress.
+type EgressConfig struct {
+	// ExitNodeID identifies the exit node. Its tailnet address is
+	// tailnet.TailscaleServicePrefix.AddrFromUUID(ExitNodeID).
+	ExitNodeID uuid.UUID `json:"exit_node_id"`
+	// ExitNodePort is the CONNECT port on the exit node's tailnet address.
+	ExitNodePort int `json:"exit_node_port"`
+	// Enforce requests transparent redirection of all outbound TCP via
+	// netfilter. When false the agent only exposes an advisory proxy.
+	Enforce bool `json:"enforce"`
+	// ControlPlaneHosts are host[:port] destinations that must stay reachable
+	// directly (coderd access URL, DERP and STUN servers, exit node WireGuard
+	// endpoints). The agent exempts them from enforcement.
+	ControlPlaneHosts []string `json:"control_plane_hosts"`
 }
 
 // WorkspaceSecret is a user secret for injection into a workspace.

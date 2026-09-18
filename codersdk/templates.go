@@ -84,6 +84,13 @@ type Template struct {
 	// template. Renaming can be destructive for templates whose Terraform
 	// references the workspace name.
 	AllowWorkspaceRenames bool `json:"allow_workspace_renames"`
+
+	// ExitNodeID routes egress from workspaces built from this template
+	// through the given exit node. Nil leaves egress unmanaged.
+	ExitNodeID *uuid.UUID `json:"exit_node_id,omitempty" format:"uuid"`
+	// ExitNodeEnforce requests transparent enforcement in the workspace so
+	// traffic cannot bypass the exit node. Ignored when ExitNodeID is nil.
+	ExitNodeEnforce bool `json:"exit_node_enforce"`
 }
 
 // WeekdaysToBitmap converts a list of weekdays to a bitmap in accordance with
@@ -315,6 +322,12 @@ type UpdateTemplateMeta struct {
 	// template. Renaming can be destructive for templates whose Terraform
 	// references the workspace name.
 	AllowWorkspaceRenames *bool `json:"allow_workspace_renames,omitempty"`
+	// ExitNodeID binds the template to an exit node. Set to the nil UUID to
+	// clear the binding. Omitting the field keeps the existing value.
+	ExitNodeID *uuid.UUID `json:"exit_node_id,omitempty" format:"uuid"`
+	// ExitNodeEnforce toggles transparent enforcement for the exit node
+	// binding. Omitting the field keeps the existing value.
+	ExitNodeEnforce *bool `json:"exit_node_enforce,omitempty"`
 }
 
 type TemplateExample struct {

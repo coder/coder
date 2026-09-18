@@ -49,6 +49,9 @@ const (
 	// ConnectionTypeTunnel records accepted and denied tailnet tunnel
 	// requests made by authenticated users.
 	ConnectionTypeTunnel ConnectionType = "tunnel"
+	// ConnectionTypeEgress records outbound workspace flows observed by an
+	// exit node, both allowed and denied.
+	ConnectionTypeEgress ConnectionType = "egress"
 )
 
 // ConnectionLogStatus is the status of a connection log entry.
