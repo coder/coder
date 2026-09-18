@@ -124,6 +124,7 @@ func (i *StreamingResponsesInterceptor) ProcessRequest(w http.ResponseWriter, r 
 	var completedResponse *responses.Response
 	var innerLoopErr error
 	var streamErr error
+	var relayed bool
 
 	prompt, promptFound, err := i.reqPayload.lastUserPrompt(ctx, i.logger)
 	if err != nil {
@@ -256,6 +257,7 @@ func (i *StreamingResponsesInterceptor) ProcessRequest(w http.ResponseWriter, r 
 						err = xerrors.Errorf("failed to relay chunk: %w", err)
 						return err
 					}
+					relayed = true
 				}
 			}
 
@@ -301,7 +303,9 @@ func (i *StreamingResponsesInterceptor) ProcessRequest(w http.ResponseWriter, r 
 	if err != nil {
 		err = xerrors.Errorf("failed to read response body: %w", err)
 		// Returning without a response would let the server emit an empty 200.
-		if !events.IsStreaming() {
+		// A queued payload commits the response to SSE before IsStreaming
+		// reports it, so decide from what this request relayed instead.
+		if !relayed {
 			i.sendCustomErr(ctx, w, http.StatusBadGateway, err)
 		}
 		return err
