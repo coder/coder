@@ -61,6 +61,10 @@ export type SubmitChatTurnParams = {
 		optimisticMessage?: TypesGen.ChatMessage;
 		req: TypesGen.EditChatMessageRequest;
 	}) => Promise<unknown>;
+	saveQueuedMessage: (
+		queuedMessageId: number,
+		req: TypesGen.EditChatQueuedMessageRequest,
+	) => Promise<unknown>;
 	sendMessage: (
 		req: CreateChatMessageRequestWithClearablePlanMode,
 	) => Promise<TypesGen.CreateChatMessageResponse>;
@@ -275,6 +279,7 @@ export async function submitChatTurn(
 		isEditReasoningEffortDirtyRef,
 		mcpServerIds,
 		editMessage,
+		saveQueuedMessage,
 		sendMessage,
 		onRequestError,
 		invalidateChat,
@@ -320,6 +325,30 @@ export async function submitChatTurn(
 			compact,
 			clearChatContext,
 		});
+		return;
+	}
+
+	if (editingTarget?.kind === "queued") {
+		const queuedMessageID = editingTarget.id;
+		const originalRow = store
+			.getSnapshot()
+			.queuedMessages.find((row) => row.id === queuedMessageID);
+		const editSelectedModelConfigID = resolveEditModelConfigID({
+			pickerModelConfigID: effectiveSelectedModel || undefined,
+			originalModelConfigID: originalRow?.model_config_id,
+			modelOptions,
+		});
+		// Saving clears the row's editing marker.
+		const request: TypesGen.EditChatQueuedMessageRequest = {
+			content,
+			model_config_id: editSelectedModelConfigID,
+			// Omit so the backend preserves the original effort.
+			reasoning_effort: isEditReasoningEffortDirtyRef.current
+				? effectiveReasoningEffort
+				: undefined,
+			editing: false,
+		};
+		await saveQueuedMessage(queuedMessageID, request);
 		return;
 	}
 
