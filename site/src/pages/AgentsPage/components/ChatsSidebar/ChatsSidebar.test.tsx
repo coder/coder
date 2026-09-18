@@ -98,7 +98,9 @@ const defaultSidebarFilters: AgentSidebarFilters = {
 	groupBy: "date",
 	prStatuses: [],
 	chatStatuses: ["unread", "read"],
-	sources: ["created_by_me"],
+	sources: ["created_by_me", "shared_with_me"],
+	timeRange: "all",
+	attributes: [],
 };
 
 const defaultProps: React.ComponentProps<typeof ChatsSidebar> = {
@@ -195,8 +197,13 @@ describe("ChatsSidebar sections", () => {
 });
 
 describe("ChatsSidebar filters", () => {
-	it("calls the sidebar filter change callback after Apply is clicked", async () => {
-		const user = userEvent.setup();
+	// Radix submenus compute a pointer grace area from element rects, which
+	// are all zero in jsdom, so a synthetic hover from the sub-trigger to an
+	// item closes the submenu before the click lands.
+	const setupSubmenuUser = () => userEvent.setup({ skipHover: true });
+
+	it("applies visibility changes immediately", async () => {
+		const user = setupSubmenuUser();
 		const onSidebarFiltersChange = vi.fn();
 
 		render(
@@ -210,11 +217,10 @@ describe("ChatsSidebar filters", () => {
 		);
 
 		await user.click(screen.getByRole("button", { name: "Filter agents" }));
-		await user.click(screen.getByRole("radio", { name: "Archived" }));
-
-		expect(onSidebarFiltersChange).not.toHaveBeenCalled();
-
-		await user.click(screen.getByRole("button", { name: "Apply" }));
+		await user.click(screen.getByRole("menuitem", { name: /Visibility/ }));
+		await user.click(
+			await screen.findByRole("menuitemradio", { name: "Archived" }),
+		);
 
 		expect(onSidebarFiltersChange).toHaveBeenCalledWith({
 			...defaultSidebarFilters,
@@ -258,12 +264,12 @@ describe("ChatsSidebar filters", () => {
 			...sidebarFilters,
 			prStatuses: [],
 			chatStatuses: ["unread", "read"],
-			sources: ["created_by_me"],
+			sources: ["created_by_me", "shared_with_me"],
 		});
 	});
 
-	it("applies source filters", async () => {
-		const user = userEvent.setup();
+	it("maps the owner filter onto chat sources", async () => {
+		const user = setupSubmenuUser();
 		const onSidebarFiltersChange = vi.fn();
 
 		const { rerender } = render(
@@ -277,12 +283,14 @@ describe("ChatsSidebar filters", () => {
 		);
 
 		await user.click(screen.getByRole("button", { name: "Filter agents" }));
-		await user.click(screen.getByRole("checkbox", { name: "Shared with me" }));
-		await user.click(screen.getByRole("button", { name: "Apply" }));
+		await user.click(screen.getByRole("menuitem", { name: /Owner/ }));
+		await user.click(
+			await screen.findByRole("menuitemradio", { name: "Myself" }),
+		);
 
 		expect(onSidebarFiltersChange).toHaveBeenLastCalledWith({
 			...defaultSidebarFilters,
-			sources: ["created_by_me", "shared_with_me"],
+			sources: ["created_by_me"],
 		});
 
 		rerender(
@@ -291,7 +299,100 @@ describe("ChatsSidebar filters", () => {
 					{...defaultProps}
 					sidebarFilters={{
 						...defaultSidebarFilters,
-						sources: ["created_by_me", "shared_with_me"],
+						sources: ["created_by_me"],
+					}}
+					onSidebarFiltersChange={onSidebarFiltersChange}
+				/>
+			</Wrapper>,
+		);
+
+		await user.click(
+			await screen.findByRole("menuitemradio", { name: "Someone else" }),
+		);
+
+		expect(onSidebarFiltersChange).toHaveBeenLastCalledWith({
+			...defaultSidebarFilters,
+			sources: ["shared_with_me"],
+		});
+	});
+
+	it("toggles advanced filters from the submenu and their badges", async () => {
+		const user = setupSubmenuUser();
+		const onSidebarFiltersChange = vi.fn();
+
+		const { rerender } = render(
+			<Wrapper>
+				<ChatsSidebar
+					{...defaultProps}
+					sidebarFilters={defaultSidebarFilters}
+					onSidebarFiltersChange={onSidebarFiltersChange}
+				/>
+			</Wrapper>,
+		);
+
+		await user.click(screen.getByRole("button", { name: "Filter agents" }));
+		await user.click(
+			screen.getByRole("menuitem", { name: /Advanced filters/ }),
+		);
+		await user.click(
+			await screen.findByRole("menuitemcheckbox", { name: "PR: open" }),
+		);
+
+		expect(onSidebarFiltersChange).toHaveBeenLastCalledWith({
+			...defaultSidebarFilters,
+			prStatuses: ["open"],
+		});
+
+		await user.click(
+			screen.getByRole("menuitemcheckbox", { name: "Has an error" }),
+		);
+
+		expect(onSidebarFiltersChange).toHaveBeenLastCalledWith({
+			...defaultSidebarFilters,
+			attributes: ["has_error"],
+		});
+
+		rerender(
+			<Wrapper>
+				<ChatsSidebar
+					{...defaultProps}
+					sidebarFilters={{
+						...defaultSidebarFilters,
+						prStatuses: ["open"],
+						attributes: ["has_error"],
+					}}
+					onSidebarFiltersChange={onSidebarFiltersChange}
+				/>
+			</Wrapper>,
+		);
+
+		await user.click(
+			screen.getByRole("button", { name: "Remove PR: open filter" }),
+		);
+
+		expect(onSidebarFiltersChange).toHaveBeenLastCalledWith({
+			...defaultSidebarFilters,
+			prStatuses: [],
+			attributes: ["has_error"],
+		});
+	});
+
+	it("resets every filter to its default", async () => {
+		const user = userEvent.setup();
+		const onSidebarFiltersChange = vi.fn();
+
+		render(
+			<Wrapper>
+				<ChatsSidebar
+					{...defaultProps}
+					sidebarFilters={{
+						archiveStatus: "archived",
+						groupBy: "chat_status",
+						prStatuses: ["draft"],
+						chatStatuses: ["unread"],
+						sources: ["shared_with_me"],
+						timeRange: "7d",
+						attributes: ["shared_with_others"],
 					}}
 					onSidebarFiltersChange={onSidebarFiltersChange}
 				/>
@@ -299,13 +400,11 @@ describe("ChatsSidebar filters", () => {
 		);
 
 		await user.click(screen.getByRole("button", { name: "Filter agents" }));
-		await user.click(screen.getByRole("checkbox", { name: "Created by me" }));
-		await user.click(screen.getByRole("button", { name: "Apply" }));
+		await user.click(
+			screen.getByRole("menuitem", { name: "Reset to defaults" }),
+		);
 
-		expect(onSidebarFiltersChange).toHaveBeenLastCalledWith({
-			...defaultSidebarFilters,
-			sources: ["shared_with_me"],
-		});
+		expect(onSidebarFiltersChange).toHaveBeenCalledWith(defaultSidebarFilters);
 	});
 
 	it("groups unpinned chats by chat status", () => {
