@@ -74,13 +74,34 @@ curl -X POST \
   -H "Content-Type: application/json" \
   -d '{
     "name": "My Application",
-    "redirect_uris": ["https://myapp.example.com/callback"],
+    "redirect_uris": [
+      "https://myapp.example.com/callback",
+      "http://localhost:8080/callback"
+    ],
     "icon": "https://myapp.example.com/icon.png"
   }' \
   "$CODER_URL/api/v2/oauth2-provider/apps"
 ```
 
 `callback_url` is still accepted and still returned, but it is deprecated: it is equal to the first entry in `redirect_uris`. New scripts should send and read `redirect_uris` instead.
+
+Update an application with `PUT`. Fetch it first and edit the fields you want to change, then send the result back:
+
+```sh
+curl -X PUT \
+  -H "Authorization: Bearer $CODER_SESSION_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "My Application",
+    "redirect_uris": ["https://myapp.example.com/callback"],
+    "icon": "https://myapp.example.com/icon.png"
+  }' \
+  "$CODER_URL/api/v2/oauth2-provider/apps/$APP_ID"
+```
+
+`name` is required on every `PUT`, and `icon` is cleared if you leave it out.
+`redirect_uris` replaces the stored list when present and keeps it when omitted.
+`scope` is kept when omitted; refer to [Scopes](#scopes) for how to change it.
 
 Add an optional `scope` field to restrict which scopes the application's clients may request.
 Refer to [Scopes](#scopes) for how the allowlist is applied and how to change it later.
@@ -473,9 +494,9 @@ redirect URIs is not usable: either it does not parse as a URL, or it uses a
 blocked scheme (`javascript:`, `data:`, `file:`, or `ftp:`). The same cause
 answers `server_error` on `POST /oauth2/authorize`. Use
 `GET /api/v2/oauth2-provider/apps/{app}` to see every registered redirect
-URI, and `PUT` the same endpoint with a corrected `redirect_uris` list to fix
-the one that is broken (see
-[Callback URL schemes](#callback-url-schemes)).
+URI, then update the application with a corrected `redirect_uris` list as
+shown under [Management API](#method-2-management-api). Refer to
+[Callback URL schemes](#callback-url-schemes) for which values are accepted.
 
 The server log records the application ID and the stored value. The response
 does not, so a bad URL is never echoed back to a browser.
