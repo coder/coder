@@ -9,10 +9,11 @@ import { annotatorHostId, mountAnnotator } from "#/annotator/mountAnnotator";
  * annotator from `#/annotator` is mounted into this document exactly as
  * the injected script would do it, minus the postMessage bridge.
  */
-const DemoPage: FC<{ picking: boolean; highlight?: boolean }> = ({
-	picking,
-	highlight,
-}) => {
+const DemoPage: FC<{
+	picking: boolean;
+	highlight?: boolean;
+	hint?: boolean;
+}> = ({ picking, highlight, hint }) => {
 	const [output, setOutput] = useState<string>();
 
 	useEffect(() => {
@@ -20,7 +21,7 @@ const DemoPage: FC<{ picking: boolean; highlight?: boolean }> = ({
 			document,
 			onSubmit: (submission) => setOutput(formatAnnotations(submission)),
 		});
-		handle.setPicking(picking);
+		handle.setPicking(picking, hint);
 		if (highlight) {
 			handle.setHighlights([
 				{
@@ -32,7 +33,7 @@ const DemoPage: FC<{ picking: boolean; highlight?: boolean }> = ({
 			]);
 		}
 		return () => handle.destroy();
-	}, [picking, highlight]);
+	}, [picking, highlight, hint]);
 
 	return (
 		<main className="min-h-[520px] bg-white p-8 font-sans text-neutral-900">
@@ -88,6 +89,10 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const Idle: Story = {};
+
+export const FirstRunHint: Story = {
+	args: { picking: true, hint: true },
+};
 
 export const Picking: Story = {
 	args: { picking: true },

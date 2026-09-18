@@ -69,6 +69,50 @@ textarea:focus-visible {
 	box-shadow: var(--shadow-md);
 }
 
+/* First-run hint, top centre of the page. */
+.hint-pill {
+	position: fixed;
+	top: 16px;
+	left: 50%;
+	transform: translateX(-50%);
+	z-index: 2147483647;
+	display: flex;
+	align-items: center;
+	gap: 1rem;
+	max-width: calc(100vw - 32px);
+	padding: 0.75rem 0.75rem 0.75rem 1rem;
+	background: var(--surface-primary);
+	border: 1px solid var(--border);
+	border-radius: var(--radius-lg);
+	box-shadow: var(--shadow-lg);
+	color: var(--content-primary);
+	font-size: 0.875rem;
+	line-height: 1.25rem;
+	font-weight: 500;
+	white-space: nowrap;
+}
+
+.hint-close {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 1.5rem;
+	height: 1.5rem;
+	border-radius: var(--radius-md);
+	color: var(--content-secondary);
+	flex: none;
+}
+
+.hint-close:hover {
+	color: var(--content-primary);
+	background: var(--surface-tertiary);
+}
+
+.hint-close svg {
+	width: 1rem;
+	height: 1rem;
+}
+
 .icon-button {
 	position: relative;
 	display: inline-flex;

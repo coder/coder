@@ -17,7 +17,8 @@ type AnnotatorState = {
 };
 
 type AnnotatorHandle = {
-	setPicking(picking: boolean): void;
+	// `hint` shows the first-run hint alongside picking mode.
+	setPicking(picking: boolean, hint?: boolean): void;
 	setHighlights(items: HighlightItem[]): void;
 	getState(): AnnotatorState;
 	destroy(): void;
@@ -27,6 +28,8 @@ type MountAnnotatorOptions = {
 	document: Document;
 	onSubmit(submission: AnnotationSubmission): void;
 	onStateChange?(state: AnnotatorState): void;
+	// The user closed the first-run hint or sent their first comment.
+	onHintDismissed?(): void;
 };
 
 type PopupSession = {
@@ -50,6 +53,9 @@ const pointerIcon =
 
 const sendIcon =
 	'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z"/><path d="m21.854 2.147-10.94 10.939"/></svg>';
+
+const closeIcon =
+	'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>';
 
 const checkIcon =
 	'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>';
@@ -132,6 +138,33 @@ export function mountAnnotator(
 	toolbar.append(pickButton);
 	toolbar.style.display = "none";
 
+	// First-run hint: a pill at the top of the page while picking, until
+	// the user closes it or sends a first comment.
+	const hint = el(doc, "div", "hint-pill", { role: "status" });
+	const hintText = el(doc, "span");
+	hintText.textContent =
+		"Select an item to request updates. Press esc to exit.";
+	const hintClose = el(doc, "button", "hint-close", {
+		type: "button",
+		"aria-label": "Dismiss hint",
+	});
+	hintClose.innerHTML = closeIcon;
+	hint.append(hintText, hintClose);
+	hint.style.display = "none";
+	let hintWanted = false;
+	const showHint = (visible: boolean) => {
+		hint.style.display = visible ? "flex" : "none";
+	};
+	const dismissHint = () => {
+		if (!hintWanted) {
+			return;
+		}
+		hintWanted = false;
+		showHint(false);
+		options.onHintDismissed?.();
+	};
+	hintClose.addEventListener("click", dismissHint);
+
 	const highlight = el(doc, "div", "highlight", { "aria-hidden": "true" });
 	const highlightLabel = el(doc, "span", "highlight-label");
 	const highlightBadge = el(doc, "span", "highlight-badge");
@@ -141,7 +174,7 @@ export function mountAnnotator(
 	const highlightsContainer = el(doc, "div", "highlights", {
 		"aria-hidden": "true",
 	});
-	shadow.append(toolbar, highlight, highlightsContainer);
+	shadow.append(toolbar, hint, highlight, highlightsContainer);
 	const highlights = createHighlightLayer(doc, win, highlightsContainer);
 	doc.body.append(host);
 
@@ -187,6 +220,8 @@ export function mountAnnotator(
 		const page = pageInfo();
 		options.onSubmit({ page, annotations: [annotation] });
 		flashSent(session.target);
+		// A first comment proves the hint has done its job.
+		dismissHint();
 		// Hold a quiet ring on the element until the dashboard reports the
 		// agent working on it, so the send and the shimmer read as one
 		// continuous state rather than two events with a gap between.
@@ -405,7 +440,11 @@ export function mountAnnotator(
 		"pointerup",
 	] as const;
 
-	const setPicking = (next: boolean) => {
+	const setPicking = (next: boolean, withHint = false) => {
+		if (next && withHint) {
+			hintWanted = true;
+		}
+		showHint(next && hintWanted);
 		if (next === picking) {
 			return;
 		}
