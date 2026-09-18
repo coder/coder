@@ -150,21 +150,20 @@ func TestBatchStats(t *testing.T) {
 	require.Equal(t, defaultBufferSize, cap(b.buf.ID), "buffer grew beyond expected capacity")
 }
 
-// TestBatchStatsSessionCountWarnThrottle asserts that a report over the
-// session count cap warns at most once per warn interval, and logs at debug
-// level in between, so one misbehaving agent cannot flood the logs.
+// TestBatchStatsSessionCountFold asserts that a report over the session count
+// cap folds the excess into the overflow counter and logs it at debug, never
+// at warn, so one misbehaving agent cannot flood the logs.
 func TestBatchStatsSessionCountFold(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitLong)
 	sink := testutil.NewFakeSink(t)
-	log := slog.Make(sink).Leveled(slog.LevelDebug)
 	store, ps := dbtestutil.NewDB(t)
 	deps := setupDeps(t, store, ps)
 
 	b, closer, err := NewBatcher(ctx,
 		BatcherWithStore(store),
-		BatcherWithLogger(log),
+		BatcherWithLogger(sink.Logger(slog.LevelDebug)),
 		func(b *DBBatcher) {
 			// Take control of flushes so they do not interleave with the
 			// assertions below.
@@ -183,13 +182,11 @@ func TestBatchStatsSessionCountFold(t *testing.T) {
 	})
 	b.Add(dbtime.Now(), deps.Agent.ID, deps.Template.ID, deps.User.ID, deps.Workspace.ID, st, false)
 
-	// The overflow is reported through the counter and a debug log, never a
-	// warning, since a misbehaving agent would repeat it on every report.
-	overcap := func(e slog.SinkEntry) bool {
+	overcap := sink.Entries(func(e slog.SinkEntry) bool {
 		return strings.Contains(e.Message, "too many distinct session types")
-	}
-	require.Len(t, sink.Entries(overcap), 1)
-	require.Equal(t, slog.LevelDebug, sink.Entries(overcap)[0].Level)
+	})
+	require.Len(t, overcap, 1)
+	require.Equal(t, slog.LevelDebug, overcap[0].Level)
 	require.Equal(t, float64(extra), prom_testutil.ToFloat64(b.metrics.SessionCountsOverflowTotal))
 }
 

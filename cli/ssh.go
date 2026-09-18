@@ -459,7 +459,7 @@ func (r *RootCmd) ssh() *serpent.Command {
 					if usageAppName != "" {
 						closeUsage := client.UpdateWorkspaceUsageWithBodyContext(ctx, workspace.ID, codersdk.PostWorkspaceUsageRequest{
 							AgentID: workspaceAgent.ID,
-							AppName: string(usageAppName),
+							AppName: usageAppName,
 						})
 						defer closeUsage()
 					}
@@ -522,7 +522,7 @@ func (r *RootCmd) ssh() *serpent.Command {
 			if usageAppName != "" {
 				closeUsage := client.UpdateWorkspaceUsageWithBodyContext(ctx, workspace.ID, codersdk.PostWorkspaceUsageRequest{
 					AgentID: workspaceAgent.ID,
-					AppName: string(usageAppName),
+					AppName: usageAppName,
 				})
 				defer closeUsage()
 			}
@@ -1532,16 +1532,18 @@ func (r stdioErrLogReader) Read(_ []byte) (int, error) {
 	return 0, io.EOF
 }
 
-func getUsageAppName(usageApp string) codersdk.UsageAppName {
-	if usageApp == disableUsageApp {
+// getUsageAppName returns the app name to report usage under, or the empty
+// string to report none. Any name is valid because the server normalizes it
+// at ingestion.
+func getUsageAppName(usageApp string) string {
+	switch usageApp {
+	case disableUsageApp:
 		return ""
+	case "":
+		return string(codersdk.UsageAppNameSSH)
+	default:
+		return usageApp
 	}
-	if usageApp == "" {
-		return codersdk.UsageAppNameSSH
-	}
-
-	// The server accepts arbitrary app names.
-	return codersdk.UsageAppName(usageApp)
 }
 
 func setStatsCallback(

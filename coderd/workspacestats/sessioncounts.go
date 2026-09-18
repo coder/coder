@@ -43,8 +43,8 @@ const maxSessionCountEntries = 64
 
 // capSessionCounts keeps the busiest maxSessionCountEntries normalized names,
 // preferring known apps, and sums the rest into AppFamilyUnknown, so the
-// result can hold one name past the cap. The second return is how many names
-// were summed away, which the result length cannot reveal.
+// result can hold one name past the cap. The second return counts the names
+// summed away.
 func capSessionCounts(counts map[string]int64) (map[string]int64, int) {
 	if len(counts) <= maxSessionCountEntries {
 		return counts, 0

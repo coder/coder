@@ -695,7 +695,8 @@ func TestUpdateStats(t *testing.T) {
 			},
 			{
 				// Known apps win even with smaller counts. Unknown aliases
-				// must merge before ranking, with name breaking count ties.
+				// merge before ranking, with name breaking count ties, and
+				// the kept names fill the 64 cap.
 				name: "RankAfterMerging",
 				setup: func() (map[string]int64, map[string]int64) {
 					counts := vscodeAliases()
@@ -770,32 +771,28 @@ func TestUpdateStats(t *testing.T) {
 				require.NoError(t, err)
 				closeBatcher() // Flush synchronously without waiting for a timer.
 
-				select {
-				case params := <-inserted:
-					wantSessionCounts, err := json.Marshal([]map[string]int64{wantCounts})
-					require.NoError(t, err)
-					// ID and CreatedAt are generated inside the batcher; the
-					// rest must survive capping untouched.
-					require.Equal(t, database.InsertWorkspaceAgentStatsParams{
-						ID:                        params.ID,
-						CreatedAt:                 params.CreatedAt,
-						UserID:                    []uuid.UUID{workspace.OwnerID},
-						WorkspaceID:               []uuid.UUID{workspace.ID},
-						TemplateID:                []uuid.UUID{workspace.TemplateID},
-						AgentID:                   []uuid.UUID{agent.ID},
-						ConnectionsByProto:        json.RawMessage(`[{"tcp":1}]`),
-						ConnectionCount:           []int64{0},
-						RxPackets:                 []int64{120},
-						RxBytes:                   []int64{1000},
-						TxPackets:                 []int64{130},
-						TxBytes:                   []int64{2000},
-						SessionCounts:             wantSessionCounts,
-						ConnectionMedianLatencyMS: []float64{23},
-						Usage:                     []bool{false},
-					}, params)
-				case <-ctx.Done():
-					t.Fatal("timed out waiting for stats insertion")
-				}
+				params := testutil.RequireReceive(ctx, t, inserted)
+				wantSessionCounts, err := json.Marshal([]map[string]int64{wantCounts})
+				require.NoError(t, err)
+				// ID and CreatedAt are generated inside the batcher; the rest
+				// must survive capping untouched.
+				require.Equal(t, database.InsertWorkspaceAgentStatsParams{
+					ID:                        params.ID,
+					CreatedAt:                 params.CreatedAt,
+					UserID:                    []uuid.UUID{workspace.OwnerID},
+					WorkspaceID:               []uuid.UUID{workspace.ID},
+					TemplateID:                []uuid.UUID{workspace.TemplateID},
+					AgentID:                   []uuid.UUID{agent.ID},
+					ConnectionsByProto:        json.RawMessage(`[{"tcp":1}]`),
+					ConnectionCount:           []int64{0},
+					RxPackets:                 []int64{120},
+					RxBytes:                   []int64{1000},
+					TxPackets:                 []int64{130},
+					TxBytes:                   []int64{2000},
+					SessionCounts:             wantSessionCounts,
+					ConnectionMedianLatencyMS: []float64{23},
+					Usage:                     []bool{false},
+				}, params)
 			})
 		}
 	})

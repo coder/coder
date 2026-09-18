@@ -377,17 +377,17 @@ func (c *Client) PutExtendWorkspace(ctx context.Context, id uuid.UUID, req PutEx
 
 type PostWorkspaceUsageRequest struct {
 	AgentID uuid.UUID `json:"agent_id" format:"uuid"`
-	// AppName is an arbitrary name for the app reporting usage. The server
-	// normalizes it at ingestion, so new clients need no server change. See
-	// the UsageAppName constants for the well-known names.
+	// AppName is any name for the app reporting usage. The server normalizes
+	// it at ingestion, so a new app needs no server change. The UsageAppName
+	// constants are the well-known names.
 	AppName string `json:"app_name"`
 }
 
 type UsageAppName string
 
-// Well-known usage app names. The API accepts any name, normalized at
-// ingestion. These are wire format and cannot change: the hyphen in
-// reconnecting-pty folds to the canonical reconnecting_pty.
+// Well-known usage app names. The values are wire format and cannot change.
+// UsageAppNameReconnectingPty keeps its hyphen, which the server folds to the
+// canonical reconnecting_pty.
 const (
 	UsageAppNameVscode          UsageAppName = "vscode"
 	UsageAppNameJetbrains       UsageAppName = "jetbrains"

@@ -2139,8 +2139,9 @@ func (a *agent) Collect(ctx context.Context, networkStats map[netlogtype.Connect
 		stats.TxPackets += int64(counts.TxPackets)
 	}
 
-	// Active sessions per app; the deprecated fields stay zero. The app label
-	// is client supplied, so add rather than overwrite.
+	// A client picks its own app name and can pick reconnecting_pty, so add
+	// rather than overwrite. A non-empty map suppresses the deprecated
+	// session_count_* fields on ingest, so leave them zero.
 	stats.SessionCounts = a.sshServer.SessionCounts()
 	if count := a.reconnectingPTYServer.ConnCount(); count > 0 {
 		stats.SessionCounts[string(codersdk.AppFamilyReconnectingPTY)] += count

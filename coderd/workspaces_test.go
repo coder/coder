@@ -4941,17 +4941,16 @@ func TestWorkspaceUsageTracking(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		// app names that carry no name of their own, whitespace or control
-		// characters of any length, are equivalent to an absent app name: the
-		// usage bump still happens, no session is counted
+		// an app name of only whitespace or control characters, at any
+		// length, reads as an absent app name: the usage bump still happens
+		// and no session is counted
 		for _, appName := range []string{"   ", strings.Repeat(" ", 300), "\x00", "\x1b\x07", " \x1b \t"} {
 			err = client.PostWorkspaceUsageWithBody(ctx, r.Workspace.ID, codersdk.PostWorkspaceUsageRequest{
 				AppName: appName,
 			})
 			require.NoError(t, err)
 
-			// ...and with an agent set they fail the same way an empty app
-			// name does
+			// with an agent set, those names fail like an empty one
 			err = client.PostWorkspaceUsageWithBody(ctx, r.Workspace.ID, codersdk.PostWorkspaceUsageRequest{
 				AgentID: workspace.LatestBuild.Resources[0].Agents[0].ID,
 				AppName: appName,
@@ -5047,8 +5046,7 @@ func TestWorkspaceUsageArbitraryAppNameNormalized(t *testing.T) {
 	}, testutil.IntervalFast), "expected the normalized app name to reach the database")
 	require.EqualValues(t, 1, count)
 
-	// The raw name must not be stored: only the normalized key is a valid
-	// session_counts key.
+	// The raw name must never reach storage as a key.
 	var rawKeyRows int64
 	err = sqlDB.QueryRowContext(ctx, `
 		SELECT count(*)

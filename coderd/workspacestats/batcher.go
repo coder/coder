@@ -53,8 +53,8 @@ type DBBatcher struct {
 	// flushed is used during testing to signal that a flush has completed.
 	flushed chan<- int
 
-	// metrics collects Prometheus metrics for the batcher.
-	metrics    batcherMetrics
+	metrics batcherMetrics
+	// registerer is nil unless BatcherWithRegisterer is passed.
 	registerer prometheus.Registerer
 }
 
@@ -158,8 +158,8 @@ func (b *DBBatcher) Add(
 	// Normalize and cap outside the lock.
 	sessionCounts, overflow := capSessionCounts(normalizedSessionCounts(st))
 	if overflow > 0 {
-		// A misbehaving agent hits this on every report, so the counter is the
-		// signal to alert on and the log stays at debug.
+		// A misbehaving agent hits this on every report, so alert on the
+		// counter and keep the log at debug.
 		b.log.Debug(context.Background(), "too many distinct session types, overflow counted under unknown",
 			slog.F("agent_id", agentID),
 			slog.F("overflow", overflow),

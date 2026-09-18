@@ -1767,9 +1767,8 @@ func (api *API) postWorkspaceUsage(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Normalize at the edge so storage and lookup agree on the key, and so an
-	// app name that carries no information is indistinguishable from an
-	// absent one.
+	// Normalize at the edge so storage and lookup agree on the key, and so a
+	// name that carries no information reads the same as an absent one.
 	appName := normalizeUsageAppName(req.AppName)
 
 	if req.AgentID == uuid.Nil && appName == "" {
@@ -1798,7 +1797,6 @@ func (api *API) postWorkspaceUsage(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Any app name is accepted, normalized above.
 	stat := &proto.Stats{
 		ConnectionCount: 1,
 		SessionCounts:   map[string]int64{appName: 1},
@@ -1829,14 +1827,15 @@ func (api *API) postWorkspaceUsage(rw http.ResponseWriter, r *http.Request) {
 	rw.WriteHeader(http.StatusNoContent)
 }
 
-// normalizeUsageAppName prepares a client-supplied app name for storage. It
-// returns the empty string where NormalizeAppName would report the unknown
-// family, so callers can reject a nameless request.
+// normalizeUsageAppName prepares a client-supplied app name for storage. A
+// name of only whitespace and control characters carries no app, so it
+// returns the empty string and the caller rejects the request rather than
+// counting a session under the unknown family.
 func normalizeUsageAppName(appName string) string {
-	named := strings.IndexFunc(appName, func(r rune) bool {
+	named := strings.ContainsFunc(appName, func(r rune) bool {
 		return !unicode.IsControl(r) && !unicode.IsSpace(r)
 	})
-	if named == -1 {
+	if !named {
 		return ""
 	}
 	return codersdk.NormalizeAppName(appName)
