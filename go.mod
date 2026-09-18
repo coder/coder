@@ -262,7 +262,7 @@ require (
 	golang.org/x/text v0.42.0
 	golang.org/x/tools v0.50.0
 	golang.org/x/xerrors v0.0.0-20240903120638-7835f813f4da
-	google.golang.org/api v0.295.0
+	google.golang.org/api v0.298.0
 	google.golang.org/grpc v1.83.2
 	google.golang.org/protobuf v1.36.12
 	gopkg.in/DataDog/dd-trace-go.v1 v1.74.0
