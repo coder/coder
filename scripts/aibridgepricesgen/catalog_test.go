@@ -6,7 +6,11 @@ import (
 	"os"
 	"testing"
 
+	fantasyazure "charm.land/fantasy/providers/azure"
+	fantasyopenai "charm.land/fantasy/providers/openai"
 	"github.com/stretchr/testify/require"
+
+	"github.com/coder/coder/v2/coderd/x/chatd/chatopenai"
 )
 
 // fixtureUpstream returns a small upstream payload covering the join cases:
@@ -260,6 +264,25 @@ func TestBuildCatalogErrors(t *testing.T) {
 			require.Error(t, err)
 			require.Contains(t, err.Error(), tc.wantErr)
 		})
+	}
+}
+
+// TestCuratedAstraUsesResponses guards against suggesting GPT-6 Astra on a
+// provider whose client would speak Chat Completions: Astra's function calling
+// is Responses-only, and Azure follows the pinned SDK's known-model list.
+func TestCuratedAstraUsesResponses(t *testing.T) {
+	t.Parallel()
+
+	curation := embeddedCuration(t)
+	for _, provider := range []string{fantasyopenai.Name, fantasyazure.Name} {
+		for _, model := range curation[provider] {
+			if !chatopenai.IsGPT6Astra(model.ModelIdentifier) {
+				continue
+			}
+			require.Equal(t, chatopenai.TransportResponses,
+				chatopenai.TransportFor(provider, model.ModelIdentifier, nil),
+				"%s/%s", provider, model.ModelIdentifier)
+		}
 	}
 }
 

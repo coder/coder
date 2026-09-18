@@ -268,18 +268,6 @@
 		},
 		{
 			"provider": "azure",
-			"modelIdentifier": "gpt-6-astra",
-			"displayName": "GPT-6 Astra",
-			"aliases": [],
-			"contextLimit": 1050000,
-			"maxOutputTokens": 128000,
-			"inputCost": 10,
-			"outputCost": 50,
-			"cacheReadCost": 1,
-			"cacheWriteCost": 12.5
-		},
-		{
-			"provider": "azure",
 			"modelIdentifier": "gpt-5.6-sol",
 			"displayName": "GPT-5.6 Sol",
 			"aliases": [],
