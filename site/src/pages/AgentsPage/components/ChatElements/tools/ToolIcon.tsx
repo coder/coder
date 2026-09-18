@@ -40,6 +40,8 @@ export const toolIcons: Partial<Record<string, LucideIcon>> = {
 	start_workspace: PowerIcon,
 	chat_cleared: BotIcon,
 	chat_summarized: BotIcon,
+	clear_context: BotIcon,
+	compact_context: BotIcon,
 	list_agents: BotIcon,
 	list_subagent_models: BotIcon,
 	thinking: LightbulbIcon,

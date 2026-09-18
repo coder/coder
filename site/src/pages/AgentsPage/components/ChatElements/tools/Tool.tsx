@@ -12,6 +12,11 @@ import {
 import { ChatClearedTool } from "./ChatClearedTool";
 import { ChatSummarizedTool } from "./ChatSummarizedTool";
 import { ComputerTool } from "./ComputerTool";
+import {
+	type ContextRequestKind,
+	ContextRequestTool,
+	getContextRequestFollowUp,
+} from "./ContextRequestTool";
 import { CreateWorkspaceTool } from "./CreateWorkspaceTool";
 import { DiffFileHeader } from "./DiffFileHeader";
 import { EditFilesTool } from "./EditFilesTool";
@@ -687,6 +692,27 @@ const ChatSummarizedRenderer: FC<ToolRendererProps> = ({
 	);
 };
 
+const createContextRequestRenderer =
+	(kind: ContextRequestKind): FC<ToolRendererProps> =>
+	({ status, args, result, isError }) => {
+		const rec = asRecord(result);
+		const errorMessage =
+			(rec ? asString(rec.error || rec.message) : "") ||
+			(typeof result === "string" && isError ? result : "");
+		return (
+			<ContextRequestTool
+				kind={kind}
+				followUp={getContextRequestFollowUp(args, result)}
+				status={status}
+				isError={isError}
+				errorMessage={errorMessage || undefined}
+			/>
+		);
+	};
+
+const ClearContextRenderer = createContextRequestRenderer("clear");
+const CompactContextRenderer = createContextRequestRenderer("compact");
+
 const AskUserQuestionRenderer: FC<ToolRendererProps> = ({
 	args,
 	status,
@@ -1196,6 +1222,8 @@ export const toolRenderers: Record<string, FC<ToolRendererProps>> = {
 	read_skill_file: ReadSkillFileRenderer,
 	chat_cleared: ChatClearedRenderer,
 	chat_summarized: ChatSummarizedRenderer,
+	clear_context: ClearContextRenderer,
+	compact_context: CompactContextRenderer,
 	ask_user_question: AskUserQuestionRenderer,
 	propose_plan: ProposePlanRenderer,
 	advisor: AdvisorRenderer,
