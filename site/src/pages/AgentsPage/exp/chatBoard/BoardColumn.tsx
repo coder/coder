@@ -39,6 +39,8 @@ const columnHeader = cva(
 
 interface BoardColumnProps extends ChatOpenHandlers {
 	readonly column: BoardColumnModel;
+	/** Assistant chat by card id, for the cards that have one. */
+	readonly assistants: ReadonlyMap<string, Chat>;
 	readonly openChatIds: ReadonlySet<string>;
 	readonly dropTarget: DropTarget | null;
 	/** Every effort on the board, for the card editors. */
@@ -71,6 +73,7 @@ interface BoardColumnProps extends ChatOpenHandlers {
 
 export const BoardColumn: FC<BoardColumnProps> = ({
 	column,
+	assistants,
 	openChatIds,
 	dropTarget,
 	knownEfforts,
@@ -218,6 +221,7 @@ export const BoardColumn: FC<BoardColumnProps> = ({
 						<InsertionLine visible={insertBefore === card.id} />
 						<BoardCard
 							card={card}
+							assistant={assistants.get(card.id)}
 							openChatIds={openChatIds}
 							isMergeTarget={mergeTargetId === card.id}
 							noteDrop={noteDrop?.card === card.id ? noteDrop.slot : undefined}

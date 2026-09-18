@@ -3,7 +3,6 @@ import { cn } from "cn";
 import {
 	BotIcon,
 	CopyIcon,
-	MessageSquareIcon,
 	MessageSquarePlusIcon,
 	PencilIcon,
 	TagsIcon,
@@ -15,7 +14,6 @@ import {
 	DropdownMenuCheckboxItem,
 	DropdownMenuSeparator,
 } from "#/components/DropdownMenu/DropdownMenu";
-import { isActiveChatStatus } from "../../components/ChatConversation/chatStore";
 import { getChatDisplayConfig } from "../../components/ChatsSidebar/tree/statusConfig";
 import { ActionsMenu } from "./ActionsMenu";
 import type { NoteSlot } from "./boardApi";
@@ -30,9 +28,9 @@ import { ChatStatusLine } from "./ChatStatusLine";
 import { cardAccent, cardTint } from "./cardColor";
 import { dragHandleListeners } from "./dragHandle";
 import { EditableTitle } from "./EditableTitle";
-import { IconButton } from "./IconButton";
 import { InlineEdit } from "./InlineEdit";
 import { NotesSection } from "./NotesSection";
+import { AssistantOpener, ChatOpener } from "./Openers";
 
 export type DragData =
 	| { type: "card"; card: BoardCardModel }
@@ -52,13 +50,6 @@ export interface ChatOpenHandlers {
 	readonly onPreviewEnd: () => void;
 }
 
-/** Inside a card or row the anchor is fixed, so its openers pass only the chat. */
-interface ChatOpeners {
-	readonly onOpen: (chat: Chat) => void;
-	readonly onPreview: (chat: Chat) => void;
-	readonly onPreviewEnd: () => void;
-}
-
 // dnd-kit fills the node ref on mount; before that there is nothing to
 // place a window beside.
 const rectOf = (node: RefObject<HTMLElement | null>) =>
@@ -66,6 +57,8 @@ const rectOf = (node: RefObject<HTMLElement | null>) =>
 
 interface BoardCardProps extends ChatOpenHandlers {
 	readonly card: BoardCardModel;
+	/** The card's assistant chat, once one has been created. */
+	readonly assistant: Chat | undefined;
 	readonly openChatIds: ReadonlySet<string>;
 	readonly isMergeTarget: boolean;
 	/** A dragged note hovering one of this card's notes. */
@@ -88,6 +81,7 @@ interface BoardCardProps extends ChatOpenHandlers {
 
 export const BoardCard: FC<BoardCardProps> = ({
 	card,
+	assistant,
 	openChatIds,
 	isMergeTarget,
 	noteDrop,
@@ -206,19 +200,27 @@ export const BoardCard: FC<BoardCardProps> = ({
 				/>
 				<div className="flex h-[19px] items-center gap-1.5">
 					{single ? (
-						<>
-							<ChatInfoPopover chat={lead} />
-							<ChatOpener
-								chat={lead}
-								onOpen={open}
-								onPreview={preview}
-								onPreviewEnd={onPreviewEnd}
-							/>
-						</>
+						<ChatInfoPopover chat={lead} />
 					) : (
 						<span className="text-[11px] text-content-secondary/70">
 							{card.members.length} chats
 						</span>
+					)}
+					{assistant && (
+						<AssistantOpener
+							assistant={assistant}
+							onOpen={open}
+							onPreview={preview}
+							onPreviewEnd={onPreviewEnd}
+						/>
+					)}
+					{single && (
+						<ChatOpener
+							chat={lead}
+							onOpen={open}
+							onPreview={preview}
+							onPreviewEnd={onPreviewEnd}
+						/>
 					)}
 					<ActionsMenu
 						label={card.title}
@@ -385,41 +387,6 @@ const OpenChatSurface: FC<OpenChatSurfaceProps> = ({
 		/>
 	);
 };
-
-interface ChatOpenerProps extends ChatOpeners {
-	readonly chat: Chat;
-}
-
-/**
- * The chat icon: resting on it previews the chat, clicking it pins the
- * window. Unread rides its top-right corner as a positioned dot, so it costs
- * no width. While the chat works the dot would flicker on with every token
- * and the spinner already says "look here", so it waits for the chat to
- * settle.
- */
-const ChatOpener: FC<ChatOpenerProps> = ({
-	chat,
-	onOpen,
-	onPreview,
-	onPreviewEnd,
-}) => (
-	<IconButton
-		aria-label={`Open ${chat.title}`}
-		title="Open chat"
-		onPointerEnter={() => onPreview(chat)}
-		onPointerLeave={onPreviewEnd}
-		onClick={() => onOpen(chat)}
-	>
-		<MessageSquareIcon className="size-3.5" />
-		{chat.has_unread && !isActiveChatStatus(chat.status) && (
-			<span
-				role="img"
-				aria-label="Unread"
-				className="absolute -right-0.5 -top-0.5 size-[5px] rounded-full bg-content-link"
-			/>
-		)}
-	</IconButton>
-);
 
 interface ChatRowProps extends ChatOpenHandlers {
 	readonly chat: Chat;

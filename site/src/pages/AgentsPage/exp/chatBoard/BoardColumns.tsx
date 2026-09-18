@@ -1,5 +1,6 @@
 import { PlusIcon } from "lucide-react";
 import { type FC, useState } from "react";
+import type { Chat } from "#/api/typesGenerated";
 import type { ChatOpenHandlers } from "./BoardCard";
 import { BoardColumn, NewColumn } from "./BoardColumn";
 import {
@@ -30,6 +31,8 @@ interface BoardColumnsProps extends ChatOpenHandlers {
 	/** The unfiltered model that every command acts on. */
 	readonly board: BoardState;
 	readonly run: (plan: Plan | null) => Promise<void>;
+	/** Assistant chat by card id, for the cards that have one. */
+	readonly assistants: ReadonlyMap<string, Chat>;
 	readonly openChatIds: ReadonlySet<string>;
 	readonly dropTarget: DropTarget | null;
 	/** Every effort on the board, for the card editors. */
@@ -45,6 +48,7 @@ export const BoardColumns: FC<BoardColumnsProps> = ({
 	columns,
 	board,
 	run,
+	assistants,
 	openChatIds,
 	dropTarget,
 	knownEfforts,
@@ -63,6 +67,7 @@ export const BoardColumns: FC<BoardColumnsProps> = ({
 				<BoardColumn
 					key={column.name}
 					column={column}
+					assistants={assistants}
 					openChatIds={openChatIds}
 					dropTarget={dropTarget}
 					knownEfforts={knownEfforts}
