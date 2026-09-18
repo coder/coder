@@ -117,6 +117,12 @@ interface ChatPageTimelineProps {
 	onSendAskUserQuestionResponse?: (message: string) => Promise<void> | void;
 	urlTransform?: UrlTransform;
 	mcpServers?: readonly TypesGen.MCPServerConfig[];
+	/**
+	 * Overrides how many transcript rows mount at once. Defaults to the
+	 * component's own window size; benchmarks pass a value to measure other
+	 * sizes against the same build.
+	 */
+	windowRows?: number;
 	footer?: ReactNode;
 }
 
@@ -137,6 +143,7 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 	onSendAskUserQuestionResponse,
 	urlTransform,
 	mcpServers,
+	windowRows,
 	footer,
 }) => {
 	const [chatFullWidth] = useChatFullWidth();
@@ -229,6 +236,7 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 					urlTransform={urlTransform}
 					mcpServers={mcpServers}
 					showDesktopPreviews={false}
+					windowRows={windowRows}
 				/>
 				<TerminalStatusRow liveStatus={liveStatus} />
 			</ChatMessageScroller>

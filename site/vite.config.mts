@@ -63,6 +63,17 @@ export default defineConfig({
 					import.meta.dirname,
 					"./src/serviceWorker.ts",
 				),
+				// Benchmark entry: a second, standalone HTML entry that is only
+				// built for perf runs. It never ships in a release because it is
+				// not referenced by the app shell.
+				...(process.env.BENCH_BUILD
+					? {
+							bench: path.resolve(
+								import.meta.dirname,
+								"./bench/chat-bench/index.html",
+							),
+						}
+					: {}),
 			},
 			output: {
 				entryFileNames: (chunkInfo) => {

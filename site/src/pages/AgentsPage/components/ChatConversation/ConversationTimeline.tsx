@@ -50,6 +50,33 @@ import type {
 } from "./types";
 import { UserMessageContent } from "./UserMessageContent";
 
+/**
+ * How many transcript rows are mounted at once.
+ *
+ * Mounting every message of a long chat is the dominant cost of opening one.
+ * Measured main-thread block, per mounted row (see scripts/perf/FINDINGS.md):
+ *
+ *   row shape | Chromium | WebKit
+ *   minimal   |  1.1ms   |  1.8ms
+ *   realistic |  2.7ms   |  4.9ms
+ *
+ * plus ~50ms (Chromium) / ~150ms (WebKit) of fixed cost per mount. A 100-turn
+ * chat mounts 200 rows, so it blocks for hundreds of milliseconds, and showing
+ * several chats multiplies it. CSS cannot fix this: `content-visibility` was
+ * measured to be a no-op in both engines here (WebKit 6039ms -> 5607ms),
+ * because React still builds and commits every row. Only not mounting a row
+ * avoids its cost.
+ *
+ * 30 rows is about two screens of a wide transcript, which keeps a single
+ * chat's mount block near a 250ms budget in Safari while leaving enough
+ * overscan that ordinary scrolling never waits on a render. Narrower viewports
+ * and multi-chat layouts need a smaller budget: cost tracks the sum of mounted
+ * rows across panels, not the panel count.
+ */
+const TRANSCRIPT_WINDOW_ROWS = 30;
+/** Additional rows revealed each time the user asks for earlier messages. */
+const TRANSCRIPT_WINDOW_STEP = 30;
+
 const getChatMessageTextContent = (
 	content: readonly TypesGen.ChatMessagePart[] | undefined,
 ): string | undefined => {
@@ -422,6 +449,12 @@ interface ConversationTimelineProps {
 	showDesktopPreviews?: boolean;
 	hasActiveStream?: boolean;
 	isAwaitingFirstStreamChunk?: boolean;
+	/**
+	 * Overrides how many transcript rows mount at once. Defaults to
+	 * TRANSCRIPT_WINDOW_ROWS. Exposed so the window size can be measured
+	 * against a single build instead of being a fixed constant.
+	 */
+	windowRows?: number;
 }
 
 export const ConversationTimeline = memo<ConversationTimelineProps>(
@@ -446,11 +479,17 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 		showDesktopPreviews,
 		hasActiveStream,
 		isAwaitingFirstStreamChunk,
+		windowRows = TRANSCRIPT_WINDOW_ROWS,
 	}) => {
 		const { scrollToMessage } = useMessageScroller();
 		const jumpToUserMessage = (messageKey: string) => {
 			scrollToMessage(messageKey, { align: "start", behavior: "smooth" });
 		};
+
+		// Only the newest TRANSCRIPT_WINDOW_ROWS rows are mounted. Older rows
+		// are revealed on demand, because mounting them is what makes opening
+		// a long chat, or several chats at once, block the main thread.
+		const [mountedRowCount, setMountedRowCount] = useState(windowRows);
 
 		const displayMessages = buildDisplayMessages(parsedMessages);
 		const evictedFileIds = deriveEvictedFileIds(parsedMessages, chatFiles);
@@ -458,6 +497,15 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 			displayMessages,
 			Boolean(liveStatus && shouldRenderLiveAssistant(liveStatus)),
 		);
+
+		// Mount a bounded window of the newest rows. The live row always
+		// stays mounted because it is the newest content, and the window
+		// only shrinks from the start of the transcript.
+		const windowedRows =
+			renderRows.length > mountedRowCount
+				? renderRows.slice(renderRows.length - mountedRowCount)
+				: renderRows;
+		const hiddenRowCount = renderRows.length - windowedRows.length;
 
 		// A live turn only reveals its stream blocks once output has accumulated.
 		// Before that the callout and thinking indicator stand in for the turn.
@@ -556,7 +604,21 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 
 		return (
 			<FileProbeProvider evictedFileIds={evictedFileIds}>
-				{renderRows.map((row) => {
+				{hiddenRowCount > 0 && (
+					<div className="flex justify-center py-2">
+						<Button
+							variant="outline"
+							size="sm"
+							onClick={() =>
+								setMountedRowCount((count) => count + TRANSCRIPT_WINDOW_STEP)
+							}
+						>
+							Show {Math.min(hiddenRowCount, TRANSCRIPT_WINDOW_STEP)} earlier
+							messages
+						</Button>
+					</div>
+				)}
+				{windowedRows.map((row) => {
 					if (row.type === "live") {
 						// This row only exists when liveStatus is set.
 						return (
