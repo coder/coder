@@ -1,4 +1,3 @@
-import { LightbulbIcon } from "lucide-react";
 import type { FC } from "react";
 import {
 	DetailedError,
@@ -11,6 +10,7 @@ import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { AvatarData } from "#/components/Avatar/AvatarData";
 import { Button } from "#/components/Button/Button";
+import { LightbulbIcon } from "#/components/Icons/LightbulbIcon";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,

@@ -1,4 +1,3 @@
-import { LightbulbIcon } from "lucide-react";
 import type { FC } from "react";
 import {
 	type ProvisionerKeyDaemons,
@@ -7,6 +6,7 @@ import {
 	ProvisionerKeyIDUserAuth,
 } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
+import { LightbulbIcon } from "#/components/Icons/LightbulbIcon";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,

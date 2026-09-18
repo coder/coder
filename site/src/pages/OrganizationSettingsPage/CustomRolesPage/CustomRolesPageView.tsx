@@ -1,4 +1,4 @@
-import { EllipsisVerticalIcon, LightbulbIcon, PlusIcon } from "lucide-react";
+import { EllipsisVerticalIcon, PlusIcon } from "lucide-react";
 import { type FC, useState } from "react";
 import { useMutation } from "react-query";
 import { Link as RouterLink, useNavigate } from "react-router";
@@ -12,6 +12,8 @@ import {
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
+import { AddPlusIcon } from "#/components/Icons/AddPlusIcon";
+import { LightbulbIcon } from "#/components/Icons/LightbulbIcon";
 import { PREMIUM_PAGE_PATH } from "#/components/Paywall/Paywall";
 import {
 	SettingsHeader,
@@ -371,7 +373,7 @@ const RoleTableBody: FC<RoleTableBodyProps> = ({
 					canCreateOrgRole && (
 						<Button asChild>
 							<RouterLink to="create">
-								<PlusIcon />
+								<AddPlusIcon className="text-highlight-sky" />
 								Create custom role
 							</RouterLink>
 						</Button>

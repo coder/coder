@@ -1,4 +1,4 @@
-import { ChevronRightIcon, LightbulbIcon, PlusIcon } from "lucide-react";
+import { ChevronRightIcon, PlusIcon } from "lucide-react";
 import type { FC } from "react";
 import { useQuery } from "react-query";
 import { Link as RouterLink, useNavigate } from "react-router";
@@ -18,6 +18,8 @@ import { Button } from "#/components/Button/Button";
 import { EmptyState } from "#/components/EmptyState/EmptyState";
 import type { useFilter } from "#/components/Filter/Filter";
 import { GroupsFilter } from "#/components/Filter/GroupsFilter";
+import { AddPlusIcon } from "#/components/Icons/AddPlusIcon";
+import { LightbulbIcon } from "#/components/Icons/LightbulbIcon";
 import { PaginationContainer } from "#/components/PaginationWidget/PaginationContainer";
 import {
 	SettingsHeader,
@@ -233,7 +235,7 @@ const GroupsTableBody: FC<GroupsTableBodyProps> = ({
 					canCreateGroup && (
 						<Button asChild>
 							<RouterLink to="create">
-								<PlusIcon />
+								<AddPlusIcon className="text-highlight-sky" />
 								New group
 							</RouterLink>
 						</Button>

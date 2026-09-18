@@ -1,4 +1,4 @@
-import { LightbulbIcon, XIcon } from "lucide-react";
+import { XIcon } from "lucide-react";
 import type { FC } from "react";
 import type {
 	Organization,
@@ -8,6 +8,7 @@ import type {
 import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
 import { EmptyState } from "#/components/EmptyState/EmptyState";
+import { LightbulbIcon } from "#/components/Icons/LightbulbIcon";
 import { Link } from "#/components/Link/Link";
 import {
 	Select,
