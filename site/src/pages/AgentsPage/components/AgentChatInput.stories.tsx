@@ -122,7 +122,7 @@ export const NoPromptHistoryUpArrowIsNoOp: Story = {
 
 export const PromptHistorySuppressedWhileEditingHistoryMessage: Story = {
 	args: {
-		isEditingHistoryMessage: true,
+		editingKind: "history",
 		userPromptHistory: promptHistory,
 	},
 };
