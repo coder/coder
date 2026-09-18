@@ -180,7 +180,7 @@ func setup(db *sql.DB, migs fs.FS, opts options) (source.Driver, *migrate.Migrat
 		return nil, nil, xerrors.New("currently connected to a Coder v1 database, aborting database setup")
 	}
 
-	dbDriver := &pgTxnDriver{ctx: ctx, db: db, lockTimeout: opts.lockTimeout}
+	dbDriver := &pgDriver{ctx: ctx, db: db, lockTimeout: opts.lockTimeout}
 	err = dbDriver.ensureVersionTable()
 	if err != nil {
 		return nil, nil, xerrors.Errorf("ensure version table: %w", err)
@@ -208,10 +208,13 @@ func Up(db *sql.DB) error {
 
 // UpWithFS runs SQL migrations in the given fs.
 //
-// Every pending migration runs in one transaction under a bounded Postgres
-// lock_timeout. If the batch fails because it lost a lock race, it is rolled
-// back and retried from scratch with exponential backoff. Any other failure is
-// returned immediately.
+// Each pending migration commits in its own transaction together with its
+// schema_migrations row, under a bounded Postgres lock_timeout, while a batch
+// level advisory lock serializes concurrent replicas. If a migration fails
+// because it lost a lock race, it is rolled back and the remaining migrations
+// are retried from the last committed version with exponential backoff. Any
+// other failure is returned immediately and leaves the already committed
+// migrations in place; a later call resumes from that version.
 func UpWithFS(db *sql.DB, migs fs.FS, opts ...Option) error {
 	o, err := newOptions(opts)
 	if err != nil {
@@ -285,8 +288,9 @@ func downOnce(db *sql.DB, opts options) error {
 
 // runWithLockRetry runs one migration batch attempt at a time until it
 // succeeds, fails for a reason other than lock contention, exhausts
-// maxAttempts, or opts.ctx is done. Each attempt must rebuild its own driver
-// because pgTxnDriver.Unlock commits or rolls back the batch transaction.
+// maxAttempts, or opts.ctx is done. Each attempt rebuilds its own driver
+// because pgDriver.Unlock releases the batch connection, and resumes from the
+// version the previous attempt committed.
 func runWithLockRetry(opts options, direction string, attemptFn func() error) error {
 	backoff := retry.New(250*time.Millisecond, 5*time.Second)
 	backoff.Jitter = 0.2
@@ -305,7 +309,7 @@ func runWithLockRetry(opts options, direction string, attemptFn func() error) er
 		if attempt >= maxAttempts {
 			return xerrors.Errorf("migration %s lost lock race on all %d attempts: %w", direction, attempt, lastErr)
 		}
-		opts.logger.Warn(opts.ctx, "database migration lost a lock race and was rolled back, retrying whole batch",
+		opts.logger.Warn(opts.ctx, "database migration lost a lock race and was rolled back, retrying remaining migrations",
 			slog.F("direction", direction),
 			slog.F("attempt", attempt),
 			slog.F("max_attempts", maxAttempts),
