@@ -71,6 +71,12 @@ export default defineConfig({
 						: "assets/[name]-[hash].js";
 				},
 				codeSplitting: {
+					// Match the manualChunks semantics these groups replaced in the
+					// Vite 8 upgrade: only matched modules go in a group. With the
+					// default (true) every group also captured its dependencies;
+					// the monaco group took react and Vite's preload helper, so
+					// every page loaded Monaco's 4 MB chunk and stylesheet.
+					includeDependenciesRecursively: false,
 					groups: [
 						{ name: "monaco", test: /monaco-editor/ },
 						{ name: "xterm", test: /@xterm/ },
