@@ -1074,6 +1074,106 @@ func TestLazyInstructionDiscoveryDropsVanishedExcludedFile(t *testing.T) {
 	require.NotContains(t, pinnedBySource(ctx, t, db, chat.ID), discoveryNestedSource, "the vanished file's row is dropped")
 }
 
+// discoveryRaceStore commits a competing write for one source from outside
+// the transaction right before that transaction's own upsert of it, the
+// window the pre-transaction inventory check cannot see.
+type discoveryRaceStore struct {
+	database.Store
+	outer  database.Store
+	source string
+	race   database.UpsertChatContextDiscoveredResourceParams
+	fired  *atomic.Bool
+}
+
+func (s *discoveryRaceStore) InTx(fn func(database.Store) error, opts *database.TxOptions) error {
+	return s.Store.InTx(func(tx database.Store) error {
+		return fn(&discoveryRaceStore{Store: tx, outer: s.outer, source: s.source, race: s.race, fired: s.fired})
+	}, opts)
+}
+
+func (s *discoveryRaceStore) UpsertChatContextDiscoveredResource(ctx context.Context, arg database.UpsertChatContextDiscoveredResourceParams) error {
+	if arg.Source == s.source && s.fired.CompareAndSwap(false, true) {
+		race := s.race
+		race.ChatID = arg.ChatID
+		if err := s.outer.UpsertChatContextDiscoveredResource(ctx, race); err != nil {
+			return err
+		}
+	}
+	return s.Store.UpsertChatContextDiscoveredResource(ctx, arg)
+}
+
+// TestLazyInstructionDiscoveryRetriesOverConcurrentRefreshPin checks that a
+// refresh committing a newer read after the step's transaction listed the
+// inventory but before it wrote does not get overwritten: the write fails
+// serialization and the retry sees the refresh's row.
+func TestLazyInstructionDiscoveryRetriesOverConcurrentRefreshPin(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	db, ps := dbtestutil.NewDB(t)
+	var modelCalls atomic.Int32
+	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse("title")
+		}
+		if modelCalls.Add(1) == 1 {
+			return chattest.OpenAIStreamingResponse(chattest.OpenAIToolCallChunk("read_file", `{"path":"`+discoveryTouchedFile+`"}`))
+		}
+		return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("done")...)
+	})
+	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
+	ws, dbAgent := seedWorkspaceWithAgent(t, db, user.ID)
+	//nolint:gocritic // Seeding agent context as the chatd subject.
+	seedAgentInstructionContext(dbauthz.AsChatd(ctx), t, db, dbAgent.ID, discoveryRootSource, "root rules")
+
+	ctrl := gomock.NewController(t)
+	mockConn := agentconnmock.NewMockAgentConn(ctrl)
+	setupDiscoveryAgentConn(mockConn)
+	mockConn.EXPECT().ReadFileLines(gomock.Any(), discoveryTouchedFile, int64(1), int64(0), gomock.Any()).
+		Return(workspacesdk.ReadFileLinesResponse{Success: true, FileSize: 4, TotalLines: 1, LinesRead: 1, Content: "data"}, nil)
+	mockConn.EXPECT().ResolveContextInstructions(gomock.Any(), workspacesdk.ResolveContextInstructionsRequest{
+		Directories: []string{discoveryNestedDir, discoveryNestedDir + "/src"},
+	}).Return(instructionFileResponse(discoveryNestedDir, discoveryNestedSource, "site rules v1"), nil)
+
+	newer := instructionFileResponse(discoveryNestedDir, discoveryNestedSource, "site rules v2").Files[0]
+	newerHash, err := hex.DecodeString(newer.ContentHash)
+	require.NoError(t, err)
+	store := &discoveryRaceStore{
+		Store: db, outer: db, source: discoveryNestedSource, fired: &atomic.Bool{},
+		race: database.UpsertChatContextDiscoveredResourceParams{
+			Source:      discoveryNestedSource,
+			BodyKind:    database.WorkspaceAgentContextBodyKindInstructionFile,
+			Body:        []byte("{}"),
+			ContentHash: newerHash,
+			SizeBytes:   int64(len("site rules v2")),
+			Status:      database.WorkspaceAgentContextResourceStatusOk,
+		},
+	}
+	server := newActiveTestServer(t, store, ps, func(cfg *chatd.Config) {
+		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
+		cfg.AgentConn = func(_ context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+			require.Equal(t, dbAgent.ID, agentID)
+			return mockConn, func() {}, nil
+		}
+	})
+	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
+		WorkspaceID:    uuid.NullUUID{UUID: ws.ID, Valid: true},
+		AgentID:        uuid.NullUUID{UUID: dbAgent.ID, Valid: true},
+		Title:          "lazy-instruction-discovery-serialized",
+		ModelConfigID:  model.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("read the app"),
+		},
+	})
+	require.NoError(t, err)
+	waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
+
+	require.True(t, store.fired.Load(), "the competing write ran")
+	require.Equal(t, newerHash, pinnedBySource(ctx, t, db, chat.ID)[discoveryNestedSource].ContentHash, "the refresh's newer read stays")
+}
+
 // TestLazyInstructionDiscoveryFollowsSwitchedAgent checks that when the
 // chat's agent drops between the step's preparation and its tools, and the
 // tools' dial rebinds the turn to the rebuilt workspace's agent, discovery

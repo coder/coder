@@ -75,11 +75,14 @@ func TestTouchedPaths(t *testing.T) {
 		call("win-rel", "read_file", `{"path":"repo\\App.tsx"}`),
 		call("unc-read", "read_file", `{"path":"\\\\server\\share\\repo\\App.tsx"}`),
 		call("unc-exec", "execute", `{"command":"dir","workdir":"//server/share/repo"}`),
+		call("win-posix", "read_file", `{"path":"/tmp/App.tsx"}`),
 	}
-	winResults := []fantasy.Content{result("win-read"), result("win-exec"), result("win-rel"), result("unc-read"), result("unc-exec")}
+	winResults := []fantasy.Content{result("win-read"), result("win-exec"), result("win-rel"), result("unc-read"), result("unc-exec"), result("win-posix")}
 	files, dirs = touched("windows", winCalls, winResults)
-	require.Equal(t, []string{"C:/repo/site/App.tsx"}, files, "a UNC path is not probed")
+	require.Equal(t, []string{"C:/repo/site/App.tsx"}, files, "a UNC path and a POSIX-rooted path are relative to a Windows agent and not probed")
 	require.Equal(t, []string{"C:/repo/pkg"}, dirs)
+	files, _ = touched("linux", winCalls, winResults)
+	require.Equal(t, []string{"/tmp/App.tsx"}, files, "a drive path is relative to a POSIX agent")
 
 	// On POSIX a backslash is an ordinary character in a name and stays
 	// one, and a doubled leading slash is the root.

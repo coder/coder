@@ -297,8 +297,10 @@ func contextResourcesToPrompt(
 			// ~/.coder is a built-in scan root, so its files arrive with
 			// the snapshot and no user-declared source. A .coder directory
 			// the user registered or a tool discovered below the working
-			// directory is a nested one like any other.
-			global[r.Source] = !r.Discovered && r.SourcePath == "" && isGlobalInstructionPath(r.Source)
+			// directory is a nested one like any other, and a working
+			// directory named .coder holds root files.
+			global[r.Source] = !r.Discovered && r.SourcePath == "" && isGlobalInstructionPath(r.Source) &&
+				pathKey(instructionRowDir(r)) != pathKey(agentPath(directory))
 		case database.WorkspaceAgentContextBodyKindSkill:
 			decodedBody, ok := decodeSkillMetaBody(r.Body)
 			if !ok {

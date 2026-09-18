@@ -218,9 +218,14 @@ func isInstructionFilePath(file string) bool {
 	return false
 }
 
-// isAbsAgentPath accepts a POSIX root or a Windows drive root such as C:/.
-func isAbsAgentPath(p string) bool {
-	return path.IsAbs(p) || (len(p) >= 3 && p[1] == ':' && p[2] == '/')
+// isAbsAgentPath reports whether the agent's file system takes p as
+// absolute: a drive root such as C:/ on Windows, a leading slash elsewhere.
+// The agent rejects a whole probe batch over one path it deems relative.
+func isAbsAgentPath(p, operatingSystem string) bool {
+	if operatingSystem == "windows" {
+		return len(p) >= 3 && p[1] == ':' && p[2] == '/'
+	}
+	return path.IsAbs(p)
 }
 
 // isUNCPath reports whether raw is a Windows network path such as
@@ -300,17 +305,16 @@ func touchedPaths(calls []fantasy.ToolCallContent, results []fantasy.Content) (f
 }
 
 // agentTouchedPaths normalizes touched paths for the agent's file system
-// and drops the ones discovery cannot probe. Relative paths are dropped
-// because the agent rejects them. On Windows a network path is dropped too:
-// agentPath would fold its leading separators into a POSIX root, which the
-// agent rejects as relative and fails the whole probe batch with. On POSIX
-// a doubled leading slash is the root and cleans to it.
+// and drops the ones discovery cannot probe: paths the agent takes as
+// relative, which it rejects, and on Windows network paths, whose leading
+// separators agentPath would fold into a POSIX root. On POSIX a doubled
+// leading slash is the root and cleans to it.
 func agentTouchedPaths(files, dirs []string, operatingSystem string) (outFiles, outDirs []string) {
 	keep := func(out []string, p string) []string {
 		if operatingSystem == "windows" && isUNCPath(p) {
 			return out
 		}
-		if p = agentPath(p); isAbsAgentPath(p) {
+		if p = agentPath(p); isAbsAgentPath(p, operatingSystem) {
 			out = append(out, p)
 		}
 		return out
@@ -562,9 +566,11 @@ func (p *Server) discoverInstructionContext(
 	// inventory is read again inside it: an agent push during the round
 	// trip may have made one of the resolved sources a snapshot row, and a
 	// refresh may have pinned a newer read of one, which this older read
-	// must not replace.
+	// must not replace. Repeatable read, so a refresh that commits between
+	// that list and the writes fails them with a serialization error and
+	// the retry sees its rows.
 	var result discoveryReconciliation
-	err = p.db.InTx(func(tx database.Store) error {
+	err = database.ReadModifyUpdate(p.db, func(tx database.Store) error {
 		current, err := tx.ListChatContextResourcesByChatID(dbCtx, chat.ID)
 		if err != nil {
 			return xerrors.Errorf("list chat context resources: %w", err)
@@ -572,7 +578,7 @@ func (p *Server) discoverInstructionContext(
 		kept, files, reserved := unchangedDiscoveredRows(rows, current, resolved)
 		result, err = reconcileDiscoveredInstructionFiles(dbCtx, tx, chat.ID, kept, files, stale, probed, reserved)
 		return err
-	}, nil)
+	})
 	if err != nil {
 		logger.Warn(ctx, "reconcile discovered instruction files", slog.Error(err))
 		return

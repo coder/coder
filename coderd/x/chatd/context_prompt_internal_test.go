@@ -149,6 +149,14 @@ func TestContextResourcesToPrompt(t *testing.T) {
 		require.Less(t, root, dotCoder)
 		require.Less(t, dotCoder, nested)
 		require.Less(t, nested, registered)
+
+		// A working directory named .coder holds root files, and the
+		// deeper ~/.coder file still leads them.
+		instruction, _, _ = contextResourcesToPrompt([]database.ChatContextResource{
+			instructionResource(t, "/repo/.coder/AGENTS.md", "repo", database.WorkspaceAgentContextResourceStatusOk),
+			instructionResource(t, "/home/coder/.coder/AGENTS.md", "global", database.WorkspaceAgentContextResourceStatusOk),
+		}, "linux", "/repo/.coder", workspaceContextNoInstructionFilesNote)
+		require.Less(t, strings.Index(instruction, "Source: /home/coder/.coder/AGENTS.md"), strings.Index(instruction, "Source: /repo/.coder/AGENTS.md"))
 	})
 
 	t.Run("NamesOmittedFilesNextToRenderedOnes", func(t *testing.T) {
