@@ -25,11 +25,14 @@ const ReadTemplateReadmeMaxRunes = 8000
 
 const (
 	readTemplateBuildDefaultsNote = "Parameter defaults are the values a " +
-		"build for this workspace owner uses when create_workspace omits the " +
-		"parameter. To use a preset, pass its preset_id: a prebuilt workspace " +
-		"is claimed only for a preset given explicitly or matched by the " +
-		"parameter values passed to create_workspace, never by defaults, and " +
-		"a preset marked default is not applied implicitly."
+		"build for this workspace owner uses when create_workspace omits " +
+		"every parameter. A default that depends on another parameter is " +
+		"re-evaluated against the values passed to create_workspace, so pass " +
+		"it explicitly when its value matters. To use a preset, pass its " +
+		"preset_id: a prebuilt workspace is claimed only for a preset given " +
+		"explicitly or matched by the parameter values passed to " +
+		"create_workspace, never by defaults, and a preset marked default is " +
+		"not applied implicitly."
 	readTemplateImportDefaultsNote = "Parameter defaults could not be " +
 		"evaluated for the workspace owner and are the values recorded at " +
 		"template import, which may differ from what a build uses. Pass " +
@@ -37,8 +40,10 @@ const (
 	readTemplateImportingNote = "The active template version is still " +
 		"importing, so its parameters are not available yet. Retry " +
 		"read_template shortly."
-	readTemplateBuildTimeDefaultNote = "resolved on the provisioner at " +
-		"build time; showing the value recorded at template import"
+	readTemplateModuleFallbackNote = "not evaluated for this owner because a " +
+		"module could not be loaded before the build; shown as recorded at " +
+		"template import, so it may not apply to this owner and its default " +
+		"may differ from the build value"
 	readTemplateUnresolvedDefaultNote = "no default could be evaluated for " +
 		"this owner before the build; omit the parameter to let the build " +
 		"resolve it, or pass a value explicitly"
@@ -80,7 +85,7 @@ func ReadTemplate(db database.Store, organizationID uuid.UUID, options ReadTempl
 		"Get details about a workspace template, including its "+
 			"configurable parameters, available presets, and the active "+
 			"version README. Parameter defaults are the values "+
-			"create_workspace uses when a parameter is omitted, unless "+
+			"create_workspace uses when every parameter is omitted, unless "+
 			"parameters_note in the result says otherwise. Use this after "+
 			"list_templates when you need parameter details, preset IDs, or "+
 			"the README before create_workspace.",
@@ -264,15 +269,19 @@ func readTemplateParameters(
 		// option set, or validation bound that is unknown before the build
 		// from one that evaluates to null for this owner, so those are shown
 		// exactly as evaluated, as the create-workspace form does.
+		//
+		// Import rows record no module provenance, so a root-level parameter
+		// the render omitted for this owner (count = 0) is restored too. The
+		// import evaluates parameters as a member of the Everyone group only,
+		// so such rows exist. Every restored row is therefore labeled as an
+		// import-time estimate rather than an owner-evaluated parameter.
 		if incompleteRender(diags) {
 			for _, row := range rows {
 				if _, ok := renderedNames[row.Name]; ok {
 					continue
 				}
 				entry := staticParameterEntry(row)
-				if row.DefaultValue != "" {
-					entry["default_note"] = readTemplateBuildTimeDefaultNote
-				}
+				entry["note"] = readTemplateModuleFallbackNote
 				paramList = append(paramList, entry)
 			}
 		}

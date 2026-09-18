@@ -421,6 +421,11 @@ func TestReadTemplate_OwnerEvaluatedParameters(t *testing.T) {
 		require.Equal(t, "eu-helsinki", opts[1].(map[string]any)["value"])
 		require.NotContains(t, region, "default_note")
 		require.Contains(t, note, "values a build for this workspace owner uses")
+		// The render omits every parameter, and a build re-evaluates a
+		// default that depends on another parameter against the values it
+		// is given, so the note must not promise more than that.
+		require.Contains(t, note, "omits every parameter")
+		require.Contains(t, note, "re-evaluated against the values passed to create_workspace")
 	})
 
 	t.Run("ParameterErrorIsReported", func(t *testing.T) {
@@ -530,12 +535,25 @@ func TestReadTemplate_OwnerEvaluatedParameters(t *testing.T) {
 		// preview drops every parameter declared by a module it cannot load
 		// and reports that as a module_not_loaded warning, not an error.
 		// provisionerd still resolves the module at build time, so the
-		// import row is the best estimate for those parameters.
+		// import row is the best estimate for those parameters. Import rows
+		// do not say which module declared them, so a root-level parameter
+		// the render omitted for this owner is restored the same way and
+		// must carry the same caveat.
 		withModule := newTemplate(t, database.Template{}, regionRow, database.TemplateVersionParameter{
 			Name:         "jetbrains_ide",
 			Type:         "string",
 			DefaultValue: "GO",
 		})
+		// A required root parameter with count = 0 for this owner. Inserted
+		// directly because dbgen fills an empty default with a random value.
+		_, err := db.InsertTemplateVersionParameter(testutil.Context(t, testutil.WaitShort), database.InsertTemplateVersionParameterParams{
+			TemplateVersionID: withModule.ActiveVersionID,
+			Name:              "admin_only",
+			Type:              "string",
+			Required:          true,
+			Options:           json.RawMessage("[]"),
+		})
+		require.NoError(t, err)
 		params, note := readAll(t, withModule.ID, func(context.Context, uuid.UUID, uuid.UUID) ([]codersdk.PreviewParameter, []codersdk.FriendlyDiagnostic, error) {
 			return ownerRendered, []codersdk.FriendlyDiagnostic{{
 				Severity: codersdk.DiagnosticSeverityWarning,
@@ -543,10 +561,14 @@ func TestReadTemplate_OwnerEvaluatedParameters(t *testing.T) {
 				Extra:    codersdk.DiagnosticExtra{Code: "module_not_loaded"},
 			}}, nil
 		})
-		require.Len(t, params, 2)
+		require.Len(t, params, 3)
 		require.Equal(t, "eu-helsinki", params["Region"]["default"], "rendered parameters keep the owner default")
+		require.NotContains(t, params["Region"], "note")
 		require.Equal(t, "GO", params["jetbrains_ide"]["default"], "module parameter recovered from the import row")
-		require.Contains(t, params["jetbrains_ide"]["default_note"], "recorded at template import")
+		require.Contains(t, params["jetbrains_ide"]["note"], "may not apply to this owner")
+		require.Equal(t, true, params["admin_only"]["required"])
+		require.Contains(t, params["admin_only"]["note"], "may not apply to this owner",
+			"a restored row without a default is still an import-time estimate")
 		require.Contains(t, note, "values a build for this workspace owner uses")
 	})
 
