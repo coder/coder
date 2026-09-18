@@ -21,11 +21,9 @@ type ChatCompletionNewParamsWrapper struct {
 	// Google upstreams, which read provider-specific settings such as
 	// Gemini's thinking_config from it.
 	ExtraBody json.RawMessage `json:"-"`
-	// PreservedFields holds client-sent JSON the typed params drop on
-	// unmarshal and that must reach the upstream at the same path. Today
-	// this is the Anthropic-style cache_control marker on messages and
-	// content parts, which OpenAI-compatible upstreams such as OpenRouter
-	// honor for prompt caching.
+	// PreservedFields holds client-sent JSON that the typed params drop on
+	// unmarshal but that must reach the upstream at the same path, such as
+	// the cache_control markers OpenRouter honors for Anthropic models.
 	PreservedFields []preservedJSONField `json:"-"`
 }
 
@@ -66,8 +64,6 @@ func (c *ChatCompletionNewParamsWrapper) UnmarshalJSON(raw []byte) error {
 	return nil
 }
 
-// preservedCacheControlFields records every message-level and
-// content-part-level cache_control marker in the raw request.
 func preservedCacheControlFields(raw []byte) []preservedJSONField {
 	var fields []preservedJSONField
 	for i, message := range gjson.GetBytes(raw, "messages").Array() {
