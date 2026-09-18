@@ -14,6 +14,20 @@ import {
 } from "bippy";
 import { getOwnerStack, getParentStack, getSource } from "bippy/source";
 
+// Importing bippy installs its React DevTools hook, and as part of that
+// it replaces `window.hasOwnProperty` with a wrapper that ignores `this`
+// until something probes for the hook. Code in the previewed app that
+// calls the bare global (`hasOwnProperty.call(obj, key)`, as css-tree
+// and many older libraries do) then silently misbehaves. Undo it here;
+// the wrapper is an own, configurable property over the prototype one.
+if (
+	typeof window !== "undefined" &&
+	Object.hasOwn(window, "hasOwnProperty") &&
+	window.hasOwnProperty !== Object.prototype.hasOwnProperty
+) {
+	Reflect.deleteProperty(window, "hasOwnProperty");
+}
+
 const skippedComponentNames = new Set([
 	"Fragment",
 	"Suspense",
