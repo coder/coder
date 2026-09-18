@@ -36,7 +36,7 @@ import {
 	deriveEvictedFileIds,
 	deriveMessageDisplayState,
 } from "./messageHelpers";
-import { getEditableUserMessagePayload } from "./messageParsing";
+import { getEditableContentPayload } from "./messageParsing";
 import { assignTimelineRows } from "./timelineRows";
 import type {
 	MergedTool,
@@ -303,8 +303,9 @@ const ChatMessageItem = memo<{
 											className="size-6"
 											aria-label="Edit message"
 											onClick={() => {
-												const { text, fileBlocks } =
-													getEditableUserMessagePayload(message);
+												const { text, fileBlocks } = getEditableContentPayload(
+													message.content,
+												);
 												onEditUserMessage(messageId, text, fileBlocks);
 											}}
 										>

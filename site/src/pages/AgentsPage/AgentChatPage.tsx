@@ -67,6 +67,7 @@ import {
 	useChatStore,
 } from "./components/ChatConversation/chatStore";
 import { submitChatTurn } from "./components/ChatConversation/submitChatTurn";
+import type { EditingTarget } from "./components/ChatConversation/types";
 import { useChatToolInvalidations } from "./components/ChatConversation/useChatToolInvalidations";
 import { useWorkspaceWatch } from "./components/ChatConversation/useWorkspaceWatch";
 import { isChatAgentBindingUnresolved } from "./components/ChatConversation/watchedWorkspace";
@@ -576,11 +577,17 @@ const AgentChatPage: FC = () => {
 		chatInputRef,
 		inputValueRef,
 	});
-	const handleEditUserMessage = (
-		...args: Parameters<typeof editing.handleEditUserMessage>
+	const handleBeginHistoryEdit = (
+		messageId: number,
+		text: string,
+		fileBlocks?: readonly TypesGen.ChatMessagePart[],
 	) => {
 		isEditReasoningEffortDirtyRef.current = false;
-		editing.handleEditUserMessage(...args);
+		editing.handleBeginEdit(
+			{ kind: "history", id: messageId },
+			text,
+			fileBlocks,
+		);
 	};
 
 	const chatTitle = chatQuery.data?.title;
@@ -663,14 +670,14 @@ const AgentChatPage: FC = () => {
 	async function handleSend(
 		message: string,
 		attachments?: readonly PendingAttachment[],
-		editedMessageID?: number,
+		editingTarget?: EditingTarget,
 	) {
 		await submitChatTurn({
 			...chatTurnDeps,
 			message,
 			attachments,
-			editedMessageID,
 			composerParts: editing.chatInputRef.current?.getContentParts() ?? [],
+			editingTarget,
 		});
 	}
 
@@ -743,7 +750,7 @@ const AgentChatPage: FC = () => {
 					workspaceAgent={workspaceAgent}
 					store={store}
 					initialMessages={chatMessagesList ?? []}
-					editing={{ ...editing, handleEditUserMessage }}
+					editing={{ ...editing, handleBeginHistoryEdit }}
 					effectiveSelectedModel={effectiveSelectedModel}
 					setSelectedModel={setSelectedModel}
 					modelOptions={modelOptions}
@@ -755,7 +762,7 @@ const AgentChatPage: FC = () => {
 					reasoningEffort={effectiveReasoningEffort}
 					onReasoningEffortChange={(value) => {
 						setSelectedReasoningEffort(value);
-						if (editing.editingMessageId !== null) {
+						if (editing.editingTarget !== null) {
 							isEditReasoningEffortDirtyRef.current = true;
 						}
 					}}

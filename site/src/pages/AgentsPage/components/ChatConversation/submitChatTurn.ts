@@ -28,6 +28,7 @@ import {
 	submitEdit,
 } from "./chatQueueReconciliation";
 import type { ChatStore } from "./chatStore";
+import type { EditingTarget } from "./types";
 
 /** @internal Exported for testing. */
 export const lastModelConfigIDStorageKey = "agents.last-model-config-id";
@@ -35,7 +36,7 @@ export const lastModelConfigIDStorageKey = "agents.last-model-config-id";
 export type SubmitChatTurnParams = {
 	message: string;
 	attachments?: readonly PendingAttachment[];
-	editedMessageID?: number;
+	editingTarget?: EditingTarget;
 	composerParts?: readonly ChatComposerContentPart[];
 	clearPlanMode?: boolean;
 	isSubmissionPending: boolean;
@@ -119,11 +120,11 @@ const persistLastModelConfigID = (modelConfigID: string): void => {
 
 const findBuiltInChatCommand = (
 	content: readonly TypesGen.ChatInputPart[],
-	editedMessageID: number | undefined,
+	editingTarget: EditingTarget | undefined,
 ): (typeof CHAT_SLASH_COMMANDS)[number] | undefined => {
 	// Built-ins only intercept new, text-only sends. A personal or workspace
 	// skill with the same name takes precedence at availability resolution.
-	if (editedMessageID !== undefined || content.length !== 1) {
+	if (editingTarget !== undefined || content.length !== 1) {
 		return undefined;
 	}
 	const [part] = content;
@@ -251,7 +252,7 @@ export async function submitChatTurn(
 	const {
 		message,
 		attachments,
-		editedMessageID,
+		editingTarget,
 		composerParts,
 		clearPlanMode = false,
 		isSubmissionPending,
@@ -291,7 +292,7 @@ export async function submitChatTurn(
 		return;
 	}
 
-	const builtInCommand = findBuiltInChatCommand(content, editedMessageID);
+	const builtInCommand = findBuiltInChatCommand(content, editingTarget);
 	const builtInCommandResolution = builtInCommand
 		? resolveChatSlashCommandAvailability(
 				builtInCommand,
@@ -318,7 +319,8 @@ export async function submitChatTurn(
 		return;
 	}
 
-	if (editedMessageID !== undefined) {
+	if (editingTarget?.kind === "history") {
+		const editedMessageID = editingTarget.id;
 		const originalEditedMessage = chatMessages?.find(
 			(existingMessage) => existingMessage.id === editedMessageID,
 		);
