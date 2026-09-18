@@ -1,17 +1,75 @@
-import { ExternalLinkIcon, NetworkIcon } from "lucide-react";
-import type { FC } from "react";
+import { formatAnnotations } from "@coder/annotator/formatAnnotations";
+import {
+	type AnnotationSubmission,
+	annotatorQueryParam,
+} from "@coder/annotator/protocol";
+import {
+	ExternalLinkIcon,
+	MessageSquarePlusIcon,
+	NetworkIcon,
+} from "lucide-react";
+import { type FC, useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
+import { getErrorMessage } from "#/api/errors";
 import type { Workspace, WorkspaceAgent } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "#/components/Tooltip/Tooltip";
 import { WorkspaceIframe } from "#/modules/apps/WorkspaceAppFrame";
 import { portForwardURL } from "#/utils/portForward";
+import {
+	type ComposerHandle,
+	useComposer,
+} from "../../context/ComposerContext";
+import { useAnnotatorBridge } from "../../hooks/useAnnotatorBridge";
 import type { UserRightPanelTab } from "../../utils/rightPanelTabs";
+
+const sendRetries = 6;
+const sendRetryMs = 500;
+
+// Sends one annotation message, retrying briefly while another submission
+// is in flight so a quick second comment is delayed rather than dropped.
+// Failures are reported to the user here; the result says whether the
+// message was accepted. Kept outside the component because the React
+// Compiler does not yet handle loops inside try/catch.
+async function deliver(
+	composer: ComposerHandle,
+	message: string,
+): Promise<boolean> {
+	try {
+		for (let attempt = 0; attempt < sendRetries; attempt++) {
+			if ((await composer.send(message)) === "sent") {
+				return true;
+			}
+			await new Promise((resolve) => setTimeout(resolve, sendRetryMs));
+		}
+		toast.error("The chat is busy; the UI annotation was not sent.");
+	} catch (error) {
+		toast.error(getErrorMessage(error, "Failed to send UI annotation."));
+	}
+	return false;
+}
 
 export const PortPreviewPanel: FC<{
 	workspace: Workspace;
 	agent: WorkspaceAgent;
 	host: string;
 	tab: Extract<UserRightPanelTab, { kind: "port" }>;
-}> = ({ workspace, agent, host, tab }) => {
+	// Shows the annotate control. Requires the chat-ui-annotations
+	// experiment so the app proxy injects the overlay.
+	canAnnotate?: boolean;
+	annotatorReadyTimeoutMs?: number;
+}> = ({
+	workspace,
+	agent,
+	host,
+	tab,
+	canAnnotate = false,
+	annotatorReadyTimeoutMs,
+}) => {
 	const url = portForwardURL(
 		host,
 		tab.port,
@@ -21,6 +79,71 @@ export const PortPreviewPanel: FC<{
 		tab.protocol,
 	);
 	const unavailableMessage = getUnavailableMessage({ host, agent, url });
+	const frameRef = useRef<HTMLIFrameElement>(null);
+	const composer = useComposer();
+	// The proxy injects the overlay only on the request that carries the
+	// marker param, so each request reloads the frame. Client-side routing
+	// inside the app keeps the overlay; a full navigation drops it until
+	// the user presses Annotate again.
+	const [overlayRequests, setOverlayRequests] = useState(0);
+
+	// Each saved comment goes straight to the agent as its own message.
+	// Sends are serialised so quick successive comments arrive in order.
+	const sendQueueRef = useRef(Promise.resolve());
+	const handleSubmit = (submission: AnnotationSubmission) => {
+		if (!composer) {
+			return;
+		}
+		const message = formatAnnotations(submission);
+		sendQueueRef.current = sendQueueRef.current.then(async () => {
+			await deliver(composer, message);
+		});
+	};
+
+	const frameUrl = unavailableMessage
+		? undefined
+		: withAnnotatorParam(url, overlayRequests > 0);
+	const bridge = useAnnotatorBridge({
+		frameRef,
+		frameKey: overlayRequests,
+		frameOrigin: frameUrl ? new URL(frameUrl).origin : undefined,
+		enabled: overlayRequests > 0,
+		readyTimeoutMs: annotatorReadyTimeoutMs,
+		onSubmit: handleSubmit,
+	});
+
+	// The overlay is requested at most once per attempt: while it is still
+	// loading, further clicks only update the desired picking state instead
+	// of reloading the frame again.
+	const overlayPending =
+		overlayRequests > 0 && !bridge.ready && !bridge.unavailable;
+	const handleAnnotateClick = () => {
+		if (!bridge.ready && !overlayPending) {
+			setOverlayRequests((count) => count + 1);
+		}
+		bridge.setPicking(!bridge.picking);
+	};
+
+	// Escape leaves annotate mode from either side. Focus normally stays in
+	// the dashboard when the button is clicked, so move it into the frame
+	// once the overlay confirms picking, and also listen here in case it
+	// moves back.
+	useEffect(() => {
+		if (!bridge.picking) {
+			return;
+		}
+		frameRef.current?.focus();
+		const onKeyDown = (event: KeyboardEvent) => {
+			if (event.key === "Escape" && !event.defaultPrevented) {
+				bridge.setPicking(false);
+			}
+		};
+		window.addEventListener("keydown", onKeyDown);
+		return () => window.removeEventListener("keydown", onKeyDown);
+	}, [bridge.picking, bridge.setPicking]);
+
+	const showAnnotate =
+		canAnnotate && composer !== undefined && frameUrl !== undefined;
 
 	return (
 		<div className="flex h-full min-h-0 flex-col">
@@ -30,6 +153,41 @@ export const PortPreviewPanel: FC<{
 					{tab.label}
 				</span>
 				<div className="flex-1" />
+				{showAnnotate && (
+					<Tooltip>
+						{/* Disabled buttons emit no pointer events, so the span
+						 * keeps the tooltip reachable when the overlay failed. */}
+						<TooltipTrigger asChild>
+							<span className="inline-flex">
+								<Button
+									size="icon"
+									variant="subtle"
+									aria-pressed={bridge.picking}
+									aria-label={
+										bridge.picking ? "Stop annotating" : "Annotate elements"
+									}
+									disabled={bridge.unavailable}
+									aria-busy={overlayPending}
+									onClick={handleAnnotateClick}
+									className={
+										bridge.picking
+											? "bg-surface-tertiary text-content-primary"
+											: undefined
+									}
+								>
+									<MessageSquarePlusIcon />
+								</Button>
+							</span>
+						</TooltipTrigger>
+						<TooltipContent side="bottom">
+							{bridge.unavailable
+								? "The annotation overlay could not load in this app. It may block external scripts or not serve HTML."
+								: bridge.picking
+									? "Click elements in the preview to annotate them"
+									: "Annotate elements in the preview; each comment is sent to the agent"}
+						</TooltipContent>
+					</Tooltip>
+				)}
 				{unavailableMessage ? (
 					<Button
 						size="icon"
@@ -57,11 +215,26 @@ export const PortPreviewPanel: FC<{
 					{unavailableMessage}
 				</div>
 			) : (
-				<WorkspaceIframe src={url} title={tab.label} />
+				<WorkspaceIframe
+					key={overlayRequests}
+					ref={frameRef}
+					src={frameUrl}
+					title={tab.label}
+					onLoad={bridge.frameLoaded}
+				/>
 			)}
 		</div>
 	);
 };
+
+function withAnnotatorParam(url: string, enabled: boolean): string {
+	if (!enabled) {
+		return url;
+	}
+	const next = new URL(url);
+	next.searchParams.set(annotatorQueryParam, "1");
+	return next.toString();
+}
 
 function getUnavailableMessage({
 	host,

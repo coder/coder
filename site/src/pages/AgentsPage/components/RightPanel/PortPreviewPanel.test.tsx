@@ -1,0 +1,246 @@
+import type { AnnotatorToHostMessage } from "@coder/annotator/protocol";
+import { act, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import type { FC } from "react";
+import { describe, expect, it, vi } from "vitest";
+import { MockWorkspace, MockWorkspaceAgent } from "#/testHelpers/entities";
+import { renderComponent } from "#/testHelpers/renderHelpers";
+import {
+	ComposerProvider,
+	type ComposerSendResult,
+	useRegisterComposer,
+} from "../../context/ComposerContext";
+import type { UserRightPanelTab } from "../../utils/rightPanelTabs";
+import { PortPreviewPanel } from "./PortPreviewPanel";
+
+vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
+
+const tab: Extract<UserRightPanelTab, { kind: "port" }> = {
+	id: "port-3000",
+	kind: "port",
+	label: "Preview :3000",
+	agentId: MockWorkspaceAgent.id,
+	port: 3000,
+	protocol: "http",
+};
+
+type Send = (message: string) => Promise<ComposerSendResult>;
+
+const Composer: FC<{ onSend: Send }> = ({ onSend }) => {
+	useRegisterComposer({ send: onSend });
+	return null;
+};
+
+const sent = () => vi.fn<Send>().mockResolvedValue("sent");
+
+function frameWindow(frame: HTMLIFrameElement): Window {
+	if (!frame.contentWindow) {
+		throw new Error("frame has no window");
+	}
+	return frame.contentWindow;
+}
+
+function renderPanel(onSend = sent(), readyTimeoutMs?: number) {
+	renderComponent(
+		<ComposerProvider>
+			<Composer onSend={onSend} />
+			<PortPreviewPanel
+				workspace={MockWorkspace}
+				agent={MockWorkspaceAgent}
+				host="*.apps.example.com"
+				tab={tab}
+				canAnnotate
+				annotatorReadyTimeoutMs={readyTimeoutMs}
+			/>
+		</ComposerProvider>,
+	);
+	// Requesting the overlay remounts the iframe, so always look it up fresh.
+	const frame = () => screen.getByTitle<HTMLIFrameElement>("Preview :3000");
+	const frameOrigin = new URL(frame().src).origin;
+	const receive = (data: AnnotatorToHostMessage) => {
+		window.dispatchEvent(
+			new MessageEvent("message", {
+				data,
+				origin: frameOrigin,
+				source: frameWindow(frame()),
+			}),
+		);
+	};
+	return { frame, frameOrigin, receive, onSend };
+}
+
+const submission: AnnotatorToHostMessage = {
+	type: "coder-annotator:submit",
+	page: {
+		url: "http://3000--agent--ws--user.apps.example.com/",
+		title: "App",
+		viewport: { width: 800, height: 600 },
+	},
+	annotations: [
+		{
+			id: "a",
+			comment: "Make this red",
+			element: {
+				tag: "button",
+				selector: "#save",
+				classes: [],
+				openingTag: '<button id="save">',
+				rect: { x: 1, y: 2, width: 3, height: 4 },
+			},
+		},
+	],
+};
+
+const annotateButton = () =>
+	screen.getByRole("button", { name: /annotate elements|stop annotating/i });
+
+const requestOverlay = () => userEvent.click(annotateButton());
+
+describe("PortPreviewPanel annotations", () => {
+	it("requests the overlay and starts picking once it is ready", async () => {
+		const { frame, frameOrigin, receive } = renderPanel();
+		await requestOverlay();
+
+		expect(new URL(frame().src).searchParams.get("coder_annotate")).toBe("1");
+		const postMessage = vi.spyOn(frameWindow(frame()), "postMessage");
+		expect(postMessage).not.toHaveBeenCalled();
+
+		receive({ type: "coder-annotator:ready" });
+		expect(postMessage).toHaveBeenCalledWith(
+			{ type: "coder-annotator:set-picking", picking: true },
+			frameOrigin,
+		);
+	});
+
+	it("does not reload the frame for clicks while the overlay is loading", async () => {
+		const { frame } = renderPanel();
+		await requestOverlay();
+		const requestedSrc = frame().src;
+		const requestedFrame = frame();
+
+		await userEvent.click(annotateButton());
+		expect(frame()).toBe(requestedFrame);
+		expect(frame().src).toBe(requestedSrc);
+	});
+
+	it("leaves annotate mode on Escape pressed in the dashboard", async () => {
+		const { frame, frameOrigin, receive } = renderPanel();
+		await requestOverlay();
+		receive({ type: "coder-annotator:ready" });
+		const focus = vi.spyOn(frame(), "focus");
+		const postMessage = vi.spyOn(frameWindow(frame()), "postMessage");
+		await act(async () => {
+			receive({ type: "coder-annotator:state", picking: true });
+		});
+		expect(focus).toHaveBeenCalled();
+
+		await userEvent.keyboard("{Escape}");
+		expect(postMessage).toHaveBeenLastCalledWith(
+			{ type: "coder-annotator:set-picking", picking: false },
+			frameOrigin,
+		);
+	});
+
+	it("sends each submission to the agent as a message", async () => {
+		const { receive, onSend } = renderPanel();
+		await requestOverlay();
+		receive({ type: "coder-annotator:ready" });
+		receive(submission);
+
+		await waitFor(() => expect(onSend).toHaveBeenCalledTimes(1));
+		const [message] = onSend.mock.calls[0];
+		expect(message).toContain("# UI annotations");
+		expect(message).toContain("> Make this red");
+		expect(message).toContain("`#save`");
+	});
+
+	it("sends submissions in order and retries while the chat is busy", async () => {
+		const onSend = vi
+			.fn<Send>()
+			.mockResolvedValueOnce("busy")
+			.mockResolvedValue("sent");
+		const { receive } = renderPanel(onSend);
+		await requestOverlay();
+		receive({ type: "coder-annotator:ready" });
+		receive(submission);
+		receive({
+			...submission,
+			annotations: [
+				{ ...submission.annotations[0], id: "b", comment: "Then this" },
+			],
+		});
+
+		await waitFor(() => expect(onSend).toHaveBeenCalledTimes(3), {
+			timeout: 3000,
+		});
+		expect(onSend.mock.calls[0][0]).toContain("> Make this red");
+		expect(onSend.mock.calls[1][0]).toContain("> Make this red");
+		expect(onSend.mock.calls[2][0]).toContain("> Then this");
+	});
+
+	it("ignores the frame until the user requests the overlay", () => {
+		const { receive, onSend } = renderPanel();
+		receive({ type: "coder-annotator:ready" });
+		receive(submission);
+		expect(onSend).not.toHaveBeenCalled();
+	});
+
+	it("ignores submissions once the user has left annotate mode", async () => {
+		const { receive, onSend } = renderPanel();
+		await requestOverlay();
+		receive({ type: "coder-annotator:ready" });
+		// The user switches picking off from inside the preview; anything the
+		// page posts afterwards is not an annotation the user made.
+		receive({ type: "coder-annotator:state", picking: false });
+		receive(submission);
+		await new Promise((resolve) => setTimeout(resolve, 20));
+		expect(onSend).not.toHaveBeenCalled();
+	});
+
+	it("drops malformed submissions", async () => {
+		const { frame, frameOrigin, onSend } = renderPanel();
+		await requestOverlay();
+		window.dispatchEvent(
+			new MessageEvent("message", {
+				data: { type: "coder-annotator:submit", page: {}, annotations: "nope" },
+				origin: frameOrigin,
+				source: frameWindow(frame()),
+			}),
+		);
+		expect(onSend).not.toHaveBeenCalled();
+	});
+
+	it("ignores messages from other origins", async () => {
+		const { frame, onSend } = renderPanel();
+		await requestOverlay();
+		window.dispatchEvent(
+			new MessageEvent("message", {
+				data: submission,
+				origin: "https://evil.example.com",
+				source: frameWindow(frame()),
+			}),
+		);
+		expect(onSend).not.toHaveBeenCalled();
+	});
+
+	it("stops requesting the overlay once it failed to load", async () => {
+		const { frame, frameOrigin, receive } = renderPanel(sent(), 0);
+		await requestOverlay();
+		const requestedSrc = frame().src;
+		frame().dispatchEvent(new Event("load"));
+		await waitFor(() => expect(annotateButton()).toBeDisabled());
+
+		await userEvent.click(annotateButton());
+		expect(frame().src).toBe(requestedSrc);
+
+		// A late ready message recovers and delivers the pending request.
+		const postMessage = vi.spyOn(frameWindow(frame()), "postMessage");
+		receive({ type: "coder-annotator:ready" });
+		await waitFor(() =>
+			expect(postMessage).toHaveBeenCalledWith(
+				{ type: "coder-annotator:set-picking", picking: true },
+				frameOrigin,
+			),
+		);
+	});
+});

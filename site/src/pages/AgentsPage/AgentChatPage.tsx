@@ -91,6 +91,7 @@ import {
 } from "./components/MCPServerPicker";
 import { getModelSelectorHelp } from "./components/ModelSelectorHelp";
 import { useAgentChatPanelPreference } from "./components/RightPanel/useAgentChatPanelPreference";
+import type { ComposerSendResult } from "./context/ComposerContext";
 import {
 	BuiltInCommandPendingError,
 	useConversationEditingState,
@@ -988,6 +989,22 @@ const AgentChatPage: FC = () => {
 		});
 	};
 
+	// Right-panel tools (port preview annotations) send through here. The
+	// composer's own draft is left alone, and the caller learns whether a
+	// concurrent submission made this one a no-op.
+	const handleSendToolMessage = async (
+		message: string,
+	): Promise<ComposerSendResult> => {
+		if (isSubmissionPending || !hasModelOptions) {
+			return "busy";
+		}
+		await submitChatTurn({
+			message,
+			useComposerContent: false,
+		});
+		return "sent";
+	};
+
 	const handleImplementPlan = async () => {
 		await submitChatTurn({
 			message: "Implement the plan.",
@@ -1092,6 +1109,7 @@ const AgentChatPage: FC = () => {
 					handlePromoteQueuedMessage={handlePromoteQueuedMessage}
 					onImplementPlan={handleImplementPlan}
 					onSendAskUserQuestionResponse={handleSendAskUserQuestionResponse}
+					onSendToolMessage={handleSendToolMessage}
 					urlTransform={urlTransform}
 					hasMoreMessages={Boolean(chatMessagesQuery.hasNextPage)}
 					isFetchingMoreMessages={chatMessagesQuery.isFetchingNextPage}
