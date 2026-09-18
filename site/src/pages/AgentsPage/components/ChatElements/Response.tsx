@@ -3,7 +3,7 @@ import {
 	type SupportedLanguages,
 } from "@pierre/diffs/react";
 import { cn } from "cn";
-import type { ComponentPropsWithRef, ReactNode } from "react";
+import type { ComponentProps, ReactNode } from "react";
 import {
 	type Components,
 	defaultRehypePlugins,
@@ -15,7 +15,7 @@ import { useTheme } from "#/theme/context";
 import { MarkdownImage } from "./MarkdownImage";
 import { MermaidDiagram } from "./MermaidDiagram";
 
-interface ResponseProps extends Omit<ComponentPropsWithRef<"div">, "children"> {
+interface ResponseProps extends Omit<ComponentProps<"div">, "children"> {
 	children: string;
 	urlTransform?: UrlTransform;
 	/** Enable streaming-mode Streamdown with incomplete-markdown

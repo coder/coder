@@ -36,7 +36,7 @@ export const HelpPopoverContent: FC<PopoverContentProps> = ({
 	);
 };
 
-type HelpPopoverIconTriggerProps = React.ComponentPropsWithRef<"button"> & {
+type HelpPopoverIconTriggerProps = React.ComponentProps<"button"> & {
 	size?: Size;
 	hoverEffect?: boolean;
 };

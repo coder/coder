@@ -20,7 +20,7 @@ export const TooltipTrigger = TooltipPrimitive.Trigger;
 
 export const TooltipArrow = TooltipPrimitive.Arrow;
 
-type TooltipContentProps = React.ComponentPropsWithRef<
+type TooltipContentProps = React.ComponentProps<
 	typeof TooltipPrimitive.Content
 > & {
 	disablePortal?: boolean;
