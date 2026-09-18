@@ -54,6 +54,44 @@ export const formatModelIntentLabel = (
 	return trimmed.charAt(0).toUpperCase() + trimmed.slice(1);
 };
 
+/**
+ * Returns " (manual)" or " (agent)" for those `source` values and an
+ * empty string for any other value, including `automatic` and
+ * `undefined`.
+ */
+export const contextBoundarySourceSuffix = (
+	source: string | undefined,
+): string => {
+	switch (source) {
+		case "manual":
+			return " (manual)";
+		case "agent":
+			return " (agent)";
+		default:
+			return "";
+	}
+};
+
+/**
+ * Returns the `source` string of a `chat_cleared` or `chat_summarized`
+ * call. The result value wins when present; otherwise the call args
+ * are read, which is all that exists while the call is streaming.
+ * Returns undefined when neither carries a non-empty string.
+ */
+export const getContextBoundarySource = (
+	args: unknown,
+	result: unknown,
+): string | undefined => {
+	const rec = asRecord(result);
+	const fromResult = rec ? asString(rec.source) : "";
+	if (fromResult) {
+		return fromResult;
+	}
+	const argsRec = parseArgs(args);
+	const fromArgs = argsRec ? asString(argsRec.source) : "";
+	return fromArgs || undefined;
+};
+
 const trailingDurationPattern =
 	/(^|\s+)for\s+\d+(?:\.\d+)?\s*(?:ms|s|m|h)\s*$/i;
 

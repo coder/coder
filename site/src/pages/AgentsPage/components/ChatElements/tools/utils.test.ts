@@ -3,6 +3,7 @@ import {
 	buildEditDiff,
 	buildWriteFileDiff,
 	COLLAPSED_REPORT_HEIGHT,
+	contextBoundarySourceSuffix,
 	DIFFS_FONT_STYLE,
 	diffViewerCSS,
 	fileViewerCSS,
@@ -10,6 +11,7 @@ import {
 	formatResultOutput,
 	formatShellDurationMs,
 	formatToolInput,
+	getContextBoundarySource,
 	getDiffViewerOptions,
 	getFileContentForViewer,
 	getFileViewerOptions,
@@ -31,6 +33,44 @@ import {
 	stripSvnIndexHeaders,
 	summarizeParsedCommands,
 } from "./utils";
+
+describe("contextBoundarySourceSuffix", () => {
+	it.each([
+		["manual", " (manual)"],
+		["agent", " (agent)"],
+		["automatic", ""],
+		["", ""],
+		[undefined, ""],
+		["unexpected", ""],
+	])("maps source %j to %j", (source, suffix) => {
+		expect(contextBoundarySourceSuffix(source)).toBe(suffix);
+	});
+});
+
+describe("getContextBoundarySource", () => {
+	it("prefers the result source over the args source", () => {
+		expect(
+			getContextBoundarySource(JSON.stringify({ source: "manual" }), {
+				source: "agent",
+			}),
+		).toBe("agent");
+	});
+
+	it("falls back to the args source when the result has none", () => {
+		expect(
+			getContextBoundarySource(JSON.stringify({ source: "agent" }), undefined),
+		).toBe("agent");
+		expect(
+			getContextBoundarySource({ source: "manual" }, { summary: "text" }),
+		).toBe("manual");
+	});
+
+	it("returns undefined when neither carries a source", () => {
+		expect(getContextBoundarySource(undefined, undefined)).toBeUndefined();
+		expect(getContextBoundarySource("{}", { source: "" })).toBeUndefined();
+		expect(getContextBoundarySource("not json", "text")).toBeUndefined();
+	});
+});
 
 describe("formatModelIntentLabel", () => {
 	it("returns empty string for empty values", () => {
