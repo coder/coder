@@ -1,7 +1,6 @@
-import { XIcon } from "lucide-react";
-import { type FC, useEffect, useState } from "react";
+import { type FC, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
-import { useLocation, useNavigate, useSearchParams } from "react-router";
+import { Navigate, useLocation, useNavigate, useParams } from "react-router";
 import { toast } from "sonner";
 import { getErrorMessage, isApiError } from "#/api/errors";
 import { chatProject } from "#/api/queries/chatProjects";
@@ -9,8 +8,6 @@ import { createChat } from "#/api/queries/chats";
 import { workspaces } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
-import { Badge } from "#/components/Badge/Badge";
-import { Button } from "#/components/Button/Button";
 import { useWebpushNotifications } from "#/contexts/useWebpushNotifications";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useAIGatewayEnabled } from "#/hooks/useEmbeddedMetadata";
@@ -21,62 +18,52 @@ import {
 } from "./components/AgentCreateForm";
 import { AgentPageHeader } from "./components/AgentPageHeader";
 import { ChimeButton } from "./components/ChimeButton";
+import {
+	ProjectComposerFooter,
+	ProjectComposerHeader,
+} from "./components/ProjectComposerFrame";
 import { WebPushButton } from "./components/WebPushButton";
 import { getChimeEnabled, setChimeEnabled } from "./utils/chime";
 import { buildAgentChatPath } from "./utils/navigation";
 
 const lastModelConfigIDStorageKey = "agents.last-model-config-id";
 
+/**
+ * New-chat page. Serves both `/agents` and `/agents/projects/:projectId`; in
+ * the latter case the composer is framed by the project and the created chat
+ * joins it.
+ */
 const AgentCreatePage: FC = () => {
 	const queryClient = useQueryClient();
 	const location = useLocation();
 	const navigate = useNavigate();
-	const [searchParams, setSearchParams] = useSearchParams();
+	const { projectId = "" } = useParams<{ projectId?: string }>();
 	const { permissions } = useAuthenticated();
 	const { experiments } = useDashboard();
-	const projectId = searchParams.get("project") ?? "";
+	const chatProjectsEnabled = experiments.includes("chat-projects");
 	const projectQuery = useQuery({
 		...chatProject(projectId),
-		enabled: experiments.includes("chat-projects") && Boolean(projectId),
+		enabled: chatProjectsEnabled && Boolean(projectId),
 	});
 	const selectedProject = projectQuery.data;
+	const isProjectMissing =
+		isApiError(projectQuery.error) &&
+		projectQuery.error.response.status === 404;
 	const projectLookupError =
-		projectId &&
-		experiments.includes("chat-projects") &&
-		projectQuery.error &&
-		(!isApiError(projectQuery.error) ||
-			projectQuery.error.response.status !== 404)
+		projectId && chatProjectsEnabled && projectQuery.error && !isProjectMissing
 			? projectQuery.error
 			: undefined;
 	const isProjectLookupPending =
-		Boolean(projectId) &&
-		experiments.includes("chat-projects") &&
-		projectQuery.isLoading;
+		Boolean(projectId) && chatProjectsEnabled && projectQuery.isLoading;
 	const aiGatewayDisabled = !useAIGatewayEnabled();
 	const workspacesQuery = useQuery(workspaces({ q: "owner:me", limit: 0 }));
 	const createMutation = useMutation(createChat(queryClient));
 	const webPush = useWebpushNotifications();
 	const [chimeEnabled, setChimeEnabledState] = useState(getChimeEnabled);
 
-	useEffect(() => {
-		if (
-			!projectId ||
-			!experiments.includes("chat-projects") ||
-			!isApiError(projectQuery.error) ||
-			projectQuery.error.response.status !== 404
-		) {
-			return;
-		}
-		const nextSearchParams = new URLSearchParams(searchParams);
-		nextSearchParams.delete("project");
-		setSearchParams(nextSearchParams, { replace: true });
-	}, [
-		experiments,
-		projectId,
-		projectQuery.error,
-		searchParams,
-		setSearchParams,
-	]);
+	if (projectId && (!chatProjectsEnabled || isProjectMissing)) {
+		return <Navigate to="/agents" replace />;
+	}
 
 	const handleCreateChat = async ({
 		message,
@@ -153,26 +140,6 @@ const AgentCreatePage: FC = () => {
 				<ChimeButton enabled={chimeEnabled} onToggle={handleChimeToggle} />
 				<WebPushButton webPush={webPush} onToggle={handleNotificationToggle} />
 			</AgentPageHeader>
-			{selectedProject && (
-				<div className="mx-auto w-full max-w-3xl px-4 pt-4">
-					<Badge size="sm" className="w-fit">
-						Project: {selectedProject.name}
-						<Button
-							variant="subtle"
-							size="icon"
-							className="-my-1 size-5 min-w-0"
-							aria-label="Remove project"
-							onClick={() => {
-								const nextSearchParams = new URLSearchParams(searchParams);
-								nextSearchParams.delete("project");
-								setSearchParams(nextSearchParams);
-							}}
-						>
-							<XIcon className="size-3" />
-						</Button>
-					</Badge>
-				</div>
-			)}
 			{projectLookupError && (
 				<ErrorAlert
 					error={projectLookupError}
@@ -180,6 +147,12 @@ const AgentCreatePage: FC = () => {
 				/>
 			)}
 			<AgentCreateForm
+				header={
+					selectedProject && <ProjectComposerHeader project={selectedProject} />
+				}
+				footer={
+					selectedProject && <ProjectComposerFooter project={selectedProject} />
+				}
 				onCreateChat={handleCreateChat}
 				isCreating={
 					createMutation.isPending ||
@@ -194,7 +167,7 @@ const AgentCreatePage: FC = () => {
 				workspaceOptions={workspacesQuery.data?.workspaces ?? []}
 				workspacesError={workspacesQuery.error}
 				isWorkspacesLoading={workspacesQuery.isLoading}
-			/>{" "}
+			/>
 		</>
 	);
 };

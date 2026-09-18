@@ -57,7 +57,7 @@ import {
 	PINNED_SECTION_KEY,
 } from "./ChatSectionHeader";
 import { LoadMoreSentinel } from "./LoadMoreSentinel";
-import { ProjectsSection } from "./ProjectsSection";
+import { ProjectFolders } from "./ProjectFolders";
 import { UserSidebarFooter } from "./UserSidebarFooter";
 
 const UNREAD_SECTION_KEY = "Unread";
@@ -151,6 +151,10 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 	const [collapsedSections, setCollapsedSections] = useState<
 		Record<string, boolean>
 	>({});
+	const [expandedProjectIds, setExpandedProjectIds] = useState<
+		Record<string, boolean>
+	>({});
+	const chatProjectsEnabled = Boolean(onOpenProjectDialog && onDeleteProject);
 
 	const chatTree = buildChatTree(chats);
 	const chatById = chatTree.chatById;
@@ -176,6 +180,21 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 	const unpinnedOwnedChats = unpinnedChats.filter(
 		(chat) => !chat.shared || chat.owner_id === currentUserId,
 	);
+	// Chats in a project render inside their folder and nowhere else.
+	const chatsByProjectId = new Map<string, Chat[]>();
+	const unfiledOwnedChats: Chat[] = [];
+	for (const chat of unpinnedOwnedChats) {
+		if (chatProjectsEnabled && chat.project_id) {
+			const bucket = chatsByProjectId.get(chat.project_id);
+			if (bucket) {
+				bucket.push(chat);
+			} else {
+				chatsByProjectId.set(chat.project_id, [chat]);
+			}
+		} else {
+			unfiledOwnedChats.push(chat);
+		}
+	}
 	const hasAppliedResultFilters =
 		sidebarFilters.prStatuses.length > 0 ||
 		sidebarFilters.chatStatuses.length !== AGENT_CHAT_STATUS_ORDER.length ||
@@ -294,6 +313,25 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 		}
 	}, [activeChatId]);
 
+	// Open the folder that holds the active chat or the project being viewed.
+	const activeProjectId =
+		(activeChatId ? chatById.get(activeChatId)?.project_id : undefined) ??
+		location.pathname.match(/^\/agents\/projects\/([^/]+)/)?.[1];
+	useEffect(() => {
+		if (!activeProjectId) {
+			return;
+		}
+		setExpandedProjectIds((prev) =>
+			prev[activeProjectId] ? prev : { ...prev, [activeProjectId]: true },
+		);
+	}, [activeProjectId]);
+	const toggleProject = (projectId: string) => {
+		setExpandedProjectIds((prev) => ({
+			...prev,
+			[projectId]: !prev[projectId],
+		}));
+	};
+
 	const toggleExpanded = (chatID: string) => {
 		setExpandedById((prev) => ({ ...prev, [chatID]: !prev[chatID] }));
 	};
@@ -331,18 +369,18 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 					{
 						key: UNREAD_SECTION_KEY,
 						label: UNREAD_SECTION_KEY,
-						chats: unpinnedOwnedChats.filter((chat) => chat.has_unread),
+						chats: unfiledOwnedChats.filter((chat) => chat.has_unread),
 					},
 					{
 						key: READ_SECTION_KEY,
 						label: READ_SECTION_KEY,
-						chats: unpinnedOwnedChats.filter((chat) => !chat.has_unread),
+						chats: unfiledOwnedChats.filter((chat) => !chat.has_unread),
 					},
 				]
 			: TIME_GROUPS.map((group) => ({
 					key: group,
 					label: group,
-					chats: unpinnedOwnedChats.filter(
+					chats: unfiledOwnedChats.filter(
 						(chat) => getTimeGroup(chat.updated_at) === group,
 					),
 				}))
@@ -511,6 +549,23 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 						) : (
 							<ChatTreeContext value={chatTreeCtx}>
 								<div className="pb-2">
+									{onOpenProjectDialog && onDeleteProject && (
+										<ProjectFolders
+											projects={projects}
+											projectPermissions={projectPermissions}
+											chatsByProjectId={chatsByProjectId}
+											expandedProjectIds={expandedProjectIds}
+											onToggle={toggleProject}
+											onCreate={() => onOpenProjectDialog(null)}
+											onEdit={onOpenProjectDialog}
+											onDelete={onDeleteProject}
+											error={projectsError}
+											onRetry={onRetryProjects}
+										/>
+									)}
+									{isProjectsLoading && (
+										<Skeleton className="mb-3 ml-2.5 h-3.5 w-20" />
+									)}
 									{isShowingEmptyState ? (
 										<div className="rounded-lg border border-dashed border-border-default bg-surface-primary p-4 text-center text-xs text-content-secondary">
 											<p className="m-0">{emptyStateMessage}</p>
@@ -622,22 +677,6 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 												);
 											})}
 										</>
-									)}
-									{onOpenProjectDialog && onDeleteProject && (
-										<ProjectsSection
-											projects={projects}
-											projectPermissions={projectPermissions}
-											expanded={!collapsedSections.Projects}
-											onToggle={() => toggleSection("Projects")}
-											onCreate={() => onOpenProjectDialog(null)}
-											onEdit={onOpenProjectDialog}
-											onDelete={onDeleteProject}
-											error={projectsError}
-											onRetry={onRetryProjects}
-										/>
-									)}
-									{isProjectsLoading && (
-										<Skeleton className="ml-2.5 h-3.5 w-20" />
 									)}
 								</div>
 								{(hasNextPage || isFetchingNextPage) && (

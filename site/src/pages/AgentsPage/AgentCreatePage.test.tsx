@@ -1,7 +1,7 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
-import type { FC, PropsWithChildren } from "react";
+import type { FC, PropsWithChildren, ReactNode } from "react";
 import { QueryClientProvider } from "react-query";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -24,25 +24,33 @@ vi.mock("./components/AgentCreateForm", () => ({
 	AgentCreateForm: ({
 		onCreateChat,
 		isCreating,
+		header,
+		footer,
 	}: {
 		onCreateChat: (options: {
 			message: string;
 			organizationId: string;
 		}) => Promise<void>;
 		isCreating: boolean;
+		header?: ReactNode;
+		footer?: ReactNode;
 	}) => (
-		<button
-			type="button"
-			disabled={isCreating}
-			onClick={() =>
-				onCreateChat({
-					message: "Create this chat",
-					organizationId: MockDefaultOrganization.id,
-				})
-			}
-		>
-			Create chat
-		</button>
+		<div>
+			{header}
+			<button
+				type="button"
+				disabled={isCreating}
+				onClick={() =>
+					onCreateChat({
+						message: "Create this chat",
+						organizationId: MockDefaultOrganization.id,
+					})
+				}
+			>
+				Create chat
+			</button>
+			{footer}
+		</div>
 	),
 }));
 
@@ -69,26 +77,17 @@ vi.mock("#/contexts/useWebpushNotifications", () => ({
 
 const LocationDisplay: FC = () => {
 	const location = useLocation();
-	return <output>{location.search}</output>;
+	return <output>{location.pathname}</output>;
 };
 
-const AgentCreatePageWithLocation: FC = () => (
-	<>
-		<AgentCreatePage />
-		<LocationDisplay />
-	</>
-);
+const projectPath = `/agents/projects/${MockChatProject.id}`;
 
 const Wrapper: FC<
 	PropsWithChildren<{
 		experiments: TypesGen.Experiment[];
 		initialEntry?: string;
 	}>
-> = ({
-	children,
-	experiments,
-	initialEntry = `/agents?project=${MockChatProject.id}`,
-}) => {
+> = ({ children, experiments, initialEntry = projectPath }) => {
 	const queryClient = createTestQueryClient();
 	return (
 		<QueryClientProvider client={queryClient}>
@@ -106,18 +105,30 @@ const Wrapper: FC<
 				<MemoryRouter initialEntries={[initialEntry]}>
 					<Routes>
 						<Route path="/agents" element={children} />
+						<Route path="/agents/projects/:projectId" element={children} />
 						<Route path="/agents/:agentId" element={<div />} />
 					</Routes>
+					<LocationDisplay />
 				</MemoryRouter>
 			</DashboardContext.Provider>
 		</QueryClientProvider>
 	);
 };
 
+const grantProjectPermissions = (granted: boolean) =>
+	http.post("/api/v2/authcheck", async ({ request }) => {
+		const { checks } = (await request.json()) as {
+			checks: Record<string, unknown>;
+		};
+		return HttpResponse.json(
+			Object.fromEntries(Object.keys(checks).map((key) => [key, granted])),
+		);
+	});
+
 afterEach(() => server.resetHandlers());
 
 describe("AgentCreatePage project assignment", () => {
-	it("includes the selected project ID when chat projects are enabled", async () => {
+	it("includes the project ID from the route when chat projects are enabled", async () => {
 		const user = userEvent.setup();
 		const nonDefaultProject = {
 			...MockChatProject,
@@ -168,7 +179,7 @@ describe("AgentCreatePage project assignment", () => {
 		);
 
 		render(
-			<Wrapper experiments={[]}>
+			<Wrapper experiments={[]} initialEntry="/agents">
 				<AgentCreatePage />
 			</Wrapper>,
 		);
@@ -209,7 +220,7 @@ describe("AgentCreatePage project assignment", () => {
 		expect(chatPostCount).toBe(0);
 	});
 
-	it("removes an unavailable project from the URL", async () => {
+	it("redirects to the new chat page when the project is missing", async () => {
 		server.use(
 			http.get(`/api/experimental/chats/projects/${MockChatProject.id}`, () =>
 				HttpResponse.json({ message: "Not found." }, { status: 404 }),
@@ -218,14 +229,86 @@ describe("AgentCreatePage project assignment", () => {
 
 		render(
 			<Wrapper experiments={["chat-projects"]}>
-				<AgentCreatePageWithLocation />
+				<AgentCreatePage />
 			</Wrapper>,
 		);
 
 		await waitFor(() => {
-			expect(screen.getByText("", { selector: "output" })).toHaveTextContent(
-				"",
-			);
+			expect(screen.getByRole("status")).toHaveTextContent(/^\/agents$/);
+		});
+	});
+
+	it("redirects to the new chat page when chat projects are disabled", async () => {
+		render(
+			<Wrapper experiments={[]}>
+				<AgentCreatePage />
+			</Wrapper>,
+		);
+
+		await waitFor(() => {
+			expect(screen.getByRole("status")).toHaveTextContent(/^\/agents$/);
+		});
+	});
+});
+
+describe("AgentCreatePage project frame", () => {
+	it("shows the project name and description around the composer", async () => {
+		server.use(
+			http.get(`/api/experimental/chats/projects/${MockChatProject.id}`, () =>
+				HttpResponse.json(MockChatProject),
+			),
+			grantProjectPermissions(false),
+		);
+
+		render(
+			<Wrapper experiments={["chat-projects"]}>
+				<AgentCreatePage />
+			</Wrapper>,
+		);
+
+		expect(
+			await screen.findByRole("heading", { name: MockChatProject.name }),
+		).toBeVisible();
+		expect(screen.getByText(MockChatProject.description)).toBeVisible();
+		await waitFor(() => {
+			expect(screen.getByRole("button", { name: "Memory" })).toBeVisible();
+		});
+		expect(screen.queryByRole("button", { name: "Edit project" })).toBeNull();
+	});
+
+	it("edits the project when the user may update it", async () => {
+		const user = userEvent.setup();
+		let requestBody: unknown;
+		server.use(
+			http.get(`/api/experimental/chats/projects/${MockChatProject.id}`, () =>
+				HttpResponse.json(MockChatProject),
+			),
+			grantProjectPermissions(true),
+			http.patch(
+				`/api/experimental/chats/projects/${MockChatProject.id}`,
+				async ({ request }) => {
+					requestBody = await request.json();
+					return HttpResponse.json({ ...MockChatProject, name: "Renamed" });
+				},
+			),
+		);
+
+		render(
+			<Wrapper experiments={["chat-projects"]}>
+				<AgentCreatePage />
+			</Wrapper>,
+		);
+
+		await user.click(
+			await screen.findByRole("button", { name: "Edit project" }),
+		);
+		const nameInput = screen.getByLabelText("Name");
+		await user.clear(nameInput);
+		await user.type(nameInput, "Renamed");
+		await user.click(screen.getByRole("button", { name: "Save" }));
+
+		await waitFor(() => {
+			expect(requestBody).toMatchObject({ name: "Renamed" });
 		});
 	});
 });

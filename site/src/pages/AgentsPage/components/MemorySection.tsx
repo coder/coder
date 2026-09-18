@@ -33,6 +33,7 @@ type MemorySectionProps = {
 	readonly scope: MemoryScope;
 	readonly title?: string;
 	readonly description?: string;
+	readonly className?: string;
 };
 
 type Memory = TypesGen.ChatProjectMemory | TypesGen.ChatUserMemory;
@@ -57,6 +58,7 @@ export const MemorySection: FC<MemorySectionProps> = ({
 	scope,
 	title,
 	description,
+	className,
 }) => {
 	const queryClient = useQueryClient();
 	const projectMemoriesQuery = useQuery({
@@ -179,14 +181,18 @@ export const MemorySection: FC<MemorySectionProps> = ({
 	};
 
 	if (isLoadingMemories) {
-		return <Skeleton className="mt-10 h-40 w-full" />;
+		return <Skeleton className={cn("mt-10 h-40 w-full", className)} />;
 	}
 	if (memoriesError) {
-		return <ErrorAlert error={memoriesError} className="mt-10" />;
+		return (
+			<ErrorAlert error={memoriesError} className={cn("mt-10", className)} />
+		);
 	}
 
 	return (
-		<section className="mt-10 border-t border-border-default pt-8">
+		<section
+			className={cn("mt-10 border-t border-border-default pt-8", className)}
+		>
 			<div className="flex items-start justify-between gap-4">
 				<div>
 					<h2 className="m-0 text-lg font-semibold text-content-primary">

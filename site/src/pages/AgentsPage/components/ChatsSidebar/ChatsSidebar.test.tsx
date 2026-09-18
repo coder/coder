@@ -273,7 +273,7 @@ describe("ChatsSidebar projects", () => {
 
 		await user.click(
 			await screen.findByRole("button", {
-				name: `Open actions for ${MockChatProject.name}`,
+				name: `Open project actions for ${MockChatProject.name}`,
 			}),
 		);
 		await user.click(screen.getByRole("menuitem", { name: "Delete project" }));
@@ -289,6 +289,7 @@ describe("ChatsSidebar projects", () => {
 	});
 
 	it("hides project actions the user is not allowed to perform", async () => {
+		const user = userEvent.setup();
 		let authChecks: Record<string, unknown> | undefined;
 		server.use(
 			http.get("/api/experimental/chats/projects", () =>
@@ -327,11 +328,51 @@ describe("ChatsSidebar projects", () => {
 				},
 			]),
 		);
-		expect(
-			screen.queryByRole("button", {
-				name: `Open actions for ${MockChatProject.name}`,
+		await user.click(
+			screen.getByRole("button", {
+				name: `Open project actions for ${MockChatProject.name}`,
 			}),
+		);
+		expect(screen.getByRole("menuitem", { name: "New chat" })).toBeVisible();
+		expect(screen.queryByRole("menuitem", { name: "Edit project" })).toBeNull();
+		expect(
+			screen.queryByRole("menuitem", { name: "Delete project" }),
 		).toBeNull();
+	});
+
+	it("files project chats under their folder instead of the date sections", async () => {
+		const user = userEvent.setup();
+		server.use(
+			http.get("/api/experimental/chats/projects", () =>
+				HttpResponse.json([MockChatProject]),
+			),
+			grantProjectPermissions(false),
+		);
+
+		render(
+			<Wrapper experiments={["chat-projects"]}>
+				<ChatsSidebar
+					{...defaultProps}
+					chats={[
+						buildChat({ id: "loose-chat", title: "Loose chat" }),
+						buildChat({
+							id: "project-chat",
+							title: "Project chat",
+							project_id: MockChatProject.id,
+						}),
+					]}
+				/>
+			</Wrapper>,
+		);
+
+		await screen.findByRole("link", { name: MockChatProject.name });
+		expect(screen.getByText("Loose chat")).toBeVisible();
+		expect(screen.queryByText("Project chat")).toBeNull();
+
+		await user.click(
+			screen.getByRole("button", { name: `Expand ${MockChatProject.name}` }),
+		);
+		expect(screen.getByText("Project chat")).toBeVisible();
 	});
 });
 
