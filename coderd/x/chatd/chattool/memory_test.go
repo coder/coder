@@ -35,6 +35,8 @@ func (s *memoryStore) GetForUpdate(ctx context.Context, name string) (chattool.M
 	return s.Get(ctx, name)
 }
 
+func (*memoryStore) Lock(context.Context) error { return nil }
+
 func (*memoryStore) List(context.Context) ([]chattool.MemoryIndexEntry, error) { return nil, nil }
 func (*memoryStore) ListFull(context.Context) ([]chattool.Memory, error)       { return nil, nil }
 func (s *memoryStore) Count(context.Context) (int64, error)                    { return int64(len(s.memories)), nil }

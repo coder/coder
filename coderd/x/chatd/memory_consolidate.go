@@ -311,7 +311,14 @@ func validateMemoryConsolidationMutations(proposed []memoryConsolidationMutation
 		case "merge":
 			mutation.Into = strings.ToLower(strings.TrimSpace(mutation.Into))
 			intoMemory, intoExists := byName[mutation.Into]
-			if err := chattool.ValidateMemoryName(mutation.Into); err != nil || (!intoExists && len(mutation.From) < 2) {
+			// A merge must combine something: two sources into a new name,
+			// or at least one source into an existing memory. Anything less
+			// is an overwrite the model should have proposed as an update.
+			minSources := 2
+			if intoExists {
+				minSources = 1
+			}
+			if err := chattool.ValidateMemoryName(mutation.Into); err != nil || len(mutation.From) < minSources {
 				continue
 			}
 			seen := map[string]struct{}{}
@@ -331,7 +338,7 @@ func validateMemoryConsolidationMutations(proposed []memoryConsolidationMutation
 				seen[name] = struct{}{}
 				mutation.From = append(mutation.From, name)
 			}
-			if len(mutation.From) < 2 && !intoExists {
+			if len(mutation.From) < minSources {
 				continue
 			}
 			description, body, ok := normalizeConsolidatedMemory(mutation.Description, mutation.Body)
@@ -411,6 +418,12 @@ func applyMemoryConsolidationMutations(ctx context.Context, store chattool.Memor
 		byName[memory.Name] = memory
 	}
 
+	// The scope lock comes before any row lock, matching save_memory's
+	// order so the two cannot deadlock. It also serializes the absence
+	// check for a new merge target against concurrent creation.
+	if err := store.Lock(ctx); err != nil {
+		return nil, xerrors.Errorf("lock memory scope: %w", err)
+	}
 	applied := make([]memoryConsolidationMutation, 0, len(mutations))
 	for _, mutation := range mutations {
 		current, err := memoryConsolidationMutationCurrent(ctx, store, mutation, byName, now)
@@ -423,13 +436,15 @@ func applyMemoryConsolidationMutations(ctx context.Context, store chattool.Memor
 
 		switch mutation.Op {
 		case "merge":
-			if _, err := store.Upsert(ctx, chattool.MemoryInput{Name: mutation.Into, Description: mutation.Description, Body: mutation.Body}); err != nil {
-				return nil, err
-			}
+			// Sources go first so a merge into a new name at the cap has
+			// room for the target instead of failing the whole run.
 			for _, from := range mutation.From {
 				if err := store.Delete(ctx, from); err != nil {
 					return nil, err
 				}
+			}
+			if _, err := store.Upsert(ctx, chattool.MemoryInput{Name: mutation.Into, Description: mutation.Description, Body: mutation.Body}); err != nil {
+				return nil, err
 			}
 		case "update":
 			if _, err := store.Upsert(ctx, chattool.MemoryInput{Name: mutation.Name, Description: mutation.Description, Body: mutation.Body}); err != nil {
