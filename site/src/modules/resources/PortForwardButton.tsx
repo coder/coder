@@ -1,15 +1,13 @@
 import { useFormik } from "formik";
 import {
 	BuildingIcon,
-	ExternalLinkIcon,
 	LockIcon,
 	LockOpenIcon,
-	PlusIcon,
 	RadioIcon,
 	ShareIcon,
 	XIcon,
 } from "lucide-react";
-import { type FC, useId, useRef, useState } from "react";
+import { type FC, useId, useState } from "react";
 import { useMutation } from "react-query";
 import * as Yup from "yup";
 import {
@@ -28,16 +26,6 @@ import {
 } from "#/api/typesGenerated";
 import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
 import { Button } from "#/components/Button/Button";
-import {
-	Combobox,
-	ComboboxButton,
-	ComboboxContent,
-	ComboboxEmpty,
-	ComboboxInput,
-	ComboboxItem,
-	ComboboxList,
-	ComboboxTrigger,
-} from "#/components/Combobox/Combobox";
 import { FormField } from "#/components/FormField/FormField";
 import {
 	HelpPopoverLink,
@@ -69,9 +57,12 @@ import { docs } from "#/utils/docs";
 import { getFormHelpers } from "#/utils/formUtils";
 import {
 	getWorkspaceListeningPortsProtocol,
+	MAX_PORT,
+	MIN_PORT,
 	portForwardURL,
 	saveWorkspaceListeningPortsProtocol,
 } from "#/utils/portForward";
+import { PortPicker } from "./PortPicker";
 
 interface PortForwardButtonProps {
 	host: string;
@@ -135,19 +126,6 @@ type OpenPortFormValues = {
 	share_level: WorkspaceAgentPortShareLevel;
 };
 
-const MIN_PORT = 9;
-const MAX_PORT = 65535;
-
-const isValidPort = (port: number) =>
-	Number.isInteger(port) && port >= MIN_PORT && port <= MAX_PORT;
-
-// parsePort returns the port a user typed, or undefined when the text is not a
-// usable port number.
-const parsePort = (value: string): number | undefined => {
-	const port = Number.parseInt(value, 10);
-	return isValidPort(port) ? port : undefined;
-};
-
 const openPortSchema = () =>
 	Yup.object({
 		port: Yup.number().required().min(MIN_PORT).max(MAX_PORT),
@@ -178,6 +156,42 @@ const isPortShareLevel = (
 const isListeningPortProtocol = (value: string): value is "http" | "https" =>
 	value === "http" || value === "https";
 
+interface ShareLevelOptionsProps {
+	canShareAuthenticated: boolean;
+	canSharePublic: boolean;
+}
+
+const ShareLevelOptions: FC<ShareLevelOptionsProps> = ({
+	canShareAuthenticated,
+	canSharePublic,
+}) => (
+	<>
+		<SelectItem value="organization">Organization</SelectItem>
+		{canShareAuthenticated ? (
+			<SelectItem value="authenticated">Authenticated</SelectItem>
+		) : (
+			<SelectItem
+				value="authenticated"
+				disabled
+				title="This workspace template does not allow sharing ports outside of its organization."
+			>
+				Authenticated
+			</SelectItem>
+		)}
+		{canSharePublic ? (
+			<SelectItem value="public">Public</SelectItem>
+		) : (
+			<SelectItem
+				value="public"
+				disabled
+				title="This workspace template does not allow sharing ports publicly."
+			>
+				Public
+			</SelectItem>
+		)}
+	</>
+);
+
 export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 	host,
 	workspace,
@@ -191,11 +205,6 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 	const [listeningPortProtocol, setListeningPortProtocol] = useState(
 		getWorkspaceListeningPortsProtocol(workspace.id),
 	);
-	const [portNumber, setPortNumber] = useState("");
-	const [portQuery, setPortQuery] = useState("");
-	const [portMenuOpen, setPortMenuOpen] = useState(false);
-	const portSubmitButtonRef = useRef<HTMLButtonElement>(null);
-	const focusPortSubmitOnClose = useRef(false);
 	const protocolFieldId = useId();
 	const shareLevelFieldId = useId();
 
@@ -245,21 +254,6 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 	const unsharedListeningPorts = listeningPorts.filter((port) =>
 		sharedPorts.every((sharedPort) => sharedPort.port !== port.port),
 	);
-	const filteredListeningPorts = unsharedListeningPorts.filter((port) =>
-		port.port.toString().includes(portQuery),
-	);
-	const prefixedListeningPorts = filteredListeningPorts.filter((port) =>
-		port.port.toString().startsWith(portQuery),
-	);
-	const remainingListeningPorts = filteredListeningPorts.filter(
-		(port) => !port.port.toString().startsWith(portQuery),
-	);
-	const typedPort = parsePort(portQuery);
-	const customPort = unsharedListeningPorts.some(
-		(port) => port.port === typedPort,
-	)
-		? undefined
-		: typedPort;
 	// only disable the form if shared port controls are entitled and the template doesn't allow sharing ports
 	const canSharePorts = !(
 		portSharingControlsEnabled && template.max_port_share_level === "owner"
@@ -274,56 +268,6 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 		template.max_port_share_level === "organization"
 			? "organization"
 			: "authenticated";
-
-	const openPort = (port: number) => {
-		const url = portForwardURL(
-			host,
-			port,
-			agent.name,
-			workspace.name,
-			workspace.owner_name,
-			listeningPortProtocol,
-		);
-		window.open(url, "_blank");
-	};
-
-	const renderListeningPortOption = (port: WorkspaceAgentListeningPort) => (
-		<ComboboxItem key={port.port} value={port.port.toString()} className="px-3">
-			<RadioIcon />
-			<span>{port.port}</span>
-			<span className="ml-auto text-content-secondary">
-				{port.process_name || "Unknown process"}
-			</span>
-		</ComboboxItem>
-	);
-
-	const renderShareLevelOptions = () => (
-		<>
-			<SelectItem value="organization">Organization</SelectItem>
-			{canSharePortsAuthenticated ? (
-				<SelectItem value="authenticated">Authenticated</SelectItem>
-			) : (
-				<SelectItem
-					value="authenticated"
-					disabled
-					title="This workspace template does not allow sharing ports outside of its organization."
-				>
-					Authenticated
-				</SelectItem>
-			)}
-			{canSharePortsPublic ? (
-				<SelectItem value="public">Public</SelectItem>
-			) : (
-				<SelectItem
-					value="public"
-					disabled
-					title="This workspace template does not allow sharing ports publicly."
-				>
-					Public
-				</SelectItem>
-			)}
-		</>
-	);
 
 	return (
 		<>
@@ -364,114 +308,22 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 									<SelectItem value="https">HTTPS</SelectItem>
 								</SelectContent>
 							</Select>
-							<Combobox
-								value={portNumber || undefined}
-								onValueChange={(value) => {
-									focusPortSubmitOnClose.current = true;
-									if (value) {
-										setPortNumber(value);
-									}
+							<PortPicker
+								listeningPorts={unsharedListeningPorts}
+								onConnect={(port) => {
+									window.open(
+										portForwardURL(
+											host,
+											port,
+											agent.name,
+											workspace.name,
+											workspace.owner_name,
+											listeningPortProtocol,
+										),
+										"_blank",
+									);
 								}}
-								open={portMenuOpen}
-								onOpenChange={(open) => {
-									setPortMenuOpen(open);
-									if (open) {
-										focusPortSubmitOnClose.current = false;
-									} else {
-										setPortQuery("");
-									}
-								}}
-							>
-								<form
-									className="mt-2 flex w-full items-center rounded border border-solid border-border focus-within:border-content-link"
-									onSubmit={(event) => {
-										event.preventDefault();
-										const port = parsePort(portNumber);
-										if (port !== undefined) {
-											openPort(port);
-										} else {
-											setPortMenuOpen(true);
-										}
-									}}
-								>
-									<ComboboxTrigger asChild>
-										<ComboboxButton
-											type="button"
-											aria-label={
-												portNumber
-													? `Connect to port ${portNumber}`
-													: "Connect to port..."
-											}
-											variant="subtle"
-											size="sm"
-											selectedOption={
-												portNumber
-													? { label: portNumber, value: portNumber }
-													: undefined
-											}
-											placeholder="Connect to port..."
-										/>
-									</ComboboxTrigger>
-									<Tooltip>
-										<TooltipTrigger asChild>
-											<Button
-												ref={portSubmitButtonRef}
-												type="submit"
-												size="icon"
-												variant="subtle"
-											>
-												<ExternalLinkIcon />
-												<span className="sr-only">
-													Connect to selected port
-												</span>
-											</Button>
-										</TooltipTrigger>
-										<TooltipContent disablePortal>
-											Connect to selected port
-										</TooltipContent>
-									</Tooltip>
-								</form>
-								<ComboboxContent
-									aria-label="Port picker"
-									align="start"
-									className="w-[var(--radix-popover-trigger-width)] p-0"
-									commandLabel="Filter or enter port"
-									onCloseAutoFocus={(event) => {
-										if (focusPortSubmitOnClose.current) {
-											event.preventDefault();
-											portSubmitButtonRef.current?.focus();
-											focusPortSubmitOnClose.current = false;
-										}
-									}}
-									shouldFilter={false}
-								>
-									<ComboboxInput
-										inputMode="numeric"
-										pattern="[0-9]*"
-										placeholder="Filter or enter port..."
-										value={portQuery}
-										onValueChange={setPortQuery}
-									/>
-									<ComboboxList>
-										{prefixedListeningPorts.map(renderListeningPortOption)}
-										{customPort !== undefined && (
-											<ComboboxItem
-												value={customPort.toString()}
-												className="px-3"
-											>
-												<PlusIcon />
-												<span>Use port {customPort}</span>
-											</ComboboxItem>
-										)}
-										{remainingListeningPorts.map(renderListeningPortOption)}
-									</ComboboxList>
-									<ComboboxEmpty>
-										{portQuery
-											? `Enter a port from ${MIN_PORT} to ${MAX_PORT}.`
-											: "Enter a port number to connect."}
-									</ComboboxEmpty>
-								</ComboboxContent>
-							</Combobox>
+							/>
 						</div>
 					</div>
 					{unsharedListeningPorts.length === 0 && (
@@ -631,7 +483,12 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 											>
 												<SelectValue />
 											</SelectTrigger>
-											<SelectContent>{renderShareLevelOptions()}</SelectContent>
+											<SelectContent>
+												<ShareLevelOptions
+													canShareAuthenticated={canSharePortsAuthenticated}
+													canSharePublic={canSharePortsPublic}
+												/>
+											</SelectContent>
 										</Select>
 										<Button
 											size="icon"
@@ -713,7 +570,12 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 										>
 											<SelectValue />
 										</SelectTrigger>
-										<SelectContent>{renderShareLevelOptions()}</SelectContent>
+										<SelectContent>
+											<ShareLevelOptions
+												canShareAuthenticated={canSharePortsAuthenticated}
+												canSharePublic={canSharePortsPublic}
+											/>
+										</SelectContent>
 									</Select>
 								</div>
 								<Button type="submit" disabled={!form.isValid || isSubmitting}>

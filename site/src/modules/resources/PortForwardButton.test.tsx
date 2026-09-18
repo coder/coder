@@ -40,10 +40,8 @@ const expectedURL = (port: number) =>
 		getWorkspaceListeningPortsProtocol(MockWorkspace.id),
 	);
 
-const openPortPicker = async () => {
-	await userEvent.click(
-		screen.getByRole("button", { name: "Connect to port..." }),
-	);
+const openPortPicker = async (triggerName = "Connect to port...") => {
+	await userEvent.click(screen.getByRole("button", { name: triggerName }));
 	return screen.getByRole("dialog", { name: "Port picker" });
 };
 
@@ -62,6 +60,23 @@ describe("PortForwardPopoverView", () => {
 
 		const dialog = await openPortPicker();
 		await userEvent.click(within(dialog).getByRole("option", { name: /8080/ }));
+		await userEvent.click(
+			screen.getByRole("button", { name: "Connect to selected port" }),
+		);
+
+		expect(open).toHaveBeenCalledWith(expectedURL(8080), "_blank");
+	});
+
+	it("keeps the port selected when it is picked again", async () => {
+		const open = vi.spyOn(window, "open").mockReturnValue(null);
+		renderPopover();
+
+		const dialog = await openPortPicker();
+		await userEvent.click(within(dialog).getByRole("option", { name: /8080/ }));
+		const reopened = await openPortPicker("Connect to port 8080");
+		await userEvent.click(
+			within(reopened).getByRole("option", { name: /8080/ }),
+		);
 		await userEvent.click(
 			screen.getByRole("button", { name: "Connect to selected port" }),
 		);

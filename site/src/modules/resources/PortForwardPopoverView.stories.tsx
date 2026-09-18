@@ -36,20 +36,19 @@ type Story = StoryObj<typeof PortForwardPopoverView>;
 
 const listeningPortsWithSubstringMatch = [
 	...MockListeningPortsResponse.ports,
-	{ process_name: "substring-match", network: "", port: 19999 },
+	{ process_name: "substring-match", network: "", port: 18080 },
 ];
 
-type Canvas = ReturnType<typeof within>;
-
-const openPortPicker = async (canvas: Canvas) => {
+// The picker menu is portaled, so it is queried from the document rather
+// than the story canvas.
+const typeInPortPicker = async (canvasElement: HTMLElement, text: string) => {
 	await userEvent.click(
-		canvas.getByRole("button", { name: "Connect to port..." }),
+		within(canvasElement).getByRole("button", { name: "Connect to port..." }),
 	);
-	const dialog = screen.getByRole("dialog", { name: "Port picker" });
-	const input = within(dialog).getByRole("combobox", {
-		name: "Filter or enter port",
-	});
-	return { dialog, input };
+	await userEvent.type(
+		screen.getByRole("combobox", { name: "Filter or enter port" }),
+		text,
+	);
 };
 
 export const WithPorts: Story = {
@@ -67,9 +66,7 @@ export const FilterPorts: Story = {
 		),
 	},
 	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const { input } = await openPortPicker(canvas);
-		await userEvent.type(input, "808");
+		await typeInPortPicker(canvasElement, "808");
 	},
 };
 
@@ -89,9 +86,7 @@ export const Empty: Story = {
 		sharedPorts: [],
 	},
 	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const { input } = await openPortPicker(canvas);
-		await userEvent.type(input, "5");
+		await typeInPortPicker(canvasElement, "5");
 	},
 };
 
