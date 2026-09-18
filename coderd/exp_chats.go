@@ -1241,13 +1241,6 @@ func (api *API) postUserChats(rw http.ResponseWriter, r *http.Request) {
 		if idx == -1 {
 			return uuid.Nil, httperror.ErrResourceNotFound
 		}
-		// AI Bridge refuses to authorize inactive and system users, so a
-		// chat owned by one could never run.
-		if mems.User != nil && (mems.User.Status != database.UserStatusActive || mems.User.IsSystem) {
-			return uuid.Nil, httperror.NewResponseError(http.StatusBadRequest, codersdk.Response{
-				Message: "Chat owner must be an active user.",
-			})
-		}
 		return mems.Memberships[idx].UserID, nil
 	})
 }
@@ -1305,6 +1298,20 @@ func (api *API) createChat(rw http.ResponseWriter, r *http.Request, resolveOwner
 	if ownerID != apiKey.UserID {
 		if !api.Authorize(r, policy.ActionCreate, rbac.ResourceApiKey.WithOwner(ownerID.String())) {
 			httpapi.Forbidden(rw)
+			return
+		}
+		//nolint:gocritic // The caller may hold this authority without being able to read the owner's user object.
+		ownerUser, err := api.Database.GetUserByID(dbauthz.AsSystemRestricted(ctx), ownerID)
+		if err != nil {
+			httpapi.InternalServerError(rw, err)
+			return
+		}
+		// AI Bridge refuses to authorize inactive and system users, so a
+		// chat owned by one could never run.
+		if ownerUser.Status != database.UserStatusActive || ownerUser.IsSystem {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Chat owner must be an active user.",
+			})
 			return
 		}
 		owner, _, err := httpmw.UserRBACSubject(ctx, api.Database, ownerID, rbac.ScopeAll)
