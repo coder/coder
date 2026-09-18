@@ -39,8 +39,6 @@ const listeningPortsWithSubstringMatch = [
 	{ process_name: "substring-match", network: "", port: 18080 },
 ];
 
-// The picker menu is portaled, so it is queried from the document rather
-// than the story canvas.
 const typeInPortPicker = async (canvasElement: HTMLElement, text: string) => {
 	await userEvent.click(
 		within(canvasElement).getByRole("button", { name: "Connect to port..." }),
