@@ -187,6 +187,11 @@ func (p *Server) resolveModelCall(ctx context.Context, spec modelCallSpec) (reso
 }
 
 func (r resolvedModelCall) newCall() fantasy.Call {
+	var toolChoice *fantasy.ToolChoice
+	if r.model.Valid() && r.model.Transport().UsesResponses() {
+		choice := fantasy.ToolChoiceAuto
+		toolChoice = &choice
+	}
 	return fantasy.Call{
 		ProviderOptions:  r.providerOptions,
 		MaxOutputTokens:  r.callConfig.MaxOutputTokens,
@@ -195,6 +200,7 @@ func (r resolvedModelCall) newCall() fantasy.Call {
 		TopK:             r.callConfig.TopK,
 		PresencePenalty:  r.callConfig.PresencePenalty,
 		FrequencyPenalty: r.callConfig.FrequencyPenalty,
+		ToolChoice:       toolChoice,
 	}
 }
 
