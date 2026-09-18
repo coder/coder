@@ -57,7 +57,9 @@ export const DimensionBadge: FC<{
 	return (
 		<Badge className="gap-1.5 max-w-full">
 			<div className="shrink-0 flex items-center">{item.icon}</div>
-			<span className="truncate min-w-0">{item.label}</span>
+			<span className="truncate min-w-0" title={item.label}>
+				{item.label}
+			</span>
 		</Badge>
 	);
 };
