@@ -314,7 +314,11 @@ func incompleteRender(diags []codersdk.FriendlyDiagnostic) bool {
 
 // renderedParameterEntry converts an owner-evaluated parameter into the same
 // shape as staticParameterEntry so the model sees one schema either way.
-// imported is the import-time row for the same parameter, or nil.
+// imported is the import-time row for the same parameter, or nil. Anything
+// preview could not evaluate before the build, such as a default, option
+// value, or validation bound that depends on data.coder_provisioner, is
+// omitted from the rendered entry and then filled from the import row, which
+// recorded what the provisioner produced, with a note naming the source.
 func renderedParameterEntry(p codersdk.PreviewParameter, imported *database.TemplateVersionParameter) map[string]any {
 	param := map[string]any{
 		"name":     p.Name,
@@ -339,6 +343,10 @@ func renderedParameterEntry(p codersdk.PreviewParameter, imported *database.Temp
 		paramErr = strings.TrimSpace(d.Summary + ": " + d.Detail)
 		break
 	}
+	// The import default may stand in only when preview could not evaluate
+	// the default at all. A default preview rejected, an empty default, or
+	// a required parameter must not acquire one.
+	fillDefault := imported != nil && paramErr == "" && !p.DefaultValue.Valid && !p.Required
 	switch {
 	case paramErr != "":
 		// A parameter-scoped error does not fail the whole render, but a
@@ -348,15 +356,8 @@ func renderedParameterEntry(p codersdk.PreviewParameter, imported *database.Temp
 			paramErr += fmt.Sprintf("; the evaluated default %q cannot be used, pass a value explicitly", p.DefaultValue.Value)
 		}
 		param["error"] = paramErr
-	case p.DefaultValue.Valid:
-		if p.DefaultValue.Value != "" {
-			param["default"] = p.DefaultValue.Value
-		}
-	case !p.Required && imported != nil && imported.DefaultValue != "":
-		// Unknown before the build, for example data.coder_provisioner
-		// attributes. The import-time value is the best available estimate.
-		param["default"] = imported.DefaultValue
-		param["default_note"] = readTemplateBuildTimeDefaultNote
+	case p.DefaultValue.Valid && p.DefaultValue.Value != "":
+		param["default"] = p.DefaultValue.Value
 	}
 	if p.Ephemeral {
 		param["ephemeral"] = true
@@ -364,43 +365,10 @@ func renderedParameterEntry(p codersdk.PreviewParameter, imported *database.Temp
 	if p.FormType != "" {
 		param["form_type"] = string(p.FormType)
 	}
-	if len(p.Options) > 0 {
-		var importedValues map[string]string
-		recovered := false
-		opts := make([]map[string]any, 0, len(p.Options))
-		for _, o := range p.Options {
-			value := o.Value.Value
-			if !o.Value.Valid {
-				// Unknown before the build for the same reason as a
-				// build-time default; the import row recorded the value the
-				// provisioner produced. Without one the option is unusable.
-				if importedValues == nil {
-					importedValues = importedOptionValues(imported)
-				}
-				v, ok := importedValues[o.Name]
-				if !ok {
-					continue
-				}
-				value, recovered = v, true
-			}
-			opt := map[string]any{
-				"name":  o.Name,
-				"value": value,
-			}
-			if desc := strings.TrimSpace(o.Description); desc != "" {
-				opt["description"] = desc
-			}
-			if icon := strings.TrimSpace(o.Icon); icon != "" {
-				opt["icon"] = icon
-			}
-			opts = append(opts, opt)
-		}
-		if len(opts) > 0 {
-			param["options"] = opts
-		}
-		if recovered {
-			param["options_note"] = readTemplateBuildTimeDefaultNote
-		}
+	// Option labels can depend on the owner, so a partially unknown list is
+	// replaced as a whole rather than matched option by option.
+	if opts, known := renderedOptions(p.Options); known {
+		param["options"] = opts
 	}
 	for _, v := range p.Validations {
 		if v.Regex != nil && *v.Regex != "" {
@@ -413,28 +381,59 @@ func renderedParameterEntry(p codersdk.PreviewParameter, imported *database.Temp
 			param["validation_max"] = *v.Max
 		}
 	}
+
+	if imported == nil {
+		return param
+	}
+	fromImport := staticParameterEntry(*imported)
+	for _, f := range []struct{ key, note string }{
+		{"default", "default_note"},
+		{"options", "options_note"},
+		{"validation_regex", "validation_note"},
+		{"validation_min", "validation_note"},
+		{"validation_max", "validation_note"},
+	} {
+		if f.key == "default" && !fillDefault {
+			continue
+		}
+		if _, ok := param[f.key]; ok {
+			continue
+		}
+		value, ok := fromImport[f.key]
+		if !ok {
+			continue
+		}
+		param[f.key] = value
+		param[f.note] = readTemplateBuildTimeDefaultNote
+	}
 	return param
 }
 
-// importedOptionValues maps option names to the values recorded at template
-// import. It returns an empty map when there is no row or the options cannot
-// be decoded.
-func importedOptionValues(imported *database.TemplateVersionParameter) map[string]string {
-	values := map[string]string{}
-	if imported == nil {
-		return values
+// renderedOptions converts the rendered options, reporting false when any
+// value is unknown before the build so the caller can substitute the import
+// row's list instead of presenting an empty value.
+func renderedOptions(options []codersdk.PreviewParameterOption) ([]map[string]any, bool) {
+	if len(options) == 0 {
+		return nil, false
 	}
-	var opts []struct {
-		Name  string `json:"name"`
-		Value string `json:"value"`
+	opts := make([]map[string]any, 0, len(options))
+	for _, o := range options {
+		if !o.Value.Valid {
+			return nil, false
+		}
+		opt := map[string]any{
+			"name":  o.Name,
+			"value": o.Value.Value,
+		}
+		if desc := strings.TrimSpace(o.Description); desc != "" {
+			opt["description"] = desc
+		}
+		if icon := strings.TrimSpace(o.Icon); icon != "" {
+			opt["icon"] = icon
+		}
+		opts = append(opts, opt)
 	}
-	if err := json.Unmarshal(imported.Options, &opts); err != nil {
-		return values
-	}
-	for _, o := range opts {
-		values[o.Name] = o.Value
-	}
-	return values
+	return opts, true
 }
 
 // staticParameterEntry converts an import-time parameter row into the tool's

@@ -309,26 +309,37 @@ func TestReadTemplate_OwnerEvaluatedParameters(t *testing.T) {
 		UserID:         user.ID,
 		OrganizationID: org.ID,
 	})
-	tv := dbgen.TemplateVersion(t, db, database.TemplateVersion{
-		OrganizationID: org.ID,
-		CreatedBy:      user.ID,
-	})
-	tmpl := dbgen.Template(t, db, database.Template{
-		OrganizationID:  org.ID,
-		CreatedBy:       user.ID,
-		ActiveVersionID: tv.ID,
-		AgentsAllowed:   true,
-	})
-	// The import-time row records the default seen by the template
-	// importer, which is what the fallback path must report.
-	_ = dbgen.TemplateVersionParameter(t, db, database.TemplateVersionParameter{
-		TemplateVersionID: tv.ID,
-		Name:              "Region",
-		Type:              "string",
-		DefaultValue:      "us-pittsburgh",
-		Mutable:           false,
-		Options:           json.RawMessage(`[{"name":"Pittsburgh","value":"us-pittsburgh"},{"name":"Falkenstein","value":"eu-helsinki"}]`),
-	})
+
+	// newTemplate creates an agents-allowed template whose active version
+	// carries the given import-time parameter rows.
+	newTemplate := func(t *testing.T, seed database.Template, rows ...database.TemplateVersionParameter) database.Template {
+		t.Helper()
+		tv := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+			OrganizationID: org.ID,
+			CreatedBy:      user.ID,
+		})
+		seed.OrganizationID = org.ID
+		seed.CreatedBy = user.ID
+		seed.ActiveVersionID = tv.ID
+		seed.AgentsAllowed = true
+		tmpl := dbgen.Template(t, db, seed)
+		for _, row := range rows {
+			row.TemplateVersionID = tv.ID
+			_ = dbgen.TemplateVersionParameter(t, db, row)
+		}
+		return tmpl
+	}
+	// regionRow is the import-time row for the Region parameter. It records
+	// the default seen by the template importer, which is what the fallback
+	// path must report.
+	regionRow := database.TemplateVersionParameter{
+		Name:         "Region",
+		Type:         "string",
+		DefaultValue: "us-pittsburgh",
+		Mutable:      false,
+		Options:      json.RawMessage(`[{"name":"Pittsburgh","value":"us-pittsburgh"},{"name":"Falkenstein","value":"eu-helsinki"}]`),
+	}
+	tmpl := newTemplate(t, database.Template{}, regionRow)
 
 	regex := "^[a-z-]+$"
 	ownerRendered := []codersdk.PreviewParameter{
@@ -349,7 +360,9 @@ func TestReadTemplate_OwnerEvaluatedParameters(t *testing.T) {
 		},
 	}
 
-	readTemplateParams := func(t *testing.T, templateID uuid.UUID, render chattool.RenderTemplateParametersFn) (map[string]any, string) {
+	// readAll runs read_template and returns the parameters by name plus the
+	// parameters_note.
+	readAll := func(t *testing.T, templateID uuid.UUID, render chattool.RenderTemplateParametersFn) (map[string]map[string]any, string) {
 		t.Helper()
 		ctx := testutil.Context(t, testutil.WaitShort)
 		tool := chattool.ReadTemplate(db, org.ID, chattool.ReadTemplateOptions{
@@ -365,17 +378,29 @@ func TestReadTemplate_OwnerEvaluatedParameters(t *testing.T) {
 		require.NoError(t, err)
 		require.False(t, resp.IsError, "unexpected error: %s", resp.Content)
 
-		var result map[string]any
+		var result struct {
+			Parameters []map[string]any `json:"parameters"`
+			Note       string           `json:"parameters_note"`
+		}
 		require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
-		params, ok := result["parameters"].([]any)
-		require.True(t, ok)
-		require.Len(t, params, 1)
-		note, _ := result["parameters_note"].(string)
-		return params[0].(map[string]any), note
+		byName := make(map[string]map[string]any, len(result.Parameters))
+		for _, p := range result.Parameters {
+			byName[p["name"].(string)] = p
+		}
+		require.Len(t, byName, len(result.Parameters), "parameter names must be unique")
+		return byName, result.Note
 	}
+	// readParams reads the shared template and returns its Region parameter.
 	readParams := func(t *testing.T, render chattool.RenderTemplateParametersFn) (map[string]any, string) {
 		t.Helper()
-		return readTemplateParams(t, tmpl.ID, render)
+		params, note := readAll(t, tmpl.ID, render)
+		require.Len(t, params, 1)
+		return params["Region"], note
+	}
+	renderStatic := func(params ...codersdk.PreviewParameter) chattool.RenderTemplateParametersFn {
+		return func(context.Context, uuid.UUID, uuid.UUID) ([]codersdk.PreviewParameter, []codersdk.FriendlyDiagnostic, error) {
+			return params, nil, nil
+		}
 	}
 
 	t.Run("OwnerDefaultsWin", func(t *testing.T) {
@@ -386,7 +411,7 @@ func TestReadTemplate_OwnerEvaluatedParameters(t *testing.T) {
 			return ownerRendered, []codersdk.FriendlyDiagnostic{{Severity: codersdk.DiagnosticSeverityWarning, Summary: "ignored"}}, nil
 		})
 		require.Equal(t, user.ID, gotOwner)
-		require.Equal(t, tv.ID, gotVersion)
+		require.Equal(t, tmpl.ActiveVersionID, gotVersion)
 		require.Equal(t, "eu-helsinki", region["default"])
 		require.Equal(t, false, region["mutable"])
 		require.Equal(t, "radio", region["form_type"])
@@ -395,6 +420,9 @@ func TestReadTemplate_OwnerEvaluatedParameters(t *testing.T) {
 		require.True(t, ok)
 		require.Len(t, opts, 2)
 		require.Equal(t, "eu-helsinki", opts[1].(map[string]any)["value"])
+		require.NotContains(t, region, "default_note")
+		require.NotContains(t, region, "options_note")
+		require.NotContains(t, region, "validation_note")
 		require.Contains(t, note, "values a build for this workspace owner uses")
 	})
 
@@ -411,11 +439,8 @@ func TestReadTemplate_OwnerEvaluatedParameters(t *testing.T) {
 			Summary:  "Value must be a valid option",
 			Detail:   "not-an-option is not one of the options",
 		}}
-		region, note := readParams(t, func(context.Context, uuid.UUID, uuid.UUID) ([]codersdk.PreviewParameter, []codersdk.FriendlyDiagnostic, error) {
-			return []codersdk.PreviewParameter{broken}, nil, nil
-		})
-		_, hasDefault := region["default"]
-		require.False(t, hasDefault, "an errored default must not be asserted")
+		region, note := readParams(t, renderStatic(broken))
+		require.NotContains(t, region, "default", "an errored default must not be asserted")
 		require.Equal(t, `Value must be a valid option: not-an-option is not one of the options; the evaluated default "not-an-option" cannot be used, pass a value explicitly`, region["error"])
 		require.Contains(t, note, "values a build for this workspace owner uses")
 	})
@@ -424,7 +449,7 @@ func TestReadTemplate_OwnerEvaluatedParameters(t *testing.T) {
 		t.Parallel()
 		// preview tags required parameters rendered with no inputs with a
 		// "required" error diagnostic; that must not be reported as a
-		// broken default.
+		// broken default, and the import default must not stand in.
 		required := codersdk.PreviewParameter{
 			PreviewParameterData: codersdk.PreviewParameterData{
 				Name:     "Region",
@@ -439,14 +464,10 @@ func TestReadTemplate_OwnerEvaluatedParameters(t *testing.T) {
 				Extra:    codersdk.DiagnosticExtra{Code: "required"},
 			}},
 		}
-		region, note := readParams(t, func(context.Context, uuid.UUID, uuid.UUID) ([]codersdk.PreviewParameter, []codersdk.FriendlyDiagnostic, error) {
-			return []codersdk.PreviewParameter{required}, nil, nil
-		})
+		region, note := readParams(t, renderStatic(required))
 		require.Equal(t, true, region["required"])
-		_, hasDefault := region["default"]
-		require.False(t, hasDefault)
-		_, hasErr := region["error"]
-		require.False(t, hasErr)
+		require.NotContains(t, region, "default")
+		require.NotContains(t, region, "error")
 		require.Contains(t, note, "values a build for this workspace owner uses")
 	})
 
@@ -482,28 +503,12 @@ func TestReadTemplate_OwnerEvaluatedParameters(t *testing.T) {
 		t.Parallel()
 		// Builds for classic-flow templates use the import rows, so those are
 		// reported as the build values without consulting the renderer.
-		classicVersion := dbgen.TemplateVersion(t, db, database.TemplateVersion{
-			OrganizationID: org.ID,
-			CreatedBy:      user.ID,
-		})
-		classic := dbgen.Template(t, db, database.Template{
-			OrganizationID:          org.ID,
-			CreatedBy:               user.ID,
-			ActiveVersionID:         classicVersion.ID,
-			AgentsAllowed:           true,
-			UseClassicParameterFlow: true,
-		})
-		_ = dbgen.TemplateVersionParameter(t, db, database.TemplateVersionParameter{
-			TemplateVersionID: classicVersion.ID,
-			Name:              "Region",
-			Type:              "string",
-			DefaultValue:      "us-pittsburgh",
-		})
-		region, note := readTemplateParams(t, classic.ID, func(context.Context, uuid.UUID, uuid.UUID) ([]codersdk.PreviewParameter, []codersdk.FriendlyDiagnostic, error) {
+		classic := newTemplate(t, database.Template{UseClassicParameterFlow: true}, regionRow)
+		params, note := readAll(t, classic.ID, func(context.Context, uuid.UUID, uuid.UUID) ([]codersdk.PreviewParameter, []codersdk.FriendlyDiagnostic, error) {
 			t.Fatal("renderer must not run for classic-flow templates")
 			return nil, nil, nil
 		})
-		require.Equal(t, "us-pittsburgh", region["default"])
+		require.Equal(t, "us-pittsburgh", params["Region"]["default"])
 		require.Contains(t, note, "values a build for this workspace owner uses")
 	})
 
@@ -512,13 +517,10 @@ func TestReadTemplate_OwnerEvaluatedParameters(t *testing.T) {
 		unknown := ownerRendered[0]
 		unknown.DefaultValue = codersdk.NullHCLString{}
 		unknown.Value = codersdk.NullHCLString{}
-		region, note := readParams(t, func(context.Context, uuid.UUID, uuid.UUID) ([]codersdk.PreviewParameter, []codersdk.FriendlyDiagnostic, error) {
-			return []codersdk.PreviewParameter{unknown}, nil, nil
-		})
+		region, note := readParams(t, renderStatic(unknown))
 		require.Equal(t, "us-pittsburgh", region["default"])
 		require.Contains(t, region["default_note"], "recorded at template import")
-		_, hasErr := region["error"]
-		require.False(t, hasErr)
+		require.NotContains(t, region, "error")
 		require.Contains(t, note, "values a build for this workspace owner uses")
 	})
 
@@ -528,84 +530,84 @@ func TestReadTemplate_OwnerEvaluatedParameters(t *testing.T) {
 		// and reports that as a module_not_loaded warning, not an error.
 		// provisionerd still resolves the module at build time, so the
 		// import row is the best estimate for those parameters.
-		moduleVersion := dbgen.TemplateVersion(t, db, database.TemplateVersion{
-			OrganizationID: org.ID,
-			CreatedBy:      user.ID,
+		withModule := newTemplate(t, database.Template{}, regionRow, database.TemplateVersionParameter{
+			Name:         "jetbrains_ide",
+			Type:         "string",
+			DefaultValue: "GO",
 		})
-		moduleTmpl := dbgen.Template(t, db, database.Template{
-			OrganizationID:  org.ID,
-			CreatedBy:       user.ID,
-			ActiveVersionID: moduleVersion.ID,
-			AgentsAllowed:   true,
+		params, note := readAll(t, withModule.ID, func(context.Context, uuid.UUID, uuid.UUID) ([]codersdk.PreviewParameter, []codersdk.FriendlyDiagnostic, error) {
+			return ownerRendered, []codersdk.FriendlyDiagnostic{{
+				Severity: codersdk.DiagnosticSeverityWarning,
+				Summary:  "Module not loaded. Did you run `terraform init`?",
+				Extra:    codersdk.DiagnosticExtra{Code: "module_not_loaded"},
+			}}, nil
 		})
-		_ = dbgen.TemplateVersionParameter(t, db, database.TemplateVersionParameter{
-			TemplateVersionID: moduleVersion.ID,
-			Name:              "Region",
-			Type:              "string",
-			DefaultValue:      "us-pittsburgh",
-		})
-		_ = dbgen.TemplateVersionParameter(t, db, database.TemplateVersionParameter{
-			TemplateVersionID: moduleVersion.ID,
-			Name:              "jetbrains_ide",
-			Type:              "string",
-			DefaultValue:      "GO",
-		})
-		ctx := testutil.Context(t, testutil.WaitShort)
-		tool := chattool.ReadTemplate(db, org.ID, chattool.ReadTemplateOptions{
-			OwnerID: user.ID,
-			RenderParameters: func(context.Context, uuid.UUID, uuid.UUID) ([]codersdk.PreviewParameter, []codersdk.FriendlyDiagnostic, error) {
-				return ownerRendered, []codersdk.FriendlyDiagnostic{{
-					Severity: codersdk.DiagnosticSeverityWarning,
-					Summary:  "Module not loaded. Did you run `terraform init`?",
-					Extra:    codersdk.DiagnosticExtra{Code: "module_not_loaded"},
-				}}, nil
-			},
-			Logger: slogtest.Make(t, nil),
-		})
-		resp, err := tool.Run(ctx, fantasy.ToolCall{
-			ID:    "call-module",
-			Name:  "read_template",
-			Input: `{"template_id":"` + moduleTmpl.ID.String() + `"}`,
-		})
-		require.NoError(t, err)
-		require.False(t, resp.IsError, "unexpected error: %s", resp.Content)
-		var result struct {
-			Parameters []map[string]any `json:"parameters"`
-			Note       string           `json:"parameters_note"`
-		}
-		require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
-		require.Len(t, result.Parameters, 2)
-		byName := make(map[string]map[string]any, len(result.Parameters))
-		for _, p := range result.Parameters {
-			byName[p["name"].(string)] = p
-		}
-		require.Equal(t, "eu-helsinki", byName["Region"]["default"], "rendered parameters keep the owner default")
-		require.Equal(t, "GO", byName["jetbrains_ide"]["default"], "module parameter recovered from the import row")
-		require.Contains(t, byName["jetbrains_ide"]["default_note"], "recorded at template import")
-		require.Contains(t, result.Note, "values a build for this workspace owner uses")
+		require.Len(t, params, 2)
+		require.Equal(t, "eu-helsinki", params["Region"]["default"], "rendered parameters keep the owner default")
+		require.Equal(t, "GO", params["jetbrains_ide"]["default"], "module parameter recovered from the import row")
+		require.Contains(t, params["jetbrains_ide"]["default_note"], "recorded at template import")
+		require.Contains(t, note, "values a build for this workspace owner uses")
 	})
 
-	t.Run("UnknownOptionValueUsesImportValue", func(t *testing.T) {
+	t.Run("UnknownOptionValuesUseImportOptions", func(t *testing.T) {
 		t.Parallel()
 		// An option value that depends on data preview cannot see, such as
-		// data.coder_provisioner attributes, renders as invalid. The import
-		// row recorded what the provisioner produced, so use that rather
-		// than an empty string the model might pass to create_workspace.
+		// data.coder_provisioner attributes, renders as invalid and preview
+		// flags the parameter. The import row recorded the options the
+		// provisioner produced, so the whole list comes from there: option
+		// labels may themselves be owner-dependent, so they cannot key the
+		// recovery.
 		unknownOption := ownerRendered[0]
 		unknownOption.Options = []codersdk.PreviewParameterOption{
 			{Name: "Pittsburgh", Value: codersdk.NullHCLString{Value: "us-pittsburgh", Valid: true}},
-			{Name: "Falkenstein", Value: codersdk.NullHCLString{}},
-			{Name: "Unrecorded", Value: codersdk.NullHCLString{}},
+			{Name: "Falkenstein (" + user.Username + ")", Value: codersdk.NullHCLString{}},
 		}
-		region, _ := readParams(t, func(context.Context, uuid.UUID, uuid.UUID) ([]codersdk.PreviewParameter, []codersdk.FriendlyDiagnostic, error) {
-			return []codersdk.PreviewParameter{unknownOption}, nil, nil
-		})
+		unknownOption.Diagnostics = []codersdk.FriendlyDiagnostic{{
+			Severity: codersdk.DiagnosticSeverityError,
+			Summary:  "Parameter contains 1 invalid options",
+			Detail:   "The set of options cannot be resolved, and use of the parameter is limited.",
+		}}
+		region, _ := readParams(t, renderStatic(unknownOption))
+		require.Contains(t, region["error"], "invalid options")
 		opts, ok := region["options"].([]any)
 		require.True(t, ok)
-		require.Len(t, opts, 2, "an unknown option with no import counterpart is omitted")
+		require.Len(t, opts, 2)
 		require.Equal(t, "us-pittsburgh", opts[0].(map[string]any)["value"])
-		require.Equal(t, "eu-helsinki", opts[1].(map[string]any)["value"], "unknown option value recovered from the import row")
+		require.Equal(t, "Falkenstein", opts[1].(map[string]any)["name"], "import options replace the rendered list")
+		require.Equal(t, "eu-helsinki", opts[1].(map[string]any)["value"])
 		require.Contains(t, region["options_note"], "recorded at template import")
+	})
+
+	t.Run("UnknownValidationUsesImportValues", func(t *testing.T) {
+		t.Parallel()
+		// A validation attribute preview cannot evaluate comes back nil, the
+		// same as an absent one, but the provisioner enforces it at build
+		// time. The import row is the only record of it.
+		constrained := regionRow
+		constrained.Name = "cpu"
+		constrained.Type = "number"
+		constrained.DefaultValue = "4"
+		constrained.Options = nil
+		constrained.ValidationMin = sql.NullInt32{Int32: 2, Valid: true}
+		constrained.ValidationMax = sql.NullInt32{Int32: 16, Valid: true}
+		withValidation := newTemplate(t, database.Template{}, constrained)
+		min := int64(2)
+		params, _ := readAll(t, withValidation.ID, renderStatic(codersdk.PreviewParameter{
+			PreviewParameterData: codersdk.PreviewParameterData{
+				Name:         "cpu",
+				Type:         codersdk.OptionTypeNumber,
+				Mutable:      true,
+				DefaultValue: codersdk.NullHCLString{Value: "4", Valid: true},
+				Validations:  []codersdk.PreviewParameterValidation{{Min: &min}},
+			},
+			Value: codersdk.NullHCLString{Value: "4", Valid: true},
+		}))
+		cpu := params["cpu"]
+		require.Equal(t, "4", cpu["default"])
+		require.EqualValues(t, 2, cpu["validation_min"], "known constraints come from the render")
+		require.EqualValues(t, 16, cpu["validation_max"], "unknown constraint recovered from the import row")
+		require.Contains(t, cpu["validation_note"], "recorded at template import")
+		require.NotContains(t, cpu, "default_note")
 	})
 
 	t.Run("NoRendererUsesImportDefaults", func(t *testing.T) {
