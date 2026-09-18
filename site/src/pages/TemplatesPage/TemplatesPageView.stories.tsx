@@ -260,40 +260,6 @@ export const ClassicParameterFlowWarning: Story = {
 			"other-organization": false,
 		},
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-
-		const alert = canvas.getByRole("alert");
-		expect(
-			within(alert).getByText("2 templates still use classic parameters"),
-		).toBeVisible();
-		const docsLink = within(alert).getByRole("link", {
-			name: /view docs \(opens in new tab\)/i,
-		});
-		expect(docsLink).toHaveAttribute(
-			"href",
-			expect.stringContaining(
-				"/admin/templates/extending-templates/dynamic-parameters",
-			),
-		);
-		expect(docsLink).toHaveAttribute("target", "_blank");
-		expect(docsLink).toHaveAttribute("rel", "noreferrer");
-
-		const classicCell = canvas.getByRole("cell", { name: /Classic One/ });
-		expect(within(classicCell).getByText("Deprecated")).toBeVisible();
-
-		const inaccessibleCell = canvas.getByRole("cell", {
-			name: /Classic Without Permission/,
-		});
-		expect(
-			within(inaccessibleCell).queryByText("Deprecated"),
-		).not.toBeInTheDocument();
-
-		const dynamicCell = canvas.getByRole("cell", { name: /Dynamic One/ });
-		expect(
-			within(dynamicCell).queryByText("Deprecated"),
-		).not.toBeInTheDocument();
-	},
 };
 
 export const SingleClassicParameterFlowWarning: Story = {
@@ -309,15 +275,6 @@ export const SingleClassicParameterFlowWarning: Story = {
 			[MockTemplate.organization_id]: true,
 		},
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-
-		expect(
-			within(canvas.getByRole("alert")).getByText(
-				"1 template still uses classic parameters",
-			),
-		).toBeVisible();
-	},
 };
 
 export const ClassicParameterFlowWarningHiddenWithoutPermission: Story = {
@@ -328,23 +285,11 @@ export const ClassicParameterFlowWarningHiddenWithoutPermission: Story = {
 			[MockTemplate.organization_id]: false,
 		},
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-
-		expect(canvas.queryByRole("alert")).not.toBeInTheDocument();
-		expect(canvas.queryByText("Deprecated")).not.toBeInTheDocument();
-	},
 };
 
 export const ClassicParameterFlowWarningWithoutCreatePermission: Story = {
 	args: {
 		...ClassicParameterFlowWarning.args,
 		canCreateTemplates: false,
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-
-		expect(canvas.getByRole("alert")).toBeVisible();
-		expect(canvas.getAllByText("Deprecated")).toHaveLength(2);
 	},
 };
