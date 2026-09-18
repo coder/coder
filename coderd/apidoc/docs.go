@@ -28049,26 +28049,26 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "apps": {
-                    "description": "Apps holds one entry per app name agents reported.",
+                    "description": "Apps holds one entry per app name agents reported. The fields below are\nfamily totals kept for older clients.",
                     "type": "object",
                     "additionalProperties": {
                         "$ref": "#/definitions/codersdk.SessionCountApp"
                     }
                 },
                 "jetbrains": {
-                    "description": "Deprecated: use Apps. JetBrains totals the JetBrains family.",
+                    "description": "Deprecated: use Apps.",
                     "type": "integer"
                 },
                 "reconnecting_pty": {
-                    "description": "Deprecated: use Apps. ReconnectingPTY totals web terminals.",
+                    "description": "Deprecated: use Apps.",
                     "type": "integer"
                 },
                 "ssh": {
-                    "description": "Deprecated: use Apps. SSH totals the SSH family.",
+                    "description": "Deprecated: use Apps.",
                     "type": "integer"
                 },
                 "vscode": {
-                    "description": "Deprecated: use Apps. VSCode totals the VS Code family.",
+                    "description": "Deprecated: use Apps.",
                     "type": "integer"
                 }
             }

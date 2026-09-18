@@ -10,19 +10,24 @@ describe("sortSessionApps", () => {
 			display_name,
 		});
 
-		expect(
-			sortSessionApps({
-				zulu: app(2, "zulu"),
-				echo: app(1, "Alpha"),
-				delta: app(1, "delta"),
-				vscodium: app(1, "VSCodium"),
-				codium: app(1, "VSCodium"),
-				idle: app(0, "idle"),
-				negative: app(-1, "negative"),
-			}).map((app) => app.id),
-			// Both VSCodium builds share a display name, so the identifier breaks
-			// the tie.
-		).toEqual(["zulu", "echo", "delta", "codium", "vscodium"]);
+		const ordered = sortSessionApps({
+			zulu: app(2, "zulu"),
+			echo: app(1, "Alpha"),
+			delta: app(1, "delta"),
+			vscodium: app(1, "VSCodium"),
+			codium: app(1, "VSCodium"),
+			idle: app(0, "idle"),
+			negative: app(-1, "negative"),
+		});
+
+		// Both VSCodium builds share a display name, so the id breaks the tie.
+		expect(ordered.map((app) => app.id)).toEqual([
+			"zulu",
+			"echo",
+			"delta",
+			"codium",
+			"vscodium",
+		]);
 	});
 
 	it("handles a deployment that reported no apps", () => {
@@ -51,7 +56,8 @@ describe("DeploymentBannerView", () => {
 		);
 
 		fireEvent.error(screen.getByRole("img", { name: "Cursor icon" }));
+
 		expect(screen.queryByRole("img", { name: "Cursor icon" })).toBeNull();
-		expect(screen.getByText("Cursor")).toBeInTheDocument();
+		screen.getByText("Cursor");
 	});
 });

@@ -8765,23 +8765,24 @@ export interface SessionCountApp {
 // From codersdk/deployment.go
 export interface SessionCountDeploymentStats {
 	/**
-	 * Apps holds one entry per app name agents reported.
+	 * Apps holds one entry per app name agents reported. The fields below are
+	 * family totals kept for older clients.
 	 */
 	readonly apps: Record<string, SessionCountApp>;
 	/**
-	 * @deprecated use Apps. VSCode totals the VS Code family.
+	 * @deprecated use Apps.
 	 */
 	readonly vscode: number;
 	/**
-	 * @deprecated use Apps. SSH totals the SSH family.
+	 * @deprecated use Apps.
 	 */
 	readonly ssh: number;
 	/**
-	 * @deprecated use Apps. JetBrains totals the JetBrains family.
+	 * @deprecated use Apps.
 	 */
 	readonly jetbrains: number;
 	/**
-	 * @deprecated use Apps. ReconnectingPTY totals web terminals.
+	 * @deprecated use Apps.
 	 */
 	readonly reconnecting_pty: number;
 }

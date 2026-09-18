@@ -5462,15 +5462,16 @@ type WorkspaceDeploymentStats struct {
 }
 
 type SessionCountDeploymentStats struct {
-	// Apps holds one entry per app name agents reported.
+	// Apps holds one entry per app name agents reported. The fields below are
+	// family totals kept for older clients.
 	Apps map[string]SessionCountApp `json:"apps"`
-	// Deprecated: use Apps. VSCode totals the VS Code family.
+	// Deprecated: use Apps.
 	VSCode int64 `json:"vscode"`
-	// Deprecated: use Apps. SSH totals the SSH family.
+	// Deprecated: use Apps.
 	SSH int64 `json:"ssh"`
-	// Deprecated: use Apps. JetBrains totals the JetBrains family.
+	// Deprecated: use Apps.
 	JetBrains int64 `json:"jetbrains"`
-	// Deprecated: use Apps. ReconnectingPTY totals web terminals.
+	// Deprecated: use Apps.
 	ReconnectingPTY int64 `json:"reconnecting_pty"`
 }
 

@@ -620,15 +620,17 @@ func AgentStats(ctx context.Context, logger slog.Logger, registerer prometheus.R
 						)
 						continue
 					}
-					// An unknown app name keeps its own series under the unknown family.
+					sessionCounts := make(map[codersdk.AppFamilyName]int64)
 					for appName, count := range appCounts {
-						// The gauge retains the slice, so each series needs its own.
-						appLabels := make([]string, 0, len(labelValues)+2)
-						appLabels = append(append(appLabels, labelValues...), appName, string(codersdk.AppNameFamily(appName)))
+						family := codersdk.AppNameFamily(appName)
+						sessionCounts[family] += count
+						// The gauge retains the slice, so give each series its own. Add
+						// rather than Set, because aggregateByLabels can omit identity
+						// labels and collapse several agents onto one series.
+						appLabels := append(slices.Clone(labelValues), appName, string(family))
 						agentStatsSessionCountGauge.WithLabelValues(VectorOperationAdd, float64(count), appLabels...)
 					}
 
-					sessionCounts := codersdk.SumByFamily(appCounts)
 					agentStatsSessionCountJetBrainsGauge.WithLabelValues(VectorOperationSet, float64(sessionCounts[codersdk.AppFamilyJetBrains]), labelValues...)
 					agentStatsSessionCountReconnectingPTYGauge.WithLabelValues(VectorOperationSet, float64(sessionCounts[codersdk.AppFamilyReconnectingPTY]), labelValues...)
 					agentStatsSessionCountSSHGauge.WithLabelValues(VectorOperationSet, float64(sessionCounts[codersdk.AppFamilySSH]), labelValues...)

@@ -1,6 +1,7 @@
 package codersdk
 
 import (
+	"cmp"
 	"encoding/json"
 	"maps"
 	"slices"
@@ -81,10 +82,11 @@ func SessionCountApps(counts map[string]int64) map[string]SessionCountApp {
 	apps := make(map[string]SessionCountApp, len(counts))
 	for appName, count := range counts {
 		app := sessionApps[NormalizeAppName(appName)]
-		if app.displayName == "" {
-			app.displayName = appName
+		apps[appName] = SessionCountApp{
+			Count:       count,
+			DisplayName: cmp.Or(app.displayName, appName),
+			Icon:        app.icon,
 		}
-		apps[appName] = SessionCountApp{Count: count, DisplayName: app.displayName, Icon: app.icon}
 	}
 	return apps
 }
@@ -98,10 +100,12 @@ func SessionCountAppFamilies() map[string]AppFamilyName {
 	return families
 }
 
-// SumByFamily sums a per-app map by family, including AppFamilyUnknown. Totals
-// are additive, so usage two apps of one family share counts in each.
+// SumByFamily totals a per-app map by family. Apps of one family add together,
+// and an unregistered name totals under AppFamilyUnknown.
 func SumByFamily(byApp map[string]int64) map[AppFamilyName]int64 {
-	byFamily := make(map[AppFamilyName]int64, len(byApp))
+	// Sized by family rather than by app: the cap allows 65 app names, but they
+	// only ever fold into the handful of families above.
+	byFamily := make(map[AppFamilyName]int64)
 	for appName, value := range byApp {
 		byFamily[AppNameFamily(appName)] += value
 	}

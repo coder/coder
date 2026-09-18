@@ -25,6 +25,7 @@ import (
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/agentmetrics"
 	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/coderdtest/promhelp"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
@@ -858,12 +859,9 @@ func TestAgentStatsSessionCounts(t *testing.T) {
 				}
 				polls++
 				require.Eventually(t, func() bool {
-					for _, metric := range gather() {
-						if metric.GetName() == "coderd_prometheusmetrics_agentstats_execution_seconds" {
-							return metric.Metric[0].GetHistogram().GetSampleCount() >= polls
-						}
-					}
-					return false
+					executions := promhelp.MetricValue(t, registry,
+						"coderd_prometheusmetrics_agentstats_execution_seconds", prometheus.Labels{})
+					return executions.GetHistogram().GetSampleCount() >= polls
 				}, testutil.WaitShort, testutil.IntervalFast)
 			}
 			// counts returns the per-app gauge keyed by "app_name:family".
@@ -879,7 +877,10 @@ func TestAgentStatsSessionCounts(t *testing.T) {
 						for _, label := range m.Label {
 							labels[label.GetName()] = label.GetValue()
 						}
-						require.Equal(t, map[string]string{"username": "alice", "app_name": labels["app_name"], "family": labels["family"]}, labels)
+						// aggregateByLabels asked for username alone, so the gauge
+						// carries it plus the two labels this metric adds.
+						require.Len(t, labels, 3)
+						require.Equal(t, "alice", labels["username"])
 						result[labels["app_name"]+":"+labels["family"]] = m.GetGauge().GetValue()
 					}
 				}

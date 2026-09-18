@@ -12,7 +12,6 @@ import { DeploymentBannerView } from "./DeploymentBannerView";
 
 const withSessionCount = (
 	apps: SessionCountDeploymentStats["apps"],
-	families: Partial<SessionCountDeploymentStats> = {},
 ): DeploymentStats => ({
 	...MockDeploymentStats,
 	session_count: {
@@ -21,22 +20,16 @@ const withSessionCount = (
 		ssh: 0,
 		reconnecting_pty: 0,
 		apps,
-		...families,
 	},
 });
 
-// Seven positive apps: four visible, three behind "+3 more", one of them
-// without a bundled icon.
-const manyApps = withSessionCount(
-	{
-		...MockDeploymentStats.session_count.apps,
-		zed: { count: 7, display_name: "Zed", icon: "/icon/zed.svg" },
-		vscodium: { count: 4, display_name: "VSCodium" },
-		zero_count: { count: 0, display_name: "zero_count" },
-		negative_count: { count: -1, display_name: "negative_count" },
-	},
-	{ vscode: 152, jetbrains: 5, ssh: 39, reconnecting_pty: 15 },
-);
+// Seven apps: four visible, three behind "+3 more", one of them without a
+// bundled icon.
+const manyApps = withSessionCount({
+	...MockDeploymentStats.session_count.apps,
+	zed: { count: 7, display_name: "Zed", icon: "/icon/zed.svg" },
+	vscodium: { count: 4, display_name: "VSCodium" },
+});
 
 const meta: Meta<typeof DeploymentBannerView> = {
 	title: "modules/dashboard/DeploymentBannerView",
@@ -73,13 +66,10 @@ export const SessionCountVariants: Story = {
 				})}
 			/>
 			<DeploymentBannerView
-				stats={withSessionCount(
-					{
-						vscodium: { count: 4, display_name: "VSCodium" },
-						trae: { count: 2, display_name: "Trae" },
-					},
-					{ vscode: 6 },
-				)}
+				stats={withSessionCount({
+					vscodium: { count: 4, display_name: "VSCodium" },
+					trae: { count: 2, display_name: "Trae" },
+				})}
 			/>
 			<DeploymentBannerView
 				stats={withSessionCount({

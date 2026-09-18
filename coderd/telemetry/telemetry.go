@@ -1145,7 +1145,7 @@ func ConvertWorkspaceAgentVolumeResourceMonitor(monitor database.WorkspaceAgentV
 	}
 }
 
-// ConvertWorkspaceAgentStat converts a stat to telemetry, retaining unknown apps.
+// ConvertWorkspaceAgentStat reports raw per-app counts beside the family totals.
 func ConvertWorkspaceAgentStat(stat database.GetWorkspaceAgentStatsRow) (WorkspaceAgentStat, error) {
 	sessionCounts, err := codersdk.DecodeAppMap[int64](stat.SessionCounts)
 	if err != nil {
@@ -1641,20 +1641,21 @@ type WorkspaceAgent struct {
 }
 
 type WorkspaceAgentStat struct {
-	UserID                      uuid.UUID        `json:"user_id"`
-	TemplateID                  uuid.UUID        `json:"template_id"`
-	WorkspaceID                 uuid.UUID        `json:"workspace_id"`
-	AggregatedFrom              time.Time        `json:"aggregated_from"`
-	AgentID                     uuid.UUID        `json:"agent_id"`
-	RxBytes                     int64            `json:"rx_bytes"`
-	TxBytes                     int64            `json:"tx_bytes"`
-	ConnectionLatency50         float64          `json:"connection_latency_50"`
-	ConnectionLatency95         float64          `json:"connection_latency_95"`
-	SessionCounts               map[string]int64 `json:"session_counts"`
-	SessionCountVSCode          int64            `json:"session_count_vscode"`
-	SessionCountJetBrains       int64            `json:"session_count_jetbrains"`
-	SessionCountReconnectingPTY int64            `json:"session_count_reconnecting_pty"`
-	SessionCountSSH             int64            `json:"session_count_ssh"`
+	UserID              uuid.UUID        `json:"user_id"`
+	TemplateID          uuid.UUID        `json:"template_id"`
+	WorkspaceID         uuid.UUID        `json:"workspace_id"`
+	AggregatedFrom      time.Time        `json:"aggregated_from"`
+	AgentID             uuid.UUID        `json:"agent_id"`
+	RxBytes             int64            `json:"rx_bytes"`
+	TxBytes             int64            `json:"tx_bytes"`
+	ConnectionLatency50 float64          `json:"connection_latency_50"`
+	ConnectionLatency95 float64          `json:"connection_latency_95"`
+	SessionCounts       map[string]int64 `json:"session_counts,omitempty"`
+	// The four counts below are family totals derived from SessionCounts.
+	SessionCountVSCode          int64 `json:"session_count_vscode"`
+	SessionCountJetBrains       int64 `json:"session_count_jetbrains"`
+	SessionCountReconnectingPTY int64 `json:"session_count_reconnecting_pty"`
+	SessionCountSSH             int64 `json:"session_count_ssh"`
 }
 
 type WorkspaceAgentMemoryResourceMonitor struct {

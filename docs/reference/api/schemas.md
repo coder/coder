@@ -13598,14 +13598,14 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 ### Properties
 
-| Name               | Type                                                 | Required | Restrictions | Description                                                  |
-|--------------------|------------------------------------------------------|----------|--------------|--------------------------------------------------------------|
-| `apps`             | object                                               | false    |              | Apps holds one entry per app name agents reported.           |
-| » `[any property]` | [codersdk.SessionCountApp](#codersdksessioncountapp) | false    |              |                                                              |
-| `jetbrains`        | integer                                              | false    |              | Deprecated: use Apps. JetBrains totals the JetBrains family. |
-| `reconnecting_pty` | integer                                              | false    |              | Deprecated: use Apps. ReconnectingPTY totals web terminals.  |
-| `ssh`              | integer                                              | false    |              | Deprecated: use Apps. SSH totals the SSH family.             |
-| `vscode`           | integer                                              | false    |              | Deprecated: use Apps. VSCode totals the VS Code family.      |
+| Name               | Type                                                 | Required | Restrictions | Description                                                                                                   |
+|--------------------|------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------------|
+| `apps`             | object                                               | false    |              | Apps holds one entry per app name agents reported. The fields below are family totals kept for older clients. |
+| » `[any property]` | [codersdk.SessionCountApp](#codersdksessioncountapp) | false    |              |                                                                                                               |
+| `jetbrains`        | integer                                              | false    |              | Deprecated: use Apps.                                                                                         |
+| `reconnecting_pty` | integer                                              | false    |              | Deprecated: use Apps.                                                                                         |
+| `ssh`              | integer                                              | false    |              | Deprecated: use Apps.                                                                                         |
+| `vscode`           | integer                                              | false    |              | Deprecated: use Apps.                                                                                         |
 
 ## codersdk.SessionLifetime
 
