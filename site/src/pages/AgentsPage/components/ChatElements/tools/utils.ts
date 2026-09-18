@@ -54,6 +54,24 @@ export const formatModelIntentLabel = (
 	return trimmed.charAt(0).toUpperCase() + trimmed.slice(1);
 };
 
+/**
+ * Label suffix for a context boundary marker's `source`. Only sources
+ * that were requested (`manual`, `agent`) are called out; automatic
+ * threshold compactions and unknown values keep the plain label.
+ */
+export const contextBoundarySourceSuffix = (
+	source: string | undefined,
+): string => {
+	switch (source) {
+		case "manual":
+			return " (manual)";
+		case "agent":
+			return " (agent)";
+		default:
+			return "";
+	}
+};
+
 const trailingDurationPattern =
 	/(^|\s+)for\s+\d+(?:\.\d+)?\s*(?:ms|s|m|h)\s*$/i;
 
