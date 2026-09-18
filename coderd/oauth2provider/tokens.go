@@ -278,8 +278,14 @@ func mergeBasicClientAuth(r *http.Request, clientID, clientSecret string) (merge
 // clientSecretInQuery reports whether the request carries client_secret in the
 // URL. OAuth 2.1 §2.4.1 allows it only in the request body or the Authorization
 // header. A URL is recorded by proxies and access logs.
+//
+// RFC 6749 §3.2: a parameter sent without a value is the omitted case, so
+// ?client_secret= carries no secret. Every value is checked because the first
+// of a repeated parameter may be the empty one.
 func clientSecretInQuery(r *http.Request) bool {
-	return r.URL.Query().Has("client_secret")
+	return slices.ContainsFunc(r.URL.Query()["client_secret"], func(v string) bool {
+		return v != ""
+	})
 }
 
 // authenticateClient checks a client secret and confirms it belongs to the

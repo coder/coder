@@ -1484,6 +1484,42 @@ func TestOAuth2ProviderRevokeClientAuthentication(t *testing.T) {
 		require.Contains(t, oauthErr.ErrorDescription, "client_secret")
 		require.True(t, works(), "a refused revocation must not end the session")
 	})
+
+	// RFC 6749 §3.2: a valueless parameter is the omitted case, so ?client_secret=
+	// leaks nothing and must not cost a client that authenticated in the body.
+	t.Run("EmptySecretInQueryString", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		userClient, refreshToken, works := newSession(ctx, t)
+
+		form := url.Values{}
+		form.Set("token", refreshToken)
+		form.Set("client_id", apps.Default.ID.String())
+		form.Set("client_secret", secret.ClientSecretFull)
+		status, _, _ := postRevoke(ctx, t, userClient, form, func(r *http.Request) {
+			r.URL.RawQuery = "client_secret="
+		})
+		require.Equal(t, http.StatusOK, status)
+		require.False(t, works(), "the revocation must end the session")
+	})
+
+	// An empty first value must not hide a real one behind it.
+	t.Run("EmptyAndRealSecretInQueryString", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		userClient, refreshToken, works := newSession(ctx, t)
+
+		form := url.Values{}
+		form.Set("token", refreshToken)
+		form.Set("client_id", apps.Default.ID.String())
+		status, _, oauthErr := postRevoke(ctx, t, userClient, form, func(r *http.Request) {
+			r.URL.RawQuery = "client_secret=&client_secret=" + url.QueryEscape(secret.ClientSecretFull)
+		})
+		require.Equal(t, http.StatusBadRequest, status)
+		require.Equal(t, codersdk.OAuth2ErrorCodeInvalidRequest, oauthErr.Error)
+		require.Contains(t, oauthErr.ErrorDescription, "not in the URL")
+		require.True(t, works(), "a refused revocation must not end the session")
+	})
 }
 
 func TestOAuth2ProviderPublicClientTokenLifecycle(t *testing.T) {
