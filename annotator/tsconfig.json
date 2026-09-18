@@ -6,7 +6,7 @@
 		"module": "esnext",
 		"moduleResolution": "bundler",
 		"lib": ["dom", "dom.iterable", "es2022"],
-		"types": [],
+		"types": ["vite/client"],
 		"isolatedModules": true,
 		"skipLibCheck": true,
 		"forceConsistentCasingInFileNames": true

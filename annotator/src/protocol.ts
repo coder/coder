@@ -24,6 +24,11 @@ export interface AnnotatedElement {
 	openingTag: string;
 	rect: { x: number; y: number; width: number; height: number };
 	reactComponents?: string[];
+	// Prop names of the nearest component; values are never captured.
+	reactProps?: string[];
+	// Components that created this element's JSX, innermost first, with
+	// their resolved call sites.
+	reactOwnerStack?: string[];
 	sourceLocation?: string;
 }
 
@@ -191,6 +196,8 @@ function parseElement(value: unknown): AnnotatedElement | undefined {
 		openingTag,
 		rect: parseRect(value.rect),
 		reactComponents: stringArray(value.reactComponents, maxComponents),
+		reactProps: stringArray(value.reactProps, 20),
+		reactOwnerStack: stringArray(value.reactOwnerStack, 10),
 		sourceLocation: optionalString(value.sourceLocation),
 	};
 }

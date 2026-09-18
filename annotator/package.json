@@ -20,6 +20,9 @@
 		"vite": "8.2.1",
 		"vitest": "4.1.11"
 	},
+	"dependencies": {
+		"bippy": "0.7.3"
+	},
 	"pnpm": {
 		"overrides": {
 			"brace-expansion": "1.1.12",

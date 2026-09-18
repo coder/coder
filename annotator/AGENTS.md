@@ -3,9 +3,11 @@
 Vanilla TypeScript that Coder injects into third-party web apps shown in
 agent chat port previews. Read the repository `AGENTS.md` first.
 
-- No runtime dependencies and no framework. It runs inside pages we do
-  not control, so it must not assume React, Tailwind, or the dashboard's
-  globals, and it renders only inside its own shadow root.
+- No framework, and the only runtime dependency is `bippy` (React fiber
+  inspection), bundled into the script. It runs inside pages we do not
+  control, so it must not assume React, Tailwind, or the dashboard's
+  globals, and it renders only inside its own shadow root. `react` is
+  aliased to `src/reactShim.ts` so bippy cannot pull React in.
 - Never import from `site/`. The dashboard imports `src/` through its
   `@coder/annotator/*` path alias; nothing flows the other way.
 - Treat everything read from the host page as untrusted: bound string
