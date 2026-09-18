@@ -293,28 +293,49 @@ func contextResourcesToPrompt(
 	return formatSystemInstructions(operatingSystem, directory, contextFileParts), skills, malformed
 }
 
-// ContextResources returns the chat's pinned context resource list (metadata
-// only). It is read-only and intended for the single-chat GET handler; list
-// and watch payloads omit this detail to stay lightweight.
-//
-// The returned list is the chat's full pinned inventory (instruction files,
-// skills, and MCP configs/servers), each stamped with its per-resource status
-// so the UI can explain why a resource was dropped from the prompt instead of
-// silently omitting it.
-func (server *Server) ContextResources(
+// ChatContextDetail is the read-time enrichment of a chat's context
+// summary, intended for the single-chat GET handler; list and watch
+// payloads omit it to stay lightweight.
+type ChatContextDetail struct {
+	// Resources is the chat's full pinned inventory (instruction files,
+	// skills, and MCP configs/servers), metadata only, each stamped with
+	// its per-resource status so the UI can explain why a resource was
+	// dropped from the prompt instead of silently omitting it.
+	Resources []codersdk.ChatContextResource
+	// MCPDiscovery is nil for chats without a bound workspace agent.
+	MCPDiscovery *codersdk.ChatContextMCPDiscovery
+}
+
+// ContextDetail lists the chat's pinned context resources and, for chats
+// bound to a workspace agent, the workspace MCP discovery state derived
+// from the same view the generation path uses.
+func (server *Server) ContextDetail(
 	ctx context.Context,
 	chat database.Chat,
-) ([]codersdk.ChatContextResource, error) {
+) (ChatContextDetail, error) {
 	pinned, err := server.db.ListChatContextResourcesByChatID(ctx, chat.ID)
 	if err != nil {
-		return nil, xerrors.Errorf("list chat context resources: %w", err)
+		return ChatContextDetail{}, xerrors.Errorf("list chat context resources: %w", err)
 	}
-	resources := pinnedContextResources(pinned)
+	detail := ChatContextDetail{Resources: pinnedContextResources(pinned)}
+	if chat.AgentID.Valid {
+		// The pinned rows authorize against the chat while the agent and
+		// snapshot reads authorize against the workspace, so a reader
+		// with chat-only access still gets the inventory, minus the
+		// discovery state.
+		view, err := server.workspaceMCPViewForPinned(ctx, chat, pinned)
+		if err != nil {
+			server.logger.Warn(ctx, "failed to load workspace mcp view for chat context detail",
+				slog.F("chat_id", chat.ID), slog.Error(err))
+		} else {
+			detail.MCPDiscovery = view.Discovery()
+		}
+	}
 	server.logger.Debug(ctx, "computed chat context resources",
 		slog.F("chat_id", chat.ID),
-		slog.F("resource_count", len(resources)),
+		slog.F("resource_count", len(detail.Resources)),
 	)
-	return resources, nil
+	return detail, nil
 }
 
 // pinnedContextResources converts a chat's pinned context rows into the
@@ -325,7 +346,11 @@ func (server *Server) ContextResources(
 // inventory the user can act on, each stamped with its Status:
 //
 //   - OK instruction files with non-empty (sanitized) content, OK skills with
-//     a name, and OK MCP configs/servers (mcp_server carries its tools).
+//     a name, and OK MCP configs/servers (mcp_server carries its tools). An
+//     OK row keeps its Error as a non-fatal warning (for example an MCP
+//     server whose reconnect failed and still serves the previous
+//     connection), so the UI can show the issue without marking the
+//     resource unavailable.
 //   - Non-OK rows (invalid, unreadable, oversize, excluded) of a tracked kind,
 //     carrying Status and Error so the UI can explain why the resource was
 //     dropped from the prompt instead of silently omitting it. Their
@@ -364,6 +389,7 @@ func pinnedContextResources(resources []database.ChatContextResource) []codersdk
 				Kind:      kind,
 				SizeBytes: r.SizeBytes,
 				Status:    codersdk.ChatContextResourceStatusOK,
+				Error:     r.Error,
 			})
 		case database.WorkspaceAgentContextBodyKindSkill:
 			name, description, decoded := decodeSkillIdentity(r.Body)
@@ -375,6 +401,7 @@ func pinnedContextResources(resources []database.ChatContextResource) []codersdk
 				Kind:             kind,
 				SizeBytes:        r.SizeBytes,
 				Status:           codersdk.ChatContextResourceStatusOK,
+				Error:            r.Error,
 				SkillName:        name,
 				SkillDescription: description,
 			})
@@ -384,6 +411,7 @@ func pinnedContextResources(resources []database.ChatContextResource) []codersdk
 				Kind:      kind,
 				SizeBytes: r.SizeBytes,
 				Status:    codersdk.ChatContextResourceStatusOK,
+				Error:     r.Error,
 			})
 		case database.WorkspaceAgentContextBodyKindMcpServer:
 			out = append(out, codersdk.ChatContextResource{
@@ -391,6 +419,7 @@ func pinnedContextResources(resources []database.ChatContextResource) []codersdk
 				Kind:      kind,
 				SizeBytes: r.SizeBytes,
 				Status:    codersdk.ChatContextResourceStatusOK,
+				Error:     r.Error,
 				Tools:     mcpToolsFromServerBody(r.Source, r.Body),
 			})
 		}

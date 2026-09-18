@@ -18,6 +18,9 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	dbpubsub "github.com/coder/coder/v2/coderd/database/pubsub"
+	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -58,17 +61,26 @@ func TestPersistBuildAgentBindingRepinsContext(t *testing.T) {
 		require.Len(t, preRes, 1)
 		require.Equal(t, fix.srcA, preRes[0].Source)
 
-		wc := newRebindTurnContext(t, fix.db, chat)
+		wc, events := newRebindTurnContext(t, fix.db, chat)
 		updated, err := wc.persistBuildAgentBinding(fix.ctx, chat, fix.buildID, fix.agentB)
 		require.NoError(t, err)
 		require.True(t, updated.AgentID.Valid)
 		require.Equal(t, fix.agentB, updated.AgentID.UUID, "the binding commits the new agent")
+		require.Equal(t, fix.hashB, updated.ContextAggregateHash, "the returned row carries the re-pinned hash")
+		require.Equal(t, updated, wc.currentChatSnapshot())
 
-		// The re-pin runs in its own transaction after the binding row is
-		// written, so re-read the chat to observe the new pinned state.
 		post, err := fix.db.GetChatByID(fix.ctx, chat.ID)
 		require.NoError(t, err)
 		require.Equal(t, fix.hashB, post.ContextAggregateHash, "rebind re-pins the new agent's hash")
+
+		// Watching clients cached the chat detail for agent A and can only
+		// learn about the rebind through this event.
+		event := testutil.RequireReceive(fix.ctx, t, events)
+		require.Equal(t, codersdk.ChatWatchEventKindContextDirty, event.Kind)
+		require.Equal(t, chat.ID, event.Chat.ID)
+		require.NotNil(t, event.Chat.AgentID)
+		require.Equal(t, fix.agentB, *event.Chat.AgentID, "the event carries the post-rebind row")
+		requireNoContextEvent(t, events)
 
 		postRes, err := fix.db.ListChatContextResourcesByChatID(fix.ctx, chat.ID)
 		require.NoError(t, err)
@@ -109,10 +121,11 @@ func TestPersistBuildAgentBindingRepinsContext(t *testing.T) {
 		require.False(t, unbound.AgentID.Valid, "lifecycle tool clears the agent binding")
 		require.Equal(t, fix.hashA, unbound.ContextAggregateHash, "lifecycle tool preserves the old pin")
 
-		wc := newRebindTurnContext(t, fix.db, unbound)
+		wc, events := newRebindTurnContext(t, fix.db, unbound)
 		updated, err := wc.persistBuildAgentBinding(fix.ctx, unbound, fix.buildID, fix.agentB)
 		require.NoError(t, err)
 		require.Equal(t, fix.agentB, updated.AgentID.UUID, "the binding commits the new agent")
+		require.Equal(t, codersdk.ChatWatchEventKindContextDirty, testutil.RequireReceive(fix.ctx, t, events).Kind)
 
 		post, err := fix.db.GetChatByID(fix.ctx, chat.ID)
 		require.NoError(t, err)
@@ -138,10 +151,11 @@ func TestPersistBuildAgentBindingRepinsContext(t *testing.T) {
 		})
 		require.False(t, chat.AgentID.Valid, "chat starts with no bound agent")
 
-		wc := newRebindTurnContext(t, fix.db, chat)
+		wc, events := newRebindTurnContext(t, fix.db, chat)
 		updated, err := wc.persistBuildAgentBinding(fix.ctx, chat, fix.buildID, fix.agentB)
 		require.NoError(t, err)
 		require.Equal(t, fix.agentB, updated.AgentID.UUID, "the binding commits the new agent")
+		requireNoContextEvent(t, events)
 
 		post, err := fix.db.GetChatByID(fix.ctx, chat.ID)
 		require.NoError(t, err)
@@ -175,10 +189,12 @@ func TestPersistBuildAgentBindingRepinsContext(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, preRes, 1, "chat starts pinned to agent A")
 
-		wc := newRebindTurnContext(t, fix.db, chat)
+		wc, events := newRebindTurnContext(t, fix.db, chat)
 		updated, err := wc.persistBuildAgentBinding(fix.ctx, chat, fix.buildID, fix.agentNoSnap)
 		require.NoError(t, err)
 		require.Equal(t, fix.agentNoSnap, updated.AgentID.UUID)
+		require.Empty(t, updated.ContextAggregateHash, "the returned row reflects the cleared pin")
+		require.Equal(t, codersdk.ChatWatchEventKindContextDirty, testutil.RequireReceive(fix.ctx, t, events).Kind)
 
 		post, err := fix.db.GetChatByID(fix.ctx, chat.ID)
 		require.NoError(t, err)
@@ -195,7 +211,8 @@ func TestPersistBuildAgentBindingRepinsContext(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitShort)
 		ctrl := gomock.NewController(t)
 		dbm := dbmock.NewMockStore(ctrl)
-		server := &Server{db: dbm, logger: slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})}
+		ps := dbpubsub.NewInMemory()
+		server := &Server{db: dbm, logger: slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}), pubsub: ps}
 
 		chatID := uuid.New()
 		priorAgent := uuid.New()
@@ -230,12 +247,48 @@ func TestPersistBuildAgentBindingRepinsContext(t *testing.T) {
 		}
 		t.Cleanup(wc.close)
 
+		events := watchContextEvents(t, ps, boundChat.OwnerID)
 		prior := database.Chat{ID: chatID, AgentID: uuid.NullUUID{UUID: priorAgent, Valid: true}}
 		updated, err := wc.persistBuildAgentBinding(ctx, prior, buildID, newAgent)
 		require.NoError(t, err, "a re-pin failure must not fail the binding")
 		require.Equal(t, newAgent, updated.AgentID.UUID)
 		require.Equal(t, boundChat, wc.currentChatSnapshot(), "the binding still commits the new agent")
+
+		// The binding changed what the single-chat GET derives even though
+		// the re-pin failed, so the event is still published.
+		event := testutil.RequireReceive(ctx, t, events)
+		require.Equal(t, codersdk.ChatWatchEventKindContextDirty, event.Kind)
+		require.Equal(t, chatID, event.Chat.ID)
+		require.NotNil(t, event.Chat.AgentID)
+		require.Equal(t, newAgent, *event.Chat.AgentID)
 	})
+}
+
+// watchContextEvents subscribes to the owner's chat watch channel. The
+// in-memory pubsub delivers synchronously, so an event published during
+// persistBuildAgentBinding is buffered by the time it returns.
+func watchContextEvents(t *testing.T, ps dbpubsub.Pubsub, ownerID uuid.UUID) <-chan codersdk.ChatWatchEvent {
+	t.Helper()
+	events := make(chan codersdk.ChatWatchEvent, 4)
+	cancel, err := ps.SubscribeWithErr(
+		coderdpubsub.ChatWatchEventChannel(ownerID),
+		coderdpubsub.HandleChatWatchEvent(func(_ context.Context, payload codersdk.ChatWatchEvent, err error) {
+			require.NoError(t, err)
+			events <- payload
+		}),
+	)
+	require.NoError(t, err)
+	t.Cleanup(cancel)
+	return events
+}
+
+func requireNoContextEvent(t *testing.T, events <-chan codersdk.ChatWatchEvent) {
+	t.Helper()
+	select {
+	case event := <-events:
+		t.Fatalf("unexpected %s event for chat %s", event.Kind, event.Chat.ID)
+	default:
+	}
 }
 
 type rebindFixture struct {
@@ -351,9 +404,10 @@ func seedAgentContext(ctx context.Context, t *testing.T, db database.Store, agen
 	require.NoError(t, err)
 }
 
-func newRebindTurnContext(t *testing.T, db database.Store, chat database.Chat) *turnWorkspaceContext {
+func newRebindTurnContext(t *testing.T, db database.Store, chat database.Chat) (*turnWorkspaceContext, <-chan codersdk.ChatWatchEvent) {
 	t.Helper()
-	server := &Server{db: db, logger: slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})}
+	ps := dbpubsub.NewInMemory()
+	server := &Server{db: db, logger: slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}), pubsub: ps}
 	cur := chat
 	wc := &turnWorkspaceContext{
 		server:           server,
@@ -362,5 +416,5 @@ func newRebindTurnContext(t *testing.T, db database.Store, chat database.Chat) *
 		loadChatSnapshot: db.GetChatByID,
 	}
 	t.Cleanup(wc.close)
-	return wc
+	return wc, watchContextEvents(t, ps, chat.OwnerID)
 }

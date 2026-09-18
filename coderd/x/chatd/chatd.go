@@ -429,6 +429,12 @@ func (p *Server) resolveWorkspaceMCPTools(
 	chat database.Chat,
 	workspaceCtx *turnWorkspaceContext,
 ) []fantasy.AgentTool {
+	// getWorkspaceAgent may have rebound the chat to a replacement agent
+	// earlier in this turn; the row loaded at turn start would still name
+	// the soft-deleted one and withhold every replacement tool.
+	if current := workspaceCtx.currentChatSnapshot(); current.ID != uuid.Nil {
+		chat = current
+	}
 	tools, err := p.pinnedWorkspaceMCPTools(ctx, chat, workspaceCtx.getWorkspaceConn)
 	if err != nil {
 		logger.Warn(ctx, "failed to read pinned workspace MCP tools",
@@ -439,19 +445,20 @@ func (p *Server) resolveWorkspaceMCPTools(
 }
 
 // pinnedWorkspaceMCPTools builds workspace MCP tools from the chat's pinned
-// definitions. Calls still proxy through the agent connection, and agent pushes
-// live-sync definitions, so no invalidation callback is needed.
+// definitions through the shared workspace MCP view, so definitions left
+// behind by a previous agent process are withheld. Calls still proxy
+// through the agent connection, and agent pushes live-sync definitions, so
+// no invalidation callback is needed.
 func (p *Server) pinnedWorkspaceMCPTools(
 	ctx context.Context,
 	chat database.Chat,
 	getConn func(context.Context) (workspacesdk.AgentConn, error),
 ) ([]fantasy.AgentTool, error) {
-	resources, err := p.db.ListChatContextResourcesByChatID(ctx, chat.ID)
+	view, err := p.loadWorkspaceMCPView(ctx, chat)
 	if err != nil {
-		return nil, xerrors.Errorf("list chat context resources: %w", err)
+		return nil, err
 	}
-	infos := workspaceMCPToolInfosFromResources(resources)
-	return chattool.NewWorkspaceMCPTools(infos, getConn), nil
+	return chattool.NewWorkspaceMCPTools(view.Tools(), getConn), nil
 }
 
 type turnWorkspaceContext struct {
@@ -562,20 +569,38 @@ func (c *turnWorkspaceContext) persistBuildAgentBinding(
 	// injecting the previous agent's resources. Workspace lifecycle tools clear
 	// the agent binding while preserving the pin, so a missing prior agent also
 	// requires a re-pin when pinned context exists. Best-effort: a context error
-	// must never fail the binding. The pinned context fields on updatedChat are
-	// background state, reloaded on the next snapshot fetch.
+	// must never fail the binding.
 	hasStaleUnboundContext := !chatSnapshot.AgentID.Valid && chatSnapshot.ContextAggregateHash != nil
 	if hasStaleUnboundContext || (chatSnapshot.AgentID.Valid && chatSnapshot.AgentID.UUID != agentID) {
 		//nolint:gocritic // Chatd re-pins chats it does not own as the daemon subject.
 		repinCtx := dbauthz.AsChatd(ctx)
-		if repinErr := database.ReadModifyUpdate(c.server.db, func(tx database.Store) error {
-			return repinChatContext(repinCtx, tx, chatSnapshot.ID, uuid.NullUUID{UUID: agentID, Valid: true})
-		}); repinErr != nil {
+		var repinned database.Chat
+		repinErr := database.ReadModifyUpdate(c.server.db, func(tx database.Store) error {
+			if err := repinChatContext(repinCtx, tx, chatSnapshot.ID, uuid.NullUUID{UUID: agentID, Valid: true}); err != nil {
+				return err
+			}
+			got, err := tx.GetChatByID(repinCtx, chatSnapshot.ID)
+			if err != nil {
+				return xerrors.Errorf("get chat after re-pin: %w", err)
+			}
+			repinned = got
+			return nil
+		})
+		if repinErr != nil {
 			c.server.logger.Warn(ctx, "re-pin chat context after agent rebind",
 				slog.F("chat_id", chatSnapshot.ID),
 				slog.F("agent_id", agentID),
 				slog.Error(repinErr))
+		} else {
+			updatedChat = repinned
 		}
+		// The single-chat GET derives the pinned inventory and the MCP
+		// discovery state from the bound agent, so an open chat can only
+		// learn about the rebind through an event: agent pushes fan out to
+		// chats bound to the pushing agent, which this chat was not until
+		// now. Published even when the re-pin failed because the binding
+		// itself changed what the GET returns.
+		c.server.publishChatPubsubEvents([]database.Chat{updatedChat}, codersdk.ChatWatchEventKindContextDirty)
 	}
 
 	c.setCurrentChat(updatedChat)

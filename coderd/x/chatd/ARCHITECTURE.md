@@ -623,6 +623,15 @@ There are 2 notification channels:
 - The current pubsub API is not assumed to provide transaction atomicity or commit-order delivery. Receivers must tolerate duplicates, drops, and reordering.
 - Every receiver tracks the highest `snapshot_version` it has processed per chat. Notifications with `snapshot_version` less than or equal to that watermark are discarded.
 
+<!-- TODO: Document that an agent context push which changes only the MCP
+discovery phase or agent run id (no resource row change, no instruction drift)
+still publishes context_dirty to every active chat bound to that agent, without
+setting context_dirty_since. See HydrateAndMarkChatsDirty. Also document that
+a turn which rebinds a chat to a different agent publishes context_dirty for
+that chat after re-pinning, because agent pushes fan out by the pushing
+agent and cannot reach a chat still bound to the previous one. See
+persistBuildAgentBinding. -->
+
 # Chat worker
 
 A chat worker lives inside every coderd replica. It acquires chats, calls the LLM API, executes tools, handles interrupts and tool-result waits, and commits completed outcomes through the core state machine.

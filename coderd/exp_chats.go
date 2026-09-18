@@ -1509,22 +1509,7 @@ func (api *API) getChat(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Enrich the lightweight context summary with the chat's pinned
-	// resources (metadata only). This detail is computed on read and only
-	// attached on the single-chat GET; list and watch payloads stay
-	// lightweight. A failure here is non-fatal: the chat is still usable
-	// without the detail, so we log and return the rest of the response.
-	if sdkChat.Context != nil && api.chatDaemon != nil {
-		resources, err := api.chatDaemon.ContextResources(ctx, chat)
-		if err != nil {
-			api.Logger.Error(ctx, "failed to compute chat context resources",
-				slog.F("chat_id", chat.ID),
-				slog.Error(err),
-			)
-		} else {
-			sdkChat.Context.Resources = resources
-		}
-	}
+	api.attachChatContextDetail(ctx, &sdkChat, chat)
 
 	// For root chats, embed children so callers get a complete
 	// tree in a single response.
@@ -2191,24 +2176,37 @@ func (api *API) refreshChatContext(rw http.ResponseWriter, r *http.Request) {
 
 	sdkChat := db2sdk.Chat(updated, nil, nil)
 
-	// Enrich the context summary with the freshly pinned resources so the
-	// client reflects the refresh immediately, without a full reload. This
-	// mirrors getChat; we pass the re-pinned chat so the detail reflects the
-	// post-refresh state. A failure here is non-fatal: the refresh already
-	// succeeded, so we log and return the rest of the response.
-	if sdkChat.Context != nil && api.chatDaemon != nil {
-		resources, err := api.chatDaemon.ContextResources(ctx, updated)
-		if err != nil {
-			api.Logger.Error(ctx, "failed to compute chat context resources after refresh",
-				slog.F("chat_id", updated.ID),
-				slog.Error(err),
-			)
-		} else {
-			sdkChat.Context.Resources = resources
-		}
-	}
+	// The re-pinned chat is passed so the detail reflects the post-refresh
+	// state without a full reload.
+	api.attachChatContextDetail(ctx, &sdkChat, updated)
 
 	httpapi.Write(ctx, rw, http.StatusOK, sdkChat)
+}
+
+// attachChatContextDetail enriches a single-chat response with the pinned
+// resource inventory (metadata only) and the workspace MCP discovery
+// state; list and watch payloads stay lightweight. A chat bound to an
+// agent gets a context envelope even before its first snapshot, so
+// discovery can report pending during initial startup. A failure is
+// non-fatal: the chat is usable without the detail, so it is logged and
+// the rest of the response is returned.
+func (api *API) attachChatContextDetail(ctx context.Context, sdkChat *codersdk.Chat, chat database.Chat) {
+	if api.chatDaemon == nil || (sdkChat.Context == nil && !chat.AgentID.Valid) {
+		return
+	}
+	detail, err := api.chatDaemon.ContextDetail(ctx, chat)
+	if err != nil {
+		api.Logger.Error(ctx, "failed to compute chat context resources",
+			slog.F("chat_id", chat.ID),
+			slog.Error(err),
+		)
+		return
+	}
+	if sdkChat.Context == nil {
+		sdkChat.Context = &codersdk.ChatContext{}
+	}
+	sdkChat.Context.Resources = detail.Resources
+	sdkChat.Context.MCPDiscovery = detail.MCPDiscovery
 }
 
 // patchChat updates a chat resource. Supports updating labels,
