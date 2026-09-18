@@ -64,7 +64,7 @@ import {
 
 import { WriteFileTool } from "./WriteFileTool";
 
-interface ToolProps extends Omit<ComponentPropsWithRef<"div">, "children"> {
+type ToolProps = Omit<ComponentPropsWithRef<"div">, "children"> & {
 	organizationId?: string;
 	name: string;
 	status?: ToolStatus;
@@ -100,7 +100,7 @@ interface ToolProps extends Omit<ComponentPropsWithRef<"div">, "children"> {
 	hookRewritten?: boolean;
 	shellToolDisplayMode?: TypesGen.AgentDisplayMode;
 	codeDiffDisplayMode?: TypesGen.AgentDisplayMode;
-}
+};
 
 // Props passed to each tool-specific renderer function. Each renderer
 // only computes the expensive values it needs from the raw args/result.

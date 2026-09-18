@@ -38,10 +38,10 @@ import {
 	TRANSCRIPT_PREVIEW_COUNT,
 } from "./debugPanelUtils";
 
-interface DebugStepCardProps {
+type DebugStepCardProps = {
 	step: ChatDebugStep;
 	defaultOpen?: boolean;
-}
+};
 
 type SectionKey = "tools" | "options" | "usage" | "policy";
 

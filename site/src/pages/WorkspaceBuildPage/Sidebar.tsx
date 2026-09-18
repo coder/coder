@@ -18,9 +18,9 @@ export const Sidebar: FC<HTMLAttributes<HTMLElement>> = ({
 	);
 };
 
-interface SidebarItemProps extends HTMLAttributes<HTMLElement> {
+type SidebarItemProps = HTMLAttributes<HTMLElement> & {
 	active?: boolean;
-}
+};
 
 export const SidebarItem: FC<SidebarItemProps> = ({
 	children,

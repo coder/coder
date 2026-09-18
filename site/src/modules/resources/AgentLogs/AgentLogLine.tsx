@@ -5,11 +5,11 @@ import { type Line, LogLine, LogLinePrefix } from "#/components/Logs/LogLine";
 // Approximate height of a log line. Used to control virtualized list height.
 export const AGENT_LOG_LINE_HEIGHT = 20;
 
-interface AgentLogLineProps {
+type AgentLogLineProps = {
 	line: Line;
 	style?: React.CSSProperties;
 	sourceIcon: ReactNode;
-}
+};
 
 export const AgentLogLine: FC<AgentLogLineProps> = ({
 	line,

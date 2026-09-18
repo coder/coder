@@ -8,13 +8,13 @@ import {
 } from "#/components/Sidebar/Sidebar";
 import type { Permissions } from "#/modules/permissions";
 
-interface DeploymentSidebarViewProps {
+type DeploymentSidebarViewProps = {
 	/** Site-wide permissions. */
 	permissions: Permissions;
 	showOrganizations: boolean;
 	hidePremiumTab: boolean;
 	buildInfo: BuildInfoResponse;
-}
+};
 
 /**
  * Displays navigation for deployment settings.  If active, highlight the main

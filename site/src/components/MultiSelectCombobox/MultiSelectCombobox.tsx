@@ -33,7 +33,7 @@ import {
 } from "#/components/Tooltip/Tooltip";
 import { useDebouncedValue } from "#/hooks/debounce";
 
-export interface Option {
+export type Option = {
 	value: string;
 	label: string;
 	icon?: string;
@@ -43,12 +43,12 @@ export interface Option {
 	fixed?: boolean;
 	/** Group the options by providing key. */
 	[key: string]: string | boolean | undefined;
-}
-interface GroupOption {
+};
+type GroupOption = {
 	[key: string]: Option[];
-}
+};
 
-interface MultiSelectComboboxProps {
+type MultiSelectComboboxProps = {
 	value?: Option[];
 	defaultOptions?: Option[];
 	/** manually controlled options */
@@ -106,14 +106,14 @@ interface MultiSelectComboboxProps {
 	/** Test ID for testing purposes */
 	"data-testid"?: string;
 	ref?: Ref<MultiSelectComboboxRef>;
-}
+};
 
-interface MultiSelectComboboxRef {
+type MultiSelectComboboxRef = {
 	selectedValue: Option[];
 	input: HTMLInputElement;
 	focus: () => void;
 	reset: () => void;
-}
+};
 
 function transitionToGroupOption(options: Option[], groupBy?: string) {
 	if (options.length === 0) {

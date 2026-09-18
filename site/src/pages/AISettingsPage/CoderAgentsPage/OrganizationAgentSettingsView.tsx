@@ -9,7 +9,7 @@ export type SaveModelOverride = (
 	options?: { onSuccess?: () => void; onError?: () => void },
 ) => void;
 
-interface OrganizationAgentSettingsViewProps {
+type OrganizationAgentSettingsViewProps = {
 	overrides: readonly TypesGen.ChatModelOverrideResponse[] | undefined;
 	enabledModels: readonly TypesGen.ChatModel[];
 	providerInfoByID: ReadonlyMap<string, ProviderInfo>;
@@ -24,7 +24,7 @@ interface OrganizationAgentSettingsViewProps {
 	>;
 	savingContexts: ReadonlySet<TypesGen.ChatModelOverrideContext>;
 	errorContexts: ReadonlySet<TypesGen.ChatModelOverrideContext>;
-}
+};
 
 const settings: readonly {
 	context: TypesGen.ChatModelOverrideContext;

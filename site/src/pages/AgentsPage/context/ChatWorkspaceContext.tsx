@@ -1,9 +1,9 @@
 import { createContext, useContext } from "react";
 
-interface ChatWorkspaceContextValue {
+type ChatWorkspaceContextValue = {
 	workspaceId?: string;
 	buildId?: string;
-}
+};
 
 const ChatWorkspaceContext = createContext<ChatWorkspaceContextValue>({});
 

@@ -15,12 +15,12 @@ type ExportableSyncSettings =
 	| RoleSyncSettings
 	| OrganizationSyncSettings;
 
-interface ExportPolicyButtonProps {
+type ExportPolicyButtonProps = {
 	syncSettings: ExportableSyncSettings | undefined;
 	filename: string;
 	size?: ButtonProps["size"];
 	download?: (file: Blob, filename: string) => void;
-}
+};
 
 export const ExportPolicyButton: FC<ExportPolicyButtonProps> = ({
 	syncSettings,

@@ -130,9 +130,9 @@ const NotificationPill: FC<NotificationPillProps> = ({
 	);
 };
 
-interface NotificationItemProps {
+type NotificationItemProps = {
 	notification: Notification;
-}
+};
 
 const NotificationItem: FC<NotificationItemProps> = ({ notification }) => {
 	return (

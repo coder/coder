@@ -10,10 +10,10 @@ import { useClipboard } from "#/hooks/useClipboard";
 
 type TooltipSide = "top" | "right" | "bottom" | "left";
 
-interface CopyableValueProps extends HTMLAttributes<HTMLSpanElement> {
+type CopyableValueProps = HTMLAttributes<HTMLSpanElement> & {
 	value: string;
 	side?: TooltipSide;
-}
+};
 
 export const CopyableValue: FC<CopyableValueProps> = ({
 	value,

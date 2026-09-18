@@ -11,13 +11,13 @@ import { TooltipMessage, TooltipTitle } from "#/components/Tooltip/Tooltip";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useClickableTableRow } from "#/hooks/useClickableTableRow";
 
-interface VersionRowProps {
+type VersionRowProps = {
 	version: TemplateVersion;
 	isActive: boolean;
 	isLatest: boolean;
 	onPromoteClick?: (version: TemplateVersion) => void;
 	onArchiveClick?: (version: TemplateVersion) => void;
-}
+};
 
 export const VersionRow: FC<VersionRowProps> = ({
 	version,

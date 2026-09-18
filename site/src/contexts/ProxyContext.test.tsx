@@ -169,7 +169,7 @@ const TestingScreen = () => {
 	);
 };
 
-interface ProxyContextSelectionTest {
+type ProxyContextSelectionTest = {
 	// Regions is the list of regions to return via the "api" response.
 	regions: Region[];
 	// storageProxy should be the proxy stored in local storage before the
@@ -188,7 +188,7 @@ interface ProxyContextSelectionTest {
 	expProxyID: string;
 	// expUserProxyID is the user's stored selection.
 	expUserProxyID?: string;
-}
+};
 
 describe("ProxyContextSelection", () => {
 	beforeEach(() => {

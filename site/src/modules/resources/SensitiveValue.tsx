@@ -8,9 +8,9 @@ import {
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 
-interface SensitiveValueProps {
+type SensitiveValueProps = {
 	value: string;
-}
+};
 
 export const SensitiveValue: FC<SensitiveValueProps> = ({ value }) => {
 	const [shouldDisplay, setShouldDisplay] = useState(false);

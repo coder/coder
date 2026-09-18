@@ -36,10 +36,10 @@ import { ChatSharingPopoverContent } from "./ChatSharingPopover";
 import { useEmbedContext } from "./EmbedContext";
 import { PrStateIcon } from "./GitPanel/GitPanel";
 
-interface SidebarPanelState {
+type SidebarPanelState = {
 	showSidebarPanel: boolean;
 	onToggleSidebar: () => void;
-}
+};
 
 type ChatSharingTopBarButtonProps = {
 	chatId: string;

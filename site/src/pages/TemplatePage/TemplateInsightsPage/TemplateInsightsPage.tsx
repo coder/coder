@@ -128,14 +128,14 @@ export default function TemplateInsightsPage() {
 	);
 }
 
-interface TemplateInsightsControlsProps {
+type TemplateInsightsControlsProps = {
 	interval: "day" | "week";
 	dateRange: DateRangeValue;
 	setDateRange: (value: DateRangeValue) => void;
 	searchParams: URLSearchParams;
 	setSearchParams: SetURLSearchParams;
 	now?: Date;
-}
+};
 
 export const TemplateInsightsControls: FC<TemplateInsightsControlsProps> = ({
 	interval,
@@ -208,7 +208,7 @@ const getDateRange = (
 	return lastWeeks(DEFAULT_NUMBER_OF_WEEKS);
 };
 
-interface TemplateInsightsPageViewProps {
+type TemplateInsightsPageViewProps = {
 	templateInsights: {
 		data: TemplateInsightsResponse | undefined;
 		error: unknown;
@@ -223,7 +223,7 @@ interface TemplateInsightsPageViewProps {
 	};
 	controls: ReactNode;
 	interval: InsightsInterval;
-}
+};
 
 export const TemplateInsightsPageView: FC<TemplateInsightsPageViewProps> = ({
 	templateInsights,
@@ -262,11 +262,11 @@ export const TemplateInsightsPageView: FC<TemplateInsightsPageViewProps> = ({
 	);
 };
 
-interface ActiveUsersPanelProps extends PanelProps {
+type ActiveUsersPanelProps = PanelProps & {
 	data: TemplateInsightsResponse["interval_reports"] | undefined;
 	error: unknown;
 	interval: InsightsInterval;
-}
+};
 
 const ActiveUsersPanel: FC<ActiveUsersPanelProps> = ({
 	data,
@@ -302,10 +302,10 @@ const ActiveUsersPanel: FC<ActiveUsersPanelProps> = ({
 	);
 };
 
-interface UsersLatencyPanelProps extends PanelProps {
+type UsersLatencyPanelProps = PanelProps & {
 	data: UserLatencyInsightsResponse | undefined;
 	error: unknown;
-}
+};
 
 const UsersLatencyPanel: FC<UsersLatencyPanelProps> = ({
 	data,
@@ -354,10 +354,10 @@ const UsersLatencyPanel: FC<UsersLatencyPanelProps> = ({
 	);
 };
 
-interface UsersActivityPanelProps extends PanelProps {
+type UsersActivityPanelProps = PanelProps & {
 	data: UserActivityInsightsResponse | undefined;
 	error: unknown;
-}
+};
 
 const UsersActivityPanel: FC<UsersActivityPanelProps> = ({
 	data,
@@ -402,10 +402,10 @@ const UsersActivityPanel: FC<UsersActivityPanelProps> = ({
 	);
 };
 
-interface TemplateUsagePanelProps extends PanelProps {
+type TemplateUsagePanelProps = PanelProps & {
 	data: readonly TemplateAppUsage[] | undefined;
 	error: unknown;
-}
+};
 
 const TemplateUsagePanel: FC<TemplateUsagePanelProps> = ({
 	data,
@@ -481,10 +481,10 @@ const TemplateUsagePanel: FC<TemplateUsagePanelProps> = ({
 	);
 };
 
-interface TemplateParametersUsagePanelProps extends PanelProps {
+type TemplateParametersUsagePanelProps = PanelProps & {
 	data: readonly TemplateParameterUsage[] | undefined;
 	error: unknown;
-}
+};
 
 const TemplateParametersUsagePanel: FC<TemplateParametersUsagePanelProps> = ({
 	data,
@@ -562,10 +562,10 @@ const filterOrphanValues = (
 	return true;
 };
 
-interface ParameterUsageLabelProps {
+type ParameterUsageLabelProps = {
 	usage: TemplateParameterValue;
 	parameter: TemplateParameterUsage;
-}
+};
 
 const ParameterUsageLabel: FC<ParameterUsageLabelProps> = ({
 	usage,
@@ -694,10 +694,10 @@ const PanelTitle: FC<HTMLAttributes<HTMLDivElement>> = ({
 	);
 };
 
-interface PanelContentProps extends HTMLAttributes<HTMLDivElement> {
+type PanelContentProps = HTMLAttributes<HTMLDivElement> & {
 	error: unknown | undefined;
 	data: readonly unknown[] | undefined;
-}
+};
 
 const PanelContent: FC<PanelContentProps> = ({ error, data, children }) => {
 	return (
@@ -713,9 +713,9 @@ const PanelContent: FC<PanelContentProps> = ({ error, data, children }) => {
 	);
 };
 
-interface NoDataAvailableProps extends HTMLAttributes<HTMLDivElement> {
+type NoDataAvailableProps = HTMLAttributes<HTMLDivElement> & {
 	error: unknown;
-}
+};
 
 const NoDataAvailable: FC<NoDataAvailableProps> = ({ error, ...props }) => {
 	return (
