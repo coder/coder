@@ -117,7 +117,7 @@ func newTestStandaloneGateway(t *testing.T, opts ...testGatewayOption) (*standal
 
 	gateway, err := newStandaloneGateway(params)
 	require.NoError(t, err)
-	require.NoError(t, gateway.daemon.SetPoolForTest(testutil.Context(t, testutil.WaitShort), pool))
+	require.NoError(t, gateway.daemon.SetPoolForTest(testutil.Context(t, testutil.WaitShort), t, pool))
 
 	t.Cleanup(func() {
 		require.NoError(t, shutdownWithTimeout(gateway.daemon.Shutdown, testutil.WaitShort))

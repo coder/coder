@@ -63,7 +63,7 @@ func newTestServerWithDialer(t *testing.T, dialer aibridged.Dialer, loggerOption
 	}
 	srv, err := aibridged.New(t.Context(), dialer, logger, testTracer, nil, nil)
 	require.NoError(t, err, "create new aibridged")
-	require.NoError(t, srv.SetPoolForTest(testutil.Context(t, testutil.WaitShort), pool))
+	require.NoError(t, srv.SetPoolForTest(testutil.Context(t, testutil.WaitShort), t, pool))
 	t.Cleanup(func() {
 		srv.Shutdown(context.Background())
 	})

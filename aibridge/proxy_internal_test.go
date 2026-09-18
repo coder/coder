@@ -12,11 +12,8 @@ import (
 	"cdr.dev/slog/v3/sloggers/slogtest"
 )
 
-// TestProxyRouterOversizedBodyOnSentinelKeepsItsStatus asserts the body limit
-// does not pre-empt the status a route is responsible for, matching the
-// interception path where the disabled-provider sentinel answers 503 without
-// reading the body.
-func TestProxyRouterOversizedBodyOnSentinelKeepsItsStatus(t *testing.T) {
+// Disabled providers return 503 without reading the body, even if it is oversized.
+func TestProxyRouterDisabledProviderOversizedBody(t *testing.T) {
 	t.Parallel()
 
 	router, err := NewProxyRouter(

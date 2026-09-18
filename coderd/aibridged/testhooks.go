@@ -2,6 +2,7 @@ package aibridged
 
 import (
 	"context"
+	"testing"
 
 	"golang.org/x/xerrors"
 )
@@ -9,7 +10,8 @@ import (
 // SetPoolForTest closes the unused interception pool and installs a replacement.
 // Call it after interception is selected, before requests, reloads, or shutdown.
 // The server owns the replacement pool and shuts it down with the server.
-func (s *Server) SetPoolForTest(ctx context.Context, pool Pooler) error {
+func (s *Server) SetPoolForTest(ctx context.Context, t testing.TB, pool Pooler) error {
+	t.Helper()
 	s.backendMu.Lock()
 	defer s.backendMu.Unlock()
 	if pool == nil {

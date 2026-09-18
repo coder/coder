@@ -17,14 +17,12 @@ import (
 	"github.com/coder/coder/v2/aibridge/keypool"
 )
 
-// poolProvider decorates a provider with a key pool, which
-// [testutil.MockProvider] never has.
-type poolProvider struct {
+type keyPoolProvider struct {
 	aibridge.Provider
 	pool *keypool.Pool
 }
 
-func (p poolProvider) KeyPool() *keypool.Pool { return p.pool }
+func (p keyPoolProvider) KeyPool() *keypool.Pool { return p.pool }
 
 func TestNewProxyRouterValidatesProviders(t *testing.T) {
 	t.Parallel()
@@ -118,7 +116,7 @@ func TestProxyRouterSnapshotsProviders(t *testing.T) {
 
 	pool := testutil.SingleKeyPool(config.ProviderOpenAI, "test-key")
 	providers := []aibridge.Provider{
-		poolProvider{Provider: aibridge.NewDisabledProviderStub("disabled-openai", "openai"), pool: pool},
+		keyPoolProvider{Provider: aibridge.NewDisabledProviderStub("disabled-openai", "openai"), pool: pool},
 	}
 
 	router, err := aibridge.NewProxyRouter(providers, slogtest.Make(t, nil))
