@@ -808,7 +808,7 @@ func TestOAuth2RefreshClientAuthentication(t *testing.T) {
 			r.URL.RawQuery = url.Values{"client_secret": {app.ClientSecret}}.Encode()
 		})
 		desc := requireTokenError(t, status, body, codersdk.OAuth2ErrorCodeInvalidRequest)
-		require.Contains(t, desc, "client_secret")
+		require.Contains(t, desc, "not in the URL")
 		_ = tokenRow(ctx, t, db, refreshToken)
 
 		// The same secret in the body is accepted.
@@ -816,7 +816,10 @@ func TestOAuth2RefreshClientAuthentication(t *testing.T) {
 		requireTokenResponse(t, status, body)
 	})
 
-	// A correct secret in the body does not excuse a copy in the URL.
+	// A correct secret in the body does not excuse a copy in the URL. The copy
+	// leaves client_secret in r.Form twice, which extractTokenRequest already
+	// refuses as a repeated parameter with the same status and code, so the
+	// description is what distinguishes this rule from that one.
 	t.Run("SecretInQueryStringAndBody", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -827,7 +830,8 @@ func TestOAuth2RefreshClientAuthentication(t *testing.T) {
 		status, _, body := postForm(ctx, t, refreshForm(app, refreshToken), func(r *http.Request) {
 			r.URL.RawQuery = url.Values{"client_secret": {app.ClientSecret}}.Encode()
 		})
-		requireTokenError(t, status, body, codersdk.OAuth2ErrorCodeInvalidRequest)
+		desc := requireTokenError(t, status, body, codersdk.OAuth2ErrorCodeInvalidRequest)
+		require.Contains(t, desc, "not in the URL")
 		_ = tokenRow(ctx, t, db, refreshToken)
 	})
 
