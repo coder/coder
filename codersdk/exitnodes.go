@@ -2,7 +2,6 @@ package codersdk
 
 import (
 	"context"
-	"encoding/json"
 	"net/http"
 	"time"
 
@@ -14,7 +13,7 @@ import (
 const (
 	// ExitNodeTokenHeader authenticates an exit node to coderd. The value is
 	// "<exit node ID>:<secret>", mirroring workspace proxy tokens.
-	ExitNodeTokenHeader = "Coder-Exit-Node-Token"
+	ExitNodeTokenHeader = "Coder-Exit-Node-Token" //nolint:gosec // Header name, not a credential.
 
 	// ExitNodeTailnetPort is the port an exit node listens on inside the
 	// tailnet for HTTP CONNECT requests from workspace agents.
@@ -110,7 +109,7 @@ func (c *Client) CreateExitNode(ctx context.Context, organizationID uuid.UUID, r
 		return CreateExitNodeResponse{}, ReadBodyAsError(res)
 	}
 	var resp CreateExitNodeResponse
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
+	return resp, ReadBodyAsJSON(res, &resp)
 }
 
 // ExitNodes lists the exit nodes in an organization.
@@ -124,7 +123,7 @@ func (c *Client) ExitNodes(ctx context.Context, organizationID uuid.UUID) ([]Exi
 		return nil, ReadBodyAsError(res)
 	}
 	var nodes []ExitNode
-	return nodes, json.NewDecoder(res.Body).Decode(&nodes)
+	return nodes, ReadBodyAsJSON(res, &nodes)
 }
 
 // ExitNodeByName fetches one exit node by name or ID.
@@ -138,7 +137,7 @@ func (c *Client) ExitNodeByName(ctx context.Context, organizationID uuid.UUID, n
 		return ExitNode{}, ReadBodyAsError(res)
 	}
 	var node ExitNode
-	return node, json.NewDecoder(res.Body).Decode(&node)
+	return node, ReadBodyAsJSON(res, &node)
 }
 
 // DeleteExitNode soft-deletes an exit node by name or ID.
