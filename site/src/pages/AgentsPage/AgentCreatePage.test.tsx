@@ -115,11 +115,12 @@ const Wrapper: FC<
 	);
 };
 
-const grantProjectPermissions = (granted: boolean) =>
+const grantProjectPermissions = (granted: boolean, onChecked?: () => void) =>
 	http.post("/api/v2/authcheck", async ({ request }) => {
 		const { checks } = (await request.json()) as {
 			checks: Record<string, unknown>;
 		};
+		onChecked?.();
 		return HttpResponse.json(
 			Object.fromEntries(Object.keys(checks).map((key) => [key, granted])),
 		);
@@ -253,11 +254,14 @@ describe("AgentCreatePage project assignment", () => {
 
 describe("AgentCreatePage project frame", () => {
 	it("shows the project name and description around the composer", async () => {
+		let authChecked = false;
 		server.use(
 			http.get(`/api/experimental/chats/projects/${MockChatProject.id}`, () =>
 				HttpResponse.json(MockChatProject),
 			),
-			grantProjectPermissions(false),
+			grantProjectPermissions(false, () => {
+				authChecked = true;
+			}),
 		);
 
 		render(
@@ -270,9 +274,7 @@ describe("AgentCreatePage project frame", () => {
 			await screen.findByRole("heading", { name: MockChatProject.name }),
 		).toBeVisible();
 		expect(screen.getByText(MockChatProject.description)).toBeVisible();
-		await waitFor(() => {
-			expect(screen.getByRole("button", { name: "Memory" })).toBeVisible();
-		});
+		await waitFor(() => expect(authChecked).toBe(true));
 		expect(screen.queryByRole("button", { name: "Edit project" })).toBeNull();
 	});
 

@@ -9,6 +9,7 @@ import {
 	ThinkingDisplaySettings,
 } from "./components/DisplayModeSettings";
 import { PersonalInstructionsSettings } from "./components/PersonalInstructionsSettings";
+import { PersonalMemorySettings } from "./components/PersonalMemorySettings";
 import { SectionHeader } from "./components/SectionHeader";
 import { UserChatDebugLoggingSettings } from "./components/UserChatDebugLoggingSettings";
 
@@ -31,6 +32,15 @@ export interface AgentSettingsGeneralPageViewProps {
 	>;
 	isSavingUserDebugLogging: boolean;
 	isSaveUserDebugLoggingError: boolean;
+	personalMemoryData: TypesGen.ChatPersonalMemorySettings | undefined;
+	onSavePersonalMemory: UseMutateFunction<
+		void,
+		Error,
+		TypesGen.UpdateChatPersonalMemorySettingsRequest,
+		unknown
+	>;
+	isSavingPersonalMemory: boolean;
+	isSavePersonalMemoryError: boolean;
 }
 
 export const AgentSettingsGeneralPageView: FC<
@@ -44,6 +54,10 @@ export const AgentSettingsGeneralPageView: FC<
 	onSaveUserDebugLogging,
 	isSavingUserDebugLogging,
 	isSaveUserDebugLoggingError,
+	personalMemoryData,
+	onSavePersonalMemory,
+	isSavingPersonalMemory,
+	isSavePersonalMemoryError,
 }) => {
 	return (
 		<div className="flex flex-col gap-8">
@@ -63,6 +77,12 @@ export const AgentSettingsGeneralPageView: FC<
 			<ThinkingDisplaySettings />
 			<ShellToolDisplaySettings />
 			<CodeDiffDisplaySettings />
+			<PersonalMemorySettings
+				settings={personalMemoryData}
+				onSaveSettings={onSavePersonalMemory}
+				isSavingSettings={isSavingPersonalMemory}
+				isSaveSettingsError={isSavePersonalMemoryError}
+			/>
 			<UserChatDebugLoggingSettings
 				userSettings={userDebugLoggingData}
 				onSaveUserSetting={onSaveUserDebugLogging}

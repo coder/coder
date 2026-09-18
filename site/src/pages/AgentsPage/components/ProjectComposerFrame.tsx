@@ -1,5 +1,4 @@
-import { cn } from "cn";
-import { ChevronDownIcon, PencilIcon } from "lucide-react";
+import { PencilIcon } from "lucide-react";
 import { type FC, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import {
@@ -8,14 +7,8 @@ import {
 } from "#/api/queries/chatProjects";
 import type { ChatProject } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
-import {
-	Collapsible,
-	CollapsibleContent,
-	CollapsibleTrigger,
-} from "#/components/Collapsible/Collapsible";
 import { chatProjectPermissionsFor } from "#/modules/permissions/chatProjects";
 import { ChatProjectDialog } from "./ChatsSidebar/dialogs/ChatProjectDialog";
-import { MemorySection } from "./MemorySection";
 
 type ProjectComposerHeaderProps = {
 	readonly project: ChatProject;
@@ -44,17 +37,12 @@ type ProjectComposerFooterProps = {
 	readonly project: ChatProject;
 };
 
-/**
- * Project controls that live under the composer: edit for users allowed to
- * update the project and a collapsed view of the shared memory the agent
- * maintains for it.
- */
+/** Edit control under the composer for users allowed to update the project. */
 export const ProjectComposerFooter: FC<ProjectComposerFooterProps> = ({
 	project,
 }) => {
 	const queryClient = useQueryClient();
 	const [isEditing, setIsEditing] = useState(false);
-	const [isMemoryOpen, setIsMemoryOpen] = useState(false);
 	const permissionsQuery = useQuery(chatProjectPermissions([project]));
 	const updateProjectMutation = useMutation(updateChatProject(queryClient));
 	const { canUpdate } = chatProjectPermissionsFor(
@@ -62,38 +50,21 @@ export const ProjectComposerFooter: FC<ProjectComposerFooterProps> = ({
 		permissionsQuery.data,
 	);
 
+	if (!canUpdate) {
+		return null;
+	}
+
 	return (
-		<Collapsible open={isMemoryOpen} onOpenChange={setIsMemoryOpen}>
-			<div className="flex items-center justify-center gap-1 pt-2">
-				{canUpdate && (
-					<Button
-						variant="subtle"
-						size="sm"
-						className="text-content-secondary"
-						onClick={() => setIsEditing(true)}
-					>
-						<PencilIcon />
-						Edit project
-					</Button>
-				)}
-				<CollapsibleTrigger asChild>
-					<Button variant="subtle" size="sm" className="text-content-secondary">
-						Memory
-						<ChevronDownIcon
-							className={cn(
-								"transition-transform",
-								isMemoryOpen && "rotate-180",
-							)}
-						/>
-					</Button>
-				</CollapsibleTrigger>
-			</div>
-			<CollapsibleContent>
-				<MemorySection
-					scope={{ kind: "project", projectId: project.id }}
-					className="mt-4 border-t-0 pt-0"
-				/>
-			</CollapsibleContent>
+		<div className="flex justify-center pt-2">
+			<Button
+				variant="subtle"
+				size="sm"
+				className="text-content-secondary"
+				onClick={() => setIsEditing(true)}
+			>
+				<PencilIcon />
+				Edit project
+			</Button>
 			<ChatProjectDialog
 				key={isEditing ? project.id : "closed"}
 				organizationId={project.organization_id}
@@ -107,6 +78,6 @@ export const ProjectComposerFooter: FC<ProjectComposerFooterProps> = ({
 					});
 				}}
 			/>
-		</Collapsible>
+		</div>
 	);
 };

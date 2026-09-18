@@ -3,7 +3,6 @@ import {
 	ArrowLeftIcon,
 	ArrowUpRightIcon,
 	BotIcon,
-	BrainIcon,
 	KeyIcon,
 	PanelLeftCloseIcon,
 	ReceiptTextIcon,
@@ -22,7 +21,6 @@ interface SettingsPanelProps {
 	readonly showApiKeysItem: boolean;
 	readonly isPersonalModelOverridesEnabled: boolean;
 	readonly canManageAgentSettings: boolean;
-	readonly showMemoryItem: boolean;
 	readonly location: Location;
 	readonly onCollapse?: () => void;
 }
@@ -33,7 +31,6 @@ export const SettingsPanel: FC<SettingsPanelProps> = ({
 	showApiKeysItem,
 	isPersonalModelOverridesEnabled,
 	canManageAgentSettings,
-	showMemoryItem,
 	location,
 	onCollapse,
 }) => {
@@ -100,15 +97,6 @@ export const SettingsPanel: FC<SettingsPanelProps> = ({
 					to="/agents/settings/personal-skills"
 					state={location.state}
 				/>
-				{showMemoryItem && (
-					<SettingsNavItem
-						icon={BrainIcon}
-						label="Memory"
-						active={settingsSection === "memory"}
-						to="/agents/settings/memory"
-						state={location.state}
-					/>
-				)}
 				<SettingsNavItem
 					icon={ShrinkIcon}
 					label="Compaction"

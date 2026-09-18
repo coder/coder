@@ -392,9 +392,6 @@ const AgentSettingsUserAgentsPage = lazy(
 const AgentSettingsPersonalSkillsPage = lazy(
 	() => import("./pages/AgentsPage/AgentSettingsPersonalSkillsPage"),
 );
-const AgentSettingsMemoryPage = lazy(
-	() => import("./pages/AgentsPage/AgentSettingsMemoryPage"),
-);
 const AgentSettingsAPIKeysPage = lazy(
 	() => import("./pages/AgentsPage/AgentSettingsAPIKeysPage"),
 );
@@ -855,7 +852,6 @@ export const router = createBrowserRouter(
 							path="personal-skills"
 							element={<AgentSettingsPersonalSkillsPage />}
 						/>
-						<Route path="memory" element={<AgentSettingsMemoryPage />} />
 						<Route
 							path="admin"
 							element={<Navigate to="/ai/settings/coder-agents" replace />}
