@@ -52,7 +52,7 @@ fi
 # Helper: run a make target inside the image.
 #
 # Mounts /home/coder/ as a single named volume to mirror the dogfood
-# workspace template (dogfood/coder/main.tf), so caches (Go modules,
+# workspace template, so caches (Go modules,
 # Go build, pnpm store, mise data, etc.) persist the same way they do
 # in real workspaces. Per-cache subpath volumes would come up
 # root-owned on first mount because Docker creates non-existent

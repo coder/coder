@@ -229,7 +229,8 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
           "rawQuery": "string",
           "scheme": "string",
           "user": {}
-        }
+        },
+        "stream_silence_timeout": 0
       }
     },
     "allow_workspace_renames": true,

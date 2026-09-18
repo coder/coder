@@ -855,6 +855,11 @@ chat:
   # has no effect. This option will be removed in a future release.
   # (default: true, type: bool)
   aiGatewayRoutingEnabled: true
+  # Maximum time to wait for the next streamed part from the chat model before the
+  # attempt is canceled and retried. This also bounds the time to first token. Set
+  # to 0 to disable. Must be no more than 24h.
+  # (default: 10m0s, type: duration)
+  streamSilenceTimeout: 10m0s
 aibridge:
   # Deprecated: use --ai-gateway-enabled or CODER_AI_GATEWAY_ENABLED instead.
   # Whether to start an in-memory aibridged instance.

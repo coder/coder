@@ -1981,11 +1981,15 @@ Requires organization-level administrator permissions.
 
 ### Parameters
 
-| Name           | In    | Type              | Required | Description                     |
-|----------------|-------|-------------------|----------|---------------------------------|
-| `organization` | path  | string(uuid)      | true     | Organization ID                 |
-| `period_start` | query | string(date-time) | false    | Inclusive lower bound (RFC3339) |
-| `period_end`   | query | string(date-time) | false    | Exclusive upper bound (RFC3339) |
+| Name            | In    | Type              | Required | Description                     |
+|-----------------|-------|-------------------|----------|---------------------------------|
+| `organization`  | path  | string(uuid)      | true     | Organization ID                 |
+| `period_start`  | query | string(date-time) | false    | Inclusive lower bound (RFC3339) |
+| `period_end`    | query | string(date-time) | false    | Exclusive upper bound (RFC3339) |
+| `user_id`       | query | string(uuid)      | false    | User ID                         |
+| `group_id`      | query | string(uuid)      | false    | Effective group ID              |
+| `provider_name` | query | string            | false    | Configured provider name        |
+| `model`         | query | string            | false    | Model name                      |
 
 ### Responses
 

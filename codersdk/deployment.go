@@ -4394,6 +4394,17 @@ Write out the current server config as YAML to stdout.`,
 			YAML:        "aiGatewayRoutingEnabled",
 			Hidden:      true,
 		},
+		{
+			Name:        "Chat: Stream Silence Timeout",
+			Description: "Maximum time to wait for the next streamed part from the chat model before the attempt is canceled and retried. This also bounds the time to first token. Set to 0 to disable. Must be no more than 24h.",
+			Flag:        "chat-stream-silence-timeout",
+			Env:         "CODER_CHAT_STREAM_SILENCE_TIMEOUT",
+			Value:       &c.AI.Chat.StreamSilenceTimeout,
+			Default:     (10 * time.Minute).String(),
+			Group:       &deploymentGroupChat,
+			YAML:        "streamSilenceTimeout",
+			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
+		},
 		// AI Bridge Options (deprecated in favor of AI Gateway options)
 		{
 			Name:        "AI Bridge Enabled",
@@ -4872,13 +4883,14 @@ type AIBridgeProxyConfig struct {
 }
 
 type ChatConfig struct {
-	AcquireBatchSize    serpent.Int64    `json:"acquire_batch_size" typescript:",notnull"`
-	DebugLoggingEnabled serpent.Bool     `json:"debug_logging_enabled" typescript:",notnull"`
-	HookURL             serpent.URL      `json:"hook_url" typescript:",notnull"`
-	HookSecret          serpent.String   `json:"hook_secret" typescript:",notnull"`
-	HookTimeout         serpent.Duration `json:"hook_timeout" typescript:",notnull"`
-	HookEnabled         serpent.Bool     `json:"hook_enabled" typescript:",notnull"`
-	HookAllowInsecure   serpent.Bool     `json:"hook_allow_insecure" typescript:",notnull"`
+	AcquireBatchSize     serpent.Int64    `json:"acquire_batch_size" typescript:",notnull"`
+	DebugLoggingEnabled  serpent.Bool     `json:"debug_logging_enabled" typescript:",notnull"`
+	HookURL              serpent.URL      `json:"hook_url" typescript:",notnull"`
+	HookSecret           serpent.String   `json:"hook_secret" typescript:",notnull"`
+	HookTimeout          serpent.Duration `json:"hook_timeout" typescript:",notnull"`
+	HookEnabled          serpent.Bool     `json:"hook_enabled" typescript:",notnull"`
+	HookAllowInsecure    serpent.Bool     `json:"hook_allow_insecure" typescript:",notnull"`
+	StreamSilenceTimeout serpent.Duration `json:"stream_silence_timeout" typescript:",notnull"`
 	// Deprecated: AI Gateway routing is now the only routing path. Setting this
 	// value has no effect. This option will be removed in a future release.
 	AIGatewayRoutingEnabled serpent.Bool `json:"ai_gateway_routing_enabled" typescript:",notnull" swaggerignore:"true"`
@@ -4992,6 +5004,10 @@ func (c *DeploymentValues) Validate() error {
 				return xerrors.Errorf("chat hook timeout (%s) must be greater than zero and no more than 5s; set --chat-hook-timeout to a valid duration", hookTimeout)
 			}
 		}
+	}
+
+	if timeout := c.AI.Chat.StreamSilenceTimeout.Value(); timeout < 0 || timeout > 24*time.Hour {
+		return xerrors.Errorf("chat stream silence timeout (%s) must be between 0 and 24h; set --chat-stream-silence-timeout to a valid duration", timeout)
 	}
 
 	// Gated on the builder being enabled and run here rather than as a per-option
@@ -5222,7 +5238,7 @@ const (
 	ExperimentMCPServerHTTP             Experiment = "mcp-server-http"             // Enables the MCP HTTP server functionality.
 	ExperimentMCPToolSearch             Experiment = "mcp-tool-search"             // Defers MCP tool schemas behind a searchable catalog in agent chats.
 	ExperimentWorkspaceBuildUpdates     Experiment = "workspace-build-updates"     // Enables publishing workspace build updates to the all builds pubsub channel.
-	ExperimentNATSPubsub                Experiment = "nats_pubsub"                 // Enables embedded NATS pubsub.
+	ExperimentNoNATSPubsub              Experiment = "no_nats_pubsub"              // Disables the embedded NATS pubsub, falling back to PostgreSQL pubsub.
 	ExperimentWorkspaceCapableLicensing Experiment = "workspace-capable-licensing" // Counts only users holding the workspace-create permission toward the license seat limit.
 	ExperimentAIGatewaySeatExclusion    Experiment = "ai-gateway-seat-exclusion"   // Excludes AI Gateway (AI Bridge) usage from AI Governance seat consumption.
 	ExperimentAIGatewayReverseProxy     Experiment = "ai-gateway-reverse-proxy"    // Uses stateless reverse proxy routing when MCP injection is not configured.
@@ -5245,8 +5261,8 @@ func (e Experiment) DisplayName() string {
 		return "MCP HTTP Server Functionality"
 	case ExperimentWorkspaceBuildUpdates:
 		return "Workspace Build Updates Channel"
-	case ExperimentNATSPubsub:
-		return "NATS Pubsub"
+	case ExperimentNoNATSPubsub:
+		return "No NATS Pubsub"
 	case ExperimentWorkspaceCapableLicensing:
 		return "Workspace-Capable Licensing"
 	case ExperimentAIGatewaySeatExclusion:
@@ -5275,7 +5291,7 @@ var ExperimentsKnown = Experiments{
 	ExperimentWorkspaceUsage,
 	ExperimentMCPServerHTTP,
 	ExperimentMCPToolSearch,
-	ExperimentNATSPubsub,
+	ExperimentNoNATSPubsub,
 	ExperimentWorkspaceBuildUpdates,
 	ExperimentWorkspaceCapableLicensing,
 	ExperimentAIGatewaySeatExclusion,
