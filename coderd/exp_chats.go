@@ -3556,13 +3556,43 @@ func (api *API) getChatDiffContents(rw http.ResponseWriter, r *http.Request) {
 // chatRenderTemplateParameters evaluates a template version's parameters
 // for the chat owner with no inputs, which is the form state the owner would
 // see on the workspace creation page. ctx must already carry the owner's
-// RBAC subject.
+// RBAC subject. It returns chattool.ErrTemplateVersionNotReady while the
+// import job is running and chattool.ErrTemplateVersionStaticParameters when
+// the version predates dynamic parameters, so the tool can label the
+// import-time fallback accurately instead of treating either as a failure.
 func (api *API) chatRenderTemplateParameters(
 	ctx context.Context,
 	ownerID uuid.UUID,
 	templateVersionID uuid.UUID,
 ) ([]codersdk.PreviewParameter, []codersdk.FriendlyDiagnostic, error) {
+	templateVersion, err := api.Database.GetTemplateVersionByID(ctx, templateVersionID)
+	if err != nil {
+		return nil, nil, xerrors.Errorf("get template version: %w", err)
+	}
+	job, err := api.Database.GetProvisionerJobByID(ctx, templateVersion.JobID)
+	if err != nil {
+		return nil, nil, xerrors.Errorf("get template version job: %w", err)
+	}
+	if !job.CompletedAt.Valid {
+		return nil, nil, chattool.ErrTemplateVersionNotReady
+	}
+	tfValues, err := api.Database.GetTemplateVersionTerraformValues(ctx, templateVersionID)
+	if err != nil {
+		if !errors.Is(err, sql.ErrNoRows) {
+			return nil, nil, xerrors.Errorf("get template version terraform values: %w", err)
+		}
+		// Versions imported before dynamic parameters have no row; the
+		// empty provisioner version below routes them to the static path.
+		tfValues = database.TemplateVersionTerraformValue{TemplateVersionID: templateVersionID}
+	}
+	if !dynamicparameters.ProvisionerVersionSupportsDynamicParameters(tfValues.ProvisionerdVersion) {
+		return nil, nil, chattool.ErrTemplateVersionStaticParameters
+	}
+
 	renderer, err := dynamicparameters.Prepare(ctx, api.Database, api.FileCache, templateVersionID,
+		dynamicparameters.WithTemplateVersion(templateVersion),
+		dynamicparameters.WithProvisionerJob(job),
+		dynamicparameters.WithTerraformValues(tfValues),
 		dynamicparameters.WithPreviewOptions(dynamicparameters.PreviewOptions(api.DeploymentValues)...),
 	)
 	if err != nil {

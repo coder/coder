@@ -390,6 +390,28 @@ func TestReadTemplate_OwnerEvaluatedParameters(t *testing.T) {
 		require.Contains(t, note, "evaluated for the workspace owner")
 	})
 
+	t.Run("ParameterErrorIsReported", func(t *testing.T) {
+		t.Parallel()
+		// Mirrors preview output for an owner-evaluated default outside the
+		// option set: the default itself is a valid string and the error
+		// is scoped to the parameter, not the top-level diagnostics.
+		broken := ownerRendered[0]
+		broken.DefaultValue = codersdk.NullHCLString{Value: "not-an-option", Valid: true}
+		broken.Value = codersdk.NullHCLString{}
+		broken.Diagnostics = []codersdk.FriendlyDiagnostic{{
+			Severity: codersdk.DiagnosticSeverityError,
+			Summary:  "Value must be a valid option",
+			Detail:   "not-an-option is not one of the options",
+		}}
+		region, note := readParams(t, func(context.Context, uuid.UUID, uuid.UUID) ([]codersdk.PreviewParameter, []codersdk.FriendlyDiagnostic, error) {
+			return []codersdk.PreviewParameter{broken}, nil, nil
+		})
+		_, hasDefault := region["default"]
+		require.False(t, hasDefault, "an errored default must not be asserted")
+		require.Equal(t, `Value must be a valid option: not-an-option is not one of the options; the evaluated default "not-an-option" cannot be used, pass a value explicitly`, region["error"])
+		require.Contains(t, note, "evaluated for the workspace owner")
+	})
+
 	t.Run("RenderErrorFallsBack", func(t *testing.T) {
 		t.Parallel()
 		region, note := readParams(t, func(context.Context, uuid.UUID, uuid.UUID) ([]codersdk.PreviewParameter, []codersdk.FriendlyDiagnostic, error) {
@@ -407,6 +429,39 @@ func TestReadTemplate_OwnerEvaluatedParameters(t *testing.T) {
 		})
 		require.Equal(t, "us-pittsburgh", region["default"])
 		require.Contains(t, note, "recorded at template import")
+	})
+
+	t.Run("NotReadyReportsImporting", func(t *testing.T) {
+		t.Parallel()
+		region, note := readParams(t, func(context.Context, uuid.UUID, uuid.UUID) ([]codersdk.PreviewParameter, []codersdk.FriendlyDiagnostic, error) {
+			return nil, nil, xerrors.Errorf("prepare: %w", chattool.ErrTemplateVersionNotReady)
+		})
+		require.Equal(t, "us-pittsburgh", region["default"])
+		require.Contains(t, note, "still importing")
+	})
+
+	t.Run("LegacyProvisionerUsesImportDefaults", func(t *testing.T) {
+		t.Parallel()
+		region, note := readParams(t, func(context.Context, uuid.UUID, uuid.UUID) ([]codersdk.PreviewParameter, []codersdk.FriendlyDiagnostic, error) {
+			return nil, nil, chattool.ErrTemplateVersionStaticParameters
+		})
+		require.Equal(t, "us-pittsburgh", region["default"])
+		require.Contains(t, note, "recorded at template import")
+	})
+
+	t.Run("BuildTimeDefaultUsesImportValue", func(t *testing.T) {
+		t.Parallel()
+		unknown := ownerRendered[0]
+		unknown.DefaultValue = codersdk.NullHCLString{}
+		unknown.Value = codersdk.NullHCLString{}
+		region, note := readParams(t, func(context.Context, uuid.UUID, uuid.UUID) ([]codersdk.PreviewParameter, []codersdk.FriendlyDiagnostic, error) {
+			return []codersdk.PreviewParameter{unknown}, nil, nil
+		})
+		require.Equal(t, "us-pittsburgh", region["default"])
+		require.Contains(t, region["default_note"], "recorded at template import")
+		_, hasErr := region["error"]
+		require.False(t, hasErr)
+		require.Contains(t, note, "evaluated for the workspace owner")
 	})
 
 	t.Run("NoRendererUsesImportDefaults", func(t *testing.T) {
