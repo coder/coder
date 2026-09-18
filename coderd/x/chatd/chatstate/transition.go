@@ -37,18 +37,16 @@ func (t Transition) String() string { return string(t) }
 // transitionMatrix is the in-code representation of the chat execution
 // state transition table. Each entry maps an input state to the set of
 // allowed transitions together with the possible classified output
-// states that the transition implementation may land in. Outputs may
+// states that the transition implementation may reach. Outputs may
 // depend on the post-mutation queue (for example DeleteQueuedMessage
-// from E1 lands in E0 when the deleted row was the last queued
+// from E1 reaches E0 when the deleted row was the last queued
 // message, in E1P when the row behind a deleted ready head is under
 // edit, or stays in E1 otherwise), which is why several entries list
 // more than one output.
 //
 // The "1P" states have a blocked queue head (see queuePaused). They
-// admit what their "1" siblings admit and keep the current turn, tool
-// obligation, or error; only promotion differs: FinishTurn from R1P
-// and FinishInterruption from I1P transition to P, and SendMessage
-// from E1P appends without promoting.
+// admit what their "1" siblings admit; the cells below record where
+// they differ.
 //
 // Ownership transitions (Acquire, Abandon) are intentionally not
 // included; they are orthogonal to execution state.

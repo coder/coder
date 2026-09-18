@@ -21,8 +21,9 @@ var (
 	// execution state model.
 	ErrInvalidState = xerrors.New("chat is in an invalid execution state")
 
-	// ErrPausedQueuedHeadUnderEdit is returned from P when a transition
-	// would end the head's edit as a side effect.
+	// ErrPausedQueuedHeadUnderEdit is returned by EditQueuedMessage from
+	// P when beginning an edit on a row other than the head, which would
+	// end the head's edit.
 	ErrPausedQueuedHeadUnderEdit = xerrors.New("chat is paused at a queued message under edit; finish editing, send, or remove it first")
 
 	// ErrQueuedMessageNotFound is returned by queue-targeting
