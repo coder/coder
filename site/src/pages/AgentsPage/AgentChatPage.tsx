@@ -40,6 +40,7 @@ import {
 } from "#/api/queries/chats";
 import { deploymentSSHConfig } from "#/api/queries/deployment";
 import { userSkills } from "#/api/queries/userSkills";
+import { preferenceSettings } from "#/api/queries/users";
 import { workspaceById, workspaceByIdKey } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
 import { useProxy } from "#/contexts/ProxyContext";
@@ -203,6 +204,9 @@ const AgentChatPage: FC = () => {
 		enabled: permissions.editDeploymentConfig,
 	});
 	const userDebugLoggingQuery = useQuery(userChatDebugLogging());
+	// The timeline folds steps by preference, so a cold load waits for it here
+	// rather than painting rows unfolded and then collapsing them.
+	const preferencesQuery = useQuery(preferenceSettings());
 	const mcpServersQuery = useQuery({
 		...mcpServerConfigs(chatOrganizationId),
 		enabled: Boolean(chatOrganizationId),
@@ -996,29 +1000,33 @@ const AgentChatPage: FC = () => {
 		});
 	};
 
+	const renderLoadingView = (inputDisabled: boolean) => (
+		<AgentChatPageLoadingView
+			inputRef={editing.chatInputRef}
+			initialValue={editing.editorInitialValue}
+			initialEditorState={editing.initialEditorState}
+			remountKey={editing.remountKey}
+			onContentChange={editing.handleLoadingDraftChange}
+			isInputDisabled={inputDisabled}
+			effectiveSelectedModel={effectiveSelectedModel}
+			setSelectedModel={setSelectedModel}
+			modelOptions={modelOptions}
+			modelSelectorPlaceholder={modelSelectorPlaceholder}
+			hasModelOptions={hasModelOptions}
+			isModelCatalogLoading={isModelDataPending}
+			planModeEnabled={planModeEnabled}
+			onPlanModeToggle={handlePlanModeToggle}
+			showRightPanel={showSidebarPanel}
+		/>
+	);
+
 	return (
 		<>
 			<title>
 				{chatTitle ? pageTitle(chatTitle, "Agents") : pageTitle("Agents")}
 			</title>
 			{chatQuery.isLoading || chatMessagesQuery.isLoading ? (
-				<AgentChatPageLoadingView
-					inputRef={editing.chatInputRef}
-					initialValue={editing.editorInitialValue}
-					initialEditorState={editing.initialEditorState}
-					remountKey={editing.remountKey}
-					onContentChange={editing.handleLoadingDraftChange}
-					isInputDisabled={isInputDisabled}
-					effectiveSelectedModel={effectiveSelectedModel}
-					setSelectedModel={setSelectedModel}
-					modelOptions={modelOptions}
-					modelSelectorPlaceholder={modelSelectorPlaceholder}
-					hasModelOptions={hasModelOptions}
-					isModelCatalogLoading={isModelDataPending}
-					planModeEnabled={planModeEnabled}
-					onPlanModeToggle={handlePlanModeToggle}
-					showRightPanel={showSidebarPanel}
-				/>
+				renderLoadingView(isInputDisabled)
 			) : chatQuery.isLoadingError || chatMessagesQuery.isLoadingError ? (
 				getErrorStatus(chatQuery.error) === 404 ? (
 					<AgentChatPageNotFoundView />
@@ -1041,6 +1049,10 @@ const AgentChatPage: FC = () => {
 				)
 			) : !chat || !chatMessagesQuery.data?.pages?.length ? (
 				<AgentChatPageNotFoundView />
+			) : preferencesQuery.isLoading ? (
+				// The loading view drops sends, so keep the composer disabled
+				// until the transcript can mount.
+				renderLoadingView(true)
 			) : (
 				<AgentChatPageView
 					key={agentId}

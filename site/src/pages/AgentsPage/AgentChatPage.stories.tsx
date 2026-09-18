@@ -53,7 +53,10 @@ import {
 import { belowLgViewportMediaQuery } from "#/utils/mobile";
 import AgentChatPage from "./AgentChatPage";
 import type { AgentsPageOutletContext } from "./AgentsPageLayout";
-import { buildLongConversation } from "./components/ChatConversation/storyFixtures";
+import {
+	buildLongConversation,
+	buildWorkingConversation,
+} from "./components/ChatConversation/storyFixtures";
 import { RIGHT_PANEL_OPEN_KEY } from "./components/RightPanel/RightPanel";
 
 // ---------------------------------------------------------------------------
@@ -1572,6 +1575,36 @@ export const Loading: Story = {
 			{ messages: [], queued_messages: [], has_more: false },
 			{ diffUrl: undefined },
 		),
+	},
+};
+
+// A saved "collapse" preference decides the first paint: the skeleton stays up
+// until it loads, so rows never render unfolded and then fold. The preference
+// request never settles here so the capture shows the gated state with the
+// messages already loaded.
+export const ColdLoadWaitsForCollapsePreference: Story = {
+	parameters: {
+		queries: withoutQuery(
+			buildQueries(
+				{
+					id: CHAT_ID,
+					...baseChatFields,
+					title: "Cold load",
+					status: "waiting",
+				},
+				{
+					messages: buildWorkingConversation(CHAT_ID),
+					queued_messages: [],
+					has_more: false,
+				},
+			),
+			preferenceSettingsKey,
+		),
+	},
+	beforeEach: () => {
+		spyOn(API, "getUserPreferenceSettings").mockImplementation(
+			() => new Promise(() => {}),
+		);
 	},
 };
 
