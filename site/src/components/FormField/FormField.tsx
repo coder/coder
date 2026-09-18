@@ -12,7 +12,7 @@ type ControlProps = Pick<
 	"id" | "aria-invalid" | "aria-describedby"
 >;
 
-type FormFieldProps = React.ComponentPropsWithRef<"input"> & {
+type FormFieldProps = React.ComponentProps<"input"> & {
 	field: FormHelpers;
 	label: ReactNode;
 	description?: ReactNode;

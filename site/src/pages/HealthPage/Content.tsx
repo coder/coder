@@ -171,7 +171,7 @@ export const SectionLabel: FC<HTMLAttributes<HTMLHeadingElement>> = ({
 	);
 };
 
-type PillProps = React.ComponentPropsWithRef<"div"> & {
+type PillProps = React.ComponentProps<"div"> & {
 	icon: ReactElement<HTMLAttributes<HTMLElement>>;
 };
 

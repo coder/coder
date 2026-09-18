@@ -4808,6 +4808,8 @@ type AIBridgeInterception struct {
 	ErrorType NullAIBridgeInterceptionErrorType `db:"error_type" json:"error_type"`
 	// Raw terminal upstream error message for a failed interception; NULL when the interception succeeded.
 	ErrorMessage sql.NullString `db:"error_message" json:"error_message"`
+	// The workspace in which the agent ran. NULL when no workspace context is available.
+	WorkspaceID uuid.NullUUID `db:"workspace_id" json:"workspace_id"`
 }
 
 // Audit log of model thinking in intercepted requests in AI Bridge
@@ -6065,18 +6067,19 @@ type TemplateUsageStat struct {
 	MedianLatencyMs sql.NullFloat64 `db:"median_latency_ms" json:"median_latency_ms"`
 	// Total minutes the user has been using the template.
 	UsageMins int16 `db:"usage_mins" json:"usage_mins"`
-	// Total minutes the user has been using SSH.
-	SshMins int16 `db:"ssh_mins" json:"ssh_mins"`
-	// Total minutes the user has been using SFTP.
-	SftpMins int16 `db:"sftp_mins" json:"sftp_mins"`
-	// Total minutes the user has been using the reconnecting PTY.
-	ReconnectingPtyMins int16 `db:"reconnecting_pty_mins" json:"reconnecting_pty_mins"`
-	// Total minutes the user has been using VSCode.
-	VscodeMins int16 `db:"vscode_mins" json:"vscode_mins"`
-	// Total minutes the user has been using JetBrains.
-	JetbrainsMins int16 `db:"jetbrains_mins" json:"jetbrains_mins"`
 	// Object with app names as keys and total minutes used as values. Null means no app usage was recorded.
 	AppUsageMins StringMapOfInt `db:"app_usage_mins" json:"app_usage_mins"`
+}
+
+// Session usage of each template_usage_stats bucket, split by app name. No row means the bucket recorded no session usage. Reads group app names into families through the codersdk registry.
+type TemplateUsageStatsSessionApp struct {
+	StartTime  time.Time `db:"start_time" json:"start_time"`
+	TemplateID uuid.UUID `db:"template_id" json:"template_id"`
+	UserID     uuid.UUID `db:"user_id" json:"user_id"`
+	// App name as the agent reported it, so a source label rather than a curated identity. Rows converted from the fixed session columns carry a family name here instead.
+	AppName string `db:"app_name" json:"app_name"`
+	// Total minutes the user has been using the app. A minute counts once however many sessions were open.
+	UsageMins int16 `db:"usage_mins" json:"usage_mins"`
 }
 
 // Joins in the username + avatar url of the created by user.

@@ -1680,7 +1680,8 @@ CREATE TABLE aibridge_interceptions (
     agent_firewall_session_id uuid,
     agent_firewall_sequence_number integer,
     error_type aibridge_interception_error_type,
-    error_message character varying(1024)
+    error_message character varying(1024),
+    workspace_id uuid
 );
 
 COMMENT ON TABLE aibridge_interceptions IS 'Audit log of requests intercepted by AI Bridge';
@@ -1708,6 +1709,8 @@ COMMENT ON COLUMN aibridge_interceptions.agent_firewall_sequence_number IS 'The 
 COMMENT ON COLUMN aibridge_interceptions.error_type IS 'Categorised terminal upstream error for a failed interception; NULL when the interception succeeded.';
 
 COMMENT ON COLUMN aibridge_interceptions.error_message IS 'Raw terminal upstream error message for a failed interception; NULL when the interception succeeded.';
+
+COMMENT ON COLUMN aibridge_interceptions.workspace_id IS 'The workspace in which the agent ran. NULL when no workspace context is available.';
 
 CREATE TABLE aibridge_model_thoughts (
     interception_id uuid NOT NULL,
@@ -3074,11 +3077,6 @@ CREATE TABLE template_usage_stats (
     user_id uuid NOT NULL,
     median_latency_ms real,
     usage_mins smallint NOT NULL,
-    ssh_mins smallint NOT NULL,
-    sftp_mins smallint NOT NULL,
-    reconnecting_pty_mins smallint NOT NULL,
-    vscode_mins smallint NOT NULL,
-    jetbrains_mins smallint NOT NULL,
     app_usage_mins jsonb
 );
 
@@ -3096,17 +3094,21 @@ COMMENT ON COLUMN template_usage_stats.median_latency_ms IS 'Median latency the 
 
 COMMENT ON COLUMN template_usage_stats.usage_mins IS 'Total minutes the user has been using the template.';
 
-COMMENT ON COLUMN template_usage_stats.ssh_mins IS 'Total minutes the user has been using SSH.';
-
-COMMENT ON COLUMN template_usage_stats.sftp_mins IS 'Total minutes the user has been using SFTP.';
-
-COMMENT ON COLUMN template_usage_stats.reconnecting_pty_mins IS 'Total minutes the user has been using the reconnecting PTY.';
-
-COMMENT ON COLUMN template_usage_stats.vscode_mins IS 'Total minutes the user has been using VSCode.';
-
-COMMENT ON COLUMN template_usage_stats.jetbrains_mins IS 'Total minutes the user has been using JetBrains.';
-
 COMMENT ON COLUMN template_usage_stats.app_usage_mins IS 'Object with app names as keys and total minutes used as values. Null means no app usage was recorded.';
+
+CREATE TABLE template_usage_stats_session_apps (
+    start_time timestamp with time zone NOT NULL,
+    template_id uuid NOT NULL,
+    user_id uuid NOT NULL,
+    app_name text NOT NULL,
+    usage_mins smallint NOT NULL
+);
+
+COMMENT ON TABLE template_usage_stats_session_apps IS 'Session usage of each template_usage_stats bucket, split by app name. No row means the bucket recorded no session usage. Reads group app names into families through the codersdk registry.';
+
+COMMENT ON COLUMN template_usage_stats_session_apps.app_name IS 'App name as the agent reported it, so a source label rather than a curated identity. Rows converted from the fixed session columns carry a family name here instead.';
+
+COMMENT ON COLUMN template_usage_stats_session_apps.usage_mins IS 'Total minutes the user has been using the app. A minute counts once however many sessions were open.';
 
 CREATE TABLE template_version_parameters (
     template_version_id uuid NOT NULL,
@@ -4507,6 +4509,9 @@ ALTER TABLE ONLY telemetry_locks
 ALTER TABLE ONLY template_usage_stats
     ADD CONSTRAINT template_usage_stats_pkey PRIMARY KEY (start_time, template_id, user_id);
 
+ALTER TABLE ONLY template_usage_stats_session_apps
+    ADD CONSTRAINT template_usage_stats_session_apps_pkey PRIMARY KEY (start_time, user_id, template_id, app_name);
+
 ALTER TABLE ONLY template_version_parameters
     ADD CONSTRAINT template_version_parameters_template_version_id_name_key UNIQUE (template_version_id, name);
 
@@ -5395,6 +5400,9 @@ ALTER TABLE ONLY tailnet_peers
 
 ALTER TABLE ONLY tailnet_tunnels
     ADD CONSTRAINT tailnet_tunnels_coordinator_id_fkey FOREIGN KEY (coordinator_id) REFERENCES tailnet_coordinators(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY template_usage_stats_session_apps
+    ADD CONSTRAINT template_usage_stats_session__start_time_template_id_user__fkey FOREIGN KEY (start_time, template_id, user_id) REFERENCES template_usage_stats(start_time, template_id, user_id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY template_version_parameters
     ADD CONSTRAINT template_version_parameters_template_version_id_fkey FOREIGN KEY (template_version_id) REFERENCES template_versions(id) ON DELETE CASCADE;

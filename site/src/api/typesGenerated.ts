@@ -12,15 +12,29 @@ export interface ACLAvailable {
 
 // From codersdk/aibridge.go
 /**
- * AIBridgeAgenticAction represents a tool call with associated
- * thinking blocks and token usage from one or more interceptions.
+ * AIBridgeAgenticAction represents data from one interception, including
+ * tool calls, thinking blocks, and token usage. Tool-less child interceptions
+ * are represented as actions with an empty ToolCalls slice.
  */
 export interface AIBridgeAgenticAction {
+	readonly interception_id: string;
 	readonly model: string;
+	/**
+	 * Attribution contains attribution data from this interception.
+	 * Unknown attribution is serialized as an empty object.
+	 */
+	readonly attribution: AIBridgeAttribution;
 	readonly token_usage: AIBridgeSessionThreadsTokenUsage;
 	readonly thinking: readonly AIBridgeModelThought[];
 	readonly tool_calls: readonly AIBridgeToolCall[];
 }
+
+// From codersdk/aibridge.go
+/**
+ * AIBridgeAttribution contains the attribution fields recorded for one
+ * interception.
+ */
+export type AIBridgeAttribution = Record<string, string>;
 
 // From codersdk/deployment.go
 export interface AIBridgeConfig {
@@ -227,6 +241,11 @@ export interface AIBridgeThread {
 	readonly started_at: string;
 	readonly ended_at?: string;
 	readonly token_usage: AIBridgeSessionThreadsTokenUsage;
+	/**
+	 * Attribution contains attribution data from the root interception.
+	 * Unknown attribution is serialized as an empty object.
+	 */
+	readonly attribution: AIBridgeAttribution;
 	readonly agentic_actions: readonly AIBridgeAgenticAction[];
 	/**
 	 * ErrorType is the categorized terminal upstream error from the root
@@ -2065,6 +2084,7 @@ export interface ChatConfig {
 	readonly hook_timeout: number;
 	readonly hook_enabled: boolean;
 	readonly hook_allow_insecure: boolean;
+	readonly stream_silence_timeout: number;
 	/**
 	 * @deprecated AI Gateway routing is now the only routing path. Setting this
 	 * value has no effect. This option will be removed in a future release.
@@ -4274,7 +4294,7 @@ export interface CreateUserChatProviderKeyRequest {
 }
 
 // From codersdk/users.go
-export interface CreateUserRequestWithOrgs {
+export interface CreateUserRequest {
 	readonly email: string;
 	readonly username: string;
 	readonly name: string;
@@ -4810,6 +4830,7 @@ export interface DeploymentValues {
 	readonly disable_user_secret_file_path?: boolean;
 	readonly proxy_health_status_interval?: number;
 	readonly enable_terraform_debug_mode?: boolean;
+	readonly dynamic_parameters_full_evaluation?: boolean;
 	readonly user_quiet_hours_schedule?: UserQuietHoursScheduleConfig;
 	readonly web_terminal_renderer?: string;
 	/**
@@ -5063,7 +5084,7 @@ export type Experiment =
 	| "example"
 	| "mcp-server-http"
 	| "mcp-tool-search"
-	| "nats_pubsub"
+	| "no_nats_pubsub"
 	| "notifications"
 	| "workspace-build-updates"
 	| "workspace-capable-licensing"
@@ -5080,7 +5101,7 @@ export const Experiments: Experiment[] = [
 	"example",
 	"mcp-server-http",
 	"mcp-tool-search",
-	"nats_pubsub",
+	"no_nats_pubsub",
 	"notifications",
 	"workspace-build-updates",
 	"workspace-capable-licensing",
@@ -6744,6 +6765,12 @@ export interface OAuth2ProviderApp {
 	readonly callback_url: string;
 	readonly icon: string;
 	/**
+	 * Scope is the space-separated list of scopes this app's tokens may be
+	 * granted. Empty means unrestricted. A non-empty value with no names is a
+	 * configured allowlist that grants nothing.
+	 */
+	readonly scope: string;
+	/**
 	 * ClientType is "confidential" or "public".
 	 */
 	readonly client_type: OAuth2ClientType;
@@ -6847,6 +6874,20 @@ export const OAuth2RevocationTokenTypeHints: OAuth2RevocationTokenTypeHint[] = [
 	"access_token",
 	"refresh_token",
 ];
+
+// From codersdk/oauth2_validation.go
+/**
+ * OAuth2ScopeListMaxBytes bounds the length of an app's stored scope list.
+ * The full public catalog fits in well under this.
+ */
+export const OAuth2ScopeListMaxBytes = 4096;
+
+// From codersdk/oauth2_validation.go
+/**
+ * OAuth2ScopeListMaxNames bounds how many space-separated names an app's
+ * scope list may hold. The public catalog is about half this size.
+ */
+export const OAuth2ScopeListMaxNames = 100;
 
 // From codersdk/client.go
 /**
@@ -7044,6 +7085,19 @@ export interface Organization extends MinimalOrganization {
 	 * next request.
 	 */
 	readonly default_org_member_roles: readonly string[];
+}
+
+// From codersdk/aibridge.go
+/**
+ * OrganizationAISpendDetailsFilter narrows organization AI spend.
+ */
+export interface OrganizationAISpendDetailsFilter {
+	readonly period_start?: string;
+	readonly period_end?: string;
+	readonly user_id?: string;
+	readonly group_id?: string;
+	readonly provider_name?: string;
+	readonly model?: string;
 }
 
 // From codersdk/aibridge.go
@@ -7482,6 +7536,11 @@ export interface PostOAuth2ProviderAppRequest {
 	readonly name: string;
 	readonly callback_url: string;
 	readonly icon: string;
+	/**
+	 * Scope is the space-separated list of scopes this app's tokens may be
+	 * granted. Leave empty, or omit, for unrestricted.
+	 */
+	readonly scope?: string;
 }
 
 // From codersdk/workspaces.go
@@ -7996,6 +8055,12 @@ export interface PutOAuth2ProviderAppRequest {
 	readonly name: string;
 	readonly callback_url: string;
 	readonly icon: string;
+	/**
+	 * Scope replaces the app's current allowlist. Omit to leave the existing
+	 * allowlist untouched. Set to an empty string to clear it, making the app
+	 * unrestricted.
+	 */
+	readonly scope?: string;
 }
 
 // From codersdk/rbacresources_gen.go
