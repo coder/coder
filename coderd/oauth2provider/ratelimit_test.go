@@ -95,6 +95,38 @@ func TestOAuth2RateLimit(t *testing.T) {
 		}, http.StatusCreated)
 	})
 
+	// One bucket covers the whole tree, so a budget spent on one endpoint
+	// refuses the next request to a different endpoint.
+	t.Run("SharedAcrossEndpoints", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, _, baseURL := newServer(t)
+		oauth2providertest.EnableDCR(t, client)
+		app, _ := oauth2providertest.CreateTestOAuth2App(t, client)
+
+		body, err := json.Marshal(codersdk.OAuth2ClientRegistrationRequest{
+			RedirectURIs: []string{"https://example.com/callback"},
+		})
+		require.NoError(t, err)
+
+		for i := range rateLimit {
+			resp := doRequest(ctx, t, http.MethodPost, baseURL+"/oauth2/register", strings.NewReader(string(body)), jsonContentType)
+			_ = resp.Body.Close()
+			require.Equal(t, http.StatusCreated, resp.StatusCode, "register %d should be inside the limit", i+1)
+		}
+
+		// On its own this request returns 401, so a 429 can only come from
+		// the budget that register already spent.
+		form := url.Values{}
+		form.Set("token", "coder_wrongprefix_wrongsecret")
+		form.Set("client_id", app.ID.String())
+		form.Set("client_secret", "coder_wrongprefix_wrongsecret")
+
+		resp := doRequest(ctx, t, http.MethodPost, baseURL+"/oauth2/revoke", strings.NewReader(form.Encode()), formContentType)
+		_ = resp.Body.Close()
+		require.Equal(t, http.StatusTooManyRequests, resp.StatusCode, "revoke should share the bucket with register")
+	})
+
 	// The RFC 7592 routes carry the client ID in the path. A caller that
 	// changes the ID on every request must still draw from one bucket.
 	t.Run("ClientConfigurationVaryingClientID", func(t *testing.T) {
