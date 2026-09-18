@@ -1260,6 +1260,9 @@ func New(options *Options) *API {
 			// the gate, so a request the gate rejects gets no headers. That
 			// rejection carries no credential, so it needs none.
 			httpmw.NoStore,
+			// Routes here accept client credentials from callers with no API
+			// key, so the whole tree shares the login rate limit.
+			httpmw.RateLimitByRouteGroup(options.LoginRateLimit, time.Minute, "oauth2"),
 		)
 		r.Route("/authorize", func(r chi.Router) {
 			r.Use(
@@ -1271,15 +1274,13 @@ func New(options *Options) *API {
 			r.Get("/", api.getOAuth2ProviderAppAuthorize())
 			r.Post("/", api.postOAuth2ProviderAppAuthorize())
 		})
-		// The token, revocation, and registration endpoints accept client
-		// credentials from callers with no API key. They share the login
-		// rate limit so that repeated guesses are throttled per IP address.
-		oauth2RateLimiter := httpmw.RateLimit(options.LoginRateLimit, time.Minute)
 		r.Route("/tokens", func(r chi.Router) {
-			// Use OAuth2-compliant error responses for the tokens endpoint
-			extractApp := httpmw.AsAuthzSystem(httpmw.ExtractOAuth2ProviderAppWithOAuth2Errors(options.Database))
+			r.Use(
+				// Use OAuth2-compliant error responses for the tokens endpoint
+				httpmw.AsAuthzSystem(httpmw.ExtractOAuth2ProviderAppWithOAuth2Errors(options.Database)),
+			)
 			r.Group(func(r chi.Router) {
-				r.Use(extractApp, apiKeyMiddleware)
+				r.Use(apiKeyMiddleware)
 				// DELETE on /tokens is not part of the OAuth2 spec.  It is our own
 				// route used to revoke permissions from an application.  It is here for
 				// parity with POST on /tokens.
@@ -1287,13 +1288,12 @@ func New(options *Options) *API {
 			})
 			// The POST /tokens endpoint will be called from an unauthorized client so
 			// we cannot require an API key.
-			r.With(oauth2RateLimiter, extractApp).Post("/", api.postOAuth2ProviderAppToken())
+			r.Post("/", api.postOAuth2ProviderAppToken())
 		})
 
 		// RFC 7009 Token Revocation Endpoint
 		r.Route("/revoke", func(r chi.Router) {
 			r.Use(
-				oauth2RateLimiter,
 				// RFC 7009 endpoint uses OAuth2 client authentication, not API key
 				httpmw.AsAuthzSystem(httpmw.ExtractOAuth2ProviderAppWithOAuth2Errors(options.Database)),
 			)
@@ -1302,7 +1302,7 @@ func New(options *Options) *API {
 		})
 
 		// RFC 7591 Dynamic Client Registration - Public endpoint
-		r.With(oauth2RateLimiter).Post("/register", api.postOAuth2ClientRegistration())
+		r.Post("/register", api.postOAuth2ClientRegistration())
 
 		// RFC 7592 Client Configuration Management - Protected by registration access token
 		r.Route("/clients/{client_id}", func(r chi.Router) {

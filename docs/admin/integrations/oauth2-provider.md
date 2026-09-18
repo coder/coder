@@ -692,9 +692,10 @@ Public clients (`token_endpoint_auth_method: none`) additionally cannot register
   custom URI schemes for native apps (`myapp://`) are permitted, and public
   clients additionally cannot use `mailto:`, `tel:`, or `sms:`
 - **Rotate secrets**: Periodically rotate client secrets using the management API
-- **Rate limits**: `POST /oauth2/tokens`, `POST /oauth2/revoke`, and
-  `POST /oauth2/register` share the login rate limit of 60 requests per minute
-  per IP address for each endpoint. A caller over the limit receives HTTP 429
+- **Rate limits**: all `/oauth2` endpoints draw on a single login rate limit of
+  60 requests per minute. Requests with no Coder session are counted per IP
+  address, and the rest are counted per user. A caller over the limit receives
+  HTTP 429
 - **Refresh tokens are not self-sufficient**: a confidential client must present
   its `client_secret` to refresh or revoke, so a leaked token alone cannot mint
   new access tokens or end another client's session

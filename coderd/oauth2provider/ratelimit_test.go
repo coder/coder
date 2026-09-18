@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
@@ -15,20 +16,19 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
-// TestOAuth2RateLimit checks that the token, revocation, and registration
-// endpoints share the login rate limit. Each case uses its own server so the
-// per-IP buckets do not overlap.
+// TestOAuth2RateLimit checks that every route under /oauth2 shares the login
+// rate limit. Each case uses its own server so the buckets do not overlap.
 func TestOAuth2RateLimit(t *testing.T) {
 	t.Parallel()
 
 	const rateLimit = 3
 
-	newServer := func(t *testing.T) (*codersdk.Client, string) {
+	newServer := func(t *testing.T) (*codersdk.Client, codersdk.CreateFirstUserResponse, string) {
 		client := coderdtest.New(t, &coderdtest.Options{
 			LoginRateLimit: rateLimit,
 		})
-		_ = coderdtest.CreateFirstUser(t, client)
-		return client, client.URL.String()
+		owner := coderdtest.CreateFirstUser(t, client)
+		return client, owner, client.URL.String()
 	}
 
 	// requireLimited sends the request one more time than the limit allows.
@@ -49,7 +49,7 @@ func TestOAuth2RateLimit(t *testing.T) {
 	t.Run("Tokens", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
-		client, baseURL := newServer(t)
+		client, _, baseURL := newServer(t)
 		app, _ := oauth2providertest.CreateTestOAuth2App(t, client)
 
 		form := url.Values{}
@@ -66,7 +66,7 @@ func TestOAuth2RateLimit(t *testing.T) {
 	t.Run("Revoke", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
-		client, baseURL := newServer(t)
+		client, _, baseURL := newServer(t)
 		app, _ := oauth2providertest.CreateTestOAuth2App(t, client)
 
 		form := url.Values{}
@@ -82,7 +82,7 @@ func TestOAuth2RateLimit(t *testing.T) {
 	t.Run("Register", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
-		client, baseURL := newServer(t)
+		client, _, baseURL := newServer(t)
 		oauth2providertest.EnableDCR(t, client)
 
 		body, err := json.Marshal(codersdk.OAuth2ClientRegistrationRequest{
@@ -95,18 +95,35 @@ func TestOAuth2RateLimit(t *testing.T) {
 		}, http.StatusCreated)
 	})
 
-	// DELETE /oauth2/tokens is an authenticated route and keeps its own
-	// per-user bucket, so it is not throttled by the client-credential limit.
-	t.Run("DeleteTokensNotLimited", func(t *testing.T) {
+	// The RFC 7592 routes carry the client ID in the path. A caller that
+	// changes the ID on every request must still draw from one bucket.
+	t.Run("ClientConfigurationVaryingClientID", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
-		client, baseURL := newServer(t)
-		app, _ := oauth2providertest.CreateTestOAuth2App(t, client)
+		_, _, baseURL := newServer(t)
 
-		for i := range rateLimit + 1 {
-			resp := doRequest(ctx, t, http.MethodDelete, baseURL+"/oauth2/tokens?client_id="+app.ID.String(), nil, sessionToken(client))
-			_ = resp.Body.Close()
-			require.Equal(t, http.StatusNoContent, resp.StatusCode, "request %d should succeed", i+1)
-		}
+		requireLimited(t, func() *http.Response {
+			uri := baseURL + "/oauth2/clients/" + uuid.NewString()
+			return doRequest(ctx, t, http.MethodGet, uri, nil, bearer("wrongtoken"))
+		}, http.StatusUnauthorized)
+	})
+
+	// DELETE /oauth2/tokens is authenticated, so the limiter keys on the user
+	// instead of the address and one user cannot spend another user's budget.
+	t.Run("DeleteTokensLimitedPerUser", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, owner, baseURL := newServer(t)
+		other, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+		app, _ := oauth2providertest.CreateTestOAuth2App(t, client)
+		uri := baseURL + "/oauth2/tokens?client_id=" + app.ID.String()
+
+		requireLimited(t, func() *http.Response {
+			return doRequest(ctx, t, http.MethodDelete, uri, nil, sessionToken(client))
+		}, http.StatusNoContent)
+
+		resp := doRequest(ctx, t, http.MethodDelete, uri, nil, sessionToken(other))
+		_ = resp.Body.Close()
+		require.Equal(t, http.StatusNoContent, resp.StatusCode, "a second user should have its own bucket")
 	})
 }

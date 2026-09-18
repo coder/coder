@@ -32,6 +32,15 @@ func RateLimitByAPICompatibilityEndpoint(count int, window time.Duration) func(h
 	return rateLimitWithEndpointKey(count, window, keyByAPICompatibilityEndpoint)
 }
 
+// RateLimitByRouteGroup returns a handler that limits requests per-minute based
+// on the caller and a fixed group name, so every route it is mounted on draws
+// from one bucket.
+func RateLimitByRouteGroup(count int, window time.Duration, group string) func(http.Handler) http.Handler {
+	return rateLimitWithEndpointKey(count, window, func(*http.Request) (string, error) {
+		return group, nil
+	})
+}
+
 func rateLimitWithEndpointKey(count int, window time.Duration, endpointKey func(*http.Request) (string, error)) func(http.Handler) http.Handler {
 	// -1 is no rate limit
 	if count <= 0 {
