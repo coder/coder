@@ -225,6 +225,11 @@ message AIProvider {
   // bedrock is populated when the provider's settings include Bedrock
   // credentials (regardless of provider type).
   AIProviderKindBedrock bedrock = 6;
+  // upstream_headers carries admin-configured custom headers sent on every
+  // upstream request for the provider (e.g. a routing session header).
+  // Values are plain strings, never credentials. Populated only for
+  // enabled providers.
+  map<string, string> upstream_headers = 7;
 }
 
 message AIProviderKindBedrock {
