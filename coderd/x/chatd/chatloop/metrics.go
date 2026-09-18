@@ -22,6 +22,11 @@ const (
 	CompactionResultSuccess = "success"
 	CompactionResultError   = "error"
 	CompactionResultTimeout = "timeout"
+
+	// Label values for ContextToolCallsTotal.
+	ContextToolOutcomeSuccess  = "success"
+	ContextToolOutcomeRejected = "rejected"
+	ContextToolOutcomeDenied   = "denied"
 )
 
 // Metrics holds Prometheus metrics for the chatd subsystem.
@@ -40,6 +45,7 @@ type Metrics struct {
 	FindToolsEmptyTotal       prometheus.Counter
 	FindToolsMatchCount       prometheus.Histogram
 	FindToolsActivationsTotal prometheus.Counter
+	ContextToolCallsTotal     *prometheus.CounterVec
 }
 
 // NewMetrics creates a new Metrics instance registered with the
@@ -136,7 +142,22 @@ func NewMetrics(reg prometheus.Registerer) *Metrics {
 			Name:      "find_tools_activations_total",
 			Help:      "Total deferred tool activations returned by find_tools.",
 		}),
+		ContextToolCallsTotal: factory.NewCounterVec(prometheus.CounterOpts{
+			Namespace: metricsNamespace,
+			Subsystem: metricsSubsystem,
+			Name:      "context_tool_calls_total",
+			Help:      "Total clear_context and compact_context calls by outcome (success, rejected by the tool, or denied by policy). Counted when the batch executes, before its step commits.",
+		}, []string{"tool", "outcome"}),
 	}
+}
+
+// RecordContextToolCall increments context_tool_calls_total for one
+// call of a context tool. No-op when m is nil.
+func (m *Metrics) RecordContextToolCall(tool, outcome string) {
+	if m == nil {
+		return
+	}
+	m.ContextToolCallsTotal.WithLabelValues(tool, outcome).Inc()
 }
 
 // NopMetrics returns a Metrics instance that discards all data.
