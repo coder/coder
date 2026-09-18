@@ -412,6 +412,36 @@ func TestReadTemplate_OwnerEvaluatedParameters(t *testing.T) {
 		require.Contains(t, note, "evaluated for the workspace owner")
 	})
 
+	t.Run("RequiredWithoutValueIsNotAnError", func(t *testing.T) {
+		t.Parallel()
+		// preview tags required parameters rendered with no inputs with a
+		// "required" error diagnostic; that must not be reported as a
+		// broken default.
+		required := codersdk.PreviewParameter{
+			PreviewParameterData: codersdk.PreviewParameterData{
+				Name:     "Region",
+				Type:     codersdk.OptionTypeString,
+				Required: true,
+				Mutable:  true,
+			},
+			Diagnostics: []codersdk.FriendlyDiagnostic{{
+				Severity: codersdk.DiagnosticSeverityError,
+				Summary:  "Required parameter not provided",
+				Detail:   "parameter value is null",
+				Extra:    codersdk.DiagnosticExtra{Code: "required"},
+			}},
+		}
+		region, note := readParams(t, func(context.Context, uuid.UUID, uuid.UUID) ([]codersdk.PreviewParameter, []codersdk.FriendlyDiagnostic, error) {
+			return []codersdk.PreviewParameter{required}, nil, nil
+		})
+		require.Equal(t, true, region["required"])
+		_, hasDefault := region["default"]
+		require.False(t, hasDefault)
+		_, hasErr := region["error"]
+		require.False(t, hasErr)
+		require.Contains(t, note, "evaluated for the workspace owner")
+	})
+
 	t.Run("RenderErrorFallsBack", func(t *testing.T) {
 		t.Parallel()
 		region, note := readParams(t, func(context.Context, uuid.UUID, uuid.UUID) ([]codersdk.PreviewParameter, []codersdk.FriendlyDiagnostic, error) {

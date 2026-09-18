@@ -36,6 +36,9 @@ const (
 		"read_template shortly."
 	readTemplateBuildTimeDefaultNote = "resolved on the provisioner at " +
 		"build time; showing the value recorded at template import"
+	// diagnosticCodeRequired mirrors preview's types.DiagnosticCodeRequired,
+	// attached to required parameters rendered without a value.
+	diagnosticCodeRequired = "required"
 )
 
 var (
@@ -313,10 +316,14 @@ func renderedParameterEntry(p codersdk.PreviewParameter, static *database.Templa
 	}
 	var paramErr string
 	for _, d := range p.Diagnostics {
-		if d.Severity == codersdk.DiagnosticSeverityError {
-			paramErr = strings.TrimSpace(d.Summary + ": " + d.Detail)
-			break
+		// Rendering with no inputs tags every required parameter with a
+		// "required" error; that state is already conveyed by required
+		// being true with no default, so it is not a broken default.
+		if d.Severity != codersdk.DiagnosticSeverityError || d.Extra.Code == diagnosticCodeRequired {
+			continue
 		}
+		paramErr = strings.TrimSpace(d.Summary + ": " + d.Detail)
+		break
 	}
 	switch {
 	case paramErr != "":
@@ -331,7 +338,7 @@ func renderedParameterEntry(p codersdk.PreviewParameter, static *database.Templa
 		if p.DefaultValue.Value != "" {
 			param["default"] = p.DefaultValue.Value
 		}
-	case static != nil && static.DefaultValue != "":
+	case !p.Required && static != nil && static.DefaultValue != "":
 		// Unknown before the build, for example data.coder_provisioner
 		// attributes. The import-time value is the best available estimate.
 		param["default"] = static.DefaultValue
