@@ -103,8 +103,15 @@ import { pickReasoningEffort } from "./utils/reasoningEffort";
 
 const AGENT_BINDING_REPAIR_POLL_MS = 30_000;
 
-const AgentChatPage: FC = () => {
-	const { agentId } = useParams() as { agentId: string };
+interface AgentChatPageProps {
+	// Overrides the :agentId route param so several chats can be mounted
+	// in one tree (used by the compare benchmark view).
+	chatId?: string;
+}
+
+export const AgentChatPage: FC<AgentChatPageProps> = ({ chatId }) => {
+	const params = useParams() as { agentId: string };
+	const agentId = chatId ?? params.agentId;
 	const {
 		chatErrorReasons,
 		setChatErrorReason,
