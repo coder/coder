@@ -26,12 +26,13 @@ func (e *Enforcer) Install(ctx context.Context) error {
 		return err
 	}
 	v4, v6 := splitByFamily(e.resolveExemptions(ctx))
+	resolvers4, resolvers6 := splitAddrsByFamily(e.upstreamResolvers())
 
-	if err := e.installFamily(ctx, "iptables", buildRules(e.proxyPort, v4)); err != nil {
+	if err := e.installFamily(ctx, "iptables", buildRules(e.ports, v4, resolvers4, ipv4)); err != nil {
 		return xerrors.Errorf("install iptables rules: %w", err)
 	}
 	e.installed = true
-	if err := e.installFamily(ctx, "ip6tables", buildRules(e.proxyPort, v6)); err != nil {
+	if err := e.installFamily(ctx, "ip6tables", buildRules(e.ports, v6, resolvers6, ipv6)); err != nil {
 		e.logger.Warn(ctx, "ip6tables egress rules not installed, ipv6 is unenforced", slog.Error(err))
 	}
 	return nil

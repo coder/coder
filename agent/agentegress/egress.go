@@ -23,21 +23,24 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
+	"github.com/coder/quartz"
 
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/tailnet"
 )
 
 const (
-	// HeaderOriginalHost carries the hostname the client asked for, when the
-	// proxy learned it from an explicit CONNECT or absolute-URI request. It
-	// lets the exit node apply host-based policy before any bytes flow.
-	HeaderOriginalHost = "X-Coder-Original-Host"
-	// HeaderDenyReason is set by the exit node on 403 responses.
-	HeaderDenyReason = "X-Coder-Deny-Reason"
+	defaultListenHost = "127.0.0.1"
 
-	defaultListenAddr = "127.0.0.1:0"
+	// dnsRelayTarget is the CONNECT target the exit node recognizes as "resolve
+	// these DNS messages yourself".
+	dnsRelayTarget = "dns:53"
 )
+
+// builtinExemptNames are always resolved by the system resolvers rather than
+// given fake addresses. They name the workspace host itself.
+var builtinExemptNames = []string{"localhost", "host.docker.internal"}
 
 // Dialer opens TCP connections on the tailnet. *tailnet.Conn returns a
 // concrete *gonet.TCPConn, so callers wrap it with DialerFunc.
@@ -53,8 +56,8 @@ func (f DialerFunc) DialContextTCP(ctx context.Context, addr netip.AddrPort) (ne
 	return f(ctx, addr)
 }
 
-// Resolver resolves hostnames for explicit CONNECT requests. DNS is not
-// captured by this POC, so the workspace's own resolver is used.
+// Resolver resolves hostnames. The Enforcer uses it to turn exempt hosts
+// into addresses before rules are installed.
 type Resolver interface {
 	LookupNetIP(ctx context.Context, network, host string) ([]netip.Addr, error)
 }
@@ -65,28 +68,47 @@ type Options struct {
 	Dialer Dialer
 	// Config is the egress configuration from the agent manifest.
 	Config agentsdk.EgressConfig
-	// ListenAddr is the local address to listen on. Defaults to
-	// 127.0.0.1:0 (an ephemeral port). The proxy must stay on loopback:
-	// it performs no authentication.
+	// ListenAddr is the local address for the TCP proxy. Defaults to
+	// 127.0.0.1:0 (an ephemeral port). The proxy must stay on loopback: it
+	// performs no authentication. The DNS and UDP listeners bind ephemeral
+	// ports on the same host.
 	ListenAddr string
-	// Resolver defaults to net.DefaultResolver.
-	Resolver Resolver
+	// ExemptHosts are host[:port] destinations that bypass the exit node.
+	// Their names are resolved by the system resolvers instead of being
+	// given fake addresses. Control plane hosts should be included.
+	ExemptHosts []string
+	// UpstreamResolvers answer DNS queries for exempt names over TCP.
+	// Defaults to the nameservers in /etc/resolv.conf.
+	UpstreamResolvers []netip.AddrPort
+	// Clock drives UDP session idle timeouts. Defaults to the real clock.
+	Clock quartz.Clock
 }
 
-// Proxy is the local egress proxy. One loopback listener serves both
+// Proxy is the local egress proxy. One loopback TCP listener serves both
 // transparently redirected connections (identified via SO_ORIGINAL_DST) and
-// explicit HTTP proxy clients that were pointed at it via HTTP_PROXY.
+// explicit HTTP proxy clients that were pointed at it via HTTP_PROXY. A DNS
+// listener hands out fake addresses so redirected flows can be tunneled by
+// name, and a UDP listener relays redirected datagrams.
 type Proxy struct {
 	logger   slog.Logger
 	dialer   Dialer
-	resolver Resolver
 	cfg      agentsdk.EgressConfig
 	exitNode netip.AddrPort
 	listen   string
+	clock    quartz.Clock
+
+	fake        *fakeIPPool
+	exemptNames map[string]struct{}
+	upstream    []netip.AddrPort
+	// udpOrigDst decodes the original destination of a redirected datagram.
+	// Tests replace it because only netfilter can produce a real one.
+	udpOrigDst func(oob []byte) netip.AddrPort
 
 	mu       sync.Mutex
 	listener net.Listener
 	addr     netip.AddrPort
+	dns      *dnsServer
+	udp      *udpProxy
 	cancel   context.CancelFunc
 	closed   bool
 	wg       sync.WaitGroup
@@ -105,28 +127,43 @@ func New(logger slog.Logger, opts Options) (*Proxy, error) {
 	}
 	listen := opts.ListenAddr
 	if listen == "" {
-		listen = defaultListenAddr
+		listen = net.JoinHostPort(defaultListenHost, "0")
 	}
-	resolver := opts.Resolver
-	if resolver == nil {
-		resolver = net.DefaultResolver
+	clock := opts.Clock
+	if clock == nil {
+		clock = quartz.NewReal()
+	}
+	exempt := make(map[string]struct{})
+	for _, name := range builtinExemptNames {
+		exempt[name] = struct{}{}
+	}
+	for _, hostport := range opts.ExemptHosts {
+		host := normalizeName(stripPort(hostport))
+		if host == "" || isIPLiteral(host) {
+			continue
+		}
+		exempt[host] = struct{}{}
 	}
 	return &Proxy{
-		logger:   logger,
-		dialer:   opts.Dialer,
-		resolver: resolver,
-		cfg:      opts.Config,
+		logger: logger,
+		dialer: opts.Dialer,
+		cfg:    opts.Config,
+		clock:  clock,
 		exitNode: netip.AddrPortFrom(
 			tailnet.TailscaleServicePrefix.AddrFromUUID(opts.Config.ExitNodeID),
 			// #nosec G115 -- range validated above.
 			uint16(opts.Config.ExitNodePort),
 		),
-		listen: listen,
+		listen:      listen,
+		fake:        newFakeIPPool(fakeIPPrefix, fakeIPMaxEntries),
+		exemptNames: exempt,
+		upstream:    opts.UpstreamResolvers,
+		udpOrigDst:  udpOriginalDst,
 	}, nil
 }
 
-// Start opens the listener and begins accepting connections. Connections
-// are handled until Close is called or ctx is canceled.
+// Start opens the listeners and begins serving. Connections are handled
+// until Close is called or ctx is canceled.
 func (p *Proxy) Start(ctx context.Context) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -146,20 +183,82 @@ func (p *Proxy) Start(ctx context.Context) error {
 		_ = ln.Close()
 		return xerrors.Errorf("unexpected listener address type %T", ln.Addr())
 	}
+	host := tcpAddr.AddrPort().Addr().String()
+
+	upstream := p.upstream
+	if upstream == nil {
+		for _, addr := range systemResolvers() {
+			upstream = append(upstream, netip.AddrPortFrom(addr, 53))
+		}
+	}
+	dns := &dnsServer{
+		logger:   p.logger.Named("dns"),
+		fake:     p.fake,
+		exempt:   p.isExempt,
+		upstream: upstream,
+		relay: newDNSRelay(p.logger.Named("dns"), func(ctx context.Context) (net.Conn, error) {
+			return p.connectUpstream(ctx, dnsRelayTarget, codersdk.ExitNodeProtocolDNS)
+		}),
+	}
+	if err := dns.listen(ctx, host); err != nil {
+		_ = ln.Close()
+		return err
+	}
+	udp := &udpProxy{
+		logger: p.logger.Named("udp"),
+		clock:  p.clock,
+		fake:   p.fake,
+		connect: func(ctx context.Context, target string) (net.Conn, error) {
+			return p.connectUpstream(ctx, target, codersdk.ExitNodeProtocolUDP)
+		},
+		origDst: p.udpOrigDst,
+	}
+	if err := udp.listen(ctx, host); err != nil {
+		_ = ln.Close()
+		dns.close()
+		return err
+	}
+
 	p.addr = tcpAddr.AddrPort()
 	p.listener = ln
+	p.dns = dns
+	p.udp = udp
 	ctx, p.cancel = context.WithCancel(ctx)
 	p.wg.Add(1)
 	go p.acceptLoop(ctx, ln)
+	dns.serve(ctx)
+	udp.serve(ctx)
 	return nil
 }
 
-// Addr returns the loopback address the proxy listens on. It is the zero
-// value before Start.
+// Addr returns the loopback address the TCP proxy listens on. It is the
+// zero value before Start.
 func (p *Proxy) Addr() netip.AddrPort {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	return p.addr
+}
+
+// DNSAddr returns the loopback address the DNS listener serves on, for
+// both UDP and TCP. It is the zero value before Start.
+func (p *Proxy) DNSAddr() netip.AddrPort {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.dns == nil {
+		return netip.AddrPort{}
+	}
+	return p.dns.addr
+}
+
+// UDPAddr returns the loopback address redirected UDP is delivered to. It
+// is the zero value before Start.
+func (p *Proxy) UDPAddr() netip.AddrPort {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.udp == nil {
+		return netip.AddrPort{}
+	}
+	return p.udp.addr
 }
 
 // Config returns the egress configuration the proxy was started with.
@@ -187,6 +286,8 @@ func (p *Proxy) Close() error {
 	}
 	p.closed = true
 	ln := p.listener
+	dns := p.dns
+	udp := p.udp
 	cancel := p.cancel
 	p.mu.Unlock()
 
@@ -197,11 +298,43 @@ func (p *Proxy) Close() error {
 	if ln != nil {
 		err = ln.Close()
 	}
+	if dns != nil {
+		dns.close()
+	}
+	if udp != nil {
+		udp.close()
+	}
 	p.wg.Wait()
 	if err != nil && !errors.Is(err, net.ErrClosed) {
 		return xerrors.Errorf("close listener: %w", err)
 	}
 	return nil
+}
+
+// isExempt reports whether name bypasses the exit node.
+func (p *Proxy) isExempt(name string) bool {
+	_, ok := p.exemptNames[normalizeName(name)]
+	return ok
+}
+
+// target names the CONNECT destination for a redirected flow. Fake
+// addresses are translated back to the hostname the client resolved so the
+// exit node can apply name-based policy and resolve the name itself.
+func (p *Proxy) target(dst netip.AddrPort) string {
+	if name, ok := p.fake.Reverse(dst.Addr()); ok {
+		return net.JoinHostPort(name, strconv.Itoa(int(dst.Port())))
+	}
+	return dst.String()
+}
+
+// explicitTarget names the CONNECT destination for an explicit proxy
+// request. Hostnames pass through for the exit node to resolve; a fake IP
+// literal (from a client that resolved before proxying) is translated.
+func (p *Proxy) explicitTarget(host string, port uint16) string {
+	if addr, err := netip.ParseAddr(strings.Trim(host, "[]")); err == nil {
+		return p.target(netip.AddrPortFrom(addr.Unmap(), port))
+	}
+	return net.JoinHostPort(normalizeName(host), strconv.Itoa(int(port)))
 }
 
 func (p *Proxy) acceptLoop(ctx context.Context, ln net.Listener) {
@@ -233,7 +366,7 @@ func (p *Proxy) handleConn(ctx context.Context, conn net.Conn) {
 
 	dst, err := originalDestination(conn)
 	if err == nil && dst.IsValid() && dst != p.Addr() {
-		p.tunnel(ctx, conn, conn, dst, "")
+		p.tunnel(ctx, conn, conn, p.target(dst))
 		return
 	}
 	p.handleExplicit(ctx, conn)
@@ -261,15 +394,10 @@ func (p *Proxy) handleExplicit(ctx context.Context, conn net.Conn) {
 		return
 	}
 	host, port := splitHostPortDefault(req.URL.Host, schemePort(req.URL.Scheme))
-	dst, err := p.resolve(ctx, host, port)
+	target := p.explicitTarget(host, port)
+	upstream, err := p.connectUpstream(ctx, target, codersdk.ExitNodeProtocolTCP)
 	if err != nil {
-		p.logger.Warn(ctx, "resolve proxy destination", slog.F("host", host), slog.Error(err))
-		writeSimpleResponse(conn, req, http.StatusBadGateway, "resolve destination: "+err.Error())
-		return
-	}
-	upstream, err := p.connectUpstream(ctx, dst, host)
-	if err != nil {
-		p.writeUpstreamError(ctx, conn, req, dst, host, err)
+		p.writeUpstreamError(ctx, conn, req, target, err)
 		return
 	}
 	defer upstream.Close()
@@ -289,15 +417,10 @@ func (p *Proxy) handleExplicit(ctx context.Context, conn net.Conn) {
 
 func (p *Proxy) handleConnect(ctx context.Context, conn net.Conn, br *bufio.Reader, req *http.Request) {
 	host, port := splitHostPortDefault(req.Host, 443)
-	dst, err := p.resolve(ctx, host, port)
+	target := p.explicitTarget(host, port)
+	upstream, err := p.connectUpstream(ctx, target, codersdk.ExitNodeProtocolTCP)
 	if err != nil {
-		p.logger.Warn(ctx, "resolve connect destination", slog.F("host", host), slog.Error(err))
-		writeSimpleResponse(conn, req, http.StatusBadGateway, "resolve destination: "+err.Error())
-		return
-	}
-	upstream, err := p.connectUpstream(ctx, dst, host)
-	if err != nil {
-		p.writeUpstreamError(ctx, conn, req, dst, host, err)
+		p.writeUpstreamError(ctx, conn, req, target, err)
 		return
 	}
 	defer upstream.Close()
@@ -307,27 +430,32 @@ func (p *Proxy) handleConnect(ctx context.Context, conn net.Conn, br *bufio.Read
 	pipe(ctx, conn, br, upstream)
 }
 
-// tunnel forwards a transparently redirected connection to dst via the exit
-// node. The client sees a reset or EOF when the exit node denies the flow.
-func (p *Proxy) tunnel(ctx context.Context, conn net.Conn, clientReader io.Reader, dst netip.AddrPort, host string) {
-	upstream, err := p.connectUpstream(ctx, dst, host)
+// tunnel forwards a transparently redirected connection to target via the
+// exit node. The client sees a reset or EOF when the exit node denies the
+// flow.
+func (p *Proxy) tunnel(ctx context.Context, conn net.Conn, clientReader io.Reader, target string) {
+	upstream, err := p.connectUpstream(ctx, target, codersdk.ExitNodeProtocolTCP)
 	if err != nil {
-		p.logUpstreamError(ctx, dst, host, err)
+		p.logUpstreamError(ctx, target, err)
 		return
 	}
 	defer upstream.Close()
 	pipe(ctx, conn, clientReader, upstream)
 }
 
-func (p *Proxy) writeUpstreamError(ctx context.Context, conn net.Conn, req *http.Request, dst netip.AddrPort, host string, err error) {
-	p.logUpstreamError(ctx, dst, host, err)
+func (p *Proxy) writeUpstreamError(ctx context.Context, conn net.Conn, req *http.Request, target string, err error) {
+	p.logUpstreamError(ctx, target, err)
 	var denied *DeniedError
 	if errors.As(err, &denied) {
+		hdr := http.Header{codersdk.ExitNodeDenyReasonHeader: []string{denied.Reason}}
+		if denied.Rule != "" {
+			hdr.Set(codersdk.ExitNodeDenyRuleHeader, denied.Rule)
+		}
 		resp := &http.Response{
 			StatusCode: http.StatusForbidden,
 			ProtoMajor: 1,
 			ProtoMinor: 1,
-			Header:     http.Header{HeaderDenyReason: []string{denied.Reason}},
+			Header:     hdr,
 			Body:       io.NopCloser(strings.NewReader(denied.Error() + "\n")),
 			Request:    req,
 		}
@@ -338,14 +466,12 @@ func (p *Proxy) writeUpstreamError(ctx context.Context, conn net.Conn, req *http
 	writeSimpleResponse(conn, req, http.StatusBadGateway, "exit node: "+err.Error())
 }
 
-func (p *Proxy) logUpstreamError(ctx context.Context, dst netip.AddrPort, host string, err error) {
-	fields := []slog.Field{
-		slog.F("destination", dst.String()),
-		slog.F("host", host),
-	}
+func (p *Proxy) logUpstreamError(ctx context.Context, target string, err error) {
+	fields := []slog.Field{slog.F("target", target)}
 	var denied *DeniedError
 	if errors.As(err, &denied) {
-		p.logger.Info(ctx, "egress denied by exit node", append(fields, slog.F("reason", denied.Reason))...)
+		p.logger.Info(ctx, "egress denied by exit node",
+			append(fields, slog.F("reason", denied.Reason), slog.F("rule", denied.Rule))...)
 		return
 	}
 	p.logger.Warn(ctx, "egress connection through exit node failed", append(fields, slog.Error(err))...)
@@ -353,33 +479,38 @@ func (p *Proxy) logUpstreamError(ctx context.Context, dst netip.AddrPort, host s
 
 // DeniedError is returned when the exit node rejects a CONNECT with 403.
 type DeniedError struct {
-	Destination netip.AddrPort
-	Reason      string
+	// Target is the host:port the CONNECT asked for.
+	Target string
+	Reason string
+	// Rule names the matching policy rule, when the exit node reported one.
+	Rule string
 }
 
 // Error implements error.
 func (e *DeniedError) Error() string {
 	if e.Reason == "" {
-		return fmt.Sprintf("egress to %s denied by exit node", e.Destination)
+		return fmt.Sprintf("egress to %s denied by exit node", e.Target)
 	}
-	return fmt.Sprintf("egress to %s denied by exit node: %s", e.Destination, e.Reason)
+	return fmt.Sprintf("egress to %s denied by exit node: %s", e.Target, e.Reason)
 }
 
 // connectUpstream dials the exit node and negotiates a CONNECT tunnel to
-// dst. On success the returned connection carries raw bytes for dst.
-func (p *Proxy) connectUpstream(ctx context.Context, dst netip.AddrPort, host string) (net.Conn, error) {
+// target (host:port or ip:port) carrying proto. On success the returned
+// connection carries the tunnel bytes. Hostname targets are resolved by the
+// exit node, so no original-host hint is needed.
+func (p *Proxy) connectUpstream(ctx context.Context, target string, proto codersdk.ExitNodeProtocol) (net.Conn, error) {
 	upstream, err := p.dialer.DialContextTCP(ctx, p.exitNode)
 	if err != nil {
 		return nil, xerrors.Errorf("dial exit node %s: %w", p.exitNode, err)
 	}
 	connectReq := &http.Request{
 		Method: http.MethodConnect,
-		URL:    &url.URL{Opaque: dst.String()},
-		Host:   dst.String(),
+		URL:    &url.URL{Opaque: target},
+		Host:   target,
 		Header: http.Header{},
 	}
-	if host != "" && !isIPLiteral(host) {
-		connectReq.Header.Set(HeaderOriginalHost, host)
+	if proto != "" && proto != codersdk.ExitNodeProtocolTCP {
+		connectReq.Header.Set(codersdk.ExitNodeProtocolHeader, string(proto))
 	}
 	if err := connectReq.Write(upstream); err != nil {
 		_ = upstream.Close()
@@ -397,34 +528,15 @@ func (p *Proxy) connectUpstream(ctx context.Context, dst netip.AddrPort, host st
 		return &bufferedConn{Conn: upstream, r: br}, nil
 	case http.StatusForbidden:
 		_ = upstream.Close()
-		return nil, &DeniedError{Destination: dst, Reason: resp.Header.Get(HeaderDenyReason)}
+		return nil, &DeniedError{
+			Target: target,
+			Reason: resp.Header.Get(codersdk.ExitNodeDenyReasonHeader),
+			Rule:   resp.Header.Get(codersdk.ExitNodeDenyRuleHeader),
+		}
 	default:
 		_ = upstream.Close()
-		return nil, xerrors.Errorf("exit node responded %s to CONNECT %s", resp.Status, dst)
+		return nil, xerrors.Errorf("exit node responded %s to CONNECT %s", resp.Status, target)
 	}
-}
-
-// resolve turns host:port into a concrete destination. IP literals are used
-// as-is; hostnames go through the resolver and the first address wins.
-func (p *Proxy) resolve(ctx context.Context, host string, port uint16) (netip.AddrPort, error) {
-	if addr, err := netip.ParseAddr(strings.Trim(host, "[]")); err == nil {
-		return netip.AddrPortFrom(addr.Unmap(), port), nil
-	}
-	addrs, err := p.resolver.LookupNetIP(ctx, "ip", host)
-	if err != nil {
-		return netip.AddrPort{}, xerrors.Errorf("lookup %q: %w", host, err)
-	}
-	if len(addrs) == 0 {
-		return netip.AddrPort{}, xerrors.Errorf("lookup %q: no addresses", host)
-	}
-	// Prefer IPv4 so the exit node's rules see the same family the
-	// workspace would have used through the redirect path.
-	for _, a := range addrs {
-		if a.Unmap().Is4() {
-			return netip.AddrPortFrom(a.Unmap(), port), nil
-		}
-	}
-	return netip.AddrPortFrom(addrs[0].Unmap(), port), nil
 }
 
 // bufferedConn ensures bytes the CONNECT response reader already buffered

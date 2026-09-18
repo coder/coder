@@ -12,6 +12,48 @@ import (
 	"golang.org/x/xerrors"
 )
 
+// enableUDPOriginalDst asks the kernel to attach the pre-REDIRECT
+// destination of every datagram as an IP_RECVORIGDSTADDR control message.
+func enableUDPOriginalDst(conn *net.UDPConn) error {
+	raw, err := conn.SyscallConn()
+	if err != nil {
+		return xerrors.Errorf("raw conn: %w", err)
+	}
+	var optErr error
+	if err := raw.Control(func(fd uintptr) {
+		optErr = unix.SetsockoptInt(int(fd), unix.IPPROTO_IP, unix.IP_RECVORIGDSTADDR, 1)
+	}); err != nil {
+		return xerrors.Errorf("control raw conn: %w", err)
+	}
+	if optErr != nil {
+		return xerrors.Errorf("setsockopt IP_RECVORIGDSTADDR: %w", optErr)
+	}
+	return nil
+}
+
+// udpOriginalDst extracts the original destination from the control
+// messages returned by ReadMsgUDP. It returns an invalid AddrPort when the
+// datagram was not redirected.
+func udpOriginalDst(oob []byte) netip.AddrPort {
+	msgs, err := unix.ParseSocketControlMessage(oob)
+	if err != nil {
+		return netip.AddrPort{}
+	}
+	for _, m := range msgs {
+		if m.Header.Level != unix.IPPROTO_IP || m.Header.Type != unix.IP_RECVORIGDSTADDR {
+			continue
+		}
+		// sockaddr_in: family(2) port(2, network order) addr(4) zero(8).
+		if len(m.Data) < 8 || binary.NativeEndian.Uint16(m.Data[0:2]) != unix.AF_INET {
+			continue
+		}
+		port := binary.BigEndian.Uint16(m.Data[2:4])
+		addr := netip.AddrFrom4([4]byte(m.Data[4:8]))
+		return netip.AddrPortFrom(addr, port)
+	}
+	return netip.AddrPort{}
+}
+
 // ip6tSoOriginalDst is IP6T_SO_ORIGINAL_DST from linux/netfilter_ipv6/
 // ip6_tables.h. x/sys does not export it; it shares the value of the IPv4
 // option.

@@ -2289,9 +2289,11 @@ func (a *agent) updateEgress(ctx context.Context, cfg *agentsdk.EgressConfig) {
 	}
 
 	logger := a.logger.Named("egress")
+	exemptHosts := a.egressExemptHosts(*cfg)
 	proxy, err := agentegress.New(logger, agentegress.Options{
-		Dialer: agentegress.DialerFunc(a.dialTailnetTCP),
-		Config: *cfg,
+		Dialer:      agentegress.DialerFunc(a.dialTailnetTCP),
+		Config:      *cfg,
+		ExemptHosts: exemptHosts,
 	})
 	if err != nil {
 		logger.Error(ctx, "invalid egress configuration, egress is unmanaged", slog.Error(err))
@@ -2305,6 +2307,8 @@ func (a *agent) updateEgress(ctx context.Context, cfg *agentsdk.EgressConfig) {
 	a.egressProxy = proxy
 	logger.Info(ctx, "egress proxy started",
 		slog.F("listen_addr", proxy.Addr().String()),
+		slog.F("dns_addr", proxy.DNSAddr().String()),
+		slog.F("udp_addr", proxy.UDPAddr().String()),
 		slog.F("exit_node_id", cfg.ExitNodeID),
 		slog.F("enforce", cfg.Enforce),
 	)
@@ -2315,7 +2319,9 @@ func (a *agent) updateEgress(ctx context.Context, cfg *agentsdk.EgressConfig) {
 	enforcer, err := agentegress.NewEnforcer(logger, agentegress.EnforcerOptions{
 		Execer:            a.execer,
 		ProxyPort:         proxy.Addr().Port(),
-		ControlPlaneHosts: a.egressExemptHosts(*cfg),
+		DNSPort:           proxy.DNSAddr().Port(),
+		UDPPort:           proxy.UDPAddr().Port(),
+		ControlPlaneHosts: exemptHosts,
 	})
 	if err != nil {
 		logger.Error(ctx, "egress enforcement unavailable, running in advisory proxy mode", slog.Error(err))
