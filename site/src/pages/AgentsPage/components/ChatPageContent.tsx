@@ -277,6 +277,8 @@ type ChatPageInputProps = {
 	onSend: (options: SendChatMessageOptions) => Promise<void> | void;
 	onDeleteQueuedMessage: (id: number) => Promise<void>;
 	onPromoteQueuedMessage: (id: number) => Promise<void>;
+	onEditQueuedMessage?: (id: number) => void;
+	onEndQueuedMessageEdit?: (id: number) => Promise<void>;
 	onInterrupt: () => void;
 	isInputDisabled: boolean;
 	isReadOnly: boolean;
@@ -310,6 +312,7 @@ type ChatPageInputProps = {
 		hasFileReferences: boolean,
 	) => void;
 	editingTarget: EditingTarget | null;
+	queuedMessageUnderEditID?: number | null;
 	onCancelEdit: () => void;
 	// File parts from the message being edited, converted to
 	// File objects and pre-populated into attachments.
@@ -335,6 +338,8 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 	onSend,
 	onDeleteQueuedMessage,
 	onPromoteQueuedMessage,
+	onEditQueuedMessage,
+	onEndQueuedMessageEdit,
 	onInterrupt,
 	isInputDisabled,
 	isReadOnly,
@@ -362,6 +367,7 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 	remountKey,
 	onContentChange,
 	editingTarget,
+	queuedMessageUnderEditID,
 	onCancelEdit,
 	editingFileBlocks,
 	mcpServers,
@@ -790,7 +796,10 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 			queuedMessages={queuedMessages}
 			onDeleteQueuedMessage={onDeleteQueuedMessage}
 			onPromoteQueuedMessage={onPromoteQueuedMessage}
+			onEditQueuedMessage={onEditQueuedMessage}
+			onEndQueuedMessageEdit={onEndQueuedMessageEdit}
 			isChatPaused={chatStatus === "paused"}
+			queuedMessageUnderEditID={queuedMessageUnderEditID}
 			editingKind={editingTarget?.kind}
 			onCancelEdit={onCancelEdit}
 			userPromptHistory={userPromptHistory}

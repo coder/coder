@@ -102,7 +102,10 @@ import type { AgentContextUsage } from "./ContextUsageIndicator";
 import { ContextUsageIndicator } from "./ContextUsageIndicator";
 import { ImageLightbox } from "./ImageLightbox";
 import { MCPServerIconStack } from "./MCPServerIconStack";
-import { QueuedMessagesList } from "./QueuedMessagesList";
+import {
+	isQueuedMessageUnderEdit,
+	QueuedMessagesList,
+} from "./QueuedMessagesList";
 import { TextPreviewDialog } from "./TextPreviewDialog";
 import { WorkspacePill } from "./WorkspacePill";
 import { WorkspaceUploadPreview } from "./WorkspaceUploadPreview";
@@ -191,13 +194,17 @@ type AgentChatInputProps = {
 	queuedMessages?: readonly ChatQueuedMessage[];
 	onDeleteQueuedMessage?: (id: number) => Promise<void> | void;
 	onPromoteQueuedMessage?: (id: number) => Promise<void> | void;
+	onEditQueuedMessage?: (id: number) => Promise<void> | void;
+	onEndQueuedMessageEdit?: (id: number) => Promise<void> | void;
 	// Caution shown at the top of the composer, owned by the parent.
 	warning?: string;
 	// When set, also hides the editor and every control (view-only mode).
 	readOnlyNotice?: string;
 	isChatPaused?: boolean;
-	// Editing state, owned by the parent.
+	// Editing state, owned by the parent. The kind selects the banner text.
 	editingKind?: EditingTarget["kind"];
+	// The queued row under edit; undefined leaves it to the rows' own marker.
+	queuedMessageUnderEditID?: number | null;
 	onCancelEdit?: () => void;
 	// Newest-first list of non-empty user prompts for local history cycling.
 	userPromptHistory?: readonly string[];
@@ -535,10 +542,13 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 	queuedMessages = [],
 	onDeleteQueuedMessage,
 	onPromoteQueuedMessage,
+	onEditQueuedMessage,
+	onEndQueuedMessageEdit,
 	warning,
 	readOnlyNotice,
 	isChatPaused = false,
 	editingKind,
+	queuedMessageUnderEditID,
 	onCancelEdit,
 	userPromptHistory = [],
 	contextUsage,
@@ -572,6 +582,10 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 	fillWidth = false,
 }) => {
 	const isEditingMessage = editingKind !== undefined;
+	const enterSendsHead =
+		!isEditingMessage &&
+		queuedMessages.length > 0 &&
+		!isQueuedMessageUnderEdit(queuedMessages[0], queuedMessageUnderEditID);
 	const warningId = useId();
 	const preferencesQuery = useQuery(preferenceSettings());
 	const sendShortcut = getAgentChatSendShortcut(
@@ -1162,8 +1176,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 			!isReadOnly &&
 			!isLoading &&
 			!hasActiveUploads &&
-			queuedMessages.length > 0 &&
-			!queuedMessages[0].editing_since &&
+			enterSendsHead &&
 			onPromoteQueuedMessage
 		) {
 			void onPromoteQueuedMessage(queuedMessages[0].id);
@@ -1318,10 +1331,11 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 	}
 	// Stop and the send button are mutually exclusive while streaming; a
 	// non-empty draft or a live recording selects the send button. A live
-	// recording also takes precedence over history editing.
+	// recording also takes precedence over history editing. A queued edit
+	// does not start a turn, so it takes the slot like a draft.
 	const draftOccupiesSlot =
 		hasSendableContent || hasActiveUploads || speech.isRecording;
-	const editingHoldsStop = isEditingMessage && !speech.isRecording;
+	const editingHoldsStop = editingKind === "history" && !speech.isRecording;
 	const showStopButton =
 		!isReadOnlyView &&
 		isStreaming &&
@@ -1360,6 +1374,11 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 					messages={queuedMessages}
 					onDelete={(id) => onDeleteQueuedMessage?.(id)}
 					onPromote={(id) => onPromoteQueuedMessage?.(id)}
+					onEdit={onEditQueuedMessage}
+					onEndEdit={onEndQueuedMessageEdit}
+					chatPaused={isChatPaused}
+					queuedMessageUnderEditID={queuedMessageUnderEditID}
+					showEnterToSendHint={enterSendsHead}
 					className="mb-2"
 				/>
 			)}
@@ -1415,8 +1434,9 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 					<div className="flex items-center justify-between border-b border-border/70 px-3 py-1.5">
 						<span className="flex items-center gap-1.5 text-xs font-medium text-content-warning">
 							<PencilIcon className="size-3.5" />
-							Editing will delete all subsequent messages and restart the
-							conversation here.
+							{editingKind === "queued"
+								? "Editing a queued message. It is not sent until you save or cancel."
+								: "Editing will delete all subsequent messages and restart the conversation here."}
 						</span>
 						<Button
 							type="button"
