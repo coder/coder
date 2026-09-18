@@ -6,7 +6,7 @@ import {
 	getSavedMCPSelection,
 	mcpSelectionStorageKey,
 	saveMCPSelection,
-} from "./MCPServerPicker";
+} from "./mcpSelection";
 
 const buildServer = (
 	overrides: Partial<MCPServerConfig> & { id: string },
