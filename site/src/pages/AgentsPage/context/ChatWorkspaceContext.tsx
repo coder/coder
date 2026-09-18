@@ -3,6 +3,7 @@ import { createContext, useContext } from "react";
 type ChatWorkspaceContextValue = {
 	workspaceId?: string;
 	buildId?: string;
+	agentId?: string;
 };
 
 const ChatWorkspaceContext = createContext<ChatWorkspaceContextValue>({});
@@ -21,5 +22,8 @@ export const useChatWorkspaceId = () =>
  * frontend through the chat watch event without polling.
  */
 export const useChatBuildId = () => useContext(ChatWorkspaceContext).buildId;
+
+/** Agent ID from the chat binding. After a rebuild it may be the previous build's agent until the next chat read. */
+export const useChatAgentId = () => useContext(ChatWorkspaceContext).agentId;
 
 export { ChatWorkspaceContext };
