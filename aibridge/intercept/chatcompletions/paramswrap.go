@@ -2,10 +2,13 @@ package chatcompletions
 
 import (
 	"encoding/json"
+	"fmt"
+	"strings"
 
 	"github.com/openai/openai-go/v3"
 	"github.com/openai/openai-go/v3/packages/param"
 	"github.com/tidwall/gjson"
+	"github.com/tidwall/sjson"
 	"golang.org/x/xerrors"
 )
 
@@ -18,6 +21,19 @@ type ChatCompletionNewParamsWrapper struct {
 	// Google upstreams, which read provider-specific settings such as
 	// Gemini's thinking_config from it.
 	ExtraBody json.RawMessage `json:"-"`
+	// PreservedFields holds client-sent JSON the typed params drop on
+	// unmarshal and that must reach the upstream at the same path. Today
+	// this is the Anthropic-style cache_control marker on messages and
+	// content parts, which OpenAI-compatible upstreams such as OpenRouter
+	// honor for prompt caching.
+	PreservedFields []preservedJSONField `json:"-"`
+}
+
+// preservedJSONField is a raw JSON value keyed by its gjson/sjson path
+// in the request body.
+type preservedJSONField struct {
+	Path string
+	Raw  json.RawMessage
 }
 
 func (c ChatCompletionNewParamsWrapper) MarshalJSON() ([]byte, error) {
@@ -36,6 +52,7 @@ func (c *ChatCompletionNewParamsWrapper) UnmarshalJSON(raw []byte) error {
 	if extraBody := gjson.GetBytes(raw, "extra_body"); extraBody.IsObject() {
 		c.ExtraBody = json.RawMessage(extraBody.Raw)
 	}
+	c.PreservedFields = preservedCacheControlFields(raw)
 
 	c.Stream = gjson.GetBytes(raw, "stream").Bool()
 	if c.Stream {
@@ -47,6 +64,53 @@ func (c *ChatCompletionNewParamsWrapper) UnmarshalJSON(raw []byte) error {
 	}
 
 	return nil
+}
+
+// preservedCacheControlFields records every message-level and
+// content-part-level cache_control marker in the raw request.
+func preservedCacheControlFields(raw []byte) []preservedJSONField {
+	var fields []preservedJSONField
+	for i, message := range gjson.GetBytes(raw, "messages").Array() {
+		if cc := message.Get("cache_control"); cc.Exists() {
+			fields = append(fields, preservedJSONField{
+				Path: fmt.Sprintf("messages.%d.cache_control", i),
+				Raw:  json.RawMessage(cc.Raw),
+			})
+		}
+		content := message.Get("content")
+		if !content.IsArray() {
+			continue
+		}
+		for j, part := range content.Array() {
+			if cc := part.Get("cache_control"); cc.Exists() {
+				fields = append(fields, preservedJSONField{
+					Path: fmt.Sprintf("messages.%d.content.%d.cache_control", i, j),
+					Raw:  json.RawMessage(cc.Raw),
+				})
+			}
+		}
+	}
+	return fields
+}
+
+// applyPreservedFields re-applies PreservedFields to a body marshaled
+// from the typed params. The bridge only appends messages for injected
+// tool round trips, so recorded paths stay valid; a field whose parent
+// object no longer exists in the rebuilt body is skipped rather than
+// padded in by sjson.
+func (c *ChatCompletionNewParamsWrapper) applyPreservedFields(body []byte) ([]byte, error) {
+	for _, field := range c.PreservedFields {
+		parent := field.Path[:strings.LastIndex(field.Path, ".")]
+		if !gjson.GetBytes(body, parent).IsObject() {
+			continue
+		}
+		var err error
+		body, err = sjson.SetRawBytes(body, field.Path, field.Raw)
+		if err != nil {
+			return nil, xerrors.Errorf("re-apply %s: %w", field.Path, err)
+		}
+	}
+	return body, nil
 }
 
 func (c *ChatCompletionNewParamsWrapper) lastUserPrompt() (*string, error) {
