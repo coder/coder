@@ -20,7 +20,10 @@ import { MockChatProject } from "#/testHelpers/entities";
 import { createMockFile } from "#/testHelpers/files";
 import { createTestQueryClient } from "#/testHelpers/renderHelpers";
 import { MockSkill } from "#/testHelpers/skills";
-import { mobileViewportMediaQuery } from "#/utils/mobile";
+import {
+	belowMdViewportMediaQuery,
+	mobileViewportMediaQuery,
+} from "#/utils/mobile";
 import type * as speechRecognition from "../hooks/useSpeechRecognition";
 import { useSpeechRecognition } from "../hooks/useSpeechRecognition";
 import { AgentChatInput, type ChatMessageInputRef } from "./AgentChatInput";
@@ -55,6 +58,25 @@ const stubViewport = (isMobile: boolean) => {
 		const result = originalMatchMedia(query);
 		return query === mobileViewportMediaQuery
 			? { ...result, matches: isMobile }
+			: result;
+	});
+};
+
+const mobileDropdownVariables = [
+	"--mobile-dropdown-bottom",
+	"--mobile-dropdown-left",
+	"--mobile-dropdown-width",
+	"--mobile-dropdown-above-composer-bottom",
+	"--mobile-dropdown-above-composer-max-height",
+];
+
+// The jsdom matchMedia polyfill reports no query as matching, so tests run
+// at a desktop viewport unless they stub the below-md query.
+const stubViewportBelowMd = () => {
+	vi.stubGlobal("matchMedia", (query: string) => {
+		const result = originalMatchMedia(query);
+		return query === belowMdViewportMediaQuery
+			? { ...result, matches: true }
 			: result;
 	});
 };
@@ -140,6 +162,7 @@ beforeAll(() => {
 
 afterEach(() => {
 	vi.unstubAllGlobals();
+	vi.restoreAllMocks();
 	mockedUseSpeechRecognition.mockReset();
 	dashboard.experiments = ["chat-projects"];
 	vi.restoreAllMocks();
@@ -1000,5 +1023,52 @@ describe("AgentChatInput", () => {
 		expect(toastError).toHaveBeenCalledWith(
 			"This file type is uploaded into the chat's workspace. Attach a running workspace to the chat, then try again.",
 		);
+	});
+
+	// Writing custom properties on <html> restyles the whole document, which
+	// blocked focus and typing for seconds in long chats. The variables
+	// only feed the below-md dropdown utilities, so wider viewports must not
+	// touch the root element at all.
+	it("does not write mobile dropdown variables on the root element at desktop widths", async () => {
+		const user = userEvent.setup();
+		const setProperty = vi.spyOn(document.documentElement.style, "setProperty");
+
+		renderInput(<AgentChatInput {...inputProps} />);
+		const textbox = screen.getByRole("textbox", { name: "Chat message" });
+		await user.click(textbox);
+		await user.keyboard("when");
+
+		const rootWrites = setProperty.mock.calls.filter(([name]) =>
+			name.startsWith("--mobile-dropdown-"),
+		);
+		expect(rootWrites).toEqual([]);
+		for (const name of mobileDropdownVariables) {
+			expect(document.documentElement.style.getPropertyValue(name)).toBe("");
+		}
+	});
+
+	it("positions mobile dropdowns from the composer below the md breakpoint without rewriting unchanged values", async () => {
+		stubViewportBelowMd();
+		const user = userEvent.setup();
+		const setProperty = vi.spyOn(document.documentElement.style, "setProperty");
+
+		const { unmount } = renderInput(<AgentChatInput {...inputProps} />);
+		for (const name of mobileDropdownVariables) {
+			expect(document.documentElement.style.getPropertyValue(name)).toMatch(
+				/^\d+px$/,
+			);
+		}
+		const writesAfterMount = setProperty.mock.calls.length;
+
+		// Focus and typing re-read the geometry; jsdom reports the same
+		// rectangles, so the values are unchanged and must not be rewritten.
+		await user.click(screen.getByRole("textbox", { name: "Chat message" }));
+		await user.keyboard("when");
+		expect(setProperty.mock.calls.length).toBe(writesAfterMount);
+
+		unmount();
+		for (const name of mobileDropdownVariables) {
+			expect(document.documentElement.style.getPropertyValue(name)).toBe("");
+		}
 	});
 });
