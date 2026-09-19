@@ -44,6 +44,21 @@ func (m *MockStore) EXPECT() *MockStoreMockRecorder {
 	return m.recorder
 }
 
+// AccountAgentTimeMessages mocks base method.
+func (m *MockStore) AccountAgentTimeMessages(ctx context.Context, messageIds []int64) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "AccountAgentTimeMessages", ctx, messageIds)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// AccountAgentTimeMessages indicates an expected call of AccountAgentTimeMessages.
+func (mr *MockStoreMockRecorder) AccountAgentTimeMessages(ctx, messageIds any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AccountAgentTimeMessages", reflect.TypeOf((*MockStore)(nil).AccountAgentTimeMessages), ctx, messageIds)
+}
+
 // AcquireExternalAuthLinkRefreshLease mocks base method.
 func (m *MockStore) AcquireExternalAuthLinkRefreshLease(ctx context.Context, arg database.AcquireExternalAuthLinkRefreshLeaseParams) (database.ExternalAuthLink, error) {
 	m.ctrl.T.Helper()
