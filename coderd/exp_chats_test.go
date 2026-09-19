@@ -3102,7 +3102,7 @@ func TestWatchChats(t *testing.T) {
 		firstUser := coderdtest.CreateFirstUser(t, client.Client)
 		_ = createChatModel(t, client)
 
-		conn, err := client.Dial(ctx, "/api/experimental/chats/watch", nil)
+		conn, err := client.Dial(ctx, "/api/v2/chats/watch", nil)
 		require.NoError(t, err)
 		defer conn.Close(websocket.StatusNormalClosure, "done")
 
@@ -3136,7 +3136,7 @@ func TestWatchChats(t *testing.T) {
 		firstUser := coderdtest.CreateFirstUser(t, client.Client)
 		modelConfig := createChatModel(t, client)
 
-		conn, err := client.Dial(ctx, "/api/experimental/chats/watch", nil)
+		conn, err := client.Dial(ctx, "/api/v2/chats/watch", nil)
 		require.NoError(t, err)
 		defer conn.Close(websocket.StatusNormalClosure, "done")
 
@@ -3228,7 +3228,7 @@ func TestWatchChats(t *testing.T) {
 		require.NoError(t, err)
 
 		// Open the watch WebSocket.
-		conn, err := client.Dial(ctx, "/api/experimental/chats/watch", nil)
+		conn, err := client.Dial(ctx, "/api/v2/chats/watch", nil)
 		require.NoError(t, err)
 		defer conn.Close(websocket.StatusNormalClosure, "done")
 
@@ -3300,7 +3300,7 @@ func TestWatchChats(t *testing.T) {
 			RootChatID:        uuid.NullUUID{UUID: parentChat.ID, Valid: true},
 		})
 
-		conn, err := client.Dial(ctx, "/api/experimental/chats/watch", nil)
+		conn, err := client.Dial(ctx, "/api/v2/chats/watch", nil)
 		require.NoError(t, err)
 		defer conn.Close(websocket.StatusNormalClosure, "done")
 
@@ -3353,7 +3353,7 @@ func TestWatchChats(t *testing.T) {
 		res, err := unauthenticatedClient.Request(
 			ctx,
 			http.MethodGet,
-			"/api/experimental/chats/watch",
+			"/api/v2/chats/watch",
 			nil,
 		)
 		require.NoError(t, err)
@@ -3715,7 +3715,7 @@ func TestGetChatModel(t *testing.T) {
 		} {
 			t.Run(tc.name, func(t *testing.T) {
 				res, err := client.Request(ctx, tc.method, fmt.Sprintf(
-					"/api/experimental/organizations/%s/chats/models/%s",
+					"/api/v2/organizations/%s/chats/models/%s",
 					wrongOrganization.ID,
 					modelConfig.ID,
 				), tc.body)
@@ -4989,7 +4989,7 @@ func TestUpdateChatModel(t *testing.T) {
 		} {
 			t.Run(tc.name, func(t *testing.T) {
 				res, err := client.Request(ctx, http.MethodPatch, fmt.Sprintf(
-					"/api/experimental/organizations/%s/chats/models/%s",
+					"/api/v2/organizations/%s/chats/models/%s",
 					modelConfig.OrganizationID,
 					modelConfig.ID,
 				), map[string]any{tc.key: tc.value})
@@ -5065,7 +5065,7 @@ func TestUpdateChatModel(t *testing.T) {
 		res, err := client.Request(
 			ctx,
 			http.MethodPatch,
-			fmt.Sprintf("/api/experimental/organizations/%s/chats/models/not-a-uuid", firstUser.OrganizationID),
+			fmt.Sprintf("/api/v2/organizations/%s/chats/models/not-a-uuid", firstUser.OrganizationID),
 			codersdk.UpdateChatModelRequest{DisplayName: "ignored"},
 		)
 		require.NoError(t, err)
@@ -5223,7 +5223,7 @@ func TestDeleteChatModelConfig(t *testing.T) {
 		res, err := client.Request(
 			ctx,
 			http.MethodDelete,
-			fmt.Sprintf("/api/experimental/organizations/%s/chats/models/not-a-uuid", firstUser.OrganizationID),
+			fmt.Sprintf("/api/v2/organizations/%s/chats/models/not-a-uuid", firstUser.OrganizationID),
 			nil,
 		)
 		require.NoError(t, err)
@@ -6459,7 +6459,7 @@ func TestPatchChat(t *testing.T) {
 
 			coderdtest.WaitForChatSettled(ctx, t, api, chat.ID)
 
-			conn, err := client.Dial(ctx, "/api/experimental/chats/watch", nil)
+			conn, err := client.Dial(ctx, "/api/v2/chats/watch", nil)
 			require.NoError(t, err)
 			defer conn.Close(websocket.StatusNormalClosure, "done")
 
@@ -7872,7 +7872,7 @@ func TestWatchChatsStatusChangeCarriesUpdatedLastModelConfigID(t *testing.T) {
 			Title:             "watch direct model switch",
 		})
 
-		conn, err := client.Dial(ctx, "/api/experimental/chats/watch", nil)
+		conn, err := client.Dial(ctx, "/api/v2/chats/watch", nil)
 		require.NoError(t, err)
 		defer conn.Close(websocket.StatusNormalClosure, "done")
 
@@ -7937,14 +7937,14 @@ func TestWatchChatsStatusChangeCarriesUpdatedLastModelConfigID(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		conn, err := client.Dial(ctx, "/api/experimental/chats/watch", nil)
+		conn, err := client.Dial(ctx, "/api/v2/chats/watch", nil)
 		require.NoError(t, err)
 		defer conn.Close(websocket.StatusNormalClosure, "done")
 
 		promoteRes, err := client.Request(
 			ctx,
 			http.MethodPost,
-			fmt.Sprintf("/api/experimental/chats/%s/queue/%d/promote", chat.ID, queuedResp.QueuedMessage.ID),
+			fmt.Sprintf("/api/v2/chats/%s/queue/%d/promote", chat.ID, queuedResp.QueuedMessage.ID),
 			nil,
 		)
 		require.NoError(t, err)
@@ -9333,7 +9333,7 @@ func TestPatchChatMessage(t *testing.T) {
 		res, err := client.Request(
 			ctx,
 			http.MethodPatch,
-			fmt.Sprintf("/api/experimental/chats/%s/messages/not-an-int", chat.ID),
+			fmt.Sprintf("/api/v2/chats/%s/messages/not-an-int", chat.ID),
 			codersdk.EditChatMessageRequest{
 				Content: []codersdk.ChatInputPart{
 					{
@@ -9787,7 +9787,7 @@ func TestStreamChat(t *testing.T) {
 		res, err := unauthenticatedClient.Request(
 			ctx,
 			http.MethodGet,
-			fmt.Sprintf("/api/experimental/chats/%s/stream", uuid.New()),
+			fmt.Sprintf("/api/v2/chats/%s/stream", uuid.New()),
 			nil,
 		)
 		require.NoError(t, err)
@@ -11016,7 +11016,7 @@ func TestDeleteChatQueuedMessage(t *testing.T) {
 		res, err := client.Request(
 			ctx,
 			http.MethodDelete,
-			fmt.Sprintf("/api/experimental/chats/%s/queue/%d", chat.ID, queuedMessage.ID),
+			fmt.Sprintf("/api/v2/chats/%s/queue/%d", chat.ID, queuedMessage.ID),
 			nil,
 		)
 		require.NoError(t, err)
@@ -11054,7 +11054,7 @@ func TestDeleteChatQueuedMessage(t *testing.T) {
 		invalidRes, err := client.Request(
 			ctx,
 			http.MethodDelete,
-			fmt.Sprintf("/api/experimental/chats/%s/queue/not-an-int", chat.ID),
+			fmt.Sprintf("/api/v2/chats/%s/queue/not-an-int", chat.ID),
 			nil,
 		)
 		require.NoError(t, err)
@@ -11097,7 +11097,7 @@ func TestPromoteChatQueuedMessage(t *testing.T) {
 		promoteRes, err := client.Request(
 			ctx,
 			http.MethodPost,
-			fmt.Sprintf("/api/experimental/chats/%s/queue/%d/promote", chat.ID, queuedMessage.ID),
+			fmt.Sprintf("/api/v2/chats/%s/queue/%d/promote", chat.ID, queuedMessage.ID),
 			nil,
 		)
 		require.NoError(t, err)
@@ -11161,7 +11161,7 @@ func TestPromoteChatQueuedMessage(t *testing.T) {
 		promoteRes, err := memberClient.Request(
 			ctx,
 			http.MethodPost,
-			fmt.Sprintf("/api/experimental/chats/%s/queue/%d/promote", chat.ID, queuedMessage.ID),
+			fmt.Sprintf("/api/v2/chats/%s/queue/%d/promote", chat.ID, queuedMessage.ID),
 			nil,
 		)
 		require.NoError(t, err)
@@ -11198,7 +11198,7 @@ func TestPromoteChatQueuedMessage(t *testing.T) {
 		invalidRes, err := client.Request(
 			ctx,
 			http.MethodPost,
-			fmt.Sprintf("/api/experimental/chats/%s/queue/not-an-int/promote", chat.ID),
+			fmt.Sprintf("/api/v2/chats/%s/queue/not-an-int/promote", chat.ID),
 			nil,
 		)
 		require.NoError(t, err)
@@ -11237,7 +11237,7 @@ func TestPromoteChatQueuedMessage(t *testing.T) {
 		promoteRes, err := memberClient.Request(
 			ctx,
 			http.MethodPost,
-			fmt.Sprintf("/api/experimental/chats/%s/queue/%d/promote", chat.ID, queuedMessage.ID),
+			fmt.Sprintf("/api/v2/chats/%s/queue/%d/promote", chat.ID, queuedMessage.ID),
 			nil,
 		)
 		require.NoError(t, err)
@@ -11273,7 +11273,7 @@ func TestPromoteChatQueuedMessage(t *testing.T) {
 		promoteRes, err := client.Request(
 			ctx,
 			http.MethodPost,
-			fmt.Sprintf("/api/experimental/chats/%s/queue/%d/promote", chat.ID, queuedMessage.ID),
+			fmt.Sprintf("/api/v2/chats/%s/queue/%d/promote", chat.ID, queuedMessage.ID),
 			nil,
 		)
 		require.NoError(t, err)
@@ -11358,7 +11358,7 @@ func TestPromoteChatQueuedMessage(t *testing.T) {
 		promoteRes, err := client.Request(
 			ctx,
 			http.MethodPost,
-			fmt.Sprintf("/api/experimental/chats/%s/queue/%d/promote", chat.ID, queuedMessage.ID),
+			fmt.Sprintf("/api/v2/chats/%s/queue/%d/promote", chat.ID, queuedMessage.ID),
 			nil,
 		)
 		require.NoError(t, err)
@@ -11451,7 +11451,7 @@ func TestPromoteChatQueuedMessage(t *testing.T) {
 		promoteRes, err := client.Request(
 			ctx,
 			http.MethodPost,
-			fmt.Sprintf("/api/experimental/chats/%s/queue/%d/promote", chat.ID, queuedMessage.ID),
+			fmt.Sprintf("/api/v2/chats/%s/queue/%d/promote", chat.ID, queuedMessage.ID),
 			nil,
 		)
 		require.NoError(t, err)
@@ -11695,7 +11695,7 @@ This arrived as octet-stream.
 		coderdtest.CreateFirstUser(t, client.Client)
 
 		data := append([]byte{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A}, make([]byte, 64)...)
-		res, err := client.Request(ctx, http.MethodPost, "/api/experimental/chats/files", bytes.NewReader(data), func(r *http.Request) {
+		res, err := client.Request(ctx, http.MethodPost, "/api/v2/chats/files", bytes.NewReader(data), func(r *http.Request) {
 			r.Header.Set("Content-Type", "image/png")
 		})
 
@@ -11713,7 +11713,7 @@ This arrived as octet-stream.
 		coderdtest.CreateFirstUser(t, client.Client)
 
 		data := append([]byte{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A}, make([]byte, 64)...)
-		res, err := client.Request(ctx, http.MethodPost, "/api/experimental/chats/files?organization=not-a-uuid", bytes.NewReader(data), func(r *http.Request) {
+		res, err := client.Request(ctx, http.MethodPost, "/api/v2/chats/files?organization=not-a-uuid", bytes.NewReader(data), func(r *http.Request) {
 			r.Header.Set("Content-Type", "image/png")
 		})
 		require.NoError(t, err)
@@ -11799,7 +11799,7 @@ func TestGetChatFile(t *testing.T) {
 		require.NoError(t, err)
 
 		res, err := client.Request(ctx, http.MethodGet,
-			fmt.Sprintf("/api/experimental/chats/files/%s", uploaded.ID), nil)
+			fmt.Sprintf("/api/v2/chats/files/%s", uploaded.ID), nil)
 		require.NoError(t, err)
 		defer res.Body.Close()
 		require.Equal(t, http.StatusOK, res.StatusCode)
@@ -11819,7 +11819,7 @@ func TestGetChatFile(t *testing.T) {
 		require.NoError(t, err)
 
 		res, err := client.Request(ctx, http.MethodGet,
-			fmt.Sprintf("/api/experimental/chats/files/%s", uploaded.ID), nil)
+			fmt.Sprintf("/api/v2/chats/files/%s", uploaded.ID), nil)
 		require.NoError(t, err)
 		defer res.Body.Close()
 		require.Equal(t, http.StatusOK, res.StatusCode)
@@ -11842,7 +11842,7 @@ func TestGetChatFile(t *testing.T) {
 		require.NoError(t, err)
 
 		res, err := client.Request(ctx, http.MethodGet,
-			fmt.Sprintf("/api/experimental/chats/files/%s", uploaded.ID), nil)
+			fmt.Sprintf("/api/v2/chats/files/%s", uploaded.ID), nil)
 		require.NoError(t, err)
 		defer res.Body.Close()
 		require.Equal(t, http.StatusOK, res.StatusCode)
@@ -11874,7 +11874,7 @@ func TestGetChatFile(t *testing.T) {
 		require.NoError(t, err)
 
 		res, err := client.Request(ctx, http.MethodGet,
-			fmt.Sprintf("/api/experimental/chats/files/%s", row.ID), nil)
+			fmt.Sprintf("/api/v2/chats/files/%s", row.ID), nil)
 		require.NoError(t, err)
 		defer res.Body.Close()
 		require.Equal(t, http.StatusOK, res.StatusCode)
@@ -11903,7 +11903,7 @@ func TestGetChatFile(t *testing.T) {
 		require.NoError(t, err)
 
 		res, err := client.Request(ctx, http.MethodGet,
-			fmt.Sprintf("/api/experimental/chats/files/%s", uploaded.ID), nil)
+			fmt.Sprintf("/api/v2/chats/files/%s", uploaded.ID), nil)
 		require.NoError(t, err)
 		defer res.Body.Close()
 		require.Equal(t, http.StatusOK, res.StatusCode)
@@ -11927,7 +11927,7 @@ func TestGetChatFile(t *testing.T) {
 		require.NoError(t, err)
 
 		res, err := client.Request(ctx, http.MethodGet,
-			fmt.Sprintf("/api/experimental/chats/files/%s", uploaded.ID), nil)
+			fmt.Sprintf("/api/v2/chats/files/%s", uploaded.ID), nil)
 		require.NoError(t, err)
 		defer res.Body.Close()
 		require.Equal(t, http.StatusOK, res.StatusCode)
@@ -11955,7 +11955,7 @@ func TestGetChatFile(t *testing.T) {
 		coderdtest.CreateFirstUser(t, client.Client)
 
 		res, err := client.Request(ctx, http.MethodGet,
-			"/api/experimental/chats/files/not-a-uuid", nil)
+			"/api/v2/chats/files/not-a-uuid", nil)
 		require.NoError(t, err)
 		defer res.Body.Close()
 		err = codersdk.ReadBodyAsError(res)
@@ -12049,7 +12049,7 @@ func TestChatFileDownloadURL(t *testing.T) {
 			UserID: firstUser.UserID,
 		})
 		require.NoError(t, err)
-		downloadURL := client.URL.JoinPath("api", "experimental", "chats", "files", uploaded.ID.String(), "download")
+		downloadURL := client.URL.JoinPath("api", "v2", "chats", "files", uploaded.ID.String(), "download")
 		query := downloadURL.Query()
 		query.Set("token", token)
 		downloadURL.RawQuery = query.Encode()
@@ -12095,7 +12095,7 @@ func TestChatFileDownloadURL(t *testing.T) {
 		require.NoError(t, err)
 		downloadURL, err := url.Parse(download.URL)
 		require.NoError(t, err)
-		downloadURL.Path = fmt.Sprintf("/api/experimental/chats/files/%s/download", fileB.ID)
+		downloadURL.Path = fmt.Sprintf("/api/v2/chats/files/%s/download", fileB.ID)
 
 		res := get(t, ctx, downloadURL.String())
 		defer res.Body.Close()
@@ -12720,7 +12720,7 @@ func TestWatchChatGitAuthz(t *testing.T) {
 	res, err := adminClient.Request(
 		ctx,
 		http.MethodGet,
-		fmt.Sprintf("/api/experimental/chats/%s/stream/git", chat.ID),
+		fmt.Sprintf("/api/v2/chats/%s/stream/git", chat.ID),
 		nil,
 	)
 	require.NoError(t, err)
@@ -14468,7 +14468,7 @@ func TestChatModelOverrides(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 		adminClient := newChatClient(t)
 		coderdtest.CreateFirstUser(t, adminClient.Client)
-		res, err := adminClient.Request(ctx, http.MethodGet, "/api/experimental/chats/config/model-override/general", nil)
+		res, err := adminClient.Request(ctx, http.MethodGet, "/api/v2/chats/config/model-override/general", nil)
 		require.NoError(t, err)
 		defer res.Body.Close()
 		require.Equal(t, http.StatusNotFound, res.StatusCode)
@@ -14744,7 +14744,7 @@ func TestUserChatPersonalModelOverrides(t *testing.T) {
 	})
 
 	t.Run("LegacyRouteRemoved", func(t *testing.T) {
-		res, err := memberClient.Request(ctx, http.MethodGet, "/api/experimental/chats/config/user-personal-model-overrides", nil)
+		res, err := memberClient.Request(ctx, http.MethodGet, "/api/v2/chats/config/user-personal-model-overrides", nil)
 		require.NoError(t, err)
 		defer res.Body.Close()
 		require.Equal(t, http.StatusNotFound, res.StatusCode)
@@ -15628,7 +15628,7 @@ func TestChatAdvisorConfig_StaleModelWriteRejected(t *testing.T) {
 	} {
 		err := adminClient.UpdateChatAdvisorConfig(ctx, req)
 		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
-		require.Equal(t, "Advisor model settings moved to PUT /api/experimental/organizations/{organization}/chats/model-overrides/advisor.", sdkErr.Message)
+		require.Equal(t, "Advisor model settings moved to PUT /api/v2/organizations/{organization}/chats/model-overrides/advisor.", sdkErr.Message)
 	}
 }
 
@@ -16649,7 +16649,7 @@ func TestSubmitToolResults(t *testing.T) {
 		// request lets the invalid payload reach the server so we
 		// can verify server-side validation.
 		rawBody := `{"results":[{"tool_call_id":"call_json","output":not-json,"is_error":false}]}`
-		url := client.URL.JoinPath(fmt.Sprintf("/api/experimental/chats/%s/tool-results", chat.ID)).String()
+		url := client.URL.JoinPath(fmt.Sprintf("/api/v2/chats/%s/tool-results", chat.ID)).String()
 		req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewBufferString(rawBody))
 		require.NoError(t, err)
 		req.Header.Set("Content-Type", "application/json")
@@ -17157,7 +17157,7 @@ func TestGetChatMessages_Pagination(t *testing.T) {
 		res, err := client.Request(
 			ctx,
 			http.MethodGet,
-			fmt.Sprintf("/api/experimental/chats/%s/messages?after_id=-1", chat.ID),
+			fmt.Sprintf("/api/v2/chats/%s/messages?after_id=-1", chat.ID),
 			nil,
 		)
 		require.NoError(t, err)
@@ -17188,7 +17188,7 @@ func TestGetChatMessages_Pagination(t *testing.T) {
 		res, err := client.Request(
 			ctx,
 			http.MethodGet,
-			fmt.Sprintf("/api/experimental/chats/%s/messages?after_id=abc", chat.ID),
+			fmt.Sprintf("/api/v2/chats/%s/messages?after_id=abc", chat.ID),
 			nil,
 		)
 		require.NoError(t, err)
@@ -17463,7 +17463,7 @@ func TestChatReadOnlySharedWriteHandlers(t *testing.T) {
 		res, err := sharedClient.Request(
 			ctx,
 			http.MethodPost,
-			fmt.Sprintf("/api/experimental/chats/%s/queue/%d/promote", chat.ID, queuedMessage.ID),
+			fmt.Sprintf("/api/v2/chats/%s/queue/%d/promote", chat.ID, queuedMessage.ID),
 			nil,
 		)
 		require.NoError(t, err)
@@ -17498,7 +17498,7 @@ func TestChatReadOnlySharedWriteHandlers(t *testing.T) {
 		res, err := sharedClient.Request(
 			ctx,
 			http.MethodDelete,
-			fmt.Sprintf("/api/experimental/chats/%s/queue/%d", chat.ID, queuedMessage.ID),
+			fmt.Sprintf("/api/v2/chats/%s/queue/%d", chat.ID, queuedMessage.ID),
 			nil,
 		)
 		require.NoError(t, err)
@@ -17652,7 +17652,7 @@ func TestChatOwnerOnlyWriteHandlers(t *testing.T) {
 		promoteRes, err := adminClient.Request(
 			ctx,
 			http.MethodPost,
-			fmt.Sprintf("/api/experimental/chats/%s/queue/%d/promote", chat.ID, queuedMessage.ID),
+			fmt.Sprintf("/api/v2/chats/%s/queue/%d/promote", chat.ID, queuedMessage.ID),
 			nil,
 		)
 		require.NoError(t, err)
