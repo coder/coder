@@ -1,8 +1,10 @@
 import { cn } from "cn";
 import {
 	ArrowLeftIcon,
+	ChevronDownIcon,
 	ChevronRightIcon,
 	EllipsisVerticalIcon,
+	GitPullRequestArrowIcon,
 	PanelLeftIcon,
 	PanelRightCloseIcon,
 	PanelRightOpenIcon,
@@ -89,6 +91,12 @@ const ChatSharingTopBarButton: FC<ChatSharingTopBarButtonProps> = ({
 	);
 };
 
+// The PR number as a string, from the column or parsed from the
+// URL. Branch rows carry a /tree URL and have none, which is what
+// keeps them out of the PR chips.
+const prNumber = (status: TypesGen.ChatDiffStatus): string | undefined =>
+	status.pr_number?.toString() ?? parsePullRequestUrl(status.url)?.number;
+
 export const ChatTopBar: FC<ChatTopBarProps> = ({
 	chat,
 	liveChatStatus,
@@ -151,15 +159,13 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 			)
 		: false;
 	const showPinAction = Boolean(requestPinAgent && requestUnpinAgent);
-	const diffStatus = chat?.diff_status;
 
-	const prUrl = diffStatus?.url;
-	const prState = diffStatus?.pull_request_state;
-	const prDraft = diffStatus?.pull_request_draft;
-	const prTitle = diffStatus?.pull_request_title;
-	const parsedPr = parsePullRequestUrl(prUrl);
-	const prNumberMatch = diffStatus?.pr_number?.toString() ?? parsedPr?.number;
-	const hasPR = Boolean(prState || prNumberMatch || parsedPr);
+	// A chat tracks one status row per ref, ordered newest first.
+	// The first row is the primary.
+	const prStatuses = (chat?.diff_statuses ?? []).filter(
+		(status) => prNumber(status) !== undefined,
+	);
+	const hasMultiplePRs = prStatuses.length > 1;
 
 	return (
 		<div className="flex shrink-0 items-center gap-2 px-4 py-1.5">
@@ -301,29 +307,56 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 			</div>
 			{/* PR link. On mobile: icon + number; on desktop: icon + title.
 			   Hidden on desktop when the sidebar panel is open
-			   (which already shows PR info). */}
-			{prUrl && hasPR && (
-				<a
-					href={prUrl}
-					target="_blank"
-					rel="noreferrer"
-					className={cn(
-						"inline-flex shrink-0 items-center gap-1.5 rounded-md border border-solid border-border-default px-2 py-0.5 text-xs font-medium text-content-secondary no-underline transition-colors hover:bg-surface-secondary hover:text-content-primary",
-						panel.showSidebarPanel && "lg:hidden",
-					)}
-				>
-					<PrStateIcon
-						state={prState}
-						draft={prDraft}
-						className="size-3.5! shrink-0"
+			   (which already shows PR info).
+			   One PR links directly. Several PRs open a menu with one
+			   link per PR, and the trigger shows the primary. */}
+			{hasMultiplePRs ? (
+				<DropdownMenu>
+					<DropdownMenuTrigger asChild>
+						<button
+							type="button"
+							className={cn(
+								"inline-flex shrink-0 cursor-pointer items-center gap-1.5 rounded-md border border-solid border-border-default px-2 py-0.5 text-xs font-medium text-content-secondary no-underline transition-colors hover:bg-surface-secondary hover:text-content-primary",
+								panel.showSidebarPanel && "lg:hidden",
+							)}
+						>
+							<GitPullRequestArrowIcon className="size-3.5 shrink-0" />
+							<span className="tabular-nums">{prStatuses.length} PRs</span>
+							<ChevronDownIcon className="size-3 shrink-0 opacity-70" />
+						</button>
+					</DropdownMenuTrigger>
+					<DropdownMenuContent align="start" className="min-w-[240px] p-1">
+						{prStatuses.map((status) => (
+							<DropdownMenuItem
+								key={`${status.remote_origin}/${status.git_branch}`}
+								onSelect={() => {
+									if (status.url) {
+										window.open(status.url, "_blank", "noreferrer");
+									}
+								}}
+								className="flex items-center gap-2 rounded-sm px-2 py-1.5 text-xs"
+							>
+								<PrStateIcon
+									state={status.pull_request_state}
+									draft={status.pull_request_draft}
+									className="size-3.5! shrink-0"
+								/>
+								{/* The number keeps every item distinguishable when
+										two PRs share a title. */}
+								<span className="truncate">
+									{`PR #${prNumber(status)} ${status.pull_request_title}`}
+								</span>
+							</DropdownMenuItem>
+						))}
+					</DropdownMenuContent>
+				</DropdownMenu>
+			) : (
+				prStatuses.length === 1 && (
+					<PrLink
+						status={prStatuses[0]}
+						className={panel.showSidebarPanel ? "lg:hidden" : undefined}
 					/>
-					<span className="truncate max-w-[120px] hidden sm:inline">
-						{prTitle || (prNumberMatch ? `#${prNumberMatch}` : "PR")}
-					</span>
-					<span className="sm:hidden">
-						{prNumberMatch ? prNumberMatch : "PR"}
-					</span>
-				</a>
+				)
 			)}
 			{/* Actions area */}
 			<div className="flex items-center gap-2">
@@ -350,5 +383,38 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 				)}
 			</div>
 		</div>
+	);
+};
+
+type PrLinkProps = {
+	status: TypesGen.ChatDiffStatus;
+	className?: string;
+};
+
+// The PR chip in the top bar. On mobile it shows the number, on
+// desktop the title.
+const PrLink: FC<PrLinkProps> = ({ status, className }) => {
+	const number = prNumber(status);
+
+	return (
+		<a
+			href={status.url}
+			target="_blank"
+			rel="noreferrer"
+			className={cn(
+				"inline-flex shrink-0 items-center gap-1.5 rounded-md border border-solid border-border-default px-2 py-0.5 text-xs font-medium text-content-secondary no-underline transition-colors hover:bg-surface-secondary hover:text-content-primary",
+				className,
+			)}
+		>
+			<PrStateIcon
+				state={status.pull_request_state}
+				draft={status.pull_request_draft}
+				className="size-3.5! shrink-0"
+			/>
+			<span className="truncate max-w-[120px] hidden sm:inline">
+				{status.pull_request_title || (number ? `#${number}` : "PR")}
+			</span>
+			<span className="sm:hidden">{number ?? "PR"}</span>
+		</a>
 	);
 };
