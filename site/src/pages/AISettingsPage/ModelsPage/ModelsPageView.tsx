@@ -24,6 +24,7 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "#/components/Select/Select";
+import { TableSettingsEmpty } from "#/components/SettingsEmptyState/SettingsEmptyState";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
@@ -63,7 +64,8 @@ const PAGE_PARAM = "page";
 const AddModelDropdown: FC<{
 	providerStates: readonly ProviderState[];
 	align?: "start" | "end";
-}> = ({ providerStates, align = "end" }) => {
+	size?: "sm" | "lg";
+}> = ({ providerStates, align = "end", size }) => {
 	const navigate = useNavigate();
 	const [searchParams] = useSearchParams();
 	const { organization } = useOrganizationModels();
@@ -74,7 +76,7 @@ const AddModelDropdown: FC<{
 	return (
 		<DropdownMenu>
 			<DropdownMenuTrigger asChild>
-				<Button variant="outline">
+				<Button variant="outline" size={size}>
 					<PlusIcon />
 					<span>Add model</span>
 					<ChevronDownIcon className="ml-1 size-icon-xs" />
@@ -348,14 +350,15 @@ const ModelsPageView: FC<ModelsPageViewProps> = ({
 					{isLoading ? (
 						<TableLoader />
 					) : loadError != null ? null : !hasModels ? (
-						<TableEmpty
+						<TableSettingsEmpty
 							message="No models configured"
-							description="Configured models will appear here."
+							description="Add a model for your agents to run on."
 							cta={
 								canCreateModel ? (
 									<AddModelDropdown
 										providerStates={providerStates}
 										align="start"
+										size="sm"
 									/>
 								) : undefined
 							}
