@@ -9,6 +9,7 @@ import (
 	"maps"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"reflect"
 	"slices"
 	"strings"
@@ -58,11 +59,13 @@ var (
 )
 
 // fileSnapshot records the identity of a config file at the time
-// it was last read.
+// it was last read, together with the plugin scope it was parsed
+// under, so a scope change with an untouched file still reloads.
 type fileSnapshot struct {
 	exists  bool
 	modTime time.Time
 	size    int64
+	plugin  *PluginScope
 }
 
 type reloadResult = tailscalesingleflight.Result[struct{}]
@@ -109,11 +112,11 @@ type Manager struct {
 	closedCh  chan struct{}
 	closeOnce sync.Once
 
-	// lastPaths records the most recent config paths passed to
-	// Reload/Tools. The fsnotify-backed watcher uses these to
-	// drive its own reloads when ~/.mcp.json appears late on
-	// dual-agent workspaces.
-	lastPaths []string
+	// lastSources records the most recent config sources passed to
+	// Reload. The fsnotify-backed watcher uses these to drive its
+	// own reloads when ~/.mcp.json appears late on dual-agent
+	// workspaces.
+	lastSources []ConfigSource
 
 	// watcher fires a debounced Reload when any watched config
 	// file is created, written, removed, or renamed. It is armed
@@ -178,17 +181,22 @@ func NewManager(
 	}
 }
 
-// Reload ensures the tool cache reflects the current config.
+// Reload is ReloadSources for plain legacy .mcp.json paths.
+func (m *Manager) Reload(ctx context.Context, paths []string) error {
+	return m.ReloadSources(ctx, PathSources(paths))
+}
+
+// ReloadSources ensures the tool cache reflects the current config.
 //
-// If config files differ from the last snapshot, a singleflight
-// differential reconnect is driven and Reload waits for it. If the
-// snapshot is current, Reload returns immediately.
+// If config files or their plugin scopes differ from the last snapshot,
+// a singleflight differential reconnect is driven and ReloadSources
+// waits for it. If the snapshot is current, it returns immediately.
 //
 // Starting and running the reload is manager-scoped. Caller contexts
 // may bound only that caller's wait for the reload result. They are
 // never passed to, and must not suppress, the reload body.
-func (m *Manager) Reload(ctx context.Context, paths []string) error {
-	ch, started, err := m.startReloadIfNeeded(paths)
+func (m *Manager) ReloadSources(ctx context.Context, sources []ConfigSource) error {
+	ch, started, err := m.startReloadIfNeeded(sources)
 	if err != nil {
 		return err
 	}
@@ -215,10 +223,10 @@ func (m *Manager) SetOnReload(fn func()) {
 // exactly once.
 //
 // All concurrent callers share one in-flight reload keyed by "reload".
-// If a concurrent caller resolves different paths, its paths are not
-// consulted. The next SnapshotChanged check after this reload completes
-// will detect the mismatch and trigger a fresh reload.
-func (m *Manager) startReloadIfNeeded(paths []string) (<-chan reloadResult, bool, error) {
+// If a concurrent caller resolves different sources, its sources are
+// not consulted. The next SnapshotChanged check after this reload
+// completes will detect the mismatch and trigger a fresh reload.
+func (m *Manager) startReloadIfNeeded(sources []ConfigSource) (<-chan reloadResult, bool, error) {
 	m.mu.RLock()
 	closed := m.closed
 	firstSyncSettled := m.firstSyncSettled
@@ -238,15 +246,15 @@ func (m *Manager) startReloadIfNeeded(paths []string) (<-chan reloadResult, bool
 	// the SnapshotChanged check ensures any Create event that
 	// races with parseAndDedup is still delivered: the watcher
 	// is running when parseAndDedup returns the empty snapshot.
-	m.armWatcher(paths)
+	m.armWatcher(sources)
 
-	if firstSyncSettled && !m.SnapshotChanged(paths) {
+	if firstSyncSettled && !m.SnapshotChanged(sources) {
 		return nil, false, nil
 	}
 
 	ch := m.sf.DoChan("reload", func() (struct{}, error) {
 		defer m.markFirstSyncSettled()
-		err := m.doReload(m.ctx, paths)
+		err := m.doReload(m.ctx, sources)
 		return struct{}{}, err
 	})
 	return ch, true, nil
@@ -262,7 +270,7 @@ func (m *Manager) startReloadIfNeeded(paths []string) (<-chan reloadResult, bool
 // without a watcher. The lazy stat-on-request path remains the
 // primary mechanism; the watcher is an optimization that closes
 // the dual-agent race window.
-func (m *Manager) armWatcher(paths []string) {
+func (m *Manager) armWatcher(sources []ConfigSource) {
 	m.watcherOnce.Do(func() {
 		cw, err := newConfigWatcher(
 			m.logger.Named("config_watcher"),
@@ -290,14 +298,23 @@ func (m *Manager) armWatcher(paths []string) {
 	})
 
 	m.mu.Lock()
-	m.lastPaths = slices.Clone(paths)
+	m.lastSources = slices.Clone(sources)
 	w := m.watcher
 	closed := m.closed
 	m.mu.Unlock()
 	if w == nil || closed {
 		return
 	}
-	w.Sync(paths)
+	w.Sync(sourcePaths(sources))
+}
+
+// sourcePaths returns the file paths of sources in order.
+func sourcePaths(sources []ConfigSource) []string {
+	paths := make([]string, 0, len(sources))
+	for _, src := range sources {
+		paths = append(paths, src.Path)
+	}
+	return paths
 }
 
 // handleWatchedConfigChange is invoked by the watcher on a
@@ -307,16 +324,16 @@ func (m *Manager) armWatcher(paths []string) {
 // request.
 func (m *Manager) handleWatchedConfigChange() {
 	m.mu.RLock()
-	paths := slices.Clone(m.lastPaths)
+	sources := slices.Clone(m.lastSources)
 	closed := m.closed
 	m.mu.RUnlock()
-	if closed || len(paths) == 0 {
+	if closed || len(sources) == 0 {
 		return
 	}
 
 	logger := m.logger.With(slog.F("trigger", "fsnotify"))
 	logger.Debug(m.ctx, "reloading due to config change")
-	if err := m.Reload(m.ctx, paths); err != nil {
+	if err := m.ReloadSources(m.ctx, sources); err != nil {
 		if errors.Is(err, ErrManagerClosed) ||
 			errors.Is(err, context.Canceled) {
 			logger.Debug(m.ctx,
@@ -375,36 +392,40 @@ func (m *Manager) markFirstSyncSettled() {
 	m.mu.Unlock()
 }
 
-// SnapshotChanged checks whether any config file has changed
-// since the last reload by comparing os.Stat results against
-// the stored snapshot.
-func (m *Manager) SnapshotChanged(paths []string) bool {
-	seen := make(map[string]struct{}, len(paths))
-	unique := make([]string, 0, len(paths))
-	for _, p := range paths {
-		if _, ok := seen[p]; !ok {
-			seen[p] = struct{}{}
-			unique = append(unique, p)
+// SnapshotChanged checks whether any config file or its plugin scope
+// has changed since the last reload by comparing os.Stat results and
+// scopes against the stored snapshot.
+func (m *Manager) SnapshotChanged(sources []ConfigSource) bool {
+	seen := make(map[string]struct{}, len(sources))
+	unique := make([]ConfigSource, 0, len(sources))
+	for _, src := range sources {
+		if _, ok := seen[src.Path]; !ok {
+			seen[src.Path] = struct{}{}
+			unique = append(unique, src)
 		}
 	}
-	paths = unique
+	sources = unique
 
 	m.mu.RLock()
 	snap := maps.Clone(m.snapshot)
 	snapshotLen := len(snap)
 	m.mu.RUnlock()
 
-	if len(paths) != snapshotLen {
+	if len(sources) != snapshotLen {
 		return true
 	}
 
-	for _, p := range paths {
-		prev, ok := snap[p]
+	for _, src := range sources {
+		prev, ok := snap[src.Path]
 		if !ok {
 			return true
 		}
 
-		info, err := os.Stat(p)
+		if !pluginScopeEqual(prev.plugin, src.Plugin) {
+			return true
+		}
+
+		info, err := os.Stat(src.Path)
 		if err != nil {
 			// Stat failed; changed only if the file existed before.
 			if prev.exists {
@@ -424,6 +445,15 @@ func (m *Manager) SnapshotChanged(paths []string) bool {
 	}
 
 	return false
+}
+
+// pluginScopeEqual reports whether two optional scopes are both absent
+// or hold the same values.
+func pluginScopeEqual(a, b *PluginScope) bool {
+	if a == nil || b == nil {
+		return a == nil && b == nil
+	}
+	return *a == *b
 }
 
 // serverDiff is the output of classifyServers: which servers to
@@ -446,8 +476,8 @@ type connectedServer struct {
 // reconnect. Unchanged servers keep their existing client; new or
 // changed servers get a fresh connection; removed servers are
 // closed.
-func (m *Manager) doReload(ctx context.Context, mcpConfigFiles []string) error {
-	allConfigs, snap := m.parseAndDedup(ctx, mcpConfigFiles)
+func (m *Manager) doReload(ctx context.Context, sources []ConfigSource) error {
+	allConfigs, rejected, snap := m.parseAndDedup(ctx, sources)
 
 	wanted := make(map[string]ServerConfig, len(allConfigs))
 	for _, cfg := range allConfigs {
@@ -483,16 +513,25 @@ func (m *Manager) doReload(ctx context.Context, mcpConfigFiles []string) error {
 	// blocking concurrent reads during network I/O, then notify the
 	// agentcontext manager when it changed so it re-resolves and
 	// re-pushes the KindMCPServer resources.
-	if m.refreshCatalog(ctx, wanted, connectErrs) {
+	if m.refreshCatalog(ctx, wanted, rejected, connectErrs) {
 		m.fireOnChange()
 	}
 	return nil
 }
 
-// parseAndDedup reads all config files and returns a deduplicated
-// list of server configs. Missing files are silently skipped;
-// parse errors are logged and skipped.
-func (m *Manager) parseAndDedup(ctx context.Context, mcpConfigFiles []string) ([]ServerConfig, map[string]fileSnapshot) {
+// parseAndDedup reads all config sources and returns a deduplicated
+// list of server configs plus one error status per entry that was
+// rejected. Missing files are silently skipped. A whole-file parse error
+// in a legacy file is logged and skipped; in a plugin file it is also
+// reported as a rejected status named after the file, attributed to the
+// plugin, so the plugin's missing servers have a visible cause.
+// Entry-level errors are logged and reported.
+//
+// Names are claimed in source order by the first valid entry. A later
+// legacy entry with a taken name is dropped silently; a later plugin
+// entry with a taken name is reported, naming the config that claimed
+// it, so the plugin's server does not vanish without trace.
+func (m *Manager) parseAndDedup(ctx context.Context, sources []ConfigSource) ([]ServerConfig, []ServerStatus, map[string]fileSnapshot) {
 	logger := m.logger.With(agentchat.Fields(ctx)...)
 
 	// Stat before reading so the snapshot is conservatively old.
@@ -501,35 +540,88 @@ func (m *Manager) parseAndDedup(ctx context.Context, mcpConfigFiles []string) ([
 	// on the next check, and triggers a re-read. False positives
 	// (extra reload) are safe; false negatives (missed change)
 	// are not.
-	snap := captureSnapshot(mcpConfigFiles)
+	snap := captureSnapshot(sources)
 
-	var allConfigs []ServerConfig
-	for _, configPath := range mcpConfigFiles {
-		configs, err := ParseConfig(configPath)
+	// seen maps each claimed server name to a description of the
+	// config that claimed it, used in the collision error.
+	seen := make(map[string]string)
+	var (
+		deduped  []ServerConfig
+		rejected []ServerStatus
+	)
+	for _, src := range sources {
+		configs, entryErrs, err := ParseSource(src)
 		if err != nil {
 			if errors.Is(err, fs.ErrNotExist) {
 				continue
 			}
 			logger.Warn(ctx, "failed to parse MCP config",
-				slog.F("path", configPath),
+				slog.F("path", src.Path),
+				slog.F("plugin", pluginName(src.Plugin)),
 				slog.Error(err),
 			)
+			if src.Plugin != nil {
+				rejected = append(rejected, ServerStatus{
+					Name:       filepath.Base(src.Path),
+					PluginName: src.Plugin.Name,
+					Err:        "mcp.json not loaded: " + err.Error(),
+				})
+			}
 			continue
 		}
-		allConfigs = append(allConfigs, configs...)
+		for _, name := range slices.Sorted(maps.Keys(entryErrs)) {
+			entryErr := entryErrs[name]
+			logger.Warn(ctx, "skipping invalid MCP server entry",
+				slog.F("path", src.Path),
+				slog.F("plugin", pluginName(src.Plugin)),
+				slog.F("server", name),
+				slog.Error(entryErr),
+			)
+			rejected = append(rejected, ServerStatus{
+				Name:       name,
+				PluginName: pluginName(src.Plugin),
+				Err:        entryErr.Error(),
+			})
+		}
+		for _, cfg := range configs {
+			if winner, taken := seen[cfg.Name]; taken {
+				if cfg.Plugin == nil {
+					continue
+				}
+				logger.Warn(ctx, "skipping plugin MCP server with a name already in use",
+					slog.F("path", src.Path),
+					slog.F("plugin", cfg.Plugin.Name),
+					slog.F("server", cfg.Name),
+					slog.F("claimed_by", winner),
+				)
+				rejected = append(rejected, ServerStatus{
+					Name:       cfg.Name,
+					PluginName: cfg.Plugin.Name,
+					Err:        "server name already in use by " + winner,
+				})
+				continue
+			}
+			seen[cfg.Name] = describeSource(src)
+			deduped = append(deduped, cfg)
+		}
 	}
+	return deduped, rejected, snap
+}
 
-	// Deduplicate by server name; first occurrence wins.
-	seen := make(map[string]struct{})
-	deduped := make([]ServerConfig, 0, len(allConfigs))
-	for _, cfg := range allConfigs {
-		if _, ok := seen[cfg.Name]; ok {
-			continue
-		}
-		seen[cfg.Name] = struct{}{}
-		deduped = append(deduped, cfg)
+// describeSource names a config source for collision errors: the file
+// path for a legacy .mcp.json, or "plugin <name>" for a plugin mcp.json.
+func describeSource(src ConfigSource) string {
+	if src.Plugin != nil {
+		return "plugin " + src.Plugin.Name
 	}
-	return deduped, snap
+	return src.Path
+}
+
+func pluginName(scope *PluginScope) string {
+	if scope == nil {
+		return ""
+	}
+	return scope.Name
 }
 
 // classifyServers compares wanted configs against the current
@@ -666,20 +758,21 @@ func (m *Manager) installServers(
 	return replaced, nil
 }
 
-// captureSnapshot stats each path and returns the current
-// snapshot map.
-func captureSnapshot(paths []string) map[string]fileSnapshot {
-	snap := make(map[string]fileSnapshot, len(paths))
-	for _, p := range paths {
-		info, err := os.Stat(p)
+// captureSnapshot stats each source path and returns the current
+// snapshot map, recording the plugin scope each path was read under.
+func captureSnapshot(sources []ConfigSource) map[string]fileSnapshot {
+	snap := make(map[string]fileSnapshot, len(sources))
+	for _, src := range sources {
+		info, err := os.Stat(src.Path)
 		if err != nil {
-			snap[p] = fileSnapshot{exists: false}
+			snap[src.Path] = fileSnapshot{exists: false, plugin: src.Plugin}
 			continue
 		}
-		snap[p] = fileSnapshot{
+		snap[src.Path] = fileSnapshot{
 			exists:  true,
 			modTime: info.ModTime(),
 			size:    info.Size(),
+			plugin:  src.Plugin,
 		}
 	}
 	return snap
@@ -740,9 +833,11 @@ func (m *Manager) CallTool(ctx context.Context, req workspacesdk.CallMCPToolRequ
 // client contributes its listed tools (or its list error), and a server
 // that never connected appears as an unreadable entry, carrying the
 // connect error from connectErrs when this reload attempted it, so it
-// surfaces in the snapshot instead of vanishing. It returns whether the catalog
-// changed so the caller can fire the reload callback.
-func (m *Manager) refreshCatalog(ctx context.Context, wanted map[string]ServerConfig, connectErrs map[string]error) bool {
+// surfaces in the snapshot instead of vanishing. Entries in rejected, which failed
+// parsing or lost a name collision, are appended as they are. It
+// returns whether the catalog changed so the caller can fire the reload
+// callback.
+func (m *Manager) refreshCatalog(ctx context.Context, wanted map[string]ServerConfig, rejected []ServerStatus, connectErrs map[string]error) bool {
 	logger := m.logger.With(agentchat.Fields(ctx)...)
 
 	// Snapshot the connected servers under the read lock.
@@ -798,9 +893,9 @@ func (m *Manager) refreshCatalog(ctx context.Context, wanted map[string]ServerCo
 
 	// Build one status per declared server so a server that never
 	// connected surfaces as an unreadable entry rather than vanishing.
-	catalog := make([]ServerStatus, 0, len(wanted))
-	for name := range wanted {
-		st := ServerStatus{Name: name}
+	catalog := make([]ServerStatus, 0, len(wanted)+len(rejected))
+	for name, cfg := range wanted {
+		st := ServerStatus{Name: name, PluginName: pluginName(cfg.Plugin)}
 		switch res, ok := results[name]; {
 		case ok && res.err == nil:
 			st.Connected = true
@@ -814,8 +909,18 @@ func (m *Manager) refreshCatalog(ctx context.Context, wanted map[string]ServerCo
 		}
 		catalog = append(catalog, st)
 	}
+	for _, st := range rejected {
+		catalog = append(catalog, ServerStatus{
+			Name:       st.Name,
+			PluginName: st.PluginName,
+			Err:        st.Err,
+		})
+	}
 	slices.SortFunc(catalog, func(a, b ServerStatus) int {
-		return strings.Compare(a.Name, b.Name)
+		if c := strings.Compare(a.Name, b.Name); c != 0 {
+			return c
+		}
+		return strings.Compare(a.PluginName, b.PluginName)
 	})
 
 	m.mu.Lock()
@@ -914,10 +1019,22 @@ func (m *Manager) connectServer(ctx context.Context, cfg ServerConfig) (*mcp.Cli
 func (m *Manager) createTransport(ctx context.Context, cfg ServerConfig) (mcp.Transport, error) {
 	switch cfg.Transport {
 	case "stdio":
-		env := m.buildEnv(ctx, cfg.Env)
+		var env []string
+		if cfg.Plugin != nil {
+			if err := ensurePluginDataDir(*cfg.Plugin); err != nil {
+				return nil, err
+			}
+			env = m.buildPluginEnv(*cfg.Plugin, cfg.Env)
+		} else {
+			env = m.buildEnv(ctx, cfg.Env)
+		}
 		cmd := m.execer.CommandContext(ctx, cfg.Command, cfg.Args...)
 		cmd.Env = env
-		cmd.Dir = m.resolveWorkingDir()
+		if cfg.Cwd != "" {
+			cmd.Dir = cfg.Cwd
+		} else {
+			cmd.Dir = m.resolveWorkingDir()
+		}
 		return &mcp.CommandTransport{Command: cmd}, nil
 	case "http", "streamable-http", "":
 		client, err := httpClientWithHeaders(cfg.URL, cfg.Headers)
@@ -976,6 +1093,31 @@ func (m *Manager) buildEnv(ctx context.Context, explicit map[string]string) []st
 			env = m.envInfo.Environ()
 		}
 	}
+	return mergeEnv(env, explicit)
+}
+
+// buildPluginEnv builds the environment for a plugin stdio server: the
+// allow-listed subset of the agent's environment, HOME filled in from
+// the user's home directory when absent, then PLUGIN_ROOT and
+// PLUGIN_DATA, then the entry's own env on top. The updateEnv callback
+// is not consulted.
+func (m *Manager) buildPluginEnv(scope PluginScope, explicit map[string]string) []string {
+	env := filterPluginEnv(m.envInfo.Environ())
+	if !slices.ContainsFunc(env, func(kv string) bool { return strings.HasPrefix(kv, "HOME=") }) {
+		if home, err := m.envInfo.HomeDir(); err == nil && home != "" {
+			env = append(env, "HOME="+home)
+		}
+	}
+	env = mergeEnv(env, map[string]string{
+		pluginRootEnv: scope.Root,
+		pluginDataEnv: scope.DataDir,
+	})
+	return mergeEnv(env, explicit)
+}
+
+// mergeEnv returns env with each explicit KEY=value applied, replacing
+// an existing KEY in place or appending it.
+func mergeEnv(env []string, explicit map[string]string) []string {
 	if len(explicit) == 0 {
 		return env
 	}
@@ -988,8 +1130,8 @@ func (m *Manager) buildEnv(ctx context.Context, explicit map[string]string) []st
 		}
 	}
 
-	for k, v := range explicit {
-		entry := k + "=" + v
+	for _, k := range slices.Sorted(maps.Keys(explicit)) {
+		entry := k + "=" + explicit[k]
 		if idx, ok := existing[k]; ok {
 			env[idx] = entry
 		} else {
@@ -1067,12 +1209,16 @@ func convertResult(result *mcp.CallToolResult) workspacesdk.CallMCPToolResponse 
 // state and tools, used by the agentcontext resolver to build
 // KindMCPServer resources. Tool names are exactly as the server
 // reported them (no server prefix); the resource carries the server
-// name separately.
+// name separately. PluginName is the declaring plugin, or empty for a
+// legacy .mcp.json server; a rejected plugin entry may share Name with
+// the legacy or earlier plugin server that claimed it, so (Name,
+// PluginName) is the catalog identity.
 type ServerStatus struct {
-	Name      string
-	Connected bool
-	Err       string
-	Tools     []ToolInfo
+	Name       string
+	PluginName string
+	Connected  bool
+	Err        string
+	Tools      []ToolInfo
 }
 
 // ToolInfo is one tool exposed by an MCP server. InputSchema is the
