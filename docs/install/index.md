@@ -32,6 +32,9 @@ curl -L https://coder.com/install.sh | sh
 Refer to [GitHub releases](https://github.com/coder/coder/releases) for
 alternate installation methods (e.g. standalone binaries, system packages).
 
+On Red Hat Enterprise Linux and other RHEL-family distributions, you can also install the RPM package directly.
+Refer to [Install Coder on RHEL-family Linux](./rpm.md).
+
 ## Windows
 
 If you plan to use the built-in PostgreSQL database, ensure that the
