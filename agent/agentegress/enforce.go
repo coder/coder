@@ -4,6 +4,7 @@ import (
 	"context"
 	"net"
 	"net/netip"
+	"os"
 	"slices"
 	"strconv"
 	"sync"
@@ -53,7 +54,8 @@ type EnforcerOptions struct {
 	DNSPort uint16
 	// UDPPort is the local port the Proxy's UDP listener is on.
 	UDPPort uint16
-	// ControlPlaneHosts are host[:port] destinations that bypass the proxy.
+	// ControlPlaneHosts are proto/host:port destinations that bypass the
+	// proxy. Protocol and port are mandatory.
 	ControlPlaneHosts []string
 	// Resolvers are the upstream DNS servers the proxy forwards exempt
 	// queries to over TCP. Defaults to the system resolvers.
@@ -67,8 +69,11 @@ type EnforcerOptions struct {
 	// LockdownCapabilitiesSet distinguishes an explicit false value from the
 	// secure default.
 	LockdownCapabilitiesSet bool
-	// prctl is injected by tests.
-	prctl func(option uintptr, arg2 uintptr, arg3 uintptr, arg4 uintptr, arg5 uintptr) error
+	// capabilityLockdown is injected by tests.
+	capabilityLockdown func() error
+	// readFile and writeFile are injected by tests.
+	readFile  func(string) ([]byte, error)
+	writeFile func(string, []byte, os.FileMode) error
 }
 
 // Enforcer installs netfilter rules that redirect outbound TCP and DNS into
@@ -79,14 +84,16 @@ type EnforcerOptions struct {
 // exempt the user's processes. The agent's own control traffic is exempted by
 // destination via ControlPlaneHosts.
 type Enforcer struct {
-	logger    slog.Logger
-	execer    agentexec.Execer
-	resolver  Resolver
-	ports     proxyPorts
-	hosts     []string
-	resolvers []netip.Addr
-	lockdown  bool
-	prctl     func(option uintptr, arg2 uintptr, arg3 uintptr, arg4 uintptr, arg5 uintptr) error
+	logger               slog.Logger
+	execer               agentexec.Execer
+	resolver             Resolver
+	ports                proxyPorts
+	hosts                []string
+	resolvers            []netip.Addr
+	lockdown             bool
+	lockdownCapabilities func() error
+	readFile             func(string) ([]byte, error)
+	writeFile            func(string, []byte, os.FileMode) error
 
 	mu          sync.Mutex
 	installed   bool
@@ -119,14 +126,16 @@ func NewEnforcer(logger slog.Logger, opts EnforcerOptions) (*Enforcer, error) {
 		lockdown = opts.LockdownCapabilities
 	}
 	e := &Enforcer{
-		logger:    logger,
-		execer:    opts.Execer,
-		resolver:  opts.Resolver,
-		ports:     proxyPorts{tcp: opts.ProxyPort, dns: opts.DNSPort, udp: opts.UDPPort},
-		hosts:     opts.ControlPlaneHosts,
-		resolvers: opts.Resolvers,
-		lockdown:  lockdown,
-		prctl:     opts.prctl,
+		logger:               logger,
+		execer:               opts.Execer,
+		resolver:             opts.Resolver,
+		ports:                proxyPorts{tcp: opts.ProxyPort, dns: opts.DNSPort, udp: opts.UDPPort},
+		hosts:                opts.ControlPlaneHosts,
+		resolvers:            opts.Resolvers,
+		lockdown:             lockdown,
+		lockdownCapabilities: opts.capabilityLockdown,
+		readFile:             opts.readFile,
+		writeFile:            opts.writeFile,
 	}
 	if e.execer == nil {
 		e.execer = agentexec.DefaultExecer
@@ -134,8 +143,19 @@ func NewEnforcer(logger slog.Logger, opts EnforcerOptions) (*Enforcer, error) {
 	if e.resolver == nil {
 		e.resolver = net.DefaultResolver
 	}
-	if e.prctl == nil {
-		e.prctl = dropCapabilityBoundingSet
+	if e.lockdownCapabilities == nil {
+		e.lockdownCapabilities = lockdownNetAdmin
+	}
+	if e.readFile == nil {
+		e.readFile = os.ReadFile
+	}
+	if e.writeFile == nil {
+		e.writeFile = os.WriteFile
+	}
+	for _, value := range e.hosts {
+		if _, err := ParseExemption(value); err != nil {
+			return nil, xerrors.Errorf("parse control plane exemption: %w", err)
+		}
 	}
 	return e, nil
 }
@@ -182,7 +202,7 @@ const (
 
 // buildRules produces the base chain contents for one address family. IPv4
 // TPROXY mode omits the non-DNS UDP REDIRECT rule.
-func buildRules(ports proxyPorts, exemptions []netip.AddrPort, resolvers []netip.Addr, family ipFamily, mode udpMode) ruleSet {
+func buildRules(ports proxyPorts, exemptions []resolvedExemption, resolvers []netip.Addr, family ipFamily, mode udpMode) ruleSet {
 	rs := ruleSet{}
 	nat := func(args ...string) { rs["nat"] = append(rs["nat"], append(rule{"-A", natChain}, args...)) }
 	filter := func(args ...string) { rs["filter"] = append(rs["filter"], append(rule{"-A", filterChain}, args...)) }
@@ -190,16 +210,10 @@ func buildRules(ports proxyPorts, exemptions []netip.AddrPort, resolvers []netip
 
 	nat("-o", "lo", "-j", "RETURN")
 	for _, ex := range exemptions {
-		if !family.matches(ex.Addr()) {
+		if !family.matches(ex.Addr) {
 			continue
 		}
-		for _, proto := range []string{"tcp", "udp"} {
-			args := []string{"-d", ex.Addr().String(), "-p", proto}
-			if ex.Port() != 0 {
-				args = append(args, "--dport", port(ex.Port()))
-			}
-			nat(append(args, "-j", "RETURN")...)
-		}
+		nat("-d", ex.Addr.String(), "-p", ex.Proto, "--dport", port(ex.Port), "-j", "RETURN")
 	}
 	for _, addr := range resolvers {
 		if family.matches(addr) {
@@ -227,7 +241,7 @@ func buildRules(ports proxyPorts, exemptions []netip.AddrPort, resolvers []netip
 
 // buildTPROXYRules builds IPv4-only transparent UDP rules. IPv6 remains on
 // the REDIRECT fallback because the proxy currently listens on IPv4 loopback.
-func buildTPROXYRules(ports proxyPorts, exemptions []netip.AddrPort) ruleSet {
+func buildTPROXYRules(ports proxyPorts, exemptions []resolvedExemption) ruleSet {
 	rs := ruleSet{}
 	output := func(args ...string) {
 		rs["output"] = append(rs["output"], append(rule{"-A", tproxyOutputChain}, args...))
@@ -241,14 +255,10 @@ func buildTPROXYRules(ports proxyPorts, exemptions []netip.AddrPort) ruleSet {
 	output("-o", "lo", "-j", "RETURN")
 	output("-d", "127.0.0.0/8", "-j", "RETURN")
 	for _, ex := range exemptions {
-		if !ex.Addr().Is4() {
+		if !ex.Addr.Is4() || ex.Proto != "udp" {
 			continue
 		}
-		args := []string{"-d", ex.Addr().String(), "-p", "udp"}
-		if ex.Port() != 0 {
-			args = append(args, "--dport", port(ex.Port()))
-		}
-		output(append(args, "-j", "RETURN")...)
+		output("-d", ex.Addr.String(), "-p", "udp", "--dport", port(ex.Port), "-j", "RETURN")
 	}
 	output("-p", "udp", "--dport", "53", "-j", "RETURN")
 	output("-p", "udp", "-j", "MARK", "--set-mark", tproxyMark)
@@ -258,26 +268,35 @@ func buildTPROXYRules(ports proxyPorts, exemptions []netip.AddrPort) ruleSet {
 	return rs
 }
 
+type resolvedExemption struct {
+	Proto string
+	Addr  netip.Addr
+	Port  uint16
+}
+
 // resolveExemptions turns ControlPlaneHosts into concrete addresses. Hosts
 // that fail to resolve are logged and skipped rather than blocking
 // enforcement, since a missing exemption fails closed.
-func (e *Enforcer) resolveExemptions(ctx context.Context) []netip.AddrPort {
-	var out []netip.AddrPort
-	for _, hostport := range e.hosts {
-		host, port := splitHostPortDefault(hostport, 0)
-		if host == "" {
+func (e *Enforcer) resolveExemptions(ctx context.Context) []resolvedExemption {
+	var out []resolvedExemption
+	for _, value := range e.hosts {
+		exemption, err := ParseExemption(value)
+		if err != nil {
+			e.logger.Error(ctx, "invalid control plane exemption, not exempting it from egress enforcement",
+				slog.F("exemption", value), slog.Error(err))
 			continue
 		}
 		var addrs []netip.Addr
-		if addr, err := netip.ParseAddr(host); err == nil {
+		if addr, err := netip.ParseAddr(exemption.Host); err == nil {
 			addrs = []netip.Addr{addr}
-		} else if addrs, err = e.resolver.LookupNetIP(ctx, "ip", host); err != nil {
+		} else if addrs, err = e.resolver.LookupNetIP(ctx, "ip", exemption.Host); err != nil {
 			e.logger.Warn(ctx, "control plane host did not resolve, not exempting it from egress enforcement",
-				slog.F("host", host), slog.Error(err))
+				slog.F("host", exemption.Host), slog.Error(err))
 			continue
 		}
 		for _, addr := range addrs {
-			if ex := netip.AddrPortFrom(addr.Unmap(), port); !slices.Contains(out, ex) {
+			ex := resolvedExemption{Proto: exemption.Proto, Addr: addr.Unmap(), Port: exemption.Port}
+			if !slices.Contains(out, ex) {
 				out = append(out, ex)
 			}
 		}

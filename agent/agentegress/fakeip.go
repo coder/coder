@@ -7,6 +7,8 @@ import (
 	"net/netip"
 	"strings"
 	"sync"
+
+	"golang.org/x/xerrors"
 )
 
 const (
@@ -28,11 +30,12 @@ var fakeIPPrefix = netip.MustParsePrefix("198.18.0.0/15")
 // flow the workspace opens carries the name the client asked for, not an
 // address the proxy would have to reverse-resolve.
 type fakeIPPool struct {
-	mu     sync.Mutex
-	prefix netip.Prefix
-	max    int
-	byName map[string]*list.Element
-	byAddr map[netip.Addr]*list.Element
+	mu        sync.Mutex
+	prefix    netip.Prefix
+	max       int
+	pinnedMax int
+	byName    map[string]*list.Element
+	byAddr    map[netip.Addr]*list.Element
 	// lru holds fakeIPEntry values, most recently used first.
 	lru *list.List
 }
@@ -43,13 +46,14 @@ type fakeIPEntry struct {
 	refs int
 }
 
-func newFakeIPPool(prefix netip.Prefix, maxEntries int) *fakeIPPool {
+func newFakeIPPool(prefix netip.Prefix, maxEntries, pinnedMaxEntries int) *fakeIPPool {
 	return &fakeIPPool{
-		prefix: prefix.Masked(),
-		max:    maxEntries,
-		byName: make(map[string]*list.Element),
-		byAddr: make(map[netip.Addr]*list.Element),
-		lru:    list.New(),
+		prefix:    prefix.Masked(),
+		max:       maxEntries,
+		pinnedMax: pinnedMaxEntries,
+		byName:    make(map[string]*list.Element),
+		byAddr:    make(map[netip.Addr]*list.Element),
+		lru:       list.New(),
 	}
 }
 
@@ -65,28 +69,37 @@ func (p *fakeIPPool) Contains(addr netip.Addr) bool {
 	return p.prefix.Contains(addr.Unmap())
 }
 
-// Lookup returns the address assigned to name, allocating one on first
-// use. The address is derived from a hash of the name so the same name
-// maps to the same address across restarts as long as no collision
-// intervenes.
-func (p *fakeIPPool) Lookup(name string) netip.Addr {
+// Allocate returns the address assigned to name, allocating one on first
+// use.
+func (p *fakeIPPool) Allocate(name string) (netip.Addr, error) {
 	name = normalizeName(name)
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	if e, ok := p.byName[name]; ok {
 		p.lru.MoveToFront(e)
-		return entryOf(e).addr
+		return entryOf(e).addr, nil
 	}
 	for p.lru.Len() >= p.max {
 		if !p.evictLocked() {
-			// Active mappings stay valid until their connections finish. The
-			// pool can temporarily exceed max when every entry is pinned.
+			if p.lru.Len() >= p.pinnedMax {
+				return netip.Addr{}, xerrors.New("fake IP pinned entry limit reached")
+			}
 			break
 		}
 	}
-	addr := p.allocateLocked(name)
+	addr, err := p.allocateLocked(name)
+	if err != nil {
+		return netip.Addr{}, err
+	}
 	e := p.lru.PushFront(&fakeIPEntry{name: name, addr: addr})
 	p.byName[name], p.byAddr[addr] = e, e
+	return addr, nil
+}
+
+// Lookup returns the address assigned to name. It is retained for tests that
+// operate with pools large enough that allocation cannot fail.
+func (p *fakeIPPool) Lookup(name string) netip.Addr {
+	addr, _ := p.Allocate(name)
 	return addr
 }
 
@@ -172,7 +185,7 @@ func (p *fakeIPPool) release(addr netip.Addr) {
 // finds a free host address. Addresses whose last octet is 0 or 255 are
 // skipped because some clients treat them as network and broadcast
 // addresses and refuse to connect.
-func (p *fakeIPPool) allocateLocked(name string) netip.Addr {
+func (p *fakeIPPool) allocateLocked(name string) (netip.Addr, error) {
 	h := fnv.New32a()
 	_, _ = h.Write([]byte(name))
 	first := p.prefix.Addr().As4()
@@ -189,7 +202,7 @@ func (p *fakeIPPool) allocateLocked(name string) netip.Addr {
 		}
 		addr := netip.AddrFrom4(raw)
 		if _, taken := p.byAddr[addr]; !taken {
-			return addr
+			return addr, nil
 		}
 		if !fallback.IsValid() && entryOf(p.byAddr[addr]).refs == 0 {
 			fallback = addr
@@ -205,12 +218,13 @@ func (p *fakeIPPool) allocateLocked(name string) netip.Addr {
 		}
 		addr := netip.AddrFrom4(raw)
 		if _, taken := p.byAddr[addr]; !taken {
-			return addr
+			return addr, nil
 		}
 	}
 	// Every address is assigned. Reuse an unpinned candidate if possible.
 	if e, ok := p.byAddr[fallback]; ok {
 		p.removeLocked(e)
+		return fallback, nil
 	}
-	return fallback
+	return netip.Addr{}, xerrors.New("fake IP address space exhausted")
 }

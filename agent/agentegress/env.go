@@ -1,7 +1,6 @@
 package agentegress
 
 import (
-	"net"
 	"strings"
 
 	"github.com/coder/coder/v2/codersdk/agentsdk"
@@ -9,8 +8,10 @@ import (
 
 // ProxyEnv returns the environment variables that point workspace processes
 // at the local egress proxy. Both upper and lower case spellings are set
-// because tooling is inconsistent about which it honors. Control plane
-// hosts are excluded so the workspace keeps talking to coderd directly.
+// because tooling is inconsistent about which it honors. NO_PROXY contains
+// only exemption hostnames because it has no protocol or port semantics. It
+// applies only to the explicit proxy path; transparent capture remains scoped
+// by the full protocol and port exemptions.
 func ProxyEnv(listenAddr string, cfg agentsdk.EgressConfig) map[string]string {
 	proxyURL := "http://" + listenAddr
 	noProxy := noProxyList(cfg.ControlPlaneHosts)
@@ -32,11 +33,12 @@ func noProxyList(controlPlaneHosts []string) string {
 	for _, e := range entries {
 		seen[e] = struct{}{}
 	}
-	for _, hostport := range controlPlaneHosts {
-		host := stripPort(hostport)
-		if host == "" {
+	for _, value := range controlPlaneHosts {
+		exemption, err := ParseExemption(value)
+		if err != nil {
 			continue
 		}
+		host := exemption.Host
 		if _, ok := seen[host]; ok {
 			continue
 		}
@@ -44,14 +46,4 @@ func noProxyList(controlPlaneHosts []string) string {
 		entries = append(entries, host)
 	}
 	return strings.Join(entries, ",")
-}
-
-// stripPort removes a trailing :port from host[:port], tolerating bracketed
-// and bare IPv6 literals.
-func stripPort(hostport string) string {
-	hostport = strings.TrimSpace(hostport)
-	if host, _, err := net.SplitHostPort(hostport); err == nil {
-		return host
-	}
-	return strings.Trim(hostport, "[]")
 }

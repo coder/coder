@@ -1652,7 +1652,7 @@ func TestAgent_EgressProxyEnvVars(t *testing.T) {
 		Egress: &agentsdk.EgressConfig{
 			ExitNodeIDs:       []uuid.UUID{uuid.New()},
 			ExitNodePort:      codersdk.ExitNodeTailnetPort,
-			ControlPlaneHosts: []string{"coder.example.com:443"},
+			ControlPlaneHosts: []string{"tcp/coder.example.com:443"},
 		},
 	}
 	session := setupSSHSession(t, manifest, codersdk.ServiceBannerConfig{}, nil)

@@ -69,21 +69,44 @@ func (s *exitNodeSelector) dial(ctx context.Context, dialer Dialer) (net.Conn, n
 	var lastErr error
 	for _, i := range order {
 		conn, err := dialer.DialContextTCP(ctx, s.addrs[i])
-		s.mu.Lock()
 		if err != nil {
-			s.failures[i].retryAt = now.Add(exitNodeRetryBackoff)
-			s.mu.Unlock()
+			s.markFailure(s.addrs[i])
 			lastErr = err
+			continue
+		}
+		return conn, s.addrs[i], nil
+	}
+	return nil, netip.AddrPort{}, xerrors.Errorf("dial exit nodes: %w", lastErr)
+}
+
+func (s *exitNodeSelector) len() int {
+	return len(s.addrs)
+}
+
+func (s *exitNodeSelector) markFailure(addr netip.AddrPort) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for i, candidate := range s.addrs {
+		if candidate == addr {
+			s.failures[i].retryAt = s.clock.Now("exit_node_failure").Add(exitNodeRetryBackoff)
+			return
+		}
+	}
+}
+
+func (s *exitNodeSelector) markHealthy(ctx context.Context, addr netip.AddrPort) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for i, candidate := range s.addrs {
+		if candidate != addr {
 			continue
 		}
 		s.failures[i] = exitNodeFailure{}
 		previous := s.current
 		s.current = i
-		s.mu.Unlock()
 		if i != previous {
-			s.logger.Info(ctx, "switched egress exit node", slog.F("from", s.addrs[previous]), slog.F("to", s.addrs[i]))
+			s.logger.Info(ctx, "switched egress exit node", slog.F("from", s.addrs[previous]), slog.F("to", addr))
 		}
-		return conn, s.addrs[i], nil
+		return
 	}
-	return nil, netip.AddrPort{}, xerrors.Errorf("dial exit nodes: %w", lastErr)
 }

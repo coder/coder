@@ -6,6 +6,7 @@ import (
 	"net"
 	"net/netip"
 	"slices"
+	"strconv"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -78,28 +79,42 @@ type udpDropState struct {
 	count int64
 }
 
-// listenUDP binds an ephemeral IPv4 UDP port on host.
-func listenUDP(ctx context.Context, host string) (*net.UDPConn, netip.AddrPort, error) {
+// listenUDP binds an IPv4 UDP socket on host, preferring preferredPort so
+// netfilter rules stay valid across proxy restarts and falling back to an
+// ephemeral port when it is taken.
+func listenUDP(ctx context.Context, logger slog.Logger, host string, preferredPort uint16) (*net.UDPConn, netip.AddrPort, error) {
 	var lc net.ListenConfig
-	pc, err := lc.ListenPacket(ctx, "udp4", net.JoinHostPort(host, "0"))
-	if err != nil {
-		return nil, netip.AddrPort{}, err
+	var preferredErr error
+	for _, port := range []uint16{preferredPort, 0} {
+		pc, err := lc.ListenPacket(ctx, "udp4", net.JoinHostPort(host, strconv.Itoa(int(port))))
+		if err != nil {
+			if port != 0 {
+				preferredErr = err
+				continue
+			}
+			return nil, netip.AddrPort{}, xerrors.Errorf("listen on port %d: %w; fallback on ephemeral port: %w", preferredPort, preferredErr, err)
+		}
+		conn, ok := pc.(*net.UDPConn)
+		if !ok {
+			_ = pc.Close()
+			return nil, netip.AddrPort{}, xerrors.Errorf("unexpected packet conn type %T", pc)
+		}
+		addr, err := addrPortOf(conn.LocalAddr())
+		if err != nil {
+			_ = conn.Close()
+			return nil, netip.AddrPort{}, err
+		}
+		if port == 0 && preferredPort != 0 {
+			logger.Warn(ctx, "preferred udp proxy port unavailable, using ephemeral port",
+				slog.F("preferred_port", preferredPort), slog.F("listen_addr", addr), slog.Error(preferredErr))
+		}
+		return conn, addr, nil
 	}
-	conn, ok := pc.(*net.UDPConn)
-	if !ok {
-		_ = pc.Close()
-		return nil, netip.AddrPort{}, xerrors.Errorf("unexpected packet conn type %T", pc)
-	}
-	addr, err := addrPortOf(conn.LocalAddr())
-	if err != nil {
-		_ = conn.Close()
-		return nil, netip.AddrPort{}, err
-	}
-	return conn, addr, nil
+	return nil, netip.AddrPort{}, preferredErr
 }
 
-func (p *udpProxy) listen(ctx context.Context, host string) error {
-	conn, addr, err := listenUDP(ctx, host)
+func (p *udpProxy) listen(ctx context.Context, host string, preferredPort uint16) error {
+	conn, addr, err := listenUDP(ctx, p.logger, host, preferredPort)
 	if err != nil {
 		return xerrors.Errorf("listen udp: %w", err)
 	}

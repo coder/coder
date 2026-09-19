@@ -900,6 +900,12 @@
 							"path": "./admin/networking/stun.md"
 						},
 						{
+							"title": "Exit Nodes",
+							"description": "Route workspace egress through policy-enforcing exit nodes and establish the required external network boundary.",
+							"path": "./admin/networking/exit-nodes.md",
+							"state": ["premium"]
+						},
+						{
 							"title": "Workspace Proxies",
 							"description": "Run geo-distributed workspace proxies to give distributed teams low-latency workspace access.",
 							"path": "./admin/networking/workspace-proxies.md",

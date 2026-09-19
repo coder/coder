@@ -5,7 +5,6 @@ package agentegress
 import (
 	"context"
 	"errors"
-	"net/netip"
 	"os"
 	"slices"
 	"strings"
@@ -15,9 +14,9 @@ import (
 	"cdr.dev/slog/v3"
 )
 
-// Install resolves exemptions and installs IPv4 enforcement. Transparent UDP
-// is attempted first and falls back to REDIRECT when TPROXY or policy routing
-// is unavailable. IPv6 remains best-effort REDIRECT enforcement.
+// Install resolves exemptions and installs enforcement for every enabled
+// address family. Transparent UDP is attempted first and falls back to
+// REDIRECT when TPROXY or policy routing is unavailable.
 func (e *Enforcer) Install(ctx context.Context) error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
@@ -56,15 +55,17 @@ func (e *Enforcer) Install(ctx context.Context) error {
 	}
 	e.installed = true
 	if err := e.installFamily(ctx, "ip6tables", buildRules(e.ports, exemptions, resolvers, ipv6, udpModeRedirect)); err != nil {
-		e.logger.Warn(ctx, "ip6tables egress rules not installed, ipv6 is unenforced", slog.Error(err))
+		if cleanupErr := e.handleIPv6InstallFailure(ctx, err); cleanupErr != nil {
+			return cleanupErr
+		}
 	}
 	if e.lockdown {
-		if err := dropNetAdmin(e.prctl); err != nil {
-			return xerrors.Errorf("drop CAP_NET_ADMIN from capability bounding set: %w", err)
+		if err := e.lockdownCapabilities(); err != nil {
+			return xerrors.Errorf("lock down CAP_NET_ADMIN for child processes: %w", err)
 		}
-		// Children cannot regain CAP_NET_ADMIN after this point, even when
-		// changing uid. Cleanup by exec is also impossible, so rules remain
-		// until the container's network namespace exits.
+		// Children cannot regain CAP_NET_ADMIN after this point. Cleanup by
+		// exec is also impossible, so rules remain until the container's
+		// network namespace exits.
 		e.lockedDown = true
 	}
 	return nil
@@ -125,6 +126,67 @@ func (e *Enforcer) probe(ctx context.Context) error {
 	return xerrors.Errorf("%w: %w", ErrEnforcementUnavailable, errors.Join(errs...))
 }
 
+func (e *Enforcer) handleIPv6InstallFailure(ctx context.Context, installErr error) error {
+	enabled, err := e.ipv6Enabled()
+	if err != nil {
+		e.logger.Warn(ctx, "cannot determine whether ipv6 needs enforcement", slog.Error(err))
+		enabled = true
+	}
+	if !enabled {
+		e.logger.Debug(ctx, "ip6tables unavailable but ipv6 is disabled", slog.Error(installErr))
+		return nil
+	}
+	disableErr := e.disableIPv6()
+	if disableErr == nil {
+		e.logger.Warn(ctx, "ip6tables unavailable, disabled ipv6 to keep egress enforcement fail closed",
+			slog.Error(installErr))
+		return nil
+	}
+	e.logger.Warn(ctx, "ip6tables unavailable and ipv6 could not be disabled, removing ipv4 enforcement",
+		slog.Error(xerrors.Errorf("install ip6tables: %w; disable ipv6: %w", installErr, disableErr)))
+	cleanupErr := errors.Join(e.removeFamily(ctx, "iptables"), e.removeTPROXY(ctx), e.removeFamily(ctx, "ip6tables"))
+	e.installed = false
+	e.transparent = false
+	return xerrors.Errorf("ipv6 enforcement unavailable: install ip6tables: %w; disable ipv6: %w; clean up ipv4 rules: %w", installErr, disableErr, cleanupErr)
+}
+
+func (e *Enforcer) ipv6Enabled() (bool, error) {
+	disabled, err := e.readFile("/proc/sys/net/ipv6/conf/all/disable_ipv6")
+	if err != nil {
+		return false, xerrors.Errorf("read ipv6 disable sysctl: %w", err)
+	}
+	if strings.TrimSpace(string(disabled)) != "0" {
+		return false, nil
+	}
+	interfaces, err := e.readFile("/proc/net/if_inet6")
+	if err != nil {
+		return false, xerrors.Errorf("read ipv6 interfaces: %w", err)
+	}
+	return hasNonLoopbackIPv6(interfaces), nil
+}
+
+func hasNonLoopbackIPv6(contents []byte) bool {
+	for line := range strings.Lines(string(contents)) {
+		fields := strings.Fields(line)
+		if len(fields) >= 6 && fields[5] != "lo" {
+			return true
+		}
+	}
+	return false
+}
+
+func (e *Enforcer) disableIPv6() error {
+	var errs []error
+	for _, path := range []string{
+		"/proc/sys/net/ipv6/conf/all/disable_ipv6",
+		"/proc/sys/net/ipv6/conf/default/disable_ipv6",
+	} {
+		if err := e.writeFile(path, []byte("1\n"), 0o644); err != nil {
+			errs = append(errs, xerrors.Errorf("write %s: %w", path, err))
+		}
+	}
+	return errors.Join(errs...)
+}
 func (e *Enforcer) installFamily(ctx context.Context, bin string, rs ruleSet) error {
 	for _, tc := range managedChains {
 		_, _ = e.run(ctx, bin, "-t", tc.table, "-N", tc.chain)
@@ -145,7 +207,7 @@ func (e *Enforcer) installFamily(ctx context.Context, bin string, rs ruleSet) er
 	return nil
 }
 
-func (e *Enforcer) installTPROXY(ctx context.Context, exemptions []netip.AddrPort) error {
+func (e *Enforcer) installTPROXY(ctx context.Context, exemptions []resolvedExemption) error {
 	rs := buildTPROXYRules(e.ports, exemptions)
 	for _, chain := range []string{tproxyOutputChain, tproxyPreroutingChain} {
 		_, _ = e.run(ctx, "iptables", "-t", "mangle", "-N", chain)

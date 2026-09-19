@@ -1,12 +1,14 @@
 package agentegress
 
 import (
+	"container/list"
 	"context"
 	"encoding/binary"
 	"errors"
 	"net"
 	"net/netip"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -15,6 +17,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
+	"github.com/coder/quartz"
 
 	"github.com/coder/coder/v2/codersdk"
 )
@@ -35,7 +38,11 @@ const (
 	dnsTCPIdleTimeout = 30 * time.Second
 	// dnsListenRetries bounds the search for a port free for both UDP and
 	// TCP.
-	dnsListenRetries = 8
+	dnsListenRetries     = 8
+	dnsDecisionCacheSize = 1024
+	dnsMinTTL            = 5 * time.Second
+	dnsMaxTTL            = 300 * time.Second
+	dnsWarnInterval      = 30 * time.Second
 )
 
 // dnsServer answers the workspace's DNS queries. Names that are not
@@ -44,11 +51,16 @@ const (
 // resolvers (exempt names) or by the exit node (record types the fake pool
 // cannot synthesize).
 type dnsServer struct {
-	logger   slog.Logger
-	fake     *fakeIPPool
-	exempt   func(name string) bool
-	upstream []netip.AddrPort
-	relay    *dnsRelay
+	logger    slog.Logger
+	fake      *fakeIPPool
+	exempt    func(name string) bool
+	upstream  []netip.AddrPort
+	relay     *dnsRelay
+	clock     quartz.Clock
+	decisions *dnsDecisionCache
+
+	warnMu sync.Mutex
+	warnAt time.Time
 
 	udp  *net.UDPConn
 	tcp  net.Listener
@@ -57,24 +69,41 @@ type dnsServer struct {
 }
 
 // listen binds UDP and TCP on the same loopback port.
-func (s *dnsServer) listen(ctx context.Context, host string) error {
+func (s *dnsServer) listen(ctx context.Context, host string, preferredPort uint16) error {
 	var lc net.ListenConfig
 	var lastErr error
-	for range dnsListenRetries {
-		udp, addr, err := listenUDP(ctx, host)
-		if err != nil {
-			return xerrors.Errorf("listen dns udp: %w", err)
+	for _, port := range []uint16{preferredPort, 0} {
+		for range dnsListenRetries {
+			pc, err := lc.ListenPacket(ctx, "udp4", net.JoinHostPort(host, strconv.Itoa(int(port))))
+			if err != nil {
+				lastErr = err
+				break
+			}
+			udp, ok := pc.(*net.UDPConn)
+			if !ok {
+				_ = pc.Close()
+				return xerrors.Errorf("unexpected packet conn type %T", pc)
+			}
+			addr, err := addrPortOf(udp.LocalAddr())
+			if err != nil {
+				_ = udp.Close()
+				return err
+			}
+			tcp, err := lc.Listen(ctx, "tcp4", addr.String())
+			if err != nil {
+				lastErr = err
+				_ = udp.Close()
+				continue
+			}
+			if port == 0 {
+				s.logger.Warn(ctx, "preferred dns proxy port unavailable, using ephemeral port",
+					slog.F("preferred_port", preferredPort), slog.F("listen_addr", addr), slog.Error(lastErr))
+			}
+			s.udp, s.tcp, s.addr = udp, tcp, addr
+			return nil
 		}
-		tcp, err := lc.Listen(ctx, "tcp4", addr.String())
-		if err != nil {
-			lastErr = err
-			_ = udp.Close()
-			continue
-		}
-		s.udp, s.tcp, s.addr = udp, tcp, addr
-		return nil
 	}
-	return xerrors.Errorf("listen dns tcp on udp port: %w", lastErr)
+	return xerrors.Errorf("listen dns tcp and udp: %w", lastErr)
 }
 
 func (s *dnsServer) serve(ctx context.Context) {
@@ -179,21 +208,16 @@ func (s *dnsServer) answer(ctx context.Context, hdr dnsmessage.Header, q dnsmess
 	if s.exempt(name) {
 		return s.forward(ctx, hdr, q, msg, s.exchangeUpstream, "system resolvers")
 	}
+	if q.Type == dnsmessage.TypeA || q.Type == dnsmessage.TypeAAAA {
+		return s.answerAddress(ctx, hdr, q, msg, name)
+	}
 	synthesized := func(body dnsmessage.ResourceBody) []byte {
 		return dnsReply(hdr, &q, dnsmessage.RCodeSuccess, dnsmessage.Resource{
 			Header: dnsmessage.ResourceHeader{Name: q.Name, Class: dnsmessage.ClassINET, TTL: fakeIPTTL},
 			Body:   body,
 		})
 	}
-	switch q.Type {
-	case dnsmessage.TypeA:
-		return synthesized(&dnsmessage.AResource{A: s.fake.Lookup(name).As4()})
-	case dnsmessage.TypeAAAA:
-		// An empty AAAA answer forces dual-stack clients onto the fake IPv4
-		// path. IPv6-only destinations still work because the exit node
-		// resolves the hostname from the CONNECT target itself.
-		return dnsReply(hdr, &q, dnsmessage.RCodeSuccess)
-	case dnsmessage.TypePTR:
+	if q.Type == dnsmessage.TypePTR {
 		if addr, ok := parseReverseName(name); ok && s.fake.Contains(addr) {
 			target, found := s.fake.Reverse(addr)
 			if !found {
@@ -207,6 +231,136 @@ func (s *dnsServer) answer(ctx context.Context, hdr dnsmessage.Header, q dnsmess
 		}
 	}
 	return s.forward(ctx, hdr, q, msg, s.relay.exchange, "exit node")
+}
+
+type dnsDecision struct {
+	rcode   dnsmessage.RCode
+	ttl     uint32
+	expires time.Time
+}
+
+type dnsDecisionEntry struct {
+	name     string
+	decision dnsDecision
+}
+
+type dnsDecisionCache struct {
+	mu     sync.Mutex
+	max    int
+	byName map[string]*list.Element
+	lru    *list.List
+}
+
+func newDNSDecisionCache(maxEntries int) *dnsDecisionCache {
+	return &dnsDecisionCache{max: maxEntries, byName: make(map[string]*list.Element), lru: list.New()}
+}
+
+func (c *dnsDecisionCache) get(name string, now time.Time) (dnsDecision, bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	e, ok := c.byName[name]
+	if !ok {
+		return dnsDecision{}, false
+	}
+	entry, ok := e.Value.(dnsDecisionEntry)
+	if !ok {
+		return dnsDecision{}, false
+	}
+	if !now.Before(entry.decision.expires) {
+		c.lru.Remove(e)
+		delete(c.byName, name)
+		return dnsDecision{}, false
+	}
+	c.lru.MoveToFront(e)
+	return entry.decision, true
+}
+
+func (c *dnsDecisionCache) put(name string, decision dnsDecision) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if e, ok := c.byName[name]; ok {
+		e.Value = dnsDecisionEntry{name: name, decision: decision}
+		c.lru.MoveToFront(e)
+		return
+	}
+	e := c.lru.PushFront(dnsDecisionEntry{name: name, decision: decision})
+	c.byName[name] = e
+	for c.lru.Len() > c.max {
+		oldest := c.lru.Back()
+		entry, ok := oldest.Value.(dnsDecisionEntry)
+		if !ok {
+			c.lru.Remove(oldest)
+			continue
+		}
+		delete(c.byName, entry.name)
+		c.lru.Remove(oldest)
+	}
+}
+
+func (s *dnsServer) answerAddress(ctx context.Context, hdr dnsmessage.Header, q dnsmessage.Question, msg []byte, name string) []byte {
+	now := s.clock.Now("dns_decision")
+	decision, ok := s.decisions.get(name, now)
+	if !ok {
+		exchangeCtx, cancel := context.WithTimeout(ctx, dnsExchangeTimeout)
+		resp, err := s.relay.exchange(exchangeCtx, msg)
+		cancel()
+		if err != nil {
+			s.warnForwardFailure(ctx, name, q.Type, err)
+			return dnsReply(hdr, &q, dnsmessage.RCodeServerFailure)
+		}
+		decision, err = parseDNSDecision(resp, now)
+		if err != nil {
+			s.warnForwardFailure(ctx, name, q.Type, err)
+			return dnsReply(hdr, &q, dnsmessage.RCodeServerFailure)
+		}
+		if decision.rcode == dnsmessage.RCodeSuccess || decision.rcode == dnsmessage.RCodeRefused || decision.rcode == dnsmessage.RCodeNameError {
+			s.decisions.put(name, decision)
+		}
+	}
+	if decision.rcode != dnsmessage.RCodeSuccess {
+		return dnsReply(hdr, &q, decision.rcode)
+	}
+	if q.Type == dnsmessage.TypeAAAA {
+		// An empty AAAA answer forces dual-stack clients onto the fake IPv4
+		// path. IPv6-only destinations still work because the exit node
+		// resolves the hostname from the CONNECT target itself.
+		return dnsReply(hdr, &q, dnsmessage.RCodeSuccess)
+	}
+	addr, err := s.fake.Allocate(name)
+	if err != nil {
+		s.warnForwardFailure(ctx, name, q.Type, err)
+		return dnsReply(hdr, &q, dnsmessage.RCodeServerFailure)
+	}
+	return dnsReply(hdr, &q, dnsmessage.RCodeSuccess, dnsmessage.Resource{
+		Header: dnsmessage.ResourceHeader{Name: q.Name, Class: dnsmessage.ClassINET, TTL: decision.ttl},
+		Body:   &dnsmessage.AResource{A: addr.As4()},
+	})
+}
+
+func parseDNSDecision(resp []byte, now time.Time) (dnsDecision, error) {
+	var msg dnsmessage.Message
+	if err := msg.Unpack(resp); err != nil {
+		return dnsDecision{}, xerrors.Errorf("parse exit node dns response: %w", err)
+	}
+	ttl := uint32(dnsMaxTTL / time.Second)
+	for _, resource := range slices.Concat(msg.Answers, msg.Authorities, msg.Additionals) {
+		ttl = min(ttl, resource.Header.TTL)
+	}
+	ttl = min(max(ttl, uint32(dnsMinTTL/time.Second)), uint32(dnsMaxTTL/time.Second))
+	return dnsDecision{rcode: msg.RCode, ttl: ttl, expires: now.Add(time.Duration(ttl) * time.Second)}, nil
+}
+
+func (s *dnsServer) warnForwardFailure(ctx context.Context, name string, typ dnsmessage.Type, err error) {
+	s.warnMu.Lock()
+	now := s.clock.Now("dns_warning")
+	if now.Before(s.warnAt) {
+		s.warnMu.Unlock()
+		return
+	}
+	s.warnAt = now.Add(dnsWarnInterval)
+	s.warnMu.Unlock()
+	s.logger.Warn(ctx, "dns decision through exit node failed",
+		slog.F("name", name), slog.F("type", typ.String()), slog.Error(err))
 }
 
 type dnsExchanger func(ctx context.Context, msg []byte) ([]byte, error)

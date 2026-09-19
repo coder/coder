@@ -2274,12 +2274,33 @@ func (a *agent) dialTailnetTCP(ctx context.Context, addr netip.AddrPort) (net.Co
 // updateEgress reconciles the running egress proxy and enforcer with cfg.
 // A nil cfg stops both. An unchanged cfg is a no-op so reconnects do not
 // disturb established tunnels.
+func egressChangeRequiresRestart(old, next agentsdk.EgressConfig) bool {
+	return old.Enforce != next.Enforce || !slices.Equal(old.ControlPlaneHosts, next.ControlPlaneHosts)
+}
+
 func (a *agent) updateEgress(ctx context.Context, cfg *agentsdk.EgressConfig) {
 	a.egressMu.Lock()
 	defer a.egressMu.Unlock()
 
 	if a.egressProxy != nil {
-		if cfg != nil && agentegress.ConfigEqual(a.egressProxy.Config(), *cfg) {
+		if cfg == nil {
+			a.stopEgressLocked(ctx)
+			return
+		}
+		old := a.egressProxy.Config()
+		if agentegress.ConfigEqual(old, *cfg) {
+			return
+		}
+		logger := a.logger.Named("egress")
+		if !egressChangeRequiresRestart(old, *cfg) {
+			if err := a.egressProxy.Update(*cfg, a.egressExemptHosts(*cfg)); err != nil {
+				logger.Error(ctx, "update egress proxy configuration", slog.Error(err))
+			}
+			return
+		}
+		if a.egressEnforcer != nil {
+			logger.Warn(ctx, "egress configuration requires a workspace restart because enforcement rules are locked",
+				slog.F("old_enforce", old.Enforce), slog.F("new_enforce", cfg.Enforce))
 			return
 		}
 		a.stopEgressLocked(ctx)
@@ -2350,7 +2371,18 @@ func (a *agent) updateEgress(ctx context.Context, cfg *agentsdk.EgressConfig) {
 func (a *agent) egressExemptHosts(cfg agentsdk.EgressConfig) []string {
 	hosts := append([]string(nil), cfg.ControlPlaneHosts...)
 	if client, ok := a.client.(*agentsdk.Client); ok && client.SDK.URL != nil {
-		hosts = append(hosts, client.SDK.URL.Host)
+		port := client.SDK.URL.Port()
+		if port == "" {
+			switch strings.ToLower(client.SDK.URL.Scheme) {
+			case "https":
+				port = "443"
+			case "http":
+				port = "80"
+			}
+		}
+		if host := client.SDK.URL.Hostname(); host != "" && port != "" {
+			hosts = append(hosts, "tcp/"+net.JoinHostPort(host, port))
+		}
 	}
 	return hosts
 }

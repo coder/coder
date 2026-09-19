@@ -25,6 +25,7 @@ import (
 
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
+	"github.com/coder/coder/v2/tailnet"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
 )
@@ -76,6 +77,9 @@ type fakeExitNode struct {
 	// dnsReverseBatch, when > 1, holds that many DNS queries and answers
 	// them in reverse order to exercise message ID correlation.
 	dnsReverseBatch int
+	// dnsResponse customizes DNS answers. The default is a successful TXT
+	// answer with a 60 second TTL.
+	dnsResponse func(query []byte) []byte
 
 	mu       sync.Mutex
 	connects []connectRecord
@@ -151,7 +155,11 @@ func (f *fakeExitNode) handle(conn net.Conn) {
 		}
 		slices.Reverse(batch)
 		for _, query := range batch {
-			if writeFrame(conn, dnsAnswer(query, &dnsmessage.TXTResource{TXT: []string{"via-exit-node"}})) != nil {
+			resp := dnsAnswer(query, &dnsmessage.TXTResource{TXT: []string{"via-exit-node"}})
+			if f.dnsResponse != nil {
+				resp = f.dnsResponse(query)
+			}
+			if writeFrame(conn, resp) != nil {
 				return
 			}
 		}
@@ -202,6 +210,7 @@ func startProxy(t testing.TB, exit *fakeExitNode, opts proxyOptions) *Proxy {
 	proxy, err := New(testutil.Logger(t), Options{
 		Dialer:            exit,
 		Config:            agentsdk.EgressConfig{ExitNodeIDs: []uuid.UUID{uuid.New()}, ExitNodePort: 3128},
+		ListenAddr:        "127.0.0.1:0",
 		ExemptHosts:       opts.exemptHosts,
 		UpstreamResolvers: opts.upstream,
 		Clock:             opts.clock,
@@ -538,6 +547,130 @@ func TestProxy_AbsoluteURI(t *testing.T) {
 	}
 }
 
+func TestProxy_Update(t *testing.T) {
+	t.Parallel()
+
+	firstID := uuid.New()
+	secondID := uuid.New()
+	seen := make(chan netip.AddrPort, 1)
+	dialer := DialerFunc(func(_ context.Context, addr netip.AddrPort) (net.Conn, error) {
+		seen <- addr
+		client, server := net.Pipe()
+		go func() {
+			defer server.Close()
+			req, err := http.ReadRequest(bufio.NewReader(server))
+			if err == nil {
+				_, _ = io.WriteString(server, established)
+				_ = req.Body.Close()
+			}
+		}()
+		return client, nil
+	})
+	proxy, err := New(testutil.Logger(t), Options{
+		Dialer: dialer,
+		Config: agentsdk.EgressConfig{ExitNodeIDs: []uuid.UUID{firstID}, ExitNodePort: 3128},
+	})
+	require.NoError(t, err)
+	require.True(t, proxy.isExempt("localhost"))
+	require.False(t, proxy.isExempt("new.example"))
+
+	next := agentsdk.EgressConfig{ExitNodeIDs: []uuid.UUID{secondID}, ExitNodePort: 4128}
+	require.NoError(t, proxy.Update(next, []string{"tcp/new.example:443"}))
+	require.Equal(t, next, proxy.Config())
+	require.True(t, proxy.isExempt("new.example"))
+
+	conn, err := proxy.connectUpstream(t.Context(), "example.com:443", codersdk.ExitNodeProtocolTCP)
+	require.NoError(t, err)
+	require.NoError(t, conn.Close())
+	want := netip.AddrPortFrom(tailnet.TailscaleServicePrefix.AddrFromUUID(secondID), 4128)
+	require.Equal(t, want, testutil.RequireReceive(t.Context(), t, seen))
+}
+
+func TestProxy_ConnectNegotiationFailover(t *testing.T) {
+	t.Parallel()
+
+	for _, tt := range []struct {
+		name       string
+		first      func(net.Conn)
+		wantSecond bool
+		wantDenied bool
+	}{
+		{
+			name: "hangs",
+			first: func(conn net.Conn) {
+				defer conn.Close()
+				_, _ = http.ReadRequest(bufio.NewReader(conn))
+				_, _ = io.Copy(io.Discard, conn)
+			},
+			wantSecond: true,
+		},
+		{
+			name: "eof",
+			first: func(conn net.Conn) {
+				_ = conn.Close()
+			},
+			wantSecond: true,
+		},
+		{
+			name: "forbidden",
+			first: func(conn net.Conn) {
+				defer conn.Close()
+				_, _ = http.ReadRequest(bufio.NewReader(conn))
+				_, _ = io.WriteString(conn, "HTTP/1.1 403 Forbidden\r\nContent-Length: 0\r\n\r\n")
+				_, _ = io.Copy(io.Discard, conn)
+			},
+			wantDenied: true,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			ids := []uuid.UUID{uuid.New(), uuid.New()}
+			addrs := []netip.AddrPort{
+				netip.AddrPortFrom(tailnet.TailscaleServicePrefix.AddrFromUUID(ids[0]), 3128),
+				netip.AddrPortFrom(tailnet.TailscaleServicePrefix.AddrFromUUID(ids[1]), 3128),
+			}
+			var mu sync.Mutex
+			var dialed []netip.AddrPort
+			dialer := DialerFunc(func(_ context.Context, addr netip.AddrPort) (net.Conn, error) {
+				mu.Lock()
+				dialed = append(dialed, addr)
+				mu.Unlock()
+				client, server := net.Pipe()
+				if addr == addrs[0] {
+					go tt.first(server)
+				} else {
+					go func() {
+						defer server.Close()
+						_, _ = http.ReadRequest(bufio.NewReader(server))
+						_, _ = io.WriteString(server, established)
+					}()
+				}
+				return client, nil
+			})
+			proxy, err := New(testutil.Logger(t), Options{
+				Dialer:         dialer,
+				Config:         agentsdk.EgressConfig{ExitNodeIDs: ids, ExitNodePort: 3128},
+				ConnectTimeout: time.Second,
+			})
+			require.NoError(t, err)
+			conn, err := proxy.connectUpstream(t.Context(), "example.com:443", codersdk.ExitNodeProtocolTCP)
+			if tt.wantDenied {
+				require.ErrorAs(t, err, new(*DeniedError))
+			} else {
+				require.NoError(t, err)
+				require.NoError(t, conn.Close())
+			}
+			mu.Lock()
+			defer mu.Unlock()
+			if tt.wantSecond {
+				require.Equal(t, addrs, dialed)
+			} else {
+				require.Equal(t, addrs[:1], dialed)
+			}
+		})
+	}
+}
+
 func TestProxy_CloseStopsListening(t *testing.T) {
 	t.Parallel()
 
@@ -579,6 +712,13 @@ func TestNew_Validation(t *testing.T) {
 		FakeIPMaxEntries: -1,
 	})
 	require.ErrorContains(t, err, "fake IP max entries")
+
+	_, err = New(testutil.Logger(t), Options{
+		Dialer:      exit,
+		Config:      agentsdk.EgressConfig{ExitNodeIDs: []uuid.UUID{uuid.New()}, ExitNodePort: 3128},
+		ExemptHosts: []string{"coder.example.com:443"},
+	})
+	require.ErrorContains(t, err, "parse exempt host")
 
 	for _, tt := range []struct {
 		name    string

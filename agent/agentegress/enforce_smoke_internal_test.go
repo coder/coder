@@ -10,12 +10,15 @@ import (
 	"net/http/httptest"
 	"net/netip"
 	"os"
+	"os/exec"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/net/dns/dnsmessage"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/testutil"
 )
@@ -34,6 +37,56 @@ func TestEnforcer_Iptables(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitLong)
 	testEnforcerInstallRemove(ctx, t)
 	testEnforcerTransparentRedirect(ctx, t)
+	testCapabilityLockdownChildren(ctx, t)
+}
+
+func testCapabilityLockdownChildren(ctx context.Context, t *testing.T) {
+	t.Helper()
+	// #nosec G204 -- os.Args[0] is the currently running test binary.
+	cmd := exec.CommandContext(ctx, os.Args[0], "-test.run", "^TestCapabilityLockdownHelper$")
+	cmd.Env = append(os.Environ(), "CODER_CAPABILITY_LOCKDOWN_HELPER=1")
+	output, err := cmd.CombinedOutput()
+	require.NoError(t, err, string(output))
+}
+
+func TestCapabilityLockdownHelper(t *testing.T) {
+	t.Parallel()
+	if os.Getenv("CODER_CAPABILITY_LOCKDOWN_HELPER") != "1" {
+		t.Skip("helper process")
+	}
+	require.NoError(t, lockdownNetAdmin())
+
+	const children = 8
+	results := make(chan error, children)
+	var wg sync.WaitGroup
+	for range children {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			output, err := exec.Command("sh", "-c", "grep '^Cap\\(Bnd\\|Prm\\|Eff\\):' /proc/self/status").CombinedOutput()
+			if err != nil {
+				results <- xerrors.Errorf("read child capabilities: %w: %s", err, output)
+				return
+			}
+			caps, err := statusCapabilities(output)
+			if err != nil {
+				results <- xerrors.Errorf("parse child capabilities: %w", err)
+				return
+			}
+			for _, name := range []string{"CapBnd", "CapPrm", "CapEff"} {
+				if caps[name]&netAdminCapabilityMask != 0 {
+					results <- xerrors.Errorf("child retained CAP_NET_ADMIN in %s", name)
+					return
+				}
+			}
+			results <- nil
+		}()
+	}
+	wg.Wait()
+	close(results)
+	for err := range results {
+		require.NoError(t, err)
+	}
 }
 
 // testEnforcerInstallRemove checks rule contents, idempotency and cleanup.
@@ -43,7 +96,7 @@ func testEnforcerInstallRemove(ctx context.Context, t *testing.T) {
 		ProxyPort:               40123,
 		DNSPort:                 40124,
 		UDPPort:                 40125,
-		ControlPlaneHosts:       []string{"198.51.100.7:443", "203.0.113.10"},
+		ControlPlaneHosts:       []string{"tcp/198.51.100.7:443", "udp/203.0.113.10:41641"},
 		Resolvers:               []netip.Addr{netip.MustParseAddr("192.0.2.53")},
 		LockdownCapabilities:    false,
 		LockdownCapabilitiesSet: true,
@@ -65,9 +118,7 @@ func testEnforcerInstallRemove(ctx context.Context, t *testing.T) {
 	for _, want := range []string{
 		"-A CODER_EGRESS -o lo -j RETURN",
 		"-A CODER_EGRESS -d 198.51.100.7/32 -p tcp -m tcp --dport 443 -j RETURN",
-		"-A CODER_EGRESS -d 198.51.100.7/32 -p udp -m udp --dport 443 -j RETURN",
-		"-A CODER_EGRESS -d 203.0.113.10/32 -p tcp -j RETURN",
-		"-A CODER_EGRESS -d 203.0.113.10/32 -p udp -j RETURN",
+		"-A CODER_EGRESS -d 203.0.113.10/32 -p udp -m udp --dport 41641 -j RETURN",
 		"-A CODER_EGRESS -d 192.0.2.53/32 -p tcp -m tcp --dport 53 -j RETURN",
 		"-A CODER_EGRESS -p udp -m udp --dport 53 -j REDIRECT --to-ports 40124",
 		"-A CODER_EGRESS -p tcp -m tcp --dport 53 -j REDIRECT --to-ports 40124",
@@ -128,7 +179,7 @@ func testEnforcerTransparentRedirect(ctx context.Context, t *testing.T) {
 	t.Cleanup(origin.Close)
 	exit := newFakeExitNode(t, func(got string) (string, bool) {
 		switch got {
-		case target, "192.0.2.1:9999", "192.0.2.1:9998":
+		case target, "192.0.2.1:9999", "192.0.2.1:9998", dnsRelayTarget:
 			return "", false
 		default:
 			return "unexpected destination", true

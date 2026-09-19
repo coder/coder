@@ -35,6 +35,10 @@ import (
 
 const (
 	defaultListenHost       = "127.0.0.1"
+	defaultProxyPort        = 41280
+	defaultDNSPort          = 41253
+	defaultUDPPort          = 41254
+	defaultConnectTimeout   = 10 * time.Second
 	defaultHostSniffTimeout = 500 * time.Millisecond
 	unknownFakeLogInterval  = 30 * time.Second
 )
@@ -69,11 +73,17 @@ type Options struct {
 	Dialer Dialer
 	// Config is the egress configuration from the agent manifest.
 	Config agentsdk.EgressConfig
-	// ListenAddr is the local address for the TCP proxy. Defaults to
-	// 127.0.0.1:0 (an ephemeral port). The proxy must stay on loopback: it
-	// performs no authentication. The DNS and UDP listeners bind ephemeral
-	// ports on the same host.
+	// ListenAddr overrides the local address for the TCP proxy. When empty,
+	// ProxyPort is bound on 127.0.0.1, falling back to an ephemeral port if the
+	// fixed port is unavailable. The proxy must stay on loopback because it
+	// performs no authentication.
 	ListenAddr string
+	// ProxyPort is the preferred TCP proxy port. It defaults to 41280.
+	ProxyPort uint16
+	// DNSPort is the preferred DNS TCP and UDP port. It defaults to 41253.
+	DNSPort uint16
+	// UDPPort is the preferred redirected UDP port. It defaults to 41254.
+	UDPPort uint16
 	// ExemptHosts are host[:port] destinations that bypass the exit node.
 	// Their names are resolved by the system resolvers instead of being
 	// given fake addresses. Control plane hosts should be included.
@@ -86,10 +96,16 @@ type Options struct {
 	// HostSniffTimeout bounds transparent connection host detection. It
 	// defaults to 500ms. A negative value disables sniffing.
 	HostSniffTimeout time.Duration
+	// ConnectTimeout bounds CONNECT request and response negotiation with an
+	// exit node. It defaults to 10 seconds.
+	ConnectTimeout time.Duration
 	// FakeIPMaxEntries bounds cached DNS name mappings. It defaults to 65536.
 	// Smaller values use less memory but increase churn for short-lived DNS
 	// answers. Active connection mappings remain pinned beyond this limit.
 	FakeIPMaxEntries int
+	// FakeIPPinnedMaxEntries caps mappings retained by active connections. It
+	// defaults to FakeIPMaxEntries.
+	FakeIPPinnedMaxEntries int
 }
 
 // Proxy is the local egress proxy. One loopback TCP listener serves both
@@ -98,17 +114,21 @@ type Options struct {
 // listener hands out fake addresses so redirected flows can be tunneled by
 // name, and a UDP listener relays redirected datagrams.
 type Proxy struct {
-	logger       slog.Logger
-	dialer       Dialer
-	cfg          agentsdk.EgressConfig
-	exitNodes    *exitNodeSelector
-	listen       string
-	clock        quartz.Clock
-	sniffTimeout time.Duration
+	logger         slog.Logger
+	dialer         Dialer
+	configMu       sync.RWMutex
+	cfg            agentsdk.EgressConfig
+	exitNodes      *exitNodeSelector
+	exemptNames    map[string]struct{}
+	listen         string
+	dnsPort        uint16
+	udpPort        uint16
+	clock          quartz.Clock
+	connectTimeout time.Duration
+	sniffTimeout   time.Duration
 
-	fake        *fakeIPPool
-	exemptNames map[string]struct{}
-	upstream    []netip.AddrPort
+	fake     *fakeIPPool
+	upstream []netip.AddrPort
 	// udpOrigDst decodes the original destination of a redirected datagram.
 	// Tests replace it because only netfilter can produce a real one.
 	udpOrigDst func(oob []byte) netip.AddrPort
@@ -132,70 +152,118 @@ type Proxy struct {
 // connectFunc opens a CONNECT tunnel to target carrying proto.
 type connectFunc func(ctx context.Context, target string, proto codersdk.ExitNodeProtocol) (net.Conn, error)
 
+func exemptNameSet(hosts []string) (map[string]struct{}, error) {
+	exempt := make(map[string]struct{}, len(builtinExemptNames)+len(hosts))
+	for _, name := range builtinExemptNames {
+		exempt[name] = struct{}{}
+	}
+	for _, value := range hosts {
+		parsed, err := ParseExemption(value)
+		if err != nil {
+			return nil, xerrors.Errorf("parse exempt host: %w", err)
+		}
+		host := normalizeName(parsed.Host)
+		if _, err := netip.ParseAddr(host); err == nil {
+			continue
+		}
+		exempt[host] = struct{}{}
+	}
+	return exempt, nil
+}
+
+func exitNodeAddrs(cfg agentsdk.EgressConfig) ([]netip.AddrPort, error) {
+	if len(cfg.ExitNodeIDs) == 0 {
+		return nil, xerrors.New("at least one exit node ID is required")
+	}
+	if cfg.ExitNodePort <= 0 || cfg.ExitNodePort > 65535 {
+		return nil, xerrors.Errorf("invalid exit node port %d", cfg.ExitNodePort)
+	}
+	exitNodes := make([]netip.AddrPort, 0, len(cfg.ExitNodeIDs))
+	for _, id := range cfg.ExitNodeIDs {
+		if id == uuid.Nil {
+			return nil, xerrors.New("exit node ID is required")
+		}
+		exitNodes = append(exitNodes, netip.AddrPortFrom(
+			tailnet.TailscaleServicePrefix.AddrFromUUID(id),
+			// #nosec G115 -- range validated above.
+			uint16(cfg.ExitNodePort),
+		))
+	}
+	return exitNodes, nil
+}
+
 // New validates the options and returns a Proxy that is not yet listening.
 func New(logger slog.Logger, opts Options) (*Proxy, error) {
 	if opts.Dialer == nil {
 		return nil, xerrors.New("dialer is required")
 	}
-	if len(opts.Config.ExitNodeIDs) == 0 {
-		return nil, xerrors.New("at least one exit node ID is required")
-	}
-	for _, id := range opts.Config.ExitNodeIDs {
-		if id == uuid.Nil {
-			return nil, xerrors.New("exit node ID is required")
-		}
-	}
-	if opts.Config.ExitNodePort <= 0 || opts.Config.ExitNodePort > 65535 {
-		return nil, xerrors.Errorf("invalid exit node port %d", opts.Config.ExitNodePort)
+	exitNodes, err := exitNodeAddrs(opts.Config)
+	if err != nil {
+		return nil, err
 	}
 	if opts.FakeIPMaxEntries < 0 {
 		return nil, xerrors.New("fake IP max entries must not be negative")
+	}
+	if opts.FakeIPPinnedMaxEntries < 0 {
+		return nil, xerrors.New("fake IP pinned max entries must not be negative")
 	}
 	fakeIPMax := opts.FakeIPMaxEntries
 	if fakeIPMax == 0 {
 		fakeIPMax = fakeIPMaxEntries
 	}
+	pinnedMax := opts.FakeIPPinnedMaxEntries
+	if pinnedMax == 0 {
+		pinnedMax = fakeIPMax
+	}
+	if pinnedMax < fakeIPMax {
+		return nil, xerrors.New("fake IP pinned max entries must be at least fake IP max entries")
+	}
+	connectTimeout := opts.ConnectTimeout
+	if connectTimeout == 0 {
+		connectTimeout = defaultConnectTimeout
+	}
+	if connectTimeout < 0 {
+		return nil, xerrors.New("connect timeout must not be negative")
+	}
 	sniffTimeout := opts.HostSniffTimeout
 	if sniffTimeout == 0 {
 		sniffTimeout = defaultHostSniffTimeout
 	}
-	exempt := make(map[string]struct{})
-	for _, name := range builtinExemptNames {
-		exempt[name] = struct{}{}
-	}
-	for _, hostport := range opts.ExemptHosts {
-		host := normalizeName(stripPort(hostport))
-		if _, err := netip.ParseAddr(host); host == "" || err == nil {
-			continue
-		}
-		exempt[host] = struct{}{}
-	}
-	exitNodes := make([]netip.AddrPort, 0, len(opts.Config.ExitNodeIDs))
-	for _, id := range opts.Config.ExitNodeIDs {
-		exitNodes = append(exitNodes, netip.AddrPortFrom(
-			tailnet.TailscaleServicePrefix.AddrFromUUID(id),
-			// #nosec G115 -- range validated above.
-			uint16(opts.Config.ExitNodePort),
-		))
+	exempt, err := exemptNameSet(opts.ExemptHosts)
+	if err != nil {
+		return nil, err
 	}
 	p := &Proxy{
-		logger:       logger,
-		dialer:       opts.Dialer,
-		cfg:          opts.Config,
-		clock:        opts.Clock,
-		exitNodes:    newExitNodeSelector(logger, opts.Clock, exitNodes),
-		listen:       opts.ListenAddr,
-		sniffTimeout: sniffTimeout,
-		fake:         newFakeIPPool(fakeIPPrefix, fakeIPMax),
-		exemptNames:  exempt,
-		upstream:     opts.UpstreamResolvers,
-		udpOrigDst:   udpOriginalDst,
+		logger:         logger,
+		dialer:         opts.Dialer,
+		cfg:            opts.Config,
+		clock:          opts.Clock,
+		exitNodes:      newExitNodeSelector(logger, opts.Clock, exitNodes),
+		listen:         opts.ListenAddr,
+		dnsPort:        opts.DNSPort,
+		udpPort:        opts.UDPPort,
+		connectTimeout: connectTimeout,
+		sniffTimeout:   sniffTimeout,
+		fake:           newFakeIPPool(fakeIPPrefix, fakeIPMax, pinnedMax),
+		exemptNames:    exempt,
+		upstream:       opts.UpstreamResolvers,
+		udpOrigDst:     udpOriginalDst,
 	}
 	if p.clock == nil {
 		p.clock = quartz.NewReal()
 	}
 	if p.listen == "" {
-		p.listen = net.JoinHostPort(defaultListenHost, "0")
+		port := opts.ProxyPort
+		if port == 0 {
+			port = defaultProxyPort
+		}
+		p.listen = net.JoinHostPort(defaultListenHost, strconv.Itoa(int(port)))
+	}
+	if p.dnsPort == 0 {
+		p.dnsPort = defaultDNSPort
+	}
+	if p.udpPort == 0 {
+		p.udpPort = defaultUDPPort
 	}
 	return p, nil
 }
@@ -213,8 +281,19 @@ func (p *Proxy) Start(ctx context.Context) error {
 	}
 	var lc net.ListenConfig
 	ln, err := lc.Listen(ctx, "tcp", p.listen)
+	preferredErr := err
 	if err != nil {
-		return xerrors.Errorf("listen on %s: %w", p.listen, err)
+		host, _, splitErr := net.SplitHostPort(p.listen)
+		if splitErr != nil {
+			return xerrors.Errorf("listen on %s: %w", p.listen, err)
+		}
+		fallback := net.JoinHostPort(host, "0")
+		p.logger.Warn(ctx, "preferred egress proxy port unavailable, using ephemeral port",
+			slog.F("listen_addr", p.listen), slog.Error(err))
+		ln, err = lc.Listen(ctx, "tcp", fallback)
+		if err != nil {
+			return xerrors.Errorf("listen on %s: %w; fallback on %s: %w", p.listen, preferredErr, fallback, err)
+		}
 	}
 	addr, err := addrPortOf(ln.Addr())
 	if err != nil {
@@ -230,13 +309,15 @@ func (p *Proxy) Start(ctx context.Context) error {
 		}
 	}
 	dns := &dnsServer{
-		logger:   p.logger.Named("dns"),
-		fake:     p.fake,
-		exempt:   p.isExempt,
-		upstream: upstream,
-		relay:    newDNSRelay(p.logger.Named("dns"), p.connectUpstream),
+		logger:    p.logger.Named("dns"),
+		fake:      p.fake,
+		exempt:    p.isExempt,
+		upstream:  upstream,
+		relay:     newDNSRelay(p.logger.Named("dns"), p.connectUpstream),
+		clock:     p.clock,
+		decisions: newDNSDecisionCache(dnsDecisionCacheSize),
 	}
-	if err := dns.listen(ctx, host); err != nil {
+	if err := dns.listen(ctx, host, p.dnsPort); err != nil {
 		_ = ln.Close()
 		return err
 	}
@@ -247,7 +328,7 @@ func (p *Proxy) Start(ctx context.Context) error {
 		target:  p.target,
 		origDst: p.udpOrigDst,
 	}
-	if err := udp.listen(ctx, host); err != nil {
+	if err := udp.listen(ctx, host, p.udpPort); err != nil {
 		_ = ln.Close()
 		dns.close()
 		return err
@@ -291,9 +372,31 @@ func (p *Proxy) UDPAddr() netip.AddrPort {
 	return p.udp.addr
 }
 
-// Config returns the egress configuration the proxy was started with.
+// Config returns the current egress configuration.
 func (p *Proxy) Config() agentsdk.EgressConfig {
+	p.configMu.RLock()
+	defer p.configMu.RUnlock()
 	return p.cfg
+}
+
+// Update atomically changes the exit node selector and exempt host set without
+// disturbing listeners or in-flight tunnels.
+func (p *Proxy) Update(cfg agentsdk.EgressConfig, exemptHosts []string) error {
+	exitNodes, err := exitNodeAddrs(cfg)
+	if err != nil {
+		return err
+	}
+	exempt, err := exemptNameSet(exemptHosts)
+	if err != nil {
+		return err
+	}
+	selector := newExitNodeSelector(p.logger, p.clock, exitNodes)
+	p.configMu.Lock()
+	p.cfg = cfg
+	p.exitNodes = selector
+	p.exemptNames = exempt
+	p.configMu.Unlock()
+	return nil
 }
 
 // ConfigEqual reports whether two egress configurations would produce the
@@ -334,6 +437,8 @@ func (p *Proxy) Close() error {
 
 // isExempt reports whether name bypasses the exit node.
 func (p *Proxy) isExempt(name string) bool {
+	p.configMu.RLock()
+	defer p.configMu.RUnlock()
 	_, ok := p.exemptNames[normalizeName(name)]
 	return ok
 }
@@ -542,10 +647,45 @@ func (p *Proxy) connectUpstream(ctx context.Context, target string, proto coders
 }
 
 func (p *Proxy) connectUpstreamHost(ctx context.Context, target string, proto codersdk.ExitNodeProtocol, originalHost string) (net.Conn, error) {
-	upstream, _, err := p.exitNodes.dial(ctx, p.dialer)
-	if err != nil {
-		return nil, err
+	p.configMu.RLock()
+	selector := p.exitNodes
+	p.configMu.RUnlock()
+	var errs []error
+	for range selector.len() {
+		upstream, addr, err := selector.dial(ctx, p.dialer)
+		if err != nil {
+			errs = append(errs, err)
+			break
+		}
+		conn, responseRead, err := p.negotiateConnect(ctx, upstream, target, proto, originalHost)
+		if responseRead {
+			selector.markHealthy(ctx, addr)
+			return conn, err
+		}
+		selector.markFailure(addr)
+		errs = append(errs, xerrors.Errorf("negotiate CONNECT with %s: %w", addr, err))
+		if ctx.Err() != nil {
+			break
+		}
 	}
+	return nil, xerrors.Errorf("connect through exit nodes: %w", errors.Join(errs...))
+}
+
+func (p *Proxy) negotiateConnect(ctx context.Context, upstream net.Conn, target string, proto codersdk.ExitNodeProtocol, originalHost string) (net.Conn, bool, error) {
+	defer func() {
+		if upstream != nil {
+			_ = upstream.Close()
+		}
+	}()
+	deadline := time.Now().Add(p.connectTimeout)
+	if ctxDeadline, ok := ctx.Deadline(); ok && ctxDeadline.Before(deadline) {
+		deadline = ctxDeadline
+	}
+	if err := upstream.SetDeadline(deadline); err != nil {
+		return nil, false, xerrors.Errorf("set CONNECT deadline: %w", err)
+	}
+	stop := context.AfterFunc(ctx, func() { _ = upstream.Close() })
+	defer stop()
 	connectReq := &http.Request{
 		Method: http.MethodConnect,
 		URL:    &url.URL{Opaque: target},
@@ -559,29 +699,29 @@ func (p *Proxy) connectUpstreamHost(ctx context.Context, target string, proto co
 		connectReq.Header.Set(codersdk.ExitNodeProtocolHeader, string(proto))
 	}
 	if err := connectReq.Write(upstream); err != nil {
-		_ = upstream.Close()
-		return nil, xerrors.Errorf("write CONNECT to exit node: %w", err)
+		return nil, false, xerrors.Errorf("write CONNECT to exit node: %w", err)
 	}
 	br := bufio.NewReader(upstream)
 	resp, err := http.ReadResponse(br, connectReq)
 	if err != nil {
-		_ = upstream.Close()
-		return nil, xerrors.Errorf("read CONNECT response from exit node: %w", err)
+		return nil, false, xerrors.Errorf("read CONNECT response from exit node: %w", err)
 	}
 	defer resp.Body.Close()
+	_ = upstream.SetDeadline(time.Time{})
+	stop()
 	switch resp.StatusCode {
 	case http.StatusOK:
-		return &bufferedConn{Conn: upstream, r: br}, nil
+		conn := &bufferedConn{Conn: upstream, r: br}
+		upstream = nil
+		return conn, true, nil
 	case http.StatusForbidden:
-		_ = upstream.Close()
-		return nil, &DeniedError{
+		return nil, true, &DeniedError{
 			Target: target,
 			Reason: resp.Header.Get(codersdk.ExitNodeDenyReasonHeader),
 			Rule:   resp.Header.Get(codersdk.ExitNodeDenyRuleHeader),
 		}
 	default:
-		_ = upstream.Close()
-		return nil, xerrors.Errorf("exit node responded %s to CONNECT %s", resp.Status, target)
+		return nil, true, xerrors.Errorf("exit node responded %s to CONNECT %s", resp.Status, target)
 	}
 }
 

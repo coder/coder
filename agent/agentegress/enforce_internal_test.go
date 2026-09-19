@@ -36,10 +36,10 @@ func TestBuildRules(t *testing.T) {
 
 	// Both families are always offered; each rule set must keep only its
 	// own.
-	exemptions := []netip.AddrPort{
-		netip.MustParseAddrPort("203.0.113.10:443"),
-		netip.AddrPortFrom(netip.MustParseAddr("198.51.100.7"), 0),
-		netip.MustParseAddrPort("[2001:db8::1]:443"),
+	exemptions := []resolvedExemption{
+		{Proto: "tcp", Addr: netip.MustParseAddr("203.0.113.10"), Port: 443},
+		{Proto: "udp", Addr: netip.MustParseAddr("198.51.100.7"), Port: 41641},
+		{Proto: "tcp", Addr: netip.MustParseAddr("2001:db8::1"), Port: 443},
 	}
 	resolvers := []netip.Addr{
 		netip.MustParseAddr("1.1.1.1"),
@@ -49,7 +49,7 @@ func TestBuildRules(t *testing.T) {
 	tests := []struct {
 		name       string
 		ports      proxyPorts
-		exemptions []netip.AddrPort
+		exemptions []resolvedExemption
 		resolvers  []netip.Addr
 		family     ipFamily
 		wantNat    []string
@@ -78,9 +78,7 @@ func TestBuildRules(t *testing.T) {
 			wantNat: []string{
 				"-A CODER_EGRESS -o lo -j RETURN",
 				"-A CODER_EGRESS -d 203.0.113.10 -p tcp --dport 443 -j RETURN",
-				"-A CODER_EGRESS -d 203.0.113.10 -p udp --dport 443 -j RETURN",
-				"-A CODER_EGRESS -d 198.51.100.7 -p tcp -j RETURN",
-				"-A CODER_EGRESS -d 198.51.100.7 -p udp -j RETURN",
+				"-A CODER_EGRESS -d 198.51.100.7 -p udp --dport 41641 -j RETURN",
 				"-A CODER_EGRESS -d 1.1.1.1 -p tcp --dport 53 -j RETURN",
 				"-A CODER_EGRESS -d 8.8.8.8 -p tcp --dport 53 -j RETURN",
 				"-A CODER_EGRESS -p udp --dport 53 -j REDIRECT --to-ports 40002",
@@ -102,7 +100,6 @@ func TestBuildRules(t *testing.T) {
 			wantNat: []string{
 				"-A CODER_EGRESS -o lo -j RETURN",
 				"-A CODER_EGRESS -d 2001:db8::1 -p tcp --dport 443 -j RETURN",
-				"-A CODER_EGRESS -d 2001:db8::1 -p udp --dport 443 -j RETURN",
 				"-A CODER_EGRESS -d 2606:4700:4700::1111 -p tcp --dport 53 -j RETURN",
 				"-A CODER_EGRESS -p udp --dport 53 -j REDIRECT --to-ports 8081",
 				"-A CODER_EGRESS -p tcp --dport 53 -j REDIRECT --to-ports 8081",
@@ -133,10 +130,10 @@ func TestBuildRules(t *testing.T) {
 func TestBuildTPROXYRules(t *testing.T) {
 	t.Parallel()
 
-	rs := buildTPROXYRules(proxyPorts{udp: 40003}, []netip.AddrPort{
-		netip.MustParseAddrPort("203.0.113.10:443"),
-		netip.AddrPortFrom(netip.MustParseAddr("198.51.100.7"), 0),
-		netip.MustParseAddrPort("[2001:db8::1]:443"),
+	rs := buildTPROXYRules(proxyPorts{udp: 40003}, []resolvedExemption{
+		{Proto: "tcp", Addr: netip.MustParseAddr("203.0.113.10"), Port: 443},
+		{Proto: "udp", Addr: netip.MustParseAddr("198.51.100.7"), Port: 41641},
+		{Proto: "udp", Addr: netip.MustParseAddr("2001:db8::1"), Port: 41641},
 	})
 	join := func(rules []rule) []string {
 		out := make([]string, 0, len(rules))
@@ -149,8 +146,7 @@ func TestBuildTPROXYRules(t *testing.T) {
 		"-A CODER_EGRESS_UDP -m mark --mark 0x4350 -j RETURN",
 		"-A CODER_EGRESS_UDP -o lo -j RETURN",
 		"-A CODER_EGRESS_UDP -d 127.0.0.0/8 -j RETURN",
-		"-A CODER_EGRESS_UDP -d 203.0.113.10 -p udp --dport 443 -j RETURN",
-		"-A CODER_EGRESS_UDP -d 198.51.100.7 -p udp -j RETURN",
+		"-A CODER_EGRESS_UDP -d 198.51.100.7 -p udp --dport 41641 -j RETURN",
 		"-A CODER_EGRESS_UDP -p udp --dport 53 -j RETURN",
 		"-A CODER_EGRESS_UDP -p udp -j MARK --set-mark 0x434f",
 	}, join(rs["output"]))
@@ -189,21 +185,20 @@ func TestResolveExemptions(t *testing.T) {
 		DNSPort:   2,
 		UDPPort:   3,
 		ControlPlaneHosts: []string{
-			"coder.example.com:443",
-			"198.51.100.7",
-			"[2001:db8::1]:8443",
-			"missing.example.com:443",
-			"coder.example.com:443",
-			"",
+			"tcp/coder.example.com:443",
+			"udp/198.51.100.7:41641",
+			"tcp/[2001:db8::1]:8443",
+			"tcp/missing.example.com:443",
+			"tcp/coder.example.com:443",
 		},
 		Resolver: mapResolver{
 			"coder.example.com": netip.MustParseAddr("203.0.113.10"),
 		},
 	})
 	require.NoError(t, err)
-	require.Equal(t, []netip.AddrPort{
-		netip.MustParseAddrPort("203.0.113.10:443"),
-		netip.AddrPortFrom(netip.MustParseAddr("198.51.100.7"), 0),
-		netip.MustParseAddrPort("[2001:db8::1]:8443"),
+	require.Equal(t, []resolvedExemption{
+		{Proto: "tcp", Addr: netip.MustParseAddr("203.0.113.10"), Port: 443},
+		{Proto: "udp", Addr: netip.MustParseAddr("198.51.100.7"), Port: 41641},
+		{Proto: "tcp", Addr: netip.MustParseAddr("2001:db8::1"), Port: 8443},
 	}, e.resolveExemptions(t.Context()))
 }

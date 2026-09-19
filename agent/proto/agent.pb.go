@@ -1413,8 +1413,8 @@ type EgressConfig struct {
 	ExitNodeIds  [][]byte `protobuf:"bytes,1,rep,name=exit_node_ids,json=exitNodeIds,proto3" json:"exit_node_ids,omitempty"`
 	ExitNodePort int32    `protobuf:"varint,2,opt,name=exit_node_port,json=exitNodePort,proto3" json:"exit_node_port,omitempty"`
 	Enforce      bool     `protobuf:"varint,3,opt,name=enforce,proto3" json:"enforce,omitempty"`
-	// control_plane_hosts are exempt from enforcement so the agent keeps
-	// reaching coderd, DERP relays, and the exit node itself.
+	// control_plane_hosts are direct-connect exemptions in proto/host:port
+	// format. Protocol and port are mandatory.
 	ControlPlaneHosts []string `protobuf:"bytes,4,rep,name=control_plane_hosts,json=controlPlaneHosts,proto3" json:"control_plane_hosts,omitempty"`
 }
 

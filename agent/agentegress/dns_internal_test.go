@@ -129,7 +129,7 @@ func TestDNS_FakeIPForA(t *testing.T) {
 	require.True(t, ok, "expected A record, got %T", answers[0].Body)
 	addr := netip.AddrFrom4(a.A)
 	require.True(t, fakeIPPrefix.Contains(addr), addr)
-	require.Equal(t, uint32(1), answers[0].Header.TTL)
+	require.Equal(t, uint32(60), answers[0].Header.TTL)
 	require.Equal(t, proxy.fake.Lookup("example.com"), addr)
 
 	// The same name over TCP yields the same address.
@@ -137,8 +137,8 @@ func TestDNS_FakeIPForA(t *testing.T) {
 	require.Len(t, tcpAnswers, 1)
 	require.Equal(t, answers[0].Body, tcpAnswers[0].Body)
 
-	// Nothing reached the exit node for these.
-	require.Empty(t, exit.connectsTo(dnsRelayTarget))
+	// The decision reached the exit node once and was cached for the TCP query.
+	require.Len(t, exit.connectsTo(dnsRelayTarget), 1)
 }
 
 func TestDNS_AAAAIsEmpty(t *testing.T) {
@@ -159,7 +159,7 @@ func TestDNS_ExemptAAAAForwardedUpstream(t *testing.T) {
 	upstream := newFakeUpstreamDNS(t, netip.MustParseAddr("203.0.113.6"))
 	exit := newFakeExitNode(t, nil)
 	proxy := startProxy(t, exit, proxyOptions{
-		exemptHosts: []string{"control.example.com"},
+		exemptHosts: []string{"tcp/control.example.com:443"},
 		upstream:    []netip.AddrPort{upstream.addr},
 	})
 	ctx := testutil.Context(t, testutil.WaitShort)
@@ -200,7 +200,7 @@ func TestDNS_ExemptNameForwardedUpstream(t *testing.T) {
 	upstream := newFakeUpstreamDNS(t, netip.MustParseAddr("203.0.113.5"))
 	exit := newFakeExitNode(t, nil)
 	proxy := startProxy(t, exit, proxyOptions{
-		exemptHosts: []string{"Coder.Example.com:443", "198.51.100.7"},
+		exemptHosts: []string{"tcp/Coder.Example.com:443", "tcp/198.51.100.7:443"},
 		upstream:    []netip.AddrPort{upstream.addr},
 	})
 	ctx := testutil.Context(t, testutil.WaitShort)
@@ -230,7 +230,7 @@ func TestDNS_UpstreamFailureIsServfail(t *testing.T) {
 
 	exit := newFakeExitNode(t, nil)
 	proxy := startProxy(t, exit, proxyOptions{
-		exemptHosts: []string{"coder.example.com"},
+		exemptHosts: []string{"tcp/coder.example.com:443"},
 		upstream:    []netip.AddrPort{dead},
 	})
 	ctx := testutil.Context(t, testutil.WaitShort)
@@ -288,10 +288,79 @@ func TestDNS_ExitNodeFailureIsServfail(t *testing.T) {
 
 	hdr, _ := dnsExchange(ctx, t, "udp", proxy.DNSAddr(), dnsQuery(t, 12, "example.org.", dnsmessage.TypeMX))
 	require.Equal(t, dnsmessage.RCodeServerFailure, hdr.RCode)
-	// A queries are unaffected by the relay being down.
 	hdr, answers := dnsExchange(ctx, t, "udp", proxy.DNSAddr(), dnsQuery(t, 13, "example.org.", dnsmessage.TypeA))
-	require.Equal(t, dnsmessage.RCodeSuccess, hdr.RCode)
-	require.Len(t, answers, 1)
+	require.Equal(t, dnsmessage.RCodeServerFailure, hdr.RCode)
+	require.Empty(t, answers)
+}
+
+func dnsResponse(query []byte, rcode dnsmessage.RCode, ttl uint32) []byte {
+	var m dnsmessage.Message
+	if err := m.Unpack(query); err != nil || len(m.Questions) != 1 {
+		return nil
+	}
+	m.Response, m.RecursionAvailable, m.RCode = true, true, rcode
+	if rcode == dnsmessage.RCodeSuccess {
+		m.Answers = []dnsmessage.Resource{{
+			Header: dnsmessage.ResourceHeader{Name: m.Questions[0].Name, Class: dnsmessage.ClassINET, TTL: ttl},
+			Body:   &dnsmessage.AResource{A: [4]byte{203, 0, 113, 1}},
+		}}
+	}
+	out, _ := m.Pack()
+	return out
+}
+
+func TestDNS_AddressPolicyDecision(t *testing.T) {
+	t.Parallel()
+
+	for _, tt := range []struct {
+		name      string
+		rcode     dnsmessage.RCode
+		ttl       uint32
+		wantRCode dnsmessage.RCode
+		wantTTL   uint32
+		wantA     bool
+	}{
+		{name: "refused", rcode: dnsmessage.RCodeRefused, ttl: 30, wantRCode: dnsmessage.RCodeRefused},
+		{name: "nxdomain", rcode: dnsmessage.RCodeNameError, ttl: 30, wantRCode: dnsmessage.RCodeNameError},
+		{name: "ttl minimum", rcode: dnsmessage.RCodeSuccess, ttl: 1, wantRCode: dnsmessage.RCodeSuccess, wantTTL: 5, wantA: true},
+		{name: "ttl maximum", rcode: dnsmessage.RCodeSuccess, ttl: 600, wantRCode: dnsmessage.RCodeSuccess, wantTTL: 300, wantA: true},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			exit := newFakeExitNode(t, nil)
+			exit.dnsResponse = func(query []byte) []byte { return dnsResponse(query, tt.rcode, tt.ttl) }
+			proxy := startProxy(t, exit, proxyOptions{})
+			ctx := testutil.Context(t, testutil.WaitShort)
+			hdr, answers := dnsExchange(ctx, t, "udp", proxy.DNSAddr(), dnsQuery(t, 20, "policy.example.", dnsmessage.TypeA))
+			require.Equal(t, tt.wantRCode, hdr.RCode)
+			if tt.wantA {
+				require.Len(t, answers, 1)
+				require.Equal(t, tt.wantTTL, answers[0].Header.TTL)
+				addr := netip.AddrFrom4(answers[0].Body.(*dnsmessage.AResource).A)
+				require.True(t, fakeIPPrefix.Contains(addr))
+			} else {
+				require.Empty(t, answers)
+			}
+		})
+	}
+}
+
+func TestDNS_AddressDecisionCache(t *testing.T) {
+	t.Parallel()
+
+	var exchanges int
+	exit := newFakeExitNode(t, nil)
+	exit.dnsResponse = func(query []byte) []byte {
+		exchanges++
+		return dnsResponse(query, dnsmessage.RCodeSuccess, 60)
+	}
+	proxy := startProxy(t, exit, proxyOptions{})
+	ctx := testutil.Context(t, testutil.WaitShort)
+	for _, id := range []uint16{30, 31} {
+		hdr, _ := dnsExchange(ctx, t, "udp", proxy.DNSAddr(), dnsQuery(t, id, "cached.example.", dnsmessage.TypeA))
+		require.Equal(t, dnsmessage.RCodeSuccess, hdr.RCode)
+	}
+	require.Equal(t, 1, exchanges)
 }
 
 func TestParseReverseName(t *testing.T) {

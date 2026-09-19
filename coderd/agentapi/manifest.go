@@ -207,28 +207,30 @@ func (a *ManifestAPI) egressConfig(ctx context.Context, templateID uuid.UUID, de
 	}, nil
 }
 
-// controlPlaneHosts lists the host[:port] destinations an agent must keep
-// reaching directly when egress enforcement is on: coderd itself, every DERP
-// and STUN server it may relay through, and the exit node's own WireGuard
-// endpoints. The result is deduplicated and sorted so the manifest is stable.
+// controlPlaneHosts lists the protocol and port specific destinations an agent
+// must keep reaching directly when egress enforcement is on. The result is
+// deduplicated and sorted so the manifest is stable.
 func controlPlaneHosts(accessURL *url.URL, derpMap *tailcfg.DERPMap, wireguardEndpoints []string) []string {
 	hosts := make(map[string]struct{})
-	// add records host and, when host is set, host:port for each positive
-	// port.
-	add := func(host string, ports ...int) {
-		if host == "" {
+	add := func(proto, host string, port int) {
+		if host == "" || port <= 0 || port > 65535 {
 			return
 		}
-		hosts[host] = struct{}{}
-		for _, port := range ports {
-			if port > 0 {
-				hosts[net.JoinHostPort(host, strconv.Itoa(port))] = struct{}{}
-			}
-		}
+		hosts[proto+"/"+net.JoinHostPort(host, strconv.Itoa(port))] = struct{}{}
 	}
 
 	if accessURL != nil {
-		add(accessURL.Host)
+		port := accessURL.Port()
+		if port == "" {
+			switch strings.ToLower(accessURL.Scheme) {
+			case "https":
+				port = "443"
+			case "http":
+				port = "80"
+			}
+		}
+		parsedPort, _ := strconv.Atoi(port)
+		add("tcp", accessURL.Hostname(), parsedPort)
 	}
 	if derpMap != nil {
 		for _, region := range derpMap.Regions {
@@ -236,21 +238,48 @@ func controlPlaneHosts(accessURL *url.URL, derpMap *tailcfg.DERPMap, wireguardEn
 				continue
 			}
 			for _, node := range region.Nodes {
-				if node != nil {
-					add(node.HostName, node.STUNPort, node.DERPPort)
-					// Tailscale uses "none" as an explicit sentinel for a
-					// missing address literal.
-					for _, ip := range []string{node.IPv4, node.IPv6} {
-						if ip != "none" {
-							add(ip)
-						}
+				if node == nil {
+					continue
+				}
+				derpPort := node.DERPPort
+				if derpPort == 0 {
+					if node.ForceHTTP {
+						derpPort = 80
+					} else {
+						derpPort = 443
+					}
+				}
+				stunPort := node.STUNPort
+				if stunPort == 0 {
+					stunPort = 3478
+				}
+				addresses := []string{node.HostName}
+				for _, ip := range []string{node.IPv4, node.IPv6} {
+					if ip != "" && ip != "none" {
+						addresses = append(addresses, ip)
+					}
+				}
+				for _, host := range addresses {
+					if !node.STUNOnly {
+						add("tcp", host, derpPort)
+					}
+					if node.STUNPort >= 0 {
+						add("udp", host, stunPort)
 					}
 				}
 			}
 		}
 	}
 	for _, endpoint := range wireguardEndpoints {
-		add(endpoint)
+		host, portString, err := net.SplitHostPort(endpoint)
+		if err != nil {
+			continue
+		}
+		port, err := strconv.Atoi(portString)
+		if err != nil {
+			continue
+		}
+		add("udp", host, port)
 	}
 	return slices.Sorted(maps.Keys(hosts))
 }

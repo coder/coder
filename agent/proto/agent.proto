@@ -109,8 +109,8 @@ message EgressConfig {
 	repeated bytes exit_node_ids = 1;
 	int32 exit_node_port = 2;
 	bool enforce = 3;
-	// control_plane_hosts are exempt from enforcement so the agent keeps
-	// reaching coderd, DERP relays, and the exit node itself.
+	// control_plane_hosts are direct-connect exemptions in proto/host:port
+	// format. Protocol and port are mandatory.
 	repeated string control_plane_hosts = 4;
 }
 

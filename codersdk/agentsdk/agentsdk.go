@@ -150,9 +150,9 @@ type EgressConfig struct {
 	// Enforce requests transparent redirection of all outbound TCP via
 	// netfilter. When false the agent only exposes an advisory proxy.
 	Enforce bool `json:"enforce"`
-	// ControlPlaneHosts are host[:port] destinations that must stay reachable
-	// directly (coderd access URL, DERP and STUN servers, exit node WireGuard
-	// endpoints). The agent exempts them from enforcement.
+	// ControlPlaneHosts are direct-connect exemptions in proto/host:port
+	// format, such as tcp/coder.example.com:443 or udp/1.2.3.4:41641.
+	// Protocol and port are mandatory.
 	ControlPlaneHosts []string `json:"control_plane_hosts"`
 }
 

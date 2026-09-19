@@ -14,12 +14,12 @@ func TestProxyEnv(t *testing.T) {
 
 	env := agentegress.ProxyEnv("127.0.0.1:3333", agentsdk.EgressConfig{
 		ControlPlaneHosts: []string{
-			"coder.example.com:443",
-			"stun.l.google.com:19302",
-			"[2001:db8::1]:443",
-			"derp.example.com",
-			"coder.example.com",
-			"127.0.0.1:8080",
+			"tcp/coder.example.com:443",
+			"udp/stun.l.google.com:19302",
+			"tcp/[2001:db8::1]:443",
+			"tcp/derp.example.com:443",
+			"udp/coder.example.com:41641",
+			"tcp/127.0.0.1:8080",
 		},
 	})
 

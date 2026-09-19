@@ -9,7 +9,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"golang.org/x/sys/unix"
 
 	"github.com/coder/coder/v2/pty"
 
@@ -42,14 +41,14 @@ func TestEnforcerCapabilityLockdown(t *testing.T) {
 	t.Parallel()
 
 	execer := &successfulExecer{}
-	var got [5]uintptr
+	called := false
 	e, err := NewEnforcer(testutil.Logger(t), EnforcerOptions{
 		Execer:    execer,
 		ProxyPort: 41001,
 		DNSPort:   41002,
 		UDPPort:   41003,
-		prctl: func(a, b, c, d, f uintptr) error {
-			got = [5]uintptr{a, b, c, d, f}
+		capabilityLockdown: func() error {
+			called = true
 			return nil
 		},
 	})
@@ -58,7 +57,7 @@ func TestEnforcerCapabilityLockdown(t *testing.T) {
 	t.Cleanup(func() { unregisterTransparentUDP(41003) })
 
 	require.NoError(t, e.Install(t.Context()))
-	require.Equal(t, [5]uintptr{unix.PR_CAPBSET_DROP, unix.CAP_NET_ADMIN, 0, 0, 0}, got)
+	require.True(t, called)
 	require.True(t, e.lockedDown)
 	before := execer.count()
 	require.NoError(t, e.Remove(t.Context()))
@@ -77,7 +76,7 @@ func TestEnforcerCapabilityLockdownDisabled(t *testing.T) {
 		UDPPort:                 42003,
 		LockdownCapabilities:    false,
 		LockdownCapabilitiesSet: true,
-		prctl: func(uintptr, uintptr, uintptr, uintptr, uintptr) error {
+		capabilityLockdown: func() error {
 			called = true
 			return nil
 		},
