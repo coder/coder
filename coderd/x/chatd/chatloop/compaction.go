@@ -3,6 +3,8 @@ package chatloop
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"net/http"
 	"strings"
 	"time"
 
@@ -96,6 +98,9 @@ type CompactionOptions struct {
 	ResolvedModel    string
 	ModelConfigID    uuid.UUID
 	SummaryCall      fantasy.Call
+	// ToolDefinitions is copied from the parent generation request so the
+	// summary call uses the exact same ordered definitions.
+	ToolDefinitions []fantasy.Tool
 
 	// Force skips the threshold gate (including the threshold=100
 	// disable and the zero-usage early return). Set for manual,
@@ -124,6 +129,8 @@ type CompactionResult struct {
 	UsagePercent     float64
 	ContextTokens    int64
 	ContextLimit     int64
+	// EstimatedContextTokens covers only SystemSummary, not the full prompt.
+	EstimatedContextTokens int64
 	// Runtime is the wall-clock duration of the summarization model
 	// call, the compaction step's billable runtime (see
 	// PersistedStep.Runtime). Zero when the run was gated off before
@@ -151,9 +158,7 @@ func GenerateCompaction(ctx context.Context, opts GenerateCompactionOptions) (Co
 	if contextTokens <= 0 && !config.Force {
 		return CompactionResult{}, nil
 	}
-	metadataLimit := extractContextLimit(opts.StepMetadata)
 	contextLimit := resolveContextLimit(
-		metadataLimit.Int64,
 		config.ContextLimit,
 		opts.ContextLimitFallback,
 	)
@@ -200,14 +205,16 @@ func GenerateCompaction(ctx context.Context, opts GenerateCompactionOptions) (Co
 		ContextLimit:     contextLimit,
 		Runtime:          summaryRuntime,
 	}
+	result.EstimatedContextTokens = int64((len(result.SystemSummary) + bytesPerTokenEstimate - 1) / bytesPerTokenEstimate)
 	if config.PublishMessagePart != nil && config.ToolCallID != "" {
 		resultJSON, _ := json.Marshal(map[string]any{
-			"summary":              summary,
-			"source":               config.Source,
-			"threshold_percent":    config.ThresholdPercent,
-			"usage_percent":        usagePercent,
-			"context_tokens":       contextTokens,
-			"context_limit_tokens": contextLimit,
+			"summary":                  summary,
+			"source":                   config.Source,
+			"threshold_percent":        config.ThresholdPercent,
+			"usage_percent":            usagePercent,
+			"context_tokens":           contextTokens,
+			"context_limit_tokens":     contextLimit,
+			"estimated_context_tokens": result.EstimatedContextTokens,
 		})
 		config.PublishMessagePart(
 			codersdk.ChatMessageRoleTool,
@@ -231,6 +238,7 @@ func normalizedCompactionGenerateConfig(opts GenerateCompactionOptions) (Compact
 		ResolvedModel:       opts.ResolvedModel,
 		ModelConfigID:       opts.ModelConfigID,
 		SummaryCall:         opts.SummaryCall,
+		ToolDefinitions:     opts.ToolDefinitions,
 		Force:               opts.Force,
 		Source:              opts.Source,
 		ToolCallID:          opts.ToolCallID,
@@ -300,13 +308,9 @@ func contextTokensFromUsage(usage fantasy.Usage) int64 {
 	return total
 }
 
-// resolveContextLimit picks the first positive value from metadata,
-// configured limit, and fallback — in that priority order. Returns
-// 0 when none are positive.
-func resolveContextLimit(metadataLimit, configLimit, fallback int64) int64 {
-	if metadataLimit > 0 {
-		return metadataLimit
-	}
+// resolveContextLimit returns the configured limit when positive, then
+// the fallback, or zero when neither is positive.
+func resolveContextLimit(configLimit, fallback int64) int64 {
 	if configLimit > 0 {
 		return configLimit
 	}
@@ -400,9 +404,6 @@ func startCompactionDebugRun(
 
 	return compactionCtx, func(runErr error) {
 		status := chatdebug.ClassifyError(runErr)
-		if runErr != nil && xerrors.Is(runErr, ErrInterrupted) {
-			status = chatdebug.StatusInterrupted
-		}
 		// Debug instrumentation must not surface as a compaction failure.
 		_ = options.DebugSvc.FinalizeRun(compactionCtx, chatdebug.FinalizeRunParams{
 			RunID:  run.ID,
@@ -433,6 +434,11 @@ func generateCompactionSummary(
 		Role:    fantasy.MessageRoleUser,
 		Content: summaryParts,
 	})
+	// Anthropic only reads the cache at explicit breakpoints, so without
+	// these the shared tool and history prefix is never a cache hit.
+	if shouldApplyAnthropicPromptCaching(model) {
+		addAnthropicPromptCaching(summaryPrompt)
+	}
 
 	summaryCtx, finishDebugRun := startCompactionDebugRun(ctx, options)
 	defer func() {
@@ -452,7 +458,17 @@ func generateCompactionSummary(
 
 	call := options.SummaryCall
 	call.Prompt = summaryPrompt
+	call.Tools = options.ToolDefinitions
 	response, err := model.Generate(summaryCtx, call)
+	if err != nil && len(call.Tools) > 0 && isContextTooLargeError(err) {
+		// Tool definitions keep the summary request on the parent turn's
+		// cacheable prefix, but they also make it larger than the turn
+		// that just overflowed. Compaction is the recovery path for an
+		// over-limit conversation, so fall back to the tool-less request,
+		// which still fits whenever the history alone does.
+		call.Tools = nil
+		response, err = model.Generate(summaryCtx, call)
+	}
 	if err != nil {
 		return "", xerrors.Errorf("generate summary text: %w", err)
 	}
@@ -470,4 +486,39 @@ func generateCompactionSummary(
 		parts = append(parts, text)
 	}
 	return strings.TrimSpace(strings.Join(parts, " ")), nil
+}
+
+// contextTooLargePhrases are context-window rejections fantasy does not
+// parse, such as the OpenAI Responses API "Your input exceeds the context
+// window of this model." and Anthropic-family "too long" rejections
+// without token counts. The response body is included so the OpenAI
+// error code "context_length_exceeded" matches regardless of wording.
+var contextTooLargePhrases = []string{
+	"context window",
+	"context length",
+	"context_length",
+	"too long",
+}
+
+// isContextTooLargeError reports whether a provider rejected a request for
+// its size: the prompt exceeded the model's context window, or the body
+// exceeded a request size limit on the provider or a gateway in front of it.
+func isContextTooLargeError(err error) bool {
+	providerErr, ok := errors.AsType[*fantasy.ProviderError](err)
+	if !ok {
+		return false
+	}
+	if providerErr.IsContextTooLarge() || providerErr.StatusCode == http.StatusRequestEntityTooLarge {
+		return true
+	}
+	if providerErr.StatusCode != http.StatusBadRequest {
+		return false
+	}
+	text := strings.ToLower(providerErr.Error() + " " + string(providerErr.ResponseBody))
+	for _, phrase := range contextTooLargePhrases {
+		if strings.Contains(text, phrase) {
+			return true
+		}
+	}
+	return false
 }

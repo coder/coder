@@ -40,64 +40,10 @@ func TestRunFromContextAbsent(t *testing.T) {
 	require.Nil(t, got)
 }
 
-func TestContextWithStepRoundTrip(t *testing.T) {
-	t.Parallel()
-
-	sc := &chatdebug.StepContext{
-		StepID:     uuid.New(),
-		RunID:      uuid.New(),
-		ChatID:     uuid.New(),
-		StepNumber: 7,
-		Operation:  chatdebug.OperationStream,
-	}
-
-	ctx := chatdebug.ContextWithStep(context.Background(), sc)
-	got, ok := chatdebug.StepFromContext(ctx)
-	require.True(t, ok)
-	require.Same(t, sc, got)
-	require.Equal(t, *sc, *got)
-}
-
-func TestStepFromContextAbsent(t *testing.T) {
-	t.Parallel()
-
-	got, ok := chatdebug.StepFromContext(context.Background())
-	require.False(t, ok)
-	require.Nil(t, got)
-}
-
-func TestContextWithRunAndStep(t *testing.T) {
-	t.Parallel()
-
-	rc := &chatdebug.RunContext{RunID: uuid.New(), ChatID: uuid.New()}
-	sc := &chatdebug.StepContext{StepID: uuid.New(), RunID: rc.RunID, ChatID: rc.ChatID}
-
-	ctx := chatdebug.ContextWithStep(
-		chatdebug.ContextWithRun(context.Background(), rc),
-		sc,
-	)
-
-	gotRun, ok := chatdebug.RunFromContext(ctx)
-	require.True(t, ok)
-	require.Same(t, rc, gotRun)
-
-	gotStep, ok := chatdebug.StepFromContext(ctx)
-	require.True(t, ok)
-	require.Same(t, sc, gotStep)
-}
-
 func TestContextWithRunPanicsOnNil(t *testing.T) {
 	t.Parallel()
 
 	require.Panics(t, func() {
 		_ = chatdebug.ContextWithRun(context.Background(), nil)
-	})
-}
-
-func TestContextWithStepPanicsOnNil(t *testing.T) {
-	t.Parallel()
-
-	require.Panics(t, func() {
-		_ = chatdebug.ContextWithStep(context.Background(), nil)
 	})
 }

@@ -1,9 +1,9 @@
 import { cn } from "cn";
-import type { ComponentProps, FC, HTMLAttributes } from "react";
+import type { ComponentProps, FC } from "react";
 import { Link, type LinkProps } from "react-router";
 import { TopbarIconButton } from "./Topbar";
 
-export const Sidebar: FC<HTMLAttributes<HTMLDivElement>> = (props) => {
+export const Sidebar: FC<ComponentProps<"div">> = (props) => {
 	return (
 		<div
 			// TODO: Remove extra border classes once MUI is removed
@@ -25,7 +25,7 @@ export const SidebarLink: FC<LinkProps> = ({ className, ...props }) => {
 	);
 };
 
-interface SidebarItemProps extends HTMLAttributes<HTMLButtonElement> {
+interface SidebarItemProps extends ComponentProps<"button"> {
 	isActive?: boolean;
 }
 
@@ -46,7 +46,7 @@ export const SidebarItem: FC<SidebarItemProps> = ({
 	);
 };
 
-export const SidebarCaption: FC<HTMLAttributes<HTMLSpanElement>> = (props) => {
+export const SidebarCaption: FC<ComponentProps<"span">> = (props) => {
 	return (
 		<span
 			className="text-[10px] leading-tight py-3 px-4 uppercase font-medium text-content-primary tracking-widest"
@@ -55,11 +55,12 @@ export const SidebarCaption: FC<HTMLAttributes<HTMLSpanElement>> = (props) => {
 	);
 };
 
-interface SidebarIconButton extends ComponentProps<typeof TopbarIconButton> {
+interface SidebarIconButtonProps
+	extends ComponentProps<typeof TopbarIconButton> {
 	isActive: boolean;
 }
 
-export const SidebarIconButton: FC<SidebarIconButton> = ({
+export const SidebarIconButton: FC<SidebarIconButtonProps> = ({
 	isActive,
 	className,
 	...buttonProps

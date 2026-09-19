@@ -1,10 +1,8 @@
 import { toast } from "sonner";
-import type {
-	ChatPlanModeOrClear,
-	CreateChatMessageRequestWithClearablePlanMode,
-} from "#/api/api";
+import type { CreateChatMessageRequestWithClearablePlanMode } from "#/api/api";
 import { getErrorMessage } from "#/api/errors";
 import { buildOptimisticEditedMessage } from "#/api/queries/chatMessageEdits";
+import { planModeFieldsForCreateMessage } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { ModelSelectorOption } from "#/modules/aiModels/ModelSelector";
 import { BuiltInCommandPendingError } from "../../hooks/useConversationEditingState";
@@ -28,27 +26,20 @@ import {
 	restoreOptimisticRequestSnapshot,
 	settlePromotedQueueHead,
 	submitEdit,
-	waitForPendingChatSettingsSyncs,
 } from "./chatQueueReconciliation";
 import type { ChatStore } from "./chatStore";
 
 /** @internal Exported for testing. */
 export const lastModelConfigIDStorageKey = "agents.last-model-config-id";
 
-const clearChatPlanMode = "" satisfies ChatPlanModeOrClear;
-
-type PlanModeSwitch = TypesGen.ChatPlanMode | "clear";
-
 export type SubmitChatTurnParams = {
 	message: string;
 	attachments?: readonly PendingAttachment[];
 	editedMessageID?: number;
 	composerParts?: readonly ChatComposerContentPart[];
-	planModeSwitch?: PlanModeSwitch;
+	clearPlanMode?: boolean;
 	isSubmissionPending: boolean;
 	hasModelOptions: boolean;
-	pendingPlanModeSyncRef: { current: Promise<unknown> | null };
-	pendingWorkspaceSyncRef: { current: Promise<unknown> | null };
 	isEditReasoningEffortDirtyRef: { current: boolean };
 	personalSkills: readonly { name: string }[] | undefined;
 	workspaceSkills: readonly { name: string }[] | undefined;
@@ -262,11 +253,9 @@ export async function submitChatTurn(
 		attachments,
 		editedMessageID,
 		composerParts,
-		planModeSwitch,
+		clearPlanMode = false,
 		isSubmissionPending,
 		hasModelOptions,
-		pendingPlanModeSyncRef,
-		pendingWorkspaceSyncRef,
 		personalSkills,
 		workspaceSkills,
 		compact,
@@ -301,12 +290,6 @@ export async function submitChatTurn(
 	if (!hasContent || isSubmissionPending || !hasModelOptions) {
 		return;
 	}
-	// Wait for chat-setting mutations to settle before sending so the
-	// message observes the workspace and plan-mode choices the user just made.
-	await waitForPendingChatSettingsSyncs([
-		pendingPlanModeSyncRef.current,
-		pendingWorkspaceSyncRef.current,
-	]);
 
 	const builtInCommand = findBuiltInChatCommand(content, editedMessageID);
 	const builtInCommandResolution = builtInCommand
@@ -397,12 +380,7 @@ export async function submitChatTurn(
 		model_config_id: selectedModelConfigID,
 		reasoning_effort: effectiveReasoningEffort,
 		mcp_server_ids: [...mcpServerIds],
-		...(planModeSwitch !== undefined
-			? {
-					plan_mode:
-						planModeSwitch === "clear" ? clearChatPlanMode : planModeSwitch,
-				}
-			: {}),
+		...planModeFieldsForCreateMessage(clearPlanMode),
 	};
 	clearChatErrorReason(agentId);
 	store.clearStreamError();
@@ -466,10 +444,7 @@ export async function submitChatTurn(
 	} else {
 		localStorage.removeItem(lastModelConfigIDStorageKey);
 	}
-	if (planModeSwitch !== undefined) {
-		setCachedChatPlanMode(
-			agentId,
-			planModeSwitch === "clear" ? undefined : planModeSwitch,
-		);
+	if (clearPlanMode) {
+		setCachedChatPlanMode(agentId, undefined);
 	}
 }

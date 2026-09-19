@@ -226,6 +226,9 @@ coderd_agentstats_session_count_ssh 0
 # HELP coderd_agentstats_session_count_vscode The number of session established by VSCode
 # TYPE coderd_agentstats_session_count_vscode gauge
 coderd_agentstats_session_count_vscode 0
+# HELP coderd_agentstats_session_counts_overflow_total Total number of reported session count entries summed into the unknown app after exceeding the per-report cap.
+# TYPE coderd_agentstats_session_counts_overflow_total counter
+coderd_agentstats_session_counts_overflow_total 0
 # HELP coderd_agentstats_startup_script_seconds Amount of time taken to run the startup script in seconds.
 # TYPE coderd_agentstats_startup_script_seconds gauge
 coderd_agentstats_startup_script_seconds{success=""} 0
@@ -322,9 +325,6 @@ coderd_chatd_prompt_size_bytes{provider="",model=""} 0
 # HELP coderd_chatd_steps_total Total agentic loop steps across all chats.
 # TYPE coderd_chatd_steps_total counter
 coderd_chatd_steps_total{provider="",model=""} 0
-# HELP coderd_chatd_stream_buffer_dropped_total Number of chat stream buffer events dropped due to the per-chat buffer cap.
-# TYPE coderd_chatd_stream_buffer_dropped_total counter
-coderd_chatd_stream_buffer_dropped_total 0
 # HELP coderd_chatd_stream_retries_total Total LLM stream retries.
 # TYPE coderd_chatd_stream_retries_total counter
 coderd_chatd_stream_retries_total{provider="",model="",kind=""} 0

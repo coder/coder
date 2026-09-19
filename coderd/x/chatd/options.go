@@ -21,13 +21,10 @@ import (
 )
 
 const (
-	defaultAcquisitionInterval     = 30 * time.Second
 	defaultAcquisitionBatchSize    = int32(10)
 	defaultCapacityMetricsInterval = 30 * time.Second
 	defaultRunnerSyncInterval      = 15 * time.Second
-	defaultHeartbeatInterval       = 9 * time.Second
 	defaultHeartbeatCleanupEvery   = 30 * time.Second
-	defaultHeartbeatStaleSeconds   = int32(30)
 	// The archive cutoff is based on UTC start-of-day and only moves
 	// once per day, so hourly runs are more than enough to keep up
 	// while still catching chats that cross the threshold shortly
@@ -229,7 +226,7 @@ func (o chatWorkerOptions) withDefaults() (chatWorkerOptions, error) {
 		o.Clock = quartz.NewReal()
 	}
 	if o.AcquisitionInterval <= 0 {
-		o.AcquisitionInterval = defaultAcquisitionInterval
+		o.AcquisitionInterval = DefaultPendingChatAcquireInterval
 	}
 	if o.CapacityMetricsInterval <= 0 {
 		o.CapacityMetricsInterval = defaultCapacityMetricsInterval
@@ -250,13 +247,13 @@ func (o chatWorkerOptions) withDefaults() (chatWorkerOptions, error) {
 		o.RunnerSyncInterval = defaultRunnerSyncInterval
 	}
 	if o.HeartbeatInterval <= 0 {
-		o.HeartbeatInterval = defaultHeartbeatInterval
+		o.HeartbeatInterval = DefaultChatHeartbeatInterval
 	}
 	if o.HeartbeatCleanupInterval <= 0 {
 		o.HeartbeatCleanupInterval = defaultHeartbeatCleanupEvery
 	}
 	if o.HeartbeatStaleSeconds <= 0 {
-		o.HeartbeatStaleSeconds = defaultHeartbeatStaleSeconds
+		o.HeartbeatStaleSeconds = int32(DefaultInFlightChatStaleAfter / time.Second)
 	}
 	if o.AgentCapacityLimiter == nil {
 		o.AgentCapacityLimiter = newAgentCapacityLimiter(nil, o.HeartbeatStaleSeconds)

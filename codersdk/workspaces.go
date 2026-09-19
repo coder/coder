@@ -77,9 +77,7 @@ type Workspace struct {
 	// such as being managed differently from regular workspaces.
 	// Once a prebuilt workspace is claimed by a user, it transitions to a regular workspace,
 	// and IsPrebuild returns false.
-	IsPrebuild bool `json:"is_prebuild"`
-	// TaskID, if set, indicates that the workspace is relevant to the given codersdk.Task.
-	TaskID     uuid.NullUUID          `json:"task_id,omitempty"`
+	IsPrebuild bool                   `json:"is_prebuild"`
 	SharedWith []SharedWorkspaceActor `json:"shared_with,omitempty"`
 }
 
@@ -116,8 +114,6 @@ const (
 	CreateWorkspaceBuildReasonSSHConnection       CreateWorkspaceBuildReason = "ssh_connection"
 	CreateWorkspaceBuildReasonVSCodeConnection    CreateWorkspaceBuildReason = "vscode_connection"
 	CreateWorkspaceBuildReasonJetbrainsConnection CreateWorkspaceBuildReason = "jetbrains_connection"
-	CreateWorkspaceBuildReasonTaskManualPause     CreateWorkspaceBuildReason = "task_manual_pause"
-	CreateWorkspaceBuildReasonTaskResume          CreateWorkspaceBuildReason = "task_resume"
 )
 
 // CreateWorkspaceBuildRequest provides options to update the latest workspace build.
@@ -138,7 +134,7 @@ type CreateWorkspaceBuildRequest struct {
 	// TemplateVersionPresetID is the ID of the template version preset to use for the build.
 	TemplateVersionPresetID uuid.UUID `json:"template_version_preset_id,omitempty" format:"uuid"`
 	// Reason sets the reason for the workspace build.
-	Reason CreateWorkspaceBuildReason `json:"reason,omitempty" validate:"omitempty,oneof=dashboard cli ssh_connection vscode_connection jetbrains_connection task_manual_pause"`
+	Reason CreateWorkspaceBuildReason `json:"reason,omitempty" validate:"omitempty,oneof=dashboard cli ssh_connection vscode_connection jetbrains_connection"`
 	// OnSuccess queues a follow-up workspace build after this build succeeds.
 	// It currently supports restarting a workspace by starting it after a
 	// successful stop build.
@@ -380,25 +376,24 @@ func (c *Client) PutExtendWorkspace(ctx context.Context, id uuid.UUID, req PutEx
 }
 
 type PostWorkspaceUsageRequest struct {
-	AgentID uuid.UUID    `json:"agent_id" format:"uuid"`
-	AppName UsageAppName `json:"app_name"`
+	AgentID uuid.UUID `json:"agent_id" format:"uuid"`
+	// AppName is any name for the app reporting usage. The server normalizes
+	// it at ingestion, so a new app needs no server change. The UsageAppName
+	// constants are the well-known names.
+	AppName string `json:"app_name"`
 }
 
 type UsageAppName string
 
+// Well-known usage app names. The values are wire format and cannot change.
+// UsageAppNameReconnectingPty keeps its hyphen, which the server folds to the
+// canonical reconnecting_pty.
 const (
 	UsageAppNameVscode          UsageAppName = "vscode"
 	UsageAppNameJetbrains       UsageAppName = "jetbrains"
 	UsageAppNameReconnectingPty UsageAppName = "reconnecting-pty"
 	UsageAppNameSSH             UsageAppName = "ssh"
 )
-
-var AllowedAppNames = []UsageAppName{
-	UsageAppNameVscode,
-	UsageAppNameJetbrains,
-	UsageAppNameReconnectingPty,
-	UsageAppNameSSH,
-}
 
 // PostWorkspaceUsage marks the workspace as having been used recently and records an app stat.
 func (c *Client) PostWorkspaceUsageWithBody(ctx context.Context, id uuid.UUID, req PostWorkspaceUsageRequest) error {
@@ -563,6 +558,9 @@ type WorkspaceFilter struct {
 	SharedWithUser string `json:"shared_with_user,omitempty" typescript:"-"`
 	// SharedWithGroup is the group name, group ID, or <org name>/<group name> of the group that the workspace is shared with
 	SharedWithGroup string `json:"shared_with_group,omitempty" typescript:"-"`
+	// User is "me", a username, or a user ID. It matches workspaces the user
+	// owns or that are shared with them directly or through a group.
+	User string `json:"user,omitempty" typescript:"-"`
 	// IncludeAgentMetadata expands each agent in the response with the
 	// named metadata keys. It does not filter the returned workspaces.
 	IncludeAgentMetadata []string `json:"include_agent_metadata,omitempty" typescript:"-"`
@@ -600,6 +598,9 @@ func (f WorkspaceFilter) asRequestOption() RequestOption {
 		}
 		if f.SharedWithGroup != "" {
 			params = append(params, fmt.Sprintf("shared_with_group:%q", f.SharedWithGroup))
+		}
+		if f.User != "" {
+			params = append(params, fmt.Sprintf("user:%q", f.User))
 		}
 		for _, key := range f.IncludeAgentMetadata {
 			params = append(params, fmt.Sprintf("include_agent_metadata:%q", key))

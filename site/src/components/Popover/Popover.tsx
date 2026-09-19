@@ -6,7 +6,7 @@
 import { cn } from "cn";
 import { Popover as PopoverPrimitive } from "radix-ui";
 
-export type PopoverContentProps = React.ComponentPropsWithRef<
+export type PopoverContentProps = React.ComponentProps<
 	typeof PopoverPrimitive.Content
 > & {
 	disablePortal?: boolean;

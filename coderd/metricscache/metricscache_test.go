@@ -313,7 +313,9 @@ func TestCache_DeploymentStats(t *testing.T) {
 		TxBytes:                   1,
 		ConnectionCount:           1,
 		ConnectionMedianLatencyMS: 10,
-		SessionCounts:             dbgen.SessionCounts(t, map[string]int64{"vscode": 1}),
+		// Names from the same family, one of them an alias, so the fixed
+		// deployment stats fields cover the app name folding.
+		SessionCounts: dbgen.SessionCounts(t, map[string]int64{"vscode": 1, "cursor": 2, "zed": 3}),
 	})
 
 	// Wait for both ticker functions to be created (template build times and deployment stats)
@@ -324,5 +326,6 @@ func TestCache_DeploymentStats(t *testing.T) {
 
 	stat, ok := cache.DeploymentStats()
 	require.True(t, ok, "cache should be populated after refresh")
-	require.Equal(t, int64(1), stat.SessionCount.VSCode)
+	require.Equal(t, int64(3), stat.SessionCount.VSCode)
+	require.Equal(t, int64(3), stat.SessionCount.SSH)
 }

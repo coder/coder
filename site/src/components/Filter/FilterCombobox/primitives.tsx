@@ -2,7 +2,7 @@ import { Command as CommandPrimitive, useCommandState } from "cmdk";
 import { cn } from "cn";
 import { XIcon } from "lucide-react";
 import {
-	type ComponentPropsWithRef,
+	type ComponentProps,
 	createContext,
 	type FC,
 	type ReactNode,
@@ -133,7 +133,7 @@ export function FilterComboboxRoot({
 	);
 }
 
-type FilterComboboxContentProps = ComponentPropsWithRef<typeof PopoverContent>;
+type FilterComboboxContentProps = ComponentProps<typeof PopoverContent>;
 
 export const FilterComboboxContent: FC<FilterComboboxContentProps> = ({
 	className,
@@ -168,9 +168,7 @@ export const FilterComboboxContent: FC<FilterComboboxContentProps> = ({
 	);
 };
 
-type FilterComboboxListProps = ComponentPropsWithRef<
-	typeof CommandPrimitive.List
->;
+type FilterComboboxListProps = ComponentProps<typeof CommandPrimitive.List>;
 
 export const FilterComboboxList: FC<FilterComboboxListProps> = ({
 	className,
@@ -191,9 +189,7 @@ export const FilterComboboxList: FC<FilterComboboxListProps> = ({
 	);
 };
 
-type FilterComboboxItemProps = ComponentPropsWithRef<
-	typeof CommandPrimitive.Item
->;
+type FilterComboboxItemProps = ComponentProps<typeof CommandPrimitive.Item>;
 
 /**
  * A dropdown row. Rows are actions, not toggles: pass `onSelect` to run the
@@ -216,9 +212,7 @@ export const FilterComboboxItem: FC<FilterComboboxItemProps> = ({
 	);
 };
 
-type FilterComboboxGroupProps = ComponentPropsWithRef<
-	typeof CommandPrimitive.Group
->;
+type FilterComboboxGroupProps = ComponentProps<typeof CommandPrimitive.Group>;
 
 export const FilterComboboxGroup: FC<FilterComboboxGroupProps> = ({
 	className,
@@ -233,7 +227,7 @@ export const FilterComboboxGroup: FC<FilterComboboxGroupProps> = ({
 	);
 };
 
-type FilterComboboxLabelProps = ComponentPropsWithRef<"div">;
+type FilterComboboxLabelProps = ComponentProps<"div">;
 
 export const FilterComboboxLabel: FC<FilterComboboxLabelProps> = ({
 	className,
@@ -248,7 +242,7 @@ export const FilterComboboxLabel: FC<FilterComboboxLabelProps> = ({
 	);
 };
 
-type FilterComboboxEmptyProps = ComponentPropsWithRef<"div">;
+type FilterComboboxEmptyProps = ComponentProps<"div">;
 
 export const FilterComboboxEmpty: FC<FilterComboboxEmptyProps> = ({
 	className,
@@ -268,7 +262,7 @@ export const FilterComboboxEmpty: FC<FilterComboboxEmptyProps> = ({
 	);
 };
 
-type FilterComboboxStatusProps = ComponentPropsWithRef<"div">;
+type FilterComboboxStatusProps = ComponentProps<"div">;
 
 export const FilterComboboxStatus: FC<FilterComboboxStatusProps> = ({
 	className,
@@ -285,7 +279,7 @@ export const FilterComboboxStatus: FC<FilterComboboxStatusProps> = ({
 	);
 };
 
-type FilterComboboxInputGroupProps = ComponentPropsWithRef<"div">;
+type FilterComboboxInputGroupProps = ComponentProps<"div">;
 
 export const FilterComboboxInputGroup: FC<FilterComboboxInputGroupProps> = ({
 	className,
@@ -304,7 +298,7 @@ export const FilterComboboxInputGroup: FC<FilterComboboxInputGroupProps> = ({
 	);
 };
 
-type FilterComboboxChipsProps = ComponentPropsWithRef<"div">;
+type FilterComboboxChipsProps = ComponentProps<"div">;
 
 export const FilterComboboxChips: FC<FilterComboboxChipsProps> = ({
 	className,
@@ -322,7 +316,7 @@ export const FilterComboboxChips: FC<FilterComboboxChipsProps> = ({
 	);
 };
 
-type FilterComboboxChipProps = ComponentPropsWithRef<typeof Badge> & {
+type FilterComboboxChipProps = ComponentProps<typeof Badge> & {
 	/**
 	 * Token passed to `onRemoveValue` when the chip is removed. Decoupled from
 	 * `children` so the chip can render richer content than a bare string.
@@ -385,7 +379,7 @@ export const FilterComboboxChip: FC<FilterComboboxChipProps> = ({
 	);
 };
 
-type FilterComboboxChipsInputProps = ComponentPropsWithRef<
+type FilterComboboxChipsInputProps = ComponentProps<
 	typeof CommandPrimitive.Input
 >;
 

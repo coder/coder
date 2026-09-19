@@ -25,6 +25,7 @@ import { templateVersion } from "#/api/queries/templates";
 import {
 	cancelBuild,
 	deleteWorkspace,
+	setOptimisticWorkspaceListBuildStatus,
 	startWorkspace,
 	stopWorkspace,
 } from "#/api/queries/workspaces";
@@ -421,6 +422,34 @@ const WorkspaceActionsCell: FC<WorkspaceActionsCellProps> = ({
 		onError: onActionError,
 	});
 
+	const restartWorkspaceMutation = useMutation({
+		mutationFn: API.restartWorkspace,
+		// restartWorkspace resolves only after the full stop/start sequence and
+		// the list has no live updates, so optimistically show the row as
+		// stopping. This reflects the restart immediately and flips the list to
+		// its fast poll interval, which then tracks the real build statuses.
+		onMutate: async () => {
+			await queryClient.cancelQueries({
+				queryKey: ["workspaces"],
+			});
+			return {
+				rollback: setOptimisticWorkspaceListBuildStatus(
+					queryClient,
+					workspace.id,
+					"stopping",
+					"stop",
+				),
+			};
+		},
+		onSuccess: async () => {
+			await onActionSuccess();
+		},
+		onError: (error, _variables, context) => {
+			context?.rollback?.();
+			onActionError(error);
+		},
+	});
+
 	const cancelJobOptions = cancelBuild(workspace, queryClient);
 	const cancelBuildMutation = useMutation({
 		...cancelJobOptions,
@@ -453,6 +482,7 @@ const WorkspaceActionsCell: FC<WorkspaceActionsCellProps> = ({
 	});
 
 	const [isStopConfirmOpen, setIsStopConfirmOpen] = useState(false);
+	const [isRestartConfirmOpen, setIsRestartConfirmOpen] = useState(false);
 	const [isCancelConfirmOpen, setIsCancelConfirmOpen] = useState(false);
 
 	const isRetrying =
@@ -580,6 +610,12 @@ const WorkspaceActionsCell: FC<WorkspaceActionsCellProps> = ({
 							: undefined
 					}
 					isStopping={stopWorkspaceMutation.isPending}
+					onRestart={
+						abilities.actions.includes("restart")
+							? () => setIsRestartConfirmOpen(true)
+							: undefined
+					}
+					isRestarting={restartWorkspaceMutation.isPending}
 					onActionSuccess={onActionSuccess}
 				/>
 			</div>
@@ -595,6 +631,20 @@ const WorkspaceActionsCell: FC<WorkspaceActionsCellProps> = ({
 					setIsStopConfirmOpen(false);
 				}}
 				type="delete"
+			/>
+
+			{/* Restart workspace confirmation dialog */}
+			<ConfirmDialog
+				open={isRestartConfirmOpen}
+				title="Restart workspace"
+				description={`Are you sure you want to restart the workspace "${workspace.name}"? This will stop all running processes and delete non-persistent data.`}
+				confirmText="Restart"
+				onClose={() => setIsRestartConfirmOpen(false)}
+				onConfirm={() => {
+					restartWorkspaceMutation.mutate({ workspace });
+					setIsRestartConfirmOpen(false);
+				}}
+				type="info"
 			/>
 
 			<WorkspaceBuildCancelDialog

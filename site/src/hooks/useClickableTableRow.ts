@@ -15,7 +15,7 @@
  */
 
 import { cn } from "cn";
-import type { HTMLAttributes, MouseEventHandler } from "react";
+import type { ComponentProps, MouseEventHandler } from "react";
 import {
 	type ClickableAriaRole,
 	type UseClickableResult,
@@ -23,7 +23,7 @@ import {
 } from "./useClickable";
 
 type TableRowClickHandlers = Pick<
-	HTMLAttributes<HTMLTableRowElement>,
+	ComponentProps<"tr">,
 	"onClick" | "onDoubleClick" | "onAuxClick"
 >;
 

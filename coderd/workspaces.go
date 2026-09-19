@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/dustin/go-humanize"
 	"github.com/go-chi/chi/v5"
@@ -42,6 +43,7 @@ import (
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/coderd/wsbuilder"
 	"github.com/coder/coder/v2/coderd/wspubsub"
+	"github.com/coder/coder/v2/coderd/wsrelated"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/codersdk/wsjson"
@@ -96,7 +98,7 @@ func (api *API) workspace(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	data, err := api.workspaceData(ctx, []database.Workspace{workspace}, allWorkspaceRelated())
+	data, err := api.workspaceData(ctx, []database.Workspace{workspace}, wsrelated.All())
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching workspace resources.",
@@ -143,7 +145,7 @@ func (api *API) workspace(rw http.ResponseWriter, r *http.Request) {
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Workspaces
-// @Param q query string false "Search query in the format `key:value`. Available keys are: owner, template, name, status, has-agent, dormant, last_used_after, last_used_before, has-ai-task, has_external_agent, healthy, include_agent_metadata (expands each agent with the named metadata keys rather than filtering; repeat the key for multiple items)."
+// @Param q query string false "Search query in the format `key:value`. Available keys are: owner, template, name, status, has-agent, dormant, last_used_after, last_used_before, has_external_agent, healthy, include_agent_metadata (expands each agent with the named metadata keys rather than filtering; repeat the key for multiple items)."
 // @Param limit query int false "Page limit"
 // @Param offset query int false "Page offset"
 // @Success 200 {object} codersdk.WorkspacesResponse
@@ -224,7 +226,7 @@ func (api *API) workspaces(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	data, err := api.workspaceData(ctx, workspaces, allWorkspaceRelated())
+	data, err := api.workspaceData(ctx, workspaces, wsrelated.All())
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching workspace resources.",
@@ -313,7 +315,7 @@ func (api *API) workspaceByOwnerAndName(rw http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	data, err := api.workspaceData(ctx, []database.Workspace{workspace}, allWorkspaceRelated())
+	data, err := api.workspaceData(ctx, []database.Workspace{workspace}, wsrelated.All())
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching workspace resources.",
@@ -887,6 +889,12 @@ func (api *API) requireWorkspaceOwnerExternalAuth(ctx context.Context, templateV
 		name := provider.DisplayName
 		if name == "" {
 			name = provider.ID
+		}
+		// The authenticate URL is included so clients without a
+		// preflight external auth check (such as the chat tools) can
+		// surface a usable login link to the user.
+		if provider.AuthenticateURL != "" {
+			name = fmt.Sprintf("%s (%s)", name, provider.AuthenticateURL)
 		}
 		missingNames = append(missingNames, name)
 		validations = append(validations, codersdk.ValidationError{
@@ -1570,7 +1578,7 @@ func (api *API) putWorkspaceDormant(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	data, err := api.workspaceData(ctx, []database.Workspace{workspace}, allWorkspaceRelated())
+	data, err := api.workspaceData(ctx, []database.Workspace{workspace}, wsrelated.All())
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching workspace resources.",
@@ -1759,7 +1767,11 @@ func (api *API) postWorkspaceUsage(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.AgentID == uuid.Nil && req.AppName == "" {
+	// Normalize at the edge so storage and lookup agree on the key, and so a
+	// name that carries no information reads the same as an absent one.
+	appName := normalizeUsageAppName(req.AppName)
+
+	if req.AgentID == uuid.Nil && appName == "" {
 		// Continue previous behavior if body is empty.
 		rw.WriteHeader(http.StatusNoContent)
 		return
@@ -1774,7 +1786,7 @@ func (api *API) postWorkspaceUsage(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	if req.AppName == "" {
+	if appName == "" {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Invalid request",
 			Validations: []codersdk.ValidationError{{
@@ -1784,34 +1796,10 @@ func (api *API) postWorkspaceUsage(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	if !slices.Contains(codersdk.AllowedAppNames, req.AppName) {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Invalid request",
-			Validations: []codersdk.ValidationError{{
-				Field:  "app_name",
-				Detail: fmt.Sprintf("must be one of %v", codersdk.AllowedAppNames),
-			}},
-		})
-		return
-	}
 
 	stat := &proto.Stats{
 		ConnectionCount: 1,
-	}
-	switch req.AppName {
-	case codersdk.UsageAppNameVscode:
-		stat.SessionCountVscode = 1
-	case codersdk.UsageAppNameJetbrains:
-		stat.SessionCountJetbrains = 1
-	case codersdk.UsageAppNameReconnectingPty:
-		stat.SessionCountReconnectingPty = 1
-	case codersdk.UsageAppNameSSH:
-		stat.SessionCountSsh = 1
-	default:
-		// This means the app_name is in the codersdk.AllowedAppNames but not being
-		// handled by this switch statement.
-		httpapi.InternalServerError(rw, xerrors.Errorf("unknown app_name %q", req.AppName))
-		return
+		SessionCounts:   map[string]int64{appName: 1},
 	}
 
 	agent, err := api.Database.GetWorkspaceAgentByID(ctx, req.AgentID)
@@ -1837,6 +1825,20 @@ func (api *API) postWorkspaceUsage(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	rw.WriteHeader(http.StatusNoContent)
+}
+
+// normalizeUsageAppName prepares a client-supplied app name for storage. A
+// name of only whitespace and control characters carries no app, so it
+// returns the empty string and the caller rejects the request rather than
+// counting a session under the unknown family.
+func normalizeUsageAppName(appName string) string {
+	named := strings.ContainsFunc(appName, func(r rune) bool {
+		return !unicode.IsControl(r) && !unicode.IsSpace(r)
+	})
+	if !named {
+		return ""
+	}
+	return codersdk.NormalizeAppName(appName)
 }
 
 // @Summary Favorite workspace by ID.
@@ -2148,7 +2150,7 @@ func (api *API) watchWorkspace(
 			return
 		}
 
-		data, err := api.workspaceData(ctx, []database.Workspace{workspace}, allWorkspaceRelated())
+		data, err := api.workspaceData(ctx, []database.Workspace{workspace}, wsrelated.All())
 		if err != nil {
 			_ = sendEvent(codersdk.ServerSentEvent{
 				Type: codersdk.ServerSentEventTypeError,
@@ -2687,7 +2689,7 @@ func (api *API) allowWorkspaceSharing(ctx context.Context, rw http.ResponseWrite
 // does not have the correct perms to read a given template, the template will
 // not be returned.
 // So the caller must check the templates & users exist before using them.
-func (api *API) workspaceData(ctx context.Context, workspaces []database.Workspace, cfg workspaceRelated) (workspaceData, error) {
+func (api *API) workspaceData(ctx context.Context, workspaces []database.Workspace, cfg wsrelated.Config) (workspaceData, error) {
 	workspaceIDs := make([]uuid.UUID, 0, len(workspaces))
 	templateIDs := make([]uuid.UUID, 0, len(workspaces))
 	for _, workspace := range workspaces {
@@ -2723,7 +2725,7 @@ func (api *API) workspaceData(ctx context.Context, workspaces []database.Workspa
 			return nil
 		})
 	}
-	if cfg.LatestBuild.appStatuses() {
+	if cfg.LatestBuild.AppStatuses() {
 		eg.Go(func() (err error) {
 			// This query must be run as system restricted to be efficient.
 			// nolint:gocritic
@@ -2966,7 +2968,6 @@ func convertWorkspace(
 		Favorite:         requesterFavorite,
 		NextStartAt:      nextStartAt,
 		IsPrebuild:       workspace.IsPrebuild(),
-		TaskID:           workspace.TaskID,
 		SharedWith:       sharedWorkspaceActors(ctx, logger, workspace),
 	}, nil
 }

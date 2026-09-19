@@ -23,7 +23,7 @@ const spinnerVariants = cva("", {
 	},
 });
 
-type SpinnerProps = React.SVGProps<SVGSVGElement> &
+type SpinnerProps = React.ComponentProps<"svg"> &
 	VariantProps<typeof spinnerVariants> & {
 		children?: ReactNode;
 		loading?: boolean;

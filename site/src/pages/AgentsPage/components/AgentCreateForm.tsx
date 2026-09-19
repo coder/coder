@@ -17,6 +17,11 @@ import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { useFileAttachments } from "../hooks/useFileAttachments";
 import { parseStoredDraft } from "../utils/draftStorage";
 import {
+	getDefaultMCPSelection,
+	getSavedMCPSelection,
+	saveMCPSelection,
+} from "../utils/mcpSelection";
+import {
 	countConfiguredProviderConfigs,
 	getModelSelectorPlaceholder,
 	getProviderForModelOption,
@@ -38,11 +43,6 @@ import {
 } from "./ChatConversation/chatError";
 import { getErrorTitle } from "./ChatConversation/chatStatusHelpers";
 import { CompactOrgSelector } from "./ChatElements/CompactOrgSelector";
-import {
-	getDefaultMCPSelection,
-	getSavedMCPSelection,
-	saveMCPSelection,
-} from "./MCPServerPicker";
 import { getModelSelectorHelp } from "./ModelSelectorHelp";
 
 /** @internal Exported for testing. */
@@ -646,6 +646,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 							!hasModelOptions ||
 							Boolean(aiGatewayDisabled)
 						}
+						isReadOnly={isForbidden}
 						isLoading={isCreating}
 						initialValue={initialInputValue}
 						initialEditorState={initialEditorState}

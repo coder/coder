@@ -138,7 +138,7 @@ const TranscriptTextRow: FC<MessageRowProps> = ({ msg, clamp }) => {
 				<>
 					<p
 						className={cn(
-							"whitespace-pre-wrap text-xs leading-5 text-content-primary",
+							"wrap-anywhere whitespace-pre-wrap text-xs leading-5 text-content-primary",
 							showClamped && "line-clamp-3",
 						)}
 					>

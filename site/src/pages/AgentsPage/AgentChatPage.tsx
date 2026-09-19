@@ -76,11 +76,6 @@ import { useWorkspaceWatch } from "./components/ChatConversation/useWorkspaceWat
 import { isChatAgentBindingUnresolved } from "./components/ChatConversation/watchedWorkspace";
 import type { PendingAttachment } from "./components/ChatPageContent";
 import { workspaceSkillsFromChat } from "./components/ChatPageContent";
-import {
-	getDefaultMCPSelection,
-	getSavedMCPSelection,
-	saveMCPSelection,
-} from "./components/MCPServerPicker";
 import { getModelSelectorHelp } from "./components/ModelSelectorHelp";
 import { useAgentChatPanelPreference } from "./components/RightPanel/useAgentChatPanelPreference";
 import { useConversationEditingState } from "./hooks/useConversationEditingState";
@@ -89,6 +84,11 @@ import {
 	draftInputStorageKeyPrefix,
 	parseStoredDraft,
 } from "./utils/draftStorage";
+import {
+	getDefaultMCPSelection,
+	getSavedMCPSelection,
+	saveMCPSelection,
+} from "./utils/mcpSelection";
 import {
 	countConfiguredProviderConfigs,
 	getModelSelectorPlaceholder,
@@ -328,7 +328,7 @@ const AgentChatPage: FC = () => {
 	const updateChatWorkspaceBase = updateChatWorkspace(queryClient);
 	const {
 		isPending: isUpdateChatWorkspacePending,
-		mutateAsync: updateChatWorkspaceAsync,
+		mutate: updateChatWorkspaceMutate,
 	} = useMutation({
 		...updateChatWorkspaceBase,
 		onError: (error, variables, context) => {
@@ -340,7 +340,7 @@ const AgentChatPage: FC = () => {
 	const updateChatPlanModeBase = updateChatPlanMode(queryClient);
 	const {
 		isPending: isUpdateChatPlanModePending,
-		mutateAsync: updateChatPlanModeAsync,
+		mutate: updateChatPlanModeMutate,
 	} = useMutation({
 		...updateChatPlanModeBase,
 		onError: (error, variables, context) => {
@@ -360,21 +360,6 @@ const AgentChatPage: FC = () => {
 		patchChatEntity(queryClient, chatId, (previousChat) =>
 			previousChat ? { ...previousChat, plan_mode: planMode } : previousChat,
 		);
-	};
-
-	const pendingPlanModeSyncRef = useRef<Promise<unknown> | null>(null);
-	const pendingWorkspaceSyncRef = useRef<Promise<unknown> | null>(null);
-	const trackPendingChatSettingSync = (
-		syncPromise: Promise<unknown>,
-		syncRef: { current: Promise<unknown> | null },
-	) => {
-		const trackedSync: Promise<unknown> = syncPromise.finally(() => {
-			if (syncRef.current === trackedSync) {
-				syncRef.current = null;
-			}
-		});
-		syncRef.current = trackedSync;
-		void trackedSync.catch(() => undefined);
 	};
 
 	const aiGatewayDisabled = !useAIGatewayEnabled();
@@ -524,13 +509,10 @@ const AgentChatPage: FC = () => {
 		if (enabled === planModeEnabled) {
 			return;
 		}
-		trackPendingChatSettingSync(
-			updateChatPlanModeAsync({
-				chatId: agentId,
-				planMode: enabled ? "plan" : undefined,
-			}),
-			pendingPlanModeSyncRef,
-		);
+		updateChatPlanModeMutate({
+			chatId: agentId,
+			planMode: enabled ? "plan" : undefined,
+		});
 	};
 
 	const handleRequestError = (error: unknown): void => {
@@ -563,13 +545,10 @@ const AgentChatPage: FC = () => {
 		if (nextWorkspaceId === selectedWorkspaceId) {
 			return;
 		}
-		trackPendingChatSettingSync(
-			updateChatWorkspaceAsync({
-				chatId: agentId,
-				workspaceId: nextWorkspaceId,
-			}),
-			pendingWorkspaceSyncRef,
-		);
+		updateChatWorkspaceMutate({
+			chatId: agentId,
+			workspaceId: nextWorkspaceId,
+		});
 	};
 
 	const handleDeleteQueuedMessage = async (id: number) => {
@@ -654,8 +633,6 @@ const AgentChatPage: FC = () => {
 	const chatTurnDeps = {
 		isSubmissionPending,
 		hasModelOptions,
-		pendingPlanModeSyncRef,
-		pendingWorkspaceSyncRef,
 		isEditReasoningEffortDirtyRef,
 		personalSkills: personalSkillsQuery.isSuccess
 			? personalSkillsQuery.data
@@ -712,7 +689,7 @@ const AgentChatPage: FC = () => {
 		await submitChatTurn({
 			...chatTurnDeps,
 			message: "Implement the plan.",
-			planModeSwitch: "clear",
+			clearPlanMode: true,
 		});
 	};
 

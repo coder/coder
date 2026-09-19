@@ -14,7 +14,6 @@ import {
 	MockChatMessage,
 	MockChatQueuedMessage,
 } from "#/testHelpers/chatEntities";
-import { createDeferred } from "#/testHelpers/deferred";
 import { BuiltInCommandPendingError } from "../../hooks/useConversationEditingState";
 import { NIL_UUID } from "../../utils/modelOptions";
 import { createChatStore } from "./chatStore";
@@ -46,8 +45,6 @@ const buildParams = (
 		message: "hello",
 		isSubmissionPending: false,
 		hasModelOptions: true,
-		pendingPlanModeSyncRef: { current: null },
-		pendingWorkspaceSyncRef: { current: null },
 		isEditReasoningEffortDirtyRef: { current: false },
 		personalSkills: [],
 		workspaceSkills: [],
@@ -150,22 +147,6 @@ describe("submitChatTurn", () => {
 			buildParams({ isSubmissionPending: true, sendMessage }),
 		);
 		expect(sendMessage).not.toHaveBeenCalled();
-	});
-
-	it("waits for pending chat-setting syncs before sending", async () => {
-		const planModeUpdate = createDeferred<void>();
-		const sendMessage = vi.fn().mockResolvedValue({ queued: false });
-		const turn = submitChatTurn(
-			buildParams({
-				pendingPlanModeSyncRef: { current: planModeUpdate.promise },
-				sendMessage,
-			}),
-		);
-		await Promise.resolve();
-		expect(sendMessage).not.toHaveBeenCalled();
-		planModeUpdate.resolve(undefined);
-		await turn;
-		expect(sendMessage).toHaveBeenCalledTimes(1);
 	});
 
 	it("throws BuiltInCommandPendingError while slash-command skills are unresolved", async () => {
@@ -360,7 +341,7 @@ describe("submitChatTurn", () => {
 		await submitChatTurn(
 			buildParams({
 				message: "Implement the plan.",
-				planModeSwitch: "clear",
+				clearPlanMode: true,
 				store,
 				sendMessage,
 				setCacheQueuedMessages,

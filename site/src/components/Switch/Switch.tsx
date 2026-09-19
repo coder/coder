@@ -43,7 +43,7 @@ const thumbVariants = cva(
 	},
 );
 
-type SwitchProps = React.ComponentPropsWithRef<typeof SwitchPrimitives.Root> &
+type SwitchProps = React.ComponentProps<typeof SwitchPrimitives.Root> &
 	VariantProps<typeof switchVariants>;
 
 export const Switch: React.FC<SwitchProps> = ({

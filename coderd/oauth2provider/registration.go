@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -57,8 +58,8 @@ func CreateDynamicClientRegistration(db database.Store, accessURL *url.URL, audi
 		defer commitAudit()
 
 		// Parse request
-		var req codersdk.OAuth2ClientRegistrationRequest
-		if !httpapi.Read(ctx, rw, r, &req) {
+		req, ok := readOAuth2ClientRegistrationRequest(ctx, rw, r)
+		if !ok {
 			return
 		}
 
@@ -66,6 +67,11 @@ func CreateDynamicClientRegistration(db database.Store, accessURL *url.URL, audi
 		if err := req.Validate(); err != nil {
 			writeOAuth2RegistrationError(ctx, rw, http.StatusBadRequest,
 				"invalid_client_metadata", err.Error())
+			return
+		}
+		if err := codersdk.ValidateOAuth2ScopeList(req.Scope); err != nil {
+			writeOAuth2RegistrationError(ctx, rw, http.StatusBadRequest,
+				"invalid_client_metadata", "invalid scope: "+err.Error())
 			return
 		}
 
@@ -123,7 +129,7 @@ func CreateDynamicClientRegistration(db database.Store, accessURL *url.URL, audi
 				GrantTypes:              slice.ToStrings(req.GrantTypes),
 				ResponseTypes:           slice.ToStrings(req.ResponseTypes),
 				TokenEndpointAuthMethod: sql.NullString{String: string(req.TokenEndpointAuthMethod), Valid: true},
-				Scope:                   sql.NullString{String: req.Scope, Valid: true},
+				Scope:                   scopeAllowlist(req.Scope),
 				Contacts:                req.Contacts,
 				ClientUri:               sql.NullString{String: req.ClientURI, Valid: req.ClientURI != ""},
 				LogoUri:                 sql.NullString{String: req.LogoURI, Valid: req.LogoURI != ""},
@@ -295,8 +301,8 @@ func UpdateClientConfiguration(db database.Store, auditor *audit.Auditor, logger
 		}
 
 		// Parse request
-		var req codersdk.OAuth2ClientRegistrationRequest
-		if !httpapi.Read(ctx, rw, r, &req) {
+		req, ok := readOAuth2ClientRegistrationRequest(ctx, rw, r)
+		if !ok {
 			return
 		}
 
@@ -332,6 +338,18 @@ func UpdateClientConfiguration(db database.Store, auditor *audit.Auditor, logger
 			writeOAuth2RegistrationError(ctx, rw, http.StatusForbidden,
 				"invalid_token", "Client was not dynamically registered")
 			return
+		}
+
+		// Apps registered before the size limit existed may already store a
+		// scope list that exceeds it. Skip the check when the request resends
+		// the stored value unchanged, so those apps can still update other
+		// fields.
+		if req.Scope != existingApp.Scope.String {
+			if err := codersdk.ValidateOAuth2ScopeList(req.Scope); err != nil {
+				writeOAuth2RegistrationError(ctx, rw, http.StatusBadRequest,
+					"invalid_client_metadata", "invalid scope: "+err.Error())
+				return
+			}
 		}
 
 		// A client's type is fixed at registration (RFC 7592 §2.2 permits
@@ -381,7 +399,7 @@ func UpdateClientConfiguration(db database.Store, auditor *audit.Auditor, logger
 			GrantTypes:              slice.ToStrings(req.GrantTypes),
 			ResponseTypes:           slice.ToStrings(req.ResponseTypes),
 			TokenEndpointAuthMethod: sql.NullString{String: string(req.TokenEndpointAuthMethod), Valid: true},
-			Scope:                   sql.NullString{String: req.Scope, Valid: true},
+			Scope:                   scopeAllowlist(req.Scope),
 			Contacts:                req.Contacts,
 			ClientUri:               sql.NullString{String: req.ClientURI, Valid: req.ClientURI != ""},
 			LogoUri:                 sql.NullString{String: req.LogoURI, Valid: req.LogoURI != ""},
@@ -603,6 +621,43 @@ func generateClientCredentials() (plaintext string, hashed []byte, err error) {
 // generateRegistrationAccessToken generates a registration access token for RFC 7592
 func generateRegistrationAccessToken() (plaintext string, hashed []byte, err error) {
 	return apikey.GenerateSecret(secretLength)
+}
+
+// readOAuth2ClientRegistrationRequest decodes a client registration request,
+// bounded by httpapi.DefaultMaxRequestBodyBytes, and reports failures as RFC
+// 7591 errors.
+//
+// It exists instead of httpapi.Read because these handlers route every other
+// error through writeOAuth2RegistrationError, and httpapi.Read reports a
+// codersdk.Response. Since http.MaxBytesReader surfaces the limit through the
+// decoder's error, the error shape belongs to whoever decodes, so the decode
+// happens here. RFC 7591 section 3.2.2 defines invalid_client_metadata and
+// friends for semantic validation rather than transport rejection, so
+// invalid_request is the closest compliant framing for both cases below.
+func readOAuth2ClientRegistrationRequest(ctx context.Context, rw http.ResponseWriter, r *http.Request) (codersdk.OAuth2ClientRegistrationRequest, bool) {
+	var req codersdk.OAuth2ClientRegistrationRequest
+
+	r.Body = http.MaxBytesReader(rw, r.Body, httpapi.DefaultMaxRequestBodyBytes)
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		if mbe, ok := errors.AsType[*http.MaxBytesError](err); ok {
+			// Report the limit the error carries, not the one installed above.
+			// Nested readers compose as tightest-wins and the error carries the
+			// winner, so an outer wrap tighter than this one would otherwise be
+			// reported as the looser limit that rejected nothing.
+			httpapi.RecordRequestBodyLimit(ctx, mbe.Limit)
+			writeOAuth2RegistrationError(ctx, rw, http.StatusRequestEntityTooLarge, "invalid_request",
+				fmt.Sprintf("Maximum request body size is %d bytes.", mbe.Limit))
+			return req, false
+		}
+		// The decoder's own text is the diagnosis a client integrator needs: it
+		// names the offending field and the type it expected. It describes the
+		// caller's own bytes, so it discloses nothing, and httpapi.Read has
+		// exposed it on every other endpoint for as long as it has existed.
+		writeOAuth2RegistrationError(ctx, rw, http.StatusBadRequest, "invalid_request",
+			fmt.Sprintf("Request body must be valid JSON. %s", err))
+		return req, false
+	}
+	return req, true
 }
 
 // writeOAuth2RegistrationError writes RFC 7591 compliant error responses

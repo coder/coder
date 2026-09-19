@@ -478,150 +478,308 @@ func sendConnect(t *testing.T, proxyAddr, targetHost, proxyAuth string) *http.Re
 func TestNew(t *testing.T) {
 	t.Parallel()
 
-	t.Run("MissingListenAddr", func(t *testing.T) {
+	mitmCertFile, mitmKeyFile := getSharedTestMITMCert(t)
+
+	cases := []struct {
+		name string
+		opts aibridgeproxyd.Options
+		// wantErr is empty when New must succeed.
+		wantErr string
+	}{
+		{
+			name: "MissingListenAddr",
+			opts: aibridgeproxyd.Options{
+				GatewayURL:   "http://localhost:3000",
+				MITMCertFile: mitmCertFile,
+				MITMKeyFile:  mitmKeyFile,
+			},
+			wantErr: "listen address is required",
+		},
+		{
+			name: "EmptyListenAddr",
+			opts: aibridgeproxyd.Options{
+				ListenAddr:   "",
+				GatewayURL:   "http://localhost:3000",
+				MITMCertFile: mitmCertFile,
+				MITMKeyFile:  mitmKeyFile,
+			},
+			wantErr: "listen address is required",
+		},
+		{
+			name: "TLSCertWithoutKey",
+			opts: aibridgeproxyd.Options{
+				ListenAddr:   "127.0.0.1:0",
+				TLSCertFile:  "cert.pem",
+				GatewayURL:   "http://localhost:3000",
+				MITMCertFile: mitmCertFile,
+				MITMKeyFile:  mitmKeyFile,
+			},
+			wantErr: "tls cert file and tls key file must both be set",
+		},
+		{
+			name: "TLSKeyWithoutCert",
+			opts: aibridgeproxyd.Options{
+				ListenAddr:   "127.0.0.1:0",
+				TLSKeyFile:   "key.pem",
+				GatewayURL:   "http://localhost:3000",
+				MITMCertFile: mitmCertFile,
+				MITMKeyFile:  mitmKeyFile,
+			},
+			wantErr: "tls cert file and tls key file must both be set",
+		},
+		{
+			name: "InvalidListenerTLSFiles",
+			opts: aibridgeproxyd.Options{
+				ListenAddr:   "127.0.0.1:0",
+				TLSCertFile:  "/nonexistent/cert.pem",
+				TLSKeyFile:   "/nonexistent/key.pem",
+				GatewayURL:   "http://localhost:3000",
+				MITMCertFile: mitmCertFile,
+				MITMKeyFile:  mitmKeyFile,
+			},
+			wantErr: "load listener TLS certificate",
+		},
+		{
+			name: "MissingGatewayURL",
+			opts: aibridgeproxyd.Options{
+				ListenAddr:   "127.0.0.1:0",
+				MITMCertFile: mitmCertFile,
+				MITMKeyFile:  mitmKeyFile,
+			},
+			wantErr: "AI Gateway URL is required",
+		},
+		{
+			name: "EmptyGatewayURL",
+			opts: aibridgeproxyd.Options{
+				ListenAddr:   "127.0.0.1:0",
+				GatewayURL:   " ",
+				MITMCertFile: mitmCertFile,
+				MITMKeyFile:  mitmKeyFile,
+			},
+			wantErr: "AI Gateway URL is required",
+		},
+		{
+			name: "InvalidGatewayURL",
+			opts: aibridgeproxyd.Options{
+				ListenAddr:   "127.0.0.1:0",
+				GatewayURL:   "://invalid",
+				MITMCertFile: mitmCertFile,
+				MITMKeyFile:  mitmKeyFile,
+			},
+			wantErr: "invalid AI Gateway URL",
+		},
+		{
+			name: "GatewayURLWithQuery",
+			opts: aibridgeproxyd.Options{
+				ListenAddr:   "127.0.0.1:0",
+				GatewayURL:   "http://localhost:3000?token=secret",
+				MITMCertFile: mitmCertFile,
+				MITMKeyFile:  mitmKeyFile,
+			},
+			wantErr: "AI Gateway URL must not include query parameters",
+		},
+		{
+			name: "MissingCertFile",
+			opts: aibridgeproxyd.Options{
+				ListenAddr:  ":0",
+				GatewayURL:  "http://localhost:3000",
+				MITMKeyFile: "key.pem",
+			},
+			wantErr: "cert file and key file are required",
+		},
+		{
+			name: "MissingKeyFile",
+			opts: aibridgeproxyd.Options{
+				ListenAddr:   ":0",
+				GatewayURL:   "http://localhost:3000",
+				MITMCertFile: "cert.pem",
+			},
+			wantErr: "cert file and key file are required",
+		},
+		{
+			name: "InvalidCertFile",
+			opts: aibridgeproxyd.Options{
+				ListenAddr:   ":0",
+				GatewayURL:   "http://localhost:3000",
+				MITMCertFile: "/nonexistent/cert.pem",
+				MITMKeyFile:  "/nonexistent/key.pem",
+			},
+			wantErr: "failed to load MITM certificate",
+		},
+		{
+			name: "InvalidUpstreamProxy",
+			opts: aibridgeproxyd.Options{
+				ListenAddr:    "127.0.0.1:0",
+				GatewayURL:    "http://localhost:3000",
+				MITMCertFile:  mitmCertFile,
+				MITMKeyFile:   mitmKeyFile,
+				UpstreamProxy: "://invalid-url",
+			},
+			wantErr: "invalid upstream proxy URL",
+		},
+		{
+			name: "UpstreamProxyCAFileNotFound",
+			opts: aibridgeproxyd.Options{
+				ListenAddr:      "127.0.0.1:0",
+				GatewayURL:      "http://localhost:3000",
+				MITMCertFile:    mitmCertFile,
+				MITMKeyFile:     mitmKeyFile,
+				UpstreamProxy:   "https://proxy.example.com:8080",
+				UpstreamProxyCA: "/nonexistent/ca.pem",
+			},
+			wantErr: "failed to read upstream proxy CA certificate",
+		},
+		{
+			name: "UpstreamProxyAuthWithBothEmpty",
+			opts: aibridgeproxyd.Options{
+				ListenAddr:    "127.0.0.1:0",
+				GatewayURL:    "http://localhost:3000",
+				MITMCertFile:  mitmCertFile,
+				MITMKeyFile:   mitmKeyFile,
+				UpstreamProxy: "http://:@proxy.example.com:8080",
+			},
+			wantErr: "invalid credentials: both username and password are empty",
+		},
+		{
+			name: "InvalidAllowedPrivateCIDR",
+			opts: aibridgeproxyd.Options{
+				ListenAddr:          "127.0.0.1:0",
+				GatewayURL:          "http://localhost:3000",
+				MITMCertFile:        mitmCertFile,
+				MITMKeyFile:         mitmKeyFile,
+				AllowedPrivateCIDRs: []string{"not-a-cidr"},
+			},
+			wantErr: "invalid allowed private CIDR",
+		},
+		{
+			name: "Success",
+			opts: aibridgeproxyd.Options{
+				ListenAddr:   "127.0.0.1:0",
+				GatewayURL:   "http://localhost:3000",
+				MITMCertFile: mitmCertFile,
+				MITMKeyFile:  mitmKeyFile,
+			},
+		},
+		{
+			name: "SuccessWithUpstreamProxy",
+			opts: aibridgeproxyd.Options{
+				ListenAddr:    "127.0.0.1:0",
+				GatewayURL:    "http://localhost:3000",
+				MITMCertFile:  mitmCertFile,
+				MITMKeyFile:   mitmKeyFile,
+				UpstreamProxy: "http://proxy.example.com:8080",
+			},
+		},
+		{
+			// The shared MITM certificate doubles as the upstream proxy CA
+			// because it is a valid PEM cert.
+			name: "SuccessWithHTTPSUpstreamProxyAndCA",
+			opts: aibridgeproxyd.Options{
+				ListenAddr:      "127.0.0.1:0",
+				GatewayURL:      "http://localhost:3000",
+				MITMCertFile:    mitmCertFile,
+				MITMKeyFile:     mitmKeyFile,
+				UpstreamProxy:   "https://proxy.example.com:8080",
+				UpstreamProxyCA: mitmCertFile,
+			},
+		},
+		{
+			name: "SuccessWithUpstreamProxyAuth",
+			opts: aibridgeproxyd.Options{
+				ListenAddr:    "127.0.0.1:0",
+				GatewayURL:    "http://localhost:3000",
+				MITMCertFile:  mitmCertFile,
+				MITMKeyFile:   mitmKeyFile,
+				UpstreamProxy: "http://proxyuser:proxypass@proxy.example.com:8080",
+			},
+		},
+		{
+			name: "SuccessWithUpstreamProxyUsernameAuthColon",
+			opts: aibridgeproxyd.Options{
+				ListenAddr:    "127.0.0.1:0",
+				GatewayURL:    "http://localhost:3000",
+				MITMCertFile:  mitmCertFile,
+				MITMKeyFile:   mitmKeyFile,
+				UpstreamProxy: "http://proxyuser:@proxy.example.com:8080",
+			},
+		},
+		{
+			// Username only (no colon) also succeeds because the password is
+			// optional.
+			name: "SuccessWithUpstreamProxyUsernameAuth",
+			opts: aibridgeproxyd.Options{
+				ListenAddr:    "127.0.0.1:0",
+				GatewayURL:    "http://localhost:3000",
+				MITMCertFile:  mitmCertFile,
+				MITMKeyFile:   mitmKeyFile,
+				UpstreamProxy: "http://proxyuser@proxy.example.com:8080",
+			},
+		},
+		{
+			name: "SuccessWithUpstreamProxyTokenAuth",
+			opts: aibridgeproxyd.Options{
+				ListenAddr:    "127.0.0.1:0",
+				GatewayURL:    "http://localhost:3000",
+				MITMCertFile:  mitmCertFile,
+				MITMKeyFile:   mitmKeyFile,
+				UpstreamProxy: "http://:proxypass@proxy.example.com:8080",
+			},
+		},
+		{
+			name: "SuccessWithMetrics",
+			opts: aibridgeproxyd.Options{
+				ListenAddr:   "127.0.0.1:0",
+				GatewayURL:   "http://localhost:3000",
+				MITMCertFile: mitmCertFile,
+				MITMKeyFile:  mitmKeyFile,
+				Metrics:      aibridgeproxyd.NewMetrics(prometheus.NewRegistry()),
+			},
+		},
+		{
+			name: "SuccessWithAllowedPrivateCIDRs",
+			opts: aibridgeproxyd.Options{
+				ListenAddr:          "127.0.0.1:0",
+				GatewayURL:          "http://localhost:3000",
+				MITMCertFile:        mitmCertFile,
+				MITMKeyFile:         mitmKeyFile,
+				AllowedPrivateCIDRs: []string{"127.0.0.1/32"},
+			},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			logger := slogtest.Make(t, nil)
+
+			srv, err := aibridgeproxyd.New(t.Context(), logger, tc.opts)
+			if tc.wantErr != "" {
+				require.Error(t, err)
+				require.Contains(t, err.Error(), tc.wantErr)
+				return
+			}
+			require.NoError(t, err)
+			require.NotNil(t, srv)
+		})
+	}
+
+	t.Run("SuccessWithListenerTLS", func(t *testing.T) {
 		t.Parallel()
 
 		mitmCertFile, mitmKeyFile := getSharedTestMITMCert(t)
+		listenerCertFile, listenerKeyFile := generateListenerCert(t)
 		logger := slogtest.Make(t, nil)
 
-		_, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
+		srv, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
+			ListenAddr:   "127.0.0.1:0",
+			TLSCertFile:  listenerCertFile,
+			TLSKeyFile:   listenerKeyFile,
 			GatewayURL:   "http://localhost:3000",
 			MITMCertFile: mitmCertFile,
 			MITMKeyFile:  mitmKeyFile,
 		})
-		require.Error(t, err)
-		require.Contains(t, err.Error(), "listen address is required")
-	})
-
-	t.Run("EmptyListenAddr", func(t *testing.T) {
-		t.Parallel()
-
-		mitmCertFile, mitmKeyFile := getSharedTestMITMCert(t)
-		logger := slogtest.Make(t, nil)
-
-		_, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
-			ListenAddr:   "",
-			GatewayURL:   "http://localhost:3000",
-			MITMCertFile: mitmCertFile,
-			MITMKeyFile:  mitmKeyFile,
-		})
-		require.Error(t, err)
-		require.Contains(t, err.Error(), "listen address is required")
-	})
-
-	t.Run("TLSCertWithoutKey", func(t *testing.T) {
-		t.Parallel()
-
-		mitmCertFile, mitmKeyFile := getSharedTestMITMCert(t)
-		logger := slogtest.Make(t, nil)
-
-		_, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
-			ListenAddr:   "127.0.0.1:0",
-			TLSCertFile:  "cert.pem",
-			GatewayURL:   "http://localhost:3000",
-			MITMCertFile: mitmCertFile,
-			MITMKeyFile:  mitmKeyFile,
-		})
-		require.Error(t, err)
-		require.Contains(t, err.Error(), "tls cert file and tls key file must both be set")
-	})
-
-	t.Run("TLSKeyWithoutCert", func(t *testing.T) {
-		t.Parallel()
-
-		mitmCertFile, mitmKeyFile := getSharedTestMITMCert(t)
-		logger := slogtest.Make(t, nil)
-
-		_, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
-			ListenAddr:   "127.0.0.1:0",
-			TLSKeyFile:   "key.pem",
-			GatewayURL:   "http://localhost:3000",
-			MITMCertFile: mitmCertFile,
-			MITMKeyFile:  mitmKeyFile,
-		})
-		require.Error(t, err)
-		require.Contains(t, err.Error(), "tls cert file and tls key file must both be set")
-	})
-
-	t.Run("InvalidListenerTLSFiles", func(t *testing.T) {
-		t.Parallel()
-
-		mitmCertFile, mitmKeyFile := getSharedTestMITMCert(t)
-		logger := slogtest.Make(t, nil)
-
-		_, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
-			ListenAddr:   "127.0.0.1:0",
-			TLSCertFile:  "/nonexistent/cert.pem",
-			TLSKeyFile:   "/nonexistent/key.pem",
-			GatewayURL:   "http://localhost:3000",
-			MITMCertFile: mitmCertFile,
-			MITMKeyFile:  mitmKeyFile,
-		})
-		require.Error(t, err)
-		require.Contains(t, err.Error(), "load listener TLS certificate")
-	})
-
-	t.Run("MissingGatewayURL", func(t *testing.T) {
-		t.Parallel()
-
-		mitmCertFile, mitmKeyFile := getSharedTestMITMCert(t)
-		logger := slogtest.Make(t, nil)
-
-		_, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
-			ListenAddr:   "127.0.0.1:0",
-			MITMCertFile: mitmCertFile,
-			MITMKeyFile:  mitmKeyFile,
-		})
-		require.Error(t, err)
-		require.Contains(t, err.Error(), "AI Gateway URL is required")
-	})
-
-	t.Run("EmptyGatewayURL", func(t *testing.T) {
-		t.Parallel()
-
-		mitmCertFile, mitmKeyFile := getSharedTestMITMCert(t)
-		logger := slogtest.Make(t, nil)
-
-		_, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
-			ListenAddr:   "127.0.0.1:0",
-			GatewayURL:   " ",
-			MITMCertFile: mitmCertFile,
-			MITMKeyFile:  mitmKeyFile,
-		})
-		require.Error(t, err)
-		require.Contains(t, err.Error(), "AI Gateway URL is required")
-	})
-
-	t.Run("InvalidGatewayURL", func(t *testing.T) {
-		t.Parallel()
-
-		mitmCertFile, mitmKeyFile := getSharedTestMITMCert(t)
-		logger := slogtest.Make(t, nil)
-
-		_, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
-			ListenAddr:   "127.0.0.1:0",
-			GatewayURL:   "://invalid",
-			MITMCertFile: mitmCertFile,
-			MITMKeyFile:  mitmKeyFile,
-		})
-		require.Error(t, err)
-		require.Contains(t, err.Error(), "invalid AI Gateway URL")
-	})
-
-	t.Run("GatewayURLWithQuery", func(t *testing.T) {
-		t.Parallel()
-
-		mitmCertFile, mitmKeyFile := getSharedTestMITMCert(t)
-		logger := slogtest.Make(t, nil)
-
-		_, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
-			ListenAddr:   "127.0.0.1:0",
-			GatewayURL:   "http://localhost:3000?token=secret",
-			MITMCertFile: mitmCertFile,
-			MITMKeyFile:  mitmKeyFile,
-		})
-		require.Error(t, err)
-		require.Contains(t, err.Error(), "AI Gateway URL must not include query parameters")
+		require.NoError(t, err)
+		require.NotNil(t, srv)
 	})
 
 	t.Run("GatewayURLDefaultHTTPPort", func(t *testing.T) {
@@ -671,296 +829,6 @@ func TestNew(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, "localhost", srv.GatewayURL().Hostname())
 		require.Equal(t, "3000", srv.GatewayURL().Port())
-	})
-
-	t.Run("MissingCertFile", func(t *testing.T) {
-		t.Parallel()
-
-		logger := slogtest.Make(t, nil)
-
-		_, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
-			ListenAddr:  ":0",
-			GatewayURL:  "http://localhost:3000",
-			MITMKeyFile: "key.pem",
-		})
-		require.Error(t, err)
-		require.Contains(t, err.Error(), "cert file and key file are required")
-	})
-
-	t.Run("MissingKeyFile", func(t *testing.T) {
-		t.Parallel()
-
-		logger := slogtest.Make(t, nil)
-
-		_, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
-			ListenAddr:   ":0",
-			GatewayURL:   "http://localhost:3000",
-			MITMCertFile: "cert.pem",
-		})
-		require.Error(t, err)
-		require.Contains(t, err.Error(), "cert file and key file are required")
-	})
-
-	t.Run("InvalidCertFile", func(t *testing.T) {
-		t.Parallel()
-
-		logger := slogtest.Make(t, nil)
-
-		_, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
-			ListenAddr:   ":0",
-			GatewayURL:   "http://localhost:3000",
-			MITMCertFile: "/nonexistent/cert.pem",
-			MITMKeyFile:  "/nonexistent/key.pem",
-		})
-		require.Error(t, err)
-		require.Contains(t, err.Error(), "failed to load MITM certificate")
-	})
-
-	t.Run("InvalidUpstreamProxy", func(t *testing.T) {
-		t.Parallel()
-
-		mitmCertFile, mitmKeyFile := getSharedTestMITMCert(t)
-		logger := slogtest.Make(t, nil)
-
-		_, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
-			ListenAddr:    "127.0.0.1:0",
-			GatewayURL:    "http://localhost:3000",
-			MITMCertFile:  mitmCertFile,
-			MITMKeyFile:   mitmKeyFile,
-			UpstreamProxy: "://invalid-url",
-		})
-		require.Error(t, err)
-		require.Contains(t, err.Error(), "invalid upstream proxy URL")
-	})
-
-	t.Run("UpstreamProxyCAFileNotFound", func(t *testing.T) {
-		t.Parallel()
-
-		mitmCertFile, mitmKeyFile := getSharedTestMITMCert(t)
-		logger := slogtest.Make(t, nil)
-
-		_, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
-			ListenAddr:      "127.0.0.1:0",
-			GatewayURL:      "http://localhost:3000",
-			MITMCertFile:    mitmCertFile,
-			MITMKeyFile:     mitmKeyFile,
-			UpstreamProxy:   "https://proxy.example.com:8080",
-			UpstreamProxyCA: "/nonexistent/ca.pem",
-		})
-		require.Error(t, err)
-		require.Contains(t, err.Error(), "failed to read upstream proxy CA certificate")
-	})
-
-	t.Run("UpstreamProxyAuthWithBothEmpty", func(t *testing.T) {
-		t.Parallel()
-
-		mitmCertFile, mitmKeyFile := getSharedTestMITMCert(t)
-		logger := slogtest.Make(t, nil)
-
-		_, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
-			ListenAddr:    "127.0.0.1:0",
-			GatewayURL:    "http://localhost:3000",
-			MITMCertFile:  mitmCertFile,
-			MITMKeyFile:   mitmKeyFile,
-			UpstreamProxy: "http://:@proxy.example.com:8080",
-		})
-		require.Error(t, err)
-		require.Contains(t, err.Error(), "invalid credentials: both username and password are empty")
-	})
-
-	t.Run("InvalidAllowedPrivateCIDR", func(t *testing.T) {
-		t.Parallel()
-
-		mitmCertFile, mitmKeyFile := getSharedTestMITMCert(t)
-		logger := slogtest.Make(t, nil)
-
-		_, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
-			ListenAddr:          "127.0.0.1:0",
-			GatewayURL:          "http://localhost:3000",
-			MITMCertFile:        mitmCertFile,
-			MITMKeyFile:         mitmKeyFile,
-			AllowedPrivateCIDRs: []string{"not-a-cidr"},
-		})
-		require.Error(t, err)
-		require.Contains(t, err.Error(), "invalid allowed private CIDR")
-	})
-
-	t.Run("Success", func(t *testing.T) {
-		t.Parallel()
-
-		mitmCertFile, mitmKeyFile := getSharedTestMITMCert(t)
-		logger := slogtest.Make(t, nil)
-
-		srv, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
-			ListenAddr:   "127.0.0.1:0",
-			GatewayURL:   "http://localhost:3000",
-			MITMCertFile: mitmCertFile,
-			MITMKeyFile:  mitmKeyFile,
-		})
-		require.NoError(t, err)
-		require.NotNil(t, srv)
-	})
-
-	t.Run("SuccessWithListenerTLS", func(t *testing.T) {
-		t.Parallel()
-
-		mitmCertFile, mitmKeyFile := getSharedTestMITMCert(t)
-		listenerCertFile, listenerKeyFile := generateListenerCert(t)
-		logger := slogtest.Make(t, nil)
-
-		srv, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
-			ListenAddr:   "127.0.0.1:0",
-			TLSCertFile:  listenerCertFile,
-			TLSKeyFile:   listenerKeyFile,
-			GatewayURL:   "http://localhost:3000",
-			MITMCertFile: mitmCertFile,
-			MITMKeyFile:  mitmKeyFile,
-		})
-		require.NoError(t, err)
-		require.NotNil(t, srv)
-	})
-
-	t.Run("SuccessWithUpstreamProxy", func(t *testing.T) {
-		t.Parallel()
-
-		mitmCertFile, mitmKeyFile := getSharedTestMITMCert(t)
-		logger := slogtest.Make(t, nil)
-
-		srv, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
-			ListenAddr:    "127.0.0.1:0",
-			GatewayURL:    "http://localhost:3000",
-			MITMCertFile:  mitmCertFile,
-			MITMKeyFile:   mitmKeyFile,
-			UpstreamProxy: "http://proxy.example.com:8080",
-		})
-		require.NoError(t, err)
-		require.NotNil(t, srv)
-	})
-
-	t.Run("SuccessWithHTTPSUpstreamProxyAndCA", func(t *testing.T) {
-		t.Parallel()
-
-		mitmCertFile, mitmKeyFile := getSharedTestMITMCert(t)
-		logger := slogtest.Make(t, nil)
-
-		// Use the shared MITM certificate as the upstream proxy CA (it's a valid PEM cert)
-		srv, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
-			ListenAddr:      "127.0.0.1:0",
-			GatewayURL:      "http://localhost:3000",
-			MITMCertFile:    mitmCertFile,
-			MITMKeyFile:     mitmKeyFile,
-			UpstreamProxy:   "https://proxy.example.com:8080",
-			UpstreamProxyCA: mitmCertFile,
-		})
-		require.NoError(t, err)
-		require.NotNil(t, srv)
-	})
-
-	t.Run("SuccessWithUpstreamProxyAuth", func(t *testing.T) {
-		t.Parallel()
-
-		mitmCertFile, mitmKeyFile := getSharedTestMITMCert(t)
-		logger := slogtest.Make(t, nil)
-
-		srv, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
-			ListenAddr:    "127.0.0.1:0",
-			GatewayURL:    "http://localhost:3000",
-			MITMCertFile:  mitmCertFile,
-			MITMKeyFile:   mitmKeyFile,
-			UpstreamProxy: "http://proxyuser:proxypass@proxy.example.com:8080",
-		})
-		require.NoError(t, err)
-		require.NotNil(t, srv)
-	})
-
-	t.Run("SuccessWithUpstreamProxyUsernameAuthColon", func(t *testing.T) {
-		t.Parallel()
-
-		mitmCertFile, mitmKeyFile := getSharedTestMITMCert(t)
-		logger := slogtest.Make(t, nil)
-
-		srv, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
-			ListenAddr:    "127.0.0.1:0",
-			GatewayURL:    "http://localhost:3000",
-			MITMCertFile:  mitmCertFile,
-			MITMKeyFile:   mitmKeyFile,
-			UpstreamProxy: "http://proxyuser:@proxy.example.com:8080",
-		})
-		require.NoError(t, err)
-		require.NotNil(t, srv)
-	})
-
-	t.Run("SuccessWithUpstreamProxyUsernameAuth", func(t *testing.T) {
-		t.Parallel()
-
-		mitmCertFile, mitmKeyFile := getSharedTestMITMCert(t)
-		logger := slogtest.Make(t, nil)
-
-		// Username only (no colon) should also succeed (password is optional)
-		srv, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
-			ListenAddr:    "127.0.0.1:0",
-			GatewayURL:    "http://localhost:3000",
-			MITMCertFile:  mitmCertFile,
-			MITMKeyFile:   mitmKeyFile,
-			UpstreamProxy: "http://proxyuser@proxy.example.com:8080",
-		})
-		require.NoError(t, err)
-		require.NotNil(t, srv)
-	})
-
-	t.Run("SuccessWithUpstreamProxyTokenAuth", func(t *testing.T) {
-		t.Parallel()
-
-		mitmCertFile, mitmKeyFile := getSharedTestMITMCert(t)
-		logger := slogtest.Make(t, nil)
-
-		srv, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
-			ListenAddr:    "127.0.0.1:0",
-			GatewayURL:    "http://localhost:3000",
-			MITMCertFile:  mitmCertFile,
-			MITMKeyFile:   mitmKeyFile,
-			UpstreamProxy: "http://:proxypass@proxy.example.com:8080",
-		})
-		require.NoError(t, err)
-		require.NotNil(t, srv)
-	})
-
-	t.Run("SuccessWithMetrics", func(t *testing.T) {
-		t.Parallel()
-
-		mitmCertFile, mitmKeyFile := getSharedTestMITMCert(t)
-		logger := slogtest.Make(t, nil)
-
-		// Create metrics instance to verify it can be passed and stored.
-		reg := prometheus.NewRegistry()
-		metrics := aibridgeproxyd.NewMetrics(reg)
-
-		srv, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
-			ListenAddr:   "127.0.0.1:0",
-			GatewayURL:   "http://localhost:3000",
-			MITMCertFile: mitmCertFile,
-			MITMKeyFile:  mitmKeyFile,
-			Metrics:      metrics,
-		})
-		require.NoError(t, err)
-		require.NotNil(t, srv)
-	})
-
-	t.Run("SuccessWithAllowedPrivateCIDRs", func(t *testing.T) {
-		t.Parallel()
-
-		mitmCertFile, mitmKeyFile := getSharedTestMITMCert(t)
-		logger := slogtest.Make(t, nil)
-
-		srv, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
-			ListenAddr:          "127.0.0.1:0",
-			GatewayURL:          "http://localhost:3000",
-			MITMCertFile:        mitmCertFile,
-			MITMKeyFile:         mitmKeyFile,
-			AllowedPrivateCIDRs: []string{"127.0.0.1/32"},
-		})
-		require.NoError(t, err)
-		require.NotNil(t, srv)
 	})
 
 	t.Run("GatewayURLHostPreserved", func(t *testing.T) {

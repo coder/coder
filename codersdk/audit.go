@@ -44,7 +44,9 @@ const (
 	ResourceTypeWorkspaceAgent ResourceType = "workspace_agent"
 	// Deprecated: Workspace App connections are now included in the
 	// connection log.
-	ResourceTypeWorkspaceApp            ResourceType = "workspace_app"
+	ResourceTypeWorkspaceApp ResourceType = "workspace_app"
+	// ResourceTypeTask is retained for audit logs recorded before the Tasks
+	// feature was removed.
 	ResourceTypeTask                    ResourceType = "task"
 	ResourceTypeAISeat                  ResourceType = "ai_seat"
 	ResourceTypeAIProvider              ResourceType = "ai_provider"

@@ -781,15 +781,6 @@ func TestRolePermissions(t *testing.T) {
 				false: {setOtherOrg, userAdmin, memberMe, orgUserAdmin, orgAuditor, orgWorkspaceAccessUser},
 			},
 		},
-		{
-			Name:     "Task",
-			Actions:  crud,
-			Resource: rbac.ResourceTask.WithID(uuid.New()).InOrg(orgID).WithOwner(memberMe.Actor.ID),
-			AuthorizeMap: map[bool][]hasAuthSubjects{
-				true:  {owner, orgAdmin, orgWorkspaceAccessUser},
-				false: {setOtherOrg, userAdmin, templateAdmin, memberMe, orgTemplateAdmin, orgUserAdmin, orgAuditor},
-			},
-		},
 		// Some admin style resources
 		{
 			Name:     "Licenses",

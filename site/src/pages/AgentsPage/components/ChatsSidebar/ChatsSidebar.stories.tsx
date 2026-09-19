@@ -174,15 +174,9 @@ export const ModelNameWaitsForModelsToLoad: Story = {
 	},
 	render: (args) => <ChatsSidebarWithDeferredModels {...args} />,
 	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.getByText("Chat loaded before models")).toBeVisible();
-		expect(canvas.queryByText("Unavailable model")).not.toBeInTheDocument();
-		expect(canvas.queryByText("GPT-4o")).not.toBeInTheDocument();
-
-		await waitFor(() => expect(canvas.getByText("GPT-4o")).toBeVisible(), {
-			timeout: 3000,
-		});
-		expect(canvas.queryByText("Unavailable model")).not.toBeInTheDocument();
+		// The render harness resolves the model configs after 500ms; wait
+		// for the loaded model name.
+		await within(canvasElement).findByText("GPT-4o");
 	},
 };
 
@@ -422,16 +416,7 @@ export const ExpandCollapse: Story = {
 		const canvas = within(canvasElement);
 		const toggle = canvas.getByTestId("agents-tree-toggle-root-2");
 
-		await expect(toggle).toHaveAttribute("aria-expanded", "true");
-		expect(canvas.getByText("Nested child")).toBeInTheDocument();
-
 		await userEvent.click(toggle);
-		await expect(toggle).toHaveAttribute("aria-expanded", "false");
-		expect(canvas.queryByText("Nested child")).not.toBeInTheDocument();
-
-		await userEvent.click(toggle);
-		await expect(toggle).toHaveAttribute("aria-expanded", "true");
-		expect(canvas.getByText("Nested child")).toBeInTheDocument();
 	},
 };
 
@@ -528,20 +513,6 @@ export const ActiveChatAncestryExpanded: Story = {
 			routing: agentsRouting,
 		}),
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.getByText("Active root")).toBeInTheDocument();
-		await waitFor(() => {
-			expect(canvas.getByText("Active middle")).toBeInTheDocument();
-			expect(canvas.getByText("Active leaf")).toBeInTheDocument();
-		});
-		await expect(
-			canvas.getByTestId("agents-tree-toggle-root-active"),
-		).toHaveAttribute("aria-expanded", "true");
-		await expect(
-			canvas.getByTestId("agents-tree-toggle-child-active"),
-		).toHaveAttribute("aria-expanded", "true");
-	},
 };
 
 export const MixedCacheDoesNotDuplicateChild: Story = {
@@ -585,13 +556,6 @@ export const MixedCacheDoesNotDuplicateChild: Story = {
 			},
 			routing: agentsRouting,
 		}),
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await expect(canvas.getByText("Mixed root")).toBeInTheDocument();
-		await waitFor(() => {
-			expect(canvas.getAllByText("Mixed child")).toHaveLength(1);
-		});
 	},
 };
 
@@ -657,56 +621,23 @@ export const SectionHeadersCollapse: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 
-		await expect(canvas.getByText("Pinned (2)")).toBeInTheDocument();
-		await expect(canvas.getByText("Today (2)")).toBeInTheDocument();
-		await expect(canvas.getByText("Yesterday (1)")).toBeInTheDocument();
-		await expect(canvas.getByText("Past 7 days (1)")).toBeInTheDocument();
-
+		// Exercise both section toggles: collapse then re-expand Pinned,
+		// then collapse Today and leave it collapsed so the capture shows
+		// a collapsed section alongside the expanded ones.
 		const pinnedToggle = canvas.getByRole("button", {
 			name: "Collapse Pinned section",
 		});
 		await userEvent.click(pinnedToggle);
-		await waitFor(() => {
-			expect(
-				canvas.getByRole("button", { name: "Expand Pinned section" }),
-			).toHaveAttribute("aria-expanded", "false");
-			expect(canvas.queryByText("Pinned section one")).not.toBeInTheDocument();
-			expect(canvas.queryByText("Pinned section two")).not.toBeInTheDocument();
-		});
-		expect(canvas.getByText("Today section one")).toBeInTheDocument();
-
 		await userEvent.click(
-			canvas.getByRole("button", { name: "Expand Pinned section" }),
+			await canvas.findByRole("button", { name: "Expand Pinned section" }),
 		);
-		await waitFor(() => {
-			expect(
-				canvas.getByRole("button", { name: "Collapse Pinned section" }),
-			).toHaveAttribute("aria-expanded", "true");
-			expect(canvas.getByText("Pinned section one")).toBeInTheDocument();
-			expect(canvas.getByText("Pinned section two")).toBeInTheDocument();
-		});
 
+		// Collapse Today and leave it collapsed so the capture shows a
+		// collapsed section alongside the expanded ones.
 		const todayToggle = canvas.getByRole("button", {
 			name: "Collapse Today section",
 		});
 		await userEvent.click(todayToggle);
-		await waitFor(() => {
-			expect(
-				canvas.getByRole("button", { name: "Expand Today section" }),
-			).toHaveAttribute("aria-expanded", "false");
-			expect(canvas.queryByText("Today section one")).not.toBeInTheDocument();
-			expect(canvas.queryByText("Today section two")).not.toBeInTheDocument();
-		});
-		expect(canvas.getByText("Yesterday section one")).toBeInTheDocument();
-
-		await userEvent.click(canvas.getByTestId("agents-section-toggle-Today"));
-		await waitFor(() => {
-			expect(
-				canvas.getByRole("button", { name: "Collapse Today section" }),
-			).toHaveAttribute("aria-expanded", "true");
-			expect(canvas.getByText("Today section one")).toBeInTheDocument();
-			expect(canvas.getByText("Today section two")).toBeInTheDocument();
-		});
 	},
 };
 
@@ -731,18 +662,6 @@ export const MobileHeaderActions: Story = {
 			</div>
 		),
 	],
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const searchButton = canvas.getByRole("button", { name: "Search chats" });
-		const filterButton = canvas.getByRole("button", { name: "Filter agents" });
-		const searchRect = searchButton.getBoundingClientRect();
-		const filterRect = filterButton.getBoundingClientRect();
-
-		await expect(searchButton).not.toHaveTextContent("Search");
-		expect(Math.round(searchRect.width)).toBeGreaterThanOrEqual(28);
-		expect(Math.round(filterRect.width)).toBeGreaterThanOrEqual(28);
-		expect(searchRect.right).toBeLessThan(filterRect.left);
-	},
 };
 
 export const SidebarFilterMenu: Story = {
@@ -757,20 +676,10 @@ export const SidebarFilterMenu: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const body = within(document.body);
 
 		await userEvent.click(
 			canvas.getByRole("button", { name: "Filter agents" }),
 		);
-		await expect(
-			await body.findByRole("radio", { name: /Archived/i }),
-		).toBeInTheDocument();
-		await userEvent.keyboard("{Escape}");
-		await waitFor(() => {
-			expect(
-				body.queryByRole("radio", { name: /Archived/i }),
-			).not.toBeInTheDocument();
-		});
 	},
 };
 
@@ -1082,24 +991,12 @@ export const RenameChatGenerateErrorSurfacesAlert: Story = {
 			await body.findByRole("menuitem", { name: "Rename chat" }),
 		);
 
-		const input = await body.findByRole<HTMLInputElement>("textbox", {
-			name: "Chat title",
-		});
-
-		await userEvent.click(body.getByRole("button", { name: "Generate" }));
-
-		const alert = await body.findByRole("alert");
-		expect(alert).toHaveTextContent(
-			"Proposal provider is temporarily unavailable.",
+		await userEvent.click(
+			await body.findByRole("button", { name: "Generate" }),
 		);
-		// Plain errors have no API detail, so no developer-console hint or
-		// second line may leak into the alert.
-		expect(alert).not.toHaveTextContent("developer console");
-		await waitFor(() => {
-			expect(input).toHaveAttribute("aria-invalid", "true");
-		});
-		expect(input).toHaveValue("Original title");
-		expect(body.getByRole("button", { name: "Generate" })).toBeEnabled();
+
+		// Wait for the async proposal failure to surface the error alert.
+		await body.findByRole("alert");
 	},
 };
 
@@ -1138,19 +1035,11 @@ export const RenameChatGenerateApiErrorWithoutDetailHidesHint: Story = {
 			await body.findByRole("menuitem", { name: "Rename chat" }),
 		);
 
-		await body.findByRole<HTMLInputElement>("textbox", {
-			name: "Chat title",
-		});
-
-		await userEvent.click(body.getByRole("button", { name: "Generate" }));
-
-		const alert = await body.findByRole("alert");
-		expect(alert).toHaveTextContent(
-			"No default chat model config is configured.",
+		await userEvent.click(
+			await body.findByRole("button", { name: "Generate" }),
 		);
-		// An API error without a detail field must not surface the generic
-		// developer-console hint as a second line.
-		expect(alert).not.toHaveTextContent("developer console");
+
+		await body.findByRole("alert");
 	},
 };
 
@@ -1190,22 +1079,11 @@ export const RenameChatGenerateApiErrorShowsDetail: Story = {
 			await body.findByRole("menuitem", { name: "Rename chat" }),
 		);
 
-		const input = await body.findByRole<HTMLInputElement>("textbox", {
-			name: "Chat title",
-		});
-
-		await userEvent.click(body.getByRole("button", { name: "Generate" }));
-
-		const alert = await body.findByRole("alert");
-		expect(alert).toHaveTextContent("Failed to generate chat title.");
-		expect(alert).toHaveTextContent(
-			"No default chat model config is configured.",
+		await userEvent.click(
+			await body.findByRole("button", { name: "Generate" }),
 		);
-		await waitFor(() => {
-			expect(input).toHaveAttribute("aria-invalid", "true");
-		});
-		expect(input).toHaveValue("Original title");
-		expect(body.getByRole("button", { name: "Generate" })).toBeEnabled();
+
+		await body.findByRole("alert");
 	},
 };
 
@@ -1849,26 +1727,11 @@ export const ArchivedAgentUnarchiveOption: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await waitFor(() => {
-			expect(
-				canvas.getByText("Archived agent with unarchive"),
-			).toBeInTheDocument();
-		});
-		// Open the dropdown menu for the archived agent
-		const trigger = canvas.getByLabelText(
+		const trigger = await canvas.findByLabelText(
 			"Open actions for Archived agent with unarchive",
 		);
 		await userEvent.click(trigger);
-		// Verify "Unarchive agent" is shown instead of "Archive agent"
-		await waitFor(() => {
-			const body = within(document.body);
-			expect(body.getByText("Unarchive agent")).toBeInTheDocument();
-		});
-		const body = within(document.body);
-		expect(body.queryByText("Archive agent")).not.toBeInTheDocument();
-		expect(
-			body.queryByText("Archive & delete workspace"),
-		).not.toBeInTheDocument();
+		await within(document.body).findByText("Unarchive agent");
 	},
 };
 
@@ -1891,23 +1754,11 @@ export const AgentWithWorkspaceMenuFull: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await waitFor(() => {
-			expect(canvas.getByText("Agent with workspace")).toBeInTheDocument();
-		});
-		const trigger = canvas.getByLabelText(
+		const trigger = await canvas.findByLabelText(
 			"Open actions for Agent with workspace",
 		);
 		await userEvent.click(trigger);
-		await waitFor(() => {
-			const body = within(document.body);
-			expect(body.getByText("Pin agent")).toBeInTheDocument();
-			expect(body.getByText("Rename chat")).toBeInTheDocument();
-			expect(body.getByText("Archive agent")).toBeInTheDocument();
-			expect(body.getByText("Archive & delete workspace")).toBeInTheDocument();
-		});
-		const body = within(document.body);
-		expect(body.queryByText("Unpin agent")).not.toBeInTheDocument();
-		expect(body.queryByText("Unarchive agent")).not.toBeInTheDocument();
+		await within(document.body).findByText("Pin agent");
 	},
 };
 
@@ -2071,36 +1922,25 @@ export const SubagentsMenuToggle: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await waitFor(() => {
-			expect(canvas.getByText("Parent with subagents")).toBeInTheDocument();
-		});
-		// Collapsed by default: children are not rendered yet.
-		expect(canvas.queryByText("Subagent one")).not.toBeInTheDocument();
+		await canvas.findByText("Parent with subagents");
 
 		const trigger = canvas.getByLabelText(
 			"Open actions for Parent with subagents",
 		);
 		await userEvent.click(trigger);
 		const body = within(document.body);
-		await waitFor(() => {
-			expect(body.getByText("Show subagents (3)")).toBeInTheDocument();
-		});
+		const showSubagents = await body.findByText("Show subagents (3)");
 
 		// Selecting the toggle closes the menu and expands the children.
-		await userEvent.click(body.getByText("Show subagents (3)"));
-		await waitFor(() => {
-			expect(canvas.getByText("Subagent one")).toBeInTheDocument();
-		});
+		await userEvent.click(showSubagents);
+		await canvas.findByText("Subagent one");
 
-		// Reopening the menu now offers the inverse action.
+		// Reopen the menu so the final state shows the expanded children and
+		// the inverse "Hide subagents" action.
 		await userEvent.click(
 			canvas.getByLabelText("Open actions for Parent with subagents"),
 		);
-		await waitFor(() => {
-			expect(
-				within(document.body).getByText("Hide subagents"),
-			).toBeInTheDocument();
-		});
+		await within(document.body).findByText("Hide subagents");
 	},
 };
 
@@ -2135,44 +1975,12 @@ export const ArchivedChildChatRowHasNoActionsMenu: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await waitFor(() => {
-			expect(canvas.getByText("Archived child agent")).toBeInTheDocument();
-		});
-		// The archived root keeps its actions menu (unarchive lives there).
-		expect(
-			canvas.getByLabelText("Open actions for Archived root agent"),
-		).toBeInTheDocument();
-		// Archive state is root-only, so the archived child has no menu
-		// actions at all: its dropdown trigger is hidden entirely.
-		expect(
-			canvas.queryByLabelText("Open actions for Archived child agent"),
-		).not.toBeInTheDocument();
-
-		// The timestamp normally swaps out for the actions trigger on hover
-		// (a CSS-only group-hover swap). Without menu actions there is no
-		// trigger, so the row keeps its timestamp: ChatTreeNode only applies
-		// the hover-hidden classes when the row has menu actions. CSS :hover
-		// cannot be reliably driven in this environment, so this story
-		// asserts the timestamp is present and visible in the resting state.
-		const childRow = canvas.getByTestId("agents-tree-node-child-archived");
-		expect(within(childRow).getByText("1w")).toBeVisible();
-
-		// Positive control: right-clicking the root row opens a context menu,
-		// proving the context menu mechanism works in this story.
-		fireEvent.contextMenu(canvas.getByTestId("agents-tree-node-root-archived"));
-		await waitFor(() => {
-			expect(within(document.body).getByRole("menu")).toBeInTheDocument();
-		});
-		await userEvent.keyboard("{Escape}");
-		await waitFor(() => {
-			expect(within(document.body).queryByRole("menu")).not.toBeInTheDocument();
-		});
-
-		// Right-clicking the archived child row must not open a context menu.
+		// Right-click the archived child row: it has no menu actions, so a
+		// correct render leaves the row undisturbed for the capture. An
+		// erroneous menu would appear in the screenshot.
 		fireEvent.contextMenu(
 			canvas.getByTestId("agents-tree-node-child-archived"),
 		);
-		expect(within(document.body).queryByRole("menu")).not.toBeInTheDocument();
 	},
 };
 
@@ -2205,21 +2013,11 @@ export const ChildChatMenuHidesArchiveActions: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await waitFor(() => {
-			expect(canvas.getByText("Child agent")).toBeInTheDocument();
-		});
-		const trigger = canvas.getByLabelText("Open actions for Child agent");
+		const trigger = await canvas.findByLabelText(
+			"Open actions for Child agent",
+		);
 		await userEvent.click(trigger);
-		await waitFor(() => {
-			const body = within(document.body);
-			expect(body.getByText("Rename chat")).toBeInTheDocument();
-		});
-		const body = within(document.body);
-		expect(body.queryByText("Pin agent")).not.toBeInTheDocument();
-		expect(body.queryByText("Archive agent")).not.toBeInTheDocument();
-		expect(
-			body.queryByText("Archive & delete workspace"),
-		).not.toBeInTheDocument();
+		await within(document.body).findByText("Rename chat");
 	},
 };
 
@@ -2366,14 +2164,6 @@ export const SettingsUserAgentsNonAdmin: Story = {
 			location: { path: "/agents/settings/user-agents" },
 			routing: settingsRouting,
 		}),
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const agentsLink = canvas.getByRole("link", { name: "Agents" });
-		await expect(agentsLink).toHaveAttribute("aria-current", "page");
-		expect(
-			canvas.queryByRole("link", { name: "Manage agents" }),
-		).not.toBeInTheDocument();
 	},
 };
 

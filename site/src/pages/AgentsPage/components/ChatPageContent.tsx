@@ -32,6 +32,7 @@ import { ConversationTimeline } from "./ChatConversation/ConversationTimeline";
 import type { ChatDetailError } from "./ChatConversation/chatError";
 import { getLatestContextUsage } from "./ChatConversation/chatHelpers";
 import {
+	isActiveChatStatus,
 	selectChatStatus,
 	selectHasStreamState,
 	selectIsAwaitingFirstStreamChunk,
@@ -261,6 +262,7 @@ interface ChatPageInputProps {
 	onPromoteQueuedMessage: (id: number) => Promise<void>;
 	onInterrupt: () => void;
 	isInputDisabled: boolean;
+	isReadOnly?: boolean;
 	isSendPending: boolean;
 	isInterruptPending: boolean;
 	hasModelOptions: boolean;
@@ -317,6 +319,7 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 	onPromoteQueuedMessage,
 	onInterrupt,
 	isInputDisabled,
+	isReadOnly = false,
 	isSendPending,
 	isInterruptPending,
 	hasModelOptions,
@@ -397,7 +400,10 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 	const userPromptHistory: readonly string[] =
 		promptsData?.prompts.map((prompt) => prompt.text) ?? [];
 
-	const rawUsage = getLatestContextUsage(messages);
+	const rawUsage = getLatestContextUsage(
+		messages,
+		modelOptions.find((option) => option.id === selectedModel)?.contextLimit,
+	);
 	const latestContextUsage =
 		rawUsage || chatContext
 			? {
@@ -510,8 +516,7 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 		wasEditingRef.current = isEditing;
 	}, [isEditing, resetEditAttachments]);
 
-	const isStreaming =
-		hasStreamState || chatStatus === "running" || chatStatus === "interrupting";
+	const isStreaming = hasStreamState || isActiveChatStatus(chatStatus);
 
 	const inputElement = (
 		<AgentChatInput
@@ -580,6 +585,7 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 			onCancelHistoryEdit={onCancelHistoryEdit}
 			userPromptHistory={userPromptHistory}
 			isDisabled={isInputDisabled}
+			isReadOnly={isReadOnly}
 			isLoading={isSendPending}
 			isStreaming={isStreaming}
 			onInterrupt={onInterrupt}
