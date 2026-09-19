@@ -149,13 +149,12 @@ Common scope examples include:
 - `api_key:read` - View API keys (useful for automation)
 - `coder:application_connect` - Connect to workspace applications
 
-The
-[`codersdk.APIKeyScope` schema](../../reference/api/schemas.md#codersdkapikeyscope)
-lists every scope name Coder defines, but a token cannot request all of them.
-Internal scopes such as `debug_info:read` are rejected with a `400` response, so
-use the `resource:action` and `coder:` names described on this page.
+For every scope a token can request, including the composite `coder:` scopes and
+the permissions each one grants, refer to the
+[API key scopes reference](../../reference/api-key-scopes.md). Coder rejects any
+other scope name with a `400` response.
 
-The older names `all` and `application_connect` are still accepted for backward compatibility. Tokens created with them are stored and listed as `coder:all` and `coder:application_connect`.
+Coder accepts deprecated scope names for backward compatibility. Refer to the [Deprecated scope names](../../reference/api-key-scopes.md#deprecated-scope-names) section of the API key scopes reference.
 
 ### Allow lists (advanced)
 

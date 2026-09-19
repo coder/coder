@@ -55,8 +55,8 @@ var workspaceActions = map[Action]ActionDefinition{
 
 	// Workspace provisioning. Start & stop are different so dormant workspaces can be
 	// stopped, but not stared.
-	ActionWorkspaceStart: "allows starting a workspace",
-	ActionWorkspaceStop:  "allows stopping a workspace",
+	ActionWorkspaceStart: "start a workspace",
+	ActionWorkspaceStop:  "stop a workspace",
 
 	// Running a workspace
 	ActionSSH:                "ssh into a given workspace",
@@ -276,7 +276,7 @@ var RBACPermissions = map[string]PermissionDefinition{
 			ActionCreate: "create an api key",
 			ActionRead:   "read api key details (secrets are not stored)",
 			ActionDelete: "delete an api key",
-			ActionUpdate: "update an api key, eg expires",
+			ActionUpdate: "update an api key, for example its expiry",
 		},
 	},
 	"tailnet_coordinator": {

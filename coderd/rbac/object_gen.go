@@ -65,7 +65,7 @@ var (
 	//  - "ActionCreate" :: create an api key
 	//  - "ActionDelete" :: delete an api key
 	//  - "ActionRead" :: read api key details (secrets are not stored)
-	//  - "ActionUpdate" :: update an api key, eg expires
+	//  - "ActionUpdate" :: update an api key, for example its expiry
 	ResourceApiKey = Object{
 		Type: "api_key",
 	}
@@ -445,8 +445,8 @@ var (
 	//  - "ActionRead" :: read workspace data to view on the UI
 	//  - "ActionShare" :: share a workspace with other users or groups
 	//  - "ActionSSH" :: ssh into a given workspace
-	//  - "ActionWorkspaceStart" :: allows starting a workspace
-	//  - "ActionWorkspaceStop" :: allows stopping a workspace
+	//  - "ActionWorkspaceStart" :: start a workspace
+	//  - "ActionWorkspaceStop" :: stop a workspace
 	//  - "ActionUpdate" :: edit workspace settings (scheduling, permissions, parameters)
 	//  - "ActionUpdateAgent" :: update an existing workspace agent
 	ResourceWorkspace = Object{
@@ -489,8 +489,8 @@ var (
 	//  - "ActionRead" :: read workspace data to view on the UI
 	//  - "ActionShare" :: share a workspace with other users or groups
 	//  - "ActionSSH" :: ssh into a given workspace
-	//  - "ActionWorkspaceStart" :: allows starting a workspace
-	//  - "ActionWorkspaceStop" :: allows stopping a workspace
+	//  - "ActionWorkspaceStart" :: start a workspace
+	//  - "ActionWorkspaceStop" :: stop a workspace
 	//  - "ActionUpdate" :: edit workspace settings (scheduling, permissions, parameters)
 	//  - "ActionUpdateAgent" :: update an existing workspace agent
 	ResourceWorkspaceDormant = Object{
