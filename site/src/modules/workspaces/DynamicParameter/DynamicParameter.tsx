@@ -709,7 +709,7 @@ const validValue = (value: NullHCLString) => {
 	return value.valid ? value.value : "";
 };
 
-const isValidParameterOption = (
+export const isValidParameterOption = (
 	previewParam: PreviewParameter,
 	buildParam: WorkspaceBuildParameter,
 ) => {

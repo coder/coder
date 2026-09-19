@@ -2,24 +2,30 @@ import type { FormikTouched } from "formik";
 import { useEffect, useEffectEvent } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { PreviewParameter } from "#/api/typesGenerated";
+import { isValidParameterOption } from "#/modules/workspaces/DynamicParameter/DynamicParameter";
+import type { AutofillBuildParameter } from "#/utils/richParameters";
 
-type UseSyncFormParametersProps = {
+export type UseSyncFormParametersProps = {
 	parameters: readonly PreviewParameter[];
 	formValues: readonly TypesGen.WorkspaceBuildParameter[];
 	touched: FormikTouched<{
 		rich_parameter_values?: readonly TypesGen.WorkspaceBuildParameter[];
 	}>;
+	autofillByName: Record<string, AutofillBuildParameter>;
 	setFieldValue: (
 		field: string,
 		value: TypesGen.WorkspaceBuildParameter[],
 	) => void;
+	setFieldTouched: (field: string, touched: boolean) => void;
 };
 
 export function useSyncFormParameters({
 	parameters,
 	formValues,
 	touched,
+	autofillByName,
 	setFieldValue,
+	setFieldTouched,
 }: UseSyncFormParametersProps) {
 	// Form values only needs to be updated when parameters change. Reading the
 	// latest form values from an effect event keeps them out of the effect's
@@ -28,22 +34,40 @@ export function useSyncFormParameters({
 		const currentFormValuesMap = new Map(
 			formValues.map((value) => [value.name, value.value]),
 		);
+		const newlyAutofilled: string[] = [];
 
 		const newParameterValues = parameters.map((param) => {
-			// Do not mess with values the user has changed (or were auto-filled).
-			// Otherwise based on timing web socket responses can undo changes, and it
-			// seems bad to change a user's inputs from under them anyway.
-			if (
+			const isTouched =
 				touched[
 					param.name as keyof {
 						rich_parameter_values?: readonly TypesGen.WorkspaceBuildParameter[];
 					}
-				]
-			) {
+				];
+
+			// Do not mess with values the user has changed (or were auto-filled).
+			// Otherwise based on timing web socket responses can undo changes, and it
+			// seems bad to change a user's inputs from under them anyway.
+			if (isTouched) {
 				const existingValue = currentFormValuesMap.get(param.name);
 				if (existingValue !== undefined) {
 					return { name: param.name, value: existingValue };
 				}
+			}
+
+			// A count-gated (conditional) parameter only exists in `parameters`
+			// once its gate resolves, so its URL autofill value could not be
+			// applied at form init like an always-present parameter's. Apply it
+			// the first time it appears and mark it touched, mirroring how
+			// always-present autofilled parameters are marked touched at init.
+			const autofill = autofillByName[param.name];
+			if (
+				!isTouched &&
+				autofill &&
+				!currentFormValuesMap.has(param.name) &&
+				isValidParameterOption(param, autofill)
+			) {
+				newlyAutofilled.push(param.name);
+				return { name: param.name, value: autofill.value };
 			}
 
 			return {
@@ -62,6 +86,9 @@ export function useSyncFormParameters({
 
 		if (isChanged) {
 			setFieldValue("rich_parameter_values", newParameterValues);
+		}
+		for (const name of newlyAutofilled) {
+			setFieldTouched(name, true);
 		}
 	});
 
