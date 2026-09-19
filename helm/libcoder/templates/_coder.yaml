@@ -12,6 +12,10 @@ metadata:
   annotations: {{ toYaml .Values.coder.annotations | nindent 4}}
 spec:
   replicas: {{ .Values.coder.replicaCount }}
+  {{- with .Values.coder.deploymentStrategy }}
+  strategy:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
   selector:
     matchLabels:
       {{- include "coder.selectorLabels" . | nindent 6 }}
