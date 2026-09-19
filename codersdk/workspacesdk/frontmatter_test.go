@@ -191,3 +191,39 @@ func TestParseSkillFrontmatter(t *testing.T) {
 		require.Equal(t, "spaced", name)
 	})
 }
+
+func TestValidatePluginName(t *testing.T) {
+	t.Parallel()
+
+	valid := []string{
+		"a",
+		"acme",
+		"acme-tools",
+		"acme.tools",
+		"a1.b2-c3",
+		"0",
+		strings.Repeat("a", workspacesdk.MaxPluginNameLength),
+	}
+	for _, name := range valid {
+		require.NoError(t, workspacesdk.ValidatePluginName(name), name)
+	}
+
+	invalid := []string{
+		"",
+		"Acme",
+		"acme tools",
+		"acme_tools",
+		"-acme",
+		"acme-",
+		".acme",
+		"acme.",
+		"acme--tools",
+		"acme..tools",
+		"acme/tools",
+		"ac\u00e9me",
+		strings.Repeat("a", workspacesdk.MaxPluginNameLength+1),
+	}
+	for _, name := range invalid {
+		require.Error(t, workspacesdk.ValidatePluginName(name), name)
+	}
+}

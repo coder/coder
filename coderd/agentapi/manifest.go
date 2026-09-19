@@ -32,10 +32,9 @@ type ManifestAPI struct {
 	DerpForceWebSockets       bool
 	DisableUserSecretFilePath bool
 	WorkspaceID               uuid.UUID
-
-	AgentFn   func(ctx context.Context) (database.WorkspaceAgent, error)
-	Database  database.Store
-	DerpMapFn func() *tailcfg.DERPMap
+	AgentFn                   func(ctx context.Context) (database.WorkspaceAgent, error)
+	Database                  database.Store
+	DerpMapFn                 func() *tailcfg.DERPMap
 }
 
 func (a *ManifestAPI) GetManifest(ctx context.Context, _ *agentproto.GetManifestRequest) (*agentproto.Manifest, error) {
@@ -156,6 +155,9 @@ func (a *ManifestAPI) GetManifest(ctx context.Context, _ *agentproto.GetManifest
 		Metadata:      dbAgentMetadataToProtoDescription(metadata),
 		Devcontainers: dbAgentDevcontainersToProto(devcontainers),
 		Secrets:       dbUserSecretsToProto(userSecrets, secretFilePathPolicy),
+
+		// coderd at this version accepts plugin context resources.
+		PluginsSupported: true,
 	}, nil
 }
 

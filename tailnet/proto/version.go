@@ -88,9 +88,20 @@ import (
 //
 // API v2.12:
 //   - Added the client_session_id to TelemetryEvent.
+//
+// API v2.13:
+//   - Added the plugin body variant (PluginBody) to ContextResource and
+//     the plugin_name field to SkillMetaBody and MCPServerBody on the
+//     Agent API, carrying Agent Plugins (agent-plugins.org) manifests
+//     and attribution in PushContextState.
+//   - Added plugins_supported to Manifest. coderd always sets it from
+//     this version on; the agent only discovers plugins and emits the
+//     plugin variant when it is true, so older coderd versions (which
+//     reject unknown body variants) never receive one. Agents keep
+//     dialing v2.10.
 const (
 	CurrentMajor = 2
-	CurrentMinor = 12
+	CurrentMinor = 13
 )
 
 var CurrentVersion = apiversion.New(CurrentMajor, CurrentMinor)
