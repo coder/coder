@@ -16,8 +16,6 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
-// TestOAuth2RateLimit checks that every route under /oauth2 shares the login
-// rate limit. Each case uses its own server so the buckets do not overlap.
 func TestOAuth2RateLimit(t *testing.T) {
 	t.Parallel()
 
@@ -31,9 +29,6 @@ func TestOAuth2RateLimit(t *testing.T) {
 		return client, owner, client.URL.String()
 	}
 
-	// requireLimited sends the request one more time than the limit allows.
-	// Every request inside the limit must get wantStatus, and the next one
-	// must be refused with 429.
 	requireLimited := func(t *testing.T, send func() *http.Response, wantStatus int) {
 		t.Helper()
 		for i := range rateLimit {
@@ -49,6 +44,19 @@ func TestOAuth2RateLimit(t *testing.T) {
 		require.NoError(t, json.NewDecoder(resp.Body).Decode(&oauthErr), "a refusal should carry an RFC 6749 body")
 		require.Equal(t, codersdk.OAuth2ErrorCodeTemporarilyUnavailable, oauthErr.Error)
 	}
+
+	t.Run("Authorize", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, _, baseURL := newServer(t)
+		app, _ := oauth2providertest.CreateTestOAuth2App(t, client)
+		_, challenge := oauth2providertest.GeneratePKCE(t)
+		uri := authorizeURL(baseURL, app.ID.String(), challenge)
+
+		requireLimited(t, func() *http.Response {
+			return doRequest(ctx, t, http.MethodGet, uri, nil)
+		}, http.StatusSeeOther)
+	})
 
 	t.Run("Tokens", func(t *testing.T) {
 		t.Parallel()
@@ -99,40 +107,6 @@ func TestOAuth2RateLimit(t *testing.T) {
 		}, http.StatusCreated)
 	})
 
-	// One bucket covers the whole tree, so a budget spent on one endpoint
-	// refuses the next request to a different endpoint.
-	t.Run("SharedAcrossEndpoints", func(t *testing.T) {
-		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitLong)
-		client, _, baseURL := newServer(t)
-		oauth2providertest.EnableDCR(t, client)
-		app, _ := oauth2providertest.CreateTestOAuth2App(t, client)
-
-		body, err := json.Marshal(codersdk.OAuth2ClientRegistrationRequest{
-			RedirectURIs: []string{"https://example.com/callback"},
-		})
-		require.NoError(t, err)
-
-		for i := range rateLimit {
-			resp := doRequest(ctx, t, http.MethodPost, baseURL+"/oauth2/register", strings.NewReader(string(body)), jsonContentType)
-			_ = resp.Body.Close()
-			require.Equal(t, http.StatusCreated, resp.StatusCode, "register %d should be inside the limit", i+1)
-		}
-
-		// On its own this request returns 401, so a 429 can only come from
-		// the budget that register already spent.
-		form := url.Values{}
-		form.Set("token", "coder_wrongprefix_wrongsecret")
-		form.Set("client_id", app.ID.String())
-		form.Set("client_secret", "coder_wrongprefix_wrongsecret")
-
-		resp := doRequest(ctx, t, http.MethodPost, baseURL+"/oauth2/revoke", strings.NewReader(form.Encode()), formContentType)
-		_ = resp.Body.Close()
-		require.Equal(t, http.StatusTooManyRequests, resp.StatusCode, "revoke should share the bucket with register")
-	})
-
-	// The RFC 7592 routes carry the client ID in the path. A caller that
-	// changes the ID on every request must still draw from one bucket.
 	t.Run("ClientConfigurationVaryingClientID", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -144,8 +118,85 @@ func TestOAuth2RateLimit(t *testing.T) {
 		}, http.StatusUnauthorized)
 	})
 
-	// DELETE /oauth2/tokens is authenticated, so the limiter keys on the user
-	// instead of the address and one user cannot spend another user's budget.
+	t.Run("AuthorizationServerMetadata", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		_, _, baseURL := newServer(t)
+
+		requireLimited(t, func() *http.Response {
+			return doRequest(ctx, t, http.MethodGet, baseURL+"/.well-known/oauth-authorization-server", nil)
+		}, http.StatusOK)
+	})
+
+	t.Run("ProtectedResourceMetadata", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		_, _, baseURL := newServer(t)
+
+		requireLimited(t, func() *http.Response {
+			return doRequest(ctx, t, http.MethodGet, baseURL+"/.well-known/oauth-protected-resource", nil)
+		}, http.StatusOK)
+	})
+
+	t.Run("ProtectedResourceMetadataVaryingSuffix", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		_, _, baseURL := newServer(t)
+
+		requireLimited(t, func() *http.Response {
+			uri := baseURL + "/.well-known/oauth-protected-resource/" + uuid.NewString()
+			return doRequest(ctx, t, http.MethodGet, uri, nil)
+		}, http.StatusOK)
+	})
+
+	t.Run("SeparateBucketPerEndpoint", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, _, baseURL := newServer(t)
+		app, _ := oauth2providertest.CreateTestOAuth2App(t, client)
+		_, challenge := oauth2providertest.GeneratePKCE(t)
+		authorize := authorizeURL(baseURL, app.ID.String(), challenge)
+
+		for i := range rateLimit + 1 {
+			resp := doRequest(ctx, t, http.MethodGet, authorize, nil)
+			_ = resp.Body.Close()
+			if i == rateLimit {
+				require.Equal(t, http.StatusTooManyRequests, resp.StatusCode, "authorize should run out of budget")
+			}
+		}
+
+		form := url.Values{}
+		form.Set("token", "coder_wrongprefix_wrongsecret")
+		form.Set("client_id", app.ID.String())
+		form.Set("client_secret", "coder_wrongprefix_wrongsecret")
+
+		resp := doRequest(ctx, t, http.MethodPost, baseURL+"/oauth2/revoke", strings.NewReader(form.Encode()), formContentType)
+		_ = resp.Body.Close()
+		require.Equal(t, http.StatusUnauthorized, resp.StatusCode, "revoke should have its own budget")
+	})
+
+	t.Run("UnmatchedPathKeepsBudget", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, _, baseURL := newServer(t)
+		app, _ := oauth2providertest.CreateTestOAuth2App(t, client)
+
+		for i := range rateLimit + 1 {
+			resp := doRequest(ctx, t, http.MethodGet, baseURL+"/oauth2/does-not-exist", nil)
+			_ = resp.Body.Close()
+			require.NotEqual(t, http.StatusTooManyRequests, resp.StatusCode, "junk request %d should not be counted", i+1)
+		}
+
+		form := url.Values{}
+		form.Set("token", "coder_wrongprefix_wrongsecret")
+		form.Set("client_id", app.ID.String())
+		form.Set("client_secret", "coder_wrongprefix_wrongsecret")
+
+		requireLimited(t, func() *http.Response {
+			return doRequest(ctx, t, http.MethodPost, baseURL+"/oauth2/revoke", strings.NewReader(form.Encode()), formContentType)
+		}, http.StatusUnauthorized)
+	})
+
 	t.Run("DeleteTokensLimitedPerUser", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)

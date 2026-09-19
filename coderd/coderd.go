@@ -1240,12 +1240,20 @@ func New(options *Options) *API {
 
 	// OAuth2 metadata endpoint for RFC 8414 discovery
 	r.Route("/.well-known/oauth-authorization-server", func(r chi.Router) {
-		r.Use(httpmw.RequireOAuth2Provider(oauth2ProviderEnabled))
+		r.Use(
+			httpmw.RequireOAuth2Provider(oauth2ProviderEnabled),
+			// Discovery carries no credential, so the limiter keys on the
+			// address rather than a user.
+			httpmw.RateLimitOAuth2(options.LoginRateLimit, time.Minute),
+		)
 		r.Get("/*", api.oauth2AuthorizationServerMetadata())
 	})
 	// OAuth2 protected resource metadata endpoint for RFC 9728 discovery
 	r.Route("/.well-known/oauth-protected-resource", func(r chi.Router) {
-		r.Use(httpmw.RequireOAuth2Provider(oauth2ProviderEnabled))
+		r.Use(
+			httpmw.RequireOAuth2Provider(oauth2ProviderEnabled),
+			httpmw.RateLimitOAuth2(options.LoginRateLimit, time.Minute),
+		)
 		r.Get("/*", api.oauth2ProtectedResourceMetadata())
 	})
 
@@ -1260,12 +1268,14 @@ func New(options *Options) *API {
 			// the gate, so a request the gate rejects gets no headers. That
 			// rejection carries no credential, so it needs none.
 			httpmw.NoStore,
-			// Routes here accept client credentials from callers with no API
-			// key, so the whole tree shares the login rate limit.
-			httpmw.RateLimitOAuth2(options.LoginRateLimit, time.Minute),
 		)
+		// Routes here accept client credentials from callers with no API key,
+		// so each one draws on the login rate limit. Mounting the limiter on
+		// each route rather than on this tree gives every endpoint its own
+		// budget and keeps requests that reach no handler from spending it.
 		r.Route("/authorize", func(r chi.Router) {
 			r.Use(
+				httpmw.RateLimitOAuth2(options.LoginRateLimit, time.Minute),
 				// Fetch the app as system for the authorize endpoint
 				httpmw.AsAuthzSystem(httpmw.ExtractOAuth2ProviderAppWithOAuth2Errors(options.Database)),
 				apiKeyMiddlewareRedirect,
@@ -1276,6 +1286,7 @@ func New(options *Options) *API {
 		})
 		r.Route("/tokens", func(r chi.Router) {
 			r.Use(
+				httpmw.RateLimitOAuth2(options.LoginRateLimit, time.Minute),
 				// Use OAuth2-compliant error responses for the tokens endpoint
 				httpmw.AsAuthzSystem(httpmw.ExtractOAuth2ProviderAppWithOAuth2Errors(options.Database)),
 			)
@@ -1294,6 +1305,7 @@ func New(options *Options) *API {
 		// RFC 7009 Token Revocation Endpoint
 		r.Route("/revoke", func(r chi.Router) {
 			r.Use(
+				httpmw.RateLimitOAuth2(options.LoginRateLimit, time.Minute),
 				// RFC 7009 endpoint uses OAuth2 client authentication, not API key
 				httpmw.AsAuthzSystem(httpmw.ExtractOAuth2ProviderAppWithOAuth2Errors(options.Database)),
 			)
@@ -1302,11 +1314,13 @@ func New(options *Options) *API {
 		})
 
 		// RFC 7591 Dynamic Client Registration - Public endpoint
-		r.Post("/register", api.postOAuth2ClientRegistration())
+		r.With(httpmw.RateLimitOAuth2(options.LoginRateLimit, time.Minute)).
+			Post("/register", api.postOAuth2ClientRegistration())
 
 		// RFC 7592 Client Configuration Management - Protected by registration access token
 		r.Route("/clients/{client_id}", func(r chi.Router) {
 			r.Use(
+				httpmw.RateLimitOAuth2(options.LoginRateLimit, time.Minute),
 				// Middleware to validate registration access token
 				oauth2provider.RequireRegistrationAccessToken(api.Database),
 			)

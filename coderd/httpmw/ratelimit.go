@@ -33,13 +33,13 @@ func RateLimitByAPICompatibilityEndpoint(count int, window time.Duration) func(h
 }
 
 // RateLimitOAuth2 returns a handler that limits requests per-minute based on
-// the caller, with one bucket for every route it is mounted on. The client ID
-// appears in the path of the RFC 7592 routes, so keying by path would let a
-// caller vary it to get a fresh bucket.
+// the caller. Mount it on each route, since every call is a separate bucket.
 //
-// A refused request reports an RFC 6749 error, since the OAuth2 endpoints
-// report their other failures that way. RFC 6749 has no code for throttling,
-// so temporarily_unavailable is the closest compliant framing.
+// The key ignores the request path, which some of these routes vary, so a
+// caller cannot respell a path to get a fresh bucket.
+//
+// A refusal reports temporarily_unavailable, the closest RFC 6749 code for
+// throttling, so a client can parse it like the other OAuth2 errors.
 func RateLimitOAuth2(count int, window time.Duration) func(http.Handler) http.Handler {
 	return rateLimitWithEndpointKey(count, window,
 		func(*http.Request) (string, error) {
@@ -52,8 +52,8 @@ func RateLimitOAuth2(count int, window time.Duration) func(http.Handler) http.Ha
 	)
 }
 
-// rateLimitMessage is the message a refused request reports, shared so every
-// limiter says the same thing whatever the body shape.
+// rateLimitMessage is the message a refused request reports, shared so the
+// limiters built here say the same thing whatever the body shape.
 func rateLimitMessage(count int, window time.Duration) string {
 	return fmt.Sprintf("You've been rate limited for sending more than %v requests in %v.", count, window)
 }
