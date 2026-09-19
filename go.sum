@@ -1,5 +1,5 @@
-cdr.dev/slog/v3 v3.1.0 h1:XmEauMMqmpK8MgB29pXQoIQfLpFEkuKiYqt8cL7mEUQ=
-cdr.dev/slog/v3 v3.1.0/go.mod h1:loDUH5VqUL4v6n5ZG0G2TjmpSA/S842rJEw0mJhwimQ=
+cdr.dev/slog/v3 v3.2.0 h1:BcEK0hruf73f3+CF+EPurR5OdcaO1kSclH3NEyMlX78=
+cdr.dev/slog/v3 v3.2.0/go.mod h1:loDUH5VqUL4v6n5ZG0G2TjmpSA/S842rJEw0mJhwimQ=
 cel.dev/expr v0.25.2 h1:K6j46C81hXtZQfuX60cVWQFBJahKSE2gfRbNuvr5bFs=
 cel.dev/expr v0.25.2/go.mod h1:hrXvqGP6G6gyx8UAHSHJ5RGk//1Oj5nXQ2NI02Nrsg4=
 cloud.google.com/go v0.123.0 h1:2NAUJwPR47q+E35uaJeYoNhuNEM9kM8SjgRgdeOJUSE=
