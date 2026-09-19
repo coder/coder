@@ -52,6 +52,7 @@ helm install postgresql bitnami/postgresql \
     --set auth.username=coder \
     --set auth.password=coder \
     --set auth.database=coder \
+    --set volumePermissions.enabled=true \
     --set primary.persistence.size=10Gi
 ```
 
