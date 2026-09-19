@@ -9,7 +9,7 @@ import type { Chat } from "#/api/typesGenerated";
 import { TooltipProvider } from "#/components/Tooltip/Tooltip";
 import { ThemeOverride } from "#/contexts/ThemeProvider";
 import { DashboardContext } from "#/modules/dashboard/DashboardProvider";
-import { MockChat } from "#/testHelpers/chatEntities";
+import { MockChat, MockChatDiffStatus } from "#/testHelpers/chatEntities";
 import { MockChatModel } from "#/testHelpers/chatModels";
 import {
 	MockAppearanceConfig,
@@ -66,7 +66,7 @@ const buildChat = (overrides: Partial<Chat> = {}): Chat => ({
 	...overrides,
 });
 
-const dashboardValue = {
+const mockDashboardValue = {
 	entitlements: MockEntitlements,
 	experiments: [] as TypesGen.Experiment[],
 	appearance: MockAppearanceConfig,
@@ -83,7 +83,7 @@ const Wrapper: FC<PropsWithChildren> = ({ children }) => {
 			<ThemeOverride theme={themes[DEFAULT_THEME]}>
 				<TooltipProvider>
 					<MemoryRouter initialEntries={["/agents"]}>
-						<DashboardContext.Provider value={dashboardValue}>
+						<DashboardContext.Provider value={mockDashboardValue}>
 							{children}
 						</DashboardContext.Provider>
 					</MemoryRouter>
@@ -561,6 +561,80 @@ describe("ChatsSidebar load-more behavior", () => {
 		// No observer should have been created since the sentinel
 		// is not rendered.
 		expect(observeCount).toBe(0);
+	});
+});
+
+describe("ChatsSidebar PR icon", () => {
+	const mockMultiPRChat = buildChat({
+		id: "multi-pr",
+		title: "Multiple pull requests",
+		diff_statuses: [
+			{
+				...MockChatDiffStatus,
+				chat_id: "multi-pr",
+				git_branch: "feat/one",
+				url: "https://github.com/coder/coder/pull/1",
+				pr_number: 1,
+				pull_request_state: "open",
+				pull_request_title: "feat: add login page",
+			},
+			{
+				...MockChatDiffStatus,
+				chat_id: "multi-pr",
+				git_branch: "feat/two",
+				url: "https://github.com/coder/coder/pull/2",
+				pr_number: 2,
+				pull_request_state: "merged",
+				pull_request_title: "feat: add login tests",
+			},
+		],
+	});
+
+	// The popover contents are visual state, covered by the
+	// WithMultiplePRs story screenshot. The non-visual contract is
+	// what screen readers announce.
+	it("announces the pull request state when the chat tracks one pull request", () => {
+		render(
+			<Wrapper>
+				<ChatsSidebar
+					{...defaultProps}
+					chats={[
+						buildChat({
+							id: "one-pr",
+							title: "One pull request",
+							diff_statuses: [
+								{
+									...MockChatDiffStatus,
+									chat_id: "one-pr",
+									url: "https://github.com/coder/coder/pull/1",
+									pull_request_state: "open",
+									pull_request_title: "",
+									additions: 0,
+									deletions: 0,
+									changed_files: 0,
+								},
+							],
+						}),
+					]}
+				/>
+			</Wrapper>,
+		);
+
+		expect(
+			screen.getByRole("img", { name: /pull request/i }),
+		).toHaveAccessibleName("Pull request open");
+	});
+
+	it("announces the tracked pull request count when the chat tracks several", () => {
+		render(
+			<Wrapper>
+				<ChatsSidebar {...defaultProps} chats={[mockMultiPRChat]} />
+			</Wrapper>,
+		);
+
+		expect(
+			screen.getByRole("img", { name: /pull request/i }),
+		).toHaveAccessibleName("2 pull requests");
 	});
 });
 
