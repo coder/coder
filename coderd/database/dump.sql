@@ -348,6 +348,13 @@ CREATE TYPE chat_client_type AS ENUM (
     'api'
 );
 
+CREATE TYPE chat_memory_consolidation_status AS ENUM (
+    'running',
+    'succeeded',
+    'failed',
+    'skipped'
+);
+
 CREATE TYPE chat_message_role AS ENUM (
     'system',
     'user',
@@ -2033,6 +2040,22 @@ CREATE UNLOGGED TABLE chat_heartbeats (
 );
 
 COMMENT ON TABLE chat_heartbeats IS 'Ephemeral runner ownership leases for runnable chats. The table is unlogged because losing heartbeat rows after a crash is safe: missing heartbeats are treated as stale ownership and cause workers to reacquire runnable chats.';
+
+CREATE TABLE chat_memory_consolidations (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    organization_id uuid NOT NULL,
+    project_id uuid NOT NULL,
+    status chat_memory_consolidation_status NOT NULL,
+    started_at timestamp with time zone DEFAULT now() NOT NULL,
+    finished_at timestamp with time zone,
+    model text DEFAULT ''::text NOT NULL,
+    memories_before integer DEFAULT 0 NOT NULL,
+    memories_after integer DEFAULT 0 NOT NULL,
+    mutations jsonb DEFAULT '[]'::jsonb NOT NULL,
+    error text DEFAULT ''::text NOT NULL
+);
+
+COMMENT ON TABLE chat_memory_consolidations IS 'Bounded journal of detached project memory consolidation runs.';
 
 CREATE TABLE chat_memory_cursors (
     chat_id uuid NOT NULL,
@@ -4362,6 +4385,9 @@ ALTER TABLE ONLY chat_files
 ALTER TABLE ONLY chat_heartbeats
     ADD CONSTRAINT chat_heartbeats_pkey PRIMARY KEY (chat_id, runner_id);
 
+ALTER TABLE ONLY chat_memory_consolidations
+    ADD CONSTRAINT chat_memory_consolidations_pkey PRIMARY KEY (id);
+
 ALTER TABLE ONLY chat_memory_cursors
     ADD CONSTRAINT chat_memory_cursors_pkey PRIMARY KEY (chat_id);
 
@@ -4843,6 +4869,8 @@ CREATE INDEX idx_chat_files_org ON chat_files USING btree (organization_id);
 
 CREATE INDEX idx_chat_files_owner ON chat_files USING btree (owner_id);
 
+CREATE INDEX idx_chat_memory_consolidations_project_started_at ON chat_memory_consolidations USING btree (project_id, started_at DESC);
+
 CREATE INDEX idx_chat_messages_chat ON chat_messages USING btree (chat_id);
 
 CREATE INDEX idx_chat_messages_chat_created ON chat_messages USING btree (chat_id, created_at);
@@ -5236,6 +5264,12 @@ ALTER TABLE ONLY chat_files
 
 ALTER TABLE ONLY chat_heartbeats
     ADD CONSTRAINT chat_heartbeats_chat_id_fkey FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY chat_memory_consolidations
+    ADD CONSTRAINT chat_memory_consolidations_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY chat_memory_consolidations
+    ADD CONSTRAINT chat_memory_consolidations_project_id_fkey FOREIGN KEY (project_id) REFERENCES chat_projects(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY chat_memory_cursors
     ADD CONSTRAINT chat_memory_cursors_chat_id_fkey FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE;

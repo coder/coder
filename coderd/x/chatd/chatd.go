@@ -207,6 +207,7 @@ type Server struct {
 
 	aibridgeTransportFactory *atomic.Pointer[aibridge.TransportFactory]
 	experiments              codersdk.Experiments
+	afterMemoryExtraction    func(context.Context, slog.Logger, database.Chat)
 
 	// Configuration
 	inFlightChatStaleAfter time.Duration

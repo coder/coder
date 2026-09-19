@@ -1128,6 +1128,14 @@ func (m queryMetricsStore) FindMatchingPresetID(ctx context.Context, arg databas
 	return r0, r1
 }
 
+func (m queryMetricsStore) FinishChatMemoryConsolidation(ctx context.Context, arg database.FinishChatMemoryConsolidationParams) (database.ChatMemoryConsolidation, error) {
+	start := time.Now()
+	r0, r1 := m.s.FinishChatMemoryConsolidation(ctx, arg)
+	m.queryLatencies.WithLabelValues("FinishChatMemoryConsolidation").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "FinishChatMemoryConsolidation").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetAIBridgeChatCost(ctx context.Context, rootChatID uuid.UUID) (database.GetAIBridgeChatCostRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetAIBridgeChatCost(ctx, rootChatID)
@@ -1672,6 +1680,14 @@ func (m queryMetricsStore) GetChatIncludeDefaultSystemPrompt(ctx context.Context
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetChatMemoryConsolidationsByProject(ctx context.Context, arg database.GetChatMemoryConsolidationsByProjectParams) ([]database.ChatMemoryConsolidation, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetChatMemoryConsolidationsByProject(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetChatMemoryConsolidationsByProject").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatMemoryConsolidationsByProject").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetChatMemoryCursor(ctx context.Context, chatID uuid.UUID) (database.ChatMemoryCursor, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetChatMemoryCursor(ctx, chatID)
@@ -1853,6 +1869,14 @@ func (m queryMetricsStore) GetChatProjectMemoryByName(ctx context.Context, arg d
 	r0, r1 := m.s.GetChatProjectMemoryByName(ctx, arg)
 	m.queryLatencies.WithLabelValues("GetChatProjectMemoryByName").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatProjectMemoryByName").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetChatProjectMemoryByNameForUpdate(ctx context.Context, arg database.GetChatProjectMemoryByNameForUpdateParams) (database.ChatProjectMemory, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetChatProjectMemoryByNameForUpdate(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetChatProjectMemoryByNameForUpdate").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatProjectMemoryByNameForUpdate").Inc()
 	return r0, r1
 }
 
@@ -2405,6 +2429,14 @@ func (m queryMetricsStore) GetLastUpdateCheck(ctx context.Context) (string, erro
 	r0, r1 := m.s.GetLastUpdateCheck(ctx)
 	m.queryLatencies.WithLabelValues("GetLastUpdateCheck").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetLastUpdateCheck").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetLatestChatMemoryConsolidationByProject(ctx context.Context, projectID uuid.UUID) (database.ChatMemoryConsolidation, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetLatestChatMemoryConsolidationByProject(ctx, projectID)
+	m.queryLatencies.WithLabelValues("GetLatestChatMemoryConsolidationByProject").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetLatestChatMemoryConsolidationByProject").Inc()
 	return r0, r1
 }
 
@@ -4288,6 +4320,14 @@ func (m queryMetricsStore) InsertChatFile(ctx context.Context, arg database.Inse
 	return r0, r1
 }
 
+func (m queryMetricsStore) InsertChatMemoryConsolidation(ctx context.Context, arg database.InsertChatMemoryConsolidationParams) (database.ChatMemoryConsolidation, error) {
+	start := time.Now()
+	r0, r1 := m.s.InsertChatMemoryConsolidation(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertChatMemoryConsolidation").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertChatMemoryConsolidation").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) InsertChatMessages(ctx context.Context, arg database.InsertChatMessagesParams) ([]database.InsertChatMessagesRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.InsertChatMessages(ctx, arg)
@@ -5126,6 +5166,14 @@ func (m queryMetricsStore) PopNextQueuedMessage(ctx context.Context, chatID uuid
 	m.queryLatencies.WithLabelValues("PopNextQueuedMessage").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "PopNextQueuedMessage").Inc()
 	return r0, r1
+}
+
+func (m queryMetricsStore) PruneChatMemoryConsolidationsByProject(ctx context.Context, arg database.PruneChatMemoryConsolidationsByProjectParams) error {
+	start := time.Now()
+	r0 := m.s.PruneChatMemoryConsolidationsByProject(ctx, arg)
+	m.queryLatencies.WithLabelValues("PruneChatMemoryConsolidationsByProject").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "PruneChatMemoryConsolidationsByProject").Inc()
+	return r0
 }
 
 func (m queryMetricsStore) ReduceWorkspaceAgentShareLevelToAuthenticatedByTemplate(ctx context.Context, templateID uuid.UUID) error {

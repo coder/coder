@@ -37,12 +37,17 @@ import (
 var errMatchAny = xerrors.New("match any error")
 
 var skipMethods = map[string]string{
-	"InTx":           "Not relevant",
-	"Ping":           "Not relevant",
-	"PGLocks":        "Not relevant",
-	"Wrappers":       "Not relevant",
-	"AcquireLock":    "Not relevant",
-	"TryAcquireLock": "Not relevant",
+	"InTx":                                   "Not relevant",
+	"Ping":                                   "Not relevant",
+	"PGLocks":                                "Not relevant",
+	"Wrappers":                               "Not relevant",
+	"AcquireLock":                            "Not relevant",
+	"TryAcquireLock":                         "Not relevant",
+	"FinishChatMemoryConsolidation":          "Requires the chatd actor",
+	"InsertChatMemoryConsolidation":          "Requires the chatd actor",
+	"PruneChatMemoryConsolidationsByProject": "Requires the chatd actor",
+	"GetChatMemoryConsolidationsByProject":   "Covered by HTTP handler tests",
+	"GetLatestChatMemoryConsolidationByProject": "Covered by consolidation worker tests",
 }
 
 // TestMethodTestSuite runs MethodTestSuite.

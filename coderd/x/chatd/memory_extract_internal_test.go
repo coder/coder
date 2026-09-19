@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 	"unicode/utf8"
@@ -19,6 +20,7 @@ import (
 	"go.uber.org/mock/gomock"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
@@ -164,14 +166,36 @@ func TestExtractMemories(t *testing.T) {
 			HistoryVersion:    6,
 		}
 	}
-	newServer := func(t *testing.T, db database.Store, roundTripper http.RoundTripper) *Server {
+	type testServer struct {
+		*Server
+		afterMemoryExtractionChatIDs func() []uuid.UUID
+	}
+	newServer := func(t *testing.T, db database.Store, roundTripper http.RoundTripper) *testServer {
 		t.Helper()
-		return &Server{
-			db:                       db,
-			logger:                   slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
-			clock:                    quartz.NewReal(),
-			experiments:              codersdk.ExperimentsKnown,
-			aibridgeTransportFactory: aibridgeTestFactoryPointer(&aibridgeTestFactory{rt: roundTripper}),
+		ctx, cancel := context.WithCancel(t.Context())
+		t.Cleanup(cancel)
+		var afterMemoryExtractionMu sync.Mutex
+		var afterMemoryExtractionChatIDs []uuid.UUID
+		return &testServer{
+			Server: &Server{
+				ctx:                      ctx,
+				cancel:                   cancel,
+				db:                       db,
+				logger:                   slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
+				clock:                    quartz.NewReal(),
+				experiments:              codersdk.ExperimentsKnown,
+				aibridgeTransportFactory: aibridgeTestFactoryPointer(&aibridgeTestFactory{rt: roundTripper}),
+				afterMemoryExtraction: func(_ context.Context, _ slog.Logger, chat database.Chat) {
+					afterMemoryExtractionMu.Lock()
+					defer afterMemoryExtractionMu.Unlock()
+					afterMemoryExtractionChatIDs = append(afterMemoryExtractionChatIDs, chat.ID)
+				},
+			},
+			afterMemoryExtractionChatIDs: func() []uuid.UUID {
+				afterMemoryExtractionMu.Lock()
+				defer afterMemoryExtractionMu.Unlock()
+				return append([]uuid.UUID(nil), afterMemoryExtractionChatIDs...)
+			},
 		}
 	}
 	message := func(t *testing.T, id int64, role database.ChatMessageRole, text string, revision int64) database.ChatMessage {
@@ -406,6 +430,7 @@ func TestExtractMemories(t *testing.T) {
 		require.NotContains(t, capturedPrompt, "Do not save project details")
 		// Deletion is intentionally absent from the extraction schema.
 		require.NotContains(t, capturedPrompt, `"deletes"`)
+		require.Equal(t, []uuid.UUID{chat.ID}, server.afterMemoryExtractionChatIDs())
 	})
 
 	t.Run("DrainsTurnsCompletedDuringExtraction", func(t *testing.T) {
@@ -604,6 +629,7 @@ func TestExtractMemories(t *testing.T) {
 		expectModelResolution(db, chat)
 
 		server.extractMemories(t.Context(), slogtest.Make(t, nil), chat)
+		require.Empty(t, server.afterMemoryExtractionChatIDs())
 	})
 }
 

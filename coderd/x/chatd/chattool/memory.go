@@ -135,11 +135,20 @@ type MemoryIndexEntry struct {
 // MemoryStore stores durable memories in one scope.
 type MemoryStore interface {
 	Get(ctx context.Context, name string) (Memory, error)
+	// GetForUpdate reads a memory and locks its row until the enclosing
+	// InTx commits, so a revalidated row cannot change before it is written.
+	GetForUpdate(ctx context.Context, name string) (Memory, error)
+	// Lock takes the scope's advisory lock for the enclosing InTx. Writers
+	// take this lock before any row lock, so callers that lock rows must
+	// call Lock first to keep the same order.
+	Lock(ctx context.Context) error
 	List(ctx context.Context) ([]MemoryIndexEntry, error)
+	ListFull(ctx context.Context) ([]Memory, error)
 	Count(ctx context.Context) (int64, error)
 	Insert(ctx context.Context, input MemoryInput) (Memory, error)
 	Upsert(ctx context.Context, input MemoryInput) (Memory, error)
 	Delete(ctx context.Context, name string) error
+	InTx(func(MemoryStore) error) error
 }
 
 type projectMemoryStore struct {
@@ -166,6 +175,17 @@ func (s projectMemoryStore) Get(ctx context.Context, name string) (Memory, error
 	return Memory{Name: row.ChatProjectMemory.Name, Description: row.ChatProjectMemory.Description, Body: row.ChatProjectMemory.Body, UpdatedAt: row.ChatProjectMemory.UpdatedAt, CreatedByUsername: row.CreatedByUsername}, nil
 }
 
+func (s projectMemoryStore) GetForUpdate(ctx context.Context, name string) (Memory, error) {
+	row, err := s.db.GetChatProjectMemoryByNameForUpdate(ctx, database.GetChatProjectMemoryByNameForUpdateParams{ProjectID: s.projectID, Name: name})
+	if errors.Is(err, sql.ErrNoRows) {
+		return Memory{}, ErrMemoryNotFound
+	}
+	if err != nil {
+		return Memory{}, err
+	}
+	return Memory{Name: row.Name, Description: row.Description, Body: row.Body, UpdatedAt: row.UpdatedAt}, nil
+}
+
 func (s projectMemoryStore) List(ctx context.Context) ([]MemoryIndexEntry, error) {
 	rows, err := s.db.GetChatProjectMemoriesByProjectID(ctx, s.projectID)
 	if err != nil {
@@ -176,6 +196,18 @@ func (s projectMemoryStore) List(ctx context.Context) ([]MemoryIndexEntry, error
 		entries[i] = MemoryIndexEntry{Name: row.ChatProjectMemory.Name, Description: row.ChatProjectMemory.Description}
 	}
 	return entries, nil
+}
+
+func (s projectMemoryStore) ListFull(ctx context.Context) ([]Memory, error) {
+	rows, err := s.db.GetChatProjectMemoriesByProjectID(ctx, s.projectID)
+	if err != nil {
+		return nil, err
+	}
+	memories := make([]Memory, len(rows))
+	for i, row := range rows {
+		memories[i] = Memory{Name: row.ChatProjectMemory.Name, Description: row.ChatProjectMemory.Description, Body: row.ChatProjectMemory.Body, UpdatedAt: row.ChatProjectMemory.UpdatedAt, CreatedByUsername: row.CreatedByUsername}
+	}
+	return memories, nil
 }
 
 func (s projectMemoryStore) Count(ctx context.Context) (int64, error) {
@@ -214,6 +246,16 @@ func (s projectMemoryStore) Delete(ctx context.Context, name string) error {
 		return ErrMemoryNotFound
 	}
 	return err
+}
+
+func (s projectMemoryStore) Lock(ctx context.Context) error {
+	return s.db.AcquireLock(ctx, projectMemoryLockID(s.projectID))
+}
+
+func (s projectMemoryStore) InTx(fn func(MemoryStore) error) error {
+	return s.db.InTx(func(tx database.Store) error {
+		return fn(projectMemoryStore{db: tx, projectID: s.projectID, organizationID: s.organizationID, chatID: s.chatID, ownerID: s.ownerID})
+	}, nil)
 }
 
 // ValidateMemoryName validates a stable memory identifier.

@@ -1376,6 +1376,14 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().GetChatProjectByID(gomock.Any(), project.ID).Return(project, nil).AnyTimes()
 		check.Args(arg).Asserts(memory.ChatProjectMemory.RBACObject(project), policy.ActionRead).Returns(memory)
 	}))
+	s.Run("GetChatProjectMemoryByNameForUpdate", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		memory := testutil.Fake(s.T(), faker, database.ChatProjectMemory{})
+		project := testutil.Fake(s.T(), faker, database.ChatProject{ID: memory.ProjectID})
+		arg := database.GetChatProjectMemoryByNameForUpdateParams{ProjectID: memory.ProjectID, Name: memory.Name}
+		dbm.EXPECT().GetChatProjectMemoryByNameForUpdate(gomock.Any(), arg).Return(memory, nil).AnyTimes()
+		dbm.EXPECT().GetChatProjectByID(gomock.Any(), project.ID).Return(project, nil).AnyTimes()
+		check.Args(arg).Asserts(memory.RBACObject(project), policy.ActionRead).Returns(memory)
+	}))
 	s.Run("GetChatMemoryCursor", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		chat := testutil.Fake(s.T(), faker, database.Chat{})
 		cursor := testutil.Fake(s.T(), faker, database.ChatMemoryCursor{ChatID: chat.ID})
