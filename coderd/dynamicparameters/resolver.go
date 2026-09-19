@@ -100,6 +100,14 @@ func ResolveParameters(
 				delete(values, parameter.Name)
 			}
 		}
+
+		// A template update can remove an option value that the previous build selected
+		if parameter.Mutable {
+			v := values[parameter.Name]
+			if v.Source == sourcePrevious && !isValidParameterOption(parameter, v.Value) {
+				delete(values, parameter.Name)
+			}
+		}
 	}
 
 	// This is the final set of values that will be used. Any errors at this stage
