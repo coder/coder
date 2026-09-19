@@ -62,7 +62,7 @@ func TestCreateChatUserPromptSubmitHook(t *testing.T) {
 
 		opts := createHookOptions(t, db, user.ID, org.ID, model.ID, "secret")
 		opts.Title = chatprompt.FallbackTitle(chatprompt.TitleText(opts.InitialUserContent, nil))
-		opts.TitleDerivedFromContent = true
+		opts.TitleSource = database.ChatTitleSourceFallback
 		chat, err := server.CreateChat(ctx, opts)
 		require.NoError(t, err)
 		request := testutil.RequireReceive(ctx, t, requests)
@@ -71,6 +71,7 @@ func TestCreateChatUserPromptSubmitHook(t *testing.T) {
 		initialUser := messages[len(messages)-1]
 		require.Equal(t, "redacted", hookMessageText(t, initialUser))
 		require.Equal(t, "redacted", chat.Title, "prompt-derived title must be recomputed from the override")
+		require.Equal(t, database.ChatTitleSourceFallback, chat.TitleSource)
 	})
 
 	t.Run("override keeps explicit title", func(t *testing.T) {
@@ -83,6 +84,7 @@ func TestCreateChatUserPromptSubmitHook(t *testing.T) {
 		chat, err := server.CreateChat(ctx, createHookOptions(t, db, user.ID, org.ID, model.ID, "secret"))
 		require.NoError(t, err)
 		require.Equal(t, "create hook test", chat.Title)
+		require.Equal(t, database.ChatTitleSourceUser, chat.TitleSource)
 	})
 
 	t.Run("invalid model config rejected before dispatch", func(t *testing.T) {
@@ -112,7 +114,7 @@ func TestCreateChatUserPromptSubmitHook(t *testing.T) {
 
 		opts := createHookOptions(t, db, user.ID, org.ID, model.ID, "   ")
 		opts.Title = chatprompt.FallbackTitle("secret paste content")
-		opts.TitleDerivedFromContent = true
+		opts.TitleSource = database.ChatTitleSourceFallback
 		chat, err := server.CreateChat(ctx, opts)
 		require.NoError(t, err)
 		require.Equal(t, "redacted", chat.Title,
@@ -224,6 +226,7 @@ func createHookOptions(
 		OrganizationID:     organizationID,
 		OwnerID:            userID,
 		Title:              "create hook test",
+		TitleSource:        database.ChatTitleSourceUser,
 		ModelConfigID:      modelConfigID,
 		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText(prompt)},
 	}

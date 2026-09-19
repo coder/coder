@@ -36,9 +36,8 @@ func TitlePasteText(data []byte) string {
 // syntheticPasteTitleBudget runes per file.
 //
 // The chat-creation fallback title and both title-generation paths
-// must derive their input through this function: auto-titling only
-// proceeds when the current title equals FallbackTitle of this exact
-// string, so a drift between derivations silently disables it.
+// must derive their input through this function so the fallback title
+// and the generation input describe the same content.
 func TitleText(parts []codersdk.ChatMessagePart, pasteText map[uuid.UUID]string) string {
 	texts := make([]string, 0, len(parts))
 	for _, part := range parts {

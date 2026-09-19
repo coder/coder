@@ -29,13 +29,15 @@ type CreateChatInput struct {
 	RootChatID        uuid.NullUUID
 	LastModelConfigID uuid.UUID
 	Title             string
-	Mode              database.NullChatMode
-	PlanMode          database.NullChatPlanMode
-	MCPServerIDs      []uuid.UUID
-	Labels            pqtype.NullRawMessage
-	DynamicTools      pqtype.NullRawMessage
-	ClientType        database.ChatClientType
-	InitialMessages   []Message
+	// TitleSource defaults to fallback.
+	TitleSource     database.ChatTitleSource
+	Mode            database.NullChatMode
+	PlanMode        database.NullChatPlanMode
+	MCPServerIDs    []uuid.UUID
+	Labels          pqtype.NullRawMessage
+	DynamicTools    pqtype.NullRawMessage
+	ClientType      database.ChatClientType
+	InitialMessages []Message
 	// FileIDs are linked atomically with the initial messages.
 	FileIDs []uuid.UUID
 }
@@ -116,6 +118,7 @@ func insertChat(
 			RootChatID:        input.RootChatID,
 			LastModelConfigID: input.LastModelConfigID,
 			Title:             input.Title,
+			TitleSource:       database.NullChatTitleSource{ChatTitleSource: input.TitleSource, Valid: input.TitleSource != ""},
 			Mode:              input.Mode,
 			PlanMode:          input.PlanMode,
 			Status:            database.ChatStatusRunning,

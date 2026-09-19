@@ -1939,6 +1939,7 @@ export interface Chat {
 	readonly last_model_config_id: string;
 	readonly last_reasoning_effort?: string;
 	readonly title: string;
+	readonly title_source: ChatTitleSource;
 	readonly status: ChatStatus;
 	readonly plan_mode?: ChatPlanMode;
 	readonly last_error?: ChatError;
@@ -3498,6 +3499,15 @@ export interface ChatTextPart {
 }
 
 // From codersdk/chats.go
+export type ChatTitleSource = "fallback" | "generated" | "user";
+
+export const ChatTitleSources: ChatTitleSource[] = [
+	"fallback",
+	"generated",
+	"user",
+];
+
+// From codersdk/chats.go
 export interface ChatToolCallPart {
 	readonly type: "tool-call";
 	readonly tool_call_id?: string;
@@ -3598,6 +3608,7 @@ export type ChatWatchEventKind =
 	| "action_required"
 	| "chat_summary_change"
 	| "context_dirty"
+	| "cost_change"
 	| "created"
 	| "deleted"
 	| "diff_status_change"
@@ -3609,6 +3620,7 @@ export const ChatWatchEventKinds: ChatWatchEventKind[] = [
 	"action_required",
 	"chat_summary_change",
 	"context_dirty",
+	"cost_change",
 	"created",
 	"deleted",
 	"diff_status_change",
@@ -3904,6 +3916,12 @@ export interface CreateChatProviderConfigRequest {
 export interface CreateChatRequest {
 	readonly organization_id: string;
 	readonly content: readonly ChatInputPart[];
+	/**
+	 * Title, when set, is trimmed and stored as the user title; automatic
+	 * title generation is skipped. When omitted, the title is derived from
+	 * the first prompt and later replaced by a generated title.
+	 */
+	readonly title?: string;
 	readonly system_prompt?: string;
 	readonly workspace_id?: string;
 	readonly model_config_id?: string;
