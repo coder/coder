@@ -246,8 +246,13 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 	};
 
 	// Auto-expand ancestors of the active chat so it's always visible.
-	// Only runs when activeChatId changes, not on every parentById
-	// recalculation, so user-initiated collapse is preserved.
+	// Runs when the active chat changes or when its parent first becomes
+	// known (on a direct load the chat list arrives after activeChatId is
+	// already set). It does not run on every parentById recalculation, so
+	// user-initiated collapse is preserved.
+	const activeChatParentId = activeChatId
+		? chatTree.parentById.get(activeChatId)
+		: undefined;
 	const parentByIdRef = useRef<ChatTree["parentById"]>(chatTree.parentById);
 	useEffect(() => {
 		parentByIdRef.current = chatTree.parentById;
@@ -277,7 +282,7 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 				return next;
 			});
 		}
-	}, [activeChatId]);
+	}, [activeChatId, activeChatParentId]);
 
 	const toggleExpanded = (chatID: string) => {
 		setExpandedById((prev) => ({ ...prev, [chatID]: !prev[chatID] }));
