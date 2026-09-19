@@ -474,6 +474,7 @@
 		  Brand supergraphic used as a decorative background on premium upsell surfaces.
 		*/
 		--supergraphic-url: url("/supergraphic/supergraphic-light.webp");
+		--supergraphic-square-url: url("/supergraphic/supergraphic-square-light.webp");
 		--border-purple: 255 92% 76%;
 		--border-default: 240 6% 90%;
 		--border-success: 142 76% 36%;
@@ -548,6 +549,7 @@
 		--surface-purple: 268, 68%, 17%;
 		--surface-magenta: 291, 74%, 15%;
 		--supergraphic-url: url("/supergraphic/supergraphic-dark.webp");
+		--supergraphic-square-url: url("/supergraphic/supergraphic-square-dark.webp");
 		--border-purple: 255 92% 76%;
 		--border-default: 240 4% 16%;
 		--border-success: 142 76% 36%;
