@@ -39,6 +39,23 @@ type FlowInfo struct {
 	HostUnknown bool
 }
 
+// Policy decides whether a flow may proceed. It is the extension point for
+// embedding the exit node with custom rules: implementations must be safe for
+// concurrent use and should return quickly, because Evaluate runs on the path
+// of every CONNECT request and every dns query. Implementations that also
+// provide a Reload() error method are reloadable through Server.ReloadPolicy.
+//
+// FilePolicy is the YAML-backed implementation the CLI uses.
+type Policy interface {
+	Evaluate(FlowInfo) Decision
+}
+
+// PolicyFunc adapts a function to the Policy interface.
+type PolicyFunc func(FlowInfo) Decision
+
+// Evaluate implements Policy.
+func (f PolicyFunc) Evaluate(flow FlowInfo) Decision { return f(flow) }
+
 // Decision is the outcome of evaluating a policy against a flow.
 type Decision struct {
 	Allow bool
@@ -147,38 +164,40 @@ type compiledPolicy struct {
 	rules        []*rule
 }
 
-// Policy decides whether a flow may proceed, based on a YAML policy. It is
-// safe for concurrent use and can be reloaded in place.
-type Policy struct {
+// FilePolicy is a Policy defined by a YAML document; see policyFile for the
+// format. It is safe for concurrent use and can be reloaded in place.
+type FilePolicy struct {
 	path     string
 	compiled atomic.Pointer[compiledPolicy]
 }
 
-// LoadPolicyFile reads and compiles the policy at path. The returned Policy
+var _ Policy = (*FilePolicy)(nil)
+
+// LoadPolicyFile reads and compiles the policy at path. The returned policy
 // remembers the path so Reload can re-read it.
-func LoadPolicyFile(path string) (*Policy, error) {
-	p := &Policy{path: path}
+func LoadPolicyFile(path string) (*FilePolicy, error) {
+	p := &FilePolicy{path: path}
 	if err := p.Reload(); err != nil {
 		return nil, err
 	}
 	return p, nil
 }
 
-// ParsePolicy compiles a policy from YAML bytes. The returned Policy has no
+// ParsePolicy compiles a policy from YAML bytes. The returned policy has no
 // backing file, so Reload returns an error.
-func ParsePolicy(data []byte) (*Policy, error) {
+func ParsePolicy(data []byte) (*FilePolicy, error) {
 	compiled, err := compilePolicy(data)
 	if err != nil {
 		return nil, err
 	}
-	p := &Policy{}
+	p := &FilePolicy{}
 	p.compiled.Store(compiled)
 	return p, nil
 }
 
 // Reload re-reads the backing file and atomically swaps in the new rules. On
 // error the previous rules stay in effect.
-func (p *Policy) Reload() error {
+func (p *FilePolicy) Reload() error {
 	if p.path == "" {
 		return xerrors.New("policy has no backing file to reload")
 	}
@@ -197,7 +216,7 @@ func (p *Policy) Reload() error {
 // Evaluate walks the rules in order and returns the first match, falling back
 // to the default action. See FlowInfo.HostUnknown for provisional semantics
 // and policyFile for how dns flows differ.
-func (p *Policy) Evaluate(flow FlowInfo) Decision {
+func (p *FilePolicy) Evaluate(flow FlowInfo) Decision {
 	compiled := p.compiled.Load()
 	host := NormalizeHost(flow.Host)
 	if flow.Protocol == codersdk.ExitNodeProtocolDNS {

@@ -1,6 +1,10 @@
 // Package exitnode implements the exit node: a tailnet peer that terminates
 // workspace egress via HTTP CONNECT, enforces a policy, and reports every
 // flow to coderd.
+//
+// New runs a complete node: registration, tailnet membership, the CONNECT
+// listener, and flow reporting. Policy is injected through Options.Policy so
+// embedders can supply their own rules; the CLI uses the YAML FilePolicy.
 package exitnode
 
 import (
@@ -29,8 +33,9 @@ type Options struct {
 	// ExitNodeID is the ID half of the token. It determines the node's
 	// deterministic tailnet address. Required.
 	ExitNodeID uuid.UUID
-	// Policy decides each flow. Required.
-	Policy *Policy
+	// Policy decides each flow. Required. See FilePolicy for the YAML
+	// implementation and PolicyFunc to adapt a function.
+	Policy Policy
 	// ListenPort is the CONNECT port inside the tailnet. Defaults to
 	// codersdk.ExitNodeTailnetPort.
 	ListenPort int
@@ -71,7 +76,7 @@ type Server struct {
 
 	id      uuid.UUID
 	addr    netip.Addr
-	policy  *Policy
+	policy  Policy
 	metrics *Metrics
 
 	registerLoop *exitnodesdk.RegisterLoop
@@ -248,14 +253,20 @@ func (s *Server) Metrics() *Metrics {
 	return s.metrics
 }
 
-// ReloadPolicy re-reads the policy file. It is wired to SIGHUP by the CLI.
+// ReloadPolicy asks the policy to reload itself, for example to re-read a
+// FilePolicy after SIGHUP. Policies without a Reload() error method return an
+// error and stay in effect.
 func (s *Server) ReloadPolicy() error {
-	if err := s.policy.Reload(); err != nil {
+	reloader, ok := s.policy.(interface{ Reload() error })
+	if !ok {
+		return xerrors.Errorf("policy %T does not support reload", s.policy)
+	}
+	if err := reloader.Reload(); err != nil {
 		s.metrics.PolicyReloadTotal.WithLabelValues("error").Inc()
 		return xerrors.Errorf("reload policy: %w", err)
 	}
 	s.metrics.PolicyReloadTotal.WithLabelValues("success").Inc()
-	s.logger.Info(s.ctx, "policy reloaded from file")
+	s.logger.Info(s.ctx, "policy reloaded successfully", slog.F("policy", fmt.Sprintf("%T", s.policy)))
 	return nil
 }
 

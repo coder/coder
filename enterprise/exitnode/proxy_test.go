@@ -85,7 +85,7 @@ func newProxyHarness(t *testing.T, policyYAML string, configure ...func(*exitnod
 	return h
 }
 
-func mustPolicy(t *testing.T, yaml string) *exitnode.Policy {
+func mustPolicy(t *testing.T, yaml string) *exitnode.FilePolicy {
 	t.Helper()
 	p, err := exitnode.ParsePolicy([]byte(yaml))
 	require.NoError(t, err)
@@ -276,6 +276,60 @@ func TestConnectProxy_AllowProxiesAndReports(t *testing.T) {
 			require.Equal(t, float64(0), promtestutil.ToFloat64(h.metrics.ActiveFlows))
 			require.Equal(t, float64(len(request)), promtestutil.ToFloat64(h.metrics.BytesTotal.WithLabelValues("out")))
 		})
+	}
+}
+
+// TestConnectProxy_CustomPolicy plugs a PolicyFunc into the proxy to prove the
+// Policy interface is the extension seam: no YAML is involved, and the
+// custom decision drives both the CONNECT response and the flow report.
+func TestConnectProxy_CustomPolicy(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitLong)
+	upstream := startEchoHostServer(t)
+
+	var seen []exitnode.FlowInfo
+	var mu sync.Mutex
+	onlyUpstreamPort := exitnode.PolicyFunc(func(flow exitnode.FlowInfo) exitnode.Decision {
+		mu.Lock()
+		seen = append(seen, flow)
+		mu.Unlock()
+		if flow.Port == int(upstream.Port()) {
+			return exitnode.Decision{Allow: true, RuleID: "custom-allow", Reason: "upstream port"}
+		}
+		return exitnode.Decision{RuleID: "custom-deny", Reason: "not the upstream port"}
+	})
+	h := newProxyHarness(t, allowExamplePolicy, func(o *exitnode.ConnectProxyOptions) {
+		o.Policy = onlyUpstreamPort
+	})
+
+	// Allowed: the YAML harness policy would deny a bare IP under default
+	// deny, so a 200 proves the custom policy is the one consulted.
+	client, br, _, done := h.connectStatus(ctx, t, upstream.String(), http.StatusOK)
+	go func() {
+		_, _ = io.WriteString(client, "GET /x HTTP/1.1\r\nHost: any.test\r\nConnection: close\r\n\r\n")
+	}()
+	require.Equal(t, "hello from any.test", readTunneled(t, br))
+	_ = client.Close()
+	testutil.RequireReceive(ctx, t, done)
+	report := testutil.RequireReceive(ctx, t, h.flows.ch)
+	require.Equal(t, codersdk.ExitNodeFlowAllow, report.Decision)
+	require.Equal(t, "custom-allow", report.RuleID)
+	require.NotNil(t, testutil.RequireReceive(ctx, t, h.flows.ch).DisconnectTime)
+
+	// Denied: the custom rule ID and reason surface on the response.
+	_, br, resp, done := h.connectStatus(ctx, t, "127.0.0.1:1", http.StatusForbidden)
+	require.Equal(t, "not the upstream port", resp.header.Get("X-Coder-Deny-Reason"))
+	requireEOF(t, br)
+	testutil.RequireReceive(ctx, t, done)
+	report = testutil.RequireReceive(ctx, t, h.flows.ch)
+	require.Equal(t, codersdk.ExitNodeFlowDeny, report.Decision)
+	require.Equal(t, "custom-deny", report.RuleID)
+
+	mu.Lock()
+	defer mu.Unlock()
+	require.NotEmpty(t, seen)
+	for _, flow := range seen {
+		require.Equal(t, netip.MustParseAddr("127.0.0.1"), flow.IP.Unmap())
 	}
 }
 

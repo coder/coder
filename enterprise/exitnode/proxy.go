@@ -93,7 +93,7 @@ type DialFunc func(ctx context.Context, network, addr string) (net.Conn, error)
 // ConnectProxyOptions configures a ConnectProxy.
 type ConnectProxyOptions struct {
 	Logger  slog.Logger
-	Policy  *Policy
+	Policy  Policy
 	Agents  AgentResolver
 	Flows   FlowRecorder
 	Metrics *Metrics
