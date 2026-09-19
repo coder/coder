@@ -424,6 +424,11 @@
 							"path": "./admin/setup/configuration-reference.md"
 						},
 						{
+							"title": "Built-in PostgreSQL migration",
+							"description": "Migrate Coder's built-in PostgreSQL database to an external server and verify the restored deployment.",
+							"path": "./admin/setup/builtin-postgres-migration.md"
+						},
+						{
 							"title": "Telemetry",
 							"description": "Learn what usage telemetry Coder collects, why it is collected, and how to opt out.",
 							"path": "./admin/setup/telemetry.md"

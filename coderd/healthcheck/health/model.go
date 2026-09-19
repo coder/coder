@@ -22,6 +22,9 @@ const (
 
 	CodeDatabasePingFailed Code = "EDB01"
 	CodeDatabasePingSlow   Code = "EDB02"
+	// CodeDatabasePostgresVersionEOL indicates the connected PostgreSQL server
+	// is running an end-of-life major version (below 14).
+	CodeDatabasePostgresVersionEOL Code = "EDB03"
 
 	CodeWebsocketDial Code = "EWS01"
 	CodeWebsocketEcho Code = "EWS02"
