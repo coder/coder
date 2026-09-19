@@ -44,11 +44,9 @@ func validateRedirectURIFieldsAgree(callbackURL string, redirectURIs []string) [
 // resolveRedirectURIs returns the redirect URIs an app should have after a
 // create or update request. The first entry is the primary.
 //
-// A redirectURIs that was sent, even as an empty list, is used as given. The
-// caller has already checked that callbackURL, if also sent, equals its first
-// entry. Otherwise callbackURL replaces the first stored URI and keeps the
-// rest, and a request with neither field keeps the stored list. stored is nil
-// on a create.
+// Sending redirectURIs replaces the whole stored list. Sending only
+// callbackURL replaces the first stored URI and keeps the rest. Sending
+// neither keeps the stored list. stored is nil on a create.
 func resolveRedirectURIs(callbackURL string, redirectURIs, stored []string) []string {
 	if redirectURIs != nil {
 		return slice.Unique(redirectURIs)
