@@ -1036,6 +1036,53 @@ func TestStartWorkspace(t *testing.T) {
 		require.Contains(t, resp.Content, "load workspace: workspace store offline")
 		require.Contains(t, resp.Content, chattool.WorkspaceUnavailableHint)
 	})
+
+	t.Run("FailedDeleteNotResurrected", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		db, _ := dbtestutil.NewDB(t)
+
+		user := dbgen.User(t, db, database.User{})
+		modelCfg := seedModelConfig(t, db)
+		org := dbgen.Organization(t, db, database.Organization{})
+		_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{
+			UserID:         user.ID,
+			OrganizationID: org.ID,
+		})
+		// A delete build that FAILED (e.g. terraform destroy timed out)
+		// leaves the workspace row alive (Deleted=false) even though its
+		// latest build is a delete. start_workspace must refuse instead of
+		// rebuilding it, otherwise an agent resurrects a workspace the user
+		// asked to delete.
+		wsResp := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OwnerID:        user.ID,
+			OrganizationID: org.ID,
+			Deleted:        false,
+		}).Seed(database.WorkspaceBuild{
+			Transition: database.WorkspaceTransitionDelete,
+		}).Failed().Do()
+		ws := wsResp.Workspace
+
+		chat := dbgen.Chat(t, db, database.Chat{
+			OrganizationID:    org.ID,
+			OwnerID:           user.ID,
+			WorkspaceID:       uuid.NullUUID{UUID: ws.ID, Valid: true},
+			LastModelConfigID: modelCfg.ID,
+			Title:             "test-failed-delete",
+		})
+
+		tool := chattool.StartWorkspace(db, chat.ID, chattool.StartWorkspaceOptions{
+			StartFn: func(_ context.Context, _ uuid.UUID, _ uuid.UUID, _ codersdk.CreateWorkspaceBuildRequest) (codersdk.WorkspaceBuild, error) {
+				t.Fatal("StartFn must not be called after a failed delete build")
+				return codersdk.WorkspaceBuild{}, nil
+			},
+			WorkspaceMu: &sync.Mutex{},
+		})
+
+		resp, err := tool.Run(ctx, fantasy.ToolCall{ID: "call-1", Name: "start_workspace", Input: "{}"})
+		require.NoError(t, err)
+		require.Contains(t, resp.Content, "most recent build was a delete")
+	})
 }
 
 // failingWorkspaceStore fails every workspace lookup so tests can observe
