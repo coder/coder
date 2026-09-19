@@ -5,6 +5,10 @@ import { DesktopPanelView, type DesktopPanelViewProps } from "./DesktopPanel";
 
 const defaults: DesktopPanelViewProps = {
 	status: "idle",
+	workspaceStatus: "running",
+	agentStatus: "connected",
+	onStartWorkspace: fn(),
+	isStartingWorkspace: false,
 	reconnect: fn(),
 	attach: fn(),
 	scaleMode: "native",
@@ -69,4 +73,28 @@ export const Disconnected: Story = {
 
 export const ErrorState: Story = {
 	args: { status: "error" },
+};
+
+export const WorkspaceStopped: Story = {
+	args: { workspaceStatus: "stopped", agentStatus: undefined },
+};
+
+export const WorkspaceStarting: Story = {
+	args: {
+		workspaceStatus: "stopped",
+		agentStatus: undefined,
+		isStartingWorkspace: true,
+	},
+};
+
+export const WorkspaceBuildStarting: Story = {
+	args: { workspaceStatus: "starting", agentStatus: undefined },
+};
+
+export const WorkspaceDeleted: Story = {
+	args: { workspaceStatus: "deleted", agentStatus: undefined },
+};
+
+export const AgentConnecting: Story = {
+	args: { agentStatus: "connecting" },
 };
