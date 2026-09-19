@@ -1508,14 +1508,14 @@ type ChatModelCallConfig struct {
 	PresencePenalty  *float64                        `json:"presence_penalty,omitempty" description:"Penalty for tokens that have already appeared in the output"`
 	FrequencyPenalty *float64                        `json:"frequency_penalty,omitempty" description:"Penalty for tokens based on their frequency in the output"`
 	ReasoningEffort  *ChatModelReasoningEffortConfig `json:"reasoning_effort,omitempty" description:"Default and max reasoning effort for the model"`
-	OpenAIConfig     *ChatModelOpenAIConfig          `json:"openai_config,omitempty" description:"OpenAI client construction settings" providers:"openai"`
+	OpenAIConfig     *ChatModelOpenAIConfig          `json:"openai_config,omitempty" description:"OpenAI client construction settings" providers:"openai,openaicompat"`
 	ProviderOptions  *ChatModelProviderOptions       `json:"provider_options,omitempty" description:"Provider-specific option overrides"`
 }
 
 // ChatModelOpenAIConfig holds settings applied once when the OpenAI client
 // is built, not per request, including OpenAI-format models on Bedrock.
 type ChatModelOpenAIConfig struct {
-	UseResponsesAPI *bool `json:"use_responses_api,omitempty" label:"Use Responses API" description:"Override which OpenAI API this model uses. Leave unset to decide from the provider SDK's known-model list, true to force the Responses API, false to force Chat Completions. Azure OpenAI providers ignore this and always follow the known-model list."`
+	UseResponsesAPI *bool `json:"use_responses_api,omitempty" label:"Use Responses API" providers:"openai,openaicompat" description:"Override which OpenAI API this model uses. Leave unset to decide from the provider SDK's known-model list, true to force the Responses API, false to force Chat Completions. Azure OpenAI providers ignore this and always follow the known-model list."`
 	ReasoningModel  *bool `json:"reasoning_model,omitempty" label:"Reasoning Model" providers:"openai,bedrock" description:"Override whether this OpenAI-format model is treated as a reasoning model (reasoning effort and summary are sent, temperature and top_p are dropped). Leave unset to decide from the model name, true for models newer than the provider SDK knows, false to force plain sampling. Ignored for Anthropic models on Bedrock."`
 }
 

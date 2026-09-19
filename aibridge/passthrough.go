@@ -13,6 +13,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"cdr.dev/slog/v3"
+	"github.com/coder/coder/v2/aibridge/intercept"
 	"github.com/coder/coder/v2/aibridge/intercept/apidump"
 	"github.com/coder/coder/v2/aibridge/keypool"
 	"github.com/coder/coder/v2/aibridge/metrics"
@@ -43,12 +44,23 @@ func newPassthroughRouter(prov provider.Provider, logger slog.Logger, m *metrics
 		ExpectContinueTimeout: 1 * time.Second,
 	}
 
+	// Custom upstream headers configured on the provider apply to
+	// passthrough routes as well as intercepted ones. Providers opt in by
+	// exposing them; intercepted routes read the same configuration from
+	// intercept.Config instead.
+	var upstreamHeaders map[string]string
+	if hc, ok := prov.(provider.UpstreamHeadersProvider); ok {
+		upstreamHeaders = hc.UpstreamHeaders()
+	}
+	providerName := prov.Name()
+
 	// Build the passthrough proxy, reused across all requests for this provider.
 	// Rewrite sets proxy headers. For centralized requests, KeyFailoverTransport
 	// handles auth and failover. BYOK requests pass through.
 	proxy := &httputil.ReverseProxy{
 		Rewrite: func(pr *httputil.ProxyRequest) {
 			rewritePassthroughRequest(pr, provBaseURL)
+			intercept.ApplyUpstreamHeaders(pr.Out.Header, upstreamHeaders, pr.In.Header, providerName)
 		},
 		Transport: keypool.NewKeyFailoverTransport(
 			apidump.NewPassthroughMiddleware(t, prov.APIDumpDir(), prov.Name(), logger, quartz.NewReal()),

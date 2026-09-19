@@ -1262,6 +1262,11 @@ func aiProviderToProto(row database.AIProvider, keys []database.AIProviderKey) (
 			ResolvedSmallFastModel: settings.Bedrock.ResolvedSmallFastModel,
 		}
 	}
+	// Custom upstream headers are plain strings, never credentials, so they
+	// travel alongside the other non-secret provider identity fields.
+	if settings.UpstreamHeaders != nil && len(settings.UpstreamHeaders.Headers) > 0 {
+		p.UpstreamHeaders = settings.UpstreamHeaders.Headers
+	}
 
 	return p, nil
 }

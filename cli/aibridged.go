@@ -210,6 +210,9 @@ func protoToProviderSpec(pp *proto.AIProvider) aiProviderSpec {
 		bedrock.ResolvedSmallFastModel = b.GetResolvedSmallFastModel()
 		spec.Bedrock = new(bedrock)
 	}
+	if h := pp.GetUpstreamHeaders(); len(h) > 0 {
+		spec.UpstreamHeaders = h
+	}
 	return spec
 }
 
@@ -227,6 +230,9 @@ type aiProviderSpec struct {
 	// Bedrock holds Bedrock-specific settings when the provider targets
 	// AWS Bedrock; nil otherwise.
 	Bedrock *codersdk.AIProviderBedrockSettings
+	// UpstreamHeaders holds admin-configured custom headers sent on every
+	// upstream request for the provider; nil or empty means none.
+	UpstreamHeaders map[string]string
 }
 
 // buildProvider constructs the appropriate [aibridge.Provider] for a
@@ -271,6 +277,7 @@ func buildProvider(ctx context.Context, spec aiProviderSpec, cfg codersdk.AIBrid
 			APIDumpDir:       dumpDir,
 			CircuitBreaker:   cbCfg,
 			SendActorHeaders: sendActorHeaders,
+			UpstreamHeaders:  spec.UpstreamHeaders,
 		}), nil
 
 	case database.AIProviderTypeAnthropic:
@@ -293,6 +300,7 @@ func buildProvider(ctx context.Context, spec aiProviderSpec, cfg codersdk.AIBrid
 			APIDumpDir:       dumpDir,
 			CircuitBreaker:   cbCfg,
 			SendActorHeaders: sendActorHeaders,
+			UpstreamHeaders:  spec.UpstreamHeaders,
 		}, nil)
 
 	case database.AIProviderTypeBedrock:
@@ -316,10 +324,11 @@ func buildProvider(ctx context.Context, spec aiProviderSpec, cfg codersdk.AIBrid
 		// Copilot is always BYOK; the per-user token is supplied on each
 		// request via the Authorization header, so no keypool is built.
 		return aibridge.NewCopilotProvider(aibridge.CopilotConfig{
-			Name:           spec.Name,
-			BaseURL:        spec.BaseURL,
-			APIDumpDir:     dumpDir,
-			CircuitBreaker: cbCfg,
+			Name:            spec.Name,
+			BaseURL:         spec.BaseURL,
+			APIDumpDir:      dumpDir,
+			CircuitBreaker:  cbCfg,
+			UpstreamHeaders: spec.UpstreamHeaders,
 		}), nil
 
 	default:
