@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbgen"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
@@ -509,13 +510,12 @@ func seedA1WithMixedOutstandingToolCalls(t *testing.T, f *testFixture, queuedExt
 	for i := range queuedExtras {
 		body := fmt.Sprintf("queued-%s-%d", namePrefix, i)
 		createdBy := uuid.New()
-		queued, err := f.DB.InsertChatQueuedMessageWithCreator(ctx, database.InsertChatQueuedMessageWithCreatorParams{
+		queued := dbgen.ChatQueuedMessage(t, f.DB, database.ChatQueuedMessage{
 			ChatID:        created.Chat.ID,
 			Content:       userMessageContent(t, body),
 			ModelConfigID: uuid.NullUUID{UUID: f.Model.ID, Valid: true},
 			CreatedBy:     createdBy,
 		})
-		require.NoError(t, err)
 		queuedIDs = append(queuedIDs, queued.ID)
 		queuedBodies = append(queuedBodies, body)
 		queuedCreatedBy = append(queuedCreatedBy, createdBy)
