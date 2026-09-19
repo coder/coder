@@ -9,17 +9,21 @@ It covers how to deploy exit nodes, bind them to templates, define egress policy
 
 ## Overview
 
-An exit node is an organization-scoped tailnet peer that terminates workspace egress, applies a policy, and reports flows to coderd.
-The workspace agent sends TCP, UDP, and DNS traffic to an exit node over the Coder tailnet.
+An exit node is an organization-scoped logical resource with one authentication token and one or more running replicas.
+Each replica is a process that terminates workspace egress, applies policy, and reports flows to coderd.
+You can scale replicas horizontally, similar to Workspace Proxies, while templates remain bound to the logical exit node.
+
+The workspace agent sends TCP, UDP, and DNS traffic to a live replica over the Coder tailnet.
+Coderd derives each replica's tailnet peer identity from the logical exit node ID and replica ID, so a replica can't choose another peer's identity.
 
 The trust model has 3 parts:
 
-1. The exit node identifies the workspace agent from its tailnet source address.
-2. The exit node decides whether each flow is allowed and connects to the destination for allowed flows.
+1. The exit node replica identifies the workspace agent from its tailnet source address.
+2. The replica decides whether each flow is allowed and connects to the destination for allowed flows.
 3. Coderd attributes reported flows to the workspace and writes them to the Connection Log.
 
-The exit node rejects traffic from tailnet addresses that don't belong to agents currently bound to it.
-Coderd also ignores a reported flow when the agent's template isn't bound to the reporting exit node.
+Coderd authorizes replica tunnels only to workspace agents bound to the logical exit node.
+The replica rejects traffic from other tailnet addresses, and coderd ignores flow reports from unbound agents.
 
 ## Enforcement boundary
 
@@ -33,7 +37,7 @@ The external policy must allow only the destinations required to reach:
 - The workspace DNS resolver, so the agent can resolve exempt control-plane hosts.
 - Coderd.
 - DERP and STUN endpoints in use by the deployment.
-- Each exit node's advertised WireGuard UDP endpoint.
+- Each exit node replica's advertised WireGuard UDP endpoint.
 
 Start with the [Kubernetes NetworkPolicy example](../../../examples/exit-node/kubernetes-networkpolicy.yaml) or the [AWS security group example](../../../examples/exit-node/aws-security-group.tf).
 Replace every documentation address, selector, and port with values from your deployment before applying an example.
@@ -48,7 +52,7 @@ The agent places exemption host names in `NO_PROXY` for applications that honor 
 
 ## Quickstart
 
-This Quickstart creates one exit node, starts it with a deny-by-default policy, binds a template, and verifies an egress flow.
+This Quickstart creates one logical exit node, starts one replica with a deny-by-default policy, binds a template, and verifies an egress flow.
 
 ### Create a policy
 
@@ -66,12 +70,13 @@ Run the following command from an authenticated `coder` CLI session:
 coder exit-node create primary-egress
 ```
 
-The command prints the new exit node's token and tailnet address.
+The command prints the new logical exit node's token.
 Save the token when it is printed because coderd stores only its hash and cannot display it again.
+Every replica of this logical exit node uses the same token.
 
-### Start the exit node
+### Start an exit node replica
 
-Run the exit node on a host that can reach coderd and every destination allowed by the policy:
+Run the replica on a host that can reach coderd and every destination allowed by the policy:
 
 ```sh
 export CODER_EXIT_NODE_TOKEN='<exit-node-id>:<secret>'
@@ -84,7 +89,11 @@ coder exit-node server \
   --prometheus-address 127.0.0.1:2112
 ```
 
-The command prints `Starting exit node` with the exit node ID and tailnet address, then streams logs.
+The command prints `Starting exit node replica` with a generated replica ID and its tailnet address, then streams logs.
+By default, each process start generates a fresh replica ID.
+You can provide `--replica-id <uuid>`, but normal deployments should omit it.
+A replica that deregisters is permanently stopped under that ID, so restarting with the same override fails registration.
+
 The fixed WireGuard listen port and advertised endpoint let the agent and external egress policy use a stable UDP destination.
 Omit both WireGuard options if the exit node must connect only through DERP.
 Use `--block-direct-connections` to force that behavior.
@@ -105,9 +114,16 @@ kill -HUP <exit-node-process-id>
 A valid file replaces the policy atomically.
 If the reload fails, the previous policy remains active and the exit node logs the error.
 
+Run the same policy file on every replica of a logical exit node.
+Each replica reports a hash of the raw YAML file, and coderd flags the logical node when live replicas report different hashes.
+A replica also logs a warning and sets `coder_exit_node_policy_mismatch` to `1` when a live sibling reports a different policy.
+
 ### Bind a template
 
-Bind the exit node to a template and request transparent capture:
+Before binding the template, restart any running workspace that uses an agent older than Agent API 2.14.
+Older agents can't receive replica-aware exit node configuration.
+
+Bind the logical exit node to a template and request transparent capture:
 
 ```sh
 coder templates edit my-template \
@@ -336,13 +352,28 @@ Capability lockdown has 2 operational consequences:
   The rules persist until the container's network namespace exits.
 - Rule changes, including control-plane exemption or enforcement changes, can't be applied after lockdown.
   The agent keeps the current listeners and rules, logs a warning, and applies the new configuration after a workspace restart.
+  Replica set changes are exempt from this restriction and apply immediately.
+- Removing every exit node binding from the template doesn't disable enforcement in running workspaces.
+  The agent keeps the proxy listening with no replicas, so traffic fails closed until the workspace restarts without enforcement.
 
 Restart the workspace container, not only the agent process, after changing enforced egress configuration.
 An external NetworkPolicy or security group remains the required boundary throughout agent restarts.
 
 ## High availability
 
-Bind a template to multiple exit nodes by repeating `--exit-node` in preference order:
+A logical exit node can run many replicas that share its token.
+Start identical processes manually, or use the [Kubernetes Deployment example](../../../examples/exit-node/kubernetes-deployment.yaml) to scale the replica count.
+Do not set `--replica-id` in an autoscaled deployment because each process start needs a fresh ID.
+
+Each replica sends a heartbeat every 5 seconds.
+A replica remains live when its last heartbeat is less than 15 seconds old.
+Coderd runs a centralized reaper every 5 seconds to close stale replica coordination sessions and publish the changed live set.
+Graceful shutdown explicitly deregisters the replica, so coderd can remove it without waiting for the stale threshold.
+A deregistered replica ID can't register again and the restarted process must use a new ID.
+
+Agents receive live replica sets through a streamed egress configuration.
+Replicas within each logical node are load-distributed, and the logical nodes retain the preference order configured on the template.
+Bind a template to multiple logical exit nodes by repeating `--exit-node`:
 
 ```sh
 coder templates edit my-template \
@@ -351,26 +382,30 @@ coder templates edit my-template \
   --exit-node-enforce
 ```
 
-The agent starts with the first exit node.
 CONNECT request and response negotiation has a 10-second deadline.
-A dial failure, timeout, end of file, or malformed HTTP response marks the node as failed, and the agent tries later nodes in order.
+A dial failure, timeout, end of file, or malformed HTTP response marks the replica as failed, and the agent tries another live replica or logical node.
 
 The agent classifies a well-formed HTTP response by status code.
 A `200` response succeeds.
 A policy denial `403`, malformed request `400`, or upstream or resolution failure `502` is terminal and doesn't trigger failover.
-Other server errors, including `500`, `503`, and `504`, mark the node unhealthy and trigger failover.
+Other server errors, including `500`, `503`, and `504`, mark the replica unhealthy and trigger failover.
 Other well-formed non-5xx responses are also terminal.
-Failed nodes have a 5-second retry delay.
-During subsequent new connection attempts, the agent probes higher-priority nodes after their retry delay and returns to a preferred node after it recovers.
+Failed replicas have a 5-second retry delay.
+During subsequent connections, the agent probes higher-priority replicas and logical nodes after their retry delay.
 
 Failover applies to new TCP, UDP, and DNS streams.
-Existing streams remain attached to the node that accepted them until they close.
-Run the same policy and compatible DNS resolver configuration on every exit node in one failover set.
+Existing streams remain attached to the replica that accepted them until they close.
+If every bound logical node has zero live replicas, egress fails closed: explicit proxy requests receive `503`, transparent TCP connections close, UDP is dropped, and DNS returns `SERVFAIL`.
+The agent recovers automatically when coderd streams a live replica again.
+
+A new replica can advertise a WireGuard endpoint that wasn't present when an enforced workspace installed its netfilter exemptions.
+After capability lockdown, the agent uses DERP to reach that replica until the workspace restarts with the new endpoint exemption.
+Run identical policy and compatible DNS resolver configuration on all replicas in a logical exit node and across logical nodes in one failover set.
 
 ## Observability
 
-Set `--prometheus-address` on each exit node to expose its metrics endpoint.
-The exit node registers Go and process collectors plus these feature metrics:
+Set `--prometheus-address` on each replica to expose its metrics endpoint.
+Each replica registers Go and process collectors plus these feature metrics:
 
 | Metric                                                        | Description                                                                |
 |---------------------------------------------------------------|----------------------------------------------------------------------------|
@@ -379,8 +414,15 @@ The exit node registers Go and process collectors plus these feature metrics:
 | `coder_exit_node_active_flows`                                | Flows currently being proxied.                                             |
 | `coder_exit_node_unknown_source_total`                        | Connections rejected because the tailnet source isn't a known bound agent. |
 | `coder_exit_node_policy_reload_total{result="success|error"}` | Policy reload attempts by result.                                          |
+| `coder_exit_node_policy_mismatch`                             | Whether a live sibling replica reports a different policy hash.            |
 | `coder_exit_node_flow_reports_sent_total`                     | Flow reports delivered to coderd.                                          |
 | `coder_exit_node_flow_reports_dropped_total`                  | Reports dropped because the bounded outgoing queue was full.               |
+
+Use `coder exit-node list` to view each logical node's `healthy`, `unreachable`, or `unregistered` status, live replica count, and policy mismatch state.
+A node is `healthy` when at least one replica is live, `unreachable` when replicas exist but none are live, and `unregistered` before its first replica registers.
+
+Use `coder exit-node replicas <name|id>` to view every recorded replica, including its `live`, `stale`, or `stopped` status, version, tailnet address, policy hash, and last update.
+A replica is `stale` after 15 seconds without a heartbeat and `stopped` after explicit deregistration.
 
 The Connection Log records egress rows with the workspace, agent, destination, destination IP, protocol, decision, matching rule ID, reason, and connection times.
 For completed flows, the reason includes inbound and outbound byte counts.
@@ -407,8 +449,9 @@ Alert on both `coder_exit_node_flow_reports_dropped_total` and gap markers becau
 - UDP datagrams larger than 1400 bytes are dropped.
 - Fake-IP mappings and pinned mappings are bounded at 65536 entries by default.
   Exhaustion causes DNS `SERVFAIL` responses.
-- Changes to the exit node preference list apply in place and preserve the local listeners.
-  Enforcement-setting and control-plane exemption changes require a workspace restart after capability lockdown.
+- Live replica and logical node preference updates apply in place and preserve the local listeners.
+  Enforcement-setting changes require a workspace restart after capability lockdown.
+  New WireGuard endpoints use DERP until a restart installs their netfilter exemptions.
 - Server-first TCP protocols that connect to IP literals send no client bytes for host sniffing.
   Host-based policy receives no host unless verified DNS information was available before the connection.
 - TCP protocols without TLS SNI or an HTTP `Host` header can leave the host unknown for IP-literal targets.
@@ -418,6 +461,7 @@ Alert on both `coder_exit_node_flow_reports_dropped_total` and gap markers becau
 - Transparent denials can appear to applications as a connection reset, end of file, or timeout instead of an HTTP policy error.
 - Exit node flow reports use a bounded queue.
   A long reporting outage can create permanent gaps that coderd marks in the Connection Log.
+- Workspaces running agents older than Agent API 2.14 must restart before their template is bound to an exit node.
 
 ## Learn more
 

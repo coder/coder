@@ -189,20 +189,23 @@ func exemptNameSet(hosts []string) (map[string]struct{}, error) {
 	return exempt, nil
 }
 
-func exitNodeAddrs(ctx context.Context, logger slog.Logger, rng *rand.Rand, cfg agentsdk.EgressConfig) ([]netip.AddrPort, error) {
+// exitNodeAddrs returns the replica addresses in preference order together
+// with the index of the logical exit node each address belongs to.
+func exitNodeAddrs(ctx context.Context, logger slog.Logger, rng *rand.Rand, cfg agentsdk.EgressConfig) ([]netip.AddrPort, []int, error) {
 	if len(cfg.ExitNodes) == 0 {
-		return nil, xerrors.New("at least one exit node is required")
+		return nil, nil, xerrors.New("at least one exit node is required")
 	}
 	if cfg.ExitNodePort <= 0 || cfg.ExitNodePort > 65535 {
-		return nil, xerrors.Errorf("invalid exit node port %d", cfg.ExitNodePort)
+		return nil, nil, xerrors.Errorf("invalid exit node port %d", cfg.ExitNodePort)
 	}
 	if rng == nil {
 		rng = rand.New(rand.NewPCG(uint64(time.Now().UnixNano()), uint64(time.Now().UnixNano()+1))) //nolint:gosec // Load spreading does not require cryptographic randomness.
 	}
 	var addrs []netip.AddrPort
-	for _, node := range cfg.ExitNodes {
+	var ranks []int
+	for rank, node := range cfg.ExitNodes {
 		if node.ID == uuid.Nil {
-			return nil, xerrors.New("exit node ID is required")
+			return nil, nil, xerrors.New("exit node ID is required")
 		}
 		if len(node.ReplicaIDs) == 0 {
 			logger.Info(ctx, "skipping exit node with no live replicas", slog.F("exit_node_id", node.ID))
@@ -212,16 +215,17 @@ func exitNodeAddrs(ctx context.Context, logger slog.Logger, rng *rand.Rand, cfg 
 		rng.Shuffle(len(replicas), func(i, j int) { replicas[i], replicas[j] = replicas[j], replicas[i] })
 		for _, id := range replicas {
 			if id == uuid.Nil {
-				return nil, xerrors.New("exit node replica ID is required")
+				return nil, nil, xerrors.New("exit node replica ID is required")
 			}
 			addrs = append(addrs, netip.AddrPortFrom(
 				tailnet.TailscaleServicePrefix.AddrFromUUID(id),
 				// #nosec G115 -- range validated above.
 				uint16(cfg.ExitNodePort),
 			))
+			ranks = append(ranks, rank)
 		}
 	}
-	return addrs, nil
+	return addrs, ranks, nil
 }
 
 // New validates the options and returns a Proxy that is not yet listening.
@@ -229,7 +233,7 @@ func New(logger slog.Logger, opts Options) (*Proxy, error) {
 	if opts.Dialer == nil {
 		return nil, xerrors.New("dialer is required")
 	}
-	exitNodes, err := exitNodeAddrs(context.Background(), logger, opts.Rand, opts.Config)
+	exitNodes, ranks, err := exitNodeAddrs(context.Background(), logger, opts.Rand, opts.Config)
 	if err != nil {
 		return nil, err
 	}
@@ -278,7 +282,7 @@ func New(logger slog.Logger, opts Options) (*Proxy, error) {
 		dialer:              opts.Dialer,
 		cfg:                 opts.Config,
 		clock:               opts.Clock,
-		exitNodes:           newExitNodeSelector(logger, opts.Clock, exitNodeDialTimeout, exitNodes),
+		exitNodes:           newExitNodeSelector(logger, opts.Clock, exitNodeDialTimeout, exitNodes, ranks),
 		listen:              opts.ListenAddr,
 		dnsPort:             opts.DNSPort,
 		udpPort:             opts.UDPPort,
@@ -429,7 +433,7 @@ func (p *Proxy) Config() agentsdk.EgressConfig {
 // Update atomically changes the exit node selector and exempt host set without
 // disturbing listeners or in-flight tunnels.
 func (p *Proxy) Update(cfg agentsdk.EgressConfig, exemptHosts []string) error {
-	exitNodes, err := exitNodeAddrs(context.Background(), p.logger, p.rng, cfg)
+	exitNodes, ranks, err := exitNodeAddrs(context.Background(), p.logger, p.rng, cfg)
 	if err != nil {
 		return err
 	}
@@ -437,7 +441,7 @@ func (p *Proxy) Update(cfg agentsdk.EgressConfig, exemptHosts []string) error {
 	if err != nil {
 		return err
 	}
-	selector := newExitNodeSelector(p.logger, p.clock, p.exitNodeDialTimeout, exitNodes)
+	selector := newExitNodeSelector(p.logger, p.clock, p.exitNodeDialTimeout, exitNodes, ranks)
 	selector.keepCurrent(p.exitNodes)
 	p.configMu.Lock()
 	p.cfg = cfg

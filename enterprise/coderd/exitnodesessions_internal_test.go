@@ -19,6 +19,21 @@ import (
 	"github.com/coder/quartz"
 )
 
+func TestExitNodeReplicaSessionRegistryStopped(t *testing.T) {
+	t.Parallel()
+
+	registry := newExitNodeReplicaSessionRegistry()
+	replicaID := uuid.New()
+	registry.stop(replicaID)
+	canceled := make(chan struct{})
+	registry.register(replicaID, func() { close(canceled) })
+	select {
+	case <-canceled:
+	default:
+		t.Fatal("register after stop was not canceled")
+	}
+}
+
 func TestExitNodeReplicaReaper(t *testing.T) {
 	t.Parallel()
 
@@ -42,6 +57,9 @@ func TestExitNodeReplicaReaper(t *testing.T) {
 			return []database.ExitNodeReplica{{ID: replicaID, ExitNodeID: exitNodeID}}, nil
 		})
 	store.EXPECT().GetAllLiveExitNodeReplicas(gomock.Any(), gomock.Any()).Return(nil, nil)
+	store.EXPECT().GetExitNodeReplicaByID(gomock.Any(), replicaID).Return(database.ExitNodeReplica{
+		ID: replicaID, ExitNodeID: exitNodeID, UpdatedAt: time.Time{},
+	}, nil)
 
 	sessionCanceled := make(chan struct{})
 	registry := newExitNodeReplicaSessionRegistry()

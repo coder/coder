@@ -2,10 +2,12 @@ package coderd
 
 import (
 	"context"
+	"database/sql"
 	"sync"
 	"time"
 
 	"github.com/google/uuid"
+	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -22,12 +24,14 @@ type exitNodeReplicaSession struct {
 type exitNodeReplicaSessionRegistry struct {
 	mu       sync.Mutex
 	sessions map[uuid.UUID]*exitNodeReplicaSession
+	stopped  map[uuid.UUID]struct{}
 	live     map[uuid.UUID]uuid.UUID
 }
 
 func newExitNodeReplicaSessionRegistry() *exitNodeReplicaSessionRegistry {
 	return &exitNodeReplicaSessionRegistry{
 		sessions: make(map[uuid.UUID]*exitNodeReplicaSession),
+		stopped:  make(map[uuid.UUID]struct{}),
 		live:     make(map[uuid.UUID]uuid.UUID),
 	}
 }
@@ -35,6 +39,11 @@ func newExitNodeReplicaSessionRegistry() *exitNodeReplicaSessionRegistry {
 func (r *exitNodeReplicaSessionRegistry) register(replicaID uuid.UUID, cancel context.CancelFunc) func() {
 	session := &exitNodeReplicaSession{cancel: cancel}
 	r.mu.Lock()
+	if _, stopped := r.stopped[replicaID]; stopped {
+		r.mu.Unlock()
+		cancel()
+		return func() {}
+	}
 	if previous := r.sessions[replicaID]; previous != nil {
 		previous.cancel()
 	}
@@ -46,6 +55,18 @@ func (r *exitNodeReplicaSessionRegistry) register(replicaID uuid.UUID, cancel co
 			delete(r.sessions, replicaID)
 		}
 		r.mu.Unlock()
+	}
+}
+
+func (r *exitNodeReplicaSessionRegistry) stop(replicaID uuid.UUID) {
+	r.mu.Lock()
+	r.stopped[replicaID] = struct{}{}
+	session := r.sessions[replicaID]
+	delete(r.sessions, replicaID)
+	delete(r.live, replicaID)
+	r.mu.Unlock()
+	if session != nil {
+		session.cancel()
 	}
 }
 
@@ -62,12 +83,6 @@ func (r *exitNodeReplicaSessionRegistry) cancel(replicaID uuid.UUID) {
 func (r *exitNodeReplicaSessionRegistry) markLive(replicaID, exitNodeID uuid.UUID) {
 	r.mu.Lock()
 	r.live[replicaID] = exitNodeID
-	r.mu.Unlock()
-}
-
-func (r *exitNodeReplicaSessionRegistry) removeLive(replicaID uuid.UUID) {
-	r.mu.Lock()
-	delete(r.live, replicaID)
 	r.mu.Unlock()
 }
 
@@ -123,6 +138,18 @@ func (api *API) reapExitNodeReplicas(now time.Time) {
 	api.exitNodeReplicaSessions.mu.Unlock()
 
 	for _, replica := range stale {
+		// A heartbeat may have landed after the live-set query. Recheck before
+		// canceling so the reaper cannot revoke a newly refreshed session.
+		row, err := api.Database.GetExitNodeReplicaByID(dbauthz.AsSystemRestricted(api.ctx), replica.replicaID) //nolint:gocritic // Deployment-wide reaper lookup.
+		if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+			api.Logger.Error(api.ctx, "failed to recheck exit node replica", slog.Error(err))
+			api.exitNodeReplicaSessions.markLive(replica.replicaID, replica.exitNodeID)
+			continue
+		}
+		if err == nil && !row.StoppedAt.Valid && row.UpdatedAt.After(now.Add(-codersdk.ExitNodeReplicaStaleAfter)) {
+			api.exitNodeReplicaSessions.markLive(row.ID, row.ExitNodeID)
+			continue
+		}
 		api.exitNodeReplicaSessions.cancel(replica.replicaID)
 		if err := api.Pubsub.Publish(codersdk.ExitNodeReplicasPubsubChannel, []byte(replica.exitNodeID.String())); err != nil {
 			api.Logger.Error(api.ctx, "failed to publish stale exit node replica", slog.Error(err))

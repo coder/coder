@@ -71,8 +71,9 @@ spec:
         - protocol: UDP
           port: 3478 # Replace with the STUN UDP port.
 
-    # Allow the primary exit node's advertised WireGuard UDP endpoint.
+    # Allow the primary exit node replica's advertised WireGuard UDP endpoint.
     # Match the exact udp/host:port exemption advertised to the agent.
+    # Repeat this rule for every stable endpoint that any autoscaled replica can advertise.
     - to:
         - ipBlock:
             cidr: 203.0.113.10/32 # Replace with the primary exit node address.
@@ -80,8 +81,8 @@ spec:
         - protocol: UDP
           port: 51820 # Match --wireguard-listen-port and --wireguard-endpoint.
 
-    # Allow a secondary exit node's advertised WireGuard UDP endpoint for failover.
-    # Match the exact udp/host:port exemption and repeat this rule for every bound exit node.
+    # Allow another replica or logical exit node's advertised WireGuard UDP endpoint for failover.
+    # Match the exact udp/host:port exemption and repeat this rule for every possible endpoint.
     - to:
         - ipBlock:
             cidr: 203.0.113.11/32 # Replace with the secondary exit node address.

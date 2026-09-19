@@ -367,8 +367,7 @@ func (api *API) deregisterExitNode(rw http.ResponseWriter, r *http.Request) {
 		httpapi.InternalServerError(rw, xerrors.Errorf("stop exit node replica: %w", err))
 		return
 	}
-	api.exitNodeReplicaSessions.cancel(req.ReplicaID)
-	api.exitNodeReplicaSessions.removeLive(req.ReplicaID)
+	api.exitNodeReplicaSessions.stop(req.ReplicaID)
 	if err := api.Pubsub.Publish(codersdk.ExitNodeReplicasPubsubChannel, []byte(node.ID.String())); err != nil {
 		httpapi.InternalServerError(rw, xerrors.Errorf("publish exit node replica update: %w", err))
 		return
@@ -391,7 +390,13 @@ func (api *API) exitNodeCoordinate(rw http.ResponseWriter, r *http.Request) {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{Message: "Replica ID is missing or invalid."})
 		return
 	}
-	replica, err := api.Database.GetExitNodeReplicaByID(ctx, replicaID)
+	peerID := codersdk.ExitNodeReplicaPeerID(node.ID, replicaID)
+	coordinateCtx, cancel := context.WithCancel(ctx)
+	unregister := api.exitNodeReplicaSessions.register(replicaID, cancel)
+	defer unregister()
+	defer cancel()
+
+	replica, err := api.Database.GetExitNodeReplicaByID(coordinateCtx, replicaID)
 	if xerrors.Is(err, sql.ErrNoRows) || err == nil && replica.ExitNodeID != node.ID {
 		httpapi.ResourceNotFound(rw)
 		return
@@ -408,11 +413,6 @@ func (api *API) exitNodeCoordinate(rw http.ResponseWriter, r *http.Request) {
 		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{Message: "Replica is stale; replicas must register before coordinating."})
 		return
 	}
-	peerID := codersdk.ExitNodeReplicaPeerID(node.ID, replicaID)
-	coordinateCtx, cancel := context.WithCancel(ctx)
-	unregister := api.exitNodeReplicaSessions.register(replicaID, cancel)
-	defer unregister()
-	defer cancel()
 	auth := &enttailnet.ExitNodeCoordinateeAuth{
 		Database:   api.Database,
 		Clock:      api.Clock,

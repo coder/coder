@@ -1,0 +1,58 @@
+# Create the shared token Secret from the one-time output of `coder exit-node create`.
+# Replace the placeholder before applying this example.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: coder-exit-node
+  namespace: coder-exit-nodes # Replace with the namespace for exit node replicas.
+type: Opaque
+stringData:
+  token: "<exit-node-id>:<secret>"
+---
+# Create the policy ConfigMap from the sample file before applying this Deployment:
+# kubectl -n coder-exit-nodes create configmap coder-exit-node-policy \
+#   --from-file=policy.yaml=examples/exit-node/policy.yaml
+# Use the same ConfigMap for every replica so they report the same policy hash.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: coder-exit-node
+  namespace: coder-exit-nodes
+spec:
+  replicas: 3 # Scale this value to change the number of replicas for one logical exit node.
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: coder-exit-node
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: coder-exit-node
+    spec:
+      terminationGracePeriodSeconds: 30 # Kubernetes sends SIGTERM, which lets the replica deregister before exit.
+      containers:
+        - name: exit-node
+          image: ghcr.io/coder/coder:<version> # Pin the same Coder version on every replica.
+          imagePullPolicy: IfNotPresent
+          command: ["/opt/coder"]
+          args:
+            - exit-node
+            - server
+            - --primary-access-url
+            - https://coder.example.com # Replace with the Coder deployment access URL.
+            - --policy
+            - /etc/coder-exit-node/policy.yaml
+            - --block-direct-connections # This example uses DERP, so replicas need no stable public WireGuard endpoints.
+          env:
+            - name: CODER_EXIT_NODE_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: coder-exit-node
+                  key: token
+          volumeMounts:
+            - name: policy
+              mountPath: /etc/coder-exit-node
+              readOnly: true
+      volumes:
+        - name: policy
+          configMap:
+            name: coder-exit-node-policy

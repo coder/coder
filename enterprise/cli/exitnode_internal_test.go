@@ -13,14 +13,19 @@ func TestExitNodeListRows(t *testing.T) {
 	t.Parallel()
 
 	nodes := []codersdk.ExitNode{{
-		Name:     "egress",
-		Status:   codersdk.ExitNodeStatusHealthy,
-		Replicas: []codersdk.ExitNodeReplica{{}, {}},
+		Name:   "egress",
+		Status: codersdk.ExitNodeStatusHealthy,
+		Replicas: []codersdk.ExitNodeReplica{
+			{Status: codersdk.ExitNodeReplicaStatusLive},
+			{Status: codersdk.ExitNodeReplicaStatusLive},
+			{Status: codersdk.ExitNodeReplicaStatusStale},
+			{Status: codersdk.ExitNodeReplicaStatusStopped},
+		},
 	}}
 	rows := exitNodeListRows(nodes)
 	require.Len(t, rows, 1)
 	require.Equal(t, nodes[0], rows[0].ExitNode)
-	require.Equal(t, 2, rows[0].ReplicaCount)
+	require.Equal(t, 2, rows[0].LiveReplicas)
 }
 
 func TestExitNodeReplicaRows(t *testing.T) {

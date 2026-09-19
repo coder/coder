@@ -22,6 +22,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	dbpubsub "github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/notifications/notificationstest"
 	"github.com/coder/coder/v2/coderd/rbac"
@@ -1906,7 +1907,9 @@ func TestPatchTemplateMeta(t *testing.T) {
 	t.Run("ExitNode", func(t *testing.T) {
 		t.Parallel()
 
-		client, db := coderdtest.NewWithDatabase(t, nil)
+		eventBus := dbpubsub.NewInMemory()
+		t.Cleanup(func() { require.NoError(t, eventBus.Close()) })
+		client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{Pubsub: eventBus})
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
@@ -1919,6 +1922,12 @@ func TestPatchTemplateMeta(t *testing.T) {
 		foreignExitNode, _ := dbgen.ExitNode(t, db, database.ExitNode{OrganizationID: otherOrg.ID})
 
 		ctx := testutil.Context(t, testutil.WaitLong)
+		templateEvents := make(chan string, 4)
+		unsubscribe, err := eventBus.Subscribe(codersdk.ExitNodeReplicasPubsubChannel, func(_ context.Context, payload []byte) {
+			templateEvents <- string(payload)
+		})
+		require.NoError(t, err)
+		defer unsubscribe()
 
 		// Bind to an exit node in the same organization with enforcement.
 		updated, err := client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
@@ -1926,6 +1935,7 @@ func TestPatchTemplateMeta(t *testing.T) {
 			ExitNodeEnforce: new(true),
 		})
 		require.NoError(t, err)
+		require.Equal(t, string(codersdk.ExitNodeTemplatePubsubPayload(template.ID)), testutil.TryReceive(ctx, t, templateEvents))
 		require.Equal(t, []uuid.UUID{exitNode.ID, exitNode2.ID}, updated.ExitNodeIDs)
 		assert.True(t, updated.ExitNodeEnforce)
 

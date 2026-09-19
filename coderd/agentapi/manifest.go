@@ -11,6 +11,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -241,7 +242,15 @@ func (a *ManifestAPI) StreamEgressConfig(_ *agentproto.StreamEgressConfigRequest
 	}
 
 	updates := make(chan struct{}, 1)
-	cancel, err := a.Pubsub.Subscribe(codersdk.ExitNodeReplicasPubsubChannel, func(_ context.Context, _ []byte) {
+	boundExitNodes := make(map[uuid.UUID]struct{})
+	var boundMu sync.RWMutex
+	cancel, err := a.Pubsub.Subscribe(codersdk.ExitNodeReplicasPubsubChannel, func(_ context.Context, payload []byte) {
+		boundMu.RLock()
+		matches := egressPubsubMatches(payload, workspace.TemplateID, boundExitNodes)
+		boundMu.RUnlock()
+		if !matches {
+			return
+		}
 		select {
 		case updates <- struct{}{}:
 		default:
@@ -259,6 +268,17 @@ func (a *ManifestAPI) StreamEgressConfig(_ *agentproto.StreamEgressConfigRequest
 			return err
 		}
 		bound := cfg != nil
+		boundMu.Lock()
+		clear(boundExitNodes)
+		if cfg != nil {
+			for _, exitNode := range cfg.ExitNodes {
+				id, err := uuid.FromBytes(exitNode.Id)
+				if err == nil {
+					boundExitNodes[id] = struct{}{}
+				}
+			}
+		}
+		boundMu.Unlock()
 		if cfg == nil {
 			cfg = &agentproto.EgressConfig{}
 		}
@@ -292,6 +312,18 @@ func (a *ManifestAPI) StreamEgressConfig(_ *agentproto.StreamEgressConfigRequest
 			}
 		}
 	}
+}
+
+func egressPubsubMatches(payload []byte, templateID uuid.UUID, boundExitNodes map[uuid.UUID]struct{}) bool {
+	if eventTemplateID, ok := codersdk.ParseExitNodeTemplatePubsubPayload(payload); ok {
+		return eventTemplateID == templateID
+	}
+	exitNodeID, err := uuid.ParseBytes(payload)
+	if err != nil {
+		return false
+	}
+	_, bound := boundExitNodes[exitNodeID]
+	return bound
 }
 
 // controlPlaneHosts lists the protocol and port specific destinations an agent

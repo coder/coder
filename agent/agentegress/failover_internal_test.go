@@ -21,12 +21,38 @@ func TestExitNodeSelectorKeepCurrent(t *testing.T) {
 	first := netip.MustParseAddrPort("[fd7a:115c:a1e0::1]:1")
 	current := netip.MustParseAddrPort("[fd7a:115c:a1e0::2]:1")
 	added := netip.MustParseAddrPort("[fd7a:115c:a1e0::3]:1")
-	previous := newExitNodeSelector(slogtest.Make(t, nil), quartz.NewMock(t), time.Second, []netip.AddrPort{first, current})
+	previous := newExitNodeSelector(slogtest.Make(t, nil), quartz.NewMock(t), time.Second, []netip.AddrPort{first, current}, nil)
 	previous.current = 1
-	next := newExitNodeSelector(slogtest.Make(t, nil), quartz.NewMock(t), time.Second, []netip.AddrPort{added, current, first})
+	next := newExitNodeSelector(slogtest.Make(t, nil), quartz.NewMock(t), time.Second, []netip.AddrPort{added, current, first}, nil)
 
 	next.keepCurrent(previous)
 	require.Equal(t, 1, next.current)
+}
+
+// TestExitNodeSelectorSiblingReplicaNotPreferred verifies that a replica of
+// the same logical node listed before the current replica is not treated as
+// a recovery candidate, so adding a replica does not move existing traffic.
+func TestExitNodeSelectorSiblingReplicaNotPreferred(t *testing.T) {
+	t.Parallel()
+
+	added := netip.MustParseAddrPort("[fd7a:115c:a1e0::1]:1")
+	current := netip.MustParseAddrPort("[fd7a:115c:a1e0::2]:1")
+	secondary := netip.MustParseAddrPort("[fd7a:115c:a1e0::3]:1")
+	selector := newExitNodeSelector(slogtest.Make(t, nil), quartz.NewMock(t), time.Second,
+		[]netip.AddrPort{added, current, secondary}, []int{0, 0, 1})
+	selector.current = 1
+
+	var dialed []netip.AddrPort
+	conn, addr, err := selector.dial(t.Context(), DialerFunc(func(_ context.Context, addr netip.AddrPort) (net.Conn, error) {
+		dialed = append(dialed, addr)
+		client, server := net.Pipe()
+		t.Cleanup(func() { _ = server.Close() })
+		return client, nil
+	}))
+	require.NoError(t, err)
+	_ = conn.Close()
+	require.Equal(t, current, addr)
+	require.Equal(t, []netip.AddrPort{current}, dialed)
 }
 
 func TestExitNodeSelectorFailoverAndRecovery(t *testing.T) {
@@ -35,7 +61,7 @@ func TestExitNodeSelectorFailoverAndRecovery(t *testing.T) {
 	clock := quartz.NewMock(t)
 	preferred := netip.MustParseAddrPort("[fd7a:115c:a1e0::1]:1")
 	fallback := netip.MustParseAddrPort("[fd7a:115c:a1e0::2]:1")
-	selector := newExitNodeSelector(slogtest.Make(t, nil), clock, time.Second, []netip.AddrPort{preferred, fallback})
+	selector := newExitNodeSelector(slogtest.Make(t, nil), clock, time.Second, []netip.AddrPort{preferred, fallback}, nil)
 
 	preferredUp := false
 	var dialed []netip.AddrPort
@@ -77,7 +103,7 @@ func TestExitNodeSelectorDialTimeout(t *testing.T) {
 
 	preferred := netip.MustParseAddrPort("[fd7a:115c:a1e0::1]:1")
 	fallback := netip.MustParseAddrPort("[fd7a:115c:a1e0::2]:1")
-	selector := newExitNodeSelector(slogtest.Make(t, nil), quartz.NewMock(t), testutil.IntervalFast, []netip.AddrPort{preferred, fallback})
+	selector := newExitNodeSelector(slogtest.Make(t, nil), quartz.NewMock(t), testutil.IntervalFast, []netip.AddrPort{preferred, fallback}, nil)
 
 	var dialed []netip.AddrPort
 	dialer := DialerFunc(func(ctx context.Context, addr netip.AddrPort) (net.Conn, error) {
@@ -104,7 +130,7 @@ func TestExitNodeSelectorAllFail(t *testing.T) {
 	selector := newExitNodeSelector(slogtest.Make(t, nil), quartz.NewMock(t), time.Second, []netip.AddrPort{
 		netip.MustParseAddrPort("[fd7a:115c:a1e0::1]:1"),
 		netip.MustParseAddrPort("[fd7a:115c:a1e0::2]:1"),
-	})
+	}, nil)
 	_, _, err := selector.dial(t.Context(), DialerFunc(func(context.Context, netip.AddrPort) (net.Conn, error) {
 		return nil, xerrors.New("unreachable")
 	}))

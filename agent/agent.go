@@ -377,6 +377,7 @@ type agent struct {
 	egressEnforcer                 *agentegress.Enforcer
 	egressEnforcerExemptHosts      []string
 	egressLoggedPendingExemptHosts map[string]struct{}
+	egressUnbindRestartLogged      bool
 
 	derpTLSConfig *tls.Config
 }
@@ -2308,8 +2309,9 @@ func (a *agent) dialTailnetTCP(ctx context.Context, addr netip.AddrPort) (net.Co
 }
 
 // updateEgress reconciles the running egress proxy and enforcer with cfg.
-// A nil cfg stops both. An unchanged cfg is a no-op so reconnects do not
-// disturb established tunnels.
+// A nil cfg stops unmanaged or removable egress. When enforcement is locked,
+// nil leaves the proxy running with no candidates so existing rules fail closed.
+// An unchanged cfg is a no-op so reconnects do not disturb established tunnels.
 type egressChange struct {
 	applyProxyState          bool
 	deferEnforcement         bool
@@ -2328,11 +2330,12 @@ func (a *agent) updateEgress(ctx context.Context, cfg *agentsdk.EgressConfig) {
 	a.egressMu.Lock()
 	defer a.egressMu.Unlock()
 
+	if cfg == nil {
+		a.removeEgressConfigLocked(ctx)
+		return
+	}
+	a.egressUnbindRestartLogged = false
 	if a.egressProxy != nil {
-		if cfg == nil {
-			a.stopEgressLocked(ctx)
-			return
-		}
 		old := a.egressProxy.Config()
 		change := egressChangeRequiresRestart(old, *cfg)
 		if !change.applyProxyState {
@@ -2372,9 +2375,6 @@ func (a *agent) updateEgress(ctx context.Context, cfg *agentsdk.EgressConfig) {
 			return
 		}
 		a.stopEgressLocked(ctx)
-	}
-	if cfg == nil {
-		return
 	}
 
 	logger := a.logger.Named("egress")
@@ -2434,6 +2434,31 @@ func (a *agent) updateEgress(ctx context.Context, cfg *agentsdk.EgressConfig) {
 	logger.Info(ctx, "egress enforcement active", slog.F("proxy_port", proxy.Addr().Port()))
 }
 
+func (a *agent) removeEgressConfigLocked(ctx context.Context) {
+	if a.egressProxy == nil {
+		return
+	}
+	if a.egressEnforcer == nil {
+		a.stopEgressLocked(ctx)
+		return
+	}
+
+	cfg := a.egressProxy.Config()
+	emptyExitNodes := make([]agentsdk.EgressExitNode, len(cfg.ExitNodes))
+	for i, exitNode := range cfg.ExitNodes {
+		emptyExitNodes[i] = agentsdk.EgressExitNode{ID: exitNode.ID}
+	}
+	cfg.ExitNodes = emptyExitNodes
+	if err := a.egressProxy.Update(cfg, a.egressExemptHosts(cfg)); err != nil {
+		a.logger.Named("egress").Error(ctx, "fail closed after egress configuration removal", slog.Error(err))
+		return
+	}
+	if !a.egressUnbindRestartLogged {
+		a.logger.Named("egress").Warn(ctx, "egress enforcement rules are locked and the workspace must restart to remove egress enforcement")
+		a.egressUnbindRestartLogged = true
+	}
+}
+
 // egressExemptHosts extends the manifest's control plane hosts with the URL
 // this agent actually uses to reach coderd. They can differ when the agent
 // reaches coderd through an alias such as host.docker.internal, and redirecting
@@ -2473,6 +2498,7 @@ func (a *agent) stopEgressLocked(ctx context.Context) {
 		a.egressEnforcer = nil
 		a.egressEnforcerExemptHosts = nil
 		a.egressLoggedPendingExemptHosts = nil
+		a.egressUnbindRestartLogged = false
 	}
 	if a.egressProxy != nil {
 		if err := a.egressProxy.Close(); err != nil {

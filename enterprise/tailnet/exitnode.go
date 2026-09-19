@@ -2,6 +2,7 @@ package tailnet
 
 import (
 	"context"
+	"net/netip"
 	"sync"
 	"time"
 
@@ -36,9 +37,12 @@ func (a *ExitNodeCoordinateeAuth) Authorize(ctx context.Context, req *proto.Coor
 	if req.GetReadyForHandshake() != nil {
 		return xerrors.New("exit nodes may not send ready_for_handshake")
 	}
-	if req.GetUpdateSelf() != nil {
-		if err := (agpl.AgentCoordinateeAuth{ID: a.PeerID}).Authorize(ctx, &proto.CoordinateRequest{UpdateSelf: req.UpdateSelf}); err != nil {
-			return xerrors.Errorf("update self: %w", err)
+	if update := req.GetUpdateSelf(); update != nil {
+		if err := a.authorizeNodePrefixes(update.Node.GetAddresses()); err != nil {
+			return xerrors.Errorf("addresses: %w", err)
+		}
+		if err := a.authorizeNodePrefixes(update.Node.GetAllowedIps()); err != nil {
+			return xerrors.Errorf("allowed IPs: %w", err)
 		}
 	}
 	if tun := req.GetAddTunnel(); tun != nil {
@@ -49,6 +53,20 @@ func (a *ExitNodeCoordinateeAuth) Authorize(ctx context.Context, req *proto.Coor
 	if tun := req.GetRemoveTunnel(); tun != nil {
 		if _, err := uuid.FromBytes(tun.Id); err != nil {
 			return xerrors.Errorf("parse tunnel agent id: %w", err)
+		}
+	}
+	return nil
+}
+
+func (a *ExitNodeCoordinateeAuth) authorizeNodePrefixes(prefixes []string) error {
+	expected := agpl.TailscaleServicePrefix.AddrFromUUID(a.PeerID)
+	for _, prefixString := range prefixes {
+		prefix, err := netip.ParsePrefix(prefixString)
+		if err != nil {
+			return xerrors.Errorf("parse node address: %w", err)
+		}
+		if prefix.Bits() != 128 || prefix.Addr() != expected {
+			return xerrors.Errorf("invalid exit node address %s", prefix)
 		}
 	}
 	return nil

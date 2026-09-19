@@ -57,6 +57,19 @@ func TestBuildEgressConfig(t *testing.T) {
 	require.Equal(t, []string{"udp/203.0.113.1:41641", "udp/203.0.113.2:41641"}, config.ControlPlaneHosts)
 }
 
+func TestEgressPubsubMatches(t *testing.T) {
+	t.Parallel()
+
+	templateID := uuid.New()
+	boundExitNodeID := uuid.New()
+	bound := map[uuid.UUID]struct{}{boundExitNodeID: {}}
+	require.True(t, egressPubsubMatches(codersdk.ExitNodeTemplatePubsubPayload(templateID), templateID, bound))
+	require.False(t, egressPubsubMatches(codersdk.ExitNodeTemplatePubsubPayload(uuid.New()), templateID, bound))
+	require.True(t, egressPubsubMatches([]byte(boundExitNodeID.String()), templateID, bound))
+	require.False(t, egressPubsubMatches([]byte(uuid.NewString()), templateID, bound))
+	require.False(t, egressPubsubMatches([]byte("invalid"), templateID, bound))
+}
+
 func TestStreamEgressConfigPubsub(t *testing.T) {
 	t.Parallel()
 
@@ -74,6 +87,7 @@ func TestStreamEgressConfigPubsub(t *testing.T) {
 	workspaceID := uuid.New()
 
 	store.EXPECT().GetWorkspaceByID(gomock.Any(), workspaceID).Return(database.Workspace{TemplateID: templateID}, nil)
+	thirdReplica := uuid.New()
 	gomock.InOrder(
 		store.EXPECT().GetTemplateByID(gomock.Any(), templateID).Return(database.Template{}, nil),
 		store.EXPECT().GetTemplateExitNodeReplicas(gomock.Any(), gomock.Any()).Return([]database.GetTemplateExitNodeReplicasRow{{
@@ -84,6 +98,11 @@ func TestStreamEgressConfigPubsub(t *testing.T) {
 		store.EXPECT().GetTemplateExitNodeReplicas(gomock.Any(), gomock.Any()).Return([]database.GetTemplateExitNodeReplicasRow{{
 			ExitNodeID: exitNodeID,
 			ReplicaID:  uuid.NullUUID{UUID: secondReplica, Valid: true},
+		}}, nil),
+		store.EXPECT().GetTemplateByID(gomock.Any(), templateID).Return(database.Template{}, nil),
+		store.EXPECT().GetTemplateExitNodeReplicas(gomock.Any(), gomock.Any()).Return([]database.GetTemplateExitNodeReplicasRow{{
+			ExitNodeID: exitNodeID,
+			ReplicaID:  uuid.NullUUID{UUID: thirdReplica, Valid: true},
 		}}, nil),
 	)
 
@@ -104,10 +123,26 @@ func TestStreamEgressConfigPubsub(t *testing.T) {
 	first := <-stream.configs
 	firstPeer := codersdk.ExitNodeReplicaPeerID(exitNodeID, firstReplica)
 	require.Equal(t, firstPeer[:], first.ExitNodes[0].ReplicaIds[0])
+	require.NoError(t, ps.Publish(codersdk.ExitNodeReplicasPubsubChannel, []byte(uuid.NewString())))
+	select {
+	case <-stream.configs:
+		t.Fatal("unbound exit node event triggered a recompute")
+	default:
+	}
+	require.NoError(t, ps.Publish(codersdk.ExitNodeReplicasPubsubChannel, codersdk.ExitNodeTemplatePubsubPayload(uuid.New())))
+	select {
+	case <-stream.configs:
+		t.Fatal("unrelated template event triggered a recompute")
+	default:
+	}
 	require.NoError(t, ps.Publish(codersdk.ExitNodeReplicasPubsubChannel, []byte(exitNodeID.String())))
 	second := <-stream.configs
 	secondPeer := codersdk.ExitNodeReplicaPeerID(exitNodeID, secondReplica)
 	require.Equal(t, secondPeer[:], second.ExitNodes[0].ReplicaIds[0])
+	require.NoError(t, ps.Publish(codersdk.ExitNodeReplicasPubsubChannel, codersdk.ExitNodeTemplatePubsubPayload(templateID)))
+	third := <-stream.configs
+	thirdPeer := codersdk.ExitNodeReplicaPeerID(exitNodeID, thirdReplica)
+	require.Equal(t, thirdPeer[:], third.ExitNodes[0].ReplicaIds[0])
 	cancel()
 	require.NoError(t, <-done)
 }
@@ -120,7 +155,7 @@ type egressTestStream struct {
 }
 
 func newEgressTestStream(ctx context.Context) *egressTestStream {
-	return &egressTestStream{ctx: ctx, configs: make(chan *agentproto.EgressConfig, 2)}
+	return &egressTestStream{ctx: ctx, configs: make(chan *agentproto.EgressConfig, 3)}
 }
 
 func (s *egressTestStream) Send(config *agentproto.EgressConfig) error {

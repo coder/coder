@@ -904,6 +904,13 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if req.ExitNodeIDs != nil || req.ExitNodeEnforce != nil {
+		if err := api.Pubsub.Publish(codersdk.ExitNodeReplicasPubsubChannel, codersdk.ExitNodeTemplatePubsubPayload(template.ID)); err != nil {
+			httpapi.InternalServerError(rw, xerrors.Errorf("publish template exit node update: %w", err))
+			return
+		}
+	}
+
 	if template.Deprecated != updated.Deprecated && updated.Deprecated != "" {
 		if err := api.notifyUsersOfTemplateDeprecation(ctx, updated); err != nil {
 			api.Logger.Error(ctx, "failed to notify users of template deprecation", slog.Error(err))

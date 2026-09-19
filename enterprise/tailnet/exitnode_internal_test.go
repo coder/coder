@@ -41,7 +41,18 @@ func TestExitNodeCoordinateeAuth(t *testing.T) {
 	}))
 	require.NoError(t, auth.Authorize(context.Background(), &proto.CoordinateRequest{
 		UpdateSelf: &proto.CoordinateRequest_UpdateSelf{Node: &proto.Node{
-			Addresses: []string{agpl.TailscaleServicePrefix.PrefixFromUUID(peerID).String()},
+			Addresses:  []string{agpl.TailscaleServicePrefix.PrefixFromUUID(peerID).String()},
+			AllowedIps: []string{agpl.TailscaleServicePrefix.PrefixFromUUID(peerID).String()},
+		}},
+	}))
+	require.Error(t, auth.Authorize(context.Background(), &proto.CoordinateRequest{
+		UpdateSelf: &proto.CoordinateRequest_UpdateSelf{Node: &proto.Node{
+			Addresses: []string{"fd7a:115c:a1e0:49d6:b259:b7ac:b1b2:48f4/128"},
+		}},
+	}))
+	require.Error(t, auth.Authorize(context.Background(), &proto.CoordinateRequest{
+		UpdateSelf: &proto.CoordinateRequest_UpdateSelf{Node: &proto.Node{
+			AllowedIps: []string{"fd7a:115c:a1e0:49d6:b259:b7ac:b1b2:48f4/128"},
 		}},
 	}))
 	require.Error(t, auth.Authorize(context.Background(), &proto.CoordinateRequest{

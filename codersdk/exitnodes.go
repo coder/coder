@@ -3,6 +3,7 @@ package codersdk
 import (
 	"context"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -94,8 +95,27 @@ func ExitNodeReplicaPeerID(exitNodeID, replicaID uuid.UUID) uuid.UUID {
 }
 
 // ExitNodeReplicasPubsubChannel carries the ID of an exit node whose live
-// replica set changed, so bound agents can be sent a fresh egress config.
+// replica set changed, or a template event produced by
+// ExitNodeTemplatePubsubPayload.
 const ExitNodeReplicasPubsubChannel = "exit_node_replicas"
+
+const exitNodeTemplatePubsubPrefix = "template:"
+
+// ExitNodeTemplatePubsubPayload identifies a template whose exit node binding
+// or enforcement configuration changed.
+func ExitNodeTemplatePubsubPayload(templateID uuid.UUID) []byte {
+	return []byte(exitNodeTemplatePubsubPrefix + templateID.String())
+}
+
+// ParseExitNodeTemplatePubsubPayload parses a template configuration event.
+func ParseExitNodeTemplatePubsubPayload(payload []byte) (uuid.UUID, bool) {
+	value, ok := strings.CutPrefix(string(payload), exitNodeTemplatePubsubPrefix)
+	if !ok {
+		return uuid.Nil, false
+	}
+	id, err := uuid.Parse(value)
+	return id, err == nil
+}
 
 // ExitNodeReplicaStatus is the liveness of one replica.
 type ExitNodeReplicaStatus string

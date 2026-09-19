@@ -126,13 +126,21 @@ func (r *RootCmd) exitNodeCreate() *serpent.Command {
 
 type exitNodeListRow struct {
 	codersdk.ExitNode `table:"exit_node,recursive_inline"`
-	ReplicaCount      int `json:"-" table:"replicas"`
+	// LiveReplicas counts replicas with a recent heartbeat. Stale and
+	// stopped replicas remain in the API response but are not serving.
+	LiveReplicas int `json:"-" table:"live replicas"`
 }
 
 func exitNodeListRows(nodes []codersdk.ExitNode) []exitNodeListRow {
 	rows := make([]exitNodeListRow, len(nodes))
 	for i, node := range nodes {
-		rows[i] = exitNodeListRow{ExitNode: node, ReplicaCount: len(node.Replicas)}
+		live := 0
+		for _, replica := range node.Replicas {
+			if replica.Status == codersdk.ExitNodeReplicaStatusLive {
+				live++
+			}
+		}
+		rows[i] = exitNodeListRow{ExitNode: node, LiveReplicas: live}
 	}
 	return rows
 }
@@ -141,7 +149,7 @@ func (r *RootCmd) exitNodeList() *serpent.Command {
 	var (
 		orgContext = agpl.NewOrganizationContext()
 		formatter  = cliui.NewOutputFormatter(
-			cliui.TableFormat([]exitNodeListRow{}, []string{"name", "display name", "status", "replicas", "policy mismatch"}),
+			cliui.TableFormat([]exitNodeListRow{}, []string{"name", "display name", "status", "live replicas", "policy mismatch"}),
 			cliui.JSONFormat(),
 		)
 	)

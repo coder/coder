@@ -25,19 +25,32 @@ type exitNodeSelector struct {
 	clock       quartz.Clock
 	dialTimeout time.Duration
 	addrs       []netip.AddrPort
-	current     int
-	failures    []exitNodeFailure
+	// ranks holds the logical exit node preference of each address. Replicas
+	// of one node share a rank, so only a strictly better ranked address is a
+	// recovery candidate ahead of the current one.
+	ranks    []int
+	current  int
+	failures []exitNodeFailure
 }
 
-func newExitNodeSelector(logger slog.Logger, clock quartz.Clock, dialTimeout time.Duration, addrs []netip.AddrPort) *exitNodeSelector {
+// newExitNodeSelector orders addrs by preference. A nil ranks slice gives
+// every address its own rank in list order.
+func newExitNodeSelector(logger slog.Logger, clock quartz.Clock, dialTimeout time.Duration, addrs []netip.AddrPort, ranks []int) *exitNodeSelector {
 	if clock == nil {
 		clock = quartz.NewReal()
+	}
+	if ranks == nil {
+		ranks = make([]int, len(addrs))
+		for i := range ranks {
+			ranks[i] = i
+		}
 	}
 	return &exitNodeSelector{
 		logger:      logger,
 		clock:       clock,
 		dialTimeout: dialTimeout,
 		addrs:       append([]netip.AddrPort(nil), addrs...),
+		ranks:       append([]int(nil), ranks...),
 		failures:    make([]exitNodeFailure, len(addrs)),
 	}
 }
@@ -67,8 +80,8 @@ func (s *exitNodeSelector) dial(ctx context.Context, dialer Dialer) (net.Conn, n
 	now := s.clock.Now("exit_node_selector")
 	current := s.current
 	order := make([]int, 0, len(s.addrs))
-	for i := range current {
-		if !now.Before(s.failures[i].retryAt) {
+	for i := range s.addrs {
+		if s.ranks[i] < s.ranks[current] && !now.Before(s.failures[i].retryAt) {
 			order = append(order, i)
 			// Reserve this recovery probe so concurrent dials do not probe the
 			// same preferred node before the backoff elapses again.
@@ -78,8 +91,8 @@ func (s *exitNodeSelector) dial(ctx context.Context, dialer Dialer) (net.Conn, n
 	if !now.Before(s.failures[current].retryAt) {
 		order = append(order, current)
 	}
-	for i := current + 1; i < len(s.addrs); i++ {
-		if !now.Before(s.failures[i].retryAt) {
+	for i := range s.addrs {
+		if i != current && s.ranks[i] >= s.ranks[current] && !now.Before(s.failures[i].retryAt) {
 			order = append(order, i)
 		}
 	}

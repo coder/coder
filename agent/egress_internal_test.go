@@ -74,6 +74,66 @@ func TestEgressChangeRequiresRestart(t *testing.T) {
 	}
 }
 
+func TestUpdateEgressLockedEnforcementUnbindFailsClosedAndRecovers(t *testing.T) {
+	t.Parallel()
+
+	replica := uuid.New()
+	seen := make(chan netip.AddrPort, 1)
+	dialer := agentegress.DialerFunc(func(_ context.Context, addr netip.AddrPort) (net.Conn, error) {
+		seen <- addr
+		client, server := net.Pipe()
+		go func() {
+			defer server.Close()
+			req, err := http.ReadRequest(bufio.NewReader(server))
+			if err == nil {
+				_, _ = io.WriteString(server, "HTTP/1.1 200 Connection Established\r\n\r\n")
+				_ = req.Body.Close()
+			}
+		}()
+		return client, nil
+	})
+	cfg := agentsdk.EgressConfig{
+		ExitNodes:    []agentsdk.EgressExitNode{{ID: uuid.New(), ReplicaIDs: []uuid.UUID{uuid.New()}}},
+		ExitNodePort: 3128,
+		Enforce:      true,
+	}
+	proxy, err := agentegress.New(testutil.Logger(t), agentegress.Options{
+		Dialer:     dialer,
+		Config:     cfg,
+		ListenAddr: "127.0.0.1:0",
+	})
+	require.NoError(t, err)
+	require.NoError(t, proxy.Start(t.Context()))
+	defer func() { require.NoError(t, proxy.Close()) }()
+
+	sink := testutil.NewFakeSink(t)
+	a := &agent{
+		logger:         sink.Logger(),
+		egressProxy:    proxy,
+		egressEnforcer: &agentegress.Enforcer{},
+	}
+	a.updateEgress(t.Context(), nil)
+	a.updateEgress(t.Context(), nil)
+
+	require.Same(t, proxy, a.egressProxy)
+	require.NotNil(t, a.egressEnforcer)
+	require.Empty(t, proxy.Config().ExitNodes[0].ReplicaIDs)
+	status, body := explicitResponse(t, proxy.Addr())
+	require.Equal(t, http.StatusServiceUnavailable, status)
+	require.Contains(t, body, agentegress.ErrNoLiveExitNodeReplicas.Error())
+	entries := sink.Entries(func(e slog.SinkEntry) bool {
+		return e.Message == "egress enforcement rules are locked and the workspace must restart to remove egress enforcement"
+	})
+	require.Len(t, entries, 1)
+	require.Equal(t, slog.LevelWarn, entries[0].Level)
+
+	cfg.ExitNodes[0].ReplicaIDs = []uuid.UUID{replica}
+	a.updateEgress(t.Context(), &cfg)
+	connectExplicit(t, proxy.Addr())
+	want := netip.AddrPortFrom(tailnet.TailscaleServicePrefix.AddrFromUUID(replica), 3128)
+	require.Equal(t, want, testutil.RequireReceive(t.Context(), t, seen))
+}
+
 func TestUpdateEgressLockedEnforcementAppliesReplicaChurn(t *testing.T) {
 	t.Parallel()
 
@@ -135,6 +195,25 @@ func TestUpdateEgressLockedEnforcementAppliesReplicaChurn(t *testing.T) {
 	})
 	require.Len(t, entries, 1)
 	require.Equal(t, slog.LevelInfo, entries[0].Level)
+}
+
+func explicitResponse(t *testing.T, addr netip.AddrPort) (int, string) {
+	t.Helper()
+	conn, err := net.Dial("tcp", addr.String())
+	require.NoError(t, err)
+	defer conn.Close()
+	req := &http.Request{
+		Method: http.MethodConnect,
+		URL:    &url.URL{Opaque: "example.com:443"},
+		Host:   "example.com:443",
+	}
+	require.NoError(t, req.Write(conn))
+	resp, err := http.ReadResponse(bufio.NewReader(conn), req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	return resp.StatusCode, string(body)
 }
 
 func connectExplicit(t *testing.T, addr netip.AddrPort) {
