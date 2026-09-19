@@ -654,10 +654,15 @@ func prepWorkspaceBuild(inv *serpent.Invocation, client *codersdk.Client, args p
 	// Only perform dry-run for workspace creation and updates
 	// Skip for start and restart to avoid unnecessary delays
 	if args.Action == WorkspaceCreate || args.Action == WorkspaceUpdate {
+		dryRunParameters := buildParameters
+		if args.Action == WorkspaceUpdate {
+			dryRunParameters = workspaceBuildParametersForDryRun(buildParameters, args.LastBuildParameters, templateVersionParameters)
+		}
+
 		// Run a dry-run with the given parameters to check correctness
 		dryRun, err := client.CreateTemplateVersionDryRun(inv.Context(), templateVersion.ID, codersdk.CreateTemplateVersionDryRunRequest{
 			WorkspaceName:       args.NewWorkspaceName,
-			RichParameterValues: buildParameters,
+			RichParameterValues: dryRunParameters,
 		})
 		if err != nil {
 			return nil, xerrors.Errorf("begin workspace dry-run: %w", err)
@@ -705,4 +710,30 @@ func prepWorkspaceBuild(inv *serpent.Invocation, client *codersdk.Client, args p
 	}
 
 	return buildParameters, nil
+}
+
+// workspaceBuildParametersForDryRun adds unchanged immutable parameters from
+// the previous build to an update dry-run. Unlike a workspace build, a template
+// version dry-run has no workspace context from which the server can recover
+// previous values.
+func workspaceBuildParametersForDryRun(
+	buildParameters []codersdk.WorkspaceBuildParameter,
+	lastBuildParameters []codersdk.WorkspaceBuildParameter,
+	templateVersionParameters []codersdk.TemplateVersionParameter,
+) []codersdk.WorkspaceBuildParameter {
+	dryRunParameters := append([]codersdk.WorkspaceBuildParameter(nil), buildParameters...)
+	for _, buildParameter := range lastBuildParameters {
+		tvp := findTemplateVersionParameter(buildParameter, templateVersionParameters)
+		if tvp == nil || tvp.Mutable || tvp.Ephemeral {
+			continue
+		}
+
+		if findWorkspaceBuildParameter(buildParameter.Name, dryRunParameters) != nil {
+			continue
+		}
+
+		dryRunParameters = append(dryRunParameters, buildParameter)
+	}
+
+	return dryRunParameters
 }
