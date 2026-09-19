@@ -61,6 +61,7 @@ func (p *Server) storeChatAttachment(
 			storedName,
 			mediaType,
 			data,
+			p.limits().MaxAttachmentsPerChat,
 		)
 		return err
 	}, database.DefaultTXOptions().WithID("store_chat_attachment"))
@@ -79,6 +80,7 @@ func storeLinkedChatFileTx(
 	name string,
 	mediaType string,
 	data []byte,
+	maxLinks int,
 ) (chattool.AttachmentMetadata, error) {
 	row, err := tx.InsertChatFile(ctx, database.InsertChatFileParams{
 		OwnerID:        ownerID,
@@ -91,7 +93,7 @@ func storeLinkedChatFileTx(
 		return chattool.AttachmentMetadata{}, xerrors.Errorf("insert chat file: %w", err)
 	}
 
-	if err := chatstate.LinkFiles(ctx, tx, chatID, []uuid.UUID{row.ID}); err != nil {
+	if err := chatstate.LinkFiles(ctx, tx, chatID, []uuid.UUID{row.ID}, maxLinks); err != nil {
 		return chattool.AttachmentMetadata{}, err
 	}
 

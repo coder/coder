@@ -157,7 +157,7 @@ func TestNormalizationFieldCoverage(t *testing.T) {
 			name: "fantasy.TextPart → normalizedMessagePart",
 			typ:  reflect.TypeFor[fantasy.TextPart](),
 			fields: fieldDisposition{
-				"Text":            "normalized: bounded to MaxMessagePartTextLength",
+				"Text":            "normalized: bounded to TextLimits.MaxTextRunes",
 				"ProviderOptions": "skipped: opaque provider-specific options",
 			},
 		},
@@ -165,7 +165,7 @@ func TestNormalizationFieldCoverage(t *testing.T) {
 			name: "fantasy.ReasoningPart → normalizedMessagePart",
 			typ:  reflect.TypeFor[fantasy.ReasoningPart](),
 			fields: fieldDisposition{
-				"Text":            "normalized: bounded to MaxMessagePartTextLength",
+				"Text":            "normalized: bounded to TextLimits.MaxTextRunes",
 				"ProviderOptions": "skipped: opaque provider-specific options",
 			},
 		},
@@ -208,7 +208,7 @@ func TestNormalizationFieldCoverage(t *testing.T) {
 			name: "fantasy.TextContent → normalizedContentPart",
 			typ:  reflect.TypeFor[fantasy.TextContent](),
 			fields: fieldDisposition{
-				"Text":             "normalized: bounded to MaxMessagePartTextLength",
+				"Text":             "normalized: bounded to TextLimits.MaxTextRunes",
 				"ProviderMetadata": "skipped: opaque provider-specific metadata",
 			},
 		},
@@ -216,7 +216,7 @@ func TestNormalizationFieldCoverage(t *testing.T) {
 			name: "fantasy.ReasoningContent → normalizedContentPart",
 			typ:  reflect.TypeFor[fantasy.ReasoningContent](),
 			fields: fieldDisposition{
-				"Text":             "normalized: bounded to MaxMessagePartTextLength",
+				"Text":             "normalized: bounded to TextLimits.MaxTextRunes",
 				"ProviderMetadata": "skipped: opaque provider-specific metadata",
 			},
 		},

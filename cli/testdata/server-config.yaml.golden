@@ -851,6 +851,53 @@ chat:
   # control agent execution, so only enable this on a network you fully trust.
   # (default: false, type: bool)
   hookAllowInsecure: false
+  # Maximum number of model and tool steps a single agent chat turn may run before
+  # Coder stops the turn. Set to 0 to use the default.
+  # (default: 1200, type: int)
+  maxStepsPerTurn: 1200
+  # Maximum number of times a chat turn retries a model call that failed with a
+  # transient provider error, such as a rate limit or an overloaded response, before
+  # the turn fails. Set to 0 to use the default.
+  # (default: 25, type: int)
+  maxGenerationRetries: 25
+  # Maximum number of user messages that can wait in a chat's queue while a turn is
+  # running. Set to 0 to use the default.
+  # (default: 20, type: int)
+  maxQueuedMessagesPerChat: 20
+  # Number of most recent attachments a chat keeps, counting uploads and files the
+  # agent attaches from the workspace. Older attachments are removed when the cap is
+  # reached, and a single message cannot include more files than the cap. Set to 0
+  # to use the default.
+  # (default: 50, type: int)
+  maxAttachmentsPerChat: 50
+  # Maximum size in bytes of the deployment system prompt, the plan mode
+  # instructions, and each user's custom prompt. Set to 0 to use the default.
+  # (default: 131072, type: int)
+  maxPromptBytes: 131072
+  # Maximum number of client-provided dynamic tools a chat can be created with. Set
+  # to 0 to use the default.
+  # (default: 250, type: int)
+  maxDynamicToolsPerChat: 250
+  # Maximum number of bytes of workspace command output the execute and process
+  # tools return to the model. Longer output is truncated. Set to 0 to use the
+  # default.
+  # (default: 32768, type: int)
+  maxToolOutputBytes: 32768
+  # Maximum number of virtual desktop recordings the chat daemon stores
+  # concurrently. Each upload buffers the whole recording in memory, so this bounds
+  # the daemon's peak memory use for recordings. Set to 0 to use the default.
+  # (default: 25, type: int)
+  maxConcurrentRecordingUploads: 25
+  # Maximum number of characters of each message part, tool argument, and tool
+  # result kept in chat debug run records. Longer text is truncated. Set to 0 to use
+  # the default.
+  # (default: 10000, type: int)
+  debugMaxTextRunes: 10000
+  # Maximum number of bytes of streamed model output and of each recorded provider
+  # HTTP request or response body kept in chat debug run records. Set to 0 to use
+  # the default.
+  # (default: 50000, type: int)
+  debugMaxBodyBytes: 50000
   # Deprecated: AI Gateway routing is now the only routing path. Setting this value
   # has no effect. This option will be removed in a future release.
   # (default: true, type: bool)

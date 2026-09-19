@@ -1745,7 +1745,7 @@ func TestMessageFileLinkingCapRollsBack(t *testing.T) {
 
 	// A single batch over the cap is rejected.
 	tooMany := []codersdk.ChatMessagePart{codersdk.ChatMessageText("one too many")}
-	for i := range codersdk.MaxChatFileIDs + 1 {
+	for i := range codersdk.DefaultChatMaxAttachmentsPerChat + 1 {
 		row, err := db.InsertChatFile(ctx, database.InsertChatFileParams{
 			OwnerID:        user.ID,
 			OrganizationID: org.ID,

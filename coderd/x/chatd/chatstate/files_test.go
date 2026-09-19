@@ -37,11 +37,11 @@ func TestLinkFilesUnavailable(t *testing.T) {
 			fileID := uuid.New()
 			store.EXPECT().LinkChatFiles(gomock.Any(), database.LinkChatFilesParams{
 				ChatID:       chatID,
-				MaxFileLinks: int32(codersdk.MaxChatFileIDs),
+				MaxFileLinks: int32(codersdk.DefaultChatMaxAttachmentsPerChat),
 				FileIds:      []uuid.UUID{fileID},
 			}).Return(int32(0), dbErr)
 
-			err := chatstate.LinkFiles(context.Background(), store, chatID, []uuid.UUID{fileID})
+			err := chatstate.LinkFiles(context.Background(), store, chatID, []uuid.UUID{fileID}, 0)
 			require.ErrorIs(t, err, chatstate.ErrChatFileUnavailable)
 			require.ErrorIs(t, err, dbErr)
 		})

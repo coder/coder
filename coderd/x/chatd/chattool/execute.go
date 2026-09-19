@@ -10,6 +10,7 @@ import (
 
 	"charm.land/fantasy"
 
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
 
@@ -17,9 +18,6 @@ const (
 	// defaultTimeout is the default timeout for command
 	// execution.
 	defaultTimeout = 10 * time.Second
-
-	// maxOutputToModel is the maximum output sent to the LLM.
-	maxOutputToModel = 32 << 10 // 32KB
 
 	// snapshotTimeout is how long a non-blocking fallback
 	// request is allowed to take when retrieving a process
@@ -98,13 +96,18 @@ type ExecuteOptions struct {
 	// AGENT_BROWSER_SESSION so agent-browser CLI invocations land in a
 	// browser session scoped to this chat instead of a shared default.
 	AgentBrowserSession string
+	// MaxOutputBytes caps the command output returned to the model;
+	// zero uses [codersdk.DefaultChatMaxToolOutputBytes].
+	MaxOutputBytes int
 }
 
 // ProcessToolOptions configures a process management tool
-// (process_output, process_list, or process_signal). Each of
-// these tools only needs a workspace connection resolver.
+// (process_output, process_list, or process_signal).
 type ProcessToolOptions struct {
 	GetWorkspaceConn func(context.Context) (workspacesdk.AgentConn, error)
+	// MaxOutputBytes caps the process output returned to the model;
+	// zero uses [codersdk.DefaultChatMaxToolOutputBytes].
+	MaxOutputBytes int
 }
 
 // ExecuteArgs are the parameters accepted by the execute tool.
@@ -178,7 +181,7 @@ func executeTool(
 	if background {
 		return executeBackground(ctx, conn, args.Command, workDir, env)
 	}
-	return executeForeground(ctx, conn, args, options.DefaultTimeout, workDir, env)
+	return executeForeground(ctx, conn, args, options.DefaultTimeout, options.MaxOutputBytes, workDir, env)
 }
 
 // executeBackground starts a process in the background and
@@ -219,6 +222,7 @@ func executeForeground(
 	conn workspacesdk.AgentConn,
 	args ExecuteArgs,
 	optTimeout time.Duration,
+	maxOutputBytes int,
 	workDir string,
 	env map[string]string,
 ) fantasy.ToolResponse {
@@ -251,7 +255,7 @@ func executeForeground(
 		return errorResult(enrichStartError(fmt.Sprintf("start process: %v", err)))
 	}
 
-	result := waitForProcess(cmdCtx, ctx, conn, resp.ID, timeout)
+	result := waitForProcess(cmdCtx, ctx, conn, resp.ID, timeout, maxOutputBytes)
 	result.WallDurationMs = time.Since(start).Milliseconds()
 
 	// Add an advisory note for file-dump commands.
@@ -266,12 +270,15 @@ func executeForeground(
 	return fantasy.NewTextResponse(string(data))
 }
 
-// truncateOutput safely truncates output to maxOutputToModel,
-// ensuring the result is valid UTF-8 even if the cut falls in
-// the middle of a multi-byte character.
-func truncateOutput(output string) string {
-	if len(output) > maxOutputToModel {
-		output = strings.ToValidUTF8(output[:maxOutputToModel], "")
+// truncateOutput safely truncates output to maxBytes (or the default
+// when maxBytes is not positive), ensuring the result is valid UTF-8
+// even if the cut falls in the middle of a multi-byte character.
+func truncateOutput(output string, maxBytes int) string {
+	if maxBytes <= 0 {
+		maxBytes = codersdk.DefaultChatMaxToolOutputBytes
+	}
+	if len(output) > maxBytes {
+		output = strings.ToValidUTF8(output[:maxBytes], "")
 	}
 	return output
 }
@@ -288,6 +295,7 @@ func waitForProcess(
 	conn workspacesdk.AgentConn,
 	processID string,
 	timeout time.Duration,
+	maxOutputBytes int,
 ) ExecuteResult {
 	// Block until the process exits or the context is
 	// canceled.
@@ -329,7 +337,7 @@ func waitForProcess(
 			if resp.ExitCode != nil {
 				exitCode = *resp.ExitCode
 			}
-			output := truncateOutput(resp.Output)
+			output := truncateOutput(resp.Output, maxOutputBytes)
 			return ExecuteResult{
 				Success:   exitCode == 0,
 				Output:    output,
@@ -339,7 +347,7 @@ func waitForProcess(
 		}
 
 		// Process still running, return partial output.
-		output := truncateOutput(resp.Output)
+		output := truncateOutput(resp.Output, maxOutputBytes)
 		errMsg := fmt.Sprintf("command timed out after %s", timeout)
 		if !timedOut {
 			errMsg = fmt.Sprintf("get process output: %v (process still running, use process_output to check later)", origErr)
@@ -361,9 +369,9 @@ func waitForProcess(
 	if resp.Running {
 		if ctx.Err() == nil {
 			// Still within the caller's timeout, retry.
-			return waitForProcess(ctx, parentCtx, conn, processID, timeout)
+			return waitForProcess(ctx, parentCtx, conn, processID, timeout, maxOutputBytes)
 		}
-		output := truncateOutput(resp.Output)
+		output := truncateOutput(resp.Output, maxOutputBytes)
 		return ExecuteResult{
 			Success:             false,
 			Output:              output,
@@ -378,7 +386,7 @@ func waitForProcess(
 	if resp.ExitCode != nil {
 		exitCode = *resp.ExitCode
 	}
-	output := truncateOutput(resp.Output)
+	output := truncateOutput(resp.Output, maxOutputBytes)
 	return ExecuteResult{
 		Success:   exitCode == 0,
 		Output:    output,
@@ -494,7 +502,7 @@ func ProcessOutput(options ProcessToolOptions) fantasy.AgentTool {
 				}
 				// Fall through to normal response handling below.
 			}
-			output := truncateOutput(resp.Output)
+			output := truncateOutput(resp.Output, options.MaxOutputBytes)
 			exitCode := 0
 			if resp.ExitCode != nil {
 				exitCode = *resp.ExitCode

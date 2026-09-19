@@ -143,6 +143,7 @@ func TestAdvisorToolPublishesAdviceResetWithToolCallID(t *testing.T) {
 		},
 		MaxUsesPerRun:   2,
 		MaxOutputTokens: 128,
+		MaxRetries:      1,
 	})
 	require.NoError(t, err)
 

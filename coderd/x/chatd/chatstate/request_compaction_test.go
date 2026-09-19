@@ -9,8 +9,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/x/chatd/chatretry"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -221,8 +221,8 @@ func TestRequestCompaction_FreshHistoryEpoch(t *testing.T) {
 		attempts int
 	}{
 		{name: "unspent budget", attempts: 0},
-		{name: "one below the cap", attempts: chatretry.MaxAttempts - 1},
-		{name: "exhausted budget", attempts: chatretry.MaxAttempts},
+		{name: "one below the cap", attempts: codersdk.DefaultChatMaxGenerationRetries - 1},
+		{name: "exhausted budget", attempts: codersdk.DefaultChatMaxGenerationRetries},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
