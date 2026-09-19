@@ -284,7 +284,10 @@ const AgentEmbedPage: FC = () => {
 		embedSessionMutation.reset();
 	};
 
-	if (auth.isSignedIn) {
+	// DashboardProvider requires permissions. They arrive with the user
+	// when the server embeds metadata, but load separately behind a dev
+	// proxy or when metadata is missing, so wait for both.
+	if (auth.isSignedIn && auth.permissions) {
 		return (
 			<EmbedContext value={{ isEmbedded: true }}>
 				<DashboardProvider>
