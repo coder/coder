@@ -15329,7 +15329,6 @@ FROM workspaces
 JOIN templates ON templates.id = workspaces.template_id
 JOIN template_exit_nodes ON template_exit_nodes.template_id = templates.id
 JOIN (
-	-- Latest build per workspace.
 	SELECT DISTINCT ON (workspace_id) id, workspace_id, job_id, transition
 	FROM workspace_builds
 	ORDER BY workspace_id, build_number DESC
@@ -15346,11 +15345,7 @@ WHERE
 	AND workspace_agents.deleted = FALSE
 `
 
-// GetWorkspaceAgentIDsByExitNode returns the agent IDs on the latest build of
-// every running workspace whose template routes egress through the exit node.
-// "Running" means the latest build has transition=start and
-// job_status=succeeded, matching the workspace-status definition used by
-// coderd/database/queries/workspaces.sql.
+// Latest successful start build matches workspace status semantics.
 func (q *sqlQuerier) GetWorkspaceAgentIDsByExitNode(ctx context.Context, exitNodeID uuid.UUID) ([]uuid.UUID, error) {
 	rows, err := q.db.QueryContext(ctx, getWorkspaceAgentIDsByExitNode, exitNodeID)
 	if err != nil {

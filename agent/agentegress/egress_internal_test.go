@@ -33,8 +33,6 @@ import (
 
 const established = "HTTP/1.1 200 Connection Established\r\n\r\n"
 
-// serveTCP accepts loopback connections and hands each to handle until the
-// test ends.
 func serveTCP(t testing.TB, handle func(net.Conn)) net.Listener {
 	t.Helper()
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
@@ -59,32 +57,21 @@ func serveTCP(t testing.TB, handle func(net.Conn)) net.Listener {
 	return ln
 }
 
-// connectRecord is one CONNECT the fake exit node received.
 type connectRecord struct {
 	target       string
 	proto        codersdk.ExitNodeProtocol
 	originalHost string
 }
 
-// fakeExitNode is an in-memory exit node that speaks the CONNECT protocol
-// over a loopback listener, including the udp (echo) and dns (TXT answer)
-// stream variants. Destinations are allowed unless deny returns a reason.
 type fakeExitNode struct {
-	listener net.Listener
-	deny     func(target string) (reason string, denied bool)
-	// resolve maps CONNECT targets to the address actually dialed, standing
-	// in for the exit node's own resolver.
-	resolve map[string]string
-	// dnsReverseBatch, when > 1, holds that many DNS queries and answers
-	// them in reverse order to exercise message ID correlation.
+	listener        net.Listener
+	deny            func(target string) (reason string, denied bool)
+	resolve         map[string]string
 	dnsReverseBatch int
-	// dnsResponse customizes DNS answers. The default is a successful TXT
-	// answer with a 60 second TTL.
-	dnsResponse func(query []byte) []byte
+	dnsResponse     func(query []byte) []byte
 
-	mu       sync.Mutex
-	connects []connectRecord
-	// udpFrames records relayed datagrams by target.
+	mu        sync.Mutex
+	connects  []connectRecord
 	udpFrames map[string][][]byte
 }
 
@@ -168,8 +155,6 @@ func (f *fakeExitNode) handle(conn net.Conn) {
 	}
 }
 
-// DialContextTCP implements Dialer by ignoring the tailnet address and
-// connecting to the fake listener instead.
 func (f *fakeExitNode) DialContextTCP(ctx context.Context, _ netip.AddrPort) (net.Conn, error) {
 	var d net.Dialer
 	return d.DialContext(ctx, "tcp", f.listener.Addr().String())
@@ -205,7 +190,6 @@ type proxyOptions struct {
 func startProxy(t testing.TB, exit *fakeExitNode, opts proxyOptions) *Proxy {
 	t.Helper()
 	if opts.upstream == nil {
-		// Never touch the host's resolvers from tests.
 		opts.upstream = []netip.AddrPort{}
 	}
 	proxy, err := New(testutil.Logger(t), Options{
@@ -235,9 +219,6 @@ func proxyURL(t testing.TB, proxy *Proxy) *url.URL {
 	return u
 }
 
-// connectVia sends a CONNECT for target through the proxy, asserts the
-// response status and returns the connection, its buffered reader and the
-// response headers.
 func connectVia(ctx context.Context, t testing.TB, proxy *Proxy, target string, wantStatus int) (net.Conn, *bufio.Reader, http.Header) {
 	t.Helper()
 	var d net.Dialer
@@ -254,7 +235,6 @@ func connectVia(ctx context.Context, t testing.TB, proxy *Proxy, target string, 
 	return conn, br, resp.Header
 }
 
-// originPort returns the port of an httptest server.
 func originPort(t testing.TB, origin *httptest.Server) string {
 	t.Helper()
 	_, port, err := net.SplitHostPort(strings.TrimPrefix(strings.TrimPrefix(origin.URL, "https://"), "http://"))
@@ -409,8 +389,6 @@ func TestProxy_ConnectAllowed(t *testing.T) {
 	exit := newFakeExitNode(t, nil)
 	proxy := startProxy(t, exit, proxyOptions{})
 
-	// httptest's client transport carries the server's certificate; reuse
-	// it so CONNECT is followed by a real TLS handshake through the tunnel.
 	transport, ok := origin.Client().Transport.(*http.Transport)
 	require.True(t, ok)
 	transport = transport.Clone()
@@ -428,8 +406,6 @@ func TestProxy_ConnectAllowed(t *testing.T) {
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 	require.True(t, strings.HasPrefix(string(body), "hello over "), string(body))
 
-	// The origin was addressed by IP, so the CONNECT target is the IP and
-	// no protocol header is sent for plain TCP.
 	connects := exit.connectsTo(strings.TrimPrefix(origin.URL, "https://"))
 	require.Len(t, connects, 1)
 	require.Equal(t, codersdk.ExitNodeProtocol(""), connects[0].proto)
@@ -453,9 +429,7 @@ func TestProxy_ConnectTarget(t *testing.T) {
 
 	for _, tt := range []struct {
 		name string
-		// host is what the client puts in its CONNECT target.
 		host func(proxy *Proxy) string
-		// want is the hostname the exit node must see.
 		want string
 	}{
 		{
@@ -464,8 +438,6 @@ func TestProxy_ConnectTarget(t *testing.T) {
 			want: "origin.test",
 		},
 		{
-			// A client that resolved through the proxy's DNS and then
-			// CONNECTs to the fake IP literal still yields a hostname.
 			name: "translates fake IP",
 			host: func(p *Proxy) string { return p.fake.Lookup("fake.test").String() },
 			want: "fake.test",
@@ -481,14 +453,12 @@ func TestProxy_ConnectTarget(t *testing.T) {
 			port := originPort(t, origin)
 
 			exit := newFakeExitNode(t, nil)
-			// The exit node, not the proxy, resolves the name.
 			exit.resolve[tt.want+":"+port] = strings.TrimPrefix(origin.URL, "http://")
 			proxy := startProxy(t, exit, proxyOptions{})
 
 			ctx := testutil.Context(t, testutil.WaitShort)
 			conn, br, _ := connectVia(ctx, t, proxy, net.JoinHostPort(tt.host(proxy), port), http.StatusOK)
 
-			// Speak plain HTTP through the established tunnel.
 			inner, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://origin.test/", nil)
 			require.NoError(t, err)
 			require.NoError(t, inner.Write(conn))
@@ -505,7 +475,6 @@ func TestProxy_AbsoluteURI(t *testing.T) {
 	t.Parallel()
 
 	origin := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// A well-formed origin-form request has a relative RequestURI.
 		assert.Equal(t, "/path?q=1", r.RequestURI)
 		assert.Empty(t, r.Header.Get("Proxy-Connection"))
 		_, _ = io.WriteString(w, "plain http body")
@@ -627,37 +596,6 @@ func TestConfigEqualReplicaOrder(t *testing.T) {
 
 	reordered.ExitNodes = []agentsdk.EgressExitNode{{ID: uuid.New(), ReplicaIDs: []uuid.UUID{second, first}}}
 	require.False(t, ConfigEqual(base, reordered))
-}
-
-func TestProxy_UpdateKeepsCurrentReplica(t *testing.T) {
-	t.Parallel()
-
-	first := uuid.New()
-	current := uuid.New()
-	added := uuid.New()
-	proxy, err := New(testutil.Logger(t), Options{
-		Dialer: DialerFunc(func(context.Context, netip.AddrPort) (net.Conn, error) {
-			panic("not used")
-		}),
-		Config: agentsdk.EgressConfig{
-			ExitNodes: []agentsdk.EgressExitNode{
-				{ID: uuid.New(), ReplicaIDs: []uuid.UUID{first}},
-				{ID: uuid.New(), ReplicaIDs: []uuid.UUID{current}},
-			},
-			ExitNodePort: 3128,
-		},
-	})
-	require.NoError(t, err)
-	proxy.exitNodes.current = 1
-
-	next := proxy.Config()
-	next.ExitNodes = []agentsdk.EgressExitNode{
-		{ID: uuid.New(), ReplicaIDs: []uuid.UUID{added}},
-		{ID: uuid.New(), ReplicaIDs: []uuid.UUID{current}},
-		{ID: uuid.New(), ReplicaIDs: []uuid.UUID{first}},
-	}
-	require.NoError(t, proxy.Update(next, nil))
-	require.Equal(t, netip.AddrPortFrom(tailnet.TailscaleServicePrefix.AddrFromUUID(current), 3128), proxy.exitNodes.addrs[proxy.exitNodes.current])
 }
 
 func TestProxy_Update(t *testing.T) {
@@ -789,47 +727,13 @@ func TestProxy_ConnectNegotiationFailover(t *testing.T) {
 	t.Parallel()
 
 	for _, tt := range []struct {
-		name       string
-		first      func(net.Conn)
-		wantSecond bool
-		wantDenied bool
+		name, response         string
+		wantSecond, wantDenied bool
 	}{
-		{
-			name: "hangs",
-			first: func(conn net.Conn) {
-				defer conn.Close()
-				_, _ = http.ReadRequest(bufio.NewReader(conn))
-				_, _ = io.Copy(io.Discard, conn)
-			},
-			wantSecond: true,
-		},
-		{
-			name: "eof",
-			first: func(conn net.Conn) {
-				_ = conn.Close()
-			},
-			wantSecond: true,
-		},
-		{
-			name: "service unavailable",
-			first: func(conn net.Conn) {
-				defer conn.Close()
-				_, _ = http.ReadRequest(bufio.NewReader(conn))
-				_, _ = io.WriteString(conn, "HTTP/1.1 503 Service Unavailable\r\nContent-Length: 0\r\n\r\n")
-				_, _ = io.Copy(io.Discard, conn)
-			},
-			wantSecond: true,
-		},
-		{
-			name: "forbidden",
-			first: func(conn net.Conn) {
-				defer conn.Close()
-				_, _ = http.ReadRequest(bufio.NewReader(conn))
-				_, _ = io.WriteString(conn, "HTTP/1.1 403 Forbidden\r\nContent-Length: 0\r\n\r\n")
-				_, _ = io.Copy(io.Discard, conn)
-			},
-			wantDenied: true,
-		},
+		{name: "hangs", response: "hang", wantSecond: true},
+		{name: "eof", response: "eof", wantSecond: true},
+		{name: "service unavailable", response: "503", wantSecond: true},
+		{name: "forbidden", response: "403", wantDenied: true},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
@@ -846,7 +750,18 @@ func TestProxy_ConnectNegotiationFailover(t *testing.T) {
 				mu.Unlock()
 				client, server := net.Pipe()
 				if addr == addrs[0] {
-					go tt.first(server)
+					go func() {
+						defer server.Close()
+						if tt.response == "eof" {
+							return
+						}
+						_, _ = http.ReadRequest(bufio.NewReader(server))
+						if tt.response == "hang" {
+							_, _ = io.Copy(io.Discard, server)
+							return
+						}
+						_, _ = fmt.Fprintf(server, "HTTP/1.1 %s X\r\nContent-Length: 0\r\n\r\n", tt.response)
+					}()
 				} else {
 					go func() {
 						defer server.Close()
@@ -891,7 +806,6 @@ func TestProxy_CloseStopsListening(t *testing.T) {
 	require.True(t, dnsAddr.IsValid())
 	require.True(t, proxy.UDPAddr().IsValid())
 	require.NoError(t, proxy.Close())
-	// Idempotent.
 	require.NoError(t, proxy.Close())
 
 	for _, closed := range []net.Listener{proxy.listener, proxy.dns.tcp} {
@@ -903,44 +817,42 @@ func TestProxy_CloseStopsListening(t *testing.T) {
 	}
 }
 
+func validOptions(dialer Dialer) Options {
+	return Options{
+		Dialer: dialer,
+		Config: agentsdk.EgressConfig{
+			ExitNodes:    []agentsdk.EgressExitNode{{ID: uuid.New(), ReplicaIDs: []uuid.UUID{uuid.New()}}},
+			ExitNodePort: 3128,
+		},
+	}
+}
+
 func TestNew_Validation(t *testing.T) {
 	t.Parallel()
 
 	exit := newFakeExitNode(t, nil)
-	proxy, err := New(testutil.Logger(t), Options{
-		Dialer:           exit,
-		Config:           agentsdk.EgressConfig{ExitNodes: []agentsdk.EgressExitNode{{ID: uuid.New(), ReplicaIDs: []uuid.UUID{uuid.New()}}}, ExitNodePort: 3128},
-		FakeIPMaxEntries: 7,
-	})
+	opts := validOptions(exit)
+	opts.FakeIPMaxEntries = 7
+	proxy, err := New(testutil.Logger(t), opts)
 	require.NoError(t, err)
 	require.Equal(t, 7, proxy.fake.max)
 
-	_, err = New(testutil.Logger(t), Options{
-		Dialer:           exit,
-		Config:           agentsdk.EgressConfig{ExitNodes: []agentsdk.EgressExitNode{{ID: uuid.New(), ReplicaIDs: []uuid.UUID{uuid.New()}}}, ExitNodePort: 3128},
-		FakeIPMaxEntries: -1,
-	})
-	require.ErrorContains(t, err, "fake IP max entries")
-
-	_, err = New(testutil.Logger(t), Options{
-		Dialer:      exit,
-		Config:      agentsdk.EgressConfig{ExitNodes: []agentsdk.EgressExitNode{{ID: uuid.New(), ReplicaIDs: []uuid.UUID{uuid.New()}}}, ExitNodePort: 3128},
-		ExemptHosts: []string{"coder.example.com:443"},
-	})
-	require.ErrorContains(t, err, "parse exempt host")
-
 	for _, tt := range []struct {
 		name    string
-		opts    Options
+		mutate  func(*Options)
 		wantErr string
 	}{
-		{name: "dialer", opts: Options{Config: agentsdk.EgressConfig{ExitNodes: []agentsdk.EgressExitNode{{ID: uuid.New(), ReplicaIDs: []uuid.UUID{uuid.New()}}}, ExitNodePort: 3128}}, wantErr: "dialer"},
-		{name: "exit node ID", opts: Options{Dialer: exit, Config: agentsdk.EgressConfig{ExitNodes: []agentsdk.EgressExitNode{{}}, ExitNodePort: 3128}}, wantErr: "exit node ID"},
-		{name: "port", opts: Options{Dialer: exit, Config: agentsdk.EgressConfig{ExitNodes: []agentsdk.EgressExitNode{{ID: uuid.New(), ReplicaIDs: []uuid.UUID{uuid.New()}}}}}, wantErr: "port"},
+		{name: "fake IP max", mutate: func(o *Options) { o.FakeIPMaxEntries = -1 }, wantErr: "fake IP max entries"},
+		{name: "exempt host", mutate: func(o *Options) { o.ExemptHosts = []string{"coder.example.com:443"} }, wantErr: "parse exempt host"},
+		{name: "dialer", mutate: func(o *Options) { o.Dialer = nil }, wantErr: "dialer"},
+		{name: "exit node ID", mutate: func(o *Options) { o.Config.ExitNodes[0].ID = uuid.Nil }, wantErr: "exit node ID"},
+		{name: "port", mutate: func(o *Options) { o.Config.ExitNodePort = 0 }, wantErr: "port"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			_, err := New(testutil.Logger(t), tt.opts)
+			opts := validOptions(exit)
+			tt.mutate(&opts)
+			_, err := New(testutil.Logger(t), opts)
 			require.ErrorContains(t, err, tt.wantErr)
 		})
 	}

@@ -1036,11 +1036,7 @@ type sqlcQuerier interface {
 	GetWorkspaceAgentAndWorkspaceByID(ctx context.Context, id uuid.UUID) (GetWorkspaceAgentAndWorkspaceByIDRow, error)
 	GetWorkspaceAgentByID(ctx context.Context, id uuid.UUID) (WorkspaceAgent, error)
 	GetWorkspaceAgentDevcontainersByAgentID(ctx context.Context, workspaceAgentID uuid.UUID) ([]WorkspaceAgentDevcontainer, error)
-	// GetWorkspaceAgentIDsByExitNode returns the agent IDs on the latest build of
-	// every running workspace whose template routes egress through the exit node.
-	// "Running" means the latest build has transition=start and
-	// job_status=succeeded, matching the workspace-status definition used by
-	// coderd/database/queries/workspaces.sql.
+	// Latest successful start build matches workspace status semantics.
 	GetWorkspaceAgentIDsByExitNode(ctx context.Context, exitNodeID uuid.UUID) ([]uuid.UUID, error)
 	GetWorkspaceAgentLifecycleStateByID(ctx context.Context, id uuid.UUID) (GetWorkspaceAgentLifecycleStateByIDRow, error)
 	GetWorkspaceAgentLogSourcesByAgentIDs(ctx context.Context, ids []uuid.UUID) ([]WorkspaceAgentLogSource, error)

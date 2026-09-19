@@ -2,7 +2,6 @@ package agentapi
 
 import (
 	"context"
-	"sync"
 	"testing"
 
 	"github.com/google/uuid"
@@ -159,8 +158,6 @@ func TestStreamEgressConfigPubsub(t *testing.T) {
 type egressTestStream struct {
 	ctx     context.Context
 	configs chan *agentproto.EgressConfig
-	mu      sync.Mutex
-	closed  bool
 }
 
 func newEgressTestStream(ctx context.Context) *egressTestStream {
@@ -178,9 +175,4 @@ func (s *egressTestStream) MsgSend(msg drpc.Message, _ drpc.Encoding) error {
 }
 func (*egressTestStream) MsgRecv(drpc.Message, drpc.Encoding) error { panic("not used") }
 func (*egressTestStream) CloseSend() error                          { return nil }
-func (s *egressTestStream) Close() error {
-	s.mu.Lock()
-	s.closed = true
-	s.mu.Unlock()
-	return nil
-}
+func (*egressTestStream) Close() error                              { return nil }

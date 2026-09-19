@@ -8,6 +8,7 @@
 package exitnode
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"net"
@@ -120,22 +121,17 @@ type Server struct {
 // so workspaces must restart on the new agent before an exit node is bound.
 // Call Close to shut everything down.
 func New(ctx context.Context, logger slog.Logger, opts Options) (*Server, error) {
-	if opts.Client == nil {
+	switch {
+	case opts.Client == nil:
 		return nil, xerrors.New("client is required")
-	}
-	if opts.ExitNodeID == uuid.Nil {
+	case opts.ExitNodeID == uuid.Nil:
 		return nil, xerrors.New("exit node id is required")
-	}
-	if opts.ReplicaID == uuid.Nil {
+	case opts.ReplicaID == uuid.Nil:
 		return nil, xerrors.New("replica id is required")
-	}
-	if opts.Policy == nil {
+	case opts.Policy == nil:
 		return nil, xerrors.New("policy is required")
 	}
-	if opts.ListenPort == 0 {
-		opts.ListenPort = codersdk.ExitNodeTailnetPort
-	}
-	if opts.ListenPort < 1 || opts.ListenPort > 65535 {
+	if opts.ListenPort = cmp.Or(opts.ListenPort, codersdk.ExitNodeTailnetPort); opts.ListenPort < 1 || opts.ListenPort > 65535 {
 		return nil, xerrors.Errorf("listen port %d out of range", opts.ListenPort)
 	}
 
@@ -250,17 +246,11 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (*Server, error)
 	if err != nil {
 		return nil, xerrors.Errorf("listen on tailnet port %d: %w", opts.ListenPort, err)
 	}
-	go func() {
-		s.serveDone <- s.proxy.Serve(ctx, s.listener)
-	}()
+	go func() { s.serveDone <- s.proxy.Serve(ctx, s.listener) }()
 
-	logger.Info(ctx, "exit node started",
-		slog.F("exit_node_id", s.exitNodeID),
-		slog.F("replica_id", s.replicaID),
-		slog.F("tailnet_addr", s.addr),
-		slog.F("listen_port", opts.ListenPort),
-		slog.F("agents", len(regResp.AgentIDs)),
-	)
+	logger.Info(ctx, "exit node started", slog.F("exit_node_id", s.exitNodeID),
+		slog.F("replica_id", s.replicaID), slog.F("tailnet_addr", s.addr),
+		slog.F("listen_port", opts.ListenPort), slog.F("agents", len(regResp.AgentIDs)))
 	return s, nil
 }
 
@@ -331,11 +321,10 @@ func (s *Server) handleRegister(res codersdk.RegisterExitNodeResponse) error {
 }
 
 func policyHash(policy Policy) string {
-	hasher, ok := policy.(PolicyHasher)
-	if !ok {
-		return ""
+	if hasher, ok := policy.(PolicyHasher); ok {
+		return hasher.PolicyHash()
 	}
-	return hasher.PolicyHash()
+	return ""
 }
 
 func (s *Server) updatePolicyMismatch(siblings []codersdk.ExitNodeReplica) {

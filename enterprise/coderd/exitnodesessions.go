@@ -28,15 +28,17 @@ type exitNodeReplicaSession struct {
 	cancel context.CancelFunc
 }
 
+type exitNodeReplicaState struct {
+	exitNodeID uuid.UUID
+	generation uint64
+}
+
 type exitNodeReplicaSessionRegistry struct {
 	clock    quartz.Clock
 	mu       sync.Mutex
 	sessions map[uuid.UUID]*exitNodeReplicaSession
 	stopped  map[uuid.UUID]time.Time
-	live     map[uuid.UUID]uuid.UUID
-	// heartbeats counts markLive calls per replica so the reaper can detect a
-	// heartbeat that landed after its snapshot.
-	heartbeats map[uuid.UUID]uint64
+	live     map[uuid.UUID]exitNodeReplicaState
 }
 
 func newExitNodeReplicaSessionRegistry(clock quartz.Clock) *exitNodeReplicaSessionRegistry {
@@ -44,11 +46,10 @@ func newExitNodeReplicaSessionRegistry(clock quartz.Clock) *exitNodeReplicaSessi
 		clock = quartz.NewReal()
 	}
 	return &exitNodeReplicaSessionRegistry{
-		clock:      clock,
-		sessions:   make(map[uuid.UUID]*exitNodeReplicaSession),
-		stopped:    make(map[uuid.UUID]time.Time),
-		live:       make(map[uuid.UUID]uuid.UUID),
-		heartbeats: make(map[uuid.UUID]uint64),
+		clock:    clock,
+		sessions: make(map[uuid.UUID]*exitNodeReplicaSession),
+		stopped:  make(map[uuid.UUID]time.Time),
+		live:     make(map[uuid.UUID]exitNodeReplicaState),
 	}
 }
 
@@ -86,7 +87,6 @@ func (r *exitNodeReplicaSessionRegistry) stop(replicaID uuid.UUID) {
 	session := r.sessions[replicaID]
 	delete(r.sessions, replicaID)
 	delete(r.live, replicaID)
-	delete(r.heartbeats, replicaID)
 	r.mu.Unlock()
 	if session != nil {
 		session.cancel()
@@ -95,10 +95,9 @@ func (r *exitNodeReplicaSessionRegistry) stop(replicaID uuid.UUID) {
 
 // cancelUnlessHeartbeat cancels the replica's session unless a heartbeat was
 // recorded after generation, in which case the replica is kept live.
-func (r *exitNodeReplicaSessionRegistry) cancelUnlessHeartbeat(replicaID, exitNodeID uuid.UUID, generation uint64) bool {
+func (r *exitNodeReplicaSessionRegistry) cancelUnlessHeartbeat(replicaID uuid.UUID, generation uint64) bool {
 	r.mu.Lock()
-	if r.heartbeats[replicaID] != generation {
-		r.live[replicaID] = exitNodeID
+	if r.live[replicaID].generation != generation {
 		r.mu.Unlock()
 		return false
 	}
@@ -113,8 +112,10 @@ func (r *exitNodeReplicaSessionRegistry) cancelUnlessHeartbeat(replicaID, exitNo
 
 func (r *exitNodeReplicaSessionRegistry) markLive(replicaID, exitNodeID uuid.UUID) {
 	r.mu.Lock()
-	r.live[replicaID] = exitNodeID
-	r.heartbeats[replicaID]++
+	state := r.live[replicaID]
+	state.exitNodeID = exitNodeID
+	state.generation++
+	r.live[replicaID] = state
 	r.mu.Unlock()
 }
 
@@ -147,29 +148,27 @@ func (api *API) reapExitNodeReplicas(now time.Time) {
 		api.Logger.Error(api.ctx, "failed to find live exit node replicas", slog.Error(err))
 		return
 	}
-	current := make(map[uuid.UUID]uuid.UUID, len(replicas))
-	for _, replica := range replicas {
-		current[replica.ID] = replica.ExitNodeID
-	}
-
 	api.exitNodeReplicaSessions.mu.Lock()
 	previous := api.exitNodeReplicaSessions.live
-	api.exitNodeReplicaSessions.live = current
-	type staleReplica struct {
-		replicaID  uuid.UUID
-		exitNodeID uuid.UUID
-		generation uint64
+	current := make(map[uuid.UUID]exitNodeReplicaState, len(replicas))
+	for _, replica := range replicas {
+		state := previous[replica.ID]
+		state.exitNodeID = replica.ExitNodeID
+		current[replica.ID] = state
 	}
-	var stale []staleReplica
-	for replicaID, exitNodeID := range previous {
+	var stale []struct {
+		replicaID uuid.UUID
+		exitNodeReplicaState
+	}
+	for replicaID, state := range previous {
 		if _, ok := current[replicaID]; !ok {
-			stale = append(stale, staleReplica{
-				replicaID:  replicaID,
-				exitNodeID: exitNodeID,
-				generation: api.exitNodeReplicaSessions.heartbeats[replicaID],
-			})
+			stale = append(stale, struct {
+				replicaID uuid.UUID
+				exitNodeReplicaState
+			}{replicaID, state})
 		}
 	}
+	api.exitNodeReplicaSessions.live = current
 	api.exitNodeReplicaSessions.mu.Unlock()
 
 	for _, replica := range stale {
@@ -186,7 +185,7 @@ func (api *API) reapExitNodeReplicas(now time.Time) {
 			api.exitNodeReplicaSessions.markLive(row.ID, row.ExitNodeID)
 			continue
 		}
-		if !api.exitNodeReplicaSessions.cancelUnlessHeartbeat(replica.replicaID, replica.exitNodeID, replica.generation) {
+		if !api.exitNodeReplicaSessions.cancelUnlessHeartbeat(replica.replicaID, replica.generation) {
 			continue
 		}
 		if err := api.Pubsub.Publish(codersdk.ExitNodeReplicasPubsubChannel, []byte(replica.exitNodeID.String())); err != nil {

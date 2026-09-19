@@ -1307,8 +1307,12 @@ func (a *agent) run() (retErr error) {
 	manifestOK := newCheckpoint(a.logger)
 
 	connMan.startAgentAPI("handle manifest", gracefulShutdownBehaviorStop, a.handleManifest(manifestOK))
-	connMan.startAgentAPI214("egress config subscriber", gracefulShutdownBehaviorStop,
-		func(ctx context.Context, aAPI proto.DRPCAgentClient214) error {
+	connMan.startAgentAPI210("egress config subscriber", gracefulShutdownBehaviorStop,
+		func(ctx context.Context, client proto.DRPCAgentClient210) error {
+			aAPI, ok := client.(proto.DRPCAgentClient214)
+			if !ok {
+				return nil
+			}
 			if err := manifestOK.wait(ctx); err != nil {
 				return xerrors.Errorf("no manifest: %w", err)
 			}
@@ -2902,21 +2906,6 @@ func (a *apiConnRoutineManager) startAgentAPI210(
 			return xerrors.Errorf("error in routine %s: %w", name, err)
 		}
 		return nil
-	})
-}
-
-// startAgentAPI214 starts a routine only when the client exposes the v2.14
-// Agent API.
-func (a *apiConnRoutineManager) startAgentAPI214(
-	name string, behavior gracefulShutdownBehavior,
-	f func(context.Context, proto.DRPCAgentClient214) error,
-) {
-	client, ok := a.aAPI.(proto.DRPCAgentClient214)
-	if !ok {
-		return
-	}
-	a.startAgentAPI210(name, behavior, func(ctx context.Context, _ proto.DRPCAgentClient210) error {
-		return f(ctx, client)
 	})
 }
 

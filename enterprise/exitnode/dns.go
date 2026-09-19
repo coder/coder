@@ -7,6 +7,7 @@ import (
 	"errors"
 	"io"
 	"net"
+	"net/http"
 	"net/netip"
 	"os"
 	"strings"
@@ -28,15 +29,10 @@ const (
 	// DefaultDNSReportSampleRate reports every allowed dns query. Raise it
 	// to report only one in N; denials are always reported.
 	DefaultDNSReportSampleRate = 1
-	// dnsTargetHost is the CONNECT host a dns stream must name; there is no
-	// real destination because the exit node picks the upstream.
-	dnsTargetHost = "dns"
-	dnsPort       = 53
-	// maxInflightDNSQueries bounds concurrent upstream exchanges per stream
-	// so a flood of queries cannot spawn unbounded goroutines.
-	maxInflightDNSQueries = 64
-	// resolvConfPath is where the default upstream servers come from.
-	resolvConfPath = "/etc/resolv.conf"
+	dnsTargetHost              = "dns"
+	dnsPort                    = 53
+	maxInflightDNSQueries      = 64
+	resolvConfPath             = "/etc/resolv.conf"
 )
 
 // DNSExchanger sends one DNS message to an upstream server and returns the
@@ -162,23 +158,17 @@ func exchangeOn(ctx context.Context, dial DialFunc, network string, server netip
 	}
 }
 
-// dnsQuery is the part of a query the policy and the flow report care about.
 type dnsQuery struct {
 	header   dnsmessage.Header
 	question dnsmessage.Question
-	// name is the normalized query name without the trailing dot.
-	name string
+	name     string
 }
 
-// qtype is the record type without the "Type" prefix dnsmessage adds, for
-// example "TXT".
 func (q dnsQuery) qtype() string {
 	return strings.TrimPrefix(q.question.Type.String(), "Type")
 }
 
-// parseDNSQuery extracts the header and first question. The returned header
-// is valid whenever hdrOK is true, even if the question could not be parsed,
-// so a FORMERR response can still carry the right ID.
+// parseDNSQuery returns a parsed question and whether its header was valid.
 func parseDNSQuery(msg []byte) (q dnsQuery, hdrOK bool, err error) {
 	var p dnsmessage.Parser
 	if q.header, err = p.Start(msg); err != nil {
@@ -191,12 +181,8 @@ func parseDNSQuery(msg []byte) (q dnsQuery, hdrOK bool, err error) {
 	return q, true, nil
 }
 
-// answerDNS writes an answerless response to q with the given RCODE, echoing
-// the ID, opcode, recursion flag, and question (when one was parsed) so the
-// client resolver matches it to the query.
+// answerDNS writes an answerless response with the given RCODE.
 func answerDNS(ctx context.Context, logger slog.Logger, fw *frameWriter, q dnsQuery, rcode dnsmessage.RCode) {
-	// NewBuilder is given a 2-byte prefix so it can skip the length; it is
-	// dropped again because the frame writer adds its own.
 	b := dnsmessage.NewBuilder(make([]byte, frameHeaderLen, 512), dnsmessage.Header{
 		ID:                 q.header.ID,
 		Response:           true,
@@ -219,19 +205,9 @@ func answerDNS(ctx context.Context, logger slog.Logger, fw *frameWriter, q dnsQu
 	}
 }
 
-// handleDNS serves a dns stream. Each frame is one DNS message; the policy is
-// applied to its query name and the message is either refused locally or
-// forwarded to an upstream server. Responses are written as they arrive and
-// may be out of order, so the client must correlate by message ID.
-//
-// Denied queries get a response with RCODE REFUSED. REFUSED, rather than
-// NXDOMAIN, tells the workspace the name may exist but policy forbids
-// resolving it, which is the truthful answer and avoids negative caching of a
-// name that a policy reload could allow moments later. Upstream failures get
-// SERVFAIL so the client resolver does not wait for a timeout.
+// handleDNS serves framed DNS queries, refusing denied names locally.
 func (p *ConnectProxy) handleDNS(ctx context.Context, logger slog.Logger, client net.Conn, agentID uuid.UUID) {
-	if _, err := io.WriteString(client, connectEstablished); err != nil {
-		logger.Debug(ctx, "write connect response", slog.Error(err))
+	if !respondConnect(ctx, logger, client, http.StatusOK, Decision{}) {
 		return
 	}
 	p.Metrics.ActiveFlows.Inc()
@@ -256,35 +232,20 @@ func (p *ConnectProxy) handleDNS(ctx context.Context, logger slog.Logger, client
 		q, hdrOK, err := parseDNSQuery(msg)
 		if err != nil {
 			logger.Debug(ctx, "malformed dns query", slog.Error(err))
-			// Without an ID there is nothing the client could match a
-			// response to.
 			if hdrOK {
 				answerDNS(ctx, logger, fw, q, dnsmessage.RCodeFormatError)
 			}
 			continue
 		}
 
-		flow := codersdk.ExitNodeFlowReport{
-			FlowID:          uuid.New(),
-			AgentID:         agentID,
-			Protocol:        codersdk.ExitNodeProtocolDNS,
-			DestinationPort: dnsPort,
-			Host:            q.name,
-			BytesOut:        int64(len(msg)),
-			ConnectTime:     p.Clock.Now(),
-		}
+		info := FlowInfo{Protocol: codersdk.ExitNodeProtocolDNS, Host: q.name, Port: dnsPort}
+		flow := newFlow(p.Clock.Now(), agentID, info)
+		flow.BytesOut = int64(len(msg))
 		qlogger := logger.With(slog.F("qname", q.name), slog.F("qtype", q.qtype()))
-
-		decision := p.Policy.Evaluate(FlowInfo{Protocol: codersdk.ExitNodeProtocolDNS, Host: q.name})
-		decision.Reason += " (" + q.qtype() + " query)"
-		if !decision.Allow {
+		if !p.evaluateFlow(ctx, qlogger, &flow, info, " ("+q.qtype()+" query)") {
 			answerDNS(ctx, qlogger, fw, q, dnsmessage.RCodeRefused)
-			p.recordDeny(ctx, qlogger, flow, decision)
 			continue
 		}
-		flow.Decision = codersdk.ExitNodeFlowAllow
-		flow.RuleID = decision.RuleID
-		flow.Reason = decision.Reason
 
 		select {
 		case inflight <- struct{}{}:
@@ -298,8 +259,6 @@ func (p *ConnectProxy) handleDNS(ctx context.Context, logger slog.Logger, client
 	}
 }
 
-// forwardDNSQuery resolves one allowed query upstream, relays the response,
-// and reports the flow subject to sampling.
 func (p *ConnectProxy) forwardDNSQuery(ctx context.Context, logger slog.Logger, fw *frameWriter, q dnsQuery, msg []byte, flow codersdk.ExitNodeFlowReport) {
 	resp, server, err := p.DNSExchanger.Exchange(ctx, msg)
 	if err != nil {
@@ -313,11 +272,10 @@ func (p *ConnectProxy) forwardDNSQuery(ctx context.Context, logger slog.Logger, 
 		flow.BytesIn = int64(len(resp))
 	}
 
-	p.Metrics.FlowsTotal.WithLabelValues(string(codersdk.ExitNodeFlowAllow)).Inc()
+	p.allowFlow(&flow)
 	p.Metrics.BytesTotal.WithLabelValues("in").Add(float64(flow.BytesIn))
 	p.Metrics.BytesTotal.WithLabelValues("out").Add(float64(flow.BytesOut))
-	if p.DNSReportSampleRate > 1 && p.dnsSampleCounter.Add(1)%int64(p.DNSReportSampleRate) != 0 {
-		return
+	if p.DNSReportSampleRate <= 1 || p.dnsSampleCounter.Add(1)%int64(p.DNSReportSampleRate) == 0 {
+		p.recordEnded(flow)
 	}
-	p.recordEnded(flow)
 }

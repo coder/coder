@@ -19,70 +19,81 @@ import (
 	"github.com/coder/quartz"
 )
 
-func TestExitNodeReplicaSessionRegistryStopped(t *testing.T) {
+func TestExitNodeReplicaSessionRegistry(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Stopped", func(t *testing.T) {
+		t.Parallel()
+		registry := newExitNodeReplicaSessionRegistry(nil)
+		replicaID := uuid.New()
+		registry.stop(replicaID)
+		canceled := false
+		registry.register(replicaID, func() { canceled = true })
+		require.True(t, canceled)
+	})
+	t.Run("TombstoneExpiry", func(t *testing.T) {
+		t.Parallel()
+		clock := quartz.NewMock(t)
+		registry := newExitNodeReplicaSessionRegistry(clock)
+		old := uuid.New()
+		registry.stop(old)
+		clock.Advance(exitNodeStoppedTombstoneTTL + time.Second)
+		registry.stop(uuid.New())
+		require.NotContains(t, registry.stopped, old)
+		require.Len(t, registry.stopped, 1)
+	})
+	t.Run("HeartbeatWins", func(t *testing.T) {
+		t.Parallel()
+		registry := newExitNodeReplicaSessionRegistry(nil)
+		replicaID, exitNodeID := uuid.New(), uuid.New()
+		canceled := false
+		registry.register(replicaID, func() { canceled = true })
+		registry.markLive(replicaID, exitNodeID)
+		generation := registry.live[replicaID].generation
+		registry.markLive(replicaID, exitNodeID)
+		require.False(t, registry.cancelUnlessHeartbeat(replicaID, generation))
+		require.False(t, canceled)
+		require.True(t, registry.cancelUnlessHeartbeat(replicaID, registry.live[replicaID].generation))
+		require.True(t, canceled)
+	})
+}
+
+type exitNodeReaperTest struct {
+	api                   *API
+	store                 *dbmock.MockStore
+	registry              *exitNodeReplicaSessionRegistry
+	exitNodeID, replicaID uuid.UUID
+}
+
+func newExitNodeReaperTest(t *testing.T) exitNodeReaperTest {
+	t.Helper()
+	store := dbmock.NewMockStore(gomock.NewController(t))
+	ps := pubsub.NewInMemory()
+	t.Cleanup(func() { require.NoError(t, ps.Close()) })
 	registry := newExitNodeReplicaSessionRegistry(nil)
-	replicaID := uuid.New()
-	registry.stop(replicaID)
-	canceled := make(chan struct{})
-	registry.register(replicaID, func() { close(canceled) })
-	select {
-	case <-canceled:
-	default:
-		t.Fatal("register after stop was not canceled")
+	return exitNodeReaperTest{
+		api: &API{
+			ctx: t.Context(),
+			Options: &Options{Options: &agplcoderd.Options{
+				Database: store, Pubsub: ps, Logger: slogtest.Make(t, nil),
+			}},
+			exitNodeReplicaSessions: registry,
+		},
+		store: store, registry: registry, exitNodeID: uuid.New(), replicaID: uuid.New(),
 	}
-}
-
-func TestExitNodeReplicaSessionRegistryTombstoneExpiry(t *testing.T) {
-	t.Parallel()
-
-	clock := quartz.NewMock(t)
-	registry := newExitNodeReplicaSessionRegistry(clock)
-	old := uuid.New()
-	registry.stop(old)
-	clock.Advance(exitNodeStoppedTombstoneTTL + time.Second)
-	registry.stop(uuid.New())
-	require.NotContains(t, registry.stopped, old)
-	require.Len(t, registry.stopped, 1)
-}
-
-func TestExitNodeReplicaSessionRegistryHeartbeatWins(t *testing.T) {
-	t.Parallel()
-
-	registry := newExitNodeReplicaSessionRegistry(nil)
-	replicaID, exitNodeID := uuid.New(), uuid.New()
-	canceled := false
-	registry.register(replicaID, func() { canceled = true })
-	registry.markLive(replicaID, exitNodeID)
-	generation := registry.heartbeats[replicaID]
-
-	// A heartbeat after the reaper snapshot keeps the session.
-	registry.markLive(replicaID, exitNodeID)
-	require.False(t, registry.cancelUnlessHeartbeat(replicaID, exitNodeID, generation))
-	require.False(t, canceled)
-	require.Contains(t, registry.live, replicaID)
-
-	require.True(t, registry.cancelUnlessHeartbeat(replicaID, exitNodeID, registry.heartbeats[replicaID]))
-	require.True(t, canceled)
 }
 
 func TestExitNodeReplicaReaper(t *testing.T) {
 	t.Parallel()
 
-	ctx, cancel := context.WithCancel(t.Context())
+	f := newExitNodeReaperTest(t)
+	api, store, registry, exitNodeID, replicaID := f.api, f.store, f.registry, f.exitNodeID, f.replicaID
+	ctx, cancel := context.WithCancel(api.ctx)
 	t.Cleanup(cancel)
+	api.ctx = ctx
 	clock := quartz.NewMock(t)
 	tickerTrap := clock.Trap().NewTicker("exit_node_replica_reaper")
 	defer tickerTrap.Close()
-	store := dbmock.NewMockStore(gomock.NewController(t))
-	ps := pubsub.NewInMemory()
-	t.Cleanup(func() { require.NoError(t, ps.Close()) })
-	exitNodeID := uuid.New()
-	replicaID := uuid.New()
-	// The mock ticker discards a tick when the previous one has not been
-	// consumed yet, so the test waits for the first reap before advancing
-	// the clock again.
 	firstReap := make(chan struct{})
 	store.EXPECT().GetAllLiveExitNodeReplicas(gomock.Any(), gomock.Any()).DoAndReturn(
 		func(context.Context, time.Time) ([]database.ExitNodeReplica, error) {
@@ -91,24 +102,12 @@ func TestExitNodeReplicaReaper(t *testing.T) {
 		})
 	store.EXPECT().GetAllLiveExitNodeReplicas(gomock.Any(), gomock.Any()).Return(nil, nil)
 	store.EXPECT().GetExitNodeReplicaByID(gomock.Any(), replicaID).Return(database.ExitNodeReplica{
-		ID: replicaID, ExitNodeID: exitNodeID, UpdatedAt: time.Time{},
+		ID: replicaID, ExitNodeID: exitNodeID,
 	}, nil)
-
 	sessionCanceled := make(chan struct{})
-	registry := newExitNodeReplicaSessionRegistry(nil)
 	registry.register(replicaID, func() { close(sessionCanceled) })
-	api := &API{
-		ctx: ctx,
-		Options: &Options{Options: &agplcoderd.Options{
-			Database: store,
-			Pubsub:   ps,
-			Logger:   slogtest.Make(t, nil),
-		}},
-		exitNodeReplicaSessions: registry,
-	}
-
 	events := make(chan string, 1)
-	unsubscribe, err := ps.Subscribe(codersdk.ExitNodeReplicasPubsubChannel, func(_ context.Context, payload []byte) {
+	unsubscribe, err := api.Pubsub.Subscribe(codersdk.ExitNodeReplicasPubsubChannel, func(_ context.Context, payload []byte) {
 		events <- string(payload)
 	})
 	require.NoError(t, err)
@@ -127,7 +126,6 @@ func TestExitNodeReplicaReaper(t *testing.T) {
 		t.Fatal("first reap did not run")
 	}
 	clock.Advance(exitNodeReplicaReaperInterval).MustWait(ctx)
-
 	select {
 	case <-sessionCanceled:
 	case <-waitCtx.Done():
@@ -139,4 +137,23 @@ func TestExitNodeReplicaReaper(t *testing.T) {
 	case <-waitCtx.Done():
 		t.Fatal("replica staleness was not published")
 	}
+}
+
+func TestExitNodeReplicaReaperRechecksHeartbeat(t *testing.T) {
+	t.Parallel()
+
+	f := newExitNodeReaperTest(t)
+	api, store, registry, exitNodeID, replicaID := f.api, f.store, f.registry, f.exitNodeID, f.replicaID
+	now := time.Now().UTC()
+	store.EXPECT().GetAllLiveExitNodeReplicas(gomock.Any(), gomock.Any()).Return(nil, nil)
+	store.EXPECT().GetExitNodeReplicaByID(gomock.Any(), replicaID).Return(database.ExitNodeReplica{
+		ID: replicaID, ExitNodeID: exitNodeID, UpdatedAt: now,
+	}, nil)
+	canceled := false
+	registry.live[replicaID] = exitNodeReplicaState{exitNodeID: exitNodeID}
+	registry.register(replicaID, func() { canceled = true })
+
+	api.reapExitNodeReplicas(now)
+	require.False(t, canceled)
+	require.Equal(t, exitNodeID, registry.live[replicaID].exitNodeID)
 }

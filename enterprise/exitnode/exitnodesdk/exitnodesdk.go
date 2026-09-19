@@ -10,6 +10,7 @@ import (
 	"errors"
 	"net/http"
 	"net/url"
+	"slices"
 	"sync"
 	"time"
 
@@ -56,42 +57,33 @@ func New(serverURL *url.URL, token string) *Client {
 // configuration. Both 200 and 201 are accepted.
 func (c *Client) Register(ctx context.Context, req codersdk.RegisterExitNodeRequest) (codersdk.RegisterExitNodeResponse, error) {
 	var resp codersdk.RegisterExitNodeResponse
-	res, err := c.SDKClient.Request(ctx, http.MethodPost, registerPath, req)
-	if err != nil {
-		return resp, xerrors.Errorf("make request: %w", err)
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK && res.StatusCode != http.StatusCreated {
-		return resp, codersdk.ReadBodyAsError(res)
-	}
-	if err := codersdk.ReadBodyAsJSON(res, &resp); err != nil {
-		return resp, xerrors.Errorf("decode response: %w", err)
-	}
-	return resp, nil
+	err := c.post(ctx, registerPath, req, &resp, http.StatusOK, http.StatusCreated)
+	return resp, err
 }
 
 // Deregister marks an exit node replica as stopped.
 func (c *Client) Deregister(ctx context.Context, req codersdk.DeregisterExitNodeRequest) error {
-	res, err := c.SDKClient.Request(ctx, http.MethodPost, deregisterPath, req)
-	if err != nil {
-		return xerrors.Errorf("make request: %w", err)
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK && res.StatusCode != http.StatusNoContent {
-		return codersdk.ReadBodyAsError(res)
-	}
-	return nil
+	return c.post(ctx, deregisterPath, req, nil, http.StatusOK, http.StatusNoContent)
 }
 
 // ReportFlows sends a batch of flow reports to coderd.
 func (c *Client) ReportFlows(ctx context.Context, req codersdk.ReportExitNodeFlowsRequest) error {
-	res, err := c.SDKClient.Request(ctx, http.MethodPost, flowsPath, req)
+	return c.post(ctx, flowsPath, req, nil, http.StatusOK, http.StatusNoContent, http.StatusAccepted)
+}
+
+func (c *Client) post(ctx context.Context, path string, req, dst any, statuses ...int) error {
+	res, err := c.SDKClient.Request(ctx, http.MethodPost, path, req)
 	if err != nil {
 		return xerrors.Errorf("make request: %w", err)
 	}
 	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK && res.StatusCode != http.StatusNoContent && res.StatusCode != http.StatusAccepted {
+	if !slices.Contains(statuses, res.StatusCode) {
 		return codersdk.ReadBodyAsError(res)
+	}
+	if dst != nil {
+		if err := codersdk.ReadBodyAsJSON(res, dst); err != nil {
+			return xerrors.Errorf("decode response: %w", err)
+		}
 	}
 	return nil
 }

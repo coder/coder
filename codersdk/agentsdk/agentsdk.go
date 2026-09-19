@@ -135,36 +135,27 @@ type Manifest struct {
 	Metadata                 []codersdk.WorkspaceAgentMetadataDescription `json:"metadata"`
 	Scripts                  []codersdk.WorkspaceAgentScript              `json:"scripts"`
 	Devcontainers            []codersdk.WorkspaceAgentDevcontainer        `json:"devcontainers"`
-	// Egress is set when the workspace's template routes outbound traffic
-	// through an exit node. Nil means egress is unmanaged.
+	// Egress is nil when workspace egress is unmanaged.
 	Egress *EgressConfig `json:"egress,omitempty"`
 }
 
 // EgressConfig tells the agent how to route and enforce workspace egress.
 type EgressConfig struct {
-	// ExitNodes lists the bound exit nodes in preference order. Each carries
-	// the tailnet peer IDs derived from its live replicas; the agent dials a
-	// peer's address derived with tailnet.TailscaleServicePrefix.AddrFromUUID.
-	// A node with no live replicas is listed with an empty ReplicaIDs so the
-	// agent can log why it is skipped.
+	// ExitNodes are bound nodes in preference order, including nodes without
+	// live replicas.
 	ExitNodes []EgressExitNode `json:"exit_nodes"`
 	// ExitNodePort is the CONNECT port on every replica's tailnet address.
 	ExitNodePort int `json:"exit_node_port"`
-	// Enforce requests transparent redirection of all outbound TCP via
-	// netfilter. When false the agent only exposes an advisory proxy.
+	// Enforce requests transparent egress redirection.
 	Enforce bool `json:"enforce"`
-	// ControlPlaneHosts are direct-connect exemptions in proto/host:port
-	// format, such as tcp/coder.example.com:443 or udp/1.2.3.4:41641.
-	// Protocol and port are mandatory.
+	// ControlPlaneHosts are direct exemptions in proto/host:port format.
 	ControlPlaneHosts []string `json:"control_plane_hosts"`
 }
 
 // EgressExitNode is one bound exit node and its live replicas.
 type EgressExitNode struct {
 	ID uuid.UUID `json:"id"`
-	// ReplicaIDs are the tailnet peer IDs derived from the live replica IDs,
-	// oldest first. The agent spreads load by shuffling them once per
-	// configuration.
+	// ReplicaIDs are live tailnet peer IDs, oldest first.
 	ReplicaIDs []uuid.UUID `json:"replica_ids"`
 }
 

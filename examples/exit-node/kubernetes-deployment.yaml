@@ -1,25 +1,23 @@
-# Create the shared token Secret from the one-time output of `coder exit-node create`.
-# Replace the placeholder before applying this example.
+# Create the policy ConfigMap before applying this manifest:
+# kubectl -n coder-exit-nodes create configmap coder-exit-node-policy \
+#   --from-file=policy.yaml=examples/exit-node/policy.yaml
 apiVersion: v1
 kind: Secret
 metadata:
   name: coder-exit-node
-  namespace: coder-exit-nodes # Replace with the namespace for exit node replicas.
+  namespace: coder-exit-nodes
 type: Opaque
 stringData:
+  # Use the one-time output from `coder exit-node create`.
   token: "<exit-node-id>:<secret>"
 ---
-# Create the policy ConfigMap from the sample file before applying this Deployment:
-# kubectl -n coder-exit-nodes create configmap coder-exit-node-policy \
-#   --from-file=policy.yaml=examples/exit-node/policy.yaml
-# Use the same ConfigMap for every replica so they report the same policy hash.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: coder-exit-node
   namespace: coder-exit-nodes
 spec:
-  replicas: 3 # Scale this value to change the number of replicas for one logical exit node.
+  replicas: 3
   selector:
     matchLabels:
       app.kubernetes.io/name: coder-exit-node
@@ -28,20 +26,21 @@ spec:
       labels:
         app.kubernetes.io/name: coder-exit-node
     spec:
-      terminationGracePeriodSeconds: 30 # Kubernetes sends SIGTERM, which lets the replica deregister before exit.
+      terminationGracePeriodSeconds: 30
       containers:
         - name: exit-node
-          image: ghcr.io/coder/coder:<version> # Pin the same Coder version on every replica.
+          image: ghcr.io/coder/coder:<version>
           imagePullPolicy: IfNotPresent
           command: ["/opt/coder"]
           args:
             - exit-node
             - server
             - --primary-access-url
-            - https://coder.example.com # Replace with the Coder deployment access URL.
+            - https://coder.example.com
             - --policy
             - /etc/coder-exit-node/policy.yaml
-            - --block-direct-connections # This example uses DERP, so replicas need no stable public WireGuard endpoints.
+            # This example uses DERP and needs no public WireGuard endpoint.
+            - --block-direct-connections
           env:
             - name: CODER_EXIT_NODE_TOKEN
               valueFrom:

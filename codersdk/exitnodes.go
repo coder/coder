@@ -12,26 +12,19 @@ import (
 )
 
 const (
-	// ExitNodeTokenHeader authenticates an exit node to coderd. The value is
-	// "<exit node ID>:<secret>", mirroring workspace proxy tokens.
+	// ExitNodeTokenHeader authenticates an exit node as "<id>:<secret>".
 	ExitNodeTokenHeader = "Coder-Exit-Node-Token" //nolint:gosec // Header name, not a credential.
 
-	// ExitNodeTailnetPort is the port an exit node listens on inside the
-	// tailnet for HTTP CONNECT requests from workspace agents.
+	// ExitNodeTailnetPort accepts agent HTTP CONNECT requests.
 	ExitNodeTailnetPort = 3128
 
-	// ExitNodeProtocolHeader selects what a CONNECT stream carries. Absent or
-	// "tcp" means a raw TCP tunnel to the target. "udp" means a stream of
-	// length-prefixed datagrams relayed to one UDP peer. "dns" means a
-	// stream of length-prefixed DNS messages resolved by the exit node.
+	// ExitNodeProtocolHeader selects the CONNECT stream protocol.
 	ExitNodeProtocolHeader = "X-Coder-Protocol"
-	// ExitNodeOriginalHostHeader carries the hostname the workspace dialed
-	// when the CONNECT target is an IP literal.
+	// ExitNodeOriginalHostHeader carries the original hostname for IP targets.
 	ExitNodeOriginalHostHeader = "X-Coder-Original-Host"
 	// ExitNodeDenyReasonHeader explains a 403 CONNECT response.
 	ExitNodeDenyReasonHeader = "X-Coder-Deny-Reason"
-	// ExitNodeDenyRuleHeader names the policy rule behind a 403 CONNECT
-	// response, when one matched.
+	// ExitNodeDenyRuleHeader identifies the denying policy rule.
 	ExitNodeDenyRuleHeader = "X-Coder-Deny-Rule"
 )
 
@@ -46,8 +39,7 @@ const (
 	ExitNodeProtocolDNS ExitNodeProtocol = "dns"
 )
 
-// ExitNode is the admin-created unit that terminates workspace egress. One or
-// more replicas, processes started with the exit node's token, do the work.
+// ExitNode is an organization-scoped workspace egress endpoint.
 type ExitNode struct {
 	ID             uuid.UUID `json:"id" format:"uuid" table:"id"`
 	OrganizationID uuid.UUID `json:"organization_id" format:"uuid" table:"organization id"`
@@ -60,8 +52,7 @@ type ExitNode struct {
 	// PolicyMismatch is set when live replicas report different policy
 	// hashes, meaning the node does not enforce one consistent policy.
 	PolicyMismatch bool `json:"policy_mismatch" table:"policy mismatch"`
-	// Replicas lists every replica that has ever registered, including
-	// stale and stopped ones, newest last.
+	// Replicas includes live, stale, and stopped replicas.
 	Replicas []ExitNodeReplica `json:"replicas" table:"-"`
 }
 
@@ -71,22 +62,18 @@ type ExitNodeStatus string
 const (
 	// ExitNodeStatusHealthy means at least one replica heartbeated recently.
 	ExitNodeStatusHealthy ExitNodeStatus = "healthy"
-	// ExitNodeStatusUnreachable means replicas exist but none heartbeated
-	// within ExitNodeReplicaStaleAfter.
+	// ExitNodeStatusUnreachable means replicas exist but none are live.
 	ExitNodeStatusUnreachable ExitNodeStatus = "unreachable"
 	// ExitNodeStatusUnregistered means no replica has ever registered.
 	ExitNodeStatusUnregistered ExitNodeStatus = "unregistered"
 )
 
-// ExitNodeReplicaStaleAfter is how long after its last heartbeat a replica
-// stops counting as live. Replicas register every 5 seconds.
+// ExitNodeReplicaStaleAfter is the replica heartbeat timeout.
 const ExitNodeReplicaStaleAfter = 15 * time.Second
 
 var exitNodeReplicaPeerNamespace = uuid.MustParse("f76a3687-42ae-487a-978f-c30d73f13e06")
 
-// ExitNodeReplicaPeerID derives a tailnet peer ID from both the logical exit
-// node and process replica IDs. The private namespace provides domain
-// separation from client-chosen UUIDs used by other tailnet peer types.
+// ExitNodeReplicaPeerID derives a domain-separated peer ID.
 func ExitNodeReplicaPeerID(exitNodeID, replicaID uuid.UUID) uuid.UUID {
 	name := make([]byte, 0, 2*len(exitNodeID))
 	name = append(name, exitNodeID[:]...)
@@ -94,15 +81,12 @@ func ExitNodeReplicaPeerID(exitNodeID, replicaID uuid.UUID) uuid.UUID {
 	return uuid.NewSHA1(exitNodeReplicaPeerNamespace, name)
 }
 
-// ExitNodeReplicasPubsubChannel carries the ID of an exit node whose live
-// replica set changed, or a template event produced by
-// ExitNodeTemplatePubsubPayload.
+// ExitNodeReplicasPubsubChannel carries replica and template updates.
 const ExitNodeReplicasPubsubChannel = "exit_node_replicas"
 
 const exitNodeTemplatePubsubPrefix = "template:"
 
-// ExitNodeTemplatePubsubPayload identifies a template whose exit node binding
-// or enforcement configuration changed.
+// ExitNodeTemplatePubsubPayload identifies a changed template.
 func ExitNodeTemplatePubsubPayload(templateID uuid.UUID) []byte {
 	return []byte(exitNodeTemplatePubsubPrefix + templateID.String())
 }
@@ -126,20 +110,17 @@ const (
 	ExitNodeReplicaStatusStopped ExitNodeReplicaStatus = "stopped"
 )
 
-// ExitNodeReplica is one running exit node process. Its tailnet peer ID is
-// derived server-side from its exit node and replica IDs.
+// ExitNodeReplica is one exit node process.
 type ExitNodeReplica struct {
 	ID         uuid.UUID `json:"id" format:"uuid" table:"id"`
 	ExitNodeID uuid.UUID `json:"exit_node_id" format:"uuid" table:"exit node id"`
 	Hostname   string    `json:"hostname" table:"hostname,default_sort"`
 	Version    string    `json:"version" table:"version"`
-	// WireguardEndpoints are the public ip:port pairs agents may use for
-	// direct WireGuard connections. Agents exempt them from enforcement.
+	// WireguardEndpoints are direct endpoints agents exempt from enforcement.
 	WireguardEndpoints []string `json:"wireguard_endpoints" table:"wireguard endpoints"`
 	// PolicyHash identifies the policy the replica enforces.
 	PolicyHash string `json:"policy_hash" table:"policy hash"`
-	// TailnetAddress is the deterministic tailnet IP derived from the
-	// server-assigned peer ID.
+	// TailnetAddress is derived from the server-assigned peer ID.
 	TailnetAddress string                `json:"tailnet_address" table:"tailnet address"`
 	Status         ExitNodeReplicaStatus `json:"status" enums:"live,stale,stopped" table:"status"`
 	StartedAt      time.Time             `json:"started_at" format:"date-time" table:"started at"`
@@ -152,18 +133,15 @@ type CreateExitNodeRequest struct {
 	DisplayName string `json:"display_name,omitempty"`
 }
 
-// CreateExitNodeResponse carries the token exactly once; coderd stores only a
-// hash.
+// CreateExitNodeResponse returns the token exactly once.
 type CreateExitNodeResponse struct {
 	ExitNode
 	Token string `json:"token"`
 }
 
-// RegisterExitNodeRequest is sent by a replica every 5 seconds. It is the
-// replica's heartbeat.
+// RegisterExitNodeRequest is a replica heartbeat.
 type RegisterExitNodeRequest struct {
-	// ReplicaID is generated once per process start. Coderd combines it with
-	// the exit node ID to derive a distinct tailnet peer ID. Required.
+	// ReplicaID is generated once per process and is required.
 	ReplicaID          uuid.UUID `json:"replica_id" format:"uuid"`
 	Version            string    `json:"version"`
 	Hostname           string    `json:"hostname"`
@@ -176,21 +154,18 @@ type RegisterExitNodeRequest struct {
 type RegisterExitNodeResponse struct {
 	DERPMap             *tailcfg.DERPMap `json:"derp_map"`
 	DERPForceWebSockets bool             `json:"derp_force_websockets"`
-	// AgentIDs are the workspace agents this exit node must open tunnels
-	// to. Coderd computes the set from templates bound to the exit node.
+	// AgentIDs are workspace agents bound to this exit node.
 	AgentIDs []uuid.UUID `json:"agent_ids" format:"uuid"`
 	// SiblingReplicas are the other live replicas of the same exit node.
 	SiblingReplicas []ExitNodeReplica `json:"sibling_replicas"`
 }
 
-// DeregisterExitNodeRequest marks a replica stopped. A stopped replica may
-// not register again; a restarted process uses a new ReplicaID.
+// DeregisterExitNodeRequest permanently stops a replica ID.
 type DeregisterExitNodeRequest struct {
 	ReplicaID uuid.UUID `json:"replica_id" format:"uuid"`
 }
 
-// ExitNodeCoordinateReplicaIDParam is the query parameter naming the replica
-// on the coordinate endpoint. The replica must be live.
+// ExitNodeCoordinateReplicaIDParam identifies the coordinating replica.
 const ExitNodeCoordinateReplicaIDParam = "replica_id"
 
 // ExitNodeFlowDecision is the policy outcome for a single flow.
@@ -201,9 +176,7 @@ const (
 	ExitNodeFlowDeny  ExitNodeFlowDecision = "deny"
 )
 
-// ExitNodeFlowReport describes one TCP flow observed by an exit node. The
-// same FlowID is sent twice for allowed flows: once on connect and once on
-// disconnect with byte counts filled in.
+// ExitNodeFlowReport describes one observed egress flow.
 type ExitNodeFlowReport struct {
 	FlowID  uuid.UUID `json:"flow_id" format:"uuid"`
 	AgentID uuid.UUID `json:"agent_id" format:"uuid"`
@@ -230,47 +203,33 @@ type ReportExitNodeFlowsRequest struct {
 	DroppedReports int `json:"dropped_reports,omitempty"`
 }
 
+func requestExitNode[T any](ctx context.Context, c *Client, method, path string, body any, status int) (T, error) {
+	var value T
+	res, err := c.Request(ctx, method, path, body)
+	if err != nil {
+		return value, xerrors.Errorf("make request: %w", err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != status {
+		return value, ReadBodyAsError(res)
+	}
+	return value, ReadBodyAsJSON(res, &value)
+}
+
 // CreateExitNode registers a new exit node in the organization and returns
 // its token. The token is not retrievable afterwards.
 func (c *Client) CreateExitNode(ctx context.Context, organizationID uuid.UUID, req CreateExitNodeRequest) (CreateExitNodeResponse, error) {
-	res, err := c.Request(ctx, http.MethodPost, "/api/v2/organizations/"+organizationID.String()+"/exitnodes", req)
-	if err != nil {
-		return CreateExitNodeResponse{}, xerrors.Errorf("make request: %w", err)
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusCreated {
-		return CreateExitNodeResponse{}, ReadBodyAsError(res)
-	}
-	var resp CreateExitNodeResponse
-	return resp, ReadBodyAsJSON(res, &resp)
+	return requestExitNode[CreateExitNodeResponse](ctx, c, http.MethodPost, "/api/v2/organizations/"+organizationID.String()+"/exitnodes", req, http.StatusCreated)
 }
 
 // ExitNodes lists the exit nodes in an organization.
 func (c *Client) ExitNodes(ctx context.Context, organizationID uuid.UUID) ([]ExitNode, error) {
-	res, err := c.Request(ctx, http.MethodGet, "/api/v2/organizations/"+organizationID.String()+"/exitnodes", nil)
-	if err != nil {
-		return nil, xerrors.Errorf("make request: %w", err)
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		return nil, ReadBodyAsError(res)
-	}
-	var nodes []ExitNode
-	return nodes, ReadBodyAsJSON(res, &nodes)
+	return requestExitNode[[]ExitNode](ctx, c, http.MethodGet, "/api/v2/organizations/"+organizationID.String()+"/exitnodes", nil, http.StatusOK)
 }
 
 // ExitNodeByName fetches one exit node by name or ID.
 func (c *Client) ExitNodeByName(ctx context.Context, organizationID uuid.UUID, name string) (ExitNode, error) {
-	res, err := c.Request(ctx, http.MethodGet, "/api/v2/organizations/"+organizationID.String()+"/exitnodes/"+name, nil)
-	if err != nil {
-		return ExitNode{}, xerrors.Errorf("make request: %w", err)
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		return ExitNode{}, ReadBodyAsError(res)
-	}
-	var node ExitNode
-	return node, ReadBodyAsJSON(res, &node)
+	return requestExitNode[ExitNode](ctx, c, http.MethodGet, "/api/v2/organizations/"+organizationID.String()+"/exitnodes/"+name, nil, http.StatusOK)
 }
 
 // DeleteExitNode soft-deletes an exit node by name or ID.

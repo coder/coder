@@ -4,6 +4,7 @@ import (
 	"context"
 	"net"
 	"net/netip"
+	"slices"
 	"sync"
 	"time"
 
@@ -14,10 +15,6 @@ import (
 )
 
 const exitNodeRetryBackoff = 5 * time.Second
-
-type exitNodeFailure struct {
-	retryAt time.Time
-}
 
 type exitNodeSelector struct {
 	mu          sync.Mutex
@@ -30,7 +27,7 @@ type exitNodeSelector struct {
 	// recovery candidate ahead of the current one.
 	ranks    []int
 	current  int
-	failures []exitNodeFailure
+	failures []time.Time
 }
 
 // newExitNodeSelector orders addrs by preference. A nil ranks slice gives
@@ -51,7 +48,7 @@ func newExitNodeSelector(logger slog.Logger, clock quartz.Clock, dialTimeout tim
 		dialTimeout: dialTimeout,
 		addrs:       append([]netip.AddrPort(nil), addrs...),
 		ranks:       append([]int(nil), ranks...),
-		failures:    make([]exitNodeFailure, len(addrs)),
+		failures:    make([]time.Time, len(addrs)),
 	}
 }
 
@@ -81,18 +78,17 @@ func (s *exitNodeSelector) dial(ctx context.Context, dialer Dialer) (net.Conn, n
 	current := s.current
 	order := make([]int, 0, len(s.addrs))
 	for i := range s.addrs {
-		if s.ranks[i] < s.ranks[current] && !now.Before(s.failures[i].retryAt) {
+		if s.ranks[i] < s.ranks[current] && !now.Before(s.failures[i]) {
 			order = append(order, i)
-			// Reserve this recovery probe so concurrent dials do not probe the
-			// same preferred node before the backoff elapses again.
-			s.failures[i].retryAt = now.Add(exitNodeRetryBackoff)
+			// Reserve the probe so concurrent dials honor the same backoff.
+			s.failures[i] = now.Add(exitNodeRetryBackoff)
 		}
 	}
-	if !now.Before(s.failures[current].retryAt) {
+	if !now.Before(s.failures[current]) {
 		order = append(order, current)
 	}
 	for i := range s.addrs {
-		if i != current && s.ranks[i] >= s.ranks[current] && !now.Before(s.failures[i].retryAt) {
+		if i != current && s.ranks[i] >= s.ranks[current] && !now.Before(s.failures[i]) {
 			order = append(order, i)
 		}
 	}
@@ -125,29 +121,24 @@ func (s *exitNodeSelector) len() int {
 func (s *exitNodeSelector) markFailure(addr netip.AddrPort) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	for i, candidate := range s.addrs {
-		if candidate == addr {
-			s.failures[i].retryAt = s.clock.Now("exit_node_failure").Add(exitNodeRetryBackoff)
-			return
-		}
+	if i := slices.Index(s.addrs, addr); i >= 0 {
+		s.failures[i] = s.clock.Now("exit_node_failure").Add(exitNodeRetryBackoff)
 	}
 }
 
 func (s *exitNodeSelector) markHealthy(ctx context.Context, addr netip.AddrPort) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	for i, candidate := range s.addrs {
-		if candidate != addr {
-			continue
-		}
-		s.failures[i] = exitNodeFailure{}
-		previous := s.current
-		s.current = i
-		if i != previous {
-			s.logger.Info(ctx, "switched egress exit node", slog.F("from", s.addrs[previous]), slog.F("to", addr))
-			return true
-		}
+	i := slices.Index(s.addrs, addr)
+	if i < 0 {
 		return false
 	}
-	return false
+	s.failures[i] = time.Time{}
+	previous := s.current
+	s.current = i
+	if i == previous {
+		return false
+	}
+	s.logger.Info(ctx, "switched egress exit node", slog.F("from", s.addrs[previous]), slog.F("to", addr))
+	return true
 }

@@ -1,8 +1,6 @@
 # Rules are evaluated in order, and the first matching rule wins.
-# Deny any TCP or UDP connection to private networks before broader allow rules.
 default: deny
 rules:
-  # Block private address space even if a later port rule would allow it.
   - id: deny-private-networks
     deny:
       cidrs:
@@ -11,8 +9,6 @@ rules:
         - 192.168.0.0/16
       protocols: [tcp, udp]
 
-  # Deny A, AAAA, and other DNS queries for a blocked name.
-  # The agent consults this rule before it allocates a fake IP address.
   - id: deny-tracking-dns
     deny:
       hosts:
@@ -20,7 +16,6 @@ rules:
         - "*.tracking.example"
       protocols: [dns]
 
-  # Allow DNS queries for GitHub names so the exit node can resolve them.
   - id: allow-github-dns
     allow:
       hosts:
@@ -28,7 +23,6 @@ rules:
         - "*.github.com"
       protocols: [dns]
 
-  # Allow HTTPS connections to GitHub and its subdomains.
   - id: allow-github-https
     allow:
       hosts:
@@ -37,20 +31,18 @@ rules:
       ports: [443]
       protocols: [tcp]
 
-  # Allow DNS for the approved UDP service.
   - id: allow-ntp-dns
     allow:
       hosts: [time.example.com]
       protocols: [dns]
 
-  # Allow NTP to the approved service.
   - id: allow-ntp
     allow:
       hosts: [time.example.com]
       ports: [123]
       protocols: [udp]
 
-  # Deny QUIC explicitly so clients can fall back to HTTPS over TCP.
+  # Make clients fall back to HTTPS over TCP.
   - id: deny-quic
     deny:
       ports: [443]

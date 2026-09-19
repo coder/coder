@@ -120,17 +120,12 @@ SELECT @template_id, exit_node_id, ordinality - 1
 FROM unnest(@exit_node_ids::uuid[]) WITH ORDINALITY AS nodes(exit_node_id, ordinality);
 
 -- name: GetWorkspaceAgentIDsByExitNode :many
--- GetWorkspaceAgentIDsByExitNode returns the agent IDs on the latest build of
--- every running workspace whose template routes egress through the exit node.
--- "Running" means the latest build has transition=start and
--- job_status=succeeded, matching the workspace-status definition used by
--- coderd/database/queries/workspaces.sql.
+-- Latest successful start build matches workspace status semantics.
 SELECT workspace_agents.id
 FROM workspaces
 JOIN templates ON templates.id = workspaces.template_id
 JOIN template_exit_nodes ON template_exit_nodes.template_id = templates.id
 JOIN (
-	-- Latest build per workspace.
 	SELECT DISTINCT ON (workspace_id) id, workspace_id, job_id, transition
 	FROM workspace_builds
 	ORDER BY workspace_id, build_number DESC

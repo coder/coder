@@ -210,18 +210,15 @@ func buildEgressConfig(rows []database.GetTemplateExitNodeReplicasRow, template 
 	}
 
 	exitNodes := make([]*agentproto.EgressExitNode, 0)
-	positions := make(map[uuid.UUID]int)
 	var wireguardEndpoints []string
 	for _, row := range rows {
-		index, ok := positions[row.ExitNodeID]
-		if !ok {
-			index = len(exitNodes)
-			positions[row.ExitNodeID] = index
+		if len(exitNodes) == 0 || uuid.UUID(exitNodes[len(exitNodes)-1].Id) != row.ExitNodeID {
 			exitNodes = append(exitNodes, &agentproto.EgressExitNode{Id: row.ExitNodeID[:]})
 		}
 		if row.ReplicaID.Valid {
 			peerID := codersdk.ExitNodeReplicaPeerID(row.ExitNodeID, row.ReplicaID.UUID)
-			exitNodes[index].ReplicaIds = append(exitNodes[index].ReplicaIds, peerID[:])
+			node := exitNodes[len(exitNodes)-1]
+			node.ReplicaIds = append(node.ReplicaIds, peerID[:])
 			wireguardEndpoints = append(wireguardEndpoints, row.WireguardEndpoints...)
 		}
 	}
@@ -242,8 +239,6 @@ func (a *ManifestAPI) StreamEgressConfig(_ *agentproto.StreamEgressConfigRequest
 	}
 
 	updates := make(chan struct{}, 1)
-	// A nil bound set means the first configuration has not been computed
-	// yet, so every replica event is accepted.
 	var boundExitNodes map[uuid.UUID]struct{}
 	var boundMu sync.RWMutex
 	cancel, err := a.Pubsub.Subscribe(codersdk.ExitNodeReplicasPubsubChannel, func(_ context.Context, payload []byte) {
@@ -280,8 +275,6 @@ func (a *ManifestAPI) StreamEgressConfig(_ *agentproto.StreamEgressConfigRequest
 			}
 		}
 		boundMu.Lock()
-		// Replica events for a newly bound node may have been filtered out
-		// while the query ran, so recompute once more when the set grows.
 		newlyBound := false
 		for id := range next {
 			if _, ok := boundExitNodes[id]; !ok {
@@ -328,8 +321,6 @@ func (a *ManifestAPI) StreamEgressConfig(_ *agentproto.StreamEgressConfigRequest
 	}
 }
 
-// egressPubsubMatches reports whether a replica or template event is relevant
-// to the stream. A nil boundExitNodes set accepts every replica event.
 func egressPubsubMatches(payload []byte, templateID uuid.UUID, boundExitNodes map[uuid.UUID]struct{}) bool {
 	if eventTemplateID, ok := codersdk.ParseExitNodeTemplatePubsubPayload(payload); ok {
 		return eventTemplateID == templateID

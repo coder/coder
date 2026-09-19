@@ -193,7 +193,7 @@ func (p *fakeIPPool) allocateLocked(name string) (netip.Addr, error) {
 	size := uint32(1) << (32 - p.prefix.Bits())
 	offset := h.Sum32() % size
 	var fallback netip.Addr
-	for range fakeIPMaxProbes {
+	for probe := range size {
 		var raw [4]byte
 		binary.BigEndian.PutUint32(raw[:], base+offset)
 		offset = (offset + 1) % size
@@ -204,21 +204,8 @@ func (p *fakeIPPool) allocateLocked(name string) (netip.Addr, error) {
 		if _, taken := p.byAddr[addr]; !taken {
 			return addr, nil
 		}
-		if !fallback.IsValid() && entryOf(p.byAddr[addr]).refs == 0 {
+		if probe < fakeIPMaxProbes && !fallback.IsValid() && entryOf(p.byAddr[addr]).refs == 0 {
 			fallback = addr
-		}
-	}
-	remaining := size - min(size, uint32(fakeIPMaxProbes))
-	for range remaining {
-		var raw [4]byte
-		binary.BigEndian.PutUint32(raw[:], base+offset)
-		offset = (offset + 1) % size
-		if raw[3] == 0 || raw[3] == 255 {
-			continue
-		}
-		addr := netip.AddrFrom4(raw)
-		if _, taken := p.byAddr[addr]; !taken {
-			return addr, nil
 		}
 	}
 	// Every address is assigned. Reuse an unpinned candidate if possible.

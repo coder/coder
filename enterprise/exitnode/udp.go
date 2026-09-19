@@ -24,12 +24,7 @@ const (
 	frameHeaderLen  = 2
 )
 
-// readFrame reads one length-prefixed frame into buf and returns the payload
-// slice, which aliases buf. buf must be at least maxFramePayload bytes.
-//
-// Frames are a 2-byte big-endian payload length followed by the payload.
-// This is the DNS-over-TCP framing (RFC 1035 section 4.2.2) reused for udp
-// streams so one framing serves both.
+// readFrame reads a 2-byte length-prefixed frame into buf.
 func readFrame(r io.Reader, buf []byte) ([]byte, error) {
 	var hdr [frameHeaderLen]byte
 	if _, err := io.ReadFull(r, hdr[:]); err != nil {
@@ -45,8 +40,7 @@ func readFrame(r io.Reader, buf []byte) ([]byte, error) {
 	return buf[:n], nil
 }
 
-// frameWriter writes length-prefixed frames. Each frame is written with one
-// Write call under a mutex so concurrent writers never interleave.
+// frameWriter serializes length-prefixed frames.
 type frameWriter struct {
 	mu sync.Mutex
 	w  io.Writer
@@ -64,14 +58,8 @@ func (f *frameWriter) write(payload []byte) error {
 	return err
 }
 
-// relayDatagrams carries framed datagrams between client and a connected UDP
-// upstream until either side fails, ctx is canceled, or idle elapses with no
-// traffic. Both connections are closed on return. It returns payload bytes
-// copied from upstream to client (in) and client to upstream (out).
-//
-// A datagram the upstream socket refuses to send, for example because it is
-// larger than the path allows, ends the stream: the client has no other way
-// to learn the datagram was lost.
+// relayDatagrams carries framed datagrams until failure, cancellation, or idle
+// timeout and returns payload bytes in each direction.
 func relayDatagrams(ctx context.Context, clock quartz.Clock, client, upstream net.Conn, idle time.Duration) (bytesIn, bytesOut int64) {
 	closeBoth := func() {
 		_ = client.Close()
@@ -91,7 +79,6 @@ func relayDatagrams(ctx context.Context, clock quartz.Clock, client, upstream ne
 
 	var wg sync.WaitGroup
 	wg.Go(func() {
-		// Closing the upstream unblocks the other goroutine's Read.
 		defer upstream.Close()
 		buf := make([]byte, maxFramePayload)
 		for {
@@ -107,7 +94,6 @@ func relayDatagrams(ctx context.Context, clock quartz.Clock, client, upstream ne
 		}
 	})
 	wg.Go(func() {
-		// Closing the client unblocks the other goroutine's readFrame.
 		defer client.Close()
 		fw := &frameWriter{w: client}
 		buf := make([]byte, maxFramePayload)

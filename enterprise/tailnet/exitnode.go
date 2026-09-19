@@ -18,8 +18,7 @@ import (
 
 const exitNodeAgentCacheDuration = 5 * time.Second
 
-// ExitNodeCoordinateeAuth restricts an exit node replica to its own tailnet
-// identity and to agents currently bound to its logical exit node.
+// ExitNodeCoordinateeAuth restricts a replica to its identity and bound agents.
 type ExitNodeCoordinateeAuth struct {
 	Database   database.Store
 	Clock      quartz.Clock
@@ -31,8 +30,7 @@ type ExitNodeCoordinateeAuth struct {
 	refreshed time.Time
 }
 
-// Authorize permits tunnel changes only for currently bound agents and node
-// updates that advertise addresses derived from this replica's peer ID.
+// Authorize validates tunnel and self-update requests.
 func (a *ExitNodeCoordinateeAuth) Authorize(ctx context.Context, req *proto.CoordinateRequest) error {
 	if req.GetReadyForHandshake() != nil {
 		return xerrors.New("exit nodes may not send ready_for_handshake")
@@ -83,9 +81,7 @@ func (a *ExitNodeCoordinateeAuth) authorizeTunnel(ctx context.Context, rawID []b
 	now := a.Clock.Now("exit_node_coordinate_auth")
 	_, found := a.agentIDs[agentID]
 	if a.agentIDs == nil || !found || now.Sub(a.refreshed) > exitNodeAgentCacheDuration {
-		// Exit nodes serve agents across users and workspaces, so this session
-		// must read the deployment-computed binding set as restricted system.
-		//nolint:gocritic // Cross-workspace binding lookup requires system access.
+		//nolint:gocritic // Binding lookup spans workspaces.
 		agentIDs, err := a.Database.GetWorkspaceAgentIDsByExitNode(dbauthz.AsSystemRestricted(ctx), a.ExitNodeID)
 		if err != nil {
 			return xerrors.Errorf("get exit node agents: %w", err)

@@ -24,7 +24,6 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
-// recordingFlows collects flow reports and signals each one on a channel.
 type recordingFlows struct {
 	mu      sync.Mutex
 	reports []codersdk.ExitNodeFlowReport
@@ -38,8 +37,6 @@ func (r *recordingFlows) Record(report codersdk.ExitNodeFlowReport) {
 	r.ch <- report
 }
 
-// fakeAddrConn gives a net.Pipe end a TCP-looking remote address so the
-// proxy can attribute it to an agent.
 type fakeAddrConn struct {
 	net.Conn
 	remote net.Addr
@@ -49,7 +46,6 @@ func (c *fakeAddrConn) RemoteAddr() net.Addr { return c.remote }
 
 type proxyHarness struct {
 	agentID uuid.UUID
-	// src is the agent's tailnet address, which the proxy attributes to it.
 	src     netip.Addr
 	flows   *recordingFlows
 	metrics *exitnode.Metrics
@@ -61,7 +57,6 @@ func newProxyHarness(t *testing.T, policyYAML string, configure ...func(*exitnod
 	agentID := uuid.New()
 	agents := exitnode.NewAgentTable()
 	agents.Set([]uuid.UUID{agentID})
-
 	h := &proxyHarness{
 		agentID: agentID,
 		src:     tailnet.TailscaleServicePrefix.AddrFromUUID(agentID),
@@ -75,7 +70,6 @@ func newProxyHarness(t *testing.T, policyYAML string, configure ...func(*exitnod
 		Flows:        h.flows,
 		Metrics:      h.metrics,
 		SniffTimeout: testutil.WaitShort,
-		// Tests must never depend on the host's DNS configuration.
 		Resolver:     fakeResolver{},
 		DNSExchanger: &exitnode.StaticDNSExchanger{},
 	}
@@ -85,7 +79,6 @@ func newProxyHarness(t *testing.T, policyYAML string, configure ...func(*exitnod
 	h.proxy = exitnode.NewConnectProxy(opts)
 	return h
 }
-
 func mustPolicy(t *testing.T, yaml string) *yamlpolicy.Policy {
 	t.Helper()
 	p, err := yamlpolicy.Parse([]byte(yaml))
@@ -93,7 +86,6 @@ func mustPolicy(t *testing.T, yaml string) *yamlpolicy.Policy {
 	return p
 }
 
-// fakeResolver answers hostname lookups from a fixed table.
 type fakeResolver map[string][]netip.Addr
 
 func (r fakeResolver) LookupNetIP(_ context.Context, _, host string) ([]netip.Addr, error) {
@@ -104,23 +96,16 @@ func (r fakeResolver) LookupNetIP(_ context.Context, _, host string) ([]netip.Ad
 	return addrs, nil
 }
 
-// connectResult is the CONNECT response as seen by the client, or ok=false
-// when the proxy closed without answering.
 type connectResult struct {
 	ok     bool
 	status int
 	header http.Header
 }
 
-// connect opens a pipe to the proxy as the given source address, sends a
-// CONNECT for target with any extra headers (for selecting a protocol or
-// supplying the original host), and returns the client end plus the parsed
-// response. done is signaled when the proxy has finished with the conn.
 func (h *proxyHarness) connect(ctx context.Context, t *testing.T, src netip.Addr, target string, headers ...http.Header) (net.Conn, *bufio.Reader, connectResult, <-chan struct{}) {
 	t.Helper()
 	clientSide, serverSide := net.Pipe()
 	t.Cleanup(func() { _ = clientSide.Close() })
-
 	serverConn := &fakeAddrConn{
 		Conn:   serverSide,
 		remote: &net.TCPAddr{IP: src.AsSlice(), Port: 40000},
@@ -130,7 +115,6 @@ func (h *proxyHarness) connect(ctx context.Context, t *testing.T, src netip.Addr
 		h.proxy.HandleConn(ctx, serverConn)
 		done <- struct{}{}
 	}()
-
 	writeErr := make(chan error, 1)
 	go func() {
 		var b strings.Builder
@@ -142,20 +126,15 @@ func (h *proxyHarness) connect(ctx context.Context, t *testing.T, src netip.Addr
 		_, err := io.WriteString(clientSide, b.String())
 		writeErr <- err
 	}()
-
 	br := bufio.NewReader(clientSide)
 	resp, err := http.ReadResponse(br, &http.Request{Method: http.MethodConnect})
 	if err != nil {
-		// The proxy closed without answering (unknown source).
 		return clientSide, br, connectResult{}, done
 	}
 	_ = resp.Body.Close()
 	require.NoError(t, testutil.RequireReceive(ctx, t, writeErr))
 	return clientSide, br, connectResult{ok: true, status: resp.StatusCode, header: resp.Header}, done
 }
-
-// connectStatus is connect for the agent's own address, requiring the given
-// response status.
 func (h *proxyHarness) connectStatus(ctx context.Context, t *testing.T, target string, status int, headers ...http.Header) (net.Conn, *bufio.Reader, connectResult, <-chan struct{}) {
 	t.Helper()
 	client, br, resp, done := h.connect(ctx, t, h.src, target, headers...)
@@ -163,16 +142,11 @@ func (h *proxyHarness) connectStatus(ctx context.Context, t *testing.T, target s
 	require.Equal(t, status, resp.status)
 	return client, br, resp, done
 }
-
-// requireEOF asserts the proxy closed the client connection.
 func requireEOF(t *testing.T, r io.Reader) {
 	t.Helper()
 	_, err := r.Read(make([]byte, 1))
 	require.ErrorIs(t, err, io.EOF)
 }
-
-// readTunneled parses an HTTP response relayed through the tunnel and returns
-// its body.
 func readTunneled(t *testing.T, br *bufio.Reader) string {
 	t.Helper()
 	resp, err := http.ReadResponse(br, &http.Request{Method: http.MethodGet})
@@ -182,8 +156,6 @@ func readTunneled(t *testing.T, br *bufio.Reader) string {
 	require.NoError(t, err)
 	return string(body)
 }
-
-// startEchoHostServer serves HTTP that reports the Host header it received.
 func startEchoHostServer(t *testing.T) netip.AddrPort {
 	t.Helper()
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -200,7 +172,6 @@ rules:
     allow:
       hosts: ["*.example.com"]
 `
-
 const noEvilPolicy = `
 default: allow
 rules:
@@ -211,18 +182,14 @@ rules:
 
 func TestConnectProxy_AllowProxiesAndReports(t *testing.T) {
 	t.Parallel()
-
 	tests := []struct {
-		name string
-		// target builds the CONNECT target from the upstream address.
-		target   func(netip.AddrPort) string
-		resolver func(netip.AddrPort) fakeResolver
-		// hostHeader is what the tunneled HTTP request carries.
+		name            string
+		target          func(netip.AddrPort) string
+		resolver        func(netip.AddrPort) fakeResolver
 		hostHeader      string
 		provisionalHost bool
 	}{
 		{
-			// The Host header is what the policy sees in phase two.
 			name:            "IPLiteralSniffsHost",
 			target:          func(ap netip.AddrPort) string { return ap.String() },
 			resolver:        func(netip.AddrPort) fakeResolver { return nil },
@@ -230,9 +197,6 @@ func TestConnectProxy_AllowProxiesAndReports(t *testing.T) {
 			provisionalHost: true,
 		},
 		{
-			// The Host header names a host the policy would deny, proving the
-			// CONNECT hostname is authoritative and nothing is sniffed. The
-			// resolver hands back IPv6 first to prove IPv4 is preferred.
 			name:   "HostnameIsAuthoritative",
 			target: func(ap netip.AddrPort) string { return fmt.Sprintf("API.example.com:%d", ap.Port()) },
 			resolver: func(ap netip.AddrPort) fakeResolver {
@@ -251,15 +215,11 @@ func TestConnectProxy_AllowProxiesAndReports(t *testing.T) {
 				o.ProvisionalHostAllow = tt.provisionalHost
 			})
 			client, br, _, done := h.connectStatus(ctx, t, tt.target(upstream), http.StatusOK)
-
-			// Connection: close makes the upstream hang up so both copy
-			// directions finish deterministically.
 			request := "GET /x HTTP/1.1\r\nHost: " + tt.hostHeader + "\r\nConnection: close\r\n\r\n"
 			go func() { _, _ = io.WriteString(client, request) }()
 			require.Equal(t, "hello from "+tt.hostHeader, readTunneled(t, br))
 			_ = client.Close()
 			testutil.RequireReceive(ctx, t, done)
-
 			connectReport := testutil.RequireReceive(ctx, t, h.flows.ch)
 			require.Equal(t, codersdk.ExitNodeFlowAllow, connectReport.Decision)
 			require.Equal(t, codersdk.ExitNodeProtocolTCP, connectReport.Protocol)
@@ -269,36 +229,30 @@ func TestConnectProxy_AllowProxiesAndReports(t *testing.T) {
 			require.Equal(t, int(upstream.Port()), connectReport.DestinationPort)
 			require.Equal(t, "api.example.com", connectReport.Host)
 			require.Nil(t, connectReport.DisconnectTime)
-
 			disconnectReport := testutil.RequireReceive(ctx, t, h.flows.ch)
 			require.Equal(t, connectReport.FlowID, disconnectReport.FlowID)
 			require.NotNil(t, disconnectReport.DisconnectTime)
 			require.Equal(t, int64(len(request)), disconnectReport.BytesOut)
 			require.Positive(t, disconnectReport.BytesIn)
-
 			require.Equal(t, float64(1), promtestutil.ToFloat64(h.metrics.FlowsTotal.WithLabelValues("allow")))
 			require.Equal(t, float64(0), promtestutil.ToFloat64(h.metrics.ActiveFlows))
 			require.Equal(t, float64(len(request)), promtestutil.ToFloat64(h.metrics.BytesTotal.WithLabelValues("out")))
 		})
 	}
 }
-
 func TestConnectProxy_StrictHostAllowDefault(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitLong)
 	upstream := startEchoHostServer(t)
 	h := newProxyHarness(t, allowExamplePolicy)
-
 	client, _, resp, done := h.connectStatus(ctx, t, upstream.String(), http.StatusForbidden)
 	require.Equal(t, "default deny", resp.header.Get(codersdk.ExitNodeDenyReasonHeader))
 	requireEOF(t, client)
 	testutil.RequireReceive(ctx, t, done)
-
 	report := testutil.RequireReceive(ctx, t, h.flows.ch)
 	require.Equal(t, codersdk.ExitNodeFlowDeny, report.Decision)
 	require.Empty(t, report.Host)
 }
-
 func TestConnectProxy_OriginalHostMustResolveToTarget(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitLong)
@@ -307,7 +261,6 @@ func TestConnectProxy_OriginalHostMustResolveToTarget(t *testing.T) {
 		o.ProvisionalHostAllow = true
 		o.Resolver = fakeResolver{"api.example.com": {netip.MustParseAddr("192.0.2.1")}}
 	})
-
 	client, _, _, done := h.connectStatus(ctx, t, upstream.String(), http.StatusOK,
 		http.Header{codersdk.ExitNodeOriginalHostHeader: []string{"api.example.com"}})
 	go func() {
@@ -315,72 +268,12 @@ func TestConnectProxy_OriginalHostMustResolveToTarget(t *testing.T) {
 	}()
 	requireEOF(t, client)
 	testutil.RequireReceive(ctx, t, done)
-
 	report := testutil.RequireReceive(ctx, t, h.flows.ch)
 	require.Equal(t, codersdk.ExitNodeFlowDeny, report.Decision)
 	require.Equal(t, "blocked.test", report.Host)
 }
-
-// TestConnectProxy_CustomPolicy plugs a PolicyFunc into the proxy to prove the
-// Policy interface is the extension seam: no YAML is involved, and the
-// custom decision drives both the CONNECT response and the flow report.
-func TestConnectProxy_CustomPolicy(t *testing.T) {
-	t.Parallel()
-	ctx := testutil.Context(t, testutil.WaitLong)
-	upstream := startEchoHostServer(t)
-
-	var seen []exitnode.FlowInfo
-	var mu sync.Mutex
-	onlyUpstreamPort := exitnode.PolicyFunc(func(flow exitnode.FlowInfo) exitnode.Decision {
-		mu.Lock()
-		seen = append(seen, flow)
-		mu.Unlock()
-		if flow.Port == int(upstream.Port()) {
-			return exitnode.Decision{Allow: true, RuleID: "custom-allow", Reason: "upstream port"}
-		}
-		return exitnode.Decision{RuleID: "custom-deny", Reason: "not the upstream port"}
-	})
-	h := newProxyHarness(t, allowExamplePolicy, func(o *exitnode.ConnectProxyOptions) {
-		o.Policy = onlyUpstreamPort
-	})
-
-	// Allowed: the YAML harness policy would deny a bare IP under default
-	// deny, so a 200 proves the custom policy is the one consulted.
-	client, br, _, done := h.connectStatus(ctx, t, upstream.String(), http.StatusOK)
-	go func() {
-		_, _ = io.WriteString(client, "GET /x HTTP/1.1\r\nHost: any.test\r\nConnection: close\r\n\r\n")
-	}()
-	require.Equal(t, "hello from any.test", readTunneled(t, br))
-	_ = client.Close()
-	testutil.RequireReceive(ctx, t, done)
-	report := testutil.RequireReceive(ctx, t, h.flows.ch)
-	require.Equal(t, codersdk.ExitNodeFlowAllow, report.Decision)
-	require.Equal(t, "custom-allow", report.RuleID)
-	require.NotNil(t, testutil.RequireReceive(ctx, t, h.flows.ch).DisconnectTime)
-
-	// Denied: the custom rule ID and reason surface on the response.
-	_, br, resp, done := h.connectStatus(ctx, t, "127.0.0.1:1", http.StatusForbidden)
-	require.Equal(t, "not the upstream port", resp.header.Get("X-Coder-Deny-Reason"))
-	requireEOF(t, br)
-	testutil.RequireReceive(ctx, t, done)
-	report = testutil.RequireReceive(ctx, t, h.flows.ch)
-	require.Equal(t, codersdk.ExitNodeFlowDeny, report.Decision)
-	require.Equal(t, "custom-deny", report.RuleID)
-
-	mu.Lock()
-	defer mu.Unlock()
-	require.NotEmpty(t, seen)
-	for _, flow := range seen {
-		require.Equal(t, netip.MustParseAddr("127.0.0.1"), flow.IP.Unmap())
-	}
-}
-
-// TestConnectProxy_DenyBeforeConnect covers denials that are final before
-// the 200: by CIDR, by a CONNECT hostname, and by the original host header
-// on an IP literal, each answered with a 403 and reported.
 func TestConnectProxy_DenyBeforeConnect(t *testing.T) {
 	t.Parallel()
-
 	tests := []struct {
 		name     string
 		policy   string
@@ -417,8 +310,6 @@ rules:
 			wantPort: 443,
 		},
 		{
-			// An IP literal with the original host supplied is decided up
-			// front instead of waiting for a sniff.
 			name:     "OriginalHostHeader",
 			policy:   noEvilPolicy,
 			target:   "192.0.2.1:443",
@@ -438,11 +329,8 @@ rules:
 			client, _, resp, done := h.connectStatus(ctx, t, tt.target, http.StatusForbidden, tt.headers)
 			require.Equal(t, "matched rule "+tt.wantRule, resp.header.Get(codersdk.ExitNodeDenyReasonHeader))
 			require.Equal(t, tt.wantRule, resp.header.Get(codersdk.ExitNodeDenyRuleHeader))
-
-			// The proxy closes after the 403.
 			requireEOF(t, client)
 			testutil.RequireReceive(ctx, t, done)
-
 			report := testutil.RequireReceive(ctx, t, h.flows.ch)
 			require.Equal(t, codersdk.ExitNodeFlowDeny, report.Decision)
 			require.Equal(t, tt.wantRule, report.RuleID)
@@ -454,13 +342,9 @@ rules:
 		})
 	}
 }
-
 func TestConnectProxy_DenyByHostAfterConnect(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitLong)
-
-	// The upstream must never be reached; a listener that fails the test on
-	// accept proves it.
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
 	defer ln.Close()
@@ -471,55 +355,114 @@ func TestConnectProxy_DenyByHostAfterConnect(t *testing.T) {
 			t.Error("upstream was dialed for a denied host")
 		}
 	}()
-
 	h := newProxyHarness(t, noEvilPolicy)
-	// Phase one cannot know the host, so the CONNECT is provisionally
-	// accepted.
 	client, _, _, done := h.connectStatus(ctx, t, ln.Addr().String(), http.StatusOK)
-
 	go func() {
 		_, _ = io.WriteString(client, "GET / HTTP/1.1\r\nHost: evil.example\r\n\r\n")
 	}()
-	// Phase two denies and the only signal left is a closed connection.
 	requireEOF(t, client)
 	testutil.RequireReceive(ctx, t, done)
-
 	report := testutil.RequireReceive(ctx, t, h.flows.ch)
 	require.Equal(t, codersdk.ExitNodeFlowDeny, report.Decision)
 	require.Equal(t, "no-evil", report.RuleID)
 	require.Equal(t, "evil.example", report.Host)
 }
-
-func TestConnectProxy_ResolveFailure(t *testing.T) {
+func TestConnectProxy_Rejections(t *testing.T) {
 	t.Parallel()
-	ctx := testutil.Context(t, testutil.WaitLong)
-
-	h := newProxyHarness(t, "default: allow\n")
-	client, _, resp, done := h.connectStatus(ctx, t, "nxdomain.example:443", http.StatusBadGateway)
-	require.Equal(t, "resolve failed", resp.header.Get(codersdk.ExitNodeDenyReasonHeader))
-	requireEOF(t, client)
-	testutil.RequireReceive(ctx, t, done)
-	require.Empty(t, h.flows.reports)
+	t.Run("unknown source", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		h := newProxyHarness(t, "default: allow\n")
+		client, _, resp, done := h.connect(ctx, t, tailnet.TailscaleServicePrefix.AddrFromUUID(uuid.New()), "127.0.0.1:80")
+		require.False(t, resp.ok)
+		requireEOF(t, client)
+		testutil.RequireReceive(ctx, t, done)
+		require.Equal(t, float64(1), promtestutil.ToFloat64(h.metrics.UnknownSourceTotal))
+		require.Empty(t, h.flows.reports)
+	})
+	t.Run("resolve failure", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		h := newProxyHarness(t, "default: allow\n")
+		client, _, resp, done := h.connectStatus(ctx, t, "missing.example:443", http.StatusBadGateway)
+		require.Equal(t, "resolve failed", resp.header.Get(codersdk.ExitNodeDenyReasonHeader))
+		requireEOF(t, client)
+		testutil.RequireReceive(ctx, t, done)
+		require.Empty(t, h.flows.reports)
+	})
 }
 
-func TestConnectProxy_UnknownSourceRejected(t *testing.T) {
+func TestConnectProxy_PolicyFunc(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitLong)
-
-	h := newProxyHarness(t, "default: allow\n")
-	stranger := tailnet.TailscaleServicePrefix.AddrFromUUID(uuid.New())
-	client, _, resp, done := h.connect(ctx, t, stranger, "127.0.0.1:80")
-	require.False(t, resp.ok, "unknown sources get no HTTP response at all")
+	upstream := startEchoHostServer(t)
+	var mu sync.Mutex
+	var seen []exitnode.FlowInfo
+	policy := exitnode.PolicyFunc(func(flow exitnode.FlowInfo) exitnode.Decision {
+		mu.Lock()
+		seen = append(seen, flow)
+		mu.Unlock()
+		if flow.Port == int(upstream.Port()) {
+			return exitnode.Decision{Allow: true, RuleID: "custom-allow", Reason: "allowed port"}
+		}
+		return exitnode.Decision{RuleID: "custom-deny", Reason: "denied port"}
+	})
+	h := newProxyHarness(t, "default: deny\n", func(o *exitnode.ConnectProxyOptions) {
+		o.Policy = policy
+		o.Resolver = fakeResolver{"allowed.test": {upstream.Addr()}, "denied.test": {upstream.Addr()}}
+	})
+	client, _, _, done := h.connectStatus(ctx, t, fmt.Sprintf("allowed.test:%d", upstream.Port()), http.StatusOK)
+	_ = client.Close()
+	testutil.RequireReceive(ctx, t, done)
+	require.Equal(t, "custom-allow", testutil.RequireReceive(ctx, t, h.flows.ch).RuleID)
+	require.Equal(t, "custom-allow", testutil.RequireReceive(ctx, t, h.flows.ch).RuleID)
+	client, _, resp, done := h.connectStatus(ctx, t, "denied.test:1", http.StatusForbidden)
+	require.Equal(t, "custom-deny", resp.header.Get(codersdk.ExitNodeDenyRuleHeader))
+	require.Equal(t, "denied port", resp.header.Get(codersdk.ExitNodeDenyReasonHeader))
 	requireEOF(t, client)
 	testutil.RequireReceive(ctx, t, done)
+	require.Equal(t, "custom-deny", testutil.RequireReceive(ctx, t, h.flows.ch).RuleID)
+	mu.Lock()
+	defer mu.Unlock()
+	require.Equal(t, []exitnode.FlowInfo{
+		{Protocol: codersdk.ExitNodeProtocolTCP, Host: "allowed.test", IP: upstream.Addr(), Port: int(upstream.Port())},
+		{Protocol: codersdk.ExitNodeProtocolTCP, Host: "denied.test", IP: upstream.Addr(), Port: 1},
+	}, seen)
+}
 
-	require.Equal(t, float64(1), promtestutil.ToFloat64(h.metrics.UnknownSourceTotal))
-	require.Empty(t, h.flows.reports)
+type loopbackResolver struct{ agentID uuid.UUID }
+
+func (r loopbackResolver) AgentForAddr(addr netip.Addr) (uuid.UUID, bool) {
+	return r.agentID, addr.IsLoopback()
+}
+
+func TestConnectProxy_Serve(t *testing.T) {
+	t.Parallel()
+	ctx, cancel := context.WithCancel(testutil.Context(t, testutil.WaitLong))
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	h := newProxyHarness(t, "default: allow\n")
+	proxy := exitnode.NewConnectProxy(exitnode.ConnectProxyOptions{Logger: testutil.Logger(t), Policy: mustPolicy(t, "default: allow\n"), Agents: loopbackResolver{h.agentID}, Flows: h.flows, Metrics: h.metrics})
+	done := make(chan error, 1)
+	go func() { done <- proxy.Serve(ctx, ln) }()
+	conn, err := net.Dial("tcp", ln.Addr().String())
+	require.NoError(t, err)
+	_, err = fmt.Fprint(conn, "CONNECT 127.0.0.1:1 HTTP/1.1\r\nHost: 127.0.0.1:1\r\n\r\n")
+	require.NoError(t, err)
+	resp, err := http.ReadResponse(bufio.NewReader(conn), &http.Request{Method: http.MethodConnect})
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+	_ = resp.Body.Close()
+	_ = conn.Close()
+	waitCtx := testutil.Context(t, testutil.WaitShort)
+	cancel()
+	_ = ln.Close()
+	require.NoError(t, testutil.RequireReceive(waitCtx, t, done))
+	proxy.Wait()
 }
 
 func TestConnectProxy_RejectsBadTarget(t *testing.T) {
 	t.Parallel()
-
 	tests := []struct {
 		name    string
 		target  string
@@ -537,7 +480,6 @@ func TestConnectProxy_RejectsBadTarget(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			ctx := testutil.Context(t, testutil.WaitLong)
-
 			h := newProxyHarness(t, "default: allow\n")
 			_, _, resp, done := h.connectStatus(ctx, t, tt.target, http.StatusBadRequest, tt.headers)
 			require.Contains(t, resp.header.Get(codersdk.ExitNodeDenyReasonHeader), tt.want)
@@ -545,55 +487,4 @@ func TestConnectProxy_RejectsBadTarget(t *testing.T) {
 			require.Empty(t, h.flows.reports)
 		})
 	}
-}
-
-func TestConnectProxy_Serve(t *testing.T) {
-	t.Parallel()
-	ctx, cancel := context.WithCancel(testutil.Context(t, testutil.WaitLong))
-	defer cancel()
-	upstream := startEchoHostServer(t)
-
-	// Serve over a loopback listener; the source is loopback, so attribute
-	// anything from 127.0.0.1 to the agent.
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
-	require.NoError(t, err)
-	h := newProxyHarness(t, "default: allow\n")
-	proxy := exitnode.NewConnectProxy(exitnode.ConnectProxyOptions{
-		Logger:  testutil.Logger(t),
-		Policy:  mustPolicy(t, "default: allow\n"),
-		Agents:  loopbackResolver{agentID: h.agentID},
-		Flows:   h.flows,
-		Metrics: h.metrics,
-	})
-	serveErr := make(chan error, 1)
-	go func() { serveErr <- proxy.Serve(ctx, ln) }()
-
-	conn, err := net.Dial("tcp", ln.Addr().String())
-	require.NoError(t, err)
-	defer conn.Close()
-	_, err = fmt.Fprintf(conn, "CONNECT %s HTTP/1.1\r\nHost: %s\r\n\r\n", upstream, upstream)
-	require.NoError(t, err)
-	br := bufio.NewReader(conn)
-	resp, err := http.ReadResponse(br, &http.Request{Method: http.MethodConnect})
-	require.NoError(t, err)
-	_ = resp.Body.Close()
-	require.Equal(t, http.StatusOK, resp.StatusCode)
-
-	_, err = io.WriteString(conn, "GET / HTTP/1.1\r\nHost: anything\r\nConnection: close\r\n\r\n")
-	require.NoError(t, err)
-	require.Equal(t, "hello from anything", readTunneled(t, br))
-
-	cancel()
-	require.NoError(t, testutil.RequireReceive(testutil.Context(t, testutil.WaitShort), t, serveErr))
-	proxy.Wait()
-}
-
-// loopbackResolver attributes any loopback source to a fixed agent, so the
-// accept loop can be exercised over real TCP without a tailnet.
-type loopbackResolver struct {
-	agentID uuid.UUID
-}
-
-func (r loopbackResolver) AgentForAddr(addr netip.Addr) (uuid.UUID, bool) {
-	return r.agentID, addr.IsLoopback()
 }

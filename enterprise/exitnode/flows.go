@@ -1,6 +1,7 @@
 package exitnode
 
 import (
+	"cmp"
 	"context"
 	"slices"
 	"sync"
@@ -70,15 +71,9 @@ type FlowReporter struct {
 
 // NewFlowReporter starts a reporter. Call Close to flush and stop it.
 func NewFlowReporter(ctx context.Context, opts FlowReporterOptions) *FlowReporter {
-	if opts.FlushInterval <= 0 {
-		opts.FlushInterval = defaultFlowFlushInterval
-	}
-	if opts.BatchSize <= 0 {
-		opts.BatchSize = defaultFlowBatchSize
-	}
-	if opts.MaxQueue <= 0 {
-		opts.MaxQueue = defaultFlowMaxQueue
-	}
+	opts.FlushInterval = cmp.Or(max(opts.FlushInterval, 0), defaultFlowFlushInterval)
+	opts.BatchSize = cmp.Or(max(opts.BatchSize, 0), defaultFlowBatchSize)
+	opts.MaxQueue = cmp.Or(max(opts.MaxQueue, 0), defaultFlowMaxQueue)
 	if opts.Clock == nil {
 		opts.Clock = quartz.NewReal()
 	}
@@ -135,7 +130,6 @@ func (r *FlowReporter) run() {
 		case <-ticker.C:
 		case <-r.flushCh:
 		}
-		// Keep sending while full batches go out; there may be more waiting.
 		for {
 			sent, err := r.flushOnce(r.ctx)
 			if err == nil {

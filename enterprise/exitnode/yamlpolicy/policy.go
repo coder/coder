@@ -3,6 +3,7 @@
 package yamlpolicy
 
 import (
+	"cmp"
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
@@ -111,6 +112,23 @@ func (r *rule) matchesHost(host string) bool {
 		slices.ContainsFunc(r.suffixes, func(s string) bool { return len(host) > len(s) && strings.HasSuffix(host, s) }))
 }
 
+func (r *rule) matches(flow exitnode.FlowInfo, host string) bool {
+	proto := flow.Protocol
+	if proto == "" {
+		proto = codersdk.ExitNodeProtocolTCP
+	}
+	if !r.matchesProtocol(proto) {
+		return false
+	}
+	if proto == codersdk.ExitNodeProtocolDNS {
+		return (len(r.protocols) > 0 || r.hasHostCriteria()) && r.matchesHost(host)
+	}
+	if !r.matchesIPPort(flow) {
+		return false
+	}
+	return (!flow.HostUnknown || !r.hasHostCriteria()) && r.matchesHost(host)
+}
+
 func (r *rule) decision(reason string) exitnode.Decision {
 	return exitnode.Decision{Allow: r.allow, RuleID: r.id, Reason: fmt.Sprintf(reason, r.id)}
 }
@@ -186,36 +204,25 @@ func (p *Policy) PolicyHash() string {
 func (p *Policy) Evaluate(flow exitnode.FlowInfo) exitnode.Decision {
 	compiled := p.compiled.Load()
 	host := exitnode.NormalizeHost(flow.Host)
-	if flow.Protocol == codersdk.ExitNodeProtocolDNS {
-		// Only the query name is matched, and no match means allow. Rules
-		// that only carry cidrs or ports have nothing to say about a name
-		// and are skipped unless they opt in with protocols: [dns].
-		for _, r := range compiled.rules {
-			if r.matchesProtocol(codersdk.ExitNodeProtocolDNS) && (len(r.protocols) > 0 || r.hasHostCriteria()) && r.matchesHost(host) {
+	for _, r := range compiled.rules {
+		if flow.Protocol == codersdk.ExitNodeProtocolDNS {
+			if r.matches(flow, host) {
 				return r.decision("matched rule %s")
 			}
-		}
-		return exitnode.Decision{Allow: true, Reason: "no dns rule matched"}
-	}
-	proto := flow.Protocol
-	if proto == "" {
-		proto = codersdk.ExitNodeProtocolTCP
-	}
-	for _, r := range compiled.rules {
-		if !r.matchesProtocol(proto) || !r.matchesIPPort(flow) {
 			continue
 		}
-		if flow.HostUnknown && r.hasHostCriteria() {
+		if flow.HostUnknown && r.hasHostCriteria() && r.matchesProtocol(cmp.Or(flow.Protocol, codersdk.ExitNodeProtocolTCP)) && r.matchesIPPort(flow) {
 			if r.allow {
 				return r.decision("provisionally allowed by rule %s pending host")
 			}
-			// A host-based deny cannot be applied until the host is known;
-			// a later rule or the default decides for now.
 			continue
 		}
-		if r.matchesHost(host) {
+		if r.matches(flow, host) {
 			return r.decision("matched rule %s")
 		}
+	}
+	if flow.Protocol == codersdk.ExitNodeProtocolDNS {
+		return exitnode.Decision{Allow: true, Reason: "no dns rule matched"}
 	}
 	if compiled.defaultAllow {
 		return exitnode.Decision{Allow: true, Reason: "default allow"}

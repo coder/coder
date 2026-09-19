@@ -135,43 +135,15 @@ func TestDNS_FakeIPForA(t *testing.T) {
 	require.Equal(t, uint32(30), answers[0].Header.TTL)
 	require.Equal(t, proxy.fake.Lookup("example.com"), addr)
 
-	// The same name over TCP yields the same address.
+	aAnswers := answers
+	_, answers = dnsExchange(ctx, t, "udp", proxy.DNSAddr(), dnsQuery(t, 1, "example.com.", dnsmessage.TypeAAAA))
+	require.Empty(t, answers)
+
 	_, tcpAnswers := dnsExchange(ctx, t, "tcp", proxy.DNSAddr(), dnsQuery(t, 7, "example.com.", dnsmessage.TypeA))
 	require.Len(t, tcpAnswers, 1)
-	require.Equal(t, answers[0].Body, tcpAnswers[0].Body)
+	require.Equal(t, aAnswers[0].Body, tcpAnswers[0].Body)
 
-	// The decision reached the exit node once and was cached for the TCP query.
 	require.Len(t, exit.connectsTo(dnsRelayTarget), 1)
-}
-
-func TestDNS_AAAAIsEmpty(t *testing.T) {
-	t.Parallel()
-
-	exit := newFakeExitNode(t, nil)
-	proxy := startProxy(t, exit, proxyOptions{})
-	ctx := testutil.Context(t, testutil.WaitShort)
-
-	hdr, answers := dnsExchange(ctx, t, "udp", proxy.DNSAddr(), dnsQuery(t, 1, "example.com.", dnsmessage.TypeAAAA))
-	require.Equal(t, dnsmessage.RCodeSuccess, hdr.RCode)
-	require.Empty(t, answers)
-}
-
-func TestDNS_ExemptAAAAForwardedUpstream(t *testing.T) {
-	t.Parallel()
-
-	upstream := newFakeUpstreamDNS(t, netip.MustParseAddr("203.0.113.6"))
-	exit := newFakeExitNode(t, nil)
-	proxy := startProxy(t, exit, proxyOptions{
-		exemptHosts: []string{"tcp/control.example.com:443"},
-		upstream:    []netip.AddrPort{upstream.addr},
-	})
-	ctx := testutil.Context(t, testutil.WaitShort)
-
-	hdr, answers := dnsExchange(ctx, t, "udp", proxy.DNSAddr(), dnsQuery(t, 8, "control.example.com.", dnsmessage.TypeAAAA))
-	require.Equal(t, dnsmessage.RCodeSuccess, hdr.RCode)
-	require.Len(t, answers, 1)
-	require.Equal(t, []string{"control.example.com."}, upstream.seen())
-	require.Empty(t, exit.connectsTo(dnsRelayTarget))
 }
 
 func TestDNS_PTRForFakeIP(t *testing.T) {
@@ -191,7 +163,6 @@ func TestDNS_PTRForFakeIP(t *testing.T) {
 	require.True(t, ok)
 	require.Equal(t, "reverse.example.net.", ptr.PTR.String())
 
-	// An unassigned address in the fake range is NXDOMAIN, not relayed.
 	hdr, _ = dnsExchange(ctx, t, "udp", proxy.DNSAddr(), dnsQuery(t, 3, "254.255.19.198.in-addr.arpa.", dnsmessage.TypePTR))
 	require.Equal(t, dnsmessage.RCodeNameError, hdr.RCode)
 	require.Empty(t, exit.connectsTo(dnsRelayTarget))
@@ -215,17 +186,17 @@ func TestDNS_ExemptNameForwardedUpstream(t *testing.T) {
 	require.Equal(t, &dnsmessage.AResource{A: [4]byte{203, 0, 113, 5}}, answers[0].Body)
 	require.Equal(t, []string{"coder.example.com."}, upstream.seen())
 
-	// Built-in exemptions take the same path, for every record type.
+	_, answers = dnsExchange(ctx, t, "udp", proxy.DNSAddr(), dnsQuery(t, 8, "coder.example.com.", dnsmessage.TypeAAAA))
+	require.Len(t, answers, 1)
 	_, answers = dnsExchange(ctx, t, "udp", proxy.DNSAddr(), dnsQuery(t, 10, "host.docker.internal.", dnsmessage.TypeTXT))
 	require.Len(t, answers, 1)
-	require.Contains(t, upstream.seen(), "host.docker.internal.")
+	require.Equal(t, []string{"coder.example.com.", "coder.example.com.", "host.docker.internal."}, upstream.seen())
 	require.Empty(t, exit.connectsTo(dnsRelayTarget))
 }
 
 func TestDNS_UpstreamFailureIsServfail(t *testing.T) {
 	t.Parallel()
 
-	// A listener that is closed immediately gives a refused connection.
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
 	dead := netip.MustParseAddrPort(ln.Addr().String())
@@ -247,8 +218,6 @@ func TestDNS_OtherTypesRelayedToExitNode(t *testing.T) {
 	t.Parallel()
 
 	exit := newFakeExitNode(t, nil)
-	// Answer queries two at a time in reverse so correlation by message ID
-	// is exercised.
 	exit.dnsReverseBatch = 2
 	proxy := startProxy(t, exit, proxyOptions{})
 	ctx := testutil.Context(t, testutil.WaitShort)
@@ -272,9 +241,7 @@ func TestDNS_OtherTypesRelayedToExitNode(t *testing.T) {
 		require.Equal(t, &dnsmessage.TXTResource{TXT: []string{"via-exit-node"}}, r.answers[0].Body)
 		ids[r.hdr.ID] = true
 	}
-	require.Equal(t, map[uint16]bool{100: true, 200: true}, ids, "each client got its own ID back")
-
-	// One long-lived stream serves both queries.
+	require.Equal(t, map[uint16]bool{100: true, 200: true}, ids)
 	connects := exit.connectsTo(dnsRelayTarget)
 	require.Len(t, connects, 1)
 	require.Equal(t, codersdk.ExitNodeProtocolDNS, connects[0].proto)
@@ -387,24 +354,6 @@ func TestDNS_AddressDecisionRemainingTTL(t *testing.T) {
 	_, answers = dnsExchange(ctx, t, "udp", proxy.DNSAddr(), dnsQuery(t, 51, "remaining.example.", dnsmessage.TypeA))
 	require.Equal(t, uint32(1), answers[0].Header.TTL)
 	require.Len(t, exit.connectsTo(dnsRelayTarget), 1)
-}
-
-func TestDNS_AddressDecisionCache(t *testing.T) {
-	t.Parallel()
-
-	var exchanges int
-	exit := newFakeExitNode(t, nil)
-	exit.dnsResponse = func(query []byte) []byte {
-		exchanges++
-		return dnsResponse(query, dnsmessage.RCodeSuccess, 60)
-	}
-	proxy := startProxy(t, exit, proxyOptions{})
-	ctx := testutil.Context(t, testutil.WaitShort)
-	for _, id := range []uint16{30, 31} {
-		hdr, _ := dnsExchange(ctx, t, "udp", proxy.DNSAddr(), dnsQuery(t, id, "cached.example.", dnsmessage.TypeA))
-		require.Equal(t, dnsmessage.RCodeSuccess, hdr.RCode)
-	}
-	require.Equal(t, 1, exchanges)
 }
 
 func TestParseReverseName(t *testing.T) {

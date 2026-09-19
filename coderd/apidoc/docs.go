@@ -22349,7 +22349,7 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "replicas": {
-                    "description": "Replicas lists every replica that has ever registered, including\nstale and stopped ones, newest last.",
+                    "description": "Replicas includes live, stale, and stopped replicas.",
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/codersdk.ExitNodeReplica"
@@ -24045,7 +24045,7 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "replicas": {
-                    "description": "Replicas lists every replica that has ever registered, including\nstale and stopped ones, newest last.",
+                    "description": "Replicas includes live, stale, and stopped replicas.",
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/codersdk.ExitNodeReplica"
@@ -24187,7 +24187,7 @@ const docTemplate = `{
                     "format": "date-time"
                 },
                 "tailnet_address": {
-                    "description": "TailnetAddress is the deterministic tailnet IP derived from the\nserver-assigned peer ID.",
+                    "description": "TailnetAddress is derived from the server-assigned peer ID.",
                     "type": "string"
                 },
                 "updated_at": {
@@ -24198,7 +24198,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "wireguard_endpoints": {
-                    "description": "WireguardEndpoints are the public ip:port pairs agents may use for\ndirect WireGuard connections. Agents exempt them from enforcement.",
+                    "description": "WireguardEndpoints are direct endpoints agents exempt from enforcement.",
                     "type": "array",
                     "items": {
                         "type": "string"
@@ -28366,7 +28366,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "replica_id": {
-                    "description": "ReplicaID is generated once per process start. Coderd combines it with\nthe exit node ID to derive a distinct tailnet peer ID. Required.",
+                    "description": "ReplicaID is generated once per process and is required.",
                     "type": "string",
                     "format": "uuid"
                 },
@@ -28385,7 +28385,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "agent_ids": {
-                    "description": "AgentIDs are the workspace agents this exit node must open tunnels\nto. Coderd computes the set from templates bound to the exit node.",
+                    "description": "AgentIDs are workspace agents bound to this exit node.",
                     "type": "array",
                     "items": {
                         "type": "string",
@@ -29036,11 +29036,11 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "exit_node_enforce": {
-                    "description": "ExitNodeEnforce requests transparent enforcement in the workspace so\ntraffic cannot bypass the exit nodes. Ignored when ExitNodeIDs is empty.",
+                    "description": "ExitNodeEnforce requests transparent egress enforcement.",
                     "type": "boolean"
                 },
                 "exit_node_ids": {
-                    "description": "ExitNodeIDs route egress from workspaces built from this template\nthrough the listed exit nodes in preference order. An empty list leaves\negress unmanaged.",
+                    "description": "ExitNodeIDs route egress through nodes in preference order.",
                     "type": "array",
                     "items": {
                         "type": "string",
@@ -30710,11 +30710,11 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "exit_node_enforce": {
-                    "description": "ExitNodeEnforce toggles transparent enforcement for the exit node\nbinding. Omitting the field keeps the existing value.",
+                    "description": "ExitNodeEnforce replaces the enforcement setting when provided.",
                     "type": "boolean"
                 },
                 "exit_node_ids": {
-                    "description": "ExitNodeIDs bind the template to exit nodes in preference order. An\nexplicit empty list clears the binding. Omitting the field keeps the\nexisting value.",
+                    "description": "ExitNodeIDs replace the node preference order when provided.",
                     "type": "array",
                     "items": {
                         "type": "string",

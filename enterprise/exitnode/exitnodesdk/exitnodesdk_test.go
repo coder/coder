@@ -23,44 +23,34 @@ import (
 const testToken = "7d9b3d9c-6d7e-4d3e-9d1a-2f3a4b5c6d7e:supersecret"
 
 type fakeCoderd struct {
-	t                *testing.T
-	agentSets        [][]uuid.UUID
-	registers        atomic.Int32
-	registerRequests chan codersdk.RegisterExitNodeRequest
-	deregisters      chan codersdk.DeregisterExitNodeRequest
-	flows            chan codersdk.ReportExitNodeFlowsRequest
-	tokens           chan string
-	wsHeaders        chan http.Header
-	wsQueries        chan url.Values
+	agents      [][]uuid.UUID
+	calls       atomic.Int32
+	registers   chan codersdk.RegisterExitNodeRequest
+	deregisters chan codersdk.DeregisterExitNodeRequest
+	flows       chan codersdk.ReportExitNodeFlowsRequest
+	tokens      chan string
+	wsHeaders   chan http.Header
+	wsQueries   chan url.Values
 }
 
-func newFakeCoderd(t *testing.T, agentSets ...[]uuid.UUID) (*fakeCoderd, *url.URL) {
-	f := &fakeCoderd{
-		t:                t,
-		agentSets:        agentSets,
-		registerRequests: make(chan codersdk.RegisterExitNodeRequest, 16),
-		deregisters:      make(chan codersdk.DeregisterExitNodeRequest, 4),
-		flows:            make(chan codersdk.ReportExitNodeFlowsRequest, 8),
-		tokens:           make(chan string, 16),
-		wsHeaders:        make(chan http.Header, 1),
-		wsQueries:        make(chan url.Values, 1),
-	}
+func newFakeCoderd(t *testing.T, agents ...[]uuid.UUID) (*fakeCoderd, *url.URL) {
+	t.Helper()
+	f := &fakeCoderd{agents: agents, registers: make(chan codersdk.RegisterExitNodeRequest, 16),
+		deregisters: make(chan codersdk.DeregisterExitNodeRequest, 4), flows: make(chan codersdk.ReportExitNodeFlowsRequest, 8),
+		tokens: make(chan string, 16), wsHeaders: make(chan http.Header, 1), wsQueries: make(chan url.Values, 1)}
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /api/v2/exitnodes/me/register", func(w http.ResponseWriter, r *http.Request) {
 		f.tokens <- r.Header.Get(codersdk.ExitNodeTokenHeader)
 		var req codersdk.RegisterExitNodeRequest
 		require.NoError(t, json.NewDecoder(r.Body).Decode(&req))
-		f.registerRequests <- req
-		n := int(f.registers.Add(1)) - 1
-		var agents []uuid.UUID
-		if len(f.agentSets) > 0 {
-			agents = f.agentSets[min(n, len(f.agentSets)-1)]
+		f.registers <- req
+		n := int(f.calls.Add(1)) - 1
+		var ids []uuid.UUID
+		if len(agents) > 0 {
+			ids = agents[min(n, len(agents)-1)]
 		}
 		w.WriteHeader(http.StatusCreated)
-		_ = json.NewEncoder(w).Encode(codersdk.RegisterExitNodeResponse{
-			DERPMap:  &tailcfg.DERPMap{Regions: map[int]*tailcfg.DERPRegion{}},
-			AgentIDs: agents,
-		})
+		_ = json.NewEncoder(w).Encode(codersdk.RegisterExitNodeResponse{DERPMap: &tailcfg.DERPMap{Regions: map[int]*tailcfg.DERPRegion{}}, AgentIDs: ids})
 	})
 	mux.HandleFunc("POST /api/v2/exitnodes/me/deregister", func(w http.ResponseWriter, r *http.Request) {
 		var req codersdk.DeregisterExitNodeRequest
@@ -80,237 +70,123 @@ func newFakeCoderd(t *testing.T, agentSets ...[]uuid.UUID) (*fakeCoderd, *url.UR
 		f.wsQueries <- r.URL.Query()
 		w.WriteHeader(http.StatusUnauthorized)
 	})
-	srv := httptest.NewServer(mux)
-	t.Cleanup(srv.Close)
-	u, err := url.Parse(srv.URL)
-	require.NoError(t, err)
-	return f, u
+	return f, serverURL(t, mux)
 }
-
-func TestClient_SendsTokenHeader(t *testing.T) {
+func TestClient(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
-	agent := uuid.New()
+	agent, replica := uuid.New(), uuid.New()
 	fake, u := newFakeCoderd(t, []uuid.UUID{agent})
 	client := exitnodesdk.New(u, testToken)
-	replicaID := uuid.New()
-
-	resp, err := client.Register(ctx, codersdk.RegisterExitNodeRequest{ReplicaID: replicaID, Version: "test"})
+	resp, err := client.Register(ctx, codersdk.RegisterExitNodeRequest{ReplicaID: replica})
 	require.NoError(t, err)
 	require.Equal(t, []uuid.UUID{agent}, resp.AgentIDs)
 	require.NotNil(t, resp.DERPMap)
 	require.Equal(t, testToken, testutil.RequireReceive(ctx, t, fake.tokens))
-
 	report := codersdk.ExitNodeFlowReport{FlowID: uuid.New(), AgentID: agent, Decision: codersdk.ExitNodeFlowDeny}
-	err = client.ReportFlows(ctx, codersdk.ReportExitNodeFlowsRequest{Flows: []codersdk.ExitNodeFlowReport{report}})
-	require.NoError(t, err)
+	require.NoError(t, client.ReportFlows(ctx, codersdk.ReportExitNodeFlowsRequest{Flows: []codersdk.ExitNodeFlowReport{report}}))
 	require.Equal(t, testToken, testutil.RequireReceive(ctx, t, fake.tokens))
-	got := testutil.RequireReceive(ctx, t, fake.flows)
-	require.Len(t, got.Flows, 1)
-	require.Equal(t, report.FlowID, got.Flows[0].FlowID)
-
-	dialer, err := client.TailnetDialer(replicaID)
+	require.Equal(t, report.FlowID, testutil.RequireReceive(ctx, t, fake.flows).Flows[0].FlowID)
+	dialer, err := client.TailnetDialer(replica)
 	require.NoError(t, err)
 	_, err = dialer.Dial(ctx, nil)
 	require.Error(t, err)
-	hdr := testutil.RequireReceive(ctx, t, fake.wsHeaders)
-	require.Equal(t, testToken, hdr.Get(codersdk.ExitNodeTokenHeader))
-	query := testutil.RequireReceive(ctx, t, fake.wsQueries)
-	require.Equal(t, replicaID.String(), query.Get(codersdk.ExitNodeCoordinateReplicaIDParam))
+	require.Equal(t, testToken, testutil.RequireReceive(ctx, t, fake.wsHeaders).Get(codersdk.ExitNodeTokenHeader))
+	require.Equal(t, replica.String(), testutil.RequireReceive(ctx, t, fake.wsQueries).Get(codersdk.ExitNodeCoordinateReplicaIDParam))
 }
-
-func TestClient_RegisterLoopDeliversAgentChanges(t *testing.T) {
+func TestRegisterLoopHeartbeatAndMutation(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
-	first := []uuid.UUID{uuid.New()}
-	second := []uuid.UUID{uuid.New(), uuid.New()}
+	first, second := []uuid.UUID{uuid.New()}, []uuid.UUID{uuid.New(), uuid.New()}
 	fake, u := newFakeCoderd(t, first, second)
-	mClock := quartz.NewMock(t)
-	tickerTrap := mClock.Trap().NewTicker("exitnodesdk", "register")
-	defer tickerTrap.Close()
-
-	replicaID := uuid.New()
-	client := exitnodesdk.New(u, testToken)
-	callbacks := make(chan codersdk.RegisterExitNodeResponse, 4)
-	loop, initial, err := client.RegisterLoop(ctx, exitnodesdk.RegisterLoopOpts{
-		Logger:   testutil.Logger(t),
-		Interval: 5 * time.Second,
-		Clock:    mClock,
-		Request:  codersdk.RegisterExitNodeRequest{ReplicaID: replicaID},
-		CallbackFn: func(res codersdk.RegisterExitNodeResponse) error {
-			callbacks <- res
-			return nil
-		},
+	clock := quartz.NewMock(t)
+	trap := clock.Trap().NewTicker("exitnodesdk", "register")
+	defer trap.Close()
+	replica, hash := uuid.New(), "first"
+	callbacks := make(chan codersdk.RegisterExitNodeResponse, 1)
+	loop, initial, err := exitnodesdk.New(u, testToken).RegisterLoop(ctx, exitnodesdk.RegisterLoopOpts{
+		Logger: testutil.Logger(t), Clock: clock, Request: codersdk.RegisterExitNodeRequest{ReplicaID: replica},
+		MutateFn:   func(req *codersdk.RegisterExitNodeRequest) { req.PolicyHash = hash },
+		CallbackFn: func(res codersdk.RegisterExitNodeResponse) error { callbacks <- res; return nil },
 	})
 	require.NoError(t, err)
 	require.Equal(t, first, initial.AgentIDs)
-
-	call := tickerTrap.MustWait(ctx)
-	call.MustRelease(ctx)
-	mClock.Advance(5 * time.Second).MustWait(ctx)
-	res := testutil.RequireReceive(ctx, t, callbacks)
-	require.Equal(t, second, res.AgentIDs)
+	require.Equal(t, "first", testutil.RequireReceive(ctx, t, fake.registers).PolicyHash)
+	hash = "second"
+	trap.MustWait(ctx).MustRelease(ctx)
+	clock.Advance(5 * time.Second).MustWait(ctx)
+	require.Equal(t, second, testutil.RequireReceive(ctx, t, callbacks).AgentIDs)
+	require.Equal(t, "second", testutil.RequireReceive(ctx, t, fake.registers).PolicyHash)
 	loop.Close()
-	require.Equal(t, replicaID, testutil.RequireReceive(ctx, t, fake.deregisters).ReplicaID)
+	require.Equal(t, replica, testutil.RequireReceive(ctx, t, fake.deregisters).ReplicaID)
 }
-
-func TestClient_RegisterLoopRequestAndMutation(t *testing.T) {
+func TestRegisterLoopFailuresDeregister(t *testing.T) {
 	t.Parallel()
-	ctx := testutil.Context(t, testutil.WaitShort)
-	fake, u := newFakeCoderd(t)
-	mClock := quartz.NewMock(t)
-	tickerTrap := mClock.Trap().NewTicker("exitnodesdk", "register")
-	defer tickerTrap.Close()
-
-	replicaID := uuid.New()
-	policyHash := "first"
-	client := exitnodesdk.New(u, testToken)
-	loop, _, err := client.RegisterLoop(ctx, exitnodesdk.RegisterLoopOpts{
-		Logger:  testutil.Logger(t),
-		Clock:   mClock,
-		Request: codersdk.RegisterExitNodeRequest{ReplicaID: replicaID, PolicyHash: "stale"},
-		MutateFn: func(req *codersdk.RegisterExitNodeRequest) {
-			req.PolicyHash = policyHash
-		},
-	})
-	require.NoError(t, err)
-
-	first := testutil.RequireReceive(ctx, t, fake.registerRequests)
-	require.Equal(t, replicaID, first.ReplicaID)
-	require.Equal(t, "first", first.PolicyHash)
-
-	policyHash = "second"
-	call := tickerTrap.MustWait(ctx)
-	call.MustRelease(ctx)
-	mClock.Advance(5 * time.Second).MustWait(ctx)
-	second := testutil.RequireReceive(ctx, t, fake.registerRequests)
-	require.Equal(t, replicaID, second.ReplicaID)
-	require.Equal(t, "second", second.PolicyHash)
-	loop.Close()
-}
-
-func TestClient_RegisterLoopPermanentFailureDeregisters(t *testing.T) {
-	t.Parallel()
-	ctx := testutil.Context(t, testutil.WaitShort)
-	replicaID := uuid.New()
-	var calls atomic.Int32
-	deregisters := make(chan codersdk.DeregisterExitNodeRequest, 1)
-	mux := http.NewServeMux()
-	mux.HandleFunc("POST /api/v2/exitnodes/me/register", func(w http.ResponseWriter, _ *http.Request) {
-		if calls.Add(1) == 1 {
-			_ = json.NewEncoder(w).Encode(codersdk.RegisterExitNodeResponse{})
-			return
-		}
-		w.WriteHeader(http.StatusBadRequest)
-		_ = json.NewEncoder(w).Encode(codersdk.Response{Message: "replica was stopped"})
-	})
-	mux.HandleFunc("POST /api/v2/exitnodes/me/deregister", func(w http.ResponseWriter, r *http.Request) {
-		var req codersdk.DeregisterExitNodeRequest
-		require.NoError(t, json.NewDecoder(r.Body).Decode(&req))
-		deregisters <- req
-		w.WriteHeader(http.StatusNoContent)
-	})
-	u := newTestServerURL(t, mux)
-	mClock := quartz.NewMock(t)
-	tickerTrap := mClock.Trap().NewTicker("exitnodesdk", "register")
-	defer tickerTrap.Close()
-	failures := make(chan error, 1)
-
-	client := exitnodesdk.New(u, testToken)
-	loop, _, err := client.RegisterLoop(ctx, exitnodesdk.RegisterLoopOpts{
-		Logger:          testutil.Logger(t),
-		Clock:           mClock,
-		MaxFailureCount: 10,
-		Request:         codersdk.RegisterExitNodeRequest{ReplicaID: replicaID},
-		FailureFn: func(err error) {
-			failures <- err
-		},
-	})
-	require.NoError(t, err)
-	call := tickerTrap.MustWait(ctx)
-	call.MustRelease(ctx)
-	mClock.Advance(5 * time.Second).MustWait(ctx)
-	require.ErrorContains(t, testutil.RequireReceive(ctx, t, failures), "permanent registration failure")
-	require.Equal(t, replicaID, testutil.RequireReceive(ctx, t, deregisters).ReplicaID)
-	loop.Close()
-	require.EqualValues(t, 2, calls.Load())
-}
-
-func TestClient_RegisterLoopMaxFailuresDeregisters(t *testing.T) {
-	t.Parallel()
-	ctx := testutil.Context(t, testutil.WaitShort)
-	replicaID := uuid.New()
-	var calls atomic.Int32
-	attempts := make(chan struct{}, 4)
-	deregisters := make(chan codersdk.DeregisterExitNodeRequest, 1)
-	mux := http.NewServeMux()
-	mux.HandleFunc("POST /api/v2/exitnodes/me/register", func(w http.ResponseWriter, _ *http.Request) {
-		attempts <- struct{}{}
-		if calls.Add(1) == 1 {
-			_ = json.NewEncoder(w).Encode(codersdk.RegisterExitNodeResponse{})
-			return
-		}
-		w.WriteHeader(http.StatusServiceUnavailable)
-		_ = json.NewEncoder(w).Encode(codersdk.Response{Message: "unavailable"})
-	})
-	mux.HandleFunc("POST /api/v2/exitnodes/me/deregister", func(w http.ResponseWriter, r *http.Request) {
-		var req codersdk.DeregisterExitNodeRequest
-		require.NoError(t, json.NewDecoder(r.Body).Decode(&req))
-		deregisters <- req
-		w.WriteHeader(http.StatusNoContent)
-	})
-	u := newTestServerURL(t, mux)
-	mClock := quartz.NewMock(t)
-	tickerTrap := mClock.Trap().NewTicker("exitnodesdk", "register")
-	defer tickerTrap.Close()
-	failures := make(chan error, 1)
-
-	client := exitnodesdk.New(u, testToken)
-	loop, _, err := client.RegisterLoop(ctx, exitnodesdk.RegisterLoopOpts{
-		Logger:          testutil.Logger(t),
-		Clock:           mClock,
-		MaxFailureCount: 2,
-		Request:         codersdk.RegisterExitNodeRequest{ReplicaID: replicaID},
-		FailureFn: func(err error) {
-			failures <- err
-		},
-	})
-	require.NoError(t, err)
-	testutil.RequireReceive(ctx, t, attempts)
-	call := tickerTrap.MustWait(ctx)
-	call.MustRelease(ctx)
-	for range 3 {
-		mClock.Advance(5 * time.Second).MustWait(ctx)
-		testutil.RequireReceive(ctx, t, attempts)
+	for _, tt := range []struct {
+		name, want         string
+		status, max, ticks int
+	}{
+		{"permanent", "permanent registration failure", http.StatusBadRequest, 10, 1},
+		{"max failures", "exceeded re-registration failure count of 2", http.StatusServiceUnavailable, 2, 3},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitShort)
+			replica := uuid.New()
+			var calls atomic.Int32
+			attempts := make(chan struct{}, tt.ticks+1)
+			deregisters := make(chan codersdk.DeregisterExitNodeRequest, 1)
+			mux := http.NewServeMux()
+			mux.HandleFunc("POST /api/v2/exitnodes/me/register", func(w http.ResponseWriter, _ *http.Request) {
+				attempts <- struct{}{}
+				if calls.Add(1) == 1 {
+					_ = json.NewEncoder(w).Encode(codersdk.RegisterExitNodeResponse{})
+					return
+				}
+				w.WriteHeader(tt.status)
+				_ = json.NewEncoder(w).Encode(codersdk.Response{Message: "failed"})
+			})
+			mux.HandleFunc("POST /api/v2/exitnodes/me/deregister", func(w http.ResponseWriter, r *http.Request) {
+				var req codersdk.DeregisterExitNodeRequest
+				require.NoError(t, json.NewDecoder(r.Body).Decode(&req))
+				deregisters <- req
+				w.WriteHeader(http.StatusNoContent)
+			})
+			clock := quartz.NewMock(t)
+			trap := clock.Trap().NewTicker("exitnodesdk", "register")
+			defer trap.Close()
+			failures := make(chan error, 1)
+			loop, _, err := exitnodesdk.New(serverURL(t, mux), testToken).RegisterLoop(ctx, exitnodesdk.RegisterLoopOpts{
+				Logger: testutil.Logger(t), Clock: clock, MaxFailureCount: tt.max,
+				Request: codersdk.RegisterExitNodeRequest{ReplicaID: replica}, FailureFn: func(err error) { failures <- err },
+			})
+			require.NoError(t, err)
+			testutil.RequireReceive(ctx, t, attempts)
+			trap.MustWait(ctx).MustRelease(ctx)
+			for range tt.ticks {
+				clock.Advance(5 * time.Second).MustWait(ctx)
+				testutil.RequireReceive(ctx, t, attempts)
+			}
+			require.ErrorContains(t, testutil.RequireReceive(ctx, t, failures), tt.want)
+			require.Equal(t, replica, testutil.RequireReceive(ctx, t, deregisters).ReplicaID)
+			loop.Close()
+			require.EqualValues(t, tt.ticks+1, calls.Load())
+		})
 	}
-	require.ErrorContains(t, testutil.RequireReceive(ctx, t, failures), "exceeded re-registration failure count of 2")
-	require.Equal(t, replicaID, testutil.RequireReceive(ctx, t, deregisters).ReplicaID)
-	loop.Close()
-	require.EqualValues(t, 4, calls.Load())
 }
-
-func TestClient_RegisterLoopInitialFailure(t *testing.T) {
+func TestRegisterLoopInitialFailure(t *testing.T) {
 	t.Parallel()
-	ctx := testutil.Context(t, testutil.WaitShort)
-
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	u := serverURL(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusUnauthorized)
 		_ = json.NewEncoder(w).Encode(codersdk.Response{Message: "bad token"})
 	}))
-	t.Cleanup(srv.Close)
-	u, err := url.Parse(srv.URL)
-	require.NoError(t, err)
-
-	client := exitnodesdk.New(u, testToken)
-	_, _, err = client.RegisterLoop(ctx, exitnodesdk.RegisterLoopOpts{
-		Logger:  testutil.Logger(t),
-		Request: codersdk.RegisterExitNodeRequest{ReplicaID: uuid.New()},
-	})
+	_, _, err := exitnodesdk.New(u, testToken).RegisterLoop(t.Context(), exitnodesdk.RegisterLoopOpts{
+		Logger: testutil.Logger(t), Request: codersdk.RegisterExitNodeRequest{ReplicaID: uuid.New()}})
 	require.ErrorContains(t, err, "initial registration")
 	require.NotContains(t, err.Error(), "supersecret")
 }
-
-func newTestServerURL(t *testing.T, handler http.Handler) *url.URL {
+func serverURL(t *testing.T, handler http.Handler) *url.URL {
+	t.Helper()
 	srv := httptest.NewServer(handler)
 	t.Cleanup(srv.Close)
 	u, err := url.Parse(srv.URL)

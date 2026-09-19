@@ -1,91 +1,72 @@
 # Replace every example label, namespace, CIDR, and port before applying this policy.
-# This policy selects workspace pods and denies all egress except the rules listed here.
-#
-# Also drop NET_RAW from the workspace container when the workload does not need raw sockets.
-# Keep the agent's required privileges, such as NET_ADMIN, according to your deployment model.
-# Add this block to the workspace container in the Pod template, not to this NetworkPolicy:
-# securityContext:
-#   capabilities:
-#     drop:
-#       - NET_RAW
+# Drop NET_RAW from workspace containers when workloads do not need raw sockets.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
   name: workspace-exit-node-boundary
-  namespace: coder-workspaces # Replace with the namespace that contains workspace pods.
+  namespace: coder-workspaces
 spec:
   podSelector:
     matchLabels:
-      coder.com/workspace: "true" # Replace with a label present on every protected workspace pod.
+      coder.com/workspace: "true"
   policyTypes:
-    - Egress # Deny egress except for the destinations listed here.
+    - Egress
   egress:
-    # Allow the workspace pod to reach the cluster DNS pods.
-    # Only agent-owned, marked sockets use this destination directly for exempt-name and control-plane resolution.
-    # DNS from every other workspace process is captured by the agent's local DNS proxy.
+    # Approved cluster DNS resolvers.
     - to:
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: kube-system
           podSelector:
             matchLabels:
-              k8s-app: kube-dns # Replace if your cluster DNS pods use another label.
+              k8s-app: kube-dns
       ports:
         - protocol: UDP
           port: 53
         - protocol: TCP
           port: 53
 
-    # Allow coderd through namespace and pod selectors when coderd runs in the same cluster.
-    # Match only the TCP port in the agent's tcp/host:port control-plane exemption.
+    # In-cluster Coder control plane.
     - to:
         - namespaceSelector:
             matchLabels:
-              kubernetes.io/metadata.name: coder # Replace with the coderd namespace.
+              kubernetes.io/metadata.name: coder
           podSelector:
             matchLabels:
-              app.kubernetes.io/name: coder # Replace with the labels on coderd pods.
+              app.kubernetes.io/name: coder
       ports:
         - protocol: TCP
-          port: 80 # Replace with the in-cluster coderd service target port.
+          port: 80
 
-    # Allow coderd by address when workspaces use an external access URL.
-    # Match only the TCP port in the agent's tcp/host:port control-plane exemption.
-    # Remove this rule when the selector-based coderd rule is sufficient.
+    # External Coder access URL. Remove when the in-cluster rule is sufficient.
     - to:
         - ipBlock:
-            cidr: 192.0.2.10/32 # Replace with the coderd load balancer or proxy CIDR.
+            cidr: 192.0.2.10/32
       ports:
         - protocol: TCP
-          port: 443 # Replace if the Coder access URL uses another port.
+          port: 443
 
-    # Allow each external DERP relay and STUN endpoint used by the deployment.
-    # DERP exemptions use TCP, while STUN exemptions use UDP, each on its exact configured port.
-    # Add one ipBlock and the matching ports for every endpoint, or remove this rule if unused.
+    # Repeat for every external DERP and STUN endpoint, or remove if unused.
     - to:
         - ipBlock:
-            cidr: 198.51.100.20/32 # Replace with a DERP or STUN endpoint CIDR.
+            cidr: 198.51.100.20/32
       ports:
         - protocol: TCP
-          port: 443 # Replace with the DERP HTTPS port.
+          port: 443
         - protocol: UDP
-          port: 3478 # Replace with the STUN UDP port.
+          port: 3478
 
-    # Allow the primary exit node replica's advertised WireGuard UDP endpoint.
-    # Match the exact udp/host:port exemption advertised to the agent.
-    # Repeat this rule for every stable endpoint that any autoscaled replica can advertise.
+    # Repeat for every advertised exit node WireGuard endpoint.
     - to:
         - ipBlock:
-            cidr: 203.0.113.10/32 # Replace with the primary exit node address.
+            cidr: 203.0.113.10/32
       ports:
         - protocol: UDP
-          port: 51820 # Match --wireguard-listen-port and --wireguard-endpoint.
+          port: 51820
 
-    # Allow another replica or logical exit node's advertised WireGuard UDP endpoint for failover.
-    # Match the exact udp/host:port exemption and repeat this rule for every possible endpoint.
     - to:
         - ipBlock:
-            cidr: 203.0.113.11/32 # Replace with the secondary exit node address.
+            cidr: 203.0.113.11/32
       ports:
         - protocol: UDP
-          port: 51820 # Match the secondary exit node's advertised endpoint.
+          port: 51820

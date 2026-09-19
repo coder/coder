@@ -75,52 +75,46 @@ func TestEnforcerInstallsWithNoLiveExitNodeReplicas(t *testing.T) {
 func TestEnforcerCapabilityLockdown(t *testing.T) {
 	t.Parallel()
 
-	execer := &successfulExecer{}
-	called := false
-	e, err := NewEnforcer(testutil.Logger(t), EnforcerOptions{
-		Execer:    execer,
-		ProxyPort: 41001,
-		DNSPort:   41002,
-		UDPPort:   41003,
-		capabilityLockdown: func() error {
-			called = true
-			return nil
-		},
-	})
-	require.NoError(t, err)
-	registerTransparentUDP(41003)
-	t.Cleanup(func() { unregisterTransparentUDP(41003) })
+	for _, tc := range []struct {
+		name     string
+		port     uint16
+		disabled bool
+	}{
+		{name: "enabled", port: 41001},
+		{name: "disabled", port: 42001, disabled: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			execer := &successfulExecer{}
+			called := false
+			opts := EnforcerOptions{
+				Execer:    execer,
+				ProxyPort: tc.port,
+				DNSPort:   tc.port + 1,
+				UDPPort:   tc.port + 2,
+				capabilityLockdown: func() error {
+					called = true
+					return nil
+				},
+			}
+			if tc.disabled {
+				opts.LockdownCapabilitiesSet = true
+			}
+			e, err := NewEnforcer(testutil.Logger(t), opts)
+			require.NoError(t, err)
+			registerTransparentUDP(opts.UDPPort)
+			t.Cleanup(func() { unregisterTransparentUDP(opts.UDPPort) })
 
-	require.NoError(t, e.Install(t.Context()))
-	require.True(t, called)
-	require.True(t, e.lockedDown)
-	before := execer.count()
-	require.NoError(t, e.Remove(t.Context()))
-	require.Equal(t, before, execer.count(), "Remove must not exec after lockdown")
-}
-
-func TestEnforcerCapabilityLockdownDisabled(t *testing.T) {
-	t.Parallel()
-
-	execer := &successfulExecer{}
-	called := false
-	e, err := NewEnforcer(testutil.Logger(t), EnforcerOptions{
-		Execer:                  execer,
-		ProxyPort:               42001,
-		DNSPort:                 42002,
-		UDPPort:                 42003,
-		LockdownCapabilities:    false,
-		LockdownCapabilitiesSet: true,
-		capabilityLockdown: func() error {
-			called = true
-			return nil
-		},
-	})
-	require.NoError(t, err)
-	registerTransparentUDP(42003)
-	t.Cleanup(func() { unregisterTransparentUDP(42003) })
-
-	require.NoError(t, e.Install(t.Context()))
-	require.False(t, called)
-	require.NoError(t, e.Remove(t.Context()))
+			require.NoError(t, e.Install(t.Context()))
+			require.Equal(t, !tc.disabled, called)
+			before := execer.count()
+			require.NoError(t, e.Remove(t.Context()))
+			if tc.disabled {
+				require.Greater(t, execer.count(), before)
+			} else {
+				require.True(t, e.lockedDown)
+				require.Equal(t, before, execer.count())
+			}
+		})
+	}
 }

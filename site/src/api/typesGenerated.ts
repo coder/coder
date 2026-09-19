@@ -3979,8 +3979,7 @@ export interface CreateExitNodeRequest {
 
 // From codersdk/exitnodes.go
 /**
- * CreateExitNodeResponse carries the token exactly once; coderd stores only a
- * hash.
+ * CreateExitNodeResponse returns the token exactly once.
  */
 export interface CreateExitNodeResponse extends ExitNode {
 	readonly token: string;
@@ -4889,8 +4888,7 @@ export interface DeploymentValues {
 
 // From codersdk/exitnodes.go
 /**
- * DeregisterExitNodeRequest marks a replica stopped. A stopped replica may
- * not register again; a restarted process uses a new ReplicaID.
+ * DeregisterExitNodeRequest permanently stops a replica ID.
  */
 export interface DeregisterExitNodeRequest {
 	readonly replica_id: string;
@@ -5113,8 +5111,7 @@ export const EntitlementsWarningHeader = "X-Coder-Entitlements-Warning";
 
 // From codersdk/exitnodes.go
 /**
- * ExitNode is the admin-created unit that terminates workspace egress. One or
- * more replicas, processes started with the exit node's token, do the work.
+ * ExitNode is an organization-scoped workspace egress endpoint.
  */
 export interface ExitNode {
 	readonly id: string;
@@ -5133,16 +5130,14 @@ export interface ExitNode {
 	 */
 	readonly policy_mismatch: boolean;
 	/**
-	 * Replicas lists every replica that has ever registered, including
-	 * stale and stopped ones, newest last.
+	 * Replicas includes live, stale, and stopped replicas.
 	 */
 	readonly replicas: readonly ExitNodeReplica[];
 }
 
 // From codersdk/exitnodes.go
 /**
- * ExitNodeCoordinateReplicaIDParam is the query parameter naming the replica
- * on the coordinate endpoint. The replica must be live.
+ * ExitNodeCoordinateReplicaIDParam identifies the coordinating replica.
  */
 export const ExitNodeCoordinateReplicaIDParam = "replica_id";
 
@@ -5154,8 +5149,7 @@ export const ExitNodeDenyReasonHeader = "X-Coder-Deny-Reason";
 
 // From codersdk/exitnodes.go
 /**
- * ExitNodeDenyRuleHeader names the policy rule behind a 403 CONNECT
- * response, when one matched.
+ * ExitNodeDenyRuleHeader identifies the denying policy rule.
  */
 export const ExitNodeDenyRuleHeader = "X-Coder-Deny-Rule";
 
@@ -5166,9 +5160,7 @@ export const ExitNodeFlowDecisions: ExitNodeFlowDecision[] = ["allow", "deny"];
 
 // From codersdk/exitnodes.go
 /**
- * ExitNodeFlowReport describes one TCP flow observed by an exit node. The
- * same FlowID is sent twice for allowed flows: once on connect and once on
- * disconnect with byte counts filled in.
+ * ExitNodeFlowReport describes one observed egress flow.
  */
 export interface ExitNodeFlowReport {
 	readonly flow_id: string;
@@ -5195,8 +5187,7 @@ export interface ExitNodeFlowReport {
 
 // From codersdk/exitnodes.go
 /**
- * ExitNodeOriginalHostHeader carries the hostname the workspace dialed
- * when the CONNECT target is an IP literal.
+ * ExitNodeOriginalHostHeader carries the original hostname for IP targets.
  */
 export const ExitNodeOriginalHostHeader = "X-Coder-Original-Host";
 
@@ -5205,10 +5196,7 @@ export type ExitNodeProtocol = "dns" | "tcp" | "udp";
 
 // From codersdk/exitnodes.go
 /**
- * ExitNodeProtocolHeader selects what a CONNECT stream carries. Absent or
- * "tcp" means a raw TCP tunnel to the target. "udp" means a stream of
- * length-prefixed datagrams relayed to one UDP peer. "dns" means a
- * stream of length-prefixed DNS messages resolved by the exit node.
+ * ExitNodeProtocolHeader selects the CONNECT stream protocol.
  */
 export const ExitNodeProtocolHeader = "X-Coder-Protocol";
 
@@ -5216,8 +5204,7 @@ export const ExitNodeProtocols: ExitNodeProtocol[] = ["dns", "tcp", "udp"];
 
 // From codersdk/exitnodes.go
 /**
- * ExitNodeReplica is one running exit node process. Its tailnet peer ID is
- * derived server-side from its exit node and replica IDs.
+ * ExitNodeReplica is one exit node process.
  */
 export interface ExitNodeReplica {
 	readonly id: string;
@@ -5225,8 +5212,7 @@ export interface ExitNodeReplica {
 	readonly hostname: string;
 	readonly version: string;
 	/**
-	 * WireguardEndpoints are the public ip:port pairs agents may use for
-	 * direct WireGuard connections. Agents exempt them from enforcement.
+	 * WireguardEndpoints are direct endpoints agents exempt from enforcement.
 	 */
 	readonly wireguard_endpoints: readonly string[];
 	/**
@@ -5234,8 +5220,7 @@ export interface ExitNodeReplica {
 	 */
 	readonly policy_hash: string;
 	/**
-	 * TailnetAddress is the deterministic tailnet IP derived from the
-	 * server-assigned peer ID.
+	 * TailnetAddress is derived from the server-assigned peer ID.
 	 */
 	readonly tailnet_address: string;
 	readonly status: ExitNodeReplicaStatus;
@@ -5255,8 +5240,7 @@ export const ExitNodeReplicaStatuses: ExitNodeReplicaStatus[] = [
 
 // From codersdk/exitnodes.go
 /**
- * ExitNodeReplicasPubsubChannel carries the ID of an exit node whose live
- * replica set changed, so bound agents can be sent a fresh egress config.
+ * ExitNodeReplicasPubsubChannel carries replica and template updates.
  */
 export const ExitNodeReplicasPubsubChannel = "exit_node_replicas";
 
@@ -5271,15 +5255,13 @@ export const ExitNodeStatuses: ExitNodeStatus[] = [
 
 // From codersdk/exitnodes.go
 /**
- * ExitNodeTailnetPort is the port an exit node listens on inside the
- * tailnet for HTTP CONNECT requests from workspace agents.
+ * ExitNodeTailnetPort accepts agent HTTP CONNECT requests.
  */
 export const ExitNodeTailnetPort = 3128;
 
 // From codersdk/exitnodes.go
 /**
- * ExitNodeTokenHeader authenticates an exit node to coderd. The value is
- * "<exit node ID>:<secret>", mirroring workspace proxy tokens.
+ * ExitNodeTokenHeader authenticates an exit node as "<id>:<secret>".
  */
 export const ExitNodeTokenHeader = "Coder-Exit-Node-Token"; //nolint:gosec // Header name, not a credential.
 
@@ -8485,13 +8467,11 @@ export interface RegionsResponse<R extends RegionTypes> {
 
 // From codersdk/exitnodes.go
 /**
- * RegisterExitNodeRequest is sent by a replica every 5 seconds. It is the
- * replica's heartbeat.
+ * RegisterExitNodeRequest is a replica heartbeat.
  */
 export interface RegisterExitNodeRequest {
 	/**
-	 * ReplicaID is generated once per process start. Coderd combines it with
-	 * the exit node ID to derive a distinct tailnet peer ID. Required.
+	 * ReplicaID is generated once per process and is required.
 	 */
 	readonly replica_id: string;
 	readonly version: string;
@@ -8509,8 +8489,7 @@ export interface RegisterExitNodeResponse {
 	readonly derp_map: TailDERPMap | null;
 	readonly derp_force_websockets: boolean;
 	/**
-	 * AgentIDs are the workspace agents this exit node must open tunnels
-	 * to. Coderd computes the set from templates bound to the exit node.
+	 * AgentIDs are workspace agents bound to this exit node.
 	 */
 	readonly agent_ids: readonly string[];
 	/**
@@ -9517,14 +9496,11 @@ export interface Template {
 	 */
 	readonly allow_workspace_renames: boolean;
 	/**
-	 * ExitNodeIDs route egress from workspaces built from this template
-	 * through the listed exit nodes in preference order. An empty list leaves
-	 * egress unmanaged.
+	 * ExitNodeIDs route egress through nodes in preference order.
 	 */
 	readonly exit_node_ids: readonly string[];
 	/**
-	 * ExitNodeEnforce requests transparent enforcement in the workspace so
-	 * traffic cannot bypass the exit nodes. Ignored when ExitNodeIDs is empty.
+	 * ExitNodeEnforce requests transparent egress enforcement.
 	 */
 	readonly exit_node_enforce: boolean;
 }
@@ -10543,14 +10519,11 @@ export interface UpdateTemplateMeta {
 	 */
 	readonly allow_workspace_renames?: boolean;
 	/**
-	 * ExitNodeIDs bind the template to exit nodes in preference order. An
-	 * explicit empty list clears the binding. Omitting the field keeps the
-	 * existing value.
+	 * ExitNodeIDs replace the node preference order when provided.
 	 */
 	readonly exit_node_ids?: string[];
 	/**
-	 * ExitNodeEnforce toggles transparent enforcement for the exit node
-	 * binding. Omitting the field keeps the existing value.
+	 * ExitNodeEnforce replaces the enforcement setting when provided.
 	 */
 	readonly exit_node_enforce?: boolean;
 }

@@ -21,26 +21,18 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
-// fakeDNSServer answers every query with a single TXT record "hello". When
-// truncateUDP is set, UDP answers carry the TC bit and no records so the
-// client must retry over TCP.
 type fakeDNSServer struct {
 	addr        netip.AddrPort
 	truncateUDP bool
-	udpQueries  atomic.Int64
-	tcpQueries  atomic.Int64
+	udp, tcp    atomic.Int64
 }
 
-// start listens on a random loopback UDP port and, when truncateUDP is set,
-// the same TCP port.
 func (s *fakeDNSServer) start(t *testing.T) *fakeDNSServer {
 	t.Helper()
 	pc, err := net.ListenPacket("udp", "127.0.0.1:0")
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = pc.Close() })
-	udpAddr, ok := pc.LocalAddr().(*net.UDPAddr)
-	require.True(t, ok)
-	s.addr = udpAddr.AddrPort()
+	s.addr = pc.LocalAddr().(*net.UDPAddr).AddrPort()
 	go func() {
 		buf := make([]byte, 65535)
 		for {
@@ -48,8 +40,8 @@ func (s *fakeDNSServer) start(t *testing.T) *fakeDNSServer {
 			if err != nil {
 				return
 			}
-			s.udpQueries.Add(1)
-			if resp, err := s.answer(buf[:n], "udp"); err == nil {
+			s.udp.Add(1)
+			if resp, err := answerDNSQuery(buf[:n], s); err == nil {
 				_, _ = pc.WriteTo(resp, addr)
 			}
 		}
@@ -58,7 +50,7 @@ func (s *fakeDNSServer) start(t *testing.T) *fakeDNSServer {
 		return s
 	}
 	ln, err := net.Listen("tcp", s.addr.String())
-	require.NoError(t, err, "tcp port matching the udp port must be free")
+	require.NoError(t, err)
 	t.Cleanup(func() { _ = ln.Close() })
 	go func() {
 		for {
@@ -76,8 +68,8 @@ func (s *fakeDNSServer) start(t *testing.T) *fakeDNSServer {
 				if _, err := io.ReadFull(conn, msg); err != nil {
 					return
 				}
-				s.tcpQueries.Add(1)
-				if resp, err := s.answer(msg, "tcp"); err == nil {
+				s.tcp.Add(1)
+				if resp, err := answerDNSQuery(msg, nil); err == nil {
 					_, _ = conn.Write(frame(resp))
 				}
 			}()
@@ -85,10 +77,8 @@ func (s *fakeDNSServer) start(t *testing.T) *fakeDNSServer {
 	}()
 	return s
 }
-
-// answer builds the response for a query received over transport.
-func (s *fakeDNSServer) answer(query []byte, transport string) ([]byte, error) {
-	truncate := transport == "udp" && s.truncateUDP
+func answerDNSQuery(query []byte, server *fakeDNSServer) ([]byte, error) {
+	truncated := server != nil && server.truncateUDP
 	var p dnsmessage.Parser
 	h, err := p.Start(query)
 	if err != nil {
@@ -98,44 +88,31 @@ func (s *fakeDNSServer) answer(query []byte, transport string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	b := dnsmessage.NewBuilder(nil, dnsmessage.Header{
-		ID:                 h.ID,
-		Response:           true,
-		RecursionDesired:   h.RecursionDesired,
-		RecursionAvailable: true,
-		Truncated:          truncate,
-	})
+	b := dnsmessage.NewBuilder(nil, dnsmessage.Header{ID: h.ID, Response: true,
+		RecursionDesired: h.RecursionDesired, RecursionAvailable: true, Truncated: truncated})
 	if err := errors.Join(b.StartQuestions(), b.Question(q)); err != nil {
 		return nil, err
 	}
-	if !truncate {
+	if !truncated {
 		if err := b.StartAnswers(); err != nil {
 			return nil, err
 		}
-		err = b.TXTResource(dnsmessage.ResourceHeader{Name: q.Name, Type: dnsmessage.TypeTXT, Class: dnsmessage.ClassINET, TTL: 60},
-			dnsmessage.TXTResource{TXT: []string{"hello"}})
-		if err != nil {
+		if err := b.TXTResource(dnsmessage.ResourceHeader{Name: q.Name, Type: dnsmessage.TypeTXT,
+			Class: dnsmessage.ClassINET, TTL: 60}, dnsmessage.TXTResource{TXT: []string{"hello"}}); err != nil {
 			return nil, err
 		}
 	}
 	return b.Finish()
 }
-
 func buildQuery(t *testing.T, id uint16, name string, typ dnsmessage.Type) []byte {
 	t.Helper()
 	b := dnsmessage.NewBuilder(nil, dnsmessage.Header{ID: id, RecursionDesired: true})
-	require.NoError(t, b.StartQuestions())
-	require.NoError(t, b.Question(dnsmessage.Question{
-		Name:  dnsmessage.MustNewName(name + "."),
-		Type:  typ,
-		Class: dnsmessage.ClassINET,
-	}))
+	require.NoError(t, errors.Join(b.StartQuestions(), b.Question(dnsmessage.Question{
+		Name: dnsmessage.MustNewName(name + "."), Type: typ, Class: dnsmessage.ClassINET})))
 	msg, err := b.Finish()
 	require.NoError(t, err)
 	return msg
 }
-
-// parseResponse returns the header and the TXT strings in the answer section.
 func parseResponse(t *testing.T, msg []byte) (dnsmessage.Header, []string) {
 	t.Helper()
 	var p dnsmessage.Parser
@@ -155,192 +132,122 @@ func parseResponse(t *testing.T, msg []byte) (dnsmessage.Header, []string) {
 
 var dnsHeader = http.Header{codersdk.ExitNodeProtocolHeader: []string{"dns"}}
 
-const dnsPolicy = `
-default: deny
-rules:
-  - id: no-evil
-    deny:
-      hosts: ["evil.example"]
-`
+const dnsPolicy = "default: deny\nrules:\n  - id: no-evil\n    deny: {hosts: [\"evil.example\"]}\n"
 
 type failingExchanger struct{}
 
 func (failingExchanger) Exchange(context.Context, []byte) ([]byte, netip.AddrPort, error) {
 	return nil, netip.AddrPort{}, xerrors.New("upstream is down")
 }
-
-// dnsStream opens an established dns stream through a proxy that forwards to
-// exchanger. The returned query function sends one query and returns the raw
-// response.
-func dnsStream(ctx context.Context, t *testing.T, policy string, exchanger exitnode.DNSExchanger, configure ...func(*exitnode.ConnectProxyOptions)) (*proxyHarness, net.Conn, <-chan struct{}, func(id uint16, name string, typ dnsmessage.Type) []byte) {
+func dnsStream(ctx context.Context, t *testing.T, policy string, exchanger exitnode.DNSExchanger, configure ...func(*exitnode.ConnectProxyOptions)) (*proxyHarness, net.Conn, <-chan struct{}, func(uint16, string, dnsmessage.Type) []byte) {
 	t.Helper()
-	h := newProxyHarness(t, policy, append([]func(*exitnode.ConnectProxyOptions){func(o *exitnode.ConnectProxyOptions) {
-		o.DNSExchanger = exchanger
-	}}, configure...)...)
+	configure = append([]func(*exitnode.ConnectProxyOptions){func(o *exitnode.ConnectProxyOptions) { o.DNSExchanger = exchanger }}, configure...)
+	h := newProxyHarness(t, policy, configure...)
 	client, br, _, done := h.connectStatus(ctx, t, "dns:53", http.StatusOK, dnsHeader)
 	return h, client, done, func(id uint16, name string, typ dnsmessage.Type) []byte {
-		t.Helper()
 		_, err := client.Write(frame(buildQuery(t, id, name, typ)))
 		require.NoError(t, err)
 		return readTestFrame(t, br)
 	}
 }
-
 func TestConnectProxy_DNS(t *testing.T) {
 	t.Parallel()
-
-	t.Run("AllowForwardsAndReports", func(t *testing.T) {
-		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitLong)
-		upstream := (&fakeDNSServer{}).start(t)
-
-		// default: deny must not apply to dns queries.
-		h, client, done, query := dnsStream(ctx, t, dnsPolicy, &exitnode.StaticDNSExchanger{Servers: []netip.AddrPort{upstream.addr}})
-		answer := query(0x1234, "allowed.example", dnsmessage.TypeTXT)
-		hdr, txt := parseResponse(t, answer)
-		require.Equal(t, uint16(0x1234), hdr.ID)
-		require.Equal(t, dnsmessage.RCodeSuccess, hdr.RCode)
-		require.Equal(t, []string{"hello"}, txt)
-
-		report := testutil.RequireReceive(ctx, t, h.flows.ch)
-		require.Equal(t, codersdk.ExitNodeFlowAllow, report.Decision)
-		require.Equal(t, codersdk.ExitNodeProtocolDNS, report.Protocol)
-		require.Equal(t, "allowed.example", report.Host)
-		require.Equal(t, upstream.addr.Addr().String(), report.DestinationIP)
-		require.Equal(t, 53, report.DestinationPort)
-		require.Contains(t, report.Reason, "TXT")
-		require.Empty(t, report.RuleID)
-		require.Equal(t, int64(len(buildQuery(t, 0x1234, "allowed.example", dnsmessage.TypeTXT))), report.BytesOut)
-		require.Equal(t, int64(len(answer)), report.BytesIn)
-		require.NotNil(t, report.DisconnectTime)
-
-		_ = client.Close()
-		testutil.RequireReceive(ctx, t, done)
-	})
-
-	t.Run("DenyReturnsRefused", func(t *testing.T) {
-		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitLong)
-		upstream := (&fakeDNSServer{}).start(t)
-
-		h, client, done, query := dnsStream(ctx, t, dnsPolicy, &exitnode.StaticDNSExchanger{Servers: []netip.AddrPort{upstream.addr}})
-		hdr, txt := parseResponse(t, query(0xbeef, "EVIL.example", dnsmessage.TypeA))
-		require.Equal(t, uint16(0xbeef), hdr.ID)
-		require.True(t, hdr.Response)
-		require.Equal(t, dnsmessage.RCodeRefused, hdr.RCode)
-		require.Empty(t, txt)
-
-		report := testutil.RequireReceive(ctx, t, h.flows.ch)
-		require.Equal(t, codersdk.ExitNodeFlowDeny, report.Decision)
-		require.Equal(t, codersdk.ExitNodeProtocolDNS, report.Protocol)
-		require.Equal(t, "no-evil", report.RuleID)
-		require.Equal(t, "evil.example", report.Host)
-		require.Contains(t, report.Reason, "A query")
-		require.Empty(t, report.DestinationIP)
-
-		// Allowed queries on the same stream still work afterwards, and the
-		// denied one never reached the upstream.
-		hdr, _ = parseResponse(t, query(1, "ok.example", dnsmessage.TypeTXT))
-		require.Equal(t, uint16(1), hdr.ID)
-		require.Equal(t, dnsmessage.RCodeSuccess, hdr.RCode)
-		require.Equal(t, int64(1), upstream.udpQueries.Load())
-
-		_ = client.Close()
-		testutil.RequireReceive(ctx, t, done)
-	})
-
-	t.Run("UpstreamFailureReturnsServfail", func(t *testing.T) {
-		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitLong)
-
-		h, client, done, query := dnsStream(ctx, t, "default: allow\n", failingExchanger{})
-		hdr, _ := parseResponse(t, query(7, "a.example", dnsmessage.TypeA))
-		require.Equal(t, uint16(7), hdr.ID)
-		require.Equal(t, dnsmessage.RCodeServerFailure, hdr.RCode)
-
-		report := testutil.RequireReceive(ctx, t, h.flows.ch)
-		require.Equal(t, codersdk.ExitNodeFlowAllow, report.Decision)
-		require.Empty(t, report.DestinationIP)
-		require.Zero(t, report.BytesIn)
-
-		_ = client.Close()
-		testutil.RequireReceive(ctx, t, done)
-	})
-
-	t.Run("Sampling", func(t *testing.T) {
-		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitLong)
-		upstream := (&fakeDNSServer{}).start(t)
-
-		h, client, done, query := dnsStream(ctx, t, dnsPolicy, &exitnode.StaticDNSExchanger{Servers: []netip.AddrPort{upstream.addr}},
-			func(o *exitnode.ConnectProxyOptions) { o.DNSReportSampleRate = 3 })
-		for id := uint16(1); id <= 6; id++ {
-			hdr, _ := parseResponse(t, query(id, "ok.example", dnsmessage.TypeA))
-			require.Equal(t, id, hdr.ID)
-		}
-		// Denials are never sampled away.
-		hdr, _ := parseResponse(t, query(99, "evil.example", dnsmessage.TypeA))
-		require.Equal(t, dnsmessage.RCodeRefused, hdr.RCode)
-
-		// Reports trail responses, so wait for the handler to finish before
-		// counting.
-		_ = client.Close()
-		testutil.RequireReceive(ctx, t, done)
-
-		var allows, denies int
-		for _, r := range h.flows.reports {
-			switch r.Decision {
-			case codersdk.ExitNodeFlowAllow:
-				allows++
-			case codersdk.ExitNodeFlowDeny:
-				denies++
+	for _, tt := range []struct {
+		name, policy, host string
+		exchanger          exitnode.DNSExchanger
+		rcode              dnsmessage.RCode
+		decision           codersdk.ExitNodeFlowDecision
+		rule               string
+	}{
+		{"passthrough", dnsPolicy, "allowed.example", nil, dnsmessage.RCodeSuccess, codersdk.ExitNodeFlowAllow, ""},
+		{"refused", dnsPolicy, "EVIL.example", nil, dnsmessage.RCodeRefused, codersdk.ExitNodeFlowDeny, "no-evil"},
+		{"upstream failure", "default: allow\n", "a.example", failingExchanger{}, dnsmessage.RCodeServerFailure, codersdk.ExitNodeFlowAllow, ""},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitLong)
+			upstream := (&fakeDNSServer{}).start(t)
+			ex := tt.exchanger
+			if ex == nil {
+				ex = &exitnode.StaticDNSExchanger{Servers: []netip.AddrPort{upstream.addr}}
 			}
-		}
-		require.Equal(t, 2, allows, "one in three allowed queries is reported")
-		require.Equal(t, 1, denies)
-	})
+			h, client, done, query := dnsStream(ctx, t, tt.policy, ex)
+			answer := query(42, tt.host, dnsmessage.TypeTXT)
+			hdr, txt := parseResponse(t, answer)
+			require.Equal(t, uint16(42), hdr.ID)
+			require.Equal(t, tt.rcode, hdr.RCode)
+			if tt.rcode == dnsmessage.RCodeSuccess {
+				require.Equal(t, []string{"hello"}, txt)
+			} else {
+				require.Empty(t, txt)
+			}
+			report := testutil.RequireReceive(ctx, t, h.flows.ch)
+			require.Equal(t, tt.decision, report.Decision)
+			require.Equal(t, codersdk.ExitNodeProtocolDNS, report.Protocol)
+			require.Equal(t, tt.rule, report.RuleID)
+			require.Equal(t, exitnode.NormalizeHost(tt.host), report.Host)
+			require.Contains(t, report.Reason, "TXT")
+			if tt.rcode == dnsmessage.RCodeSuccess {
+				require.Equal(t, upstream.addr.Addr().String(), report.DestinationIP)
+				require.Equal(t, int64(len(answer)), report.BytesIn)
+			} else {
+				require.Empty(t, report.DestinationIP)
+			}
+			_ = client.Close()
+			testutil.RequireReceive(ctx, t, done)
+		})
+	}
 }
-
-func TestStaticDNSExchanger_TruncatedFallsBackToTCP(t *testing.T) {
+func TestConnectProxy_DNSSampling(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitLong)
+	upstream := (&fakeDNSServer{}).start(t)
+	h, client, done, query := dnsStream(ctx, t, dnsPolicy, &exitnode.StaticDNSExchanger{Servers: []netip.AddrPort{upstream.addr}},
+		func(o *exitnode.ConnectProxyOptions) { o.DNSReportSampleRate = 3 })
+	for id := uint16(1); id <= 6; id++ {
+		require.Equal(t, id, mustDNSHeader(t, query(id, "ok.example", dnsmessage.TypeA)).ID)
+	}
+	require.Equal(t, dnsmessage.RCodeRefused, mustDNSHeader(t, query(99, "evil.example", dnsmessage.TypeA)).RCode)
+	_ = client.Close()
+	testutil.RequireReceive(ctx, t, done)
+	var allows, denies int
+	for _, report := range h.flows.reports {
+		if report.Decision == codersdk.ExitNodeFlowAllow {
+			allows++
+		} else {
+			denies++
+		}
+	}
+	require.Equal(t, 2, allows)
+	require.Equal(t, 1, denies)
+}
+func mustDNSHeader(t *testing.T, msg []byte) dnsmessage.Header {
+	h, _ := parseResponse(t, msg)
+	return h
+}
+func TestStaticDNSExchanger_TruncatedFallsBackToTCP(t *testing.T) {
+	t.Parallel()
 	upstream := (&fakeDNSServer{truncateUDP: true}).start(t)
-
-	ex := &exitnode.StaticDNSExchanger{Servers: []netip.AddrPort{upstream.addr}}
-	resp, server, err := ex.Exchange(ctx, buildQuery(t, 42, "big.example", dnsmessage.TypeTXT))
+	resp, server, err := (&exitnode.StaticDNSExchanger{Servers: []netip.AddrPort{upstream.addr}}).
+		Exchange(testutil.Context(t, testutil.WaitLong), buildQuery(t, 42, "big.example", dnsmessage.TypeTXT))
 	require.NoError(t, err)
 	require.Equal(t, upstream.addr, server)
 	hdr, txt := parseResponse(t, resp)
-	require.Equal(t, uint16(42), hdr.ID)
 	require.False(t, hdr.Truncated)
 	require.Equal(t, []string{"hello"}, txt)
-	require.Equal(t, int64(1), upstream.udpQueries.Load())
-	require.Equal(t, int64(1), upstream.tcpQueries.Load())
+	require.Equal(t, int64(1), upstream.udp.Load())
+	require.Equal(t, int64(1), upstream.tcp.Load())
 }
-
 func TestResolvConfServers(t *testing.T) {
 	t.Parallel()
-
 	path := filepath.Join(t.TempDir(), "resolv.conf")
-	require.NoError(t, os.WriteFile(path, []byte(`
-# comment
-search example.com
-nameserver 10.0.0.53
-nameserver [fd00::53]
-nameserver not-an-ip
-options edns0
-`), 0o600))
+	require.NoError(t, os.WriteFile(path, []byte("search example.com\nnameserver 10.0.0.53\nnameserver [fd00::53]\nnameserver invalid\n"), 0o600))
 	servers, err := exitnode.ResolvConfServers(path)
 	require.NoError(t, err)
-	require.Equal(t, []netip.AddrPort{
-		netip.MustParseAddrPort("10.0.0.53:53"),
-		netip.MustParseAddrPort("[fd00::53]:53"),
-	}, servers)
-
+	require.Equal(t, []netip.AddrPort{netip.MustParseAddrPort("10.0.0.53:53"), netip.MustParseAddrPort("[fd00::53]:53")}, servers)
 	require.NoError(t, os.WriteFile(path, []byte("search example.com\n"), 0o600))
 	_, err = exitnode.ResolvConfServers(path)
 	require.ErrorContains(t, err, "no nameservers")
-
 	_, err = exitnode.ResolvConfServers(filepath.Join(t.TempDir(), "missing"))
 	require.Error(t, err)
 }

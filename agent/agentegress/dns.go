@@ -46,11 +46,7 @@ const (
 	dnsWarnInterval      = 30 * time.Second
 )
 
-// dnsServer answers the workspace's DNS queries. Names that are not
-// exempt from egress get placeholder addresses so the eventual TCP or UDP
-// flow can be tunneled by name; everything else is resolved by the system
-// resolvers (exempt names) or by the exit node (record types the fake pool
-// cannot synthesize).
+// dnsServer resolves exempt names and synthesizes fake addresses for egress.
 type dnsServer struct {
 	logger    slog.Logger
 	fake      *fakeIPPool
@@ -61,8 +57,7 @@ type dnsServer struct {
 	clock     quartz.Clock
 	decisions *dnsDecisionCache
 
-	warnMu sync.Mutex
-	warnAt time.Time
+	warn rateLimiter
 
 	udp  *net.UDPConn
 	tcp  net.Listener
@@ -70,7 +65,6 @@ type dnsServer struct {
 	wg   sync.WaitGroup
 }
 
-// listen binds UDP and TCP on the same loopback port.
 func (s *dnsServer) listen(ctx context.Context, host string, preferredPort uint16) error {
 	var lc net.ListenConfig
 	var lastErr error
@@ -158,7 +152,6 @@ func (s *dnsServer) serveTCP(ctx context.Context) {
 	}
 }
 
-// serveTCPConn answers queries on one DNS-over-TCP connection in order.
 func (s *dnsServer) serveTCPConn(ctx context.Context, conn net.Conn) {
 	defer conn.Close()
 	stop := context.AfterFunc(ctx, func() { _ = conn.Close() })
@@ -176,8 +169,7 @@ func (s *dnsServer) serveTCPConn(ctx context.Context, conn net.Conn) {
 	}
 }
 
-// handle produces the response for one query, or nil when the query is
-// too malformed to answer. Responses longer than maxSize are truncated.
+// handle answers one query, truncating responses larger than maxSize.
 func (s *dnsServer) handle(ctx context.Context, msg []byte, maxSize int) []byte {
 	var parser dnsmessage.Parser
 	hdr, err := parser.Start(msg)
@@ -371,25 +363,14 @@ func parseDNSDecision(resp []byte, now time.Time) (dnsDecision, error) {
 }
 
 func (s *dnsServer) warnForwardFailure(ctx context.Context, name string, typ dnsmessage.Type, err error) {
-	if errors.Is(err, ErrNoLiveExitNodeReplicas) {
-		return
+	if !errors.Is(err, ErrNoLiveExitNodeReplicas) && s.warn.allow(s.clock.Now("dns_warning"), dnsWarnInterval) {
+		s.logger.Warn(ctx, "dns decision through exit node failed",
+			slog.F("name", name), slog.F("type", typ.String()), slog.Error(err))
 	}
-	s.warnMu.Lock()
-	now := s.clock.Now("dns_warning")
-	if now.Before(s.warnAt) {
-		s.warnMu.Unlock()
-		return
-	}
-	s.warnAt = now.Add(dnsWarnInterval)
-	s.warnMu.Unlock()
-	s.logger.Warn(ctx, "dns decision through exit node failed",
-		slog.F("name", name), slog.F("type", typ.String()), slog.Error(err))
 }
 
 type dnsExchanger func(ctx context.Context, msg []byte) ([]byte, error)
 
-// forward sends the query verbatim through exchange and returns its answer,
-// or SERVFAIL when the exchange fails.
 func (s *dnsServer) forward(ctx context.Context, hdr dnsmessage.Header, q dnsmessage.Question, msg []byte, exchange dnsExchanger, via string) []byte {
 	ctx, cancel := context.WithTimeout(ctx, dnsExchangeTimeout)
 	defer cancel()
@@ -408,9 +389,7 @@ func (s *dnsServer) forward(ctx context.Context, hdr dnsmessage.Header, q dnsmes
 	return resp
 }
 
-// exchangeUpstream tries each system resolver over TCP. TCP is used because
-// enforcement exempts only TCP/53 to the resolvers; UDP/53 is redirected
-// back into this server.
+// exchangeUpstream tries each system resolver over TCP to avoid UDP capture.
 func (s *dnsServer) exchangeUpstream(ctx context.Context, msg []byte) ([]byte, error) {
 	if len(s.upstream) == 0 {
 		return nil, xerrors.New("no upstream resolvers configured")
@@ -430,8 +409,6 @@ func resolverDialer() net.Dialer {
 	return net.Dialer{Control: bypassControl}
 }
 
-// exchangeTCP performs one DNS-over-TCP round trip using the agent-only
-// control-plane bypass mark.
 func exchangeTCP(ctx context.Context, dial func(context.Context, string, string) (net.Conn, error), addr netip.AddrPort, msg []byte) ([]byte, error) {
 	conn, err := dial(ctx, "tcp", addr.String())
 	if err != nil {
@@ -451,9 +428,7 @@ func exchangeTCP(ctx context.Context, dial func(context.Context, string, string)
 	return resp, nil
 }
 
-// dnsReply packs a response to the query with header req. A nil q omits the
-// question section, which is only appropriate for FORMERR. Answer types are
-// taken from their bodies.
+// dnsReply packs a response and omits a nil question for FORMERR.
 func dnsReply(req dnsmessage.Header, q *dnsmessage.Question, rcode dnsmessage.RCode, answers ...dnsmessage.Resource) []byte {
 	msg := dnsmessage.Message{
 		Header: dnsmessage.Header{
@@ -476,7 +451,6 @@ func dnsReply(req dnsmessage.Header, q *dnsmessage.Question, rcode dnsmessage.RC
 	return out
 }
 
-// parseReverseName turns d.c.b.a.in-addr.arpa into a.b.c.d.
 func parseReverseName(name string) (netip.Addr, bool) {
 	rest, ok := strings.CutSuffix(name, ".in-addr.arpa")
 	if !ok {
@@ -488,17 +462,12 @@ func parseReverseName(name string) (netip.Addr, bool) {
 	return addr, err == nil && addr.Is4()
 }
 
-// dnsRelay multiplexes DNS queries over one long-lived CONNECT stream to
-// the exit node. Responses may arrive out of order, so each in-flight
-// query is given a private message ID and matched on the way back.
+// dnsRelay multiplexes correlated queries over one CONNECT stream.
 type dnsRelay struct {
 	logger  slog.Logger
 	connect connectFunc
 
-	// streamMu serializes opening the stream and writing to it, so the
-	// exit node sees a single long-lived stream and frames never
-	// interleave. Every caller's ctx carries the same exchange timeout, so
-	// a waiter blocked here is released before its own deadline.
+	// streamMu serializes stream creation and frame writes.
 	streamMu sync.Mutex
 	mu       sync.Mutex
 	conn     net.Conn
@@ -545,8 +514,6 @@ func (r *dnsRelay) close() {
 	r.wg.Wait()
 }
 
-// exchange sends msg to the exit node and waits for the matching response.
-// The response carries the caller's original message ID.
 func (r *dnsRelay) exchange(ctx context.Context, msg []byte) ([]byte, error) {
 	if len(msg) < 12 {
 		return nil, xerrors.New("dns message too short")
@@ -593,8 +560,6 @@ func (r *dnsRelay) exchange(ctx context.Context, msg []byte) ([]byte, error) {
 	}
 }
 
-// connLocked returns the shared stream, opening it if needed. Callers hold
-// streamMu.
 func (r *dnsRelay) connLocked(ctx context.Context) (net.Conn, error) {
 	r.mu.Lock()
 	conn, closed := r.conn, r.closed
@@ -630,9 +595,7 @@ func (r *dnsRelay) allocIDLocked() (uint16, bool) {
 	return 0, false
 }
 
-// readLoop dispatches responses to waiting exchanges until the stream
-// breaks, at which point every in-flight query fails and the next exchange
-// reconnects.
+// readLoop dispatches responses until failure wakes all pending exchanges.
 func (r *dnsRelay) readLoop(conn net.Conn) {
 	for {
 		resp, err := readFrame(conn)
@@ -654,8 +617,6 @@ func (r *dnsRelay) readLoop(conn net.Conn) {
 	}
 }
 
-// fail tears down conn if it is still the active stream and wakes every
-// waiter with a closed channel.
 func (r *dnsRelay) fail(conn net.Conn, err error) {
 	r.mu.Lock()
 	if r.conn != conn {

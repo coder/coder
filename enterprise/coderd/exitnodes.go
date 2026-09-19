@@ -82,6 +82,11 @@ func (api *API) postExitNode(rw http.ResponseWriter, r *http.Request) {
 	})
 }
 
+func (api *API) exitNodeResponse(ctx context.Context, rw http.ResponseWriter, node database.ExitNode, now time.Time) (codersdk.ExitNode, bool) {
+	replicas, err := api.Database.GetExitNodeReplicasByExitNode(ctx, node.ID)
+	return convertExitNode(node, replicas, now), !writeExitNodeError(rw, err, "get exit node replicas")
+}
+
 // @Summary List exit nodes
 // @ID list-exit-nodes
 // @Security CoderSessionToken
@@ -99,15 +104,12 @@ func (api *API) exitNodes(rw http.ResponseWriter, r *http.Request) {
 	}
 	now := dbtime.Now()
 	converted := make([]codersdk.ExitNode, 0, len(nodes))
-	// This is intentionally an N+1 query until the database exposes a bulk
-	// replica lookup that preserves exit node ordering.
 	for _, node := range nodes {
-		replicas, err := api.Database.GetExitNodeReplicasByExitNode(ctx, node.ID)
-		if err != nil {
-			httpapi.InternalServerError(rw, xerrors.Errorf("get exit node replicas: %w", err))
+		convertedNode, ok := api.exitNodeResponse(ctx, rw, node, now)
+		if !ok {
 			return
 		}
-		converted = append(converted, convertExitNode(node, replicas, now))
+		converted = append(converted, convertedNode)
 	}
 	httpapi.Write(ctx, rw, http.StatusOK, converted)
 }
@@ -126,12 +128,11 @@ func (api *API) exitNode(rw http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	replicas, err := api.Database.GetExitNodeReplicasByExitNode(r.Context(), node.ID)
-	if err != nil {
-		httpapi.InternalServerError(rw, xerrors.Errorf("get exit node replicas: %w", err))
+	converted, ok := api.exitNodeResponse(r.Context(), rw, node, dbtime.Now())
+	if !ok {
 		return
 	}
-	httpapi.Write(r.Context(), rw, http.StatusOK, convertExitNode(node, replicas, dbtime.Now()))
+	httpapi.Write(r.Context(), rw, http.StatusOK, converted)
 }
 
 // @Summary Delete exit node
@@ -158,8 +159,6 @@ func (api *API) deleteExitNode(rw http.ResponseWriter, r *http.Request) {
 	rw.WriteHeader(http.StatusNoContent)
 }
 
-// exitNodeAudit starts an audit request for an exit node mutation in the
-// organization from ExtractOrganizationParam.
 func (api *API) exitNodeAudit(rw http.ResponseWriter, r *http.Request, action database.AuditAction) (*audit.Request[database.ExitNode], func()) {
 	return audit.InitRequest[database.ExitNode](rw, &audit.RequestParams{
 		Audit:          *api.AGPL.Auditor.Load(),
@@ -170,23 +169,25 @@ func (api *API) exitNodeAudit(rw http.ResponseWriter, r *http.Request, action da
 	})
 }
 
-// writeExitNodeError writes a 404 for missing or unauthorized rows and a 500
-// for any other error. It reports whether a response was written.
-func writeExitNodeError(rw http.ResponseWriter, err error) bool {
-	switch {
-	case err == nil:
+func writeExitNodeError(rw http.ResponseWriter, err error, message ...string) bool {
+	if err == nil {
 		return false
-	case httpapi.Is404Error(err):
+	}
+	if len(message) > 0 {
+		err = xerrors.Errorf("%s: %w", message[0], err)
+	}
+	if httpapi.Is404Error(err) {
 		httpapi.ResourceNotFound(rw)
-	default:
+	} else {
 		httpapi.InternalServerError(rw, err)
 	}
 	return true
 }
 
-// exitNodeParam resolves the {exitnode} URL parameter, which may be an ID or
-// a name, within the organization from ExtractOrganizationParam. Soft-deleted
-// nodes and nodes from other organizations are reported as not found.
+func writeExitNodeResponse(ctx context.Context, rw http.ResponseWriter, status int, message string) {
+	httpapi.Write(ctx, rw, status, codersdk.Response{Message: message})
+}
+
 func (api *API) exitNodeParam(rw http.ResponseWriter, r *http.Request) (database.ExitNode, bool) {
 	var (
 		ctx          = r.Context()
@@ -235,18 +236,18 @@ func (api *API) registerExitNode(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if req.ReplicaID == uuid.Nil {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{Message: "Replica ID is invalid."})
+		writeExitNodeResponse(ctx, rw, http.StatusBadRequest, "Replica ID is invalid.")
 		return
 	}
 	if _, err := api.Database.GetWorkspaceAgentByID(ctx, req.ReplicaID); err == nil {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{Message: "Replica ID conflicts with a workspace agent."})
+		writeExitNodeResponse(ctx, rw, http.StatusBadRequest, "Replica ID conflicts with a workspace agent.")
 		return
 	} else if !xerrors.Is(err, sql.ErrNoRows) {
 		httpapi.InternalServerError(rw, xerrors.Errorf("check workspace agent replica id: %w", err))
 		return
 	}
 	if _, err := api.Database.GetWorkspaceProxyByID(ctx, req.ReplicaID); err == nil {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{Message: "Replica ID conflicts with a workspace proxy."})
+		writeExitNodeResponse(ctx, rw, http.StatusBadRequest, "Replica ID conflicts with a workspace proxy.")
 		return
 	} else if !xerrors.Is(err, sql.ErrNoRows) {
 		httpapi.InternalServerError(rw, xerrors.Errorf("check workspace proxy replica id: %w", err))
@@ -285,11 +286,10 @@ func (api *API) registerExitNode(rw http.ResponseWriter, r *http.Request) {
 		return err
 	}, nil)
 	if registrationErr != nil {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{Message: registrationErr.Error()})
+		writeExitNodeResponse(ctx, rw, http.StatusBadRequest, registrationErr.Error())
 		return
 	}
-	if err != nil {
-		httpapi.InternalServerError(rw, xerrors.Errorf("upsert exit node replica: %w", err))
+	if writeExitNodeError(rw, err, "upsert exit node replica") {
 		return
 	}
 	api.exitNodeReplicaSessions.markLive(req.ReplicaID, node.ID)
@@ -303,22 +303,15 @@ func (api *API) registerExitNode(rw http.ResponseWriter, r *http.Request) {
 		api.Logger.Warn(ctx, "failed to delete stale exit node replicas", slog.Error(err))
 	}
 
-	// Template binding changes are picked up by agents on any replica pubsub
-	// event and by the fallback stream refresh. The replica process also gets
-	// the new bound agent set on its next registration heartbeat.
-	// The middleware already runs the handler as system, which the query
-	// requires because the agents span workspaces owned by many users.
 	agentIDs, err := api.Database.GetWorkspaceAgentIDsByExitNode(ctx, node.ID)
-	if err != nil {
-		httpapi.InternalServerError(rw, xerrors.Errorf("get bound agents: %w", err))
+	if writeExitNodeError(rw, err, "get bound agents") {
 		return
 	}
 	liveReplicas, err := api.Database.GetLiveExitNodeReplicas(ctx, database.GetLiveExitNodeReplicasParams{
 		ExitNodeIds:  []uuid.UUID{node.ID},
 		UpdatedAfter: now.Add(-codersdk.ExitNodeReplicaStaleAfter),
 	})
-	if err != nil {
-		httpapi.InternalServerError(rw, xerrors.Errorf("get sibling replicas: %w", err))
+	if writeExitNodeError(rw, err, "get sibling replicas") {
 		return
 	}
 	siblings := make([]codersdk.ExitNodeReplica, 0, len(liveReplicas))
@@ -334,6 +327,14 @@ func (api *API) registerExitNode(rw http.ResponseWriter, r *http.Request) {
 		AgentIDs:            nonNil(agentIDs),
 		SiblingReplicas:     siblings,
 	})
+}
+
+func (api *API) exitNodeReplica(ctx context.Context, rw http.ResponseWriter, nodeID, replicaID uuid.UUID) (database.ExitNodeReplica, bool) {
+	replica, err := api.Database.GetExitNodeReplicaByID(ctx, replicaID)
+	if err == nil && replica.ExitNodeID != nodeID {
+		err = sql.ErrNoRows
+	}
+	return replica, !writeExitNodeError(rw, err, "get exit node replica")
 }
 
 // @Summary Deregister exit node
@@ -352,13 +353,7 @@ func (api *API) deregisterExitNode(rw http.ResponseWriter, r *http.Request) {
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
 	}
-	replica, err := api.Database.GetExitNodeReplicaByID(ctx, req.ReplicaID)
-	if xerrors.Is(err, sql.ErrNoRows) || err == nil && replica.ExitNodeID != node.ID {
-		httpapi.ResourceNotFound(rw)
-		return
-	}
-	if err != nil {
-		httpapi.InternalServerError(rw, xerrors.Errorf("get exit node replica: %w", err))
+	if _, ok := api.exitNodeReplica(ctx, rw, node.ID, req.ReplicaID); !ok {
 		return
 	}
 	if err := api.Database.StopExitNodeReplica(ctx, database.StopExitNodeReplicaParams{
@@ -387,7 +382,7 @@ func (api *API) exitNodeCoordinate(rw http.ResponseWriter, r *http.Request) {
 	node := httpmw.ExitNode(r)
 	replicaID, err := uuid.Parse(r.URL.Query().Get(codersdk.ExitNodeCoordinateReplicaIDParam))
 	if err != nil || replicaID == uuid.Nil {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{Message: "Replica ID is missing or invalid."})
+		writeExitNodeResponse(ctx, rw, http.StatusBadRequest, "Replica ID is missing or invalid.")
 		return
 	}
 	peerID := codersdk.ExitNodeReplicaPeerID(node.ID, replicaID)
@@ -396,21 +391,16 @@ func (api *API) exitNodeCoordinate(rw http.ResponseWriter, r *http.Request) {
 	defer unregister()
 	defer cancel()
 
-	replica, err := api.Database.GetExitNodeReplicaByID(coordinateCtx, replicaID)
-	if xerrors.Is(err, sql.ErrNoRows) || err == nil && replica.ExitNodeID != node.ID {
-		httpapi.ResourceNotFound(rw)
-		return
-	}
-	if err != nil {
-		httpapi.InternalServerError(rw, xerrors.Errorf("get exit node replica: %w", err))
+	replica, ok := api.exitNodeReplica(coordinateCtx, rw, node.ID, replicaID)
+	if !ok {
 		return
 	}
 	if replica.StoppedAt.Valid {
-		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{Message: "Replica is stopped."})
+		writeExitNodeResponse(ctx, rw, http.StatusConflict, "Replica is stopped.")
 		return
 	}
 	if !replica.UpdatedAt.After(dbtime.Now().Add(-codersdk.ExitNodeReplicaStaleAfter)) {
-		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{Message: "Replica is stale; replicas must register before coordinating."})
+		writeExitNodeResponse(ctx, rw, http.StatusConflict, "Replica is stale; replicas must register before coordinating.")
 		return
 	}
 	auth := &enttailnet.ExitNodeCoordinateeAuth{
@@ -449,9 +439,6 @@ func (api *API) reportExitNodeFlows(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Connection log fields shared by every flow from one agent are resolved
-	// once per report. A nil entry marks an agent that is unknown or whose
-	// template does not route egress through this exit node.
 	agents := make(map[uuid.UUID]*database.UpsertConnectionLogParams)
 	templates := make(map[uuid.UUID]database.Template)
 	gapPending := req.DroppedReports > 0
@@ -502,11 +489,6 @@ func (api *API) reportExitNodeFlows(rw http.ResponseWriter, r *http.Request) {
 	rw.WriteHeader(http.StatusNoContent)
 }
 
-// exitNodeFlowBase loads the agent and workspace behind a flow and returns
-// the connection log fields they contribute, or nil when the agent is missing
-// or its template is not bound to exitNodeID. A missing agent is not an error
-// so one stale flow cannot fail the whole report. templates caches lookups
-// across agents of one report.
 func (api *API) exitNodeFlowBase(ctx context.Context, exitNodeID, agentID uuid.UUID, templates map[uuid.UUID]database.Template) (*database.UpsertConnectionLogParams, error) {
 	agent, err := api.Database.GetWorkspaceAgentByID(ctx, agentID)
 	if httpapi.Is404Error(err) {
@@ -532,9 +514,7 @@ func (api *API) exitNodeFlowBase(ctx context.Context, exitNodeID, agentID uuid.U
 	if !slice.Contains(template.ExitNodeIds, exitNodeID) {
 		return nil, nil //nolint:nilnil // Unbound agents are skipped.
 	}
-	// Exit nodes report agent traffic, so no user or user agent is known.
-	// The per-flow fields are set by exitNodeFlowConnectionLogs.
-	//nolint:exhaustruct // See above.
+	//nolint:exhaustruct // Per-flow fields are added by exitNodeFlowConnectionLogs.
 	return &database.UpsertConnectionLogParams{
 		OrganizationID:   workspace.OrganizationID,
 		WorkspaceOwnerID: workspace.OwnerID,
@@ -545,27 +525,9 @@ func (api *API) exitNodeFlowBase(ctx context.Context, exitNodeID, agentID uuid.U
 	}, nil
 }
 
-// exitNodeFlowConnectionLogs encodes one flow report as connection log
-// upserts on top of the agent fields in base. The connection_logs schema is
-// reused without changes:
-//
-//   - id and connection_id are the flow ID, so connect and disconnect
-//     reports for one flow collapse into a single row.
-//   - type is "egress" and ip is the destination address.
-//   - slug_or_port is the destination as dialed: "<host or ip>:<port>" for
-//     tcp, "udp <host or ip>:<port>" for udp, and "dns <query name>" for
-//     dns. The protocol prefix is separated by a space, which cannot occur
-//     in a host, so unprefixed values decode as tcp.
-//   - code is 0 for allowed flows and 403 for denied flows.
-//   - disconnect_reason is "<rule id>: <reason>". Completed flows append
-//     " (in=<bytes in> out=<bytes out>)". The database keeps the first
-//     non-null reason, so for allowed flows the reason is only written
-//     with the disconnect report; denied flows are terminal and write it
-//     immediately.
-//
-// A report carrying a disconnect time yields a connect upsert followed by a
-// disconnect upsert so that connect_time is preserved even when the exit
-// node reports the whole flow at once.
+// exitNodeFlowConnectionLogs maps a flow to the existing connection log
+// schema. A completed flow emits connect and disconnect upserts so the latter
+// preserves the original connect time.
 func exitNodeFlowConnectionLogs(base database.UpsertConnectionLogParams, flow codersdk.ExitNodeFlowReport) []database.UpsertConnectionLogParams {
 	deny := flow.Decision == codersdk.ExitNodeFlowDeny
 	base.ID = flow.FlowID
@@ -661,8 +623,6 @@ func convertExitNodeReplica(replica database.ExitNodeReplica, now time.Time) cod
 	}
 }
 
-// nonNil replaces a nil slice with an empty one so it encodes as a JSON
-// array and as a non-null database array.
 func nonNil[T any](s []T) []T {
 	if s == nil {
 		return []T{}

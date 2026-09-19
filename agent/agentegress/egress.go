@@ -6,6 +6,7 @@ package agentegress
 
 import (
 	"bufio"
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -50,8 +51,6 @@ const (
 // currently live replicas.
 var ErrNoLiveExitNodeReplicas = xerrors.New("no live exit node replicas are available")
 
-// builtinExemptNames are always resolved by the system resolvers rather than
-// given fake addresses. They name the workspace host itself.
 var builtinExemptNames = []string{"localhost", "host.docker.internal"}
 
 // Dialer opens TCP connections on the tailnet. *tailnet.Conn returns a
@@ -80,13 +79,9 @@ type Options struct {
 	Dialer Dialer
 	// Config is the egress configuration from the agent manifest.
 	Config agentsdk.EgressConfig
-	// Rand shuffles replicas within each exit node. Tests may inject a seeded
-	// generator. When nil, a process-random generator is used.
+	// Rand shuffles replicas within each exit node. Nil uses process randomness.
 	Rand *rand.Rand
-	// ListenAddr overrides the local address for the TCP proxy. When empty,
-	// ProxyPort is bound on 127.0.0.1, falling back to an ephemeral port if the
-	// fixed port is unavailable. The proxy must stay on loopback because it
-	// performs no authentication.
+	// ListenAddr overrides the unauthenticated loopback TCP proxy address.
 	ListenAddr string
 	// ProxyPort is the preferred TCP proxy port. It defaults to 41280.
 	ProxyPort uint16
@@ -95,37 +90,24 @@ type Options struct {
 	// UDPPort is the preferred redirected UDP port. It defaults to 41254.
 	UDPPort uint16
 	// ExemptHosts are host[:port] destinations that bypass the exit node.
-	// Their names are resolved by the system resolvers instead of being
-	// given fake addresses. Control plane hosts should be included.
 	ExemptHosts []string
-	// UpstreamResolvers answer DNS queries for exempt names over TCP.
-	// Defaults to the nameservers in /etc/resolv.conf.
+	// UpstreamResolvers resolve exempt names over TCP. Nil uses resolv.conf.
 	UpstreamResolvers []netip.AddrPort
 	// Clock drives UDP session idle timeouts. Defaults to the real clock.
 	Clock quartz.Clock
-	// HostSniffTimeout bounds transparent connection host detection. It
-	// defaults to 500ms. A negative value disables sniffing.
+	// HostSniffTimeout defaults to 500ms. A negative value disables sniffing.
 	HostSniffTimeout time.Duration
-	// ExitNodeDialTimeout bounds each individual tailnet dial before the next
-	// exit node is tried. It defaults to 5 seconds.
+	// ExitNodeDialTimeout defaults to 5 seconds per replica.
 	ExitNodeDialTimeout time.Duration
-	// ConnectTimeout bounds CONNECT request and response negotiation with an
-	// exit node. It defaults to 10 seconds.
+	// ConnectTimeout defaults to 10 seconds.
 	ConnectTimeout time.Duration
-	// FakeIPMaxEntries bounds cached DNS name mappings. It defaults to 65536.
-	// Smaller values use less memory but increase churn for short-lived DNS
-	// answers. Active connection mappings remain pinned beyond this limit.
+	// FakeIPMaxEntries defaults to 65536. Active mappings remain pinned.
 	FakeIPMaxEntries int
-	// FakeIPPinnedMaxEntries caps mappings retained by active connections. It
-	// defaults to FakeIPMaxEntries.
+	// FakeIPPinnedMaxEntries defaults to FakeIPMaxEntries.
 	FakeIPPinnedMaxEntries int
 }
 
-// Proxy is the local egress proxy. One loopback TCP listener serves both
-// transparently redirected connections (identified via SO_ORIGINAL_DST) and
-// explicit HTTP proxy clients that were pointed at it via HTTP_PROXY. A DNS
-// listener hands out fake addresses so redirected flows can be tunneled by
-// name, and a UDP listener relays redirected datagrams.
+// Proxy serves explicit and transparent TCP, DNS, and redirected UDP egress.
 type Proxy struct {
 	logger              slog.Logger
 	dialer              Dialer
@@ -149,13 +131,9 @@ type Proxy struct {
 	// Tests replace it because only netfilter can produce a real one.
 	udpOrigDst func(oob []byte) netip.AddrPort
 
-	// unknownFake counts redirected TCP connections dropped because their
-	// destination was in the fake range without a current mapping.
 	unknownFake atomic.Int64
-	fakeWarnMu  sync.Mutex
-	fakeWarnAt  time.Time
-	noLiveMu    sync.Mutex
-	noLiveLogAt time.Time
+	fakeWarn    rateLimiter
+	noLive      rateLimiter
 
 	mu       sync.Mutex
 	listener net.Listener
@@ -167,7 +145,21 @@ type Proxy struct {
 	wg       sync.WaitGroup
 }
 
-// connectFunc opens a CONNECT tunnel to target carrying proto.
+type rateLimiter struct {
+	mu   sync.Mutex
+	next time.Time
+}
+
+func (l *rateLimiter) allow(now time.Time, interval time.Duration) bool {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if now.Before(l.next) {
+		return false
+	}
+	l.next = now.Add(interval)
+	return true
+}
+
 type connectFunc func(ctx context.Context, target string, proto codersdk.ExitNodeProtocol) (net.Conn, error)
 
 func exemptNameSet(hosts []string) (map[string]struct{}, error) {
@@ -189,8 +181,6 @@ func exemptNameSet(hosts []string) (map[string]struct{}, error) {
 	return exempt, nil
 }
 
-// exitNodeAddrs returns the replica addresses in preference order together
-// with the index of the logical exit node each address belongs to.
 func exitNodeAddrs(ctx context.Context, logger slog.Logger, rng *rand.Rand, cfg agentsdk.EgressConfig) ([]netip.AddrPort, []int, error) {
 	if len(cfg.ExitNodes) == 0 {
 		return nil, nil, xerrors.New("at least one exit node is required")
@@ -243,35 +233,20 @@ func New(logger slog.Logger, opts Options) (*Proxy, error) {
 	if opts.FakeIPPinnedMaxEntries < 0 {
 		return nil, xerrors.New("fake IP pinned max entries must not be negative")
 	}
-	fakeIPMax := opts.FakeIPMaxEntries
-	if fakeIPMax == 0 {
-		fakeIPMax = fakeIPMaxEntries
-	}
-	pinnedMax := opts.FakeIPPinnedMaxEntries
-	if pinnedMax == 0 {
-		pinnedMax = fakeIPMax
-	}
+	fakeIPMax := cmp.Or(opts.FakeIPMaxEntries, fakeIPMaxEntries)
+	pinnedMax := cmp.Or(opts.FakeIPPinnedMaxEntries, fakeIPMax)
 	if pinnedMax < fakeIPMax {
 		return nil, xerrors.New("fake IP pinned max entries must be at least fake IP max entries")
 	}
-	exitNodeDialTimeout := opts.ExitNodeDialTimeout
-	if exitNodeDialTimeout == 0 {
-		exitNodeDialTimeout = defaultExitNodeDialTimeout
-	}
+	exitNodeDialTimeout := cmp.Or(opts.ExitNodeDialTimeout, defaultExitNodeDialTimeout)
 	if exitNodeDialTimeout < 0 {
 		return nil, xerrors.New("exit node dial timeout must not be negative")
 	}
-	connectTimeout := opts.ConnectTimeout
-	if connectTimeout == 0 {
-		connectTimeout = defaultConnectTimeout
-	}
+	connectTimeout := cmp.Or(opts.ConnectTimeout, defaultConnectTimeout)
 	if connectTimeout < 0 {
 		return nil, xerrors.New("connect timeout must not be negative")
 	}
-	sniffTimeout := opts.HostSniffTimeout
-	if sniffTimeout == 0 {
-		sniffTimeout = defaultHostSniffTimeout
-	}
+	sniffTimeout := cmp.Or(opts.HostSniffTimeout, defaultHostSniffTimeout)
 	exempt, err := exemptNameSet(opts.ExemptHosts)
 	if err != nil {
 		return nil, err
@@ -300,18 +275,11 @@ func New(logger slog.Logger, opts Options) (*Proxy, error) {
 		p.clock = quartz.NewReal()
 	}
 	if p.listen == "" {
-		port := opts.ProxyPort
-		if port == 0 {
-			port = defaultProxyPort
-		}
+		port := cmp.Or(opts.ProxyPort, uint16(defaultProxyPort))
 		p.listen = net.JoinHostPort(defaultListenHost, strconv.Itoa(int(port)))
 	}
-	if p.dnsPort == 0 {
-		p.dnsPort = defaultDNSPort
-	}
-	if p.udpPort == 0 {
-		p.udpPort = defaultUDPPort
-	}
+	p.dnsPort = cmp.Or(p.dnsPort, uint16(defaultDNSPort))
+	p.udpPort = cmp.Or(p.udpPort, uint16(defaultUDPPort))
 	return p, nil
 }
 
@@ -472,9 +440,7 @@ func (p *Proxy) resetDNS() {
 	dns.relay.reset()
 }
 
-// ConfigEqual reports whether two egress configurations would produce the
-// same proxy and enforcement state, so a reconnect that redelivers the same
-// manifest does not restart the proxy.
+// ConfigEqual reports whether configurations produce identical proxy state.
 func ConfigEqual(a, b agentsdk.EgressConfig) bool {
 	if len(a.ExitNodes) != len(b.ExitNodes) {
 		return false
@@ -507,8 +473,7 @@ func replicaIDsEqual(a, b []uuid.UUID) bool {
 	return true
 }
 
-// Close stops accepting connections and waits for in-flight connections to
-// finish being torn down.
+// Close stops listeners and waits for active connections to tear down.
 func (p *Proxy) Close() error {
 	p.mu.Lock()
 	if p.closed {
@@ -533,7 +498,6 @@ func (p *Proxy) Close() error {
 	return nil
 }
 
-// isExempt reports whether name bypasses the exit node.
 func (p *Proxy) isExempt(name string) bool {
 	p.configMu.RLock()
 	defer p.configMu.RUnlock()
@@ -541,9 +505,6 @@ func (p *Proxy) isExempt(name string) bool {
 	return ok
 }
 
-// target names the CONNECT destination for a redirected flow. Fake
-// addresses are translated back to the hostname the client resolved so the
-// exit node can apply name-based policy and resolve the name itself.
 func (p *Proxy) target(dst netip.AddrPort) string {
 	if name, ok := p.fake.Reverse(dst.Addr()); ok {
 		return net.JoinHostPort(name, strconv.Itoa(int(dst.Port())))
@@ -567,21 +528,12 @@ func (p *Proxy) acquireTarget(dst netip.AddrPort) (target string, release func()
 
 func (p *Proxy) warnUnknownFake(ctx context.Context, dst netip.AddrPort) {
 	count := p.unknownFake.Add(1)
-	p.fakeWarnMu.Lock()
-	now := p.clock.Now()
-	if now.Before(p.fakeWarnAt) {
-		p.fakeWarnMu.Unlock()
-		return
+	if p.fakeWarn.allow(p.clock.Now(), unknownFakeLogInterval) {
+		p.logger.Warn(ctx, "dropping redirected tcp connection to unmapped fake IP",
+			slog.F("destination", dst.String()), slog.F("count", count))
 	}
-	p.fakeWarnAt = now.Add(unknownFakeLogInterval)
-	p.fakeWarnMu.Unlock()
-	p.logger.Warn(ctx, "dropping redirected tcp connection to unmapped fake IP",
-		slog.F("destination", dst.String()), slog.F("count", count))
 }
 
-// explicitTarget names the CONNECT destination for an explicit proxy
-// request. Hostnames pass through for the exit node to resolve; a fake IP
-// literal (from a client that resolved before proxying) is translated.
 func (p *Proxy) explicitTarget(host string, port uint16) string {
 	if addr, err := netip.ParseAddr(host); err == nil {
 		return p.target(netip.AddrPortFrom(addr.Unmap(), port))
@@ -650,8 +602,6 @@ func (p *Proxy) handleTransparent(ctx context.Context, conn net.Conn, dst netip.
 	pipe(ctx, conn, clientReader, upstream)
 }
 
-// handleExplicit serves an HTTP proxy client: either CONNECT or a plain
-// request with an absolute URI.
 func (p *Proxy) handleExplicit(ctx context.Context, conn net.Conn) {
 	br := bufio.NewReader(conn)
 	req, err := http.ReadRequest(br)
@@ -730,7 +680,7 @@ func (p *Proxy) logUpstreamError(ctx context.Context, target string, err error) 
 	p.logger.Warn(ctx, "egress connection through exit node failed", slog.F("target", target), slog.Error(err))
 }
 
-// DeniedError is returned when the exit node rejects a CONNECT with 403.
+// DeniedError reports a CONNECT rejected with HTTP 403.
 type DeniedError struct {
 	// Target is the host:port the CONNECT asked for.
 	Target string
@@ -739,7 +689,6 @@ type DeniedError struct {
 	Rule string
 }
 
-// Error implements error.
 func (e *DeniedError) Error() string {
 	if e.Reason == "" {
 		return fmt.Sprintf("egress to %s denied by exit node", e.Target)
@@ -747,10 +696,7 @@ func (e *DeniedError) Error() string {
 	return fmt.Sprintf("egress to %s denied by exit node: %s", e.Target, e.Reason)
 }
 
-// connectUpstream dials the exit node and negotiates a CONNECT tunnel to
-// target (host:port or ip:port) carrying proto. On success the returned
-// connection carries the tunnel bytes. Hostname targets are resolved by the
-// exit node, so no original-host hint is needed.
+// connectUpstream negotiates a CONNECT tunnel to target.
 func (p *Proxy) connectUpstream(ctx context.Context, target string, proto codersdk.ExitNodeProtocol) (net.Conn, error) {
 	return p.connectUpstreamHost(ctx, target, proto, "")
 }
@@ -808,16 +754,10 @@ func (p *Proxy) connectUpstreamHost(ctx context.Context, target string, proto co
 }
 
 func (p *Proxy) logNoLiveExitNodeReplicas(ctx context.Context, target string) {
-	p.noLiveMu.Lock()
-	now := p.clock.Now("no_live_exit_node_replicas")
-	if now.Before(p.noLiveLogAt) {
-		p.noLiveMu.Unlock()
-		return
+	if p.noLive.allow(p.clock.Now("no_live_exit_node_replicas"), noLiveReplicaLogInterval) {
+		p.logger.Warn(ctx, "egress unavailable because no exit node replicas are live",
+			slog.F("target", target))
 	}
-	p.noLiveLogAt = now.Add(noLiveReplicaLogInterval)
-	p.noLiveMu.Unlock()
-	p.logger.Warn(ctx, "egress unavailable because no exit node replicas are live",
-		slog.F("target", target))
 }
 
 func (p *Proxy) negotiateConnect(ctx context.Context, upstream net.Conn, target string, proto codersdk.ExitNodeProtocol, originalHost string) (net.Conn, connectOutcome, error) {
@@ -890,9 +830,7 @@ func (c *bufferedConn) Read(b []byte) (int, error) {
 	return c.r.Read(b)
 }
 
-// pipe copies bytes in both directions until either side closes. The client
-// side reads from clientReader (which may hold buffered bytes) and writes to
-// client.
+// pipe copies both directions until both close or ctx ends.
 func pipe(ctx context.Context, client net.Conn, clientReader io.Reader, upstream net.Conn) {
 	done := make(chan struct{}, 2)
 	go func() {
@@ -926,8 +864,7 @@ func closeWrite(conn net.Conn) {
 	_ = conn.Close()
 }
 
-// writeResponse sends a plain text HTTP response with msg as its body. hdr,
-// when non-nil, supplies additional headers.
+// writeResponse sends a plain-text HTTP response.
 func writeResponse(conn net.Conn, req *http.Request, status int, hdr http.Header, msg string) {
 	if hdr == nil {
 		hdr = http.Header{}
@@ -946,8 +883,6 @@ func writeResponse(conn net.Conn, req *http.Request, status int, hdr http.Header
 	_ = resp.Write(conn)
 }
 
-// splitHostPortDefault splits host[:port], falling back to def when no port
-// is present or the port is unparsable.
 func splitHostPortDefault(hostport string, def uint16) (string, uint16) {
 	host, portStr, err := net.SplitHostPort(hostport)
 	if err != nil {
@@ -960,7 +895,6 @@ func splitHostPortDefault(hostport string, def uint16) (string, uint16) {
 	return host, uint16(port)
 }
 
-// addrPortOf returns the address a socket is bound to.
 func addrPortOf(addr net.Addr) (netip.AddrPort, error) {
 	if addr == nil {
 		return netip.AddrPort{}, xerrors.New("socket has no local address")

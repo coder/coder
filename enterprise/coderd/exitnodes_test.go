@@ -61,8 +61,6 @@ func TestExitNodes(t *testing.T) {
 	db := enterpriseAPI.Database
 	orgID := owner.OrganizationID
 
-	// A running workspace whose template is bound to boundNode. Subtests
-	// only read from it, so it is shared.
 	boundNode, boundSecret := dbgen.ExitNode(t, db, database.ExitNode{OrganizationID: orgID})
 	boundToken := boundNode.ID.String() + ":" + boundSecret
 	version := coderdtest.CreateTemplateVersion(t, client, orgID, &echo.Responses{
@@ -82,36 +80,24 @@ func TestExitNodes(t *testing.T) {
 	require.Len(t, build.Resources[0].Agents, 1)
 	agent := build.Resources[0].Agents[0]
 
-	// exitNodeRequest issues a request authenticated with an exit node
-	// token instead of a session token and returns the status code.
-	exitNodeRequest := func(ctx context.Context, token, method, path string, body any) (*http.Response, error) {
+	request := func(t *testing.T, token, method, path string, body any) *http.Response {
+		t.Helper()
 		nodeClient := codersdk.New(client.URL)
-		return nodeClient.Request(ctx, method, path, body, func(r *http.Request) {
+		res, err := nodeClient.Request(testutil.Context(t, testutil.WaitLong), method, path, body, func(r *http.Request) {
 			r.Header.Set(codersdk.ExitNodeTokenHeader, token)
 		})
-	}
-	// registerExitNode registers with the given token and decodes the response.
-	registerExitNode := func(t *testing.T, token string, req codersdk.RegisterExitNodeRequest) codersdk.RegisterExitNodeResponse {
-		t.Helper()
-		res, err := exitNodeRequest(testutil.Context(t, testutil.WaitLong), token, http.MethodPost, "/api/v2/exitnodes/me/register", req)
 		require.NoError(t, err)
+		return res
+	}
+	register := func(t *testing.T, token string, req codersdk.RegisterExitNodeRequest, response ...*codersdk.RegisterExitNodeResponse) int {
+		t.Helper()
+		res := request(t, token, http.MethodPost, "/api/v2/exitnodes/me/register", req)
 		defer res.Body.Close()
-		if res.StatusCode != http.StatusCreated {
-			t.Fatalf("register: %v", codersdk.ReadBodyAsError(res))
+		if len(response) > 0 && res.StatusCode == http.StatusCreated {
+			require.NoError(t, codersdk.ReadBodyAsJSON(res, response[0]))
 		}
-		var resp codersdk.RegisterExitNodeResponse
-		require.NoError(t, codersdk.ReadBodyAsJSON(res, &resp))
-		return resp
-	}
-	// register registers with the given token and returns the status code.
-	register := func(t *testing.T, token string, req codersdk.RegisterExitNodeRequest) int {
-		t.Helper()
-		res, err := exitNodeRequest(testutil.Context(t, testutil.WaitLong), token, http.MethodPost, "/api/v2/exitnodes/me/register", req)
-		require.NoError(t, err)
-		_ = res.Body.Close()
 		return res.StatusCode
 	}
-	// requireStatus asserts that err is an API error with the given status.
 	requireStatus := func(t *testing.T, err error, status int) {
 		t.Helper()
 		var sdkErr *codersdk.Error
@@ -142,10 +128,8 @@ func TestExitNodes(t *testing.T) {
 			ResourceID: created.ID,
 		}))
 
-		// Duplicate names conflict, case-insensitively.
 		_, err = client.CreateExitNode(ctx, orgID, codersdk.CreateExitNodeRequest{Name: name})
 		requireStatus(t, err, http.StatusConflict)
-		// Invalid names are rejected.
 		_, err = client.CreateExitNode(ctx, orgID, codersdk.CreateExitNodeRequest{Name: "not valid!"})
 		requireStatus(t, err, http.StatusBadRequest)
 
@@ -159,7 +143,6 @@ func TestExitNodes(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, created.ID, byID.ID)
 
-		// The token authenticates the new node.
 		require.Equal(t, http.StatusCreated, register(t, created.Token, codersdk.RegisterExitNodeRequest{
 			ReplicaID: uuid.New(),
 			Version:   "v0.0.0-test",
@@ -176,35 +159,40 @@ func TestExitNodes(t *testing.T) {
 		require.NoError(t, err)
 		require.False(t, contains(nodes, created.ID))
 
-		// A deleted node's token no longer authenticates.
 		require.Equal(t, http.StatusUnauthorized, register(t, created.Token, codersdk.RegisterExitNodeRequest{}))
 	})
 
-	t.Run("MemberForbidden", func(t *testing.T) {
+	t.Run("RBAC", func(t *testing.T) {
 		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitLong)
-		member, _ := coderdtest.CreateAnotherUser(t, client, orgID)
-
-		_, err := member.CreateExitNode(ctx, orgID, codersdk.CreateExitNodeRequest{Name: testutil.GetRandomNameHyphenated(t)})
-		requireStatus(t, err, http.StatusNotFound)
-		nodes, err := member.ExitNodes(ctx, orgID)
-		require.NoError(t, err)
-		require.Empty(t, nodes)
-		_, err = member.ExitNodeByName(ctx, orgID, boundNode.Name)
-		requireStatus(t, err, http.StatusNotFound)
-		requireStatus(t, member.DeleteExitNode(ctx, orgID, boundNode.Name), http.StatusNotFound)
-	})
-
-	t.Run("TemplateAdminReadOnly", func(t *testing.T) {
-		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitLong)
-		templateAdmin, _ := coderdtest.CreateAnotherUser(t, client, orgID, rbac.RoleTemplateAdmin())
-
-		got, err := templateAdmin.ExitNodeByName(ctx, orgID, boundNode.Name)
-		require.NoError(t, err)
-		require.Equal(t, boundNode.ID, got.ID)
-		_, err = templateAdmin.CreateExitNode(ctx, orgID, codersdk.CreateExitNodeRequest{Name: testutil.GetRandomNameHyphenated(t)})
-		requireStatus(t, err, http.StatusNotFound)
+		for _, tc := range []struct {
+			name string
+			role rbac.RoleIdentifier
+			read bool
+		}{
+			{name: "Member"},
+			{name: "TemplateAdmin", role: rbac.RoleTemplateAdmin(), read: true},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				ctx := testutil.Context(t, testutil.WaitLong)
+				var roles []rbac.RoleIdentifier
+				if tc.role.Name != "" {
+					roles = append(roles, tc.role)
+				}
+				user, _ := coderdtest.CreateAnotherUser(t, client, orgID, roles...)
+				_, err := user.CreateExitNode(ctx, orgID, codersdk.CreateExitNodeRequest{Name: testutil.GetRandomNameHyphenated(t)})
+				requireStatus(t, err, http.StatusNotFound)
+				_, err = user.ExitNodeByName(ctx, orgID, boundNode.Name)
+				if tc.read {
+					require.NoError(t, err)
+					return
+				}
+				requireStatus(t, err, http.StatusNotFound)
+				nodes, err := user.ExitNodes(ctx, orgID)
+				require.NoError(t, err)
+				require.Empty(t, nodes)
+				requireStatus(t, user.DeleteExitNode(ctx, orgID, boundNode.Name), http.StatusNotFound)
+			})
+		}
 	})
 
 	t.Run("Replicas", func(t *testing.T) {
@@ -225,12 +213,13 @@ func TestExitNodes(t *testing.T) {
 		defer unsubscribe()
 
 		firstID := uuid.New()
-		first := registerExitNode(t, token, codersdk.RegisterExitNodeRequest{
+		first := codersdk.RegisterExitNodeResponse{}
+		require.Equal(t, http.StatusCreated, register(t, token, codersdk.RegisterExitNodeRequest{
 			ReplicaID:  firstID,
 			Hostname:   "first",
 			Version:    "v1",
 			PolicyHash: "policy-a",
-		})
+		}, &first))
 		require.Empty(t, first.SiblingReplicas)
 		select {
 		case event := <-events:
@@ -240,12 +229,13 @@ func TestExitNodes(t *testing.T) {
 		}
 
 		secondID := uuid.New()
-		second := registerExitNode(t, token, codersdk.RegisterExitNodeRequest{
+		second := codersdk.RegisterExitNodeResponse{}
+		require.Equal(t, http.StatusCreated, register(t, token, codersdk.RegisterExitNodeRequest{
 			ReplicaID:  secondID,
 			Hostname:   "second",
 			Version:    "v2",
 			PolicyHash: "policy-b",
-		})
+		}, &second))
 		require.Len(t, second.SiblingReplicas, 1)
 		require.Equal(t, firstID, second.SiblingReplicas[0].ID)
 		select {
@@ -263,23 +253,23 @@ func TestExitNodes(t *testing.T) {
 		require.Equal(t, []uuid.UUID{firstID, secondID}, []uuid.UUID{got.Replicas[0].ID, got.Replicas[1].ID})
 		require.Equal(t, tailnet.TailscaleServicePrefix.AddrFromUUID(codersdk.ExitNodeReplicaPeerID(node.ID, firstID)).String(), got.Replicas[0].TailnetAddress)
 
-		// Replica IDs cannot collide with existing coordinator peer identities.
-		require.Equal(t, http.StatusBadRequest, register(t, token, codersdk.RegisterExitNodeRequest{ReplicaID: agent.ID}))
+		for _, id := range []uuid.UUID{agent.ID, func() uuid.UUID {
+			proxy, _ := dbgen.WorkspaceProxy(t, db, database.WorkspaceProxy{})
+			return proxy.ID
+		}()} {
+			require.Equal(t, http.StatusBadRequest, register(t, token, codersdk.RegisterExitNodeRequest{ReplicaID: id}))
+		}
 
-		// A replica ID is required and is permanently scoped to the exit node
-		// that created it.
 		require.Equal(t, http.StatusBadRequest, register(t, token, codersdk.RegisterExitNodeRequest{}))
 		require.Equal(t, http.StatusBadRequest, register(t, otherToken, codersdk.RegisterExitNodeRequest{ReplicaID: firstID}))
 
 		deregister := func(replicaID uuid.UUID) int {
-			res, err := exitNodeRequest(ctx, token, http.MethodPost, "/api/v2/exitnodes/me/deregister", codersdk.DeregisterExitNodeRequest{ReplicaID: replicaID})
-			require.NoError(t, err)
+			res := request(t, token, http.MethodPost, "/api/v2/exitnodes/me/deregister", codersdk.DeregisterExitNodeRequest{ReplicaID: replicaID})
 			defer res.Body.Close()
 			return res.StatusCode
 		}
 		require.Equal(t, http.StatusNotFound, func() int {
-			res, err := exitNodeRequest(ctx, otherToken, http.MethodPost, "/api/v2/exitnodes/me/deregister", codersdk.DeregisterExitNodeRequest{ReplicaID: firstID})
-			require.NoError(t, err)
+			res := request(t, otherToken, http.MethodPost, "/api/v2/exitnodes/me/deregister", codersdk.DeregisterExitNodeRequest{ReplicaID: firstID})
 			defer res.Body.Close()
 			return res.StatusCode
 		}())
@@ -316,8 +306,7 @@ func TestExitNodes(t *testing.T) {
 		node, secret := dbgen.ExitNode(t, db, database.ExitNode{OrganizationID: orgID})
 		token := node.ID.String() + ":" + secret
 		request := func(query string) int {
-			res, err := exitNodeRequest(ctx, token, http.MethodGet, "/api/v2/exitnodes/me/coordinate?version=2.0"+query, nil)
-			require.NoError(t, err)
+			res := request(t, token, http.MethodGet, "/api/v2/exitnodes/me/coordinate?version=2.0"+query, nil)
 			defer res.Body.Close()
 			return res.StatusCode
 		}
@@ -348,13 +337,12 @@ func TestExitNodes(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		replicaID := uuid.New()
-		res, err := exitNodeRequest(ctx, boundToken, http.MethodPost, "/api/v2/exitnodes/me/register", codersdk.RegisterExitNodeRequest{
+		res := request(t, boundToken, http.MethodPost, "/api/v2/exitnodes/me/register", codersdk.RegisterExitNodeRequest{
 			ReplicaID:          replicaID,
 			Version:            "v0.0.0-test",
 			Hostname:           "exit-1",
 			WireguardEndpoints: []string{"203.0.113.10:41641"},
 		})
-		require.NoError(t, err)
 		defer res.Body.Close()
 		if res.StatusCode != http.StatusCreated {
 			t.Fatalf("register: %v", codersdk.ReadBodyAsError(res))
@@ -364,7 +352,6 @@ func TestExitNodes(t *testing.T) {
 		require.NotNil(t, resp.DERPMap)
 		require.Contains(t, resp.AgentIDs, agent.ID)
 
-		// Registration is reflected on the replica.
 		got, err := client.ExitNodeByName(ctx, orgID, boundNode.Name)
 		require.NoError(t, err)
 		require.Equal(t, codersdk.ExitNodeStatusHealthy, got.Status)
@@ -392,10 +379,7 @@ func TestExitNodes(t *testing.T) {
 
 	t.Run("Flows", func(t *testing.T) {
 		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitLong)
 
-		// An exit node the workspace's template is not bound to must not
-		// be able to log flows for its agent.
 		otherNode, otherSecret := dbgen.ExitNode(t, db, database.ExitNode{OrganizationID: orgID})
 		otherToken := otherNode.ID.String() + ":" + otherSecret
 
@@ -407,8 +391,6 @@ func TestExitNodes(t *testing.T) {
 		dnsID := uuid.New()
 		unboundID := uuid.New()
 
-		// report sends flows for the shared agent at connectTime unless a
-		// flow overrides them.
 		report := func(token string, droppedReports int, flows ...codersdk.ExitNodeFlowReport) {
 			for i := range flows {
 				flows[i].AgentID = cmp.Or(flows[i].AgentID, agent.ID)
@@ -416,11 +398,10 @@ func TestExitNodes(t *testing.T) {
 					flows[i].ConnectTime = connectTime
 				}
 			}
-			res, err := exitNodeRequest(ctx, token, http.MethodPost, "/api/v2/exitnodes/me/flows", codersdk.ReportExitNodeFlowsRequest{
+			res := request(t, token, http.MethodPost, "/api/v2/exitnodes/me/flows", codersdk.ReportExitNodeFlowsRequest{
 				Flows:          flows,
 				DroppedReports: droppedReports,
 			})
-			require.NoError(t, err)
 			defer res.Body.Close()
 			if res.StatusCode != http.StatusNoContent {
 				t.Fatalf("report flows: %v", codersdk.ReadBodyAsError(res))
@@ -436,7 +417,6 @@ func TestExitNodes(t *testing.T) {
 			Reason:          "allowed host",
 		}
 
-		// Connect report for an allowed flow, plus a denied flow.
 		report(boundToken, 7,
 			allowed,
 			codersdk.ExitNodeFlowReport{
@@ -447,7 +427,6 @@ func TestExitNodes(t *testing.T) {
 				RuleID:          "rule-3",
 				Reason:          "denied host",
 			},
-			// udp and dns flows carry a protocol prefix in the destination.
 			codersdk.ExitNodeFlowReport{
 				FlowID:          udpID,
 				Protocol:        codersdk.ExitNodeProtocolUDP,
@@ -470,7 +449,6 @@ func TestExitNodes(t *testing.T) {
 				BytesOut:        45,
 				DisconnectTime:  &disconnectTime,
 			},
-			// Unknown agents are skipped without failing the report.
 			codersdk.ExitNodeFlowReport{
 				FlowID:          uuid.New(),
 				AgentID:         uuid.New(),
@@ -479,10 +457,8 @@ func TestExitNodes(t *testing.T) {
 				Decision:        codersdk.ExitNodeFlowAllow,
 			},
 		)
-		// Disconnect report for the allowed flow.
 		allowed.BytesIn, allowed.BytesOut, allowed.DisconnectTime = 1234, 567, &disconnectTime
 		report(boundToken, 0, allowed)
-		// A flow from a node the template is not bound to.
 		report(otherToken, 0, codersdk.ExitNodeFlowReport{
 			FlowID:          unboundID,
 			DestinationIP:   "198.51.100.9",
@@ -504,7 +480,6 @@ func TestExitNodes(t *testing.T) {
 		assert.Equal(t, "dropped 7 exit node flow reports", gapLogs[0].DisconnectReason.String)
 		require.Empty(t, byFlow[unboundID], "unbound exit node must not log flows")
 
-		// Connect, then connect+disconnect from the second report.
 		allowedLogs := byFlow[allowedID]
 		require.Len(t, allowedLogs, 3)
 		for _, clog := range allowedLogs {
@@ -541,7 +516,6 @@ func TestExitNodes(t *testing.T) {
 		assert.Equal(t, "198.51.100.10", udp[0].IP.IPNet.IP.String())
 		assert.Equal(t, "no-quic: matched rule no-quic", udp[0].DisconnectReason.String)
 
-		// A dns report carries its disconnect, so it yields both rows.
 		dns := byFlow[dnsID]
 		require.Len(t, dns, 2)
 		assert.Equal(t, "dns api.example.com", dns[0].SlugOrPort.String)
@@ -555,9 +529,6 @@ func TestExitNodes(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
 
-		// Rows written straight to the database in the flow encoding must
-		// decode into typed egress info on the way out. dbgen writes every row
-		// from 127.0.0.1.
 		disconnectTime := time.Now().UTC().Truncate(time.Millisecond)
 		for _, tt := range []struct {
 			slugOrPort string
@@ -627,7 +598,6 @@ func TestExitNodes(t *testing.T) {
 			clog := logs.ConnectionLogs[0]
 			require.Equal(t, codersdk.ConnectionTypeEgress, clog.Type, tt.slugOrPort)
 			require.NotNil(t, clog.EgressInfo, tt.slugOrPort)
-			// DisconnectTime is not part of the encoding under test.
 			clog.EgressInfo.DisconnectTime = nil
 			assert.Equal(t, tt.want, *clog.EgressInfo, tt.slugOrPort)
 		}
@@ -677,7 +647,6 @@ func TestExitNodes(t *testing.T) {
 		}, testutil.IntervalFast)
 		require.NoError(t, stream.Close())
 
-		// Without a token the upgrade is refused.
 		//nolint:bodyclose // The websocket package closes the response body.
 		_, res, err = websocket.Dial(ctx, u.String(), &websocket.DialOptions{})
 		require.Error(t, err)

@@ -11,11 +11,13 @@ import (
 	"strings"
 	"sync/atomic"
 	"syscall"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"github.com/spf13/pflag"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
@@ -62,8 +64,6 @@ func (r *RootCmd) exitNode() *serpent.Command {
 	}
 }
 
-// exitNodeOrgClient initializes the client and resolves the selected
-// organization for the organization-scoped exit node commands.
 func (r *RootCmd) exitNodeOrgClient(inv *serpent.Invocation, orgContext *agpl.OrganizationContext) (*codersdk.Client, codersdk.Organization, error) {
 	client, err := r.InitClient(inv)
 	if err != nil {
@@ -126,21 +126,18 @@ func (r *RootCmd) exitNodeCreate() *serpent.Command {
 
 type exitNodeListRow struct {
 	codersdk.ExitNode `table:"exit_node,recursive_inline"`
-	// LiveReplicas counts replicas with a recent heartbeat. Stale and
-	// stopped replicas remain in the API response but are not serving.
-	LiveReplicas int `json:"-" table:"live replicas"`
+	LiveReplicas      int `json:"-" table:"live replicas"`
 }
 
 func exitNodeListRows(nodes []codersdk.ExitNode) []exitNodeListRow {
 	rows := make([]exitNodeListRow, len(nodes))
 	for i, node := range nodes {
-		live := 0
+		rows[i].ExitNode = node
 		for _, replica := range node.Replicas {
 			if replica.Status == codersdk.ExitNodeReplicaStatusLive {
-				live++
+				rows[i].LiveReplicas++
 			}
 		}
-		rows[i] = exitNodeListRow{ExitNode: node, LiveReplicas: live}
 	}
 	return rows
 }
@@ -196,17 +193,14 @@ type exitNodeReplicaRow struct {
 func exitNodeReplicaRows(replicas []codersdk.ExitNodeReplica) []exitNodeReplicaRow {
 	rows := make([]exitNodeReplicaRow, len(replicas))
 	for i, replica := range replicas {
-		hash := replica.PolicyHash
-		if len(hash) > 12 {
-			hash = hash[:12]
-		}
+		hash := replica.PolicyHash[:min(len(replica.PolicyHash), 12)]
 		rows[i] = exitNodeReplicaRow{
 			Hostname:       replica.Hostname,
 			Status:         replica.Status,
 			Version:        replica.Version,
 			TailnetAddress: replica.TailnetAddress,
 			PolicyHash:     hash,
-			UpdatedAt:      replica.UpdatedAt.Format("2006-01-02 15:04:05"),
+			UpdatedAt:      replica.UpdatedAt.Format(time.DateTime),
 		}
 	}
 	return rows
@@ -332,6 +326,38 @@ func (r *RootCmd) exitNodeServer() *serpent.Command {
 		verbose              bool
 		replicaIDOverride    string
 	)
+	option := func(flag, env, description string, value pflag.Value) serpent.Option {
+		return serpent.Option{Flag: flag, Env: env, Description: description, Value: value}
+	}
+	options := serpent.OptionSet{
+		option("token", "CODER_EXIT_NODE_TOKEN", "Authentication token for the exit node, as printed by 'coder exit-node create'.", serpent.StringOf(&token)),
+		option("primary-access-url", "CODER_PRIMARY_ACCESS_URL", "URL to communicate with coderd. This should match the access URL of the Coder deployment.", serpent.Validate(&primaryAccessURL, func(value *serpent.URL) error {
+			if value.Scheme != "http" && value.Scheme != "https" {
+				return xerrors.Errorf("'--primary-access-url' value must be http or https: url=%s", value.String())
+			}
+			return nil
+		})),
+		option("policy", "CODER_EXIT_NODE_POLICY", "Path to the YAML policy file. Reloaded on SIGHUP.", serpent.StringOf(&policyPath)),
+		option("replica-id", "", "Replica ID override. By default a fresh ID is generated at startup.", serpent.StringOf(&replicaIDOverride)),
+		option("listen-port", "CODER_EXIT_NODE_LISTEN_PORT", "Tailnet port to accept CONNECT requests on.", serpent.Int64Of(&listenPort)),
+		option("prometheus-address", "CODER_EXIT_NODE_PROMETHEUS_ADDRESS", "Address to serve Prometheus metrics on. Disabled when empty.", serpent.StringOf(&prometheusAddress)),
+		option("wireguard-endpoint", "CODER_EXIT_NODE_WIREGUARD_ENDPOINTS", "Public ip:port of this node's WireGuard listener, advertised to agents so they exempt it from egress enforcement. May be repeated.", serpent.StringArrayOf(&wireguardEndpoints)),
+		option("wireguard-listen-port", "CODER_EXIT_NODE_WIREGUARD_LISTEN_PORT", "Fixed local UDP port for WireGuard. Use with --wireguard-endpoint. 0 picks a random port.", serpent.Validate(serpent.Int64Of(&wireguardListenPort), func(v *serpent.Int64) error {
+			if v.Value() < 0 || v.Value() > 65535 {
+				return xerrors.Errorf("port %d out of range", v.Value())
+			}
+			return nil
+		})),
+		option("block-direct-connections", "CODER_EXIT_NODE_BLOCK_DIRECT", "Force all agent traffic through DERP relays.", serpent.BoolOf(&blockDirect)),
+		option("provisional-host-allow", "CODER_EXIT_NODE_PROVISIONAL_HOST_ALLOW", "Allow host-based allow rules to provisionally match IP-literal targets before sniffing. This weakens host enforcement and may permit traffic before the host is verified.", serpent.BoolOf(&provisionalHostAllow)),
+		option("upstream-dns", "CODER_EXIT_NODE_UPSTREAM_DNS", "Upstream DNS server as ip[:port]. May be repeated. Configures both CONNECT hostname resolution and DNS streams. By default, the exit node's own resolver view decides what a name means.", serpent.StringArrayOf(&upstreamDNS)),
+		option("verbose", "CODER_EXIT_NODE_VERBOSE", "Output debug-level logs.", serpent.BoolOf(&verbose)),
+	}
+	options[0].Name, options[0].Required = "Exit Node Token", true
+	options[1].Name, options[1].Required = "Coderd (Primary) Access URL", true
+	options[2].Required = true
+	options[4].Default = fmt.Sprint(codersdk.ExitNodeTailnetPort)
+	options[7].Default = "0"
 	return &serpent.Command{
 		Use:   "server",
 		Short: "Run an exit node",
@@ -341,103 +367,11 @@ func (r *RootCmd) exitNodeServer() *serpent.Command {
 			"cannot consume replica-aware configurations. Restart workspaces on the new agent before " +
 			"binding exit nodes. Send SIGHUP to reload the policy file.",
 		Middleware: serpent.RequireNArgs(0),
-		Options: serpent.OptionSet{
-			{
-				Name:        "Exit Node Token",
-				Flag:        "token",
-				Env:         "CODER_EXIT_NODE_TOKEN",
-				Description: "Authentication token for the exit node, as printed by 'coder exit-node create'.",
-				Required:    true,
-				Value:       serpent.StringOf(&token),
-			},
-			{
-				Name:        "Coderd (Primary) Access URL",
-				Flag:        "primary-access-url",
-				Env:         "CODER_PRIMARY_ACCESS_URL",
-				Description: "URL to communicate with coderd. This should match the access URL of the Coder deployment.",
-				Required:    true,
-				Value: serpent.Validate(&primaryAccessURL, func(value *serpent.URL) error {
-					if value.Scheme != "http" && value.Scheme != "https" {
-						return xerrors.Errorf("'--primary-access-url' value must be http or https: url=%s", value.String())
-					}
-					return nil
-				}),
-			},
-			{
-				Flag:        "policy",
-				Env:         "CODER_EXIT_NODE_POLICY",
-				Description: "Path to the YAML policy file. Reloaded on SIGHUP.",
-				Required:    true,
-				Value:       serpent.StringOf(&policyPath),
-			},
-			{
-				Flag:        "replica-id",
-				Description: "Replica ID override. By default a fresh ID is generated at startup.",
-				Value:       serpent.StringOf(&replicaIDOverride),
-			},
-			{
-				Flag:        "listen-port",
-				Env:         "CODER_EXIT_NODE_LISTEN_PORT",
-				Description: "Tailnet port to accept CONNECT requests on.",
-				Default:     fmt.Sprint(codersdk.ExitNodeTailnetPort),
-				Value:       serpent.Int64Of(&listenPort),
-			},
-			{
-				Flag:        "prometheus-address",
-				Env:         "CODER_EXIT_NODE_PROMETHEUS_ADDRESS",
-				Description: "Address to serve Prometheus metrics on. Disabled when empty.",
-				Value:       serpent.StringOf(&prometheusAddress),
-			},
-			{
-				Flag: "wireguard-endpoint",
-				Env:  "CODER_EXIT_NODE_WIREGUARD_ENDPOINTS",
-				Description: "Public ip:port of this node's WireGuard listener, advertised to agents so they " +
-					"exempt it from egress enforcement. May be repeated.",
-				Value: serpent.StringArrayOf(&wireguardEndpoints),
-			},
-			{
-				Flag:        "wireguard-listen-port",
-				Env:         "CODER_EXIT_NODE_WIREGUARD_LISTEN_PORT",
-				Description: "Fixed local UDP port for WireGuard. Use with --wireguard-endpoint. 0 picks a random port.",
-				Default:     "0",
-				Value: serpent.Validate(serpent.Int64Of(&wireguardListenPort), func(v *serpent.Int64) error {
-					if v.Value() < 0 || v.Value() > 65535 {
-						return xerrors.Errorf("port %d out of range", v.Value())
-					}
-					return nil
-				}),
-			},
-			{
-				Flag:        "block-direct-connections",
-				Env:         "CODER_EXIT_NODE_BLOCK_DIRECT",
-				Description: "Force all agent traffic through DERP relays.",
-				Value:       serpent.BoolOf(&blockDirect),
-			},
-			{
-				Flag:        "provisional-host-allow",
-				Env:         "CODER_EXIT_NODE_PROVISIONAL_HOST_ALLOW",
-				Description: "Allow host-based allow rules to provisionally match IP-literal targets before sniffing. This weakens host enforcement and may permit traffic before the host is verified.",
-				Value:       serpent.BoolOf(&provisionalHostAllow),
-			},
-			{
-				Flag:        "upstream-dns",
-				Env:         "CODER_EXIT_NODE_UPSTREAM_DNS",
-				Description: "Upstream DNS server as ip[:port]. May be repeated. Configures both CONNECT hostname resolution and DNS streams. By default, the exit node's own resolver view decides what a name means.",
-				Value:       serpent.StringArrayOf(&upstreamDNS),
-			},
-			{
-				Flag:        "verbose",
-				Env:         "CODER_EXIT_NODE_VERBOSE",
-				Description: "Output debug-level logs.",
-				Value:       serpent.BoolOf(&verbose),
-			},
-		},
+		Options:    options,
 		Handler: func(inv *serpent.Invocation) error {
 			ctx, cancel := context.WithCancel(inv.Context())
 			defer cancel()
 
-			// Only the ID is needed locally; the secret stays in the token
-			// and must not surface in errors.
 			idStr, _, ok := strings.Cut(token, ":")
 			if !ok {
 				return xerrors.New("token must have the form <exit node ID>:<secret>")

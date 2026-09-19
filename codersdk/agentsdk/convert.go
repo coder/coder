@@ -107,8 +107,7 @@ func ProtoFromManifest(manifest Manifest) (*proto.Manifest, error) {
 	}, nil
 }
 
-// EgressConfigFromProto converts the proto egress config. A nil proto yields
-// a nil config, meaning egress is unmanaged.
+// EgressConfigFromProto converts the proto egress config.
 func EgressConfigFromProto(egress *proto.EgressConfig) (*EgressConfig, error) {
 	if egress == nil {
 		return nil, nil //nolint:nilnil // Nil egress means the workspace routes traffic directly.
@@ -137,8 +136,7 @@ func EgressConfigFromProto(egress *proto.EgressConfig) (*EgressConfig, error) {
 	}, nil
 }
 
-// ProtoFromEgressConfig converts the SDK egress config to proto. A nil config
-// yields a nil proto so the manifest field stays unset.
+// ProtoFromEgressConfig converts an SDK egress config to proto.
 func ProtoFromEgressConfig(egress *EgressConfig) *proto.EgressConfig {
 	if egress == nil {
 		return nil

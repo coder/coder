@@ -20,34 +20,26 @@ import (
 )
 
 const (
-	// udpMaxDatagram is the largest datagram relayed to the exit node. The
-	// tailnet path is WireGuard with a 1280 byte MTU, so larger datagrams
-	// would fragment across the CONNECT stream; QUIC and DNS stay under it.
+	// udpMaxDatagram avoids fragmentation on the 1280-byte WireGuard path.
 	udpMaxDatagram = 1400
 	// udpIdleTimeout ends a session with no traffic in either direction.
 	udpIdleTimeout = 60 * time.Second
 	// udpDNSIdleTimeout is shorter because DNS exchanges are one shot.
 	udpDNSIdleTimeout = 30 * time.Second
-	// udpDenyTTL is how long datagrams for a denied session are dropped
-	// before the exit node is asked again.
+	// udpDenyTTL negative-caches denied sessions.
 	udpDenyTTL = 30 * time.Second
-	// udpQueueDepth bounds datagrams buffered while the CONNECT is in
-	// flight.
+	// udpQueueDepth bounds datagrams queued during CONNECT.
 	udpQueueDepth = 32
 	// udpOOBSize fits the IP_RECVORIGDSTADDR control message.
 	udpOOBSize = 128
 )
 
-// udpProxy relays redirected UDP datagrams to the exit node. Each
-// (client, destination) pair gets its own CONNECT stream carrying
-// length-prefixed datagrams; replies are written back through the listener
-// so conntrack rewrites them to look like they came from the destination.
+// udpProxy relays each client-destination pair over its own CONNECT stream.
 type udpProxy struct {
 	logger  slog.Logger
 	clock   quartz.Clock
 	connect connectFunc
-	// target names the CONNECT destination for a redirected datagram.
-	target func(dst netip.AddrPort) string
+	target  func(dst netip.AddrPort) string
 	// origDst recovers the pre-redirect destination from control messages.
 	// It is a field so tests can supply destinations without netfilter.
 	origDst func(oob []byte) netip.AddrPort
@@ -62,10 +54,7 @@ type udpProxy struct {
 	drops    map[uint16]udpDropState
 	wg       sync.WaitGroup
 
-	// oversized counts datagrams dropped for exceeding udpMaxDatagram.
-	oversized atomic.Int64
-	// unknownDst counts datagrams dropped because the original destination
-	// could not be recovered.
+	oversized  atomic.Int64
 	unknownDst atomic.Int64
 }
 
@@ -79,9 +68,7 @@ type udpDropState struct {
 	count int64
 }
 
-// listenUDP binds an IPv4 UDP socket on host, preferring preferredPort so
-// netfilter rules stay valid across proxy restarts and falling back to an
-// ephemeral port when it is taken.
+// listenUDP prefers a stable port and falls back to an ephemeral port.
 func listenUDP(ctx context.Context, logger slog.Logger, host string, preferredPort uint16) (*net.UDPConn, netip.AddrPort, error) {
 	var lc net.ListenConfig
 	var preferredErr error
@@ -188,8 +175,6 @@ func (p *udpProxy) readLoop(ctx context.Context) {
 	}
 }
 
-// markUnknownDrop counts fallback drops by observed destination port and
-// reports at most once per udpDenyTTL for each port.
 func (p *udpProxy) markUnknownDrop(port uint16) (bool, int64) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -215,8 +200,6 @@ func (p *udpProxy) markDenied(key udpSessionKey) bool {
 	return true
 }
 
-// session returns the session for key, creating and connecting it if
-// needed. It returns nil when key is in the negative cache.
 func (p *udpProxy) session(ctx context.Context, key udpSessionKey) *udpSession {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -252,7 +235,6 @@ func (p *udpProxy) remove(s *udpSession) {
 	}
 }
 
-// udpSession is one client-to-destination flow and its exit node stream.
 type udpSession struct {
 	proxy   *udpProxy
 	key     udpSessionKey
@@ -263,9 +245,8 @@ type udpSession struct {
 	mu       sync.Mutex
 	upstream net.Conn
 	reply    *net.UDPConn
-	// queue holds datagrams that arrived before the CONNECT completed.
-	queue  [][]byte
-	closed bool
+	queue    [][]byte
+	closed   bool
 }
 
 // send relays one datagram, queuing it while the stream is still being
@@ -289,8 +270,6 @@ func (s *udpSession) send(payload []byte) {
 	}
 }
 
-// run opens the stream, flushes queued datagrams and relays replies until
-// the stream ends or the session is closed.
 func (s *udpSession) run(ctx context.Context) {
 	defer s.proxy.remove(s)
 	defer s.close()

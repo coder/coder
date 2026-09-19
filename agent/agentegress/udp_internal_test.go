@@ -15,14 +15,10 @@ import (
 	"github.com/coder/quartz"
 )
 
-// fixedOrigDst makes every redirected datagram look like it was sent to
-// dst, standing in for the netfilter control message.
 func fixedOrigDst(dst netip.AddrPort) func([]byte) netip.AddrPort {
 	return func([]byte) netip.AddrPort { return dst }
 }
 
-// udpClient returns a connected UDP socket to the proxy's UDP listener with
-// its deadline taken from ctx.
 func udpClient(ctx context.Context, t testing.TB, addr netip.AddrPort) *net.UDPConn {
 	t.Helper()
 	conn, err := net.DialUDP("udp4", nil, net.UDPAddrFromAddrPort(addr))
@@ -39,7 +35,6 @@ func TestUDP_Relays(t *testing.T) {
 	for _, tt := range []struct {
 		name string
 		dst  func(proxy *Proxy) netip.AddrPort
-		// want is the CONNECT target the exit node must see.
 		want string
 	}{
 		{
@@ -57,8 +52,6 @@ func TestUDP_Relays(t *testing.T) {
 			t.Parallel()
 
 			exit := newFakeExitNode(t, nil)
-			// The fake IP is only known once the proxy exists, so the hook
-			// reads it through an atomic.
 			var dst atomic.Pointer[netip.AddrPort]
 			proxy := startProxy(t, exit, proxyOptions{
 				udpOrigDst: func([]byte) netip.AddrPort {
@@ -72,8 +65,6 @@ func TestUDP_Relays(t *testing.T) {
 			ctx := testutil.Context(t, testutil.WaitShort)
 			client := udpClient(ctx, t, proxy.UDPAddr())
 
-			// Several datagrams on one flow share a single stream, including
-			// ones sent before the CONNECT completes.
 			for _, msg := range []string{"one", "two", "three"} {
 				_, err := client.Write([]byte(msg))
 				require.NoError(t, err)
@@ -127,7 +118,6 @@ func TestUDP_DeniedFlowIsNegativeCached(t *testing.T) {
 	client := udpClient(ctx, t, proxy.UDPAddr())
 	_, err := client.Write([]byte("first"))
 	require.NoError(t, err)
-	// The first datagram triggers exactly one CONNECT, which is denied.
 	require.Eventually(t, func() bool {
 		return len(exit.connectsTo("blocked.example.com:5000")) == 1
 	}, testutil.WaitShort, testutil.IntervalFast)
@@ -152,7 +142,6 @@ func TestUDP_DeniedFlowIsNegativeCached(t *testing.T) {
 	sendUntilSentinel()
 	require.Len(t, exit.connectsTo("blocked.example.com:5000"), 1)
 
-	// After the cache entry expires the exit node is asked again.
 	mClock.Advance(31 * time.Second).MustWait(ctx)
 	sendUntilSentinel()
 	require.Eventually(t, func() bool {
@@ -180,9 +169,6 @@ func TestUDP_IdleSessionCloses(t *testing.T) {
 	require.Equal(t, "echo:ping", string(buf[:n]))
 	require.Len(t, exit.connectsTo("192.0.2.9:9000"), 1)
 
-	// The idle timer was armed when the session was created and reset by
-	// the reply; advancing to it closes the stream, so the next datagram
-	// opens a new one.
 	mClock.Advance(60 * time.Second).MustWait(ctx)
 	require.Eventually(t, func() bool {
 		if _, err := client.Write([]byte("ping2")); err != nil {
@@ -232,7 +218,6 @@ func TestUDP_DropsOversizedAndUnknownDestination(t *testing.T) {
 	}, testutil.WaitShort, testutil.IntervalFast)
 	require.Empty(t, exit.connectsTo("192.0.2.9:9000"))
 
-	// Without a recoverable destination nothing is relayed.
 	unknown := startProxy(t, exit, proxyOptions{
 		udpOrigDst: func([]byte) netip.AddrPort { return netip.AddrPort{} },
 	})

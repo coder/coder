@@ -23,11 +23,8 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
-// TestEnforcer_Iptables exercises the real iptables path. It mutates the
-// host's netfilter state and briefly redirects all new TCP, UDP and DNS
-// traffic into a test proxy, so it only runs when CODER_TEST_IPTABLES=1 is
-// set and root or passwordless sudo is available. The phases share the
-// host's single rule set and therefore run sequentially inside one test.
+// TestEnforcer_Iptables mutates host netfilter state and only runs when
+// CODER_TEST_IPTABLES=1 is set.
 func TestEnforcer_Iptables(t *testing.T) {
 	t.Parallel()
 	if os.Getenv("CODER_TEST_IPTABLES") != "1" {
@@ -91,7 +88,6 @@ func TestCapabilityLockdownHelper(t *testing.T) {
 	}
 }
 
-// testEnforcerInstallRemove checks rule contents, idempotency and cleanup.
 func testEnforcerInstallRemove(ctx context.Context, t *testing.T) {
 	t.Helper()
 	e, err := NewEnforcer(testutil.Logger(t), EnforcerOptions{
@@ -106,7 +102,6 @@ func testEnforcerInstallRemove(ctx context.Context, t *testing.T) {
 	t.Cleanup(func() { _ = e.Remove(ctx) })
 
 	require.NoError(t, e.Install(ctx))
-	// Idempotent.
 	require.NoError(t, e.Install(ctx))
 
 	list := func(table, chain string) string {
@@ -127,8 +122,6 @@ func testEnforcerInstallRemove(ctx context.Context, t *testing.T) {
 	} {
 		require.Contains(t, nat, want)
 	}
-	// This test has no transparent listener, so Install uses the loud
-	// REDIRECT fallback and keeps one copy of every rule.
 	require.Equal(t, 4, strings.Count(nat, "-j REDIRECT"))
 	require.Contains(t, nat, "-A CODER_EGRESS -p udp -j REDIRECT --to-ports 40125")
 	filter := list("filter", filterChain)
@@ -137,7 +130,6 @@ func testEnforcerInstallRemove(ctx context.Context, t *testing.T) {
 	require.Equal(t, 1, strings.Count(list("nat", "OUTPUT"), "-j CODER_EGRESS"))
 
 	require.NoError(t, e.Remove(ctx))
-	// Idempotent.
 	require.NoError(t, e.Remove(ctx))
 
 	for _, table := range []string{"nat", "filter", "mangle"} {
@@ -154,20 +146,6 @@ func testEnforcerInstallRemove(ctx context.Context, t *testing.T) {
 	}
 }
 
-// testEnforcerTransparentRedirect verifies the redirect paths end to end
-// with rules installed:
-//
-//   - a plain HTTP request to a non-local address is redirected into the
-//     proxy, which recovers the original destination via SO_ORIGINAL_DST
-//     and tunnels it through a fake exit node;
-//   - a UDP DNS query to a non-local resolver is redirected into the DNS
-//     listener and answered with a fake address;
-//   - a UDP datagram to a non-local address is redirected into the UDP
-//     listener, where the kernel cannot report its original destination,
-//     so it is counted as dropped rather than relayed.
-//
-// The fake exit node only dials the loopback origin, so no traffic loops
-// back through the redirect.
 func testEnforcerTransparentRedirect(ctx context.Context, t *testing.T) {
 	t.Helper()
 	// TEST-NET-1 is never routable, but the default route still carries the
@@ -213,7 +191,6 @@ func testEnforcerTransparentRedirect(ctx context.Context, t *testing.T) {
 	require.Equal(t, "canned", string(body))
 	require.Len(t, exit.connectsTo(target), 1)
 
-	// DNS to a non-local resolver lands in the DNS listener.
 	hdr, answers := dnsExchange(ctx, t, "udp", netip.MustParseAddrPort("192.0.2.53:53"), dnsQuery(t, 42, "redirected.example.com.", dnsmessage.TypeA))
 	require.Equal(t, uint16(42), hdr.ID)
 	require.Len(t, answers, 1)

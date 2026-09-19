@@ -22,13 +22,9 @@ import (
 func TestExtractExitNode(t *testing.T) {
 	t.Parallel()
 
-	// All subtests only insert uniquely named rows, so one database is
-	// shared across them.
 	db, _ := dbtestutil.NewDB(t)
 	org := dbgen.Organization(t, db, database.Organization{})
 
-	// serve runs the middleware with the given token and returns the status
-	// code. handler is only reached when the token is accepted.
 	serve := func(t *testing.T, token string, handler http.HandlerFunc) int {
 		t.Helper()
 		r := httptest.NewRequest(http.MethodGet, "/", nil)
@@ -63,7 +59,6 @@ func TestExtractExitNode(t *testing.T) {
 		{"NotFound", func(t *testing.T) string { return uuid.NewString() + ":" + randomSecret(t) }},
 		{"InvalidSecret", func(t *testing.T) string {
 			node, _ := newNode(t)
-			// Use a different secret so they don't match.
 			return fmt.Sprintf("%s:%s", node.ID, randomSecret(t))
 		}},
 		{"Deleted", func(t *testing.T) string {

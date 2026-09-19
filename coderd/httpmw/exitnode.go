@@ -33,11 +33,7 @@ func ExitNode(r *http.Request) database.ExitNode {
 	return node
 }
 
-// ExtractExitNode authenticates an exit node from the
-// codersdk.ExitNodeTokenHeader header. The token format is
-// "<exit node id>:<secret>", mirroring workspace proxy tokens. Every failure
-// returns 401 so callers cannot distinguish a missing node from a bad secret
-// beyond the detail string.
+// ExtractExitNode authenticates the token in codersdk.ExitNodeTokenHeader.
 func ExtractExitNode(db database.Store) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
@@ -70,16 +66,13 @@ func ExtractExitNode(db database.Store) func(http.Handler) http.Handler {
 			case node.Deleted:
 				unauthorized("Invalid exit node token", "Exit node has been deleted.")
 				return
-			// Constant-time comparison of the hashed secret.
 			case !apikey.ValidateHash(node.TokenHashedSecret, secret):
 				unauthorized("Invalid exit node token", "Invalid exit node token secret.")
 				return
 			}
 
 			ctx = context.WithValue(ctx, exitNodeContextKey{}, node)
-			//nolint:gocritic // Exit nodes act as a system component on the
-			// few routes this middleware is mounted to, like workspace
-			// proxies.
+			//nolint:gocritic // Exit nodes act as system components on these routes.
 			next.ServeHTTP(rw, r.WithContext(dbauthz.AsSystemRestricted(ctx)))
 		})
 	}

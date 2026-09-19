@@ -44,12 +44,12 @@ func (e *Enforcer) Install(ctx context.Context) error {
 	if !e.transparent {
 		mode = udpModeRedirect
 	}
-	if err := e.installFamily(ctx, "iptables", buildRules(e.ports, exemptions, ipv4, mode)); err != nil {
+	if err := e.installChains(ctx, "iptables", managedChains, buildRules(e.ports, exemptions, ipv4, mode)); err != nil {
 		_ = e.removeTPROXY(ctx)
 		return xerrors.Errorf("install iptables rules: %w", err)
 	}
 	e.installed = true
-	if err := e.installFamily(ctx, "ip6tables", buildRules(e.ports, exemptions, ipv6, udpModeRedirect)); err != nil {
+	if err := e.installChains(ctx, "ip6tables", managedChains, buildRules(e.ports, exemptions, ipv6, udpModeRedirect)); err != nil {
 		if cleanupErr := e.handleIPv6InstallFailure(ctx, err); cleanupErr != nil {
 			return cleanupErr
 		}
@@ -83,13 +83,13 @@ func (e *Enforcer) Remove(ctx context.Context) error {
 		return err
 	}
 	var errs []error
-	if err := e.removeFamily(ctx, "iptables"); err != nil {
+	if err := e.removeChains(ctx, "iptables", managedChains); err != nil {
 		errs = append(errs, xerrors.Errorf("remove iptables rules: %w", err))
 	}
 	if err := e.removeTPROXY(ctx); err != nil {
 		errs = append(errs, xerrors.Errorf("remove transparent udp rules: %w", err))
 	}
-	if err := e.removeFamily(ctx, "ip6tables"); err != nil {
+	if err := e.removeChains(ctx, "ip6tables", managedChains); err != nil {
 		e.logger.Debug(ctx, "remove ip6tables egress rules", slog.Error(err))
 	}
 	if len(errs) > 0 {
@@ -139,7 +139,7 @@ func (e *Enforcer) handleIPv6InstallFailure(ctx context.Context, installErr erro
 	}
 	e.logger.Warn(ctx, "ip6tables unavailable and ipv6 could not be disabled, removing ipv4 enforcement",
 		slog.Error(errors.Join(xerrors.Errorf("install ip6tables: %w", installErr), xerrors.Errorf("disable ipv6: %w", disableErr))))
-	cleanupErr := errors.Join(e.removeFamily(ctx, "iptables"), e.removeTPROXY(ctx), e.removeFamily(ctx, "ip6tables"))
+	cleanupErr := errors.Join(e.removeChains(ctx, "iptables", managedChains), e.removeTPROXY(ctx), e.removeChains(ctx, "ip6tables", managedChains))
 	e.installed = false
 	e.transparent = false
 	return xerrors.Errorf("ipv6 enforcement unavailable: %w", errors.Join(
@@ -186,50 +186,36 @@ func (e *Enforcer) disableIPv6() error {
 	}
 	return errors.Join(errs...)
 }
-func (e *Enforcer) installFamily(ctx context.Context, bin string, rs ruleSet) error {
-	for _, tc := range managedChains {
-		_, _ = e.run(ctx, bin, "-t", tc.table, "-N", tc.chain)
-		if _, err := e.run(ctx, bin, "-t", tc.table, "-F", tc.chain); err != nil {
-			return err
+func (e *Enforcer) installChains(ctx context.Context, bin string, chains []chainSpec, rs ruleSet) error {
+	for _, c := range chains {
+		_, _ = e.run(ctx, bin, "-t", c.table, "-N", c.chain)
+		if _, err := e.run(ctx, bin, "-t", c.table, "-F", c.chain); err != nil {
+			return chainError(c.flushError, err)
 		}
-		for _, r := range rs[tc.table] {
-			if _, err := e.run(ctx, bin, append([]string{"-t", tc.table}, r...)...); err != nil {
-				return err
+		for _, r := range rs[c.key] {
+			if _, err := e.run(ctx, bin, append([]string{"-t", c.table}, r...)...); err != nil {
+				return chainError(c.ruleError, err)
 			}
 		}
-		if _, err := e.run(ctx, bin, "-t", tc.table, "-C", tc.parent, "-j", tc.chain); err != nil {
-			if _, err := e.run(ctx, bin, "-t", tc.table, "-I", tc.parent, "1", "-j", tc.chain); err != nil {
-				return err
+		if _, err := e.run(ctx, bin, "-t", c.table, "-C", c.parent, "-j", c.chain); err != nil {
+			if _, err := e.run(ctx, bin, "-t", c.table, "-I", c.parent, "1", "-j", c.chain); err != nil {
+				return chainError(c.jumpError, err)
 			}
 		}
 	}
 	return nil
 }
 
+func chainError(prefix string, err error) error {
+	if prefix == "" {
+		return err
+	}
+	return xerrors.Errorf("%s: %w", prefix, err)
+}
+
 func (e *Enforcer) installTPROXY(ctx context.Context, exemptions []resolvedExemption) error {
-	rs := buildTPROXYRules(e.ports, exemptions)
-	for _, chain := range []string{tproxyOutputChain, tproxyPreroutingChain} {
-		_, _ = e.run(ctx, "iptables", "-t", "mangle", "-N", chain)
-		if _, err := e.run(ctx, "iptables", "-t", "mangle", "-F", chain); err != nil {
-			return xerrors.Errorf("flush mangle chain %s: %w", chain, err)
-		}
-	}
-	for _, r := range rs["output"] {
-		if _, err := e.run(ctx, "iptables", append([]string{"-t", "mangle"}, r...)...); err != nil {
-			return xerrors.Errorf("install UDP mark rule: %w", err)
-		}
-	}
-	for _, r := range rs["prerouting"] {
-		if _, err := e.run(ctx, "iptables", append([]string{"-t", "mangle"}, r...)...); err != nil {
-			return xerrors.Errorf("install TPROXY rule: %w", err)
-		}
-	}
-	for _, jump := range []struct{ parent, chain string }{{"OUTPUT", tproxyOutputChain}, {"PREROUTING", tproxyPreroutingChain}} {
-		if _, err := e.run(ctx, "iptables", "-t", "mangle", "-C", jump.parent, "-j", jump.chain); err != nil {
-			if _, err := e.run(ctx, "iptables", "-t", "mangle", "-I", jump.parent, "1", "-j", jump.chain); err != nil {
-				return xerrors.Errorf("install mangle %s jump: %w", jump.parent, err)
-			}
-		}
+	if err := e.installChains(ctx, "iptables", tproxyChains, buildTPROXYRules(e.ports, exemptions)); err != nil {
+		return err
 	}
 	if _, err := e.run(ctx, "ip", "-4", "route", "replace", "local", "0.0.0.0/0", "dev", "lo", "table", tproxyTable); err != nil {
 		return xerrors.Errorf("install TPROXY route table %s: %w", tproxyTable, err)
@@ -252,10 +238,10 @@ func (e *Enforcer) ensureIPRule(ctx context.Context) error {
 	return nil
 }
 
-func (e *Enforcer) removeFamily(ctx context.Context, bin string) error {
+func (e *Enforcer) removeChains(ctx context.Context, bin string, chains []chainSpec) error {
 	var errs []error
-	for _, tc := range managedChains {
-		if err := e.removeChain(ctx, bin, tc.table, tc.parent, tc.chain); err != nil {
+	for _, c := range chains {
+		if err := e.removeChain(ctx, bin, c.table, c.parent, c.chain); err != nil {
 			errs = append(errs, err)
 		}
 	}
@@ -263,12 +249,7 @@ func (e *Enforcer) removeFamily(ctx context.Context, bin string) error {
 }
 
 func (e *Enforcer) removeTPROXY(ctx context.Context) error {
-	var errs []error
-	for _, tc := range []struct{ parent, chain string }{{"OUTPUT", tproxyOutputChain}, {"PREROUTING", tproxyPreroutingChain}} {
-		if err := e.removeChain(ctx, "iptables", "mangle", tc.parent, tc.chain); err != nil {
-			errs = append(errs, err)
-		}
-	}
+	errs := []error{e.removeChains(ctx, "iptables", tproxyChains)}
 	for range 8 {
 		if _, err := e.run(ctx, "ip", "-4", "rule", "del", "fwmark", tproxyMark, "lookup", tproxyTable); err != nil {
 			break

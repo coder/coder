@@ -170,10 +170,27 @@ type rule []string
 // ruleSet maps an iptables table to the rules for the chain owned there.
 type ruleSet map[string][]rule
 
-// managedChains are the base enforcement chains.
-var managedChains = []struct{ table, chain, parent string }{
-	{"nat", natChain, "OUTPUT"},
-	{"filter", filterChain, "OUTPUT"},
+type chainSpec struct {
+	table, key, parent, chain        string
+	flushError, ruleError, jumpError string
+}
+
+var managedChains = []chainSpec{
+	{table: "nat", key: "nat", parent: "OUTPUT", chain: natChain},
+	{table: "filter", key: "filter", parent: "OUTPUT", chain: filterChain},
+}
+
+var tproxyChains = []chainSpec{
+	{
+		table: "mangle", key: "output", parent: "OUTPUT", chain: tproxyOutputChain,
+		flushError: "flush mangle chain " + tproxyOutputChain,
+		ruleError:  "install UDP mark rule", jumpError: "install mangle OUTPUT jump",
+	},
+	{
+		table: "mangle", key: "prerouting", parent: "PREROUTING", chain: tproxyPreroutingChain,
+		flushError: "flush mangle chain " + tproxyPreroutingChain,
+		ruleError:  "install TPROXY rule", jumpError: "install mangle PREROUTING jump",
+	},
 }
 
 // ipFamily selects the address family a rule set is built for.
