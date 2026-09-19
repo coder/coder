@@ -17,6 +17,7 @@ import (
 	"github.com/coder/coder/v2/aibridge/keypool"
 	"github.com/coder/coder/v2/aibridge/metrics"
 	"github.com/coder/coder/v2/aibridge/provider"
+	"github.com/coder/coder/v2/aibridge/routing"
 	"github.com/coder/coder/v2/aibridge/tracing"
 	"github.com/coder/quartz"
 )
@@ -56,7 +57,7 @@ func newPassthroughRouter(prov provider.Provider, logger slog.Logger, m *metrics
 		),
 		ErrorHandler: func(rw http.ResponseWriter, req *http.Request, e error) {
 			if _, ok := errors.AsType[*http.MaxBytesError](e); ok {
-				writeRequestBodyTooLarge(req.Context(), rw)
+				routing.WriteRequestBodyTooLarge(req.Context(), rw)
 			} else {
 				logger.Warn(req.Context(), "reverse proxy error", slog.Error(e), slog.F("path", req.URL.Path))
 				http.Error(rw, "upstream proxy error", http.StatusBadGateway)
