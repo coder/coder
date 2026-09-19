@@ -208,7 +208,7 @@ func (w *chatWorker) acquireOnce(ctx context.Context, workerID uuid.UUID, manage
 		}
 		// Interrupting and requires-action chats bypass capacity so their runners
 		// can finish work or enforce the action deadline.
-		isSubagent := row.ParentChatID.Valid
+		isSubagent := row.Kind == database.ChatKindSubagent
 		if row.Status == database.ChatStatusRunning &&
 			((isSubagent && subagentPoolRefused) || (!isSubagent && rootPoolRefused)) {
 			continue

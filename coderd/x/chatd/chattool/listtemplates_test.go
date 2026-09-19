@@ -817,6 +817,7 @@ func TestTemplateAgentsAllowedEnforcement(t *testing.T) {
 	t.Run("CreateWorkspace", func(t *testing.T) {
 		t.Run("Allowed", func(t *testing.T) {
 			chat, err := db.InsertChat(ctx, database.InsertChatParams{
+				Kind:              database.ChatKindChat,
 				OrganizationID:    org.ID,
 				OwnerID:           user.ID,
 				LastModelConfigID: model.ID,
@@ -843,6 +844,7 @@ func TestTemplateAgentsAllowedEnforcement(t *testing.T) {
 
 		t.Run("Blocked", func(t *testing.T) {
 			chat, err := db.InsertChat(ctx, database.InsertChatParams{
+				Kind:              database.ChatKindChat,
 				OrganizationID:    org.ID,
 				OwnerID:           user.ID,
 				LastModelConfigID: model.ID,

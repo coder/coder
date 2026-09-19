@@ -67,7 +67,7 @@ func (a *agentCapacityLimiter) Admit(ctx context.Context, store database.Store, 
 		return false, err
 	}
 	used, capacity := counts.ActiveRootCount, a.rootCapacity
-	if chat.ParentChatID.Valid {
+	if chat.Kind == database.ChatKindSubagent {
 		used, capacity = counts.ActiveSubagentCount, a.subagentCapacity
 	}
 	return used < capacity, nil

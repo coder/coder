@@ -295,6 +295,7 @@ func TestUpdateChatACLByIDGuards(t *testing.T) {
 		db.EXPECT().Wrappers().Return([]string{}).AnyTimes()
 		db.EXPECT().GetChatByID(gomock.Any(), arg.ID).Return(database.Chat{
 			ID:           arg.ID,
+			Kind:         database.ChatKindSubagent,
 			RootChatID:   uuid.NullUUID{UUID: uuid.New(), Valid: true},
 			ParentChatID: uuid.NullUUID{UUID: uuid.New(), Valid: true},
 		}, nil)
@@ -1289,6 +1290,7 @@ func (s *MethodTestSuite) TestChats() {
 		parentIDs := []uuid.UUID{parentA.ID, parentB.ID}
 		params := database.GetChildChatsByParentIDsParams{
 			ParentIds: parentIDs,
+			Kinds:     []database.ChatKind{database.ChatKindSubagent},
 			Archived:  sql.NullBool{Bool: false, Valid: true},
 		}
 		rows := []database.GetChildChatsByParentIDsRow{

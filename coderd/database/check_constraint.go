@@ -37,6 +37,9 @@ const (
 	CheckChatAclOnlyOnRootChats                              CheckConstraint = "chat_acl_only_on_root_chats"                               // chats
 	CheckChatGroupAclNotNullJsonb                            CheckConstraint = "chat_group_acl_not_null_jsonb"                             // chats
 	CheckChatUserAclNotNullJsonb                             CheckConstraint = "chat_user_acl_not_null_jsonb"                              // chats
+	CheckChatsKindRootParentlessCheck                        CheckConstraint = "chats_kind_root_parentless_check"                          // chats
+	CheckChatsKindSubagentParentCheck                        CheckConstraint = "chats_kind_subagent_parent_check"                          // chats
+	CheckChatsKindSubagentRootCheck                          CheckConstraint = "chats_kind_subagent_root_check"                            // chats
 	CheckChatsPinOrderArchivedCheck                          CheckConstraint = "chats_pin_order_archived_check"                            // chats
 	CheckChatsPinOrderParentCheck                            CheckConstraint = "chats_pin_order_parent_check"                              // chats
 	CheckOneTimePasscodeSet                                  CheckConstraint = "one_time_passcode_set"                                     // users

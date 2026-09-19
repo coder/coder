@@ -100,6 +100,7 @@ func Chat(t testing.TB, db database.Store, seed database.Chat) database.Chat {
 		AgentID:           seed.AgentID,
 		ParentChatID:      seed.ParentChatID,
 		RootChatID:        seed.RootChatID,
+		Kind:              takeFirst(seed.Kind, defaultChatKind(seed)),
 		LastModelConfigID: takeFirst(seed.LastModelConfigID, uuid.New()),
 		Title:             takeFirst(seed.Title, testutil.GetRandomName(t)),
 		Mode:              seed.Mode,
@@ -112,6 +113,15 @@ func Chat(t testing.TB, db database.Store, seed database.Chat) database.Chat {
 	})
 	require.NoError(t, err, "insert chat")
 	return chat
+}
+
+// defaultChatKind derives the kind of a seeded chat from its family pointers:
+// a seed with a root or parent is a subagent, anything else is a user chat.
+func defaultChatKind(seed database.Chat) database.ChatKind {
+	if seed.RootChatID.Valid || seed.ParentChatID.Valid {
+		return database.ChatKindSubagent
+	}
+	return database.ChatKindChat
 }
 
 func ChatMessage(t testing.TB, db database.Store, seed database.ChatMessage) database.ChatMessage {

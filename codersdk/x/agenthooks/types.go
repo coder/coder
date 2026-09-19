@@ -53,12 +53,16 @@ type Meta struct {
 
 // ChatRef identifies the chat a lifecycle hook event refers to.
 type ChatRef struct {
-	ChatID       uuid.UUID  `json:"chat_id"`
-	OwnerID      uuid.UUID  `json:"owner_id"`
+	ChatID  uuid.UUID `json:"chat_id"`
+	OwnerID uuid.UUID `json:"owner_id"`
+	// Kind is "root", "chat", or "subagent". Only subagent chats are
+	// delegated agents; a set ParentChatID alone does not imply one.
+	Kind         string     `json:"kind"`
 	WorkspaceID  *uuid.UUID `json:"workspace_id,omitempty"`
 	TurnID       *uuid.UUID `json:"turn_id,omitempty"`
 	ParentChatID *uuid.UUID `json:"parent_chat_id,omitempty"`
-	// RootChatID identifies the user-facing root of the chat tree.
+	// RootChatID identifies the non-subagent chat that a subagent chat
+	// belongs to. It is unset for root and named chats.
 	RootChatID *uuid.UUID `json:"root_chat_id,omitempty"`
 }
 

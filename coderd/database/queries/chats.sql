@@ -19,6 +19,7 @@ chats_expanded AS (
         updated_chats.updated_at,
         updated_chats.parent_chat_id,
         updated_chats.root_chat_id,
+        updated_chats.kind,
         updated_chats.last_model_config_id,
         updated_chats.last_reasoning_effort,
         updated_chats.archived,
@@ -56,7 +57,7 @@ chats_expanded AS (
         updated_chats.compaction_requested_at
     FROM
         updated_chats
-    LEFT JOIN chats root ON root.id = COALESCE(updated_chats.root_chat_id, updated_chats.parent_chat_id)
+    LEFT JOIN chats root ON root.id = updated_chats.root_chat_id
     JOIN visible_users owner ON owner.id = updated_chats.owner_id
 )
 SELECT *
@@ -85,6 +86,7 @@ chats_expanded AS (
         updated_chats.updated_at,
         updated_chats.parent_chat_id,
         updated_chats.root_chat_id,
+        updated_chats.kind,
         updated_chats.last_model_config_id,
         updated_chats.last_reasoning_effort,
         updated_chats.archived,
@@ -122,7 +124,7 @@ chats_expanded AS (
         updated_chats.compaction_requested_at
     FROM
         updated_chats
-    LEFT JOIN chats root ON root.id = COALESCE(updated_chats.root_chat_id, updated_chats.parent_chat_id)
+    LEFT JOIN chats root ON root.id = updated_chats.root_chat_id
     JOIN visible_users owner ON owner.id = updated_chats.owner_id
 )
 SELECT *
@@ -740,11 +742,11 @@ WHERE
         )
         ELSE true
     END
-    -- Paginate over root chats only. Children are fetched
-    -- separately via GetChildChatsByParentIDs and embedded under
-    -- each parent. Other callers that need the full set should
-    -- use a narrower query (e.g. GetChatsByWorkspaceIDs).
-    AND chats_expanded.parent_chat_id IS NULL
+    -- Paginate over user chats only (no roots, no subagents). Subagent
+    -- children are fetched separately via GetChildChatsByParentIDs and
+    -- embedded under each parent. Other callers that need the full set
+    -- should use a narrower query (e.g. GetChatsByWorkspaceIDs).
+    AND chats_expanded.kind = 'chat'
     -- Authorize Filter clause will be injected below in GetAuthorizedChats
     -- @authorize_filter
 ORDER BY
@@ -780,6 +782,7 @@ FROM
     chats_expanded
 WHERE
     chats_expanded.parent_chat_id = ANY(@parent_ids :: uuid[])
+    AND chats_expanded.kind = ANY(@kinds :: chat_kind[])
     AND CASE
         WHEN sqlc.narg('archived') :: boolean IS NULL THEN true
         ELSE chats_expanded.archived = sqlc.narg('archived') :: boolean
@@ -799,6 +802,7 @@ INSERT INTO chats (
     agent_id,
     parent_chat_id,
     root_chat_id,
+    kind,
     last_model_config_id,
     title,
     mode,
@@ -817,6 +821,7 @@ INSERT INTO chats (
     sqlc.narg('agent_id')::uuid,
     sqlc.narg('parent_chat_id')::uuid,
     sqlc.narg('root_chat_id')::uuid,
+    @kind::chat_kind,
     @last_model_config_id::uuid,
     @title::text,
     sqlc.narg('mode')::chat_mode,
@@ -843,6 +848,7 @@ chats_expanded AS (
         inserted_chat.updated_at,
         inserted_chat.parent_chat_id,
         inserted_chat.root_chat_id,
+        inserted_chat.kind,
         inserted_chat.last_model_config_id,
         inserted_chat.last_reasoning_effort,
         inserted_chat.archived,
@@ -880,7 +886,7 @@ chats_expanded AS (
         inserted_chat.compaction_requested_at
     FROM
         inserted_chat
-    LEFT JOIN chats root ON root.id = COALESCE(inserted_chat.root_chat_id, inserted_chat.parent_chat_id)
+    LEFT JOIN chats root ON root.id = inserted_chat.root_chat_id
     JOIN visible_users owner ON owner.id = inserted_chat.owner_id
 )
 SELECT *
@@ -1007,6 +1013,7 @@ chats_expanded AS (
         updated_chat.updated_at,
         updated_chat.parent_chat_id,
         updated_chat.root_chat_id,
+        updated_chat.kind,
         updated_chat.last_model_config_id,
         updated_chat.last_reasoning_effort,
         updated_chat.archived,
@@ -1044,7 +1051,7 @@ chats_expanded AS (
         updated_chat.compaction_requested_at
     FROM
         updated_chat
-    LEFT JOIN chats root ON root.id = COALESCE(updated_chat.root_chat_id, updated_chat.parent_chat_id)
+    LEFT JOIN chats root ON root.id = updated_chat.root_chat_id
     JOIN visible_users owner ON owner.id = updated_chat.owner_id
 )
 SELECT *
@@ -1077,6 +1084,7 @@ chats_expanded AS (
         updated_chat.updated_at,
         updated_chat.parent_chat_id,
         updated_chat.root_chat_id,
+        updated_chat.kind,
         updated_chat.last_model_config_id,
         updated_chat.last_reasoning_effort,
         updated_chat.archived,
@@ -1114,7 +1122,7 @@ chats_expanded AS (
         updated_chat.compaction_requested_at
     FROM
         updated_chat
-    LEFT JOIN chats root ON root.id = COALESCE(updated_chat.root_chat_id, updated_chat.parent_chat_id)
+    LEFT JOIN chats root ON root.id = updated_chat.root_chat_id
     JOIN visible_users owner ON owner.id = updated_chat.owner_id
 )
 SELECT *
@@ -1145,6 +1153,7 @@ chats_expanded AS (
         updated_chat.updated_at,
         updated_chat.parent_chat_id,
         updated_chat.root_chat_id,
+        updated_chat.kind,
         updated_chat.last_model_config_id,
         updated_chat.last_reasoning_effort,
         updated_chat.archived,
@@ -1182,7 +1191,7 @@ chats_expanded AS (
         updated_chat.compaction_requested_at
     FROM
         updated_chat
-    LEFT JOIN chats root ON root.id = COALESCE(updated_chat.root_chat_id, updated_chat.parent_chat_id)
+    LEFT JOIN chats root ON root.id = updated_chat.root_chat_id
     JOIN visible_users owner ON owner.id = updated_chat.owner_id
 )
 SELECT *
@@ -1213,6 +1222,7 @@ chats_expanded AS (
         updated_chat.updated_at,
         updated_chat.parent_chat_id,
         updated_chat.root_chat_id,
+        updated_chat.kind,
         updated_chat.last_model_config_id,
         updated_chat.last_reasoning_effort,
         updated_chat.archived,
@@ -1250,7 +1260,7 @@ chats_expanded AS (
         updated_chat.compaction_requested_at
     FROM
         updated_chat
-    LEFT JOIN chats root ON root.id = COALESCE(updated_chat.root_chat_id, updated_chat.parent_chat_id)
+    LEFT JOIN chats root ON root.id = updated_chat.root_chat_id
     JOIN visible_users owner ON owner.id = updated_chat.owner_id
 )
 SELECT *
@@ -1281,6 +1291,7 @@ chats_expanded AS (
         updated_chat.updated_at,
         updated_chat.parent_chat_id,
         updated_chat.root_chat_id,
+        updated_chat.kind,
         updated_chat.last_model_config_id,
         updated_chat.last_reasoning_effort,
         updated_chat.archived,
@@ -1318,7 +1329,7 @@ chats_expanded AS (
         updated_chat.compaction_requested_at
     FROM
         updated_chat
-    LEFT JOIN chats root ON root.id = COALESCE(updated_chat.root_chat_id, updated_chat.parent_chat_id)
+    LEFT JOIN chats root ON root.id = updated_chat.root_chat_id
     JOIN visible_users owner ON owner.id = updated_chat.owner_id
 )
 SELECT *
@@ -1369,6 +1380,7 @@ chats_expanded AS (
         result_chat.updated_at,
         result_chat.parent_chat_id,
         result_chat.root_chat_id,
+        result_chat.kind,
         result_chat.last_model_config_id,
         result_chat.last_reasoning_effort,
         result_chat.archived,
@@ -1406,7 +1418,7 @@ chats_expanded AS (
         result_chat.compaction_requested_at
     FROM
         result_chat
-    LEFT JOIN chats root ON root.id = COALESCE(result_chat.root_chat_id, result_chat.parent_chat_id)
+    LEFT JOIN chats root ON root.id = result_chat.root_chat_id
     JOIN visible_users owner ON owner.id = result_chat.owner_id
 )
 SELECT *
@@ -1436,6 +1448,7 @@ chats_expanded AS (
         updated_chat.updated_at,
         updated_chat.parent_chat_id,
         updated_chat.root_chat_id,
+        updated_chat.kind,
         updated_chat.last_model_config_id,
         updated_chat.last_reasoning_effort,
         updated_chat.archived,
@@ -1473,7 +1486,7 @@ chats_expanded AS (
         updated_chat.compaction_requested_at
     FROM
         updated_chat
-    LEFT JOIN chats root ON root.id = COALESCE(updated_chat.root_chat_id, updated_chat.parent_chat_id)
+    LEFT JOIN chats root ON root.id = updated_chat.root_chat_id
     JOIN visible_users owner ON owner.id = updated_chat.owner_id
 )
 SELECT *
@@ -1532,6 +1545,7 @@ chats_expanded AS (
         updated_chat.updated_at,
         updated_chat.parent_chat_id,
         updated_chat.root_chat_id,
+        updated_chat.kind,
         updated_chat.last_model_config_id,
         updated_chat.last_reasoning_effort,
         updated_chat.archived,
@@ -1569,7 +1583,7 @@ chats_expanded AS (
         updated_chat.compaction_requested_at
     FROM
         updated_chat
-    LEFT JOIN chats root ON root.id = COALESCE(updated_chat.root_chat_id, updated_chat.parent_chat_id)
+    LEFT JOIN chats root ON root.id = updated_chat.root_chat_id
     JOIN visible_users owner ON owner.id = updated_chat.owner_id
 )
 SELECT *
@@ -1833,6 +1847,7 @@ chats_expanded AS (
         updated_chat.updated_at,
         updated_chat.parent_chat_id,
         updated_chat.root_chat_id,
+        updated_chat.kind,
         updated_chat.last_model_config_id,
         updated_chat.last_reasoning_effort,
         updated_chat.archived,
@@ -1870,7 +1885,7 @@ chats_expanded AS (
         updated_chat.compaction_requested_at
     FROM
         updated_chat
-    LEFT JOIN chats root ON root.id = COALESCE(updated_chat.root_chat_id, updated_chat.parent_chat_id)
+    LEFT JOIN chats root ON root.id = updated_chat.root_chat_id
     JOIN visible_users owner ON owner.id = updated_chat.owner_id
 )
 SELECT *
@@ -2120,6 +2135,7 @@ chats_expanded AS (
         locked_chat.updated_at,
         locked_chat.parent_chat_id,
         locked_chat.root_chat_id,
+        locked_chat.kind,
         locked_chat.last_model_config_id,
         locked_chat.last_reasoning_effort,
         locked_chat.archived,
@@ -2157,7 +2173,7 @@ chats_expanded AS (
         locked_chat.compaction_requested_at
     FROM
         locked_chat
-    LEFT JOIN chats root ON root.id = COALESCE(locked_chat.root_chat_id, locked_chat.parent_chat_id)
+    LEFT JOIN chats root ON root.id = locked_chat.root_chat_id
     JOIN visible_users owner ON owner.id = locked_chat.owner_id
 )
 SELECT *
@@ -2184,6 +2200,7 @@ chats_expanded AS (
         shared_chat.updated_at,
         shared_chat.parent_chat_id,
         shared_chat.root_chat_id,
+        shared_chat.kind,
         shared_chat.last_model_config_id,
         shared_chat.last_reasoning_effort,
         shared_chat.archived,
@@ -2221,7 +2238,7 @@ chats_expanded AS (
         shared_chat.compaction_requested_at
     FROM
         shared_chat
-    LEFT JOIN chats root ON root.id = COALESCE(shared_chat.root_chat_id, shared_chat.parent_chat_id)
+    LEFT JOIN chats root ON root.id = shared_chat.root_chat_id
     JOIN visible_users owner ON owner.id = shared_chat.owner_id
 )
 SELECT *
@@ -2390,7 +2407,7 @@ WHERE chats.id = deletable.id
 -- still appear in each snapshot window while they are active.
 SELECT
     c.id, c.owner_id, c.organization_id, c.created_at, c.updated_at, c.status,
-    (c.parent_chat_id IS NOT NULL)::bool AS has_parent,
+    (c.kind = 'subagent')::bool AS has_parent,
     c.root_chat_id, c.workspace_id,
     c.mode, c.archived, c.last_model_config_id, c.client_type,
     cds.pull_request_state
@@ -2449,17 +2466,17 @@ WHERE chat_id = @chat_id::uuid
 -- Interrupting chats finish active work first. Requires-action chats follow so
 -- their runner can enforce the action deadline before new generations start.
 WITH candidate_partitions AS (
-    SELECT true AS is_root, 'interrupting'::chat_status AS status, 0 AS status_priority, 0 AS pool_priority
+    SELECT false AS is_subagent, 'interrupting'::chat_status AS status, 0 AS status_priority, 0 AS pool_priority
     UNION ALL
-    SELECT false, 'interrupting'::chat_status, 0, 1
+    SELECT true, 'interrupting'::chat_status, 0, 1
     UNION ALL
-    SELECT true, 'requires_action'::chat_status, 1, 0
+    SELECT false, 'requires_action'::chat_status, 1, 0
     UNION ALL
-    SELECT false, 'requires_action'::chat_status, 1, 1
+    SELECT true, 'requires_action'::chat_status, 1, 1
     UNION ALL
-    SELECT true, 'running'::chat_status, 2, 0
+    SELECT false, 'running'::chat_status, 2, 0
     UNION ALL
-    SELECT false, 'running'::chat_status, 2, 1
+    SELECT true, 'running'::chat_status, 2, 1
 ),
 candidates AS (
     SELECT
@@ -2467,14 +2484,14 @@ candidates AS (
         candidate_partitions.status_priority,
         candidate_partitions.pool_priority,
         ROW_NUMBER() OVER (
-            PARTITION BY candidate_partitions.status_priority, candidate_partitions.is_root
+            PARTITION BY candidate_partitions.status_priority, candidate_partitions.is_subagent
             ORDER BY candidate.updated_at ASC, candidate.id ASC
         ) AS pool_position
     FROM candidate_partitions
     CROSS JOIN LATERAL (
         SELECT chats.id, chats.updated_at
         FROM chats
-        WHERE (chats.parent_chat_id IS NULL) = candidate_partitions.is_root
+        WHERE (chats.kind = 'subagent') = candidate_partitions.is_subagent
           AND chats.status = candidate_partitions.status
           AND chats.archived = false
           AND (
@@ -2495,7 +2512,7 @@ candidates AS (
 SELECT
     chats.id,
     chats.status,
-    chats.parent_chat_id
+    chats.kind
 FROM candidates
 JOIN chats ON chats.id = candidates.id
 ORDER BY
@@ -2524,9 +2541,9 @@ DELETE FROM chat_heartbeats
 WHERE heartbeat_at < NOW() - (INTERVAL '1 second' * @stale_seconds::int);
 
 -- name: GetAutoArchiveInactiveChatCandidates :many
--- Returns read-only root chat candidates for state-machine-backed
--- auto-archive. Activity is computed across the root family. The query
--- limits roots, not total family members.
+-- Returns read-only user chat candidates for state-machine-backed
+-- auto-archive. Activity is computed across the chat and its subagents.
+-- The query limits candidates, not total family members.
 SELECT
     chats_expanded.*,
     COALESCE(activity.last_activity_at, chats_expanded.created_at)::timestamptz AS last_activity_at
@@ -2541,7 +2558,7 @@ LEFT JOIN LATERAL (
 WHERE
     chats_expanded.archived = false
     AND chats_expanded.pin_order = 0
-    AND chats_expanded.parent_chat_id IS NULL
+    AND chats_expanded.kind = 'chat'
     AND chats_expanded.created_at < @archive_cutoff::timestamptz
     AND chats_expanded.status NOT IN (
         'running'::chat_status,
@@ -2582,6 +2599,7 @@ chats_expanded AS (
         bumped_chat.updated_at,
         bumped_chat.parent_chat_id,
         bumped_chat.root_chat_id,
+        bumped_chat.kind,
         bumped_chat.last_model_config_id,
         bumped_chat.last_reasoning_effort,
         bumped_chat.archived,
@@ -2618,7 +2636,7 @@ chats_expanded AS (
         bumped_chat.context_error,
         bumped_chat.compaction_requested_at
     FROM bumped_chat
-    LEFT JOIN chats root ON root.id = COALESCE(bumped_chat.root_chat_id, bumped_chat.parent_chat_id)
+    LEFT JOIN chats root ON root.id = bumped_chat.root_chat_id
     JOIN visible_users owner ON owner.id = bumped_chat.owner_id
 )
 SELECT *
@@ -2666,6 +2684,7 @@ chats_expanded AS (
         updated_chat.updated_at,
         updated_chat.parent_chat_id,
         updated_chat.root_chat_id,
+        updated_chat.kind,
         updated_chat.last_model_config_id,
         updated_chat.last_reasoning_effort,
         updated_chat.archived,
@@ -2702,7 +2721,7 @@ chats_expanded AS (
         updated_chat.context_error,
         updated_chat.compaction_requested_at
     FROM updated_chat
-    LEFT JOIN chats root ON root.id = COALESCE(updated_chat.root_chat_id, updated_chat.parent_chat_id)
+    LEFT JOIN chats root ON root.id = updated_chat.root_chat_id
     JOIN visible_users owner ON owner.id = updated_chat.owner_id
 )
 SELECT *
@@ -2733,6 +2752,7 @@ chats_expanded AS (
         updated_chat.updated_at,
         updated_chat.parent_chat_id,
         updated_chat.root_chat_id,
+        updated_chat.kind,
         updated_chat.last_model_config_id,
         updated_chat.last_reasoning_effort,
         updated_chat.archived,
@@ -2769,7 +2789,7 @@ chats_expanded AS (
         updated_chat.context_error,
         updated_chat.compaction_requested_at
     FROM updated_chat
-    LEFT JOIN chats root ON root.id = COALESCE(updated_chat.root_chat_id, updated_chat.parent_chat_id)
+    LEFT JOIN chats root ON root.id = updated_chat.root_chat_id
     JOIN visible_users owner ON owner.id = updated_chat.owner_id
 )
 SELECT *
@@ -2905,9 +2925,9 @@ WHERE id = ANY(@ids::uuid[])
 ORDER BY id ASC;
 
 -- name: AutoArchiveInactiveChats :many
--- Archives inactive root chats (pinned and already-archived chats skipped),
--- cascading to children via root_chat_id. Limits apply to roots, not total
--- rows. The Go caller passes @archive_cutoff as UTC midnight so that all
+-- Archives inactive user chats (pinned and already-archived chats skipped),
+-- cascading to subagents via root_chat_id. Limits apply to candidates, not
+-- total rows. The Go caller passes @archive_cutoff as UTC midnight so that all
 -- chats sharing the same last-activity date are archived together.
 -- Used by dbpurge.
 WITH to_archive AS (
@@ -2926,7 +2946,7 @@ WITH to_archive AS (
     ) activity ON TRUE
     WHERE c.archived = false
       AND c.pin_order = 0
-      AND c.parent_chat_id IS NULL -- roots only
+      AND c.kind = 'chat'
       -- Redundant filter helps the planner use the partial index on created_at.
       AND c.created_at < @archive_cutoff::timestamptz
       -- New active statuses must be added here to prevent archiving.
@@ -2964,8 +2984,8 @@ ORDER BY (a.root_chat_id IS NULL) DESC, a.owner_id ASC, a.created_at ASC, a.id A
 -- name: CountChatCapacityActiveByPool :one
 -- Excluding the candidate keeps ownership takeover capacity-neutral.
 SELECT
-    COUNT(*) FILTER (WHERE c.parent_chat_id IS NULL)::bigint AS active_root_count,
-    COUNT(*) FILTER (WHERE c.parent_chat_id IS NOT NULL)::bigint AS active_subagent_count
+    COUNT(*) FILTER (WHERE c.kind <> 'subagent')::bigint AS active_root_count,
+    COUNT(*) FILTER (WHERE c.kind = 'subagent')::bigint AS active_subagent_count
 FROM chat_heartbeats hb
 JOIN chats c
   ON c.id = hb.chat_id
@@ -2976,8 +2996,8 @@ WHERE c.worker_id IS NOT NULL
 
 -- name: CountChatCapacityQueuedByPool :one
 SELECT
-    COUNT(*) FILTER (WHERE c.parent_chat_id IS NULL)::bigint AS queued_root_count,
-    COUNT(*) FILTER (WHERE c.parent_chat_id IS NOT NULL)::bigint AS queued_subagent_count
+    COUNT(*) FILTER (WHERE c.kind <> 'subagent')::bigint AS queued_root_count,
+    COUNT(*) FILTER (WHERE c.kind = 'subagent')::bigint AS queued_subagent_count
 FROM chats c
 WHERE c.status = 'running'::chat_status
   AND c.archived = false
@@ -2997,8 +3017,8 @@ WHERE c.status = 'running'::chat_status
 -- Pool fullness distinguishes capacity waits from worker pickup delays.
 WITH active AS (
     SELECT
-        COUNT(*) FILTER (WHERE a.parent_chat_id IS NULL)::bigint AS root_count,
-        COUNT(*) FILTER (WHERE a.parent_chat_id IS NOT NULL)::bigint AS subagent_count
+        COUNT(*) FILTER (WHERE a.kind <> 'subagent')::bigint AS root_count,
+        COUNT(*) FILTER (WHERE a.kind = 'subagent')::bigint AS subagent_count
     FROM chat_heartbeats hb
     JOIN chats a
       ON a.id = hb.chat_id
@@ -3021,7 +3041,7 @@ SELECT (
         )
     )
     AND CASE
-        WHEN c.parent_chat_id IS NULL THEN active.root_count >= @root_capacity::bigint
+        WHEN c.kind <> 'subagent' THEN active.root_count >= @root_capacity::bigint
         ELSE active.subagent_count >= @subagent_capacity::bigint
     END
 )::boolean AS queued_for_capacity

@@ -200,7 +200,7 @@ func (w *chatWorker) dispatchChatAutoArchive(
 ) {
 	roots := make([]autoArchivedChat, 0, len(archived))
 	for _, record := range archived {
-		if !record.Chat.ParentChatID.Valid {
+		if record.Chat.Kind != database.ChatKindSubagent {
 			roots = append(roots, record)
 		}
 	}

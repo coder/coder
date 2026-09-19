@@ -897,6 +897,7 @@ const chatForFilterInvalidation = (
 	({
 		id: "chat-1",
 		archived: false,
+		kind: "chat",
 		parent_chat_id: null,
 		...overrides,
 	}) as TypesGen.Chat;
@@ -921,10 +922,19 @@ describe(shouldInvalidateFilteredChatList.name, () => {
 			expected: false,
 		},
 		{
-			name: "excludes child chats",
-			updatedChat: chatForFilterInvalidation({ parent_chat_id: "parent-1" }),
+			name: "excludes subagent chats",
+			updatedChat: chatForFilterInvalidation({
+				kind: "subagent",
+				parent_chat_id: "parent-1",
+			}),
 			eventKind: "diff_status_change",
 			expected: false,
+		},
+		{
+			name: "includes named child chats",
+			updatedChat: chatForFilterInvalidation({ parent_chat_id: "parent-1" }),
+			eventKind: "diff_status_change",
+			expected: true,
 		},
 	])("$name", ({ updatedChat, eventKind, expected }) => {
 		expect(shouldInvalidateFilteredChatList(updatedChat, eventKind)).toBe(

@@ -2843,6 +2843,7 @@ func TestDeleteOldChatFiles(t *testing.T) {
 					OrganizationID:    deps.org.ID,
 					OwnerID:           deps.user.ID,
 					LastModelConfigID: deps.modelConfig.ID,
+					ParentChatID:      uuid.NullUUID{UUID: parentChat.ID, Valid: true},
 					RootChatID:        uuid.NullUUID{UUID: parentChat.ID, Valid: true},
 					Title:             "child-chat",
 				})

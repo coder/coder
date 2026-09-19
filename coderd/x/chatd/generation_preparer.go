@@ -169,7 +169,7 @@ func (server *Server) prepareGeneration(
 	currentPlanMode := chat.PlanMode
 	isPlanModeTurn := currentPlanMode.Valid && currentPlanMode.ChatPlanMode == database.ChatPlanModePlan
 	isExploreSubagent := isExploreSubagentMode(chat.Mode)
-	isRootChat := !chat.ParentChatID.Valid
+	isRootChat := chat.Kind != database.ChatKindSubagent
 
 	mcpConnectConfigs, approvedPlanMCPConfigIDs := filterExternalMCPConfigsForTurn(
 		mcpConfigs,
@@ -242,7 +242,7 @@ func (server *Server) prepareGeneration(
 		return planPathFn(planCtx)
 	}
 	resolvePlanPathBlock := func(resolveCtx context.Context) string {
-		if chat.ParentChatID.Valid {
+		if chat.Kind == database.ChatKindSubagent {
 			return ""
 		}
 
@@ -415,7 +415,7 @@ func (server *Server) prepareGeneration(
 	// the cold dial overlap with the rest of turn preparation instead of
 	// blocking system prompt assembly on a sequential dial. Best-effort:
 	// resolvePlanPathBlock logs and returns an empty block on failure.
-	if chat.WorkspaceID.Valid && !chat.ParentChatID.Valid {
+	if chat.WorkspaceID.Valid && chat.Kind != database.ChatKindSubagent {
 		g2.Go(func() error {
 			planPathBlock = resolvePlanPathBlock(ctx)
 			return nil
@@ -617,7 +617,7 @@ func (server *Server) prepareGeneration(
 	if !isPlanModeTurn && callConfig.ProviderOptions != nil {
 		providerTools = buildProviderTools(callConfig.ProviderOptions)
 		if isExploreSubagent {
-			if !chat.ParentChatID.Valid {
+			if chat.Kind != database.ChatKindSubagent {
 				providerTools = nil
 			} else {
 				providerTools = slices.DeleteFunc(providerTools, func(tool chatloop.ProviderTool) bool {
@@ -844,7 +844,7 @@ func (server *Server) afterInterruptionOutcome(
 	chat := outcome.Chat
 	logger := server.logger.With(slog.F("chat_id", chat.ID), slog.F("owner_id", chat.OwnerID))
 
-	if outcome.Kind == runnerActionKindFinishInterruption && !chat.ParentChatID.Valid {
+	if outcome.Kind == runnerActionKindFinishInterruption && chat.Kind != database.ChatKindSubagent {
 		server.clearLastTurnSummaryAsync(context.WithoutCancel(ctx), chat, logger)
 	}
 	return nil

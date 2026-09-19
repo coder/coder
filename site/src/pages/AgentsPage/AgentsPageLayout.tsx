@@ -131,7 +131,7 @@ export const shouldInvalidateFilteredChatList = (
 	chat: TypesGen.Chat,
 	eventKind: TypesGen.ChatWatchEventKind,
 ): boolean =>
-	!chat.parent_chat_id && FILTER_MEMBERSHIP_EVENT_KINDS.has(eventKind);
+	chat.kind !== "subagent" && FILTER_MEMBERSHIP_EVENT_KINDS.has(eventKind);
 
 // Summary and title generation can bill after the turn reports a non-active
 // status, so invalidate the root-keyed cost query when those events arrive.
@@ -572,7 +572,7 @@ const AgentsPageLayout: FC = () => {
 						(chat) => chat.id === updatedChat.id,
 					)?.status;
 					// Only play the chime for top-level chats, not sub-agents.
-					if (!updatedChat.parent_chat_id) {
+					if (updatedChat.kind !== "subagent") {
 						maybePlayChime(
 							prevStatus,
 							updatedChat.status,
@@ -611,7 +611,7 @@ const AgentsPageLayout: FC = () => {
 					void cancelLoadedChatEntityRefetch(queryClient, updatedChat.id);
 
 					if (chatEvent.kind === "created") {
-						if (updatedChat.parent_chat_id) {
+						if (updatedChat.kind === "subagent" && updatedChat.parent_chat_id) {
 							// Child chat: add to its parent's children
 							// array. If the parent is not in any loaded
 							// page, the child is silently dropped.

@@ -850,6 +850,7 @@ func TestChat_AllFieldsPopulated(t *testing.T) {
 		OwnerID:             uuid.New(),
 		OwnerUsername:       "owner-username",
 		OwnerName:           "Owner Name",
+		Kind:                database.ChatKindChat,
 		OrganizationID:      uuid.New(),
 		WorkspaceID:         uuid.NullUUID{UUID: uuid.New(), Valid: true},
 		BuildID:             uuid.NullUUID{UUID: uuid.New(), Valid: true},

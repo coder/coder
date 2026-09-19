@@ -1369,6 +1369,7 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 		promptResult, err := p.hooks.Trigger(ctx, chathooks.Chat{
 			ID:          chatID,
 			OwnerID:     opts.OwnerID,
+			Kind:        database.ChatKindChat,
 			WorkspaceID: opts.WorkspaceID,
 			TurnID:      &turnID,
 		}, promptMessage, agenthooks.EventUserPromptSubmit, dispatch.CapacityClassAdmission)
@@ -1453,7 +1454,7 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 		return database.Chat{}, err
 	}
 	chat := result.Chat
-	if !chat.RootChatID.Valid && !chat.ParentChatID.Valid {
+	if chat.Kind != database.ChatKindSubagent {
 		chat.RootChatID = uuid.NullUUID{UUID: chat.ID, Valid: true}
 	}
 
@@ -2058,7 +2059,7 @@ func (p *Server) ArchiveChat(ctx context.Context, chat database.Chat) error {
 	if chat.ID == uuid.Nil {
 		return xerrors.New("chat_id is required")
 	}
-	if chat.ParentChatID.Valid {
+	if chat.Kind == database.ChatKindSubagent {
 		return ErrArchiveRequiresRootChat
 	}
 	return p.setChatFamilyArchived(ctx, chat, true, codersdk.ChatWatchEventKindDeleted)
@@ -2072,7 +2073,7 @@ func (p *Server) UnarchiveChat(ctx context.Context, chat database.Chat) error {
 	if chat.ID == uuid.Nil {
 		return xerrors.New("chat_id is required")
 	}
-	if chat.ParentChatID.Valid {
+	if chat.Kind == database.ChatKindSubagent {
 		return ErrArchiveRequiresRootChat
 	}
 	return p.setChatFamilyArchived(ctx, chat, false, codersdk.ChatWatchEventKindCreated)
@@ -2093,7 +2094,7 @@ func (p *Server) setChatFamilyArchived(
 	if chat.ID == uuid.Nil {
 		return xerrors.New("chat_id is required")
 	}
-	if chat.ParentChatID.Valid {
+	if chat.Kind == database.ChatKindSubagent {
 		return ErrArchiveRequiresRootChat
 	}
 
@@ -4451,7 +4452,7 @@ func (p *Server) maybeFinalizeTurnStatusLabelAndPush(
 	runResult runChatResult,
 	logger slog.Logger,
 ) {
-	if chat.ParentChatID.Valid {
+	if chat.Kind == database.ChatKindSubagent {
 		// Subagent chats skip turn status labels and generated
 		// summaries, but a successful turn's final report doubles as
 		// the chat summary so subagents are not summary-less.
@@ -4704,7 +4705,7 @@ func (p *Server) maybeGenerateChatSummaryAsync(
 	logger slog.Logger,
 	chat database.Chat,
 ) {
-	if chat.ParentChatID.Valid {
+	if chat.Kind == database.ChatKindSubagent {
 		return
 	}
 	ctx, cancel := p.inflightContext(ctx)

@@ -109,7 +109,9 @@ func TestConnectAll_ForwardCoderHeaders_Enabled(t *testing.T) {
 	coderHeaders := chatprovider.CoderHeaders(database.Chat{
 		ID:           subchatID,
 		OwnerID:      ownerID,
+		Kind:         database.ChatKindSubagent,
 		ParentChatID: uuid.NullUUID{UUID: chatID, Valid: true},
+		RootChatID:   uuid.NullUUID{UUID: chatID, Valid: true},
 		WorkspaceID:  uuid.NullUUID{UUID: workspaceID, Valid: true},
 	})
 

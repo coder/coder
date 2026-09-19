@@ -1284,11 +1284,17 @@ export interface AgentFirewallSessionLogsResponse {
 export interface AgentHookChatRef {
 	readonly chat_id: string;
 	readonly owner_id: string;
+	/**
+	 * Kind is "root", "chat", or "subagent". Only subagent chats are
+	 * delegated agents; a set ParentChatID alone does not imply one.
+	 */
+	readonly kind: string;
 	readonly workspace_id?: string;
 	readonly turn_id?: string;
 	readonly parent_chat_id?: string;
 	/**
-	 * RootChatID identifies the user-facing root of the chat tree.
+	 * RootChatID identifies the non-subagent chat that a subagent chat
+	 * belongs to. It is unset for root and named chats.
 	 */
 	readonly root_chat_id?: string;
 }
@@ -1931,10 +1937,19 @@ export interface Chat {
 	readonly owner_id: string;
 	readonly owner_username?: string;
 	readonly owner_name?: string;
+	/**
+	 * Kind distinguishes tree roots, user chats, and subagents. A set
+	 * ParentChatID does not by itself identify a subagent.
+	 */
+	readonly kind: ChatKind;
 	readonly workspace_id?: string;
 	readonly build_id?: string;
 	readonly agent_id?: string;
 	readonly parent_chat_id?: string;
+	/**
+	 * RootChatID is the spawning chat of a subagent. For every other
+	 * kind it is the chat's own ID; it is never the tree root.
+	 */
 	readonly root_chat_id?: string;
 	readonly last_model_config_id: string;
 	readonly last_reasoning_effort?: string;
@@ -1980,11 +1995,10 @@ export interface Chat {
 	readonly warnings?: readonly string[];
 	readonly client_type: ChatClientType;
 	/**
-	 * Children holds child (subagent) chats nested under this root
-	 * chat. Always initialized to an empty slice so the JSON field
-	 * is present as []. Child chats cannot create their own
-	 * subagents, so nesting depth is capped at 1 and this slice is
-	 * always empty for child chats.
+	 * Children holds subagent chats spawned by this chat. Always
+	 * initialized to an empty slice so the JSON field is present as [].
+	 * Subagents cannot spawn subagents, so the slice is always empty for
+	 * subagent chats. Named tree children are not embedded here.
 	 */
 	readonly children: readonly Chat[];
 }
@@ -2650,6 +2664,11 @@ export const ChatInputPartTypes: ChatInputPartType[] = [
 	"file-reference",
 	"text",
 ];
+
+// From codersdk/chats.go
+export type ChatKind = "chat" | "root" | "subagent";
+
+export const ChatKinds: ChatKind[] = ["chat", "root", "subagent"];
 
 // From codersdk/chats.go
 export type ChatListSource = "created_by_me" | "shared_with_me";

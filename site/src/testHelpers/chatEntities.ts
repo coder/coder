@@ -17,6 +17,7 @@ export const MockChat: Chat = {
 	owner_id: MockUserOwner.id,
 	owner_username: MockUserOwner.username,
 	owner_name: MockUserOwner.name,
+	kind: "chat",
 	last_model_config_id: "model-config-1",
 	title: "Agent",
 	status: "waiting",

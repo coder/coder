@@ -1866,6 +1866,7 @@ func Chat(c database.Chat, diffStatus *database.ChatDiffStatus, files []database
 		OwnerID:           c.OwnerID,
 		OwnerUsername:     c.OwnerUsername,
 		OwnerName:         c.OwnerName,
+		Kind:              codersdk.ChatKind(c.Kind),
 		LastModelConfigID: c.LastModelConfigID,
 		Title:             c.Title,
 		Status:            codersdk.ChatStatus(c.Status),
@@ -1897,18 +1898,13 @@ func Chat(c database.Chat, diffStatus *database.ChatDiffStatus, files []database
 		chat.ParentChatID = &parentChatID
 	}
 	// Always initialize Children to an empty slice so the JSON
-	// field serializes as [] rather than null. Root chats may
-	// later have children populated; child chats remain empty
-	// because nesting depth is capped at 1.
+	// field serializes as [] rather than null. Callers populate it
+	// with subagent children for non-subagent chats.
 	chat.Children = []codersdk.Chat{}
-	switch {
-	case c.RootChatID.Valid:
+	if c.RootChatID.Valid {
 		rootChatID := c.RootChatID.UUID
 		chat.RootChatID = &rootChatID
-	case c.ParentChatID.Valid:
-		rootChatID := c.ParentChatID.UUID
-		chat.RootChatID = &rootChatID
-	default:
+	} else {
 		rootChatID := c.ID
 		chat.RootChatID = &rootChatID
 	}

@@ -337,6 +337,12 @@ CREATE TYPE chat_client_type AS ENUM (
     'api'
 );
 
+CREATE TYPE chat_kind AS ENUM (
+    'root',
+    'chat',
+    'subagent'
+);
+
 CREATE TYPE chat_message_role AS ENUM (
     'system',
     'user',
@@ -2209,11 +2215,15 @@ CREATE TABLE chats (
     compaction_requested_at timestamp with time zone,
     summary text,
     summary_generated_at timestamp with time zone,
-    CONSTRAINT chat_acl_only_on_root_chats CHECK ((((parent_chat_id IS NULL) AND (root_chat_id IS NULL)) OR ((user_acl = '{}'::jsonb) AND (group_acl = '{}'::jsonb)))),
+    kind chat_kind DEFAULT 'chat'::chat_kind NOT NULL,
+    CONSTRAINT chat_acl_only_on_root_chats CHECK (((kind <> 'subagent'::chat_kind) OR ((user_acl = '{}'::jsonb) AND (group_acl = '{}'::jsonb)))),
     CONSTRAINT chat_group_acl_not_null_jsonb CHECK (((group_acl IS NOT NULL) AND (jsonb_typeof(group_acl) = 'object'::text))),
     CONSTRAINT chat_user_acl_not_null_jsonb CHECK (((user_acl IS NOT NULL) AND (jsonb_typeof(user_acl) = 'object'::text))),
+    CONSTRAINT chats_kind_root_parentless_check CHECK (((kind <> 'root'::chat_kind) OR ((parent_chat_id IS NULL) AND (root_chat_id IS NULL)))),
+    CONSTRAINT chats_kind_subagent_parent_check CHECK (((kind <> 'subagent'::chat_kind) OR (parent_chat_id IS NOT NULL))),
+    CONSTRAINT chats_kind_subagent_root_check CHECK (((kind = 'subagent'::chat_kind) = (root_chat_id IS NOT NULL))),
     CONSTRAINT chats_pin_order_archived_check CHECK (((pin_order = 0) OR (archived = false))),
-    CONSTRAINT chats_pin_order_parent_check CHECK (((pin_order = 0) OR (parent_chat_id IS NULL)))
+    CONSTRAINT chats_pin_order_parent_check CHECK (((pin_order = 0) OR (kind = 'chat'::chat_kind)))
 );
 
 COMMENT ON COLUMN chats.snapshot_version IS 'Monotonic version for the full chat snapshot. Starts at 1 so stream loops and workers can use 0 to mean they have not loaded the chat yet.';
@@ -2298,6 +2308,7 @@ CREATE VIEW chats_expanded AS
     c.updated_at,
     c.parent_chat_id,
     c.root_chat_id,
+    c.kind,
     c.last_model_config_id,
     c.last_reasoning_effort,
     c.archived,
@@ -2334,7 +2345,7 @@ CREATE VIEW chats_expanded AS
     c.context_error,
     c.compaction_requested_at
    FROM ((chats c
-     LEFT JOIN chats root ON ((root.id = COALESCE(c.root_chat_id, c.parent_chat_id))))
+     LEFT JOIN chats root ON ((root.id = c.root_chat_id)))
      JOIN visible_users owner ON ((owner.id = c.owner_id)));
 
 CREATE TABLE connection_logs (
@@ -4671,6 +4682,8 @@ COMMENT ON INDEX api_keys_last_used_idx IS 'Index for optimizing api_keys querie
 
 CREATE INDEX chat_heartbeats_heartbeat_at_idx ON chat_heartbeats USING btree (heartbeat_at);
 
+CREATE UNIQUE INDEX chats_one_tree_root_per_owner_org ON chats USING btree (owner_id, organization_id) WHERE (kind = 'root'::chat_kind);
+
 CREATE INDEX idx_agent_stats_created_at ON workspace_agent_stats USING btree (created_at);
 
 CREATE INDEX idx_agent_stats_user_id ON workspace_agent_stats USING btree (user_id);
@@ -4801,7 +4814,7 @@ CREATE INDEX idx_chat_queued_messages_chat_id ON chat_queued_messages USING btre
 
 CREATE INDEX idx_chats_agent_id ON chats USING btree (agent_id) WHERE (agent_id IS NOT NULL);
 
-CREATE INDEX idx_chats_auto_archive_candidates ON chats USING btree (created_at) WHERE ((archived = false) AND (pin_order = 0) AND (parent_chat_id IS NULL));
+CREATE INDEX idx_chats_auto_archive_candidates ON chats USING btree (created_at) WHERE ((archived = false) AND (pin_order = 0) AND (kind = 'chat'::chat_kind));
 
 CREATE INDEX idx_chats_labels ON chats USING gin (labels);
 
@@ -4819,7 +4832,7 @@ CREATE INDEX idx_chats_title_fts ON chats USING gin (to_tsvector('simple'::regco
 
 COMMENT ON INDEX idx_chats_title_fts IS 'Used for full text search. Defined over all rows of the chats table.';
 
-CREATE INDEX idx_chats_worker_acquisition_candidates ON chats USING btree (((parent_chat_id IS NULL)), status, updated_at, id) WHERE (archived = false);
+CREATE INDEX idx_chats_worker_acquisition_candidates ON chats USING btree (((kind = 'subagent'::chat_kind)), status, updated_at, id) WHERE (archived = false);
 
 CREATE INDEX idx_chats_workspace ON chats USING btree (workspace_id);
 
