@@ -5236,6 +5236,7 @@ const (
 	ExperimentNotifications             Experiment = "notifications"               // Sends notifications via SMTP and webhooks following certain events.
 	ExperimentWorkspaceUsage            Experiment = "workspace-usage"             // Enables the new workspace usage tracking.
 	ExperimentMCPServerHTTP             Experiment = "mcp-server-http"             // Enables the MCP HTTP server functionality.
+	ExperimentMCPGateway                Experiment = "mcp-gateway"                 // Enables the MCP Gateway prototype and routes chatd MCP traffic through it.
 	ExperimentMCPToolSearch             Experiment = "mcp-tool-search"             // Defers MCP tool schemas behind a searchable catalog in agent chats.
 	ExperimentWorkspaceBuildUpdates     Experiment = "workspace-build-updates"     // Enables publishing workspace build updates to the all builds pubsub channel.
 	ExperimentNoNATSPubsub              Experiment = "no_nats_pubsub"              // Disables the embedded NATS pubsub, falling back to PostgreSQL pubsub.
@@ -5259,6 +5260,8 @@ func (e Experiment) DisplayName() string {
 		return "Workspace Usage Tracking"
 	case ExperimentMCPServerHTTP:
 		return "MCP HTTP Server Functionality"
+	case ExperimentMCPGateway:
+		return "MCP Gateway Prototype"
 	case ExperimentWorkspaceBuildUpdates:
 		return "Workspace Build Updates Channel"
 	case ExperimentNoNATSPubsub:
@@ -5290,6 +5293,7 @@ var ExperimentsKnown = Experiments{
 	ExperimentNotifications,
 	ExperimentWorkspaceUsage,
 	ExperimentMCPServerHTTP,
+	ExperimentMCPGateway,
 	ExperimentMCPToolSearch,
 	ExperimentNoNATSPubsub,
 	ExperimentWorkspaceBuildUpdates,
