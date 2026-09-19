@@ -165,7 +165,7 @@ export const NoMatchingModels: Story = {
 		const search = canvas.getByRole("searchbox", { name: /search models/i });
 		await userEvent.type(search, "no-such-model");
 		await expect(
-			canvas.getByText("No models match your filters"),
+			canvas.getByText("No models match your search"),
 		).toBeInTheDocument();
 	},
 };

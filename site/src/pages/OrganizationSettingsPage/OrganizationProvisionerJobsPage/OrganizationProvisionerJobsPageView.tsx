@@ -9,6 +9,7 @@ import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
 import { EmptyState } from "#/components/EmptyState/EmptyState";
 import { Link } from "#/components/Link/Link";
+import { TableSearchEmpty } from "#/components/SearchEmptyState/SearchEmptyState";
 import {
 	Select,
 	SelectContent,
@@ -192,6 +193,11 @@ const OrganizationProvisionerJobsPageView: FC<
 										job={j}
 									/>
 								))
+							) : filter.status || filter.ids ? (
+								<TableSearchEmpty
+									message="No provisioner jobs match your search"
+									onClearFilters={() => onFilterChange({ status: "", ids: "" })}
+								/>
 							) : (
 								<TableEmpty message="No provisioner jobs found" />
 							)

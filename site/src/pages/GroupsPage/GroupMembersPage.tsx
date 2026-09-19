@@ -29,6 +29,7 @@ import {
 import { UsersFilter } from "#/components/Filter/UsersFilter";
 import { LastSeen } from "#/components/LastSeen/LastSeen";
 import { PaginationContainer } from "#/components/PaginationWidget/PaginationContainer";
+import { TableSearchEmpty } from "#/components/SearchEmptyState/SearchEmptyState";
 import {
 	Table,
 	TableBody,
@@ -172,7 +173,14 @@ const GroupMembersPage: FC = () => {
 
 					<TableBody>
 						{members.length === 0 ? (
-							<TableEmpty message="No members found" />
+							filterProps.filter.used ? (
+								<TableSearchEmpty
+									message="No members match your search"
+									onClearFilters={() => filterProps.filter.update("")}
+								/>
+							) : (
+								<TableEmpty message="No members found" />
+							)
 						) : (
 							membersWithSpend.map((member) => (
 								<GroupMemberRow

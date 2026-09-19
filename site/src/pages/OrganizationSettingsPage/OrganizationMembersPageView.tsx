@@ -69,7 +69,11 @@ export const OrganizationMembersPageView: React.FC<
 					</div>
 				)}
 				<PaginationContainer query={membersQuery} paginationUnitLabel="members">
-					<OrganizationMembersTable {...props} />
+					<OrganizationMembersTable
+						{...props}
+						filterUsed={filterProps.filter.used}
+						onClearFilters={() => filterProps.filter.update("")}
+					/>
 				</PaginationContainer>
 			</div>
 		</div>

@@ -60,6 +60,8 @@ export const UsersPageView: FC<UsersPageViewProps> = ({
 					{...props}
 					users={usersQuery.data?.users}
 					onAction={setAction}
+					filterUsed={filterProps.filter.used}
+					onClearFilters={() => filterProps.filter.update("")}
 				/>
 			</PaginationContainer>
 
