@@ -5,9 +5,9 @@ import {
 	SquareArrowOutUpRightIcon,
 } from "lucide-react";
 import {
+	type ComponentProps,
 	type FC,
 	Fragment,
-	type HTMLAttributes,
 	type PropsWithChildren,
 	type ReactNode,
 	useId,
@@ -654,7 +654,7 @@ const ParameterUsageLabel: FC<ParameterUsageLabelProps> = ({
 	return <TextValue>{usage.value}</TextValue>;
 };
 
-type PanelProps = HTMLAttributes<HTMLDivElement>;
+type PanelProps = ComponentProps<"div">;
 
 const Panel: FC<PanelProps> = ({ children, className, ...attrs }) => {
 	return (
@@ -670,7 +670,7 @@ const Panel: FC<PanelProps> = ({ children, className, ...attrs }) => {
 	);
 };
 
-const PanelHeader: FC<HTMLAttributes<HTMLDivElement>> = ({
+const PanelHeader: FC<ComponentProps<"div">> = ({
 	children,
 	className,
 	...attrs
@@ -682,7 +682,7 @@ const PanelHeader: FC<HTMLAttributes<HTMLDivElement>> = ({
 	);
 };
 
-const PanelTitle: FC<HTMLAttributes<HTMLDivElement>> = ({
+const PanelTitle: FC<ComponentProps<"div">> = ({
 	children,
 	className,
 	...attrs
@@ -694,7 +694,7 @@ const PanelTitle: FC<HTMLAttributes<HTMLDivElement>> = ({
 	);
 };
 
-interface PanelContentProps extends HTMLAttributes<HTMLDivElement> {
+interface PanelContentProps extends ComponentProps<"div"> {
 	error: unknown | undefined;
 	data: readonly unknown[] | undefined;
 }
@@ -713,7 +713,7 @@ const PanelContent: FC<PanelContentProps> = ({ error, data, children }) => {
 	);
 };
 
-interface NoDataAvailableProps extends HTMLAttributes<HTMLDivElement> {
+interface NoDataAvailableProps extends ComponentProps<"div"> {
 	error: unknown;
 }
 

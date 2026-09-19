@@ -45,6 +45,7 @@ import (
 	"github.com/coder/coder/v2/coderd/schedule/cron"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/util/slice"
+	"github.com/coder/coder/v2/coderd/workspacestats"
 	"github.com/coder/coder/v2/coderd/wsbuilder"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/cryptorand"
@@ -2970,6 +2971,73 @@ func TestWorkspaceFilterManual(t *testing.T) {
 			expectIDs(t, []codersdk.Workspace{foo, bar, baz}, all.Workspaces)
 		})
 	})
+
+	// The user filter matches workspaces the user owns, plus workspaces
+	// shared with them directly or through a group they belong to.
+	t.Run("User", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			client, db        = coderdtest.NewWithDatabase(t, nil)
+			orgOwner          = coderdtest.CreateFirstUser(t, client)
+			_, workspaceOwner = coderdtest.CreateAnotherUser(t, client, orgOwner.OrganizationID)
+			userClient, user  = coderdtest.CreateAnotherUser(t, client, orgOwner.OrganizationID)
+			group             = dbgen.Group(t, db, database.Group{OrganizationID: orgOwner.OrganizationID})
+			ownedWorkspace    = dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+				OwnerID:        user.ID,
+				OrganizationID: orgOwner.OrganizationID,
+			}).Do().Workspace
+			userSharedWorkspace = dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+				OwnerID:        workspaceOwner.ID,
+				OrganizationID: orgOwner.OrganizationID,
+			}).Do().Workspace
+			groupSharedWorkspace = dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+				OwnerID:        workspaceOwner.ID,
+				OrganizationID: orgOwner.OrganizationID,
+			}).Do().Workspace
+			_ = dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+				OwnerID:        workspaceOwner.ID,
+				OrganizationID: orgOwner.OrganizationID,
+			}).Do().Workspace
+			ctx = testutil.Context(t, testutil.WaitMedium)
+		)
+
+		dbgen.GroupMember(t, db, database.GroupMemberTable{
+			GroupID: group.ID,
+			UserID:  user.ID,
+		})
+
+		err := client.UpdateWorkspaceACL(ctx, userSharedWorkspace.ID, codersdk.UpdateWorkspaceACL{
+			UserRoles: map[string]codersdk.WorkspaceRole{
+				user.ID.String(): codersdk.WorkspaceRoleUse,
+			},
+		})
+		require.NoError(t, err)
+		err = client.UpdateWorkspaceACL(ctx, groupSharedWorkspace.ID, codersdk.UpdateWorkspaceACL{
+			GroupRoles: map[string]codersdk.WorkspaceRole{
+				group.ID.String(): codersdk.WorkspaceRoleUse,
+			},
+		})
+		require.NoError(t, err)
+
+		expected := []codersdk.Workspace{
+			{ID: ownedWorkspace.ID},
+			{ID: userSharedWorkspace.ID},
+			{ID: groupSharedWorkspace.ID},
+		}
+
+		byUsername, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
+			User: user.Username,
+		})
+		require.NoError(t, err, "fetch workspaces by username")
+		expectIDs(t, expected, byUsername.Workspaces)
+
+		asMe, err := userClient.Workspaces(ctx, codersdk.WorkspaceFilter{
+			User: codersdk.Me,
+		})
+		require.NoError(t, err, "fetch workspaces as me")
+		expectIDs(t, expected, asMe.Workspaces)
+	})
 }
 
 func TestOffsetLimit(t *testing.T) {
@@ -4933,12 +5001,29 @@ func TestWorkspaceUsageTracking(t *testing.T) {
 			AppName: "ssh",
 		})
 		require.ErrorContains(t, err, "app_name")
-		// unknown app name fails
+		// unknown app names are accepted
 		err = client.PostWorkspaceUsageWithBody(ctx, r.Workspace.ID, codersdk.PostWorkspaceUsageRequest{
 			AgentID: workspace.LatestBuild.Resources[0].Agents[0].ID,
-			AppName: "unknown",
+			AppName: "SomeFutureIDE",
 		})
-		require.ErrorContains(t, err, "app_name")
+		require.NoError(t, err)
+
+		// an app name of only whitespace or control characters, at any
+		// length, reads as an absent app name: the usage bump still happens
+		// and no session is counted
+		for _, appName := range []string{"   ", strings.Repeat(" ", 300), "\x00", "\x1b\x07", " \x1b \t"} {
+			err = client.PostWorkspaceUsageWithBody(ctx, r.Workspace.ID, codersdk.PostWorkspaceUsageRequest{
+				AppName: appName,
+			})
+			require.NoError(t, err)
+
+			// with an agent set, those names fail like an empty one
+			err = client.PostWorkspaceUsageWithBody(ctx, r.Workspace.ID, codersdk.PostWorkspaceUsageRequest{
+				AgentID: workspace.LatestBuild.Resources[0].Agents[0].ID,
+				AppName: appName,
+			})
+			require.ErrorContains(t, err, "app_name")
+		}
 
 		// vscode works
 		err = client.PostWorkspaceUsageWithBody(ctx, r.Workspace.ID, codersdk.PostWorkspaceUsageRequest{
@@ -4972,6 +5057,70 @@ func TestWorkspaceUsageTracking(t *testing.T) {
 		require.True(t, newWorkspace.LatestBuild.Deadline.Valid)
 		require.Greater(t, newWorkspace.LatestBuild.Deadline.Time, workspace.LatestBuild.Deadline.Time)
 	})
+}
+
+// TestWorkspaceUsageArbitraryAppNameNormalized posts an arbitrary app name
+// through a real batcher and asserts the database stores the normalized key,
+// so readers of session_counts only ever see canonical names.
+func TestWorkspaceUsageArbitraryAppNameNormalized(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	store, ps, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+	batcher, closeBatcher, err := workspacestats.NewBatcher(ctx,
+		workspacestats.BatcherWithStore(store),
+		workspacestats.BatcherWithLogger(testutil.Logger(t).Named("batcher")),
+		workspacestats.BatcherWithInterval(testutil.IntervalFast),
+	)
+	require.NoError(t, err)
+	t.Cleanup(closeBatcher)
+
+	dv := coderdtest.DeploymentValues(t)
+	dv.Experiments = []string{string(codersdk.ExperimentWorkspaceUsage)}
+	client := coderdtest.New(t, &coderdtest.Options{
+		Database:         store,
+		Pubsub:           ps,
+		DeploymentValues: dv,
+		StatsBatcher:     batcher,
+	})
+	user := coderdtest.CreateFirstUser(t, client)
+	r := dbfake.WorkspaceBuild(t, store, database.WorkspaceTable{
+		OrganizationID: user.OrganizationID,
+		OwnerID:        user.UserID,
+		Name:           fmt.Sprintf("usage-%d", time.Now().UnixNano()),
+	}).WithAgent().Do()
+	require.Len(t, r.Agents, 1)
+	agentID := r.Agents[0].ID
+
+	err = client.PostWorkspaceUsageWithBody(ctx, r.Workspace.ID, codersdk.PostWorkspaceUsageRequest{
+		AgentID: agentID,
+		AppName: "Some-Future-IDE",
+	})
+	require.NoError(t, err)
+
+	// The batcher flushes on its own schedule, so poll until the row lands.
+	var count int64
+	require.True(t, testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+		err := sqlDB.QueryRowContext(ctx, `
+			SELECT coalesce(sum((session_counts->>'some_future_ide')::bigint), 0)
+			FROM workspace_agent_stats
+			WHERE agent_id = $1`, agentID).Scan(&count)
+		if err != nil {
+			t.Logf("query session counts: %s", err)
+			return false
+		}
+		return count > 0
+	}, testutil.IntervalFast), "expected the normalized app name to reach the database")
+	require.EqualValues(t, 1, count)
+
+	// The raw name must never reach storage as a key.
+	var rawKeyRows int64
+	err = sqlDB.QueryRowContext(ctx, `
+		SELECT count(*)
+		FROM workspace_agent_stats
+		WHERE agent_id = $1 AND session_counts ? 'Some-Future-IDE'`, agentID).Scan(&rawKeyRows)
+	require.NoError(t, err)
+	require.Zero(t, rawKeyRows)
 }
 
 func TestWorkspaceNotifications(t *testing.T) {

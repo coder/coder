@@ -69,6 +69,11 @@ func CreateDynamicClientRegistration(db database.Store, accessURL *url.URL, audi
 				"invalid_client_metadata", err.Error())
 			return
 		}
+		if err := codersdk.ValidateOAuth2ScopeList(req.Scope); err != nil {
+			writeOAuth2RegistrationError(ctx, rw, http.StatusBadRequest,
+				"invalid_client_metadata", "invalid scope: "+err.Error())
+			return
+		}
 
 		// Apply defaults
 		req = req.ApplyDefaults()
@@ -124,7 +129,7 @@ func CreateDynamicClientRegistration(db database.Store, accessURL *url.URL, audi
 				GrantTypes:              slice.ToStrings(req.GrantTypes),
 				ResponseTypes:           slice.ToStrings(req.ResponseTypes),
 				TokenEndpointAuthMethod: sql.NullString{String: string(req.TokenEndpointAuthMethod), Valid: true},
-				Scope:                   sql.NullString{String: req.Scope, Valid: true},
+				Scope:                   scopeAllowlist(req.Scope),
 				Contacts:                req.Contacts,
 				ClientUri:               sql.NullString{String: req.ClientURI, Valid: req.ClientURI != ""},
 				LogoUri:                 sql.NullString{String: req.LogoURI, Valid: req.LogoURI != ""},
@@ -335,6 +340,18 @@ func UpdateClientConfiguration(db database.Store, auditor *audit.Auditor, logger
 			return
 		}
 
+		// Apps registered before the size limit existed may already store a
+		// scope list that exceeds it. Skip the check when the request resends
+		// the stored value unchanged, so those apps can still update other
+		// fields.
+		if req.Scope != existingApp.Scope.String {
+			if err := codersdk.ValidateOAuth2ScopeList(req.Scope); err != nil {
+				writeOAuth2RegistrationError(ctx, rw, http.StatusBadRequest,
+					"invalid_client_metadata", "invalid scope: "+err.Error())
+				return
+			}
+		}
+
 		// A client's type is fixed at registration (RFC 7592 §2.2 permits
 		// rejecting metadata the server will not accept). Flipping it would
 		// either drop the secret requirement for a client that has one, or mark
@@ -382,7 +399,7 @@ func UpdateClientConfiguration(db database.Store, auditor *audit.Auditor, logger
 			GrantTypes:              slice.ToStrings(req.GrantTypes),
 			ResponseTypes:           slice.ToStrings(req.ResponseTypes),
 			TokenEndpointAuthMethod: sql.NullString{String: string(req.TokenEndpointAuthMethod), Valid: true},
-			Scope:                   sql.NullString{String: req.Scope, Valid: true},
+			Scope:                   scopeAllowlist(req.Scope),
 			Contacts:                req.Contacts,
 			ClientUri:               sql.NullString{String: req.ClientURI, Valid: req.ClientURI != ""},
 			LogoUri:                 sql.NullString{String: req.LogoURI, Valid: req.LogoURI != ""},

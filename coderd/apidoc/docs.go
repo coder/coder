@@ -11596,7 +11596,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/codersdk.CreateUserRequestWithOrgs"
+                            "$ref": "#/definitions/codersdk.CreateUserRequest"
                         }
                     }
                 ],
@@ -22569,7 +22569,7 @@ const docTemplate = `{
                 }
             }
         },
-        "codersdk.CreateUserRequestWithOrgs": {
+        "codersdk.CreateUserRequest": {
             "type": "object",
             "required": [
                 "username"
@@ -25595,6 +25595,10 @@ const docTemplate = `{
                 },
                 "name": {
                     "type": "string"
+                },
+                "scope": {
+                    "description": "Scope is the space-separated list of scopes this app's tokens may be\ngranted. Empty means unrestricted. A non-empty value with no names is a\nconfigured allowlist that grants nothing.",
+                    "type": "string"
                 }
             }
         },
@@ -26577,6 +26581,10 @@ const docTemplate = `{
                 },
                 "name": {
                     "type": "string"
+                },
+                "scope": {
+                    "description": "Scope is the space-separated list of scopes this app's tokens may be\ngranted. Leave empty, or omit, for unrestricted.",
+                    "type": "string"
                 }
             }
         },
@@ -26588,7 +26596,8 @@ const docTemplate = `{
                     "format": "uuid"
                 },
                 "app_name": {
-                    "$ref": "#/definitions/codersdk.UsageAppName"
+                    "description": "AppName is any name for the app reporting usage. The server normalizes\nit at ingestion, so a new app needs no server change. The UsageAppName\nconstants are the well-known names.",
+                    "type": "string"
                 }
             }
         },
@@ -27417,6 +27426,10 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "name": {
+                    "type": "string"
+                },
+                "scope": {
+                    "description": "Scope replaces the app's current allowlist. Omit to leave the existing\nallowlist untouched. Set to an empty string to clear it, making the app\nunrestricted.",
                     "type": "string"
                 }
             }
@@ -30398,21 +30411,6 @@ const docTemplate = `{
                     ]
                 }
             }
-        },
-        "codersdk.UsageAppName": {
-            "type": "string",
-            "enum": [
-                "vscode",
-                "jetbrains",
-                "reconnecting-pty",
-                "ssh"
-            ],
-            "x-enum-varnames": [
-                "UsageAppNameVscode",
-                "UsageAppNameJetbrains",
-                "UsageAppNameReconnectingPty",
-                "UsageAppNameSSH"
-            ]
         },
         "codersdk.UsagePeriod": {
             "type": "object",

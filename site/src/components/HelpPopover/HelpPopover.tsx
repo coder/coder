@@ -1,6 +1,6 @@
 import { cn } from "cn";
 import { CircleHelpIcon, ExternalLinkIcon } from "lucide-react";
-import type { FC, HTMLAttributes, PropsWithChildren, ReactNode } from "react";
+import type { ComponentProps, FC, PropsWithChildren, ReactNode } from "react";
 import {
 	Popover,
 	PopoverContent,
@@ -36,7 +36,7 @@ export const HelpPopoverContent: FC<PopoverContentProps> = ({
 	);
 };
 
-type HelpPopoverIconTriggerProps = React.ComponentPropsWithRef<"button"> & {
+type HelpPopoverIconTriggerProps = React.ComponentProps<"button"> & {
 	size?: Size;
 	hoverEffect?: boolean;
 };
@@ -68,7 +68,7 @@ export const HelpPopoverIconTrigger: React.FC<HelpPopoverIconTriggerProps> = ({
 	);
 };
 
-export const HelpPopoverTitle: FC<HTMLAttributes<HTMLHeadingElement>> = ({
+export const HelpPopoverTitle: FC<ComponentProps<"h4">> = ({
 	children,
 	className,
 	...attrs
@@ -86,7 +86,7 @@ export const HelpPopoverTitle: FC<HTMLAttributes<HTMLHeadingElement>> = ({
 	);
 };
 
-export const HelpPopoverText: FC<HTMLAttributes<HTMLParagraphElement>> = ({
+export const HelpPopoverText: FC<ComponentProps<"p">> = ({
 	children,
 	className,
 	...attrs

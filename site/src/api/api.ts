@@ -522,6 +522,15 @@ class ApiMethods {
 		return response.data;
 	};
 
+	getExternalAPIKeyScopes =
+		async (): Promise<TypesGen.ExternalAPIKeyScopes> => {
+			const response = await this.axios.get<TypesGen.ExternalAPIKeyScopes>(
+				"/api/v2/auth/scopes",
+			);
+
+			return response.data;
+		};
+
 	getUserLoginType = async (): Promise<TypesGen.UserLoginType> => {
 		const response = await this.axios.get<TypesGen.UserLoginType>(
 			"/api/v2/users/me/login-type",
@@ -1502,7 +1511,7 @@ class ApiMethods {
 	};
 
 	createUser = async (
-		user: TypesGen.CreateUserRequestWithOrgs,
+		user: TypesGen.CreateUserRequest,
 	): Promise<TypesGen.User> => {
 		const response = await this.axios.post<TypesGen.User>(
 			"/api/v2/users",
