@@ -6,6 +6,7 @@ import { workspaceById } from "#/api/queries/workspaces";
 import type { ProvisionerJobLog } from "#/api/typesGenerated";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import { useWorkspaceBuildLogs } from "#/hooks/useWorkspaceBuildLogs";
+import { ACTIVE_BUILD_STATUSES } from "#/modules/workspaces/status";
 import { WorkspaceBuildLogs } from "#/modules/workspaces/WorkspaceBuildLogs/WorkspaceBuildLogs";
 import {
 	useChatBuildId,
@@ -57,7 +58,8 @@ export const WorkspaceBuildLogSection: FC<WorkspaceBuildLogSectionProps> = ({
 	// Only use the polled build if it's actually in progress.
 	const latestBuildStatus = workspaceQuery.data?.latest_build?.status;
 	const polledActiveBuildId =
-		latestBuildStatus === "pending" || latestBuildStatus === "starting"
+		latestBuildStatus !== undefined &&
+		ACTIVE_BUILD_STATUSES.includes(latestBuildStatus)
 			? liveBuildId
 			: undefined;
 

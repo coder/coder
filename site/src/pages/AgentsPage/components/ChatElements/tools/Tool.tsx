@@ -25,7 +25,6 @@ import { ProposePlanTool } from "./ProposePlanTool";
 import { getReadFileToolData, ReadFileTool } from "./ReadFileTool";
 import { ReadSkillTool } from "./ReadSkillTool";
 import { ReadTemplateTool } from "./ReadTemplateTool";
-import { StartWorkspaceTool } from "./StartWorkspaceTool";
 import { SubagentTool } from "./SubagentTool";
 import {
 	getProvidedSubagentTitle,
@@ -61,6 +60,7 @@ import {
 	parseServerEditResults,
 	type ToolStatus,
 } from "./utils";
+import { WorkspaceLifecycleTool } from "./WorkspaceLifecycleTool";
 
 import { WriteFileTool } from "./WriteFileTool";
 
@@ -1143,7 +1143,8 @@ const ProcessSignalRenderer: FC<ToolRendererProps> = (props) => {
 	);
 };
 
-const StartWorkspaceRenderer: FC<ToolRendererProps> = ({
+const WorkspaceLifecycleRenderer: FC<ToolRendererProps> = ({
+	name,
 	status,
 	result,
 	isError,
@@ -1156,7 +1157,8 @@ const StartWorkspaceRenderer: FC<ToolRendererProps> = ({
 	const quotaTitle = getWorkspaceQuotaTitle(rec);
 
 	return (
-		<StartWorkspaceTool
+		<WorkspaceLifecycleTool
+			action={name === "stop_workspace" ? "stop" : "start"}
 			status={status}
 			buildId={buildId}
 			workspaceName={wsName}
@@ -1181,7 +1183,8 @@ export const toolRenderers: Record<string, FC<ToolRendererProps>> = {
 	write_file: WriteFileRenderer,
 	edit_files: EditFilesRenderer,
 	create_workspace: CreateWorkspaceRenderer,
-	start_workspace: StartWorkspaceRenderer,
+	start_workspace: WorkspaceLifecycleRenderer,
+	stop_workspace: WorkspaceLifecycleRenderer,
 	list_templates: ListTemplatesRenderer,
 	list_agents: ListAgentsRenderer,
 	list_subagent_models: ListSubagentModelsRenderer,
