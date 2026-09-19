@@ -42,6 +42,9 @@ only the methods that apply to it.
 For a full description of each option's accepted values and behavior, follow the
 flag link into the [` + "`coder server`" + ` CLI reference](../../reference/cli/server.md).
 
+An option that holds a secret is marked as such. Coder never writes those
+options to a YAML configuration file.
+
 Deprecated options are listed at the end of each section.
 
 `
@@ -51,15 +54,18 @@ const generalSection = "General"
 
 // option is the normalized data needed to render one deployment option.
 type option struct {
-	title      string // short, sentence-case heading text
-	env        string
-	flagName   string
-	flagAnchor string
-	yaml       string
-	defValue   string
-	desc       string
-	deprecated bool
-	sortKey    string // original serpent name, for stable ordering
+	title       string   // short, sentence-case heading text
+	typeName    string   // reader-facing value type, e.g. bool, duration, string-array
+	typeChoices []string // allowed values when typeName is enum or enum-array
+	env         string
+	flagName    string
+	flagAnchor  string
+	yaml        string
+	defValue    string
+	desc        string
+	deprecated  bool
+	secret      bool
+	sortKey     string // original serpent name, for stable ordering
 }
 
 // node is one section of the reference: a serpent group (or the synthetic
@@ -194,17 +200,48 @@ func toOption(opt serpent.Option) option {
 		def = "(computed at runtime)"
 	}
 
+	typeName, typeChoices := valueType(opt)
+
 	return option{
-		title:      shortTitle(opt),
-		env:        opt.Env,
-		flagName:   flagName,
-		flagAnchor: flagAnchor,
-		yaml:       opt.YAMLPath(),
-		defValue:   def,
-		desc:       collapse(opt.Description),
-		deprecated: isDeprecated(opt),
-		sortKey:    opt.Name,
+		title:       shortTitle(opt),
+		typeName:    typeName,
+		typeChoices: typeChoices,
+		env:         opt.Env,
+		flagName:    flagName,
+		flagAnchor:  flagAnchor,
+		yaml:        opt.YAMLPath(),
+		defValue:    def,
+		desc:        collapse(opt.Description),
+		deprecated:  isDeprecated(opt),
+		secret:      codersdk.IsSecretDeploymentOption(opt),
+		sortKey:     opt.Name,
 	}
+}
+
+// valueType reports the option's reader-facing value type and, for enums, the
+// values it accepts. Structured values accept YAML input, so their Go generic
+// type names are not useful in the configuration reference.
+func valueType(opt serpent.Option) (name string, choices []string) {
+	if opt.Value == nil {
+		return "", nil
+	}
+	switch value := opt.Value.(type) {
+	case *serpent.Enum:
+		return "enum", value.Choices
+	case *serpent.EnumArray:
+		return "enum-array", value.Choices
+	}
+	if raw := opt.Value.Type(); strings.HasPrefix(raw, "struct[") {
+		switch {
+		case strings.HasPrefix(raw, "struct[[]"):
+			return "YAML sequence", nil
+		case strings.HasPrefix(raw, "struct[map["):
+			return "YAML mapping", nil
+		default:
+			return "YAML object", nil
+		}
+	}
+	return opt.Value.Type(), nil
 }
 
 // isDeprecated reports whether an option is deprecated. serpent tracks
@@ -289,6 +326,22 @@ func renderOption(b *strings.Builder, opt option, level int) {
 		_, _ = b.WriteString("\n\n")
 	}
 
+	if opt.typeName != "" {
+		_, _ = fmt.Fprintf(b, "- Type: `%s`", opt.typeName)
+		if len(opt.typeChoices) > 0 {
+			choiceLead := ""
+			choiceQualifier := "one of "
+			if len(opt.typeChoices) == 1 {
+				choiceLead = "must be "
+				choiceQualifier = ""
+			}
+			if opt.typeName == "enum-array" {
+				choiceLead = "each value must be "
+			}
+			_, _ = fmt.Fprintf(b, ", %s%s%s", choiceLead, choiceQualifier, codeList(opt.typeChoices))
+		}
+		_, _ = b.WriteString("\n")
+	}
 	if opt.env != "" {
 		_, _ = fmt.Fprintf(b, "- Environment variable: `%s`\n", opt.env)
 	}
@@ -301,7 +354,23 @@ func renderOption(b *strings.Builder, opt option, level int) {
 	if opt.defValue != "" {
 		_, _ = fmt.Fprintf(b, "- Default value: `%s`\n", opt.defValue)
 	}
+	if opt.secret {
+		_, _ = b.WriteString("- Holds a secret: Coder never writes this option to a YAML configuration file.")
+		if opt.env != "" {
+			_, _ = b.WriteString(" Set it through the environment variable above.")
+		}
+		_, _ = b.WriteString("\n")
+	}
 	_, _ = b.WriteString("\n")
+}
+
+// codeList renders values as a comma-separated list of inline code spans.
+func codeList(values []string) string {
+	quoted := make([]string, len(values))
+	for i, v := range values {
+		quoted[i] = "`" + v + "`"
+	}
+	return strings.Join(quoted, ", ")
 }
 
 // emphasizeDeprecation bolds the leading "Deprecated" marker in a description
