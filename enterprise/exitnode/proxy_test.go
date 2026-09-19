@@ -19,6 +19,7 @@ import (
 
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/exitnode"
+	"github.com/coder/coder/v2/enterprise/exitnode/yamlpolicy"
 	"github.com/coder/coder/v2/tailnet"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -85,9 +86,9 @@ func newProxyHarness(t *testing.T, policyYAML string, configure ...func(*exitnod
 	return h
 }
 
-func mustPolicy(t *testing.T, yaml string) *exitnode.FilePolicy {
+func mustPolicy(t *testing.T, yaml string) *yamlpolicy.Policy {
 	t.Helper()
-	p, err := exitnode.ParsePolicy([]byte(yaml))
+	p, err := yamlpolicy.Parse([]byte(yaml))
 	require.NoError(t, err)
 	return p
 }

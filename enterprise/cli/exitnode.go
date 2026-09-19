@@ -28,6 +28,7 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/exitnode"
 	"github.com/coder/coder/v2/enterprise/exitnode/exitnodesdk"
+	"github.com/coder/coder/v2/enterprise/exitnode/yamlpolicy"
 )
 
 // exitNodeStopSignals shut the exit node down. SIGHUP is deliberately absent
@@ -313,7 +314,7 @@ func (r *RootCmd) exitNodeServer() *serpent.Command {
 				defer closeLogger()
 			}
 
-			policy, err := exitnode.LoadPolicyFile(policyPath)
+			policy, err := yamlpolicy.Load(policyPath)
 			if err != nil {
 				return xerrors.Errorf("load policy: %w", err)
 			}

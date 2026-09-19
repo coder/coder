@@ -4,7 +4,7 @@
 //
 // New runs a complete node: registration, tailnet membership, the CONNECT
 // listener, and flow reporting. Policy is injected through Options.Policy so
-// embedders can supply their own rules; the CLI uses the YAML FilePolicy.
+// embedders can supply their own rules; the CLI uses the yamlpolicy package.
 package exitnode
 
 import (
@@ -33,8 +33,8 @@ type Options struct {
 	// ExitNodeID is the ID half of the token. It determines the node's
 	// deterministic tailnet address. Required.
 	ExitNodeID uuid.UUID
-	// Policy decides each flow. Required. See FilePolicy for the YAML
-	// implementation and PolicyFunc to adapt a function.
+	// Policy decides each flow. Required. See the yamlpolicy package for the
+	// rule-based implementation and PolicyFunc to adapt a function.
 	Policy Policy
 	// ListenPort is the CONNECT port inside the tailnet. Defaults to
 	// codersdk.ExitNodeTailnetPort.
@@ -254,8 +254,8 @@ func (s *Server) Metrics() *Metrics {
 }
 
 // ReloadPolicy asks the policy to reload itself, for example to re-read a
-// FilePolicy after SIGHUP. Policies without a Reload() error method return an
-// error and stay in effect.
+// yamlpolicy file after SIGHUP. Policies without a Reload() error method return
+// an error and stay in effect.
 func (s *Server) ReloadPolicy() error {
 	reloader, ok := s.policy.(interface{ Reload() error })
 	if !ok {
