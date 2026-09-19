@@ -1527,6 +1527,20 @@ func (mr *MockStoreMockRecorder) DeleteTailnetTunnel(ctx, arg any) *gomock.Call 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteTailnetTunnel", reflect.TypeOf((*MockStore)(nil).DeleteTailnetTunnel), ctx, arg)
 }
 
+// DeleteTemplateExitNodes mocks base method.
+func (m *MockStore) DeleteTemplateExitNodes(ctx context.Context, templateID uuid.UUID) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteTemplateExitNodes", ctx, templateID)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteTemplateExitNodes indicates an expected call of DeleteTemplateExitNodes.
+func (mr *MockStoreMockRecorder) DeleteTemplateExitNodes(ctx, templateID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteTemplateExitNodes", reflect.TypeOf((*MockStore)(nil).DeleteTemplateExitNodes), ctx, templateID)
+}
+
 // DeleteUnlinkedChatFilesByIDs mocks base method.
 func (m *MockStore) DeleteUnlinkedChatFilesByIDs(ctx context.Context, arg database.DeleteUnlinkedChatFilesByIDsParams) (int64, error) {
 	m.ctrl.T.Helper()
@@ -8524,6 +8538,20 @@ func (mr *MockStoreMockRecorder) InsertTemplate(ctx, arg any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertTemplate", reflect.TypeOf((*MockStore)(nil).InsertTemplate), ctx, arg)
 }
 
+// InsertTemplateExitNodes mocks base method.
+func (m *MockStore) InsertTemplateExitNodes(ctx context.Context, arg database.InsertTemplateExitNodesParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertTemplateExitNodes", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// InsertTemplateExitNodes indicates an expected call of InsertTemplateExitNodes.
+func (mr *MockStoreMockRecorder) InsertTemplateExitNodes(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertTemplateExitNodes", reflect.TypeOf((*MockStore)(nil).InsertTemplateExitNodes), ctx, arg)
+}
+
 // InsertTemplateVersion mocks base method.
 func (m *MockStore) InsertTemplateVersion(ctx context.Context, arg database.InsertTemplateVersionParams) error {
 	m.ctrl.T.Helper()
@@ -9768,20 +9796,6 @@ func (m *MockStore) SetChatContextSnapshot(ctx context.Context, arg database.Set
 func (mr *MockStoreMockRecorder) SetChatContextSnapshot(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetChatContextSnapshot", reflect.TypeOf((*MockStore)(nil).SetChatContextSnapshot), ctx, arg)
-}
-
-// SetTemplateExitNodes mocks base method.
-func (m *MockStore) SetTemplateExitNodes(ctx context.Context, arg database.SetTemplateExitNodesParams) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SetTemplateExitNodes", ctx, arg)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// SetTemplateExitNodes indicates an expected call of SetTemplateExitNodes.
-func (mr *MockStoreMockRecorder) SetTemplateExitNodes(ctx, arg any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetTemplateExitNodes", reflect.TypeOf((*MockStore)(nil).SetTemplateExitNodes), ctx, arg)
 }
 
 // SoftDeleteChatMessageByID mocks base method.

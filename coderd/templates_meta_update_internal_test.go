@@ -307,7 +307,7 @@ func TestResolveTemplateMetaUpdate(t *testing.T) {
 		// Exit node binding.
 		{
 			name: "ExitNodeIDsChange",
-			req: codersdk.UpdateTemplateMeta{ExitNodeIDs: []uuid.UUID{
+			req: codersdk.UpdateTemplateMeta{ExitNodeIDs: &[]uuid.UUID{
 				uuid.MustParse("00000000-0000-0000-0000-0000000000e2"),
 				uuid.MustParse("00000000-0000-0000-0000-0000000000e3"),
 			}},
@@ -320,7 +320,7 @@ func TestResolveTemplateMetaUpdate(t *testing.T) {
 		},
 		{
 			name: "EmptyExitNodeIDsClear",
-			req:  codersdk.UpdateTemplateMeta{ExitNodeIDs: []uuid.UUID{}},
+			req:  codersdk.UpdateTemplateMeta{ExitNodeIDs: &[]uuid.UUID{}},
 			expected: expected{override: func(r *templateMetaUpdate) {
 				r.exitNodeIDs = []uuid.UUID{}
 			}},

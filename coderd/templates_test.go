@@ -1922,12 +1922,19 @@ func TestPatchTemplateMeta(t *testing.T) {
 
 		// Bind to an exit node in the same organization with enforcement.
 		updated, err := client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
-			ExitNodeIDs:     []uuid.UUID{exitNode.ID, exitNode2.ID, exitNode.ID},
+			ExitNodeIDs:     &[]uuid.UUID{exitNode.ID, exitNode2.ID, exitNode.ID},
 			ExitNodeEnforce: new(true),
 		})
 		require.NoError(t, err)
 		require.Equal(t, []uuid.UUID{exitNode.ID, exitNode2.ID}, updated.ExitNodeIDs)
 		assert.True(t, updated.ExitNodeEnforce)
+
+		// Replacing an existing list can retain and reorder nodes.
+		updated, err = client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
+			ExitNodeIDs: &[]uuid.UUID{exitNode2.ID, exitNode.ID},
+		})
+		require.NoError(t, err)
+		require.Equal(t, []uuid.UUID{exitNode2.ID, exitNode.ID}, updated.ExitNodeIDs)
 
 		// Omitting both fields preserves the binding.
 		_, err = client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
@@ -1936,12 +1943,12 @@ func TestPatchTemplateMeta(t *testing.T) {
 		require.NoError(t, err)
 		updated, err = client.Template(ctx, template.ID)
 		require.NoError(t, err)
-		require.Equal(t, []uuid.UUID{exitNode.ID, exitNode2.ID}, updated.ExitNodeIDs)
+		require.Equal(t, []uuid.UUID{exitNode2.ID, exitNode.ID}, updated.ExitNodeIDs)
 		assert.True(t, updated.ExitNodeEnforce)
 
 		// An exit node from another organization is rejected.
 		_, err = client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
-			ExitNodeIDs: []uuid.UUID{foreignExitNode.ID},
+			ExitNodeIDs: &[]uuid.UUID{foreignExitNode.ID},
 		})
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
@@ -1949,14 +1956,14 @@ func TestPatchTemplateMeta(t *testing.T) {
 
 		// An unknown exit node is rejected.
 		_, err = client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
-			ExitNodeIDs: []uuid.UUID{uuid.New()},
+			ExitNodeIDs: &[]uuid.UUID{uuid.New()},
 		})
 		require.ErrorAs(t, err, &apiErr)
 		assert.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
 
 		// An empty list clears the binding.
 		updated, err = client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
-			ExitNodeIDs:     []uuid.UUID{},
+			ExitNodeIDs:     &[]uuid.UUID{},
 			ExitNodeEnforce: new(false),
 		})
 		require.NoError(t, err)

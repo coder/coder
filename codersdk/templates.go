@@ -326,7 +326,7 @@ type UpdateTemplateMeta struct {
 	// ExitNodeIDs bind the template to exit nodes in preference order. An
 	// explicit empty list clears the binding. Omitting the field keeps the
 	// existing value.
-	ExitNodeIDs []uuid.UUID `json:"exit_node_ids" format:"uuid"`
+	ExitNodeIDs *[]uuid.UUID `json:"exit_node_ids,omitempty" format:"uuid"`
 	// ExitNodeEnforce toggles transparent enforcement for the exit node
 	// binding. Omitting the field keeps the existing value.
 	ExitNodeEnforce *bool `json:"exit_node_enforce,omitempty"`

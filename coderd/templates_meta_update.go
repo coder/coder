@@ -123,7 +123,7 @@ func resolveTemplateMetaUpdate(
 	}
 
 	if req.ExitNodeIDs != nil {
-		out.exitNodeIDs = req.ExitNodeIDs
+		out.exitNodeIDs = *req.ExitNodeIDs
 	}
 
 	// Override autostop if provided is non-nil

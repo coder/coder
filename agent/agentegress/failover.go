@@ -20,23 +20,25 @@ type exitNodeFailure struct {
 }
 
 type exitNodeSelector struct {
-	mu       sync.Mutex
-	logger   slog.Logger
-	clock    quartz.Clock
-	addrs    []netip.AddrPort
-	current  int
-	failures []exitNodeFailure
+	mu          sync.Mutex
+	logger      slog.Logger
+	clock       quartz.Clock
+	dialTimeout time.Duration
+	addrs       []netip.AddrPort
+	current     int
+	failures    []exitNodeFailure
 }
 
-func newExitNodeSelector(logger slog.Logger, clock quartz.Clock, addrs []netip.AddrPort) *exitNodeSelector {
+func newExitNodeSelector(logger slog.Logger, clock quartz.Clock, dialTimeout time.Duration, addrs []netip.AddrPort) *exitNodeSelector {
 	if clock == nil {
 		clock = quartz.NewReal()
 	}
 	return &exitNodeSelector{
-		logger:   logger,
-		clock:    clock,
-		addrs:    append([]netip.AddrPort(nil), addrs...),
-		failures: make([]exitNodeFailure, len(addrs)),
+		logger:      logger,
+		clock:       clock,
+		dialTimeout: dialTimeout,
+		addrs:       append([]netip.AddrPort(nil), addrs...),
+		failures:    make([]exitNodeFailure, len(addrs)),
 	}
 }
 
@@ -68,7 +70,9 @@ func (s *exitNodeSelector) dial(ctx context.Context, dialer Dialer) (net.Conn, n
 
 	var lastErr error
 	for _, i := range order {
-		conn, err := dialer.DialContextTCP(ctx, s.addrs[i])
+		dialCtx, cancel := context.WithTimeout(ctx, s.dialTimeout)
+		conn, err := dialer.DialContextTCP(dialCtx, s.addrs[i])
+		cancel()
 		if err != nil {
 			s.markFailure(s.addrs[i])
 			lastErr = err

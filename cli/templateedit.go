@@ -187,19 +187,21 @@ func (r *RootCmd) templateEdit() *serpent.Command {
 
 			// An explicit empty --exit-node clears the binding. Otherwise each
 			// occurrence is resolved in preference order.
-			var exitNodeIDs []uuid.UUID
+			var exitNodeIDs *[]uuid.UUID
 			if userSetOption(inv, "exit-node") {
+				ids := []uuid.UUID{}
 				for _, exitNode := range exitNodes {
 					if exitNode == "" {
-						exitNodeIDs = []uuid.UUID{}
+						ids = ids[:0]
 						break
 					}
 					node, err := client.ExitNodeByName(inv.Context(), template.OrganizationID, exitNode)
 					if err != nil {
 						return xerrors.Errorf("get exit node %q: %w", exitNode, err)
 					}
-					exitNodeIDs = append(exitNodeIDs, node.ID)
+					ids = append(ids, node.ID)
 				}
+				exitNodeIDs = &ids
 			}
 
 			var exitNodeEnforcePtr *bool

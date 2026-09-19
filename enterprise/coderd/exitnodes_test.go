@@ -65,7 +65,7 @@ func TestExitNodes(t *testing.T) {
 	template := coderdtest.CreateTemplate(t, client, orgID, version.ID)
 	setupCtx := testutil.Context(t, testutil.WaitLong)
 	_, err := client.UpdateTemplateMeta(setupCtx, template.ID, codersdk.UpdateTemplateMeta{
-		ExitNodeIDs: []uuid.UUID{boundNode.ID},
+		ExitNodeIDs: &[]uuid.UUID{boundNode.ID},
 	})
 	require.NoError(t, err)
 	workspace := coderdtest.CreateWorkspace(t, client, template.ID)

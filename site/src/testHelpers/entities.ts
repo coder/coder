@@ -979,6 +979,7 @@ export const MockTemplate: TypesGen.Template = {
 	disable_module_cache: false,
 	module_cache_disabled_by_deployment: false,
 	allow_workspace_renames: false,
+	exit_node_ids: [],
 	exit_node_enforce: false,
 };
 

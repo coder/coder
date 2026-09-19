@@ -10456,7 +10456,7 @@ export interface UpdateTemplateMeta {
 	 * explicit empty list clears the binding. Omitting the field keeps the
 	 * existing value.
 	 */
-	readonly exit_node_ids: readonly string[];
+	readonly exit_node_ids?: string[];
 	/**
 	 * ExitNodeEnforce toggles transparent enforcement for the exit node
 	 * binding. Omitting the field keeps the existing value.

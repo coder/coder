@@ -2295,7 +2295,10 @@ func (a *agent) updateEgress(ctx context.Context, cfg *agentsdk.EgressConfig) {
 		if !egressChangeRequiresRestart(old, *cfg) {
 			if err := a.egressProxy.Update(*cfg, a.egressExemptHosts(*cfg)); err != nil {
 				logger.Error(ctx, "update egress proxy configuration", slog.Error(err))
+				return
 			}
+			logger.Info(ctx, "egress proxy configuration updated in place",
+				slog.F("exit_node_ids", cfg.ExitNodeIDs), slog.F("enforce", cfg.Enforce))
 			return
 		}
 		if a.egressEnforcer != nil {

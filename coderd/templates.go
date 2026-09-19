@@ -822,9 +822,13 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 		}
 
 		if req.ExitNodeIDs != nil {
-			err = tx.SetTemplateExitNodes(ctx, database.SetTemplateExitNodesParams{TemplateID: template.ID, ExitNodeIds: resolved.exitNodeIDs})
+			err = tx.DeleteTemplateExitNodes(ctx, template.ID)
 			if err != nil {
-				return xerrors.Errorf("set template exit nodes: %w", err)
+				return xerrors.Errorf("delete template exit nodes: %w", err)
+			}
+			err = tx.InsertTemplateExitNodes(ctx, database.InsertTemplateExitNodesParams{TemplateID: template.ID, ExitNodeIds: resolved.exitNodeIDs})
+			if err != nil {
+				return xerrors.Errorf("insert template exit nodes: %w", err)
 			}
 		}
 

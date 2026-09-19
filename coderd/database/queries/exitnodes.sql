@@ -38,11 +38,11 @@ JOIN exit_nodes ON exit_nodes.id = template_exit_nodes.exit_node_id
 WHERE template_exit_nodes.template_id = @template_id
 ORDER BY template_exit_nodes.position;
 
--- name: SetTemplateExitNodes :exec
-WITH deleted AS (
-	DELETE FROM template_exit_nodes
-	WHERE template_id = @template_id
-)
+-- name: DeleteTemplateExitNodes :exec
+DELETE FROM template_exit_nodes
+WHERE template_id = @template_id;
+
+-- name: InsertTemplateExitNodes :exec
 INSERT INTO template_exit_nodes (template_id, exit_node_id, position)
 SELECT @template_id, exit_node_id, ordinality - 1
 FROM unnest(@exit_node_ids::uuid[]) WITH ORDINALITY AS nodes(exit_node_id, ordinality);

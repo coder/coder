@@ -34,13 +34,14 @@ import (
 )
 
 const (
-	defaultListenHost       = "127.0.0.1"
-	defaultProxyPort        = 41280
-	defaultDNSPort          = 41253
-	defaultUDPPort          = 41254
-	defaultConnectTimeout   = 10 * time.Second
-	defaultHostSniffTimeout = 500 * time.Millisecond
-	unknownFakeLogInterval  = 30 * time.Second
+	defaultListenHost          = "127.0.0.1"
+	defaultProxyPort           = 41280
+	defaultDNSPort             = 41253
+	defaultUDPPort             = 41254
+	defaultConnectTimeout      = 10 * time.Second
+	defaultExitNodeDialTimeout = 5 * time.Second
+	defaultHostSniffTimeout    = 500 * time.Millisecond
+	unknownFakeLogInterval     = 30 * time.Second
 )
 
 // builtinExemptNames are always resolved by the system resolvers rather than
@@ -96,6 +97,9 @@ type Options struct {
 	// HostSniffTimeout bounds transparent connection host detection. It
 	// defaults to 500ms. A negative value disables sniffing.
 	HostSniffTimeout time.Duration
+	// ExitNodeDialTimeout bounds each individual tailnet dial before the next
+	// exit node is tried. It defaults to 5 seconds.
+	ExitNodeDialTimeout time.Duration
 	// ConnectTimeout bounds CONNECT request and response negotiation with an
 	// exit node. It defaults to 10 seconds.
 	ConnectTimeout time.Duration
@@ -114,18 +118,19 @@ type Options struct {
 // listener hands out fake addresses so redirected flows can be tunneled by
 // name, and a UDP listener relays redirected datagrams.
 type Proxy struct {
-	logger         slog.Logger
-	dialer         Dialer
-	configMu       sync.RWMutex
-	cfg            agentsdk.EgressConfig
-	exitNodes      *exitNodeSelector
-	exemptNames    map[string]struct{}
-	listen         string
-	dnsPort        uint16
-	udpPort        uint16
-	clock          quartz.Clock
-	connectTimeout time.Duration
-	sniffTimeout   time.Duration
+	logger              slog.Logger
+	dialer              Dialer
+	configMu            sync.RWMutex
+	cfg                 agentsdk.EgressConfig
+	exitNodes           *exitNodeSelector
+	exemptNames         map[string]struct{}
+	listen              string
+	dnsPort             uint16
+	udpPort             uint16
+	clock               quartz.Clock
+	connectTimeout      time.Duration
+	exitNodeDialTimeout time.Duration
+	sniffTimeout        time.Duration
 
 	fake         *fakeIPPool
 	upstream     []netip.AddrPort
@@ -219,6 +224,13 @@ func New(logger slog.Logger, opts Options) (*Proxy, error) {
 	if pinnedMax < fakeIPMax {
 		return nil, xerrors.New("fake IP pinned max entries must be at least fake IP max entries")
 	}
+	exitNodeDialTimeout := opts.ExitNodeDialTimeout
+	if exitNodeDialTimeout == 0 {
+		exitNodeDialTimeout = defaultExitNodeDialTimeout
+	}
+	if exitNodeDialTimeout < 0 {
+		return nil, xerrors.New("exit node dial timeout must not be negative")
+	}
 	connectTimeout := opts.ConnectTimeout
 	if connectTimeout == 0 {
 		connectTimeout = defaultConnectTimeout
@@ -236,21 +248,22 @@ func New(logger slog.Logger, opts Options) (*Proxy, error) {
 	}
 	resolver := resolverDialer()
 	p := &Proxy{
-		logger:         logger,
-		dialer:         opts.Dialer,
-		cfg:            opts.Config,
-		clock:          opts.Clock,
-		exitNodes:      newExitNodeSelector(logger, opts.Clock, exitNodes),
-		listen:         opts.ListenAddr,
-		dnsPort:        opts.DNSPort,
-		udpPort:        opts.UDPPort,
-		connectTimeout: connectTimeout,
-		sniffTimeout:   sniffTimeout,
-		fake:           newFakeIPPool(fakeIPPrefix, fakeIPMax, pinnedMax),
-		exemptNames:    exempt,
-		upstream:       opts.UpstreamResolvers,
-		resolverDial:   resolver.DialContext,
-		udpOrigDst:     udpOriginalDst,
+		logger:              logger,
+		dialer:              opts.Dialer,
+		cfg:                 opts.Config,
+		clock:               opts.Clock,
+		exitNodes:           newExitNodeSelector(logger, opts.Clock, exitNodeDialTimeout, exitNodes),
+		listen:              opts.ListenAddr,
+		dnsPort:             opts.DNSPort,
+		udpPort:             opts.UDPPort,
+		connectTimeout:      connectTimeout,
+		exitNodeDialTimeout: exitNodeDialTimeout,
+		sniffTimeout:        sniffTimeout,
+		fake:                newFakeIPPool(fakeIPPrefix, fakeIPMax, pinnedMax),
+		exemptNames:         exempt,
+		upstream:            opts.UpstreamResolvers,
+		resolverDial:        resolver.DialContext,
+		udpOrigDst:          udpOriginalDst,
 	}
 	if p.clock == nil {
 		p.clock = quartz.NewReal()
@@ -397,7 +410,7 @@ func (p *Proxy) Update(cfg agentsdk.EgressConfig, exemptHosts []string) error {
 	if err != nil {
 		return err
 	}
-	selector := newExitNodeSelector(p.logger, p.clock, exitNodes)
+	selector := newExitNodeSelector(p.logger, p.clock, p.exitNodeDialTimeout, exitNodes)
 	p.configMu.Lock()
 	p.cfg = cfg
 	p.exitNodes = selector

@@ -2840,11 +2840,17 @@ func (s *MethodTestSuite) TestTemplate() {
 		dbm.EXPECT().GetTemplateExitNodes(gomock.Any(), tpl.ID).Return(nodes, nil).AnyTimes()
 		check.Args(tpl.ID).Asserts(tpl, policy.ActionRead).Returns(nodes)
 	}))
-	s.Run("SetTemplateExitNodes", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+	s.Run("DeleteTemplateExitNodes", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		tpl := testutil.Fake(s.T(), faker, database.Template{})
-		arg := database.SetTemplateExitNodesParams{TemplateID: tpl.ID, ExitNodeIds: []uuid.UUID{uuid.New()}}
 		dbm.EXPECT().GetTemplateByID(gomock.Any(), tpl.ID).Return(tpl, nil).AnyTimes()
-		dbm.EXPECT().SetTemplateExitNodes(gomock.Any(), arg).Return(nil).AnyTimes()
+		dbm.EXPECT().DeleteTemplateExitNodes(gomock.Any(), tpl.ID).Return(nil).AnyTimes()
+		check.Args(tpl.ID).Asserts(tpl, policy.ActionUpdate)
+	}))
+	s.Run("InsertTemplateExitNodes", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		tpl := testutil.Fake(s.T(), faker, database.Template{})
+		arg := database.InsertTemplateExitNodesParams{TemplateID: tpl.ID, ExitNodeIds: []uuid.UUID{uuid.New()}}
+		dbm.EXPECT().GetTemplateByID(gomock.Any(), tpl.ID).Return(tpl, nil).AnyTimes()
+		dbm.EXPECT().InsertTemplateExitNodes(gomock.Any(), arg).Return(nil).AnyTimes()
 		check.Args(arg).Asserts(tpl, policy.ActionUpdate)
 	}))
 	s.Run("GetTemplateVersionByJobID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {

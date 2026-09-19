@@ -1783,6 +1783,28 @@ func scopedOrgRoleIdentifiers(names []string, orgID uuid.UUID) []rbac.RoleIdenti
 	return out
 }
 
+func (q *querier) DeleteTemplateExitNodes(ctx context.Context, templateID uuid.UUID) error {
+	template, err := q.db.GetTemplateByID(ctx, templateID)
+	if err != nil {
+		return err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, template); err != nil {
+		return err
+	}
+	return q.db.DeleteTemplateExitNodes(ctx, templateID)
+}
+
+func (q *querier) InsertTemplateExitNodes(ctx context.Context, arg database.InsertTemplateExitNodesParams) error {
+	template, err := q.db.GetTemplateByID(ctx, arg.TemplateID)
+	if err != nil {
+		return err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, template); err != nil {
+		return err
+	}
+	return q.db.InsertTemplateExitNodes(ctx, arg)
+}
+
 func (q *querier) AcquireExternalAuthLinkRefreshLease(ctx context.Context, arg database.AcquireExternalAuthLinkRefreshLeaseParams) (database.ExternalAuthLink, error) {
 	fetch := func(ctx context.Context, arg database.AcquireExternalAuthLinkRefreshLeaseParams) (database.ExternalAuthLink, error) {
 		return q.db.GetExternalAuthLink(ctx, database.GetExternalAuthLinkParams{UserID: arg.UserID, ProviderID: arg.ProviderID})
@@ -7297,17 +7319,6 @@ func (q *querier) SetChatContextSnapshot(ctx context.Context, arg database.SetCh
 		return err
 	}
 	return q.db.SetChatContextSnapshot(ctx, arg)
-}
-
-func (q *querier) SetTemplateExitNodes(ctx context.Context, arg database.SetTemplateExitNodesParams) error {
-	template, err := q.db.GetTemplateByID(ctx, arg.TemplateID)
-	if err != nil {
-		return err
-	}
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, template); err != nil {
-		return err
-	}
-	return q.db.SetTemplateExitNodes(ctx, arg)
 }
 
 func (q *querier) SoftDeleteChatMessageByID(ctx context.Context, id int64) error {

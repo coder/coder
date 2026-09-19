@@ -14968,6 +14968,16 @@ func (q *sqlQuerier) DeleteExitNodeByID(ctx context.Context, id uuid.UUID) error
 	return err
 }
 
+const deleteTemplateExitNodes = `-- name: DeleteTemplateExitNodes :exec
+DELETE FROM template_exit_nodes
+WHERE template_id = $1
+`
+
+func (q *sqlQuerier) DeleteTemplateExitNodes(ctx context.Context, templateID uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, deleteTemplateExitNodes, templateID)
+	return err
+}
+
 const getExitNodeByID = `-- name: GetExitNodeByID :one
 SELECT id, organization_id, name, display_name, created_at, updated_at, deleted, token_hashed_secret, version, last_seen_at, wireguard_endpoints FROM exit_nodes WHERE id = $1 LIMIT 1
 `
@@ -15199,23 +15209,19 @@ func (q *sqlQuerier) InsertExitNode(ctx context.Context, arg InsertExitNodeParam
 	return i, err
 }
 
-const setTemplateExitNodes = `-- name: SetTemplateExitNodes :exec
-WITH deleted AS (
-	DELETE FROM template_exit_nodes
-	WHERE template_id = $1
-)
+const insertTemplateExitNodes = `-- name: InsertTemplateExitNodes :exec
 INSERT INTO template_exit_nodes (template_id, exit_node_id, position)
 SELECT $1, exit_node_id, ordinality - 1
 FROM unnest($2::uuid[]) WITH ORDINALITY AS nodes(exit_node_id, ordinality)
 `
 
-type SetTemplateExitNodesParams struct {
+type InsertTemplateExitNodesParams struct {
 	TemplateID  uuid.UUID   `db:"template_id" json:"template_id"`
 	ExitNodeIds []uuid.UUID `db:"exit_node_ids" json:"exit_node_ids"`
 }
 
-func (q *sqlQuerier) SetTemplateExitNodes(ctx context.Context, arg SetTemplateExitNodesParams) error {
-	_, err := q.db.ExecContext(ctx, setTemplateExitNodes, arg.TemplateID, pq.Array(arg.ExitNodeIds))
+func (q *sqlQuerier) InsertTemplateExitNodes(ctx context.Context, arg InsertTemplateExitNodesParams) error {
+	_, err := q.db.ExecContext(ctx, insertTemplateExitNodes, arg.TemplateID, pq.Array(arg.ExitNodeIds))
 	return err
 }
 

@@ -888,6 +888,14 @@ func (m queryMetricsStore) DeleteTailnetTunnel(ctx context.Context, arg database
 	return r0, r1
 }
 
+func (m queryMetricsStore) DeleteTemplateExitNodes(ctx context.Context, templateID uuid.UUID) error {
+	start := time.Now()
+	r0 := m.s.DeleteTemplateExitNodes(ctx, templateID)
+	m.queryLatencies.WithLabelValues("DeleteTemplateExitNodes").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteTemplateExitNodes").Inc()
+	return r0
+}
+
 func (m queryMetricsStore) DeleteUnlinkedChatFilesByIDs(ctx context.Context, arg database.DeleteUnlinkedChatFilesByIDsParams) (int64, error) {
 	start := time.Now()
 	r0, r1 := m.s.DeleteUnlinkedChatFilesByIDs(ctx, arg)
@@ -4528,6 +4536,14 @@ func (m queryMetricsStore) InsertTemplate(ctx context.Context, arg database.Inse
 	return r0
 }
 
+func (m queryMetricsStore) InsertTemplateExitNodes(ctx context.Context, arg database.InsertTemplateExitNodesParams) error {
+	start := time.Now()
+	r0 := m.s.InsertTemplateExitNodes(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertTemplateExitNodes").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertTemplateExitNodes").Inc()
+	return r0
+}
+
 func (m queryMetricsStore) InsertTemplateVersion(ctx context.Context, arg database.InsertTemplateVersionParams) error {
 	start := time.Now()
 	r0 := m.s.InsertTemplateVersion(ctx, arg)
@@ -5141,14 +5157,6 @@ func (m queryMetricsStore) SetChatContextSnapshot(ctx context.Context, arg datab
 	r0 := m.s.SetChatContextSnapshot(ctx, arg)
 	m.queryLatencies.WithLabelValues("SetChatContextSnapshot").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "SetChatContextSnapshot").Inc()
-	return r0
-}
-
-func (m queryMetricsStore) SetTemplateExitNodes(ctx context.Context, arg database.SetTemplateExitNodesParams) error {
-	start := time.Now()
-	r0 := m.s.SetTemplateExitNodes(ctx, arg)
-	m.queryLatencies.WithLabelValues("SetTemplateExitNodes").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "SetTemplateExitNodes").Inc()
 	return r0
 }
 

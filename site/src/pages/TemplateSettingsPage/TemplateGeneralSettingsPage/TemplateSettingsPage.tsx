@@ -78,8 +78,11 @@ const TemplateSettingsPage: FC = () => {
 					);
 				}}
 				onSubmit={(templateSettings) => {
+					// Exit node bindings are managed through the CLI and API, not
+					// this form. Omitting the field keeps the existing binding.
+					const { exit_node_ids: _exitNodeIds, ...templateMeta } = template;
 					updateTemplate({
-						...template,
+						...templateMeta,
 						...templateSettings,
 					});
 				}}

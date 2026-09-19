@@ -5,11 +5,13 @@ import (
 	"net"
 	"net/netip"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
+	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
 )
 
@@ -19,7 +21,7 @@ func TestExitNodeSelectorFailoverAndRecovery(t *testing.T) {
 	clock := quartz.NewMock(t)
 	preferred := netip.MustParseAddrPort("[fd7a:115c:a1e0::1]:1")
 	fallback := netip.MustParseAddrPort("[fd7a:115c:a1e0::2]:1")
-	selector := newExitNodeSelector(slogtest.Make(t, nil), clock, []netip.AddrPort{preferred, fallback})
+	selector := newExitNodeSelector(slogtest.Make(t, nil), clock, time.Second, []netip.AddrPort{preferred, fallback})
 
 	preferredUp := false
 	var dialed []netip.AddrPort
@@ -56,10 +58,36 @@ func TestExitNodeSelectorFailoverAndRecovery(t *testing.T) {
 	require.NoError(t, conn.Close())
 }
 
+func TestExitNodeSelectorDialTimeout(t *testing.T) {
+	t.Parallel()
+
+	preferred := netip.MustParseAddrPort("[fd7a:115c:a1e0::1]:1")
+	fallback := netip.MustParseAddrPort("[fd7a:115c:a1e0::2]:1")
+	selector := newExitNodeSelector(slogtest.Make(t, nil), quartz.NewMock(t), testutil.IntervalFast, []netip.AddrPort{preferred, fallback})
+
+	var dialed []netip.AddrPort
+	dialer := DialerFunc(func(ctx context.Context, addr netip.AddrPort) (net.Conn, error) {
+		dialed = append(dialed, addr)
+		if addr == preferred {
+			<-ctx.Done()
+			return nil, ctx.Err()
+		}
+		client, server := net.Pipe()
+		t.Cleanup(func() { _ = server.Close() })
+		return client, nil
+	})
+
+	conn, addr, err := selector.dial(t.Context(), dialer)
+	require.NoError(t, err)
+	require.Equal(t, fallback, addr)
+	require.Equal(t, []netip.AddrPort{preferred, fallback}, dialed)
+	require.NoError(t, conn.Close())
+}
+
 func TestExitNodeSelectorAllFail(t *testing.T) {
 	t.Parallel()
 
-	selector := newExitNodeSelector(slogtest.Make(t, nil), quartz.NewMock(t), []netip.AddrPort{
+	selector := newExitNodeSelector(slogtest.Make(t, nil), quartz.NewMock(t), time.Second, []netip.AddrPort{
 		netip.MustParseAddrPort("[fd7a:115c:a1e0::1]:1"),
 		netip.MustParseAddrPort("[fd7a:115c:a1e0::2]:1"),
 	})
