@@ -32,7 +32,7 @@ import {
 	chatHasMenuActions,
 } from "./ChatActionsMenuItems";
 import { getParentChatID } from "./ChatConversation/chatHelpers";
-import { ChatSharingPopoverContent } from "./ChatSharingPopover";
+import { SharingPopoverContent } from "./ChatSharingPopover";
 import { useEmbedContext } from "./EmbedContext";
 import { PrStateIcon } from "./GitPanel/GitPanel";
 
@@ -79,10 +79,9 @@ const ChatSharingTopBarButton: FC<ChatSharingTopBarButtonProps> = ({
 					<Share2Icon className="size-4" />
 				</Button>
 			</PopoverTrigger>
-			<ChatSharingPopoverContent
+			<SharingPopoverContent
 				key={contentGeneration}
-				chatId={chatId}
-				organizationId={organizationId}
+				target={{ kind: "chat", id: chatId, organizationId }}
 				open={isChatSharingOpen}
 			/>
 		</Popover>
