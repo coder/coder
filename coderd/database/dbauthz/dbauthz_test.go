@@ -2805,6 +2805,12 @@ func (s *MethodTestSuite) TestExitNode() {
 		dbm.EXPECT().GetExitNodeReplicasByExitNode(gomock.Any(), n.ID).Return(replicas, nil).AnyTimes()
 		check.Args(n.ID).Asserts(n, policy.ActionRead).Returns(replicas)
 	}))
+	s.Run("GetAllLiveExitNodeReplicas", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		updatedAfter := time.Now()
+		replicas := []database.ExitNodeReplica{testutil.Fake(s.T(), faker, database.ExitNodeReplica{})}
+		dbm.EXPECT().GetAllLiveExitNodeReplicas(gomock.Any(), updatedAfter).Return(replicas, nil).AnyTimes()
+		check.Args(updatedAfter).Asserts(rbac.ResourceSystem, policy.ActionRead).Returns(replicas)
+	}))
 	s.Run("GetLiveExitNodeReplicas", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		n1 := testutil.Fake(s.T(), faker, database.ExitNode{})
 		n2 := testutil.Fake(s.T(), faker, database.ExitNode{})

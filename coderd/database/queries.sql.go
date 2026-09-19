@@ -14987,6 +14987,49 @@ func (q *sqlQuerier) DeleteTemplateExitNodes(ctx context.Context, templateID uui
 	return err
 }
 
+const getAllLiveExitNodeReplicas = `-- name: GetAllLiveExitNodeReplicas :many
+SELECT id, exit_node_id, hostname, version, wireguard_endpoints, policy_hash, created_at, started_at, updated_at, stopped_at
+FROM exit_node_replicas
+WHERE
+	stopped_at IS NULL
+	AND updated_at > $1
+ORDER BY exit_node_id, started_at, id
+`
+
+func (q *sqlQuerier) GetAllLiveExitNodeReplicas(ctx context.Context, updatedAfter time.Time) ([]ExitNodeReplica, error) {
+	rows, err := q.db.QueryContext(ctx, getAllLiveExitNodeReplicas, updatedAfter)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ExitNodeReplica
+	for rows.Next() {
+		var i ExitNodeReplica
+		if err := rows.Scan(
+			&i.ID,
+			&i.ExitNodeID,
+			&i.Hostname,
+			&i.Version,
+			pq.Array(&i.WireguardEndpoints),
+			&i.PolicyHash,
+			&i.CreatedAt,
+			&i.StartedAt,
+			&i.UpdatedAt,
+			&i.StoppedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getExitNodeByID = `-- name: GetExitNodeByID :one
 SELECT id, organization_id, name, display_name, created_at, updated_at, deleted, token_hashed_secret FROM exit_nodes WHERE id = $1 LIMIT 1
 `

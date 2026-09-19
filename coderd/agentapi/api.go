@@ -139,6 +139,12 @@ func New(opts Options, workspace database.Workspace, agent database.WorkspaceAge
 	if opts.Clock == nil {
 		opts.Clock = quartz.NewReal()
 	}
+	if opts.Pubsub == nil {
+		panic("agentapi: Pubsub is required")
+	}
+	if opts.AuthenticatedCtx == nil {
+		panic("agentapi: AuthenticatedCtx is required")
+	}
 
 	api := &API{
 		opts: opts,
@@ -156,6 +162,8 @@ func New(opts Options, workspace database.Workspace, agent database.WorkspaceAge
 		Database:                  opts.Database,
 		DerpMapFn:                 opts.DerpMapFn,
 		WorkspaceID:               opts.WorkspaceID,
+		Clock:                     opts.Clock,
+		Pubsub:                    opts.Pubsub,
 	}
 
 	// Don't cache details for prebuilds, though the cached fields will eventually be updated

@@ -5216,8 +5216,8 @@ export const ExitNodeProtocols: ExitNodeProtocol[] = ["dns", "tcp", "udp"];
 
 // From codersdk/exitnodes.go
 /**
- * ExitNodeReplica is one running exit node process. Its ID is also its
- * tailnet peer ID, so agents derive its address from the ID alone.
+ * ExitNodeReplica is one running exit node process. Its tailnet peer ID is
+ * derived server-side from its exit node and replica IDs.
  */
 export interface ExitNodeReplica {
 	readonly id: string;
@@ -5234,7 +5234,8 @@ export interface ExitNodeReplica {
 	 */
 	readonly policy_hash: string;
 	/**
-	 * TailnetAddress is the deterministic tailnet IP derived from ID.
+	 * TailnetAddress is the deterministic tailnet IP derived from the
+	 * server-assigned peer ID.
 	 */
 	readonly tailnet_address: string;
 	readonly status: ExitNodeReplicaStatus;
@@ -8489,8 +8490,8 @@ export interface RegionsResponse<R extends RegionTypes> {
  */
 export interface RegisterExitNodeRequest {
 	/**
-	 * ReplicaID is generated once per process start and doubles as the
-	 * replica's tailnet peer ID. Required.
+	 * ReplicaID is generated once per process start. Coderd combines it with
+	 * the exit node ID to derive a distinct tailnet peer ID. Required.
 	 */
 	readonly replica_id: string;
 	readonly version: string;

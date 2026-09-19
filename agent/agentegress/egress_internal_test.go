@@ -549,6 +549,64 @@ func TestProxy_AbsoluteURI(t *testing.T) {
 	}
 }
 
+func TestProxy_NoLiveReplicasRecoversAfterUpdate(t *testing.T) {
+	t.Parallel()
+
+	exit := newFakeExitNode(t, nil)
+	proxy, err := New(testutil.Logger(t), Options{
+		Dialer: exit,
+		Config: agentsdk.EgressConfig{
+			ExitNodes:    []agentsdk.EgressExitNode{{ID: uuid.New()}},
+			ExitNodePort: 3128,
+		},
+		ListenAddr:        "127.0.0.1:0",
+		UpstreamResolvers: []netip.AddrPort{},
+	})
+	require.NoError(t, err)
+	require.NoError(t, proxy.Start(testutil.Context(t, testutil.WaitLong)))
+	t.Cleanup(func() { _ = proxy.Close() })
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	var d net.Dialer
+	conn, err := d.DialContext(ctx, "tcp", proxy.Addr().String())
+	require.NoError(t, err)
+	req := &http.Request{Method: http.MethodConnect, URL: &url.URL{Opaque: "example.com:443"}, Host: "example.com:443"}
+	require.NoError(t, req.Write(conn))
+	resp, err := http.ReadResponse(bufio.NewReader(conn), req)
+	require.NoError(t, err)
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	require.NoError(t, resp.Body.Close())
+	require.NoError(t, conn.Close())
+	require.Equal(t, http.StatusServiceUnavailable, resp.StatusCode)
+	require.Equal(t, ErrNoLiveExitNodeReplicas.Error()+"\n", string(body))
+
+	client, server := net.Pipe()
+	done := make(chan struct{}, 1)
+	go func() {
+		proxy.handleTransparent(ctx, server, netip.MustParseAddrPort("192.0.2.10:443"))
+		_ = server.Close()
+		done <- struct{}{}
+	}()
+	testutil.RequireReceive(ctx, t, done)
+	buf := make([]byte, 1)
+	_, err = client.Read(buf)
+	require.ErrorIs(t, err, io.EOF)
+	require.NoError(t, client.Close())
+
+	query := dnsQuery(t, 90, "no-replicas.example.", dnsmessage.TypeMX)
+	hdr, answers := dnsExchange(ctx, t, "udp", proxy.DNSAddr(), query)
+	require.Equal(t, dnsmessage.RCodeServerFailure, hdr.RCode)
+	require.Empty(t, answers)
+
+	next := proxy.Config()
+	next.ExitNodes[0].ReplicaIDs = []uuid.UUID{uuid.New()}
+	require.NoError(t, proxy.Update(next, nil))
+	conn, _, _ = connectVia(ctx, t, proxy, "example.com:443", http.StatusOK)
+	require.NoError(t, conn.Close())
+	require.Len(t, exit.connectsTo("example.com:443"), 1)
+}
+
 func TestConfigEqualReplicaOrder(t *testing.T) {
 	t.Parallel()
 
@@ -562,6 +620,10 @@ func TestConfigEqualReplicaOrder(t *testing.T) {
 	reordered := base
 	reordered.ExitNodes = []agentsdk.EgressExitNode{{ID: nodeID, ReplicaIDs: []uuid.UUID{second, first}}}
 	require.True(t, ConfigEqual(base, reordered))
+
+	empty := agentsdk.EgressConfig{ExitNodes: []agentsdk.EgressExitNode{{ID: nodeID, ReplicaIDs: []uuid.UUID{}}}, ExitNodePort: 3128}
+	nilReplicas := agentsdk.EgressConfig{ExitNodes: []agentsdk.EgressExitNode{{ID: nodeID}}, ExitNodePort: 3128}
+	require.True(t, ConfigEqual(empty, nilReplicas))
 
 	reordered.ExitNodes = []agentsdk.EgressExitNode{{ID: uuid.New(), ReplicaIDs: []uuid.UUID{second, first}}}
 	require.False(t, ConfigEqual(base, reordered))

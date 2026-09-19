@@ -116,7 +116,9 @@ type Server struct {
 }
 
 // New registers with coderd, joins the tailnet, and starts accepting CONNECT
-// requests. Call Close to shut everything down.
+// requests. Agents older than API 2.14 cannot consume replica-aware configs,
+// so workspaces must restart on the new agent before an exit node is bound.
+// Call Close to shut everything down.
 func New(ctx context.Context, logger slog.Logger, opts Options) (*Server, error) {
 	if opts.Client == nil {
 		return nil, xerrors.New("client is required")
@@ -138,13 +140,14 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (*Server, error)
 	}
 
 	ctx, cancel := context.WithCancel(ctx)
+	peerID := codersdk.ExitNodeReplicaPeerID(opts.ExitNodeID, opts.ReplicaID)
 	s := &Server{
 		ctx:                 ctx,
 		cancel:              cancel,
 		logger:              logger,
 		exitNodeID:          opts.ExitNodeID,
 		replicaID:           opts.ReplicaID,
-		addr:                TailnetAddrForID(opts.ReplicaID),
+		addr:                TailnetAddrForID(peerID),
 		policy:              opts.Policy,
 		metrics:             NewMetrics(opts.PrometheusRegistry),
 		agents:              NewAgentTable(),
@@ -196,7 +199,7 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (*Server, error)
 	s.mu.Unlock()
 
 	s.conn, err = tailnet.NewConn(&tailnet.Options{
-		ID:                  opts.ReplicaID,
+		ID:                  peerID,
 		Addresses:           []netip.Prefix{netip.PrefixFrom(s.addr, 128)},
 		DERPMap:             regResp.DERPMap,
 		DERPForceWebSockets: regResp.DERPForceWebSockets,

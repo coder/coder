@@ -3013,6 +3013,48 @@ func testMigration000543ChatSearchSchemaBehavior(t *testing.T, sqlDB *sql.DB) {
 		toolMsg.ID, modelOnly.ID, deletedMsg.ID)
 }
 
+func TestMigration000600ExitNodeReplicasDown(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.SkipNow()
+	}
+
+	sqlDB := testSQLDB(t)
+	require.NoError(t, migrations.Up(sqlDB))
+	db := database.New(sqlDB)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	org := dbgen.Organization(t, db, database.Organization{})
+	exitNode, _ := dbgen.ExitNode(t, db, database.ExitNode{OrganizationID: org.ID})
+	olderID := uuid.New()
+	newerID := uuid.New()
+	olderTime := time.Now().UTC().Add(-time.Minute)
+	newerTime := time.Now().UTC()
+	_, err := sqlDB.ExecContext(ctx, `
+		INSERT INTO exit_node_replicas
+			(id, exit_node_id, hostname, version, wireguard_endpoints, policy_hash, created_at, started_at, updated_at)
+		VALUES
+			($1, $2, 'older', 'v1', ARRAY['192.0.2.1:1'], '', $3, $3, $3),
+			($4, $2, 'newer', 'v2', ARRAY['192.0.2.2:2'], '', $5, $5, $5)`,
+		olderID, exitNode.ID, olderTime, newerID, newerTime)
+	require.NoError(t, err)
+
+	downSQL, err := os.ReadFile("000600_exit_node_replicas.down.sql")
+	require.NoError(t, err)
+	_, err = sqlDB.ExecContext(ctx, string(downSQL))
+	require.NoError(t, err)
+
+	var version string
+	var lastSeen time.Time
+	var endpoints []string
+	err = sqlDB.QueryRowContext(ctx, `
+		SELECT version, last_seen_at, wireguard_endpoints
+		FROM exit_nodes WHERE id = $1`, exitNode.ID).Scan(&version, &lastSeen, pq.Array(&endpoints))
+	require.NoError(t, err)
+	require.Equal(t, "v2", version)
+	require.WithinDuration(t, newerTime, lastSeen, time.Microsecond)
+	require.Equal(t, []string{"192.0.2.2:2"}, endpoints)
+}
+
 func TestMigration000585ChatSearchEnglishConfigDown(t *testing.T) {
 	t.Parallel()
 	if testing.Short() {

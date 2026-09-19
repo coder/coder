@@ -44,6 +44,10 @@ func newExitNodeSelector(logger slog.Logger, clock quartz.Clock, dialTimeout tim
 
 func (s *exitNodeSelector) keepCurrent(previous *exitNodeSelector) {
 	previous.mu.Lock()
+	if len(previous.addrs) == 0 {
+		previous.mu.Unlock()
+		return
+	}
 	current := previous.addrs[previous.current]
 	previous.mu.Unlock()
 	for i, addr := range s.addrs {
@@ -56,6 +60,10 @@ func (s *exitNodeSelector) keepCurrent(previous *exitNodeSelector) {
 
 func (s *exitNodeSelector) dial(ctx context.Context, dialer Dialer) (net.Conn, netip.AddrPort, error) {
 	s.mu.Lock()
+	if len(s.addrs) == 0 {
+		s.mu.Unlock()
+		return nil, netip.AddrPort{}, ErrNoLiveExitNodeReplicas
+	}
 	now := s.clock.Now("exit_node_selector")
 	current := s.current
 	order := make([]int, 0, len(s.addrs))
@@ -96,6 +104,8 @@ func (s *exitNodeSelector) dial(ctx context.Context, dialer Dialer) (net.Conn, n
 }
 
 func (s *exitNodeSelector) len() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	return len(s.addrs)
 }
 

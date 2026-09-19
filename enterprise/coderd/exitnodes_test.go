@@ -5,6 +5,7 @@ import (
 	"context"
 	"database/sql"
 	"net/http"
+	"net/netip"
 	"slices"
 	"testing"
 	"time"
@@ -12,6 +13,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"tailscale.com/types/key"
 
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/slogtest"
@@ -40,7 +42,7 @@ func TestExitNodes(t *testing.T) {
 	auditor := audit.NewMock()
 	connLogger := connectionlog.NewFake()
 	ps := pubsub.NewInMemory()
-	client, db, owner := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
+	client, _, enterpriseAPI, owner := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
 		AuditLogging:      true,
 		ConnectionLogging: true,
 		Options: &coderdtest.Options{
@@ -56,6 +58,7 @@ func TestExitNodes(t *testing.T) {
 			},
 		},
 	})
+	db := enterpriseAPI.Database
 	orgID := owner.OrganizationID
 
 	// A running workspace whose template is bound to boundNode. Subtests
@@ -258,7 +261,10 @@ func TestExitNodes(t *testing.T) {
 		require.True(t, got.PolicyMismatch)
 		require.Len(t, got.Replicas, 2)
 		require.Equal(t, []uuid.UUID{firstID, secondID}, []uuid.UUID{got.Replicas[0].ID, got.Replicas[1].ID})
-		require.Equal(t, tailnet.TailscaleServicePrefix.AddrFromUUID(firstID).String(), got.Replicas[0].TailnetAddress)
+		require.Equal(t, tailnet.TailscaleServicePrefix.AddrFromUUID(codersdk.ExitNodeReplicaPeerID(node.ID, firstID)).String(), got.Replicas[0].TailnetAddress)
+
+		// Replica IDs cannot collide with existing coordinator peer identities.
+		require.Equal(t, http.StatusBadRequest, register(t, token, codersdk.RegisterExitNodeRequest{ReplicaID: agent.ID}))
 
 		// A replica ID is required and is permanently scoped to the exit node
 		// that created it.
@@ -652,12 +658,23 @@ func TestExitNodes(t *testing.T) {
 		require.NoError(t, err)
 		stream, err := rpcClient.Coordinate(ctx)
 		require.NoError(t, err)
-		err = stream.Send(&tailnetproto.CoordinateRequest{
-			UpdateSelf: &tailnetproto.CoordinateRequest_UpdateSelf{
-				Node: &tailnetproto.Node{PreferredDerp: 1},
-			},
+		peerID := codersdk.ExitNodeReplicaPeerID(node.ID, replicaID)
+		protoNode, err := tailnet.NodeToProto(&tailnet.Node{
+			Key:         key.NewNode().Public(),
+			DiscoKey:    key.NewDisco().Public(),
+			Addresses:   []netip.Prefix{tailnet.TailscaleServicePrefix.PrefixFromUUID(peerID)},
+			AllowedIPs:  []netip.Prefix{tailnet.TailscaleServicePrefix.PrefixFromUUID(peerID)},
+			DERPLatency: map[string]float64{},
 		})
 		require.NoError(t, err)
+		err = stream.Send(&tailnetproto.CoordinateRequest{
+			UpdateSelf: &tailnetproto.CoordinateRequest_UpdateSelf{Node: protoNode},
+		})
+		require.NoError(t, err)
+		testutil.Eventually(ctx, t, func(context.Context) bool {
+			coordinator := enterpriseAPI.AGPL.TailnetCoordinator.Load()
+			return (*coordinator).Node(peerID) != nil && (*coordinator).Node(replicaID) == nil
+		}, testutil.IntervalFast)
 		require.NoError(t, stream.Close())
 
 		// Without a token the upgrade is refused.

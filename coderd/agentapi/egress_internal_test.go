@@ -19,6 +19,20 @@ import (
 	"github.com/coder/quartz"
 )
 
+func TestNewManifestAPIEgressDependencies(t *testing.T) {
+	t.Parallel()
+
+	ps := pubsub.NewInMemory()
+	t.Cleanup(func() { require.NoError(t, ps.Close()) })
+	clock := quartz.NewReal()
+	ctx, cancel := context.WithCancel(t.Context())
+	t.Cleanup(cancel)
+	api := New(Options{AuthenticatedCtx: ctx, Clock: clock, Pubsub: ps}, database.Workspace{}, database.WorkspaceAgent{})
+
+	require.Equal(t, clock, api.ManifestAPI.Clock)
+	require.Equal(t, ps, api.Pubsub)
+}
+
 func TestBuildEgressConfig(t *testing.T) {
 	t.Parallel()
 
@@ -32,8 +46,10 @@ func TestBuildEgressConfig(t *testing.T) {
 		{ExitNodeID: second, Position: 1},
 	}, database.Template{ExitNodeEnforce: true}, nil, nil)
 
+	firstPeer := codersdk.ExitNodeReplicaPeerID(first, firstReplica)
+	secondPeer := codersdk.ExitNodeReplicaPeerID(first, secondReplica)
 	require.Equal(t, []*agentproto.EgressExitNode{
-		{Id: first[:], ReplicaIds: [][]byte{firstReplica[:], secondReplica[:]}},
+		{Id: first[:], ReplicaIds: [][]byte{firstPeer[:], secondPeer[:]}},
 		{Id: second[:]},
 	}, config.ExitNodes)
 	require.Equal(t, int32(codersdk.ExitNodeTailnetPort), config.ExitNodePort)
@@ -71,13 +87,14 @@ func TestStreamEgressConfigPubsub(t *testing.T) {
 		}}, nil),
 	)
 
-	api := &ManifestAPI{
-		WorkspaceID: workspaceID,
-		Database:    store,
-		DerpMapFn:   func() *tailcfg.DERPMap { return nil },
-		Clock:       clock,
-		Pubsub:      ps,
-	}
+	api := New(Options{
+		WorkspaceID:      workspaceID,
+		Database:         store,
+		DerpMapFn:        func() *tailcfg.DERPMap { return nil },
+		Clock:            clock,
+		Pubsub:           ps,
+		AuthenticatedCtx: ctx,
+	}, database.Workspace{}, database.WorkspaceAgent{})
 	stream := newEgressTestStream(ctx)
 	done := make(chan error, 1)
 	go func() {
@@ -85,10 +102,12 @@ func TestStreamEgressConfigPubsub(t *testing.T) {
 	}()
 
 	first := <-stream.configs
-	require.Equal(t, firstReplica[:], first.ExitNodes[0].ReplicaIds[0])
+	firstPeer := codersdk.ExitNodeReplicaPeerID(exitNodeID, firstReplica)
+	require.Equal(t, firstPeer[:], first.ExitNodes[0].ReplicaIds[0])
 	require.NoError(t, ps.Publish(codersdk.ExitNodeReplicasPubsubChannel, []byte(exitNodeID.String())))
 	second := <-stream.configs
-	require.Equal(t, secondReplica[:], second.ExitNodes[0].ReplicaIds[0])
+	secondPeer := codersdk.ExitNodeReplicaPeerID(exitNodeID, secondReplica)
+	require.Equal(t, secondPeer[:], second.ExitNodes[0].ReplicaIds[0])
 	cancel()
 	require.NoError(t, <-done)
 }

@@ -372,9 +372,11 @@ type agent struct {
 
 	// egressMu protects the egress proxy and enforcer, which are (re)created
 	// whenever a manifest arrives with a different egress configuration.
-	egressMu       sync.Mutex
-	egressProxy    *agentegress.Proxy
-	egressEnforcer *agentegress.Enforcer
+	egressMu                       sync.Mutex
+	egressProxy                    *agentegress.Proxy
+	egressEnforcer                 *agentegress.Enforcer
+	egressEnforcerExemptHosts      []string
+	egressLoggedPendingExemptHosts map[string]struct{}
 
 	derpTLSConfig *tls.Config
 }
@@ -2308,8 +2310,18 @@ func (a *agent) dialTailnetTCP(ctx context.Context, addr netip.AddrPort) (net.Co
 // updateEgress reconciles the running egress proxy and enforcer with cfg.
 // A nil cfg stops both. An unchanged cfg is a no-op so reconnects do not
 // disturb established tunnels.
-func egressChangeRequiresRestart(old, next agentsdk.EgressConfig) bool {
-	return old.Enforce != next.Enforce || !slices.Equal(old.ControlPlaneHosts, next.ControlPlaneHosts)
+type egressChange struct {
+	applyProxyState          bool
+	deferEnforcement         bool
+	deferNetfilterExemptions bool
+}
+
+func egressChangeRequiresRestart(old, next agentsdk.EgressConfig) egressChange {
+	return egressChange{
+		applyProxyState:          !agentegress.ConfigEqual(old, next),
+		deferEnforcement:         old.Enforce != next.Enforce,
+		deferNetfilterExemptions: !slices.Equal(old.ControlPlaneHosts, next.ControlPlaneHosts),
+	}
 }
 
 func (a *agent) updateEgress(ctx context.Context, cfg *agentsdk.EgressConfig) {
@@ -2322,22 +2334,41 @@ func (a *agent) updateEgress(ctx context.Context, cfg *agentsdk.EgressConfig) {
 			return
 		}
 		old := a.egressProxy.Config()
-		if agentegress.ConfigEqual(old, *cfg) {
+		change := egressChangeRequiresRestart(old, *cfg)
+		if !change.applyProxyState {
 			return
 		}
 		logger := a.logger.Named("egress")
-		if !egressChangeRequiresRestart(old, *cfg) {
-			if err := a.egressProxy.Update(*cfg, a.egressExemptHosts(*cfg)); err != nil {
-				logger.Error(ctx, "update egress proxy configuration", slog.Error(err))
-				return
-			}
-			logger.Info(ctx, "egress proxy configuration updated in place",
-				slog.F("exit_nodes", cfg.ExitNodes), slog.F("enforce", cfg.Enforce))
+		exemptHosts := a.egressExemptHosts(*cfg)
+		applied := *cfg
+		if a.egressEnforcer != nil && change.deferEnforcement {
+			applied.Enforce = old.Enforce
+		}
+		if err := a.egressProxy.Update(applied, exemptHosts); err != nil {
+			logger.Error(ctx, "update egress proxy configuration", slog.Error(err))
 			return
 		}
+		logger.Info(ctx, "egress proxy configuration updated in place",
+			slog.F("exit_nodes", cfg.ExitNodes), slog.F("enforce", applied.Enforce))
+
 		if a.egressEnforcer != nil {
-			logger.Warn(ctx, "egress configuration requires a workspace restart because enforcement rules are locked",
-				slog.F("old_enforce", old.Enforce), slog.F("new_enforce", cfg.Enforce))
+			if change.deferEnforcement {
+				logger.Warn(ctx, "egress enforcement setting requires a workspace restart because enforcement rules are locked",
+					slog.F("old_enforce", old.Enforce), slog.F("new_enforce", cfg.Enforce))
+			}
+			if change.deferNetfilterExemptions || !slices.Equal(a.egressEnforcerExemptHosts, exemptHosts) {
+				key := egressExemptHostsKey(exemptHosts)
+				if _, logged := a.egressLoggedPendingExemptHosts[key]; !logged {
+					logger.Info(ctx, "egress enforcement exemptions deferred until restart; new WireGuard endpoints are not exempt and connectivity to those replicas will use DERP relay")
+					if a.egressLoggedPendingExemptHosts == nil {
+						a.egressLoggedPendingExemptHosts = make(map[string]struct{})
+					}
+					a.egressLoggedPendingExemptHosts[key] = struct{}{}
+				}
+			}
+			return
+		}
+		if !change.deferEnforcement {
 			return
 		}
 		a.stopEgressLocked(ctx)
@@ -2398,6 +2429,8 @@ func (a *agent) updateEgress(ctx context.Context, cfg *agentsdk.EgressConfig) {
 		return
 	}
 	a.egressEnforcer = enforcer
+	a.egressEnforcerExemptHosts = slices.Clone(exemptHosts)
+	a.egressLoggedPendingExemptHosts = nil
 	logger.Info(ctx, "egress enforcement active", slog.F("proxy_port", proxy.Addr().Port()))
 }
 
@@ -2424,6 +2457,12 @@ func (a *agent) egressExemptHosts(cfg agentsdk.EgressConfig) []string {
 	return hosts
 }
 
+func egressExemptHostsKey(hosts []string) string {
+	hosts = slices.Clone(hosts)
+	slices.Sort(hosts)
+	return strings.Join(hosts, "\x00")
+}
+
 // stopEgressLocked removes netfilter rules first so no new connections are
 // redirected into a proxy that is about to close. Callers hold egressMu.
 func (a *agent) stopEgressLocked(ctx context.Context) {
@@ -2432,6 +2471,8 @@ func (a *agent) stopEgressLocked(ctx context.Context) {
 			a.logger.Error(ctx, "remove egress enforcement rules", slog.Error(err))
 		}
 		a.egressEnforcer = nil
+		a.egressEnforcerExemptHosts = nil
+		a.egressLoggedPendingExemptHosts = nil
 	}
 	if a.egressProxy != nil {
 		if err := a.egressProxy.Close(); err != nil {

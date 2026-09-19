@@ -81,6 +81,18 @@ const (
 // stops counting as live. Replicas register every 5 seconds.
 const ExitNodeReplicaStaleAfter = 15 * time.Second
 
+var exitNodeReplicaPeerNamespace = uuid.MustParse("f76a3687-42ae-487a-978f-c30d73f13e06")
+
+// ExitNodeReplicaPeerID derives a tailnet peer ID from both the logical exit
+// node and process replica IDs. The private namespace provides domain
+// separation from client-chosen UUIDs used by other tailnet peer types.
+func ExitNodeReplicaPeerID(exitNodeID, replicaID uuid.UUID) uuid.UUID {
+	name := make([]byte, 0, 2*len(exitNodeID))
+	name = append(name, exitNodeID[:]...)
+	name = append(name, replicaID[:]...)
+	return uuid.NewSHA1(exitNodeReplicaPeerNamespace, name)
+}
+
 // ExitNodeReplicasPubsubChannel carries the ID of an exit node whose live
 // replica set changed, so bound agents can be sent a fresh egress config.
 const ExitNodeReplicasPubsubChannel = "exit_node_replicas"
@@ -94,8 +106,8 @@ const (
 	ExitNodeReplicaStatusStopped ExitNodeReplicaStatus = "stopped"
 )
 
-// ExitNodeReplica is one running exit node process. Its ID is also its
-// tailnet peer ID, so agents derive its address from the ID alone.
+// ExitNodeReplica is one running exit node process. Its tailnet peer ID is
+// derived server-side from its exit node and replica IDs.
 type ExitNodeReplica struct {
 	ID         uuid.UUID `json:"id" format:"uuid" table:"id"`
 	ExitNodeID uuid.UUID `json:"exit_node_id" format:"uuid" table:"exit node id"`
@@ -106,7 +118,8 @@ type ExitNodeReplica struct {
 	WireguardEndpoints []string `json:"wireguard_endpoints" table:"wireguard endpoints"`
 	// PolicyHash identifies the policy the replica enforces.
 	PolicyHash string `json:"policy_hash" table:"policy hash"`
-	// TailnetAddress is the deterministic tailnet IP derived from ID.
+	// TailnetAddress is the deterministic tailnet IP derived from the
+	// server-assigned peer ID.
 	TailnetAddress string                `json:"tailnet_address" table:"tailnet address"`
 	Status         ExitNodeReplicaStatus `json:"status" enums:"live,stale,stopped" table:"status"`
 	StartedAt      time.Time             `json:"started_at" format:"date-time" table:"started at"`
@@ -129,8 +142,8 @@ type CreateExitNodeResponse struct {
 // RegisterExitNodeRequest is sent by a replica every 5 seconds. It is the
 // replica's heartbeat.
 type RegisterExitNodeRequest struct {
-	// ReplicaID is generated once per process start and doubles as the
-	// replica's tailnet peer ID. Required.
+	// ReplicaID is generated once per process start. Coderd combines it with
+	// the exit node ID to derive a distinct tailnet peer ID. Required.
 	ReplicaID          uuid.UUID `json:"replica_id" format:"uuid"`
 	Version            string    `json:"version"`
 	Hostname           string    `json:"hostname"`

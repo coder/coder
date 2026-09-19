@@ -22017,7 +22017,7 @@
 					"format": "date-time"
 				},
 				"tailnet_address": {
-					"description": "TailnetAddress is the deterministic tailnet IP derived from ID.",
+					"description": "TailnetAddress is the deterministic tailnet IP derived from the\nserver-assigned peer ID.",
 					"type": "string"
 				},
 				"updated_at": {
@@ -26029,7 +26029,7 @@
 					"type": "string"
 				},
 				"replica_id": {
-					"description": "ReplicaID is generated once per process start and doubles as the\nreplica's tailnet peer ID. Required.",
+					"description": "ReplicaID is generated once per process start. Coderd combines it with\nthe exit node ID to derive a distinct tailnet peer ID. Required.",
 					"type": "string",
 					"format": "uuid"
 				},

@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"maps"
+	"math/rand/v2"
 	"net"
 	"net/url"
 	"slices"
@@ -218,7 +219,8 @@ func buildEgressConfig(rows []database.GetTemplateExitNodeReplicasRow, template 
 			exitNodes = append(exitNodes, &agentproto.EgressExitNode{Id: row.ExitNodeID[:]})
 		}
 		if row.ReplicaID.Valid {
-			exitNodes[index].ReplicaIds = append(exitNodes[index].ReplicaIds, row.ReplicaID.UUID[:])
+			peerID := codersdk.ExitNodeReplicaPeerID(row.ExitNodeID, row.ReplicaID.UUID)
+			exitNodes[index].ReplicaIds = append(exitNodes[index].ReplicaIds, peerID[:])
 			wireguardEndpoints = append(wireguardEndpoints, row.WireguardEndpoints...)
 		}
 	}
@@ -238,14 +240,10 @@ func (a *ManifestAPI) StreamEgressConfig(_ *agentproto.StreamEgressConfigRequest
 		return xerrors.Errorf("get workspace: %w", err)
 	}
 
-	updates := make(chan uuid.UUID, 1)
-	cancel, err := a.Pubsub.Subscribe(codersdk.ExitNodeReplicasPubsubChannel, func(_ context.Context, payload []byte) {
-		id, err := uuid.ParseBytes(payload)
-		if err != nil {
-			return
-		}
+	updates := make(chan struct{}, 1)
+	cancel, err := a.Pubsub.Subscribe(codersdk.ExitNodeReplicasPubsubChannel, func(_ context.Context, _ []byte) {
 		select {
-		case updates <- id:
+		case updates <- struct{}{}:
 		default:
 		}
 	})
@@ -254,24 +252,15 @@ func (a *ManifestAPI) StreamEgressConfig(_ *agentproto.StreamEgressConfigRequest
 	}
 	defer cancel()
 
-	ticker := a.Clock.NewTicker(codersdk.ExitNodeReplicaStaleAfter, "stream_egress_config")
-	defer ticker.Stop()
 	var last *agentproto.EgressConfig
-	bound := make(map[uuid.UUID]struct{})
 	for {
 		cfg, err := a.egressConfig(ctx, workspace.TemplateID, a.DerpMapFn())
 		if err != nil {
 			return err
 		}
+		bound := cfg != nil
 		if cfg == nil {
 			cfg = &agentproto.EgressConfig{}
-		}
-		clear(bound)
-		for _, exitNode := range cfg.ExitNodes {
-			id, err := uuid.FromBytes(exitNode.Id)
-			if err == nil {
-				bound[id] = struct{}{}
-			}
 		}
 		if last == nil || !googleproto.Equal(last, cfg) {
 			if err := stream.Send(cfg); err != nil {
@@ -281,19 +270,27 @@ func (a *ManifestAPI) StreamEgressConfig(_ *agentproto.StreamEgressConfigRequest
 			googleproto.Merge(last, cfg)
 		}
 
-		for {
-			select {
-			case <-ctx.Done():
-				return nil
-			case <-ticker.C:
-				goto recompute
-			case id := <-updates:
-				if _, ok := bound[id]; ok {
-					goto recompute
-				}
+		var timer *quartz.Timer
+		var timerC <-chan time.Time
+		if bound {
+			// Timing jitter is not security-sensitive.
+			//nolint:gosec
+			jitter := time.Duration(rand.Int64N(int64(15 * time.Second)))
+			timer = a.Clock.NewTimer(time.Minute+jitter, "stream_egress_config")
+			timerC = timer.C
+		}
+		select {
+		case <-ctx.Done():
+			if timer != nil {
+				timer.Stop()
+			}
+			return nil
+		case <-timerC:
+		case <-updates:
+			if timer != nil {
+				timer.Stop()
 			}
 		}
-	recompute:
 	}
 }
 

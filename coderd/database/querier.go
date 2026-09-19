@@ -402,6 +402,7 @@ type sqlcQuerier interface {
 	// TestGetActiveUsersAuthorizationRolesParity enforces this.
 	GetActiveUsersAuthorizationRoles(ctx context.Context) ([]GetActiveUsersAuthorizationRolesRow, error)
 	GetActiveWorkspaceBuildsByTemplateID(ctx context.Context, templateID uuid.UUID) ([]WorkspaceBuild, error)
+	GetAllLiveExitNodeReplicas(ctx context.Context, updatedAfter time.Time) ([]ExitNodeReplica, error)
 	// For PG Coordinator HTMLDebug
 	GetAllTailnetCoordinators(ctx context.Context) ([]TailnetCoordinator, error)
 	GetAllTailnetPeers(ctx context.Context) ([]TailnetPeer, error)

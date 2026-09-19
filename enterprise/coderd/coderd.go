@@ -187,9 +187,10 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 	}
 
 	api = &API{
-		ctx:     ctx,
-		cancel:  cancelFunc,
-		Options: options,
+		ctx:                     ctx,
+		cancel:                  cancelFunc,
+		Options:                 options,
+		exitNodeReplicaSessions: newExitNodeReplicaSessionRegistry(),
 		provisionerDaemonAuth: &provisionerDaemonAuth{
 			psk:        options.ProvisionerDaemonPSK,
 			authorizer: options.Authorizer,
@@ -226,6 +227,10 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 	options.ChatAgentCapacityUnlock = entchatd.NewAgentCapacityUnlock(options.Entitlements)
 
 	api.AGPL = coderd.New(options.Options)
+	if options.ExitNodeReaperClock == nil {
+		options.ExitNodeReaperClock = quartz.NewReal()
+	}
+	api.startExitNodeReplicaReaper(options.ExitNodeReaperClock)
 	api.aiSeatTracker = aiseats.New(options.Database, api.Logger.Named("aiseats"), quartz.NewReal(), &api.AGPL.Auditor)
 	api.trialer = trialer.New(options.Database, trialer.LicenseRequestURL, options.LicenseKeys)
 	api.AGPL.AISeatTracker = api.aiSeatTracker
@@ -919,6 +924,10 @@ type Options struct {
 	ProvisionerDaemonPSK string
 
 	CheckInactiveUsersCancelFunc func()
+	// ExitNodeReaperClock controls exit node replica staleness checks. It is
+	// separate from the general coderd clock so tests can advance either clock
+	// without triggering unrelated background work.
+	ExitNodeReaperClock quartz.Clock
 }
 
 type API struct {
@@ -943,6 +952,7 @@ type API struct {
 
 	licenseMetricsCollector *license.MetricsCollector
 	tailnetService          *tailnet.ClientService
+	exitNodeReplicaSessions *exitNodeReplicaSessionRegistry
 
 	aibridgeproxydHandler http.Handler
 	aiSeatTracker         *aiseats.SeatTracker

@@ -18,6 +18,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/coder/quartz"
+
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
@@ -74,6 +76,7 @@ type Options struct {
 	DontAddFirstUser           bool
 	ReplicaSyncUpdateInterval  time.Duration
 	ReplicaErrorGracePeriod    time.Duration
+	ExitNodeReaperClock        quartz.Clock
 	ExternalTokenEncryption    []dbcrypt.Cipher
 	ProvisionerDaemonPSK       string
 }
@@ -119,6 +122,7 @@ func NewWithAPI(t *testing.T, options *Options) (
 		ProxyHealthInterval:        options.ProxyHealthInterval,
 		DefaultQuietHoursSchedule:  oop.DeploymentValues.UserQuietHoursSchedule.DefaultSchedule.Value(),
 		ProvisionerDaemonPSK:       options.ProvisionerDaemonPSK,
+		ExitNodeReaperClock:        options.ExitNodeReaperClock,
 		ExternalTokenEncryption:    options.ExternalTokenEncryption,
 	})
 	require.NoError(t, err)

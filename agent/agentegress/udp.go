@@ -303,7 +303,7 @@ func (s *udpSession) run(ctx context.Context) {
 					slog.F("target", s.target),
 					slog.F("reason", denied.Reason))
 			}
-		} else if ctx.Err() == nil {
+		} else if ctx.Err() == nil && !errors.Is(err, ErrNoLiveExitNodeReplicas) {
 			s.proxy.logger.Warn(ctx, "udp egress through exit node failed",
 				slog.F("target", s.target), slog.Error(err))
 		}

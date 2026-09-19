@@ -9208,7 +9208,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `started_at`          | string                                                           | false    |              |                                                                                                                                        |
 | `status`              | [codersdk.ExitNodeReplicaStatus](#codersdkexitnodereplicastatus) | false    |              |                                                                                                                                        |
 | `stopped_at`          | string                                                           | false    |              |                                                                                                                                        |
-| `tailnet_address`     | string                                                           | false    |              | Tailnet address is the deterministic tailnet IP derived from ID.                                                                       |
+| `tailnet_address`     | string                                                           | false    |              | Tailnet address is the deterministic tailnet IP derived from the server-assigned peer ID.                                              |
 | `updated_at`          | string                                                           | false    |              |                                                                                                                                        |
 | `version`             | string                                                           | false    |              |                                                                                                                                        |
 | `wireguard_endpoints` | array of string                                                  | false    |              | Wireguard endpoints are the public ip:port pairs agents may use for direct WireGuard connections. Agents exempt them from enforcement. |
@@ -13605,13 +13605,13 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 ### Properties
 
-| Name                  | Type            | Required | Restrictions | Description                                                                                                         |
-|-----------------------|-----------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------|
-| `hostname`            | string          | false    |              |                                                                                                                     |
-| `policy_hash`         | string          | false    |              | Policy hash identifies the policy this replica enforces so coderd can flag replicas of one exit node that disagree. |
-| `replica_id`          | string          | false    |              | Replica ID is generated once per process start and doubles as the replica's tailnet peer ID. Required.              |
-| `version`             | string          | false    |              |                                                                                                                     |
-| `wireguard_endpoints` | array of string | false    |              |                                                                                                                     |
+| Name                  | Type            | Required | Restrictions | Description                                                                                                                              |
+|-----------------------|-----------------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------------|
+| `hostname`            | string          | false    |              |                                                                                                                                          |
+| `policy_hash`         | string          | false    |              | Policy hash identifies the policy this replica enforces so coderd can flag replicas of one exit node that disagree.                      |
+| `replica_id`          | string          | false    |              | Replica ID is generated once per process start. Coderd combines it with the exit node ID to derive a distinct tailnet peer ID. Required. |
+| `version`             | string          | false    |              |                                                                                                                                          |
+| `wireguard_endpoints` | array of string | false    |              |                                                                                                                                          |
 
 ## codersdk.RegisterExitNodeResponse
 

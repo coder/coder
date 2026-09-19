@@ -3098,6 +3098,13 @@ func (q *querier) GetActiveWorkspaceBuildsByTemplateID(ctx context.Context, temp
 	return q.db.GetActiveWorkspaceBuildsByTemplateID(ctx, templateID)
 }
 
+func (q *querier) GetAllLiveExitNodeReplicas(ctx context.Context, updatedAfter time.Time) ([]database.ExitNodeReplica, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return nil, err
+	}
+	return q.db.GetAllLiveExitNodeReplicas(ctx, updatedAfter)
+}
+
 func (q *querier) GetAllTailnetCoordinators(ctx context.Context) ([]database.TailnetCoordinator, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceTailnetCoordinator); err != nil {
 		return nil, err

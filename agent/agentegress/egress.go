@@ -43,7 +43,12 @@ const (
 	defaultExitNodeDialTimeout = 5 * time.Second
 	defaultHostSniffTimeout    = 500 * time.Millisecond
 	unknownFakeLogInterval     = 30 * time.Second
+	noLiveReplicaLogInterval   = 30 * time.Second
 )
+
+// ErrNoLiveExitNodeReplicas indicates that the configured exit nodes have no
+// currently live replicas.
+var ErrNoLiveExitNodeReplicas = xerrors.New("no live exit node replicas are available")
 
 // builtinExemptNames are always resolved by the system resolvers rather than
 // given fake addresses. They name the workspace host itself.
@@ -149,6 +154,8 @@ type Proxy struct {
 	unknownFake atomic.Int64
 	fakeWarnMu  sync.Mutex
 	fakeWarnAt  time.Time
+	noLiveMu    sync.Mutex
+	noLiveLogAt time.Time
 
 	mu       sync.Mutex
 	listener net.Listener
@@ -213,9 +220,6 @@ func exitNodeAddrs(ctx context.Context, logger slog.Logger, rng *rand.Rand, cfg 
 				uint16(cfg.ExitNodePort),
 			))
 		}
-	}
-	if len(addrs) == 0 {
-		return nil, xerrors.New("at least one live exit node replica is required")
 	}
 	return addrs, nil
 }
@@ -613,6 +617,10 @@ func (p *Proxy) handleConn(ctx context.Context, conn net.Conn) {
 }
 
 func (p *Proxy) handleTransparent(ctx context.Context, conn net.Conn, dst netip.AddrPort) {
+	if !p.hasLiveExitNodeReplicas() {
+		p.logNoLiveExitNodeReplicas(ctx, p.target(dst))
+		return
+	}
 	target, release, ok := p.acquireTarget(dst)
 	if !ok {
 		p.warnUnknownFake(ctx, dst)
@@ -699,10 +707,17 @@ func (p *Proxy) writeUpstreamError(ctx context.Context, conn net.Conn, req *http
 		writeResponse(conn, req, http.StatusForbidden, hdr, denied.Error())
 		return
 	}
+	if errors.Is(err, ErrNoLiveExitNodeReplicas) {
+		writeResponse(conn, req, http.StatusServiceUnavailable, nil, ErrNoLiveExitNodeReplicas.Error())
+		return
+	}
 	writeResponse(conn, req, http.StatusBadGateway, nil, "exit node: "+err.Error())
 }
 
 func (p *Proxy) logUpstreamError(ctx context.Context, target string, err error) {
+	if errors.Is(err, ErrNoLiveExitNodeReplicas) {
+		return
+	}
 	if denied, ok := errors.AsType[*DeniedError](err); ok {
 		p.logger.Info(ctx, "egress denied by exit node",
 			slog.F("target", target), slog.F("reason", denied.Reason), slog.F("rule", denied.Rule))
@@ -744,10 +759,21 @@ const (
 	connectOutcomeTerminal
 )
 
+func (p *Proxy) hasLiveExitNodeReplicas() bool {
+	p.configMu.RLock()
+	selector := p.exitNodes
+	p.configMu.RUnlock()
+	return selector.len() > 0
+}
+
 func (p *Proxy) connectUpstreamHost(ctx context.Context, target string, proto codersdk.ExitNodeProtocol, originalHost string) (net.Conn, error) {
 	p.configMu.RLock()
 	selector := p.exitNodes
 	p.configMu.RUnlock()
+	if selector.len() == 0 {
+		p.logNoLiveExitNodeReplicas(ctx, target)
+		return nil, ErrNoLiveExitNodeReplicas
+	}
 	var errs []error
 	for range selector.len() {
 		upstream, addr, err := selector.dial(ctx, p.dialer)
@@ -775,6 +801,19 @@ func (p *Proxy) connectUpstreamHost(ctx context.Context, target string, proto co
 		}
 	}
 	return nil, xerrors.Errorf("connect through exit nodes: %w", errors.Join(errs...))
+}
+
+func (p *Proxy) logNoLiveExitNodeReplicas(ctx context.Context, target string) {
+	p.noLiveMu.Lock()
+	now := p.clock.Now("no_live_exit_node_replicas")
+	if now.Before(p.noLiveLogAt) {
+		p.noLiveMu.Unlock()
+		return
+	}
+	p.noLiveLogAt = now.Add(noLiveReplicaLogInterval)
+	p.noLiveMu.Unlock()
+	p.logger.Warn(ctx, "egress unavailable because no exit node replicas are live",
+		slog.F("target", target))
 }
 
 func (p *Proxy) negotiateConnect(ctx context.Context, upstream net.Conn, target string, proto codersdk.ExitNodeProtocol, originalHost string) (net.Conn, connectOutcome, error) {

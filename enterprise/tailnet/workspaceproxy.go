@@ -26,6 +26,24 @@ func NewClientService(options agpl.ClientServiceOptions) (*ClientService, error)
 }
 
 func (s *ClientService) ServeMultiAgentClient(ctx context.Context, version string, conn net.Conn, id uuid.UUID) error {
+	return s.serveStreamID(ctx, version, conn, agpl.StreamID{
+		Name: id.String(),
+		ID:   id,
+		Auth: agpl.SingleTailnetCoordinateeAuth{},
+	})
+}
+
+// ServeExitNodeClient serves an exit node coordinate session with its
+// exit-node-specific authorization policy.
+func (s *ClientService) ServeExitNodeClient(ctx context.Context, version string, conn net.Conn, id uuid.UUID, auth agpl.CoordinateeAuth) error {
+	return s.serveStreamID(ctx, version, conn, agpl.StreamID{
+		Name: id.String(),
+		ID:   id,
+		Auth: auth,
+	})
+}
+
+func (s *ClientService) serveStreamID(ctx context.Context, version string, conn net.Conn, streamID agpl.StreamID) error {
 	major, _, err := apiversion.Parse(version)
 	if err != nil {
 		s.Logger.Warn(ctx, "serve client called with unparsable version", slog.Error(err))
@@ -33,11 +51,6 @@ func (s *ClientService) ServeMultiAgentClient(ctx context.Context, version strin
 	}
 	switch major {
 	case 2:
-		streamID := agpl.StreamID{
-			Name: id.String(),
-			ID:   id,
-			Auth: agpl.SingleTailnetCoordinateeAuth{},
-		}
 		return s.ServeConnV2(ctx, conn, streamID)
 	default:
 		s.Logger.Warn(ctx, "serve client called with unsupported version", slog.F("version", version))

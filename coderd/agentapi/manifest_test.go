@@ -644,6 +644,8 @@ func TestGetManifest(t *testing.T) {
 			OrganizationID: uuid.New(),
 			Name:           "egress",
 		}
+		liveReplicaID := uuid.New()
+		livePeerID := codersdk.ExitNodeReplicaPeerID(liveExitNode.ID, liveReplicaID)
 		deletedExitNode := database.ExitNode{ID: uuid.New(), Deleted: true}
 		egressDERPMap := func() *tailcfg.DERPMap {
 			return &tailcfg.DERPMap{
@@ -673,7 +675,7 @@ func TestGetManifest(t *testing.T) {
 				want: &agentproto.EgressConfig{
 					ExitNodes: []*agentproto.EgressExitNode{{
 						Id:         liveExitNode.ID[:],
-						ReplicaIds: [][]byte{liveExitNode.ID[:]},
+						ReplicaIds: [][]byte{livePeerID[:]},
 					}},
 					ExitNodePort: codersdk.ExitNodeTailnetPort,
 					Enforce:      true,
@@ -718,7 +720,7 @@ func TestGetManifest(t *testing.T) {
 				if !tc.exitNode.Deleted {
 					rows = append(rows, database.GetTemplateExitNodeReplicasRow{
 						ExitNodeID:         tc.exitNode.ID,
-						ReplicaID:          uuid.NullUUID{UUID: tc.exitNode.ID, Valid: true},
+						ReplicaID:          uuid.NullUUID{UUID: liveReplicaID, Valid: true},
 						WireguardEndpoints: []string{"203.0.113.10:41641", "203.0.113.10:41641"},
 					})
 				}

@@ -22,6 +22,7 @@ import (
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
+	enttailnet "github.com/coder/coder/v2/enterprise/tailnet"
 	"github.com/coder/coder/v2/tailnet"
 )
 
@@ -237,6 +238,20 @@ func (api *API) registerExitNode(rw http.ResponseWriter, r *http.Request) {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{Message: "Replica ID is invalid."})
 		return
 	}
+	if _, err := api.Database.GetWorkspaceAgentByID(ctx, req.ReplicaID); err == nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{Message: "Replica ID conflicts with a workspace agent."})
+		return
+	} else if !xerrors.Is(err, sql.ErrNoRows) {
+		httpapi.InternalServerError(rw, xerrors.Errorf("check workspace agent replica id: %w", err))
+		return
+	}
+	if _, err := api.Database.GetWorkspaceProxyByID(ctx, req.ReplicaID); err == nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{Message: "Replica ID conflicts with a workspace proxy."})
+		return
+	} else if !xerrors.Is(err, sql.ErrNoRows) {
+		httpapi.InternalServerError(rw, xerrors.Errorf("check workspace proxy replica id: %w", err))
+		return
+	}
 
 	now := dbtime.Now()
 	isNew := false
@@ -277,6 +292,7 @@ func (api *API) registerExitNode(rw http.ResponseWriter, r *http.Request) {
 		httpapi.InternalServerError(rw, xerrors.Errorf("upsert exit node replica: %w", err))
 		return
 	}
+	api.exitNodeReplicaSessions.markLive(req.ReplicaID, node.ID)
 	if isNew {
 		if err := api.Pubsub.Publish(codersdk.ExitNodeReplicasPubsubChannel, []byte(node.ID.String())); err != nil {
 			httpapi.InternalServerError(rw, xerrors.Errorf("publish exit node replica update: %w", err))
@@ -287,6 +303,9 @@ func (api *API) registerExitNode(rw http.ResponseWriter, r *http.Request) {
 		api.Logger.Warn(ctx, "failed to delete stale exit node replicas", slog.Error(err))
 	}
 
+	// Template binding changes are picked up by agents on any replica pubsub
+	// event and by the fallback stream refresh. The replica process also gets
+	// the new bound agent set on its next registration heartbeat.
 	// The middleware already runs the handler as system, which the query
 	// requires because the agents span workspaces owned by many users.
 	agentIDs, err := api.Database.GetWorkspaceAgentIDsByExitNode(ctx, node.ID)
@@ -348,6 +367,8 @@ func (api *API) deregisterExitNode(rw http.ResponseWriter, r *http.Request) {
 		httpapi.InternalServerError(rw, xerrors.Errorf("stop exit node replica: %w", err))
 		return
 	}
+	api.exitNodeReplicaSessions.cancel(req.ReplicaID)
+	api.exitNodeReplicaSessions.removeLive(req.ReplicaID)
 	if err := api.Pubsub.Publish(codersdk.ExitNodeReplicasPubsubChannel, []byte(node.ID.String())); err != nil {
 		httpapi.InternalServerError(rw, xerrors.Errorf("publish exit node replica update: %w", err))
 		return
@@ -387,7 +408,18 @@ func (api *API) exitNodeCoordinate(rw http.ResponseWriter, r *http.Request) {
 		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{Message: "Replica is stale; replicas must register before coordinating."})
 		return
 	}
-	api.serveMultiAgentCoordinate(rw, r, replicaID)
+	peerID := codersdk.ExitNodeReplicaPeerID(node.ID, replicaID)
+	coordinateCtx, cancel := context.WithCancel(ctx)
+	unregister := api.exitNodeReplicaSessions.register(replicaID, cancel)
+	defer unregister()
+	defer cancel()
+	auth := &enttailnet.ExitNodeCoordinateeAuth{
+		Database:   api.Database,
+		Clock:      api.Clock,
+		ExitNodeID: node.ID,
+		PeerID:     peerID,
+	}
+	api.serveMultiAgentCoordinate(rw, r.WithContext(coordinateCtx), peerID, auth)
 }
 
 // @Summary Report exit node flows
@@ -621,7 +653,7 @@ func convertExitNodeReplica(replica database.ExitNodeReplica, now time.Time) cod
 		Version:            replica.Version,
 		WireguardEndpoints: nonNil(replica.WireguardEndpoints),
 		PolicyHash:         replica.PolicyHash,
-		TailnetAddress:     tailnet.TailscaleServicePrefix.AddrFromUUID(replica.ID).String(),
+		TailnetAddress:     tailnet.TailscaleServicePrefix.AddrFromUUID(codersdk.ExitNodeReplicaPeerID(replica.ExitNodeID, replica.ID)).String(),
 		Status:             status,
 		StartedAt:          replica.StartedAt,
 		UpdatedAt:          replica.UpdatedAt,

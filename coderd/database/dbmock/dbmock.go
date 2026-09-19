@@ -2411,6 +2411,21 @@ func (mr *MockStoreMockRecorder) GetActiveWorkspaceBuildsByTemplateID(ctx, templ
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetActiveWorkspaceBuildsByTemplateID", reflect.TypeOf((*MockStore)(nil).GetActiveWorkspaceBuildsByTemplateID), ctx, templateID)
 }
 
+// GetAllLiveExitNodeReplicas mocks base method.
+func (m *MockStore) GetAllLiveExitNodeReplicas(ctx context.Context, updatedAfter time.Time) ([]database.ExitNodeReplica, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAllLiveExitNodeReplicas", ctx, updatedAfter)
+	ret0, _ := ret[0].([]database.ExitNodeReplica)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetAllLiveExitNodeReplicas indicates an expected call of GetAllLiveExitNodeReplicas.
+func (mr *MockStoreMockRecorder) GetAllLiveExitNodeReplicas(ctx, updatedAfter any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAllLiveExitNodeReplicas", reflect.TypeOf((*MockStore)(nil).GetAllLiveExitNodeReplicas), ctx, updatedAfter)
+}
+
 // GetAllTailnetCoordinators mocks base method.
 func (m *MockStore) GetAllTailnetCoordinators(ctx context.Context) ([]database.TailnetCoordinator, error) {
 	m.ctrl.T.Helper()

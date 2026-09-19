@@ -8,6 +8,7 @@ import (
 	"github.com/coder/coder/v2/apiversion"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/tailnet"
 	"github.com/coder/coder/v2/tailnet/proto"
 	"github.com/coder/websocket"
 )
@@ -20,12 +21,12 @@ import (
 // @Router /api/v2/workspaceproxies/me/coordinate [get]
 // @x-apidocgen {"skip": true}
 func (api *API) workspaceProxyCoordinate(rw http.ResponseWriter, r *http.Request) {
-	api.serveMultiAgentCoordinate(rw, r, uuid.New())
+	api.serveMultiAgentCoordinate(rw, r, uuid.New(), nil)
 }
 
 // serveMultiAgentCoordinate upgrades the request to a websocket and serves the
 // tailnet coordination protocol for the multi-agent peer identified by id.
-func (api *API) serveMultiAgentCoordinate(rw http.ResponseWriter, r *http.Request, id uuid.UUID) {
+func (api *API) serveMultiAgentCoordinate(rw http.ResponseWriter, r *http.Request, id uuid.UUID, auth tailnet.CoordinateeAuth) {
 	ctx := r.Context()
 
 	version := "1.0"
@@ -66,7 +67,11 @@ func (api *API) serveMultiAgentCoordinate(rw http.ResponseWriter, r *http.Reques
 	ctx, nc := codersdk.WebsocketNetConn(ctx, conn, msgType)
 	defer nc.Close()
 
-	err = api.tailnetService.ServeMultiAgentClient(ctx, version, nc, id)
+	if auth == nil {
+		err = api.tailnetService.ServeMultiAgentClient(ctx, version, nc, id)
+	} else {
+		err = api.tailnetService.ServeExitNodeClient(ctx, version, nc, id, auth)
+	}
 	if err != nil {
 		_ = conn.Close(websocket.StatusInternalError, err.Error())
 	} else {

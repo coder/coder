@@ -1,0 +1,86 @@
+package tailnet
+
+import (
+	"context"
+	"sync"
+	"time"
+
+	"github.com/google/uuid"
+	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	agpl "github.com/coder/coder/v2/tailnet"
+	"github.com/coder/coder/v2/tailnet/proto"
+	"github.com/coder/quartz"
+)
+
+const exitNodeAgentCacheDuration = 5 * time.Second
+
+// ExitNodeCoordinateeAuth restricts an exit node replica to its own tailnet
+// identity and to agents currently bound to its logical exit node.
+type ExitNodeCoordinateeAuth struct {
+	Database   database.Store
+	Clock      quartz.Clock
+	ExitNodeID uuid.UUID
+	PeerID     uuid.UUID
+
+	mu        sync.Mutex
+	agentIDs  map[uuid.UUID]struct{}
+	refreshed time.Time
+}
+
+// Authorize permits tunnel changes only for currently bound agents and node
+// updates that advertise addresses derived from this replica's peer ID.
+func (a *ExitNodeCoordinateeAuth) Authorize(ctx context.Context, req *proto.CoordinateRequest) error {
+	if req.GetReadyForHandshake() != nil {
+		return xerrors.New("exit nodes may not send ready_for_handshake")
+	}
+	if req.GetUpdateSelf() != nil {
+		if err := (agpl.AgentCoordinateeAuth{ID: a.PeerID}).Authorize(ctx, &proto.CoordinateRequest{UpdateSelf: req.UpdateSelf}); err != nil {
+			return xerrors.Errorf("update self: %w", err)
+		}
+	}
+	if tun := req.GetAddTunnel(); tun != nil {
+		if err := a.authorizeTunnel(ctx, tun.Id); err != nil {
+			return err
+		}
+	}
+	if tun := req.GetRemoveTunnel(); tun != nil {
+		if _, err := uuid.FromBytes(tun.Id); err != nil {
+			return xerrors.Errorf("parse tunnel agent id: %w", err)
+		}
+	}
+	return nil
+}
+
+func (a *ExitNodeCoordinateeAuth) authorizeTunnel(ctx context.Context, rawID []byte) error {
+	agentID, err := uuid.FromBytes(rawID)
+	if err != nil {
+		return xerrors.Errorf("parse tunnel agent id: %w", err)
+	}
+
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	now := a.Clock.Now("exit_node_coordinate_auth")
+	_, found := a.agentIDs[agentID]
+	if a.agentIDs == nil || !found || now.Sub(a.refreshed) > exitNodeAgentCacheDuration {
+		// Exit nodes serve agents across users and workspaces, so this session
+		// must read the deployment-computed binding set as restricted system.
+		//nolint:gocritic // Cross-workspace binding lookup requires system access.
+		agentIDs, err := a.Database.GetWorkspaceAgentIDsByExitNode(dbauthz.AsSystemRestricted(ctx), a.ExitNodeID)
+		if err != nil {
+			return xerrors.Errorf("get exit node agents: %w", err)
+		}
+		a.agentIDs = make(map[uuid.UUID]struct{}, len(agentIDs))
+		for _, id := range agentIDs {
+			a.agentIDs[id] = struct{}{}
+		}
+		a.refreshed = now
+		_, found = a.agentIDs[agentID]
+	}
+	if !found {
+		return xerrors.Errorf("agent %s is not bound to exit node %s", agentID, a.ExitNodeID)
+	}
+	return nil
+}

@@ -44,7 +44,9 @@ func (r *RootCmd) exitNode() *serpent.Command {
 		Use:   "exit-node",
 		Short: "Exit nodes terminate workspace egress, enforce policy, and report flows.",
 		Long: "Exit nodes are tailnet peers that workspace agents route outbound TCP " +
-			"traffic through. Each flow is checked against a policy and reported to coderd.",
+			"traffic through. Each flow is checked against a policy and reported to coderd. " +
+			"Agents older than API 2.14 cannot consume replica-aware configurations. Restart " +
+			"workspaces on the new agent before binding exit nodes.",
 		Aliases: []string{"exitnode"},
 		Hidden:  true,
 		Handler: func(inv *serpent.Invocation) error {
@@ -326,8 +328,10 @@ func (r *RootCmd) exitNodeServer() *serpent.Command {
 		Use:   "server",
 		Short: "Run an exit node",
 		Long: "Run an exit node replica. The replica registers with coderd using its token, joins the " +
-			"tailnet at a deterministic address derived from its replica ID, and accepts HTTP CONNECT " +
-			"requests from workspace agents on the listen port. Send SIGHUP to reload the policy file.",
+			"tailnet at a deterministic address derived from its exit node and replica IDs, and accepts " +
+			"HTTP CONNECT requests from workspace agents on the listen port. Agents older than API 2.14 " +
+			"cannot consume replica-aware configurations. Restart workspaces on the new agent before " +
+			"binding exit nodes. Send SIGHUP to reload the policy file.",
 		Middleware: serpent.RequireNArgs(0),
 		Options: serpent.OptionSet{
 			{
@@ -499,8 +503,9 @@ func (r *RootCmd) exitNodeServer() *serpent.Command {
 			headerTransport.Transport = http.DefaultTransport
 			client.SDKClient.HTTPClient.Transport = headerTransport
 
+			peerID := codersdk.ExitNodeReplicaPeerID(exitNodeID, replicaID)
 			cliui.Infof(inv.Stdout, "Starting exit node replica %s (tailnet address %s)",
-				replicaID, exitnode.TailnetAddrForID(replicaID))
+				replicaID, exitnode.TailnetAddrForID(peerID))
 
 			srv, err := exitnode.New(ctx, logger, exitnode.Options{
 				Client:                       client,

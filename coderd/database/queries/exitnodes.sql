@@ -66,6 +66,14 @@ WHERE
 	AND updated_at > @updated_after
 ORDER BY exit_node_id, started_at, id;
 
+-- name: GetAllLiveExitNodeReplicas :many
+SELECT *
+FROM exit_node_replicas
+WHERE
+	stopped_at IS NULL
+	AND updated_at > @updated_after
+ORDER BY exit_node_id, started_at, id;
+
 -- name: GetExitNodeReplicasByExitNode :many
 SELECT *
 FROM exit_node_replicas

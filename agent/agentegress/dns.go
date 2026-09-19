@@ -371,6 +371,9 @@ func parseDNSDecision(resp []byte, now time.Time) (dnsDecision, error) {
 }
 
 func (s *dnsServer) warnForwardFailure(ctx context.Context, name string, typ dnsmessage.Type, err error) {
+	if errors.Is(err, ErrNoLiveExitNodeReplicas) {
+		return
+	}
 	s.warnMu.Lock()
 	now := s.clock.Now("dns_warning")
 	if now.Before(s.warnAt) {
@@ -392,12 +395,14 @@ func (s *dnsServer) forward(ctx context.Context, hdr dnsmessage.Header, q dnsmes
 	defer cancel()
 	resp, err := exchange(ctx, msg)
 	if err != nil {
-		s.logger.Debug(ctx, "dns forward failed",
-			slog.F("name", q.Name.String()),
-			slog.F("type", q.Type.String()),
-			slog.F("via", via),
-			slog.Error(err),
-		)
+		if !errors.Is(err, ErrNoLiveExitNodeReplicas) {
+			s.logger.Debug(ctx, "dns forward failed",
+				slog.F("name", q.Name.String()),
+				slog.F("type", q.Type.String()),
+				slog.F("via", via),
+				slog.Error(err),
+			)
+		}
 		return dnsReply(hdr, &q, dnsmessage.RCodeServerFailure)
 	}
 	return resp

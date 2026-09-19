@@ -4,14 +4,18 @@ package agentegress
 
 import (
 	"context"
+	"net"
+	"net/netip"
 	"os/exec"
 	"sync"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/pty"
 
+	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -35,6 +39,37 @@ func (e *successfulExecer) count() int {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	return e.commands
+}
+
+func TestEnforcerInstallsWithNoLiveExitNodeReplicas(t *testing.T) {
+	t.Parallel()
+
+	proxy, err := New(testutil.Logger(t), Options{
+		Dialer: DialerFunc(func(context.Context, netip.AddrPort) (net.Conn, error) {
+			panic("no replica should be dialed")
+		}),
+		Config: agentsdk.EgressConfig{
+			ExitNodes:    []agentsdk.EgressExitNode{{ID: uuid.New()}},
+			ExitNodePort: 3128,
+		},
+		ListenAddr:        "127.0.0.1:0",
+		UpstreamResolvers: []netip.AddrPort{},
+	})
+	require.NoError(t, err)
+	require.NoError(t, proxy.Start(t.Context()))
+	t.Cleanup(func() { _ = proxy.Close() })
+
+	enforcer, err := NewEnforcer(testutil.Logger(t), EnforcerOptions{
+		Execer:                  &successfulExecer{},
+		ProxyPort:               proxy.Addr().Port(),
+		DNSPort:                 proxy.DNSAddr().Port(),
+		UDPPort:                 proxy.UDPAddr().Port(),
+		LockdownCapabilities:    false,
+		LockdownCapabilitiesSet: true,
+	})
+	require.NoError(t, err)
+	require.NoError(t, enforcer.Install(t.Context()))
+	t.Cleanup(func() { _ = enforcer.Remove(t.Context()) })
 }
 
 func TestEnforcerCapabilityLockdown(t *testing.T) {

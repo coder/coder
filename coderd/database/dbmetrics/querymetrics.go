@@ -1368,6 +1368,14 @@ func (m queryMetricsStore) GetActiveWorkspaceBuildsByTemplateID(ctx context.Cont
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetAllLiveExitNodeReplicas(ctx context.Context, updatedAfter time.Time) ([]database.ExitNodeReplica, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetAllLiveExitNodeReplicas(ctx, updatedAfter)
+	m.queryLatencies.WithLabelValues("GetAllLiveExitNodeReplicas").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAllLiveExitNodeReplicas").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetAllTailnetCoordinators(ctx context.Context) ([]database.TailnetCoordinator, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetAllTailnetCoordinators(ctx)
