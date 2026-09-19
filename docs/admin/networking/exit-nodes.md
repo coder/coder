@@ -263,20 +263,31 @@ Upstream responses such as `NXDOMAIN` and `SERVFAIL` pass through unchanged.
 If no exit node completes the DNS stream, the agent returns `SERVFAIL`.
 
 After a successful upstream response, the agent synthesizes an A record from the placeholder range `198.18.0.0/15`.
-The fake record's TTL uses the minimum TTL in the upstream response, clamped to between 5 and 300 seconds.
+The agent normalizes the upstream minimum TTL to between 5 and 300 seconds, then caps its decision cache at 30 seconds.
+The synthesized record carries the remaining decision-cache lifetime.
 When an application connects to the fake address, the agent translates it back to the name and sends the name to the exit node.
 
 The agent returns an empty successful answer for an allowed non-exempt AAAA query.
 This behavior directs dual-stack clients to the fake IPv4 path while the exit node can still resolve an IPv6-only destination by name.
 
-A bounded least-recently-used cache stores DNS decisions for up to 1024 names and reduces exit node round trips.
-The decision expires with the clamped TTL.
+A bounded least-recently-used cache stores up to 1024 DNS decisions and reduces exit node round trips.
+The cache key includes both the normalized name and query type, so A and AAAA decisions are separate.
+Each decision remains cached for between 5 and 30 seconds, based on the upstream response TTL.
+A synthesized A answer carries the remaining cache lifetime, with a minimum TTL of 1 second.
+
+The agent clears this cache and reopens the DNS relay stream when it applies a manifest update or switches exit nodes.
+After an exit node policy reload, new DNS decisions reflect the policy within at most 30 seconds, plus any TTL still cached by the workspace application or resolver.
+
 The fake-IP pool holds 65536 name mappings by default, and its pinned-entry cap defaults to the same value.
 If the pool or pinned-entry limit is exhausted, the agent returns `SERVFAIL`.
 
-Queries for exempt host names use the workspace's system resolvers over TCP.
+Every workspace process's DNS request, over TCP or UDP, is redirected to the local DNS proxy.
+There is no blanket TCP port 53 exemption for system resolvers.
+For an exempt host name, the agent's DNS proxy queries the workspace's system resolver over TCP using an agent-only socket mark that bypasses capture.
+Only agent-owned sockets receive this mark, so workspace processes can't use the direct resolver path.
+
 Exempt names include `localhost`, `host.docker.internal`, and host names from protocol-specific control-plane exemptions.
-Transparent bypass rules still match the exact protocol, resolved address, and port.
+Transparent control-plane bypass rules still match the exact protocol, resolved address, and port.
 Other DNS record types travel through the exit node DNS stream without fake-address synthesis.
 
 Applications that use their own resolver endpoint or DNS over HTTPS can avoid DNS name capture.
@@ -303,9 +314,10 @@ Each client and destination pair has a separate exit node stream, which closes a
 
 ## Capability lockdown
 
-After the Linux agent installs the capture rules, it locks down `CAP_NET_ADMIN` for processes that the agent starts.
-The agent clears ambient capabilities, removes `CAP_NET_ADMIN` from the inheritable and bounding sets on every operating-system thread, then verifies each thread through `/proc/self/task/*/status`.
-Children can't regain `CAP_NET_ADMIN`, even after changing user IDs.
+After the Linux agent installs the capture rules, it locks down `CAP_NET_ADMIN` and `CAP_NET_RAW` for processes that the agent starts.
+Linux 5.17 and later permits either capability to set `SO_MARK`, which could reproduce the agent-only bypass mark.
+The agent clears ambient capabilities, removes both capabilities from the inheritable and bounding sets on every operating-system thread, then verifies each thread through `/proc/self/task/*/status`.
+Children can't regain either capability, even after changing user IDs.
 
 All-thread lockdown requires a Coder agent binary built with `CGO_ENABLED=0`.
 Production Coder binaries are static and meet this requirement.
@@ -314,7 +326,8 @@ A cgo-linked custom agent can't complete lockdown and falls back to advisory mod
 The lockdown covers only processes spawned by the agent.
 It doesn't remove capabilities from a separate container entrypoint process or from processes that existed before the agent applied lockdown.
 Run the agent as the container entrypoint and don't run any other privileged process in the workspace container.
-A separately privileged process in the namespace remains a residual bypass risk.
+A separate process with `CAP_NET_ADMIN` or `CAP_NET_RAW` remains a residual bypass risk because it can modify networking or set the bypass socket mark.
+At the pod or container level, drop `NET_RAW` when the workspace workload doesn't require raw sockets.
 
 Capability lockdown has 2 operational consequences:
 
@@ -341,8 +354,11 @@ The agent starts with the first exit node.
 CONNECT request and response negotiation has a 10-second deadline.
 A dial failure, timeout, end of file, or malformed HTTP response marks the node as failed, and the agent tries later nodes in order.
 
-Any well-formed HTTP response completes node selection and doesn't trigger failover.
-This includes an allowed `200`, policy denial `403`, and upstream or resolution failure `502`.
+The agent classifies a well-formed HTTP response by status code.
+A `200` response succeeds.
+A policy denial `403`, malformed request `400`, or upstream or resolution failure `502` is terminal and doesn't trigger failover.
+Other server errors, including `500`, `503`, and `504`, mark the node unhealthy and trigger failover.
+Other well-formed non-5xx responses are also terminal.
 Failed nodes have a 5-second retry delay.
 During subsequent new connection attempts, the agent probes higher-priority nodes after their retry delay and returns to a preferred node after it recovers.
 
@@ -379,8 +395,8 @@ Alert on both `coder_exit_node_flow_reports_dropped_total` and gap markers becau
 
 - Transparent enforcement is available only on Linux with `iptables` and either root or passwordless `sudo`.
   Other platforms and insufficiently privileged agents use advisory proxy environment variables.
-- Capability lockdown requires a `CGO_ENABLED=0` agent and applies only to processes spawned by the agent.
-  Run the agent as the only privileged container entrypoint.
+- Capability lockdown removes `CAP_NET_ADMIN` and `CAP_NET_RAW`, requires a `CGO_ENABLED=0` agent, and applies only to processes spawned by the agent.
+  Run the agent as the only privileged container entrypoint, and drop `NET_RAW` at the container level when the workload doesn't need it.
 - In-container netfilter capture isn't a security boundary.
   Enforcement requires an external deny policy.
 - If `ip6tables` installation fails while IPv6 is enabled, the agent disables IPv6 in the namespace.

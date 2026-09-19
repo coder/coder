@@ -1,5 +1,13 @@
 # Replace every example label, namespace, CIDR, and port before applying this policy.
 # This policy selects workspace pods and denies all egress except the rules listed here.
+#
+# Also drop NET_RAW from the workspace container when the workload does not need raw sockets.
+# Keep the agent's required privileges, such as NET_ADMIN, according to your deployment model.
+# Add this block to the workspace container in the Pod template, not to this NetworkPolicy:
+# securityContext:
+#   capabilities:
+#     drop:
+#       - NET_RAW
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -12,8 +20,9 @@ spec:
   policyTypes:
     - Egress # Deny egress except for the destinations listed here.
   egress:
-    # Allow workspace DNS queries to the cluster DNS pods.
-    # The agent uses this path for exempt host names and to resolve the exact addresses used by capture bypass rules.
+    # Allow the workspace pod to reach the cluster DNS pods.
+    # Only agent-owned, marked sockets use this destination directly for exempt-name and control-plane resolution.
+    # DNS from every other workspace process is captured by the agent's local DNS proxy.
     - to:
         - namespaceSelector:
             matchLabels:
