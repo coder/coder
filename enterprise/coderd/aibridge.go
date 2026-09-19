@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -47,7 +48,7 @@ const (
 	// maxAISpendExportPeriod bounds an explicit AI spend export window to at
 	// most 31 days, matching the maximum length of the monthly default period.
 	maxAISpendExportPeriod = 31 * 24 * time.Hour
-	// The per-user spend report lists users, not events, so its pages are small.
+	// Organization spend reports use small pages by default.
 	defaultOrganizationAISpendLimit = 10
 	maxOrganizationAISpendLimit     = 100
 	// aiBridgeSessionNetworkCallsLimit caps the per-session network call list
@@ -1172,6 +1173,17 @@ func escapeCSVCell(value string) string {
 	return "'" + value
 }
 
+// parseAISpendDetailsFilter parses the dimensions shared by the JSON details
+// response and CSV export.
+func parseAISpendDetailsFilter(query url.Values, parser *httpapi.QueryParamParser) codersdk.OrganizationAISpendDetailsFilter {
+	return codersdk.OrganizationAISpendDetailsFilter{
+		UserID:       parser.UUID(query, uuid.Nil, "user_id"),
+		GroupID:      parser.UUID(query, uuid.Nil, "group_id"),
+		ProviderName: parser.String(query, "", "provider_name"),
+		Model:        parser.String(query, "", "model"),
+	}
+}
+
 // aiSpendPeriod is the applied [start, end) report window and, when the
 // deployment purges AI Gateway data, the start of the retention window.
 type aiSpendPeriod struct {
@@ -1255,6 +1267,100 @@ func (api *API) aiSpendPeriod(ctx context.Context, rw http.ResponseWriter, r *ht
 	return period, true
 }
 
+// @Summary Get organization AI spend details
+// @Description Returns paginated per-user, per-group, per-model, per-provider aggregated AI spend for the organization.
+// @Description The optional period_start and period_end query parameters must be provided together and span at most 31 days. When omitted, the current UTC monthly period is used.
+// @ID get-organization-ai-spend-details
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Enterprise
+// @Param organization path string true "Organization ID" format(uuid)
+// @Param period_start query string false "Inclusive lower bound (RFC3339)" format(date-time)
+// @Param period_end query string false "Exclusive upper bound (RFC3339)" format(date-time)
+// @Param user_id query string false "User ID" format(uuid)
+// @Param group_id query string false "Effective group ID" format(uuid)
+// @Param provider_name query string false "Configured provider name"
+// @Param model query string false "Model name"
+// @Param limit query int false "Page limit (default 10, maximum 100)"
+// @Param offset query int false "Page offset"
+// @Success 200 {object} codersdk.OrganizationAISpendDetails
+// @Router /api/v2/organizations/{organization}/ai/spend [get]
+func (api *API) organizationAISpendDetails(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	org := httpmw.OrganizationParam(r)
+	logger := api.Logger.With(slog.F("organization_id", org.ID))
+
+	if !api.Authorize(r, policy.ActionRead, rbac.ResourceGroupMember.InOrg(org.ID)) {
+		httpapi.Forbidden(rw)
+		return
+	}
+
+	parser := httpapi.NewQueryParamParser()
+	query := r.URL.Query()
+	filter := parseAISpendDetailsFilter(query, parser)
+	limit := parser.PositiveInt32(query, defaultOrganizationAISpendLimit, "limit")
+	offset := parser.PositiveInt32(query, 0, "offset")
+	period, ok := api.aiSpendPeriod(ctx, rw, r, parser)
+	if !ok {
+		return
+	}
+	if limit == 0 || limit > maxOrganizationAISpendLimit {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: fmt.Sprintf("Pagination limit must be in range [1, %d].", maxOrganizationAISpendLimit),
+		})
+		return
+	}
+	logger = logger.With(slog.F("period_start", period.start), slog.F("period_end", period.end))
+
+	params := database.ExportOrganizationAISpendParams{
+		OrganizationID: org.ID,
+		PeriodStart:    period.start,
+		PeriodEnd:      period.end,
+		UserID:         filter.UserID,
+		GroupID:        filter.GroupID,
+		ProviderName:   filter.ProviderName,
+		Model:          filter.Model,
+		LimitOpt:       limit,
+		OffsetOpt:      offset,
+	}
+	rows, err := api.Database.ExportOrganizationAISpend(ctx, params)
+	if err != nil {
+		logger.Error(ctx, "failed to get organization AI spend details", slog.Error(err))
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+
+	count := int64(0)
+	if len(rows) > 0 {
+		count = rows[0].Count
+	} else if offset > 0 {
+		params.LimitOpt = 1
+		params.OffsetOpt = 0
+		firstRows, err := api.Database.ExportOrganizationAISpend(ctx, params)
+		if err != nil {
+			logger.Error(ctx, "failed to count organization AI spend details", slog.Error(err))
+			httpapi.InternalServerError(rw, err)
+			return
+		}
+		if len(firstRows) > 0 {
+			count = firstRows[0].Count
+		}
+	}
+
+	response := codersdk.OrganizationAISpendDetails{
+		AISpendPeriodWindow: codersdk.AISpendPeriodWindow{PeriodStart: period.start, PeriodEnd: period.end},
+		Count:               count,
+		Rows:                make([]codersdk.OrganizationAISpendRow, 0, len(rows)),
+	}
+	if !period.retentionStart.IsZero() {
+		response.RetentionStart = &period.retentionStart
+	}
+	for _, row := range rows {
+		response.Rows = append(response.Rows, db2sdk.OrganizationAISpendRow(row))
+	}
+	httpapi.Write(ctx, rw, http.StatusOK, response)
+}
+
 // @Summary Export organization AI spend as CSV
 // @Description Returns per-user, per-group, per-model, per-provider aggregated AI spend for the organization as CSV, built from raw AI Gateway token usage.
 // @Description The optional period_start and period_end query parameters bound the period and are interpreted as UTC. They must be provided together and span at most 31 days. When both are omitted, the current UTC monthly period is used.
@@ -1288,10 +1394,7 @@ func (api *API) exportOrganizationAISpend(rw http.ResponseWriter, r *http.Reques
 
 	parser := httpapi.NewQueryParamParser()
 	query := r.URL.Query()
-	userID := parser.UUID(query, uuid.Nil, "user_id")
-	groupID := parser.UUID(query, uuid.Nil, "group_id")
-	providerName := parser.String(query, "", "provider_name")
-	model := parser.String(query, "", "model")
+	filter := parseAISpendDetailsFilter(query, parser)
 	period, ok := api.aiSpendPeriod(ctx, rw, r, parser)
 	if !ok {
 		return
@@ -1306,10 +1409,10 @@ func (api *API) exportOrganizationAISpend(rw http.ResponseWriter, r *http.Reques
 		OrganizationID: org.ID,
 		PeriodStart:    periodStart,
 		PeriodEnd:      periodEnd,
-		UserID:         userID,
-		GroupID:        groupID,
-		ProviderName:   providerName,
-		Model:          model,
+		UserID:         filter.UserID,
+		GroupID:        filter.GroupID,
+		ProviderName:   filter.ProviderName,
+		Model:          filter.Model,
 		LimitOpt:       0,
 		OffsetOpt:      0,
 	})

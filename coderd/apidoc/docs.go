@@ -6162,6 +6162,94 @@ const docTemplate = `{
                 ]
             }
         },
+        "/api/v2/organizations/{organization}/ai/spend": {
+            "get": {
+                "description": "Returns paginated per-user, per-group, per-model, per-provider aggregated AI spend for the organization.\nThe optional period_start and period_end query parameters must be provided together and span at most 31 days. When omitted, the current UTC monthly period is used.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Get organization AI spend details",
+                "operationId": "get-organization-ai-spend-details",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "date-time",
+                        "description": "Inclusive lower bound (RFC3339)",
+                        "name": "period_start",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "format": "date-time",
+                        "description": "Exclusive upper bound (RFC3339)",
+                        "name": "period_end",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "User ID",
+                        "name": "user_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Effective group ID",
+                        "name": "group_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Configured provider name",
+                        "name": "provider_name",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Model name",
+                        "name": "model",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page limit (default 10, maximum 100)",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page offset",
+                        "name": "offset",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.OrganizationAISpendDetails"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
         "/api/v2/organizations/{organization}/ai/spend/export": {
             "get": {
                 "description": "Returns per-user, per-group, per-model, per-provider aggregated AI spend for the organization as CSV, built from raw AI Gateway token usage.\nThe optional period_start and period_end query parameters bound the period and are interpreted as UTC. They must be provided together and span at most 31 days. When both are omitted, the current UTC monthly period is used.\nAn explicit period_start must fall within the configured AI Gateway data retention window, since older token usage is purged. The default period is narrowed to that window instead, and every row echoes the applied bounds.\nUnknown query parameters are rejected.\nRequires organization-level administrator permissions.",
@@ -25957,6 +26045,34 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.OrganizationAISpendDetails": {
+            "type": "object",
+            "properties": {
+                "count": {
+                    "type": "integer"
+                },
+                "period_end": {
+                    "description": "PeriodEnd is the exclusive upper bound of the current budget\nperiod.",
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "period_start": {
+                    "description": "PeriodStart is the inclusive lower bound of the current budget\nperiod.",
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "retention_start": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "rows": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.OrganizationAISpendRow"
+                    }
+                }
+            }
+        },
         "codersdk.OrganizationAISpendReport": {
             "type": "object",
             "properties": {
@@ -25988,6 +26104,56 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/codersdk.OrganizationAISpendUser"
                     }
+                }
+            }
+        },
+        "codersdk.OrganizationAISpendRow": {
+            "type": "object",
+            "properties": {
+                "cache_read_tokens": {
+                    "type": "integer"
+                },
+                "cache_write_tokens": {
+                    "type": "integer"
+                },
+                "cost_micros": {
+                    "type": "integer"
+                },
+                "group_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "group_name": {
+                    "type": "string"
+                },
+                "input_tokens": {
+                    "type": "integer"
+                },
+                "model": {
+                    "type": "string"
+                },
+                "organization_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "organization_name": {
+                    "type": "string"
+                },
+                "output_tokens": {
+                    "type": "integer"
+                },
+                "provider": {
+                    "type": "string"
+                },
+                "provider_name": {
+                    "type": "string"
+                },
+                "user_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "username": {
+                    "type": "string"
                 }
             }
         },

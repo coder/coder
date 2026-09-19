@@ -11372,6 +11372,45 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `name`                     | string          | false    |              |                                                                                                                                                 |
 | `updated_at`               | string          | true     |              |                                                                                                                                                 |
 
+## codersdk.OrganizationAISpendDetails
+
+```json
+{
+  "count": 0,
+  "period_end": "2019-08-24T14:15:22Z",
+  "period_start": "2019-08-24T14:15:22Z",
+  "retention_start": "2019-08-24T14:15:22Z",
+  "rows": [
+    {
+      "cache_read_tokens": 0,
+      "cache_write_tokens": 0,
+      "cost_micros": 0,
+      "group_id": "306db4e0-7449-4501-b76f-075576fe2d8f",
+      "group_name": "string",
+      "input_tokens": 0,
+      "model": "string",
+      "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+      "organization_name": "string",
+      "output_tokens": 0,
+      "provider": "string",
+      "provider_name": "string",
+      "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5",
+      "username": "string"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name              | Type                                                                        | Required | Restrictions | Description                                                             |
+|-------------------|-----------------------------------------------------------------------------|----------|--------------|-------------------------------------------------------------------------|
+| `count`           | integer                                                                     | false    |              |                                                                         |
+| `period_end`      | string                                                                      | false    |              | Period end is the exclusive upper bound of the current budget period.   |
+| `period_start`    | string                                                                      | false    |              | Period start is the inclusive lower bound of the current budget period. |
+| `retention_start` | string                                                                      | false    |              |                                                                         |
+| `rows`            | array of [codersdk.OrganizationAISpendRow](#codersdkorganizationaispendrow) | false    |              |                                                                         |
+
 ## codersdk.OrganizationAISpendReport
 
 ```json
@@ -11416,6 +11455,46 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `retention_start` | string                                                                        | false    |              | Retention start is the oldest instant for which token usage is still retained. An explicit period must not start before it. Omitted when the deployment does not purge AI Gateway data. |
 | `totals`          | [codersdk.OrganizationAISpendTotals](#codersdkorganizationaispendtotals)      | false    |              |                                                                                                                                                                                         |
 | `users`           | array of [codersdk.OrganizationAISpendUser](#codersdkorganizationaispenduser) | false    |              | Users is the requested page, most expensive first.                                                                                                                                      |
+
+## codersdk.OrganizationAISpendRow
+
+```json
+{
+  "cache_read_tokens": 0,
+  "cache_write_tokens": 0,
+  "cost_micros": 0,
+  "group_id": "306db4e0-7449-4501-b76f-075576fe2d8f",
+  "group_name": "string",
+  "input_tokens": 0,
+  "model": "string",
+  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "organization_name": "string",
+  "output_tokens": 0,
+  "provider": "string",
+  "provider_name": "string",
+  "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5",
+  "username": "string"
+}
+```
+
+### Properties
+
+| Name                 | Type    | Required | Restrictions | Description |
+|----------------------|---------|----------|--------------|-------------|
+| `cache_read_tokens`  | integer | false    |              |             |
+| `cache_write_tokens` | integer | false    |              |             |
+| `cost_micros`        | integer | false    |              |             |
+| `group_id`           | string  | false    |              |             |
+| `group_name`         | string  | false    |              |             |
+| `input_tokens`       | integer | false    |              |             |
+| `model`              | string  | false    |              |             |
+| `organization_id`    | string  | false    |              |             |
+| `organization_name`  | string  | false    |              |             |
+| `output_tokens`      | integer | false    |              |             |
+| `provider`           | string  | false    |              |             |
+| `provider_name`      | string  | false    |              |             |
+| `user_id`            | string  | false    |              |             |
+| `username`           | string  | false    |              |             |
 
 ## codersdk.OrganizationAISpendTotals
 
