@@ -2,7 +2,6 @@ package exitnode
 
 import (
 	"bufio"
-	"bytes"
 	"cmp"
 	"context"
 	"errors"
@@ -22,6 +21,7 @@ import (
 	"cdr.dev/slog/v3"
 	"github.com/coder/quartz"
 
+	"github.com/coder/coder/v2/agent/agentegress/hostsniff"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/tailnet"
 )
@@ -104,7 +104,7 @@ type ConnectProxyOptions struct {
 	// DefaultDialTimeout.
 	DialTimeout time.Duration
 	// SniffTimeout bounds how long to wait for the client's first bytes.
-	// Defaults to DefaultSniffTimeout.
+	// Defaults to hostsniff.DefaultTimeout.
 	SniffTimeout time.Duration
 	// Resolver resolves CONNECT hostnames. Defaults to net.DefaultResolver.
 	Resolver HostResolver
@@ -189,7 +189,7 @@ type ConnectProxy struct {
 // any work.
 func NewConnectProxy(opts ConnectProxyOptions) *ConnectProxy {
 	opts.DialTimeout = cmp.Or(max(opts.DialTimeout, 0), DefaultDialTimeout)
-	opts.SniffTimeout = cmp.Or(max(opts.SniffTimeout, 0), DefaultSniffTimeout)
+	opts.SniffTimeout = cmp.Or(max(opts.SniffTimeout, 0), hostsniff.DefaultTimeout)
 	opts.ResolveTimeout = cmp.Or(max(opts.ResolveTimeout, 0), DefaultResolveTimeout)
 	opts.UDPIdleTimeout = cmp.Or(max(opts.UDPIdleTimeout, 0), DefaultUDPIdleTimeout)
 	opts.DNSReportSampleRate = cmp.Or(max(opts.DNSReportSampleRate, 0), DefaultDNSReportSampleRate)
@@ -298,7 +298,7 @@ func (p *ConnectProxy) HandleConn(ctx context.Context, conn net.Conn) {
 	client := conn
 	if n := br.Buffered(); n > 0 {
 		early, _ := br.Peek(n)
-		client = &replayingConn{Conn: conn, r: io.MultiReader(bytes.NewReader(early), conn)}
+		client = hostsniff.Replay(conn, early)
 	}
 
 	if target.protocol == codersdk.ExitNodeProtocolDNS {
@@ -356,7 +356,7 @@ func (p *ConnectProxy) handleStream(ctx context.Context, logger slog.Logger, cli
 
 	if sniff {
 		// Phase two: the application now speaks and may reveal the name.
-		host, sniffed, err := SniffHost(client, p.SniffTimeout)
+		host, sniffed, err := hostsniff.Host(client, p.SniffTimeout)
 		if err != nil && !errors.Is(err, io.EOF) {
 			logger.Debug(ctx, "client connection failed during sniff", slog.Error(err))
 			return
@@ -457,11 +457,11 @@ func pipe(ctx context.Context, client, upstream net.Conn) (bytesIn, bytesOut int
 	var wg sync.WaitGroup
 	wg.Go(func() {
 		bytesOut, _ = io.Copy(upstream, client)
-		_ = closeWrite(upstream)
+		_ = hostsniff.CloseWrite(upstream)
 	})
 	wg.Go(func() {
 		bytesIn, _ = io.Copy(client, upstream)
-		_ = closeWrite(client)
+		_ = hostsniff.CloseWrite(client)
 	})
 	wg.Wait()
 	return bytesIn, bytesOut

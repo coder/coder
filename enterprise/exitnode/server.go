@@ -55,7 +55,7 @@ type Options struct {
 	BlockEndpoints bool
 	// DialTimeout bounds upstream connects. Defaults to DefaultDialTimeout.
 	DialTimeout time.Duration
-	// SniffTimeout bounds host sniffing. Defaults to DefaultSniffTimeout.
+	// SniffTimeout bounds host sniffing. Defaults to hostsniff.DefaultTimeout.
 	SniffTimeout time.Duration
 	// UDPIdleTimeout closes idle udp streams. Defaults to
 	// DefaultUDPIdleTimeout.

@@ -1,4 +1,4 @@
-package exitnode_test
+package hostsniff_test
 
 import (
 	"crypto/tls"
@@ -10,7 +10,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/v2/enterprise/exitnode"
+	"github.com/coder/coder/v2/agent/agentegress/hostsniff"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -33,7 +33,7 @@ func TestSniffHost_TLS(t *testing.T) {
 	handshakeErr := make(chan error, 1)
 	go func() { handshakeErr <- tlsClient.Handshake() }()
 
-	host, replay, err := exitnode.SniffHost(serverSide, testutil.WaitShort)
+	host, replay, err := hostsniff.Host(serverSide, testutil.WaitShort)
 	require.NoError(t, err)
 	require.Equal(t, "secure.example.com", host)
 
@@ -111,7 +111,7 @@ func TestSniffHost_Stream(t *testing.T) {
 			}()
 
 			start := time.Now()
-			host, replay, err := exitnode.SniffHost(serverSide, tt.timeout)
+			host, replay, err := hostsniff.Host(serverSide, tt.timeout)
 			if tt.wantErr != nil {
 				require.ErrorIs(t, err, tt.wantErr)
 			} else {
@@ -141,7 +141,7 @@ func TestSniffHost_SilentClient(t *testing.T) {
 
 	// Server-speaks-first protocols send nothing; the deadline must return
 	// control with an empty host and a usable connection.
-	host, replay, err := exitnode.SniffHost(serverSide, testutil.IntervalMedium)
+	host, replay, err := hostsniff.Host(serverSide, testutil.IntervalMedium)
 	require.NoError(t, err)
 	require.Empty(t, host)
 

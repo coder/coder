@@ -1,10 +1,9 @@
 package exitnode
 
 import (
-	"net"
 	"net/netip"
-	"strings"
 
+	"github.com/coder/coder/v2/agent/agentegress/hostsniff"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -62,11 +61,5 @@ type Decision struct {
 // NormalizeHost lowercases a host name and strips a trailing dot and any
 // port suffix so it can be compared against policy rules.
 func NormalizeHost(host string) string {
-	host = strings.TrimSpace(host)
-	if h, _, err := net.SplitHostPort(host); err == nil {
-		host = h
-	} else if strings.HasPrefix(host, "[") && strings.HasSuffix(host, "]") {
-		host = host[1 : len(host)-1]
-	}
-	return strings.ToLower(strings.TrimSuffix(host, "."))
+	return hostsniff.NormalizeHost(host)
 }

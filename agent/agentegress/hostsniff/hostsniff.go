@@ -1,4 +1,7 @@
-package exitnode
+// Package hostsniff learns a destination host name from the first bytes a
+// client sends: the TLS SNI or the HTTP Host header. It is shared by the
+// workspace agent and the exit node.
+package hostsniff
 
 import (
 	"bufio"
@@ -10,17 +13,18 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"golang.org/x/xerrors"
 )
 
 const (
-	// DefaultSniffTimeout bounds how long the exit node waits for the client
+	// DefaultTimeout bounds how long the exit node waits for the client
 	// to send its first bytes before giving up on learning a host name.
 	// Server-speaks-first protocols such as SSH never send anything until
 	// the server does, so the timeout is the only way to move on for them.
-	DefaultSniffTimeout = 2 * time.Second
+	DefaultTimeout = 2 * time.Second
 
 	// sniffMaxBytes bounds the peek buffer. A TLS ClientHello with large
 	// key shares or an HTTP request with many headers fits comfortably; if
@@ -33,17 +37,17 @@ const (
 // errSniffDone aborts the TLS handshake once the ClientHello has been seen.
 var errSniffDone = xerrors.New("sniff done")
 
-// SniffHost peeks at the first bytes the client sends and extracts a
+// Host peeks at the first bytes the client sends and extracts a
 // destination host from a TLS ClientHello SNI extension or an HTTP/1 Host
 // header. It returns the host (empty when none was found) and a net.Conn that
 // replays the peeked bytes before continuing with the original stream, so the
 // application protocol is undisturbed.
 //
-// SniffHost never blocks past timeout. When the client is silent, the returned
+// Host never blocks past timeout. When the client is silent, the returned
 // host is empty and the connection is returned unread. A non-timeout read
 // error (for example the client hanging up) is returned as err together with
 // a replaying conn for whatever was read.
-func SniffHost(conn net.Conn, timeout time.Duration) (host string, replay net.Conn, err error) {
+func Host(conn net.Conn, timeout time.Duration) (host string, replay net.Conn, err error) {
 	if err := conn.SetReadDeadline(time.Now().Add(timeout)); err != nil {
 		return "", conn, xerrors.Errorf("set sniff deadline: %w", err)
 	}
@@ -129,6 +133,15 @@ func (c *sniffConn) Read(p []byte) (int, error) {
 
 func (*sniffConn) Write(p []byte) (int, error) { return len(p), nil }
 
+// Replay returns conn with early served ahead of any further reads, so bytes
+// consumed while parsing a preamble are not lost to the application.
+func Replay(conn net.Conn, early []byte) net.Conn {
+	if len(early) == 0 {
+		return conn
+	}
+	return &replayingConn{Conn: conn, r: io.MultiReader(bytes.NewReader(early), conn)}
+}
+
 // replayingConn serves reads from r, which replays previously peeked bytes
 // before falling through to the underlying connection. All other methods,
 // including half-close, are delegated to the wrapped conn.
@@ -143,15 +156,27 @@ func (c *replayingConn) Read(p []byte) (int, error) {
 
 // CloseWrite half-closes the underlying connection when it supports it.
 func (c *replayingConn) CloseWrite() error {
-	return closeWrite(c.Conn)
+	return CloseWrite(c.Conn)
 }
 
-// closeWrite half-closes conn for writing when supported (net.TCPConn,
+// CloseWrite half-closes conn for writing when supported (net.TCPConn,
 // gonet.TCPConn, and the wrappers in this package) and otherwise falls back
 // to a full close, so the peer always observes EOF.
-func closeWrite(conn net.Conn) error {
+func CloseWrite(conn net.Conn) error {
 	if cw, ok := conn.(interface{ CloseWrite() error }); ok {
 		return cw.CloseWrite()
 	}
 	return conn.Close()
+}
+
+// NormalizeHost lowercases a host name and strips a trailing dot and any
+// port suffix so it can be compared against policy rules.
+func NormalizeHost(host string) string {
+	host = strings.TrimSpace(host)
+	if h, _, err := net.SplitHostPort(host); err == nil {
+		host = h
+	} else if strings.HasPrefix(host, "[") && strings.HasSuffix(host, "]") {
+		host = host[1 : len(host)-1]
+	}
+	return strings.ToLower(strings.TrimSuffix(host, "."))
 }
