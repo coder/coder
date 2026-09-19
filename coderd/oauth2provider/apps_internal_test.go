@@ -70,16 +70,16 @@ func TestResolveRedirectURIs(t *testing.T) {
 		},
 		{
 			name: "NeitherOnCreate",
-			want: []string{},
+			want: nil,
 		},
 		{
-			name:         "ExplicitEmptyListRejected",
+			name:         "ExplicitEmptyListIgnoresStored",
 			redirectURIs: []string{},
 			stored:       []string{a, b},
 			want:         []string{},
 		},
 		{
-			name:         "ExplicitEmptyListWithCallbackRejected",
+			name:         "ExplicitEmptyListIgnoresCallback",
 			callbackURL:  c,
 			redirectURIs: []string{},
 			stored:       []string{a, b},
@@ -92,10 +92,7 @@ func TestResolveRedirectURIs(t *testing.T) {
 			t.Parallel()
 
 			got := resolveRedirectURIs(tc.callbackURL, tc.redirectURIs, tc.stored)
-			require.Len(t, got, len(tc.want))
-			if len(tc.want) > 0 {
-				require.Equal(t, tc.want, got)
-			}
+			require.Equal(t, tc.want, got)
 		})
 	}
 }

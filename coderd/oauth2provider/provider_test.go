@@ -1254,8 +1254,8 @@ func TestOAuth2ProviderAppRedirectURIs(t *testing.T) {
 		require.Equal(t, "at most 32 redirect URIs are allowed", sdkErr.Validations[0].Detail)
 	})
 
-	// An update sending redirect_uris as an empty list, with no callback_url,
-	// is refused rather than silently keeping the stored list.
+	// An update sending redirect_uris as an empty list is refused rather than
+	// silently keeping the stored list, with or without callback_url.
 	t.Run("EmptyListIsRefused", func(t *testing.T) {
 		t.Parallel()
 
@@ -1303,14 +1303,21 @@ func TestOAuth2ProviderAppRedirectURIs(t *testing.T) {
 		require.Len(t, apiErr.Validations, 1)
 		require.Equal(t, "redirect_uris", apiErr.Validations[0].Field)
 		require.Equal(t, "redirect_uris was sent as an empty list, which overrides callback_url; send at least one redirect URI, or omit redirect_uris to use callback_url", apiErr.Validations[0].Detail)
+	})
+
+	// A create that sends neither URI field is refused.
+	t.Run("OmittedFieldsOnCreateRefused", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitLong)
 
 		var sdkErr *codersdk.Error
-
 		//nolint:gocritic // OAuth2 app management requires owner permission.
-		_, err = client.PostOAuth2ProviderApp(ctx, codersdk.PostOAuth2ProviderAppRequest{
-			Name: "empty-list-create",
+		_, err := client.PostOAuth2ProviderApp(ctx, codersdk.PostOAuth2ProviderAppRequest{
+			Name: "omitted-fields-create",
 		})
-		require.Error(t, err)
 		require.ErrorAs(t, err, &sdkErr)
 		require.Len(t, sdkErr.Validations, 1)
 		require.Equal(t, "redirect_uris", sdkErr.Validations[0].Field)
