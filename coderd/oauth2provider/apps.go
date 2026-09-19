@@ -61,6 +61,14 @@ func resolveRedirectURIs(callbackURL string, redirectURIs, stored []string) []st
 	return append([]string{callbackURL}, rest...)
 }
 
+// emptyRedirectURIsDetail returns the error detail for an empty resolved list.
+func emptyRedirectURIsDetail(fromCallback string) string {
+	if fromCallback == "" {
+		return "at least one redirect URI is required"
+	}
+	return "redirect_uris was sent as an empty list, which overrides callback_url; send at least one redirect URI, or omit redirect_uris to use callback_url"
+}
+
 // validateAppRedirectURIFields checks the list an admin request resolved to
 // and reports each failure against the request field that caused it. Every
 // entry passes ValidateRedirectURIShape; entries of a public app also
@@ -83,7 +91,7 @@ func validateAppRedirectURIFields(uris []string, clientType codersdk.OAuth2Clien
 	if len(uris) == 0 {
 		return []codersdk.ValidationError{{
 			Field:  "redirect_uris",
-			Detail: "at least one redirect URI is required",
+			Detail: emptyRedirectURIsDetail(fromCallback),
 		}}
 	}
 	if len(uris) > codersdk.OAuth2RedirectURIsMaxCount {

@@ -1228,6 +1228,23 @@ func TestOAuth2ProviderAppRedirectURIs(t *testing.T) {
 		require.Equal(t, "redirect_uris", apiErr.Validations[0].Field)
 		require.Equal(t, "at least one redirect URI is required", apiErr.Validations[0].Detail)
 
+		// With callback_url in the same body, the message says the empty
+		// list is what discarded it.
+		//nolint:gocritic // OAuth2 app management requires owner permission.
+		res, err = client.Request(ctx, http.MethodPut, fmt.Sprintf("/api/v2/oauth2-provider/apps/%s", app.ID), map[string]any{
+			"name":          "empty-list-update",
+			"callback_url":  second,
+			"redirect_uris": []string{},
+		})
+		require.NoError(t, err)
+		defer res.Body.Close()
+		require.Equal(t, http.StatusBadRequest, res.StatusCode)
+		apiErr = codersdk.Response{}
+		require.NoError(t, json.NewDecoder(res.Body).Decode(&apiErr))
+		require.Len(t, apiErr.Validations, 1)
+		require.Equal(t, "redirect_uris", apiErr.Validations[0].Field)
+		require.Equal(t, "redirect_uris was sent as an empty list, which overrides callback_url; send at least one redirect URI, or omit redirect_uris to use callback_url", apiErr.Validations[0].Detail)
+
 		var sdkErr *codersdk.Error
 
 		//nolint:gocritic // OAuth2 app management requires owner permission.
