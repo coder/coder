@@ -236,7 +236,9 @@ dscacheutil -q host -a name is.coder--connect--enabled--right--now.coder
 
 Both commands should return an `fd60:627a:a42b::/48` address.
 If `dig` returns nothing or `dscacheutil` reports no entries, Coder Connect is not publishing DNS.
-[Collect logs](#collect-logs) and file an issue.
+This is expected for a few minutes after your machine loses its connection to the Coder deployment
+and all of your workspaces; the names return once Coder Connect reconnects. If it persists while you
+are online, [collect logs](#collect-logs) and file an issue.
 
 #### Windows
 

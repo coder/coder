@@ -12,6 +12,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
@@ -958,9 +959,34 @@ type TunnelAllWorkspaceUpdatesController struct {
 	updateHandler  UpdatesHandler
 	ownerUsername  string
 	logger         slog.Logger
+	peerLiveness   PeerLivenessFunc
+	clock          quartz.Clock
 
-	mu      sync.Mutex
-	updater *tunnelUpdater
+	mu            sync.Mutex
+	updater       *tunnelUpdater
+	livenessCheck *peerLivenessCheck
+	closed        bool
+}
+
+// PeerLivenessFunc reports the last time we completed a WireGuard handshake
+// with the given agent, or the zero time if we never have.
+type PeerLivenessFunc func(agentID uuid.UUID) time.Time
+
+const (
+	// peerLivenessCheckInterval is how often we check whether any agent is
+	// still carrying traffic while the workspace updates stream is down.
+	peerLivenessCheckInterval = 30 * time.Second
+	// peerLivenessThreshold is the maximum age of a WireGuard handshake for
+	// an agent to count as reachable. It matches the threshold Coder Desktop
+	// uses to report an agent as having no recent handshake.
+	peerLivenessThreshold = 5 * time.Minute
+)
+
+// peerLivenessCheck tracks a goroutine that expires DNS hosts once no agent
+// is reachable during a control plane outage.
+type peerLivenessCheck struct {
+	stop chan struct{}
+	done chan struct{}
 }
 
 type Workspace struct {
@@ -1051,6 +1077,10 @@ func (t *TunnelAllWorkspaceUpdatesController) New(client WorkspaceUpdatesClient)
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
+	// The control plane is back, so stop expiring DNS hosts. If the check
+	// already fired, the previous updater has no workspaces to inherit.
+	t.stopLivenessCheckLocked()
+
 	// Preserve workspace state from the previous updater so that DNS
 	// hosts remain programmed while we wait for the new server
 	// snapshot. Without this, a control-plane reconnection would
@@ -1086,6 +1116,9 @@ func (t *TunnelAllWorkspaceUpdatesController) New(client WorkspaceUpdatesClient)
 		recvLoopDone:   make(chan struct{}),
 		workspaces:     workspaces,
 	}
+	if t.peerLiveness != nil {
+		updater.onDisconnect = t.handleDisconnect
+	}
 
 	// If we inherited workspace state, immediately re-program DNS
 	// hosts so the resolver stays populated during the reconnection
@@ -1107,6 +1140,115 @@ func (t *TunnelAllWorkspaceUpdatesController) New(client WorkspaceUpdatesClient)
 	t.updater = updater
 	go t.updater.recvLoop()
 	return t.updater
+}
+
+// Close stops any background work and prevents new work from starting. It
+// must be called once the controller is no longer used with a live Conn,
+// otherwise a pending liveness check may program DNS on a closed Conn.
+func (t *TunnelAllWorkspaceUpdatesController) Close() {
+	t.mu.Lock()
+	t.closed = true
+	check := t.livenessCheck
+	t.stopLivenessCheckLocked()
+	t.mu.Unlock()
+	if check != nil {
+		<-check.done
+	}
+}
+
+// handleDisconnect starts expiring DNS hosts when the workspace updates
+// stream for the current updater drops unexpectedly. It must not lock the
+// updater, which may be mid-Close.
+func (t *TunnelAllWorkspaceUpdatesController) handleDisconnect(u *tunnelUpdater) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if t.closed || t.updater != u || u.closed.Load() {
+		return
+	}
+	t.stopLivenessCheckLocked()
+	check := &peerLivenessCheck{
+		stop: make(chan struct{}),
+		done: make(chan struct{}),
+	}
+	t.livenessCheck = check
+	go t.runLivenessCheck(check, u)
+}
+
+// stopLivenessCheckLocked signals the running check, if any, to stop. It does
+// not wait, because the check takes t.mu before expiring hosts.
+func (t *TunnelAllWorkspaceUpdatesController) stopLivenessCheckLocked() {
+	if t.livenessCheck == nil {
+		return
+	}
+	close(t.livenessCheck.stop)
+	t.livenessCheck = nil
+}
+
+// runLivenessCheck periodically checks whether any agent known to the
+// disconnected updater still has a recent WireGuard handshake. Once none
+// does, the tunnel can no longer carry traffic to those addresses, so we
+// drop the workspace state and clear DNS. Callers then get NXDOMAIN rather
+// than an address that no longer routes, and the next reconnect starts from
+// a clean slate.
+func (t *TunnelAllWorkspaceUpdatesController) runLivenessCheck(check *peerLivenessCheck, u *tunnelUpdater) {
+	defer close(check.done)
+	ticker := t.clock.NewTicker(peerLivenessCheckInterval, "tunnelAllWorkspaceUpdates", "peerLiveness")
+	defer ticker.Stop()
+	for {
+		select {
+		case <-check.stop:
+			return
+		case <-ticker.C:
+		}
+		if t.anyPeerReachable(u) {
+			continue
+		}
+		t.expireHosts(check, u)
+		return
+	}
+}
+
+// expireHosts drops the disconnected updater's workspace state and clears
+// DNS, unless a reconnect or Close already superseded this check.
+func (t *TunnelAllWorkspaceUpdatesController) expireHosts(check *peerLivenessCheck, u *tunnelUpdater) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if t.livenessCheck != check {
+		return
+	}
+	t.livenessCheck = nil
+	u.Lock()
+	numWorkspaces := len(u.workspaces)
+	u.workspaces = make(map[uuid.UUID]*Workspace)
+	u.Unlock()
+	t.logger.Warn(context.Background(),
+		"no agent reachable while disconnected from control plane; clearing DNS hosts",
+		slog.F("num_workspaces", numWorkspaces),
+	)
+	if t.dnsHostSetter == nil {
+		return
+	}
+	// Hold t.mu while programming DNS so a concurrent New() and its first
+	// snapshot cannot be overwritten by this stale clear.
+	if err := t.dnsHostSetter.SetDNSHosts(map[dnsname.FQDN][]netip.Addr{}); err != nil {
+		t.logger.Warn(context.Background(), "failed to clear DNS hosts", slog.Error(err))
+	}
+}
+
+// anyPeerReachable reports whether any agent known to the updater completed a
+// WireGuard handshake within peerLivenessThreshold.
+func (t *TunnelAllWorkspaceUpdatesController) anyPeerReachable(u *tunnelUpdater) bool {
+	u.Lock()
+	agentIDs := u.allAgentIDsLocked()
+	u.Unlock()
+	now := t.clock.Now()
+	for _, id := range agentIDs {
+		last := t.peerLiveness(id)
+		if !last.IsZero() && now.Sub(last) < peerLivenessThreshold {
+			return true
+		}
+	}
+	return false
 }
 
 func (t *TunnelAllWorkspaceUpdatesController) CurrentState() (WorkspaceUpdate, error) {
@@ -1146,25 +1288,24 @@ type tunnelUpdater struct {
 	ownerUsername  string
 	recvLoopDone   chan struct{}
 	dnsNameOptions DNSNameOptions
+	// onDisconnect, if set, is called when recvLoop exits for any reason.
+	onDisconnect func(*tunnelUpdater)
+	// closed is set when Close is called, so a disconnect can be told apart
+	// from a deliberate shutdown without taking the updater lock.
+	closed atomic.Bool
 
 	sync.Mutex
 	workspaces map[uuid.UUID]*Workspace
-	closed     bool
 }
 
 func (t *tunnelUpdater) Close(ctx context.Context) error {
-	t.Lock()
-	defer t.Unlock()
-	if t.closed {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-t.recvLoopDone:
-			return nil
-		}
+	// Do not hold the updater lock while waiting: recvLoop's exit path
+	// notifies the controller, which may be holding its own lock while
+	// waiting for ours.
+	var cErr error
+	if !t.closed.Swap(true) {
+		cErr = t.client.Close()
 	}
-	t.closed = true
-	cErr := t.client.Close()
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
@@ -1181,6 +1322,9 @@ func (t *tunnelUpdater) recvLoop() {
 	t.logger.Debug(context.Background(), "tunnel updater recvLoop started")
 	defer t.logger.Debug(context.Background(), "tunnel updater recvLoop done")
 	defer close(t.recvLoopDone)
+	if t.onDisconnect != nil {
+		defer t.onDisconnect(t)
+	}
 	updateKind := Snapshot
 	for {
 		update, err := t.client.Recv()
@@ -1466,6 +1610,22 @@ func WithHandler(h UpdatesHandler) TunnelAllOption {
 	}
 }
 
+// WithPeerLiveness enables expiring DNS hosts during a control plane outage
+// once no agent has a recent WireGuard handshake. Callers that use it must
+// call Close when done with the controller.
+func WithPeerLiveness(f PeerLivenessFunc) TunnelAllOption {
+	return func(t *TunnelAllWorkspaceUpdatesController) {
+		t.peerLiveness = f
+	}
+}
+
+// WithTunnelAllClock sets the clock used for liveness checks. Testing only.
+func WithTunnelAllClock(clock quartz.Clock) TunnelAllOption {
+	return func(t *TunnelAllWorkspaceUpdatesController) {
+		t.clock = clock
+	}
+}
+
 // NewTunnelAllWorkspaceUpdatesController creates a WorkspaceUpdatesController that creates tunnels
 // (via the TunnelSrcCoordController) to all agents received over the WorkspaceUpdates RPC. If a
 // DNSHostSetter is provided, it also programs DNS hosts based on the agent and workspace names.
@@ -1476,6 +1636,7 @@ func NewTunnelAllWorkspaceUpdatesController(
 		logger:         logger,
 		coordCtrl:      c,
 		dnsNameOptions: DNSNameOptions{CoderDNSSuffix},
+		clock:          quartz.NewReal(),
 	}
 	for _, opt := range opts {
 		opt(t)

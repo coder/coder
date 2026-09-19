@@ -79,7 +79,7 @@ func TestWorkspaceDialerFailure(t *testing.T) {
 	require.ErrorIs(t, err, codersdk.ErrDatabaseNotReachable)
 }
 
-func TestClient_IsCoderConnectRunning(t *testing.T) {
+func TestClient_IsCoderVpnConnected(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
 
@@ -103,26 +103,26 @@ func TestClient_IsCoderConnectRunning(t *testing.T) {
 			expectedName: {net.ParseIP(tsaddr.CoderServiceIPv6().String())},
 		}})
 
-	result, err := client.IsCoderConnectRunning(ctxResolveExpected, workspacesdk.CoderConnectQueryOptions{})
+	result, err := client.IsCoderVpnConnected(ctxResolveExpected, workspacesdk.CoderConnectQueryOptions{})
 	require.NoError(t, err)
 	require.True(t, result)
 
 	// Wrong name
-	result, err = client.IsCoderConnectRunning(ctxResolveExpected, workspacesdk.CoderConnectQueryOptions{HostnameSuffix: "coder"})
+	result, err = client.IsCoderVpnConnected(ctxResolveExpected, workspacesdk.CoderConnectQueryOptions{HostnameSuffix: "coder"})
 	require.NoError(t, err)
 	require.False(t, result)
 
 	// Not found
 	ctxResolveNotFound := workspacesdk.WithTestOnlyCoderContextResolver(ctx,
 		&fakeResolver{t: t, err: &net.DNSError{IsNotFound: true}})
-	result, err = client.IsCoderConnectRunning(ctxResolveNotFound, workspacesdk.CoderConnectQueryOptions{})
+	result, err = client.IsCoderVpnConnected(ctxResolveNotFound, workspacesdk.CoderConnectQueryOptions{})
 	require.NoError(t, err)
 	require.False(t, result)
 
 	// Some other error
 	ctxResolverErr := workspacesdk.WithTestOnlyCoderContextResolver(ctx,
 		&fakeResolver{t: t, err: xerrors.New("a bad thing happened")})
-	_, err = client.IsCoderConnectRunning(ctxResolverErr, workspacesdk.CoderConnectQueryOptions{})
+	_, err = client.IsCoderVpnConnected(ctxResolverErr, workspacesdk.CoderConnectQueryOptions{})
 	require.Error(t, err)
 
 	// Right name, wrong IP
@@ -130,7 +130,7 @@ func TestClient_IsCoderConnectRunning(t *testing.T) {
 		&fakeResolver{t: t, hostMap: map[string][]net.IP{
 			expectedName: {net.ParseIP("2001::34")},
 		}})
-	result, err = client.IsCoderConnectRunning(ctxResolverWrongIP, workspacesdk.CoderConnectQueryOptions{})
+	result, err = client.IsCoderVpnConnected(ctxResolverWrongIP, workspacesdk.CoderConnectQueryOptions{})
 	require.NoError(t, err)
 	require.False(t, result)
 }
