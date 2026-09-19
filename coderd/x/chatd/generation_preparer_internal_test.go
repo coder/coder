@@ -19,6 +19,7 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
+	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -397,6 +398,101 @@ func TestPrepareGenerationComputerUseIgnoresChatTransportOverride(t *testing.T) 
 		}
 	}
 	require.True(t, sawInlinedText, "attachment was not inlined as text")
+}
+
+func TestPrepareGenerationMemory(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name               string
+		project            bool
+		subagent           bool
+		experimentsEnabled bool
+		wantMemoryBlock    bool
+		wantMemoryTools    bool
+		intro              string
+	}{
+		{name: "Project", project: true, experimentsEnabled: true, wantMemoryBlock: true, wantMemoryTools: true, intro: `project "platform"`},
+		{name: "NoProject", experimentsEnabled: true},
+		{name: "ExperimentDisabled"},
+		{name: "Subagent", experimentsEnabled: true, subagent: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			db, ps := dbtestutil.NewDB(t)
+			ctx := chatdTestContext(t)
+			user := dbgen.User(t, db, database.User{})
+			org := dbgen.Organization(t, db, database.Organization{})
+			dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: user.ID, OrganizationID: org.ID})
+			provider := dbgen.AIProviderWithOptionalKey(t, db, database.AIProvider{Type: database.AIProviderTypeOpenai}, "test-key")
+			modelConfig := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{Model: "gpt-4o-mini", AIProviderID: uuid.NullUUID{UUID: provider.ID, Valid: true}, OrganizationID: org.ID}, func(p *database.InsertChatModelConfigParams) { p.Enabled = true })
+
+			projectID := uuid.NullUUID{}
+			if tt.project {
+				project := dbgen.ChatProject(t, db, database.ChatProject{OrganizationID: org.ID, CreatedBy: user.ID, Name: "platform"})
+				projectID = uuid.NullUUID{UUID: project.ID, Valid: true}
+				dbgen.ChatProjectMemory(t, db, database.ChatProjectMemory{ProjectID: project.ID, OrganizationID: org.ID, CreatedBy: user.ID, Name: "release_notes", Description: "Durable release process", Body: "Run the release checklist."})
+			}
+
+			parentChatID, rootChatID := uuid.NullUUID{}, uuid.NullUUID{}
+			if tt.subagent {
+				parent := dbgen.Chat(t, db, database.Chat{OrganizationID: org.ID, OwnerID: user.ID, LastModelConfigID: modelConfig.ID})
+				parentChatID = uuid.NullUUID{UUID: parent.ID, Valid: true}
+				rootChatID = parentChatID
+			}
+			created, err := chatstate.CreateChat(ctx, db, ps, chatstate.CreateChatInput{
+				OrganizationID: org.ID, OwnerID: user.ID, ProjectID: projectID, ParentChatID: parentChatID, RootChatID: rootChatID,
+				LastModelConfigID: modelConfig.ID, Title: "memory preparation", ClientType: database.ChatClientTypeApi,
+				InitialMessages: []chatstate.Message{{Role: database.ChatMessageRoleUser, Content: mustMarshalText(t, "inspect the release process"), Visibility: database.ChatMessageVisibilityBoth, ModelConfigID: uuid.NullUUID{UUID: modelConfig.ID, Valid: true}, CreatedBy: uuid.NullUUID{UUID: user.ID, Valid: true}, ContentVersion: chatprompt.CurrentContentVersion}},
+			})
+			require.NoError(t, err)
+
+			serverOpts := []internalTestServerOpt{withInternalTestServerTransportFactory(&aibridgeTestFactory{})}
+			if !tt.experimentsEnabled {
+				serverOpts = append(serverOpts, withInternalTestServerExperiments([]codersdk.Experiment{}))
+			}
+			server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{}, serverOpts...)
+			prepared, err := server.prepareGeneration(ctx, generationPrepareInput{Chat: created.Chat, Messages: created.InitialMessages})
+			require.NoError(t, err)
+			t.Cleanup(prepared.Cleanup)
+
+			var systemPrompt strings.Builder
+			for _, message := range prepared.Prompt {
+				if message.Role != fantasy.MessageRoleSystem {
+					continue
+				}
+				for _, part := range message.Content {
+					if text, ok := part.(fantasy.TextPart); ok {
+						systemPrompt.WriteString(text.Text)
+						systemPrompt.WriteString("\n")
+					}
+				}
+			}
+			gotSystemPrompt := systemPrompt.String()
+			require.Equal(t, tt.wantMemoryBlock, strings.Contains(gotSystemPrompt, "<memory>"))
+			// The index lives in the read tool, not the prompt, so the
+			// prompt prefix stays stable across turns.
+			require.NotContains(t, gotSystemPrompt, "- release_notes: Durable release process")
+			if tt.wantMemoryBlock {
+				require.Contains(t, gotSystemPrompt, tt.intro)
+			}
+
+			toolDescriptions := make(map[string]string, len(prepared.Tools))
+			for _, tool := range prepared.Tools {
+				toolDescriptions[tool.Info().Name] = tool.Info().Description
+			}
+			for _, name := range []string{chattool.ReadMemoryToolName, chattool.SaveMemoryToolName, chattool.DeleteMemoryToolName} {
+				_, ok := toolDescriptions[name]
+				require.Equal(t, tt.wantMemoryTools, ok, name)
+			}
+			if tt.project {
+				require.Contains(t, toolDescriptions[chattool.ReadMemoryToolName], "- release_notes: Durable release process")
+			}
+		})
+	}
 }
 
 func TestPrepareGenerationSubagentUsesOwnerSyntheticAPIKey(t *testing.T) {

@@ -462,12 +462,26 @@ func (server *Server) prepareGeneration(
 		return skillspkg.Lookup(resolvedSkillsFor(workspaceSkills), alias)
 	}
 	initialResolvedSkills := resolvedSkillsFor(workspaceSkills)
+	memoryStore, memoryScope, memoryStatus := server.resolveMemoryScope(ctx, chat)
+	hasMemoryScope := memoryStatus == memoryScopeAvailable
+	memoryIndex := ""
+	var memoryEntries []chattool.MemoryIndexEntry
+	if hasMemoryScope {
+		entries, memoryErr := memoryStore.List(ctx)
+		if memoryErr != nil {
+			logger.Debug(ctx, "failed to load chat memories", slog.F("chat_id", chat.ID), slog.Error(memoryErr))
+		} else {
+			memoryIndex = chattool.FormatMemoryGuidance(memoryScope)
+			memoryEntries = entries
+		}
+	}
 
 	prompt = buildSystemPrompt(
 		prompt,
 		subagentInstruction,
 		instruction,
 		initialResolvedSkills,
+		memoryIndex,
 		resolvedUserPrompt,
 		systemPromptBehaviorContext{
 			planMode:             currentPlanMode,
@@ -569,6 +583,9 @@ func (server *Server) prepareGeneration(
 		return updated, changed
 	}
 	tools, _ = appendCurrentSkillTools(tools)
+	if hasMemoryScope {
+		tools = append(tools, chattool.ReadMemory(memoryStore, memoryScope, memoryEntries), chattool.SaveMemory(memoryStore, memoryScope), chattool.DeleteMemory(memoryStore, memoryScope))
+	}
 	if advisorRuntime != nil {
 		tools = append(tools, chatadvisor.Tool(chatadvisor.ToolOptions{
 			Runtime: advisorRuntime,
@@ -860,6 +877,7 @@ func (server *Server) afterGenerationOutcome(
 		finalizeCtx := context.WithoutCancel(ctx)
 		runResult := server.deriveFinalTurnRunResult(finalizeCtx, chat, logger)
 		server.maybeFinalizeTurnStatusLabelAndPush(finalizeCtx, chat, chat.Status, "", runResult, logger)
+		server.maybeExtractMemoriesAsync(finalizeCtx, logger, chat)
 	case runnerActionKindFinishError:
 		server.maybeFinalizeTurnStatusLabelAndPush(context.WithoutCancel(ctx), chat, chat.Status, outcome.LastError, runChatResult{}, logger)
 	case runnerActionKindEnterRequiresAction:

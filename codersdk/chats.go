@@ -214,6 +214,33 @@ type UpdateChatProjectACL struct {
 	GroupRoles map[string]ChatProjectRole `json:"group_roles,omitempty"`
 }
 
+// ChatProjectMemory is a durable memory shared by chats in a project.
+type ChatProjectMemory struct {
+	ID                uuid.UUID  `json:"id" format:"uuid"`
+	ProjectID         uuid.UUID  `json:"project_id" format:"uuid"`
+	OrganizationID    uuid.UUID  `json:"organization_id" format:"uuid"`
+	Name              string     `json:"name"`
+	Description       string     `json:"description"`
+	Body              string     `json:"body"`
+	SourceChatID      *uuid.UUID `json:"source_chat_id,omitempty" format:"uuid"`
+	CreatedBy         uuid.UUID  `json:"created_by" format:"uuid"`
+	CreatedByUsername string     `json:"created_by_username"`
+	CreatedAt         time.Time  `json:"created_at" format:"date-time"`
+	UpdatedAt         time.Time  `json:"updated_at" format:"date-time"`
+}
+
+type CreateChatProjectMemoryRequest struct {
+	Name        string `json:"name" validate:"required"`
+	Description string `json:"description" validate:"required"`
+	Body        string `json:"body" validate:"required"`
+}
+
+type UpdateChatProjectMemoryRequest struct {
+	Name        *string `json:"name,omitempty"`
+	Description *string `json:"description,omitempty"`
+	Body        *string `json:"body,omitempty"`
+}
+
 // ChatContext reports a chat's pinned workspace context and whether it has
 // drifted from the agent's latest pushed snapshot. The chat stays usable
 // when dirty; refreshing re-pins it to the latest snapshot.
@@ -2180,6 +2207,75 @@ func (c *ExperimentalClient) UpdateChatProjectACL(ctx context.Context, projectID
 
 func (c *ExperimentalClient) DeleteChatProject(ctx context.Context, projectID uuid.UUID) error {
 	res, err := c.Request(ctx, http.MethodDelete, fmt.Sprintf("/api/experimental/chats/projects/%s", projectID), nil)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
+}
+
+// ListChatProjectMemories lists memories for a chat project.
+func (c *ExperimentalClient) ListChatProjectMemories(ctx context.Context, projectID uuid.UUID) ([]ChatProjectMemory, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/experimental/chats/projects/%s/memories", projectID), nil)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return nil, ReadBodyAsError(res)
+	}
+	var memories []ChatProjectMemory
+	return memories, ReadBodyAsJSON(res, &memories)
+}
+
+// CreateChatProjectMemory creates a project memory.
+func (c *ExperimentalClient) CreateChatProjectMemory(ctx context.Context, projectID uuid.UUID, req CreateChatProjectMemoryRequest) (ChatProjectMemory, error) {
+	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/experimental/chats/projects/%s/memories", projectID), req)
+	if err != nil {
+		return ChatProjectMemory{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusCreated {
+		return ChatProjectMemory{}, ReadBodyAsError(res)
+	}
+	var memory ChatProjectMemory
+	return memory, ReadBodyAsJSON(res, &memory)
+}
+
+// GetChatProjectMemory gets a project memory.
+func (c *ExperimentalClient) GetChatProjectMemory(ctx context.Context, projectID, memoryID uuid.UUID) (ChatProjectMemory, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/experimental/chats/projects/%s/memories/%s", projectID, memoryID), nil)
+	if err != nil {
+		return ChatProjectMemory{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ChatProjectMemory{}, ReadBodyAsError(res)
+	}
+	var memory ChatProjectMemory
+	return memory, ReadBodyAsJSON(res, &memory)
+}
+
+// UpdateChatProjectMemory updates a project memory.
+func (c *ExperimentalClient) UpdateChatProjectMemory(ctx context.Context, projectID, memoryID uuid.UUID, req UpdateChatProjectMemoryRequest) (ChatProjectMemory, error) {
+	res, err := c.Request(ctx, http.MethodPatch, fmt.Sprintf("/api/experimental/chats/projects/%s/memories/%s", projectID, memoryID), req)
+	if err != nil {
+		return ChatProjectMemory{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ChatProjectMemory{}, ReadBodyAsError(res)
+	}
+	var memory ChatProjectMemory
+	return memory, ReadBodyAsJSON(res, &memory)
+}
+
+// DeleteChatProjectMemory deletes a project memory.
+func (c *ExperimentalClient) DeleteChatProjectMemory(ctx context.Context, projectID, memoryID uuid.UUID) error {
+	res, err := c.Request(ctx, http.MethodDelete, fmt.Sprintf("/api/experimental/chats/projects/%s/memories/%s", projectID, memoryID), nil)
 	if err != nil {
 		return err
 	}

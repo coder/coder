@@ -291,7 +291,12 @@ CREATE TYPE api_key_scope AS ENUM (
     'chat_project:read',
     'chat_project:update',
     'chat_project:delete',
-    'chat_project:share'
+    'chat_project:share',
+    'chat_project_memory:*',
+    'chat_project_memory:create',
+    'chat_project_memory:read',
+    'chat_project_memory:update',
+    'chat_project_memory:delete'
 );
 
 CREATE TYPE app_sharing_level AS ENUM (
@@ -623,7 +628,8 @@ CREATE TYPE resource_type AS ENUM (
     'mcp_server_config',
     'chat_model_config',
     'chat_operational_settings',
-    'chat_project'
+    'chat_project',
+    'chat_project_memory'
 );
 
 CREATE TYPE shareable_workspace_owners AS ENUM (
@@ -2028,6 +2034,15 @@ CREATE UNLOGGED TABLE chat_heartbeats (
 
 COMMENT ON TABLE chat_heartbeats IS 'Ephemeral runner ownership leases for runnable chats. The table is unlogged because losing heartbeat rows after a crash is safe: missing heartbeats are treated as stale ownership and cause workers to reacquire runnable chats.';
 
+CREATE TABLE chat_memory_cursors (
+    chat_id uuid NOT NULL,
+    history_version bigint NOT NULL,
+    extracted_at timestamp with time zone DEFAULT now() NOT NULL,
+    claimed_until timestamp with time zone
+);
+
+COMMENT ON TABLE chat_memory_cursors IS 'Per-chat cursors for memory extraction.';
+
 CREATE TABLE chat_messages (
     id bigint NOT NULL,
     chat_id uuid NOT NULL,
@@ -2105,6 +2120,24 @@ CREATE TABLE chat_organization_model_overrides (
     reasoning_effort text,
     CONSTRAINT chat_organization_model_overrides_context_check CHECK ((context = ANY (ARRAY['general'::text, 'explore'::text, 'title_generation'::text, 'compaction'::text, 'advisor'::text])))
 );
+
+CREATE TABLE chat_project_memories (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    project_id uuid NOT NULL,
+    organization_id uuid NOT NULL,
+    name text NOT NULL,
+    description text NOT NULL,
+    body text NOT NULL,
+    source_chat_id uuid,
+    created_by uuid NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT chat_project_memories_body_length CHECK ((octet_length(body) <= 8192)),
+    CONSTRAINT chat_project_memories_description_length CHECK ((length(description) <= 150)),
+    CONSTRAINT chat_project_memories_name_format CHECK ((name ~ '^[a-z0-9][a-z0-9_-]{0,63}$'::text))
+);
+
+COMMENT ON TABLE chat_project_memories IS 'Organization-scoped durable memories for chat projects.';
 
 CREATE TABLE chat_projects (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
@@ -4329,6 +4362,9 @@ ALTER TABLE ONLY chat_files
 ALTER TABLE ONLY chat_heartbeats
     ADD CONSTRAINT chat_heartbeats_pkey PRIMARY KEY (chat_id, runner_id);
 
+ALTER TABLE ONLY chat_memory_cursors
+    ADD CONSTRAINT chat_memory_cursors_pkey PRIMARY KEY (chat_id);
+
 ALTER TABLE ONLY chat_messages
     ADD CONSTRAINT chat_messages_pkey PRIMARY KEY (id);
 
@@ -4343,6 +4379,9 @@ ALTER TABLE ONLY chat_organization_model_overrides
 
 ALTER TABLE ONLY chat_organization_model_overrides
     ADD CONSTRAINT chat_organization_model_overrides_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY chat_project_memories
+    ADD CONSTRAINT chat_project_memories_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY chat_projects
     ADD CONSTRAINT chat_projects_pkey PRIMARY KEY (id);
@@ -4832,6 +4871,10 @@ CREATE INDEX idx_chat_model_configs_organization_id ON chat_model_configs USING 
 
 CREATE UNIQUE INDEX idx_chat_model_configs_single_default ON chat_model_configs USING btree (organization_id) WHERE ((is_default = true) AND (deleted = false));
 
+CREATE UNIQUE INDEX idx_chat_project_memories_project_lower_name ON chat_project_memories USING btree (project_id, lower(name));
+
+CREATE INDEX idx_chat_project_memories_project_updated_at ON chat_project_memories USING btree (project_id, updated_at DESC);
+
 CREATE UNIQUE INDEX idx_chat_projects_org_lower_name ON chat_projects USING btree (organization_id, lower(name));
 
 CREATE INDEX idx_chat_projects_organization_id ON chat_projects USING btree (organization_id);
@@ -5194,6 +5237,9 @@ ALTER TABLE ONLY chat_files
 ALTER TABLE ONLY chat_heartbeats
     ADD CONSTRAINT chat_heartbeats_chat_id_fkey FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE;
 
+ALTER TABLE ONLY chat_memory_cursors
+    ADD CONSTRAINT chat_memory_cursors_chat_id_fkey FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE;
+
 ALTER TABLE ONLY chat_messages
     ADD CONSTRAINT chat_messages_chat_id_fkey FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE;
 
@@ -5217,6 +5263,18 @@ ALTER TABLE ONLY chat_organization_model_overrides
 
 ALTER TABLE ONLY chat_organization_model_overrides
     ADD CONSTRAINT chat_organization_model_overrides_organization_model_config_fke FOREIGN KEY (organization_id, model_config_id) REFERENCES chat_model_configs(organization_id, id);
+
+ALTER TABLE ONLY chat_project_memories
+    ADD CONSTRAINT chat_project_memories_created_by_fkey FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY chat_project_memories
+    ADD CONSTRAINT chat_project_memories_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY chat_project_memories
+    ADD CONSTRAINT chat_project_memories_project_id_fkey FOREIGN KEY (project_id) REFERENCES chat_projects(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY chat_project_memories
+    ADD CONSTRAINT chat_project_memories_source_chat_id_fkey FOREIGN KEY (source_chat_id) REFERENCES chats(id) ON DELETE SET NULL;
 
 ALTER TABLE ONLY chat_projects
     ADD CONSTRAINT chat_projects_created_by_fkey FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE CASCADE;

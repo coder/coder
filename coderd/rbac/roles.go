@@ -1217,6 +1217,9 @@ func OrgMemberPermissions(org OrgSettings) OrgRolePermissions {
 			policy.ActionUpdate,
 		},
 		ResourceChatProject.Type: {policy.ActionRead, policy.ActionUpdate, policy.ActionDelete, policy.ActionShare},
+		// Memory objects carry the owning project's owner and ACL, so this
+		// grant reaches only the creator's own projects.
+		ResourceChatProjectMemory.Type: ResourceChatProjectMemory.AvailableActions(),
 	})
 
 	if org.ShareableWorkspaceOwners != ShareableWorkspaceOwnersEveryone {
@@ -1264,7 +1267,7 @@ func OrgServiceAccountPermissions(org OrgSettings) OrgRolePermissions {
 		})
 	}
 
-	// Chat and chat project permissions are intentionally omitted for service accounts.
+	// Chat, chat project, and chat project memory permissions are intentionally omitted for service accounts.
 	memberPerms := Permissions(map[string][]policy.Action{
 		// Read-self org-member record.
 		ResourceOrganizationMember.Type: {policy.ActionRead},

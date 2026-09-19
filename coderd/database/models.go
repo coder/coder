@@ -536,6 +536,11 @@ const (
 	ApiKeyScopeChatProjectUpdate                   APIKeyScope = "chat_project:update"
 	ApiKeyScopeChatProjectDelete                   APIKeyScope = "chat_project:delete"
 	ApiKeyScopeChatProjectShare                    APIKeyScope = "chat_project:share"
+	ApiKeyScopeChatProjectMemory                   APIKeyScope = "chat_project_memory:*"
+	ApiKeyScopeChatProjectMemoryCreate             APIKeyScope = "chat_project_memory:create"
+	ApiKeyScopeChatProjectMemoryRead               APIKeyScope = "chat_project_memory:read"
+	ApiKeyScopeChatProjectMemoryUpdate             APIKeyScope = "chat_project_memory:update"
+	ApiKeyScopeChatProjectMemoryDelete             APIKeyScope = "chat_project_memory:delete"
 )
 
 func (e *APIKeyScope) Scan(src interface{}) error {
@@ -823,7 +828,12 @@ func (e APIKeyScope) Valid() bool {
 		ApiKeyScopeChatProjectRead,
 		ApiKeyScopeChatProjectUpdate,
 		ApiKeyScopeChatProjectDelete,
-		ApiKeyScopeChatProjectShare:
+		ApiKeyScopeChatProjectShare,
+		ApiKeyScopeChatProjectMemory,
+		ApiKeyScopeChatProjectMemoryCreate,
+		ApiKeyScopeChatProjectMemoryRead,
+		ApiKeyScopeChatProjectMemoryUpdate,
+		ApiKeyScopeChatProjectMemoryDelete:
 		return true
 	}
 	return false
@@ -1080,6 +1090,11 @@ func AllAPIKeyScopeValues() []APIKeyScope {
 		ApiKeyScopeChatProjectUpdate,
 		ApiKeyScopeChatProjectDelete,
 		ApiKeyScopeChatProjectShare,
+		ApiKeyScopeChatProjectMemory,
+		ApiKeyScopeChatProjectMemoryCreate,
+		ApiKeyScopeChatProjectMemoryRead,
+		ApiKeyScopeChatProjectMemoryUpdate,
+		ApiKeyScopeChatProjectMemoryDelete,
 	}
 }
 
@@ -3686,6 +3701,7 @@ const (
 	ResourceTypeChatModelConfig             ResourceType = "chat_model_config"
 	ResourceTypeChatOperationalSettings     ResourceType = "chat_operational_settings"
 	ResourceTypeChatProject                 ResourceType = "chat_project"
+	ResourceTypeChatProjectMemory           ResourceType = "chat_project_memory"
 )
 
 func (e *ResourceType) Scan(src interface{}) error {
@@ -3765,7 +3781,8 @@ func (e ResourceType) Valid() bool {
 		ResourceTypeMCPServerConfig,
 		ResourceTypeChatModelConfig,
 		ResourceTypeChatOperationalSettings,
-		ResourceTypeChatProject:
+		ResourceTypeChatProject,
+		ResourceTypeChatProjectMemory:
 		return true
 	}
 	return false
@@ -3814,6 +3831,7 @@ func AllResourceTypeValues() []ResourceType {
 		ResourceTypeChatModelConfig,
 		ResourceTypeChatOperationalSettings,
 		ResourceTypeChatProject,
+		ResourceTypeChatProjectMemory,
 	}
 }
 
@@ -5205,6 +5223,14 @@ type ChatHeartbeat struct {
 	HeartbeatAt time.Time `db:"heartbeat_at" json:"heartbeat_at"`
 }
 
+// Per-chat cursors for memory extraction.
+type ChatMemoryCursor struct {
+	ChatID         uuid.UUID    `db:"chat_id" json:"chat_id"`
+	HistoryVersion int64        `db:"history_version" json:"history_version"`
+	ExtractedAt    time.Time    `db:"extracted_at" json:"extracted_at"`
+	ClaimedUntil   sql.NullTime `db:"claimed_until" json:"claimed_until"`
+}
+
 type ChatMessage struct {
 	ID                  int64                 `db:"id" json:"id"`
 	ChatID              uuid.UUID             `db:"chat_id" json:"chat_id"`
@@ -5278,6 +5304,20 @@ type ChatProject struct {
 	UserACL ChatACL `db:"user_acl" json:"user_acl"`
 	// Per-group permissions granted on the project, keyed by group ID. Same shape as chats.group_acl.
 	GroupACL ChatACL `db:"group_acl" json:"group_acl"`
+}
+
+// Organization-scoped durable memories for chat projects.
+type ChatProjectMemory struct {
+	ID             uuid.UUID     `db:"id" json:"id"`
+	ProjectID      uuid.UUID     `db:"project_id" json:"project_id"`
+	OrganizationID uuid.UUID     `db:"organization_id" json:"organization_id"`
+	Name           string        `db:"name" json:"name"`
+	Description    string        `db:"description" json:"description"`
+	Body           string        `db:"body" json:"body"`
+	SourceChatID   uuid.NullUUID `db:"source_chat_id" json:"source_chat_id"`
+	CreatedBy      uuid.UUID     `db:"created_by" json:"created_by"`
+	CreatedAt      time.Time     `db:"created_at" json:"created_at"`
+	UpdatedAt      time.Time     `db:"updated_at" json:"updated_at"`
 }
 
 type ChatQueuedMessage struct {
