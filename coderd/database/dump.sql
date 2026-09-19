@@ -291,6 +291,7 @@ CREATE TYPE api_key_scope AS ENUM (
     'chat_project:read',
     'chat_project:update',
     'chat_project:delete',
+    'chat_project:share',
     'chat_project_memory:*',
     'chat_project_memory:create',
     'chat_project_memory:read',
@@ -2033,6 +2034,15 @@ CREATE UNLOGGED TABLE chat_heartbeats (
 
 COMMENT ON TABLE chat_heartbeats IS 'Ephemeral runner ownership leases for runnable chats. The table is unlogged because losing heartbeat rows after a crash is safe: missing heartbeats are treated as stale ownership and cause workers to reacquire runnable chats.';
 
+CREATE TABLE chat_memory_cursors (
+    chat_id uuid NOT NULL,
+    history_version bigint NOT NULL,
+    extracted_at timestamp with time zone DEFAULT now() NOT NULL,
+    claimed_until timestamp with time zone
+);
+
+COMMENT ON TABLE chat_memory_cursors IS 'Per-chat cursors for memory extraction.';
+
 CREATE TABLE chat_messages (
     id bigint NOT NULL,
     chat_id uuid NOT NULL,
@@ -2129,15 +2139,6 @@ CREATE TABLE chat_project_memories (
 
 COMMENT ON TABLE chat_project_memories IS 'Organization-scoped durable memories for chat projects.';
 
-CREATE TABLE chat_project_memory_cursors (
-    chat_id uuid NOT NULL,
-    history_version bigint NOT NULL,
-    extracted_at timestamp with time zone DEFAULT now() NOT NULL,
-    claimed_until timestamp with time zone
-);
-
-COMMENT ON TABLE chat_project_memory_cursors IS 'Per-chat cursors for project memory extraction.';
-
 CREATE TABLE chat_projects (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     organization_id uuid NOT NULL,
@@ -2146,10 +2147,18 @@ CREATE TABLE chat_projects (
     description text DEFAULT ''::text NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    CONSTRAINT chat_projects_name_not_blank CHECK ((length(btrim(name)) > 0))
+    user_acl jsonb DEFAULT '{}'::jsonb NOT NULL,
+    group_acl jsonb DEFAULT '{}'::jsonb NOT NULL,
+    CONSTRAINT chat_projects_group_acl_is_object CHECK ((jsonb_typeof(group_acl) = 'object'::text)),
+    CONSTRAINT chat_projects_name_not_blank CHECK ((length(btrim(name)) > 0)),
+    CONSTRAINT chat_projects_user_acl_is_object CHECK ((jsonb_typeof(user_acl) = 'object'::text))
 );
 
 COMMENT ON TABLE chat_projects IS 'Organization-scoped projects that group agent chats.';
+
+COMMENT ON COLUMN chat_projects.user_acl IS 'Per-user permissions granted on the project, keyed by user ID. Same shape as chats.user_acl.';
+
+COMMENT ON COLUMN chat_projects.group_acl IS 'Per-group permissions granted on the project, keyed by group ID. Same shape as chats.group_acl.';
 
 CREATE SEQUENCE chat_queued_messages_position_seq
     START WITH 1
@@ -4353,6 +4362,9 @@ ALTER TABLE ONLY chat_files
 ALTER TABLE ONLY chat_heartbeats
     ADD CONSTRAINT chat_heartbeats_pkey PRIMARY KEY (chat_id, runner_id);
 
+ALTER TABLE ONLY chat_memory_cursors
+    ADD CONSTRAINT chat_memory_cursors_pkey PRIMARY KEY (chat_id);
+
 ALTER TABLE ONLY chat_messages
     ADD CONSTRAINT chat_messages_pkey PRIMARY KEY (id);
 
@@ -4370,9 +4382,6 @@ ALTER TABLE ONLY chat_organization_model_overrides
 
 ALTER TABLE ONLY chat_project_memories
     ADD CONSTRAINT chat_project_memories_pkey PRIMARY KEY (id);
-
-ALTER TABLE ONLY chat_project_memory_cursors
-    ADD CONSTRAINT chat_project_memory_cursors_pkey PRIMARY KEY (chat_id);
 
 ALTER TABLE ONLY chat_projects
     ADD CONSTRAINT chat_projects_pkey PRIMARY KEY (id);
@@ -5228,6 +5237,9 @@ ALTER TABLE ONLY chat_files
 ALTER TABLE ONLY chat_heartbeats
     ADD CONSTRAINT chat_heartbeats_chat_id_fkey FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE;
 
+ALTER TABLE ONLY chat_memory_cursors
+    ADD CONSTRAINT chat_memory_cursors_chat_id_fkey FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE;
+
 ALTER TABLE ONLY chat_messages
     ADD CONSTRAINT chat_messages_chat_id_fkey FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE;
 
@@ -5263,9 +5275,6 @@ ALTER TABLE ONLY chat_project_memories
 
 ALTER TABLE ONLY chat_project_memories
     ADD CONSTRAINT chat_project_memories_source_chat_id_fkey FOREIGN KEY (source_chat_id) REFERENCES chats(id) ON DELETE SET NULL;
-
-ALTER TABLE ONLY chat_project_memory_cursors
-    ADD CONSTRAINT chat_project_memory_cursors_chat_id_fkey FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY chat_projects
     ADD CONSTRAINT chat_projects_created_by_fkey FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE CASCADE;

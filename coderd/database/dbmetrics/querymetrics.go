@@ -272,11 +272,11 @@ func (m queryMetricsStore) CalculateAIBridgeInterceptionsTelemetrySummary(ctx co
 	return r0, r1
 }
 
-func (m queryMetricsStore) ClaimChatProjectMemoryExtraction(ctx context.Context, arg database.ClaimChatProjectMemoryExtractionParams) (database.ChatProjectMemoryCursor, error) {
+func (m queryMetricsStore) ClaimChatMemoryExtraction(ctx context.Context, arg database.ClaimChatMemoryExtractionParams) (database.ChatMemoryCursor, error) {
 	start := time.Now()
-	r0, r1 := m.s.ClaimChatProjectMemoryExtraction(ctx, arg)
-	m.queryLatencies.WithLabelValues("ClaimChatProjectMemoryExtraction").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ClaimChatProjectMemoryExtraction").Inc()
+	r0, r1 := m.s.ClaimChatMemoryExtraction(ctx, arg)
+	m.queryLatencies.WithLabelValues("ClaimChatMemoryExtraction").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ClaimChatMemoryExtraction").Inc()
 	return r0, r1
 }
 
@@ -1672,6 +1672,14 @@ func (m queryMetricsStore) GetChatIncludeDefaultSystemPrompt(ctx context.Context
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetChatMemoryCursor(ctx context.Context, chatID uuid.UUID) (database.ChatMemoryCursor, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetChatMemoryCursor(ctx, chatID)
+	m.queryLatencies.WithLabelValues("GetChatMemoryCursor").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatMemoryCursor").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetChatMessageByID(ctx context.Context, id int64) (database.ChatMessage, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetChatMessageByID(ctx, id)
@@ -1800,11 +1808,27 @@ func (m queryMetricsStore) GetChatPlanModeInstructions(ctx context.Context) (str
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetChatProjectACLByID(ctx context.Context, id uuid.UUID) (database.GetChatProjectACLByIDRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetChatProjectACLByID(ctx, id)
+	m.queryLatencies.WithLabelValues("GetChatProjectACLByID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatProjectACLByID").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetChatProjectByID(ctx context.Context, id uuid.UUID) (database.ChatProject, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetChatProjectByID(ctx, id)
 	m.queryLatencies.WithLabelValues("GetChatProjectByID").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatProjectByID").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetChatProjectByIDForUpdate(ctx context.Context, id uuid.UUID) (database.ChatProject, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetChatProjectByIDForUpdate(ctx, id)
+	m.queryLatencies.WithLabelValues("GetChatProjectByIDForUpdate").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatProjectByIDForUpdate").Inc()
 	return r0, r1
 }
 
@@ -1829,14 +1853,6 @@ func (m queryMetricsStore) GetChatProjectMemoryByName(ctx context.Context, arg d
 	r0, r1 := m.s.GetChatProjectMemoryByName(ctx, arg)
 	m.queryLatencies.WithLabelValues("GetChatProjectMemoryByName").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatProjectMemoryByName").Inc()
-	return r0, r1
-}
-
-func (m queryMetricsStore) GetChatProjectMemoryCursor(ctx context.Context, chatID uuid.UUID) (database.ChatProjectMemoryCursor, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetChatProjectMemoryCursor(ctx, chatID)
-	m.queryLatencies.WithLabelValues("GetChatProjectMemoryCursor").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatProjectMemoryCursor").Inc()
 	return r0, r1
 }
 
@@ -5136,11 +5152,11 @@ func (m queryMetricsStore) ReindexStaleChatMessagesSearchTsv(ctx context.Context
 	return r0, r1
 }
 
-func (m queryMetricsStore) ReleaseChatProjectMemoryExtraction(ctx context.Context, arg database.ReleaseChatProjectMemoryExtractionParams) error {
+func (m queryMetricsStore) ReleaseChatMemoryExtraction(ctx context.Context, arg database.ReleaseChatMemoryExtractionParams) error {
 	start := time.Now()
-	r0 := m.s.ReleaseChatProjectMemoryExtraction(ctx, arg)
-	m.queryLatencies.WithLabelValues("ReleaseChatProjectMemoryExtraction").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ReleaseChatProjectMemoryExtraction").Inc()
+	r0 := m.s.ReleaseChatMemoryExtraction(ctx, arg)
+	m.queryLatencies.WithLabelValues("ReleaseChatMemoryExtraction").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ReleaseChatMemoryExtraction").Inc()
 	return r0
 }
 
@@ -5478,6 +5494,14 @@ func (m queryMetricsStore) UpdateChatPlanModeByID(ctx context.Context, arg datab
 	m.queryLatencies.WithLabelValues("UpdateChatPlanModeByID").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateChatPlanModeByID").Inc()
 	return r0, r1
+}
+
+func (m queryMetricsStore) UpdateChatProjectACLByID(ctx context.Context, arg database.UpdateChatProjectACLByIDParams) error {
+	start := time.Now()
+	r0 := m.s.UpdateChatProjectACLByID(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateChatProjectACLByID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateChatProjectACLByID").Inc()
+	return r0
 }
 
 func (m queryMetricsStore) UpdateChatProjectBinding(ctx context.Context, arg database.UpdateChatProjectBindingParams) (database.ChatTable, error) {
@@ -6496,6 +6520,14 @@ func (m queryMetricsStore) UpsertChatIncludeDefaultSystemPrompt(ctx context.Cont
 	return r0
 }
 
+func (m queryMetricsStore) UpsertChatMemoryCursor(ctx context.Context, arg database.UpsertChatMemoryCursorParams) (database.ChatMemoryCursor, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpsertChatMemoryCursor(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpsertChatMemoryCursor").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpsertChatMemoryCursor").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) UpsertChatOrganizationModelOverride(ctx context.Context, arg database.UpsertChatOrganizationModelOverrideParams) error {
 	start := time.Now()
 	r0 := m.s.UpsertChatOrganizationModelOverride(ctx, arg)
@@ -6525,14 +6557,6 @@ func (m queryMetricsStore) UpsertChatProjectMemoryByName(ctx context.Context, ar
 	r0, r1 := m.s.UpsertChatProjectMemoryByName(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpsertChatProjectMemoryByName").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpsertChatProjectMemoryByName").Inc()
-	return r0, r1
-}
-
-func (m queryMetricsStore) UpsertChatProjectMemoryCursor(ctx context.Context, arg database.UpsertChatProjectMemoryCursorParams) (database.ChatProjectMemoryCursor, error) {
-	start := time.Now()
-	r0, r1 := m.s.UpsertChatProjectMemoryCursor(ctx, arg)
-	m.queryLatencies.WithLabelValues("UpsertChatProjectMemoryCursor").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpsertChatProjectMemoryCursor").Inc()
 	return r0, r1
 }
 
@@ -6981,5 +7005,13 @@ func (m queryMetricsStore) GetAuthorizedMCPServerConfigs(ctx context.Context, or
 	r0, r1 := m.s.GetAuthorizedMCPServerConfigs(ctx, organizationID, prepared)
 	m.queryLatencies.WithLabelValues("GetAuthorizedMCPServerConfigs").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAuthorizedMCPServerConfigs").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetAuthorizedChatProjects(ctx context.Context, organizationID uuid.UUID, prepared rbac.PreparedAuthorized) ([]database.ChatProject, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetAuthorizedChatProjects(ctx, organizationID, prepared)
+	m.queryLatencies.WithLabelValues("GetAuthorizedChatProjects").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAuthorizedChatProjects").Inc()
 	return r0, r1
 }

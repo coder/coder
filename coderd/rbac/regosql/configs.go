@@ -87,6 +87,36 @@ func MCPServerConfigConverter() *sqltypes.VariableConverter {
 	return matcher
 }
 
+// ChatProjectConverter qualifies chat project columns for SQL filters built
+// from the RBAC policy, mirroring WorkspaceConverter.
+func ChatProjectConverter() *sqltypes.VariableConverter {
+	matcher := chatProjectBaseConverter()
+	matcher.RegisterMatcher(
+		ACLMappingMatcher(matcher, "chat_projects.group_acl", []string{"input", "object", "acl_group_list"}).UsingSubfield("permissions"),
+		ACLMappingMatcher(matcher, "chat_projects.user_acl", []string{"input", "object", "acl_user_list"}).UsingSubfield("permissions"),
+	)
+	return matcher
+}
+
+// ChatProjectNoACLConverter ignores stored project ACLs so a disabled
+// sharing kill switch also hides shared projects from list queries.
+func ChatProjectNoACLConverter() *sqltypes.VariableConverter {
+	matcher := chatProjectBaseConverter()
+	matcher.RegisterMatcher(
+		sqltypes.AlwaysFalse(groupACLMatcher(matcher)),
+		sqltypes.AlwaysFalse(userACLMatcher(matcher)),
+	)
+	return matcher
+}
+
+func chatProjectBaseConverter() *sqltypes.VariableConverter {
+	return sqltypes.NewVariableConverter().RegisterMatcher(
+		resourceIDMatcher(),
+		sqltypes.StringVarMatcher("chat_projects.organization_id :: text", []string{"input", "object", "org_owner"}),
+		sqltypes.StringVarMatcher("chat_projects.created_by :: text", []string{"input", "object", "owner"}),
+	)
+}
+
 func chatBaseConverter() *sqltypes.VariableConverter {
 	return sqltypes.NewVariableConverter().RegisterMatcher(
 		chatResourceIDMatcher(),

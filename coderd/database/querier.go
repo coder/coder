@@ -90,7 +90,7 @@ type sqlcQuerier interface {
 	CalculateAIBridgeInterceptionsTelemetrySummary(ctx context.Context, arg CalculateAIBridgeInterceptionsTelemetrySummaryParams) (CalculateAIBridgeInterceptionsTelemetrySummaryRow, error)
 	// Claims the chat for one extractor and returns the current cursor. No row
 	// is returned while another unexpired claim holds the chat.
-	ClaimChatProjectMemoryExtraction(ctx context.Context, arg ClaimChatProjectMemoryExtractionParams) (ChatProjectMemoryCursor, error)
+	ClaimChatMemoryExtraction(ctx context.Context, arg ClaimChatMemoryExtractionParams) (ChatMemoryCursor, error)
 	ClaimPrebuiltWorkspace(ctx context.Context, arg ClaimPrebuiltWorkspaceParams) (ClaimPrebuiltWorkspaceRow, error)
 	CleanTailnetCoordinators(ctx context.Context) error
 	CleanTailnetLostPeers(ctx context.Context) error
@@ -490,6 +490,7 @@ type sqlcQuerier interface {
 	// When the toggle is unset, a non-empty custom prompt implies false;
 	// otherwise the setting defaults to true.
 	GetChatIncludeDefaultSystemPrompt(ctx context.Context) (bool, error)
+	GetChatMemoryCursor(ctx context.Context, chatID uuid.UUID) (ChatMemoryCursor, error)
 	GetChatMessageByID(ctx context.Context, id int64) (ChatMessage, error)
 	// Aggregates message-level metrics per chat for messages created
 	// after the given timestamp. Uses message created_at so that
@@ -526,11 +527,12 @@ type sqlcQuerier interface {
 	// personal chat model overrides. It defaults to false when unset.
 	GetChatPersonalModelOverridesEnabled(ctx context.Context) (bool, error)
 	GetChatPlanModeInstructions(ctx context.Context) (string, error)
+	GetChatProjectACLByID(ctx context.Context, id uuid.UUID) (GetChatProjectACLByIDRow, error)
 	GetChatProjectByID(ctx context.Context, id uuid.UUID) (ChatProject, error)
+	GetChatProjectByIDForUpdate(ctx context.Context, id uuid.UUID) (ChatProject, error)
 	GetChatProjectMemoriesByProjectID(ctx context.Context, projectID uuid.UUID) ([]GetChatProjectMemoriesByProjectIDRow, error)
 	GetChatProjectMemoryByID(ctx context.Context, id uuid.UUID) (GetChatProjectMemoryByIDRow, error)
 	GetChatProjectMemoryByName(ctx context.Context, arg GetChatProjectMemoryByNameParams) (GetChatProjectMemoryByNameRow, error)
-	GetChatProjectMemoryCursor(ctx context.Context, chatID uuid.UUID) (ChatProjectMemoryCursor, error)
 	GetChatProjectsByOrganizationID(ctx context.Context, organizationID uuid.UUID) ([]ChatProject, error)
 	// Pool fullness distinguishes capacity waits from worker pickup delays.
 	GetChatQueuedForCapacity(ctx context.Context, arg GetChatQueuedForCapacityParams) (bool, error)
@@ -1394,7 +1396,7 @@ type sqlcQuerier interface {
 	ReindexStaleChatMessagesSearchTsv(ctx context.Context, batchSize int32) (int64, error)
 	// Releases a claim only while it is still ours, so an expired claim cannot
 	// release a newer extractor's claim.
-	ReleaseChatProjectMemoryExtraction(ctx context.Context, arg ReleaseChatProjectMemoryExtractionParams) error
+	ReleaseChatMemoryExtraction(ctx context.Context, arg ReleaseChatMemoryExtractionParams) error
 	// The lease is only removed if it is the current lease.
 	ReleaseExternalAuthLinkRefreshLease(ctx context.Context, arg ReleaseExternalAuthLinkRefreshLeaseParams) error
 	RemoveUserFromGroups(ctx context.Context, arg RemoveUserFromGroupsParams) ([]uuid.UUID, error)
@@ -1547,6 +1549,7 @@ type sqlcQuerier interface {
 	UpdateChatModelConfigACLByID(ctx context.Context, arg UpdateChatModelConfigACLByIDParams) (ChatModelConfig, error)
 	UpdateChatPinOrder(ctx context.Context, arg UpdateChatPinOrderParams) error
 	UpdateChatPlanModeByID(ctx context.Context, arg UpdateChatPlanModeByIDParams) (Chat, error)
+	UpdateChatProjectACLByID(ctx context.Context, arg UpdateChatProjectACLByIDParams) error
 	UpdateChatProjectBinding(ctx context.Context, arg UpdateChatProjectBindingParams) (ChatTable, error)
 	UpdateChatProjectByID(ctx context.Context, arg UpdateChatProjectByIDParams) (ChatProject, error)
 	UpdateChatProjectMemoryByID(ctx context.Context, arg UpdateChatProjectMemoryByIDParams) (ChatProjectMemory, error)
@@ -1719,13 +1722,13 @@ type sqlcQuerier interface {
 	// database time so callers do not depend on a local clock.
 	UpsertChatHeartbeat(ctx context.Context, arg UpsertChatHeartbeatParams) error
 	UpsertChatIncludeDefaultSystemPrompt(ctx context.Context, includeDefaultSystemPrompt bool) error
+	UpsertChatMemoryCursor(ctx context.Context, arg UpsertChatMemoryCursorParams) (ChatMemoryCursor, error)
 	UpsertChatOrganizationModelOverride(ctx context.Context, arg UpsertChatOrganizationModelOverrideParams) error
 	// UpsertChatPersonalModelOverridesEnabled updates whether users may configure
 	// personal chat model overrides.
 	UpsertChatPersonalModelOverridesEnabled(ctx context.Context, enabled bool) error
 	UpsertChatPlanModeInstructions(ctx context.Context, value string) error
 	UpsertChatProjectMemoryByName(ctx context.Context, arg UpsertChatProjectMemoryByNameParams) (ChatProjectMemory, error)
-	UpsertChatProjectMemoryCursor(ctx context.Context, arg UpsertChatProjectMemoryCursorParams) (ChatProjectMemoryCursor, error)
 	UpsertChatRetentionDays(ctx context.Context, retentionDays int32) error
 	UpsertChatSystemPrompt(ctx context.Context, value string) error
 	UpsertChatUserModelOverride(ctx context.Context, arg UpsertChatUserModelOverrideParams) error

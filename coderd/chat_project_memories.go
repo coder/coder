@@ -58,7 +58,7 @@ func (api *API) postChatProjectMemory(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	project := httpmw.ChatProjectParam(r)
 	apiKey := httpmw.APIKey(r)
-	if !api.Authorize(r, policy.ActionCreate, rbacMemoryObject(project.OrganizationID)) {
+	if !api.Authorize(r, policy.ActionCreate, database.ChatProjectMemoryRBACObject(project)) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}
@@ -74,7 +74,7 @@ func (api *API) postChatProjectMemory(rw http.ResponseWriter, r *http.Request) {
 	aReq, commit := audit.InitRequest[database.ChatProjectMemory](rw, &audit.RequestParams{Audit: *api.Auditor.Load(), Log: api.Logger, Request: r, Action: database.AuditActionCreate, OrganizationID: project.OrganizationID})
 	defer commit()
 	memory, err := chattool.InsertProjectMemory(ctx, api.Database, database.InsertChatProjectMemoryParams{ID: uuid.NullUUID{}, ProjectID: project.ID, OrganizationID: project.OrganizationID, Name: normalized.Name, Description: normalized.Description, Body: normalized.Body, SourceChatID: uuid.NullUUID{}, CreatedBy: apiKey.UserID})
-	if errors.Is(err, chattool.ErrProjectMemoryLimit) {
+	if errors.Is(err, chattool.ErrMemoryLimit) {
 		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{Message: "Chat project memory limit reached."})
 		return
 	}
@@ -109,7 +109,7 @@ func (api *API) getChatProjectMemory(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	project := httpmw.ChatProjectParam(r)
 	memory := httpmw.ChatProjectMemoryParam(r)
-	if memory.ChatProjectMemory.ProjectID != project.ID || !api.Authorize(r, policy.ActionRead, memory.RBACObject()) {
+	if memory.ChatProjectMemory.ProjectID != project.ID || !api.Authorize(r, policy.ActionRead, memory.ChatProjectMemory.RBACObject(project)) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}
@@ -133,7 +133,7 @@ func (api *API) patchChatProjectMemory(rw http.ResponseWriter, r *http.Request) 
 	project := httpmw.ChatProjectParam(r)
 	memoryRow := httpmw.ChatProjectMemoryParam(r)
 	memory := memoryRow.ChatProjectMemory
-	if memory.ProjectID != project.ID || !api.Authorize(r, policy.ActionUpdate, memory.RBACObject()) {
+	if memory.ProjectID != project.ID || !api.Authorize(r, policy.ActionUpdate, memory.RBACObject(project)) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}
@@ -190,7 +190,7 @@ func (api *API) deleteChatProjectMemory(rw http.ResponseWriter, r *http.Request)
 	ctx := r.Context()
 	project := httpmw.ChatProjectParam(r)
 	memory := httpmw.ChatProjectMemoryParam(r)
-	if memory.ChatProjectMemory.ProjectID != project.ID || !api.Authorize(r, policy.ActionDelete, memory.RBACObject()) {
+	if memory.ChatProjectMemory.ProjectID != project.ID || !api.Authorize(r, policy.ActionDelete, memory.ChatProjectMemory.RBACObject(project)) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}
@@ -215,20 +215,16 @@ type normalizedChatProjectMemory struct {
 
 func validateChatProjectMemory(name, description, body string) (normalizedChatProjectMemory, *codersdk.Response) {
 	name = strings.ToLower(strings.TrimSpace(name))
-	description = chattool.NormalizeProjectMemoryText(description)
-	body = chattool.NormalizeProjectMemoryText(body)
-	if err := chattool.ValidateProjectMemoryName(name); err != nil {
+	description = chattool.NormalizeMemoryText(description)
+	body = chattool.NormalizeMemoryText(body)
+	if err := chattool.ValidateMemoryName(name); err != nil {
 		return normalizedChatProjectMemory{}, &codersdk.Response{Message: err.Error()}
 	}
-	if description == "" || utf8.RuneCountInString(description) > chattool.MaxProjectMemoryDescriptionChars {
+	if description == "" || utf8.RuneCountInString(description) > chattool.MaxMemoryDescriptionChars {
 		return normalizedChatProjectMemory{}, &codersdk.Response{Message: "description must be at most 150 characters."}
 	}
-	if body == "" || len(body) > chattool.MaxProjectMemoryBodyBytes {
+	if body == "" || len(body) > chattool.MaxMemoryBodyBytes {
 		return normalizedChatProjectMemory{}, &codersdk.Response{Message: "body must be at most 8192 bytes."}
 	}
 	return normalizedChatProjectMemory{Name: name, Description: description, Body: body}, nil
-}
-
-func rbacMemoryObject(organizationID uuid.UUID) database.ChatProjectMemory {
-	return database.ChatProjectMemory{OrganizationID: organizationID}
 }

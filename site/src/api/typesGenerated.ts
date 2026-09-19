@@ -708,6 +708,7 @@ export type APIKeyScope =
 	| "chat_project_memory:read"
 	| "chat_project_memory:update"
 	| "chat_project:read"
+	| "chat_project:share"
 	| "chat_project:update"
 	| "chat:read"
 	| "chat:share"
@@ -965,6 +966,7 @@ export const APIKeyScopes: APIKeyScope[] = [
 	"chat_project_memory:read",
 	"chat_project_memory:update",
 	"chat_project:read",
+	"chat_project:share",
 	"chat_project:update",
 	"chat:read",
 	"chat:share",
@@ -3249,6 +3251,20 @@ export interface ChatProject {
 
 // From codersdk/chats.go
 /**
+ * ChatProjectACL lists the users and groups a project is shared with.
+ */
+export interface ChatProjectACL {
+	readonly users: readonly ChatProjectUser[];
+	readonly groups: readonly ChatProjectGroup[];
+}
+
+// From codersdk/chats.go
+export interface ChatProjectGroup extends Group {
+	readonly role: ChatProjectRole;
+}
+
+// From codersdk/chats.go
+/**
  * ChatProjectMemory is a durable memory shared by chats in a project.
  */
 export interface ChatProjectMemory {
@@ -3263,6 +3279,16 @@ export interface ChatProjectMemory {
 	readonly created_by_username: string;
 	readonly created_at: string;
 	readonly updated_at: string;
+}
+
+// From codersdk/chats.go
+export type ChatProjectRole = "" | "read";
+
+export const ChatProjectRoles: ChatProjectRole[] = ["", "read"];
+
+// From codersdk/chats.go
+export interface ChatProjectUser extends MinimalUser {
+	readonly role: ChatProjectRole;
 }
 
 // From codersdk/chats.go
@@ -8156,7 +8182,6 @@ export type RBACResource =
 	| "chat"
 	| "chat_model_config"
 	| "chat_project"
-	| "chat_project_memory"
 	| "connection_log"
 	| "crypto_key"
 	| "debug_info"
@@ -8212,7 +8237,6 @@ export const RBACResources: RBACResource[] = [
 	"chat",
 	"chat_model_config",
 	"chat_project",
-	"chat_project_memory",
 	"connection_log",
 	"crypto_key",
 	"debug_info",
@@ -9965,6 +9989,16 @@ export interface UpdateChatPersonalModelOverridesAdminSettingsRequest {
  */
 export interface UpdateChatPlanModeInstructionsRequest {
 	readonly plan_mode_instructions: string;
+}
+
+// From codersdk/chats.go
+/**
+ * UpdateChatProjectACL applies role changes for the listed principals.
+ * ChatProjectRoleDeleted removes an entry; omitted entries are untouched.
+ */
+export interface UpdateChatProjectACL {
+	readonly user_roles?: Record<string, ChatProjectRole>;
+	readonly group_roles?: Record<string, ChatProjectRole>;
 }
 
 // From codersdk/chats.go

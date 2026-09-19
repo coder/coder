@@ -37,5 +37,5 @@ SELECT
 FROM chat_model_configs
 LIMIT 1;
 
-INSERT INTO chat_project_memory_cursors (chat_id, history_version)
+INSERT INTO chat_memory_cursors (chat_id, history_version)
 VALUES ('59500000-0000-4000-8000-000000000002', 1);

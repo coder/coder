@@ -7277,26 +7277,26 @@ func (q *sqlQuerier) UpsertChatUserModelOverride(ctx context.Context, arg Upsert
 	return err
 }
 
-const claimChatProjectMemoryExtraction = `-- name: ClaimChatProjectMemoryExtraction :one
-INSERT INTO chat_project_memory_cursors (chat_id, history_version, claimed_until)
+const claimChatMemoryExtraction = `-- name: ClaimChatMemoryExtraction :one
+INSERT INTO chat_memory_cursors (chat_id, history_version, claimed_until)
 VALUES ($1::uuid, 0, $2::timestamptz)
 ON CONFLICT (chat_id) DO UPDATE
 SET claimed_until = EXCLUDED.claimed_until
-WHERE chat_project_memory_cursors.claimed_until IS NULL
-    OR chat_project_memory_cursors.claimed_until < now()
+WHERE chat_memory_cursors.claimed_until IS NULL
+    OR chat_memory_cursors.claimed_until < now()
 RETURNING chat_id, history_version, extracted_at, claimed_until
 `
 
-type ClaimChatProjectMemoryExtractionParams struct {
+type ClaimChatMemoryExtractionParams struct {
 	ChatID       uuid.UUID `db:"chat_id" json:"chat_id"`
 	ClaimedUntil time.Time `db:"claimed_until" json:"claimed_until"`
 }
 
 // Claims the chat for one extractor and returns the current cursor. No row
 // is returned while another unexpired claim holds the chat.
-func (q *sqlQuerier) ClaimChatProjectMemoryExtraction(ctx context.Context, arg ClaimChatProjectMemoryExtractionParams) (ChatProjectMemoryCursor, error) {
-	row := q.db.QueryRowContext(ctx, claimChatProjectMemoryExtraction, arg.ChatID, arg.ClaimedUntil)
-	var i ChatProjectMemoryCursor
+func (q *sqlQuerier) ClaimChatMemoryExtraction(ctx context.Context, arg ClaimChatMemoryExtractionParams) (ChatMemoryCursor, error) {
+	row := q.db.QueryRowContext(ctx, claimChatMemoryExtraction, arg.ChatID, arg.ClaimedUntil)
+	var i ChatMemoryCursor
 	err := row.Scan(
 		&i.ChatID,
 		&i.HistoryVersion,
@@ -7343,6 +7343,24 @@ type DeleteChatProjectMemoryByNameParams struct {
 func (q *sqlQuerier) DeleteChatProjectMemoryByName(ctx context.Context, arg DeleteChatProjectMemoryByNameParams) error {
 	_, err := q.db.ExecContext(ctx, deleteChatProjectMemoryByName, arg.ProjectID, arg.Name)
 	return err
+}
+
+const getChatMemoryCursor = `-- name: GetChatMemoryCursor :one
+SELECT chat_id, history_version, extracted_at, claimed_until
+FROM chat_memory_cursors
+WHERE chat_id = $1::uuid
+`
+
+func (q *sqlQuerier) GetChatMemoryCursor(ctx context.Context, chatID uuid.UUID) (ChatMemoryCursor, error) {
+	row := q.db.QueryRowContext(ctx, getChatMemoryCursor, chatID)
+	var i ChatMemoryCursor
+	err := row.Scan(
+		&i.ChatID,
+		&i.HistoryVersion,
+		&i.ExtractedAt,
+		&i.ClaimedUntil,
+	)
+	return i, err
 }
 
 const getChatProjectMemoriesByProjectID = `-- name: GetChatProjectMemoriesByProjectID :many
@@ -7467,24 +7485,6 @@ func (q *sqlQuerier) GetChatProjectMemoryByName(ctx context.Context, arg GetChat
 	return i, err
 }
 
-const getChatProjectMemoryCursor = `-- name: GetChatProjectMemoryCursor :one
-SELECT chat_id, history_version, extracted_at, claimed_until
-FROM chat_project_memory_cursors
-WHERE chat_id = $1::uuid
-`
-
-func (q *sqlQuerier) GetChatProjectMemoryCursor(ctx context.Context, chatID uuid.UUID) (ChatProjectMemoryCursor, error) {
-	row := q.db.QueryRowContext(ctx, getChatProjectMemoryCursor, chatID)
-	var i ChatProjectMemoryCursor
-	err := row.Scan(
-		&i.ChatID,
-		&i.HistoryVersion,
-		&i.ExtractedAt,
-		&i.ClaimedUntil,
-	)
-	return i, err
-}
-
 const insertChatProjectMemory = `-- name: InsertChatProjectMemory :one
 INSERT INTO chat_project_memories (
     id,
@@ -7547,22 +7547,22 @@ func (q *sqlQuerier) InsertChatProjectMemory(ctx context.Context, arg InsertChat
 	return i, err
 }
 
-const releaseChatProjectMemoryExtraction = `-- name: ReleaseChatProjectMemoryExtraction :exec
-UPDATE chat_project_memory_cursors
+const releaseChatMemoryExtraction = `-- name: ReleaseChatMemoryExtraction :exec
+UPDATE chat_memory_cursors
 SET claimed_until = NULL
 WHERE chat_id = $1::uuid
     AND claimed_until = $2::timestamptz
 `
 
-type ReleaseChatProjectMemoryExtractionParams struct {
+type ReleaseChatMemoryExtractionParams struct {
 	ChatID       uuid.UUID `db:"chat_id" json:"chat_id"`
 	ClaimedUntil time.Time `db:"claimed_until" json:"claimed_until"`
 }
 
 // Releases a claim only while it is still ours, so an expired claim cannot
 // release a newer extractor's claim.
-func (q *sqlQuerier) ReleaseChatProjectMemoryExtraction(ctx context.Context, arg ReleaseChatProjectMemoryExtractionParams) error {
-	_, err := q.db.ExecContext(ctx, releaseChatProjectMemoryExtraction, arg.ChatID, arg.ClaimedUntil)
+func (q *sqlQuerier) ReleaseChatMemoryExtraction(ctx context.Context, arg ReleaseChatMemoryExtractionParams) error {
+	_, err := q.db.ExecContext(ctx, releaseChatMemoryExtraction, arg.ChatID, arg.ClaimedUntil)
 	return err
 }
 
@@ -7603,6 +7603,37 @@ func (q *sqlQuerier) UpdateChatProjectMemoryByID(ctx context.Context, arg Update
 		&i.CreatedBy,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const upsertChatMemoryCursor = `-- name: UpsertChatMemoryCursor :one
+INSERT INTO chat_memory_cursors (chat_id, history_version)
+VALUES ($1::uuid, $2::bigint)
+ON CONFLICT (chat_id) DO UPDATE
+SET
+    -- Detached extractors can finish out of order, so never regress the cursor.
+    history_version = GREATEST(
+        chat_memory_cursors.history_version,
+        EXCLUDED.history_version
+    ),
+    extracted_at = now()
+RETURNING chat_id, history_version, extracted_at, claimed_until
+`
+
+type UpsertChatMemoryCursorParams struct {
+	ChatID         uuid.UUID `db:"chat_id" json:"chat_id"`
+	HistoryVersion int64     `db:"history_version" json:"history_version"`
+}
+
+func (q *sqlQuerier) UpsertChatMemoryCursor(ctx context.Context, arg UpsertChatMemoryCursorParams) (ChatMemoryCursor, error) {
+	row := q.db.QueryRowContext(ctx, upsertChatMemoryCursor, arg.ChatID, arg.HistoryVersion)
+	var i ChatMemoryCursor
+	err := row.Scan(
+		&i.ChatID,
+		&i.HistoryVersion,
+		&i.ExtractedAt,
+		&i.ClaimedUntil,
 	)
 	return i, err
 }
@@ -7671,37 +7702,6 @@ func (q *sqlQuerier) UpsertChatProjectMemoryByName(ctx context.Context, arg Upse
 	return i, err
 }
 
-const upsertChatProjectMemoryCursor = `-- name: UpsertChatProjectMemoryCursor :one
-INSERT INTO chat_project_memory_cursors (chat_id, history_version)
-VALUES ($1::uuid, $2::bigint)
-ON CONFLICT (chat_id) DO UPDATE
-SET
-    -- Detached extractors can finish out of order, so never regress the cursor.
-    history_version = GREATEST(
-        chat_project_memory_cursors.history_version,
-        EXCLUDED.history_version
-    ),
-    extracted_at = now()
-RETURNING chat_id, history_version, extracted_at, claimed_until
-`
-
-type UpsertChatProjectMemoryCursorParams struct {
-	ChatID         uuid.UUID `db:"chat_id" json:"chat_id"`
-	HistoryVersion int64     `db:"history_version" json:"history_version"`
-}
-
-func (q *sqlQuerier) UpsertChatProjectMemoryCursor(ctx context.Context, arg UpsertChatProjectMemoryCursorParams) (ChatProjectMemoryCursor, error) {
-	row := q.db.QueryRowContext(ctx, upsertChatProjectMemoryCursor, arg.ChatID, arg.HistoryVersion)
-	var i ChatProjectMemoryCursor
-	err := row.Scan(
-		&i.ChatID,
-		&i.HistoryVersion,
-		&i.ExtractedAt,
-		&i.ClaimedUntil,
-	)
-	return i, err
-}
-
 const deleteChatProjectByID = `-- name: DeleteChatProjectByID :exec
 DELETE FROM chat_projects
 WHERE id = $1::uuid
@@ -7712,8 +7712,28 @@ func (q *sqlQuerier) DeleteChatProjectByID(ctx context.Context, id uuid.UUID) er
 	return err
 }
 
+const getChatProjectACLByID = `-- name: GetChatProjectACLByID :one
+SELECT
+    user_acl AS users,
+    group_acl AS groups
+FROM chat_projects
+WHERE id = $1::uuid
+`
+
+type GetChatProjectACLByIDRow struct {
+	Users  ChatACL `db:"users" json:"users"`
+	Groups ChatACL `db:"groups" json:"groups"`
+}
+
+func (q *sqlQuerier) GetChatProjectACLByID(ctx context.Context, id uuid.UUID) (GetChatProjectACLByIDRow, error) {
+	row := q.db.QueryRowContext(ctx, getChatProjectACLByID, id)
+	var i GetChatProjectACLByIDRow
+	err := row.Scan(&i.Users, &i.Groups)
+	return i, err
+}
+
 const getChatProjectByID = `-- name: GetChatProjectByID :one
-SELECT id, organization_id, created_by, name, description, created_at, updated_at
+SELECT id, organization_id, created_by, name, description, created_at, updated_at, user_acl, group_acl
 FROM chat_projects
 WHERE id = $1::uuid
 `
@@ -7729,14 +7749,42 @@ func (q *sqlQuerier) GetChatProjectByID(ctx context.Context, id uuid.UUID) (Chat
 		&i.Description,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.UserACL,
+		&i.GroupACL,
+	)
+	return i, err
+}
+
+const getChatProjectByIDForUpdate = `-- name: GetChatProjectByIDForUpdate :one
+SELECT id, organization_id, created_by, name, description, created_at, updated_at, user_acl, group_acl
+FROM chat_projects
+WHERE id = $1::uuid
+FOR UPDATE
+`
+
+func (q *sqlQuerier) GetChatProjectByIDForUpdate(ctx context.Context, id uuid.UUID) (ChatProject, error) {
+	row := q.db.QueryRowContext(ctx, getChatProjectByIDForUpdate, id)
+	var i ChatProject
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.CreatedBy,
+		&i.Name,
+		&i.Description,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.UserACL,
+		&i.GroupACL,
 	)
 	return i, err
 }
 
 const getChatProjectsByOrganizationID = `-- name: GetChatProjectsByOrganizationID :many
-SELECT id, organization_id, created_by, name, description, created_at, updated_at
+SELECT id, organization_id, created_by, name, description, created_at, updated_at, user_acl, group_acl
 FROM chat_projects
 WHERE organization_id = $1::uuid
+    -- Authorize Filter clause will be injected below in GetAuthorizedChatProjects
+    -- @authorize_filter
 ORDER BY lower(name)
 `
 
@@ -7757,6 +7805,8 @@ func (q *sqlQuerier) GetChatProjectsByOrganizationID(ctx context.Context, organi
 			&i.Description,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.UserACL,
+			&i.GroupACL,
 		); err != nil {
 			return nil, err
 		}
@@ -7780,7 +7830,7 @@ VALUES (
     $4::text,
     $5::text
 )
-RETURNING id, organization_id, created_by, name, description, created_at, updated_at
+RETURNING id, organization_id, created_by, name, description, created_at, updated_at, user_acl, group_acl
 `
 
 type InsertChatProjectParams struct {
@@ -7808,8 +7858,30 @@ func (q *sqlQuerier) InsertChatProject(ctx context.Context, arg InsertChatProjec
 		&i.Description,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.UserACL,
+		&i.GroupACL,
 	)
 	return i, err
+}
+
+const updateChatProjectACLByID = `-- name: UpdateChatProjectACLByID :exec
+UPDATE chat_projects
+SET
+    user_acl = $1,
+    group_acl = $2,
+    updated_at = now()
+WHERE id = $3::uuid
+`
+
+type UpdateChatProjectACLByIDParams struct {
+	UserACL  ChatACL   `db:"user_acl" json:"user_acl"`
+	GroupACL ChatACL   `db:"group_acl" json:"group_acl"`
+	ID       uuid.UUID `db:"id" json:"id"`
+}
+
+func (q *sqlQuerier) UpdateChatProjectACLByID(ctx context.Context, arg UpdateChatProjectACLByIDParams) error {
+	_, err := q.db.ExecContext(ctx, updateChatProjectACLByID, arg.UserACL, arg.GroupACL, arg.ID)
+	return err
 }
 
 const updateChatProjectByID = `-- name: UpdateChatProjectByID :one
@@ -7819,7 +7891,7 @@ SET
     description = $2::text,
     updated_at = now()
 WHERE id = $3::uuid
-RETURNING id, organization_id, created_by, name, description, created_at, updated_at
+RETURNING id, organization_id, created_by, name, description, created_at, updated_at, user_acl, group_acl
 `
 
 type UpdateChatProjectByIDParams struct {
@@ -7839,6 +7911,8 @@ func (q *sqlQuerier) UpdateChatProjectByID(ctx context.Context, arg UpdateChatPr
 		&i.Description,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.UserACL,
+		&i.GroupACL,
 	)
 	return i, err
 }

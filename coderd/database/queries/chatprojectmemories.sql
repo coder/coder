@@ -98,38 +98,38 @@ DELETE FROM chat_project_memories
 WHERE project_id = @project_id::uuid
     AND lower(name) = lower(@name::text);
 
--- name: GetChatProjectMemoryCursor :one
+-- name: GetChatMemoryCursor :one
 SELECT *
-FROM chat_project_memory_cursors
+FROM chat_memory_cursors
 WHERE chat_id = @chat_id::uuid;
 
--- name: ClaimChatProjectMemoryExtraction :one
+-- name: ClaimChatMemoryExtraction :one
 -- Claims the chat for one extractor and returns the current cursor. No row
 -- is returned while another unexpired claim holds the chat.
-INSERT INTO chat_project_memory_cursors (chat_id, history_version, claimed_until)
+INSERT INTO chat_memory_cursors (chat_id, history_version, claimed_until)
 VALUES (@chat_id::uuid, 0, @claimed_until::timestamptz)
 ON CONFLICT (chat_id) DO UPDATE
 SET claimed_until = EXCLUDED.claimed_until
-WHERE chat_project_memory_cursors.claimed_until IS NULL
-    OR chat_project_memory_cursors.claimed_until < now()
+WHERE chat_memory_cursors.claimed_until IS NULL
+    OR chat_memory_cursors.claimed_until < now()
 RETURNING *;
 
--- name: ReleaseChatProjectMemoryExtraction :exec
+-- name: ReleaseChatMemoryExtraction :exec
 -- Releases a claim only while it is still ours, so an expired claim cannot
 -- release a newer extractor's claim.
-UPDATE chat_project_memory_cursors
+UPDATE chat_memory_cursors
 SET claimed_until = NULL
 WHERE chat_id = @chat_id::uuid
     AND claimed_until = @claimed_until::timestamptz;
 
--- name: UpsertChatProjectMemoryCursor :one
-INSERT INTO chat_project_memory_cursors (chat_id, history_version)
+-- name: UpsertChatMemoryCursor :one
+INSERT INTO chat_memory_cursors (chat_id, history_version)
 VALUES (@chat_id::uuid, @history_version::bigint)
 ON CONFLICT (chat_id) DO UPDATE
 SET
     -- Detached extractors can finish out of order, so never regress the cursor.
     history_version = GREATEST(
-        chat_project_memory_cursors.history_version,
+        chat_memory_cursors.history_version,
         EXCLUDED.history_version
     ),
     extracted_at = now()
