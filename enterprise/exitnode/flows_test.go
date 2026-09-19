@@ -21,7 +21,7 @@ import (
 type fakeFlowClient struct {
 	mu       sync.Mutex
 	failures int
-	batches  chan []codersdk.ExitNodeFlowReport
+	batches  chan codersdk.ReportExitNodeFlowsRequest
 }
 
 func (c *fakeFlowClient) ReportFlows(_ context.Context, req codersdk.ReportExitNodeFlowsRequest) error {
@@ -31,7 +31,7 @@ func (c *fakeFlowClient) ReportFlows(_ context.Context, req codersdk.ReportExitN
 		c.failures--
 		return xerrors.New("coderd unavailable")
 	}
-	c.batches <- req.Flows
+	c.batches <- req
 	return nil
 }
 
@@ -57,7 +57,7 @@ func startReporter(ctx context.Context, t *testing.T, failures int, opts exitnod
 		tr = trap(mClock.Trap())
 		t.Cleanup(tr.Close)
 	}
-	client := &fakeFlowClient{failures: failures, batches: make(chan []codersdk.ExitNodeFlowReport, 16)}
+	client := &fakeFlowClient{failures: failures, batches: make(chan codersdk.ReportExitNodeFlowsRequest, 16)}
 	opts.Logger, opts.Client, opts.Clock = testutil.Logger(t), client, mClock
 	reporter := exitnode.NewFlowReporter(ctx, opts)
 	t.Cleanup(func() { _ = reporter.Close(ctx) })
@@ -75,7 +75,7 @@ func TestFlowReporter_FlushOnBatchSize(t *testing.T) {
 	}
 
 	// No clock advance: the batch size alone triggers delivery.
-	require.Equal(t, want, testutil.RequireReceive(ctx, t, client.batches))
+	require.Equal(t, want, testutil.RequireReceive(ctx, t, client.batches).Flows)
 }
 
 func TestFlowReporter_FlushOnInterval(t *testing.T) {
@@ -91,7 +91,7 @@ func TestFlowReporter_FlushOnInterval(t *testing.T) {
 	reporter.Record(want)
 
 	mClock.Advance(2 * time.Second).MustWait(ctx)
-	require.Equal(t, []codersdk.ExitNodeFlowReport{want}, testutil.RequireReceive(ctx, t, client.batches))
+	require.Equal(t, []codersdk.ExitNodeFlowReport{want}, testutil.RequireReceive(ctx, t, client.batches).Flows)
 }
 
 func TestFlowReporter_RetriesWithBackoff(t *testing.T) {
@@ -112,7 +112,7 @@ func TestFlowReporter_RetriesWithBackoff(t *testing.T) {
 
 	// Firing the timer retries with the same records, in order.
 	mClock.Advance(time.Second).MustWait(ctx)
-	require.Equal(t, want, testutil.RequireReceive(ctx, t, client.batches))
+	require.Equal(t, want, testutil.RequireReceive(ctx, t, client.batches).Flows)
 }
 
 func TestFlowReporter_DropsOldestWhenFull(t *testing.T) {
@@ -134,8 +134,17 @@ func TestFlowReporter_DropsOldestWhenFull(t *testing.T) {
 	require.Equal(t, float64(1), promtestutil.ToFloat64(metrics.FlowReportsDropped))
 
 	mClock.Advance(2 * time.Second).MustWait(ctx)
-	require.Equal(t, []codersdk.ExitNodeFlowReport{second, third}, testutil.RequireReceive(ctx, t, client.batches))
+	request := testutil.RequireReceive(ctx, t, client.batches)
+	require.Equal(t, []codersdk.ExitNodeFlowReport{second, third}, request.Flows)
+	require.Equal(t, 1, request.DroppedReports)
 	require.Equal(t, float64(2), promtestutil.ToFloat64(metrics.FlowReportsSent))
+
+	fourth := newReport()
+	reporter.Record(fourth)
+	mClock.Advance(2 * time.Second).MustWait(ctx)
+	request = testutil.RequireReceive(ctx, t, client.batches)
+	require.Equal(t, []codersdk.ExitNodeFlowReport{fourth}, request.Flows)
+	require.Zero(t, request.DroppedReports)
 }
 
 func TestFlowReporter_CloseFlushes(t *testing.T) {
@@ -146,5 +155,5 @@ func TestFlowReporter_CloseFlushes(t *testing.T) {
 	want := newReport()
 	reporter.Record(want)
 	require.NoError(t, reporter.Close(ctx))
-	require.Equal(t, []codersdk.ExitNodeFlowReport{want}, testutil.RequireReceive(ctx, t, client.batches))
+	require.Equal(t, []codersdk.ExitNodeFlowReport{want}, testutil.RequireReceive(ctx, t, client.batches).Flows)
 }

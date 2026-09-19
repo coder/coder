@@ -51,12 +51,14 @@ type udpProxy struct {
 	// It is a field so tests can supply destinations without netfilter.
 	origDst func(oob []byte) netip.AddrPort
 
-	conn *net.UDPConn
-	addr netip.AddrPort
+	conn        *net.UDPConn
+	addr        netip.AddrPort
+	transparent bool
 
 	mu       sync.Mutex
 	sessions map[udpSessionKey]*udpSession
 	denied   map[udpSessionKey]time.Time
+	drops    map[uint16]udpDropState
 	wg       sync.WaitGroup
 
 	// oversized counts datagrams dropped for exceeding udpMaxDatagram.
@@ -69,6 +71,11 @@ type udpProxy struct {
 type udpSessionKey struct {
 	src netip.AddrPort
 	dst netip.AddrPort
+}
+
+type udpDropState struct {
+	until time.Time
+	count int64
 }
 
 // listenUDP binds an ephemeral IPv4 UDP port on host.
@@ -96,13 +103,18 @@ func (p *udpProxy) listen(ctx context.Context, host string) error {
 	if err != nil {
 		return xerrors.Errorf("listen udp: %w", err)
 	}
-	if err := enableUDPOriginalDst(conn); err != nil {
+	transparent, err := enableUDPOriginalDst(conn)
+	if err != nil {
 		_ = conn.Close()
 		return xerrors.Errorf("enable original destination reporting: %w", err)
 	}
-	p.conn, p.addr = conn, addr
+	p.conn, p.addr, p.transparent = conn, addr, transparent
+	if transparent {
+		registerTransparentUDP(addr.Port())
+	}
 	p.sessions = make(map[udpSessionKey]*udpSession)
 	p.denied = make(map[udpSessionKey]time.Time)
+	p.drops = make(map[uint16]udpDropState)
 	return nil
 }
 
@@ -111,6 +123,7 @@ func (p *udpProxy) serve(ctx context.Context) {
 }
 
 func (p *udpProxy) close() {
+	unregisterTransparentUDP(p.addr.Port())
 	_ = p.conn.Close()
 	p.mu.Lock()
 	for _, s := range p.sessions {
@@ -136,13 +149,14 @@ func (p *udpProxy) readLoop(ctx context.Context) {
 		key := udpSessionKey{src: src, dst: dst}
 		switch {
 		case !dst.IsValid() || dst == p.addr:
-			// REDIRECT rewrote the IP header before delivery, so the
-			// kernel can only report our own address. Recovering the
-			// real destination needs TPROXY or conntrack access.
 			p.unknownDst.Add(1)
-			if p.markDenied(key) {
-				p.logger.Warn(ctx, "dropping redirected udp datagrams, original destination unavailable",
-					slog.F("client", src.String()), slog.F("bytes", n))
+			logDrop, count := p.markUnknownDrop(dst.Port())
+			if logDrop {
+				p.logger.Warn(ctx, "dropping non-dns udp because REDIRECT lost the original destination",
+					slog.F("source_port", src.Port()),
+					slog.F("destination_port", dst.Port()),
+					slog.F("dropped", count),
+					slog.F("bytes", n))
 			}
 		case n > udpMaxDatagram:
 			p.oversized.Add(1)
@@ -156,8 +170,22 @@ func (p *udpProxy) readLoop(ctx context.Context) {
 	}
 }
 
-// markDenied records key in the negative cache and reports whether it was
-// newly added, so callers log once per key per udpDenyTTL.
+// markUnknownDrop counts fallback drops by observed destination port and
+// reports at most once per udpDenyTTL for each port.
+func (p *udpProxy) markUnknownDrop(port uint16) (bool, int64) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	now := p.clock.Now()
+	state := p.drops[port]
+	state.count++
+	log := !now.Before(state.until)
+	if log {
+		state.until = now.Add(udpDenyTTL)
+	}
+	p.drops[port] = state
+	return log, state.count
+}
+
 func (p *udpProxy) markDenied(key udpSessionKey) bool {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -216,6 +244,7 @@ type udpSession struct {
 
 	mu       sync.Mutex
 	upstream net.Conn
+	reply    *net.UDPConn
 	// queue holds datagrams that arrived before the CONNECT completed.
 	queue  [][]byte
 	closed bool
@@ -262,6 +291,14 @@ func (s *udpSession) run(ctx context.Context) {
 		}
 		return
 	}
+	if s.proxy.transparent {
+		s.reply, err = transparentUDPReplyConn(s.key.dst)
+		if err != nil {
+			s.proxy.logger.Warn(ctx, "create transparent udp reply socket",
+				slog.F("destination", s.key.dst.String()), slog.Error(err))
+			return
+		}
+	}
 	s.mu.Lock()
 	if s.closed {
 		s.mu.Unlock()
@@ -286,7 +323,12 @@ func (s *udpSession) run(ctx context.Context) {
 			return
 		}
 		s.timer.Reset(s.timeout)
-		if _, err := s.proxy.conn.WriteToUDPAddrPort(payload, s.key.src); err != nil {
+		if s.reply != nil {
+			_, err = s.reply.WriteToUDPAddrPort(payload, s.key.src)
+		} else {
+			_, err = s.proxy.conn.WriteToUDPAddrPort(payload, s.key.src)
+		}
+		if err != nil {
 			return
 		}
 	}
@@ -311,6 +353,9 @@ func (s *udpSession) closeLocked() {
 	s.closed = true
 	s.queue = nil
 	s.timer.Stop()
+	if s.reply != nil {
+		_ = s.reply.Close()
+	}
 	if s.upstream != nil {
 		_ = s.upstream.Close()
 	}

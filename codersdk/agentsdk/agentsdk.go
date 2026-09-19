@@ -142,9 +142,9 @@ type Manifest struct {
 
 // EgressConfig tells the agent how to route and enforce workspace egress.
 type EgressConfig struct {
-	// ExitNodeID identifies the exit node. Its tailnet address is
-	// tailnet.TailscaleServicePrefix.AddrFromUUID(ExitNodeID).
-	ExitNodeID uuid.UUID `json:"exit_node_id"`
+	// ExitNodeIDs identify exit nodes in preference order. Their tailnet
+	// addresses are derived with tailnet.TailscaleServicePrefix.AddrFromUUID.
+	ExitNodeIDs []uuid.UUID `json:"exit_node_ids"`
 	// ExitNodePort is the CONNECT port on the exit node's tailnet address.
 	ExitNodePort int `json:"exit_node_port"`
 	// Enforce requests transparent redirection of all outbound TCP via

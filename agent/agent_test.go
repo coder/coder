@@ -1650,7 +1650,7 @@ func TestAgent_EgressProxyEnvVars(t *testing.T) {
 
 	manifest := agentsdk.Manifest{
 		Egress: &agentsdk.EgressConfig{
-			ExitNodeID:        uuid.New(),
+			ExitNodeIDs:       []uuid.UUID{uuid.New()},
 			ExitNodePort:      codersdk.ExitNodeTailnetPort,
 			ControlPlaneHosts: []string{"coder.example.com:443"},
 		},

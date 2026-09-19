@@ -74,9 +74,9 @@ OPTIONS:
           the dormant state. This licensed feature's default is 0h (off). Maps
           to "Dormancy threshold" in the UI.
 
-      --exit-node string
-          Route egress from workspaces on this template through the exit node
-          with this name or ID. Pass an empty string to clear the binding.
+      --exit-node string-array
+          Route egress through exit nodes with these names or IDs, in preference
+          order. Pass an empty string to clear the binding.
 
       --exit-node-enforce bool (default: false)
           Transparently enforce that workspace egress goes through the exit

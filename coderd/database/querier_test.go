@@ -8559,10 +8559,10 @@ func TestGetWorkspaceAgentIDsByExitNode(t *testing.T) {
 			DisableModuleCache:           tpl.DisableModuleCache,
 			AgentsAllowed:                tpl.AgentsAllowed,
 			AllowWorkspaceRenames:        tpl.AllowWorkspaceRenames,
-			ExitNodeID:                   uuid.NullUUID{UUID: exitNode.ID, Valid: true},
 			ExitNodeEnforce:              true,
 		})
 		require.NoError(t, err)
+		require.NoError(t, db.SetTemplateExitNodes(ctx, database.SetTemplateExitNodesParams{TemplateID: tpl.ID, ExitNodeIds: []uuid.UUID{exitNode.ID}}))
 		return tpl
 	}
 	boundTemplate := bindTemplate(true)

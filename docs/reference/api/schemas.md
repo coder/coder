@@ -13597,6 +13597,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 ```json
 {
+  "dropped_reports": 0,
   "flows": [
     {
       "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
@@ -13619,9 +13620,10 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 ### Properties
 
-| Name    | Type                                                                | Required | Restrictions | Description |
-|---------|---------------------------------------------------------------------|----------|--------------|-------------|
-| `flows` | array of [codersdk.ExitNodeFlowReport](#codersdkexitnodeflowreport) | false    |              |             |
+| Name              | Type                                                                | Required | Restrictions | Description                                                                        |
+|-------------------|---------------------------------------------------------------------|----------|--------------|------------------------------------------------------------------------------------|
+| `dropped_reports` | integer                                                             | false    |              | Dropped reports is the number of reports lost since the previous successful batch. |
+| `flows`           | array of [codersdk.ExitNodeFlowReport](#codersdkexitnodeflowreport) | false    |              |                                                                                    |
 
 ## codersdk.RequestOneTimePasscodeRequest
 
@@ -14183,7 +14185,9 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
   "disable_module_cache": true,
   "display_name": "string",
   "exit_node_enforce": true,
-  "exit_node_id": "6e1d16cb-7313-46cb-bb18-f1f3225acb29",
+  "exit_node_ids": [
+    "497f6eca-6276-4993-bfeb-53cbbbba6f08"
+  ],
   "failure_ttl_ms": 0,
   "icon": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
@@ -14230,8 +14234,8 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `description`                         | string                                                                         | false    |              |                                                                                                                                                                                                                            |
 | `disable_module_cache`                | boolean                                                                        | false    |              | Disable module cache disables the use of cached Terraform modules during provisioning for this template. It is read-only while ModuleCacheDisabledByDeployment is true.                                                    |
 | `display_name`                        | string                                                                         | false    |              |                                                                                                                                                                                                                            |
-| `exit_node_enforce`                   | boolean                                                                        | false    |              | Exit node enforce requests transparent enforcement in the workspace so traffic cannot bypass the exit node. Ignored when ExitNodeID is nil.                                                                                |
-| `exit_node_id`                        | string                                                                         | false    |              | Exit node ID routes egress from workspaces built from this template through the given exit node. Nil leaves egress unmanaged.                                                                                              |
+| `exit_node_enforce`                   | boolean                                                                        | false    |              | Exit node enforce requests transparent enforcement in the workspace so traffic cannot bypass the exit nodes. Ignored when ExitNodeIDs is empty.                                                                            |
+| `exit_node_ids`                       | array of string                                                                | false    |              | Exit node ids route egress from workspaces built from this template through the listed exit nodes in preference order. An empty list leaves egress unmanaged.                                                              |
 | `failure_ttl_ms`                      | integer                                                                        | false    |              | Failure ttl ms TimeTilDormantMillis, and TimeTilDormantAutoDeleteMillis are enterprise-only. Their values are used if your license is entitled to use the advanced template scheduling feature.                            |
 | `icon`                                | string                                                                         | false    |              |                                                                                                                                                                                                                            |
 | `id`                                  | string                                                                         | false    |              |                                                                                                                                                                                                                            |
@@ -14696,7 +14700,9 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
     "disable_module_cache": true,
     "display_name": "string",
     "exit_node_enforce": true,
-    "exit_node_id": "6e1d16cb-7313-46cb-bb18-f1f3225acb29",
+    "exit_node_ids": [
+      "497f6eca-6276-4993-bfeb-53cbbbba6f08"
+    ],
     "failure_ttl_ms": 0,
     "icon": "string",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
@@ -16308,7 +16314,9 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
   "disable_module_cache": true,
   "display_name": "string",
   "exit_node_enforce": true,
-  "exit_node_id": "6e1d16cb-7313-46cb-bb18-f1f3225acb29",
+  "exit_node_ids": [
+    "497f6eca-6276-4993-bfeb-53cbbbba6f08"
+  ],
   "failure_ttl_ms": 0,
   "icon": "string",
   "max_port_share_level": "owner",
@@ -16343,7 +16351,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 | `disable_module_cache`             | boolean                                                                        | false    |              | Disable module cache disables the using of cached Terraform modules during provisioning. It is ignored while the deployment disables the module cache for all templates. It is recommended not to disable this.                                                                                                                                                                    |
 | `display_name`                     | string                                                                         | false    |              |                                                                                                                                                                                                                                                                                                                                                                                    |
 | `exit_node_enforce`                | boolean                                                                        | false    |              | Exit node enforce toggles transparent enforcement for the exit node binding. Omitting the field keeps the existing value.                                                                                                                                                                                                                                                          |
-| `exit_node_id`                     | string                                                                         | false    |              | Exit node ID binds the template to an exit node. Set to the nil UUID to clear the binding. Omitting the field keeps the existing value.                                                                                                                                                                                                                                            |
+| `exit_node_ids`                    | array of string                                                                | false    |              | Exit node ids bind the template to exit nodes in preference order. An explicit empty list clears the binding. Omitting the field keeps the existing value.                                                                                                                                                                                                                         |
 | `failure_ttl_ms`                   | integer                                                                        | false    |              |                                                                                                                                                                                                                                                                                                                                                                                    |
 | `icon`                             | string                                                                         | false    |              |                                                                                                                                                                                                                                                                                                                                                                                    |
 | `max_port_share_level`             | [codersdk.WorkspaceAgentPortShareLevel](#codersdkworkspaceagentportsharelevel) | false    |              |                                                                                                                                                                                                                                                                                                                                                                                    |

@@ -15062,10 +15062,54 @@ func (q *sqlQuerier) GetExitNodesByOrganization(ctx context.Context, organizatio
 	return items, nil
 }
 
+const getTemplateExitNodes = `-- name: GetTemplateExitNodes :many
+SELECT exit_nodes.id, exit_nodes.organization_id, exit_nodes.name, exit_nodes.display_name, exit_nodes.created_at, exit_nodes.updated_at, exit_nodes.deleted, exit_nodes.token_hashed_secret, exit_nodes.version, exit_nodes.last_seen_at, exit_nodes.wireguard_endpoints
+FROM template_exit_nodes
+JOIN exit_nodes ON exit_nodes.id = template_exit_nodes.exit_node_id
+WHERE template_exit_nodes.template_id = $1
+ORDER BY template_exit_nodes.position
+`
+
+func (q *sqlQuerier) GetTemplateExitNodes(ctx context.Context, templateID uuid.UUID) ([]ExitNode, error) {
+	rows, err := q.db.QueryContext(ctx, getTemplateExitNodes, templateID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ExitNode
+	for rows.Next() {
+		var i ExitNode
+		if err := rows.Scan(
+			&i.ID,
+			&i.OrganizationID,
+			&i.Name,
+			&i.DisplayName,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.Deleted,
+			&i.TokenHashedSecret,
+			&i.Version,
+			&i.LastSeenAt,
+			pq.Array(&i.WireguardEndpoints),
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getWorkspaceAgentIDsByExitNode = `-- name: GetWorkspaceAgentIDsByExitNode :many
 SELECT workspace_agents.id
 FROM workspaces
 JOIN templates ON templates.id = workspaces.template_id
+JOIN template_exit_nodes ON template_exit_nodes.template_id = templates.id
 JOIN (
 	-- Latest build per workspace.
 	SELECT DISTINCT ON (workspace_id) id, workspace_id, job_id, transition
@@ -15076,7 +15120,7 @@ JOIN provisioner_jobs ON provisioner_jobs.id = latest_builds.job_id
 JOIN workspace_resources ON workspace_resources.job_id = latest_builds.job_id
 JOIN workspace_agents ON workspace_agents.resource_id = workspace_resources.id
 WHERE
-	templates.exit_node_id = $1 :: uuid
+	template_exit_nodes.exit_node_id = $1 :: uuid
 	AND templates.deleted = FALSE
 	AND workspaces.deleted = FALSE
 	AND latest_builds.transition = 'start' :: workspace_transition
@@ -15153,6 +15197,26 @@ func (q *sqlQuerier) InsertExitNode(ctx context.Context, arg InsertExitNodeParam
 		pq.Array(&i.WireguardEndpoints),
 	)
 	return i, err
+}
+
+const setTemplateExitNodes = `-- name: SetTemplateExitNodes :exec
+WITH deleted AS (
+	DELETE FROM template_exit_nodes
+	WHERE template_id = $1
+)
+INSERT INTO template_exit_nodes (template_id, exit_node_id, position)
+SELECT $1, exit_node_id, ordinality - 1
+FROM unnest($2::uuid[]) WITH ORDINALITY AS nodes(exit_node_id, ordinality)
+`
+
+type SetTemplateExitNodesParams struct {
+	TemplateID  uuid.UUID   `db:"template_id" json:"template_id"`
+	ExitNodeIds []uuid.UUID `db:"exit_node_ids" json:"exit_node_ids"`
+}
+
+func (q *sqlQuerier) SetTemplateExitNodes(ctx context.Context, arg SetTemplateExitNodesParams) error {
+	_, err := q.db.ExecContext(ctx, setTemplateExitNodes, arg.TemplateID, pq.Array(arg.ExitNodeIds))
+	return err
 }
 
 const updateExitNodeRegistration = `-- name: UpdateExitNodeRegistration :one
@@ -27936,7 +28000,7 @@ func (q *sqlQuerier) GetTemplateAverageBuildTime(ctx context.Context, templateID
 
 const getTemplateByID = `-- name: GetTemplateByID :one
 SELECT
-	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, allow_user_autostart, allow_user_autostop, failure_ttl, time_til_dormant, time_til_dormant_autodelete, autostop_requirement_days_of_week, autostop_requirement_weeks, autostart_block_days_of_week, require_active_version, deprecated, activity_bump, max_port_sharing_level, use_classic_parameter_flow, cors_behavior, disable_module_cache, time_til_autostop_notify, agents_allowed, allow_workspace_renames, exit_node_id, exit_node_enforce, created_by_avatar_url, created_by_username, created_by_name, organization_name, organization_display_name, organization_icon
+	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, allow_user_autostart, allow_user_autostop, failure_ttl, time_til_dormant, time_til_dormant_autodelete, autostop_requirement_days_of_week, autostop_requirement_weeks, autostart_block_days_of_week, require_active_version, deprecated, activity_bump, max_port_sharing_level, use_classic_parameter_flow, cors_behavior, disable_module_cache, time_til_autostop_notify, agents_allowed, allow_workspace_renames, exit_node_enforce, exit_node_ids, created_by_avatar_url, created_by_username, created_by_name, organization_name, organization_display_name, organization_icon
 FROM
 	template_with_names
 WHERE
@@ -27983,8 +28047,8 @@ func (q *sqlQuerier) GetTemplateByID(ctx context.Context, id uuid.UUID) (Templat
 		&i.TimeTilAutostopNotify,
 		&i.AgentsAllowed,
 		&i.AllowWorkspaceRenames,
-		&i.ExitNodeID,
 		&i.ExitNodeEnforce,
+		pq.Array(&i.ExitNodeIds),
 		&i.CreatedByAvatarURL,
 		&i.CreatedByUsername,
 		&i.CreatedByName,
@@ -27997,7 +28061,7 @@ func (q *sqlQuerier) GetTemplateByID(ctx context.Context, id uuid.UUID) (Templat
 
 const getTemplateByOrganizationAndName = `-- name: GetTemplateByOrganizationAndName :one
 SELECT
-	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, allow_user_autostart, allow_user_autostop, failure_ttl, time_til_dormant, time_til_dormant_autodelete, autostop_requirement_days_of_week, autostop_requirement_weeks, autostart_block_days_of_week, require_active_version, deprecated, activity_bump, max_port_sharing_level, use_classic_parameter_flow, cors_behavior, disable_module_cache, time_til_autostop_notify, agents_allowed, allow_workspace_renames, exit_node_id, exit_node_enforce, created_by_avatar_url, created_by_username, created_by_name, organization_name, organization_display_name, organization_icon
+	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, allow_user_autostart, allow_user_autostop, failure_ttl, time_til_dormant, time_til_dormant_autodelete, autostop_requirement_days_of_week, autostop_requirement_weeks, autostart_block_days_of_week, require_active_version, deprecated, activity_bump, max_port_sharing_level, use_classic_parameter_flow, cors_behavior, disable_module_cache, time_til_autostop_notify, agents_allowed, allow_workspace_renames, exit_node_enforce, exit_node_ids, created_by_avatar_url, created_by_username, created_by_name, organization_name, organization_display_name, organization_icon
 FROM
 	template_with_names AS templates
 WHERE
@@ -28052,8 +28116,8 @@ func (q *sqlQuerier) GetTemplateByOrganizationAndName(ctx context.Context, arg G
 		&i.TimeTilAutostopNotify,
 		&i.AgentsAllowed,
 		&i.AllowWorkspaceRenames,
-		&i.ExitNodeID,
 		&i.ExitNodeEnforce,
+		pq.Array(&i.ExitNodeIds),
 		&i.CreatedByAvatarURL,
 		&i.CreatedByUsername,
 		&i.CreatedByName,
@@ -28065,7 +28129,7 @@ func (q *sqlQuerier) GetTemplateByOrganizationAndName(ctx context.Context, arg G
 }
 
 const getTemplates = `-- name: GetTemplates :many
-SELECT id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, allow_user_autostart, allow_user_autostop, failure_ttl, time_til_dormant, time_til_dormant_autodelete, autostop_requirement_days_of_week, autostop_requirement_weeks, autostart_block_days_of_week, require_active_version, deprecated, activity_bump, max_port_sharing_level, use_classic_parameter_flow, cors_behavior, disable_module_cache, time_til_autostop_notify, agents_allowed, allow_workspace_renames, exit_node_id, exit_node_enforce, created_by_avatar_url, created_by_username, created_by_name, organization_name, organization_display_name, organization_icon FROM template_with_names AS templates
+SELECT id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, allow_user_autostart, allow_user_autostop, failure_ttl, time_til_dormant, time_til_dormant_autodelete, autostop_requirement_days_of_week, autostop_requirement_weeks, autostart_block_days_of_week, require_active_version, deprecated, activity_bump, max_port_sharing_level, use_classic_parameter_flow, cors_behavior, disable_module_cache, time_til_autostop_notify, agents_allowed, allow_workspace_renames, exit_node_enforce, exit_node_ids, created_by_avatar_url, created_by_username, created_by_name, organization_name, organization_display_name, organization_icon FROM template_with_names AS templates
 ORDER BY (name, id) ASC
 `
 
@@ -28113,8 +28177,8 @@ func (q *sqlQuerier) GetTemplates(ctx context.Context) ([]Template, error) {
 			&i.TimeTilAutostopNotify,
 			&i.AgentsAllowed,
 			&i.AllowWorkspaceRenames,
-			&i.ExitNodeID,
 			&i.ExitNodeEnforce,
+			pq.Array(&i.ExitNodeIds),
 			&i.CreatedByAvatarURL,
 			&i.CreatedByUsername,
 			&i.CreatedByName,
@@ -28137,7 +28201,7 @@ func (q *sqlQuerier) GetTemplates(ctx context.Context) ([]Template, error) {
 
 const getTemplatesWithFilter = `-- name: GetTemplatesWithFilter :many
 SELECT
-	t.id, t.created_at, t.updated_at, t.organization_id, t.deleted, t.name, t.provisioner, t.active_version_id, t.description, t.default_ttl, t.created_by, t.icon, t.user_acl, t.group_acl, t.display_name, t.allow_user_cancel_workspace_jobs, t.allow_user_autostart, t.allow_user_autostop, t.failure_ttl, t.time_til_dormant, t.time_til_dormant_autodelete, t.autostop_requirement_days_of_week, t.autostop_requirement_weeks, t.autostart_block_days_of_week, t.require_active_version, t.deprecated, t.activity_bump, t.max_port_sharing_level, t.use_classic_parameter_flow, t.cors_behavior, t.disable_module_cache, t.time_til_autostop_notify, t.agents_allowed, t.allow_workspace_renames, t.exit_node_id, t.exit_node_enforce, t.created_by_avatar_url, t.created_by_username, t.created_by_name, t.organization_name, t.organization_display_name, t.organization_icon
+	t.id, t.created_at, t.updated_at, t.organization_id, t.deleted, t.name, t.provisioner, t.active_version_id, t.description, t.default_ttl, t.created_by, t.icon, t.user_acl, t.group_acl, t.display_name, t.allow_user_cancel_workspace_jobs, t.allow_user_autostart, t.allow_user_autostop, t.failure_ttl, t.time_til_dormant, t.time_til_dormant_autodelete, t.autostop_requirement_days_of_week, t.autostop_requirement_weeks, t.autostart_block_days_of_week, t.require_active_version, t.deprecated, t.activity_bump, t.max_port_sharing_level, t.use_classic_parameter_flow, t.cors_behavior, t.disable_module_cache, t.time_til_autostop_notify, t.agents_allowed, t.allow_workspace_renames, t.exit_node_enforce, t.exit_node_ids, t.created_by_avatar_url, t.created_by_username, t.created_by_name, t.organization_name, t.organization_display_name, t.organization_icon
 FROM
 	template_with_names AS t
 LEFT JOIN
@@ -28308,8 +28372,8 @@ func (q *sqlQuerier) GetTemplatesWithFilter(ctx context.Context, arg GetTemplate
 			&i.TimeTilAutostopNotify,
 			&i.AgentsAllowed,
 			&i.AllowWorkspaceRenames,
-			&i.ExitNodeID,
 			&i.ExitNodeEnforce,
+			pq.Array(&i.ExitNodeIds),
 			&i.CreatedByAvatarURL,
 			&i.CreatedByUsername,
 			&i.CreatedByName,
@@ -28505,8 +28569,7 @@ SET
 	disable_module_cache = $12,
 	agents_allowed = $13,
 	allow_workspace_renames = $14,
-	exit_node_id = $15,
-	exit_node_enforce = $16
+	exit_node_enforce = $15
 WHERE
 	id = $1
 `
@@ -28526,7 +28589,6 @@ type UpdateTemplateMetaByIDParams struct {
 	DisableModuleCache           bool            `db:"disable_module_cache" json:"disable_module_cache"`
 	AgentsAllowed                bool            `db:"agents_allowed" json:"agents_allowed"`
 	AllowWorkspaceRenames        bool            `db:"allow_workspace_renames" json:"allow_workspace_renames"`
-	ExitNodeID                   uuid.NullUUID   `db:"exit_node_id" json:"exit_node_id"`
 	ExitNodeEnforce              bool            `db:"exit_node_enforce" json:"exit_node_enforce"`
 }
 
@@ -28546,7 +28608,6 @@ func (q *sqlQuerier) UpdateTemplateMetaByID(ctx context.Context, arg UpdateTempl
 		arg.DisableModuleCache,
 		arg.AgentsAllowed,
 		arg.AllowWorkspaceRenames,
-		arg.ExitNodeID,
 		arg.ExitNodeEnforce,
 	)
 	return err
@@ -39773,7 +39834,7 @@ LEFT JOIN LATERAL (
 ) latest_build ON TRUE
 LEFT JOIN LATERAL (
 	SELECT
-		id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, allow_user_autostart, allow_user_autostop, failure_ttl, time_til_dormant, time_til_dormant_autodelete, autostop_requirement_days_of_week, autostop_requirement_weeks, autostart_block_days_of_week, require_active_version, deprecated, activity_bump, max_port_sharing_level, use_classic_parameter_flow, cors_behavior, disable_module_cache, time_til_autostop_notify, agents_allowed, allow_workspace_renames, exit_node_id, exit_node_enforce
+		id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, allow_user_autostart, allow_user_autostop, failure_ttl, time_til_dormant, time_til_dormant_autodelete, autostop_requirement_days_of_week, autostop_requirement_weeks, autostart_block_days_of_week, require_active_version, deprecated, activity_bump, max_port_sharing_level, use_classic_parameter_flow, cors_behavior, disable_module_cache, time_til_autostop_notify, agents_allowed, allow_workspace_renames, exit_node_enforce
 	FROM
 		templates
 	WHERE

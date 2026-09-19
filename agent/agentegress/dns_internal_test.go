@@ -153,6 +153,24 @@ func TestDNS_AAAAIsEmpty(t *testing.T) {
 	require.Empty(t, answers)
 }
 
+func TestDNS_ExemptAAAAForwardedUpstream(t *testing.T) {
+	t.Parallel()
+
+	upstream := newFakeUpstreamDNS(t, netip.MustParseAddr("203.0.113.6"))
+	exit := newFakeExitNode(t, nil)
+	proxy := startProxy(t, exit, proxyOptions{
+		exemptHosts: []string{"control.example.com"},
+		upstream:    []netip.AddrPort{upstream.addr},
+	})
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	hdr, answers := dnsExchange(ctx, t, "udp", proxy.DNSAddr(), dnsQuery(t, 8, "control.example.com.", dnsmessage.TypeAAAA))
+	require.Equal(t, dnsmessage.RCodeSuccess, hdr.RCode)
+	require.Len(t, answers, 1)
+	require.Equal(t, []string{"control.example.com."}, upstream.seen())
+	require.Empty(t, exit.connectsTo(dnsRelayTarget))
+}
+
 func TestDNS_PTRForFakeIP(t *testing.T) {
 	t.Parallel()
 

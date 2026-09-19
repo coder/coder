@@ -182,22 +182,28 @@ func (a *ManifestAPI) egressConfig(ctx context.Context, templateID uuid.UUID, de
 	if err != nil {
 		return nil, xerrors.Errorf("get template: %w", err)
 	}
-	if !template.ExitNodeID.Valid {
-		return nil, nil //nolint:nilnil // Nil egress means the template routes traffic directly.
-	}
-	exitNode, err := a.Database.GetExitNodeByID(systemCtx, template.ExitNodeID.UUID)
-	if errors.Is(err, sql.ErrNoRows) || (err == nil && exitNode.Deleted) {
-		return nil, nil //nolint:nilnil // A dangling or soft-deleted binding degrades to direct egress.
-	}
+	exitNodes, err := a.Database.GetTemplateExitNodes(systemCtx, templateID)
 	if err != nil {
-		return nil, xerrors.Errorf("get exit node: %w", err)
+		return nil, xerrors.Errorf("get template exit nodes: %w", err)
+	}
+	exitNodeIDs := make([][]byte, 0, len(exitNodes))
+	var wireguardEndpoints []string
+	for _, exitNode := range exitNodes {
+		if exitNode.Deleted {
+			continue
+		}
+		exitNodeIDs = append(exitNodeIDs, exitNode.ID[:])
+		wireguardEndpoints = append(wireguardEndpoints, exitNode.WireguardEndpoints...)
+	}
+	if len(exitNodeIDs) == 0 {
+		return nil, nil //nolint:nilnil // No live exit nodes means the template routes traffic directly.
 	}
 
 	return &agentproto.EgressConfig{
-		ExitNodeId:        exitNode.ID[:],
+		ExitNodeIds:       exitNodeIDs,
 		ExitNodePort:      codersdk.ExitNodeTailnetPort,
 		Enforce:           template.ExitNodeEnforce,
-		ControlPlaneHosts: controlPlaneHosts(a.AccessURL, derpMap, exitNode.WireguardEndpoints),
+		ControlPlaneHosts: controlPlaneHosts(a.AccessURL, derpMap, wireguardEndpoints),
 	}, nil
 }
 

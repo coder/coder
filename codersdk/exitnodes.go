@@ -122,6 +122,9 @@ type ExitNodeFlowReport struct {
 
 type ReportExitNodeFlowsRequest struct {
 	Flows []ExitNodeFlowReport `json:"flows"`
+	// DroppedReports is the number of reports lost since the previous
+	// successful batch.
+	DroppedReports int `json:"dropped_reports,omitempty"`
 }
 
 // CreateExitNode registers a new exit node in the organization and returns

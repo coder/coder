@@ -3071,6 +3071,16 @@ COMMENT ON COLUMN telemetry_locks.event_type IS 'The type of event that was sent
 
 COMMENT ON COLUMN telemetry_locks.period_ending_at IS 'The heartbeat period end timestamp.';
 
+CREATE TABLE template_exit_nodes (
+    template_id uuid NOT NULL,
+    exit_node_id uuid NOT NULL,
+    "position" integer NOT NULL
+);
+
+COMMENT ON TABLE template_exit_nodes IS 'Ordered exit nodes that terminate egress for workspaces built from a template.';
+
+COMMENT ON COLUMN template_exit_nodes."position" IS 'Zero-based preference order for exit node failover.';
+
 CREATE TABLE template_usage_stats (
     start_time timestamp with time zone NOT NULL,
     end_time timestamp with time zone NOT NULL,
@@ -3320,7 +3330,6 @@ CREATE TABLE templates (
     time_til_autostop_notify bigint DEFAULT 0 NOT NULL,
     agents_allowed boolean DEFAULT true NOT NULL,
     allow_workspace_renames boolean DEFAULT false NOT NULL,
-    exit_node_id uuid,
     exit_node_enforce boolean DEFAULT false NOT NULL
 );
 
@@ -3349,8 +3358,6 @@ COMMENT ON COLUMN templates.time_til_autostop_notify IS 'How long before the wor
 COMMENT ON COLUMN templates.agents_allowed IS 'Whether Coder Agents can create workspaces using this template.';
 
 COMMENT ON COLUMN templates.allow_workspace_renames IS 'Whether workspaces built from this template may be renamed. Renaming can be destructive for templates whose Terraform references the workspace name.';
-
-COMMENT ON COLUMN templates.exit_node_id IS 'Exit node that terminates egress for workspaces built from this template. NULL routes egress directly.';
 
 COMMENT ON COLUMN templates.exit_node_enforce IS 'Whether agents transparently enforce that workspace egress goes through the exit node.';
 
@@ -3389,8 +3396,11 @@ CREATE VIEW template_with_names AS
     templates.time_til_autostop_notify,
     templates.agents_allowed,
     templates.allow_workspace_renames,
-    templates.exit_node_id,
     templates.exit_node_enforce,
+    ARRAY( SELECT template_exit_nodes.exit_node_id
+           FROM template_exit_nodes
+          WHERE (template_exit_nodes.template_id = templates.id)
+          ORDER BY template_exit_nodes."position") AS exit_node_ids,
     COALESCE(visible_users.avatar_url, ''::text) AS created_by_avatar_url,
     COALESCE(visible_users.username, ''::text) AS created_by_username,
     COALESCE(visible_users.name, ''::text) AS created_by_name,
@@ -4515,6 +4525,12 @@ ALTER TABLE ONLY telemetry_items
 ALTER TABLE ONLY telemetry_locks
     ADD CONSTRAINT telemetry_locks_pkey PRIMARY KEY (event_type, period_ending_at);
 
+ALTER TABLE ONLY template_exit_nodes
+    ADD CONSTRAINT template_exit_nodes_pkey PRIMARY KEY (template_id, exit_node_id);
+
+ALTER TABLE ONLY template_exit_nodes
+    ADD CONSTRAINT template_exit_nodes_template_id_position_key UNIQUE (template_id, "position");
+
 ALTER TABLE ONLY template_usage_stats
     ADD CONSTRAINT template_usage_stats_pkey PRIMARY KEY (start_time, template_id, user_id);
 
@@ -5400,6 +5416,12 @@ ALTER TABLE ONLY tailnet_peers
 ALTER TABLE ONLY tailnet_tunnels
     ADD CONSTRAINT tailnet_tunnels_coordinator_id_fkey FOREIGN KEY (coordinator_id) REFERENCES tailnet_coordinators(id) ON DELETE CASCADE;
 
+ALTER TABLE ONLY template_exit_nodes
+    ADD CONSTRAINT template_exit_nodes_exit_node_id_fkey FOREIGN KEY (exit_node_id) REFERENCES exit_nodes(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY template_exit_nodes
+    ADD CONSTRAINT template_exit_nodes_template_id_fkey FOREIGN KEY (template_id) REFERENCES templates(id) ON DELETE CASCADE;
+
 ALTER TABLE ONLY template_usage_stats_session_apps
     ADD CONSTRAINT template_usage_stats_session__start_time_template_id_user__fkey FOREIGN KEY (start_time, template_id, user_id) REFERENCES template_usage_stats(start_time, template_id, user_id) ON DELETE CASCADE;
 
@@ -5438,9 +5460,6 @@ ALTER TABLE ONLY template_versions
 
 ALTER TABLE ONLY templates
     ADD CONSTRAINT templates_created_by_fkey FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE RESTRICT;
-
-ALTER TABLE ONLY templates
-    ADD CONSTRAINT templates_exit_node_id_fkey FOREIGN KEY (exit_node_id) REFERENCES exit_nodes(id) ON DELETE SET NULL;
 
 ALTER TABLE ONLY templates
     ADD CONSTRAINT templates_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;

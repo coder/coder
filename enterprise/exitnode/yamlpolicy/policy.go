@@ -43,7 +43,10 @@ import (
 // the rule to some of tcp, udp, and dns.
 //
 // tcp and udp flows are evaluated identically: hosts, cidrs, ports, and
-// protocols must all match, and default applies when no rule matches.
+// protocols must all match, and default applies when no rule matches. An
+// unknown host does not match host criteria. When ConnectProxy's unsafe
+// ProvisionalHostAllow option is enabled, host allow rules can match before
+// sniffing and are re-evaluated after the host is learned.
 //
 // dns flows are different because the exit node resolves names on behalf of
 // the workspace and a name must resolve before any tcp or udp rule can allow
@@ -122,7 +125,7 @@ type Policy struct {
 	compiled atomic.Pointer[compiledPolicy]
 }
 
-var _ exitnode.Policy = (*Policy)(nil)
+var _ exitnode.ReloadablePolicy = (*Policy)(nil)
 
 // Load reads and compiles the policy at path. The returned policy remembers
 // the path so Reload can re-read it.
@@ -165,8 +168,8 @@ func (p *Policy) Reload() error {
 }
 
 // Evaluate walks the rules in order and returns the first match, falling back
-// to the default action. See exitnode.FlowInfo.HostUnknown for provisional
-// semantics and policyFile for how dns flows differ.
+// to the default action. See exitnode.FlowInfo.HostUnknown for the opt-in
+// provisional semantics and policyFile for how dns flows differ.
 func (p *Policy) Evaluate(flow exitnode.FlowInfo) exitnode.Decision {
 	compiled := p.compiled.Load()
 	host := exitnode.NormalizeHost(flow.Host)

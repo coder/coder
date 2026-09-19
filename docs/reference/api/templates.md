@@ -76,7 +76,9 @@ To include deprecated templates, specify `deprecated:true` in the search query.
     "disable_module_cache": true,
     "display_name": "string",
     "exit_node_enforce": true,
-    "exit_node_id": "6e1d16cb-7313-46cb-bb18-f1f3225acb29",
+    "exit_node_ids": [
+      "497f6eca-6276-4993-bfeb-53cbbbba6f08"
+    ],
     "failure_ttl_ms": 0,
     "icon": "string",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
@@ -140,8 +142,8 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 |`» description`|string|false|||
 |`» disable_module_cache`|boolean|false||Disable module cache disables the use of cached Terraform modules during provisioning for this template. It is read-only while ModuleCacheDisabledByDeployment is true.|
 |`» display_name`|string|false|||
-|`» exit_node_enforce`|boolean|false||Exit node enforce requests transparent enforcement in the workspace so traffic cannot bypass the exit node. Ignored when ExitNodeID is nil.|
-|`» exit_node_id`|string(uuid)|false||Exit node ID routes egress from workspaces built from this template through the given exit node. Nil leaves egress unmanaged.|
+|`» exit_node_enforce`|boolean|false||Exit node enforce requests transparent enforcement in the workspace so traffic cannot bypass the exit nodes. Ignored when ExitNodeIDs is empty.|
+|`» exit_node_ids`|array|false||Exit node ids route egress from workspaces built from this template through the listed exit nodes in preference order. An empty list leaves egress unmanaged.|
 |`» failure_ttl_ms`|integer|false||Failure ttl ms TimeTilDormantMillis, and TimeTilDormantAutoDeleteMillis are enterprise-only. Their values are used if your license is entitled to use the advanced template scheduling feature.|
 |`» icon`|string|false|||
 |`» id`|string(uuid)|false|||
@@ -277,7 +279,9 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/templa
   "disable_module_cache": true,
   "display_name": "string",
   "exit_node_enforce": true,
-  "exit_node_id": "6e1d16cb-7313-46cb-bb18-f1f3225acb29",
+  "exit_node_ids": [
+    "497f6eca-6276-4993-bfeb-53cbbbba6f08"
+  ],
   "failure_ttl_ms": 0,
   "icon": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
@@ -435,7 +439,9 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
   "disable_module_cache": true,
   "display_name": "string",
   "exit_node_enforce": true,
-  "exit_node_id": "6e1d16cb-7313-46cb-bb18-f1f3225acb29",
+  "exit_node_ids": [
+    "497f6eca-6276-4993-bfeb-53cbbbba6f08"
+  ],
   "failure_ttl_ms": 0,
   "icon": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
@@ -863,7 +869,9 @@ To include deprecated templates, specify `deprecated:true` in the search query.
     "disable_module_cache": true,
     "display_name": "string",
     "exit_node_enforce": true,
-    "exit_node_id": "6e1d16cb-7313-46cb-bb18-f1f3225acb29",
+    "exit_node_ids": [
+      "497f6eca-6276-4993-bfeb-53cbbbba6f08"
+    ],
     "failure_ttl_ms": 0,
     "icon": "string",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
@@ -927,8 +935,8 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 |`» description`|string|false|||
 |`» disable_module_cache`|boolean|false||Disable module cache disables the use of cached Terraform modules during provisioning for this template. It is read-only while ModuleCacheDisabledByDeployment is true.|
 |`» display_name`|string|false|||
-|`» exit_node_enforce`|boolean|false||Exit node enforce requests transparent enforcement in the workspace so traffic cannot bypass the exit node. Ignored when ExitNodeID is nil.|
-|`» exit_node_id`|string(uuid)|false||Exit node ID routes egress from workspaces built from this template through the given exit node. Nil leaves egress unmanaged.|
+|`» exit_node_enforce`|boolean|false||Exit node enforce requests transparent enforcement in the workspace so traffic cannot bypass the exit nodes. Ignored when ExitNodeIDs is empty.|
+|`» exit_node_ids`|array|false||Exit node ids route egress from workspaces built from this template through the listed exit nodes in preference order. An empty list leaves egress unmanaged.|
 |`» failure_ttl_ms`|integer|false||Failure ttl ms TimeTilDormantMillis, and TimeTilDormantAutoDeleteMillis are enterprise-only. Their values are used if your license is entitled to use the advanced template scheduling feature.|
 |`» icon`|string|false|||
 |`» id`|string(uuid)|false|||
@@ -1079,7 +1087,9 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template} \
   "disable_module_cache": true,
   "display_name": "string",
   "exit_node_enforce": true,
-  "exit_node_id": "6e1d16cb-7313-46cb-bb18-f1f3225acb29",
+  "exit_node_ids": [
+    "497f6eca-6276-4993-bfeb-53cbbbba6f08"
+  ],
   "failure_ttl_ms": 0,
   "icon": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
@@ -1195,7 +1205,9 @@ curl -X PATCH http://coder-server:8080/api/v2/templates/{template} \
   "disable_module_cache": true,
   "display_name": "string",
   "exit_node_enforce": true,
-  "exit_node_id": "6e1d16cb-7313-46cb-bb18-f1f3225acb29",
+  "exit_node_ids": [
+    "497f6eca-6276-4993-bfeb-53cbbbba6f08"
+  ],
   "failure_ttl_ms": 0,
   "icon": "string",
   "max_port_share_level": "owner",
@@ -1264,7 +1276,9 @@ curl -X PATCH http://coder-server:8080/api/v2/templates/{template} \
   "disable_module_cache": true,
   "display_name": "string",
   "exit_node_enforce": true,
-  "exit_node_id": "6e1d16cb-7313-46cb-bb18-f1f3225acb29",
+  "exit_node_ids": [
+    "497f6eca-6276-4993-bfeb-53cbbbba6f08"
+  ],
   "failure_ttl_ms": 0,
   "icon": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",

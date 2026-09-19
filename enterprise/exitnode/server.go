@@ -57,6 +57,12 @@ type Options struct {
 	DialTimeout time.Duration
 	// SniffTimeout bounds host sniffing. Defaults to hostsniff.DefaultTimeout.
 	SniffTimeout time.Duration
+	// ProvisionalHostAllow lets host-based allow rules provisionally allow an
+	// IP-literal TCP target before its host is sniffed. This weakens strict
+	// host enforcement and defaults to false.
+	ProvisionalHostAllow bool
+	// Resolver resolves CONNECT hostnames. Defaults to net.DefaultResolver.
+	Resolver HostResolver
 	// UDPIdleTimeout closes idle udp streams. Defaults to
 	// DefaultUDPIdleTimeout.
 	UDPIdleTimeout time.Duration
@@ -208,16 +214,18 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (*Server, error)
 	})
 
 	s.proxy = NewConnectProxy(ConnectProxyOptions{
-		Logger:              logger.Named("connect"),
-		Policy:              opts.Policy,
-		Agents:              s.agents,
-		Flows:               s.flows,
-		Metrics:             s.metrics,
-		DialTimeout:         opts.DialTimeout,
-		SniffTimeout:        opts.SniffTimeout,
-		UDPIdleTimeout:      opts.UDPIdleTimeout,
-		DNSExchanger:        opts.DNSExchanger,
-		DNSReportSampleRate: opts.DNSReportSampleRate,
+		Logger:               logger.Named("connect"),
+		Policy:               opts.Policy,
+		Agents:               s.agents,
+		Flows:                s.flows,
+		Metrics:              s.metrics,
+		DialTimeout:          opts.DialTimeout,
+		SniffTimeout:         opts.SniffTimeout,
+		ProvisionalHostAllow: opts.ProvisionalHostAllow,
+		Resolver:             opts.Resolver,
+		UDPIdleTimeout:       opts.UDPIdleTimeout,
+		DNSExchanger:         opts.DNSExchanger,
+		DNSReportSampleRate:  opts.DNSReportSampleRate,
 	})
 
 	s.listener, err = s.conn.Listen("tcp", fmt.Sprintf(":%d", opts.ListenPort))
@@ -254,10 +262,10 @@ func (s *Server) Metrics() *Metrics {
 }
 
 // ReloadPolicy asks the policy to reload itself, for example to re-read a
-// yamlpolicy file after SIGHUP. Policies without a Reload() error method return
-// an error and stay in effect.
+// yamlpolicy file after SIGHUP. Policies without ReloadablePolicy support
+// return an error and stay in effect.
 func (s *Server) ReloadPolicy() error {
-	reloader, ok := s.policy.(interface{ Reload() error })
+	reloader, ok := s.policy.(ReloadablePolicy)
 	if !ok {
 		return xerrors.Errorf("policy %T does not support reload", s.policy)
 	}

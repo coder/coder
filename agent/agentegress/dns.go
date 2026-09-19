@@ -189,7 +189,9 @@ func (s *dnsServer) answer(ctx context.Context, hdr dnsmessage.Header, q dnsmess
 	case dnsmessage.TypeA:
 		return synthesized(&dnsmessage.AResource{A: s.fake.Lookup(name).As4()})
 	case dnsmessage.TypeAAAA:
-		// No AAAA answer steers dual-stack clients to the fake IPv4.
+		// An empty AAAA answer forces dual-stack clients onto the fake IPv4
+		// path. IPv6-only destinations still work because the exit node
+		// resolves the hostname from the CONNECT target itself.
 		return dnsReply(hdr, &q, dnsmessage.RCodeSuccess)
 	case dnsmessage.TypePTR:
 		if addr, ok := parseReverseName(name); ok && s.fake.Contains(addr) {

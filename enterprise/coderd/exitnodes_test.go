@@ -65,7 +65,7 @@ func TestExitNodes(t *testing.T) {
 	template := coderdtest.CreateTemplate(t, client, orgID, version.ID)
 	setupCtx := testutil.Context(t, testutil.WaitLong)
 	_, err := client.UpdateTemplateMeta(setupCtx, template.ID, codersdk.UpdateTemplateMeta{
-		ExitNodeID: &boundNode.ID,
+		ExitNodeIDs: []uuid.UUID{boundNode.ID},
 	})
 	require.NoError(t, err)
 	workspace := coderdtest.CreateWorkspace(t, client, template.ID)
@@ -241,14 +241,17 @@ func TestExitNodes(t *testing.T) {
 
 		// report sends flows for the shared agent at connectTime unless a
 		// flow overrides them.
-		report := func(token string, flows ...codersdk.ExitNodeFlowReport) {
+		report := func(token string, droppedReports int, flows ...codersdk.ExitNodeFlowReport) {
 			for i := range flows {
 				flows[i].AgentID = cmp.Or(flows[i].AgentID, agent.ID)
 				if flows[i].ConnectTime.IsZero() {
 					flows[i].ConnectTime = connectTime
 				}
 			}
-			res, err := exitNodeRequest(ctx, token, http.MethodPost, "/api/v2/exitnodes/me/flows", codersdk.ReportExitNodeFlowsRequest{Flows: flows})
+			res, err := exitNodeRequest(ctx, token, http.MethodPost, "/api/v2/exitnodes/me/flows", codersdk.ReportExitNodeFlowsRequest{
+				Flows:          flows,
+				DroppedReports: droppedReports,
+			})
 			require.NoError(t, err)
 			defer res.Body.Close()
 			if res.StatusCode != http.StatusNoContent {
@@ -266,7 +269,7 @@ func TestExitNodes(t *testing.T) {
 		}
 
 		// Connect report for an allowed flow, plus a denied flow.
-		report(boundToken,
+		report(boundToken, 7,
 			allowed,
 			codersdk.ExitNodeFlowReport{
 				FlowID:          deniedID,
@@ -310,9 +313,9 @@ func TestExitNodes(t *testing.T) {
 		)
 		// Disconnect report for the allowed flow.
 		allowed.BytesIn, allowed.BytesOut, allowed.DisconnectTime = 1234, 567, &disconnectTime
-		report(boundToken, allowed)
+		report(boundToken, 0, allowed)
 		// A flow from a node the template is not bound to.
-		report(otherToken, codersdk.ExitNodeFlowReport{
+		report(otherToken, 0, codersdk.ExitNodeFlowReport{
 			FlowID:          unboundID,
 			DestinationIP:   "198.51.100.9",
 			DestinationPort: 80,
@@ -320,9 +323,17 @@ func TestExitNodes(t *testing.T) {
 		})
 
 		byFlow := make(map[uuid.UUID][]database.UpsertConnectionLogParams)
+		var gapLogs []database.UpsertConnectionLogParams
 		for _, clog := range connLogger.ConnectionLogs() {
+			if clog.SlugOrPort.String == "exit-node-report-gap" {
+				gapLogs = append(gapLogs, clog)
+			}
 			byFlow[clog.ID] = append(byFlow[clog.ID], clog)
 		}
+		require.Len(t, gapLogs, 1)
+		assert.Equal(t, database.ConnectionTypeEgress, gapLogs[0].Type)
+		assert.Equal(t, database.ConnectionStatusDisconnected, gapLogs[0].ConnectionStatus)
+		assert.Equal(t, "dropped 7 exit node flow reports", gapLogs[0].DisconnectReason.String)
 		require.Empty(t, byFlow[unboundID], "unbound exit node must not log flows")
 
 		// Connect, then connect+disconnect from the second report.

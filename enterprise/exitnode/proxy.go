@@ -108,6 +108,10 @@ type ConnectProxyOptions struct {
 	SniffTimeout time.Duration
 	// Resolver resolves CONNECT hostnames. Defaults to net.DefaultResolver.
 	Resolver HostResolver
+	// ProvisionalHostAllow lets host-based allow rules provisionally allow an
+	// IP-literal TCP target before its host is sniffed. This weakens strict
+	// host enforcement and defaults to false.
+	ProvisionalHostAllow bool
 	// ResolveTimeout bounds one hostname lookup. Defaults to
 	// DefaultResolveTimeout.
 	ResolveTimeout time.Duration
@@ -157,17 +161,20 @@ type ConnectProxyOptions struct {
 // HTTP Host), which the application does not send until the agent has
 // relayed the 200, so policy runs in two phases:
 //
-//  1. Before replying, the policy is evaluated with HostUnknown set. IP, CIDR,
-//     and port based denials are final here and produce the 403 with the
-//     reason header, which the agent can surface.
-//  2. If phase one allowed (possibly provisionally), the proxy replies 200,
-//     sniffs the first client bytes with a short deadline, and evaluates again
-//     with the sniffed host. A denial here can no longer be signaled in HTTP,
-//     so the connection is simply closed, which the application observes as a
-//     reset or EOF. Both phases record the flow.
+//  1. Before replying, the policy is evaluated with the information already
+//     known. By default an unknown host is empty, so host-based allow rules
+//     cannot match. IP, CIDR, port, protocol, and default rules decide whether
+//     the proxy can reply 200. ProvisionalHostAllow restores provisional host
+//     matching for compatibility, at the cost of weaker host enforcement.
+//  2. If phase one allowed, the proxy replies 200, sniffs the first client
+//     bytes with a short deadline, and evaluates again with the sniffed host.
+//     A denial here can no longer be signaled in HTTP, so the connection is
+//     simply closed, which the application observes as a reset or EOF. Both
+//     phases record the flow.
 //
 // An X-Coder-Original-Host header on an IP literal target supplies the name
-// directly and skips sniffing.
+// directly and skips sniffing only when the exit node resolves the name to the
+// literal address. Unverified claims are ignored.
 //
 // udp: the stream carries datagrams framed as a 2-byte big-endian length
 // followed by the payload, in both directions. One UDP socket is opened to
@@ -310,6 +317,17 @@ func (p *ConnectProxy) HandleConn(ctx context.Context, conn net.Conn) {
 
 // handleStream serves a tcp or udp stream; see ConnectProxy for the phases.
 func (p *ConnectProxy) handleStream(ctx context.Context, logger slog.Logger, client net.Conn, agentID uuid.UUID, target connectTarget) {
+	if target.ip.IsValid() && target.host != "" {
+		claimedHost := target.host
+		if err := p.verifyOriginalHost(ctx, claimedHost, target.ip); err != nil {
+			logger.Info(ctx, "ignoring unverified original host",
+				slog.F("original_host", claimedHost),
+				slog.F("destination_ip", target.ip),
+				slog.Error(err),
+			)
+			target.host = ""
+		}
+	}
 	if !target.ip.IsValid() {
 		ip, err := p.resolve(ctx, target.host)
 		if err != nil {
@@ -334,7 +352,7 @@ func (p *ConnectProxy) handleStream(ctx context.Context, logger slog.Logger, cli
 	// Only application bytes on a tcp stream can reveal a name later; nothing
 	// in udp datagrams does, so a udp decision is final now.
 	sniff := target.protocol == codersdk.ExitNodeProtocolTCP && target.host == ""
-	info.HostUnknown = sniff
+	info.HostUnknown = sniff && p.ProvisionalHostAllow
 
 	// Phase one: decide on what is known before replying, so IP/CIDR/port
 	// denials (and host denials when the name is known) reach the agent as
@@ -404,6 +422,24 @@ func (p *ConnectProxy) handleStream(ctx context.Context, logger slog.Logger, cli
 	p.Metrics.BytesTotal.WithLabelValues("out").Add(float64(flow.BytesOut))
 	p.recordEnded(flow)
 	logger.Debug(ctx, "flow closed", slog.F("bytes_in", flow.BytesIn), slog.F("bytes_out", flow.BytesOut))
+}
+
+// verifyOriginalHost confirms that host resolves to the literal IP requested
+// by the agent. The proxy still dials the literal IP after verification.
+func (p *ConnectProxy) verifyOriginalHost(ctx context.Context, host string, ip netip.Addr) error {
+	ctx, cancel := context.WithTimeout(ctx, p.ResolveTimeout)
+	defer cancel()
+	addrs, err := p.Resolver.LookupNetIP(ctx, "ip", host)
+	if err != nil {
+		return xerrors.Errorf("lookup %q: %w", host, err)
+	}
+	ip = ip.Unmap()
+	for _, addr := range addrs {
+		if addr.Unmap() == ip {
+			return nil
+		}
+	}
+	return xerrors.Errorf("host %q does not resolve to %s", host, ip)
 }
 
 // resolve looks up host and prefers an IPv4 address so the upstream path

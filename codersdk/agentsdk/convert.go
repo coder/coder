@@ -113,12 +113,16 @@ func EgressConfigFromProto(egress *proto.EgressConfig) (*EgressConfig, error) {
 	if egress == nil {
 		return nil, nil //nolint:nilnil // Nil egress means the workspace routes traffic directly.
 	}
-	exitNodeID, err := uuid.FromBytes(egress.ExitNodeId)
-	if err != nil {
-		return nil, xerrors.Errorf("error converting exit node ID: %w", err)
+	exitNodeIDs := make([]uuid.UUID, 0, len(egress.ExitNodeIds))
+	for _, rawID := range egress.ExitNodeIds {
+		exitNodeID, err := uuid.FromBytes(rawID)
+		if err != nil {
+			return nil, xerrors.Errorf("error converting exit node ID: %w", err)
+		}
+		exitNodeIDs = append(exitNodeIDs, exitNodeID)
 	}
 	return &EgressConfig{
-		ExitNodeID:        exitNodeID,
+		ExitNodeIDs:       exitNodeIDs,
 		ExitNodePort:      int(egress.ExitNodePort),
 		Enforce:           egress.Enforce,
 		ControlPlaneHosts: egress.ControlPlaneHosts,
@@ -131,8 +135,12 @@ func ProtoFromEgressConfig(egress *EgressConfig) *proto.EgressConfig {
 	if egress == nil {
 		return nil
 	}
+	exitNodeIDs := make([][]byte, 0, len(egress.ExitNodeIDs))
+	for _, exitNodeID := range egress.ExitNodeIDs {
+		exitNodeIDs = append(exitNodeIDs, exitNodeID[:])
+	}
 	return &proto.EgressConfig{
-		ExitNodeId: egress.ExitNodeID[:],
+		ExitNodeIds: exitNodeIDs,
 		// #nosec G115 - Ports are bounded by 65535 and always fit in int32.
 		ExitNodePort:      int32(egress.ExitNodePort),
 		Enforce:           egress.Enforce,

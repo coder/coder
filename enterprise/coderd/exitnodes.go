@@ -285,6 +285,7 @@ func (api *API) reportExitNodeFlows(rw http.ResponseWriter, r *http.Request) {
 	// template does not route egress through this exit node.
 	agents := make(map[uuid.UUID]*database.UpsertConnectionLogParams)
 	templates := make(map[uuid.UUID]database.Template)
+	gapPending := req.DroppedReports > 0
 	for _, flow := range req.Flows {
 		base, ok := agents[flow.AgentID]
 		if !ok {
@@ -303,6 +304,24 @@ func (api *API) reportExitNodeFlows(rw http.ResponseWriter, r *http.Request) {
 				slog.F("flow_id", flow.FlowID),
 			)
 			continue
+		}
+		if gapPending {
+			gap := *base
+			gap.ID = uuid.NewSHA1(flow.FlowID, []byte("dropped-reports"))
+			gap.ConnectionID = uuid.NullUUID{UUID: gap.ID, Valid: true}
+			gap.Time = flow.ConnectTime
+			gap.ConnectionStatus = database.ConnectionStatusDisconnected
+			gap.Code = sql.NullInt32{Valid: true}
+			gap.SlugOrPort = sql.NullString{String: "exit-node-report-gap", Valid: true}
+			gap.DisconnectReason = sql.NullString{
+				String: fmt.Sprintf("dropped %d exit node flow reports", req.DroppedReports),
+				Valid:  true,
+			}
+			if err := (*connLogger).Upsert(ctx, gap); err != nil {
+				httpapi.InternalServerError(rw, xerrors.Errorf("upsert connection log gap marker: %w", err))
+				return
+			}
+			gapPending = false
 		}
 		for _, params := range exitNodeFlowConnectionLogs(*base, flow) {
 			if err := (*connLogger).Upsert(ctx, params); err != nil {
@@ -341,7 +360,7 @@ func (api *API) exitNodeFlowBase(ctx context.Context, exitNodeID, agentID uuid.U
 		}
 		templates[workspace.TemplateID] = template
 	}
-	if !template.ExitNodeID.Valid || template.ExitNodeID.UUID != exitNodeID {
+	if !slice.Contains(template.ExitNodeIds, exitNodeID) {
 		return nil, nil //nolint:nilnil // Unbound agents are skipped.
 	}
 	// Exit nodes report agent traffic, so no user or user agent is known.

@@ -45,7 +45,7 @@ func baselineTemplate() database.Template {
 		CorsBehavior:                  database.CorsBehaviorPassthru,
 		DisableModuleCache:            true,
 		AllowWorkspaceRenames:         true,
-		ExitNodeID:                    uuid.NullUUID{UUID: uuid.MustParse("00000000-0000-0000-0000-0000000000e1"), Valid: true},
+		ExitNodeIds:                   []uuid.UUID{uuid.MustParse("00000000-0000-0000-0000-0000000000e1")},
 		ExitNodeEnforce:               true,
 		GroupACL: database.TemplateACL{
 			orgID.String(): {"read"},
@@ -91,7 +91,7 @@ func baselineResolved() templateMetaUpdate {
 		useClassicTemplateFlow:               tpl.UseClassicParameterFlow,
 		disableModuleCache:                   tpl.DisableModuleCache,
 		allowWorkspaceRenames:                tpl.AllowWorkspaceRenames,
-		exitNodeID:                           tpl.ExitNodeID,
+		exitNodeIDs:                          tpl.ExitNodeIds,
 		exitNodeEnforce:                      tpl.ExitNodeEnforce,
 		corsBehavior:                         tpl.CorsBehavior,
 		autostopRequirementDaysOfWeekParsed:  0b0000001,
@@ -306,17 +306,23 @@ func TestResolveTemplateMetaUpdate(t *testing.T) {
 
 		// Exit node binding.
 		{
-			name: "ExitNodeIDChange",
-			req:  codersdk.UpdateTemplateMeta{ExitNodeID: new(uuid.MustParse("00000000-0000-0000-0000-0000000000e2"))},
+			name: "ExitNodeIDsChange",
+			req: codersdk.UpdateTemplateMeta{ExitNodeIDs: []uuid.UUID{
+				uuid.MustParse("00000000-0000-0000-0000-0000000000e2"),
+				uuid.MustParse("00000000-0000-0000-0000-0000000000e3"),
+			}},
 			expected: expected{override: func(r *templateMetaUpdate) {
-				r.exitNodeID = uuid.NullUUID{UUID: uuid.MustParse("00000000-0000-0000-0000-0000000000e2"), Valid: true}
+				r.exitNodeIDs = []uuid.UUID{
+					uuid.MustParse("00000000-0000-0000-0000-0000000000e2"),
+					uuid.MustParse("00000000-0000-0000-0000-0000000000e3"),
+				}
 			}},
 		},
 		{
-			name: "ExitNodeIDNilUUIDClears",
-			req:  codersdk.UpdateTemplateMeta{ExitNodeID: new(uuid.Nil)},
+			name: "EmptyExitNodeIDsClear",
+			req:  codersdk.UpdateTemplateMeta{ExitNodeIDs: []uuid.UUID{}},
 			expected: expected{override: func(r *templateMetaUpdate) {
-				r.exitNodeID = uuid.NullUUID{}
+				r.exitNodeIDs = []uuid.UUID{}
 			}},
 		},
 		{

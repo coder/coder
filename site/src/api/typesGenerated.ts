@@ -8463,6 +8463,11 @@ export interface Replica {
 // From codersdk/exitnodes.go
 export interface ReportExitNodeFlowsRequest {
 	readonly flows: readonly ExitNodeFlowReport[];
+	/**
+	 * DroppedReports is the number of reports lost since the previous
+	 * successful batch.
+	 */
+	readonly dropped_reports?: number;
 }
 
 // From codersdk/users.go
@@ -9421,13 +9426,14 @@ export interface Template {
 	 */
 	readonly allow_workspace_renames: boolean;
 	/**
-	 * ExitNodeID routes egress from workspaces built from this template
-	 * through the given exit node. Nil leaves egress unmanaged.
+	 * ExitNodeIDs route egress from workspaces built from this template
+	 * through the listed exit nodes in preference order. An empty list leaves
+	 * egress unmanaged.
 	 */
-	readonly exit_node_id?: string;
+	readonly exit_node_ids: readonly string[];
 	/**
 	 * ExitNodeEnforce requests transparent enforcement in the workspace so
-	 * traffic cannot bypass the exit node. Ignored when ExitNodeID is nil.
+	 * traffic cannot bypass the exit nodes. Ignored when ExitNodeIDs is empty.
 	 */
 	readonly exit_node_enforce: boolean;
 }
@@ -10446,10 +10452,11 @@ export interface UpdateTemplateMeta {
 	 */
 	readonly allow_workspace_renames?: boolean;
 	/**
-	 * ExitNodeID binds the template to an exit node. Set to the nil UUID to
-	 * clear the binding. Omitting the field keeps the existing value.
+	 * ExitNodeIDs bind the template to exit nodes in preference order. An
+	 * explicit empty list clears the binding. Omitting the field keeps the
+	 * existing value.
 	 */
-	readonly exit_node_id?: string;
+	readonly exit_node_ids: readonly string[];
 	/**
 	 * ExitNodeEnforce toggles transparent enforcement for the exit node
 	 * binding. Omitting the field keeps the existing value.

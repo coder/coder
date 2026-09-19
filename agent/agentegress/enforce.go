@@ -26,6 +26,16 @@ const (
 	natChain = "CODER_EGRESS"
 	// filterChain holds the ICMP policy and hangs off filter OUTPUT.
 	filterChain = "CODER_EGRESS_FILTER"
+	// tproxyOutputChain marks locally generated UDP for policy routing.
+	tproxyOutputChain = "CODER_EGRESS_UDP"
+	// tproxyPreroutingChain delivers policy-routed UDP to the proxy.
+	tproxyPreroutingChain = "CODER_EGRESS_TPROXY"
+	// tproxyMark selects policy routing into the transparent UDP listener.
+	tproxyMark = "0x434f"
+	// tproxyBypassMark prevents transparent reply sockets from being captured.
+	tproxyBypassMark = "0x4350"
+	// tproxyTable is dedicated to the local route used by transparent UDP.
+	tproxyTable = "54321"
 )
 
 // ndpICMPv6Types are the Neighbor Discovery message types (RFC 4861) a host
@@ -35,7 +45,7 @@ var ndpICMPv6Types = []string{"133", "134", "135", "136", "137"}
 
 // EnforcerOptions configure an Enforcer.
 type EnforcerOptions struct {
-	// Execer runs iptables. Defaults to agentexec.DefaultExecer.
+	// Execer runs iptables and ip. Defaults to agentexec.DefaultExecer.
 	Execer agentexec.Execer
 	// ProxyPort is the local port the Proxy's TCP listener is on.
 	ProxyPort uint16
@@ -50,18 +60,24 @@ type EnforcerOptions struct {
 	Resolvers []netip.Addr
 	// Resolver defaults to net.DefaultResolver.
 	Resolver Resolver
+	// LockdownCapabilities drops CAP_NET_ADMIN from the process bounding set
+	// after installation. It defaults to true. Set LockdownCapabilitiesSet
+	// when explicitly disabling it for debugging or tests.
+	LockdownCapabilities bool
+	// LockdownCapabilitiesSet distinguishes an explicit false value from the
+	// secure default.
+	LockdownCapabilitiesSet bool
+	// prctl is injected by tests.
+	prctl func(option uintptr, arg2 uintptr, arg3 uintptr, arg4 uintptr, arg5 uintptr) error
 }
 
-// Enforcer installs netfilter rules that redirect all outbound TCP, UDP and
-// DNS from the workspace into the local proxy and drop ICMP, which the
-// proxy cannot carry.
+// Enforcer installs netfilter rules that redirect outbound TCP and DNS into
+// the local proxy, transparently intercept non-DNS IPv4 UDP, and drop ICMP.
 //
 // Rules are attached to the OUTPUT chain without an owner match. The agent
 // runs as the same uid as the workspace user, so a uid exemption would also
-// exempt the user's processes. The agent's own control traffic (coderd,
-// DERP, STUN, exit node WireGuard) is instead exempted by destination via
-// ControlPlaneHosts, and its CONNECT traffic to the exit node travels inside
-// the userspace tailnet stack, never touching kernel TCP.
+// exempt the user's processes. The agent's own control traffic is exempted by
+// destination via ControlPlaneHosts.
 type Enforcer struct {
 	logger    slog.Logger
 	execer    agentexec.Execer
@@ -69,11 +85,14 @@ type Enforcer struct {
 	ports     proxyPorts
 	hosts     []string
 	resolvers []netip.Addr
+	lockdown  bool
+	prctl     func(option uintptr, arg2 uintptr, arg3 uintptr, arg4 uintptr, arg5 uintptr) error
 
-	mu        sync.Mutex
-	installed bool
-	// prefix is the command prefix that grants iptables privileges, either
-	// empty (running as root) or ["sudo", "-n"].
+	mu          sync.Mutex
+	installed   bool
+	lockedDown  bool
+	transparent bool
+	// prefix grants networking privileges, either empty or ["sudo", "-n"].
 	prefix []string
 }
 
@@ -95,6 +114,10 @@ func NewEnforcer(logger slog.Logger, opts EnforcerOptions) (*Enforcer, error) {
 	if opts.UDPPort == 0 {
 		return nil, xerrors.New("udp port is required")
 	}
+	lockdown := true
+	if opts.LockdownCapabilitiesSet {
+		lockdown = opts.LockdownCapabilities
+	}
 	e := &Enforcer{
 		logger:    logger,
 		execer:    opts.Execer,
@@ -102,6 +125,8 @@ func NewEnforcer(logger slog.Logger, opts EnforcerOptions) (*Enforcer, error) {
 		ports:     proxyPorts{tcp: opts.ProxyPort, dns: opts.DNSPort, udp: opts.UDPPort},
 		hosts:     opts.ControlPlaneHosts,
 		resolvers: opts.Resolvers,
+		lockdown:  lockdown,
+		prctl:     opts.prctl,
 	}
 	if e.execer == nil {
 		e.execer = agentexec.DefaultExecer
@@ -109,7 +134,17 @@ func NewEnforcer(logger slog.Logger, opts EnforcerOptions) (*Enforcer, error) {
 	if e.resolver == nil {
 		e.resolver = net.DefaultResolver
 	}
+	if e.prctl == nil {
+		e.prctl = dropCapabilityBoundingSet
+	}
 	return e, nil
+}
+
+// TransparentUDP reports whether Install enabled transparent UDP relay.
+func (e *Enforcer) TransparentUDP() bool {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return e.transparent
 }
 
 // rule is the argument list passed to iptables after "-t <table>".
@@ -118,8 +153,11 @@ type rule []string
 // ruleSet maps an iptables table to the rules for the chain owned there.
 type ruleSet map[string][]rule
 
-// tables pairs each managed iptables table with the chain owned in it.
-var tables = []struct{ table, chain string }{{"nat", natChain}, {"filter", filterChain}}
+// managedChains are the base enforcement chains.
+var managedChains = []struct{ table, chain, parent string }{
+	{"nat", natChain, "OUTPUT"},
+	{"filter", filterChain, "OUTPUT"},
+}
 
 // ipFamily selects the address family a rule set is built for.
 type ipFamily int
@@ -134,24 +172,27 @@ func (f ipFamily) matches(addr netip.Addr) bool {
 	return addr.Is4() == (f == ipv4)
 }
 
-// buildRules produces the chain contents for one address family. Exemptions
-// and resolvers of the other family are skipped; ipv6 selects the ip6tables
-// spelling of the ICMP rules. A zero exemption port matches every port.
-func buildRules(ports proxyPorts, exemptions []netip.AddrPort, resolvers []netip.Addr, family ipFamily) ruleSet {
+// udpMode selects how non-DNS UDP is intercepted.
+type udpMode int
+
+const (
+	udpModeTProxy udpMode = iota
+	udpModeRedirect
+)
+
+// buildRules produces the base chain contents for one address family. IPv4
+// TPROXY mode omits the non-DNS UDP REDIRECT rule.
+func buildRules(ports proxyPorts, exemptions []netip.AddrPort, resolvers []netip.Addr, family ipFamily, mode udpMode) ruleSet {
 	rs := ruleSet{}
 	nat := func(args ...string) { rs["nat"] = append(rs["nat"], append(rule{"-A", natChain}, args...)) }
 	filter := func(args ...string) { rs["filter"] = append(rs["filter"], append(rule{"-A", filterChain}, args...)) }
 	port := func(p uint16) string { return strconv.Itoa(int(p)) }
 
-	// Loopback stays local, otherwise the proxy would redirect its own
-	// clients back into itself.
 	nat("-o", "lo", "-j", "RETURN")
 	for _, ex := range exemptions {
 		if !family.matches(ex.Addr()) {
 			continue
 		}
-		// WireGuard, STUN and DERP to the control plane and exit node must
-		// flow over both transports.
 		for _, proto := range []string{"tcp", "udp"} {
 			args := []string{"-d", ex.Addr().String(), "-p", proto}
 			if ex.Port() != 0 {
@@ -160,9 +201,6 @@ func buildRules(ports proxyPorts, exemptions []netip.AddrPort, resolvers []netip
 			nat(append(args, "-j", "RETURN")...)
 		}
 	}
-	// The proxy reaches the system resolvers over TCP for exempt names.
-	// Clients that do the same bypass the fake IP scheme but still hit the
-	// TCP redirect for whatever they connect to next.
 	for _, addr := range resolvers {
 		if family.matches(addr) {
 			nat("-d", addr.String(), "-p", "tcp", "--dport", "53", "-j", "RETURN")
@@ -170,12 +208,11 @@ func buildRules(ports proxyPorts, exemptions []netip.AddrPort, resolvers []netip
 	}
 	nat("-p", "udp", "--dport", "53", "-j", "REDIRECT", "--to-ports", port(ports.dns))
 	nat("-p", "tcp", "--dport", "53", "-j", "REDIRECT", "--to-ports", port(ports.dns))
-	nat("-p", "udp", "-j", "REDIRECT", "--to-ports", port(ports.udp))
+	if mode == udpModeRedirect || family == ipv6 {
+		nat("-p", "udp", "-j", "REDIRECT", "--to-ports", port(ports.udp))
+	}
 	nat("-p", "tcp", "-j", "REDIRECT", "--to-ports", port(ports.tcp))
 
-	// UDP is not dropped here: it is redirected and the exit node decides,
-	// so a QUIC denial is a logged policy decision rather than a silent
-	// kernel drop. ICMP cannot be carried by the proxy at all.
 	filter("-o", "lo", "-j", "ACCEPT")
 	if family == ipv4 {
 		filter("-p", "icmp", "-j", "DROP")
@@ -185,6 +222,39 @@ func buildRules(ports proxyPorts, exemptions []netip.AddrPort, resolvers []netip
 		filter("-p", "icmpv6", "--icmpv6-type", typ, "-j", "ACCEPT")
 	}
 	filter("-p", "icmpv6", "-j", "DROP")
+	return rs
+}
+
+// buildTPROXYRules builds IPv4-only transparent UDP rules. IPv6 remains on
+// the REDIRECT fallback because the proxy currently listens on IPv4 loopback.
+func buildTPROXYRules(ports proxyPorts, exemptions []netip.AddrPort) ruleSet {
+	rs := ruleSet{}
+	output := func(args ...string) {
+		rs["output"] = append(rs["output"], append(rule{"-A", tproxyOutputChain}, args...))
+	}
+	prerouting := func(args ...string) {
+		rs["prerouting"] = append(rs["prerouting"], append(rule{"-A", tproxyPreroutingChain}, args...))
+	}
+	port := func(p uint16) string { return strconv.Itoa(int(p)) }
+
+	output("-m", "mark", "--mark", tproxyBypassMark, "-j", "RETURN")
+	output("-o", "lo", "-j", "RETURN")
+	output("-d", "127.0.0.0/8", "-j", "RETURN")
+	for _, ex := range exemptions {
+		if !ex.Addr().Is4() {
+			continue
+		}
+		args := []string{"-d", ex.Addr().String(), "-p", "udp"}
+		if ex.Port() != 0 {
+			args = append(args, "--dport", port(ex.Port()))
+		}
+		output(append(args, "-j", "RETURN")...)
+	}
+	output("-p", "udp", "--dport", "53", "-j", "RETURN")
+	output("-p", "udp", "-j", "MARK", "--set-mark", tproxyMark)
+	prerouting("-p", "udp", "-m", "mark", "--mark", tproxyMark,
+		"-j", "TPROXY", "--on-ip", "127.0.0.1", "--on-port", port(ports.udp),
+		"--tproxy-mark", tproxyMark)
 	return rs
 }
 

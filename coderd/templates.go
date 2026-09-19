@@ -744,6 +744,21 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	const maxTemplateExitNodes = 8
+	if len(resolved.exitNodeIDs) > maxTemplateExitNodes {
+		validErrs = append(validErrs, codersdk.ValidationError{Field: "exit_node_ids", Detail: fmt.Sprintf("No more than %d exit nodes may be configured.", maxTemplateExitNodes)})
+	}
+	seenExitNodes := make(map[uuid.UUID]struct{}, len(resolved.exitNodeIDs))
+	exitNodeIDs := make([]uuid.UUID, 0, len(resolved.exitNodeIDs))
+	for _, exitNodeID := range resolved.exitNodeIDs {
+		if _, ok := seenExitNodes[exitNodeID]; ok {
+			continue
+		}
+		seenExitNodes[exitNodeID] = struct{}{}
+		exitNodeIDs = append(exitNodeIDs, exitNodeID)
+	}
+	resolved.exitNodeIDs = exitNodeIDs
+
 	if len(validErrs) > 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message:     "Invalid request to update template metadata!",
@@ -752,26 +767,18 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// A new exit node binding must reference a live exit node in the
-	// template's organization.
-	if resolved.exitNodeID.Valid && resolved.exitNodeID != template.ExitNodeID {
-		exitNode, err := api.Database.GetExitNodeByID(ctx, resolved.exitNodeID.UUID)
-		if err != nil && !httpapi.Is404Error(err) {
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Internal error fetching exit node.",
-				Detail:  err.Error(),
-			})
-			return
-		}
-		if err != nil || exitNode.Deleted || exitNode.OrganizationID != template.OrganizationID {
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: "Invalid request to update template metadata!",
-				Validations: []codersdk.ValidationError{{
-					Field:  "exit_node_id",
-					Detail: "Exit node not found in the template's organization.",
-				}},
-			})
-			return
+	// New exit node bindings must reference live exit nodes in the template's organization.
+	if req.ExitNodeIDs != nil {
+		for _, exitNodeID := range resolved.exitNodeIDs {
+			exitNode, err := api.Database.GetExitNodeByID(ctx, exitNodeID)
+			if err != nil && !httpapi.Is404Error(err) {
+				httpapi.InternalServerError(rw, err)
+				return
+			}
+			if err != nil || exitNode.Deleted || exitNode.OrganizationID != template.OrganizationID {
+				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{Message: "Invalid request to update template metadata!", Validations: []codersdk.ValidationError{{Field: "exit_node_ids", Detail: "Exit node not found in the template's organization."}}})
+				return
+			}
 		}
 	}
 
@@ -808,11 +815,17 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 			DisableModuleCache:           resolved.disableModuleCache,
 			AgentsAllowed:                resolved.agentsAllowed,
 			AllowWorkspaceRenames:        resolved.allowWorkspaceRenames,
-			ExitNodeID:                   resolved.exitNodeID,
 			ExitNodeEnforce:              resolved.exitNodeEnforce,
 		})
 		if err != nil {
 			return xerrors.Errorf("update template metadata: %w", err)
+		}
+
+		if req.ExitNodeIDs != nil {
+			err = tx.SetTemplateExitNodes(ctx, database.SetTemplateExitNodesParams{TemplateID: template.ID, ExitNodeIds: resolved.exitNodeIDs})
+			if err != nil {
+				return xerrors.Errorf("set template exit nodes: %w", err)
+			}
 		}
 
 		if template.RequireActiveVersion != resolved.requireActiveVersion || resolved.deprecationMessage != template.Deprecated {
@@ -1043,11 +1056,6 @@ func (api *API) convertTemplate(
 	portSharer := *(api.PortSharer.Load())
 	maxPortShareLevel := portSharer.ConvertMaxLevel(template.MaxPortSharingLevel)
 
-	var exitNodeID *uuid.UUID
-	if template.ExitNodeID.Valid {
-		exitNodeID = new(template.ExitNodeID.UUID)
-	}
-
 	return codersdk.Template{
 		ID:                             template.ID,
 		CreatedAt:                      template.CreatedAt,
@@ -1094,7 +1102,7 @@ func (api *API) convertTemplate(
 		ModuleCacheDisabledByDeployment: codersdk.ModuleCacheDisabledByDeployment(api.DeploymentValues),
 		AgentsAllowed:                   template.AgentsAllowed,
 		AllowWorkspaceRenames:           template.AllowWorkspaceRenames,
-		ExitNodeID:                      exitNodeID,
+		ExitNodeIDs:                     template.ExitNodeIds,
 		ExitNodeEnforce:                 template.ExitNodeEnforce,
 	}
 }

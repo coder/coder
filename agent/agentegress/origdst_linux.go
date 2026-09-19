@@ -13,23 +13,10 @@ import (
 	"golang.org/x/xerrors"
 )
 
-// enableUDPOriginalDst asks the kernel to attach the pre-REDIRECT
-// destination of every datagram as an IP_RECVORIGDSTADDR control message.
-func enableUDPOriginalDst(conn *net.UDPConn) error {
-	raw, err := conn.SyscallConn()
-	if err != nil {
-		return xerrors.Errorf("raw conn: %w", err)
-	}
-	var optErr error
-	if err := raw.Control(func(fd uintptr) {
-		optErr = unix.SetsockoptInt(int(fd), unix.IPPROTO_IP, unix.IP_RECVORIGDSTADDR, 1)
-	}); err != nil {
-		return xerrors.Errorf("control raw conn: %w", err)
-	}
-	if optErr != nil {
-		return xerrors.Errorf("setsockopt IP_RECVORIGDSTADDR: %w", optErr)
-	}
-	return nil
+// enableUDPOriginalDst asks the kernel to attach the packet destination and
+// attempts IP_TRANSPARENT so TPROXY can deliver non-local datagrams.
+func enableUDPOriginalDst(conn *net.UDPConn) (bool, error) {
+	return configureUDPOriginalDst(conn)
 }
 
 // udpOriginalDst extracts the original destination from the control

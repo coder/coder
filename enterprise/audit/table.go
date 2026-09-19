@@ -136,7 +136,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"time_til_autostop_notify":          ActionTrack,
 		"agents_allowed":                    ActionTrack,
 		"allow_workspace_renames":           ActionTrack,
-		"exit_node_id":                      ActionTrack,
+		"exit_node_ids":                     ActionTrack,
 		"exit_node_enforce":                 ActionTrack,
 	},
 	&database.TemplateVersion{}: {

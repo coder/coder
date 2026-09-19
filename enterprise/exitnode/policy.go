@@ -22,23 +22,28 @@ type FlowInfo struct {
 	// Port is the destination port requested by the agent. It is ignored
 	// for dns flows.
 	Port int
-	// HostUnknown reports that the host has not been sniffed yet. While set,
-	// host-based allow rules match provisionally and host-based deny rules
-	// are skipped, because either could still match once the host is known.
-	// An Allow decision under HostUnknown is therefore never final and must
-	// be re-evaluated with the sniffed host; a deny decision is final.
+	// HostUnknown opts into provisional host matching before the host has been
+	// sniffed. While set, host-based allow rules match provisionally and
+	// host-based deny rules are skipped. An allow decision is never final and
+	// must be re-evaluated with the sniffed host; a deny decision is final.
+	// ConnectProxy only sets this when ProvisionalHostAllow is enabled.
 	HostUnknown bool
 }
 
 // Policy decides whether a flow may proceed. It is the extension point for
 // embedding the exit node with custom rules: implementations must be safe for
 // concurrent use and should return quickly, because Evaluate runs on the path
-// of every CONNECT request and every dns query. Implementations that also
-// provide a Reload() error method are reloadable through Server.ReloadPolicy.
+// of every CONNECT request and every dns query.
 //
 // The yamlpolicy package provides the rule-based implementation the CLI uses.
 type Policy interface {
 	Evaluate(FlowInfo) Decision
+}
+
+// ReloadablePolicy is a Policy that can atomically reload its configuration.
+type ReloadablePolicy interface {
+	Policy
+	Reload() error
 }
 
 // PolicyFunc adapts a function to the Policy interface.

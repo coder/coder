@@ -31,6 +31,22 @@ RETURNING *;
 -- resolvable reference.
 UPDATE exit_nodes SET updated_at = Now(), deleted = true WHERE id = @id;
 
+-- name: GetTemplateExitNodes :many
+SELECT exit_nodes.*
+FROM template_exit_nodes
+JOIN exit_nodes ON exit_nodes.id = template_exit_nodes.exit_node_id
+WHERE template_exit_nodes.template_id = @template_id
+ORDER BY template_exit_nodes.position;
+
+-- name: SetTemplateExitNodes :exec
+WITH deleted AS (
+	DELETE FROM template_exit_nodes
+	WHERE template_id = @template_id
+)
+INSERT INTO template_exit_nodes (template_id, exit_node_id, position)
+SELECT @template_id, exit_node_id, ordinality - 1
+FROM unnest(@exit_node_ids::uuid[]) WITH ORDINALITY AS nodes(exit_node_id, ordinality);
+
 -- name: GetWorkspaceAgentIDsByExitNode :many
 -- GetWorkspaceAgentIDsByExitNode returns the agent IDs on the latest build of
 -- every running workspace whose template routes egress through the exit node.
@@ -40,6 +56,7 @@ UPDATE exit_nodes SET updated_at = Now(), deleted = true WHERE id = @id;
 SELECT workspace_agents.id
 FROM workspaces
 JOIN templates ON templates.id = workspaces.template_id
+JOIN template_exit_nodes ON template_exit_nodes.template_id = templates.id
 JOIN (
 	-- Latest build per workspace.
 	SELECT DISTINCT ON (workspace_id) id, workspace_id, job_id, transition
@@ -50,7 +67,7 @@ JOIN provisioner_jobs ON provisioner_jobs.id = latest_builds.job_id
 JOIN workspace_resources ON workspace_resources.job_id = latest_builds.job_id
 JOIN workspace_agents ON workspace_agents.resource_id = workspace_resources.id
 WHERE
-	templates.exit_node_id = @exit_node_id :: uuid
+	template_exit_nodes.exit_node_id = @exit_node_id :: uuid
 	AND templates.deleted = FALSE
 	AND workspaces.deleted = FALSE
 	AND latest_builds.transition = 'start' :: workspace_transition

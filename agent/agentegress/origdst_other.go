@@ -15,8 +15,8 @@ func originalDestination(net.Conn) (netip.AddrPort, error) {
 
 // enableUDPOriginalDst is a no-op outside Linux, where nothing redirects
 // UDP into the proxy.
-func enableUDPOriginalDst(*net.UDPConn) error {
-	return nil
+func enableUDPOriginalDst(*net.UDPConn) (bool, error) {
+	return false, nil
 }
 
 // udpOriginalDst always reports "not redirected" outside Linux.

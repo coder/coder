@@ -5743,6 +5743,21 @@ func (mr *MockStoreMockRecorder) GetTemplateByOrganizationAndName(ctx, arg any) 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTemplateByOrganizationAndName", reflect.TypeOf((*MockStore)(nil).GetTemplateByOrganizationAndName), ctx, arg)
 }
 
+// GetTemplateExitNodes mocks base method.
+func (m *MockStore) GetTemplateExitNodes(ctx context.Context, templateID uuid.UUID) ([]database.ExitNode, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetTemplateExitNodes", ctx, templateID)
+	ret0, _ := ret[0].([]database.ExitNode)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetTemplateExitNodes indicates an expected call of GetTemplateExitNodes.
+func (mr *MockStoreMockRecorder) GetTemplateExitNodes(ctx, templateID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTemplateExitNodes", reflect.TypeOf((*MockStore)(nil).GetTemplateExitNodes), ctx, templateID)
+}
+
 // GetTemplateGroupRoles mocks base method.
 func (m *MockStore) GetTemplateGroupRoles(ctx context.Context, id uuid.UUID) ([]database.TemplateGroup, error) {
 	m.ctrl.T.Helper()
@@ -9753,6 +9768,20 @@ func (m *MockStore) SetChatContextSnapshot(ctx context.Context, arg database.Set
 func (mr *MockStoreMockRecorder) SetChatContextSnapshot(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetChatContextSnapshot", reflect.TypeOf((*MockStore)(nil).SetChatContextSnapshot), ctx, arg)
+}
+
+// SetTemplateExitNodes mocks base method.
+func (m *MockStore) SetTemplateExitNodes(ctx context.Context, arg database.SetTemplateExitNodesParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetTemplateExitNodes", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// SetTemplateExitNodes indicates an expected call of SetTemplateExitNodes.
+func (mr *MockStoreMockRecorder) SetTemplateExitNodes(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetTemplateExitNodes", reflect.TypeOf((*MockStore)(nil).SetTemplateExitNodes), ctx, arg)
 }
 
 // SoftDeleteChatMessageByID mocks base method.

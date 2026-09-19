@@ -115,6 +115,11 @@ sql:
           - column: "template_with_names.group_acl"
             go_type:
               type: "TemplateACL"
+          - column: "template_with_names.exit_node_ids"
+            go_type:
+              import: "github.com/google/uuid"
+              type: "UUID"
+              slice: true
           - column: "template_usage_stats.app_usage_mins"
             go_type:
               type: "StringMapOfInt"

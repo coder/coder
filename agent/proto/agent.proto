@@ -104,9 +104,9 @@ message Manifest {
 }
 
 // EgressConfig tells the agent how to route and enforce workspace egress
-// through an exit node. Absent when the template has no exit node.
+// through exit nodes. Absent when the template has no exit nodes.
 message EgressConfig {
-	bytes exit_node_id = 1;
+	repeated bytes exit_node_ids = 1;
 	int32 exit_node_port = 2;
 	bool enforce = 3;
 	// control_plane_hosts are exempt from enforcement so the agent keeps

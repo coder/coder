@@ -5,6 +5,7 @@ package agentegress
 import (
 	"context"
 	"errors"
+	"net/netip"
 	"os"
 	"slices"
 	"strings"
@@ -14,13 +15,15 @@ import (
 	"cdr.dev/slog/v3"
 )
 
-// Install resolves the control plane exemptions and installs the IPv4 rules.
-// IPv6 rules are installed best-effort with ip6tables because the proxy only
-// listens on IPv4 loopback; a REDIRECT there resets IPv6 TCP, which still
-// prevents bypass. Install is idempotent: chains are flushed and rebuilt.
+// Install resolves exemptions and installs IPv4 enforcement. Transparent UDP
+// is attempted first and falls back to REDIRECT when TPROXY or policy routing
+// is unavailable. IPv6 remains best-effort REDIRECT enforcement.
 func (e *Enforcer) Install(ctx context.Context) error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
+	if e.installed {
+		return nil
+	}
 
 	if err := e.probe(ctx); err != nil {
 		return err
@@ -31,42 +34,77 @@ func (e *Enforcer) Install(ctx context.Context) error {
 		resolvers = systemResolvers()
 	}
 
-	if err := e.installFamily(ctx, "iptables", buildRules(e.ports, exemptions, resolvers, ipv4)); err != nil {
+	var transparentErr error
+	if !udpTransparentReady(e.ports.udp) {
+		transparentErr = xerrors.New("UDP capture socket lacks IP_TRANSPARENT")
+	} else {
+		transparentErr = e.installTPROXY(ctx, exemptions)
+	}
+	e.transparent = transparentErr == nil
+	if transparentErr != nil {
+		_ = e.removeTPROXY(ctx)
+		e.logger.Warn(ctx, "transparent udp unavailable, non-dns udp is dropped because REDIRECT loses the original destination",
+			slog.Error(transparentErr))
+	}
+	mode := udpModeTProxy
+	if !e.transparent {
+		mode = udpModeRedirect
+	}
+	if err := e.installFamily(ctx, "iptables", buildRules(e.ports, exemptions, resolvers, ipv4, mode)); err != nil {
+		_ = e.removeTPROXY(ctx)
 		return xerrors.Errorf("install iptables rules: %w", err)
 	}
 	e.installed = true
-	if err := e.installFamily(ctx, "ip6tables", buildRules(e.ports, exemptions, resolvers, ipv6)); err != nil {
+	if err := e.installFamily(ctx, "ip6tables", buildRules(e.ports, exemptions, resolvers, ipv6, udpModeRedirect)); err != nil {
 		e.logger.Warn(ctx, "ip6tables egress rules not installed, ipv6 is unenforced", slog.Error(err))
+	}
+	if e.lockdown {
+		if err := dropNetAdmin(e.prctl); err != nil {
+			return xerrors.Errorf("drop CAP_NET_ADMIN from capability bounding set: %w", err)
+		}
+		// Children cannot regain CAP_NET_ADMIN after this point, even when
+		// changing uid. Cleanup by exec is also impossible, so rules remain
+		// until the container's network namespace exits.
+		e.lockedDown = true
 	}
 	return nil
 }
 
-// Remove deletes the chains installed by Install. It is safe to call when
-// nothing was installed and it removes whatever exists, so a crashed agent
-// can clean up on the next start.
+// Remove deletes rules installed by Install. After capability lockdown it
+// skips cleanup because subprocesses cannot regain CAP_NET_ADMIN.
 func (e *Enforcer) Remove(ctx context.Context) error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 
+	if e.lockedDown {
+		e.logger.Info(ctx, "egress enforcement rules persist until the container exits")
+		return nil
+	}
 	if err := e.probe(ctx); err != nil {
 		if errors.Is(err, ErrEnforcementUnavailable) && !e.installed {
 			return nil
 		}
 		return err
 	}
-	err := e.removeFamily(ctx, "iptables")
-	if v6Err := e.removeFamily(ctx, "ip6tables"); v6Err != nil {
-		e.logger.Debug(ctx, "remove ip6tables egress rules", slog.Error(v6Err))
+	var errs []error
+	if err := e.removeFamily(ctx, "iptables"); err != nil {
+		errs = append(errs, xerrors.Errorf("remove iptables rules: %w", err))
 	}
-	if err != nil {
-		return xerrors.Errorf("remove iptables rules: %w", err)
+	if err := e.removeTPROXY(ctx); err != nil {
+		errs = append(errs, xerrors.Errorf("remove transparent udp rules: %w", err))
+	}
+	if err := e.removeFamily(ctx, "ip6tables"); err != nil {
+		e.logger.Debug(ctx, "remove ip6tables egress rules", slog.Error(err))
+	}
+	if len(errs) > 0 {
+		return errors.Join(errs...)
 	}
 	e.installed = false
+	e.transparent = false
 	return nil
 }
 
-// probe determines how iptables can be invoked. Root runs it directly;
-// otherwise passwordless sudo is tried. The result is cached.
+// probe determines how privileged networking commands can be invoked.
 func (e *Enforcer) probe(ctx context.Context) error {
 	if e.prefix != nil {
 		return nil
@@ -84,15 +122,11 @@ func (e *Enforcer) probe(ctx context.Context) error {
 		}
 		errs = append(errs, err)
 	}
-	// xerrors only supports a single trailing %w, so wrap with fmt to keep
-	// both the sentinel and the probe output in the chain.
 	return xerrors.Errorf("%w: %w", ErrEnforcementUnavailable, errors.Join(errs...))
 }
 
 func (e *Enforcer) installFamily(ctx context.Context, bin string, rs ruleSet) error {
-	for _, tc := range tables {
-		// -N fails when the chain already exists; the following -F makes
-		// the install idempotent either way.
+	for _, tc := range managedChains {
 		_, _ = e.run(ctx, bin, "-t", tc.table, "-N", tc.chain)
 		if _, err := e.run(ctx, bin, "-t", tc.table, "-F", tc.chain); err != nil {
 			return err
@@ -102,10 +136,8 @@ func (e *Enforcer) installFamily(ctx context.Context, bin string, rs ruleSet) er
 				return err
 			}
 		}
-		// Insert the jump at the top of OUTPUT so our policy runs before
-		// anything else (for example Docker's rules), once.
-		if _, err := e.run(ctx, bin, "-t", tc.table, "-C", "OUTPUT", "-j", tc.chain); err != nil {
-			if _, err := e.run(ctx, bin, "-t", tc.table, "-I", "OUTPUT", "1", "-j", tc.chain); err != nil {
+		if _, err := e.run(ctx, bin, "-t", tc.table, "-C", tc.parent, "-j", tc.chain); err != nil {
+			if _, err := e.run(ctx, bin, "-t", tc.table, "-I", tc.parent, "1", "-j", tc.chain); err != nil {
 				return err
 			}
 		}
@@ -113,31 +145,96 @@ func (e *Enforcer) installFamily(ctx context.Context, bin string, rs ruleSet) er
 	return nil
 }
 
+func (e *Enforcer) installTPROXY(ctx context.Context, exemptions []netip.AddrPort) error {
+	rs := buildTPROXYRules(e.ports, exemptions)
+	for _, chain := range []string{tproxyOutputChain, tproxyPreroutingChain} {
+		_, _ = e.run(ctx, "iptables", "-t", "mangle", "-N", chain)
+		if _, err := e.run(ctx, "iptables", "-t", "mangle", "-F", chain); err != nil {
+			return xerrors.Errorf("flush mangle chain %s: %w", chain, err)
+		}
+	}
+	for _, r := range rs["output"] {
+		if _, err := e.run(ctx, "iptables", append([]string{"-t", "mangle"}, r...)...); err != nil {
+			return xerrors.Errorf("install UDP mark rule: %w", err)
+		}
+	}
+	for _, r := range rs["prerouting"] {
+		if _, err := e.run(ctx, "iptables", append([]string{"-t", "mangle"}, r...)...); err != nil {
+			return xerrors.Errorf("install TPROXY rule: %w", err)
+		}
+	}
+	for _, jump := range []struct{ parent, chain string }{{"OUTPUT", tproxyOutputChain}, {"PREROUTING", tproxyPreroutingChain}} {
+		if _, err := e.run(ctx, "iptables", "-t", "mangle", "-C", jump.parent, "-j", jump.chain); err != nil {
+			if _, err := e.run(ctx, "iptables", "-t", "mangle", "-I", jump.parent, "1", "-j", jump.chain); err != nil {
+				return xerrors.Errorf("install mangle %s jump: %w", jump.parent, err)
+			}
+		}
+	}
+	if _, err := e.run(ctx, "ip", "-4", "route", "replace", "local", "0.0.0.0/0", "dev", "lo", "table", tproxyTable); err != nil {
+		return xerrors.Errorf("install TPROXY route table %s: %w", tproxyTable, err)
+	}
+	return e.ensureIPRule(ctx)
+}
+
+func (e *Enforcer) ensureIPRule(ctx context.Context) error {
+	out, err := e.run(ctx, "ip", "-4", "rule", "show")
+	if err != nil {
+		return xerrors.Errorf("list IPv4 policy rules: %w", err)
+	}
+	needle := "fwmark " + tproxyMark + " lookup " + tproxyTable
+	if strings.Contains(out, needle) || strings.Contains(out, "fwmark 0x434f lookup "+tproxyTable) {
+		return nil
+	}
+	if _, err := e.run(ctx, "ip", "-4", "rule", "add", "fwmark", tproxyMark, "lookup", tproxyTable); err != nil {
+		return xerrors.Errorf("install TPROXY policy rule: %w", err)
+	}
+	return nil
+}
+
 func (e *Enforcer) removeFamily(ctx context.Context, bin string) error {
 	var errs []error
-	for _, tc := range tables {
-		// Delete every jump that references the chain, then drop it.
-		// Bounded so a persistent -D failure cannot loop forever.
-		for range 8 {
-			if _, err := e.run(ctx, bin, "-t", tc.table, "-D", "OUTPUT", "-j", tc.chain); err != nil {
-				break
-			}
-		}
-		if _, err := e.run(ctx, bin, "-t", tc.table, "-F", tc.chain); err != nil {
-			if !isNoChain(err) {
-				errs = append(errs, err)
-			}
-			continue
-		}
-		if _, err := e.run(ctx, bin, "-t", tc.table, "-X", tc.chain); err != nil {
+	for _, tc := range managedChains {
+		if err := e.removeChain(ctx, bin, tc.table, tc.parent, tc.chain); err != nil {
 			errs = append(errs, err)
 		}
 	}
 	return errors.Join(errs...)
 }
 
-// isNoChain reports whether iptables complained that the chain does not
-// exist, which Remove treats as already done.
+func (e *Enforcer) removeTPROXY(ctx context.Context) error {
+	var errs []error
+	for _, tc := range []struct{ parent, chain string }{{"OUTPUT", tproxyOutputChain}, {"PREROUTING", tproxyPreroutingChain}} {
+		if err := e.removeChain(ctx, "iptables", "mangle", tc.parent, tc.chain); err != nil {
+			errs = append(errs, err)
+		}
+	}
+	for range 8 {
+		if _, err := e.run(ctx, "ip", "-4", "rule", "del", "fwmark", tproxyMark, "lookup", tproxyTable); err != nil {
+			break
+		}
+	}
+	if _, err := e.run(ctx, "ip", "-4", "route", "flush", "table", tproxyTable); err != nil && !strings.Contains(err.Error(), "FIB table does not exist") {
+		errs = append(errs, err)
+	}
+	return errors.Join(errs...)
+}
+
+func (e *Enforcer) removeChain(ctx context.Context, bin, table, parent, chain string) error {
+	for range 8 {
+		if _, err := e.run(ctx, bin, "-t", table, "-D", parent, "-j", chain); err != nil {
+			break
+		}
+	}
+	if _, err := e.run(ctx, bin, "-t", table, "-F", chain); err != nil {
+		if isNoChain(err) {
+			return nil
+		}
+		return err
+	}
+	_, err := e.run(ctx, bin, "-t", table, "-X", chain)
+	return err
+}
+
 func isNoChain(err error) bool {
 	msg := err.Error()
 	return strings.Contains(msg, "No chain/target/match by that name") ||

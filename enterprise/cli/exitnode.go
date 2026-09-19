@@ -3,10 +3,13 @@ package cli
 import (
 	"context"
 	"fmt"
+	"net"
 	"net/http"
+	"net/netip"
 	"os"
 	"os/signal"
 	"strings"
+	"sync/atomic"
 	"syscall"
 
 	"github.com/google/uuid"
@@ -194,17 +197,47 @@ func (r *RootCmd) exitNodeDelete() *serpent.Command {
 	return cmd
 }
 
+func parseUpstreamDNSServers(values []string) ([]netip.AddrPort, error) {
+	servers := make([]netip.AddrPort, 0, len(values))
+	for _, value := range values {
+		if addr, err := netip.ParseAddr(value); err == nil {
+			servers = append(servers, netip.AddrPortFrom(addr.Unmap(), 53))
+			continue
+		}
+		server, err := netip.ParseAddrPort(value)
+		if err != nil || server.Port() == 0 {
+			return nil, xerrors.Errorf("parse --upstream-dns %q as ip[:port]", value)
+		}
+		servers = append(servers, netip.AddrPortFrom(server.Addr().Unmap(), server.Port()))
+	}
+	return servers, nil
+}
+
+func newUpstreamDNSResolver(servers []netip.AddrPort) *net.Resolver {
+	var next atomic.Uint64
+	dialer := &net.Dialer{}
+	return &net.Resolver{
+		PreferGo: true,
+		Dial: func(ctx context.Context, network, _ string) (net.Conn, error) {
+			server := servers[(next.Add(1)-1)%uint64(len(servers))]
+			return dialer.DialContext(ctx, network, server.String())
+		},
+	}
+}
+
 func (r *RootCmd) exitNodeServer() *serpent.Command {
 	var (
-		token               string
-		primaryAccessURL    serpent.URL
-		policyPath          string
-		listenPort          int64
-		prometheusAddress   string
-		wireguardEndpoints  []string
-		wireguardListenPort int64
-		blockDirect         bool
-		verbose             bool
+		token                string
+		primaryAccessURL     serpent.URL
+		policyPath           string
+		listenPort           int64
+		prometheusAddress    string
+		wireguardEndpoints   []string
+		wireguardListenPort  int64
+		blockDirect          bool
+		provisionalHostAllow bool
+		upstreamDNS          []string
+		verbose              bool
 	)
 	return &serpent.Command{
 		Use:   "server",
@@ -281,6 +314,18 @@ func (r *RootCmd) exitNodeServer() *serpent.Command {
 				Value:       serpent.BoolOf(&blockDirect),
 			},
 			{
+				Flag:        "provisional-host-allow",
+				Env:         "CODER_EXIT_NODE_PROVISIONAL_HOST_ALLOW",
+				Description: "Allow host-based allow rules to provisionally match IP-literal targets before sniffing. This weakens host enforcement and may permit traffic before the host is verified.",
+				Value:       serpent.BoolOf(&provisionalHostAllow),
+			},
+			{
+				Flag:        "upstream-dns",
+				Env:         "CODER_EXIT_NODE_UPSTREAM_DNS",
+				Description: "Upstream DNS server as ip[:port]. May be repeated. Configures both CONNECT hostname resolution and DNS streams. By default, the exit node's own resolver view decides what a name means.",
+				Value:       serpent.StringArrayOf(&upstreamDNS),
+			},
+			{
 				Flag:        "verbose",
 				Env:         "CODER_EXIT_NODE_VERBOSE",
 				Description: "Output debug-level logs.",
@@ -317,6 +362,19 @@ func (r *RootCmd) exitNodeServer() *serpent.Command {
 			policy, err := yamlpolicy.Load(policyPath)
 			if err != nil {
 				return xerrors.Errorf("load policy: %w", err)
+			}
+
+			var (
+				resolver     exitnode.HostResolver
+				dnsExchanger exitnode.DNSExchanger
+			)
+			if len(upstreamDNS) > 0 {
+				servers, err := parseUpstreamDNSServers(upstreamDNS)
+				if err != nil {
+					return err
+				}
+				resolver = newUpstreamDNSResolver(servers)
+				dnsExchanger = &exitnode.StaticDNSExchanger{Servers: servers}
 			}
 
 			notifyCtx, notifyStop := inv.SignalNotifyContext(ctx, exitNodeStopSignals...)
@@ -356,6 +414,9 @@ func (r *RootCmd) exitNodeServer() *serpent.Command {
 				WireguardEndpointsAdvertised: wireguardEndpoints,
 				WireguardListenPort:          uint16(wireguardListenPort), //nolint:gosec // Validated by the option.
 				BlockEndpoints:               blockDirect,
+				ProvisionalHostAllow:         provisionalHostAllow,
+				Resolver:                     resolver,
+				DNSExchanger:                 dnsExchanger,
 			})
 			if err != nil {
 				return xerrors.Errorf("start exit node: %w", err)

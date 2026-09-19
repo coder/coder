@@ -40,11 +40,13 @@ func TestEnforcer_Iptables(t *testing.T) {
 func testEnforcerInstallRemove(ctx context.Context, t *testing.T) {
 	t.Helper()
 	e, err := NewEnforcer(testutil.Logger(t), EnforcerOptions{
-		ProxyPort:         40123,
-		DNSPort:           40124,
-		UDPPort:           40125,
-		ControlPlaneHosts: []string{"198.51.100.7:443", "203.0.113.10"},
-		Resolvers:         []netip.Addr{netip.MustParseAddr("192.0.2.53")},
+		ProxyPort:               40123,
+		DNSPort:                 40124,
+		UDPPort:                 40125,
+		ControlPlaneHosts:       []string{"198.51.100.7:443", "203.0.113.10"},
+		Resolvers:               []netip.Addr{netip.MustParseAddr("192.0.2.53")},
+		LockdownCapabilities:    false,
+		LockdownCapabilitiesSet: true,
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = e.Remove(ctx) })
@@ -69,13 +71,14 @@ func testEnforcerInstallRemove(ctx context.Context, t *testing.T) {
 		"-A CODER_EGRESS -d 192.0.2.53/32 -p tcp -m tcp --dport 53 -j RETURN",
 		"-A CODER_EGRESS -p udp -m udp --dport 53 -j REDIRECT --to-ports 40124",
 		"-A CODER_EGRESS -p tcp -m tcp --dport 53 -j REDIRECT --to-ports 40124",
-		"-A CODER_EGRESS -p udp -j REDIRECT --to-ports 40125",
 		"-A CODER_EGRESS -p tcp -j REDIRECT --to-ports 40123",
 	} {
 		require.Contains(t, nat, want)
 	}
-	// The flush on reinstall keeps exactly one copy of each rule.
+	// This test has no transparent listener, so Install uses the loud
+	// REDIRECT fallback and keeps one copy of every rule.
 	require.Equal(t, 4, strings.Count(nat, "-j REDIRECT"))
+	require.Contains(t, nat, "-A CODER_EGRESS -p udp -j REDIRECT --to-ports 40125")
 	filter := list("filter", filterChain)
 	require.Contains(t, filter, "-A CODER_EGRESS_FILTER -p icmp -j DROP")
 	require.NotContains(t, filter, "-p udp -j DROP")
@@ -85,10 +88,17 @@ func testEnforcerInstallRemove(ctx context.Context, t *testing.T) {
 	// Idempotent.
 	require.NoError(t, e.Remove(ctx))
 
-	for _, table := range []string{"nat", "filter"} {
+	for _, table := range []string{"nat", "filter", "mangle"} {
 		out, err := e.run(ctx, "iptables", "-t", table, "-S")
 		require.NoError(t, err)
 		require.NotContains(t, out, "CODER_EGRESS", table)
+	}
+	ipRules, err := e.run(ctx, "ip", "-4", "rule", "show")
+	require.NoError(t, err)
+	require.NotContains(t, ipRules, "fwmark 0x434f lookup 54321")
+	routes, err := e.run(ctx, "ip", "-4", "route", "show", "table", tproxyTable)
+	if err == nil {
+		require.Empty(t, strings.TrimSpace(routes))
 	}
 }
 
@@ -116,15 +126,24 @@ func testEnforcerTransparentRedirect(ctx context.Context, t *testing.T) {
 		_, _ = io.WriteString(w, "canned")
 	}))
 	t.Cleanup(origin.Close)
-	exit := newFakeExitNode(t, func(got string) (string, bool) { return "unexpected destination", got != target })
+	exit := newFakeExitNode(t, func(got string) (string, bool) {
+		switch got {
+		case target, "192.0.2.1:9999", "192.0.2.1:9998":
+			return "", false
+		default:
+			return "unexpected destination", true
+		}
+	})
 	exit.resolve[target] = strings.TrimPrefix(origin.URL, "http://")
 	proxy := startProxy(t, exit, proxyOptions{})
 
 	e, err := NewEnforcer(testutil.Logger(t), EnforcerOptions{
-		ProxyPort: proxy.Addr().Port(),
-		DNSPort:   proxy.DNSAddr().Port(),
-		UDPPort:   proxy.UDPAddr().Port(),
-		Resolvers: []netip.Addr{},
+		ProxyPort:               proxy.Addr().Port(),
+		DNSPort:                 proxy.DNSAddr().Port(),
+		UDPPort:                 proxy.UDPAddr().Port(),
+		Resolvers:               []netip.Addr{},
+		LockdownCapabilities:    false,
+		LockdownCapabilitiesSet: true,
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = e.Remove(ctx) })
@@ -150,16 +169,47 @@ func testEnforcerTransparentRedirect(ctx context.Context, t *testing.T) {
 	require.True(t, ok)
 	require.True(t, fakeIPPrefix.Contains(netip.AddrFrom4(a.A)))
 
-	// Other UDP lands in the UDP listener, which cannot recover the
-	// destination from a REDIRECTed datagram and drops it.
-	udpConn, err := net.Dial("udp4", "192.0.2.1:9999")
-	require.NoError(t, err)
-	defer udpConn.Close()
-	_, err = udpConn.Write([]byte("hello"))
-	require.NoError(t, err)
-	require.Eventually(t, func() bool {
-		return proxy.udp.unknownDst.Load() >= 1
-	}, testutil.WaitShort, testutil.IntervalFast)
+	// Other UDP is relayed when transparent sockets and TPROXY are available.
+	// Otherwise REDIRECT captures and loudly drops it.
+	if e.TransparentUDP() {
+		connected, err := net.DialUDP("udp4", nil, net.UDPAddrFromAddrPort(netip.MustParseAddrPort("192.0.2.1:9999")))
+		require.NoError(t, err)
+		defer connected.Close()
+		deadline, _ := ctx.Deadline()
+		require.NoError(t, connected.SetDeadline(deadline))
+		_, err = connected.Write([]byte("connected"))
+		require.NoError(t, err)
+		buf := make([]byte, 64)
+		n, err := connected.Read(buf)
+		require.NoError(t, err)
+		require.Equal(t, "echo:connected", string(buf[:n]))
+
+		unconnected, err := net.ListenUDP("udp4", nil)
+		require.NoError(t, err)
+		defer unconnected.Close()
+		require.NoError(t, unconnected.SetDeadline(deadline))
+		dst := net.UDPAddrFromAddrPort(netip.MustParseAddrPort("192.0.2.1:9998"))
+		_, err = unconnected.WriteToUDP([]byte("unconnected"), dst)
+		require.NoError(t, err)
+		n, src, err := unconnected.ReadFromUDP(buf)
+		require.NoError(t, err)
+		require.Equal(t, dst.String(), src.String())
+		require.Equal(t, "echo:unconnected", string(buf[:n]))
+
+		require.Eventually(t, func() bool {
+			return len(exit.connectsTo("192.0.2.1:9999")) >= 1 &&
+				len(exit.connectsTo("192.0.2.1:9998")) >= 1
+		}, testutil.WaitShort, testutil.IntervalFast)
+	} else {
+		udpConn, err := net.Dial("udp4", "192.0.2.1:9999")
+		require.NoError(t, err)
+		defer udpConn.Close()
+		_, err = udpConn.Write([]byte("hello"))
+		require.NoError(t, err)
+		require.Eventually(t, func() bool {
+			return proxy.udp.unknownDst.Load() >= 1
+		}, testutil.WaitShort, testutil.IntervalFast)
+	}
 
 	require.NoError(t, e.Remove(ctx))
 }

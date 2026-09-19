@@ -18,6 +18,8 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
+	"time"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
@@ -25,12 +27,17 @@ import (
 	"cdr.dev/slog/v3"
 	"github.com/coder/quartz"
 
+	"github.com/coder/coder/v2/agent/agentegress/hostsniff"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/tailnet"
 )
 
-const defaultListenHost = "127.0.0.1"
+const (
+	defaultListenHost       = "127.0.0.1"
+	defaultHostSniffTimeout = 500 * time.Millisecond
+	unknownFakeLogInterval  = 30 * time.Second
+)
 
 // builtinExemptNames are always resolved by the system resolvers rather than
 // given fake addresses. They name the workspace host itself.
@@ -76,6 +83,13 @@ type Options struct {
 	UpstreamResolvers []netip.AddrPort
 	// Clock drives UDP session idle timeouts. Defaults to the real clock.
 	Clock quartz.Clock
+	// HostSniffTimeout bounds transparent connection host detection. It
+	// defaults to 500ms. A negative value disables sniffing.
+	HostSniffTimeout time.Duration
+	// FakeIPMaxEntries bounds cached DNS name mappings. It defaults to 65536.
+	// Smaller values use less memory but increase churn for short-lived DNS
+	// answers. Active connection mappings remain pinned beyond this limit.
+	FakeIPMaxEntries int
 }
 
 // Proxy is the local egress proxy. One loopback TCP listener serves both
@@ -84,12 +98,13 @@ type Options struct {
 // listener hands out fake addresses so redirected flows can be tunneled by
 // name, and a UDP listener relays redirected datagrams.
 type Proxy struct {
-	logger   slog.Logger
-	dialer   Dialer
-	cfg      agentsdk.EgressConfig
-	exitNode netip.AddrPort
-	listen   string
-	clock    quartz.Clock
+	logger       slog.Logger
+	dialer       Dialer
+	cfg          agentsdk.EgressConfig
+	exitNodes    *exitNodeSelector
+	listen       string
+	clock        quartz.Clock
+	sniffTimeout time.Duration
 
 	fake        *fakeIPPool
 	exemptNames map[string]struct{}
@@ -97,6 +112,12 @@ type Proxy struct {
 	// udpOrigDst decodes the original destination of a redirected datagram.
 	// Tests replace it because only netfilter can produce a real one.
 	udpOrigDst func(oob []byte) netip.AddrPort
+
+	// unknownFake counts redirected TCP connections dropped because their
+	// destination was in the fake range without a current mapping.
+	unknownFake atomic.Int64
+	fakeWarnMu  sync.Mutex
+	fakeWarnAt  time.Time
 
 	mu       sync.Mutex
 	listener net.Listener
@@ -116,11 +137,27 @@ func New(logger slog.Logger, opts Options) (*Proxy, error) {
 	if opts.Dialer == nil {
 		return nil, xerrors.New("dialer is required")
 	}
-	if opts.Config.ExitNodeID == uuid.Nil {
-		return nil, xerrors.New("exit node ID is required")
+	if len(opts.Config.ExitNodeIDs) == 0 {
+		return nil, xerrors.New("at least one exit node ID is required")
+	}
+	for _, id := range opts.Config.ExitNodeIDs {
+		if id == uuid.Nil {
+			return nil, xerrors.New("exit node ID is required")
+		}
 	}
 	if opts.Config.ExitNodePort <= 0 || opts.Config.ExitNodePort > 65535 {
 		return nil, xerrors.Errorf("invalid exit node port %d", opts.Config.ExitNodePort)
+	}
+	if opts.FakeIPMaxEntries < 0 {
+		return nil, xerrors.New("fake IP max entries must not be negative")
+	}
+	fakeIPMax := opts.FakeIPMaxEntries
+	if fakeIPMax == 0 {
+		fakeIPMax = fakeIPMaxEntries
+	}
+	sniffTimeout := opts.HostSniffTimeout
+	if sniffTimeout == 0 {
+		sniffTimeout = defaultHostSniffTimeout
 	}
 	exempt := make(map[string]struct{})
 	for _, name := range builtinExemptNames {
@@ -133,21 +170,26 @@ func New(logger slog.Logger, opts Options) (*Proxy, error) {
 		}
 		exempt[host] = struct{}{}
 	}
-	p := &Proxy{
-		logger: logger,
-		dialer: opts.Dialer,
-		cfg:    opts.Config,
-		clock:  opts.Clock,
-		exitNode: netip.AddrPortFrom(
-			tailnet.TailscaleServicePrefix.AddrFromUUID(opts.Config.ExitNodeID),
+	exitNodes := make([]netip.AddrPort, 0, len(opts.Config.ExitNodeIDs))
+	for _, id := range opts.Config.ExitNodeIDs {
+		exitNodes = append(exitNodes, netip.AddrPortFrom(
+			tailnet.TailscaleServicePrefix.AddrFromUUID(id),
 			// #nosec G115 -- range validated above.
 			uint16(opts.Config.ExitNodePort),
-		),
-		listen:      opts.ListenAddr,
-		fake:        newFakeIPPool(fakeIPPrefix, fakeIPMaxEntries),
-		exemptNames: exempt,
-		upstream:    opts.UpstreamResolvers,
-		udpOrigDst:  udpOriginalDst,
+		))
+	}
+	p := &Proxy{
+		logger:       logger,
+		dialer:       opts.Dialer,
+		cfg:          opts.Config,
+		clock:        opts.Clock,
+		exitNodes:    newExitNodeSelector(logger, opts.Clock, exitNodes),
+		listen:       opts.ListenAddr,
+		sniffTimeout: sniffTimeout,
+		fake:         newFakeIPPool(fakeIPPrefix, fakeIPMax),
+		exemptNames:  exempt,
+		upstream:     opts.UpstreamResolvers,
+		udpOrigDst:   udpOriginalDst,
 	}
 	if p.clock == nil {
 		p.clock = quartz.NewReal()
@@ -258,7 +300,7 @@ func (p *Proxy) Config() agentsdk.EgressConfig {
 // same proxy and enforcement state, so a reconnect that redelivers the same
 // manifest does not restart the proxy.
 func ConfigEqual(a, b agentsdk.EgressConfig) bool {
-	return a.ExitNodeID == b.ExitNodeID &&
+	return slices.Equal(a.ExitNodeIDs, b.ExitNodeIDs) &&
 		a.ExitNodePort == b.ExitNodePort &&
 		a.Enforce == b.Enforce &&
 		slices.Equal(a.ControlPlaneHosts, b.ControlPlaneHosts)
@@ -306,6 +348,34 @@ func (p *Proxy) target(dst netip.AddrPort) string {
 	return dst.String()
 }
 
+// acquireTarget names and pins the destination for one TCP connection. An
+// address in the fake range without a mapping is rejected instead of being
+// sent to the exit node as though it were a real destination.
+func (p *Proxy) acquireTarget(dst netip.AddrPort) (target string, release func(), ok bool) {
+	if !p.fake.Contains(dst.Addr()) {
+		return dst.String(), func() {}, true
+	}
+	name, release, ok := p.fake.Acquire(dst.Addr())
+	if !ok {
+		return "", func() {}, false
+	}
+	return net.JoinHostPort(name, strconv.Itoa(int(dst.Port()))), release, true
+}
+
+func (p *Proxy) warnUnknownFake(ctx context.Context, dst netip.AddrPort) {
+	count := p.unknownFake.Add(1)
+	p.fakeWarnMu.Lock()
+	now := p.clock.Now()
+	if now.Before(p.fakeWarnAt) {
+		p.fakeWarnMu.Unlock()
+		return
+	}
+	p.fakeWarnAt = now.Add(unknownFakeLogInterval)
+	p.fakeWarnMu.Unlock()
+	p.logger.Warn(ctx, "dropping redirected tcp connection to unmapped fake IP",
+		slog.F("destination", dst.String()), slog.F("count", count))
+}
+
 // explicitTarget names the CONNECT destination for an explicit proxy
 // request. Hostnames pass through for the exit node to resolve; a fake IP
 // literal (from a client that resolved before proxying) is translated.
@@ -344,14 +414,33 @@ func (p *Proxy) handleConn(ctx context.Context, conn net.Conn) {
 		p.handleExplicit(ctx, conn)
 		return
 	}
-	target := p.target(dst)
-	upstream, err := p.connectUpstream(ctx, target, codersdk.ExitNodeProtocolTCP)
+	p.handleTransparent(ctx, conn, dst)
+}
+
+func (p *Proxy) handleTransparent(ctx context.Context, conn net.Conn, dst netip.AddrPort) {
+	target, release, ok := p.acquireTarget(dst)
+	if !ok {
+		p.warnUnknownFake(ctx, dst)
+		return
+	}
+	defer release()
+
+	clientReader := conn
+	originalHost := ""
+	if !p.fake.Contains(dst.Addr()) && p.sniffTimeout > 0 {
+		var err error
+		originalHost, clientReader, err = hostsniff.Host(conn, p.sniffTimeout)
+		if err != nil {
+			p.logger.Debug(ctx, "sniff transparent connection host", slog.Error(err))
+		}
+	}
+	upstream, err := p.connectUpstreamHost(ctx, target, codersdk.ExitNodeProtocolTCP, originalHost)
 	if err != nil {
 		p.logUpstreamError(ctx, target, err)
 		return
 	}
 	defer upstream.Close()
-	pipe(ctx, conn, conn, upstream)
+	pipe(ctx, conn, clientReader, upstream)
 }
 
 // handleExplicit serves an HTTP proxy client: either CONNECT or a plain
@@ -449,15 +538,22 @@ func (e *DeniedError) Error() string {
 // connection carries the tunnel bytes. Hostname targets are resolved by the
 // exit node, so no original-host hint is needed.
 func (p *Proxy) connectUpstream(ctx context.Context, target string, proto codersdk.ExitNodeProtocol) (net.Conn, error) {
-	upstream, err := p.dialer.DialContextTCP(ctx, p.exitNode)
+	return p.connectUpstreamHost(ctx, target, proto, "")
+}
+
+func (p *Proxy) connectUpstreamHost(ctx context.Context, target string, proto codersdk.ExitNodeProtocol, originalHost string) (net.Conn, error) {
+	upstream, _, err := p.exitNodes.dial(ctx, p.dialer)
 	if err != nil {
-		return nil, xerrors.Errorf("dial exit node %s: %w", p.exitNode, err)
+		return nil, err
 	}
 	connectReq := &http.Request{
 		Method: http.MethodConnect,
 		URL:    &url.URL{Opaque: target},
 		Host:   target,
 		Header: http.Header{},
+	}
+	if originalHost != "" {
+		connectReq.Header.Set(codersdk.ExitNodeOriginalHostHeader, originalHost)
 	}
 	if proto != codersdk.ExitNodeProtocolTCP {
 		connectReq.Header.Set(codersdk.ExitNodeProtocolHeader, string(proto))

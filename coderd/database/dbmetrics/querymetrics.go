@@ -3064,6 +3064,14 @@ func (m queryMetricsStore) GetTemplateByOrganizationAndName(ctx context.Context,
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetTemplateExitNodes(ctx context.Context, templateID uuid.UUID) ([]database.ExitNode, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetTemplateExitNodes(ctx, templateID)
+	m.queryLatencies.WithLabelValues("GetTemplateExitNodes").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetTemplateExitNodes").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetTemplateInsights(ctx context.Context, arg database.GetTemplateInsightsParams) (database.GetTemplateInsightsRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetTemplateInsights(ctx, arg)
@@ -5133,6 +5141,14 @@ func (m queryMetricsStore) SetChatContextSnapshot(ctx context.Context, arg datab
 	r0 := m.s.SetChatContextSnapshot(ctx, arg)
 	m.queryLatencies.WithLabelValues("SetChatContextSnapshot").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "SetChatContextSnapshot").Inc()
+	return r0
+}
+
+func (m queryMetricsStore) SetTemplateExitNodes(ctx context.Context, arg database.SetTemplateExitNodesParams) error {
+	start := time.Now()
+	r0 := m.s.SetTemplateExitNodes(ctx, arg)
+	m.queryLatencies.WithLabelValues("SetTemplateExitNodes").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "SetTemplateExitNodes").Inc()
 	return r0
 }
 

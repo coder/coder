@@ -4849,6 +4849,13 @@ func (q *querier) GetTemplateByOrganizationAndName(ctx context.Context, arg data
 	return fetch(q.log, q.auth, q.db.GetTemplateByOrganizationAndName)(ctx, arg)
 }
 
+func (q *querier) GetTemplateExitNodes(ctx context.Context, templateID uuid.UUID) ([]database.ExitNode, error) {
+	if _, err := fetch(q.log, q.auth, q.db.GetTemplateByID)(ctx, templateID); err != nil {
+		return nil, err
+	}
+	return q.db.GetTemplateExitNodes(ctx, templateID)
+}
+
 func (q *querier) GetTemplateInsights(ctx context.Context, arg database.GetTemplateInsightsParams) (database.GetTemplateInsightsRow, error) {
 	if err := q.authorizeTemplateInsights(ctx, arg.TemplateIDs); err != nil {
 		return database.GetTemplateInsightsRow{}, err
@@ -7290,6 +7297,17 @@ func (q *querier) SetChatContextSnapshot(ctx context.Context, arg database.SetCh
 		return err
 	}
 	return q.db.SetChatContextSnapshot(ctx, arg)
+}
+
+func (q *querier) SetTemplateExitNodes(ctx context.Context, arg database.SetTemplateExitNodesParams) error {
+	template, err := q.db.GetTemplateByID(ctx, arg.TemplateID)
+	if err != nil {
+		return err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, template); err != nil {
+		return err
+	}
+	return q.db.SetTemplateExitNodes(ctx, arg)
 }
 
 func (q *querier) SoftDeleteChatMessageByID(ctx context.Context, id int64) error {

@@ -10,10 +10,9 @@ import (
 )
 
 const (
-	// fakeIPMaxEntries bounds the pool. Beyond it the least recently used
-	// name is evicted; a client still holding that address gets a
-	// connection to whatever name the address is next assigned to, which
-	// the exit node then judges by that name. The 1s TTL keeps this rare.
+	// fakeIPMaxEntries is the default cache bound. Unpinned least recently
+	// used names are evicted beyond it. Active mappings remain pinned until
+	// their connections finish.
 	fakeIPMaxEntries = 65536
 	// fakeIPMaxProbes bounds collision probing so a pathological hash
 	// cluster cannot spin.
@@ -41,6 +40,7 @@ type fakeIPPool struct {
 type fakeIPEntry struct {
 	name string
 	addr netip.Addr
+	refs int
 }
 
 func newFakeIPPool(prefix netip.Prefix, maxEntries int) *fakeIPPool {
@@ -78,15 +78,19 @@ func (p *fakeIPPool) Lookup(name string) netip.Addr {
 		return entryOf(e).addr
 	}
 	for p.lru.Len() >= p.max {
-		p.removeLocked(p.lru.Back())
+		if !p.evictLocked() {
+			// Active mappings stay valid until their connections finish. The
+			// pool can temporarily exceed max when every entry is pinned.
+			break
+		}
 	}
 	addr := p.allocateLocked(name)
-	e := p.lru.PushFront(fakeIPEntry{name: name, addr: addr})
+	e := p.lru.PushFront(&fakeIPEntry{name: name, addr: addr})
 	p.byName[name], p.byAddr[addr] = e, e
 	return addr
 }
 
-// Reverse returns the name assigned to addr.
+// Reverse returns the name assigned to addr and marks it recently used.
 func (p *fakeIPPool) Reverse(addr netip.Addr) (string, bool) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -98,6 +102,27 @@ func (p *fakeIPPool) Reverse(addr netip.Addr) (string, bool) {
 	return entryOf(e).name, true
 }
 
+// Acquire returns the name assigned to addr and pins the mapping until the
+// returned release function is called. Pinned mappings are not evicted, so an
+// active connection cannot change names under cache churn.
+func (p *fakeIPPool) Acquire(addr netip.Addr) (name string, release func(), ok bool) {
+	p.mu.Lock()
+	e, ok := p.byAddr[addr.Unmap()]
+	if !ok {
+		p.mu.Unlock()
+		return "", func() {}, false
+	}
+	entry := entryOf(e)
+	entry.refs++
+	p.lru.MoveToFront(e)
+	p.mu.Unlock()
+
+	var once sync.Once
+	return entry.name, func() {
+		once.Do(func() { p.release(entry.addr) })
+	}, true
+}
+
 // Len returns the number of assigned addresses.
 func (p *fakeIPPool) Len() int {
 	p.mu.Lock()
@@ -105,8 +130,8 @@ func (p *fakeIPPool) Len() int {
 	return p.lru.Len()
 }
 
-func entryOf(e *list.Element) fakeIPEntry {
-	entry, _ := e.Value.(fakeIPEntry)
+func entryOf(e *list.Element) *fakeIPEntry {
+	entry, _ := e.Value.(*fakeIPEntry)
 	return entry
 }
 
@@ -115,6 +140,32 @@ func (p *fakeIPPool) removeLocked(e *list.Element) {
 	p.lru.Remove(e)
 	delete(p.byName, entry.name)
 	delete(p.byAddr, entry.addr)
+}
+
+func (p *fakeIPPool) evictLocked() bool {
+	for e := p.lru.Back(); e != nil; e = e.Prev() {
+		if entryOf(e).refs == 0 {
+			p.removeLocked(e)
+			return true
+		}
+	}
+	return false
+}
+
+func (p *fakeIPPool) release(addr netip.Addr) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	e, ok := p.byAddr[addr]
+	if !ok {
+		return
+	}
+	entry := entryOf(e)
+	entry.refs--
+	for p.lru.Len() > p.max {
+		if !p.evictLocked() {
+			break
+		}
+	}
 }
 
 // allocateLocked hashes name to an offset and probes linearly until it
@@ -140,13 +191,24 @@ func (p *fakeIPPool) allocateLocked(name string) netip.Addr {
 		if _, taken := p.byAddr[addr]; !taken {
 			return addr
 		}
-		if !fallback.IsValid() {
+		if !fallback.IsValid() && entryOf(p.byAddr[addr]).refs == 0 {
 			fallback = addr
 		}
 	}
-	// Every probed address is taken, which can only happen when the pool is
-	// nearly full relative to the probe window. Evict the holder of the
-	// first candidate and reuse it rather than fail the query.
+	remaining := size - min(size, uint32(fakeIPMaxProbes))
+	for range remaining {
+		var raw [4]byte
+		binary.BigEndian.PutUint32(raw[:], base+offset)
+		offset = (offset + 1) % size
+		if raw[3] == 0 || raw[3] == 255 {
+			continue
+		}
+		addr := netip.AddrFrom4(raw)
+		if _, taken := p.byAddr[addr]; !taken {
+			return addr
+		}
+	}
+	// Every address is assigned. Reuse an unpinned candidate if possible.
 	if e, ok := p.byAddr[fallback]; ok {
 		p.removeLocked(e)
 	}

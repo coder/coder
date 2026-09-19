@@ -5987,14 +5987,22 @@ type Template struct {
 	TimeTilAutostopNotify         int64           `db:"time_til_autostop_notify" json:"time_til_autostop_notify"`
 	AgentsAllowed                 bool            `db:"agents_allowed" json:"agents_allowed"`
 	AllowWorkspaceRenames         bool            `db:"allow_workspace_renames" json:"allow_workspace_renames"`
-	ExitNodeID                    uuid.NullUUID   `db:"exit_node_id" json:"exit_node_id"`
 	ExitNodeEnforce               bool            `db:"exit_node_enforce" json:"exit_node_enforce"`
+	ExitNodeIds                   []uuid.UUID     `db:"exit_node_ids" json:"exit_node_ids"`
 	CreatedByAvatarURL            string          `db:"created_by_avatar_url" json:"created_by_avatar_url"`
 	CreatedByUsername             string          `db:"created_by_username" json:"created_by_username"`
 	CreatedByName                 string          `db:"created_by_name" json:"created_by_name"`
 	OrganizationName              string          `db:"organization_name" json:"organization_name"`
 	OrganizationDisplayName       string          `db:"organization_display_name" json:"organization_display_name"`
 	OrganizationIcon              string          `db:"organization_icon" json:"organization_icon"`
+}
+
+// Ordered exit nodes that terminate egress for workspaces built from a template.
+type TemplateExitNode struct {
+	TemplateID uuid.UUID `db:"template_id" json:"template_id"`
+	ExitNodeID uuid.UUID `db:"exit_node_id" json:"exit_node_id"`
+	// Zero-based preference order for exit node failover.
+	Position int32 `db:"position" json:"position"`
 }
 
 type TemplateTable struct {
@@ -6045,8 +6053,6 @@ type TemplateTable struct {
 	AgentsAllowed bool `db:"agents_allowed" json:"agents_allowed"`
 	// Whether workspaces built from this template may be renamed. Renaming can be destructive for templates whose Terraform references the workspace name.
 	AllowWorkspaceRenames bool `db:"allow_workspace_renames" json:"allow_workspace_renames"`
-	// Exit node that terminates egress for workspaces built from this template. NULL routes egress directly.
-	ExitNodeID uuid.NullUUID `db:"exit_node_id" json:"exit_node_id"`
 	// Whether agents transparently enforce that workspace egress goes through the exit node.
 	ExitNodeEnforce bool `db:"exit_node_enforce" json:"exit_node_enforce"`
 }

@@ -123,11 +123,40 @@ func TestBuildRules(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			rs := buildRules(tt.ports, tt.exemptions, tt.resolvers, tt.family)
+			rs := buildRules(tt.ports, tt.exemptions, tt.resolvers, tt.family, udpModeRedirect)
 			require.Equal(t, tt.wantNat, toStrings(rs["nat"]))
 			require.Equal(t, tt.wantFilter, toStrings(rs["filter"]))
 		})
 	}
+}
+
+func TestBuildTPROXYRules(t *testing.T) {
+	t.Parallel()
+
+	rs := buildTPROXYRules(proxyPorts{udp: 40003}, []netip.AddrPort{
+		netip.MustParseAddrPort("203.0.113.10:443"),
+		netip.AddrPortFrom(netip.MustParseAddr("198.51.100.7"), 0),
+		netip.MustParseAddrPort("[2001:db8::1]:443"),
+	})
+	join := func(rules []rule) []string {
+		out := make([]string, 0, len(rules))
+		for _, r := range rules {
+			out = append(out, strings.Join(r, " "))
+		}
+		return out
+	}
+	require.Equal(t, []string{
+		"-A CODER_EGRESS_UDP -m mark --mark 0x4350 -j RETURN",
+		"-A CODER_EGRESS_UDP -o lo -j RETURN",
+		"-A CODER_EGRESS_UDP -d 127.0.0.0/8 -j RETURN",
+		"-A CODER_EGRESS_UDP -d 203.0.113.10 -p udp --dport 443 -j RETURN",
+		"-A CODER_EGRESS_UDP -d 198.51.100.7 -p udp -j RETURN",
+		"-A CODER_EGRESS_UDP -p udp --dport 53 -j RETURN",
+		"-A CODER_EGRESS_UDP -p udp -j MARK --set-mark 0x434f",
+	}, join(rs["output"]))
+	require.Equal(t, []string{
+		"-A CODER_EGRESS_TPROXY -p udp -m mark --mark 0x434f -j TPROXY --on-ip 127.0.0.1 --on-port 40003 --tproxy-mark 0x434f",
+	}, join(rs["prerouting"]))
 }
 
 func TestParseResolvConf(t *testing.T) {

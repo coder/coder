@@ -69,6 +69,47 @@ func TestFakeIPPool_CollisionProbing(t *testing.T) {
 	require.Equal(t, "b.test", name)
 }
 
+func TestFakeIPPool_ReverseTouchesLRU(t *testing.T) {
+	t.Parallel()
+
+	p := newFakeIPPool(fakeIPPrefix, 2)
+	first := p.Lookup("first.test")
+	second := p.Lookup("second.test")
+
+	name, ok := p.Reverse(first)
+	require.True(t, ok)
+	require.Equal(t, "first.test", name)
+	_ = p.Lookup("third.test")
+
+	_, ok = p.Reverse(first)
+	require.True(t, ok, "a connection lookup should keep the mapping recent")
+	_, ok = p.Reverse(second)
+	require.False(t, ok, "the untouched mapping should be evicted")
+}
+
+func TestFakeIPPool_AcquirePinsMapping(t *testing.T) {
+	t.Parallel()
+
+	p := newFakeIPPool(fakeIPPrefix, 2)
+	first := p.Lookup("first.test")
+	second := p.Lookup("second.test")
+	name, release, ok := p.Acquire(first)
+	require.True(t, ok)
+	require.Equal(t, "first.test", name)
+
+	_ = p.Lookup("third.test")
+	_, ok = p.Reverse(first)
+	require.True(t, ok, "a pinned mapping must not be evicted")
+	_, ok = p.Reverse(second)
+	require.False(t, ok, "the unpinned mapping should be evicted first")
+
+	fourth := p.Lookup("fourth.test")
+	name, ok = p.Reverse(fourth)
+	require.True(t, ok)
+	require.Equal(t, "fourth.test", name)
+	release()
+}
+
 func TestFakeIPPool_EvictionBound(t *testing.T) {
 	t.Parallel()
 

@@ -25975,6 +25975,10 @@
 		"codersdk.ReportExitNodeFlowsRequest": {
 			"type": "object",
 			"properties": {
+				"dropped_reports": {
+					"description": "DroppedReports is the number of reports lost since the previous\nsuccessful batch.",
+					"type": "integer"
+				},
 				"flows": {
 					"type": "array",
 					"items": {
@@ -26542,13 +26546,16 @@
 					"type": "string"
 				},
 				"exit_node_enforce": {
-					"description": "ExitNodeEnforce requests transparent enforcement in the workspace so\ntraffic cannot bypass the exit node. Ignored when ExitNodeID is nil.",
+					"description": "ExitNodeEnforce requests transparent enforcement in the workspace so\ntraffic cannot bypass the exit nodes. Ignored when ExitNodeIDs is empty.",
 					"type": "boolean"
 				},
-				"exit_node_id": {
-					"description": "ExitNodeID routes egress from workspaces built from this template\nthrough the given exit node. Nil leaves egress unmanaged.",
-					"type": "string",
-					"format": "uuid"
+				"exit_node_ids": {
+					"description": "ExitNodeIDs route egress from workspaces built from this template\nthrough the listed exit nodes in preference order. An empty list leaves\negress unmanaged.",
+					"type": "array",
+					"items": {
+						"type": "string",
+						"format": "uuid"
+					}
 				},
 				"failure_ttl_ms": {
 					"description": "FailureTTLMillis, TimeTilDormantMillis, and TimeTilDormantAutoDeleteMillis are enterprise-only. Their\nvalues are used if your license is entitled to use the advanced\ntemplate scheduling feature.",
@@ -28128,10 +28135,13 @@
 					"description": "ExitNodeEnforce toggles transparent enforcement for the exit node\nbinding. Omitting the field keeps the existing value.",
 					"type": "boolean"
 				},
-				"exit_node_id": {
-					"description": "ExitNodeID binds the template to an exit node. Set to the nil UUID to\nclear the binding. Omitting the field keeps the existing value.",
-					"type": "string",
-					"format": "uuid"
+				"exit_node_ids": {
+					"description": "ExitNodeIDs bind the template to exit nodes in preference order. An\nexplicit empty list clears the binding. Omitting the field keeps the\nexisting value.",
+					"type": "array",
+					"items": {
+						"type": "string",
+						"format": "uuid"
+					}
 				},
 				"failure_ttl_ms": {
 					"type": "integer"

@@ -57,8 +57,9 @@ type FlowReporterOptions struct {
 type FlowReporter struct {
 	FlowReporterOptions
 
-	mu    sync.Mutex
-	queue []codersdk.ExitNodeFlowReport
+	mu             sync.Mutex
+	queue          []codersdk.ExitNodeFlowReport
+	droppedReports int
 	// flushCh is signaled when the queue reaches BatchSize.
 	flushCh chan struct{}
 
@@ -115,6 +116,7 @@ func (r *FlowReporter) Record(report codersdk.ExitNodeFlowReport) {
 func (r *FlowReporter) trimLocked(queue []codersdk.ExitNodeFlowReport) []codersdk.ExitNodeFlowReport {
 	if over := len(queue) - r.MaxQueue; over > 0 {
 		r.Metrics.FlowReportsDropped.Add(float64(over))
+		r.droppedReports += over
 		return queue[over:]
 	}
 	return queue
@@ -166,6 +168,7 @@ func (r *FlowReporter) flushOnce(ctx context.Context) (int, error) {
 	r.mu.Lock()
 	n := min(len(r.queue), r.BatchSize)
 	batch := slices.Clone(r.queue[:n])
+	droppedReports := r.droppedReports
 	r.queue = r.queue[n:]
 	r.mu.Unlock()
 	if n == 0 {
@@ -173,7 +176,10 @@ func (r *FlowReporter) flushOnce(ctx context.Context) (int, error) {
 	}
 
 	sendCtx, cancel := context.WithTimeout(ctx, defaultFlowSendTimeout)
-	err := r.Client.ReportFlows(sendCtx, codersdk.ReportExitNodeFlowsRequest{Flows: batch})
+	err := r.Client.ReportFlows(sendCtx, codersdk.ReportExitNodeFlowsRequest{
+		Flows:          batch,
+		DroppedReports: droppedReports,
+	})
 	cancel()
 	if err != nil {
 		r.mu.Lock()
@@ -181,6 +187,9 @@ func (r *FlowReporter) flushOnce(ctx context.Context) (int, error) {
 		r.mu.Unlock()
 		return 0, xerrors.Errorf("report %d flows: %w", n, err)
 	}
+	r.mu.Lock()
+	r.droppedReports -= droppedReports
+	r.mu.Unlock()
 	r.Metrics.FlowReportsSent.Add(float64(n))
 	return n, nil
 }

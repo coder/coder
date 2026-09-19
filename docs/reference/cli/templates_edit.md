@@ -187,11 +187,11 @@ Disable the default behavior of granting template access to the 'everyone' group
 
 ### --exit-node
 
-|      |                     |
-|------|---------------------|
-| Type | <code>string</code> |
+|      |                           |
+|------|---------------------------|
+| Type | <code>string-array</code> |
 
-Route egress from workspaces on this template through the exit node with this name or ID. Pass an empty string to clear the binding.
+Route egress through exit nodes with these names or IDs, in preference order. Pass an empty string to clear the binding.
 
 ### --exit-node-enforce
 

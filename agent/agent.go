@@ -2309,7 +2309,7 @@ func (a *agent) updateEgress(ctx context.Context, cfg *agentsdk.EgressConfig) {
 		slog.F("listen_addr", proxy.Addr().String()),
 		slog.F("dns_addr", proxy.DNSAddr().String()),
 		slog.F("udp_addr", proxy.UDPAddr().String()),
-		slog.F("exit_node_id", cfg.ExitNodeID),
+		slog.F("exit_node_ids", cfg.ExitNodeIDs),
 		slog.F("enforce", cfg.Enforce),
 	)
 	if !cfg.Enforce {

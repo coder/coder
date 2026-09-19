@@ -213,7 +213,9 @@ curl -X POST http://coder-server:8080/api/v2/templatebuilder/compose/template \
     "disable_module_cache": true,
     "display_name": "string",
     "exit_node_enforce": true,
-    "exit_node_id": "6e1d16cb-7313-46cb-bb18-f1f3225acb29",
+    "exit_node_ids": [
+      "497f6eca-6276-4993-bfeb-53cbbbba6f08"
+    ],
     "failure_ttl_ms": 0,
     "icon": "string",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",

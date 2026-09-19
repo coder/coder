@@ -185,8 +185,7 @@ SET
 	disable_module_cache = $12,
 	agents_allowed = $13,
 	allow_workspace_renames = $14,
-	exit_node_id = $15,
-	exit_node_enforce = $16
+	exit_node_enforce = $15
 WHERE
 	id = $1
 ;

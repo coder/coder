@@ -341,6 +341,7 @@ func TestGetManifest(t *testing.T) {
 		mDB.EXPECT().GetWorkspaceAgentDevcontainersByAgentID(gomock.Any(), agent.ID).Return(devcontainers, nil)
 		mDB.EXPECT().GetWorkspaceByID(gomock.Any(), workspace.ID).Return(workspace, nil)
 		mDB.EXPECT().GetTemplateByID(gomock.Any(), workspace.TemplateID).Return(template, nil)
+		mDB.EXPECT().GetTemplateExitNodes(gomock.Any(), workspace.TemplateID).Return(nil, nil)
 		mDB.EXPECT().ListUserSecretsWithValues(gomock.Any(), workspace.OwnerID).Return(nil, nil)
 
 		got, err := api.GetManifest(context.Background(), &agentproto.GetManifestRequest{})
@@ -409,6 +410,7 @@ func TestGetManifest(t *testing.T) {
 		mDB.EXPECT().GetWorkspaceAgentDevcontainersByAgentID(gomock.Any(), childAgent.ID).Return([]database.WorkspaceAgentDevcontainer{}, nil)
 		mDB.EXPECT().GetWorkspaceByID(gomock.Any(), workspace.ID).Return(workspace, nil)
 		mDB.EXPECT().GetTemplateByID(gomock.Any(), workspace.TemplateID).Return(template, nil)
+		mDB.EXPECT().GetTemplateExitNodes(gomock.Any(), workspace.TemplateID).Return(nil, nil)
 		mDB.EXPECT().ListUserSecretsWithValues(gomock.Any(), workspace.OwnerID).Return(nil, nil)
 
 		got, err := api.GetManifest(context.Background(), &agentproto.GetManifestRequest{})
@@ -473,6 +475,7 @@ func TestGetManifest(t *testing.T) {
 		mDB.EXPECT().GetWorkspaceAgentDevcontainersByAgentID(gomock.Any(), childAgent.ID).Return([]database.WorkspaceAgentDevcontainer{}, nil)
 		mDB.EXPECT().GetWorkspaceByID(gomock.Any(), workspace.ID).Return(workspace, nil)
 		mDB.EXPECT().GetTemplateByID(gomock.Any(), workspace.TemplateID).Return(template, nil)
+		mDB.EXPECT().GetTemplateExitNodes(gomock.Any(), workspace.TemplateID).Return(nil, nil)
 
 		// Return a mix of secrets: env-only, file-only, both, and
 		// one explicitly disabled. The disabled secret should be
@@ -594,6 +597,7 @@ func TestGetManifest(t *testing.T) {
 		mDB.EXPECT().GetWorkspaceAgentDevcontainersByAgentID(gomock.Any(), agent.ID).Return(devcontainers, nil)
 		mDB.EXPECT().GetWorkspaceByID(gomock.Any(), workspace.ID).Return(workspace, nil)
 		mDB.EXPECT().GetTemplateByID(gomock.Any(), workspace.TemplateID).Return(template, nil)
+		mDB.EXPECT().GetTemplateExitNodes(gomock.Any(), workspace.TemplateID).Return(nil, nil)
 		mDB.EXPECT().ListUserSecretsWithValues(gomock.Any(), workspace.OwnerID).Return(nil, nil)
 
 		got, err := api.GetManifest(context.Background(), &agentproto.GetManifestRequest{})
@@ -668,7 +672,7 @@ func TestGetManifest(t *testing.T) {
 				exitNode: liveExitNode,
 				enforce:  true,
 				want: &agentproto.EgressConfig{
-					ExitNodeId:   liveExitNode.ID[:],
+					ExitNodeIds:  [][]byte{liveExitNode.ID[:]},
 					ExitNodePort: codersdk.ExitNodeTailnetPort,
 					Enforce:      true,
 					ControlPlaneHosts: []string{
@@ -707,10 +711,9 @@ func TestGetManifest(t *testing.T) {
 				mDB.EXPECT().GetWorkspaceByID(gomock.Any(), workspace.ID).Return(workspace, nil)
 				mDB.EXPECT().GetTemplateByID(gomock.Any(), workspace.TemplateID).Return(database.Template{
 					ID:              workspace.TemplateID,
-					ExitNodeID:      uuid.NullUUID{UUID: tc.exitNode.ID, Valid: true},
 					ExitNodeEnforce: tc.enforce,
 				}, nil)
-				mDB.EXPECT().GetExitNodeByID(gomock.Any(), tc.exitNode.ID).Return(tc.exitNode, nil)
+				mDB.EXPECT().GetTemplateExitNodes(gomock.Any(), workspace.TemplateID).Return([]database.ExitNode{tc.exitNode}, nil)
 				mDB.EXPECT().ListUserSecretsWithValues(gomock.Any(), workspace.OwnerID).Return(nil, nil)
 
 				got, err := api.GetManifest(context.Background(), &agentproto.GetManifestRequest{})

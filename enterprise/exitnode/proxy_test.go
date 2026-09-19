@@ -218,14 +218,16 @@ func TestConnectProxy_AllowProxiesAndReports(t *testing.T) {
 		target   func(netip.AddrPort) string
 		resolver func(netip.AddrPort) fakeResolver
 		// hostHeader is what the tunneled HTTP request carries.
-		hostHeader string
+		hostHeader      string
+		provisionalHost bool
 	}{
 		{
 			// The Host header is what the policy sees in phase two.
-			name:       "IPLiteralSniffsHost",
-			target:     func(ap netip.AddrPort) string { return ap.String() },
-			resolver:   func(netip.AddrPort) fakeResolver { return nil },
-			hostHeader: "api.example.com",
+			name:            "IPLiteralSniffsHost",
+			target:          func(ap netip.AddrPort) string { return ap.String() },
+			resolver:        func(netip.AddrPort) fakeResolver { return nil },
+			hostHeader:      "api.example.com",
+			provisionalHost: true,
 		},
 		{
 			// The Host header names a host the policy would deny, proving the
@@ -246,6 +248,7 @@ func TestConnectProxy_AllowProxiesAndReports(t *testing.T) {
 			upstream := startEchoHostServer(t)
 			h := newProxyHarness(t, allowExamplePolicy, func(o *exitnode.ConnectProxyOptions) {
 				o.Resolver = tt.resolver(upstream)
+				o.ProvisionalHostAllow = tt.provisionalHost
 			})
 			client, br, _, done := h.connectStatus(ctx, t, tt.target(upstream), http.StatusOK)
 
@@ -278,6 +281,44 @@ func TestConnectProxy_AllowProxiesAndReports(t *testing.T) {
 			require.Equal(t, float64(len(request)), promtestutil.ToFloat64(h.metrics.BytesTotal.WithLabelValues("out")))
 		})
 	}
+}
+
+func TestConnectProxy_StrictHostAllowDefault(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitLong)
+	upstream := startEchoHostServer(t)
+	h := newProxyHarness(t, allowExamplePolicy)
+
+	client, _, resp, done := h.connectStatus(ctx, t, upstream.String(), http.StatusForbidden)
+	require.Equal(t, "default deny", resp.header.Get(codersdk.ExitNodeDenyReasonHeader))
+	requireEOF(t, client)
+	testutil.RequireReceive(ctx, t, done)
+
+	report := testutil.RequireReceive(ctx, t, h.flows.ch)
+	require.Equal(t, codersdk.ExitNodeFlowDeny, report.Decision)
+	require.Empty(t, report.Host)
+}
+
+func TestConnectProxy_OriginalHostMustResolveToTarget(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitLong)
+	upstream := startEchoHostServer(t)
+	h := newProxyHarness(t, allowExamplePolicy, func(o *exitnode.ConnectProxyOptions) {
+		o.ProvisionalHostAllow = true
+		o.Resolver = fakeResolver{"api.example.com": {netip.MustParseAddr("192.0.2.1")}}
+	})
+
+	client, _, _, done := h.connectStatus(ctx, t, upstream.String(), http.StatusOK,
+		http.Header{codersdk.ExitNodeOriginalHostHeader: []string{"api.example.com"}})
+	go func() {
+		_, _ = io.WriteString(client, "GET / HTTP/1.1\r\nHost: blocked.test\r\n\r\n")
+	}()
+	requireEOF(t, client)
+	testutil.RequireReceive(ctx, t, done)
+
+	report := testutil.RequireReceive(ctx, t, h.flows.ch)
+	require.Equal(t, codersdk.ExitNodeFlowDeny, report.Decision)
+	require.Equal(t, "blocked.test", report.Host)
 }
 
 // TestConnectProxy_CustomPolicy plugs a PolicyFunc into the proxy to prove the
@@ -382,6 +423,7 @@ rules:
 			policy:   noEvilPolicy,
 			target:   "192.0.2.1:443",
 			headers:  http.Header{codersdk.ExitNodeOriginalHostHeader: []string{"evil.example"}},
+			resolver: fakeResolver{"evil.example": {netip.MustParseAddr("192.0.2.1")}},
 			wantRule: "no-evil",
 			wantHost: "evil.example",
 			wantIP:   "192.0.2.1",

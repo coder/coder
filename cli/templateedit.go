@@ -37,7 +37,7 @@ func (r *RootCmd) templateEdit() *serpent.Command {
 		requireActiveVersion           bool
 		deprecationMessage             string
 		disableEveryone                bool
-		exitNode                       string
+		exitNodes                      []string
 		exitNodeEnforce                bool
 		orgContext                     = NewOrganizationContext()
 	)
@@ -185,19 +185,23 @@ func (r *RootCmd) templateEdit() *serpent.Command {
 				disableEveryoneGroup = disableEveryone
 			}
 
-			// An empty --exit-node clears the binding; otherwise resolve the
-			// name or ID within the template's organization.
-			var exitNodeID *uuid.UUID
+			// An explicit empty --exit-node clears the binding. Otherwise each
+			// occurrence is resolved in preference order.
+			var exitNodeIDs []uuid.UUID
 			if userSetOption(inv, "exit-node") {
-				exitNodeID = new(uuid.Nil)
-				if exitNode != "" {
+				for _, exitNode := range exitNodes {
+					if exitNode == "" {
+						exitNodeIDs = []uuid.UUID{}
+						break
+					}
 					node, err := client.ExitNodeByName(inv.Context(), template.OrganizationID, exitNode)
 					if err != nil {
 						return xerrors.Errorf("get exit node %q: %w", exitNode, err)
 					}
-					exitNodeID = &node.ID
+					exitNodeIDs = append(exitNodeIDs, node.ID)
 				}
 			}
+
 			var exitNodeEnforcePtr *bool
 			if userSetOption(inv, "exit-node-enforce") {
 				exitNodeEnforcePtr = &exitNodeEnforce
@@ -228,7 +232,7 @@ func (r *RootCmd) templateEdit() *serpent.Command {
 				RequireActiveVersion:           &requireActiveVersion,
 				DeprecationMessage:             deprecated,
 				DisableEveryoneGroupAccess:     &disableEveryoneGroup,
-				ExitNodeID:                     exitNodeID,
+				ExitNodeIDs:                    exitNodeIDs,
 				ExitNodeEnforce:                exitNodeEnforcePtr,
 				// TODO(Emyrk): now that the API accepts partial updates,
 				// rewrite this CLI to only set pointers for flags the user
@@ -359,8 +363,8 @@ func (r *RootCmd) templateEdit() *serpent.Command {
 		},
 		{
 			Flag:        "exit-node",
-			Description: "Route egress from workspaces on this template through the exit node with this name or ID. Pass an empty string to clear the binding.",
-			Value:       serpent.StringOf(&exitNode),
+			Description: "Route egress through exit nodes with these names or IDs, in preference order. Pass an empty string to clear the binding.",
+			Value:       serpent.StringArrayOf(&exitNodes),
 		},
 		{
 			Flag:        "exit-node-enforce",

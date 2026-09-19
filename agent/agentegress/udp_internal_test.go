@@ -192,6 +192,30 @@ func TestUDP_IdleSessionCloses(t *testing.T) {
 	}, testutil.WaitShort, testutil.IntervalMedium)
 }
 
+func TestUDP_UnknownDropRateLimit(t *testing.T) {
+	t.Parallel()
+
+	mClock := quartz.NewMock(t)
+	p := &udpProxy{
+		clock: mClock,
+		drops: make(map[uint16]udpDropState),
+	}
+	log, count := p.markUnknownDrop(9000)
+	require.True(t, log)
+	require.Equal(t, int64(1), count)
+	log, count = p.markUnknownDrop(9000)
+	require.False(t, log)
+	require.Equal(t, int64(2), count)
+	log, count = p.markUnknownDrop(9001)
+	require.True(t, log)
+	require.Equal(t, int64(1), count)
+
+	mClock.Advance(udpDenyTTL + time.Second).MustWait(t.Context())
+	log, count = p.markUnknownDrop(9000)
+	require.True(t, log)
+	require.Equal(t, int64(3), count)
+}
+
 func TestUDP_DropsOversizedAndUnknownDestination(t *testing.T) {
 	t.Parallel()
 
