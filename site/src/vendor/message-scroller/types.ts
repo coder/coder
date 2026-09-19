@@ -188,6 +188,9 @@ type MessageScrollerContextValue = {
   syncAfterScroll: () => void
   unobserveVisibility: () => void
   userScrollIntent: () => void
+  // LOCAL CHANGE: layout churn inside the transcript (tool disclosure
+  // toggles) that must not read as content to follow or re-anchor to.
+  userLayoutIntent: () => void
   viewportRef: React.RefObject<HTMLDivElement | null>
   visibilityStore: MessageScrollerVisibilityStore
 }
