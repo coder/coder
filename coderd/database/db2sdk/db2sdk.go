@@ -481,7 +481,7 @@ func OAuth2ProviderApp(accessURL *url.URL, dbApp database.OAuth2ProviderApp) cod
 	return codersdk.OAuth2ProviderApp{
 		ID:          dbApp.ID,
 		Name:        dbApp.Name,
-		CallbackURL: dbApp.CallbackURL,
+		CallbackURL: dbApp.RegisteredRedirectURIs()[0],
 		Icon:        dbApp.Icon,
 		Scope:       rbac.CanonicalScopeList(dbApp.Scope.String),
 		ClientType:  codersdk.OAuth2ClientType(dbApp.ClientType),

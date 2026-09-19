@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"slices"
 
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
@@ -17,8 +18,83 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
 )
+
+// resolveRedirectURIs returns the redirect URIs an app should have after a
+// create or update request. The first entry is the primary.
+//
+// If the request has redirectURIs, that list is used. If it also has
+// callbackURL, callbackURL is moved to the front of the list.
+// If the request has only callbackURL, an update replaces the first stored
+// URI with callbackURL and keeps the rest. A create uses callbackURL alone.
+// If the request has neither, the stored list is kept.
+// stored is nil on a create.
+//
+// Only the list-only and callback-only shapes have callers today.
+func resolveRedirectURIs(callbackURL string, redirectURIs, stored []string) []string {
+	list := slice.Unique(redirectURIs)
+	if len(list) == 0 && len(stored) > 0 {
+		if callbackURL == "" {
+			return stored
+		}
+		list = stored[1:]
+	}
+	if callbackURL != "" {
+		list = slices.DeleteFunc(slices.Clone(list), func(s string) bool { return s == callbackURL })
+		list = append([]string{callbackURL}, list...)
+	}
+	return list
+}
+
+// validateAppRedirectURIFields checks the list an admin request resolved to
+// and reports each failure against the request field that caused it. Every
+// entry passes ValidateRedirectURIShape; entries of a public app also
+// pass ValidateRedirectURI.
+//
+// Stored URIs are checked again on every update. An app that predates the
+// caps and no longer passes must be deleted and created again.
+func validateAppRedirectURIFields(uris []string, clientType codersdk.OAuth2ClientType, fromCallback string) []codersdk.ValidationError {
+	// A failure on the request's callback_url is reported against that field
+	// and without a list index, since the caller never sent a list.
+	invalid := func(i int, uri, detail string) []codersdk.ValidationError {
+		if uri != "" && uri == fromCallback {
+			return []codersdk.ValidationError{{Field: "callback_url", Detail: "callback URL " + detail}}
+		}
+		return []codersdk.ValidationError{{
+			Field:  "redirect_uris",
+			Detail: fmt.Sprintf("redirect URI at index %d %s", i, detail),
+		}}
+	}
+	if len(uris) == 0 {
+		return []codersdk.ValidationError{{
+			Field:  "redirect_uris",
+			Detail: "at least one redirect URI is required",
+		}}
+	}
+	if len(uris) > codersdk.OAuth2RedirectURIsMaxCount {
+		return []codersdk.ValidationError{{
+			Field:  "redirect_uris",
+			Detail: fmt.Sprintf("at most %d redirect URIs are allowed", codersdk.OAuth2RedirectURIsMaxCount),
+		}}
+	}
+	for i, uri := range uris {
+		if len(uri) > codersdk.OAuth2RedirectURIMaxBytes {
+			return invalid(i, uri, fmt.Sprintf("must be at most %d bytes", codersdk.OAuth2RedirectURIMaxBytes))
+		}
+		if err := codersdk.ValidateRedirectURIShape(uri); err != nil {
+			return invalid(i, uri, err.Error())
+		}
+		if clientType != codersdk.OAuth2ClientTypePublic {
+			continue
+		}
+		if err := codersdk.ValidateRedirectURI(uri, clientType); err != nil {
+			return invalid(i, uri, err.Error())
+		}
+	}
+	return nil
+}
 
 // ListApps returns an http.HandlerFunc that handles GET /oauth2-provider/apps
 func ListApps(db database.Store, accessURL *url.URL) http.HandlerFunc {
@@ -113,6 +189,14 @@ func CreateApp(db database.Store, accessURL *url.URL, auditor *audit.Auditor, lo
 		if !httpapi.Read(ctx, rw, r, &req) {
 			return
 		}
+		redirectURIs := resolveRedirectURIs(req.CallbackURL, nil, nil)
+		if errs := validateAppRedirectURIFields(redirectURIs, codersdk.OAuth2ClientTypeConfidential, req.CallbackURL); errs != nil {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message:     "Validation failed.",
+				Validations: errs,
+			})
+			return
+		}
 		if writeInvalidScopeError(ctx, rw, req.Scope) {
 			return
 		}
@@ -122,8 +206,8 @@ func CreateApp(db database.Store, accessURL *url.URL, auditor *audit.Auditor, lo
 			UpdatedAt:               dbtime.Now(),
 			Name:                    req.Name,
 			Icon:                    req.Icon,
-			CallbackURL:             req.CallbackURL,
-			RedirectUris:            []string{},
+			CallbackURL:             redirectURIs[0],
+			RedirectUris:            redirectURIs,
 			ClientType:              database.OAuth2ProviderAppClientTypeConfidential,
 			DynamicallyRegistered:   sql.NullBool{Bool: false, Valid: true},
 			ClientIDIssuedAt:        sql.NullTime{},
@@ -175,17 +259,17 @@ func UpdateApp(db database.Store, accessURL *url.URL, auditor *audit.Auditor, lo
 		if !httpapi.Read(ctx, rw, r, &req) {
 			return
 		}
+		clientType := codersdk.OAuth2ClientTypeConfidential
 		if app.IsPublic() {
-			if err := codersdk.ValidateRedirectURIs([]string{req.CallbackURL}, codersdk.OAuth2ClientTypePublic); err != nil {
-				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-					Message: "Validation failed.",
-					Validations: []codersdk.ValidationError{{
-						Field:  "callback_url",
-						Detail: err.Error(),
-					}},
-				})
-				return
-			}
+			clientType = codersdk.OAuth2ClientTypePublic
+		}
+		redirectURIs := resolveRedirectURIs(req.CallbackURL, nil, app.RegisteredRedirectURIs())
+		if errs := validateAppRedirectURIFields(redirectURIs, clientType, req.CallbackURL); errs != nil {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message:     "Validation failed.",
+				Validations: errs,
+			})
+			return
 		}
 		scope := app.Scope // Keep existing value
 		if req.Scope != nil {
@@ -199,8 +283,8 @@ func UpdateApp(db database.Store, accessURL *url.URL, auditor *audit.Auditor, lo
 			UpdatedAt:               dbtime.Now(),
 			Name:                    req.Name,
 			Icon:                    req.Icon,
-			CallbackURL:             req.CallbackURL,
-			RedirectUris:            app.RedirectUris,            // Keep existing value
+			CallbackURL:             redirectURIs[0],
+			RedirectUris:            redirectURIs,
 			ClientType:              app.ClientType,              // Keep existing value
 			DynamicallyRegistered:   app.DynamicallyRegistered,   // Keep existing value
 			ClientSecretExpiresAt:   app.ClientSecretExpiresAt,   // Keep existing value

@@ -1235,6 +1235,120 @@ func TestOAuth2AuthorizeAnyRegisteredRedirectURI(t *testing.T) {
 	require.Contains(t, readBody(t, resp), "must match one of")
 }
 
+func TestOAuth2AuthorizeFollowsCallbackEdit(t *testing.T) {
+	t.Parallel()
+
+	db, pubsub := dbtestutil.NewDB(t)
+	client := coderdtest.New(t, &coderdtest.Options{Database: db, Pubsub: pubsub})
+	_ = coderdtest.CreateFirstUser(t, client)
+	oauth2providertest.EnableDCR(t, client)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	const (
+		first  = "https://a.example.com/callback"
+		second = "https://b.example.com/callback"
+		third  = "https://c.example.com/callback"
+	)
+	app := oauth2providertest.RegisterPublicClientWithRedirectURIs(t, client, "callback-edit", first, second)
+	appID, err := uuid.Parse(app.ClientID)
+	require.NoError(t, err)
+
+	// Issue a code to the first URI before the edit.
+	verifier, challenge := oauth2providertest.GeneratePKCE(t)
+	query := authorizeQuery(t, app.ClientID, "")
+	query.Set("code_challenge", challenge)
+	query.Set("redirect_uri", first)
+	post := sendAuthorizeRequest(ctx, t, client, http.MethodPost, query)
+	defer post.Body.Close()
+	require.Equal(t, http.StatusFound, post.StatusCode, readBody(t, post))
+	location, err := url.Parse(post.Header.Get("Location"))
+	require.NoError(t, err)
+	staleCode := location.Query().Get("code")
+	require.NotEmpty(t, staleCode)
+
+	//nolint:gocritic // OAuth2 app management requires owner permission.
+	_, err = client.PutOAuth2ProviderApp(ctx, appID, codersdk.PutOAuth2ProviderAppRequest{
+		Name:        "callback-edit",
+		CallbackURL: third,
+	})
+	require.NoError(t, err)
+
+	// authorize sends a GET for redirectURI and returns the status, the
+	// Location header, and the body.
+	authorize := func(redirectURI string) (int, string, string) {
+		q := authorizeQuery(t, app.ClientID, "")
+		q.Set("redirect_uri", redirectURI)
+		resp := sendAuthorizeRequest(ctx, t, client, http.MethodGet, q)
+		defer resp.Body.Close()
+		return resp.StatusCode, resp.Header.Get("Location"), readBody(t, resp)
+	}
+
+	// The previous primary is no longer registered and is refused on Coder.
+	status, redirected, body := authorize(first)
+	require.Equal(t, http.StatusBadRequest, status)
+	require.Empty(t, redirected)
+	require.Contains(t, body, "must match one of")
+
+	// The other registered URI and the new primary both work.
+	status, _, body = authorize(second)
+	require.Equal(t, http.StatusOK, status, body)
+	status, _, body = authorize(third)
+	require.Equal(t, http.StatusOK, status, body)
+
+	// An omitted redirect_uri goes to the new primary.
+	omitted := authorizeQuery(t, app.ClientID, "")
+	post = sendAuthorizeRequest(ctx, t, client, http.MethodPost, omitted)
+	defer post.Body.Close()
+	require.Equal(t, http.StatusFound, post.StatusCode, readBody(t, post))
+	location, err = url.Parse(post.Header.Get("Location"))
+	require.NoError(t, err)
+	require.Equal(t, third, location.Scheme+"://"+location.Host+location.Path)
+
+	// A code issued to the removed URI cannot be exchanged. The redirect_uri
+	// fails registration matching before the code is looked up, so the
+	// answer is invalid_request rather than invalid_grant.
+	form := url.Values{}
+	form.Set("grant_type", "authorization_code")
+	form.Set("client_id", app.ClientID)
+	form.Set("code", staleCode)
+	form.Set("redirect_uri", first)
+	form.Set("code_verifier", verifier)
+	status, body = postTokenRequest(ctx, t, client, form)
+	requireTokenError(t, status, body, codersdk.OAuth2ErrorCodeInvalidRequest)
+}
+
+// A callback_url that is not in the list is not registered. Such a row can
+// only be written by a binary older than migration 000598.
+func TestOAuth2AuthorizeIgnoresCallbackColumn(t *testing.T) {
+	t.Parallel()
+
+	db, pubsub := dbtestutil.NewDB(t)
+	client := coderdtest.New(t, &coderdtest.Options{Database: db, Pubsub: pubsub})
+	_ = coderdtest.CreateFirstUser(t, client)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	const (
+		stale = "https://stale.example.com/callback"
+		first = "https://a.example.com/callback"
+	)
+	app := dbgen.OAuth2ProviderApp(t, db, database.OAuth2ProviderApp{
+		CallbackURL:  stale,
+		RedirectUris: []string{first},
+	})
+
+	query := authorizeQuery(t, app.ID.String(), "")
+	query.Set("redirect_uri", stale)
+	resp := sendAuthorizeRequest(ctx, t, client, http.MethodGet, query)
+	defer resp.Body.Close()
+	require.Equal(t, http.StatusBadRequest, resp.StatusCode)
+	require.Empty(t, resp.Header.Get("Location"))
+
+	query.Set("redirect_uri", first)
+	resp = sendAuthorizeRequest(ctx, t, client, http.MethodGet, query)
+	defer resp.Body.Close()
+	require.Equal(t, http.StatusOK, resp.StatusCode, readBody(t, resp))
+}
+
 // A whitespace-only allowlist is configured and grants nothing. It must read
 // back as non-empty from every write origin, since empty means unrestricted,
 // and authorization must fail closed on it.

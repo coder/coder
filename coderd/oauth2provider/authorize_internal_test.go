@@ -795,15 +795,28 @@ func TestRegisteredRedirectURIs(t *testing.T) {
 		}, got)
 	})
 
-	// An admin edit rewrites CallbackURL without touching RedirectUris.
-	t.Run("EditedCallbackIsIncluded", func(t *testing.T) {
+	// The list is the source of truth. A callback_url that disagrees with it
+	// can only come from a row written before migration 000598 by an older
+	// binary, and it is not registered.
+	t.Run("ColumnIsIgnored", func(t *testing.T) {
 		t.Parallel()
 		got := strs(t, database.OAuth2ProviderApp{
 			CallbackURL:  "https://new.example.com/callback",
 			RedirectUris: []string{"https://a.example.com/cb", "https://b.example.com/cb"},
 		})
 		require.Equal(t, []string{
-			"https://new.example.com/callback",
+			"https://a.example.com/cb",
+			"https://b.example.com/cb",
+		}, got)
+	})
+
+	t.Run("DuplicatesDropped", func(t *testing.T) {
+		t.Parallel()
+		got := strs(t, database.OAuth2ProviderApp{
+			CallbackURL:  "https://a.example.com/cb",
+			RedirectUris: []string{"https://a.example.com/cb", "https://b.example.com/cb", "https://a.example.com/cb"},
+		})
+		require.Equal(t, []string{
 			"https://a.example.com/cb",
 			"https://b.example.com/cb",
 		}, got)
