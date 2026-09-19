@@ -56,15 +56,12 @@ const (
 	ScopeChatProjectCreate                   ScopeName = "chat_project:create"
 	ScopeChatProjectDelete                   ScopeName = "chat_project:delete"
 	ScopeChatProjectRead                     ScopeName = "chat_project:read"
+	ScopeChatProjectShare                    ScopeName = "chat_project:share"
 	ScopeChatProjectUpdate                   ScopeName = "chat_project:update"
 	ScopeChatProjectMemoryCreate             ScopeName = "chat_project_memory:create"
 	ScopeChatProjectMemoryDelete             ScopeName = "chat_project_memory:delete"
 	ScopeChatProjectMemoryRead               ScopeName = "chat_project_memory:read"
 	ScopeChatProjectMemoryUpdate             ScopeName = "chat_project_memory:update"
-	ScopeChatUserMemoryCreate                ScopeName = "chat_user_memory:create"
-	ScopeChatUserMemoryDelete                ScopeName = "chat_user_memory:delete"
-	ScopeChatUserMemoryRead                  ScopeName = "chat_user_memory:read"
-	ScopeChatUserMemoryUpdate                ScopeName = "chat_user_memory:update"
 	ScopeConnectionLogRead                   ScopeName = "connection_log:read"
 	ScopeConnectionLogUpdate                 ScopeName = "connection_log:update"
 	ScopeCryptoKeyCreate                     ScopeName = "crypto_key:create"
@@ -262,15 +259,12 @@ func (e ScopeName) Valid() bool {
 		ScopeChatProjectCreate,
 		ScopeChatProjectDelete,
 		ScopeChatProjectRead,
+		ScopeChatProjectShare,
 		ScopeChatProjectUpdate,
 		ScopeChatProjectMemoryCreate,
 		ScopeChatProjectMemoryDelete,
 		ScopeChatProjectMemoryRead,
 		ScopeChatProjectMemoryUpdate,
-		ScopeChatUserMemoryCreate,
-		ScopeChatUserMemoryDelete,
-		ScopeChatUserMemoryRead,
-		ScopeChatUserMemoryUpdate,
 		ScopeConnectionLogRead,
 		ScopeConnectionLogUpdate,
 		ScopeCryptoKeyCreate,
@@ -469,15 +463,12 @@ func AllScopeNameValues() []ScopeName {
 		ScopeChatProjectCreate,
 		ScopeChatProjectDelete,
 		ScopeChatProjectRead,
+		ScopeChatProjectShare,
 		ScopeChatProjectUpdate,
 		ScopeChatProjectMemoryCreate,
 		ScopeChatProjectMemoryDelete,
 		ScopeChatProjectMemoryRead,
 		ScopeChatProjectMemoryUpdate,
-		ScopeChatUserMemoryCreate,
-		ScopeChatUserMemoryDelete,
-		ScopeChatUserMemoryRead,
-		ScopeChatUserMemoryUpdate,
 		ScopeConnectionLogRead,
 		ScopeConnectionLogUpdate,
 		ScopeCryptoKeyCreate,

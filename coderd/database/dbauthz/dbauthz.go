@@ -816,7 +816,6 @@ var (
 					rbac.ResourceChat.Type:              {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
 					rbac.ResourceChatProject.Type:       {policy.ActionRead},
 					rbac.ResourceChatProjectMemory.Type: {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
-					rbac.ResourceChatUserMemory.Type:    {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
 					rbac.ResourceChatModelConfig.Type:   {policy.ActionRead},
 					rbac.ResourceWorkspace.Type:         {policy.ActionRead, policy.ActionUpdate},
 					rbac.ResourceDeploymentConfig.Type:  {policy.ActionRead},
@@ -1785,6 +1784,27 @@ func scopedOrgRoleIdentifiers(names []string, orgID uuid.UUID) []rbac.RoleIdenti
 	return out
 }
 
+// authorizeChatProjectMemories authorizes an action on the memory set of a
+// project. Memory permissions derive from the project's owner and ACL.
+func (q *querier) authorizeChatProjectMemories(ctx context.Context, action policy.Action, projectID uuid.UUID) (database.ChatProject, error) {
+	project, err := q.db.GetChatProjectByID(ctx, projectID)
+	if err != nil {
+		return database.ChatProject{}, err
+	}
+	if err := q.authorizeContext(ctx, action, database.ChatProjectMemoryRBACObject(project)); err != nil {
+		return database.ChatProject{}, err
+	}
+	return project, nil
+}
+
+func (q *querier) authorizeChatProjectMemory(ctx context.Context, action policy.Action, memory database.ChatProjectMemory) error {
+	project, err := q.db.GetChatProjectByID(ctx, memory.ProjectID)
+	if err != nil {
+		return err
+	}
+	return q.authorizeContext(ctx, action, memory.RBACObject(project))
+}
+
 func (*querier) requireChatd(ctx context.Context) error {
 	actor, ok := ActorFromContext(ctx)
 	if !ok || actor.Type != rbac.SubjectTypeChatd {
@@ -2066,11 +2086,7 @@ func (q *querier) CountChatCapacityQueuedByPool(ctx context.Context, staleSecond
 }
 
 func (q *querier) CountChatProjectMemoriesByProjectID(ctx context.Context, projectID uuid.UUID) (int64, error) {
-	project, err := q.db.GetChatProjectByID(ctx, projectID)
-	if err != nil {
-		return 0, err
-	}
-	if err := q.authorizeContext(ctx, policy.ActionRead, project); err != nil {
+	if _, err := q.authorizeChatProjectMemories(ctx, policy.ActionRead, projectID); err != nil {
 		return 0, err
 	}
 	return q.db.CountChatProjectMemoriesByProjectID(ctx, projectID)
@@ -2082,13 +2098,6 @@ func (q *querier) CountChatQueuedMessages(ctx context.Context, chatID uuid.UUID)
 		return 0, err
 	}
 	return q.db.CountChatQueuedMessages(ctx, chatID)
-}
-
-func (q *querier) CountChatUserMemoriesByUserAndOrganization(ctx context.Context, arg database.CountChatUserMemoriesByUserAndOrganizationParams) (int64, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceChatUserMemory.InOrg(arg.OrganizationID).WithOwner(arg.UserID.String())); err != nil {
-		return 0, err
-	}
-	return q.db.CountChatUserMemoriesByUserAndOrganization(ctx, arg)
 }
 
 func (q *querier) CountConnectionLogs(ctx context.Context, arg database.CountConnectionLogsParams) (int64, error) {
@@ -2313,15 +2322,22 @@ func (q *querier) DeleteChatProjectByID(ctx context.Context, id uuid.UUID) error
 }
 
 func (q *querier) DeleteChatProjectMemoryByID(ctx context.Context, id uuid.UUID) error {
-	return deleteQ(q.log, q.auth, q.db.GetChatProjectMemoryByID, q.db.DeleteChatProjectMemoryByID)(ctx, id)
-}
-
-func (q *querier) DeleteChatProjectMemoryByName(ctx context.Context, arg database.DeleteChatProjectMemoryByNameParams) error {
-	memory, err := q.db.GetChatProjectMemoryByName(ctx, database.GetChatProjectMemoryByNameParams(arg))
+	row, err := q.db.GetChatProjectMemoryByID(ctx, id)
 	if err != nil {
 		return err
 	}
-	if err := q.authorizeContext(ctx, policy.ActionDelete, memory); err != nil {
+	if err := q.authorizeChatProjectMemory(ctx, policy.ActionDelete, row.ChatProjectMemory); err != nil {
+		return err
+	}
+	return q.db.DeleteChatProjectMemoryByID(ctx, id)
+}
+
+func (q *querier) DeleteChatProjectMemoryByName(ctx context.Context, arg database.DeleteChatProjectMemoryByNameParams) error {
+	row, err := q.db.GetChatProjectMemoryByName(ctx, database.GetChatProjectMemoryByNameParams(arg))
+	if err != nil {
+		return err
+	}
+	if err := q.authorizeChatProjectMemory(ctx, policy.ActionDelete, row.ChatProjectMemory); err != nil {
 		return err
 	}
 	return q.db.DeleteChatProjectMemoryByName(ctx, arg)
@@ -2348,21 +2364,6 @@ func (q *querier) DeleteChatQueuedMessageReturningCount(ctx context.Context, arg
 	}
 	_ = chat
 	return q.db.DeleteChatQueuedMessageReturningCount(ctx, arg)
-}
-
-func (q *querier) DeleteChatUserMemoryByID(ctx context.Context, id uuid.UUID) error {
-	return deleteQ(q.log, q.auth, q.db.GetChatUserMemoryByID, q.db.DeleteChatUserMemoryByID)(ctx, id)
-}
-
-func (q *querier) DeleteChatUserMemoryByName(ctx context.Context, arg database.DeleteChatUserMemoryByNameParams) error {
-	memory, err := q.db.GetChatUserMemoryByName(ctx, database.GetChatUserMemoryByNameParams(arg))
-	if err != nil {
-		return err
-	}
-	if err := q.authorizeContext(ctx, policy.ActionDelete, memory); err != nil {
-		return err
-	}
-	return q.db.DeleteChatUserMemoryByName(ctx, arg)
 }
 
 func (q *querier) DeleteCryptoKey(ctx context.Context, arg database.DeleteCryptoKeyParams) (database.CryptoKey, error) {
@@ -2929,7 +2930,7 @@ func (q *querier) FindMatchingPresetID(ctx context.Context, arg database.FindMat
 
 func (q *querier) FinishChatMemoryConsolidation(ctx context.Context, arg database.FinishChatMemoryConsolidationParams) (database.ChatMemoryConsolidation, error) {
 	// Consolidation journal writes are internal chatd bookkeeping. The table has
-	// no standalone resource because users read it through the parent memory scope.
+	// no standalone resource because users read it through the parent project.
 	if err := q.requireChatd(ctx); err != nil {
 		return database.ChatMemoryConsolidation{}, err
 	}
@@ -3542,22 +3543,10 @@ func (q *querier) GetChatIncludeDefaultSystemPrompt(ctx context.Context) (bool, 
 }
 
 func (q *querier) GetChatMemoryConsolidationsByProject(ctx context.Context, arg database.GetChatMemoryConsolidationsByProjectParams) ([]database.ChatMemoryConsolidation, error) {
-	project, err := q.db.GetChatProjectByID(ctx, arg.ProjectID)
-	if err != nil {
-		return nil, err
-	}
-	if err := q.authorizeContext(ctx, policy.ActionRead, project); err != nil {
+	if _, err := q.authorizeChatProjectMemories(ctx, policy.ActionRead, arg.ProjectID); err != nil {
 		return nil, err
 	}
 	return q.db.GetChatMemoryConsolidationsByProject(ctx, arg)
-}
-
-func (q *querier) GetChatMemoryConsolidationsByUser(ctx context.Context, arg database.GetChatMemoryConsolidationsByUserParams) ([]database.ChatMemoryConsolidation, error) {
-	memory := database.ChatUserMemory{OrganizationID: arg.OrganizationID, UserID: arg.UserID}
-	if err := q.authorizeContext(ctx, policy.ActionRead, memory); err != nil {
-		return nil, err
-	}
-	return q.db.GetChatMemoryConsolidationsByUser(ctx, arg)
 }
 
 func (q *querier) GetChatMemoryCursor(ctx context.Context, chatID uuid.UUID) (database.ChatMemoryCursor, error) {
@@ -3728,28 +3717,71 @@ func (q *querier) GetChatPlanModeInstructions(ctx context.Context) (string, erro
 	return q.db.GetChatPlanModeInstructions(ctx)
 }
 
+func (q *querier) GetChatProjectACLByID(ctx context.Context, id uuid.UUID) (database.GetChatProjectACLByIDRow, error) {
+	project, err := q.db.GetChatProjectByID(ctx, id)
+	if err != nil {
+		return database.GetChatProjectACLByIDRow{}, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionRead, project); err != nil {
+		return database.GetChatProjectACLByIDRow{}, err
+	}
+	return q.db.GetChatProjectACLByID(ctx, id)
+}
+
 func (q *querier) GetChatProjectByID(ctx context.Context, id uuid.UUID) (database.ChatProject, error) {
 	return fetch(q.log, q.auth, q.db.GetChatProjectByID)(ctx, id)
 }
 
+func (q *querier) GetChatProjectByIDForUpdate(ctx context.Context, id uuid.UUID) (database.ChatProject, error) {
+	return fetch(q.log, q.auth, q.db.GetChatProjectByIDForUpdate)(ctx, id)
+}
+
 func (q *querier) GetChatProjectMemoriesByProjectID(ctx context.Context, projectID uuid.UUID) ([]database.GetChatProjectMemoriesByProjectIDRow, error) {
-	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetChatProjectMemoriesByProjectID)(ctx, projectID)
+	if _, err := q.authorizeChatProjectMemories(ctx, policy.ActionRead, projectID); err != nil {
+		return nil, err
+	}
+	return q.db.GetChatProjectMemoriesByProjectID(ctx, projectID)
 }
 
 func (q *querier) GetChatProjectMemoryByID(ctx context.Context, id uuid.UUID) (database.GetChatProjectMemoryByIDRow, error) {
-	return fetch(q.log, q.auth, q.db.GetChatProjectMemoryByID)(ctx, id)
+	row, err := q.db.GetChatProjectMemoryByID(ctx, id)
+	if err != nil {
+		return database.GetChatProjectMemoryByIDRow{}, err
+	}
+	if err := q.authorizeChatProjectMemory(ctx, policy.ActionRead, row.ChatProjectMemory); err != nil {
+		return database.GetChatProjectMemoryByIDRow{}, err
+	}
+	return row, nil
 }
 
 func (q *querier) GetChatProjectMemoryByName(ctx context.Context, arg database.GetChatProjectMemoryByNameParams) (database.GetChatProjectMemoryByNameRow, error) {
-	return fetch(q.log, q.auth, q.db.GetChatProjectMemoryByName)(ctx, arg)
+	row, err := q.db.GetChatProjectMemoryByName(ctx, arg)
+	if err != nil {
+		return database.GetChatProjectMemoryByNameRow{}, err
+	}
+	if err := q.authorizeChatProjectMemory(ctx, policy.ActionRead, row.ChatProjectMemory); err != nil {
+		return database.GetChatProjectMemoryByNameRow{}, err
+	}
+	return row, nil
 }
 
 func (q *querier) GetChatProjectMemoryByNameForUpdate(ctx context.Context, arg database.GetChatProjectMemoryByNameForUpdateParams) (database.ChatProjectMemory, error) {
-	return fetch(q.log, q.auth, q.db.GetChatProjectMemoryByNameForUpdate)(ctx, arg)
+	memory, err := q.db.GetChatProjectMemoryByNameForUpdate(ctx, arg)
+	if err != nil {
+		return database.ChatProjectMemory{}, err
+	}
+	if err := q.authorizeChatProjectMemory(ctx, policy.ActionRead, memory); err != nil {
+		return database.ChatProjectMemory{}, err
+	}
+	return memory, nil
 }
 
 func (q *querier) GetChatProjectsByOrganizationID(ctx context.Context, organizationID uuid.UUID) ([]database.ChatProject, error) {
-	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetChatProjectsByOrganizationID)(ctx, organizationID)
+	prepared, err := prepareSQLFilter(ctx, q.auth, policy.ActionRead, rbac.ResourceChatProject.Type)
+	if err != nil {
+		return nil, xerrors.Errorf("(dev error) prepare sql filter: %w", err)
+	}
+	return q.db.GetAuthorizedChatProjects(ctx, organizationID, prepared)
 }
 
 func (q *querier) GetChatQueuedForCapacity(ctx context.Context, arg database.GetChatQueuedForCapacityParams) (bool, error) {
@@ -3838,22 +3870,6 @@ func (q *querier) GetChatSystemPromptConfig(ctx context.Context) (database.GetCh
 		return database.GetChatSystemPromptConfigRow{}, ErrNoActor
 	}
 	return q.db.GetChatSystemPromptConfig(ctx)
-}
-
-func (q *querier) GetChatUserMemoriesByUserAndOrganization(ctx context.Context, arg database.GetChatUserMemoriesByUserAndOrganizationParams) ([]database.GetChatUserMemoriesByUserAndOrganizationRow, error) {
-	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetChatUserMemoriesByUserAndOrganization)(ctx, arg)
-}
-
-func (q *querier) GetChatUserMemoryByID(ctx context.Context, id uuid.UUID) (database.GetChatUserMemoryByIDRow, error) {
-	return fetch(q.log, q.auth, q.db.GetChatUserMemoryByID)(ctx, id)
-}
-
-func (q *querier) GetChatUserMemoryByName(ctx context.Context, arg database.GetChatUserMemoryByNameParams) (database.GetChatUserMemoryByNameRow, error) {
-	return fetch(q.log, q.auth, q.db.GetChatUserMemoryByName)(ctx, arg)
-}
-
-func (q *querier) GetChatUserMemoryByNameForUpdate(ctx context.Context, arg database.GetChatUserMemoryByNameForUpdateParams) (database.ChatUserMemory, error) {
-	return fetch(q.log, q.auth, q.db.GetChatUserMemoryByNameForUpdate)(ctx, arg)
 }
 
 func (q *querier) GetChatUserModelOverride(ctx context.Context, arg database.GetChatUserModelOverrideParams) (database.ChatUserModelOverride, error) {
@@ -4302,22 +4318,10 @@ func (q *querier) GetLastUpdateCheck(ctx context.Context) (string, error) {
 }
 
 func (q *querier) GetLatestChatMemoryConsolidationByProject(ctx context.Context, projectID uuid.UUID) (database.ChatMemoryConsolidation, error) {
-	project, err := q.db.GetChatProjectByID(ctx, projectID)
-	if err != nil {
-		return database.ChatMemoryConsolidation{}, err
-	}
-	if err := q.authorizeContext(ctx, policy.ActionRead, project); err != nil {
+	if _, err := q.authorizeChatProjectMemories(ctx, policy.ActionRead, projectID); err != nil {
 		return database.ChatMemoryConsolidation{}, err
 	}
 	return q.db.GetLatestChatMemoryConsolidationByProject(ctx, projectID)
-}
-
-func (q *querier) GetLatestChatMemoryConsolidationByUser(ctx context.Context, arg database.GetLatestChatMemoryConsolidationByUserParams) (database.ChatMemoryConsolidation, error) {
-	memory := database.ChatUserMemory{OrganizationID: arg.OrganizationID, UserID: arg.UserID}
-	if err := q.authorizeContext(ctx, policy.ActionRead, memory); err != nil {
-		return database.ChatMemoryConsolidation{}, err
-	}
-	return q.db.GetLatestChatMemoryConsolidationByUser(ctx, arg)
 }
 
 func (q *querier) GetLatestCryptoKeyByFeature(ctx context.Context, feature database.CryptoKeyFeature) (database.CryptoKey, error) {
@@ -5447,17 +5451,6 @@ func (q *querier) GetUserChatDebugLoggingEnabled(ctx context.Context, userID uui
 	return q.db.GetUserChatDebugLoggingEnabled(ctx, userID)
 }
 
-func (q *querier) GetUserChatPersonalMemoryEnabled(ctx context.Context, userID uuid.UUID) (string, error) {
-	u, err := q.db.GetUserByID(ctx, userID)
-	if err != nil {
-		return "", err
-	}
-	if err := q.authorizeContext(ctx, policy.ActionReadPersonal, u); err != nil {
-		return "", err
-	}
-	return q.db.GetUserChatPersonalMemoryEnabled(ctx, userID)
-}
-
 func (q *querier) GetUserCodeDiffDisplayMode(ctx context.Context, userID uuid.UUID) (string, error) {
 	user, err := q.db.GetUserByID(ctx, userID)
 	if err != nil {
@@ -6378,7 +6371,7 @@ func (q *querier) InsertChatFile(ctx context.Context, arg database.InsertChatFil
 
 func (q *querier) InsertChatMemoryConsolidation(ctx context.Context, arg database.InsertChatMemoryConsolidationParams) (database.ChatMemoryConsolidation, error) {
 	// Consolidation journal writes are internal chatd bookkeeping. The table has
-	// no standalone resource because users read it through the parent memory scope.
+	// no standalone resource because users read it through the parent project.
 	if err := q.requireChatd(ctx); err != nil {
 		return database.ChatMemoryConsolidation{}, err
 	}
@@ -6406,7 +6399,10 @@ func (q *querier) InsertChatProject(ctx context.Context, arg database.InsertChat
 }
 
 func (q *querier) InsertChatProjectMemory(ctx context.Context, arg database.InsertChatProjectMemoryParams) (database.ChatProjectMemory, error) {
-	return insert(q.log, q.auth, rbac.ResourceChatProjectMemory.InOrg(arg.OrganizationID), q.db.InsertChatProjectMemory)(ctx, arg)
+	if _, err := q.authorizeChatProjectMemories(ctx, policy.ActionCreate, arg.ProjectID); err != nil {
+		return database.ChatProjectMemory{}, err
+	}
+	return q.db.InsertChatProjectMemory(ctx, arg)
 }
 
 func (q *querier) InsertChatQueuedMessage(ctx context.Context, arg database.InsertChatQueuedMessageParams) (database.ChatQueuedMessage, error) {
@@ -6430,10 +6426,6 @@ func (q *querier) InsertChatQueuedMessageWithCreator(ctx context.Context, arg da
 	}
 	_ = chat
 	return q.db.InsertChatQueuedMessageWithCreator(ctx, arg)
-}
-
-func (q *querier) InsertChatUserMemory(ctx context.Context, arg database.InsertChatUserMemoryParams) (database.ChatUserMemory, error) {
-	return insert(q.log, q.auth, rbac.ResourceChatUserMemory.InOrg(arg.OrganizationID).WithOwner(arg.UserID.String()), q.db.InsertChatUserMemory)(ctx, arg)
 }
 
 func (q *querier) InsertCryptoKey(ctx context.Context, arg database.InsertCryptoKeyParams) (database.CryptoKey, error) {
@@ -7378,13 +7370,6 @@ func (q *querier) PruneChatMemoryConsolidationsByProject(ctx context.Context, ar
 	return q.db.PruneChatMemoryConsolidationsByProject(ctx, arg)
 }
 
-func (q *querier) PruneChatMemoryConsolidationsByUser(ctx context.Context, arg database.PruneChatMemoryConsolidationsByUserParams) error {
-	if err := q.requireChatd(ctx); err != nil {
-		return err
-	}
-	return q.db.PruneChatMemoryConsolidationsByUser(ctx, arg)
-}
-
 func (q *querier) ReduceWorkspaceAgentShareLevelToAuthenticatedByTemplate(ctx context.Context, templateID uuid.UUID) error {
 	template, err := q.db.GetTemplateByID(ctx, templateID)
 	if err != nil {
@@ -7865,6 +7850,16 @@ func (q *querier) UpdateChatPlanModeByID(ctx context.Context, arg database.Updat
 	return q.db.UpdateChatPlanModeByID(ctx, arg)
 }
 
+func (q *querier) UpdateChatProjectACLByID(ctx context.Context, arg database.UpdateChatProjectACLByIDParams) error {
+	if rbac.ChatACLDisabled() {
+		return NotAuthorizedError{Err: xerrors.New("chat sharing is disabled")}
+	}
+	fetch := func(ctx context.Context, arg database.UpdateChatProjectACLByIDParams) (database.ChatProject, error) {
+		return q.db.GetChatProjectByID(ctx, arg.ID)
+	}
+	return fetchAndExec(q.log, q.auth, policy.ActionShare, fetch, q.db.UpdateChatProjectACLByID)(ctx, arg)
+}
+
 func (q *querier) UpdateChatProjectBinding(ctx context.Context, arg database.UpdateChatProjectBindingParams) (database.ChatTable, error) {
 	chat, err := q.db.GetChatByID(ctx, arg.ID)
 	if err != nil {
@@ -7883,10 +7878,14 @@ func (q *querier) UpdateChatProjectByID(ctx context.Context, arg database.Update
 }
 
 func (q *querier) UpdateChatProjectMemoryByID(ctx context.Context, arg database.UpdateChatProjectMemoryByIDParams) (database.ChatProjectMemory, error) {
-	return updateWithReturn(q.log, q.auth, func(ctx context.Context, arg database.UpdateChatProjectMemoryByIDParams) (database.ChatProjectMemory, error) {
-		row, err := q.db.GetChatProjectMemoryByID(ctx, arg.ID)
-		return row.ChatProjectMemory, err
-	}, q.db.UpdateChatProjectMemoryByID)(ctx, arg)
+	row, err := q.db.GetChatProjectMemoryByID(ctx, arg.ID)
+	if err != nil {
+		return database.ChatProjectMemory{}, err
+	}
+	if err := q.authorizeChatProjectMemory(ctx, policy.ActionUpdate, row.ChatProjectMemory); err != nil {
+		return database.ChatProjectMemory{}, err
+	}
+	return q.db.UpdateChatProjectMemoryByID(ctx, arg)
 }
 
 func (q *querier) UpdateChatRetryState(ctx context.Context, arg database.UpdateChatRetryStateParams) (database.Chat, error) {
@@ -7935,13 +7934,6 @@ func (q *querier) UpdateChatTitleByID(ctx context.Context, arg database.UpdateCh
 		return database.Chat{}, err
 	}
 	return q.db.UpdateChatTitleByID(ctx, arg)
-}
-
-func (q *querier) UpdateChatUserMemoryByID(ctx context.Context, arg database.UpdateChatUserMemoryByIDParams) (database.ChatUserMemory, error) {
-	return updateWithReturn(q.log, q.auth, func(ctx context.Context, arg database.UpdateChatUserMemoryByIDParams) (database.ChatUserMemory, error) {
-		row, err := q.db.GetChatUserMemoryByID(ctx, arg.ID)
-		return row.ChatUserMemory, err
-	}, q.db.UpdateChatUserMemoryByID)(ctx, arg)
 }
 
 func (q *querier) UpdateChatWorkspaceBinding(ctx context.Context, arg database.UpdateChatWorkspaceBindingParams) (database.Chat, error) {
@@ -9377,7 +9369,11 @@ func (q *querier) UpsertChatPlanModeInstructions(ctx context.Context, value stri
 }
 
 func (q *querier) UpsertChatProjectMemoryByName(ctx context.Context, arg database.UpsertChatProjectMemoryByNameParams) (database.ChatProjectMemory, error) {
-	return insert(q.log, q.auth, rbac.ResourceChatProjectMemory.InOrg(arg.OrganizationID), q.db.UpsertChatProjectMemoryByName)(ctx, arg)
+	// An upsert may create, so require the wider action.
+	if _, err := q.authorizeChatProjectMemories(ctx, policy.ActionCreate, arg.ProjectID); err != nil {
+		return database.ChatProjectMemory{}, err
+	}
+	return q.db.UpsertChatProjectMemoryByName(ctx, arg)
 }
 
 func (q *querier) UpsertChatRetentionDays(ctx context.Context, retentionDays int32) error {
@@ -9392,10 +9388,6 @@ func (q *querier) UpsertChatSystemPrompt(ctx context.Context, value string) erro
 		return err
 	}
 	return q.db.UpsertChatSystemPrompt(ctx, value)
-}
-
-func (q *querier) UpsertChatUserMemoryByName(ctx context.Context, arg database.UpsertChatUserMemoryByNameParams) (database.ChatUserMemory, error) {
-	return insert(q.log, q.auth, rbac.ResourceChatUserMemory.InOrg(arg.OrganizationID).WithOwner(arg.UserID.String()), q.db.UpsertChatUserMemoryByName)(ctx, arg)
 }
 
 func (q *querier) UpsertChatUserModelOverride(ctx context.Context, arg database.UpsertChatUserModelOverrideParams) error {
@@ -9596,17 +9588,6 @@ func (q *querier) UpsertUserChatDebugLoggingEnabled(ctx context.Context, arg dat
 		return err
 	}
 	return q.db.UpsertUserChatDebugLoggingEnabled(ctx, arg)
-}
-
-func (q *querier) UpsertUserChatPersonalMemoryEnabled(ctx context.Context, arg database.UpsertUserChatPersonalMemoryEnabledParams) (database.UserConfig, error) {
-	u, err := q.db.GetUserByID(ctx, arg.UserID)
-	if err != nil {
-		return database.UserConfig{}, err
-	}
-	if err := q.authorizeContext(ctx, policy.ActionUpdatePersonal, u); err != nil {
-		return database.UserConfig{}, err
-	}
-	return q.db.UpsertUserChatPersonalMemoryEnabled(ctx, arg)
 }
 
 func (q *querier) UpsertWebpushVAPIDKeys(ctx context.Context, arg database.UpsertWebpushVAPIDKeysParams) error {
@@ -9815,4 +9796,8 @@ func (q *querier) GetAuthorizedChatModelConfigs(ctx context.Context, organizatio
 
 func (q *querier) GetAuthorizedMCPServerConfigs(ctx context.Context, organizationID uuid.UUID, prepared rbac.PreparedAuthorized) ([]database.MCPServerConfig, error) {
 	return q.db.GetAuthorizedMCPServerConfigs(ctx, organizationID, prepared)
+}
+
+func (q *querier) GetAuthorizedChatProjects(ctx context.Context, organizationID uuid.UUID, _ rbac.PreparedAuthorized) ([]database.ChatProject, error) {
+	return q.GetChatProjectsByOrganizationID(ctx, organizationID)
 }

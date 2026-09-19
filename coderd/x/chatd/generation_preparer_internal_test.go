@@ -2,7 +2,6 @@ package chatd //nolint:testpackage // Exercises unexported re-derivation helpers
 
 import (
 	"encoding/json"
-	"strconv"
 	"strings"
 	"testing"
 
@@ -408,15 +407,13 @@ func TestPrepareGenerationMemory(t *testing.T) {
 		name               string
 		project            bool
 		subagent           bool
-		personalEnabled    *bool
 		experimentsEnabled bool
 		wantMemoryBlock    bool
 		wantMemoryTools    bool
 		intro              string
 	}{
 		{name: "Project", project: true, experimentsEnabled: true, wantMemoryBlock: true, wantMemoryTools: true, intro: `project "platform"`},
-		{name: "Personal", experimentsEnabled: true, wantMemoryBlock: true, wantMemoryTools: true, intro: "Memory is personal to you"},
-		{name: "PersonalDisabled", experimentsEnabled: true, personalEnabled: new(false)},
+		{name: "NoProject", experimentsEnabled: true},
 		{name: "ExperimentDisabled"},
 		{name: "Subagent", experimentsEnabled: true, subagent: true},
 	}
@@ -438,9 +435,6 @@ func TestPrepareGenerationMemory(t *testing.T) {
 				project := dbgen.ChatProject(t, db, database.ChatProject{OrganizationID: org.ID, CreatedBy: user.ID, Name: "platform"})
 				projectID = uuid.NullUUID{UUID: project.ID, Valid: true}
 				dbgen.ChatProjectMemory(t, db, database.ChatProjectMemory{ProjectID: project.ID, OrganizationID: org.ID, CreatedBy: user.ID, Name: "release_notes", Description: "Durable release process", Body: "Run the release checklist."})
-			} else if tt.personalEnabled != nil {
-				_, err := db.UpsertUserChatPersonalMemoryEnabled(ctx, database.UpsertUserChatPersonalMemoryEnabledParams{UserID: user.ID, Value: strconv.FormatBool(*tt.personalEnabled)})
-				require.NoError(t, err)
 			}
 
 			parentChatID, rootChatID := uuid.NullUUID{}, uuid.NullUUID{}

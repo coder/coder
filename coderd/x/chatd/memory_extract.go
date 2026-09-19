@@ -31,15 +31,13 @@ const (
 	memoryExtractionMaxDrains = 5
 )
 
-// memoryScopeStatus reports why a chat has, or lacks, a memory scope.
+// memoryScopeStatus reports whether a chat has a memory scope.
 type memoryScopeStatus int
 
 const (
-	// memoryScopeUnavailable covers subagents and transient lookup failures.
+	// memoryScopeUnavailable covers chats outside a project, subagents, and
+	// transient lookup failures.
 	memoryScopeUnavailable memoryScopeStatus = iota
-	// memoryScopeDisabled means the user turned personal memory off. Turns
-	// completed in this state must never be extracted later.
-	memoryScopeDisabled
 	memoryScopeAvailable
 )
 
@@ -64,32 +62,21 @@ type memoryExtractionUpsert struct {
 }
 
 // resolveMemoryScope returns the durable-memory store available to a chat.
+// Only root chats inside a project have memory.
 func (p *Server) resolveMemoryScope(ctx context.Context, chat database.Chat) (chattool.MemoryStore, chattool.MemoryScope, memoryScopeStatus) {
 	if !p.experiments.Enabled(codersdk.ExperimentChatProjects) {
 		return nil, chattool.MemoryScope{}, memoryScopeUnavailable
 	}
-	if chat.ParentChatID.Valid {
+	if chat.ParentChatID.Valid || !chat.ProjectID.Valid {
 		return nil, chattool.MemoryScope{}, memoryScopeUnavailable
 	}
-	if chat.ProjectID.Valid {
-		scope := chattool.MemoryScope{Kind: chattool.MemoryScopeProject}
-		project, err := p.db.GetChatProjectByID(ctx, chat.ProjectID.UUID)
-		if err != nil {
-			p.logger.Debug(ctx, "failed to load chat project for memory scope", slog.F("chat_id", chat.ID), slog.Error(err))
-		} else {
-			scope.Label = project.Name
-		}
-		return chattool.NewProjectMemoryStore(p.db, chat.ProjectID.UUID, chat.OrganizationID, chat.ID, chat.OwnerID), scope, memoryScopeAvailable
-	}
-	enabled, err := p.configCache.GetUserChatPersonalMemoryEnabled(ctx, chat.OwnerID)
+	project, err := p.db.GetChatProjectByID(ctx, chat.ProjectID.UUID)
 	if err != nil {
-		p.logger.Debug(ctx, "failed to load personal memory setting", slog.F("chat_id", chat.ID), slog.Error(err))
+		p.logger.Debug(ctx, "failed to load chat project for memory scope", slog.F("chat_id", chat.ID), slog.Error(err))
 		return nil, chattool.MemoryScope{}, memoryScopeUnavailable
 	}
-	if !enabled {
-		return nil, chattool.MemoryScope{}, memoryScopeDisabled
-	}
-	return chattool.NewPersonalMemoryStore(p.db, chat.OwnerID, chat.OrganizationID, chat.ID), chattool.MemoryScope{Kind: chattool.MemoryScopePersonal}, memoryScopeAvailable
+	scope := chattool.MemoryScope{Label: project.Name}
+	return chattool.NewProjectMemoryStore(p.db, chat.ProjectID.UUID, chat.OrganizationID, chat.ID, chat.OwnerID), scope, memoryScopeAvailable
 }
 
 // errInvalidMemoryUpsert marks a proposal the model got wrong, which is
@@ -194,14 +181,8 @@ func (p *Server) extractMemoriesOnce(ctx context.Context, logger slog.Logger, ch
 	}
 
 	store, scope, status := p.resolveMemoryScope(ctx, chat)
-	switch status {
-	case memoryScopeUnavailable:
+	if status != memoryScopeAvailable {
 		return 0, false
-	case memoryScopeDisabled:
-		// Fence the turns completed while memory was off so re-enabling it
-		// later never extracts them retroactively.
-		return advance()
-	case memoryScopeAvailable:
 	}
 
 	messages, err := p.db.GetChatMessagesForPromptByChatID(ctx, chat.ID)

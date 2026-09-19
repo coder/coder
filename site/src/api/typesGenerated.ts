@@ -708,15 +708,11 @@ export type APIKeyScope =
 	| "chat_project_memory:read"
 	| "chat_project_memory:update"
 	| "chat_project:read"
+	| "chat_project:share"
 	| "chat_project:update"
 	| "chat:read"
 	| "chat:share"
 	| "chat:update"
-	| "chat_user_memory:*"
-	| "chat_user_memory:create"
-	| "chat_user_memory:delete"
-	| "chat_user_memory:read"
-	| "chat_user_memory:update"
 	| "coder:all"
 	| "coder:apikeys.manage_self"
 	| "coder:application_connect"
@@ -970,15 +966,11 @@ export const APIKeyScopes: APIKeyScope[] = [
 	"chat_project_memory:read",
 	"chat_project_memory:update",
 	"chat_project:read",
+	"chat_project:share",
 	"chat_project:update",
 	"chat:read",
 	"chat:share",
 	"chat:update",
-	"chat_user_memory:*",
-	"chat_user_memory:create",
-	"chat_user_memory:delete",
-	"chat_user_memory:read",
-	"chat_user_memory:update",
 	"coder:all",
 	"coder:apikeys.manage_self",
 	"coder:application_connect",
@@ -2697,8 +2689,7 @@ export const ChatListSources: ChatListSource[] = [
 export interface ChatMemoryConsolidation {
 	readonly id: string;
 	readonly organization_id: string;
-	readonly project_id?: string;
-	readonly user_id?: string;
+	readonly project_id: string;
 	readonly status: ChatMemoryConsolidationStatus;
 	readonly started_at: string;
 	readonly finished_at?: string;
@@ -3223,14 +3214,6 @@ export interface ChatModelVercelProviderOptions {
 
 // From codersdk/chats.go
 /**
- * ChatPersonalMemorySettings describes a user's personal memory setting.
- */
-export interface ChatPersonalMemorySettings {
-	readonly enabled: boolean;
-}
-
-// From codersdk/chats.go
-/**
  * ChatPersonalModelOverride is a resolved user personal model override.
  */
 export interface ChatPersonalModelOverride {
@@ -3308,6 +3291,20 @@ export interface ChatProject {
 
 // From codersdk/chats.go
 /**
+ * ChatProjectACL lists the users and groups a project is shared with.
+ */
+export interface ChatProjectACL {
+	readonly users: readonly ChatProjectUser[];
+	readonly groups: readonly ChatProjectGroup[];
+}
+
+// From codersdk/chats.go
+export interface ChatProjectGroup extends Group {
+	readonly role: ChatProjectRole;
+}
+
+// From codersdk/chats.go
+/**
  * ChatProjectMemory is a durable memory shared by chats in a project.
  */
 export interface ChatProjectMemory {
@@ -3322,6 +3319,16 @@ export interface ChatProjectMemory {
 	readonly created_by_username: string;
 	readonly created_at: string;
 	readonly updated_at: string;
+}
+
+// From codersdk/chats.go
+export type ChatProjectRole = "" | "read";
+
+export const ChatProjectRoles: ChatProjectRole[] = ["", "read"];
+
+// From codersdk/chats.go
+export interface ChatProjectUser extends MinimalUser {
+	readonly role: ChatProjectRole;
 }
 
 // From codersdk/chats.go
@@ -3693,23 +3700,6 @@ export interface ChatUser extends MinimalUser {
 
 // From codersdk/chats.go
 /**
- * ChatUserMemory is a durable memory scoped to a user and organization.
- */
-export interface ChatUserMemory {
-	readonly id: string;
-	readonly organization_id: string;
-	readonly user_id: string;
-	readonly name: string;
-	readonly description: string;
-	readonly body: string;
-	readonly source_chat_id?: string;
-	readonly created_by_username: string;
-	readonly created_at: string;
-	readonly updated_at: string;
-}
-
-// From codersdk/chats.go
-/**
  * ChatWatchEvent represents an event from the global chat watch stream.
  * It delivers lifecycle events (created, status change, summary change,
  * title change) for all of the authenticated user's chats. When Kind is
@@ -4065,17 +4055,6 @@ export interface CreateChatRequest {
 	readonly unsafe_dynamic_tools?: readonly DynamicTool[];
 	readonly plan_mode?: ChatPlanMode;
 	readonly client_type?: ChatClientType;
-}
-
-// From codersdk/chats.go
-/**
- * CreateChatUserMemoryRequest creates a user-scoped memory.
- */
-export interface CreateChatUserMemoryRequest {
-	readonly organization_id: string;
-	readonly name: string;
-	readonly description: string;
-	readonly body: string;
 }
 
 // From codersdk/users.go
@@ -8244,7 +8223,6 @@ export type RBACResource =
 	| "chat_model_config"
 	| "chat_project"
 	| "chat_project_memory"
-	| "chat_user_memory"
 	| "connection_log"
 	| "crypto_key"
 	| "debug_info"
@@ -8301,7 +8279,6 @@ export const RBACResources: RBACResource[] = [
 	"chat_model_config",
 	"chat_project",
 	"chat_project_memory",
-	"chat_user_memory",
 	"connection_log",
 	"crypto_key",
 	"debug_info",
@@ -8459,7 +8436,6 @@ export type ResourceType =
 	| "chat_operational_settings"
 	| "chat_project"
 	| "chat_project_memory"
-	| "chat_user_memory"
 	| "convert_login"
 	| "custom_role"
 	| "git_ssh_key"
@@ -8504,7 +8480,6 @@ export const ResourceTypes: ResourceType[] = [
 	"chat_operational_settings",
 	"chat_project",
 	"chat_project_memory",
-	"chat_user_memory",
 	"convert_login",
 	"custom_role",
 	"git_ssh_key",
@@ -10042,14 +10017,6 @@ export interface UpdateChatModelRequest {
 
 // From codersdk/chats.go
 /**
- * UpdateChatPersonalMemorySettingsRequest updates a user's personal memory setting.
- */
-export interface UpdateChatPersonalMemorySettingsRequest {
-	readonly enabled: boolean;
-}
-
-// From codersdk/chats.go
-/**
  * UpdateChatPersonalModelOverridesAdminSettingsRequest is the request body for
  * updating personal model override admin settings.
  */
@@ -10064,6 +10031,16 @@ export interface UpdateChatPersonalModelOverridesAdminSettingsRequest {
  */
 export interface UpdateChatPlanModeInstructionsRequest {
 	readonly plan_mode_instructions: string;
+}
+
+// From codersdk/chats.go
+/**
+ * UpdateChatProjectACL applies role changes for the listed principals.
+ * ChatProjectRoleDeleted removes an entry; omitted entries are untouched.
+ */
+export interface UpdateChatProjectACL {
+	readonly user_roles?: Record<string, ChatProjectRole>;
+	readonly group_roles?: Record<string, ChatProjectRole>;
 }
 
 // From codersdk/chats.go
@@ -10146,16 +10123,6 @@ export interface UpdateChatRetentionDaysRequest {
 export interface UpdateChatSystemPromptRequest {
 	readonly system_prompt: string;
 	readonly include_default_system_prompt?: boolean;
-}
-
-// From codersdk/chats.go
-/**
- * UpdateChatUserMemoryRequest updates a user-scoped memory.
- */
-export interface UpdateChatUserMemoryRequest {
-	readonly name?: string;
-	readonly description?: string;
-	readonly body?: string;
 }
 
 // From codersdk/chats.go

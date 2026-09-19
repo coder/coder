@@ -83,6 +83,7 @@ var chatProjectActions = map[Action]ActionDefinition{
 	ActionRead:   "read chat projects",
 	ActionUpdate: "update a chat project",
 	ActionDelete: "delete a chat project",
+	ActionShare:  "share a chat project with other users or groups",
 }
 
 var chatProjectMemoryActions = map[Action]ActionDefinition{
@@ -138,9 +139,6 @@ var RBACPermissions = map[string]PermissionDefinition{
 		Actions: chatProjectActions,
 	},
 	"chat_project_memory": {
-		Actions: chatProjectMemoryActions,
-	},
-	"chat_user_memory": {
 		Actions: chatProjectMemoryActions,
 	},
 	"chat_model_config": {

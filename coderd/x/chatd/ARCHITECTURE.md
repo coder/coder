@@ -886,7 +886,7 @@ The generation goroutine supports:
 
 - chat compaction (automatic and manual, see [Manual compaction](#manual-compaction))
 - MCP tools
-- project memory tools <!-- TODO(chat-project-memory): document root-chat project memory tools -->
+- memory tools <!-- TODO(chat-project-memory): document root-chat memory tools (read_memory, save_memory, delete_memory) scoped to the project -->
 - subagents (`spawn_agent`, `wait_agent`, `message_agent`, `interrupt_agent`, `list_agents`, `list_subagent_models`)
     - `close_agent` is a deprecated alias that dispatches to `interrupt_agent`, so historical tool calls in chat history still resolve
 - file links

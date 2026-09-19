@@ -144,6 +144,7 @@ var (
 	//  - "ActionCreate" :: create a new chat project
 	//  - "ActionDelete" :: delete a chat project
 	//  - "ActionRead" :: read chat projects
+	//  - "ActionShare" :: share a chat project with other users or groups
 	//  - "ActionUpdate" :: update a chat project
 	ResourceChatProject = Object{
 		Type: "chat_project",
@@ -157,16 +158,6 @@ var (
 	//  - "ActionUpdate" :: update a chat project memory
 	ResourceChatProjectMemory = Object{
 		Type: "chat_project_memory",
-	}
-
-	// ResourceChatUserMemory
-	// Valid Actions
-	//  - "ActionCreate" :: create a chat project memory
-	//  - "ActionDelete" :: delete a chat project memory
-	//  - "ActionRead" :: read chat project memories
-	//  - "ActionUpdate" :: update a chat project memory
-	ResourceChatUserMemory = Object{
-		Type: "chat_user_memory",
 	}
 
 	// ResourceConnectionLog
@@ -556,7 +547,6 @@ func AllResources() []Objecter {
 		ResourceChatModelConfig,
 		ResourceChatProject,
 		ResourceChatProjectMemory,
-		ResourceChatUserMemory,
 		ResourceConnectionLog,
 		ResourceCryptoKey,
 		ResourceDebugInfo,

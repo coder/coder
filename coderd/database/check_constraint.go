@@ -22,7 +22,6 @@ const (
 	CheckAibridgeTokenUsagesOutputPriceMicrosCheck           CheckConstraint = "aibridge_token_usages_output_price_micros_check"           // aibridge_token_usages
 	CheckAPIKeysAllowListNotEmpty                            CheckConstraint = "api_keys_allow_list_not_empty"                             // api_keys
 	CheckBoundaryLogsSequenceNumberCheck                     CheckConstraint = "boundary_logs_sequence_number_check"                       // boundary_logs
-	CheckChatMemoryConsolidationsScope                       CheckConstraint = "chat_memory_consolidations_scope"                          // chat_memory_consolidations
 	CheckChatModelConfigsAIProviderRequiredWhenActive        CheckConstraint = "chat_model_configs_ai_provider_required_when_active"       // chat_model_configs
 	CheckChatModelConfigsCompressionThresholdCheck           CheckConstraint = "chat_model_configs_compression_threshold_check"            // chat_model_configs
 	CheckChatModelConfigsContextLimitCheck                   CheckConstraint = "chat_model_configs_context_limit_check"                    // chat_model_configs
@@ -32,13 +31,12 @@ const (
 	CheckChatProjectMemoriesBodyLength                       CheckConstraint = "chat_project_memories_body_length"                         // chat_project_memories
 	CheckChatProjectMemoriesDescriptionLength                CheckConstraint = "chat_project_memories_description_length"                  // chat_project_memories
 	CheckChatProjectMemoriesNameFormat                       CheckConstraint = "chat_project_memories_name_format"                         // chat_project_memories
+	CheckChatProjectsGroupAclIsObject                        CheckConstraint = "chat_projects_group_acl_is_object"                         // chat_projects
 	CheckChatProjectsNameNotBlank                            CheckConstraint = "chat_projects_name_not_blank"                              // chat_projects
+	CheckChatProjectsUserAclIsObject                         CheckConstraint = "chat_projects_user_acl_is_object"                          // chat_projects
 	CheckChatUsageLimitConfigDefaultLimitMicrosCheck         CheckConstraint = "chat_usage_limit_config_default_limit_micros_check"        // chat_usage_limit_config
 	CheckChatUsageLimitConfigPeriodCheck                     CheckConstraint = "chat_usage_limit_config_period_check"                      // chat_usage_limit_config
 	CheckChatUsageLimitConfigSingletonCheck                  CheckConstraint = "chat_usage_limit_config_singleton_check"                   // chat_usage_limit_config
-	CheckChatUserMemoriesBodyLength                          CheckConstraint = "chat_user_memories_body_length"                            // chat_user_memories
-	CheckChatUserMemoriesDescriptionLength                   CheckConstraint = "chat_user_memories_description_length"                     // chat_user_memories
-	CheckChatUserMemoriesNameFormat                          CheckConstraint = "chat_user_memories_name_format"                            // chat_user_memories
 	CheckChatUserModelOverridesContextCheck                  CheckConstraint = "chat_user_model_overrides_context_check"                   // chat_user_model_overrides
 	CheckChatUserModelOverridesModeCheck                     CheckConstraint = "chat_user_model_overrides_mode_check"                      // chat_user_model_overrides
 	CheckChatUserModelOverridesModelRequiresConfigCheck      CheckConstraint = "chat_user_model_overrides_model_requires_config_check"     // chat_user_model_overrides

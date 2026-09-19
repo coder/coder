@@ -27,7 +27,7 @@ COMMENT ON TABLE chat_project_memories IS 'Organization-scoped durable memories 
 CREATE UNIQUE INDEX idx_chat_project_memories_project_lower_name ON chat_project_memories (project_id, lower(name));
 CREATE INDEX idx_chat_project_memories_project_updated_at ON chat_project_memories (project_id, updated_at DESC);
 
-CREATE TABLE chat_project_memory_cursors (
+CREATE TABLE chat_memory_cursors (
     chat_id uuid PRIMARY KEY REFERENCES chats(id) ON DELETE CASCADE,
     history_version bigint NOT NULL,
     extracted_at timestamptz NOT NULL DEFAULT now(),
@@ -36,4 +36,4 @@ CREATE TABLE chat_project_memory_cursors (
     claimed_until timestamptz
 );
 
-COMMENT ON TABLE chat_project_memory_cursors IS 'Per-chat cursors for project memory extraction.';
+COMMENT ON TABLE chat_memory_cursors IS 'Per-chat cursors for memory extraction.';

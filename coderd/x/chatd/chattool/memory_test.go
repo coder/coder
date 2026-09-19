@@ -76,26 +76,21 @@ func TestFormatMemoryGuidanceAndIndexForTool(t *testing.T) {
 	for i := range entries {
 		entries[i] = chattool.MemoryIndexEntry{Name: "memory-" + strings.Repeat("x", 50) + string(rune('a'+i%26)), Description: strings.Repeat("description ", 20)}
 	}
-	guidance := chattool.FormatMemoryGuidance(chattool.MemoryScope{Kind: chattool.MemoryScopeProject, Label: "platform"})
+	guidance := chattool.FormatMemoryGuidance(chattool.MemoryScope{Label: "platform"})
 	require.Contains(t, guidance, "<memory>")
 	require.Contains(t, guidance, `project "platform"`)
 	require.NotContains(t, guidance, "memory-")
-	personal := chattool.FormatMemoryGuidance(chattool.MemoryScope{Kind: chattool.MemoryScopePersonal})
-	require.Contains(t, personal, "Memory is personal to you")
 	index := chattool.FormatMemoryIndexForTool(entries)
 	require.Contains(t, index, "Available memories (newest first):")
 	require.Contains(t, index, "more memories not shown.")
 	require.LessOrEqual(t, len(index), chattool.MaxMemoryIndexBytes)
 	require.Contains(t, guidance, "people on this project")
-	require.NotContains(t, guidance, "Do not save project details")
-	require.Contains(t, personal, "Do not save project details")
-	require.NotContains(t, personal, "people on this project")
 	require.Equal(t, "No memories saved yet.", chattool.FormatMemoryIndexForTool(nil))
 }
 
 func TestReadMemoryDescriptionIncludesIndex(t *testing.T) {
 	t.Parallel()
-	tool := chattool.ReadMemory(&memoryStore{memories: map[string]chattool.Memory{}}, chattool.MemoryScope{Kind: chattool.MemoryScopePersonal}, []chattool.MemoryIndexEntry{{Name: "release", Description: "Release process"}})
+	tool := chattool.ReadMemory(&memoryStore{memories: map[string]chattool.Memory{}}, chattool.MemoryScope{Label: "platform"}, []chattool.MemoryIndexEntry{{Name: "release", Description: "Release process"}})
 	require.Contains(t, tool.Info().Description, "Read a memory by name.")
 	require.Contains(t, tool.Info().Description, "- release: Release process")
 }
@@ -108,7 +103,7 @@ func TestSaveMemoryCapAndUpsert(t *testing.T) {
 		for i := range chattool.MaxMemories {
 			store.memories[string(rune(i))] = chattool.Memory{}
 		}
-		tool := chattool.SaveMemory(store, chattool.MemoryScope{Kind: chattool.MemoryScopePersonal})
+		tool := chattool.SaveMemory(store, chattool.MemoryScope{Label: "platform"})
 		response, err := tool.Run(context.Background(), fantasy.ToolCall{Input: `{"name":"durable-fact","description":"Durable fact","body":"Body"}`})
 		require.NoError(t, err)
 		require.True(t, response.IsError)
@@ -117,7 +112,7 @@ func TestSaveMemoryCapAndUpsert(t *testing.T) {
 	t.Run("Upsert", func(t *testing.T) {
 		t.Parallel()
 		store := &memoryStore{memories: map[string]chattool.Memory{"durable-fact": {Name: "durable-fact"}}}
-		tool := chattool.SaveMemory(store, chattool.MemoryScope{Kind: chattool.MemoryScopePersonal})
+		tool := chattool.SaveMemory(store, chattool.MemoryScope{Label: "platform"})
 		response, err := tool.Run(context.Background(), fantasy.ToolCall{Input: `{"name":"DURABLE-fact","description":"<memory>Durable</memory>","body":"<memory>Body</memory>"}`})
 		require.NoError(t, err)
 		require.False(t, response.IsError)
@@ -149,7 +144,7 @@ func TestMemoryStoreAdaptersMapNotFoundAndUpsert(t *testing.T) {
 		require.ErrorIs(t, err, chattool.ErrMemoryNotFound)
 		// Upsert of an existing name skips the cap count.
 		db.EXPECT().GetChatProjectMemoryByName(gomock.Any(), database.GetChatProjectMemoryByNameParams{ProjectID: projectID, Name: "fact"}).Return(database.GetChatProjectMemoryByNameRow{}, nil)
-		db.EXPECT().CountChatProjectMemoriesByProjectID(gomock.Any(), projectID).Return(int64(1), nil)
+		db.EXPECT().CountChatProjectMemoriesByProjectID(gomock.Any(), projectID).Return(int64(1), nil).AnyTimes()
 		db.EXPECT().UpsertChatProjectMemoryByName(gomock.Any(), gomock.Any()).DoAndReturn(func(_ context.Context, arg database.UpsertChatProjectMemoryByNameParams) (database.ChatProjectMemory, error) {
 			require.Equal(t, projectID, arg.ProjectID)
 			require.Equal(t, organizationID, arg.OrganizationID)
@@ -168,36 +163,7 @@ func TestMemoryStoreAdaptersMapNotFoundAndUpsert(t *testing.T) {
 		})
 		_, err = store.Insert(t.Context(), chattool.MemoryInput{Name: "new-fact"})
 		require.NoError(t, err)
-	})
-	t.Run("Personal", func(t *testing.T) {
-		t.Parallel()
-		ctrl := gomock.NewController(t)
-		db := dbmock.NewMockStore(ctrl)
-		userID, organizationID, chatID := uuid.New(), uuid.New(), uuid.New()
-		store := chattool.NewPersonalMemoryStore(db, userID, organizationID, chatID)
-		expectMemoryTx(db)
-		db.EXPECT().GetChatUserMemoryByName(gomock.Any(), database.GetChatUserMemoryByNameParams{UserID: userID, OrganizationID: organizationID, Name: "missing"}).Return(database.GetChatUserMemoryByNameRow{}, sql.ErrNoRows)
-		_, err := store.Get(t.Context(), "missing")
-		require.ErrorIs(t, err, chattool.ErrMemoryNotFound)
-		db.EXPECT().GetChatUserMemoryByName(gomock.Any(), database.GetChatUserMemoryByNameParams{UserID: userID, OrganizationID: organizationID, Name: "fact"}).Return(database.GetChatUserMemoryByNameRow{}, nil)
-		db.EXPECT().CountChatUserMemoriesByUserAndOrganization(gomock.Any(), gomock.Any()).Return(int64(1), nil).AnyTimes()
-		db.EXPECT().UpsertChatUserMemoryByName(gomock.Any(), gomock.Any()).DoAndReturn(func(_ context.Context, arg database.UpsertChatUserMemoryByNameParams) (database.ChatUserMemory, error) {
-			require.Equal(t, userID, arg.UserID)
-			require.Equal(t, organizationID, arg.OrganizationID)
-			require.Equal(t, chatID, arg.SourceChatID.UUID)
-			return database.ChatUserMemory{Name: arg.Name}, nil
-		})
-		_, err = store.Upsert(t.Context(), chattool.MemoryInput{Name: "fact"})
-		require.NoError(t, err)
-		db.EXPECT().InsertChatUserMemory(gomock.Any(), gomock.Any()).DoAndReturn(func(_ context.Context, arg database.InsertChatUserMemoryParams) (database.ChatUserMemory, error) {
-			require.Equal(t, userID, arg.UserID)
-			require.Equal(t, organizationID, arg.OrganizationID)
-			require.Equal(t, chatID, arg.SourceChatID.UUID)
-			return database.ChatUserMemory{Name: arg.Name}, nil
-		})
-		_, err = store.Insert(t.Context(), chattool.MemoryInput{Name: "new-fact"})
-		require.NoError(t, err)
-		db.EXPECT().InsertChatUserMemory(gomock.Any(), gomock.Any()).Return(database.ChatUserMemory{}, &pq.Error{Code: "23505"})
+		db.EXPECT().InsertChatProjectMemory(gomock.Any(), gomock.Any()).Return(database.ChatProjectMemory{}, &pq.Error{Code: "23505"})
 		_, err = store.Insert(t.Context(), chattool.MemoryInput{Name: "existing-fact"})
 		require.ErrorIs(t, err, chattool.ErrMemoryExists)
 	})

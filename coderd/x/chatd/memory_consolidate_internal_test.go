@@ -255,14 +255,6 @@ func TestConsolidateMemories(t *testing.T) {
 			LastModelConfigID: uuid.New(),
 		}
 	}
-	newPersonalChat := func() database.Chat {
-		return database.Chat{
-			ID:                uuid.New(),
-			OwnerID:           uuid.New(),
-			OrganizationID:    uuid.New(),
-			LastModelConfigID: uuid.New(),
-		}
-	}
 	newServer := func(t *testing.T, db database.Store, roundTripper http.RoundTripper) *Server {
 		t.Helper()
 		return &Server{
@@ -333,18 +325,6 @@ func TestConsolidateMemories(t *testing.T) {
 		rows := make([]database.GetChatProjectMemoriesByProjectIDRow, len(memories))
 		for i, memory := range memories {
 			rows[i] = database.GetChatProjectMemoriesByProjectIDRow{ChatProjectMemory: database.ChatProjectMemory{
-				Name:        memory.Name,
-				Description: memory.Description,
-				Body:        memory.Body,
-				UpdatedAt:   memory.UpdatedAt,
-			}}
-		}
-		return rows
-	}
-	personalRows := func(memories []chattool.Memory) []database.GetChatUserMemoriesByUserAndOrganizationRow {
-		rows := make([]database.GetChatUserMemoriesByUserAndOrganizationRow, len(memories))
-		for i, memory := range memories {
-			rows[i] = database.GetChatUserMemoriesByUserAndOrganizationRow{ChatUserMemory: database.ChatUserMemory{
 				Name:        memory.Name,
 				Description: memory.Description,
 				Body:        memory.Body,
@@ -502,7 +482,7 @@ func TestConsolidateMemories(t *testing.T) {
 			db.EXPECT().GetLatestChatMemoryConsolidationByProject(gomock.Any(), chat.ProjectID.UUID).Return(database.ChatMemoryConsolidation{}, sql.ErrNoRows),
 			db.EXPECT().InsertChatMemoryConsolidation(gomock.Any(), database.InsertChatMemoryConsolidationParams{
 				OrganizationID: chat.OrganizationID,
-				ProjectID:      chat.ProjectID,
+				ProjectID:      chat.ProjectID.UUID,
 				Model:          "gpt-4o-mini",
 				MemoriesBefore: 30,
 			}).Return(record, nil),
@@ -719,56 +699,6 @@ func TestConsolidateMemories(t *testing.T) {
 		)
 
 		newServer(t, db, nil).consolidateMemories(t.Context(), slogtest.Make(t, nil), chat)
-	})
-
-	t.Run("PersonalScopeUsesUserQueries", func(t *testing.T) {
-		t.Parallel()
-
-		ctrl := gomock.NewController(t)
-		db := dbmock.NewMockStore(ctrl)
-		chat := newPersonalChat()
-		latestParams := database.GetLatestChatMemoryConsolidationByUserParams{UserID: chat.OwnerID, OrganizationID: chat.OrganizationID}
-		countParams := database.CountChatUserMemoriesByUserAndOrganizationParams{UserID: chat.OwnerID, OrganizationID: chat.OrganizationID}
-		memoryParams := database.GetChatUserMemoriesByUserAndOrganizationParams{UserID: chat.OwnerID, OrganizationID: chat.OrganizationID}
-		server := newServer(t, db, roundTripFunc(func(req *http.Request) (*http.Response, error) {
-			response := objectResponse(t, map[string]any{"mutations": []any{}})
-			response.Request = req
-			return response, nil
-		}))
-		record := database.ChatMemoryConsolidation{ID: uuid.New()}
-		calls := []*gomock.Call{
-			db.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil),
-			db.EXPECT().GetUserChatPersonalMemoryEnabled(gomock.Any(), chat.OwnerID).Return("true", nil),
-			db.EXPECT().CountChatUserMemoriesByUserAndOrganization(gomock.Any(), countParams).Return(int64(30), nil),
-			db.EXPECT().GetLatestChatMemoryConsolidationByUser(gomock.Any(), latestParams).Return(database.ChatMemoryConsolidation{}, sql.ErrNoRows),
-		}
-		calls = append(calls, expectModelResolution(db, chat)...)
-		calls = append(calls,
-			inTx(db),
-			db.EXPECT().TryAcquireLock(gomock.Any(), memoryConsolidationScopeForChat(chat).lockID()).Return(true, nil),
-			db.EXPECT().GetLatestChatMemoryConsolidationByUser(gomock.Any(), latestParams).Return(database.ChatMemoryConsolidation{}, sql.ErrNoRows),
-			db.EXPECT().InsertChatMemoryConsolidation(gomock.Any(), database.InsertChatMemoryConsolidationParams{
-				OrganizationID: chat.OrganizationID,
-				UserID:         uuid.NullUUID{UUID: chat.OwnerID, Valid: true},
-				Model:          "gpt-4o-mini",
-				MemoriesBefore: 30,
-			}).Return(record, nil),
-			db.EXPECT().GetChatUserMemoriesByUserAndOrganization(gomock.Any(), memoryParams).Return(personalRows(nil), nil),
-			db.EXPECT().FinishChatMemoryConsolidation(gomock.Any(), gomock.Any()).DoAndReturn(
-				func(_ context.Context, params database.FinishChatMemoryConsolidationParams) (database.ChatMemoryConsolidation, error) {
-					require.Equal(t, database.ChatMemoryConsolidationStatusSkipped, params.Status)
-					return database.ChatMemoryConsolidation{}, nil
-				},
-			),
-			db.EXPECT().PruneChatMemoryConsolidationsByUser(gomock.Any(), database.PruneChatMemoryConsolidationsByUserParams{
-				UserID:         chat.OwnerID,
-				OrganizationID: chat.OrganizationID,
-				KeepCount:      memoryConsolidationKeepRecords,
-			}).Return(nil),
-		)
-		inOrder(calls)
-
-		server.consolidateMemories(t.Context(), slogtest.Make(t, nil), chat)
 	})
 
 	t.Run("NoMutationsFinishesSkipped", func(t *testing.T) {

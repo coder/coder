@@ -1876,7 +1876,7 @@ func TestMemoryInSystemPrompt(t *testing.T) {
 		"",
 		"chat instruction",
 		nil,
-		chattool.FormatMemoryGuidance(chattool.MemoryScope{Kind: chattool.MemoryScopeProject, Label: "platform"}),
+		chattool.FormatMemoryGuidance(chattool.MemoryScope{Label: "platform"}),
 		"user prompt",
 		systemPromptBehaviorContext{},
 	)

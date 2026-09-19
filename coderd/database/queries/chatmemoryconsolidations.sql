@@ -2,15 +2,13 @@
 INSERT INTO chat_memory_consolidations (
     organization_id,
     project_id,
-    user_id,
     status,
     model,
     memories_before
 )
 VALUES (
     @organization_id::uuid,
-    sqlc.narg('project_id')::uuid,
-    sqlc.narg('user_id')::uuid,
+    @project_id::uuid,
     'running',
     @model::text,
     @memories_before::int
@@ -35,26 +33,10 @@ WHERE project_id = @project_id::uuid
 ORDER BY started_at DESC
 LIMIT 1;
 
--- name: GetLatestChatMemoryConsolidationByUser :one
-SELECT *
-FROM chat_memory_consolidations
-WHERE user_id = @user_id::uuid
-    AND organization_id = @organization_id::uuid
-ORDER BY started_at DESC
-LIMIT 1;
-
 -- name: GetChatMemoryConsolidationsByProject :many
 SELECT *
 FROM chat_memory_consolidations
 WHERE project_id = @project_id::uuid
-ORDER BY started_at DESC
-LIMIT @limit_count::int;
-
--- name: GetChatMemoryConsolidationsByUser :many
-SELECT *
-FROM chat_memory_consolidations
-WHERE user_id = @user_id::uuid
-    AND organization_id = @organization_id::uuid
 ORDER BY started_at DESC
 LIMIT @limit_count::int;
 
@@ -64,17 +46,6 @@ WHERE id IN (
     SELECT id
     FROM chat_memory_consolidations
     WHERE project_id = @project_id::uuid
-    ORDER BY started_at DESC
-    OFFSET @keep_count::int
-);
-
--- name: PruneChatMemoryConsolidationsByUser :exec
-DELETE FROM chat_memory_consolidations
-WHERE id IN (
-    SELECT id
-    FROM chat_memory_consolidations
-    WHERE user_id = @user_id::uuid
-        AND organization_id = @organization_id::uuid
     ORDER BY started_at DESC
     OFFSET @keep_count::int
 );
