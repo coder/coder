@@ -295,7 +295,10 @@ func (p *Proxy) Start(ctx context.Context) error {
 			slog.F("listen_addr", p.listen), slog.Error(err))
 		ln, err = lc.Listen(ctx, "tcp", fallback)
 		if err != nil {
-			return xerrors.Errorf("listen on %s: %w; fallback on %s: %w", p.listen, preferredErr, fallback, err)
+			return errors.Join(
+				xerrors.Errorf("listen on %s: %w", p.listen, preferredErr),
+				xerrors.Errorf("fallback on %s: %w", fallback, err),
+			)
 		}
 	}
 	addr, err := addrPortOf(ln.Addr())

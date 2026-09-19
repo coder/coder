@@ -118,7 +118,7 @@ func (e *Enforcer) probe(ctx context.Context) error {
 		}
 		errs = append(errs, err)
 	}
-	return xerrors.Errorf("%w: %w", ErrEnforcementUnavailable, errors.Join(errs...))
+	return xerrors.Errorf("%w", errors.Join(ErrEnforcementUnavailable, errors.Join(errs...)))
 }
 
 func (e *Enforcer) handleIPv6InstallFailure(ctx context.Context, installErr error) error {
@@ -138,11 +138,15 @@ func (e *Enforcer) handleIPv6InstallFailure(ctx context.Context, installErr erro
 		return nil
 	}
 	e.logger.Warn(ctx, "ip6tables unavailable and ipv6 could not be disabled, removing ipv4 enforcement",
-		slog.Error(xerrors.Errorf("install ip6tables: %w; disable ipv6: %w", installErr, disableErr)))
+		slog.Error(errors.Join(xerrors.Errorf("install ip6tables: %w", installErr), xerrors.Errorf("disable ipv6: %w", disableErr))))
 	cleanupErr := errors.Join(e.removeFamily(ctx, "iptables"), e.removeTPROXY(ctx), e.removeFamily(ctx, "ip6tables"))
 	e.installed = false
 	e.transparent = false
-	return xerrors.Errorf("ipv6 enforcement unavailable: install ip6tables: %w; disable ipv6: %w; clean up ipv4 rules: %w", installErr, disableErr, cleanupErr)
+	return xerrors.Errorf("ipv6 enforcement unavailable: %w", errors.Join(
+		xerrors.Errorf("install ip6tables: %w", installErr),
+		xerrors.Errorf("disable ipv6: %w", disableErr),
+		xerrors.Errorf("clean up ipv4 rules: %w", cleanupErr),
+	))
 }
 
 func (e *Enforcer) ipv6Enabled() (bool, error) {

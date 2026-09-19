@@ -92,7 +92,10 @@ func listenUDP(ctx context.Context, logger slog.Logger, host string, preferredPo
 				preferredErr = err
 				continue
 			}
-			return nil, netip.AddrPort{}, xerrors.Errorf("listen on port %d: %w; fallback on ephemeral port: %w", preferredPort, preferredErr, err)
+			return nil, netip.AddrPort{}, errors.Join(
+				xerrors.Errorf("listen on port %d: %w", preferredPort, preferredErr),
+				xerrors.Errorf("fallback on ephemeral port: %w", err),
+			)
 		}
 		conn, ok := pc.(*net.UDPConn)
 		if !ok {
