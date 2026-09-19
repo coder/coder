@@ -83,6 +83,8 @@ interface DateRangePickerProps {
 	now?: Date;
 	presets?: DateRangePreset[];
 	size?: ButtonProps["size"];
+	maxDays?: number;
+	minDate?: Date;
 }
 
 /**
@@ -121,10 +123,21 @@ export const DateRangePicker: FC<DateRangePickerProps> = ({
 	now,
 	presets,
 	size = "sm",
+	maxDays,
+	minDate,
 }) => {
 	const [open, setOpen] = useState(false);
 	const currentTime = now ?? new Date();
-	const resolvedPresets = presets ?? buildDefaultPresets(now);
+	const resolvedPresets = (presets ?? buildDefaultPresets(now)).filter(
+		(preset) => {
+			const { from, to } = preset.range();
+			const rangeDays = dayjs(to).diff(from, "day") + 1;
+			return (
+				(minDate === undefined || !dayjs(from).isBefore(minDate, "day")) &&
+				(maxDays === undefined || rangeDays <= maxDays)
+			);
+		},
+	);
 
 	// Internal selection state kept separate from the committed value
 	// so the user can freely adjust the range before applying. This
@@ -149,7 +162,6 @@ export const DateRangePicker: FC<DateRangePickerProps> = ({
 	};
 
 	const handleCalendarSelect = (range: DayPickerDateRange | undefined) => {
-		if (!range) return;
 		setSelection(range);
 	};
 
@@ -245,7 +257,8 @@ export const DateRangePicker: FC<DateRangePickerProps> = ({
 								selected={selection}
 								onSelect={handleCalendarSelect}
 								numberOfMonths={2}
-								disabled={{ after: currentTime }}
+								max={maxDays === undefined ? undefined : maxDays - 1}
+								disabled={{ before: minDate, after: currentTime }}
 								today={currentTime}
 							/>
 						</div>

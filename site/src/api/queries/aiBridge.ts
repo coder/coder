@@ -3,6 +3,8 @@ import { API } from "#/api/api";
 import type {
 	AIBridgeListSessionsResponse,
 	AIBridgeSessionThreadsResponse,
+	OrganizationAISpendDetails,
+	OrganizationAISpendDetailsFilter,
 } from "#/api/typesGenerated";
 import { useFilterParamsKey } from "#/components/Filter/Filter";
 import type { UsePaginatedQueryOptions } from "#/hooks/usePaginatedQuery";
@@ -26,6 +28,50 @@ export const paginatedSessions = (
 			}),
 	};
 };
+
+const organizationAISpendDetailsKey = (
+	organizationId: string,
+	filter: OrganizationAISpendDetailsFilter,
+	pageNumber: number,
+) =>
+	[
+		"organization",
+		organizationId,
+		"aiSpendDetails",
+		filter,
+		pageNumber,
+	] as const;
+
+export const paginatedOrganizationAISpendDetails = (
+	organizationId: string,
+	filter: OrganizationAISpendDetailsFilter,
+): UsePaginatedQueryOptions<
+	OrganizationAISpendDetails,
+	OrganizationAISpendDetailsFilter
+> => ({
+	queryPayload: () => filter,
+	queryKey: ({ payload, pageNumber }) =>
+		organizationAISpendDetailsKey(organizationId, payload, pageNumber),
+	queryFn: ({ payload, limit, offset }) =>
+		API.getOrganizationAISpendDetails(organizationId, {
+			...payload,
+			limit,
+			offset,
+		}),
+	prefetch: false,
+	placeholderData: (previousData, previousQuery) =>
+		previousQuery?.queryKey[1] === organizationId ? previousData : undefined,
+});
+
+export const exportOrganizationAISpend = () => ({
+	mutationFn: ({
+		organizationId,
+		filter,
+	}: {
+		organizationId: string;
+		filter: OrganizationAISpendDetailsFilter;
+	}) => API.exportOrganizationAISpend(organizationId, filter),
+});
 
 export const infiniteSessionThreads = (sessionId: string) => {
 	return {

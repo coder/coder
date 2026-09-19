@@ -5627,3 +5627,29 @@ export const MockCreateAIGatewayKeyResponse: TypesGen.CreateAIGatewayKeyResponse
 		key_prefix: "K3mNp7qRs2T",
 		created_at: "2024-05-28T12:00:00Z",
 	};
+
+export const MockOrganizationAISpendRow: TypesGen.OrganizationAISpendRow = {
+	user_id: MockOrganizationMember.user_id,
+	username: MockOrganizationMember.username,
+	group_id: MockGroup.id,
+	group_name: MockGroup.display_name,
+	organization_id: MockOrganization.id,
+	organization_name: MockOrganization.name,
+	model: "gpt-4o-mini",
+	provider: "openai",
+	provider_name: "OpenAI",
+	input_tokens: 1_000,
+	output_tokens: 200,
+	cache_read_tokens: 400,
+	cache_write_tokens: 50,
+	cost_micros: 1_250_000,
+};
+
+export const MockOrganizationAISpendDetails: TypesGen.OrganizationAISpendDetails =
+	{
+		period_start: "2026-09-01T00:00:00.000Z",
+		period_end: "2026-09-16T00:00:00.000Z",
+		retention_start: "2026-08-01T00:00:00.000Z",
+		count: 1,
+		rows: [MockOrganizationAISpendRow],
+	};

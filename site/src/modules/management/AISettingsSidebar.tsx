@@ -2,6 +2,7 @@ import type { FC } from "react";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import AISettingsSidebarView from "#/modules/management/AISettingsSidebarView";
+import { getAIBridgePermissions } from "#/pages/AIBridgePage/getAIBridgePermissions";
 import { useCanShareOrganizationMCPServers } from "#/pages/AISettingsPage/MCPServersPage/organizationSharing";
 import { useAccessibleModelOrganizations } from "#/pages/AISettingsPage/ModelsPage/organizationModels";
 
@@ -10,7 +11,11 @@ import { useAccessibleModelOrganizations } from "#/pages/AISettingsPage/ModelsPa
  */
 export const AISettingsSidebar: FC = () => {
 	const { permissions } = useAuthenticated();
-	const { organizations } = useDashboard();
+	const { organizations, entitlements } = useDashboard();
+	const { isEntitled, isEnabled, hasPermission } = getAIBridgePermissions(
+		entitlements,
+		permissions,
+	);
 	const accessibleOrgsQuery = useAccessibleModelOrganizations(organizations);
 	const organizationMCPSharing = useCanShareOrganizationMCPServers(
 		organizations,
@@ -20,6 +25,7 @@ export const AISettingsSidebar: FC = () => {
 	return (
 		<AISettingsSidebarView
 			permissions={permissions}
+			canViewAISpend={isEntitled && isEnabled && hasPermission}
 			canAccessOrganizationModels={
 				(accessibleOrgsQuery.organizations.length ?? 0) > 0
 			}

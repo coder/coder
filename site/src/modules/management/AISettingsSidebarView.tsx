@@ -20,6 +20,7 @@ import { modelOrganizationSearchParam } from "#/pages/AISettingsPage/ModelsPage/
 interface AISettingsSidebarViewProps {
 	/** Site-wide permissions. */
 	permissions: Permissions;
+	canViewAISpend?: boolean;
 	canAccessOrganizationModels?: boolean;
 	canShareOrganizationMCPServers?: boolean;
 }
@@ -78,6 +79,7 @@ const ModelsSidebarNavItem: FC<{ href: To }> = ({ href }) => {
 
 const AISettingsSidebarView: FC<AISettingsSidebarViewProps> = ({
 	permissions,
+	canViewAISpend = false,
 	canAccessOrganizationModels = false,
 	canShareOrganizationMCPServers = false,
 }) => {
@@ -106,6 +108,11 @@ const AISettingsSidebarView: FC<AISettingsSidebarViewProps> = ({
 				{permissions.viewDeploymentConfig && (
 					<SidebarNavItem href="/ai/settings/governance">
 						AI Governance
+					</SidebarNavItem>
+				)}
+				{canViewAISpend && (
+					<SidebarNavItem href="/ai/settings/spend-details">
+						Spend details
 					</SidebarNavItem>
 				)}
 				{permissions.viewAIGatewayKeys && (
