@@ -1724,6 +1724,7 @@ func ChatQueuedMessage(message database.ChatQueuedMessage) codersdk.ChatQueuedMe
 		ModelConfigID: nullUUIDPtr(message.ModelConfigID),
 		Content:       parts,
 		CreatedAt:     message.CreatedAt,
+		EditingSince:  nullTimePtr(message.EditingSince),
 	}
 }
 

@@ -193,15 +193,16 @@ client already has.
 Task and chat statuses use different values. The Chats API status set is
 defined in `codersdk.ChatStatus`:
 
-| Tasks API status | Chats API status  | Notes                                                                                                               |
-|------------------|-------------------|---------------------------------------------------------------------------------------------------------------------|
-| `pending`        | `running`         | Chats have no separate queued state; a chat that hasn't been picked up yet reports `running`.                       |
-| `running`        | `running`         | Agent is actively working.                                                                                          |
-| `complete`       | `waiting`         | Idle. Newly created, finished successfully, or interrupted. This is the default idle state.                         |
-| `paused`         | n/a               | The Tasks API pause stops the workspace; the Chats API equivalent is `interrupt` plus separate workspace lifecycle. |
-| `failed`         | `error`           | Agent encountered an error.                                                                                         |
-| n/a              | `requires_action` | Agent invoked a client-provided tool and is waiting for the result before continuing.                               |
-| n/a              | `interrupting`    | An interrupt was requested and the agent is winding down the current run.                                           |
+| Tasks API status | Chats API status  | Notes                                                                                                                                                                                                                                    |
+|------------------|-------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `pending`        | `running`         | Chats have no separate queued state; a chat that hasn't been picked up yet reports `running`.                                                                                                                                            |
+| `running`        | `running`         | Agent is actively working.                                                                                                                                                                                                               |
+| `complete`       | `waiting`         | Idle. Newly created, finished successfully, or interrupted. This is the default idle state.                                                                                                                                              |
+| `paused`         | n/a               | The Tasks API pause stops the workspace. The Chats API has no workspace-stopping status; use `interrupt` plus separate workspace lifecycle. The Chats API `paused` status (last row) is unrelated: it marks a queued message under edit. |
+| `failed`         | `error`           | Agent encountered an error.                                                                                                                                                                                                              |
+| n/a              | `requires_action` | Agent invoked a client-provided tool and is waiting for the result before continuing.                                                                                                                                                    |
+| n/a              | `interrupting`    | An interrupt was requested and the agent is winding down the current run.                                                                                                                                                                |
+| n/a              | `paused`          | The queue head is under edit and the agent is idle. Sends queue. Ending the edit via `PATCH /chats/{chat}/queue/{queuedMessage}` with `{"editing": false}` resumes the chat.                                                             |
 
 The Chats API uses `waiting` as the default idle state (not `complete`).
 A chat enters `waiting` when it is first created (before any message is
@@ -655,6 +656,7 @@ API:
 | **Watch all chats**                  | `GET /chats/watch` pushes events for all chats owned by the user                                      |
 | **Message editing**                  | `PATCH /chats/{chat}/messages/{message}` to edit a sent message and re-process                        |
 | **Message queuing**                  | Follow-up messages are automatically queued when the agent is busy                                    |
+| **Queued message editing**           | `PATCH /chats/{chat}/queue/{queuedMessage}` to edit a queued message before the agent processes it    |
 | **File uploads**                     | Attach images via `POST /chats/files` and reference them in messages                                  |
 | **Model selection**                  | `GET /organizations/{organization}/chats/models` to discover models; override per-chat or per-message |
 | **MCP server attachment**            | Attach MCP servers to a chat for tool augmentation                                                    |

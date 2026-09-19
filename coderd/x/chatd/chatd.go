@@ -2120,7 +2120,7 @@ func (p *Server) setChatFamilyArchived(
 
 // DeleteQueued removes a queued user message through the chatstate
 // state machine. Stream side effects are handled by chat:update
-// consumers.
+// consumers; a status change publishes the sidebar watch event.
 func (p *Server) DeleteQueued(
 	ctx context.Context,
 	chatID uuid.UUID,
@@ -2130,19 +2130,170 @@ func (p *Server) DeleteQueued(
 		return xerrors.New("chat_id is required")
 	}
 
+	var (
+		after         database.Chat
+		statusChanged bool
+	)
 	machine := p.newChatMachine(chatID)
-	err := machine.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
-		_, err := tx.DeleteQueuedMessage(chatstate.DeleteQueuedMessageInput{
+	err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+		before, err := store.GetChatByID(ctx, chatID)
+		if err != nil {
+			return xerrors.Errorf("load chat: %w", err)
+		}
+		if _, err := tx.DeleteQueuedMessage(chatstate.DeleteQueuedMessageInput{
 			QueuedMessageID: queuedMessageID,
-		})
+		}); err != nil {
+			return err
+		}
+		after, statusChanged, err = reloadChatAndStatusChanged(ctx, store, before)
 		return err
 	})
-	return err
+	if err != nil {
+		return err
+	}
+	if statusChanged {
+		p.publishChatPubsubEvent(after, codersdk.ChatWatchEventKindStatusChange, nil)
+	}
+	return nil
+}
+
+// reloadChatAndStatusChanged re-reads the chat after a transition and
+// reports whether its status differs from before.
+func reloadChatAndStatusChanged(ctx context.Context, store database.Store, before database.Chat) (database.Chat, bool, error) {
+	after, err := store.GetChatByID(ctx, before.ID)
+	if err != nil {
+		return database.Chat{}, false, xerrors.Errorf("reload chat: %w", err)
+	}
+	return after, after.Status != before.Status, nil
+}
+
+// EditQueuedMessageOptions controls [Server.EditQueuedMessage]. Zero
+// values leave the corresponding attribute untouched.
+type EditQueuedMessageOptions struct {
+	ChatID          uuid.UUID
+	QueuedMessageID int64
+	Content         []codersdk.ChatMessagePart
+	ModelConfigID   uuid.UUID
+	ReasoningEffort *string
+	Editing         *bool
+}
+
+// EditQueuedMessage rewrites a queued row's content and/or edit marker through
+// the chatstate state machine. Stream side effects are handled by
+// chat:update consumers; a status change publishes the sidebar watch
+// event.
+func (p *Server) EditQueuedMessage(
+	ctx context.Context,
+	opts EditQueuedMessageOptions,
+) error {
+	if opts.ChatID == uuid.Nil {
+		return xerrors.New("chat_id is required")
+	}
+	if opts.QueuedMessageID <= 0 {
+		return xerrors.New("queued_message_id is required")
+	}
+	if len(opts.Content) == 0 && opts.Editing == nil {
+		return xerrors.New("content or editing is required")
+	}
+
+	contentParts := opts.Content
+	if len(contentParts) > 0 && p.hooks.Enabled() {
+		turnID := uuid.New()
+		chat, err := p.db.GetChatByID(ctx, opts.ChatID)
+		if err != nil {
+			return xerrors.Errorf("load chat for user_prompt_submit: %w", err)
+		}
+		// Repeat these admission checks under the transaction lock.
+		if chat.Archived {
+			return ErrChatArchived
+		}
+		if _, err := p.db.GetChatQueuedMessageByID(ctx, database.GetChatQueuedMessageByIDParams{
+			ID:     opts.QueuedMessageID,
+			ChatID: opts.ChatID,
+		}); err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				return chatstate.ErrQueuedMessageNotFound
+			}
+			return xerrors.Errorf("load queued message for user_prompt_submit: %w", err)
+		}
+		if _, err := validateModelConfigOverride(ctx, p.db, chat.OrganizationID, opts.ModelConfigID); err != nil {
+			return err
+		}
+		promptMessage, err := chathooks.UserPromptMessage(contentParts)
+		if err != nil {
+			return err
+		}
+		promptResult, err := p.hooks.Trigger(ctx, chathooks.ChatFor(chat, &turnID), promptMessage, agenthooks.EventUserPromptSubmit, dispatch.CapacityClassAdmission)
+		if err != nil {
+			return p.handleUserPromptDispatchError(ctx, opts.ChatID, chathooks.UserPromptDenial(err))
+		}
+		contentParts, _, err = chathooks.ComposeUserPromptContent(contentParts, promptResult)
+		if err != nil {
+			return err
+		}
+	}
+
+	input := chatstate.EditQueuedMessageInput{
+		QueuedMessageID: opts.QueuedMessageID,
+		Editing:         opts.Editing,
+	}
+	if len(contentParts) > 0 {
+		content, err := chatprompt.MarshalParts(contentParts)
+		if err != nil {
+			return xerrors.Errorf("marshal message content: %w", err)
+		}
+		input.Content = content.RawMessage
+		if opts.ReasoningEffort != nil && *opts.ReasoningEffort != "" {
+			input.ReasoningEffortOverride = database.NullChatReasoningEffort{
+				ChatReasoningEffort: database.ChatReasoningEffort(*opts.ReasoningEffort),
+				Valid:               true,
+			}
+		}
+	}
+
+	var (
+		after         database.Chat
+		statusChanged bool
+	)
+	machine := p.newChatMachine(opts.ChatID)
+	err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+		lockedChat, err := store.GetChatByID(ctx, opts.ChatID)
+		if err != nil {
+			return xerrors.Errorf("load chat: %w", err)
+		}
+		if lockedChat.Archived {
+			return ErrChatArchived
+		}
+		if len(contentParts) > 0 {
+			input.ModelConfigIDOverride, err = validateModelConfigOverride(ctx, store, lockedChat.OrganizationID, opts.ModelConfigID)
+			if err != nil {
+				return err
+			}
+		}
+		if _, err := tx.EditQueuedMessage(input); err != nil {
+			return err
+		}
+		if len(contentParts) > 0 {
+			// File-link errors must roll back the edit.
+			if err := chatstate.LinkFiles(ctx, store, opts.ChatID, chatprompt.FileIDs(contentParts)); err != nil {
+				return err
+			}
+		}
+		after, statusChanged, err = reloadChatAndStatusChanged(ctx, store, lockedChat)
+		return err
+	})
+	if err != nil {
+		return err
+	}
+	if statusChanged {
+		p.publishChatPubsubEvent(after, codersdk.ChatWatchEventKindStatusChange, nil)
+	}
+	return nil
 }
 
 // PromoteQueued promotes a queued message through the chatstate state
 // machine. From running / interrupting states the state machine
-// transitions the chat to `interrupting` so the worker can drain the
+// transitions the chat to `interrupting` so the worker can finish the
 // in-flight generation before promoting; from idle / error / requires
 // action states it inserts the user message into history
 // synchronously.
@@ -2531,9 +2682,9 @@ func (p *Server) ClearChat(
 
 // ReconcileInvalidStateChat recovers a chat stuck in an invalid
 // execution-state combination by running the
-// chatstate.ReconcileInvalidState transition. The chat lands in an
-// error state (E0/E1); queued messages are preserved and pending
-// dynamic-tool calls are closed with synthetic cancellations.
+// chatstate.ReconcileInvalidState transition. The chat reaches an
+// error state (E0, E1, or E1P); queued messages are preserved and
+// pending dynamic-tool calls are closed with synthetic cancellations.
 //
 // Returns the post-transition chat. When the chat is not actually in an
 // invalid state the transition returns a wrapped
@@ -4455,14 +4606,14 @@ func (p *Server) maybeFinalizeTurnStatusLabelAndPush(
 		// Subagent chats skip turn status labels and generated
 		// summaries, but a successful turn's final report doubles as
 		// the chat summary so subagents are not summary-less.
-		if status == database.ChatStatusWaiting {
+		if turnFinished(status) {
 			p.storeSubagentReportSummaryAsync(ctx, chat, logger)
 		}
 		return
 	}
 
 	switch status {
-	case database.ChatStatusWaiting:
+	case database.ChatStatusWaiting, database.ChatStatusPaused:
 		p.finalizeSuccessfulTurnStatusLabelAndPush(ctx, chat, status, runResult, logger)
 		p.maybeGenerateChatSummaryAsync(ctx, logger, chat)
 
@@ -4536,7 +4687,7 @@ func (p *Server) generateFinalTurnStatusLabel(
 	runResult runChatResult,
 	logger slog.Logger,
 ) string {
-	if status != database.ChatStatusWaiting {
+	if !turnFinished(status) {
 		return fallbackTurnStatusLabel(status)
 	}
 

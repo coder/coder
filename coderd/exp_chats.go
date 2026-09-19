@@ -2349,12 +2349,14 @@ func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
 				return
 			}
 			if errors.Is(err, chatstate.ErrTransitionNotAllowed) {
-				// Archive only succeeds from idle / error execution
-				// states (W, E0, E1) per the chatd RFC; active
-				// chats refuse archive instead of being silently
-				// transitioned to waiting first.
+				// Archive only succeeds from W, E0, E1, and E1P; busy
+				// and paused chats refuse it.
+				message := "Cannot archive an active chat. Interrupt or wait for the chat to finish first."
+				if chat.Status == database.ChatStatusPaused {
+					message = "Cannot archive a paused chat. Finish editing, send, or remove the queued message under edit first."
+				}
 				httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
-					Message: "Cannot archive an active chat. Interrupt or wait for the chat to finish first.",
+					Message: message,
 					Detail:  err.Error(),
 				})
 				return
@@ -2918,6 +2920,7 @@ func (api *API) patchChatMessage(rw http.ResponseWriter, r *http.Request) {
 // @Router /api/v2/chats/{chat}/queue/{queuedMessage} [delete]
 func (api *API) deleteChatQueuedMessage(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	apiKey := httpmw.APIKey(r)
 	chat := httpmw.ChatParam(r)
 	chatID := chat.ID
 
@@ -2927,6 +2930,15 @@ func (api *API) deleteChatQueuedMessage(rw http.ResponseWriter, r *http.Request)
 
 	if !api.Authorize(r, policy.ActionUpdate, chat.RBACObject()) {
 		httpapi.ResourceNotFound(rw)
+		return
+	}
+
+	// Only the chat owner may delete queued messages. See
+	// postChatMessages for the security rationale.
+	if apiKey.UserID != chat.OwnerID {
+		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+			Message: "Only the chat owner may delete queued messages.",
+		})
 		return
 	}
 
@@ -2947,6 +2959,8 @@ func (api *API) deleteChatQueuedMessage(rw http.ResponseWriter, r *http.Request)
 			httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
 				Message: "Queued message not found.",
 			})
+		case xerrors.Is(err, chatd.ErrNoDefaultChatModelConfig):
+			writeNoLocalChatModelResponse(ctx, rw)
 		case errors.Is(err, chatstate.ErrChatNotFound):
 			httpapi.ResourceNotFound(rw)
 		case writeChatInvalidState(ctx, rw, err):
@@ -3058,6 +3072,148 @@ func (api *API) promoteChatQueuedMessage(rw http.ResponseWriter, r *http.Request
 	httpapi.Write(ctx, rw, http.StatusAccepted, codersdk.Response{
 		Message: "Queued message promotion accepted.",
 	})
+}
+
+// @Summary Edit chat queued message
+// @ID edit-chat-queued-message
+// @Security CoderSessionToken
+// @Tags Chats
+// @Accept json
+// @Param chat path string true "Chat ID" format(uuid)
+// @Param queuedMessage path int true "Queued message ID"
+// @Param request body codersdk.EditChatQueuedMessageRequest true "Edit chat queued message request"
+// @Success 204
+// @Router /api/v2/chats/{chat}/queue/{queuedMessage} [patch]
+func (api *API) patchChatQueuedMessage(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	apiKey := httpmw.APIKey(r)
+	chat := httpmw.ChatParam(r)
+
+	if !api.requireChatDaemon(ctx, rw) {
+		return
+	}
+
+	// Ending the edit of a paused chat's head triggers LLM inference,
+	// requiring update permission on the org-scoped chat resource.
+	if !api.Authorize(r, policy.ActionUpdate, chat.RBACObject()) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+
+	// Only the chat owner may edit queued messages. See
+	// postChatMessages for the security rationale.
+	if apiKey.UserID != chat.OwnerID {
+		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+			Message: "Only the chat owner may edit queued messages.",
+		})
+		return
+	}
+
+	if chat.Archived {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Cannot edit queued messages in an archived chat.",
+		})
+		return
+	}
+
+	queuedMessageIDStr := chi.URLParam(r, "queuedMessage")
+	queuedMessageID, err := strconv.ParseInt(queuedMessageIDStr, 10, 64)
+	if err != nil || queuedMessageID <= 0 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid queued message ID.",
+			Detail:  "Queued message ID must be a positive integer.",
+		})
+		return
+	}
+
+	var req codersdk.EditChatQueuedMessageRequest
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+	if req.Content == nil && req.Editing == nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Nothing to edit.",
+			Detail:  "Provide content, editing, or both.",
+		})
+		return
+	}
+
+	opts := chatd.EditQueuedMessageOptions{
+		ChatID:          chat.ID,
+		QueuedMessageID: queuedMessageID,
+		Editing:         req.Editing,
+	}
+	if req.Content != nil {
+		contentBlocks, _, inputError := createChatInputFromParts(ctx, api.Database, req.Content, "content")
+		if inputError != nil {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: inputError.Message,
+				Detail:  inputError.Detail,
+			})
+			return
+		}
+		opts.Content = contentBlocks
+
+		if req.ModelConfigID != nil {
+			opts.ModelConfigID = *req.ModelConfigID
+		}
+		if status, resp := api.validateExplicitChatModelConfigAvailable(ctx, apiKey.UserID, chat.OrganizationID, opts.ModelConfigID); resp != nil {
+			httpapi.Write(ctx, rw, status, *resp)
+			return
+		}
+		if req.ReasoningEffort != nil && !chatprovider.IsValidReasoningEffort(*req.ReasoningEffort) {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, invalidReasoningEffortResponse(*req.ReasoningEffort))
+			return
+		}
+		opts.ReasoningEffort = req.ReasoningEffort
+	}
+
+	err = api.chatDaemon.EditQueuedMessage(ctx, opts)
+	if err != nil {
+		if writeChatHookErr(ctx, rw, err, "Chat message denied by lifecycle hook.") {
+			return
+		}
+		if writeChatFileError(ctx, rw, err) {
+			return
+		}
+		switch {
+		case xerrors.Is(err, chatd.ErrChatArchived):
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Cannot edit queued messages in an archived chat.",
+			})
+		case xerrors.Is(err, chatstate.ErrQueuedMessageNotFound):
+			httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
+				Message: "Queued message not found.",
+			})
+		case xerrors.Is(err, chatd.ErrInvalidModelConfigID):
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Invalid model config ID.",
+			})
+		case xerrors.Is(err, chatd.ErrNoDefaultChatModelConfig):
+			writeNoLocalChatModelResponse(ctx, rw)
+		case errors.Is(err, chatstate.ErrChatNotFound):
+			httpapi.ResourceNotFound(rw)
+		case writeChatInvalidState(ctx, rw, err):
+			// response already written
+		case errors.Is(err, chatstate.ErrPausedQueuedHeadUnderEdit):
+			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+				Message: "The chat is paused at a queued message under edit. Finish editing, send, or remove it before editing another.",
+			})
+		case errors.Is(err, chatstate.ErrTransitionNotAllowed):
+			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+				Message: "Chat has no queued messages to edit.",
+				Detail:  err.Error(),
+			})
+		default:
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Failed to edit queued message.",
+				Detail:  err.Error(),
+			})
+		}
+		return
+	}
+
+	rw.WriteHeader(http.StatusNoContent)
 }
 
 // markChatAsRead updates the last read message ID for a chat to the

@@ -10176,6 +10176,36 @@ func (mr *MockStoreMockRecorder) UpdateChatPlanModeByID(ctx, arg any) *gomock.Ca
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateChatPlanModeByID", reflect.TypeOf((*MockStore)(nil).UpdateChatPlanModeByID), ctx, arg)
 }
 
+// UpdateChatQueuedMessageContent mocks base method.
+func (m *MockStore) UpdateChatQueuedMessageContent(ctx context.Context, arg database.UpdateChatQueuedMessageContentParams) (database.ChatQueuedMessage, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateChatQueuedMessageContent", ctx, arg)
+	ret0, _ := ret[0].(database.ChatQueuedMessage)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateChatQueuedMessageContent indicates an expected call of UpdateChatQueuedMessageContent.
+func (mr *MockStoreMockRecorder) UpdateChatQueuedMessageContent(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateChatQueuedMessageContent", reflect.TypeOf((*MockStore)(nil).UpdateChatQueuedMessageContent), ctx, arg)
+}
+
+// UpdateChatQueuedMessageEditing mocks base method.
+func (m *MockStore) UpdateChatQueuedMessageEditing(ctx context.Context, arg database.UpdateChatQueuedMessageEditingParams) (database.ChatQueuedMessage, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateChatQueuedMessageEditing", ctx, arg)
+	ret0, _ := ret[0].(database.ChatQueuedMessage)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateChatQueuedMessageEditing indicates an expected call of UpdateChatQueuedMessageEditing.
+func (mr *MockStoreMockRecorder) UpdateChatQueuedMessageEditing(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateChatQueuedMessageEditing", reflect.TypeOf((*MockStore)(nil).UpdateChatQueuedMessageEditing), ctx, arg)
+}
+
 // UpdateChatRetryState mocks base method.
 func (m *MockStore) UpdateChatRetryState(ctx context.Context, arg database.UpdateChatRetryStateParams) (database.Chat, error) {
 	m.ctrl.T.Helper()

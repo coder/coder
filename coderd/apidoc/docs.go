@@ -3072,6 +3072,52 @@ const docTemplate = `{
                         "CoderSessionToken": []
                     }
                 ]
+            },
+            "patch": {
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Edit chat queued message",
+                "operationId": "edit-chat-queued-message",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat ID",
+                        "name": "chat",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Queued message ID",
+                        "name": "queuedMessage",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Edit chat queued message request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.EditChatQueuedMessageRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
             }
         },
         "/api/v2/chats/{chat}/queue/{queuedMessage}/promote": {
@@ -21250,6 +21296,11 @@ const docTemplate = `{
                     "type": "string",
                     "format": "date-time"
                 },
+                "editing_since": {
+                    "description": "EditingSince is set while the owner edits the message. A message\nunder edit and every message behind it wait until the edit ends; a\nturn that ends at a message under edit pauses the chat.",
+                    "type": "string",
+                    "format": "date-time"
+                },
                 "id": {
                     "type": "integer"
                 },
@@ -21285,14 +21336,16 @@ const docTemplate = `{
                 "running",
                 "error",
                 "requires_action",
-                "interrupting"
+                "interrupting",
+                "paused"
             ],
             "x-enum-varnames": [
                 "ChatStatusWaiting",
                 "ChatStatusRunning",
                 "ChatStatusError",
                 "ChatStatusRequiresAction",
-                "ChatStatusInterrupting"
+                "ChatStatusInterrupting",
+                "ChatStatusPaused"
             ]
         },
         "codersdk.ChatStreamActionRequired": {
@@ -23538,6 +23591,30 @@ const docTemplate = `{
                     "items": {
                         "type": "string"
                     }
+                }
+            }
+        },
+        "codersdk.EditChatQueuedMessageRequest": {
+            "type": "object",
+            "properties": {
+                "content": {
+                    "description": "Content replaces the queued content. An empty array is rejected.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.ChatInputPart"
+                    }
+                },
+                "editing": {
+                    "description": "Editing begins (true) or ends (false) an edit of the message. A\nchat has at most one message under edit; beginning another ends the\nfirst. Ending the edit of a paused chat's head sends it.",
+                    "type": "boolean"
+                },
+                "model_config_id": {
+                    "description": "ModelConfigID and ReasoningEffort apply only together with Content.",
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "reasoning_effort": {
+                    "type": "string"
                 }
             }
         },

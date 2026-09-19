@@ -1642,7 +1642,7 @@ UPDATE chats
 SET context_dirty_since = @dirty_since
 WHERE agent_id = @agent_id::uuid
     AND archived = false
-    AND status IN ('waiting', 'running', 'requires_action')
+    AND status IN ('waiting', 'running', 'requires_action', 'paused')
     AND context_aggregate_hash IS NOT NULL
     AND context_aggregate_hash IS DISTINCT FROM @aggregate_hash
     AND context_dirty_since IS NULL
@@ -1883,7 +1883,7 @@ FROM chats_expanded;
 --      disappeared).
 --   3. Waiting chats with a non-empty queue and stale updated_at
 --      (deferred-promote stranding when the worker dies before its
---      post-cancel cleanup runs).
+--      post-cancel cleanup runs). Paused chats are excluded.
 SELECT
     *
 FROM
@@ -2048,7 +2048,7 @@ RETURNING *;
 -- name: GetChatQueuedMessages :many
 SELECT * FROM chat_queued_messages
 WHERE chat_id = @chat_id
-ORDER BY created_at ASC, id ASC;
+ORDER BY position ASC, id ASC;
 
 -- name: DeleteChatQueuedMessage :exec
 DELETE FROM chat_queued_messages WHERE id = @id AND chat_id = @chat_id;
@@ -2433,9 +2433,9 @@ SELECT *
 FROM chats_expanded
 WHERE agent_id = @agent_id::uuid
     AND archived = false
-    -- Active statuses only: waiting, running, requires_action.
+    -- Active statuses only: waiting, running, requires_action, paused.
     -- Excludes error (terminal state) and interrupting.
-    AND status IN ('waiting', 'running', 'requires_action')
+    AND status IN ('waiting', 'running', 'requires_action', 'paused')
 ORDER BY updated_at DESC;
 
 -- name: SoftDeleteContextFileMessages :exec
@@ -2546,7 +2546,8 @@ WHERE
     AND chats_expanded.status NOT IN (
         'running'::chat_status,
         'interrupting'::chat_status,
-        'requires_action'::chat_status
+        'requires_action'::chat_status,
+        'paused'::chat_status
     )
     AND COALESCE(activity.last_activity_at, chats_expanded.created_at) < @archive_cutoff::timestamptz
 ORDER BY chats_expanded.created_at ASC
@@ -2809,8 +2810,6 @@ WHERE chat_id = @chat_id::uuid
 ORDER BY position ASC, id ASC;
 
 -- name: CountChatQueuedMessages :one
--- Cheap queue-length check used by ChatMachine.Update when deciding
--- whether the chat is in a "1" sub-state.
 SELECT COUNT(*)::bigint AS count
 FROM chat_queued_messages
 WHERE chat_id = @chat_id::uuid;
@@ -2836,6 +2835,23 @@ WHERE id = @id::bigint AND chat_id = @chat_id::uuid;
 -- name: DeleteAllChatQueuedMessagesReturningCount :execrows
 DELETE FROM chat_queued_messages
 WHERE chat_id = @chat_id::uuid;
+
+-- name: UpdateChatQueuedMessageEditing :one
+-- Begins (@editing = true) or ends the row's edit. Beginning keeps an
+-- existing editing_since, so the timestamp marks the first begin.
+UPDATE chat_queued_messages
+SET editing_since = CASE WHEN @editing::boolean THEN COALESCE(editing_since, NOW()) ELSE NULL END
+WHERE id = @id::bigint AND chat_id = @chat_id::uuid
+RETURNING *;
+
+-- name: UpdateChatQueuedMessageContent :one
+-- Replaces the content and per-message overrides of a queued message.
+UPDATE chat_queued_messages
+SET content = @content::jsonb,
+    model_config_id = sqlc.narg('model_config_id')::uuid,
+    reasoning_effort = sqlc.narg('reasoning_effort')::chat_reasoning_effort
+WHERE id = @id::bigint AND chat_id = @chat_id::uuid
+RETURNING *;
 
 -- name: ReorderChatQueuedMessageToHead :execrows
 -- Sets the target queued message's position to one less than the
@@ -2929,8 +2945,8 @@ WITH to_archive AS (
       AND c.parent_chat_id IS NULL -- roots only
       -- Redundant filter helps the planner use the partial index on created_at.
       AND c.created_at < @archive_cutoff::timestamptz
-      -- New active statuses must be added here to prevent archiving.
-      AND c.status NOT IN ('running', 'requires_action')
+      -- Statuses the state machine refuses to archive. Add new busy or paused statuses here.
+      AND c.status NOT IN ('running', 'interrupting', 'requires_action', 'paused')
       AND COALESCE(activity.last_activity_at, c.created_at) < @archive_cutoff::timestamptz
     -- Sorting by created_at lets Postgres drive the scan from the
     -- partial index instead of evaluating every LATERAL subquery

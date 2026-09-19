@@ -99,8 +99,6 @@ type sqlcQuerier interface {
 	// Excluding the candidate keeps ownership takeover capacity-neutral.
 	CountChatCapacityActiveByPool(ctx context.Context, arg CountChatCapacityActiveByPoolParams) (CountChatCapacityActiveByPoolRow, error)
 	CountChatCapacityQueuedByPool(ctx context.Context, staleSeconds int32) (CountChatCapacityQueuedByPoolRow, error)
-	// Cheap queue-length check used by ChatMachine.Update when deciding
-	// whether the chat is in a "1" sub-state.
 	CountChatQueuedMessages(ctx context.Context, chatID uuid.UUID) (int64, error)
 	CountConnectionLogs(ctx context.Context, arg CountConnectionLogsParams) (int64, error)
 	// CountInProgressPrebuilds returns the number of in-progress prebuilds, grouped by preset ID and transition.
@@ -824,7 +822,7 @@ type sqlcQuerier interface {
 	//      disappeared).
 	//   3. Waiting chats with a non-empty queue and stale updated_at
 	//      (deferred-promote stranding when the worker dies before its
-	//      post-cancel cleanup runs).
+	//      post-cancel cleanup runs). Paused chats are excluded.
 	GetStaleChats(ctx context.Context, staleThreshold time.Time) ([]Chat, error)
 	GetTailnetPeers(ctx context.Context, id uuid.UUID) ([]TailnetPeer, error)
 	GetTailnetTunnelPeerBindingsBatch(ctx context.Context, ids []uuid.UUID) ([]GetTailnetTunnelPeerBindingsBatchRow, error)
@@ -1529,6 +1527,11 @@ type sqlcQuerier interface {
 	UpdateChatModelConfigACLByID(ctx context.Context, arg UpdateChatModelConfigACLByIDParams) (ChatModelConfig, error)
 	UpdateChatPinOrder(ctx context.Context, arg UpdateChatPinOrderParams) error
 	UpdateChatPlanModeByID(ctx context.Context, arg UpdateChatPlanModeByIDParams) (Chat, error)
+	// Replaces the content and per-message overrides of a queued message.
+	UpdateChatQueuedMessageContent(ctx context.Context, arg UpdateChatQueuedMessageContentParams) (ChatQueuedMessage, error)
+	// Begins (@editing = true) or ends the row's edit. Beginning keeps an
+	// existing editing_since, so the timestamp marks the first begin.
+	UpdateChatQueuedMessageEditing(ctx context.Context, arg UpdateChatQueuedMessageEditingParams) (ChatQueuedMessage, error)
 	// Stores the client-visible retry payload. retry_state_version is
 	// assigned by trigger from the current snapshot_version.
 	UpdateChatRetryState(ctx context.Context, arg UpdateChatRetryStateParams) (Chat, error)
