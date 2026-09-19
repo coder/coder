@@ -46,6 +46,11 @@ type ReloadablePolicy interface {
 	Reload() error
 }
 
+// PolicyHasher is a Policy that can identify its current configuration.
+type PolicyHasher interface {
+	PolicyHash() string
+}
+
 // PolicyFunc adapts a function to the Policy interface.
 type PolicyFunc func(FlowInfo) Decision
 

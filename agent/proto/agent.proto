@@ -106,13 +106,21 @@ message Manifest {
 // EgressConfig tells the agent how to route and enforce workspace egress
 // through exit nodes. Absent when the template has no exit nodes.
 message EgressConfig {
-	repeated bytes exit_node_ids = 1;
+	reserved 1;
 	int32 exit_node_port = 2;
 	bool enforce = 3;
 	// control_plane_hosts are direct-connect exemptions in proto/host:port
 	// format. Protocol and port are mandatory.
 	repeated string control_plane_hosts = 4;
+	repeated EgressExitNode exit_nodes = 5;
 }
+
+message EgressExitNode {
+	bytes id = 1;
+	repeated bytes replica_ids = 2;
+}
+
+message StreamEgressConfigRequest {}
 
 // WorkspaceSecret is a secret included in the agent manifest
 // for injection into a workspace.
@@ -694,4 +702,5 @@ service Agent {
 	rpc ReportBoundaryLogs(ReportBoundaryLogsRequest) returns (ReportBoundaryLogsResponse);
 	rpc UpdateAppStatus(UpdateAppStatusRequest) returns (UpdateAppStatusResponse);
 	rpc PushContextState(PushContextStateRequest) returns (PushContextStateResponse);
+	rpc StreamEgressConfig(StreamEgressConfigRequest) returns (stream EgressConfig);
 }

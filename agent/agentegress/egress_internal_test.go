@@ -7,6 +7,7 @@ import (
 	"crypto/tls"
 	"fmt"
 	"io"
+	"math/rand/v2"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -209,7 +210,7 @@ func startProxy(t testing.TB, exit *fakeExitNode, opts proxyOptions) *Proxy {
 	}
 	proxy, err := New(testutil.Logger(t), Options{
 		Dialer:            exit,
-		Config:            agentsdk.EgressConfig{ExitNodeIDs: []uuid.UUID{uuid.New()}, ExitNodePort: 3128},
+		Config:            agentsdk.EgressConfig{ExitNodes: []agentsdk.EgressExitNode{{ID: uuid.New(), ReplicaIDs: []uuid.UUID{uuid.New()}}}, ExitNodePort: 3128},
 		ListenAddr:        "127.0.0.1:0",
 		ExemptHosts:       opts.exemptHosts,
 		UpstreamResolvers: opts.upstream,
@@ -548,6 +549,55 @@ func TestProxy_AbsoluteURI(t *testing.T) {
 	}
 }
 
+func TestConfigEqualReplicaOrder(t *testing.T) {
+	t.Parallel()
+
+	nodeID := uuid.New()
+	first := uuid.New()
+	second := uuid.New()
+	base := agentsdk.EgressConfig{
+		ExitNodes:    []agentsdk.EgressExitNode{{ID: nodeID, ReplicaIDs: []uuid.UUID{first, second}}},
+		ExitNodePort: 3128,
+	}
+	reordered := base
+	reordered.ExitNodes = []agentsdk.EgressExitNode{{ID: nodeID, ReplicaIDs: []uuid.UUID{second, first}}}
+	require.True(t, ConfigEqual(base, reordered))
+
+	reordered.ExitNodes = []agentsdk.EgressExitNode{{ID: uuid.New(), ReplicaIDs: []uuid.UUID{second, first}}}
+	require.False(t, ConfigEqual(base, reordered))
+}
+
+func TestProxy_UpdateKeepsCurrentReplica(t *testing.T) {
+	t.Parallel()
+
+	first := uuid.New()
+	current := uuid.New()
+	added := uuid.New()
+	proxy, err := New(testutil.Logger(t), Options{
+		Dialer: DialerFunc(func(context.Context, netip.AddrPort) (net.Conn, error) {
+			panic("not used")
+		}),
+		Config: agentsdk.EgressConfig{
+			ExitNodes: []agentsdk.EgressExitNode{
+				{ID: uuid.New(), ReplicaIDs: []uuid.UUID{first}},
+				{ID: uuid.New(), ReplicaIDs: []uuid.UUID{current}},
+			},
+			ExitNodePort: 3128,
+		},
+	})
+	require.NoError(t, err)
+	proxy.exitNodes.current = 1
+
+	next := proxy.Config()
+	next.ExitNodes = []agentsdk.EgressExitNode{
+		{ID: uuid.New(), ReplicaIDs: []uuid.UUID{added}},
+		{ID: uuid.New(), ReplicaIDs: []uuid.UUID{current}},
+		{ID: uuid.New(), ReplicaIDs: []uuid.UUID{first}},
+	}
+	require.NoError(t, proxy.Update(next, nil))
+	require.Equal(t, netip.AddrPortFrom(tailnet.TailscaleServicePrefix.AddrFromUUID(current), 3128), proxy.exitNodes.addrs[proxy.exitNodes.current])
+}
+
 func TestProxy_Update(t *testing.T) {
 	t.Parallel()
 
@@ -569,13 +619,13 @@ func TestProxy_Update(t *testing.T) {
 	})
 	proxy, err := New(testutil.Logger(t), Options{
 		Dialer: dialer,
-		Config: agentsdk.EgressConfig{ExitNodeIDs: []uuid.UUID{firstID}, ExitNodePort: 3128},
+		Config: agentsdk.EgressConfig{ExitNodes: []agentsdk.EgressExitNode{{ID: uuid.New(), ReplicaIDs: []uuid.UUID{firstID}}}, ExitNodePort: 3128},
 	})
 	require.NoError(t, err)
 	require.True(t, proxy.isExempt("localhost"))
 	require.False(t, proxy.isExempt("new.example"))
 
-	next := agentsdk.EgressConfig{ExitNodeIDs: []uuid.UUID{secondID}, ExitNodePort: 4128}
+	next := agentsdk.EgressConfig{ExitNodes: []agentsdk.EgressExitNode{{ID: uuid.New(), ReplicaIDs: []uuid.UUID{secondID}}}, ExitNodePort: 4128}
 	require.NoError(t, proxy.Update(next, []string{"tcp/new.example:443"}))
 	require.Equal(t, next, proxy.Config())
 	require.True(t, proxy.isExempt("new.example"))
@@ -598,7 +648,7 @@ func TestProxy_UpdateResetsDNS(t *testing.T) {
 	require.Len(t, exit.connectsTo(dnsRelayTarget), 1)
 
 	next := proxy.Config()
-	next.ExitNodeIDs = []uuid.UUID{uuid.New()}
+	next.ExitNodes = []agentsdk.EgressExitNode{{ID: uuid.New(), ReplicaIDs: []uuid.UUID{uuid.New()}}}
 	require.NoError(t, proxy.Update(next, nil))
 	_, _ = dnsExchange(ctx, t, "udp", proxy.DNSAddr(), query)
 	require.Len(t, exit.connectsTo(dnsRelayTarget), 2)
@@ -651,7 +701,8 @@ func TestProxy_ExitNodeSwitchResetsDNS(t *testing.T) {
 	})
 	proxy, err := New(testutil.Logger(t), Options{
 		Dialer:     dialer,
-		Config:     agentsdk.EgressConfig{ExitNodeIDs: ids, ExitNodePort: 3128},
+		Config:     agentsdk.EgressConfig{ExitNodes: []agentsdk.EgressExitNode{{ID: uuid.New(), ReplicaIDs: ids[:1]}, {ID: uuid.New(), ReplicaIDs: ids[1:]}}, ExitNodePort: 3128},
+		Rand:       rand.New(rand.NewPCG(1, 2)), //nolint:gosec // Deterministic test shuffle.
 		ListenAddr: "127.0.0.1:0",
 	})
 	require.NoError(t, err)
@@ -745,7 +796,8 @@ func TestProxy_ConnectNegotiationFailover(t *testing.T) {
 			})
 			proxy, err := New(testutil.Logger(t), Options{
 				Dialer:         dialer,
-				Config:         agentsdk.EgressConfig{ExitNodeIDs: ids, ExitNodePort: 3128},
+				Config:         agentsdk.EgressConfig{ExitNodes: []agentsdk.EgressExitNode{{ID: uuid.New(), ReplicaIDs: ids[:1]}, {ID: uuid.New(), ReplicaIDs: ids[1:]}}, ExitNodePort: 3128},
+				Rand:           rand.New(rand.NewPCG(1, 2)), //nolint:gosec // Deterministic test shuffle.
 				ConnectTimeout: time.Second,
 			})
 			require.NoError(t, err)
@@ -795,7 +847,7 @@ func TestNew_Validation(t *testing.T) {
 	exit := newFakeExitNode(t, nil)
 	proxy, err := New(testutil.Logger(t), Options{
 		Dialer:           exit,
-		Config:           agentsdk.EgressConfig{ExitNodeIDs: []uuid.UUID{uuid.New()}, ExitNodePort: 3128},
+		Config:           agentsdk.EgressConfig{ExitNodes: []agentsdk.EgressExitNode{{ID: uuid.New(), ReplicaIDs: []uuid.UUID{uuid.New()}}}, ExitNodePort: 3128},
 		FakeIPMaxEntries: 7,
 	})
 	require.NoError(t, err)
@@ -803,14 +855,14 @@ func TestNew_Validation(t *testing.T) {
 
 	_, err = New(testutil.Logger(t), Options{
 		Dialer:           exit,
-		Config:           agentsdk.EgressConfig{ExitNodeIDs: []uuid.UUID{uuid.New()}, ExitNodePort: 3128},
+		Config:           agentsdk.EgressConfig{ExitNodes: []agentsdk.EgressExitNode{{ID: uuid.New(), ReplicaIDs: []uuid.UUID{uuid.New()}}}, ExitNodePort: 3128},
 		FakeIPMaxEntries: -1,
 	})
 	require.ErrorContains(t, err, "fake IP max entries")
 
 	_, err = New(testutil.Logger(t), Options{
 		Dialer:      exit,
-		Config:      agentsdk.EgressConfig{ExitNodeIDs: []uuid.UUID{uuid.New()}, ExitNodePort: 3128},
+		Config:      agentsdk.EgressConfig{ExitNodes: []agentsdk.EgressExitNode{{ID: uuid.New(), ReplicaIDs: []uuid.UUID{uuid.New()}}}, ExitNodePort: 3128},
 		ExemptHosts: []string{"coder.example.com:443"},
 	})
 	require.ErrorContains(t, err, "parse exempt host")
@@ -820,9 +872,9 @@ func TestNew_Validation(t *testing.T) {
 		opts    Options
 		wantErr string
 	}{
-		{name: "dialer", opts: Options{Config: agentsdk.EgressConfig{ExitNodeIDs: []uuid.UUID{uuid.New()}, ExitNodePort: 3128}}, wantErr: "dialer"},
-		{name: "exit node ID", opts: Options{Dialer: exit, Config: agentsdk.EgressConfig{ExitNodePort: 3128}}, wantErr: "exit node ID"},
-		{name: "port", opts: Options{Dialer: exit, Config: agentsdk.EgressConfig{ExitNodeIDs: []uuid.UUID{uuid.New()}}}, wantErr: "port"},
+		{name: "dialer", opts: Options{Config: agentsdk.EgressConfig{ExitNodes: []agentsdk.EgressExitNode{{ID: uuid.New(), ReplicaIDs: []uuid.UUID{uuid.New()}}}, ExitNodePort: 3128}}, wantErr: "dialer"},
+		{name: "exit node ID", opts: Options{Dialer: exit, Config: agentsdk.EgressConfig{ExitNodes: []agentsdk.EgressExitNode{{}}, ExitNodePort: 3128}}, wantErr: "exit node ID"},
+		{name: "port", opts: Options{Dialer: exit, Config: agentsdk.EgressConfig{ExitNodes: []agentsdk.EgressExitNode{{ID: uuid.New(), ReplicaIDs: []uuid.UUID{uuid.New()}}}}}, wantErr: "port"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()

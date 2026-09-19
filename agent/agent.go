@@ -31,6 +31,7 @@ import (
 	"golang.org/x/xerrors"
 	googleproto "google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
+	"storj.io/drpc/drpcerr"
 	"tailscale.com/net/speedtest"
 	"tailscale.com/tailcfg"
 	"tailscale.com/types/netlogtype"
@@ -1303,6 +1304,39 @@ func (a *agent) run() (retErr error) {
 	manifestOK := newCheckpoint(a.logger)
 
 	connMan.startAgentAPI("handle manifest", gracefulShutdownBehaviorStop, a.handleManifest(manifestOK))
+	connMan.startAgentAPI214("egress config subscriber", gracefulShutdownBehaviorStop,
+		func(ctx context.Context, aAPI proto.DRPCAgentClient214) error {
+			if err := manifestOK.wait(ctx); err != nil {
+				return xerrors.Errorf("no manifest: %w", err)
+			}
+			stream, err := aAPI.StreamEgressConfig(ctx, &proto.StreamEgressConfigRequest{})
+			if err != nil {
+				if drpcerr.Code(err) == drpcerr.Unimplemented {
+					return nil
+				}
+				return xerrors.Errorf("stream egress config: %w", err)
+			}
+			for {
+				cfgProto, err := stream.Recv()
+				if err != nil {
+					if ctx.Err() != nil {
+						return nil
+					}
+					if drpcerr.Code(err) == drpcerr.Unimplemented {
+						return nil
+					}
+					return xerrors.Errorf("receive egress config: %w", err)
+				}
+				cfg, err := agentsdk.EgressConfigFromProto(cfgProto)
+				if err != nil {
+					return xerrors.Errorf("convert egress config: %w", err)
+				}
+				if len(cfg.ExitNodes) == 0 {
+					cfg = nil
+				}
+				a.updateEgress(ctx, cfg)
+			}
+		})
 
 	connMan.startAgentAPI("app health reporter", gracefulShutdownBehaviorStop,
 		func(ctx context.Context, aAPI proto.DRPCAgentClient28) error {
@@ -2298,7 +2332,7 @@ func (a *agent) updateEgress(ctx context.Context, cfg *agentsdk.EgressConfig) {
 				return
 			}
 			logger.Info(ctx, "egress proxy configuration updated in place",
-				slog.F("exit_node_ids", cfg.ExitNodeIDs), slog.F("enforce", cfg.Enforce))
+				slog.F("exit_nodes", cfg.ExitNodes), slog.F("enforce", cfg.Enforce))
 			return
 		}
 		if a.egressEnforcer != nil {
@@ -2333,7 +2367,7 @@ func (a *agent) updateEgress(ctx context.Context, cfg *agentsdk.EgressConfig) {
 		slog.F("listen_addr", proxy.Addr().String()),
 		slog.F("dns_addr", proxy.DNSAddr().String()),
 		slog.F("udp_addr", proxy.UDPAddr().String()),
-		slog.F("exit_node_ids", cfg.ExitNodeIDs),
+		slog.F("exit_nodes", cfg.ExitNodes),
 		slog.F("enforce", cfg.Enforce),
 	)
 	if !cfg.Enforce {
@@ -2801,6 +2835,21 @@ func (a *apiConnRoutineManager) startAgentAPI210(
 			return xerrors.Errorf("error in routine %s: %w", name, err)
 		}
 		return nil
+	})
+}
+
+// startAgentAPI214 starts a routine only when the client exposes the v2.14
+// Agent API.
+func (a *apiConnRoutineManager) startAgentAPI214(
+	name string, behavior gracefulShutdownBehavior,
+	f func(context.Context, proto.DRPCAgentClient214) error,
+) {
+	client, ok := a.aAPI.(proto.DRPCAgentClient214)
+	if !ok {
+		return
+	}
+	a.startAgentAPI210(name, behavior, func(ctx context.Context, _ proto.DRPCAgentClient210) error {
+		return f(ctx, client)
 	})
 }
 

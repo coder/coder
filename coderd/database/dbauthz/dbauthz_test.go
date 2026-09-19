@@ -2791,12 +2791,51 @@ func (s *MethodTestSuite) TestExitNode() {
 		dbm.EXPECT().GetExitNodesByOrganization(gomock.Any(), orgID).Return([]database.ExitNode{n1, n2}, nil).AnyTimes()
 		check.Args(orgID).Asserts(n1, policy.ActionRead, n2, policy.ActionRead).Returns(slice.New(n1, n2))
 	}))
-	s.Run("UpdateExitNodeRegistration", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+	s.Run("GetExitNodeReplicaByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		n := testutil.Fake(s.T(), faker, database.ExitNode{})
-		arg := database.UpdateExitNodeRegistrationParams{ID: n.ID}
+		r := testutil.Fake(s.T(), faker, database.ExitNodeReplica{ExitNodeID: n.ID})
+		dbm.EXPECT().GetExitNodeReplicaByID(gomock.Any(), r.ID).Return(r, nil).AnyTimes()
 		dbm.EXPECT().GetExitNodeByID(gomock.Any(), n.ID).Return(n, nil).AnyTimes()
-		dbm.EXPECT().UpdateExitNodeRegistration(gomock.Any(), arg).Return(n, nil).AnyTimes()
-		check.Args(arg).Asserts(n, policy.ActionUpdate).Returns(n)
+		check.Args(r.ID).Asserts(n, policy.ActionRead).Returns(r)
+	}))
+	s.Run("GetExitNodeReplicasByExitNode", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		n := testutil.Fake(s.T(), faker, database.ExitNode{})
+		replicas := []database.ExitNodeReplica{testutil.Fake(s.T(), faker, database.ExitNodeReplica{ExitNodeID: n.ID})}
+		dbm.EXPECT().GetExitNodeByID(gomock.Any(), n.ID).Return(n, nil).AnyTimes()
+		dbm.EXPECT().GetExitNodeReplicasByExitNode(gomock.Any(), n.ID).Return(replicas, nil).AnyTimes()
+		check.Args(n.ID).Asserts(n, policy.ActionRead).Returns(replicas)
+	}))
+	s.Run("GetLiveExitNodeReplicas", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		n1 := testutil.Fake(s.T(), faker, database.ExitNode{})
+		n2 := testutil.Fake(s.T(), faker, database.ExitNode{})
+		arg := database.GetLiveExitNodeReplicasParams{ExitNodeIds: []uuid.UUID{n1.ID, n2.ID}}
+		replicas := []database.ExitNodeReplica{testutil.Fake(s.T(), faker, database.ExitNodeReplica{ExitNodeID: n1.ID})}
+		dbm.EXPECT().GetExitNodeByID(gomock.Any(), n1.ID).Return(n1, nil).AnyTimes()
+		dbm.EXPECT().GetExitNodeByID(gomock.Any(), n2.ID).Return(n2, nil).AnyTimes()
+		dbm.EXPECT().GetLiveExitNodeReplicas(gomock.Any(), arg).Return(replicas, nil).AnyTimes()
+		check.Args(arg).Asserts(n1, policy.ActionRead, n2, policy.ActionRead).Returns(replicas)
+	}))
+	s.Run("UpsertExitNodeReplica", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		n := testutil.Fake(s.T(), faker, database.ExitNode{})
+		arg := database.UpsertExitNodeReplicaParams{ID: uuid.New(), ExitNodeID: n.ID}
+		r := testutil.Fake(s.T(), faker, database.ExitNodeReplica{ID: arg.ID, ExitNodeID: n.ID})
+		dbm.EXPECT().GetExitNodeByID(gomock.Any(), n.ID).Return(n, nil).AnyTimes()
+		dbm.EXPECT().UpsertExitNodeReplica(gomock.Any(), arg).Return(r, nil).AnyTimes()
+		check.Args(arg).Asserts(n, policy.ActionUpdate).Returns(r)
+	}))
+	s.Run("StopExitNodeReplica", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		n := testutil.Fake(s.T(), faker, database.ExitNode{})
+		r := testutil.Fake(s.T(), faker, database.ExitNodeReplica{ExitNodeID: n.ID})
+		arg := database.StopExitNodeReplicaParams{ID: r.ID}
+		dbm.EXPECT().GetExitNodeReplicaByID(gomock.Any(), r.ID).Return(r, nil).AnyTimes()
+		dbm.EXPECT().GetExitNodeByID(gomock.Any(), n.ID).Return(n, nil).AnyTimes()
+		dbm.EXPECT().StopExitNodeReplica(gomock.Any(), arg).Return(nil).AnyTimes()
+		check.Args(arg).Asserts(n, policy.ActionUpdate)
+	}))
+	s.Run("DeleteStaleExitNodeReplicas", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		updatedBefore := time.Now()
+		dbm.EXPECT().DeleteStaleExitNodeReplicas(gomock.Any(), updatedBefore).Return(nil).AnyTimes()
+		check.Args(updatedBefore).Asserts(rbac.ResourceSystem, policy.ActionDelete)
 	}))
 	s.Run("DeleteExitNodeByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		n := testutil.Fake(s.T(), faker, database.ExitNode{})
@@ -2832,6 +2871,14 @@ func (s *MethodTestSuite) TestTemplate() {
 		arg := database.GetTemplateByOrganizationAndNameParams{Name: t1.Name, OrganizationID: t1.OrganizationID}
 		dbm.EXPECT().GetTemplateByOrganizationAndName(gomock.Any(), arg).Return(t1, nil).AnyTimes()
 		check.Args(arg).Asserts(t1, policy.ActionRead).Returns(t1)
+	}))
+	s.Run("GetTemplateExitNodeReplicas", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		tpl := testutil.Fake(s.T(), faker, database.Template{})
+		arg := database.GetTemplateExitNodeReplicasParams{TemplateID: tpl.ID}
+		rows := []database.GetTemplateExitNodeReplicasRow{{ExitNodeID: uuid.New()}}
+		dbm.EXPECT().GetTemplateByID(gomock.Any(), tpl.ID).Return(tpl, nil).AnyTimes()
+		dbm.EXPECT().GetTemplateExitNodeReplicas(gomock.Any(), arg).Return(rows, nil).AnyTimes()
+		check.Args(arg).Asserts(tpl, policy.ActionRead).Returns(rows)
 	}))
 	s.Run("GetTemplateExitNodes", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		tpl := testutil.Fake(s.T(), faker, database.Template{})

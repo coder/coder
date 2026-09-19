@@ -105,3 +105,10 @@ type DRPCAgentClient210 interface {
 type DRPCAgentClient211 interface {
 	DRPCAgentClient210
 }
+
+// DRPCAgentClient214 is the Agent API at v2.14. It adds replica-aware exit
+// nodes and the StreamEgressConfig RPC.
+type DRPCAgentClient214 interface {
+	DRPCAgentClient211
+	StreamEgressConfig(ctx context.Context, in *StreamEgressConfigRequest) (DRPCAgent_StreamEgressConfigClient, error)
+}

@@ -91,9 +91,13 @@ import (
 //
 // API v2.13:
 //   - Added the optional egress EgressConfig to the agent Manifest.
+//
+// API v2.14:
+//   - Added replica-aware exit nodes to EgressConfig.
+//   - Added StreamEgressConfig RPC on the Agent API.
 const (
 	CurrentMajor = 2
-	CurrentMinor = 13
+	CurrentMinor = 14
 )
 
 var CurrentVersion = apiversion.New(CurrentMajor, CurrentMinor)

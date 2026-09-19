@@ -1513,15 +1513,6 @@ func ExitNode(t testing.TB, db database.Store, orig database.ExitNode) (database
 	})
 	require.NoError(t, err, "insert exit node")
 
-	if orig.Version != "" || len(orig.WireguardEndpoints) > 0 || orig.LastSeenAt.Valid {
-		node, err = db.UpdateExitNodeRegistration(genCtx, database.UpdateExitNodeRegistrationParams{
-			ID:                 node.ID,
-			Version:            orig.Version,
-			LastSeenAt:         takeFirst(orig.LastSeenAt.Time, dbtime.Now()),
-			WireguardEndpoints: takeFirstSlice(orig.WireguardEndpoints, []string{}),
-		})
-		require.NoError(t, err, "register exit node")
-	}
 	return node, secret
 }
 

@@ -236,6 +236,7 @@ type sqlcQuerier interface {
 	DeleteReplicasUpdatedBefore(ctx context.Context, updatedAt time.Time) error
 	DeleteRuntimeConfig(ctx context.Context, key string) error
 	DeleteStaleChatHeartbeats(ctx context.Context, staleSeconds int32) (int64, error)
+	DeleteStaleExitNodeReplicas(ctx context.Context, updatedBefore time.Time) error
 	// Deletes any resources for the agent whose source is not in the
 	// supplied active set. Atomic alongside the snapshot upsert so the
 	// stored snapshot and resource rows always agree.
@@ -609,6 +610,8 @@ type sqlcQuerier interface {
 	GetEnabledMCPServerConfigsByOrganizationAndIDs(ctx context.Context, arg GetEnabledMCPServerConfigsByOrganizationAndIDsParams) ([]MCPServerConfig, error)
 	GetExitNodeByID(ctx context.Context, id uuid.UUID) (ExitNode, error)
 	GetExitNodeByOrgAndName(ctx context.Context, arg GetExitNodeByOrgAndNameParams) (ExitNode, error)
+	GetExitNodeReplicaByID(ctx context.Context, id uuid.UUID) (ExitNodeReplica, error)
+	GetExitNodeReplicasByExitNode(ctx context.Context, exitNodeID uuid.UUID) ([]ExitNodeReplica, error)
 	GetExitNodesByOrganization(ctx context.Context, organizationID uuid.UUID) ([]ExitNode, error)
 	// GetExternalAgentTokensByTemplateID returns the auth tokens for all
 	// non-deleted external agents on the latest build of every running workspace
@@ -697,6 +700,7 @@ type sqlcQuerier interface {
 	GetLatestWorkspaceBuildsByWorkspaceIDs(ctx context.Context, ids []uuid.UUID) ([]WorkspaceBuild, error)
 	GetLicenseByID(ctx context.Context, id int32) (License, error)
 	GetLicenses(ctx context.Context) ([]License, error)
+	GetLiveExitNodeReplicas(ctx context.Context, arg GetLiveExitNodeReplicasParams) ([]ExitNodeReplica, error)
 	GetLogoURL(ctx context.Context) (string, error)
 	GetMCPServerConfigByID(ctx context.Context, id uuid.UUID) (MCPServerConfig, error)
 	GetMCPServerConfigByIDForUpdate(ctx context.Context, id uuid.UUID) (MCPServerConfig, error)
@@ -848,6 +852,7 @@ type sqlcQuerier interface {
 	GetTemplateAverageBuildTime(ctx context.Context, templateID uuid.NullUUID) (GetTemplateAverageBuildTimeRow, error)
 	GetTemplateByID(ctx context.Context, id uuid.UUID) (Template, error)
 	GetTemplateByOrganizationAndName(ctx context.Context, arg GetTemplateByOrganizationAndNameParams) (Template, error)
+	GetTemplateExitNodeReplicas(ctx context.Context, arg GetTemplateExitNodeReplicasParams) ([]GetTemplateExitNodeReplicasRow, error)
 	GetTemplateExitNodes(ctx context.Context, templateID uuid.UUID) ([]ExitNode, error)
 	// GetTemplateInsights returns the aggregate user-produced usage of all
 	// workspaces in a given timeframe. The template IDs, active users, and
@@ -1436,6 +1441,7 @@ type sqlcQuerier interface {
 	// Agent context rows are hard-deleted for the same reason as in
 	// SoftDeletePriorWorkspaceAgents.
 	SoftDeleteWorkspaceAgentsByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) error
+	StopExitNodeReplica(ctx context.Context, arg StopExitNodeReplicaParams) error
 	// MCP resources bypass context drift and are live-synced on each push.
 	// Changed chats are locked in ID order so concurrent clear-then-copy re-pins
 	// cannot interleave with the replacement.
@@ -1566,7 +1572,6 @@ type sqlcQuerier interface {
 	// rows in place.
 	UpdateEncryptedAIProviderSettings(ctx context.Context, arg UpdateEncryptedAIProviderSettingsParams) (AIProvider, error)
 	UpdateEncryptedUserAIProviderKey(ctx context.Context, arg UpdateEncryptedUserAIProviderKeyParams) (UserAIProviderKey, error)
-	UpdateExitNodeRegistration(ctx context.Context, arg UpdateExitNodeRegistrationParams) (ExitNode, error)
 	// If a refresh lease is provided, the row is only updated if the lease matches.
 	UpdateExternalAuthLink(ctx context.Context, arg UpdateExternalAuthLinkParams) (ExternalAuthLink, error)
 	UpdateGitSSHKey(ctx context.Context, arg UpdateGitSSHKeyParams) (GitSSHKey, error)
@@ -1729,6 +1734,7 @@ type sqlcQuerier interface {
 	// So we need to store it's configuration here for display purposes.
 	// The functional values are immutable and controlled implicitly.
 	UpsertDefaultProxy(ctx context.Context, arg UpsertDefaultProxyParams) error
+	UpsertExitNodeReplica(ctx context.Context, arg UpsertExitNodeReplicaParams) (ExitNodeReplica, error)
 	UpsertGroupAIBudget(ctx context.Context, arg UpsertGroupAIBudgetParams) (GroupAIBudget, error)
 	UpsertHealthSettings(ctx context.Context, value string) error
 	UpsertLastUpdateCheck(ctx context.Context, value string) error

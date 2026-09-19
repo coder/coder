@@ -45,23 +45,73 @@ const (
 	ExitNodeProtocolDNS ExitNodeProtocol = "dns"
 )
 
-// ExitNode is a tailnet peer that terminates workspace egress, enforces
-// policy, and reports flows back to coderd.
+// ExitNode is the admin-created unit that terminates workspace egress. One or
+// more replicas, processes started with the exit node's token, do the work.
 type ExitNode struct {
-	ID             uuid.UUID  `json:"id" format:"uuid" table:"id"`
-	OrganizationID uuid.UUID  `json:"organization_id" format:"uuid" table:"organization id"`
-	Name           string     `json:"name" table:"name,default_sort"`
-	DisplayName    string     `json:"display_name" table:"display name"`
-	CreatedAt      time.Time  `json:"created_at" format:"date-time" table:"created at"`
-	UpdatedAt      time.Time  `json:"updated_at" format:"date-time" table:"updated at"`
-	LastSeenAt     *time.Time `json:"last_seen_at,omitempty" format:"date-time" table:"last seen at"`
-	Version        string     `json:"version" table:"version"`
+	ID             uuid.UUID `json:"id" format:"uuid" table:"id"`
+	OrganizationID uuid.UUID `json:"organization_id" format:"uuid" table:"organization id"`
+	Name           string    `json:"name" table:"name,default_sort"`
+	DisplayName    string    `json:"display_name" table:"display name"`
+	CreatedAt      time.Time `json:"created_at" format:"date-time" table:"created at"`
+	UpdatedAt      time.Time `json:"updated_at" format:"date-time" table:"updated at"`
+	// Status summarizes replica liveness.
+	Status ExitNodeStatus `json:"status" enums:"healthy,unreachable,unregistered" table:"status"`
+	// PolicyMismatch is set when live replicas report different policy
+	// hashes, meaning the node does not enforce one consistent policy.
+	PolicyMismatch bool `json:"policy_mismatch" table:"policy mismatch"`
+	// Replicas lists every replica that has ever registered, including
+	// stale and stopped ones, newest last.
+	Replicas []ExitNodeReplica `json:"replicas" table:"-"`
+}
+
+// ExitNodeStatus is the liveness summary of an exit node.
+type ExitNodeStatus string
+
+const (
+	// ExitNodeStatusHealthy means at least one replica heartbeated recently.
+	ExitNodeStatusHealthy ExitNodeStatus = "healthy"
+	// ExitNodeStatusUnreachable means replicas exist but none heartbeated
+	// within ExitNodeReplicaStaleAfter.
+	ExitNodeStatusUnreachable ExitNodeStatus = "unreachable"
+	// ExitNodeStatusUnregistered means no replica has ever registered.
+	ExitNodeStatusUnregistered ExitNodeStatus = "unregistered"
+)
+
+// ExitNodeReplicaStaleAfter is how long after its last heartbeat a replica
+// stops counting as live. Replicas register every 5 seconds.
+const ExitNodeReplicaStaleAfter = 15 * time.Second
+
+// ExitNodeReplicasPubsubChannel carries the ID of an exit node whose live
+// replica set changed, so bound agents can be sent a fresh egress config.
+const ExitNodeReplicasPubsubChannel = "exit_node_replicas"
+
+// ExitNodeReplicaStatus is the liveness of one replica.
+type ExitNodeReplicaStatus string
+
+const (
+	ExitNodeReplicaStatusLive    ExitNodeReplicaStatus = "live"
+	ExitNodeReplicaStatusStale   ExitNodeReplicaStatus = "stale"
+	ExitNodeReplicaStatusStopped ExitNodeReplicaStatus = "stopped"
+)
+
+// ExitNodeReplica is one running exit node process. Its ID is also its
+// tailnet peer ID, so agents derive its address from the ID alone.
+type ExitNodeReplica struct {
+	ID         uuid.UUID `json:"id" format:"uuid" table:"id"`
+	ExitNodeID uuid.UUID `json:"exit_node_id" format:"uuid" table:"exit node id"`
+	Hostname   string    `json:"hostname" table:"hostname,default_sort"`
+	Version    string    `json:"version" table:"version"`
 	// WireguardEndpoints are the public ip:port pairs agents may use for
 	// direct WireGuard connections. Agents exempt them from enforcement.
 	WireguardEndpoints []string `json:"wireguard_endpoints" table:"wireguard endpoints"`
-	// TailnetAddress is the deterministic tailnet IP agents dial, derived
-	// from the exit node ID.
-	TailnetAddress string `json:"tailnet_address" table:"tailnet address"`
+	// PolicyHash identifies the policy the replica enforces.
+	PolicyHash string `json:"policy_hash" table:"policy hash"`
+	// TailnetAddress is the deterministic tailnet IP derived from ID.
+	TailnetAddress string                `json:"tailnet_address" table:"tailnet address"`
+	Status         ExitNodeReplicaStatus `json:"status" enums:"live,stale,stopped" table:"status"`
+	StartedAt      time.Time             `json:"started_at" format:"date-time" table:"started at"`
+	UpdatedAt      time.Time             `json:"updated_at" format:"date-time" table:"updated at"`
+	StoppedAt      *time.Time            `json:"stopped_at,omitempty" format:"date-time" table:"stopped at"`
 }
 
 type CreateExitNodeRequest struct {
@@ -76,10 +126,18 @@ type CreateExitNodeResponse struct {
 	Token string `json:"token"`
 }
 
+// RegisterExitNodeRequest is sent by a replica every 5 seconds. It is the
+// replica's heartbeat.
 type RegisterExitNodeRequest struct {
-	Version            string   `json:"version"`
-	Hostname           string   `json:"hostname"`
-	WireguardEndpoints []string `json:"wireguard_endpoints"`
+	// ReplicaID is generated once per process start and doubles as the
+	// replica's tailnet peer ID. Required.
+	ReplicaID          uuid.UUID `json:"replica_id" format:"uuid"`
+	Version            string    `json:"version"`
+	Hostname           string    `json:"hostname"`
+	WireguardEndpoints []string  `json:"wireguard_endpoints"`
+	// PolicyHash identifies the policy this replica enforces so coderd can
+	// flag replicas of one exit node that disagree.
+	PolicyHash string `json:"policy_hash"`
 }
 
 type RegisterExitNodeResponse struct {
@@ -88,7 +146,19 @@ type RegisterExitNodeResponse struct {
 	// AgentIDs are the workspace agents this exit node must open tunnels
 	// to. Coderd computes the set from templates bound to the exit node.
 	AgentIDs []uuid.UUID `json:"agent_ids" format:"uuid"`
+	// SiblingReplicas are the other live replicas of the same exit node.
+	SiblingReplicas []ExitNodeReplica `json:"sibling_replicas"`
 }
+
+// DeregisterExitNodeRequest marks a replica stopped. A stopped replica may
+// not register again; a restarted process uses a new ReplicaID.
+type DeregisterExitNodeRequest struct {
+	ReplicaID uuid.UUID `json:"replica_id" format:"uuid"`
+}
+
+// ExitNodeCoordinateReplicaIDParam is the query parameter naming the replica
+// on the coordinate endpoint. The replica must be live.
+const ExitNodeCoordinateReplicaIDParam = "replica_id"
 
 // ExitNodeFlowDecision is the policy outcome for a single flow.
 type ExitNodeFlowDecision string

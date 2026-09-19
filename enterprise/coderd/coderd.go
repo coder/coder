@@ -441,6 +441,7 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 		r.Route("/exitnodes/me", func(r chi.Router) {
 			r.Use(httpmw.ExtractExitNode(options.Database))
 			r.Post("/register", api.registerExitNode)
+			r.Post("/deregister", api.deregisterExitNode)
 			r.Get("/coordinate", api.exitNodeCoordinate)
 			r.Post("/flows", api.reportExitNodeFlows)
 		})

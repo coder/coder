@@ -142,10 +142,13 @@ type Manifest struct {
 
 // EgressConfig tells the agent how to route and enforce workspace egress.
 type EgressConfig struct {
-	// ExitNodeIDs identify exit nodes in preference order. Their tailnet
-	// addresses are derived with tailnet.TailscaleServicePrefix.AddrFromUUID.
-	ExitNodeIDs []uuid.UUID `json:"exit_node_ids"`
-	// ExitNodePort is the CONNECT port on the exit node's tailnet address.
+	// ExitNodes lists the bound exit nodes in preference order. Each carries
+	// the IDs of its live replicas; the agent dials a replica's tailnet
+	// address derived with tailnet.TailscaleServicePrefix.AddrFromUUID. A
+	// node with no live replicas is listed with an empty ReplicaIDs so the
+	// agent can log why it is skipped.
+	ExitNodes []EgressExitNode `json:"exit_nodes"`
+	// ExitNodePort is the CONNECT port on every replica's tailnet address.
 	ExitNodePort int `json:"exit_node_port"`
 	// Enforce requests transparent redirection of all outbound TCP via
 	// netfilter. When false the agent only exposes an advisory proxy.
@@ -154,6 +157,14 @@ type EgressConfig struct {
 	// format, such as tcp/coder.example.com:443 or udp/1.2.3.4:41641.
 	// Protocol and port are mandatory.
 	ControlPlaneHosts []string `json:"control_plane_hosts"`
+}
+
+// EgressExitNode is one bound exit node and its live replicas.
+type EgressExitNode struct {
+	ID uuid.UUID `json:"id"`
+	// ReplicaIDs are the live replicas, oldest first. The agent spreads load
+	// by shuffling them once per configuration.
+	ReplicaIDs []uuid.UUID `json:"replica_ids"`
 }
 
 // WorkspaceSecret is a user secret for injection into a workspace.

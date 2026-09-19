@@ -1,6 +1,8 @@
 package yamlpolicy_test
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"net/netip"
 	"os"
 	"path/filepath"
@@ -305,6 +307,20 @@ func TestPolicyParseErrors(t *testing.T) {
 	}
 }
 
+func TestPolicyHash(t *testing.T) {
+	t.Parallel()
+
+	data := []byte("default: allow\n")
+	policy, err := yamlpolicy.Parse(data)
+	require.NoError(t, err)
+	sum := sha256.Sum256(data)
+	require.Equal(t, hex.EncodeToString(sum[:]), policy.PolicyHash())
+
+	second, err := yamlpolicy.Parse(data)
+	require.NoError(t, err)
+	require.Equal(t, policy.PolicyHash(), second.PolicyHash())
+}
+
 func TestPolicyReload(t *testing.T) {
 	t.Parallel()
 
@@ -313,17 +329,21 @@ func TestPolicyReload(t *testing.T) {
 
 	policy, err := yamlpolicy.Load(path)
 	require.NoError(t, err)
+	initialHash := policy.PolicyHash()
 	flow := exitnode.FlowInfo{IP: netip.MustParseAddr("1.2.3.4"), Port: 443}
 	require.False(t, policy.Evaluate(flow).Allow)
 
 	require.NoError(t, os.WriteFile(path, []byte("default: allow\n"), 0o600))
 	require.NoError(t, policy.Reload())
 	require.True(t, policy.Evaluate(flow).Allow)
+	require.NotEqual(t, initialHash, policy.PolicyHash())
+	reloadedHash := policy.PolicyHash()
 
 	// A broken file keeps the previous policy in force.
 	require.NoError(t, os.WriteFile(path, []byte("default: nonsense\n"), 0o600))
 	require.Error(t, policy.Reload())
 	require.True(t, policy.Evaluate(flow).Allow)
+	require.Equal(t, reloadedHash, policy.PolicyHash())
 
 	_, err = yamlpolicy.Parse([]byte("default: allow\n"))
 	require.NoError(t, err)

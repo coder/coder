@@ -1483,6 +1483,20 @@ func (mr *MockStoreMockRecorder) DeleteStaleChatHeartbeats(ctx, staleSeconds any
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteStaleChatHeartbeats", reflect.TypeOf((*MockStore)(nil).DeleteStaleChatHeartbeats), ctx, staleSeconds)
 }
 
+// DeleteStaleExitNodeReplicas mocks base method.
+func (m *MockStore) DeleteStaleExitNodeReplicas(ctx context.Context, updatedBefore time.Time) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteStaleExitNodeReplicas", ctx, updatedBefore)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteStaleExitNodeReplicas indicates an expected call of DeleteStaleExitNodeReplicas.
+func (mr *MockStoreMockRecorder) DeleteStaleExitNodeReplicas(ctx, updatedBefore any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteStaleExitNodeReplicas", reflect.TypeOf((*MockStore)(nil).DeleteStaleExitNodeReplicas), ctx, updatedBefore)
+}
+
 // DeleteStaleWorkspaceAgentContextResources mocks base method.
 func (m *MockStore) DeleteStaleWorkspaceAgentContextResources(ctx context.Context, arg database.DeleteStaleWorkspaceAgentContextResourcesParams) error {
 	m.ctrl.T.Helper()
@@ -3972,6 +3986,36 @@ func (mr *MockStoreMockRecorder) GetExitNodeByOrgAndName(ctx, arg any) *gomock.C
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetExitNodeByOrgAndName", reflect.TypeOf((*MockStore)(nil).GetExitNodeByOrgAndName), ctx, arg)
 }
 
+// GetExitNodeReplicaByID mocks base method.
+func (m *MockStore) GetExitNodeReplicaByID(ctx context.Context, id uuid.UUID) (database.ExitNodeReplica, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetExitNodeReplicaByID", ctx, id)
+	ret0, _ := ret[0].(database.ExitNodeReplica)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetExitNodeReplicaByID indicates an expected call of GetExitNodeReplicaByID.
+func (mr *MockStoreMockRecorder) GetExitNodeReplicaByID(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetExitNodeReplicaByID", reflect.TypeOf((*MockStore)(nil).GetExitNodeReplicaByID), ctx, id)
+}
+
+// GetExitNodeReplicasByExitNode mocks base method.
+func (m *MockStore) GetExitNodeReplicasByExitNode(ctx context.Context, exitNodeID uuid.UUID) ([]database.ExitNodeReplica, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetExitNodeReplicasByExitNode", ctx, exitNodeID)
+	ret0, _ := ret[0].([]database.ExitNodeReplica)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetExitNodeReplicasByExitNode indicates an expected call of GetExitNodeReplicasByExitNode.
+func (mr *MockStoreMockRecorder) GetExitNodeReplicasByExitNode(ctx, exitNodeID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetExitNodeReplicasByExitNode", reflect.TypeOf((*MockStore)(nil).GetExitNodeReplicasByExitNode), ctx, exitNodeID)
+}
+
 // GetExitNodesByOrganization mocks base method.
 func (m *MockStore) GetExitNodesByOrganization(ctx context.Context, organizationID uuid.UUID) ([]database.ExitNode, error) {
 	m.ctrl.T.Helper()
@@ -4525,6 +4569,21 @@ func (m *MockStore) GetLicenses(ctx context.Context) ([]database.License, error)
 func (mr *MockStoreMockRecorder) GetLicenses(ctx any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetLicenses", reflect.TypeOf((*MockStore)(nil).GetLicenses), ctx)
+}
+
+// GetLiveExitNodeReplicas mocks base method.
+func (m *MockStore) GetLiveExitNodeReplicas(ctx context.Context, arg database.GetLiveExitNodeReplicasParams) ([]database.ExitNodeReplica, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetLiveExitNodeReplicas", ctx, arg)
+	ret0, _ := ret[0].([]database.ExitNodeReplica)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetLiveExitNodeReplicas indicates an expected call of GetLiveExitNodeReplicas.
+func (mr *MockStoreMockRecorder) GetLiveExitNodeReplicas(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetLiveExitNodeReplicas", reflect.TypeOf((*MockStore)(nil).GetLiveExitNodeReplicas), ctx, arg)
 }
 
 // GetLogoURL mocks base method.
@@ -5755,6 +5814,21 @@ func (m *MockStore) GetTemplateByOrganizationAndName(ctx context.Context, arg da
 func (mr *MockStoreMockRecorder) GetTemplateByOrganizationAndName(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTemplateByOrganizationAndName", reflect.TypeOf((*MockStore)(nil).GetTemplateByOrganizationAndName), ctx, arg)
+}
+
+// GetTemplateExitNodeReplicas mocks base method.
+func (m *MockStore) GetTemplateExitNodeReplicas(ctx context.Context, arg database.GetTemplateExitNodeReplicasParams) ([]database.GetTemplateExitNodeReplicasRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetTemplateExitNodeReplicas", ctx, arg)
+	ret0, _ := ret[0].([]database.GetTemplateExitNodeReplicasRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetTemplateExitNodeReplicas indicates an expected call of GetTemplateExitNodeReplicas.
+func (mr *MockStoreMockRecorder) GetTemplateExitNodeReplicas(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTemplateExitNodeReplicas", reflect.TypeOf((*MockStore)(nil).GetTemplateExitNodeReplicas), ctx, arg)
 }
 
 // GetTemplateExitNodes mocks base method.
@@ -9868,6 +9942,20 @@ func (mr *MockStoreMockRecorder) SoftDeleteWorkspaceAgentsByWorkspaceID(ctx, wor
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SoftDeleteWorkspaceAgentsByWorkspaceID", reflect.TypeOf((*MockStore)(nil).SoftDeleteWorkspaceAgentsByWorkspaceID), ctx, workspaceID)
 }
 
+// StopExitNodeReplica mocks base method.
+func (m *MockStore) StopExitNodeReplica(ctx context.Context, arg database.StopExitNodeReplicaParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "StopExitNodeReplica", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// StopExitNodeReplica indicates an expected call of StopExitNodeReplica.
+func (mr *MockStoreMockRecorder) StopExitNodeReplica(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StopExitNodeReplica", reflect.TypeOf((*MockStore)(nil).StopExitNodeReplica), ctx, arg)
+}
+
 // SyncAgentChatsContextMCPResources mocks base method.
 func (m *MockStore) SyncAgentChatsContextMCPResources(ctx context.Context, agentID uuid.UUID) ([]uuid.UUID, error) {
 	m.ctrl.T.Helper()
@@ -10456,21 +10544,6 @@ func (m *MockStore) UpdateEncryptedUserAIProviderKey(ctx context.Context, arg da
 func (mr *MockStoreMockRecorder) UpdateEncryptedUserAIProviderKey(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateEncryptedUserAIProviderKey", reflect.TypeOf((*MockStore)(nil).UpdateEncryptedUserAIProviderKey), ctx, arg)
-}
-
-// UpdateExitNodeRegistration mocks base method.
-func (m *MockStore) UpdateExitNodeRegistration(ctx context.Context, arg database.UpdateExitNodeRegistrationParams) (database.ExitNode, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdateExitNodeRegistration", ctx, arg)
-	ret0, _ := ret[0].(database.ExitNode)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// UpdateExitNodeRegistration indicates an expected call of UpdateExitNodeRegistration.
-func (mr *MockStoreMockRecorder) UpdateExitNodeRegistration(ctx, arg any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateExitNodeRegistration", reflect.TypeOf((*MockStore)(nil).UpdateExitNodeRegistration), ctx, arg)
 }
 
 // UpdateExternalAuthLink mocks base method.
@@ -12245,6 +12318,21 @@ func (m *MockStore) UpsertDefaultProxy(ctx context.Context, arg database.UpsertD
 func (mr *MockStoreMockRecorder) UpsertDefaultProxy(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertDefaultProxy", reflect.TypeOf((*MockStore)(nil).UpsertDefaultProxy), ctx, arg)
+}
+
+// UpsertExitNodeReplica mocks base method.
+func (m *MockStore) UpsertExitNodeReplica(ctx context.Context, arg database.UpsertExitNodeReplicaParams) (database.ExitNodeReplica, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpsertExitNodeReplica", ctx, arg)
+	ret0, _ := ret[0].(database.ExitNodeReplica)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpsertExitNodeReplica indicates an expected call of UpsertExitNodeReplica.
+func (mr *MockStoreMockRecorder) UpsertExitNodeReplica(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertExitNodeReplica", reflect.TypeOf((*MockStore)(nil).UpsertExitNodeReplica), ctx, arg)
 }
 
 // UpsertGroupAIBudget mocks base method.

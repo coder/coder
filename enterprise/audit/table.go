@@ -330,9 +330,6 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"updated_at":          ActionIgnore,
 		"deleted":             ActionIgnore,
 		"token_hashed_secret": ActionSecret,
-		"version":             ActionTrack,
-		"last_seen_at":        ActionIgnore, // Changes on every heartbeat.
-		"wireguard_endpoints": ActionTrack,
 	},
 	&database.OAuth2ProviderApp{}: {
 		"id":                     ActionIgnore,

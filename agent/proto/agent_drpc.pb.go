@@ -58,6 +58,7 @@ type DRPCAgentClient interface {
 	ReportBoundaryLogs(ctx context.Context, in *ReportBoundaryLogsRequest) (*ReportBoundaryLogsResponse, error)
 	UpdateAppStatus(ctx context.Context, in *UpdateAppStatusRequest) (*UpdateAppStatusResponse, error)
 	PushContextState(ctx context.Context, in *PushContextStateRequest) (*PushContextStateResponse, error)
+	StreamEgressConfig(ctx context.Context, in *StreamEgressConfigRequest) (DRPCAgent_StreamEgressConfigClient, error)
 }
 
 type drpcAgentClient struct {
@@ -241,6 +242,46 @@ func (c *drpcAgentClient) PushContextState(ctx context.Context, in *PushContextS
 	return out, nil
 }
 
+func (c *drpcAgentClient) StreamEgressConfig(ctx context.Context, in *StreamEgressConfigRequest) (DRPCAgent_StreamEgressConfigClient, error) {
+	stream, err := c.cc.NewStream(ctx, "/coder.agent.v2.Agent/StreamEgressConfig", drpcEncoding_File_agent_proto_agent_proto{})
+	if err != nil {
+		return nil, err
+	}
+	x := &drpcAgent_StreamEgressConfigClient{stream}
+	if err := x.MsgSend(in, drpcEncoding_File_agent_proto_agent_proto{}); err != nil {
+		return nil, err
+	}
+	if err := x.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+type DRPCAgent_StreamEgressConfigClient interface {
+	drpc.Stream
+	Recv() (*EgressConfig, error)
+}
+
+type drpcAgent_StreamEgressConfigClient struct {
+	drpc.Stream
+}
+
+func (x *drpcAgent_StreamEgressConfigClient) GetStream() drpc.Stream {
+	return x.Stream
+}
+
+func (x *drpcAgent_StreamEgressConfigClient) Recv() (*EgressConfig, error) {
+	m := new(EgressConfig)
+	if err := x.MsgRecv(m, drpcEncoding_File_agent_proto_agent_proto{}); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
+func (x *drpcAgent_StreamEgressConfigClient) RecvMsg(m *EgressConfig) error {
+	return x.MsgRecv(m, drpcEncoding_File_agent_proto_agent_proto{})
+}
+
 type DRPCAgentServer interface {
 	GetManifest(context.Context, *GetManifestRequest) (*Manifest, error)
 	GetServiceBanner(context.Context, *GetServiceBannerRequest) (*ServiceBanner, error)
@@ -261,6 +302,7 @@ type DRPCAgentServer interface {
 	ReportBoundaryLogs(context.Context, *ReportBoundaryLogsRequest) (*ReportBoundaryLogsResponse, error)
 	UpdateAppStatus(context.Context, *UpdateAppStatusRequest) (*UpdateAppStatusResponse, error)
 	PushContextState(context.Context, *PushContextStateRequest) (*PushContextStateResponse, error)
+	StreamEgressConfig(*StreamEgressConfigRequest, DRPCAgent_StreamEgressConfigStream) error
 }
 
 type DRPCAgentUnimplementedServer struct{}
@@ -341,9 +383,13 @@ func (s *DRPCAgentUnimplementedServer) PushContextState(context.Context, *PushCo
 	return nil, drpcerr.WithCode(errors.New("Unimplemented"), drpcerr.Unimplemented)
 }
 
+func (s *DRPCAgentUnimplementedServer) StreamEgressConfig(*StreamEgressConfigRequest, DRPCAgent_StreamEgressConfigStream) error {
+	return drpcerr.WithCode(errors.New("Unimplemented"), drpcerr.Unimplemented)
+}
+
 type DRPCAgentDescription struct{}
 
-func (DRPCAgentDescription) NumMethods() int { return 19 }
+func (DRPCAgentDescription) NumMethods() int { return 20 }
 
 func (DRPCAgentDescription) Method(n int) (string, drpc.Encoding, drpc.Receiver, interface{}, bool) {
 	switch n {
@@ -518,6 +564,15 @@ func (DRPCAgentDescription) Method(n int) (string, drpc.Encoding, drpc.Receiver,
 						in1.(*PushContextStateRequest),
 					)
 			}, DRPCAgentServer.PushContextState, true
+	case 19:
+		return "/coder.agent.v2.Agent/StreamEgressConfig", drpcEncoding_File_agent_proto_agent_proto{},
+			func(srv interface{}, ctx context.Context, in1, in2 interface{}) (drpc.Message, error) {
+				return nil, srv.(DRPCAgentServer).
+					StreamEgressConfig(
+						in1.(*StreamEgressConfigRequest),
+						&drpcAgent_StreamEgressConfigStream{in2.(drpc.Stream)},
+					)
+			}, DRPCAgentServer.StreamEgressConfig, true
 	default:
 		return "", nil, nil, nil, false
 	}
@@ -829,4 +884,17 @@ func (x *drpcAgent_PushContextStateStream) SendAndClose(m *PushContextStateRespo
 		return err
 	}
 	return x.CloseSend()
+}
+
+type DRPCAgent_StreamEgressConfigStream interface {
+	drpc.Stream
+	Send(*EgressConfig) error
+}
+
+type drpcAgent_StreamEgressConfigStream struct {
+	drpc.Stream
+}
+
+func (x *drpcAgent_StreamEgressConfigStream) Send(m *EgressConfig) error {
+	return x.MsgSend(m, drpcEncoding_File_agent_proto_agent_proto{})
 }

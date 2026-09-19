@@ -19,6 +19,8 @@ type Metrics struct {
 	// PolicyReloadTotal counts policy reloads by result ("success" or
 	// "error").
 	PolicyReloadTotal *prometheus.CounterVec
+	// PolicyMismatch reports whether a sibling replica has a different policy.
+	PolicyMismatch prometheus.Gauge
 	// FlowReportsSent counts flow reports delivered to coderd.
 	FlowReportsSent prometheus.Counter
 	// FlowReportsDropped counts flow reports discarded because the queue
@@ -60,6 +62,12 @@ func NewMetrics(reg prometheus.Registerer) *Metrics {
 			Name:      "policy_reload_total",
 			Help:      "Policy reload attempts by result.",
 		}, []string{"result"}),
+		PolicyMismatch: prometheus.NewGauge(prometheus.GaugeOpts{
+			Namespace: "coder",
+			Subsystem: "exit_node",
+			Name:      "policy_mismatch",
+			Help:      "Whether a live sibling replica reports a different policy hash.",
+		}),
 		FlowReportsSent: prometheus.NewCounter(prometheus.CounterOpts{
 			Namespace: "coder",
 			Subsystem: "exit_node",
@@ -76,7 +84,8 @@ func NewMetrics(reg prometheus.Registerer) *Metrics {
 	if reg != nil {
 		reg.MustRegister(
 			m.FlowsTotal, m.BytesTotal, m.ActiveFlows, m.UnknownSourceTotal,
-			m.PolicyReloadTotal, m.FlowReportsSent, m.FlowReportsDropped,
+			m.PolicyReloadTotal, m.PolicyMismatch, m.FlowReportsSent,
+			m.FlowReportsDropped,
 		)
 	}
 	return m

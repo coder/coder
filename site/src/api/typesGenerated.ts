@@ -4887,6 +4887,15 @@ export interface DeploymentValues {
 	readonly address?: string;
 }
 
+// From codersdk/exitnodes.go
+/**
+ * DeregisterExitNodeRequest marks a replica stopped. A stopped replica may
+ * not register again; a restarted process uses a new ReplicaID.
+ */
+export interface DeregisterExitNodeRequest {
+	readonly replica_id: string;
+}
+
 // From codersdk/parameters.go
 export interface DiagnosticExtra {
 	readonly code: string;
@@ -5104,8 +5113,8 @@ export const EntitlementsWarningHeader = "X-Coder-Entitlements-Warning";
 
 // From codersdk/exitnodes.go
 /**
- * ExitNode is a tailnet peer that terminates workspace egress, enforces
- * policy, and reports flows back to coderd.
+ * ExitNode is the admin-created unit that terminates workspace egress. One or
+ * more replicas, processes started with the exit node's token, do the work.
  */
 export interface ExitNode {
 	readonly id: string;
@@ -5114,19 +5123,28 @@ export interface ExitNode {
 	readonly display_name: string;
 	readonly created_at: string;
 	readonly updated_at: string;
-	readonly last_seen_at?: string;
-	readonly version: string;
 	/**
-	 * WireguardEndpoints are the public ip:port pairs agents may use for
-	 * direct WireGuard connections. Agents exempt them from enforcement.
+	 * Status summarizes replica liveness.
 	 */
-	readonly wireguard_endpoints: readonly string[];
+	readonly status: ExitNodeStatus;
 	/**
-	 * TailnetAddress is the deterministic tailnet IP agents dial, derived
-	 * from the exit node ID.
+	 * PolicyMismatch is set when live replicas report different policy
+	 * hashes, meaning the node does not enforce one consistent policy.
 	 */
-	readonly tailnet_address: string;
+	readonly policy_mismatch: boolean;
+	/**
+	 * Replicas lists every replica that has ever registered, including
+	 * stale and stopped ones, newest last.
+	 */
+	readonly replicas: readonly ExitNodeReplica[];
 }
+
+// From codersdk/exitnodes.go
+/**
+ * ExitNodeCoordinateReplicaIDParam is the query parameter naming the replica
+ * on the coordinate endpoint. The replica must be live.
+ */
+export const ExitNodeCoordinateReplicaIDParam = "replica_id";
 
 // From codersdk/exitnodes.go
 /**
@@ -5195,6 +5213,60 @@ export type ExitNodeProtocol = "dns" | "tcp" | "udp";
 export const ExitNodeProtocolHeader = "X-Coder-Protocol";
 
 export const ExitNodeProtocols: ExitNodeProtocol[] = ["dns", "tcp", "udp"];
+
+// From codersdk/exitnodes.go
+/**
+ * ExitNodeReplica is one running exit node process. Its ID is also its
+ * tailnet peer ID, so agents derive its address from the ID alone.
+ */
+export interface ExitNodeReplica {
+	readonly id: string;
+	readonly exit_node_id: string;
+	readonly hostname: string;
+	readonly version: string;
+	/**
+	 * WireguardEndpoints are the public ip:port pairs agents may use for
+	 * direct WireGuard connections. Agents exempt them from enforcement.
+	 */
+	readonly wireguard_endpoints: readonly string[];
+	/**
+	 * PolicyHash identifies the policy the replica enforces.
+	 */
+	readonly policy_hash: string;
+	/**
+	 * TailnetAddress is the deterministic tailnet IP derived from ID.
+	 */
+	readonly tailnet_address: string;
+	readonly status: ExitNodeReplicaStatus;
+	readonly started_at: string;
+	readonly updated_at: string;
+	readonly stopped_at?: string;
+}
+
+// From codersdk/exitnodes.go
+export type ExitNodeReplicaStatus = "live" | "stale" | "stopped";
+
+export const ExitNodeReplicaStatuses: ExitNodeReplicaStatus[] = [
+	"live",
+	"stale",
+	"stopped",
+];
+
+// From codersdk/exitnodes.go
+/**
+ * ExitNodeReplicasPubsubChannel carries the ID of an exit node whose live
+ * replica set changed, so bound agents can be sent a fresh egress config.
+ */
+export const ExitNodeReplicasPubsubChannel = "exit_node_replicas";
+
+// From codersdk/exitnodes.go
+export type ExitNodeStatus = "healthy" | "unreachable" | "unregistered";
+
+export const ExitNodeStatuses: ExitNodeStatus[] = [
+	"healthy",
+	"unreachable",
+	"unregistered",
+];
 
 // From codersdk/exitnodes.go
 /**
@@ -8411,10 +8483,24 @@ export interface RegionsResponse<R extends RegionTypes> {
 }
 
 // From codersdk/exitnodes.go
+/**
+ * RegisterExitNodeRequest is sent by a replica every 5 seconds. It is the
+ * replica's heartbeat.
+ */
 export interface RegisterExitNodeRequest {
+	/**
+	 * ReplicaID is generated once per process start and doubles as the
+	 * replica's tailnet peer ID. Required.
+	 */
+	readonly replica_id: string;
 	readonly version: string;
 	readonly hostname: string;
 	readonly wireguard_endpoints: readonly string[];
+	/**
+	 * PolicyHash identifies the policy this replica enforces so coderd can
+	 * flag replicas of one exit node that disagree.
+	 */
+	readonly policy_hash: string;
 }
 
 // From codersdk/exitnodes.go
@@ -8426,6 +8512,10 @@ export interface RegisterExitNodeResponse {
 	 * to. Coderd computes the set from templates bound to the exit node.
 	 */
 	readonly agent_ids: readonly string[];
+	/**
+	 * SiblingReplicas are the other live replicas of the same exit node.
+	 */
+	readonly sibling_replicas: readonly ExitNodeReplica[];
 }
 
 // From codersdk/replicas.go

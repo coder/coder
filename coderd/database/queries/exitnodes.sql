@@ -16,15 +16,79 @@ SELECT * FROM exit_nodes
 WHERE organization_id = @organization_id AND deleted = false
 ORDER BY lower(name) ASC;
 
--- name: UpdateExitNodeRegistration :one
-UPDATE exit_nodes
-SET
-	version = @version :: text,
-	last_seen_at = @last_seen_at :: timestamptz,
-	wireguard_endpoints = @wireguard_endpoints :: text[],
-	updated_at = Now()
-WHERE id = @id
+-- name: GetExitNodeReplicaByID :one
+SELECT * FROM exit_node_replicas WHERE id = @id;
+
+-- name: UpsertExitNodeReplica :one
+INSERT INTO exit_node_replicas (
+	id,
+	exit_node_id,
+	hostname,
+	version,
+	wireguard_endpoints,
+	policy_hash,
+	created_at,
+	started_at,
+	updated_at
+) VALUES (
+	@id,
+	@exit_node_id,
+	@hostname,
+	@version,
+	@wireguard_endpoints::text[],
+	@policy_hash,
+	@now,
+	@now,
+	@now
+)
+ON CONFLICT (id) DO UPDATE SET
+	hostname = EXCLUDED.hostname,
+	version = EXCLUDED.version,
+	wireguard_endpoints = EXCLUDED.wireguard_endpoints,
+	policy_hash = EXCLUDED.policy_hash,
+	updated_at = EXCLUDED.updated_at
+WHERE
+	exit_node_replicas.exit_node_id = EXCLUDED.exit_node_id
+	AND exit_node_replicas.stopped_at IS NULL
 RETURNING *;
+
+-- name: StopExitNodeReplica :exec
+UPDATE exit_node_replicas
+SET stopped_at = @stopped_at::timestamptz
+WHERE id = @id;
+
+-- name: GetLiveExitNodeReplicas :many
+SELECT *
+FROM exit_node_replicas
+WHERE
+	exit_node_id = ANY(@exit_node_ids::uuid[])
+	AND stopped_at IS NULL
+	AND updated_at > @updated_after
+ORDER BY exit_node_id, started_at, id;
+
+-- name: GetExitNodeReplicasByExitNode :many
+SELECT *
+FROM exit_node_replicas
+WHERE exit_node_id = @exit_node_id
+ORDER BY started_at, id;
+
+-- name: GetTemplateExitNodeReplicas :many
+SELECT
+	ten.exit_node_id,
+	ten.position,
+	r.id AS replica_id,
+	r.wireguard_endpoints
+FROM template_exit_nodes AS ten
+JOIN exit_nodes AS en ON en.id = ten.exit_node_id AND en.deleted = false
+LEFT JOIN exit_node_replicas AS r ON
+	r.exit_node_id = en.id
+	AND r.stopped_at IS NULL
+	AND r.updated_at > @updated_after
+WHERE ten.template_id = @template_id
+ORDER BY ten.position, r.started_at, r.id;
+
+-- name: DeleteStaleExitNodeReplicas :exec
+DELETE FROM exit_node_replicas WHERE updated_at < @updated_before;
 
 -- name: DeleteExitNodeByID :exec
 -- Exit nodes are soft-deleted so that audit and connection logs keep a

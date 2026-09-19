@@ -7,10 +7,13 @@ package exitnodesdk
 import (
 	"cmp"
 	"context"
+	"errors"
 	"net/http"
 	"net/url"
+	"sync"
 	"time"
 
+	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
@@ -24,6 +27,7 @@ import (
 
 const (
 	registerPath   = "/api/v2/exitnodes/me/register"
+	deregisterPath = "/api/v2/exitnodes/me/deregister"
 	coordinatePath = "/api/v2/exitnodes/me/coordinate"
 	flowsPath      = "/api/v2/exitnodes/me/flows"
 )
@@ -48,9 +52,8 @@ func New(serverURL *url.URL, token string) *Client {
 	return &Client{SDKClient: sdkClient}
 }
 
-// Register announces the exit node to coderd and returns the DERP map and
-// the set of agent IDs the node must open tunnels to. Both 200 and 201 are
-// accepted so the client is tolerant of the server's choice of status.
+// Register announces the exit node replica to coderd and returns its tailnet
+// configuration. Both 200 and 201 are accepted.
 func (c *Client) Register(ctx context.Context, req codersdk.RegisterExitNodeRequest) (codersdk.RegisterExitNodeResponse, error) {
 	var resp codersdk.RegisterExitNodeResponse
 	res, err := c.SDKClient.Request(ctx, http.MethodPost, registerPath, req)
@@ -67,6 +70,19 @@ func (c *Client) Register(ctx context.Context, req codersdk.RegisterExitNodeRequ
 	return resp, nil
 }
 
+// Deregister marks an exit node replica as stopped.
+func (c *Client) Deregister(ctx context.Context, req codersdk.DeregisterExitNodeRequest) error {
+	res, err := c.SDKClient.Request(ctx, http.MethodPost, deregisterPath, req)
+	if err != nil {
+		return xerrors.Errorf("make request: %w", err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK && res.StatusCode != http.StatusNoContent {
+		return codersdk.ReadBodyAsError(res)
+	}
+	return nil
+}
+
 // ReportFlows sends a batch of flow reports to coderd.
 func (c *Client) ReportFlows(ctx context.Context, req codersdk.ReportExitNodeFlowsRequest) error {
 	res, err := c.SDKClient.Request(ctx, http.MethodPost, flowsPath, req)
@@ -80,14 +96,17 @@ func (c *Client) ReportFlows(ctx context.Context, req codersdk.ReportExitNodeFlo
 	return nil
 }
 
-// TailnetDialer returns a ControlProtocolDialer that connects to the exit
-// node coordinator websocket. The websocket upgrade carries the exit node
-// token header via the SDK client's SessionTokenProvider.
-func (c *Client) TailnetDialer() (tailnet.ControlProtocolDialer, error) {
+// TailnetDialer returns a ControlProtocolDialer that connects to the exit node
+// coordinator as replicaID. The websocket upgrade carries the exit node token
+// header via the SDK client's SessionTokenProvider.
+func (c *Client) TailnetDialer(replicaID uuid.UUID) (tailnet.ControlProtocolDialer, error) {
 	coordinateURL, err := c.SDKClient.URL.Parse(coordinatePath)
 	if err != nil {
 		return nil, xerrors.Errorf("parse url: %w", err)
 	}
+	query := coordinateURL.Query()
+	query.Set(codersdk.ExitNodeCoordinateReplicaIDParam, replicaID.String())
+	coordinateURL.RawQuery = query.Encode()
 	wsOptions := &websocket.DialOptions{HTTPClient: c.SDKClient.HTTPClient}
 	c.SDKClient.SessionTokenProvider.SetDialOption(wsOptions)
 	return workspacesdk.NewWebsocketDialer(c.SDKClient.Logger().Named("tailnet_dialer"), coordinateURL, wsOptions), nil
@@ -104,27 +123,34 @@ type RegisterLoopOpts struct {
 	// MaxFailureCount is how many consecutive failed re-registrations are
 	// tolerated before FailureFn is invoked. Defaults to 10.
 	MaxFailureCount int
-	// AttemptTimeout bounds a single registration request. Defaults to 10
-	// seconds.
+	// AttemptTimeout bounds one registration or deregistration request.
+	// Defaults to 10 seconds.
 	AttemptTimeout time.Duration
 
+	// MutateFn is invoked before every registration request. It may refresh
+	// fields whose values can change while the process is running.
+	MutateFn func(req *codersdk.RegisterExitNodeRequest)
 	// CallbackFn is invoked with every successful re-registration response
-	// after the first. The agent ID set may differ between calls. Returning
-	// an error stops the loop and forwards the error to FailureFn.
+	// after the first. Returning an error stops the loop and forwards the error
+	// to FailureFn.
 	CallbackFn func(res codersdk.RegisterExitNodeResponse) error
-	// FailureFn is invoked once when the loop terminates for any reason other
-	// than Close.
+	// FailureFn is invoked once when the loop terminates for a registration or
+	// callback failure.
 	FailureFn func(err error)
 
 	// Clock is for testing only.
 	Clock quartz.Clock
 }
 
-// RegisterLoop keeps an exit node registered with coderd by calling Register
-// on a fixed interval until Close is called.
+// RegisterLoop keeps an exit node registered with coderd until Close is called.
 type RegisterLoop struct {
-	cancel context.CancelFunc
-	done   chan struct{}
+	client         *Client
+	logger         slog.Logger
+	replicaID      uuid.UUID
+	attemptTimeout time.Duration
+	cancel         context.CancelFunc
+	done           chan struct{}
+	deregisterOnce sync.Once
 }
 
 // RegisterLoop performs the initial registration synchronously and then keeps
@@ -138,18 +164,16 @@ func (c *Client) RegisterLoop(ctx context.Context, opts RegisterLoopOpts) (*Regi
 		opts.Clock = quartz.NewReal()
 	}
 	register := func(ctx context.Context) (codersdk.RegisterExitNodeResponse, error) {
+		if opts.MutateFn != nil {
+			opts.MutateFn(&opts.Request)
+		}
 		ctx, cancel := context.WithTimeout(ctx, opts.AttemptTimeout)
 		defer cancel()
 		res, err := c.Register(ctx, opts.Request)
 		if err != nil {
-			return res, xerrors.Errorf("register exit node: %w", err)
+			return res, xerrors.Errorf("register exit node replica %s: %w", opts.Request.ReplicaID, err)
 		}
 		return res, nil
-	}
-	fail := func(err error) {
-		if opts.FailureFn != nil {
-			opts.FailureFn(err)
-		}
 	}
 
 	first, err := register(ctx)
@@ -158,7 +182,20 @@ func (c *Client) RegisterLoop(ctx context.Context, opts RegisterLoopOpts) (*Regi
 	}
 
 	loopCtx, cancel := context.WithCancel(context.Background())
-	loop := &RegisterLoop{cancel: cancel, done: make(chan struct{})}
+	loop := &RegisterLoop{
+		client:         c,
+		logger:         opts.Logger,
+		replicaID:      opts.Request.ReplicaID,
+		attemptTimeout: opts.AttemptTimeout,
+		cancel:         cancel,
+		done:           make(chan struct{}),
+	}
+	fail := func(err error) {
+		loop.deregister(err)
+		if opts.FailureFn != nil {
+			opts.FailureFn(err)
+		}
+	}
 	go func() {
 		defer close(loop.done)
 		ticker := opts.Clock.NewTicker(opts.Interval, "exitnodesdk", "register")
@@ -173,6 +210,10 @@ func (c *Client) RegisterLoop(ctx context.Context, opts RegisterLoopOpts) (*Regi
 			res, err := register(loopCtx)
 			if err != nil {
 				if loopCtx.Err() != nil {
+					return
+				}
+				if isPermanentRegistrationError(err) {
+					fail(xerrors.Errorf("permanent registration failure: %w", err))
 					return
 				}
 				failedAttempts++
@@ -196,8 +237,30 @@ func (c *Client) RegisterLoop(ctx context.Context, opts RegisterLoopOpts) (*Regi
 	return loop, first, nil
 }
 
-// Close stops the loop and waits for it to exit.
+func isPermanentRegistrationError(err error) bool {
+	var sdkErr *codersdk.Error
+	return errors.As(err, &sdkErr) && sdkErr.StatusCode() == http.StatusBadRequest
+}
+
+func (l *RegisterLoop) deregister(rootErr error) {
+	l.deregisterOnce.Do(func() {
+		ctx, cancel := context.WithTimeout(context.Background(), l.attemptTimeout)
+		defer cancel()
+		err := l.client.Deregister(ctx, codersdk.DeregisterExitNodeRequest{ReplicaID: l.replicaID})
+		if err == nil {
+			return
+		}
+		fields := []slog.Field{slog.Error(err)}
+		if rootErr != nil {
+			fields = append(fields, slog.F("root_error", rootErr.Error()))
+		}
+		l.logger.Warn(context.Background(), "failed to deregister exit node replica", fields...)
+	})
+}
+
+// Close stops the loop, waits for it to exit, and deregisters the replica.
 func (l *RegisterLoop) Close() {
 	l.cancel()
 	<-l.done
+	l.deregister(nil)
 }

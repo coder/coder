@@ -14968,6 +14968,15 @@ func (q *sqlQuerier) DeleteExitNodeByID(ctx context.Context, id uuid.UUID) error
 	return err
 }
 
+const deleteStaleExitNodeReplicas = `-- name: DeleteStaleExitNodeReplicas :exec
+DELETE FROM exit_node_replicas WHERE updated_at < $1
+`
+
+func (q *sqlQuerier) DeleteStaleExitNodeReplicas(ctx context.Context, updatedBefore time.Time) error {
+	_, err := q.db.ExecContext(ctx, deleteStaleExitNodeReplicas, updatedBefore)
+	return err
+}
+
 const deleteTemplateExitNodes = `-- name: DeleteTemplateExitNodes :exec
 DELETE FROM template_exit_nodes
 WHERE template_id = $1
@@ -14979,7 +14988,7 @@ func (q *sqlQuerier) DeleteTemplateExitNodes(ctx context.Context, templateID uui
 }
 
 const getExitNodeByID = `-- name: GetExitNodeByID :one
-SELECT id, organization_id, name, display_name, created_at, updated_at, deleted, token_hashed_secret, version, last_seen_at, wireguard_endpoints FROM exit_nodes WHERE id = $1 LIMIT 1
+SELECT id, organization_id, name, display_name, created_at, updated_at, deleted, token_hashed_secret FROM exit_nodes WHERE id = $1 LIMIT 1
 `
 
 func (q *sqlQuerier) GetExitNodeByID(ctx context.Context, id uuid.UUID) (ExitNode, error) {
@@ -14994,15 +15003,12 @@ func (q *sqlQuerier) GetExitNodeByID(ctx context.Context, id uuid.UUID) (ExitNod
 		&i.UpdatedAt,
 		&i.Deleted,
 		&i.TokenHashedSecret,
-		&i.Version,
-		&i.LastSeenAt,
-		pq.Array(&i.WireguardEndpoints),
 	)
 	return i, err
 }
 
 const getExitNodeByOrgAndName = `-- name: GetExitNodeByOrgAndName :one
-SELECT id, organization_id, name, display_name, created_at, updated_at, deleted, token_hashed_secret, version, last_seen_at, wireguard_endpoints FROM exit_nodes
+SELECT id, organization_id, name, display_name, created_at, updated_at, deleted, token_hashed_secret FROM exit_nodes
 WHERE organization_id = $1 AND lower(name) = lower($2) AND deleted = false
 LIMIT 1
 `
@@ -15024,15 +15030,75 @@ func (q *sqlQuerier) GetExitNodeByOrgAndName(ctx context.Context, arg GetExitNod
 		&i.UpdatedAt,
 		&i.Deleted,
 		&i.TokenHashedSecret,
-		&i.Version,
-		&i.LastSeenAt,
-		pq.Array(&i.WireguardEndpoints),
 	)
 	return i, err
 }
 
+const getExitNodeReplicaByID = `-- name: GetExitNodeReplicaByID :one
+SELECT id, exit_node_id, hostname, version, wireguard_endpoints, policy_hash, created_at, started_at, updated_at, stopped_at FROM exit_node_replicas WHERE id = $1
+`
+
+func (q *sqlQuerier) GetExitNodeReplicaByID(ctx context.Context, id uuid.UUID) (ExitNodeReplica, error) {
+	row := q.db.QueryRowContext(ctx, getExitNodeReplicaByID, id)
+	var i ExitNodeReplica
+	err := row.Scan(
+		&i.ID,
+		&i.ExitNodeID,
+		&i.Hostname,
+		&i.Version,
+		pq.Array(&i.WireguardEndpoints),
+		&i.PolicyHash,
+		&i.CreatedAt,
+		&i.StartedAt,
+		&i.UpdatedAt,
+		&i.StoppedAt,
+	)
+	return i, err
+}
+
+const getExitNodeReplicasByExitNode = `-- name: GetExitNodeReplicasByExitNode :many
+SELECT id, exit_node_id, hostname, version, wireguard_endpoints, policy_hash, created_at, started_at, updated_at, stopped_at
+FROM exit_node_replicas
+WHERE exit_node_id = $1
+ORDER BY started_at, id
+`
+
+func (q *sqlQuerier) GetExitNodeReplicasByExitNode(ctx context.Context, exitNodeID uuid.UUID) ([]ExitNodeReplica, error) {
+	rows, err := q.db.QueryContext(ctx, getExitNodeReplicasByExitNode, exitNodeID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ExitNodeReplica
+	for rows.Next() {
+		var i ExitNodeReplica
+		if err := rows.Scan(
+			&i.ID,
+			&i.ExitNodeID,
+			&i.Hostname,
+			&i.Version,
+			pq.Array(&i.WireguardEndpoints),
+			&i.PolicyHash,
+			&i.CreatedAt,
+			&i.StartedAt,
+			&i.UpdatedAt,
+			&i.StoppedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getExitNodesByOrganization = `-- name: GetExitNodesByOrganization :many
-SELECT id, organization_id, name, display_name, created_at, updated_at, deleted, token_hashed_secret, version, last_seen_at, wireguard_endpoints FROM exit_nodes
+SELECT id, organization_id, name, display_name, created_at, updated_at, deleted, token_hashed_secret FROM exit_nodes
 WHERE organization_id = $1 AND deleted = false
 ORDER BY lower(name) ASC
 `
@@ -15055,8 +15121,110 @@ func (q *sqlQuerier) GetExitNodesByOrganization(ctx context.Context, organizatio
 			&i.UpdatedAt,
 			&i.Deleted,
 			&i.TokenHashedSecret,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getLiveExitNodeReplicas = `-- name: GetLiveExitNodeReplicas :many
+SELECT id, exit_node_id, hostname, version, wireguard_endpoints, policy_hash, created_at, started_at, updated_at, stopped_at
+FROM exit_node_replicas
+WHERE
+	exit_node_id = ANY($1::uuid[])
+	AND stopped_at IS NULL
+	AND updated_at > $2
+ORDER BY exit_node_id, started_at, id
+`
+
+type GetLiveExitNodeReplicasParams struct {
+	ExitNodeIds  []uuid.UUID `db:"exit_node_ids" json:"exit_node_ids"`
+	UpdatedAfter time.Time   `db:"updated_after" json:"updated_after"`
+}
+
+func (q *sqlQuerier) GetLiveExitNodeReplicas(ctx context.Context, arg GetLiveExitNodeReplicasParams) ([]ExitNodeReplica, error) {
+	rows, err := q.db.QueryContext(ctx, getLiveExitNodeReplicas, pq.Array(arg.ExitNodeIds), arg.UpdatedAfter)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ExitNodeReplica
+	for rows.Next() {
+		var i ExitNodeReplica
+		if err := rows.Scan(
+			&i.ID,
+			&i.ExitNodeID,
+			&i.Hostname,
 			&i.Version,
-			&i.LastSeenAt,
+			pq.Array(&i.WireguardEndpoints),
+			&i.PolicyHash,
+			&i.CreatedAt,
+			&i.StartedAt,
+			&i.UpdatedAt,
+			&i.StoppedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getTemplateExitNodeReplicas = `-- name: GetTemplateExitNodeReplicas :many
+SELECT
+	ten.exit_node_id,
+	ten.position,
+	r.id AS replica_id,
+	r.wireguard_endpoints
+FROM template_exit_nodes AS ten
+JOIN exit_nodes AS en ON en.id = ten.exit_node_id AND en.deleted = false
+LEFT JOIN exit_node_replicas AS r ON
+	r.exit_node_id = en.id
+	AND r.stopped_at IS NULL
+	AND r.updated_at > $1
+WHERE ten.template_id = $2
+ORDER BY ten.position, r.started_at, r.id
+`
+
+type GetTemplateExitNodeReplicasParams struct {
+	UpdatedAfter time.Time `db:"updated_after" json:"updated_after"`
+	TemplateID   uuid.UUID `db:"template_id" json:"template_id"`
+}
+
+type GetTemplateExitNodeReplicasRow struct {
+	ExitNodeID         uuid.UUID     `db:"exit_node_id" json:"exit_node_id"`
+	Position           int32         `db:"position" json:"position"`
+	ReplicaID          uuid.NullUUID `db:"replica_id" json:"replica_id"`
+	WireguardEndpoints []string      `db:"wireguard_endpoints" json:"wireguard_endpoints"`
+}
+
+func (q *sqlQuerier) GetTemplateExitNodeReplicas(ctx context.Context, arg GetTemplateExitNodeReplicasParams) ([]GetTemplateExitNodeReplicasRow, error) {
+	rows, err := q.db.QueryContext(ctx, getTemplateExitNodeReplicas, arg.UpdatedAfter, arg.TemplateID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetTemplateExitNodeReplicasRow
+	for rows.Next() {
+		var i GetTemplateExitNodeReplicasRow
+		if err := rows.Scan(
+			&i.ExitNodeID,
+			&i.Position,
+			&i.ReplicaID,
 			pq.Array(&i.WireguardEndpoints),
 		); err != nil {
 			return nil, err
@@ -15073,7 +15241,7 @@ func (q *sqlQuerier) GetExitNodesByOrganization(ctx context.Context, organizatio
 }
 
 const getTemplateExitNodes = `-- name: GetTemplateExitNodes :many
-SELECT exit_nodes.id, exit_nodes.organization_id, exit_nodes.name, exit_nodes.display_name, exit_nodes.created_at, exit_nodes.updated_at, exit_nodes.deleted, exit_nodes.token_hashed_secret, exit_nodes.version, exit_nodes.last_seen_at, exit_nodes.wireguard_endpoints
+SELECT exit_nodes.id, exit_nodes.organization_id, exit_nodes.name, exit_nodes.display_name, exit_nodes.created_at, exit_nodes.updated_at, exit_nodes.deleted, exit_nodes.token_hashed_secret
 FROM template_exit_nodes
 JOIN exit_nodes ON exit_nodes.id = template_exit_nodes.exit_node_id
 WHERE template_exit_nodes.template_id = $1
@@ -15098,9 +15266,6 @@ func (q *sqlQuerier) GetTemplateExitNodes(ctx context.Context, templateID uuid.U
 			&i.UpdatedAt,
 			&i.Deleted,
 			&i.TokenHashedSecret,
-			&i.Version,
-			&i.LastSeenAt,
-			pq.Array(&i.WireguardEndpoints),
 		); err != nil {
 			return nil, err
 		}
@@ -15169,7 +15334,7 @@ func (q *sqlQuerier) GetWorkspaceAgentIDsByExitNode(ctx context.Context, exitNod
 const insertExitNode = `-- name: InsertExitNode :one
 INSERT INTO exit_nodes (id, organization_id, name, display_name, token_hashed_secret, created_at, updated_at, deleted)
 VALUES ($1, $2, $3, $4, $5, $6, $7, false)
-RETURNING id, organization_id, name, display_name, created_at, updated_at, deleted, token_hashed_secret, version, last_seen_at, wireguard_endpoints
+RETURNING id, organization_id, name, display_name, created_at, updated_at, deleted, token_hashed_secret
 `
 
 type InsertExitNodeParams struct {
@@ -15202,9 +15367,6 @@ func (q *sqlQuerier) InsertExitNode(ctx context.Context, arg InsertExitNodeParam
 		&i.UpdatedAt,
 		&i.Deleted,
 		&i.TokenHashedSecret,
-		&i.Version,
-		&i.LastSeenAt,
-		pq.Array(&i.WireguardEndpoints),
 	)
 	return i, err
 }
@@ -15225,44 +15387,88 @@ func (q *sqlQuerier) InsertTemplateExitNodes(ctx context.Context, arg InsertTemp
 	return err
 }
 
-const updateExitNodeRegistration = `-- name: UpdateExitNodeRegistration :one
-UPDATE exit_nodes
-SET
-	version = $1 :: text,
-	last_seen_at = $2 :: timestamptz,
-	wireguard_endpoints = $3 :: text[],
-	updated_at = Now()
-WHERE id = $4
-RETURNING id, organization_id, name, display_name, created_at, updated_at, deleted, token_hashed_secret, version, last_seen_at, wireguard_endpoints
+const stopExitNodeReplica = `-- name: StopExitNodeReplica :exec
+UPDATE exit_node_replicas
+SET stopped_at = $1::timestamptz
+WHERE id = $2
 `
 
-type UpdateExitNodeRegistrationParams struct {
-	Version            string    `db:"version" json:"version"`
-	LastSeenAt         time.Time `db:"last_seen_at" json:"last_seen_at"`
-	WireguardEndpoints []string  `db:"wireguard_endpoints" json:"wireguard_endpoints"`
-	ID                 uuid.UUID `db:"id" json:"id"`
+type StopExitNodeReplicaParams struct {
+	StoppedAt time.Time `db:"stopped_at" json:"stopped_at"`
+	ID        uuid.UUID `db:"id" json:"id"`
 }
 
-func (q *sqlQuerier) UpdateExitNodeRegistration(ctx context.Context, arg UpdateExitNodeRegistrationParams) (ExitNode, error) {
-	row := q.db.QueryRowContext(ctx, updateExitNodeRegistration,
-		arg.Version,
-		arg.LastSeenAt,
-		pq.Array(arg.WireguardEndpoints),
+func (q *sqlQuerier) StopExitNodeReplica(ctx context.Context, arg StopExitNodeReplicaParams) error {
+	_, err := q.db.ExecContext(ctx, stopExitNodeReplica, arg.StoppedAt, arg.ID)
+	return err
+}
+
+const upsertExitNodeReplica = `-- name: UpsertExitNodeReplica :one
+INSERT INTO exit_node_replicas (
+	id,
+	exit_node_id,
+	hostname,
+	version,
+	wireguard_endpoints,
+	policy_hash,
+	created_at,
+	started_at,
+	updated_at
+) VALUES (
+	$1,
+	$2,
+	$3,
+	$4,
+	$5::text[],
+	$6,
+	$7,
+	$7,
+	$7
+)
+ON CONFLICT (id) DO UPDATE SET
+	hostname = EXCLUDED.hostname,
+	version = EXCLUDED.version,
+	wireguard_endpoints = EXCLUDED.wireguard_endpoints,
+	policy_hash = EXCLUDED.policy_hash,
+	updated_at = EXCLUDED.updated_at
+WHERE
+	exit_node_replicas.exit_node_id = EXCLUDED.exit_node_id
+	AND exit_node_replicas.stopped_at IS NULL
+RETURNING id, exit_node_id, hostname, version, wireguard_endpoints, policy_hash, created_at, started_at, updated_at, stopped_at
+`
+
+type UpsertExitNodeReplicaParams struct {
+	ID                 uuid.UUID `db:"id" json:"id"`
+	ExitNodeID         uuid.UUID `db:"exit_node_id" json:"exit_node_id"`
+	Hostname           string    `db:"hostname" json:"hostname"`
+	Version            string    `db:"version" json:"version"`
+	WireguardEndpoints []string  `db:"wireguard_endpoints" json:"wireguard_endpoints"`
+	PolicyHash         string    `db:"policy_hash" json:"policy_hash"`
+	Now                time.Time `db:"now" json:"now"`
+}
+
+func (q *sqlQuerier) UpsertExitNodeReplica(ctx context.Context, arg UpsertExitNodeReplicaParams) (ExitNodeReplica, error) {
+	row := q.db.QueryRowContext(ctx, upsertExitNodeReplica,
 		arg.ID,
+		arg.ExitNodeID,
+		arg.Hostname,
+		arg.Version,
+		pq.Array(arg.WireguardEndpoints),
+		arg.PolicyHash,
+		arg.Now,
 	)
-	var i ExitNode
+	var i ExitNodeReplica
 	err := row.Scan(
 		&i.ID,
-		&i.OrganizationID,
-		&i.Name,
-		&i.DisplayName,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.Deleted,
-		&i.TokenHashedSecret,
+		&i.ExitNodeID,
+		&i.Hostname,
 		&i.Version,
-		&i.LastSeenAt,
 		pq.Array(&i.WireguardEndpoints),
+		&i.PolicyHash,
+		&i.CreatedAt,
+		&i.StartedAt,
+		&i.UpdatedAt,
+		&i.StoppedAt,
 	)
 	return i, err
 }

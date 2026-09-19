@@ -8523,6 +8523,121 @@ func TestUpsertWorkspaceAppCannotRebindAcrossWorkspaces(t *testing.T) {
 	require.Equal(t, agentA.ID, rebound.AgentID)
 }
 
+func TestExitNodeReplicas(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitShort)
+	now := dbtime.Now()
+
+	org := dbgen.Organization(t, db, database.Organization{})
+	owner := dbgen.User(t, db, database.User{})
+	node1, _ := dbgen.ExitNode(t, db, database.ExitNode{
+		ID:             uuid.MustParse("00000000-0000-0000-0000-000000000001"),
+		OrganizationID: org.ID,
+	})
+	node2, _ := dbgen.ExitNode(t, db, database.ExitNode{
+		ID:             uuid.MustParse("00000000-0000-0000-0000-000000000002"),
+		OrganizationID: org.ID,
+	})
+	nodeWithoutReplicas, _ := dbgen.ExitNode(t, db, database.ExitNode{OrganizationID: org.ID})
+
+	upsert := func(id, exitNodeID uuid.UUID, heartbeat time.Time, hostname string) database.ExitNodeReplica {
+		replica, err := db.UpsertExitNodeReplica(ctx, database.UpsertExitNodeReplicaParams{
+			ID:                 id,
+			ExitNodeID:         exitNodeID,
+			Hostname:           hostname,
+			Version:            "v2.30.0",
+			WireguardEndpoints: []string{"203.0.113.10:41641"},
+			PolicyHash:         "policy-hash",
+			Now:                heartbeat,
+		})
+		require.NoError(t, err)
+		return replica
+	}
+
+	liveID := uuid.New()
+	live := upsert(liveID, node1.ID, now.Add(-time.Minute), "live-1")
+	require.Equal(t, live.CreatedAt, live.StartedAt)
+	require.Equal(t, live.StartedAt, live.UpdatedAt)
+
+	updated := upsert(liveID, node1.ID, now, "live-1-updated")
+	require.Equal(t, live.CreatedAt, updated.CreatedAt)
+	require.Equal(t, live.StartedAt, updated.StartedAt)
+	require.WithinDuration(t, now, updated.UpdatedAt, 0)
+	require.Equal(t, "live-1-updated", updated.Hostname)
+
+	_, err := db.UpsertExitNodeReplica(ctx, database.UpsertExitNodeReplicaParams{
+		ID:                 liveID,
+		ExitNodeID:         node2.ID,
+		WireguardEndpoints: []string{},
+		Now:                now.Add(time.Minute),
+	})
+	require.ErrorIs(t, err, sql.ErrNoRows)
+	unchanged, err := db.GetExitNodeReplicaByID(ctx, liveID)
+	require.NoError(t, err)
+	require.Equal(t, node1.ID, unchanged.ExitNodeID)
+	require.WithinDuration(t, now, unchanged.UpdatedAt, 0)
+
+	stale := upsert(uuid.New(), node1.ID, now.Add(-10*time.Minute), "stale")
+	stopped := upsert(uuid.New(), node1.ID, now.Add(-2*time.Minute), "stopped")
+	require.NoError(t, db.StopExitNodeReplica(ctx, database.StopExitNodeReplicaParams{
+		ID:        stopped.ID,
+		StoppedAt: now.Add(-time.Minute),
+	}))
+	_, err = db.UpsertExitNodeReplica(ctx, database.UpsertExitNodeReplicaParams{
+		ID:                 stopped.ID,
+		ExitNodeID:         node1.ID,
+		WireguardEndpoints: []string{},
+		Now:                now,
+	})
+	require.ErrorIs(t, err, sql.ErrNoRows)
+
+	other := upsert(uuid.New(), node2.ID, now.Add(-30*time.Second), "other")
+	liveReplicas, err := db.GetLiveExitNodeReplicas(ctx, database.GetLiveExitNodeReplicasParams{
+		ExitNodeIds:  []uuid.UUID{node1.ID, node2.ID},
+		UpdatedAfter: now.Add(-5 * time.Minute),
+	})
+	require.NoError(t, err)
+	require.Equal(t, []uuid.UUID{liveID, other.ID}, []uuid.UUID{liveReplicas[0].ID, liveReplicas[1].ID})
+
+	allNode1Replicas, err := db.GetExitNodeReplicasByExitNode(ctx, node1.ID)
+	require.NoError(t, err)
+	require.Equal(t, []uuid.UUID{stale.ID, stopped.ID, liveID}, []uuid.UUID{
+		allNode1Replicas[0].ID,
+		allNode1Replicas[1].ID,
+		allNode1Replicas[2].ID,
+	})
+
+	template := dbgen.Template(t, db, database.Template{
+		OrganizationID: org.ID,
+		CreatedBy:      owner.ID,
+	})
+	require.NoError(t, db.InsertTemplateExitNodes(ctx, database.InsertTemplateExitNodesParams{
+		TemplateID:  template.ID,
+		ExitNodeIds: []uuid.UUID{node1.ID, nodeWithoutReplicas.ID},
+	}))
+	templateReplicas, err := db.GetTemplateExitNodeReplicas(ctx, database.GetTemplateExitNodeReplicasParams{
+		TemplateID:   template.ID,
+		UpdatedAfter: now.Add(-5 * time.Minute),
+	})
+	require.NoError(t, err)
+	require.Len(t, templateReplicas, 2)
+	require.Equal(t, node1.ID, templateReplicas[0].ExitNodeID)
+	require.Equal(t, int32(0), templateReplicas[0].Position)
+	require.Equal(t, uuid.NullUUID{UUID: liveID, Valid: true}, templateReplicas[0].ReplicaID)
+	require.Equal(t, nodeWithoutReplicas.ID, templateReplicas[1].ExitNodeID)
+	require.Equal(t, int32(1), templateReplicas[1].Position)
+	require.False(t, templateReplicas[1].ReplicaID.Valid)
+	require.Empty(t, templateReplicas[1].WireguardEndpoints)
+
+	require.NoError(t, db.DeleteStaleExitNodeReplicas(ctx, now.Add(-5*time.Minute)))
+	_, err = db.GetExitNodeReplicaByID(ctx, stale.ID)
+	require.ErrorIs(t, err, sql.ErrNoRows)
+	_, err = db.GetExitNodeReplicaByID(ctx, liveID)
+	require.NoError(t, err)
+}
+
 func TestGetWorkspaceAgentIDsByExitNode(t *testing.T) {
 	t.Parallel()
 

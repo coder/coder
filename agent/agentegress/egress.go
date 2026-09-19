@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math/rand/v2"
 	"net"
 	"net/http"
 	"net/netip"
@@ -74,6 +75,9 @@ type Options struct {
 	Dialer Dialer
 	// Config is the egress configuration from the agent manifest.
 	Config agentsdk.EgressConfig
+	// Rand shuffles replicas within each exit node. Tests may inject a seeded
+	// generator. When nil, a process-random generator is used.
+	Rand *rand.Rand
 	// ListenAddr overrides the local address for the TCP proxy. When empty,
 	// ProxyPort is bound on 127.0.0.1, falling back to an ephemeral port if the
 	// fixed port is unavailable. The proxy must stay on loopback because it
@@ -130,6 +134,7 @@ type Proxy struct {
 	clock               quartz.Clock
 	connectTimeout      time.Duration
 	exitNodeDialTimeout time.Duration
+	rng                 *rand.Rand
 	sniffTimeout        time.Duration
 
 	fake         *fakeIPPool
@@ -177,25 +182,42 @@ func exemptNameSet(hosts []string) (map[string]struct{}, error) {
 	return exempt, nil
 }
 
-func exitNodeAddrs(cfg agentsdk.EgressConfig) ([]netip.AddrPort, error) {
-	if len(cfg.ExitNodeIDs) == 0 {
-		return nil, xerrors.New("at least one exit node ID is required")
+func exitNodeAddrs(ctx context.Context, logger slog.Logger, rng *rand.Rand, cfg agentsdk.EgressConfig) ([]netip.AddrPort, error) {
+	if len(cfg.ExitNodes) == 0 {
+		return nil, xerrors.New("at least one exit node is required")
 	}
 	if cfg.ExitNodePort <= 0 || cfg.ExitNodePort > 65535 {
 		return nil, xerrors.Errorf("invalid exit node port %d", cfg.ExitNodePort)
 	}
-	exitNodes := make([]netip.AddrPort, 0, len(cfg.ExitNodeIDs))
-	for _, id := range cfg.ExitNodeIDs {
-		if id == uuid.Nil {
+	if rng == nil {
+		rng = rand.New(rand.NewPCG(uint64(time.Now().UnixNano()), uint64(time.Now().UnixNano()+1))) //nolint:gosec // Load spreading does not require cryptographic randomness.
+	}
+	var addrs []netip.AddrPort
+	for _, node := range cfg.ExitNodes {
+		if node.ID == uuid.Nil {
 			return nil, xerrors.New("exit node ID is required")
 		}
-		exitNodes = append(exitNodes, netip.AddrPortFrom(
-			tailnet.TailscaleServicePrefix.AddrFromUUID(id),
-			// #nosec G115 -- range validated above.
-			uint16(cfg.ExitNodePort),
-		))
+		if len(node.ReplicaIDs) == 0 {
+			logger.Info(ctx, "skipping exit node with no live replicas", slog.F("exit_node_id", node.ID))
+			continue
+		}
+		replicas := slices.Clone(node.ReplicaIDs)
+		rng.Shuffle(len(replicas), func(i, j int) { replicas[i], replicas[j] = replicas[j], replicas[i] })
+		for _, id := range replicas {
+			if id == uuid.Nil {
+				return nil, xerrors.New("exit node replica ID is required")
+			}
+			addrs = append(addrs, netip.AddrPortFrom(
+				tailnet.TailscaleServicePrefix.AddrFromUUID(id),
+				// #nosec G115 -- range validated above.
+				uint16(cfg.ExitNodePort),
+			))
+		}
 	}
-	return exitNodes, nil
+	if len(addrs) == 0 {
+		return nil, xerrors.New("at least one live exit node replica is required")
+	}
+	return addrs, nil
 }
 
 // New validates the options and returns a Proxy that is not yet listening.
@@ -203,7 +225,7 @@ func New(logger slog.Logger, opts Options) (*Proxy, error) {
 	if opts.Dialer == nil {
 		return nil, xerrors.New("dialer is required")
 	}
-	exitNodes, err := exitNodeAddrs(opts.Config)
+	exitNodes, err := exitNodeAddrs(context.Background(), logger, opts.Rand, opts.Config)
 	if err != nil {
 		return nil, err
 	}
@@ -258,6 +280,7 @@ func New(logger slog.Logger, opts Options) (*Proxy, error) {
 		udpPort:             opts.UDPPort,
 		connectTimeout:      connectTimeout,
 		exitNodeDialTimeout: exitNodeDialTimeout,
+		rng:                 opts.Rand,
 		sniffTimeout:        sniffTimeout,
 		fake:                newFakeIPPool(fakeIPPrefix, fakeIPMax, pinnedMax),
 		exemptNames:         exempt,
@@ -402,7 +425,7 @@ func (p *Proxy) Config() agentsdk.EgressConfig {
 // Update atomically changes the exit node selector and exempt host set without
 // disturbing listeners or in-flight tunnels.
 func (p *Proxy) Update(cfg agentsdk.EgressConfig, exemptHosts []string) error {
-	exitNodes, err := exitNodeAddrs(cfg)
+	exitNodes, err := exitNodeAddrs(context.Background(), p.logger, p.rng, cfg)
 	if err != nil {
 		return err
 	}
@@ -411,6 +434,7 @@ func (p *Proxy) Update(cfg agentsdk.EgressConfig, exemptHosts []string) error {
 		return err
 	}
 	selector := newExitNodeSelector(p.logger, p.clock, p.exitNodeDialTimeout, exitNodes)
+	selector.keepCurrent(p.exitNodes)
 	p.configMu.Lock()
 	p.cfg = cfg
 	p.exitNodes = selector
@@ -444,10 +468,35 @@ func (p *Proxy) resetDNS() {
 // same proxy and enforcement state, so a reconnect that redelivers the same
 // manifest does not restart the proxy.
 func ConfigEqual(a, b agentsdk.EgressConfig) bool {
-	return slices.Equal(a.ExitNodeIDs, b.ExitNodeIDs) &&
-		a.ExitNodePort == b.ExitNodePort &&
+	if len(a.ExitNodes) != len(b.ExitNodes) {
+		return false
+	}
+	for i := range a.ExitNodes {
+		if a.ExitNodes[i].ID != b.ExitNodes[i].ID ||
+			!replicaIDsEqual(a.ExitNodes[i].ReplicaIDs, b.ExitNodes[i].ReplicaIDs) {
+			return false
+		}
+	}
+	return a.ExitNodePort == b.ExitNodePort &&
 		a.Enforce == b.Enforce &&
 		slices.Equal(a.ControlPlaneHosts, b.ControlPlaneHosts)
+}
+
+func replicaIDsEqual(a, b []uuid.UUID) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	counts := make(map[uuid.UUID]int, len(a))
+	for _, id := range a {
+		counts[id]++
+	}
+	for _, id := range b {
+		counts[id]--
+		if counts[id] < 0 {
+			return false
+		}
+	}
+	return true
 }
 
 // Close stops accepting connections and waits for in-flight connections to

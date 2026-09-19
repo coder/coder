@@ -97,6 +97,9 @@ coder_exit_node_flow_reports_sent_total 0
 # HELP coder_exit_node_flows_total Total number of TCP flows handled by policy decision.
 # TYPE coder_exit_node_flows_total counter
 coder_exit_node_flows_total{decision=""} 0
+# HELP coder_exit_node_policy_mismatch Whether a live sibling replica reports a different policy hash.
+# TYPE coder_exit_node_policy_mismatch gauge
+coder_exit_node_policy_mismatch 0
 # HELP coder_exit_node_policy_reload_total Policy reload attempts by result.
 # TYPE coder_exit_node_policy_reload_total counter
 coder_exit_node_policy_reload_total{result=""} 0

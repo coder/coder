@@ -30,9 +30,12 @@ import (
 type Options struct {
 	// Client talks to coderd on behalf of this exit node. Required.
 	Client *exitnodesdk.Client
-	// ExitNodeID is the ID half of the token. It determines the node's
-	// deterministic tailnet address. Required.
+	// ExitNodeID is the ID half of the token. It is used for logging and
+	// metrics labels. Required.
 	ExitNodeID uuid.UUID
+	// ReplicaID identifies this process and determines its tailnet identity and
+	// address. Required.
+	ReplicaID uuid.UUID
 	// Policy decides each flow. Required. See the yamlpolicy package for the
 	// rule-based implementation and PolicyFunc to adapt a function.
 	Policy Policy
@@ -80,10 +83,11 @@ type Server struct {
 	cancel context.CancelFunc
 	logger slog.Logger
 
-	id      uuid.UUID
-	addr    netip.Addr
-	policy  Policy
-	metrics *Metrics
+	exitNodeID uuid.UUID
+	replicaID  uuid.UUID
+	addr       netip.Addr
+	policy     Policy
+	metrics    *Metrics
 
 	registerLoop *exitnodesdk.RegisterLoop
 	conn         *tailnet.Conn
@@ -101,10 +105,11 @@ type Server struct {
 	// mu guards the fields below. Re-registration callbacks can arrive while
 	// New is still building the tailnet, so agent updates are parked until
 	// the coordination controller exists.
-	mu            sync.Mutex
-	tailnetReady  bool
-	agentsUpdated bool
-	latestAgents  []uuid.UUID
+	mu                  sync.Mutex
+	tailnetReady        bool
+	agentsUpdated       bool
+	latestAgents        []uuid.UUID
+	warnedSiblingHashes map[string]struct{}
 
 	closeOnce sync.Once
 	closeErr  error
@@ -119,6 +124,9 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (*Server, error)
 	if opts.ExitNodeID == uuid.Nil {
 		return nil, xerrors.New("exit node id is required")
 	}
+	if opts.ReplicaID == uuid.Nil {
+		return nil, xerrors.New("replica id is required")
+	}
 	if opts.Policy == nil {
 		return nil, xerrors.New("policy is required")
 	}
@@ -131,16 +139,18 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (*Server, error)
 
 	ctx, cancel := context.WithCancel(ctx)
 	s := &Server{
-		ctx:         ctx,
-		cancel:      cancel,
-		logger:      logger,
-		id:          opts.ExitNodeID,
-		addr:        TailnetAddrForID(opts.ExitNodeID),
-		policy:      opts.Policy,
-		metrics:     NewMetrics(opts.PrometheusRegistry),
-		agents:      NewAgentTable(),
-		registerErr: make(chan error, 1),
-		serveDone:   make(chan error, 1),
+		ctx:                 ctx,
+		cancel:              cancel,
+		logger:              logger,
+		exitNodeID:          opts.ExitNodeID,
+		replicaID:           opts.ReplicaID,
+		addr:                TailnetAddrForID(opts.ReplicaID),
+		policy:              opts.Policy,
+		metrics:             NewMetrics(opts.PrometheusRegistry),
+		agents:              NewAgentTable(),
+		registerErr:         make(chan error, 1),
+		serveDone:           make(chan error, 1),
+		warnedSiblingHashes: make(map[string]struct{}),
 	}
 	var err error
 	defer func() {
@@ -155,9 +165,13 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (*Server, error)
 	s.registerLoop, regResp, err = opts.Client.RegisterLoop(ctx, exitnodesdk.RegisterLoopOpts{
 		Logger: logger.Named("register"),
 		Request: codersdk.RegisterExitNodeRequest{
+			ReplicaID:          opts.ReplicaID,
 			Version:            opts.Version,
 			Hostname:           opts.Hostname,
 			WireguardEndpoints: opts.WireguardEndpointsAdvertised,
+		},
+		MutateFn: func(req *codersdk.RegisterExitNodeRequest) {
+			req.PolicyHash = policyHash(opts.Policy)
 		},
 		CallbackFn: s.handleRegister,
 		FailureFn: func(err error) {
@@ -170,6 +184,7 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (*Server, error)
 	if err != nil {
 		return nil, xerrors.Errorf("register exit node: %w", err)
 	}
+	s.updatePolicyMismatch(regResp.SiblingReplicas)
 	if regResp.DERPMap == nil {
 		err = xerrors.New("registration response did not include a DERP map")
 		return nil, err
@@ -181,7 +196,7 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (*Server, error)
 	s.mu.Unlock()
 
 	s.conn, err = tailnet.NewConn(&tailnet.Options{
-		ID:                  opts.ExitNodeID,
+		ID:                  opts.ReplicaID,
 		Addresses:           []netip.Prefix{netip.PrefixFrom(s.addr, 128)},
 		DERPMap:             regResp.DERPMap,
 		DERPForceWebSockets: regResp.DERPForceWebSockets,
@@ -193,7 +208,7 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (*Server, error)
 		return nil, xerrors.Errorf("create tailnet conn: %w", err)
 	}
 
-	dialer, err := opts.Client.TailnetDialer()
+	dialer, err := opts.Client.TailnetDialer(opts.ReplicaID)
 	if err != nil {
 		return nil, xerrors.Errorf("create tailnet dialer: %w", err)
 	}
@@ -237,7 +252,8 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (*Server, error)
 	}()
 
 	logger.Info(ctx, "exit node started",
-		slog.F("exit_node_id", s.id),
+		slog.F("exit_node_id", s.exitNodeID),
+		slog.F("replica_id", s.replicaID),
 		slog.F("tailnet_addr", s.addr),
 		slog.F("listen_port", opts.ListenPort),
 		slog.F("agents", len(regResp.AgentIDs)),
@@ -296,6 +312,7 @@ func (s *Server) Wait() error {
 
 // handleRegister is invoked on every periodic re-registration.
 func (s *Server) handleRegister(res codersdk.RegisterExitNodeResponse) error {
+	s.updatePolicyMismatch(res.SiblingReplicas)
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.latestAgents = res.AgentIDs
@@ -308,6 +325,44 @@ func (s *Server) handleRegister(res codersdk.RegisterExitNodeResponse) error {
 		s.conn.SetDERPMap(res.DERPMap)
 	}
 	return nil
+}
+
+func policyHash(policy Policy) string {
+	hasher, ok := policy.(PolicyHasher)
+	if !ok {
+		return ""
+	}
+	return hasher.PolicyHash()
+}
+
+func (s *Server) updatePolicyMismatch(siblings []codersdk.ExitNodeReplica) {
+	ours := policyHash(s.policy)
+	mismatches := make(map[string][]string)
+	if ours != "" {
+		for _, sibling := range siblings {
+			if sibling.PolicyHash != "" && sibling.PolicyHash != ours {
+				mismatches[sibling.PolicyHash] = append(mismatches[sibling.PolicyHash], sibling.Hostname)
+			}
+		}
+	}
+	if len(mismatches) == 0 {
+		s.metrics.PolicyMismatch.Set(0)
+		return
+	}
+	s.metrics.PolicyMismatch.Set(1)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for hash, hostnames := range mismatches {
+		if _, warned := s.warnedSiblingHashes[hash]; warned {
+			continue
+		}
+		s.warnedSiblingHashes[hash] = struct{}{}
+		s.logger.Warn(s.ctx, "exit node replicas have different policies",
+			slog.F("policy_hash", ours),
+			slog.F("sibling_policy_hash", hash),
+			slog.F("sibling_hostnames", hostnames),
+		)
+	}
 }
 
 // applyAgentsLocked makes the given agents, and only those, reachable: it

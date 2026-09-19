@@ -15,6 +15,20 @@ import (
 	"github.com/coder/quartz"
 )
 
+func TestExitNodeSelectorKeepCurrent(t *testing.T) {
+	t.Parallel()
+
+	first := netip.MustParseAddrPort("[fd7a:115c:a1e0::1]:1")
+	current := netip.MustParseAddrPort("[fd7a:115c:a1e0::2]:1")
+	added := netip.MustParseAddrPort("[fd7a:115c:a1e0::3]:1")
+	previous := newExitNodeSelector(slogtest.Make(t, nil), quartz.NewMock(t), time.Second, []netip.AddrPort{first, current})
+	previous.current = 1
+	next := newExitNodeSelector(slogtest.Make(t, nil), quartz.NewMock(t), time.Second, []netip.AddrPort{added, current, first})
+
+	next.keepCurrent(previous)
+	require.Equal(t, 1, next.current)
+}
+
 func TestExitNodeSelectorFailoverAndRecovery(t *testing.T) {
 	t.Parallel()
 

@@ -18,14 +18,18 @@ import (
 	"google.golang.org/protobuf/types/known/durationpb"
 	"tailscale.com/tailcfg"
 
+	googleproto "google.golang.org/protobuf/proto"
+
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/tailnet"
+	"github.com/coder/quartz"
 )
 
 type ManifestAPI struct {
@@ -40,6 +44,8 @@ type ManifestAPI struct {
 	AgentFn   func(ctx context.Context) (database.WorkspaceAgent, error)
 	Database  database.Store
 	DerpMapFn func() *tailcfg.DERPMap
+	Clock     quartz.Clock
+	Pubsub    pubsub.Pubsub
 }
 
 func (a *ManifestAPI) GetManifest(ctx context.Context, _ *agentproto.GetManifestRequest) (*agentproto.Manifest, error) {
@@ -171,40 +177,124 @@ func (a *ManifestAPI) GetManifest(ctx context.Context, _ *agentproto.GetManifest
 }
 
 // egressConfig returns the egress configuration for a workspace built from
-// templateID, or nil when the template is not bound to a live exit node.
+// templateID, or nil when the template is not bound to an exit node.
 func (a *ManifestAPI) egressConfig(ctx context.Context, templateID uuid.UUID, derpMap *tailcfg.DERPMap) (*agentproto.EgressConfig, error) {
-	// The agent's scope only covers its own workspace and template, so the
-	// template and exit node lookups run as system. Both are deployment
-	// configuration rather than user data.
-	//nolint:gocritic // See above.
+	//nolint:gocritic // Exit node configuration is deployment configuration.
 	systemCtx := dbauthz.AsSystemRestricted(ctx)
 	template, err := a.Database.GetTemplateByID(systemCtx, templateID)
 	if err != nil {
 		return nil, xerrors.Errorf("get template: %w", err)
 	}
-	exitNodes, err := a.Database.GetTemplateExitNodes(systemCtx, templateID)
+	rows, err := a.Database.GetTemplateExitNodeReplicas(systemCtx, database.GetTemplateExitNodeReplicasParams{
+		TemplateID:   templateID,
+		UpdatedAfter: a.now().Add(-codersdk.ExitNodeReplicaStaleAfter),
+	})
 	if err != nil {
-		return nil, xerrors.Errorf("get template exit nodes: %w", err)
+		return nil, xerrors.Errorf("get template exit node replicas: %w", err)
 	}
-	exitNodeIDs := make([][]byte, 0, len(exitNodes))
+	return buildEgressConfig(rows, template, derpMap, a.AccessURL), nil
+}
+
+func (a *ManifestAPI) now() time.Time {
+	if a.Clock == nil {
+		return time.Now()
+	}
+	return a.Clock.Now("egress_config")
+}
+
+func buildEgressConfig(rows []database.GetTemplateExitNodeReplicasRow, template database.Template, derpMap *tailcfg.DERPMap, accessURL *url.URL) *agentproto.EgressConfig {
+	if len(rows) == 0 {
+		return nil
+	}
+
+	exitNodes := make([]*agentproto.EgressExitNode, 0)
+	positions := make(map[uuid.UUID]int)
 	var wireguardEndpoints []string
-	for _, exitNode := range exitNodes {
-		if exitNode.Deleted {
-			continue
+	for _, row := range rows {
+		index, ok := positions[row.ExitNodeID]
+		if !ok {
+			index = len(exitNodes)
+			positions[row.ExitNodeID] = index
+			exitNodes = append(exitNodes, &agentproto.EgressExitNode{Id: row.ExitNodeID[:]})
 		}
-		exitNodeIDs = append(exitNodeIDs, exitNode.ID[:])
-		wireguardEndpoints = append(wireguardEndpoints, exitNode.WireguardEndpoints...)
-	}
-	if len(exitNodeIDs) == 0 {
-		return nil, nil //nolint:nilnil // No live exit nodes means the template routes traffic directly.
+		if row.ReplicaID.Valid {
+			exitNodes[index].ReplicaIds = append(exitNodes[index].ReplicaIds, row.ReplicaID.UUID[:])
+			wireguardEndpoints = append(wireguardEndpoints, row.WireguardEndpoints...)
+		}
 	}
 
 	return &agentproto.EgressConfig{
-		ExitNodeIds:       exitNodeIDs,
+		ExitNodes:         exitNodes,
 		ExitNodePort:      codersdk.ExitNodeTailnetPort,
 		Enforce:           template.ExitNodeEnforce,
-		ControlPlaneHosts: controlPlaneHosts(a.AccessURL, derpMap, wireguardEndpoints),
-	}, nil
+		ControlPlaneHosts: controlPlaneHosts(accessURL, derpMap, wireguardEndpoints),
+	}
+}
+
+func (a *ManifestAPI) StreamEgressConfig(_ *agentproto.StreamEgressConfigRequest, stream agentproto.DRPCAgent_StreamEgressConfigStream) error {
+	ctx := stream.Context()
+	workspace, err := a.Database.GetWorkspaceByID(ctx, a.WorkspaceID)
+	if err != nil {
+		return xerrors.Errorf("get workspace: %w", err)
+	}
+
+	updates := make(chan uuid.UUID, 1)
+	cancel, err := a.Pubsub.Subscribe(codersdk.ExitNodeReplicasPubsubChannel, func(_ context.Context, payload []byte) {
+		id, err := uuid.ParseBytes(payload)
+		if err != nil {
+			return
+		}
+		select {
+		case updates <- id:
+		default:
+		}
+	})
+	if err != nil {
+		return xerrors.Errorf("subscribe to exit node replica updates: %w", err)
+	}
+	defer cancel()
+
+	ticker := a.Clock.NewTicker(codersdk.ExitNodeReplicaStaleAfter, "stream_egress_config")
+	defer ticker.Stop()
+	var last *agentproto.EgressConfig
+	bound := make(map[uuid.UUID]struct{})
+	for {
+		cfg, err := a.egressConfig(ctx, workspace.TemplateID, a.DerpMapFn())
+		if err != nil {
+			return err
+		}
+		if cfg == nil {
+			cfg = &agentproto.EgressConfig{}
+		}
+		clear(bound)
+		for _, exitNode := range cfg.ExitNodes {
+			id, err := uuid.FromBytes(exitNode.Id)
+			if err == nil {
+				bound[id] = struct{}{}
+			}
+		}
+		if last == nil || !googleproto.Equal(last, cfg) {
+			if err := stream.Send(cfg); err != nil {
+				return xerrors.Errorf("send egress config: %w", err)
+			}
+			last = &agentproto.EgressConfig{}
+			googleproto.Merge(last, cfg)
+		}
+
+		for {
+			select {
+			case <-ctx.Done():
+				return nil
+			case <-ticker.C:
+				goto recompute
+			case id := <-updates:
+				if _, ok := bound[id]; ok {
+					goto recompute
+				}
+			}
+		}
+	recompute:
+	}
 }
 
 // controlPlaneHosts lists the protocol and port specific destinations an agent

@@ -183,6 +183,26 @@ func (c *Client) ConnectRPC210WithRole(ctx context.Context, _ string) (
 	return c.ConnectRPC210(ctx)
 }
 
+func (c *Client) ConnectRPC214(ctx context.Context) (
+	agentproto.DRPCAgentClient214, proto.DRPCTailnetClient28, error,
+) {
+	aAPI, tAPI, err := c.ConnectRPC210(ctx)
+	if err != nil {
+		return nil, nil, err
+	}
+	client, ok := aAPI.(agentproto.DRPCAgentClient214)
+	if !ok {
+		return nil, nil, xerrors.Errorf("agenttest: connection does not implement DRPCAgentClient214; got %T", aAPI)
+	}
+	return client, tAPI, nil
+}
+
+func (c *Client) ConnectRPC214WithRole(ctx context.Context, _ string) (
+	agentproto.DRPCAgentClient214, proto.DRPCTailnetClient28, error,
+) {
+	return c.ConnectRPC214(ctx)
+}
+
 func (c *Client) ConnectRPC29(ctx context.Context) (
 	agentproto.DRPCAgentClient29, proto.DRPCTailnetClient28, error,
 ) {
@@ -299,6 +319,7 @@ type FakeAgentAPI struct {
 	pushResourcesMonitoringUsageFunc        func(*agentproto.PushResourcesMonitoringUsageRequest) (*agentproto.PushResourcesMonitoringUsageResponse, error)
 
 	contextStatePushes []*agentproto.PushContextStateRequest
+	egressConfigs      chan *agentproto.EgressConfig
 }
 
 func (*FakeAgentAPI) UpdateAppStatus(context.Context, *agentproto.UpdateAppStatusRequest) (*agentproto.UpdateAppStatusResponse, error) {
@@ -323,6 +344,23 @@ func (f *FakeAgentAPI) ContextStatePushes() []*agentproto.PushContextStateReques
 	out := make([]*agentproto.PushContextStateRequest, len(f.contextStatePushes))
 	copy(out, f.contextStatePushes)
 	return out
+}
+
+func (f *FakeAgentAPI) StreamEgressConfig(_ *agentproto.StreamEgressConfigRequest, stream agentproto.DRPCAgent_StreamEgressConfigStream) error {
+	for {
+		select {
+		case <-stream.Context().Done():
+			return nil
+		case cfg := <-f.egressConfigs:
+			if err := stream.Send(cfg); err != nil {
+				return err
+			}
+		}
+	}
+}
+
+func (f *FakeAgentAPI) PushEgressConfig(cfg *agentsdk.EgressConfig) {
+	f.egressConfigs <- agentsdk.ProtoFromEgressConfig(cfg)
 }
 
 func (f *FakeAgentAPI) GetManifest(context.Context, *agentproto.GetManifestRequest) (*agentproto.Manifest, error) {
@@ -673,11 +711,12 @@ func (f *FakeAgentAPI) GetSubAgentApps(id uuid.UUID) ([]*agentproto.CreateSubAge
 
 func NewFakeAgentAPI(t testing.TB, logger slog.Logger, manifest *agentproto.Manifest, statsCh chan *agentproto.Stats) *FakeAgentAPI {
 	return &FakeAgentAPI{
-		t:           t,
-		logger:      logger.Named("FakeAgentAPI"),
-		manifest:    manifest,
-		statsCh:     statsCh,
-		startupCh:   make(chan *agentproto.Startup, 100),
-		appHealthCh: make(chan *agentproto.BatchUpdateAppHealthRequest, 100),
+		t:             t,
+		logger:        logger.Named("FakeAgentAPI"),
+		manifest:      manifest,
+		statsCh:       statsCh,
+		egressConfigs: make(chan *agentproto.EgressConfig, 16),
+		startupCh:     make(chan *agentproto.Startup, 100),
+		appHealthCh:   make(chan *agentproto.BatchUpdateAppHealthRequest, 100),
 	}
 }

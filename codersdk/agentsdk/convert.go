@@ -113,16 +113,24 @@ func EgressConfigFromProto(egress *proto.EgressConfig) (*EgressConfig, error) {
 	if egress == nil {
 		return nil, nil //nolint:nilnil // Nil egress means the workspace routes traffic directly.
 	}
-	exitNodeIDs := make([]uuid.UUID, 0, len(egress.ExitNodeIds))
-	for _, rawID := range egress.ExitNodeIds {
-		exitNodeID, err := uuid.FromBytes(rawID)
+	exitNodes := make([]EgressExitNode, 0, len(egress.ExitNodes))
+	for _, protoExitNode := range egress.ExitNodes {
+		exitNodeID, err := uuid.FromBytes(protoExitNode.Id)
 		if err != nil {
 			return nil, xerrors.Errorf("error converting exit node ID: %w", err)
 		}
-		exitNodeIDs = append(exitNodeIDs, exitNodeID)
+		replicaIDs := make([]uuid.UUID, 0, len(protoExitNode.ReplicaIds))
+		for _, rawID := range protoExitNode.ReplicaIds {
+			replicaID, err := uuid.FromBytes(rawID)
+			if err != nil {
+				return nil, xerrors.Errorf("error converting exit node replica ID: %w", err)
+			}
+			replicaIDs = append(replicaIDs, replicaID)
+		}
+		exitNodes = append(exitNodes, EgressExitNode{ID: exitNodeID, ReplicaIDs: replicaIDs})
 	}
 	return &EgressConfig{
-		ExitNodeIDs:       exitNodeIDs,
+		ExitNodes:         exitNodes,
 		ExitNodePort:      int(egress.ExitNodePort),
 		Enforce:           egress.Enforce,
 		ControlPlaneHosts: egress.ControlPlaneHosts,
@@ -135,12 +143,19 @@ func ProtoFromEgressConfig(egress *EgressConfig) *proto.EgressConfig {
 	if egress == nil {
 		return nil
 	}
-	exitNodeIDs := make([][]byte, 0, len(egress.ExitNodeIDs))
-	for _, exitNodeID := range egress.ExitNodeIDs {
-		exitNodeIDs = append(exitNodeIDs, exitNodeID[:])
+	exitNodes := make([]*proto.EgressExitNode, 0, len(egress.ExitNodes))
+	for _, exitNode := range egress.ExitNodes {
+		replicaIDs := make([][]byte, 0, len(exitNode.ReplicaIDs))
+		for _, replicaID := range exitNode.ReplicaIDs {
+			replicaIDs = append(replicaIDs, replicaID[:])
+		}
+		exitNodes = append(exitNodes, &proto.EgressExitNode{
+			Id:         exitNode.ID[:],
+			ReplicaIds: replicaIDs,
+		})
 	}
 	return &proto.EgressConfig{
-		ExitNodeIds: exitNodeIDs,
+		ExitNodes: exitNodes,
 		// #nosec G115 - Ports are bounded by 65535 and always fit in int32.
 		ExitNodePort:      int32(egress.ExitNodePort),
 		Enforce:           egress.Enforce,

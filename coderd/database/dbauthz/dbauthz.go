@@ -1783,28 +1783,6 @@ func scopedOrgRoleIdentifiers(names []string, orgID uuid.UUID) []rbac.RoleIdenti
 	return out
 }
 
-func (q *querier) DeleteTemplateExitNodes(ctx context.Context, templateID uuid.UUID) error {
-	template, err := q.db.GetTemplateByID(ctx, templateID)
-	if err != nil {
-		return err
-	}
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, template); err != nil {
-		return err
-	}
-	return q.db.DeleteTemplateExitNodes(ctx, templateID)
-}
-
-func (q *querier) InsertTemplateExitNodes(ctx context.Context, arg database.InsertTemplateExitNodesParams) error {
-	template, err := q.db.GetTemplateByID(ctx, arg.TemplateID)
-	if err != nil {
-		return err
-	}
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, template); err != nil {
-		return err
-	}
-	return q.db.InsertTemplateExitNodes(ctx, arg)
-}
-
 func (q *querier) AcquireExternalAuthLinkRefreshLease(ctx context.Context, arg database.AcquireExternalAuthLinkRefreshLeaseParams) (database.ExternalAuthLink, error) {
 	fetch := func(ctx context.Context, arg database.AcquireExternalAuthLinkRefreshLeaseParams) (database.ExternalAuthLink, error) {
 		return q.db.GetExternalAuthLink(ctx, database.GetExternalAuthLinkParams{UserID: arg.UserID, ProviderID: arg.ProviderID})
@@ -2596,6 +2574,13 @@ func (q *querier) DeleteStaleChatHeartbeats(ctx context.Context, staleSeconds in
 	return q.db.DeleteStaleChatHeartbeats(ctx, staleSeconds)
 }
 
+func (q *querier) DeleteStaleExitNodeReplicas(ctx context.Context, updatedBefore time.Time) error {
+	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceSystem); err != nil {
+		return err
+	}
+	return q.db.DeleteStaleExitNodeReplicas(ctx, updatedBefore)
+}
+
 func (q *querier) DeleteStaleWorkspaceAgentContextResources(ctx context.Context, arg database.DeleteStaleWorkspaceAgentContextResourcesParams) error {
 	// Deleting stale context resources is part of updating the agent's
 	// pushed context state, so it authorizes as an update on the
@@ -2618,6 +2603,17 @@ func (q *querier) DeleteTailnetTunnel(ctx context.Context, arg database.DeleteTa
 		return database.DeleteTailnetTunnelRow{}, err
 	}
 	return q.db.DeleteTailnetTunnel(ctx, arg)
+}
+
+func (q *querier) DeleteTemplateExitNodes(ctx context.Context, templateID uuid.UUID) error {
+	template, err := q.db.GetTemplateByID(ctx, templateID)
+	if err != nil {
+		return err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, template); err != nil {
+		return err
+	}
+	return q.db.DeleteTemplateExitNodes(ctx, templateID)
 }
 
 func (q *querier) DeleteUnlinkedChatFilesByIDs(ctx context.Context, arg database.DeleteUnlinkedChatFilesByIDsParams) (int64, error) {
@@ -3985,6 +3981,24 @@ func (q *querier) GetExitNodeByOrgAndName(ctx context.Context, arg database.GetE
 	return fetch(q.log, q.auth, q.db.GetExitNodeByOrgAndName)(ctx, arg)
 }
 
+func (q *querier) GetExitNodeReplicaByID(ctx context.Context, id uuid.UUID) (database.ExitNodeReplica, error) {
+	replica, err := q.db.GetExitNodeReplicaByID(ctx, id)
+	if err != nil {
+		return database.ExitNodeReplica{}, err
+	}
+	if _, err := q.GetExitNodeByID(ctx, replica.ExitNodeID); err != nil {
+		return database.ExitNodeReplica{}, err
+	}
+	return replica, nil
+}
+
+func (q *querier) GetExitNodeReplicasByExitNode(ctx context.Context, exitNodeID uuid.UUID) ([]database.ExitNodeReplica, error) {
+	if _, err := q.GetExitNodeByID(ctx, exitNodeID); err != nil {
+		return nil, err
+	}
+	return q.db.GetExitNodeReplicasByExitNode(ctx, exitNodeID)
+}
+
 func (q *querier) GetExitNodesByOrganization(ctx context.Context, organizationID uuid.UUID) ([]database.ExitNode, error) {
 	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetExitNodesByOrganization)(ctx, organizationID)
 }
@@ -4256,6 +4270,15 @@ func (q *querier) GetLicenses(ctx context.Context) ([]database.License, error) {
 		return q.db.GetLicenses(ctx)
 	}
 	return fetchWithPostFilter(q.auth, policy.ActionRead, fetch)(ctx, nil)
+}
+
+func (q *querier) GetLiveExitNodeReplicas(ctx context.Context, arg database.GetLiveExitNodeReplicasParams) ([]database.ExitNodeReplica, error) {
+	for _, exitNodeID := range arg.ExitNodeIds {
+		if _, err := q.GetExitNodeByID(ctx, exitNodeID); err != nil {
+			return nil, err
+		}
+	}
+	return q.db.GetLiveExitNodeReplicas(ctx, arg)
 }
 
 func (q *querier) GetLogoURL(ctx context.Context) (string, error) {
@@ -4869,6 +4892,13 @@ func (q *querier) GetTemplateByID(ctx context.Context, id uuid.UUID) (database.T
 
 func (q *querier) GetTemplateByOrganizationAndName(ctx context.Context, arg database.GetTemplateByOrganizationAndNameParams) (database.Template, error) {
 	return fetch(q.log, q.auth, q.db.GetTemplateByOrganizationAndName)(ctx, arg)
+}
+
+func (q *querier) GetTemplateExitNodeReplicas(ctx context.Context, arg database.GetTemplateExitNodeReplicasParams) ([]database.GetTemplateExitNodeReplicasRow, error) {
+	if _, err := q.GetTemplateByID(ctx, arg.TemplateID); err != nil {
+		return nil, err
+	}
+	return q.db.GetTemplateExitNodeReplicas(ctx, arg)
 }
 
 func (q *querier) GetTemplateExitNodes(ctx context.Context, templateID uuid.UUID) ([]database.ExitNode, error) {
@@ -6560,6 +6590,17 @@ func (q *querier) InsertTemplate(ctx context.Context, arg database.InsertTemplat
 	return q.db.InsertTemplate(ctx, arg)
 }
 
+func (q *querier) InsertTemplateExitNodes(ctx context.Context, arg database.InsertTemplateExitNodesParams) error {
+	template, err := q.db.GetTemplateByID(ctx, arg.TemplateID)
+	if err != nil {
+		return err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, template); err != nil {
+		return err
+	}
+	return q.db.InsertTemplateExitNodes(ctx, arg)
+}
+
 func (q *querier) InsertTemplateVersion(ctx context.Context, arg database.InsertTemplateVersionParams) error {
 	if !arg.TemplateID.Valid {
 		// Making a new template version is the same permission as creating a new template.
@@ -7379,6 +7420,21 @@ func (q *querier) SoftDeleteWorkspaceAgentsByWorkspaceID(ctx context.Context, wo
 	return q.db.SoftDeleteWorkspaceAgentsByWorkspaceID(ctx, workspaceID)
 }
 
+func (q *querier) StopExitNodeReplica(ctx context.Context, arg database.StopExitNodeReplicaParams) error {
+	replica, err := q.db.GetExitNodeReplicaByID(ctx, arg.ID)
+	if err != nil {
+		return err
+	}
+	exitNode, err := q.db.GetExitNodeByID(ctx, replica.ExitNodeID)
+	if err != nil {
+		return err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, exitNode); err != nil {
+		return err
+	}
+	return q.db.StopExitNodeReplica(ctx, arg)
+}
+
 func (q *querier) SyncAgentChatsContextMCPResources(ctx context.Context, agentID uuid.UUID) ([]uuid.UUID, error) {
 	// The push can update multiple chats bound to the agent, so authorize the
 	// chat resource class.
@@ -7846,13 +7902,6 @@ func (q *querier) UpdateEncryptedUserAIProviderKey(ctx context.Context, arg data
 		return database.UserAIProviderKey{}, err
 	}
 	return q.db.UpdateEncryptedUserAIProviderKey(ctx, arg)
-}
-
-func (q *querier) UpdateExitNodeRegistration(ctx context.Context, arg database.UpdateExitNodeRegistrationParams) (database.ExitNode, error) {
-	fetch := func(ctx context.Context, arg database.UpdateExitNodeRegistrationParams) (database.ExitNode, error) {
-		return q.db.GetExitNodeByID(ctx, arg.ID)
-	}
-	return updateWithReturn(q.log, q.auth, fetch, q.db.UpdateExitNodeRegistration)(ctx, arg)
 }
 
 func (q *querier) UpdateExternalAuthLink(ctx context.Context, arg database.UpdateExternalAuthLinkParams) (database.ExternalAuthLink, error) {
@@ -9220,6 +9269,17 @@ func (q *querier) UpsertDefaultProxy(ctx context.Context, arg database.UpsertDef
 		return err
 	}
 	return q.db.UpsertDefaultProxy(ctx, arg)
+}
+
+func (q *querier) UpsertExitNodeReplica(ctx context.Context, arg database.UpsertExitNodeReplicaParams) (database.ExitNodeReplica, error) {
+	exitNode, err := q.db.GetExitNodeByID(ctx, arg.ExitNodeID)
+	if err != nil {
+		return database.ExitNodeReplica{}, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, exitNode); err != nil {
+		return database.ExitNodeReplica{}, err
+	}
+	return q.db.UpsertExitNodeReplica(ctx, arg)
 }
 
 func (q *querier) UpsertGroupAIBudget(ctx context.Context, arg database.UpsertGroupAIBudgetParams) (database.GroupAIBudget, error) {

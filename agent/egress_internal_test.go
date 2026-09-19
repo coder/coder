@@ -13,7 +13,7 @@ func TestEgressChangeRequiresRestart(t *testing.T) {
 	t.Parallel()
 
 	base := agentsdk.EgressConfig{
-		ExitNodeIDs:       []uuid.UUID{uuid.New()},
+		ExitNodes:         []agentsdk.EgressExitNode{{ID: uuid.New(), ReplicaIDs: []uuid.UUID{uuid.New()}}},
 		ExitNodePort:      3128,
 		Enforce:           true,
 		ControlPlaneHosts: []string{"tcp/control.example:443"},
@@ -24,9 +24,9 @@ func TestEgressChangeRequiresRestart(t *testing.T) {
 		want bool
 	}{
 		{name: "unchanged", next: base},
-		{name: "selector", next: agentsdk.EgressConfig{ExitNodeIDs: []uuid.UUID{uuid.New()}, ExitNodePort: 4128, Enforce: true, ControlPlaneHosts: base.ControlPlaneHosts}},
-		{name: "enforcement", next: agentsdk.EgressConfig{ExitNodeIDs: base.ExitNodeIDs, ExitNodePort: base.ExitNodePort, Enforce: false, ControlPlaneHosts: base.ControlPlaneHosts}, want: true},
-		{name: "control plane hosts", next: agentsdk.EgressConfig{ExitNodeIDs: base.ExitNodeIDs, ExitNodePort: base.ExitNodePort, Enforce: true, ControlPlaneHosts: []string{"tcp/other.example:443"}}, want: true},
+		{name: "selector", next: agentsdk.EgressConfig{ExitNodes: []agentsdk.EgressExitNode{{ID: uuid.New(), ReplicaIDs: []uuid.UUID{uuid.New()}}}, ExitNodePort: 4128, Enforce: true, ControlPlaneHosts: base.ControlPlaneHosts}},
+		{name: "enforcement", next: agentsdk.EgressConfig{ExitNodes: base.ExitNodes, ExitNodePort: base.ExitNodePort, Enforce: false, ControlPlaneHosts: base.ControlPlaneHosts}, want: true},
+		{name: "control plane hosts", next: agentsdk.EgressConfig{ExitNodes: base.ExitNodes, ExitNodePort: base.ExitNodePort, Enforce: true, ControlPlaneHosts: []string{"tcp/other.example:443"}}, want: true},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()

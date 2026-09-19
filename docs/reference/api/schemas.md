@@ -6289,34 +6289,52 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "created_at": "2019-08-24T14:15:22Z",
   "display_name": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-  "last_seen_at": "2019-08-24T14:15:22Z",
   "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-  "tailnet_address": "string",
+  "policy_mismatch": true,
+  "replicas": [
+    {
+      "exit_node_id": "6e1d16cb-7313-46cb-bb18-f1f3225acb29",
+      "hostname": "string",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "policy_hash": "string",
+      "started_at": "2019-08-24T14:15:22Z",
+      "status": "live",
+      "stopped_at": "2019-08-24T14:15:22Z",
+      "tailnet_address": "string",
+      "updated_at": "2019-08-24T14:15:22Z",
+      "version": "string",
+      "wireguard_endpoints": [
+        "string"
+      ]
+    }
+  ],
+  "status": "healthy",
   "token": "string",
-  "updated_at": "2019-08-24T14:15:22Z",
-  "version": "string",
-  "wireguard_endpoints": [
-    "string"
-  ]
+  "updated_at": "2019-08-24T14:15:22Z"
 }
 ```
 
 ### Properties
 
-| Name                  | Type            | Required | Restrictions | Description                                                                                                                            |
-|-----------------------|-----------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------|
-| `created_at`          | string          | false    |              |                                                                                                                                        |
-| `display_name`        | string          | false    |              |                                                                                                                                        |
-| `id`                  | string          | false    |              |                                                                                                                                        |
-| `last_seen_at`        | string          | false    |              |                                                                                                                                        |
-| `name`                | string          | false    |              |                                                                                                                                        |
-| `organization_id`     | string          | false    |              |                                                                                                                                        |
-| `tailnet_address`     | string          | false    |              | Tailnet address is the deterministic tailnet IP agents dial, derived from the exit node ID.                                            |
-| `token`               | string          | false    |              |                                                                                                                                        |
-| `updated_at`          | string          | false    |              |                                                                                                                                        |
-| `version`             | string          | false    |              |                                                                                                                                        |
-| `wireguard_endpoints` | array of string | false    |              | Wireguard endpoints are the public ip:port pairs agents may use for direct WireGuard connections. Agents exempt them from enforcement. |
+| Name              | Type                                                          | Required | Restrictions | Description                                                                                                                        |
+|-------------------|---------------------------------------------------------------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------|
+| `created_at`      | string                                                        | false    |              |                                                                                                                                    |
+| `display_name`    | string                                                        | false    |              |                                                                                                                                    |
+| `id`              | string                                                        | false    |              |                                                                                                                                    |
+| `name`            | string                                                        | false    |              |                                                                                                                                    |
+| `organization_id` | string                                                        | false    |              |                                                                                                                                    |
+| `policy_mismatch` | boolean                                                       | false    |              | Policy mismatch is set when live replicas report different policy hashes, meaning the node does not enforce one consistent policy. |
+| `replicas`        | array of [codersdk.ExitNodeReplica](#codersdkexitnodereplica) | false    |              | Replicas lists every replica that has ever registered, including stale and stopped ones, newest last.                              |
+| `status`          | [codersdk.ExitNodeStatus](#codersdkexitnodestatus)            | false    |              | Status summarizes replica liveness.                                                                                                |
+| `token`           | string                                                        | false    |              |                                                                                                                                    |
+| `updated_at`      | string                                                        | false    |              |                                                                                                                                    |
+
+#### Enumerated Values
+
+| Property | Value(s)                                 |
+|----------|------------------------------------------|
+| `status` | `healthy`, `unreachable`, `unregistered` |
 
 ## codersdk.CreateFirstUserOnboardingInfo
 
@@ -8585,6 +8603,20 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `workspace_prebuilds`                          | [codersdk.PrebuildsConfig](#codersdkprebuildsconfig)                                                 | false    |              |                                                                           |
 | `write_config`                                 | boolean                                                                                              | false    |              |                                                                           |
 
+## codersdk.DeregisterExitNodeRequest
+
+```json
+{
+  "replica_id": "f58c6c30-40df-4477-a3dd-41e0b1f0a404"
+}
+```
+
+### Properties
+
+| Name         | Type   | Required | Restrictions | Description |
+|--------------|--------|----------|--------------|-------------|
+| `replica_id` | string | false    |              |             |
+
 ## codersdk.DiagnosticExtra
 
 ```json
@@ -9034,32 +9066,50 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
   "created_at": "2019-08-24T14:15:22Z",
   "display_name": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-  "last_seen_at": "2019-08-24T14:15:22Z",
   "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-  "tailnet_address": "string",
-  "updated_at": "2019-08-24T14:15:22Z",
-  "version": "string",
-  "wireguard_endpoints": [
-    "string"
-  ]
+  "policy_mismatch": true,
+  "replicas": [
+    {
+      "exit_node_id": "6e1d16cb-7313-46cb-bb18-f1f3225acb29",
+      "hostname": "string",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "policy_hash": "string",
+      "started_at": "2019-08-24T14:15:22Z",
+      "status": "live",
+      "stopped_at": "2019-08-24T14:15:22Z",
+      "tailnet_address": "string",
+      "updated_at": "2019-08-24T14:15:22Z",
+      "version": "string",
+      "wireguard_endpoints": [
+        "string"
+      ]
+    }
+  ],
+  "status": "healthy",
+  "updated_at": "2019-08-24T14:15:22Z"
 }
 ```
 
 ### Properties
 
-| Name                  | Type            | Required | Restrictions | Description                                                                                                                            |
-|-----------------------|-----------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------|
-| `created_at`          | string          | false    |              |                                                                                                                                        |
-| `display_name`        | string          | false    |              |                                                                                                                                        |
-| `id`                  | string          | false    |              |                                                                                                                                        |
-| `last_seen_at`        | string          | false    |              |                                                                                                                                        |
-| `name`                | string          | false    |              |                                                                                                                                        |
-| `organization_id`     | string          | false    |              |                                                                                                                                        |
-| `tailnet_address`     | string          | false    |              | Tailnet address is the deterministic tailnet IP agents dial, derived from the exit node ID.                                            |
-| `updated_at`          | string          | false    |              |                                                                                                                                        |
-| `version`             | string          | false    |              |                                                                                                                                        |
-| `wireguard_endpoints` | array of string | false    |              | Wireguard endpoints are the public ip:port pairs agents may use for direct WireGuard connections. Agents exempt them from enforcement. |
+| Name              | Type                                                          | Required | Restrictions | Description                                                                                                                        |
+|-------------------|---------------------------------------------------------------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------|
+| `created_at`      | string                                                        | false    |              |                                                                                                                                    |
+| `display_name`    | string                                                        | false    |              |                                                                                                                                    |
+| `id`              | string                                                        | false    |              |                                                                                                                                    |
+| `name`            | string                                                        | false    |              |                                                                                                                                    |
+| `organization_id` | string                                                        | false    |              |                                                                                                                                    |
+| `policy_mismatch` | boolean                                                       | false    |              | Policy mismatch is set when live replicas report different policy hashes, meaning the node does not enforce one consistent policy. |
+| `replicas`        | array of [codersdk.ExitNodeReplica](#codersdkexitnodereplica) | false    |              | Replicas lists every replica that has ever registered, including stale and stopped ones, newest last.                              |
+| `status`          | [codersdk.ExitNodeStatus](#codersdkexitnodestatus)            | false    |              | Status summarizes replica liveness.                                                                                                |
+| `updated_at`      | string                                                        | false    |              |                                                                                                                                    |
+
+#### Enumerated Values
+
+| Property | Value(s)                                 |
+|----------|------------------------------------------|
+| `status` | `healthy`, `unreachable`, `unregistered` |
 
 ## codersdk.ExitNodeFlowDecision
 
@@ -9126,6 +9176,76 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | Value(s)            |
 |---------------------|
 | `dns`, `tcp`, `udp` |
+
+## codersdk.ExitNodeReplica
+
+```json
+{
+  "exit_node_id": "6e1d16cb-7313-46cb-bb18-f1f3225acb29",
+  "hostname": "string",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "policy_hash": "string",
+  "started_at": "2019-08-24T14:15:22Z",
+  "status": "live",
+  "stopped_at": "2019-08-24T14:15:22Z",
+  "tailnet_address": "string",
+  "updated_at": "2019-08-24T14:15:22Z",
+  "version": "string",
+  "wireguard_endpoints": [
+    "string"
+  ]
+}
+```
+
+### Properties
+
+| Name                  | Type                                                             | Required | Restrictions | Description                                                                                                                            |
+|-----------------------|------------------------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------|
+| `exit_node_id`        | string                                                           | false    |              |                                                                                                                                        |
+| `hostname`            | string                                                           | false    |              |                                                                                                                                        |
+| `id`                  | string                                                           | false    |              |                                                                                                                                        |
+| `policy_hash`         | string                                                           | false    |              | Policy hash identifies the policy the replica enforces.                                                                                |
+| `started_at`          | string                                                           | false    |              |                                                                                                                                        |
+| `status`              | [codersdk.ExitNodeReplicaStatus](#codersdkexitnodereplicastatus) | false    |              |                                                                                                                                        |
+| `stopped_at`          | string                                                           | false    |              |                                                                                                                                        |
+| `tailnet_address`     | string                                                           | false    |              | Tailnet address is the deterministic tailnet IP derived from ID.                                                                       |
+| `updated_at`          | string                                                           | false    |              |                                                                                                                                        |
+| `version`             | string                                                           | false    |              |                                                                                                                                        |
+| `wireguard_endpoints` | array of string                                                  | false    |              | Wireguard endpoints are the public ip:port pairs agents may use for direct WireGuard connections. Agents exempt them from enforcement. |
+
+#### Enumerated Values
+
+| Property | Value(s)                   |
+|----------|----------------------------|
+| `status` | `live`, `stale`, `stopped` |
+
+## codersdk.ExitNodeReplicaStatus
+
+```json
+"live"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                   |
+|----------------------------|
+| `live`, `stale`, `stopped` |
+
+## codersdk.ExitNodeStatus
+
+```json
+"healthy"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                                 |
+|------------------------------------------|
+| `healthy`, `unreachable`, `unregistered` |
 
 ## codersdk.Experiment
 
@@ -13474,6 +13594,8 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 ```json
 {
   "hostname": "string",
+  "policy_hash": "string",
+  "replica_id": "f58c6c30-40df-4477-a3dd-41e0b1f0a404",
   "version": "string",
   "wireguard_endpoints": [
     "string"
@@ -13483,11 +13605,13 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 ### Properties
 
-| Name                  | Type            | Required | Restrictions | Description |
-|-----------------------|-----------------|----------|--------------|-------------|
-| `hostname`            | string          | false    |              |             |
-| `version`             | string          | false    |              |             |
-| `wireguard_endpoints` | array of string | false    |              |             |
+| Name                  | Type            | Required | Restrictions | Description                                                                                                         |
+|-----------------------|-----------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------|
+| `hostname`            | string          | false    |              |                                                                                                                     |
+| `policy_hash`         | string          | false    |              | Policy hash identifies the policy this replica enforces so coderd can flag replicas of one exit node that disagree. |
+| `replica_id`          | string          | false    |              | Replica ID is generated once per process start and doubles as the replica's tailnet peer ID. Required.              |
+| `version`             | string          | false    |              |                                                                                                                     |
+| `wireguard_endpoints` | array of string | false    |              |                                                                                                                     |
 
 ## codersdk.RegisterExitNodeResponse
 
@@ -13555,17 +13679,35 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
         "regionName": "string"
       }
     }
-  }
+  },
+  "sibling_replicas": [
+    {
+      "exit_node_id": "6e1d16cb-7313-46cb-bb18-f1f3225acb29",
+      "hostname": "string",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "policy_hash": "string",
+      "started_at": "2019-08-24T14:15:22Z",
+      "status": "live",
+      "stopped_at": "2019-08-24T14:15:22Z",
+      "tailnet_address": "string",
+      "updated_at": "2019-08-24T14:15:22Z",
+      "version": "string",
+      "wireguard_endpoints": [
+        "string"
+      ]
+    }
+  ]
 }
 ```
 
 ### Properties
 
-| Name                    | Type                               | Required | Restrictions | Description                                                                                                                            |
-|-------------------------|------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------|
-| `agent_ids`             | array of string                    | false    |              | Agent ids are the workspace agents this exit node must open tunnels to. Coderd computes the set from templates bound to the exit node. |
-| `derp_force_websockets` | boolean                            | false    |              |                                                                                                                                        |
-| `derp_map`              | [tailcfg.DERPMap](#tailcfgderpmap) | false    |              |                                                                                                                                        |
+| Name                    | Type                                                          | Required | Restrictions | Description                                                                                                                            |
+|-------------------------|---------------------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------|
+| `agent_ids`             | array of string                                               | false    |              | Agent ids are the workspace agents this exit node must open tunnels to. Coderd computes the set from templates bound to the exit node. |
+| `derp_force_websockets` | boolean                                                       | false    |              |                                                                                                                                        |
+| `derp_map`              | [tailcfg.DERPMap](#tailcfgderpmap)                            | false    |              |                                                                                                                                        |
+| `sibling_replicas`      | array of [codersdk.ExitNodeReplica](#codersdkexitnodereplica) | false    |              | Sibling replicas are the other live replicas of the same exit node.                                                                    |
 
 ## codersdk.Replica
 

@@ -2121,15 +2121,28 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/exitnod
     "created_at": "2019-08-24T14:15:22Z",
     "display_name": "string",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-    "last_seen_at": "2019-08-24T14:15:22Z",
     "name": "string",
     "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-    "tailnet_address": "string",
-    "updated_at": "2019-08-24T14:15:22Z",
-    "version": "string",
-    "wireguard_endpoints": [
-      "string"
-    ]
+    "policy_mismatch": true,
+    "replicas": [
+      {
+        "exit_node_id": "6e1d16cb-7313-46cb-bb18-f1f3225acb29",
+        "hostname": "string",
+        "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+        "policy_hash": "string",
+        "started_at": "2019-08-24T14:15:22Z",
+        "status": "live",
+        "stopped_at": "2019-08-24T14:15:22Z",
+        "tailnet_address": "string",
+        "updated_at": "2019-08-24T14:15:22Z",
+        "version": "string",
+        "wireguard_endpoints": [
+          "string"
+        ]
+      }
+    ],
+    "status": "healthy",
+    "updated_at": "2019-08-24T14:15:22Z"
   }
 ]
 ```
@@ -2144,19 +2157,35 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/exitnod
 
 Status Code **200**
 
-| Name                    | Type              | Required | Restrictions | Description                                                                                                                            |
-|-------------------------|-------------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------|
-| `[array item]`          | array             | false    |              |                                                                                                                                        |
-| `» created_at`          | string(date-time) | false    |              |                                                                                                                                        |
-| `» display_name`        | string            | false    |              |                                                                                                                                        |
-| `» id`                  | string(uuid)      | false    |              |                                                                                                                                        |
-| `» last_seen_at`        | string(date-time) | false    |              |                                                                                                                                        |
-| `» name`                | string            | false    |              |                                                                                                                                        |
-| `» organization_id`     | string(uuid)      | false    |              |                                                                                                                                        |
-| `» tailnet_address`     | string            | false    |              | Tailnet address is the deterministic tailnet IP agents dial, derived from the exit node ID.                                            |
-| `» updated_at`          | string(date-time) | false    |              |                                                                                                                                        |
-| `» version`             | string            | false    |              |                                                                                                                                        |
-| `» wireguard_endpoints` | array             | false    |              | Wireguard endpoints are the public ip:port pairs agents may use for direct WireGuard connections. Agents exempt them from enforcement. |
+| Name                     | Type                                                                       | Required | Restrictions | Description                                                                                                                            |
+|--------------------------|----------------------------------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------|
+| `[array item]`           | array                                                                      | false    |              |                                                                                                                                        |
+| `» created_at`           | string(date-time)                                                          | false    |              |                                                                                                                                        |
+| `» display_name`         | string                                                                     | false    |              |                                                                                                                                        |
+| `» id`                   | string(uuid)                                                               | false    |              |                                                                                                                                        |
+| `» name`                 | string                                                                     | false    |              |                                                                                                                                        |
+| `» organization_id`      | string(uuid)                                                               | false    |              |                                                                                                                                        |
+| `» policy_mismatch`      | boolean                                                                    | false    |              | Policy mismatch is set when live replicas report different policy hashes, meaning the node does not enforce one consistent policy.     |
+| `» replicas`             | array                                                                      | false    |              | Replicas lists every replica that has ever registered, including stale and stopped ones, newest last.                                  |
+| `»» exit_node_id`        | string(uuid)                                                               | false    |              |                                                                                                                                        |
+| `»» hostname`            | string                                                                     | false    |              |                                                                                                                                        |
+| `»» id`                  | string(uuid)                                                               | false    |              |                                                                                                                                        |
+| `»» policy_hash`         | string                                                                     | false    |              | Policy hash identifies the policy the replica enforces.                                                                                |
+| `»» started_at`          | string(date-time)                                                          | false    |              |                                                                                                                                        |
+| `»» status`              | [codersdk.ExitNodeReplicaStatus](schemas.md#codersdkexitnodereplicastatus) | false    |              |                                                                                                                                        |
+| `»» stopped_at`          | string(date-time)                                                          | false    |              |                                                                                                                                        |
+| `»» tailnet_address`     | string                                                                     | false    |              | Tailnet address is the deterministic tailnet IP derived from ID.                                                                       |
+| `»» updated_at`          | string(date-time)                                                          | false    |              |                                                                                                                                        |
+| `»» version`             | string                                                                     | false    |              |                                                                                                                                        |
+| `»» wireguard_endpoints` | array                                                                      | false    |              | Wireguard endpoints are the public ip:port pairs agents may use for direct WireGuard connections. Agents exempt them from enforcement. |
+| `» status`               | [codersdk.ExitNodeStatus](schemas.md#codersdkexitnodestatus)               | false    |              | Status summarizes replica liveness.                                                                                                    |
+| `» updated_at`           | string(date-time)                                                          | false    |              |                                                                                                                                        |
+
+#### Enumerated Values
+
+| Property | Value(s)                                                             |
+|----------|----------------------------------------------------------------------|
+| `status` | `healthy`, `live`, `stale`, `stopped`, `unreachable`, `unregistered` |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -2199,16 +2228,29 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/exitno
   "created_at": "2019-08-24T14:15:22Z",
   "display_name": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-  "last_seen_at": "2019-08-24T14:15:22Z",
   "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-  "tailnet_address": "string",
+  "policy_mismatch": true,
+  "replicas": [
+    {
+      "exit_node_id": "6e1d16cb-7313-46cb-bb18-f1f3225acb29",
+      "hostname": "string",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "policy_hash": "string",
+      "started_at": "2019-08-24T14:15:22Z",
+      "status": "live",
+      "stopped_at": "2019-08-24T14:15:22Z",
+      "tailnet_address": "string",
+      "updated_at": "2019-08-24T14:15:22Z",
+      "version": "string",
+      "wireguard_endpoints": [
+        "string"
+      ]
+    }
+  ],
+  "status": "healthy",
   "token": "string",
-  "updated_at": "2019-08-24T14:15:22Z",
-  "version": "string",
-  "wireguard_endpoints": [
-    "string"
-  ]
+  "updated_at": "2019-08-24T14:15:22Z"
 }
 ```
 
@@ -2249,15 +2291,28 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/exitnod
   "created_at": "2019-08-24T14:15:22Z",
   "display_name": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-  "last_seen_at": "2019-08-24T14:15:22Z",
   "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-  "tailnet_address": "string",
-  "updated_at": "2019-08-24T14:15:22Z",
-  "version": "string",
-  "wireguard_endpoints": [
-    "string"
-  ]
+  "policy_mismatch": true,
+  "replicas": [
+    {
+      "exit_node_id": "6e1d16cb-7313-46cb-bb18-f1f3225acb29",
+      "hostname": "string",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "policy_hash": "string",
+      "started_at": "2019-08-24T14:15:22Z",
+      "status": "live",
+      "stopped_at": "2019-08-24T14:15:22Z",
+      "tailnet_address": "string",
+      "updated_at": "2019-08-24T14:15:22Z",
+      "version": "string",
+      "wireguard_endpoints": [
+        "string"
+      ]
+    }
+  ],
+  "status": "healthy",
+  "updated_at": "2019-08-24T14:15:22Z"
 }
 ```
 

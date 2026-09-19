@@ -54,6 +54,7 @@ func (r *RootCmd) exitNode() *serpent.Command {
 			r.exitNodeServer(),
 			r.exitNodeCreate(),
 			r.exitNodeList(),
+			r.exitNodeReplicas(),
 			r.exitNodeDelete(),
 		},
 	}
@@ -109,12 +110,10 @@ func (r *RootCmd) exitNodeCreate() *serpent.Command {
 					"Save this authentication token, it will not be shown again.\n"+
 					"Token: %[2]s\n"+
 					"\n"+
-					"Tailnet address: %[3]s\n"+
-					"\n"+
 					"Start the exit node by running:\n"+
-					cliui.Code("CODER_EXIT_NODE_TOKEN=%[2]s coder exit-node server --primary-access-url %[4]s --policy policy.yaml")+
+					cliui.Code("CODER_EXIT_NODE_TOKEN=%[2]s coder exit-node server --primary-access-url %[3]s --policy policy.yaml")+
 					pretty.Sprint(cliui.DefaultStyles.Placeholder, "")+"\n",
-				resp.Name, resp.Token, resp.TailnetAddress, client.URL.String(),
+				resp.Name, resp.Token, client.URL.String(),
 			)
 			return err
 		},
@@ -123,11 +122,24 @@ func (r *RootCmd) exitNodeCreate() *serpent.Command {
 	return cmd
 }
 
+type exitNodeListRow struct {
+	codersdk.ExitNode `table:"exit_node,recursive_inline"`
+	ReplicaCount      int `json:"-" table:"replicas"`
+}
+
+func exitNodeListRows(nodes []codersdk.ExitNode) []exitNodeListRow {
+	rows := make([]exitNodeListRow, len(nodes))
+	for i, node := range nodes {
+		rows[i] = exitNodeListRow{ExitNode: node, ReplicaCount: len(node.Replicas)}
+	}
+	return rows
+}
+
 func (r *RootCmd) exitNodeList() *serpent.Command {
 	var (
 		orgContext = agpl.NewOrganizationContext()
 		formatter  = cliui.NewOutputFormatter(
-			cliui.TableFormat([]codersdk.ExitNode{}, []string{"name", "display name", "tailnet address", "version", "last seen at"}),
+			cliui.TableFormat([]exitNodeListRow{}, []string{"name", "display name", "status", "replicas", "policy mismatch"}),
 			cliui.JSONFormat(),
 		)
 	)
@@ -149,7 +161,77 @@ func (r *RootCmd) exitNodeList() *serpent.Command {
 				cliui.Infof(inv.Stderr, "No exit nodes found.")
 				return nil
 			}
-			output, err := formatter.Format(inv.Context(), nodes)
+			output, err := formatter.Format(inv.Context(), exitNodeListRows(nodes))
+			if err != nil {
+				return err
+			}
+			_, err = fmt.Fprintln(inv.Stdout, output)
+			return err
+		},
+	}
+	formatter.AttachOptions(&cmd.Options)
+	orgContext.AttachOptions(cmd)
+	return cmd
+}
+
+type exitNodeReplicaRow struct {
+	Hostname       string                         `table:"hostname,default_sort"`
+	Status         codersdk.ExitNodeReplicaStatus `table:"status"`
+	Version        string                         `table:"version"`
+	TailnetAddress string                         `table:"tailnet address"`
+	PolicyHash     string                         `table:"policy hash"`
+	UpdatedAt      string                         `table:"updated at"`
+}
+
+func exitNodeReplicaRows(replicas []codersdk.ExitNodeReplica) []exitNodeReplicaRow {
+	rows := make([]exitNodeReplicaRow, len(replicas))
+	for i, replica := range replicas {
+		hash := replica.PolicyHash
+		if len(hash) > 12 {
+			hash = hash[:12]
+		}
+		rows[i] = exitNodeReplicaRow{
+			Hostname:       replica.Hostname,
+			Status:         replica.Status,
+			Version:        replica.Version,
+			TailnetAddress: replica.TailnetAddress,
+			PolicyHash:     hash,
+			UpdatedAt:      replica.UpdatedAt.Format("2006-01-02 15:04:05"),
+		}
+	}
+	return rows
+}
+
+func (r *RootCmd) exitNodeReplicas() *serpent.Command {
+	var (
+		orgContext = agpl.NewOrganizationContext()
+		formatter  = cliui.NewOutputFormatter(
+			cliui.TableFormat([]exitNodeReplicaRow{}, []string{"hostname", "status", "version", "tailnet address", "policy hash", "updated at"}),
+			cliui.JSONFormat(),
+		)
+	)
+	cmd := &serpent.Command{
+		Use:        "replicas <name|id>",
+		Short:      "List replicas of an exit node",
+		Middleware: serpent.RequireNArgs(1),
+		Handler: func(inv *serpent.Invocation) error {
+			client, org, err := r.exitNodeOrgClient(inv, orgContext)
+			if err != nil {
+				return err
+			}
+			node, err := client.ExitNodeByName(inv.Context(), org.ID, inv.Args[0])
+			if err != nil {
+				return xerrors.Errorf("fetch exit node %q: %w", inv.Args[0], err)
+			}
+			if len(node.Replicas) == 0 {
+				cliui.Infof(inv.Stderr, "No replicas found for exit node %q.", node.Name)
+				return nil
+			}
+			data := any(exitNodeReplicaRows(node.Replicas))
+			if formatter.FormatID() == "json" {
+				data = node.Replicas
+			}
+			output, err := formatter.Format(inv.Context(), data)
 			if err != nil {
 				return err
 			}
@@ -238,12 +320,13 @@ func (r *RootCmd) exitNodeServer() *serpent.Command {
 		provisionalHostAllow bool
 		upstreamDNS          []string
 		verbose              bool
+		replicaIDOverride    string
 	)
 	return &serpent.Command{
 		Use:   "server",
 		Short: "Run an exit node",
-		Long: "Run an exit node. The node registers with coderd using its token, joins the " +
-			"tailnet at a deterministic address derived from its ID, and accepts HTTP CONNECT " +
+		Long: "Run an exit node replica. The replica registers with coderd using its token, joins the " +
+			"tailnet at a deterministic address derived from its replica ID, and accepts HTTP CONNECT " +
 			"requests from workspace agents on the listen port. Send SIGHUP to reload the policy file.",
 		Middleware: serpent.RequireNArgs(0),
 		Options: serpent.OptionSet{
@@ -274,6 +357,11 @@ func (r *RootCmd) exitNodeServer() *serpent.Command {
 				Description: "Path to the YAML policy file. Reloaded on SIGHUP.",
 				Required:    true,
 				Value:       serpent.StringOf(&policyPath),
+			},
+			{
+				Flag:        "replica-id",
+				Description: "Replica ID override. By default a fresh ID is generated at startup.",
+				Value:       serpent.StringOf(&replicaIDOverride),
 			},
 			{
 				Flag:        "listen-port",
@@ -347,6 +435,17 @@ func (r *RootCmd) exitNodeServer() *serpent.Command {
 				return xerrors.Errorf("token does not start with a valid exit node ID: %w", err)
 			}
 
+			replicaID := uuid.New()
+			if replicaIDOverride != "" {
+				replicaID, err = uuid.Parse(replicaIDOverride)
+				if err != nil {
+					return xerrors.Errorf("parse --replica-id: %w", err)
+				}
+				if replicaID == uuid.Nil {
+					return xerrors.New("--replica-id must not be nil")
+				}
+			}
+
 			logOpts := []clilog.Option{clilog.WithHuman("/dev/stderr")}
 			if verbose {
 				logOpts = append(logOpts, clilog.WithVerbose())
@@ -400,12 +499,13 @@ func (r *RootCmd) exitNodeServer() *serpent.Command {
 			headerTransport.Transport = http.DefaultTransport
 			client.SDKClient.HTTPClient.Transport = headerTransport
 
-			cliui.Infof(inv.Stdout, "Starting exit node %s (tailnet address %s)",
-				exitNodeID, exitnode.TailnetAddrForID(exitNodeID))
+			cliui.Infof(inv.Stdout, "Starting exit node replica %s (tailnet address %s)",
+				replicaID, exitnode.TailnetAddrForID(replicaID))
 
 			srv, err := exitnode.New(ctx, logger, exitnode.Options{
 				Client:                       client,
 				ExitNodeID:                   exitNodeID,
+				ReplicaID:                    replicaID,
 				Policy:                       policy,
 				ListenPort:                   int(listenPort),
 				PrometheusRegistry:           prometheusRegistry,

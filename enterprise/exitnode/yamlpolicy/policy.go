@@ -3,6 +3,8 @@
 package yamlpolicy
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"net/netip"
 	"os"
@@ -116,6 +118,7 @@ func (r *rule) decision(reason string) exitnode.Decision {
 type compiledPolicy struct {
 	defaultAllow bool
 	rules        []*rule
+	hash         string
 }
 
 // Policy is an exitnode.Policy defined by a YAML document; see policyFile
@@ -125,7 +128,10 @@ type Policy struct {
 	compiled atomic.Pointer[compiledPolicy]
 }
 
-var _ exitnode.ReloadablePolicy = (*Policy)(nil)
+var (
+	_ exitnode.ReloadablePolicy = (*Policy)(nil)
+	_ exitnode.PolicyHasher     = (*Policy)(nil)
+)
 
 // Load reads and compiles the policy at path. The returned policy remembers
 // the path so Reload can re-read it.
@@ -144,6 +150,7 @@ func Parse(data []byte) (*Policy, error) {
 	if err != nil {
 		return nil, err
 	}
+	compiled.hash = policyHash(data)
 	p := &Policy{}
 	p.compiled.Store(compiled)
 	return p, nil
@@ -163,8 +170,14 @@ func (p *Policy) Reload() error {
 	if err != nil {
 		return xerrors.Errorf("parse policy file %q: %w", p.path, err)
 	}
+	compiled.hash = policyHash(data)
 	p.compiled.Store(compiled)
 	return nil
+}
+
+// PolicyHash returns the SHA-256 hash of the raw YAML bytes currently in use.
+func (p *Policy) PolicyHash() string {
+	return p.compiled.Load().hash
 }
 
 // Evaluate walks the rules in order and returns the first match, falling back
@@ -208,6 +221,11 @@ func (p *Policy) Evaluate(flow exitnode.FlowInfo) exitnode.Decision {
 		return exitnode.Decision{Allow: true, Reason: "default allow"}
 	}
 	return exitnode.Decision{Reason: "default deny"}
+}
+
+func policyHash(data []byte) string {
+	sum := sha256.Sum256(data)
+	return hex.EncodeToString(sum[:])
 }
 
 func compilePolicy(data []byte) (*compiledPolicy, error) {

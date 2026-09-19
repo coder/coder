@@ -76,7 +76,7 @@ func (api *API) postExitNode(rw http.ResponseWriter, r *http.Request) {
 
 	aReq.New = node
 	httpapi.Write(ctx, rw, http.StatusCreated, codersdk.CreateExitNodeResponse{
-		ExitNode: convertExitNode(node),
+		ExitNode: convertExitNode(node, nil, now),
 		Token:    fullToken,
 	})
 }
@@ -96,7 +96,19 @@ func (api *API) exitNodes(rw http.ResponseWriter, r *http.Request) {
 		httpapi.InternalServerError(rw, err)
 		return
 	}
-	httpapi.Write(ctx, rw, http.StatusOK, slice.List(nodes, convertExitNode))
+	now := dbtime.Now()
+	converted := make([]codersdk.ExitNode, 0, len(nodes))
+	// This is intentionally an N+1 query until the database exposes a bulk
+	// replica lookup that preserves exit node ordering.
+	for _, node := range nodes {
+		replicas, err := api.Database.GetExitNodeReplicasByExitNode(ctx, node.ID)
+		if err != nil {
+			httpapi.InternalServerError(rw, xerrors.Errorf("get exit node replicas: %w", err))
+			return
+		}
+		converted = append(converted, convertExitNode(node, replicas, now))
+	}
+	httpapi.Write(ctx, rw, http.StatusOK, converted)
 }
 
 // @Summary Get exit node
@@ -113,7 +125,12 @@ func (api *API) exitNode(rw http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	httpapi.Write(r.Context(), rw, http.StatusOK, convertExitNode(node))
+	replicas, err := api.Database.GetExitNodeReplicasByExitNode(r.Context(), node.ID)
+	if err != nil {
+		httpapi.InternalServerError(rw, xerrors.Errorf("get exit node replicas: %w", err))
+		return
+	}
+	httpapi.Write(r.Context(), rw, http.StatusOK, convertExitNode(node, replicas, dbtime.Now()))
 }
 
 // @Summary Delete exit node
@@ -216,16 +233,58 @@ func (api *API) registerExitNode(rw http.ResponseWriter, r *http.Request) {
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
 	}
-
-	_, err := api.Database.UpdateExitNodeRegistration(ctx, database.UpdateExitNodeRegistrationParams{
-		ID:                 node.ID,
-		Version:            req.Version,
-		LastSeenAt:         dbtime.Now(),
-		WireguardEndpoints: nonNil(req.WireguardEndpoints),
-	})
-	if err != nil {
-		httpapi.InternalServerError(rw, xerrors.Errorf("update exit node registration: %w", err))
+	if req.ReplicaID == uuid.Nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{Message: "Replica ID is invalid."})
 		return
+	}
+
+	now := dbtime.Now()
+	isNew := false
+	var registrationErr error
+	err := api.Database.InTx(func(db database.Store) error {
+		replica, err := db.GetExitNodeReplicaByID(ctx, req.ReplicaID)
+		switch {
+		case err == nil:
+			if replica.StoppedAt.Valid {
+				registrationErr = xerrors.New("replica is stopped; restart with a new replica id")
+				return registrationErr
+			}
+			if replica.ExitNodeID != node.ID {
+				registrationErr = xerrors.New("replica belongs to a different exit node")
+				return registrationErr
+			}
+		case xerrors.Is(err, sql.ErrNoRows):
+			isNew = true
+		case err != nil:
+			return xerrors.Errorf("get exit node replica: %w", err)
+		}
+		_, err = db.UpsertExitNodeReplica(ctx, database.UpsertExitNodeReplicaParams{
+			ID:                 req.ReplicaID,
+			ExitNodeID:         node.ID,
+			Hostname:           req.Hostname,
+			Version:            req.Version,
+			WireguardEndpoints: nonNil(req.WireguardEndpoints),
+			PolicyHash:         req.PolicyHash,
+			Now:                now,
+		})
+		return err
+	}, nil)
+	if registrationErr != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{Message: registrationErr.Error()})
+		return
+	}
+	if err != nil {
+		httpapi.InternalServerError(rw, xerrors.Errorf("upsert exit node replica: %w", err))
+		return
+	}
+	if isNew {
+		if err := api.Pubsub.Publish(codersdk.ExitNodeReplicasPubsubChannel, []byte(node.ID.String())); err != nil {
+			httpapi.InternalServerError(rw, xerrors.Errorf("publish exit node replica update: %w", err))
+			return
+		}
+	}
+	if err := api.Database.DeleteStaleExitNodeReplicas(ctx, now.Add(-24*time.Hour)); err != nil {
+		api.Logger.Warn(ctx, "failed to delete stale exit node replicas", slog.Error(err))
 	}
 
 	// The middleware already runs the handler as system, which the query
@@ -235,12 +294,65 @@ func (api *API) registerExitNode(rw http.ResponseWriter, r *http.Request) {
 		httpapi.InternalServerError(rw, xerrors.Errorf("get bound agents: %w", err))
 		return
 	}
+	liveReplicas, err := api.Database.GetLiveExitNodeReplicas(ctx, database.GetLiveExitNodeReplicasParams{
+		ExitNodeIds:  []uuid.UUID{node.ID},
+		UpdatedAfter: now.Add(-codersdk.ExitNodeReplicaStaleAfter),
+	})
+	if err != nil {
+		httpapi.InternalServerError(rw, xerrors.Errorf("get sibling replicas: %w", err))
+		return
+	}
+	siblings := make([]codersdk.ExitNodeReplica, 0, len(liveReplicas))
+	for _, replica := range liveReplicas {
+		if replica.ID != req.ReplicaID {
+			siblings = append(siblings, convertExitNodeReplica(replica, now))
+		}
+	}
 
 	httpapi.Write(ctx, rw, http.StatusCreated, codersdk.RegisterExitNodeResponse{
 		DERPMap:             api.AGPL.DERPMap(),
 		DERPForceWebSockets: api.DeploymentValues.DERP.Config.ForceWebSockets.Value(),
 		AgentIDs:            nonNil(agentIDs),
+		SiblingReplicas:     siblings,
 	})
+}
+
+// @Summary Deregister exit node
+// @ID deregister-exit-node
+// @Security CoderSessionToken
+// @Accept json
+// @Tags Enterprise
+// @Param request body codersdk.DeregisterExitNodeRequest true "Deregister exit node request"
+// @Success 204
+// @Router /api/v2/exitnodes/me/deregister [post]
+// @x-apidocgen {"skip": true}
+func (api *API) deregisterExitNode(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	node := httpmw.ExitNode(r)
+	var req codersdk.DeregisterExitNodeRequest
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+	replica, err := api.Database.GetExitNodeReplicaByID(ctx, req.ReplicaID)
+	if xerrors.Is(err, sql.ErrNoRows) || err == nil && replica.ExitNodeID != node.ID {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+	if err != nil {
+		httpapi.InternalServerError(rw, xerrors.Errorf("get exit node replica: %w", err))
+		return
+	}
+	if err := api.Database.StopExitNodeReplica(ctx, database.StopExitNodeReplicaParams{
+		ID: req.ReplicaID, StoppedAt: dbtime.Now(),
+	}); err != nil {
+		httpapi.InternalServerError(rw, xerrors.Errorf("stop exit node replica: %w", err))
+		return
+	}
+	if err := api.Pubsub.Publish(codersdk.ExitNodeReplicasPubsubChannel, []byte(node.ID.String())); err != nil {
+		httpapi.InternalServerError(rw, xerrors.Errorf("publish exit node replica update: %w", err))
+		return
+	}
+	rw.WriteHeader(http.StatusNoContent)
 }
 
 // @Summary Exit node coordinate
@@ -251,9 +363,31 @@ func (api *API) registerExitNode(rw http.ResponseWriter, r *http.Request) {
 // @Router /api/v2/exitnodes/me/coordinate [get]
 // @x-apidocgen {"skip": true}
 func (api *API) exitNodeCoordinate(rw http.ResponseWriter, r *http.Request) {
-	// The exit node ID doubles as its tailnet peer ID so that agents can
-	// derive its tailnet address from the ID alone.
-	api.serveMultiAgentCoordinate(rw, r, httpmw.ExitNode(r).ID)
+	ctx := r.Context()
+	node := httpmw.ExitNode(r)
+	replicaID, err := uuid.Parse(r.URL.Query().Get(codersdk.ExitNodeCoordinateReplicaIDParam))
+	if err != nil || replicaID == uuid.Nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{Message: "Replica ID is missing or invalid."})
+		return
+	}
+	replica, err := api.Database.GetExitNodeReplicaByID(ctx, replicaID)
+	if xerrors.Is(err, sql.ErrNoRows) || err == nil && replica.ExitNodeID != node.ID {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+	if err != nil {
+		httpapi.InternalServerError(rw, xerrors.Errorf("get exit node replica: %w", err))
+		return
+	}
+	if replica.StoppedAt.Valid {
+		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{Message: "Replica is stopped."})
+		return
+	}
+	if !replica.UpdatedAt.After(dbtime.Now().Add(-codersdk.ExitNodeReplicaStaleAfter)) {
+		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{Message: "Replica is stale; replicas must register before coordinating."})
+		return
+	}
+	api.serveMultiAgentCoordinate(rw, r, replicaID)
 }
 
 // @Summary Report exit node flows
@@ -273,6 +407,9 @@ func (api *API) reportExitNodeFlows(rw http.ResponseWriter, r *http.Request) {
 	)
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
+	}
+	if replicaID := r.URL.Query().Get(codersdk.ExitNodeCoordinateReplicaIDParam); replicaID != "" {
+		api.Logger.Debug(ctx, "received exit node flow report", slog.F("replica_id", replicaID))
 	}
 	connLogger := api.AGPL.ConnectionLogger.Load()
 	if connLogger == nil {
@@ -438,22 +575,57 @@ func exitNodeFlowConnectionLogs(base database.UpsertConnectionLogParams, flow co
 	return []database.UpsertConnectionLogParams{connect, disconnect}
 }
 
-func convertExitNode(node database.ExitNode) codersdk.ExitNode {
-	var lastSeenAt *time.Time
-	if node.LastSeenAt.Valid {
-		lastSeenAt = &node.LastSeenAt.Time
+func convertExitNode(node database.ExitNode, replicas []database.ExitNodeReplica, now time.Time) codersdk.ExitNode {
+	convertedReplicas := make([]codersdk.ExitNodeReplica, 0, len(replicas))
+	status := codersdk.ExitNodeStatusUnregistered
+	policyHashes := make(map[string]struct{})
+	for _, replica := range replicas {
+		converted := convertExitNodeReplica(replica, now)
+		convertedReplicas = append(convertedReplicas, converted)
+		if converted.Status == codersdk.ExitNodeReplicaStatusLive {
+			status = codersdk.ExitNodeStatusHealthy
+			if converted.PolicyHash != "" {
+				policyHashes[converted.PolicyHash] = struct{}{}
+			}
+		}
+	}
+	if len(replicas) > 0 && status != codersdk.ExitNodeStatusHealthy {
+		status = codersdk.ExitNodeStatusUnreachable
 	}
 	return codersdk.ExitNode{
-		ID:                 node.ID,
-		OrganizationID:     node.OrganizationID,
-		Name:               node.Name,
-		DisplayName:        node.DisplayName,
-		CreatedAt:          node.CreatedAt,
-		UpdatedAt:          node.UpdatedAt,
-		LastSeenAt:         lastSeenAt,
-		Version:            node.Version,
-		WireguardEndpoints: nonNil(node.WireguardEndpoints),
-		TailnetAddress:     tailnet.TailscaleServicePrefix.AddrFromUUID(node.ID).String(),
+		ID:             node.ID,
+		OrganizationID: node.OrganizationID,
+		Name:           node.Name,
+		DisplayName:    node.DisplayName,
+		CreatedAt:      node.CreatedAt,
+		UpdatedAt:      node.UpdatedAt,
+		Status:         status,
+		PolicyMismatch: len(policyHashes) > 1,
+		Replicas:       convertedReplicas,
+	}
+}
+
+func convertExitNodeReplica(replica database.ExitNodeReplica, now time.Time) codersdk.ExitNodeReplica {
+	status := codersdk.ExitNodeReplicaStatusLive
+	var stoppedAt *time.Time
+	if replica.StoppedAt.Valid {
+		status = codersdk.ExitNodeReplicaStatusStopped
+		stoppedAt = &replica.StoppedAt.Time
+	} else if !replica.UpdatedAt.After(now.Add(-codersdk.ExitNodeReplicaStaleAfter)) {
+		status = codersdk.ExitNodeReplicaStatusStale
+	}
+	return codersdk.ExitNodeReplica{
+		ID:                 replica.ID,
+		ExitNodeID:         replica.ExitNodeID,
+		Hostname:           replica.Hostname,
+		Version:            replica.Version,
+		WireguardEndpoints: nonNil(replica.WireguardEndpoints),
+		PolicyHash:         replica.PolicyHash,
+		TailnetAddress:     tailnet.TailscaleServicePrefix.AddrFromUUID(replica.ID).String(),
+		Status:             status,
+		StartedAt:          replica.StartedAt,
+		UpdatedAt:          replica.UpdatedAt,
+		StoppedAt:          stoppedAt,
 	}
 }
 

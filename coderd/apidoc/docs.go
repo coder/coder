@@ -4043,6 +4043,42 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/v2/exitnodes/me/deregister": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Deregister exit node",
+                "operationId": "deregister-exit-node",
+                "parameters": [
+                    {
+                        "description": "Deregister exit node request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.DeregisterExitNodeRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
         "/api/v2/exitnodes/me/flows": {
             "post": {
                 "consumes": [
@@ -22301,10 +22337,6 @@ const docTemplate = `{
                     "type": "string",
                     "format": "uuid"
                 },
-                "last_seen_at": {
-                    "type": "string",
-                    "format": "date-time"
-                },
                 "name": {
                     "type": "string"
                 },
@@ -22312,9 +22344,29 @@ const docTemplate = `{
                     "type": "string",
                     "format": "uuid"
                 },
-                "tailnet_address": {
-                    "description": "TailnetAddress is the deterministic tailnet IP agents dial, derived\nfrom the exit node ID.",
-                    "type": "string"
+                "policy_mismatch": {
+                    "description": "PolicyMismatch is set when live replicas report different policy\nhashes, meaning the node does not enforce one consistent policy.",
+                    "type": "boolean"
+                },
+                "replicas": {
+                    "description": "Replicas lists every replica that has ever registered, including\nstale and stopped ones, newest last.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.ExitNodeReplica"
+                    }
+                },
+                "status": {
+                    "description": "Status summarizes replica liveness.",
+                    "enum": [
+                        "healthy",
+                        "unreachable",
+                        "unregistered"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ExitNodeStatus"
+                        }
+                    ]
                 },
                 "token": {
                     "type": "string"
@@ -22322,16 +22374,6 @@ const docTemplate = `{
                 "updated_at": {
                     "type": "string",
                     "format": "date-time"
-                },
-                "version": {
-                    "type": "string"
-                },
-                "wireguard_endpoints": {
-                    "description": "WireguardEndpoints are the public ip:port pairs agents may use for\ndirect WireGuard connections. Agents exempt them from enforcement.",
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
                 }
             }
         },
@@ -23770,6 +23812,15 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.DeregisterExitNodeRequest": {
+            "type": "object",
+            "properties": {
+                "replica_id": {
+                    "type": "string",
+                    "format": "uuid"
+                }
+            }
+        },
         "codersdk.DiagnosticExtra": {
             "type": "object",
             "properties": {
@@ -23982,10 +24033,6 @@ const docTemplate = `{
                     "type": "string",
                     "format": "uuid"
                 },
-                "last_seen_at": {
-                    "type": "string",
-                    "format": "date-time"
-                },
                 "name": {
                     "type": "string"
                 },
@@ -23993,23 +24040,33 @@ const docTemplate = `{
                     "type": "string",
                     "format": "uuid"
                 },
-                "tailnet_address": {
-                    "description": "TailnetAddress is the deterministic tailnet IP agents dial, derived\nfrom the exit node ID.",
-                    "type": "string"
+                "policy_mismatch": {
+                    "description": "PolicyMismatch is set when live replicas report different policy\nhashes, meaning the node does not enforce one consistent policy.",
+                    "type": "boolean"
+                },
+                "replicas": {
+                    "description": "Replicas lists every replica that has ever registered, including\nstale and stopped ones, newest last.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.ExitNodeReplica"
+                    }
+                },
+                "status": {
+                    "description": "Status summarizes replica liveness.",
+                    "enum": [
+                        "healthy",
+                        "unreachable",
+                        "unregistered"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ExitNodeStatus"
+                        }
+                    ]
                 },
                 "updated_at": {
                     "type": "string",
                     "format": "date-time"
-                },
-                "version": {
-                    "type": "string"
-                },
-                "wireguard_endpoints": {
-                    "description": "WireguardEndpoints are the public ip:port pairs agents may use for\ndirect WireGuard connections. Agents exempt them from enforcement.",
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
                 }
             }
         },
@@ -24089,6 +24146,90 @@ const docTemplate = `{
                 "ExitNodeProtocolTCP",
                 "ExitNodeProtocolUDP",
                 "ExitNodeProtocolDNS"
+            ]
+        },
+        "codersdk.ExitNodeReplica": {
+            "type": "object",
+            "properties": {
+                "exit_node_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "hostname": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "policy_hash": {
+                    "description": "PolicyHash identifies the policy the replica enforces.",
+                    "type": "string"
+                },
+                "started_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "status": {
+                    "enum": [
+                        "live",
+                        "stale",
+                        "stopped"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ExitNodeReplicaStatus"
+                        }
+                    ]
+                },
+                "stopped_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "tailnet_address": {
+                    "description": "TailnetAddress is the deterministic tailnet IP derived from ID.",
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "version": {
+                    "type": "string"
+                },
+                "wireguard_endpoints": {
+                    "description": "WireguardEndpoints are the public ip:port pairs agents may use for\ndirect WireGuard connections. Agents exempt them from enforcement.",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "codersdk.ExitNodeReplicaStatus": {
+            "type": "string",
+            "enum": [
+                "live",
+                "stale",
+                "stopped"
+            ],
+            "x-enum-varnames": [
+                "ExitNodeReplicaStatusLive",
+                "ExitNodeReplicaStatusStale",
+                "ExitNodeReplicaStatusStopped"
+            ]
+        },
+        "codersdk.ExitNodeStatus": {
+            "type": "string",
+            "enum": [
+                "healthy",
+                "unreachable",
+                "unregistered"
+            ],
+            "x-enum-varnames": [
+                "ExitNodeStatusHealthy",
+                "ExitNodeStatusUnreachable",
+                "ExitNodeStatusUnregistered"
             ]
         },
         "codersdk.Experiment": {
@@ -28220,6 +28361,15 @@ const docTemplate = `{
                 "hostname": {
                     "type": "string"
                 },
+                "policy_hash": {
+                    "description": "PolicyHash identifies the policy this replica enforces so coderd can\nflag replicas of one exit node that disagree.",
+                    "type": "string"
+                },
+                "replica_id": {
+                    "description": "ReplicaID is generated once per process start and doubles as the\nreplica's tailnet peer ID. Required.",
+                    "type": "string",
+                    "format": "uuid"
+                },
                 "version": {
                     "type": "string"
                 },
@@ -28247,6 +28397,13 @@ const docTemplate = `{
                 },
                 "derp_map": {
                     "$ref": "#/definitions/tailcfg.DERPMap"
+                },
+                "sibling_replicas": {
+                    "description": "SiblingReplicas are the other live replicas of the same exit node.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.ExitNodeReplica"
+                    }
                 }
             }
         },

@@ -165,6 +165,39 @@ func TestManifest(t *testing.T) {
 	require.Equal(t, manifest.Devcontainers, back.Devcontainers)
 }
 
+func TestEgressConfigConversion(t *testing.T) {
+	t.Parallel()
+
+	config := &agentsdk.EgressConfig{
+		ExitNodes: []agentsdk.EgressExitNode{
+			{ID: uuid.New(), ReplicaIDs: []uuid.UUID{uuid.New(), uuid.New()}},
+			{ID: uuid.New(), ReplicaIDs: []uuid.UUID{}},
+		},
+		ExitNodePort:      3128,
+		Enforce:           true,
+		ControlPlaneHosts: []string{"tcp/coder.example.com:443"},
+	}
+	protoConfig := agentsdk.ProtoFromEgressConfig(config)
+	converted, err := agentsdk.EgressConfigFromProto(protoConfig)
+	require.NoError(t, err)
+	require.Equal(t, config, converted)
+}
+
+func TestEgressConfigFromProtoInvalidIDs(t *testing.T) {
+	t.Parallel()
+
+	_, err := agentsdk.EgressConfigFromProto(&proto.EgressConfig{
+		ExitNodes: []*proto.EgressExitNode{{Id: []byte("invalid")}},
+	})
+	require.ErrorContains(t, err, "exit node ID")
+
+	exitNodeID := uuid.New()
+	_, err = agentsdk.EgressConfigFromProto(&proto.EgressConfig{
+		ExitNodes: []*proto.EgressExitNode{{Id: exitNodeID[:], ReplicaIds: [][]byte{[]byte("invalid")}}},
+	})
+	require.ErrorContains(t, err, "replica ID")
+}
+
 func TestSubsystems(t *testing.T) {
 	t.Parallel()
 	ss := []codersdk.AgentSubsystem{
