@@ -4974,6 +4974,7 @@ export const MockOAuth2ProviderApps: TypesGen.OAuth2ProviderApp[] = [
 	{
 		id: "1",
 		name: "foo",
+		redirect_uris: ["http://127.0.0.1:3001"],
 		callback_url: "http://127.0.0.1:3001",
 		icon: "/icon/github.svg",
 		scope: "",
@@ -4990,6 +4991,7 @@ export const MockOAuth2ProviderApps: TypesGen.OAuth2ProviderApp[] = [
 export const MockOAuth2ProviderAppPublic: TypesGen.OAuth2ProviderApp = {
 	id: "2",
 	name: "bar (public)",
+	redirect_uris: ["http://127.0.0.1:3002"],
 	callback_url: "http://127.0.0.1:3002",
 	icon: "/icon/github.svg",
 	scope: "",

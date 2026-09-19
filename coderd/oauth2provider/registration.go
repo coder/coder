@@ -257,7 +257,7 @@ func GetClientConfiguration(db database.Store) http.HandlerFunc {
 			ClientID:                app.ID.String(),
 			ClientIDIssuedAt:        app.ClientIDIssuedAt.Time.Unix(),
 			ClientSecretExpiresAt:   0, // No expiration for now
-			RedirectURIs:            app.RedirectUris,
+			RedirectURIs:            app.RegisteredRedirectURIs(),
 			ClientName:              app.Name,
 			ClientURI:               app.ClientUri.String,
 			LogoURI:                 app.LogoUri.String,
