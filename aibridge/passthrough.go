@@ -43,6 +43,14 @@ func newPassthroughRouter(prov provider.Provider, logger slog.Logger, m *metrics
 		ExpectContinueTimeout: 1 * time.Second,
 	}
 
+	inner := apidump.NewPassthroughMiddleware(t, prov.APIDumpDir(), prov.Name(), logger, quartz.NewReal())
+	// Providers which authenticate passthrough requests themselves (for example
+	// AWS SigV4 signing) wrap the transport here, beneath key failover, so an
+	// existing BYOK or centralized-pool credential still takes precedence.
+	if wrapper, ok := prov.(provider.PassthroughTransportWrapper); ok {
+		inner = wrapper.WrapPassthroughTransport(inner)
+	}
+
 	// Build the passthrough proxy, reused across all requests for this provider.
 	// Rewrite sets proxy headers. For centralized requests, KeyFailoverTransport
 	// handles auth and failover. BYOK requests pass through.
@@ -51,7 +59,7 @@ func newPassthroughRouter(prov provider.Provider, logger slog.Logger, m *metrics
 			rewritePassthroughRequest(pr, provBaseURL)
 		},
 		Transport: keypool.NewKeyFailoverTransport(
-			apidump.NewPassthroughMiddleware(t, prov.APIDumpDir(), prov.Name(), logger, quartz.NewReal()),
+			inner,
 			prov.KeyFailoverConfig(logger),
 		),
 		ErrorHandler: func(rw http.ResponseWriter, req *http.Request, e error) {
