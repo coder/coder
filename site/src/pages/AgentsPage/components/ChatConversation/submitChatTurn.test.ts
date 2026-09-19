@@ -315,7 +315,7 @@ describe("submitChatTurn", () => {
 		);
 	});
 
-	it("reconciles a queued send and clears plan mode on implement", async () => {
+	it("reconciles a queued send", async () => {
 		const store = createChatStore();
 		store.setActiveChatID("chat-1");
 		const queuedHead = { ...MockChatQueuedMessage, id: 3 };
@@ -336,29 +336,50 @@ describe("submitChatTurn", () => {
 			queued_messages: [],
 		});
 		const setCacheQueuedMessages = vi.fn();
+
+		await submitChatTurn(
+			buildParams({
+				store,
+				sendMessage,
+				setCacheQueuedMessages,
+				fetchQueueConvergence,
+			}),
+		);
+
+		expect(setCacheQueuedMessages).toHaveBeenCalled();
+		await vi.waitFor(() => {
+			expect(fetchQueueConvergence).toHaveBeenCalledWith("chat-1");
+		});
+	});
+
+	it("clears plan mode when implementing the plan", async () => {
+		const sendMessage = vi.fn().mockResolvedValue({ queued: false });
 		const setCachedChatPlanMode = vi.fn();
 
 		await submitChatTurn(
 			buildParams({
 				message: "Implement the plan.",
 				clearPlanMode: true,
-				store,
 				sendMessage,
-				setCacheQueuedMessages,
 				setCachedChatPlanMode,
-				fetchQueueConvergence,
 			}),
 		);
 
-		expect(setCacheQueuedMessages).toHaveBeenCalled();
-		expect(setCachedChatPlanMode).toHaveBeenCalledWith("chat-1", undefined);
 		expect(sendMessage).toHaveBeenCalledWith(
-			expect.objectContaining({
-				plan_mode: "",
-			}),
+			expect.objectContaining({ plan_mode: "" }),
 		);
-		await vi.waitFor(() => {
-			expect(fetchQueueConvergence).toHaveBeenCalledWith("chat-1");
-		});
+		expect(setCachedChatPlanMode).toHaveBeenCalledWith("chat-1", undefined);
+	});
+
+	it("leaves plan mode untouched on an ordinary send", async () => {
+		const sendMessage = vi.fn().mockResolvedValue({ queued: false });
+		const setCachedChatPlanMode = vi.fn();
+
+		await submitChatTurn(buildParams({ sendMessage, setCachedChatPlanMode }));
+
+		expect(sendMessage).toHaveBeenCalledWith(
+			expect.not.objectContaining({ plan_mode: expect.anything() }),
+		);
+		expect(setCachedChatPlanMode).not.toHaveBeenCalled();
 	});
 });

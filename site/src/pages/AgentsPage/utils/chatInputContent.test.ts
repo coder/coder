@@ -33,7 +33,7 @@ describe("buildChatInputContent", () => {
 		});
 	});
 
-	it("sends trimmed message text when composer parts are omitted", () => {
+	it("sends the untrimmed message text when composer parts are omitted", () => {
 		expect(buildChatInputContent({ message: "  hello  " })).toEqual({
 			content: [{ type: "text", text: "  hello  " }],
 			hasContent: true,
@@ -83,17 +83,6 @@ describe("buildChatInputContent", () => {
 			}),
 		).toEqual({
 			content: [{ type: "text", text: "typed" }],
-			hasContent: true,
-		});
-	});
-
-	it("does not mix composer file references into a message-only send", () => {
-		expect(
-			buildChatInputContent({
-				message: "Implement the plan.",
-			}),
-		).toEqual({
-			content: [{ type: "text", text: "Implement the plan." }],
 			hasContent: true,
 		});
 	});
