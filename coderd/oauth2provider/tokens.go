@@ -26,6 +26,12 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
+// Shared by the token and revocation endpoints.
+const (
+	errMsgClientSecretInQuery   = "client_secret was sent in the URL query string; send it in the request body or the Authorization header, and rotate the secret that was exposed" //nolint:gosec // G101: message text, not a hardcoded credential.
+	errMsgConflictingClientAuth = "Conflicting client credentials between Authorization header and request body"
+)
+
 var (
 	// errBadSecret means the user provided a bad secret.
 	errBadSecret = xerrors.New("Invalid client secret")
@@ -268,6 +274,21 @@ func mergeBasicClientAuth(r *http.Request, clientID, clientSecret string) (merge
 	return user, pass, nil
 }
 
+// clientSecretInQuery reports whether the request carries client_secret in the
+// query string. OAuth 2.1 §2.4.1 prohibits it there. The other parameters read
+// from the merged form carry no such prohibition and stay accepted; PLAT-660
+// tracks them.
+//
+// It reads the URL query rather than r.Form, which cannot tell a body value
+// from a query value. Nothing constrains where a caller places the check.
+//
+// RFC 6749 §3.2: a parameter sent without a value counts as omitted.
+func clientSecretInQuery(r *http.Request) bool {
+	return slices.ContainsFunc(r.URL.Query()["client_secret"], func(v string) bool {
+		return v != ""
+	})
+}
+
 // authenticateClient checks a client secret and confirms it belongs to the
 // app named by client_id. That id arrives unverified, so without the app
 // check a valid secret for one app could issue a token for another. It
@@ -314,6 +335,13 @@ func Tokens(db database.Store, lifetimes codersdk.SessionLifetime, logger slog.L
 		ctx := r.Context()
 		app := httpmw.OAuth2ProviderApp(r)
 
+		if clientSecretInQuery(r) {
+			logger.Warn(ctx, "oauth2 token request refused: client_secret in query string",
+				slog.F("app_id", app.ID))
+			writeTokenError(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidRequest, errMsgClientSecretInQuery)
+			return
+		}
+
 		primary, alternates, err := registeredRedirectURIs(app)
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -334,7 +362,7 @@ func Tokens(db database.Store, lifetimes codersdk.SessionLifetime, logger slog.L
 				return
 			}
 			if errors.Is(err, errConflictingClientAuth) {
-				writeTokenError(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidRequest, "Conflicting client credentials between Authorization header and request body")
+				writeTokenError(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidRequest, errMsgConflictingClientAuth)
 				return
 			}
 
