@@ -17272,6 +17272,8 @@ func TestGetChatsFilter(t *testing.T) {
 		now := time.Now()
 		_, err := store.UpsertChatDiffStatus(ctx, database.UpsertChatDiffStatusParams{
 			ChatID:           chatID,
+			GitRemoteOrigin:  "https://github.com/coder/coder.git",
+			GitBranch:        "main",
 			Url:              sql.NullString{String: url, Valid: true},
 			PullRequestState: sql.NullString{String: state, Valid: true},
 			PullRequestTitle: "PR " + state,
@@ -17302,6 +17304,8 @@ func TestGetChatsFilter(t *testing.T) {
 		// Then set PR metadata via the status upsert.
 		_, err := store.UpsertChatDiffStatus(ctx, database.UpsertChatDiffStatusParams{
 			ChatID:           chatID,
+			GitRemoteOrigin:  gitRemoteOrigin,
+			GitBranch:        "main",
 			Url:              sql.NullString{String: url, Valid: url != ""},
 			PullRequestState: sql.NullString{String: state, Valid: state != ""},
 			PullRequestTitle: prTitle,
