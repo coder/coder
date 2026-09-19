@@ -161,6 +161,7 @@ An application may list several `redirect_uris`, whether it registered itself or
 A request may present any of them, and the code it receives can only be exchanged with that same URI.
 The first entry is the primary callback: it is what the web UI shows for the application, and what a request that omits `redirect_uri` is sent to.
 An admin can edit the list through the management API, and a self-registered client can update its own list with its registration access token.
+The admin `PUT` also validates the stored name, so a self-registered client whose name has leading or trailing whitespace can only be updated with its registration access token.
 
 ## Integration Patterns
 
@@ -744,8 +745,6 @@ The `redirect_uris` list is now the source of truth for an application's callbac
 - During a rolling upgrade, a replica running an earlier version still writes only the old field when an administrator edits a callback URL.
 - Replicas running the new version read the list and ignore the old field, so that edit is silently discarded. The application keeps accepting its previous redirect URIs, including any the administrator meant to remove, until it is saved again on the new version.
 - Drain replicas running the earlier version before you upgrade, or save the application again after the upgrade.
-
-The management API now accepts and returns `redirect_uris` on every OAuth2 application. `callback_url` still works: it is deprecated, and its value is always equal to the first entry in `redirect_uris`. Scripts that create or update applications should move to `redirect_uris`.
 
 A `scope` on a refresh request was parsed and discarded in earlier versions, so a
 client sending one wider than its grant refreshed successfully. It is now
