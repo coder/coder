@@ -23,20 +23,54 @@ import (
 // RateLimit returns a handler that limits requests per-minute based
 // on IP, endpoint, and user ID (if available).
 func RateLimit(count int, window time.Duration) func(http.Handler) http.Handler {
-	return rateLimitWithEndpointKey(count, window, keyByNormalizedEndpoint)
+	return rateLimitWithEndpointKey(count, window, keyByNormalizedEndpoint, nil)
 }
 
 // RateLimitByAPICompatibilityEndpoint shares rate-limit buckets for matching
 // endpoints under the /api/v2 and /api/experimental compatibility prefixes.
 func RateLimitByAPICompatibilityEndpoint(count int, window time.Duration) func(http.Handler) http.Handler {
-	return rateLimitWithEndpointKey(count, window, keyByAPICompatibilityEndpoint)
+	return rateLimitWithEndpointKey(count, window, keyByAPICompatibilityEndpoint, nil)
 }
 
-func rateLimitWithEndpointKey(count int, window time.Duration, endpointKey func(*http.Request) (string, error)) func(http.Handler) http.Handler {
+// RateLimitOAuth2 returns a handler that limits requests per-minute based on
+// the caller. Mount it on each route, since every call is a separate bucket.
+//
+// The key ignores the request path, which some of these routes vary, so a
+// caller cannot respell a path to get a fresh bucket.
+//
+// A refusal reports temporarily_unavailable, the closest RFC 6749 code for
+// throttling, so a client can parse it like the other OAuth2 errors.
+func RateLimitOAuth2(count int, window time.Duration) func(http.Handler) http.Handler {
+	return rateLimitWithEndpointKey(count, window,
+		func(*http.Request) (string, error) {
+			return "oauth2", nil
+		},
+		func(rw http.ResponseWriter, r *http.Request) {
+			httpapi.WriteOAuth2Error(r.Context(), rw, http.StatusTooManyRequests,
+				codersdk.OAuth2ErrorCodeTemporarilyUnavailable, rateLimitMessage(count, window))
+		},
+	)
+}
+
+// rateLimitMessage is the message a refused request reports, shared so the
+// limiters built here say the same thing whatever the body shape.
+func rateLimitMessage(count int, window time.Duration) string {
+	return fmt.Sprintf("You've been rate limited for sending more than %v requests in %v.", count, window)
+}
+
+func rateLimitWithEndpointKey(count int, window time.Duration, endpointKey func(*http.Request) (string, error), onLimited http.HandlerFunc) func(http.Handler) http.Handler {
 	// -1 is no rate limit
 	if count <= 0 {
 		return func(handler http.Handler) http.Handler {
 			return handler
+		}
+	}
+
+	if onLimited == nil {
+		onLimited = func(rw http.ResponseWriter, r *http.Request) {
+			httpapi.Write(r.Context(), rw, http.StatusTooManyRequests, codersdk.Response{
+				Message: rateLimitMessage(count, window),
+			})
 		}
 	}
 
@@ -98,11 +132,7 @@ func rateLimitWithEndpointKey(count int, window time.Duration, endpointKey func(
 				codersdk.BypassRatelimitHeader, rbac.RoleOwner(),
 			)
 		}, endpointKey),
-		httprate.WithLimitHandler(func(w http.ResponseWriter, r *http.Request) {
-			httpapi.Write(r.Context(), w, http.StatusTooManyRequests, codersdk.Response{
-				Message: fmt.Sprintf("You've been rate limited for sending more than %v requests in %v.", count, window),
-			})
-		}),
+		httprate.WithLimitHandler(onLimited),
 	)
 }
 
