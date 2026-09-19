@@ -79,7 +79,10 @@ import { ResizableChatsSidebarFrame } from "./components/ChatsSidebar/ResizableC
 import { useAgentsPageKeybindings } from "./hooks/useAgentsPageKeybindings";
 import { useAgentsPWA } from "./hooks/useAgentsPWA";
 import { useOrganizationChatModels } from "./hooks/useOrganizationChatModels";
-import { getAgentSidebarFilters } from "./utils/agentSidebarFilters";
+import {
+	type AgentSidebarFilters,
+	getAgentSidebarFilters,
+} from "./utils/agentSidebarFilters";
 import {
 	archiveChatAndDeleteWorkspace,
 	notifyArchiveAndDeleteFailed,
@@ -120,6 +123,13 @@ export interface AgentsPageOutletContext {
 	onToggleSidebarCollapsed: () => void;
 	onExpandSidebar: () => void;
 	onChatReady: () => void;
+	/**
+	 * Chat list controls surfaced in the mobile page header, where the
+	 * sidebar heading row is hidden to save vertical space.
+	 */
+	onOpenSearchDialog?: () => void;
+	sidebarFilters?: AgentSidebarFilters;
+	onSidebarFiltersChange?: (filters: AgentSidebarFilters) => void;
 }
 
 const FILTER_MEMBERSHIP_EVENT_KINDS = new Set<TypesGen.ChatWatchEventKind>([
@@ -738,6 +748,9 @@ const AgentsPageLayout: FC = () => {
 		onToggleSidebarCollapsed: handleToggleSidebarCollapsed,
 		onExpandSidebar: () => setIsSidebarCollapsed(false),
 		onChatReady: () => {},
+		onOpenSearchDialog: () => setIsSearchDialogOpen(true),
+		sidebarFilters,
+		onSidebarFiltersChange: setSidebarFilters,
 	};
 
 	return (

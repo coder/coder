@@ -1,19 +1,23 @@
+import { SearchIcon } from "lucide-react";
 import { type FC, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
-import { useLocation, useNavigate } from "react-router";
+import { useLocation, useNavigate, useOutletContext } from "react-router";
 import { toast } from "sonner";
 import { getErrorMessage } from "#/api/errors";
 import { createChat } from "#/api/queries/chats";
 import { workspaces } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
+import { Button } from "#/components/Button/Button";
 import { useWebpushNotifications } from "#/contexts/useWebpushNotifications";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useAIGatewayEnabled } from "#/hooks/useEmbeddedMetadata";
+import type { AgentsPageOutletContext } from "./AgentsPageLayout";
 import {
 	AgentCreateForm,
 	type CreateChatOptions,
 } from "./components/AgentCreateForm";
 import { AgentPageHeader } from "./components/AgentPageHeader";
+import { FilterPopover } from "./components/ChatsSidebar/filters/FilterPopover";
 import { ChimeButton } from "./components/ChimeButton";
 import { WebPushButton } from "./components/WebPushButton";
 import { getChimeEnabled, setChimeEnabled } from "./utils/chime";
@@ -26,6 +30,8 @@ const AgentCreatePage: FC = () => {
 	const location = useLocation();
 	const navigate = useNavigate();
 	const { permissions } = useAuthenticated();
+	const { onOpenSearchDialog, sidebarFilters, onSidebarFiltersChange } =
+		useOutletContext<AgentsPageOutletContext>();
 	const aiGatewayDisabled = !useAIGatewayEnabled();
 	const workspacesQuery = useQuery(workspaces({ q: "owner:me", limit: 0 }));
 	const createMutation = useMutation(createChat(queryClient));
@@ -99,6 +105,27 @@ const AgentCreatePage: FC = () => {
 				onToggleChime={handleChimeToggle}
 				webPush={webPush}
 				onToggleNotifications={handleNotificationToggle}
+				mobileActions={
+					<>
+						{onOpenSearchDialog && (
+							<Button
+								variant="subtle"
+								size="icon"
+								aria-label="Search chats"
+								onClick={onOpenSearchDialog}
+								className="size-7 text-content-secondary hover:text-content-primary"
+							>
+								<SearchIcon />
+							</Button>
+						)}
+						{sidebarFilters && onSidebarFiltersChange && (
+							<FilterPopover
+								filters={sidebarFilters}
+								onFiltersChange={onSidebarFiltersChange}
+							/>
+						)}
+					</>
+				}
 			>
 				<ChimeButton enabled={chimeEnabled} onToggle={handleChimeToggle} />
 				<WebPushButton webPush={webPush} onToggle={handleNotificationToggle} />
