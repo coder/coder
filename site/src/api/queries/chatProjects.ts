@@ -4,6 +4,7 @@ import type * as TypesGen from "#/api/typesGenerated";
 import { chatProjectPermissionChecks } from "#/modules/permissions/chatProjects";
 import { checkAuthorization } from "./authCheck";
 import {
+	chatProjectACLKey,
 	chatProjectKey,
 	chatProjectsFamilyKey,
 	chatProjectsKey,
@@ -75,4 +76,68 @@ export const deleteChatProject = (queryClient: QueryClient) => ({
 	mutationFn: (projectId: string) =>
 		API.experimental.deleteChatProject(projectId),
 	onSettled: () => invalidateProjectRelatedQueries(queryClient),
+});
+
+export const chatProjectACL = (projectId: string) => ({
+	queryKey: chatProjectACLKey(projectId),
+	queryFn: () => API.experimental.getChatProjectACL(projectId),
+});
+
+const invalidateChatProjectACL = (
+	queryClient: QueryClient,
+	projectId: string,
+) =>
+	queryClient.invalidateQueries({
+		queryKey: chatProjectACLKey(projectId),
+		exact: true,
+	});
+
+type SetChatProjectUserRoleVariables = {
+	projectId: string;
+	userId: string;
+	role: TypesGen.ChatProjectRole;
+};
+
+type SetChatProjectGroupRoleVariables = {
+	projectId: string;
+	groupId: string;
+	role: TypesGen.ChatProjectRole;
+};
+
+// Sharing changes who can list the project, so the project list is
+// invalidated alongside the ACL.
+export const setChatProjectUserRole = (queryClient: QueryClient) => ({
+	mutationFn: ({ projectId, userId, role }: SetChatProjectUserRoleVariables) =>
+		API.experimental.updateChatProjectACL(projectId, {
+			user_roles: { [userId]: role },
+		}),
+	onSuccess: async (
+		_data: unknown,
+		{ projectId }: SetChatProjectUserRoleVariables,
+	) => {
+		await Promise.all([
+			invalidateChatProjectACL(queryClient, projectId),
+			invalidateChatProjects(queryClient),
+		]);
+	},
+});
+
+export const setChatProjectGroupRole = (queryClient: QueryClient) => ({
+	mutationFn: ({
+		projectId,
+		groupId,
+		role,
+	}: SetChatProjectGroupRoleVariables) =>
+		API.experimental.updateChatProjectACL(projectId, {
+			group_roles: { [groupId]: role },
+		}),
+	onSuccess: async (
+		_data: unknown,
+		{ projectId }: SetChatProjectGroupRoleVariables,
+	) => {
+		await Promise.all([
+			invalidateChatProjectACL(queryClient, projectId),
+			invalidateChatProjects(queryClient),
+		]);
+	},
 });

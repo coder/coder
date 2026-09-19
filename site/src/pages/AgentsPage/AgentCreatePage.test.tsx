@@ -320,5 +320,8 @@ describe("AgentCreatePage project frame", () => {
 		await waitFor(() => {
 			expect(requestBody).toMatchObject({ name: "Renamed" });
 		});
+		expect(
+			screen.getByRole("button", { name: "Share project" }),
+		).toBeInTheDocument();
 	});
 });

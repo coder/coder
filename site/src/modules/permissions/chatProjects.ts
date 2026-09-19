@@ -3,11 +3,20 @@ import type { AuthorizationCheck, ChatProject } from "#/api/typesGenerated";
 type ChatProjectPermissions = {
 	readonly canUpdate: boolean;
 	readonly canDelete: boolean;
+	readonly canShare: boolean;
 };
+
+type ChatProjectAction = "update" | "delete" | "share";
+
+const chatProjectActions: readonly ChatProjectAction[] = [
+	"update",
+	"delete",
+	"share",
+];
 
 const chatProjectCheckKey = (
 	project: Pick<ChatProject, "organization_id" | "created_by">,
-	action: "update" | "delete",
+	action: ChatProjectAction,
 ) => `${action}:${project.organization_id}:${project.created_by}`;
 
 // Chat project authorization depends only on the organization and creator,
@@ -18,7 +27,7 @@ export const chatProjectPermissionChecks = (
 ): Record<string, AuthorizationCheck> => {
 	const checks: Record<string, AuthorizationCheck> = {};
 	for (const project of projects) {
-		for (const action of ["update", "delete"] as const) {
+		for (const action of chatProjectActions) {
 			checks[chatProjectCheckKey(project, action)] = {
 				object: {
 					resource_type: "chat_project",
@@ -38,4 +47,5 @@ export const chatProjectPermissionsFor = (
 ): ChatProjectPermissions => ({
 	canUpdate: response?.[chatProjectCheckKey(project, "update")] ?? false,
 	canDelete: response?.[chatProjectCheckKey(project, "delete")] ?? false,
+	canShare: response?.[chatProjectCheckKey(project, "share")] ?? false,
 });

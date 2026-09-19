@@ -29,10 +29,6 @@ const baseArgs: AgentSettingsGeneralPageViewProps = {
 	onSaveUserDebugLogging: fn(),
 	isSavingUserDebugLogging: false,
 	isSaveUserDebugLoggingError: false,
-	personalMemoryData: undefined,
-	onSavePersonalMemory: fn(),
-	isSavingPersonalMemory: false,
-	isSavePersonalMemoryError: false,
 };
 
 const meta = {

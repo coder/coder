@@ -5,3 +5,6 @@ export const chatProjectsKey = (organizationId: string) =>
 
 export const chatProjectKey = (projectId: string) =>
 	[...chatProjectsFamilyKey, "project", projectId] as const;
+
+export const chatProjectACLKey = (projectId: string) =>
+	[...chatProjectKey(projectId), "acl"] as const;

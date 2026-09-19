@@ -3155,21 +3155,6 @@ class ApiMethods {
 	deleteAIGatewayKey = async (id: string): Promise<void> => {
 		await this.axios.delete(`${aiGatewayPath}/keys/${encodeURIComponent(id)}`);
 	};
-
-	getChatPersonalMemorySettings =
-		async (): Promise<TypesGen.ChatPersonalMemorySettings> => {
-			const response =
-				await this.axios.get<TypesGen.ChatPersonalMemorySettings>(
-					"/api/v2/chats/config/user-memory",
-				);
-			return response.data;
-		};
-
-	updateChatPersonalMemorySettings = async (
-		req: TypesGen.UpdateChatPersonalMemorySettingsRequest,
-	): Promise<void> => {
-		await this.axios.put("/api/v2/chats/config/user-memory", req);
-	};
 }
 
 export type ChatPlanModeOrClear = TypesGen.ChatPlanMode | "";
@@ -3301,6 +3286,25 @@ class ExperimentalApiMethods {
 
 	deleteChatProject = async (projectId: string): Promise<void> => {
 		await this.axios.delete(`/api/experimental/chats/projects/${projectId}`);
+	};
+
+	getChatProjectACL = async (
+		projectId: string,
+	): Promise<TypesGen.ChatProjectACL> => {
+		const response = await this.axios.get<TypesGen.ChatProjectACL>(
+			`/api/experimental/chats/projects/${projectId}/acl`,
+		);
+		return response.data;
+	};
+
+	updateChatProjectACL = async (
+		projectId: string,
+		req: TypesGen.UpdateChatProjectACL,
+	): Promise<void> => {
+		await this.axios.patch(
+			`/api/experimental/chats/projects/${projectId}/acl`,
+			req,
+		);
 	};
 
 	getChat = async (chatId: string): Promise<TypesGen.Chat> => {

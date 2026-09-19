@@ -8,6 +8,7 @@ import {
 import type { ChatProject } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import { chatProjectPermissionsFor } from "#/modules/permissions/chatProjects";
+import { ProjectShareButton } from "./ChatSharingPopover";
 import { ChatProjectDialog } from "./ChatsSidebar/dialogs/ChatProjectDialog";
 
 type ProjectComposerHeaderProps = {
@@ -37,7 +38,10 @@ type ProjectComposerFooterProps = {
 	readonly project: ChatProject;
 };
 
-/** Edit control under the composer for users allowed to update the project. */
+/**
+ * Edit and share controls under the composer, shown only to users allowed
+ * to manage the project.
+ */
 export const ProjectComposerFooter: FC<ProjectComposerFooterProps> = ({
 	project,
 }) => {
@@ -45,26 +49,34 @@ export const ProjectComposerFooter: FC<ProjectComposerFooterProps> = ({
 	const [isEditing, setIsEditing] = useState(false);
 	const permissionsQuery = useQuery(chatProjectPermissions([project]));
 	const updateProjectMutation = useMutation(updateChatProject(queryClient));
-	const { canUpdate } = chatProjectPermissionsFor(
+	const { canUpdate, canShare } = chatProjectPermissionsFor(
 		project,
 		permissionsQuery.data,
 	);
 
-	if (!canUpdate) {
+	if (!canUpdate && !canShare) {
 		return null;
 	}
 
 	return (
-		<div className="flex justify-center pt-2">
-			<Button
-				variant="subtle"
-				size="sm"
-				className="text-content-secondary"
-				onClick={() => setIsEditing(true)}
-			>
-				<PencilIcon />
-				Edit project
-			</Button>
+		<div className="flex justify-center gap-2 pt-2">
+			{canUpdate && (
+				<Button
+					variant="subtle"
+					size="sm"
+					className="text-content-secondary"
+					onClick={() => setIsEditing(true)}
+				>
+					<PencilIcon />
+					Edit project
+				</Button>
+			)}
+			{canShare && (
+				<ProjectShareButton
+					projectId={project.id}
+					organizationId={project.organization_id}
+				/>
+			)}
 			<ChatProjectDialog
 				key={isEditing ? project.id : "closed"}
 				organizationId={project.organization_id}
