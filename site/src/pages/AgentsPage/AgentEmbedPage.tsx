@@ -289,7 +289,10 @@ const AgentEmbedPage: FC = () => {
 			<EmbedContext value={{ isEmbedded: true }}>
 				<DashboardProvider>
 					<ProxyProvider>
-						<Outlet context={outletContext} />
+						{/* Match AgentsPageLayout's flex column so the chat stays bounded under block-level #root. */}
+						<div className="flex h-full min-h-0 min-w-0 flex-col">
+							<Outlet context={outletContext} />
+						</div>
 					</ProxyProvider>
 				</DashboardProvider>
 			</EmbedContext>
