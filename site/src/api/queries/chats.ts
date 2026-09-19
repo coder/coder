@@ -3,6 +3,7 @@ import {
 	type InfiniteData,
 	type QueryClient,
 	queryOptions,
+	replaceEqualDeep,
 	type UseInfiniteQueryOptions,
 } from "react-query";
 import {
@@ -1190,6 +1191,46 @@ const MESSAGES_PAGE_SIZE = 50;
 export const chatMessagesKey = (chatId: string) =>
 	[...chatEntityKey(chatId), "messages"] as const;
 
+type ChatMessagesInfiniteData = InfiniteData<
+	TypesGen.ChatMessagesResponse,
+	number | undefined
+>;
+
+const isChatMessagesInfiniteData = (
+	data: unknown,
+): data is ChatMessagesInfiniteData =>
+	typeof data === "object" &&
+	data !== null &&
+	Array.isArray((data as ChatMessagesInfiniteData).pages) &&
+	Array.isArray((data as ChatMessagesInfiniteData).pageParams);
+
+/**
+ * Structural-sharing step for every write to the messages query,
+ * including setQueryData patches. A result that appends pages under the
+ * cached page params keeps the cached copies of the shared pages, since
+ * those pages in `next` predate any cache write made during the fetch.
+ * A cache whose last page has no more history accepts no appended pages.
+ * Every other shape is taken from `next`.
+ */
+export const mergeChatMessagesPages = (prev: unknown, next: unknown) => {
+	if (
+		!isChatMessagesInfiniteData(prev) ||
+		!isChatMessagesInfiniteData(next) ||
+		next.pages.length <= prev.pages.length ||
+		prev.pageParams.length !== prev.pages.length ||
+		prev.pageParams.some((param, i) => next.pageParams[i] !== param)
+	) {
+		return replaceEqualDeep(prev, next);
+	}
+	if (!prev.pages[prev.pages.length - 1]?.has_more) {
+		return prev;
+	}
+	return replaceEqualDeep(prev, {
+		pages: [...prev.pages, ...next.pages.slice(prev.pages.length)],
+		pageParams: next.pageParams,
+	});
+};
+
 const chatQueueConvergenceKey = (chatId: string) =>
 	[...chatEntityKey(chatId), "queue-convergence"] as const;
 
@@ -1219,6 +1260,7 @@ export const chatMessagesForInfiniteScroll = (chatId: string) => ({
 		// Use its ID as the cursor for the next (older) page.
 		return lastPage.messages[lastPage.messages.length - 1].id;
 	},
+	structuralSharing: mergeChatMessagesPages,
 });
 
 // Cap requested prompts to keep the response small; well under the server-side maximum.

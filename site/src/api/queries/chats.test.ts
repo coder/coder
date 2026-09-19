@@ -1,4 +1,9 @@
-import { QueryClient, QueryObserver } from "react-query";
+import {
+	type InfiniteData as InfiniteQueryData,
+	InfiniteQueryObserver,
+	QueryClient,
+	QueryObserver,
+} from "react-query";
 import { describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
 import { authorizationKey } from "#/api/queries/authCheck";
@@ -50,6 +55,7 @@ import {
 	chatEntityKey,
 	chatListFamilyKey,
 	chatListKey,
+	chatMessagesForInfiniteScroll,
 	chatMessagesKey,
 	chatModel,
 	chatModelACL,
@@ -85,6 +91,7 @@ import {
 	mcpServerConfigACLKey,
 	mcpServerConfigKey,
 	mcpServerConfigsKey,
+	mergeChatMessagesPages,
 	mergeWatchedChatIntoCaches,
 	mergeWatchedChatSummary,
 	openChat,
@@ -128,6 +135,7 @@ vi.mock("#/api/api", () => ({
 			createChat: vi.fn(),
 			deleteChatQueuedMessage: vi.fn(),
 			getChats: vi.fn(),
+			getChatMessages: vi.fn(),
 			getChatsByWorkspace: vi.fn(),
 			getChatCost: vi.fn(),
 			createChatMessage: vi.fn(),
@@ -4302,6 +4310,123 @@ describe("message upsert fan-out and history replacement", () => {
 		expect(
 			queryClient.getQueryCache().find({ queryKey: chatMessagesKey("chat-1") }),
 		).toBeUndefined();
+	});
+});
+
+describe("chatMessagesForInfiniteScroll", () => {
+	const mockChatMessage = (id: number): TypesGen.ChatMessage => ({
+		...MockChatMessage,
+		id,
+		content: [{ type: "text", text: `msg ${id}` }],
+	});
+
+	it("keeps messages upserted while an older page is in flight", async () => {
+		const queryClient = createTestQueryClient();
+		const olderPage = createDeferred<TypesGen.ChatMessagesResponse>();
+		vi.mocked(API.experimental.getChatMessages).mockImplementation(
+			(_chatId, opts) =>
+				opts?.before_id
+					? olderPage.promise
+					: Promise.resolve({
+							messages: [mockChatMessage(11), mockChatMessage(10)],
+							queued_messages: [],
+							has_more: true,
+						}),
+		);
+		const observer = new InfiniteQueryObserver<
+			TypesGen.ChatMessagesResponse,
+			Error,
+			InfiniteQueryData<TypesGen.ChatMessagesResponse>,
+			ReturnType<typeof chatMessagesKey>,
+			number | undefined
+		>(queryClient, chatMessagesForInfiniteScroll("chat-1"));
+		const unsubscribe = observer.subscribe(() => {});
+		await vi.waitFor(() => {
+			expect(observer.getCurrentResult().data?.pages).toHaveLength(1);
+		});
+
+		const fetching = observer.fetchNextPage();
+		await vi.waitFor(() => {
+			expect(observer.getCurrentResult().isFetchingNextPage).toBe(true);
+		});
+		upsertChatMessages(queryClient, "chat-1", [mockChatMessage(12)]);
+		olderPage.resolve({
+			messages: [mockChatMessage(9), mockChatMessage(8)],
+			queued_messages: [],
+			has_more: false,
+		});
+		await fetching;
+
+		const data = observer.getCurrentResult().data;
+		expect(data?.pages.map((page) => page.messages.map((m) => m.id))).toEqual([
+			[12, 11, 10],
+			[9, 8],
+		]);
+		expect(data?.pageParams).toEqual([undefined, 10]);
+		unsubscribe();
+	});
+
+	describe("mergeChatMessagesPages", () => {
+		const page = (
+			ids: number[],
+			has_more: boolean,
+		): TypesGen.ChatMessagesResponse => ({
+			messages: ids.map(mockChatMessage),
+			queued_messages: [],
+			has_more,
+		});
+
+		it("keeps cached pages and appends the new page for an appending result", () => {
+			const prev = {
+				pages: [page([12, 11, 10], true)],
+				pageParams: [undefined],
+			};
+			const next = {
+				pages: [page([11, 10], true), page([9, 8], false)],
+				pageParams: [undefined, 10],
+			};
+			const result = mergeChatMessagesPages(prev, next) as typeof next;
+			expect(result.pages[0]).toBe(prev.pages[0]);
+			expect(result.pages[1]).toBe(next.pages[1]);
+			expect(result.pageParams).toEqual([undefined, 10]);
+		});
+
+		it("takes the result when the page count does not grow", () => {
+			const prev = {
+				pages: [page([12, 11, 10], true)],
+				pageParams: [undefined],
+			};
+			const next = { pages: [page([11, 10], true)], pageParams: [undefined] };
+			expect(mergeChatMessagesPages(prev, next)).toEqual(next);
+			const collapsed = { pages: [page([3], false)], pageParams: [undefined] };
+			const twoPages = {
+				pages: [page([11, 10], true), page([9, 8], false)],
+				pageParams: [undefined, 10],
+			};
+			expect(mergeChatMessagesPages(twoPages, collapsed)).toEqual(collapsed);
+		});
+
+		it("takes the result when the page params diverge or the cache is empty", () => {
+			const prev = {
+				pages: [page([11, 10], true), page([9, 8], true)],
+				pageParams: [undefined, 10],
+			};
+			const next = {
+				pages: [page([11, 10], true), page([9], true), page([7], false)],
+				pageParams: [undefined, 11, 9],
+			};
+			expect(mergeChatMessagesPages(prev, next)).toEqual(next);
+			expect(mergeChatMessagesPages(undefined, next)).toBe(next);
+		});
+
+		it("keeps a cache whose last page has no more history", () => {
+			const prev = { pages: [page([3, 2, 1], false)], pageParams: [undefined] };
+			const next = {
+				pages: [page([11, 10], true), page([9, 8], false)],
+				pageParams: [undefined, 10],
+			};
+			expect(mergeChatMessagesPages(prev, next)).toBe(prev);
+		});
 	});
 });
 
