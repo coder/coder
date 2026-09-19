@@ -242,7 +242,9 @@ func (a *ManifestAPI) StreamEgressConfig(_ *agentproto.StreamEgressConfigRequest
 	}
 
 	updates := make(chan struct{}, 1)
-	boundExitNodes := make(map[uuid.UUID]struct{})
+	// A nil bound set means the first configuration has not been computed
+	// yet, so every replica event is accepted.
+	var boundExitNodes map[uuid.UUID]struct{}
 	var boundMu sync.RWMutex
 	cancel, err := a.Pubsub.Subscribe(codersdk.ExitNodeReplicasPubsubChannel, func(_ context.Context, payload []byte) {
 		boundMu.RLock()
@@ -268,16 +270,25 @@ func (a *ManifestAPI) StreamEgressConfig(_ *agentproto.StreamEgressConfigRequest
 			return err
 		}
 		bound := cfg != nil
-		boundMu.Lock()
-		clear(boundExitNodes)
+		next := make(map[uuid.UUID]struct{})
 		if cfg != nil {
 			for _, exitNode := range cfg.ExitNodes {
 				id, err := uuid.FromBytes(exitNode.Id)
 				if err == nil {
-					boundExitNodes[id] = struct{}{}
+					next[id] = struct{}{}
 				}
 			}
 		}
+		boundMu.Lock()
+		// Replica events for a newly bound node may have been filtered out
+		// while the query ran, so recompute once more when the set grows.
+		newlyBound := false
+		for id := range next {
+			if _, ok := boundExitNodes[id]; !ok {
+				newlyBound = true
+			}
+		}
+		boundExitNodes = next
 		boundMu.Unlock()
 		if cfg == nil {
 			cfg = &agentproto.EgressConfig{}
@@ -288,6 +299,9 @@ func (a *ManifestAPI) StreamEgressConfig(_ *agentproto.StreamEgressConfigRequest
 			}
 			last = &agentproto.EgressConfig{}
 			googleproto.Merge(last, cfg)
+		}
+		if newlyBound {
+			continue
 		}
 
 		var timer *quartz.Timer
@@ -314,6 +328,8 @@ func (a *ManifestAPI) StreamEgressConfig(_ *agentproto.StreamEgressConfigRequest
 	}
 }
 
+// egressPubsubMatches reports whether a replica or template event is relevant
+// to the stream. A nil boundExitNodes set accepts every replica event.
 func egressPubsubMatches(payload []byte, templateID uuid.UUID, boundExitNodes map[uuid.UUID]struct{}) bool {
 	if eventTemplateID, ok := codersdk.ParseExitNodeTemplatePubsubPayload(payload); ok {
 		return eventTemplateID == templateID
@@ -321,6 +337,9 @@ func egressPubsubMatches(payload []byte, templateID uuid.UUID, boundExitNodes ma
 	exitNodeID, err := uuid.ParseBytes(payload)
 	if err != nil {
 		return false
+	}
+	if boundExitNodes == nil {
+		return true
 	}
 	_, bound := boundExitNodes[exitNodeID]
 	return bound

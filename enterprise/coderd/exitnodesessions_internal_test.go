@@ -22,7 +22,7 @@ import (
 func TestExitNodeReplicaSessionRegistryStopped(t *testing.T) {
 	t.Parallel()
 
-	registry := newExitNodeReplicaSessionRegistry()
+	registry := newExitNodeReplicaSessionRegistry(nil)
 	replicaID := uuid.New()
 	registry.stop(replicaID)
 	canceled := make(chan struct{})
@@ -32,6 +32,39 @@ func TestExitNodeReplicaSessionRegistryStopped(t *testing.T) {
 	default:
 		t.Fatal("register after stop was not canceled")
 	}
+}
+
+func TestExitNodeReplicaSessionRegistryTombstoneExpiry(t *testing.T) {
+	t.Parallel()
+
+	clock := quartz.NewMock(t)
+	registry := newExitNodeReplicaSessionRegistry(clock)
+	old := uuid.New()
+	registry.stop(old)
+	clock.Advance(exitNodeStoppedTombstoneTTL + time.Second)
+	registry.stop(uuid.New())
+	require.NotContains(t, registry.stopped, old)
+	require.Len(t, registry.stopped, 1)
+}
+
+func TestExitNodeReplicaSessionRegistryHeartbeatWins(t *testing.T) {
+	t.Parallel()
+
+	registry := newExitNodeReplicaSessionRegistry(nil)
+	replicaID, exitNodeID := uuid.New(), uuid.New()
+	canceled := false
+	registry.register(replicaID, func() { canceled = true })
+	registry.markLive(replicaID, exitNodeID)
+	generation := registry.heartbeats[replicaID]
+
+	// A heartbeat after the reaper snapshot keeps the session.
+	registry.markLive(replicaID, exitNodeID)
+	require.False(t, registry.cancelUnlessHeartbeat(replicaID, exitNodeID, generation))
+	require.False(t, canceled)
+	require.Contains(t, registry.live, replicaID)
+
+	require.True(t, registry.cancelUnlessHeartbeat(replicaID, exitNodeID, registry.heartbeats[replicaID]))
+	require.True(t, canceled)
 }
 
 func TestExitNodeReplicaReaper(t *testing.T) {
@@ -62,7 +95,7 @@ func TestExitNodeReplicaReaper(t *testing.T) {
 	}, nil)
 
 	sessionCanceled := make(chan struct{})
-	registry := newExitNodeReplicaSessionRegistry()
+	registry := newExitNodeReplicaSessionRegistry(nil)
 	registry.register(replicaID, func() { close(sessionCanceled) })
 	api := &API{
 		ctx: ctx,

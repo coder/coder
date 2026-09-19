@@ -15,24 +15,40 @@ import (
 	"github.com/coder/quartz"
 )
 
-const exitNodeReplicaReaperInterval = 5 * time.Second
+const (
+	exitNodeReplicaReaperInterval = 5 * time.Second
+	// exitNodeStoppedTombstoneTTL bounds how long a deregistered replica ID
+	// is remembered in memory. It only needs to outlive coordinate requests
+	// that were in flight during deregistration; the database row rejects
+	// later registrations.
+	exitNodeStoppedTombstoneTTL = time.Minute
+)
 
 type exitNodeReplicaSession struct {
 	cancel context.CancelFunc
 }
 
 type exitNodeReplicaSessionRegistry struct {
+	clock    quartz.Clock
 	mu       sync.Mutex
 	sessions map[uuid.UUID]*exitNodeReplicaSession
-	stopped  map[uuid.UUID]struct{}
+	stopped  map[uuid.UUID]time.Time
 	live     map[uuid.UUID]uuid.UUID
+	// heartbeats counts markLive calls per replica so the reaper can detect a
+	// heartbeat that landed after its snapshot.
+	heartbeats map[uuid.UUID]uint64
 }
 
-func newExitNodeReplicaSessionRegistry() *exitNodeReplicaSessionRegistry {
+func newExitNodeReplicaSessionRegistry(clock quartz.Clock) *exitNodeReplicaSessionRegistry {
+	if clock == nil {
+		clock = quartz.NewReal()
+	}
 	return &exitNodeReplicaSessionRegistry{
-		sessions: make(map[uuid.UUID]*exitNodeReplicaSession),
-		stopped:  make(map[uuid.UUID]struct{}),
-		live:     make(map[uuid.UUID]uuid.UUID),
+		clock:      clock,
+		sessions:   make(map[uuid.UUID]*exitNodeReplicaSession),
+		stopped:    make(map[uuid.UUID]time.Time),
+		live:       make(map[uuid.UUID]uuid.UUID),
+		heartbeats: make(map[uuid.UUID]uint64),
 	}
 }
 
@@ -59,30 +75,46 @@ func (r *exitNodeReplicaSessionRegistry) register(replicaID uuid.UUID, cancel co
 }
 
 func (r *exitNodeReplicaSessionRegistry) stop(replicaID uuid.UUID) {
+	now := r.clock.Now("exit_node_session_stop")
 	r.mu.Lock()
-	r.stopped[replicaID] = struct{}{}
+	for id, stoppedAt := range r.stopped {
+		if now.Sub(stoppedAt) > exitNodeStoppedTombstoneTTL {
+			delete(r.stopped, id)
+		}
+	}
+	r.stopped[replicaID] = now
 	session := r.sessions[replicaID]
 	delete(r.sessions, replicaID)
 	delete(r.live, replicaID)
+	delete(r.heartbeats, replicaID)
 	r.mu.Unlock()
 	if session != nil {
 		session.cancel()
 	}
 }
 
-func (r *exitNodeReplicaSessionRegistry) cancel(replicaID uuid.UUID) {
+// cancelUnlessHeartbeat cancels the replica's session unless a heartbeat was
+// recorded after generation, in which case the replica is kept live.
+func (r *exitNodeReplicaSessionRegistry) cancelUnlessHeartbeat(replicaID, exitNodeID uuid.UUID, generation uint64) bool {
 	r.mu.Lock()
+	if r.heartbeats[replicaID] != generation {
+		r.live[replicaID] = exitNodeID
+		r.mu.Unlock()
+		return false
+	}
 	session := r.sessions[replicaID]
 	delete(r.sessions, replicaID)
 	r.mu.Unlock()
 	if session != nil {
 		session.cancel()
 	}
+	return true
 }
 
 func (r *exitNodeReplicaSessionRegistry) markLive(replicaID, exitNodeID uuid.UUID) {
 	r.mu.Lock()
 	r.live[replicaID] = exitNodeID
+	r.heartbeats[replicaID]++
 	r.mu.Unlock()
 }
 
@@ -123,23 +155,27 @@ func (api *API) reapExitNodeReplicas(now time.Time) {
 	api.exitNodeReplicaSessions.mu.Lock()
 	previous := api.exitNodeReplicaSessions.live
 	api.exitNodeReplicaSessions.live = current
-	var stale []struct {
+	type staleReplica struct {
 		replicaID  uuid.UUID
 		exitNodeID uuid.UUID
+		generation uint64
 	}
+	var stale []staleReplica
 	for replicaID, exitNodeID := range previous {
 		if _, ok := current[replicaID]; !ok {
-			stale = append(stale, struct {
-				replicaID  uuid.UUID
-				exitNodeID uuid.UUID
-			}{replicaID: replicaID, exitNodeID: exitNodeID})
+			stale = append(stale, staleReplica{
+				replicaID:  replicaID,
+				exitNodeID: exitNodeID,
+				generation: api.exitNodeReplicaSessions.heartbeats[replicaID],
+			})
 		}
 	}
 	api.exitNodeReplicaSessions.mu.Unlock()
 
 	for _, replica := range stale {
-		// A heartbeat may have landed after the live-set query. Recheck before
-		// canceling so the reaper cannot revoke a newly refreshed session.
+		// A heartbeat handled by another coderd replica may have landed after
+		// the live-set query. Recheck the row before canceling; a heartbeat
+		// handled by this process is caught by the generation check below.
 		row, err := api.Database.GetExitNodeReplicaByID(dbauthz.AsSystemRestricted(api.ctx), replica.replicaID) //nolint:gocritic // Deployment-wide reaper lookup.
 		if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
 			api.Logger.Error(api.ctx, "failed to recheck exit node replica", slog.Error(err))
@@ -150,7 +186,9 @@ func (api *API) reapExitNodeReplicas(now time.Time) {
 			api.exitNodeReplicaSessions.markLive(row.ID, row.ExitNodeID)
 			continue
 		}
-		api.exitNodeReplicaSessions.cancel(replica.replicaID)
+		if !api.exitNodeReplicaSessions.cancelUnlessHeartbeat(replica.replicaID, replica.exitNodeID, replica.generation) {
+			continue
+		}
 		if err := api.Pubsub.Publish(codersdk.ExitNodeReplicasPubsubChannel, []byte(replica.exitNodeID.String())); err != nil {
 			api.Logger.Error(api.ctx, "failed to publish stale exit node replica", slog.Error(err))
 		}

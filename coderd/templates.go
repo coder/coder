@@ -905,9 +905,10 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	if req.ExitNodeIDs != nil || req.ExitNodeEnforce != nil {
+		// The update is already committed; agents fall back to a periodic
+		// refresh if the notification is lost.
 		if err := api.Pubsub.Publish(codersdk.ExitNodeReplicasPubsubChannel, codersdk.ExitNodeTemplatePubsubPayload(template.ID)); err != nil {
-			httpapi.InternalServerError(rw, xerrors.Errorf("publish template exit node update: %w", err))
-			return
+			api.Logger.Error(ctx, "failed to publish template exit node update", slog.Error(err))
 		}
 	}
 

@@ -190,7 +190,7 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 		ctx:                     ctx,
 		cancel:                  cancelFunc,
 		Options:                 options,
-		exitNodeReplicaSessions: newExitNodeReplicaSessionRegistry(),
+		exitNodeReplicaSessions: newExitNodeReplicaSessionRegistry(options.Clock),
 		provisionerDaemonAuth: &provisionerDaemonAuth{
 			psk:        options.ProvisionerDaemonPSK,
 			authorizer: options.Authorizer,

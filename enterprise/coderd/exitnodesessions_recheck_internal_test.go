@@ -31,7 +31,7 @@ func TestExitNodeReplicaReaperRechecksHeartbeat(t *testing.T) {
 	t.Cleanup(func() { require.NoError(t, ps.Close()) })
 
 	canceled := false
-	registry := newExitNodeReplicaSessionRegistry()
+	registry := newExitNodeReplicaSessionRegistry(nil)
 	registry.live[replicaID] = exitNodeID
 	registry.register(replicaID, func() { canceled = true })
 	api := &API{

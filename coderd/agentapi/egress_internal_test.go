@@ -68,6 +68,8 @@ func TestEgressPubsubMatches(t *testing.T) {
 	require.True(t, egressPubsubMatches([]byte(boundExitNodeID.String()), templateID, bound))
 	require.False(t, egressPubsubMatches([]byte(uuid.NewString()), templateID, bound))
 	require.False(t, egressPubsubMatches([]byte("invalid"), templateID, bound))
+	require.True(t, egressPubsubMatches([]byte(uuid.NewString()), templateID, nil))
+	require.False(t, egressPubsubMatches([]byte("invalid"), templateID, nil))
 }
 
 func TestStreamEgressConfigPubsub(t *testing.T) {
@@ -89,6 +91,13 @@ func TestStreamEgressConfigPubsub(t *testing.T) {
 	store.EXPECT().GetWorkspaceByID(gomock.Any(), workspaceID).Return(database.Workspace{TemplateID: templateID}, nil)
 	thirdReplica := uuid.New()
 	gomock.InOrder(
+		store.EXPECT().GetTemplateByID(gomock.Any(), templateID).Return(database.Template{}, nil),
+		store.EXPECT().GetTemplateExitNodeReplicas(gomock.Any(), gomock.Any()).Return([]database.GetTemplateExitNodeReplicasRow{{
+			ExitNodeID: exitNodeID,
+			ReplicaID:  uuid.NullUUID{UUID: firstReplica, Valid: true},
+		}}, nil),
+		// The stream recomputes once immediately after a node becomes bound to
+		// cover replica events filtered out while the first query ran.
 		store.EXPECT().GetTemplateByID(gomock.Any(), templateID).Return(database.Template{}, nil),
 		store.EXPECT().GetTemplateExitNodeReplicas(gomock.Any(), gomock.Any()).Return([]database.GetTemplateExitNodeReplicasRow{{
 			ExitNodeID: exitNodeID,
