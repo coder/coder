@@ -11013,7 +11013,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 | Name            | Type                                                       | Required | Restrictions | Description                                                                                                                                                                                             |
 |-----------------|------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `callback_url`  | string                                                     | false    |              | Deprecated: equal to RedirectURIs[0]. Read RedirectURIs instead.                                                                                                                                        |
+| `callback_url`  | string                                                     | false    |              | Deprecated: equal to the first entry of redirect_uris. Read redirect_uris instead.                                                                                                                      |
 | `client_type`   | [codersdk.OAuth2ClientType](#codersdkoauth2clienttype)     | false    |              | Client type is "confidential" or "public".                                                                                                                                                              |
 | `endpoints`     | [codersdk.OAuth2AppEndpoints](#codersdkoauth2appendpoints) | false    |              | Endpoints are included in the app response for easier discovery. The OAuth2 spec does not have a defined place to find these (for comparison, OIDC has a '/.well-known/openid-configuration' endpoint). |
 | `icon`          | string                                                     | false    |              |                                                                                                                                                                                                         |
@@ -12205,13 +12205,13 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 ### Properties
 
-| Name            | Type            | Required | Restrictions | Description                                                                                                                                                                    |
-|-----------------|-----------------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `callback_url`  | string          | false    |              | Deprecated: send RedirectURIs instead. If both are set, CallbackURL must equal the first entry of RedirectURIs.                                                                |
-| `icon`          | string          | false    |              |                                                                                                                                                                                |
-| `name`          | string          | true     |              |                                                                                                                                                                                |
-| `redirect_uris` | array of string | false    |              | Redirect uris is the ordered list of URIs the app may redirect to. The first entry becomes CallbackURL. Required on create, unless the deprecated CallbackURL is sent instead. |
-| `scope`         | string          | false    |              | Scope is the space-separated list of scopes this app's tokens may be granted. Leave empty, or omit, for unrestricted.                                                          |
+| Name            | Type            | Required | Restrictions | Description                                                                                                                                                      |
+|-----------------|-----------------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `callback_url`  | string          | false    |              | Deprecated: send redirect_uris instead. If both are sent, callback_url must equal the first entry of redirect_uris.                                              |
+| `icon`          | string          | false    |              |                                                                                                                                                                  |
+| `name`          | string          | true     |              |                                                                                                                                                                  |
+| `redirect_uris` | array of string | false    |              | Redirect uris is the ordered list of URIs the app may redirect to. The first entry is the primary. Required, unless the deprecated callback_url is sent instead. |
+| `scope`         | string          | false    |              | Scope is the space-separated list of scopes this app's tokens may be granted. Leave empty, or omit, for unrestricted.                                            |
 
 ## codersdk.PostWorkspaceUsageRequest
 
@@ -13098,13 +13098,13 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 ### Properties
 
-| Name            | Type            | Required | Restrictions | Description                                                                                                                                                                  |
-|-----------------|-----------------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `callback_url`  | string          | false    |              | Deprecated: send RedirectURIs instead. If both are set, CallbackURL must equal the first entry of RedirectURIs.                                                              |
-| `icon`          | string          | false    |              |                                                                                                                                                                              |
-| `name`          | string          | true     |              |                                                                                                                                                                              |
-| `redirect_uris` | array of string | false    |              | Redirect uris is the ordered list of URIs the app may redirect to. The first entry becomes CallbackURL. Send this instead of CallbackURL. Omit both to keep the stored list. |
-| `scope`         | string          | false    |              | Scope replaces the app's current allowlist. Omit to leave the existing allowlist untouched. Set to an empty string to clear it, making the app unrestricted.                 |
+| Name            | Type            | Required | Restrictions | Description                                                                                                                                                                                                                                                              |
+|-----------------|-----------------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `callback_url`  | string          | false    |              | Deprecated: send redirect_uris instead. If both are sent, callback_url must equal the first entry of redirect_uris.                                                                                                                                                      |
+| `icon`          | string          | false    |              |                                                                                                                                                                                                                                                                          |
+| `name`          | string          | true     |              |                                                                                                                                                                                                                                                                          |
+| `redirect_uris` | array of string | false    |              | Redirect uris is the ordered list of URIs the app may redirect to. The first entry is the primary. Omit both this and callback_url to keep the stored redirect URIs. Other fields are replaced. An empty slice is omitted on the wire, so it also keeps the stored list. |
+| `scope`         | string          | false    |              | Scope replaces the app's current allowlist. Omit to leave the existing allowlist untouched. Set to an empty string to clear it, making the app unrestricted.                                                                                                             |
 
 ## codersdk.RBACAction
 

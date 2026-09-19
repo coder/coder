@@ -19,7 +19,8 @@ type OAuth2ProviderApp struct {
 	Name string    `json:"name"`
 	// RedirectURIs are the app's registered redirect URIs, primary first.
 	RedirectURIs []string `json:"redirect_uris"`
-	// Deprecated: equal to RedirectURIs[0]. Read RedirectURIs instead.
+	// Deprecated: equal to the first entry of redirect_uris. Read
+	// redirect_uris instead.
 	CallbackURL string `json:"callback_url"`
 	Icon        string `json:"icon"`
 	// Scope is the space-separated list of scopes this app's tokens may be
@@ -88,11 +89,11 @@ func (c *Client) OAuth2ProviderApp(ctx context.Context, id uuid.UUID) (OAuth2Pro
 type PostOAuth2ProviderAppRequest struct {
 	Name string `json:"name" validate:"required,oauth2_app_name"`
 	// RedirectURIs is the ordered list of URIs the app may redirect to. The
-	// first entry becomes CallbackURL. Required on create, unless the
-	// deprecated CallbackURL is sent instead.
+	// first entry is the primary. Required, unless the deprecated
+	// callback_url is sent instead.
 	RedirectURIs []string `json:"redirect_uris,omitempty"`
-	// Deprecated: send RedirectURIs instead. If both are set, CallbackURL
-	// must equal the first entry of RedirectURIs.
+	// Deprecated: send redirect_uris instead. If both are sent, callback_url
+	// must equal the first entry of redirect_uris.
 	CallbackURL string `json:"callback_url,omitempty" validate:"omitempty"`
 	Icon        string `json:"icon" validate:"omitempty"`
 	// Scope is the space-separated list of scopes this app's tokens may be
@@ -118,11 +119,12 @@ func (c *Client) PostOAuth2ProviderApp(ctx context.Context, app PostOAuth2Provid
 type PutOAuth2ProviderAppRequest struct {
 	Name string `json:"name" validate:"required,oauth2_app_name"`
 	// RedirectURIs is the ordered list of URIs the app may redirect to. The
-	// first entry becomes CallbackURL. Send this instead of CallbackURL.
-	// Omit both to keep the stored list.
+	// first entry is the primary. Omit both this and callback_url to keep the
+	// stored redirect URIs. Other fields are replaced. An empty slice is
+	// omitted on the wire, so it also keeps the stored list.
 	RedirectURIs []string `json:"redirect_uris,omitempty"`
-	// Deprecated: send RedirectURIs instead. If both are set, CallbackURL
-	// must equal the first entry of RedirectURIs.
+	// Deprecated: send redirect_uris instead. If both are sent, callback_url
+	// must equal the first entry of redirect_uris.
 	CallbackURL string `json:"callback_url,omitempty" validate:"omitempty"`
 	Icon        string `json:"icon" validate:"omitempty"`
 	// Scope replaces the app's current allowlist. Omit to leave the existing

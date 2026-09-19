@@ -25568,7 +25568,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "callback_url": {
-                    "description": "Deprecated: equal to RedirectURIs[0]. Read RedirectURIs instead.",
+                    "description": "Deprecated: equal to the first entry of redirect_uris. Read\nredirect_uris instead.",
                     "type": "string"
                 },
                 "client_type": {
@@ -26581,7 +26581,7 @@ const docTemplate = `{
             ],
             "properties": {
                 "callback_url": {
-                    "description": "Deprecated: send RedirectURIs instead. If both are set, CallbackURL\nmust equal the first entry of RedirectURIs.",
+                    "description": "Deprecated: send redirect_uris instead. If both are sent, callback_url\nmust equal the first entry of redirect_uris.",
                     "type": "string"
                 },
                 "icon": {
@@ -26591,7 +26591,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "redirect_uris": {
-                    "description": "RedirectURIs is the ordered list of URIs the app may redirect to. The\nfirst entry becomes CallbackURL. Required on create, unless the\ndeprecated CallbackURL is sent instead.",
+                    "description": "RedirectURIs is the ordered list of URIs the app may redirect to. The\nfirst entry is the primary. Required, unless the deprecated\ncallback_url is sent instead.",
                     "type": "array",
                     "items": {
                         "type": "string"
@@ -27433,7 +27433,7 @@ const docTemplate = `{
             ],
             "properties": {
                 "callback_url": {
-                    "description": "Deprecated: send RedirectURIs instead. If both are set, CallbackURL\nmust equal the first entry of RedirectURIs.",
+                    "description": "Deprecated: send redirect_uris instead. If both are sent, callback_url\nmust equal the first entry of redirect_uris.",
                     "type": "string"
                 },
                 "icon": {
@@ -27443,7 +27443,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "redirect_uris": {
-                    "description": "RedirectURIs is the ordered list of URIs the app may redirect to. The\nfirst entry becomes CallbackURL. Send this instead of CallbackURL.\nOmit both to keep the stored list.",
+                    "description": "RedirectURIs is the ordered list of URIs the app may redirect to. The\nfirst entry is the primary. Omit both this and callback_url to keep the\nstored redirect URIs. Other fields are replaced. An empty slice is\nomitted on the wire, so it also keeps the stored list.",
                     "type": "array",
                     "items": {
                         "type": "string"

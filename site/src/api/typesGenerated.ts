@@ -6728,7 +6728,8 @@ export interface OAuth2ProviderApp {
 	 */
 	readonly redirect_uris: readonly string[];
 	/**
-	 * @deprecated equal to RedirectURIs[0]. Read RedirectURIs instead.
+	 * @deprecated equal to the first entry of redirect_uris. Read
+	 * redirect_uris instead.
 	 */
 	readonly callback_url: string;
 	readonly icon: string;
@@ -7516,13 +7517,13 @@ export interface PostOAuth2ProviderAppRequest {
 	readonly name: string;
 	/**
 	 * RedirectURIs is the ordered list of URIs the app may redirect to. The
-	 * first entry becomes CallbackURL. Required on create, unless the
-	 * deprecated CallbackURL is sent instead.
+	 * first entry is the primary. Required, unless the deprecated
+	 * callback_url is sent instead.
 	 */
 	readonly redirect_uris?: readonly string[];
 	/**
-	 * @deprecated send RedirectURIs instead. If both are set, CallbackURL
-	 * must equal the first entry of RedirectURIs.
+	 * @deprecated send redirect_uris instead. If both are sent, callback_url
+	 * must equal the first entry of redirect_uris.
 	 */
 	readonly callback_url?: string;
 	readonly icon: string;
@@ -8045,13 +8046,14 @@ export interface PutOAuth2ProviderAppRequest {
 	readonly name: string;
 	/**
 	 * RedirectURIs is the ordered list of URIs the app may redirect to. The
-	 * first entry becomes CallbackURL. Send this instead of CallbackURL.
-	 * Omit both to keep the stored list.
+	 * first entry is the primary. Omit both this and callback_url to keep the
+	 * stored redirect URIs. Other fields are replaced. An empty slice is
+	 * omitted on the wire, so it also keeps the stored list.
 	 */
 	readonly redirect_uris?: readonly string[];
 	/**
-	 * @deprecated send RedirectURIs instead. If both are set, CallbackURL
-	 * must equal the first entry of RedirectURIs.
+	 * @deprecated send redirect_uris instead. If both are sent, callback_url
+	 * must equal the first entry of redirect_uris.
 	 */
 	readonly callback_url?: string;
 	readonly icon: string;
