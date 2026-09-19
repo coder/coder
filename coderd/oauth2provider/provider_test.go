@@ -987,6 +987,65 @@ func TestOAuth2ProviderAppRedirectURIs(t *testing.T) {
 		require.Equal(t, []string{first, second}, config.RedirectURIs)
 	})
 
+	// A stored list with a duplicate, which DCR accepted before the caps
+	// existed, is returned deduplicated by both the admin API and the client
+	// configuration endpoint.
+	t.Run("StoredDuplicateReadsAgree", func(t *testing.T) {
+		t.Parallel()
+
+		db, pubsub := dbtestutil.NewDB(t)
+		client := coderdtest.New(t, &coderdtest.Options{Database: db, Pubsub: pubsub})
+		_ = coderdtest.CreateFirstUser(t, client)
+		oauth2providertest.EnableDCR(t, client)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		registered, err := client.PostOAuth2ClientRegistration(ctx, codersdk.OAuth2ClientRegistrationRequest{
+			ClientName:   testutil.GetRandomName(t),
+			RedirectURIs: []string{first, second},
+		})
+		require.NoError(t, err)
+		appID, err := uuid.Parse(registered.ClientID)
+		require.NoError(t, err)
+
+		// Every write path deduplicates, so the duplicate goes in directly.
+		stored, err := db.GetOAuth2ProviderAppByID(ctx, appID)
+		require.NoError(t, err)
+		_, err = db.UpdateOAuth2ProviderAppByID(ctx, database.UpdateOAuth2ProviderAppByIDParams{
+			ID:                      stored.ID,
+			UpdatedAt:               stored.UpdatedAt,
+			Name:                    stored.Name,
+			Icon:                    stored.Icon,
+			CallbackURL:             stored.CallbackURL,
+			RedirectUris:            []string{first, second, first},
+			ClientType:              stored.ClientType,
+			DynamicallyRegistered:   stored.DynamicallyRegistered,
+			ClientSecretExpiresAt:   stored.ClientSecretExpiresAt,
+			GrantTypes:              stored.GrantTypes,
+			ResponseTypes:           stored.ResponseTypes,
+			TokenEndpointAuthMethod: stored.TokenEndpointAuthMethod,
+			Scope:                   stored.Scope,
+			Contacts:                stored.Contacts,
+			ClientUri:               stored.ClientUri,
+			LogoUri:                 stored.LogoUri,
+			TosUri:                  stored.TosUri,
+			PolicyUri:               stored.PolicyUri,
+			JwksUri:                 stored.JwksUri,
+			Jwks:                    stored.Jwks,
+			SoftwareID:              stored.SoftwareID,
+			SoftwareVersion:         stored.SoftwareVersion,
+		})
+		require.NoError(t, err)
+
+		config, err := client.GetOAuth2ClientConfiguration(ctx, registered.ClientID, registered.RegistrationAccessToken)
+		require.NoError(t, err)
+		require.Equal(t, []string{first, second}, config.RedirectURIs)
+
+		//nolint:gocritic // OAuth2 app management requires owner permission.
+		app, err := client.OAuth2ProviderApp(ctx, appID)
+		require.NoError(t, err)
+		require.Equal(t, config.RedirectURIs, app.RedirectURIs)
+	})
+
 	// Creating and updating an app with the redirect_uris field stores and
 	// returns the list as given, with callback_url equal to the first entry.
 	t.Run("ExplicitListOnCreateAndUpdate", func(t *testing.T) {
