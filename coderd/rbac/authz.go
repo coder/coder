@@ -78,6 +78,7 @@ const (
 	SubjectTypeAPIKeyRevoker                SubjectType = "api_key_revoker"   // #nosec G101, not a credential.
 	SubjectTypeChatdKeyMinter               SubjectType = "chatd_key_minter"  // #nosec G101, not a credential.
 	SubjectTypeChatdTokenOwner              SubjectType = "chatd_token_owner" // #nosec G101, not a credential.
+	SubjectTypeLoginTypeConverter           SubjectType = "login_type_converter"
 	SubjectTypeNotifier                     SubjectType = "notifier"
 	SubjectTypeSubAgentAPI                  SubjectType = "sub_agent_api"
 	SubjectTypeFileReader                   SubjectType = "file_reader"

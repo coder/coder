@@ -260,7 +260,7 @@ curl -X POST http://coder-server:8080/api/v2/users/validate-password \
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
-## Convert user from password to oauth authentication
+## Convert user to oauth authentication
 
 ### Code samples
 
