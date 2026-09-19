@@ -112,30 +112,13 @@ func ChatProjectMemory(t testing.TB, db database.Store, seed database.ChatProjec
 	return memory
 }
 
-func ChatUserMemory(t testing.TB, db database.Store, seed database.ChatUserMemory) database.ChatUserMemory {
-	t.Helper()
-
-	memory, err := db.InsertChatUserMemory(genCtx, database.InsertChatUserMemoryParams{
-		ID:             uuid.NullUUID{UUID: seed.ID, Valid: seed.ID != uuid.Nil},
-		OrganizationID: takeFirst(seed.OrganizationID, uuid.New()),
-		UserID:         takeFirst(seed.UserID, uuid.New()),
-		Name:           takeFirst(seed.Name, testutil.GetRandomName(t)),
-		Description:    seed.Description,
-		Body:           seed.Body,
-		SourceChatID:   seed.SourceChatID,
-	})
-	require.NoError(t, err, "insert chat user memory")
-	return memory
-}
-
 func ChatMemoryConsolidation(t testing.TB, db database.Store, seed database.ChatMemoryConsolidation) database.ChatMemoryConsolidation {
 	t.Helper()
 
 	//nolint:gocritic // Tests seed system-written consolidation records.
 	consolidation, err := db.InsertChatMemoryConsolidation(dbauthz.AsChatd(genCtx), database.InsertChatMemoryConsolidationParams{
 		OrganizationID: takeFirst(seed.OrganizationID, uuid.New()),
-		ProjectID:      seed.ProjectID,
-		UserID:         seed.UserID,
+		ProjectID:      takeFirst(seed.ProjectID, uuid.New()),
 		Model:          seed.Model,
 		MemoriesBefore: seed.MemoriesBefore,
 	})

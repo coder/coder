@@ -84,15 +84,10 @@ export const RBACResourceActions: Partial<
 		create: "create a new chat project",
 		delete: "delete a chat project",
 		read: "read chat projects",
+		share: "share a chat project with other users or groups",
 		update: "update a chat project",
 	},
 	chat_project_memory: {
-		create: "create a chat project memory",
-		delete: "delete a chat project memory",
-		read: "read chat project memories",
-		update: "update a chat project memory",
-	},
-	chat_user_memory: {
 		create: "create a chat project memory",
 		delete: "delete a chat project memory",
 		read: "read chat project memories",

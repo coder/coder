@@ -61,12 +61,32 @@ func TestChatProjectMemoriesCRUD(t *testing.T) {
 	_, err = other.GetChatProjectMemory(ctx, project.ID, created.ID)
 	require.Equal(t, 404, coderdtest.SDKError(t, err).StatusCode())
 
-	memberRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
+	// Memory follows the project ACL: hidden until shared, then editable by
+	// anyone the project is shared with.
+	memberRaw, memberUser := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
 	member := codersdk.NewExperimentalClient(memberRaw)
+	_, err = member.ListChatProjectMemories(ctx, project.ID)
+	require.Equal(t, 404, coderdtest.SDKError(t, err).StatusCode())
+	_, err = member.GetChatProjectMemory(ctx, project.ID, created.ID)
+	require.Equal(t, 404, coderdtest.SDKError(t, err).StatusCode())
+
+	require.NoError(t, client.UpdateChatProjectACL(ctx, project.ID, codersdk.UpdateChatProjectACL{
+		UserRoles: map[string]codersdk.ChatProjectRole{memberUser.ID.String(): codersdk.ChatProjectRoleRead},
+	}))
+	memories, err = member.ListChatProjectMemories(ctx, project.ID)
+	require.NoError(t, err)
+	require.Len(t, memories, 1)
 	memberBody := "Members can collaboratively edit project memory."
 	memberUpdated, err := member.UpdateChatProjectMemory(ctx, project.ID, created.ID, codersdk.UpdateChatProjectMemoryRequest{Body: &memberBody})
 	require.NoError(t, err)
 	require.Equal(t, memberBody, memberUpdated.Body)
+	memberCreated, err := member.CreateChatProjectMemory(ctx, project.ID, codersdk.CreateChatProjectMemoryRequest{
+		Name:        "member-note",
+		Description: "Added by a shared member",
+		Body:        "Shared members contribute memory too.",
+	})
+	require.NoError(t, err)
+	require.Equal(t, memberUser.ID, memberCreated.CreatedBy)
 	require.NoError(t, member.DeleteChatProjectMemory(ctx, project.ID, created.ID))
 }
 

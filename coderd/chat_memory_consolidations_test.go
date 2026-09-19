@@ -1,9 +1,9 @@
 package coderd_test
 
 import (
+	"net/http"
 	"testing"
 
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
@@ -21,50 +21,35 @@ func TestChatMemoryConsolidationLists(t *testing.T) {
 	firstUser := coderdtest.CreateFirstUser(t, client.Client)
 	project := createChatProject(t, client, firstUser.OrganizationID, "Consolidation Project")
 
-	projectRecords, err := client.ListChatProjectMemoryConsolidations(ctx, project.ID)
+	records, err := client.ListChatProjectMemoryConsolidations(ctx, project.ID)
 	require.NoError(t, err)
-	require.Empty(t, projectRecords)
-	personalRecords, err := client.ListChatUserMemoryConsolidations(ctx, firstUser.OrganizationID)
-	require.NoError(t, err)
-	require.Empty(t, personalRecords)
+	require.Empty(t, records)
 
 	dbgen.ChatMemoryConsolidation(t, db, database.ChatMemoryConsolidation{
 		OrganizationID: firstUser.OrganizationID,
-		ProjectID:      uuidNull(project.ID),
-		Model:          "test-model",
-		MemoriesBefore: 2,
-	})
-	dbgen.ChatMemoryConsolidation(t, db, database.ChatMemoryConsolidation{
-		OrganizationID: firstUser.OrganizationID,
-		UserID:         uuidNull(firstUser.UserID),
+		ProjectID:      project.ID,
 		Model:          "test-model",
 		MemoriesBefore: 2,
 	})
 
-	projectRecords, err = client.ListChatProjectMemoryConsolidations(ctx, project.ID)
+	records, err = client.ListChatProjectMemoryConsolidations(ctx, project.ID)
 	require.NoError(t, err)
-	require.Len(t, projectRecords, 1)
-	require.Equal(t, codersdk.ChatMemoryConsolidationStatusRunning, projectRecords[0].Status)
-	require.Equal(t, project.ID, *projectRecords[0].ProjectID)
+	require.Len(t, records, 1)
+	require.Equal(t, codersdk.ChatMemoryConsolidationStatusRunning, records[0].Status)
+	require.Equal(t, project.ID, records[0].ProjectID)
 	// A run without mutations serializes an empty array, never null.
-	require.NotNil(t, projectRecords[0].Mutations)
-	require.Empty(t, projectRecords[0].Mutations)
+	require.NotNil(t, records[0].Mutations)
+	require.Empty(t, records[0].Mutations)
 
-	personalRecords, err = client.ListChatUserMemoryConsolidations(ctx, firstUser.OrganizationID)
-	require.NoError(t, err)
-	require.Len(t, personalRecords, 1)
-	require.Equal(t, firstUser.UserID, *personalRecords[0].UserID)
-
-	memberRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
+	// The journal follows the project ACL like the memories it describes.
+	memberRaw, memberUser := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
 	member := codersdk.NewExperimentalClient(memberRaw)
-	projectRecords, err = member.ListChatProjectMemoryConsolidations(ctx, project.ID)
+	_, err = member.ListChatProjectMemoryConsolidations(ctx, project.ID)
+	requireSDKError(t, err, http.StatusNotFound)
+	require.NoError(t, client.UpdateChatProjectACL(ctx, project.ID, codersdk.UpdateChatProjectACL{
+		UserRoles: map[string]codersdk.ChatProjectRole{memberUser.ID.String(): codersdk.ChatProjectRoleRead},
+	}))
+	records, err = member.ListChatProjectMemoryConsolidations(ctx, project.ID)
 	require.NoError(t, err)
-	require.Len(t, projectRecords, 1)
-	personalRecords, err = member.ListChatUserMemoryConsolidations(ctx, firstUser.OrganizationID)
-	require.NoError(t, err)
-	require.Empty(t, personalRecords)
-}
-
-func uuidNull(id uuid.UUID) uuid.NullUUID {
-	return uuid.NullUUID{UUID: id, Valid: true}
+	require.Len(t, records, 1)
 }

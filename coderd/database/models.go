@@ -535,16 +535,12 @@ const (
 	ApiKeyScopeChatProjectRead                     APIKeyScope = "chat_project:read"
 	ApiKeyScopeChatProjectUpdate                   APIKeyScope = "chat_project:update"
 	ApiKeyScopeChatProjectDelete                   APIKeyScope = "chat_project:delete"
+	ApiKeyScopeChatProjectShare                    APIKeyScope = "chat_project:share"
 	ApiKeyScopeChatProjectMemory                   APIKeyScope = "chat_project_memory:*"
 	ApiKeyScopeChatProjectMemoryCreate             APIKeyScope = "chat_project_memory:create"
 	ApiKeyScopeChatProjectMemoryRead               APIKeyScope = "chat_project_memory:read"
 	ApiKeyScopeChatProjectMemoryUpdate             APIKeyScope = "chat_project_memory:update"
 	ApiKeyScopeChatProjectMemoryDelete             APIKeyScope = "chat_project_memory:delete"
-	ApiKeyScopeChatUserMemory                      APIKeyScope = "chat_user_memory:*"
-	ApiKeyScopeChatUserMemoryCreate                APIKeyScope = "chat_user_memory:create"
-	ApiKeyScopeChatUserMemoryRead                  APIKeyScope = "chat_user_memory:read"
-	ApiKeyScopeChatUserMemoryUpdate                APIKeyScope = "chat_user_memory:update"
-	ApiKeyScopeChatUserMemoryDelete                APIKeyScope = "chat_user_memory:delete"
 )
 
 func (e *APIKeyScope) Scan(src interface{}) error {
@@ -832,16 +828,12 @@ func (e APIKeyScope) Valid() bool {
 		ApiKeyScopeChatProjectRead,
 		ApiKeyScopeChatProjectUpdate,
 		ApiKeyScopeChatProjectDelete,
+		ApiKeyScopeChatProjectShare,
 		ApiKeyScopeChatProjectMemory,
 		ApiKeyScopeChatProjectMemoryCreate,
 		ApiKeyScopeChatProjectMemoryRead,
 		ApiKeyScopeChatProjectMemoryUpdate,
-		ApiKeyScopeChatProjectMemoryDelete,
-		ApiKeyScopeChatUserMemory,
-		ApiKeyScopeChatUserMemoryCreate,
-		ApiKeyScopeChatUserMemoryRead,
-		ApiKeyScopeChatUserMemoryUpdate,
-		ApiKeyScopeChatUserMemoryDelete:
+		ApiKeyScopeChatProjectMemoryDelete:
 		return true
 	}
 	return false
@@ -1097,16 +1089,12 @@ func AllAPIKeyScopeValues() []APIKeyScope {
 		ApiKeyScopeChatProjectRead,
 		ApiKeyScopeChatProjectUpdate,
 		ApiKeyScopeChatProjectDelete,
+		ApiKeyScopeChatProjectShare,
 		ApiKeyScopeChatProjectMemory,
 		ApiKeyScopeChatProjectMemoryCreate,
 		ApiKeyScopeChatProjectMemoryRead,
 		ApiKeyScopeChatProjectMemoryUpdate,
 		ApiKeyScopeChatProjectMemoryDelete,
-		ApiKeyScopeChatUserMemory,
-		ApiKeyScopeChatUserMemoryCreate,
-		ApiKeyScopeChatUserMemoryRead,
-		ApiKeyScopeChatUserMemoryUpdate,
-		ApiKeyScopeChatUserMemoryDelete,
 	}
 }
 
@@ -3778,7 +3766,6 @@ const (
 	ResourceTypeChatOperationalSettings     ResourceType = "chat_operational_settings"
 	ResourceTypeChatProject                 ResourceType = "chat_project"
 	ResourceTypeChatProjectMemory           ResourceType = "chat_project_memory"
-	ResourceTypeChatUserMemory              ResourceType = "chat_user_memory"
 )
 
 func (e *ResourceType) Scan(src interface{}) error {
@@ -3859,8 +3846,7 @@ func (e ResourceType) Valid() bool {
 		ResourceTypeChatModelConfig,
 		ResourceTypeChatOperationalSettings,
 		ResourceTypeChatProject,
-		ResourceTypeChatProjectMemory,
-		ResourceTypeChatUserMemory:
+		ResourceTypeChatProjectMemory:
 		return true
 	}
 	return false
@@ -3910,7 +3896,6 @@ func AllResourceTypeValues() []ResourceType {
 		ResourceTypeChatOperationalSettings,
 		ResourceTypeChatProject,
 		ResourceTypeChatProjectMemory,
-		ResourceTypeChatUserMemory,
 	}
 }
 
@@ -5302,12 +5287,11 @@ type ChatHeartbeat struct {
 	HeartbeatAt time.Time `db:"heartbeat_at" json:"heartbeat_at"`
 }
 
-// Bounded journal of detached chat-memory consolidation runs.
+// Bounded journal of detached project memory consolidation runs.
 type ChatMemoryConsolidation struct {
 	ID             uuid.UUID                     `db:"id" json:"id"`
 	OrganizationID uuid.UUID                     `db:"organization_id" json:"organization_id"`
-	ProjectID      uuid.NullUUID                 `db:"project_id" json:"project_id"`
-	UserID         uuid.NullUUID                 `db:"user_id" json:"user_id"`
+	ProjectID      uuid.UUID                     `db:"project_id" json:"project_id"`
 	Status         ChatMemoryConsolidationStatus `db:"status" json:"status"`
 	StartedAt      time.Time                     `db:"started_at" json:"started_at"`
 	FinishedAt     sql.NullTime                  `db:"finished_at" json:"finished_at"`
@@ -5395,6 +5379,10 @@ type ChatProject struct {
 	Description    string    `db:"description" json:"description"`
 	CreatedAt      time.Time `db:"created_at" json:"created_at"`
 	UpdatedAt      time.Time `db:"updated_at" json:"updated_at"`
+	// Per-user permissions granted on the project, keyed by user ID. Same shape as chats.user_acl.
+	UserACL ChatACL `db:"user_acl" json:"user_acl"`
+	// Per-group permissions granted on the project, keyed by group ID. Same shape as chats.group_acl.
+	GroupACL ChatACL `db:"group_acl" json:"group_acl"`
 }
 
 // Organization-scoped durable memories for chat projects.
@@ -5490,19 +5478,6 @@ type ChatUsageLimitConfig struct {
 	Period             string    `db:"period" json:"period"`
 	CreatedAt          time.Time `db:"created_at" json:"created_at"`
 	UpdatedAt          time.Time `db:"updated_at" json:"updated_at"`
-}
-
-// User-scoped durable memories for chat.
-type ChatUserMemory struct {
-	ID             uuid.UUID     `db:"id" json:"id"`
-	OrganizationID uuid.UUID     `db:"organization_id" json:"organization_id"`
-	UserID         uuid.UUID     `db:"user_id" json:"user_id"`
-	Name           string        `db:"name" json:"name"`
-	Description    string        `db:"description" json:"description"`
-	Body           string        `db:"body" json:"body"`
-	SourceChatID   uuid.NullUUID `db:"source_chat_id" json:"source_chat_id"`
-	CreatedAt      time.Time     `db:"created_at" json:"created_at"`
-	UpdatedAt      time.Time     `db:"updated_at" json:"updated_at"`
 }
 
 type ChatUserModelOverride struct {

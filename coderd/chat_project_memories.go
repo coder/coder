@@ -58,7 +58,7 @@ func (api *API) postChatProjectMemory(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	project := httpmw.ChatProjectParam(r)
 	apiKey := httpmw.APIKey(r)
-	if !api.Authorize(r, policy.ActionCreate, rbacMemoryObject(project.OrganizationID)) {
+	if !api.Authorize(r, policy.ActionCreate, database.ChatProjectMemoryRBACObject(project)) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}
@@ -109,7 +109,7 @@ func (api *API) getChatProjectMemory(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	project := httpmw.ChatProjectParam(r)
 	memory := httpmw.ChatProjectMemoryParam(r)
-	if memory.ChatProjectMemory.ProjectID != project.ID || !api.Authorize(r, policy.ActionRead, memory.RBACObject()) {
+	if memory.ChatProjectMemory.ProjectID != project.ID || !api.Authorize(r, policy.ActionRead, memory.ChatProjectMemory.RBACObject(project)) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}
@@ -133,7 +133,7 @@ func (api *API) patchChatProjectMemory(rw http.ResponseWriter, r *http.Request) 
 	project := httpmw.ChatProjectParam(r)
 	memoryRow := httpmw.ChatProjectMemoryParam(r)
 	memory := memoryRow.ChatProjectMemory
-	if memory.ProjectID != project.ID || !api.Authorize(r, policy.ActionUpdate, memory.RBACObject()) {
+	if memory.ProjectID != project.ID || !api.Authorize(r, policy.ActionUpdate, memory.RBACObject(project)) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}
@@ -190,7 +190,7 @@ func (api *API) deleteChatProjectMemory(rw http.ResponseWriter, r *http.Request)
 	ctx := r.Context()
 	project := httpmw.ChatProjectParam(r)
 	memory := httpmw.ChatProjectMemoryParam(r)
-	if memory.ChatProjectMemory.ProjectID != project.ID || !api.Authorize(r, policy.ActionDelete, memory.RBACObject()) {
+	if memory.ChatProjectMemory.ProjectID != project.ID || !api.Authorize(r, policy.ActionDelete, memory.ChatProjectMemory.RBACObject(project)) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}
@@ -227,8 +227,4 @@ func validateChatProjectMemory(name, description, body string) (normalizedChatPr
 		return normalizedChatProjectMemory{}, &codersdk.Response{Message: "body must be at most 8192 bytes."}
 	}
 	return normalizedChatProjectMemory{Name: name, Description: description, Body: body}, nil
-}
-
-func rbacMemoryObject(organizationID uuid.UUID) database.ChatProjectMemory {
-	return database.ChatProjectMemory{OrganizationID: organizationID}
 }

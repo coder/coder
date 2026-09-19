@@ -392,6 +392,10 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 			Negate:       true,
 			ResourceType: ResourceChat.Type,
 			Action:       policy.ActionShare,
+		}, Permission{
+			Negate:       true,
+			ResourceType: ResourceChatProject.Type,
+			Action:       policy.ActionShare,
 		})
 	}
 
@@ -1150,9 +1154,10 @@ func OrgMemberPermissions(org OrgSettings) OrgRolePermissions {
 		// All org members can read the organization.
 		ResourceOrganization.Type: {policy.ActionRead},
 		// Can read available roles.
-		ResourceAssignOrgRole.Type:     {policy.ActionRead},
-		ResourceChatProject.Type:       {policy.ActionRead, policy.ActionCreate},
-		ResourceChatProjectMemory.Type: ResourceChatProjectMemory.AvailableActions(),
+		ResourceAssignOrgRole.Type: {policy.ActionRead},
+		// Projects are private to their creator until shared; members may
+		// only create them.
+		ResourceChatProject.Type: {policy.ActionCreate},
 	}
 
 	// In all modes of workspace sharing but `none`, members need to
@@ -1211,8 +1216,10 @@ func OrgMemberPermissions(org OrgSettings) OrgRolePermissions {
 			policy.ActionShare,
 			policy.ActionUpdate,
 		},
-		ResourceChatUserMemory.Type: {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
-		ResourceChatProject.Type:    {policy.ActionUpdate, policy.ActionDelete},
+		ResourceChatProject.Type: {policy.ActionRead, policy.ActionUpdate, policy.ActionDelete, policy.ActionShare},
+		// Memory objects carry the owning project's owner and ACL, so this
+		// grant reaches only the creator's own projects.
+		ResourceChatProjectMemory.Type: ResourceChatProjectMemory.AvailableActions(),
 	})
 
 	if org.ShareableWorkspaceOwners != ShareableWorkspaceOwnersEveryone {

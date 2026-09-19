@@ -154,244 +154,6 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/experimental/chats/memories": {
-            "get": {
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Chats"
-                ],
-                "summary": "List chat user memories",
-                "operationId": "list-chat-user-memories",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Organization ID",
-                        "name": "organization",
-                        "in": "query",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/codersdk.ChatUserMemory"
-                            }
-                        }
-                    }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "x-apidocgen": {
-                    "skip": true
-                }
-            },
-            "post": {
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Chats"
-                ],
-                "summary": "Create chat user memory",
-                "operationId": "create-chat-user-memory",
-                "parameters": [
-                    {
-                        "description": "Create memory request",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.CreateChatUserMemoryRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "201": {
-                        "description": "Created",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.ChatUserMemory"
-                        }
-                    }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "x-apidocgen": {
-                    "skip": true
-                }
-            }
-        },
-        "/api/experimental/chats/memories/consolidations": {
-            "get": {
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Chats"
-                ],
-                "summary": "List chat user memory consolidations",
-                "operationId": "list-chat-user-memory-consolidations",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Organization ID",
-                        "name": "organization",
-                        "in": "query",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/codersdk.ChatMemoryConsolidation"
-                            }
-                        }
-                    }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "x-apidocgen": {
-                    "skip": true
-                }
-            }
-        },
-        "/api/experimental/chats/memories/{memory}": {
-            "get": {
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Chats"
-                ],
-                "summary": "Get chat user memory",
-                "operationId": "get-chat-user-memory",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Chat user memory ID",
-                        "name": "memory",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.ChatUserMemory"
-                        }
-                    }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "x-apidocgen": {
-                    "skip": true
-                }
-            },
-            "delete": {
-                "tags": [
-                    "Chats"
-                ],
-                "summary": "Delete chat user memory",
-                "operationId": "delete-chat-user-memory",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Chat user memory ID",
-                        "name": "memory",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "204": {
-                        "description": "No Content"
-                    }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "x-apidocgen": {
-                    "skip": true
-                }
-            },
-            "patch": {
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Chats"
-                ],
-                "summary": "Update chat user memory",
-                "operationId": "update-chat-user-memory",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Chat user memory ID",
-                        "name": "memory",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "Update memory request",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.UpdateChatUserMemoryRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.ChatUserMemory"
-                        }
-                    }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "x-apidocgen": {
-                    "skip": true
-                }
-            }
-        },
         "/api/experimental/chats/projects": {
             "get": {
                 "produces": [
@@ -577,6 +339,86 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/codersdk.ChatProject"
                         }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
+        "/api/experimental/chats/projects/{project}/acl": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Get chat project ACL",
+                "operationId": "get-chat-project-acl",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat project ID",
+                        "name": "project",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ChatProjectACL"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            },
+            "patch": {
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Update chat project ACL",
+                "operationId": "update-chat-project-acl",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat project ID",
+                        "name": "project",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Update chat project ACL request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UpdateChatProjectACL"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
                     }
                 },
                 "security": [
@@ -2833,68 +2675,6 @@ const docTemplate = `{
                 "responses": {
                     "204": {
                         "description": "No Content"
-                    }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
-            }
-        },
-        "/api/v2/chats/config/user-memory": {
-            "get": {
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Chats"
-                ],
-                "summary": "Get user chat personal memory settings",
-                "operationId": "get-user-chat-personal-memory-settings",
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.ChatPersonalMemorySettings"
-                        }
-                    }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
-            },
-            "put": {
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Chats"
-                ],
-                "summary": "Update user chat personal memory settings",
-                "operationId": "update-user-chat-personal-memory-settings",
-                "parameters": [
-                    {
-                        "description": "Request body",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.UpdateChatPersonalMemorySettingsRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.ChatPersonalMemorySettings"
-                        }
                     }
                 },
                 "security": [
@@ -19308,17 +19088,13 @@ const docTemplate = `{
                 "chat_project:create",
                 "chat_project:delete",
                 "chat_project:read",
+                "chat_project:share",
                 "chat_project:update",
                 "chat_project_memory:*",
                 "chat_project_memory:create",
                 "chat_project_memory:delete",
                 "chat_project_memory:read",
                 "chat_project_memory:update",
-                "chat_user_memory:*",
-                "chat_user_memory:create",
-                "chat_user_memory:delete",
-                "chat_user_memory:read",
-                "chat_user_memory:update",
                 "coder:all",
                 "coder:apikeys.manage_self",
                 "coder:application_connect",
@@ -19570,17 +19346,13 @@ const docTemplate = `{
                 "APIKeyScopeChatProjectCreate",
                 "APIKeyScopeChatProjectDelete",
                 "APIKeyScopeChatProjectRead",
+                "APIKeyScopeChatProjectShare",
                 "APIKeyScopeChatProjectUpdate",
                 "APIKeyScopeChatProjectMemoryAll",
                 "APIKeyScopeChatProjectMemoryCreate",
                 "APIKeyScopeChatProjectMemoryDelete",
                 "APIKeyScopeChatProjectMemoryRead",
                 "APIKeyScopeChatProjectMemoryUpdate",
-                "APIKeyScopeChatUserMemoryAll",
-                "APIKeyScopeChatUserMemoryCreate",
-                "APIKeyScopeChatUserMemoryDelete",
-                "APIKeyScopeChatUserMemoryRead",
-                "APIKeyScopeChatUserMemoryUpdate",
                 "APIKeyScopeCoderAll",
                 "APIKeyScopeCoderApikeysManageSelf",
                 "APIKeyScopeCoderApplicationConnect",
@@ -21129,10 +20901,6 @@ const docTemplate = `{
                 },
                 "status": {
                     "$ref": "#/definitions/codersdk.ChatMemoryConsolidationStatus"
-                },
-                "user_id": {
-                    "type": "string",
-                    "format": "uuid"
                 }
             }
         },
@@ -22025,14 +21793,6 @@ const docTemplate = `{
                 }
             }
         },
-        "codersdk.ChatPersonalMemorySettings": {
-            "type": "object",
-            "properties": {
-                "enabled": {
-                    "type": "boolean"
-                }
-            }
-        },
         "codersdk.ChatPersonalModelOverride": {
             "type": "object",
             "properties": {
@@ -22146,6 +21906,78 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.ChatProjectACL": {
+            "type": "object",
+            "properties": {
+                "groups": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.ChatProjectGroup"
+                    }
+                },
+                "users": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.ChatProjectUser"
+                    }
+                }
+            }
+        },
+        "codersdk.ChatProjectGroup": {
+            "type": "object",
+            "properties": {
+                "avatar_url": {
+                    "type": "string",
+                    "format": "uri"
+                },
+                "display_name": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "members": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.ReducedUser"
+                    }
+                },
+                "name": {
+                    "type": "string"
+                },
+                "organization_display_name": {
+                    "type": "string"
+                },
+                "organization_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "organization_name": {
+                    "type": "string"
+                },
+                "quota_allowance": {
+                    "type": "integer"
+                },
+                "role": {
+                    "enum": [
+                        "read"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ChatProjectRole"
+                        }
+                    ]
+                },
+                "source": {
+                    "$ref": "#/definitions/codersdk.GroupSource"
+                },
+                "total_member_count": {
+                    "description": "How many members are in this group. Shows the total count,\neven if the user is not authorized to read group member details.\nMay be greater than ` + "`" + `len(Group.Members)` + "`" + `.",
+                    "type": "integer"
+                }
+            }
+        },
         "codersdk.ChatProjectMemory": {
             "type": "object",
             "properties": {
@@ -22188,6 +22020,50 @@ const docTemplate = `{
                 "updated_at": {
                     "type": "string",
                     "format": "date-time"
+                }
+            }
+        },
+        "codersdk.ChatProjectRole": {
+            "type": "string",
+            "enum": [
+                "read",
+                ""
+            ],
+            "x-enum-varnames": [
+                "ChatProjectRoleRead",
+                "ChatProjectRoleDeleted"
+            ]
+        },
+        "codersdk.ChatProjectUser": {
+            "type": "object",
+            "required": [
+                "id",
+                "username"
+            ],
+            "properties": {
+                "avatar_url": {
+                    "type": "string",
+                    "format": "uri"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "role": {
+                    "enum": [
+                        "read"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ChatProjectRole"
+                        }
+                    ]
+                },
+                "username": {
+                    "type": "string"
                 }
             }
         },
@@ -22483,47 +22359,6 @@ const docTemplate = `{
                 },
                 "username": {
                     "type": "string"
-                }
-            }
-        },
-        "codersdk.ChatUserMemory": {
-            "type": "object",
-            "properties": {
-                "body": {
-                    "type": "string"
-                },
-                "created_at": {
-                    "type": "string",
-                    "format": "date-time"
-                },
-                "created_by_username": {
-                    "type": "string"
-                },
-                "description": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "string",
-                    "format": "uuid"
-                },
-                "name": {
-                    "type": "string"
-                },
-                "organization_id": {
-                    "type": "string",
-                    "format": "uuid"
-                },
-                "source_chat_id": {
-                    "type": "string",
-                    "format": "uuid"
-                },
-                "updated_at": {
-                    "type": "string",
-                    "format": "date-time"
-                },
-                "user_id": {
-                    "type": "string",
-                    "format": "uuid"
                 }
             }
         },
@@ -23015,30 +22850,6 @@ const docTemplate = `{
                     }
                 },
                 "workspace_id": {
-                    "type": "string",
-                    "format": "uuid"
-                }
-            }
-        },
-        "codersdk.CreateChatUserMemoryRequest": {
-            "type": "object",
-            "required": [
-                "body",
-                "description",
-                "name",
-                "organization_id"
-            ],
-            "properties": {
-                "body": {
-                    "type": "string"
-                },
-                "description": {
-                    "type": "string"
-                },
-                "name": {
-                    "type": "string"
-                },
-                "organization_id": {
                     "type": "string",
                     "format": "uuid"
                 }
@@ -28586,7 +28397,6 @@ const docTemplate = `{
                 "chat_model_config",
                 "chat_project",
                 "chat_project_memory",
-                "chat_user_memory",
                 "connection_log",
                 "crypto_key",
                 "debug_info",
@@ -28643,7 +28453,6 @@ const docTemplate = `{
                 "ResourceChatModelConfig",
                 "ResourceChatProject",
                 "ResourceChatProjectMemory",
-                "ResourceChatUserMemory",
                 "ResourceConnectionLog",
                 "ResourceCryptoKey",
                 "ResourceDebugInfo",
@@ -28902,7 +28711,6 @@ const docTemplate = `{
                 "chat",
                 "chat_project",
                 "chat_project_memory",
-                "chat_user_memory",
                 "mcp_server_config",
                 "chat_model_config",
                 "user_secret",
@@ -28947,7 +28755,6 @@ const docTemplate = `{
                 "ResourceTypeChat",
                 "ResourceTypeChatProject",
                 "ResourceTypeChatProjectMemory",
-                "ResourceTypeChatUserMemory",
                 "ResourceTypeMCPServerConfig",
                 "ResourceTypeChatModelConfig",
                 "ResourceTypeUserSecret",
@@ -30754,14 +30561,6 @@ const docTemplate = `{
                 }
             }
         },
-        "codersdk.UpdateChatPersonalMemorySettingsRequest": {
-            "type": "object",
-            "properties": {
-                "enabled": {
-                    "type": "boolean"
-                }
-            }
-        },
         "codersdk.UpdateChatPersonalModelOverridesAdminSettingsRequest": {
             "type": "object",
             "properties": {
@@ -30775,6 +30574,23 @@ const docTemplate = `{
             "properties": {
                 "plan_mode_instructions": {
                     "type": "string"
+                }
+            }
+        },
+        "codersdk.UpdateChatProjectACL": {
+            "type": "object",
+            "properties": {
+                "group_roles": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "$ref": "#/definitions/codersdk.ChatProjectRole"
+                    }
+                },
+                "user_roles": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "$ref": "#/definitions/codersdk.ChatProjectRole"
+                    }
                 }
             }
         },
@@ -30856,20 +30672,6 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "system_prompt": {
-                    "type": "string"
-                }
-            }
-        },
-        "codersdk.UpdateChatUserMemoryRequest": {
-            "type": "object",
-            "properties": {
-                "body": {
-                    "type": "string"
-                },
-                "description": {
-                    "type": "string"
-                },
-                "name": {
                     "type": "string"
                 }
             }

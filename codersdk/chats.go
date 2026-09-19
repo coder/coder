@@ -181,6 +181,39 @@ type UpdateChatProjectRequest struct {
 	Description *string `json:"description,omitempty"`
 }
 
+// ChatProjectRole is the access a shared user or group holds on a project.
+// Like chats, sharing grants read: seeing the project, its memory, and the
+// ability to start chats in it.
+type ChatProjectRole string
+
+const (
+	ChatProjectRoleRead    ChatProjectRole = "read"
+	ChatProjectRoleDeleted ChatProjectRole = ""
+)
+
+type ChatProjectUser struct {
+	MinimalUser
+	Role ChatProjectRole `json:"role" enums:"read"`
+}
+
+type ChatProjectGroup struct {
+	Group
+	Role ChatProjectRole `json:"role" enums:"read"`
+}
+
+// ChatProjectACL lists the users and groups a project is shared with.
+type ChatProjectACL struct {
+	Users  []ChatProjectUser  `json:"users"`
+	Groups []ChatProjectGroup `json:"groups"`
+}
+
+// UpdateChatProjectACL applies role changes for the listed principals.
+// ChatProjectRoleDeleted removes an entry; omitted entries are untouched.
+type UpdateChatProjectACL struct {
+	UserRoles  map[string]ChatProjectRole `json:"user_roles,omitempty"`
+	GroupRoles map[string]ChatProjectRole `json:"group_roles,omitempty"`
+}
+
 // ChatProjectMemory is a durable memory shared by chats in a project.
 type ChatProjectMemory struct {
 	ID                uuid.UUID  `json:"id" format:"uuid"`
@@ -203,35 +236,6 @@ type CreateChatProjectMemoryRequest struct {
 }
 
 type UpdateChatProjectMemoryRequest struct {
-	Name        *string `json:"name,omitempty"`
-	Description *string `json:"description,omitempty"`
-	Body        *string `json:"body,omitempty"`
-}
-
-// ChatUserMemory is a durable memory scoped to a user and organization.
-type ChatUserMemory struct {
-	ID                uuid.UUID  `json:"id" format:"uuid"`
-	OrganizationID    uuid.UUID  `json:"organization_id" format:"uuid"`
-	UserID            uuid.UUID  `json:"user_id" format:"uuid"`
-	Name              string     `json:"name"`
-	Description       string     `json:"description"`
-	Body              string     `json:"body"`
-	SourceChatID      *uuid.UUID `json:"source_chat_id,omitempty" format:"uuid"`
-	CreatedByUsername string     `json:"created_by_username"`
-	CreatedAt         time.Time  `json:"created_at" format:"date-time"`
-	UpdatedAt         time.Time  `json:"updated_at" format:"date-time"`
-}
-
-// CreateChatUserMemoryRequest creates a user-scoped memory.
-type CreateChatUserMemoryRequest struct {
-	OrganizationID uuid.UUID `json:"organization_id" validate:"required" format:"uuid"`
-	Name           string    `json:"name" validate:"required"`
-	Description    string    `json:"description" validate:"required"`
-	Body           string    `json:"body" validate:"required"`
-}
-
-// UpdateChatUserMemoryRequest updates a user-scoped memory.
-type UpdateChatUserMemoryRequest struct {
 	Name        *string `json:"name,omitempty"`
 	Description *string `json:"description,omitempty"`
 	Body        *string `json:"body,omitempty"`
@@ -260,8 +264,7 @@ type ChatMemoryMutation struct {
 type ChatMemoryConsolidation struct {
 	ID             uuid.UUID                     `json:"id" format:"uuid"`
 	OrganizationID uuid.UUID                     `json:"organization_id" format:"uuid"`
-	ProjectID      *uuid.UUID                    `json:"project_id,omitempty" format:"uuid"`
-	UserID         *uuid.UUID                    `json:"user_id,omitempty" format:"uuid"`
+	ProjectID      uuid.UUID                     `json:"project_id" format:"uuid"`
 	Status         ChatMemoryConsolidationStatus `json:"status"`
 	StartedAt      time.Time                     `json:"started_at" format:"date-time"`
 	FinishedAt     *time.Time                    `json:"finished_at,omitempty" format:"date-time"`
@@ -1007,16 +1010,6 @@ type UpdateChatPersonalModelOverridesAdminSettingsRequest struct {
 // user chat custom prompt configuration endpoint.
 type UserChatCustomPrompt struct {
 	CustomPrompt string `json:"custom_prompt"`
-}
-
-// ChatPersonalMemorySettings describes a user's personal memory setting.
-type ChatPersonalMemorySettings struct {
-	Enabled bool `json:"enabled"`
-}
-
-// UpdateChatPersonalMemorySettingsRequest updates a user's personal memory setting.
-type UpdateChatPersonalMemorySettingsRequest struct {
-	Enabled bool `json:"enabled"`
 }
 
 // UserChatCompactionThreshold is a user's per-model chat compaction
@@ -2221,6 +2214,31 @@ func (c *ExperimentalClient) UpdateChatProject(ctx context.Context, projectID uu
 }
 
 // DeleteChatProject deletes a chat project and detaches its chats.
+func (c *ExperimentalClient) GetChatProjectACL(ctx context.Context, projectID uuid.UUID) (ChatProjectACL, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/experimental/chats/projects/%s/acl", projectID), nil)
+	if err != nil {
+		return ChatProjectACL{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ChatProjectACL{}, ReadBodyAsError(res)
+	}
+	var acl ChatProjectACL
+	return acl, ReadBodyAsJSON(res, &acl)
+}
+
+func (c *ExperimentalClient) UpdateChatProjectACL(ctx context.Context, projectID uuid.UUID, req UpdateChatProjectACL) error {
+	res, err := c.Request(ctx, http.MethodPatch, fmt.Sprintf("/api/experimental/chats/projects/%s/acl", projectID), req)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
+}
+
 func (c *ExperimentalClient) DeleteChatProject(ctx context.Context, projectID uuid.UUID) error {
 	res, err := c.Request(ctx, http.MethodDelete, fmt.Sprintf("/api/experimental/chats/projects/%s", projectID), nil)
 	if err != nil {
@@ -2306,89 +2324,6 @@ func (c *ExperimentalClient) UpdateChatProjectMemory(ctx context.Context, projec
 // DeleteChatProjectMemory deletes a project memory.
 func (c *ExperimentalClient) DeleteChatProjectMemory(ctx context.Context, projectID, memoryID uuid.UUID) error {
 	res, err := c.Request(ctx, http.MethodDelete, fmt.Sprintf("/api/experimental/chats/projects/%s/memories/%s", projectID, memoryID), nil)
-	if err != nil {
-		return err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusNoContent {
-		return ReadBodyAsError(res)
-	}
-	return nil
-}
-
-// ListChatUserMemories lists a user's memories in an organization.
-func (c *ExperimentalClient) ListChatUserMemories(ctx context.Context, organizationID uuid.UUID) ([]ChatUserMemory, error) {
-	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/experimental/chats/memories?organization=%s", organizationID), nil)
-	if err != nil {
-		return nil, err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		return nil, ReadBodyAsError(res)
-	}
-	var memories []ChatUserMemory
-	return memories, ReadBodyAsJSON(res, &memories)
-}
-
-// ListChatUserMemoryConsolidations lists recent personal memory consolidation runs.
-func (c *ExperimentalClient) ListChatUserMemoryConsolidations(ctx context.Context, organizationID uuid.UUID) ([]ChatMemoryConsolidation, error) {
-	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/experimental/chats/memories/consolidations?organization=%s", organizationID), nil)
-	if err != nil {
-		return nil, err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		return nil, ReadBodyAsError(res)
-	}
-	var records []ChatMemoryConsolidation
-	return records, ReadBodyAsJSON(res, &records)
-}
-
-// CreateChatUserMemory creates a user-scoped memory.
-func (c *ExperimentalClient) CreateChatUserMemory(ctx context.Context, req CreateChatUserMemoryRequest) (ChatUserMemory, error) {
-	res, err := c.Request(ctx, http.MethodPost, "/api/experimental/chats/memories", req)
-	if err != nil {
-		return ChatUserMemory{}, err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusCreated {
-		return ChatUserMemory{}, ReadBodyAsError(res)
-	}
-	var memory ChatUserMemory
-	return memory, ReadBodyAsJSON(res, &memory)
-}
-
-// GetChatUserMemory gets a user-scoped memory.
-func (c *ExperimentalClient) GetChatUserMemory(ctx context.Context, memoryID uuid.UUID) (ChatUserMemory, error) {
-	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/experimental/chats/memories/%s", memoryID), nil)
-	if err != nil {
-		return ChatUserMemory{}, err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		return ChatUserMemory{}, ReadBodyAsError(res)
-	}
-	var memory ChatUserMemory
-	return memory, ReadBodyAsJSON(res, &memory)
-}
-
-// UpdateChatUserMemory updates a user-scoped memory.
-func (c *ExperimentalClient) UpdateChatUserMemory(ctx context.Context, memoryID uuid.UUID, req UpdateChatUserMemoryRequest) (ChatUserMemory, error) {
-	res, err := c.Request(ctx, http.MethodPatch, fmt.Sprintf("/api/experimental/chats/memories/%s", memoryID), req)
-	if err != nil {
-		return ChatUserMemory{}, err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		return ChatUserMemory{}, ReadBodyAsError(res)
-	}
-	var memory ChatUserMemory
-	return memory, ReadBodyAsJSON(res, &memory)
-}
-
-// DeleteChatUserMemory deletes a user-scoped memory.
-func (c *ExperimentalClient) DeleteChatUserMemory(ctx context.Context, memoryID uuid.UUID) error {
-	res, err := c.Request(ctx, http.MethodDelete, fmt.Sprintf("/api/experimental/chats/memories/%s", memoryID), nil)
 	if err != nil {
 		return err
 	}
@@ -2869,34 +2804,6 @@ func (c *Client) UpdateUserChatPersonalModelOverride(ctx context.Context, organi
 		return ReadBodyAsError(res)
 	}
 	return nil
-}
-
-// ChatPersonalMemorySettings gets the user's personal memory setting.
-func (c *Client) ChatPersonalMemorySettings(ctx context.Context) (ChatPersonalMemorySettings, error) {
-	res, err := c.Request(ctx, http.MethodGet, "/api/v2/chats/config/user-memory", nil)
-	if err != nil {
-		return ChatPersonalMemorySettings{}, err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		return ChatPersonalMemorySettings{}, ReadBodyAsError(res)
-	}
-	var resp ChatPersonalMemorySettings
-	return resp, ReadBodyAsJSON(res, &resp)
-}
-
-// UpdateChatPersonalMemorySettings updates the user's personal memory setting.
-func (c *Client) UpdateChatPersonalMemorySettings(ctx context.Context, req UpdateChatPersonalMemorySettingsRequest) (ChatPersonalMemorySettings, error) {
-	res, err := c.Request(ctx, http.MethodPut, "/api/v2/chats/config/user-memory", req)
-	if err != nil {
-		return ChatPersonalMemorySettings{}, err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		return ChatPersonalMemorySettings{}, ReadBodyAsError(res)
-	}
-	var resp ChatPersonalMemorySettings
-	return resp, ReadBodyAsJSON(res, &resp)
 }
 
 // GetUserChatCustomPrompt fetches the user's custom chat prompt.

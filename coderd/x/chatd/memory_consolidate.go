@@ -56,23 +56,18 @@ type memoryConsolidationMutation struct {
 
 type memoryConsolidationScope struct {
 	organizationID uuid.UUID
-	projectID      uuid.NullUUID
-	userID         uuid.NullUUID
+	projectID      uuid.UUID
 }
 
+// memoryConsolidationScopeForChat identifies the project a chat's memory
+// belongs to. Callers only reach this after resolveMemoryScope confirmed the
+// chat is in a project.
 func memoryConsolidationScopeForChat(chat database.Chat) memoryConsolidationScope {
-	if chat.ProjectID.Valid {
-		return memoryConsolidationScope{organizationID: chat.OrganizationID, projectID: chat.ProjectID}
-	}
-	return memoryConsolidationScope{organizationID: chat.OrganizationID, userID: uuid.NullUUID{UUID: chat.OwnerID, Valid: true}}
+	return memoryConsolidationScope{organizationID: chat.OrganizationID, projectID: chat.ProjectID.UUID}
 }
 
 func (s memoryConsolidationScope) lockID() int64 {
-	id := s.userID.UUID
-	if s.projectID.Valid {
-		id = s.projectID.UUID
-	}
-	return database.GenLockID("chat-memory-consolidation:" + id.String())
+	return database.GenLockID("chat-memory-consolidation:" + s.projectID.String())
 }
 
 func (p *Server) maybeConsolidateMemoriesAsync(ctx context.Context, logger slog.Logger, chat database.Chat) {
@@ -145,7 +140,6 @@ func (p *Server) consolidateMemories(ctx context.Context, logger slog.Logger, ch
 		record, err = tx.InsertChatMemoryConsolidation(ctx, database.InsertChatMemoryConsolidationParams{
 			OrganizationID: scope.organizationID,
 			ProjectID:      scope.projectID,
-			UserID:         scope.userID,
 			Model:          resolved.resolvedModel,
 			MemoriesBefore: memoryConsolidationCount(before),
 		})
@@ -215,15 +209,7 @@ func (p *Server) consolidateMemories(ctx context.Context, logger slog.Logger, ch
 // recently. It takes the store explicitly so the transactional check runs
 // against the transaction that also inserts the running record.
 func memoryConsolidationDebounced(ctx context.Context, db database.Store, scope memoryConsolidationScope, count int64, now time.Time, logger slog.Logger) bool {
-	var (
-		record database.ChatMemoryConsolidation
-		err    error
-	)
-	if scope.projectID.Valid {
-		record, err = db.GetLatestChatMemoryConsolidationByProject(ctx, scope.projectID.UUID)
-	} else {
-		record, err = db.GetLatestChatMemoryConsolidationByUser(ctx, database.GetLatestChatMemoryConsolidationByUserParams{UserID: scope.userID.UUID, OrganizationID: scope.organizationID})
-	}
+	record, err := db.GetLatestChatMemoryConsolidationByProject(ctx, scope.projectID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return false
 	}
@@ -258,10 +244,7 @@ func (p *Server) finishMemoryConsolidation(ctx context.Context, scope memoryCons
 	if _, err := p.db.FinishChatMemoryConsolidation(ctx, database.FinishChatMemoryConsolidationParams{ID: id, Status: status, MemoriesAfter: memoryConsolidationCount(after), Mutations: encoded, Error: errText}); err != nil {
 		return err
 	}
-	if scope.projectID.Valid {
-		return p.db.PruneChatMemoryConsolidationsByProject(ctx, database.PruneChatMemoryConsolidationsByProjectParams{ProjectID: scope.projectID.UUID, KeepCount: memoryConsolidationKeepRecords})
-	}
-	return p.db.PruneChatMemoryConsolidationsByUser(ctx, database.PruneChatMemoryConsolidationsByUserParams{UserID: scope.userID.UUID, OrganizationID: scope.organizationID, KeepCount: memoryConsolidationKeepRecords})
+	return p.db.PruneChatMemoryConsolidationsByProject(ctx, database.PruneChatMemoryConsolidationsByProjectParams{ProjectID: scope.projectID, KeepCount: memoryConsolidationKeepRecords})
 }
 
 // memoryConsolidationCandidates returns the memories the model may change,

@@ -66,10 +66,6 @@ func projectMemoryLockID(projectID uuid.UUID) int64 {
 	return database.GenLockID("chat-project-memory:" + projectID.String())
 }
 
-func userMemoryLockID(userID, organizationID uuid.UUID) int64 {
-	return database.GenLockID("chat-user-memory:" + userID.String() + ":" + organizationID.String())
-}
-
 // InsertProjectMemory creates a project memory under the cap.
 func InsertProjectMemory(ctx context.Context, db database.Store, params database.InsertChatProjectMemoryParams) (database.ChatProjectMemory, error) {
 	var memory database.ChatProjectMemory
@@ -104,63 +100,14 @@ func UpsertProjectMemory(ctx context.Context, db database.Store, params database
 	return memory, err
 }
 
-// InsertUserMemory creates a personal memory under the cap.
-func InsertUserMemory(ctx context.Context, db database.Store, params database.InsertChatUserMemoryParams) (database.ChatUserMemory, error) {
-	var memory database.ChatUserMemory
-	err := insertUnderCap(ctx, db, userMemoryLockID(params.UserID, params.OrganizationID),
-		func(ctx context.Context, tx database.Store) (int64, error) {
-			return tx.CountChatUserMemoriesByUserAndOrganization(ctx, database.CountChatUserMemoriesByUserAndOrganizationParams{UserID: params.UserID, OrganizationID: params.OrganizationID})
-		},
-		func(tx database.Store) error {
-			var err error
-			memory, err = tx.InsertChatUserMemory(ctx, params)
-			return err
-		})
-	return memory, err
-}
-
-// UpsertUserMemory saves a personal memory by name. Updating an existing
-// name is always allowed; creating one is subject to the cap.
-func UpsertUserMemory(ctx context.Context, db database.Store, params database.UpsertChatUserMemoryByNameParams) (database.ChatUserMemory, error) {
-	var memory database.ChatUserMemory
-	err := insertUnderCap(ctx, db, userMemoryLockID(params.UserID, params.OrganizationID),
-		func(ctx context.Context, tx database.Store) (int64, error) {
-			if _, err := tx.GetChatUserMemoryByName(ctx, database.GetChatUserMemoryByNameParams{UserID: params.UserID, OrganizationID: params.OrganizationID, Name: params.Name}); err == nil {
-				return 0, nil
-			}
-			return tx.CountChatUserMemoriesByUserAndOrganization(ctx, database.CountChatUserMemoriesByUserAndOrganizationParams{UserID: params.UserID, OrganizationID: params.OrganizationID})
-		},
-		func(tx database.Store) error {
-			var err error
-			memory, err = tx.UpsertChatUserMemoryByName(ctx, params)
-			return err
-		})
-	return memory, err
-}
-
-type MemoryScopeKind string
-
-const (
-	MemoryScopeProject  MemoryScopeKind = "project"
-	MemoryScopePersonal MemoryScopeKind = "personal"
-)
-
-// MemoryScope identifies where durable memory is available.
+// MemoryScope identifies the project whose durable memory a chat uses.
 type MemoryScope struct {
-	Kind  MemoryScopeKind
 	Label string
 }
 
 // Intro explains the durable-memory scope to the model.
 func (s MemoryScope) Intro() string {
-	switch s.Kind {
-	case MemoryScopeProject:
-		return fmt.Sprintf("Memory is durable context shared by every chat in the project %q.", s.Label)
-	case MemoryScopePersonal:
-		return "Memory is personal to you and used by your chats that are not in a project. Save preferences and facts about how you work, not project details that belong in a project."
-	default:
-		return "Memory is durable context."
-	}
+	return fmt.Sprintf("Memory is durable context shared by every chat in the project %q.", s.Label)
 }
 
 // Memory is a durable memory with its provenance.
@@ -311,107 +258,6 @@ func (s projectMemoryStore) InTx(fn func(MemoryStore) error) error {
 	}, nil)
 }
 
-type personalMemoryStore struct {
-	db                             database.Store
-	userID, organizationID, chatID uuid.UUID
-}
-
-// NewPersonalMemoryStore returns a store scoped to one user and organization.
-func NewPersonalMemoryStore(db database.Store, userID, organizationID, chatID uuid.UUID) MemoryStore {
-	return personalMemoryStore{db: db, userID: userID, organizationID: organizationID, chatID: chatID}
-}
-
-func (s personalMemoryStore) Get(ctx context.Context, name string) (Memory, error) {
-	row, err := s.db.GetChatUserMemoryByName(ctx, database.GetChatUserMemoryByNameParams{UserID: s.userID, OrganizationID: s.organizationID, Name: name})
-	if errors.Is(err, sql.ErrNoRows) {
-		return Memory{}, ErrMemoryNotFound
-	}
-	if err != nil {
-		return Memory{}, err
-	}
-	return Memory{Name: row.ChatUserMemory.Name, Description: row.ChatUserMemory.Description, Body: row.ChatUserMemory.Body, UpdatedAt: row.ChatUserMemory.UpdatedAt, CreatedByUsername: row.CreatedByUsername}, nil
-}
-
-func (s personalMemoryStore) GetForUpdate(ctx context.Context, name string) (Memory, error) {
-	row, err := s.db.GetChatUserMemoryByNameForUpdate(ctx, database.GetChatUserMemoryByNameForUpdateParams{UserID: s.userID, OrganizationID: s.organizationID, Name: name})
-	if errors.Is(err, sql.ErrNoRows) {
-		return Memory{}, ErrMemoryNotFound
-	}
-	if err != nil {
-		return Memory{}, err
-	}
-	return Memory{Name: row.Name, Description: row.Description, Body: row.Body, UpdatedAt: row.UpdatedAt}, nil
-}
-
-func (s personalMemoryStore) List(ctx context.Context) ([]MemoryIndexEntry, error) {
-	rows, err := s.db.GetChatUserMemoriesByUserAndOrganization(ctx, database.GetChatUserMemoriesByUserAndOrganizationParams{UserID: s.userID, OrganizationID: s.organizationID})
-	if err != nil {
-		return nil, err
-	}
-	entries := make([]MemoryIndexEntry, len(rows))
-	for i, row := range rows {
-		entries[i] = MemoryIndexEntry{Name: row.ChatUserMemory.Name, Description: row.ChatUserMemory.Description}
-	}
-	return entries, nil
-}
-
-func (s personalMemoryStore) ListFull(ctx context.Context) ([]Memory, error) {
-	rows, err := s.db.GetChatUserMemoriesByUserAndOrganization(ctx, database.GetChatUserMemoriesByUserAndOrganizationParams{UserID: s.userID, OrganizationID: s.organizationID})
-	if err != nil {
-		return nil, err
-	}
-	memories := make([]Memory, len(rows))
-	for i, row := range rows {
-		memories[i] = Memory{Name: row.ChatUserMemory.Name, Description: row.ChatUserMemory.Description, Body: row.ChatUserMemory.Body, UpdatedAt: row.ChatUserMemory.UpdatedAt, CreatedByUsername: row.CreatedByUsername}
-	}
-	return memories, nil
-}
-
-func (s personalMemoryStore) Count(ctx context.Context) (int64, error) {
-	return s.db.CountChatUserMemoriesByUserAndOrganization(ctx, database.CountChatUserMemoriesByUserAndOrganizationParams{UserID: s.userID, OrganizationID: s.organizationID})
-}
-
-func (s personalMemoryStore) Insert(ctx context.Context, input MemoryInput) (Memory, error) {
-	memory, err := InsertUserMemory(ctx, s.db, database.InsertChatUserMemoryParams{
-		ID: uuid.NullUUID{}, OrganizationID: s.organizationID, UserID: s.userID,
-		Name: input.Name, Description: input.Description, Body: input.Body,
-		SourceChatID: uuid.NullUUID{UUID: s.chatID, Valid: s.chatID != uuid.Nil},
-	})
-	if database.IsUniqueViolation(err) {
-		return Memory{}, ErrMemoryExists
-	}
-	if err != nil {
-		return Memory{}, err
-	}
-	return Memory{Name: memory.Name, Description: memory.Description, Body: memory.Body, UpdatedAt: memory.UpdatedAt}, nil
-}
-
-func (s personalMemoryStore) Upsert(ctx context.Context, input MemoryInput) (Memory, error) {
-	memory, err := UpsertUserMemory(ctx, s.db, database.UpsertChatUserMemoryByNameParams{OrganizationID: s.organizationID, UserID: s.userID, Name: input.Name, Description: input.Description, Body: input.Body, SourceChatID: uuid.NullUUID{UUID: s.chatID, Valid: s.chatID != uuid.Nil}})
-	if err != nil {
-		return Memory{}, err
-	}
-	return Memory{Name: memory.Name, Description: memory.Description, Body: memory.Body, UpdatedAt: memory.UpdatedAt}, nil
-}
-
-func (s personalMemoryStore) Delete(ctx context.Context, name string) error {
-	err := s.db.DeleteChatUserMemoryByName(ctx, database.DeleteChatUserMemoryByNameParams{UserID: s.userID, OrganizationID: s.organizationID, Name: name})
-	if errors.Is(err, sql.ErrNoRows) {
-		return ErrMemoryNotFound
-	}
-	return err
-}
-
-func (s personalMemoryStore) Lock(ctx context.Context) error {
-	return s.db.AcquireLock(ctx, userMemoryLockID(s.userID, s.organizationID))
-}
-
-func (s personalMemoryStore) InTx(fn func(MemoryStore) error) error {
-	return s.db.InTx(func(tx database.Store) error {
-		return fn(personalMemoryStore{db: tx, userID: s.userID, organizationID: s.organizationID, chatID: s.chatID})
-	}, nil)
-}
-
 // ValidateMemoryName validates a stable memory identifier.
 func ValidateMemoryName(name string) error {
 	if !memoryNameRE.MatchString(name) {
@@ -450,26 +296,15 @@ func normalizeMemoryInput(name, description, body string) (MemoryInput, error) {
 	return MemoryInput{Name: name, Description: description, Body: body}, nil
 }
 
-// Guidance tells the model what belongs in durable memory for this scope.
-// Personal memory deliberately excludes project facts so that chats outside
-// a project do not accumulate people, decisions, and deadlines that belong
-// in a project's shared memory.
-func (s MemoryScope) Guidance() string {
-	switch s.Kind {
-	case MemoryScopePersonal:
-		return personalMemoryGuidance + "\n" + sharedMemoryGuidance
-	default:
-		return projectMemoryGuidance + "\n" + sharedMemoryGuidance
-	}
+// Guidance tells the model what belongs in durable memory.
+func (MemoryScope) Guidance() string {
+	return projectMemoryGuidance + "\n" + sharedMemoryGuidance
 }
 
 const (
 	projectMemoryGuidance = "Save facts that will matter in future chats: who the people on this project are and how they like to work; " +
 		"corrections you received and approaches that were explicitly confirmed; ongoing work, deadlines, and decisions that cannot be derived from the code or git history; " +
 		"and where to find information outside the project, such as an issue tracker or dashboard."
-	personalMemoryGuidance = "Save facts about how this user works that will matter in every future chat: preferences for tone, verbosity, and response format; " +
-		"tools, languages, and conventions they favor; and corrections they gave you or approaches they explicitly confirmed for their own workflow. " +
-		"Do not save project details: the people, decisions, deadlines, ongoing work, and external links of any project belong in that project's memory, not here."
 	sharedMemoryGuidance = "Save a memory as soon as durable information surfaces, without waiting to be asked. " +
 		"Do not save anything derivable from the codebase (architecture, file paths, debugging fixes), anything already stated in instructions, or temporary in-progress state. " +
 		"Never save that something is unknown or undecided. " +

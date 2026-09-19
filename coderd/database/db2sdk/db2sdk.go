@@ -989,6 +989,14 @@ func WorkspaceRoleActions(role codersdk.WorkspaceRole) []policy.Action {
 	return []policy.Action{}
 }
 
+// ChatProjectRoleActions maps a project sharing role to its RBAC actions.
+func ChatProjectRoleActions(role codersdk.ChatProjectRole) []policy.Action {
+	if role == codersdk.ChatProjectRoleRead {
+		return []policy.Action{policy.ActionRead}
+	}
+	return []policy.Action{}
+}
+
 func ChatRoleActions(role codersdk.ChatRole) []policy.Action {
 	if role == codersdk.ChatRoleRead {
 		return []policy.Action{policy.ActionRead}
@@ -1881,36 +1889,6 @@ func convertChatProjectMemory(memory database.ChatProjectMemory, createdByUserna
 		Description:       memory.Description,
 		Body:              memory.Body,
 		CreatedBy:         memory.CreatedBy,
-		CreatedByUsername: createdByUsername,
-		CreatedAt:         memory.CreatedAt,
-		UpdatedAt:         memory.UpdatedAt,
-	}
-	if memory.SourceChatID.Valid {
-		result.SourceChatID = &memory.SourceChatID.UUID
-	}
-	return result
-}
-
-func ChatUserMemory(row database.GetChatUserMemoryByIDRow) codersdk.ChatUserMemory {
-	return convertChatUserMemory(row.ChatUserMemory, row.CreatedByUsername)
-}
-
-func ChatUserMemoryRows(rows []database.GetChatUserMemoriesByUserAndOrganizationRow) []codersdk.ChatUserMemory {
-	memories := make([]codersdk.ChatUserMemory, len(rows))
-	for i, row := range rows {
-		memories[i] = convertChatUserMemory(row.ChatUserMemory, row.CreatedByUsername)
-	}
-	return memories
-}
-
-func convertChatUserMemory(memory database.ChatUserMemory, createdByUsername string) codersdk.ChatUserMemory {
-	result := codersdk.ChatUserMemory{
-		ID:                memory.ID,
-		OrganizationID:    memory.OrganizationID,
-		UserID:            memory.UserID,
-		Name:              memory.Name,
-		Description:       memory.Description,
-		Body:              memory.Body,
 		CreatedByUsername: createdByUsername,
 		CreatedAt:         memory.CreatedAt,
 		UpdatedAt:         memory.UpdatedAt,
