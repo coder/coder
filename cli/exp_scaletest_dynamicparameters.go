@@ -44,7 +44,7 @@ func (r *RootCmd) scaletestDynamicParameters() *serpent.Command {
 
 			outputs, err := output.parse()
 			if err != nil {
-				return xerrors.Errorf("could not parse --output flags")
+				return xerrors.Errorf("parse --output flags: %w", err)
 			}
 
 			client, err := r.InitClient(inv)
