@@ -56,13 +56,18 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { useMediaQuery } from "#/hooks/useMediaQuery";
 import {
 	ModelSelector,
 	type ModelSelectorOption,
 } from "#/modules/aiModels/ModelSelector";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { countInvisibleCharacters } from "#/utils/invisibleUnicode";
-import { isBelowMdViewport, isMobileViewport } from "#/utils/mobile";
+import {
+	isBelowMdViewport,
+	isMobileViewport,
+	mobileViewportMediaQuery,
+} from "#/utils/mobile";
 import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
 import { useMCPOAuthFlow } from "../hooks/useMCPOAuthFlow";
 import { useOverflowCount } from "../hooks/useOverflowCount";
@@ -429,6 +434,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 		preferencesQuery.isLoading,
 	);
 	const [chatFullWidth] = useChatFullWidth();
+	const isMobile = useMediaQuery(mobileViewportMediaQuery);
 	const { organizations } = useDashboard();
 	const chatOrganization = organizations.find(
 		(organization) => organization.id === chatOrganizationId,
@@ -969,6 +975,9 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 
 	const handleAcceptRecording = () => {
 		speech.stop();
+		if (!isMobileViewport()) {
+			internalRef.current?.focus();
+		}
 	};
 
 	const handleCancelRecording = () => {
@@ -979,6 +988,9 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 			editor.clear();
 			if (original) {
 				editor.insertText(original);
+			}
+			if (!isMobileViewport()) {
+				editor.focus();
 			}
 		}
 		setPreRecordingValue("");
@@ -1078,15 +1090,37 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 		applyCycleValue(nextPrompt);
 	};
 
-	const sendButtonLabel = isEditingHistoryMessage ? "Save Edit" : "Send";
-	const sendShortcutLabel =
-		sendShortcut === MODIFIER_AGENT_CHAT_SEND_SHORTCUT
+	const sendButtonLabel = isEditingHistoryMessage
+		? "Save Edit"
+		: isStreaming
+			? "Queue"
+			: "Send";
+	// Stop and the send button are mutually exclusive while streaming; a
+	// non-empty draft or a live recording selects the send button. A live
+	// recording also takes precedence over history editing.
+	const draftOccupiesSlot =
+		hasSendableContent || hasActiveUploads || speech.isRecording;
+	const editingHoldsStop = isEditingHistoryMessage && !speech.isRecording;
+	const showStopButton =
+		isStreaming &&
+		onInterrupt !== undefined &&
+		(!draftOccupiesSlot || editingHoldsStop);
+	const showSendButton =
+		!isStreaming || (draftOccupiesSlot && !editingHoldsStop);
+	// Mobile viewports advertise no send shortcut.
+	const sendShortcutLabel = isMobile
+		? undefined
+		: sendShortcut === MODIFIER_AGENT_CHAT_SEND_SHORTCUT
 			? "Cmd/Ctrl+Enter"
 			: "Enter";
-	const sendButtonKeyShortcuts =
-		sendShortcut === MODIFIER_AGENT_CHAT_SEND_SHORTCUT
+	const sendButtonKeyShortcuts = isMobile
+		? undefined
+		: sendShortcut === MODIFIER_AGENT_CHAT_SEND_SHORTCUT
 			? "Control+Enter Meta+Enter"
 			: "Enter";
+	const sendButtonTooltip = sendShortcutLabel
+		? `${sendButtonLabel}: ${sendShortcutLabel}`
+		: sendButtonLabel;
 
 	const content = (
 		<div
@@ -1620,7 +1654,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 						</div>
 					</div>
 					<div className="flex shrink-0 items-center gap-2">
-						{speech.isSupported && !isStreaming && (
+						{speech.isSupported && (
 							<>
 								<Button
 									type="button"
@@ -1659,10 +1693,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 							<div
 								className={cn(
 									"flex",
-									speech.isSupported &&
-										!isStreaming &&
-										!speech.error &&
-										"-ml-2",
+									speech.isSupported && !speech.error && "-ml-2",
 								)}
 							>
 								<ContextUsageIndicator
@@ -1672,7 +1703,41 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 								/>
 							</div>
 						)}
-						{isStreaming && onInterrupt && (
+						{showSendButton && (
+							<Tooltip>
+								<TooltipTrigger asChild>
+									<Button
+										size="icon"
+										variant="default"
+										className="size-7 rounded-full transition-colors [&>svg]:size-5! [&>svg]:p-0"
+										onClick={
+											speech.isRecording ? handleAcceptRecording : handleSubmit
+										}
+										disabled={speech.isRecording ? false : !canSend}
+										aria-keyshortcuts={sendButtonKeyShortcuts}
+									>
+										{isLoading && !isInterruptPending ? (
+											<Spinner size="sm" loading aria-hidden="true" />
+										) : speech.isRecording ? (
+											<CheckIcon />
+										) : (
+											<ArrowUpIcon />
+										)}
+										<span className="sr-only">
+											{speech.isRecording
+												? "Accept voice input"
+												: sendButtonLabel}
+										</span>
+									</Button>
+								</TooltipTrigger>
+								<TooltipContent side="top">
+									{speech.isRecording
+										? "Accept voice input"
+										: sendButtonTooltip}
+								</TooltipContent>
+							</Tooltip>
+						)}
+						{showStopButton && (
 							<Tooltip>
 								<TooltipTrigger asChild>
 									<Button
@@ -1692,46 +1757,10 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 							</Tooltip>
 						)}
 						{isInterruptPending && isStreaming && (
-							// The disabled Stop button is skipped by Tab order, so the
-							// pending interruption is also announced through a live
-							// region and a tooltip.
+							// Live region announcing the pending interruption.
 							<span role="status" className="sr-only">
 								Interrupting. Waiting for the agent to stop.
 							</span>
-						)}
-						{!isStreaming && (
-							<Tooltip>
-								<TooltipTrigger asChild>
-									<Button
-										size="icon"
-										variant="default"
-										className="size-7 rounded-full transition-colors [&>svg]:size-5! [&>svg]:p-0"
-										onClick={
-											speech.isRecording ? handleAcceptRecording : handleSubmit
-										}
-										disabled={speech.isRecording ? false : !canSend}
-										aria-keyshortcuts={sendButtonKeyShortcuts}
-									>
-										{isLoading ? (
-											<Spinner size="sm" loading aria-hidden="true" />
-										) : speech.isRecording ? (
-											<CheckIcon />
-										) : (
-											<ArrowUpIcon />
-										)}
-										<span className="sr-only">
-											{speech.isRecording
-												? "Accept voice input"
-												: sendButtonLabel}
-										</span>
-									</Button>
-								</TooltipTrigger>
-								<TooltipContent side="top">
-									{speech.isRecording
-										? "Accept voice input"
-										: `${sendButtonLabel}: ${sendShortcutLabel}`}
-								</TooltipContent>
-							</Tooltip>
 						)}
 					</div>
 				</div>

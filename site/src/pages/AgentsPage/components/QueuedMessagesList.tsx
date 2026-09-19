@@ -206,11 +206,12 @@ export const QueuedMessagesList: FC<QueuedMessagesListProps> = ({
 							{isFirst && (
 								<span
 									className={cn(
-										"flex shrink-0 items-center gap-1 text-xs text-content-secondary transition-opacity",
+										"hidden shrink-0 items-center gap-1 text-xs text-content-secondary transition-opacity sm:flex",
 										showActions ? "opacity-100" : "opacity-0",
 									)}
 								>
-									<CornerDownLeftIcon className="size-3" />
+									<CornerDownLeftIcon className="size-3" aria-hidden="true" />
+									<span className="sr-only">Enter</span>
 									to send
 								</span>
 							)}
