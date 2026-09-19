@@ -1150,6 +1150,51 @@ func TestOAuth2ProviderAppRedirectURIs(t *testing.T) {
 		require.Equal(t, []string{first}, stored.RedirectUris)
 	})
 
+	// The cap on redirect_uris is reachable from a single admin request.
+	t.Run("ListCap", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// Entries are distinct because duplicates are dropped before the count.
+		uris := make([]string, 0, codersdk.OAuth2RedirectURIsMaxCount+1)
+		for i := range codersdk.OAuth2RedirectURIsMaxCount + 1 {
+			uris = append(uris, fmt.Sprintf("https://example.com/callback/%d", i))
+		}
+
+		//nolint:gocritic // OAuth2 app management requires owner permission.
+		app, err := client.PostOAuth2ProviderApp(ctx, codersdk.PostOAuth2ProviderAppRequest{
+			Name:         "at-cap",
+			RedirectURIs: uris[:codersdk.OAuth2RedirectURIsMaxCount],
+		})
+		require.NoError(t, err)
+		require.Len(t, app.RedirectURIs, codersdk.OAuth2RedirectURIsMaxCount)
+
+		var sdkErr *codersdk.Error
+		//nolint:gocritic // OAuth2 app management requires owner permission.
+		_, err = client.PostOAuth2ProviderApp(ctx, codersdk.PostOAuth2ProviderAppRequest{
+			Name:         "over-cap",
+			RedirectURIs: uris,
+		})
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+		require.Len(t, sdkErr.Validations, 1)
+		require.Equal(t, "redirect_uris", sdkErr.Validations[0].Field)
+		require.Equal(t, "at most 32 redirect URIs are allowed", sdkErr.Validations[0].Detail)
+
+		//nolint:gocritic // OAuth2 app management requires owner permission.
+		_, err = client.PutOAuth2ProviderApp(ctx, app.ID, codersdk.PutOAuth2ProviderAppRequest{
+			Name:         "at-cap",
+			RedirectURIs: uris,
+		})
+		require.ErrorAs(t, err, &sdkErr)
+		require.Len(t, sdkErr.Validations, 1)
+		require.Equal(t, "redirect_uris", sdkErr.Validations[0].Field)
+		require.Equal(t, "at most 32 redirect URIs are allowed", sdkErr.Validations[0].Detail)
+	})
+
 	// An update sending redirect_uris as an empty list, with no callback_url,
 	// is refused rather than silently keeping the stored list.
 	t.Run("EmptyListIsRefused", func(t *testing.T) {
@@ -1181,6 +1226,7 @@ func TestOAuth2ProviderAppRedirectURIs(t *testing.T) {
 		require.NoError(t, json.NewDecoder(res.Body).Decode(&apiErr))
 		require.Len(t, apiErr.Validations, 1)
 		require.Equal(t, "redirect_uris", apiErr.Validations[0].Field)
+		require.Equal(t, "at least one redirect URI is required", apiErr.Validations[0].Detail)
 
 		var sdkErr *codersdk.Error
 
@@ -1192,6 +1238,7 @@ func TestOAuth2ProviderAppRedirectURIs(t *testing.T) {
 		require.ErrorAs(t, err, &sdkErr)
 		require.Len(t, sdkErr.Validations, 1)
 		require.Equal(t, "redirect_uris", sdkErr.Validations[0].Field)
+		require.Equal(t, "at least one redirect URI is required", sdkErr.Validations[0].Detail)
 	})
 
 	// A malformed entry sent through redirect_uris is attributed to that
@@ -1213,6 +1260,7 @@ func TestOAuth2ProviderAppRedirectURIs(t *testing.T) {
 		require.ErrorAs(t, err, &sdkErr)
 		require.Len(t, sdkErr.Validations, 1)
 		require.Equal(t, "redirect_uris", sdkErr.Validations[0].Field)
+		require.Equal(t, "redirect URI at index 1 uses the dangerous scheme javascript", sdkErr.Validations[0].Detail)
 
 		//nolint:gocritic // OAuth2 app management requires owner permission.
 		_, err = client.PostOAuth2ProviderApp(ctx, codersdk.PostOAuth2ProviderAppRequest{
@@ -1220,5 +1268,6 @@ func TestOAuth2ProviderAppRedirectURIs(t *testing.T) {
 			CallbackURL: "javascript:alert(1)",
 		})
 		requireCallbackURLValidationError(t, err)
+		require.ErrorContains(t, err, "callback URL uses the dangerous scheme javascript")
 	})
 }
