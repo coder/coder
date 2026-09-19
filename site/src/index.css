@@ -766,6 +766,17 @@
 		}
 	}
 
+	/* Must stay in this layer: a layered !important beats an unlayered one. */
+	html[data-agents-layout] {
+		overflow: hidden;
+		scrollbar-gutter: auto;
+	}
+
+	html[data-agents-layout] body,
+	html[data-agents-layout] body[data-scroll-locked] {
+		overflow: hidden !important;
+	}
+
 	h1 {
 		margin-block: 0.67em;
 	}
