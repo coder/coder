@@ -121,7 +121,8 @@ Changes to the exit node preference list apply in place without closing the loca
 Changes that require new enforcement rules take effect after a workspace restart, as described later in this section.
 
 The `--exit-node-enforce` option requests in-container transparent capture on Linux.
-If the agent can't manage netfilter with root or passwordless `sudo`, it logs that enforcement is unavailable and continues in advisory proxy mode.
+Enforcement requires the agent process itself to hold `CAP_NET_ADMIN`, which in practice means running the agent as root in a container that grants `NET_ADMIN`.
+Passwordless `sudo` is not sufficient: a `sudo` child can install netfilter rules, but it can't remove capabilities from the agent process, so capability lockdown fails, the agent removes the rules it installed, logs that enforcement is unavailable, and continues in advisory proxy mode.
 The agent still sets uppercase and lowercase `HTTP_PROXY`, `HTTPS_PROXY`, `ALL_PROXY`, and `NO_PROXY` variables for processes it starts.
 
 The agent's local listeners use stable ports by default:
@@ -393,7 +394,7 @@ Alert on both `coder_exit_node_flow_reports_dropped_total` and gap markers becau
 
 ## Limitations
 
-- Transparent enforcement is available only on Linux with `iptables` and either root or passwordless `sudo`.
+- Transparent enforcement is available only on Linux with `iptables` and an agent process that runs as root with `CAP_NET_ADMIN`. Passwordless `sudo` degrades to advisory mode because lockdown can't be applied to the agent process.
   Other platforms and insufficiently privileged agents use advisory proxy environment variables.
 - Capability lockdown removes `CAP_NET_ADMIN` and `CAP_NET_RAW`, requires a `CGO_ENABLED=0` agent, and applies only to processes spawned by the agent.
   Run the agent as the only privileged container entrypoint, and drop `NET_RAW` at the container level when the workload doesn't need it.
