@@ -1825,6 +1825,13 @@ func (q *querier) ActivityBumpWorkspace(ctx context.Context, arg database.Activi
 	return update(q.log, q.auth, fetch, q.db.ActivityBumpWorkspace)(ctx, arg)
 }
 
+func (q *querier) AdoptParentlessChatsIntoTreeRoot(ctx context.Context, arg database.AdoptParentlessChatsIntoTreeRootParams) (int64, error) {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceChat.WithOwner(arg.OwnerID.String()).InOrg(arg.OrganizationID)); err != nil {
+		return 0, err
+	}
+	return q.db.AdoptParentlessChatsIntoTreeRoot(ctx, arg)
+}
+
 func (q *querier) AllUserIDs(ctx context.Context, includeSystem bool) ([]uuid.UUID, error) {
 	// Although this technically only reads users, only system-related functions
 	// should be allowed to call this.
@@ -2041,6 +2048,13 @@ func (q *querier) CountChatCapacityQueuedByPool(ctx context.Context, staleSecond
 		return database.CountChatCapacityQueuedByPoolRow{}, err
 	}
 	return q.db.CountChatCapacityQueuedByPool(ctx, staleSeconds)
+}
+
+func (q *querier) CountChatChildrenByParentID(ctx context.Context, arg database.CountChatChildrenByParentIDParams) (int64, error) {
+	if _, err := q.GetChatByID(ctx, arg.ParentChatID); err != nil {
+		return 0, err
+	}
+	return q.db.CountChatChildrenByParentID(ctx, arg)
 }
 
 func (q *querier) CountChatQueuedMessages(ctx context.Context, chatID uuid.UUID) (int64, error) {
@@ -3187,6 +3201,13 @@ func (q *querier) GetChatAdvisorConfig(ctx context.Context) (string, error) {
 	return q.db.GetChatAdvisorConfig(ctx)
 }
 
+func (q *querier) GetChatAndSubagentIDs(ctx context.Context, id uuid.UUID) ([]uuid.UUID, error) {
+	if _, err := q.GetChatByID(ctx, id); err != nil {
+		return nil, err
+	}
+	return q.db.GetChatAndSubagentIDs(ctx, id)
+}
+
 func (q *querier) GetChatAutoArchiveDays(ctx context.Context, defaultAutoArchiveDays int32) (int32, error) {
 	// Chat auto-archive is a deployment-wide config read by dbpurge.
 	// Only requires a valid actor in context. The HTTP GET handler
@@ -3333,18 +3354,6 @@ func (q *querier) GetChatDiffStatusesByChatIDs(ctx context.Context, chatIDs []uu
 	}
 
 	return q.db.GetChatDiffStatusesByChatIDs(ctx, chatIDs)
-}
-
-func (q *querier) GetChatFamilyIDsByRootID(ctx context.Context, id uuid.UUID) ([]uuid.UUID, error) {
-	// This is a read-only query: it returns the chat IDs that belong
-	// to a family. Authorize as Read against the root chat. The
-	// individual SetArchived (or other) transitions that consume
-	// these IDs run their own per-row authorization, so we do not
-	// gate the listing itself on Update permission.
-	if _, err := q.GetChatByID(ctx, id); err != nil {
-		return nil, err
-	}
-	return q.db.GetChatFamilyIDsByRootID(ctx, id)
 }
 
 func (q *querier) GetChatFileByID(ctx context.Context, id uuid.UUID) (database.ChatFile, error) {
@@ -3679,6 +3688,16 @@ func (q *querier) GetChatStreamSyncRows(ctx context.Context, ids []uuid.UUID) ([
 	return q.db.GetChatStreamSyncRows(ctx, ids)
 }
 
+func (q *querier) GetChatSubtreeIDs(ctx context.Context, id uuid.UUID) ([]uuid.UUID, error) {
+	// Read-only listing of the chat IDs below a chat. Authorize as Read
+	// against the top chat; the transitions that consume these IDs run
+	// their own per-row authorization.
+	if _, err := q.GetChatByID(ctx, id); err != nil {
+		return nil, err
+	}
+	return q.db.GetChatSubtreeIDs(ctx, id)
+}
+
 func (q *querier) GetChatSystemPrompt(ctx context.Context) (string, error) {
 	// The system prompt is a deployment-wide setting read during chat
 	// creation by every authenticated user, so no RBAC policy check
@@ -3701,6 +3720,30 @@ func (q *querier) GetChatSystemPromptConfig(ctx context.Context) (database.GetCh
 		return database.GetChatSystemPromptConfigRow{}, ErrNoActor
 	}
 	return q.db.GetChatSystemPromptConfig(ctx)
+}
+
+func (q *querier) GetChatTreeByOwnerAndOrganization(ctx context.Context, arg database.GetChatTreeByOwnerAndOrganizationParams) ([]database.GetChatTreeByOwnerAndOrganizationRow, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceChat.WithOwner(arg.OwnerID.String()).InOrg(arg.OrganizationID)); err != nil {
+		return nil, err
+	}
+	return q.db.GetChatTreeByOwnerAndOrganization(ctx, arg)
+}
+
+func (q *querier) GetChatTreeDepthByID(ctx context.Context, id uuid.UUID) (int32, error) {
+	if _, err := q.GetChatByID(ctx, id); err != nil {
+		return 0, err
+	}
+	return q.db.GetChatTreeDepthByID(ctx, id)
+}
+
+// Tree queries are scoped to one owner in one organization, so they are
+// authorized against the owner's chats in that organization rather than
+// per row.
+func (q *querier) GetChatTreeRootStateByOwnerAndOrganization(ctx context.Context, arg database.GetChatTreeRootStateByOwnerAndOrganizationParams) (database.GetChatTreeRootStateByOwnerAndOrganizationRow, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceChat.WithOwner(arg.OwnerID.String()).InOrg(arg.OrganizationID)); err != nil {
+		return database.GetChatTreeRootStateByOwnerAndOrganizationRow{}, err
+	}
+	return q.db.GetChatTreeRootStateByOwnerAndOrganization(ctx, arg)
 }
 
 func (q *querier) GetChatUserModelOverride(ctx context.Context, arg database.GetChatUserModelOverrideParams) (database.ChatUserModelOverride, error) {

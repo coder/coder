@@ -15,12 +15,15 @@ import (
 // shape avoids a boolean flag parameter at the API surface; callers
 // build it explicitly with named fields for clarity.
 type SetFamilyArchivedInput struct {
-	// RootID identifies the family root. SetFamilyArchived rejects
-	// calls for child chats with [ErrChatNotRoot] and unknown chats
-	// with [ErrChatNotFound].
+	// RootID identifies the chat at the top of the cascade. It must be a
+	// root or chat kind row: subagents are rejected with [ErrChatNotRoot]
+	// and unknown chats with [ErrChatNotFound]. Archiving a tree root is
+	// rejected with [ErrChatTreeRootArchive].
 	RootID uuid.UUID
-	// Archived is the desired post-call archived value for every
-	// family member.
+	// Archived is the desired post-call archived value. Archiving covers
+	// the whole subtree (named descendants and subagents). Unarchiving
+	// covers the chat and its direct subagents only and is rejected with
+	// [ErrChatParentArchived] while the chat's parent is archived.
 	Archived bool
 }
 
@@ -33,8 +36,7 @@ type SetFamilyArchivedInput struct {
 // suppresses every buffered publication on failure.
 //
 // On success SetFamilyArchived returns one [database.Chat] per
-// family member in the order returned by GetChatFamilyIDsByRootID
-// (root first, then children).
+// affected chat, parents before children.
 //
 // Family members that are already in the [StateInvalid] execution
 // state cause SetFamilyArchived to return [ErrInvalidState] and roll
@@ -77,7 +79,26 @@ func SetFamilyArchived(
 		if root.Kind == database.ChatKindSubagent {
 			return ErrChatNotRoot
 		}
-		ids, err := tx.GetChatFamilyIDsByRootID(ctx, input.RootID)
+		if root.Kind == database.ChatKindRoot && input.Archived {
+			return ErrChatTreeRootArchive
+		}
+		var ids []uuid.UUID
+		if input.Archived {
+			ids, err = tx.GetChatSubtreeIDs(ctx, input.RootID)
+		} else {
+			// The parent row is read, not locked. This transaction only
+			// locks the chat and rows below it.
+			if root.ParentChatID.Valid {
+				parent, err := tx.GetChatByID(ctx, root.ParentChatID.UUID)
+				if err != nil {
+					return xerrors.Errorf("get parent chat: %w", err)
+				}
+				if parent.Archived {
+					return ErrChatParentArchived
+				}
+			}
+			ids, err = tx.GetChatAndSubagentIDs(ctx, input.RootID)
+		}
 		if err != nil {
 			return xerrors.Errorf("get chat family: %w", err)
 		}

@@ -52,6 +52,10 @@ type sqlcQuerier interface {
 	// We only bump if workspace shutdown is manual.
 	// We only bump when 5% of the deadline has elapsed.
 	ActivityBumpWorkspace(ctx context.Context, arg ActivityBumpWorkspaceParams) error
+	// Reparents every parentless user chat of the owner in the organization
+	// under the tree root. Only parent_chat_id changes: updated_at, the
+	// snapshot version, and pin or archive state are left as they are.
+	AdoptParentlessChatsIntoTreeRoot(ctx context.Context, arg AdoptParentlessChatsIntoTreeRootParams) (int64, error)
 	// AllUserIDs returns all UserIDs regardless of user status or deletion.
 	AllUserIDs(ctx context.Context, includeSystem bool) ([]uuid.UUID, error)
 	ArchiveChatByID(ctx context.Context, id uuid.UUID) ([]Chat, error)
@@ -101,6 +105,7 @@ type sqlcQuerier interface {
 	// Excluding the candidate keeps ownership takeover capacity-neutral.
 	CountChatCapacityActiveByPool(ctx context.Context, arg CountChatCapacityActiveByPoolParams) (CountChatCapacityActiveByPoolRow, error)
 	CountChatCapacityQueuedByPool(ctx context.Context, staleSeconds int32) (CountChatCapacityQueuedByPoolRow, error)
+	CountChatChildrenByParentID(ctx context.Context, arg CountChatChildrenByParentIDParams) (int64, error)
 	// Cheap queue-length check used by ChatMachine.Update when deciding
 	// whether the chat is in a "1" sub-state.
 	CountChatQueuedMessages(ctx context.Context, chatID uuid.UUID) (int64, error)
@@ -210,11 +215,10 @@ type sqlcQuerier interface {
 	// older than the cutoff are also purged.
 	DeleteOldChatDebugRuns(ctx context.Context, arg DeleteOldChatDebugRunsParams) (int64, error)
 	// Deletes chats that have been archived for longer than the given
-	// threshold together with their subagent chats, in one statement so the
-	// SET NULL foreign keys never leave a subagent without its parent. Active
-	// (non-archived) chats are never deleted; a chat with an unarchived
-	// subagent is skipped. All chat-scoped child tables are removed via
-	// ON DELETE CASCADE. The returned count includes the subagents.
+	// threshold. Active (non-archived) chats are never deleted, and a chat
+	// whose subtree still contains an unarchived chat is skipped so the FK
+	// cascade never removes a live descendant. All chat-scoped child tables
+	// and descendant chats are removed via ON DELETE CASCADE.
 	DeleteOldChats(ctx context.Context, arg DeleteOldChatsParams) (int64, error)
 	DeleteOldConnectionLogs(ctx context.Context, arg DeleteOldConnectionLogsParams) (int64, error)
 	// Delete all notification messages which have not been updated for over a week.
@@ -428,8 +432,10 @@ type sqlcQuerier interface {
 	// TestGetActiveUsersAuthorizationRolesParity enforces this.
 	GetAuthorizationUserRoles(ctx context.Context, userID uuid.UUID) (GetAuthorizationUserRolesRow, error)
 	// Returns read-only user chat candidates for state-machine-backed
-	// auto-archive. Activity is computed across the chat and its subagents.
-	// The query limits candidates, not total family members.
+	// auto-archive. A candidate is inactive only when nothing in its subtree
+	// (named children and subagents) is active or has recent messages. Root
+	// chats are never candidates. The query limits candidates, not total
+	// subtree members.
 	GetAutoArchiveInactiveChatCandidates(ctx context.Context, arg GetAutoArchiveInactiveChatCandidatesParams) ([]GetAutoArchiveInactiveChatCandidatesRow, error)
 	GetBoundaryLogByID(ctx context.Context, id uuid.UUID) (BoundaryLog, error)
 	GetBoundarySessionByID(ctx context.Context, id uuid.UUID) (GetBoundarySessionByIDRow, error)
@@ -439,6 +445,9 @@ type sqlcQuerier interface {
 	// result into codersdk.AdvisorConfig. Returns '{}' when unset so zero
 	// values apply by default.
 	GetChatAdvisorConfig(ctx context.Context) (string, error)
+	// Returns the chat ID followed by the IDs of its direct subagent children.
+	// Named children are not included.
+	GetChatAndSubagentIDs(ctx context.Context, id uuid.UUID) ([]uuid.UUID, error)
 	// Auto-archive window in days. 0 disables.
 	GetChatAutoArchiveDays(ctx context.Context, defaultAutoArchiveDays int32) (int32, error)
 	GetChatByID(ctx context.Context, id uuid.UUID) (Chat, error)
@@ -466,10 +475,6 @@ type sqlcQuerier interface {
 	// intentionally excluded from these aggregates.
 	GetChatDiffStatusSummary(ctx context.Context) (GetChatDiffStatusSummaryRow, error)
 	GetChatDiffStatusesByChatIDs(ctx context.Context, chatIds []uuid.UUID) ([]ChatDiffStatus, error)
-	// Returns the chat IDs of every chat in a family (root + all children)
-	// in deterministic order. The id parameter must be the root id; the
-	// query does not walk up from a child.
-	GetChatFamilyIDsByRootID(ctx context.Context, id uuid.UUID) ([]uuid.UUID, error)
 	GetChatFileByID(ctx context.Context, id uuid.UUID) (ChatFile, error)
 	// GetChatFileDataPrefixesByIDs returns a bounded prefix of each
 	// file's content, keeping full blobs out of server memory. Owner and
@@ -539,6 +544,10 @@ type sqlcQuerier interface {
 	// GetChatSiteConfigValue returns raw text and row presence for an audited chat site configuration.
 	GetChatSiteConfigValue(ctx context.Context, configKey string) (GetChatSiteConfigValueRow, error)
 	GetChatStreamSyncRows(ctx context.Context, ids []uuid.UUID) ([]GetChatStreamSyncRowsRow, error)
+	// Returns the chat IDs of a chat and every descendant reached through
+	// parent_chat_id (named children and subagents), parents before children.
+	// The walk is bounded by the tree depth limit plus one subagent level.
+	GetChatSubtreeIDs(ctx context.Context, id uuid.UUID) ([]uuid.UUID, error)
 	GetChatSystemPrompt(ctx context.Context) (string, error)
 	// GetChatSystemPromptConfig returns both chat system prompt settings in a
 	// single read to avoid torn reads between separate site-config lookups.
@@ -546,6 +555,19 @@ type sqlcQuerier interface {
 	// non-empty custom prompt implied opting out before the explicit toggle
 	// existed.
 	GetChatSystemPromptConfig(ctx context.Context) (GetChatSystemPromptConfigRow, error)
+	// Returns the owner's tree root and every named descendant in the
+	// organization, plus parentless user chats that no root has adopted.
+	// Subagents are excluded. The root is always returned; other rows are
+	// filtered by @archived. Depth is 1 for the root and 0 for parentless
+	// chats outside the tree.
+	GetChatTreeByOwnerAndOrganization(ctx context.Context, arg GetChatTreeByOwnerAndOrganizationParams) ([]GetChatTreeByOwnerAndOrganizationRow, error)
+	// Returns the depth of a chat in its owner's tree, where the root has
+	// depth 1, or 0 when the ancestor chain does not end at a root chat.
+	GetChatTreeDepthByID(ctx context.Context, id uuid.UUID) (int32, error)
+	// Returns the owner's tree root in the organization (the nil UUID when
+	// none exists) and the number of parentless user chats that the root
+	// has not adopted yet.
+	GetChatTreeRootStateByOwnerAndOrganization(ctx context.Context, arg GetChatTreeRootStateByOwnerAndOrganizationParams) (GetChatTreeRootStateByOwnerAndOrganizationRow, error)
 	GetChatUserModelOverride(ctx context.Context, arg GetChatUserModelOverrideParams) (ChatUserModelOverride, error)
 	GetChatUserModelOverrides(ctx context.Context, arg GetChatUserModelOverridesParams) ([]ChatUserModelOverride, error)
 	// Returns the concatenated text of each user-visible user prompt in a

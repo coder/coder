@@ -53,6 +53,60 @@ func (input CreateChatInput) kind() database.ChatKind {
 	return database.ChatKindChat
 }
 
+// CreateIdleChatInput configures [CreateIdleChat].
+type CreateIdleChatInput struct {
+	OrganizationID    uuid.UUID
+	OwnerID           uuid.UUID
+	Kind              database.ChatKind
+	LastModelConfigID uuid.UUID
+	Title             string
+	ClientType        database.ChatClientType
+}
+
+// CreateIdleChat inserts a chat row with no history in the waiting state
+// (N -> W). The chat has no workspace binding, no parent, and no
+// runnable work, so no state update or ownership hint is published.
+// The caller's transaction, if any, is the store passed in.
+func CreateIdleChat(
+	ctx context.Context,
+	store database.Store,
+	input CreateIdleChatInput,
+) (database.Chat, error) {
+	if store == nil {
+		return database.Chat{}, xerrors.New("chatstate: CreateIdleChat called with nil store")
+	}
+	if input.Kind == "" {
+		return database.Chat{}, newTransitionError(TransitionCreateIdleChat, StateN, "kind is required")
+	}
+	if input.Kind == database.ChatKindSubagent {
+		return database.Chat{}, newTransitionError(TransitionCreateIdleChat, StateN, "subagent chats require a parent and initial messages")
+	}
+	chat, err := store.InsertChat(ctx, database.InsertChatParams{
+		ID:                uuid.NullUUID{},
+		OrganizationID:    input.OrganizationID,
+		OwnerID:           input.OwnerID,
+		WorkspaceID:       uuid.NullUUID{},
+		BuildID:           uuid.NullUUID{},
+		AgentID:           uuid.NullUUID{},
+		ParentChatID:      uuid.NullUUID{},
+		RootChatID:        uuid.NullUUID{},
+		Kind:              input.Kind,
+		LastModelConfigID: input.LastModelConfigID,
+		Title:             input.Title,
+		Mode:              database.NullChatMode{},
+		PlanMode:          database.NullChatPlanMode{},
+		Status:            database.ChatStatusWaiting,
+		MCPServerIDs:      []uuid.UUID{},
+		Labels:            pqtype.NullRawMessage{},
+		DynamicTools:      pqtype.NullRawMessage{},
+		ClientType:        input.ClientType,
+	})
+	if err != nil {
+		return database.Chat{}, xerrors.Errorf("insert idle chat: %w", err)
+	}
+	return chat, nil
+}
+
 // CreateChatResult is the value returned by [CreateChat]. It carries
 // the new chat row and the inserted initial history.
 type CreateChatResult struct {

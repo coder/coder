@@ -1129,13 +1129,15 @@ var (
 
 // CreateOptions controls chat creation in the shared chat mutation path.
 type CreateOptions struct {
-	OrganizationID          uuid.UUID
-	OwnerID                 uuid.UUID
-	WorkspaceID             uuid.NullUUID
-	BuildID                 uuid.NullUUID
-	AgentID                 uuid.NullUUID
+	OrganizationID uuid.UUID
+	OwnerID        uuid.UUID
+	WorkspaceID    uuid.NullUUID
+	BuildID        uuid.NullUUID
+	AgentID        uuid.NullUUID
+	// ParentChatID places the new chat under a root or chat kind parent
+	// owned by the same user in the same organization. The parent is
+	// validated and locked in the creating transaction.
 	ParentChatID            uuid.NullUUID
-	RootChatID              uuid.NullUUID
 	Title                   string
 	TitleDerivedFromContent bool
 	ModelConfigID           uuid.UUID
@@ -1301,9 +1303,10 @@ func (p *Server) applyRequestedMCPServerIDs(ctx context.Context, store database.
 	return updated, nil
 }
 
-// CreateChat creates a chat with its initial history through
+// CreateChat creates a user chat with its initial history through
 // chatstate.CreateChat. The new chat starts in `running` status per
 // the chat execution state model. Ownership hints wake chat workers.
+// Subagent chats are created by the subagent tools, not here.
 func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.Chat, error) {
 	if opts.OrganizationID == uuid.Nil {
 		return database.Chat{}, xerrors.New("organization_id is required")
@@ -1425,14 +1428,14 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 	initialMessages = append(initialMessages, systemMessage(workspaceAwarenessContent, opts.ModelConfigID))
 	initialMessages = append(initialMessages, userMessage(userContent, opts.ModelConfigID, opts.OwnerID, opts.ReasoningEffort))
 
-	result, err := chatstate.CreateChatWithID(ctx, p.db, p.pubsub, chatID, chatstate.CreateChatInput{
+	createInput := chatstate.CreateChatInput{
 		OrganizationID:    opts.OrganizationID,
 		OwnerID:           opts.OwnerID,
 		WorkspaceID:       opts.WorkspaceID,
 		BuildID:           opts.BuildID,
 		AgentID:           opts.AgentID,
 		ParentChatID:      opts.ParentChatID,
-		RootChatID:        opts.RootChatID,
+		Kind:              database.ChatKindChat,
 		LastModelConfigID: opts.ModelConfigID,
 		Title:             opts.Title,
 		Mode:              opts.ChatMode,
@@ -1449,7 +1452,29 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 		ClientType:      opts.ClientType,
 		InitialMessages: initialMessages,
 		FileIDs:         chatprompt.FileIDs(contentParts),
-	})
+	}
+
+	var result chatstate.CreateChatResult
+	if opts.ParentChatID.Valid {
+		// The parent is locked and validated in the same transaction
+		// that inserts the child, so an archive of the parent cannot
+		// interleave. Publications stay buffered until that transaction
+		// commits.
+		buffer := chatstate.NewPublishBuffer(p.pubsub)
+		defer buffer.Discard()
+		err = p.db.InTx(func(tx database.Store) error {
+			if err := validateChatTreeParent(ctx, tx, opts.OwnerID, opts.OrganizationID, opts.ParentChatID.UUID); err != nil {
+				return err
+			}
+			result, err = chatstate.CreateChatWithID(ctx, tx, buffer, chatID, createInput)
+			return err
+		}, nil)
+		if err == nil {
+			err = buffer.Flush()
+		}
+	} else {
+		result, err = chatstate.CreateChatWithID(ctx, p.db, p.pubsub, chatID, createInput)
+	}
 	if err != nil {
 		return database.Chat{}, err
 	}
@@ -2043,16 +2068,18 @@ var ErrArchiveRequiresRootChat = xerrors.New(
 	"chat archive state can only be changed on the root chat",
 )
 
-// ArchiveChat archives a root chat and every child in its family
-// through the chatstate state machine. The transition is atomic over
-// the whole family: either every member is archived or none is. The
+// ArchiveChat archives a chat and every descendant in its subtree (named
+// children and subagents) through the chatstate state machine. The
+// transition is atomic over the whole subtree: either every member is
+// archived or none is. The
 // state machine only permits archive from the idle / error execution
 // states (W, E0, E1); active members cause a state conflict that the
 // HTTP handler maps to a client error.
 //
-// Child chats must not be archived independently. ArchiveChat
+// Subagent chats must not be archived independently. ArchiveChat
 // rejects them with [ErrArchiveRequiresRootChat] so callers cannot
-// silently break the parent-implies-child archive invariant.
+// silently break the parent-implies-child archive invariant. Tree roots
+// are rejected with [chatstate.ErrChatTreeRootArchive].
 //
 //nolint:staticcheck // Receiver name matches the other Server methods in this file.
 func (p *Server) ArchiveChat(ctx context.Context, chat database.Chat) error {
@@ -2065,10 +2092,11 @@ func (p *Server) ArchiveChat(ctx context.Context, chat database.Chat) error {
 	return p.setChatFamilyArchived(ctx, chat, true, codersdk.ChatWatchEventKindDeleted)
 }
 
-// UnarchiveChat unarchives a root chat and every child in its family
-// through the chatstate state machine. Like ArchiveChat the cascade
-// is atomic; ChildChat unarchive attempts are rejected with
-// [ErrArchiveRequiresRootChat].
+// UnarchiveChat unarchives a chat and its direct subagents through the
+// chatstate state machine. Named descendants stay archived. The cascade
+// is atomic; subagent unarchive attempts are rejected with
+// [ErrArchiveRequiresRootChat] and a chat whose parent is archived is
+// rejected with [chatstate.ErrChatParentArchived].
 func (p *Server) UnarchiveChat(ctx context.Context, chat database.Chat) error {
 	if chat.ID == uuid.Nil {
 		return xerrors.New("chat_id is required")

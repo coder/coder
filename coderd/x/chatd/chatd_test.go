@@ -14258,24 +14258,39 @@ func TestAdvisorGating_ChildChat(t *testing.T) {
 		Title:             "advisor-root-parent",
 	})
 
-	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+	_ = newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
 		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(
 			chattest.NewMockAIBridgeTransport(t, openAIURL),
 		)
 	})
 
-	childChat, err := server.CreateChat(ctx, chatd.CreateOptions{
-		OrganizationID: org.ID,
-		OwnerID:        user.ID,
-		Title:          "advisor-child",
-		ModelConfigID:  model.ID,
-		ParentChatID:   uuid.NullUUID{UUID: parent.ID, Valid: true},
-		RootChatID:     uuid.NullUUID{UUID: parent.ID, Valid: true},
-		InitialUserContent: []codersdk.ChatMessagePart{
-			codersdk.ChatMessageText("hi"),
+	childContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+		codersdk.ChatMessageText("hi"),
+	})
+	require.NoError(t, err)
+	createdChild, err := chatstate.CreateChat(ctx, db, ps, chatstate.CreateChatInput{
+		OrganizationID:    org.ID,
+		OwnerID:           user.ID,
+		ParentChatID:      uuid.NullUUID{UUID: parent.ID, Valid: true},
+		RootChatID:        uuid.NullUUID{UUID: parent.ID, Valid: true},
+		Kind:              database.ChatKindSubagent,
+		LastModelConfigID: model.ID,
+		Title:             "advisor-child",
+		MCPServerIDs:      []uuid.UUID{},
+		ClientType:        database.ChatClientTypeApi,
+		InitialMessages: []chatstate.Message{
+			{
+				Role:           database.ChatMessageRoleUser,
+				Content:        childContent,
+				Visibility:     database.ChatMessageVisibilityBoth,
+				ContentVersion: chatprompt.CurrentContentVersion,
+				CreatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
+				ModelConfigID:  uuid.NullUUID{UUID: model.ID, Valid: true},
+			},
 		},
 	})
 	require.NoError(t, err)
+	childChat := createdChild.Chat
 
 	require.Eventually(t, func() bool {
 		got, getErr := db.GetChatByID(ctx, childChat.ID)

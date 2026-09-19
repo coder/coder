@@ -837,3 +837,82 @@ func (s *archiveErrStore) GetAutoArchiveInactiveChatCandidates(ctx context.Conte
 	}
 	return s.Store.GetAutoArchiveInactiveChatCandidates(ctx, arg)
 }
+
+// linkNamedChild attaches a chat as a named (kind = chat) child.
+func (f *workerTestFixture) linkNamedChild(t *testing.T, parentID uuid.UUID, childID uuid.UUID) {
+	t.Helper()
+	_, err := f.sqlDB.ExecContext(testutil.Context(t, testutil.WaitShort), "UPDATE chats SET parent_chat_id = $1 WHERE id = $2", parentID, childID)
+	require.NoError(t, err)
+}
+
+// setKind rewrites a chat's kind directly.
+func (f *workerTestFixture) setKind(t *testing.T, chatID uuid.UUID, kind database.ChatKind) {
+	t.Helper()
+	_, err := f.sqlDB.ExecContext(testutil.Context(t, testutil.WaitShort), "UPDATE chats SET kind = $1 WHERE id = $2", kind, chatID)
+	require.NoError(t, err)
+}
+
+func TestWorker_AutoArchiveTree(t *testing.T) {
+	t.Parallel()
+
+	t.Run("RootNeverSelected", func(t *testing.T) {
+		t.Parallel()
+		f := newWorkerTestFixture(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+		now := time.Date(2026, 5, 29, 12, 0, 0, 0, time.UTC)
+		root := f.createArchiveCandidate(t, now.Add(-120*24*time.Hour))
+		f.setKind(t, root.ID, database.ChatKindRoot)
+		require.NoError(t, f.db.UpsertChatAutoArchiveDays(ctx, 90))
+
+		worker := f.newArchiveWorker(t, newRecordingPubsub(f.pubsub), nil, nil)
+		worker.archiveOnce(ctx, now)
+
+		require.False(t, f.archived(t, root.ID))
+	})
+
+	t.Run("ActiveNamedChildKeepsParent", func(t *testing.T) {
+		t.Parallel()
+		f := newWorkerTestFixture(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+		now := time.Date(2026, 5, 29, 12, 0, 0, 0, time.UTC)
+		parent := f.createArchiveCandidate(t, now.Add(-120*24*time.Hour))
+		child := f.createArchiveCandidate(t, now.Add(-120*24*time.Hour))
+		grandchildSubagent := f.createArchiveCandidate(t, now.Add(-120*24*time.Hour))
+		f.linkNamedChild(t, parent.ID, child.ID)
+		f.linkChild(t, child.ID, grandchildSubagent.ID)
+		// Recent activity two levels down keeps the whole chain alive.
+		insertArchiveMessage(t, f, grandchildSubagent.ID, now.Add(-1*24*time.Hour))
+		require.NoError(t, f.db.UpsertChatAutoArchiveDays(ctx, 90))
+
+		worker := f.newArchiveWorker(t, newRecordingPubsub(f.pubsub), nil, nil)
+		worker.archiveOnce(ctx, now)
+
+		require.False(t, f.archived(t, parent.ID))
+		require.False(t, f.archived(t, child.ID))
+		require.False(t, f.archived(t, grandchildSubagent.ID))
+	})
+
+	t.Run("InactiveSubtreeArchivedTogether", func(t *testing.T) {
+		t.Parallel()
+		f := newWorkerTestFixture(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+		now := time.Date(2026, 5, 29, 12, 0, 0, 0, time.UTC)
+		root := f.createArchiveCandidate(t, now.Add(-120*24*time.Hour))
+		f.setKind(t, root.ID, database.ChatKindRoot)
+		parent := f.createArchiveCandidate(t, now.Add(-120*24*time.Hour))
+		child := f.createArchiveCandidate(t, now.Add(-120*24*time.Hour))
+		subagent := f.createArchiveCandidate(t, now.Add(-120*24*time.Hour))
+		f.linkNamedChild(t, root.ID, parent.ID)
+		f.linkNamedChild(t, parent.ID, child.ID)
+		f.linkChild(t, child.ID, subagent.ID)
+		require.NoError(t, f.db.UpsertChatAutoArchiveDays(ctx, 90))
+
+		worker := f.newArchiveWorker(t, newRecordingPubsub(f.pubsub), nil, nil)
+		worker.archiveOnce(ctx, now)
+
+		require.False(t, f.archived(t, root.ID))
+		require.True(t, f.archived(t, parent.ID))
+		require.True(t, f.archived(t, child.ID))
+		require.True(t, f.archived(t, subagent.ID))
+	})
+}

@@ -1959,6 +1959,17 @@ export interface Chat {
 	readonly last_error?: ChatError;
 	readonly last_turn_summary: string | null;
 	/**
+	 * Depth is the chat's depth in its owner's tree, where the root is 1.
+	 * Set by the tree and single-chat endpoints for root and chat kind
+	 * rows whose ancestor chain ends at a root; omitted elsewhere.
+	 */
+	readonly depth?: number;
+	/**
+	 * ChildChatCount is the number of direct chat kind children in any
+	 * archived state. Set wherever Depth is set; omitted elsewhere.
+	 */
+	readonly child_chat_count?: number;
+	/**
 	 * Summary is the persisted whole-chat summary, generated in the background.
 	 * It is nil until the first summary has been produced.
 	 */
@@ -3582,6 +3593,44 @@ export interface ChatToolResultPart {
 
 // From codersdk/chats.go
 /**
+ * ChatTreeMaxDepth is the maximum depth of a chat tree including the root:
+ * a chat at this depth cannot have named children.
+ */
+export const ChatTreeMaxDepth = 5;
+
+// From codersdk/chats.go
+/**
+ * ChatTreeOptions are optional parameters for ChatTree.
+ */
+export interface ChatTreeOptions {
+	/**
+	 * Archived selects archived rows instead of unarchived ones. The root
+	 * is always included.
+	 */
+	readonly Archived: boolean;
+}
+
+// From codersdk/chats.go
+/**
+ * ChatTreeResponse is the owner's chat tree in one organization.
+ */
+export interface ChatTreeResponse {
+	/**
+	 * RootChatID is null when the root could not be created because no
+	 * model config is available; Chats then holds the owner's parentless
+	 * chats.
+	 */
+	readonly root_chat_id: string | null;
+	/**
+	 * Chats holds the root and every root or chat kind row owned by the
+	 * caller in the organization, ordered by depth then updated_at
+	 * descending. Subagents are excluded and Children is empty.
+	 */
+	readonly chats: readonly Chat[];
+}
+
+// From codersdk/chats.go
+/**
  * ChatUnsupportedProvider is a configured provider the Agents harness cannot
  * use.
  */
@@ -3937,6 +3986,13 @@ export interface CreateChatRequest {
 	readonly unsafe_dynamic_tools?: readonly DynamicTool[];
 	readonly plan_mode?: ChatPlanMode;
 	readonly client_type?: ChatClientType;
+	/**
+	 * ParentChatID places the chat under a root or chat kind parent owned
+	 * by the caller in the same organization. Requires the chat-tree
+	 * experiment; when omitted with the experiment on, the caller's tree
+	 * root is used.
+	 */
+	readonly parent_chat_id?: string;
 }
 
 // From codersdk/users.go
@@ -5062,6 +5118,7 @@ export type Experiment =
 	| "agent-lifecycle-hooks"
 	| "auto-fill-parameters"
 	| "chat-advisor"
+	| "chat-tree"
 	| "chat-virtual-desktop"
 	| "example"
 	| "mcp-server-http"
@@ -5078,6 +5135,7 @@ export const Experiments: Experiment[] = [
 	"agent-lifecycle-hooks",
 	"auto-fill-parameters",
 	"chat-advisor",
+	"chat-tree",
 	"chat-virtual-desktop",
 	"example",
 	"mcp-server-http",

@@ -113,6 +113,7 @@ I don't recommend reading the rest of section thoroughly if this is your first t
 ### Transitions used by the HTTP endpoints
 
 - `Create(initialMessages)` creates a new chat, initializes `snapshot_version` to 1, inserts its initial history, and lands in `running`. The inserted initial history sets `history_version` to 1. Since the queue has not changed, `queue_version` remains 0. This transition is a special case: since the chat does not exist at the time it's run, the chat row cannot be locked before the transition is applied.
+- TODO (chat-tree): `CreateIdle` creates a chat with no history and lands in `waiting`. It is used for lazily created chat tree roots (`kind = root`) and publishes no state update or ownership hint. Describe it here.
 - `SetArchived(archived)` sets or clears the archived marker for one chat.
 - `SendMessage(m, busy_behavior)` inserts a user message directly when the chat is idle, or queues it when the chat is busy. `busy_behavior` must be either `queue` or `interrupt`. With `busy_behavior=interrupt`, it also requests interruption or cancels a pending dynamic-tool action as needed.
 - `EditMessage(k, replacement)` clears queued messages, cancels or obsoletes active work, marks the truncated active-history suffix as deleted, inserts the replacement turn followed by any caller-provided suffix messages, and lands in `running`.
@@ -150,6 +151,7 @@ stateDiagram-v2
     [*] --> N
 
     N --> R0: Create
+    N --> W: CreateIdle
 
     W --> R0: SendMessage
     W --> R0: EditMessage
@@ -450,6 +452,8 @@ No other input states are supported.
 ### `PATCH /api/experimental/chats/{chat}`
 
 When archiving or unarchiving a root chat, the operation applies `SetArchived(archived)` to the root and all descendants atomically. If any chat in the family cannot apply the requested archived-state transition, the whole operation fails without changing any chat. Unarchiving an individual child chat remains guarded: it must fail while its parent is archived
+
+TODO (chat-tree): archiving now cascades over the recursive subtree reached through `parent_chat_id` (named children and subagents); `kind = root` chats reject archive; unarchiving covers the chat and its direct subagents only and fails while the chat's parent is archived. Describe the kind discriminator (`root`, `chat`, `subagent`) and these rules here.
 
 For `archived` updates, the supported input and output states are:
 
@@ -883,6 +887,7 @@ The generation goroutine supports:
 - chat compaction (automatic and manual, see [Manual compaction](#manual-compaction))
 - MCP tools
 - subagents (`spawn_agent`, `wait_agent`, `message_agent`, `interrupt_agent`, `list_agents`, `list_subagent_models`)
+    - TODO (chat-tree): these tools target only `kind = subagent` direct children of the calling chat; named tree children (`kind = chat` with a parent) are not addressable through them.
     - `close_agent` is a deprecated alias that dispatches to `interrupt_agent`, so historical tool calls in chat history still resolve
 - file links
 - workspace binding
@@ -1007,9 +1012,13 @@ When the manager cleans up a runner, the runner must cancel all goroutines it ha
 
 By default, chatd runs up to five top-level chats and ten subagent chats at once. Each limit applies across the entire deployment. Enterprise deployments can remove these limits when their plan permits it. Extra chats wait for capacity, but users can still interrupt active chats.
 
+TODO (chat-tree): top-level means `kind IN (root, chat)`; only `kind = subagent` chats count toward the subagent pool.
+
 ## Auto-archive loop
 
 The worker periodically archives old, unused chats.
+
+TODO (chat-tree): candidates are `kind = chat` rows only (tree roots are never archived), a candidate is inactive only when its whole recursive subtree is inactive, and the cascade archives that subtree.
 
 ## Manual compaction
 

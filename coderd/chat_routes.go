@@ -235,6 +235,7 @@ func (api *API) registerOrganizationChatRoutes(r chi.Router, prefix chatAPIPrefi
 		r.Get("/", api.getOrganizationChatModelOverrides)
 		r.Put("/{context}", api.putOrganizationChatModelOverride)
 	})
+	r.Get("/chats/tree", api.getChatTree)
 	r.Route("/chats/models", func(r chi.Router) {
 		r.Get("/", api.listChatModelConfigsByOrganization)
 		r.Post("/", api.createChatModelConfig)

@@ -85,6 +85,7 @@ func (b *PublishBuffer) BufferedChannels() []string {
 // have a (from->to) execution mapping.
 var AllExecutionTransitions = []Transition{
 	TransitionCreateChat,
+	TransitionCreateIdleChat,
 	TransitionSetArchived,
 	TransitionSendMessage,
 	TransitionEditMessage,

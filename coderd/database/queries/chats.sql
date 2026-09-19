@@ -361,14 +361,139 @@ SELECT *
 FROM chats_expanded
 WHERE id = @id::uuid;
 
--- name: GetChatFamilyIDsByRootID :many
--- Returns the chat IDs of every chat in a family (root + all children)
--- in deterministic order. The id parameter must be the root id; the
--- query does not walk up from a child.
+-- name: GetChatSubtreeIDs :many
+-- Returns the chat IDs of a chat and every descendant reached through
+-- parent_chat_id (named children and subagents), parents before children.
+-- The walk is bounded by the tree depth limit plus one subagent level.
+WITH RECURSIVE subtree AS (
+    SELECT id, created_at, 0 AS depth
+    FROM chats
+    WHERE id = @id::uuid
+    UNION ALL
+    SELECT c.id, c.created_at, subtree.depth + 1
+    FROM chats c
+    JOIN subtree ON c.parent_chat_id = subtree.id
+    WHERE subtree.depth < 6
+)
+SELECT id
+FROM subtree
+ORDER BY depth ASC, created_at ASC, id ASC;
+
+-- name: GetChatAndSubagentIDs :many
+-- Returns the chat ID followed by the IDs of its direct subagent children.
+-- Named children are not included.
 SELECT id
 FROM chats
-WHERE id = @id::uuid OR root_chat_id = @id::uuid
+WHERE id = @id::uuid
+   OR (parent_chat_id = @id::uuid AND kind = 'subagent')
 ORDER BY (id = @id::uuid) DESC, created_at ASC, id ASC;
+
+-- name: GetChatTreeRootStateByOwnerAndOrganization :one
+-- Returns the owner's tree root in the organization (the nil UUID when
+-- none exists) and the number of parentless user chats that the root
+-- has not adopted yet.
+SELECT
+    COALESCE((
+        SELECT id
+        FROM chats
+        WHERE owner_id = @owner_id::uuid
+          AND organization_id = @organization_id::uuid
+          AND kind = 'root'
+    ), '00000000-0000-0000-0000-000000000000'::uuid)::uuid AS root_chat_id,
+    (
+        SELECT COUNT(*)
+        FROM chats
+        WHERE owner_id = @owner_id::uuid
+          AND organization_id = @organization_id::uuid
+          AND kind = 'chat'
+          AND parent_chat_id IS NULL
+    )::bigint AS adoptable_count;
+
+-- name: AdoptParentlessChatsIntoTreeRoot :execrows
+-- Reparents every parentless user chat of the owner in the organization
+-- under the tree root. Only parent_chat_id changes: updated_at, the
+-- snapshot version, and pin or archive state are left as they are.
+UPDATE chats
+SET parent_chat_id = @root_chat_id::uuid
+WHERE owner_id = @owner_id::uuid
+  AND organization_id = @organization_id::uuid
+  AND kind = 'chat'
+  AND parent_chat_id IS NULL;
+
+-- name: GetChatTreeDepthByID :one
+-- Returns the depth of a chat in its owner's tree, where the root has
+-- depth 1, or 0 when the ancestor chain does not end at a root chat.
+WITH RECURSIVE ancestors AS (
+    SELECT id, parent_chat_id, kind, 1 AS steps
+    FROM chats
+    WHERE id = @id::uuid
+    UNION ALL
+    SELECT c.id, c.parent_chat_id, c.kind, ancestors.steps + 1
+    FROM chats c
+    JOIN ancestors ON c.id = ancestors.parent_chat_id
+    WHERE ancestors.kind <> 'root'
+      AND ancestors.steps < 6
+)
+SELECT COALESCE((SELECT steps FROM ancestors WHERE kind = 'root' LIMIT 1), 0)::int AS depth;
+
+-- name: CountChatChildrenByParentID :one
+SELECT COUNT(*)::bigint
+FROM chats
+WHERE parent_chat_id = @parent_chat_id::uuid
+  AND kind = ANY(@kinds::chat_kind[]);
+
+-- name: GetChatTreeByOwnerAndOrganization :many
+-- Returns the owner's tree root and every named descendant in the
+-- organization, plus parentless user chats that no root has adopted.
+-- Subagents are excluded. The root is always returned; other rows are
+-- filtered by @archived. Depth is 1 for the root and 0 for parentless
+-- chats outside the tree.
+WITH RECURSIVE tree AS (
+    SELECT c.id, 1 AS depth
+    FROM chats c
+    WHERE c.owner_id = @owner_id::uuid
+      AND c.organization_id = @organization_id::uuid
+      AND c.kind = 'root'
+    UNION ALL
+    SELECT c.id, tree.depth + 1
+    FROM chats c
+    JOIN tree ON c.parent_chat_id = tree.id
+    WHERE c.kind = 'chat'
+      AND c.owner_id = @owner_id::uuid
+      AND c.organization_id = @organization_id::uuid
+      AND tree.depth < 5
+),
+nodes AS (
+    SELECT id, depth FROM tree
+    UNION ALL
+    SELECT c.id, 0 AS depth
+    FROM chats c
+    WHERE c.owner_id = @owner_id::uuid
+      AND c.organization_id = @organization_id::uuid
+      AND c.kind = 'chat'
+      AND c.parent_chat_id IS NULL
+)
+SELECT
+    sqlc.embed(chats_expanded),
+    nodes.depth::int AS depth,
+    (
+        SELECT COUNT(*)
+        FROM chats child
+        WHERE child.parent_chat_id = chats_expanded.id
+          AND child.kind = 'chat'
+    )::bigint AS child_chat_count,
+    EXISTS (
+        SELECT 1 FROM chat_messages cm
+        WHERE cm.chat_id = chats_expanded.id
+            AND cm.role = 'assistant'
+            AND cm.deleted = false
+            AND cm.id > COALESCE(chats_expanded.last_read_message_id, 0)
+    ) AS has_unread
+FROM nodes
+JOIN chats_expanded ON chats_expanded.id = nodes.id
+WHERE chats_expanded.kind = 'root'
+   OR chats_expanded.archived = @archived::boolean
+ORDER BY nodes.depth ASC, chats_expanded.updated_at DESC, chats_expanded.id DESC;
 
 -- name: GetChatACLByID :one
 SELECT
@@ -2385,30 +2510,32 @@ WHERE id = @id::uuid;
 
 -- name: DeleteOldChats :execrows
 -- Deletes chats that have been archived for longer than the given
--- threshold together with their subagent chats, in one statement so the
--- SET NULL foreign keys never leave a subagent without its parent. Active
--- (non-archived) chats are never deleted; a chat with an unarchived
--- subagent is skipped. All chat-scoped child tables are removed via
--- ON DELETE CASCADE. The returned count includes the subagents.
-WITH selected AS (
+-- threshold. Active (non-archived) chats are never deleted, and a chat
+-- whose subtree still contains an unarchived chat is skipped so the FK
+-- cascade never removes a live descendant. All chat-scoped child tables
+-- and descendant chats are removed via ON DELETE CASCADE.
+WITH RECURSIVE blocked AS (
+    -- Archived parents of unarchived chats, then every ancestor above them.
+    SELECT child.parent_chat_id AS id, 0 AS depth
+    FROM chats child
+    JOIN chats parent ON parent.id = child.parent_chat_id
+    WHERE child.archived = false
+      AND parent.archived = true
+    UNION ALL
+    SELECT c.parent_chat_id, blocked.depth + 1
+    FROM chats c
+    JOIN blocked ON c.id = blocked.id
+    WHERE c.parent_chat_id IS NOT NULL
+      AND blocked.depth < 6
+),
+deletable AS (
     SELECT id
     FROM chats
     WHERE archived = true
       AND updated_at < @before_time::timestamptz
-      AND NOT EXISTS (
-          SELECT 1 FROM chats subagent
-          WHERE subagent.root_chat_id = chats.id
-            AND subagent.archived = false
-      )
+      AND NOT EXISTS (SELECT 1 FROM blocked WHERE blocked.id = chats.id)
     ORDER BY updated_at ASC
     LIMIT @limit_count
-),
-deletable AS (
-    SELECT id FROM selected
-    UNION
-    SELECT subagent.id
-    FROM chats subagent
-    JOIN selected ON subagent.root_chat_id = selected.id
 )
 DELETE FROM chats
 USING deletable
@@ -2556,29 +2683,46 @@ WHERE heartbeat_at < NOW() - (INTERVAL '1 second' * @stale_seconds::int);
 
 -- name: GetAutoArchiveInactiveChatCandidates :many
 -- Returns read-only user chat candidates for state-machine-backed
--- auto-archive. Activity is computed across the chat and its subagents.
--- The query limits candidates, not total family members.
+-- auto-archive. A candidate is inactive only when nothing in its subtree
+-- (named children and subagents) is active or has recent messages. Root
+-- chats are never candidates. The query limits candidates, not total
+-- subtree members.
+WITH RECURSIVE candidate_subtree AS (
+    SELECT chats.id AS candidate_id, chats.id, chats.status, 0 AS depth
+    FROM chats
+    WHERE chats.archived = false
+      AND chats.pin_order = 0
+      AND chats.kind = 'chat'
+      AND chats.created_at < @archive_cutoff::timestamptz
+    UNION ALL
+    SELECT candidate_subtree.candidate_id, c.id, c.status, candidate_subtree.depth + 1
+    FROM chats c
+    JOIN candidate_subtree ON c.parent_chat_id = candidate_subtree.id
+    WHERE candidate_subtree.depth < 6
+)
 SELECT
     chats_expanded.*,
     COALESCE(activity.last_activity_at, chats_expanded.created_at)::timestamptz AS last_activity_at
 FROM chats_expanded
 LEFT JOIN LATERAL (
-    SELECT MAX(chat_messages.created_at) AS last_activity_at
-    FROM chat_messages
-    JOIN chats family_chat ON family_chat.id = chat_messages.chat_id
-    WHERE (family_chat.id = chats_expanded.id OR family_chat.root_chat_id = chats_expanded.id)
-      AND chat_messages.deleted = false
+    SELECT
+        MAX(chat_messages.created_at) AS last_activity_at,
+        BOOL_OR(candidate_subtree.status IN (
+            'running'::chat_status,
+            'interrupting'::chat_status,
+            'requires_action'::chat_status
+        )) AS has_active_member
+    FROM candidate_subtree
+    LEFT JOIN chat_messages ON chat_messages.chat_id = candidate_subtree.id
+        AND chat_messages.deleted = false
+    WHERE candidate_subtree.candidate_id = chats_expanded.id
 ) activity ON TRUE
 WHERE
     chats_expanded.archived = false
     AND chats_expanded.pin_order = 0
     AND chats_expanded.kind = 'chat'
     AND chats_expanded.created_at < @archive_cutoff::timestamptz
-    AND chats_expanded.status NOT IN (
-        'running'::chat_status,
-        'interrupting'::chat_status,
-        'requires_action'::chat_status
-    )
+    AND NOT COALESCE(activity.has_active_member, false)
     AND COALESCE(activity.last_activity_at, chats_expanded.created_at) < @archive_cutoff::timestamptz
 ORDER BY chats_expanded.created_at ASC
 LIMIT @limit_count::int;

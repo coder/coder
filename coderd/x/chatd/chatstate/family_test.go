@@ -215,3 +215,79 @@ func seedFamilyDeps(t *testing.T, db database.Store) (database.User, database.Or
 	})
 	return user, org, model
 }
+
+// TestSetFamilyArchivedTree covers the tree rules: archive cascades over
+// named descendants and their subagents atomically, the tree root cannot
+// be archived, unarchive is blocked under an archived parent, and
+// unarchive restores the chat and its subagents but not named children.
+func TestSetFamilyArchivedTree(t *testing.T) {
+	t.Parallel()
+	f := newTestFixture(t)
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	newChat := func(title string, kind database.ChatKind, parent uuid.NullUUID, root uuid.NullUUID, status database.ChatStatus) database.Chat {
+		return dbgen.Chat(t, f.DB, database.Chat{
+			OrganizationID:    f.Org.ID,
+			OwnerID:           f.User.ID,
+			LastModelConfigID: f.Model.ID,
+			Title:             title,
+			Kind:              kind,
+			ParentChatID:      parent,
+			RootChatID:        root,
+			Status:            status,
+		})
+	}
+	ref := func(id uuid.UUID) uuid.NullUUID { return uuid.NullUUID{UUID: id, Valid: true} }
+
+	treeRoot := newChat("root", database.ChatKindRoot, uuid.NullUUID{}, uuid.NullUUID{}, database.ChatStatusWaiting)
+	top := newChat("top", database.ChatKindChat, ref(treeRoot.ID), uuid.NullUUID{}, database.ChatStatusWaiting)
+	child := newChat("child", database.ChatKindChat, ref(top.ID), uuid.NullUUID{}, database.ChatStatusWaiting)
+	grandchild := newChat("grandchild", database.ChatKindChat, ref(child.ID), uuid.NullUUID{}, database.ChatStatusRunning)
+	topSubagent := newChat("top subagent", database.ChatKindSubagent, ref(top.ID), ref(top.ID), database.ChatStatusWaiting)
+	childSubagent := newChat("child subagent", database.ChatKindSubagent, ref(child.ID), ref(child.ID), database.ChatStatusWaiting)
+
+	_, err := chatstate.SetFamilyArchived(ctx, f.DB, f.Pub, chatstate.SetFamilyArchivedInput{RootID: treeRoot.ID, Archived: true})
+	require.ErrorIs(t, err, chatstate.ErrChatTreeRootArchive)
+
+	// A running grandchild blocks the whole cascade.
+	_, err = chatstate.SetFamilyArchived(ctx, f.DB, f.Pub, chatstate.SetFamilyArchivedInput{RootID: top.ID, Archived: true})
+	require.ErrorIs(t, err, chatstate.ErrTransitionNotAllowed)
+	for _, id := range []uuid.UUID{top.ID, child.ID, grandchild.ID, topSubagent.ID, childSubagent.ID} {
+		require.False(t, f.readChat(ctx, t, id).Archived)
+	}
+
+	_, err = f.DB.UpdateChatExecutionState(ctx, database.UpdateChatExecutionStateParams{
+		ID:     grandchild.ID,
+		Status: database.ChatStatusWaiting,
+	})
+	require.NoError(t, err)
+
+	archived, err := chatstate.SetFamilyArchived(ctx, f.DB, f.Pub, chatstate.SetFamilyArchivedInput{RootID: top.ID, Archived: true})
+	require.NoError(t, err)
+	require.Len(t, archived, 5)
+	require.Equal(t, top.ID, archived[0].ID, "the top chat comes first")
+	for _, id := range []uuid.UUID{top.ID, child.ID, grandchild.ID, topSubagent.ID, childSubagent.ID} {
+		require.True(t, f.readChat(ctx, t, id).Archived)
+	}
+	require.False(t, f.readChat(ctx, t, treeRoot.ID).Archived)
+
+	// Unarchiving below an archived parent is rejected.
+	_, err = chatstate.SetFamilyArchived(ctx, f.DB, f.Pub, chatstate.SetFamilyArchivedInput{RootID: child.ID, Archived: false})
+	require.ErrorIs(t, err, chatstate.ErrChatParentArchived)
+
+	// Unarchiving the top restores it and its subagent only.
+	restored, err := chatstate.SetFamilyArchived(ctx, f.DB, f.Pub, chatstate.SetFamilyArchivedInput{RootID: top.ID, Archived: false})
+	require.NoError(t, err)
+	require.Len(t, restored, 2)
+	require.False(t, f.readChat(ctx, t, top.ID).Archived)
+	require.False(t, f.readChat(ctx, t, topSubagent.ID).Archived)
+	require.True(t, f.readChat(ctx, t, child.ID).Archived)
+	require.True(t, f.readChat(ctx, t, grandchild.ID).Archived)
+	require.True(t, f.readChat(ctx, t, childSubagent.ID).Archived)
+
+	// Now the child can be unarchived on its own.
+	_, err = chatstate.SetFamilyArchived(ctx, f.DB, f.Pub, chatstate.SetFamilyArchivedInput{RootID: child.ID, Archived: false})
+	require.NoError(t, err)
+	require.False(t, f.readChat(ctx, t, child.ID).Archived)
+	require.True(t, f.readChat(ctx, t, grandchild.ID).Archived)
+}
