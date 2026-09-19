@@ -3486,6 +3486,43 @@ func TestUserAIProviderKeys(t *testing.T) {
 		require.Equal(t, "AI provider is disabled.", sdkErr.Message)
 	})
 
+	t.Run("AcceptsBedrockProvider", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		adminClient := newChatClient(t)
+		firstUser := coderdtest.CreateFirstUser(t, adminClient.Client)
+		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, adminClient.Client, firstUser.OrganizationID)
+		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
+
+		provider, err := adminClient.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+			Type:    codersdk.AIProviderTypeBedrock,
+			Name:    "test-bedrock-user-key-" + uuid.NewString(),
+			Enabled: true,
+			BaseURL: "https://bedrock-runtime.us-east-1.amazonaws.com",
+			Settings: codersdk.AIProviderSettings{
+				Bedrock: &codersdk.AIProviderBedrockSettings{
+					Region:         "us-east-1",
+					Model:          "anthropic.claude-3-5-sonnet",
+					SmallFastModel: "anthropic.claude-3-5-haiku",
+				},
+			},
+		})
+		require.NoError(t, err)
+
+		// Bedrock providers accept a user-supplied Bedrock API key, which the
+		// AI gateway forwards as a bearer token.
+		cfg, err := memberClient.UpsertUserAIProviderKey(ctx, "me", provider.ID, codersdk.CreateUserAIProviderKeyRequest{APIKey: "test-user-api-key"})
+		require.NoError(t, err)
+		require.True(t, cfg.HasUserAPIKey)
+
+		configs, err := memberClient.ListUserAIProviderKeyConfigs(ctx, "me")
+		require.NoError(t, err)
+		listed := findUserAIProviderKeyConfig(t, configs, provider.ID)
+		require.NotNil(t, listed)
+		require.True(t, listed.HasUserAPIKey)
+	})
+
 	t.Run("RejectsLargeAPIKey", func(t *testing.T) {
 		t.Parallel()
 
