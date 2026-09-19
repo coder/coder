@@ -28,11 +28,6 @@ func (e *Enforcer) Install(ctx context.Context) error {
 		return err
 	}
 	exemptions := e.resolveExemptions(ctx)
-	resolvers := e.resolvers
-	if resolvers == nil {
-		resolvers = systemResolvers()
-	}
-
 	var transparentErr error
 	if !udpTransparentReady(e.ports.udp) {
 		transparentErr = xerrors.New("UDP capture socket lacks IP_TRANSPARENT")
@@ -49,23 +44,23 @@ func (e *Enforcer) Install(ctx context.Context) error {
 	if !e.transparent {
 		mode = udpModeRedirect
 	}
-	if err := e.installFamily(ctx, "iptables", buildRules(e.ports, exemptions, resolvers, ipv4, mode)); err != nil {
+	if err := e.installFamily(ctx, "iptables", buildRules(e.ports, exemptions, ipv4, mode)); err != nil {
 		_ = e.removeTPROXY(ctx)
 		return xerrors.Errorf("install iptables rules: %w", err)
 	}
 	e.installed = true
-	if err := e.installFamily(ctx, "ip6tables", buildRules(e.ports, exemptions, resolvers, ipv6, udpModeRedirect)); err != nil {
+	if err := e.installFamily(ctx, "ip6tables", buildRules(e.ports, exemptions, ipv6, udpModeRedirect)); err != nil {
 		if cleanupErr := e.handleIPv6InstallFailure(ctx, err); cleanupErr != nil {
 			return cleanupErr
 		}
 	}
 	if e.lockdown {
 		if err := e.lockdownCapabilities(); err != nil {
-			return xerrors.Errorf("lock down CAP_NET_ADMIN for child processes: %w", err)
+			return xerrors.Errorf("lock down network capabilities for child processes: %w", err)
 		}
-		// Children cannot regain CAP_NET_ADMIN after this point. Cleanup by
-		// exec is also impossible, so rules remain until the container's
-		// network namespace exits.
+		// Children cannot regain CAP_NET_ADMIN or CAP_NET_RAW after this
+		// point. Cleanup by exec is also impossible, so rules remain until
+		// the container's network namespace exits.
 		e.lockedDown = true
 	}
 	return nil

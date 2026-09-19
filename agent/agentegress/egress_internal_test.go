@@ -218,6 +218,7 @@ func startProxy(t testing.TB, exit *fakeExitNode, opts proxyOptions) *Proxy {
 		FakeIPMaxEntries:  opts.fakeIPMaxEntries,
 	})
 	require.NoError(t, err)
+	proxy.resolverDial = (&net.Dialer{}).DialContext
 	if opts.udpOrigDst != nil {
 		proxy.udpOrigDst = opts.udpOrigDst
 	}
@@ -586,6 +587,91 @@ func TestProxy_Update(t *testing.T) {
 	require.Equal(t, want, testutil.RequireReceive(t.Context(), t, seen))
 }
 
+func TestProxy_UpdateResetsDNS(t *testing.T) {
+	t.Parallel()
+
+	exit := newFakeExitNode(t, nil)
+	proxy := startProxy(t, exit, proxyOptions{})
+	ctx := testutil.Context(t, testutil.WaitShort)
+	query := dnsQuery(t, 70, "update.example.", dnsmessage.TypeA)
+	_, _ = dnsExchange(ctx, t, "udp", proxy.DNSAddr(), query)
+	require.Len(t, exit.connectsTo(dnsRelayTarget), 1)
+
+	next := proxy.Config()
+	next.ExitNodeIDs = []uuid.UUID{uuid.New()}
+	require.NoError(t, proxy.Update(next, nil))
+	_, _ = dnsExchange(ctx, t, "udp", proxy.DNSAddr(), query)
+	require.Len(t, exit.connectsTo(dnsRelayTarget), 2)
+}
+
+func TestProxy_ExitNodeSwitchResetsDNS(t *testing.T) {
+	t.Parallel()
+
+	ids := []uuid.UUID{uuid.New(), uuid.New()}
+	addrs := []netip.AddrPort{
+		netip.AddrPortFrom(tailnet.TailscaleServicePrefix.AddrFromUUID(ids[0]), 3128),
+		netip.AddrPortFrom(tailnet.TailscaleServicePrefix.AddrFromUUID(ids[1]), 3128),
+	}
+	var mu sync.Mutex
+	var dnsNodes []netip.AddrPort
+	dialer := DialerFunc(func(_ context.Context, addr netip.AddrPort) (net.Conn, error) {
+		client, server := net.Pipe()
+		go func() {
+			defer server.Close()
+			br := bufio.NewReader(server)
+			req, err := http.ReadRequest(br)
+			if err != nil {
+				return
+			}
+			if req.Header.Get(codersdk.ExitNodeProtocolHeader) == string(codersdk.ExitNodeProtocolDNS) {
+				mu.Lock()
+				dnsNodes = append(dnsNodes, addr)
+				mu.Unlock()
+				if _, err := io.WriteString(server, established); err != nil {
+					return
+				}
+				for {
+					query, err := readFrame(br)
+					if err != nil {
+						return
+					}
+					if writeFrame(server, dnsResponse(query, dnsmessage.RCodeSuccess, 60)) != nil {
+						return
+					}
+				}
+			}
+			if addr == addrs[0] {
+				_, _ = io.WriteString(server, "HTTP/1.1 503 Service Unavailable\r\nContent-Length: 0\r\n\r\n")
+				return
+			}
+			_, _ = io.WriteString(server, established)
+			_, _ = io.Copy(io.Discard, server)
+		}()
+		return client, nil
+	})
+	proxy, err := New(testutil.Logger(t), Options{
+		Dialer:     dialer,
+		Config:     agentsdk.EgressConfig{ExitNodeIDs: ids, ExitNodePort: 3128},
+		ListenAddr: "127.0.0.1:0",
+	})
+	require.NoError(t, err)
+	proxy.resolverDial = (&net.Dialer{}).DialContext
+	require.NoError(t, proxy.Start(testutil.Context(t, testutil.WaitLong)))
+	t.Cleanup(func() { _ = proxy.Close() })
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	query := dnsQuery(t, 80, "switch.example.", dnsmessage.TypeA)
+	_, _ = dnsExchange(ctx, t, "udp", proxy.DNSAddr(), query)
+	conn, err := proxy.connectUpstream(ctx, "switch.example:443", codersdk.ExitNodeProtocolTCP)
+	require.NoError(t, err)
+	require.NoError(t, conn.Close())
+	_, _ = dnsExchange(ctx, t, "udp", proxy.DNSAddr(), query)
+
+	mu.Lock()
+	defer mu.Unlock()
+	require.Equal(t, addrs, dnsNodes)
+}
+
 func TestProxy_ConnectNegotiationFailover(t *testing.T) {
 	t.Parallel()
 
@@ -608,6 +694,16 @@ func TestProxy_ConnectNegotiationFailover(t *testing.T) {
 			name: "eof",
 			first: func(conn net.Conn) {
 				_ = conn.Close()
+			},
+			wantSecond: true,
+		},
+		{
+			name: "service unavailable",
+			first: func(conn net.Conn) {
+				defer conn.Close()
+				_, _ = http.ReadRequest(bufio.NewReader(conn))
+				_, _ = io.WriteString(conn, "HTTP/1.1 503 Service Unavailable\r\nContent-Length: 0\r\n\r\n")
+				_, _ = io.Copy(io.Discard, conn)
 			},
 			wantSecond: true,
 		},
@@ -677,20 +773,19 @@ func TestProxy_CloseStopsListening(t *testing.T) {
 	exit := newFakeExitNode(t, nil)
 	proxy := startProxy(t, exit, proxyOptions{})
 	addr, dnsAddr := proxy.Addr(), proxy.DNSAddr()
+	require.True(t, addr.IsValid())
 	require.True(t, dnsAddr.IsValid())
 	require.True(t, proxy.UDPAddr().IsValid())
 	require.NoError(t, proxy.Close())
 	// Idempotent.
 	require.NoError(t, proxy.Close())
 
-	ctx := testutil.Context(t, testutil.WaitShort)
-	var d net.Dialer
-	for _, closed := range []netip.AddrPort{addr, dnsAddr} {
-		conn, err := d.DialContext(ctx, "tcp", closed.String())
-		if err == nil {
+	for _, closed := range []net.Listener{proxy.listener, proxy.dns.tcp} {
+		conn, err := closed.Accept()
+		if conn != nil {
 			_ = conn.Close()
 		}
-		require.Error(t, err, closed)
+		require.ErrorIs(t, err, net.ErrClosed)
 	}
 }
 

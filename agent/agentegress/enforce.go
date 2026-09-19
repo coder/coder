@@ -33,8 +33,10 @@ const (
 	tproxyPreroutingChain = "CODER_EGRESS_TPROXY"
 	// tproxyMark selects policy routing into the transparent UDP listener.
 	tproxyMark = "0x434f"
-	// tproxyBypassMark prevents transparent reply sockets from being captured.
+	// tproxyBypassMark prevents agent-owned sockets from being captured.
 	tproxyBypassMark = "0x4350"
+	// tproxyBypassMarkValue is the socket option representation of the mark.
+	tproxyBypassMarkValue = 0x4350
 	// tproxyTable is dedicated to the local route used by transparent UDP.
 	tproxyTable = "54321"
 )
@@ -57,14 +59,11 @@ type EnforcerOptions struct {
 	// ControlPlaneHosts are proto/host:port destinations that bypass the
 	// proxy. Protocol and port are mandatory.
 	ControlPlaneHosts []string
-	// Resolvers are the upstream DNS servers the proxy forwards exempt
-	// queries to over TCP. Defaults to the system resolvers.
-	Resolvers []netip.Addr
 	// Resolver defaults to net.DefaultResolver.
 	Resolver Resolver
-	// LockdownCapabilities drops CAP_NET_ADMIN from the process bounding set
-	// after installation. It defaults to true. Set LockdownCapabilitiesSet
-	// when explicitly disabling it for debugging or tests.
+	// LockdownCapabilities drops CAP_NET_ADMIN and CAP_NET_RAW from the
+	// process bounding and inheritable sets after installation. It defaults to
+	// true. Set LockdownCapabilitiesSet when explicitly disabling it for tests.
 	LockdownCapabilities bool
 	// LockdownCapabilitiesSet distinguishes an explicit false value from the
 	// secure default.
@@ -89,7 +88,6 @@ type Enforcer struct {
 	resolver             Resolver
 	ports                proxyPorts
 	hosts                []string
-	resolvers            []netip.Addr
 	lockdown             bool
 	lockdownCapabilities func() error
 	readFile             func(string) ([]byte, error)
@@ -131,7 +129,6 @@ func NewEnforcer(logger slog.Logger, opts EnforcerOptions) (*Enforcer, error) {
 		resolver:             opts.Resolver,
 		ports:                proxyPorts{tcp: opts.ProxyPort, dns: opts.DNSPort, udp: opts.UDPPort},
 		hosts:                opts.ControlPlaneHosts,
-		resolvers:            opts.Resolvers,
 		lockdown:             lockdown,
 		lockdownCapabilities: opts.capabilityLockdown,
 		readFile:             opts.readFile,
@@ -144,7 +141,7 @@ func NewEnforcer(logger slog.Logger, opts EnforcerOptions) (*Enforcer, error) {
 		e.resolver = net.DefaultResolver
 	}
 	if e.lockdownCapabilities == nil {
-		e.lockdownCapabilities = lockdownNetAdmin
+		e.lockdownCapabilities = lockdownNetworkCapabilities
 	}
 	if e.readFile == nil {
 		e.readFile = os.ReadFile
@@ -202,23 +199,19 @@ const (
 
 // buildRules produces the base chain contents for one address family. IPv4
 // TPROXY mode omits the non-DNS UDP REDIRECT rule.
-func buildRules(ports proxyPorts, exemptions []resolvedExemption, resolvers []netip.Addr, family ipFamily, mode udpMode) ruleSet {
+func buildRules(ports proxyPorts, exemptions []resolvedExemption, family ipFamily, mode udpMode) ruleSet {
 	rs := ruleSet{}
 	nat := func(args ...string) { rs["nat"] = append(rs["nat"], append(rule{"-A", natChain}, args...)) }
 	filter := func(args ...string) { rs["filter"] = append(rs["filter"], append(rule{"-A", filterChain}, args...)) }
 	port := func(p uint16) string { return strconv.Itoa(int(p)) }
 
+	nat("-m", "mark", "--mark", tproxyBypassMark, "-j", "RETURN")
 	nat("-o", "lo", "-j", "RETURN")
 	for _, ex := range exemptions {
 		if !family.matches(ex.Addr) {
 			continue
 		}
 		nat("-d", ex.Addr.String(), "-p", ex.Proto, "--dport", port(ex.Port), "-j", "RETURN")
-	}
-	for _, addr := range resolvers {
-		if family.matches(addr) {
-			nat("-d", addr.String(), "-p", "tcp", "--dport", "53", "-j", "RETURN")
-		}
 	}
 	nat("-p", "udp", "--dport", "53", "-j", "REDIRECT", "--to-ports", port(ports.dns))
 	nat("-p", "tcp", "--dport", "53", "-j", "REDIRECT", "--to-ports", port(ports.dns))

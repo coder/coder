@@ -41,16 +41,10 @@ func TestBuildRules(t *testing.T) {
 		{Proto: "udp", Addr: netip.MustParseAddr("198.51.100.7"), Port: 41641},
 		{Proto: "tcp", Addr: netip.MustParseAddr("2001:db8::1"), Port: 443},
 	}
-	resolvers := []netip.Addr{
-		netip.MustParseAddr("1.1.1.1"),
-		netip.MustParseAddr("2606:4700:4700::1111"),
-		netip.MustParseAddr("8.8.8.8"),
-	}
 	tests := []struct {
 		name       string
 		ports      proxyPorts
 		exemptions []resolvedExemption
-		resolvers  []netip.Addr
 		family     ipFamily
 		wantNat    []string
 		wantFilter []string
@@ -59,6 +53,7 @@ func TestBuildRules(t *testing.T) {
 			name:  "no exemptions",
 			ports: proxyPorts{tcp: 40001, dns: 40002, udp: 40003},
 			wantNat: []string{
+				"-A CODER_EGRESS -m mark --mark 0x4350 -j RETURN",
 				"-A CODER_EGRESS -o lo -j RETURN",
 				"-A CODER_EGRESS -p udp --dport 53 -j REDIRECT --to-ports 40002",
 				"-A CODER_EGRESS -p tcp --dport 53 -j REDIRECT --to-ports 40002",
@@ -74,13 +69,11 @@ func TestBuildRules(t *testing.T) {
 			name:       "ipv4 control plane exemptions and resolvers",
 			ports:      proxyPorts{tcp: 40001, dns: 40002, udp: 40003},
 			exemptions: exemptions,
-			resolvers:  resolvers,
 			wantNat: []string{
+				"-A CODER_EGRESS -m mark --mark 0x4350 -j RETURN",
 				"-A CODER_EGRESS -o lo -j RETURN",
 				"-A CODER_EGRESS -d 203.0.113.10 -p tcp --dport 443 -j RETURN",
 				"-A CODER_EGRESS -d 198.51.100.7 -p udp --dport 41641 -j RETURN",
-				"-A CODER_EGRESS -d 1.1.1.1 -p tcp --dport 53 -j RETURN",
-				"-A CODER_EGRESS -d 8.8.8.8 -p tcp --dport 53 -j RETURN",
 				"-A CODER_EGRESS -p udp --dport 53 -j REDIRECT --to-ports 40002",
 				"-A CODER_EGRESS -p tcp --dport 53 -j REDIRECT --to-ports 40002",
 				"-A CODER_EGRESS -p udp -j REDIRECT --to-ports 40003",
@@ -95,12 +88,11 @@ func TestBuildRules(t *testing.T) {
 			name:       "ipv6 exemption keeps neighbor discovery",
 			ports:      proxyPorts{tcp: 8080, dns: 8081, udp: 8082},
 			exemptions: exemptions,
-			resolvers:  resolvers,
 			family:     ipv6,
 			wantNat: []string{
+				"-A CODER_EGRESS -m mark --mark 0x4350 -j RETURN",
 				"-A CODER_EGRESS -o lo -j RETURN",
 				"-A CODER_EGRESS -d 2001:db8::1 -p tcp --dport 443 -j RETURN",
-				"-A CODER_EGRESS -d 2606:4700:4700::1111 -p tcp --dport 53 -j RETURN",
 				"-A CODER_EGRESS -p udp --dport 53 -j REDIRECT --to-ports 8081",
 				"-A CODER_EGRESS -p tcp --dport 53 -j REDIRECT --to-ports 8081",
 				"-A CODER_EGRESS -p udp -j REDIRECT --to-ports 8082",
@@ -120,7 +112,7 @@ func TestBuildRules(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			rs := buildRules(tt.ports, tt.exemptions, tt.resolvers, tt.family, udpModeRedirect)
+			rs := buildRules(tt.ports, tt.exemptions, tt.family, udpModeRedirect)
 			require.Equal(t, tt.wantNat, toStrings(rs["nat"]))
 			require.Equal(t, tt.wantFilter, toStrings(rs["filter"]))
 		})

@@ -6,12 +6,14 @@ import (
 	"errors"
 	"net"
 	"net/netip"
+	"syscall"
 )
 
-func configureUDPOriginalDst(*net.UDPConn) (bool, error) { return false, nil }
-func registerTransparentUDP(uint16)                      {}
-func unregisterTransparentUDP(uint16)                    {}
-func udpTransparentReady(uint16) bool                    { return false }
+func bypassControl(string, string, syscall.RawConn) error { return nil }
+func configureUDPOriginalDst(*net.UDPConn) (bool, error)  { return false, nil }
+func registerTransparentUDP(uint16)                       {}
+func unregisterTransparentUDP(uint16)                     {}
+func udpTransparentReady(uint16) bool                     { return false }
 func transparentUDPReplyConn(netip.AddrPort) (*net.UDPConn, error) {
 	return nil, errors.ErrUnsupported
 }

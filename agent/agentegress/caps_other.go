@@ -4,6 +4,6 @@ package agentegress
 
 import "errors"
 
-func lockdownNetAdmin() error {
+func lockdownNetworkCapabilities() error {
 	return errors.ErrUnsupported
 }

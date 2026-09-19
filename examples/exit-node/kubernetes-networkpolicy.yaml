@@ -13,7 +13,7 @@ spec:
     - Egress # Deny egress except for the destinations listed here.
   egress:
     # Allow workspace DNS queries to the cluster DNS pods.
-    # The agent uses this path to resolve coderd, DERP, STUN, and exit node endpoint exemptions.
+    # The agent uses this path for exempt host names and to resolve the exact addresses used by capture bypass rules.
     - to:
         - namespaceSelector:
             matchLabels:
@@ -28,6 +28,7 @@ spec:
           port: 53
 
     # Allow coderd through namespace and pod selectors when coderd runs in the same cluster.
+    # Match only the TCP port in the agent's tcp/host:port control-plane exemption.
     - to:
         - namespaceSelector:
             matchLabels:
@@ -40,6 +41,7 @@ spec:
           port: 80 # Replace with the in-cluster coderd service target port.
 
     # Allow coderd by address when workspaces use an external access URL.
+    # Match only the TCP port in the agent's tcp/host:port control-plane exemption.
     # Remove this rule when the selector-based coderd rule is sufficient.
     - to:
         - ipBlock:
@@ -49,6 +51,7 @@ spec:
           port: 443 # Replace if the Coder access URL uses another port.
 
     # Allow each external DERP relay and STUN endpoint used by the deployment.
+    # DERP exemptions use TCP, while STUN exemptions use UDP, each on its exact configured port.
     # Add one ipBlock and the matching ports for every endpoint, or remove this rule if unused.
     - to:
         - ipBlock:
@@ -59,7 +62,8 @@ spec:
         - protocol: UDP
           port: 3478 # Replace with the STUN UDP port.
 
-    # Allow the primary exit node's advertised WireGuard endpoint.
+    # Allow the primary exit node's advertised WireGuard UDP endpoint.
+    # Match the exact udp/host:port exemption advertised to the agent.
     - to:
         - ipBlock:
             cidr: 203.0.113.10/32 # Replace with the primary exit node address.
@@ -67,8 +71,8 @@ spec:
         - protocol: UDP
           port: 51820 # Match --wireguard-listen-port and --wireguard-endpoint.
 
-    # Allow a secondary exit node's advertised WireGuard endpoint for failover.
-    # Repeat this rule for every exit node bound to the template.
+    # Allow a secondary exit node's advertised WireGuard UDP endpoint for failover.
+    # Match the exact udp/host:port exemption and repeat this rule for every bound exit node.
     - to:
         - ipBlock:
             cidr: 203.0.113.11/32 # Replace with the secondary exit node address.

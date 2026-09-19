@@ -54,7 +54,7 @@ func TestCapabilityLockdownHelper(t *testing.T) {
 	if os.Getenv("CODER_CAPABILITY_LOCKDOWN_HELPER") != "1" {
 		t.Skip("helper process")
 	}
-	require.NoError(t, lockdownNetAdmin())
+	require.NoError(t, lockdownNetworkCapabilities())
 
 	const children = 8
 	results := make(chan error, children)
@@ -74,9 +74,11 @@ func TestCapabilityLockdownHelper(t *testing.T) {
 				return
 			}
 			for _, name := range []string{"CapBnd", "CapPrm", "CapEff"} {
-				if caps[name]&netAdminCapabilityMask != 0 {
-					results <- xerrors.Errorf("child retained CAP_NET_ADMIN in %s", name)
-					return
+				for _, capability := range lockedCapabilities {
+					if caps[name]&capability.mask != 0 {
+						results <- xerrors.Errorf("child retained %s in %s", capability.name, name)
+						return
+					}
 				}
 			}
 			results <- nil
@@ -97,7 +99,6 @@ func testEnforcerInstallRemove(ctx context.Context, t *testing.T) {
 		DNSPort:                 40124,
 		UDPPort:                 40125,
 		ControlPlaneHosts:       []string{"tcp/198.51.100.7:443", "udp/203.0.113.10:41641"},
-		Resolvers:               []netip.Addr{netip.MustParseAddr("192.0.2.53")},
 		LockdownCapabilities:    false,
 		LockdownCapabilitiesSet: true,
 	})
@@ -116,10 +117,10 @@ func testEnforcerInstallRemove(ctx context.Context, t *testing.T) {
 	}
 	nat := list("nat", natChain)
 	for _, want := range []string{
+		"-A CODER_EGRESS -m mark --mark 0x4350 -j RETURN",
 		"-A CODER_EGRESS -o lo -j RETURN",
 		"-A CODER_EGRESS -d 198.51.100.7/32 -p tcp -m tcp --dport 443 -j RETURN",
 		"-A CODER_EGRESS -d 203.0.113.10/32 -p udp -m udp --dport 41641 -j RETURN",
-		"-A CODER_EGRESS -d 192.0.2.53/32 -p tcp -m tcp --dport 53 -j RETURN",
 		"-A CODER_EGRESS -p udp -m udp --dport 53 -j REDIRECT --to-ports 40124",
 		"-A CODER_EGRESS -p tcp -m tcp --dport 53 -j REDIRECT --to-ports 40124",
 		"-A CODER_EGRESS -p tcp -j REDIRECT --to-ports 40123",
@@ -192,13 +193,13 @@ func testEnforcerTransparentRedirect(ctx context.Context, t *testing.T) {
 		ProxyPort:               proxy.Addr().Port(),
 		DNSPort:                 proxy.DNSAddr().Port(),
 		UDPPort:                 proxy.UDPAddr().Port(),
-		Resolvers:               []netip.Addr{},
 		LockdownCapabilities:    false,
 		LockdownCapabilitiesSet: true,
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = e.Remove(ctx) })
 	require.NoError(t, e.Install(ctx))
+	testTCPDNSMarkBypass(ctx, t)
 
 	client := &http.Client{Transport: &http.Transport{DisableKeepAlives: true}}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://"+target+"/redirected", nil)
@@ -263,4 +264,22 @@ func testEnforcerTransparentRedirect(ctx context.Context, t *testing.T) {
 	}
 
 	require.NoError(t, e.Remove(ctx))
+}
+
+func testTCPDNSMarkBypass(ctx context.Context, t *testing.T) {
+	t.Helper()
+	const resolver = "192.0.2.53:53"
+
+	unmarked, err := (&net.Dialer{}).DialContext(ctx, "tcp4", resolver)
+	require.NoError(t, err, "unmarked TCP DNS must be redirected to the DNS proxy")
+	require.NoError(t, unmarked.Close())
+
+	markedDialer := net.Dialer{Control: bypassControl}
+	markedCtx, cancel := context.WithTimeout(ctx, testutil.IntervalMedium)
+	defer cancel()
+	marked, err := markedDialer.DialContext(markedCtx, "tcp4", resolver)
+	if err == nil {
+		_ = marked.Close()
+	}
+	require.Error(t, err, "marked TCP DNS must bypass the local DNS proxy")
 }

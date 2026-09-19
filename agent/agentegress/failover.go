@@ -94,7 +94,7 @@ func (s *exitNodeSelector) markFailure(addr netip.AddrPort) {
 	}
 }
 
-func (s *exitNodeSelector) markHealthy(ctx context.Context, addr netip.AddrPort) {
+func (s *exitNodeSelector) markHealthy(ctx context.Context, addr netip.AddrPort) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	for i, candidate := range s.addrs {
@@ -106,7 +106,9 @@ func (s *exitNodeSelector) markHealthy(ctx context.Context, addr netip.AddrPort)
 		s.current = i
 		if i != previous {
 			s.logger.Info(ctx, "switched egress exit node", slog.F("from", s.addrs[previous]), slog.F("to", addr))
+			return true
 		}
-		return
+		return false
 	}
+	return false
 }

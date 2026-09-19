@@ -15,6 +15,21 @@ import (
 
 var transparentUDPPorts sync.Map
 
+// bypassControl marks agent-owned sockets so transparent egress capture does
+// not redirect them. It must never be exposed to workspace-controlled code.
+func bypassControl(_, _ string, raw syscall.RawConn) error {
+	var optErr error
+	if err := raw.Control(func(fd uintptr) {
+		optErr = unix.SetsockoptInt(int(fd), unix.SOL_SOCKET, unix.SO_MARK, tproxyBypassMarkValue)
+	}); err != nil {
+		return xerrors.Errorf("control bypass socket: %w", err)
+	}
+	if optErr != nil {
+		return xerrors.Errorf("mark bypass socket: %w", optErr)
+	}
+	return nil
+}
+
 func configureUDPOriginalDst(conn *net.UDPConn) (bool, error) {
 	raw, err := conn.SyscallConn()
 	if err != nil {
@@ -60,7 +75,7 @@ func transparentUDPReplyConn(dst netip.AddrPort) (*net.UDPConn, error) {
 				optErr = err
 				return
 			}
-			if err := unix.SetsockoptInt(int(fd), unix.SOL_SOCKET, unix.SO_MARK, 0x4350); err != nil {
+			if err := unix.SetsockoptInt(int(fd), unix.SOL_SOCKET, unix.SO_MARK, tproxyBypassMarkValue); err != nil {
 				optErr = err
 				return
 			}

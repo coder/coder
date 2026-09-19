@@ -38,9 +38,13 @@ The external policy must allow only the destinations required to reach:
 Start with the [Kubernetes NetworkPolicy example](../../../examples/exit-node/kubernetes-networkpolicy.yaml) or the [AWS security group example](../../../examples/exit-node/aws-security-group.tf).
 Replace every documentation address, selector, and port with values from your deployment before applying an example.
 
-The agent receives coderd, DERP, STUN, and advertised WireGuard endpoints as control-plane exemptions.
-These exemptions keep the tailnet and coderd connection available while transparent capture is active.
+The agent receives control-plane exemptions in `protocol/host:port` form.
+Coderd and DERP use their exact TCP ports, STUN uses its exact UDP port, and each advertised WireGuard endpoint uses its exact UDP port.
+These narrowly scoped exemptions keep the tailnet and coderd connection available while transparent capture is active.
 They do not replace the external deny policy.
+
+The agent places exemption host names in `NO_PROXY` for applications that honor the explicit proxy environment variables.
+`NO_PROXY` has no protocol or port semantics and does not control transparent capture.
 
 ## Quickstart
 
@@ -112,11 +116,26 @@ coder templates edit my-template \
 ```
 
 The command prints `Updated template metadata` after a successful update.
-New and reconnecting workspace agents receive the exit node configuration from coderd.
+Running workspace agents receive manifest changes from coderd.
+Changes to the exit node preference list apply in place without closing the local proxy listeners.
+Changes that require new enforcement rules take effect after a workspace restart, as described later in this section.
 
 The `--exit-node-enforce` option requests in-container transparent capture on Linux.
 If the agent can't manage netfilter with root or passwordless `sudo`, it logs that enforcement is unavailable and continues in advisory proxy mode.
 The agent still sets uppercase and lowercase `HTTP_PROXY`, `HTTPS_PROXY`, `ALL_PROXY`, and `NO_PROXY` variables for processes it starts.
+
+The agent's local listeners use stable ports by default:
+
+- TCP proxy: `41280`.
+- DNS over TCP and UDP: `41253`.
+- Redirected UDP: `41254`.
+
+If a preferred port is unavailable, the agent uses an ephemeral port and logs a warning.
+Stable ports let the agent update the ordered exit node list in place without closing its listeners or invalidating installed capture rules.
+If an agent is already using ephemeral fallback ports, those listener ports also remain unchanged during in-place updates.
+
+Changes to the enforcement setting or control-plane exemptions require different netfilter rules.
+After capability lockdown, the agent logs a warning and defers these changes until the workspace restarts.
 
 Apply the external enforcement policy from the [Enforcement boundary](#enforcement-boundary) section before treating the template policy as enforced.
 
@@ -215,7 +234,9 @@ Use `protocols: [dns]` when you want a rule to apply only to DNS queries:
     protocols: [dns]
 ```
 
-The exit node returns DNS `REFUSED` for a policy denial and `SERVFAIL` when an allowed upstream exchange fails.
+This DNS-only rule applies to A and AAAA queries before the agent synthesizes an address.
+The exit node returns DNS `REFUSED` for a policy denial.
+Responses such as `NXDOMAIN` and `SERVFAIL` from the exit node's upstream resolver pass through to the workspace.
 
 ### IP-literal targets and host rules
 
@@ -234,17 +255,29 @@ Use it only when compatibility requires this behavior.
 ## DNS routing
 
 When transparent capture is active, the agent redirects workspace DNS over UDP and TCP to a loopback DNS proxy.
-For a non-exempt name, an A query receives a short-lived placeholder address from `198.18.0.0/15`.
-When an application connects to that address, the agent translates it back to the name and sends the name to the exit node.
+For every non-exempt A or AAAA query, the agent first sends the query through the exit node's DNS stream.
+The exit node applies DNS policy and queries its upstream resolver when policy allows the name.
 
-The agent returns an empty successful answer for non-exempt AAAA queries.
-This behavior directs dual-stack clients to the placeholder IPv4 path while the exit node can still resolve an IPv6-only destination by name.
+A policy denial returns `REFUSED` to the workspace.
+Upstream responses such as `NXDOMAIN` and `SERVFAIL` pass through unchanged.
+If no exit node completes the DNS stream, the agent returns `SERVFAIL`.
+
+After a successful upstream response, the agent synthesizes an A record from the placeholder range `198.18.0.0/15`.
+The fake record's TTL uses the minimum TTL in the upstream response, clamped to between 5 and 300 seconds.
+When an application connects to the fake address, the agent translates it back to the name and sends the name to the exit node.
+
+The agent returns an empty successful answer for an allowed non-exempt AAAA query.
+This behavior directs dual-stack clients to the fake IPv4 path while the exit node can still resolve an IPv6-only destination by name.
+
+A bounded least-recently-used cache stores DNS decisions for up to 1024 names and reduces exit node round trips.
+The decision expires with the clamped TTL.
+The fake-IP pool holds 65536 name mappings by default, and its pinned-entry cap defaults to the same value.
+If the pool or pinned-entry limit is exhausted, the agent returns `SERVFAIL`.
 
 Queries for exempt host names use the workspace's system resolvers over TCP.
-Exempt names include `localhost`, `host.docker.internal`, and named coderd, DERP, or STUN endpoints.
-Control-plane IP addresses and advertised exit node WireGuard endpoints bypass capture by destination address.
-Other DNS record types travel through a long-lived DNS stream to the exit node.
-The exit node applies DNS policy per query and forwards allowed queries to its configured upstream resolvers.
+Exempt names include `localhost`, `host.docker.internal`, and host names from protocol-specific control-plane exemptions.
+Transparent bypass rules still match the exact protocol, resolved address, and port.
+Other DNS record types travel through the exit node DNS stream without fake-address synthesis.
 
 Applications that use their own resolver endpoint or DNS over HTTPS can avoid DNS name capture.
 Their later TCP or UDP flows still reach the exit node when the external boundary and transparent capture cover the destination, but host-based policy might receive no host name.
@@ -261,21 +294,34 @@ DNS remains captured separately.
 IPv6 UDP uses the `REDIRECT` fallback because the transparent UDP proxy listens on IPv4 loopback.
 Treat non-DNS IPv6 UDP as unsupported for enforced routing.
 
+The agent attempts to install `ip6tables` rules when the workspace namespace has non-loopback IPv6 enabled.
+If that installation fails, the agent disables IPv6 for the namespace to keep enforcement fail closed.
+If IPv6 can't be disabled, the agent removes the IPv4 rules and runs in advisory mode instead of leaving partial enforcement active.
+
 The agent drops UDP datagrams larger than 1400 bytes.
 Each client and destination pair has a separate exit node stream, which closes after 60 seconds without traffic.
 
 ## Capability lockdown
 
-After the Linux agent installs the capture rules, it drops `CAP_NET_ADMIN` from the process capability bounding set.
-Child processes can't regain that capability, even after changing user IDs.
-This protects the installed rules from workspace processes that share the agent's user identity.
+After the Linux agent installs the capture rules, it locks down `CAP_NET_ADMIN` for processes that the agent starts.
+The agent clears ambient capabilities, removes `CAP_NET_ADMIN` from the inheritable and bounding sets on every operating-system thread, then verifies each thread through `/proc/self/task/*/status`.
+Children can't regain `CAP_NET_ADMIN`, even after changing user IDs.
+
+All-thread lockdown requires a Coder agent binary built with `CGO_ENABLED=0`.
+Production Coder binaries are static and meet this requirement.
+A cgo-linked custom agent can't complete lockdown and falls back to advisory mode after enforcement cleanup.
+
+The lockdown covers only processes spawned by the agent.
+It doesn't remove capabilities from a separate container entrypoint process or from processes that existed before the agent applied lockdown.
+Run the agent as the container entrypoint and don't run any other privileged process in the workspace container.
+A separately privileged process in the namespace remains a residual bypass risk.
 
 Capability lockdown has 2 operational consequences:
 
 - The agent can't remove the rules by running another privileged command.
   The rules persist until the container's network namespace exits.
-- If the agent process replaces itself or restarts inside the same container, it can't reinstall or update the rules.
-  The local proxy can return in advisory mode while the existing rules still reference the previous proxy ports.
+- Rule changes, including control-plane exemption or enforcement changes, can't be applied after lockdown.
+  The agent keeps the current listeners and rules, logs a warning, and applies the new configuration after a workspace restart.
 
 Restart the workspace container, not only the agent process, after changing enforced egress configuration.
 An external NetworkPolicy or security group remains the required boundary throughout agent restarts.
@@ -292,7 +338,11 @@ coder templates edit my-template \
 ```
 
 The agent starts with the first exit node.
-When a new connection can't reach that node, the agent tries later nodes in order and uses the first successful connection.
+CONNECT request and response negotiation has a 10-second deadline.
+A dial failure, timeout, end of file, or malformed HTTP response marks the node as failed, and the agent tries later nodes in order.
+
+Any well-formed HTTP response completes node selection and doesn't trigger failover.
+This includes an allowed `200`, policy denial `403`, and upstream or resolution failure `502`.
 Failed nodes have a 5-second retry delay.
 During subsequent new connection attempts, the agent probes higher-priority nodes after their retry delay and returns to a preferred node after it recovers.
 
@@ -329,11 +379,19 @@ Alert on both `coder_exit_node_flow_reports_dropped_total` and gap markers becau
 
 - Transparent enforcement is available only on Linux with `iptables` and either root or passwordless `sudo`.
   Other platforms and insufficiently privileged agents use advisory proxy environment variables.
+- Capability lockdown requires a `CGO_ENABLED=0` agent and applies only to processes spawned by the agent.
+  Run the agent as the only privileged container entrypoint.
 - In-container netfilter capture isn't a security boundary.
   Enforcement requires an external deny policy.
-- Non-DNS IPv6 UDP isn't transparently relayed.
-  IPv6 uses the destination-losing `REDIRECT` fallback.
+- If `ip6tables` installation fails while IPv6 is enabled, the agent disables IPv6 in the namespace.
+  If that also fails, the agent removes IPv4 enforcement and uses advisory mode.
+- Non-DNS IPv6 UDP isn't transparently relayed when IPv6 enforcement is active.
+  IPv6 UDP uses the destination-losing `REDIRECT` fallback.
 - UDP datagrams larger than 1400 bytes are dropped.
+- Fake-IP mappings and pinned mappings are bounded at 65536 entries by default.
+  Exhaustion causes DNS `SERVFAIL` responses.
+- Changes to the exit node preference list apply in place and preserve the local listeners.
+  Enforcement-setting and control-plane exemption changes require a workspace restart after capability lockdown.
 - Server-first TCP protocols that connect to IP literals send no client bytes for host sniffing.
   Host-based policy receives no host unless verified DNS information was available before the connection.
 - TCP protocols without TLS SNI or an HTTP `Host` header can leave the host unknown for IP-literal targets.

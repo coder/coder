@@ -127,8 +127,9 @@ type Proxy struct {
 	connectTimeout time.Duration
 	sniffTimeout   time.Duration
 
-	fake     *fakeIPPool
-	upstream []netip.AddrPort
+	fake         *fakeIPPool
+	upstream     []netip.AddrPort
+	resolverDial func(context.Context, string, string) (net.Conn, error)
 	// udpOrigDst decodes the original destination of a redirected datagram.
 	// Tests replace it because only netfilter can produce a real one.
 	udpOrigDst func(oob []byte) netip.AddrPort
@@ -233,6 +234,7 @@ func New(logger slog.Logger, opts Options) (*Proxy, error) {
 	if err != nil {
 		return nil, err
 	}
+	resolver := resolverDialer()
 	p := &Proxy{
 		logger:         logger,
 		dialer:         opts.Dialer,
@@ -247,6 +249,7 @@ func New(logger slog.Logger, opts Options) (*Proxy, error) {
 		fake:           newFakeIPPool(fakeIPPrefix, fakeIPMax, pinnedMax),
 		exemptNames:    exempt,
 		upstream:       opts.UpstreamResolvers,
+		resolverDial:   resolver.DialContext,
 		udpOrigDst:     udpOriginalDst,
 	}
 	if p.clock == nil {
@@ -316,6 +319,7 @@ func (p *Proxy) Start(ctx context.Context) error {
 		relay:     newDNSRelay(p.logger.Named("dns"), p.connectUpstream),
 		clock:     p.clock,
 		decisions: newDNSDecisionCache(dnsDecisionCacheSize),
+		dial:      p.resolverDial,
 	}
 	if err := dns.listen(ctx, host, p.dnsPort); err != nil {
 		_ = ln.Close()
@@ -396,7 +400,28 @@ func (p *Proxy) Update(cfg agentsdk.EgressConfig, exemptHosts []string) error {
 	p.exitNodes = selector
 	p.exemptNames = exempt
 	p.configMu.Unlock()
+	p.resetDNS()
 	return nil
+}
+
+func (p *Proxy) clearDNSDecisions() {
+	p.mu.Lock()
+	dns := p.dns
+	p.mu.Unlock()
+	if dns != nil {
+		dns.decisions.clear()
+	}
+}
+
+func (p *Proxy) resetDNS() {
+	p.mu.Lock()
+	dns := p.dns
+	p.mu.Unlock()
+	if dns == nil {
+		return
+	}
+	dns.decisions.clear()
+	dns.relay.reset()
 }
 
 // ConfigEqual reports whether two egress configurations would produce the
@@ -646,6 +671,14 @@ func (p *Proxy) connectUpstream(ctx context.Context, target string, proto coders
 	return p.connectUpstreamHost(ctx, target, proto, "")
 }
 
+type connectOutcome int
+
+const (
+	connectOutcomeFailure connectOutcome = iota
+	connectOutcomeSuccess
+	connectOutcomeTerminal
+)
+
 func (p *Proxy) connectUpstreamHost(ctx context.Context, target string, proto codersdk.ExitNodeProtocol, originalHost string) (net.Conn, error) {
 	p.configMu.RLock()
 	selector := p.exitNodes
@@ -657,12 +690,20 @@ func (p *Proxy) connectUpstreamHost(ctx context.Context, target string, proto co
 			errs = append(errs, err)
 			break
 		}
-		conn, responseRead, err := p.negotiateConnect(ctx, upstream, target, proto, originalHost)
-		if responseRead {
-			selector.markHealthy(ctx, addr)
+		conn, outcome, err := p.negotiateConnect(ctx, upstream, target, proto, originalHost)
+		switch outcome {
+		case connectOutcomeSuccess, connectOutcomeTerminal:
+			if selector.markHealthy(ctx, addr) {
+				if proto == codersdk.ExitNodeProtocolDNS {
+					p.clearDNSDecisions()
+				} else {
+					p.resetDNS()
+				}
+			}
 			return conn, err
+		case connectOutcomeFailure:
+			selector.markFailure(addr)
 		}
-		selector.markFailure(addr)
 		errs = append(errs, xerrors.Errorf("negotiate CONNECT with %s: %w", addr, err))
 		if ctx.Err() != nil {
 			break
@@ -671,7 +712,7 @@ func (p *Proxy) connectUpstreamHost(ctx context.Context, target string, proto co
 	return nil, xerrors.Errorf("connect through exit nodes: %w", errors.Join(errs...))
 }
 
-func (p *Proxy) negotiateConnect(ctx context.Context, upstream net.Conn, target string, proto codersdk.ExitNodeProtocol, originalHost string) (net.Conn, bool, error) {
+func (p *Proxy) negotiateConnect(ctx context.Context, upstream net.Conn, target string, proto codersdk.ExitNodeProtocol, originalHost string) (net.Conn, connectOutcome, error) {
 	defer func() {
 		if upstream != nil {
 			_ = upstream.Close()
@@ -682,7 +723,7 @@ func (p *Proxy) negotiateConnect(ctx context.Context, upstream net.Conn, target 
 		deadline = ctxDeadline
 	}
 	if err := upstream.SetDeadline(deadline); err != nil {
-		return nil, false, xerrors.Errorf("set CONNECT deadline: %w", err)
+		return nil, connectOutcomeFailure, xerrors.Errorf("set CONNECT deadline: %w", err)
 	}
 	stop := context.AfterFunc(ctx, func() { _ = upstream.Close() })
 	defer stop()
@@ -699,12 +740,12 @@ func (p *Proxy) negotiateConnect(ctx context.Context, upstream net.Conn, target 
 		connectReq.Header.Set(codersdk.ExitNodeProtocolHeader, string(proto))
 	}
 	if err := connectReq.Write(upstream); err != nil {
-		return nil, false, xerrors.Errorf("write CONNECT to exit node: %w", err)
+		return nil, connectOutcomeFailure, xerrors.Errorf("write CONNECT to exit node: %w", err)
 	}
 	br := bufio.NewReader(upstream)
 	resp, err := http.ReadResponse(br, connectReq)
 	if err != nil {
-		return nil, false, xerrors.Errorf("read CONNECT response from exit node: %w", err)
+		return nil, connectOutcomeFailure, xerrors.Errorf("read CONNECT response from exit node: %w", err)
 	}
 	defer resp.Body.Close()
 	_ = upstream.SetDeadline(time.Time{})
@@ -713,15 +754,20 @@ func (p *Proxy) negotiateConnect(ctx context.Context, upstream net.Conn, target 
 	case http.StatusOK:
 		conn := &bufferedConn{Conn: upstream, r: br}
 		upstream = nil
-		return conn, true, nil
+		return conn, connectOutcomeSuccess, nil
 	case http.StatusForbidden:
-		return nil, true, &DeniedError{
+		return nil, connectOutcomeTerminal, &DeniedError{
 			Target: target,
 			Reason: resp.Header.Get(codersdk.ExitNodeDenyReasonHeader),
 			Rule:   resp.Header.Get(codersdk.ExitNodeDenyRuleHeader),
 		}
+	case http.StatusBadRequest, http.StatusBadGateway:
+		return nil, connectOutcomeTerminal, xerrors.Errorf("exit node responded %s to CONNECT %s", resp.Status, target)
 	default:
-		return nil, true, xerrors.Errorf("exit node responded %s to CONNECT %s", resp.Status, target)
+		if resp.StatusCode >= 500 {
+			return nil, connectOutcomeFailure, xerrors.Errorf("exit node responded %s to CONNECT %s", resp.Status, target)
+		}
+		return nil, connectOutcomeTerminal, xerrors.Errorf("exit node responded %s to CONNECT %s", resp.Status, target)
 	}
 }
 

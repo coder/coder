@@ -11,6 +11,15 @@ rules:
         - 192.168.0.0/16
       protocols: [tcp, udp]
 
+  # Deny A, AAAA, and other DNS queries for a blocked name.
+  # The agent consults this rule before it allocates a fake IP address.
+  - id: deny-tracking-dns
+    deny:
+      hosts:
+        - tracking.example
+        - "*.tracking.example"
+      protocols: [dns]
+
   # Allow DNS queries for GitHub names so the exit node can resolve them.
   - id: allow-github-dns
     allow:

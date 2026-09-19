@@ -42,6 +42,7 @@ const (
 	dnsDecisionCacheSize = 1024
 	dnsMinTTL            = 5 * time.Second
 	dnsMaxTTL            = 300 * time.Second
+	dnsMaxCacheTTL       = 30 * time.Second
 	dnsWarnInterval      = 30 * time.Second
 )
 
@@ -55,6 +56,7 @@ type dnsServer struct {
 	fake      *fakeIPPool
 	exempt    func(name string) bool
 	upstream  []netip.AddrPort
+	dial      func(context.Context, string, string) (net.Conn, error)
 	relay     *dnsRelay
 	clock     quartz.Clock
 	decisions *dnsDecisionCache
@@ -235,30 +237,34 @@ func (s *dnsServer) answer(ctx context.Context, hdr dnsmessage.Header, q dnsmess
 
 type dnsDecision struct {
 	rcode   dnsmessage.RCode
-	ttl     uint32
 	expires time.Time
 }
 
+type dnsDecisionKey struct {
+	name  string
+	qtype dnsmessage.Type
+}
+
 type dnsDecisionEntry struct {
-	name     string
+	key      dnsDecisionKey
 	decision dnsDecision
 }
 
 type dnsDecisionCache struct {
-	mu     sync.Mutex
-	max    int
-	byName map[string]*list.Element
-	lru    *list.List
+	mu    sync.Mutex
+	max   int
+	byKey map[dnsDecisionKey]*list.Element
+	lru   *list.List
 }
 
 func newDNSDecisionCache(maxEntries int) *dnsDecisionCache {
-	return &dnsDecisionCache{max: maxEntries, byName: make(map[string]*list.Element), lru: list.New()}
+	return &dnsDecisionCache{max: maxEntries, byKey: make(map[dnsDecisionKey]*list.Element), lru: list.New()}
 }
 
-func (c *dnsDecisionCache) get(name string, now time.Time) (dnsDecision, bool) {
+func (c *dnsDecisionCache) get(key dnsDecisionKey, now time.Time) (dnsDecision, bool) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	e, ok := c.byName[name]
+	e, ok := c.byKey[key]
 	if !ok {
 		return dnsDecision{}, false
 	}
@@ -268,23 +274,23 @@ func (c *dnsDecisionCache) get(name string, now time.Time) (dnsDecision, bool) {
 	}
 	if !now.Before(entry.decision.expires) {
 		c.lru.Remove(e)
-		delete(c.byName, name)
+		delete(c.byKey, key)
 		return dnsDecision{}, false
 	}
 	c.lru.MoveToFront(e)
 	return entry.decision, true
 }
 
-func (c *dnsDecisionCache) put(name string, decision dnsDecision) {
+func (c *dnsDecisionCache) put(key dnsDecisionKey, decision dnsDecision) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	if e, ok := c.byName[name]; ok {
-		e.Value = dnsDecisionEntry{name: name, decision: decision}
+	if e, ok := c.byKey[key]; ok {
+		e.Value = dnsDecisionEntry{key: key, decision: decision}
 		c.lru.MoveToFront(e)
 		return
 	}
-	e := c.lru.PushFront(dnsDecisionEntry{name: name, decision: decision})
-	c.byName[name] = e
+	e := c.lru.PushFront(dnsDecisionEntry{key: key, decision: decision})
+	c.byKey[key] = e
 	for c.lru.Len() > c.max {
 		oldest := c.lru.Back()
 		entry, ok := oldest.Value.(dnsDecisionEntry)
@@ -292,14 +298,22 @@ func (c *dnsDecisionCache) put(name string, decision dnsDecision) {
 			c.lru.Remove(oldest)
 			continue
 		}
-		delete(c.byName, entry.name)
+		delete(c.byKey, entry.key)
 		c.lru.Remove(oldest)
 	}
 }
 
+func (c *dnsDecisionCache) clear() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	clear(c.byKey)
+	c.lru.Init()
+}
+
 func (s *dnsServer) answerAddress(ctx context.Context, hdr dnsmessage.Header, q dnsmessage.Question, msg []byte, name string) []byte {
 	now := s.clock.Now("dns_decision")
-	decision, ok := s.decisions.get(name, now)
+	key := dnsDecisionKey{name: name, qtype: q.Type}
+	decision, ok := s.decisions.get(key, now)
 	if !ok {
 		exchangeCtx, cancel := context.WithTimeout(ctx, dnsExchangeTimeout)
 		resp, err := s.relay.exchange(exchangeCtx, msg)
@@ -314,7 +328,7 @@ func (s *dnsServer) answerAddress(ctx context.Context, hdr dnsmessage.Header, q 
 			return dnsReply(hdr, &q, dnsmessage.RCodeServerFailure)
 		}
 		if decision.rcode == dnsmessage.RCodeSuccess || decision.rcode == dnsmessage.RCodeRefused || decision.rcode == dnsmessage.RCodeNameError {
-			s.decisions.put(name, decision)
+			s.decisions.put(key, decision)
 		}
 	}
 	if decision.rcode != dnsmessage.RCodeSuccess {
@@ -331,8 +345,13 @@ func (s *dnsServer) answerAddress(ctx context.Context, hdr dnsmessage.Header, q 
 		s.warnForwardFailure(ctx, name, q.Type, err)
 		return dnsReply(hdr, &q, dnsmessage.RCodeServerFailure)
 	}
+	current := s.clock.Now("dns_decision_ttl")
+	remaining := max(decision.expires.Sub(current), time.Second)
+	seconds := min((remaining+time.Second-1)/time.Second, dnsMaxCacheTTL/time.Second)
+	// #nosec G115 -- seconds is clamped to dnsMaxCacheTTL above.
+	ttl := uint32(seconds)
 	return dnsReply(hdr, &q, dnsmessage.RCodeSuccess, dnsmessage.Resource{
-		Header: dnsmessage.ResourceHeader{Name: q.Name, Class: dnsmessage.ClassINET, TTL: decision.ttl},
+		Header: dnsmessage.ResourceHeader{Name: q.Name, Class: dnsmessage.ClassINET, TTL: ttl},
 		Body:   &dnsmessage.AResource{A: addr.As4()},
 	})
 }
@@ -347,7 +366,8 @@ func parseDNSDecision(resp []byte, now time.Time) (dnsDecision, error) {
 		ttl = min(ttl, resource.Header.TTL)
 	}
 	ttl = min(max(ttl, uint32(dnsMinTTL/time.Second)), uint32(dnsMaxTTL/time.Second))
-	return dnsDecision{rcode: msg.RCode, ttl: ttl, expires: now.Add(time.Duration(ttl) * time.Second)}, nil
+	cacheTTL := min(time.Duration(ttl)*time.Second, dnsMaxCacheTTL)
+	return dnsDecision{rcode: msg.RCode, expires: now.Add(cacheTTL)}, nil
 }
 
 func (s *dnsServer) warnForwardFailure(ctx context.Context, name string, typ dnsmessage.Type, err error) {
@@ -392,7 +412,7 @@ func (s *dnsServer) exchangeUpstream(ctx context.Context, msg []byte) ([]byte, e
 	}
 	var errs []error
 	for _, rs := range s.upstream {
-		resp, err := exchangeTCP(ctx, rs, msg)
+		resp, err := exchangeTCP(ctx, s.dial, rs, msg)
 		if err == nil {
 			return resp, nil
 		}
@@ -401,10 +421,14 @@ func (s *dnsServer) exchangeUpstream(ctx context.Context, msg []byte) ([]byte, e
 	return nil, errors.Join(errs...)
 }
 
-// exchangeTCP performs one DNS-over-TCP round trip.
-func exchangeTCP(ctx context.Context, addr netip.AddrPort, msg []byte) ([]byte, error) {
-	var d net.Dialer
-	conn, err := d.DialContext(ctx, "tcp", addr.String())
+func resolverDialer() net.Dialer {
+	return net.Dialer{Control: bypassControl}
+}
+
+// exchangeTCP performs one DNS-over-TCP round trip using the agent-only
+// control-plane bypass mark.
+func exchangeTCP(ctx context.Context, dial func(context.Context, string, string) (net.Conn, error), addr netip.AddrPort, msg []byte) ([]byte, error) {
+	conn, err := dial(ctx, "tcp", addr.String())
 	if err != nil {
 		return nil, xerrors.Errorf("dial: %w", err)
 	}
@@ -484,6 +508,23 @@ func newDNSRelay(logger slog.Logger, connect connectFunc) *dnsRelay {
 		logger:  logger,
 		connect: connect,
 		pending: make(map[uint16]chan []byte),
+	}
+}
+
+func (r *dnsRelay) reset() {
+	r.streamMu.Lock()
+	defer r.streamMu.Unlock()
+	r.mu.Lock()
+	conn := r.conn
+	r.conn = nil
+	pending := r.pending
+	r.pending = make(map[uint16]chan []byte)
+	r.mu.Unlock()
+	if conn != nil {
+		_ = conn.Close()
+	}
+	for _, ch := range pending {
+		close(ch)
 	}
 }
 

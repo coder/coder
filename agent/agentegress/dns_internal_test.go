@@ -8,9 +8,12 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 	"golang.org/x/net/dns/dnsmessage"
+
+	"github.com/coder/quartz"
 
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
@@ -129,7 +132,7 @@ func TestDNS_FakeIPForA(t *testing.T) {
 	require.True(t, ok, "expected A record, got %T", answers[0].Body)
 	addr := netip.AddrFrom4(a.A)
 	require.True(t, fakeIPPrefix.Contains(addr), addr)
-	require.Equal(t, uint32(60), answers[0].Header.TTL)
+	require.Equal(t, uint32(30), answers[0].Header.TTL)
 	require.Equal(t, proxy.fake.Lookup("example.com"), addr)
 
 	// The same name over TCP yields the same address.
@@ -323,7 +326,7 @@ func TestDNS_AddressPolicyDecision(t *testing.T) {
 		{name: "refused", rcode: dnsmessage.RCodeRefused, ttl: 30, wantRCode: dnsmessage.RCodeRefused},
 		{name: "nxdomain", rcode: dnsmessage.RCodeNameError, ttl: 30, wantRCode: dnsmessage.RCodeNameError},
 		{name: "ttl minimum", rcode: dnsmessage.RCodeSuccess, ttl: 1, wantRCode: dnsmessage.RCodeSuccess, wantTTL: 5, wantA: true},
-		{name: "ttl maximum", rcode: dnsmessage.RCodeSuccess, ttl: 600, wantRCode: dnsmessage.RCodeSuccess, wantTTL: 300, wantA: true},
+		{name: "ttl maximum", rcode: dnsmessage.RCodeSuccess, ttl: 600, wantRCode: dnsmessage.RCodeSuccess, wantTTL: 30, wantA: true},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
@@ -343,6 +346,47 @@ func TestDNS_AddressPolicyDecision(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestDNS_AddressDecisionCacheKeyIncludesType(t *testing.T) {
+	t.Parallel()
+
+	var mu sync.Mutex
+	var exchanges int
+	exit := newFakeExitNode(t, nil)
+	exit.dnsResponse = func(query []byte) []byte {
+		mu.Lock()
+		exchanges++
+		mu.Unlock()
+		return dnsResponse(query, dnsmessage.RCodeSuccess, 60)
+	}
+	proxy := startProxy(t, exit, proxyOptions{})
+	ctx := testutil.Context(t, testutil.WaitShort)
+	ids := []uint16{40, 41, 42}
+	for i, typ := range []dnsmessage.Type{dnsmessage.TypeA, dnsmessage.TypeAAAA, dnsmessage.TypeA} {
+		hdr, _ := dnsExchange(ctx, t, "udp", proxy.DNSAddr(), dnsQuery(t, ids[i], "typed.example.", typ))
+		require.Equal(t, dnsmessage.RCodeSuccess, hdr.RCode)
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	require.Equal(t, 2, exchanges)
+}
+
+func TestDNS_AddressDecisionRemainingTTL(t *testing.T) {
+	t.Parallel()
+
+	clock := quartz.NewMock(t)
+	exit := newFakeExitNode(t, nil)
+	exit.dnsResponse = func(query []byte) []byte { return dnsResponse(query, dnsmessage.RCodeSuccess, 60) }
+	proxy := startProxy(t, exit, proxyOptions{clock: clock})
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	_, answers := dnsExchange(ctx, t, "udp", proxy.DNSAddr(), dnsQuery(t, 50, "remaining.example.", dnsmessage.TypeA))
+	require.Equal(t, uint32(30), answers[0].Header.TTL)
+	clock.Advance(29 * time.Second).MustWait(t.Context())
+	_, answers = dnsExchange(ctx, t, "udp", proxy.DNSAddr(), dnsQuery(t, 51, "remaining.example.", dnsmessage.TypeA))
+	require.Equal(t, uint32(1), answers[0].Header.TTL)
+	require.Len(t, exit.connectsTo(dnsRelayTarget), 1)
 }
 
 func TestDNS_AddressDecisionCache(t *testing.T) {

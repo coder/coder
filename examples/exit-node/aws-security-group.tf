@@ -23,7 +23,8 @@ resource "aws_security_group" "workspace_exit_node_boundary" {
     cidr_blocks = ["10.0.0.2/32"] # Replace with the approved resolver CIDR.
   }
 
-  # Allow HTTPS to coderd and any DERP relay reached on the same approved CIDR.
+  # Allow the exact TCP port for coderd and any DERP relay reached on the same approved CIDR.
+  # Split this rule when coderd and DERP use different ports or CIDRs.
   egress {
     description = "Coder control plane and DERP HTTPS"
     protocol    = "tcp"
@@ -32,7 +33,7 @@ resource "aws_security_group" "workspace_exit_node_boundary" {
     cidr_blocks = ["192.0.2.10/32"] # Replace or split for coderd and DERP CIDRs.
   }
 
-  # Allow STUN when the deployment's DERP configuration uses it.
+  # Allow the exact UDP port for STUN when the deployment's DERP configuration uses it.
   egress {
     description = "DERP STUN"
     protocol    = "udp"
@@ -41,7 +42,7 @@ resource "aws_security_group" "workspace_exit_node_boundary" {
     cidr_blocks = ["198.51.100.20/32"] # Replace with the STUN endpoint CIDR, or remove if unused.
   }
 
-  # Allow WireGuard only to the advertised exit node endpoints.
+  # Allow WireGuard only to the exact advertised exit node UDP endpoints.
   egress {
     description = "Exit node WireGuard endpoints"
     protocol    = "udp"

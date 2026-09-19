@@ -14,29 +14,47 @@ import (
 	"golang.org/x/xerrors"
 )
 
-const netAdminCapabilityMask = uint64(1) << unix.CAP_NET_ADMIN
+const (
+	netAdminCapabilityMask = uint64(1) << unix.CAP_NET_ADMIN
+	netRawCapabilityMask   = uint64(1) << unix.CAP_NET_RAW
+)
 
-// lockdownNetAdmin prevents children of the agent from acquiring
-// CAP_NET_ADMIN while retaining the agent's effective and permitted sets for
-// transparent reply sockets. Processes not spawned by the agent, including a
-// container entrypoint or pre-existing sessions, are outside this lockdown.
-// The reference deployment runs the agent as the only privileged entrypoint.
-func lockdownNetAdmin() error {
+var lockedCapabilities = []struct {
+	name string
+	id   uintptr
+	mask uint64
+}{
+	{name: "CAP_NET_ADMIN", id: unix.CAP_NET_ADMIN, mask: netAdminCapabilityMask},
+	{name: "CAP_NET_RAW", id: unix.CAP_NET_RAW, mask: netRawCapabilityMask},
+}
+
+// lockdownNetworkCapabilities prevents children of the agent from acquiring
+// CAP_NET_ADMIN or CAP_NET_RAW while retaining the agent's effective and
+// permitted sets for transparent reply sockets. CAP_NET_RAW is also removed
+// because Linux 5.17 and later permits it to set SO_MARK. The agent uses a
+// userspace tailnet and does not require raw sockets after startup.
+//
+// Processes not spawned by the agent, including a container entrypoint or
+// pre-existing sessions, are outside this lockdown. The reference deployment
+// runs the agent as the only privileged entrypoint.
+func lockdownNetworkCapabilities() error {
 	var data [2]unix.CapUserData
 	header := unix.CapUserHeader{Version: unix.LINUX_CAPABILITY_VERSION_3}
 	if err := unix.Capget(&header, &data[0]); err != nil {
 		return xerrors.Errorf("read capabilities: %w", err)
 	}
-	index := unix.CAP_NET_ADMIN / 32
-	bit := uint32(1) << (unix.CAP_NET_ADMIN % 32)
-	data[index].Inheritable &^= bit
+	for _, capability := range lockedCapabilities {
+		index := capability.id / 32
+		bit := uint32(1) << (capability.id % 32)
+		data[index].Inheritable &^= bit
+	}
 	if _, _, err := syscall.AllThreadsSyscall(
 		syscall.SYS_CAPSET,
 		uintptr(unsafe.Pointer(&header)),
 		uintptr(unsafe.Pointer(&data[0])),
 		0,
 	); err != 0 {
-		return allThreadsError("drop CAP_NET_ADMIN from inheritable set", err)
+		return allThreadsError("drop network capabilities from inheritable set", err)
 	}
 	if _, _, err := syscall.AllThreadsSyscall(
 		syscall.SYS_PRCTL,
@@ -46,15 +64,17 @@ func lockdownNetAdmin() error {
 	); err != 0 {
 		return allThreadsError("clear ambient capabilities", err)
 	}
-	if _, _, err := syscall.AllThreadsSyscall(
-		syscall.SYS_PRCTL,
-		unix.PR_CAPBSET_DROP,
-		unix.CAP_NET_ADMIN,
-		0,
-	); err != 0 {
-		return allThreadsError("drop CAP_NET_ADMIN from bounding set", err)
+	for _, capability := range lockedCapabilities {
+		if _, _, err := syscall.AllThreadsSyscall(
+			syscall.SYS_PRCTL,
+			unix.PR_CAPBSET_DROP,
+			capability.id,
+			0,
+		); err != 0 {
+			return allThreadsError("drop "+capability.name+" from bounding set", err)
+		}
 	}
-	if err := verifyNetAdminLockdown("/proc/self/task"); err != nil {
+	if err := verifyNetworkCapabilityLockdown("/proc/self/task"); err != nil {
 		return xerrors.Errorf("verify capability lockdown: %w", err)
 	}
 	return nil
@@ -67,7 +87,7 @@ func allThreadsError(action string, err syscall.Errno) error {
 	return xerrors.Errorf("%s on all threads: %w", action, err)
 }
 
-func verifyNetAdminLockdown(taskDir string) error {
+func verifyNetworkCapabilityLockdown(taskDir string) error {
 	statuses, err := filepath.Glob(filepath.Join(taskDir, "*", "status"))
 	if err != nil {
 		return xerrors.Errorf("list thread status files: %w", err)
@@ -89,8 +109,10 @@ func verifyNetAdminLockdown(taskDir string) error {
 			if !ok {
 				return xerrors.Errorf("%s is missing %s", statusPath, name)
 			}
-			if value&netAdminCapabilityMask != 0 {
-				return xerrors.Errorf("%s still has CAP_NET_ADMIN in %s", statusPath, name)
+			for _, capability := range lockedCapabilities {
+				if value&capability.mask != 0 {
+					return xerrors.Errorf("%s still has %s in %s", statusPath, capability.name, name)
+				}
 			}
 		}
 	}
