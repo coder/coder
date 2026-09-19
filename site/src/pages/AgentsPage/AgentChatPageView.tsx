@@ -7,9 +7,12 @@ import {
 	useEffect,
 	useState,
 } from "react";
-import { useQueryClient } from "react-query";
+import { useQuery, useQueryClient } from "react-query";
 import type { UrlTransform } from "streamdown";
-import { invalidateChatDiffContents } from "#/api/queries/chats";
+import {
+	invalidateChatDiffContents,
+	userCompactionThresholds,
+} from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { ChatMessagePart } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
@@ -34,8 +37,11 @@ import {
 	RightPanelSkeleton,
 } from "./components/AgentsSkeletons";
 import type { ChatDetailError } from "./components/ChatConversation/chatError";
+import { getLatestContextUsage } from "./components/ChatConversation/chatHelpers";
 import {
 	selectChatStatus,
+	selectMessagesByID,
+	selectOrderedMessageIDs,
 	useChatSelector,
 	type useChatStore,
 } from "./components/ChatConversation/chatStore";
@@ -59,6 +65,7 @@ import { TerminalPanel } from "./components/TerminalPanel";
 import { ChatWorkspaceContext } from "./context/ChatWorkspaceContext";
 import { TerminalClientSessionContext } from "./context/TerminalClientSessionContext";
 import { chatWidthClass, useChatFullWidth } from "./hooks/useChatFullWidth";
+import { resolveCompactionThreshold } from "./utils/modelOptions";
 import { parsePullRequestUrl } from "./utils/pullRequest";
 import {
 	getPersistedDefaultTerminalHidden,
@@ -341,6 +348,30 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	const isArchived = chat.archived;
 	const liveChatStatus =
 		useChatSelector(store, selectChatStatus) ?? chat.status;
+	const messagesByID = useChatSelector(store, selectMessagesByID);
+	const orderedMessageIDs = useChatSelector(store, selectOrderedMessageIDs);
+	const messages = orderedMessageIDs
+		.map((messageID) => messagesByID.get(messageID))
+		.filter(
+			(message): message is TypesGen.ChatMessage => message !== undefined,
+		);
+	const rawContextUsage = getLatestContextUsage(
+		messages,
+		modelOptions.find((option) => option.id === effectiveSelectedModel)
+			?.contextLimit,
+	);
+	const thresholdsQuery = useQuery(userCompactionThresholds());
+	const contextUsage =
+		rawContextUsage || chat.context
+			? {
+					...(rawContextUsage ?? {}),
+					compressionThreshold: resolveCompactionThreshold(
+						chat.last_model_config_id,
+						thresholdsQuery.data?.thresholds,
+						models,
+					),
+				}
+			: null;
 	const parsedPrNumber = Number(
 		parsePullRequestUrl(chat.diff_status?.url)?.number,
 	);
@@ -680,6 +711,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 					<ChatSummaryPanel
 						chatId={agentId}
 						isVisible={shouldShowSidebar && effectiveSidebarTabId === "summary"}
+						contextUsage={contextUsage}
 					/>
 				);
 			case "git":
@@ -953,7 +985,6 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 									<ChatPageInput
 										chat={chat}
 										store={store}
-										models={models}
 										onSend={editing.handleSendFromInput}
 										onDeleteQueuedMessage={handleDeleteQueuedMessage}
 										onPromoteQueuedMessage={handlePromoteQueuedMessage}

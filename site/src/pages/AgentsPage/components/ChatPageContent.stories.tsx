@@ -15,7 +15,6 @@ import {
 	MockChatMessage,
 	MockChatQueuedMessage,
 } from "#/testHelpers/chatEntities";
-import { MockChatModel } from "#/testHelpers/chatModels";
 import {
 	MockUserChatCompactionThresholds,
 	MockUserOwner,
@@ -89,13 +88,6 @@ const mockUserChatCompactionThresholdsWithOverride: TypesGen.UserChatCompactionT
 		],
 	};
 
-const mockCompactionModels: readonly TypesGen.ChatModel[] = [
-	{
-		...MockChatModel,
-		id: MockChat.last_model_config_id,
-	},
-];
-
 // Renders only the composer half of the chat page. Empty chat id and
 // organization keep the prompt-history and draft attachment queries disabled.
 const StoryChatPageInput: FC<{
@@ -107,7 +99,6 @@ const StoryChatPageInput: FC<{
 		<ChatPageInput
 			chat={{ ...MockChat, id: "", organization_id: "" }}
 			store={store}
-			models={[]}
 			onSend={fn()}
 			onDeleteQueuedMessage={fn()}
 			onPromoteQueuedMessage={fn()}
@@ -401,7 +392,6 @@ const CompactionChatPageInput: FC = () => {
 			<ChatPageInput
 				chat={MockChat}
 				store={store}
-				models={mockCompactionModels}
 				onSend={fn()}
 				onDeleteQueuedMessage={fn()}
 				onPromoteQueuedMessage={fn()}

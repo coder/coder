@@ -5,10 +5,7 @@ import { expect, fn, spyOn, userEvent, waitFor, within } from "storybook/test";
 import { API } from "#/api/api";
 import { preferenceSettingsKey } from "#/api/queries/users";
 import type * as TypesGen from "#/api/typesGenerated";
-import {
-	MockChatContextClean,
-	MockMCPServerConfig,
-} from "#/testHelpers/chatEntities";
+import { MockMCPServerConfig } from "#/testHelpers/chatEntities";
 import {
 	MockUserPreferenceSettings,
 	MockWorkspace,
@@ -20,11 +17,7 @@ import {
 	withProxyProvider,
 	withToaster,
 } from "#/testHelpers/storybook";
-import {
-	AgentChatInput,
-	type AgentContextUsage,
-	type UploadState,
-} from "./AgentChatInput";
+import { AgentChatInput, type UploadState } from "./AgentChatInput";
 import type { ChatMessageInputRef } from "./ChatMessageInput/ChatMessageInput";
 
 const defaultModelID = "model-config-1";
@@ -687,7 +680,7 @@ const startMCPOAuthFlow = async (canvasElement: HTMLElement) => {
 
 // ── MCP stories ────────────────────────────────────────────────
 
-/** Input with multiple MCP servers selected — shows icon stack in toolbar. */
+/** Input with multiple MCP servers selected; selection remains in the plus menu. */
 export const WithMCPServers: Story = {
 	args: {
 		...mcpDefaults,
@@ -846,7 +839,7 @@ export const MCPIgnoresMismatchedServerAfterOAuthCompletes: Story = {
 	},
 };
 
-/** No MCP servers active — shows only "MCP" label with chevron. */
+/** No MCP servers active; the composer does not show an MCP chip. */
 export const WithMCPNoneActive: Story = {
 	args: {
 		...mcpDefaults,
@@ -1032,11 +1025,6 @@ export const PlanningIndicator: Story = {
 	},
 };
 
-const narrowPlanningContextUsage: AgentContextUsage = {
-	usedTokens: 100_000,
-	contextLimitTokens: 200_000,
-};
-
 const narrowPlanningModelOptions = [
 	{
 		id: "long-model-name",
@@ -1050,7 +1038,6 @@ export const PlanningIndicatorNarrow: Story = {
 	args: {
 		planModeEnabled: true,
 		onPlanModeToggle: fn(),
-		contextUsage: narrowPlanningContextUsage,
 		selectedModel: narrowPlanningModelOptions[0].id,
 		modelOptions: [...narrowPlanningModelOptions],
 	},
@@ -1355,51 +1342,6 @@ export const OverflowBadges: Story = {
 		await userEvent.click(pill);
 		// The popover renders via a Radix portal outside the canvas.
 		await within(document.body).findByRole("dialog");
-	},
-};
-
-// ---------------------------------------------------------------------------
-// Context-usage indicator stories
-// ---------------------------------------------------------------------------
-
-const baseContextUsage: AgentContextUsage = {
-	usedTokens: 45_000,
-	contextLimitTokens: 128_000,
-	inputTokens: 30_000,
-	outputTokens: 10_000,
-	cacheReadTokens: 3_000,
-	cacheCreationTokens: 2_000,
-	compressionThreshold: 90,
-};
-
-/** Shows the context-usage ring and token summary tooltip. */
-export const WithContextUsage: Story = {
-	args: {
-		contextUsage: baseContextUsage,
-	},
-};
-
-/** Tooltip lists the chat's pinned context resources. */
-export const WithContextFiles: Story = {
-	args: {
-		contextUsage: {
-			...baseContextUsage,
-			context: MockChatContextClean,
-		},
-	},
-};
-
-/** Context at 95%+ shows the ring in destructive (red) tone. */
-export const ContextNearLimit: Story = {
-	args: {
-		contextUsage: {
-			usedTokens: 124_000,
-			contextLimitTokens: 128_000,
-			inputTokens: 100_000,
-			outputTokens: 20_000,
-			cacheReadTokens: 4_000,
-			compressionThreshold: 90,
-		},
 	},
 };
 
