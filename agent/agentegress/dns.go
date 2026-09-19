@@ -2,10 +2,11 @@ package agentegress
 
 import (
 	"context"
+	"encoding/binary"
 	"errors"
 	"net"
 	"net/netip"
-	"strconv"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -14,9 +15,14 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
+
+	"github.com/coder/coder/v2/codersdk"
 )
 
 const (
+	// dnsRelayTarget is the CONNECT target the exit node recognizes as "resolve
+	// these DNS messages yourself".
+	dnsRelayTarget = "dns:53"
 	// fakeIPTTL keeps clients coming back to the DNS proxy so the fake pool
 	// stays in step with what clients connect to.
 	fakeIPTTL = 1
@@ -55,19 +61,9 @@ func (s *dnsServer) listen(ctx context.Context, host string) error {
 	var lc net.ListenConfig
 	var lastErr error
 	for range dnsListenRetries {
-		pc, err := lc.ListenPacket(ctx, "udp4", net.JoinHostPort(host, "0"))
+		udp, addr, err := listenUDP(ctx, host)
 		if err != nil {
 			return xerrors.Errorf("listen dns udp: %w", err)
-		}
-		udp, ok := pc.(*net.UDPConn)
-		if !ok {
-			_ = pc.Close()
-			return xerrors.Errorf("unexpected packet conn type %T", pc)
-		}
-		addr, err := udpAddrPort(udp)
-		if err != nil {
-			_ = udp.Close()
-			return err
 		}
 		tcp, err := lc.Listen(ctx, "tcp4", addr.String())
 		if err != nil {
@@ -82,27 +78,14 @@ func (s *dnsServer) listen(ctx context.Context, host string) error {
 }
 
 func (s *dnsServer) serve(ctx context.Context) {
-	s.wg.Add(2)
-	go func() {
-		defer s.wg.Done()
-		s.serveUDP(ctx)
-	}()
-	go func() {
-		defer s.wg.Done()
-		s.serveTCP(ctx)
-	}()
+	s.wg.Go(func() { s.serveUDP(ctx) })
+	s.wg.Go(func() { s.serveTCP(ctx) })
 }
 
 func (s *dnsServer) close() {
-	if s.udp != nil {
-		_ = s.udp.Close()
-	}
-	if s.tcp != nil {
-		_ = s.tcp.Close()
-	}
-	if s.relay != nil {
-		s.relay.close()
-	}
+	_ = s.udp.Close()
+	_ = s.tcp.Close()
+	s.relay.close()
 	s.wg.Wait()
 }
 
@@ -117,11 +100,8 @@ func (s *dnsServer) serveUDP(ctx context.Context) {
 			s.logger.Debug(ctx, "read dns query", slog.Error(err))
 			continue
 		}
-		msg := make([]byte, n)
-		copy(msg, buf[:n])
-		s.wg.Add(1)
-		go func() {
-			defer s.wg.Done()
+		msg := slices.Clone(buf[:n])
+		s.wg.Go(func() {
 			resp := s.handle(ctx, msg, dnsMaxUDPPayload)
 			if resp == nil {
 				return
@@ -129,7 +109,7 @@ func (s *dnsServer) serveUDP(ctx context.Context) {
 			if _, err := s.udp.WriteToUDPAddrPort(resp, src); err != nil && ctx.Err() == nil {
 				s.logger.Debug(ctx, "write dns response", slog.Error(err))
 			}
-		}()
+		})
 	}
 }
 
@@ -143,11 +123,7 @@ func (s *dnsServer) serveTCP(ctx context.Context) {
 			s.logger.Debug(ctx, "accept dns tcp connection", slog.Error(err))
 			continue
 		}
-		s.wg.Add(1)
-		go func() {
-			defer s.wg.Done()
-			s.serveTCPConn(ctx, conn)
-		}()
+		s.wg.Go(func() { s.serveTCPConn(ctx, conn) })
 	}
 }
 
@@ -163,10 +139,7 @@ func (s *dnsServer) serveTCPConn(ctx context.Context, conn net.Conn) {
 			return
 		}
 		resp := s.handle(ctx, msg, maxFrameSize)
-		if resp == nil {
-			return
-		}
-		if err := writeFrame(conn, resp); err != nil {
+		if resp == nil || writeFrame(conn, resp) != nil {
 			return
 		}
 	}
@@ -182,14 +155,18 @@ func (s *dnsServer) handle(ctx context.Context, msg []byte, maxSize int) []byte 
 	}
 	q, err := parser.Question()
 	if err != nil {
-		return buildResponse(hdr, nil, dnsmessage.RCodeFormatError, false, nil)
+		return dnsReply(hdr, nil, dnsmessage.RCodeFormatError)
 	}
 	if hdr.Response || hdr.OpCode != 0 {
-		return buildResponse(hdr, &q, dnsmessage.RCodeNotImplemented, false, nil)
+		return dnsReply(hdr, &q, dnsmessage.RCodeNotImplemented)
 	}
 	resp := s.answer(ctx, hdr, q, msg)
 	if len(resp) > maxSize {
-		return buildResponse(hdr, &q, dnsmessage.RCodeSuccess, true, nil)
+		// Reply with just the question and TC set so the client retries
+		// over TCP. TC is bit 9 of the flags word (RFC 1035 4.1.1).
+		if resp = dnsReply(hdr, &q, dnsmessage.RCodeSuccess); resp != nil {
+			resp[2] |= 0x02
+		}
 	}
 	return resp
 }
@@ -197,48 +174,35 @@ func (s *dnsServer) handle(ctx context.Context, msg []byte, maxSize int) []byte 
 func (s *dnsServer) answer(ctx context.Context, hdr dnsmessage.Header, q dnsmessage.Question, msg []byte) []byte {
 	name := normalizeName(q.Name.String())
 	if q.Class != dnsmessage.ClassINET {
-		return buildResponse(hdr, &q, dnsmessage.RCodeNotImplemented, false, nil)
+		return dnsReply(hdr, &q, dnsmessage.RCodeNotImplemented)
 	}
 	if s.exempt(name) {
 		return s.forward(ctx, hdr, q, msg, s.exchangeUpstream, "system resolvers")
 	}
+	synthesized := func(body dnsmessage.ResourceBody) []byte {
+		return dnsReply(hdr, &q, dnsmessage.RCodeSuccess, dnsmessage.Resource{
+			Header: dnsmessage.ResourceHeader{Name: q.Name, Class: dnsmessage.ClassINET, TTL: fakeIPTTL},
+			Body:   body,
+		})
+	}
 	switch q.Type {
 	case dnsmessage.TypeA:
-		addr := s.fake.Lookup(name)
-		return buildResponse(hdr, &q, dnsmessage.RCodeSuccess, false, func(b *dnsmessage.Builder) error {
-			return b.AResource(dnsmessage.ResourceHeader{
-				Name:  q.Name,
-				Type:  dnsmessage.TypeA,
-				Class: dnsmessage.ClassINET,
-				TTL:   fakeIPTTL,
-			}, dnsmessage.AResource{A: addr.As4()})
-		})
+		return synthesized(&dnsmessage.AResource{A: s.fake.Lookup(name).As4()})
 	case dnsmessage.TypeAAAA:
 		// No AAAA answer steers dual-stack clients to the fake IPv4.
-		return buildResponse(hdr, &q, dnsmessage.RCodeSuccess, false, nil)
+		return dnsReply(hdr, &q, dnsmessage.RCodeSuccess)
 	case dnsmessage.TypePTR:
-		addr, ok := parseReverseName(name)
-		if ok && s.fake.Contains(addr) {
+		if addr, ok := parseReverseName(name); ok && s.fake.Contains(addr) {
 			target, found := s.fake.Reverse(addr)
 			if !found {
-				return buildResponse(hdr, &q, dnsmessage.RCodeNameError, false, nil)
+				return dnsReply(hdr, &q, dnsmessage.RCodeNameError)
 			}
 			ptr, err := dnsmessage.NewName(target + ".")
 			if err != nil {
-				return buildResponse(hdr, &q, dnsmessage.RCodeServerFailure, false, nil)
+				return dnsReply(hdr, &q, dnsmessage.RCodeServerFailure)
 			}
-			return buildResponse(hdr, &q, dnsmessage.RCodeSuccess, false, func(b *dnsmessage.Builder) error {
-				return b.PTRResource(dnsmessage.ResourceHeader{
-					Name:  q.Name,
-					Type:  dnsmessage.TypePTR,
-					Class: dnsmessage.ClassINET,
-					TTL:   fakeIPTTL,
-				}, dnsmessage.PTRResource{PTR: ptr})
-			})
+			return synthesized(&dnsmessage.PTRResource{PTR: ptr})
 		}
-	}
-	if s.relay == nil {
-		return buildResponse(hdr, &q, dnsmessage.RCodeServerFailure, false, nil)
 	}
 	return s.forward(ctx, hdr, q, msg, s.relay.exchange, "exit node")
 }
@@ -258,7 +222,7 @@ func (s *dnsServer) forward(ctx context.Context, hdr dnsmessage.Header, q dnsmes
 			slog.F("via", via),
 			slog.Error(err),
 		)
-		return buildResponse(hdr, &q, dnsmessage.RCodeServerFailure, false, nil)
+		return dnsReply(hdr, &q, dnsmessage.RCodeServerFailure)
 	}
 	return resp
 }
@@ -289,9 +253,9 @@ func exchangeTCP(ctx context.Context, addr netip.AddrPort, msg []byte) ([]byte, 
 		return nil, xerrors.Errorf("dial: %w", err)
 	}
 	defer conn.Close()
-	if deadline, ok := ctx.Deadline(); ok {
-		_ = conn.SetDeadline(deadline)
-	}
+	// A zero deadline means none, matching a context without one.
+	deadline, _ := ctx.Deadline()
+	_ = conn.SetDeadline(deadline)
 	if err := writeFrame(conn, msg); err != nil {
 		return nil, xerrors.Errorf("write query: %w", err)
 	}
@@ -302,38 +266,25 @@ func exchangeTCP(ctx context.Context, addr netip.AddrPort, msg []byte) ([]byte, 
 	return resp, nil
 }
 
-// buildResponse assembles a reply for q. answers, when non-nil, appends
-// answer records to the builder. A nil q omits the question section, which
-// is only appropriate for FORMERR.
-func buildResponse(req dnsmessage.Header, q *dnsmessage.Question, rcode dnsmessage.RCode, truncated bool, answers func(*dnsmessage.Builder) error) []byte {
-	hdr := dnsmessage.Header{
-		ID:                 req.ID,
-		Response:           true,
-		OpCode:             req.OpCode,
-		RecursionDesired:   req.RecursionDesired,
-		RecursionAvailable: true,
-		Truncated:          truncated,
-		RCode:              rcode,
-	}
-	b := dnsmessage.NewBuilder(make([]byte, 0, dnsMaxUDPPayload), hdr)
-	b.EnableCompression()
-	if err := b.StartQuestions(); err != nil {
-		return nil
+// dnsReply packs a response to the query with header req. A nil q omits the
+// question section, which is only appropriate for FORMERR. Answer types are
+// taken from their bodies.
+func dnsReply(req dnsmessage.Header, q *dnsmessage.Question, rcode dnsmessage.RCode, answers ...dnsmessage.Resource) []byte {
+	msg := dnsmessage.Message{
+		Header: dnsmessage.Header{
+			ID:                 req.ID,
+			Response:           true,
+			OpCode:             req.OpCode,
+			RecursionDesired:   req.RecursionDesired,
+			RecursionAvailable: true,
+			RCode:              rcode,
+		},
+		Answers: answers,
 	}
 	if q != nil {
-		if err := b.Question(*q); err != nil {
-			return nil
-		}
+		msg.Questions = []dnsmessage.Question{*q}
 	}
-	if answers != nil {
-		if err := b.StartAnswers(); err != nil {
-			return nil
-		}
-		if err := answers(&b); err != nil {
-			return nil
-		}
-	}
-	out, err := b.Finish()
+	out, err := msg.AppendPack(make([]byte, 0, dnsMaxUDPPayload))
 	if err != nil {
 		return nil
 	}
@@ -346,19 +297,10 @@ func parseReverseName(name string) (netip.Addr, bool) {
 	if !ok {
 		return netip.Addr{}, false
 	}
-	parts := strings.Split(rest, ".")
-	if len(parts) != 4 {
-		return netip.Addr{}, false
-	}
-	var raw [4]byte
-	for i, p := range parts {
-		v, err := strconv.ParseUint(p, 10, 8)
-		if err != nil {
-			return netip.Addr{}, false
-		}
-		raw[3-i] = byte(v)
-	}
-	return netip.AddrFrom4(raw), true
+	octets := strings.Split(rest, ".")
+	slices.Reverse(octets)
+	addr, err := netip.ParseAddr(strings.Join(octets, "."))
+	return addr, err == nil && addr.Is4()
 }
 
 // dnsRelay multiplexes DNS queries over one long-lived CONNECT stream to
@@ -366,21 +308,22 @@ func parseReverseName(name string) (netip.Addr, bool) {
 // query is given a private message ID and matched on the way back.
 type dnsRelay struct {
 	logger  slog.Logger
-	connect func(ctx context.Context) (net.Conn, error)
+	connect connectFunc
 
-	mu   sync.Mutex
-	conn net.Conn
-	// connecting is non-nil while a stream is being opened; waiters block
-	// on it so only one CONNECT is in flight at a time.
-	connecting chan struct{}
-	writeMu    sync.Mutex
-	pending    map[uint16]chan []byte
-	nextID     uint16
-	closed     bool
-	wg         sync.WaitGroup
+	// streamMu serializes opening the stream and writing to it, so the
+	// exit node sees a single long-lived stream and frames never
+	// interleave. Every caller's ctx carries the same exchange timeout, so
+	// a waiter blocked here is released before its own deadline.
+	streamMu sync.Mutex
+	mu       sync.Mutex
+	conn     net.Conn
+	pending  map[uint16]chan []byte
+	nextID   uint16
+	closed   bool
+	wg       sync.WaitGroup
 }
 
-func newDNSRelay(logger slog.Logger, connect func(ctx context.Context) (net.Conn, error)) *dnsRelay {
+func newDNSRelay(logger slog.Logger, connect connectFunc) *dnsRelay {
 	return &dnsRelay{
 		logger:  logger,
 		connect: connect,
@@ -406,12 +349,6 @@ func (r *dnsRelay) exchange(ctx context.Context, msg []byte) ([]byte, error) {
 	if len(msg) < 12 {
 		return nil, xerrors.New("dns message too short")
 	}
-	conn, err := r.getConn(ctx)
-	if err != nil {
-		return nil, err
-	}
-	origID := uint16(msg[0])<<8 | uint16(msg[1])
-
 	r.mu.Lock()
 	id, ok := r.allocIDLocked()
 	if !ok {
@@ -427,15 +364,19 @@ func (r *dnsRelay) exchange(ctx context.Context, msg []byte) ([]byte, error) {
 		r.mu.Unlock()
 	}()
 
-	out := make([]byte, len(msg))
-	copy(out, msg)
-	out[0], out[1] = byte(id>>8), byte(id)
-	r.writeMu.Lock()
-	err = writeFrame(conn, out)
-	r.writeMu.Unlock()
+	out := slices.Clone(msg)
+	binary.BigEndian.PutUint16(out, id)
+	r.streamMu.Lock()
+	conn, err := r.connLocked(ctx)
+	if err == nil {
+		if err = writeFrame(conn, out); err != nil {
+			r.fail(conn, err)
+			err = xerrors.Errorf("write dns query to exit node: %w", err)
+		}
+	}
+	r.streamMu.Unlock()
 	if err != nil {
-		r.fail(conn, err)
-		return nil, xerrors.Errorf("write dns query to exit node: %w", err)
+		return nil, err
 	}
 
 	select {
@@ -443,62 +384,38 @@ func (r *dnsRelay) exchange(ctx context.Context, msg []byte) ([]byte, error) {
 		if !ok {
 			return nil, xerrors.New("exit node dns stream closed")
 		}
-		resp[0], resp[1] = byte(origID>>8), byte(origID)
+		copy(resp, msg[:2])
 		return resp, nil
 	case <-ctx.Done():
 		return nil, ctx.Err()
 	}
 }
 
-// getConn returns the shared stream, opening it if needed. Only one
-// connect is in flight at a time; other callers wait for its outcome so
-// the exit node sees a single long-lived stream.
-func (r *dnsRelay) getConn(ctx context.Context) (net.Conn, error) {
-	for {
-		r.mu.Lock()
-		if r.closed {
-			r.mu.Unlock()
-			return nil, xerrors.New("dns relay closed")
-		}
-		if r.conn != nil {
-			conn := r.conn
-			r.mu.Unlock()
-			return conn, nil
-		}
-		if r.connecting != nil {
-			wait := r.connecting
-			r.mu.Unlock()
-			select {
-			case <-wait:
-				continue
-			case <-ctx.Done():
-				return nil, ctx.Err()
-			}
-		}
-		done := make(chan struct{})
-		r.connecting = done
-		r.mu.Unlock()
-
-		conn, err := r.connect(ctx)
-
-		r.mu.Lock()
-		r.connecting = nil
-		close(done)
-		if err != nil {
-			r.mu.Unlock()
-			return nil, xerrors.Errorf("open dns stream to exit node: %w", err)
-		}
-		if r.closed {
-			r.mu.Unlock()
-			_ = conn.Close()
-			return nil, xerrors.New("dns relay closed")
-		}
-		r.conn = conn
-		r.wg.Add(1)
-		go r.readLoop(conn)
-		r.mu.Unlock()
+// connLocked returns the shared stream, opening it if needed. Callers hold
+// streamMu.
+func (r *dnsRelay) connLocked(ctx context.Context) (net.Conn, error) {
+	r.mu.Lock()
+	conn, closed := r.conn, r.closed
+	r.mu.Unlock()
+	if closed {
+		return nil, xerrors.New("dns relay closed")
+	}
+	if conn != nil {
 		return conn, nil
 	}
+	conn, err := r.connect(ctx, dnsRelayTarget, codersdk.ExitNodeProtocolDNS)
+	if err != nil {
+		return nil, xerrors.Errorf("open dns stream to exit node: %w", err)
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.closed {
+		_ = conn.Close()
+		return nil, xerrors.New("dns relay closed")
+	}
+	r.conn = conn
+	r.wg.Go(func() { r.readLoop(conn) })
+	return conn, nil
 }
 
 func (r *dnsRelay) allocIDLocked() (uint16, bool) {
@@ -515,7 +432,6 @@ func (r *dnsRelay) allocIDLocked() (uint16, bool) {
 // breaks, at which point every in-flight query fails and the next exchange
 // reconnects.
 func (r *dnsRelay) readLoop(conn net.Conn) {
-	defer r.wg.Done()
 	for {
 		resp, err := readFrame(conn)
 		if err != nil {
@@ -525,12 +441,10 @@ func (r *dnsRelay) readLoop(conn net.Conn) {
 		if len(resp) < 12 {
 			continue
 		}
-		id := uint16(resp[0])<<8 | uint16(resp[1])
+		id := binary.BigEndian.Uint16(resp)
 		r.mu.Lock()
 		ch, ok := r.pending[id]
-		if ok {
-			delete(r.pending, id)
-		}
+		delete(r.pending, id)
 		r.mu.Unlock()
 		if ok {
 			ch <- resp

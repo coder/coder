@@ -20,6 +20,12 @@ import (
 // @Router /api/v2/workspaceproxies/me/coordinate [get]
 // @x-apidocgen {"skip": true}
 func (api *API) workspaceProxyCoordinate(rw http.ResponseWriter, r *http.Request) {
+	api.serveMultiAgentCoordinate(rw, r, uuid.New())
+}
+
+// serveMultiAgentCoordinate upgrades the request to a websocket and serves the
+// tailnet coordination protocol for the multi-agent peer identified by id.
+func (api *API) serveMultiAgentCoordinate(rw http.ResponseWriter, r *http.Request, id uuid.UUID) {
 	ctx := r.Context()
 
 	version := "1.0"
@@ -60,7 +66,6 @@ func (api *API) workspaceProxyCoordinate(rw http.ResponseWriter, r *http.Request
 	ctx, nc := codersdk.WebsocketNetConn(ctx, conn, msgType)
 	defer nc.Close()
 
-	id := uuid.New()
 	err = api.tailnetService.ServeMultiAgentClient(ctx, version, nc, id)
 	if err != nil {
 		_ = conn.Close(websocket.StatusInternalError, err.Error())

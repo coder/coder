@@ -42,63 +42,37 @@ func ExtractExitNode(db database.Store) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 			ctx := r.Context()
+			unauthorized := func(message, detail string) {
+				httpapi.Write(ctx, rw, http.StatusUnauthorized, codersdk.Response{Message: message, Detail: detail})
+			}
 
 			token := r.Header.Get(codersdk.ExitNodeTokenHeader)
 			if token == "" {
-				httpapi.Write(ctx, rw, http.StatusUnauthorized, codersdk.Response{
-					Message: "Missing required exit node token",
-				})
+				unauthorized("Missing required exit node token", "")
 				return
 			}
-
 			idStr, secret, ok := strings.Cut(token, ":")
-			if !ok {
-				httpapi.Write(ctx, rw, http.StatusUnauthorized, codersdk.Response{
-					Message: "Invalid exit node token",
-				})
-				return
-			}
 			nodeID, err := uuid.Parse(idStr)
-			if err != nil {
-				httpapi.Write(ctx, rw, http.StatusUnauthorized, codersdk.Response{
-					Message: "Invalid exit node token",
-				})
-				return
-			}
-			if len(secret) != 64 {
-				httpapi.Write(ctx, rw, http.StatusUnauthorized, codersdk.Response{
-					Message: "Invalid exit node token",
-				})
+			if !ok || err != nil || len(secret) != 64 {
+				unauthorized("Invalid exit node token", "")
 				return
 			}
 
 			//nolint:gocritic // The exit node is looked up by ID to check its token.
 			node, err := db.GetExitNodeByID(dbauthz.AsSystemRestricted(ctx), nodeID)
-			if xerrors.Is(err, sql.ErrNoRows) {
-				httpapi.Write(ctx, rw, http.StatusUnauthorized, codersdk.Response{
-					Message: "Invalid exit node token",
-					Detail:  "Exit node not found.",
-				})
+			switch {
+			case xerrors.Is(err, sql.ErrNoRows):
+				unauthorized("Invalid exit node token", "Exit node not found.")
 				return
-			}
-			if err != nil {
+			case err != nil:
 				httpapi.InternalServerError(rw, err)
 				return
-			}
-			if node.Deleted {
-				httpapi.Write(ctx, rw, http.StatusUnauthorized, codersdk.Response{
-					Message: "Invalid exit node token",
-					Detail:  "Exit node has been deleted.",
-				})
+			case node.Deleted:
+				unauthorized("Invalid exit node token", "Exit node has been deleted.")
 				return
-			}
-
 			// Constant-time comparison of the hashed secret.
-			if !apikey.ValidateHash(node.TokenHashedSecret, secret) {
-				httpapi.Write(ctx, rw, http.StatusUnauthorized, codersdk.Response{
-					Message: "Invalid exit node token",
-					Detail:  "Invalid exit node token secret.",
-				})
+			case !apikey.ValidateHash(node.TokenHashedSecret, secret):
+				unauthorized("Invalid exit node token", "Invalid exit node token secret.")
 				return
 			}
 
@@ -106,8 +80,7 @@ func ExtractExitNode(db database.Store) func(http.Handler) http.Handler {
 			//nolint:gocritic // Exit nodes act as a system component on the
 			// few routes this middleware is mounted to, like workspace
 			// proxies.
-			ctx = dbauthz.AsSystemRestricted(ctx)
-			next.ServeHTTP(rw, r.WithContext(ctx))
+			next.ServeHTTP(rw, r.WithContext(dbauthz.AsSystemRestricted(ctx)))
 		})
 	}
 }

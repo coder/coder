@@ -24,24 +24,13 @@ type fakeFlowClient struct {
 	batches  chan []codersdk.ExitNodeFlowReport
 }
 
-func newFakeFlowClient() *fakeFlowClient {
-	return &fakeFlowClient{batches: make(chan []codersdk.ExitNodeFlowReport, 16)}
-}
-
-func (c *fakeFlowClient) failNext(n int) {
-	c.mu.Lock()
-	c.failures = n
-	c.mu.Unlock()
-}
-
 func (c *fakeFlowClient) ReportFlows(_ context.Context, req codersdk.ReportExitNodeFlowsRequest) error {
 	c.mu.Lock()
+	defer c.mu.Unlock()
 	if c.failures > 0 {
 		c.failures--
-		c.mu.Unlock()
 		return xerrors.New("coderd unavailable")
 	}
-	c.mu.Unlock()
 	c.batches <- req.Flows
 	return nil
 }
@@ -57,19 +46,28 @@ func newReport() codersdk.ExitNodeFlowReport {
 	}
 }
 
+// startReporter starts a reporter on a mock clock whose client fails the
+// first failures calls. trap, when set, registers a trap before the reporter
+// arms any timers; it is closed with the reporter when the test ends.
+func startReporter(ctx context.Context, t *testing.T, failures int, opts exitnode.FlowReporterOptions, trap func(quartz.Trapper) *quartz.Trap) (*exitnode.FlowReporter, *quartz.Mock, *fakeFlowClient, *quartz.Trap) {
+	t.Helper()
+	mClock := quartz.NewMock(t)
+	var tr *quartz.Trap
+	if trap != nil {
+		tr = trap(mClock.Trap())
+		t.Cleanup(tr.Close)
+	}
+	client := &fakeFlowClient{failures: failures, batches: make(chan []codersdk.ExitNodeFlowReport, 16)}
+	opts.Logger, opts.Client, opts.Clock = testutil.Logger(t), client, mClock
+	reporter := exitnode.NewFlowReporter(ctx, opts)
+	t.Cleanup(func() { _ = reporter.Close(ctx) })
+	return reporter, mClock, client, tr
+}
+
 func TestFlowReporter_FlushOnBatchSize(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
-	mClock := quartz.NewMock(t)
-	client := newFakeFlowClient()
-
-	reporter := exitnode.NewFlowReporter(ctx, exitnode.FlowReporterOptions{
-		Logger:    testutil.Logger(t),
-		Client:    client,
-		BatchSize: 3,
-		Clock:     mClock,
-	})
-	defer func() { _ = reporter.Close(ctx) }()
+	reporter, _, client, _ := startReporter(ctx, t, 0, exitnode.FlowReporterOptions{BatchSize: 3}, nil)
 
 	want := []codersdk.ExitNodeFlowReport{newReport(), newReport(), newReport()}
 	for _, r := range want {
@@ -77,54 +75,30 @@ func TestFlowReporter_FlushOnBatchSize(t *testing.T) {
 	}
 
 	// No clock advance: the batch size alone triggers delivery.
-	got := testutil.RequireReceive(ctx, t, client.batches)
-	require.Equal(t, want, got)
+	require.Equal(t, want, testutil.RequireReceive(ctx, t, client.batches))
 }
 
 func TestFlowReporter_FlushOnInterval(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
-	mClock := quartz.NewMock(t)
-	client := newFakeFlowClient()
-
-	tickerTrap := mClock.Trap().NewTicker("flowreporter", "flush")
-	defer tickerTrap.Close()
-
-	reporter := exitnode.NewFlowReporter(ctx, exitnode.FlowReporterOptions{
-		Logger:        testutil.Logger(t),
-		Client:        client,
+	reporter, mClock, client, tickerTrap := startReporter(ctx, t, 0, exitnode.FlowReporterOptions{
 		FlushInterval: 2 * time.Second,
 		BatchSize:     100,
-		Clock:         mClock,
-	})
-	defer func() { _ = reporter.Close(ctx) }()
+	}, func(tr quartz.Trapper) *quartz.Trap { return tr.NewTicker("flowreporter", "flush") })
 	tickerTrap.MustWait(ctx).MustRelease(ctx)
 
 	want := newReport()
 	reporter.Record(want)
 
 	mClock.Advance(2 * time.Second).MustWait(ctx)
-	got := testutil.RequireReceive(ctx, t, client.batches)
-	require.Equal(t, []codersdk.ExitNodeFlowReport{want}, got)
+	require.Equal(t, []codersdk.ExitNodeFlowReport{want}, testutil.RequireReceive(ctx, t, client.batches))
 }
 
 func TestFlowReporter_RetriesWithBackoff(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
-	mClock := quartz.NewMock(t)
-	client := newFakeFlowClient()
-	client.failNext(1)
-
-	backoffTrap := mClock.Trap().NewTimer("flowreporter", "backoff")
-	defer backoffTrap.Close()
-
-	reporter := exitnode.NewFlowReporter(ctx, exitnode.FlowReporterOptions{
-		Logger:    testutil.Logger(t),
-		Client:    client,
-		BatchSize: 2,
-		Clock:     mClock,
-	})
-	defer func() { _ = reporter.Close(ctx) }()
+	reporter, mClock, client, backoffTrap := startReporter(ctx, t, 1, exitnode.FlowReporterOptions{BatchSize: 2},
+		func(tr quartz.Trapper) *quartz.Trap { return tr.NewTimer("flowreporter", "backoff") })
 
 	want := []codersdk.ExitNodeFlowReport{newReport(), newReport()}
 	for _, r := range want {
@@ -138,30 +112,19 @@ func TestFlowReporter_RetriesWithBackoff(t *testing.T) {
 
 	// Firing the timer retries with the same records, in order.
 	mClock.Advance(time.Second).MustWait(ctx)
-	got := testutil.RequireReceive(ctx, t, client.batches)
-	require.Equal(t, want, got)
+	require.Equal(t, want, testutil.RequireReceive(ctx, t, client.batches))
 }
 
 func TestFlowReporter_DropsOldestWhenFull(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
-	mClock := quartz.NewMock(t)
-	client := newFakeFlowClient()
 	metrics := exitnode.NewMetrics(nil)
-
-	tickerTrap := mClock.Trap().NewTicker("flowreporter", "flush")
-	defer tickerTrap.Close()
-
-	reporter := exitnode.NewFlowReporter(ctx, exitnode.FlowReporterOptions{
-		Logger:        testutil.Logger(t),
-		Client:        client,
+	reporter, mClock, client, tickerTrap := startReporter(ctx, t, 0, exitnode.FlowReporterOptions{
 		FlushInterval: 2 * time.Second,
 		BatchSize:     100,
 		MaxQueue:      2,
 		Metrics:       metrics,
-		Clock:         mClock,
-	})
-	defer func() { _ = reporter.Close(ctx) }()
+	}, func(tr quartz.Trapper) *quartz.Trap { return tr.NewTicker("flowreporter", "flush") })
 	tickerTrap.MustWait(ctx).MustRelease(ctx)
 
 	first, second, third := newReport(), newReport(), newReport()
@@ -171,28 +134,17 @@ func TestFlowReporter_DropsOldestWhenFull(t *testing.T) {
 	require.Equal(t, float64(1), promtestutil.ToFloat64(metrics.FlowReportsDropped))
 
 	mClock.Advance(2 * time.Second).MustWait(ctx)
-	got := testutil.RequireReceive(ctx, t, client.batches)
-	require.Equal(t, []codersdk.ExitNodeFlowReport{second, third}, got)
+	require.Equal(t, []codersdk.ExitNodeFlowReport{second, third}, testutil.RequireReceive(ctx, t, client.batches))
 	require.Equal(t, float64(2), promtestutil.ToFloat64(metrics.FlowReportsSent))
 }
 
 func TestFlowReporter_CloseFlushes(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
-	mClock := quartz.NewMock(t)
-	client := newFakeFlowClient()
-
-	reporter := exitnode.NewFlowReporter(ctx, exitnode.FlowReporterOptions{
-		Logger:    testutil.Logger(t),
-		Client:    client,
-		BatchSize: 100,
-		Clock:     mClock,
-	})
+	reporter, _, client, _ := startReporter(ctx, t, 0, exitnode.FlowReporterOptions{BatchSize: 100}, nil)
 
 	want := newReport()
 	reporter.Record(want)
 	require.NoError(t, reporter.Close(ctx))
-
-	got := testutil.RequireReceive(ctx, t, client.batches)
-	require.Equal(t, []codersdk.ExitNodeFlowReport{want}, got)
+	require.Equal(t, []codersdk.ExitNodeFlowReport{want}, testutil.RequireReceive(ctx, t, client.batches))
 }

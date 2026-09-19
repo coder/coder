@@ -25,14 +25,17 @@ func (e *Enforcer) Install(ctx context.Context) error {
 	if err := e.probe(ctx); err != nil {
 		return err
 	}
-	v4, v6 := splitByFamily(e.resolveExemptions(ctx))
-	resolvers4, resolvers6 := splitAddrsByFamily(e.upstreamResolvers())
+	exemptions := e.resolveExemptions(ctx)
+	resolvers := e.resolvers
+	if resolvers == nil {
+		resolvers = systemResolvers()
+	}
 
-	if err := e.installFamily(ctx, "iptables", buildRules(e.ports, v4, resolvers4, ipv4)); err != nil {
+	if err := e.installFamily(ctx, "iptables", buildRules(e.ports, exemptions, resolvers, ipv4)); err != nil {
 		return xerrors.Errorf("install iptables rules: %w", err)
 	}
 	e.installed = true
-	if err := e.installFamily(ctx, "ip6tables", buildRules(e.ports, v6, resolvers6, ipv6)); err != nil {
+	if err := e.installFamily(ctx, "ip6tables", buildRules(e.ports, exemptions, resolvers, ipv6)); err != nil {
 		e.logger.Warn(ctx, "ip6tables egress rules not installed, ipv6 is unenforced", slog.Error(err))
 	}
 	return nil
@@ -45,13 +48,11 @@ func (e *Enforcer) Remove(ctx context.Context) error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 
-	if e.prefix == nil {
-		if err := e.probe(ctx); err != nil {
-			if errors.Is(err, ErrEnforcementUnavailable) && !e.installed {
-				return nil
-			}
-			return err
+	if err := e.probe(ctx); err != nil {
+		if errors.Is(err, ErrEnforcementUnavailable) && !e.installed {
+			return nil
 		}
+		return err
 	}
 	err := e.removeFamily(ctx, "iptables")
 	if v6Err := e.removeFamily(ctx, "ip6tables"); v6Err != nil {
@@ -89,21 +90,14 @@ func (e *Enforcer) probe(ctx context.Context) error {
 }
 
 func (e *Enforcer) installFamily(ctx context.Context, bin string, rs ruleSet) error {
-	for _, tc := range []struct {
-		table string
-		chain string
-		rules []rule
-	}{
-		{table: "nat", chain: natChain, rules: rs.nat},
-		{table: "filter", chain: filterChain, rules: rs.filter},
-	} {
+	for _, tc := range tables {
 		// -N fails when the chain already exists; the following -F makes
 		// the install idempotent either way.
 		_, _ = e.run(ctx, bin, "-t", tc.table, "-N", tc.chain)
 		if _, err := e.run(ctx, bin, "-t", tc.table, "-F", tc.chain); err != nil {
 			return err
 		}
-		for _, r := range tc.rules {
+		for _, r := range rs[tc.table] {
 			if _, err := e.run(ctx, bin, append([]string{"-t", tc.table}, r...)...); err != nil {
 				return err
 			}
@@ -121,13 +115,7 @@ func (e *Enforcer) installFamily(ctx context.Context, bin string, rs ruleSet) er
 
 func (e *Enforcer) removeFamily(ctx context.Context, bin string) error {
 	var errs []error
-	for _, tc := range []struct {
-		table string
-		chain string
-	}{
-		{table: "nat", chain: natChain},
-		{table: "filter", chain: filterChain},
-	} {
+	for _, tc := range tables {
 		// Delete every jump that references the chain, then drop it.
 		// Bounded so a persistent -D failure cannot loop forever.
 		for range 8 {

@@ -36,8 +36,8 @@ func readFrame(r io.Reader, buf []byte) ([]byte, error) {
 		return nil, err
 	}
 	n := int(binary.BigEndian.Uint16(hdr[:]))
-	if n > maxFramePayload || n > len(buf) {
-		return nil, xerrors.Errorf("frame of %d bytes exceeds maximum %d", n, min(maxFramePayload, len(buf)))
+	if n > len(buf) {
+		return nil, xerrors.Errorf("frame of %d bytes exceeds maximum %d", n, len(buf))
 	}
 	if _, err := io.ReadFull(r, buf[:n]); err != nil {
 		return nil, xerrors.Errorf("read frame payload: %w", err)
@@ -56,10 +56,8 @@ func (f *frameWriter) write(payload []byte) error {
 	if len(payload) > maxFramePayload {
 		return xerrors.Errorf("payload of %d bytes exceeds maximum %d", len(payload), maxFramePayload)
 	}
-	frame := make([]byte, frameHeaderLen+len(payload))
 	// #nosec G115 - len(payload) is bounded by maxFramePayload above.
-	binary.BigEndian.PutUint16(frame, uint16(len(payload)))
-	copy(frame[frameHeaderLen:], payload)
+	frame := append(binary.BigEndian.AppendUint16(make([]byte, 0, frameHeaderLen+len(payload)), uint16(len(payload))), payload...)
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	_, err := f.w.Write(frame)
@@ -92,9 +90,7 @@ func relayDatagrams(ctx context.Context, clock quartz.Clock, client, upstream ne
 	}
 
 	var wg sync.WaitGroup
-	wg.Add(2)
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		// Closing the upstream unblocks the other goroutine's Read.
 		defer upstream.Close()
 		buf := make([]byte, maxFramePayload)
@@ -109,9 +105,8 @@ func relayDatagrams(ctx context.Context, clock quartz.Clock, client, upstream ne
 			}
 			bytesOut += int64(len(payload))
 		}
-	}()
-	go func() {
-		defer wg.Done()
+	})
+	wg.Go(func() {
 		// Closing the client unblocks the other goroutine's readFrame.
 		defer client.Close()
 		fw := &frameWriter{w: client}
@@ -127,7 +122,7 @@ func relayDatagrams(ctx context.Context, clock quartz.Clock, client, upstream ne
 			}
 			bytesIn += int64(n)
 		}
-	}()
+	})
 	wg.Wait()
 	return bytesIn, bytesOut
 }

@@ -30,7 +30,7 @@ type Options struct {
 	// deterministic tailnet address. Required.
 	ExitNodeID uuid.UUID
 	// Policy decides each flow. Required.
-	Policy PolicyEvaluator
+	Policy *Policy
 	// ListenPort is the CONNECT port inside the tailnet. Defaults to
 	// codersdk.ExitNodeTailnetPort.
 	ListenPort int
@@ -71,7 +71,7 @@ type Server struct {
 
 	id      uuid.UUID
 	addr    netip.Addr
-	policy  PolicyEvaluator
+	policy  *Policy
 	metrics *Metrics
 
 	registerLoop *exitnodesdk.RegisterLoop
@@ -248,14 +248,9 @@ func (s *Server) Metrics() *Metrics {
 	return s.metrics
 }
 
-// ReloadPolicy re-reads the policy when the evaluator supports it. It is
-// wired to SIGHUP by the CLI.
+// ReloadPolicy re-reads the policy file. It is wired to SIGHUP by the CLI.
 func (s *Server) ReloadPolicy() error {
-	reloader, ok := s.policy.(Reloader)
-	if !ok {
-		return xerrors.New("policy does not support reloading")
-	}
-	if err := reloader.Reload(); err != nil {
+	if err := s.policy.Reload(); err != nil {
 		s.metrics.PolicyReloadTotal.WithLabelValues("error").Inc()
 		return xerrors.Errorf("reload policy: %w", err)
 	}

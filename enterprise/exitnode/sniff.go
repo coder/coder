@@ -3,13 +3,13 @@ package exitnode
 import (
 	"bufio"
 	"bytes"
-	"encoding/binary"
+	"context"
+	"crypto/tls"
 	"errors"
 	"io"
 	"net"
 	"net/http"
 	"os"
-	"strings"
 	"time"
 
 	"golang.org/x/xerrors"
@@ -26,10 +26,12 @@ const (
 	// key shares or an HTTP request with many headers fits comfortably; if
 	// the host has not been found by then, it is treated as unknown.
 	sniffMaxBytes = 16 * 1024
+
+	tlsRecordTypeHandshake = 0x16
 )
 
-// errNeedMore signals that the peeked prefix is not yet a complete message.
-var errNeedMore = xerrors.New("need more bytes")
+// errSniffDone aborts the TLS handshake once the ClientHello has been seen.
+var errSniffDone = xerrors.New("sniff done")
 
 // SniffHost peeks at the first bytes the client sends and extracts a
 // destination host from a TLS ClientHello SNI extension or an HTTP/1 Host
@@ -42,256 +44,90 @@ var errNeedMore = xerrors.New("need more bytes")
 // error (for example the client hanging up) is returned as err together with
 // a replaying conn for whatever was read.
 func SniffHost(conn net.Conn, timeout time.Duration) (host string, replay net.Conn, err error) {
-	buf := make([]byte, 0, 4096)
-	replayConn := func() net.Conn {
-		if len(buf) == 0 {
-			return conn
-		}
-		return &replayingConn{Conn: conn, r: io.MultiReader(bytes.NewReader(buf), conn)}
-	}
-
 	if err := conn.SetReadDeadline(time.Now().Add(timeout)); err != nil {
 		return "", conn, xerrors.Errorf("set sniff deadline: %w", err)
 	}
-	defer func() {
-		// Clearing the deadline must not mask a real read error. The
-		// connection is unusable if this fails anyway, so the error is
-		// dropped in favor of the primary result.
-		_ = conn.SetReadDeadline(time.Time{})
-	}()
+	// Clearing the deadline must not mask a real read error. The connection
+	// is unusable if this fails anyway, so the error is dropped in favor of
+	// the primary result.
+	defer func() { _ = conn.SetReadDeadline(time.Time{}) }()
 
-	for len(buf) < sniffMaxBytes {
-		if len(buf) == cap(buf) {
-			grown := make([]byte, len(buf), min(cap(buf)*2, sniffMaxBytes))
-			copy(grown, buf)
-			buf = grown
-		}
-		n, readErr := conn.Read(buf[len(buf):cap(buf)])
-		buf = buf[:len(buf)+n]
-
-		if len(buf) > 0 {
-			host, parseErr := parseClientHost(buf)
-			if parseErr == nil {
-				return host, replayConn(), nil
-			}
-			if !errors.Is(parseErr, errNeedMore) {
-				// Not a protocol we understand; stop reading immediately so
-				// the application is not delayed.
-				return "", replayConn(), nil
-			}
-		}
-
-		if readErr != nil {
-			if errors.Is(readErr, os.ErrDeadlineExceeded) {
-				return "", replayConn(), nil
-			}
-			return "", replayConn(), readErr
+	// The first segment decides which parser runs; a protocol that is
+	// neither TLS nor HTTP is handed on immediately so the application is
+	// not delayed.
+	sc := &sniffConn{Conn: conn}
+	_, _ = sc.Read(make([]byte, 4096))
+	sc.pos = 0
+	switch {
+	case len(sc.buf) == 0:
+	case sc.buf[0] == tlsRecordTypeHandshake:
+		var sni string
+		_ = tls.Server(sc, &tls.Config{
+			MinVersion: tls.VersionTLS12,
+			GetConfigForClient: func(hi *tls.ClientHelloInfo) (*tls.Config, error) {
+				sni = hi.ServerName
+				return nil, errSniffDone
+			},
+		}).HandshakeContext(context.Background())
+		host = NormalizeHost(sni)
+	case looksLikeHTTPRequest(sc.buf):
+		if req, err := http.ReadRequest(bufio.NewReader(sc)); err == nil {
+			host = NormalizeHost(req.Host)
 		}
 	}
-	return "", replayConn(), nil
-}
 
-// parseClientHost inspects the start of a client stream. It returns
-// errNeedMore when more bytes are required to decide, or another error when
-// the bytes are not a protocol it understands.
-func parseClientHost(buf []byte) (string, error) {
-	if buf[0] == tlsRecordTypeHandshake {
-		return parseTLSClientHelloSNI(buf)
+	replay = conn
+	if len(sc.buf) > 0 {
+		replay = &replayingConn{Conn: conn, r: io.MultiReader(bytes.NewReader(sc.buf), conn)}
 	}
-	if looksLikeHTTPRequest(buf) {
-		return parseHTTPHost(buf)
+	if host == "" && sc.err != nil && !errors.Is(sc.err, os.ErrDeadlineExceeded) {
+		return "", replay, sc.err
 	}
-	return "", xerrors.New("unknown protocol")
-}
-
-var httpMethods = []string{
-	http.MethodGet, http.MethodHead, http.MethodPost, http.MethodPut,
-	http.MethodPatch, http.MethodDelete, http.MethodConnect,
-	http.MethodOptions, http.MethodTrace,
+	return host, replay, nil
 }
 
 // looksLikeHTTPRequest reports whether buf is, or is a prefix of, an HTTP/1
 // request line for a known method.
 func looksLikeHTTPRequest(buf []byte) bool {
-	for _, m := range httpMethods {
-		prefix := m + " "
-		if len(buf) < len(prefix) {
-			if strings.HasPrefix(prefix, string(buf)) {
-				return true
-			}
-			continue
-		}
-		if string(buf[:len(prefix)]) == prefix {
+	for _, m := range []string{"GET ", "HEAD ", "POST ", "PUT ", "PATCH ", "DELETE ", "CONNECT ", "OPTIONS ", "TRACE "} {
+		if n := min(len(buf), len(m)); string(buf[:n]) == m[:n] {
 			return true
 		}
 	}
 	return false
 }
 
-func parseHTTPHost(buf []byte) (string, error) {
-	if !bytes.Contains(buf, []byte("\r\n\r\n")) {
-		return "", errNeedMore
-	}
-	req, err := http.ReadRequest(bufio.NewReader(bytes.NewReader(buf)))
-	if err != nil {
-		return "", xerrors.Errorf("read http request: %w", err)
-	}
-	return NormalizeHost(req.Host), nil
+// sniffConn feeds a parser the bytes read so far and then the live
+// connection, recording everything (up to sniffMaxBytes) so it can be
+// replayed. Writes are discarded so the TLS alerts crypto/tls emits when the
+// handshake is aborted never reach the client.
+type sniffConn struct {
+	net.Conn
+	buf []byte
+	pos int
+	// err is the first error the underlying connection returned.
+	err error
 }
 
-const (
-	tlsRecordTypeHandshake   = 0x16
-	tlsHandshakeClientHello  = 0x01
-	tlsExtensionServerName   = 0x0000
-	tlsServerNameTypeHost    = 0x00
-	tlsRecordHeaderLen       = 5
-	tlsHandshakeHeaderLen    = 4
-	tlsClientHelloRandomLen  = 32
-	tlsClientHelloVersionLen = 2
-)
-
-// parseTLSClientHelloSNI extracts the server_name from a TLS ClientHello. It
-// only understands a ClientHello carried in a single TLS record, which covers
-// every mainstream client; a multi-record hello yields an empty host.
-func parseTLSClientHelloSNI(buf []byte) (string, error) {
-	if len(buf) < tlsRecordHeaderLen {
-		return "", errNeedMore
+func (c *sniffConn) Read(p []byte) (int, error) {
+	if c.pos < len(c.buf) {
+		n := copy(p, c.buf[c.pos:])
+		c.pos += n
+		return n, nil
 	}
-	recordLen := int(binary.BigEndian.Uint16(buf[3:5]))
-	if recordLen == 0 || recordLen > sniffMaxBytes-tlsRecordHeaderLen {
-		return "", xerrors.New("tls record too large to sniff")
+	if len(c.buf) >= sniffMaxBytes {
+		return 0, io.EOF
 	}
-	if len(buf) < tlsRecordHeaderLen+recordLen {
-		return "", errNeedMore
+	n, err := c.Conn.Read(p[:min(len(p), sniffMaxBytes-len(c.buf))])
+	c.buf = append(c.buf, p[:n]...)
+	c.pos = len(c.buf)
+	if err != nil && c.err == nil {
+		c.err = err
 	}
-	hs := buf[tlsRecordHeaderLen : tlsRecordHeaderLen+recordLen]
-	if len(hs) < tlsHandshakeHeaderLen || hs[0] != tlsHandshakeClientHello {
-		return "", xerrors.New("not a client hello")
-	}
-	hsLen := int(hs[1])<<16 | int(hs[2])<<8 | int(hs[3])
-	body := hs[tlsHandshakeHeaderLen:]
-	if hsLen > len(body) {
-		// The handshake spans multiple records, which the peek buffer does
-		// not reassemble.
-		return "", xerrors.New("client hello spans multiple records")
-	}
-	body = body[:hsLen]
-
-	r := &byteReader{b: body}
-	if !r.skip(tlsClientHelloVersionLen + tlsClientHelloRandomLen) {
-		return "", xerrors.New("truncated client hello")
-	}
-	if !r.skipVec8() || !r.skipVec16() || !r.skipVec8() {
-		return "", xerrors.New("truncated client hello")
-	}
-	if r.remaining() == 0 {
-		// No extensions, so no SNI.
-		return "", nil
-	}
-	exts, ok := r.vec16()
-	if !ok {
-		return "", xerrors.New("truncated extensions")
-	}
-	er := &byteReader{b: exts}
-	for er.remaining() > 0 {
-		extType, ok := er.uint16()
-		if !ok {
-			return "", xerrors.New("truncated extension")
-		}
-		extData, ok := er.vec16()
-		if !ok {
-			return "", xerrors.New("truncated extension")
-		}
-		if extType != tlsExtensionServerName {
-			continue
-		}
-		nr := &byteReader{b: extData}
-		list, ok := nr.vec16()
-		if !ok {
-			return "", xerrors.New("truncated server name list")
-		}
-		lr := &byteReader{b: list}
-		for lr.remaining() > 0 {
-			nameType, ok := lr.uint8()
-			if !ok {
-				return "", xerrors.New("truncated server name")
-			}
-			name, ok := lr.vec16()
-			if !ok {
-				return "", xerrors.New("truncated server name")
-			}
-			if nameType == tlsServerNameTypeHost {
-				return NormalizeHost(string(name)), nil
-			}
-		}
-		return "", nil
-	}
-	return "", nil
+	return n, err
 }
 
-// byteReader is a tiny cursor over TLS vectors.
-type byteReader struct {
-	b   []byte
-	off int
-}
-
-func (r *byteReader) remaining() int { return len(r.b) - r.off }
-
-func (r *byteReader) skip(n int) bool {
-	if r.remaining() < n {
-		return false
-	}
-	r.off += n
-	return true
-}
-
-func (r *byteReader) uint8() (uint8, bool) {
-	if r.remaining() < 1 {
-		return 0, false
-	}
-	v := r.b[r.off]
-	r.off++
-	return v, true
-}
-
-func (r *byteReader) uint16() (uint16, bool) {
-	if r.remaining() < 2 {
-		return 0, false
-	}
-	v := binary.BigEndian.Uint16(r.b[r.off:])
-	r.off += 2
-	return v, true
-}
-
-func (r *byteReader) vec8() ([]byte, bool) {
-	n, ok := r.uint8()
-	if !ok || r.remaining() < int(n) {
-		return nil, false
-	}
-	v := r.b[r.off : r.off+int(n)]
-	r.off += int(n)
-	return v, true
-}
-
-func (r *byteReader) vec16() ([]byte, bool) {
-	n, ok := r.uint16()
-	if !ok || r.remaining() < int(n) {
-		return nil, false
-	}
-	v := r.b[r.off : r.off+int(n)]
-	r.off += int(n)
-	return v, true
-}
-
-func (r *byteReader) skipVec8() bool {
-	_, ok := r.vec8()
-	return ok
-}
-
-func (r *byteReader) skipVec16() bool {
-	_, ok := r.vec16()
-	return ok
-}
+func (*sniffConn) Write(p []byte) (int, error) { return len(p), nil }
 
 // replayingConn serves reads from r, which replays previously peeked bytes
 // before falling through to the underlying connection. All other methods,
@@ -310,16 +146,11 @@ func (c *replayingConn) CloseWrite() error {
 	return closeWrite(c.Conn)
 }
 
-// closeWriter is implemented by net.TCPConn, gonet.TCPConn, and the wrappers
-// in this package.
-type closeWriter interface {
-	CloseWrite() error
-}
-
-// closeWrite half-closes conn for writing when supported and otherwise falls
-// back to a full close, so the peer always observes EOF.
+// closeWrite half-closes conn for writing when supported (net.TCPConn,
+// gonet.TCPConn, and the wrappers in this package) and otherwise falls back
+// to a full close, so the peer always observes EOF.
 func closeWrite(conn net.Conn) error {
-	if cw, ok := conn.(closeWriter); ok {
+	if cw, ok := conn.(interface{ CloseWrite() error }); ok {
 		return cw.CloseWrite()
 	}
 	return conn.Close()

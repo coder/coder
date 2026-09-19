@@ -1,6 +1,7 @@
 package coderd
 
 import (
+	"cmp"
 	"context"
 	"database/sql"
 	"fmt"
@@ -14,16 +15,14 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
-	"github.com/coder/coder/v2/apiversion"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/tailnet"
-	"github.com/coder/coder/v2/tailnet/proto"
-	"github.com/coder/websocket"
 )
 
 // @Summary Create exit node
@@ -40,18 +39,10 @@ func (api *API) postExitNode(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx               = r.Context()
 		organization      = httpmw.OrganizationParam(r)
-		auditor           = api.AGPL.Auditor.Load()
-		aReq, commitAudit = audit.InitRequest[database.ExitNode](rw, &audit.RequestParams{
-			Audit:          *auditor,
-			Log:            api.Logger,
-			Request:        r,
-			Action:         database.AuditActionCreate,
-			OrganizationID: organization.ID,
-		})
+		aReq, commitAudit = api.exitNodeAudit(rw, r, database.AuditActionCreate)
+		req               codersdk.CreateExitNodeRequest
 	)
 	defer commitAudit()
-
-	var req codersdk.CreateExitNodeRequest
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
 	}
@@ -79,12 +70,7 @@ func (api *API) postExitNode(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	if httpapi.Is404Error(err) {
-		httpapi.ResourceNotFound(rw)
-		return
-	}
-	if err != nil {
-		httpapi.InternalServerError(rw, err)
+	if writeExitNodeError(rw, err) {
 		return
 	}
 
@@ -104,22 +90,13 @@ func (api *API) postExitNode(rw http.ResponseWriter, r *http.Request) {
 // @Success 200 {array} codersdk.ExitNode
 // @Router /api/v2/organizations/{organization}/exitnodes [get]
 func (api *API) exitNodes(rw http.ResponseWriter, r *http.Request) {
-	var (
-		ctx          = r.Context()
-		organization = httpmw.OrganizationParam(r)
-	)
-
-	nodes, err := api.Database.GetExitNodesByOrganization(ctx, organization.ID)
+	ctx := r.Context()
+	nodes, err := api.Database.GetExitNodesByOrganization(ctx, httpmw.OrganizationParam(r).ID)
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
 		return
 	}
-
-	resp := make([]codersdk.ExitNode, 0, len(nodes))
-	for _, node := range nodes {
-		resp = append(resp, convertExitNode(node))
-	}
-	httpapi.Write(ctx, rw, http.StatusOK, resp)
+	httpapi.Write(ctx, rw, http.StatusOK, slice.List(nodes, convertExitNode))
 }
 
 // @Summary Get exit node
@@ -132,12 +109,11 @@ func (api *API) exitNodes(rw http.ResponseWriter, r *http.Request) {
 // @Success 200 {object} codersdk.ExitNode
 // @Router /api/v2/organizations/{organization}/exitnodes/{exitnode} [get]
 func (api *API) exitNode(rw http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
 	node, ok := api.exitNodeParam(rw, r)
 	if !ok {
 		return
 	}
-	httpapi.Write(ctx, rw, http.StatusOK, convertExitNode(node))
+	httpapi.Write(r.Context(), rw, http.StatusOK, convertExitNode(node))
 }
 
 // @Summary Delete exit node
@@ -149,18 +125,7 @@ func (api *API) exitNode(rw http.ResponseWriter, r *http.Request) {
 // @Success 204
 // @Router /api/v2/organizations/{organization}/exitnodes/{exitnode} [delete]
 func (api *API) deleteExitNode(rw http.ResponseWriter, r *http.Request) {
-	var (
-		ctx               = r.Context()
-		organization      = httpmw.OrganizationParam(r)
-		auditor           = api.AGPL.Auditor.Load()
-		aReq, commitAudit = audit.InitRequest[database.ExitNode](rw, &audit.RequestParams{
-			Audit:          *auditor,
-			Log:            api.Logger,
-			Request:        r,
-			Action:         database.AuditActionDelete,
-			OrganizationID: organization.ID,
-		})
-	)
+	aReq, commitAudit := api.exitNodeAudit(rw, r, database.AuditActionDelete)
 	defer commitAudit()
 
 	node, ok := api.exitNodeParam(rw, r)
@@ -168,19 +133,37 @@ func (api *API) deleteExitNode(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	aReq.Old = node
-
-	err := api.Database.DeleteExitNodeByID(ctx, node.ID)
-	if httpapi.Is404Error(err) {
-		httpapi.ResourceNotFound(rw)
+	if writeExitNodeError(rw, api.Database.DeleteExitNodeByID(r.Context(), node.ID)) {
 		return
 	}
-	if err != nil {
-		httpapi.InternalServerError(rw, err)
-		return
-	}
-
 	aReq.New = database.ExitNode{}
 	rw.WriteHeader(http.StatusNoContent)
+}
+
+// exitNodeAudit starts an audit request for an exit node mutation in the
+// organization from ExtractOrganizationParam.
+func (api *API) exitNodeAudit(rw http.ResponseWriter, r *http.Request, action database.AuditAction) (*audit.Request[database.ExitNode], func()) {
+	return audit.InitRequest[database.ExitNode](rw, &audit.RequestParams{
+		Audit:          *api.AGPL.Auditor.Load(),
+		Log:            api.Logger,
+		Request:        r,
+		Action:         action,
+		OrganizationID: httpmw.OrganizationParam(r).ID,
+	})
+}
+
+// writeExitNodeError writes a 404 for missing or unauthorized rows and a 500
+// for any other error. It reports whether a response was written.
+func writeExitNodeError(rw http.ResponseWriter, err error) bool {
+	switch {
+	case err == nil:
+		return false
+	case httpapi.Is404Error(err):
+		httpapi.ResourceNotFound(rw)
+	default:
+		httpapi.InternalServerError(rw, err)
+	}
+	return true
 }
 
 // exitNodeParam resolves the {exitnode} URL parameter, which may be an ID or
@@ -191,18 +174,15 @@ func (api *API) exitNodeParam(rw http.ResponseWriter, r *http.Request) (database
 		ctx          = r.Context()
 		organization = httpmw.OrganizationParam(r)
 		param        = chi.URLParam(r, "exitnode")
+		node         database.ExitNode
+		err          error
 	)
 	if param == "" {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "\"exitnode\" must be provided.",
 		})
-		return database.ExitNode{}, false
+		return node, false
 	}
-
-	var (
-		node database.ExitNode
-		err  error
-	)
 	if id, parseErr := uuid.Parse(param); parseErr == nil {
 		node, err = api.Database.GetExitNodeByID(ctx, id)
 		if err == nil && (node.Deleted || node.OrganizationID != organization.ID) {
@@ -214,15 +194,7 @@ func (api *API) exitNodeParam(rw http.ResponseWriter, r *http.Request) (database
 			Name:           param,
 		})
 	}
-	if httpapi.Is404Error(err) {
-		httpapi.ResourceNotFound(rw)
-		return database.ExitNode{}, false
-	}
-	if err != nil {
-		httpapi.InternalServerError(rw, err)
-		return database.ExitNode{}, false
-	}
-	return node, true
+	return node, !writeExitNodeError(rw, err)
 }
 
 // @Summary Register exit node
@@ -239,22 +211,17 @@ func (api *API) registerExitNode(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx  = r.Context()
 		node = httpmw.ExitNode(r)
+		req  codersdk.RegisterExitNodeRequest
 	)
-
-	var req codersdk.RegisterExitNodeRequest
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
 	}
 
-	endpoints := req.WireguardEndpoints
-	if endpoints == nil {
-		endpoints = []string{}
-	}
 	_, err := api.Database.UpdateExitNodeRegistration(ctx, database.UpdateExitNodeRegistrationParams{
 		ID:                 node.ID,
 		Version:            req.Version,
 		LastSeenAt:         dbtime.Now(),
-		WireguardEndpoints: endpoints,
+		WireguardEndpoints: nonNil(req.WireguardEndpoints),
 	})
 	if err != nil {
 		httpapi.InternalServerError(rw, xerrors.Errorf("update exit node registration: %w", err))
@@ -268,14 +235,11 @@ func (api *API) registerExitNode(rw http.ResponseWriter, r *http.Request) {
 		httpapi.InternalServerError(rw, xerrors.Errorf("get bound agents: %w", err))
 		return
 	}
-	if agentIDs == nil {
-		agentIDs = []uuid.UUID{}
-	}
 
 	httpapi.Write(ctx, rw, http.StatusCreated, codersdk.RegisterExitNodeResponse{
 		DERPMap:             api.AGPL.DERPMap(),
 		DERPForceWebSockets: api.DeploymentValues.DERP.Config.ForceWebSockets.Value(),
-		AgentIDs:            agentIDs,
+		AgentIDs:            nonNil(agentIDs),
 	})
 }
 
@@ -287,67 +251,9 @@ func (api *API) registerExitNode(rw http.ResponseWriter, r *http.Request) {
 // @Router /api/v2/exitnodes/me/coordinate [get]
 // @x-apidocgen {"skip": true}
 func (api *API) exitNodeCoordinate(rw http.ResponseWriter, r *http.Request) {
-	var (
-		ctx  = r.Context()
-		node = httpmw.ExitNode(r)
-	)
-
-	version := "1.0"
-	msgType := websocket.MessageText
-	qv := r.URL.Query().Get("version")
-	if qv != "" {
-		version = qv
-	}
-	if err := proto.CurrentVersion.Validate(version); err != nil {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Unknown or unsupported API version",
-			Validations: []codersdk.ValidationError{
-				{Field: "version", Detail: err.Error()},
-			},
-		})
-		return
-	}
-	maj, _, _ := apiversion.Parse(version)
-	if maj >= 2 {
-		// Versions 2+ use dRPC over a binary connection.
-		msgType = websocket.MessageBinary
-	}
-
-	api.AGPL.WebsocketWaitMutex.Lock()
-	api.AGPL.WebsocketWaitGroup.Add(1)
-	api.AGPL.WebsocketWaitMutex.Unlock()
-	defer api.AGPL.WebsocketWaitGroup.Done()
-
-	conn, err := websocket.Accept(rw, r, nil)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Failed to accept websocket.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	ctx, nc := codersdk.WebsocketNetConn(ctx, conn, msgType)
-	defer nc.Close()
-
 	// The exit node ID doubles as its tailnet peer ID so that agents can
 	// derive its tailnet address from the ID alone.
-	err = api.tailnetService.ServeMultiAgentClient(ctx, version, nc, node.ID)
-	if err != nil {
-		_ = conn.Close(websocket.StatusInternalError, err.Error())
-	} else {
-		_ = conn.Close(websocket.StatusGoingAway, "")
-	}
-}
-
-// exitNodeFlowAgent caches the workspace context of an agent for one flow
-// report so that repeated flows from the same agent cost one lookup.
-type exitNodeFlowAgent struct {
-	agent     database.WorkspaceAgent
-	workspace database.Workspace
-	// bound is false when the agent's template does not route egress
-	// through the reporting exit node.
-	bound bool
+	api.serveMultiAgentCoordinate(rw, r, httpmw.ExitNode(r).ID)
 }
 
 // @Summary Report exit node flows
@@ -363,33 +269,34 @@ func (api *API) reportExitNodeFlows(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx  = r.Context()
 		node = httpmw.ExitNode(r)
+		req  codersdk.ReportExitNodeFlowsRequest
 	)
-
-	var req codersdk.ReportExitNodeFlowsRequest
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
 	}
-
 	connLogger := api.AGPL.ConnectionLogger.Load()
 	if connLogger == nil {
 		rw.WriteHeader(http.StatusNoContent)
 		return
 	}
 
-	agents := make(map[uuid.UUID]exitNodeFlowAgent)
+	// Connection log fields shared by every flow from one agent are resolved
+	// once per report. A nil entry marks an agent that is unknown or whose
+	// template does not route egress through this exit node.
+	agents := make(map[uuid.UUID]*database.UpsertConnectionLogParams)
 	templates := make(map[uuid.UUID]database.Template)
 	for _, flow := range req.Flows {
-		info, ok := agents[flow.AgentID]
+		base, ok := agents[flow.AgentID]
 		if !ok {
 			var err error
-			info, err = api.resolveExitNodeFlowAgent(ctx, node, flow.AgentID, templates)
+			base, err = api.exitNodeFlowBase(ctx, node.ID, flow.AgentID, templates)
 			if err != nil {
 				httpapi.InternalServerError(rw, xerrors.Errorf("resolve agent %s: %w", flow.AgentID, err))
 				return
 			}
-			agents[flow.AgentID] = info
+			agents[flow.AgentID] = base
 		}
-		if !info.bound {
+		if base == nil {
 			api.Logger.Warn(ctx, "ignoring flow for agent not bound to exit node",
 				slog.F("exit_node_id", node.ID),
 				slog.F("agent_id", flow.AgentID),
@@ -397,54 +304,62 @@ func (api *API) reportExitNodeFlows(rw http.ResponseWriter, r *http.Request) {
 			)
 			continue
 		}
-
-		for _, params := range exitNodeFlowConnectionLogs(info, flow) {
+		for _, params := range exitNodeFlowConnectionLogs(*base, flow) {
 			if err := (*connLogger).Upsert(ctx, params); err != nil {
 				httpapi.InternalServerError(rw, xerrors.Errorf("upsert connection log: %w", err))
 				return
 			}
 		}
 	}
-
 	rw.WriteHeader(http.StatusNoContent)
 }
 
-// resolveExitNodeFlowAgent loads the agent and workspace behind a flow and
-// checks that the workspace's template is bound to the reporting exit node.
-// A missing agent is reported as unbound rather than an error so one stale
-// flow cannot fail the whole report.
-func (api *API) resolveExitNodeFlowAgent(ctx context.Context, node database.ExitNode, agentID uuid.UUID, templates map[uuid.UUID]database.Template) (exitNodeFlowAgent, error) {
+// exitNodeFlowBase loads the agent and workspace behind a flow and returns
+// the connection log fields they contribute, or nil when the agent is missing
+// or its template is not bound to exitNodeID. A missing agent is not an error
+// so one stale flow cannot fail the whole report. templates caches lookups
+// across agents of one report.
+func (api *API) exitNodeFlowBase(ctx context.Context, exitNodeID, agentID uuid.UUID, templates map[uuid.UUID]database.Template) (*database.UpsertConnectionLogParams, error) {
 	agent, err := api.Database.GetWorkspaceAgentByID(ctx, agentID)
 	if httpapi.Is404Error(err) {
-		return exitNodeFlowAgent{}, nil
+		return nil, nil //nolint:nilnil // Unknown agents are skipped.
 	}
 	if err != nil {
-		return exitNodeFlowAgent{}, xerrors.Errorf("get workspace agent: %w", err)
+		return nil, xerrors.Errorf("get workspace agent: %w", err)
 	}
 	workspace, err := api.Database.GetWorkspaceByAgentID(ctx, agentID)
 	if httpapi.Is404Error(err) {
-		return exitNodeFlowAgent{}, nil
+		return nil, nil //nolint:nilnil // Unknown workspaces are skipped.
 	}
 	if err != nil {
-		return exitNodeFlowAgent{}, xerrors.Errorf("get workspace by agent: %w", err)
+		return nil, xerrors.Errorf("get workspace by agent: %w", err)
 	}
 	template, ok := templates[workspace.TemplateID]
 	if !ok {
-		template, err = api.Database.GetTemplateByID(ctx, workspace.TemplateID)
-		if err != nil {
-			return exitNodeFlowAgent{}, xerrors.Errorf("get template: %w", err)
+		if template, err = api.Database.GetTemplateByID(ctx, workspace.TemplateID); err != nil {
+			return nil, xerrors.Errorf("get template: %w", err)
 		}
 		templates[workspace.TemplateID] = template
 	}
-	return exitNodeFlowAgent{
-		agent:     agent,
-		workspace: workspace,
-		bound:     template.ExitNodeID.Valid && template.ExitNodeID.UUID == node.ID,
+	if !template.ExitNodeID.Valid || template.ExitNodeID.UUID != exitNodeID {
+		return nil, nil //nolint:nilnil // Unbound agents are skipped.
+	}
+	// Exit nodes report agent traffic, so no user or user agent is known.
+	// The per-flow fields are set by exitNodeFlowConnectionLogs.
+	//nolint:exhaustruct // See above.
+	return &database.UpsertConnectionLogParams{
+		OrganizationID:   workspace.OrganizationID,
+		WorkspaceOwnerID: workspace.OwnerID,
+		WorkspaceID:      workspace.ID,
+		WorkspaceName:    workspace.Name,
+		AgentName:        agent.Name,
+		Type:             database.ConnectionTypeEgress,
 	}, nil
 }
 
 // exitNodeFlowConnectionLogs encodes one flow report as connection log
-// upserts. The connection_logs schema is reused without changes:
+// upserts on top of the agent fields in base. The connection_logs schema is
+// reused without changes:
 //
 //   - id and connection_id are the flow ID, so connect and disconnect
 //     reports for one flow collapse into a single row.
@@ -463,36 +378,27 @@ func (api *API) resolveExitNodeFlowAgent(ctx context.Context, node database.Exit
 // A report carrying a disconnect time yields a connect upsert followed by a
 // disconnect upsert so that connect_time is preserved even when the exit
 // node reports the whole flow at once.
-func exitNodeFlowConnectionLogs(info exitNodeFlowAgent, flow codersdk.ExitNodeFlowReport) []database.UpsertConnectionLogParams {
+func exitNodeFlowConnectionLogs(base database.UpsertConnectionLogParams, flow codersdk.ExitNodeFlowReport) []database.UpsertConnectionLogParams {
 	deny := flow.Decision == codersdk.ExitNodeFlowDeny
-
-	var code int32
+	base.ID = flow.FlowID
+	base.ConnectionID = uuid.NullUUID{UUID: flow.FlowID, Valid: true}
+	base.IP = database.ParseIP(flow.DestinationIP)
+	base.Code = sql.NullInt32{Valid: true}
 	if deny {
-		code = http.StatusForbidden
+		base.Code.Int32 = http.StatusForbidden
 	}
-
-	destination := exitNodeFlowDestination(flow)
-
-	base := database.UpsertConnectionLogParams{
-		ID:               flow.FlowID,
-		OrganizationID:   info.workspace.OrganizationID,
-		WorkspaceOwnerID: info.workspace.OwnerID,
-		WorkspaceID:      info.workspace.ID,
-		WorkspaceName:    info.workspace.Name,
-		AgentName:        info.agent.Name,
-		Type:             database.ConnectionTypeEgress,
-		Code:             sql.NullInt32{Int32: code, Valid: true},
-		IP:               database.ParseIP(flow.DestinationIP),
-		SlugOrPort:       sql.NullString{String: destination, Valid: true},
-		ConnectionID:     uuid.NullUUID{UUID: flow.FlowID, Valid: true},
-		// Exit nodes report agent traffic, so no user or user agent is known.
-		UserAgent:        sql.NullString{},
-		UserID:           uuid.NullUUID{},
-		DisconnectReason: sql.NullString{},
-		Time:             time.Time{},
-		ConnectionStatus: "",
+	hostPort := net.JoinHostPort(cmp.Or(flow.Host, flow.DestinationIP), strconv.Itoa(flow.DestinationPort))
+	base.SlugOrPort = sql.NullString{String: hostPort, Valid: true}
+	switch flow.Protocol {
+	case codersdk.ExitNodeProtocolDNS:
+		base.SlugOrPort.String = string(codersdk.ExitNodeProtocolDNS) + " " + flow.Host
+	case codersdk.ExitNodeProtocolUDP:
+		base.SlugOrPort.String = string(codersdk.ExitNodeProtocolUDP) + " " + hostPort
 	}
-	reason := exitNodeFlowReason(flow)
+	reason := cmp.Or(flow.Reason, string(flow.Decision))
+	if flow.RuleID != "" {
+		reason = flow.RuleID + ": " + reason
+	}
 
 	connect := base
 	connect.Time = flow.ConnectTime
@@ -503,7 +409,6 @@ func exitNodeFlowConnectionLogs(info exitNodeFlowAgent, flow codersdk.ExitNodeFl
 	if flow.DisconnectTime == nil {
 		return []database.UpsertConnectionLogParams{connect}
 	}
-
 	disconnect := base
 	disconnect.Time = *flow.DisconnectTime
 	disconnect.ConnectionStatus = database.ConnectionStatusDisconnected
@@ -514,48 +419,10 @@ func exitNodeFlowConnectionLogs(info exitNodeFlowAgent, flow codersdk.ExitNodeFl
 	return []database.UpsertConnectionLogParams{connect, disconnect}
 }
 
-// exitNodeFlowDestination builds the slug_or_port encoding described on
-// exitNodeFlowConnectionLogs. decodeEgressDestination reverses it.
-func exitNodeFlowDestination(flow codersdk.ExitNodeFlowReport) string {
-	switch flow.Protocol {
-	case codersdk.ExitNodeProtocolDNS:
-		return string(codersdk.ExitNodeProtocolDNS) + " " + flow.Host
-	case codersdk.ExitNodeProtocolUDP:
-		return string(codersdk.ExitNodeProtocolUDP) + " " + exitNodeFlowHostPort(flow)
-	default:
-		return exitNodeFlowHostPort(flow)
-	}
-}
-
-func exitNodeFlowHostPort(flow codersdk.ExitNodeFlowReport) string {
-	host := flow.Host
-	if host == "" {
-		host = flow.DestinationIP
-	}
-	return net.JoinHostPort(host, strconv.Itoa(flow.DestinationPort))
-}
-
-// exitNodeFlowReason builds the "<rule id>: <reason>" prefix of the
-// disconnect_reason encoding described on exitNodeFlowConnectionLogs.
-func exitNodeFlowReason(flow codersdk.ExitNodeFlowReport) string {
-	reason := flow.Reason
-	if reason == "" {
-		reason = string(flow.Decision)
-	}
-	if flow.RuleID != "" {
-		reason = flow.RuleID + ": " + reason
-	}
-	return reason
-}
-
 func convertExitNode(node database.ExitNode) codersdk.ExitNode {
 	var lastSeenAt *time.Time
 	if node.LastSeenAt.Valid {
 		lastSeenAt = &node.LastSeenAt.Time
-	}
-	endpoints := node.WireguardEndpoints
-	if endpoints == nil {
-		endpoints = []string{}
 	}
 	return codersdk.ExitNode{
 		ID:                 node.ID,
@@ -566,7 +433,16 @@ func convertExitNode(node database.ExitNode) codersdk.ExitNode {
 		UpdatedAt:          node.UpdatedAt,
 		LastSeenAt:         lastSeenAt,
 		Version:            node.Version,
-		WireguardEndpoints: endpoints,
+		WireguardEndpoints: nonNil(node.WireguardEndpoints),
 		TailnetAddress:     tailnet.TailscaleServicePrefix.AddrFromUUID(node.ID).String(),
 	}
+}
+
+// nonNil replaces a nil slice with an empty one so it encodes as a JSON
+// array and as a non-null database array.
+func nonNil[T any](s []T) []T {
+	if s == nil {
+		return []T{}
+	}
+	return s
 }

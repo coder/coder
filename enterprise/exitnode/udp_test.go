@@ -15,7 +15,6 @@ import (
 
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/exitnode"
-	"github.com/coder/coder/v2/tailnet"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
 )
@@ -43,11 +42,8 @@ func startUDPEcho(t *testing.T) *net.UDPAddr {
 }
 
 func frame(payload []byte) []byte {
-	f := make([]byte, 2+len(payload))
 	// #nosec G115 - Tests only build frames up to 65535 bytes.
-	binary.BigEndian.PutUint16(f, uint16(len(payload)))
-	copy(f[2:], payload)
-	return f
+	return append(binary.BigEndian.AppendUint16(nil, uint16(len(payload))), payload...)
 }
 
 func readTestFrame(t *testing.T, r *bufio.Reader) []byte {
@@ -78,10 +74,7 @@ func TestConnectProxy_UDP(t *testing.T) {
 		h := newProxyHarness(t, "default: allow\n", func(o *exitnode.ConnectProxyOptions) {
 			o.Clock = mClock
 		})
-		src := tailnet.TailscaleServicePrefix.AddrFromUUID(h.agentID)
-		client, br, resp, done := h.connectWithHeaders(ctx, t, src, echo.String(), udpHeader)
-		require.True(t, resp.ok)
-		require.Equal(t, http.StatusOK, resp.status)
+		client, br, _, done := h.connectStatus(ctx, t, echo.String(), http.StatusOK, udpHeader)
 
 		connectReport := testutil.RequireReceive(ctx, t, h.flows.ch)
 		require.Equal(t, codersdk.ExitNodeFlowAllow, connectReport.Decision)
@@ -94,22 +87,17 @@ func TestConnectProxy_UDP(t *testing.T) {
 		idleTrap.MustWait(ctx).MustRelease(ctx)
 
 		// The proxy reads frames continuously, so pipe writes complete
-		// synchronously.
-		_, err := client.Write(frame([]byte("hello")))
-		require.NoError(t, err)
-		require.Equal(t, "hello", string(readTestFrame(t, br)))
-		_, err = client.Write(frame(nil))
-		require.NoError(t, err)
-		require.Empty(t, readTestFrame(t, br), "empty datagrams are legal and must round-trip")
-		_, err = client.Write(frame([]byte("again")))
-		require.NoError(t, err)
-		require.Equal(t, "again", string(readTestFrame(t, br)))
+		// synchronously. Empty datagrams are legal and must round-trip.
+		for _, payload := range []string{"hello", "", "again"} {
+			_, err := client.Write(frame([]byte(payload)))
+			require.NoError(t, err)
+			require.Equal(t, payload, string(readTestFrame(t, br)))
+		}
 
 		// Nothing else happens until the idle timeout fires and closes both
 		// ends.
 		mClock.Advance(exitnode.DefaultUDPIdleTimeout).MustWait(ctx)
-		_, err = br.ReadByte()
-		require.ErrorIs(t, err, io.EOF)
+		requireEOF(t, br)
 		testutil.RequireReceive(ctx, t, done)
 
 		disconnectReport := testutil.RequireReceive(ctx, t, h.flows.ch)
@@ -127,10 +115,7 @@ func TestConnectProxy_UDP(t *testing.T) {
 		echo := startUDPEcho(t)
 
 		h := newProxyHarness(t, "default: allow\n")
-		src := tailnet.TailscaleServicePrefix.AddrFromUUID(h.agentID)
-		client, br, resp, done := h.connectWithHeaders(ctx, t, src, echo.String(), udpHeader)
-		require.True(t, resp.ok)
-		require.Equal(t, http.StatusOK, resp.status)
+		client, br, _, done := h.connectStatus(ctx, t, echo.String(), http.StatusOK, udpHeader)
 		testutil.RequireReceive(ctx, t, h.flows.ch)
 
 		// 65535 bytes is the largest frame the 16-bit length can describe
@@ -139,8 +124,7 @@ func TestConnectProxy_UDP(t *testing.T) {
 		go func() {
 			_, _ = client.Write(frame(make([]byte, 65535)))
 		}()
-		_, err := br.ReadByte()
-		require.ErrorIs(t, err, io.EOF)
+		requireEOF(t, br)
 		testutil.RequireReceive(ctx, t, done)
 
 		disconnectReport := testutil.RequireReceive(ctx, t, h.flows.ch)
@@ -168,7 +152,6 @@ func TestConnectProxy_UDP(t *testing.T) {
 			}
 		}()
 		target := ln.Addr().String()
-		port := netip.MustParseAddrPort(target).Port()
 
 		h := newProxyHarness(t, fmt.Sprintf(`
 default: allow
@@ -177,16 +160,12 @@ rules:
     deny:
       protocols: [udp]
       ports: [%d]
-`, port))
-		src := tailnet.TailscaleServicePrefix.AddrFromUUID(h.agentID)
+`, netip.MustParseAddrPort(target).Port()))
 
-		client, _, resp, done := h.connectWithHeaders(ctx, t, src, target, udpHeader)
-		require.True(t, resp.ok)
-		require.Equal(t, http.StatusForbidden, resp.status)
+		client, _, resp, done := h.connectStatus(ctx, t, target, http.StatusForbidden, udpHeader)
 		require.Equal(t, "no-quic", resp.header.Get(codersdk.ExitNodeDenyRuleHeader))
 		require.Equal(t, "matched rule no-quic", resp.header.Get(codersdk.ExitNodeDenyReasonHeader))
-		_, err = client.Read(make([]byte, 1))
-		require.ErrorIs(t, err, io.EOF)
+		requireEOF(t, client)
 		testutil.RequireReceive(ctx, t, done)
 		report := testutil.RequireReceive(ctx, t, h.flows.ch)
 		require.Equal(t, codersdk.ExitNodeFlowDeny, report.Decision)
@@ -194,9 +173,7 @@ rules:
 		require.Equal(t, "no-quic", report.RuleID)
 
 		// The same destination over tcp is unaffected.
-		client, br, resp, done := h.connect(ctx, t, src, target)
-		require.True(t, resp.ok)
-		require.Equal(t, http.StatusOK, resp.status)
+		client, br, _, done := h.connectStatus(ctx, t, target, http.StatusOK)
 		go func() { _, _ = io.WriteString(client, "GET / HTTP/1.1\r\nHost: x\r\n\r\n") }()
 		require.Equal(t, "ok", readTunneled(t, br))
 		_ = client.Close()

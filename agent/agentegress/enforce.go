@@ -4,8 +4,8 @@ import (
 	"context"
 	"net"
 	"net/netip"
+	"slices"
 	"strconv"
-	"strings"
 	"sync"
 
 	"golang.org/x/xerrors"
@@ -95,39 +95,31 @@ func NewEnforcer(logger slog.Logger, opts EnforcerOptions) (*Enforcer, error) {
 	if opts.UDPPort == 0 {
 		return nil, xerrors.New("udp port is required")
 	}
-	execer := opts.Execer
-	if execer == nil {
-		execer = agentexec.DefaultExecer
-	}
-	resolver := opts.Resolver
-	if resolver == nil {
-		resolver = net.DefaultResolver
-	}
-	return &Enforcer{
+	e := &Enforcer{
 		logger:    logger,
-		execer:    execer,
-		resolver:  resolver,
+		execer:    opts.Execer,
+		resolver:  opts.Resolver,
 		ports:     proxyPorts{tcp: opts.ProxyPort, dns: opts.DNSPort, udp: opts.UDPPort},
 		hosts:     opts.ControlPlaneHosts,
 		resolvers: opts.Resolvers,
-	}, nil
-}
-
-// hostExemption is a control plane destination that must bypass the proxy.
-// A zero port matches every port.
-type hostExemption struct {
-	addr netip.Addr
-	port uint16
+	}
+	if e.execer == nil {
+		e.execer = agentexec.DefaultExecer
+	}
+	if e.resolver == nil {
+		e.resolver = net.DefaultResolver
+	}
+	return e, nil
 }
 
 // rule is the argument list passed to iptables after "-t <table>".
 type rule []string
 
-// ruleSet is the complete set of rules for one address family.
-type ruleSet struct {
-	nat    []rule
-	filter []rule
-}
+// ruleSet maps an iptables table to the rules for the chain owned there.
+type ruleSet map[string][]rule
+
+// tables pairs each managed iptables table with the chain owned in it.
+var tables = []struct{ table, chain string }{{"nat", natChain}, {"filter", filterChain}}
 
 // ipFamily selects the address family a rule set is built for.
 type ipFamily int
@@ -137,119 +129,88 @@ const (
 	ipv6
 )
 
-// buildRules produces the chain contents for one address family. Callers
-// pass only exemptions and resolvers of the matching family; ipv6 selects
-// the ip6tables spelling of the ICMP rules.
-func buildRules(ports proxyPorts, exemptions []hostExemption, resolvers []netip.Addr, family ipFamily) ruleSet {
-	var rs ruleSet
+// matches reports whether addr belongs to the family.
+func (f ipFamily) matches(addr netip.Addr) bool {
+	return addr.Is4() == (f == ipv4)
+}
+
+// buildRules produces the chain contents for one address family. Exemptions
+// and resolvers of the other family are skipped; ipv6 selects the ip6tables
+// spelling of the ICMP rules. A zero exemption port matches every port.
+func buildRules(ports proxyPorts, exemptions []netip.AddrPort, resolvers []netip.Addr, family ipFamily) ruleSet {
+	rs := ruleSet{}
+	nat := func(args ...string) { rs["nat"] = append(rs["nat"], append(rule{"-A", natChain}, args...)) }
+	filter := func(args ...string) { rs["filter"] = append(rs["filter"], append(rule{"-A", filterChain}, args...)) }
+	port := func(p uint16) string { return strconv.Itoa(int(p)) }
 
 	// Loopback stays local, otherwise the proxy would redirect its own
 	// clients back into itself.
-	rs.nat = append(rs.nat, rule{"-A", natChain, "-o", "lo", "-j", "RETURN"})
+	nat("-o", "lo", "-j", "RETURN")
 	for _, ex := range exemptions {
+		if !family.matches(ex.Addr()) {
+			continue
+		}
 		// WireGuard, STUN and DERP to the control plane and exit node must
 		// flow over both transports.
 		for _, proto := range []string{"tcp", "udp"} {
-			r := rule{"-A", natChain, "-d", ex.addr.String(), "-p", proto}
-			if ex.port != 0 {
-				r = append(r, "--dport", strconv.Itoa(int(ex.port)))
+			args := []string{"-d", ex.Addr().String(), "-p", proto}
+			if ex.Port() != 0 {
+				args = append(args, "--dport", port(ex.Port()))
 			}
-			rs.nat = append(rs.nat, append(r, "-j", "RETURN"))
+			nat(append(args, "-j", "RETURN")...)
 		}
 	}
 	// The proxy reaches the system resolvers over TCP for exempt names.
 	// Clients that do the same bypass the fake IP scheme but still hit the
 	// TCP redirect for whatever they connect to next.
 	for _, addr := range resolvers {
-		rs.nat = append(rs.nat, rule{"-A", natChain, "-d", addr.String(), "-p", "tcp", "--dport", "53", "-j", "RETURN"})
-	}
-	rs.nat = append(rs.nat,
-		rule{"-A", natChain, "-p", "udp", "--dport", "53", "-j", "REDIRECT", "--to-ports", strconv.Itoa(int(ports.dns))},
-		rule{"-A", natChain, "-p", "tcp", "--dport", "53", "-j", "REDIRECT", "--to-ports", strconv.Itoa(int(ports.dns))},
-		rule{"-A", natChain, "-p", "udp", "-j", "REDIRECT", "--to-ports", strconv.Itoa(int(ports.udp))},
-		rule{"-A", natChain, "-p", "tcp", "-j", "REDIRECT", "--to-ports", strconv.Itoa(int(ports.tcp))},
-	)
-
-	// UDP is no longer dropped here: it is redirected and the exit node
-	// decides, so a QUIC denial is a logged policy decision rather than a
-	// silent kernel drop. ICMP cannot be carried by the proxy at all.
-	rs.filter = append(rs.filter, rule{"-A", filterChain, "-o", "lo", "-j", "ACCEPT"})
-	if family == ipv6 {
-		for _, typ := range ndpICMPv6Types {
-			rs.filter = append(rs.filter, rule{"-A", filterChain, "-p", "icmpv6", "--icmpv6-type", typ, "-j", "ACCEPT"})
+		if family.matches(addr) {
+			nat("-d", addr.String(), "-p", "tcp", "--dport", "53", "-j", "RETURN")
 		}
-		rs.filter = append(rs.filter, rule{"-A", filterChain, "-p", "icmpv6", "-j", "DROP"})
-	} else {
-		rs.filter = append(rs.filter, rule{"-A", filterChain, "-p", "icmp", "-j", "DROP"})
 	}
+	nat("-p", "udp", "--dport", "53", "-j", "REDIRECT", "--to-ports", port(ports.dns))
+	nat("-p", "tcp", "--dport", "53", "-j", "REDIRECT", "--to-ports", port(ports.dns))
+	nat("-p", "udp", "-j", "REDIRECT", "--to-ports", port(ports.udp))
+	nat("-p", "tcp", "-j", "REDIRECT", "--to-ports", port(ports.tcp))
+
+	// UDP is not dropped here: it is redirected and the exit node decides,
+	// so a QUIC denial is a logged policy decision rather than a silent
+	// kernel drop. ICMP cannot be carried by the proxy at all.
+	filter("-o", "lo", "-j", "ACCEPT")
+	if family == ipv4 {
+		filter("-p", "icmp", "-j", "DROP")
+		return rs
+	}
+	for _, typ := range ndpICMPv6Types {
+		filter("-p", "icmpv6", "--icmpv6-type", typ, "-j", "ACCEPT")
+	}
+	filter("-p", "icmpv6", "-j", "DROP")
 	return rs
 }
 
 // resolveExemptions turns ControlPlaneHosts into concrete addresses. Hosts
 // that fail to resolve are logged and skipped rather than blocking
 // enforcement, since a missing exemption fails closed.
-func (e *Enforcer) resolveExemptions(ctx context.Context) []hostExemption {
-	var out []hostExemption
-	seen := make(map[hostExemption]struct{})
-	add := func(ex hostExemption) {
-		if _, ok := seen[ex]; ok {
-			return
-		}
-		seen[ex] = struct{}{}
-		out = append(out, ex)
-	}
+func (e *Enforcer) resolveExemptions(ctx context.Context) []netip.AddrPort {
+	var out []netip.AddrPort
 	for _, hostport := range e.hosts {
 		host, port := splitHostPortDefault(hostport, 0)
 		if host == "" {
 			continue
 		}
+		var addrs []netip.Addr
 		if addr, err := netip.ParseAddr(host); err == nil {
-			add(hostExemption{addr: addr.Unmap(), port: port})
-			continue
-		}
-		addrs, err := e.resolver.LookupNetIP(ctx, "ip", host)
-		if err != nil {
+			addrs = []netip.Addr{addr}
+		} else if addrs, err = e.resolver.LookupNetIP(ctx, "ip", host); err != nil {
 			e.logger.Warn(ctx, "control plane host did not resolve, not exempting it from egress enforcement",
 				slog.F("host", host), slog.Error(err))
 			continue
 		}
 		for _, addr := range addrs {
-			add(hostExemption{addr: addr.Unmap(), port: port})
+			if ex := netip.AddrPortFrom(addr.Unmap(), port); !slices.Contains(out, ex) {
+				out = append(out, ex)
+			}
 		}
 	}
 	return out
-}
-
-func splitByFamily(exemptions []hostExemption) (v4, v6 []hostExemption) {
-	for _, ex := range exemptions {
-		if ex.addr.Is4() {
-			v4 = append(v4, ex)
-		} else {
-			v6 = append(v6, ex)
-		}
-	}
-	return v4, v6
-}
-
-func splitAddrsByFamily(addrs []netip.Addr) (v4, v6 []netip.Addr) {
-	for _, addr := range addrs {
-		if addr.Is4() {
-			v4 = append(v4, addr)
-		} else {
-			v6 = append(v6, addr)
-		}
-	}
-	return v4, v6
-}
-
-// upstreamResolvers returns the configured resolvers, or the system ones.
-func (e *Enforcer) upstreamResolvers() []netip.Addr {
-	if e.resolvers != nil {
-		return e.resolvers
-	}
-	return systemResolvers()
-}
-
-func (r rule) String() string {
-	return strings.Join(r, " ")
 }

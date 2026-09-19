@@ -2,11 +2,13 @@ package exitnode
 
 import (
 	"fmt"
+	"net"
 	"net/netip"
 	"os"
+	"slices"
 	"strconv"
 	"strings"
-	"sync"
+	"sync/atomic"
 
 	"golang.org/x/xerrors"
 	"gopkg.in/yaml.v3"
@@ -48,28 +50,7 @@ type Decision struct {
 	Reason string
 }
 
-// PolicyEvaluator decides whether a flow may proceed. Implementations must be
-// safe for concurrent use. The interface exists so that an external engine
-// such as Envoy or OPA can replace the built-in YAML policy.
-type PolicyEvaluator interface {
-	Evaluate(FlowInfo) Decision
-}
-
-// Reloader is implemented by policy evaluators whose configuration can be
-// re-read at runtime, for example on SIGHUP.
-type Reloader interface {
-	Reload() error
-}
-
-// Action is the outcome a rule or default produces.
-type Action string
-
-const (
-	ActionAllow Action = "allow"
-	ActionDeny  Action = "deny"
-)
-
-// PolicyFile is the YAML representation of a policy. Rules are evaluated in
+// policyFile is the YAML representation of a policy. Rules are evaluated in
 // order and the first match wins. A rule matches when every criterion it
 // specifies matches; criteria that are omitted match anything.
 //
@@ -88,6 +69,11 @@ const (
 //	  - allow:
 //	      ports: ["8000-8999"]
 //
+// hosts are exact names or "*.suffix" globs; a glob matches subdomains only,
+// and the bare "*" matches any known host. cidrs are prefixes or single
+// addresses. ports are integers or "start-end" ranges. protocols restricts
+// the rule to some of tcp, udp, and dns.
+//
 // tcp and udp flows are evaluated identically: hosts, cidrs, ports, and
 // protocols must all match, and default applies when no rule matches.
 //
@@ -100,207 +86,73 @@ const (
 // When no rule matches, the query is allowed regardless of default. To block
 // resolution of a name, add a deny rule with hosts and no protocols (which
 // also blocks tcp and udp to that name) or with protocols: [dns].
-type PolicyFile struct {
-	Default Action     `yaml:"default"`
-	Rules   []RuleFile `yaml:"rules"`
+type policyFile struct {
+	Default string `yaml:"default"`
+	Rules   []struct {
+		ID    string     `yaml:"id"`
+		Allow *matchFile `yaml:"allow"`
+		Deny  *matchFile `yaml:"deny"`
+	} `yaml:"rules"`
 }
 
-// RuleFile is one YAML rule. Exactly one of Allow or Deny must be set.
-type RuleFile struct {
-	ID    string     `yaml:"id"`
-	Allow *MatchFile `yaml:"allow"`
-	Deny  *MatchFile `yaml:"deny"`
-}
-
-// MatchFile lists the criteria a rule matches on.
-type MatchFile struct {
-	// Hosts are exact names or "*.suffix" globs. A glob matches subdomains
-	// only, so "*.example.com" does not match "example.com".
-	Hosts []string `yaml:"hosts"`
-	// CIDRs are prefixes or single addresses. Ignored for dns flows.
-	CIDRs []string `yaml:"cidrs"`
-	// Ports are integers or "start-end" ranges. Ignored for dns flows.
-	Ports []PortRange `yaml:"ports"`
-	// Protocols restricts the rule to some of tcp, udp, and dns. Omitted
-	// matches all protocols, except that a rule without host criteria is
-	// never applied to dns flows unless it lists dns explicitly.
+type matchFile struct {
+	Hosts     []string                    `yaml:"hosts"`
+	CIDRs     []string                    `yaml:"cidrs"`
+	Ports     []string                    `yaml:"ports"`
 	Protocols []codersdk.ExitNodeProtocol `yaml:"protocols"`
 }
 
-// PortRange is an inclusive port range. A single port is a range with equal
-// ends. It unmarshals from either a YAML integer or a "start-end" string.
-type PortRange struct {
-	Start int
-	End   int
-}
-
-// UnmarshalYAML implements yaml.Unmarshaler.
-func (p *PortRange) UnmarshalYAML(node *yaml.Node) error {
-	var raw string
-	if err := node.Decode(&raw); err != nil {
-		return xerrors.Errorf("port must be an integer or \"start-end\": %w", err)
-	}
-	pr, err := ParsePortRange(raw)
-	if err != nil {
-		return err
-	}
-	*p = pr
-	return nil
-}
-
-// ParsePortRange parses "443" or "8000-8999".
-func ParsePortRange(raw string) (PortRange, error) {
-	startStr, endStr, isRange := strings.Cut(strings.TrimSpace(raw), "-")
-	start, err := parsePort(startStr)
-	if err != nil {
-		return PortRange{}, err
-	}
-	end := start
-	if isRange {
-		end, err = parsePort(endStr)
-		if err != nil {
-			return PortRange{}, err
-		}
-		if end < start {
-			return PortRange{}, xerrors.Errorf("invalid port range %q: end before start", raw)
-		}
-	}
-	return PortRange{Start: start, End: end}, nil
-}
-
-func parsePort(s string) (int, error) {
-	port, err := strconv.Atoi(strings.TrimSpace(s))
-	if err != nil {
-		return 0, xerrors.Errorf("invalid port %q: %w", s, err)
-	}
-	if port < 1 || port > 65535 {
-		return 0, xerrors.Errorf("invalid port %d: must be between 1 and 65535", port)
-	}
-	return port, nil
-}
-
-// Contains reports whether port falls inside the range.
-func (p PortRange) Contains(port int) bool {
-	return port >= p.Start && port <= p.End
-}
-
-type hostMatcher struct {
-	// exact is the lowercased name for exact rules, or the lowercased
-	// suffix including the leading dot for glob rules.
-	exact  string
-	suffix string
-}
-
-func (m hostMatcher) matches(host string) bool {
-	if m.suffix != "" {
-		return len(host) > len(m.suffix) && strings.HasSuffix(host, m.suffix)
-	}
-	return host == m.exact
-}
-
-type compiledRule struct {
-	id     string
-	action Action
-	hosts  []hostMatcher
-	// anyHost is set for the bare "*" glob, which matches any known host.
-	anyHost bool
-	cidrs   []netip.Prefix
-	ports   []PortRange
+type rule struct {
+	id    string
+	allow bool
+	// exact holds lowercased names; suffixes holds glob suffixes including
+	// the leading dot, or "" for the bare "*" which matches any known host.
+	exact, suffixes []string
+	cidrs           []netip.Prefix
+	// ports are inclusive [start, end] ranges.
+	ports [][2]int
 	// protocols is empty when the rule applies to every protocol.
 	protocols []codersdk.ExitNodeProtocol
 }
 
-func (r *compiledRule) hasHostCriteria() bool {
-	return r.anyHost || len(r.hosts) > 0
+func (r *rule) hasHostCriteria() bool {
+	return len(r.exact)+len(r.suffixes) > 0
 }
 
-func (r *compiledRule) matchesProtocol(proto codersdk.ExitNodeProtocol) bool {
-	if len(r.protocols) == 0 {
-		return true
-	}
-	for _, p := range r.protocols {
-		if p == proto {
-			return true
-		}
-	}
-	return false
-}
-
-// eligibleForDNS reports whether the rule can decide a dns flow. Rules that
-// only carry cidrs or ports have nothing to say about a query name and are
-// skipped unless they opt in with protocols: [dns].
-func (r *compiledRule) eligibleForDNS() bool {
-	if !r.matchesProtocol(codersdk.ExitNodeProtocolDNS) {
-		return false
-	}
-	return len(r.protocols) > 0 || r.hasHostCriteria()
+func (r *rule) matchesProtocol(proto codersdk.ExitNodeProtocol) bool {
+	return len(r.protocols) == 0 || slices.Contains(r.protocols, proto)
 }
 
 // matchesIPPort checks the criteria that do not depend on the host.
-func (r *compiledRule) matchesIPPort(flow FlowInfo) bool {
-	if len(r.cidrs) > 0 {
-		ip := flow.IP.Unmap()
-		matched := false
-		for _, cidr := range r.cidrs {
-			if cidr.Contains(ip) {
-				matched = true
-				break
-			}
-		}
-		if !matched {
-			return false
-		}
-	}
-	if len(r.ports) > 0 {
-		matched := false
-		for _, pr := range r.ports {
-			if pr.Contains(flow.Port) {
-				matched = true
-				break
-			}
-		}
-		if !matched {
-			return false
-		}
-	}
-	return true
+func (r *rule) matchesIPPort(flow FlowInfo) bool {
+	ip := flow.IP.Unmap()
+	return (len(r.cidrs) == 0 || slices.ContainsFunc(r.cidrs, func(p netip.Prefix) bool { return p.Contains(ip) })) &&
+		(len(r.ports) == 0 || slices.ContainsFunc(r.ports, func(p [2]int) bool { return flow.Port >= p[0] && flow.Port <= p[1] }))
 }
 
-func (r *compiledRule) matchesHost(host string) bool {
+func (r *rule) matchesHost(host string) bool {
 	if !r.hasHostCriteria() {
 		return true
 	}
-	if host == "" {
-		return false
-	}
-	if r.anyHost {
-		return true
-	}
-	for _, m := range r.hosts {
-		if m.matches(host) {
-			return true
-		}
-	}
-	return false
+	return host != "" && (slices.Contains(r.exact, host) ||
+		slices.ContainsFunc(r.suffixes, func(s string) bool { return len(host) > len(s) && strings.HasSuffix(host, s) }))
+}
+
+func (r *rule) decision(reason string) Decision {
+	return Decision{Allow: r.allow, RuleID: r.id, Reason: fmt.Sprintf(reason, r.id)}
 }
 
 type compiledPolicy struct {
-	def   Action
-	rules []*compiledRule
+	defaultAllow bool
+	rules        []*rule
 }
 
-// Policy is a PolicyEvaluator backed by a YAML file. It is safe for
-// concurrent use and can be reloaded in place.
+// Policy decides whether a flow may proceed, based on a YAML policy. It is
+// safe for concurrent use and can be reloaded in place.
 type Policy struct {
-	path string
-
-	mu       sync.RWMutex
-	compiled *compiledPolicy
+	path     string
+	compiled atomic.Pointer[compiledPolicy]
 }
-
-var _ PolicyEvaluator = (*Policy)(nil)
-
-var _ Reloader = (*Policy)(nil)
 
 // LoadPolicyFile reads and compiles the policy at path. The returned Policy
 // remembers the path so Reload can re-read it.
@@ -319,7 +171,9 @@ func ParsePolicy(data []byte) (*Policy, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Policy{compiled: compiled}, nil
+	p := &Policy{}
+	p.compiled.Store(compiled)
+	return p, nil
 }
 
 // Reload re-reads the backing file and atomically swaps in the new rules. On
@@ -336,221 +190,172 @@ func (p *Policy) Reload() error {
 	if err != nil {
 		return xerrors.Errorf("parse policy file %q: %w", p.path, err)
 	}
-	p.mu.Lock()
-	p.compiled = compiled
-	p.mu.Unlock()
+	p.compiled.Store(compiled)
 	return nil
 }
 
 // Evaluate walks the rules in order and returns the first match, falling back
 // to the default action. See FlowInfo.HostUnknown for provisional semantics
-// and PolicyFile for how dns flows differ.
+// and policyFile for how dns flows differ.
 func (p *Policy) Evaluate(flow FlowInfo) Decision {
-	p.mu.RLock()
-	compiled := p.compiled
-	p.mu.RUnlock()
-
-	proto := normalizeProtocol(flow.Protocol)
+	compiled := p.compiled.Load()
 	host := NormalizeHost(flow.Host)
-	if proto == codersdk.ExitNodeProtocolDNS {
-		return compiled.evaluateDNS(host)
+	if flow.Protocol == codersdk.ExitNodeProtocolDNS {
+		// Only the query name is matched, and no match means allow. Rules
+		// that only carry cidrs or ports have nothing to say about a name
+		// and are skipped unless they opt in with protocols: [dns].
+		for _, r := range compiled.rules {
+			if r.matchesProtocol(codersdk.ExitNodeProtocolDNS) && (len(r.protocols) > 0 || r.hasHostCriteria()) && r.matchesHost(host) {
+				return r.decision("matched rule %s")
+			}
+		}
+		return Decision{Allow: true, Reason: "no dns rule matched"}
 	}
-	for _, rule := range compiled.rules {
-		if !rule.matchesProtocol(proto) || !rule.matchesIPPort(flow) {
+	proto := flow.Protocol
+	if proto == "" {
+		proto = codersdk.ExitNodeProtocolTCP
+	}
+	for _, r := range compiled.rules {
+		if !r.matchesProtocol(proto) || !r.matchesIPPort(flow) {
 			continue
 		}
-		if flow.HostUnknown && rule.hasHostCriteria() {
-			if rule.action == ActionAllow {
-				return Decision{
-					Allow:  true,
-					RuleID: rule.id,
-					Reason: fmt.Sprintf("provisionally allowed by rule %s pending host", rule.id),
-				}
+		if flow.HostUnknown && r.hasHostCriteria() {
+			if r.allow {
+				return r.decision("provisionally allowed by rule %s pending host")
 			}
 			// A host-based deny cannot be applied until the host is known;
 			// a later rule or the default decides for now.
 			continue
 		}
-		if !rule.matchesHost(host) {
-			continue
-		}
-		return Decision{
-			Allow:  rule.action == ActionAllow,
-			RuleID: rule.id,
-			Reason: fmt.Sprintf("matched rule %s", rule.id),
+		if r.matchesHost(host) {
+			return r.decision("matched rule %s")
 		}
 	}
-	return Decision{
-		Allow:  compiled.def == ActionAllow,
-		Reason: fmt.Sprintf("default %s", compiled.def),
+	if compiled.defaultAllow {
+		return Decision{Allow: true, Reason: "default allow"}
 	}
-}
-
-// evaluateDNS applies the dns semantics documented on PolicyFile: only the
-// query name is matched, and no match means allow.
-func (c *compiledPolicy) evaluateDNS(host string) Decision {
-	for _, rule := range c.rules {
-		if !rule.eligibleForDNS() || !rule.matchesHost(host) {
-			continue
-		}
-		return Decision{
-			Allow:  rule.action == ActionAllow,
-			RuleID: rule.id,
-			Reason: fmt.Sprintf("matched rule %s", rule.id),
-		}
-	}
-	return Decision{Allow: true, Reason: "no dns rule matched"}
-}
-
-func normalizeProtocol(proto codersdk.ExitNodeProtocol) codersdk.ExitNodeProtocol {
-	if proto == "" {
-		return codersdk.ExitNodeProtocolTCP
-	}
-	return proto
+	return Decision{Reason: "default deny"}
 }
 
 // NormalizeHost lowercases a host name and strips a trailing dot and any
 // port suffix so it can be compared against policy rules.
 func NormalizeHost(host string) string {
 	host = strings.TrimSpace(host)
-	if host == "" {
-		return ""
-	}
-	// Strip a port if present. IPv6 literals are bracketed so SplitHostPort
-	// handles them; bare names without a port fail and are used as is.
-	if h, _, err := splitHostPortLenient(host); err == nil {
+	if h, _, err := net.SplitHostPort(host); err == nil {
 		host = h
+	} else if strings.HasPrefix(host, "[") && strings.HasSuffix(host, "]") {
+		host = host[1 : len(host)-1]
 	}
-	host = strings.TrimSuffix(host, ".")
-	return strings.ToLower(host)
-}
-
-func splitHostPortLenient(hostport string) (host, port string, err error) {
-	if strings.HasPrefix(hostport, "[") {
-		end := strings.IndexByte(hostport, ']')
-		if end < 0 {
-			return "", "", xerrors.New("missing ]")
-		}
-		host = hostport[1:end]
-		rest := hostport[end+1:]
-		if rest == "" {
-			return host, "", nil
-		}
-		if rest[0] != ':' {
-			return "", "", xerrors.New("unexpected characters after ]")
-		}
-		return host, rest[1:], nil
-	}
-	// A single colon separates host and port; more than one means an
-	// unbracketed IPv6 address with no port.
-	if strings.Count(hostport, ":") != 1 {
-		return "", "", xerrors.New("no port")
-	}
-	host, port, _ = strings.Cut(hostport, ":")
-	return host, port, nil
+	return strings.ToLower(strings.TrimSuffix(host, "."))
 }
 
 func compilePolicy(data []byte) (*compiledPolicy, error) {
-	var file PolicyFile
+	var file policyFile
 	dec := yaml.NewDecoder(strings.NewReader(string(data)))
 	dec.KnownFields(true)
 	if err := dec.Decode(&file); err != nil {
 		return nil, xerrors.Errorf("decode yaml: %w", err)
 	}
-
-	def := file.Default
-	if def == "" {
-		def = ActionDeny
-	}
-	if def != ActionAllow && def != ActionDeny {
-		return nil, xerrors.Errorf("default must be %q or %q, got %q", ActionAllow, ActionDeny, def)
+	if file.Default != "" && file.Default != "allow" && file.Default != "deny" {
+		return nil, xerrors.Errorf("default must be %q or %q, got %q", "allow", "deny", file.Default)
 	}
 
-	compiled := &compiledPolicy{def: def}
+	compiled := &compiledPolicy{defaultAllow: file.Default == "allow"}
 	seen := make(map[string]struct{}, len(file.Rules))
 	for i, rf := range file.Rules {
-		rule, err := compileRule(i, rf)
-		if err != nil {
-			return nil, err
+		id := rf.ID
+		if id == "" {
+			id = fmt.Sprintf("rule-%d", i+1)
 		}
-		if _, dup := seen[rule.id]; dup {
-			return nil, xerrors.Errorf("rule %d: duplicate rule id %q", i, rule.id)
+		if _, dup := seen[id]; dup {
+			return nil, xerrors.Errorf("rule %d: duplicate rule id %q", i, id)
 		}
-		seen[rule.id] = struct{}{}
-		compiled.rules = append(compiled.rules, rule)
+		seen[id] = struct{}{}
+
+		r := &rule{id: id, allow: rf.Allow != nil}
+		match := rf.Allow
+		switch {
+		case rf.Allow != nil && rf.Deny != nil:
+			return nil, xerrors.Errorf("rule %s: specify either allow or deny, not both", id)
+		case rf.Deny != nil:
+			match = rf.Deny
+		case rf.Allow == nil:
+			return nil, xerrors.Errorf("rule %s: must specify allow or deny", id)
+		}
+		if err := r.compile(match); err != nil {
+			return nil, xerrors.Errorf("rule %s: %w", id, err)
+		}
+		compiled.rules = append(compiled.rules, r)
 	}
 	return compiled, nil
 }
 
-func compileRule(index int, rf RuleFile) (*compiledRule, error) {
-	id := rf.ID
-	if id == "" {
-		id = fmt.Sprintf("rule-%d", index+1)
-	}
-	rule := &compiledRule{id: id}
-
-	var match *MatchFile
-	switch {
-	case rf.Allow != nil && rf.Deny != nil:
-		return nil, xerrors.Errorf("rule %s: specify either allow or deny, not both", id)
-	case rf.Allow != nil:
-		rule.action = ActionAllow
-		match = rf.Allow
-	case rf.Deny != nil:
-		rule.action = ActionDeny
-		match = rf.Deny
-	default:
-		return nil, xerrors.Errorf("rule %s: must specify allow or deny", id)
-	}
-
+func (r *rule) compile(match *matchFile) error {
 	for _, raw := range match.Hosts {
 		pattern := strings.ToLower(strings.TrimSpace(strings.TrimSuffix(raw, ".")))
+		suffix, glob := strings.CutPrefix(pattern, "*")
 		switch {
 		case pattern == "":
-			return nil, xerrors.Errorf("rule %s: empty host pattern", id)
-		case pattern == "*":
-			rule.anyHost = true
-		case strings.HasPrefix(pattern, "*."):
-			suffix := pattern[1:]
-			if suffix == "." || strings.Contains(suffix, "*") {
-				return nil, xerrors.Errorf("rule %s: invalid host glob %q", id, raw)
-			}
-			rule.hosts = append(rule.hosts, hostMatcher{suffix: suffix})
+			return xerrors.New("empty host pattern")
+		case glob && (suffix == "" || (strings.HasPrefix(suffix, ".") && suffix != "." && !strings.Contains(suffix, "*"))):
+			r.suffixes = append(r.suffixes, suffix)
 		case strings.Contains(pattern, "*"):
-			return nil, xerrors.Errorf("rule %s: invalid host glob %q: only a leading \"*.\" is supported", id, raw)
+			return xerrors.Errorf("invalid host glob %q: only a leading \"*.\" is supported", raw)
 		default:
-			rule.hosts = append(rule.hosts, hostMatcher{exact: pattern})
+			r.exact = append(r.exact, pattern)
 		}
 	}
-
 	for _, raw := range match.CIDRs {
 		raw = strings.TrimSpace(raw)
 		prefix, err := netip.ParsePrefix(raw)
 		if err != nil {
 			addr, addrErr := netip.ParseAddr(raw)
 			if addrErr != nil {
-				return nil, xerrors.Errorf("rule %s: invalid cidr %q: %w", id, raw, err)
+				return xerrors.Errorf("invalid cidr %q: %w", raw, err)
 			}
-			addr = addr.Unmap()
-			prefix = netip.PrefixFrom(addr, addr.BitLen())
+			prefix = netip.PrefixFrom(addr.Unmap(), addr.Unmap().BitLen())
 		}
-		rule.cidrs = append(rule.cidrs, prefix.Masked())
+		r.cidrs = append(r.cidrs, prefix.Masked())
 	}
-
-	rule.ports = append(rule.ports, match.Ports...)
-
+	for _, raw := range match.Ports {
+		startStr, endStr, isRange := strings.Cut(strings.TrimSpace(raw), "-")
+		start, err := parsePort(startStr)
+		if err != nil {
+			return err
+		}
+		end := start
+		if isRange {
+			if end, err = parsePort(endStr); err != nil {
+				return err
+			}
+			if end < start {
+				return xerrors.Errorf("invalid port range %q: end before start", raw)
+			}
+		}
+		r.ports = append(r.ports, [2]int{start, end})
+	}
 	for _, raw := range match.Protocols {
 		proto := codersdk.ExitNodeProtocol(strings.ToLower(strings.TrimSpace(string(raw))))
 		switch proto {
 		case codersdk.ExitNodeProtocolTCP, codersdk.ExitNodeProtocolUDP, codersdk.ExitNodeProtocolDNS:
-			rule.protocols = append(rule.protocols, proto)
+			r.protocols = append(r.protocols, proto)
 		default:
-			return nil, xerrors.Errorf("rule %s: invalid protocol %q: must be tcp, udp, or dns", id, raw)
+			return xerrors.Errorf("invalid protocol %q: must be tcp, udp, or dns", raw)
 		}
 	}
-
-	if !rule.hasHostCriteria() && len(rule.cidrs) == 0 && len(rule.ports) == 0 && len(rule.protocols) == 0 {
-		return nil, xerrors.Errorf("rule %s: must specify at least one of hosts, cidrs, ports, or protocols", id)
+	if !r.hasHostCriteria() && len(r.cidrs) == 0 && len(r.ports) == 0 && len(r.protocols) == 0 {
+		return xerrors.New("must specify at least one of hosts, cidrs, ports, or protocols")
 	}
-	return rule, nil
+	return nil
+}
+
+func parsePort(s string) (int, error) {
+	port, err := strconv.Atoi(strings.TrimSpace(s))
+	if err != nil {
+		return 0, xerrors.Errorf("invalid port %q: %w", s, err)
+	}
+	if port < 1 || port > 65535 {
+		return 0, xerrors.Errorf("invalid port %d: must be between 1 and 65535", port)
+	}
+	return port, nil
 }

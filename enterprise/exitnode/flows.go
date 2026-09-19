@@ -2,6 +2,7 @@ package exitnode
 
 import (
 	"context"
+	"slices"
 	"sync"
 	"time"
 
@@ -54,26 +55,17 @@ type FlowReporterOptions struct {
 // retried with exponential backoff; unsent reports stay queued (bounded by
 // MaxQueue) across failures.
 type FlowReporter struct {
-	logger  slog.Logger
-	client  FlowClient
-	metrics *Metrics
-	clock   quartz.Clock
-
-	flushInterval time.Duration
-	batchSize     int
-	maxQueue      int
+	FlowReporterOptions
 
 	mu    sync.Mutex
 	queue []codersdk.ExitNodeFlowReport
-	// flushCh is signaled when the queue reaches batchSize.
+	// flushCh is signaled when the queue reaches BatchSize.
 	flushCh chan struct{}
 
 	ctx    context.Context
 	cancel context.CancelFunc
 	done   chan struct{}
 }
-
-var _ FlowRecorder = (*FlowReporter)(nil)
 
 // NewFlowReporter starts a reporter. Call Close to flush and stop it.
 func NewFlowReporter(ctx context.Context, opts FlowReporterOptions) *FlowReporter {
@@ -89,39 +81,28 @@ func NewFlowReporter(ctx context.Context, opts FlowReporterOptions) *FlowReporte
 	if opts.Clock == nil {
 		opts.Clock = quartz.NewReal()
 	}
+	if opts.Metrics == nil {
+		opts.Metrics = NewMetrics(nil)
+	}
 	ctx, cancel := context.WithCancel(ctx)
 	r := &FlowReporter{
-		logger:        opts.Logger,
-		client:        opts.Client,
-		metrics:       opts.Metrics,
-		clock:         opts.Clock,
-		flushInterval: opts.FlushInterval,
-		batchSize:     opts.BatchSize,
-		maxQueue:      opts.MaxQueue,
-		flushCh:       make(chan struct{}, 1),
-		ctx:           ctx,
-		cancel:        cancel,
-		done:          make(chan struct{}),
+		FlowReporterOptions: opts,
+		flushCh:             make(chan struct{}, 1),
+		ctx:                 ctx,
+		cancel:              cancel,
+		done:                make(chan struct{}),
 	}
 	go r.run()
 	return r
 }
 
 // Record queues a report. It never blocks; when the queue is full the oldest
-// report is dropped.
+// report is dropped so recent activity is what survives a long outage.
 func (r *FlowReporter) Record(report codersdk.ExitNodeFlowReport) {
 	r.mu.Lock()
-	if len(r.queue) >= r.maxQueue {
-		// Drop the oldest so recent activity is what survives a long outage.
-		r.queue = r.queue[1:]
-		if r.metrics != nil {
-			r.metrics.FlowReportsDropped.Inc()
-		}
-	}
-	r.queue = append(r.queue, report)
-	full := len(r.queue) >= r.batchSize
+	r.queue = r.trimLocked(append(r.queue, report))
+	full := len(r.queue) >= r.BatchSize
 	r.mu.Unlock()
-
 	if full {
 		select {
 		case r.flushCh <- struct{}{}:
@@ -130,10 +111,18 @@ func (r *FlowReporter) Record(report codersdk.ExitNodeFlowReport) {
 	}
 }
 
+// trimLocked drops the oldest reports beyond MaxQueue and counts them.
+func (r *FlowReporter) trimLocked(queue []codersdk.ExitNodeFlowReport) []codersdk.ExitNodeFlowReport {
+	if over := len(queue) - r.MaxQueue; over > 0 {
+		r.Metrics.FlowReportsDropped.Add(float64(over))
+		return queue[over:]
+	}
+	return queue
+}
+
 func (r *FlowReporter) run() {
 	defer close(r.done)
-
-	ticker := r.clock.NewTicker(r.flushInterval, "flowreporter", "flush")
+	ticker := r.Clock.NewTicker(r.FlushInterval, "flowreporter", "flush")
 	defer ticker.Stop()
 
 	backoff := defaultFlowMinBackoff
@@ -144,30 +133,29 @@ func (r *FlowReporter) run() {
 		case <-ticker.C:
 		case <-r.flushCh:
 		}
-
+		// Keep sending while full batches go out; there may be more waiting.
 		for {
 			sent, err := r.flushOnce(r.ctx)
-			if err != nil {
-				if r.ctx.Err() != nil {
-					return
+			if err == nil {
+				backoff = defaultFlowMinBackoff
+				if sent < r.BatchSize {
+					break
 				}
-				r.logger.Warn(r.ctx, "failed to report exit node flows; will retry",
-					slog.F("backoff", backoff), slog.Error(err))
-				timer := r.clock.NewTimer(backoff, "flowreporter", "backoff")
-				select {
-				case <-r.ctx.Done():
-					timer.Stop()
-					return
-				case <-timer.C:
-				}
-				backoff = min(backoff*2, defaultFlowMaxBackoff)
 				continue
 			}
-			backoff = defaultFlowMinBackoff
-			if sent < r.batchSize {
-				break
+			if r.ctx.Err() != nil {
+				return
 			}
-			// A full batch went out; there may be more waiting.
+			r.Logger.Warn(r.ctx, "failed to report exit node flows; will retry",
+				slog.F("backoff", backoff), slog.Error(err))
+			timer := r.Clock.NewTimer(backoff, "flowreporter", "backoff")
+			select {
+			case <-r.ctx.Done():
+				timer.Stop()
+				return
+			case <-timer.C:
+			}
+			backoff = min(backoff*2, defaultFlowMaxBackoff)
 		}
 	}
 }
@@ -176,38 +164,24 @@ func (r *FlowReporter) run() {
 // failure the reports are put back at the head of the queue.
 func (r *FlowReporter) flushOnce(ctx context.Context) (int, error) {
 	r.mu.Lock()
-	if len(r.queue) == 0 {
-		r.mu.Unlock()
-		return 0, nil
-	}
-	n := min(len(r.queue), r.batchSize)
-	batch := make([]codersdk.ExitNodeFlowReport, n)
-	copy(batch, r.queue[:n])
+	n := min(len(r.queue), r.BatchSize)
+	batch := slices.Clone(r.queue[:n])
 	r.queue = r.queue[n:]
 	r.mu.Unlock()
+	if n == 0 {
+		return 0, nil
+	}
 
 	sendCtx, cancel := context.WithTimeout(ctx, defaultFlowSendTimeout)
-	err := r.client.ReportFlows(sendCtx, codersdk.ReportExitNodeFlowsRequest{Flows: batch})
+	err := r.Client.ReportFlows(sendCtx, codersdk.ReportExitNodeFlowsRequest{Flows: batch})
 	cancel()
 	if err != nil {
 		r.mu.Lock()
-		// Requeue at the head, then trim from the front if that overflowed.
-		requeued := make([]codersdk.ExitNodeFlowReport, 0, len(batch)+len(r.queue))
-		requeued = append(requeued, batch...)
-		requeued = append(requeued, r.queue...)
-		r.queue = requeued
-		if over := len(r.queue) - r.maxQueue; over > 0 {
-			r.queue = r.queue[over:]
-			if r.metrics != nil {
-				r.metrics.FlowReportsDropped.Add(float64(over))
-			}
-		}
+		r.queue = r.trimLocked(slices.Concat(batch, r.queue))
 		r.mu.Unlock()
 		return 0, xerrors.Errorf("report %d flows: %w", n, err)
 	}
-	if r.metrics != nil {
-		r.metrics.FlowReportsSent.Add(float64(n))
-	}
+	r.Metrics.FlowReportsSent.Add(float64(n))
 	return n, nil
 }
 
@@ -216,7 +190,6 @@ func (r *FlowReporter) flushOnce(ctx context.Context) (int, error) {
 func (r *FlowReporter) Close(ctx context.Context) error {
 	r.cancel()
 	<-r.done
-
 	for {
 		sent, err := r.flushOnce(ctx)
 		if err != nil {

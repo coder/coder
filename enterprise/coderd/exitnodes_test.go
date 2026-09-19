@@ -1,9 +1,11 @@
 package coderd_test
 
 import (
+	"cmp"
 	"context"
 	"database/sql"
 	"net/http"
+	"slices"
 	"testing"
 	"time"
 
@@ -73,17 +75,35 @@ func TestExitNodes(t *testing.T) {
 	agent := build.Resources[0].Agents[0]
 
 	// exitNodeRequest issues a request authenticated with an exit node
-	// token instead of a session token.
+	// token instead of a session token and returns the status code.
 	exitNodeRequest := func(ctx context.Context, token, method, path string, body any) (*http.Response, error) {
 		nodeClient := codersdk.New(client.URL)
 		return nodeClient.Request(ctx, method, path, body, func(r *http.Request) {
 			r.Header.Set(codersdk.ExitNodeTokenHeader, token)
 		})
 	}
+	// register registers with the given token and returns the status code.
+	register := func(t *testing.T, token string, req codersdk.RegisterExitNodeRequest) int {
+		t.Helper()
+		res, err := exitNodeRequest(testutil.Context(t, testutil.WaitLong), token, http.MethodPost, "/api/v2/exitnodes/me/register", req)
+		require.NoError(t, err)
+		_ = res.Body.Close()
+		return res.StatusCode
+	}
+	// requireStatus asserts that err is an API error with the given status.
+	requireStatus := func(t *testing.T, err error, status int) {
+		t.Helper()
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, status, sdkErr.StatusCode())
+	}
 
 	t.Run("CRUD", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
+		contains := func(nodes []codersdk.ExitNode, id uuid.UUID) bool {
+			return slices.ContainsFunc(nodes, func(n codersdk.ExitNode) bool { return n.ID == id })
+		}
 
 		name := testutil.GetRandomNameHyphenated(t)
 		created, err := client.CreateExitNode(ctx, orgID, codersdk.CreateExitNodeRequest{
@@ -103,19 +123,14 @@ func TestExitNodes(t *testing.T) {
 
 		// Duplicate names conflict, case-insensitively.
 		_, err = client.CreateExitNode(ctx, orgID, codersdk.CreateExitNodeRequest{Name: name})
-		var sdkErr *codersdk.Error
-		require.ErrorAs(t, err, &sdkErr)
-		require.Equal(t, http.StatusConflict, sdkErr.StatusCode())
-
+		requireStatus(t, err, http.StatusConflict)
 		// Invalid names are rejected.
 		_, err = client.CreateExitNode(ctx, orgID, codersdk.CreateExitNodeRequest{Name: "not valid!"})
-		require.ErrorAs(t, err, &sdkErr)
-		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+		requireStatus(t, err, http.StatusBadRequest)
 
 		nodes, err := client.ExitNodes(ctx, orgID)
 		require.NoError(t, err)
-		require.Contains(t, mapIDs(nodes), created.ID)
-
+		require.True(t, contains(nodes, created.ID))
 		byName, err := client.ExitNodeByName(ctx, orgID, name)
 		require.NoError(t, err)
 		require.Equal(t, created.ID, byName.ID)
@@ -124,32 +139,21 @@ func TestExitNodes(t *testing.T) {
 		require.Equal(t, created.ID, byID.ID)
 
 		// The token authenticates the new node.
-		res, err := exitNodeRequest(ctx, created.Token, http.MethodPost, "/api/v2/exitnodes/me/register", codersdk.RegisterExitNodeRequest{
-			Version: "v0.0.0-test",
-		})
-		require.NoError(t, err)
-		_ = res.Body.Close()
-		require.Equal(t, http.StatusCreated, res.StatusCode)
+		require.Equal(t, http.StatusCreated, register(t, created.Token, codersdk.RegisterExitNodeRequest{Version: "v0.0.0-test"}))
 
-		err = client.DeleteExitNode(ctx, orgID, name)
-		require.NoError(t, err)
+		require.NoError(t, client.DeleteExitNode(ctx, orgID, name))
 		require.True(t, auditor.Contains(t, database.AuditLog{
 			Action:     database.AuditActionDelete,
 			ResourceID: created.ID,
 		}))
-
 		_, err = client.ExitNodeByName(ctx, orgID, name)
-		require.ErrorAs(t, err, &sdkErr)
-		require.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
+		requireStatus(t, err, http.StatusNotFound)
 		nodes, err = client.ExitNodes(ctx, orgID)
 		require.NoError(t, err)
-		require.NotContains(t, mapIDs(nodes), created.ID)
+		require.False(t, contains(nodes, created.ID))
 
 		// A deleted node's token no longer authenticates.
-		res, err = exitNodeRequest(ctx, created.Token, http.MethodPost, "/api/v2/exitnodes/me/register", codersdk.RegisterExitNodeRequest{})
-		require.NoError(t, err)
-		_ = res.Body.Close()
-		require.Equal(t, http.StatusUnauthorized, res.StatusCode)
+		require.Equal(t, http.StatusUnauthorized, register(t, created.Token, codersdk.RegisterExitNodeRequest{}))
 	})
 
 	t.Run("MemberForbidden", func(t *testing.T) {
@@ -158,21 +162,13 @@ func TestExitNodes(t *testing.T) {
 		member, _ := coderdtest.CreateAnotherUser(t, client, orgID)
 
 		_, err := member.CreateExitNode(ctx, orgID, codersdk.CreateExitNodeRequest{Name: testutil.GetRandomNameHyphenated(t)})
-		var sdkErr *codersdk.Error
-		require.ErrorAs(t, err, &sdkErr)
-		require.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
-
+		requireStatus(t, err, http.StatusNotFound)
 		nodes, err := member.ExitNodes(ctx, orgID)
 		require.NoError(t, err)
 		require.Empty(t, nodes)
-
 		_, err = member.ExitNodeByName(ctx, orgID, boundNode.Name)
-		require.ErrorAs(t, err, &sdkErr)
-		require.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
-
-		err = member.DeleteExitNode(ctx, orgID, boundNode.Name)
-		require.ErrorAs(t, err, &sdkErr)
-		require.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
+		requireStatus(t, err, http.StatusNotFound)
+		requireStatus(t, member.DeleteExitNode(ctx, orgID, boundNode.Name), http.StatusNotFound)
 	})
 
 	t.Run("TemplateAdminReadOnly", func(t *testing.T) {
@@ -183,11 +179,8 @@ func TestExitNodes(t *testing.T) {
 		got, err := templateAdmin.ExitNodeByName(ctx, orgID, boundNode.Name)
 		require.NoError(t, err)
 		require.Equal(t, boundNode.ID, got.ID)
-
 		_, err = templateAdmin.CreateExitNode(ctx, orgID, codersdk.CreateExitNodeRequest{Name: testutil.GetRandomNameHyphenated(t)})
-		var sdkErr *codersdk.Error
-		require.ErrorAs(t, err, &sdkErr)
-		require.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
+		requireStatus(t, err, http.StatusNotFound)
 	})
 
 	t.Run("Register", func(t *testing.T) {
@@ -204,7 +197,6 @@ func TestExitNodes(t *testing.T) {
 		if res.StatusCode != http.StatusCreated {
 			t.Fatalf("register: %v", codersdk.ReadBodyAsError(res))
 		}
-
 		var resp codersdk.RegisterExitNodeResponse
 		require.NoError(t, codersdk.ReadBodyAsJSON(res, &resp))
 		require.NotNil(t, resp.DERPMap)
@@ -220,18 +212,13 @@ func TestExitNodes(t *testing.T) {
 
 	t.Run("InvalidToken", func(t *testing.T) {
 		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitLong)
-
 		for _, token := range []string{
 			"",
 			"garbage",
 			boundNode.ID.String() + ":wrong",
 			uuid.NewString() + ":" + boundSecret,
 		} {
-			res, err := exitNodeRequest(ctx, token, http.MethodPost, "/api/v2/exitnodes/me/register", codersdk.RegisterExitNodeRequest{})
-			require.NoError(t, err)
-			_ = res.Body.Close()
-			require.Equal(t, http.StatusUnauthorized, res.StatusCode, "token %q", token)
+			require.Equal(t, http.StatusUnauthorized, register(t, token, codersdk.RegisterExitNodeRequest{}), "token %q", token)
 		}
 	})
 
@@ -251,9 +238,16 @@ func TestExitNodes(t *testing.T) {
 		udpID := uuid.New()
 		dnsID := uuid.New()
 		unboundID := uuid.New()
-		unknownAgentID := uuid.New()
 
+		// report sends flows for the shared agent at connectTime unless a
+		// flow overrides them.
 		report := func(token string, flows ...codersdk.ExitNodeFlowReport) {
+			for i := range flows {
+				flows[i].AgentID = cmp.Or(flows[i].AgentID, agent.ID)
+				if flows[i].ConnectTime.IsZero() {
+					flows[i].ConnectTime = connectTime
+				}
+			}
 			res, err := exitNodeRequest(ctx, token, http.MethodPost, "/api/v2/exitnodes/me/flows", codersdk.ReportExitNodeFlowsRequest{Flows: flows})
 			require.NoError(t, err)
 			defer res.Body.Close()
@@ -261,34 +255,30 @@ func TestExitNodes(t *testing.T) {
 				t.Fatalf("report flows: %v", codersdk.ReadBodyAsError(res))
 			}
 		}
+		allowed := codersdk.ExitNodeFlowReport{
+			FlowID:          allowedID,
+			DestinationIP:   "93.184.216.34",
+			DestinationPort: 443,
+			Host:            "example.com",
+			Decision:        codersdk.ExitNodeFlowAllow,
+			RuleID:          "rule-1",
+			Reason:          "allowed host",
+		}
 
 		// Connect report for an allowed flow, plus a denied flow.
 		report(boundToken,
-			codersdk.ExitNodeFlowReport{
-				FlowID:          allowedID,
-				AgentID:         agent.ID,
-				DestinationIP:   "93.184.216.34",
-				DestinationPort: 443,
-				Host:            "example.com",
-				Decision:        codersdk.ExitNodeFlowAllow,
-				RuleID:          "rule-1",
-				Reason:          "allowed host",
-				ConnectTime:     connectTime,
-			},
+			allowed,
 			codersdk.ExitNodeFlowReport{
 				FlowID:          deniedID,
-				AgentID:         agent.ID,
 				DestinationIP:   "198.51.100.7",
 				DestinationPort: 22,
 				Decision:        codersdk.ExitNodeFlowDeny,
 				RuleID:          "rule-3",
 				Reason:          "denied host",
-				ConnectTime:     connectTime,
 			},
 			// udp and dns flows carry a protocol prefix in the destination.
 			codersdk.ExitNodeFlowReport{
 				FlowID:          udpID,
-				AgentID:         agent.ID,
 				Protocol:        codersdk.ExitNodeProtocolUDP,
 				DestinationIP:   "198.51.100.10",
 				DestinationPort: 443,
@@ -296,11 +286,9 @@ func TestExitNodes(t *testing.T) {
 				Decision:        codersdk.ExitNodeFlowDeny,
 				RuleID:          "no-quic",
 				Reason:          "matched rule no-quic",
-				ConnectTime:     connectTime,
 			},
 			codersdk.ExitNodeFlowReport{
 				FlowID:          dnsID,
-				AgentID:         agent.ID,
 				Protocol:        codersdk.ExitNodeProtocolDNS,
 				DestinationIP:   "10.0.0.53",
 				DestinationPort: 53,
@@ -309,64 +297,38 @@ func TestExitNodes(t *testing.T) {
 				Reason:          "no dns rule matched (TXT query)",
 				BytesIn:         120,
 				BytesOut:        45,
-				ConnectTime:     connectTime,
 				DisconnectTime:  &disconnectTime,
 			},
 			// Unknown agents are skipped without failing the report.
 			codersdk.ExitNodeFlowReport{
 				FlowID:          uuid.New(),
-				AgentID:         unknownAgentID,
+				AgentID:         uuid.New(),
 				DestinationIP:   "198.51.100.8",
 				DestinationPort: 80,
 				Decision:        codersdk.ExitNodeFlowAllow,
-				ConnectTime:     connectTime,
 			},
 		)
 		// Disconnect report for the allowed flow.
-		report(boundToken, codersdk.ExitNodeFlowReport{
-			FlowID:          allowedID,
-			AgentID:         agent.ID,
-			DestinationIP:   "93.184.216.34",
-			DestinationPort: 443,
-			Host:            "example.com",
-			Decision:        codersdk.ExitNodeFlowAllow,
-			RuleID:          "rule-1",
-			Reason:          "allowed host",
-			BytesIn:         1234,
-			BytesOut:        567,
-			ConnectTime:     connectTime,
-			DisconnectTime:  &disconnectTime,
-		})
+		allowed.BytesIn, allowed.BytesOut, allowed.DisconnectTime = 1234, 567, &disconnectTime
+		report(boundToken, allowed)
 		// A flow from a node the template is not bound to.
 		report(otherToken, codersdk.ExitNodeFlowReport{
 			FlowID:          unboundID,
-			AgentID:         agent.ID,
 			DestinationIP:   "198.51.100.9",
 			DestinationPort: 80,
 			Decision:        codersdk.ExitNodeFlowAllow,
-			ConnectTime:     connectTime,
 		})
 
-		var allowed, denied, udp, dns, unbound []database.UpsertConnectionLogParams
+		byFlow := make(map[uuid.UUID][]database.UpsertConnectionLogParams)
 		for _, clog := range connLogger.ConnectionLogs() {
-			switch clog.ID {
-			case allowedID:
-				allowed = append(allowed, clog)
-			case deniedID:
-				denied = append(denied, clog)
-			case udpID:
-				udp = append(udp, clog)
-			case dnsID:
-				dns = append(dns, clog)
-			case unboundID:
-				unbound = append(unbound, clog)
-			}
+			byFlow[clog.ID] = append(byFlow[clog.ID], clog)
 		}
-		require.Empty(t, unbound, "unbound exit node must not log flows")
+		require.Empty(t, byFlow[unboundID], "unbound exit node must not log flows")
 
 		// Connect, then connect+disconnect from the second report.
-		require.Len(t, allowed, 3)
-		for _, clog := range allowed {
+		allowedLogs := byFlow[allowedID]
+		require.Len(t, allowedLogs, 3)
+		for _, clog := range allowedLogs {
 			assert.Equal(t, database.ConnectionTypeEgress, clog.Type)
 			assert.Equal(t, workspace.ID, clog.WorkspaceID)
 			assert.Equal(t, workspace.OwnerID, clog.WorkspaceOwnerID)
@@ -379,19 +341,21 @@ func TestExitNodes(t *testing.T) {
 			assert.True(t, clog.Code.Valid)
 			assert.EqualValues(t, 0, clog.Code.Int32)
 		}
-		assert.Equal(t, database.ConnectionStatusConnected, allowed[0].ConnectionStatus)
-		assert.True(t, connectTime.Equal(allowed[0].Time))
-		assert.False(t, allowed[0].DisconnectReason.Valid, "allowed connect leaves the reason for the disconnect")
-		assert.Equal(t, database.ConnectionStatusDisconnected, allowed[2].ConnectionStatus)
-		assert.True(t, disconnectTime.Equal(allowed[2].Time))
-		assert.Equal(t, "rule-1: allowed host (in=1234 out=567)", allowed[2].DisconnectReason.String)
+		assert.Equal(t, database.ConnectionStatusConnected, allowedLogs[0].ConnectionStatus)
+		assert.True(t, connectTime.Equal(allowedLogs[0].Time))
+		assert.False(t, allowedLogs[0].DisconnectReason.Valid, "allowed connect leaves the reason for the disconnect")
+		assert.Equal(t, database.ConnectionStatusDisconnected, allowedLogs[2].ConnectionStatus)
+		assert.True(t, disconnectTime.Equal(allowedLogs[2].Time))
+		assert.Equal(t, "rule-1: allowed host (in=1234 out=567)", allowedLogs[2].DisconnectReason.String)
 
+		denied := byFlow[deniedID]
 		require.Len(t, denied, 1)
 		assert.Equal(t, database.ConnectionStatusConnected, denied[0].ConnectionStatus)
 		assert.EqualValues(t, http.StatusForbidden, denied[0].Code.Int32)
 		assert.Equal(t, "198.51.100.7:22", denied[0].SlugOrPort.String)
 		assert.Equal(t, "rule-3: denied host", denied[0].DisconnectReason.String)
 
+		udp := byFlow[udpID]
 		require.Len(t, udp, 1)
 		assert.EqualValues(t, http.StatusForbidden, udp[0].Code.Int32)
 		assert.Equal(t, "udp quic.example:443", udp[0].SlugOrPort.String)
@@ -399,6 +363,7 @@ func TestExitNodes(t *testing.T) {
 		assert.Equal(t, "no-quic: matched rule no-quic", udp[0].DisconnectReason.String)
 
 		// A dns report carries its disconnect, so it yields both rows.
+		dns := byFlow[dnsID]
 		require.Len(t, dns, 2)
 		assert.Equal(t, "dns api.example.com", dns[0].SlugOrPort.String)
 		assert.Equal(t, "10.0.0.53", dns[0].IP.IPNet.IP.String())
@@ -412,51 +377,52 @@ func TestExitNodes(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		// Rows written straight to the database in the flow encoding must
-		// decode into typed egress info on the way out.
+		// decode into typed egress info on the way out. dbgen writes every row
+		// from 127.0.0.1.
 		disconnectTime := time.Now().UTC().Truncate(time.Millisecond)
-		tests := []struct {
-			name        string
-			slugOrPort  string
-			code        int32
-			reason      string
-			protocol    codersdk.ExitNodeProtocol
-			destination string
-			decision    codersdk.ExitNodeFlowDecision
-			ruleID      string
-			wantReason  string
+		for _, tt := range []struct {
+			slugOrPort string
+			code       int32
+			reason     string
+			want       codersdk.ConnectionLogEgressInfo
 		}{
 			{
-				name:        "tcp",
-				slugOrPort:  "example.com:443",
-				reason:      "rule-1: allowed host (in=1 out=2)",
-				protocol:    codersdk.ExitNodeProtocolTCP,
-				destination: "example.com:443",
-				decision:    codersdk.ExitNodeFlowAllow,
-				ruleID:      "rule-1",
-				wantReason:  "allowed host (in=1 out=2)",
+				slugOrPort: "example.com:443",
+				reason:     "rule-1: allowed host (in=1 out=2)",
+				want: codersdk.ConnectionLogEgressInfo{
+					Protocol:      codersdk.ExitNodeProtocolTCP,
+					Destination:   "example.com:443",
+					DestinationIP: "127.0.0.1",
+					Decision:      codersdk.ExitNodeFlowAllow,
+					RuleID:        "rule-1",
+					Reason:        "allowed host (in=1 out=2)",
+				},
 			},
 			{
-				name:        "udp",
-				slugOrPort:  "udp quic.example:443",
-				code:        http.StatusForbidden,
-				reason:      "no-quic: matched rule no-quic",
-				protocol:    codersdk.ExitNodeProtocolUDP,
-				destination: "quic.example:443",
-				decision:    codersdk.ExitNodeFlowDeny,
-				ruleID:      "no-quic",
-				wantReason:  "matched rule no-quic",
+				slugOrPort: "udp quic.example:443",
+				code:       http.StatusForbidden,
+				reason:     "no-quic: matched rule no-quic",
+				want: codersdk.ConnectionLogEgressInfo{
+					Protocol:      codersdk.ExitNodeProtocolUDP,
+					Destination:   "quic.example:443",
+					DestinationIP: "127.0.0.1",
+					Decision:      codersdk.ExitNodeFlowDeny,
+					RuleID:        "no-quic",
+					Reason:        "matched rule no-quic",
+				},
 			},
 			{
-				name:        "dns",
-				slugOrPort:  "dns api.example.com",
-				reason:      "no dns rule matched (TXT query) (in=120 out=45)",
-				protocol:    codersdk.ExitNodeProtocolDNS,
-				destination: "api.example.com",
-				decision:    codersdk.ExitNodeFlowAllow,
-				wantReason:  "no dns rule matched (TXT query) (in=120 out=45)",
+				slugOrPort: "dns api.example.com",
+				reason:     "no dns rule matched (TXT query) (in=120 out=45)",
+				want: codersdk.ConnectionLogEgressInfo{
+					Protocol:      codersdk.ExitNodeProtocolDNS,
+					Destination:   "api.example.com",
+					DestinationIP: "127.0.0.1",
+					Decision:      codersdk.ExitNodeFlowAllow,
+					Reason:        "no dns rule matched (TXT query) (in=120 out=45)",
+				},
 			},
-		}
-		for _, tt := range tests {
+		} {
 			connectionID := uuid.New()
 			dbgen.ConnectionLog(t, db, database.UpsertConnectionLogParams{
 				ID:               connectionID,
@@ -477,17 +443,14 @@ func TestExitNodes(t *testing.T) {
 			logs, err := client.ConnectionLogs(ctx, codersdk.ConnectionLogsRequest{
 				SearchQuery: "connection_id:" + connectionID.String(),
 			})
-			require.NoError(t, err, tt.name)
-			require.Len(t, logs.ConnectionLogs, 1, tt.name)
+			require.NoError(t, err, tt.slugOrPort)
+			require.Len(t, logs.ConnectionLogs, 1, tt.slugOrPort)
 			clog := logs.ConnectionLogs[0]
-			require.Equal(t, codersdk.ConnectionTypeEgress, clog.Type, tt.name)
-			require.NotNil(t, clog.EgressInfo, tt.name)
-			assert.Equal(t, tt.protocol, clog.EgressInfo.Protocol, tt.name)
-			assert.Equal(t, tt.destination, clog.EgressInfo.Destination, tt.name)
-			assert.Equal(t, tt.decision, clog.EgressInfo.Decision, tt.name)
-			assert.Equal(t, tt.ruleID, clog.EgressInfo.RuleID, tt.name)
-			assert.Equal(t, tt.wantReason, clog.EgressInfo.Reason, tt.name)
-			assert.Equal(t, "127.0.0.1", clog.EgressInfo.DestinationIP, tt.name)
+			require.Equal(t, codersdk.ConnectionTypeEgress, clog.Type, tt.slugOrPort)
+			require.NotNil(t, clog.EgressInfo, tt.slugOrPort)
+			// DisconnectTime is not part of the encoding under test.
+			clog.EgressInfo.DisconnectTime = nil
+			assert.Equal(t, tt.want, *clog.EgressInfo, tt.slugOrPort)
 		}
 	})
 
@@ -527,12 +490,4 @@ func TestExitNodes(t *testing.T) {
 		require.NotNil(t, res)
 		require.Equal(t, http.StatusUnauthorized, res.StatusCode)
 	})
-}
-
-func mapIDs(nodes []codersdk.ExitNode) []uuid.UUID {
-	ids := make([]uuid.UUID, 0, len(nodes))
-	for _, node := range nodes {
-		ids = append(ids, node.ID)
-	}
-	return ids
 }

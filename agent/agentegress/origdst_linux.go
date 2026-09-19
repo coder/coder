@@ -4,6 +4,7 @@ package agentegress
 
 import (
 	"encoding/binary"
+	"errors"
 	"net"
 	"net/netip"
 	"syscall"
@@ -47,9 +48,7 @@ func udpOriginalDst(oob []byte) netip.AddrPort {
 		if len(m.Data) < 8 || binary.NativeEndian.Uint16(m.Data[0:2]) != unix.AF_INET {
 			continue
 		}
-		port := binary.BigEndian.Uint16(m.Data[2:4])
-		addr := netip.AddrFrom4([4]byte(m.Data[4:8]))
-		return netip.AddrPortFrom(addr, port)
+		return netip.AddrPortFrom(netip.AddrFrom4([4]byte(m.Data[4:8])), binary.BigEndian.Uint16(m.Data[2:4]))
 	}
 	return netip.AddrPort{}
 }
@@ -69,6 +68,10 @@ func originalDestination(conn net.Conn) (netip.AddrPort, error) {
 	if !ok {
 		return netip.AddrPort{}, xerrors.Errorf("connection type %T has no raw socket", conn)
 	}
+	local, err := addrPortOf(conn.LocalAddr())
+	if err != nil {
+		return netip.AddrPort{}, err
+	}
 	raw, err := sc.SyscallConn()
 	if err != nil {
 		return netip.AddrPort{}, xerrors.Errorf("raw conn: %w", err)
@@ -77,37 +80,27 @@ func originalDestination(conn net.Conn) (netip.AddrPort, error) {
 		dst    netip.AddrPort
 		optErr error
 	)
-	ctlErr := raw.Control(func(fd uintptr) {
-		dst, optErr = getOriginalDst(int(fd), conn.LocalAddr())
-	})
-	if ctlErr != nil {
-		return netip.AddrPort{}, xerrors.Errorf("control raw conn: %w", ctlErr)
+	if err := raw.Control(func(fd uintptr) {
+		dst, optErr = getOriginalDst(int(fd), local.Addr())
+	}); err != nil {
+		return netip.AddrPort{}, xerrors.Errorf("control raw conn: %w", err)
 	}
-	if optErr != nil {
-		// ENOENT means conntrack has no entry, so the socket was not NATed.
-		if xerrors.Is(optErr, unix.ENOENT) || xerrors.Is(optErr, unix.ENOPROTOOPT) {
-			return netip.AddrPort{}, nil
-		}
-		return netip.AddrPort{}, optErr
+	// ENOENT means conntrack has no entry, so the socket was not NATed.
+	if errors.Is(optErr, unix.ENOENT) || errors.Is(optErr, unix.ENOPROTOOPT) {
+		return netip.AddrPort{}, nil
 	}
-	return dst, nil
+	return dst, optErr
 }
 
-func getOriginalDst(fd int, local net.Addr) (netip.AddrPort, error) {
-	tcpAddr, ok := local.(*net.TCPAddr)
-	if !ok {
-		return netip.AddrPort{}, xerrors.Errorf("unexpected local address type %T", local)
-	}
-	if tcpAddr.AddrPort().Addr().Unmap().Is4() {
+func getOriginalDst(fd int, local netip.Addr) (netip.AddrPort, error) {
+	if local.Unmap().Is4() {
 		// sockaddr_in fits in the 16-byte multicast address of an
 		// IPv6Mreq: family(2) port(2) addr(4) zero(8).
 		mreq, err := unix.GetsockoptIPv6Mreq(fd, unix.IPPROTO_IP, unix.SO_ORIGINAL_DST)
 		if err != nil {
 			return netip.AddrPort{}, xerrors.Errorf("getsockopt SO_ORIGINAL_DST: %w", err)
 		}
-		port := binary.BigEndian.Uint16(mreq.Multiaddr[2:4])
-		addr := netip.AddrFrom4([4]byte(mreq.Multiaddr[4:8]))
-		return netip.AddrPortFrom(addr, port), nil
+		return netip.AddrPortFrom(netip.AddrFrom4([4]byte(mreq.Multiaddr[4:8])), binary.BigEndian.Uint16(mreq.Multiaddr[2:4])), nil
 	}
 	// sockaddr_in6 (28 bytes) fits in an IPv6MTUInfo (32 bytes).
 	info, err := unix.GetsockoptIPv6MTUInfo(fd, unix.IPPROTO_IPV6, ip6tSoOriginalDst)
@@ -118,7 +111,6 @@ func getOriginalDst(fd int, local net.Addr) (netip.AddrPort, error) {
 	// uint16, so re-read them in big endian.
 	var portBytes [2]byte
 	binary.NativeEndian.PutUint16(portBytes[:], info.Addr.Port)
-	port := binary.BigEndian.Uint16(portBytes[:])
-	addr := netip.AddrFrom16(info.Addr.Addr)
-	return netip.AddrPortFrom(addr.Unmap(), port), nil
+	addr := netip.AddrFrom16(info.Addr.Addr).Unmap()
+	return netip.AddrPortFrom(addr, binary.BigEndian.Uint16(portBytes[:])), nil
 }

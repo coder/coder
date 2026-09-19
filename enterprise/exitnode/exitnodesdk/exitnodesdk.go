@@ -5,8 +5,8 @@
 package exitnodesdk
 
 import (
+	"cmp"
 	"context"
-	"encoding/json"
 	"net/http"
 	"net/url"
 	"time"
@@ -48,39 +48,32 @@ func New(serverURL *url.URL, token string) *Client {
 	return &Client{SDKClient: sdkClient}
 }
 
-// Request wraps the underlying codersdk.Client's Request method.
-func (c *Client) Request(ctx context.Context, method, path string, body any, opts ...codersdk.RequestOption) (*http.Response, error) {
-	return c.SDKClient.Request(ctx, method, path, body, opts...)
-}
-
 // Register announces the exit node to coderd and returns the DERP map and
 // the set of agent IDs the node must open tunnels to. Both 200 and 201 are
 // accepted so the client is tolerant of the server's choice of status.
 func (c *Client) Register(ctx context.Context, req codersdk.RegisterExitNodeRequest) (codersdk.RegisterExitNodeResponse, error) {
-	res, err := c.Request(ctx, http.MethodPost, registerPath, req)
+	var resp codersdk.RegisterExitNodeResponse
+	res, err := c.SDKClient.Request(ctx, http.MethodPost, registerPath, req)
 	if err != nil {
-		return codersdk.RegisterExitNodeResponse{}, xerrors.Errorf("make request: %w", err)
+		return resp, xerrors.Errorf("make request: %w", err)
 	}
 	defer res.Body.Close()
-
 	if res.StatusCode != http.StatusOK && res.StatusCode != http.StatusCreated {
-		return codersdk.RegisterExitNodeResponse{}, codersdk.ReadBodyAsError(res)
+		return resp, codersdk.ReadBodyAsError(res)
 	}
-	var resp codersdk.RegisterExitNodeResponse
-	if err := json.NewDecoder(res.Body).Decode(&resp); err != nil {
-		return codersdk.RegisterExitNodeResponse{}, xerrors.Errorf("decode response: %w", err)
+	if err := codersdk.ReadBodyAsJSON(res, &resp); err != nil {
+		return resp, xerrors.Errorf("decode response: %w", err)
 	}
 	return resp, nil
 }
 
 // ReportFlows sends a batch of flow reports to coderd.
 func (c *Client) ReportFlows(ctx context.Context, req codersdk.ReportExitNodeFlowsRequest) error {
-	res, err := c.Request(ctx, http.MethodPost, flowsPath, req)
+	res, err := c.SDKClient.Request(ctx, http.MethodPost, flowsPath, req)
 	if err != nil {
 		return xerrors.Errorf("make request: %w", err)
 	}
 	defer res.Body.Close()
-
 	if res.StatusCode != http.StatusOK && res.StatusCode != http.StatusNoContent && res.StatusCode != http.StatusAccepted {
 		return codersdk.ReadBodyAsError(res)
 	}
@@ -91,33 +84,13 @@ func (c *Client) ReportFlows(ctx context.Context, req codersdk.ReportExitNodeFlo
 // node coordinator websocket. The websocket upgrade carries the exit node
 // token header via the SDK client's SessionTokenProvider.
 func (c *Client) TailnetDialer() (tailnet.ControlProtocolDialer, error) {
-	logger := c.SDKClient.Logger().Named("tailnet_dialer")
-
 	coordinateURL, err := c.SDKClient.URL.Parse(coordinatePath)
 	if err != nil {
 		return nil, xerrors.Errorf("parse url: %w", err)
 	}
-	wsOptions := &websocket.DialOptions{
-		HTTPClient: c.SDKClient.HTTPClient,
-	}
+	wsOptions := &websocket.DialOptions{HTTPClient: c.SDKClient.HTTPClient}
 	c.SDKClient.SessionTokenProvider.SetDialOption(wsOptions)
-
-	return workspacesdk.NewWebsocketDialer(logger, coordinateURL, wsOptions), nil
-}
-
-// DialCoordinator performs a single dial of the coordinator websocket and
-// returns the resulting control protocol clients. Long-lived callers should
-// prefer TailnetDialer together with tailnet.NewController, which reconnects.
-func (c *Client) DialCoordinator(ctx context.Context) (tailnet.ControlProtocolClients, error) {
-	dialer, err := c.TailnetDialer()
-	if err != nil {
-		return tailnet.ControlProtocolClients{}, err
-	}
-	clients, err := dialer.Dial(ctx, nil)
-	if err != nil {
-		return tailnet.ControlProtocolClients{}, xerrors.Errorf("dial coordinator: %w", err)
-	}
-	return clients, nil
+	return workspacesdk.NewWebsocketDialer(c.SDKClient.Logger().Named("tailnet_dialer"), coordinateURL, wsOptions), nil
 }
 
 // RegisterLoopOpts configures RegisterLoop.
@@ -148,112 +121,83 @@ type RegisterLoopOpts struct {
 }
 
 // RegisterLoop keeps an exit node registered with coderd by calling Register
-// on a fixed interval.
+// on a fixed interval until Close is called.
 type RegisterLoop struct {
-	opts RegisterLoopOpts
-	c    *Client
-
-	closedCtx context.Context
-	close     context.CancelFunc
-	done      chan struct{}
+	cancel context.CancelFunc
+	done   chan struct{}
 }
 
 // RegisterLoop performs the initial registration synchronously and then keeps
 // re-registering in the background until Close is called. The first response
 // is returned to the caller; later responses are delivered to CallbackFn.
 func (c *Client) RegisterLoop(ctx context.Context, opts RegisterLoopOpts) (*RegisterLoop, codersdk.RegisterExitNodeResponse, error) {
-	if opts.Interval == 0 {
-		opts.Interval = 5 * time.Second
-	}
-	if opts.MaxFailureCount == 0 {
-		opts.MaxFailureCount = 10
-	}
-	if opts.AttemptTimeout == 0 {
-		opts.AttemptTimeout = 10 * time.Second
-	}
+	opts.Interval = cmp.Or(opts.Interval, 5*time.Second)
+	opts.MaxFailureCount = cmp.Or(opts.MaxFailureCount, 10)
+	opts.AttemptTimeout = cmp.Or(opts.AttemptTimeout, 10*time.Second)
 	if opts.Clock == nil {
 		opts.Clock = quartz.NewReal()
 	}
-
-	closedCtx, closeFn := context.WithCancel(context.Background())
-	loop := &RegisterLoop{
-		opts:      opts,
-		c:         c,
-		closedCtx: closedCtx,
-		close:     closeFn,
-		done:      make(chan struct{}),
+	register := func(ctx context.Context) (codersdk.RegisterExitNodeResponse, error) {
+		ctx, cancel := context.WithTimeout(ctx, opts.AttemptTimeout)
+		defer cancel()
+		res, err := c.Register(ctx, opts.Request)
+		if err != nil {
+			return res, xerrors.Errorf("register exit node: %w", err)
+		}
+		return res, nil
+	}
+	fail := func(err error) {
+		if opts.FailureFn != nil {
+			opts.FailureFn(err)
+		}
 	}
 
-	first, err := loop.register(ctx)
+	first, err := register(ctx)
 	if err != nil {
-		closeFn()
-		close(loop.done)
 		return nil, codersdk.RegisterExitNodeResponse{}, xerrors.Errorf("initial registration: %w", err)
 	}
 
-	go loop.run()
+	loopCtx, cancel := context.WithCancel(context.Background())
+	loop := &RegisterLoop{cancel: cancel, done: make(chan struct{})}
+	go func() {
+		defer close(loop.done)
+		ticker := opts.Clock.NewTicker(opts.Interval, "exitnodesdk", "register")
+		defer ticker.Stop()
+		failedAttempts := 0
+		for {
+			select {
+			case <-loopCtx.Done():
+				return
+			case <-ticker.C:
+			}
+			res, err := register(loopCtx)
+			if err != nil {
+				if loopCtx.Err() != nil {
+					return
+				}
+				failedAttempts++
+				opts.Logger.Warn(context.Background(), "failed to re-register exit node with coderd",
+					slog.F("failed_attempts", failedAttempts), slog.Error(err))
+				if failedAttempts > opts.MaxFailureCount {
+					fail(xerrors.Errorf("exceeded re-registration failure count of %d: last error: %w", opts.MaxFailureCount, err))
+					return
+				}
+				continue
+			}
+			failedAttempts = 0
+			if opts.CallbackFn != nil {
+				if err := opts.CallbackFn(res); err != nil {
+					fail(xerrors.Errorf("registration callback: %w", err))
+					return
+				}
+			}
+		}
+	}()
 	return loop, first, nil
-}
-
-func (l *RegisterLoop) register(ctx context.Context) (codersdk.RegisterExitNodeResponse, error) {
-	ctx, cancel := context.WithTimeout(ctx, l.opts.AttemptTimeout)
-	defer cancel()
-	res, err := l.c.Register(ctx, l.opts.Request)
-	if err != nil {
-		return codersdk.RegisterExitNodeResponse{}, xerrors.Errorf("register exit node: %w", err)
-	}
-	return res, nil
-}
-
-func (l *RegisterLoop) run() {
-	defer close(l.done)
-
-	failedAttempts := 0
-	ticker := l.opts.Clock.NewTicker(l.opts.Interval, "exitnodesdk", "register")
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-l.closedCtx.Done():
-			return
-		case <-ticker.C:
-		}
-
-		resp, err := l.register(l.closedCtx)
-		if err != nil {
-			if l.closedCtx.Err() != nil {
-				return
-			}
-			failedAttempts++
-			l.opts.Logger.Warn(context.Background(), "failed to re-register exit node with coderd",
-				slog.F("failed_attempts", failedAttempts),
-				slog.Error(err),
-			)
-			if failedAttempts > l.opts.MaxFailureCount {
-				l.failureFn(xerrors.Errorf("exceeded re-registration failure count of %d: last error: %w", l.opts.MaxFailureCount, err))
-				return
-			}
-			continue
-		}
-		failedAttempts = 0
-
-		if l.opts.CallbackFn != nil {
-			if err := l.opts.CallbackFn(resp); err != nil {
-				l.failureFn(xerrors.Errorf("registration callback: %w", err))
-				return
-			}
-		}
-	}
-}
-
-func (l *RegisterLoop) failureFn(err error) {
-	if l.opts.FailureFn != nil {
-		l.opts.FailureFn(err)
-	}
 }
 
 // Close stops the loop and waits for it to exit.
 func (l *RegisterLoop) Close() {
-	l.close()
+	l.cancel()
 	<-l.done
 }

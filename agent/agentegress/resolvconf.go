@@ -1,10 +1,9 @@
 package agentegress
 
 import (
-	"bufio"
-	"io"
 	"net/netip"
 	"os"
+	"slices"
 	"strings"
 )
 
@@ -23,13 +22,7 @@ const (
 // A missing or unreadable file yields no resolvers.
 func systemResolvers() []netip.Addr {
 	resolvers := readResolvConf(resolvConfPath)
-	allLoopback := len(resolvers) > 0
-	for _, addr := range resolvers {
-		if !addr.IsLoopback() {
-			allLoopback = false
-			break
-		}
-	}
+	allLoopback := len(resolvers) > 0 && !slices.ContainsFunc(resolvers, func(a netip.Addr) bool { return !a.IsLoopback() })
 	if allLoopback {
 		if upstream := readResolvConf(systemdResolvConfPath); len(upstream) > 0 {
 			return upstream
@@ -39,26 +32,21 @@ func systemResolvers() []netip.Addr {
 }
 
 func readResolvConf(path string) []netip.Addr {
-	f, err := os.Open(path)
+	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil
 	}
-	defer f.Close()
-	return parseResolvConf(f)
+	return parseResolvConf(string(data))
 }
 
 // parseResolvConf extracts nameserver addresses in file order. Only the
 // nameserver directive matters here: search domains and options are the
 // libc resolver's business, and the proxy forwards queries verbatim.
-func parseResolvConf(r io.Reader) []netip.Addr {
+func parseResolvConf(conf string) []netip.Addr {
 	var out []netip.Addr
-	seen := make(map[netip.Addr]struct{})
-	sc := bufio.NewScanner(r)
-	for sc.Scan() {
-		line := sc.Text()
-		if i := strings.IndexAny(line, "#;"); i >= 0 {
-			line = line[:i]
-		}
+	for line := range strings.Lines(conf) {
+		line, _, _ = strings.Cut(line, "#")
+		line, _, _ = strings.Cut(line, ";")
 		fields := strings.Fields(line)
 		if len(fields) < 2 || fields[0] != "nameserver" {
 			continue
@@ -67,15 +55,9 @@ func parseResolvConf(r io.Reader) []netip.Addr {
 		// and the dialer do not want.
 		host, _, _ := strings.Cut(fields[1], "%")
 		addr, err := netip.ParseAddr(host)
-		if err != nil {
-			continue
+		if err == nil && !slices.Contains(out, addr.Unmap()) {
+			out = append(out, addr.Unmap())
 		}
-		addr = addr.Unmap()
-		if _, ok := seen[addr]; ok {
-			continue
-		}
-		seen[addr] = struct{}{}
-		out = append(out, addr)
 	}
 	return out
 }

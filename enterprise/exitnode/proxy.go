@@ -3,9 +3,9 @@ package exitnode
 import (
 	"bufio"
 	"bytes"
+	"cmp"
 	"context"
 	"errors"
-	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -39,6 +39,7 @@ const (
 	// maxHostnameLen is the DNS limit on a presentation-format name.
 	maxHostnameLen = 253
 
+	connectEstablished = "HTTP/1.1 200 Connection Established\r\n\r\n"
 	// resolveFailedReason is the deny reason header value on a 502 when a
 	// CONNECT hostname could not be resolved.
 	resolveFailedReason = "resolve failed"
@@ -61,8 +62,6 @@ type AgentTable struct {
 	mu     sync.RWMutex
 	byAddr map[netip.Addr]uuid.UUID
 }
-
-var _ AgentResolver = (*AgentTable)(nil)
 
 // NewAgentTable creates an empty table.
 func NewAgentTable() *AgentTable {
@@ -94,7 +93,7 @@ type DialFunc func(ctx context.Context, network, addr string) (net.Conn, error)
 // ConnectProxyOptions configures a ConnectProxy.
 type ConnectProxyOptions struct {
 	Logger  slog.Logger
-	Policy  PolicyEvaluator
+	Policy  *Policy
 	Agents  AgentResolver
 	Flows   FlowRecorder
 	Metrics *Metrics
@@ -181,49 +180,24 @@ type ConnectProxyOptions struct {
 // same 2-byte length framing, and every message is evaluated and answered
 // individually; see handleDNS.
 type ConnectProxy struct {
-	logger         slog.Logger
-	policy         PolicyEvaluator
-	agents         AgentResolver
-	flows          FlowRecorder
-	metrics        *Metrics
-	dial           DialFunc
-	dialTimeout    time.Duration
-	sniffTimeout   time.Duration
-	resolver       HostResolver
-	resolveTimeout time.Duration
-	udpIdleTimeout time.Duration
-	dnsExchanger   DNSExchanger
-	dnsSampleRate  int
-	clock          quartz.Clock
-
-	dnsSampleCounter atomic.Uint64
+	ConnectProxyOptions
+	dnsSampleCounter atomic.Int64
 	wg               sync.WaitGroup
 }
 
 // NewConnectProxy creates a proxy. Serve or HandleConn must be called to do
 // any work.
 func NewConnectProxy(opts ConnectProxyOptions) *ConnectProxy {
-	if opts.DialTimeout <= 0 {
-		opts.DialTimeout = DefaultDialTimeout
-	}
-	if opts.SniffTimeout <= 0 {
-		opts.SniffTimeout = DefaultSniffTimeout
-	}
-	if opts.ResolveTimeout <= 0 {
-		opts.ResolveTimeout = DefaultResolveTimeout
-	}
-	if opts.UDPIdleTimeout <= 0 {
-		opts.UDPIdleTimeout = DefaultUDPIdleTimeout
-	}
-	if opts.DNSReportSampleRate <= 0 {
-		opts.DNSReportSampleRate = DefaultDNSReportSampleRate
-	}
+	opts.DialTimeout = cmp.Or(max(opts.DialTimeout, 0), DefaultDialTimeout)
+	opts.SniffTimeout = cmp.Or(max(opts.SniffTimeout, 0), DefaultSniffTimeout)
+	opts.ResolveTimeout = cmp.Or(max(opts.ResolveTimeout, 0), DefaultResolveTimeout)
+	opts.UDPIdleTimeout = cmp.Or(max(opts.UDPIdleTimeout, 0), DefaultUDPIdleTimeout)
+	opts.DNSReportSampleRate = cmp.Or(max(opts.DNSReportSampleRate, 0), DefaultDNSReportSampleRate)
 	if opts.Clock == nil {
 		opts.Clock = quartz.NewReal()
 	}
 	if opts.Dialer == nil {
-		d := &net.Dialer{Timeout: opts.DialTimeout}
-		opts.Dialer = d.DialContext
+		opts.Dialer = (&net.Dialer{Timeout: opts.DialTimeout}).DialContext
 	}
 	if opts.Resolver == nil {
 		opts.Resolver = net.DefaultResolver
@@ -241,22 +215,7 @@ func NewConnectProxy(opts ConnectProxyOptions) *ConnectProxy {
 	if opts.Flows == nil {
 		opts.Flows = discardFlows{}
 	}
-	return &ConnectProxy{
-		logger:         opts.Logger,
-		policy:         opts.Policy,
-		agents:         opts.Agents,
-		flows:          opts.Flows,
-		metrics:        opts.Metrics,
-		dial:           opts.Dialer,
-		dialTimeout:    opts.DialTimeout,
-		sniffTimeout:   opts.SniffTimeout,
-		resolver:       opts.Resolver,
-		resolveTimeout: opts.ResolveTimeout,
-		udpIdleTimeout: opts.UDPIdleTimeout,
-		dnsExchanger:   opts.DNSExchanger,
-		dnsSampleRate:  opts.DNSReportSampleRate,
-		clock:          opts.Clock,
-	}
+	return &ConnectProxy{ConnectProxyOptions: opts}
 }
 
 type discardFlows struct{}
@@ -277,11 +236,7 @@ func (p *ConnectProxy) Serve(ctx context.Context, ln net.Listener) error {
 			}
 			return xerrors.Errorf("accept: %w", err)
 		}
-		p.wg.Add(1)
-		go func() {
-			defer p.wg.Done()
-			p.HandleConn(ctx, conn)
-		}()
+		p.wg.Go(func() { p.HandleConn(ctx, conn) })
 	}
 }
 
@@ -299,19 +254,19 @@ func (p *ConnectProxy) HandleConn(ctx context.Context, conn net.Conn) {
 
 	srcAddr, ok := remoteAddr(conn)
 	if !ok {
-		p.metrics.UnknownSourceTotal.Inc()
-		p.logger.Warn(ctx, "rejecting connection with unparseable source address",
+		p.Metrics.UnknownSourceTotal.Inc()
+		p.Logger.Warn(ctx, "rejecting connection with unparseable source address",
 			slog.F("remote_addr", conn.RemoteAddr()))
 		return
 	}
-	agentID, ok := p.agents.AgentForAddr(srcAddr)
+	agentID, ok := p.Agents.AgentForAddr(srcAddr)
 	if !ok {
-		p.metrics.UnknownSourceTotal.Inc()
-		p.logger.Warn(ctx, "rejecting connection from unknown source",
+		p.Metrics.UnknownSourceTotal.Inc()
+		p.Logger.Warn(ctx, "rejecting connection from unknown source",
 			slog.F("src", srcAddr))
 		return
 	}
-	logger := p.logger.With(slog.F("agent_id", agentID), slog.F("src", srcAddr))
+	logger := p.Logger.With(slog.F("agent_id", agentID), slog.F("src", srcAddr))
 
 	if err := conn.SetReadDeadline(time.Now().Add(connectReadTimeout)); err != nil {
 		logger.Debug(ctx, "set connect read deadline", slog.Error(err))
@@ -346,40 +301,117 @@ func (p *ConnectProxy) HandleConn(ctx context.Context, conn net.Conn) {
 		client = &replayingConn{Conn: conn, r: io.MultiReader(bytes.NewReader(early), conn)}
 	}
 
-	switch target.protocol {
-	case codersdk.ExitNodeProtocolDNS:
+	if target.protocol == codersdk.ExitNodeProtocolDNS {
 		p.handleDNS(ctx, logger, client, agentID)
-	case codersdk.ExitNodeProtocolUDP:
-		p.handleUDP(ctx, logger, client, agentID, target)
-	default:
-		p.handleTCP(ctx, logger, client, agentID, target)
+		return
 	}
+	p.handleStream(ctx, logger, client, agentID, target)
 }
 
-// resolveTarget fills in the destination address of a hostname target. It
-// answers the CONNECT with 502 and returns false when resolution fails.
-func (p *ConnectProxy) resolveTarget(ctx context.Context, logger slog.Logger, conn net.Conn, target *connectTarget) bool {
-	if target.ip.IsValid() {
-		return true
+// handleStream serves a tcp or udp stream; see ConnectProxy for the phases.
+func (p *ConnectProxy) handleStream(ctx context.Context, logger slog.Logger, client net.Conn, agentID uuid.UUID, target connectTarget) {
+	if !target.ip.IsValid() {
+		ip, err := p.resolve(ctx, target.host)
+		if err != nil {
+			logger.Debug(ctx, "resolve connect hostname", slog.Error(err))
+			writeConnectResponse(client, http.StatusBadGateway, http.Header{
+				codersdk.ExitNodeDenyReasonHeader: []string{resolveFailedReason},
+			})
+			return
+		}
+		target.ip = ip
 	}
-	ip, err := p.resolve(ctx, target.host)
+	flow := codersdk.ExitNodeFlowReport{
+		FlowID:          uuid.New(),
+		AgentID:         agentID,
+		Protocol:        target.protocol,
+		DestinationIP:   target.ip.String(),
+		DestinationPort: int(target.port),
+		Host:            target.host,
+		ConnectTime:     p.Clock.Now(),
+	}
+	info := FlowInfo{Protocol: target.protocol, Host: target.host, IP: target.ip, Port: int(target.port)}
+	// Only application bytes on a tcp stream can reveal a name later; nothing
+	// in udp datagrams does, so a udp decision is final now.
+	sniff := target.protocol == codersdk.ExitNodeProtocolTCP && target.host == ""
+	info.HostUnknown = sniff
+
+	// Phase one: decide on what is known before replying, so IP/CIDR/port
+	// denials (and host denials when the name is known) reach the agent as
+	// an HTTP 403 with a reason.
+	decision := p.Policy.Evaluate(info)
+	if !decision.Allow {
+		p.recordDeny(ctx, logger, flow, decision)
+		hdr := http.Header{codersdk.ExitNodeDenyReasonHeader: []string{decision.Reason}}
+		if decision.RuleID != "" {
+			hdr.Set(codersdk.ExitNodeDenyRuleHeader, decision.RuleID)
+		}
+		writeConnectResponse(client, http.StatusForbidden, hdr)
+		return
+	}
+	if _, err := io.WriteString(client, connectEstablished); err != nil {
+		logger.Debug(ctx, "write connect response", slog.Error(err))
+		return
+	}
+
+	if sniff {
+		// Phase two: the application now speaks and may reveal the name.
+		host, sniffed, err := SniffHost(client, p.SniffTimeout)
+		if err != nil && !errors.Is(err, io.EOF) {
+			logger.Debug(ctx, "client connection failed during sniff", slog.Error(err))
+			return
+		}
+		// An EOF here is a half-close after a partial first message; the
+		// flow still proceeds with an unknown host so the peer's reply can
+		// be relayed.
+		client = sniffed
+		flow.Host, info.Host, info.HostUnknown = host, host, false
+		logger = logger.With(slog.F("host", host))
+		if decision = p.Policy.Evaluate(info); !decision.Allow {
+			// Too late for an HTTP status; closing is the only signal left.
+			p.recordDeny(ctx, logger, flow, decision)
+			return
+		}
+	}
+	flow.Decision = codersdk.ExitNodeFlowAllow
+	flow.RuleID = decision.RuleID
+	flow.Reason = decision.Reason
+	p.Metrics.FlowsTotal.WithLabelValues(string(codersdk.ExitNodeFlowAllow)).Inc()
+
+	dialCtx, cancel := context.WithTimeout(ctx, p.DialTimeout)
+	upstream, err := p.Dialer(dialCtx, string(target.protocol), netip.AddrPortFrom(target.ip, target.port).String())
+	cancel()
 	if err != nil {
-		logger.Debug(ctx, "resolve connect hostname", slog.Error(err))
-		writeConnectResponse(conn, http.StatusBadGateway, http.Header{
-			codersdk.ExitNodeDenyReasonHeader: []string{resolveFailedReason},
-		})
-		return false
+		// The allowed flow is reported with an immediate disconnect so the
+		// audit trail shows the attempt.
+		logger.Debug(ctx, "dial upstream", slog.Error(err))
+		p.recordEnded(flow)
+		return
 	}
-	target.ip = ip
-	return true
+	defer upstream.Close()
+
+	p.Metrics.ActiveFlows.Inc()
+	defer p.Metrics.ActiveFlows.Dec()
+	p.Flows.Record(flow)
+	logger.Debug(ctx, "flow allowed", slog.F("rule_id", decision.RuleID))
+
+	if target.protocol == codersdk.ExitNodeProtocolUDP {
+		flow.BytesIn, flow.BytesOut = relayDatagrams(ctx, p.Clock, client, upstream, p.UDPIdleTimeout)
+	} else {
+		flow.BytesIn, flow.BytesOut = pipe(ctx, client, upstream)
+	}
+	p.Metrics.BytesTotal.WithLabelValues("in").Add(float64(flow.BytesIn))
+	p.Metrics.BytesTotal.WithLabelValues("out").Add(float64(flow.BytesOut))
+	p.recordEnded(flow)
+	logger.Debug(ctx, "flow closed", slog.F("bytes_in", flow.BytesIn), slog.F("bytes_out", flow.BytesOut))
 }
 
 // resolve looks up host and prefers an IPv4 address so the upstream path
 // matches what most workspaces would have dialed themselves.
 func (p *ConnectProxy) resolve(ctx context.Context, host string) (netip.Addr, error) {
-	ctx, cancel := context.WithTimeout(ctx, p.resolveTimeout)
+	ctx, cancel := context.WithTimeout(ctx, p.ResolveTimeout)
 	defer cancel()
-	addrs, err := p.resolver.LookupNetIP(ctx, "ip", host)
+	addrs, err := p.Resolver.LookupNetIP(ctx, "ip", host)
 	if err != nil {
 		return netip.Addr{}, xerrors.Errorf("lookup %q: %w", host, err)
 	}
@@ -394,189 +426,19 @@ func (p *ConnectProxy) resolve(ctx context.Context, host string) (netip.Addr, er
 	return addrs[0].Unmap(), nil
 }
 
-func writeDeny(conn net.Conn, decision Decision) {
-	hdr := http.Header{codersdk.ExitNodeDenyReasonHeader: []string{decision.Reason}}
-	if decision.RuleID != "" {
-		hdr.Set(codersdk.ExitNodeDenyRuleHeader, decision.RuleID)
-	}
-	writeConnectResponse(conn, http.StatusForbidden, hdr)
-}
-
-// handleTCP serves a tcp stream; see ConnectProxy for the phases.
-func (p *ConnectProxy) handleTCP(ctx context.Context, logger slog.Logger, client net.Conn, agentID uuid.UUID, target connectTarget) {
-	if !p.resolveTarget(ctx, logger, client, &target) {
-		return
-	}
-	flow := codersdk.ExitNodeFlowReport{
-		FlowID:          uuid.New(),
-		AgentID:         agentID,
-		Protocol:        codersdk.ExitNodeProtocolTCP,
-		DestinationIP:   target.ip.String(),
-		DestinationPort: int(target.port),
-		Host:            target.host,
-		ConnectTime:     p.clock.Now(),
-	}
-	hostKnown := target.host != ""
-
-	// Phase one: decide on what is known before replying, so IP/CIDR/port
-	// denials (and host denials when the name is known) reach the agent as
-	// an HTTP 403 with a reason.
-	decision := p.policy.Evaluate(FlowInfo{
-		Protocol:    codersdk.ExitNodeProtocolTCP,
-		Host:        target.host,
-		IP:          target.ip,
-		Port:        int(target.port),
-		HostUnknown: !hostKnown,
-	})
-	if !decision.Allow {
-		p.recordDeny(ctx, logger, flow, decision)
-		writeDeny(client, decision)
-		return
-	}
-
-	if _, err := io.WriteString(client, "HTTP/1.1 200 Connection Established\r\n\r\n"); err != nil {
-		logger.Debug(ctx, "write connect response", slog.Error(err))
-		return
-	}
-
-	if !hostKnown {
-		// Phase two: the application now speaks and may reveal the name.
-		host, sniffed, err := SniffHost(client, p.sniffTimeout)
-		if err != nil && !errors.Is(err, io.EOF) {
-			logger.Debug(ctx, "client connection failed during sniff", slog.Error(err))
-			return
-		}
-		// An EOF here is a half-close after a partial first message; the
-		// flow still proceeds with an unknown host so the peer's reply can
-		// be relayed.
-		client = sniffed
-		flow.Host = host
-		logger = logger.With(slog.F("host", host))
-
-		decision = p.policy.Evaluate(FlowInfo{
-			Protocol: codersdk.ExitNodeProtocolTCP,
-			Host:     host,
-			IP:       target.ip,
-			Port:     int(target.port),
-		})
-		if !decision.Allow {
-			// Too late for an HTTP status; closing is the only signal left.
-			p.recordDeny(ctx, logger, flow, decision)
-			return
-		}
-	}
-	flow.Decision = codersdk.ExitNodeFlowAllow
-	flow.RuleID = decision.RuleID
-	flow.Reason = decision.Reason
-
-	upstream, ok := p.dialUpstream(ctx, logger, "tcp", target, flow)
-	if !ok {
-		return
-	}
-	defer upstream.Close()
-
-	p.metrics.FlowsTotal.WithLabelValues(string(codersdk.ExitNodeFlowAllow)).Inc()
-	p.metrics.ActiveFlows.Inc()
-	defer p.metrics.ActiveFlows.Dec()
-	p.flows.Record(flow)
-	logger.Debug(ctx, "flow allowed", slog.F("rule_id", decision.RuleID))
-
-	bytesIn, bytesOut := pipe(ctx, client, upstream)
-	p.recordDisconnect(ctx, logger, flow, bytesIn, bytesOut)
-}
-
-// handleUDP serves a udp stream: one policy decision, then framed datagrams
-// relayed to a single UDP peer.
-func (p *ConnectProxy) handleUDP(ctx context.Context, logger slog.Logger, client net.Conn, agentID uuid.UUID, target connectTarget) {
-	if !p.resolveTarget(ctx, logger, client, &target) {
-		return
-	}
-	flow := codersdk.ExitNodeFlowReport{
-		FlowID:          uuid.New(),
-		AgentID:         agentID,
-		Protocol:        codersdk.ExitNodeProtocolUDP,
-		DestinationIP:   target.ip.String(),
-		DestinationPort: int(target.port),
-		Host:            target.host,
-		ConnectTime:     p.clock.Now(),
-	}
-
-	// There is no second phase for udp: nothing in the datagrams reveals a
-	// name, so the decision is final now.
-	decision := p.policy.Evaluate(FlowInfo{
-		Protocol: codersdk.ExitNodeProtocolUDP,
-		Host:     target.host,
-		IP:       target.ip,
-		Port:     int(target.port),
-	})
-	if !decision.Allow {
-		p.recordDeny(ctx, logger, flow, decision)
-		writeDeny(client, decision)
-		return
-	}
-	flow.Decision = codersdk.ExitNodeFlowAllow
-	flow.RuleID = decision.RuleID
-	flow.Reason = decision.Reason
-
-	if _, err := io.WriteString(client, "HTTP/1.1 200 Connection Established\r\n\r\n"); err != nil {
-		logger.Debug(ctx, "write connect response", slog.Error(err))
-		return
-	}
-
-	upstream, ok := p.dialUpstream(ctx, logger, "udp", target, flow)
-	if !ok {
-		return
-	}
-	defer upstream.Close()
-
-	p.metrics.FlowsTotal.WithLabelValues(string(codersdk.ExitNodeFlowAllow)).Inc()
-	p.metrics.ActiveFlows.Inc()
-	defer p.metrics.ActiveFlows.Dec()
-	p.flows.Record(flow)
-	logger.Debug(ctx, "flow allowed", slog.F("rule_id", decision.RuleID))
-
-	bytesIn, bytesOut := relayDatagrams(ctx, p.clock, client, upstream, p.udpIdleTimeout)
-	p.recordDisconnect(ctx, logger, flow, bytesIn, bytesOut)
-}
-
-// dialUpstream connects to the resolved target. On failure the allowed flow
-// is reported with an immediate disconnect so the audit trail shows the
-// attempt, and ok is false.
-func (p *ConnectProxy) dialUpstream(ctx context.Context, logger slog.Logger, network string, target connectTarget, flow codersdk.ExitNodeFlowReport) (net.Conn, bool) {
-	dialCtx, cancel := context.WithTimeout(ctx, p.dialTimeout)
-	defer cancel()
-	upstream, err := p.dial(dialCtx, network, netip.AddrPortFrom(target.ip, target.port).String())
-	if err != nil {
-		logger.Debug(ctx, "dial upstream", slog.Error(err))
-		now := p.clock.Now()
-		flow.DisconnectTime = &now
-		p.metrics.FlowsTotal.WithLabelValues(string(codersdk.ExitNodeFlowAllow)).Inc()
-		p.flows.Record(flow)
-		return nil, false
-	}
-	return upstream, true
-}
-
-func (p *ConnectProxy) recordDisconnect(ctx context.Context, logger slog.Logger, flow codersdk.ExitNodeFlowReport, bytesIn, bytesOut int64) {
-	p.metrics.BytesTotal.WithLabelValues("in").Add(float64(bytesIn))
-	p.metrics.BytesTotal.WithLabelValues("out").Add(float64(bytesOut))
-
-	now := p.clock.Now()
-	flow.BytesIn = bytesIn
-	flow.BytesOut = bytesOut
+// recordEnded reports flow with the disconnect time stamped now.
+func (p *ConnectProxy) recordEnded(flow codersdk.ExitNodeFlowReport) {
+	now := p.Clock.Now()
 	flow.DisconnectTime = &now
-	p.flows.Record(flow)
-	logger.Debug(ctx, "flow closed", slog.F("bytes_in", bytesIn), slog.F("bytes_out", bytesOut))
+	p.Flows.Record(flow)
 }
 
 func (p *ConnectProxy) recordDeny(ctx context.Context, logger slog.Logger, flow codersdk.ExitNodeFlowReport, decision Decision) {
 	flow.Decision = codersdk.ExitNodeFlowDeny
 	flow.RuleID = decision.RuleID
 	flow.Reason = decision.Reason
-	now := p.clock.Now()
-	flow.DisconnectTime = &now
-	p.metrics.FlowsTotal.WithLabelValues(string(codersdk.ExitNodeFlowDeny)).Inc()
-	p.flows.Record(flow)
+	p.Metrics.FlowsTotal.WithLabelValues(string(codersdk.ExitNodeFlowDeny)).Inc()
+	p.recordEnded(flow)
 	logger.Info(ctx, "flow denied by policy", slog.F("rule_id", decision.RuleID), slog.F("reason", decision.Reason))
 }
 
@@ -593,17 +455,14 @@ func pipe(ctx context.Context, client, upstream net.Conn) (bytesIn, bytesOut int
 	defer stop()
 
 	var wg sync.WaitGroup
-	wg.Add(2)
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		bytesOut, _ = io.Copy(upstream, client)
 		_ = closeWrite(upstream)
-	}()
-	go func() {
-		defer wg.Done()
+	})
+	wg.Go(func() {
 		bytesIn, _ = io.Copy(client, upstream)
 		_ = closeWrite(client)
-	}()
+	})
 	wg.Wait()
 	return bytesIn, bytesOut
 }
@@ -664,19 +523,13 @@ func parseConnectTarget(req *http.Request) (connectTarget, error) {
 		}
 		return target, nil
 	}
-
 	if ip, err := netip.ParseAddr(host); err == nil {
 		target.ip = ip.Unmap()
-		if original := NormalizeHost(req.Header.Get(codersdk.ExitNodeOriginalHostHeader)); original != "" {
-			if !validHostname(original) {
-				return connectTarget{}, xerrors.Errorf("%s %q is not a valid hostname", codersdk.ExitNodeOriginalHostHeader, original)
-			}
-			target.host = original
+		host = NormalizeHost(req.Header.Get(codersdk.ExitNodeOriginalHostHeader))
+		if host != "" && !validHostname(host) {
+			return connectTarget{}, xerrors.Errorf("%s %q is not a valid hostname", codersdk.ExitNodeOriginalHostHeader, host)
 		}
-		return target, nil
-	}
-	host = NormalizeHost(host)
-	if !validHostname(host) {
+	} else if host = NormalizeHost(host); !validHostname(host) {
 		return connectTarget{}, xerrors.Errorf("CONNECT target %q is not an ip or hostname", raw)
 	}
 	target.host = host
@@ -687,58 +540,44 @@ func parseConnectTarget(req *http.Request) (connectTarget, error) {
 // deliberately loose (underscores are allowed, for example) because the goal
 // is to reject garbage and header injection, not to enforce RFC 1123.
 func validHostname(host string) bool {
-	if host == "" || len(host) > maxHostnameLen {
+	if host == "" || len(host) > maxHostnameLen || strings.HasPrefix(host, ".") || strings.Contains(host, "..") {
 		return false
 	}
-	for _, r := range host {
-		switch {
-		case r >= 'a' && r <= 'z', r >= '0' && r <= '9', r == '-', r == '.', r == '_':
-		default:
-			return false
-		}
-	}
-	return !strings.HasPrefix(host, ".") && !strings.Contains(host, "..")
+	return !strings.ContainsFunc(host, func(r rune) bool {
+		return (r < 'a' || r > 'z') && (r < '0' || r > '9') && r != '-' && r != '.' && r != '_'
+	})
 }
 
 // writeConnectResponse writes a bodiless HTTP/1.1 response and asks the
 // client to close. Header values are sanitized so a policy reason can never
-// inject headers.
+// inject headers or control characters.
 func writeConnectResponse(w io.Writer, status int, hdr http.Header) {
-	var b strings.Builder
-	_, _ = fmt.Fprintf(&b, "HTTP/1.1 %d %s\r\n", status, http.StatusText(status))
-	for k, vs := range hdr {
-		for _, v := range vs {
-			_, _ = fmt.Fprintf(&b, "%s: %s\r\n", k, sanitizeHeaderValue(v))
+	for _, vs := range hdr {
+		for i, v := range vs {
+			vs[i] = strings.Map(func(r rune) rune {
+				if r < 0x20 && r != '\t' {
+					return ' '
+				}
+				return r
+			}, v)
 		}
 	}
-	_, _ = b.WriteString("Content-Length: 0\r\nConnection: close\r\n\r\n")
-	_, _ = io.WriteString(w, b.String())
-}
-
-func sanitizeHeaderValue(v string) string {
-	return strings.Map(func(r rune) rune {
-		if r == '\r' || r == '\n' || r < 0x20 && r != '\t' {
-			return ' '
-		}
-		return r
-	}, v)
+	_ = (&http.Response{StatusCode: status, ProtoMajor: 1, ProtoMinor: 1, Header: hdr, Close: true}).Write(w)
 }
 
 // remoteAddr extracts the source IP of a connection, unmapping IPv4-in-IPv6.
 func remoteAddr(conn net.Conn) (netip.Addr, bool) {
-	switch a := conn.RemoteAddr().(type) {
-	case *net.TCPAddr:
+	ra := conn.RemoteAddr()
+	if a, ok := ra.(*net.TCPAddr); ok {
 		addr, ok := netip.AddrFromSlice(a.IP)
 		return addr.Unmap(), ok
-	default:
-		if a == nil {
-			return netip.Addr{}, false
-		}
-		ap, err := netip.ParseAddrPort(a.String())
-		if err != nil {
-			addr, err := netip.ParseAddr(a.String())
-			return addr.Unmap(), err == nil
-		}
+	}
+	if ra == nil {
+		return netip.Addr{}, false
+	}
+	if ap, err := netip.ParseAddrPort(ra.String()); err == nil {
 		return ap.Addr().Unmap(), true
 	}
+	addr, err := netip.ParseAddr(ra.String())
+	return addr.Unmap(), err == nil
 }

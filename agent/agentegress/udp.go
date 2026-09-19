@@ -5,7 +5,7 @@ import (
 	"errors"
 	"net"
 	"net/netip"
-	"strconv"
+	"slices"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -14,6 +14,8 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/quartz"
+
+	"github.com/coder/coder/v2/codersdk"
 )
 
 const (
@@ -42,8 +44,9 @@ const (
 type udpProxy struct {
 	logger  slog.Logger
 	clock   quartz.Clock
-	fake    *fakeIPPool
-	connect func(ctx context.Context, target string) (net.Conn, error)
+	connect connectFunc
+	// target names the CONNECT destination for a redirected datagram.
+	target func(dst netip.AddrPort) string
 	// origDst recovers the pre-redirect destination from control messages.
 	// It is a field so tests can supply destinations without netfilter.
 	origDst func(oob []byte) netip.AddrPort
@@ -68,54 +71,52 @@ type udpSessionKey struct {
 	dst netip.AddrPort
 }
 
-func (p *udpProxy) listen(ctx context.Context, host string) error {
+// listenUDP binds an ephemeral IPv4 UDP port on host.
+func listenUDP(ctx context.Context, host string) (*net.UDPConn, netip.AddrPort, error) {
 	var lc net.ListenConfig
 	pc, err := lc.ListenPacket(ctx, "udp4", net.JoinHostPort(host, "0"))
 	if err != nil {
-		return xerrors.Errorf("listen udp: %w", err)
+		return nil, netip.AddrPort{}, err
 	}
 	conn, ok := pc.(*net.UDPConn)
 	if !ok {
 		_ = pc.Close()
-		return xerrors.Errorf("unexpected packet conn type %T", pc)
+		return nil, netip.AddrPort{}, xerrors.Errorf("unexpected packet conn type %T", pc)
+	}
+	addr, err := addrPortOf(conn.LocalAddr())
+	if err != nil {
+		_ = conn.Close()
+		return nil, netip.AddrPort{}, err
+	}
+	return conn, addr, nil
+}
+
+func (p *udpProxy) listen(ctx context.Context, host string) error {
+	conn, addr, err := listenUDP(ctx, host)
+	if err != nil {
+		return xerrors.Errorf("listen udp: %w", err)
 	}
 	if err := enableUDPOriginalDst(conn); err != nil {
 		_ = conn.Close()
 		return xerrors.Errorf("enable original destination reporting: %w", err)
 	}
-	addr, err := udpAddrPort(conn)
-	if err != nil {
-		_ = conn.Close()
-		return err
-	}
-	p.conn = conn
-	p.addr = addr
+	p.conn, p.addr = conn, addr
 	p.sessions = make(map[udpSessionKey]*udpSession)
 	p.denied = make(map[udpSessionKey]time.Time)
 	return nil
 }
 
 func (p *udpProxy) serve(ctx context.Context) {
-	p.wg.Add(1)
-	go func() {
-		defer p.wg.Done()
-		p.readLoop(ctx)
-	}()
+	p.wg.Go(func() { p.readLoop(ctx) })
 }
 
 func (p *udpProxy) close() {
-	if p.conn != nil {
-		_ = p.conn.Close()
-	}
+	_ = p.conn.Close()
 	p.mu.Lock()
-	sessions := make([]*udpSession, 0, len(p.sessions))
 	for _, s := range p.sessions {
-		sessions = append(sessions, s)
-	}
-	p.mu.Unlock()
-	for _, s := range sessions {
 		s.close()
 	}
+	p.mu.Unlock()
 	p.wg.Wait()
 }
 
@@ -132,32 +133,26 @@ func (p *udpProxy) readLoop(ctx context.Context) {
 			continue
 		}
 		dst := p.origDst(oob[:oobn])
-		if !dst.IsValid() || dst == p.addr {
+		key := udpSessionKey{src: src, dst: dst}
+		switch {
+		case !dst.IsValid() || dst == p.addr:
 			// REDIRECT rewrote the IP header before delivery, so the
 			// kernel can only report our own address. Recovering the
 			// real destination needs TPROXY or conntrack access.
 			p.unknownDst.Add(1)
-			key := udpSessionKey{src: src, dst: dst}
 			if p.markDenied(key) {
 				p.logger.Warn(ctx, "dropping redirected udp datagrams, original destination unavailable",
 					slog.F("client", src.String()), slog.F("bytes", n))
 			}
-			continue
-		}
-		if n > udpMaxDatagram {
+		case n > udpMaxDatagram:
 			p.oversized.Add(1)
 			p.logger.Debug(ctx, "dropping oversized udp datagram",
 				slog.F("client", src.String()), slog.F("destination", dst.String()), slog.F("bytes", n))
-			continue
+		default:
+			if s := p.session(ctx, key); s != nil {
+				s.send(slices.Clone(buf[:n]))
+			}
 		}
-		payload := make([]byte, n)
-		copy(payload, buf[:n])
-		key := udpSessionKey{src: src, dst: dst}
-		s := p.session(ctx, key)
-		if s == nil {
-			continue
-		}
-		s.send(payload)
 	}
 }
 
@@ -188,33 +183,19 @@ func (p *udpProxy) session(ctx context.Context, key udpSessionKey) *udpSession {
 	if s, ok := p.sessions[key]; ok {
 		return s
 	}
-	timeout := udpIdleTimeout
-	if key.dst.Port() == 53 {
-		timeout = udpDNSIdleTimeout
-	}
 	s := &udpSession{
 		proxy:   p,
 		key:     key,
 		target:  p.target(key.dst),
-		timeout: timeout,
+		timeout: udpIdleTimeout,
 	}
-	s.timer = p.clock.AfterFunc(timeout, s.expire, "udp_idle")
+	if key.dst.Port() == 53 {
+		s.timeout = udpDNSIdleTimeout
+	}
+	s.timer = p.clock.AfterFunc(s.timeout, s.expire, "udp_idle")
 	p.sessions[key] = s
-	p.wg.Add(1)
-	go func() {
-		defer p.wg.Done()
-		s.run(ctx)
-	}()
+	p.wg.Go(func() { s.run(ctx) })
 	return s
-}
-
-// target names the CONNECT destination for dst, translating fake IPs back
-// to the hostname the client resolved.
-func (p *udpProxy) target(dst netip.AddrPort) string {
-	if name, ok := p.fake.Reverse(dst.Addr()); ok {
-		return net.JoinHostPort(name, strconv.Itoa(int(dst.Port())))
-	}
-	return dst.String()
 }
 
 func (p *udpProxy) remove(s *udpSession) {
@@ -223,15 +204,6 @@ func (p *udpProxy) remove(s *udpSession) {
 	if p.sessions[s.key] == s {
 		delete(p.sessions, s.key)
 	}
-}
-
-// udpAddrPort returns the bound address of a UDP socket.
-func udpAddrPort(conn *net.UDPConn) (netip.AddrPort, error) {
-	udpAddr, ok := conn.LocalAddr().(*net.UDPAddr)
-	if !ok {
-		return netip.AddrPort{}, xerrors.Errorf("unexpected udp local address type %T", conn.LocalAddr())
-	}
-	return udpAddr.AddrPort(), nil
 }
 
 // udpSession is one client-to-destination flow and its exit node stream.
@@ -256,10 +228,10 @@ func (s *udpSession) send(payload []byte) {
 	s.timer.Reset(s.timeout)
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.closed {
+	switch {
+	case s.closed:
 		return
-	}
-	if s.upstream == nil {
+	case s.upstream == nil:
 		if len(s.queue) < udpQueueDepth {
 			s.queue = append(s.queue, payload)
 		}
@@ -275,19 +247,16 @@ func (s *udpSession) send(payload []byte) {
 func (s *udpSession) run(ctx context.Context) {
 	defer s.proxy.remove(s)
 	defer s.close()
-	upstream, err := s.proxy.connect(ctx, s.target)
+	upstream, err := s.proxy.connect(ctx, s.target, codersdk.ExitNodeProtocolUDP)
 	if err != nil {
-		var denied *DeniedError
-		if errors.As(err, &denied) {
+		if denied, ok := errors.AsType[*DeniedError](err); ok {
 			if s.proxy.markDenied(s.key) {
 				s.proxy.logger.Info(ctx, "udp egress denied by exit node",
 					slog.F("client", s.key.src.String()),
 					slog.F("target", s.target),
 					slog.F("reason", denied.Reason))
 			}
-			return
-		}
-		if ctx.Err() == nil {
+		} else if ctx.Err() == nil {
 			s.proxy.logger.Warn(ctx, "udp egress through exit node failed",
 				slog.F("target", s.target), slog.Error(err))
 		}

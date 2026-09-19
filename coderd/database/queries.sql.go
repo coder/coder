@@ -14958,13 +14958,7 @@ func (q *sqlQuerier) RevokeDBCryptKey(ctx context.Context, activeKeyDigest strin
 }
 
 const deleteExitNodeByID = `-- name: DeleteExitNodeByID :exec
-UPDATE
-	exit_nodes
-SET
-	updated_at = Now(),
-	deleted = true
-WHERE
-	id = $1
+UPDATE exit_nodes SET updated_at = Now(), deleted = true WHERE id = $1
 `
 
 // Exit nodes are soft-deleted so that audit and connection logs keep a
@@ -14975,14 +14969,7 @@ func (q *sqlQuerier) DeleteExitNodeByID(ctx context.Context, id uuid.UUID) error
 }
 
 const getExitNodeByID = `-- name: GetExitNodeByID :one
-SELECT
-	id, organization_id, name, display_name, created_at, updated_at, deleted, token_hashed_secret, version, last_seen_at, wireguard_endpoints
-FROM
-	exit_nodes
-WHERE
-	id = $1
-LIMIT
-	1
+SELECT id, organization_id, name, display_name, created_at, updated_at, deleted, token_hashed_secret, version, last_seen_at, wireguard_endpoints FROM exit_nodes WHERE id = $1 LIMIT 1
 `
 
 func (q *sqlQuerier) GetExitNodeByID(ctx context.Context, id uuid.UUID) (ExitNode, error) {
@@ -15005,16 +14992,9 @@ func (q *sqlQuerier) GetExitNodeByID(ctx context.Context, id uuid.UUID) (ExitNod
 }
 
 const getExitNodeByOrgAndName = `-- name: GetExitNodeByOrgAndName :one
-SELECT
-	id, organization_id, name, display_name, created_at, updated_at, deleted, token_hashed_secret, version, last_seen_at, wireguard_endpoints
-FROM
-	exit_nodes
-WHERE
-	organization_id = $1
-	AND lower(name) = lower($2)
-	AND deleted = false
-LIMIT
-	1
+SELECT id, organization_id, name, display_name, created_at, updated_at, deleted, token_hashed_secret, version, last_seen_at, wireguard_endpoints FROM exit_nodes
+WHERE organization_id = $1 AND lower(name) = lower($2) AND deleted = false
+LIMIT 1
 `
 
 type GetExitNodeByOrgAndNameParams struct {
@@ -15042,15 +15022,9 @@ func (q *sqlQuerier) GetExitNodeByOrgAndName(ctx context.Context, arg GetExitNod
 }
 
 const getExitNodesByOrganization = `-- name: GetExitNodesByOrganization :many
-SELECT
-	id, organization_id, name, display_name, created_at, updated_at, deleted, token_hashed_secret, version, last_seen_at, wireguard_endpoints
-FROM
-	exit_nodes
-WHERE
-	organization_id = $1
-	AND deleted = false
-ORDER BY
-	lower(name) ASC
+SELECT id, organization_id, name, display_name, created_at, updated_at, deleted, token_hashed_secret, version, last_seen_at, wireguard_endpoints FROM exit_nodes
+WHERE organization_id = $1 AND deleted = false
+ORDER BY lower(name) ASC
 `
 
 func (q *sqlQuerier) GetExitNodesByOrganization(ctx context.Context, organizationID uuid.UUID) ([]ExitNode, error) {
@@ -15089,37 +15063,18 @@ func (q *sqlQuerier) GetExitNodesByOrganization(ctx context.Context, organizatio
 }
 
 const getWorkspaceAgentIDsByExitNode = `-- name: GetWorkspaceAgentIDsByExitNode :many
-SELECT
-	workspace_agents.id
-FROM
-	workspaces
-JOIN
-	templates
-ON
-	templates.id = workspaces.template_id
+SELECT workspace_agents.id
+FROM workspaces
+JOIN templates ON templates.id = workspaces.template_id
 JOIN (
 	-- Latest build per workspace.
-	SELECT DISTINCT ON (workspace_id)
-		id, workspace_id, job_id, transition
-	FROM
-		workspace_builds
-	ORDER BY
-		workspace_id, build_number DESC
-) AS latest_builds
-ON
-	latest_builds.workspace_id = workspaces.id
-JOIN
-	provisioner_jobs
-ON
-	provisioner_jobs.id = latest_builds.job_id
-JOIN
-	workspace_resources
-ON
-	workspace_resources.job_id = latest_builds.job_id
-JOIN
-	workspace_agents
-ON
-	workspace_agents.resource_id = workspace_resources.id
+	SELECT DISTINCT ON (workspace_id) id, workspace_id, job_id, transition
+	FROM workspace_builds
+	ORDER BY workspace_id, build_number DESC
+) AS latest_builds ON latest_builds.workspace_id = workspaces.id
+JOIN provisioner_jobs ON provisioner_jobs.id = latest_builds.job_id
+JOIN workspace_resources ON workspace_resources.job_id = latest_builds.job_id
+JOIN workspace_agents ON workspace_agents.resource_id = workspace_resources.id
 WHERE
 	templates.exit_node_id = $1 :: uuid
 	AND templates.deleted = FALSE
@@ -15158,19 +15113,9 @@ func (q *sqlQuerier) GetWorkspaceAgentIDsByExitNode(ctx context.Context, exitNod
 }
 
 const insertExitNode = `-- name: InsertExitNode :one
-INSERT INTO
-	exit_nodes (
-		id,
-		organization_id,
-		name,
-		display_name,
-		token_hashed_secret,
-		created_at,
-		updated_at,
-		deleted
-	)
-VALUES
-	($1, $2, $3, $4, $5, $6, $7, false) RETURNING id, organization_id, name, display_name, created_at, updated_at, deleted, token_hashed_secret, version, last_seen_at, wireguard_endpoints
+INSERT INTO exit_nodes (id, organization_id, name, display_name, token_hashed_secret, created_at, updated_at, deleted)
+VALUES ($1, $2, $3, $4, $5, $6, $7, false)
+RETURNING id, organization_id, name, display_name, created_at, updated_at, deleted, token_hashed_secret, version, last_seen_at, wireguard_endpoints
 `
 
 type InsertExitNodeParams struct {
@@ -15211,15 +15156,13 @@ func (q *sqlQuerier) InsertExitNode(ctx context.Context, arg InsertExitNodeParam
 }
 
 const updateExitNodeRegistration = `-- name: UpdateExitNodeRegistration :one
-UPDATE
-	exit_nodes
+UPDATE exit_nodes
 SET
 	version = $1 :: text,
 	last_seen_at = $2 :: timestamptz,
 	wireguard_endpoints = $3 :: text[],
 	updated_at = Now()
-WHERE
-	id = $4
+WHERE id = $4
 RETURNING id, organization_id, name, display_name, created_at, updated_at, deleted, token_hashed_secret, version, last_seen_at, wireguard_endpoints
 `
 

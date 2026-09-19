@@ -202,14 +202,11 @@ func convertEgressInfo(clog database.ConnectionLog, ip *netip.Addr) *codersdk.Co
 	if clog.Code.Valid && clog.Code.Int32 == http.StatusForbidden {
 		info.Decision = codersdk.ExitNodeFlowDeny
 	}
-	if clog.DisconnectReason.Valid {
-		ruleID, reason, ok := strings.Cut(clog.DisconnectReason.String, ": ")
-		if ok {
-			info.RuleID = ruleID
-			info.Reason = reason
-		} else {
-			info.Reason = clog.DisconnectReason.String
-		}
+	// An invalid reason is the empty string and decodes to no rule or reason.
+	if ruleID, reason, ok := strings.Cut(clog.DisconnectReason.String, ": "); ok {
+		info.RuleID, info.Reason = ruleID, reason
+	} else {
+		info.Reason = clog.DisconnectReason.String
 	}
 	if clog.DisconnectTime.Valid {
 		info.DisconnectTime = &clog.DisconnectTime.Time
@@ -218,8 +215,8 @@ func convertEgressInfo(clog database.ConnectionLog, ip *netip.Addr) *codersdk.Co
 }
 
 // decodeEgressDestination splits the slug_or_port encoding produced by
-// exitNodeFlowDestination into its protocol and destination. Values without
-// a recognized prefix are tcp.
+// exitNodeFlowConnectionLogs into its protocol and destination. Values
+// without a recognized prefix are tcp.
 func decodeEgressDestination(encoded string) (codersdk.ExitNodeProtocol, string) {
 	if prefix, rest, ok := strings.Cut(encoded, " "); ok {
 		switch protocol := codersdk.ExitNodeProtocol(prefix); protocol {

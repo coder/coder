@@ -4,6 +4,7 @@ import (
 	"crypto/tls"
 	"io"
 	"net"
+	"strings"
 	"testing"
 	"time"
 
@@ -48,67 +49,87 @@ func TestSniffHost_TLS(t *testing.T) {
 	_ = testutil.RequireReceive(ctx, t, handshakeErr)
 }
 
-func TestSniffHost_HTTP(t *testing.T) {
+// TestSniffHost_Stream covers clients that speak first: HTTP in one or more
+// segments, a protocol the sniffer does not understand, and a client that
+// hangs up mid-request. In every case whatever was read is replayed.
+func TestSniffHost_Stream(t *testing.T) {
 	t.Parallel()
 
-	clientSide, serverSide := net.Pipe()
-	defer clientSide.Close()
-	defer serverSide.Close()
+	tests := []struct {
+		name     string
+		writes   []string
+		hangUp   bool
+		timeout  time.Duration
+		wantHost string
+		wantErr  error
+		// wantFast proves the sniffer returns as soon as it sees a protocol
+		// it does not understand rather than waiting for the deadline.
+		wantFast bool
+	}{
+		{
+			name:     "HTTP",
+			writes:   []string{"GET /path HTTP/1.1\r\nHost: Web.Example.com:8080\r\nUser-Agent: test\r\n\r\nbody"},
+			timeout:  testutil.WaitShort,
+			wantHost: "web.example.com",
+		},
+		{
+			// The Host header arrives in a second segment; the sniffer must
+			// keep reading until the headers are complete.
+			name:     "HTTPSplitWrites",
+			writes:   []string{"POST / HTTP/1.1\r\n", "Host: split.example\r\nContent-Length: 0\r\n\r\n"},
+			timeout:  testutil.WaitShort,
+			wantHost: "split.example",
+		},
+		{
+			name:     "UnknownProtocolDoesNotWait",
+			writes:   []string{"SSH-2.0-OpenSSH_9.6\r\n"},
+			timeout:  testutil.WaitLong,
+			wantFast: true,
+		},
+		{
+			name:    "ClientHangsUp",
+			writes:  []string{"GET / HTTP/1.1\r\n"},
+			hangUp:  true,
+			timeout: testutil.WaitShort,
+			wantErr: io.EOF,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			clientSide, serverSide := net.Pipe()
+			defer clientSide.Close()
+			defer serverSide.Close()
 
-	request := "GET /path HTTP/1.1\r\nHost: Web.Example.com:8080\r\nUser-Agent: test\r\n\r\nbody"
-	go func() { _, _ = io.WriteString(clientSide, request) }()
+			go func() {
+				for _, w := range tt.writes {
+					_, _ = io.WriteString(clientSide, w)
+				}
+				if tt.hangUp {
+					_ = clientSide.Close()
+				}
+			}()
 
-	host, replay, err := exitnode.SniffHost(serverSide, testutil.WaitShort)
-	require.NoError(t, err)
-	require.Equal(t, "web.example.com", host)
+			start := time.Now()
+			host, replay, err := exitnode.SniffHost(serverSide, tt.timeout)
+			if tt.wantErr != nil {
+				require.ErrorIs(t, err, tt.wantErr)
+			} else {
+				require.NoError(t, err)
+			}
+			require.Equal(t, tt.wantHost, host)
+			if tt.wantFast {
+				require.Less(t, time.Since(start), tt.timeout/2)
+			}
 
-	got := make([]byte, len(request))
-	_, err = io.ReadFull(replay, got)
-	require.NoError(t, err)
-	require.Equal(t, request, string(got))
-}
-
-func TestSniffHost_HTTPSplitWrites(t *testing.T) {
-	t.Parallel()
-
-	clientSide, serverSide := net.Pipe()
-	defer clientSide.Close()
-	defer serverSide.Close()
-
-	// The Host header arrives in a second segment; the sniffer must keep
-	// reading until the headers are complete.
-	go func() {
-		_, _ = io.WriteString(clientSide, "POST / HTTP/1.1\r\n")
-		_, _ = io.WriteString(clientSide, "Host: split.example\r\nContent-Length: 0\r\n\r\n")
-	}()
-
-	host, _, err := exitnode.SniffHost(serverSide, testutil.WaitShort)
-	require.NoError(t, err)
-	require.Equal(t, "split.example", host)
-}
-
-func TestSniffHost_UnknownProtocolDoesNotWait(t *testing.T) {
-	t.Parallel()
-
-	clientSide, serverSide := net.Pipe()
-	defer clientSide.Close()
-	defer serverSide.Close()
-
-	banner := "SSH-2.0-OpenSSH_9.6\r\n"
-	go func() { _, _ = io.WriteString(clientSide, banner) }()
-
-	// A generous timeout proves the sniffer returns as soon as it sees a
-	// protocol it does not understand rather than waiting for the deadline.
-	start := time.Now()
-	host, replay, err := exitnode.SniffHost(serverSide, testutil.WaitLong)
-	require.NoError(t, err)
-	require.Empty(t, host)
-	require.Less(t, time.Since(start), testutil.WaitLong/2)
-
-	got := make([]byte, len(banner))
-	_, err = io.ReadFull(replay, got)
-	require.NoError(t, err)
-	require.Equal(t, banner, string(got))
+			// Everything written has been consumed by the sniffer by now, so
+			// closing the client bounds the replay read.
+			_ = clientSide.Close()
+			got, err := io.ReadAll(replay)
+			require.NoError(t, err)
+			require.Equal(t, strings.Join(tt.writes, ""), string(got))
+		})
+	}
 }
 
 func TestSniffHost_SilentClient(t *testing.T) {
@@ -130,25 +151,4 @@ func TestSniffHost_SilentClient(t *testing.T) {
 	_, err = io.ReadFull(replay, got)
 	require.NoError(t, err)
 	require.Equal(t, "late", string(got))
-}
-
-func TestSniffHost_ClientHangsUp(t *testing.T) {
-	t.Parallel()
-
-	clientSide, serverSide := net.Pipe()
-	defer serverSide.Close()
-
-	go func() {
-		_, _ = io.WriteString(clientSide, "GET / HTTP/1.1\r\n")
-		_ = clientSide.Close()
-	}()
-
-	host, replay, err := exitnode.SniffHost(serverSide, testutil.WaitShort)
-	require.ErrorIs(t, err, io.EOF)
-	require.Empty(t, host)
-
-	// Whatever was read is still replayed so the caller can decide.
-	got, readErr := io.ReadAll(replay)
-	require.NoError(t, readErr)
-	require.Equal(t, "GET / HTTP/1.1\r\n", string(got))
 }

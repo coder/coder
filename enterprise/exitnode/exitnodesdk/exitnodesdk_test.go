@@ -94,7 +94,9 @@ func TestClient_SendsTokenHeader(t *testing.T) {
 	require.Len(t, got.Flows, 1)
 	require.Equal(t, report.FlowID, got.Flows[0].FlowID)
 
-	_, err = client.DialCoordinator(ctx)
+	dialer, err := client.TailnetDialer()
+	require.NoError(t, err)
+	_, err = dialer.Dial(ctx, nil)
 	require.Error(t, err)
 	hdr := testutil.RequireReceive(ctx, t, fake.wsHeaders)
 	require.Equal(t, testToken, hdr.Get(codersdk.ExitNodeTokenHeader))

@@ -31,29 +31,24 @@ var fakeIPPrefix = netip.MustParsePrefix("198.18.0.0/15")
 type fakeIPPool struct {
 	mu     sync.Mutex
 	prefix netip.Prefix
-	// size is the number of host addresses in prefix.
-	size   uint32
 	max    int
-	byName map[string]*fakeIPEntry
-	byAddr map[netip.Addr]*fakeIPEntry
-	// lru orders entries most recently used first.
+	byName map[string]*list.Element
+	byAddr map[netip.Addr]*list.Element
+	// lru holds fakeIPEntry values, most recently used first.
 	lru *list.List
 }
 
 type fakeIPEntry struct {
 	name string
 	addr netip.Addr
-	elem *list.Element
 }
 
 func newFakeIPPool(prefix netip.Prefix, maxEntries int) *fakeIPPool {
-	prefix = prefix.Masked()
 	return &fakeIPPool{
-		prefix: prefix,
-		size:   uint32(1) << (32 - prefix.Bits()),
+		prefix: prefix.Masked(),
 		max:    maxEntries,
-		byName: make(map[string]*fakeIPEntry),
-		byAddr: make(map[netip.Addr]*fakeIPEntry),
+		byName: make(map[string]*list.Element),
+		byAddr: make(map[netip.Addr]*list.Element),
 		lru:    list.New(),
 	}
 }
@@ -79,17 +74,15 @@ func (p *fakeIPPool) Lookup(name string) netip.Addr {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	if e, ok := p.byName[name]; ok {
-		p.lru.MoveToFront(e.elem)
-		return e.addr
+		p.lru.MoveToFront(e)
+		return entryOf(e).addr
 	}
 	for p.lru.Len() >= p.max {
-		p.evictLocked()
+		p.removeLocked(p.lru.Back())
 	}
 	addr := p.allocateLocked(name)
-	e := &fakeIPEntry{name: name, addr: addr}
-	e.elem = p.lru.PushFront(e)
-	p.byName[name] = e
-	p.byAddr[addr] = e
+	e := p.lru.PushFront(fakeIPEntry{name: name, addr: addr})
+	p.byName[name], p.byAddr[addr] = e, e
 	return addr
 }
 
@@ -101,8 +94,8 @@ func (p *fakeIPPool) Reverse(addr netip.Addr) (string, bool) {
 	if !ok {
 		return "", false
 	}
-	p.lru.MoveToFront(e.elem)
-	return e.name, true
+	p.lru.MoveToFront(e)
+	return entryOf(e).name, true
 }
 
 // Len returns the number of assigned addresses.
@@ -112,15 +105,16 @@ func (p *fakeIPPool) Len() int {
 	return p.lru.Len()
 }
 
-func (p *fakeIPPool) evictLocked() {
-	back := p.lru.Back()
-	if back == nil {
-		return
-	}
-	e, _ := back.Value.(*fakeIPEntry)
-	p.lru.Remove(back)
-	delete(p.byName, e.name)
-	delete(p.byAddr, e.addr)
+func entryOf(e *list.Element) fakeIPEntry {
+	entry, _ := e.Value.(fakeIPEntry)
+	return entry
+}
+
+func (p *fakeIPPool) removeLocked(e *list.Element) {
+	entry := entryOf(e)
+	p.lru.Remove(e)
+	delete(p.byName, entry.name)
+	delete(p.byAddr, entry.addr)
 }
 
 // allocateLocked hashes name to an offset and probes linearly until it
@@ -132,16 +126,17 @@ func (p *fakeIPPool) allocateLocked(name string) netip.Addr {
 	_, _ = h.Write([]byte(name))
 	first := p.prefix.Addr().As4()
 	base := binary.BigEndian.Uint32(first[:])
-	offset := h.Sum32() % p.size
+	size := uint32(1) << (32 - p.prefix.Bits())
+	offset := h.Sum32() % size
 	var fallback netip.Addr
 	for range fakeIPMaxProbes {
 		var raw [4]byte
 		binary.BigEndian.PutUint32(raw[:], base+offset)
-		addr := netip.AddrFrom4(raw)
-		offset = (offset + 1) % p.size
+		offset = (offset + 1) % size
 		if raw[3] == 0 || raw[3] == 255 {
 			continue
 		}
+		addr := netip.AddrFrom4(raw)
 		if _, taken := p.byAddr[addr]; !taken {
 			return addr
 		}
@@ -153,9 +148,7 @@ func (p *fakeIPPool) allocateLocked(name string) netip.Addr {
 	// nearly full relative to the probe window. Evict the holder of the
 	// first candidate and reuse it rather than fail the query.
 	if e, ok := p.byAddr[fallback]; ok {
-		p.lru.Remove(e.elem)
-		delete(p.byName, e.name)
-		delete(p.byAddr, e.addr)
+		p.removeLocked(e)
 	}
 	return fallback
 }

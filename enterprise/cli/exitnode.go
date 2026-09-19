@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/signal"
 	"strings"
+	"syscall"
 
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
@@ -29,8 +30,13 @@ import (
 	"github.com/coder/coder/v2/enterprise/exitnode/exitnodesdk"
 )
 
+// exitNodeStopSignals shut the exit node down. SIGHUP is deliberately absent
+// because it reloads the policy instead. Windows never delivers SIGHUP, so
+// there the policy can only be changed by restarting the process.
+var exitNodeStopSignals = []os.Signal{os.Interrupt, syscall.SIGTERM}
+
 func (r *RootCmd) exitNode() *serpent.Command {
-	cmd := &serpent.Command{
+	return &serpent.Command{
 		Use:   "exit-node",
 		Short: "Exit nodes terminate workspace egress, enforce policy, and report flows.",
 		Long: "Exit nodes are tailnet peers that workspace agents route outbound TCP " +
@@ -47,7 +53,20 @@ func (r *RootCmd) exitNode() *serpent.Command {
 			r.exitNodeDelete(),
 		},
 	}
-	return cmd
+}
+
+// exitNodeOrgClient initializes the client and resolves the selected
+// organization for the organization-scoped exit node commands.
+func (r *RootCmd) exitNodeOrgClient(inv *serpent.Invocation, orgContext *agpl.OrganizationContext) (*codersdk.Client, codersdk.Organization, error) {
+	client, err := r.InitClient(inv)
+	if err != nil {
+		return nil, codersdk.Organization{}, err
+	}
+	org, err := orgContext.Selected(inv, client)
+	if err != nil {
+		return nil, codersdk.Organization{}, xerrors.Errorf("current organization: %w", err)
+	}
+	return client, org, nil
 }
 
 func (r *RootCmd) exitNodeCreate() *serpent.Command {
@@ -57,35 +76,29 @@ func (r *RootCmd) exitNodeCreate() *serpent.Command {
 		onlyToken   bool
 	)
 	cmd := &serpent.Command{
-		Use:   "create <name>",
-		Short: "Create an exit node and print its token",
-		Middleware: serpent.Chain(
-			serpent.RequireNArgs(1),
-		),
+		Use:        "create <name>",
+		Short:      "Create an exit node and print its token",
+		Middleware: serpent.RequireNArgs(1),
+		Options: serpent.OptionSet{
+			{Flag: "display-name", Description: "Display name of the exit node. Defaults to the name.", Value: serpent.StringOf(&displayName)},
+			{Flag: "only-token", Description: "Only print the token. This is useful for scripting.", Value: serpent.BoolOf(&onlyToken)},
+		},
 		Handler: func(inv *serpent.Invocation) error {
-			ctx := inv.Context()
-			client, err := r.InitClient(inv)
+			client, org, err := r.exitNodeOrgClient(inv, orgContext)
 			if err != nil {
 				return err
 			}
-			org, err := orgContext.Selected(inv, client)
-			if err != nil {
-				return xerrors.Errorf("current organization: %w", err)
-			}
-
-			resp, err := client.CreateExitNode(ctx, org.ID, codersdk.CreateExitNodeRequest{
+			resp, err := client.CreateExitNode(inv.Context(), org.ID, codersdk.CreateExitNodeRequest{
 				Name:        inv.Args[0],
 				DisplayName: displayName,
 			})
 			if err != nil {
 				return xerrors.Errorf("create exit node: %w", err)
 			}
-
 			if onlyToken {
 				_, err = fmt.Fprintln(inv.Stdout, resp.Token)
 				return err
 			}
-
 			_, err = fmt.Fprintf(inv.Stdout,
 				"Exit node %[1]q created successfully.\n"+
 					pretty.Sprint(cliui.DefaultStyles.Placeholder, strings.Repeat("-", 49))+"\n"+
@@ -102,18 +115,6 @@ func (r *RootCmd) exitNodeCreate() *serpent.Command {
 			return err
 		},
 	}
-	cmd.Options.Add(
-		serpent.Option{
-			Flag:        "display-name",
-			Description: "Display name of the exit node. Defaults to the name.",
-			Value:       serpent.StringOf(&displayName),
-		},
-		serpent.Option{
-			Flag:        "only-token",
-			Description: "Only print the token. This is useful for scripting.",
-			Value:       serpent.BoolOf(&onlyToken),
-		},
-	)
 	orgContext.AttachOptions(cmd)
 	return cmd
 }
@@ -127,23 +128,16 @@ func (r *RootCmd) exitNodeList() *serpent.Command {
 		)
 	)
 	cmd := &serpent.Command{
-		Use:     "list",
-		Aliases: []string{"ls"},
-		Short:   "List exit nodes in an organization",
-		Middleware: serpent.Chain(
-			serpent.RequireNArgs(0),
-		),
+		Use:        "list",
+		Aliases:    []string{"ls"},
+		Short:      "List exit nodes in an organization",
+		Middleware: serpent.RequireNArgs(0),
 		Handler: func(inv *serpent.Invocation) error {
-			ctx := inv.Context()
-			client, err := r.InitClient(inv)
+			client, org, err := r.exitNodeOrgClient(inv, orgContext)
 			if err != nil {
 				return err
 			}
-			org, err := orgContext.Selected(inv, client)
-			if err != nil {
-				return xerrors.Errorf("current organization: %w", err)
-			}
-			nodes, err := client.ExitNodes(ctx, org.ID)
+			nodes, err := client.ExitNodes(inv.Context(), org.ID)
 			if err != nil {
 				return xerrors.Errorf("list exit nodes: %w", err)
 			}
@@ -151,7 +145,7 @@ func (r *RootCmd) exitNodeList() *serpent.Command {
 				cliui.Infof(inv.Stderr, "No exit nodes found.")
 				return nil
 			}
-			output, err := formatter.Format(ctx, nodes)
+			output, err := formatter.Format(inv.Context(), nodes)
 			if err != nil {
 				return err
 			}
@@ -167,25 +161,16 @@ func (r *RootCmd) exitNodeList() *serpent.Command {
 func (r *RootCmd) exitNodeDelete() *serpent.Command {
 	orgContext := agpl.NewOrganizationContext()
 	cmd := &serpent.Command{
-		Use:   "delete <name|id>",
-		Short: "Delete an exit node",
-		Options: serpent.OptionSet{
-			cliui.SkipPromptOption(),
-		},
-		Middleware: serpent.Chain(
-			serpent.RequireNArgs(1),
-		),
+		Use:        "delete <name|id>",
+		Short:      "Delete an exit node",
+		Options:    serpent.OptionSet{cliui.SkipPromptOption()},
+		Middleware: serpent.RequireNArgs(1),
 		Handler: func(inv *serpent.Invocation) error {
-			ctx := inv.Context()
-			client, err := r.InitClient(inv)
+			client, org, err := r.exitNodeOrgClient(inv, orgContext)
 			if err != nil {
 				return err
 			}
-			org, err := orgContext.Selected(inv, client)
-			if err != nil {
-				return xerrors.Errorf("current organization: %w", err)
-			}
-			node, err := client.ExitNodeByName(ctx, org.ID, inv.Args[0])
+			node, err := client.ExitNodeByName(inv.Context(), org.ID, inv.Args[0])
 			if err != nil {
 				return xerrors.Errorf("fetch exit node %q: %w", inv.Args[0], err)
 			}
@@ -197,7 +182,7 @@ func (r *RootCmd) exitNodeDelete() *serpent.Command {
 			if err != nil {
 				return err
 			}
-			if err := client.DeleteExitNode(ctx, org.ID, node.Name); err != nil {
+			if err := client.DeleteExitNode(inv.Context(), org.ID, node.Name); err != nil {
 				return xerrors.Errorf("delete exit node %q: %w", node.Name, err)
 			}
 			_, _ = fmt.Fprintf(inv.Stdout, "Exit node %q deleted successfully\n", node.Name)
@@ -220,22 +205,100 @@ func (r *RootCmd) exitNodeServer() *serpent.Command {
 		blockDirect         bool
 		verbose             bool
 	)
-	cmd := &serpent.Command{
+	return &serpent.Command{
 		Use:   "server",
 		Short: "Run an exit node",
 		Long: "Run an exit node. The node registers with coderd using its token, joins the " +
 			"tailnet at a deterministic address derived from its ID, and accepts HTTP CONNECT " +
 			"requests from workspace agents on the listen port. Send SIGHUP to reload the policy file.",
-		Middleware: serpent.Chain(
-			serpent.RequireNArgs(0),
-		),
+		Middleware: serpent.RequireNArgs(0),
+		Options: serpent.OptionSet{
+			{
+				Name:        "Exit Node Token",
+				Flag:        "token",
+				Env:         "CODER_EXIT_NODE_TOKEN",
+				Description: "Authentication token for the exit node, as printed by 'coder exit-node create'.",
+				Required:    true,
+				Value:       serpent.StringOf(&token),
+			},
+			{
+				Name:        "Coderd (Primary) Access URL",
+				Flag:        "primary-access-url",
+				Env:         "CODER_PRIMARY_ACCESS_URL",
+				Description: "URL to communicate with coderd. This should match the access URL of the Coder deployment.",
+				Required:    true,
+				Value: serpent.Validate(&primaryAccessURL, func(value *serpent.URL) error {
+					if value.Scheme != "http" && value.Scheme != "https" {
+						return xerrors.Errorf("'--primary-access-url' value must be http or https: url=%s", value.String())
+					}
+					return nil
+				}),
+			},
+			{
+				Flag:        "policy",
+				Env:         "CODER_EXIT_NODE_POLICY",
+				Description: "Path to the YAML policy file. Reloaded on SIGHUP.",
+				Required:    true,
+				Value:       serpent.StringOf(&policyPath),
+			},
+			{
+				Flag:        "listen-port",
+				Env:         "CODER_EXIT_NODE_LISTEN_PORT",
+				Description: "Tailnet port to accept CONNECT requests on.",
+				Default:     fmt.Sprint(codersdk.ExitNodeTailnetPort),
+				Value:       serpent.Int64Of(&listenPort),
+			},
+			{
+				Flag:        "prometheus-address",
+				Env:         "CODER_EXIT_NODE_PROMETHEUS_ADDRESS",
+				Description: "Address to serve Prometheus metrics on. Disabled when empty.",
+				Value:       serpent.StringOf(&prometheusAddress),
+			},
+			{
+				Flag: "wireguard-endpoint",
+				Env:  "CODER_EXIT_NODE_WIREGUARD_ENDPOINTS",
+				Description: "Public ip:port of this node's WireGuard listener, advertised to agents so they " +
+					"exempt it from egress enforcement. May be repeated.",
+				Value: serpent.StringArrayOf(&wireguardEndpoints),
+			},
+			{
+				Flag:        "wireguard-listen-port",
+				Env:         "CODER_EXIT_NODE_WIREGUARD_LISTEN_PORT",
+				Description: "Fixed local UDP port for WireGuard. Use with --wireguard-endpoint. 0 picks a random port.",
+				Default:     "0",
+				Value: serpent.Validate(serpent.Int64Of(&wireguardListenPort), func(v *serpent.Int64) error {
+					if v.Value() < 0 || v.Value() > 65535 {
+						return xerrors.Errorf("port %d out of range", v.Value())
+					}
+					return nil
+				}),
+			},
+			{
+				Flag:        "block-direct-connections",
+				Env:         "CODER_EXIT_NODE_BLOCK_DIRECT",
+				Description: "Force all agent traffic through DERP relays.",
+				Value:       serpent.BoolOf(&blockDirect),
+			},
+			{
+				Flag:        "verbose",
+				Env:         "CODER_EXIT_NODE_VERBOSE",
+				Description: "Output debug-level logs.",
+				Value:       serpent.BoolOf(&verbose),
+			},
+		},
 		Handler: func(inv *serpent.Invocation) error {
 			ctx, cancel := context.WithCancel(inv.Context())
 			defer cancel()
 
-			exitNodeID, err := exitNodeIDFromToken(token)
+			// Only the ID is needed locally; the secret stays in the token
+			// and must not surface in errors.
+			idStr, _, ok := strings.Cut(token, ":")
+			if !ok {
+				return xerrors.New("token must have the form <exit node ID>:<secret>")
+			}
+			exitNodeID, err := uuid.Parse(idStr)
 			if err != nil {
-				return err
+				return xerrors.Errorf("token does not start with a valid exit node ID: %w", err)
 			}
 
 			logOpts := []clilog.Option{clilog.WithHuman("/dev/stderr")}
@@ -290,7 +353,7 @@ func (r *RootCmd) exitNodeServer() *serpent.Command {
 				Version:                      buildinfo.Version(),
 				Hostname:                     cliutil.Hostname(),
 				WireguardEndpointsAdvertised: wireguardEndpoints,
-				WireguardListenPort:          uint16(wireguardListenPort), //nolint:gosec // validated below
+				WireguardListenPort:          uint16(wireguardListenPort), //nolint:gosec // Validated by the option.
 				BlockEndpoints:               blockDirect,
 			})
 			if err != nil {
@@ -303,16 +366,13 @@ func (r *RootCmd) exitNodeServer() *serpent.Command {
 			}()
 
 			reloadCh := make(chan os.Signal, 1)
-			if len(exitNodeReloadSignals) > 0 {
-				signal.Notify(reloadCh, exitNodeReloadSignals...)
-				defer signal.Stop(reloadCh)
-			}
+			signal.Notify(reloadCh, syscall.SIGHUP)
+			defer signal.Stop(reloadCh)
 
 			cliui.Infof(inv.Stdout, "\n==> Logs will stream in below (press ctrl+c to gracefully exit):")
 
 			waitErr := make(chan error, 1)
 			go func() { waitErr <- srv.Wait() }()
-
 			for {
 				select {
 				case <-reloadCh:
@@ -331,93 +391,4 @@ func (r *RootCmd) exitNodeServer() *serpent.Command {
 			}
 		},
 	}
-	cmd.Options.Add(
-		serpent.Option{
-			Name:        "Exit Node Token",
-			Flag:        "token",
-			Env:         "CODER_EXIT_NODE_TOKEN",
-			Description: "Authentication token for the exit node, as printed by 'coder exit-node create'.",
-			Required:    true,
-			Value:       serpent.StringOf(&token),
-		},
-		serpent.Option{
-			Name:        "Coderd (Primary) Access URL",
-			Flag:        "primary-access-url",
-			Env:         "CODER_PRIMARY_ACCESS_URL",
-			Description: "URL to communicate with coderd. This should match the access URL of the Coder deployment.",
-			Required:    true,
-			Value: serpent.Validate(&primaryAccessURL, func(value *serpent.URL) error {
-				if value.Scheme != "http" && value.Scheme != "https" {
-					return xerrors.Errorf("'--primary-access-url' value must be http or https: url=%s", value.String())
-				}
-				return nil
-			}),
-		},
-		serpent.Option{
-			Flag:        "policy",
-			Env:         "CODER_EXIT_NODE_POLICY",
-			Description: "Path to the YAML policy file. Reloaded on SIGHUP.",
-			Required:    true,
-			Value:       serpent.StringOf(&policyPath),
-		},
-		serpent.Option{
-			Flag:        "listen-port",
-			Env:         "CODER_EXIT_NODE_LISTEN_PORT",
-			Description: "Tailnet port to accept CONNECT requests on.",
-			Default:     fmt.Sprint(codersdk.ExitNodeTailnetPort),
-			Value:       serpent.Int64Of(&listenPort),
-		},
-		serpent.Option{
-			Flag:        "prometheus-address",
-			Env:         "CODER_EXIT_NODE_PROMETHEUS_ADDRESS",
-			Description: "Address to serve Prometheus metrics on. Disabled when empty.",
-			Value:       serpent.StringOf(&prometheusAddress),
-		},
-		serpent.Option{
-			Flag: "wireguard-endpoint",
-			Env:  "CODER_EXIT_NODE_WIREGUARD_ENDPOINTS",
-			Description: "Public ip:port of this node's WireGuard listener, advertised to agents so they " +
-				"exempt it from egress enforcement. May be repeated.",
-			Value: serpent.StringArrayOf(&wireguardEndpoints),
-		},
-		serpent.Option{
-			Flag:        "wireguard-listen-port",
-			Env:         "CODER_EXIT_NODE_WIREGUARD_LISTEN_PORT",
-			Description: "Fixed local UDP port for WireGuard. Use with --wireguard-endpoint. 0 picks a random port.",
-			Default:     "0",
-			Value: serpent.Validate(serpent.Int64Of(&wireguardListenPort), func(v *serpent.Int64) error {
-				if v.Value() < 0 || v.Value() > 65535 {
-					return xerrors.Errorf("port %d out of range", v.Value())
-				}
-				return nil
-			}),
-		},
-		serpent.Option{
-			Flag:        "block-direct-connections",
-			Env:         "CODER_EXIT_NODE_BLOCK_DIRECT",
-			Description: "Force all agent traffic through DERP relays.",
-			Value:       serpent.BoolOf(&blockDirect),
-		},
-		serpent.Option{
-			Flag:        "verbose",
-			Env:         "CODER_EXIT_NODE_VERBOSE",
-			Description: "Output debug-level logs.",
-			Value:       serpent.BoolOf(&verbose),
-		},
-	)
-	return cmd
-}
-
-// exitNodeIDFromToken extracts the exit node ID from an "<id>:<secret>"
-// token without exposing the secret in the error.
-func exitNodeIDFromToken(token string) (uuid.UUID, error) {
-	idStr, _, ok := strings.Cut(token, ":")
-	if !ok {
-		return uuid.Nil, xerrors.New("token must have the form <exit node ID>:<secret>")
-	}
-	id, err := uuid.Parse(idStr)
-	if err != nil {
-		return uuid.Nil, xerrors.Errorf("token does not start with a valid exit node ID: %w", err)
-	}
-	return id, nil
 }

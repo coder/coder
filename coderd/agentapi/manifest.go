@@ -186,14 +186,11 @@ func (a *ManifestAPI) egressConfig(ctx context.Context, templateID uuid.UUID, de
 		return nil, nil //nolint:nilnil // Nil egress means the template routes traffic directly.
 	}
 	exitNode, err := a.Database.GetExitNodeByID(systemCtx, template.ExitNodeID.UUID)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, nil //nolint:nilnil // A dangling binding degrades to direct egress.
-		}
-		return nil, xerrors.Errorf("get exit node: %w", err)
+	if errors.Is(err, sql.ErrNoRows) || (err == nil && exitNode.Deleted) {
+		return nil, nil //nolint:nilnil // A dangling or soft-deleted binding degrades to direct egress.
 	}
-	if exitNode.Deleted {
-		return nil, nil //nolint:nilnil // A soft-deleted exit node degrades to direct egress.
+	if err != nil {
+		return nil, xerrors.Errorf("get exit node: %w", err)
 	}
 
 	return &agentproto.EgressConfig{
@@ -210,11 +207,18 @@ func (a *ManifestAPI) egressConfig(ctx context.Context, templateID uuid.UUID, de
 // endpoints. The result is deduplicated and sorted so the manifest is stable.
 func controlPlaneHosts(accessURL *url.URL, derpMap *tailcfg.DERPMap, wireguardEndpoints []string) []string {
 	hosts := make(map[string]struct{})
-	add := func(host string) {
+	// add records host and, when host is set, host:port for each positive
+	// port.
+	add := func(host string, ports ...int) {
 		if host == "" {
 			return
 		}
 		hosts[host] = struct{}{}
+		for _, port := range ports {
+			if port > 0 {
+				hosts[net.JoinHostPort(host, strconv.Itoa(port))] = struct{}{}
+			}
+		}
 	}
 
 	if accessURL != nil {
@@ -226,23 +230,15 @@ func controlPlaneHosts(accessURL *url.URL, derpMap *tailcfg.DERPMap, wireguardEn
 				continue
 			}
 			for _, node := range region.Nodes {
-				if node == nil {
-					continue
-				}
-				add(node.HostName)
-				// Tailscale uses "none" as an explicit sentinel for a missing
-				// address literal.
-				if node.IPv4 != "" && node.IPv4 != "none" {
-					add(node.IPv4)
-				}
-				if node.IPv6 != "" && node.IPv6 != "none" {
-					add(node.IPv6)
-				}
-				if node.HostName != "" && node.STUNPort > 0 {
-					add(net.JoinHostPort(node.HostName, strconv.Itoa(node.STUNPort)))
-				}
-				if node.HostName != "" && node.DERPPort > 0 {
-					add(net.JoinHostPort(node.HostName, strconv.Itoa(node.DERPPort)))
+				if node != nil {
+					add(node.HostName, node.STUNPort, node.DERPPort)
+					// Tailscale uses "none" as an explicit sentinel for a
+					// missing address literal.
+					for _, ip := range []string{node.IPv4, node.IPv6} {
+						if ip != "none" {
+							add(ip)
+						}
+					}
 				}
 			}
 		}
@@ -250,7 +246,6 @@ func controlPlaneHosts(accessURL *url.URL, derpMap *tailcfg.DERPMap, wireguardEn
 	for _, endpoint := range wireguardEndpoints {
 		add(endpoint)
 	}
-
 	return slices.Sorted(maps.Keys(hosts))
 }
 
