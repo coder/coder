@@ -8182,6 +8182,7 @@ export type RBACResource =
 	| "chat"
 	| "chat_model_config"
 	| "chat_project"
+	| "chat_project_memory"
 	| "connection_log"
 	| "crypto_key"
 	| "debug_info"
@@ -8237,6 +8238,7 @@ export const RBACResources: RBACResource[] = [
 	"chat",
 	"chat_model_config",
 	"chat_project",
+	"chat_project_memory",
 	"connection_log",
 	"crypto_key",
 	"debug_info",
