@@ -63,8 +63,9 @@ override.
 
 ### Group budget
 
-Setting a group budget requires the Owner, User Admin, Organization Admin, or
-Organization User Admin [role](../../admin/users/groups-roles.md).
+Setting a group budget requires the Owner, User Admin, Organization Admin, or Organization User Admin role.
+Refer to [Groups and roles](../../admin/users/groups-roles.md) for the deployment roles.
+The [Organization roles](../../admin/users/groups-roles.md#organization-roles) section covers the organization roles.
 
 A group budget applies to each member individually rather than to the group as a
 whole. For example, if a group has ten members and a budget of $200 USD, each
