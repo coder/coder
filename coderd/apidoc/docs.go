@@ -26591,7 +26591,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "redirect_uris": {
-                    "description": "RedirectURIs is the ordered list of URIs the app may redirect to. The\nfirst entry becomes CallbackURL. Send this instead of CallbackURL.",
+                    "description": "RedirectURIs is the ordered list of URIs the app may redirect to. The\nfirst entry becomes CallbackURL. Required on create, unless the\ndeprecated CallbackURL is sent instead.",
                     "type": "array",
                     "items": {
                         "type": "string"

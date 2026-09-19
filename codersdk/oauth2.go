@@ -88,7 +88,8 @@ func (c *Client) OAuth2ProviderApp(ctx context.Context, id uuid.UUID) (OAuth2Pro
 type PostOAuth2ProviderAppRequest struct {
 	Name string `json:"name" validate:"required,oauth2_app_name"`
 	// RedirectURIs is the ordered list of URIs the app may redirect to. The
-	// first entry becomes CallbackURL. Send this instead of CallbackURL.
+	// first entry becomes CallbackURL. Required on create, unless the
+	// deprecated CallbackURL is sent instead.
 	RedirectURIs []string `json:"redirect_uris,omitempty"`
 	// Deprecated: send RedirectURIs instead. If both are set, CallbackURL
 	// must equal the first entry of RedirectURIs.

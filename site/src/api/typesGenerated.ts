@@ -7516,7 +7516,8 @@ export interface PostOAuth2ProviderAppRequest {
 	readonly name: string;
 	/**
 	 * RedirectURIs is the ordered list of URIs the app may redirect to. The
-	 * first entry becomes CallbackURL. Send this instead of CallbackURL.
+	 * first entry becomes CallbackURL. Required on create, unless the
+	 * deprecated CallbackURL is sent instead.
 	 */
 	readonly redirect_uris?: readonly string[];
 	/**
