@@ -21,9 +21,10 @@ export const CreateOAuth2AppPageView: FC = () => {
 	const queryClient = useQueryClient();
 	const postAppMutation = useMutation(postApp(queryClient));
 
+	const callbackURL = searchParams.get("callback_url");
 	const defaultValues = {
 		name: searchParams.get("name") ?? "",
-		callback_url: searchParams.get("callback_url") ?? "",
+		redirect_uris: callbackURL ? [callbackURL] : [],
 		icon: searchParams.get("icon") ?? "",
 	};
 	const [icon, setIcon] = useState(defaultValues.icon);

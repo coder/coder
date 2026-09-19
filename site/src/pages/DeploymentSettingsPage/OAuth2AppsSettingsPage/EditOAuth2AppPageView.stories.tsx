@@ -115,7 +115,7 @@ export const WithValidationError: Story = {
 				message: "Validation failed",
 				validations: [
 					{ field: "name", detail: "name error" },
-					{ field: "callback_url", detail: "url error" },
+					{ field: "redirect_uris", detail: "url error" },
 					{ field: "icon", detail: "icon error" },
 				],
 			}),
@@ -163,6 +163,7 @@ export const DynamicallyRegisteredValues: Story = {
 				data: {
 					...mockApp,
 					name: "VS Code Coder Extension",
+					redirect_uris: ["vscode://coder.coder-remote/oauth/callback"],
 					callback_url: "vscode://coder.coder-remote/oauth/callback",
 				},
 			},
@@ -204,6 +205,54 @@ export const PublicClient: Story = {
 			canvas.queryByRole("button", { name: /generate secret/i }),
 		).not.toBeInTheDocument();
 		await expect(await canvas.findByText(/public client/i)).toBeVisible();
+	},
+};
+
+export const MultipleRedirectURIs: Story = {
+	parameters: {
+		queries: [
+			{
+				key: oauth2ProviderAppKey(appId),
+				data: {
+					...mockApp,
+					redirect_uris: [mockApp.callback_url, "https://example.com/callback"],
+				},
+			},
+			{
+				key: oauth2ProviderAppSecretsKey(appId),
+				data: MockOAuth2ProviderAppSecrets,
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		// Waits for the query to resolve so Pixel captures the loaded state.
+		await canvas.findByLabelText(/^redirect uri 2/i);
+	},
+};
+
+export const InvalidRowState: Story = {
+	parameters: {
+		queries: [
+			{ key: oauth2ProviderAppKey(appId), data: mockApp },
+			{
+				key: oauth2ProviderAppSecretsKey(appId),
+				data: MockOAuth2ProviderAppSecrets,
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			await canvas.findByRole("button", { name: /add redirect uri/i }),
+		);
+		// oxlint-disable-next-line eslint/no-script-url -- Deliberately invalid input exercises redirect URI rejection.
+		const invalidRedirectURI = "javascript:alert(1)";
+		await userEvent.type(
+			canvas.getByLabelText(/^redirect uri 2/i),
+			invalidRedirectURI,
+		);
+		await userEvent.tab();
 	},
 };
 

@@ -23,7 +23,7 @@ describe("OAuth2AppForm", () => {
 
 		await user.type(screen.getByLabelText(/^name/i), name);
 		await user.type(
-			screen.getByLabelText(/callback url/i),
+			screen.getByLabelText(/default callback/i),
 			"vscode://coder.coder-remote/oauth/callback",
 		);
 		await user.click(
@@ -33,7 +33,7 @@ describe("OAuth2AppForm", () => {
 		await waitFor(() => {
 			expect(onSubmit).toHaveBeenCalledWith({
 				name: "VS Code Coder Extension",
-				callback_url: "vscode://coder.coder-remote/oauth/callback",
+				redirect_uris: ["vscode://coder.coder-remote/oauth/callback"],
 				icon: "",
 			});
 		});
@@ -45,7 +45,7 @@ describe("OAuth2AppForm", () => {
 		const app = {
 			...MockOAuth2ProviderApps[0],
 			name: "VS Code Coder Extension",
-			callback_url: "vscode://coder.coder-remote/oauth/callback",
+			redirect_uris: ["vscode://coder.coder-remote/oauth/callback"],
 		};
 
 		render(
@@ -66,7 +66,7 @@ describe("OAuth2AppForm", () => {
 		await waitFor(() => {
 			expect(onSubmit).toHaveBeenCalledWith({
 				name: "Cursor MCP Extension",
-				callback_url: "vscode://coder.coder-remote/oauth/callback",
+				redirect_uris: ["vscode://coder.coder-remote/oauth/callback"],
 				icon: app.icon,
 			});
 		});
@@ -100,7 +100,7 @@ describe("OAuth2AppForm", () => {
 		);
 
 		await user.type(screen.getByLabelText(/^name/i), "test-app");
-		const callbackURL = screen.getByLabelText(/callback url/i);
+		const callbackURL = screen.getByLabelText(/default callback/i);
 		await user.type(callbackURL, callback);
 		await user.click(
 			screen.getByRole("button", { name: /create application/i }),
@@ -124,14 +124,14 @@ describe("OAuth2AppForm", () => {
 			<OAuth2AppForm onSubmit={onSubmit} isUpdating={false} disabled={false} />,
 		);
 		await user.type(screen.getByLabelText(/^name/i), "OAuth App");
-		await user.type(screen.getByLabelText(/callback url/i), callback);
+		await user.type(screen.getByLabelText(/default callback/i), callback);
 		await user.click(
 			screen.getByRole("button", { name: /create application/i }),
 		);
 		await waitFor(() =>
 			expect(onSubmit).toHaveBeenCalledWith({
 				name: "OAuth App",
-				callback_url: callback.trim(),
+				redirect_uris: [callback.trim()],
 				icon: "",
 			}),
 		);
@@ -151,7 +151,7 @@ describe("OAuth2AppForm", () => {
 		);
 		await user.type(screen.getByLabelText(/^name/i), name);
 		await user.type(
-			screen.getByLabelText(/callback url/i),
+			screen.getByLabelText(/default callback/i),
 			"https://example.com/callback",
 		);
 		await user.click(
@@ -162,7 +162,7 @@ describe("OAuth2AppForm", () => {
 			await waitFor(() =>
 				expect(onSubmit).toHaveBeenCalledWith({
 					name,
-					callback_url: "https://example.com/callback",
+					redirect_uris: ["https://example.com/callback"],
 					icon: "",
 				}),
 			);
@@ -199,9 +199,9 @@ describe("OAuth2AppForm", () => {
 					disabled={false}
 				/>,
 			);
-			await user.clear(screen.getByLabelText(/callback url/i));
+			await user.clear(screen.getByLabelText(/default callback/i));
 			await user.type(
-				screen.getByLabelText(/callback url/i),
+				screen.getByLabelText(/default callback/i),
 				callback.replaceAll("[", "[["),
 			);
 			await user.type(screen.getByLabelText(/^name/i), " updated");
@@ -213,7 +213,7 @@ describe("OAuth2AppForm", () => {
 				await waitFor(() =>
 					expect(onSubmit).toHaveBeenCalledWith({
 						name: `${MockOAuth2ProviderAppPublic.name} updated`,
-						callback_url: callback,
+						redirect_uris: [callback],
 						icon: MockOAuth2ProviderAppPublic.icon,
 					}),
 				);
@@ -222,4 +222,203 @@ describe("OAuth2AppForm", () => {
 			}
 		},
 	);
+
+	it("sends the list unchanged and no callback_url key on rename", async () => {
+		const user = userEvent.setup();
+		const onSubmit = vi.fn();
+		const app = {
+			...MockOAuth2ProviderApps[0],
+			redirect_uris: ["https://a.example.com/cb", "https://b.example.com/cb"],
+		};
+
+		render(
+			<OAuth2AppForm
+				app={app}
+				onSubmit={onSubmit}
+				isUpdating={false}
+				disabled={false}
+			/>,
+		);
+
+		await user.clear(screen.getByLabelText(/^name/i));
+		await user.type(screen.getByLabelText(/^name/i), "Renamed app");
+		await user.click(
+			screen.getByRole("button", { name: /update application/i }),
+		);
+
+		await waitFor(() => {
+			const call = onSubmit.mock.calls[0][0];
+			expect(call).toStrictEqual({
+				name: "Renamed app",
+				redirect_uris: ["https://a.example.com/cb", "https://b.example.com/cb"],
+				icon: app.icon,
+			});
+			expect(call).not.toHaveProperty("callback_url");
+		});
+	});
+
+	it("edits an entry in place, keeping its position", async () => {
+		const user = userEvent.setup();
+		const onSubmit = vi.fn();
+		const app = {
+			...MockOAuth2ProviderApps[0],
+			redirect_uris: ["https://a.example.com/cb", "https://b.example.com/cb"],
+		};
+
+		render(
+			<OAuth2AppForm
+				app={app}
+				onSubmit={onSubmit}
+				isUpdating={false}
+				disabled={false}
+			/>,
+		);
+
+		await user.clear(screen.getByLabelText(/default callback/i));
+		await user.type(
+			screen.getByLabelText(/default callback/i),
+			"https://c.example.com/cb",
+		);
+		await user.click(
+			screen.getByRole("button", { name: /update application/i }),
+		);
+
+		await waitFor(() =>
+			expect(onSubmit).toHaveBeenCalledWith({
+				name: app.name,
+				redirect_uris: ["https://c.example.com/cb", "https://b.example.com/cb"],
+				icon: app.icon,
+			}),
+		);
+	});
+
+	it("removes an entry", async () => {
+		const user = userEvent.setup();
+		const onSubmit = vi.fn();
+		const app = {
+			...MockOAuth2ProviderApps[0],
+			redirect_uris: ["https://a.example.com/cb", "https://b.example.com/cb"],
+		};
+
+		render(
+			<OAuth2AppForm
+				app={app}
+				onSubmit={onSubmit}
+				isUpdating={false}
+				disabled={false}
+			/>,
+		);
+
+		await user.click(
+			screen.getByRole("button", { name: /remove redirect uri 2/i }),
+		);
+		await user.click(
+			screen.getByRole("button", { name: /update application/i }),
+		);
+
+		await waitFor(() =>
+			expect(onSubmit).toHaveBeenCalledWith({
+				name: app.name,
+				redirect_uris: ["https://a.example.com/cb"],
+				icon: app.icon,
+			}),
+		);
+	});
+
+	it("adds an entry", async () => {
+		const user = userEvent.setup();
+		const onSubmit = vi.fn();
+		const app = {
+			...MockOAuth2ProviderApps[0],
+			redirect_uris: ["https://a.example.com/cb", "https://b.example.com/cb"],
+		};
+
+		render(
+			<OAuth2AppForm
+				app={app}
+				onSubmit={onSubmit}
+				isUpdating={false}
+				disabled={false}
+			/>,
+		);
+
+		await user.click(screen.getByRole("button", { name: /add redirect uri/i }));
+		await user.type(
+			screen.getByLabelText(/^redirect uri 3/i),
+			"https://d.example.com/cb",
+		);
+		await user.click(
+			screen.getByRole("button", { name: /update application/i }),
+		);
+
+		await waitFor(() =>
+			expect(onSubmit).toHaveBeenCalledWith({
+				name: app.name,
+				redirect_uris: [
+					"https://a.example.com/cb",
+					"https://b.example.com/cb",
+					"https://d.example.com/cb",
+				],
+				icon: app.icon,
+			}),
+		);
+	});
+
+	it("disables submit after removing the only entry", async () => {
+		const user = userEvent.setup();
+		const onSubmit = vi.fn();
+		const app = {
+			...MockOAuth2ProviderApps[0],
+			redirect_uris: ["https://a.example.com/cb"],
+		};
+
+		render(
+			<OAuth2AppForm
+				app={app}
+				onSubmit={onSubmit}
+				isUpdating={false}
+				disabled={false}
+			/>,
+		);
+
+		await user.click(
+			screen.getByRole("button", { name: /remove redirect uri 1/i }),
+		);
+
+		await waitFor(() =>
+			expect(
+				screen.getByRole("button", { name: /update application/i }),
+			).toBeDisabled(),
+		);
+	});
+
+	it("does not submit when a public app has a disallowed entry in another row", async () => {
+		const user = userEvent.setup();
+		const onSubmit = vi.fn();
+		const app = {
+			...MockOAuth2ProviderAppPublic,
+			redirect_uris: ["vscode://coder.coder-remote/oauth/callback"],
+		};
+
+		render(
+			<OAuth2AppForm
+				app={app}
+				onSubmit={onSubmit}
+				isUpdating={false}
+				disabled={false}
+			/>,
+		);
+
+		await user.click(screen.getByRole("button", { name: /add redirect uri/i }));
+		await user.type(
+			screen.getByLabelText(/^redirect uri 2/i),
+			"http://example.com/cb",
+		);
+		await user.click(
+			screen.getByRole("button", { name: /update application/i }),
+		);
+
+		await act(async () => {});
+		expect(onSubmit).not.toHaveBeenCalled();
+	});
 });

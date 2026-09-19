@@ -27443,7 +27443,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "redirect_uris": {
-                    "description": "RedirectURIs is the ordered list of URIs the app may redirect to. The\nfirst entry is the primary. Omit both this and callback_url to keep the\nstored redirect URIs. Other fields are replaced. An empty slice is\nomitted on the wire, so it also keeps the stored list.",
+                    "description": "RedirectURIs is the ordered list of URIs the app may redirect to. The\nfirst entry is the primary. Omit both this and callback_url to keep the\nstored list. An explicit empty list is rejected instead of being\ntreated as omitted.",
                     "type": "array",
                     "items": {
                         "type": "string"
