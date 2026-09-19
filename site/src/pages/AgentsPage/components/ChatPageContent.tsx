@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import type { UrlTransform } from "streamdown";
 import {
 	chatPromptsQuery,
+	organizationChatModelOverrides,
 	refreshChatContext,
 	userCompactionThresholds,
 } from "#/api/queries/chats";
@@ -12,13 +13,17 @@ import { workspaces } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import type { ModelSelectorOption } from "#/modules/aiModels/ModelSelector";
+import {
+	resolveCompactionThreshold,
+	resolveOrganizationCompactionTrigger,
+} from "../compactionTriggers";
 import { useChatDraftAttachments } from "../hooks/useChatDraftAttachments";
 import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
 import { useFileAttachments } from "../hooks/useFileAttachments";
 import { getChatFileURL } from "../utils/chatAttachments";
 import {
 	getProviderForModelOption,
-	resolveCompactionThreshold,
+	providerInfoByIDFromDescriptors,
 } from "../utils/modelOptions";
 import { CHAT_SLASH_COMMANDS } from "../utils/slashCommands";
 import {
@@ -253,7 +258,7 @@ export type PendingAttachment = {
 interface ChatPageInputProps {
 	chat: TypesGen.Chat;
 	store: ChatStoreHandle;
-	models: readonly TypesGen.ChatModel[] | undefined;
+	modelCatalog: TypesGen.OrganizationChatModelsResponse | undefined;
 	onSend: (
 		message: string,
 		attachments?: readonly PendingAttachment[],
@@ -313,7 +318,7 @@ interface ChatPageInputProps {
 export const ChatPageInput: FC<ChatPageInputProps> = ({
 	chat,
 	store,
-	models,
+	modelCatalog,
 	onSend,
 	onDeleteQueuedMessage,
 	onPromoteQueuedMessage,
@@ -371,11 +376,23 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 		currentUser.id,
 	);
 	const thresholdsQuery = useQuery(userCompactionThresholds());
-	const compressionThreshold = resolveCompactionThreshold(
-		chat.last_model_config_id,
-		thresholdsQuery.data?.thresholds,
-		models,
+	const modelOverridesQuery = useQuery(
+		organizationChatModelOverrides(organizationId),
 	);
+	const organizationCompactionTrigger = resolveOrganizationCompactionTrigger(
+		modelOverridesQuery.data?.overrides,
+		modelCatalog?.models,
+		providerInfoByIDFromDescriptors(modelCatalog?.providers),
+	);
+	const compactionThreshold =
+		modelOverridesQuery.data !== undefined
+			? resolveCompactionThreshold(
+					chat.last_model_config_id,
+					thresholdsQuery.data?.thresholds,
+					modelCatalog?.models,
+					organizationCompactionTrigger,
+				)
+			: undefined;
 	const messagesByID = useChatSelector(store, selectMessagesByID);
 	const orderedMessageIDs = useChatSelector(store, selectOrderedMessageIDs);
 	const hasStreamState = useChatSelector(store, selectHasStreamState);
@@ -408,7 +425,7 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 		rawUsage || chatContext
 			? {
 					...(rawUsage ?? {}),
-					compressionThreshold,
+					compactionThreshold,
 					context: chatContext,
 				}
 			: rawUsage;

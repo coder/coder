@@ -9,8 +9,15 @@ import {
 } from "#/api/queries/chats";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { AgentSettingsCompactionPageView } from "./AgentSettingsCompactionPageView";
+import {
+	type OrganizationCompactionTrigger,
+	resolveOrganizationCompactionTrigger,
+} from "./compactionTriggers";
 import { useOrganizationChatModels } from "./hooks/useOrganizationChatModels";
-import { providerTypeByIDFromUserConfigs } from "./utils/modelOptions";
+import {
+	providerInfoByIDFromUserConfigs,
+	providerTypeByIDFromUserConfigs,
+} from "./utils/modelOptions";
 
 const AgentSettingsCompactionPage: FC = () => {
 	const queryClient = useQueryClient();
@@ -18,27 +25,13 @@ const AgentSettingsCompactionPage: FC = () => {
 	const organizationModels = useOrganizationChatModels(
 		organizations.map((organization) => organization.id),
 	);
-	const providerConfigsQuery = useQuery(userChatProviderConfigs());
-	const thresholdsQuery = useQuery(userCompactionThresholds());
-	// Only refines the displayed trigger point; a failed request falls back
-	// to the chat model's own window.
-	const modelOverrideQueries = useQueries({
+	const compactionOverrideQueries = useQueries({
 		queries: organizations.map((organization) =>
 			organizationChatModelOverrides(organization.id),
 		),
 	});
-	const compactionModelIDByOrganization = new Map<string, string>();
-	for (const [index, query] of modelOverrideQueries.entries()) {
-		const compactionOverride = query.data?.overrides.find(
-			(override) => override.context === "compaction",
-		);
-		if (compactionOverride) {
-			compactionModelIDByOrganization.set(
-				organizations[index].id,
-				compactionOverride.model_config_id,
-			);
-		}
-	}
+	const providerConfigsQuery = useQuery(userChatProviderConfigs());
+	const thresholdsQuery = useQuery(userCompactionThresholds());
 	const saveThresholdMutation = useMutation(
 		updateUserCompactionThreshold(queryClient),
 	);
@@ -58,15 +51,47 @@ const AgentSettingsCompactionPage: FC = () => {
 	const providerTypeByID = providerTypeByIDFromUserConfigs(
 		providerConfigsQuery.data,
 	);
+	const providerInfoByID = providerInfoByIDFromUserConfigs(
+		providerConfigsQuery.data,
+	);
+	const isCompactionOverridesLoading = compactionOverrideQueries.some(
+		(query) => query.isLoading,
+	);
+	const compactionOverridesError = compactionOverrideQueries.find(
+		(query) => query.error,
+	)?.error;
+	const compactionTriggersByOrganizationID = new Map<
+		string,
+		OrganizationCompactionTrigger
+	>();
+	for (const [index, organization] of organizations.entries()) {
+		const trigger = resolveOrganizationCompactionTrigger(
+			compactionOverrideQueries[index]?.data?.overrides,
+			organizationModels.models.filter(
+				(model) => model.organization_id === organization.id,
+			),
+			providerInfoByID,
+		);
+		if (trigger) {
+			compactionTriggersByOrganizationID.set(organization.id, trigger);
+		}
+	}
 
 	return (
 		<AgentSettingsCompactionPageView
 			models={organizationModels.models}
 			providerTypeByID={providerTypeByID}
 			organizations={organizations}
-			compactionModelIDByOrganization={compactionModelIDByOrganization}
+			compactionTriggersByOrganizationID={compactionTriggersByOrganizationID}
 			modelsError={organizationModels.error ?? organizationModels.partialError}
-			isLoadingModels={organizationModels.isLoading}
+			isLoadingModels={
+				organizationModels.isLoading ||
+				providerConfigsQuery.isLoading ||
+				isCompactionOverridesLoading
+			}
+			compactionTriggersError={
+				compactionOverridesError ?? providerConfigsQuery.error
+			}
 			thresholds={thresholdsQuery.data?.thresholds}
 			isThresholdsLoading={thresholdsQuery.isLoading}
 			thresholdsError={thresholdsQuery.error}
