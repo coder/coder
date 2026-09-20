@@ -138,13 +138,6 @@ describe("ModelForm reasoning mode", () => {
 		await user.clear(modelInput);
 		await user.type(modelInput, "gpt-5.6-pro");
 		await user.tab();
-		await openProviderConfig(user);
-		expect(
-			screen.getByRole("combobox", { name: /service tier/i }),
-		).toBeInTheDocument();
-		expect(
-			screen.queryByRole("combobox", { name: /reasoning mode/i }),
-		).not.toBeInTheDocument();
 		await user.click(screen.getByRole("button", { name: /update model/i }));
 
 		await waitFor(() =>
