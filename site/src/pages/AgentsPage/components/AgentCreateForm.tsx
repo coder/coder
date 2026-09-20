@@ -1,3 +1,4 @@
+import { XIcon } from "lucide-react";
 import { type FC, useEffect, useRef, useState } from "react";
 import { useQuery } from "react-query";
 import { toast } from "sonner";
@@ -12,6 +13,8 @@ import { permittedOrganizations } from "#/api/queries/organizations";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import { Badge } from "#/components/Badge/Badge";
+import { Button } from "#/components/Button/Button";
 import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { useFileAttachments } from "../hooks/useFileAttachments";
@@ -30,12 +33,13 @@ import {
 	hasUserFixableProviders,
 	resolveModelSelector,
 } from "../utils/modelOptions";
+import type { NewChildChatLocationState } from "../utils/navigation";
 import {
 	getReasoningEffortForModel,
 	pickReasoningEffort,
 	saveReasoningEffortForModel,
 } from "../utils/reasoningEffort";
-import { AgentChatInput } from "./AgentChatInput";
+import { AgentChatInput, type ChatMessageInputRef } from "./AgentChatInput";
 import { ChatAccessDeniedAlert } from "./ChatAccessDeniedAlert";
 import {
 	isChatHookDeniedResponse,
@@ -62,6 +66,8 @@ export type CreateChatOptions = {
 	mcpServerIds?: string[];
 	organizationId: string;
 	planMode?: TypesGen.ChatPlanMode;
+	/** Set only when the parent's organization is one the user may create in. */
+	parentChatId?: string;
 };
 
 /**
@@ -140,7 +146,17 @@ interface AgentCreateFormProps {
 	workspaceOptions: readonly TypesGen.Workspace[];
 	workspacesError: unknown;
 	isWorkspacesLoading: boolean;
+	/**
+	 * Parent for the new chat (chat-tree experiment). Pins the organization
+	 * to the parent's and shows a dismissible chip; clearing it creates the
+	 * chat under the root instead. A parent whose organization is not
+	 * permitted is reported and the chat is created under the root.
+	 */
+	parentChat?: ParentChatTarget;
+	onClearParentChat?: () => void;
 }
+
+export type ParentChatTarget = NewChildChatLocationState;
 
 export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	onCreateChat,
@@ -153,8 +169,11 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	workspaceOptions,
 	workspacesError,
 	isWorkspacesLoading,
+	parentChat,
+	onClearParentChat,
 }) => {
 	const { organizations, showOrganizations } = useDashboard();
+	const chatInputRef = useRef<ChatMessageInputRef>(null);
 	const {
 		initialInputValue,
 		initialEditorState,
@@ -228,12 +247,22 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	) {
 		setPendingOrgChange(null);
 	}
-	const effectiveOrg =
+	const parentOrg = parentChat
+		? permittedOrgs.find((org) => org.id === parentChat.parentOrganizationId)
+		: undefined;
+	// Set once permissions resolve and exclude the parent's organization.
+	const unavailableParentChat =
+		orgSelectionSettled && !parentOrg ? parentChat : undefined;
+	// preferredOrg is the user's own choice and the only value that is
+	// adopted into selectedOrg and persisted. The parent's organization
+	// overrides it for queries and the request without being stored.
+	const preferredOrg =
 		selectedOrg && selectedOrgIsPermitted
 			? selectedOrg
 			: (permittedOrgs.find((org) => org.is_default) ??
 				permittedOrgs[0] ??
 				null);
+	const effectiveOrg = parentOrg ?? preferredOrg;
 	const organizationId = effectiveOrg?.id ?? "";
 	const mcpServersQuery = useQuery({
 		...mcpServerConfigs(organizationId),
@@ -250,10 +279,10 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	if (
 		orgSelectionSettled &&
 		!selectedOrg &&
-		effectiveOrg &&
-		permittedOrgs.some((org) => org.id === effectiveOrg.id)
+		preferredOrg &&
+		permittedOrgs.some((org) => org.id === preferredOrg.id)
 	) {
-		setSelectedOrg(effectiveOrg);
+		setSelectedOrg(preferredOrg);
 	}
 	// Clear a workspace after a settled org change, before its localStorage value
 	// is cleared post-commit. An empty permission set has no selectable org, so
@@ -528,10 +557,16 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 					? [...effectiveMCPServerIds]
 					: undefined,
 			planMode: planModeEnabled ? "plan" : undefined,
+			parentChatId: parentOrg ? parentChat?.parentChatId : undefined,
 		}).catch((err) => {
 			resetDraft();
 			throw err;
 		});
+	};
+
+	const handleClearParentChat = () => {
+		onClearParentChat?.();
+		chatInputRef.current?.focus();
 	};
 
 	const handleSendWithAttachments = async (message: string) => {
@@ -610,8 +645,37 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 					{personalModelOverridesQuery.error != null && (
 						<ErrorAlert error={personalModelOverridesQuery.error} />
 					)}
+					{parentChat && (
+						<div className="flex items-center gap-2 px-1">
+							<Badge variant="outline" size="md" className="max-w-full gap-1.5">
+								<span className="truncate">
+									New chat under {parentChat.parentChatTitle}
+								</span>
+								{onClearParentChat && (
+									<Button
+										variant="subtle"
+										size="icon"
+										className="size-6 min-w-0 p-0 [&>svg]:size-3.5"
+										aria-label={`Create under the root instead of ${parentChat.parentChatTitle}`}
+										onClick={handleClearParentChat}
+									>
+										<XIcon />
+									</Button>
+								)}
+							</Badge>
+						</div>
+					)}
+					{unavailableParentChat && (
+						<Alert severity="info">
+							<AlertDescription>
+								The organization of {unavailableParentChat.parentChatTitle} is
+								not available to you. The chat will be created under the root.
+							</AlertDescription>
+						</Alert>
+					)}
 					{showOrganizations &&
 						orgSelectionSettled &&
+						!parentOrg &&
 						permittedOrgs.length > 1 && (
 							<CompactOrgSelector
 								value={effectiveOrg}
@@ -632,6 +696,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 							/>
 						)}
 					<AgentChatInput
+						inputRef={chatInputRef}
 						onSend={handleSendWithAttachments}
 						placeholder="Ask Coder to build, fix bugs, or explore your project..."
 						isDisabled={

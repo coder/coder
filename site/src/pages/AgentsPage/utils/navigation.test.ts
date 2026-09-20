@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { buildAgentChatPath, safeBuildAgentChatPath } from "./navigation";
+import {
+	buildAgentChatPath,
+	readNewChildChatLocationState,
+	safeBuildAgentChatPath,
+} from "./navigation";
 
 describe("buildAgentChatPath", () => {
 	it("encodes chat IDs as a path segment", () => {
@@ -25,5 +29,30 @@ describe("safeBuildAgentChatPath", () => {
 	it("returns null when no safe chat ID is recoverable", () => {
 		expect(safeBuildAgentChatPath({ chatId: "? no" })).toBeNull();
 		expect(safeBuildAgentChatPath({ chatId: "chat/id" })).toBeNull();
+	});
+});
+
+describe("readNewChildChatLocationState", () => {
+	it("returns the parent when every field is a string", () => {
+		expect(
+			readNewChildChatLocationState({
+				parentChatId: "parent-1",
+				parentChatTitle: "Parent",
+				parentOrganizationId: "org-1",
+				extra: true,
+			}),
+		).toEqual({
+			parentChatId: "parent-1",
+			parentChatTitle: "Parent",
+			parentOrganizationId: "org-1",
+		});
+	});
+
+	it("ignores missing, partial, or non-object state", () => {
+		expect(readNewChildChatLocationState(null)).toBeUndefined();
+		expect(readNewChildChatLocationState("parent-1")).toBeUndefined();
+		expect(
+			readNewChildChatLocationState({ parentChatId: "parent-1" }),
+		).toBeUndefined();
 	});
 });

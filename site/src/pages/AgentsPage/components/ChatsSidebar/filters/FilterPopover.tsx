@@ -124,6 +124,11 @@ const OptionRow: FC<{ readonly children: ReactNode }> = ({ children }) => (
 interface FilterPopoverProps {
 	readonly filters: AgentSidebarFilters;
 	readonly onFiltersChange: (filters: AgentSidebarFilters) => void;
+	/**
+	 * Hides grouping and PR status: the tree has no groups and tree rows
+	 * carry no diff status.
+	 */
+	readonly treeMode?: boolean;
 }
 
 const haveSameSelections = <T extends string>(
@@ -151,6 +156,7 @@ const hasActiveFilters = (filters: AgentSidebarFilters): boolean => {
 export const FilterPopover: FC<FilterPopoverProps> = ({
 	filters,
 	onFiltersChange,
+	treeMode = false,
 }) => {
 	const id = useId();
 	const [open, setOpen] = useState(false);
@@ -173,9 +179,11 @@ export const FilterPopover: FC<FilterPopoverProps> = ({
 			label.toLowerCase().includes(normalizedOptionSearch),
 		);
 
-	const visiblePRStatuses = AGENT_PR_STATUS_ORDER.filter((status) =>
-		matchesOption("PR status", PR_STATUS_LABELS[status]),
-	);
+	const visiblePRStatuses = treeMode
+		? []
+		: AGENT_PR_STATUS_ORDER.filter((status) =>
+				matchesOption("PR status", PR_STATUS_LABELS[status]),
+			);
 	const visibleChatStatusOptions = CHAT_STATUS_OPTIONS.filter((option) =>
 		matchesOption("Chat status", option.label),
 	);
@@ -282,36 +290,38 @@ export const FilterPopover: FC<FilterPopoverProps> = ({
 				role="dialog"
 				className="mobile-full-width-dropdown mobile-full-width-dropdown-top-below-header w-64 overflow-hidden p-0 text-sm"
 			>
-				<div className="border-0 border-b border-solid border-border px-3 py-2">
-					<section className="space-y-2">
-						<SectionHeading id={`${id}-group-heading`}>Group</SectionHeading>
-						<RadioGroup
-							aria-labelledby={`${id}-group-heading`}
-							value={stagedFilters.groupBy}
-							onValueChange={setGroupBy}
-							className="gap-2"
-						>
-							{GROUP_OPTIONS.map((option) => {
-								const optionId = `${id}-group-${option.value}`;
-								return (
-									<OptionRow key={option.value}>
-										<RadioGroupItem
-											id={optionId}
-											value={option.value}
-											className="m-0 my-1"
-										/>
-										<label
-											className="flex flex-1 cursor-pointer items-center text-sm font-normal leading-5 text-content-primary"
-											htmlFor={optionId}
-										>
-											{option.label}
-										</label>
-									</OptionRow>
-								);
-							})}
-						</RadioGroup>
-					</section>
-				</div>
+				{!treeMode && (
+					<div className="border-0 border-b border-solid border-border px-3 py-2">
+						<section className="space-y-2">
+							<SectionHeading id={`${id}-group-heading`}>Group</SectionHeading>
+							<RadioGroup
+								aria-labelledby={`${id}-group-heading`}
+								value={stagedFilters.groupBy}
+								onValueChange={setGroupBy}
+								className="gap-2"
+							>
+								{GROUP_OPTIONS.map((option) => {
+									const optionId = `${id}-group-${option.value}`;
+									return (
+										<OptionRow key={option.value}>
+											<RadioGroupItem
+												id={optionId}
+												value={option.value}
+												className="m-0 my-1"
+											/>
+											<label
+												className="flex flex-1 cursor-pointer items-center text-sm font-normal leading-5 text-content-primary"
+												htmlFor={optionId}
+											>
+												{option.label}
+											</label>
+										</OptionRow>
+									);
+								})}
+							</RadioGroup>
+						</section>
+					</div>
+				)}
 
 				<div className="px-3 pt-2">
 					<section>

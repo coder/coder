@@ -2394,3 +2394,88 @@ export const ThinkingBlockWithShellTools: Story = {
 		]),
 	},
 };
+
+const buildRelayedMessage = (
+	senderChat: TypesGen.ChatSenderChatPart,
+	text = "The login test is fixed; the flaky retry loop was removed.",
+): TypesGen.ChatMessage => ({
+	...baseMessage,
+	id: 1,
+	role: "user",
+	content: [senderChat, { type: "text", text }],
+});
+
+export const RelayedMessageFromChild: Story = {
+	args: {
+		...defaultArgs,
+		onEditUserMessage: fn(),
+		parsedMessages: buildMessages([
+			buildRelayedMessage({
+				type: "sender-chat",
+				sender_chat_id: "chat-tree-child",
+				sender_chat_title: "Fix flaky login test",
+				sender_chat_relation: "child",
+				relay_hop: 1,
+			}),
+			{
+				...baseMessage,
+				id: 2,
+				role: "user",
+				content: [{ type: "text", text: "Thanks, merging now." }],
+			},
+		]),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const relayed = canvas.getByText(/flaky retry loop/i);
+		const rowWrapper = relayed.closest('[data-role="user"]')?.parentElement;
+		if (!(rowWrapper instanceof HTMLElement)) {
+			return;
+		}
+		await userEvent.hover(rowWrapper);
+	},
+};
+
+export const RelayedMessageFromParentAfterHops: Story = {
+	args: {
+		...defaultArgs,
+		parsedMessages: buildMessages([
+			buildRelayedMessage(
+				{
+					type: "sender-chat",
+					sender_chat_id: "chat-tree-root",
+					sender_chat_title: "Root",
+					sender_chat_relation: "parent",
+					relay_hop: 3,
+				},
+				"Please re-run the suite with tracing enabled.",
+			),
+		]),
+	},
+};
+
+export const RelayedMessageFromUnknownSender: Story = {
+	args: {
+		...defaultArgs,
+		parsedMessages: buildMessages([
+			buildRelayedMessage({
+				type: "sender-chat",
+				sender_chat_relation: "child",
+			}),
+		]),
+	},
+};
+
+export const RelayedMessageWithoutTitle: Story = {
+	args: {
+		...defaultArgs,
+		parsedMessages: buildMessages([
+			buildRelayedMessage({
+				type: "sender-chat",
+				sender_chat_id: "chat-tree-sibling",
+				sender_chat_relation: "child",
+				relay_hop: 1,
+			}),
+		]),
+	},
+};

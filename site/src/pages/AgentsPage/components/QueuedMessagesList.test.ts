@@ -145,4 +145,21 @@ describe("getQueuedMessageInfo", () => {
 			hookNotices: [],
 		});
 	});
+
+	it("records the sender chat part for relayed queued messages", () => {
+		const result = getQueuedMessageInfo(
+			buildMessage([
+				{
+					type: "sender-chat",
+					sender_chat_id: "chat-tree-child",
+					sender_chat_title: "Fix flaky login test",
+					sender_chat_relation: "child",
+					relay_hop: 1,
+				},
+				{ type: "text", text: "Done with the fix." },
+			]),
+		);
+		expect(result.displayText).toBe("Done with the fix.");
+		expect(result.senderChat?.sender_chat_title).toBe("Fix flaky login test");
+	});
 });

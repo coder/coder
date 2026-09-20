@@ -354,6 +354,8 @@ const aiProviderConfigsPath = "/api/v2/ai/providers";
 const aiGatewayPath = "/api/v2/ai-gateway";
 const chatModelsPath = (organizationId: string) =>
 	`/api/v2/organizations/${encodeURIComponent(organizationId)}/chats/models`;
+const chatTreePath = (organizationId: string) =>
+	`/api/v2/organizations/${encodeURIComponent(organizationId)}/chats/tree`;
 const chatModelPath = (organizationId: string, modelId: string) =>
 	`${chatModelsPath(organizationId)}/${encodeURIComponent(modelId)}`;
 const chatModelACLPath = (organizationId: string, modelId: string) =>
@@ -3256,6 +3258,15 @@ class ExperimentalApiMethods {
 	getChat = async (chatId: string): Promise<TypesGen.Chat> => {
 		const response = await this.axios.get<TypesGen.Chat>(
 			`/api/v2/chats/${chatId}`,
+		);
+		return response.data;
+	};
+	getChatTree = async (
+		organizationId: string,
+		req?: { archived?: boolean },
+	): Promise<TypesGen.ChatTreeResponse> => {
+		const response = await this.axios.get<TypesGen.ChatTreeResponse>(
+			getURLWithSearchParams(chatTreePath(organizationId), req),
 		);
 		return response.data;
 	};

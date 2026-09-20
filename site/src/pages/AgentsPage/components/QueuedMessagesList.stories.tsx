@@ -187,6 +187,26 @@ export const MixedQueueWithAttachments: Story = {
 	},
 };
 
+// A message relayed from another chat carries a sender-chat part and shows
+// the sender's title before the text.
+export const RelayedFromChildChat: Story = {
+	args: {
+		messages: [
+			buildMessage(1, [
+				{
+					type: "sender-chat",
+					sender_chat_id: "chat-tree-child",
+					sender_chat_title: "Fix flaky login test",
+					sender_chat_relation: "child",
+					relay_hop: 1,
+				},
+				{ type: "text", text: "The login test is fixed; ready for review." },
+			]),
+			buildMessage(2, textContent("Merge once CI is green")),
+		],
+	},
+};
+
 export const HookNotice: Story = {
 	args: {
 		messages: [

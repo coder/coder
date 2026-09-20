@@ -70,7 +70,8 @@ const getRenderableContentState = (parsed: ParsedMessageContent) => {
 		visibleBlocks.length > 0 ||
 		visibleTools.length > 0 ||
 		parsed.sources.length > 0 ||
-		parsed.hookNotices.length > 0;
+		parsed.hookNotices.length > 0 ||
+		parsed.senderChat !== undefined;
 	const hasThinkingOnlyContent =
 		visibleBlocks.length > 0 &&
 		visibleBlocks.every((block) => block.type === "thinking");

@@ -9,6 +9,7 @@ import { ChatSearchDialog } from "./dialogs/ChatSearchDialog";
 import { RenameChatDialog } from "./dialogs/RenameChatDialog";
 import { SettingsPanel } from "./settings/SettingsPanel";
 import { isSettingsView, sidebarViewFromPath } from "./sidebarView";
+import type { ChatTreePanelData } from "./tree/ChatTreePanel";
 
 export { isSettingsView, sidebarViewFromPath } from "./sidebarView";
 
@@ -57,6 +58,8 @@ interface ChatsSidebarProps {
 	 */
 	canManageAgentSettings?: boolean;
 	currentUserId: string;
+	/** Tree sidebar data; present only with the chat-tree experiment. */
+	treeData?: ChatTreePanelData;
 }
 
 export const ChatsSidebar: FC<ChatsSidebarProps> = (props) => {
@@ -94,6 +97,7 @@ export const ChatsSidebar: FC<ChatsSidebarProps> = (props) => {
 		isAdmin = false,
 		canManageAgentSettings = false,
 		currentUserId,
+		treeData,
 	} = props;
 	const { agentId, chatId } = useParams<{
 		agentId?: string;
@@ -158,6 +162,7 @@ export const ChatsSidebar: FC<ChatsSidebarProps> = (props) => {
 				isChatsActive={!activeChatId && sidebarView.panel === "chats"}
 				location={location}
 				currentUserId={currentUserId}
+				treeData={treeData}
 			/>
 			<SettingsPanel
 				isSettingsPanel={isSettingsPanel}

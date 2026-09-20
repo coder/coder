@@ -2,7 +2,9 @@ import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type * as TypesGen from "#/api/typesGenerated";
 import {
+	archiveCascadeDescription,
 	chatCostIdToInvalidate,
+	pendingArchiveCascadeFor,
 	shouldInvalidateFilteredChatList,
 } from "./AgentsPageLayout";
 import {
@@ -960,6 +962,7 @@ describe(chatCostIdToInvalidate.name, () => {
 			name: "invalidates the root's tree cost when a subagent finishes",
 			updatedChat: chatForFilterInvalidation({
 				id: "child-1",
+				kind: "subagent",
 				parent_chat_id: "root-1",
 				root_chat_id: "root-1",
 				status: "waiting",
@@ -971,6 +974,7 @@ describe(chatCostIdToInvalidate.name, () => {
 			name: "invalidates the root's tree cost when a nested subagent finishes",
 			updatedChat: chatForFilterInvalidation({
 				id: "grandchild-1",
+				kind: "subagent",
 				parent_chat_id: "child-1",
 				root_chat_id: "root-1",
 				status: "waiting",
@@ -979,17 +983,15 @@ describe(chatCostIdToInvalidate.name, () => {
 			expected: "root-1",
 		},
 		{
-			// Deleting a root nulls root_chat_id on descendants, leaving only
-			// parent_chat_id, so cost is keyed on the parent.
-			name: "falls back to the parent when the root chat is gone",
+			name: "bills a named child chat to its own id, not its tree parent",
 			updatedChat: chatForFilterInvalidation({
-				id: "grandchild-1",
-				parent_chat_id: "child-1",
+				id: "child-chat-1",
+				parent_chat_id: "root-1",
 				root_chat_id: undefined,
 				status: "waiting",
 			}),
 			eventKind: "status_change",
-			expected: "child-1",
+			expected: "child-chat-1",
 		},
 		{
 			name: "waits while the chat is still active",
@@ -1001,6 +1003,7 @@ describe(chatCostIdToInvalidate.name, () => {
 			name: "waits while a subagent is still active",
 			updatedChat: chatForFilterInvalidation({
 				id: "child-1",
+				kind: "subagent",
 				parent_chat_id: "root-1",
 				root_chat_id: "root-1",
 				status: "running",
@@ -1030,6 +1033,7 @@ describe(chatCostIdToInvalidate.name, () => {
 			name: "invalidates the root's tree cost for a subagent title change",
 			updatedChat: chatForFilterInvalidation({
 				id: "child-1",
+				kind: "subagent",
 				parent_chat_id: "root-1",
 				root_chat_id: "root-1",
 				status: "running",
@@ -1053,6 +1057,7 @@ describe(chatCostIdToInvalidate.name, () => {
 			name: "invalidates the root's tree cost for a subagent summary change",
 			updatedChat: chatForFilterInvalidation({
 				id: "child-1",
+				kind: "subagent",
 				parent_chat_id: "root-1",
 				root_chat_id: "root-1",
 				status: "running",
@@ -1063,4 +1068,44 @@ describe(chatCostIdToInvalidate.name, () => {
 	])("$name", ({ updatedChat, eventKind, expected }) => {
 		expect(chatCostIdToInvalidate(updatedChat, eventKind)).toBe(expected);
 	});
+});
+
+describe(pendingArchiveCascadeFor.name, () => {
+	it("archives directly when no active descendants are cached", () => {
+		expect(pendingArchiveCascadeFor("chat-1", "Root", 0)).toBeUndefined();
+	});
+
+	it("asks for confirmation when active descendants exist", () => {
+		expect(pendingArchiveCascadeFor("chat-1", "Parent", 2)).toEqual({
+			chatId: "chat-1",
+			title: "Parent",
+			descendantCount: 2,
+		});
+	});
+
+	it("falls back to Untitled when the cached title is missing", () => {
+		expect(pendingArchiveCascadeFor("chat-1", undefined, 1)?.title).toBe(
+			"Untitled",
+		);
+	});
+});
+
+describe(archiveCascadeDescription.name, () => {
+	it.each([
+		{ descendantCount: 1, noun: "chat" },
+		{ descendantCount: 3, noun: "chats" },
+	])(
+		"pluralizes $descendantCount descendant(s)",
+		({ descendantCount, noun }) => {
+			expect(
+				archiveCascadeDescription({
+					chatId: "chat-1",
+					title: "Parent",
+					descendantCount,
+				}),
+			).toBe(
+				`Archive "Parent" and ${descendantCount} ${noun} beneath it? Subagents are archived with them. Archiving fails if any of them is running, being interrupted, or waiting for approval.`,
+			);
+		},
+	);
 });

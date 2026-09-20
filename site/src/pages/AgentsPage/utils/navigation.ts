@@ -28,3 +28,35 @@ export const safeBuildAgentChatPath = ({
 
 	return buildAgentChatPath({ chatId: recoverableChatIdPrefix });
 };
+
+/**
+ * Router state carried from "New chat here" to the composer. The parent
+ * is not a search param so it never leaks into links that copy
+ * location.search.
+ */
+export type NewChildChatLocationState = {
+	readonly parentChatId: string;
+	readonly parentChatTitle: string;
+	readonly parentOrganizationId: string;
+};
+
+export const readNewChildChatLocationState = (
+	state: unknown,
+): NewChildChatLocationState | undefined => {
+	if (!state || typeof state !== "object") {
+		return undefined;
+	}
+	const record = state as Record<string, unknown>;
+	if (
+		typeof record.parentChatId !== "string" ||
+		typeof record.parentChatTitle !== "string" ||
+		typeof record.parentOrganizationId !== "string"
+	) {
+		return undefined;
+	}
+	return {
+		parentChatId: record.parentChatId,
+		parentChatTitle: record.parentChatTitle,
+		parentOrganizationId: record.parentOrganizationId,
+	};
+};
