@@ -2,6 +2,7 @@ package codersdk
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -226,6 +227,18 @@ type AIBridgeSessionThreadsTokenUsage struct {
 	Metadata              map[string]any `json:"metadata"`
 }
 
+// AIBridgeAttribution contains the attribution fields recorded for one
+// interception.
+type AIBridgeAttribution map[string]string
+
+// MarshalJSON encodes unknown attribution as an empty object.
+func (a AIBridgeAttribution) MarshalJSON() ([]byte, error) {
+	if a == nil {
+		return []byte("{}"), nil
+	}
+	return json.Marshal(map[string]string(a))
+}
+
 // AIBridgeThread represents a single thread within a session.
 // A thread groups interceptions by their thread_root_id.
 type AIBridgeThread struct {
@@ -238,7 +251,10 @@ type AIBridgeThread struct {
 	StartedAt      time.Time                        `json:"started_at" format:"date-time"`
 	EndedAt        *time.Time                       `json:"ended_at,omitempty" format:"date-time"`
 	TokenUsage     AIBridgeSessionThreadsTokenUsage `json:"token_usage"`
-	AgenticActions []AIBridgeAgenticAction          `json:"agentic_actions"`
+	// Attribution contains attribution data from the root interception.
+	// Unknown attribution is serialized as an empty object.
+	Attribution    AIBridgeAttribution     `json:"attribution"`
+	AgenticActions []AIBridgeAgenticAction `json:"agentic_actions"`
 	// ErrorType is the categorized terminal upstream error from the root
 	// interception, or nil when the interception succeeded. See the
 	// aibridge_interception_error_type enum for possible values.
@@ -257,13 +273,18 @@ type AIBridgeThread struct {
 	AgentFirewallSequenceNumber *int32 `json:"agent_firewall_sequence_number,omitempty"`
 }
 
-// AIBridgeAgenticAction represents a tool call with associated
-// thinking blocks and token usage from one or more interceptions.
+// AIBridgeAgenticAction represents data from one interception, including
+// tool calls, thinking blocks, and token usage. Tool-less child interceptions
+// are represented as actions with an empty ToolCalls slice.
 type AIBridgeAgenticAction struct {
-	Model      string                           `json:"model"`
-	TokenUsage AIBridgeSessionThreadsTokenUsage `json:"token_usage"`
-	Thinking   []AIBridgeModelThought           `json:"thinking"`
-	ToolCalls  []AIBridgeToolCall               `json:"tool_calls"`
+	InterceptionID uuid.UUID `json:"interception_id" format:"uuid"`
+	Model          string    `json:"model"`
+	// Attribution contains attribution data from this interception.
+	// Unknown attribution is serialized as an empty object.
+	Attribution AIBridgeAttribution              `json:"attribution"`
+	TokenUsage  AIBridgeSessionThreadsTokenUsage `json:"token_usage"`
+	Thinking    []AIBridgeModelThought           `json:"thinking"`
+	ToolCalls   []AIBridgeToolCall               `json:"tool_calls"`
 }
 
 // AIBridgeModelThought represents a single thinking block from
@@ -410,6 +431,32 @@ func (c *Client) AIBridgeListClients(ctx context.Context) ([]string, error) {
 	return clients, ReadBodyAsJSON(res, &clients)
 }
 
+// AIBridgeProvider is the display metadata for a configured AI provider,
+// used to filter AI Gateway sessions by provider_name. It carries no
+// configuration so it can be served to anyone who can read sessions.
+type AIBridgeProvider struct {
+	Name        string         `json:"name"`
+	Type        AIProviderType `json:"type"`
+	DisplayName string         `json:"display_name"`
+	Icon        string         `json:"icon"`
+}
+
+// AIBridgeListProviders returns the providers available for filtering AI
+// Gateway sessions, including disabled and deleted ones that past sessions
+// may still reference.
+func (c *Client) AIBridgeListProviders(ctx context.Context) ([]AIBridgeProvider, error) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/v2/ai-gateway/providers", nil)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return nil, ReadBodyAsError(res)
+	}
+	var providers []AIBridgeProvider
+	return providers, ReadBodyAsJSON(res, &providers)
+}
+
 // OrganizationAISpendFilter narrows the organization per-user AI spend
 // report. Zero values apply no filter: the period falls back to the current
 // budget period on the server, and an empty dimension matches all usage.
@@ -497,25 +544,63 @@ type OrganizationAISpendReport struct {
 	Users []OrganizationAISpendUser `json:"users"`
 }
 
+// OrganizationAISpendDetailsFilter narrows organization AI spend.
+type OrganizationAISpendDetailsFilter struct {
+	PeriodStart  time.Time `json:"period_start,omitempty" format:"date-time"`
+	PeriodEnd    time.Time `json:"period_end,omitempty" format:"date-time"`
+	UserID       uuid.UUID `json:"user_id,omitempty" format:"uuid"`
+	GroupID      uuid.UUID `json:"group_id,omitempty" format:"uuid"`
+	ProviderName string    `json:"provider_name,omitempty"`
+	Model        string    `json:"model,omitempty"`
+}
+
+// asRequestOption returns a function that applies the filter's query
+// parameters to a request.
+func (f OrganizationAISpendDetailsFilter) asRequestOption() RequestOption {
+	return func(r *http.Request) {
+		q := r.URL.Query()
+		if !f.PeriodStart.IsZero() {
+			q.Set("period_start", f.PeriodStart.UTC().Format(time.RFC3339Nano))
+		}
+		if !f.PeriodEnd.IsZero() {
+			q.Set("period_end", f.PeriodEnd.UTC().Format(time.RFC3339Nano))
+		}
+		if f.UserID != uuid.Nil {
+			q.Set("user_id", f.UserID.String())
+		}
+		if f.GroupID != uuid.Nil {
+			q.Set("group_id", f.GroupID.String())
+		}
+		if f.ProviderName != "" {
+			q.Set("provider_name", f.ProviderName)
+		}
+		if f.Model != "" {
+			q.Set("model", f.Model)
+		}
+		r.URL.RawQuery = q.Encode()
+	}
+}
+
 // ExportOrganizationAISpend returns a CSV of per-user, per-group, per-model,
 // per-provider AI spend for the organization over the requested period. Both
 // bounds are optional and interpreted as UTC, and zero values fall back to the
 // current budget period on the server. The caller is responsible for closing
 // the returned ReadCloser.
 func (c *Client) ExportOrganizationAISpend(ctx context.Context, organization uuid.UUID, opts AISpendPeriodWindow) (io.ReadCloser, error) {
+	return c.ExportOrganizationAISpendWithFilter(ctx, organization, OrganizationAISpendDetailsFilter{
+		PeriodStart: opts.PeriodStart,
+		PeriodEnd:   opts.PeriodEnd,
+	})
+}
+
+// ExportOrganizationAISpendWithFilter returns organization AI spend as CSV,
+// narrowed by the supplied filter. The caller is responsible for closing the
+// returned ReadCloser.
+func (c *Client) ExportOrganizationAISpendWithFilter(ctx context.Context, organization uuid.UUID, filter OrganizationAISpendDetailsFilter) (io.ReadCloser, error) {
 	res, err := c.Request(ctx, http.MethodGet,
 		fmt.Sprintf("/api/v2/organizations/%s/ai/spend/export", organization.String()),
 		nil,
-		func(r *http.Request) {
-			q := r.URL.Query()
-			if !opts.PeriodStart.IsZero() {
-				q.Set("period_start", opts.PeriodStart.UTC().Format(time.RFC3339Nano))
-			}
-			if !opts.PeriodEnd.IsZero() {
-				q.Set("period_end", opts.PeriodEnd.UTC().Format(time.RFC3339Nano))
-			}
-			r.URL.RawQuery = q.Encode()
-		},
+		filter.asRequestOption(),
 	)
 	if err != nil {
 		return nil, xerrors.Errorf("make request: %w", err)

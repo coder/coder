@@ -16,15 +16,7 @@ import { AvatarDataSkeleton } from "#/components/Avatar/AvatarDataSkeleton";
 import { Badge } from "#/components/Badge/Badge";
 import { DeprecatedBadge } from "#/components/Badge/PresetBadges";
 import { Button } from "#/components/Button/Button";
-import {
-	HelpPopover,
-	HelpPopoverContent,
-	HelpPopoverIconTrigger,
-	HelpPopoverLink,
-	HelpPopoverLinksGroup,
-	HelpPopoverText,
-	HelpPopoverTitle,
-} from "#/components/HelpPopover/HelpPopover";
+import { InfoTooltip } from "#/components/InfoTooltip/InfoTooltip";
 import { Link } from "#/components/Link/Link";
 import { Margins } from "#/components/Margins/Margins";
 import {
@@ -45,6 +37,7 @@ import {
 	TableLoaderSkeleton,
 	TableRowSkeleton,
 } from "#/components/TableLoader/TableLoader";
+import { TooltipMessage, TooltipTitle } from "#/components/Tooltip/Tooltip";
 import { useClickableTableRow } from "#/hooks/useClickableTableRow";
 import { linkToTemplate, useLinks } from "#/modules/navigation";
 import type { WorkspacePermissions } from "#/modules/permissions/workspaces";
@@ -61,38 +54,48 @@ import {
 	TemplatesFilter,
 } from "./TemplatesFilter";
 
-const ClassicParameterFlowAlert: FC<{ templateCount: number }> = ({
-	templateCount,
+const CompatibilityModeAlert: FC<{ templates: readonly Template[] }> = ({
+	templates,
 }) => {
+	const singleTemplate = templates.length === 1 ? templates[0] : undefined;
+
 	return (
 		<Alert
 			severity="warning"
-			prominent
 			className="mt-6"
 			actions={
 				<Button asChild variant="outline" size="sm">
 					<RouterLink
-						to={`/templates?filter=${encodeURIComponent(CLASSIC_PARAMETER_FLOW_FILTER)}`}
+						to={
+							singleTemplate
+								? `/templates/${singleTemplate.organization_name}/${singleTemplate.name}/settings/parameters`
+								: `/templates?filter=${encodeURIComponent(CLASSIC_PARAMETER_FLOW_FILTER)}`
+						}
 					>
-						View templates
+						{singleTemplate ? "Update template" : "Review templates"}
 					</RouterLink>
 				</Button>
 			}
 		>
 			<AlertTitle>
-				{templateCount === 1
-					? "1 template still uses classic parameters"
-					: `${templateCount} templates still use classic parameters`}
+				{singleTemplate
+					? "1 template is using parameter compatibility mode"
+					: `${templates.length} templates are using parameter compatibility mode`}
 			</AlertTitle>
 			<AlertDescription>
-				Classic parameters are deprecated. Switch to dynamic parameters for
-				real-time validation, conditional parameters, and richer input types.{" "}
+				Compatibility mode keeps{" "}
+				{singleTemplate ? "this template" : "these templates"} on the legacy
+				parameter flow, which will be removed in a future release. Switching to
+				dynamic parameters takes one click in the template&apos;s parameter
+				settings.{" "}
 				<Link
-					href={docs("/admin/templates/extending-templates/dynamic-parameters")}
+					href={docs(
+						"/admin/templates/extending-templates/dynamic-parameters#upgrade-from-parameter-compatibility-mode",
+					)}
 					target="_blank"
 					rel="noreferrer"
 				>
-					View docs
+					How to upgrade
 					<span className="sr-only"> (opens in new tab)</span>
 				</Link>
 			</AlertDescription>
@@ -102,21 +105,17 @@ const ClassicParameterFlowAlert: FC<{ templateCount: number }> = ({
 
 const TemplateHelpPopover: FC = () => {
 	return (
-		<HelpPopover>
-			<HelpPopoverIconTrigger />
-			<HelpPopoverContent>
-				<HelpPopoverTitle>What is a template?</HelpPopoverTitle>
-				<HelpPopoverText>
-					With templates you can create a common configuration for your
-					workspaces using Terraform.
-				</HelpPopoverText>
-				<HelpPopoverLinksGroup>
-					<HelpPopoverLink href={docs("/admin/templates")}>
-						Manage templates
-					</HelpPopoverLink>
-				</HelpPopoverLinksGroup>
-			</HelpPopoverContent>
-		</HelpPopover>
+		<InfoTooltip>
+			<TooltipTitle>What is a template?</TooltipTitle>
+			<TooltipMessage>
+				With templates you can create a common configuration for your workspaces
+				using Terraform.
+				<br />
+				<Link size="sm" href={docs("/admin/templates")}>
+					Manage templates
+				</Link>
+			</TooltipMessage>
+		</InfoTooltip>
 	);
 };
 
@@ -210,7 +209,7 @@ const TemplateRow: FC<TemplateRowProps> = ({
 									className="border-0 shadow-none"
 								>
 									<TriangleAlertIcon aria-hidden="true" />
-									Deprecated
+									Compatibility mode
 								</Badge>
 							)}
 						</span>
@@ -283,20 +282,20 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = ({
 }) => {
 	const isLoading = !templates;
 	const isEmpty = !isLoading && templates.length === 0;
-	const classicParameterFlowTemplateCount =
+	const compatibilityModeTemplates =
 		templates?.filter(
 			(template) =>
 				template.use_classic_parameter_flow &&
 				templateUpdatePermissions[template.organization_id],
-		).length ?? 0;
-	const showClassicParameterFlow = classicParameterFlowTemplateCount > 0;
+		) ?? [];
+	const showCompatibilityModeAlert =
+		compatibilityModeTemplates.length > 0 &&
+		filterState.filter.values.compatibility_mode !== "true";
 
 	return (
 		<Margins className="pb-12">
-			{showClassicParameterFlow && (
-				<ClassicParameterFlowAlert
-					templateCount={classicParameterFlowTemplateCount}
-				/>
+			{showCompatibilityModeAlert && (
+				<CompatibilityModeAlert templates={compatibilityModeTemplates} />
 			)}
 
 			<PageHeader

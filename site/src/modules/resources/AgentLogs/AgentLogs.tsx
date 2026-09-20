@@ -33,7 +33,7 @@ const fallbackLog: WorkspaceAgentLogSource = {
 };
 
 type AgentLogsProps = Omit<
-	React.ComponentPropsWithoutRef<typeof List>,
+	React.ComponentProps<typeof List>,
 	"children" | "itemSize" | "itemCount" | "itemKey"
 > & {
 	logs: readonly Line[];

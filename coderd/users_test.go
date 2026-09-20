@@ -3048,54 +3048,6 @@ func TestDormantUser(t *testing.T) {
 	require.Equal(t, codersdk.UserStatusActive, users.Users[0].Status)
 }
 
-// TestSuspendedPagination is when the after_id is a suspended record.
-// The database query should still return the correct page, as the after_id
-// is in a subquery that finds the record regardless of its status.
-// This is mainly to confirm the db fake has the same behavior.
-func TestSuspendedPagination(t *testing.T) {
-	t.Parallel()
-	t.Skip("This fails when two users are created at the exact same time. The reason is unknown... See: https://github.com/coder/coder/actions/runs/3057047622/jobs/4931863163")
-	client := coderdtest.New(t, nil)
-	coderdtest.CreateFirstUser(t, client)
-
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-	t.Cleanup(cancel)
-
-	me, err := client.User(ctx, codersdk.Me)
-	require.NoError(t, err)
-	orgID := me.OrganizationIDs[0]
-
-	total := 10
-	users := make([]codersdk.User, 0, total)
-	// Create users
-	for i := 0; i < total; i++ {
-		email := fmt.Sprintf("%d@coder.com", i)
-		username := fmt.Sprintf("user%d", i)
-		user, err := client.CreateUserWithOrgs(ctx, codersdk.CreateUserRequestWithOrgs{
-			Email:           email,
-			Username:        username,
-			Password:        "MySecurePassword!",
-			OrganizationIDs: []uuid.UUID{orgID},
-		})
-		require.NoError(t, err)
-		users = append(users, user)
-	}
-	sortUsers(users)
-	deletedUser := users[2]
-	expected := users[3:8]
-	_, err = client.UpdateUserStatus(ctx, deletedUser.ID.String(), codersdk.UserStatusSuspended)
-	require.NoError(t, err, "suspend user")
-
-	page, err := client.Users(ctx, codersdk.UsersRequest{
-		Pagination: codersdk.Pagination{
-			Limit:   len(expected),
-			AfterID: deletedUser.ID,
-		},
-	})
-	require.NoError(t, err)
-	require.Equal(t, expected, page.Users, "expected page")
-}
-
 func TestUserAutofillParameters(t *testing.T) {
 	t.Parallel()
 	t.Run("NotSelf", func(t *testing.T) {
@@ -3379,13 +3331,6 @@ func assertPagination(ctx context.Context, t *testing.T, client *codersdk.Client
 		require.Equal(t, onlyUsernames(allUsers[count-limit:count]), onlyUsernames(prevPage.Users), "prev users")
 		count += len(page.Users)
 	}
-}
-
-// sortUsers sorts by (created_at, id)
-func sortUsers(users []codersdk.User) {
-	slices.SortFunc(users, func(a, b codersdk.User) int {
-		return slice.Ascending(strings.ToLower(a.Username), strings.ToLower(b.Username))
-	})
 }
 
 func sortDatabaseUsers(users []database.User) {

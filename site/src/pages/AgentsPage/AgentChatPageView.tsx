@@ -844,7 +844,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 				<DesktopPanelContext value={desktopPanelCtx}>
 					<div
 						className={cn(
-							"relative flex min-h-0 min-w-0 flex-1 sm:[--agents-chat-panel-min-width:360px]",
+							"relative flex h-full min-h-0 min-w-0 flex-1 sm:[--agents-chat-panel-min-width:360px]",
 							shouldShowSidebar && !visualExpanded && "flex-row",
 						)}
 					>

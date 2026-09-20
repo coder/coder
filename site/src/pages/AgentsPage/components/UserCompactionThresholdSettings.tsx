@@ -8,7 +8,6 @@ import { Button } from "#/components/Button/Button";
 import {
 	HelpPopover,
 	HelpPopoverContent,
-	HelpPopoverIcon,
 	HelpPopoverIconTrigger,
 	HelpPopoverText,
 	HelpPopoverTitle,
@@ -158,7 +157,7 @@ const OrganizationOverridePopover: FC<OrganizationOverridePopoverProps> = ({
 			aria-label={`Organization override for ${modelName}`}
 			className={cn(isWarning && "text-content-warning")}
 		>
-			{isWarning ? <TriangleAlertIcon /> : <HelpPopoverIcon />}
+			{isWarning ? <TriangleAlertIcon /> : undefined}
 		</HelpPopoverIconTrigger>
 		<HelpPopoverContent>
 			<HelpPopoverTitle>Organization override</HelpPopoverTitle>

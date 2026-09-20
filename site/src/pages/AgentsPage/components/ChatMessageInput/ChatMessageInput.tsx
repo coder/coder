@@ -36,7 +36,6 @@ import {
 import { useQuery } from "react-query";
 import { userSkills } from "#/api/queries/userSkills";
 import type * as TypesGen from "#/api/typesGenerated";
-import { isMobileViewport } from "#/utils/mobile";
 import {
 	DEFAULT_AGENT_CHAT_SEND_SHORTCUT,
 	MODIFIER_AGENT_CHAT_SEND_SHORTCUT,
@@ -284,12 +283,9 @@ const PasteSanitizationPlugin: FC<{
 	return null;
 };
 
-// Handles Enter key behavior. By default, plain Enter submits via
-// the onEnter callback, and Shift+Enter inserts a newline. When the
-// modifier shortcut is selected, Cmd/Ctrl+Enter submits instead, and
-// plain Enter inserts a newline. On mobile viewports, Enter always
-// inserts a newline; users submit via the send button because
-// Shift+Enter is cumbersome on touch keyboards (CODAGT-210).
+// Touch keyboards need plain Enter for newlines (CODAGT-210). Pointer
+// capability, not viewport width, keeps narrow desktop windows usable.
+// Cmd/Ctrl+Enter submits on either input type; Shift+Enter stays a newline.
 const EnterKeyPlugin: FC<{
 	onEnter?: () => void;
 	sendShortcut: TypesGen.AgentChatSendShortcut;
@@ -302,9 +298,9 @@ const EnterKeyPlugin: FC<{
 			(event: KeyboardEvent | null) => {
 				const shouldInsertLineBreak =
 					event?.shiftKey ||
-					isMobileViewport() ||
-					(sendShortcut === MODIFIER_AGENT_CHAT_SEND_SHORTCUT &&
-						!(event?.metaKey || event?.ctrlKey));
+					(!(event?.metaKey || event?.ctrlKey) &&
+						(window.matchMedia("(pointer: coarse)").matches ||
+							sendShortcut === MODIFIER_AGENT_CHAT_SEND_SHORTCUT));
 				if (shouldInsertLineBreak) {
 					event?.preventDefault();
 					editor.update(() => {
@@ -1022,6 +1018,21 @@ const ChatMessageInput = ({
 					onSelectedIndexChange={setSkillsMenuSelectedIndex}
 					onSelect={replaceActiveSkillsTrigger}
 					onClose={() => handleSkillsTriggerChange(null)}
+					onEscapeKeyDown={(event) => {
+						// On a real keypress React commits Radix's dismiss before
+						// Lexical sees the same keydown, so the trigger plugin
+						// would find the menu already closed and Lexical's default
+						// Escape would blur the editor. Escape from inside the
+						// editor belongs to the plugin; elsewhere Radix still
+						// dismisses the menu.
+						const rootElement = editorRef.current?.getRootElement();
+						if (
+							event.target instanceof Node &&
+							rootElement?.contains(event.target)
+						) {
+							event.preventDefault();
+						}
+					}}
 				/>
 			</div>
 		</LexicalComposer>
