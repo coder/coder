@@ -323,6 +323,61 @@ describe("groupWorkingBlocks", () => {
 		expect(blocks[1].liveKey).toBe(`working:live:message:${hiddenPrompt.id}:0`);
 	});
 
+	it("stops the span at a hidden prompt when the next turn opens without a row", () => {
+		const prompt = user("Go");
+		const steps = step("a", 1, 2);
+		const hiddenPrompt = message(
+			"user",
+			[{ type: "context-file", context_file_path: "/AGENTS.md" }],
+			at(10),
+		);
+		// Provider-executed parts are timestamped but render nothing.
+		const search = message(
+			"assistant",
+			[
+				{
+					type: "tool-call",
+					tool_call_id: "s",
+					tool_name: "web_search",
+					provider_executed: true,
+					created_at: at(11),
+				},
+			],
+			at(11),
+		);
+		const searchResult = message(
+			"tool",
+			[
+				{
+					type: "tool-result",
+					tool_call_id: "s",
+					tool_name: "web_search",
+					provider_executed: true,
+					result: { output: "s" },
+					created_at: at(12),
+				},
+			],
+			at(12),
+		);
+		const answer = message("assistant", [text("Done.")], at(13));
+		const { rows, blocks } = group([
+			prompt,
+			...steps,
+			hiddenPrompt,
+			search,
+			searchResult,
+			answer,
+		]);
+
+		expect(rowIds(rows, [0, 1, 2])).toEqual([
+			prompt.id,
+			steps[0].id,
+			answer.id,
+		]);
+		expect(blocks).toHaveLength(1);
+		expect(blocks[0].endedAt).toBe(WORKING_FIXTURE_START + 2000);
+	});
+
 	it("reports no duration when parts carry no timestamps", () => {
 		const prompt = user("Go");
 		const steps = [...step("a"), ...step("b")];
