@@ -13,6 +13,8 @@ It explains the model, walks through a deployment, and then covers policy, high 
 
 ## How it works
 
+![Diagram: workspace traffic is captured by the agent, carried over the Coder tailnet to an exit node that applies policy and reports flows to coderd, inside an external network boundary that blocks any other egress path](../../images/networking/exit-node-architecture.png)
+
 Three pieces work together:
 
 1. **The workspace agent** captures the workspace's TCP, UDP, and DNS traffic with netfilter rules and forwards it to an exit node over the tailnet.
@@ -25,6 +27,13 @@ Three pieces work together:
 An exit node is an organization-scoped resource with one token.
 You can run any number of identical replicas under that token; Coder tracks them by heartbeat and hands workspaces the live set.
 Templates bind to one or more exit nodes in preference order.
+
+A single `curl https://github.com` from a workspace looks like this end to end:
+
+![Sequence diagram: the application's DNS query is redirected to the agent and evaluated by the exit node, the agent answers with a fake IP that maps back to the hostname, the TCP connection to that fake IP becomes a CONNECT to the exit node, which allows it, relays the TLS bytes without decrypting, and reports the flow to coderd for the Connection Log](../../images/networking/exit-node-flow.png)
+
+The exit node never decrypts traffic.
+It sees the destination hostname because the agent captured the DNS lookup that preceded the connection, and it sees the TLS server name when a client connects to an IP directly.
 
 > [!IMPORTANT]
 > Creating exit nodes requires exit node permissions in the organization.
@@ -115,6 +124,9 @@ curl -I https://github.com
 
 Open **Deployment** > **Connection Log** and filter by connection type **Egress**.
 Each row shows the workspace, destination, protocol, decision, matched rule, and byte counts.
+
+![Connection Log filtered to Egress, showing a workspace that connected to github.com:443 and registry.npmjs.org:443, was denied egress to 93.184.216.34:80, and exchanged UDP with 172.17.0.1:9999](../../images/networking/exit-node-connection-log.png)
+
 See [Connection logs](../monitoring/connection-logs.md).
 
 ## Define policy
@@ -170,6 +182,8 @@ Applications that bypass the resolver (hard-coded IPs, DNS over HTTPS) still hav
 
 Run several replicas per exit node with identical policy, and optionally bind several exit nodes in preference order.
 
+![Diagram: a template bound to a primary and a secondary exit node; the primary has two live replicas and one stale replica, coderd tracks heartbeats and streams the live set to the workspace agent, which spreads flows across live replicas and fails over to the secondary node when none are live](../../images/networking/exit-node-ha.png)
+
 - Replicas heartbeat every 5 seconds and are live while their last heartbeat is under 15 seconds old.
   Coder checks every 5 seconds and pushes the live set to running agents immediately, without a workspace restart.
 - Agents spread load across the replicas of the preferred exit node and fail over to the next node when none are reachable.
@@ -196,6 +210,8 @@ Because an enforced workspace cannot change its netfilter rules after startup, a
 
 `coder exit-node list` shows each node as `healthy` (a replica is live), `unreachable` (replicas exist, none live), or `unregistered`, with the live replica count and mismatch state.
 `coder exit-node replicas <name>` lists replicas as `live`, `stale`, or `stopped` with version, tailnet address, and policy hash.
+
+![Terminal output of coder exit-node list showing three healthy exit nodes with their live replica counts, followed by coder exit-node replicas egress-us-east listing two live replicas with matching policy hashes](../../images/networking/exit-node-cli.png)
 
 With `--prometheus-address`, each replica exposes:
 
