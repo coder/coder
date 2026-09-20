@@ -808,6 +808,19 @@ func Test_selectPreferredConfiguredShortTextModelConfig(t *testing.T) {
 		require.Equal(t, preferredTitleModels[1].model, got.Model)
 	})
 
+	t.Run("matches dated snapshots of a preferred model", func(t *testing.T) {
+		t.Parallel()
+
+		for _, model := range []string{"claude-haiku-4-5-20251001", "Claude-Haiku-4-5-2025-10-01"} {
+			got, ok := selectPreferredConfiguredShortTextModelConfig([]database.GetEnabledChatModelConfigsByOrganizationRow{
+				{ChatModelConfig: database.ChatModelConfig{Model: "claude-haiku-4-5-preview"}, Provider: "anthropic"},
+				{ChatModelConfig: database.ChatModelConfig{Model: model}, Provider: "anthropic"},
+			})
+			require.True(t, ok, model)
+			require.Equal(t, model, got.Model)
+		}
+	})
+
 	t.Run("returns false when no preferred lightweight model is configured", func(t *testing.T) {
 		t.Parallel()
 

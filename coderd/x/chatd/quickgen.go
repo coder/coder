@@ -143,6 +143,11 @@ type shortTextCandidate struct {
 	resolved resolvedModelCall
 }
 
+// modelSnapshotSuffix matches a dated snapshot suffix on a model ID, such as
+// claude-haiku-4-5-20251001 or gpt-4o-mini-2024-07-18, which admins commonly
+// configure in place of the alias.
+var modelSnapshotSuffix = regexp.MustCompile(`-(\d{8}|\d{4}-\d{2}-\d{2})$`)
+
 func selectPreferredConfiguredShortTextModelConfig(
 	configs []database.GetEnabledChatModelConfigsByOrganizationRow,
 ) (database.ChatModelConfig, bool) {
@@ -151,7 +156,9 @@ func selectPreferredConfiguredShortTextModelConfig(
 			if chatprovider.NormalizeProvider(config.Provider) != preferred.provider {
 				continue
 			}
-			if !strings.EqualFold(strings.TrimSpace(config.ChatModelConfig.Model), preferred.model) {
+			model := strings.TrimSpace(config.ChatModelConfig.Model)
+			if !strings.EqualFold(model, preferred.model) &&
+				!strings.EqualFold(modelSnapshotSuffix.ReplaceAllString(model, ""), preferred.model) {
 				continue
 			}
 			return config.ChatModelConfig, true
