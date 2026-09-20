@@ -2334,8 +2334,11 @@ export const updateChatModel = (queryClient: QueryClient) => ({
 		// depend on the refetch that follows succeeding.
 		queryClient.setQueryData<TypesGen.OrganizationChatModelsResponse>(
 			organizationChatModelsKey(variables.organizationId),
-			(current) =>
-				current && {
+			(current) => {
+				if (!current) {
+					return current;
+				}
+				return {
 					...current,
 					models: current.models.map((existing) => {
 						if (existing.id === model.id) {
@@ -2345,7 +2348,8 @@ export const updateChatModel = (queryClient: QueryClient) => ({
 							? { ...existing, is_default: false }
 							: existing;
 					}),
-				},
+				};
+			},
 		);
 		await invalidateChatConfigurationQueries(
 			queryClient,

@@ -1,23 +1,19 @@
-import {
-	act,
-	fireEvent,
-	render as renderWithProviders,
-	screen,
-	waitFor,
-	within,
-} from "@testing-library/react";
+import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import type { QueryClient } from "react-query";
 import { describe, expect, it, vi } from "vitest";
-import { AppProviders } from "#/App";
 import { API } from "#/api/api";
 import { organizationChatModelsKey } from "#/api/queries/chats";
-import type { ChatModel } from "#/api/typesGenerated";
+import type {
+	ChatModel,
+	OrganizationChatModelsResponse,
+} from "#/api/typesGenerated";
 import {
 	MockChatModel,
 	MockChatModelProviderDescriptor,
 } from "#/testHelpers/chatModels";
 import { MockDefaultOrganization } from "#/testHelpers/entities";
-import { createTestQueryClient, render } from "#/testHelpers/renderHelpers";
+import { render } from "#/testHelpers/renderHelpers";
 import { OrganizationAgentSettings } from "./OrganizationAgentSettings";
 
 const mockDefaultModel: ChatModel = {
@@ -39,26 +35,33 @@ const mockThirdModel: ChatModel = {
 	model: "gpt-5-nano",
 	display_name: "GPT-5 Nano",
 };
-
-const chatModelsResponse = (models: ChatModel[]) => ({
-	models,
+const mockChatModelsResponse: OrganizationChatModelsResponse = {
+	models: [mockDefaultModel, mockAlternateModel, mockThirdModel],
 	providers: [MockChatModelProviderDescriptor],
 	unsupported_providers: [],
-});
+};
 
-const defaultSectionName = { name: "Default model" };
-const pickerName = (model: ChatModel) => ({
-	name: `Default model, ${model.display_name}`,
-});
+const renderSettings = () =>
+	render(
+		<OrganizationAgentSettings
+			organization={MockDefaultOrganization}
+			canEdit
+			showAdvisor
+		/>,
+	);
 
 const selectModel = async (
 	user: ReturnType<typeof userEvent.setup>,
 	from: ChatModel,
 	to: ChatModel,
 ) => {
-	const defaultSection = await screen.findByRole("form", defaultSectionName);
+	const defaultSection = await screen.findByRole("form", {
+		name: "Default model",
+	});
 	await user.click(
-		await within(defaultSection).findByRole("combobox", pickerName(from)),
+		await within(defaultSection).findByRole("combobox", {
+			name: `Default model, ${from.display_name}`,
+		}),
 	);
 	await user.click(
 		await screen.findByRole("option", { name: new RegExp(to.display_name) }),
@@ -76,81 +79,43 @@ const mockOverridesAndUpdate = () => {
 		.mockResolvedValue({ ...mockAlternateModel, is_default: true });
 };
 
-const renderWithQueryClient = () => {
-	const queryClient = createTestQueryClient();
-	renderWithProviders(
-		<AppProviders queryClient={queryClient}>
-			<OrganizationAgentSettings
-				organization={MockDefaultOrganization}
-				canEdit
-				showAdvisor
-			/>
-		</AppProviders>,
+// A pristine row renders no Save button, so the picker's accessible name is
+// the only observable of its selection after a refetch.
+const expectSelectedModel = (form: HTMLElement, model: ChatModel) =>
+	waitFor(() =>
+		expect(within(form).getByRole("combobox")).toHaveAccessibleName(
+			`Default model, ${model.display_name}`,
+		),
 	);
-	return queryClient;
-};
 
-// Submitting the form reports the selection as the request payload, so the
-// assertion does not depend on how the picker renders its label.
-const expectSubmitSaves = async (
-	form: HTMLElement,
-	updateChatModel: ReturnType<typeof mockOverridesAndUpdate>,
-	model: ChatModel,
-) => {
-	const callsBefore = updateChatModel.mock.calls.length;
-	fireEvent.submit(form);
-	await waitFor(() =>
-		expect(updateChatModel).toHaveBeenCalledTimes(callsBefore + 1),
-	);
-	expect(updateChatModel).toHaveBeenLastCalledWith(
-		MockDefaultOrganization.id,
-		model.id,
-		{ is_default: true },
-	);
-};
-
-const refetchCatalog = async (
-	queryClient: ReturnType<typeof createTestQueryClient>,
-	getChatModels: { mock: { calls: unknown[] } },
-	expectedCalls = 2,
-) => {
+const refetchCatalog = async (queryClient: QueryClient) => {
+	const getChatModels = vi.mocked(API.experimental.getChatModels);
+	const callsBefore = getChatModels.mock.calls.length;
 	await act(() =>
 		queryClient.invalidateQueries({
 			queryKey: organizationChatModelsKey(MockDefaultOrganization.id),
 		}),
 	);
 	await waitFor(() =>
-		expect(getChatModels.mock.calls).toHaveLength(expectedCalls),
+		expect(getChatModels).toHaveBeenCalledTimes(callsBefore + 1),
 	);
 };
 
 describe("OrganizationAgentSettings", () => {
 	it("promotes the selected model to the organization default", async () => {
 		vi.spyOn(API.experimental, "getChatModels")
-			.mockResolvedValueOnce(
-				chatModelsResponse([
-					mockDefaultModel,
-					mockAlternateModel,
-					mockThirdModel,
-				]),
-			)
-			.mockResolvedValue(
-				chatModelsResponse([
+			.mockResolvedValueOnce(mockChatModelsResponse)
+			.mockResolvedValue({
+				...mockChatModelsResponse,
+				models: [
 					{ ...mockDefaultModel, is_default: false },
 					{ ...mockAlternateModel, is_default: true },
 					mockThirdModel,
-				]),
-			);
+				],
+			});
 		const updateChatModel = mockOverridesAndUpdate();
 		const user = userEvent.setup();
-
-		render(
-			<OrganizationAgentSettings
-				organization={MockDefaultOrganization}
-				canEdit
-				showAdvisor
-			/>,
-		);
+		renderSettings();
 
 		const defaultSection = await selectModel(
 			user,
@@ -171,6 +136,10 @@ describe("OrganizationAgentSettings", () => {
 
 		// A new pick while the saved indicator is still showing must be savable.
 		await within(defaultSection).findByText("Saved");
+		updateChatModel.mockResolvedValueOnce({
+			...mockThirdModel,
+			is_default: true,
+		});
 		await selectModel(user, mockAlternateModel, mockThirdModel);
 		await user.click(
 			await within(defaultSection).findByRole("button", { name: "Save" }),
@@ -186,13 +155,14 @@ describe("OrganizationAgentSettings", () => {
 
 	it("keeps the saved model when the catalog refresh fails", async () => {
 		vi.spyOn(API.experimental, "getChatModels")
-			.mockResolvedValueOnce(
-				chatModelsResponse([mockDefaultModel, mockAlternateModel]),
-			)
+			.mockResolvedValueOnce({
+				...mockChatModelsResponse,
+				models: [mockDefaultModel, mockAlternateModel],
+			})
 			.mockRejectedValue(new Error("catalog unavailable"));
-		const updateChatModel = mockOverridesAndUpdate();
+		mockOverridesAndUpdate();
 		const user = userEvent.setup();
-		renderWithQueryClient();
+		renderSettings();
 
 		const defaultSection = await selectModel(
 			user,
@@ -206,40 +176,30 @@ describe("OrganizationAgentSettings", () => {
 		// includes the failed catalog refetch.
 		await within(defaultSection).findByText("Saved");
 
-		await expectSubmitSaves(
-			defaultSection,
-			updateChatModel,
-			mockAlternateModel,
-		);
+		await expectSelectedModel(defaultSection, mockAlternateModel);
 	});
 
 	it("keeps an unsaved selection when the model catalog refetches", async () => {
-		const getChatModels = vi
-			.spyOn(API.experimental, "getChatModels")
-			.mockResolvedValueOnce(
-				chatModelsResponse([
-					mockDefaultModel,
-					mockAlternateModel,
-					mockThirdModel,
-				]),
-			)
-			.mockResolvedValue(
-				chatModelsResponse([
+		vi.spyOn(API.experimental, "getChatModels")
+			.mockResolvedValueOnce(mockChatModelsResponse)
+			.mockResolvedValue({
+				...mockChatModelsResponse,
+				models: [
 					{ ...mockDefaultModel, is_default: false },
 					mockAlternateModel,
 					{ ...mockThirdModel, is_default: true },
-				]),
-			);
+				],
+			});
 		const updateChatModel = mockOverridesAndUpdate();
 		const user = userEvent.setup();
-		const queryClient = renderWithQueryClient();
+		const { queryClient } = renderSettings();
 
 		const defaultSection = await selectModel(
 			user,
 			mockDefaultModel,
 			mockAlternateModel,
 		);
-		await refetchCatalog(queryClient, getChatModels);
+		await refetchCatalog(queryClient);
 
 		await user.click(
 			await within(defaultSection).findByRole("button", { name: "Save" }),
@@ -255,56 +215,49 @@ describe("OrganizationAgentSettings", () => {
 	});
 
 	it("drops an unsaved selection the refetched catalog no longer lists", async () => {
-		const getChatModels = vi
-			.spyOn(API.experimental, "getChatModels")
-			.mockResolvedValueOnce(
-				chatModelsResponse([mockDefaultModel, mockAlternateModel]),
-			)
-			.mockResolvedValueOnce(
-				chatModelsResponse([
-					mockDefaultModel,
-					{ ...mockAlternateModel, enabled: false },
-				]),
-			)
-			.mockResolvedValue(
-				chatModelsResponse([mockDefaultModel, mockAlternateModel]),
-			);
-		const updateChatModel = mockOverridesAndUpdate();
+		vi.spyOn(API.experimental, "getChatModels")
+			.mockResolvedValueOnce({
+				...mockChatModelsResponse,
+				models: [mockDefaultModel, mockAlternateModel],
+			})
+			.mockResolvedValueOnce({
+				...mockChatModelsResponse,
+				models: [mockDefaultModel, { ...mockAlternateModel, enabled: false }],
+			})
+			.mockResolvedValue({
+				...mockChatModelsResponse,
+				models: [mockDefaultModel, mockAlternateModel],
+			});
+		mockOverridesAndUpdate();
 		const user = userEvent.setup();
-		const queryClient = renderWithQueryClient();
+		const { queryClient } = renderSettings();
 
 		const defaultSection = await selectModel(
 			user,
 			mockDefaultModel,
 			mockAlternateModel,
 		);
-		await refetchCatalog(queryClient, getChatModels);
+		await refetchCatalog(queryClient);
 		// Relisting the dropped model must not resurrect the selection.
-		await refetchCatalog(queryClient, getChatModels, 3);
+		await refetchCatalog(queryClient);
 
-		await expectSubmitSaves(defaultSection, updateChatModel, mockDefaultModel);
+		await expectSelectedModel(defaultSection, mockDefaultModel);
 	});
 
 	it("follows a refetched default after the saved model is reselected", async () => {
-		const getChatModels = vi
-			.spyOn(API.experimental, "getChatModels")
-			.mockResolvedValueOnce(
-				chatModelsResponse([
-					mockDefaultModel,
-					mockAlternateModel,
-					mockThirdModel,
-				]),
-			)
-			.mockResolvedValue(
-				chatModelsResponse([
+		vi.spyOn(API.experimental, "getChatModels")
+			.mockResolvedValueOnce(mockChatModelsResponse)
+			.mockResolvedValue({
+				...mockChatModelsResponse,
+				models: [
 					{ ...mockDefaultModel, is_default: false },
 					mockAlternateModel,
 					{ ...mockThirdModel, is_default: true },
-				]),
-			);
-		const updateChatModel = mockOverridesAndUpdate();
+				],
+			});
+		mockOverridesAndUpdate();
 		const user = userEvent.setup();
-		const queryClient = renderWithQueryClient();
+		const { queryClient } = renderSettings();
 
 		const defaultSection = await selectModel(
 			user,
@@ -312,47 +265,42 @@ describe("OrganizationAgentSettings", () => {
 			mockAlternateModel,
 		);
 		await selectModel(user, mockAlternateModel, mockDefaultModel);
-		await refetchCatalog(queryClient, getChatModels);
+		await refetchCatalog(queryClient);
 
-		await expectSubmitSaves(defaultSection, updateChatModel, mockThirdModel);
+		await expectSelectedModel(defaultSection, mockThirdModel);
 	});
 
 	it("clears a pending selection once the server adopts it", async () => {
-		const getChatModels = vi
-			.spyOn(API.experimental, "getChatModels")
-			.mockResolvedValueOnce(
-				chatModelsResponse([
-					mockDefaultModel,
-					mockAlternateModel,
-					mockThirdModel,
-				]),
-			)
-			.mockResolvedValueOnce(
-				chatModelsResponse([
+		vi.spyOn(API.experimental, "getChatModels")
+			.mockResolvedValueOnce(mockChatModelsResponse)
+			.mockResolvedValueOnce({
+				...mockChatModelsResponse,
+				models: [
 					{ ...mockDefaultModel, is_default: false },
 					{ ...mockAlternateModel, is_default: true },
 					mockThirdModel,
-				]),
-			)
-			.mockResolvedValue(
-				chatModelsResponse([
+				],
+			})
+			.mockResolvedValue({
+				...mockChatModelsResponse,
+				models: [
 					{ ...mockDefaultModel, is_default: false },
 					mockAlternateModel,
 					{ ...mockThirdModel, is_default: true },
-				]),
-			);
-		const updateChatModel = mockOverridesAndUpdate();
+				],
+			});
+		mockOverridesAndUpdate();
 		const user = userEvent.setup();
-		const queryClient = renderWithQueryClient();
+		const { queryClient } = renderSettings();
 
 		const defaultSection = await selectModel(
 			user,
 			mockDefaultModel,
 			mockAlternateModel,
 		);
-		await refetchCatalog(queryClient, getChatModels);
-		await refetchCatalog(queryClient, getChatModels, 3);
+		await refetchCatalog(queryClient);
+		await refetchCatalog(queryClient);
 
-		await expectSubmitSaves(defaultSection, updateChatModel, mockThirdModel);
+		await expectSelectedModel(defaultSection, mockThirdModel);
 	});
 });

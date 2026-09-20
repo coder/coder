@@ -347,26 +347,31 @@ describe("chat model query factories", () => {
 
 	it("scopes update variables and invalidation to the organization", async () => {
 		const queryClient = createTestQueryClient();
-		const previousDefault: TypesGen.ChatModel = {
+		const mockPreviousDefaultModel: TypesGen.ChatModel = {
 			...MockChatModel,
 			id: "previous-default",
 			is_default: true,
 		};
-		const catalog: TypesGen.OrganizationChatModelsResponse = {
-			models: [previousDefault, MockChatModel],
+		const mockCatalog: TypesGen.OrganizationChatModelsResponse = {
+			models: [mockPreviousDefaultModel, MockChatModel],
 			providers: [],
 			unsupported_providers: [],
 		};
 		queryClient.setQueryData(
 			organizationChatModelsKey(organizationId),
-			catalog,
+			mockCatalog,
 		);
 		queryClient.setQueryData(
 			organizationChatModelsKey(otherOrganizationId),
-			catalog,
+			mockCatalog,
 		);
-		const promoted: TypesGen.ChatModel = { ...MockChatModel, is_default: true };
-		vi.mocked(API.experimental.updateChatModel).mockResolvedValue(promoted);
+		const mockPromotedModel: TypesGen.ChatModel = {
+			...MockChatModel,
+			is_default: true,
+		};
+		vi.mocked(API.experimental.updateChatModel).mockResolvedValue(
+			mockPromotedModel,
+		);
 		const variables = {
 			organizationId,
 			modelId,
@@ -374,13 +379,15 @@ describe("chat model query factories", () => {
 		};
 		const mutation = updateChatModel(queryClient);
 
-		await expect(mutation.mutationFn(variables)).resolves.toEqual(promoted);
+		await expect(mutation.mutationFn(variables)).resolves.toEqual(
+			mockPromotedModel,
+		);
 		expect(API.experimental.updateChatModel).toHaveBeenCalledWith(
 			organizationId,
 			modelId,
 			variables.req,
 		);
-		await mutation.onSuccess(promoted, variables);
+		await mutation.onSuccess(mockPromotedModel, variables);
 		expect(
 			queryClient
 				.getQueryData<TypesGen.OrganizationChatModelsResponse>(
@@ -388,12 +395,12 @@ describe("chat model query factories", () => {
 				)
 				?.models.map((model) => [model.id, model.is_default]),
 		).toEqual([
-			[previousDefault.id, false],
+			[mockPreviousDefaultModel.id, false],
 			[modelId, true],
 		]);
 		expect(
 			queryClient.getQueryData(organizationChatModelsKey(otherOrganizationId)),
-		).toBe(catalog);
+		).toBe(mockCatalog);
 		expect(
 			queryClient.getQueryState(organizationChatModelsKey(organizationId))
 				?.isInvalidated,

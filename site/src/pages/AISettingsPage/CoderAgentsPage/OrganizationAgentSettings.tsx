@@ -113,7 +113,6 @@ const OrganizationAgentSettingsContent: FC<OrganizationAgentSettingsProps> = ({
 	// catalog fails, the rows must stay rendered with the error inline so a
 	// stale override can still be cleared without the catalog.
 	const { loadError, refetchError } = splitModelQueryErrors(overridesQuery);
-	const inlineError = refetchError ?? modelsQuery.error;
 	const saveByContext = new Map<ChatModelOverrideContext, SaveModelOverride>();
 	for (const [index, context] of contexts.entries()) {
 		const mutation = mutations[index];
@@ -125,11 +124,11 @@ const OrganizationAgentSettingsContent: FC<OrganizationAgentSettingsProps> = ({
 	return (
 		<OrganizationAgentSettingsView
 			defaultModelID={defaultModelID}
-			onSaveDefaultModel={(modelId, options) =>
+			onSaveDefaultModel={(modelID, options) =>
 				defaultModelMutation.mutate(
 					{
 						organizationId: organization.id,
-						modelId,
+						modelId: modelID,
 						req: { is_default: true },
 					},
 					options,
@@ -143,7 +142,7 @@ const OrganizationAgentSettingsContent: FC<OrganizationAgentSettingsProps> = ({
 			isLoading={modelsQuery.isLoading}
 			isOverridesLoading={overridesQuery.isLoading}
 			loadError={loadError}
-			refetchError={inlineError}
+			refetchError={refetchError}
 			modelsError={modelsQuery.error}
 			canEdit={canEdit}
 			showAdvisor={showAdvisor}

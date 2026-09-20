@@ -11,16 +11,16 @@ import { AgentSettingLayout } from "./AgentSettingLayout";
 import type { MutationCallbacks } from "./SubagentModelOverrideSettings";
 
 interface DefaultModelSettingsProps {
-	/** Undefined while the model catalog is loading or failed; "" when the organization has no default. */
+	/** "" when the organization has no default; undefined until the default is known. */
 	defaultModelID: string | undefined;
 	enabledModels: readonly TypesGen.ChatModel[];
 	providerInfoByID: ReadonlyMap<string, ProviderInfo>;
 	modelsError: unknown;
 	isLoading: boolean;
-	onSaveDefaultModel: (modelId: string, options?: MutationCallbacks) => void;
+	onSaveDefaultModel: (modelID: string, options?: MutationCallbacks) => void;
 	isSaving: boolean;
 	isSaveError: boolean;
-	disabled?: boolean;
+	disabled: boolean;
 }
 
 export const DefaultModelSettings: FC<DefaultModelSettingsProps> = ({
@@ -32,11 +32,12 @@ export const DefaultModelSettings: FC<DefaultModelSettingsProps> = ({
 	onSaveDefaultModel,
 	isSaving,
 	isSaveError,
-	disabled = false,
+	disabled,
 }) => {
 	const { isSavedVisible, showSavedState } = useTemporarySavedState();
 	// The unsaved selection is kept apart from the server value so a background
-	// refetch of the model catalog cannot discard it before Save.
+	// refetch of the model catalog cannot discard it before Save, which formik's
+	// enableReinitialize would.
 	const [pendingModelID, setPendingModelID] = useState<string>();
 	const hasLoadedDefault = defaultModelID !== undefined;
 	const savedModelID = defaultModelID ?? "";
@@ -44,9 +45,8 @@ export const DefaultModelSettings: FC<DefaultModelSettingsProps> = ({
 		enabledModels,
 		providerInfoByID,
 	);
-	// A pending model is discarded during render once it matches the server
-	// default or the refetched catalog no longer lists it, so a stale pick can
-	// neither be saved later nor come back if the catalog relists it.
+	// Discarded during render so a stale pick can neither be saved later nor
+	// come back if the catalog relists the model.
 	if (
 		pendingModelID !== undefined &&
 		(pendingModelID === savedModelID ||
@@ -94,7 +94,7 @@ export const DefaultModelSettings: FC<DefaultModelSettingsProps> = ({
 							? "Loading models..."
 							: isUnavailableSavedModel
 								? "Unavailable model"
-								: "Select a model"
+								: "Select model"
 					}
 					emptyMessage="No enabled models found."
 					className="h-10 w-full justify-between rounded-md border border-border border-solid bg-transparent px-3 text-sm"
@@ -102,7 +102,7 @@ export const DefaultModelSettings: FC<DefaultModelSettingsProps> = ({
 				/>
 				<ModelOverrideAlerts
 					isUnavailableSavedModel={isUnavailableSavedModel}
-					unavailableMessage="The default model is currently unavailable. Choose another model so new chats can start without picking one."
+					unavailableMessage="The default model is no longer enabled. Choose another model so new chats can start without picking one."
 					modelsError={modelsError}
 				/>
 			</div>

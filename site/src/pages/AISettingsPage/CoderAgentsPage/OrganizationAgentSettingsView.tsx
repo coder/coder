@@ -15,7 +15,7 @@ export type SaveModelOverride = (
 
 type OrganizationAgentSettingsViewProps = {
 	defaultModelID: string | undefined;
-	onSaveDefaultModel: (modelId: string, options?: MutationCallbacks) => void;
+	onSaveDefaultModel: (modelID: string, options?: MutationCallbacks) => void;
 	isSavingDefaultModel: boolean;
 	isSaveDefaultModelError: boolean;
 	overrides: readonly TypesGen.ChatModelOverrideResponse[] | undefined;
@@ -94,7 +94,7 @@ const OrganizationAgentSettingsView: FC<OrganizationAgentSettingsViewProps> = ({
 	savingContexts,
 	errorContexts,
 }) => {
-	const error = loadError ?? refetchError;
+	const bannerError = loadError ?? refetchError ?? modelsError;
 	// The default row only needs the model catalog, so a failed overrides
 	// request removes just the override rows.
 	const visibleSettings =
@@ -106,7 +106,7 @@ const OrganizationAgentSettingsView: FC<OrganizationAgentSettingsViewProps> = ({
 
 	return (
 		<div className="flex flex-col gap-6">
-			{error != null && <ErrorAlert error={error} />}
+			{bannerError != null && <ErrorAlert error={bannerError} />}
 			{enabledModels.length === 0 && !isLoading && modelsError == null && (
 				<p role="status" className="m-0 text-content-secondary">
 					This organization has no enabled chat models.
