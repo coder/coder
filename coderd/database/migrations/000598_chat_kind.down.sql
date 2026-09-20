@@ -1,18 +1,23 @@
 DROP VIEW IF EXISTS chats_expanded;
 
--- Named children and tree roots do not exist without the kind column:
--- detach named children and remove roots before the discriminator goes away.
-UPDATE chats SET parent_chat_id = NULL WHERE kind = 'chat';
-DELETE FROM chats WHERE kind = 'root';
-
-DROP INDEX IF EXISTS chats_one_tree_root_per_owner_org;
-
+-- The kind CHECK constraints are dropped before any rows change so the SET NULL
+-- referential actions below cannot violate them.
 ALTER TABLE chats
     DROP CONSTRAINT chat_acl_only_on_root_chats,
     DROP CONSTRAINT chats_pin_order_parent_check,
     DROP CONSTRAINT chats_kind_subagent_root_check,
     DROP CONSTRAINT chats_kind_subagent_parent_check,
     DROP CONSTRAINT chats_kind_root_parentless_check;
+
+-- Named children and tree roots do not exist without the kind column:
+-- remove subagents spawned by roots, detach named children, then remove
+-- the roots.
+DELETE FROM chats
+WHERE root_chat_id IN (SELECT id FROM chats WHERE kind = 'root');
+UPDATE chats SET parent_chat_id = NULL WHERE kind = 'chat';
+DELETE FROM chats WHERE kind = 'root';
+
+DROP INDEX IF EXISTS chats_one_tree_root_per_owner_org;
 
 DROP INDEX idx_chats_auto_archive_candidates;
 DROP INDEX idx_chats_worker_acquisition_candidates;

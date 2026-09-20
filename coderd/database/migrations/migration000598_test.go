@@ -219,8 +219,9 @@ func TestMigration000598ChatKind(t *testing.T) {
 		require.NoError(t, err)
 
 		const (
-			rootID  = "3f7d6c1e-0000-4000-8000-000000000020"
-			childID = "3f7d6c1e-0000-4000-8000-000000000021"
+			rootID         = "3f7d6c1e-0000-4000-8000-000000000020"
+			childID        = "3f7d6c1e-0000-4000-8000-000000000021"
+			rootSubagentID = "3f7d6c1e-0000-4000-8000-000000000022"
 		)
 		_, err = tx.ExecContext(ctx, `
 			INSERT INTO chats (id, owner_id, organization_id, last_model_config_id, kind, title)
@@ -232,13 +233,19 @@ func TestMigration000598ChatKind(t *testing.T) {
 			VALUES ($5::uuid, $1::uuid, $2::uuid, $3::uuid, 'chat', $4::uuid, 'child')
 		`, ownerID, orgID, modelCfgID, rootID, childID)
 		require.NoError(t, err)
+		// A subagent spawned by the root goes away with the root.
+		_, err = tx.ExecContext(ctx, `
+			INSERT INTO chats (id, owner_id, organization_id, last_model_config_id, kind, parent_chat_id, root_chat_id, title)
+			VALUES ($5::uuid, $1::uuid, $2::uuid, $3::uuid, 'subagent', $4::uuid, $4::uuid, 'root subagent')
+		`, ownerID, orgID, modelCfgID, rootID, rootSubagentID)
+		require.NoError(t, err)
 
 		_, err = tx.ExecContext(ctx, string(downSQL))
 		require.NoError(t, err)
 
 		var count int
-		require.NoError(t, tx.QueryRow(`SELECT COUNT(*) FROM chats WHERE id = $1::uuid`, rootID).Scan(&count))
-		require.Zero(t, count, "root removed")
+		require.NoError(t, tx.QueryRow(`SELECT COUNT(*) FROM chats WHERE id IN ($1::uuid, $2::uuid)`, rootID, rootSubagentID).Scan(&count))
+		require.Zero(t, count, "root and its subagent removed")
 
 		var childParent, subParent, subRoot sql.NullString
 		require.NoError(t, tx.QueryRow(`SELECT parent_chat_id::text FROM chats WHERE id = $1::uuid`, childID).Scan(&childParent))
