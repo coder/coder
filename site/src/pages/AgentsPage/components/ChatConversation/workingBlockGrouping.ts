@@ -77,6 +77,23 @@ const parseTimestamp = (value: string | undefined): number | undefined => {
 	return Number.isFinite(time) ? time : undefined;
 };
 
+/**
+ * Whether older history joined the front of a block between two renders. A
+ * block that only had its live row has no previous member, so the live row
+ * becoming its persisted step is not a prepend.
+ */
+export const didPrependIntoBlock = (
+	previousMemberIds: readonly number[],
+	memberIds: readonly number[],
+): boolean => {
+	const previousFirst = previousMemberIds[0];
+	return (
+		previousFirst !== undefined &&
+		memberIds[0] < previousFirst &&
+		memberIds.includes(previousFirst)
+	);
+};
+
 export const formatWorkingDuration = (milliseconds: number): string => {
 	const totalSeconds = Math.max(0, Math.floor(milliseconds / 1000));
 	const hours = Math.floor(totalSeconds / 3600);
