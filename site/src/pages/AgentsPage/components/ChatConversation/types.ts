@@ -91,7 +91,6 @@ export type RetryState = {
 };
 
 type StreamToolCall = {
-	createdAt?: string;
 	id: string;
 	name: string;
 	args?: unknown;
@@ -103,7 +102,6 @@ type StreamToolCall = {
 };
 
 type StreamToolResult = {
-	createdAt?: string;
 	id: string;
 	name: string;
 	result?: unknown;
