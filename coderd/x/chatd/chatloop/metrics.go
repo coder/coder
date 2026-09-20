@@ -40,6 +40,7 @@ type Metrics struct {
 	FindToolsEmptyTotal       prometheus.Counter
 	FindToolsMatchCount       prometheus.Histogram
 	FindToolsActivationsTotal prometheus.Counter
+	ChatTreeMessagesTotal     *prometheus.CounterVec
 }
 
 // NewMetrics creates a new Metrics instance registered with the
@@ -136,6 +137,12 @@ func NewMetrics(reg prometheus.Registerer) *Metrics {
 			Name:      "find_tools_activations_total",
 			Help:      "Total deferred tool activations returned by find_tools.",
 		}),
+		ChatTreeMessagesTotal: factory.NewCounterVec(prometheus.CounterOpts{
+			Namespace: metricsNamespace,
+			Subsystem: metricsSubsystem,
+			Name:      "chat_tree_messages_total",
+			Help:      "Total send_chat_message attempts by target relation, effective delivery, and outcome.",
+		}, []string{"relation", "delivery", "outcome"}),
 	}
 }
 
@@ -187,6 +194,15 @@ func (m *Metrics) RecordToolError(provider, model, toolLabel string) {
 		return
 	}
 	m.ToolErrorsTotal.WithLabelValues(provider, model, toolLabel).Inc()
+}
+
+// RecordChatTreeMessage increments chat_tree_messages_total. No-op when m
+// is nil.
+func (m *Metrics) RecordChatTreeMessage(relation, delivery, outcome string) {
+	if m == nil {
+		return
+	}
+	m.ChatTreeMessagesTotal.WithLabelValues(relation, delivery, outcome).Inc()
 }
 
 // RecordToolResultTruncated increments tool_result_truncated_total for

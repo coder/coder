@@ -83,6 +83,7 @@ type internalTestServerConfig struct {
 	startWorker      bool
 	experiments      codersdk.Experiments
 	transportFactory *atomic.Pointer[aibridge.TransportFactory]
+	hookDispatcher   *dispatch.Dispatcher
 }
 
 type internalTestServerOpt func(*internalTestServerConfig)
@@ -108,6 +109,14 @@ func withInternalTestServerWorker() internalTestServerOpt {
 func withInternalTestServerExperiments(experiments codersdk.Experiments) internalTestServerOpt {
 	return func(cfg *internalTestServerConfig) {
 		cfg.experiments = experiments
+	}
+}
+
+// withInternalTestServerHookDispatcher wires a lifecycle hook dispatcher
+// into the server's Config.
+func withInternalTestServerHookDispatcher(dispatcher *dispatch.Dispatcher) internalTestServerOpt {
+	return func(cfg *internalTestServerConfig) {
+		cfg.hookDispatcher = dispatcher
 	}
 }
 
@@ -158,6 +167,7 @@ func newInternalTestServer(
 		ProviderAPIKeys:            keys,
 		Experiments:                experimentsOrDefault(cfg.experiments),
 		AIBridgeTransportFactory:   cfg.transportFactory,
+		HookDispatcher:             cfg.hookDispatcher,
 	})
 	if cfg.startWorker {
 		server.Start()
@@ -2359,10 +2369,12 @@ func TestResolveExploreToolSnapshot(t *testing.T) {
 
 	subagentPlanParent := planParent
 	subagentPlanParent.ID = uuid.New()
+	subagentPlanParent.Kind = database.ChatKindSubagent
 	subagentPlanParent.ParentChatID = uuid.NullUUID{UUID: uuid.New(), Valid: true}
 
 	exploreParent := askParent
 	exploreParent.ID = uuid.New()
+	exploreParent.Kind = database.ChatKindSubagent
 	exploreParent.Mode = database.NullChatMode{ChatMode: database.ChatModeExplore, Valid: true}
 	exploreParent.ParentChatID = uuid.NullUUID{UUID: uuid.New(), Valid: true}
 	exploreParent.MCPServerIDs = []uuid.UUID{approvedMCP.ID}

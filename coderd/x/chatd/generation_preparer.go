@@ -525,6 +525,7 @@ func (server *Server) prepareGeneration(
 		tools = server.appendRootChatTools(ctx, tools, rootChatToolsOptions{
 			chat:            chat,
 			modelConfigID:   modelConfig.ID,
+			messages:        input.Messages,
 			workspaceCtx:    &workspaceCtx,
 			workspaceMu:     &workspaceMu,
 			resolvePlanPath: resolvePlanPathForTools,

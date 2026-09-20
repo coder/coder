@@ -3473,7 +3473,8 @@ func filterExternalMCPConfigsForTurn(
 
 func builtinPlanToolAllowed(name string, isRootChat bool) bool {
 	switch name {
-	case "read_file", "execute", "process_output", "read_skill", "read_skill_file":
+	case "read_file", "execute", "process_output", "read_skill", "read_skill_file",
+		sendChatMessageToolName, listChatTreeToolName:
 		return true
 	case "write_file", "edit_files", "list_templates", "read_template",
 		"create_workspace", "start_workspace", "stop_workspace", "propose_plan", "spawn_agent",
@@ -3569,6 +3570,8 @@ func allowedExploreToolNames(allTools []fantasy.AgentTool) []string {
 		"read_skill":           true,
 		"read_skill_file":      true,
 		"ask_user_question":    false,
+		"send_chat_message":    false,
+		"list_chat_tree":       false,
 	}
 
 	toolNames := make([]string, 0, len(allTools))
@@ -3704,8 +3707,10 @@ func buildSystemPrompt(
 }
 
 type rootChatToolsOptions struct {
-	chat            database.Chat
-	modelConfigID   uuid.UUID
+	chat          database.Chat
+	modelConfigID uuid.UUID
+	// messages is the user-visible history loaded for this generation step.
+	messages        []database.ChatMessage
 	workspaceCtx    *turnWorkspaceContext
 	workspaceMu     *sync.Mutex
 	resolvePlanPath func(context.Context) (string, string, error)
@@ -3875,9 +3880,16 @@ func (p *Server) appendRootChatTools(
 		}))
 	}
 
-	return append(tools, p.subagentTools(ctx, func() database.Chat {
+	tools = append(tools, p.subagentTools(ctx, func() database.Chat {
 		return opts.chat
 	}, opts.modelConfigID)...)
+	if p.experiments.Enabled(codersdk.ExperimentChatTree) {
+		tools = append(tools, p.chatTreeTools(
+			func() database.Chat { return opts.chat },
+			func() []database.ChatMessage { return opts.messages },
+		)...)
+	}
+	return tools
 }
 
 func appendDynamicTools(
