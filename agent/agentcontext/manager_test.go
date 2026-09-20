@@ -618,3 +618,34 @@ func TestManager_WorkingDirAndChildProjectsScanned(t *testing.T) {
 		filepath.Join(cwd, "nested", "AGENTS.md"),
 	}, sources)
 }
+
+//nolint:paralleltest,tparallel // Uses t.Setenv.
+func TestManager_GlobalRootMarksHomeDotCoder(t *testing.T) {
+	home := testutil.TempDirResolved(t)
+	switchHomeEnv(t, home)
+	global := filepath.Join(home, ".coder")
+	vendor := filepath.Join(home, "repo", "vendor", ".coder")
+	mustWriteFile(t, filepath.Join(global, "AGENTS.md"), "global")
+	mustWriteFile(t, filepath.Join(home, "AGENTS.md"), "root")
+	mustWriteFile(t, filepath.Join(vendor, "AGENTS.md"), "vendor")
+
+	m := newTestManager(t, agentcontext.ManagerOptions{
+		WorkingDir:     func() string { return home },
+		InitialSources: []agentcontext.Source{{Path: global}, {Path: vendor}},
+	})
+
+	got := map[string]bool{}
+	for _, res := range m.Snapshot().Resources {
+		if res.Kind == agentcontext.KindInstructionFile {
+			got[res.Source] = res.Global
+			if res.Global {
+				require.Equal(t, global, res.SourcePath)
+			}
+		}
+	}
+	require.Equal(t, map[string]bool{
+		filepath.Join(global, "AGENTS.md"): true,
+		filepath.Join(home, "AGENTS.md"):   false,
+		filepath.Join(vendor, "AGENTS.md"): false,
+	}, got)
+}
