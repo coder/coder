@@ -3,21 +3,19 @@ import { type FC, type ReactNode, useLayoutEffect, useRef } from "react";
 import { useTime } from "#/hooks/useTime";
 import { ToolCall } from "../ChatElements/tools/ToolCall";
 import {
+	didPrependIntoBlock,
 	formatWorkingDuration,
 	type WorkingBlock,
 } from "./workingBlockGrouping";
 
-const LiveLabel: FC<{ block: WorkingBlock; now?: number }> = ({
-	block,
-	now,
-}) => {
+const LiveLabel: FC<{ block: WorkingBlock }> = ({ block }) => {
 	// Only the live block subscribes to a clock; completed blocks render a
 	// fixed label, so long transcripts never tick.
-	const clock = useTime(() => Date.now(), { disabled: now !== undefined });
+	const now = useTime(() => Date.now());
 	if (block.startedAt === undefined) {
 		return <ToolCall.Label>Working</ToolCall.Label>;
 	}
-	const elapsed = formatWorkingDuration((now ?? clock) - block.startedAt);
+	const elapsed = formatWorkingDuration(now - block.startedAt);
 	return (
 		<ToolCall.Label>
 			{block.isPartial
@@ -33,8 +31,6 @@ const pluralize = (count: number, noun: string): string =>
 /**
  * A partial block may be missing earlier rows that are not loaded yet, so its
  * duration and step count are lower bounds (the live label does the same).
- * Blocks without part timestamps report steps only rather than a guessed
- * duration.
  */
 const getCompletedWorkingLabel = (block: WorkingBlock): string => {
 	const steps = pluralize(block.stepCount, "step");
@@ -56,24 +52,6 @@ const getScrollParent = (element: HTMLElement): HTMLElement | null => {
 		}
 	}
 	return null;
-};
-
-/**
- * Whether older history joined the front of a block between two renders.
- * Member IDs rather than row keys: a merged read_file row keeps its key while
- * a prepend grows it. A block that only had its live row has no previous
- * member, so the live row becoming its persisted step is not a prepend.
- */
-export const didPrependIntoBlock = (
-	previousMemberIds: readonly number[],
-	memberIds: readonly number[],
-): boolean => {
-	const previousFirst = previousMemberIds[0];
-	return (
-		previousFirst !== undefined &&
-		memberIds[0] < previousFirst &&
-		memberIds.includes(previousFirst)
-	);
 };
 
 /**
@@ -128,7 +106,6 @@ const useKeepReadingPositionAcrossPrepend = (memberIds: readonly number[]) => {
 		// When the same page also prepends rows above the block, MessageScroller
 		// restores the block's own top edge from a MutationObserver callback,
 		// which runs after this effect and would cancel a synchronous adjustment.
-		// The inner growth is applied after it, still before the next paint.
 		queueMicrotask(() => {
 			viewport.scrollTop += delta;
 		});
@@ -141,8 +118,6 @@ type WorkingBlockDisclosureProps = {
 	expanded: boolean;
 	onExpandedChange: (expanded: boolean) => void;
 	children: ReactNode;
-	/** Fixed clock for stories and tests. */
-	now?: number;
 };
 
 /**
@@ -155,7 +130,6 @@ export const WorkingBlockDisclosure: FC<WorkingBlockDisclosureProps> = ({
 	expanded,
 	onExpandedChange,
 	children,
-	now,
 }) => {
 	const contentRef = useKeepReadingPositionAcrossPrepend(block.memberIds);
 	return (
@@ -169,7 +143,7 @@ export const WorkingBlockDisclosure: FC<WorkingBlockDisclosureProps> = ({
 					<ListChecksIcon className="size-4 shrink-0 stroke-[1.5] text-current" />
 				</ToolCall.LeadingIcon>
 				{block.isLive ? (
-					<LiveLabel block={block} now={now} />
+					<LiveLabel block={block} />
 				) : (
 					<ToolCall.Label>{getCompletedWorkingLabel(block)}</ToolCall.Label>
 				)}
@@ -186,7 +160,7 @@ export const WorkingBlockDisclosure: FC<WorkingBlockDisclosureProps> = ({
 			<ToolCall.Content>
 				<div
 					ref={contentRef}
-					className="mt-2 flex min-w-0 flex-col gap-2 border-0 border-l border-solid border-border-default pl-3"
+					className="mt-1.5 flex flex-col gap-2 border-0 border-l border-solid border-border-default pl-3"
 				>
 					{children}
 				</div>

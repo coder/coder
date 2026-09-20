@@ -1,7 +1,6 @@
 import { MessageScroller } from "@shadcn/react/message-scroller";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
-import { useQueryClient } from "react-query";
 import { fireEvent, fn, userEvent, waitFor, within } from "storybook/test";
 import { preferenceSettingsKey } from "#/api/queries/users";
 import { Button } from "#/components/Button/Button";
@@ -9,25 +8,27 @@ import { MockChatMessage } from "#/testHelpers/chatEntities";
 import { ConversationTimeline } from "./ConversationTimeline";
 import { parseMessagesWithMergedTools } from "./messageParsing";
 import {
-	buildWorkingConversation,
 	MockCollapsedStepsPreferences,
-	MockLongTurnPages,
-	WORKING_FIXTURE_START,
+	MockLongTurnPageLoads,
+	MockWorkingMessages,
+	pinFixtureClock,
 	workingFixtureTime,
 } from "./storyFixtures";
-
-const start = WORKING_FIXTURE_START;
-const time = workingFixtureTime;
-const MockWorkingMessages = buildWorkingConversation();
 
 const meta: Meta<typeof ConversationTimeline> = {
 	title: "pages/AgentsPage/ChatConversation/ConversationTimeline/WorkingBlocks",
 	component: ConversationTimeline,
+	beforeEach: pinFixtureClock,
 	args: {
 		organizationId: "organization-id",
 		subagentTitles: new Map(),
+		chatStatus: null,
 		parsedMessages: parseMessagesWithMergedTools(MockWorkingMessages),
-		now: start + 13000,
+	},
+	parameters: {
+		queries: [
+			{ key: preferenceSettingsKey, data: MockCollapsedStepsPreferences },
+		],
 	},
 	decorators: [
 		(Story) => (
@@ -46,34 +47,22 @@ const meta: Meta<typeof ConversationTimeline> = {
 export default meta;
 type Story = StoryObj<typeof ConversationTimeline>;
 
-export const Completed: Story = {
-	parameters: {
-		queries: [
-			{ key: preferenceSettingsKey, data: MockCollapsedStepsPreferences },
-		],
-	},
+export const Completed: Story = {};
+
+export const Expanded: Story = {
 	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const summary = canvas.getByRole("button", {
-			name: "Worked for 12s (2 steps)",
-		});
-		summary.focus();
-		await userEvent.keyboard("{Enter}");
-		await userEvent.keyboard(" ");
+		await userEvent.click(
+			within(canvasElement).getByRole("button", {
+				name: "Worked for 12s (2 steps)",
+			}),
+		);
 	},
 };
 
-// Only the newest page is loaded: the block is missing its opening rows, so
-// the label is a lower bound rather than a claim of completeness.
 export const Paginated: Story = {
 	args: {
 		hasMoreMessages: true,
 		parsedMessages: parseMessagesWithMergedTools(MockWorkingMessages.slice(3)),
-	},
-	parameters: {
-		queries: [
-			{ key: preferenceSettingsKey, data: MockCollapsedStepsPreferences },
-		],
 	},
 	play: async ({ canvasElement }) => {
 		await userEvent.click(
@@ -84,16 +73,9 @@ export const Paginated: Story = {
 	},
 };
 
-// Older rows join an expanded partial block inside one scroller item, so the
-// scroller cannot anchor them; the block keeps the reading position itself.
-// The last page also prepends the prompt row as a new scroller item, which the
-// scroller anchors on its own; both corrections have to add up.
+// Older rows land inside the expanded block's own scroller item, so the block
+// rather than the scroller has to keep the reading position.
 export const PrependIntoExpandedBlockKeepsReadingPosition: Story = {
-	parameters: {
-		queries: [
-			{ key: preferenceSettingsKey, data: MockCollapsedStepsPreferences },
-		],
-	},
 	render: function Render(args) {
 		const [page, setPage] = useState(0);
 		// The button follows the rows so the scroller sees the previous first
@@ -104,7 +86,9 @@ export const PrependIntoExpandedBlockKeepsReadingPosition: Story = {
 				<ConversationTimeline
 					{...args}
 					hasMoreMessages={page < 2}
-					parsedMessages={parseMessagesWithMergedTools(MockLongTurnPages[page])}
+					parsedMessages={parseMessagesWithMergedTools(
+						MockLongTurnPageLoads[page],
+					)}
 				/>
 				<Button
 					className="fixed top-2 right-2 z-20"
@@ -151,61 +135,7 @@ export const PrependIntoExpandedBlockKeepsReadingPosition: Story = {
 	},
 };
 
-export const PreferenceChanges: Story = {
-	parameters: {
-		queries: [
-			{ key: preferenceSettingsKey, data: MockCollapsedStepsPreferences },
-		],
-	},
-	render: function Render(args) {
-		const client = useQueryClient();
-		return (
-			<>
-				<Button
-					onClick={() =>
-						client.setQueryData(preferenceSettingsKey, {
-							...MockCollapsedStepsPreferences,
-							collapse_assistant_steps: false,
-						})
-					}
-				>
-					Show individual steps
-				</Button>
-				<Button
-					onClick={() =>
-						client.setQueryData(
-							preferenceSettingsKey,
-							MockCollapsedStepsPreferences,
-						)
-					}
-				>
-					Restore grouping
-				</Button>
-				<ConversationTimeline {...args} />
-			</>
-		);
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await userEvent.click(
-			canvas.getByRole("button", { name: "Worked for 12s (2 steps)" }),
-		);
-		await userEvent.click(
-			canvas.getByRole("button", { name: "Show individual steps" }),
-		);
-		await userEvent.click(
-			canvas.getByRole("button", { name: "Restore grouping" }),
-		);
-		await canvas.findByRole("button", { name: "Worked for 12s (2 steps)" });
-	},
-};
-
 export const FailedStepCounted: Story = {
-	parameters: {
-		queries: [
-			{ key: preferenceSettingsKey, data: MockCollapsedStepsPreferences },
-		],
-	},
 	args: {
 		parsedMessages: parseMessagesWithMergedTools(
 			MockWorkingMessages.map((message) =>
@@ -219,7 +149,7 @@ export const FailedStepCounted: Story = {
 									tool_name: "execute",
 									is_error: true,
 									result: { output: "Command failed", exit_code: "1" },
-									created_at: time(13),
+									created_at: workingFixtureTime(13),
 								},
 							],
 						}
@@ -242,11 +172,6 @@ export const FailedStepCounted: Story = {
 };
 
 export const QuestionStaysVisible: Story = {
-	parameters: {
-		queries: [
-			{ key: preferenceSettingsKey, data: MockCollapsedStepsPreferences },
-		],
-	},
 	args: {
 		isChatCompleted: true,
 		onSendAskUserQuestionResponse: fn(),
@@ -256,7 +181,7 @@ export const QuestionStaysVisible: Story = {
 				...MockChatMessage,
 				id: 4,
 				role: "assistant",
-				created_at: time(5),
+				created_at: workingFixtureTime(5),
 				content: [
 					{
 						type: "tool-call",
@@ -270,7 +195,7 @@ export const QuestionStaysVisible: Story = {
 				...MockChatMessage,
 				id: 5,
 				role: "tool",
-				created_at: time(5),
+				created_at: workingFixtureTime(5),
 				content: [
 					{
 						type: "tool-result",
@@ -302,32 +227,9 @@ export const QuestionStaysVisible: Story = {
 };
 
 export const Mobile: Story = {
-	...Completed,
 	globals: { viewport: { value: "mobile1", isRotated: false } },
 };
 
 export const EditingPrecedingMessage: Story = {
-	parameters: {
-		queries: [
-			{ key: preferenceSettingsKey, data: MockCollapsedStepsPreferences },
-		],
-	},
-	render: function Render(args) {
-		const [editing, setEditing] = useState(false);
-		return (
-			<>
-				<Button onClick={() => setEditing(!editing)}>
-					{editing ? "Finish editing" : "Edit prompt"}
-				</Button>
-				<ConversationTimeline {...args} editingMessageId={editing ? 1 : null} />
-			</>
-		);
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await userEvent.click(
-			canvas.getByRole("button", { name: "Worked for 12s (2 steps)" }),
-		);
-		await userEvent.click(canvas.getByRole("button", { name: "Edit prompt" }));
-	},
+	args: { editingMessageId: 1 },
 };

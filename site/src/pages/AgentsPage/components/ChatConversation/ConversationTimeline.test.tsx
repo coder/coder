@@ -3,7 +3,7 @@ import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ComponentProps } from "react";
 import { QueryClientProvider } from "react-query";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { preferenceSettingsKey } from "#/api/queries/users";
 import type { ChatMessage } from "#/api/typesGenerated";
 import { MockChatMessage } from "#/testHelpers/chatEntities";
@@ -19,17 +19,14 @@ import {
 } from "./messageParsing";
 import {
 	buildStreamRenderState,
-	buildWorkingConversation,
 	MockCollapsedStepsPreferences,
-	MockLongTurnPages,
-	WORKING_FIXTURE_START,
+	MockLongTurnPageLoads,
+	MockWorkingMessages,
+	pinFixtureClock,
 	workingFixtureTime,
 } from "./storyFixtures";
 import { buildStreamTools, createEmptyStreamState } from "./streamState";
 import type { StreamState } from "./types";
-
-const time = workingFixtureTime;
-const MockWorkingMessages = buildWorkingConversation();
 
 type TimelineStage = {
 	messages?: ChatMessage[];
@@ -70,7 +67,7 @@ function renderTimeline(initial: TimelineStage = {}) {
 								parsedMessages={parseMessagesWithMergedTools(messages, {
 									pendingToolCallIDs,
 								})}
-								now={WORKING_FIXTURE_START + 13000}
+								chatStatus={null}
 								isChatCompleted
 								onSendAskUserQuestionResponse={vi.fn()}
 								{...props}
@@ -86,6 +83,8 @@ function renderTimeline(initial: TimelineStage = {}) {
 		rerenderStage: (stage: TimelineStage) => rerender(renderStage(stage)),
 	};
 }
+
+beforeEach(() => pinFixtureClock());
 
 describe("ConversationTimeline working blocks", () => {
 	it("keeps an open block mounted as older pages join it", async () => {
@@ -116,19 +115,22 @@ describe("ConversationTimeline working blocks", () => {
 	it("keeps an existing step mounted when older rows are prepended", async () => {
 		const user = userEvent.setup();
 		const { rerenderStage } = renderTimeline({
-			messages: MockLongTurnPages[0],
+			messages: MockLongTurnPageLoads[0],
 			hasMoreMessages: true,
 		});
 		await user.click(
 			screen.getByRole("button", { name: /Worked for at least/ }),
 		);
-		rerenderStage({ messages: MockLongTurnPages[1], hasMoreMessages: true });
+		rerenderStage({
+			messages: MockLongTurnPageLoads[1],
+			hasMoreMessages: true,
+		});
 		const copyCommand = within(
 			screen.getByTestId("chat-message-message:130"),
 		).getByRole("button", { name: "Copy command" });
 		copyCommand.focus();
 
-		rerenderStage({ messages: MockLongTurnPages[2] });
+		rerenderStage({ messages: MockLongTurnPageLoads[2] });
 		expect(copyCommand).toHaveFocus();
 	});
 
@@ -190,14 +192,14 @@ describe("ConversationTimeline working blocks", () => {
 			...MockChatMessage,
 			id: 2,
 			role: "assistant",
-			created_at: time(1),
+			created_at: workingFixtureTime(1),
 			content: [{ type: "text", text: "Looking around first." }],
 		};
 		const stream = buildStreamRenderState([
 			{
 				type: "reasoning",
 				text: "Planning the inspection",
-				created_at: time(2),
+				created_at: workingFixtureTime(2),
 			},
 		]);
 		const { rerenderStage } = renderTimeline({
