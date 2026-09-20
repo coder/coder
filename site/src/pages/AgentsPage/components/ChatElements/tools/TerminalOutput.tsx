@@ -7,6 +7,8 @@ type TerminalOutputProps = {
 	command?: string;
 	className?: string;
 	streaming?: boolean;
+	/** Rendered at the trailing edge of the command header row. */
+	headerTrailing?: React.ReactNode;
 	children: React.ReactNode;
 };
 
@@ -15,6 +17,7 @@ export const TerminalOutput: React.FC<TerminalOutputProps> = ({
 	command,
 	className,
 	streaming = false,
+	headerTrailing,
 	children,
 }) => (
 	<div
@@ -31,9 +34,10 @@ export const TerminalOutput: React.FC<TerminalOutputProps> = ({
 				>
 					$
 				</span>
-				<pre className="m-0 min-w-0 whitespace-pre-wrap break-all border-0 bg-transparent p-0 font-mono text-xs font-semibold leading-5 text-content-primary">
+				<pre className="m-0 min-w-0 flex-1 whitespace-pre-wrap break-all border-0 bg-transparent p-0 font-mono text-xs font-semibold leading-5 text-content-primary">
 					{command}
 				</pre>
+				{headerTrailing}
 			</div>
 		)}
 		<ScrollArea

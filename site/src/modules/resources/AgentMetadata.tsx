@@ -1,8 +1,8 @@
 import { cn } from "cn";
 import dayjs from "dayjs";
 import {
+	type ComponentProps,
 	type FC,
-	type HTMLAttributes,
 	useEffect,
 	useLayoutEffect,
 	useRef,
@@ -220,7 +220,7 @@ const MetadataItem: FC<MetadataItemProps> = ({ item }) => {
 	);
 };
 
-const StaticWidth: FC<HTMLAttributes<HTMLDivElement>> = ({
+const StaticWidth: FC<Omit<ComponentProps<"div">, "ref">> = ({
 	children,
 	...attrs
 }) => {

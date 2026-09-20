@@ -2,9 +2,12 @@ package codersdk
 
 import (
 	"encoding/json"
+	"maps"
 	"slices"
 	"strings"
+	"unicode"
 
+	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
 	utilstrings "github.com/coder/coder/v2/coderd/util/strings"
@@ -25,11 +28,14 @@ const (
 	AppFamilyJetBrains       AppFamilyName = "jetbrains"
 	AppFamilySSH             AppFamilyName = "ssh"
 	AppFamilyReconnectingPTY AppFamilyName = "reconnecting_pty"
-	AppFamilyUnknown         AppFamilyName = "unknown"
+	// AppFamilySFTP only comes from history the sftp_mins column recorded.
+	AppFamilySFTP    AppFamilyName = "sftp"
+	AppFamilyUnknown AppFamilyName = "unknown"
 )
 
-// appNameFamilies never gates storage, so a missing alias only costs an
-// AppFamilyUnknown label. Keys are the IDs Coder's registry modules use.
+// appNameFamilies is the only place an app name is attributed to a family.
+// Storage keeps the raw name, so a missing alias only costs an
+// AppFamilyUnknown attribution. Keys are normalized registry module IDs.
 var appNameFamilies = map[string]AppFamilyName{
 	"vscode":          AppFamilyVSCode,
 	"vscode_insiders": AppFamilyVSCode,
@@ -46,6 +52,7 @@ var appNameFamilies = map[string]AppFamilyName{
 	"devin":           AppFamilyVSCode,
 
 	"jetbrains": AppFamilyJetBrains,
+	"sftp":      AppFamilySFTP,
 	// Zed has no Connection_Type or session count field of its own, so it
 	// rolls up under SSH. The raw name still reaches storage.
 	"zed":              AppFamilySSH,
@@ -53,90 +60,47 @@ var appNameFamilies = map[string]AppFamilyName{
 	"reconnecting_pty": AppFamilyReconnectingPTY,
 }
 
-// attributedAppFamilies are the families usage reporting has somewhere to
-// put, and the single definition of the families the session count read
-// queries know about. Every value in appNameFamilies must appear here or its
-// sessions go uncounted, which TestEveryFamilyIsAttributed enforces.
-//
-// Adding a family here is not enough on its own: see AttributedAppFamilies.
-var attributedAppFamilies = []AppFamilyName{
-	AppFamilyVSCode,
-	AppFamilyJetBrains,
-	AppFamilySSH,
-	AppFamilyReconnectingPTY,
+// SessionCountAppFamilies returns the attribution registry, one entry per
+// known app name. Registering an app means editing appNameFamilies alone.
+func SessionCountAppFamilies() map[string]AppFamilyName {
+	return maps.Clone(appNameFamilies)
 }
 
-// AttributedAppFamilies returns the families session count reporting can
-// attribute to, in registry order. It is the source of truth that dbauthz
-// validates the query parameter against, so a family that exists here but not
-// in the queries (or the reverse) fails loudly instead of silently reporting
-// zero.
-func AttributedAppFamilies() []AppFamilyName {
-	return slices.Clone(attributedAppFamilies)
+// SumByFamily folds a per-app map into per-family totals. Values are
+// additive, so usage two apps of one family share counts in each. An
+// unregistered name totals under AppFamilyUnknown.
+func SumByFamily(byApp map[string]int64) map[AppFamilyName]int64 {
+	byFamily := make(map[AppFamilyName]int64, len(byApp))
+	for appName, value := range byApp {
+		byFamily[AppNameFamily(appName)] += value
+	}
+	return byFamily
 }
 
-// AppNamesInFamily returns the app names belonging to a family, sorted so
-// query parameters stay stable across calls.
-func AppNamesInFamily(family AppFamilyName) []string {
-	var names []string
-	for appName, appFamily := range appNameFamilies {
-		if appFamily == family {
-			names = append(names, appName)
+// UnionByFamily folds per-app template IDs into the distinct set each family
+// was seen in, ordered by app name.
+func UnionByFamily(byApp map[string][]uuid.UUID) map[AppFamilyName][]uuid.UUID {
+	byFamily := make(map[AppFamilyName][]uuid.UUID, len(byApp))
+	seen := make(map[AppFamilyName]map[uuid.UUID]struct{}, len(byApp))
+	for _, appName := range slices.Sorted(maps.Keys(byApp)) {
+		family := AppNameFamily(appName)
+		if seen[family] == nil {
+			seen[family] = map[uuid.UUID]struct{}{}
+		}
+		for _, id := range byApp[appName] {
+			if _, ok := seen[family][id]; ok {
+				continue
+			}
+			seen[family][id] = struct{}{}
+			byFamily[family] = append(byFamily[family], id)
 		}
 	}
-	slices.Sort(names)
-	return names
+	return byFamily
 }
 
-// SessionCountAppFamilies returns the session count attribution registry:
-// every attributed family mapped to its sorted app names. The session count
-// read queries take it as one parameter, so a new app name reaches every
-// caller by being added to appNameFamilies alone.
-//
-// A new family costs more. sqlc output columns are static, so each family
-// needs, in addition to its attributedAppFamilies entry, one probe expression
-// in every query that reports per-family session counts (see
-// coderd/database/queries/workspaceagentstats.sql and insights.sql) plus the
-// matching output column. dbauthz validation rejects a registry whose
-// families do not match AttributedAppFamilies, and
-// TestAttributedAppFamiliesMatchQueries pins that list to what the queries
-// probe, so neither half can drift unnoticed.
-func SessionCountAppFamilies() map[AppFamilyName][]string {
-	families := make(map[AppFamilyName][]string, len(attributedAppFamilies))
-	for _, family := range attributedAppFamilies {
-		families[family] = AppNamesInFamily(family)
-	}
-	return families
-}
-
-// SessionCountAppFamiliesJSON is SessionCountAppFamilies marshaled for the
-// jsonb parameter the session count read queries accept.
-func SessionCountAppFamiliesJSON() json.RawMessage {
-	// Marshaling a map with a string-keyed type cannot fail.
-	data, err := json.Marshal(SessionCountAppFamilies())
-	if err != nil {
-		panic("developer error: marshal session count app families: " + err.Error())
-	}
-	return data
-}
-
-// SessionCountsByFamily folds per-app session counts, as the session count
-// queries report them, into per-family totals. Counts are additive: an agent
-// running Cursor and VS Code at once contributes both to the VS Code family.
-// App names with no registry entry total under AppFamilyUnknown rather than
-// being dropped.
-func SessionCountsByFamily(appCounts map[string]int64) map[AppFamilyName]int64 {
-	familyCounts := make(map[AppFamilyName]int64, len(appCounts))
-	for appName, count := range appCounts {
-		familyCounts[AppNameFamily(appName)] += count
-	}
-	return familyCounts
-}
-
-// SessionCountsByFamilyJSON is SessionCountsByFamily over the jsonb object of
-// app name to session count that the session count queries return. An absent
-// or JSON null object means no sessions, not an error, because a query with
-// no matching rows aggregates to SQL NULL.
+// SessionCountsByFamilyJSON is SumByFamily over the session counts a query
+// returns. An absent object means no sessions, because a query with no rows
+// aggregates to SQL NULL.
 func SessionCountsByFamilyJSON(appCounts json.RawMessage) (map[AppFamilyName]int64, error) {
 	var counts map[string]int64
 	if len(appCounts) > 0 {
@@ -144,7 +108,7 @@ func SessionCountsByFamilyJSON(appCounts json.RawMessage) (map[AppFamilyName]int
 			return nil, xerrors.Errorf("unmarshal session counts by app name: %w", err)
 		}
 	}
-	return SessionCountsByFamily(counts), nil
+	return SumByFamily(counts), nil
 }
 
 // AppNameFamily normalizes an app name and returns its family, or
@@ -157,11 +121,17 @@ func AppNameFamily(appName string) AppFamilyName {
 }
 
 // NormalizeAppName prepares a client-supplied app name for storage and
-// lookup: it strips the null bytes Postgres TEXT rejects, trims, truncates,
-// lowercases, and folds hyphens to underscores. Empty becomes
-// AppFamilyUnknown.
+// lookup: it strips control characters, then trims, truncates, lowercases,
+// and folds hyphens to underscores. Empty becomes AppFamilyUnknown.
+// Stripping control characters covers both the null bytes Postgres TEXT
+// rejects and escape sequences that would otherwise reach logs and terminals.
 func NormalizeAppName(appName string) string {
-	appName = strings.ReplaceAll(appName, "\x00", "")
+	appName = strings.Map(func(r rune) rune {
+		if unicode.IsControl(r) {
+			return -1
+		}
+		return r
+	}, appName)
 	// Trim before truncating so padding does not spend the budget, and after
 	// in case the cut lands in whitespace.
 	appName = strings.TrimSpace(appName)
@@ -170,4 +140,18 @@ func NormalizeAppName(appName string) string {
 		return string(AppFamilyUnknown)
 	}
 	return strings.ReplaceAll(strings.ToLower(appName), "-", "_")
+}
+
+// DecodeAppMap decodes a JSONB payload keyed by app name. An absent payload
+// is empty, a malformed one an error, so callers never report zero usage for
+// data they failed to read.
+func DecodeAppMap[V any](raw json.RawMessage) (map[string]V, error) {
+	if len(raw) == 0 {
+		return map[string]V{}, nil
+	}
+	var decoded map[string]V
+	if err := json.Unmarshal(raw, &decoded); err != nil {
+		return nil, xerrors.Errorf("unmarshal session app map: %w", err)
+	}
+	return decoded, nil
 }

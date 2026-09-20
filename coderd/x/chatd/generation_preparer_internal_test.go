@@ -16,6 +16,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
@@ -165,6 +166,11 @@ func TestPrepareGenerationClampsRequestedReasoningEffortToMax(t *testing.T) {
 	require.True(t, ok, "%T", prepared.CallTemplate.ProviderOptions[fantasyopenai.Name])
 	require.NotNil(t, providerOptions.ReasoningEffort)
 	require.Equal(t, fantasyopenai.ReasoningEffortMedium, *providerOptions.ReasoningEffort)
+	require.NotNil(t, prepared.Compaction.Options.ToolDefinitions)
+	require.Equal(t,
+		chatloop.BuildToolDefinitions(prepared.Tools, prepared.ActiveTools, prepared.ProviderTools),
+		prepared.Compaction.Options.ToolDefinitions,
+	)
 
 	require.NotNil(t, providerOptions.User)
 	require.Equal(t, "turn-options-sentinel", *providerOptions.User)
@@ -179,6 +185,115 @@ func TestPrepareGenerationClampsRequestedReasoningEffortToMax(t *testing.T) {
 	// Non-streaming summaries must not inherit the default output cap the
 	// Anthropic SDK rejects.
 	require.Nil(t, summaryCall.MaxOutputTokens)
+}
+
+func TestPrepareGenerationReplacesUnsupportedToolMedia(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name      string
+		provider  database.AIProviderType
+		model     string
+		mediaType string
+	}{
+		// Anthropic is a native transport; Google is bridged through an
+		// OpenAI-compatible transport that hides the vendor restriction.
+		{name: "AnthropicAudio", provider: database.AIProviderTypeAnthropic, model: "claude-sonnet-4-5", mediaType: "audio/mpeg"},
+		{name: "GoogleSVG", provider: database.AIProviderTypeGoogle, model: "gemini-2.5-flash", mediaType: "image/svg+xml"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			db, ps := dbtestutil.NewDB(t)
+			ctx := chatdTestContext(t)
+			user := dbgen.User(t, db, database.User{})
+			org := dbgen.Organization(t, db, database.Organization{})
+			dbgen.OrganizationMember(t, db, database.OrganizationMember{
+				UserID:         user.ID,
+				OrganizationID: org.ID,
+			})
+			provider := dbgen.AIProviderWithOptionalKey(t, db, database.AIProvider{
+				Type: tc.provider,
+			}, "test-key")
+			modelConfig := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+				Model:          tc.model,
+				AIProviderID:   uuid.NullUUID{UUID: provider.ID, Valid: true},
+				OrganizationID: org.ID,
+			}, func(p *database.InsertChatModelConfigParams) {
+				p.Enabled = true
+			})
+
+			const toolCallID = "call-media-1"
+			mediaResult, err := json.Marshal(map[string]string{
+				"data":      "AAAA",
+				"mime_type": tc.mediaType,
+				"text":      "Tool output",
+			})
+			require.NoError(t, err)
+			assistantContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+				codersdk.ChatMessageToolCall(toolCallID, "media__render", json.RawMessage(`{}`)),
+			})
+			require.NoError(t, err)
+			toolContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+				codersdk.ChatMessageToolResult(toolCallID, "media__render", mediaResult, false, true),
+			})
+			require.NoError(t, err)
+			message := func(role database.ChatMessageRole, content pqtype.NullRawMessage) chatstate.Message {
+				return chatstate.Message{
+					Role:           role,
+					Content:        content,
+					Visibility:     database.ChatMessageVisibilityBoth,
+					ModelConfigID:  uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
+					CreatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
+					ContentVersion: chatprompt.CurrentContentVersion,
+				}
+			}
+			created, err := chatstate.CreateChat(ctx, db, ps, chatstate.CreateChatInput{
+				OrganizationID:    org.ID,
+				OwnerID:           user.ID,
+				LastModelConfigID: modelConfig.ID,
+				Title:             "tool media after provider switch",
+				ClientType:        database.ChatClientTypeApi,
+				InitialMessages: []chatstate.Message{
+					message(database.ChatMessageRoleUser, mustMarshalText(t, "render media")),
+					message(database.ChatMessageRoleAssistant, assistantContent),
+					message(database.ChatMessageRoleTool, toolContent),
+					message(database.ChatMessageRoleUser, mustMarshalText(t, "what did it show?")),
+				},
+			})
+			require.NoError(t, err)
+
+			server := newInternalTestServer(
+				t,
+				db,
+				ps,
+				chatprovider.ProviderAPIKeys{},
+				withInternalTestServerTransportFactory(&aibridgeTestFactory{}),
+			)
+			prepared, err := server.prepareGeneration(ctx, generationPrepareInput{
+				Chat:     created.Chat,
+				Messages: created.InitialMessages,
+			})
+			require.NoError(t, err)
+			t.Cleanup(prepared.Cleanup)
+
+			var sawToolResult bool
+			for _, msg := range prepared.Prompt {
+				for _, part := range msg.Content {
+					result, ok := part.(fantasy.ToolResultPart)
+					if !ok || result.ToolCallID != toolCallID {
+						continue
+					}
+					sawToolResult = true
+					text, ok := result.Output.(fantasy.ToolResultOutputContentText)
+					require.True(t, ok, "expected text output, got %T", result.Output)
+					require.Contains(t, text.Text, "Tool output")
+					require.Contains(t, text.Text, "["+tc.mediaType+" content omitted: unsupported tool result media type]")
+				}
+			}
+			require.True(t, sawToolResult, "tool result missing from prompt")
+		})
+	}
 }
 
 func TestPrepareGenerationComputerUseIgnoresChatTransportOverride(t *testing.T) {

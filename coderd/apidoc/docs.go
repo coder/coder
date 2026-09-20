@@ -788,6 +788,34 @@ const docTemplate = `{
                 ]
             }
         },
+        "/api/v2/ai-gateway/providers": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "AI Gateway"
+                ],
+                "summary": "List AI Gateway providers",
+                "operationId": "list-ai-gateway-providers",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.AIBridgeProvider"
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
         "/api/v2/ai-gateway/serve": {
             "get": {
                 "tags": [
@@ -6136,7 +6164,7 @@ const docTemplate = `{
         },
         "/api/v2/organizations/{organization}/ai/spend/export": {
             "get": {
-                "description": "Returns per-user, per-group, per-model, per-provider aggregated AI spend for the organization as CSV, built from raw AI Gateway token usage.\nThe optional period_start and period_end query parameters bound the period and are interpreted as UTC. They must be provided together and span at most 31 days. When both are omitted, the current UTC monthly period is used.\nAn explicit period_start must fall within the configured AI Gateway data retention window, since older token usage is purged. The default period is narrowed to that window instead, and every row echoes the applied bounds.\nRequires organization-level administrator permissions.",
+                "description": "Returns per-user, per-group, per-model, per-provider aggregated AI spend for the organization as CSV, built from raw AI Gateway token usage.\nThe optional period_start and period_end query parameters bound the period and are interpreted as UTC. They must be provided together and span at most 31 days. When both are omitted, the current UTC monthly period is used.\nAn explicit period_start must fall within the configured AI Gateway data retention window, since older token usage is purged. The default period is narrowed to that window instead, and every row echoes the applied bounds.\nUnknown query parameters are rejected.\nRequires organization-level administrator permissions.",
                 "produces": [
                     "text/csv"
                 ],
@@ -6167,11 +6195,117 @@ const docTemplate = `{
                         "description": "Exclusive upper bound (RFC3339)",
                         "name": "period_end",
                         "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "User ID",
+                        "name": "user_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Effective group ID",
+                        "name": "group_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Configured provider name",
+                        "name": "provider_name",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Model name",
+                        "name": "model",
+                        "in": "query"
                     }
                 ],
                 "responses": {
                     "200": {
                         "description": "OK"
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
+        "/api/v2/organizations/{organization}/ai/spend/users": {
+            "get": {
+                "description": "Returns one page of per-user AI spend for the organization, most expensive first, built from the same raw AI Gateway token usage as the CSV export so the two reconcile. Each user lists the providers and clients they spent through, and the response carries the user count, total spend, and unpriced usage count over every matching user.\nThe optional period_start and period_end query parameters bound the period and are interpreted as UTC. They must be provided together and span at most 31 days. When both are omitted, the current UTC monthly period is used.\nAn explicit period_start must fall within the configured AI Gateway data retention window, since older token usage is purged. The default period is narrowed to that window instead. The response echoes the applied bounds and, when retention is enabled, the start of the retention window.\nThe optional provider_name, model, and client query parameters restrict the spend report to usage matching all supplied filters. Use client=Unknown for usage with an unknown or missing client.\nUnknown query parameters are rejected.\nRequires organization-level administrator permissions.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "List organization AI spend by user",
+                "operationId": "list-organization-ai-spend-by-user",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "date-time",
+                        "description": "Inclusive lower bound (RFC3339)",
+                        "name": "period_start",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "format": "date-time",
+                        "description": "Exclusive upper bound (RFC3339)",
+                        "name": "period_end",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Only include usage through this provider configuration name",
+                        "name": "provider_name",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Only include usage of this model",
+                        "name": "model",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Only include usage from this client. Unknown matches usage without a recorded client.",
+                        "name": "client",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page size (default 10, maximum 100)",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page offset",
+                        "name": "offset",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.OrganizationAISpendReport"
+                        }
                     }
                 },
                 "security": [
@@ -11462,7 +11596,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/codersdk.CreateUserRequestWithOrgs"
+                            "$ref": "#/definitions/codersdk.CreateUserRequest"
                         }
                     }
                 ],
@@ -16823,6 +16957,12 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/codersdk.OAuth2ClientConfiguration"
                         }
+                    },
+                    "413": {
+                        "description": "Request body exceeds 4 MiB",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.OAuth2Error"
+                        }
                     }
                 }
             },
@@ -16877,6 +17017,12 @@ const docTemplate = `{
                         "description": "Created",
                         "schema": {
                             "$ref": "#/definitions/codersdk.OAuth2ClientRegistrationResponse"
+                        }
+                    },
+                    "413": {
+                        "description": "Request body exceeds 4 MiB",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.OAuth2Error"
                         }
                     }
                 }
@@ -16941,6 +17087,12 @@ const docTemplate = `{
                     },
                     "401": {
                         "description": "invalid_client: the client is unknown, or a confidential client did not present a valid secret",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.OAuth2Error"
+                        }
+                    },
+                    "413": {
+                        "description": "Request body exceeds 4 MiB",
                         "schema": {
                             "$ref": "#/definitions/codersdk.OAuth2Error"
                         }
@@ -17009,6 +17161,12 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/codersdk.OAuth2TokenResponse"
+                        }
+                    },
+                    "413": {
+                        "description": "Request body exceeds 4 MiB",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.OAuth2Error"
                         }
                     }
                 }
@@ -17460,6 +17618,18 @@ const docTemplate = `{
         "codersdk.AIBridgeAgenticAction": {
             "type": "object",
             "properties": {
+                "attribution": {
+                    "description": "Attribution contains attribution data from this interception.\nUnknown attribution is serialized as an empty object.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.AIBridgeAttribution"
+                        }
+                    ]
+                },
+                "interception_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
                 "model": {
                     "type": "string"
                 },
@@ -17478,6 +17648,12 @@ const docTemplate = `{
                         "$ref": "#/definitions/codersdk.AIBridgeToolCall"
                     }
                 }
+            }
+        },
+        "codersdk.AIBridgeAttribution": {
+            "type": "object",
+            "additionalProperties": {
+                "type": "string"
             }
         },
         "codersdk.AIBridgeConfig": {
@@ -17556,6 +17732,23 @@ const docTemplate = `{
             "properties": {
                 "text": {
                     "type": "string"
+                }
+            }
+        },
+        "codersdk.AIBridgeProvider": {
+            "type": "object",
+            "properties": {
+                "display_name": {
+                    "type": "string"
+                },
+                "icon": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "type": {
+                    "$ref": "#/definitions/codersdk.AIProviderType"
                 }
             }
         },
@@ -17822,6 +18015,14 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/codersdk.AIBridgeAgenticAction"
                     }
+                },
+                "attribution": {
+                    "description": "Attribution contains attribution data from the root interception.\nUnknown attribution is serialized as an empty object.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.AIBridgeAttribution"
+                        }
+                    ]
                 },
                 "credential_hint": {
                     "type": "string"
@@ -19615,6 +19816,9 @@ const docTemplate = `{
                 },
                 "hook_url": {
                     "$ref": "#/definitions/serpent.URL"
+                },
+                "stream_silence_timeout": {
+                    "type": "integer"
                 }
             }
         },
@@ -20566,6 +20770,9 @@ const docTemplate = `{
         "codersdk.ChatModelOpenAIConfig": {
             "type": "object",
             "properties": {
+                "reasoning_model": {
+                    "type": "boolean"
+                },
                 "use_responses_api": {
                     "type": "boolean"
                 }
@@ -22362,7 +22569,7 @@ const docTemplate = `{
                 }
             }
         },
-        "codersdk.CreateUserRequestWithOrgs": {
+        "codersdk.CreateUserRequest": {
             "type": "object",
             "required": [
                 "username"
@@ -23002,6 +23209,9 @@ const docTemplate = `{
                 "docs_url": {
                     "$ref": "#/definitions/serpent.URL"
                 },
+                "dynamic_parameters_full_evaluation": {
+                    "type": "boolean"
+                },
                 "enable_authz_recording": {
                     "type": "boolean"
                 },
@@ -23390,14 +23600,16 @@ const docTemplate = `{
                 "mcp-server-http",
                 "mcp-tool-search",
                 "workspace-build-updates",
-                "nats_pubsub",
+                "no_nats_pubsub",
                 "workspace-capable-licensing",
                 "ai-gateway-seat-exclusion",
+                "ai-gateway-reverse-proxy",
                 "chat-advisor",
                 "chat-virtual-desktop",
                 "agent-lifecycle-hooks"
             ],
             "x-enum-comments": {
+                "ExperimentAIGatewayReverseProxy": "Uses stateless reverse proxy routing when MCP injection is not configured.",
                 "ExperimentAIGatewaySeatExclusion": "Excludes AI Gateway (AI Bridge) usage from AI Governance seat consumption.",
                 "ExperimentAgentLifecycleHooks": "Enables chat lifecycle hook webhooks for agent chats.",
                 "ExperimentAutoFillParameters": "This should not be taken out of experiments until we have redesigned the feature.",
@@ -23406,7 +23618,7 @@ const docTemplate = `{
                 "ExperimentExample": "This isn't used for anything.",
                 "ExperimentMCPServerHTTP": "Enables the MCP HTTP server functionality.",
                 "ExperimentMCPToolSearch": "Defers MCP tool schemas behind a searchable catalog in agent chats.",
-                "ExperimentNATSPubsub": "Enables embedded NATS pubsub.",
+                "ExperimentNoNATSPubsub": "Disables the embedded NATS pubsub, falling back to PostgreSQL pubsub.",
                 "ExperimentNotifications": "Sends notifications via SMTP and webhooks following certain events.",
                 "ExperimentWorkspaceBuildUpdates": "Enables publishing workspace build updates to the all builds pubsub channel.",
                 "ExperimentWorkspaceCapableLicensing": "Counts only users holding the workspace-create permission toward the license seat limit.",
@@ -23420,9 +23632,10 @@ const docTemplate = `{
                 "Enables the MCP HTTP server functionality.",
                 "Defers MCP tool schemas behind a searchable catalog in agent chats.",
                 "Enables publishing workspace build updates to the all builds pubsub channel.",
-                "Enables embedded NATS pubsub.",
+                "Disables the embedded NATS pubsub, falling back to PostgreSQL pubsub.",
                 "Counts only users holding the workspace-create permission toward the license seat limit.",
                 "Excludes AI Gateway (AI Bridge) usage from AI Governance seat consumption.",
+                "Uses stateless reverse proxy routing when MCP injection is not configured.",
                 "Enables the advisor tool for root agent chats.",
                 "Enables virtual desktop and computer use provider for agents.",
                 "Enables chat lifecycle hook webhooks for agent chats."
@@ -23435,9 +23648,10 @@ const docTemplate = `{
                 "ExperimentMCPServerHTTP",
                 "ExperimentMCPToolSearch",
                 "ExperimentWorkspaceBuildUpdates",
-                "ExperimentNATSPubsub",
+                "ExperimentNoNATSPubsub",
                 "ExperimentWorkspaceCapableLicensing",
                 "ExperimentAIGatewaySeatExclusion",
+                "ExperimentAIGatewayReverseProxy",
                 "ExperimentChatAdvisor",
                 "ExperimentChatVirtualDesktop",
                 "ExperimentAgentLifecycleHooks"
@@ -25381,6 +25595,10 @@ const docTemplate = `{
                 },
                 "name": {
                     "type": "string"
+                },
+                "scope": {
+                    "description": "Scope is the space-separated list of scopes this app's tokens may be\ngranted. Empty means unrestricted. A non-empty value with no names is a\nconfigured allowlist that grants nothing.",
+                    "type": "string"
                 }
             }
         },
@@ -25736,6 +25954,100 @@ const docTemplate = `{
                 "updated_at": {
                     "type": "string",
                     "format": "date-time"
+                }
+            }
+        },
+        "codersdk.OrganizationAISpendReport": {
+            "type": "object",
+            "properties": {
+                "count": {
+                    "description": "Count is the number of users with token usage matching the filter.",
+                    "type": "integer"
+                },
+                "period_end": {
+                    "description": "PeriodEnd is the exclusive upper bound of the current budget\nperiod.",
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "period_start": {
+                    "description": "PeriodStart is the inclusive lower bound of the current budget\nperiod.",
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "retention_start": {
+                    "description": "RetentionStart is the oldest instant for which token usage is still\nretained. An explicit period must not start before it. Omitted when the\ndeployment does not purge AI Gateway data.",
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "totals": {
+                    "$ref": "#/definitions/codersdk.OrganizationAISpendTotals"
+                },
+                "users": {
+                    "description": "Users is the requested page, most expensive first.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.OrganizationAISpendUser"
+                    }
+                }
+            }
+        },
+        "codersdk.OrganizationAISpendTotals": {
+            "type": "object",
+            "properties": {
+                "cost_micros": {
+                    "description": "CostMicros is the priced spend of every matching user.",
+                    "type": "integer"
+                },
+                "unpriced_usage_count": {
+                    "description": "UnpricedUsageCount is the number of token usage records without a cost\nacross every matching user.",
+                    "type": "integer"
+                }
+            }
+        },
+        "codersdk.OrganizationAISpendUser": {
+            "type": "object",
+            "properties": {
+                "avatar_url": {
+                    "type": "string"
+                },
+                "clients": {
+                    "description": "Clients are the clients the user spent through, sorted. Usage without a\nrecorded client is reported as Unknown.",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "cost_micros": {
+                    "description": "CostMicros is the user's priced spend over the period.",
+                    "type": "integer"
+                },
+                "models": {
+                    "description": "Models are the models the user spent through, sorted.",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "name": {
+                    "type": "string"
+                },
+                "providers": {
+                    "description": "Providers are the provider types the user spent through, sorted.",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "unpriced_usage_count": {
+                    "description": "UnpricedUsageCount is the number of the user's token usage records that\ncarry no cost because their model had no price when they were recorded.",
+                    "type": "integer"
+                },
+                "user_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "username": {
+                    "type": "string"
                 }
             }
         },
@@ -26269,6 +26581,10 @@ const docTemplate = `{
                 },
                 "name": {
                     "type": "string"
+                },
+                "scope": {
+                    "description": "Scope is the space-separated list of scopes this app's tokens may be\ngranted. Leave empty, or omit, for unrestricted.",
+                    "type": "string"
                 }
             }
         },
@@ -26280,7 +26596,8 @@ const docTemplate = `{
                     "format": "uuid"
                 },
                 "app_name": {
-                    "$ref": "#/definitions/codersdk.UsageAppName"
+                    "description": "AppName is any name for the app reporting usage. The server normalizes\nit at ingestion, so a new app needs no server change. The UsageAppName\nconstants are the well-known names.",
+                    "type": "string"
                 }
             }
         },
@@ -27109,6 +27426,10 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "name": {
+                    "type": "string"
+                },
+                "scope": {
+                    "description": "Scope replaces the app's current allowlist. Omit to leave the existing\nallowlist untouched. Set to an empty string to clear it, making the app\nunrestricted.",
                     "type": "string"
                 }
             }
@@ -30090,21 +30411,6 @@ const docTemplate = `{
                     ]
                 }
             }
-        },
-        "codersdk.UsageAppName": {
-            "type": "string",
-            "enum": [
-                "vscode",
-                "jetbrains",
-                "reconnecting-pty",
-                "ssh"
-            ],
-            "x-enum-varnames": [
-                "UsageAppNameVscode",
-                "UsageAppNameJetbrains",
-                "UsageAppNameReconnectingPty",
-                "UsageAppNameSSH"
-            ]
         },
         "codersdk.UsagePeriod": {
             "type": "object",

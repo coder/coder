@@ -177,15 +177,6 @@ type devcontainerCLIReadConfigConfig struct {
 	stderr io.Writer
 }
 
-// WithReadConfigOutput sets additional stdout and stderr writers for logs
-// during ReadConfig operations.
-func WithReadConfigOutput(stdout, stderr io.Writer) DevcontainerCLIReadConfigOptions {
-	return func(o *devcontainerCLIReadConfigConfig) {
-		o.stdout = stdout
-		o.stderr = stderr
-	}
-}
-
 func applyDevcontainerCLIUpOptions(opts []DevcontainerCLIUpOptions) DevcontainerCLIUpConfig {
 	conf := DevcontainerCLIUpConfig{Stdout: io.Discard, Stderr: io.Discard}
 	for _, opt := range opts {

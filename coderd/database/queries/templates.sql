@@ -71,6 +71,12 @@ WHERE
 			END
 		ELSE true
 	END
+	-- Filter by classic parameter flow
+	AND CASE
+		WHEN sqlc.narg('use_classic_parameter_flow') :: boolean IS NOT NULL THEN
+			t.use_classic_parameter_flow = sqlc.narg('use_classic_parameter_flow') :: boolean
+		ELSE true
+	END
 	-- Filter by agents_allowed
 	AND CASE
 		WHEN sqlc.narg('agents_allowed') :: boolean IS NOT NULL THEN

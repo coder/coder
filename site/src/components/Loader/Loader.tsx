@@ -1,8 +1,8 @@
 import { cn } from "cn";
-import type { FC, HTMLAttributes } from "react";
+import type { ComponentProps, FC } from "react";
 import { Spinner } from "#/components/Spinner/Spinner";
 
-interface LoaderProps extends HTMLAttributes<HTMLDivElement> {
+interface LoaderProps extends ComponentProps<"div"> {
 	fullscreen?: boolean;
 	size?: "sm" | "lg";
 	/**
