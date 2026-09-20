@@ -334,9 +334,15 @@ export const groupWorkingBlocks = (
 		};
 		if (memberIds.length > 0) {
 			// Hidden tool-result messages sit between the block's rows and the
-			// next visible row, so the span runs to the next row's message.
+			// next visible row, so the span runs to the next row's message but
+			// never past the next prompt: the following turn can open with
+			// provider-executed parts that carry timestamps and have no row.
 			const fromId = Math.min(...memberIds);
-			const toId = messageIdAfter(lastRowIndex);
+			const lastMemberId = Math.max(...memberIds);
+			const toId = Math.min(
+				messageIdAfter(lastRowIndex),
+				...userMessageIds.filter((id) => id > lastMemberId),
+			);
 			for (const span of spans) {
 				if (span.id >= fromId && span.id < toId) {
 					observe(span.startedAt);
