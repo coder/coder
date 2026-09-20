@@ -46,7 +46,7 @@ const (
 	maxGroupMembersAISpendUserIDs        = 100
 	// maxAISpendExportPeriod bounds an explicit AI spend export window to at
 	// most 31 days, matching the maximum length of the monthly default period.
-	maxAISpendExportPeriod = 31 * 24 * time.Hour
+	maxAISpendExportPeriod = codersdk.MaxAISpendPeriodDays * 24 * time.Hour
 	// The per-user spend report lists users, not events, so its pages are small.
 	defaultOrganizationAISpendLimit = 10
 	maxOrganizationAISpendLimit     = 100
