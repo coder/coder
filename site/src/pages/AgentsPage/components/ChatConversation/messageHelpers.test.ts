@@ -507,6 +507,21 @@ describe("buildDisplayMessages", () => {
 		]);
 	});
 
+	it("does not collapse read_file messages across a hidden user prompt", () => {
+		const result = buildDisplayMessages([
+			readFileMessage(1, "read-1"),
+			entry({
+				messageID: 2,
+				role: "user",
+				content: [{ type: "context-file", context_file_path: "/AGENTS.md" }],
+				parsedOverrides: {},
+			}),
+			readFileMessage(3, "read-2"),
+		]);
+
+		expect(result.map((item) => item.message.id)).toEqual([1, 3]);
+	});
+
 	it.each([
 		["assistant", textMessage(2, "middle")],
 		["user", textMessage(2, "middle", "user")],
