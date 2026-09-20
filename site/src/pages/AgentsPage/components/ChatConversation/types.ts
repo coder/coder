@@ -67,6 +67,9 @@ export type ParsedMessageContent = {
 	blocks: RenderBlock[];
 	sources: Array<{ url: string; title: string }>;
 	hookNotices: string[];
+	// Present when the message was delivered by a neighboring chat's agent
+	// rather than typed by the user.
+	senderChat?: TypesGen.ChatSenderChatPart;
 };
 
 export type ParsedMessageEntry = {

@@ -3068,11 +3068,15 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "provider_metadata": [
         0
       ],
+      "relay_hop": 0,
       "result": [
         0
       ],
       "result_delta": "string",
       "result_reset": true,
+      "sender_chat_id": "c2b8af10-c18b-48ef-8870-2c71c888dab1",
+      "sender_chat_relation": "parent",
+      "sender_chat_title": "string",
       "skill_description": "string",
       "skill_dir": "string",
       "skill_name": "string",
@@ -3155,11 +3159,15 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "provider_metadata": [
     0
   ],
+  "relay_hop": 0,
   "result": [
     0
   ],
   "result_delta": "string",
   "result_reset": true,
+  "sender_chat_id": "c2b8af10-c18b-48ef-8870-2c71c888dab1",
+  "sender_chat_relation": "parent",
+  "sender_chat_title": "string",
   "skill_description": "string",
   "skill_dir": "string",
   "skill_name": "string",
@@ -3176,47 +3184,57 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name                           | Type                                                         | Required | Restrictions | Description                                                                                                                                                                                                                                                                                                                                                                                                |
-|--------------------------------|--------------------------------------------------------------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `args`                         | array of integer                                             | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
-| `args_delta`                   | string                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
-| `completed_at`                 | string                                                       | false    |              | Completed at is the time a reasoning part finished streaming, so reasoning duration can be computed as completed_at minus created_at. For interrupted reasoning, this is the interruption time. Absent when reasoning timestamp data was not recorded (e.g. messages persisted before this feature was added).                                                                                             |
-| `content`                      | string                                                       | false    |              | The code content from the diff that was commented on.                                                                                                                                                                                                                                                                                                                                                      |
-| `context_file_agent_id`        | string                                                       | false    |              | Context file agent ID is the workspace agent that provided this context file. Used to detect when the agent changes (e.g. workspace rebuilt) so instruction files can be re-persisted with fresh content.                                                                                                                                                                                                  |
-| `context_file_content`         | string                                                       | false    |              | Context file content holds the file content sent to the LLM. Internal only: stripped before API responses to keep payloads small. The backend reads it when building the prompt via partsToMessageParts.                                                                                                                                                                                                   |
-| `context_file_directory`       | string                                                       | false    |              | Context file directory is the working directory of the workspace agent. Internal only: same purpose as ContextFileOS.                                                                                                                                                                                                                                                                                      |
-| `context_file_os`              | string                                                       | false    |              | Context file os is the operating system of the workspace agent. Internal only: used during prompt expansion so the LLM knows the OS even on turns where InsertSystem is not called.                                                                                                                                                                                                                        |
-| `context_file_path`            | string                                                       | false    |              | Context file path is the absolute path of a file loaded into the LLM context (e.g. an AGENTS.md instruction file).                                                                                                                                                                                                                                                                                         |
-| `context_file_skill_meta_file` | string                                                       | false    |              | Context file skill meta file is the basename of the skill meta file (e.g. "SKILL.md") at the time of persistence. Internal only: restored on subsequent turns so the read_skill tool uses the correct filename even when the agent configured a non-default value.                                                                                                                                         |
-| `context_file_truncated`       | boolean                                                      | false    |              | Context file truncated indicates the file exceeded the 64KiB instruction file limit and was truncated.                                                                                                                                                                                                                                                                                                     |
-| `created_at`                   | string                                                       | false    |              | Created at is the timestamp this part carries. The semantics depend on the part type: for tool-call and tool-result parts it is the time the call was emitted or the result was produced (tool duration is the result's created_at minus the call's created_at); for reasoning parts it is the time reasoning started streaming.                                                                           |
-| `data`                         | array of integer                                             | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
-| `end_line`                     | integer                                                      | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
-| `file_id`                      | string                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
-| `file_name`                    | string                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
-| `hook_rewritten`               | boolean                                                      | false    |              | Hook rewritten indicates that a lifecycle hook replaced model-proposed tool input.                                                                                                                                                                                                                                                                                                                         |
-| `is_error`                     | boolean                                                      | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
-| `is_media`                     | boolean                                                      | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
-| `mcp_server_config_id`         | string                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
-| `media_type`                   | string                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
-| `name`                         | string                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
-| `parsed_commands`              | array of array                                               | false    |              | Parsed commands holds parsed programs from an execute tool call's shell command, one entry per simple command in source order. Each entry is [program] or [program, arg] where arg is the first non-flag positional argument. Program names are normalized to their base name (e.g. /usr/bin/go becomes go). Only populated when ToolName is "execute" and the command parses successfully; nil otherwise. |
-| `provider_executed`            | boolean                                                      | false    |              | Provider executed indicates the tool call was executed by the provider (e.g. Anthropic computer use).                                                                                                                                                                                                                                                                                                      |
-| `provider_metadata`            | array of integer                                             | false    |              | Provider metadata holds provider-specific response metadata (e.g. Anthropic cache control hints) as raw JSON. Internal only: stripped by db2sdk before API responses.                                                                                                                                                                                                                                      |
-| `result`                       | array of integer                                             | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
-| `result_delta`                 | string                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
-| `result_reset`                 | boolean                                                      | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
-| `skill_description`            | string                                                       | false    |              | Skill description is the short description from the skill's SKILL.md frontmatter.                                                                                                                                                                                                                                                                                                                          |
-| `skill_dir`                    | string                                                       | false    |              | Skill dir is the absolute path to the skill directory inside the workspace filesystem. Internal only: used by read_skill/read_skill_file tools to locate skill files.                                                                                                                                                                                                                                      |
-| `skill_name`                   | string                                                       | false    |              | Skill name is the kebab-case name of a discovered skill from the workspace's .agents/skills/ directory.                                                                                                                                                                                                                                                                                                    |
-| `source_id`                    | string                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
-| `start_line`                   | integer                                                      | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
-| `text`                         | string                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
-| `title`                        | string                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
-| `tool_call_id`                 | string                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
-| `tool_name`                    | string                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
-| `type`                         | [codersdk.ChatMessagePartType](#codersdkchatmessageparttype) | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
-| `url`                          | string                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| Name                           | Type                                                               | Required | Restrictions | Description                                                                                                                                                                                                                                                                                                                                                                                                |
+|--------------------------------|--------------------------------------------------------------------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `args`                         | array of integer                                                   | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `args_delta`                   | string                                                             | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `completed_at`                 | string                                                             | false    |              | Completed at is the time a reasoning part finished streaming, so reasoning duration can be computed as completed_at minus created_at. For interrupted reasoning, this is the interruption time. Absent when reasoning timestamp data was not recorded (e.g. messages persisted before this feature was added).                                                                                             |
+| `content`                      | string                                                             | false    |              | The code content from the diff that was commented on.                                                                                                                                                                                                                                                                                                                                                      |
+| `context_file_agent_id`        | string                                                             | false    |              | Context file agent ID is the workspace agent that provided this context file. Used to detect when the agent changes (e.g. workspace rebuilt) so instruction files can be re-persisted with fresh content.                                                                                                                                                                                                  |
+| `context_file_content`         | string                                                             | false    |              | Context file content holds the file content sent to the LLM. Internal only: stripped before API responses to keep payloads small. The backend reads it when building the prompt via partsToMessageParts.                                                                                                                                                                                                   |
+| `context_file_directory`       | string                                                             | false    |              | Context file directory is the working directory of the workspace agent. Internal only: same purpose as ContextFileOS.                                                                                                                                                                                                                                                                                      |
+| `context_file_os`              | string                                                             | false    |              | Context file os is the operating system of the workspace agent. Internal only: used during prompt expansion so the LLM knows the OS even on turns where InsertSystem is not called.                                                                                                                                                                                                                        |
+| `context_file_path`            | string                                                             | false    |              | Context file path is the absolute path of a file loaded into the LLM context (e.g. an AGENTS.md instruction file).                                                                                                                                                                                                                                                                                         |
+| `context_file_skill_meta_file` | string                                                             | false    |              | Context file skill meta file is the basename of the skill meta file (e.g. "SKILL.md") at the time of persistence. Internal only: restored on subsequent turns so the read_skill tool uses the correct filename even when the agent configured a non-default value.                                                                                                                                         |
+| `context_file_truncated`       | boolean                                                            | false    |              | Context file truncated indicates the file exceeded the 64KiB instruction file limit and was truncated.                                                                                                                                                                                                                                                                                                     |
+| `created_at`                   | string                                                             | false    |              | Created at is the timestamp this part carries. The semantics depend on the part type: for tool-call and tool-result parts it is the time the call was emitted or the result was produced (tool duration is the result's created_at minus the call's created_at); for reasoning parts it is the time reasoning started streaming.                                                                           |
+| `data`                         | array of integer                                                   | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `end_line`                     | integer                                                            | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `file_id`                      | string                                                             | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `file_name`                    | string                                                             | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `hook_rewritten`               | boolean                                                            | false    |              | Hook rewritten indicates that a lifecycle hook replaced model-proposed tool input.                                                                                                                                                                                                                                                                                                                         |
+| `is_error`                     | boolean                                                            | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `is_media`                     | boolean                                                            | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `mcp_server_config_id`         | string                                                             | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `media_type`                   | string                                                             | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `name`                         | string                                                             | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `parsed_commands`              | array of array                                                     | false    |              | Parsed commands holds parsed programs from an execute tool call's shell command, one entry per simple command in source order. Each entry is [program] or [program, arg] where arg is the first non-flag positional argument. Program names are normalized to their base name (e.g. /usr/bin/go becomes go). Only populated when ToolName is "execute" and the command parses successfully; nil otherwise. |
+| `provider_executed`            | boolean                                                            | false    |              | Provider executed indicates the tool call was executed by the provider (e.g. Anthropic computer use).                                                                                                                                                                                                                                                                                                      |
+| `provider_metadata`            | array of integer                                                   | false    |              | Provider metadata holds provider-specific response metadata (e.g. Anthropic cache control hints) as raw JSON. Internal only: stripped by db2sdk before API responses.                                                                                                                                                                                                                                      |
+| `relay_hop`                    | integer                                                            | false    |              | Relay hop counts consecutive agent-to-agent deliveries since the last human-initiated turn. It is at least 1 when present; absent means the prompt was not relayed.                                                                                                                                                                                                                                        |
+| `result`                       | array of integer                                                   | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `result_delta`                 | string                                                             | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `result_reset`                 | boolean                                                            | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `sender_chat_id`               | string                                                             | false    |              | Sender chat ID is the chat whose agent delivered this prompt. A pointer rather than uuid.NullUUID so the key is omitted from every other persisted part (NullUUID marshals as null and is never omitted).                                                                                                                                                                                                  |
+| `sender_chat_relation`         | [codersdk.ChatSenderChatRelation](#codersdkchatsenderchatrelation) | false    |              | Sender chat relation is the sending chat's position relative to the receiving chat.                                                                                                                                                                                                                                                                                                                        |
+| `sender_chat_title`            | string                                                             | false    |              | Sender chat title is the sending chat's title at delivery time.                                                                                                                                                                                                                                                                                                                                            |
+| `skill_description`            | string                                                             | false    |              | Skill description is the short description from the skill's SKILL.md frontmatter.                                                                                                                                                                                                                                                                                                                          |
+| `skill_dir`                    | string                                                             | false    |              | Skill dir is the absolute path to the skill directory inside the workspace filesystem. Internal only: used by read_skill/read_skill_file tools to locate skill files.                                                                                                                                                                                                                                      |
+| `skill_name`                   | string                                                             | false    |              | Skill name is the kebab-case name of a discovered skill from the workspace's .agents/skills/ directory.                                                                                                                                                                                                                                                                                                    |
+| `source_id`                    | string                                                             | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `start_line`                   | integer                                                            | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `text`                         | string                                                             | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `title`                        | string                                                             | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `tool_call_id`                 | string                                                             | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `tool_name`                    | string                                                             | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `type`                         | [codersdk.ChatMessagePartType](#codersdkchatmessageparttype)       | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `url`                          | string                                                             | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+
+#### Enumerated Values
+
+| Property               | Value(s)          |
+|------------------------|-------------------|
+| `sender_chat_relation` | `child`, `parent` |
 
 ## codersdk.ChatMessagePartType
 
@@ -3228,9 +3246,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                                    |
-|---------------------------------------------------------------------------------------------------------------------------------------------|
-| `context-file`, `file`, `file-reference`, `hook-context`, `hook-notice`, `reasoning`, `skill`, `source`, `text`, `tool-call`, `tool-result` |
+| Value(s)                                                                                                                                                   |
+|------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `context-file`, `file`, `file-reference`, `hook-context`, `hook-notice`, `reasoning`, `sender-chat`, `skill`, `source`, `text`, `tool-call`, `tool-result` |
 
 ## codersdk.ChatMessageRole
 
@@ -3317,11 +3335,15 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           "provider_metadata": [
             0
           ],
+          "relay_hop": 0,
           "result": [
             0
           ],
           "result_delta": "string",
           "result_reset": true,
+          "sender_chat_id": "c2b8af10-c18b-48ef-8870-2c71c888dab1",
+          "sender_chat_relation": "parent",
+          "sender_chat_title": "string",
           "skill_description": "string",
           "skill_dir": "string",
           "skill_name": "string",
@@ -3391,11 +3413,15 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           "provider_metadata": [
             0
           ],
+          "relay_hop": 0,
           "result": [
             0
           ],
           "result_delta": "string",
           "result_reset": true,
+          "sender_chat_id": "c2b8af10-c18b-48ef-8870-2c71c888dab1",
+          "sender_chat_relation": "parent",
+          "sender_chat_title": "string",
           "skill_description": "string",
           "skill_dir": "string",
           "skill_name": "string",
@@ -4701,11 +4727,15 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "provider_metadata": [
         0
       ],
+      "relay_hop": 0,
       "result": [
         0
       ],
       "result_delta": "string",
       "result_reset": true,
+      "sender_chat_id": "c2b8af10-c18b-48ef-8870-2c71c888dab1",
+      "sender_chat_relation": "parent",
+      "sender_chat_title": "string",
       "skill_description": "string",
       "skill_dir": "string",
       "skill_name": "string",
@@ -4762,6 +4792,20 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | Value(s)   |
 |------------|
 | ``, `read` |
+
+## codersdk.ChatSenderChatRelation
+
+```json
+"parent"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)          |
+|-------------------|
+| `child`, `parent` |
 
 ## codersdk.ChatStatus
 
@@ -4858,11 +4902,15 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         "provider_metadata": [
           0
         ],
+        "relay_hop": 0,
         "result": [
           0
         ],
         "result_delta": "string",
         "result_reset": true,
+        "sender_chat_id": "c2b8af10-c18b-48ef-8870-2c71c888dab1",
+        "sender_chat_relation": "parent",
+        "sender_chat_title": "string",
         "skill_description": "string",
         "skill_dir": "string",
         "skill_name": "string",
@@ -4930,11 +4978,15 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "provider_metadata": [
         0
       ],
+      "relay_hop": 0,
       "result": [
         0
       ],
       "result_delta": "string",
       "result_reset": true,
+      "sender_chat_id": "c2b8af10-c18b-48ef-8870-2c71c888dab1",
+      "sender_chat_relation": "parent",
+      "sender_chat_title": "string",
       "skill_description": "string",
       "skill_dir": "string",
       "skill_name": "string",
@@ -4990,11 +5042,15 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           "provider_metadata": [
             0
           ],
+          "relay_hop": 0,
           "result": [
             0
           ],
           "result_delta": "string",
           "result_reset": true,
+          "sender_chat_id": "c2b8af10-c18b-48ef-8870-2c71c888dab1",
+          "sender_chat_relation": "parent",
+          "sender_chat_title": "string",
           "skill_description": "string",
           "skill_dir": "string",
           "skill_name": "string",
@@ -5099,11 +5155,15 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "provider_metadata": [
       0
     ],
+    "relay_hop": 0,
     "result": [
       0
     ],
     "result_delta": "string",
     "result_reset": true,
+    "sender_chat_id": "c2b8af10-c18b-48ef-8870-2c71c888dab1",
+    "sender_chat_relation": "parent",
+    "sender_chat_title": "string",
     "skill_description": "string",
     "skill_dir": "string",
     "skill_name": "string",
@@ -5951,11 +6011,15 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         "provider_metadata": [
           0
         ],
+        "relay_hop": 0,
         "result": [
           0
         ],
         "result_delta": "string",
         "result_reset": true,
+        "sender_chat_id": "c2b8af10-c18b-48ef-8870-2c71c888dab1",
+        "sender_chat_relation": "parent",
+        "sender_chat_title": "string",
         "skill_description": "string",
         "skill_dir": "string",
         "skill_name": "string",
@@ -6024,11 +6088,15 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           "provider_metadata": [
             0
           ],
+          "relay_hop": 0,
           "result": [
             0
           ],
           "result_delta": "string",
           "result_reset": true,
+          "sender_chat_id": "c2b8af10-c18b-48ef-8870-2c71c888dab1",
+          "sender_chat_relation": "parent",
+          "sender_chat_title": "string",
           "skill_description": "string",
           "skill_dir": "string",
           "skill_name": "string",
@@ -6098,11 +6166,15 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         "provider_metadata": [
           0
         ],
+        "relay_hop": 0,
         "result": [
           0
         ],
         "result_delta": "string",
         "result_reset": true,
+        "sender_chat_id": "c2b8af10-c18b-48ef-8870-2c71c888dab1",
+        "sender_chat_relation": "parent",
+        "sender_chat_title": "string",
         "skill_description": "string",
         "skill_dir": "string",
         "skill_name": "string",
@@ -8890,11 +8962,15 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         "provider_metadata": [
           0
         ],
+        "relay_hop": 0,
         "result": [
           0
         ],
         "result_delta": "string",
         "result_reset": true,
+        "sender_chat_id": "c2b8af10-c18b-48ef-8870-2c71c888dab1",
+        "sender_chat_relation": "parent",
+        "sender_chat_title": "string",
         "skill_description": "string",
         "skill_dir": "string",
         "skill_name": "string",
@@ -8963,11 +9039,15 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
           "provider_metadata": [
             0
           ],
+          "relay_hop": 0,
           "result": [
             0
           ],
           "result_delta": "string",
           "result_reset": true,
+          "sender_chat_id": "c2b8af10-c18b-48ef-8870-2c71c888dab1",
+          "sender_chat_relation": "parent",
+          "sender_chat_title": "string",
           "skill_description": "string",
           "skill_dir": "string",
           "skill_name": "string",

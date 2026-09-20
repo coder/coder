@@ -1593,6 +1593,55 @@ func TestFileReferencePreservation(t *testing.T) {
 	assert.Contains(t, textPart.Text, "func main() {}")
 }
 
+// TestSenderChatPartPrompt verifies sender-chat parts survive the storage
+// round-trip and become a provenance header ahead of the relayed text.
+func TestSenderChatPartPrompt(t *testing.T) {
+	t.Parallel()
+
+	senderID := uuid.New()
+	raw, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+		codersdk.ChatMessageSenderChat(senderID, "Orchestrator", codersdk.ChatSenderChatRelationParent, 3),
+		codersdk.ChatMessageText("please report status"),
+	})
+	require.NoError(t, err)
+
+	parts, err := chatprompt.ParseContent(testMsg(codersdk.ChatMessageRoleUser, raw))
+	require.NoError(t, err)
+	require.Len(t, parts, 2)
+	assert.Equal(t, codersdk.ChatMessagePartTypeSenderChat, parts[0].Type)
+	require.NotNil(t, parts[0].SenderChatID)
+	assert.Equal(t, senderID, *parts[0].SenderChatID)
+	assert.Equal(t, "Orchestrator", parts[0].SenderChatTitle)
+	assert.Equal(t, codersdk.ChatSenderChatRelationParent, parts[0].SenderChatRelation)
+	assert.Equal(t, 3, parts[0].RelayHop)
+
+	prompt, err := chatprompt.ConvertMessagesWithFiles(
+		context.Background(),
+		[]database.ChatMessage{{
+			Role:       database.ChatMessageRoleUser,
+			Visibility: database.ChatMessageVisibilityBoth,
+			Content:    raw,
+		}},
+		nil,
+		slogtest.Make(t, nil),
+		nil,
+	)
+	require.NoError(t, err)
+	require.Len(t, prompt, 1)
+	require.Len(t, prompt[0].Content, 2)
+
+	header, ok := fantasy.AsMessagePart[fantasy.TextPart](prompt[0].Content[0])
+	require.True(t, ok, "sender-chat should become TextPart for LLM")
+	assert.Contains(t, header.Text, "your parent chat")
+	assert.Contains(t, header.Text, `"Orchestrator"`)
+	assert.Contains(t, header.Text, senderID.String())
+	assert.Contains(t, header.Text, "send_chat_message")
+
+	body, ok := fantasy.AsMessagePart[fantasy.TextPart](prompt[0].Content[1])
+	require.True(t, ok)
+	assert.Equal(t, "please report status", body.Text)
+}
+
 // TestAssistantWriteRoundTrip verifies the Stage 4 write path:
 // fantasy.Content (with ProviderMetadata) → PartFromContent →
 // MarshalParts → DB → ParseContent (SDK path) →

@@ -580,7 +580,9 @@ type sqlcQuerier interface {
 	// entry. The jsonb_typeof guard skips legacy V0 rows whose content is
 	// a scalar JSON string (predates migration 000434) so the lateral
 	// jsonb_array_elements never raises "cannot extract elements from a
-	// scalar". Backed by idx_chat_messages_user_prompts.
+	// scalar". Rows carrying a sender-chat part were written by another
+	// chat's agent rather than typed by the user and are excluded. Backed by
+	// idx_chat_messages_user_prompts.
 	GetChatUserPromptsByChatID(ctx context.Context, arg GetChatUserPromptsByChatIDParams) ([]GetChatUserPromptsByChatIDRow, error)
 	// Returns a bounded, pool-interleaved set of chats that workers may acquire.
 	// Interrupting chats finish active work first. Requires-action chats follow so

@@ -232,6 +232,7 @@ func chatMessagePartNULSafeType(typ reflect.Type) bool {
 		reflect.TypeFor[int](),
 		reflect.TypeFor[[]byte](),
 		reflect.TypeFor[uuid.NullUUID](),
+		reflect.TypeFor[*uuid.UUID](),
 		reflect.TypeFor[*time.Time]():
 		return true
 	default:
@@ -266,6 +267,8 @@ func chatMessagePartNULProbeValue(t *testing.T, typ reflect.Type) reflect.Value 
 		return reflect.ValueOf([]byte{0, 1, 2})
 	case reflect.TypeFor[uuid.NullUUID]():
 		return reflect.ValueOf(uuid.NullUUID{UUID: uuid.MustParse("00000000-0000-0000-0000-000000000001"), Valid: true})
+	case reflect.TypeFor[*uuid.UUID]():
+		return reflect.ValueOf(new(uuid.MustParse("00000000-0000-0000-0000-000000000002")))
 	case reflect.TypeFor[*time.Time]():
 		return reflect.ValueOf(new(time.Date(2026, time.August, 25, 1, 2, 3, 0, time.UTC)))
 	default:

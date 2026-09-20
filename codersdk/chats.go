@@ -344,6 +344,21 @@ const (
 	// either attached to a prompt or in its own row. It is excluded from model
 	// prompts and rejected in client-submitted content.
 	ChatMessagePartTypeHookNotice ChatMessagePartType = "hook-notice"
+	// ChatMessagePartTypeSenderChat marks a user prompt delivered by the
+	// agent of a neighboring chat in the chat tree. It carries the sending
+	// chat's identity and relay depth, is rendered as a provenance header
+	// in model prompts, is returned to clients, and is rejected in
+	// client-submitted content.
+	ChatMessagePartTypeSenderChat ChatMessagePartType = "sender-chat"
+)
+
+// ChatSenderChatRelation is the sending chat's position relative to the
+// receiving chat.
+type ChatSenderChatRelation string
+
+const (
+	ChatSenderChatRelationParent ChatSenderChatRelation = "parent"
+	ChatSenderChatRelationChild  ChatSenderChatRelation = "child"
 )
 
 // AllChatMessagePartTypes returns all known ChatMessagePartType values.
@@ -360,6 +375,7 @@ func AllChatMessagePartTypes() []ChatMessagePartType {
 		ChatMessagePartTypeSkill,
 		ChatMessagePartTypeHookContext,
 		ChatMessagePartTypeHookNotice,
+		ChatMessagePartTypeSenderChat,
 	}
 }
 
@@ -482,6 +498,19 @@ type ChatMessagePart struct {
 	// read_skill tool uses the correct filename even when the
 	// agent configured a non-default value.
 	ContextFileSkillMetaFile string `json:"context_file_skill_meta_file,omitempty" typescript:"-"`
+	// SenderChatID is the chat whose agent delivered this prompt. A pointer
+	// rather than uuid.NullUUID so the key is omitted from every other
+	// persisted part (NullUUID marshals as null and is never omitted).
+	SenderChatID *uuid.UUID `json:"sender_chat_id,omitempty" format:"uuid" variants:"sender-chat?"`
+	// SenderChatTitle is the sending chat's title at delivery time.
+	SenderChatTitle string `json:"sender_chat_title,omitempty" variants:"sender-chat?"`
+	// SenderChatRelation is the sending chat's position relative to the
+	// receiving chat.
+	SenderChatRelation ChatSenderChatRelation `json:"sender_chat_relation,omitempty" enums:"parent,child" variants:"sender-chat?"`
+	// RelayHop counts consecutive agent-to-agent deliveries since the last
+	// human-initiated turn. It is at least 1 when present; absent means the
+	// prompt was not relayed.
+	RelayHop int `json:"relay_hop,omitempty" variants:"sender-chat?"`
 }
 
 // StripInternal removes internal-only fields that must not be
@@ -512,6 +541,18 @@ func ChatMessageText(text string) ChatMessagePart {
 // ChatMessageReasoning builds a reasoning chat message part.
 func ChatMessageReasoning(text string) ChatMessagePart {
 	return ChatMessagePart{Type: ChatMessagePartTypeReasoning, Text: text}
+}
+
+// ChatMessageSenderChat builds a sender-chat provenance part.
+func ChatMessageSenderChat(senderChatID uuid.UUID, title string, relation ChatSenderChatRelation, relayHop int) ChatMessagePart {
+	id := senderChatID
+	return ChatMessagePart{
+		Type:               ChatMessagePartTypeSenderChat,
+		SenderChatID:       &id,
+		SenderChatTitle:    title,
+		SenderChatRelation: relation,
+		RelayHop:           relayHop,
+	}
 }
 
 // ChatMessageToolCall builds a tool-call chat message part.

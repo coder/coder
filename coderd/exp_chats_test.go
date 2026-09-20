@@ -5723,6 +5723,16 @@ func TestGetChatUserPrompts(t *testing.T) {
 			database.ChatMessageVisibilityBoth, true,
 		)
 
+		// Prompt delivered by another chat's agent (sender-chat part);
+		// must not appear since the user did not type it.
+		insertUserMessage(t, ctx, db, chat.ID, modelConfig.ID, user.UserID,
+			[]codersdk.ChatMessagePart{
+				codersdk.ChatMessageSenderChat(uuid.New(), "Parent", codersdk.ChatSenderChatRelationParent, 1),
+				{Type: codersdk.ChatMessagePartTypeText, Text: "relayed by agent"},
+			},
+			database.ChatMessageVisibilityBoth, false,
+		)
+
 		// Model-only visibility prompt; must not appear (composer
 		// only shows what the user actually typed).
 		insertUserMessage(t, ctx, db, chat.ID, modelConfig.ID, user.UserID,

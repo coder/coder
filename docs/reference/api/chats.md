@@ -2356,11 +2356,15 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/messages \
           "provider_metadata": [
             0
           ],
+          "relay_hop": 0,
           "result": [
             0
           ],
           "result_delta": "string",
           "result_reset": true,
+          "sender_chat_id": "c2b8af10-c18b-48ef-8870-2c71c888dab1",
+          "sender_chat_relation": "parent",
+          "sender_chat_title": "string",
           "skill_description": "string",
           "skill_dir": "string",
           "skill_name": "string",
@@ -2430,11 +2434,15 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/messages \
           "provider_metadata": [
             0
           ],
+          "relay_hop": 0,
           "result": [
             0
           ],
           "result_delta": "string",
           "result_reset": true,
+          "sender_chat_id": "c2b8af10-c18b-48ef-8870-2c71c888dab1",
+          "sender_chat_relation": "parent",
+          "sender_chat_title": "string",
           "skill_description": "string",
           "skill_dir": "string",
           "skill_name": "string",
@@ -2555,11 +2563,15 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/messages \
         "provider_metadata": [
           0
         ],
+        "relay_hop": 0,
         "result": [
           0
         ],
         "result_delta": "string",
         "result_reset": true,
+        "sender_chat_id": "c2b8af10-c18b-48ef-8870-2c71c888dab1",
+        "sender_chat_relation": "parent",
+        "sender_chat_title": "string",
         "skill_description": "string",
         "skill_dir": "string",
         "skill_name": "string",
@@ -2628,11 +2640,15 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/messages \
           "provider_metadata": [
             0
           ],
+          "relay_hop": 0,
           "result": [
             0
           ],
           "result_delta": "string",
           "result_reset": true,
+          "sender_chat_id": "c2b8af10-c18b-48ef-8870-2c71c888dab1",
+          "sender_chat_relation": "parent",
+          "sender_chat_title": "string",
           "skill_description": "string",
           "skill_dir": "string",
           "skill_name": "string",
@@ -2702,11 +2718,15 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/messages \
         "provider_metadata": [
           0
         ],
+        "relay_hop": 0,
         "result": [
           0
         ],
         "result_delta": "string",
         "result_reset": true,
+        "sender_chat_id": "c2b8af10-c18b-48ef-8870-2c71c888dab1",
+        "sender_chat_relation": "parent",
+        "sender_chat_title": "string",
         "skill_description": "string",
         "skill_dir": "string",
         "skill_name": "string",
@@ -2831,11 +2851,15 @@ curl -X PATCH http://coder-server:8080/api/v2/chats/{chat}/messages/{message} \
         "provider_metadata": [
           0
         ],
+        "relay_hop": 0,
         "result": [
           0
         ],
         "result_delta": "string",
         "result_reset": true,
+        "sender_chat_id": "c2b8af10-c18b-48ef-8870-2c71c888dab1",
+        "sender_chat_relation": "parent",
+        "sender_chat_title": "string",
         "skill_description": "string",
         "skill_dir": "string",
         "skill_name": "string",
@@ -2904,11 +2928,15 @@ curl -X PATCH http://coder-server:8080/api/v2/chats/{chat}/messages/{message} \
           "provider_metadata": [
             0
           ],
+          "relay_hop": 0,
           "result": [
             0
           ],
           "result_delta": "string",
           "result_reset": true,
+          "sender_chat_id": "c2b8af10-c18b-48ef-8870-2c71c888dab1",
+          "sender_chat_relation": "parent",
+          "sender_chat_title": "string",
           "skill_description": "string",
           "skill_dir": "string",
           "skill_name": "string",
@@ -3398,11 +3426,15 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/stream \
           "provider_metadata": [
             0
           ],
+          "relay_hop": 0,
           "result": [
             0
           ],
           "result_delta": "string",
           "result_reset": true,
+          "sender_chat_id": "c2b8af10-c18b-48ef-8870-2c71c888dab1",
+          "sender_chat_relation": "parent",
+          "sender_chat_title": "string",
           "skill_description": "string",
           "skill_dir": "string",
           "skill_name": "string",
@@ -3470,11 +3502,15 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/stream \
         "provider_metadata": [
           0
         ],
+        "relay_hop": 0,
         "result": [
           0
         ],
         "result_delta": "string",
         "result_reset": true,
+        "sender_chat_id": "c2b8af10-c18b-48ef-8870-2c71c888dab1",
+        "sender_chat_relation": "parent",
+        "sender_chat_title": "string",
         "skill_description": "string",
         "skill_dir": "string",
         "skill_name": "string",
@@ -3530,11 +3566,15 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/stream \
             "provider_metadata": [
               0
             ],
+            "relay_hop": 0,
             "result": [
               0
             ],
             "result_delta": "string",
             "result_reset": true,
+            "sender_chat_id": "c2b8af10-c18b-48ef-8870-2c71c888dab1",
+            "sender_chat_relation": "parent",
+            "sender_chat_title": "string",
             "skill_description": "string",
             "skill_dir": "string",
             "skill_name": "string",
@@ -3624,9 +3664,13 @@ Status Code **200**
 | `»»» parsed_commands`              | array                                                                            | false    |              | Parsed commands holds parsed programs from an execute tool call's shell command, one entry per simple command in source order. Each entry is [program] or [program, arg] where arg is the first non-flag positional argument. Program names are normalized to their base name (e.g. /usr/bin/go becomes go). Only populated when ToolName is "execute" and the command parses successfully; nil otherwise. |
 | `»»» provider_executed`            | boolean                                                                          | false    |              | Provider executed indicates the tool call was executed by the provider (e.g. Anthropic computer use).                                                                                                                                                                                                                                                                                                      |
 | `»»» provider_metadata`            | array                                                                            | false    |              | Provider metadata holds provider-specific response metadata (e.g. Anthropic cache control hints) as raw JSON. Internal only: stripped by db2sdk before API responses.                                                                                                                                                                                                                                      |
+| `»»» relay_hop`                    | integer                                                                          | false    |              | Relay hop counts consecutive agent-to-agent deliveries since the last human-initiated turn. It is at least 1 when present; absent means the prompt was not relayed.                                                                                                                                                                                                                                        |
 | `»»» result`                       | array                                                                            | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»»» result_delta`                 | string                                                                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»»» result_reset`                 | boolean                                                                          | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `»»» sender_chat_id`               | string(uuid)                                                                     | false    |              | Sender chat ID is the chat whose agent delivered this prompt. A pointer rather than uuid.NullUUID so the key is omitted from every other persisted part (NullUUID marshals as null and is never omitted).                                                                                                                                                                                                  |
+| `»»» sender_chat_relation`         | [codersdk.ChatSenderChatRelation](schemas.md#codersdkchatsenderchatrelation)     | false    |              | Sender chat relation is the sending chat's position relative to the receiving chat.                                                                                                                                                                                                                                                                                                                        |
+| `»»» sender_chat_title`            | string                                                                           | false    |              | Sender chat title is the sending chat's title at delivery time.                                                                                                                                                                                                                                                                                                                                            |
 | `»»» skill_description`            | string                                                                           | false    |              | Skill description is the short description from the skill's SKILL.md frontmatter.                                                                                                                                                                                                                                                                                                                          |
 | `»»» skill_dir`                    | string                                                                           | false    |              | Skill dir is the absolute path to the skill directory inside the workspace filesystem. Internal only: used by read_skill/read_skill_file tools to locate skill files.                                                                                                                                                                                                                                      |
 | `»»» skill_name`                   | string                                                                           | false    |              | Skill name is the kebab-case name of a discovered skill from the workspace's .agents/skills/ directory.                                                                                                                                                                                                                                                                                                    |
@@ -3677,12 +3721,13 @@ Status Code **200**
 
 #### Enumerated Values
 
-| Property | Value(s)                                                                                                                                                                                                                                                                |
-|----------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `kind`   | `auth`, `config`, `content_filter`, `generic`, `hook_denied`, `hook_dispatch_failed`, `missing_key`, `overloaded`, `provider_disabled`, `rate_limit`, `stream_silence_timeout`, `timeout`, `usage_limit`                                                                |
-| `type`   | `action_required`, `context-file`, `error`, `file`, `file-reference`, `history_reset`, `hook-context`, `hook-notice`, `message`, `message_part`, `preview_reset`, `queue_update`, `reasoning`, `retry`, `skill`, `source`, `status`, `text`, `tool-call`, `tool-result` |
-| `role`   | `assistant`, `system`, `tool`, `user`                                                                                                                                                                                                                                   |
-| `status` | `error`, `interrupting`, `requires_action`, `running`, `waiting`                                                                                                                                                                                                        |
+| Property               | Value(s)                                                                                                                                                                                                                                                                               |
+|------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `kind`                 | `auth`, `config`, `content_filter`, `generic`, `hook_denied`, `hook_dispatch_failed`, `missing_key`, `overloaded`, `provider_disabled`, `rate_limit`, `stream_silence_timeout`, `timeout`, `usage_limit`                                                                               |
+| `sender_chat_relation` | `child`, `parent`                                                                                                                                                                                                                                                                      |
+| `type`                 | `action_required`, `context-file`, `error`, `file`, `file-reference`, `history_reset`, `hook-context`, `hook-notice`, `message`, `message_part`, `preview_reset`, `queue_update`, `reasoning`, `retry`, `sender-chat`, `skill`, `source`, `status`, `text`, `tool-call`, `tool-result` |
+| `role`                 | `assistant`, `system`, `tool`, `user`                                                                                                                                                                                                                                                  |
+| `status`               | `error`, `interrupting`, `requires_action`, `running`, `waiting`                                                                                                                                                                                                                       |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 

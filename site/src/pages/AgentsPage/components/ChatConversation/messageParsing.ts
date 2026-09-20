@@ -304,6 +304,10 @@ export const parseMessageContent = (
 				}
 				break;
 			}
+			case "sender-chat": {
+				parsed.senderChat = part;
+				break;
+			}
 			default: {
 				const _exhaustive: never = part;
 				break;

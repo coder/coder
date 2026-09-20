@@ -1292,6 +1292,28 @@ func fileReferencePartToText(part codersdk.ChatMessagePart) string {
 	return sb.String()
 }
 
+// senderChatPartToText renders a sender-chat provenance part as the header
+// the model reads ahead of a relayed prompt.
+func senderChatPartToText(part codersdk.ChatMessagePart) string {
+	relation := "a neighboring"
+	switch part.SenderChatRelation {
+	case codersdk.ChatSenderChatRelationParent:
+		relation = "your parent"
+	case codersdk.ChatSenderChatRelationChild:
+		relation = "your child"
+	}
+	var sb strings.Builder
+	_, _ = fmt.Fprintf(&sb, "[Message from %s chat", relation)
+	if title := strings.TrimSpace(part.SenderChatTitle); title != "" {
+		_, _ = fmt.Fprintf(&sb, " %q", title)
+	}
+	if part.SenderChatID != nil {
+		_, _ = fmt.Fprintf(&sb, " (chat_id %s)", part.SenderChatID)
+	}
+	_, _ = sb.WriteString(". It was sent by that chat's agent, not by the user. Reply with send_chat_message only if a reply is needed.]")
+	return sb.String()
+}
+
 // toolResultPartToMessagePart converts an SDK tool-result part
 // into a fantasy ToolResultPart for LLM dispatch.
 func toolResultPartToMessagePart(logger slog.Logger, part codersdk.ChatMessagePart) fantasy.ToolResultPart {
@@ -1584,6 +1606,10 @@ func partsToMessageParts(
 		case codersdk.ChatMessagePartTypeHookNotice:
 			// Client-only hook notice, never sent to the model.
 			continue
+		case codersdk.ChatMessagePartTypeSenderChat:
+			result = append(result, fantasy.TextPart{
+				Text: senderChatPartToText(part),
+			})
 		case codersdk.ChatMessagePartTypeSource:
 			// Source parts are metadata-only, not sent to LLM.
 			continue
@@ -1860,6 +1886,7 @@ var partNulFields = []partNulField{
 	{name: "ProviderMetadata", policy: nulEncode, raw: func(p *codersdk.ChatMessagePart) *json.RawMessage { return &p.ProviderMetadata }},
 	{name: "ContextFileContent", policy: nulEncode, str: func(p *codersdk.ChatMessagePart) *string { return &p.ContextFileContent }},
 	{name: "SkillDescription", policy: nulEncode, str: func(p *codersdk.ChatMessagePart) *string { return &p.SkillDescription }},
+	{name: "SenderChatTitle", policy: nulEncode, str: func(p *codersdk.ChatMessagePart) *string { return &p.SenderChatTitle }},
 	{name: "Type", policy: nulReject, str: func(p *codersdk.ChatMessagePart) *string { return (*string)(&p.Type) }},
 	{name: "ToolCallID", policy: nulReject, str: func(p *codersdk.ChatMessagePart) *string { return &p.ToolCallID }},
 	{name: "ToolName", policy: nulReject, str: func(p *codersdk.ChatMessagePart) *string { return &p.ToolName }},
@@ -1875,6 +1902,7 @@ var partNulFields = []partNulField{
 	{name: "ContextFileSkillMetaFile", policy: nulReject, str: func(p *codersdk.ChatMessagePart) *string { return &p.ContextFileSkillMetaFile }},
 	{name: "SkillName", policy: nulReject, str: func(p *codersdk.ChatMessagePart) *string { return &p.SkillName }},
 	{name: "SkillDir", policy: nulReject, str: func(p *codersdk.ChatMessagePart) *string { return &p.SkillDir }},
+	{name: "SenderChatRelation", policy: nulReject, str: func(p *codersdk.ChatMessagePart) *string { return (*string)(&p.SenderChatRelation) }},
 }
 
 // encode applies the reversible NUL encoding to a nulEncode field.
