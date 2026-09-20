@@ -1,4 +1,3 @@
-import { cn } from "cn";
 import type { FC } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
 import { MCPServerIcon } from "#/modules/mcpServers/MCPServerIcon";
@@ -11,16 +10,13 @@ export const MCPServerIconStack: FC<{
 	const visible = servers.slice(0, ICON_STACK_MAX);
 	return (
 		<span className="inline-flex items-center">
-			{visible.map((s, i) => (
+			{visible.map((server) => (
 				<span
-					key={s.id}
-					className={cn(
-						"inline-flex rounded-full ring-1 ring-surface-primary",
-						i > 0 && "-ml-1.5",
-					)}
+					key={server.id}
+					className="inline-flex rounded-full ring-1 ring-surface-primary not-first:-ml-1.5"
 				>
 					<MCPServerIcon
-						iconUrl={s.icon_url}
+						iconUrl={server.icon_url}
 						variant="circle"
 						className="size-4"
 					/>

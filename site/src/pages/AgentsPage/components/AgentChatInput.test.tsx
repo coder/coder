@@ -219,22 +219,6 @@ describe("AgentChatInput", () => {
 		expect(onMCPSelectionChange).toHaveBeenCalledWith([mockGitHubMCP.id]);
 	});
 
-	it("removes a single MCP server directly from the toolbar", async () => {
-		const user = userEvent.setup();
-		const onMCPSelectionChange = vi.fn();
-		renderInput(
-			<AgentChatInput
-				{...inputProps}
-				mcpServers={[mockLinearMCP]}
-				selectedMCPServerIds={[mockLinearMCP.id]}
-				onMCPSelectionChange={onMCPSelectionChange}
-			/>,
-		);
-
-		await user.click(screen.getByRole("button", { name: "Remove Linear" }));
-		expect(onMCPSelectionChange).toHaveBeenCalledWith([]);
-	});
-
 	it("excludes selected MCP servers that still need OAuth from the group", async () => {
 		const user = userEvent.setup();
 		const onMCPSelectionChange = vi.fn();

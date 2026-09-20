@@ -1,7 +1,15 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { MonitorDotIcon } from "lucide-react";
-import { type ComponentProps, useEffect, useRef } from "react";
-import { expect, fn, spyOn, userEvent, waitFor, within } from "storybook/test";
+import { useEffect, useRef } from "react";
+import {
+	expect,
+	fn,
+	screen,
+	spyOn,
+	userEvent,
+	waitFor,
+	within,
+} from "storybook/test";
 import { API } from "#/api/api";
 import { preferenceSettingsKey } from "#/api/queries/users";
 import type * as TypesGen from "#/api/typesGenerated";
@@ -23,6 +31,7 @@ import {
 import {
 	AgentChatInput,
 	type AgentContextUsage,
+	type AttachedWorkspaceInfo,
 	type UploadState,
 } from "./AgentChatInput";
 import type { ChatMessageInputRef } from "./ChatMessageInput/ChatMessageInput";
@@ -724,7 +733,7 @@ export const MCPGroupPopoverOpen: Story = {
 		await userEvent.click(
 			within(canvasElement).getByRole("button", { name: "3 MCPs" }),
 		);
-		await within(document.body).findByRole("dialog");
+		await screen.findByRole("dialog");
 	},
 };
 
@@ -1359,7 +1368,7 @@ const mockOverflowAttachedWorkspace = {
 	route: "/@admin/attached",
 	statusIcon: <MonitorDotIcon className="size-3" />,
 	statusLabel: "Workspace running",
-} satisfies ComponentProps<typeof AgentChatInput>["attachedWorkspace"];
+} satisfies AttachedWorkspaceInfo;
 
 export const MCPGroupMoreThanThree: Story = {
 	args: {
@@ -1395,13 +1404,12 @@ export const MCPGroupInOverflow: Story = {
 		await userEvent.click(
 			await within(canvasElement).findByRole("button", { name: /more item/ }),
 		);
-		const overflow = await within(document.body).findByRole("dialog");
+		const overflow = await screen.findByRole("dialog");
 		await userEvent.click(
 			within(overflow).getByRole("button", { name: "3 MCPs" }),
 		);
-		await within(document.body).findByRole("button", {
-			name: "Remove Linear",
-		});
+		// The group popover is a second dialog, so wait for one of its pills.
+		await screen.findByRole("button", { name: "Remove Linear" });
 	},
 };
 

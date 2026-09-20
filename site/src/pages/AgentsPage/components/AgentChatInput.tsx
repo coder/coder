@@ -222,9 +222,8 @@ export interface AttachedWorkspaceInfo {
 const pillSizingClasses =
 	"grow shrink-0 basis-[calc(8ch_+_3.125rem)] max-w-max";
 
-// Lists the same tool pills the toolbar shows inline (the +N overflow
-// and the MCP group). Pills clamp to the popover width so a long name
-// truncates instead of pushing its X out of view.
+// Pills clamp to the popover width so a long name truncates instead
+// of pushing its X out of view.
 const BadgePopoverContent: FC<PopoverContentProps> = ({
 	className,
 	...props
@@ -246,6 +245,18 @@ type ToolBadgeData =
 	| { kind: "mcp"; server: TypesGen.MCPServerConfig }
 	| { kind: "mcp-group"; servers: readonly TypesGen.MCPServerConfig[] }
 	| { kind: "planning" };
+
+// Non-MCP badges can share a kind, so their keys are position-qualified.
+const badgeKey = (badge: ToolBadgeData, index: number) => {
+	switch (badge.kind) {
+		case "mcp":
+			return badge.server.id;
+		case "mcp-group":
+			return badge.kind;
+		default:
+			return `${badge.kind}-${index}`;
+	}
+};
 
 // Small `X` button rendered inside pill-style badges (attached
 // workspace, MCP server, planning indicator) to dismiss or disable
@@ -273,7 +284,7 @@ const MCPGroupBadge: FC<{
 	servers: readonly TypesGen.MCPServerConfig[];
 	onRemoveMcp?: (serverId: string) => void;
 	isDisabled?: boolean;
-	className?: string;
+	className: string;
 }> = ({ servers, onRemoveMcp, isDisabled, className }) => {
 	const [open, setOpen] = useState(false);
 	const label = `${servers.length} MCPs`;
@@ -372,6 +383,7 @@ const ToolBadge: FC<{
 							<BadgeDismissButton
 								onClick={onRemoveWorkspace}
 								ariaLabel={`Remove workspace ${badge.name}`}
+								isDisabled={isDisabled}
 							/>
 						)}
 					</span>
@@ -395,6 +407,7 @@ const ToolBadge: FC<{
 					<BadgeDismissButton
 						onClick={onRemoveWorkspace}
 						ariaLabel={`Remove workspace ${badge.name}`}
+						isDisabled={isDisabled}
 					/>
 				)}
 			</span>
@@ -714,7 +727,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	if (shouldShowSelectedWorkspaceBadge && selectedWorkspace) {
 		allBadges.push({ kind: "workspace", name: selectedWorkspace.name });
 	}
-	if (activeMcpServers.length > 2) {
+	if (activeMcpServers.length >= 3) {
 		allBadges.push({ kind: "mcp-group", servers: activeMcpServers });
 	} else {
 		for (const server of activeMcpServers) {
@@ -1622,7 +1635,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 								}
 								return (
 									<ToolBadge
-										key={badge.kind === "mcp" ? badge.server.id : badge.kind}
+										key={badgeKey(badge, i)}
 										badge={badge}
 										onRemoveWorkspace={removeWorkspaceHandler}
 										onRemoveMcp={handleRemoveMcp}
@@ -1651,7 +1664,6 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 										+{overflowCount}
 									</button>
 								</PopoverTrigger>
-								{/* Anchored above the +N pill; hugs the toolbar row. */}
 								<BadgePopoverContent
 									onInteractOutside={(event) => {
 										// The workspace pill portals its menu outside
@@ -1696,15 +1708,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 										}
 										return (
 											<ToolBadge
-												// Non-MCP badges can share a kind, so keys
-												// are position-qualified.
-												key={
-													badge.kind === "mcp"
-														? badge.server.id
-														: badge.kind === "mcp-group"
-															? badge.kind
-															: `${badge.kind}-overflow-${visibleCount + i}`
-												}
+												key={badgeKey(badge, visibleCount + i)}
 												badge={badge}
 												onRemoveWorkspace={removeWorkspaceHandler}
 												onRemoveMcp={handleRemoveMcp}

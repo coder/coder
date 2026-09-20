@@ -19,12 +19,16 @@ const iconVariants = cva(
 	},
 );
 
-export const MCPServerIcon: FC<
-	VariantProps<typeof iconVariants> & {
-		iconUrl: string;
-		className?: string;
-	}
-> = ({ iconUrl, className, variant }) => {
+type MCPServerIconProps = VariantProps<typeof iconVariants> & {
+	iconUrl: string;
+	className?: string;
+};
+
+export const MCPServerIcon: FC<MCPServerIconProps> = ({
+	iconUrl,
+	className,
+	variant,
+}) => {
 	return (
 		<div className={cn(iconVariants({ variant }), className)}>
 			{iconUrl ? (
