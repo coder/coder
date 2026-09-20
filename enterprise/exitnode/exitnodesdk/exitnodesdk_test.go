@@ -127,6 +127,7 @@ func TestRegisterLoopFailuresDeregister(t *testing.T) {
 		status, max, ticks int
 	}{
 		{"permanent", "permanent registration failure", http.StatusBadRequest, 10, 1},
+		{"deleted", "permanent registration failure", http.StatusUnauthorized, 10, 1},
 		{"max failures", "exceeded re-registration failure count of 2", http.StatusServiceUnavailable, 2, 3},
 	} {
 		t.Run(tt.name, func(t *testing.T) {

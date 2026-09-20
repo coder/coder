@@ -229,9 +229,20 @@ func (c *Client) RegisterLoop(ctx context.Context, opts RegisterLoopOpts) (*Regi
 	return loop, first, nil
 }
 
+// isPermanentRegistrationError reports whether coderd rejected the replica
+// in a way that retrying cannot fix: a malformed or stopped replica, an
+// invalid or deleted exit node token, a missing entitlement, or an unknown
+// node.
 func isPermanentRegistrationError(err error) bool {
 	var sdkErr *codersdk.Error
-	return errors.As(err, &sdkErr) && sdkErr.StatusCode() == http.StatusBadRequest
+	if !errors.As(err, &sdkErr) {
+		return false
+	}
+	switch sdkErr.StatusCode() {
+	case http.StatusBadRequest, http.StatusUnauthorized, http.StatusForbidden, http.StatusNotFound:
+		return true
+	}
+	return false
 }
 
 func (l *RegisterLoop) deregister(rootErr error) {
