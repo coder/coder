@@ -569,11 +569,10 @@ export const buildModelConfigFromForm = (
 			deepGet(providerFormState, jsonName.split(".").map(snakeToCamel));
 
 		for (const field of getProviderFields(resolved)) {
-			// Skip fields scoped to other providers or hidden by an unsatisfied
-			// `visible_when` gate so stale values left in form state are not
-			// serialized.
-			if (!isFieldVisibleForProvider(field, rawProvider)) continue;
+			// Skip fields hidden by an unsatisfied `visible_when` gate so
+			// stale values left in form state are not serialized.
 			if (!isVisibleWhenSatisfied(field, readProviderValue)) continue;
+			if (!isFieldVisibleForProvider(field, rawProvider)) continue;
 
 			// Read the form value from the nested camelCase structure.
 			const camelSegments = field.json_name.split(".").map(snakeToCamel);

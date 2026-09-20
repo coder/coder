@@ -125,7 +125,7 @@ export function toFormFieldKey(provider: string, jsonName: string): string {
 	return `${provider}.${camelSegments.join(".")}`;
 }
 
-/** Get only the visible (non-hidden) fields for a provider. */
+/** Get only the visible fields for a raw provider type. */
 export function getVisibleProviderFields(provider: string): FieldSchema[] {
 	return getProviderFields(provider).filter(
 		(f) => !f.hidden && isFieldVisibleForProvider(f, provider),

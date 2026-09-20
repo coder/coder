@@ -20,19 +20,6 @@ export const MockChatModel: ChatModel = {
 	updated_at: MOCK_TIMESTAMP,
 };
 
-export const MockGPT56Pro: ChatModel = {
-	...MockChatModel,
-	id: "model-gpt56-pro",
-	model: "gpt-5.6-sol-2026-08-01",
-	display_name: "GPT-5.6 Sol (Pro)",
-	model_config: {
-		reasoning_effort: { default: "medium", max: "high" },
-		provider_options: {
-			openai: { reasoning_mode: "pro", service_tier: "priority" },
-		},
-	},
-};
-
 export const MockChatProviderConfig: ChatProviderConfig = {
 	id: "provider-1",
 	provider: "openai",

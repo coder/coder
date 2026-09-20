@@ -2,7 +2,7 @@ import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { createMemoryRouter } from "react-router";
 import { describe, expect, it, vi } from "vitest";
-import { MockChatModel } from "#/testHelpers/chatModels";
+import type * as TypesGen from "#/api/typesGenerated";
 import {
 	MockDefaultOrganization,
 	MockOrganizationPermissions,
@@ -12,13 +12,19 @@ import { OrganizationModelsContext } from "../organizationModels";
 import {
 	MockAnthropicProviderState,
 	MockOpenAIProviderState,
+	mockGPT5,
 } from "../testFixtures";
 import { ModelForm } from "./ModelForm";
 
 describe("ModelForm", () => {
 	it("submits a selected OpenAI reasoning mode", async () => {
-		const onUpdateModel = vi.fn(async () => undefined);
-		const path = `/ai/settings/models/${MockChatModel.id}`;
+		const onUpdateModel = vi.fn(
+			async (
+				_modelId: string,
+				_req: TypesGen.UpdateChatModelRequest,
+			): Promise<unknown> => undefined,
+		);
+		const path = `/ai/settings/models/${mockGPT5.id}`;
 		renderWithRouter(
 			createMemoryRouter(
 				[
@@ -34,7 +40,7 @@ describe("ModelForm", () => {
 								}}
 							>
 								<ModelForm
-									editingModel={MockChatModel}
+									editingModel={mockGPT5}
 									providerStates={[
 										MockOpenAIProviderState,
 										MockAnthropicProviderState,
@@ -49,7 +55,6 @@ describe("ModelForm", () => {
 							</OrganizationModelsContext.Provider>
 						),
 					},
-					{ path: "/ai/settings/models", element: <div>Models</div> },
 				],
 				{ initialEntries: [path] },
 			),
@@ -65,7 +70,7 @@ describe("ModelForm", () => {
 
 		await waitFor(() =>
 			expect(onUpdateModel).toHaveBeenCalledWith(
-				MockChatModel.id,
+				mockGPT5.id,
 				expect.objectContaining({
 					model_config: {
 						provider_options: { openai: { reasoning_mode: "pro" } },
