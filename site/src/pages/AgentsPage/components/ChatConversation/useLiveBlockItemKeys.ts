@@ -7,6 +7,18 @@ type LiveBlockIdentity = {
 	streamStartedAt: string | undefined;
 };
 
+const continuesLiveBlock = (
+	block: WorkingBlock,
+	identity: LiveBlockIdentity | null,
+	streamStartedAt: string | undefined,
+): identity is LiveBlockIdentity =>
+	identity !== null &&
+	((identity.firstMemberId !== undefined &&
+		block.memberIds.includes(identity.firstMemberId)) ||
+		(block.isLive &&
+			identity.streamStartedAt !== undefined &&
+			identity.streamStartedAt === streamStartedAt));
+
 // Returns the inputs when nothing changed so the caller can skip setState.
 const reconcile = (
 	blocks: readonly WorkingBlock[],
@@ -19,22 +31,21 @@ const reconcile = (
 } => {
 	let nextItemKeys = itemKeys;
 	let nextIdentity = identity;
+	// A completed block may take over a live key by name only while nothing
+	// continues the live block itself. Head ordinals shift when an older page
+	// reveals an earlier block of the same turn, so the revealed block would
+	// otherwise alias the still-live one.
+	const liveBlockContinues = blocks.some((block) =>
+		continuesLiveBlock(block, identity, streamStartedAt),
+	);
 	for (const block of blocks) {
 		let itemKey = nextItemKeys.get(block.key);
 		if (itemKey === undefined) {
-			const current = nextIdentity;
-			const continuesLiveBlock =
-				current !== null &&
-				((current.firstMemberId !== undefined &&
-					block.memberIds.includes(current.firstMemberId)) ||
-					(block.isLive &&
-						current.streamStartedAt !== undefined &&
-						current.streamStartedAt === streamStartedAt));
-			if (continuesLiveBlock) {
-				itemKey = current.itemKey;
+			if (continuesLiveBlock(block, nextIdentity, streamStartedAt)) {
+				itemKey = nextIdentity.itemKey;
 			} else if (block.isLive) {
 				itemKey = block.liveKey;
-			} else {
+			} else if (!liveBlockContinues) {
 				itemKey = nextItemKeys.get(block.liveKey);
 			}
 			if (itemKey === undefined) {
