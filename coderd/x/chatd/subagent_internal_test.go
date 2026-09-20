@@ -36,6 +36,7 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chathooks"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
@@ -3439,38 +3440,10 @@ func TestIsSubagentDescendant(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	child, err := server.CreateChat(ctx, CreateOptions{
-		OrganizationID: org.ID,
-		OwnerID:        user.ID,
-		ParentChatID: uuid.NullUUID{
-			UUID:  root.ID,
-			Valid: true,
-		},
-		RootChatID: uuid.NullUUID{
-			UUID:  root.ID,
-			Valid: true,
-		},
-		Title:              "child",
-		ModelConfigID:      model.ID,
-		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("child")},
-	})
+	child, err := newTestSubagentChat(ctx, t, db, root, root, "child", database.NullChatMode{})
 	require.NoError(t, err)
 
-	grandchild, err := server.CreateChat(ctx, CreateOptions{
-		OrganizationID: org.ID,
-		OwnerID:        user.ID,
-		ParentChatID: uuid.NullUUID{
-			UUID:  child.ID,
-			Valid: true,
-		},
-		RootChatID: uuid.NullUUID{
-			UUID:  root.ID,
-			Valid: true,
-		},
-		Title:              "grandchild",
-		ModelConfigID:      model.ID,
-		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("grandchild")},
-	})
+	grandchild, err := newTestSubagentChat(ctx, t, db, child, root, "grandchild", database.NullChatMode{})
 	require.NoError(t, err)
 
 	// Build a separate, unrelated chain.
@@ -3483,21 +3456,7 @@ func TestIsSubagentDescendant(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	unrelatedChild, err := server.CreateChat(ctx, CreateOptions{
-		OrganizationID: org.ID,
-		OwnerID:        user.ID,
-		ParentChatID: uuid.NullUUID{
-			UUID:  unrelated.ID,
-			Valid: true,
-		},
-		RootChatID: uuid.NullUUID{
-			UUID:  unrelated.ID,
-			Valid: true,
-		},
-		Title:              "unrelated-child",
-		ModelConfigID:      model.ID,
-		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("unrelated-child")},
-	})
+	unrelatedChild, err := newTestSubagentChat(ctx, t, db, unrelated, unrelated, "unrelated-child", database.NullChatMode{})
 	require.NoError(t, err)
 
 	tests := []struct {
@@ -3582,21 +3541,7 @@ func createParentChildChats(
 	})
 	require.NoError(t, err)
 
-	child, err = server.CreateChat(ctx, CreateOptions{
-		OrganizationID: org.ID,
-		OwnerID:        user.ID,
-		ParentChatID: uuid.NullUUID{
-			UUID:  parent.ID,
-			Valid: true,
-		},
-		RootChatID: uuid.NullUUID{
-			UUID:  parent.ID,
-			Valid: true,
-		},
-		Title:              "child-" + t.Name(),
-		ModelConfigID:      model.ID,
-		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("do work")},
-	})
+	child, err = newTestSubagentChat(ctx, t, server.db, parent, parent, "child-"+t.Name(), database.NullChatMode{})
 	require.NoError(t, err)
 
 	return parent, child
@@ -4606,18 +4551,7 @@ func TestListAgents(t *testing.T) {
 	}
 	newChild := func(t *testing.T, ctx context.Context, parent database.Chat, title string, mode database.NullChatMode) database.Chat {
 		t.Helper()
-		child, err := server.CreateChat(ctx, CreateOptions{
-			OrganizationID: org.ID,
-			OwnerID:        user.ID,
-			ParentChatID:   uuid.NullUUID{UUID: parent.ID, Valid: true},
-			RootChatID:     uuid.NullUUID{UUID: parent.ID, Valid: true},
-			Title:          title,
-			ModelConfigID:  model.ID,
-			ChatMode:       mode,
-			InitialUserContent: []codersdk.ChatMessagePart{
-				codersdk.ChatMessageText("do work"),
-			},
-		})
+		child, err := newTestSubagentChat(ctx, t, db, parent, parent, title, mode)
 		require.NoError(t, err)
 		return child
 	}
@@ -4860,4 +4794,42 @@ func TestListSubagentModels_NonDefaultOrgExcludesDefaultOrgConfigs(t *testing.T)
 	}
 	require.Contains(t, ids, localModel.ID.String())
 	require.NotContains(t, ids, defaultOrgModel.ID.String())
+}
+
+// newTestSubagentChat inserts a subagent chat under parent with root as its
+// root_chat_id through chatstate, bypassing the spawn tool.
+func newTestSubagentChat(
+	ctx context.Context,
+	t *testing.T,
+	db database.Store,
+	parent database.Chat,
+	root database.Chat,
+	title string,
+	mode database.NullChatMode,
+) (database.Chat, error) {
+	t.Helper()
+	content, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{codersdk.ChatMessageText("do work")})
+	if err != nil {
+		return database.Chat{}, err
+	}
+	result, err := chatstate.CreateChat(ctx, db, pubsub.NewInMemory(), chatstate.CreateChatInput{
+		OrganizationID:    parent.OrganizationID,
+		OwnerID:           parent.OwnerID,
+		WorkspaceID:       parent.WorkspaceID,
+		ParentChatID:      uuid.NullUUID{UUID: parent.ID, Valid: true},
+		RootChatID:        uuid.NullUUID{UUID: root.ID, Valid: true},
+		Kind:              database.ChatKindSubagent,
+		LastModelConfigID: parent.LastModelConfigID,
+		Title:             title,
+		Mode:              mode,
+		MCPServerIDs:      []uuid.UUID{},
+		ClientType:        database.ChatClientTypeApi,
+		InitialMessages: []chatstate.Message{
+			userMessage(content, parent.LastModelConfigID, parent.OwnerID, nil),
+		},
+	})
+	if err != nil {
+		return database.Chat{}, err
+	}
+	return result.Chat, nil
 }

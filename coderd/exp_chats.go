@@ -1214,6 +1214,20 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 	if !httpapi.ReadLimit(ctx, rw, r, int64(2*maxSystemPromptLenBytes), &req) {
 		return
 	}
+	if req.ParentChatID != nil {
+		if !api.chatTreeEnabled() {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "parent_chat_id requires the chat-tree experiment.",
+			})
+			return
+		}
+		if *req.ParentChatID == uuid.Nil {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Invalid parent_chat_id.",
+			})
+			return
+		}
+	}
 
 	aReq, commitAudit := audit.InitRequest[database.Chat](rw, &audit.RequestParams{
 		Audit:          *api.Auditor.Load(),
@@ -1377,6 +1391,31 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// With the chat-tree experiment on, every new chat is attached to the
+	// caller's tree: an explicit parent is validated by chatd and an
+	// omitted one defaults to the tree root. Without the experiment
+	// chats stay parentless.
+	var parentChatID uuid.NullUUID
+	if api.chatTreeEnabled() {
+		if req.ParentChatID != nil {
+			parentChatID = uuid.NullUUID{UUID: *req.ParentChatID, Valid: true}
+		}
+		root, created, err := api.ensureChatTreeRoot(ctx, apiKey.UserID, req.OrganizationID)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Failed to prepare the chat tree.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		if created {
+			api.auditChatTreeRootCreated(ctx, r, root)
+		}
+		if !parentChatID.Valid && root.ID != uuid.Nil {
+			parentChatID = uuid.NullUUID{UUID: root.ID, Valid: true}
+		}
+	}
+
 	chat, err := api.chatDaemon.CreateChat(ctx, chatd.CreateOptions{
 		OrganizationID:          req.OrganizationID,
 		OwnerID:                 apiKey.UserID,
@@ -1392,10 +1431,12 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		MCPServerIDs:            mcpServerIDs,
 		Labels:                  labels,
 		DynamicTools:            dynamicToolsJSON,
-		// IMPORTANT: users can only create root chats at the time of writing.
-		ParentChatID: uuid.NullUUID{},
+		ParentChatID:            parentChatID,
 	})
 	if err != nil {
+		if writeChatTreeParentError(ctx, rw, err) {
+			return
+		}
 		if writeChatHookErr(ctx, rw, err, "Chat creation denied by lifecycle hook.") {
 			return
 		}
@@ -1497,6 +1538,17 @@ func (api *API) getChat(rw http.ResponseWriter, r *http.Request) {
 	chatFiles := api.fetchChatFileMetadata(ctx, chat.ID)
 
 	sdkChat := db2sdk.Chat(chat, diffStatus, chatFiles)
+
+	// Tree position is owner-only: a reader granted access through an ACL
+	// does not learn the shape of the owner's tree.
+	if api.chatTreeEnabled() && chat.OwnerID == httpmw.APIKey(r).UserID {
+		if err := api.attachChatTreePosition(ctx, chat, &sdkChat); err != nil {
+			api.Logger.Error(ctx, "failed to derive chat tree position",
+				slog.F("chat_id", chat.ID),
+				slog.Error(err),
+			)
+		}
+	}
 
 	if api.chatDaemon != nil {
 		queued, err := api.chatDaemon.ChatQueuedForCapacity(ctx, chat)
@@ -2303,15 +2355,21 @@ func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
 		archived := *req.Archived
 
 		// Archive invariant is one-way: parent archived implies
-		// child archived. Archive state changes target the root
-		// chat and cascade atomically across the family; child
+		// child archived. Archive state changes target a root or chat
+		// kind row and cascade atomically across its subtree; subagent
 		// chats cannot be archived or unarchived independently.
-		// This check precedes the no-op check so any child attempt
+		// This check precedes the no-op check so any subagent attempt
 		// surfaces the root-only error regardless of the chat's
 		// current archived value.
 		if chat.Kind == database.ChatKindSubagent {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: "Chat archive state can only be changed on the root chat.",
+			})
+			return
+		}
+		if chat.Kind == database.ChatKindRoot {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Chat tree root cannot be archived.",
 			})
 			return
 		}
@@ -2334,34 +2392,7 @@ func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
 			err = api.chatDaemon.UnarchiveChat(ctx, chat)
 		}
 		if err != nil {
-			if errors.Is(err, chatd.ErrArchiveRequiresRootChat) || errors.Is(err, chatstate.ErrChatNotRoot) {
-				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-					Message: "Chat archive state can only be changed on the root chat.",
-				})
-				return
-			}
-			if writeChatInvalidState(ctx, rw, err) {
-				return
-			}
-			if errors.Is(err, chatstate.ErrTransitionNotAllowed) {
-				// Archive only succeeds from idle / error execution
-				// states (W, E0, E1) per the chatd RFC; active
-				// chats refuse archive instead of being silently
-				// transitioned to waiting first.
-				httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
-					Message: "Cannot archive an active chat. Interrupt or wait for the chat to finish first.",
-					Detail:  err.Error(),
-				})
-				return
-			}
-			action := "archive"
-			if !archived {
-				action = "unarchive"
-			}
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: fmt.Sprintf("Failed to %s chat.", action),
-				Detail:  err.Error(),
-			})
+			writeChatArchiveError(ctx, rw, err, archived)
 			return
 		}
 	}
@@ -2385,6 +2416,12 @@ func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
 		if pinOrder > 0 && chat.Kind == database.ChatKindSubagent {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: "Cannot pin a child chat.",
+			})
+			return
+		}
+		if pinOrder > 0 && chat.Kind == database.ChatKindRoot {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Cannot pin the chat tree root.",
 			})
 			return
 		}
@@ -8318,5 +8355,46 @@ func (api *API) streamChatParts(rw http.ResponseWriter, r *http.Request) {
 	}
 	if err := api.chatDaemon.ServeStreamPartsAuthorized(rw, r, chat); err != nil {
 		api.Logger.Named("chat_stream_parts").Debug(ctx, "chat stream parts closed", slog.Error(err))
+	}
+}
+
+// writeChatArchiveError maps ArchiveChat and UnarchiveChat failures to
+// HTTP responses.
+//
+//nolint:revive // Existing API takes the target archive state as a boolean.
+func writeChatArchiveError(ctx context.Context, rw http.ResponseWriter, err error, archived bool) {
+	if writeChatInvalidState(ctx, rw, err) {
+		return
+	}
+	switch {
+	case errors.Is(err, chatd.ErrArchiveRequiresRootChat) || errors.Is(err, chatstate.ErrChatNotRoot):
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Chat archive state can only be changed on the root chat.",
+		})
+	case errors.Is(err, chatstate.ErrChatTreeRootArchive):
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Chat tree root cannot be archived.",
+		})
+	case errors.Is(err, chatstate.ErrChatParentArchived):
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Cannot unarchive a chat while its parent chat is archived.",
+		})
+	case errors.Is(err, chatstate.ErrTransitionNotAllowed):
+		// Archive only succeeds from idle / error execution states (W,
+		// E0, E1) per the chatd RFC; active chats refuse archive instead
+		// of being silently transitioned to waiting first.
+		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+			Message: "Cannot archive an active chat. Interrupt or wait for the chat to finish first.",
+			Detail:  err.Error(),
+		})
+	default:
+		action := "archive"
+		if !archived {
+			action = "unarchive"
+		}
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: fmt.Sprintf("Failed to %s chat.", action),
+			Detail:  err.Error(),
+		})
 	}
 }

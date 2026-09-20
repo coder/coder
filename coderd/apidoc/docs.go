@@ -6794,6 +6794,50 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/v2/organizations/{organization}/chats/tree": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Get chat tree",
+                "operationId": "get-chat-tree",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "boolean",
+                        "description": "Return archived chats instead of unarchived ones. The root is always returned.",
+                        "name": "archived",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ChatTreeResponse"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
         "/api/v2/organizations/{organization}/groups": {
             "get": {
                 "produces": [
@@ -19619,6 +19663,10 @@ const docTemplate = `{
                     "type": "string",
                     "format": "uuid"
                 },
+                "child_chat_count": {
+                    "description": "ChildChatCount is the number of direct chat kind children in any\narchived state. Set wherever Depth is set; omitted elsewhere.",
+                    "type": "integer"
+                },
                 "children": {
                     "description": "Children holds subagent chats spawned by this chat. Always\ninitialized to an empty slice so the JSON field is present as [].\nSubagents cannot spawn subagents, so the slice is always empty for\nsubagent chats. Named tree children are not embedded here.",
                     "type": "array",
@@ -19640,6 +19688,10 @@ const docTemplate = `{
                 "created_at": {
                     "type": "string",
                     "format": "date-time"
+                },
+                "depth": {
+                    "description": "Depth is the chat's depth in its owner's tree, where the root is 1.\nSet by the tree and single-chat endpoints for root and chat kind\nrows whose ancestor chain ends at a root; omitted elsewhere.",
+                    "type": "integer"
                 },
                 "diff_status": {
                     "$ref": "#/definitions/codersdk.ChatDiffStatus"
@@ -21488,6 +21540,23 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.ChatTreeResponse": {
+            "type": "object",
+            "properties": {
+                "chats": {
+                    "description": "Chats holds the root and every root or chat kind row owned by the\ncaller in the organization, ordered by depth then updated_at\ndescending. Subagents are excluded and Children is empty.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.Chat"
+                    }
+                },
+                "root_chat_id": {
+                    "description": "RootChatID is null when the root could not be created because no\nmodel config is available; Chats then holds the owner's parentless\nchats.",
+                    "type": "string",
+                    "format": "uuid"
+                }
+            }
+        },
         "codersdk.ChatUnsupportedProvider": {
             "type": "object",
             "properties": {
@@ -21959,6 +22028,11 @@ const docTemplate = `{
                     "format": "uuid"
                 },
                 "organization_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "parent_chat_id": {
+                    "description": "ParentChatID places the chat under a root or chat kind parent owned\nby the caller in the same organization. Requires the chat-tree\nexperiment; when omitted with the experiment on, the caller's tree\nroot is used.",
                     "type": "string",
                     "format": "uuid"
                 },
@@ -23633,7 +23707,8 @@ const docTemplate = `{
                 "ai-gateway-reverse-proxy",
                 "chat-advisor",
                 "chat-virtual-desktop",
-                "agent-lifecycle-hooks"
+                "agent-lifecycle-hooks",
+                "chat-tree"
             ],
             "x-enum-comments": {
                 "ExperimentAIGatewayReverseProxy": "Uses stateless reverse proxy routing when MCP injection is not configured.",
@@ -23641,6 +23716,7 @@ const docTemplate = `{
                 "ExperimentAgentLifecycleHooks": "Enables chat lifecycle hook webhooks for agent chats.",
                 "ExperimentAutoFillParameters": "This should not be taken out of experiments until we have redesigned the feature.",
                 "ExperimentChatAdvisor": "Enables the advisor tool for root agent chats.",
+                "ExperimentChatTree": "Enables the per-user chat tree: lazy root chats, named child chats, and the tree endpoint.",
                 "ExperimentChatVirtualDesktop": "Enables virtual desktop and computer use provider for agents.",
                 "ExperimentExample": "This isn't used for anything.",
                 "ExperimentMCPServerHTTP": "Enables the MCP HTTP server functionality.",
@@ -23665,7 +23741,8 @@ const docTemplate = `{
                 "Uses stateless reverse proxy routing when MCP injection is not configured.",
                 "Enables the advisor tool for root agent chats.",
                 "Enables virtual desktop and computer use provider for agents.",
-                "Enables chat lifecycle hook webhooks for agent chats."
+                "Enables chat lifecycle hook webhooks for agent chats.",
+                "Enables the per-user chat tree: lazy root chats, named child chats, and the tree endpoint."
             ],
             "x-enum-varnames": [
                 "ExperimentExample",
@@ -23681,7 +23758,8 @@ const docTemplate = `{
                 "ExperimentAIGatewayReverseProxy",
                 "ExperimentChatAdvisor",
                 "ExperimentChatVirtualDesktop",
-                "ExperimentAgentLifecycleHooks"
+                "ExperimentAgentLifecycleHooks",
+                "ExperimentChatTree"
             ]
         },
         "codersdk.ExternalAPIKeyScopes": {

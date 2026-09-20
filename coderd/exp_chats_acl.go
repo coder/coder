@@ -113,6 +113,12 @@ func (api *API) patchChatACL(rw http.ResponseWriter, r *http.Request) {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, resp)
 		return
 	}
+	if chat.Kind == database.ChatKindRoot {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Chat tree root cannot be shared.",
+		})
+		return
+	}
 	if !api.Authorize(r, policy.ActionShare, chat.RBACObject()) {
 		httpapi.Forbidden(rw)
 		return

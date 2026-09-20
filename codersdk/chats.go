@@ -117,6 +117,22 @@ const (
 	ChatKindSubagent ChatKind = "subagent"
 )
 
+// ChatTreeMaxDepth is the maximum depth of a chat tree including the root:
+// a chat at this depth cannot have named children.
+const ChatTreeMaxDepth = 5
+
+// ChatTreeResponse is the owner's chat tree in one organization.
+type ChatTreeResponse struct {
+	// RootChatID is null when the root could not be created because no
+	// model config is available; Chats then holds the owner's parentless
+	// chats.
+	RootChatID *uuid.UUID `json:"root_chat_id" format:"uuid"`
+	// Chats holds the root and every root or chat kind row owned by the
+	// caller in the organization, ordered by depth then updated_at
+	// descending. Subagents are excluded and Children is empty.
+	Chats []Chat `json:"chats"`
+}
+
 // Chat represents a chat session with an AI agent.
 type Chat struct {
 	ID             uuid.UUID `json:"id" format:"uuid"`
@@ -141,6 +157,13 @@ type Chat struct {
 	PlanMode            ChatPlanMode `json:"plan_mode,omitempty"`
 	LastError           *ChatError   `json:"last_error,omitempty"`
 	LastTurnSummary     *string      `json:"last_turn_summary"`
+	// Depth is the chat's depth in its owner's tree, where the root is 1.
+	// Set by the tree and single-chat endpoints for root and chat kind
+	// rows whose ancestor chain ends at a root; omitted elsewhere.
+	Depth *int `json:"depth,omitempty"`
+	// ChildChatCount is the number of direct chat kind children in any
+	// archived state. Set wherever Depth is set; omitted elsewhere.
+	ChildChatCount *int `json:"child_chat_count,omitempty"`
 	// Summary is the persisted whole-chat summary, generated in the background.
 	// It is nil until the first summary has been produced.
 	Summary    *string         `json:"summary"`
@@ -598,6 +621,11 @@ type CreateChatRequest struct {
 	UnsafeDynamicTools []DynamicTool  `json:"unsafe_dynamic_tools,omitempty"`
 	PlanMode           ChatPlanMode   `json:"plan_mode,omitempty"`
 	ClientType         ChatClientType `json:"client_type,omitempty"`
+	// ParentChatID places the chat under a root or chat kind parent owned
+	// by the caller in the same organization. Requires the chat-tree
+	// experiment; when omitted with the experiment on, the caller's tree
+	// root is used.
+	ParentChatID *uuid.UUID `json:"parent_chat_id,omitempty" format:"uuid"`
 }
 
 // UpdateChatRequest is the request to update a chat.
@@ -2187,6 +2215,38 @@ func (c *ExperimentalClient) DeleteUserChatProviderKey(ctx context.Context, prov
 		return ReadBodyAsError(res)
 	}
 	return nil
+}
+
+// ChatTreeOptions are optional parameters for ChatTree.
+type ChatTreeOptions struct {
+	// Archived selects archived rows instead of unarchived ones. The root
+	// is always included.
+	Archived bool
+}
+
+// ChatTree returns the caller's chat tree in an organization, creating
+// the tree root when it does not exist yet. Requires the chat-tree
+// experiment.
+func (c *Client) ChatTree(ctx context.Context, organizationID uuid.UUID, opts *ChatTreeOptions) (ChatTreeResponse, error) {
+	var reqOpts []RequestOption
+	if opts != nil && opts.Archived {
+		reqOpts = append(reqOpts, func(r *http.Request) {
+			q := r.URL.Query()
+			q.Set("archived", "true")
+			r.URL.RawQuery = q.Encode()
+		})
+	}
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/organizations/%s/chats/tree", organizationID), nil, reqOpts...)
+	if err != nil {
+		return ChatTreeResponse{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ChatTreeResponse{}, ReadBodyAsError(res)
+	}
+
+	var resp ChatTreeResponse
+	return resp, ReadBodyAsJSON(res, &resp)
 }
 
 // ChatModels returns the chat model configs the caller can read in one

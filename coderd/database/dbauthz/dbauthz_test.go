@@ -1018,12 +1018,58 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().GetChatStreamSyncRows(gomock.Any(), ids).Return(rows, nil).AnyTimes()
 		check.Args(ids).Asserts(rbac.ResourceChat, policy.ActionRead).Returns(rows)
 	}))
-	s.Run("GetChatFamilyIDsByRootID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+	s.Run("GetChatSubtreeIDs", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		chat := testutil.Fake(s.T(), faker, database.Chat{})
 		ids := []uuid.UUID{chat.ID}
 		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
-		dbm.EXPECT().GetChatFamilyIDsByRootID(gomock.Any(), chat.ID).Return(ids, nil).AnyTimes()
+		dbm.EXPECT().GetChatSubtreeIDs(gomock.Any(), chat.ID).Return(ids, nil).AnyTimes()
 		check.Args(chat.ID).Asserts(chat, policy.ActionRead).Returns(ids)
+	}))
+	s.Run("GetChatAndSubagentIDs", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		chat := testutil.Fake(s.T(), faker, database.Chat{})
+		ids := []uuid.UUID{chat.ID}
+		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
+		dbm.EXPECT().GetChatAndSubagentIDs(gomock.Any(), chat.ID).Return(ids, nil).AnyTimes()
+		check.Args(chat.ID).Asserts(chat, policy.ActionRead).Returns(ids)
+	}))
+	s.Run("GetChatTreeDepthByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		chat := testutil.Fake(s.T(), faker, database.Chat{})
+		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
+		dbm.EXPECT().GetChatTreeDepthByID(gomock.Any(), chat.ID).Return(int32(2), nil).AnyTimes()
+		check.Args(chat.ID).Asserts(chat, policy.ActionRead).Returns(int32(2))
+	}))
+	s.Run("CountChatChildrenByParentID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		chat := testutil.Fake(s.T(), faker, database.Chat{})
+		arg := database.CountChatChildrenByParentIDParams{
+			ParentChatID: chat.ID,
+			Kinds:        []database.ChatKind{database.ChatKindChat},
+		}
+		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
+		dbm.EXPECT().CountChatChildrenByParentID(gomock.Any(), arg).Return(int64(1), nil).AnyTimes()
+		check.Args(arg).Asserts(chat, policy.ActionRead).Returns(int64(1))
+	}))
+	s.Run("GetChatTreeRootStateByOwnerAndOrganization", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		arg := testutil.Fake(s.T(), faker, database.GetChatTreeRootStateByOwnerAndOrganizationParams{})
+		row := database.GetChatTreeRootStateByOwnerAndOrganizationRow{RootChatID: uuid.New()}
+		dbm.EXPECT().GetChatTreeRootStateByOwnerAndOrganization(gomock.Any(), arg).Return(row, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceChat.WithOwner(arg.OwnerID.String()).InOrg(arg.OrganizationID), policy.ActionRead).Returns(row)
+	}))
+	s.Run("GetChatTreeByOwnerAndOrganization", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		arg := testutil.Fake(s.T(), faker, database.GetChatTreeByOwnerAndOrganizationParams{})
+		rows := []database.GetChatTreeByOwnerAndOrganizationRow{{Depth: 1}}
+		dbm.EXPECT().GetChatTreeByOwnerAndOrganization(gomock.Any(), arg).Return(rows, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceChat.WithOwner(arg.OwnerID.String()).InOrg(arg.OrganizationID), policy.ActionRead).Returns(rows)
+	}))
+	s.Run("AdoptParentlessChatsIntoTreeRoot", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		root := testutil.Fake(s.T(), faker, database.Chat{Kind: database.ChatKindRoot})
+		arg := database.AdoptParentlessChatsIntoTreeRootParams{
+			RootChatID:     root.ID,
+			OwnerID:        root.OwnerID,
+			OrganizationID: root.OrganizationID,
+		}
+		dbm.EXPECT().GetChatByID(gomock.Any(), root.ID).Return(root, nil).AnyTimes()
+		dbm.EXPECT().AdoptParentlessChatsIntoTreeRoot(gomock.Any(), arg).Return(int64(3), nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceChat.WithOwner(arg.OwnerID.String()).InOrg(arg.OrganizationID), policy.ActionUpdate).Returns(int64(3))
 	}))
 	s.Run("GetChatsByWorkspaceIDs", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		chatA := testutil.Fake(s.T(), faker, database.Chat{})

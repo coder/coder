@@ -2135,6 +2135,31 @@ func ChatRowsWithChildren(
 	return result
 }
 
+// SetChatTreePosition records a chat's depth in its tree and its direct
+// chat kind child count. A depth of 0 means the chat is not attached to
+// a tree root and leaves both fields unset.
+func SetChatTreePosition(chat *codersdk.Chat, depth int32, childChatCount int64) {
+	if depth <= 0 {
+		return
+	}
+	d := int(depth)
+	c := int(childChatCount)
+	chat.Depth = &d
+	chat.ChildChatCount = &c
+}
+
+// ChatTreeRows converts tree rows into codersdk.Chat values with Depth and
+// ChildChatCount set. Rows outside the tree (depth 0) carry neither.
+func ChatTreeRows(rows []database.GetChatTreeByOwnerAndOrganizationRow) []codersdk.Chat {
+	result := make([]codersdk.Chat, len(rows))
+	for i, row := range rows {
+		result[i] = Chat(row.Chat, nil, nil)
+		result[i].HasUnread = row.HasUnread
+		SetChatTreePosition(&result[i], row.Depth, row.ChildChatCount)
+	}
+	return result
+}
+
 // ChatDiffStatus converts a database.ChatDiffStatus to a
 // codersdk.ChatDiffStatus. When status is nil an empty value
 // containing only the chatID is returned.

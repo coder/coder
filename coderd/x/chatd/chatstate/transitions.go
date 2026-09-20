@@ -53,6 +53,85 @@ func (input CreateChatInput) kind() database.ChatKind {
 	return database.ChatKindChat
 }
 
+// CreateIdleChatInput configures [CreateIdleChat].
+type CreateIdleChatInput struct {
+	OrganizationID    uuid.UUID
+	OwnerID           uuid.UUID
+	Kind              database.ChatKind
+	LastModelConfigID uuid.UUID
+	Title             string
+	ClientType        database.ChatClientType
+	// InitialMessages are system messages inserted with the chat. They
+	// may be empty. Any other role is rejected.
+	InitialMessages []Message
+}
+
+// CreateIdleChat inserts a chat row in the waiting state (N -> W) with
+// only system messages as history. The chat has no workspace binding, no
+// parent, and no runnable work, so no state update or ownership hint is
+// published. The caller's transaction, if any, is the store passed in.
+func CreateIdleChat(
+	ctx context.Context,
+	store database.Store,
+	input CreateIdleChatInput,
+) (database.Chat, error) {
+	if store == nil {
+		return database.Chat{}, xerrors.New("chatstate: CreateIdleChat called with nil store")
+	}
+	if input.Kind == "" {
+		return database.Chat{}, newTransitionError(TransitionCreateIdleChat, StateN, "kind is required")
+	}
+	if input.Kind == database.ChatKindSubagent {
+		return database.Chat{}, newTransitionError(TransitionCreateIdleChat, StateN, "subagent chats require a parent and initial messages")
+	}
+	for _, m := range input.InitialMessages {
+		if m.Role != database.ChatMessageRoleSystem {
+			return database.Chat{}, newTransitionError(TransitionCreateIdleChat, StateN, "initial messages must be system messages")
+		}
+	}
+	var chat database.Chat
+	err := store.InTx(func(tx database.Store) error {
+		inserted, err := tx.InsertChat(ctx, database.InsertChatParams{
+			ID:                uuid.NullUUID{},
+			OrganizationID:    input.OrganizationID,
+			OwnerID:           input.OwnerID,
+			WorkspaceID:       uuid.NullUUID{},
+			BuildID:           uuid.NullUUID{},
+			AgentID:           uuid.NullUUID{},
+			ParentChatID:      uuid.NullUUID{},
+			RootChatID:        uuid.NullUUID{},
+			Kind:              input.Kind,
+			LastModelConfigID: input.LastModelConfigID,
+			Title:             input.Title,
+			Mode:              database.NullChatMode{},
+			PlanMode:          database.NullChatPlanMode{},
+			Status:            database.ChatStatusWaiting,
+			MCPServerIDs:      []uuid.UUID{},
+			Labels:            pqtype.NullRawMessage{},
+			DynamicTools:      pqtype.NullRawMessage{},
+			ClientType:        input.ClientType,
+		})
+		if err != nil {
+			return xerrors.Errorf("insert idle chat: %w", err)
+		}
+		if len(input.InitialMessages) > 0 {
+			if _, err := tx.InsertChatMessages(ctx, toInsertParams(inserted.ID, input.InitialMessages)); err != nil {
+				return xerrors.Errorf("insert initial system messages: %w", err)
+			}
+			inserted, err = tx.GetChatByID(ctx, inserted.ID)
+			if err != nil {
+				return xerrors.Errorf("reload idle chat: %w", err)
+			}
+		}
+		chat = inserted
+		return nil
+	}, nil)
+	if err != nil {
+		return database.Chat{}, err
+	}
+	return chat, nil
+}
+
 // CreateChatResult is the value returned by [CreateChat]. It carries
 // the new chat row and the inserted initial history.
 type CreateChatResult struct {

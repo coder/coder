@@ -874,6 +874,25 @@ $$;
 
 COMMENT ON FUNCTION chat_message_search_text(content jsonb) IS 'Extracts searchable content from chat_messages. Returns NULL for scalar JSON strings (content_version=0). Immutable as it is used in indexes.';
 
+CREATE FUNCTION chat_subtree(top_chat_id uuid) RETURNS TABLE(id uuid, status chat_status, depth integer)
+    LANGUAGE plpgsql STABLE
+    AS $$
+BEGIN
+    RETURN QUERY
+    WITH RECURSIVE subtree AS (
+        SELECT c.id, c.status, 0 AS depth
+        FROM chats c
+        WHERE c.id = top_chat_id
+        UNION ALL
+        SELECT c.id, c.status, subtree.depth + 1
+        FROM chats c
+        JOIN subtree ON c.parent_chat_id = subtree.id
+        WHERE subtree.depth < 6
+    )
+    SELECT subtree.id, subtree.status, subtree.depth FROM subtree;
+END;
+$$;
+
 CREATE FUNCTION check_workspace_agent_name_unique() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
@@ -4832,6 +4851,8 @@ CREATE INDEX idx_chats_title_fts ON chats USING gin (to_tsvector('simple'::regco
 
 COMMENT ON INDEX idx_chats_title_fts IS 'Used for full text search. Defined over all rows of the chats table.';
 
+CREATE INDEX idx_chats_tree_adoptable ON chats USING btree (owner_id, organization_id) WHERE ((kind = 'chat'::chat_kind) AND (parent_chat_id IS NULL));
+
 CREATE INDEX idx_chats_worker_acquisition_candidates ON chats USING btree (((kind = 'subagent'::chat_kind)), status, updated_at, id) WHERE (archived = false);
 
 CREATE INDEX idx_chats_workspace ON chats USING btree (workspace_id);
@@ -5218,10 +5239,10 @@ ALTER TABLE ONLY chats
     ADD CONSTRAINT chats_owner_id_fkey FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY chats
-    ADD CONSTRAINT chats_parent_chat_id_fkey FOREIGN KEY (parent_chat_id) REFERENCES chats(id) ON DELETE SET NULL;
+    ADD CONSTRAINT chats_parent_chat_id_fkey FOREIGN KEY (parent_chat_id) REFERENCES chats(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY chats
-    ADD CONSTRAINT chats_root_chat_id_fkey FOREIGN KEY (root_chat_id) REFERENCES chats(id) ON DELETE SET NULL;
+    ADD CONSTRAINT chats_root_chat_id_fkey FOREIGN KEY (root_chat_id) REFERENCES chats(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY chats
     ADD CONSTRAINT chats_workspace_id_fkey FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE SET NULL;

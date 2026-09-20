@@ -7396,6 +7396,32 @@ func (q *sqlQuerier) AcquireStaleChatDiffStatuses(ctx context.Context, limitVal 
 	return items, nil
 }
 
+const adoptParentlessChatsIntoTreeRoot = `-- name: AdoptParentlessChatsIntoTreeRoot :execrows
+UPDATE chats
+SET parent_chat_id = $1::uuid
+WHERE owner_id = $2::uuid
+  AND organization_id = $3::uuid
+  AND kind = 'chat'
+  AND parent_chat_id IS NULL
+`
+
+type AdoptParentlessChatsIntoTreeRootParams struct {
+	RootChatID     uuid.UUID `db:"root_chat_id" json:"root_chat_id"`
+	OwnerID        uuid.UUID `db:"owner_id" json:"owner_id"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+}
+
+// Reparents every parentless user chat of the owner in the organization
+// under the tree root. Only parent_chat_id changes: updated_at, the
+// snapshot version, and pin or archive state are left as they are.
+func (q *sqlQuerier) AdoptParentlessChatsIntoTreeRoot(ctx context.Context, arg AdoptParentlessChatsIntoTreeRootParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, adoptParentlessChatsIntoTreeRoot, arg.RootChatID, arg.OwnerID, arg.OrganizationID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const archiveChatByID = `-- name: ArchiveChatByID :many
 WITH updated_chats AS (
     UPDATE chats
@@ -7914,6 +7940,25 @@ func (q *sqlQuerier) CountChatCapacityQueuedByPool(ctx context.Context, staleSec
 	return i, err
 }
 
+const countChatChildrenByParentID = `-- name: CountChatChildrenByParentID :one
+SELECT COUNT(*)::bigint
+FROM chats
+WHERE parent_chat_id = $1::uuid
+  AND kind = ANY($2::chat_kind[])
+`
+
+type CountChatChildrenByParentIDParams struct {
+	ParentChatID uuid.UUID  `db:"parent_chat_id" json:"parent_chat_id"`
+	Kinds        []ChatKind `db:"kinds" json:"kinds"`
+}
+
+func (q *sqlQuerier) CountChatChildrenByParentID(ctx context.Context, arg CountChatChildrenByParentIDParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countChatChildrenByParentID, arg.ParentChatID, pq.Array(arg.Kinds))
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const countChatQueuedMessages = `-- name: CountChatQueuedMessages :one
 SELECT COUNT(*)::bigint AS count
 FROM chat_queued_messages
@@ -8011,25 +8056,28 @@ func (q *sqlQuerier) DeleteChatQueuedMessageReturningCount(ctx context.Context, 
 }
 
 const deleteOldChats = `-- name: DeleteOldChats :execrows
-WITH selected AS (
+WITH RECURSIVE blocked AS (
+    -- Archived parents of unarchived chats, then every ancestor above them.
+    SELECT child.parent_chat_id AS id, 0 AS depth
+    FROM chats child
+    JOIN chats parent ON parent.id = child.parent_chat_id
+    WHERE child.archived = false
+      AND parent.archived = true
+    UNION ALL
+    SELECT c.parent_chat_id, blocked.depth + 1
+    FROM chats c
+    JOIN blocked ON c.id = blocked.id
+    WHERE c.parent_chat_id IS NOT NULL
+      AND blocked.depth < 6
+),
+deletable AS (
     SELECT id
     FROM chats
     WHERE archived = true
       AND updated_at < $1::timestamptz
-      AND NOT EXISTS (
-          SELECT 1 FROM chats subagent
-          WHERE subagent.root_chat_id = chats.id
-            AND subagent.archived = false
-      )
+      AND NOT EXISTS (SELECT 1 FROM blocked WHERE blocked.id = chats.id)
     ORDER BY updated_at ASC
     LIMIT $2
-),
-deletable AS (
-    SELECT id FROM selected
-    UNION
-    SELECT subagent.id
-    FROM chats subagent
-    JOIN selected ON subagent.root_chat_id = selected.id
 )
 DELETE FROM chats
 USING deletable
@@ -8043,11 +8091,11 @@ type DeleteOldChatsParams struct {
 }
 
 // Deletes chats that have been archived for longer than the given
-// threshold together with their subagent chats, in one statement so the
-// SET NULL foreign keys never leave a subagent without its parent. Active
-// (non-archived) chats are never deleted; a chat with an unarchived
-// subagent is skipped. All chat-scoped child tables are removed via
-// ON DELETE CASCADE. The returned count includes the subagents.
+// threshold. Active (non-archived) chats are never deleted, and a chat
+// whose subtree still contains an unarchived chat is skipped so the FK
+// cascade never removes a live descendant. All chat-scoped child tables
+// and descendant chats are removed via ON DELETE CASCADE; the returned
+// count covers only the selected rows, not the cascaded descendants.
 func (q *sqlQuerier) DeleteOldChats(ctx context.Context, arg DeleteOldChatsParams) (int64, error) {
 	result, err := q.db.ExecContext(ctx, deleteOldChats, arg.BeforeTime, arg.LimitCount)
 	if err != nil {
@@ -8158,22 +8206,23 @@ SELECT
     COALESCE(activity.last_activity_at, chats_expanded.created_at)::timestamptz AS last_activity_at
 FROM chats_expanded
 LEFT JOIN LATERAL (
-    SELECT MAX(chat_messages.created_at) AS last_activity_at
-    FROM chat_messages
-    JOIN chats family_chat ON family_chat.id = chat_messages.chat_id
-    WHERE (family_chat.id = chats_expanded.id OR family_chat.root_chat_id = chats_expanded.id)
-      AND chat_messages.deleted = false
+    SELECT
+        MAX(chat_messages.created_at) AS last_activity_at,
+        BOOL_OR(subtree.status IN (
+            'running'::chat_status,
+            'interrupting'::chat_status,
+            'requires_action'::chat_status
+        )) AS has_active_member
+    FROM chat_subtree(chats_expanded.id) AS subtree
+    LEFT JOIN chat_messages ON chat_messages.chat_id = subtree.id
+        AND chat_messages.deleted = false
 ) activity ON TRUE
 WHERE
     chats_expanded.archived = false
     AND chats_expanded.pin_order = 0
     AND chats_expanded.kind = 'chat'
     AND chats_expanded.created_at < $1::timestamptz
-    AND chats_expanded.status NOT IN (
-        'running'::chat_status,
-        'interrupting'::chat_status,
-        'requires_action'::chat_status
-    )
+    AND NOT COALESCE(activity.has_active_member, false)
     AND COALESCE(activity.last_activity_at, chats_expanded.created_at) < $1::timestamptz
 ORDER BY chats_expanded.created_at ASC
 LIMIT $2::int
@@ -8237,8 +8286,11 @@ type GetAutoArchiveInactiveChatCandidatesRow struct {
 }
 
 // Returns read-only user chat candidates for state-machine-backed
-// auto-archive. Activity is computed across the chat and its subagents.
-// The query limits candidates, not total family members.
+// auto-archive. A candidate is inactive only when nothing in its subtree
+// (named children and subagents) is active or has recent messages. Root
+// chats are never candidates. The query limits candidates, not total
+// subtree members. The subtree walk (chat_subtree) is rooted at each outer
+// row inside the LATERAL so it runs only for rows the scan reaches.
 func (q *sqlQuerier) GetAutoArchiveInactiveChatCandidates(ctx context.Context, arg GetAutoArchiveInactiveChatCandidatesParams) ([]GetAutoArchiveInactiveChatCandidatesRow, error) {
 	rows, err := q.db.QueryContext(ctx, getAutoArchiveInactiveChatCandidates, arg.ArchiveCutoff, arg.LimitCount)
 	if err != nil {
@@ -8332,6 +8384,39 @@ func (q *sqlQuerier) GetChatACLByID(ctx context.Context, id uuid.UUID) (GetChatA
 	var i GetChatACLByIDRow
 	err := row.Scan(&i.Users, &i.Groups)
 	return i, err
+}
+
+const getChatAndSubagentIDs = `-- name: GetChatAndSubagentIDs :many
+SELECT id
+FROM chats
+WHERE id = $1::uuid
+   OR (parent_chat_id = $1::uuid AND kind = 'subagent')
+ORDER BY (id = $1::uuid) DESC, created_at ASC, id ASC
+`
+
+// Returns the chat ID followed by the IDs of its direct subagent children.
+// Named children are not included.
+func (q *sqlQuerier) GetChatAndSubagentIDs(ctx context.Context, id uuid.UUID) ([]uuid.UUID, error) {
+	rows, err := q.db.QueryContext(ctx, getChatAndSubagentIDs, id)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []uuid.UUID
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const getChatByID = `-- name: GetChatByID :one
@@ -8768,39 +8853,6 @@ func (q *sqlQuerier) GetChatDiffStatusesByChatIDs(ctx context.Context, chatIds [
 			return nil, err
 		}
 		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const getChatFamilyIDsByRootID = `-- name: GetChatFamilyIDsByRootID :many
-SELECT id
-FROM chats
-WHERE id = $1::uuid OR root_chat_id = $1::uuid
-ORDER BY (id = $1::uuid) DESC, created_at ASC, id ASC
-`
-
-// Returns the chat IDs of every chat in a family (root + all children)
-// in deterministic order. The id parameter must be the root id; the
-// query does not walk up from a child.
-func (q *sqlQuerier) GetChatFamilyIDsByRootID(ctx context.Context, id uuid.UUID) ([]uuid.UUID, error) {
-	rows, err := q.db.QueryContext(ctx, getChatFamilyIDsByRootID, id)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []uuid.UUID
-	for rows.Next() {
-		var id uuid.UUID
-		if err := rows.Scan(&id); err != nil {
-			return nil, err
-		}
-		items = append(items, id)
 	}
 	if err := rows.Close(); err != nil {
 		return nil, err
@@ -9641,6 +9693,253 @@ func (q *sqlQuerier) GetChatStreamSyncRows(ctx context.Context, ids []uuid.UUID)
 		return nil, err
 	}
 	return items, nil
+}
+
+const getChatSubtreeIDs = `-- name: GetChatSubtreeIDs :many
+WITH RECURSIVE subtree AS (
+    SELECT id, created_at, 0 AS depth
+    FROM chats
+    WHERE id = $1::uuid
+    UNION ALL
+    SELECT c.id, c.created_at, subtree.depth + 1
+    FROM chats c
+    JOIN subtree ON c.parent_chat_id = subtree.id
+    WHERE subtree.depth < 6
+)
+SELECT id
+FROM subtree
+ORDER BY depth ASC, created_at ASC, id ASC
+`
+
+// Returns the chat IDs of a chat and every descendant reached through
+// parent_chat_id (named children and subagents), parents before children.
+// The walk is bounded by the tree depth limit plus one subagent level.
+func (q *sqlQuerier) GetChatSubtreeIDs(ctx context.Context, id uuid.UUID) ([]uuid.UUID, error) {
+	rows, err := q.db.QueryContext(ctx, getChatSubtreeIDs, id)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []uuid.UUID
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getChatTreeByOwnerAndOrganization = `-- name: GetChatTreeByOwnerAndOrganization :many
+WITH RECURSIVE tree AS (
+    SELECT c.id, 1 AS depth
+    FROM chats c
+    WHERE c.owner_id = $2::uuid
+      AND c.organization_id = $3::uuid
+      AND c.kind = 'root'
+    UNION ALL
+    SELECT c.id, tree.depth + 1
+    FROM chats c
+    JOIN tree ON c.parent_chat_id = tree.id
+    WHERE c.kind = 'chat'
+      AND c.owner_id = $2::uuid
+      AND c.organization_id = $3::uuid
+      AND tree.depth < 5
+),
+nodes AS (
+    SELECT id, depth FROM tree
+    UNION ALL
+    SELECT c.id, 0 AS depth
+    FROM chats c
+    WHERE c.owner_id = $2::uuid
+      AND c.organization_id = $3::uuid
+      AND c.kind = 'chat'
+      AND c.parent_chat_id IS NULL
+)
+SELECT
+    chats_expanded.id, chats_expanded.owner_id, chats_expanded.workspace_id, chats_expanded.title, chats_expanded.status, chats_expanded.worker_id, chats_expanded.started_at, chats_expanded.heartbeat_at, chats_expanded.created_at, chats_expanded.updated_at, chats_expanded.parent_chat_id, chats_expanded.root_chat_id, chats_expanded.kind, chats_expanded.last_model_config_id, chats_expanded.last_reasoning_effort, chats_expanded.archived, chats_expanded.last_error, chats_expanded.mode, chats_expanded.mcp_server_ids, chats_expanded.labels, chats_expanded.build_id, chats_expanded.agent_id, chats_expanded.pin_order, chats_expanded.last_read_message_id, chats_expanded.dynamic_tools, chats_expanded.organization_id, chats_expanded.plan_mode, chats_expanded.client_type, chats_expanded.last_turn_summary, chats_expanded.summary, chats_expanded.summary_generated_at, chats_expanded.snapshot_version, chats_expanded.history_version, chats_expanded.queue_version, chats_expanded.generation_attempt, chats_expanded.retry_state, chats_expanded.retry_state_version, chats_expanded.runner_id, chats_expanded.requires_action_deadline_at, chats_expanded.user_acl, chats_expanded.group_acl, chats_expanded.owner_username, chats_expanded.owner_name, chats_expanded.context_aggregate_hash, chats_expanded.context_dirty_since, chats_expanded.context_dirty_resources, chats_expanded.context_error, chats_expanded.compaction_requested_at,
+    nodes.depth::int AS depth,
+    (
+        SELECT COUNT(*)
+        FROM chats child
+        WHERE child.parent_chat_id = chats_expanded.id
+          AND child.kind = 'chat'
+    )::bigint AS child_chat_count,
+    EXISTS (
+        SELECT 1 FROM chat_messages cm
+        WHERE cm.chat_id = chats_expanded.id
+            AND cm.role = 'assistant'
+            AND cm.deleted = false
+            AND cm.id > COALESCE(chats_expanded.last_read_message_id, 0)
+    ) AS has_unread
+FROM nodes
+JOIN chats_expanded ON chats_expanded.id = nodes.id
+WHERE chats_expanded.kind = 'root'
+   OR chats_expanded.archived = $1::boolean
+ORDER BY nodes.depth ASC, chats_expanded.updated_at DESC, chats_expanded.id DESC
+`
+
+type GetChatTreeByOwnerAndOrganizationParams struct {
+	Archived       bool      `db:"archived" json:"archived"`
+	OwnerID        uuid.UUID `db:"owner_id" json:"owner_id"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+}
+
+type GetChatTreeByOwnerAndOrganizationRow struct {
+	Chat           Chat  `db:"chat" json:"chat"`
+	Depth          int32 `db:"depth" json:"depth"`
+	ChildChatCount int64 `db:"child_chat_count" json:"child_chat_count"`
+	HasUnread      bool  `db:"has_unread" json:"has_unread"`
+}
+
+// Returns the owner's tree root and every named descendant in the
+// organization, plus parentless user chats that no root has adopted.
+// Subagents are excluded. The root is always returned; other rows are
+// filtered by @archived. Depth is 1 for the root and 0 for parentless
+// chats outside the tree.
+func (q *sqlQuerier) GetChatTreeByOwnerAndOrganization(ctx context.Context, arg GetChatTreeByOwnerAndOrganizationParams) ([]GetChatTreeByOwnerAndOrganizationRow, error) {
+	rows, err := q.db.QueryContext(ctx, getChatTreeByOwnerAndOrganization, arg.Archived, arg.OwnerID, arg.OrganizationID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetChatTreeByOwnerAndOrganizationRow
+	for rows.Next() {
+		var i GetChatTreeByOwnerAndOrganizationRow
+		if err := rows.Scan(
+			&i.Chat.ID,
+			&i.Chat.OwnerID,
+			&i.Chat.WorkspaceID,
+			&i.Chat.Title,
+			&i.Chat.Status,
+			&i.Chat.WorkerID,
+			&i.Chat.StartedAt,
+			&i.Chat.HeartbeatAt,
+			&i.Chat.CreatedAt,
+			&i.Chat.UpdatedAt,
+			&i.Chat.ParentChatID,
+			&i.Chat.RootChatID,
+			&i.Chat.Kind,
+			&i.Chat.LastModelConfigID,
+			&i.Chat.LastReasoningEffort,
+			&i.Chat.Archived,
+			&i.Chat.LastError,
+			&i.Chat.Mode,
+			pq.Array(&i.Chat.MCPServerIDs),
+			&i.Chat.Labels,
+			&i.Chat.BuildID,
+			&i.Chat.AgentID,
+			&i.Chat.PinOrder,
+			&i.Chat.LastReadMessageID,
+			&i.Chat.DynamicTools,
+			&i.Chat.OrganizationID,
+			&i.Chat.PlanMode,
+			&i.Chat.ClientType,
+			&i.Chat.LastTurnSummary,
+			&i.Chat.Summary,
+			&i.Chat.SummaryGeneratedAt,
+			&i.Chat.SnapshotVersion,
+			&i.Chat.HistoryVersion,
+			&i.Chat.QueueVersion,
+			&i.Chat.GenerationAttempt,
+			&i.Chat.RetryState,
+			&i.Chat.RetryStateVersion,
+			&i.Chat.RunnerID,
+			&i.Chat.RequiresActionDeadlineAt,
+			&i.Chat.UserACL,
+			&i.Chat.GroupACL,
+			&i.Chat.OwnerUsername,
+			&i.Chat.OwnerName,
+			&i.Chat.ContextAggregateHash,
+			&i.Chat.ContextDirtySince,
+			&i.Chat.ContextDirtyResources,
+			&i.Chat.ContextError,
+			&i.Chat.CompactionRequestedAt,
+			&i.Depth,
+			&i.ChildChatCount,
+			&i.HasUnread,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getChatTreeDepthByID = `-- name: GetChatTreeDepthByID :one
+WITH RECURSIVE ancestors AS (
+    SELECT id, parent_chat_id, kind, 1 AS steps
+    FROM chats
+    WHERE id = $1::uuid
+    UNION ALL
+    SELECT c.id, c.parent_chat_id, c.kind, ancestors.steps + 1
+    FROM chats c
+    JOIN ancestors ON c.id = ancestors.parent_chat_id
+    WHERE ancestors.kind <> 'root'
+      AND ancestors.steps < 6
+)
+SELECT COALESCE((SELECT steps FROM ancestors WHERE kind = 'root' LIMIT 1), 0)::int AS depth
+`
+
+// Returns the depth of a chat in its owner's tree, where the root has
+// depth 1, or 0 when the ancestor chain does not end at a root chat.
+func (q *sqlQuerier) GetChatTreeDepthByID(ctx context.Context, id uuid.UUID) (int32, error) {
+	row := q.db.QueryRowContext(ctx, getChatTreeDepthByID, id)
+	var depth int32
+	err := row.Scan(&depth)
+	return depth, err
+}
+
+const getChatTreeRootStateByOwnerAndOrganization = `-- name: GetChatTreeRootStateByOwnerAndOrganization :one
+SELECT
+    COALESCE((
+        SELECT id
+        FROM chats
+        WHERE owner_id = $1::uuid
+          AND organization_id = $2::uuid
+          AND kind = 'root'
+    ), '00000000-0000-0000-0000-000000000000'::uuid)::uuid AS root_chat_id,
+    (
+        SELECT COUNT(*)
+        FROM chats
+        WHERE owner_id = $1::uuid
+          AND organization_id = $2::uuid
+          AND kind = 'chat'
+          AND parent_chat_id IS NULL
+    )::bigint AS adoptable_count
+`
+
+type GetChatTreeRootStateByOwnerAndOrganizationParams struct {
+	OwnerID        uuid.UUID `db:"owner_id" json:"owner_id"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+}
+
+type GetChatTreeRootStateByOwnerAndOrganizationRow struct {
+	RootChatID     uuid.UUID `db:"root_chat_id" json:"root_chat_id"`
+	AdoptableCount int64     `db:"adoptable_count" json:"adoptable_count"`
+}
+
+// Returns the owner's tree root in the organization (the nil UUID when
+// none exists) and the number of parentless user chats that the root
+// has not adopted yet.
+func (q *sqlQuerier) GetChatTreeRootStateByOwnerAndOrganization(ctx context.Context, arg GetChatTreeRootStateByOwnerAndOrganizationParams) (GetChatTreeRootStateByOwnerAndOrganizationRow, error) {
+	row := q.db.QueryRowContext(ctx, getChatTreeRootStateByOwnerAndOrganization, arg.OwnerID, arg.OrganizationID)
+	var i GetChatTreeRootStateByOwnerAndOrganizationRow
+	err := row.Scan(&i.RootChatID, &i.AdoptableCount)
+	return i, err
 }
 
 const getChatUserPromptsByChatID = `-- name: GetChatUserPromptsByChatID :many

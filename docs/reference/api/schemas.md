@@ -2201,11 +2201,13 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
   "archived": true,
   "build_id": "bfb1f3fa-bf7b-43a5-9e0b-26cc050e44cb",
+  "child_chat_count": 0,
   "children": [
     {
       "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
       "archived": true,
       "build_id": "bfb1f3fa-bf7b-43a5-9e0b-26cc050e44cb",
+      "child_chat_count": 0,
       "children": [],
       "client_type": "ui",
       "context": {
@@ -2231,6 +2233,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         ]
       },
       "created_at": "2019-08-24T14:15:22Z",
+      "depth": 0,
       "diff_status": {
         "additions": 0,
         "approved": true,
@@ -2328,6 +2331,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     ]
   },
   "created_at": "2019-08-24T14:15:22Z",
+  "depth": 0,
   "diff_status": {
     "additions": 0,
     "approved": true,
@@ -2409,10 +2413,12 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `agent_id`              | string                                                          | false    |              |                                                                                                                                                                                                                                                            |
 | `archived`              | boolean                                                         | false    |              |                                                                                                                                                                                                                                                            |
 | `build_id`              | string                                                          | false    |              |                                                                                                                                                                                                                                                            |
+| `child_chat_count`      | integer                                                         | false    |              | Child chat count is the number of direct chat kind children in any archived state. Set wherever Depth is set; omitted elsewhere.                                                                                                                           |
 | `children`              | array of [codersdk.Chat](#codersdkchat)                         | false    |              | Children holds subagent chats spawned by this chat. Always initialized to an empty slice so the JSON field is present as []. Subagents cannot spawn subagents, so the slice is always empty for subagent chats. Named tree children are not embedded here. |
 | `client_type`           | [codersdk.ChatClientType](#codersdkchatclienttype)              | false    |              |                                                                                                                                                                                                                                                            |
 | `context`               | [codersdk.ChatContext](#codersdkchatcontext)                    | false    |              | Context reports the chat's pinned workspace-context state and whether it has drifted from the agent's latest pushed snapshot. Nil when the chat has no pinned context yet.                                                                                 |
 | `created_at`            | string                                                          | false    |              |                                                                                                                                                                                                                                                            |
+| `depth`                 | integer                                                         | false    |              | Depth is the chat's depth in its owner's tree, where the root is 1. Set by the tree and single-chat endpoints for root and chat kind rows whose ancestor chain ends at a root; omitted elsewhere.                                                          |
 | `diff_status`           | [codersdk.ChatDiffStatus](#codersdkchatdiffstatus)              | false    |              |                                                                                                                                                                                                                                                            |
 | `files`                 | array of [codersdk.ChatFileMetadata](#codersdkchatfilemetadata) | false    |              |                                                                                                                                                                                                                                                            |
 | `has_unread`            | boolean                                                         | false    |              | Has unread is true when assistant messages exist beyond the owner's read cursor, which updates on stream connect and disconnect.                                                                                                                           |
@@ -5201,6 +5207,128 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `include_default_system_prompt` | boolean | false    |              |             |
 | `system_prompt`                 | string  | false    |              |             |
 
+## codersdk.ChatTreeResponse
+
+```json
+{
+  "chats": [
+    {
+      "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
+      "archived": true,
+      "build_id": "bfb1f3fa-bf7b-43a5-9e0b-26cc050e44cb",
+      "child_chat_count": 0,
+      "children": [
+        {}
+      ],
+      "client_type": "ui",
+      "context": {
+        "dirty": true,
+        "dirty_since": "2019-08-24T14:15:22Z",
+        "error": "string",
+        "resources": [
+          {
+            "error": "string",
+            "kind": "instruction_file",
+            "size_bytes": 0,
+            "skill_description": "string",
+            "skill_name": "string",
+            "source": "string",
+            "status": "ok",
+            "tools": [
+              {
+                "description": "string",
+                "name": "string"
+              }
+            ]
+          }
+        ]
+      },
+      "created_at": "2019-08-24T14:15:22Z",
+      "depth": 0,
+      "diff_status": {
+        "additions": 0,
+        "approved": true,
+        "author_avatar_url": "string",
+        "author_login": "string",
+        "base_branch": "string",
+        "changed_files": 0,
+        "changes_requested": true,
+        "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
+        "commits": 0,
+        "deletions": 0,
+        "head_branch": "string",
+        "pr_number": 0,
+        "pull_request_draft": true,
+        "pull_request_state": "string",
+        "pull_request_title": "string",
+        "refreshed_at": "2019-08-24T14:15:22Z",
+        "reviewer_count": 0,
+        "stale_at": "2019-08-24T14:15:22Z",
+        "url": "string"
+      },
+      "files": [
+        {
+          "created_at": "2019-08-24T14:15:22Z",
+          "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+          "mime_type": "string",
+          "name": "string",
+          "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+          "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
+          "size_bytes": 0
+        }
+      ],
+      "has_unread": true,
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "kind": "root",
+      "labels": {
+        "property1": "string",
+        "property2": "string"
+      },
+      "last_error": {
+        "detail": "string",
+        "kind": "generic",
+        "message": "string",
+        "provider": "string",
+        "retryable": true,
+        "status_code": 0
+      },
+      "last_model_config_id": "30ebb95f-c255-4759-9429-89aa4ec1554c",
+      "last_reasoning_effort": "string",
+      "last_turn_summary": "string",
+      "mcp_server_ids": [
+        "497f6eca-6276-4993-bfeb-53cbbbba6f08"
+      ],
+      "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+      "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
+      "owner_name": "string",
+      "owner_username": "string",
+      "parent_chat_id": "c3609ee6-3b11-4a93-b9ae-e4fabcc99359",
+      "pin_order": 0,
+      "plan_mode": "plan",
+      "queued_for_capacity": true,
+      "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
+      "shared": true,
+      "status": "waiting",
+      "summary": "string",
+      "title": "string",
+      "updated_at": "2019-08-24T14:15:22Z",
+      "warnings": [
+        "string"
+      ],
+      "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
+    }
+  ],
+  "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7"
+}
+```
+
+### Properties
+
+| Name           | Type                                    | Required | Restrictions | Description                                                                                                                                                                              |
+|----------------|-----------------------------------------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `chats`        | array of [codersdk.Chat](#codersdkchat) | false    |              | Chats holds the root and every root or chat kind row owned by the caller in the organization, ordered by depth then updated_at descending. Subagents are excluded and Children is empty. |
+| `root_chat_id` | string                                  | false    |              | Root chat ID is null when the root could not be created because no model config is available; Chats then holds the owner's parentless chats.                                             |
+
 ## codersdk.ChatUnsupportedProvider
 
 ```json
@@ -5253,6 +5381,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
     "archived": true,
     "build_id": "bfb1f3fa-bf7b-43a5-9e0b-26cc050e44cb",
+    "child_chat_count": 0,
     "children": [
       {}
     ],
@@ -5280,6 +5409,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       ]
     },
     "created_at": "2019-08-24T14:15:22Z",
+    "depth": 0,
     "diff_status": {
       "additions": 0,
       "approved": true,
@@ -6212,6 +6342,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   ],
   "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "parent_chat_id": "c3609ee6-3b11-4a93-b9ae-e4fabcc99359",
   "plan_mode": "plan",
   "reasoning_effort": "string",
   "system_prompt": "string",
@@ -6230,20 +6361,21 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name                   | Type                                                      | Required | Restrictions | Description                                                                                                                                |
-|------------------------|-----------------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------|
-| `client_type`          | [codersdk.ChatClientType](#codersdkchatclienttype)        | false    |              |                                                                                                                                            |
-| `content`              | array of [codersdk.ChatInputPart](#codersdkchatinputpart) | false    |              |                                                                                                                                            |
-| `labels`               | object                                                    | false    |              |                                                                                                                                            |
-| » `[any property]`     | string                                                    | false    |              |                                                                                                                                            |
-| `mcp_server_ids`       | array of string                                           | false    |              |                                                                                                                                            |
-| `model_config_id`      | string                                                    | false    |              |                                                                                                                                            |
-| `organization_id`      | string                                                    | false    |              |                                                                                                                                            |
-| `plan_mode`            | [codersdk.ChatPlanMode](#codersdkchatplanmode)            | false    |              |                                                                                                                                            |
-| `reasoning_effort`     | string                                                    | false    |              |                                                                                                                                            |
-| `system_prompt`        | string                                                    | false    |              |                                                                                                                                            |
-| `unsafe_dynamic_tools` | array of [codersdk.DynamicTool](#codersdkdynamictool)     | false    |              | Unsafe dynamic tools declares client-executed tools that the LLM can invoke. This API is highly experimental and highly subject to change. |
-| `workspace_id`         | string                                                    | false    |              |                                                                                                                                            |
+| Name                   | Type                                                      | Required | Restrictions | Description                                                                                                                                                                                                           |
+|------------------------|-----------------------------------------------------------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `client_type`          | [codersdk.ChatClientType](#codersdkchatclienttype)        | false    |              |                                                                                                                                                                                                                       |
+| `content`              | array of [codersdk.ChatInputPart](#codersdkchatinputpart) | false    |              |                                                                                                                                                                                                                       |
+| `labels`               | object                                                    | false    |              |                                                                                                                                                                                                                       |
+| » `[any property]`     | string                                                    | false    |              |                                                                                                                                                                                                                       |
+| `mcp_server_ids`       | array of string                                           | false    |              |                                                                                                                                                                                                                       |
+| `model_config_id`      | string                                                    | false    |              |                                                                                                                                                                                                                       |
+| `organization_id`      | string                                                    | false    |              |                                                                                                                                                                                                                       |
+| `parent_chat_id`       | string                                                    | false    |              | Parent chat ID places the chat under a root or chat kind parent owned by the caller in the same organization. Requires the chat-tree experiment; when omitted with the experiment on, the caller's tree root is used. |
+| `plan_mode`            | [codersdk.ChatPlanMode](#codersdkchatplanmode)            | false    |              |                                                                                                                                                                                                                       |
+| `reasoning_effort`     | string                                                    | false    |              |                                                                                                                                                                                                                       |
+| `system_prompt`        | string                                                    | false    |              |                                                                                                                                                                                                                       |
+| `unsafe_dynamic_tools` | array of [codersdk.DynamicTool](#codersdkdynamictool)     | false    |              | Unsafe dynamic tools declares client-executed tools that the LLM can invoke. This API is highly experimental and highly subject to change.                                                                            |
+| `workspace_id`         | string                                                    | false    |              |                                                                                                                                                                                                                       |
 
 ## codersdk.CreateFirstUserOnboardingInfo
 
@@ -8964,9 +9096,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                                                                                                                                                                                                          |
-|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `agent-lifecycle-hooks`, `ai-gateway-reverse-proxy`, `ai-gateway-seat-exclusion`, `auto-fill-parameters`, `chat-advisor`, `chat-virtual-desktop`, `example`, `mcp-server-http`, `mcp-tool-search`, `no_nats_pubsub`, `notifications`, `workspace-build-updates`, `workspace-capable-licensing`, `workspace-usage` |
+| Value(s)                                                                                                                                                                                                                                                                                                                       |
+|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `agent-lifecycle-hooks`, `ai-gateway-reverse-proxy`, `ai-gateway-seat-exclusion`, `auto-fill-parameters`, `chat-advisor`, `chat-tree`, `chat-virtual-desktop`, `example`, `mcp-server-http`, `mcp-tool-search`, `no_nats_pubsub`, `notifications`, `workspace-build-updates`, `workspace-capable-licensing`, `workspace-usage` |
 
 ## codersdk.ExternalAPIKeyScopes
 

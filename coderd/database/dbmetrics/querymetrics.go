@@ -152,6 +152,14 @@ func (m queryMetricsStore) ActivityBumpWorkspace(ctx context.Context, arg databa
 	return r0
 }
 
+func (m queryMetricsStore) AdoptParentlessChatsIntoTreeRoot(ctx context.Context, arg database.AdoptParentlessChatsIntoTreeRootParams) (int64, error) {
+	start := time.Now()
+	r0, r1 := m.s.AdoptParentlessChatsIntoTreeRoot(ctx, arg)
+	m.queryLatencies.WithLabelValues("AdoptParentlessChatsIntoTreeRoot").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "AdoptParentlessChatsIntoTreeRoot").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) AllUserIDs(ctx context.Context, includeSystem bool) ([]uuid.UUID, error) {
 	start := time.Now()
 	r0, r1 := m.s.AllUserIDs(ctx, includeSystem)
@@ -349,6 +357,14 @@ func (m queryMetricsStore) CountChatCapacityQueuedByPool(ctx context.Context, st
 	r0, r1 := m.s.CountChatCapacityQueuedByPool(ctx, staleSeconds)
 	m.queryLatencies.WithLabelValues("CountChatCapacityQueuedByPool").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "CountChatCapacityQueuedByPool").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) CountChatChildrenByParentID(ctx context.Context, arg database.CountChatChildrenByParentIDParams) (int64, error) {
+	start := time.Now()
+	r0, r1 := m.s.CountChatChildrenByParentID(ctx, arg)
+	m.queryLatencies.WithLabelValues("CountChatChildrenByParentID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "CountChatChildrenByParentID").Inc()
 	return r0, r1
 }
 
@@ -1456,6 +1472,14 @@ func (m queryMetricsStore) GetChatAdvisorConfig(ctx context.Context) (string, er
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetChatAndSubagentIDs(ctx context.Context, id uuid.UUID) ([]uuid.UUID, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetChatAndSubagentIDs(ctx, id)
+	m.queryLatencies.WithLabelValues("GetChatAndSubagentIDs").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatAndSubagentIDs").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetChatAutoArchiveDays(ctx context.Context, defaultAutoArchiveDays int32) (int32, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetChatAutoArchiveDays(ctx, defaultAutoArchiveDays)
@@ -1565,14 +1589,6 @@ func (m queryMetricsStore) GetChatDiffStatusesByChatIDs(ctx context.Context, cha
 	r0, r1 := m.s.GetChatDiffStatusesByChatIDs(ctx, chatIDs)
 	m.queryLatencies.WithLabelValues("GetChatDiffStatusesByChatIDs").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatDiffStatusesByChatIDs").Inc()
-	return r0, r1
-}
-
-func (m queryMetricsStore) GetChatFamilyIDsByRootID(ctx context.Context, id uuid.UUID) ([]uuid.UUID, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetChatFamilyIDsByRootID(ctx, id)
-	m.queryLatencies.WithLabelValues("GetChatFamilyIDsByRootID").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatFamilyIDsByRootID").Inc()
 	return r0, r1
 }
 
@@ -1824,6 +1840,14 @@ func (m queryMetricsStore) GetChatStreamSyncRows(ctx context.Context, ids []uuid
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetChatSubtreeIDs(ctx context.Context, id uuid.UUID) ([]uuid.UUID, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetChatSubtreeIDs(ctx, id)
+	m.queryLatencies.WithLabelValues("GetChatSubtreeIDs").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatSubtreeIDs").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetChatSystemPrompt(ctx context.Context) (string, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetChatSystemPrompt(ctx)
@@ -1837,6 +1861,30 @@ func (m queryMetricsStore) GetChatSystemPromptConfig(ctx context.Context) (datab
 	r0, r1 := m.s.GetChatSystemPromptConfig(ctx)
 	m.queryLatencies.WithLabelValues("GetChatSystemPromptConfig").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatSystemPromptConfig").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetChatTreeByOwnerAndOrganization(ctx context.Context, arg database.GetChatTreeByOwnerAndOrganizationParams) ([]database.GetChatTreeByOwnerAndOrganizationRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetChatTreeByOwnerAndOrganization(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetChatTreeByOwnerAndOrganization").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatTreeByOwnerAndOrganization").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetChatTreeDepthByID(ctx context.Context, id uuid.UUID) (int32, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetChatTreeDepthByID(ctx, id)
+	m.queryLatencies.WithLabelValues("GetChatTreeDepthByID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatTreeDepthByID").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetChatTreeRootStateByOwnerAndOrganization(ctx context.Context, arg database.GetChatTreeRootStateByOwnerAndOrganizationParams) (database.GetChatTreeRootStateByOwnerAndOrganizationRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetChatTreeRootStateByOwnerAndOrganization(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetChatTreeRootStateByOwnerAndOrganization").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatTreeRootStateByOwnerAndOrganization").Inc()
 	return r0, r1
 }
 

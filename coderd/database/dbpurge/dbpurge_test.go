@@ -3404,9 +3404,9 @@ func TestBackfillChatMessagesSearchTsv(t *testing.T) {
 }
 
 // TestDeleteOldChatsSubagentFamily covers purging an archived chat whose
-// archived subagents fall outside the LIMIT window: the subagents are
-// deleted in the same statement, and a chat with an unarchived subagent
-// is skipped.
+// archived subagents fall outside the LIMIT window: the subagents follow
+// the parent through the foreign key cascade, and a chat with an
+// unarchived subagent is skipped.
 func TestDeleteOldChatsSubagentFamily(t *testing.T) {
 	t.Parallel()
 
@@ -3458,7 +3458,7 @@ func TestDeleteOldChatsSubagentFamily(t *testing.T) {
 		LimitCount: 1,
 	})
 	require.NoError(t, err)
-	require.Equal(t, int64(3), deleted, "parent plus both subagents in one statement")
+	require.Equal(t, int64(1), deleted, "the parent is selected; its subagents cascade")
 	require.False(t, exists(parent.ID))
 	require.False(t, exists(subagentA.ID))
 	require.False(t, exists(subagentB.ID))
@@ -3471,4 +3471,85 @@ func TestDeleteOldChatsSubagentFamily(t *testing.T) {
 	require.Zero(t, deleted)
 	require.True(t, exists(blocked.ID))
 	require.True(t, exists(liveSubagent.ID))
+}
+
+// TestDeleteOldChatsTree covers the subtree rules of chat purging: an
+// archived chat with an unarchived descendant is never deleted, and an
+// archived subtree is removed together through the FK cascade.
+func TestDeleteOldChatsTree(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2025, 6, 15, 12, 0, 0, 0, time.UTC)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	db, _, rawDB := dbtestutil.NewDBWithSQLDB(t)
+
+	user := dbgen.User(t, db, database.User{})
+	org := dbgen.Organization(t, db, database.Organization{})
+	_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: user.ID, OrganizationID: org.ID})
+	_ = dbgen.ChatProvider(t, db, database.ChatProvider{Provider: "openai", DisplayName: "OpenAI"})
+	modelConfig := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+		Model:          "test-model",
+		ContextLimit:   8192,
+		OrganizationID: org.ID,
+	})
+
+	old := now.Add(-31 * 24 * time.Hour)
+	newChat := func(title string, kind database.ChatKind, parent, root uuid.NullUUID, archived bool) database.Chat {
+		chat := dbgen.Chat(t, db, database.Chat{
+			OrganizationID:    org.ID,
+			OwnerID:           user.ID,
+			LastModelConfigID: modelConfig.ID,
+			Title:             title,
+			Kind:              kind,
+			ParentChatID:      parent,
+			RootChatID:        root,
+		})
+		_, err := rawDB.ExecContext(ctx, "UPDATE chats SET archived = $1, updated_at = $2 WHERE id = $3", archived, old, chat.ID)
+		require.NoError(t, err)
+		return chat
+	}
+	ref := func(id uuid.UUID) uuid.NullUUID { return uuid.NullUUID{UUID: id, Valid: true} }
+	exists := func(id uuid.UUID) bool {
+		_, err := db.GetChatByID(ctx, id)
+		return err == nil
+	}
+
+	treeRoot := newChat("root", database.ChatKindRoot, uuid.NullUUID{}, uuid.NullUUID{}, false)
+	// Archived parent whose named child is still live (constructed
+	// directly; the archive cascade never produces this shape).
+	blocked := newChat("blocked", database.ChatKindChat, ref(treeRoot.ID), uuid.NullUUID{}, true)
+	liveChild := newChat("live child", database.ChatKindChat, ref(blocked.ID), uuid.NullUUID{}, false)
+	// Fully archived subtree.
+	gone := newChat("gone", database.ChatKindChat, ref(treeRoot.ID), uuid.NullUUID{}, true)
+	goneChild := newChat("gone child", database.ChatKindChat, ref(gone.ID), uuid.NullUUID{}, true)
+	goneSubagent := newChat("gone subagent", database.ChatKindSubagent, ref(goneChild.ID), ref(goneChild.ID), true)
+
+	deleted, err := db.DeleteOldChats(ctx, database.DeleteOldChatsParams{
+		BeforeTime: now.Add(-30 * 24 * time.Hour),
+		LimitCount: 100,
+	})
+	require.NoError(t, err)
+	require.Equal(t, int64(3), deleted)
+
+	require.True(t, exists(treeRoot.ID), "unarchived root stays")
+	require.True(t, exists(blocked.ID), "archived parent with a live child stays")
+	require.True(t, exists(liveChild.ID))
+	require.False(t, exists(gone.ID))
+	require.False(t, exists(goneChild.ID))
+	require.False(t, exists(goneSubagent.ID))
+
+	// Deleting the parent alone cascades to descendants that were not
+	// themselves selected.
+	parent := newChat("cascade parent", database.ChatKindChat, ref(treeRoot.ID), uuid.NullUUID{}, true)
+	child := newChat("cascade child", database.ChatKindChat, ref(parent.ID), uuid.NullUUID{}, true)
+	_, err = rawDB.ExecContext(ctx, "UPDATE chats SET updated_at = $1 WHERE id = $2", now, child.ID)
+	require.NoError(t, err)
+	deleted, err = db.DeleteOldChats(ctx, database.DeleteOldChatsParams{
+		BeforeTime: now.Add(-30 * 24 * time.Hour),
+		LimitCount: 100,
+	})
+	require.NoError(t, err)
+	require.Equal(t, int64(1), deleted)
+	require.False(t, exists(parent.ID))
+	require.False(t, exists(child.ID), "archived child follows its purged parent")
 }

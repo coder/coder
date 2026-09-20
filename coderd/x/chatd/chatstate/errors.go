@@ -39,6 +39,14 @@ var (
 	// supplied chat is a subagent chat.
 	ErrChatNotRoot = xerrors.New("chat is not a root chat")
 
+	// ErrChatTreeRootArchive is returned by family-archive helpers when
+	// the supplied chat is the owner's tree root, which is never archived.
+	ErrChatTreeRootArchive = xerrors.New("chat tree root cannot be archived")
+
+	// ErrChatParentArchived is returned when unarchiving a chat whose
+	// parent chat is archived.
+	ErrChatParentArchived = xerrors.New("parent chat is archived")
+
 	// ErrEditedMessageNotUser is returned by [Tx.EditMessage] when the
 	// targeted chat_messages row exists but its role is not user.
 	ErrEditedMessageNotUser = xerrors.New("only user messages can be edited")

@@ -70,6 +70,7 @@ curl -X GET http://coder-server:8080/api/v2/chats \
     "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
     "archived": true,
     "build_id": "bfb1f3fa-bf7b-43a5-9e0b-26cc050e44cb",
+    "child_chat_count": 0,
     "children": [
       {}
     ],
@@ -97,6 +98,7 @@ curl -X GET http://coder-server:8080/api/v2/chats \
       ]
     },
     "created_at": "2019-08-24T14:15:22Z",
+    "depth": 0,
     "diff_status": {
       "additions": 0,
       "approved": true,
@@ -188,6 +190,7 @@ Status Code **200**
 | `» agent_id`              | string(uuid)                                                                       | false    |              |                                                                                                                                                                                                                                                                            |
 | `» archived`              | boolean                                                                            | false    |              |                                                                                                                                                                                                                                                                            |
 | `» build_id`              | string(uuid)                                                                       | false    |              |                                                                                                                                                                                                                                                                            |
+| `» child_chat_count`      | integer                                                                            | false    |              | Child chat count is the number of direct chat kind children in any archived state. Set wherever Depth is set; omitted elsewhere.                                                                                                                                           |
 | `» children`              | [codersdk.Chat](schemas.md#codersdkchat)                                           | false    |              | Children holds subagent chats spawned by this chat. Always initialized to an empty slice so the JSON field is present as []. Subagents cannot spawn subagents, so the slice is always empty for subagent chats. Named tree children are not embedded here.                 |
 | `» client_type`           | [codersdk.ChatClientType](schemas.md#codersdkchatclienttype)                       | false    |              |                                                                                                                                                                                                                                                                            |
 | `» context`               | [codersdk.ChatContext](schemas.md#codersdkchatcontext)                             | false    |              | Context reports the chat's pinned workspace-context state and whether it has drifted from the agent's latest pushed snapshot. Nil when the chat has no pinned context yet.                                                                                                 |
@@ -206,6 +209,7 @@ Status Code **200**
 | `»»»» description`        | string                                                                             | false    |              | Description is the tool's human-readable summary; may be empty.                                                                                                                                                                                                            |
 | `»»»» name`               | string                                                                             | false    |              | Name is the tool name with the `<server>__` prefix the agent adds stripped, so it reads as the server exposes it.                                                                                                                                                          |
 | `» created_at`            | string(date-time)                                                                  | false    |              |                                                                                                                                                                                                                                                                            |
+| `» depth`                 | integer                                                                            | false    |              | Depth is the chat's depth in its owner's tree, where the root is 1. Set by the tree and single-chat endpoints for root and chat kind rows whose ancestor chain ends at a root; omitted elsewhere.                                                                          |
 | `» diff_status`           | [codersdk.ChatDiffStatus](schemas.md#codersdkchatdiffstatus)                       | false    |              |                                                                                                                                                                                                                                                                            |
 | `»» additions`            | integer                                                                            | false    |              |                                                                                                                                                                                                                                                                            |
 | `»» approved`             | boolean                                                                            | false    |              |                                                                                                                                                                                                                                                                            |
@@ -317,6 +321,7 @@ curl -X POST http://coder-server:8080/api/v2/chats \
   ],
   "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "parent_chat_id": "c3609ee6-3b11-4a93-b9ae-e4fabcc99359",
   "plan_mode": "plan",
   "reasoning_effort": "string",
   "system_prompt": "string",
@@ -348,11 +353,13 @@ curl -X POST http://coder-server:8080/api/v2/chats \
   "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
   "archived": true,
   "build_id": "bfb1f3fa-bf7b-43a5-9e0b-26cc050e44cb",
+  "child_chat_count": 0,
   "children": [
     {
       "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
       "archived": true,
       "build_id": "bfb1f3fa-bf7b-43a5-9e0b-26cc050e44cb",
+      "child_chat_count": 0,
       "children": [],
       "client_type": "ui",
       "context": {
@@ -378,6 +385,7 @@ curl -X POST http://coder-server:8080/api/v2/chats \
         ]
       },
       "created_at": "2019-08-24T14:15:22Z",
+      "depth": 0,
       "diff_status": {
         "additions": 0,
         "approved": true,
@@ -475,6 +483,7 @@ curl -X POST http://coder-server:8080/api/v2/chats \
     ]
   },
   "created_at": "2019-08-24T14:15:22Z",
+  "depth": 0,
   "diff_status": {
     "additions": 0,
     "approved": true,
@@ -1299,6 +1308,7 @@ curl -X GET http://coder-server:8080/api/v2/chats/watch \
     "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
     "archived": true,
     "build_id": "bfb1f3fa-bf7b-43a5-9e0b-26cc050e44cb",
+    "child_chat_count": 0,
     "children": [
       {}
     ],
@@ -1326,6 +1336,7 @@ curl -X GET http://coder-server:8080/api/v2/chats/watch \
       ]
     },
     "created_at": "2019-08-24T14:15:22Z",
+    "depth": 0,
     "diff_status": {
       "additions": 0,
       "approved": true,
@@ -1445,11 +1456,13 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat} \
   "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
   "archived": true,
   "build_id": "bfb1f3fa-bf7b-43a5-9e0b-26cc050e44cb",
+  "child_chat_count": 0,
   "children": [
     {
       "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
       "archived": true,
       "build_id": "bfb1f3fa-bf7b-43a5-9e0b-26cc050e44cb",
+      "child_chat_count": 0,
       "children": [],
       "client_type": "ui",
       "context": {
@@ -1475,6 +1488,7 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat} \
         ]
       },
       "created_at": "2019-08-24T14:15:22Z",
+      "depth": 0,
       "diff_status": {
         "additions": 0,
         "approved": true,
@@ -1572,6 +1586,7 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat} \
     ]
   },
   "created_at": "2019-08-24T14:15:22Z",
+  "depth": 0,
   "diff_status": {
     "additions": 0,
     "approved": true,
@@ -1726,11 +1741,13 @@ curl -X PUT http://coder-server:8080/api/v2/chats/{chat}/context \
   "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
   "archived": true,
   "build_id": "bfb1f3fa-bf7b-43a5-9e0b-26cc050e44cb",
+  "child_chat_count": 0,
   "children": [
     {
       "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
       "archived": true,
       "build_id": "bfb1f3fa-bf7b-43a5-9e0b-26cc050e44cb",
+      "child_chat_count": 0,
       "children": [],
       "client_type": "ui",
       "context": {
@@ -1756,6 +1773,7 @@ curl -X PUT http://coder-server:8080/api/v2/chats/{chat}/context \
         ]
       },
       "created_at": "2019-08-24T14:15:22Z",
+      "depth": 0,
       "diff_status": {
         "additions": 0,
         "approved": true,
@@ -1853,6 +1871,7 @@ curl -X PUT http://coder-server:8080/api/v2/chats/{chat}/context \
     ]
   },
   "created_at": "2019-08-24T14:15:22Z",
+  "depth": 0,
   "diff_status": {
     "additions": 0,
     "approved": true,
@@ -2055,11 +2074,13 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/interrupt \
   "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
   "archived": true,
   "build_id": "bfb1f3fa-bf7b-43a5-9e0b-26cc050e44cb",
+  "child_chat_count": 0,
   "children": [
     {
       "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
       "archived": true,
       "build_id": "bfb1f3fa-bf7b-43a5-9e0b-26cc050e44cb",
+      "child_chat_count": 0,
       "children": [],
       "client_type": "ui",
       "context": {
@@ -2085,6 +2106,7 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/interrupt \
         ]
       },
       "created_at": "2019-08-24T14:15:22Z",
+      "depth": 0,
       "diff_status": {
         "additions": 0,
         "approved": true,
@@ -2182,6 +2204,7 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/interrupt \
     ]
   },
   "created_at": "2019-08-24T14:15:22Z",
+  "depth": 0,
   "diff_status": {
     "additions": 0,
     "approved": true,
@@ -3078,11 +3101,13 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/reconcile-invalid \
   "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
   "archived": true,
   "build_id": "bfb1f3fa-bf7b-43a5-9e0b-26cc050e44cb",
+  "child_chat_count": 0,
   "children": [
     {
       "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
       "archived": true,
       "build_id": "bfb1f3fa-bf7b-43a5-9e0b-26cc050e44cb",
+      "child_chat_count": 0,
       "children": [],
       "client_type": "ui",
       "context": {
@@ -3108,6 +3133,7 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/reconcile-invalid \
         ]
       },
       "created_at": "2019-08-24T14:15:22Z",
+      "depth": 0,
       "diff_status": {
         "additions": 0,
         "approved": true,
@@ -3205,6 +3231,7 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/reconcile-invalid \
     ]
   },
   "created_at": "2019-08-24T14:15:22Z",
+  "depth": 0,
   "diff_status": {
     "additions": 0,
     "approved": true,

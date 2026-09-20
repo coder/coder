@@ -71,7 +71,7 @@ func transitionAllowed(tr chatstate.Transition, from chatstate.ExecutionState) b
 func expectedErrorForDisallowed(tr chatstate.Transition, from chatstate.ExecutionState) error {
 	switch from {
 	case chatstate.StateN:
-		if tr == chatstate.TransitionCreateChat {
+		if isCreateTransition(tr) {
 			// CreateChat is not exercised through ChatMachine.Update,
 			// so this branch is unused in practice. Returning the
 			// not-allowed sentinel keeps the helper total.
@@ -643,7 +643,7 @@ func TestTransitionMatrix_AllCombinations(t *testing.T) {
 	expectedPositive := make(map[caseKey]struct{})
 	for _, from := range chatstate.AllExecutionStates {
 		for _, tr := range chatstate.AllowedExecutionTransitionsFrom(from) {
-			if tr == chatstate.TransitionCreateChat {
+			if isCreateTransition(tr) {
 				continue
 			}
 			for _, to := range chatstate.AllowedExecutionTransitionOutputs(from, tr) {
@@ -656,7 +656,7 @@ func TestTransitionMatrix_AllCombinations(t *testing.T) {
 	// transition, every state where the transition is not allowed.
 	expectedDisallowed := make(map[disallowedCaseKey]struct{})
 	for _, tr := range chatstate.AllExecutionTransitions {
-		if tr == chatstate.TransitionCreateChat {
+		if isCreateTransition(tr) {
 			continue
 		}
 		for _, from := range chatstate.AllExecutionStates {
@@ -742,7 +742,7 @@ func TestTransitionMatrix_AllCombinations(t *testing.T) {
 		// already canonical, so iterate in their order.
 		for _, tr := range chatstate.AllExecutionTransitions {
 			tr := tr
-			if tr == chatstate.TransitionCreateChat {
+			if isCreateTransition(tr) {
 				continue
 			}
 			t.Run(string(tr), func(t *testing.T) {
@@ -1981,4 +1981,11 @@ func reconcileInvalidStateCase(want chatstate.ExecutionState, shape queueShape) 
 		}
 	}
 	return spec
+}
+
+// isCreateTransition reports whether tr inserts the chat row. Those
+// transitions start from N and are not exercised through
+// ChatMachine.Update, so the matrix sweeps skip them.
+func isCreateTransition(tr chatstate.Transition) bool {
+	return tr == chatstate.TransitionCreateChat || tr == chatstate.TransitionCreateIdleChat
 }
