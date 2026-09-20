@@ -1,5 +1,5 @@
 import { ListChecksIcon, TriangleAlertIcon } from "lucide-react";
-import { type FC, type ReactNode, useLayoutEffect, useRef } from "react";
+import { Component, type FC, type ReactNode } from "react";
 import { useTime } from "#/hooks/useTime";
 import { ToolCall } from "../ChatElements/tools/ToolCall";
 import {
@@ -56,64 +56,68 @@ const getScrollParent = (element: HTMLElement): HTMLElement | null => {
 	return null;
 };
 
+type WorkingBlockContentProps = {
+	memberIds: readonly number[];
+	children: ReactNode;
+};
+
 /**
  * Older pages prepend rows inside an expanded partial block rather than as
  * new scroller items, so the scroller cannot hold the reading position and
  * browsers skip scroll anchoring at the top. Scroll by the growth instead.
+ *
+ * A class component because getSnapshotBeforeUpdate is the only React API
+ * that measures the DOM right before a commit mutates it. Nested rows expand
+ * on their own state without rendering this component, so any height cached
+ * at an earlier render or observer callback can be stale by the time a
+ * prepend commits, and the growth would then include the nested resize.
  */
-const useKeepReadingPositionAcrossPrepend = (memberIds: readonly number[]) => {
-	const contentRef = useRef<HTMLDivElement>(null);
-	const previousRef = useRef<{
-		memberIds: readonly number[];
-		height: number;
-	}>(null);
-	// Nested rows expand and collapse on their own state, which resizes the
-	// content without rendering this component. Keep the cached height current
-	// so the next prepend is measured against the size just before it.
-	const observeContent = (content: HTMLDivElement | null) => {
-		contentRef.current = content;
-		if (!content) {
-			return;
-		}
-		const observer = new ResizeObserver(() => {
-			const previous = previousRef.current;
-			if (previous) {
-				previousRef.current = { ...previous, height: content.offsetHeight };
-			}
-		});
-		observer.observe(content);
-		return () => {
-			observer.disconnect();
-			contentRef.current = null;
-		};
-	};
-	useLayoutEffect(() => {
-		const content = contentRef.current;
-		const previous = previousRef.current;
-		previousRef.current = content
-			? { memberIds, height: content.offsetHeight }
-			: null;
+class WorkingBlockContent extends Component<WorkingBlockContentProps> {
+	private content: HTMLDivElement | null = null;
+
+	getSnapshotBeforeUpdate(): number | null {
+		return this.content?.offsetHeight ?? null;
+	}
+
+	componentDidUpdate(
+		previous: WorkingBlockContentProps,
+		_state: unknown,
+		heightBefore: number | null,
+	) {
+		const content = this.content;
 		if (
 			!content ||
-			!previous ||
-			!didPrependIntoBlock(previous.memberIds, memberIds)
+			heightBefore === null ||
+			!didPrependIntoBlock(previous.memberIds, this.props.memberIds)
 		) {
 			return;
 		}
-		const delta = content.offsetHeight - previous.height;
+		const delta = content.offsetHeight - heightBefore;
 		const viewport = getScrollParent(content);
 		if (delta === 0 || !viewport) {
 			return;
 		}
 		// When the same page also prepends rows above the block, MessageScroller
 		// restores the block's own top edge from a MutationObserver callback,
-		// which runs after this effect and would cancel a synchronous adjustment.
+		// which runs after this update and would cancel a synchronous adjustment.
 		queueMicrotask(() => {
 			viewport.scrollTop += delta;
 		});
-	});
-	return observeContent;
-};
+	}
+
+	render() {
+		return (
+			<div
+				ref={(content) => {
+					this.content = content;
+				}}
+				className="mt-1.5 flex flex-col gap-2 border-0 border-l border-solid border-border-default pl-3"
+			>
+				{this.props.children}
+			</div>
+		);
+	}
+}
 
 type WorkingBlockDisclosureProps = {
 	block: WorkingBlock;
@@ -133,7 +137,6 @@ export const WorkingBlockDisclosure: FC<WorkingBlockDisclosureProps> = ({
 	onExpandedChange,
 	children,
 }) => {
-	const observeContent = useKeepReadingPositionAcrossPrepend(block.memberIds);
 	return (
 		<ToolCall.Root
 			status={block.isLive ? "running" : "completed"}
@@ -162,12 +165,9 @@ export const WorkingBlockDisclosure: FC<WorkingBlockDisclosureProps> = ({
 				<ToolCall.Chevron />
 			</ToolCall.HeaderButton>
 			<ToolCall.Content>
-				<div
-					ref={observeContent}
-					className="mt-1.5 flex flex-col gap-2 border-0 border-l border-solid border-border-default pl-3"
-				>
+				<WorkingBlockContent memberIds={block.memberIds}>
 					{children}
-				</div>
+				</WorkingBlockContent>
 			</ToolCall.Content>
 		</ToolCall.Root>
 	);
