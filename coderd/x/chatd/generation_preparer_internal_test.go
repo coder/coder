@@ -474,6 +474,78 @@ func TestPrepareGenerationSubagentUsesOwnerSyntheticAPIKey(t *testing.T) {
 	require.Equal(t, gatewayKey.ID, prepared.ModelBuildOptions.ActiveAPIKeyID)
 }
 
+func TestPrepareGenerationNamedChildInPlanModeKeepsRootToolSet(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	ctx := chatdTestContext(t)
+	user := dbgen.User(t, db, database.User{})
+	org := dbgen.Organization(t, db, database.Organization{})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{
+		UserID:         user.ID,
+		OrganizationID: org.ID,
+	})
+	provider := dbgen.AIProviderWithOptionalKey(t, db, database.AIProvider{
+		Type: database.AIProviderTypeOpenai,
+	}, "test-key")
+	modelConfig := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+		Model:          "gpt-4o-mini",
+		AIProviderID:   uuid.NullUUID{UUID: provider.ID, Valid: true},
+		OrganizationID: org.ID,
+	}, func(p *database.InsertChatModelConfigParams) {
+		p.Enabled = true
+	})
+	root := dbgen.Chat(t, db, database.Chat{
+		OrganizationID:    org.ID,
+		OwnerID:           user.ID,
+		Kind:              database.ChatKindRoot,
+		LastModelConfigID: modelConfig.ID,
+	})
+	planMode := database.NullChatPlanMode{ChatPlanMode: database.ChatPlanModePlan, Valid: true}
+	created, err := chatstate.CreateChat(ctx, db, ps, chatstate.CreateChatInput{
+		OrganizationID:    org.ID,
+		OwnerID:           user.ID,
+		ParentChatID:      uuid.NullUUID{UUID: root.ID, Valid: true},
+		Kind:              database.ChatKindChat,
+		PlanMode:          planMode,
+		LastModelConfigID: modelConfig.ID,
+		Title:             "named child in plan mode",
+		ClientType:        database.ChatClientTypeApi,
+		InitialMessages: []chatstate.Message{
+			{
+				Role:           database.ChatMessageRoleUser,
+				Content:        mustMarshalText(t, "plan the change"),
+				Visibility:     database.ChatMessageVisibilityBoth,
+				ModelConfigID:  uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
+				CreatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
+				ContentVersion: chatprompt.CurrentContentVersion,
+			},
+		},
+	})
+	require.NoError(t, err)
+	require.Equal(t, database.ChatKindChat, created.Chat.Kind)
+	require.True(t, created.Chat.ParentChatID.Valid)
+
+	server := newInternalTestServer(
+		t,
+		db,
+		ps,
+		chatprovider.ProviderAPIKeys{},
+		withInternalTestServerTransportFactory(&aibridgeTestFactory{}),
+	)
+	prepared, err := server.prepareGeneration(ctx, generationPrepareInput{
+		Chat:     created.Chat,
+		Messages: created.InitialMessages,
+	})
+	require.NoError(t, err)
+	t.Cleanup(prepared.Cleanup)
+
+	for _, name := range []string{"write_file", "edit_files", "propose_plan", "spawn_agent", "ask_user_question"} {
+		require.Contains(t, prepared.ActiveTools, name)
+	}
+	require.Contains(t, prepared.StopAfterTools, "ask_user_question")
+}
+
 // TestDeriveFinalTurnRunResult exercises the re-derivation path that replaces
 // the old in-memory generationSideEffects stash. The server here never ran
 // prepareGeneration, so a passing test proves the finish-turn inputs are

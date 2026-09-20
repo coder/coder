@@ -3448,12 +3448,12 @@ func isExploreSubagentMode(mode database.NullChatMode) bool {
 func filterExternalMCPConfigsForTurn(
 	configs []database.MCPServerConfig,
 	mode database.NullChatPlanMode,
-	parentChatID uuid.NullUUID,
+	kind database.ChatKind,
 ) ([]database.MCPServerConfig, map[uuid.UUID]struct{}) {
 	if !mode.Valid || mode.ChatPlanMode != database.ChatPlanModePlan {
 		return configs, nil
 	}
-	if parentChatID.Valid {
+	if kind == database.ChatKindSubagent {
 		// Plan-mode subagents do not receive external MCP tools because
 		// their trust boundary is narrower than the root chat's.
 		return nil, map[uuid.UUID]struct{}{}
@@ -3491,13 +3491,13 @@ func builtinPlanToolAllowed(name string, isRootChat bool) bool {
 func toolAllowedForTurn(
 	tool fantasy.AgentTool,
 	mode database.NullChatPlanMode,
-	parentChatID uuid.NullUUID,
+	kind database.ChatKind,
 	approvedMCPConfigIDs map[uuid.UUID]struct{},
 ) bool {
 	if !mode.Valid || mode.ChatPlanMode != database.ChatPlanModePlan {
 		return true
 	}
-	if builtinPlanToolAllowed(tool.Info().Name, !parentChatID.Valid) {
+	if builtinPlanToolAllowed(tool.Info().Name, kind != database.ChatKindSubagent) {
 		return true
 	}
 	mcpTool, ok := tool.(mcpclient.MCPToolIdentifier)
@@ -3511,7 +3511,7 @@ func toolAllowedForTurn(
 func filterToolsForTurn(
 	allTools []fantasy.AgentTool,
 	mode database.NullChatPlanMode,
-	parentChatID uuid.NullUUID,
+	kind database.ChatKind,
 	approvedMCPConfigIDs map[uuid.UUID]struct{},
 ) []fantasy.AgentTool {
 	if !mode.Valid || mode.ChatPlanMode != database.ChatPlanModePlan {
@@ -3520,7 +3520,7 @@ func filterToolsForTurn(
 
 	filtered := make([]fantasy.AgentTool, 0, len(allTools))
 	for _, tool := range allTools {
-		if toolAllowedForTurn(tool, mode, parentChatID, approvedMCPConfigIDs) {
+		if toolAllowedForTurn(tool, mode, kind, approvedMCPConfigIDs) {
 			filtered = append(filtered, tool)
 		}
 	}
@@ -3532,12 +3532,12 @@ func filterToolsForTurn(
 func activeToolNamesForTurn(
 	allTools []fantasy.AgentTool,
 	mode database.NullChatPlanMode,
-	parentChatID uuid.NullUUID,
+	kind database.ChatKind,
 	approvedMCPConfigIDs map[uuid.UUID]struct{},
 ) []string {
 	toolNames := make([]string, 0, len(allTools))
 	for _, tool := range allTools {
-		if toolAllowedForTurn(tool, mode, parentChatID, approvedMCPConfigIDs) {
+		if toolAllowedForTurn(tool, mode, kind, approvedMCPConfigIDs) {
 			toolNames = append(toolNames, tool.Info().Name)
 		}
 	}
@@ -3605,7 +3605,7 @@ func allowedBehaviorToolNames(
 
 func stopAfterPlanTools(
 	planMode database.NullChatPlanMode,
-	parentChatID uuid.NullUUID,
+	kind database.ChatKind,
 ) map[string]struct{} {
 	if !planMode.Valid || planMode.ChatPlanMode != database.ChatPlanModePlan {
 		return nil
@@ -3613,7 +3613,7 @@ func stopAfterPlanTools(
 	stopTools := map[string]struct{}{
 		"propose_plan": {},
 	}
-	if !parentChatID.Valid {
+	if kind != database.ChatKindSubagent {
 		stopTools["ask_user_question"] = struct{}{}
 	}
 	return stopTools
@@ -3622,12 +3622,12 @@ func stopAfterPlanTools(
 func stopAfterBehaviorTools(
 	planMode database.NullChatPlanMode,
 	chatMode database.NullChatMode,
-	parentChatID uuid.NullUUID,
+	kind database.ChatKind,
 ) map[string]struct{} {
 	if isExploreSubagentMode(chatMode) {
 		return nil
 	}
-	return stopAfterPlanTools(planMode, parentChatID)
+	return stopAfterPlanTools(planMode, kind)
 }
 
 type systemPromptBehaviorContext struct {

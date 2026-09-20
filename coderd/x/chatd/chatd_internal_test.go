@@ -541,7 +541,7 @@ func TestFilterExternalMCPConfigsForTurn(t *testing.T) {
 		filtered, approvedIDs := filterExternalMCPConfigsForTurn(
 			configs,
 			database.NullChatPlanMode{},
-			uuid.NullUUID{},
+			database.ChatKindChat,
 		)
 
 		require.Equal(t, configs, filtered)
@@ -554,7 +554,7 @@ func TestFilterExternalMCPConfigsForTurn(t *testing.T) {
 		filtered, approvedIDs := filterExternalMCPConfigsForTurn(
 			configs,
 			planMode,
-			uuid.NullUUID{UUID: uuid.New(), Valid: true},
+			database.ChatKindSubagent,
 		)
 
 		require.Nil(t, filtered)
@@ -568,7 +568,7 @@ func TestFilterExternalMCPConfigsForTurn(t *testing.T) {
 		filtered, approvedIDs := filterExternalMCPConfigsForTurn(
 			configs,
 			planMode,
-			uuid.NullUUID{},
+			database.ChatKindChat,
 		)
 
 		require.Equal(t, []database.MCPServerConfig{approvedConfig}, filtered)
@@ -623,7 +623,7 @@ func TestActiveToolNamesForTurn(t *testing.T) {
 			"propose_plan",
 			"custom_tool",
 			"execute",
-		), database.NullChatPlanMode{}, uuid.NullUUID{}, nil)
+		), database.NullChatPlanMode{}, database.ChatKindChat, nil)
 
 		require.Equal(t, []string{
 			"read_file",
@@ -658,7 +658,7 @@ func TestActiveToolNamesForTurn(t *testing.T) {
 			"read_skill",
 			"read_skill_file",
 			"ask_user_question",
-		), planMode, uuid.NullUUID{}, nil)
+		), planMode, database.ChatKindChat, nil)
 
 		require.Equal(t, []string{
 			"read_file",
@@ -681,7 +681,7 @@ func TestActiveToolNamesForTurn(t *testing.T) {
 		}, got)
 	})
 
-	t.Run("PlanModeChildChatsAllowExplorationOnly", func(t *testing.T) {
+	t.Run("PlanModeSubagentChatsAllowExplorationOnly", func(t *testing.T) {
 		t.Parallel()
 
 		got := activeToolNamesForTurn(makeTools(
@@ -701,7 +701,7 @@ func TestActiveToolNamesForTurn(t *testing.T) {
 			"read_skill",
 			"read_skill_file",
 			"ask_user_question",
-		), planMode, uuid.NullUUID{UUID: uuid.New(), Valid: true}, nil)
+		), planMode, database.ChatKindSubagent, nil)
 
 		require.Equal(t, []string{
 			"read_file",
@@ -728,7 +728,7 @@ func TestActiveToolNamesForTurn(t *testing.T) {
 			"message_agent",
 			"spawn_computer_use_agent",
 			"propose_plan",
-		), planMode, uuid.NullUUID{}, nil)
+		), planMode, database.ChatKindChat, nil)
 
 		require.Equal(t, []string{"execute", "process_output", "propose_plan"}, got)
 		require.NotContains(t, got, "message_agent")
@@ -743,7 +743,7 @@ func TestActiveToolNamesForTurn(t *testing.T) {
 			"custom_tool",
 			"another_custom_tool",
 			"propose_plan",
-		), planMode, uuid.NullUUID{}, nil)
+		), planMode, database.ChatKindChat, nil)
 
 		require.Equal(t, []string{
 			"read_file",
@@ -763,7 +763,7 @@ func TestActiveToolNamesForTurn(t *testing.T) {
 			newTestMCPAgentTool("approved-mcp__echo", approvedConfigID),
 			newTestMCPAgentTool("blocked-mcp__echo", blockedConfigID),
 			newTestAgentTool("workspace-mcp__echo"),
-		}, planMode, uuid.NullUUID{}, map[uuid.UUID]struct{}{
+		}, planMode, database.ChatKindChat, map[uuid.UUID]struct{}{
 			approvedConfigID: {},
 		})
 
@@ -858,7 +858,7 @@ func TestStopAfterPlanTools(t *testing.T) {
 
 	t.Run("NormalModeReturnsNil", func(t *testing.T) {
 		t.Parallel()
-		require.Nil(t, stopAfterPlanTools(database.NullChatPlanMode{}, uuid.NullUUID{}))
+		require.Nil(t, stopAfterPlanTools(database.NullChatPlanMode{}, database.ChatKindChat))
 	})
 
 	t.Run("RootPlanModeIncludesClarificationTool", func(t *testing.T) {
@@ -866,14 +866,14 @@ func TestStopAfterPlanTools(t *testing.T) {
 		require.Equal(t, map[string]struct{}{
 			"propose_plan":      {},
 			"ask_user_question": {},
-		}, stopAfterPlanTools(planMode, uuid.NullUUID{}))
+		}, stopAfterPlanTools(planMode, database.ChatKindRoot))
 	})
 
-	t.Run("ChildPlanModeSkipsClarificationTool", func(t *testing.T) {
+	t.Run("SubagentPlanModeSkipsClarificationTool", func(t *testing.T) {
 		t.Parallel()
 		require.Equal(t, map[string]struct{}{
 			"propose_plan": {},
-		}, stopAfterPlanTools(planMode, uuid.NullUUID{UUID: uuid.New(), Valid: true}))
+		}, stopAfterPlanTools(planMode, database.ChatKindSubagent))
 	})
 }
 
@@ -894,22 +894,22 @@ func TestStopAfterBehaviorTools(t *testing.T) {
 		require.Nil(t, stopAfterBehaviorTools(
 			database.NullChatPlanMode{},
 			database.NullChatMode{},
-			uuid.NullUUID{},
+			database.ChatKindChat,
 		))
 	})
 
 	t.Run("PlanModeDelegatesToPlanTools", func(t *testing.T) {
 		t.Parallel()
-		require.Equal(t, stopAfterPlanTools(planMode, uuid.NullUUID{}), stopAfterBehaviorTools(
+		require.Equal(t, stopAfterPlanTools(planMode, database.ChatKindRoot), stopAfterBehaviorTools(
 			planMode,
 			database.NullChatMode{},
-			uuid.NullUUID{},
+			database.ChatKindChat,
 		))
 	})
 
 	t.Run("ExploreModeReturnsNil", func(t *testing.T) {
 		t.Parallel()
-		require.Nil(t, stopAfterBehaviorTools(planMode, exploreMode, uuid.NullUUID{}))
+		require.Nil(t, stopAfterBehaviorTools(planMode, exploreMode, database.ChatKindChat))
 	})
 }
 

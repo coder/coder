@@ -174,7 +174,7 @@ func (server *Server) prepareGeneration(
 	mcpConnectConfigs, approvedPlanMCPConfigIDs := filterExternalMCPConfigsForTurn(
 		mcpConfigs,
 		currentPlanMode,
-		chat.ParentChatID,
+		chat.Kind,
 	)
 	if isExploreSubagent && isRootChat {
 		mcpConnectConfigs = nil
@@ -597,7 +597,7 @@ func (server *Server) prepareGeneration(
 		workspaceMCPTools:     workspaceMCPTools,
 		mcpConfigByID:         mcpConfigByID,
 		planMode:              currentPlanMode,
-		parentChatID:          chat.ParentChatID,
+		chatKind:              chat.Kind,
 		approvedMCPConfigIDs:  approvedPlanMCPConfigIDs,
 		includeWorkspaceTools: !isExploreSubagent,
 	})
@@ -605,7 +605,7 @@ func (server *Server) prepareGeneration(
 	if !isExploreSubagent {
 		tools = append(tools, workspaceMCPTools...)
 	}
-	tools = filterToolsForTurn(tools, currentPlanMode, chat.ParentChatID, approvedPlanMCPConfigIDs)
+	tools = filterToolsForTurn(tools, currentPlanMode, chat.Kind, approvedPlanMCPConfigIDs)
 
 	tools, dynamicToolNames, err := appendDynamicTools(ctx, logger, tools, chat.DynamicTools, currentPlanMode, chat.Mode)
 	if err != nil {
@@ -652,7 +652,7 @@ func (server *Server) prepareGeneration(
 		}
 	}
 
-	activeToolNames := activeToolNamesForTurn(tools, currentPlanMode, chat.ParentChatID, approvedPlanMCPConfigIDs)
+	activeToolNames := activeToolNamesForTurn(tools, currentPlanMode, chat.Kind, approvedPlanMCPConfigIDs)
 	if isExploreSubagent {
 		activeToolNames = allowedExploreToolNames(tools)
 	}
@@ -777,7 +777,7 @@ func (server *Server) prepareGeneration(
 		CallTemplate:         resolved.newCall(),
 		ContextLimitFallback: modelConfig.ContextLimit,
 		DynamicToolNames:     dynamicToolNames,
-		StopAfterTools:       stopAfterBehaviorTools(currentPlanMode, chat.Mode, chat.ParentChatID),
+		StopAfterTools:       stopAfterBehaviorTools(currentPlanMode, chat.Mode, chat.Kind),
 		ExclusiveToolNames:   exclusiveToolNames,
 		BuiltinToolNames:     builtinToolNames,
 		ToolNameToConfigID:   toolNameToConfigID,
