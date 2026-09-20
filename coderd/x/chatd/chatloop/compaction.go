@@ -176,14 +176,16 @@ func GenerateCompaction(ctx context.Context, opts GenerateCompactionOptions) (Co
 	// Sum-enforcing providers reject requests whose input plus
 	// max_tokens exceeds the context window, so bound the summary cap
 	// by the remaining window. contextTokens covers only the trigger
-	// step's prompt, so also reserve that step's output and the
-	// summary prompt appended by generateCompactionSummary, both of
-	// which become input to the summary request. Degenerate cases
-	// (unknown limit, no room left) leave the cap unchanged.
+	// step's prompt, so also reserve that step's output, the tool
+	// results executed after it, and the summary prompt appended by
+	// generateCompactionSummary, all of which become input to the
+	// summary request. Degenerate cases (unknown limit, no room left)
+	// leave the cap unchanged.
 	if config.SummaryCall.MaxOutputTokens != nil {
 		promptBytes := len(config.SummaryPrompt) + len(config.SummaryHint)
 		promptTokens := int64((promptBytes + bytesPerTokenEstimate - 1) / bytesPerTokenEstimate)
-		remaining := contextLimit - contextTokens - opts.StepUsage.OutputTokens - promptTokens
+		reserved := opts.StepUsage.OutputTokens + promptTokens + trailingToolResultTokens(opts.Messages)
+		remaining := contextLimit - contextTokens - reserved
 		if remaining > 0 && remaining < *config.SummaryCall.MaxOutputTokens {
 			config.SummaryCall.MaxOutputTokens = &remaining
 		}
@@ -298,6 +300,37 @@ func publishCompactionError(config CompactionOptions, msg string) {
 		codersdk.ChatMessageRoleTool,
 		codersdk.ChatMessageToolResult(config.ToolCallID, config.ToolName, errJSON, true, false),
 	)
+}
+
+// trailingToolResultTokens estimates tokens for the tool-result
+// messages that follow the usage-measured assistant step. Local tools
+// execute before compaction, so their results are input to the summary
+// request but absent from StepUsage.
+func trailingToolResultTokens(messages []fantasy.Message) int64 {
+	totalBytes := 0
+	for i := len(messages) - 1; i >= 0 && messages[i].Role == fantasy.MessageRoleTool; i-- {
+		for _, part := range messages[i].Content {
+			result, ok := part.(fantasy.ToolResultPart)
+			if !ok {
+				resultPtr, okPtr := part.(*fantasy.ToolResultPart)
+				if !okPtr || resultPtr == nil {
+					continue
+				}
+				result = *resultPtr
+			}
+			switch output := result.Output.(type) {
+			case fantasy.ToolResultOutputContentText:
+				totalBytes += len(output.Text)
+			case fantasy.ToolResultOutputContentError:
+				if output.Error != nil {
+					totalBytes += len(output.Error.Error())
+				}
+			case fantasy.ToolResultOutputContentMedia:
+				totalBytes += len(output.Data) + len(output.Text)
+			}
+		}
+	}
+	return int64((totalBytes + bytesPerTokenEstimate - 1) / bytesPerTokenEstimate)
 }
 
 // contextTokensFromUsage returns the total context token count from

@@ -3,6 +3,7 @@ package chatloop
 import (
 	"context"
 	"encoding/json"
+	"strings"
 	"testing"
 	"time"
 
@@ -501,14 +502,16 @@ func TestGenerateCompaction_ClampsSummaryCapToRemainingWindow(t *testing.T) {
 	t.Parallel()
 
 	cases := []struct {
-		name         string
-		contextLimit int64
-		inputTokens  int64
-		outputTokens int64
-		cap          int64
-		wantCap      int64
+		name            string
+		contextLimit    int64
+		inputTokens     int64
+		outputTokens    int64
+		toolResultBytes int
+		cap             int64
+		wantCap         int64
 	}{
 		{name: "clamps to remaining window", contextLimit: 100, inputTokens: 75, outputTokens: 10, cap: 64_000, wantCap: 13},
+		{name: "reserves trailing tool results", contextLimit: 100, inputTokens: 72, toolResultBytes: 30, cap: 64_000, wantCap: 16},
 		{name: "keeps cap that fits", contextLimit: 200_000, inputTokens: 140_000, outputTokens: 500, cap: 50_000, wantCap: 50_000},
 		{name: "usage at limit leaves cap unchanged", contextLimit: 100, inputTokens: 100, cap: 64_000, wantCap: 64_000},
 		{name: "reserves leave no room, cap unchanged", contextLimit: 100, inputTokens: 80, outputTokens: 25, cap: 64_000, wantCap: 64_000},
@@ -532,9 +535,19 @@ func TestGenerateCompaction_ClampsSummaryCapToRemainingWindow(t *testing.T) {
 				},
 			}
 			capTokens := tc.cap
+			messages := []fantasy.Message{textMessage(fantasy.MessageRoleUser, "hello")}
+			if tc.toolResultBytes > 0 {
+				messages = append(messages, fantasy.Message{
+					Role: fantasy.MessageRoleTool,
+					Content: []fantasy.MessagePart{fantasy.ToolResultPart{
+						ToolCallID: "call-1",
+						Output:     fantasy.ToolResultOutputContentText{Text: strings.Repeat("x", tc.toolResultBytes)},
+					}},
+				})
+			}
 			result, err := GenerateCompaction(context.Background(), GenerateCompactionOptions{
 				Model:            model,
-				Messages:         []fantasy.Message{textMessage(fantasy.MessageRoleUser, "hello")},
+				Messages:         messages,
 				Clock:            quartz.NewMock(t),
 				ThresholdPercent: 70,
 				ContextLimit:     tc.contextLimit,
