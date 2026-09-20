@@ -341,3 +341,65 @@ export const groupWorkingBlocks = (
 		};
 	});
 };
+
+export type LiveBlockIdentity = {
+	itemKey: string;
+	firstMemberId: number | undefined;
+	streamStartedAt: string | undefined;
+};
+
+/**
+ * Carries the scroller item key a block rendered live with through the
+ * live-to-complete handoff and through paging, so an open block never
+ * remounts. Paging re-keys a live block anchored on the head once its turn's
+ * prompt loads; its oldest member and its stream both outlive the re-key, so
+ * either one identifies it. Returns the inputs when nothing changed.
+ */
+export const reconcileLiveBlockItemKeys = (
+	blocks: readonly WorkingBlock[],
+	streamStartedAt: string | undefined,
+	itemKeys: ReadonlyMap<string, string>,
+	identity: LiveBlockIdentity | null,
+): {
+	itemKeys: ReadonlyMap<string, string>;
+	identity: LiveBlockIdentity | null;
+} => {
+	let nextItemKeys = itemKeys;
+	let nextIdentity = identity;
+	for (const block of blocks) {
+		let itemKey = nextItemKeys.get(block.key);
+		if (itemKey === undefined) {
+			const current = nextIdentity;
+			const continuesLiveBlock =
+				current !== null &&
+				((current.firstMemberId !== undefined &&
+					block.memberIds.includes(current.firstMemberId)) ||
+					(block.isLive &&
+						current.streamStartedAt !== undefined &&
+						current.streamStartedAt === streamStartedAt));
+			if (continuesLiveBlock) {
+				itemKey = current.itemKey;
+			} else if (block.isLive) {
+				itemKey = block.liveKey;
+			} else {
+				itemKey = nextItemKeys.get(block.liveKey);
+			}
+			if (itemKey === undefined) {
+				continue;
+			}
+			const next = new Map(nextItemKeys);
+			next.set(block.key, itemKey);
+			nextItemKeys = next;
+		}
+		const firstMemberId = block.memberIds[0];
+		if (
+			block.isLive &&
+			(nextIdentity?.itemKey !== itemKey ||
+				nextIdentity.firstMemberId !== firstMemberId ||
+				nextIdentity.streamStartedAt !== streamStartedAt)
+		) {
+			nextIdentity = { itemKey, firstMemberId, streamStartedAt };
+		}
+	}
+	return { itemKeys: nextItemKeys, identity: nextIdentity };
+};
