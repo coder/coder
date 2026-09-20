@@ -1,82 +1,62 @@
 # Route workspace egress through exit nodes (Premium)
 
-This guide is for Coder deployment and template administrators who need to control and observe outbound workspace traffic.
-It covers exit node deployment, template bindings, egress policy, high availability, and the required external enforcement boundary.
+Workspaces hold source code, credentials, and AI agents that run arbitrary commands.
+Most teams want to say exactly which external services a workspace can reach, and to know afterwards which workspace talked to what.
+A cluster firewall can block by IP, but it cannot express "GitHub, npm, and the internal artifact registry" for one template and "nothing but PyPI" for another, and it cannot tell you which workspace made a connection.
+
+Exit nodes solve that.
+An exit node is a small service you run that terminates outbound workspace traffic, applies a hostname-aware allow or deny policy, and reports every flow to Coder with the workspace that produced it.
+Workspaces reach the exit node over the Coder tailnet they already use, so you get per-template egress policy and a per-workspace Connection Log without new network plumbing inside the workspace.
+
+This guide is for deployment and template administrators.
+It explains the model, walks through a deployment, and then covers policy, high availability, and operations.
+
+## How it works
+
+Three pieces work together:
+
+1. **The workspace agent** captures the workspace's TCP, UDP, and DNS traffic with netfilter rules and forwards it to an exit node over the tailnet.
+   It then drops its own network capabilities so workspace processes cannot undo the rules.
+2. **The exit node** identifies the sending workspace, evaluates policy against the destination host, address, port, and protocol, then either proxies the flow or rejects it.
+   It reports every decision to Coder.
+3. **An external network control** such as a Kubernetes NetworkPolicy or cloud security group denies every workspace egress path except Coder, DERP or STUN, and the exit nodes.
+   This is the real security boundary; the agent's rules are the mechanism that makes allowed traffic attributable, not the thing that stops a determined bypass.
+
+An exit node is an organization-scoped resource with one token.
+You can run any number of identical replicas under that token; Coder tracks them by heartbeat and hands workspaces the live set.
+Templates bind to one or more exit nodes in preference order.
 
 > [!IMPORTANT]
-> You need permission to create exit nodes in the organization and update the affected templates.
+> Creating exit nodes requires exit node permissions in the organization.
 > Template administrators can bind templates to exit nodes they can read.
 
-## How exit nodes work
+## Deploy an exit node
 
-An exit node is an organization-scoped logical resource with one authentication token and one or more replicas.
-Each replica terminates workspace egress, applies policy, and reports flows to Coder.
-Replicas share the logical exit node's token and policy, while templates remain bound to the logical resource.
+### Prerequisites
 
-Workspace agents send TCP, UDP, and DNS traffic to live replicas over the Coder tailnet.
-Coder assigns each replica its tailnet identity and authorizes tunnels only from agents bound to that logical exit node.
-Replicas reject unknown agents, and Coder ignores reports from unbound agents.
+- A host for each replica that can reach Coder and every destination the policy allows.
+- Workspace agents on Agent API 2.14 or later.
+  Restart older running workspaces before binding their template; they cannot consume replica-aware configuration.
+- For transparent enforcement, a Linux workspace image where the agent runs as the container's root entrypoint with `CAP_NET_ADMIN`, has `iptables`, and uses a `CGO_ENABLED=0` agent binary (the official binaries do).
+  Passwordless `sudo` is not enough because the agent process itself must hold and then drop the capability.
+  Any other setup, including other platforms, runs in advisory mode: the proxy is available through `HTTP_PROXY` style variables but traffic is not captured.
 
-A complete deployment has 3 enforcement layers:
-
-1. The agent captures workspace traffic and sends it over the tailnet.
-2. The exit node identifies the source agent and allows or denies each flow.
-3. An external network control blocks any egress path that bypasses the agent.
-
-Coder attributes exit node flow reports to workspaces in the Connection Log.
-
-## Establish the external enforcement boundary
-
-> [!WARNING]
-> In-container `iptables` rules are not a security boundary.
-> A process that controls the workspace network namespace can bypass or disrupt them.
-> Apply a Kubernetes NetworkPolicy, cloud security group, or equivalent external control, or workspace traffic can bypass the exit node.
-
-Deny all workspace egress except the exact destinations and ports required for:
-
-- The workspace DNS resolver, which resolves exempt control-plane hosts.
-- Coder.
-- The deployment's DERP and STUN endpoints.
-- Each replica's advertised WireGuard UDP endpoint.
-
-Start with the [Kubernetes NetworkPolicy example](../../../examples/exit-node/kubernetes-networkpolicy.yaml) or [AWS security group example](../../../examples/exit-node/aws-security-group.tf).
-Replace every example address, selector, and port before applying it.
-
-The agent receives control-plane exemptions in `protocol/host:port` form.
-Coder and DERP use exact TCP ports, while STUN and advertised WireGuard endpoints use exact UDP ports.
-These netfilter exemptions also permit workspace processes to reach the same endpoints.
-Only agent-created resolver and transparent reply sockets use the agent-only bypass mark.
-
-The agent also adds exempt host names to `NO_PROXY` for applications that honor proxy environment variables.
-`NO_PROXY` has no protocol or port semantics, does not control transparent capture, and does not replace the external deny policy.
-
-## Deploy and configure an exit node
-
-The following procedure creates a logical exit node, starts a replica with a deny-by-default policy, binds a template, and verifies a flow.
-
-### Create the policy
-
-Copy the [sample exit node policy](../../../examples/exit-node/policy.yaml) to the replica host.
-The sample allows selected GitHub HTTPS traffic, the required DNS queries, and one UDP service.
-
-Review the policy before continuing.
-A deny-by-default policy can interrupt package managers, source control, IDE extensions, and other workspace tools.
-
-### Create the logical exit node
-
-Run the following command from an authenticated `coder` CLI session:
+### 1. Create the exit node and save its token
 
 ```sh
 coder exit-node create primary-egress
 ```
 
-The command prints the logical exit node's token once.
-Save it because Coder stores only its hash and cannot display it again.
-Every replica of this logical exit node uses the same token.
+The token is printed once; Coder stores only a hash.
+Every replica uses this same token.
 
-### Start a replica
+### 2. Write a policy
 
-Run each replica on a host that can reach Coder and every policy-allowed destination:
+Start from the [sample policy](../../../examples/exit-node/policy.yaml).
+The default is deny, so review it against what your tooling needs: package managers, source control, IDE extensions, and any internal services.
+Policy syntax is described in [Define policy](#define-policy).
+
+### 3. Start one or more replicas
 
 ```sh
 export CODER_EXIT_NODE_TOKEN='<exit-node-id>:<secret>'
@@ -84,62 +64,37 @@ export CODER_EXIT_NODE_TOKEN='<exit-node-id>:<secret>'
 coder exit-node server \
   --primary-access-url https://coder.example.com \
   --policy ./policy.yaml \
-  --wireguard-listen-port 51820 \
-  --wireguard-endpoint 203.0.113.10:51820 \
   --prometheus-address 127.0.0.1:2112
 ```
 
-The command prints `Starting exit node replica` with a generated replica ID and tailnet address, then streams logs.
-Each process start generates a fresh replica ID by default.
+Each process registers as a replica with a fresh ID and streams logs.
+Run several for availability; the [Kubernetes Deployment example](../../../examples/exit-node/kubernetes-deployment.yaml) runs three behind one token Secret and policy ConfigMap.
 
-Use the server options as follows:
+Useful options:
 
-| Option                                               | Operational effect                                                                                                                       |
-|------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------|
-| `--replica-id <uuid>`                                | Overrides the generated ID. Omit it for normal and autoscaled deployments because a deregistered ID cannot register again.               |
-| `--listen-port`                                      | Sets the tailnet CONNECT port. Keep the default `3128`; agents currently connect to that port.                                           |
-| `--wireguard-listen-port` and `--wireguard-endpoint` | Provide a stable direct UDP destination for agents and external egress policy.                                                           |
-| `--block-direct-connections`                         | Forces DERP-only connections. Use it when you omit both WireGuard options.                                                               |
-| `--upstream-dns <ip[:port]>`                         | Selects a resolver. Repeat the option for multiple resolvers. Without it, the replica uses its host resolver configuration.              |
-| `--provisional-host-allow`                           | Lets host-based allow rules match before the host is known. This weakens host enforcement because traffic can start before verification. |
-| `--prometheus-address`                               | Exposes the replica metrics endpoint.                                                                                                    |
+| Option                                               | Effect                                                                                                                                                                             |
+|------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `--wireguard-listen-port` and `--wireguard-endpoint` | Advertise a stable public UDP endpoint so enforced workspaces can exempt it and reach the replica directly instead of through DERP. See [Direct connections](#direct-connections). |
+| `--block-direct-connections`                         | Force DERP only. Use it when you do not advertise an endpoint.                                                                                                                     |
+| `--upstream-dns <ip[:port]>`                         | Pin the resolver the replica uses. Repeatable. Defaults to the host resolver.                                                                                                      |
+| `--provisional-host-allow`                           | Let host rules admit a connection to an IP literal before the host is verified. Weakens host enforcement; see [IP literals](#ip-literals-and-late-hostnames).                      |
+| `--replica-id <uuid>`                                | Fix the replica ID. Omit it in autoscaled deployments: a replica that deregisters can never register again under the same ID.                                                      |
 
-The WireGuard UDP port is separate from the tailnet CONNECT port.
+Reload the policy without a restart by sending `SIGHUP`.
+An invalid file is rejected and the previous policy stays active.
 
-Send `SIGHUP` to reload the YAML policy without restarting the replica:
+### 4. Apply the external boundary
 
-```sh
-kill -HUP <exit-node-process-id>
-```
+> [!WARNING]
+> Until this step is done, workspace traffic can bypass the exit node.
 
-A valid file replaces the policy atomically.
-If validation fails, the previous policy remains active and the replica logs the error.
+Deny all workspace egress except the exact destinations and ports for Coder, the DERP and STUN endpoints, the workspace's DNS resolver, and each replica's advertised WireGuard endpoint.
+Adapt the [Kubernetes NetworkPolicy](../../../examples/exit-node/kubernetes-networkpolicy.yaml) or [AWS security group](../../../examples/exit-node/aws-security-group.tf) example, replacing every address, selector, and port.
 
-Use the same raw YAML file on every replica of a logical exit node.
-Replicas report its hash, and Coder flags a policy mismatch when live siblings report different hashes.
-A mismatched replica also logs a warning and sets `coder_exit_node_policy_mismatch` to `1`.
+The agent mirrors these exemptions as exact `protocol/host:port` netfilter rules, so workspace processes can reach the same endpoints directly.
+That is intended: those endpoints are the control plane, not the internet.
 
-### Prepare the workspace agent
-
-Complete a rolling upgrade of affected workspace agents to Agent API 2.14 or later before binding their templates.
-Restart any older running workspace so it receives replica-aware exit node configuration.
-
-Transparent enforcement is available only for a Linux agent that:
-
-- Has `iptables` available.
-- Runs as the workspace container's root entrypoint.
-- Holds `CAP_NET_ADMIN` in the agent process, typically through the container's `NET_ADMIN` capability.
-- Uses a `CGO_ENABLED=0` agent binary, as official production binaries do.
-
-Passwordless `sudo` is not sufficient because it does not grant the agent process the capabilities required for lockdown.
-If enforcement setup or lockdown fails, the agent removes installed rules, logs that enforcement is unavailable, and continues in advisory proxy mode.
-Other platforms also use advisory mode.
-
-In both modes, the agent sets uppercase and lowercase `HTTP_PROXY`, `HTTPS_PROXY`, `ALL_PROXY`, and `NO_PROXY` variables for processes it starts.
-
-### Bind the template
-
-Bind the logical exit node and request transparent capture:
+### 5. Bind the template
 
 ```sh
 coder templates edit my-template \
@@ -147,69 +102,39 @@ coder templates edit my-template \
   --exit-node-enforce
 ```
 
-The command prints `Updated template metadata` after a successful update.
-Apply the [external enforcement boundary](#establish-the-external-enforcement-boundary) before treating the policy as enforced.
+Repeat `--exit-node` to add lower-priority nodes for failover.
+Omit `--exit-node-enforce` to offer the proxy through environment variables only, without capturing traffic.
 
-The agent uses these preferred local listener ports:
+### 6. Verify
 
-| Listener             |    Port |
-|----------------------|--------:|
-| TCP proxy            | `41280` |
-| DNS over TCP and UDP | `41253` |
-| Redirected UDP       | `41254` |
-
-If a preferred port is unavailable, the agent selects an ephemeral port and logs a warning.
-Listener ports remain stable while live replica sets or logical node preferences change, including when the agent already uses fallback ports.
-
-Changes to enforcement or control-plane exemptions require new netfilter rules.
-After capability lockdown, the agent defers those changes until the workspace container restarts.
-Restarting only the agent process is insufficient because the rules persist for the life of the network namespace.
-
-Removing all exit node bindings also requires a workspace container restart.
-Until then, the enforced agent keeps its proxy active with no replicas, so egress fails closed.
-
-### Verify a flow
-
-Start a workspace from the template, then connect to an allowed destination:
+From a workspace on the template:
 
 ```sh
 curl -I https://github.com
 ```
 
-Open **Deployment** > **Connection Log** and filter the connection type to **Egress**.
-The row identifies the workspace, destination, protocol, and policy decision.
-Refer to [Connection logs](../monitoring/connection-logs.md) for filtering and export options.
+Open **Deployment** > **Connection Log** and filter by connection type **Egress**.
+Each row shows the workspace, destination, protocol, decision, matched rule, and byte counts.
+See [Connection logs](../monitoring/connection-logs.md).
 
-## Define policy rules
+## Define policy
 
-A policy contains an ordered `rules` list and an optional `default` action.
-The first matching rule wins, and the default is `deny` when omitted.
-
-Each rule has an optional unique `id` and exactly one `allow` or `deny` action.
-A rule matches when every specified criterion matches, and an omitted criterion matches any value.
+A policy is an ordered list of rules with a `default` action (`deny` when omitted).
+The first rule whose every listed criterion matches decides the flow.
 
 ```yaml
 default: deny
 rules:
   - id: allow-github-https
     allow:
-      hosts:
-        - github.com
-        - "*.github.com"
+      hosts: [github.com, "*.github.com"]
       ports: [443]
       protocols: [tcp]
 
   - id: deny-private-networks
     deny:
-      cidrs:
-        - 10.0.0.0/8
-        - 192.168.0.0/16
+      cidrs: [10.0.0.0/8, 192.168.0.0/16]
       protocols: [tcp, udp]
-
-  - id: deny-quic
-    deny:
-      ports: [443]
-      protocols: [udp]
 
   - id: allow-development-ports
     allow:
@@ -217,225 +142,108 @@ rules:
       protocols: [tcp]
 ```
 
-| Criterion   | Accepted values and behavior                                                                                                     |
-|-------------|----------------------------------------------------------------------------------------------------------------------------------|
-| `hosts`     | Exact DNS names, a leading `*.suffix` glob, or `*` for any known host. A suffix glob matches subdomains but not the bare suffix. |
-| `cidrs`     | An IP prefix or one IPv4 or IPv6 address.                                                                                        |
-| `ports`     | A port or inclusive `start-end` range from `1` through `65535`.                                                                  |
-| `protocols` | `tcp`, `udp`, or `dns`.                                                                                                          |
+| Criterion   | Values                                                                                                                                         |
+|-------------|------------------------------------------------------------------------------------------------------------------------------------------------|
+| `hosts`     | Exact names, a `*.suffix` glob (matches subdomains, not the bare suffix), or `*` for any known host. Normalized to lowercase, no trailing dot. |
+| `cidrs`     | An IP prefix or a single IPv4 or IPv6 address.                                                                                                 |
+| `ports`     | A port or an inclusive `start-end` range.                                                                                                      |
+| `protocols` | `tcp`, `udp`, or `dns`.                                                                                                                        |
 
-Host names are normalized to lowercase without a trailing dot.
-An unknown host does not match a host criterion.
+### DNS rules
 
-### Control DNS policy
+DNS queries are evaluated against the query name and protocol only.
+A rule applies to DNS when it lists `dns` in `protocols`, or when it has `hosts` and no `protocols` at all, which is the common case of "block this domain everywhere".
+Denied queries return `REFUSED`; if no DNS rule matches, the query is allowed regardless of `default`.
+Upstream `NXDOMAIN` and `SERVFAIL` pass through unchanged.
 
-For DNS queries, policy considers only the normalized query name and protocol, and ignores `cidrs` and `ports`.
-A DNS rule is eligible if it includes `dns` in `protocols`, or if it has `hosts` and omits `protocols`.
-The first eligible matching rule decides the query.
-If no DNS rule matches, the query is allowed regardless of the top-level default.
+### IP literals and late hostnames
 
-A host rule without `protocols` applies to DNS and later TCP or UDP connections:
+When a workspace connects straight to an IP address, the exit node initially knows only the IP, port, and protocol, so a host-only allow rule cannot match.
+Either allow the flow by `cidrs` or `ports`, or accept that it is denied.
+If the exit node later sees a hostname in the TLS SNI or HTTP `Host` header, it evaluates policy again and closes the connection on a deny, which the application sees as a reset.
+`--provisional-host-allow` reverses the order (admit on the host rule, verify after) for protocols that need it, at the cost of letting a few packets through before verification.
 
-```yaml
-- id: deny-malware-domain
-  deny:
-    hosts:
-      - malware.example
-      - "*.malware.example"
-```
+Names reach the exit node because the agent captures workspace DNS: every allowed answer is replaced by a synthetic address from `198.18.0.0/15` that the agent maps back to the name when the connection arrives.
+Applications that bypass the resolver (hard-coded IPs, DNS over HTTPS) still have their traffic captured, but policy sees only an IP.
 
-Use `protocols: [dns]` for DNS-only policy:
+## High availability
 
-```yaml
-- id: deny-dns-query
-  deny:
-    hosts: [tracking.example]
-    protocols: [dns]
-```
+Run several replicas per exit node with identical policy, and optionally bind several exit nodes in preference order.
 
-DNS denials return `REFUSED`.
-Upstream responses such as `NXDOMAIN` and `SERVFAIL` pass through unchanged.
+- Replicas heartbeat every 5 seconds and are live while their last heartbeat is under 15 seconds old.
+  Coder checks every 5 seconds and pushes the live set to running agents immediately, without a workspace restart.
+- Agents spread load across the replicas of the preferred exit node and fail over to the next node when none are reachable.
+  A failed replica is retried after 5 seconds; higher-priority nodes are re-probed on the same schedule, so traffic returns to the primary on its own.
+- A graceful shutdown (`SIGTERM`) deregisters immediately.
+  A killed replica is removed within about 15 seconds.
+- If every bound exit node has no live replica, egress fails closed: the explicit proxy returns `503`, transparent TCP connections close, UDP is dropped, and DNS returns `SERVFAIL`.
+  Traffic resumes as soon as a replica returns.
+- Every replica reports a hash of its policy file.
+  `coder exit-node list` shows **policy mismatch** and each replica sets `coder_exit_node_policy_mismatch` to `1` when live siblings disagree.
 
-### Control IP-literal targets
+Only new connections fail over; established flows stay on their replica until they close.
 
-For a direct connection to an IP address, the replica initially knows only the IP, port, and protocol.
-A host-only allow rule cannot match unless verified DNS information is already available, so another criterion or the default must allow the initial connection.
+### Direct connections
 
-The replica can later learn a host from TLS SNI or an HTTP `Host` header and evaluate policy again.
-A later denial closes the connection, which applications can observe as a reset or end of file.
+Replicas always connect to Coder's DERP relay, so they work with no inbound ports.
+For throughput, give each replica a stable public UDP endpoint with `--wireguard-listen-port` and `--wireguard-endpoint`, and allow it in the external boundary.
+Agents exempt that endpoint from capture and negotiate a direct WireGuard path, taking Coder out of the data path.
+Because an enforced workspace cannot change its netfilter rules after startup, an endpoint that appears later is reached through DERP until the workspace restarts.
 
-The `--provisional-host-allow` option permits the initial connection based on a host rule, then evaluates again after learning the host.
-Use it only when compatibility requires traffic to begin before host verification.
+## Operations
 
-Server-first TCP protocols, protocols without TLS SNI or an HTTP `Host` header, and UDP to IP literals might never provide a host.
-Host-based UDP rules can match when the destination came from the agent's fake-IP DNS mapping.
+### Monitoring
 
-## Understand DNS routing
+`coder exit-node list` shows each node as `healthy` (a replica is live), `unreachable` (replicas exist, none live), or `unregistered`, with the live replica count and mismatch state.
+`coder exit-node replicas <name>` lists replicas as `live`, `stale`, or `stopped` with version, tailnet address, and policy hash.
 
-With transparent capture active, the agent redirects workspace DNS over TCP and UDP to its loopback proxy.
-For each non-exempt A or AAAA query, the agent sends the query through an exit node DNS stream.
-The replica applies policy and uses its upstream resolver for allowed names.
+With `--prometheus-address`, each replica exposes:
 
-The following outcomes apply:
+| Metric                                        | Meaning                                                 |
+|-----------------------------------------------|---------------------------------------------------------|
+| `coder_exit_node_flows_total{decision}`       | Flows by `allow` or `deny`.                             |
+| `coder_exit_node_bytes_total{direction}`      | Proxied bytes, `in` from destination, `out` from agent. |
+| `coder_exit_node_active_flows`                | Flows in progress.                                      |
+| `coder_exit_node_unknown_source_total`        | Connections from agents not bound to this node.         |
+| `coder_exit_node_policy_reload_total{result}` | `SIGHUP` reloads by `success` or `error`.               |
+| `coder_exit_node_policy_mismatch`             | `1` when a live sibling has a different policy.         |
+| `coder_exit_node_flow_reports_sent_total`     | Flow reports delivered to Coder.                        |
+| `coder_exit_node_flow_reports_dropped_total`  | Reports lost because the outgoing queue was full.       |
 
-| Condition                                           | Workspace result                                                             |
-|-----------------------------------------------------|------------------------------------------------------------------------------|
-| Policy denies the query                             | `REFUSED`                                                                    |
-| Upstream resolver returns `NXDOMAIN` or `SERVFAIL`  | The response passes through unchanged.                                       |
-| No replica completes the DNS stream                 | `SERVFAIL`                                                                   |
-| An allowed non-exempt AAAA query completes          | An empty successful answer directs dual-stack clients to the fake IPv4 path. |
-| The fake-IP pool or pinned-entry limit is exhausted | `SERVFAIL`                                                                   |
+Flow reporting is asynchronous.
+If reports are dropped, Coder records an `exit-node-report-gap` row for the affected workspace; alert on the dropped counter because lost flows cannot be reconstructed.
 
-After a successful A or AAAA response, the agent synthesizes an A record from `198.18.0.0/15`.
-When an application connects to that address, the agent translates it back to the name, and the replica can resolve an IPv6-only destination by name.
+### Changing configuration on running workspaces
 
-The agent normalizes the upstream minimum TTL to between 5 and 300&nbsp;seconds and caches the decision for at most 30&nbsp;seconds.
-The synthesized record carries the remaining cache lifetime, with a minimum TTL of 1&nbsp;second.
-The cache stores up to `1024` least-recently-used decisions, keyed separately by normalized name and query type.
+After the agent installs its rules it locks itself down, so in an enforced workspace the netfilter rules are immutable for the life of the container:
 
-The agent clears the cache and reopens the DNS stream when it applies a manifest update or switches replicas.
-After a policy reload, new decisions reflect the policy within 30&nbsp;seconds, plus any TTL cached by the workspace application or resolver.
+- Adding, removing, or reordering replicas and exit nodes applies immediately.
+- Turning enforcement on or off, changing control-plane exemptions, or adding a WireGuard endpoint takes effect when the workspace container restarts.
+  Restarting only the agent process is not enough.
+- Removing all exit nodes from a template leaves running enforced workspaces failing closed until they restart.
 
-The fake-IP pool and pinned-entry cap each default to `65536` mappings.
+Keep the external boundary in place across restarts.
 
-All workspace DNS requests are redirected, with no general TCP port `53` exemption.
-For exempt names, the agent queries the workspace resolver over TCP with its agent-only bypass mark.
-Exempt names include `localhost`, `host.docker.internal`, and hosts from protocol-specific control-plane exemptions.
-The resulting bypass rules still match the exact protocol, address, and port.
-Other DNS record types use the exit node stream without fake-address synthesis.
+### Workspace image requirements
 
-Custom resolver endpoints, hard-coded addresses, and DNS over HTTPS can prevent the agent from associating a host with a later flow.
-The external boundary and transparent capture still route covered TCP and UDP traffic, but host policy might receive no name.
+Lockdown removes `CAP_NET_ADMIN` and `CAP_NET_RAW` from the agent and everything it starts, and only from those.
+Run the agent as the container entrypoint, do not run another privileged process in the workspace, and drop `NET_RAW` at the container level if the workload does not need it.
+Processes that start before the agent or outside it keep whatever capabilities the container grants.
 
-## Understand UDP and IPv6 behavior
+## Reference
 
-On Linux, the agent attempts transparent IPv4 UDP capture with TPROXY, policy routing, and an `IP_TRANSPARENT` socket.
-This path preserves the original destination and source identity of return datagrams.
+Behavior an operator may need to know but rarely tune:
 
-If TPROXY or policy routing is unavailable, the agent uses `REDIRECT`.
-Because `REDIRECT` loses the original destination for non-DNS UDP, the agent drops that traffic and logs a warning.
-DNS remains captured separately.
-
-IPv6 UDP also uses `REDIRECT`, so non-DNS IPv6 UDP is unsupported for enforced routing.
-If `ip6tables` setup fails while non-loopback IPv6 is enabled, the agent turns off IPv6 in the namespace to fail closed.
-If it cannot turn off IPv6, it removes IPv4 rules and uses advisory mode instead of leaving partial enforcement active.
-
-The agent drops UDP datagrams larger than `1400` bytes.
-Each client and destination pair uses a separate stream that closes after 60&nbsp;seconds without traffic.
-
-## Lock down workspace capabilities
-
-After installing capture rules, the agent removes `CAP_NET_ADMIN` and `CAP_NET_RAW` from ambient, inheritable, and bounding capability sets for every agent thread.
-Linux 5.17 and later permits either capability to set `SO_MARK`, so removing both prevents agent-started processes from reproducing the bypass mark.
-The agent verifies the lockdown before it treats enforcement as active.
-
-A cgo-linked custom agent cannot complete all-thread lockdown and falls back to advisory mode after cleanup.
-
-Lockdown applies only to processes the agent starts.
-Run the agent as the container entrypoint, do not run another privileged process in the workspace container, and drop `NET_RAW` at the container level when the workload does not need raw sockets.
-Processes that existed before lockdown or retain either capability remain a bypass risk.
-
-Capability lockdown makes enforced configuration immutable for the life of the workspace network namespace.
-Replica set and logical node preference changes apply immediately, but enforcement and exemption changes require a workspace container restart.
-Keep the external NetworkPolicy or security group active during all agent and workspace restarts.
-
-## Configure high availability and failover
-
-Run multiple replicas with the shared token and identical policy, either independently or with the [Kubernetes Deployment example](../../../examples/exit-node/kubernetes-deployment.yaml).
-Do not set `--replica-id` in an autoscaled deployment.
-
-Replica lifecycle uses these timings and statuses:
-
-| Item                         | Behavior                                                              |
-|------------------------------|-----------------------------------------------------------------------|
-| Heartbeat                    | Every 5&nbsp;seconds.                                                 |
-| Live threshold               | Last heartbeat is less than 15&nbsp;seconds old.                      |
-| Stale cleanup                | Coder checks every 5&nbsp;seconds and publishes the updated live set. |
-| Graceful shutdown            | Deregisters immediately and permanently stops that replica ID.        |
-| Replica retry delay          | 5&nbsp;seconds after a failed connection.                             |
-| CONNECT negotiation deadline | 10&nbsp;seconds for request and response.                             |
-
-Agents load-distribute across replicas within a logical exit node.
-Logical nodes retain the preference order configured on the template.
-Bind multiple logical nodes by repeating `--exit-node`:
-
-```sh
-coder templates edit my-template \
-  --exit-node primary-egress \
-  --exit-node secondary-egress \
-  --exit-node-enforce
-```
-
-A dial failure, timeout, end of file, or malformed HTTP response marks the replica failed and triggers failover.
-For a well-formed response, the status code controls the result:
-
-| Status                                | Result                                                                                                                   |
-|---------------------------------------|--------------------------------------------------------------------------------------------------------------------------|
-| `200`                                 | Success.                                                                                                                 |
-| `400`, `403`, or `502`                | Terminal result with no failover. These represent a malformed request, policy denial, or upstream or resolution failure. |
-| `500`, `503`, `504`, or another `5xx` | Replica failure and failover.                                                                                            |
-| Other non-`5xx`                       | Terminal result with no failover.                                                                                        |
-
-After the retry delay, new connections probe higher-priority replicas and logical nodes again.
-Failover applies only to new TCP, UDP, and DNS streams.
-Existing streams remain on their accepting replica until they close.
-
-If all bound logical nodes have no live replicas, egress fails closed:
-
-- Explicit proxy requests receive `503`.
-- Transparent TCP connections close.
-- UDP is dropped.
-- DNS returns `SERVFAIL`.
-
-The agent recovers when Coder publishes a live replica.
-
-When a new replica advertises a WireGuard endpoint after an enforced workspace installs its exemptions, the agent reaches it through DERP.
-Restart the workspace to add the endpoint to its external and netfilter exemptions.
-Run compatible DNS resolver configuration and identical policy across every replica and logical node in one failover set.
-
-## Monitor exit nodes
-
-Set `--prometheus-address` on each replica to expose Go, process, and exit node metrics:
-
-| Metric                                                        | Description                                            |
-|---------------------------------------------------------------|--------------------------------------------------------|
-| `coder_exit_node_flows_total{decision="allow|deny"}`          | Flows by policy decision.                              |
-| `coder_exit_node_bytes_total{direction="in|out"}`             | Proxied bytes from the destination or agent.           |
-| `coder_exit_node_active_flows`                                | Flows currently being proxied.                         |
-| `coder_exit_node_unknown_source_total`                        | Connections rejected from an unknown or unbound agent. |
-| `coder_exit_node_policy_reload_total{result="success|error"}` | Policy reload attempts by result.                      |
-| `coder_exit_node_policy_mismatch`                             | Whether a live sibling reports another policy hash.    |
-| `coder_exit_node_flow_reports_sent_total`                     | Flow reports delivered to Coder.                       |
-| `coder_exit_node_flow_reports_dropped_total`                  | Reports dropped because the outgoing queue was full.   |
-
-Use `coder exit-node list` to inspect logical nodes:
-
-| Status         | Meaning                            |
-|----------------|------------------------------------|
-| `healthy`      | At least one replica is live.      |
-| `unreachable`  | Replicas exist, but none are live. |
-| `unregistered` | No replica has registered yet.     |
-
-The command also shows the live replica count and policy mismatch state.
-
-Use `coder exit-node replicas <name|id>` to inspect recorded replicas, including version, tailnet address, policy hash, and last update:
-
-| Status    | Meaning                                              |
-|-----------|------------------------------------------------------|
-| `live`    | The last heartbeat is less than 15&nbsp;seconds old. |
-| `stale`   | No heartbeat arrived for at least 15&nbsp;seconds.   |
-| `stopped` | The replica deregistered explicitly.                 |
-
-Connection Log egress rows contain the workspace, agent, destination, destination IP, protocol, decision, matching rule ID, reason, and connection times.
-Completed flow reasons include inbound and outbound byte counts.
-Denied flows store status code `403`, while allowed flows store `0`.
-
-Flow reporting is asynchronous and retries delivery failures.
-If the bounded queue fills, the replica drops the oldest reports and includes the loss count in its next successful batch.
-Coder inserts an `exit-node-report-gap` marker with a reason such as `dropped 25 exit node flow reports`.
-Alert on `coder_exit_node_flow_reports_dropped_total` and gap markers because lost flows cannot be reconstructed.
-
-Transparent denials can appear to applications as a reset, end of file, or timeout instead of an HTTP policy error.
+| Area              | Behavior                                                                                                                                                                                                                                                          |
+|-------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Agent listeners   | TCP proxy `41280`, DNS `41253`, UDP `41254` on loopback. Falls back to ephemeral ports with a warning.                                                                                                                                                            |
+| Proxy environment | The agent sets `HTTP_PROXY`, `HTTPS_PROXY`, `ALL_PROXY`, and `NO_PROXY` (upper and lower case) for processes it starts. `NO_PROXY` lists exempt hosts only and does not affect transparent capture.                                                               |
+| DNS cache         | Policy decisions are cached up to 30 seconds (floor 5 seconds), 1024 entries, keyed by name and record type. The synthetic A record's TTL is the remaining cache lifetime. AAAA answers are empty so clients use the IPv4 path.                                   |
+| Fake IP pool      | 65536 mappings from `198.18.0.0/15`, least recently used first, pinned while a flow is active. Exhaustion returns `SERVFAIL`.                                                                                                                                     |
+| UDP               | Linux IPv4 UDP is captured with TPROXY. If TPROXY is unavailable the agent falls back to `REDIRECT`, which cannot preserve the destination, so non-DNS UDP is dropped with a warning. Datagrams over 1400 bytes are dropped. Idle streams close after 60 seconds. |
+| IPv6              | Non-DNS IPv6 UDP is not routed. If `ip6tables` setup fails the agent disables IPv6 in the namespace; if that also fails it removes its IPv4 rules and runs in advisory mode rather than enforce partially.                                                        |
+| CONNECT results   | `200` success. `400`, `403`, `502` are final (bad request, policy deny, upstream failure). Other `5xx`, timeouts, and malformed responses trigger failover. Negotiation deadline 10 seconds.                                                                      |
+| Connection Log    | Egress rows carry workspace, agent, destination, protocol, decision, rule ID, reason, and bytes. Denied flows store code `403`, allowed `0`. Transparent denials appear to applications as a reset or timeout.                                                    |
 
 ## Learn more
 
