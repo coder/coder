@@ -1,4 +1,7 @@
-import type { FC } from "react";
+import { type FC, useEffect } from "react";
+import { useQueryClient } from "react-query";
+import { useLocation } from "react-router";
+import { entitlementsQueryKey } from "#/api/queries/entitlements";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import AISettingsSidebarView from "#/modules/management/AISettingsSidebarView";
@@ -18,6 +21,14 @@ export const AISettingsSidebar: FC = () => {
 		{ enabled: !permissions.editDeploymentConfig },
 	);
 	const spendAccess = useCanViewAISpend();
+
+	// Entitlements are cached for the session, so without this a license
+	// change would keep the AI Gateway entries until a full page load.
+	const queryClient = useQueryClient();
+	const { pathname } = useLocation();
+	useEffect(() => {
+		void queryClient.invalidateQueries({ queryKey: entitlementsQueryKey });
+	}, [queryClient, pathname]);
 
 	return (
 		<AISettingsSidebarView
