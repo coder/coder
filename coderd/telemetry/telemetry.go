@@ -698,6 +698,36 @@ func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 		return nil
 	})
 	eg.Go(func() error {
+		nodes, err := r.options.Database.GetAllExitNodes(ctx)
+		if err != nil {
+			return xerrors.Errorf("get exit nodes: %w", err)
+		}
+		replicas, err := r.options.Database.GetAllLiveExitNodeReplicas(ctx, r.options.Clock.Now("telemetry_exit_nodes").Add(-codersdk.ExitNodeReplicaStaleAfter))
+		if err != nil {
+			return xerrors.Errorf("get live exit node replicas: %w", err)
+		}
+		replicasByNode := make(map[uuid.UUID][]database.ExitNodeReplica)
+		for _, replica := range replicas {
+			replicasByNode[replica.ExitNodeID] = append(replicasByNode[replica.ExitNodeID], replica)
+		}
+		snapshot.ExitNodes = make([]ExitNode, 0, len(nodes))
+		for _, node := range nodes {
+			nodeReplicas := replicasByNode[node.ID]
+			policyHashes := make(map[string]struct{}, len(nodeReplicas))
+			for _, replica := range nodeReplicas {
+				policyHashes[replica.PolicyHash] = struct{}{}
+			}
+			snapshot.ExitNodes = append(snapshot.ExitNodes, ExitNode{
+				ID:             node.ID,
+				OrganizationID: node.OrganizationID,
+				CreatedAt:      node.CreatedAt,
+				ReplicaCount:   len(nodeReplicas),
+				PolicyMismatch: len(policyHashes) > 1,
+			})
+		}
+		return nil
+	})
+	eg.Go(func() error {
 		proxies, err := r.options.Database.GetWorkspaceProxies(ctx)
 		if err != nil {
 			return xerrors.Errorf("get workspace proxies: %w", err)
@@ -1387,6 +1417,8 @@ func ConvertTemplate(dbTemplate database.Template) Template {
 		AgentsAllowed:                 dbTemplate.AgentsAllowed,
 		Deprecated:                    dbTemplate.Deprecated != "",
 		UseClassicParameterFlow:       ptr.Ref(dbTemplate.UseClassicParameterFlow),
+		ExitNodeCount:                 len(dbTemplate.ExitNodeIds),
+		ExitNodeEnforce:               dbTemplate.ExitNodeEnforce,
 	}
 }
 
@@ -1487,6 +1519,7 @@ type Snapshot struct {
 	WorkspaceApps                        []WorkspaceApp                        `json:"workspace_apps"`
 	WorkspaceBuilds                      []WorkspaceBuild                      `json:"workspace_build"`
 	WorkspaceProxies                     []WorkspaceProxy                      `json:"workspace_proxies"`
+	ExitNodes                            []ExitNode                            `json:"exit_nodes"`
 	WorkspaceResourceMetadata            []WorkspaceResourceMetadata           `json:"workspace_resource_metadata"`
 	WorkspaceResources                   []WorkspaceResource                   `json:"workspace_resources"`
 	WorkspaceAgentMemoryResourceMonitors []WorkspaceAgentMemoryResourceMonitor `json:"workspace_agent_memory_resource_monitors"`
@@ -1726,6 +1759,8 @@ type Template struct {
 	AgentsAllowed                  bool     `json:"agents_allowed"`
 	Deprecated                     bool     `json:"deprecated"`
 	UseClassicParameterFlow        *bool    `json:"use_classic_parameter_flow"`
+	ExitNodeCount                  int      `json:"exit_node_count"`
+	ExitNodeEnforce                bool     `json:"exit_node_enforce"`
 }
 
 type TemplateVersion struct {
@@ -1759,6 +1794,14 @@ type License struct {
 	// passed in, these will always be nil.
 	Email *string `json:"email"`
 	Trial *bool   `json:"trial"`
+}
+
+type ExitNode struct {
+	ID             uuid.UUID `json:"id"`
+	OrganizationID uuid.UUID `json:"organization_id"`
+	CreatedAt      time.Time `json:"created_at"`
+	ReplicaCount   int       `json:"replica_count"`
+	PolicyMismatch bool      `json:"policy_mismatch"`
 }
 
 type WorkspaceProxy struct {

@@ -159,6 +159,26 @@ describe("AuditPage", () => {
 			});
 		});
 
+		it("filters by exit node resource type", async () => {
+			const getAuditLogsSpy = vi.spyOn(API, "getAuditLogs");
+			const user = userEvent.setup();
+			await renderPage();
+			getAuditLogsSpy.mockClear();
+
+			await user.click(
+				screen.getByRole("button", { name: "Select a resource type" }),
+			);
+			await user.click(screen.getByRole("option", { name: "Exit Node" }));
+
+			await waitFor(() =>
+				expect(getAuditLogsSpy).toHaveBeenCalledWith<[AuditLogsRequest]>({
+					limit: DEFAULT_RECORDS_PER_PAGE,
+					offset: 0,
+					q: "resource_type:exit_node",
+				}),
+			);
+		});
+
 		it("resets page to 1 when filter is changed", async () => {
 			await renderPage({ page: 2 });
 

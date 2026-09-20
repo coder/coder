@@ -1,5 +1,7 @@
 import type { UpdateTemplateMeta } from "#/api/typesGenerated";
+import { MockTemplate } from "#/testHelpers/entities";
 import { validationSchema } from "./TemplateSettingsForm";
+import { templateMetaWithoutExitNodeBindings } from "./TemplateSettingsPage";
 
 type FormValues = Required<
 	Omit<
@@ -52,6 +54,17 @@ const validFormValues: FormValues = {
 };
 
 describe("TemplateSettingsPage", () => {
+	it("omits exit node bindings from the update payload", () => {
+		const payload = templateMetaWithoutExitNodeBindings({
+			...MockTemplate,
+			exit_node_ids: ["91e20ab5-eae9-456a-b427-23000447b894"],
+			exit_node_enforce: true,
+		});
+
+		expect(payload).not.toHaveProperty("exit_node_ids");
+		expect(payload).not.toHaveProperty("exit_node_enforce");
+	});
+
 	it("allows a description of 128 chars", () => {
 		const values: UpdateTemplateMeta = {
 			...validFormValues,

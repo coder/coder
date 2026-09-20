@@ -47,6 +47,15 @@ Keep the following in mind when interpreting tunnel events:
 - Like workspace app connections, tunnel events are point-in-time records.
   They have no close time and are excluded from `status:` filter results.
 
+## Exit node egress records
+
+[Exit nodes](../networking/exit-nodes.md) report outbound workspace flows as egress records.
+Each record identifies the `tcp`, `udp`, or `dns` protocol.
+TCP and UDP destinations use `host:port` format, while DNS destinations contain the query name.
+The record includes an `allow` or `deny` decision, the matching rule ID, and the decision reason.
+Completed flows include inbound and outbound byte counts in the reason.
+An `exit-node-report-gap` marker indicates that the exit node dropped flow reports before Coder received them.
+
 ## How to Filter Connection Logs
 
 You can filter connection logs by the following parameters:

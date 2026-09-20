@@ -14987,6 +14987,51 @@ func (q *sqlQuerier) DeleteTemplateExitNodes(ctx context.Context, templateID uui
 	return err
 }
 
+const deleteTemplateExitNodesByExitNode = `-- name: DeleteTemplateExitNodesByExitNode :exec
+DELETE FROM template_exit_nodes WHERE exit_node_id = $1
+`
+
+func (q *sqlQuerier) DeleteTemplateExitNodesByExitNode(ctx context.Context, exitNodeID uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, deleteTemplateExitNodesByExitNode, exitNodeID)
+	return err
+}
+
+const getAllExitNodes = `-- name: GetAllExitNodes :many
+SELECT id, organization_id, name, display_name, created_at, updated_at, deleted, token_hashed_secret FROM exit_nodes WHERE deleted = false ORDER BY id
+`
+
+func (q *sqlQuerier) GetAllExitNodes(ctx context.Context) ([]ExitNode, error) {
+	rows, err := q.db.QueryContext(ctx, getAllExitNodes)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ExitNode
+	for rows.Next() {
+		var i ExitNode
+		if err := rows.Scan(
+			&i.ID,
+			&i.OrganizationID,
+			&i.Name,
+			&i.DisplayName,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.Deleted,
+			&i.TokenHashedSecret,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getAllLiveExitNodeReplicas = `-- name: GetAllLiveExitNodeReplicas :many
 SELECT id, exit_node_id, hostname, version, wireguard_endpoints, policy_hash, created_at, started_at, updated_at, stopped_at
 FROM exit_node_replicas
@@ -15075,6 +15120,71 @@ func (q *sqlQuerier) GetExitNodeByOrgAndName(ctx context.Context, arg GetExitNod
 		&i.TokenHashedSecret,
 	)
 	return i, err
+}
+
+const getExitNodeFlowAgents = `-- name: GetExitNodeFlowAgents :many
+SELECT
+	workspace_agents.id AS agent_id,
+	workspaces.organization_id,
+	workspaces.owner_id AS workspace_owner_id,
+	workspaces.id AS workspace_id,
+	workspaces.name AS workspace_name,
+	workspace_agents.name AS agent_name
+FROM workspace_agents
+JOIN workspace_resources ON workspace_resources.id = workspace_agents.resource_id
+JOIN provisioner_jobs ON provisioner_jobs.id = workspace_resources.job_id
+JOIN workspace_builds ON workspace_builds.job_id = provisioner_jobs.id
+JOIN workspaces ON workspaces.id = workspace_builds.workspace_id
+JOIN template_exit_nodes ON template_exit_nodes.template_id = workspaces.template_id
+WHERE
+	workspace_agents.id = ANY($1::uuid[])
+	AND template_exit_nodes.exit_node_id = $2
+	AND workspace_agents.deleted = false
+	AND workspaces.deleted = false
+`
+
+type GetExitNodeFlowAgentsParams struct {
+	AgentIds   []uuid.UUID `db:"agent_ids" json:"agent_ids"`
+	ExitNodeID uuid.UUID   `db:"exit_node_id" json:"exit_node_id"`
+}
+
+type GetExitNodeFlowAgentsRow struct {
+	AgentID          uuid.UUID `db:"agent_id" json:"agent_id"`
+	OrganizationID   uuid.UUID `db:"organization_id" json:"organization_id"`
+	WorkspaceOwnerID uuid.UUID `db:"workspace_owner_id" json:"workspace_owner_id"`
+	WorkspaceID      uuid.UUID `db:"workspace_id" json:"workspace_id"`
+	WorkspaceName    string    `db:"workspace_name" json:"workspace_name"`
+	AgentName        string    `db:"agent_name" json:"agent_name"`
+}
+
+func (q *sqlQuerier) GetExitNodeFlowAgents(ctx context.Context, arg GetExitNodeFlowAgentsParams) ([]GetExitNodeFlowAgentsRow, error) {
+	rows, err := q.db.QueryContext(ctx, getExitNodeFlowAgents, pq.Array(arg.AgentIds), arg.ExitNodeID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetExitNodeFlowAgentsRow
+	for rows.Next() {
+		var i GetExitNodeFlowAgentsRow
+		if err := rows.Scan(
+			&i.AgentID,
+			&i.OrganizationID,
+			&i.WorkspaceOwnerID,
+			&i.WorkspaceID,
+			&i.WorkspaceName,
+			&i.AgentName,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const getExitNodeReplicaByID = `-- name: GetExitNodeReplicaByID :one
@@ -15438,6 +15548,22 @@ type StopExitNodeReplicaParams struct {
 
 func (q *sqlQuerier) StopExitNodeReplica(ctx context.Context, arg StopExitNodeReplicaParams) error {
 	_, err := q.db.ExecContext(ctx, stopExitNodeReplica, arg.StoppedAt, arg.ID)
+	return err
+}
+
+const stopExitNodeReplicasByExitNode = `-- name: StopExitNodeReplicasByExitNode :exec
+UPDATE exit_node_replicas
+SET stopped_at = $1::timestamptz
+WHERE exit_node_id = $2 AND stopped_at IS NULL
+`
+
+type StopExitNodeReplicasByExitNodeParams struct {
+	StoppedAt  time.Time `db:"stopped_at" json:"stopped_at"`
+	ExitNodeID uuid.UUID `db:"exit_node_id" json:"exit_node_id"`
+}
+
+func (q *sqlQuerier) StopExitNodeReplicasByExitNode(ctx context.Context, arg StopExitNodeReplicasByExitNodeParams) error {
+	_, err := q.db.ExecContext(ctx, stopExitNodeReplicasByExitNode, arg.StoppedAt, arg.ExitNodeID)
 	return err
 }
 

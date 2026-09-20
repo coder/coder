@@ -183,6 +183,7 @@ const (
 	FeatureAppearance                 FeatureName = "appearance"
 	FeatureAdvancedTemplateScheduling FeatureName = "advanced_template_scheduling"
 	FeatureWorkspaceProxy             FeatureName = "workspace_proxy"
+	FeatureExitNodes                  FeatureName = "exit_nodes"
 	FeatureExternalTokenEncryption    FeatureName = "external_token_encryption"
 	FeatureWorkspaceBatchActions      FeatureName = "workspace_batch_actions"
 	FeatureAccessControl              FeatureName = "access_control"
@@ -222,6 +223,7 @@ var (
 		FeatureAppearance,
 		FeatureAdvancedTemplateScheduling,
 		FeatureWorkspaceProxy,
+		FeatureExitNodes,
 		FeatureUserRoleManagement,
 		FeatureExternalTokenEncryption,
 		FeatureWorkspaceBatchActions,

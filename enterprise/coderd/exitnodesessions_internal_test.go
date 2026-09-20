@@ -56,6 +56,28 @@ func TestExitNodeReplicaSessionRegistry(t *testing.T) {
 		require.True(t, registry.cancelUnlessHeartbeat(replicaID, registry.live[replicaID].generation))
 		require.True(t, canceled)
 	})
+	t.Run("StopExitNode", func(t *testing.T) {
+		t.Parallel()
+		registry := newExitNodeReplicaSessionRegistry(nil)
+		exitNodeID := uuid.New()
+		otherExitNodeID := uuid.New()
+		canceled := make(chan uuid.UUID, 3)
+		for _, replicaID := range []uuid.UUID{uuid.New(), uuid.New()} {
+			id := replicaID
+			registry.registerExitNode(id, exitNodeID, func() { canceled <- id })
+			registry.markLive(id, exitNodeID)
+		}
+		otherReplicaID := uuid.New()
+		registry.registerExitNode(otherReplicaID, otherExitNodeID, func() { canceled <- otherReplicaID })
+		registry.markLive(otherReplicaID, otherExitNodeID)
+
+		registry.stopExitNode(exitNodeID)
+		require.Len(t, canceled, 2)
+		require.Len(t, registry.sessions, 1)
+		require.Contains(t, registry.sessions, otherReplicaID)
+		require.Len(t, registry.live, 1)
+		require.Contains(t, registry.live, otherReplicaID)
+	})
 }
 
 type exitNodeReaperTest struct {

@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/netip"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -26,6 +27,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/v2/enterprise/coderd/license"
@@ -35,6 +37,33 @@ import (
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/websocket"
 )
+
+func TestExitNodesLicenseGate(t *testing.T) {
+	t.Parallel()
+
+	client, _, api, owner := coderdenttest.NewWithAPI(t, &coderdenttest.Options{DontAddLicense: true})
+	ctx := testutil.Context(t, testutil.WaitLong)
+	_, err := client.CreateExitNode(ctx, owner.OrganizationID, codersdk.CreateExitNodeRequest{Name: "licensed-only"})
+	var sdkErr *codersdk.Error
+	require.ErrorAs(t, err, &sdkErr)
+	require.Equal(t, http.StatusForbidden, sdkErr.StatusCode())
+	require.Equal(t, "Exit Nodes is a Premium feature. Contact sales!", sdkErr.Message)
+
+	res, err := client.Request(ctx, http.MethodPost, "/api/v2/exitnodes/me/register", codersdk.RegisterExitNodeRequest{})
+	require.NoError(t, err)
+	defer res.Body.Close()
+	require.Equal(t, http.StatusForbidden, res.StatusCode)
+
+	api.Entitlements.Modify(func(entitlements *codersdk.Entitlements) {
+		entitlements.Features[codersdk.FeatureExitNodes] = codersdk.Feature{
+			Entitlement: codersdk.EntitlementEntitled,
+			Enabled:     true,
+		}
+	})
+	created, err := client.CreateExitNode(ctx, owner.OrganizationID, codersdk.CreateExitNodeRequest{Name: "licensed"})
+	require.NoError(t, err)
+	require.NotEmpty(t, created.Token)
+}
 
 func TestExitNodes(t *testing.T) {
 	t.Parallel()
@@ -55,6 +84,7 @@ func TestExitNodes(t *testing.T) {
 			Features: license.Features{
 				codersdk.FeatureAuditLog:      1,
 				codersdk.FeatureConnectionLog: 1,
+				codersdk.FeatureExitNodes:     1,
 			},
 		},
 	})
@@ -143,12 +173,32 @@ func TestExitNodes(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, created.ID, byID.ID)
 
+		replicaID := uuid.New()
 		require.Equal(t, http.StatusCreated, register(t, created.Token, codersdk.RegisterExitNodeRequest{
-			ReplicaID: uuid.New(),
+			ReplicaID: replicaID,
 			Version:   "v0.0.0-test",
 		}))
+		_, err = client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
+			ExitNodeIDs: &[]uuid.UUID{boundNode.ID, created.ID},
+		})
+		require.NoError(t, err)
+		events := make(chan string, 1)
+		unsubscribe, err := ps.Subscribe(codersdk.ExitNodeReplicasPubsubChannel, func(_ context.Context, message []byte) {
+			if string(message) == created.ID.String() {
+				events <- string(message)
+			}
+		})
+		require.NoError(t, err)
+		defer unsubscribe()
 
 		require.NoError(t, client.DeleteExitNode(ctx, orgID, name))
+		require.Equal(t, created.ID.String(), testutil.TryReceive(ctx, t, events))
+		replica, err := db.GetExitNodeReplicaByID(dbauthz.AsSystemRestricted(ctx), replicaID)
+		require.NoError(t, err)
+		require.True(t, replica.StoppedAt.Valid)
+		boundNodes, err := db.GetTemplateExitNodes(dbauthz.AsSystemRestricted(ctx), template.ID)
+		require.NoError(t, err)
+		require.NotContains(t, slice.Convert(boundNodes, func(node database.ExitNode) uuid.UUID { return node.ID }), created.ID)
 		require.True(t, auditor.Contains(t, database.AuditLog{
 			Action:     database.AuditActionDelete,
 			ResourceID: created.ID,
@@ -415,6 +465,30 @@ func TestExitNodes(t *testing.T) {
 			Decision:        codersdk.ExitNodeFlowAllow,
 			RuleID:          "rule-1",
 			Reason:          "allowed host",
+		}
+
+		invalidReport := func(flow codersdk.ExitNodeFlowReport) int {
+			res := request(t, boundToken, http.MethodPost, "/api/v2/exitnodes/me/flows", codersdk.ReportExitNodeFlowsRequest{Flows: []codersdk.ExitNodeFlowReport{flow}})
+			defer res.Body.Close()
+			return res.StatusCode
+		}
+		validFlow := codersdk.ExitNodeFlowReport{
+			FlowID: uuid.New(), AgentID: agent.ID, DestinationPort: 443,
+			Decision: codersdk.ExitNodeFlowAllow, ConnectTime: connectTime,
+		}
+		for _, mutate := range []func(*codersdk.ExitNodeFlowReport){
+			func(flow *codersdk.ExitNodeFlowReport) { flow.AgentID = uuid.Nil },
+			func(flow *codersdk.ExitNodeFlowReport) { flow.Protocol = "invalid" },
+			func(flow *codersdk.ExitNodeFlowReport) { flow.Decision = "invalid" },
+			func(flow *codersdk.ExitNodeFlowReport) { flow.DestinationPort = 0 },
+			func(flow *codersdk.ExitNodeFlowReport) { flow.BytesIn = -1 },
+			func(flow *codersdk.ExitNodeFlowReport) { flow.Reason = strings.Repeat("x", 513) },
+			func(flow *codersdk.ExitNodeFlowReport) { flow.ConnectTime = time.Time{} },
+			func(flow *codersdk.ExitNodeFlowReport) { flow.ConnectTime = time.Now().Add(6 * time.Minute) },
+		} {
+			flow := validFlow
+			mutate(&flow)
+			require.Equal(t, http.StatusBadRequest, invalidReport(flow))
 		}
 
 		report(boundToken, 7,

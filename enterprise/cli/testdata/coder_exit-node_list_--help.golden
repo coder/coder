@@ -1,0 +1,21 @@
+coder v0.0.0-devel
+
+USAGE:
+  coder exit-node list [flags]
+
+  List exit nodes in an organization
+
+  Aliases: ls
+
+OPTIONS:
+  -O, --org string, $CODER_ORGANIZATION
+          Select which organization (uuid or name) to use.
+
+  -c, --column [id|organization id|name|display name|created at|updated at|status|policy mismatch|live replicas] (default: name,display name,status,live replicas,policy mismatch)
+          Columns to display in table output.
+
+  -o, --output table|json (default: table)
+          Output format.
+
+———
+Run `coder --help` for a list of global options.

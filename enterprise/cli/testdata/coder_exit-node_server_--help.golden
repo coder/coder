@@ -1,0 +1,61 @@
+coder v0.0.0-devel
+
+USAGE:
+  coder exit-node server [flags]
+
+  Run an exit node
+
+  Run an exit node replica. The replica registers with coderd using its token,
+  joins the tailnet at a deterministic address derived from its exit node and
+  replica IDs, and accepts HTTP CONNECT requests from workspace agents on the
+  listen port. Agents older than API 2.14 cannot consume replica-aware
+  configurations. Restart workspaces on the new agent before binding exit nodes.
+  Send SIGHUP to reload the policy file.
+
+OPTIONS:
+      --primary-access-url url, $CODER_PRIMARY_ACCESS_URL
+          URL to communicate with coderd. This should match the access URL of
+          the Coder deployment.
+
+      --token string, $CODER_EXIT_NODE_TOKEN
+          Authentication token for the exit node, as printed by 'coder exit-node
+          create'.
+
+      --block-direct-connections bool, $CODER_EXIT_NODE_BLOCK_DIRECT
+          Force all agent traffic through DERP relays.
+
+      --listen-port int, $CODER_EXIT_NODE_LISTEN_PORT (default: 3128)
+          Tailnet port to accept CONNECT requests on.
+
+      --policy string, $CODER_EXIT_NODE_POLICY
+          Path to the YAML policy file. Reloaded on SIGHUP.
+
+      --prometheus-address string, $CODER_EXIT_NODE_PROMETHEUS_ADDRESS
+          Address to serve Prometheus metrics on. Disabled when empty.
+
+      --provisional-host-allow bool, $CODER_EXIT_NODE_PROVISIONAL_HOST_ALLOW
+          Allow host-based allow rules to provisionally match IP-literal targets
+          before sniffing. This weakens host enforcement and may permit traffic
+          before the host is verified.
+
+      --replica-id string
+          Replica ID override. By default a fresh ID is generated at startup.
+
+      --upstream-dns string-array, $CODER_EXIT_NODE_UPSTREAM_DNS
+          Upstream DNS server as ip[:port]. May be repeated. Configures both
+          CONNECT hostname resolution and DNS streams. By default, the exit
+          node's own resolver view decides what a name means.
+
+      --verbose bool, $CODER_EXIT_NODE_VERBOSE
+          Output debug-level logs.
+
+      --wireguard-endpoint string-array, $CODER_EXIT_NODE_WIREGUARD_ENDPOINTS
+          Public ip:port of this node's WireGuard listener, advertised to agents
+          so they exempt it from egress enforcement. May be repeated.
+
+      --wireguard-listen-port int, $CODER_EXIT_NODE_WIREGUARD_LISTEN_PORT (default: 0)
+          Fixed local UDP port for WireGuard. Use with --wireguard-endpoint. 0
+          picks a random port.
+
+———
+Run `coder --help` for a list of global options.

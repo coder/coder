@@ -58,6 +58,17 @@ func TestConvertTemplateAgentsAllowed(t *testing.T) {
 	}
 }
 
+func TestConvertTemplateExitNodes(t *testing.T) {
+	t.Parallel()
+
+	got := telemetry.ConvertTemplate(database.Template{
+		ExitNodeIds:     []uuid.UUID{uuid.New(), uuid.New()},
+		ExitNodeEnforce: true,
+	})
+	require.Equal(t, 2, got.ExitNodeCount)
+	require.True(t, got.ExitNodeEnforce)
+}
+
 func TestTelemetry(t *testing.T) {
 	t.Parallel()
 	t.Run("Snapshot", func(t *testing.T) {
@@ -93,6 +104,22 @@ func TestTelemetry(t *testing.T) {
 			OrganizationID: org.ID,
 			CreatedBy:      user.ID,
 		})
+		exitNode, _ := dbgen.ExitNode(t, db, database.ExitNode{OrganizationID: org.ID})
+		require.NoError(t, db.InsertTemplateExitNodes(ctx, database.InsertTemplateExitNodesParams{
+			TemplateID:  tpl.ID,
+			ExitNodeIds: []uuid.UUID{exitNode.ID},
+		}))
+		clock := quartz.NewMock(t)
+		clock.Set(now)
+		nowReplica := clock.Now()
+		_, err = db.UpsertExitNodeReplica(ctx, database.UpsertExitNodeReplicaParams{
+			ID: uuid.New(), ExitNodeID: exitNode.ID, PolicyHash: "a", WireguardEndpoints: []string{}, Now: nowReplica,
+		})
+		require.NoError(t, err)
+		_, err = db.UpsertExitNodeReplica(ctx, database.UpsertExitNodeReplicaParams{
+			ID: uuid.New(), ExitNodeID: exitNode.ID, PolicyHash: "b", WireguardEndpoints: []string{}, Now: nowReplica,
+		})
+		require.NoError(t, err)
 		sourceExampleID := uuid.NewString()
 		tv := dbgen.TemplateVersion(t, db, database.TemplateVersion{
 			SourceExampleID: sql.NullString{String: sourceExampleID, Valid: true},
@@ -251,7 +278,6 @@ func TestTelemetry(t *testing.T) {
 		}, nil)
 		// not ended, so it should not affect summaries
 
-		clock := quartz.NewMock(t)
 		clock.Set(now)
 
 		deployment, snapshot := collectSnapshot(ctx, t, db, func(opts telemetry.Options) telemetry.Options {
@@ -279,6 +305,12 @@ func TestTelemetry(t *testing.T) {
 		require.Equal(t, int64(3), snapshot.WorkspaceAgentStats[0].SessionCountVSCode)
 		require.Equal(t, int64(3), snapshot.WorkspaceAgentStats[0].SessionCountSSH)
 		require.Len(t, snapshot.WorkspaceProxies, 1)
+		require.Len(t, snapshot.ExitNodes, 1)
+		require.Equal(t, exitNode.ID, snapshot.ExitNodes[0].ID)
+		require.Equal(t, org.ID, snapshot.ExitNodes[0].OrganizationID)
+		require.Equal(t, 2, snapshot.ExitNodes[0].ReplicaCount)
+		require.True(t, snapshot.ExitNodes[0].PolicyMismatch)
+		require.Equal(t, 1, snapshot.Templates[0].ExitNodeCount)
 		require.Len(t, snapshot.WorkspaceModules, 1)
 		require.Len(t, snapshot.Organizations, 1)
 		telemetryItemKeys := slice.Convert(snapshot.TelemetryItems, func(item telemetry.TelemetryItem) string {

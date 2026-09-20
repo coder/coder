@@ -444,7 +444,10 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 		// Exit node self-service routes authenticate with the exit node
 		// token instead of an API key, like /workspaceproxies/me.
 		r.Route("/exitnodes/me", func(r chi.Router) {
-			r.Use(httpmw.ExtractExitNode(options.Database))
+			r.Use(
+				api.RequireFeatureMW(codersdk.FeatureExitNodes),
+				httpmw.ExtractExitNode(options.Database),
+			)
 			r.Post("/register", api.registerExitNode)
 			r.Post("/deregister", api.deregisterExitNode)
 			r.Get("/coordinate", api.exitNodeCoordinate)
@@ -452,6 +455,7 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 		})
 		r.Route("/organizations/{organization}/exitnodes", func(r chi.Router) {
 			r.Use(
+				api.RequireFeatureMW(codersdk.FeatureExitNodes),
 				apiKeyMiddleware,
 				httpmw.ExtractOrganizationParam(api.Database),
 			)
@@ -1026,6 +1030,7 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 				codersdk.FeatureExternalProvisionerDaemons: true,
 				codersdk.FeatureAdvancedTemplateScheduling: true,
 				codersdk.FeatureWorkspaceProxy:             true,
+				codersdk.FeatureExitNodes:                  true,
 				codersdk.FeatureUserRoleManagement:         true,
 				codersdk.FeatureAccessControl:              true,
 				codersdk.FeatureControlSharedPorts:         true,

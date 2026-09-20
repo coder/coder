@@ -1482,6 +1482,7 @@ func TestLicenseEntitlements(t *testing.T) {
 		codersdk.FeatureExternalProvisionerDaemons: true,
 		codersdk.FeatureAdvancedTemplateScheduling: true,
 		codersdk.FeatureWorkspaceProxy:             true,
+		codersdk.FeatureExitNodes:                  true,
 		codersdk.FeatureUserRoleManagement:         true,
 		codersdk.FeatureAccessControl:              true,
 		codersdk.FeatureControlSharedPorts:         true,

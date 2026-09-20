@@ -1,0 +1,19 @@
+coder v0.0.0-devel
+
+USAGE:
+  coder exit-node create [flags] <name>
+
+  Create an exit node and print its token
+
+OPTIONS:
+  -O, --org string, $CODER_ORGANIZATION
+          Select which organization (uuid or name) to use.
+
+      --display-name string
+          Display name of the exit node. Defaults to the name.
+
+      --only-token bool
+          Only print the token. This is useful for scripting.
+
+———
+Run `coder --help` for a list of global options.

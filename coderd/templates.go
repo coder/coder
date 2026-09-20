@@ -744,6 +744,13 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	if (req.ExitNodeIDs != nil || req.ExitNodeEnforce != nil) && !api.Entitlements.Enabled(codersdk.FeatureExitNodes) {
+		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+			Message: fmt.Sprintf("%s is a Premium feature. Contact sales!", codersdk.FeatureExitNodes.Humanize()),
+		})
+		return
+	}
+
 	const maxTemplateExitNodes = 8
 	if len(resolved.exitNodeIDs) > maxTemplateExitNodes {
 		validErrs = append(validErrs, codersdk.ValidationError{Field: "exit_node_ids", Detail: fmt.Sprintf("No more than %d exit nodes may be configured.", maxTemplateExitNodes)})

@@ -3,6 +3,7 @@ import { expect, within } from "storybook/test";
 import {
 	MockConnectedSSHConnectionLog,
 	MockDeniedTunnelConnectionLog,
+	MockEgressConnectionLog,
 	MockTunnelConnectionLog,
 	MockWebConnectionLog,
 } from "#/testHelpers/entities";
@@ -126,6 +127,27 @@ export const TunnelDenied: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await expect(canvas.getByText(/was denied a tunnel to/)).toBeVisible();
+	},
+};
+
+export const EgressAllowed: Story = {
+	args: {
+		connectionLog: MockEgressConnectionLog,
+	},
+};
+
+export const EgressDenied: Story = {
+	args: {
+		connectionLog: {
+			...MockEgressConnectionLog,
+			egress_info: {
+				protocol: "tcp",
+				destination: "private.example.com:443",
+				decision: "deny",
+				rule_id: "deny-private-network",
+				reason: "destination is not allowed",
+			},
+		},
 	},
 };
 

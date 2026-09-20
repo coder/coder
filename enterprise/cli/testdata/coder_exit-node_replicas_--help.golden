@@ -1,0 +1,19 @@
+coder v0.0.0-devel
+
+USAGE:
+  coder exit-node replicas [flags] <name|id>
+
+  List replicas of an exit node
+
+OPTIONS:
+  -O, --org string, $CODER_ORGANIZATION
+          Select which organization (uuid or name) to use.
+
+  -c, --column [hostname|status|version|tailnet address|policy hash|updated at] (default: hostname,status,version,tailnet address,policy hash,updated at)
+          Columns to display in table output.
+
+  -o, --output table|json (default: table)
+          Output format.
+
+———
+Run `coder --help` for a list of global options.

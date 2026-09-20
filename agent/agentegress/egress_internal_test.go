@@ -185,6 +185,9 @@ type proxyOptions struct {
 	udpOrigDst       func(oob []byte) netip.AddrPort
 	hostSniffTimeout time.Duration
 	fakeIPMaxEntries int
+	dnsConcurrency   int
+	udpSessions      int
+	udpDenyEntries   int
 }
 
 func startProxy(t testing.TB, exit *fakeExitNode, opts proxyOptions) *Proxy {
@@ -206,6 +209,15 @@ func startProxy(t testing.TB, exit *fakeExitNode, opts proxyOptions) *Proxy {
 	proxy.resolverDial = (&net.Dialer{}).DialContext
 	if opts.udpOrigDst != nil {
 		proxy.udpOrigDst = opts.udpOrigDst
+	}
+	if opts.dnsConcurrency > 0 {
+		proxy.dnsConcurrency = opts.dnsConcurrency
+	}
+	if opts.udpSessions > 0 {
+		proxy.udpSessions = opts.udpSessions
+	}
+	if opts.udpDenyEntries > 0 {
+		proxy.udpDenyEntries = opts.udpDenyEntries
 	}
 	require.NoError(t, proxy.Start(testutil.Context(t, testutil.WaitLong)))
 	t.Cleanup(func() { _ = proxy.Close() })

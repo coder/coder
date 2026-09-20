@@ -2616,6 +2616,17 @@ func (q *querier) DeleteTemplateExitNodes(ctx context.Context, templateID uuid.U
 	return q.db.DeleteTemplateExitNodes(ctx, templateID)
 }
 
+func (q *querier) DeleteTemplateExitNodesByExitNode(ctx context.Context, exitNodeID uuid.UUID) error {
+	exitNode, err := q.db.GetExitNodeByID(ctx, exitNodeID)
+	if err != nil {
+		return err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionDelete, exitNode); err != nil {
+		return err
+	}
+	return q.db.DeleteTemplateExitNodesByExitNode(ctx, exitNodeID)
+}
+
 func (q *querier) DeleteUnlinkedChatFilesByIDs(ctx context.Context, arg database.DeleteUnlinkedChatFilesByIDsParams) (int64, error) {
 	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceSystem); err != nil {
 		return 0, err
@@ -3096,6 +3107,13 @@ func (q *querier) GetActiveWorkspaceBuildsByTemplateID(ctx context.Context, temp
 		return []database.WorkspaceBuild{}, err
 	}
 	return q.db.GetActiveWorkspaceBuildsByTemplateID(ctx, templateID)
+}
+
+func (q *querier) GetAllExitNodes(ctx context.Context) ([]database.ExitNode, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return nil, err
+	}
+	return q.db.GetAllExitNodes(ctx)
 }
 
 func (q *querier) GetAllLiveExitNodeReplicas(ctx context.Context, updatedAfter time.Time) ([]database.ExitNodeReplica, error) {
@@ -3986,6 +4004,16 @@ func (q *querier) GetExitNodeByID(ctx context.Context, id uuid.UUID) (database.E
 
 func (q *querier) GetExitNodeByOrgAndName(ctx context.Context, arg database.GetExitNodeByOrgAndNameParams) (database.ExitNode, error) {
 	return fetch(q.log, q.auth, q.db.GetExitNodeByOrgAndName)(ctx, arg)
+}
+
+func (q *querier) GetExitNodeFlowAgents(ctx context.Context, arg database.GetExitNodeFlowAgentsParams) ([]database.GetExitNodeFlowAgentsRow, error) {
+	if _, err := q.GetExitNodeByID(ctx, arg.ExitNodeID); err != nil {
+		return nil, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return nil, err
+	}
+	return q.db.GetExitNodeFlowAgents(ctx, arg)
 }
 
 func (q *querier) GetExitNodeReplicaByID(ctx context.Context, id uuid.UUID) (database.ExitNodeReplica, error) {
@@ -7440,6 +7468,17 @@ func (q *querier) StopExitNodeReplica(ctx context.Context, arg database.StopExit
 		return err
 	}
 	return q.db.StopExitNodeReplica(ctx, arg)
+}
+
+func (q *querier) StopExitNodeReplicasByExitNode(ctx context.Context, arg database.StopExitNodeReplicasByExitNodeParams) error {
+	exitNode, err := q.db.GetExitNodeByID(ctx, arg.ExitNodeID)
+	if err != nil {
+		return err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, exitNode); err != nil {
+		return err
+	}
+	return q.db.StopExitNodeReplicasByExitNode(ctx, arg)
 }
 
 func (q *querier) SyncAgentChatsContextMCPResources(ctx context.Context, agentID uuid.UUID) ([]uuid.UUID, error) {

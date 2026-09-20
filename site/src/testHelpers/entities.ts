@@ -3119,6 +3119,20 @@ export const MockDeniedTunnelConnectionLog: TypesGen.ConnectionLog = {
 	},
 };
 
+export const MockEgressConnectionLog: TypesGen.ConnectionLog = {
+	...MockWebConnectionLog,
+	id: "91e20ab5-eae9-456a-b427-23000447b894",
+	type: "egress",
+	web_info: undefined,
+	egress_info: {
+		protocol: "tcp",
+		destination: "api.github.com:443",
+		decision: "allow",
+		rule_id: "allow-github",
+		reason: "matched host rule (in=1024 out=512)",
+	},
+};
+
 export const MockConnectedSSHConnectionLog: TypesGen.ConnectionLog = {
 	id: "7884a866-4ae1-4945-9fba-b2b8d2b7c5a9",
 	connect_time: "2022-05-19T16:45:57.122Z",

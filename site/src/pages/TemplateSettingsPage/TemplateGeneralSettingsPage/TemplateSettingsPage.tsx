@@ -8,12 +8,23 @@ import {
 	invalidateTemplateListQueries,
 	templateByNameKey,
 } from "#/api/queries/templates";
-import type { UpdateTemplateMeta } from "#/api/typesGenerated";
+import type { Template, UpdateTemplateMeta } from "#/api/typesGenerated";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { linkToTemplate, useLinks } from "#/modules/navigation";
 import { pageTitle } from "#/utils/page";
 import { useTemplateSettings } from "../TemplateSettingsLayout";
 import { TemplateSettingsPageView } from "./TemplateSettingsPageView";
+
+export const templateMetaWithoutExitNodeBindings = (
+	template: Template,
+): UpdateTemplateMeta => {
+	const {
+		exit_node_ids: _exitNodeIds,
+		exit_node_enforce: _exitNodeEnforce,
+		...templateMeta
+	} = template;
+	return templateMeta;
+};
 
 const TemplateSettingsPage: FC = () => {
 	const { template: templateName } = useParams() as { template: string };
@@ -79,10 +90,9 @@ const TemplateSettingsPage: FC = () => {
 				}}
 				onSubmit={(templateSettings) => {
 					// Exit node bindings are managed through the CLI and API, not
-					// this form. Omitting the field keeps the existing binding.
-					const { exit_node_ids: _exitNodeIds, ...templateMeta } = template;
+					// this form. Omitting these fields keeps the existing binding.
 					updateTemplate({
-						...templateMeta,
+						...templateMetaWithoutExitNodeBindings(template),
 						...templateSettings,
 					});
 				}}

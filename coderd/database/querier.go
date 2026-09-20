@@ -244,6 +244,7 @@ type sqlcQuerier interface {
 	DeleteTailnetPeer(ctx context.Context, arg DeleteTailnetPeerParams) (DeleteTailnetPeerRow, error)
 	DeleteTailnetTunnel(ctx context.Context, arg DeleteTailnetTunnelParams) (DeleteTailnetTunnelRow, error)
 	DeleteTemplateExitNodes(ctx context.Context, templateID uuid.UUID) error
+	DeleteTemplateExitNodesByExitNode(ctx context.Context, exitNodeID uuid.UUID) error
 	DeleteUnlinkedChatFilesByIDs(ctx context.Context, arg DeleteUnlinkedChatFilesByIDsParams) (int64, error)
 	DeleteUserAIBudgetOverride(ctx context.Context, userID uuid.UUID) (UserAIBudgetOverride, error)
 	DeleteUserAIProviderKey(ctx context.Context, arg DeleteUserAIProviderKeyParams) error
@@ -402,6 +403,7 @@ type sqlcQuerier interface {
 	// TestGetActiveUsersAuthorizationRolesParity enforces this.
 	GetActiveUsersAuthorizationRoles(ctx context.Context) ([]GetActiveUsersAuthorizationRolesRow, error)
 	GetActiveWorkspaceBuildsByTemplateID(ctx context.Context, templateID uuid.UUID) ([]WorkspaceBuild, error)
+	GetAllExitNodes(ctx context.Context) ([]ExitNode, error)
 	GetAllLiveExitNodeReplicas(ctx context.Context, updatedAfter time.Time) ([]ExitNodeReplica, error)
 	// For PG Coordinator HTMLDebug
 	GetAllTailnetCoordinators(ctx context.Context) ([]TailnetCoordinator, error)
@@ -611,6 +613,7 @@ type sqlcQuerier interface {
 	GetEnabledMCPServerConfigsByOrganizationAndIDs(ctx context.Context, arg GetEnabledMCPServerConfigsByOrganizationAndIDsParams) ([]MCPServerConfig, error)
 	GetExitNodeByID(ctx context.Context, id uuid.UUID) (ExitNode, error)
 	GetExitNodeByOrgAndName(ctx context.Context, arg GetExitNodeByOrgAndNameParams) (ExitNode, error)
+	GetExitNodeFlowAgents(ctx context.Context, arg GetExitNodeFlowAgentsParams) ([]GetExitNodeFlowAgentsRow, error)
 	GetExitNodeReplicaByID(ctx context.Context, id uuid.UUID) (ExitNodeReplica, error)
 	GetExitNodeReplicasByExitNode(ctx context.Context, exitNodeID uuid.UUID) ([]ExitNodeReplica, error)
 	GetExitNodesByOrganization(ctx context.Context, organizationID uuid.UUID) ([]ExitNode, error)
@@ -1439,6 +1442,7 @@ type sqlcQuerier interface {
 	// SoftDeletePriorWorkspaceAgents.
 	SoftDeleteWorkspaceAgentsByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) error
 	StopExitNodeReplica(ctx context.Context, arg StopExitNodeReplicaParams) error
+	StopExitNodeReplicasByExitNode(ctx context.Context, arg StopExitNodeReplicasByExitNodeParams) error
 	// MCP resources bypass context drift and are live-synced on each push.
 	// Changed chats are locked in ID order so concurrent clear-then-copy re-pins
 	// cannot interleave with the replacement.

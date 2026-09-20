@@ -74,6 +74,7 @@ Coder — A tool for provisioning self-hosted development environments with Terr
 | [<code>provisioner</code>](./provisioner.md)                 | View and manage provisioner daemons and jobs                                                                                 |
 | [<code>ai-gateway</code>](./ai-gateway.md)                   | Manage AI Gateway                                                                                                            |
 | [<code>agent-firewall</code>](./agent-firewall.md)           | Network isolation tool for monitoring and restricting HTTP/HTTPS requests                                                    |
+| [<code>exit-node</code>](./exit-node.md)                     | Exit nodes terminate workspace egress, enforce policy, and report flows.                                                     |
 | [<code>features</code>](./features.md)                       | List Enterprise features                                                                                                     |
 | [<code>licenses</code>](./licenses.md)                       | Add, delete, and list licenses                                                                                               |
 | [<code>groups</code>](./groups.md)                           | Manage groups                                                                                                                |

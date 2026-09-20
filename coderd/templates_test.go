@@ -1909,7 +1909,8 @@ func TestPatchTemplateMeta(t *testing.T) {
 
 		eventBus := dbpubsub.NewInMemory()
 		t.Cleanup(func() { require.NoError(t, eventBus.Close()) })
-		client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{Pubsub: eventBus})
+		client, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{Pubsub: eventBus})
+		db := api.Database
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
@@ -1922,6 +1923,20 @@ func TestPatchTemplateMeta(t *testing.T) {
 		foreignExitNode, _ := dbgen.ExitNode(t, db, database.ExitNode{OrganizationID: otherOrg.ID})
 
 		ctx := testutil.Context(t, testutil.WaitLong)
+		_, err := client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
+			ExitNodeIDs: &[]uuid.UUID{exitNode.ID},
+		})
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusForbidden, apiErr.StatusCode())
+		require.Equal(t, "Exit Nodes is a Premium feature. Contact sales!", apiErr.Message)
+
+		api.Entitlements.Modify(func(entitlements *codersdk.Entitlements) {
+			entitlements.Features[codersdk.FeatureExitNodes] = codersdk.Feature{
+				Entitlement: codersdk.EntitlementEntitled,
+				Enabled:     true,
+			}
+		})
 		templateEvents := make(chan string, 4)
 		unsubscribe, err := eventBus.Subscribe(codersdk.ExitNodeReplicasPubsubChannel, func(_ context.Context, payload []byte) {
 			templateEvents <- string(payload)
@@ -1960,7 +1975,6 @@ func TestPatchTemplateMeta(t *testing.T) {
 		_, err = client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
 			ExitNodeIDs: &[]uuid.UUID{foreignExitNode.ID},
 		})
-		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
 		assert.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
 

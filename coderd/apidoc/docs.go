@@ -24140,12 +24140,16 @@ const docTemplate = `{
             "enum": [
                 "tcp",
                 "udp",
-                "dns"
+                "dns",
+                "icmp",
+                "none"
             ],
             "x-enum-varnames": [
                 "ExitNodeProtocolTCP",
                 "ExitNodeProtocolUDP",
-                "ExitNodeProtocolDNS"
+                "ExitNodeProtocolDNS",
+                "ExitNodeProtocolICMP",
+                "ExitNodeProtocolNone"
             ]
         },
         "codersdk.ExitNodeReplica": {

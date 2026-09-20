@@ -21975,11 +21975,13 @@
 		},
 		"codersdk.ExitNodeProtocol": {
 			"type": "string",
-			"enum": ["tcp", "udp", "dns"],
+			"enum": ["tcp", "udp", "dns", "icmp", "none"],
 			"x-enum-varnames": [
 				"ExitNodeProtocolTCP",
 				"ExitNodeProtocolUDP",
-				"ExitNodeProtocolDNS"
+				"ExitNodeProtocolDNS",
+				"ExitNodeProtocolICMP",
+				"ExitNodeProtocolNone"
 			]
 		},
 		"codersdk.ExitNodeReplica": {

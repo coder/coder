@@ -356,6 +356,31 @@ func TestDNS_AddressDecisionRemainingTTL(t *testing.T) {
 	require.Len(t, exit.connectsTo(dnsRelayTarget), 1)
 }
 
+func TestDNS_UDPSaturation(t *testing.T) {
+	t.Parallel()
+
+	release := make(chan struct{})
+	var once sync.Once
+	t.Cleanup(func() { once.Do(func() { close(release) }) })
+	exit := newFakeExitNode(t, nil)
+	exit.dnsResponse = func(query []byte) []byte {
+		<-release
+		return dnsResponse(query, dnsmessage.RCodeSuccess, 60)
+	}
+	proxy := startProxy(t, exit, proxyOptions{dnsConcurrency: 1})
+	ctx := testutil.Context(t, testutil.WaitLong)
+	conn := udpClient(ctx, t, proxy.DNSAddr())
+	_, err := conn.Write(dnsQuery(t, 60, "blocked.example.", dnsmessage.TypeA))
+	require.NoError(t, err)
+	require.Eventually(t, func() bool { return len(proxy.dns.inflight) == 1 }, testutil.WaitShort, testutil.IntervalFast)
+
+	quick := testutil.Context(t, testutil.WaitShort)
+	hdr, answers := dnsExchange(quick, t, "udp", proxy.DNSAddr(), dnsQuery(t, 61, "saturated.example.", dnsmessage.TypeA))
+	require.Equal(t, dnsmessage.RCodeServerFailure, hdr.RCode)
+	require.Empty(t, answers)
+	once.Do(func() { close(release) })
+}
+
 func TestParseReverseName(t *testing.T) {
 	t.Parallel()
 

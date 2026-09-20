@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -20,7 +21,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
-	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
 	enttailnet "github.com/coder/coder/v2/enterprise/tailnet"
 	"github.com/coder/coder/v2/tailnet"
@@ -152,8 +152,28 @@ func (api *API) deleteExitNode(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	aReq.Old = node
-	if writeExitNodeError(rw, api.Database.DeleteExitNodeByID(r.Context(), node.ID)) {
+	now := dbtime.Now()
+	err := api.Database.InTx(func(tx database.Store) error {
+		if err := tx.DeleteExitNodeByID(r.Context(), node.ID); err != nil {
+			return xerrors.Errorf("delete exit node: %w", err)
+		}
+		if err := tx.DeleteTemplateExitNodesByExitNode(r.Context(), node.ID); err != nil {
+			return xerrors.Errorf("delete template exit node bindings: %w", err)
+		}
+		if err := tx.StopExitNodeReplicasByExitNode(r.Context(), database.StopExitNodeReplicasByExitNodeParams{
+			ExitNodeID: node.ID,
+			StoppedAt:  now,
+		}); err != nil {
+			return xerrors.Errorf("stop exit node replicas: %w", err)
+		}
+		return nil
+	}, nil)
+	if writeExitNodeError(rw, err) {
 		return
+	}
+	api.exitNodeReplicaSessions.stopExitNode(node.ID)
+	if err := api.Pubsub.Publish(codersdk.ExitNodeReplicasPubsubChannel, []byte(node.ID.String())); err != nil {
+		api.Logger.Error(r.Context(), "failed to publish deleted exit node", slog.Error(err))
 	}
 	aReq.New = database.ExitNode{}
 	rw.WriteHeader(http.StatusNoContent)
@@ -387,7 +407,7 @@ func (api *API) exitNodeCoordinate(rw http.ResponseWriter, r *http.Request) {
 	}
 	peerID := codersdk.ExitNodeReplicaPeerID(node.ID, replicaID)
 	coordinateCtx, cancel := context.WithCancel(ctx)
-	unregister := api.exitNodeReplicaSessions.register(replicaID, cancel)
+	unregister := api.exitNodeReplicaSessions.registerExitNode(replicaID, node.ID, cancel)
 	defer unregister()
 	defer cancel()
 
@@ -412,6 +432,60 @@ func (api *API) exitNodeCoordinate(rw http.ResponseWriter, r *http.Request) {
 	api.serveMultiAgentCoordinate(rw, r.WithContext(coordinateCtx), peerID, auth)
 }
 
+const (
+	maxExitNodeFlowReportBytes = 1 << 20
+	maxExitNodeFlowReports     = 1000
+	maxExitNodeFlowReasonLen   = 512
+	maxExitNodeFlowRuleIDLen   = 128
+	maxExitNodeFlowHostLen     = 253
+)
+
+func validateExitNodeFlow(flow *codersdk.ExitNodeFlowReport, now time.Time) string {
+	if flow.AgentID == uuid.Nil {
+		return "agent_id must be a valid UUID"
+	}
+	if flow.FlowID == uuid.Nil {
+		return "flow_id must be a valid UUID"
+	}
+	if flow.Protocol == "" {
+		flow.Protocol = codersdk.ExitNodeProtocolTCP
+	}
+	switch flow.Protocol {
+	case codersdk.ExitNodeProtocolTCP, codersdk.ExitNodeProtocolUDP, codersdk.ExitNodeProtocolDNS:
+		if flow.DestinationPort < 1 || flow.DestinationPort > 65535 {
+			return "destination_port must be between 1 and 65535"
+		}
+	case codersdk.ExitNodeProtocolICMP, codersdk.ExitNodeProtocolNone:
+		if flow.DestinationPort < 0 || flow.DestinationPort > 65535 {
+			return "destination_port must be between 0 and 65535"
+		}
+	default:
+		return "protocol is invalid"
+	}
+	if flow.Decision != codersdk.ExitNodeFlowAllow && flow.Decision != codersdk.ExitNodeFlowDeny {
+		return "decision is invalid"
+	}
+	if flow.BytesIn < 0 || flow.BytesOut < 0 {
+		return "byte counters must be non-negative"
+	}
+	if len(flow.Reason) > maxExitNodeFlowReasonLen {
+		return fmt.Sprintf("reason must not exceed %d characters", maxExitNodeFlowReasonLen)
+	}
+	if len(flow.RuleID) > maxExitNodeFlowRuleIDLen {
+		return fmt.Sprintf("rule_id must not exceed %d characters", maxExitNodeFlowRuleIDLen)
+	}
+	if len(flow.Host) > maxExitNodeFlowHostLen {
+		return fmt.Sprintf("host must not exceed %d characters", maxExitNodeFlowHostLen)
+	}
+	if flow.ConnectTime.IsZero() || flow.ConnectTime.After(now.Add(5*time.Minute)) {
+		return "connect_time must be set and not more than 5 minutes in the future"
+	}
+	if flow.DisconnectTime != nil && (flow.DisconnectTime.IsZero() || flow.DisconnectTime.After(now.Add(5*time.Minute))) {
+		return "disconnect_time must be set and not more than 5 minutes in the future"
+	}
+	return ""
+}
+
 // @Summary Report exit node flows
 // @ID report-exit-node-flows
 // @Security CoderSessionToken
@@ -427,8 +501,30 @@ func (api *API) reportExitNodeFlows(rw http.ResponseWriter, r *http.Request) {
 		node = httpmw.ExitNode(r)
 		req  codersdk.ReportExitNodeFlowsRequest
 	)
+	r.Body = http.MaxBytesReader(rw, r.Body, maxExitNodeFlowReportBytes)
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
+	}
+	if len(req.Flows) > maxExitNodeFlowReports {
+		writeExitNodeResponse(ctx, rw, http.StatusBadRequest, fmt.Sprintf("No more than %d flows may be reported at once.", maxExitNodeFlowReports))
+		return
+	}
+	if req.DroppedReports < 0 {
+		writeExitNodeResponse(ctx, rw, http.StatusBadRequest, "Dropped reports must be non-negative.")
+		return
+	}
+	now := dbtime.Now()
+	agentIDs := make([]uuid.UUID, 0, len(req.Flows))
+	seenAgentIDs := make(map[uuid.UUID]struct{}, len(req.Flows))
+	for i := range req.Flows {
+		if detail := validateExitNodeFlow(&req.Flows[i], now); detail != "" {
+			writeExitNodeResponse(ctx, rw, http.StatusBadRequest, fmt.Sprintf("Flow %d is invalid: %s.", i, strings.TrimSuffix(detail, ".")))
+			return
+		}
+		if _, ok := seenAgentIDs[req.Flows[i].AgentID]; !ok {
+			seenAgentIDs[req.Flows[i].AgentID] = struct{}{}
+			agentIDs = append(agentIDs, req.Flows[i].AgentID)
+		}
 	}
 	if replicaID := r.URL.Query().Get(codersdk.ExitNodeCoordinateReplicaIDParam); replicaID != "" {
 		api.Logger.Debug(ctx, "received exit node flow report", slog.F("replica_id", replicaID))
@@ -439,26 +535,32 @@ func (api *API) reportExitNodeFlows(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	agents := make(map[uuid.UUID]*database.UpsertConnectionLogParams)
-	templates := make(map[uuid.UUID]database.Template)
+	rows, err := api.Database.GetExitNodeFlowAgents(ctx, database.GetExitNodeFlowAgentsParams{
+		AgentIds:   agentIDs,
+		ExitNodeID: node.ID,
+	})
+	if err != nil {
+		httpapi.InternalServerError(rw, xerrors.Errorf("resolve flow agents: %w", err))
+		return
+	}
+	agents := make(map[uuid.UUID]*database.UpsertConnectionLogParams, len(rows))
+	for _, row := range rows {
+		//nolint:exhaustruct // Per-flow fields are added by exitNodeFlowConnectionLogs.
+		agents[row.AgentID] = &database.UpsertConnectionLogParams{
+			OrganizationID:   row.OrganizationID,
+			WorkspaceOwnerID: row.WorkspaceOwnerID,
+			WorkspaceID:      row.WorkspaceID,
+			WorkspaceName:    row.WorkspaceName,
+			AgentName:        row.AgentName,
+			Type:             database.ConnectionTypeEgress,
+		}
+	}
+	unknownAgents := 0
 	gapPending := req.DroppedReports > 0
 	for _, flow := range req.Flows {
-		base, ok := agents[flow.AgentID]
-		if !ok {
-			var err error
-			base, err = api.exitNodeFlowBase(ctx, node.ID, flow.AgentID, templates)
-			if err != nil {
-				httpapi.InternalServerError(rw, xerrors.Errorf("resolve agent %s: %w", flow.AgentID, err))
-				return
-			}
-			agents[flow.AgentID] = base
-		}
+		base := agents[flow.AgentID]
 		if base == nil {
-			api.Logger.Warn(ctx, "ignoring flow for agent not bound to exit node",
-				slog.F("exit_node_id", node.ID),
-				slog.F("agent_id", flow.AgentID),
-				slog.F("flow_id", flow.FlowID),
-			)
+			unknownAgents++
 			continue
 		}
 		if gapPending {
@@ -486,43 +588,13 @@ func (api *API) reportExitNodeFlows(rw http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
+	if unknownAgents > 0 {
+		api.Logger.Warn(ctx, "ignored exit node flows for unknown or unbound agents",
+			slog.F("exit_node_id", node.ID),
+			slog.F("flow_count", unknownAgents),
+		)
+	}
 	rw.WriteHeader(http.StatusNoContent)
-}
-
-func (api *API) exitNodeFlowBase(ctx context.Context, exitNodeID, agentID uuid.UUID, templates map[uuid.UUID]database.Template) (*database.UpsertConnectionLogParams, error) {
-	agent, err := api.Database.GetWorkspaceAgentByID(ctx, agentID)
-	if httpapi.Is404Error(err) {
-		return nil, nil //nolint:nilnil // Unknown agents are skipped.
-	}
-	if err != nil {
-		return nil, xerrors.Errorf("get workspace agent: %w", err)
-	}
-	workspace, err := api.Database.GetWorkspaceByAgentID(ctx, agentID)
-	if httpapi.Is404Error(err) {
-		return nil, nil //nolint:nilnil // Unknown workspaces are skipped.
-	}
-	if err != nil {
-		return nil, xerrors.Errorf("get workspace by agent: %w", err)
-	}
-	template, ok := templates[workspace.TemplateID]
-	if !ok {
-		if template, err = api.Database.GetTemplateByID(ctx, workspace.TemplateID); err != nil {
-			return nil, xerrors.Errorf("get template: %w", err)
-		}
-		templates[workspace.TemplateID] = template
-	}
-	if !slice.Contains(template.ExitNodeIds, exitNodeID) {
-		return nil, nil //nolint:nilnil // Unbound agents are skipped.
-	}
-	//nolint:exhaustruct // Per-flow fields are added by exitNodeFlowConnectionLogs.
-	return &database.UpsertConnectionLogParams{
-		OrganizationID:   workspace.OrganizationID,
-		WorkspaceOwnerID: workspace.OwnerID,
-		WorkspaceID:      workspace.ID,
-		WorkspaceName:    workspace.Name,
-		AgentName:        agent.Name,
-		Type:             database.ConnectionTypeEgress,
-	}, nil
 }
 
 // exitNodeFlowConnectionLogs maps a flow to the existing connection log

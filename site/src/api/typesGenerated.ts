@@ -5192,7 +5192,7 @@ export interface ExitNodeFlowReport {
 export const ExitNodeOriginalHostHeader = "X-Coder-Original-Host";
 
 // From codersdk/exitnodes.go
-export type ExitNodeProtocol = "dns" | "tcp" | "udp";
+export type ExitNodeProtocol = "dns" | "icmp" | "none" | "tcp" | "udp";
 
 // From codersdk/exitnodes.go
 /**
@@ -5200,7 +5200,13 @@ export type ExitNodeProtocol = "dns" | "tcp" | "udp";
  */
 export const ExitNodeProtocolHeader = "X-Coder-Protocol";
 
-export const ExitNodeProtocols: ExitNodeProtocol[] = ["dns", "tcp", "udp"];
+export const ExitNodeProtocols: ExitNodeProtocol[] = [
+	"dns",
+	"icmp",
+	"none",
+	"tcp",
+	"udp",
+];
 
 // From codersdk/exitnodes.go
 /**
@@ -5539,6 +5545,7 @@ export type FeatureName =
 	| "connection_log"
 	| "control_shared_ports"
 	| "custom_roles"
+	| "exit_nodes"
 	| "external_provisioner_daemons"
 	| "external_token_encryption"
 	| "high_availability"
@@ -5568,6 +5575,7 @@ export const FeatureNames: FeatureName[] = [
 	"connection_log",
 	"control_shared_ports",
 	"custom_roles",
+	"exit_nodes",
 	"external_provisioner_daemons",
 	"external_token_encryption",
 	"high_availability",

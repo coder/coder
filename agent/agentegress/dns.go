@@ -57,7 +57,9 @@ type dnsServer struct {
 	clock     quartz.Clock
 	decisions *dnsDecisionCache
 
-	warn rateLimiter
+	warn           rateLimiter
+	saturationWarn rateLimiter
+	inflight       chan struct{}
 
 	udp  *net.UDPConn
 	tcp  net.Listener
@@ -126,16 +128,41 @@ func (s *dnsServer) serveUDP(ctx context.Context) {
 			continue
 		}
 		msg := slices.Clone(buf[:n])
-		s.wg.Go(func() {
-			resp := s.handle(ctx, msg, dnsMaxUDPPayload)
-			if resp == nil {
-				return
+		select {
+		case s.inflight <- struct{}{}:
+			s.wg.Go(func() {
+				defer func() { <-s.inflight }()
+				s.writeUDP(ctx, src, s.handle(ctx, msg, dnsMaxUDPPayload))
+			})
+		default:
+			if s.saturationWarn.allow(s.clock.Now("dns_saturation"), dnsWarnInterval) {
+				s.logger.Warn(ctx, "dns relay saturated")
 			}
-			if _, err := s.udp.WriteToUDPAddrPort(resp, src); err != nil && ctx.Err() == nil {
-				s.logger.Debug(ctx, "write dns response", slog.Error(err))
-			}
-		})
+			s.writeUDP(ctx, src, dnsMessageReply(msg, dnsmessage.RCodeServerFailure))
+		}
 	}
+}
+
+func (s *dnsServer) writeUDP(ctx context.Context, dst netip.AddrPort, resp []byte) {
+	if resp == nil {
+		return
+	}
+	if _, err := s.udp.WriteToUDPAddrPort(resp, dst); err != nil && ctx.Err() == nil {
+		s.logger.Debug(ctx, "write dns response", slog.Error(err))
+	}
+}
+
+func dnsMessageReply(msg []byte, rcode dnsmessage.RCode) []byte {
+	var parser dnsmessage.Parser
+	hdr, err := parser.Start(msg)
+	if err != nil {
+		return nil
+	}
+	q, err := parser.Question()
+	if err != nil {
+		return dnsReply(hdr, nil, dnsmessage.RCodeFormatError)
+	}
+	return dnsReply(hdr, &q, rcode)
 }
 
 func (s *dnsServer) serveTCP(ctx context.Context) {

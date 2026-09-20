@@ -9173,9 +9173,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 #### Enumerated Values
 
-| Value(s)            |
-|---------------------|
-| `dns`, `tcp`, `udp` |
+| Value(s)                            |
+|-------------------------------------|
+| `dns`, `icmp`, `none`, `tcp`, `udp` |
 
 ## codersdk.ExitNodeReplica
 

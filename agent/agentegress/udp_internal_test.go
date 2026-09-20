@@ -202,6 +202,34 @@ func TestUDP_UnknownDropRateLimit(t *testing.T) {
 	require.Equal(t, int64(3), count)
 }
 
+func TestUDP_SessionAndDeniedCaps(t *testing.T) {
+	t.Parallel()
+
+	p := &udpProxy{
+		logger:      testutil.Logger(t),
+		clock:       quartz.NewMock(t),
+		sessions:    make(map[udpSessionKey]*udpSession),
+		denied:      make(map[udpSessionKey]time.Time),
+		maxSessions: 1,
+		maxDenied:   2,
+	}
+	key := func(i byte) udpSessionKey {
+		return udpSessionKey{
+			src: netip.AddrPortFrom(netip.AddrFrom4([4]byte{127, 0, 0, i}), 1000),
+			dst: netip.MustParseAddrPort("192.0.2.1:443"),
+		}
+	}
+	p.sessions[key(1)] = &udpSession{}
+	require.Nil(t, p.session(t.Context(), key(2)))
+	require.Len(t, p.sessions, 1)
+
+	for i := byte(1); i <= 10; i++ {
+		require.True(t, p.markDenied(key(i)))
+		require.LessOrEqual(t, len(p.denied), p.maxDenied)
+	}
+	require.Len(t, p.denied, p.maxDenied)
+}
+
 func TestUDP_DropsOversizedAndUnknownDestination(t *testing.T) {
 	t.Parallel()
 

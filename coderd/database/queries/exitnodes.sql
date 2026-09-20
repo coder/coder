@@ -57,6 +57,11 @@ UPDATE exit_node_replicas
 SET stopped_at = @stopped_at::timestamptz
 WHERE id = @id;
 
+-- name: StopExitNodeReplicasByExitNode :exec
+UPDATE exit_node_replicas
+SET stopped_at = @stopped_at::timestamptz
+WHERE exit_node_id = @exit_node_id AND stopped_at IS NULL;
+
 -- name: GetLiveExitNodeReplicas :many
 SELECT *
 FROM exit_node_replicas
@@ -103,6 +108,12 @@ DELETE FROM exit_node_replicas WHERE updated_at < @updated_before;
 -- resolvable reference.
 UPDATE exit_nodes SET updated_at = Now(), deleted = true WHERE id = @id;
 
+-- name: DeleteTemplateExitNodesByExitNode :exec
+DELETE FROM template_exit_nodes WHERE exit_node_id = @exit_node_id;
+
+-- name: GetAllExitNodes :many
+SELECT * FROM exit_nodes WHERE deleted = false ORDER BY id;
+
 -- name: GetTemplateExitNodes :many
 SELECT exit_nodes.*
 FROM template_exit_nodes
@@ -118,6 +129,26 @@ WHERE template_id = @template_id;
 INSERT INTO template_exit_nodes (template_id, exit_node_id, position)
 SELECT @template_id, exit_node_id, ordinality - 1
 FROM unnest(@exit_node_ids::uuid[]) WITH ORDINALITY AS nodes(exit_node_id, ordinality);
+
+-- name: GetExitNodeFlowAgents :many
+SELECT
+	workspace_agents.id AS agent_id,
+	workspaces.organization_id,
+	workspaces.owner_id AS workspace_owner_id,
+	workspaces.id AS workspace_id,
+	workspaces.name AS workspace_name,
+	workspace_agents.name AS agent_name
+FROM workspace_agents
+JOIN workspace_resources ON workspace_resources.id = workspace_agents.resource_id
+JOIN provisioner_jobs ON provisioner_jobs.id = workspace_resources.job_id
+JOIN workspace_builds ON workspace_builds.job_id = provisioner_jobs.id
+JOIN workspaces ON workspaces.id = workspace_builds.workspace_id
+JOIN template_exit_nodes ON template_exit_nodes.template_id = workspaces.template_id
+WHERE
+	workspace_agents.id = ANY(@agent_ids::uuid[])
+	AND template_exit_nodes.exit_node_id = @exit_node_id
+	AND workspace_agents.deleted = false
+	AND workspaces.deleted = false;
 
 -- name: GetWorkspaceAgentIDsByExitNode :many
 -- Latest successful start build matches workspace status semantics.

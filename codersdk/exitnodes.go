@@ -36,7 +36,9 @@ const (
 	ExitNodeProtocolUDP ExitNodeProtocol = "udp"
 	// ExitNodeProtocolDNS is a DNS query resolved by the exit node on behalf
 	// of the workspace. Host carries the query name and Reason the type.
-	ExitNodeProtocolDNS ExitNodeProtocol = "dns"
+	ExitNodeProtocolDNS  ExitNodeProtocol = "dns"
+	ExitNodeProtocolICMP ExitNodeProtocol = "icmp"
+	ExitNodeProtocolNone ExitNodeProtocol = "none"
 )
 
 // ExitNode is an organization-scoped workspace egress endpoint.

@@ -43,6 +43,9 @@ const (
 	defaultConnectTimeout      = 10 * time.Second
 	defaultExitNodeDialTimeout = 5 * time.Second
 	defaultHostSniffTimeout    = 500 * time.Millisecond
+	defaultDNSConcurrency      = 256
+	defaultUDPSessions         = 4096
+	defaultUDPDenyEntries      = 4096
 	unknownFakeLogInterval     = 30 * time.Second
 	noLiveReplicaLogInterval   = 30 * time.Second
 )
@@ -129,7 +132,10 @@ type Proxy struct {
 	resolverDial func(context.Context, string, string) (net.Conn, error)
 	// udpOrigDst decodes the original destination of a redirected datagram.
 	// Tests replace it because only netfilter can produce a real one.
-	udpOrigDst func(oob []byte) netip.AddrPort
+	udpOrigDst     func(oob []byte) netip.AddrPort
+	dnsConcurrency int
+	udpSessions    int
+	udpDenyEntries int
 
 	unknownFake atomic.Int64
 	fakeWarn    rateLimiter
@@ -270,6 +276,9 @@ func New(logger slog.Logger, opts Options) (*Proxy, error) {
 		upstream:            opts.UpstreamResolvers,
 		resolverDial:        resolver.DialContext,
 		udpOrigDst:          udpOriginalDst,
+		dnsConcurrency:      defaultDNSConcurrency,
+		udpSessions:         defaultUDPSessions,
+		udpDenyEntries:      defaultUDPDenyEntries,
 	}
 	if p.clock == nil {
 		p.clock = quartz.NewReal()
@@ -334,6 +343,7 @@ func (p *Proxy) Start(ctx context.Context) error {
 		relay:     newDNSRelay(p.logger.Named("dns"), p.connectUpstream),
 		clock:     p.clock,
 		decisions: newDNSDecisionCache(dnsDecisionCacheSize),
+		inflight:  make(chan struct{}, p.dnsConcurrency),
 		dial:      p.resolverDial,
 	}
 	if err := dns.listen(ctx, host, p.dnsPort); err != nil {
@@ -341,11 +351,13 @@ func (p *Proxy) Start(ctx context.Context) error {
 		return err
 	}
 	udp := &udpProxy{
-		logger:  p.logger.Named("udp"),
-		clock:   p.clock,
-		connect: p.connectUpstream,
-		target:  p.target,
-		origDst: p.udpOrigDst,
+		logger:      p.logger.Named("udp"),
+		clock:       p.clock,
+		connect:     p.connectUpstream,
+		target:      p.target,
+		origDst:     p.udpOrigDst,
+		maxSessions: p.udpSessions,
+		maxDenied:   p.udpDenyEntries,
 	}
 	if err := udp.listen(ctx, host, p.udpPort); err != nil {
 		_ = ln.Close()

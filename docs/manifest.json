@@ -1722,6 +1722,36 @@
 							"path": "reference/cli/dotfiles.md"
 						},
 						{
+							"title": "exit-node",
+							"description": "Exit nodes terminate workspace egress, enforce policy, and report flows.",
+							"path": "reference/cli/exit-node.md"
+						},
+						{
+							"title": "exit-node create",
+							"description": "Create an exit node and print its token",
+							"path": "reference/cli/exit-node_create.md"
+						},
+						{
+							"title": "exit-node delete",
+							"description": "Delete an exit node",
+							"path": "reference/cli/exit-node_delete.md"
+						},
+						{
+							"title": "exit-node list",
+							"description": "List exit nodes in an organization",
+							"path": "reference/cli/exit-node_list.md"
+						},
+						{
+							"title": "exit-node replicas",
+							"description": "List replicas of an exit node",
+							"path": "reference/cli/exit-node_replicas.md"
+						},
+						{
+							"title": "exit-node server",
+							"description": "Run an exit node",
+							"path": "reference/cli/exit-node_server.md"
+						},
+						{
 							"title": "external-auth",
 							"description": "Manage external authentication",
 							"path": "reference/cli/external-auth.md"

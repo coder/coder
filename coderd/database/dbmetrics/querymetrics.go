@@ -904,6 +904,14 @@ func (m queryMetricsStore) DeleteTemplateExitNodes(ctx context.Context, template
 	return r0
 }
 
+func (m queryMetricsStore) DeleteTemplateExitNodesByExitNode(ctx context.Context, exitNodeID uuid.UUID) error {
+	start := time.Now()
+	r0 := m.s.DeleteTemplateExitNodesByExitNode(ctx, exitNodeID)
+	m.queryLatencies.WithLabelValues("DeleteTemplateExitNodesByExitNode").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteTemplateExitNodesByExitNode").Inc()
+	return r0
+}
+
 func (m queryMetricsStore) DeleteUnlinkedChatFilesByIDs(ctx context.Context, arg database.DeleteUnlinkedChatFilesByIDsParams) (int64, error) {
 	start := time.Now()
 	r0, r1 := m.s.DeleteUnlinkedChatFilesByIDs(ctx, arg)
@@ -1365,6 +1373,14 @@ func (m queryMetricsStore) GetActiveWorkspaceBuildsByTemplateID(ctx context.Cont
 	r0, r1 := m.s.GetActiveWorkspaceBuildsByTemplateID(ctx, templateID)
 	m.queryLatencies.WithLabelValues("GetActiveWorkspaceBuildsByTemplateID").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetActiveWorkspaceBuildsByTemplateID").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetAllExitNodes(ctx context.Context) ([]database.ExitNode, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetAllExitNodes(ctx)
+	m.queryLatencies.WithLabelValues("GetAllExitNodes").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAllExitNodes").Inc()
 	return r0, r1
 }
 
@@ -2133,6 +2149,14 @@ func (m queryMetricsStore) GetExitNodeByOrgAndName(ctx context.Context, arg data
 	r0, r1 := m.s.GetExitNodeByOrgAndName(ctx, arg)
 	m.queryLatencies.WithLabelValues("GetExitNodeByOrgAndName").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetExitNodeByOrgAndName").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetExitNodeFlowAgents(ctx context.Context, arg database.GetExitNodeFlowAgentsParams) ([]database.GetExitNodeFlowAgentsRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetExitNodeFlowAgents(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetExitNodeFlowAgents").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetExitNodeFlowAgents").Inc()
 	return r0, r1
 }
 
@@ -5253,6 +5277,14 @@ func (m queryMetricsStore) StopExitNodeReplica(ctx context.Context, arg database
 	r0 := m.s.StopExitNodeReplica(ctx, arg)
 	m.queryLatencies.WithLabelValues("StopExitNodeReplica").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "StopExitNodeReplica").Inc()
+	return r0
+}
+
+func (m queryMetricsStore) StopExitNodeReplicasByExitNode(ctx context.Context, arg database.StopExitNodeReplicasByExitNodeParams) error {
+	start := time.Now()
+	r0 := m.s.StopExitNodeReplicasByExitNode(ctx, arg)
+	m.queryLatencies.WithLabelValues("StopExitNodeReplicasByExitNode").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "StopExitNodeReplicasByExitNode").Inc()
 	return r0
 }
 

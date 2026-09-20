@@ -48,11 +48,14 @@ type udpProxy struct {
 	addr        netip.AddrPort
 	transparent bool
 
-	mu       sync.Mutex
-	sessions map[udpSessionKey]*udpSession
-	denied   map[udpSessionKey]time.Time
-	drops    map[uint16]udpDropState
-	wg       sync.WaitGroup
+	mu          sync.Mutex
+	sessions    map[udpSessionKey]*udpSession
+	denied      map[udpSessionKey]time.Time
+	drops       map[uint16]udpDropState
+	maxSessions int
+	maxDenied   int
+	sessionWarn rateLimiter
+	wg          sync.WaitGroup
 
 	oversized  atomic.Int64
 	unknownDst atomic.Int64
@@ -196,6 +199,22 @@ func (p *udpProxy) markDenied(key udpSessionKey) bool {
 	if until, ok := p.denied[key]; ok && now.Before(until) {
 		return false
 	}
+	if _, exists := p.denied[key]; !exists && len(p.denied) >= p.maxDenied {
+		var oldestKey udpSessionKey
+		var oldest time.Time
+		for candidate, until := range p.denied {
+			if !now.Before(until) {
+				delete(p.denied, candidate)
+				continue
+			}
+			if oldest.IsZero() || until.Before(oldest) {
+				oldestKey, oldest = candidate, until
+			}
+		}
+		if len(p.denied) >= p.maxDenied {
+			delete(p.denied, oldestKey)
+		}
+	}
 	p.denied[key] = now.Add(udpDenyTTL)
 	return true
 }
@@ -211,6 +230,12 @@ func (p *udpProxy) session(ctx context.Context, key udpSessionKey) *udpSession {
 	}
 	if s, ok := p.sessions[key]; ok {
 		return s
+	}
+	if len(p.sessions) >= p.maxSessions {
+		if p.sessionWarn.allow(p.clock.Now(), udpDenyTTL) {
+			p.logger.Warn(ctx, "udp session limit reached, dropping datagram")
+		}
+		return nil
 	}
 	s := &udpSession{
 		proxy:   p,

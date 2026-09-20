@@ -45,12 +45,11 @@ func (r *RootCmd) exitNode() *serpent.Command {
 	return &serpent.Command{
 		Use:   "exit-node",
 		Short: "Exit nodes terminate workspace egress, enforce policy, and report flows.",
-		Long: "Exit nodes are tailnet peers that workspace agents route outbound TCP " +
+		Long: "Exit nodes are tailnet peers that workspace agents route outbound TCP, UDP, and DNS " +
 			"traffic through. Each flow is checked against a policy and reported to coderd. " +
 			"Agents older than API 2.14 cannot consume replica-aware configurations. Restart " +
 			"workspaces on the new agent before binding exit nodes.",
 		Aliases: []string{"exitnode"},
-		Hidden:  true,
 		Handler: func(inv *serpent.Invocation) error {
 			return inv.Command.HelpHandler(inv)
 		},

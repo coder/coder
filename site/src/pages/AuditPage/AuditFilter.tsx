@@ -147,6 +147,10 @@ export const useResourceTypeFilterMenu = ({
 			label = "Git SSH Key";
 		}
 
+		if (type === "exit_node") {
+			label = "Exit Node";
+		}
+
 		if (type === "template_version") {
 			label = "Template Version";
 		}

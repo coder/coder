@@ -25,7 +25,8 @@ const (
 )
 
 type exitNodeReplicaSession struct {
-	cancel context.CancelFunc
+	exitNodeID uuid.UUID
+	cancel     context.CancelFunc
 }
 
 type exitNodeReplicaState struct {
@@ -54,7 +55,11 @@ func newExitNodeReplicaSessionRegistry(clock quartz.Clock) *exitNodeReplicaSessi
 }
 
 func (r *exitNodeReplicaSessionRegistry) register(replicaID uuid.UUID, cancel context.CancelFunc) func() {
-	session := &exitNodeReplicaSession{cancel: cancel}
+	return r.registerExitNode(replicaID, uuid.Nil, cancel)
+}
+
+func (r *exitNodeReplicaSessionRegistry) registerExitNode(replicaID, exitNodeID uuid.UUID, cancel context.CancelFunc) func() {
+	session := &exitNodeReplicaSession{exitNodeID: exitNodeID, cancel: cancel}
 	r.mu.Lock()
 	if _, stopped := r.stopped[replicaID]; stopped {
 		r.mu.Unlock()
@@ -89,6 +94,28 @@ func (r *exitNodeReplicaSessionRegistry) stop(replicaID uuid.UUID) {
 	delete(r.live, replicaID)
 	r.mu.Unlock()
 	if session != nil {
+		session.cancel()
+	}
+}
+
+func (r *exitNodeReplicaSessionRegistry) stopExitNode(exitNodeID uuid.UUID) {
+	r.mu.Lock()
+	var sessions []*exitNodeReplicaSession
+	for replicaID, session := range r.sessions {
+		if session.exitNodeID != exitNodeID {
+			continue
+		}
+		sessions = append(sessions, session)
+		delete(r.sessions, replicaID)
+		delete(r.live, replicaID)
+	}
+	for replicaID, state := range r.live {
+		if state.exitNodeID == exitNodeID {
+			delete(r.live, replicaID)
+		}
+	}
+	r.mu.Unlock()
+	for _, session := range sessions {
 		session.cancel()
 	}
 }
