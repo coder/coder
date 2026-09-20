@@ -110,7 +110,7 @@
 	--color-git-deleted-bright: hsl(var(--git-deleted-bright));
 	--color-git-merged-bright: hsl(var(--git-merged-bright));
 
-	@keyframes loading {
+	@keyframes spinner-leaf-fade {
 		0% {
 			opacity: 0.85;
 		}
@@ -160,6 +160,13 @@
 		}
 	}
 
+	/* Spinner leaves fade in a staggered wave. Each leaf starts 0.1s further
+		into the cycle, and the cycle lasts one stagger per leaf so the wave wraps
+		seamlessly whatever the leaf count is. Spinner sets --spinner-leaf-index
+		and --spinner-leaf-count on each leaf. */
+	--animate-spinner-leaf: spinner-leaf-fade
+		calc(var(--spinner-leaf-count) * 0.1s) ease-in-out
+		calc(var(--spinner-leaf-index) * -0.1s) infinite;
 	--animate-spin-once: spin 1s cubic-bezier(0.4, 0, 0.2, 1);
 	--animate-bar-indeterminate: bar-indeterminate 2.1s
 		cubic-bezier(0.65, 0.815, 0.735, 0.395) infinite;
