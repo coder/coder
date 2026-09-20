@@ -41,6 +41,12 @@ const mockCompactionTrigger: OrganizationCompactionTrigger = {
 const mockCompactionTriggersByOrganizationID = new Map([
 	[MockChatModel.organization_id, mockCompactionTrigger],
 ]);
+// Window smaller than mockCompactionTrigger's 16K point.
+const mockSmallWindowModel: TypesGen.ChatModel = {
+	...MockChatModel,
+	display_name: "GPT-4o",
+	context_limit: 10_000,
+};
 
 const mockModels: TypesGen.ChatModel[] = [
 	{
@@ -270,6 +276,24 @@ export const OrganizationTriggerWarningAtDisabledThreshold: Story = {
 				name: /GPT-4o compaction threshold/i,
 			}),
 			"100",
+		);
+	},
+};
+
+export const OrganizationTriggerBeyondModelWindow: Story = {
+	args: {
+		models: [mockSmallWindowModel],
+		thresholds: [
+			{ model_config_id: mockSmallWindowModel.id, threshold_percent: 100 },
+		],
+		compactionTriggersByOrganizationID: mockCompactionTriggersByOrganizationID,
+	},
+	play: async ({ canvasElement }) => {
+		const row = within(canvasElement).getByRole("row", { name: /GPT-4o/i });
+		await userEvent.click(
+			within(row).getByRole("button", {
+				name: /Organization override for GPT-4o/i,
+			}),
 		);
 	},
 };

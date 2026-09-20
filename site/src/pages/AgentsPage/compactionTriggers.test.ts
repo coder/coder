@@ -9,6 +9,7 @@ import {
 	bindingCompactionTriggerPoint,
 	compactionPointAsPercent,
 	compactionTriggerPoint,
+	isCompactionPointBeyondWindow,
 	isCompactionTriggerEnabled,
 	resolveCompactionThreshold,
 	resolveOrganizationCompactionTrigger,
@@ -116,6 +117,13 @@ describe("compaction triggers", () => {
 				undefined,
 			),
 		).toBeUndefined();
+	});
+
+	it("treats a point past a known window as beyond it, but not one at the edge", () => {
+		expect(isCompactionPointBeyondWindow(16_000, 10_000)).toBe(true);
+		expect(isCompactionPointBeyondWindow(10_000, 10_000)).toBe(false);
+		expect(isCompactionPointBeyondWindow(9_000, 10_000)).toBe(false);
+		expect(isCompactionPointBeyondWindow(16_000, 0)).toBe(false);
 	});
 
 	it("resolves an enabled member-visible organization override model", () => {
