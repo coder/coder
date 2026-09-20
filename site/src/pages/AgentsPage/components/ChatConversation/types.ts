@@ -108,10 +108,6 @@ export type StreamState = {
 	toolCalls: Record<string, StreamToolCall>;
 	toolResults: Record<string, StreamToolResult>;
 	sources: Array<{ url: string; title: string }>;
-	/**
-	 * Earliest part timestamp in the stream. Reasoning deltas carry their
-	 * start time, so the live working clock starts when the step does
-	 * rather than at its first tool call.
-	 */
+	/** Earliest reasoning or tool part timestamp. */
 	startedAt?: string;
 };

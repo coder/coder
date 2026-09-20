@@ -159,8 +159,10 @@ export const FailedStepCounted: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
+		// Testing Library pads the badge with spaces; browsers read the name
+		// as "Worked for 12s (2 steps), 1 failed step".
 		const summary = canvas.getByRole("button", {
-			name: "Worked for 12s (2 steps) 1 failed step",
+			name: /^Worked for 12s \(2 steps\)\s?,\s?1 failed step$/,
 		});
 		await userEvent.click(summary);
 		const failedStep = canvas.getByTestId("chat-message-message:4");
@@ -230,6 +232,25 @@ export const Mobile: Story = {
 	globals: { viewport: { value: "mobile1", isRotated: false } },
 };
 
+// Editing makes the block inert, so it has to expand before the edit starts;
+// the capture shows the outer item dimming the nested rows once.
 export const EditingPrecedingMessage: Story = {
-	args: { editingMessageId: 1 },
+	render: function Render(args) {
+		const [editing, setEditing] = useState(false);
+		return (
+			<>
+				<Button onClick={() => setEditing(true)} disabled={editing}>
+					Edit prompt
+				</Button>
+				<ConversationTimeline {...args} editingMessageId={editing ? 1 : null} />
+			</>
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			canvas.getByRole("button", { name: "Worked for 12s (2 steps)" }),
+		);
+		await userEvent.click(canvas.getByRole("button", { name: "Edit prompt" }));
+	},
 };
