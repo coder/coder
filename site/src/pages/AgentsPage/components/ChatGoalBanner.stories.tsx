@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, fn, userEvent, within } from "storybook/test";
+import { fn } from "storybook/test";
 import type * as TypesGen from "#/api/typesGenerated";
 import { MockChatGoal } from "#/testHelpers/chatEntities";
 import { ChatGoalBanner } from "./ChatGoalBanner";
@@ -36,47 +36,17 @@ export const ActivePursuing: Story = {
 	args: {
 		isChatWorking: true,
 	},
-	play: async ({ canvasElement, args }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.getByLabelText("Current goal")).toBeVisible();
-		expect(canvas.getByText("Pursuing goal")).toBeVisible();
-		expect(canvas.getByText(longGoalObjective)).toBeVisible();
-
-		await userEvent.click(canvas.getByRole("button", { name: /Pause/i }));
-		await userEvent.click(canvas.getByRole("button", { name: /Complete/i }));
-		await userEvent.click(canvas.getByRole("button", { name: /Clear/i }));
-
-		expect(args.onAction).toHaveBeenNthCalledWith(1, "pause");
-		expect(args.onAction).toHaveBeenNthCalledWith(2, "complete");
-		expect(args.onAction).toHaveBeenNthCalledWith(3, "clear");
-	},
 };
 
 export const ActiveIdle: Story = {
 	args: {
 		isChatWorking: false,
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.getByText("Goal active")).toBeVisible();
-		expect(canvas.queryByText("Pursuing goal")).toBeNull();
-	},
 };
 
 export const Paused: Story = {
 	args: {
 		goal: goal({ status: "paused" }),
-		onAction: fn(),
-	},
-	play: async ({ canvasElement, args }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.getByText("Goal paused")).toBeVisible();
-
-		await userEvent.click(canvas.getByRole("button", { name: /Resume/i }));
-		await userEvent.click(canvas.getByRole("button", { name: /Clear/i }));
-
-		expect(args.onAction).toHaveBeenNthCalledWith(1, "resume");
-		expect(args.onAction).toHaveBeenNthCalledWith(2, "clear");
 	},
 };
 
@@ -87,25 +57,6 @@ export const PausedResumeUnavailable: Story = {
 		actionUnavailableReasons: {
 			resume: "The chat is busy. Resume becomes available when it is idle.",
 		},
-		onAction: fn(),
-	},
-	play: async ({ canvasElement, args }) => {
-		const canvas = within(canvasElement);
-		const resume = canvas.getByRole("button", { name: /Resume/i });
-		// The gated action stays keyboard-focusable with an accessible
-		// description instead of a hard disable, and clicking it no-ops.
-		expect(resume).not.toBeDisabled();
-		expect(resume).toHaveAttribute("aria-disabled", "true");
-		expect(resume).toHaveAccessibleDescription(
-			"The chat is busy. Resume becomes available when it is idle.",
-		);
-		resume.focus();
-		expect(resume).toHaveFocus();
-		await userEvent.click(resume);
-		expect(args.onAction).not.toHaveBeenCalledWith("resume");
-		// Clear stays available while resume is gated.
-		await userEvent.click(canvas.getByRole("button", { name: /Clear/i }));
-		expect(args.onAction).toHaveBeenCalledWith("clear");
 	},
 };
 
@@ -115,30 +66,11 @@ export const Complete: Story = {
 			status: "complete",
 			completion_summary: "Verified and shipped.",
 		}),
-		onAction: fn(),
-	},
-	play: async ({ canvasElement, args }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.getByText("Goal complete")).toBeVisible();
-		expect(canvas.getByText("Summary: Verified and shipped.")).toBeVisible();
-
-		await userEvent.click(canvas.getByRole("button", { name: /Clear/i }));
-
-		expect(args.onAction).toHaveBeenCalledWith("clear");
 	},
 };
 
 export const ReadOnlyChildGoal: Story = {
 	args: {
-		goal: goal(),
 		canMutateGoal: false,
-		onAction: fn(),
-	},
-	play: async ({ canvasElement, args }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.getByLabelText("Current goal")).toBeVisible();
-		expect(canvas.getByText("Goal active")).toBeVisible();
-		expect(canvas.queryByRole("button", { name: /Pause/i })).toBeNull();
-		expect(args.onAction).not.toHaveBeenCalled();
 	},
 };

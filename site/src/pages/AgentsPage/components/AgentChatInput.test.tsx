@@ -331,7 +331,7 @@ describe("AgentChatInput", () => {
 
 		expect(screen.queryByRole("button", { name: "Stop" })).toBeNull();
 		await user.click(screen.getByRole("button", { name: "Queue" }));
-		expect(onSend).toHaveBeenCalledWith("Also update the docs");
+		expect(onSend).toHaveBeenCalledWith("Also update the docs", undefined);
 		expect(onInterrupt).toHaveBeenCalledTimes(1);
 
 		inputRef.current?.clear();
@@ -711,5 +711,103 @@ describe("AgentChatInput", () => {
 		expect(toastError).toHaveBeenCalledWith(
 			"This file type is uploaded into the chat's workspace. Attach a running workspace to the chat, then try again.",
 		);
+	});
+});
+
+type AgentChatInputProps = React.ComponentProps<typeof AgentChatInput>;
+
+const goalInputProps: AgentChatInputProps = {
+	...inputProps,
+	onContentChange: vi.fn(),
+	initialValue: "",
+	showPursueGoal: true,
+	canPursueGoal: true,
+	onPlanModeToggle: vi.fn(),
+};
+
+const renderGoalInput = (props: Partial<AgentChatInputProps>) => {
+	const renderTree = (overrides: Partial<AgentChatInputProps>) => (
+		<AppProviders>
+			<AgentChatInput {...goalInputProps} {...props} {...overrides} />
+		</AppProviders>
+	);
+	const view = render(renderTree({}));
+	return {
+		rerenderInput: (nextProps: Partial<AgentChatInputProps>) =>
+			view.rerender(renderTree(nextProps)),
+	};
+};
+
+const openMoreOptions = async (user: ReturnType<typeof userEvent.setup>) => {
+	await user.click(screen.getByRole("button", { name: "More options" }));
+};
+
+const pursueGoalItem = () =>
+	screen.getByRole("menuitemcheckbox", { name: "Pursue goal" });
+
+describe("AgentChatInput goal mode", () => {
+	it("sends the trimmed objective as a goal mutation and resets goal mode", async () => {
+		const user = userEvent.setup();
+		const onSend = vi.fn().mockResolvedValue(undefined);
+		renderGoalInput({ onSend, initialValue: "  stabilize the release  " });
+
+		await openMoreOptions(user);
+		await user.click(pursueGoalItem());
+
+		await openMoreOptions(user);
+		expect(pursueGoalItem()).toHaveAttribute("aria-checked", "true");
+		expect(
+			screen.getByRole("menuitemcheckbox", { name: "Plan first" }),
+		).toHaveAttribute("aria-disabled", "true");
+		await user.keyboard("{Escape}");
+
+		const send = screen.getByRole("button", { name: "Send" });
+		await waitFor(() => expect(send).toBeEnabled());
+		await user.click(send);
+
+		await waitFor(() => {
+			expect(onSend).toHaveBeenCalledWith("stabilize the release", {
+				goalMutation: { action: "set", objective: "stabilize the release" },
+			});
+		});
+
+		await openMoreOptions(user);
+		expect(pursueGoalItem()).toHaveAttribute("aria-checked", "false");
+	});
+
+	it("ignores clicks on the pursue-goal item while goal setting is unavailable", async () => {
+		const user = userEvent.setup();
+		renderGoalInput({ canPursueGoal: false });
+
+		await openMoreOptions(user);
+		const pursueGoal = pursueGoalItem();
+		expect(pursueGoal).toHaveAttribute("aria-disabled", "true");
+		pursueGoal.focus();
+		expect(pursueGoal).toHaveFocus();
+		await user.click(pursueGoal);
+		expect(pursueGoal).toHaveAttribute("aria-checked", "false");
+	});
+
+	it("drops goal mode when availability is lost and does not reactivate on return", async () => {
+		const user = userEvent.setup();
+		const onSend = vi.fn().mockResolvedValue(undefined);
+		const { rerenderInput } = renderGoalInput({
+			onSend,
+			initialValue: "Run focused tests",
+		});
+
+		await openMoreOptions(user);
+		await user.click(pursueGoalItem());
+
+		rerenderInput({ canPursueGoal: false });
+		rerenderInput({ canPursueGoal: true });
+
+		const send = screen.getByRole("button", { name: "Send" });
+		await waitFor(() => expect(send).toBeEnabled());
+		await user.click(send);
+
+		await waitFor(() => {
+			expect(onSend).toHaveBeenCalledWith("Run focused tests", undefined);
+		});
 	});
 });

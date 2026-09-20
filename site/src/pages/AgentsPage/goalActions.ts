@@ -5,7 +5,7 @@ import {
 } from "#/api/queries/chatGoal";
 import type * as TypesGen from "#/api/typesGenerated";
 
-/** @internal Exported for testing. */
+/** Validates and submits a goal lifecycle action from the chat page. */
 export const runGoalAction = async (params: {
 	agentId: string | undefined;
 	goal: TypesGen.ChatGoal | undefined;

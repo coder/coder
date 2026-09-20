@@ -95,7 +95,6 @@ export const ChatTreeNode: React.FC<ChatTreeNodeProps> = ({
 			: undefined;
 	const lastTurnSummary = asNonEmptyString(chat.last_turn_summary);
 	const goalObjective = activeGoalObjective(chat);
-	const displayTitle = goalObjective ?? chat.title;
 	const isStreaming = chat.status === "running";
 	const streamingSubtitle =
 		isStreaming && modelName ? `${modelName} streaming…` : undefined;
@@ -273,7 +272,7 @@ export const ChatTreeNode: React.FC<ChatTreeNodeProps> = ({
 													"opacity-85 [@media(hover:hover)]:group-hover:opacity-100 group-data-[state=open]:opacity-100 group-has-data-[state=open]:opacity-100",
 											)}
 										>
-											{displayTitle}
+											{goalObjective ?? chat.title}
 										</span>
 										{chat.has_unread && !isActiveChat && (
 											<span className="sr-only">(unread)</span>
