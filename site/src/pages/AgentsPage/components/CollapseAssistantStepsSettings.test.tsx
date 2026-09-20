@@ -1,8 +1,13 @@
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { QueryClientProvider } from "react-query";
 import { API } from "#/api/api";
+import { preferenceSettingsKey } from "#/api/queries/users";
 import { MockUserPreferenceSettings } from "#/testHelpers/entities";
-import { render } from "#/testHelpers/renderHelpers";
+import {
+	createTestQueryClient,
+	renderComponent,
+} from "#/testHelpers/renderHelpers";
 import { CollapseAssistantStepsSettings } from "./CollapseAssistantStepsSettings";
 
 describe("CollapseAssistantStepsSettings", () => {
@@ -10,7 +15,7 @@ describe("CollapseAssistantStepsSettings", () => {
 		vi.restoreAllMocks();
 	});
 
-	it("saves the toggled preference and reflects the saved value", async () => {
+	it("saves the toggled preference and refetches the saved value", async () => {
 		let collapseAssistantSteps = false;
 		vi.spyOn(API, "getUserPreferenceSettings").mockImplementation(async () => ({
 			...MockUserPreferenceSettings,
@@ -26,20 +31,29 @@ describe("CollapseAssistantStepsSettings", () => {
 					collapse_assistant_steps: collapseAssistantSteps,
 				};
 			});
-		render(<CollapseAssistantStepsSettings />);
-		const toggle = await screen.findByRole("switch", {
+		const queryClient = createTestQueryClient();
+		queryClient.setQueryData(preferenceSettingsKey, {
+			...MockUserPreferenceSettings,
+			collapse_assistant_steps: false,
+		});
+		renderComponent(
+			<QueryClientProvider client={queryClient}>
+				<CollapseAssistantStepsSettings />
+			</QueryClientProvider>,
+		);
+		const toggle = screen.getByRole("switch", {
 			name: "Collapse assistant steps",
 		});
-		await waitFor(() => expect(toggle).toBeEnabled());
 
 		await userEvent.click(toggle);
 		await waitFor(() =>
 			expect(update).toHaveBeenCalledWith({ collapse_assistant_steps: true }),
 		);
-		await screen.findByRole("switch", {
-			name: "Collapse assistant steps",
-			checked: true,
-		});
+		await waitFor(() =>
+			expect(queryClient.getQueryData(preferenceSettingsKey)).toMatchObject({
+				collapse_assistant_steps: true,
+			}),
+		);
 
 		await userEvent.click(toggle);
 		await waitFor(() =>
