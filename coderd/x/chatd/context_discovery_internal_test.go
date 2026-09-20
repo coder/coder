@@ -22,7 +22,12 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
+	"github.com/coder/coder/v2/coderd/database/pubsub"
+	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
+	"github.com/coder/coder/v2/codersdk/workspacesdk/agentconnmock"
+	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/quartz"
 )
 
 func TestTouchedPaths(t *testing.T) {
@@ -330,6 +335,27 @@ func TestUnchangedDiscoveredRows(t *testing.T) {
 		"the rows a step owns still count toward the chat's caps, so the rediscovery cannot hand their share out again")
 }
 
+func TestResolveInstructionDirsBatches(t *testing.T) {
+	t.Parallel()
+
+	dirs := make([]string, 0, 40)
+	for i := range 40 {
+		dirs = append(dirs, "/tmp/"+string(rune('a'+i%26))+string(rune('a'+i/26)))
+	}
+	found := workspacesdk.ContextInstructionFile{Directory: dirs[0], Source: dirs[0] + "/AGENTS.md", Status: "ok"}
+
+	ctrl := gomock.NewController(t)
+	conn := agentconnmock.NewMockAgentConn(ctrl)
+	conn.EXPECT().ResolveContextInstructions(gomock.Any(), workspacesdk.ResolveContextInstructionsRequest{Directories: dirs[:32]}).
+		Return(workspacesdk.ResolveContextInstructionsResponse{Files: []workspacesdk.ContextInstructionFile{found}}, nil)
+	conn.EXPECT().ResolveContextInstructions(gomock.Any(), workspacesdk.ResolveContextInstructionsRequest{Directories: dirs[32:]}).
+		Return(workspacesdk.ResolveContextInstructionsResponse{}, xerrors.New("agent gone"))
+
+	files, probed := resolveInstructionDirs(context.Background(), testutil.Logger(t), conn, dirs)
+	require.Equal(t, []workspacesdk.ContextInstructionFile{found}, files)
+	require.Equal(t, dirs[:32], probed, "only the directories the agent answered for count as probed")
+}
+
 func TestInstructionProbeCache(t *testing.T) {
 	t.Parallel()
 
@@ -600,10 +626,13 @@ func TestInstructionProbeCachePendingCoversTree(t *testing.T) {
 }
 
 // discoveryOp is a chat bound to the fixture's agent A, with A's snapshot
-// row pinned, and a server to run discovery operations against it.
+// row pinned, and a server to run discovery operations against it over a
+// strict mock connection.
 type discoveryOp struct {
 	fix    rebindFixture
 	chat   database.Chat
+	agent  database.WorkspaceAgent
+	conn   *agentconnmock.MockAgentConn
 	server *Server
 }
 
@@ -623,7 +652,22 @@ func newDiscoveryOp(t *testing.T) discoveryOp {
 		AggregateHash: fix.hashA,
 	})
 	require.NoError(t, err)
-	return discoveryOp{fix: fix, chat: chat, server: &Server{db: fix.db, logger: slogtest.Make(t, nil)}}
+	agent, err := fix.db.GetWorkspaceAgentByID(fix.ctx, fix.agentA)
+	require.NoError(t, err)
+	agent.Directory = path.Dir(fix.srcA)
+	agent.OperatingSystem = "linux"
+	return discoveryOp{
+		fix:   fix,
+		chat:  chat,
+		agent: agent,
+		conn:  agentconnmock.NewMockAgentConn(gomock.NewController(t)),
+		server: &Server{
+			db:     fix.db,
+			pubsub: pubsub.NewInMemory(),
+			logger: slogtest.Make(t, nil),
+			clock:  quartz.NewReal(),
+		},
+	}
 }
 
 func (op discoveryOp) captured(t *testing.T) []database.ChatContextResource {
@@ -640,6 +684,15 @@ func (op discoveryOp) rows(t *testing.T) map[string]database.ChatContextResource
 		out[row.Source] = row
 	}
 	return out
+}
+
+func (op discoveryOp) discover(files, dirs []string) {
+	op.server.discoverInstructionContext(op.fix.ctx, op.conn, op.agent, op.chat, files, dirs)
+}
+
+func (op discoveryOp) expectProbe(dirs []string, files ...workspacesdk.ContextInstructionFile) {
+	op.conn.EXPECT().ResolveContextInstructions(gomock.Any(), workspacesdk.ResolveContextInstructionsRequest{Directories: dirs}).
+		Return(workspacesdk.ResolveContextInstructionsResponse{Files: files}, nil)
 }
 
 // discoveryWriteFailStore fails the discovered-row upsert for one source,
@@ -768,5 +821,120 @@ func TestApplyDiscoveredInstructionFiles(t *testing.T) {
 			[]workspacesdk.ContextInstructionFile{resolvedInstructionFile(nestedSource, "site rules v2")}, noStale, probed)
 		require.NoError(t, err)
 		require.Equal(t, newerHash, op.rows(t)[nestedSource].ContentHash, "the newer read stays")
+	})
+}
+
+func TestDiscoverInstructionContext(t *testing.T) {
+	t.Parallel()
+
+	const (
+		nestedDir    = "/home/coder/workspace/site"
+		nestedSource = nestedDir + "/AGENTS.md"
+		secondSource = nestedDir + "/CLAUDE.md"
+		touchedFile  = nestedDir + "/src/App.tsx"
+	)
+	chain := []string{nestedDir, nestedDir + "/src"}
+
+	// The excluded file is larger than the chat's budget, so no later probe
+	// could fit it and the second read asks nothing.
+	t.Run("PinsFoundFilesOnce", func(t *testing.T) {
+		t.Parallel()
+		op := newDiscoveryOp(t)
+		events := make(chan struct{}, 1)
+		cancel, err := op.server.pubsub.Subscribe(coderdpubsub.ChatWatchEventChannel(op.chat.OwnerID), func(context.Context, []byte) {
+			select {
+			case events <- struct{}{}:
+			default:
+			}
+		})
+		require.NoError(t, err)
+		defer cancel()
+		excluded := resolvedInstructionFile(secondSource, "")
+		excluded.SizeBytes, excluded.Status, excluded.Error = maxDiscoveredInstructionBytes+1, "excluded", "response content cap exceeded"
+		op.expectProbe(chain, resolvedInstructionFile(nestedSource, "site rules"), excluded)
+
+		op.discover([]string{touchedFile}, nil)
+		op.discover([]string{touchedFile}, nil)
+
+		rows := op.rows(t)
+		require.Len(t, rows, 3)
+		require.False(t, rows[op.fix.srcA].Discovered)
+		require.True(t, rows[nestedSource].Discovered)
+		require.Equal(t, database.WorkspaceAgentContextResourceStatusExcluded, rows[secondSource].Status, "an excluded file is part of the inventory")
+		testutil.RequireReceive(op.fix.ctx, t, events)
+	})
+
+	t.Run("SwallowsAFailedProbe", func(t *testing.T) {
+		t.Parallel()
+		op := newDiscoveryOp(t)
+		op.conn.EXPECT().ResolveContextInstructions(gomock.Any(), gomock.Any()).
+			Return(workspacesdk.ResolveContextInstructionsResponse{}, xerrors.New("404 not found"))
+
+		op.discover([]string{touchedFile}, nil)
+
+		require.Len(t, op.rows(t), 1, "a failed probe pins nothing")
+	})
+
+	t.Run("ReconcilesRemovedFiles", func(t *testing.T) {
+		t.Parallel()
+		op := newDiscoveryOp(t)
+		op.expectProbe(chain, resolvedInstructionFile(nestedSource, "site rules"))
+		op.expectProbe([]string{nestedDir}, resolvedInstructionFile(secondSource, "new rules"))
+
+		op.discover([]string{touchedFile}, nil)
+		op.discover([]string{secondSource}, nil)
+
+		rows := op.rows(t)
+		require.NotContains(t, rows, nestedSource, "the removed file is gone")
+		require.True(t, rows[secondSource].Discovered)
+	})
+
+	// The write may not have landed when the first probe ran.
+	t.Run("ReprobesAStaleDirectory", func(t *testing.T) {
+		t.Parallel()
+		op := newDiscoveryOp(t)
+		op.expectProbe([]string{nestedDir})
+		op.expectProbe(chain, resolvedInstructionFile(secondSource, "final rules"))
+
+		op.discover([]string{secondSource}, nil)
+		op.discover([]string{touchedFile}, nil)
+
+		require.True(t, op.rows(t)[secondSource].Discovered)
+	})
+
+	// The command may still be writing when its result returns.
+	t.Run("ReprobesAfterACommand", func(t *testing.T) {
+		t.Parallel()
+		op := newDiscoveryOp(t)
+		op.expectProbe([]string{nestedDir}, resolvedInstructionFile(nestedSource, "site rules"))
+		op.expectProbe(chain, resolvedInstructionFile(nestedSource, "site rules"), resolvedInstructionFile(secondSource, "generated rules"))
+
+		op.discover(nil, []string{nestedDir})
+		op.discover([]string{touchedFile}, nil)
+
+		rows := op.rows(t)
+		require.True(t, rows[nestedSource].Discovered)
+		require.True(t, rows[secondSource].Discovered, "the file the command created after its result is pinned by the next read")
+	})
+
+	// The excluded row would otherwise keep the directory probed forever.
+	t.Run("DropsAVanishedExcludedFile", func(t *testing.T) {
+		t.Parallel()
+		op := newDiscoveryOp(t)
+		require.NoError(t, op.fix.db.UpsertChatContextDiscoveredResource(op.fix.ctx, database.UpsertChatContextDiscoveredResourceParams{
+			ChatID:      op.chat.ID,
+			Source:      nestedSource,
+			BodyKind:    database.WorkspaceAgentContextBodyKindInstructionFile,
+			Body:        []byte("{}"),
+			ContentHash: []byte("gone"),
+			SizeBytes:   12,
+			Status:      database.WorkspaceAgentContextResourceStatusExcluded,
+			Error:       "discovered instruction content cap reached",
+		}))
+		op.expectProbe(chain)
+
+		op.discover([]string{touchedFile}, nil)
+
+		require.NotContains(t, op.rows(t), nestedSource, "the vanished file's row is dropped")
 	})
 }
