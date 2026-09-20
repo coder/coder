@@ -1759,6 +1759,16 @@ export const RevokedSelectionDoesNotResurrect: Story = {
 
 		revocablePermissions[MockOrganization2.id] = false;
 		await revocableQueryClient?.invalidateQueries();
+		// invalidateQueries resolves when the refetch lands, before React renders
+		// it. Wait for the picker to unmount (one permitted org hides it) so the
+		// re-permit cannot arrive before the revoked selection is cleared.
+		await waitFor(() =>
+			expect(
+				canvas.queryByRole("button", {
+					name: "Organization: My Organization 2",
+				}),
+			).not.toBeInTheDocument(),
+		);
 
 		revocablePermissions[MockOrganization2.id] = true;
 		await revocableQueryClient?.invalidateQueries();
