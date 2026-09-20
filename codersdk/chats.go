@@ -498,9 +498,11 @@ type ChatMessagePart struct {
 	// read_skill tool uses the correct filename even when the
 	// agent configured a non-default value.
 	ContextFileSkillMetaFile string `json:"context_file_skill_meta_file,omitempty" typescript:"-"`
-	// SenderChatID is the chat whose agent delivered this prompt. A pointer
-	// rather than uuid.NullUUID so the key is omitted from every other
-	// persisted part (NullUUID marshals as null and is never omitted).
+
+	// A pointer rather than uuid.NullUUID so the key is omitted from every
+	// other persisted part (NullUUID marshals as null and is never omitted).
+
+	// SenderChatID is the chat whose agent delivered this prompt.
 	SenderChatID *uuid.UUID `json:"sender_chat_id,omitempty" format:"uuid" variants:"sender-chat?"`
 	// SenderChatTitle is the sending chat's title at delivery time.
 	SenderChatTitle string `json:"sender_chat_title,omitempty" variants:"sender-chat?"`
@@ -508,8 +510,8 @@ type ChatMessagePart struct {
 	// receiving chat.
 	SenderChatRelation ChatSenderChatRelation `json:"sender_chat_relation,omitempty" enums:"parent,child" variants:"sender-chat?"`
 	// RelayHop counts consecutive agent-to-agent deliveries since the last
-	// human-initiated turn. It is at least 1 when present; absent means the
-	// prompt was not relayed.
+	// human-initiated turn. It is at least 1 when written; readers treat a
+	// missing value as 1.
 	RelayHop int `json:"relay_hop,omitempty" variants:"sender-chat?"`
 }
 

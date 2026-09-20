@@ -3389,6 +3389,38 @@ func TestToolResultAntivenom(t *testing.T) {
 	})
 }
 
+func TestToolResultContentToPart_StructuredErrors(t *testing.T) {
+	t.Parallel()
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	structured := `{"error":"chat is not the parent or a direct child of this chat","chat_id":"c1","title":"child"}`
+
+	for _, name := range []string{"send_chat_message", "list_chat_tree", "message_agent"} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			part := chatprompt.ToolResultContentToPartForTest(logger, fantasy.ToolResultContent{
+				ToolCallID: "call-1",
+				ToolName:   name,
+				Result:     fantasy.ToolResultOutputContentError{Error: xerrors.New(structured)},
+			})
+			require.True(t, part.IsError)
+			require.JSONEq(t, structured, string(part.Result))
+		})
+	}
+
+	t.Run("OtherToolsAreWrapped", func(t *testing.T) {
+		t.Parallel()
+		part := chatprompt.ToolResultContentToPartForTest(logger, fantasy.ToolResultContent{
+			ToolCallID: "call-2",
+			ToolName:   "read_file",
+			Result:     fantasy.ToolResultOutputContentError{Error: xerrors.New(structured)},
+		})
+		require.True(t, part.IsError)
+		var wrapped map[string]string
+		require.NoError(t, json.Unmarshal(part.Result, &wrapped))
+		require.Equal(t, map[string]string{"error": structured}, wrapped)
+	})
+}
+
 func TestToolResultContentToPart_UTF8Sanitization(t *testing.T) {
 	t.Parallel()
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})

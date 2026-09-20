@@ -141,7 +141,7 @@ func NewMetrics(reg prometheus.Registerer) *Metrics {
 			Namespace: metricsNamespace,
 			Subsystem: metricsSubsystem,
 			Name:      "chat_tree_messages_total",
-			Help:      "Total send_chat_message attempts by target relation, effective delivery, and outcome.",
+			Help:      "Total send_chat_message attempts by target relation, delivery, and outcome. delivery is the effective value after any downgrade for delivered messages and the requested value for rejected ones.",
 		}, []string{"relation", "delivery", "outcome"}),
 	}
 }

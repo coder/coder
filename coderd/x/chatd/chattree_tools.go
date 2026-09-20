@@ -12,12 +12,15 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/x/agenthooks/dispatch"
+	"github.com/coder/coder/v2/coderd/x/chatd/chathooks"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -78,7 +81,9 @@ var (
 	// exceed chatTreeMessageMaxHops.
 	ErrChatTreeMessageRelayLimit = xerrors.New("relay depth limit reached; wait for a human message before messaging again")
 	// ErrChatTreeMessageTurnLimit indicates the per-turn send budget is spent.
-	ErrChatTreeMessageTurnLimit = xerrors.New("per-turn message limit reached")
+	// Every send_chat_message call in the turn counts, including rejected
+	// ones.
+	ErrChatTreeMessageTurnLimit = xerrors.New("per-turn message limit reached (rejected attempts count too)")
 	// ErrChatTreeInvalidDelivery indicates delivery is neither queue nor
 	// interrupt.
 	ErrChatTreeInvalidDelivery = xerrors.New(`delivery must be "queue" or "interrupt"`)
@@ -87,11 +92,15 @@ var (
 	ErrChatTreeInvalidChatID = xerrors.New(`chat_id must be a valid UUID or "parent"`)
 	// ErrChatTreeSenderNotEligible indicates the sending chat is a subagent.
 	ErrChatTreeSenderNotEligible = xerrors.New("subagent chats cannot send chat tree messages")
-	// ErrChatOwnerInactive indicates the chat owner's account is not active.
+	// ErrChatOwnerInactive indicates the chat owner's account is deleted or
+	// not active.
 	ErrChatOwnerInactive = xerrors.New("chat owner is not active")
 	// errChatTreeHistoryUnavailable indicates the sender's history has no
 	// user prompt, so the relay hop cannot be derived.
 	errChatTreeHistoryUnavailable = xerrors.New("chat history unavailable; cannot determine relay depth")
+	// errChatTreeInternal replaces unexpected store errors in tool results;
+	// the detail is logged.
+	errChatTreeInternal = xerrors.New("internal error sending chat tree message")
 )
 
 type sendChatMessageArgs struct {
@@ -103,8 +112,22 @@ type sendChatMessageArgs struct {
 type listChatTreeArgs struct{}
 
 // chatOwnerContext returns ctx acting as the chat owner with full scope.
-// It fails when the owner's account is not active.
+// It fails when the owner's account is deleted or not active.
 func chatOwnerContext(ctx context.Context, store database.Store, ownerID uuid.UUID) (context.Context, error) {
+	// GetAuthorizationUserRoles does not filter deleted users, so the row
+	// is loaded first. Tool callbacks run on the chatd worker context,
+	// which cannot read user rows, so this single read is system scoped.
+	//nolint:gocritic // Background chatd work has no owner actor yet; every later call runs as the owner.
+	owner, err := store.GetUserByID(dbauthz.AsSystemRestricted(ctx), ownerID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, ErrChatOwnerInactive
+		}
+		return nil, xerrors.Errorf("load chat owner: %w", err)
+	}
+	if owner.Deleted || owner.Status != database.UserStatusActive {
+		return nil, ErrChatOwnerInactive
+	}
 	actor, status, err := httpmw.UserRBACSubject(ctx, store, ownerID, rbac.ScopeAll)
 	if err != nil {
 		return nil, xerrors.Errorf("load chat owner authorization: %w", err)
@@ -308,12 +331,16 @@ func (s chatTreeTurnState) nextHop() int {
 // allowSend reports whether the call identified by toolCallID fits the
 // per-turn budget. Resolved calls count first; the current call counts by
 // its position among the unresolved calls, so calls executed together and
-// calls re-executed after a replica takeover get the same decision. A call
-// id missing from history is treated as following every unresolved call.
+// calls re-executed after a replica takeover get the same decision. A
+// duplicated call id occupies the slot of its last occurrence, and an id
+// missing from history is treated as following every unresolved call.
 func (s chatTreeTurnState) allowSend(toolCallID string) bool {
-	position := slices.Index(s.unresolvedSendCallIDs, toolCallID)
-	if position == -1 {
-		position = len(s.unresolvedSendCallIDs)
+	position := len(s.unresolvedSendCallIDs)
+	for i := len(s.unresolvedSendCallIDs) - 1; i >= 0; i-- {
+		if s.unresolvedSendCallIDs[i] == toolCallID {
+			position = i
+			break
+		}
 	}
 	return s.resolvedSends+position < s.sendLimit()
 }
@@ -358,8 +385,10 @@ func (p *Server) chatTreeTools(
 				"queued there. An interrupt is downgraded to queue when the "+
 				"target is waiting for a human approval. There is no reply "+
 				"channel: the target may answer with its own send_chat_message. "+
-				"Sends are limited per turn and relay chains between agents are "+
-				"capped.",
+				"The result's relation field is the target's position relative "+
+				"to this chat (parent or child). Sends are limited per turn, "+
+				"rejected attempts count against that limit, and relay chains "+
+				"between agents are capped.",
 			func(ctx context.Context, args sendChatMessageArgs, call fantasy.ToolCall) (fantasy.ToolResponse, error) {
 				return p.runSendChatMessage(ctx, currentChat(), messages(), args, call)
 			},
@@ -414,18 +443,20 @@ func (p *Server) runSendChatMessage(
 
 	ownerCtx, sender, err := p.loadChatTreeSender(ctx, snapshot)
 	if err != nil {
-		return toolJSONErrorResponse(map[string]any{"error": err.Error()}), nil
+		return toolJSONErrorResponse(map[string]any{"error": p.chatTreeErrorText(ctx, err, snapshot.ID, uuid.Nil)}), nil
 	}
 	target, err := resolveChatTreeMessageTarget(ownerCtx, p.db, sender, args.ChatID)
 	if err != nil {
-		return toolJSONErrorResponse(map[string]any{"error": err.Error()}), nil
+		return toolJSONErrorResponse(map[string]any{"error": p.chatTreeErrorText(ctx, err, sender.ID, uuid.Nil)}), nil
 	}
 
 	turn, err := chatTreeTurnStateFromHistory(history)
 	if err != nil {
-		return toolJSONErrorResponse(map[string]any{"error": err.Error()}), nil
+		return toolJSONErrorResponse(map[string]any{"error": p.chatTreeErrorText(ctx, err, sender.ID, target.chat.ID)}), nil
 	}
 	relation := string(target.relation)
+	// Rejections before the send record the requested delivery; the
+	// effective delivery is only known under the target's lock.
 	if turn.nextHop() > chatTreeMessageMaxHops {
 		p.metrics.RecordChatTreeMessage(relation, string(delivery), string(chatTreeDeliveryOutcomeRejected))
 		return chatTreeErrorResponse(ErrChatTreeMessageRelayLimit, target.chat), nil
@@ -435,16 +466,6 @@ func (p *Server) runSendChatMessage(
 		return chatTreeErrorResponse(ErrChatTreeMessageTurnLimit, target.chat), nil
 	}
 
-	previousStatus := target.chat.Status
-	effectiveDelivery := delivery
-	downgraded := false
-	if delivery == chatTreeDeliveryInterrupt && previousStatus == database.ChatStatusRequiresAction {
-		// A pending human approval on the target must not be canceled by
-		// another agent.
-		effectiveDelivery = chatTreeDeliveryQueue
-		downgraded = true
-	}
-
 	result, err := p.SendMessage(ownerCtx, SendMessageOptions{
 		ChatID:    target.chat.ID,
 		CreatedBy: sender.OwnerID,
@@ -452,23 +473,34 @@ func (p *Server) runSendChatMessage(
 			codersdk.ChatMessageSenderChat(sender.ID, sender.Title, target.senderRelation(), turn.nextHop()),
 			codersdk.ChatMessageText(message),
 		},
-		BusyBehavior: chatTreeDeliveryToBusyBehavior(effectiveDelivery),
+		BusyBehavior: chatTreeDeliveryToBusyBehavior(delivery),
+		// A pending human approval on the target must not be canceled by
+		// another agent; the status is checked under the target's lock.
+		QueueOnRequiresAction: true,
 	})
 	if err != nil {
-		p.metrics.RecordChatTreeMessage(relation, string(effectiveDelivery), string(chatTreeDeliveryOutcomeRejected))
+		p.metrics.RecordChatTreeMessage(relation, string(delivery), string(chatTreeDeliveryOutcomeRejected))
 		// A failed hook dispatch must fail the turn instead of degrading
 		// into a tool error the model can ignore.
 		if _, ok := errors.AsType[*dispatch.Error](err); ok {
 			return fantasy.ToolResponse{}, err
 		}
-		return chatTreeErrorResponse(err, target.chat), nil
+		return toolJSONErrorResponse(map[string]any{
+			"error":   p.chatTreeErrorText(ctx, err, sender.ID, target.chat.ID),
+			"chat_id": target.chat.ID.String(),
+			"title":   target.chat.Title,
+		}), nil
 	}
 
+	effectiveDelivery := delivery
+	if result.Downgraded {
+		effectiveDelivery = chatTreeDeliveryQueue
+	}
 	outcome := chatTreeDeliveryOutcomeQueued
 	switch {
 	case !result.Queued:
 		outcome = chatTreeDeliveryOutcomeStarted
-	case effectiveDelivery == chatTreeDeliveryInterrupt && previousStatus == database.ChatStatusRunning:
+	case effectiveDelivery == chatTreeDeliveryInterrupt && result.PreviousStatus == database.ChatStatusRunning:
 		outcome = chatTreeDeliveryOutcomeInterrupting
 	}
 	p.metrics.RecordChatTreeMessage(relation, string(effectiveDelivery), string(outcome))
@@ -477,12 +509,12 @@ func (p *Server) runSendChatMessage(
 		"chat_id":         target.chat.ID.String(),
 		"title":           target.chat.Title,
 		"relation":        relation,
-		"previous_status": string(previousStatus),
+		"previous_status": string(result.PreviousStatus),
 		"status":          string(result.Chat.Status),
 		"delivery":        string(outcome),
 		"relay_hop":       turn.nextHop(),
 	}
-	if downgraded {
+	if result.Downgraded {
 		response["downgraded_from"] = string(chatTreeDeliveryInterrupt)
 	}
 	if result.Queued && result.QueuedMessage != nil {
@@ -501,10 +533,68 @@ func chatTreeErrorResponse(err error, target database.Chat) fantasy.ToolResponse
 	})
 }
 
+// chatTreeErrorText returns the error text placed in a tool result. Typed
+// and sentinel errors are reported by their own message without wrapping
+// context; anything else is logged with the chat ids and replaced by a
+// fixed message.
+func (p *Server) chatTreeErrorText(ctx context.Context, err error, senderID, targetID uuid.UUID) string {
+	if reportable := chatTreeReportableError(err); reportable != nil {
+		return reportable.Error()
+	}
+	p.logger.Warn(ctx, "chat tree message failed",
+		slog.F("sender_chat_id", senderID),
+		slog.F("target_chat_id", targetID),
+		slog.Error(err),
+	)
+	return errChatTreeInternal.Error()
+}
+
+// chatTreeReportableError returns the typed or sentinel error in err's chain
+// whose message may be shown to the model, or nil when there is none.
+func chatTreeReportableError(err error) error {
+	for _, sentinel := range []error{
+		ErrChatArchived,
+		ErrNoDefaultChatModelConfig,
+		ErrChatTreeNotNeighbour,
+		ErrChatTreeNoParent,
+		ErrChatTreeMessageEmpty,
+		ErrChatTreeMessageTooLong,
+		ErrChatTreeMessageRelayLimit,
+		ErrChatTreeMessageTurnLimit,
+		ErrChatTreeInvalidDelivery,
+		ErrChatTreeInvalidChatID,
+		ErrChatTreeSenderNotEligible,
+		ErrChatOwnerInactive,
+		errChatTreeHistoryUnavailable,
+	} {
+		if errors.Is(err, sentinel) {
+			return sentinel
+		}
+	}
+	if queueFull, ok := errors.AsType[*chatstate.MessageQueueFullError](err); ok {
+		return queueFull
+	}
+	if denied, ok := errors.AsType[*chathooks.UserPromptDeniedError](err); ok {
+		return denied
+	}
+	return nil
+}
+
+// sortChatTreeChildren orders children newest first, with the chat id as
+// the tiebreaker so equal timestamps produce a stable order.
+func sortChatTreeChildren(rows []database.GetChildChatsByParentIDsRow) {
+	slices.SortStableFunc(rows, func(a, b database.GetChildChatsByParentIDsRow) int {
+		if c := b.Chat.UpdatedAt.Compare(a.Chat.UpdatedAt); c != 0 {
+			return c
+		}
+		return strings.Compare(a.Chat.ID.String(), b.Chat.ID.String())
+	})
+}
+
 func (p *Server) runListChatTree(ctx context.Context, snapshot database.Chat) (fantasy.ToolResponse, error) {
 	ownerCtx, sender, err := p.loadChatTreeSender(ctx, snapshot)
 	if err != nil {
-		return toolJSONErrorResponse(map[string]any{"error": err.Error()}), nil
+		return toolJSONErrorResponse(map[string]any{"error": p.chatTreeErrorText(ctx, err, snapshot.ID, uuid.Nil)}), nil
 	}
 
 	response := map[string]any{
@@ -518,7 +608,7 @@ func (p *Server) runListChatTree(ctx context.Context, snapshot database.Chat) (f
 	if sender.ParentChatID.Valid {
 		parent, err := p.db.GetChatByID(ownerCtx, sender.ParentChatID.UUID)
 		if err != nil && !errors.Is(err, sql.ErrNoRows) && !dbauthz.IsNotAuthorizedError(err) {
-			return toolJSONErrorResponse(map[string]any{"error": xerrors.Errorf("load parent chat: %w", err).Error()}), nil
+			return toolJSONErrorResponse(map[string]any{"error": p.chatTreeErrorText(ctx, xerrors.Errorf("load parent chat: %w", err), sender.ID, uuid.Nil)}), nil
 		}
 		if err == nil && parent.Kind != database.ChatKindSubagent {
 			response["parent"] = map[string]any{
@@ -536,11 +626,9 @@ func (p *Server) runListChatTree(ctx context.Context, snapshot database.Chat) (f
 		Archived:  sql.NullBool{Bool: false, Valid: true},
 	})
 	if err != nil {
-		return toolJSONErrorResponse(map[string]any{"error": xerrors.Errorf("list child chats: %w", err).Error()}), nil
+		return toolJSONErrorResponse(map[string]any{"error": p.chatTreeErrorText(ctx, xerrors.Errorf("list child chats: %w", err), sender.ID, uuid.Nil)}), nil
 	}
-	slices.SortStableFunc(rows, func(a, b database.GetChildChatsByParentIDsRow) int {
-		return b.Chat.UpdatedAt.Compare(a.Chat.UpdatedAt)
-	})
+	sortChatTreeChildren(rows)
 	children := make([]map[string]any, 0, len(rows))
 	for _, row := range rows {
 		children = append(children, map[string]any{

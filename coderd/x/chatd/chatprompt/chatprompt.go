@@ -745,7 +745,7 @@ func toolResultContentToPart(
 		isError = true
 		if output.Error != nil {
 			raw := json.RawMessage(strings.TrimSpace(output.Error.Error()))
-			if isSubagentLifecycleToolName(content.ToolName) && hasErrorField(raw) {
+			if isStructuredErrorToolName(content.ToolName) && hasErrorField(raw) {
 				result = raw
 			} else {
 				var marshalErr error
@@ -828,12 +828,16 @@ func matchingAttachmentForMedia(
 	return chattool.AttachmentMetadata{}, false
 }
 
-// isSubagentLifecycleToolName lists subagent tools whose error results
-// may carry structured JSON. Keep in sync with coderd/x/chatd/subagent.go.
-// See subagentToolNameAliases for the full alias map.
-func isSubagentLifecycleToolName(name string) bool {
+// isStructuredErrorToolName lists builtin tools whose error results may
+// carry a structured JSON object with an "error" field, which is persisted
+// as is instead of being wrapped in {"error": <text>}. Keep in sync with the
+// subagent tools in coderd/x/chatd/subagent.go (see subagentToolNameAliases
+// for the full alias map) and the chat tree tools in
+// coderd/x/chatd/chattree_tools.go.
+func isStructuredErrorToolName(name string) bool {
 	switch name {
-	case "spawn_agent", "wait_agent", "message_agent", "interrupt_agent", "close_agent":
+	case "spawn_agent", "wait_agent", "message_agent", "interrupt_agent", "close_agent",
+		"send_chat_message", "list_chat_tree":
 		return true
 	default:
 		return false
@@ -1310,7 +1314,7 @@ func senderChatPartToText(part codersdk.ChatMessagePart) string {
 	if part.SenderChatID != nil {
 		_, _ = fmt.Fprintf(&sb, " (chat_id %s)", part.SenderChatID)
 	}
-	_, _ = sb.WriteString(". It was sent by that chat's agent, not by the user. Reply with send_chat_message only if a reply is needed.]")
+	_, _ = sb.WriteString(". It was sent by that chat's agent, not by the user. Do not reply unless a reply is needed; if it is and the send_chat_message tool is available, use it.]")
 	return sb.String()
 }
 

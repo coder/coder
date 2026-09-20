@@ -1175,6 +1175,11 @@ type SendMessageOptions struct {
 	BusyBehavior    SendMessageBusyBehavior
 	PlanMode        *database.NullChatPlanMode
 	MCPServerIDs    *[]uuid.UUID
+	// QueueOnRequiresAction replaces an interrupt busy behavior with
+	// queue when the chat is in requires_action at the time of the
+	// transition, so the message never cancels a pending human
+	// approval. The status is read under the chat lock.
+	QueueOnRequiresAction bool
 }
 
 // SendMessageResult contains the outcome of user message processing.
@@ -1187,6 +1192,12 @@ type SendMessageResult struct {
 	// insert messages by promoting the previous queue head.
 	InsertedMessages []database.ChatMessage
 	Chat             database.Chat
+	// PreviousStatus is the chat status read under the chat lock
+	// immediately before the transition was applied.
+	PreviousStatus database.ChatStatus
+	// Downgraded is true when QueueOnRequiresAction replaced the
+	// requested interrupt with queue.
+	Downgraded bool
 }
 
 // EditMessageOptions controls user message edits via soft-delete and re-insert.
@@ -1580,12 +1591,21 @@ func (p *Server) SendMessage(
 			messageCreatedBy = lockedChat.OwnerID
 		}
 
+		result.PreviousStatus = lockedChat.Status
+		effectiveBusyBehavior := busyBehavior
+		if opts.QueueOnRequiresAction &&
+			effectiveBusyBehavior == SendMessageBusyBehaviorInterrupt &&
+			lockedChat.Status == database.ChatStatusRequiresAction {
+			effectiveBusyBehavior = SendMessageBusyBehaviorQueue
+			result.Downgraded = true
+		}
+
 		// Queue capacity is enforced inside tx.SendMessage; this
 		// wrapper only propagates the typed error.
 		message := userMessage(content, modelConfigID, messageCreatedBy, opts.ReasoningEffort)
 		sendResult, err := tx.SendMessage(chatstate.SendMessageInput{
 			Message:      message,
-			BusyBehavior: busyBehaviorToChatState(busyBehavior),
+			BusyBehavior: busyBehaviorToChatState(effectiveBusyBehavior),
 		})
 		if err != nil {
 			return err

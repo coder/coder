@@ -20506,7 +20506,7 @@ const docTemplate = `{
                     }
                 },
                 "relay_hop": {
-                    "description": "RelayHop counts consecutive agent-to-agent deliveries since the last\nhuman-initiated turn. It is at least 1 when present; absent means the\nprompt was not relayed.",
+                    "description": "RelayHop counts consecutive agent-to-agent deliveries since the last\nhuman-initiated turn. It is at least 1 when written; readers treat a\nmissing value as 1.",
                     "type": "integer"
                 },
                 "result": {
@@ -20522,7 +20522,7 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "sender_chat_id": {
-                    "description": "SenderChatID is the chat whose agent delivered this prompt. A pointer\nrather than uuid.NullUUID so the key is omitted from every other\npersisted part (NullUUID marshals as null and is never omitted).",
+                    "description": "SenderChatID is the chat whose agent delivered this prompt.",
                     "type": "string",
                     "format": "uuid"
                 },

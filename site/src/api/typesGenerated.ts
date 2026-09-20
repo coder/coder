@@ -3363,9 +3363,7 @@ export const ChatRoles: ChatRole[] = ["", "read"];
 export interface ChatSenderChatPart {
 	readonly type: "sender-chat";
 	/**
-	 * SenderChatID is the chat whose agent delivered this prompt. A pointer
-	 * rather than uuid.NullUUID so the key is omitted from every other
-	 * persisted part (NullUUID marshals as null and is never omitted).
+	 * SenderChatID is the chat whose agent delivered this prompt.
 	 */
 	readonly sender_chat_id?: string;
 	/**
@@ -3379,8 +3377,8 @@ export interface ChatSenderChatPart {
 	readonly sender_chat_relation?: ChatSenderChatRelation;
 	/**
 	 * RelayHop counts consecutive agent-to-agent deliveries since the last
-	 * human-initiated turn. It is at least 1 when present; absent means the
-	 * prompt was not relayed.
+	 * human-initiated turn. It is at least 1 when written; readers treat a
+	 * missing value as 1.
 	 */
 	readonly relay_hop?: number;
 }
