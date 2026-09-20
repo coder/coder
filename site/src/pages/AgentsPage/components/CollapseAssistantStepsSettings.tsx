@@ -1,4 +1,4 @@
-import type { FC } from "react";
+import { type FC, useId } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import {
 	preferenceSettings,
@@ -10,6 +10,7 @@ export const CollapseAssistantStepsSettings: FC = () => {
 	const queryClient = useQueryClient();
 	const query = useQuery(preferenceSettings());
 	const mutation = useMutation(updatePreferenceSettings(queryClient));
+	const descriptionId = useId();
 
 	return (
 		<div className="flex flex-col gap-2">
@@ -17,8 +18,11 @@ export const CollapseAssistantStepsSettings: FC = () => {
 				Collapse assistant steps
 			</h3>
 			<div className="flex items-center justify-between gap-4">
-				<p className="m-0 flex-1 text-xs text-content-secondary">
-					Fold each turn's tool calls into a single row showing how long the
+				<p
+					id={descriptionId}
+					className="m-0 flex-1 text-xs text-content-secondary"
+				>
+					Collapse each turn's steps into a single row showing how long the
 					agent worked. Answers, questions, and failures stay visible.
 				</p>
 				<Switch
@@ -28,6 +32,7 @@ export const CollapseAssistantStepsSettings: FC = () => {
 						mutation.mutate({ collapse_assistant_steps: checked });
 					}}
 					aria-label="Collapse assistant steps"
+					aria-describedby={descriptionId}
 				/>
 			</div>
 			{query.isError && (

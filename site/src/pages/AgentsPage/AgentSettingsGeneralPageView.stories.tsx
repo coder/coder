@@ -170,8 +170,6 @@ export const TogglesCollapseAssistantSteps: Story = {
 			},
 		);
 	},
-	// The mutation behavior is covered by CollapseAssistantStepsSettings.test.tsx;
-	// this play only turns the switch on for the screenshot.
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await userEvent.click(

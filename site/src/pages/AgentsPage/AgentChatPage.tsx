@@ -1000,25 +1000,22 @@ const AgentChatPage: FC = () => {
 		});
 	};
 
-	const renderLoadingView = (inputDisabled: boolean) => (
-		<AgentChatPageLoadingView
-			inputRef={editing.chatInputRef}
-			initialValue={editing.editorInitialValue}
-			initialEditorState={editing.initialEditorState}
-			remountKey={editing.remountKey}
-			onContentChange={editing.handleLoadingDraftChange}
-			isInputDisabled={inputDisabled}
-			effectiveSelectedModel={effectiveSelectedModel}
-			setSelectedModel={setSelectedModel}
-			modelOptions={modelOptions}
-			modelSelectorPlaceholder={modelSelectorPlaceholder}
-			hasModelOptions={hasModelOptions}
-			isModelCatalogLoading={isModelDataPending}
-			planModeEnabled={planModeEnabled}
-			onPlanModeToggle={handlePlanModeToggle}
-			showRightPanel={showSidebarPanel}
-		/>
-	);
+	const loadingViewProps = {
+		inputRef: editing.chatInputRef,
+		initialValue: editing.editorInitialValue,
+		initialEditorState: editing.initialEditorState,
+		remountKey: editing.remountKey,
+		onContentChange: editing.handleLoadingDraftChange,
+		effectiveSelectedModel,
+		setSelectedModel,
+		modelOptions,
+		modelSelectorPlaceholder,
+		hasModelOptions,
+		isModelCatalogLoading: isModelDataPending,
+		planModeEnabled,
+		onPlanModeToggle: handlePlanModeToggle,
+		showRightPanel: showSidebarPanel,
+	};
 
 	return (
 		<>
@@ -1026,7 +1023,10 @@ const AgentChatPage: FC = () => {
 				{chatTitle ? pageTitle(chatTitle, "Agents") : pageTitle("Agents")}
 			</title>
 			{chatQuery.isLoading || chatMessagesQuery.isLoading ? (
-				renderLoadingView(isInputDisabled)
+				<AgentChatPageLoadingView
+					{...loadingViewProps}
+					isInputDisabled={isInputDisabled}
+				/>
 			) : chatQuery.isLoadingError || chatMessagesQuery.isLoadingError ? (
 				getErrorStatus(chatQuery.error) === 404 ? (
 					<AgentChatPageNotFoundView />
@@ -1052,7 +1052,7 @@ const AgentChatPage: FC = () => {
 			) : preferencesQuery.isLoading ? (
 				// The loading view drops sends, so keep the composer disabled
 				// until the transcript can mount.
-				renderLoadingView(true)
+				<AgentChatPageLoadingView {...loadingViewProps} isInputDisabled />
 			) : (
 				<AgentChatPageView
 					key={agentId}

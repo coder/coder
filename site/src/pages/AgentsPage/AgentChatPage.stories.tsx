@@ -55,7 +55,7 @@ import AgentChatPage from "./AgentChatPage";
 import type { AgentsPageOutletContext } from "./AgentsPageLayout";
 import {
 	buildLongConversation,
-	buildWorkingConversation,
+	MockWorkingMessages,
 } from "./components/ChatConversation/storyFixtures";
 import { RIGHT_PANEL_OPEN_KEY } from "./components/RightPanel/RightPanel";
 
@@ -1578,10 +1578,8 @@ export const Loading: Story = {
 	},
 };
 
-// A saved "collapse" preference decides the first paint: the skeleton stays up
-// until it loads, so rows never render unfolded and then fold. The preference
-// request never settles here so the capture shows the gated state with the
-// messages already loaded.
+// The preference request never settles, so the capture shows the skeleton
+// still gating messages that have already loaded.
 export const ColdLoadWaitsForCollapsePreference: Story = {
 	parameters: {
 		queries: withoutQuery(
@@ -1593,7 +1591,7 @@ export const ColdLoadWaitsForCollapsePreference: Story = {
 					status: "waiting",
 				},
 				{
-					messages: buildWorkingConversation(CHAT_ID),
+					messages: MockWorkingMessages,
 					queued_messages: [],
 					has_more: false,
 				},
