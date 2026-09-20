@@ -97,14 +97,19 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 	const { isEmbedded } = useEmbedContext();
 	const location = useLocation();
 	const parentChatID = getParentChatID(chat);
+	// A named child's parent_chat_id is a tree edge, not a spawn; only
+	// subagents show the parent breadcrumb.
+	const isSubagent = chat?.kind === "subagent";
 	const parentChatQuery = useQuery({
 		...chatById(parentChatID ?? ""),
-		enabled: Boolean(parentChatID),
+		enabled: isSubagent && Boolean(parentChatID),
 	});
-	const parentChat = parentChatQuery.data;
-	const isRootChat = chat !== undefined && parentChatID === undefined;
+	const parentChat = isSubagent ? parentChatQuery.data : undefined;
+	// The server rejects ACL changes on the tree root and on subagents.
+	const isShareableChat =
+		chat !== undefined && chat.kind !== "subagent" && chat.kind !== "root";
 	const chatAuthorizationChecks: TypesGen.AuthorizationRequest["checks"] = {};
-	if (chat !== undefined && isRootChat) {
+	if (chat !== undefined && isShareableChat) {
 		chatAuthorizationChecks.canShareChat = {
 			object: {
 				resource_type: "chat",
@@ -119,7 +124,7 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 		enabled: Object.keys(chatAuthorizationChecks).length > 0,
 	});
 	const canShareChat =
-		isRootChat && Boolean(chatAuthorizationQuery.data?.canShareChat);
+		isShareableChat && Boolean(chatAuthorizationQuery.data?.canShareChat);
 	const {
 		isSidebarCollapsed,
 		onToggleSidebarCollapsed,

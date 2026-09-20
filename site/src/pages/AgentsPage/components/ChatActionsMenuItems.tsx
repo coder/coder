@@ -17,7 +17,6 @@ import type {
 	DropdownMenuItem,
 	DropdownMenuSeparator,
 } from "#/components/DropdownMenu/DropdownMenu";
-import { getParentChatID } from "./ChatConversation/chatHelpers";
 
 // Backend chatstate permits archive only from W, E0, and E1. Unknown status
 // stays fail-open so the server conflict response remains the backstop.
@@ -46,14 +45,15 @@ type SeparatorComponent =
 	| typeof ContextMenuSeparator;
 
 /**
- * Archive state is root-only on the backend and cascades to children, so
- * child chats expose no archive or unarchive actions. An archived child chat
- * therefore has no menu actions at all; call sites use this to hide the menu
- * trigger instead of rendering an empty menu.
+ * Archive state cascades from a parent to its subagents, so subagents expose
+ * no archive or unarchive actions. An archived subagent therefore has no menu
+ * actions at all; call sites use this to hide the menu trigger instead of
+ * rendering an empty menu. A named child chat (kind "chat") keeps its actions
+ * regardless of parent_chat_id.
  */
 export const chatHasMenuActions = (chat: TypesGen.Chat): boolean => {
-	const isArchivedChild = chat.archived && getParentChatID(chat) !== undefined;
-	return !isArchivedChild;
+	const isArchivedSubagent = chat.archived && chat.kind === "subagent";
+	return !isArchivedSubagent;
 };
 
 interface ChatActionsMenuItemsProps {
@@ -94,11 +94,16 @@ export const ChatActionsMenuItems: FC<ChatActionsMenuItemsProps> = ({
 }) => {
 	const isArchived = chat.archived;
 	const isPinned = chat.pin_order > 0;
-	const isChildChat = getParentChatID(chat) !== undefined;
+	const isChildChat = chat.kind === "subagent";
+	// The tree root cannot be pinned or archived on the server.
+	const isRoot = chat.kind === "root";
 	const showSubagentsToggle = Boolean(onToggleSubagents) && subagentCount > 0;
 	const showPinAction =
-		!isArchived && !isChildChat && Boolean(onPinAgent && onUnpinAgent);
-	const showArchiveActions = !isArchived && !isChildChat;
+		!isArchived &&
+		!isChildChat &&
+		!isRoot &&
+		Boolean(onPinAgent && onUnpinAgent);
+	const showArchiveActions = !isArchived && !isChildChat && !isRoot;
 	const archiveBlockedHintId = useId();
 	const archiveBlockedDescribedBy = isArchiveBlocked
 		? archiveBlockedHintId

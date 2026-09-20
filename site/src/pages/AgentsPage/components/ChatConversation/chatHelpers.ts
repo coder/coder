@@ -96,17 +96,15 @@ export const getParentChatID = (
 
 /**
  * Identifies the chat tree that AI Gateway cost is aggregated over, matching
- * the server's COALESCE(root_chat_id, parent_chat_id) precedence. Both columns
- * are ON DELETE SET NULL, so deleting a root leaves descendants with only a
- * parent. Cost readers and cost invalidators must agree, or a mounted cost
- * goes stale.
+ * the server's COALESCE(root_chat_id, id) rule. root_chat_id points at the
+ * subagent family root; a named child chat has parent_chat_id set but bills
+ * to its own id. Cost readers and cost invalidators must agree, or a mounted
+ * cost goes stale.
  */
 export const getChatCostTreeID = (
 	chat: TypesGen.Chat | undefined,
 ): string | undefined =>
-	asNonEmptyString(chat?.root_chat_id) ??
-	asNonEmptyString(chat?.parent_chat_id) ??
-	asNonEmptyString(chat?.id);
+	asNonEmptyString(chat?.root_chat_id) ?? asNonEmptyString(chat?.id);
 
 export const resolveModelFromChatConfig = (
 	modelConfig: unknown,
