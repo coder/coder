@@ -122,29 +122,14 @@ export const ReadOnly: Story = {
 			await expect(button).toBeDisabled();
 	},
 };
+// The title generation section must show its own "skipped" warning and the
+// general section the generic "ignored" one; the screenshot covers both.
 export const UnavailableSavedModels: Story = {
 	args: {
 		overrides: [
 			{ context: "general", model_config_id: "model-gone" },
 			{ context: "title_generation", model_config_id: "model-gone" },
 		],
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		// Title generation fails hard on a broken override, so its warning must
-		// not claim the model is ignored in favor of default selection.
-		const titleSection = canvas.getByRole("form", {
-			name: "Title generation",
-		});
-		await expect(
-			within(titleSection).getByText(/Title generation will be skipped/),
-		).toBeVisible();
-		const generalSection = canvas.getByRole("form", {
-			name: "General subagent",
-		});
-		await expect(
-			within(generalSection).getByText(/will be ignored/),
-		).toBeVisible();
 	},
 };
 

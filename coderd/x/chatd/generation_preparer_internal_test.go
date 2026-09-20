@@ -483,7 +483,10 @@ func TestDeriveFinalTurnRunResult(t *testing.T) {
 
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
 
-	setup := func(t *testing.T) (*Server, database.Chat) {
+	// setup seeds an OpenAI provider with one enabled config per model. The
+	// first model is the chat's default model; the rest are extra enabled
+	// configs, returned by model name.
+	setup := func(t *testing.T, chatModel string, extraModels ...string) (*Server, database.Chat, map[string]database.ChatModelConfig) {
 		t.Helper()
 		db, ps := dbtestutil.NewDB(t)
 		ctx := chatdTestContext(t)
@@ -501,15 +504,22 @@ func TestDeriveFinalTurnRunResult(t *testing.T) {
 			Enabled:     true,
 			CreatedBy:   uuid.NullUUID{UUID: user.ID, Valid: true},
 		})
-		modelCfg := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-			Model:          "gpt-4o-mini",
-			DisplayName:    "gpt-4o-mini",
-			Options:        json.RawMessage(`{"openai_config":{"use_responses_api":false}}`),
-			OrganizationID: org.ID,
-		}, func(p *database.InsertChatModelConfigParams) {
-			p.Enabled = true
-			p.IsDefault = true
-		})
+		insertModel := func(model string, isDefault bool) database.ChatModelConfig {
+			return dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+				Model:          model,
+				DisplayName:    model,
+				Options:        json.RawMessage(`{"openai_config":{"use_responses_api":false}}`),
+				OrganizationID: org.ID,
+			}, func(p *database.InsertChatModelConfigParams) {
+				p.Enabled = true
+				p.IsDefault = isDefault
+			})
+		}
+		modelCfg := insertModel(chatModel, true)
+		extra := make(map[string]database.ChatModelConfig, len(extraModels))
+		for _, model := range extraModels {
+			extra[model] = insertModel(model, false)
+		}
 
 		created, err := chatstate.CreateChat(ctx, db, ps, chatstate.CreateChatInput{
 			OrganizationID:    org.ID,
@@ -534,7 +544,7 @@ func TestDeriveFinalTurnRunResult(t *testing.T) {
 			t, db, ps, chatprovider.ProviderAPIKeys{},
 			withInternalTestServerTransportFactory(&aibridgeTestFactory{}),
 		)
-		return server, created.Chat
+		return server, created.Chat, extra
 	}
 
 	commitAssistant := func(t *testing.T, server *Server, chat database.Chat, text string) {
@@ -559,7 +569,7 @@ func TestDeriveFinalTurnRunResult(t *testing.T) {
 
 	t.Run("WaitingDerivesFromHistory", func(t *testing.T) {
 		t.Parallel()
-		server, chat := setup(t)
+		server, chat, _ := setup(t, "gpt-4o-mini")
 		ctx := chatdTestContext(t)
 		commitAssistant(t, server, chat, "the answer is 42")
 
@@ -587,9 +597,44 @@ func TestDeriveFinalTurnRunResult(t *testing.T) {
 		require.JSONEq(t, `{"openai_config":{"use_responses_api":false}}`, string(result.StatusLabelCall.dbConfig.Options))
 	})
 
+	// The status label is a structured side call, so it must prefer the
+	// title generation model over a chat model that may reject forced tools.
+	t.Run("WaitingPrefersSmallModelOverChatModel", func(t *testing.T) {
+		t.Parallel()
+		server, chat, extra := setup(t, "gpt-4.1", "gpt-4o-mini")
+		ctx := chatdTestContext(t)
+		commitAssistant(t, server, chat, "the answer is 42")
+
+		chat.Status = database.ChatStatusWaiting
+		result := server.deriveFinalTurnRunResult(ctx, chat, logger)
+
+		require.NotNil(t, result.StatusLabelCall)
+		require.Equal(t, extra["gpt-4o-mini"].ID, result.StatusLabelCall.dbConfig.ID)
+		require.Equal(t, "gpt-4o-mini", result.StatusLabelCall.resolvedModel)
+	})
+
+	t.Run("WaitingPrefersTitleGenerationOverride", func(t *testing.T) {
+		t.Parallel()
+		server, chat, extra := setup(t, "gpt-4.1", "gpt-4o-mini", "gpt-4.1-nano")
+		ctx := chatdTestContext(t)
+		commitAssistant(t, server, chat, "the answer is 42")
+		upsertInternalChatOrganizationModelOverride(
+			t, server.db, chat.OrganizationID,
+			codersdk.ChatModelOverrideContextTitleGeneration,
+			extra["gpt-4.1-nano"].ID.String(),
+		)
+
+		chat.Status = database.ChatStatusWaiting
+		result := server.deriveFinalTurnRunResult(ctx, chat, logger)
+
+		require.NotNil(t, result.StatusLabelCall)
+		require.Equal(t, extra["gpt-4.1-nano"].ID, result.StatusLabelCall.dbConfig.ID)
+		require.Equal(t, "gpt-4.1-nano", result.StatusLabelCall.resolvedModel)
+	})
+
 	t.Run("NonWaitingReturnsEmpty", func(t *testing.T) {
 		t.Parallel()
-		server, chat := setup(t)
+		server, chat, _ := setup(t, "gpt-4o-mini")
 		ctx := chatdTestContext(t)
 		commitAssistant(t, server, chat, "the answer is 42")
 
@@ -600,7 +645,7 @@ func TestDeriveFinalTurnRunResult(t *testing.T) {
 
 	t.Run("WaitingWithoutAssistantReturnsEmpty", func(t *testing.T) {
 		t.Parallel()
-		server, chat := setup(t)
+		server, chat, _ := setup(t, "gpt-4o-mini")
 		ctx := chatdTestContext(t)
 
 		// No assistant message was committed, so there is nothing to label.
