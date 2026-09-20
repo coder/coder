@@ -18,6 +18,7 @@ import { EditFilesTool } from "./EditFilesTool";
 import { ExecuteTool as ExecuteToolComponent } from "./ExecuteTool";
 import { type FindToolsMatch, FindToolsTool } from "./FindToolsTool";
 import { ListAgentsTool } from "./ListAgentsTool";
+import { ListChatTreeTool } from "./ListChatTreeTool";
 import { ListSubagentModelsTool } from "./ListSubagentModelsTool";
 import { ListTemplatesTool } from "./ListTemplatesTool";
 import { ProcessOutputTool } from "./ProcessOutputTool";
@@ -25,6 +26,7 @@ import { ProposePlanTool } from "./ProposePlanTool";
 import { getReadFileToolData, ReadFileTool } from "./ReadFileTool";
 import { ReadSkillTool } from "./ReadSkillTool";
 import { ReadTemplateTool } from "./ReadTemplateTool";
+import { SendChatMessageTool } from "./SendChatMessageTool";
 import { StartWorkspaceTool } from "./StartWorkspaceTool";
 import { SubagentTool } from "./SubagentTool";
 import {
@@ -1172,6 +1174,82 @@ const StartWorkspaceRenderer: FC<ToolRendererProps> = ({
 // Renderer lookup map for tool names and specialized renderers.
 // ---------------------------------------------------------------------------
 
+const toolErrorMessage = (
+	rec: Record<string, unknown> | null,
+	result: unknown,
+	isError: boolean,
+): string | undefined =>
+	rec
+		? asString(rec.error || rec.message)
+		: typeof result === "string" && isError
+			? result
+			: undefined;
+
+const SendChatMessageRenderer: FC<ToolRendererProps> = ({
+	status,
+	args,
+	result,
+	isError,
+}) => {
+	const argsRec = asRecord(args);
+	const rec = asRecord(result);
+	// Error results carry `{ error, chat_id?, title? }` at the top level.
+	const resolvedChatId = asString(rec?.chat_id) || asString(argsRec?.chat_id);
+	return (
+		<SendChatMessageTool
+			targetChatId={resolvedChatId || undefined}
+			targetTitle={asString(rec?.title) || undefined}
+			relation={asString(rec?.relation) || undefined}
+			message={asString(argsRec?.message) || undefined}
+			requestedDelivery={asString(argsRec?.delivery) || undefined}
+			delivery={isError ? undefined : asString(rec?.delivery) || undefined}
+			downgradedFrom={asString(rec?.downgraded_from) || undefined}
+			previousStatus={asString(rec?.previous_status) || undefined}
+			targetStatus={asString(rec?.status) || undefined}
+			relayHop={asNumber(rec?.relay_hop, { parseString: true })}
+			status={status}
+			isError={isError}
+			errorMessage={toolErrorMessage(rec, result, isError)}
+		/>
+	);
+};
+
+const chatTreeChatRef = (value: unknown) => {
+	const rec = asRecord(value);
+	if (!rec) {
+		return undefined;
+	}
+	return {
+		chatId: asString(rec.chat_id) || undefined,
+		title: asString(rec.title) || undefined,
+		kind: asString(rec.kind) || undefined,
+		status: asString(rec.status) || undefined,
+		updatedAt: asString(rec.updated_at) || undefined,
+	};
+};
+
+const ListChatTreeRenderer: FC<ToolRendererProps> = ({
+	status,
+	result,
+	isError,
+}) => {
+	const rec = asRecord(result);
+	const children = rec && Array.isArray(rec.children) ? rec.children : [];
+	return (
+		<ListChatTreeTool
+			self={chatTreeChatRef(rec?.self)}
+			parent={rec && rec.parent === null ? null : chatTreeChatRef(rec?.parent)}
+			childChats={children.flatMap((child) => {
+				const ref = chatTreeChatRef(child);
+				return ref ? [ref] : [];
+			})}
+			status={status}
+			isError={isError}
+			errorMessage={toolErrorMessage(rec, result, isError)}
+		/>
+	);
+};
+
 export const toolRenderers: Record<string, FC<ToolRendererProps>> = {
 	find_tools: FindToolsRenderer,
 	execute: ExecuteRenderer,
@@ -1185,6 +1263,8 @@ export const toolRenderers: Record<string, FC<ToolRendererProps>> = {
 	list_templates: ListTemplatesRenderer,
 	list_agents: ListAgentsRenderer,
 	list_subagent_models: ListSubagentModelsRenderer,
+	send_chat_message: SendChatMessageRenderer,
+	list_chat_tree: ListChatTreeRenderer,
 	read_template: ReadTemplateRenderer,
 	read_skill: ReadSkillRenderer,
 	read_skill_file: ReadSkillFileRenderer,

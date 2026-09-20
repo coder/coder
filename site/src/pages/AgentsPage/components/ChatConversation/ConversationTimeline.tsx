@@ -231,6 +231,7 @@ const ChatMessageItem = memo<{
 						<UserMessageContent
 							displayState={displayState}
 							markdown={parsed.markdown}
+							senderChat={parsed.senderChat}
 							isEditing={
 								messageId !== undefined && editingMessageId === messageId
 							}
@@ -598,7 +599,11 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 								renderKey={row.key}
 								message={message}
 								parsed={parsed}
-								onEditUserMessage={isUser ? onEditUserMessage : undefined}
+								// Editing a relayed row would drop its sender-chat part and
+								// turn it into a human message, so edit is not offered.
+								onEditUserMessage={
+									isUser && !parsed.senderChat ? onEditUserMessage : undefined
+								}
 								editingMessageId={editingMessageId}
 								onImplementPlan={onImplementPlan}
 								onSendAskUserQuestionResponse={onSendAskUserQuestionResponse}

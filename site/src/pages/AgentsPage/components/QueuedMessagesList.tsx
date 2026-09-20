@@ -7,7 +7,10 @@ import {
 	Trash2Icon,
 } from "lucide-react";
 import { type FC, useEffect, useState } from "react";
-import type { ChatQueuedMessage } from "#/api/typesGenerated";
+import type {
+	ChatQueuedMessage,
+	ChatSenderChatPart,
+} from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import { Spinner } from "#/components/Spinner/Spinner";
 import {
@@ -15,6 +18,7 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { senderChatDisplayTitle } from "./ChatConversation/SenderChatHeader";
 
 interface QueuedMessagesListProps {
 	messages: readonly ChatQueuedMessage[];
@@ -27,6 +31,8 @@ interface QueuedMessageInfo {
 	displayText: string;
 	attachmentCount: number;
 	hookNotices: string[];
+	/** Set when another chat's agent queued the message. */
+	senderChat?: ChatSenderChatPart;
 }
 
 export const getQueuedMessageInfo = (
@@ -35,6 +41,7 @@ export const getQueuedMessageInfo = (
 	let attachmentCount = 0;
 	const textParts: string[] = [];
 	const hookNotices: string[] = [];
+	let senderChat: ChatSenderChatPart | undefined;
 	for (const part of message.content) {
 		if (part.type === "file") {
 			attachmentCount++;
@@ -42,6 +49,8 @@ export const getQueuedMessageInfo = (
 			textParts.push(part.text);
 		} else if (part.type === "hook-notice" && part.text?.trim()) {
 			hookNotices.push(part.text);
+		} else if (part.type === "sender-chat") {
+			senderChat = part;
 		}
 	}
 	const rawText = textParts.join(" ").trim();
@@ -50,6 +59,7 @@ export const getQueuedMessageInfo = (
 		displayText: rawText || "[Queued message]",
 		attachmentCount,
 		hookNotices,
+		...(senderChat ? { senderChat } : {}),
 	};
 };
 
@@ -60,9 +70,17 @@ export const QueuedMessagesList: FC<QueuedMessagesListProps> = ({
 	className,
 }) => {
 	const items = messages.map((message) => {
-		const { displayText, attachmentCount, hookNotices } =
+		const { displayText, attachmentCount, hookNotices, senderChat } =
 			getQueuedMessageInfo(message);
-		return { id: message.id, displayText, attachmentCount, hookNotices };
+		return {
+			id: message.id,
+			displayText,
+			attachmentCount,
+			hookNotices,
+			senderPrefix: senderChat
+				? `From ${senderChatDisplayTitle(senderChat)}: `
+				: undefined,
+		};
 	});
 
 	const [hoveredID, setHoveredID] = useState<number | null>(null);
@@ -174,6 +192,11 @@ export const QueuedMessagesList: FC<QueuedMessagesListProps> = ({
 					>
 						<div className="flex items-center gap-2 rounded-lg border border-solid border-border-default bg-surface-secondary px-3 py-2 font-sans text-sm leading-relaxed text-content-primary shadow-xs">
 							<span className="min-w-0 flex-1 truncate">
+								{item.senderPrefix && (
+									<span className="text-content-secondary">
+										{item.senderPrefix}
+									</span>
+								)}
 								{item.displayText.split("\n")[0]}
 								{item.displayText.includes("\n") ? "…" : ""}
 							</span>

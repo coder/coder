@@ -1,5 +1,6 @@
 import { cn } from "cn";
 import { type FC, Fragment } from "react";
+import type { ChatSenderChatPart } from "#/api/typesGenerated";
 import { Message, MessageContent } from "../ChatElements/Message";
 import { FileReferenceChip } from "../ChatMessageInput/FileReferenceChip";
 import {
@@ -15,6 +16,7 @@ import type {
 	MessageDisplayState,
 	UserInlineRenderBlock,
 } from "./messageHelpers";
+import { SenderChatHeader } from "./SenderChatHeader";
 
 const getInlineParts = (
 	blocks: readonly UserInlineRenderBlock[],
@@ -61,12 +63,15 @@ export const UserMessageContent: FC<{
 	displayState: MessageDisplayState;
 	markdown: string;
 	isEditing?: boolean;
+	/** Present when another chat's agent delivered this prompt. */
+	senderChat?: ChatSenderChatPart;
 	onImageClick?: (src: string) => void;
 	onTextFileClick?: (attachment: PreviewTextAttachment) => void;
 }> = ({
 	displayState,
 	markdown,
 	isEditing = false,
+	senderChat,
 	onImageClick,
 	onTextFileClick,
 }) => {
@@ -75,11 +80,13 @@ export const UserMessageContent: FC<{
 			<MessageContent
 				className={cn(
 					"rounded-lg border border-solid border-border-default bg-surface-secondary px-3 py-2 font-sans shadow-xs transition-shadow",
+					senderChat && "border-l-2 border-l-content-link",
 					isEditing &&
 						"border-surface-secondary shadow-[0_0_0_2px_hsla(var(--border-warning),0.6)]",
 				)}
 			>
 				<div className="flex flex-col gap-1.5">
+					{senderChat && <SenderChatHeader senderChat={senderChat} />}
 					{(displayState.hasUserMessageBody || displayState.hasFileBlocks) && (
 						<div className="flex items-start gap-2">
 							{displayState.hasUserMessageBody && (

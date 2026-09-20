@@ -132,6 +132,46 @@ const allToolShowcaseItems: ToolShowcaseItem[] = [
 		},
 	},
 	{
+		name: "send_chat_message",
+		args: {
+			chat_id: "parent",
+			message: "Login test is fixed; ready for review.",
+		},
+		result: {
+			chat_id: "chat-tree-root",
+			title: "Root",
+			relation: "parent",
+			previous_status: "waiting",
+			status: "running",
+			delivery: "started",
+			relay_hop: 1,
+		},
+	},
+	{
+		name: "list_chat_tree",
+		result: {
+			self: {
+				chat_id: "chat-tree-child",
+				title: "Fix flaky login test",
+				kind: "chat",
+			},
+			parent: {
+				chat_id: "chat-tree-root",
+				title: "Root",
+				kind: "root",
+				status: "waiting",
+			},
+			children: [
+				{
+					chat_id: "chat-tree-grandchild",
+					title: "Investigate CI timeout",
+					status: "running",
+					updated_at: "2026-02-18T00:00:00.000Z",
+				},
+			],
+		},
+	},
+	{
 		name: "list_subagent_models",
 		result: {
 			models: [
