@@ -361,7 +361,12 @@ export const groupWorkingBlocks = (
 				(tool) => tool.isError || tool.status === "error",
 			).length,
 			isLive,
-			isPartial: options.hasMoreMessages && firstRowIndex === 0,
+			// A loaded prompt, visible or hidden, bounds the block even when the
+			// block's first row is the page's first row.
+			isPartial:
+				options.hasMoreMessages &&
+				firstRowIndex === 0 &&
+				draft.anchorKey === undefined,
 			startedAt,
 			endedAt: isLive ? undefined : endedAt,
 		};
