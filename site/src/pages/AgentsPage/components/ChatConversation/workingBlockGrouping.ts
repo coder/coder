@@ -211,7 +211,25 @@ export const groupWorkingBlocks = (
 	let current: Draft | undefined;
 	let anchorKey: string | undefined;
 	let ordinal = 0;
+	// A user message made only of context files or skills has no row but
+	// still ends the turn before it.
+	const userMessageIds = entries
+		.filter((entry) => entry.message.role === "user")
+		.map((entry) => entry.message.id);
+	let lastMessageId = Number.NEGATIVE_INFINITY;
 	for (const [index, row] of rows.entries()) {
+		const ids = rowMessageIds(row);
+		const hiddenUserId = userMessageIds.find(
+			(id) => id > lastMessageId && ids.every((rowId) => id < rowId),
+		);
+		if (hiddenUserId !== undefined) {
+			current = undefined;
+			anchorKey = `message:${hiddenUserId}`;
+			ordinal = 0;
+		}
+		if (ids.length > 0) {
+			lastMessageId = Math.max(...ids);
+		}
 		const content = getStepRowContent(row, options);
 		if (!content) {
 			current = undefined;
@@ -256,6 +274,10 @@ export const groupWorkingBlocks = (
 	const lastMessageRowIndex = rows.findLastIndex(
 		(row) => row.type === "message",
 	);
+	const lastUserMessageId = Math.max(
+		Number.NEGATIVE_INFINITY,
+		...userMessageIds,
+	);
 	const messageIdAfter = (lastRowIndex: number): number => {
 		for (let i = lastRowIndex + 1; i < rows.length; i++) {
 			const ids = rowMessageIds(rows[i]);
@@ -270,9 +292,13 @@ export const groupWorkingBlocks = (
 		const firstRowIndex = draft.rowIndices[0];
 		const lastRowIndex = draft.rowIndices[draft.rowIndices.length - 1];
 		const memberIds = draft.rowIndices.flatMap((i) => rowMessageIds(rows[i]));
+		// The newest block is still working unless a prompt, visible or hidden,
+		// follows its last step.
 		const isLive =
 			options.isTurnActive &&
-			(draft.containsLiveRow || lastRowIndex >= lastMessageRowIndex);
+			(draft.containsLiveRow ||
+				(lastRowIndex >= lastMessageRowIndex &&
+					Math.max(...memberIds) > lastUserMessageId));
 
 		let startedAt: number | undefined;
 		let endedAt: number | undefined;
