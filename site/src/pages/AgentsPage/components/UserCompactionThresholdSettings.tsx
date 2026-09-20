@@ -44,6 +44,7 @@ import {
 	bindingCompactionTriggerPoint,
 	type CompactionTrigger,
 	compactionPointAsPercent,
+	isCompactionPointBeyondWindow,
 	type OrganizationCompactionTrigger,
 } from "../compactionTriggers";
 
@@ -116,6 +117,9 @@ const CompactionContextCell: React.FC<CompactionContextCellProps> = ({
 	const compactionPoint =
 		chatTrigger &&
 		bindingCompactionTriggerPoint(chatTrigger, organizationTrigger);
+	const isCompactionPointReachable =
+		compactionPoint !== undefined &&
+		!isCompactionPointBeyondWindow(compactionPoint, contextLimit);
 
 	return (
 		<TableCell className="w-0 whitespace-nowrap tabular-nums">
@@ -125,7 +129,7 @@ const CompactionContextCell: React.FC<CompactionContextCellProps> = ({
 				) : (
 					<span className="text-content-secondary">Unknown</span>
 				)}
-				{compactionPoint !== undefined && (
+				{isCompactionPointReachable && (
 					<span className="text-2xs text-content-secondary">
 						Compacts at ~{formatContextLimit(compactionPoint)}
 					</span>
@@ -135,17 +139,40 @@ const CompactionContextCell: React.FC<CompactionContextCellProps> = ({
 	);
 };
 
+type OrganizationOverridePopoverProps = {
+	modelName: string;
+	isWarning: boolean;
+	children: React.ReactNode;
+};
+
+const OrganizationOverridePopover: React.FC<
+	OrganizationOverridePopoverProps
+> = ({ modelName, isWarning, children }) => (
+	<HelpPopover>
+		<HelpPopoverIconTrigger
+			size="small"
+			hoverEffect={!isWarning}
+			aria-label={`Organization override for ${modelName}`}
+			className={cn(isWarning && "text-content-warning")}
+		>
+			{isWarning ? <TriangleAlertIcon /> : undefined}
+		</HelpPopoverIconTrigger>
+		<HelpPopoverContent>
+			<HelpPopoverTitle>Organization override</HelpPopoverTitle>
+			<HelpPopoverText>{children}</HelpPopoverText>
+		</HelpPopoverContent>
+	</HelpPopover>
+);
+
 type EffectiveCompactionThresholdProps = {
 	modelConfig: TypesGen.ChatModel;
 	chatTrigger: CompactionTrigger | undefined;
 	organizationTrigger: OrganizationCompactionTrigger | undefined;
 };
 
-const EffectiveCompactionThreshold: React.FC<EffectiveCompactionThresholdProps> = ({
-	modelConfig,
-	chatTrigger,
-	organizationTrigger,
-}) => {
+const EffectiveCompactionThreshold: React.FC<
+	EffectiveCompactionThresholdProps
+> = ({ modelConfig, chatTrigger, organizationTrigger }) => {
 	const modelName = modelConfig.display_name || modelConfig.model;
 	const organizationTriggerPercent = organizationTrigger
 		? compactionPointAsPercent(
@@ -165,43 +192,63 @@ const EffectiveCompactionThreshold: React.FC<EffectiveCompactionThresholdProps> 
 		organizationTriggerPercent !== undefined &&
 		bindingCompactionTrigger(chatTrigger, organizationTrigger.trigger) ===
 			"organization";
+	const off = <span className="text-content-secondary">Off</span>;
+
+	if (isOrganizationTriggerEarlier && organizationTrigger) {
+		const organizationModelName =
+			organizationTrigger.model.display_name.trim() ||
+			organizationTrigger.model.model;
+		const organizationWindowLabel =
+			organizationTrigger.model.context_limit.toLocaleString("en-US");
+		// A point past this window can only bind while the chat trigger is
+		// off, so no trigger fires within this window.
+		const isBeyondWindow = isCompactionPointBeyondWindow(
+			organizationTrigger.point,
+			modelConfig.context_limit,
+		);
+
+		return (
+			<TableCell className="w-0 whitespace-nowrap tabular-nums">
+				<div className="flex items-center gap-1">
+					{isBeyondWindow ? (
+						off
+					) : (
+						<span>{organizationTriggerPercentLabel}%</span>
+					)}
+					<OrganizationOverridePopover
+						modelName={modelName}
+						isWarning={!isBeyondWindow}
+					>
+						{isBeyondWindow ? (
+							<>
+								{organizationModelName} compacts at{" "}
+								{organizationTrigger.point.toLocaleString("en-US")} tokens (
+								{organizationTrigger.model.compression_threshold}% of its{" "}
+								{organizationWindowLabel}-token window), beyond this
+								model&apos;s {modelConfig.context_limit.toLocaleString("en-US")}
+								-token window.
+							</>
+						) : (
+							<>
+								{organizationModelName} compacts at{" "}
+								{organizationTrigger.model.compression_threshold}% of its{" "}
+								{organizationWindowLabel}-token window, about{" "}
+								{organizationTriggerPercentLabel}% of this model&apos;s window.
+							</>
+						)}
+					</OrganizationOverridePopover>
+				</div>
+			</TableCell>
+		);
+	}
 
 	return (
 		<TableCell className="w-0 whitespace-nowrap tabular-nums">
-			{isOrganizationTriggerEarlier && organizationTrigger ? (
-				<div className="flex items-center gap-1">
-					<span>{organizationTriggerPercentLabel}%</span>
-					<HelpPopover>
-						<HelpPopoverIconTrigger
-							size="small"
-							hoverEffect={false}
-							aria-label={`Organization override for ${modelName}`}
-							className="text-content-warning"
-						>
-							<TriangleAlertIcon />
-						</HelpPopoverIconTrigger>
-						<HelpPopoverContent>
-							<HelpPopoverTitle>Organization override</HelpPopoverTitle>
-							<HelpPopoverText>
-								{organizationTrigger.model.display_name.trim() ||
-									organizationTrigger.model.model}{" "}
-								compacts at {organizationTrigger.model.compression_threshold}%
-								of its{" "}
-								{organizationTrigger.model.context_limit.toLocaleString(
-									"en-US",
-								)}
-								-token window, about {organizationTriggerPercentLabel}% of this
-								model&apos;s window.
-							</HelpPopoverText>
-						</HelpPopoverContent>
-					</HelpPopover>
-				</div>
-			) : chatTrigger === undefined ? null : chatTrigger.thresholdPercent >=
-				100 ? (
-				<span className="text-content-secondary">Off</span>
-			) : (
-				`${chatTrigger.thresholdPercent}%`
-			)}
+			{chatTrigger === undefined
+				? null
+				: chatTrigger.thresholdPercent >= 100
+					? off
+					: `${chatTrigger.thresholdPercent}%`}
 		</TableCell>
 	);
 };

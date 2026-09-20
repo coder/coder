@@ -103,6 +103,14 @@ export const compactionPointAsPercent = (
 		? (point / contextLimit) * 100
 		: undefined;
 
+// A binding point past the window fires no trigger inside it, so surfaces
+// show no compaction. A point at the window stays reachable because the
+// backend fires at usage >= point; an unknown window is not judged.
+export const isCompactionPointBeyondWindow = (
+	point: number,
+	contextLimit: number,
+) => contextLimit > 0 && point > contextLimit;
+
 export const resolveCompactionThreshold = (
 	modelID: string | undefined,
 	userThresholds: readonly TypesGen.UserChatCompactionThreshold[] | undefined,
