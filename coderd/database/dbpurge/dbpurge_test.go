@@ -3404,9 +3404,9 @@ func TestBackfillChatMessagesSearchTsv(t *testing.T) {
 }
 
 // TestDeleteOldChatsSubagentFamily covers purging an archived chat whose
-// archived subagents fall outside the LIMIT window: the subagents are
-// deleted in the same statement, and a chat with an unarchived subagent
-// is skipped.
+// archived subagents fall outside the LIMIT window: the subagents follow
+// the parent through the foreign key cascade, and a chat with an
+// unarchived subagent is skipped.
 func TestDeleteOldChatsSubagentFamily(t *testing.T) {
 	t.Parallel()
 
@@ -3458,7 +3458,7 @@ func TestDeleteOldChatsSubagentFamily(t *testing.T) {
 		LimitCount: 1,
 	})
 	require.NoError(t, err)
-	require.Equal(t, int64(3), deleted, "parent plus both subagents in one statement")
+	require.Equal(t, int64(1), deleted, "the parent is selected; its subagents cascade")
 	require.False(t, exists(parent.ID))
 	require.False(t, exists(subagentA.ID))
 	require.False(t, exists(subagentB.ID))
