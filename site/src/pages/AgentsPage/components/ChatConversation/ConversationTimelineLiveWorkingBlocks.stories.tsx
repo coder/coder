@@ -28,11 +28,6 @@ const meta: Meta<typeof ConversationTimeline> = {
 		chatStatus: "running",
 		parsedMessages: parseMessagesWithMergedTools(MockWorkingMessages),
 	},
-	parameters: {
-		queries: [
-			{ key: preferenceSettingsKey, data: MockCollapsedStepsPreferences },
-		],
-	},
 	decorators: [
 		(Story) => (
 			<MessageScroller.Provider autoScroll defaultScrollPosition="end">
@@ -51,6 +46,11 @@ export default meta;
 type Story = StoryObj<typeof ConversationTimeline>;
 
 export const StreamingFirstStep: Story = {
+	parameters: {
+		queries: [
+			{ key: preferenceSettingsKey, data: MockCollapsedStepsPreferences },
+		],
+	},
 	args: {
 		parsedMessages: parseMessagesWithMergedTools(
 			MockWorkingMessages.slice(0, 1),
@@ -77,6 +77,11 @@ const MockBetweenStepsMessages = MockWorkingMessages.slice(0, 4);
 // Between persisted steps the stream is cleared while a tool runs, so the
 // timeline only knows the turn is active from the chat status.
 export const RunningBetweenSteps: Story = {
+	parameters: {
+		queries: [
+			{ key: preferenceSettingsKey, data: MockCollapsedStepsPreferences },
+		],
+	},
 	args: {
 		parsedMessages: parseMessagesWithMergedTools(MockBetweenStepsMessages, {
 			pendingToolCallIDs: getPendingToolCallIDs(
@@ -97,6 +102,11 @@ export const RunningBetweenSteps: Story = {
 // That moment is the same block still working, so nothing appears under its
 // summary.
 export const NextStepStartsInsideBlock: Story = {
+	parameters: {
+		queries: [
+			{ key: preferenceSettingsKey, data: MockCollapsedStepsPreferences },
+		],
+	},
 	args: {
 		parsedMessages: parseMessagesWithMergedTools(
 			MockWorkingMessages.slice(0, 5),
@@ -113,6 +123,11 @@ export const NextStepStartsInsideBlock: Story = {
 };
 
 export const ReasoningBeforeFirstToolFolds: Story = {
+	parameters: {
+		queries: [
+			{ key: preferenceSettingsKey, data: MockCollapsedStepsPreferences },
+		],
+	},
 	args: {
 		parsedMessages: parseMessagesWithMergedTools(
 			MockWorkingMessages.slice(0, 1),
@@ -152,6 +167,11 @@ const MockPendingQuestionMessage: ChatMessage = {
 };
 
 export const RequiresActionCompletesBlock: Story = {
+	parameters: {
+		queries: [
+			{ key: preferenceSettingsKey, data: MockCollapsedStepsPreferences },
+		],
+	},
 	args: {
 		chatStatus: "requires_action",
 		onSendAskUserQuestionResponse: fn(),
@@ -179,6 +199,11 @@ const MockParkedToolMessage: ChatMessage = {
 };
 
 export const RequiresActionKeepsPendingToolVisible: Story = {
+	parameters: {
+		queries: [
+			{ key: preferenceSettingsKey, data: MockCollapsedStepsPreferences },
+		],
+	},
 	args: {
 		chatStatus: "requires_action",
 		parsedMessages: parseMessagesWithMergedTools(
@@ -190,6 +215,11 @@ export const RequiresActionKeepsPendingToolVisible: Story = {
 
 // An active turn longer than the loaded page has no prompt row yet.
 export const PromptlessLiveBlock: Story = {
+	parameters: {
+		queries: [
+			{ key: preferenceSettingsKey, data: MockCollapsedStepsPreferences },
+		],
+	},
 	args: {
 		hasMoreMessages: true,
 		parsedMessages: parseMessagesWithMergedTools(

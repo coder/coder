@@ -374,6 +374,15 @@ describe("groupWorkingBlocks", () => {
 		const steps = step("a", 1, 2);
 		const { blocks } = group([prompt, ...steps], { hasMoreMessages: true });
 		expect(blocks[0].isPartial).toBe(false);
+
+		const hiddenPrompt = message("user", [
+			{ type: "skill", skill_name: "review" },
+		]);
+		const afterHidden = group([hiddenPrompt, ...step("b", 3, 4)], {
+			hasMoreMessages: true,
+		});
+		expect(afterHidden.blocks).toHaveLength(1);
+		expect(afterHidden.blocks[0].isPartial).toBe(false);
 	});
 
 	describe("live turns", () => {

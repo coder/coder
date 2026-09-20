@@ -25,11 +25,6 @@ const meta: Meta<typeof ConversationTimeline> = {
 		chatStatus: null,
 		parsedMessages: parseMessagesWithMergedTools(MockWorkingMessages),
 	},
-	parameters: {
-		queries: [
-			{ key: preferenceSettingsKey, data: MockCollapsedStepsPreferences },
-		],
-	},
 	decorators: [
 		(Story) => (
 			<MessageScroller.Provider autoScroll defaultScrollPosition="end">
@@ -47,9 +42,20 @@ const meta: Meta<typeof ConversationTimeline> = {
 export default meta;
 type Story = StoryObj<typeof ConversationTimeline>;
 
-export const Completed: Story = {};
+export const Completed: Story = {
+	parameters: {
+		queries: [
+			{ key: preferenceSettingsKey, data: MockCollapsedStepsPreferences },
+		],
+	},
+};
 
 export const Expanded: Story = {
+	parameters: {
+		queries: [
+			{ key: preferenceSettingsKey, data: MockCollapsedStepsPreferences },
+		],
+	},
 	play: async ({ canvasElement }) => {
 		await userEvent.click(
 			within(canvasElement).getByRole("button", {
@@ -60,6 +66,11 @@ export const Expanded: Story = {
 };
 
 export const Paginated: Story = {
+	parameters: {
+		queries: [
+			{ key: preferenceSettingsKey, data: MockCollapsedStepsPreferences },
+		],
+	},
 	args: {
 		hasMoreMessages: true,
 		parsedMessages: parseMessagesWithMergedTools(MockWorkingMessages.slice(3)),
@@ -76,6 +87,11 @@ export const Paginated: Story = {
 // Older rows land inside the expanded block's own scroller item, so the block
 // rather than the scroller has to keep the reading position.
 export const PrependIntoExpandedBlockKeepsReadingPosition: Story = {
+	parameters: {
+		queries: [
+			{ key: preferenceSettingsKey, data: MockCollapsedStepsPreferences },
+		],
+	},
 	render: function Render(args) {
 		const [page, setPage] = useState(0);
 		// The button follows the rows so the scroller sees the previous first
@@ -136,6 +152,11 @@ export const PrependIntoExpandedBlockKeepsReadingPosition: Story = {
 };
 
 export const FailedStepCounted: Story = {
+	parameters: {
+		queries: [
+			{ key: preferenceSettingsKey, data: MockCollapsedStepsPreferences },
+		],
+	},
 	args: {
 		parsedMessages: parseMessagesWithMergedTools(
 			MockWorkingMessages.map((message) =>
@@ -174,6 +195,11 @@ export const FailedStepCounted: Story = {
 };
 
 export const QuestionStaysVisible: Story = {
+	parameters: {
+		queries: [
+			{ key: preferenceSettingsKey, data: MockCollapsedStepsPreferences },
+		],
+	},
 	args: {
 		isChatCompleted: true,
 		onSendAskUserQuestionResponse: fn(),
@@ -229,12 +255,22 @@ export const QuestionStaysVisible: Story = {
 };
 
 export const Mobile: Story = {
+	parameters: {
+		queries: [
+			{ key: preferenceSettingsKey, data: MockCollapsedStepsPreferences },
+		],
+	},
 	globals: { viewport: { value: "mobile1", isRotated: false } },
 };
 
 // Editing makes the block inert, so it has to expand before the edit starts;
 // the capture shows the outer item dimming the nested rows once.
 export const EditingPrecedingMessage: Story = {
+	parameters: {
+		queries: [
+			{ key: preferenceSettingsKey, data: MockCollapsedStepsPreferences },
+		],
+	},
 	render: function Render(args) {
 		const [editing, setEditing] = useState(false);
 		return (
