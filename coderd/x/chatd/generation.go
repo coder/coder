@@ -79,6 +79,10 @@ type generationPrepared struct {
 
 	MaxSteps   int
 	Compaction *generationCompaction
+	// DiscoverInstructions pins nested instruction files for the directories
+	// a tool step touched; nil without a resolved workspace agent. It must
+	// run before Cleanup releases the agent connection.
+	DiscoverInstructions instructionDiscoverer
 	// Cleanup is always non-nil when prepareGeneration succeeds.
 	Cleanup func()
 
@@ -934,6 +938,12 @@ func (s *taskStarter) executeLocalTools(
 		}
 	}
 	postResults, postDispatchErr := s.server.hooks.PostToolUseResults(ctx, chathooks.ChatFor(prepared.Chat, input.hookTurnID()), outcome.Content)
+	// Pin nested instruction files before the step commits so the next
+	// preparation reads them. Only executed calls count: an exclusively
+	// rejected batch never ran, and the denied results are appended below.
+	if prepared.DiscoverInstructions != nil && !exclusiveRejected {
+		prepared.DiscoverInstructions(ctx, allowed, outcome.Content)
+	}
 	for _, result := range denied {
 		outcome.Content = append(outcome.Content, result)
 	}

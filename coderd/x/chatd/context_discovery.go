@@ -58,6 +58,8 @@ const (
 // tool that writes one of them re-probes its directory.
 var instructionFileNames = []string{"AGENTS.md", "CLAUDE.md", ".cursorrules"}
 
+type instructionDiscoverer func(ctx context.Context, calls []fantasy.ToolCallContent, results []fantasy.Content)
+
 // instructionProbeCache remembers, per agent, directories reported empty
 // (shared by every chat), directories one chat's row cap kept out (that
 // chat only), and directories a command ran in, which are re-probed for a while.
@@ -435,6 +437,29 @@ func agentWorkingDirectory(agent database.WorkspaceAgent) string {
 		return agent.ExpandedDirectory
 	}
 	return agent.Directory
+}
+
+// newInstructionDiscoverer binds discovery to the turn's workspace context.
+// The connection is taken before the agent: taking it may switch the turn
+// to the workspace's current agent, which is the one the probes then reach.
+func (p *Server) newInstructionDiscoverer(workspaceCtx *turnWorkspaceContext, chat database.Chat) instructionDiscoverer {
+	return func(ctx context.Context, calls []fantasy.ToolCallContent, results []fantasy.Content) {
+		files, dirs := touchedPaths(calls, results)
+		if len(files) == 0 && len(dirs) == 0 {
+			return
+		}
+		conn, err := workspaceCtx.getWorkspaceConn(ctx)
+		if err != nil {
+			p.logger.Debug(ctx, "connect to agent for instruction discovery", slog.F("chat_id", chat.ID), slog.Error(err))
+			return
+		}
+		agent, err := workspaceCtx.getWorkspaceAgent(ctx)
+		if err != nil {
+			p.logger.Debug(ctx, "read agent for instruction discovery", slog.F("chat_id", chat.ID), slog.Error(err))
+			return
+		}
+		p.discoverInstructionContext(ctx, conn, agent, chat, files, dirs)
+	}
 }
 
 // discoverInstructionContext asks agent, over conn, for instruction files
