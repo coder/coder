@@ -113,6 +113,25 @@ describe("AgentChatInput goal mode", () => {
 		expect(pursueGoal).toHaveAttribute("aria-checked", "false");
 	});
 
+	it("clears goal mode when the requested plan-mode disable fails", async () => {
+		const user = userEvent.setup();
+		const onPlanModeToggle = vi
+			.fn()
+			.mockRejectedValue(new Error("patch failed"));
+		renderInput({ planModeEnabled: true, onPlanModeToggle });
+
+		await openMoreOptions(user);
+		await user.click(pursueGoalItem());
+		expect(onPlanModeToggle).toHaveBeenCalledWith(false);
+
+		// The failed disable leaves plan mode on, so goal mode must clear
+		// instead of presenting both modes together.
+		await openMoreOptions(user);
+		await waitFor(() =>
+			expect(pursueGoalItem()).toHaveAttribute("aria-checked", "false"),
+		);
+	});
+
 	it("drops goal mode when availability is lost and does not reactivate on return", async () => {
 		const user = userEvent.setup();
 		const onSend = vi.fn().mockResolvedValue(undefined);
