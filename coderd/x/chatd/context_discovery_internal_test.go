@@ -535,6 +535,18 @@ func TestReconcileDiscoveredInstructionFilesRowCap(t *testing.T) {
 	require.Equal(t, []string{"/repo/new", "/repo/other"}, result.capped)
 }
 
+func TestDiscoveredInstructionDirsShallowestFirst(t *testing.T) {
+	t.Parallel()
+
+	rows := []database.ChatContextResource{
+		{Source: "/repo/a/deep/AGENTS.md", Discovered: true},
+		{Source: "/repo/a/deep/CLAUDE.md", Discovered: true},
+		{Source: "/repo/z/AGENTS.md", Discovered: true},
+	}
+	require.Equal(t, []string{"/repo/z", "/repo/a/deep"}, discoveredInstructionDirs(rows),
+		"a refresh probes the directories that govern the most first, whatever the inventory order")
+}
+
 func TestReconcileDiscoveredInstructionFilesReleasesBytesOfNonOKReRead(t *testing.T) {
 	t.Parallel()
 
@@ -936,5 +948,115 @@ func TestDiscoverInstructionContext(t *testing.T) {
 		op.discover([]string{touchedFile}, nil)
 
 		require.NotContains(t, op.rows(t), nestedSource, "the vanished file's row is dropped")
+	})
+}
+
+func TestRefreshChatContextRediscoversInstructionFiles(t *testing.T) {
+	t.Parallel()
+
+	const (
+		nestedDir    = "/home/coder/workspace/site"
+		nestedSource = nestedDir + "/AGENTS.md"
+		secondSource = nestedDir + "/CLAUDE.md"
+	)
+	newRefreshOp := func(t *testing.T, discovered ...workspacesdk.ContextInstructionFile) discoveryOp {
+		t.Helper()
+		op := newDiscoveryOp(t)
+		_, err := op.server.applyDiscoveredInstructionFiles(op.fix.ctx, op.chat.ID, op.fix.agentA, nil, discovered, map[string]struct{}{}, []string{nestedDir})
+		require.NoError(t, err)
+		op.server.agentConnFn = func(context.Context, uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+			return op.conn, func() {}, nil
+		}
+		return op
+	}
+	refresh := func(t *testing.T, op discoveryOp) database.Chat {
+		t.Helper()
+		current, err := op.fix.db.GetChatByID(op.fix.ctx, op.chat.ID)
+		require.NoError(t, err)
+		refreshed, err := op.server.RefreshChatContext(op.fix.ctx, current)
+		require.NoError(t, err)
+		return refreshed
+	}
+	hashOf := func(content string) []byte {
+		sum := sha256.Sum256([]byte(content))
+		return sum[:]
+	}
+
+	t.Run("ReReadsDiscoveredRows", func(t *testing.T) {
+		t.Parallel()
+		op := newRefreshOp(t, resolvedInstructionFile(nestedSource, "site rules v1"), resolvedInstructionFile(secondSource, "claude rules"))
+		op.expectProbe([]string{nestedDir}, resolvedInstructionFile(nestedSource, "site rules v2"))
+
+		refresh(t, op)
+
+		rows := op.rows(t)
+		require.Len(t, rows, 2, "refresh keeps the discovered file alongside the snapshot copy and drops the vanished one")
+		require.False(t, rows[op.fix.srcA].Discovered)
+		require.True(t, rows[nestedSource].Discovered)
+		require.Equal(t, hashOf("site rules v2"), rows[nestedSource].ContentHash, "refresh re-reads the nested file")
+	})
+
+	t.Run("KeepsRowsWhenTheReReadFails", func(t *testing.T) {
+		t.Parallel()
+		op := newRefreshOp(t, resolvedInstructionFile(nestedSource, "site rules v1"))
+		op.conn.EXPECT().ResolveContextInstructions(gomock.Any(), gomock.Any()).
+			Return(workspacesdk.ResolveContextInstructionsResponse{}, xerrors.New("agent gone"))
+
+		refreshed := refresh(t, op)
+
+		require.False(t, refreshed.ContextDirtySince.Valid)
+		rows := op.rows(t)
+		require.Len(t, rows, 2)
+		require.True(t, rows[nestedSource].Discovered, "the discovered row survives a failed re-read")
+		require.Equal(t, hashOf("site rules v1"), rows[nestedSource].ContentHash)
+	})
+
+	// A step pins newer bytes while the refresh probe is in flight.
+	t.Run("KeepsANewerStepPin", func(t *testing.T) {
+		t.Parallel()
+		op := newRefreshOp(t, resolvedInstructionFile(nestedSource, "site rules v1"))
+		op.conn.EXPECT().ResolveContextInstructions(gomock.Any(), gomock.Any()).
+			DoAndReturn(func(context.Context, workspacesdk.ResolveContextInstructionsRequest) (workspacesdk.ResolveContextInstructionsResponse, error) {
+				require.NoError(t, op.fix.db.UpsertChatContextDiscoveredResource(op.fix.ctx, database.UpsertChatContextDiscoveredResourceParams{
+					ChatID:      op.chat.ID,
+					Source:      nestedSource,
+					BodyKind:    database.WorkspaceAgentContextBodyKindInstructionFile,
+					Body:        op.rows(t)[nestedSource].Body,
+					ContentHash: hashOf("site rules v3"),
+					SizeBytes:   int64(len("site rules v3")),
+					Status:      database.WorkspaceAgentContextResourceStatusOk,
+				}))
+				return workspacesdk.ResolveContextInstructionsResponse{Files: []workspacesdk.ContextInstructionFile{resolvedInstructionFile(nestedSource, "site rules v2")}}, nil
+			})
+
+		refresh(t, op)
+
+		rows := op.rows(t)
+		require.Equal(t, hashOf("site rules v3"), rows[nestedSource].ContentHash, "the step's newer read survives the refresh")
+		require.True(t, rows[nestedSource].Discovered)
+	})
+
+	// The chat is rebound and its rows cleared while the refresh probe is in flight.
+	t.Run("DiscardsTheAnswerAfterARebind", func(t *testing.T) {
+		t.Parallel()
+		op := newRefreshOp(t, resolvedInstructionFile(nestedSource, "site rules v1"))
+		op.conn.EXPECT().ResolveContextInstructions(gomock.Any(), gomock.Any()).
+			DoAndReturn(func(context.Context, workspacesdk.ResolveContextInstructionsRequest) (workspacesdk.ResolveContextInstructionsResponse, error) {
+				_, err := op.fix.db.UpdateChatBuildAgentBinding(op.fix.ctx, database.UpdateChatBuildAgentBindingParams{
+					ID:      op.chat.ID,
+					BuildID: op.chat.BuildID,
+					AgentID: uuid.NullUUID{UUID: op.fix.agentB, Valid: true},
+				})
+				require.NoError(t, err)
+				require.NoError(t, op.fix.db.DeleteChatContextResourcesByChatID(op.fix.ctx, op.chat.ID))
+				return workspacesdk.ResolveContextInstructionsResponse{Files: []workspacesdk.ContextInstructionFile{
+					resolvedInstructionFile(nestedSource, "site rules v2"),
+					resolvedInstructionFile(secondSource, "claude rules"),
+				}}, nil
+			})
+
+		refresh(t, op)
+
+		require.Empty(t, op.rows(t), "the previous agent's files are not pinned onto the rebound chat")
 	})
 }

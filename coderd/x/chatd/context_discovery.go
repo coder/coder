@@ -714,6 +714,34 @@ func (p *Server) applyDiscoveredInstructionFiles(
 	return result, err
 }
 
+// rediscoverInstructionContext re-reads the discovered rows a refresh kept
+// so nested files come back at their current contents and vanished ones are
+// dropped. Best effort: a directory a failed batch left unread keeps its rows.
+func (p *Server) rediscoverInstructionContext(ctx context.Context, chat database.Chat, captured []database.ChatContextResource) {
+	dirs := discoveredInstructionDirs(captured)
+	if len(dirs) == 0 || !chat.AgentID.Valid || p.agentConnFn == nil {
+		return
+	}
+	logger := p.logger.With(slog.F("chat_id", chat.ID), slog.F("agent_id", chat.AgentID.UUID))
+	conn, release, err := p.agentConnFn(ctx, chat.AgentID.UUID)
+	if err != nil {
+		logger.Debug(ctx, "connect to agent for instruction rediscovery", slog.Error(err))
+		return
+	}
+	defer release()
+	resolved, probed := resolveInstructionDirs(ctx, logger, conn, dirs)
+	if len(probed) == 0 {
+		return
+	}
+	stale := make(map[string]struct{}, len(probed))
+	for _, dir := range probed {
+		stale[pathKey(dir)] = struct{}{}
+	}
+	if _, err := p.applyDiscoveredInstructionFiles(ctx, chat.ID, chat.AgentID.UUID, captured, resolved, stale, probed); err != nil {
+		logger.Warn(ctx, "apply instruction rediscovery", slog.Error(err))
+	}
+}
+
 // unchangedDiscoveredRows narrows a probe's result to what no other writer
 // touched since captured: the current inventory minus discovered rows rewritten
 // or added meanwhile, the resolved files minus those sources, and the share of
@@ -792,4 +820,31 @@ func resolveInstructionDirs(ctx context.Context, logger slog.Logger, conn worksp
 		probed = append(probed, batch...)
 	}
 	return files, probed
+}
+
+func discoveredInstructionRows(rows []database.ChatContextResource) []database.ChatContextResource {
+	var out []database.ChatContextResource
+	for _, row := range rows {
+		if row.Discovered {
+			out = append(out, row)
+		}
+	}
+	return out
+}
+
+// discoveredInstructionDirs lists the directories of a chat's discovered
+// rows, deduplicated and shallowest first, the order the budget favors.
+func discoveredInstructionDirs(rows []database.ChatContextResource) []string {
+	seen := make(map[string]struct{})
+	var out []string
+	for _, row := range rows {
+		dir := instructionRowDir(row)
+		if _, ok := seen[pathKey(dir)]; ok {
+			continue
+		}
+		seen[pathKey(dir)] = struct{}{}
+		out = append(out, dir)
+	}
+	sortShallowestFirst(out)
+	return out
 }
