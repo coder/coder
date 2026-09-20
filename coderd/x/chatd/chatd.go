@@ -1175,6 +1175,11 @@ type SendMessageOptions struct {
 	BusyBehavior    SendMessageBusyBehavior
 	PlanMode        *database.NullChatPlanMode
 	MCPServerIDs    *[]uuid.UUID
+	// QueueOnRequiresAction replaces an interrupt busy behavior with
+	// queue when the chat is in requires_action at the time of the
+	// transition, so the message never cancels a pending human
+	// approval. The status is read under the chat lock.
+	QueueOnRequiresAction bool
 }
 
 // SendMessageResult contains the outcome of user message processing.
@@ -1187,6 +1192,12 @@ type SendMessageResult struct {
 	// insert messages by promoting the previous queue head.
 	InsertedMessages []database.ChatMessage
 	Chat             database.Chat
+	// PreviousStatus is the chat status read under the chat lock
+	// immediately before the transition was applied.
+	PreviousStatus database.ChatStatus
+	// Downgraded is true when QueueOnRequiresAction replaced the
+	// requested interrupt with queue.
+	Downgraded bool
 }
 
 // EditMessageOptions controls user message edits via soft-delete and re-insert.
@@ -1580,12 +1591,21 @@ func (p *Server) SendMessage(
 			messageCreatedBy = lockedChat.OwnerID
 		}
 
+		result.PreviousStatus = lockedChat.Status
+		effectiveBusyBehavior := busyBehavior
+		if opts.QueueOnRequiresAction &&
+			effectiveBusyBehavior == SendMessageBusyBehaviorInterrupt &&
+			lockedChat.Status == database.ChatStatusRequiresAction {
+			effectiveBusyBehavior = SendMessageBusyBehaviorQueue
+			result.Downgraded = true
+		}
+
 		// Queue capacity is enforced inside tx.SendMessage; this
 		// wrapper only propagates the typed error.
 		message := userMessage(content, modelConfigID, messageCreatedBy, opts.ReasoningEffort)
 		sendResult, err := tx.SendMessage(chatstate.SendMessageInput{
 			Message:      message,
-			BusyBehavior: busyBehaviorToChatState(busyBehavior),
+			BusyBehavior: busyBehaviorToChatState(effectiveBusyBehavior),
 		})
 		if err != nil {
 			return err
@@ -3448,12 +3468,12 @@ func isExploreSubagentMode(mode database.NullChatMode) bool {
 func filterExternalMCPConfigsForTurn(
 	configs []database.MCPServerConfig,
 	mode database.NullChatPlanMode,
-	parentChatID uuid.NullUUID,
+	kind database.ChatKind,
 ) ([]database.MCPServerConfig, map[uuid.UUID]struct{}) {
 	if !mode.Valid || mode.ChatPlanMode != database.ChatPlanModePlan {
 		return configs, nil
 	}
-	if parentChatID.Valid {
+	if kind == database.ChatKindSubagent {
 		// Plan-mode subagents do not receive external MCP tools because
 		// their trust boundary is narrower than the root chat's.
 		return nil, map[uuid.UUID]struct{}{}
@@ -3473,7 +3493,8 @@ func filterExternalMCPConfigsForTurn(
 
 func builtinPlanToolAllowed(name string, isRootChat bool) bool {
 	switch name {
-	case "read_file", "execute", "process_output", "read_skill", "read_skill_file":
+	case "read_file", "execute", "process_output", "read_skill", "read_skill_file",
+		sendChatMessageToolName, listChatTreeToolName:
 		return true
 	case "write_file", "edit_files", "list_templates", "read_template",
 		"create_workspace", "start_workspace", "stop_workspace", "propose_plan", "spawn_agent",
@@ -3491,13 +3512,13 @@ func builtinPlanToolAllowed(name string, isRootChat bool) bool {
 func toolAllowedForTurn(
 	tool fantasy.AgentTool,
 	mode database.NullChatPlanMode,
-	parentChatID uuid.NullUUID,
+	kind database.ChatKind,
 	approvedMCPConfigIDs map[uuid.UUID]struct{},
 ) bool {
 	if !mode.Valid || mode.ChatPlanMode != database.ChatPlanModePlan {
 		return true
 	}
-	if builtinPlanToolAllowed(tool.Info().Name, !parentChatID.Valid) {
+	if builtinPlanToolAllowed(tool.Info().Name, kind != database.ChatKindSubagent) {
 		return true
 	}
 	mcpTool, ok := tool.(mcpclient.MCPToolIdentifier)
@@ -3511,7 +3532,7 @@ func toolAllowedForTurn(
 func filterToolsForTurn(
 	allTools []fantasy.AgentTool,
 	mode database.NullChatPlanMode,
-	parentChatID uuid.NullUUID,
+	kind database.ChatKind,
 	approvedMCPConfigIDs map[uuid.UUID]struct{},
 ) []fantasy.AgentTool {
 	if !mode.Valid || mode.ChatPlanMode != database.ChatPlanModePlan {
@@ -3520,7 +3541,7 @@ func filterToolsForTurn(
 
 	filtered := make([]fantasy.AgentTool, 0, len(allTools))
 	for _, tool := range allTools {
-		if toolAllowedForTurn(tool, mode, parentChatID, approvedMCPConfigIDs) {
+		if toolAllowedForTurn(tool, mode, kind, approvedMCPConfigIDs) {
 			filtered = append(filtered, tool)
 		}
 	}
@@ -3532,12 +3553,12 @@ func filterToolsForTurn(
 func activeToolNamesForTurn(
 	allTools []fantasy.AgentTool,
 	mode database.NullChatPlanMode,
-	parentChatID uuid.NullUUID,
+	kind database.ChatKind,
 	approvedMCPConfigIDs map[uuid.UUID]struct{},
 ) []string {
 	toolNames := make([]string, 0, len(allTools))
 	for _, tool := range allTools {
-		if toolAllowedForTurn(tool, mode, parentChatID, approvedMCPConfigIDs) {
+		if toolAllowedForTurn(tool, mode, kind, approvedMCPConfigIDs) {
 			toolNames = append(toolNames, tool.Info().Name)
 		}
 	}
@@ -3569,6 +3590,8 @@ func allowedExploreToolNames(allTools []fantasy.AgentTool) []string {
 		"read_skill":           true,
 		"read_skill_file":      true,
 		"ask_user_question":    false,
+		"send_chat_message":    false,
+		"list_chat_tree":       false,
 	}
 
 	toolNames := make([]string, 0, len(allTools))
@@ -3605,7 +3628,7 @@ func allowedBehaviorToolNames(
 
 func stopAfterPlanTools(
 	planMode database.NullChatPlanMode,
-	parentChatID uuid.NullUUID,
+	kind database.ChatKind,
 ) map[string]struct{} {
 	if !planMode.Valid || planMode.ChatPlanMode != database.ChatPlanModePlan {
 		return nil
@@ -3613,7 +3636,7 @@ func stopAfterPlanTools(
 	stopTools := map[string]struct{}{
 		"propose_plan": {},
 	}
-	if !parentChatID.Valid {
+	if kind != database.ChatKindSubagent {
 		stopTools["ask_user_question"] = struct{}{}
 	}
 	return stopTools
@@ -3622,12 +3645,12 @@ func stopAfterPlanTools(
 func stopAfterBehaviorTools(
 	planMode database.NullChatPlanMode,
 	chatMode database.NullChatMode,
-	parentChatID uuid.NullUUID,
+	kind database.ChatKind,
 ) map[string]struct{} {
 	if isExploreSubagentMode(chatMode) {
 		return nil
 	}
-	return stopAfterPlanTools(planMode, parentChatID)
+	return stopAfterPlanTools(planMode, kind)
 }
 
 type systemPromptBehaviorContext struct {
@@ -3704,8 +3727,10 @@ func buildSystemPrompt(
 }
 
 type rootChatToolsOptions struct {
-	chat            database.Chat
-	modelConfigID   uuid.UUID
+	chat          database.Chat
+	modelConfigID uuid.UUID
+	// messages is the user-visible history loaded for this generation step.
+	messages        []database.ChatMessage
 	workspaceCtx    *turnWorkspaceContext
 	workspaceMu     *sync.Mutex
 	resolvePlanPath func(context.Context) (string, string, error)
@@ -3875,9 +3900,16 @@ func (p *Server) appendRootChatTools(
 		}))
 	}
 
-	return append(tools, p.subagentTools(ctx, func() database.Chat {
+	tools = append(tools, p.subagentTools(ctx, func() database.Chat {
 		return opts.chat
 	}, opts.modelConfigID)...)
+	if p.experiments.Enabled(codersdk.ExperimentChatTree) {
+		tools = append(tools, p.chatTreeTools(
+			func() database.Chat { return opts.chat },
+			func() []database.ChatMessage { return opts.messages },
+		)...)
+	}
+	return tools
 }
 
 func appendDynamicTools(

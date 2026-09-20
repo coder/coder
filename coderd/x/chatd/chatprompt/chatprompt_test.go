@@ -1593,6 +1593,55 @@ func TestFileReferencePreservation(t *testing.T) {
 	assert.Contains(t, textPart.Text, "func main() {}")
 }
 
+// TestSenderChatPartPrompt verifies sender-chat parts survive the storage
+// round-trip and become a provenance header ahead of the relayed text.
+func TestSenderChatPartPrompt(t *testing.T) {
+	t.Parallel()
+
+	senderID := uuid.New()
+	raw, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+		codersdk.ChatMessageSenderChat(senderID, "Orchestrator", codersdk.ChatSenderChatRelationParent, 3),
+		codersdk.ChatMessageText("please report status"),
+	})
+	require.NoError(t, err)
+
+	parts, err := chatprompt.ParseContent(testMsg(codersdk.ChatMessageRoleUser, raw))
+	require.NoError(t, err)
+	require.Len(t, parts, 2)
+	assert.Equal(t, codersdk.ChatMessagePartTypeSenderChat, parts[0].Type)
+	require.NotNil(t, parts[0].SenderChatID)
+	assert.Equal(t, senderID, *parts[0].SenderChatID)
+	assert.Equal(t, "Orchestrator", parts[0].SenderChatTitle)
+	assert.Equal(t, codersdk.ChatSenderChatRelationParent, parts[0].SenderChatRelation)
+	assert.Equal(t, 3, parts[0].RelayHop)
+
+	prompt, err := chatprompt.ConvertMessagesWithFiles(
+		context.Background(),
+		[]database.ChatMessage{{
+			Role:       database.ChatMessageRoleUser,
+			Visibility: database.ChatMessageVisibilityBoth,
+			Content:    raw,
+		}},
+		nil,
+		slogtest.Make(t, nil),
+		nil,
+	)
+	require.NoError(t, err)
+	require.Len(t, prompt, 1)
+	require.Len(t, prompt[0].Content, 2)
+
+	header, ok := fantasy.AsMessagePart[fantasy.TextPart](prompt[0].Content[0])
+	require.True(t, ok, "sender-chat should become TextPart for LLM")
+	assert.Contains(t, header.Text, "your parent chat")
+	assert.Contains(t, header.Text, `"Orchestrator"`)
+	assert.Contains(t, header.Text, senderID.String())
+	assert.Contains(t, header.Text, "send_chat_message")
+
+	body, ok := fantasy.AsMessagePart[fantasy.TextPart](prompt[0].Content[1])
+	require.True(t, ok)
+	assert.Equal(t, "please report status", body.Text)
+}
+
 // TestAssistantWriteRoundTrip verifies the Stage 4 write path:
 // fantasy.Content (with ProviderMetadata) → PartFromContent →
 // MarshalParts → DB → ParseContent (SDK path) →
@@ -3337,6 +3386,38 @@ func TestToolResultAntivenom(t *testing.T) {
 			"error message must be valid UTF-8")
 		require.Contains(t, errOutput.Error.Error(), "fail")
 		require.Contains(t, errOutput.Error.Error(), "ed")
+	})
+}
+
+func TestToolResultContentToPart_StructuredErrors(t *testing.T) {
+	t.Parallel()
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	structured := `{"error":"chat is not the parent or a direct child of this chat","chat_id":"c1","title":"child"}`
+
+	for _, name := range []string{"send_chat_message", "list_chat_tree", "message_agent"} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			part := chatprompt.ToolResultContentToPartForTest(logger, fantasy.ToolResultContent{
+				ToolCallID: "call-1",
+				ToolName:   name,
+				Result:     fantasy.ToolResultOutputContentError{Error: xerrors.New(structured)},
+			})
+			require.True(t, part.IsError)
+			require.JSONEq(t, structured, string(part.Result))
+		})
+	}
+
+	t.Run("OtherToolsAreWrapped", func(t *testing.T) {
+		t.Parallel()
+		part := chatprompt.ToolResultContentToPartForTest(logger, fantasy.ToolResultContent{
+			ToolCallID: "call-2",
+			ToolName:   "read_file",
+			Result:     fantasy.ToolResultOutputContentError{Error: xerrors.New(structured)},
+		})
+		require.True(t, part.IsError)
+		var wrapped map[string]string
+		require.NoError(t, json.Unmarshal(part.Result, &wrapped))
+		require.Equal(t, map[string]string{"error": structured}, wrapped)
 	})
 }
 

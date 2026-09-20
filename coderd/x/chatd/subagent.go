@@ -1182,7 +1182,7 @@ func (p *Server) resolveExploreToolSnapshot(
 		visibleConfigs, _ := filterExternalMCPConfigsForTurn(
 			configs,
 			parent.PlanMode,
-			parent.ParentChatID,
+			parent.Kind,
 		)
 		// Empty means the parent is not Explore, so all plan-filtered
 		// configs remain eligible. Populated means the parent is

@@ -502,6 +502,8 @@ For `busy_behavior=interrupt`, `SendMessage(m, interrupt)` supports:
 
 When `SendMessage(m, interrupt)` lands in `I1`, the queued message is promoted later by `FinishInterruption(partial?)` after the interrupted suffix is finalized.
 
+TODO (chat-tree): the `send_chat_message` builtin tool is a second producer of `SendMessage(m, queue|interrupt)`, run as the chat owner from inside the sending chat's turn. `m` is a user row whose first part is `sender-chat` (sender id, title, relation, `relay_hop`), followed by the text. `interrupt` is downgraded to `queue` when the target is in `A0`/`A1` (`requires_action`). Describe it here.
+
 Other input states are not supported.
 
 ### `PATCH /api/experimental/chats/{chat}/messages/{message}`
@@ -892,12 +894,14 @@ The generation goroutine supports:
 - subagents (`spawn_agent`, `wait_agent`, `message_agent`, `interrupt_agent`, `list_agents`, `list_subagent_models`)
     - TODO (chat-tree): these tools target only `kind = subagent` direct children of the calling chat; named tree children (`kind = chat` with a parent) are not addressable through them.
     - `close_agent` is a deprecated alias that dispatches to `interrupt_agent`, so historical tool calls in chat history still resolve
+- TODO (chat-tree): chat tree messaging (`send_chat_message`, `list_chat_tree`), appended only for `kind IN (root, chat)` chats when the `chat-tree` experiment is enabled; targets are the direct parent or direct `kind = chat` children only. Describe it here.
 - file links
 - workspace binding
 - plan mode
 - respecting model configuration
 - provider-specific tools like web search and computer use
 - turn limit after a user message (the LLM shouldn't be able to spin forever in loop)
+    - TODO (chat-tree): the turn limit does not bound agent-to-agent relay chains, because each delivered message starts a new turn on the target. Those are bounded by the `relay_hop` cap carried in the `sender-chat` part (a turn started by a relayed prompt sends `1 + max relay_hop` of its starting prompts) and by a per-turn `send_chat_message` budget that is smaller for relayed turns. Describe it here.
 - and other things
 
 ##### Reasoning effort
@@ -1023,6 +1027,8 @@ The worker periodically archives old, unused chats.
 
 TODO (chat-tree): candidates are `kind = chat` rows only (tree roots are never archived), a candidate is inactive only when its whole recursive subtree is inactive, and the cascade archives that subtree.
 
+TODO (chat-tree): a `send_chat_message` relay chain keeps every chat it touches active, so a subtree exchanging messages is never an auto-archive candidate while the chain runs. Describe it here.
+
 ## Manual compaction
 
 Compaction reduces the LLM prompt size by summarizing older history into a compressed boundary. It normally runs automatically: while preparing a generation, the worker compares the latest known token usage against the model's compaction threshold, and when the threshold is exceeded it makes a non-streaming LLM call to produce a summary and commits it as a compressed message triplet (a hidden model-only summary boundary, a visible `chat_summarized` tool call, and its tool result). Prompt queries prune history at the newest boundary.
@@ -1051,6 +1057,8 @@ Lifecycle hooks fail closed. If the consumer cannot be reached or returns an inv
 Concurrent dispatches are capped per replica, and each dispatch declares whether it admits new work into a chat or belongs to work a chat already admitted. Admission can hold only part of the cap, so a burst of new submissions cannot consume the capacity that already-admitted work depends on. The caller declares this, because the event type does not determine it: a subagent spawn submits a prompt from inside a running turn, and editing a message starts a session at admission time.
 
 Coder stores no hook-specific dispatch or decision state. Delivery is best-effort and can duplicate, and a failed dispatch is never redelivered, so the consumer owns durable policy state, audit records, and deduplication based on stable event identifiers.
+
+TODO (chat-tree): `send_chat_message` submits a `user_prompt_submit` admission for the target chat from inside the sender's running turn, like a subagent spawn. A denial is returned to the sending model as a tool error; a dispatch failure fails the sender's turn and parks a `waiting` target in `E0`. The `sender-chat` part travels in `Parts`. Describe it here.
 
 # Stream loop
 

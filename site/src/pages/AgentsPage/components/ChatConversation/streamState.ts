@@ -216,6 +216,9 @@ export const applyMessagePartToStreamState = (
 		// Hook notices may arrive in durable message events, but not in
 		// streaming part deltas.
 		case "hook-notice":
+		// Sender-chat parts only appear on persisted user rows, never in
+		// streaming part deltas.
+		case "sender-chat":
 			return prev;
 		default: {
 			const _exhaustive: never = part;

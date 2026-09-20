@@ -2740,7 +2740,8 @@ export type ChatMessagePart =
 	| ChatFileReferencePart
 	| ChatContextFilePart
 	| ChatSkillPart
-	| ChatHookNoticePart;
+	| ChatHookNoticePart
+	| ChatSenderChatPart;
 
 // From codersdk/chats.go
 export type ChatMessagePartType =
@@ -2750,6 +2751,7 @@ export type ChatMessagePartType =
 	| "hook-context"
 	| "hook-notice"
 	| "reasoning"
+	| "sender-chat"
 	| "skill"
 	| "source"
 	| "text"
@@ -2763,6 +2765,7 @@ export const ChatMessagePartTypes: ChatMessagePartType[] = [
 	"hook-context",
 	"hook-notice",
 	"reasoning",
+	"sender-chat",
 	"skill",
 	"source",
 	"text",
@@ -3355,6 +3358,38 @@ export interface ChatRetentionDaysResponse {
 export type ChatRole = "" | "read";
 
 export const ChatRoles: ChatRole[] = ["", "read"];
+
+// From codersdk/chats.go
+export interface ChatSenderChatPart {
+	readonly type: "sender-chat";
+	/**
+	 * SenderChatID is the chat whose agent delivered this prompt.
+	 */
+	readonly sender_chat_id?: string;
+	/**
+	 * SenderChatTitle is the sending chat's title at delivery time.
+	 */
+	readonly sender_chat_title?: string;
+	/**
+	 * SenderChatRelation is the sending chat's position relative to the
+	 * receiving chat.
+	 */
+	readonly sender_chat_relation?: ChatSenderChatRelation;
+	/**
+	 * RelayHop counts consecutive agent-to-agent deliveries since the last
+	 * human-initiated turn. It is at least 1 when written; readers treat a
+	 * missing value as 1.
+	 */
+	readonly relay_hop?: number;
+}
+
+// From codersdk/chats.go
+export type ChatSenderChatRelation = "child" | "parent";
+
+export const ChatSenderChatRelations: ChatSenderChatRelation[] = [
+	"child",
+	"parent",
+];
 
 // From codersdk/chats.go
 export interface ChatSkillPart {

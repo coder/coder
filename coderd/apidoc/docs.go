@@ -20505,6 +20505,10 @@ const docTemplate = `{
                         "type": "integer"
                     }
                 },
+                "relay_hop": {
+                    "description": "RelayHop counts consecutive agent-to-agent deliveries since the last\nhuman-initiated turn. It is at least 1 when written; readers treat a\nmissing value as 1.",
+                    "type": "integer"
+                },
                 "result": {
                     "type": "array",
                     "items": {
@@ -20516,6 +20520,27 @@ const docTemplate = `{
                 },
                 "result_reset": {
                     "type": "boolean"
+                },
+                "sender_chat_id": {
+                    "description": "SenderChatID is the chat whose agent delivered this prompt.",
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "sender_chat_relation": {
+                    "description": "SenderChatRelation is the sending chat's position relative to the\nreceiving chat.",
+                    "enum": [
+                        "parent",
+                        "child"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ChatSenderChatRelation"
+                        }
+                    ]
+                },
+                "sender_chat_title": {
+                    "description": "SenderChatTitle is the sending chat's title at delivery time.",
+                    "type": "string"
                 },
                 "skill_description": {
                     "description": "SkillDescription is the short description from the skill's\nSKILL.md frontmatter.",
@@ -20568,7 +20593,8 @@ const docTemplate = `{
                 "context-file",
                 "skill",
                 "hook-context",
-                "hook-notice"
+                "hook-notice",
+                "sender-chat"
             ],
             "x-enum-varnames": [
                 "ChatMessagePartTypeText",
@@ -20581,7 +20607,8 @@ const docTemplate = `{
                 "ChatMessagePartTypeContextFile",
                 "ChatMessagePartTypeSkill",
                 "ChatMessagePartTypeHookContext",
-                "ChatMessagePartTypeHookNotice"
+                "ChatMessagePartTypeHookNotice",
+                "ChatMessagePartTypeSenderChat"
             ]
         },
         "codersdk.ChatMessageRole": {
@@ -21355,6 +21382,17 @@ const docTemplate = `{
             "x-enum-varnames": [
                 "ChatRoleRead",
                 "ChatRoleDeleted"
+            ]
+        },
+        "codersdk.ChatSenderChatRelation": {
+            "type": "string",
+            "enum": [
+                "parent",
+                "child"
+            ],
+            "x-enum-varnames": [
+                "ChatSenderChatRelationParent",
+                "ChatSenderChatRelationChild"
             ]
         },
         "codersdk.ChatStatus": {

@@ -9955,6 +9955,7 @@ WHERE
     AND cm.deleted = false
     AND cm.visibility IN ('user', 'both')
     AND jsonb_typeof(cm.content) = 'array'
+    AND NOT (cm.content @> '[{"type":"sender-chat"}]'::jsonb)
     AND part->>'type' = 'text'
 GROUP BY
     cm.id
@@ -9984,7 +9985,9 @@ type GetChatUserPromptsByChatIDRow struct {
 // entry. The jsonb_typeof guard skips legacy V0 rows whose content is
 // a scalar JSON string (predates migration 000434) so the lateral
 // jsonb_array_elements never raises "cannot extract elements from a
-// scalar". Backed by idx_chat_messages_user_prompts.
+// scalar". Rows carrying a sender-chat part were written by another
+// chat's agent rather than typed by the user and are excluded. Backed by
+// idx_chat_messages_user_prompts.
 func (q *sqlQuerier) GetChatUserPromptsByChatID(ctx context.Context, arg GetChatUserPromptsByChatIDParams) ([]GetChatUserPromptsByChatIDRow, error) {
 	rows, err := q.db.QueryContext(ctx, getChatUserPromptsByChatID, arg.ChatID, arg.LimitVal)
 	if err != nil {

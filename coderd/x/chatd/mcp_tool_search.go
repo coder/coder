@@ -32,7 +32,7 @@ type deferredMCPCandidateInput struct {
 	workspaceMCPTools     []fantasy.AgentTool
 	mcpConfigByID         map[uuid.UUID]database.MCPServerConfig
 	planMode              database.NullChatPlanMode
-	parentChatID          uuid.NullUUID
+	chatKind              database.ChatKind
 	approvedMCPConfigIDs  map[uuid.UUID]struct{}
 	includeWorkspaceTools bool
 }
@@ -43,7 +43,7 @@ type deferredMCPCandidateInput struct {
 func collectDeferredMCPCandidates(input deferredMCPCandidateInput) []deferredMCPTool {
 	candidates := make([]deferredMCPTool, 0, len(input.mcpTools)+len(input.workspaceMCPTools))
 	for _, tool := range input.mcpTools {
-		if !toolAllowedForTurn(tool, input.planMode, input.parentChatID, input.approvedMCPConfigIDs) {
+		if !toolAllowedForTurn(tool, input.planMode, input.chatKind, input.approvedMCPConfigIDs) {
 			continue
 		}
 		candidate := deferredMCPTool{tool: tool}
@@ -60,7 +60,7 @@ func collectDeferredMCPCandidates(input deferredMCPCandidateInput) []deferredMCP
 	}
 	wsStart := len(candidates)
 	for _, tool := range input.workspaceMCPTools {
-		if !toolAllowedForTurn(tool, input.planMode, input.parentChatID, input.approvedMCPConfigIDs) {
+		if !toolAllowedForTurn(tool, input.planMode, input.chatKind, input.approvedMCPConfigIDs) {
 			continue
 		}
 		candidates = append(candidates, deferredMCPTool{tool: tool, server: workspaceMCPServerName(tool)})
