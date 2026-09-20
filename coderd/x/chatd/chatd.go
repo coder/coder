@@ -3472,7 +3472,8 @@ func filterExternalMCPConfigsForTurn(
 
 func builtinPlanToolAllowed(name string, isRootChat bool) bool {
 	switch name {
-	case "read_file", "execute", "process_output", "read_skill", "read_skill_file":
+	case "read_file", "execute", "process_output", "read_skill", "read_skill_file",
+		"search_chat_messages":
 		return true
 	case "write_file", "edit_files", "list_templates", "read_template",
 		"create_workspace", "start_workspace", "stop_workspace", "propose_plan", "spawn_agent",
@@ -3568,6 +3569,7 @@ func allowedExploreToolNames(allTools []fantasy.AgentTool) []string {
 		"read_skill":           true,
 		"read_skill_file":      true,
 		"ask_user_question":    false,
+		"search_chat_messages": true,
 	}
 
 	toolNames := make([]string, 0, len(allTools))

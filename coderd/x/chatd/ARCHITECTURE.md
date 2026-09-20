@@ -884,6 +884,7 @@ The generation goroutine supports:
 - MCP tools
 - subagents (`spawn_agent`, `wait_agent`, `message_agent`, `interrupt_agent`, `list_agents`, `list_subagent_models`)
     - `close_agent` is a deprecated alias that dispatches to `interrupt_agent`, so historical tool calls in chat history still resolve
+    - TODO: document `search_chat_messages`, a builtin tool available to root chats and subagents that searches a chat transcript in SQL (own chat, or an ancestor or descendant chat with the same owner; explore subagents are limited to their own chat) and returns bounded excerpts
 - file links
 - workspace binding
 - plan mode

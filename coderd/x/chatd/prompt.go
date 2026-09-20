@@ -166,7 +166,7 @@ func PlanningOverlayPrompt() string {
 // final plan.
 const PlanningSubagentOverlayPrompt = `You are in Plan Mode as a delegated sub-agent.
 Every response must help the parent agent produce a plan.
-You may use read_file, execute, process_output, read_skill, and read_skill_file for exploration, including cloning repositories, searching code, and running inspection commands.
+You may use read_file, execute, process_output, read_skill, read_skill_file, and search_chat_messages for exploration, including cloning repositories, searching code, and running inspection commands.
 Do not implement changes or intentionally modify workspace files.
 Return concise findings and recommendations to the parent agent.`
 
