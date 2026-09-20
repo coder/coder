@@ -71,16 +71,6 @@ const GOAL_ACTION_UI = {
 	clear: { label: "Clear", Icon: Trash2Icon },
 } satisfies Record<ChatGoalAction, GoalActionUI>;
 
-const goalStatusDetail = (goal: TypesGen.ChatGoal): string | undefined => {
-	if (goal.status === "active" && goal.continuation_count > 0) {
-		return `Auto-continue ${goal.continuation_count}/${ChatGoalMaxContinuationTurns}`;
-	}
-	if (goal.status === "paused" && goal.paused_reason) {
-		return PAUSED_REASON_LABELS[goal.paused_reason];
-	}
-	return undefined;
-};
-
 export const ChatGoalBanner: FC<ChatGoalBannerProps> = ({
 	goal,
 	canMutateGoal = false,
@@ -102,7 +92,12 @@ export const ChatGoalBanner: FC<ChatGoalBannerProps> = ({
 	const actions = canMutateGoal ? CHAT_GOAL_ACTIONS_BY_STATUS[goal.status] : [];
 	const disabled = isActionPending || isActionDisabled;
 	const age = shortRelativeTime(goal.created_at);
-	const statusDetail = goalStatusDetail(goal);
+	const statusDetail =
+		goal.status === "active" && goal.continuation_count > 0
+			? `Auto-continue ${goal.continuation_count}/${ChatGoalMaxContinuationTurns}`
+			: goal.status === "paused" && goal.paused_reason
+				? PAUSED_REASON_LABELS[goal.paused_reason]
+				: undefined;
 
 	return (
 		<section
@@ -146,7 +141,7 @@ export const ChatGoalBanner: FC<ChatGoalBannerProps> = ({
 					) : null}
 					{goal.status === "blocked" && goal.blocked_reason ? (
 						<p
-							className="line-clamp-2 text-xs leading-5 text-content-warning [overflow-wrap:anywhere]"
+							className="line-clamp-2 text-xs leading-5 text-content-warning wrap-anywhere"
 							title={goal.blocked_reason}
 						>
 							Blocked: {goal.blocked_reason}
