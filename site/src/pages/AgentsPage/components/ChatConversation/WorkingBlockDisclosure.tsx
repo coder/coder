@@ -8,7 +8,9 @@ import {
 	type WorkingBlock,
 } from "./workingBlockGrouping";
 
-const LiveLabel: FC<{ block: WorkingBlock }> = ({ block }) => {
+type LiveLabelProps = { block: WorkingBlock };
+
+const LiveLabel: FC<LiveLabelProps> = ({ block }) => {
 	// Only the live block subscribes to a clock; completed blocks render a
 	// fixed label, so long transcripts never tick.
 	const now = useTime(() => Date.now());
@@ -41,7 +43,7 @@ const getCompletedWorkingLabel = (block: WorkingBlock): string => {
 	const duration = formatWorkingDuration(block.endedAt - block.startedAt);
 	return block.isPartial
 		? `Worked for at least ${duration} (${stepsLabel})`
-		: `Worked for ${duration} (${steps})`;
+		: `Worked for ${duration} (${stepsLabel})`;
 };
 
 const getScrollParent = (element: HTMLElement): HTMLElement | null => {
@@ -131,7 +133,7 @@ export const WorkingBlockDisclosure: FC<WorkingBlockDisclosureProps> = ({
 	onExpandedChange,
 	children,
 }) => {
-	const contentRef = useKeepReadingPositionAcrossPrepend(block.memberIds);
+	const observeContent = useKeepReadingPositionAcrossPrepend(block.memberIds);
 	return (
 		<ToolCall.Root
 			status={block.isLive ? "running" : "completed"}
@@ -149,6 +151,8 @@ export const WorkingBlockDisclosure: FC<WorkingBlockDisclosureProps> = ({
 				)}
 				{block.failedCount > 0 && (
 					<span className="flex shrink-0 items-center gap-1 text-[13px] leading-6 text-content-destructive">
+						{/* Separates the badge from the label in the button's accessible name. */}
+						<span className="sr-only">, </span>
 						<TriangleAlertIcon aria-hidden className="size-3.5 shrink-0" />
 						{block.isPartial
 							? `${pluralize(block.failedCount, "failed step")} or more`
@@ -159,7 +163,7 @@ export const WorkingBlockDisclosure: FC<WorkingBlockDisclosureProps> = ({
 			</ToolCall.HeaderButton>
 			<ToolCall.Content>
 				<div
-					ref={contentRef}
+					ref={observeContent}
 					className="mt-1.5 flex flex-col gap-2 border-0 border-l border-solid border-border-default pl-3"
 				>
 					{children}

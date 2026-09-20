@@ -295,9 +295,34 @@ describe("groupWorkingBlocks", () => {
 		expect(blocks).toHaveLength(1);
 		expect(blocks[0]).toMatchObject({
 			stepCount: 2,
+			memberIds: [reads[0].id, reads[2].id],
 			startedAt: WORKING_FIXTURE_START + 1000,
 			endedAt: WORKING_FIXTURE_START + 4000,
 		});
+	});
+
+	it("splits blocks at a user message hidden from the rows", () => {
+		const first = user("One");
+		const firstSteps = step("a", 1, 2);
+		const hiddenPrompt = message(
+			"user",
+			[{ type: "context-file", context_file_path: "/AGENTS.md" }],
+			at(10),
+		);
+		const secondSteps = step("b", 11, 12);
+		const { rows, blocks } = group([
+			first,
+			...firstSteps,
+			hiddenPrompt,
+			...secondSteps,
+		]);
+
+		expect(rows).toHaveLength(3);
+		expect(blocks).toHaveLength(2);
+		expect(rowIds(rows, blocks[0].rowIndices)).toEqual([firstSteps[0].id]);
+		expect(blocks[0].endedAt).toBe(WORKING_FIXTURE_START + 2000);
+		expect(rowIds(rows, blocks[1].rowIndices)).toEqual([secondSteps[0].id]);
+		expect(blocks[1].liveKey).toBe(`working:live:message:${hiddenPrompt.id}:0`);
 	});
 
 	it("reports no duration when parts carry no timestamps", () => {
@@ -381,10 +406,33 @@ describe("groupWorkingBlocks", () => {
 			expect(blocks[0]).toMatchObject({
 				isLive: true,
 				stepCount: 2,
+				memberIds: [steps[0].id],
 				startedAt: WORKING_FIXTURE_START + 1000,
 				endedAt: undefined,
 				key: `working:live:message:${prompt.id}:0`,
 			});
+		});
+
+		it("starts a new live block after a user message hidden from the rows", () => {
+			const prompt = user("Go");
+			const steps = step("a", 1, 2);
+			const hiddenPrompt = message(
+				"user",
+				[{ type: "skill", skill_name: "review" }],
+				at(3),
+			);
+			const live = liveOptions([call("b", at(4))]);
+			const { rows, blocks } = group([prompt, ...steps, hiddenPrompt], {
+				isTurnActive: true,
+				isLiveRowCollapsible: true,
+				...live,
+			});
+
+			expect(blocks).toHaveLength(2);
+			expect(rowIds(rows, blocks[0].rowIndices)).toEqual([steps[0].id]);
+			expect(blocks[0].isLive).toBe(false);
+			expect(rowIds(rows, blocks[1].rowIndices)).toEqual(["live"]);
+			expect(blocks[1].key).toBe(`working:live:message:${hiddenPrompt.id}:0`);
 		});
 
 		it("keeps the block live while the final answer streams outside it", () => {
