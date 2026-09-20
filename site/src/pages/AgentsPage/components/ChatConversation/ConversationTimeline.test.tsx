@@ -12,7 +12,6 @@ import {
 	renderComponent,
 } from "#/testHelpers/renderHelpers";
 import { ConversationTimeline } from "./ConversationTimeline";
-
 import {
 	getPendingToolCallIDs,
 	parseMessagesWithMergedTools,
@@ -230,7 +229,7 @@ const streamingStep = (
 	startedAt: at,
 	blocks: [{ type: "tool", id }],
 	toolCalls: {
-		[id]: { id, name: "execute", args: { command }, createdAt: at },
+		[id]: { id, name: "execute", args: { command } },
 	},
 	toolResults: {},
 	sources: [],
@@ -255,7 +254,7 @@ describe("ConversationTimeline live working blocks", () => {
 		const { rerenderStage } = renderTimeline(
 			streamingStage(
 				MockWorkingMessages.slice(0, 1),
-				streamingStep("first", "echo first", time(1)),
+				streamingStep("first", "echo first", workingFixtureTime(1)),
 			),
 		);
 		const summary = screen.getByRole("button", { name: "Working for 12s" });
@@ -264,7 +263,7 @@ describe("ConversationTimeline live working blocks", () => {
 		rerenderStage(
 			streamingStage(
 				MockWorkingMessages.slice(0, 3),
-				streamingStep("second", "echo second", time(5)),
+				streamingStep("second", "echo second", workingFixtureTime(5)),
 			),
 		);
 		expect(summary).toHaveFocus();
@@ -330,7 +329,7 @@ describe("ConversationTimeline live working blocks", () => {
 				{
 					type: "reasoning",
 					text: "Planning the inspection",
-					created_at: time(1),
+					created_at: workingFixtureTime(1),
 				},
 			]),
 		});
