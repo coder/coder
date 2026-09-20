@@ -591,7 +591,6 @@ func TestMaybeGenerateChatTitlePreservesUpdatedAt(t *testing.T) {
 			model:    chatprovider.NewModel(model, nil),
 			dbConfig: database.ChatModelConfig{Model: "test-model"},
 		},
-		modelBuildOptions{},
 		generated,
 		logger,
 		nil,
@@ -643,7 +642,6 @@ func TestMaybeGenerateChatTitleAppliesModelConfigReasoningEffort(t *testing.T) {
 	}
 
 	db := dbmock.NewMockStore(gomock.NewController(t))
-	db.EXPECT().GetChatOrganizationModelOverride(gomock.Any(), titleGenerationOverrideParams(chat)).Return(database.ChatOrganizationModelOverride{}, sql.ErrNoRows)
 	db.EXPECT().UpdateChatTitleByID(gomock.Any(), database.UpdateChatTitleByIDParams{
 		ID:    chat.ID,
 		Title: "Reasoning title",
@@ -665,7 +663,6 @@ func TestMaybeGenerateChatTitleAppliesModelConfigReasoningEffort(t *testing.T) {
 			dbConfig:        fallbackConfig,
 			providerOptions: chatprovider.ProviderOptionsForCall(fallbackModel, callConfig, nil),
 		},
-		modelBuildOptions{},
 		&generatedChatTitle{},
 		logger,
 		nil,

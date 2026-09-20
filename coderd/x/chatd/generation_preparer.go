@@ -901,11 +901,7 @@ func (server *Server) deriveFinalTurnRunResult(
 		return runChatResult{FinalAssistantText: finalAssistantText, TriggerMessageID: triggerMessageID, HistoryTipMessageID: historyTipMessageID}
 	}
 	modelOpts := modelBuildOptions{ActiveAPIKeyID: apiKeyID}
-	resolved, err := server.resolveModelCall(ctx, modelCallSpec{
-		purpose:      "turn_status_label",
-		chat:         chat,
-		buildOptions: modelOpts,
-	})
+	resolved, err := server.resolveQuickgenModel(ctx, "turn_status_label", chat, modelOpts)
 	if err != nil {
 		// Preserve the text and IDs for the generic-label fallback.
 		logger.Warn(ctx, "derive final turn status label: resolve model", slog.Error(err))
