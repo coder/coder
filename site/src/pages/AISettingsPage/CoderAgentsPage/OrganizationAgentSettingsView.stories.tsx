@@ -23,6 +23,10 @@ const mockSmallCompactionModel: TypesGen.ChatModel = {
 	context_limit: 32_000,
 	compression_threshold: 50,
 };
+const mockDisabledCompactionModel: TypesGen.ChatModel = {
+	...mockSmallCompactionModel,
+	compression_threshold: 100,
+};
 const mockWarningModels = [mockSmallCompactionModel, model, alternateModel];
 const mockWarningOverrides: readonly TypesGen.ChatModelOverrideResponse[] = [
 	{ context: "compaction", model_config_id: model.id },
@@ -136,6 +140,15 @@ export const CompactionTriggerWarning: Story = {
 			await body.findByRole("option", { name: /Compact Mini/i }),
 		);
 		await section.findByText(/may compact earlier/i);
+	},
+};
+
+export const CompactionOverrideDisabledNotice: Story = {
+	args: {
+		overrides: [
+			{ context: "compaction", model_config_id: mockSmallCompactionModel.id },
+		],
+		enabledModels: [mockDisabledCompactionModel, model],
 	},
 };
 

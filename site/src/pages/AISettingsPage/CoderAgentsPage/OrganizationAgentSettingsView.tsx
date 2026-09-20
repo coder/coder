@@ -93,6 +93,19 @@ const CompactionWarning: FC<CompactionWarningProps> = ({
 		return null;
 	}
 
+	const compactionModelName =
+		compactionModel.display_name.trim() || compactionModel.model;
+	// chatd ignores an override whose own trigger is off because it could
+	// not keep the history within the override model's window.
+	if (compactionModel.compression_threshold >= 100) {
+		return (
+			<Alert severity="info">
+				<AlertDescription>
+					{`${compactionModelName} has compaction disabled (100%), so chats summarize with their own model instead.`}
+				</AlertDescription>
+			</Alert>
+		);
+	}
 	const overrideTrigger = {
 		thresholdPercent: compactionModel.compression_threshold,
 		contextLimit: compactionModel.context_limit,
@@ -116,8 +129,6 @@ const CompactionWarning: FC<CompactionWarningProps> = ({
 		return null;
 	}
 
-	const compactionModelName =
-		compactionModel.display_name.trim() || compactionModel.model;
 	return (
 		<Alert severity="warning">
 			<AlertDescription>
