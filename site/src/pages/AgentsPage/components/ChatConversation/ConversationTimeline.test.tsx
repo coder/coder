@@ -219,6 +219,37 @@ describe("ConversationTimeline working blocks", () => {
 		});
 		expect(summary).toHaveFocus();
 	});
+
+	it("keeps an open live block mounted when an older page reveals an earlier block of its turn", async () => {
+		const user = userEvent.setup();
+		const note: ChatMessage = {
+			...MockChatMessage,
+			id: 4,
+			role: "assistant",
+			created_at: workingFixtureTime(5),
+			content: [{ type: "text", text: "Found the config." }],
+		};
+		const liveStep: ChatMessage = { ...MockWorkingMessages[3], id: 5 };
+		const stage = (messages: ChatMessage[]): TimelineStage => ({
+			messages,
+			pendingToolCallIDs: new Set(["second"]),
+			hasMoreMessages: true,
+			chatStatus: "running",
+			liveStatus: { phase: "idle", hasAccumulatedOutput: false },
+		});
+		const { rerenderStage } = renderTimeline(stage([liveStep]));
+		await user.click(
+			screen.getByRole("button", { name: "Working for at least 8s" }),
+		);
+		const copyCommand = within(
+			screen.getByTestId("chat-message-message:5"),
+		).getByRole("button", { name: "Copy command" });
+		copyCommand.focus();
+
+		// The earlier block takes the head ordinal the live block had.
+		rerenderStage(stage([...MockWorkingMessages.slice(1, 3), note, liveStep]));
+		expect(copyCommand).toHaveFocus();
+	});
 });
 
 const streamingStep = (
