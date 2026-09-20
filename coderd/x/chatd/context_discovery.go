@@ -1,7 +1,11 @@
 package chatd
 
 import (
+	"context"
+	"encoding/hex"
 	"encoding/json"
+	"fmt"
+	"math"
 	"path"
 	"slices"
 	"strings"
@@ -10,9 +14,13 @@ import (
 
 	"charm.land/fantasy"
 	"github.com/google/uuid"
+	"golang.org/x/xerrors"
+	"google.golang.org/protobuf/encoding/protojson"
 
+	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
+	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
 
 const (
@@ -26,6 +34,9 @@ const (
 	// chat holds across all steps, since every pinned body is rendered into
 	// every later prompt; files past the cap are pinned as excluded.
 	maxDiscoveredInstructionBytes = 1 << 20
+	// maxDiscoveredInstructionFiles caps the discovered rows a chat holds,
+	// whatever their status; the byte cap alone leaves bodyless rows unbounded.
+	maxDiscoveredInstructionFiles = 256
 	// pendingProbeTTL is how long a directory a command ran in is re-probed
 	// on later touches of its tree: a background or timed-out command may
 	// still be writing after its result returned.
@@ -377,4 +388,177 @@ func selectInstructionProbes(candidates []string, pinnedDirs, stale map[string]s
 		probe = append(probe, dir)
 	}
 	return probe
+}
+
+// removedDiscoveredSources lists the discovered rows in stale, probed
+// directories whose source the probe did not return. stale and returned
+// are keyed by pathKey.
+func removedDiscoveredSources(rows []database.ChatContextResource, stale map[string]struct{}, probed []string, returned map[string]struct{}) []string {
+	probedKeys := make(map[string]struct{}, len(probed))
+	for _, dir := range probed {
+		probedKeys[pathKey(dir)] = struct{}{}
+	}
+	var out []string
+	for _, row := range rows {
+		if !row.Discovered {
+			continue
+		}
+		source := agentPath(row.Source)
+		dirKey := pathKey(path.Dir(source))
+		if _, ok := stale[dirKey]; !ok {
+			continue
+		}
+		if _, ok := probedKeys[dirKey]; !ok {
+			continue
+		}
+		if _, ok := returned[pathKey(source)]; ok {
+			continue
+		}
+		out = append(out, row.Source)
+	}
+	return out
+}
+
+type discoveryReconciliation struct {
+	pinned, removed int
+	// capped lists the directories whose new files the row cap kept out.
+	capped []string
+}
+
+// discoveryBudget is the share of the chat's discovered caps that rows
+// outside a reconciliation's reach already consume.
+type discoveryBudget struct {
+	bytes int64
+	files int
+}
+
+// reconcileDiscoveredInstructionFiles removes the discovered rows in stale,
+// probed directories the agent no longer returned, then pins the resolved
+// files against the chat's inventory (rows): a file pinned under another
+// spelling of a Windows path keeps that spelling, since the row key is
+// case-sensitive, and a file the snapshot owns is left to it. Content past
+// the byte cap is pinned as excluded and a new source past the row cap is not
+// pinned; reserved is the share of both caps held by rows outside the inventory.
+func reconcileDiscoveredInstructionFiles(
+	ctx context.Context,
+	store database.Store,
+	chatID uuid.UUID,
+	rows []database.ChatContextResource,
+	resolved []workspacesdk.ContextInstructionFile,
+	stale map[string]struct{},
+	probed []string,
+	reserved discoveryBudget,
+) (discoveryReconciliation, error) {
+	var result discoveryReconciliation
+	spellings := make(map[string]string, len(rows))
+	snapshotOwned := make(map[string]struct{}, len(rows))
+	heldBytes := make(map[string]int64, len(rows))
+	used := reserved.bytes
+	count := reserved.files
+	for _, row := range rows {
+		if row.BodyKind != database.WorkspaceAgentContextBodyKindInstructionFile {
+			continue
+		}
+		key := pathKey(agentPath(row.Source))
+		spellings[key] = row.Source
+		if !row.Discovered {
+			snapshotOwned[key] = struct{}{}
+			continue
+		}
+		count++
+		if row.Status == database.WorkspaceAgentContextResourceStatusOk {
+			heldBytes[key] = row.SizeBytes
+			used += row.SizeBytes
+		}
+	}
+	returned := make(map[string]struct{}, len(resolved))
+	for _, file := range resolved {
+		returned[pathKey(agentPath(file.Source))] = struct{}{}
+	}
+	// Vanished files go first so a renamed file takes over the budget and
+	// the row its old name held.
+	for _, source := range removedDiscoveredSources(rows, stale, probed, returned) {
+		if err := store.DeleteChatContextDiscoveredResource(ctx, database.DeleteChatContextDiscoveredResourceParams{ChatID: chatID, Source: source}); err != nil {
+			return result, xerrors.Errorf("delete removed instruction file %q: %w", source, err)
+		}
+		key := pathKey(agentPath(source))
+		used -= heldBytes[key]
+		delete(heldBytes, key)
+		delete(spellings, key)
+		count--
+		result.removed++
+	}
+	for _, file := range resolved {
+		key := pathKey(agentPath(file.Source))
+		if _, owned := snapshotOwned[key]; owned {
+			continue
+		}
+		if !database.WorkspaceAgentContextResourceStatus(file.Status).Valid() {
+			// A status this server does not know leaves the row as it was.
+			continue
+		}
+		source, known := spellings[key]
+		if known {
+			file.Source = source
+		} else if count >= maxDiscoveredInstructionFiles {
+			if dir := agentPath(file.Directory); !slices.Contains(result.capped, dir) {
+				result.capped = append(result.capped, dir)
+			}
+			continue
+		}
+		// A re-read replaces the bytes an earlier read held, whatever the
+		// file's status is now.
+		used -= heldBytes[key]
+		delete(heldBytes, key)
+		size := int64(math.MaxInt64)
+		if file.SizeBytes <= math.MaxInt64 {
+			size = int64(file.SizeBytes)
+		}
+		if file.Status == string(database.WorkspaceAgentContextResourceStatusOk) {
+			if size > maxDiscoveredInstructionBytes-used {
+				file.Status = string(database.WorkspaceAgentContextResourceStatusExcluded)
+				file.Error = fmt.Sprintf("discovered instruction content cap of %d bytes reached", maxDiscoveredInstructionBytes)
+				file.Content = ""
+			} else {
+				used += size
+				heldBytes[key] = size
+			}
+		}
+		if err := pinDiscoveredInstructionFile(ctx, store, chatID, file, size); err != nil {
+			return result, xerrors.Errorf("pin discovered instruction file %q: %w", file.Source, err)
+		}
+		result.pinned++
+		if !known {
+			spellings[key] = file.Source
+			count++
+		}
+	}
+	return result, nil
+}
+
+// pinDiscoveredInstructionFile stores one resolved file as a discovered row.
+// A non-OK status is pinned without a body so the inventory still lists the
+// file and a file that stopped being readable drops its earlier body.
+func pinDiscoveredInstructionFile(ctx context.Context, store database.Store, chatID uuid.UUID, file workspacesdk.ContextInstructionFile, size int64) error {
+	contentHash, err := hex.DecodeString(file.ContentHash)
+	if err != nil {
+		return xerrors.Errorf("decode content hash: %w", err)
+	}
+	body, err := protojson.Marshal(&agentproto.InstructionFileBody{Content: []byte(file.Content)})
+	if err != nil {
+		return xerrors.Errorf("encode instruction body: %w", err)
+	}
+	if err := store.UpsertChatContextDiscoveredResource(ctx, database.UpsertChatContextDiscoveredResourceParams{
+		ChatID:      chatID,
+		Source:      file.Source,
+		BodyKind:    database.WorkspaceAgentContextBodyKindInstructionFile,
+		Body:        body,
+		ContentHash: contentHash,
+		SizeBytes:   size,
+		Status:      database.WorkspaceAgentContextResourceStatus(file.Status),
+		Error:       file.Error,
+	}); err != nil {
+		return xerrors.Errorf("upsert discovered resource: %w", err)
+	}
+	return nil
 }
