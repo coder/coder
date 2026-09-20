@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { type TreeKeyboardRow, treeKeyboardReducer } from "./treeKeyboard";
+import {
+	focusTargetAfterRemoval,
+	type TreeKeyboardRow,
+	treeKeyboardReducer,
+} from "./treeKeyboard";
 
 // root
 //   alpha (expanded)
@@ -127,5 +131,20 @@ describe(treeKeyboardReducer.name, () => {
 	it("leaves unrelated keys unhandled and clears the buffer", () => {
 		expect(press("Tab", "root")).toEqual({ handled: false, typeahead: "" });
 		expect(press(" ", "root").handled).toBe(false);
+	});
+});
+
+describe(focusTargetAfterRemoval.name, () => {
+	it("skips the removed subtree and lands on the next sibling", () => {
+		expect(focusTargetAfterRemoval(rows, "alpha")).toBe("beta");
+	});
+
+	it("falls back to the previous row at the end of the tree", () => {
+		expect(focusTargetAfterRemoval(rows, "gamma")).toBe("beta");
+	});
+
+	it("returns nothing when the removed row is the only one", () => {
+		expect(focusTargetAfterRemoval([rows[0]], "root")).toBeUndefined();
+		expect(focusTargetAfterRemoval(rows, "missing")).toBeUndefined();
 	});
 });

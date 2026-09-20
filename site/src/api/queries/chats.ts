@@ -193,7 +193,7 @@ export const prependToInfiniteChatsCache = (
  * Reads the flat list of chats from the first matching infinite query
  * in the cache. Returns undefined when no data is cached yet.
  */
-export const readInfiniteChatsCache = (
+const readInfiniteChatsCache = (
 	queryClient: QueryClient,
 ): TypesGen.Chat[] | undefined => {
 	const queries = queryClient.getQueriesData<InfiniteChatsCacheData>({
@@ -778,9 +778,7 @@ const patchChatTreeRow = (
 	});
 };
 
-const readChatTreeCaches = (
-	queryClient: QueryClient,
-): TypesGen.Chat[] => {
+const readChatTreeCaches = (queryClient: QueryClient): TypesGen.Chat[] => {
 	const rows: TypesGen.Chat[] = [];
 	const queries = queryClient.getQueriesData<TypesGen.ChatTreeResponse>({
 		queryKey: chatTreeFamilyKey,

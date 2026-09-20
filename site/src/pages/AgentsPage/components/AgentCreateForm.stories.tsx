@@ -2183,3 +2183,14 @@ export const MCPServersRefetchErrorKeepsSendEnabled: Story = {
 		});
 	},
 };
+
+export const WithParentChat: Story = {
+	args: {
+		parentChat: {
+			parentChatId: "parent-chat-1",
+			parentChatTitle: "Fix flaky login test",
+			parentOrganizationId: MockDefaultOrganization.id,
+		},
+		onClearParentChat: fn(),
+	},
+};

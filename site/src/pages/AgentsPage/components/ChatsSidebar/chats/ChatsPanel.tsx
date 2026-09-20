@@ -45,6 +45,7 @@ import {
 	type ChatTreeContextValue,
 } from "../tree/ChatTreeContext";
 import { ChatTreeNode } from "../tree/ChatTreeNode";
+import { ChatTreePanel, type ChatTreePanelData } from "../tree/ChatTreePanel";
 import {
 	buildChatTree,
 	type ChatTree,
@@ -97,6 +98,12 @@ interface ChatsPanelProps {
 	readonly isChatsActive: boolean;
 	readonly location: Location;
 	readonly currentUserId: string;
+	/**
+	 * Present only while the chat-tree experiment is on. Replaces the flat
+	 * sections with the organization tree; header, filters, loading and
+	 * error states stay here.
+	 */
+	readonly treeData?: ChatTreePanelData;
 }
 
 export const ChatsPanel: FC<ChatsPanelProps> = ({
@@ -130,6 +137,7 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 	isChatsActive,
 	location,
 	currentUserId,
+	treeData,
 }) => {
 	const locationSearch = normalizeLocationSearch(location.search);
 	const [expandedById, setExpandedById] = useState<Record<string, boolean>>({});
@@ -445,6 +453,7 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 							<FilterPopover
 								filters={sidebarFilters}
 								onFiltersChange={onSidebarFiltersChange}
+								treeMode={treeData !== undefined}
 							/>
 						</div>
 					</div>
@@ -492,6 +501,33 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 										</div>
 									))}
 								</div>
+							</>
+						) : treeData ? (
+							<>
+								<ChatTreePanel
+									data={treeData}
+									sidebarFilters={sidebarFilters}
+									onSidebarFiltersChange={onSidebarFiltersChange}
+									activeChatId={activeChatId}
+									modelConfigs={modelConfigs}
+									isLoadingModelConfigs={isLoadingModelConfigs}
+									chatErrorReasons={chatErrorReasons}
+									isArchiving={isArchiving}
+									archivingChatId={archivingChatId}
+									onArchiveAgent={onArchiveAgent}
+									onUnarchiveAgent={onUnarchiveAgent}
+									onArchiveAndDeleteWorkspace={onArchiveAndDeleteWorkspace}
+									onPinAgent={onPinAgent}
+									onUnpinAgent={onUnpinAgent}
+									onReorderPinnedAgent={onReorderPinnedAgent}
+									onOpenRenameDialog={onOpenRenameDialog}
+								/>
+								{(hasNextPage || isFetchingNextPage) && (
+									<LoadMoreSentinel
+										onLoadMore={onLoadMore}
+										isFetchingNextPage={isFetchingNextPage}
+									/>
+								)}
 							</>
 						) : (
 							<ChatTreeContext value={chatTreeCtx}>

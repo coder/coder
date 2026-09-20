@@ -9,7 +9,7 @@ export type TreeKeyboardRow = {
 	readonly label: string;
 };
 
-export type TreeKeyboardResult = {
+type TreeKeyboardResult = {
 	readonly handled: boolean;
 	readonly focusId?: string;
 	readonly toggle?: { readonly id: string; readonly expanded: boolean };
@@ -37,6 +37,28 @@ const findTypeaheadMatch = (
 		}
 	}
 	return undefined;
+};
+
+/**
+ * Picks the row to focus once `removedId` and its subtree leave the tree:
+ * the next visible row outside the subtree, else the previous row, else
+ * nothing (the tree is empty).
+ */
+export const focusTargetAfterRemoval = (
+	rows: readonly TreeKeyboardRow[],
+	removedId: string,
+): string | undefined => {
+	const index = rows.findIndex((row) => row.id === removedId);
+	if (index === -1) {
+		return undefined;
+	}
+	const removedLevel = rows[index].level;
+	for (let cursor = index + 1; cursor < rows.length; cursor++) {
+		if (rows[cursor].level <= removedLevel) {
+			return rows[cursor].id;
+		}
+	}
+	return index > 0 ? rows[index - 1].id : undefined;
 };
 
 /**

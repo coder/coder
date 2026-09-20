@@ -9,15 +9,20 @@ import type * as TypesGen from "#/api/typesGenerated";
 import { useWebpushNotifications } from "#/contexts/useWebpushNotifications";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useAIGatewayEnabled } from "#/hooks/useEmbeddedMetadata";
+import { useDashboard } from "#/modules/dashboard/useDashboard";
 import {
 	AgentCreateForm,
 	type CreateChatOptions,
+	type ParentChatTarget,
 } from "./components/AgentCreateForm";
 import { AgentPageHeader } from "./components/AgentPageHeader";
 import { ChimeButton } from "./components/ChimeButton";
 import { WebPushButton } from "./components/WebPushButton";
 import { getChimeEnabled, setChimeEnabled } from "./utils/chime";
-import { buildAgentChatPath } from "./utils/navigation";
+import {
+	buildAgentChatPath,
+	readNewChildChatLocationState,
+} from "./utils/navigation";
 
 const lastModelConfigIDStorageKey = "agents.last-model-config-id";
 
@@ -31,6 +36,26 @@ const AgentCreatePage: FC = () => {
 	const createMutation = useMutation(createChat(queryClient));
 	const webPush = useWebpushNotifications();
 	const [chimeEnabled, setChimeEnabledState] = useState(getChimeEnabled);
+	const isChatTreeEnabled = useDashboard().experiments.includes("chat-tree");
+	// "New chat here" arrives through router state. Each navigation has its
+	// own location key, so a later request replaces a dismissed parent.
+	const requestedParent = isChatTreeEnabled
+		? readNewChildChatLocationState(location.state)
+		: undefined;
+	const [parentSelection, setParentSelection] = useState<{
+		locationKey: string;
+		parent: ParentChatTarget | undefined;
+	}>(() => ({
+		locationKey: location.key,
+		parent: requestedParent,
+	}));
+	if (parentSelection.locationKey !== location.key) {
+		setParentSelection({ locationKey: location.key, parent: requestedParent });
+	}
+	const parentChat =
+		parentSelection.locationKey === location.key
+			? parentSelection.parent
+			: requestedParent;
 
 	const handleCreateChat = async ({
 		message,
@@ -59,6 +84,7 @@ const AgentCreatePage: FC = () => {
 				mcpServerIds && mcpServerIds.length > 0 ? mcpServerIds : undefined,
 			plan_mode: planMode === "plan" ? "plan" : undefined,
 			client_type: "ui",
+			...(parentChat ? { parent_chat_id: parentChat.parentChatId } : {}),
 			...(model ? { model_config_id: model } : {}),
 			...(reasoningEffort ? { reasoning_effort: reasoningEffort } : {}),
 		};
@@ -114,6 +140,10 @@ const AgentCreatePage: FC = () => {
 				workspaceOptions={workspacesQuery.data?.workspaces ?? []}
 				workspacesError={workspacesQuery.error}
 				isWorkspacesLoading={workspacesQuery.isLoading}
+				parentChat={parentChat}
+				onClearParentChat={() =>
+					setParentSelection({ locationKey: location.key, parent: undefined })
+				}
 			/>{" "}
 		</>
 	);

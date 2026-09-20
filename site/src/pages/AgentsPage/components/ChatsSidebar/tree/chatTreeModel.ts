@@ -2,7 +2,7 @@ import type { Chat, ChatTreeResponse } from "#/api/typesGenerated";
 import { ChatTreeMaxDepth } from "#/api/typesGenerated";
 import { asNonEmptyString } from "../../ChatConversation/blockUtils";
 
-export type ChatTreeNodeKind = "organization" | "root" | "chat" | "subagent";
+type ChatTreeNodeKind = "organization" | "root" | "chat" | "subagent";
 
 export type ChatTreeModelNode = {
 	readonly id: string;

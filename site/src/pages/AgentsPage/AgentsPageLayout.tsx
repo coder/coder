@@ -3,6 +3,7 @@ import { type FC, useEffect, useRef, useState } from "react";
 import {
 	useInfiniteQuery,
 	useMutation,
+	useQueries,
 	useQuery,
 	useQueryClient,
 } from "react-query";
@@ -25,6 +26,7 @@ import {
 	cancelChatListRefetches,
 	cancelLoadedChatEntityRefetch,
 	chatEntityKey,
+	chatTree,
 	infiniteChats,
 	invalidateChatCostTree,
 	invalidateChatDiffContents,
@@ -32,11 +34,12 @@ import {
 	invalidateChatListQueries,
 	invalidateChatSearches,
 	invalidateChatsByWorkspace,
+	invalidateChatTreeQueries,
 	mergeWatchedChatIntoCaches,
 	pinChat,
 	prependToInfiniteChatsCache,
 	proposeChatTitle,
-	readInfiniteChatsCache,
+	readChatFromSidebarCaches,
 	removeChatFromChatsByWorkspace,
 	reorderPinnedChat,
 	shouldInvalidateChatSearches,
@@ -44,6 +47,7 @@ import {
 	unarchiveChat,
 	unpinChat,
 	updateChatTitle,
+	updateChatTreeCaches,
 	updateInfiniteChatsCache,
 	userChatPersonalModelOverrides,
 } from "#/api/queries/chats";
@@ -76,6 +80,7 @@ import {
 	sidebarViewFromPath,
 } from "./components/ChatsSidebar/ChatsSidebar";
 import { ResizableChatsSidebarFrame } from "./components/ChatsSidebar/ResizableChatsSidebarFrame";
+import type { ChatTreePanelData } from "./components/ChatsSidebar/tree/ChatTreePanel";
 import { useAgentsPageKeybindings } from "./hooks/useAgentsPageKeybindings";
 import { useAgentsPWA } from "./hooks/useAgentsPWA";
 import { useOrganizationChatModels } from "./hooks/useOrganizationChatModels";
@@ -88,6 +93,7 @@ import {
 	shouldNavigateAfterArchive,
 } from "./utils/agentWorkspaceUtils";
 import { maybePlayChime } from "./utils/chime";
+import type { NewChildChatLocationState } from "./utils/navigation";
 import { clearPersistedRightPanelState } from "./utils/rightPanelTabStorage";
 import { clearPersistedSidebarTabId } from "./utils/sidebarTabStorage";
 
@@ -110,7 +116,8 @@ export interface AgentsPageOutletContext {
 	 * The active chat's children from the chat list cache, which watch
 	 * events keep fresh. The entity cache's embedded children are only a
 	 * fetch-time snapshot, so gating archive actions on them could leave
-	 * the actions disabled after a child finishes.
+	 * the actions disabled after a child finishes. Undefined with the tree
+	 * sidebar, where the entity is refetched on subagent events instead.
 	 */
 	activeChatChildren: readonly TypesGen.Chat[] | undefined;
 	onRenameTitle?: (chatId: string, title: string) => Promise<void>;
@@ -162,7 +169,8 @@ const AgentsPageLayout: FC = () => {
 	const [searchParams, setSearchParams] = useSearchParams();
 	const { agentId } = useParams();
 	const { permissions, user } = useAuthenticated();
-	const { organizations } = useDashboard();
+	const { organizations, experiments } = useDashboard();
+	const isChatTreeEnabled = experiments.includes("chat-tree");
 	const organizationName = getDefaultOrganizationName(organizations);
 	const defaultOrganizationId = getDefaultOrganizationId(organizations);
 	// The personal-overrides feature flag is deployment-wide but read through
@@ -227,14 +235,33 @@ const AgentsPageLayout: FC = () => {
 		sidebarFilters.chatStatuses.length === 1
 			? sidebarFilters.chatStatuses[0]
 			: undefined;
-	const chatsQuery = useInfiniteQuery(
-		infiniteChats({
-			archived: archivedFilter,
-			prStatuses: sidebarFilters.prStatuses,
-			chatStatus: chatStatusFilter,
-			sources: sidebarFilters.sources,
-		}),
-	);
+	// With the tree on, the flat list only serves chats shared with the
+	// viewer; owned chats come from the per organization tree queries.
+	const wantsSharedChats = sidebarFilters.sources.includes("shared_with_me");
+	const chatsQuery = useInfiniteQuery({
+		...infiniteChats(
+			isChatTreeEnabled
+				? {
+						archived: archivedFilter,
+						chatStatus: chatStatusFilter,
+						sources: ["shared_with_me"],
+					}
+				: {
+						archived: archivedFilter,
+						prStatuses: sidebarFilters.prStatuses,
+						chatStatus: chatStatusFilter,
+						sources: sidebarFilters.sources,
+					},
+		),
+		enabled: !isChatTreeEnabled || wantsSharedChats,
+	});
+	// Empty when the experiment is off, so no tree request is ever made.
+	const treeOrganizations = isChatTreeEnabled ? organizations : [];
+	const chatTreeQueries = useQueries({
+		queries: treeOrganizations.map((organization) =>
+			chatTree(organization.id, { archived: archivedFilter }),
+		),
+	});
 	const organizationModels = useOrganizationChatModels(
 		organizations.map((organization) => organization.id),
 	);
@@ -387,7 +414,60 @@ const AgentsPageLayout: FC = () => {
 		},
 	});
 	const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
-	const chatList = chatsQuery.data?.pages.flat() ?? [];
+	const sharedChatList = chatsQuery.data?.pages.flat() ?? [];
+	const treeResponsesByOrganization = new Map<
+		string,
+		TypesGen.ChatTreeResponse
+	>();
+	for (const [index, organization] of treeOrganizations.entries()) {
+		const response = chatTreeQueries[index]?.data;
+		if (response) {
+			treeResponsesByOrganization.set(organization.id, response);
+		}
+	}
+	const treeChatList = [...treeResponsesByOrganization.values()].flatMap(
+		(response) => response.chats,
+	);
+	const chatList = isChatTreeEnabled
+		? [...treeChatList, ...sharedChatList]
+		: sharedChatList;
+	const treeLoadError = chatTreeQueries.find((query) => query.error)?.error;
+	const treeHasData = treeResponsesByOrganization.size > 0;
+	const sidebarIsLoading = isChatTreeEnabled
+		? chatTreeQueries.some((query) => query.isLoading) && !treeHasData
+		: chatsQuery.isLoading;
+	const sidebarLoadError = isChatTreeEnabled
+		? ((treeHasData ? undefined : treeLoadError) ?? chatsQuery.error)
+		: chatsQuery.error;
+	const retrySidebarLoad = () => {
+		if (isChatTreeEnabled) {
+			for (const query of chatTreeQueries) {
+				void query.refetch();
+			}
+		}
+		if (!isChatTreeEnabled || wantsSharedChats) {
+			void chatsQuery.refetch();
+		}
+	};
+	const handleCreateChildChat = (parent: TypesGen.Chat) => {
+		const state: NewChildChatLocationState = {
+			parentChatId: parent.id,
+			parentChatTitle: parent.title,
+			parentOrganizationId: parent.organization_id,
+		};
+		navigate({ pathname: "/agents", search: location.search }, { state });
+	};
+	const treeData: ChatTreePanelData | undefined = isChatTreeEnabled
+		? {
+				organizations: treeOrganizations.map((organization) => ({
+					id: organization.id,
+					displayName: organization.display_name || organization.name,
+				})),
+				responsesByOrganization: treeResponsesByOrganization,
+				sharedChats: sharedChatList,
+				onCreateChildChat: handleCreateChildChat,
+			}
+		: undefined;
 	const isArchiving =
 		archiveAgentMutation.isPending || archiveAndDeleteMutation.isPending;
 	const archivingChatId =
@@ -452,10 +532,7 @@ const AgentsPageLayout: FC = () => {
 						],
 						queryFn: () => API.getWorkspaceBuilds(workspaceId),
 					}),
-				() =>
-					readInfiniteChatsCache(queryClient)?.find(
-						(chat) => chat.id === chatId,
-					)?.created_at,
+				() => readChatFromSidebarCaches(queryClient, chatId)?.created_at,
 			);
 			if (action === "proceed") {
 				archiveAndDeleteMutation.mutate(
@@ -533,6 +610,13 @@ const AgentsPageLayout: FC = () => {
 	useEffect(() => {
 		activeChatIDRef.current = agentId;
 	});
+	// The watch handler is subscribed once; it reads these through refs.
+	const isChatTreeEnabledRef = useRef(isChatTreeEnabled);
+	const currentUserIdRef = useRef(user.id);
+	useEffect(() => {
+		isChatTreeEnabledRef.current = isChatTreeEnabled;
+		currentUserIdRef.current = user.id;
+	});
 
 	// Optimistically clear the unread indicator for the active
 	// chat. The server marks chats as read on stream connect
@@ -552,7 +636,17 @@ const AgentsPageLayout: FC = () => {
 			});
 			return changed ? next : chats;
 		});
+		updateChatTreeCaches(queryClient, (chats) => {
+			let changed = false;
+			const next = chats.map((c) => {
+				if (c.id !== agentId || !c.has_unread) return c;
+				changed = true;
+				return { ...c, has_unread: false };
+			});
+			return changed ? next : chats;
+		});
 		void invalidateChatListQueries(queryClient);
+		void invalidateChatTreeQueries(queryClient);
 		void invalidateChatSearches(queryClient);
 	}, [agentId, queryClient]);
 	useEffect(() => {
@@ -568,8 +662,9 @@ const AgentsPageLayout: FC = () => {
 					const chatEvent = event.parsedMessage;
 					const updatedChat = chatEvent.chat;
 					// The old membership is only available before the cache write below.
-					const prevStatus = readInfiniteChatsCache(queryClient)?.find(
-						(chat) => chat.id === updatedChat.id,
+					const prevStatus = readChatFromSidebarCaches(
+						queryClient,
+						updatedChat.id,
 					)?.status;
 					// Only play the chime for top-level chats, not sub-agents.
 					if (updatedChat.kind !== "subagent") {
@@ -609,6 +704,17 @@ const AgentsPageLayout: FC = () => {
 					// the fallback title.
 					void cancelChatListRefetches(queryClient);
 					void cancelLoadedChatEntityRefetch(queryClient, updatedChat.id);
+					const treeEnabled = isChatTreeEnabledRef.current;
+					// Tree rows never embed subagents; the toggled node's entity
+					// query (and the open chat's) is refetched instead.
+					if (
+						treeEnabled &&
+						updatedChat.kind === "subagent" &&
+						updatedChat.parent_chat_id &&
+						(chatEvent.kind === "created" || chatEvent.kind === "status_change")
+					) {
+						void invalidateChatEntity(queryClient, updatedChat.parent_chat_id);
+					}
 
 					if (chatEvent.kind === "created") {
 						if (updatedChat.kind === "subagent" && updatedChat.parent_chat_id) {
@@ -636,7 +742,14 @@ const AgentsPageLayout: FC = () => {
 						} else {
 							// `created` also fires for unarchive transitions.
 							applyWatchedChatCreatedOrUnarchived(queryClient, updatedChat);
-							prependToInfiniteChatsCache(queryClient, updatedChat);
+							// With the tree on, the flat list holds only shared chats,
+							// so an owned chat must not be prepended into it.
+							if (
+								!treeEnabled ||
+								updatedChat.owner_id !== currentUserIdRef.current
+							) {
+								prependToInfiniteChatsCache(queryClient, updatedChat);
+							}
 						}
 					} else {
 						mergeWatchedChatIntoCaches(queryClient, updatedChat, {
@@ -674,6 +787,7 @@ const AgentsPageLayout: FC = () => {
 			},
 			onOpen() {
 				void invalidateChatListQueries(queryClient);
+				void invalidateChatTreeQueries(queryClient);
 				void invalidateChatsByWorkspace(queryClient);
 				void invalidateChatSearches(queryClient);
 			},
@@ -732,7 +846,9 @@ const AgentsPageLayout: FC = () => {
 		requestReorderPinnedAgent,
 		isArchiving,
 		archivingChatId,
-		activeChatChildren: chatList.find((c) => c.id === agentId)?.children,
+		activeChatChildren: isChatTreeEnabled
+			? undefined
+			: chatList.find((c) => c.id === agentId)?.children,
 		onOpenRenameDialog: setChatPendingRename,
 		isSidebarCollapsed,
 		onToggleSidebarCollapsed: handleToggleSidebarCollapsed,
@@ -780,9 +896,9 @@ const AgentsPageLayout: FC = () => {
 						isCreating={false}
 						isArchiving={isArchiving}
 						archivingChatId={archivingChatId}
-						isLoading={chatsQuery.isLoading}
-						loadError={chatsQuery.error}
-						onRetryLoad={() => void chatsQuery.refetch()}
+						isLoading={sidebarIsLoading}
+						loadError={sidebarLoadError}
+						onRetryLoad={retrySidebarLoad}
 						hasNextPage={chatsQuery.hasNextPage}
 						onLoadMore={() => void chatsQuery.fetchNextPage()}
 						isFetchingNextPage={chatsQuery.isFetchingNextPage}
@@ -794,6 +910,7 @@ const AgentsPageLayout: FC = () => {
 						}
 						isAdmin={isAgentsAdmin}
 						canManageAgentSettings={canManageAgentSettings}
+						treeData={treeData}
 					/>
 				</ResizableChatsSidebarFrame>
 				<div

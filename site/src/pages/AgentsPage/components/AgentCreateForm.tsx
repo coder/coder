@@ -1,3 +1,4 @@
+import { XIcon } from "lucide-react";
 import { type FC, useEffect, useRef, useState } from "react";
 import { useQuery } from "react-query";
 import { toast } from "sonner";
@@ -12,6 +13,8 @@ import { permittedOrganizations } from "#/api/queries/organizations";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import { Badge } from "#/components/Badge/Badge";
+import { Button } from "#/components/Button/Button";
 import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { useFileAttachments } from "../hooks/useFileAttachments";
@@ -30,6 +33,7 @@ import {
 	hasUserFixableProviders,
 	resolveModelSelector,
 } from "../utils/modelOptions";
+import type { NewChildChatLocationState } from "../utils/navigation";
 import {
 	getReasoningEffortForModel,
 	pickReasoningEffort,
@@ -140,7 +144,16 @@ interface AgentCreateFormProps {
 	workspaceOptions: readonly TypesGen.Workspace[];
 	workspacesError: unknown;
 	isWorkspacesLoading: boolean;
+	/**
+	 * Parent for the new chat (chat-tree experiment). Pins the organization
+	 * to the parent's and shows a dismissible chip; clearing it creates the
+	 * chat under the root instead.
+	 */
+	parentChat?: ParentChatTarget;
+	onClearParentChat?: () => void;
 }
+
+export type ParentChatTarget = NewChildChatLocationState;
 
 export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	onCreateChat,
@@ -153,6 +166,8 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	workspaceOptions,
 	workspacesError,
 	isWorkspacesLoading,
+	parentChat,
+	onClearParentChat,
 }) => {
 	const { organizations, showOrganizations } = useDashboard();
 	const {
@@ -228,12 +243,16 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	) {
 		setPendingOrgChange(null);
 	}
+	const parentOrg = parentChat
+		? permittedOrgs.find((org) => org.id === parentChat.parentOrganizationId)
+		: undefined;
 	const effectiveOrg =
-		selectedOrg && selectedOrgIsPermitted
+		parentOrg ??
+		(selectedOrg && selectedOrgIsPermitted
 			? selectedOrg
 			: (permittedOrgs.find((org) => org.is_default) ??
 				permittedOrgs[0] ??
-				null);
+				null));
 	const organizationId = effectiveOrg?.id ?? "";
 	const mcpServersQuery = useQuery({
 		...mcpServerConfigs(organizationId),
@@ -610,8 +629,29 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 					{personalModelOverridesQuery.error != null && (
 						<ErrorAlert error={personalModelOverridesQuery.error} />
 					)}
+					{parentChat && (
+						<div className="flex items-center gap-2 px-1">
+							<Badge variant="outline" size="md" className="max-w-full gap-1.5">
+								<span className="truncate">
+									New chat under {parentChat.parentChatTitle}
+								</span>
+								{onClearParentChat && (
+									<Button
+										variant="subtle"
+										size="icon"
+										className="size-4 min-w-0 p-0 [&>svg]:size-3"
+										aria-label={`Create under the root instead of ${parentChat.parentChatTitle}`}
+										onClick={onClearParentChat}
+									>
+										<XIcon />
+									</Button>
+								)}
+							</Badge>
+						</div>
+					)}
 					{showOrganizations &&
 						orgSelectionSettled &&
+						!parentOrg &&
 						permittedOrgs.length > 1 && (
 							<CompactOrgSelector
 								value={effectiveOrg}

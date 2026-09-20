@@ -152,7 +152,7 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 	const isArchiveBlocked = chat
 		? !chatFamilyAllowsArchive(
 				liveChatStatus ?? chat.status,
-				activeChatChildren,
+				activeChatChildren ?? chat.children,
 			)
 		: false;
 	const showPinAction = Boolean(requestPinAgent && requestUnpinAgent);
