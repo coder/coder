@@ -1,5 +1,5 @@
 import { cn } from "cn";
-import type { FC, ReactNode } from "react";
+import { type FC, type ReactNode, useId } from "react";
 import {
 	Link,
 	NavLink,
@@ -20,6 +20,7 @@ import { modelOrganizationSearchParam } from "#/pages/AISettingsPage/ModelsPage/
 interface AISettingsSidebarViewProps {
 	/** Site-wide permissions. */
 	permissions: Permissions;
+	canViewAISpend?: boolean;
 	canAccessOrganizationModels?: boolean;
 	canShareOrganizationMCPServers?: boolean;
 }
@@ -42,6 +43,31 @@ const SubNavItem: FC<{ href: To; children?: ReactNode }> = ({
 		{children}
 	</NavLink>
 );
+
+const SubNavGroup: FC<{ label?: string; children: ReactNode }> = ({
+	label,
+	children,
+}) => {
+	const labelId = useId();
+	const className =
+		"flex flex-col gap-1 ml-3 border-0 border-solid border-l border-l-border";
+	if (!label) {
+		return <div className={className}>{children}</div>;
+	}
+	return (
+		<>
+			<span
+				id={labelId}
+				className="px-3 py-1.5 text-xs font-medium uppercase tracking-widest text-content-secondary"
+			>
+				{label}
+			</span>
+			<div role="group" aria-labelledby={labelId} className={className}>
+				{children}
+			</div>
+		</>
+	);
+};
 
 const organizationScopedPath = (
 	pathname: string,
@@ -78,11 +104,16 @@ const ModelsSidebarNavItem: FC<{ href: To }> = ({ href }) => {
 
 const AISettingsSidebarView: FC<AISettingsSidebarViewProps> = ({
 	permissions,
+	canViewAISpend = false,
 	canAccessOrganizationModels = false,
 	canShareOrganizationMCPServers = false,
 }) => {
 	const [searchParams] = useSearchParams();
 	const organizationName = searchParams.get(modelOrganizationSearchParam);
+	const spendPath = organizationScopedPath(
+		"/ai/settings/spend",
+		organizationName,
+	);
 	const modelsPath = organizationScopedPath(
 		"/ai/settings/models",
 		organizationName,
@@ -108,6 +139,11 @@ const AISettingsSidebarView: FC<AISettingsSidebarViewProps> = ({
 						AI Governance
 					</SidebarNavItem>
 				)}
+				{canViewAISpend && (
+					<SubNavGroup label="Spend">
+						<SubNavItem href={spendPath}>User spend</SubNavItem>
+					</SubNavGroup>
+				)}
 				{permissions.viewAIGatewayKeys && (
 					<SidebarNavItem href="/ai/settings/gateway-keys">
 						AI Gateway keys
@@ -126,7 +162,7 @@ const AISettingsSidebarView: FC<AISettingsSidebarViewProps> = ({
 					<SidebarNavItem href={coderAgentsPath}>Coder Agents</SidebarNavItem>
 				)}
 				{permissions.editDeploymentConfig && (
-					<div className="flex flex-col gap-1 ml-3 border-0 border-solid border-l border-l-border">
+					<SubNavGroup>
 						<SubNavItem href={mcpServersPath}>MCP servers</SubNavItem>
 						{permissions.updateAnyTemplate && (
 							<SubNavItem href="/ai/settings/templates">Templates</SubNavItem>
@@ -135,7 +171,7 @@ const AISettingsSidebarView: FC<AISettingsSidebarViewProps> = ({
 							Instructions
 						</SubNavItem>
 						<SubNavItem href="/ai/settings/lifecycle">Lifecycle</SubNavItem>
-					</div>
+					</SubNavGroup>
 				)}
 				{!permissions.editDeploymentConfig &&
 					(permissions.viewAnyMCPServerConfigs ||
@@ -143,7 +179,7 @@ const AISettingsSidebarView: FC<AISettingsSidebarViewProps> = ({
 						permissions.updateAnyMCPServerConfig ||
 						permissions.deleteAnyMCPServerConfig ||
 						canShareOrganizationMCPServers) && (
-						<div className="flex flex-col gap-1 ml-3 border-0 border-solid border-l border-l-border">
+						<SubNavGroup>
 							<SubNavItem
 								href={
 									permissions.viewAnyMCPServerConfigs ||
@@ -156,12 +192,12 @@ const AISettingsSidebarView: FC<AISettingsSidebarViewProps> = ({
 							>
 								MCP servers
 							</SubNavItem>
-						</div>
+						</SubNavGroup>
 					)}
 				{!permissions.editDeploymentConfig && permissions.updateAnyTemplate && (
-					<div className="flex flex-col gap-1 ml-3 border-0 border-solid border-l border-l-border">
+					<SubNavGroup>
 						<SubNavItem href="/ai/settings/templates">Templates</SubNavItem>
-					</div>
+					</SubNavGroup>
 				)}
 			</div>
 		</BaseSidebar>

@@ -6,6 +6,7 @@ import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { canAccessAnyChatModelConfig } from "#/modules/permissions";
 import { useCanShareOrganizationMCPServers } from "./MCPServersPage/organizationSharing";
 import { useAccessibleModelOrganizations } from "./ModelsPage/organizationModels";
+import { useCanViewAISpend } from "./SpendPage/spendAccess";
 
 export const AISettingsIndexRedirect = () => {
 	const { permissions } = useAuthenticated();
@@ -15,6 +16,9 @@ export const AISettingsIndexRedirect = () => {
 		organizations,
 		{ enabled: !permissions.editDeploymentConfig },
 	);
+	const spendAccess = useCanViewAISpend({
+		enabled: !permissions.editDeploymentConfig,
+	});
 
 	if (permissions.viewAnyAIProvider) {
 		return <Navigate to="/ai/settings/providers" replace />;
@@ -70,6 +74,18 @@ export const AISettingsIndexRedirect = () => {
 
 	if (permissions.editDeploymentConfig) {
 		return <Navigate to="/ai/settings/coder-agents" replace />;
+	}
+
+	if (spendAccess.isLoading) {
+		return <Loader fullscreen />;
+	}
+
+	if (spendAccess.error !== null) {
+		return <ErrorAlert error={spendAccess.error} />;
+	}
+
+	if (spendAccess.canView) {
+		return <Navigate to="/ai/settings/spend" replace />;
 	}
 
 	return <Navigate to="/ai/settings/providers" replace />;

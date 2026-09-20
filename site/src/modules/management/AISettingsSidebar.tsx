@@ -4,6 +4,7 @@ import { useDashboard } from "#/modules/dashboard/useDashboard";
 import AISettingsSidebarView from "#/modules/management/AISettingsSidebarView";
 import { useCanShareOrganizationMCPServers } from "#/pages/AISettingsPage/MCPServersPage/organizationSharing";
 import { useAccessibleModelOrganizations } from "#/pages/AISettingsPage/ModelsPage/organizationModels";
+import { useCanViewAISpend } from "#/pages/AISettingsPage/SpendPage/spendAccess";
 
 /**
  * A sidebar for AI settings.
@@ -16,10 +17,12 @@ export const AISettingsSidebar: FC = () => {
 		organizations,
 		{ enabled: !permissions.editDeploymentConfig },
 	);
+	const spendAccess = useCanViewAISpend();
 
 	return (
 		<AISettingsSidebarView
 			permissions={permissions}
+			canViewAISpend={spendAccess.canView}
 			canAccessOrganizationModels={
 				(accessibleOrgsQuery.organizations.length ?? 0) > 0
 			}
