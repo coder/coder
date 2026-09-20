@@ -141,7 +141,10 @@ type Chat struct {
 	HasUnread bool `json:"has_unread"`
 	// Context reports the chat's pinned workspace-context state and
 	// whether it has drifted from the agent's latest pushed snapshot.
-	// Nil when the chat has no pinned context yet.
+	// Nil until context is pinned, except on the single-chat GET, which
+	// also returns it for a chat bound to an agent before its first
+	// snapshot so mcp_discovery can report pending. Resources and
+	// mcp_discovery are only populated by the single-chat GET.
 	Context *ChatContext `json:"context,omitempty"`
 	// QueuedForCapacity reports that the chat is waiting for a concurrent
 	// agent slot. Single-chat reads derive it; list responses leave it false.

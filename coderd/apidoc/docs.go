@@ -19630,7 +19630,7 @@ const docTemplate = `{
                     "$ref": "#/definitions/codersdk.ChatClientType"
                 },
                 "context": {
-                    "description": "Context reports the chat's pinned workspace-context state and\nwhether it has drifted from the agent's latest pushed snapshot.\nNil when the chat has no pinned context yet.",
+                    "description": "Context reports the chat's pinned workspace-context state and\nwhether it has drifted from the agent's latest pushed snapshot.\nNil until context is pinned, except on the single-chat GET, which\nalso returns it for a chat bound to an agent before its first\nsnapshot so mcp_discovery can report pending. Resources and\nmcp_discovery are only populated by the single-chat GET.",
                     "allOf": [
                         {
                             "$ref": "#/definitions/codersdk.ChatContext"
