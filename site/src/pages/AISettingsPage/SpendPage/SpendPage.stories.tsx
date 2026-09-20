@@ -5,6 +5,7 @@ import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { API } from "#/api/api";
 import type { OrganizationAISpendUser } from "#/api/typesGenerated";
 import {
+	MockAIProviders,
 	MockOrganization,
 	MockOrganization2,
 	MockOrganizationAISpendReport,
@@ -55,6 +56,7 @@ const meta = {
 	args: { now: fixedNow.toDate() },
 	parameters: {
 		user: MockUserMember,
+		permissions: { viewAnyAIBridgeInterception: true },
 		features: ["aibridge"],
 		reactRouter: reactRouterParameters({
 			location: { path: "/ai/settings/spend" },
@@ -83,6 +85,9 @@ const meta = {
 				),
 			}),
 		);
+		spyOn(API, "getAIBridgeProviders").mockResolvedValue(MockAIProviders);
+		spyOn(API, "getAIBridgeClients").mockResolvedValue(["Claude Code"]);
+		spyOn(API, "getAIBridgeModels").mockResolvedValue(["gpt-4o"]);
 	},
 } satisfies Meta<typeof SpendPage>;
 export default meta;
@@ -96,6 +101,48 @@ export const FirstPage: Story = {
 };
 
 export const BudgetPeriod: Story = {
+	play: async ({ canvasElement }) => {
+		await within(canvasElement).findByRole("table", { name: "Spend by user" });
+	},
+};
+
+export const ProviderMenu: Story = {
+	parameters: { reactRouter: explicitRange },
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			await canvas.findByRole("button", { name: "Select provider" }),
+		);
+		await screen.findByRole("option", { name: /OpenAI/ });
+	},
+};
+
+export const FilteredByProvider: Story = {
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: {
+				path: "/ai/settings/spend",
+				searchParams: {
+					startDate: "2026-02-10T00:00:00.000Z",
+					endDate: "2026-03-12T00:00:00.000Z",
+					provider_name: "openai",
+				},
+			},
+			routing,
+		}),
+	},
+	beforeEach: () => {
+		spyOn(API, "getOrganizationAISpendUsers").mockResolvedValue({
+			...MockOrganizationAISpendReport,
+			count: 3,
+			totals: { cost_micros: 27_000_000, unpriced_usage_count: 0 },
+			users: [
+				{ ...mockSpendUsers[0], providers: ["openai"] },
+				{ ...mockSpendUsers[3], providers: ["openai"] },
+				{ ...mockSpendUsers[6], providers: ["openai"] },
+			],
+		});
+	},
 	play: async ({ canvasElement }) => {
 		await within(canvasElement).findByRole("table", { name: "Spend by user" });
 	},

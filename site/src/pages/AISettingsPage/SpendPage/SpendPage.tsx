@@ -16,6 +16,9 @@ import {
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { usePaginatedQuery } from "#/hooks/usePaginatedQuery";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
+import { useClientFilterMenu } from "#/pages/AIBridgePage/filters/ClientFilter";
+import { useModelFilterMenu } from "#/pages/AIBridgePage/filters/ModelFilter";
+import { useProviderFilterMenu } from "#/pages/AIBridgePage/filters/ProviderFilter";
 import { getAIBridgePermissions } from "#/pages/AIBridgePage/getAIBridgePermissions";
 import {
 	modelOrganizationSearchParam,
@@ -26,6 +29,11 @@ import { SpendPageView } from "./SpendPageView";
 
 const startDateSearchParam = "startDate";
 const endDateSearchParam = "endDate";
+
+type SpendDimensions = Pick<
+	OrganizationAISpendFilter,
+	"provider_name" | "client" | "model"
+>;
 
 // Local midnight of the UTC calendar date that the instant falls on.
 const localDayOf = (instant: Date): Date =>
@@ -98,6 +106,9 @@ const SpendPage: FC<SpendPageProps> = ({ now }) => {
 		permissions,
 	);
 	const isSpendAvailable = isEntitled && isEnabled;
+	// The provider, model, and client options come from deployment-wide AI
+	// Gateway endpoints, so only viewers of every session get those filters.
+	const canFilterDimensions = permissions.viewAnyAIBridgeInterception;
 
 	const [searchParams, setSearchParams] = useSearchParams();
 
@@ -133,6 +144,31 @@ const SpendPage: FC<SpendPageProps> = ({ now }) => {
 		? undefined
 		: organizationSelection.organization;
 
+	const dimensions: SpendDimensions = canFilterDimensions
+		? {
+				provider_name: searchParams.get("provider_name") || undefined,
+				client: searchParams.get("client") || undefined,
+				model: searchParams.get("model") || undefined,
+			}
+		: {};
+	const filterMenus = {
+		provider: useProviderFilterMenu({
+			value: dimensions.provider_name,
+			onChange: (option) => setFilterParams({ provider_name: option?.value }),
+			enabled: isSpendAvailable && canFilterDimensions,
+		}),
+		client: useClientFilterMenu({
+			value: dimensions.client,
+			onChange: (option) => setFilterParams({ client: option?.value }),
+			enabled: isSpendAvailable && canFilterDimensions,
+		}),
+		model: useModelFilterMenu({
+			value: dimensions.model,
+			onChange: (option) => setFilterParams({ model: option?.value }),
+			enabled: isSpendAvailable && canFilterDimensions,
+		}),
+	};
+
 	const startDateParam = searchParams.get(startDateSearchParam)?.trim() ?? "";
 	const endDateParam = searchParams.get(endDateSearchParam)?.trim() ?? "";
 
@@ -161,6 +197,7 @@ const SpendPage: FC<SpendPageProps> = ({ now }) => {
 			period_start: dateRange.startDate.toISOString(),
 			period_end: dateRange.endDate.toISOString(),
 		}),
+		...dimensions,
 	};
 
 	// DateRangePicker already emits exclusive API boundaries (midnight after
@@ -207,7 +244,7 @@ const SpendPage: FC<SpendPageProps> = ({ now }) => {
 				dateRange={appliedDateRange}
 				minDate={minDate}
 				onDateRangeChange={onDateRangeChange}
-				filterMenus={undefined}
+				filterMenus={canFilterDimensions ? filterMenus : undefined}
 				reportQuery={reportQuery}
 			/>
 		</>
