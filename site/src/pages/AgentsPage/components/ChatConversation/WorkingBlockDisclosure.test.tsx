@@ -1,24 +1,8 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { type ComponentProps, useState } from "react";
-import {
-	didPrependIntoBlock,
-	WorkingBlockDisclosure,
-} from "./WorkingBlockDisclosure";
-import type { WorkingBlock } from "./workingBlockGrouping";
-
-const block: WorkingBlock = {
-	key: "working:through:message:5",
-	liveKey: "working:live:message:1:0",
-	rowIndices: [0, 1],
-	memberIds: [3, 5],
-	startedAt: 0,
-	endedAt: 12_000,
-	stepCount: 2,
-	failedCount: 0,
-	isLive: false,
-	isPartial: false,
-};
+import { MockWorkingBlock } from "./storyFixtures";
+import { WorkingBlockDisclosure } from "./WorkingBlockDisclosure";
 
 const ControlledDisclosure = (
 	props: Partial<ComponentProps<typeof WorkingBlockDisclosure>>,
@@ -26,8 +10,7 @@ const ControlledDisclosure = (
 	const [expanded, setExpanded] = useState(props.expanded ?? false);
 	return (
 		<WorkingBlockDisclosure
-			block={block}
-			now={12_000}
+			block={MockWorkingBlock}
 			{...props}
 			expanded={expanded}
 			onExpandedChange={(next) => {
@@ -35,32 +18,12 @@ const ControlledDisclosure = (
 				props.onExpandedChange?.(next);
 			}}
 		>
-			<ul aria-label="Original tool steps">
+			<ul aria-label="Steps">
 				<li>Read src/main.ts</li>
 			</ul>
 		</WorkingBlockDisclosure>
 	);
 };
-
-describe("didPrependIntoBlock", () => {
-	it("detects older members joining the front", () => {
-		expect(didPrependIntoBlock([3, 5], [1, 3, 5])).toBe(true);
-	});
-
-	it("detects a merged first row growing under a stable row key", () => {
-		expect(didPrependIntoBlock([7, 9], [4, 5, 7, 9])).toBe(true);
-	});
-
-	it("ignores unchanged, appended, and replaced members", () => {
-		expect(didPrependIntoBlock([3, 5], [3, 5])).toBe(false);
-		expect(didPrependIntoBlock([3, 5], [3, 5, 7])).toBe(false);
-		expect(didPrependIntoBlock([3, 5], [1, 2])).toBe(false);
-	});
-
-	it("ignores the live row becoming its persisted step", () => {
-		expect(didPrependIntoBlock([], [7])).toBe(false);
-	});
-});
 
 describe("WorkingBlockDisclosure", () => {
 	it("toggles with Enter and Space and keeps focus on the summary", async () => {

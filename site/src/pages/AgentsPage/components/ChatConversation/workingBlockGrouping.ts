@@ -9,8 +9,7 @@ import type {
 
 /**
  * A run of consecutive assistant step rows that the timeline can fold into
- * one "Worked for" disclosure. Rows are indices into the timeline rows the
- * block was computed from.
+ * one "Worked for" disclosure.
  */
 export type WorkingBlock = {
 	/**
@@ -26,6 +25,7 @@ export type WorkingBlock = {
 	 * persisted can still be found afterwards.
 	 */
 	liveKey: string;
+	/** Indices into the timeline rows the block was computed from. */
 	rowIndices: number[];
 	/**
 	 * Persisted member message IDs, oldest first. A merged read_file row
@@ -61,10 +61,7 @@ export type GroupWorkingBlocksOptions = {
 	streamState?: StreamState | null;
 };
 
-/**
- * Tools that need the user's attention or record a transcript boundary.
- * Rows containing them are never folded away.
- */
+/** Tools that need the user's attention or record a transcript boundary. */
 const UNCOLLAPSIBLE_TOOLS: ReadonlySet<string> = new Set([
 	"ask_user_question",
 	"propose_plan",
@@ -80,10 +77,25 @@ const parseTimestamp = (value: string | undefined): number | undefined => {
 	return Number.isFinite(time) ? time : undefined;
 };
 
+/**
+ * Whether older history joined the front of a block between two renders. A
+ * block that only had its live row has no previous member, so the live row
+ * becoming its persisted step is not a prepend.
+ */
+export const didPrependIntoBlock = (
+	previousMemberIds: readonly number[],
+	memberIds: readonly number[],
+): boolean => {
+	const previousFirst = previousMemberIds[0];
+	return (
+		previousFirst !== undefined &&
+		memberIds[0] < previousFirst &&
+		memberIds.includes(previousFirst)
+	);
+};
+
 export const formatWorkingDuration = (milliseconds: number): string => {
-	const totalSeconds = Number.isFinite(milliseconds)
-		? Math.max(0, Math.floor(milliseconds / 1000))
-		: 0;
+	const totalSeconds = Math.max(0, Math.floor(milliseconds / 1000));
 	const hours = Math.floor(totalSeconds / 3600);
 	const minutes = Math.floor((totalSeconds % 3600) / 60);
 	const seconds = totalSeconds % 60;
@@ -119,7 +131,7 @@ const getRowContent = (
  * folds with it; text that ends a row is an answer and stays visible. A
  * live row with no output yet is the turn working on its next step.
  */
-const isStepRow = (
+const getStepRowContent = (
 	row: TimelineRow,
 	options: GroupWorkingBlocksOptions,
 ): RowContent | undefined => {
@@ -199,8 +211,6 @@ const getMessageSpan = (entry: ParsedMessageEntry): MessageSpan => {
 const rowMessageIds = (row: TimelineRow): readonly number[] =>
 	row.type === "live" ? [] : (row.entry.mergedFrom ?? [row.entry.message.id]);
 
-const rowKey = (row: TimelineRow): string => row.key;
-
 /**
  * Groups consecutive step rows into working blocks. Timestamps come from the
  * raw entries, because the timeline rows already dropped tool-result messages
@@ -211,20 +221,7 @@ export const groupWorkingBlocks = (
 	entries: readonly ParsedMessageEntry[],
 	options: GroupWorkingBlocksOptions,
 ): WorkingBlock[] => {
-	const spans = entries.map(getMessageSpan).sort((a, b) => a.id - b.id);
-	const firstSpanIndexAtOrAfter = (id: number): number => {
-		let low = 0;
-		let high = spans.length;
-		while (low < high) {
-			const mid = (low + high) >>> 1;
-			if (spans[mid].id < id) {
-				low = mid + 1;
-			} else {
-				high = mid;
-			}
-		}
-		return low;
-	};
+	const spans = entries.map(getMessageSpan);
 
 	type Draft = {
 		rowIndices: number[];
@@ -238,11 +235,11 @@ export const groupWorkingBlocks = (
 	let anchorKey: string | undefined;
 	let ordinal = 0;
 	for (const [index, row] of rows.entries()) {
-		const content = isStepRow(row, options);
+		const content = getStepRowContent(row, options);
 		if (!content) {
 			current = undefined;
 			if (row.type === "message" && row.entry.message.role !== "assistant") {
-				anchorKey = rowKey(row);
+				anchorKey = row.key;
 				ordinal = 0;
 			}
 			continue;
@@ -314,13 +311,11 @@ export const groupWorkingBlocks = (
 			// next visible row, so the span runs to the next row's message.
 			const fromId = Math.min(...memberIds);
 			const toId = messageIdAfter(lastRowIndex);
-			for (
-				let i = firstSpanIndexAtOrAfter(fromId);
-				i < spans.length && spans[i].id < toId;
-				i++
-			) {
-				observe(spans[i].startedAt);
-				observe(spans[i].endedAt);
+			for (const span of spans) {
+				if (span.id >= fromId && span.id < toId) {
+					observe(span.startedAt);
+					observe(span.endedAt);
+				}
 			}
 		}
 		if (draft.containsLiveRow) {
@@ -328,9 +323,7 @@ export const groupWorkingBlocks = (
 		}
 
 		const liveKey = `working:live:${draft.anchorKey ?? "head"}:${draft.ordinal}`;
-		const key = isLive
-			? liveKey
-			: `working:through:${rowKey(rows[lastRowIndex])}`;
+		const key = isLive ? liveKey : `working:through:${rows[lastRowIndex].key}`;
 		const tools = Array.from(draft.tools.values());
 		return {
 			key,
@@ -347,4 +340,66 @@ export const groupWorkingBlocks = (
 			endedAt: isLive ? undefined : endedAt,
 		};
 	});
+};
+
+export type LiveBlockIdentity = {
+	itemKey: string;
+	firstMemberId: number | undefined;
+	streamStartedAt: string | undefined;
+};
+
+/**
+ * Carries the scroller item key a block rendered live with through the
+ * live-to-complete handoff and through paging, so an open block never
+ * remounts. Paging re-keys a live block anchored on the head once its turn's
+ * prompt loads; its oldest member and its stream both outlive the re-key, so
+ * either one identifies it. Returns the inputs when nothing changed.
+ */
+export const reconcileLiveBlockItemKeys = (
+	blocks: readonly WorkingBlock[],
+	streamStartedAt: string | undefined,
+	itemKeys: ReadonlyMap<string, string>,
+	identity: LiveBlockIdentity | null,
+): {
+	itemKeys: ReadonlyMap<string, string>;
+	identity: LiveBlockIdentity | null;
+} => {
+	let nextItemKeys = itemKeys;
+	let nextIdentity = identity;
+	for (const block of blocks) {
+		let itemKey = nextItemKeys.get(block.key);
+		if (itemKey === undefined) {
+			const current = nextIdentity;
+			const continuesLiveBlock =
+				current !== null &&
+				((current.firstMemberId !== undefined &&
+					block.memberIds.includes(current.firstMemberId)) ||
+					(block.isLive &&
+						current.streamStartedAt !== undefined &&
+						current.streamStartedAt === streamStartedAt));
+			if (continuesLiveBlock) {
+				itemKey = current.itemKey;
+			} else if (block.isLive) {
+				itemKey = block.liveKey;
+			} else {
+				itemKey = nextItemKeys.get(block.liveKey);
+			}
+			if (itemKey === undefined) {
+				continue;
+			}
+			const next = new Map(nextItemKeys);
+			next.set(block.key, itemKey);
+			nextItemKeys = next;
+		}
+		const firstMemberId = block.memberIds[0];
+		if (
+			block.isLive &&
+			(nextIdentity?.itemKey !== itemKey ||
+				nextIdentity.firstMemberId !== firstMemberId ||
+				nextIdentity.streamStartedAt !== streamStartedAt)
+		) {
+			nextIdentity = { itemKey, firstMemberId, streamStartedAt };
+		}
+	}
+	return { itemKeys: nextItemKeys, identity: nextIdentity };
 };

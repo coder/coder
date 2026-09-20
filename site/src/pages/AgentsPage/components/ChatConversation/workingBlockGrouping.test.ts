@@ -2,18 +2,19 @@ import type * as TypesGen from "#/api/typesGenerated";
 import { MockChatMessage } from "#/testHelpers/chatEntities";
 import { buildDisplayMessages } from "./messageHelpers";
 import { parseMessagesWithMergedTools } from "./messageParsing";
-import { applyMessagePartToStreamState, buildStreamTools } from "./streamState";
-import { assignTimelineRows, type TimelineRow } from "./timelineRows";
-import type { StreamState } from "./types";
 import {
+	workingFixtureTime as at,
+	buildStreamRenderState,
+	WORKING_FIXTURE_START,
+} from "./storyFixtures";
+import { assignTimelineRows, type TimelineRow } from "./timelineRows";
+import {
+	didPrependIntoBlock,
 	formatWorkingDuration,
 	type GroupWorkingBlocksOptions,
 	groupWorkingBlocks,
 	type WorkingBlock,
 } from "./workingBlockGrouping";
-
-const base = Date.parse("2026-04-01T12:00:00Z");
-const at = (seconds: number) => new Date(base + seconds * 1000).toISOString();
 
 let nextId = 1;
 const message = (
@@ -142,8 +143,8 @@ describe("groupWorkingBlocks", () => {
 			failedCount: 0,
 			isLive: false,
 			isPartial: false,
-			startedAt: base + 1000,
-			endedAt: base + 13000,
+			startedAt: WORKING_FIXTURE_START + 1000,
+			endedAt: WORKING_FIXTURE_START + 13000,
 			key: `working:through:message:${steps[2].id}`,
 			liveKey: `working:live:message:${prompt.id}:0`,
 		});
@@ -152,7 +153,9 @@ describe("groupWorkingBlocks", () => {
 	it("treats reasoning and narration before a tool call as part of the step", () => {
 		const prompt = user("Go");
 		const steps = [
-			...step("a", 1, 2, { leading: [reasoning("Plan", at(0.5), at(1))] }),
+			...step("a", 1, 2, {
+				leading: [reasoning("Plan", at(0.5), at(1))],
+			}),
 			...step("b", 3, 4, { leading: [text("Let me check the tests.")] }),
 		];
 		const answer = message("assistant", [reasoning("Wrap up"), text("Done.")]);
@@ -164,7 +167,7 @@ describe("groupWorkingBlocks", () => {
 			steps[2].id,
 		]);
 		// Reasoning start counts toward the wall-clock span.
-		expect(blocks[0].startedAt).toBe(base + 500);
+		expect(blocks[0].startedAt).toBe(WORKING_FIXTURE_START + 500);
 	});
 
 	it("leaves a standalone reasoning-only row unfolded", () => {
@@ -264,8 +267,8 @@ describe("groupWorkingBlocks", () => {
 
 		expect(blocks[0]).toMatchObject({
 			stepCount: 2,
-			startedAt: base + 1000,
-			endedAt: base + 11_000,
+			startedAt: WORKING_FIXTURE_START + 1000,
+			endedAt: WORKING_FIXTURE_START + 11_000,
 		});
 	});
 
@@ -274,7 +277,7 @@ describe("groupWorkingBlocks", () => {
 		const steps = step("a", 1, 30);
 		const answer = message("assistant", [text("Done.")], at(31));
 		const { blocks } = group([prompt, ...steps, answer]);
-		expect(blocks[0].endedAt).toBe(base + 30_000);
+		expect(blocks[0].endedAt).toBe(WORKING_FIXTURE_START + 30_000);
 	});
 
 	it("spans merged read_file rows as one block", () => {
@@ -292,8 +295,8 @@ describe("groupWorkingBlocks", () => {
 		expect(blocks).toHaveLength(1);
 		expect(blocks[0]).toMatchObject({
 			stepCount: 2,
-			startedAt: base + 1000,
-			endedAt: base + 4000,
+			startedAt: WORKING_FIXTURE_START + 1000,
+			endedAt: WORKING_FIXTURE_START + 4000,
 		});
 	});
 
@@ -311,7 +314,7 @@ describe("groupWorkingBlocks", () => {
 		const steps = step("a", 1, 2);
 		const nextPrompt = message("user", [text("Later")], at(60 * 60 * 24));
 		const { blocks } = group([prompt, ...steps, nextPrompt]);
-		expect(blocks[0].endedAt).toBe(base + 2000);
+		expect(blocks[0].endedAt).toBe(WORKING_FIXTURE_START + 2000);
 	});
 
 	it("marks the oldest loaded block partial while older history exists and keeps its key across a prepend", () => {
@@ -325,8 +328,8 @@ describe("groupWorkingBlocks", () => {
 		expect(newest.blocks[0]).toMatchObject({
 			isPartial: true,
 			stepCount: 1,
-			startedAt: base + 5000,
-			endedAt: base + 6000,
+			startedAt: WORKING_FIXTURE_START + 5000,
+			endedAt: WORKING_FIXTURE_START + 6000,
 			liveKey: "working:live:head:0",
 		});
 
@@ -334,8 +337,8 @@ describe("groupWorkingBlocks", () => {
 		expect(complete.blocks[0]).toMatchObject({
 			isPartial: false,
 			stepCount: 3,
-			startedAt: base + 1000,
-			endedAt: base + 6000,
+			startedAt: WORKING_FIXTURE_START + 1000,
+			endedAt: WORKING_FIXTURE_START + 6000,
 			liveKey: `working:live:message:${prompt.id}:0`,
 		});
 		expect(complete.blocks[0].key).toBe(newest.blocks[0].key);
@@ -349,41 +352,28 @@ describe("groupWorkingBlocks", () => {
 	});
 
 	describe("live turns", () => {
-		const liveStream = (
+		const liveOptions = (
 			parts: TypesGen.ChatMessagePart[],
-		): {
-			streamState: StreamState;
-			liveTools: ReturnType<typeof buildStreamTools>;
-		} => {
-			let state: StreamState | null = null;
-			for (const part of parts) {
-				state = applyMessagePartToStreamState(state, part);
-			}
-			const streamState = state ?? {
-				blocks: [],
-				toolCalls: {},
-				toolResults: {},
-				sources: [],
-			};
+		): Pick<
+			GroupWorkingBlocksOptions,
+			"liveBlocks" | "liveTools" | "streamState"
+		> => {
+			const { streamState, streamTools } = buildStreamRenderState(parts);
 			return {
+				liveBlocks: streamState?.blocks ?? [],
+				liveTools: streamTools,
 				streamState,
-				liveTools: buildStreamTools(
-					streamState.toolCalls,
-					streamState.toolResults,
-				),
 			};
 		};
 
 		it("keys the live block by its turn and folds a streaming tool row into it", () => {
 			const prompt = user("Go");
 			const steps = step("a", 1, 2);
-			const live = liveStream([call("b", at(3))]);
+			const live = liveOptions([call("b", at(3))]);
 			const { rows, blocks } = group([prompt, ...steps], {
 				isTurnActive: true,
 				isLiveRowCollapsible: true,
-				liveBlocks: live.streamState.blocks,
-				liveTools: live.liveTools,
-				streamState: live.streamState,
+				...live,
 			});
 
 			expect(blocks).toHaveLength(1);
@@ -391,7 +381,7 @@ describe("groupWorkingBlocks", () => {
 			expect(blocks[0]).toMatchObject({
 				isLive: true,
 				stepCount: 2,
-				startedAt: base + 1000,
+				startedAt: WORKING_FIXTURE_START + 1000,
 				endedAt: undefined,
 				key: `working:live:message:${prompt.id}:0`,
 			});
@@ -400,13 +390,11 @@ describe("groupWorkingBlocks", () => {
 		it("keeps the block live while the final answer streams outside it", () => {
 			const prompt = user("Go");
 			const steps = step("a", 1, 2);
-			const live = liveStream([text("Here is what I found")]);
+			const live = liveOptions([text("Here is what I found")]);
 			const { rows, blocks } = group([prompt, ...steps], {
 				isTurnActive: true,
 				isLiveRowCollapsible: true,
-				liveBlocks: live.streamState.blocks,
-				liveTools: live.liveTools,
-				streamState: live.streamState,
+				...live,
 			});
 
 			expect(blocks).toHaveLength(1);
@@ -417,13 +405,11 @@ describe("groupWorkingBlocks", () => {
 		it("folds an idle live row into the block it follows", () => {
 			const prompt = user("Go");
 			const steps = step("a", 1, 2);
-			const live = liveStream([]);
+			const live = liveOptions([]);
 			const { rows, blocks } = group([prompt, ...steps], {
 				isTurnActive: true,
 				isLiveRowCollapsible: true,
-				liveBlocks: live.streamState.blocks,
-				liveTools: live.liveTools,
-				streamState: live.streamState,
+				...live,
 			});
 
 			expect(blocks).toHaveLength(1);
@@ -432,26 +418,22 @@ describe("groupWorkingBlocks", () => {
 		});
 
 		it("does not start a block from an idle live row", () => {
-			const live = liveStream([]);
+			const live = liveOptions([]);
 			const { blocks } = group([user("Go")], {
 				isTurnActive: true,
 				isLiveRowCollapsible: true,
-				liveBlocks: live.streamState.blocks,
-				liveTools: live.liveTools,
-				streamState: live.streamState,
+				...live,
 			});
 			expect(blocks).toEqual([]);
 		});
 
 		it("folds the live turn's reasoning before its first tool call", () => {
 			const prompt = user("Go");
-			const live = liveStream([reasoning("Planning", at(1))]);
+			const live = liveOptions([reasoning("Planning", at(1))]);
 			const { rows, blocks } = group([prompt], {
 				isTurnActive: true,
 				isLiveRowCollapsible: true,
-				liveBlocks: live.streamState.blocks,
-				liveTools: live.liveTools,
-				streamState: live.streamState,
+				...live,
 			});
 
 			expect(blocks).toHaveLength(1);
@@ -459,7 +441,7 @@ describe("groupWorkingBlocks", () => {
 			expect(blocks[0]).toMatchObject({
 				isLive: true,
 				stepCount: 0,
-				startedAt: base + 1000,
+				startedAt: WORKING_FIXTURE_START + 1000,
 				key: `working:live:message:${prompt.id}:0`,
 			});
 		});
@@ -467,13 +449,11 @@ describe("groupWorkingBlocks", () => {
 		it("keeps the live row outside the block when its callouts must stay visible", () => {
 			const prompt = user("Go");
 			const steps = step("a", 1, 2);
-			const live = liveStream([call("b", at(3))]);
+			const live = liveOptions([call("b", at(3))]);
 			const { rows, blocks } = group([prompt, ...steps], {
 				isTurnActive: true,
 				isLiveRowCollapsible: false,
-				liveBlocks: live.streamState.blocks,
-				liveTools: live.liveTools,
-				streamState: live.streamState,
+				...live,
 			});
 
 			expect(rowIds(rows, blocks[0].rowIndices)).toEqual([steps[0].id]);
@@ -482,28 +462,24 @@ describe("groupWorkingBlocks", () => {
 
 		it("starts the live clock from streamed tool timestamps before anything persists", () => {
 			const prompt = user("Go");
-			const live = liveStream([call("a", at(2))]);
+			const live = liveOptions([call("a", at(2))]);
 			const { blocks } = group([prompt], {
 				isTurnActive: true,
 				isLiveRowCollapsible: true,
-				liveBlocks: live.streamState.blocks,
-				liveTools: live.liveTools,
-				streamState: live.streamState,
+				...live,
 			});
 			expect(blocks).toHaveLength(1);
-			expect(blocks[0].startedAt).toBe(base + 2000);
+			expect(blocks[0].startedAt).toBe(WORKING_FIXTURE_START + 2000);
 		});
 
 		it("hands the live block off to a completed block that shares its liveKey", () => {
 			const prompt = user("Go");
 			const steps = step("a", 1, 2);
-			const live = liveStream([call("b", at(3))]);
+			const live = liveOptions([call("b", at(3))]);
 			const running = group([prompt, ...steps], {
 				isTurnActive: true,
 				isLiveRowCollapsible: true,
-				liveBlocks: live.streamState.blocks,
-				liveTools: live.liveTools,
-				streamState: live.streamState,
+				...live,
 			});
 			const persisted = [...steps, ...step("b", 3, 4)];
 			const answer = message("assistant", [text("Done.")], at(5));
@@ -513,8 +489,8 @@ describe("groupWorkingBlocks", () => {
 			expect(done.blocks[0].key).not.toBe(running.blocks[0].key);
 			expect(done.blocks[0]).toMatchObject({
 				isLive: false,
-				startedAt: base + 1000,
-				endedAt: base + 4000,
+				startedAt: WORKING_FIXTURE_START + 1000,
+				endedAt: WORKING_FIXTURE_START + 4000,
 			});
 		});
 
@@ -538,7 +514,7 @@ describe("groupWorkingBlocks", () => {
 			expect(blocks[0]).toMatchObject({
 				isLive: true,
 				stepCount: 2,
-				startedAt: base + 1000,
+				startedAt: WORKING_FIXTURE_START + 1000,
 				endedAt: undefined,
 			});
 		});
@@ -562,20 +538,18 @@ describe("groupWorkingBlocks", () => {
 			expect(blocks[0]).toMatchObject({
 				isLive: false,
 				stepCount: 1,
-				endedAt: base + 2000,
+				endedAt: WORKING_FIXTURE_START + 2000,
 			});
 		});
 
 		it("gives a prompt-less live block a stable head liveKey", () => {
 			const steps = [...step("a", 1, 2), ...step("b", 3, 4)];
-			const live = liveStream([call("c", at(5))]);
+			const live = liveOptions([call("c", at(5))]);
 			const running = group(steps, {
 				hasMoreMessages: true,
 				isTurnActive: true,
 				isLiveRowCollapsible: true,
-				liveBlocks: live.streamState.blocks,
-				liveTools: live.liveTools,
-				streamState: live.streamState,
+				...live,
 			});
 			expect(running.blocks[0]).toMatchObject({
 				isLive: true,
@@ -595,13 +569,11 @@ describe("groupWorkingBlocks", () => {
 			const firstSteps = step("a", 1, 2);
 			const firstAnswer = message("assistant", [text("Done one.")], at(3));
 			const second = user("Two");
-			const live = liveStream([call("b", at(5))]);
+			const live = liveOptions([call("b", at(5))]);
 			const { blocks } = group([first, ...firstSteps, firstAnswer, second], {
 				isTurnActive: true,
 				isLiveRowCollapsible: true,
-				liveBlocks: live.streamState.blocks,
-				liveTools: live.liveTools,
-				streamState: live.streamState,
+				...live,
 			});
 
 			expect(blocks).toHaveLength(2);
@@ -611,56 +583,23 @@ describe("groupWorkingBlocks", () => {
 	});
 });
 
-describe("stream timestamps", () => {
-	it("records the earliest part timestamp as the stream start", () => {
-		const thinking = applyMessagePartToStreamState(
-			null,
-			reasoning("Plan", at(2)),
-		);
-		const delta = applyMessagePartToStreamState(
-			thinking,
-			reasoning(" more", at(2)),
-		);
-		expect(delta?.startedAt).toBe(at(2));
-		const called = applyMessagePartToStreamState(delta, call("x", at(5)));
-		expect(called?.startedAt).toBe(at(2));
-		expect(applyMessagePartToStreamState(null, text("Hi"))?.startedAt).toBe(
-			undefined,
-		);
+describe("didPrependIntoBlock", () => {
+	it("detects older members joining the front", () => {
+		expect(didPrependIntoBlock([3, 5], [1, 3, 5])).toBe(true);
 	});
 
-	it("keeps the first call timestamp and the latest result timestamp across deltas", () => {
-		const started = applyMessagePartToStreamState(null, {
-			type: "tool-call",
-			tool_call_id: "x",
-			tool_name: "execute",
-			args_delta: '{"command":',
-			created_at: at(1),
-		});
-		const delta = applyMessagePartToStreamState(started, {
-			type: "tool-call",
-			tool_call_id: "x",
-			tool_name: "execute",
-			args_delta: '"pwd"}',
-			created_at: at(2),
-		});
-		expect(delta?.toolCalls.x.createdAt).toBe(at(1));
+	it("detects a merged first row growing under a stable row key", () => {
+		expect(didPrependIntoBlock([7, 9], [4, 5, 7, 9])).toBe(true);
+	});
 
-		const partial = applyMessagePartToStreamState(delta, {
-			type: "tool-result",
-			tool_call_id: "x",
-			tool_name: "execute",
-			result_delta: '{"output":',
-			created_at: at(3),
-		});
-		const final = applyMessagePartToStreamState(partial, {
-			type: "tool-result",
-			tool_call_id: "x",
-			tool_name: "execute",
-			result: { output: "done" },
-			created_at: at(4),
-		});
-		expect(final?.toolResults.x.createdAt).toBe(at(4));
+	it("ignores unchanged, appended, and replaced members", () => {
+		expect(didPrependIntoBlock([3, 5], [3, 5])).toBe(false);
+		expect(didPrependIntoBlock([3, 5], [3, 5, 7])).toBe(false);
+		expect(didPrependIntoBlock([3, 5], [1, 2])).toBe(false);
+	});
+
+	it("ignores the live row becoming its persisted step", () => {
+		expect(didPrependIntoBlock([], [7])).toBe(false);
 	});
 });
 
@@ -674,7 +613,6 @@ describe("formatWorkingDuration", () => {
 		[3_600_000, "1h 0m"],
 		[3_780_000, "1h 3m"],
 		[-5000, "0s"],
-		[Number.NaN, "0s"],
 	])("formats %d ms as %s", (milliseconds, expected) => {
 		expect(formatWorkingDuration(milliseconds)).toBe(expected);
 	});

@@ -434,13 +434,13 @@ const defaultArgs: Omit<
 > = {
 	organizationId: "organization-id",
 	subagentTitles: new Map(),
+	chatStatus: null,
 };
 
 const meta: Meta<typeof ConversationTimeline> = {
 	title: "pages/AgentsPage/ChatConversation/ConversationTimeline",
 	component: ConversationTimeline,
 	decorators: [withMessageScroller],
-	// The timeline waits for the display preferences before its first paint.
 	parameters: {
 		queries: [{ key: preferenceSettingsKey, data: MockUserPreferenceSettings }],
 	},
