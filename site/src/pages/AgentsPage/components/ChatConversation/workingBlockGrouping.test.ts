@@ -295,6 +295,7 @@ describe("groupWorkingBlocks", () => {
 		expect(blocks).toHaveLength(1);
 		expect(blocks[0]).toMatchObject({
 			stepCount: 2,
+			memberIds: [reads[0].id, reads[2].id],
 			startedAt: WORKING_FIXTURE_START + 1000,
 			endedAt: WORKING_FIXTURE_START + 4000,
 		});
@@ -405,6 +406,7 @@ describe("groupWorkingBlocks", () => {
 			expect(blocks[0]).toMatchObject({
 				isLive: true,
 				stepCount: 2,
+				memberIds: [steps[0].id],
 				startedAt: WORKING_FIXTURE_START + 1000,
 				endedAt: undefined,
 				key: `working:live:message:${prompt.id}:0`,
