@@ -103,8 +103,13 @@ func sanitizeMCPError(cfg ServerConfig, inherited []string, err error) string {
 	}
 	if cfg.URL != "" {
 		if u, parseErr := url.Parse(cfg.URL); parseErr == nil {
+			// net/http masks only the password in its error text, so a
+			// credential carried in the username is registered on its own.
 			if u.User != nil && u.User.String() != "" {
 				secrets = append(secrets, u.User.String())
+				if name := u.User.Username(); len(name) >= minRedactLength {
+					secrets = append(secrets, name)
+				}
 				if pw, ok := u.User.Password(); ok && pw != "" {
 					secrets = append(secrets, pw)
 				}

@@ -126,8 +126,10 @@ func buildMCPServerResources(servers []MCPServerStatus) []Resource {
 // resolution, because the engine and the resolver may reach the same
 // file through different spellings. A path with no row at all (a
 // configured file whose name the resolver does not recognize) gets a
-// synthesized row so the diagnostic still reaches chats.
-func applyMCPConfigErrors(resources []Resource, errs []MCPConfigError) []Resource {
+// synthesized row so the diagnostic still reaches chats, unless its
+// source is already taken by a filesystem row or by one of the pending
+// MCP rows the caller appends afterwards.
+func applyMCPConfigErrors(resources []Resource, errs []MCPConfigError, pending []Resource) []Resource {
 	for _, cfgErr := range errs {
 		if cfgErr.Path == "" || cfgErr.Err == "" {
 			continue
@@ -150,7 +152,8 @@ func applyMCPConfigErrors(resources []Resource, errs []MCPConfigError) []Resourc
 			// coderd rejects duplicate sources regardless of kind and
 			// sources above its cap, and either rejection fails the
 			// whole push, so such a config entry gets no row.
-			if len(cfgErr.Path) > maxSourceBytes || slices.ContainsFunc(resources, func(r Resource) bool { return r.Source == cfgErr.Path }) {
+			taken := func(r Resource) bool { return r.Source == cfgErr.Path }
+			if len(cfgErr.Path) > maxSourceBytes || slices.ContainsFunc(resources, taken) || slices.ContainsFunc(pending, taken) {
 				continue
 			}
 			resources = append(resources, Resource{

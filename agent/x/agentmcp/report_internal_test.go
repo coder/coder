@@ -628,6 +628,16 @@ func TestSanitizeMCPError(t *testing.T) {
 		assert.Contains(t, got, "-v -p[redacted] --verbose -Dtoken=[redacted]", "option letters and long flags stay readable")
 	})
 
+	t.Run("URLUsernameWithMaskedPassword", func(t *testing.T) {
+		t.Parallel()
+		// net/http masks only the password in its error text, so a token
+		// carried in the username survives the client's own redaction.
+		cfg := ServerConfig{URL: "https://user-sentinel:dummy@mcp.example.com/mcp"}
+		got := sanitizeMCPError(cfg, nil, xerrors.New(`Post "https://user-sentinel:***@mcp.example.com/mcp": dial tcp: connection refused`))
+		assert.NotContains(t, got, "user-sentinel")
+		assert.Contains(t, got, "@mcp.example.com/mcp", "host and path stay readable")
+	})
+
 	t.Run("EnvironmentValues", func(t *testing.T) {
 		t.Parallel()
 		got := envValues([]string{"AWS_SECRET_ACCESS_KEY=ambient-sentinel", "GITHUB_TOKEN=gh-sentinel", "HOME=/home/coder", "PATH=/usr/bin", "LANG=C.UTF-8", "OTP=123"})

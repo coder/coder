@@ -168,15 +168,16 @@ func (r *Resolver) ResolveContextWithMCP(ctx context.Context, roots []ScanRoot, 
 	}
 	resources = deduplicateSkills(resources)
 	resources, totalBytes := res.applyCaps(resources)
-	resources = applyMCPConfigErrors(resources, mcp.ConfigErrors)
 
-	// Append MCP server resources after the filesystem caps
+	// MCP server resources are appended after the filesystem caps
 	// are applied so a runaway MCP server cannot crowd out
-	// instruction files.
+	// instruction files, but they are built first so the config
+	// error overlay can see every source the snapshot will carry.
 	mcpResources := buildMCPServerResources(mcp.Servers)
 	if r.MCPResources != nil {
 		mcpResources = append(mcpResources, r.MCPResources()...)
 	}
+	resources = applyMCPConfigErrors(resources, mcp.ConfigErrors, mcpResources)
 	if len(mcpResources) > 0 {
 		startIdx := len(resources)
 		resources = append(resources, mcpResources...)

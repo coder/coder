@@ -1,6 +1,7 @@
 package agentcontext
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -190,7 +191,7 @@ func TestApplyMCPConfigErrors(t *testing.T) {
 			okConfig("/w/.mcp.json"),
 			{ID: "instruction_file:/w/AGENTS.md", Kind: KindInstructionFile, Source: "/w/AGENTS.md", Status: StatusOK},
 		}
-		resources = applyMCPConfigErrors(resources, []MCPConfigError{{Path: "/w/.mcp.json", Err: "server \"a\" has no command or url"}})
+		resources = applyMCPConfigErrors(resources, []MCPConfigError{{Path: "/w/.mcp.json", Err: "server \"a\" has no command or url"}}, nil)
 		require.Equal(t, StatusInvalid, resources[0].Status)
 		require.Equal(t, "server \"a\" has no command or url", resources[0].Error)
 		require.Equal(t, StatusOK, resources[1].Status)
@@ -202,7 +203,7 @@ func TestApplyMCPConfigErrors(t *testing.T) {
 			ID: resourceID(KindMCPConfig, "/w/.mcp.json"), Kind: KindMCPConfig, Source: "/w/.mcp.json",
 			Status: StatusOversize, Error: "too big",
 		}}
-		resources = applyMCPConfigErrors(resources, []MCPConfigError{{Path: "/w/.mcp.json", Err: "parse"}})
+		resources = applyMCPConfigErrors(resources, []MCPConfigError{{Path: "/w/.mcp.json", Err: "parse"}}, nil)
 		require.Equal(t, StatusOversize, resources[0].Status)
 		require.Equal(t, "too big", resources[0].Error)
 	})
@@ -212,7 +213,7 @@ func TestApplyMCPConfigErrors(t *testing.T) {
 		// A configured file the resolver does not recognize by name
 		// (CODER_AGENT_EXP_MCP_CONFIG_FILES=/opt/custom.json) has no
 		// row of its own, so its diagnostic gets one.
-		resources := applyMCPConfigErrors([]Resource{okConfig("/w/.mcp.json")}, []MCPConfigError{{Path: "/opt/custom.json", Err: "parse"}})
+		resources := applyMCPConfigErrors([]Resource{okConfig("/w/.mcp.json")}, []MCPConfigError{{Path: "/opt/custom.json", Err: "parse"}}, nil)
 		require.Len(t, resources, 2)
 		require.Equal(t, StatusOK, resources[0].Status)
 		require.Equal(t, Resource{
@@ -228,9 +229,27 @@ func TestApplyMCPConfigErrors(t *testing.T) {
 		// sources regardless of kind, which would fail the whole push.
 		resources := applyMCPConfigErrors([]Resource{
 			{ID: "instruction_file:/w/AGENTS.md", Kind: KindInstructionFile, Source: "/w/AGENTS.md", Status: StatusOK},
-		}, []MCPConfigError{{Path: "/w/AGENTS.md", Err: "parse"}})
+		}, []MCPConfigError{{Path: "/w/AGENTS.md", Err: "parse"}}, nil)
 		require.Len(t, resources, 1)
 		require.Equal(t, StatusOK, resources[0].Status)
+	})
+
+	t.Run("UnmatchedPathNamedLikeAnMCPServerIsDropped", func(t *testing.T) {
+		t.Parallel()
+		// Server names are free-form and may spell an absolute path. A
+		// malformed custom config file named like a server from another
+		// file must not get a row that duplicates the server row's source.
+		snap := (&Resolver{}).ResolveContextWithMCP(context.Background(), nil, MCPReport{
+			Servers:      []MCPServerStatus{{Name: "/opt/custom.json", Connected: true}},
+			ConfigErrors: []MCPConfigError{{Path: "/opt/custom.json", Err: "parse"}},
+		})
+		var kinds []ResourceKind
+		for _, res := range snap.Resources {
+			if res.Source == "/opt/custom.json" {
+				kinds = append(kinds, res.Kind)
+			}
+		}
+		require.Equal(t, []ResourceKind{KindMCPServer}, kinds, "one row per source, or coderd rejects the whole push")
 	})
 
 	t.Run("UnmatchedOverlongPathIsDropped", func(t *testing.T) {
@@ -238,7 +257,7 @@ func TestApplyMCPConfigErrors(t *testing.T) {
 		// coderd rejects a source above its cap, which would fail the
 		// whole push, so no row is synthesized for it.
 		long := "/opt/" + strings.Repeat("d", maxSourceBytes) + "/custom.json"
-		resources := applyMCPConfigErrors([]Resource{okConfig("/w/.mcp.json")}, []MCPConfigError{{Path: long, Err: "parse"}})
+		resources := applyMCPConfigErrors([]Resource{okConfig("/w/.mcp.json")}, []MCPConfigError{{Path: long, Err: "parse"}}, nil)
 		require.Len(t, resources, 1)
 		require.Equal(t, StatusOK, resources[0].Status)
 	})
@@ -257,7 +276,7 @@ func TestApplyMCPConfigErrors(t *testing.T) {
 
 		// The resolver walked the symlink; the engine reported the target.
 		resources := []Resource{okConfig(link)}
-		resources = applyMCPConfigErrors(resources, []MCPConfigError{{Path: target, Err: "semantic"}})
+		resources = applyMCPConfigErrors(resources, []MCPConfigError{{Path: target, Err: "semantic"}}, nil)
 		require.Equal(t, StatusInvalid, resources[0].Status)
 		require.Equal(t, "semantic", resources[0].Error)
 	})
