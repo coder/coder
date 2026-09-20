@@ -8,9 +8,9 @@ import {
 } from "lucide-react";
 import { Fragment, useId } from "react";
 import {
+	CHAT_GOAL_ACTIONS_BY_STATUS,
 	type ChatGoalAction,
 	type CurrentChatGoalStatus,
-	chatGoalActionsForStatus,
 	isCurrentChatGoalStatus,
 } from "#/api/queries/chatGoal";
 import type * as TypesGen from "#/api/typesGenerated";
@@ -78,7 +78,7 @@ export const ChatGoalBanner: React.FC<ChatGoalBannerProps> = ({
 		goal.status === "active" && isChatWorking
 			? { label: "Pursuing goal", variant: "info" as const }
 			: GOAL_STATUS_UI[goal.status];
-	const actions = canMutateGoal ? chatGoalActionsForStatus(goal.status) : [];
+	const actions = canMutateGoal ? CHAT_GOAL_ACTIONS_BY_STATUS[goal.status] : [];
 	const disabled = isActionPending || isActionDisabled;
 	const age = shortRelativeTime(goal.created_at);
 
@@ -104,14 +104,14 @@ export const ChatGoalBanner: React.FC<ChatGoalBannerProps> = ({
 						</span>
 					</div>
 					<p
-						className="line-clamp-3 whitespace-pre-wrap text-sm leading-5 text-content-primary [overflow-wrap:anywhere]"
+						className="line-clamp-3 whitespace-pre-wrap text-sm leading-5 text-content-primary wrap-anywhere"
 						title={goal.objective}
 					>
 						{goal.objective}
 					</p>
 					{goal.completion_summary ? (
 						<p
-							className="line-clamp-2 text-xs leading-5 text-content-secondary [overflow-wrap:anywhere]"
+							className="line-clamp-2 text-xs leading-5 text-content-secondary wrap-anywhere"
 							title={goal.completion_summary}
 						>
 							Summary: {goal.completion_summary}
