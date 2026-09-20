@@ -1,7 +1,10 @@
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
+import type { RouteObject } from "react-router";
+import type { AuthorizationRequest, Entitlements } from "#/api/typesGenerated";
 import {
+	MockDefaultOrganization,
 	MockEntitlements,
 	MockNoPermissions,
 	MockPermissions,
@@ -16,15 +19,22 @@ import { DashboardLayout } from "./DashboardLayout";
 const renderDashboardLayout = async ({
 	actual,
 	entitlement = "entitled",
+	features,
 	limit,
 	permissions = MockPermissions,
+	organizationChecks = false,
 	warnings,
+	children = [{ element: <h1>Test page</h1> }],
 }: {
 	actual?: number;
 	entitlement?: "entitled" | "grace_period" | "not_entitled";
+	features?: Partial<Entitlements["features"]>;
 	limit?: number;
 	permissions?: typeof MockPermissions;
+	/** Answer for authorization checks keyed by organization id. */
+	organizationChecks?: boolean;
 	warnings?: string[];
+	children?: RouteObject[];
 }) => {
 	server.use(
 		http.get("/api/v2/entitlements", () => {
@@ -41,18 +51,30 @@ const renderDashboardLayout = async ({
 						...(actual !== undefined ? { actual } : {}),
 						...(limit !== undefined ? { limit } : {}),
 					},
+					...features,
 				},
 			});
 		}),
-		http.post("/api/v2/authcheck", () => {
-			return HttpResponse.json(permissions);
+		// The inbox request fires once the permission queries settle and has no
+		// default handler.
+		http.get("/api/v2/notifications/inbox", () => {
+			return HttpResponse.json({ notifications: [], unread_count: 0 });
+		}),
+		http.post("/api/v2/authcheck", async ({ request }) => {
+			const { checks } = (await request.json()) as AuthorizationRequest;
+			return HttpResponse.json(
+				MockDefaultOrganization.id in checks
+					? Object.fromEntries(
+							Object.keys(checks).map((id) => [id, organizationChecks]),
+						)
+					: permissions,
+			);
 		}),
 	);
 
-	renderWithAuth(<DashboardLayout />, {
-		children: [{ element: <h1>Test page</h1> }],
-	});
+	const result = renderWithAuth(<DashboardLayout />, { children });
 	await waitForLoaderToBeRemoved();
+	return result;
 };
 
 test("Show the new Coder version notification", async () => {
@@ -95,6 +117,23 @@ test("shows AI Governance over-limit warning in LicenseBanner for admin users", 
 			/110 of 100 AI Governance add-on seats \(10 over the limit\)/,
 		),
 	).toBeInTheDocument();
+});
+
+test("navigates an organization group member reader to AI settings from Admin settings", async () => {
+	const { router } = await renderDashboardLayout({
+		permissions: MockNoPermissions,
+		features: { aibridge: { enabled: true, entitlement: "entitled" } },
+		organizationChecks: true,
+		children: [{ path: "/ai/settings", element: <h1>AI settings</h1> }],
+	});
+
+	const user = userEvent.setup();
+	await user.click(
+		await screen.findByRole("button", { name: "Admin settings" }),
+	);
+	await user.click(await screen.findByRole("menuitem", { name: "AI" }));
+	await screen.findByRole("heading", { name: "AI settings" });
+	expect(router.state.location.pathname).toBe("/ai/settings");
 });
 
 test("renders a skip link before navigation content", async () => {
