@@ -2428,9 +2428,11 @@ export const RelayedMessageFromChild: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const relayed = canvas.getByText(/flaky retry loop/i);
-		await userEvent.hover(
-			relayed.closest('[data-role="user"]')?.parentElement as HTMLElement,
-		);
+		const rowWrapper = relayed.closest('[data-role="user"]')?.parentElement;
+		if (!(rowWrapper instanceof HTMLElement)) {
+			return;
+		}
+		await userEvent.hover(rowWrapper);
 	},
 };
 

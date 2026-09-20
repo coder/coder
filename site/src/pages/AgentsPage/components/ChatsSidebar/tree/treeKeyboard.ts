@@ -15,7 +15,6 @@ type TreeKeyboardResult = {
 	readonly toggle?: { readonly id: string; readonly expanded: boolean };
 	/** Ids to expand when `*` is pressed: collapsed siblings with children. */
 	readonly expandIds?: readonly string[];
-	readonly open?: string;
 	/** The type-ahead buffer after this key, empty when the key was not a character. */
 	readonly typeahead: string;
 };
@@ -64,7 +63,8 @@ export const focusTargetAfterRemoval = (
 /**
  * WAI-ARIA tree keyboard pattern over the visible rows. Pure: the caller
  * owns focus, expansion state, and the type-ahead buffer (which it resets
- * after a pause). Right and Left follow the LTR convention.
+ * after a pause). Right and Left follow the LTR convention. Enter is not
+ * handled here: activation is the treeitem's own click or key handler.
  */
 export const treeKeyboardReducer = (
 	rows: readonly TreeKeyboardRow[],
@@ -136,10 +136,6 @@ export const treeKeyboardReducer = (
 				typeahead: "",
 			};
 		}
-		case "Enter":
-			return current
-				? { handled: true, open: current.id, typeahead: "" }
-				: notHandled();
 		case "*": {
 			if (!current) {
 				return notHandled();

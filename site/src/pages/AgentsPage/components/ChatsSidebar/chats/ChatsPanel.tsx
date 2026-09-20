@@ -31,11 +31,7 @@ import { Kbd, KbdGroup } from "#/components/Kbd/Kbd";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { getOSKey } from "#/utils/platform";
-import {
-	AGENT_CHAT_STATUS_ORDER,
-	type AgentSidebarFilters,
-	DEFAULT_AGENT_SIDEBAR_FILTERS,
-} from "../../../utils/agentSidebarFilters";
+import type { AgentSidebarFilters } from "../../../utils/agentSidebarFilters";
 import { getTimeGroup, TIME_GROUPS } from "../../../utils/timeGroups";
 import { FilterPopover } from "../filters/FilterPopover";
 import { normalizeLocationSearch } from "../locationSearch";
@@ -57,6 +53,7 @@ import {
 	getSectionToggleTestId,
 	PINNED_SECTION_KEY,
 } from "./ChatSectionHeader";
+import { ChatsEmptyState, hasAppliedResultFilters } from "./ChatsEmptyState";
 import { LoadMoreSentinel } from "./LoadMoreSentinel";
 import { UserSidebarFooter } from "./UserSidebarFooter";
 
@@ -169,15 +166,7 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 	const unpinnedOwnedChats = unpinnedChats.filter(
 		(chat) => !chat.shared || chat.owner_id === currentUserId,
 	);
-	const hasAppliedResultFilters =
-		sidebarFilters.prStatuses.length > 0 ||
-		sidebarFilters.chatStatuses.length !== AGENT_CHAT_STATUS_ORDER.length ||
-		sidebarFilters.sources.length !==
-			DEFAULT_AGENT_SIDEBAR_FILTERS.sources.length ||
-		sidebarFilters.sources.some(
-			(source) => !DEFAULT_AGENT_SIDEBAR_FILTERS.sources.includes(source),
-		);
-	const disablePinnedReordering = hasAppliedResultFilters;
+	const disablePinnedReordering = hasAppliedResultFilters(sidebarFilters);
 
 	// Local override for pinned order during drag. Applied
 	// synchronously so there's no flash between the dnd-kit
@@ -343,19 +332,6 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 	const isShowingEmptyState = visibleRootIDs.length === 0;
 	const isViewingArchived = sidebarFilters.archiveStatus === "archived";
 	const chatsHeadingLabel = isViewingArchived ? "Archived chats" : "Chats";
-	const emptyStateMessage = hasAppliedResultFilters
-		? "No agents match these filters"
-		: isViewingArchived
-			? "No archived agents"
-			: "No agents yet";
-	const clearResultFilters = () => {
-		onSidebarFiltersChange({
-			...sidebarFilters,
-			prStatuses: [],
-			chatStatuses: AGENT_CHAT_STATUS_ORDER,
-			sources: DEFAULT_AGENT_SIDEBAR_FILTERS.sources,
-		});
-	};
 
 	return (
 		<div
@@ -533,18 +509,10 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 							<ChatTreeContext value={chatTreeCtx}>
 								<div className="pb-2">
 									{isShowingEmptyState ? (
-										<div className="rounded-lg border border-dashed border-border-default bg-surface-primary p-4 text-center text-xs text-content-secondary">
-											<p className="m-0">{emptyStateMessage}</p>
-											{hasAppliedResultFilters && (
-												<button
-													type="button"
-													className="mt-2 cursor-pointer border-none bg-transparent p-0 text-xs text-content-secondary hover:text-content-primary hover:underline"
-													onClick={clearResultFilters}
-												>
-													Clear filters
-												</button>
-											)}
-										</div>
+										<ChatsEmptyState
+											filters={sidebarFilters}
+											onFiltersChange={onSidebarFiltersChange}
+										/>
 									) : (
 										<>
 											{pinnedChats.length > 0 && (

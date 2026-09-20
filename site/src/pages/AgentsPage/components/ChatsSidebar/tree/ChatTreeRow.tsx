@@ -81,15 +81,24 @@ const IndentGuides: FC<IndentGuidesProps> = ({ level }) => (
 );
 
 interface ChevronProps {
+	readonly rowId: string;
 	readonly hasChildren: boolean;
 	readonly isExpanded: boolean;
 	readonly onToggle: () => void;
 }
 
-// Always visible and 24 px wide on coarse pointers so touch users can
-// expand nodes; hover-revealed on fine pointers. Never in the tab order:
-// the treeitem's Right and Left keys cover the same action.
-const Chevron: FC<ChevronProps> = ({ hasChildren, isExpanded, onToggle }) => {
+// Pointer-only affordance: always visible and 24 px wide on coarse
+// pointers, hover-revealed on fine pointers. It never takes DOM focus
+// (pointerdown is cancelled, tabIndex -1) and is hidden from assistive
+// technology; the treeitem's aria-expanded carries the state and receives
+// focus after every toggle.
+const Chevron: FC<ChevronProps> = ({
+	rowId,
+	hasChildren,
+	isExpanded,
+	onToggle,
+}) => {
+	const { treeDomId } = useChatTreePanel();
 	if (!hasChildren) {
 		return <span aria-hidden="true" className="size-6 shrink-0" />;
 	}
@@ -98,15 +107,17 @@ const Chevron: FC<ChevronProps> = ({ hasChildren, isExpanded, onToggle }) => {
 			variant="subtle"
 			size="icon"
 			tabIndex={-1}
+			aria-hidden="true"
+			onPointerDown={(event) => event.preventDefault()}
 			onClick={(event) => {
 				event.preventDefault();
 				onToggle();
+				document.getElementById(chatTreeRowDomId(treeDomId, rowId))?.focus();
 			}}
 			className={cn(
 				"size-6 min-w-0 shrink-0 rounded-md p-0 text-content-secondary/70 hover:text-content-primary [&>svg]:size-3.5",
 				"[@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 [@media(hover:hover)]:group-focus-within:opacity-100",
 			)}
-			aria-label={isExpanded ? "Collapse" : "Expand"}
 		>
 			{isExpanded ? <ChevronDownIcon /> : <ChevronRightIcon />}
 		</Button>
@@ -123,7 +134,7 @@ interface ChatTreeRowProps {
  * synthetic organization node); the wrapper carries no role.
  */
 export const ChatTreeRow: FC<ChatTreeRowProps> = ({ id }) => {
-	const { model, rowsById } = useChatTreePanel();
+	const { model, rowsById, subagentLoadStates } = useChatTreePanel();
 	const row = rowsById.get(id);
 	const node = model.nodesById.get(id);
 	if (!row || !node) {
@@ -132,6 +143,12 @@ export const ChatTreeRow: FC<ChatTreeRowProps> = ({ id }) => {
 	const childIds = getChatTreeChildren(model, id).filter((childId) =>
 		rowsById.has(childId),
 	);
+	const showChildren = row.isExpanded && childIds.length > 0;
+	// A node without children has no expander, so its load line shows as
+	// soon as the fetch starts; otherwise it follows the expanded state.
+	const subagentLoadState = subagentLoadStates.get(id);
+	const showSubagentLoadState =
+		subagentLoadState !== undefined && (row.isExpanded || !row.hasChildren);
 	return (
 		<div role="none" className="flex min-w-0 flex-col">
 			{node.kind === "organization" ? (
@@ -139,11 +156,24 @@ export const ChatTreeRow: FC<ChatTreeRowProps> = ({ id }) => {
 			) : node.chat ? (
 				<ChatTreeItem node={node} chat={node.chat} row={row} />
 			) : null}
-			{row.isExpanded && childIds.length > 0 && (
+			{(showChildren || showSubagentLoadState) && (
 				<div role="group" className="flex min-w-0 flex-col">
-					{childIds.map((childId) => (
-						<ChatTreeRow key={childId} id={childId} />
-					))}
+					{showChildren &&
+						childIds.map((childId) => (
+							<ChatTreeRow key={childId} id={childId} />
+						))}
+					{showSubagentLoadState && (
+						<div
+							role="none"
+							className="flex min-h-7 min-w-0 items-center gap-1 pr-1 text-xs text-content-secondary/70"
+						>
+							<IndentGuides level={node.level + 1} />
+							<span aria-hidden="true" className="size-6 shrink-0" />
+							{subagentLoadState === "error"
+								? "Failed to load subagents"
+								: "Loading subagents"}
+						</div>
+					)}
 				</div>
 			)}
 		</div>
@@ -156,9 +186,16 @@ type TreeItemProps = {
 };
 
 const OrganizationTreeItem: FC<TreeItemProps> = ({ node, row }) => {
-	const { focusedId, treeDomId, setFocusedId, toggleExpanded } =
-		useChatTreePanel();
+	const {
+		focusedId,
+		forceExpandedIds,
+		treeDomId,
+		setFocusedId,
+		toggleExpanded,
+	} = useChatTreePanel();
 	const isFocused = focusedId === node.id;
+	// A filter holds the node open, so the toggle affordance is withheld.
+	const canToggle = row.hasChildren && !forceExpandedIds.has(node.id);
 	const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
 		if (event.key === "Enter" || event.key === " ") {
 			event.preventDefault();
@@ -168,7 +205,8 @@ const OrganizationTreeItem: FC<TreeItemProps> = ({ node, row }) => {
 	return (
 		<div className={rowSurfaceClassName}>
 			<Chevron
-				hasChildren={row.hasChildren}
+				rowId={node.id}
+				hasChildren={canToggle}
 				isExpanded={row.isExpanded}
 				onToggle={() => toggleExpanded(node.id)}
 			/>
@@ -206,6 +244,7 @@ const ChatTreeItem: FC<TreeItemProps & { readonly chat: Chat }> = ({
 		focusedId,
 		activeChatId,
 		dimmedIds,
+		forceExpandedIds,
 		subagentsShownIds,
 		modelConfigs,
 		isLoadingModelConfigs,
@@ -223,7 +262,6 @@ const ChatTreeItem: FC<TreeItemProps & { readonly chat: Chat }> = ({
 		onUnpinAgent,
 		onOpenRenameDialog,
 		onCreateChildChat,
-		onMenuCloseAutoFocus,
 	} = useChatTreePanel();
 
 	const isActiveChat = activeChatId === chat.id;
@@ -250,10 +288,18 @@ const ChatTreeItem: FC<TreeItemProps & { readonly chat: Chat }> = ({
 	const hasMenuActions = chatHasMenuActions(chat);
 	const workspaceId = chat.workspace_id;
 	const isPinned = chat.pin_order > 0;
+	// A filter holds the node open, so the toggle affordance is withheld.
+	const canToggle = row.hasChildren && !forceExpandedIds.has(chat.id);
+	const namedChildCount = getChatTreeChildren(model, chat.id).filter(
+		(childId) => model.nodesById.get(childId)?.kind !== "subagent",
+	).length;
 	const childCountHint =
-		!row.isExpanded && (chat.child_chat_count ?? 0) > 0
-			? chat.child_chat_count
-			: undefined;
+		!row.isExpanded && namedChildCount > 0 ? namedChildCount : undefined;
+	const parent =
+		node.parentId === undefined
+			? undefined
+			: model.nodesById.get(node.parentId);
+	const isParentArchived = parent?.chat?.archived === true;
 	const descendants = collectDescendantChats(model, chat.id);
 	const isArchiveBlocked =
 		!chatFamilyAllowsArchive(chat.status, chat.children) ||
@@ -266,11 +312,10 @@ const ChatTreeItem: FC<TreeItemProps & { readonly chat: Chat }> = ({
 		hasWorkspace: Boolean(workspaceId),
 		isArchiving,
 		isArchiveBlocked,
+		isParentArchived,
 		isSubagentsExpanded: subagentsShownIds.has(chat.id),
 		onToggleSubagents: isSubagent ? undefined : () => toggleSubagents(chat.id),
-		onToggleExpanded: row.hasChildren
-			? () => toggleExpanded(chat.id)
-			: undefined,
+		onToggleExpanded: canToggle ? () => toggleExpanded(chat.id) : undefined,
 		isExpanded: row.isExpanded,
 		onCreateChildChat: isSubagent ? undefined : () => onCreateChildChat(chat),
 		isChildChatDepthLimitReached: isChatAtTreeDepthLimit(chat),
@@ -289,7 +334,9 @@ const ChatTreeItem: FC<TreeItemProps & { readonly chat: Chat }> = ({
 	};
 
 	const KindIcon = isRoot ? HouseIcon : isSubagent ? BotIcon : StatusIcon;
-	const kindIconLabel = isRoot
+	// Read after the title so the treeitem name starts with the title and
+	// type-ahead matches what is announced.
+	const kindLabel = isRoot
 		? "Root chat"
 		: isSubagent
 			? `Subagent, ${statusLabel}`
@@ -304,7 +351,8 @@ const ChatTreeItem: FC<TreeItemProps & { readonly chat: Chat }> = ({
 				>
 					<IndentGuides level={node.level} />
 					<Chevron
-						hasChildren={row.hasChildren}
+						rowId={chat.id}
+						hasChildren={canToggle}
 						isExpanded={row.isExpanded}
 						onToggle={() => toggleExpanded(chat.id)}
 					/>
@@ -321,8 +369,7 @@ const ChatTreeItem: FC<TreeItemProps & { readonly chat: Chat }> = ({
 						onFocus={() => setFocusedId(chat.id)}
 					>
 						<KindIcon
-							role="img"
-							aria-label={kindIconLabel}
+							aria-hidden="true"
 							className={cn(
 								"size-3.5 shrink-0",
 								isRoot ? "text-content-secondary" : statusClassName,
@@ -339,6 +386,7 @@ const ChatTreeItem: FC<TreeItemProps & { readonly chat: Chat }> = ({
 								>
 									{chat.title}
 								</span>
+								<span className="sr-only">, {kindLabel}</span>
 								{chat.has_unread && !isActiveChat && (
 									<span className="sr-only">(unread)</span>
 								)}
@@ -381,7 +429,7 @@ const ChatTreeItem: FC<TreeItemProps & { readonly chat: Chat }> = ({
 								className={cn(
 									"flex items-center justify-end text-xs text-content-secondary/50 tabular-nums",
 									hasMenuActions &&
-										"[@media(hover:hover)]:group-hover:hidden group-has-data-[state=open]:hidden group-focus-within:hidden",
+										"[@media(hover:none)]:hidden [@media(hover:hover)]:group-hover:hidden group-has-data-[state=open]:hidden group-focus-within:hidden",
 								)}
 							>
 								{chat.has_unread && !isActiveChat ? (
@@ -408,11 +456,11 @@ const ChatTreeItem: FC<TreeItemProps & { readonly chat: Chat }> = ({
 									<Button
 										size="icon"
 										variant="subtle"
-										tabIndex={isFocused || isActiveChat ? 0 : -1}
+										tabIndex={isFocused ? 0 : -1}
 										className={cn(
-											"absolute inset-0 flex h-6 w-7 min-w-0 justify-end rounded-none px-0 opacity-0 text-content-secondary hover:text-content-primary",
-											"[@media(hover:hover)]:group-hover:opacity-100 group-focus-within:opacity-100 data-[state=open]:opacity-100",
-											isActiveChat && "opacity-100",
+											"absolute inset-0 flex h-6 w-7 min-w-0 justify-end rounded-none px-0 text-content-secondary hover:text-content-primary",
+											"[@media(hover:hover)]:group-hover:opacity-100 [@media(hover:hover)]:group-focus-within:opacity-100 [@media(hover:hover)]:data-[state=open]:opacity-100",
+											!isActiveChat && "[@media(hover:hover)]:opacity-0",
 										)}
 										aria-label={`Open actions for ${chat.title}`}
 										onContextMenuCapture={(event) => {
@@ -432,7 +480,6 @@ const ChatTreeItem: FC<TreeItemProps & { readonly chat: Chat }> = ({
 								<DropdownMenuContent
 									align="end"
 									className="[&_[role=menuitem]]:text-[13px]"
-									onCloseAutoFocus={onMenuCloseAutoFocus}
 									onContextMenu={(event) => {
 										event.preventDefault();
 										event.stopPropagation();
@@ -449,10 +496,7 @@ const ChatTreeItem: FC<TreeItemProps & { readonly chat: Chat }> = ({
 					</div>
 				</div>
 			</ContextMenuTrigger>
-			<ContextMenuContent
-				className="[&_[role=menuitem]]:text-[13px]"
-				onCloseAutoFocus={onMenuCloseAutoFocus}
-			>
+			<ContextMenuContent className="[&_[role=menuitem]]:text-[13px]">
 				<ChatActionsMenuItems
 					{...menuItemProps}
 					Item={ContextMenuItem}

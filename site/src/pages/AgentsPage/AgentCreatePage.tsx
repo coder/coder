@@ -66,6 +66,7 @@ const AgentCreatePage: FC = () => {
 		mcpServerIds,
 		organizationId,
 		planMode,
+		parentChatId,
 	}: CreateChatOptions) => {
 		const content: TypesGen.ChatInputPart[] = [];
 		if (message.trim()) {
@@ -84,7 +85,7 @@ const AgentCreatePage: FC = () => {
 				mcpServerIds && mcpServerIds.length > 0 ? mcpServerIds : undefined,
 			plan_mode: planMode === "plan" ? "plan" : undefined,
 			client_type: "ui",
-			...(parentChat ? { parent_chat_id: parentChat.parentChatId } : {}),
+			...(parentChatId ? { parent_chat_id: parentChatId } : {}),
 			...(model ? { model_config_id: model } : {}),
 			...(reasoningEffort ? { reasoning_effort: reasoningEffort } : {}),
 		};

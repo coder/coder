@@ -19,6 +19,7 @@ const meta: Meta<typeof FilterPopover> = {
 		return (
 			<FilterPopover
 				filters={filters}
+				treeMode={args.treeMode}
 				onFiltersChange={(nextFilters) => {
 					setFilters(nextFilters);
 					args.onFiltersChange(nextFilters);
@@ -54,6 +55,16 @@ export const AppliesStagedFilters: Story = {
 		await userEvent.click(dialog.getByRole("checkbox", { name: "Read" }));
 
 		await userEvent.click(dialog.getByRole("button", { name: "Apply" }));
+	},
+};
+
+// Tree mode hides the Group section and the PR status filter.
+export const TreeMode: Story = {
+	args: {
+		treeMode: true,
+	},
+	play: async ({ canvasElement }) => {
+		await openFilterDialog(canvasElement);
 	},
 };
 

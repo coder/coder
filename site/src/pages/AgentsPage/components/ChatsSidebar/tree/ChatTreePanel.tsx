@@ -15,10 +15,8 @@ import {
 	verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import {
-	type Dispatch,
 	type FC,
 	type KeyboardEvent,
-	type SetStateAction,
 	useEffect,
 	useId,
 	useRef,
@@ -27,20 +25,17 @@ import {
 import { useQueries } from "react-query";
 import { chat as chatQuery } from "#/api/queries/chats";
 import type { Chat, ChatModel, ChatTreeResponse } from "#/api/typesGenerated";
-import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
-import {
-	AGENT_CHAT_STATUS_ORDER,
-	type AgentSidebarFilters,
-	DEFAULT_AGENT_SIDEBAR_FILTERS,
-} from "../../../utils/agentSidebarFilters";
+import type { AgentSidebarFilters } from "../../../utils/agentSidebarFilters";
 import {
 	ChatSectionHeader,
 	getSectionToggleTestId,
 	PINNED_SECTION_KEY,
 } from "../chats/ChatSectionHeader";
+import { ChatsEmptyState } from "../chats/ChatsEmptyState";
 import {
 	ChatTreePanelContext,
 	type ChatTreePanelContextValue,
+	type SubagentLoadState,
 } from "./ChatTreePanelContext";
 import { ChatTreeRow, chatTreeRowDomId } from "./ChatTreeRow";
 import {
@@ -58,7 +53,6 @@ import {
 	type ChatTreeSource,
 	collectAncestorIDs,
 	collectMatchingChatIDs,
-	countNamedDescendants,
 	flattenVisibleTree,
 } from "./chatTreeModel";
 import { FlatChatRow, SortablePinnedChatRow } from "./SortablePinnedChatRow";
@@ -107,7 +101,21 @@ interface ChatTreePanelProps {
 	readonly onOpenRenameDialog?: (chat: Chat) => void;
 }
 
-type PendingFocus = { readonly removedId: string };
+/**
+ * A row removed by the user together with the visible rows at the moment
+ * of removal, so the focus target is computed from the layout the user
+ * last saw.
+ */
+type PendingFocus = {
+	readonly removedId: string;
+	readonly rows: readonly TreeKeyboardRow[];
+};
+
+/** Roving focus state, valid only while `activeChatId` is unchanged. */
+type FocusedRow = {
+	readonly id: string;
+	readonly activeChatId: string | undefined;
+};
 
 type StatusFilterView = {
 	readonly visible: Set<string> | undefined;
@@ -159,51 +167,42 @@ const applyStatusFilter = (
 };
 
 /**
- * Moves focus once the removed row has left the tree. The rows are
- * snapshotted while the removed row is still present so the target is
- * computed from the layout the user last saw.
+ * Moves focus once the removed row has left the tree. Nothing happens
+ * while the removed row is still rendered.
  */
 const FocusAfterRemoval: FC<{
 	readonly pending: PendingFocus | null;
 	readonly rows: readonly TreeKeyboardRow[];
 	readonly onResolve: (targetId: string | undefined) => void;
 }> = ({ pending, rows, onResolve }) => {
-	const lastRowsWithRemoved = useRef<readonly TreeKeyboardRow[]>([]);
-	const removedId = pending?.removedId;
 	const removedPresent =
-		removedId !== undefined && rows.some((row) => row.id === removedId);
+		pending !== null && rows.some((row) => row.id === pending.removedId);
 	useEffect(() => {
-		if (removedId === undefined) {
+		if (pending === null || removedPresent) {
 			return;
 		}
-		if (removedPresent) {
-			lastRowsWithRemoved.current = rows;
-			return;
-		}
-		const target = focusTargetAfterRemoval(
-			lastRowsWithRemoved.current,
-			removedId,
-		);
-		lastRowsWithRemoved.current = [];
+		const target = focusTargetAfterRemoval(pending.rows, pending.removedId);
 		onResolve(
 			target !== undefined && rows.some((row) => row.id === target)
 				? target
 				: undefined,
 		);
-	}, [removedId, removedPresent, rows, onResolve]);
+	}, [pending, removedPresent, rows, onResolve]);
 	return null;
 };
 
 export const ChatTreePanel: FC<ChatTreePanelProps> = (props) => {
+	const { data, activeChatId } = props;
 	const [expansion, setExpansion] = useState<ChatTreeExpansionState>(
 		loadChatTreeExpansion,
 	);
+	const [autoExpandedFor, setAutoExpandedFor] = useState<string | undefined>();
 	useEffect(() => {
 		persistChatTreeExpansion(expansion);
 	}, [expansion]);
 
 	const responseChatIds = new Set<string>();
-	for (const response of props.data.responsesByOrganization.values()) {
+	for (const response of data.responsesByOrganization.values()) {
 		for (const row of response.chats) {
 			responseChatIds.add(row.id);
 		}
@@ -215,27 +214,86 @@ export const ChatTreePanel: FC<ChatTreePanelProps> = (props) => {
 	const subagentQueries = useQueries({
 		queries: subagentParentIds.map((id) => chatQuery(id)),
 	});
-	const subagentsByParent = new Map<string, readonly Chat[]>(
-		subagentParentIds.map((id, index) => [
-			id,
-			subagentQueries[index]?.data?.children ?? [],
-		]),
+	const subagentsByParent = new Map<string, readonly Chat[]>();
+	const subagentLoadStates = new Map<string, SubagentLoadState>();
+	for (const [index, id] of subagentParentIds.entries()) {
+		const query = subagentQueries[index];
+		subagentsByParent.set(id, query?.data?.children ?? []);
+		if (query?.isError) {
+			subagentLoadStates.set(id, "error");
+		} else if (query?.isPending) {
+			subagentLoadStates.set(id, "pending");
+		}
+	}
+
+	const sources: ChatTreeSource[] = data.organizations.flatMap(
+		(organization) => {
+			const response = data.responsesByOrganization.get(organization.id);
+			return response ? [{ organization, response, subagentsByParent }] : [];
+		},
 	);
+	const model = buildChatTreeModel(sources);
+
+	// Ancestors of the active chat expand once per navigation, when the
+	// chat is present in the model; user collapses afterwards are kept.
+	// Both updates target this component's own state during render.
+	if (!activeChatId && autoExpandedFor !== undefined) {
+		setAutoExpandedFor(undefined);
+	}
+	if (
+		activeChatId &&
+		activeChatId !== autoExpandedFor &&
+		model.nodesById.has(activeChatId)
+	) {
+		setAutoExpandedFor(activeChatId);
+		let next = expansion;
+		for (const ancestorId of collectAncestorIDs(model, activeChatId)) {
+			const ancestor = model.nodesById.get(ancestorId);
+			if (ancestor) {
+				next = setChatTreeNodeExpanded(next, ancestor, true);
+			}
+		}
+		if (next !== expansion) {
+			setExpansion(next);
+		}
+	}
+
+	const setNodeExpanded = (id: string, expanded: boolean) => {
+		const node = model.nodesById.get(id);
+		if (node) {
+			setExpansion((current) =>
+				setChatTreeNodeExpanded(current, node, expanded),
+			);
+		}
+	};
+	const toggleSubagents = (id: string) => {
+		setExpansion((current) =>
+			setChatTreeSubagentsShown(current, id, !current.subagents.has(id)),
+		);
+		const node = model.nodesById.get(id);
+		if (node && !expansion.subagents.has(id)) {
+			setExpansion((current) => setChatTreeNodeExpanded(current, node, true));
+		}
+	};
 
 	return (
 		<ChatTreeBody
 			{...props}
+			model={model}
 			expansion={expansion}
-			setExpansion={setExpansion}
-			subagentsByParent={subagentsByParent}
+			subagentLoadStates={subagentLoadStates}
+			setNodeExpanded={setNodeExpanded}
+			toggleSubagents={toggleSubagents}
 		/>
 	);
 };
 
 interface ChatTreeBodyProps extends ChatTreePanelProps {
+	readonly model: ChatTreeModel;
 	readonly expansion: ChatTreeExpansionState;
-	readonly setExpansion: Dispatch<SetStateAction<ChatTreeExpansionState>>;
-	readonly subagentsByParent: ReadonlyMap<string, readonly Chat[]>;
+	readonly subagentLoadStates: ReadonlyMap<string, SubagentLoadState>;
+	readonly setNodeExpanded: (id: string, expanded: boolean) => void;
+	readonly toggleSubagents: (id: string) => void;
 }
 
 const ChatTreeBody: FC<ChatTreeBodyProps> = ({
@@ -255,18 +313,15 @@ const ChatTreeBody: FC<ChatTreeBodyProps> = ({
 	onUnpinAgent,
 	onReorderPinnedAgent,
 	onOpenRenameDialog,
+	model,
 	expansion,
-	setExpansion,
-	subagentsByParent,
+	subagentLoadStates,
+	setNodeExpanded,
+	toggleSubagents,
 }) => {
-	const [autoExpandedFor, setAutoExpandedFor] = useState<string | undefined>();
-	const [focusedIdState, setFocusedId] = useState<string | undefined>();
+	const [focusedRow, setFocusedRow] = useState<FocusedRow | undefined>();
 	const [pendingFocus, setPendingFocus] = useState<PendingFocus | null>(null);
 	const treeDomId = useId();
-	const [pendingArchive, setPendingArchive] = useState<{
-		chat: Chat;
-		descendantCount: number;
-	} | null>(null);
 	const [localPinOrder, setLocalPinOrder] = useState<{
 		serverOrder: string;
 		ids: string[];
@@ -289,35 +344,6 @@ const ChatTreeBody: FC<ChatTreeBodyProps> = ({
 	const typeahead = useRef("");
 	const typeaheadTimer = useRef<number | undefined>(undefined);
 	useEffect(() => () => window.clearTimeout(typeaheadTimer.current), []);
-	// These close over state only, so they stay referentially stable
-	// while the tree data below changes on every render.
-	const removeRowWithFocus = (chatId: string, action: () => void) => {
-		setPendingFocus({ removedId: chatId });
-		action();
-	};
-	const confirmArchive = () => {
-		if (!pendingArchive) {
-			return;
-		}
-		const chatId = pendingArchive.chat.id;
-		setPendingArchive(null);
-		removeRowWithFocus(chatId, () => onArchiveAgent(chatId));
-	};
-	// Radix reads the latest handler on unmount, so the state set by
-	// removeRowWithFocus is visible here.
-	const onMenuCloseAutoFocus = (event: Event) => {
-		if (pendingFocus !== null) {
-			event.preventDefault();
-		}
-	};
-
-	const sources: ChatTreeSource[] = data.organizations.flatMap(
-		(organization) => {
-			const response = data.responsesByOrganization.get(organization.id);
-			return response ? [{ organization, response, subagentsByParent }] : [];
-		},
-	);
-	const model = buildChatTreeModel(sources);
 
 	const statusFilter =
 		sidebarFilters.chatStatuses.length === 1
@@ -326,29 +352,6 @@ const ChatTreeBody: FC<ChatTreeBodyProps> = ({
 	const showOwnedTree = sidebarFilters.sources.includes("created_by_me");
 	const { visible, forceExpandedIds, dimmedIds, matchCount } =
 		applyStatusFilter(model, statusFilter);
-
-	// Ancestors of the active chat expand once per navigation, when the
-	// chat is present in the model; user collapses afterwards are kept.
-	if (!activeChatId && autoExpandedFor !== undefined) {
-		setAutoExpandedFor(undefined);
-	}
-	if (
-		activeChatId &&
-		activeChatId !== autoExpandedFor &&
-		model.nodesById.has(activeChatId)
-	) {
-		setAutoExpandedFor(activeChatId);
-		let next = expansion;
-		for (const ancestorId of collectAncestorIDs(model, activeChatId)) {
-			const ancestor = model.nodesById.get(ancestorId);
-			if (ancestor) {
-				next = setChatTreeNodeExpanded(next, ancestor, true);
-			}
-		}
-		if (next !== expansion) {
-			setExpansion(next);
-		}
-	}
 
 	const isExpanded = (node: ChatTreeModelNode) =>
 		forceExpandedIds.has(node.id) || isChatTreeNodeExpanded(expansion, node);
@@ -366,12 +369,23 @@ const ChatTreeBody: FC<ChatTreeBodyProps> = ({
 		label: row.node.label,
 	}));
 
+	// A stored focus only counts while the active chat it was recorded
+	// under is still active; after navigation the active chat is the
+	// single tab stop.
+	const focusedIdState =
+		focusedRow !== undefined && focusedRow.activeChatId === activeChatId
+			? focusedRow.id
+			: undefined;
 	const focusedId =
 		focusedIdState !== undefined && rowsById.has(focusedIdState)
 			? focusedIdState
 			: activeChatId && rowsById.has(activeChatId)
 				? activeChatId
 				: rows[0]?.id;
+	const setFocusedId = (id: string) => {
+		setFocusedRow({ id, activeChatId });
+		setPendingFocus(null);
+	};
 	const focusRow = (id: string) => {
 		setFocusedId(id);
 		document.getElementById(chatTreeRowDomId(treeDomId, id))?.focus();
@@ -382,28 +396,15 @@ const ChatTreeBody: FC<ChatTreeBodyProps> = ({
 			focusRow(targetId);
 		}
 	};
-
-	const setNodeExpanded = (id: string, expanded: boolean) => {
-		const node = model.nodesById.get(id);
-		if (node) {
-			setExpansion((current) =>
-				setChatTreeNodeExpanded(current, node, expanded),
-			);
-		}
+	const removeRowWithFocus = (chatId: string, action: () => void) => {
+		setPendingFocus({ removedId: chatId, rows: keyboardRows });
+		action();
 	};
+
 	const toggleExpanded = (id: string) => {
 		const row = rowsById.get(id);
 		if (row && !forceExpandedIds.has(id)) {
 			setNodeExpanded(id, !row.isExpanded);
-		}
-	};
-	const toggleSubagents = (id: string) => {
-		setExpansion((current) =>
-			setChatTreeSubagentsShown(current, id, !current.subagents.has(id)),
-		);
-		const node = model.nodesById.get(id);
-		if (node && !expansion.subagents.has(id)) {
-			setExpansion((current) => setChatTreeNodeExpanded(current, node, true));
 		}
 	};
 
@@ -451,19 +452,17 @@ const ChatTreeBody: FC<ChatTreeBodyProps> = ({
 		}
 	};
 
-	const requestArchive = (chat: Chat) => {
-		const descendantCount = countNamedDescendants(model, chat.id);
-		if (descendantCount > 0 || (chat.child_chat_count ?? 0) > 0) {
-			setPendingArchive({ chat, descendantCount });
-			return;
-		}
+	const requestArchive = (chat: Chat) =>
 		removeRowWithFocus(chat.id, () => onArchiveAgent(chat.id));
-	};
 	// Pinned shortcuts: server order, overridden locally during a drag
-	// until the next server order arrives.
+	// until the next server order arrives. A status filter narrows them
+	// to the visible set.
 	const pinnedChats = [...model.nodesById.values()]
 		.flatMap((node) =>
-			node.kind === "chat" && node.chat && node.chat.pin_order > 0
+			node.kind === "chat" &&
+			node.chat &&
+			node.chat.pin_order > 0 &&
+			(visible === undefined || visible.has(node.id))
 				? [node.chat]
 				: [],
 		)
@@ -496,27 +495,8 @@ const ChatTreeBody: FC<ChatTreeBodyProps> = ({
 		onReorderPinnedAgent?.(activeId, newIndex + 1);
 	};
 
-	const hasAppliedResultFilters =
-		statusFilter !== undefined ||
-		sidebarFilters.sources.length !==
-			DEFAULT_AGENT_SIDEBAR_FILTERS.sources.length ||
-		sidebarFilters.sources.some(
-			(source) => !DEFAULT_AGENT_SIDEBAR_FILTERS.sources.includes(source),
-		);
 	const isViewingArchived = sidebarFilters.archiveStatus === "archived";
 	const isEmpty = rows.length === 0 && data.sharedChats.length === 0;
-	const emptyStateMessage = hasAppliedResultFilters
-		? "No agents match these filters"
-		: isViewingArchived
-			? "No archived agents"
-			: "No agents yet";
-	const clearResultFilters = () =>
-		onSidebarFiltersChange({
-			...sidebarFilters,
-			prStatuses: [],
-			chatStatuses: AGENT_CHAT_STATUS_ORDER,
-			sources: DEFAULT_AGENT_SIDEBAR_FILTERS.sources,
-		});
 
 	const contextValue: ChatTreePanelContextValue = {
 		model,
@@ -526,6 +506,7 @@ const ChatTreeBody: FC<ChatTreeBodyProps> = ({
 		dimmedIds,
 		forceExpandedIds,
 		subagentsShownIds: expansion.subagents,
+		subagentLoadStates,
 		modelConfigs,
 		isLoadingModelConfigs,
 		chatErrorReasons,
@@ -546,16 +527,7 @@ const ChatTreeBody: FC<ChatTreeBodyProps> = ({
 		onUnpinAgent,
 		onOpenRenameDialog,
 		onCreateChildChat: data.onCreateChildChat,
-		onMenuCloseAutoFocus,
 	};
-
-	const archiveDescription = pendingArchive
-		? pendingArchive.descendantCount > 0
-			? `Archive "${pendingArchive.chat.title}" and ${pendingArchive.descendantCount} ${
-					pendingArchive.descendantCount === 1 ? "chat" : "chats"
-				} beneath it? Subagents are archived with them. Archiving fails if any of them is running, being interrupted, or waiting for approval.`
-			: `Archive "${pendingArchive.chat.title}" and the chats beneath it? Subagents are archived with them. Archiving fails if any of them is running, being interrupted, or waiting for approval.`
-		: "";
 
 	return (
 		<ChatTreePanelContext value={contextValue}>
@@ -566,18 +538,10 @@ const ChatTreeBody: FC<ChatTreeBodyProps> = ({
 						: ""}
 				</div>
 				{isEmpty ? (
-					<div className="rounded-lg border border-dashed border-border-default bg-surface-primary p-4 text-center text-xs text-content-secondary">
-						<p className="m-0">{emptyStateMessage}</p>
-						{hasAppliedResultFilters && (
-							<button
-								type="button"
-								className="mt-2 cursor-pointer border-none bg-transparent p-0 text-xs text-content-secondary hover:text-content-primary hover:underline"
-								onClick={clearResultFilters}
-							>
-								Clear filters
-							</button>
-						)}
-					</div>
+					<ChatsEmptyState
+						filters={sidebarFilters}
+						onFiltersChange={onSidebarFiltersChange}
+					/>
 				) : (
 					<>
 						{sortedPinnedChats.length > 0 && (
@@ -670,16 +634,6 @@ const ChatTreeBody: FC<ChatTreeBodyProps> = ({
 				pending={pendingFocus}
 				rows={keyboardRows}
 				onResolve={resolvePendingFocus}
-			/>
-			<ConfirmDialog
-				type="delete"
-				open={pendingArchive !== null}
-				title="Archive chat"
-				description={archiveDescription}
-				confirmText="Archive"
-				onClose={() => setPendingArchive(null)}
-				onConfirm={confirmArchive}
-				onCloseAutoFocus={onMenuCloseAutoFocus}
 			/>
 		</ChatTreePanelContext>
 	);

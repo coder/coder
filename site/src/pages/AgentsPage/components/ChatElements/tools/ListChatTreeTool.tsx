@@ -25,7 +25,10 @@ interface ListChatTreeChild {
 
 interface ListChatTreeToolProps {
 	readonly self?: ListChatTreeSelf;
-	/** Null when the chat has no readable named parent. */
+	/**
+	 * Null when the chat has no readable named parent; undefined when the
+	 * result carried no parent field at all.
+	 */
 	readonly parent?: ListChatTreeParent | null;
 	readonly childChats: readonly ListChatTreeChild[];
 	readonly status: ToolStatus;
@@ -33,12 +36,22 @@ interface ListChatTreeToolProps {
 	readonly errorMessage?: string;
 }
 
+/** Formats a timestamp as a short age, or undefined when it cannot be parsed. */
+const relativeAge = (timestamp: string | undefined): string | undefined => {
+	if (!timestamp || Number.isNaN(Date.parse(timestamp))) {
+		return undefined;
+	}
+	return shortRelativeTime(timestamp);
+};
+
 const ChatRow: FC<{
 	readonly chatId?: string;
 	readonly title?: string;
 	readonly detail: string;
+	/** Relative age shown after the detail; excluded from Pixel captures. */
+	readonly age?: string;
 	readonly emphasis?: boolean;
-}> = ({ chatId, title, detail, emphasis = false }) => {
+}> = ({ chatId, title, detail, age, emphasis = false }) => {
 	const location = useLocation();
 	const path = chatId ? safeBuildAgentChatPath({ chatId }) : null;
 	const label = (
@@ -46,7 +59,14 @@ const ChatRow: FC<{
 			<span className={emphasis ? "text-content-primary" : undefined}>
 				{title?.trim() || "Untitled"}
 			</span>
-			<span className="text-content-secondary/70"> ({detail})</span>
+			{(detail || age) && (
+				<span className="text-content-secondary/70">
+					{" "}
+					({detail}
+					{detail && age ? ", " : ""}
+					{age && <span data-pixel="ignore">{age}</span>})
+				</span>
+			)}
 		</>
 	);
 	if (!path) {
@@ -76,11 +96,15 @@ export const ListChatTreeTool: FC<ListChatTreeToolProps> = ({
 	errorMessage,
 }) => {
 	const isRunning = status === "running";
-	const label = isRunning
-		? "Listing chat tree"
-		: `Listed chat tree (${childChats.length} ${
-				childChats.length === 1 ? "child" : "children"
-			})`;
+	let label: string;
+	if (isRunning) {
+		label = "Listing chat tree";
+	} else if (isError) {
+		label = "Failed to list chat tree";
+	} else {
+		const noun = childChats.length === 1 ? "child" : "children";
+		label = `Listed chat tree (${childChats.length} ${noun})`;
+	}
 
 	return (
 		<ToolCall.Root
@@ -88,7 +112,7 @@ export const ListChatTreeTool: FC<ListChatTreeToolProps> = ({
 			status={status}
 			isError={isError}
 			errorMessage={errorMessage || "Failed to list the chat tree"}
-			hasContent={!isRunning}
+			hasContent={!isRunning && !isError}
 		>
 			<ToolCall.Header iconName="list_chat_tree" label={label} />
 			<ToolCall.Content>
@@ -97,7 +121,11 @@ export const ListChatTreeTool: FC<ListChatTreeToolProps> = ({
 						<span className="text-xs uppercase tracking-wide text-content-secondary/60">
 							Parent
 						</span>
-						{parent ? (
+						{parent === undefined ? (
+							<span>Unknown</span>
+						) : parent === null ? (
+							<span>No parent</span>
+						) : (
 							<ChatRow
 								chatId={parent.chatId}
 								title={parent.title}
@@ -105,8 +133,6 @@ export const ListChatTreeTool: FC<ListChatTreeToolProps> = ({
 									.filter((value) => Boolean(value))
 									.join(", ")}
 							/>
-						) : (
-							<span>No parent</span>
 						)}
 					</div>
 					{self && (
@@ -117,7 +143,7 @@ export const ListChatTreeTool: FC<ListChatTreeToolProps> = ({
 							<ChatRow
 								chatId={self.chatId}
 								title={self.title}
-								detail={self.kind ?? "chat"}
+								detail={self.kind ?? "Unknown"}
 								emphasis
 							/>
 						</div>
@@ -134,14 +160,8 @@ export const ListChatTreeTool: FC<ListChatTreeToolProps> = ({
 									key={child.chatId ?? index}
 									chatId={child.chatId}
 									title={child.title}
-									detail={[
-										child.status,
-										child.updatedAt
-											? shortRelativeTime(child.updatedAt)
-											: undefined,
-									]
-										.filter((value) => Boolean(value))
-										.join(", ")}
+									detail={child.status ?? ""}
+									age={relativeAge(child.updatedAt)}
 								/>
 							))
 						)}

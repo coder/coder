@@ -2,6 +2,8 @@ import { createContext, useContext } from "react";
 import type { Chat, ChatModel } from "#/api/typesGenerated";
 import type { ChatTreeModel, ChatTreeVisibleRow } from "./chatTreeModel";
 
+export type SubagentLoadState = "pending" | "error";
+
 export interface ChatTreePanelContextValue {
 	readonly model: ChatTreeModel;
 	readonly rowsById: ReadonlyMap<string, ChatTreeVisibleRow>;
@@ -12,6 +14,8 @@ export interface ChatTreePanelContextValue {
 	/** Rows expanded by a filter; Left moves to the parent instead of collapsing. */
 	readonly forceExpandedIds: ReadonlySet<string>;
 	readonly subagentsShownIds: ReadonlySet<string>;
+	/** Nodes whose subagent fetch has not produced children yet. */
+	readonly subagentLoadStates: ReadonlyMap<string, SubagentLoadState>;
 	readonly modelConfigs: readonly ChatModel[];
 	readonly isLoadingModelConfigs: boolean;
 	readonly chatErrorReasons: Record<string, string>;
@@ -32,8 +36,6 @@ export interface ChatTreePanelContextValue {
 	readonly onUnpinAgent: (chatId: string) => void;
 	readonly onOpenRenameDialog?: (chat: Chat) => void;
 	readonly onCreateChildChat: (chat: Chat) => void;
-	/** Prevents Radix from returning focus to a row that is about to unmount. */
-	readonly onMenuCloseAutoFocus: (event: Event) => void;
 }
 
 export const ChatTreePanelContext =

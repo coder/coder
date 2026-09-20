@@ -97,10 +97,6 @@ describe(treeKeyboardReducer.name, () => {
 		expect(result.focusId).toBe("root");
 	});
 
-	it("opens the focused row on Enter", () => {
-		expect(press("Enter", "gamma").open).toBe("gamma");
-	});
-
 	it("expands collapsed siblings with children on *", () => {
 		expect(press("*", "gamma").expandIds).toEqual(["beta"]);
 	});
@@ -130,6 +126,7 @@ describe(treeKeyboardReducer.name, () => {
 
 	it("leaves unrelated keys unhandled and clears the buffer", () => {
 		expect(press("Tab", "root")).toEqual({ handled: false, typeahead: "" });
+		expect(press("Enter", "root").handled).toBe(false);
 		expect(press(" ", "root").handled).toBe(false);
 	});
 });

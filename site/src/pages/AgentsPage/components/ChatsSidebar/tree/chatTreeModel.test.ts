@@ -14,7 +14,6 @@ import {
 	type ChatTreeModelNode,
 	collectAncestorIDs,
 	collectMatchingChatIDs,
-	countNamedDescendants,
 	flattenVisibleTree,
 	isChatAtTreeDepthLimit,
 	organizationTreeNodeId,
@@ -231,21 +230,6 @@ describe(collectMatchingChatIDs.name, () => {
 });
 
 describe("counts and limits", () => {
-	it("counts named descendants and excludes subagents", () => {
-		const model = buildChatTreeModel([
-			{
-				organization: org,
-				response: MockChatTreeResponse,
-				subagentsByParent: new Map([
-					[MockChatTreeChild.id, [MockChatTreeSubagent]],
-				]),
-			},
-		]);
-		expect(countNamedDescendants(model, MockChatTreeRoot.id)).toBe(3);
-		expect(countNamedDescendants(model, MockChatTreeChild.id)).toBe(1);
-		expect(countNamedDescendants(model, MockChatTreeSibling.id)).toBe(0);
-	});
-
 	it("walks ancestors from a node to the top", () => {
 		expect(
 			collectAncestorIDs(singleOrganization(), MockChatTreeGrandchild.id),

@@ -8,35 +8,21 @@ import {
 	DropdownMenuItem,
 	DropdownMenuSeparator,
 } from "#/components/DropdownMenu/DropdownMenu";
-import { MockChat } from "#/testHelpers/chatEntities";
+import {
+	MockChatTreeChild,
+	MockChatTreeRoot,
+	MockChatTreeSubagent,
+} from "#/testHelpers/chatEntities";
 import { renderComponent } from "#/testHelpers/renderHelpers";
 import {
 	ChatActionsMenuItems,
 	chatHasMenuActions,
 } from "./ChatActionsMenuItems";
 
-const MockNamedChildChat: Chat = {
-	...MockChat,
-	id: "child-chat-1",
-	kind: "chat",
-	parent_chat_id: "root-chat-1",
-};
-
-const MockRootChat: Chat = {
-	...MockChat,
-	id: "root-chat-1",
-	kind: "root",
-	title: "Root",
-};
-
-const MockSubagentChat: Chat = {
-	...MockChat,
-	id: "subagent-1",
-	kind: "subagent",
-	parent_chat_id: "chat-1",
-};
-
-const renderMenu = (chat: Chat) => {
+const renderMenu = (
+	chat: Chat,
+	options: { isParentArchived?: boolean } = {},
+) => {
 	const handlers = {
 		onPinAgent: vi.fn(),
 		onUnpinAgent: vi.fn(),
@@ -51,6 +37,7 @@ const renderMenu = (chat: Chat) => {
 				<ChatActionsMenuItems
 					chat={chat}
 					hasWorkspace
+					isParentArchived={options.isParentArchived}
 					{...handlers}
 					Item={DropdownMenuItem}
 					Separator={DropdownMenuSeparator}
@@ -62,11 +49,11 @@ const renderMenu = (chat: Chat) => {
 };
 
 const menuItemNames = () =>
-	screen.getAllByRole("menuitem").map((item) => item.textContent?.trim());
+	screen.queryAllByRole("menuitem").map((item) => item.textContent?.trim());
 
 describe("ChatActionsMenuItems", () => {
 	it("keeps pin and archive on a named child chat", async () => {
-		const handlers = renderMenu(MockNamedChildChat);
+		const handlers = renderMenu(MockChatTreeChild);
 		await userEvent.click(screen.getByRole("menuitem", { name: "Pin agent" }));
 		await userEvent.click(
 			screen.getByRole("menuitem", { name: "Archive agent" }),
@@ -76,24 +63,36 @@ describe("ChatActionsMenuItems", () => {
 	});
 
 	it("offers only rename on the tree root", () => {
-		renderMenu(MockRootChat);
+		renderMenu(MockChatTreeRoot);
 		expect(menuItemNames()).toEqual(["Rename chat"]);
 	});
 
 	it("offers only rename on a subagent", () => {
-		renderMenu(MockSubagentChat);
+		renderMenu(MockChatTreeSubagent);
 		expect(menuItemNames()).toEqual(["Rename chat"]);
+	});
+
+	it("hides unarchive on an archived child whose parent is archived", () => {
+		renderMenu(
+			{ ...MockChatTreeChild, archived: true },
+			{
+				isParentArchived: true,
+			},
+		);
+		expect(menuItemNames()).not.toContain("Unarchive agent");
 	});
 });
 
 describe(chatHasMenuActions.name, () => {
 	it("hides the menu only for archived subagents", () => {
-		expect(chatHasMenuActions({ ...MockSubagentChat, archived: true })).toBe(
-			false,
-		);
-		expect(chatHasMenuActions({ ...MockNamedChildChat, archived: true })).toBe(
+		expect(
+			chatHasMenuActions({ ...MockChatTreeSubagent, archived: true }),
+		).toBe(false);
+		expect(chatHasMenuActions({ ...MockChatTreeChild, archived: true })).toBe(
 			true,
 		);
-		expect(chatHasMenuActions({ ...MockRootChat, archived: false })).toBe(true);
+		expect(chatHasMenuActions({ ...MockChatTreeRoot, archived: false })).toBe(
+			true,
+		);
 	});
 });

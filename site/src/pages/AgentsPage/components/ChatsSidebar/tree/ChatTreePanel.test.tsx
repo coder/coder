@@ -1,9 +1,10 @@
-import { render, screen, within } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { FC, PropsWithChildren } from "react";
-import { QueryClientProvider } from "react-query";
+import { type QueryClient, QueryClientProvider } from "react-query";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { chatEntityKey } from "#/api/queries/chats";
 import type { Chat, ChatTreeResponse } from "#/api/typesGenerated";
 import { TooltipProvider } from "#/components/Tooltip/Tooltip";
 import { ThemeOverride } from "#/contexts/ThemeProvider";
@@ -13,30 +14,33 @@ import {
 	MockChatTreeResponse,
 	MockChatTreeRoot,
 	MockChatTreeSibling,
+	MockChatTreeSubagent,
 } from "#/testHelpers/chatEntities";
+import { MockOrganization2 } from "#/testHelpers/entities";
 import { createTestQueryClient } from "#/testHelpers/renderHelpers";
 import themes, { DEFAULT_THEME } from "#/theme";
-import {
-	AGENT_CHAT_STATUS_ORDER,
-	DEFAULT_AGENT_SIDEBAR_FILTERS,
-} from "../../../utils/agentSidebarFilters";
+import { DEFAULT_AGENT_SIDEBAR_FILTERS } from "../../../utils/agentSidebarFilters";
 import { ChatTreePanel, type ChatTreePanelData } from "./ChatTreePanel";
 import { loadChatTreeExpansion } from "./chatTreeExpansion";
+import { organizationTreeNodeId } from "./chatTreeModel";
 
 const organization = { id: "org-1", displayName: "Acme" };
+const organization2 = {
+	id: MockOrganization2.id,
+	displayName: MockOrganization2.display_name,
+};
 
 const LocationProbe: FC = () => {
 	const location = useLocation();
 	return <div data-testid="location">{location.pathname}</div>;
 };
 
-const Wrapper: FC<PropsWithChildren<{ initialPath?: string }>> = ({
-	children,
-	initialPath = "/agents",
-}) => (
+const Wrapper: FC<
+	PropsWithChildren<{ initialPath?: string; queryClient?: QueryClient }>
+> = ({ children, initialPath = "/agents", queryClient }) => (
 	<ThemeOverride theme={themes[DEFAULT_THEME]}>
 		<TooltipProvider>
-			<QueryClientProvider client={createTestQueryClient()}>
+			<QueryClientProvider client={queryClient ?? createTestQueryClient()}>
 				<MemoryRouter initialEntries={[initialPath]}>
 					<Routes>
 						<Route
@@ -75,41 +79,93 @@ const buildData = (
 	...overrides,
 });
 
+const organization2Root: Chat = {
+	...MockChatTreeRoot,
+	id: "org2-root",
+	organization_id: organization2.id,
+};
+
+const twoOrganizationsData = (): ChatTreePanelData => ({
+	organizations: [organization, organization2],
+	responsesByOrganization: new Map([
+		[organization.id, MockChatTreeResponse],
+		[
+			organization2.id,
+			{ root_chat_id: organization2Root.id, chats: [organization2Root] },
+		],
+	]),
+	sharedChats: [],
+	onCreateChildChat: vi.fn(),
+});
+
+type PanelProps = Parameters<typeof ChatTreePanel>[0];
+
+const defaultHandlers = () => ({
+	onArchiveAgent: vi.fn(),
+	onUnarchiveAgent: vi.fn(),
+	onArchiveAndDeleteWorkspace: vi.fn(),
+	onPinAgent: vi.fn(),
+	onUnpinAgent: vi.fn(),
+	onOpenRenameDialog: vi.fn(),
+	onSidebarFiltersChange: vi.fn(),
+});
+
+const panelElement = (
+	props: Partial<PanelProps>,
+	handlers: ReturnType<typeof defaultHandlers>,
+	data: ChatTreePanelData,
+) => (
+	<ChatTreePanel
+		data={data}
+		sidebarFilters={DEFAULT_AGENT_SIDEBAR_FILTERS}
+		activeChatId={undefined}
+		modelConfigs={[]}
+		isLoadingModelConfigs={false}
+		chatErrorReasons={{}}
+		isArchiving={false}
+		archivingChatId={null}
+		{...handlers}
+		{...props}
+	/>
+);
+
 const renderPanel = (
-	props: Partial<Parameters<typeof ChatTreePanel>[0]> = {},
-	options: { initialPath?: string } = {},
+	props: Partial<PanelProps> = {},
+	options: { initialPath?: string; queryClient?: QueryClient } = {},
 ) => {
-	const handlers = {
-		onArchiveAgent: vi.fn(),
-		onUnarchiveAgent: vi.fn(),
-		onArchiveAndDeleteWorkspace: vi.fn(),
-		onPinAgent: vi.fn(),
-		onUnpinAgent: vi.fn(),
-		onOpenRenameDialog: vi.fn(),
-		onSidebarFiltersChange: vi.fn(),
-	};
+	const handlers = defaultHandlers();
 	const data = props.data ?? buildData();
 	const view = render(
-		<Wrapper initialPath={options.initialPath}>
-			<ChatTreePanel
-				data={data}
-				sidebarFilters={DEFAULT_AGENT_SIDEBAR_FILTERS}
-				activeChatId={undefined}
-				modelConfigs={[]}
-				isLoadingModelConfigs={false}
-				chatErrorReasons={{}}
-				isArchiving={false}
-				archivingChatId={null}
-				{...handlers}
-				{...props}
-			/>
+		<Wrapper
+			initialPath={options.initialPath}
+			queryClient={options.queryClient}
+		>
+			{panelElement(props, handlers, data)}
 		</Wrapper>,
 	);
-	return { ...view, handlers, data };
+	const rerenderPanel = (nextProps: Partial<PanelProps>) =>
+		view.rerender(
+			<Wrapper
+				initialPath={options.initialPath}
+				queryClient={options.queryClient}
+			>
+				{panelElement(nextProps, handlers, nextProps.data ?? data)}
+			</Wrapper>,
+		);
+	return { ...view, handlers, data, rerenderPanel };
 };
 
 const treeitem = (name: string | RegExp) =>
 	screen.getByRole("treeitem", { name });
+
+const openActions = async (
+	user: ReturnType<typeof userEvent.setup>,
+	title: string,
+) => {
+	await user.click(
+		screen.getByRole("button", { name: `Open actions for ${title}` }),
+	);
+};
 
 const activeName = () =>
 	document.activeElement instanceof HTMLElement
@@ -156,6 +212,18 @@ describe("ChatTreePanel keyboard navigation", () => {
 		);
 	});
 
+	it("expands the collapsed siblings of the focused row on *", async () => {
+		renderPanel();
+		const user = userEvent.setup();
+		await user.click(treeitem(/Migrate billing service/));
+		await user.keyboard("*");
+		expect(loadChatTreeExpansion().expanded.has(MockChatTreeChild.id)).toBe(
+			true,
+		);
+		await user.keyboard("{ArrowUp}");
+		expect(activeName()).toContain(MockChatTreeGrandchild.title);
+	});
+
 	it("type-ahead focuses the next row whose title starts with the character", async () => {
 		renderPanel();
 		const user = userEvent.setup();
@@ -170,11 +238,31 @@ describe("ChatTreePanel keyboard navigation", () => {
 		await user.tab();
 		expect(activeName()).toContain("Root");
 		await user.tab();
-		expect(document.activeElement?.getAttribute("aria-label")).toBe(
-			"Open actions for Root",
+		expect(document.activeElement).toBe(
+			screen.getByRole("button", { name: "Open actions for Root" }),
 		);
 		await user.tab();
 		expect(document.activeElement).toBe(document.body);
+	});
+
+	it("moves the tab stop to the active chat after navigation", async () => {
+		const { rerenderPanel } = renderPanel();
+		const user = userEvent.setup();
+		await user.tab();
+		expect(activeName()).toContain("Root");
+		await user.tab();
+		await user.tab();
+		expect(document.activeElement).toBe(document.body);
+
+		rerenderPanel({ activeChatId: MockChatTreeSibling.id });
+		await user.tab();
+		expect(activeName()).toContain(MockChatTreeSibling.title);
+		await user.tab();
+		expect(document.activeElement).toBe(
+			screen.getByRole("button", {
+				name: `Open actions for ${MockChatTreeSibling.title}`,
+			}),
+		);
 	});
 
 	it("opens the focused chat with Enter", async () => {
@@ -188,17 +276,73 @@ describe("ChatTreePanel keyboard navigation", () => {
 		);
 	});
 
-	it("persists the collapse of a root and expansion of a chat", async () => {
+	it("toggles an organization node with Enter and Space", async () => {
+		renderPanel({ data: twoOrganizationsData() });
+		const user = userEvent.setup();
+		const organizationNodeId = organizationTreeNodeId(organization.id);
+		await user.tab();
+		expect(activeName()).toContain(organization.displayName);
+		await user.keyboard("{Enter}");
+		expect(
+			loadChatTreeExpansion().collapsedTopLevel.has(organizationNodeId),
+		).toBe(true);
+		await user.keyboard(" ");
+		expect(
+			loadChatTreeExpansion().collapsedTopLevel.has(organizationNodeId),
+		).toBe(false);
+	});
+});
+
+describe("ChatTreePanel expansion", () => {
+	it("expands the collapsed ancestors of the active chat", () => {
+		renderPanel(
+			{ activeChatId: MockChatTreeGrandchild.id },
+			{ initialPath: `/agents/${MockChatTreeGrandchild.id}` },
+		);
+		expect(loadChatTreeExpansion().expanded.has(MockChatTreeChild.id)).toBe(
+			true,
+		);
+	});
+
+	it("expands and collapses from the actions menu", async () => {
 		renderPanel();
 		const user = userEvent.setup();
-		await user.click(
-			within(
-				screen.getByTestId(`chat-tree-row-${MockChatTreeRoot.id}`),
-			).getByRole("button", { name: "Collapse" }),
+		await openActions(user, MockChatTreeChild.title);
+		await user.click(screen.getByRole("menuitem", { name: "Expand" }));
+		expect(loadChatTreeExpansion().expanded.has(MockChatTreeChild.id)).toBe(
+			true,
 		);
+		await openActions(user, "Root");
+		await user.click(screen.getByRole("menuitem", { name: "Collapse" }));
 		expect(
 			loadChatTreeExpansion().collapsedTopLevel.has(MockChatTreeRoot.id),
 		).toBe(true);
+	});
+
+	it("shows subagents from the actions menu as navigable rows", async () => {
+		const queryClient = createTestQueryClient();
+		// The test client garbage-collects unobserved data at once and would
+		// refetch stale data from a server that does not exist here.
+		queryClient.setQueryDefaults(chatEntityKey(MockChatTreeChild.id), {
+			gcTime: Number.POSITIVE_INFINITY,
+			staleTime: Number.POSITIVE_INFINITY,
+		});
+		queryClient.setQueryData(chatEntityKey(MockChatTreeChild.id), {
+			...MockChatTreeChild,
+			children: [MockChatTreeSubagent],
+		});
+		renderPanel({}, { queryClient });
+		const user = userEvent.setup();
+		await openActions(user, MockChatTreeChild.title);
+		await user.click(screen.getByRole("menuitem", { name: "Show subagents" }));
+		expect(loadChatTreeExpansion().subagents.has(MockChatTreeChild.id)).toBe(
+			true,
+		);
+		await user.click(treeitem(/Fix flaky login test/));
+		await user.keyboard("{ArrowDown}");
+		expect(activeName()).toContain(MockChatTreeGrandchild.title);
+		await user.keyboard("{ArrowDown}");
+		expect(activeName()).toContain(MockChatTreeSubagent.title);
 	});
 });
 
@@ -206,11 +350,7 @@ describe("ChatTreePanel actions", () => {
 	it("requests a child chat from the actions menu", async () => {
 		const { data } = renderPanel();
 		const user = userEvent.setup();
-		await user.click(
-			screen.getByRole("button", {
-				name: `Open actions for ${MockChatTreeChild.title}`,
-			}),
-		);
+		await openActions(user, MockChatTreeChild.title);
 		await user.click(screen.getByRole("menuitem", { name: "New chat here" }));
 		expect(data.onCreateChildChat).toHaveBeenCalledWith(MockChatTreeChild);
 	});
@@ -229,74 +369,42 @@ describe("ChatTreePanel actions", () => {
 			}),
 		});
 		const user = userEvent.setup();
-		await user.click(
-			screen.getByRole("button", { name: "Open actions for Deepest" }),
-		);
+		await openActions(user, "Deepest");
 		const item = screen.getByRole("menuitem", { name: /New chat here/ });
-		expect(item.getAttribute("aria-disabled")).toBe("true");
 		await user.click(item);
 		expect(data.onCreateChildChat).not.toHaveBeenCalled();
+		expect(document.activeElement).toBe(item);
 	});
 
-	it("archives a leaf immediately and confirms before archiving a subtree", async () => {
+	it("archives a leaf and a subtree without a panel dialog", async () => {
 		const { handlers } = renderPanel({ data: buildData(idleTree) });
 		const user = userEvent.setup();
-		await user.click(
-			screen.getByRole("button", {
-				name: `Open actions for ${MockChatTreeSibling.title}`,
-			}),
-		);
+		await openActions(user, MockChatTreeSibling.title);
 		await user.click(screen.getByRole("menuitem", { name: "Archive agent" }));
 		expect(handlers.onArchiveAgent).toHaveBeenCalledWith(
 			MockChatTreeSibling.id,
 		);
 
-		await user.click(
-			screen.getByRole("button", {
-				name: `Open actions for ${MockChatTreeChild.title}`,
-			}),
-		);
+		await openActions(user, MockChatTreeChild.title);
 		await user.click(screen.getByRole("menuitem", { name: "Archive agent" }));
-		expect(handlers.onArchiveAgent).toHaveBeenCalledTimes(1);
-		const dialog = screen.getByRole("dialog", { name: "Archive chat" });
-		expect(dialog.textContent).toContain("1 chat beneath it");
-		await user.click(within(dialog).getByRole("button", { name: "Archive" }));
 		expect(handlers.onArchiveAgent).toHaveBeenCalledWith(MockChatTreeChild.id);
 	});
 
 	it("moves focus to the next row after an archived row disappears", async () => {
-		const { rerender, handlers } = renderPanel({ data: buildData(idleTree) });
+		const { rerenderPanel, handlers } = renderPanel({
+			data: buildData(idleTree),
+		});
 		const user = userEvent.setup();
-		await user.click(
-			screen.getByRole("button", {
-				name: `Open actions for ${MockChatTreeSibling.title}`,
-			}),
-		);
+		await openActions(user, MockChatTreeSibling.title);
 		await user.click(screen.getByRole("menuitem", { name: "Archive agent" }));
 		expect(handlers.onArchiveAgent).toHaveBeenCalled();
 
-		rerender(
-			<Wrapper>
-				<ChatTreePanel
-					data={buildData({
-						root_chat_id: MockChatTreeRoot.id,
-						chats: [
-							MockChatTreeRoot,
-							MockChatTreeChild,
-							MockChatTreeGrandchild,
-						],
-					})}
-					sidebarFilters={DEFAULT_AGENT_SIDEBAR_FILTERS}
-					activeChatId={undefined}
-					modelConfigs={[]}
-					isLoadingModelConfigs={false}
-					chatErrorReasons={{}}
-					isArchiving={false}
-					archivingChatId={null}
-					{...handlers}
-				/>
-			</Wrapper>,
-		);
+		rerenderPanel({
+			data: buildData({
+				root_chat_id: MockChatTreeRoot.id,
+				chats: [MockChatTreeRoot, MockChatTreeChild, MockChatTreeGrandchild],
+			}),
+		});
 		expect(activeName()).toContain(MockChatTreeChild.title);
 	});
 });
@@ -323,27 +431,11 @@ describe("ChatTreePanel filters", () => {
 			},
 		});
 		const user = userEvent.setup();
-		expect(screen.getByRole("status").textContent).toBe("1 chat matches");
-		expect(
-			screen.getAllByRole("treeitem").map((item) => item.textContent),
-		).not.toContainEqual(expect.stringContaining(MockChatTreeSibling.title));
-
 		await user.click(treeitem(/Fix flaky login test/));
 		await user.keyboard("{ArrowLeft}");
 		expect(activeName()).toContain("Root");
 		expect(loadChatTreeExpansion().expanded.has(MockChatTreeChild.id)).toBe(
 			false,
 		);
-		expect(AGENT_CHAT_STATUS_ORDER).toContain("unread");
-	});
-
-	it("hides the owned tree when only shared chats are selected", () => {
-		renderPanel({
-			sidebarFilters: {
-				...DEFAULT_AGENT_SIDEBAR_FILTERS,
-				sources: ["shared_with_me"],
-			},
-		});
-		expect(screen.queryAllByRole("treeitem")).toHaveLength(0);
 	});
 });

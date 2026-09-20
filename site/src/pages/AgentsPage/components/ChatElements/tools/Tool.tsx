@@ -26,7 +26,10 @@ import { ProposePlanTool } from "./ProposePlanTool";
 import { getReadFileToolData, ReadFileTool } from "./ReadFileTool";
 import { ReadSkillTool } from "./ReadSkillTool";
 import { ReadTemplateTool } from "./ReadTemplateTool";
-import { SendChatMessageTool } from "./SendChatMessageTool";
+import {
+	resolveSendChatMessageTargetId,
+	SendChatMessageTool,
+} from "./SendChatMessageTool";
 import { StartWorkspaceTool } from "./StartWorkspaceTool";
 import { SubagentTool } from "./SubagentTool";
 import {
@@ -1194,10 +1197,14 @@ const SendChatMessageRenderer: FC<ToolRendererProps> = ({
 	const argsRec = asRecord(args);
 	const rec = asRecord(result);
 	// Error results carry `{ error, chat_id?, title? }` at the top level.
-	const resolvedChatId = asString(rec?.chat_id) || asString(argsRec?.chat_id);
+	const resolvedChatId = resolveSendChatMessageTargetId(
+		asString(rec?.chat_id) || undefined,
+		asString(argsRec?.chat_id) || undefined,
+		isError,
+	);
 	return (
 		<SendChatMessageTool
-			targetChatId={resolvedChatId || undefined}
+			targetChatId={resolvedChatId}
 			targetTitle={asString(rec?.title) || undefined}
 			relation={asString(rec?.relation) || undefined}
 			message={asString(argsRec?.message) || undefined}

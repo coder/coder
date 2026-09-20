@@ -61,6 +61,23 @@ export const NoChildren: Story = {
 	args: { childChats: [] },
 };
 
+export const MissingParentField: Story = {
+	args: { parent: undefined },
+};
+
+export const ChildWithUnparseableTimestamp: Story = {
+	args: {
+		childChats: [
+			{
+				chatId: "chat-tree-grandchild",
+				title: "Investigate CI timeout",
+				status: "running",
+				updatedAt: "not-a-timestamp",
+			},
+		],
+	},
+};
+
 export const Running: Story = {
 	args: { status: "running", childChats: [] },
 };

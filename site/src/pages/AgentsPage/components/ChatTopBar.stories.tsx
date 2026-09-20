@@ -6,7 +6,7 @@ import { API } from "#/api/api";
 import { getAuthorizationKey } from "#/api/queries/authCheck";
 import { chatEntityKey } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
-import { MockChat } from "#/testHelpers/chatEntities";
+import { MockChat, MockChatTreeRoot } from "#/testHelpers/chatEntities";
 import {
 	MockDefaultOrganization,
 	MockGroup,
@@ -624,6 +624,26 @@ export const ShareChatButtonHiddenWithoutPermission: Story = {
 		await userEvent.click(canvas.getByLabelText("Open agent actions"));
 		const body = within(document.body);
 		await body.findByText("Rename chat");
+	},
+};
+
+// A root chat is never shareable, so the share button stays hidden even
+// when the share permission check would pass.
+export const RootChatHidesShareButton: Story = {
+	decorators: [withAuthProvider, withDashboardProvider],
+	args: {
+		chat: {
+			...MockChatTreeRoot,
+			organization_id: MockDefaultOrganization.id,
+		},
+	},
+	parameters: {
+		user: MockUserOwner,
+	},
+	beforeEach: () => {
+		spyOn(API, "checkAuthorization").mockResolvedValue({
+			canShareChat: true,
+		});
 	},
 };
 

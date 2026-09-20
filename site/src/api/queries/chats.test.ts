@@ -66,6 +66,7 @@ import {
 	chatTree,
 	chatTreeFamilyKey,
 	chatTreeKey,
+	countChatTreeDescendantsInCaches,
 	createChat,
 	createChatMessage,
 	deleteChatModel,
@@ -1861,7 +1862,7 @@ describe("mutation invalidation scope", () => {
 		seedAllActiveQueries(queryClient, chatId);
 
 		const mutation = createChat(queryClient);
-		mutation.onSuccess();
+		mutation.onSuccess(makeChat(chatId));
 
 		await new Promise((r) => setTimeout(r, 0));
 
@@ -1950,7 +1951,8 @@ describe("mutation invalidation scope", () => {
 		},
 		{
 			name: "createChat onSuccess",
-			settle: (queryClient) => createChat(queryClient).onSuccess(),
+			settle: (queryClient) =>
+				createChat(queryClient).onSuccess(makeChat("chat-1")),
 		},
 	])("$name invalidates chat searches", async ({ settle }) => {
 		const queryClient = createTestQueryClient();
@@ -1990,7 +1992,8 @@ describe("mutation invalidation scope", () => {
 		},
 		{
 			name: "createChat onSuccess",
-			settle: (queryClient) => createChat(queryClient).onSuccess(),
+			settle: (queryClient) =>
+				createChat(queryClient).onSuccess(makeChat("chat-1")),
 		},
 	])("$name invalidates chats by workspace", async ({ settle }) => {
 		const queryClient = createTestQueryClient();
@@ -4766,8 +4769,22 @@ describe("chat tree caches", () => {
 		expect(rows?.map((c) => c.id)).toEqual([root.id, parent.id, "new-1"]);
 		expect(rows?.find((c) => c.id === parent.id)?.child_chat_count).toBe(2);
 		const appended = rows?.find((c) => c.id === "new-1");
-		expect(appended?.depth).toBeUndefined();
+		expect(appended?.depth).toBe(3);
 		expect(appended?.has_unread).toBe(false);
+	});
+
+	it("leaves depth undefined when the cached parent carries none", () => {
+		const queryClient = createTestQueryClient();
+		seedTree(queryClient, [root, { ...parent, depth: undefined }]);
+
+		applyWatchedChatCreatedToChatTreeCaches(
+			queryClient,
+			makeTreeRow("new-1", { parent_chat_id: parent.id, depth: 3 }),
+		);
+
+		expect(
+			readTree(queryClient)?.find((c) => c.id === "new-1")?.depth,
+		).toBeUndefined();
 	});
 
 	it("refetches the organization tree when the parent is not cached", () => {
@@ -4804,6 +4821,93 @@ describe("chat tree caches", () => {
 			queryClient.getQueryState(chatTreeKey(ORG, { archived: true }))
 				?.isInvalidated,
 		).toBe(true);
+	});
+
+	it("treats a created event for a cached archived entity as an unarchive", () => {
+		const queryClient = createTestQueryClient();
+		queryClient.setQueryData(chatEntityKey(child.id), {
+			...child,
+			archived: true,
+		});
+		seedTree(queryClient, [root, parent]);
+		seedTree(queryClient, [root, { ...child, archived: true }], true);
+
+		applyWatchedChatCreatedOrUnarchived(queryClient, {
+			...child,
+			archived: false,
+		});
+
+		const active = readTree(queryClient);
+		expect(active?.map((c) => c.id)).toEqual([root.id, parent.id, child.id]);
+		expect(active?.find((c) => c.id === parent.id)?.child_chat_count).toBe(1);
+		expect(active?.find((c) => c.id === child.id)?.archived).toBe(false);
+		expect(readTree(queryClient, true)?.map((c) => c.id)).toEqual([root.id]);
+		expect(
+			queryClient.getQueryData<TypesGen.Chat>(chatEntityKey(child.id))
+				?.archived,
+		).toBe(false);
+	});
+
+	it("skips the list invalidation when invalidateList is false", () => {
+		const queryClient = createTestQueryClient();
+		seedTree(queryClient, [root, parent]);
+		seedInfiniteChats(queryClient, [makeChat("shared-1")]);
+
+		applyWatchedChatCreatedOrUnarchived(
+			queryClient,
+			makeTreeRow("new-1", { parent_chat_id: parent.id }),
+			{ invalidateList: false },
+		);
+
+		expect(
+			queryClient.getQueryState(infiniteChatsTestKey)?.isInvalidated,
+		).not.toBe(true);
+		expect(readTree(queryClient)?.map((c) => c.id)).toEqual([
+			root.id,
+			parent.id,
+			"new-1",
+		]);
+	});
+
+	it("createChat onSuccess invalidates the created chat's organization tree", async () => {
+		const queryClient = createTestQueryClient();
+		seedTree(queryClient, [root]);
+		queryClient.setQueryData<TypesGen.ChatTreeResponse>(
+			chatTreeKey("other-org", { archived: false }),
+			{ root_chat_id: "other-root", chats: [] },
+		);
+
+		createChat(queryClient).onSuccess(makeTreeRow("new-1"));
+		await new Promise((r) => setTimeout(r, 0));
+
+		expect(
+			queryClient.getQueryState(chatTreeKey(ORG, { archived: false }))
+				?.isInvalidated,
+		).toBe(true);
+		expect(
+			queryClient.getQueryState(chatTreeKey("other-org", { archived: false }))
+				?.isInvalidated,
+		).not.toBe(true);
+	});
+
+	it("counts named descendants from the active tree caches only", () => {
+		const queryClient = createTestQueryClient();
+		const grandchild = makeTreeRow("grandchild-1", {
+			parent_chat_id: child.id,
+		});
+		seedTree(queryClient, [root, parent, child, grandchild]);
+		seedTree(
+			queryClient,
+			[root, makeTreeRow("archived-1", { parent_chat_id: parent.id })],
+			true,
+		);
+
+		expect(countChatTreeDescendantsInCaches(queryClient, parent.id)).toBe(2);
+		expect(countChatTreeDescendantsInCaches(queryClient, child.id)).toBe(1);
+		expect(countChatTreeDescendantsInCaches(queryClient, grandchild.id)).toBe(
+			0,
+		);
+		expect(countChatTreeDescendantsInCaches(queryClient, "missing")).toBe(0);
 	});
 
 	it("removes an archived subtree from the active tree and refetches the archived one", () => {

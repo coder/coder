@@ -24,9 +24,11 @@ import {
 	applyWatchedChatCreatedOrUnarchived,
 	archiveChat,
 	cancelChatListRefetches,
+	cancelChatTreeRefetches,
 	cancelLoadedChatEntityRefetch,
 	chatEntityKey,
 	chatTree,
+	countChatTreeDescendantsInCaches,
 	infiniteChats,
 	invalidateChatCostTree,
 	invalidateChatDiffContents,
@@ -57,6 +59,7 @@ import {
 	workspaceByIdKey,
 } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
+import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
 import { DeleteDialog } from "#/components/Dialog/DeleteDialog/DeleteDialog";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import {
@@ -160,6 +163,35 @@ export const chatCostIdToInvalidate = (
 	}
 	return getChatCostTreeID(chat);
 };
+
+export type PendingArchiveCascade = {
+	readonly chatId: string;
+	readonly title: string;
+	readonly descendantCount: number;
+};
+
+/**
+ * Describes the archive confirmation for a chat whose active tree rows
+ * have descendants; undefined when the chat can be archived directly.
+ * The count comes from cached active rows, not child_chat_count, which
+ * also counts archived children.
+ */
+export const pendingArchiveCascadeFor = (
+	chatId: string,
+	title: string | undefined,
+	descendantCount: number,
+): PendingArchiveCascade | undefined =>
+	descendantCount > 0
+		? { chatId, title: title || "Untitled", descendantCount }
+		: undefined;
+
+export const archiveCascadeDescription = ({
+	title,
+	descendantCount,
+}: PendingArchiveCascade): string =>
+	`Archive "${title}" and ${descendantCount} ${
+		descendantCount === 1 ? "chat" : "chats"
+	} beneath it? Subagents are archived with them. Archiving fails if any of them is running, being interrupted, or waiting for approval.`;
 
 const AgentsPageLayout: FC = () => {
 	useAgentsPWA();
@@ -340,6 +372,7 @@ const AgentsPageLayout: FC = () => {
 			clearPersistedSidebarTabId(chatId);
 			clearPersistedRightPanelState(chatId);
 			void invalidateChatListQueries(queryClient);
+			void invalidateChatTreeQueries(queryClient);
 			void invalidateChatEntity(queryClient, chatId);
 			void invalidateChatsByWorkspace(queryClient);
 			void invalidateChatSearches(queryClient);
@@ -367,6 +400,7 @@ const AgentsPageLayout: FC = () => {
 			// failures the chat stays archived; refetch every chat
 			// collection so all caches converge on the server.
 			void invalidateChatListQueries(queryClient);
+			void invalidateChatTreeQueries(queryClient);
 			void invalidateChatEntity(queryClient, chatId);
 			void invalidateChatsByWorkspace(queryClient);
 			void invalidateChatSearches(queryClient);
@@ -428,16 +462,26 @@ const AgentsPageLayout: FC = () => {
 	const treeChatList = [...treeResponsesByOrganization.values()].flatMap(
 		(response) => response.chats,
 	);
+	// Tree responses are depth ordered and include the root row, so the
+	// flat list handed to the sidebar drops the root and sorts by recency.
 	const chatList = isChatTreeEnabled
-		? [...treeChatList, ...sharedChatList]
+		? [
+				...treeChatList
+					.filter((chat) => chat.kind !== "root")
+					.sort((a, b) => b.updated_at.localeCompare(a.updated_at)),
+				...sharedChatList,
+			]
 		: sharedChatList;
 	const treeLoadError = chatTreeQueries.find((query) => query.error)?.error;
 	const treeHasData = treeResponsesByOrganization.size > 0;
 	const sidebarIsLoading = isChatTreeEnabled
 		? chatTreeQueries.some((query) => query.isLoading) && !treeHasData
 		: chatsQuery.isLoading;
+	// A loaded tree is shown even when the shared list fails.
 	const sidebarLoadError = isChatTreeEnabled
-		? ((treeHasData ? undefined : treeLoadError) ?? chatsQuery.error)
+		? treeHasData
+			? undefined
+			: (treeLoadError ?? chatsQuery.error)
 		: chatsQuery.error;
 	const retrySidebarLoad = () => {
 		if (isChatTreeEnabled) {
@@ -477,11 +521,30 @@ const AgentsPageLayout: FC = () => {
 		(archiveAndDeleteMutation.isPending
 			? archiveAndDeleteMutation.variables?.chatId
 			: undefined);
+	const [pendingArchiveCascade, setPendingArchiveCascade] =
+		useState<PendingArchiveCascade | null>(null);
 	const requestArchiveAgent = (chatId: string) => {
 		if (isArchiving) {
 			return;
 		}
+		if (isChatTreeEnabled) {
+			const cascade = pendingArchiveCascadeFor(
+				chatId,
+				readChatFromSidebarCaches(queryClient, chatId)?.title,
+				countChatTreeDescendantsInCaches(queryClient, chatId),
+			);
+			if (cascade) {
+				setPendingArchiveCascade(cascade);
+				return;
+			}
+		}
 		archiveAgentMutation.mutate(chatId);
+	};
+	const handleConfirmArchiveCascade = () => {
+		if (pendingArchiveCascade && !isArchiving) {
+			archiveAgentMutation.mutate(pendingArchiveCascade.chatId);
+		}
+		setPendingArchiveCascade(null);
 	};
 
 	// Track the active chat ID in a ref so the watchChats
@@ -682,6 +745,7 @@ const AgentsPageLayout: FC = () => {
 						// no hard-delete wire event. Patch archive state in
 						// place so an open route stays mounted and flips to
 						// its read-only state.
+						void cancelChatTreeRefetches(queryClient);
 						applyWatchedChatArchived(queryClient, updatedChat);
 						return;
 					}
@@ -703,6 +767,7 @@ const AgentsPageLayout: FC = () => {
 					// title generation finished, so its response carries
 					// the fallback title.
 					void cancelChatListRefetches(queryClient);
+					void cancelChatTreeRefetches(queryClient);
 					void cancelLoadedChatEntityRefetch(queryClient, updatedChat.id);
 					const treeEnabled = isChatTreeEnabledRef.current;
 					// Tree rows never embed subagents; the toggled node's entity
@@ -740,14 +805,17 @@ const AgentsPageLayout: FC = () => {
 								applyWatchedChatCreatedOrUnarchived(queryClient, updatedChat);
 							}
 						} else {
-							// `created` also fires for unarchive transitions.
-							applyWatchedChatCreatedOrUnarchived(queryClient, updatedChat);
 							// With the tree on, the flat list holds only shared chats,
-							// so an owned chat must not be prepended into it.
-							if (
+							// so an owned chat is neither prepended into it nor a
+							// reason to refetch it.
+							const isSharedListChat =
 								!treeEnabled ||
-								updatedChat.owner_id !== currentUserIdRef.current
-							) {
+								updatedChat.owner_id !== currentUserIdRef.current;
+							// `created` also fires for unarchive transitions.
+							applyWatchedChatCreatedOrUnarchived(queryClient, updatedChat, {
+								invalidateList: isSharedListChat,
+							});
+							if (isSharedListChat) {
 								prependToInfiniteChatsCache(queryClient, updatedChat);
 							}
 						}
@@ -938,6 +1006,19 @@ const AgentsPageLayout: FC = () => {
 				title="Archive agent & delete workspace"
 				verb="Archiving and deleting"
 				info="This will archive the agent and permanently delete the associated workspace and all its resources."
+			/>
+			<ConfirmDialog
+				type="delete"
+				open={pendingArchiveCascade !== null}
+				title="Archive chat"
+				description={
+					pendingArchiveCascade
+						? archiveCascadeDescription(pendingArchiveCascade)
+						: ""
+				}
+				confirmText="Archive"
+				onClose={() => setPendingArchiveCascade(null)}
+				onConfirm={handleConfirmArchiveCascade}
 			/>
 		</>
 	);

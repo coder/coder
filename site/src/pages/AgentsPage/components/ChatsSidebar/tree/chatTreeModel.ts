@@ -278,31 +278,7 @@ export const collectAncestorIDs = (
 	return ancestors;
 };
 
-/** Counts named (non subagent) descendants present in the model. */
-export const countNamedDescendants = (
-	model: ChatTreeModel,
-	id: string,
-): number => {
-	let count = 0;
-	const stack = [...getChatTreeChildren(model, id)];
-	const seen = new Set<string>();
-	while (stack.length > 0) {
-		const current = stack.pop();
-		if (current === undefined || seen.has(current)) {
-			continue;
-		}
-		seen.add(current);
-		const node = model.nodesById.get(current);
-		if (!node || node.kind === "subagent") {
-			continue;
-		}
-		count += 1;
-		stack.push(...getChatTreeChildren(model, current));
-	}
-	return count;
-};
-
-/** Collects the statuses of every descendant chat present in the model. */
+/** Collects every descendant chat present in the model, subagents included. */
 export const collectDescendantChats = (
 	model: ChatTreeModel,
 	id: string,

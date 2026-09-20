@@ -6,7 +6,8 @@ import { safeBuildAgentChatPath } from "../../utils/navigation";
 
 const UNKNOWN_SENDER_CHAT_TITLE = "Unknown chat";
 
-const RELATION_LABELS: Record<
+/** Lowercase relation labels, phrased to follow "From <title>". */
+export const senderChatRelationLabels: Record<
 	NonNullable<ChatSenderChatPart["sender_chat_relation"]>,
 	string
 > = {
@@ -31,7 +32,7 @@ export const SenderChatHeader: FC<{
 		? safeBuildAgentChatPath({ chatId: senderChat.sender_chat_id })
 		: null;
 	const relation = senderChat.sender_chat_relation
-		? RELATION_LABELS[senderChat.sender_chat_relation]
+		? senderChatRelationLabels[senderChat.sender_chat_relation]
 		: undefined;
 	const hop = senderChat.relay_hop ?? 1;
 

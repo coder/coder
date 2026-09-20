@@ -2194,3 +2194,16 @@ export const WithParentChat: Story = {
 		onClearParentChat: fn(),
 	},
 };
+
+// The parent belongs to an organization outside the dashboard's list, so
+// the form reports it and falls back to creating under the root.
+export const WithParentChatInUnavailableOrganization: Story = {
+	args: {
+		parentChat: {
+			parentChatId: "parent-chat-1",
+			parentChatTitle: "Fix flaky login test",
+			parentOrganizationId: MockOrganization2.id,
+		},
+		onClearParentChat: fn(),
+	},
+};

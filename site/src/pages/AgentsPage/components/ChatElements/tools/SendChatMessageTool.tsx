@@ -2,6 +2,7 @@ import { ExternalLinkIcon } from "lucide-react";
 import type { FC } from "react";
 import { Link, useLocation } from "react-router";
 import { safeBuildAgentChatPath } from "../../../utils/navigation";
+import { senderChatRelationLabels } from "../../ChatConversation/SenderChatHeader";
 import { ToolCall } from "./ToolCall";
 import type { ToolStatus } from "./utils";
 
@@ -30,18 +31,50 @@ const DELIVERY_LABELS: Record<SendChatMessageDelivery, string> = {
 	interrupting: "interrupting the current turn",
 };
 
+const isKnownDelivery = (
+	delivery: string,
+): delivery is SendChatMessageDelivery =>
+	Object.hasOwn(DELIVERY_LABELS, delivery);
+
 const deliveryLabel = (delivery: string | undefined): string | undefined => {
 	if (!delivery) {
 		return undefined;
 	}
-	return delivery in DELIVERY_LABELS
-		? DELIVERY_LABELS[delivery as SendChatMessageDelivery]
-		: delivery;
+	return isKnownDelivery(delivery) ? DELIVERY_LABELS[delivery] : delivery;
 };
 
-const RELATION_LABELS: Record<string, string> = {
-	parent: "Parent chat",
-	child: "Child chat",
+const isKnownRelation = (
+	relation: string,
+): relation is keyof typeof senderChatRelationLabels =>
+	Object.hasOwn(senderChatRelationLabels, relation);
+
+/** Sentence-case relation label for the "Target" row. */
+const relationLabelFor = (relation: string | undefined): string | undefined => {
+	if (!relation || !isKnownRelation(relation)) {
+		return undefined;
+	}
+	const label = senderChatRelationLabels[relation];
+	return label.charAt(0).toUpperCase() + label.slice(1);
+};
+
+/**
+ * Picks the chat id shown and linked for a `send_chat_message` call. The
+ * result's id wins. For results that did not fail the model-supplied
+ * argument is used as is; for failed results only the literal "parent"
+ * is kept, which labels the target and is never linked.
+ */
+export const resolveSendChatMessageTargetId = (
+	resultChatId: string | undefined,
+	argsChatId: string | undefined,
+	isError: boolean,
+): string | undefined => {
+	if (resultChatId) {
+		return resultChatId;
+	}
+	if (isError) {
+		return argsChatId === "parent" ? argsChatId : undefined;
+	}
+	return argsChatId || undefined;
 };
 
 const targetLabel = (
@@ -85,7 +118,7 @@ export const SendChatMessageTool: FC<SendChatMessageToolProps> = ({
 	const label = isRunning
 		? "Sending message"
 		: targetLabel(targetTitle, targetChatId);
-	const relationLabel = relation ? RELATION_LABELS[relation] : undefined;
+	const relationLabel = relationLabelFor(relation);
 	const rows: { key: string; label: string; value: string }[] = [];
 	if (relationLabel) {
 		rows.push({ key: "relation", label: "Target", value: relationLabel });

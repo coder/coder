@@ -436,7 +436,6 @@ export const applyWatchedChatArchived = (
 	chat: TypesGen.Chat,
 ) => {
 	void cancelChatListRefetches(queryClient);
-	void cancelChatTreeRefetches(queryClient);
 	if (queryClient.getQueryData(chatEntityKey(chat.id)) === undefined) {
 		void resetUnloadedChatEntity(queryClient, chat.id);
 	} else {
@@ -450,6 +449,14 @@ export const applyWatchedChatArchived = (
 	void invalidateChatSearches(queryClient);
 };
 
+type WatchedChatCreatedOptions = Readonly<{
+	/**
+	 * Whether to refetch the flat chat list. Defaults to true; false when
+	 * the list cannot contain the chat.
+	 */
+	invalidateList?: boolean;
+}>;
+
 /**
  * Watch-event effect for a root `created` event, which the server
  * publishes both for new chats and for unarchive transitions (one event
@@ -457,22 +464,30 @@ export const applyWatchedChatArchived = (
  * unarchive case; a truly new chat only needs the family invalidations
  * and never gets a speculative entity entry. The caller remains
  * responsible for list prepend and child insertion.
+ *
+ * The tree caches are written before the archive-state pass because
+ * that pass drops the row from the archived tree, which the tree helper
+ * uses to tell an unarchive from a new chat.
  */
 export const applyWatchedChatCreatedOrUnarchived = (
 	queryClient: QueryClient,
 	chat: TypesGen.Chat,
+	options: WatchedChatCreatedOptions = {},
 ) => {
 	const cachedChat = queryClient.getQueryData<TypesGen.Chat>(
 		chatEntityKey(chat.id),
 	);
+	applyWatchedChatCreatedToChatTreeCaches(queryClient, chat, {
+		unarchived: cachedChat?.archived === true,
+	});
 	if (cachedChat === undefined) {
 		void resetUnloadedChatEntity(queryClient, chat.id);
 	} else if (cachedChat.archived) {
 		applyChatArchiveStateToCaches(queryClient, chat.id, false);
 	}
-	void cancelChatTreeRefetches(queryClient);
-	applyWatchedChatCreatedToChatTreeCaches(queryClient, chat);
-	void invalidateChatListQueries(queryClient);
+	if (options.invalidateList !== false) {
+		void invalidateChatListQueries(queryClient);
+	}
 	void invalidateChatsByWorkspace(queryClient);
 	void invalidateChatSearches(queryClient);
 };
@@ -803,6 +818,55 @@ export const readChatFromSidebarCaches = (
 	readChatTreeCaches(queryClient).find((chat) => chat.id === chatId);
 
 /**
+ * Collects the ids of a chat and every row that descends from it
+ * through parent_chat_id.
+ */
+const collectChatSubtreeIds = (
+	chats: readonly TypesGen.Chat[],
+	chatId: string,
+): Set<string> => {
+	const subtree = new Set<string>([chatId]);
+	let grew = true;
+	while (grew) {
+		grew = false;
+		for (const chat of chats) {
+			const parentId = chat.parent_chat_id;
+			if (parentId && subtree.has(parentId) && !subtree.has(chat.id)) {
+				subtree.add(chat.id);
+				grew = true;
+			}
+		}
+	}
+	return subtree;
+};
+
+/**
+ * Counts the distinct rows beneath a chat across the cached active
+ * (archived: false) trees. Tree rows never include subagents, so the
+ * count covers named chats only. Returns 0 when no tree is cached.
+ */
+export const countChatTreeDescendantsInCaches = (
+	queryClient: QueryClient,
+	chatId: string,
+): number => {
+	const descendants = new Set<string>();
+	const queries = queryClient.getQueriesData<TypesGen.ChatTreeResponse>({
+		queryKey: chatTreeFamilyKey,
+	});
+	for (const [queryKey, data] of queries) {
+		if (!data?.chats || chatTreeKeyParts(queryKey)?.archived !== false) {
+			continue;
+		}
+		for (const id of collectChatSubtreeIds(data.chats, chatId)) {
+			if (id !== chatId) {
+				descendants.add(id);
+			}
+		}
+	}
+	return descendants.size;
+};
+
+/**
  * Removes a row and every row that descends from it through
  * parent_chat_id. Returns the input reference when nothing matched.
  */
@@ -810,18 +874,7 @@ const removeChatSubtreeFromRows = (
 	chats: readonly TypesGen.Chat[],
 	chatId: string,
 ): readonly TypesGen.Chat[] => {
-	const removed = new Set<string>([chatId]);
-	let grew = true;
-	while (grew) {
-		grew = false;
-		for (const chat of chats) {
-			const parentId = chat.parent_chat_id;
-			if (parentId && removed.has(parentId) && !removed.has(chat.id)) {
-				removed.add(chat.id);
-				grew = true;
-			}
-		}
-	}
+	const removed = collectChatSubtreeIds(chats, chatId);
 	const next = chats.filter((chat) => !removed.has(chat.id));
 	return next.length === chats.length ? chats : next;
 };
@@ -845,21 +898,23 @@ const mergeWatchedChatIntoChatTreeCaches = (
 
 /**
  * Applies a `created` watch event to the tree caches of the chat's
- * organization. A row already present in an archived tree identifies an
- * unarchive, which moves the row without touching the parent's
- * child_chat_count (the count covers children of any archive state). A
- * new chat is appended to the active tree and bumps its parent's count;
- * when the parent is not cached the tree is refetched instead.
+ * organization. A row already present in an archived tree, or an
+ * `unarchived` flag from the caller, identifies an unarchive, which
+ * moves the row without touching the parent's child_chat_count (the
+ * count covers children of any archive state). A new chat is appended
+ * to the active tree one level below its parent and bumps the parent's
+ * count; when the parent is not cached the tree is refetched instead.
  */
 export const applyWatchedChatCreatedToChatTreeCaches = (
 	queryClient: QueryClient,
 	chat: TypesGen.Chat,
+	options: Readonly<{ unarchived?: boolean }> = {},
 ) => {
 	if (!isChatTreeRowKind(chat)) {
 		return;
 	}
 	const scope = { organizationId: chat.organization_id };
-	let wasArchived = false;
+	let wasArchived = options.unarchived === true;
 	updateChatTreeCaches(
 		queryClient,
 		(chats) => {
@@ -887,12 +942,14 @@ export const applyWatchedChatCreatedToChatTreeCaches = (
 				needsRefetch = true;
 				return chats;
 			}
+			const parentDepth =
+				parentIndex !== -1 ? chats[parentIndex].depth : undefined;
 			const row: TypesGen.Chat = {
 				...chat,
 				archived: false,
 				has_unread: false,
 				child_chat_count: chat.child_chat_count ?? 0,
-				depth: undefined,
+				depth: typeof parentDepth === "number" ? parentDepth + 1 : undefined,
 				children: [],
 			};
 			const next = [...chats, row];
@@ -2087,8 +2144,11 @@ export const chatDebugRun = (chatId: string, runId: string) =>
 export const createChat = (queryClient: QueryClient) => ({
 	mutationFn: (req: TypesGen.CreateChatRequest) =>
 		API.experimental.createChat(req),
-	onSuccess: () => {
+	onSuccess: (createdChat: TypesGen.Chat) => {
 		void invalidateChatListQueries(queryClient);
+		void invalidateChatTreeQueries(queryClient, {
+			organizationId: createdChat.organization_id,
+		});
 		void invalidateChatsByWorkspace(queryClient);
 		void invalidateChatSearches(queryClient);
 	},

@@ -65,6 +65,8 @@ interface ChatActionsMenuItemsProps {
 	readonly hasWorkspace: boolean;
 	readonly isArchiving?: boolean;
 	readonly isArchiveBlocked?: boolean;
+	/** Unarchive is hidden while the parent chat is archived. */
+	readonly isParentArchived?: boolean;
 	/**
 	 * Number of subagents known for the chat. Undefined means the count is
 	 * unknown (tree rows carry none), in which case the toggle is offered
@@ -95,6 +97,7 @@ export const ChatActionsMenuItems: FC<ChatActionsMenuItemsProps> = ({
 	hasWorkspace,
 	isArchiving = false,
 	isArchiveBlocked = false,
+	isParentArchived = false,
 	subagentCount,
 	isSubagentsExpanded = false,
 	onToggleSubagents,
@@ -210,7 +213,7 @@ export const ChatActionsMenuItems: FC<ChatActionsMenuItemsProps> = ({
 			{isArchived ? (
 				!isChildChat && (
 					<>
-						{!isRoot && (
+						{!isRoot && !isParentArchived && (
 							<Item disabled={isArchiving} onSelect={onUnarchiveAgent}>
 								<ArchiveRestoreIcon className="size-3.5" />
 								Unarchive agent

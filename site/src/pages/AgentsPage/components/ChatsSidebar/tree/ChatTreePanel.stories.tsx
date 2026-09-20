@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { fn, userEvent, within } from "storybook/test";
+import { fn, spyOn, userEvent, within } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
+import { API } from "#/api/api";
 import { chatEntityKey } from "#/api/queries/chats";
 import type { Chat, ChatTreeResponse } from "#/api/typesGenerated";
 import {
@@ -53,18 +54,22 @@ const treeData = (
 
 const treeChats = MockChatTreeResponse.chats;
 
+/** Default sidebar frame; a story overrides it through `parameters.frame`. */
+const DEFAULT_FRAME = { width: 320, height: 640 };
+
 const meta: Meta<typeof ChatsSidebar> = {
 	title: "pages/AgentsPage/ChatsSidebar/ChatTreePanel",
 	component: ChatsSidebar,
 	decorators: [
 		withAuthProvider,
 		withDashboardProvider,
-		(Story) => {
+		(Story, { parameters }) => {
 			// Expansion is persisted per browser; start every story from the
 			// defaults so screenshots do not depend on the previous story.
 			localStorage.removeItem(CHAT_TREE_EXPANSION_STORAGE_KEY);
+			const frame: typeof DEFAULT_FRAME = parameters.frame ?? DEFAULT_FRAME;
 			return (
-				<div style={{ height: 640, width: 320 }}>
+				<div style={{ height: frame.height, width: frame.width }}>
 					<Story />
 				</div>
 			);
@@ -123,13 +128,19 @@ export const NoRootAvailable: Story = {
 
 export const Collapsed: Story = {};
 
+// The chevron is hidden from assistive technology, so stories expand rows
+// the way a keyboard user does: focus the treeitem and press Right.
+const expandTreeitem = async (treeitem: HTMLElement) => {
+	treeitem.focus();
+	await userEvent.keyboard("{ArrowRight}");
+};
+
 export const Expanded: Story = {
 	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await userEvent.click(
-			within(
-				canvas.getByTestId(`chat-tree-row-${MockChatTreeChild.id}`),
-			).getByRole("button", { name: "Expand" }),
+		await expandTreeitem(
+			within(canvasElement).getByRole("treeitem", {
+				name: new RegExp(MockChatTreeChild.title),
+			}),
 		);
 	},
 };
@@ -218,11 +229,11 @@ const deepChats: Chat[] = [
 const expandAll = async (canvasElement: HTMLElement) => {
 	const canvas = within(canvasElement);
 	for (let index = 0; index < 4; index++) {
-		const buttons = canvas.queryAllByRole("button", { name: "Expand" });
-		if (buttons.length === 0) {
+		const collapsed = canvas.queryAllByRole("treeitem", { expanded: false });
+		if (collapsed.length === 0) {
 			return;
 		}
-		await userEvent.click(buttons[0]);
+		await expandTreeitem(collapsed[0]);
 	}
 };
 
@@ -248,16 +259,14 @@ export const DepthLimitDisablesCreate: Story = {
 	},
 };
 
-export const ArchiveConfirmation: Story = {
+export const ContextMenuOpen: Story = {
 	play: async ({ canvasElement }) => {
-		await userEvent.click(
-			within(canvasElement).getByRole("button", {
-				name: `Open actions for ${MockChatTreeChild.title}`,
-			}),
-		);
-		await userEvent.click(
-			within(document.body).getByRole("menuitem", { name: "Archive agent" }),
-		);
+		await userEvent.pointer({
+			keys: "[MouseRight]",
+			target: within(canvasElement).getByTestId(
+				`chat-tree-row-${MockChatTreeChild.id}`,
+			),
+		});
 	},
 };
 
@@ -271,6 +280,30 @@ export const PinnedSection: Story = {
 		treeData: treeData({
 			root_chat_id: MockChatTreeRoot.id,
 			chats: pinnedChats,
+		}),
+	},
+};
+
+// The pinned sibling does not match the unread filter, so only the pinned
+// unread child remains in the pinned section and reordering is disabled.
+const filteredPinnedChats: Chat[] = treeChats.map((chat) =>
+	chat.id === MockChatTreeSibling.id
+		? { ...chat, pin_order: 1 }
+		: chat.id === MockChatTreeChild.id
+			? { ...chat, pin_order: 2, has_unread: true }
+			: chat,
+);
+
+export const PinnedSectionFiltered: Story = {
+	args: {
+		chats: filteredPinnedChats,
+		sidebarFilters: {
+			...DEFAULT_AGENT_SIDEBAR_FILTERS,
+			chatStatuses: ["unread"],
+		},
+		treeData: treeData({
+			root_chat_id: MockChatTreeRoot.id,
+			chats: filteredPinnedChats,
 		}),
 	},
 };
@@ -332,6 +365,26 @@ export const UnreadFilterDimsAncestors: Story = {
 	},
 };
 
+export const FilterWithoutMatches: Story = {
+	args: {
+		sidebarFilters: {
+			...DEFAULT_AGENT_SIDEBAR_FILTERS,
+			chatStatuses: ["unread"],
+		},
+	},
+};
+
+const showSubagents = async (canvasElement: HTMLElement) => {
+	await userEvent.click(
+		within(canvasElement).getByRole("button", {
+			name: `Open actions for ${MockChatTreeChild.title}`,
+		}),
+	);
+	await userEvent.click(
+		within(document.body).getByRole("menuitem", { name: "Show subagents" }),
+	);
+};
+
 export const SubagentsShown: Story = {
 	parameters: {
 		queries: [
@@ -342,14 +395,30 @@ export const SubagentsShown: Story = {
 		],
 	},
 	play: async ({ canvasElement }) => {
-		await userEvent.click(
-			within(canvasElement).getByRole("button", {
-				name: `Open actions for ${MockChatTreeChild.title}`,
-			}),
+		await showSubagents(canvasElement);
+	},
+};
+
+// No cached entity, so the toggle starts a fetch that never settles.
+export const SubagentsLoading: Story = {
+	beforeEach: () => {
+		spyOn(API.experimental, "getChat").mockImplementation(
+			() => new Promise(() => {}),
 		);
-		await userEvent.click(
-			within(document.body).getByRole("menuitem", { name: "Show subagents" }),
+	},
+	play: async ({ canvasElement }) => {
+		await showSubagents(canvasElement);
+	},
+};
+
+export const SubagentsLoadFailed: Story = {
+	beforeEach: () => {
+		spyOn(API.experimental, "getChat").mockRejectedValue(
+			new Error("Request failed"),
 		);
+	},
+	play: async ({ canvasElement }) => {
+		await showSubagents(canvasElement);
 	},
 };
 
@@ -399,6 +468,17 @@ export const MultipleOrganizations: Story = {
 	},
 };
 
+export const CollapsedOrganization: Story = {
+	...MultipleOrganizations,
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			within(canvasElement).getByRole("treeitem", {
+				name: MockOrganization2.display_name,
+			}),
+		);
+	},
+};
+
 export const KeyboardFocusRing: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -407,15 +487,12 @@ export const KeyboardFocusRing: Story = {
 	},
 };
 
+// Pixel captures with a mouse-capable browser, so the hover-revealed
+// controls render as on desktop; touch (hover: none) emulation is not
+// available here.
 export const Mobile: Story = {
 	parameters: {
 		viewport: { defaultViewport: "mobile1" },
+		frame: { width: 360, height: 560 },
 	},
-	decorators: [
-		(Story) => (
-			<div style={{ height: 560, width: 360 }}>
-				<Story />
-			</div>
-		),
-	],
 };
