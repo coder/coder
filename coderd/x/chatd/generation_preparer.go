@@ -303,6 +303,10 @@ func (server *Server) prepareGeneration(
 	promptRows = append(sanitizedHead[:len(sanitizedHead):len(sanitizedHead)], promptRows[pendingRowsStart:]...)
 	pendingRowsStart = len(sanitizedHead)
 
+	// loadWorkspaceContext runs in the parallel phase below so the bounded
+	// discovery wait overlaps the external MCP connections instead of
+	// preceding them.
+	var loadWorkspaceContext func() error
 	if chat.WorkspaceID.Valid {
 		// Resolve the workspace agent so the chat row's AgentID and
 		// BuildID bindings are up to date before the chatworker
@@ -312,43 +316,45 @@ func (server *Server) prepareGeneration(
 		// refresh, not a workspace dial. It must not insert chat
 		// history; only metadata is mutated here.
 		agent, _ := workspaceCtx.getWorkspaceAgent(ctx)
-
-		// Turns that expose workspace MCP tools wait, within a bounded
-		// budget shared with the lifecycle tools, for the current agent
-		// process to finish discovery so the first turn sees its tools.
-		// Timeouts fail open with whatever has been discovered.
 		exposesWorkspaceMCP := !isPlanModeTurn && !isExploreSubagent
-		if exposesWorkspaceMCP && agent.ID != uuid.Nil {
-			server.waitForMCPDiscovery(ctx, chat.ID, agent.ID)
-		}
 
-		// API-created chats bind their agent lazily here, after
-		// hydrateChatContextOnCreate ran with no agent. Pin the chat to the
-		// bound agent's pushed snapshot now if it is still unpinned, so the
-		// first turn reads workspace context instead of waiting for the
-		// agent's next push. Idempotent and snapshot-gated; runs before the
-		// pinned context is read below.
-		chatSnap := workspaceCtx.currentChatSnapshot()
-		server.ensureChatContextPinnedOnFirstTurn(ctx, chatSnap)
-
-		var resolveErr error
-		instruction, workspaceSkills, resolveErr = server.resolveTurnWorkspaceContext(ctx, chat, agent)
-		if resolveErr != nil {
-			cleanup()
-			return generationPrepared{}, resolveErr
-		}
-		if exposesWorkspaceMCP {
-			// One view feeds both the model-facing note and the tool set,
-			// so what the model is told about discovery matches the tools
-			// it is offered. A read failure yields no tools rather than
-			// aborting the turn.
-			var mcpErr error
-			workspaceMCPTools, workspaceMCPNote, mcpErr = server.workspaceMCPForTurn(ctx, chatSnap, workspaceCtx.getWorkspaceConn)
-			if mcpErr != nil {
-				logger.Warn(ctx, "failed to read pinned workspace MCP tools",
-					slog.F("chat_id", chat.ID), slog.Error(mcpErr))
+		loadWorkspaceContext = func() error {
+			// Turns that expose workspace MCP tools wait, within a bounded
+			// budget shared with the lifecycle tools, for the current agent
+			// process to finish discovery so the first turn sees its tools.
+			// Timeouts fail open with whatever has been discovered.
+			if exposesWorkspaceMCP && agent.ID != uuid.Nil {
+				server.waitForMCPDiscovery(ctx, chat.ID, agent.ID)
 			}
-			instruction = appendWorkspaceMCPNote(instruction, workspaceMCPNote)
+
+			// API-created chats bind their agent lazily here, after
+			// hydrateChatContextOnCreate ran with no agent. Pin the chat to
+			// the bound agent's pushed snapshot now if it is still unpinned,
+			// so the first turn reads workspace context instead of waiting
+			// for the agent's next push. Idempotent and snapshot-gated; runs
+			// before the pinned context is read below.
+			chatSnap := workspaceCtx.currentChatSnapshot()
+			server.ensureChatContextPinnedOnFirstTurn(ctx, chatSnap)
+
+			var resolveErr error
+			instruction, workspaceSkills, resolveErr = server.resolveTurnWorkspaceContext(ctx, chat, agent)
+			if resolveErr != nil {
+				return resolveErr
+			}
+			if exposesWorkspaceMCP {
+				// One view feeds both the model-facing note and the tool
+				// set, so what the model is told about discovery matches
+				// the tools it is offered. A read failure yields no tools
+				// rather than aborting the turn.
+				var mcpErr error
+				workspaceMCPTools, workspaceMCPNote, mcpErr = server.workspaceMCPForTurn(ctx, chatSnap, workspaceCtx.getWorkspaceConn)
+				if mcpErr != nil {
+					logger.Warn(ctx, "failed to read pinned workspace MCP tools",
+						slog.F("chat_id", chat.ID), slog.Error(mcpErr))
+				}
+				instruction = appendWorkspaceMCPNote(instruction, workspaceMCPNote)
+			}
+			return nil
 		}
 	}
 
@@ -377,6 +383,9 @@ func (server *Server) prepareGeneration(
 
 	var pendingPrompt []fantasy.Message
 	var g2 errgroup.Group
+	if loadWorkspaceContext != nil {
+		g2.Go(loadWorkspaceContext)
+	}
 	g2.Go(func() error {
 		var err error
 		// Key the file-part acceptance on model.Provider() (the fantasy
@@ -690,21 +699,23 @@ func (server *Server) prepareGeneration(
 		var loadEntries func(context.Context) chattool.FindToolsCatalog
 		if canLoadWorkspaceCatalog {
 			loadEntries = func(callCtx context.Context) chattool.FindToolsCatalog {
+				// The catalog prepared for this turn stays in place unless the
+				// reload succeeds: FindTools loads once per generation, so a
+				// transient read failure must not hide tools that were valid
+				// at turn start.
 				input := candidateInput
-				input.workspaceMCPTools = nil
-				if _, err := workspaceCtx.getWorkspaceAgent(callCtx); err != nil {
-					return chattool.FindToolsCatalog{Entries: deferredMCPToolEntries(collectDeferredMCPCandidates(input))}
-				}
-				chatSnap := workspaceCtx.currentChatSnapshot()
-				server.ensureChatContextPinnedOnFirstTurn(callCtx, chatSnap)
-				catalog := chattool.FindToolsCatalog{}
-				tools, note, err := server.workspaceMCPForTurn(callCtx, chatSnap, workspaceCtx.getWorkspaceConn)
-				if err != nil {
-					logger.Warn(callCtx, "failed to read pinned workspace MCP tools for find_tools",
-						slog.F("chat_id", chat.ID), slog.Error(err))
-				} else {
-					input.workspaceMCPTools = tools
-					catalog.WorkspaceMCPNote = note
+				catalog := chattool.FindToolsCatalog{WorkspaceMCPNote: workspaceMCPNote}
+				if _, err := workspaceCtx.getWorkspaceAgent(callCtx); err == nil {
+					chatSnap := workspaceCtx.currentChatSnapshot()
+					server.ensureChatContextPinnedOnFirstTurn(callCtx, chatSnap)
+					tools, note, err := server.workspaceMCPForTurn(callCtx, chatSnap, workspaceCtx.getWorkspaceConn)
+					if err != nil {
+						logger.Warn(callCtx, "failed to read pinned workspace MCP tools for find_tools",
+							slog.F("chat_id", chat.ID), slog.Error(err))
+					} else {
+						input.workspaceMCPTools = tools
+						catalog.WorkspaceMCPNote = note
+					}
 				}
 				catalog.Entries = deferredMCPToolEntries(collectDeferredMCPCandidates(input))
 				return catalog
