@@ -87,7 +87,6 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, depth = 0 }) => {
 			: undefined;
 	const lastTurnSummary = asNonEmptyString(chat.last_turn_summary);
 	const goalObjective = activeGoalObjective(chat);
-	const displayTitle = goalObjective ?? chat.title;
 	const isStreaming = chat.status === "running";
 	const streamingSubtitle =
 		isStreaming && modelName ? `${modelName} streaming…` : undefined;
@@ -260,7 +259,7 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, depth = 0 }) => {
 													"opacity-85 [@media(hover:hover)]:group-hover:opacity-100",
 											)}
 										>
-											{displayTitle}
+											{goalObjective ?? chat.title}
 										</span>
 										{chat.has_unread && !isActiveChat && (
 											<span className="sr-only">(unread)</span>

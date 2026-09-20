@@ -1442,8 +1442,7 @@ const cachedChatFamilyId = (
 
 /**
  * Cancels and refetches every cached entity in the chat's family plus
- * the chat lists. Reconciles goal mutations after they settle and backs
- * up refreshChatGoalFamily when its direct read fails.
+ * the chat lists, reconciling settled goal mutations.
  */
 export const invalidateChatGoalFamily = async (
 	queryClient: QueryClient,
@@ -1477,9 +1476,8 @@ export const setCachedChatGoal = (
 	const familyId =
 		goal?.root_chat_id ?? cachedChatFamilyId(queryClient, chatId) ?? chatId;
 	// Applied unconditionally: goal timestamps cannot order concurrent
-	// commits (serialized transactions can invert NOW()-based columns), and
-	// every goal commit publishes goal_change, so the refresh triggered by
-	// the newest event always reapplies DB truth last.
+	// commits, and every goal commit publishes goal_change, so the newest
+	// event's refresh reapplies DB truth last.
 	const applyGoal = (chat: TypesGen.Chat) =>
 		chatRootId(chat) === familyId && chat.goal !== cachedGoal
 			? { ...chat, goal: cachedGoal }
@@ -1524,14 +1522,11 @@ const pendingGoalRefreshes = new WeakMap<
 
 /**
  * Reads the DB-backed goal for a goal_change event's chat and patches it
- * into the family's caches. Watch-event handlers cancel in-flight entity
- * refetches to protect their merge writes, and a server-side pause lands
- * in the same event burst as the turn's final status and summary events,
- * so a query-machinery refetch would be cancelled and never rerun (an
- * idle chat stops polling). This read bypasses the query cache so those
- * cancellations cannot touch it; goal_change events arriving mid-read
- * coalesce into one follow-up read, so the applied goal always reflects
- * a read started after the latest event.
+ * into the family's caches. The read bypasses the query cache because
+ * watch events cancel in-flight entity refetches and an idle chat never
+ * reruns them; events arriving mid-read coalesce into one follow-up
+ * read, so the applied goal reflects a read started after the latest
+ * event.
  */
 const refreshChatGoalFamily = async (
 	queryClient: QueryClient,

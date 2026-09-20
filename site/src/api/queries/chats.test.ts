@@ -3464,11 +3464,9 @@ describe("mergeWatchedChatIntoCaches", () => {
 	});
 
 	it("applies the refreshed goal even when a later watch event cancels entity refetches", async () => {
-		// A server-side pause publishes goal_change inside the same event
-		// burst as the turn's status_change and summary_change, and every
-		// event cancels in-flight entity refetches to protect its merge
-		// writes. The goal refresh must survive those cancellations or an
-		// open, newly idle chat keeps rendering the stale active goal.
+		// Every watch event cancels in-flight entity refetches, and a
+		// server-side pause shares the burst with the turn's final events,
+		// so the goal refresh must survive those cancellations.
 		const queryClient = createTestQueryClient();
 		const chatId = "chat-1";
 		const activeGoal = makeGoal({ status: "active" });

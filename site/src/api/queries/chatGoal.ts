@@ -6,11 +6,14 @@ export type CurrentChatGoalStatus = Extract<
 	"active" | "paused" | "complete"
 >;
 
-const CHAT_GOAL_ACTIONS_BY_STATUS = {
+export const CHAT_GOAL_ACTIONS_BY_STATUS: Record<
+	CurrentChatGoalStatus,
+	readonly ChatGoalAction[]
+> = {
 	active: ["pause", "complete", "clear"],
 	paused: ["resume", "clear"],
 	complete: ["clear"],
-} as const satisfies Record<CurrentChatGoalStatus, readonly ChatGoalAction[]>;
+};
 
 export const isCurrentChatGoalStatus = (
 	status: TypesGen.ChatGoalStatus,
@@ -22,16 +25,12 @@ export const currentChatGoal = (
 ): TypesGen.ChatGoal | undefined =>
 	goal && isCurrentChatGoalStatus(goal.status) ? goal : undefined;
 
-export const chatGoalActionsForStatus = (
-	status: CurrentChatGoalStatus,
-): readonly ChatGoalAction[] => CHAT_GOAL_ACTIONS_BY_STATUS[status];
-
 export const chatGoalActionAllowed = (
 	goal: TypesGen.ChatGoal,
 	action: ChatGoalAction,
 ): boolean =>
 	isCurrentChatGoalStatus(goal.status) &&
-	chatGoalActionsForStatus(goal.status).includes(action);
+	CHAT_GOAL_ACTIONS_BY_STATUS[goal.status].includes(action);
 
 export const isChatBusyStatus = (
 	status: TypesGen.ChatStatus | null | undefined,

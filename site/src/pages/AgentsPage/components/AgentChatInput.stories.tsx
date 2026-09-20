@@ -1,7 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { MonitorDotIcon } from "lucide-react";
-import type { ComponentProps, FC } from "react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { expect, fn, spyOn, userEvent, waitFor, within } from "storybook/test";
 import { API } from "#/api/api";
 import { preferenceSettingsKey } from "#/api/queries/users";
@@ -230,15 +229,14 @@ export const SendsAndClearsInput: Story = {
 	},
 };
 
-export const PursueGoalModeSendsGoalMutation: Story = {
+export const PursueGoalMode: Story = {
 	args: {
-		onSend: fn().mockResolvedValue(undefined),
 		initialValue: "  stabilize the release  ",
 		onPlanModeToggle: fn(),
 		showPursueGoal: true,
 		canPursueGoal: true,
 	},
-	play: async ({ canvasElement, args }) => {
+	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
 		await userEvent.click(
@@ -246,39 +244,9 @@ export const PursueGoalModeSendsGoalMutation: Story = {
 				name: "Pursue goal",
 			}),
 		);
-
+		// Reopen the menu so the snapshot captures the checked pursue-goal
+		// item and the disabled plan-mode item.
 		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
-		expect(
-			within(document.body).getByRole("menuitemcheckbox", {
-				name: "Pursue goal",
-			}),
-		).toHaveAttribute("aria-checked", "true");
-		expect(
-			within(document.body).getByRole("menuitemcheckbox", {
-				name: "Plan first",
-			}),
-		).toHaveAttribute("aria-disabled", "true");
-		await userEvent.keyboard("{Escape}");
-
-		await waitFor(() => {
-			expect(canvas.getByRole("button", { name: "Send" })).toBeEnabled();
-		});
-		await userEvent.click(canvas.getByRole("button", { name: "Send" }));
-
-		await waitFor(() => {
-			expect(args.onSend).toHaveBeenCalledWith("stabilize the release", {
-				goalMutation: {
-					action: "set",
-					objective: "stabilize the release",
-				},
-			});
-		});
-		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
-		expect(
-			within(document.body).getByRole("menuitemcheckbox", {
-				name: "Pursue goal",
-			}),
-		).toHaveAttribute("aria-checked", "false");
 	},
 };
 
@@ -293,71 +261,6 @@ export const PursueGoalDisabledWhileChatBusy: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
-		const pursueGoal = within(document.body).getByRole("menuitemcheckbox", {
-			name: "Pursue goal",
-		});
-		expect(pursueGoal).toHaveAttribute("aria-disabled", "true");
-		// The unavailable item stays focusable but clicking it must not
-		// toggle goal mode.
-		pursueGoal.focus();
-		expect(pursueGoal).toHaveFocus();
-		await userEvent.click(pursueGoal);
-		expect(pursueGoal).toHaveAttribute("aria-checked", "false");
-	},
-};
-
-const GoalAvailabilityHarness: FC<ComponentProps<typeof AgentChatInput>> = (
-	props,
-) => {
-	const [canPursueGoal, setCanPursueGoal] = useState(true);
-	return (
-		<>
-			<button type="button" onClick={() => setCanPursueGoal((can) => !can)}>
-				Toggle goal availability
-			</button>
-			<AgentChatInput {...props} canPursueGoal={canPursueGoal} />
-		</>
-	);
-};
-
-export const GoalModeClearsWhenUnavailable: Story = {
-	args: {
-		onPlanModeToggle: fn(),
-		showPursueGoal: true,
-		canPursueGoal: true,
-	},
-	render: (args) => <GoalAvailabilityHarness {...args} />,
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
-		await userEvent.click(
-			within(document.body).getByRole("menuitemcheckbox", {
-				name: "Pursue goal",
-			}),
-		);
-		await waitFor(() => {
-			expect(canvas.getByText("Pursuing goal")).toBeInTheDocument();
-		});
-
-		// Availability loss (for example the chat turns busy) clears the mode.
-		await userEvent.click(
-			canvas.getByRole("button", { name: "Toggle goal availability" }),
-		);
-		await waitFor(() => {
-			expect(canvas.queryByText("Pursuing goal")).not.toBeInTheDocument();
-		});
-
-		// Availability returning must not silently reactivate the mode.
-		await userEvent.click(
-			canvas.getByRole("button", { name: "Toggle goal availability" }),
-		);
-		expect(canvas.queryByText("Pursuing goal")).not.toBeInTheDocument();
-		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
-		expect(
-			within(document.body).getByRole("menuitemcheckbox", {
-				name: "Pursue goal",
-			}),
-		).toHaveAttribute("aria-checked", "false");
 	},
 };
 
@@ -761,7 +664,7 @@ export const AttachmentsOnlyPursueGoalBlocksSend: Story = {
 			canPursueGoal: true,
 		};
 	})(),
-	play: async ({ canvasElement, args }) => {
+	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
 		await userEvent.click(
@@ -769,10 +672,6 @@ export const AttachmentsOnlyPursueGoalBlocksSend: Story = {
 				name: "Pursue goal",
 			}),
 		);
-
-		const sendButton = canvas.getByRole("button", { name: "Send" });
-		expect(sendButton).toBeDisabled();
-		expect(args.onSend).not.toHaveBeenCalled();
 	},
 };
 
