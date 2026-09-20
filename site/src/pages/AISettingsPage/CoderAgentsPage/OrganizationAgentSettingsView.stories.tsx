@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, fn, userEvent, waitFor, within } from "storybook/test";
+import { expect, fn, screen, userEvent, waitFor, within } from "storybook/test";
 import type * as TypesGen from "#/api/typesGenerated";
 import { MockChatModel } from "#/testHelpers/chatModels";
 import { mockApiError } from "#/testHelpers/entities";
@@ -83,6 +83,18 @@ export const SavingDefaultModel: Story = {
 
 export const DefaultModelSaveError: Story = {
 	args: { isSaveDefaultModelError: true },
+	// The error follows a failed save of a new pick, so the row is dirty.
+	play: async ({ canvasElement }) => {
+		const defaultSection = within(canvasElement).getByRole("form", {
+			name: "Default model",
+		});
+		await userEvent.click(within(defaultSection).getByRole("combobox"));
+		await userEvent.click(
+			await screen.findByRole("option", {
+				name: new RegExp(alternateModel.display_name),
+			}),
+		);
+	},
 };
 
 export const SetAndUnset: Story = {
