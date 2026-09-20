@@ -34,6 +34,7 @@ export const PopoverContent: React.FC<PopoverContentProps> = ({
 				`z-50 w-72 rounded-md border border-solid bg-surface-primary
 				text-content-primary shadow-md outline-hidden
 				max-h-(--radix-popper-available-height) overflow-y-auto
+				origin-(--radix-popper-transform-origin)
 				data-[state=open]:animate-in data-[state=closed]:animate-out
 				data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0
 				data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95
