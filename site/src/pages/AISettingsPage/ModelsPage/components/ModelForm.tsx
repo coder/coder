@@ -173,7 +173,6 @@ export const ModelForm: FC<ModelFormProps> = ({
 
 			const buildResult = buildModelConfigFromForm(
 				selectedProviderType,
-				trimmedModel,
 				values.config,
 			);
 			if (Object.keys(buildResult.fieldErrors).length > 0) return;
@@ -251,7 +250,6 @@ export const ModelForm: FC<ModelFormProps> = ({
 
 	const modelConfigFormBuildResult = buildModelConfigFromForm(
 		selectedProviderType,
-		form.values.model,
 		form.values.config,
 	);
 	const hasFieldErrors =

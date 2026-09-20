@@ -129,7 +129,7 @@ export const ProviderConfigOpenAIWebSearch: Story = {
 	},
 };
 
-// A saved Pro selection reveals the model-gated reasoning_mode dropdown.
+// A saved Pro selection renders the reasoning_mode select with Pro chosen.
 export const ProviderConfigOpenAIReasoningMode: Story = {
 	args: { editingModel: MockGPT56Pro },
 	play: async ({ canvasElement }) => {

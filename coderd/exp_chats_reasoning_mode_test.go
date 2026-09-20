@@ -15,10 +15,8 @@ import (
 func TestChatModelReasoningModePersistence(t *testing.T) {
 	t.Parallel()
 
-	for _, model := range []string{
-		"gpt-5.6", "gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna", "gpt-6-astra",
-		"gpt-5.6-2026-06-01", "gpt-5.6-sol-2026-06-01", "gpt-6-astra-2026-06-01",
-	} {
+	// Model support is not validated so a newly released model needs no code change.
+	for _, model := range []string{"gpt-5.6-sol", "gpt-4o", "gpt-daybreak-blue-latest", "gpt-7-nova"} {
 		t.Run(model, func(t *testing.T) {
 			t.Parallel()
 			ctx := testutil.Context(t, testutil.WaitLong)
@@ -42,7 +40,7 @@ func TestChatModelReasoningModePersistence(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, config, updated.ModelConfig)
 
-			config = chatModelReasoningModeConfig("standard", ptr.Ref(true))
+			config = chatModelReasoningModeConfig("pro", ptr.Ref(true))
 			updated, err = client.UpdateChatModel(ctx, created.OrganizationID, created.ID, codersdk.UpdateChatModelRequest{ModelConfig: config})
 			require.NoError(t, err)
 			require.Equal(t, config, updated.ModelConfig)
@@ -87,12 +85,10 @@ func TestChatModelReasoningModeInvalid(t *testing.T) {
 		responses *bool
 	}{
 		{name: "UnknownMode", provider: "openai", model: "gpt-5.6", mode: "turbo"},
+		{name: "StandardMode", provider: "openai", model: "gpt-5.6", mode: "standard"},
 		{name: "EmptyMode", provider: "openai", model: "gpt-5.6", mode: ""},
 		{name: "UppercaseMode", provider: "openai", model: "gpt-5.6", mode: "PRO"},
 		{name: "WhitespaceMode", provider: "openai", model: "gpt-5.6", mode: " pro "},
-		{name: "UnsupportedModel", provider: "openai", model: "gpt-4o", mode: "pro", responses: ptr.Ref(true)},
-		{name: "UnsupportedStandard", provider: "openai", model: "gpt-4o", mode: "standard", responses: ptr.Ref(true)},
-		{name: "LookalikeModel", provider: "openai", model: "gpt-5.6-mini", mode: "pro", responses: ptr.Ref(true)},
 		{name: "ChatCompletions", provider: "openai", model: "gpt-5.6", mode: "pro", responses: ptr.Ref(false)},
 		{name: "Anthropic", provider: "anthropic", model: "gpt-5.6", mode: "pro", responses: ptr.Ref(true)},
 		{name: "Azure", provider: "azure", model: "gpt-5.6", mode: "pro", responses: ptr.Ref(true)},
@@ -132,7 +128,7 @@ func TestChatModelReasoningModeInvalid(t *testing.T) {
 func TestChatModelReasoningModePartialUpdate(t *testing.T) {
 	t.Parallel()
 
-	for _, change := range []string{"Model", "Provider", "AzureProvider", "Transport"} {
+	for _, change := range []string{"Provider", "AzureProvider", "Transport"} {
 		t.Run(change, func(t *testing.T) {
 			t.Parallel()
 			ctx := testutil.Context(t, testutil.WaitLong)
@@ -150,8 +146,6 @@ func TestChatModelReasoningModePartialUpdate(t *testing.T) {
 
 			var request codersdk.UpdateChatModelRequest
 			switch change {
-			case "Model":
-				request.Model = "gpt-4o"
 			case "Provider", "AzureProvider":
 				providerType := "openai-compat"
 				if change == "AzureProvider" {

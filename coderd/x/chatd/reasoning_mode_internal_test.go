@@ -57,7 +57,7 @@ func TestResolveModelCallReasoningModeWire(t *testing.T) {
 			server.aibridgeTransportFactory = aibridgeTestFactoryPointer(factory)
 			chat := database.Chat{ID: uuid.New(), OwnerID: uuid.New()}
 			var baseline map[string]any
-			for _, mode := range []string{"", "pro", "standard", ""} {
+			for _, mode := range []string{"", "pro", ""} {
 				config := titleOverrideModelConfig("gpt-5.6-sol", true)
 				config.AIProviderID = uuid.NullUUID{UUID: provider.ID, Valid: true}
 				callConfig := codersdk.ChatModelCallConfig{

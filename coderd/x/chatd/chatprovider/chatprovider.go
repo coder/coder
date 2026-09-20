@@ -21,6 +21,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatopenai"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatutil"
 	"github.com/coder/coder/v2/coderd/x/chatfiles"
@@ -695,6 +696,29 @@ func openAIResponsesAPIOverride(config *codersdk.ChatModelOpenAIConfig) *bool {
 	return config.UseResponsesAPI
 }
 
+// effectiveOpenAIConfig fills the Responses API and reasoning-model overrides
+// a configured reasoning mode implies when the config leaves them unset,
+// because the SDK's known-model list cannot vouch for an alias it has never seen.
+func effectiveOpenAIConfig(callConfig *codersdk.ChatModelCallConfig) *codersdk.ChatModelOpenAIConfig {
+	if callConfig == nil {
+		return nil
+	}
+	if chatopenai.ReasoningMode(callConfig) == nil {
+		return callConfig.OpenAIConfig
+	}
+	var config codersdk.ChatModelOpenAIConfig
+	if callConfig.OpenAIConfig != nil {
+		config = *callConfig.OpenAIConfig
+	}
+	if config.UseResponsesAPI == nil {
+		config.UseResponsesAPI = ptr.Ref(true)
+	}
+	if config.ReasoningModel == nil {
+		config.ReasoningModel = ptr.Ref(true)
+	}
+	return &config
+}
+
 // ModelFromConfig resolves a provider/model pair and constructs a fantasy
 // language model client using the provided provider credentials. The
 // userAgent is sent as the User-Agent header on every outgoing LLM
@@ -716,14 +740,10 @@ func ModelFromConfig(
 		return Model{}, err
 	}
 
-	if err := chatopenai.ValidateReasoningMode(provider, modelID, callConfig); err != nil {
+	if err := chatopenai.ValidateReasoningMode(provider, callConfig); err != nil {
 		return Model{}, err
 	}
-
-	var openAIConfig *codersdk.ChatModelOpenAIConfig
-	if callConfig != nil {
-		openAIConfig = callConfig.OpenAIConfig
-	}
+	openAIConfig := effectiveOpenAIConfig(callConfig)
 
 	apiKey := providerKeys.APIKey(provider)
 	if apiKey == "" &&
@@ -826,17 +846,8 @@ func ModelFromConfig(
 		}
 		// The pinned SDK reinterprets pre-serialization overlay keys as JSON paths.
 		// Escape the dot so its merge adds mode without replacing reasoning.
-		if callConfig != nil && callConfig.ProviderOptions != nil && callConfig.ProviderOptions.OpenAI != nil {
-			if mode := callConfig.ProviderOptions.OpenAI.ReasoningMode; mode != nil {
-				options = append(options, fantasyopenai.WithSDKOptions(option.WithJSONSet(`reasoning\.mode`, *mode)))
-				// A mode implies a reasoning model. Left to the SDK's known-model
-				// list, an unknown alias such as gpt-daybreak-blue-latest would
-				// carry the mode but lose effort and summary and keep sending
-				// temperature.
-				if openAIConfig == nil || openAIConfig.ReasoningModel == nil {
-					options = append(options, fantasyopenai.WithReasoningModelFunc(func(string) bool { return true }))
-				}
-			}
+		if mode := chatopenai.ReasoningMode(callConfig); mode != nil {
+			options = append(options, fantasyopenai.WithSDKOptions(option.WithJSONSet(`reasoning\.mode`, *mode)))
 		}
 		providerClient, err = fantasyopenai.New(options...)
 	case fantasyopenaicompat.Name:

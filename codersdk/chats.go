@@ -10,7 +10,6 @@ import (
 	"mime"
 	"net/http"
 	"net/url"
-	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -1346,11 +1345,6 @@ type ChatModelProviderOptions struct {
 	Vercel       *ChatModelVercelProviderOptions       `json:"vercel,omitempty"`
 }
 
-// ChatModelReasoningModeModels matches the OpenAI model IDs that accept an
-// explicit reasoning mode. gpt-daybreak-blue-latest is OpenAI's alias for
-// gpt-5.6-sol.
-var ChatModelReasoningModeModels = regexp.MustCompile(`^((gpt-5\.6(-(sol|terra|luna))?|gpt-6-astra)(-[0-9]{4}-[0-9]{2}-[0-9]{2})?|gpt-daybreak-blue-latest)$`)
-
 // ChatModelOpenAIProviderOptions configures OpenAI provider behavior.
 type ChatModelOpenAIProviderOptions struct {
 	Include             []string         `json:"include,omitempty" description:"Model names to include in discovery" hidden:"true"`
@@ -1369,7 +1363,7 @@ type ChatModelOpenAIProviderOptions struct {
 	Metadata            map[string]any   `json:"metadata,omitempty" description:"Arbitrary metadata to attach to the request" hidden:"true"`
 	PromptCacheKey      *string          `json:"prompt_cache_key,omitempty" description:"Key for enabling cross-request prompt caching"`
 	SafetyIdentifier    *string          `json:"safety_identifier,omitempty" description:"Developer-specific safety identifier for the request" hidden:"true"`
-	ReasoningMode       *string          `json:"reasoning_mode,omitempty" providers:"openai" description:"Reasoning mode for OpenAI models that use the Responses API. Pro increases model work, latency, and token usage." enum:"standard,pro"`
+	ReasoningMode       *string          `json:"reasoning_mode,omitempty" providers:"openai" description:"Supported from the GPT-5.6 Sol generation of OpenAI models. Requests fail when Pro is set on a model that does not support it. Pro increases model work, latency, and token usage." enum:"pro"`
 	ServiceTier         *string          `json:"service_tier,omitempty" description:"Latency tier to use for processing the request" enum:"auto,default,flex,scale,priority"`
 	StructuredOutputs   *bool            `json:"structured_outputs,omitempty" description:"Whether to enable structured JSON output mode" hidden:"true"`
 	StrictJSONSchema    *bool            `json:"strict_json_schema,omitempty" description:"Whether to enforce strict adherence to the JSON schema" hidden:"true"`

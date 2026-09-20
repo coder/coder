@@ -7166,7 +7166,7 @@ func (e *chatModelConfigProviderModelError) Error() string {
 }
 
 func validateChatModelConfigProviderModel(aiProvider database.AIProvider, model string, config *codersdk.ChatModelCallConfig) *chatModelConfigProviderModelError {
-	if err := chatopenai.ValidateReasoningMode(string(aiProvider.Type), model, config); err != nil {
+	if err := chatopenai.ValidateReasoningMode(string(aiProvider.Type), config); err != nil {
 		return &chatModelConfigProviderModelError{
 			Response: codersdk.Response{Message: "Invalid model config.", Detail: err.Error()},
 		}
@@ -7608,9 +7608,7 @@ func (api *API) updateChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 		// An update that touches neither the provider nor the model cannot
 		// invalidate the stored provider/model pair.
 		revalidateProviderModel := updateParams.AIProviderID.Valid && (req.AIProviderID != nil || strings.TrimSpace(req.Model) != "")
-		modeConfigured := req.ModelConfig != nil && req.ModelConfig.ProviderOptions != nil &&
-			req.ModelConfig.ProviderOptions.OpenAI != nil && req.ModelConfig.ProviderOptions.OpenAI.ReasoningMode != nil
-		if revalidateProviderModel || modeConfigured {
+		if revalidateProviderModel || chatopenai.ReasoningMode(req.ModelConfig) != nil {
 			//nolint:gocritic // The provider fetch only reads the redacted descriptor fields.
 			aiProvider, err := tx.GetAIProviderByIDForReferenceLock(dbauthz.AsChatd(ctx), updateParams.AIProviderID.UUID)
 			if err != nil {

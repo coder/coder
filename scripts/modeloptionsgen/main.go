@@ -28,7 +28,6 @@ type SchemaField struct {
 	VisibleWhen         string   `json:"visible_when,omitempty"`
 	ConflictsWith       []string `json:"conflicts_with,omitempty"`
 	VisibleForProviders []string `json:"visible_for_providers,omitempty"`
-	SupportedModels     string   `json:"supported_models,omitempty"`
 }
 
 // FieldGroup holds the fields for a struct or provider.
@@ -92,13 +91,6 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Struct tags cannot reference the shared pattern, so the one
-	// model-gated field is annotated from it here.
-	if err := setSupportedModels(schema.Providers["openai"].Fields, "reasoning_mode", codersdk.ChatModelReasoningModeModels.String()); err != nil {
-		_, _ = fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
-	}
-
 	out, err := json.MarshalIndent(schema, "", "\t")
 	if err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "marshal schema: %v\n", err)
@@ -130,16 +122,6 @@ func validateProviderScopes(schema Schema) error {
 		}
 	}
 	return nil
-}
-
-func setSupportedModels(fields []SchemaField, jsonName, pattern string) error {
-	for i := range fields {
-		if fields[i].JSONName == jsonName {
-			fields[i].SupportedModels = pattern
-			return nil
-		}
-	}
-	return xerrors.Errorf("field %q not found for supported_models", jsonName)
 }
 
 func validateFieldReferences(group string, fg FieldGroup) error {

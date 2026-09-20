@@ -43,7 +43,6 @@ import {
 	formatPricePerMillionTokens,
 } from "./knownModels/catalog";
 import {
-	isFieldApplicableToModel,
 	isFieldConflictDisabled,
 	isVisibleWhenSatisfied,
 	type ModelConfigFormBuildResult,
@@ -546,13 +545,7 @@ export const ModelConfigFields: FC<ModelConfigFieldsProps> = ({
 		getIn(form.values, `config.${toFormFieldKey(resolved, jsonName)}`);
 
 	const isFieldVisible = (field: FieldSchema): boolean =>
-		isVisibleWhenSatisfied(field, fieldValueByName) &&
-		isFieldApplicableToModel(
-			field,
-			normalized,
-			form.values.model,
-			form.values.config,
-		);
+		isVisibleWhenSatisfied(field, fieldValueByName);
 
 	// Sort wider fields to the end so compact fields fill the
 	// grid first, keeping the layout dense.

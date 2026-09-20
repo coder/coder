@@ -17,7 +17,7 @@ import (
 
 func TestModelFromConfig_ReasoningModeOnly(t *testing.T) {
 	t.Parallel()
-	for _, modelID := range []string{"gpt-5.6", "gpt-6-astra"} {
+	for _, modelID := range []string{"gpt-5.6", "gpt-4o", "gpt-daybreak-blue-latest"} {
 		t.Run(modelID, func(t *testing.T) {
 			t.Parallel()
 			seen := make(chan []byte, 1)
@@ -28,6 +28,7 @@ func TestModelFromConfig_ReasoningModeOnly(t *testing.T) {
 			config := &codersdk.ChatModelCallConfig{ProviderOptions: &codersdk.ChatModelProviderOptions{OpenAI: &codersdk.ChatModelOpenAIProviderOptions{ReasoningMode: new("pro")}}}
 			model, err := chatprovider.ModelFromConfig("openai", modelID, chatprovider.ProviderAPIKeys{ByProvider: map[string]string{"openai": "test-key"}, BaseURLByProvider: map[string]string{"openai": serverURL}}, chatprovider.UserAgent(), nil, nil, config)
 			require.NoError(t, err)
+			require.True(t, model.Transport().UsesResponses())
 			*config.ProviderOptions.OpenAI.ReasoningMode = "standard"
 			_, err = model.LanguageModel().Generate(t.Context(), fantasy.Call{Prompt: []fantasy.Message{{Role: fantasy.MessageRoleUser, Content: []fantasy.MessagePart{fantasy.TextPart{Text: "hello"}}}}})
 			require.NoError(t, err)
@@ -216,10 +217,11 @@ func TestModelTransportConsumersAgree(t *testing.T) {
 	}
 }
 
-// A configured reasoning mode must classify the model as a reasoning model
-// even when the SDK's known-model list does not, so effort and summary are
-// sent alongside the mode and sampling parameters are dropped.
-func TestModelFromConfig_ReasoningModeImpliesReasoningModel(t *testing.T) {
+// A configured reasoning mode must select the Responses API and classify the
+// model as a reasoning model even when the SDK's known-model list does not,
+// so effort and summary are sent alongside the mode and sampling parameters
+// are dropped.
+func TestModelFromConfig_ReasoningModeImpliesResponsesReasoningModel(t *testing.T) {
 	t.Parallel()
 	bodies := make(chan []byte, 1)
 	serverURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
@@ -227,7 +229,6 @@ func TestModelFromConfig_ReasoningModeImpliesReasoningModel(t *testing.T) {
 		return chattest.OpenAINonStreamingResponse("ok")
 	})
 	config := codersdk.ChatModelCallConfig{
-		OpenAIConfig:    &codersdk.ChatModelOpenAIConfig{UseResponsesAPI: new(true)},
 		ReasoningEffort: &codersdk.ChatModelReasoningEffortConfig{Default: new(codersdk.ChatModelReasoningEffortHigh), Max: new(codersdk.ChatModelReasoningEffortHigh)},
 		ProviderOptions: &codersdk.ChatModelProviderOptions{OpenAI: &codersdk.ChatModelOpenAIProviderOptions{ReasoningMode: new("pro"), ReasoningSummary: new("auto")}},
 	}
@@ -240,6 +241,7 @@ func TestModelFromConfig_ReasoningModeImpliesReasoningModel(t *testing.T) {
 		chatprovider.UserAgent(), nil, nil, &config,
 	)
 	require.NoError(t, err)
+	require.True(t, model.Transport().UsesResponses())
 	_, err = model.LanguageModel().Generate(t.Context(), fantasy.Call{
 		Prompt:          []fantasy.Message{{Role: fantasy.MessageRoleUser, Content: []fantasy.MessagePart{fantasy.TextPart{Text: "hello"}}}},
 		Temperature:     new(0.7),

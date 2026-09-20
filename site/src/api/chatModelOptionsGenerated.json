@@ -379,12 +379,11 @@
 					"json_name": "reasoning_mode",
 					"go_name": "ReasoningMode",
 					"type": "string",
-					"description": "Reasoning mode for OpenAI models that use the Responses API. Pro increases model work, latency, and token usage.",
+					"description": "Supported from the GPT-5.6 Sol generation of OpenAI models. Requests fail when Pro is set on a model that does not support it. Pro increases model work, latency, and token usage.",
 					"required": false,
-					"enum": ["standard", "pro"],
+					"enum": ["pro"],
 					"input_type": "select",
-					"visible_for_providers": ["openai"],
-					"supported_models": "^((gpt-5\\.6(-(sol|terra|luna))?|gpt-6-astra)(-[0-9]{4}-[0-9]{2}-[0-9]{2})?|gpt-daybreak-blue-latest)$"
+					"visible_for_providers": ["openai"]
 				},
 				{
 					"json_name": "service_tier",

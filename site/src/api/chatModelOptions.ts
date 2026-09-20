@@ -27,8 +27,6 @@ export interface FieldSchema {
 	conflicts_with?: string[];
 	/** Raw provider types the field applies to; absent means every provider. */
 	visible_for_providers?: string[];
-	/** Regular expression the model identifier must match; absent means every model. */
-	supported_models?: string;
 }
 
 /**
@@ -129,7 +127,9 @@ export function toFormFieldKey(provider: string, jsonName: string): string {
 
 /** Get only the visible (non-hidden) fields for a provider. */
 export function getVisibleProviderFields(provider: string): FieldSchema[] {
-	return getProviderFields(provider).filter((f) => !f.hidden);
+	return getProviderFields(provider).filter(
+		(f) => !f.hidden && isFieldVisibleForProvider(f, provider),
+	);
 }
 
 /** Matches the raw provider type, not {@link resolveProvider}, so aliases

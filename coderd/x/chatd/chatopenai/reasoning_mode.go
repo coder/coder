@@ -1,35 +1,41 @@
 package chatopenai
 
 import (
-	"strings"
-
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/codersdk"
 )
 
-// ValidateReasoningMode checks explicit modes against the provider, model,
-// and transport.
-func ValidateReasoningMode(provider, modelID string, config *codersdk.ChatModelCallConfig) error {
-	if config == nil || config.ProviderOptions == nil || config.ProviderOptions.OpenAI == nil || config.ProviderOptions.OpenAI.ReasoningMode == nil {
+// ReasoningMode returns the explicit OpenAI reasoning mode in config, or nil.
+func ReasoningMode(config *codersdk.ChatModelCallConfig) *string {
+	if config == nil || config.ProviderOptions == nil || config.ProviderOptions.OpenAI == nil {
 		return nil
 	}
-	mode := *config.ProviderOptions.OpenAI.ReasoningMode
-	if mode != "standard" && mode != "pro" {
-		return xerrors.New("provider_options.openai.reasoning_mode must be one of standard, pro")
+	return config.ProviderOptions.OpenAI.ReasoningMode
+}
+
+// ValidateReasoningMode checks an explicit mode against the provider and the
+// OpenAI overrides it cannot coexist with. Model support is not checked here:
+// OpenAI rejects the request when the model lacks the mode, and a model
+// released after this code still works.
+func ValidateReasoningMode(provider string, config *codersdk.ChatModelCallConfig) error {
+	mode := ReasoningMode(config)
+	if mode == nil {
+		return nil
 	}
-	if provider != "openai" || !codersdk.ChatModelReasoningModeModels.MatchString(strings.TrimSpace(modelID)) {
-		return xerrors.New("provider_options.openai.reasoning_mode requires a supported OpenAI GPT-5.6 or GPT-6 Astra model")
+	if *mode != "pro" {
+		return xerrors.New("provider_options.openai.reasoning_mode must be pro")
 	}
-	var override *bool
-	if config.OpenAIConfig != nil {
-		override = config.OpenAIConfig.UseResponsesAPI
-		if config.OpenAIConfig.ReasoningModel != nil && !*config.OpenAIConfig.ReasoningModel {
+	if provider != "openai" {
+		return xerrors.New("provider_options.openai.reasoning_mode requires an OpenAI provider")
+	}
+	if openAIConfig := config.OpenAIConfig; openAIConfig != nil {
+		if openAIConfig.ReasoningModel != nil && !*openAIConfig.ReasoningModel {
 			return xerrors.New("provider_options.openai.reasoning_mode requires a reasoning model")
 		}
-	}
-	if !UsesResponsesAPI(modelID, override) {
-		return xerrors.New("provider_options.openai.reasoning_mode requires the Responses API")
+		if openAIConfig.UseResponsesAPI != nil && !*openAIConfig.UseResponsesAPI {
+			return xerrors.New("provider_options.openai.reasoning_mode requires the Responses API")
+		}
 	}
 	return nil
 }
