@@ -827,7 +827,10 @@ func (server *Server) prepareGeneration(
 	// trigger binds so history also fits the compaction model.
 	binding := chatTrigger
 	var compactionOverride *resolvedModelOverride
-	if resolvedCompactionOverride.Set {
+	// With its own trigger disabled the override would receive the chat
+	// trigger's full history, which may exceed its window, so the chat model
+	// summarizes instead.
+	if resolvedCompactionOverride.Set && resolvedCompactionOverride.Config.CompressionThreshold < 100 {
 		compactionOverride = &resolvedCompactionOverride
 		binding = bindingCompactionTrigger(chatTrigger, compactionTrigger{
 			thresholdPercent: compactionOverride.Config.CompressionThreshold,
