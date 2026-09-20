@@ -128,30 +128,6 @@
 		}
 	}
 
-	@keyframes caret-scan {
-		0% {
-			left: 0%;
-		}
-		100% {
-			left: 100%;
-		}
-	}
-
-	@keyframes zip-right {
-		0% {
-			left: 0%;
-			width: 0%;
-		}
-		30% {
-			left: 0%;
-			width: 40%;
-		}
-		100% {
-			left: 100%;
-			width: 0%;
-		}
-	}
-
 	/* Matches MUI LinearProgress bar1/bar2 indeterminate keyframes; two
 		staggered bars are required so one is visible while the other resets. */
 	@keyframes bar-indeterminate {
@@ -184,10 +160,7 @@
 		}
 	}
 
-	--animate-loading: loading 2s ease-in-out infinite alternate;
-	--animate-caret-scan: caret-scan 3s ease-in-out infinite;
 	--animate-spin-once: spin 1s cubic-bezier(0.4, 0, 0.2, 1);
-	--animate-zip-right: zip-right 1s cubic-bezier(0.4, 0, 0.2, 1);
 	--animate-bar-indeterminate: bar-indeterminate 2.1s
 		cubic-bezier(0.65, 0.815, 0.735, 0.395) infinite;
 	--animate-bar-indeterminate-2: bar-indeterminate-2 2.1s
