@@ -5143,8 +5143,8 @@ func highUsageTextResponse(text string) chattest.AnthropicResponse {
 func anthropicCompactionResponse(t testing.TB, req *chattest.AnthropicRequest, text string) chattest.AnthropicResponse {
 	t.Helper()
 	require.True(t, req.Stream)
-	// The summary cap is the doubled configured cap bounded by the
-	// remaining context window, so it varies per test fixture; exact
+	// The summary cap is the configured cap with headroom bounded by
+	// the remaining context window, so it varies per test fixture; exact
 	// values are pinned in the chatloop unit tests and the hook test.
 	require.Positive(t, req.MaxTokens)
 	return chattest.AnthropicStreamingResponse(chattest.AnthropicTextChunks(text)...)
@@ -6236,16 +6236,17 @@ func TestActiveServer_CompactionModelOverride(t *testing.T) {
 			},
 		},
 		{
-			// 16000 is 0.8 (high) of the summary call's max_tokens,
-			// clamped to the remaining context window (limit 100000 -
-			// usage 80000).
+			// High effort maps to 0.8 of the summary call's max_tokens
+			// (the remaining-window clamp; its exact value is pinned in
+			// the chatloop unit tests).
 			name:          "legacy budget-thinking override model",
 			overrideModel: "claude-haiku-4-5",
 			effort:        "high",
 			assertSummaryRequest: func(t *testing.T, req *chattest.AnthropicRequest) {
 				require.Empty(t, string(req.OutputConfig))
 				require.Contains(t, string(req.Thinking), `"type":"enabled"`)
-				require.Contains(t, string(req.Thinking), `"budget_tokens":16000`)
+				wantBudget := int64(float64(req.MaxTokens) * 0.8)
+				require.Contains(t, string(req.Thinking), fmt.Sprintf(`"budget_tokens":%d`, wantBudget))
 			},
 		},
 		{
@@ -6281,9 +6282,9 @@ func TestActiveServer_CompactionModelOverride(t *testing.T) {
 				switch streamCount.Add(1) {
 				case 1:
 					// A large window keeps the summary cap clamp
-					// (limit - usage = 20000) above the minimum
-					// legacy thinking budget so the effort mapping
-					// stays observable on the summary request.
+					// (limit minus usage and reserves) above the
+					// minimum legacy thinking budget so the effort
+					// mapping stays observable on the summary request.
 					return readFileResponseWithInputTokens("/tmp/a.txt", 80_000)
 				default:
 					require.Contains(t, body, compactionSummary)

@@ -494,7 +494,9 @@ func TestGenerateCompaction_ForceBypassesThresholdGates(t *testing.T) {
 // TestGenerateCompaction_ClampsSummaryCapToRemainingWindow pins the
 // summary output cap bound: sum-enforcing providers reject requests
 // whose input plus max_tokens exceeds the context window, so the cap
-// shrinks to the remaining window and degenerate cases stay unchanged.
+// shrinks to the remaining window minus the trigger step's output and
+// the appended summary prompt (ceil(bytes/3) tokens), and degenerate
+// cases stay unchanged.
 func TestGenerateCompaction_ClampsSummaryCapToRemainingWindow(t *testing.T) {
 	t.Parallel()
 
@@ -502,12 +504,14 @@ func TestGenerateCompaction_ClampsSummaryCapToRemainingWindow(t *testing.T) {
 		name         string
 		contextLimit int64
 		inputTokens  int64
+		outputTokens int64
 		cap          int64
 		wantCap      int64
 	}{
-		{name: "clamps to remaining window", contextLimit: 100, inputTokens: 80, cap: 64_000, wantCap: 20},
-		{name: "keeps cap that fits", contextLimit: 200_000, inputTokens: 140_000, cap: 50_000, wantCap: 50_000},
+		{name: "clamps to remaining window", contextLimit: 100, inputTokens: 75, outputTokens: 10, cap: 64_000, wantCap: 13},
+		{name: "keeps cap that fits", contextLimit: 200_000, inputTokens: 140_000, outputTokens: 500, cap: 50_000, wantCap: 50_000},
 		{name: "usage at limit leaves cap unchanged", contextLimit: 100, inputTokens: 100, cap: 64_000, wantCap: 64_000},
+		{name: "reserves leave no room, cap unchanged", contextLimit: 100, inputTokens: 80, outputTokens: 25, cap: 64_000, wantCap: 64_000},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -534,7 +538,8 @@ func TestGenerateCompaction_ClampsSummaryCapToRemainingWindow(t *testing.T) {
 				Clock:            quartz.NewMock(t),
 				ThresholdPercent: 70,
 				ContextLimit:     tc.contextLimit,
-				StepUsage:        fantasy.Usage{InputTokens: tc.inputTokens},
+				SummaryPrompt:    "prompt",
+				StepUsage:        fantasy.Usage{InputTokens: tc.inputTokens, OutputTokens: tc.outputTokens},
 				SummaryCall:      fantasy.Call{MaxOutputTokens: &capTokens},
 			})
 			require.NoError(t, err)

@@ -175,10 +175,15 @@ func GenerateCompaction(ctx context.Context, opts GenerateCompactionOptions) (Co
 
 	// Sum-enforcing providers reject requests whose input plus
 	// max_tokens exceeds the context window, so bound the summary cap
-	// by the remaining window. Degenerate cases (unknown limit, usage
-	// at or over the limit) leave the cap unchanged.
+	// by the remaining window. contextTokens covers only the trigger
+	// step's prompt, so also reserve that step's output and the
+	// summary prompt appended by generateCompactionSummary, both of
+	// which become input to the summary request. Degenerate cases
+	// (unknown limit, no room left) leave the cap unchanged.
 	if config.SummaryCall.MaxOutputTokens != nil {
-		remaining := contextLimit - contextTokens
+		promptBytes := len(config.SummaryPrompt) + len(config.SummaryHint)
+		promptTokens := int64((promptBytes + bytesPerTokenEstimate - 1) / bytesPerTokenEstimate)
+		remaining := contextLimit - contextTokens - opts.StepUsage.OutputTokens - promptTokens
 		if remaining > 0 && remaining < *config.SummaryCall.MaxOutputTokens {
 			config.SummaryCall.MaxOutputTokens = &remaining
 		}
