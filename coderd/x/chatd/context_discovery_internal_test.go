@@ -2,6 +2,9 @@ package chatd
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"path"
 	"testing"
@@ -11,10 +14,13 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
+	"golang.org/x/xerrors"
 	"google.golang.org/protobuf/encoding/protojson"
 
+	"cdr.dev/slog/v3/sloggers/slogtest"
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
@@ -266,6 +272,62 @@ func TestReconcileDiscoveredInstructionFilesKeepsSpelling(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 1, result.pinned)
 	require.Equal(t, 1, result.removed)
+}
+
+func TestUnchangedDiscoveredRows(t *testing.T) {
+	t.Parallel()
+
+	row := func(source string, hash byte, discovered bool) database.ChatContextResource {
+		return database.ChatContextResource{Source: source, ContentHash: []byte{hash}, Discovered: discovered, BodyKind: database.WorkspaceAgentContextBodyKindInstructionFile, Status: database.WorkspaceAgentContextResourceStatusOk, SizeBytes: int64(hash) * 10}
+	}
+	file := func(source string) workspacesdk.ContextInstructionFile {
+		return workspacesdk.ContextInstructionFile{Directory: path.Dir(source), Source: source, Status: "ok"}
+	}
+	// The excluded capture keeps the hash of the content it could not hold,
+	// so a step that later pins the content changes status and body only.
+	excluded := row("/repo/site/pkg/AGENTS.md", 4, true)
+	excluded.Status = database.WorkspaceAgentContextResourceStatusExcluded
+	captured := []database.ChatContextResource{
+		row("/repo/site/AGENTS.md", 1, true),
+		row("/repo/site/CLAUDE.md", 1, true),
+		row("/repo/docs/AGENTS.md", 1, true),
+		excluded,
+	}
+	current := []database.ChatContextResource{
+		row("/repo/AGENTS.md", 9, false),
+		row("/repo/site/AGENTS.md", 1, true),
+		row("/repo/site/CLAUDE.md", 2, true),
+		row("/repo/site/.cursorrules", 3, true),
+		row("/repo/site/pkg/AGENTS.md", 4, true),
+	}
+	resolved := []workspacesdk.ContextInstructionFile{
+		file("/repo/site/AGENTS.md"),
+		file("/repo/site/CLAUDE.md"),
+		file("/repo/site/.cursorrules"),
+		file("/repo/docs/AGENTS.md"),
+		file("/repo/lib/AGENTS.md"),
+		file("/repo/site/pkg/AGENTS.md"),
+	}
+
+	rows, files, reserved := unchangedDiscoveredRows(captured, current, resolved)
+	sources := func(rows []database.ChatContextResource) []string {
+		out := make([]string, 0, len(rows))
+		for _, r := range rows {
+			out = append(out, r.Source)
+		}
+		return out
+	}
+	require.Equal(t, []string{"/repo/AGENTS.md", "/repo/site/AGENTS.md"}, sources(rows),
+		"snapshot rows and the unchanged discovered row stay; the rewritten, the step-discovered, and the excluded-then-pinned rows are off limits")
+	require.Equal(t, []string{"/repo/site/AGENTS.md", "/repo/lib/AGENTS.md"}, func() []string {
+		out := make([]string, 0, len(files))
+		for _, f := range files {
+			out = append(out, f.Source)
+		}
+		return out
+	}(), "only an unchanged row or a source nobody holds may be written; a rewritten row, a step-discovered file, and a vanished capture are skipped")
+	require.Equal(t, discoveryBudget{bytes: 90, files: 3}, reserved,
+		"the rows a step owns still count toward the chat's caps, so the rediscovery cannot hand their share out again")
 }
 
 func TestInstructionProbeCache(t *testing.T) {
@@ -535,4 +597,176 @@ func TestInstructionProbeCachePendingCoversTree(t *testing.T) {
 	require.False(t, cache.isPending(now, agentID, "/repo"), "nor is a parent")
 	require.True(t, cache.isPending(now, agentID, "c:/repo/WIN/src"), "Windows trees match case-insensitively")
 	require.False(t, cache.isPending(now.Add(pendingProbeTTL), agentID, "/repo/site/src"), "pending entries expire")
+}
+
+// discoveryOp is a chat bound to the fixture's agent A, with A's snapshot
+// row pinned, and a server to run discovery operations against it.
+type discoveryOp struct {
+	fix    rebindFixture
+	chat   database.Chat
+	server *Server
+}
+
+func newDiscoveryOp(t *testing.T) discoveryOp {
+	t.Helper()
+	fix := newRebindFixture(t)
+	chat := dbgen.Chat(t, fix.db, database.Chat{
+		OwnerID:           fix.user.ID,
+		OrganizationID:    fix.org.ID,
+		LastModelConfigID: fix.model.ID,
+		WorkspaceID:       uuid.NullUUID{UUID: fix.ws.ID, Valid: true},
+		AgentID:           uuid.NullUUID{UUID: fix.agentA, Valid: true},
+		Status:            database.ChatStatusWaiting,
+	})
+	_, err := fix.db.HydrateAgentChatsContext(fix.ctx, database.HydrateAgentChatsContextParams{
+		AgentID:       fix.agentA,
+		AggregateHash: fix.hashA,
+	})
+	require.NoError(t, err)
+	return discoveryOp{fix: fix, chat: chat, server: &Server{db: fix.db, logger: slogtest.Make(t, nil)}}
+}
+
+func (op discoveryOp) captured(t *testing.T) []database.ChatContextResource {
+	t.Helper()
+	rows, err := op.fix.db.ListChatContextResourcesByChatID(op.fix.ctx, op.chat.ID)
+	require.NoError(t, err)
+	return rows
+}
+
+func (op discoveryOp) rows(t *testing.T) map[string]database.ChatContextResource {
+	t.Helper()
+	out := make(map[string]database.ChatContextResource)
+	for _, row := range op.captured(t) {
+		out[row.Source] = row
+	}
+	return out
+}
+
+// discoveryWriteFailStore fails the discovered-row upsert for one source,
+// in and out of transactions.
+type discoveryWriteFailStore struct {
+	database.Store
+	failSource string
+}
+
+func (s *discoveryWriteFailStore) InTx(fn func(database.Store) error, opts *database.TxOptions) error {
+	return s.Store.InTx(func(tx database.Store) error {
+		return fn(&discoveryWriteFailStore{Store: tx, failSource: s.failSource})
+	}, opts)
+}
+
+func (s *discoveryWriteFailStore) UpsertChatContextDiscoveredResource(ctx context.Context, arg database.UpsertChatContextDiscoveredResourceParams) error {
+	if arg.Source == s.failSource {
+		return xerrors.New("injected discovered row write failure")
+	}
+	return s.Store.UpsertChatContextDiscoveredResource(ctx, arg)
+}
+
+func resolvedInstructionFile(source, content string) workspacesdk.ContextInstructionFile {
+	sum := sha256.Sum256([]byte(content))
+	return workspacesdk.ContextInstructionFile{
+		Directory:   path.Dir(source),
+		Source:      source,
+		Content:     content,
+		ContentHash: hex.EncodeToString(sum[:]),
+		SizeBytes:   uint64(len(content)),
+		Status:      "ok",
+	}
+}
+
+func TestApplyDiscoveredInstructionFiles(t *testing.T) {
+	t.Parallel()
+
+	const (
+		nestedDir    = "/home/coder/workspace/site"
+		nestedSource = nestedDir + "/AGENTS.md"
+		secondSource = nestedDir + "/CLAUDE.md"
+	)
+	probed := []string{nestedDir}
+	noStale := map[string]struct{}{}
+
+	// A half-pinned directory would be skipped by later touches.
+	t.Run("PinsNothingWhenAWriteFails", func(t *testing.T) {
+		t.Parallel()
+		op := newDiscoveryOp(t)
+		captured := op.captured(t)
+		op.server.db = &discoveryWriteFailStore{Store: op.fix.db, failSource: secondSource}
+
+		_, err := op.server.applyDiscoveredInstructionFiles(op.fix.ctx, op.chat.ID, op.fix.agentA, captured,
+			[]workspacesdk.ContextInstructionFile{resolvedInstructionFile(nestedSource, "site rules"), resolvedInstructionFile(secondSource, "claude rules")}, noStale, probed)
+		require.ErrorContains(t, err, "injected")
+
+		rows := op.rows(t)
+		require.Len(t, rows, 1, "the failed reconciliation pinned nothing")
+		require.False(t, rows[op.fix.srcA].Discovered)
+	})
+
+	// The rebind cleared the rows for the new workspace.
+	t.Run("DropsTheAnswerAfterARebind", func(t *testing.T) {
+		t.Parallel()
+		op := newDiscoveryOp(t)
+		captured := op.captured(t)
+		_, err := op.fix.db.UpdateChatBuildAgentBinding(op.fix.ctx, database.UpdateChatBuildAgentBindingParams{
+			ID:      op.chat.ID,
+			BuildID: op.chat.BuildID,
+			AgentID: uuid.NullUUID{UUID: op.fix.agentB, Valid: true},
+		})
+		require.NoError(t, err)
+		require.NoError(t, op.fix.db.DeleteChatContextResourcesByChatID(op.fix.ctx, op.chat.ID))
+
+		result, err := op.server.applyDiscoveredInstructionFiles(op.fix.ctx, op.chat.ID, op.fix.agentA, captured,
+			[]workspacesdk.ContextInstructionFile{resolvedInstructionFile(nestedSource, "site rules")}, noStale, probed)
+		require.NoError(t, err)
+		require.Zero(t, result.pinned)
+		require.Empty(t, op.rows(t), "the previous agent's file is not pinned onto the rebound chat")
+	})
+
+	// An agent push made the nested file a snapshot row during the round trip.
+	t.Run("LeavesSnapshotRowsToTheAgent", func(t *testing.T) {
+		t.Parallel()
+		op := newDiscoveryOp(t)
+		captured := op.captured(t)
+		seedAgentContext(op.fix.ctx, t, op.fix.db, op.fix.agentA, nestedSource, []byte{0x5e},
+			database.WorkspaceAgentContextBodyKindInstructionFile, json.RawMessage(`{"instruction_file":{"content":"site rules"}}`))
+		require.NoError(t, op.fix.db.InsertAgentContextResourcesIntoChat(op.fix.ctx, database.InsertAgentContextResourcesIntoChatParams{
+			ChatID:  op.chat.ID,
+			AgentID: op.fix.agentA,
+		}))
+		nested := resolvedInstructionFile(nestedSource, "site rules")
+		nested.SizeBytes = maxDiscoveredInstructionBytes
+
+		result, err := op.server.applyDiscoveredInstructionFiles(op.fix.ctx, op.chat.ID, op.fix.agentA, captured,
+			[]workspacesdk.ContextInstructionFile{nested, resolvedInstructionFile(secondSource, "claude rules")}, noStale, probed)
+		require.NoError(t, err)
+		require.Equal(t, 1, result.pinned)
+
+		rows := op.rows(t)
+		require.False(t, rows[nestedSource].Discovered, "the snapshot's row is left to the agent")
+		require.True(t, rows[secondSource].Discovered)
+		require.Equal(t, database.WorkspaceAgentContextResourceStatusOk, rows[secondSource].Status, "the snapshot-owned file's bytes are not charged to the discovered budget")
+	})
+
+	// The other writer read the file after the probe did.
+	t.Run("KeepsANewerPin", func(t *testing.T) {
+		t.Parallel()
+		op := newDiscoveryOp(t)
+		captured := op.captured(t)
+		newer := resolvedInstructionFile(nestedSource, "site rules v3")
+		newerHash, err := hex.DecodeString(newer.ContentHash)
+		require.NoError(t, err)
+		require.NoError(t, op.fix.db.UpsertChatContextDiscoveredResource(op.fix.ctx, database.UpsertChatContextDiscoveredResourceParams{
+			ChatID:      op.chat.ID,
+			Source:      nestedSource,
+			BodyKind:    database.WorkspaceAgentContextBodyKindInstructionFile,
+			Body:        []byte("{}"),
+			ContentHash: newerHash,
+			SizeBytes:   int64(len("site rules v3")),
+			Status:      database.WorkspaceAgentContextResourceStatusOk,
+		}))
+
+		_, err = op.server.applyDiscoveredInstructionFiles(op.fix.ctx, op.chat.ID, op.fix.agentA, captured,
+			[]workspacesdk.ContextInstructionFile{resolvedInstructionFile(nestedSource, "site rules v2")}, noStale, probed)
+		require.NoError(t, err)
+		require.Equal(t, newerHash, op.rows(t)[nestedSource].ContentHash, "the newer read stays")
+	})
 }

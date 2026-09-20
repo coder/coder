@@ -1,6 +1,7 @@
 package chatd
 
 import (
+	"bytes"
 	"context"
 	"encoding/hex"
 	"encoding/json"
@@ -19,6 +20,7 @@ import (
 
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
@@ -561,4 +563,101 @@ func pinDiscoveredInstructionFile(ctx context.Context, store database.Store, cha
 		return xerrors.Errorf("upsert discovered resource: %w", err)
 	}
 	return nil
+}
+
+// applyDiscoveredInstructionFiles reconciles a probe's answer, given for
+// agentID against the captured inventory, in one repeatable-read transaction.
+// The chat lock drops the answer after a rebind (the rows now belong to
+// another agent) and the inventory is re-read inside so rows another writer
+// pinned meanwhile, snapshot or discovered, are left alone.
+func (p *Server) applyDiscoveredInstructionFiles(
+	ctx context.Context,
+	chatID, agentID uuid.UUID,
+	captured []database.ChatContextResource,
+	resolved []workspacesdk.ContextInstructionFile,
+	stale map[string]struct{},
+	probed []string,
+) (discoveryReconciliation, error) {
+	//nolint:gocritic // Chatd pins discovered rows onto a chat it does not own.
+	ctx = dbauthz.AsChatd(ctx)
+	var result discoveryReconciliation
+	err := database.ReadModifyUpdate(p.db, func(tx database.Store) error {
+		locked, err := tx.GetChatByIDForUpdate(ctx, chatID)
+		if err != nil {
+			return xerrors.Errorf("lock chat for discovered instruction files: %w", err)
+		}
+		if locked.AgentID.UUID != agentID {
+			return nil
+		}
+		current, err := tx.ListChatContextResourcesByChatID(ctx, chatID)
+		if err != nil {
+			return xerrors.Errorf("list chat context resources: %w", err)
+		}
+		rows, files, reserved := unchangedDiscoveredRows(captured, current, resolved)
+		result, err = reconcileDiscoveredInstructionFiles(ctx, tx, chatID, rows, files, stale, probed, reserved)
+		return err
+	})
+	return result, err
+}
+
+// unchangedDiscoveredRows narrows a probe's result to what no other writer
+// touched since captured: the current inventory minus discovered rows rewritten
+// or added meanwhile, the resolved files minus those sources, and the share of
+// the caps the left-out rows hold, so the caller does not spend it again.
+func unchangedDiscoveredRows(
+	captured, current []database.ChatContextResource,
+	resolved []workspacesdk.ContextInstructionFile,
+) ([]database.ChatContextResource, []workspacesdk.ContextInstructionFile, discoveryBudget) {
+	capturedRows := make(map[string]database.ChatContextResource, len(captured))
+	for _, row := range captured {
+		if row.Discovered {
+			capturedRows[pathKey(agentPath(row.Source))] = row
+		}
+	}
+	rows := make([]database.ChatContextResource, 0, len(current))
+	unchanged := make(map[string]struct{}, len(current))
+	touched := make(map[string]struct{}, len(current))
+	var reserved discoveryBudget
+	for _, row := range current {
+		key := pathKey(agentPath(row.Source))
+		if !row.Discovered {
+			rows = append(rows, row)
+			continue
+		}
+		if was, ok := capturedRows[key]; ok && sameDiscoveredRow(was, row) {
+			rows = append(rows, row)
+			unchanged[key] = struct{}{}
+			continue
+		}
+		touched[key] = struct{}{}
+		reserved.files++
+		if row.Status == database.WorkspaceAgentContextResourceStatusOk {
+			reserved.bytes += row.SizeBytes
+		}
+	}
+	files := make([]workspacesdk.ContextInstructionFile, 0, len(resolved))
+	for _, file := range resolved {
+		key := pathKey(agentPath(file.Source))
+		if _, ok := touched[key]; ok {
+			continue
+		}
+		if _, ok := capturedRows[key]; ok {
+			if _, ok := unchanged[key]; !ok {
+				// Captured but gone from the inventory: a step removed it.
+				continue
+			}
+		}
+		files = append(files, file)
+	}
+	return rows, files, reserved
+}
+
+// sameDiscoveredRow compares every field a pin rewrites: pinning a file the
+// budget had excluded changes its status and body but not its hash.
+func sameDiscoveredRow(a, b database.ChatContextResource) bool {
+	return bytes.Equal(a.ContentHash, b.ContentHash) &&
+		a.Status == b.Status &&
+		a.Error == b.Error &&
+		a.SizeBytes == b.SizeBytes &&
+		bytes.Equal(a.Body, b.Body)
 }
