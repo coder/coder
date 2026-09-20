@@ -5,6 +5,7 @@ import type {
 	ChatFileMetadata,
 	ChatMessage,
 	ChatQueuedMessage,
+	ChatTreeResponse,
 	MCPServerConfig,
 } from "#/api/typesGenerated";
 import { MockUserOwner } from "./entities";
@@ -160,4 +161,67 @@ export const MockChatQueuedMessage: ChatQueuedMessage = {
 	chat_id: "chat-1",
 	content: [{ type: "text", text: "Queued message" }],
 	created_at: MOCK_TIMESTAMP,
+};
+
+// Chat tree fixtures (chat-tree experiment): one organization, root at
+// depth 1, a named child at depth 2 with its own child at depth 3, and a
+// subagent spawned by the depth 2 chat.
+export const MockChatTreeRoot: Chat = {
+	...MockChat,
+	id: "chat-tree-root",
+	kind: "root",
+	title: "Root",
+	depth: 1,
+	child_chat_count: 2,
+};
+
+export const MockChatTreeChild: Chat = {
+	...MockChat,
+	id: "chat-tree-child",
+	title: "Fix flaky login test",
+	parent_chat_id: MockChatTreeRoot.id,
+	depth: 2,
+	child_chat_count: 1,
+	updated_at: "2024-01-02T00:00:00Z",
+};
+
+export const MockChatTreeSibling: Chat = {
+	...MockChat,
+	id: "chat-tree-sibling",
+	title: "Migrate billing service",
+	parent_chat_id: MockChatTreeRoot.id,
+	depth: 2,
+	child_chat_count: 0,
+	status: "running",
+	updated_at: "2024-01-01T12:00:00Z",
+};
+
+export const MockChatTreeGrandchild: Chat = {
+	...MockChat,
+	id: "chat-tree-grandchild",
+	title: "Investigate CI timeout",
+	parent_chat_id: MockChatTreeChild.id,
+	depth: 3,
+	child_chat_count: 0,
+	updated_at: "2024-01-03T00:00:00Z",
+};
+
+export const MockChatTreeSubagent: Chat = {
+	...MockChat,
+	id: "chat-tree-subagent",
+	kind: "subagent",
+	title: "Explore auth module",
+	parent_chat_id: MockChatTreeChild.id,
+	root_chat_id: MockChatTreeChild.id,
+	status: "running",
+};
+
+export const MockChatTreeResponse: ChatTreeResponse = {
+	root_chat_id: MockChatTreeRoot.id,
+	chats: [
+		MockChatTreeRoot,
+		MockChatTreeChild,
+		MockChatTreeSibling,
+		MockChatTreeGrandchild,
+	],
 };
