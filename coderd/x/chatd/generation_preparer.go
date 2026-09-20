@@ -310,17 +310,18 @@ func (server *Server) prepareGeneration(
 	}
 
 	var (
-		prompt             []fantasy.Message
-		instruction        string
-		mcpTools           []fantasy.AgentTool
-		mcpSummaries       []mcpclient.ConnectSummary
-		inlineMCPTools     []fantasy.AgentTool
-		inlineMCPSummaries []mcpclient.ConnectSummary
-		workspaceMCPTools  []fantasy.AgentTool
-		workspaceSkills    []chattool.SkillMeta
-		personalSkills     []skillspkg.Skill
-		resolvedUserPrompt string
-		planPathBlock      string
+		prompt               []fantasy.Message
+		instruction          string
+		discoverInstructions instructionDiscoverer
+		mcpTools             []fantasy.AgentTool
+		mcpSummaries         []mcpclient.ConnectSummary
+		inlineMCPTools       []fantasy.AgentTool
+		inlineMCPSummaries   []mcpclient.ConnectSummary
+		workspaceMCPTools    []fantasy.AgentTool
+		workspaceSkills      []chattool.SkillMeta
+		personalSkills       []skillspkg.Skill
+		resolvedUserPrompt   string
+		planPathBlock        string
 	)
 
 	// Drop provider-executed tool history produced by a different provider
@@ -368,6 +369,7 @@ func (server *Server) prepareGeneration(
 		if resolveErr != nil {
 			return generationPrepared{}, resolveErr
 		}
+		discoverInstructions = server.newInstructionDiscoverer(&workspaceCtx, chat)
 	}
 
 	// Build the debug context before the connect phase so its
@@ -910,8 +912,9 @@ func (server *Server) prepareGeneration(
 			Options:         compactionOptions,
 			PendingUserRows: pendingUserRows,
 		},
-		Cleanup: cleanup,
-		Debug:   debug,
+		DiscoverInstructions: discoverInstructions,
+		Cleanup:              cleanup,
+		Debug:                debug,
 	}, nil
 }
 
