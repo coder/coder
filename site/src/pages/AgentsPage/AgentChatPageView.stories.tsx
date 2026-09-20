@@ -853,6 +853,22 @@ const buildStoreWithMessages = (
 	return store;
 };
 
+const embeddedViewportStore = buildStoreWithMessages(
+	buildLongConversation(AGENT_ID, 40),
+);
+
+/** Embedded chats stay within a block parent and scroll the transcript. */
+export const EmbeddedViewport: Story = {
+	decorators: [
+		(Story) => (
+			<div style={{ height: 412, overflow: "hidden", width: 900 }}>
+				<Story />
+			</div>
+		),
+	],
+	render: () => <StoryAgentChatPageView store={embeddedViewportStore} />,
+};
+
 const otherUserActionMessages: TypesGen.ChatMessage[] = [
 	buildMessage(1, "user", "Please review this plan."),
 	buildMessageWithContent(2, "assistant", [

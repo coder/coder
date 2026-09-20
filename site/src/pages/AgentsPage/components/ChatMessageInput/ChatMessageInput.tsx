@@ -1022,6 +1022,21 @@ const ChatMessageInput = ({
 					onSelectedIndexChange={setSkillsMenuSelectedIndex}
 					onSelect={replaceActiveSkillsTrigger}
 					onClose={() => handleSkillsTriggerChange(null)}
+					onEscapeKeyDown={(event) => {
+						// On a real keypress React commits Radix's dismiss before
+						// Lexical sees the same keydown, so the trigger plugin
+						// would find the menu already closed and Lexical's default
+						// Escape would blur the editor. Escape from inside the
+						// editor belongs to the plugin; elsewhere Radix still
+						// dismisses the menu.
+						const rootElement = editorRef.current?.getRootElement();
+						if (
+							event.target instanceof Node &&
+							rootElement?.contains(event.target)
+						) {
+							event.preventDefault();
+						}
+					}}
 				/>
 			</div>
 		</LexicalComposer>

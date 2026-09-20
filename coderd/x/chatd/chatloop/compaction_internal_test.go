@@ -3,11 +3,14 @@ package chatloop
 import (
 	"context"
 	"encoding/json"
+	"net/http"
 	"strings"
 	"testing"
 	"time"
 
 	"charm.land/fantasy"
+	fantasyanthropic "charm.land/fantasy/providers/anthropic"
+	fantasyopenai "charm.land/fantasy/providers/openai"
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/require"
@@ -32,6 +35,15 @@ func compactionStream(parts ...fantasy.StreamPart) fantasy.StreamResponse {
 			}
 		}
 	}
+}
+
+func summaryTextStream() fantasy.StreamResponse {
+	return compactionStream(
+		fantasy.StreamPart{Type: fantasy.StreamPartTypeTextStart, ID: "text"},
+		fantasy.StreamPart{Type: fantasy.StreamPartTypeTextDelta, ID: "text", Delta: "summary"},
+		fantasy.StreamPart{Type: fantasy.StreamPartTypeTextEnd, ID: "text"},
+		fantasy.StreamPart{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonStop},
+	)
 }
 
 func TestStartCompactionDebugRun_DoesNotReportDebugErrors(t *testing.T) {
@@ -224,6 +236,347 @@ func TestGenerateCompactionSummary_PanicFinalizesAsError(t *testing.T) {
 			"panic path must finalize the debug run with StatusError")
 	case <-time.After(testutil.WaitShort):
 		t.Fatal("FinalizeRun never reached UpdateChatDebugRun on panic")
+	}
+}
+
+func TestGenerateCompactionSummaryPreservesCallOptions(t *testing.T) {
+	t.Parallel()
+
+	temperature := 0.2
+	topP := 0.8
+	topK := int64(40)
+	presencePenalty := 0.1
+	frequencyPenalty := 0.3
+	reasoningEffort := fantasyopenai.ReasoningEffortMedium
+	providerOptions := fantasy.ProviderOptions{
+		fantasyopenai.Name: &fantasyopenai.ResponsesProviderOptions{
+			ReasoningEffort: &reasoningEffort,
+		},
+	}
+	toolDefinitions := []fantasy.Tool{
+		fantasy.FunctionTool{Name: "read_file", InputSchema: map[string]any{"type": "object"}},
+		fantasy.ProviderDefinedTool{ID: "web_search", Name: "web_search"},
+	}
+	messages := []fantasy.Message{
+		textMessage(fantasy.MessageRoleSystem, "system prefix"),
+		textMessage(fantasy.MessageRoleUser, "hello"),
+	}
+	originalMessages := append([]fantasy.Message(nil), messages...)
+	var got fantasy.Call
+	model := &chattest.FakeModel{
+		ProviderName: "fake",
+		ModelName:    "fake-model",
+		StreamFn: func(_ context.Context, call fantasy.Call) (fantasy.StreamResponse, error) {
+			got = call
+			return summaryTextStream(), nil
+		},
+	}
+
+	toolChoice := fantasy.ToolChoiceNone
+	summary, err := generateCompactionSummary(context.Background(), model, messages, CompactionOptions{
+		SummaryPrompt: "summarize",
+		SummaryCall: fantasy.Call{
+			Temperature:      &temperature,
+			TopP:             &topP,
+			TopK:             &topK,
+			PresencePenalty:  &presencePenalty,
+			FrequencyPenalty: &frequencyPenalty,
+			ProviderOptions:  providerOptions,
+			ToolChoice:       &toolChoice,
+		},
+		ToolDefinitions: toolDefinitions,
+	})
+	require.NoError(t, err)
+	require.Equal(t, "summary", summary)
+	require.Equal(t, &temperature, got.Temperature)
+	require.Equal(t, &topP, got.TopP)
+	require.Equal(t, &topK, got.TopK)
+	require.Equal(t, &presencePenalty, got.PresencePenalty)
+	require.Equal(t, &frequencyPenalty, got.FrequencyPenalty)
+	require.Equal(t, providerOptions, got.ProviderOptions)
+	require.Equal(t, toolDefinitions, got.Tools)
+	require.NotNil(t, got.ToolChoice)
+	require.Equal(t, fantasy.ToolChoiceNone, *got.ToolChoice)
+	require.Nil(t, got.MaxOutputTokens)
+	require.Len(t, got.Prompt, 3)
+	require.Equal(t, originalMessages, []fantasy.Message(got.Prompt[:2]))
+	require.Equal(t, fantasy.MessageRoleUser, got.Prompt[2].Role)
+	require.Equal(t, []fantasy.MessagePart{fantasy.TextPart{Text: "summarize"}}, got.Prompt[2].Content)
+	require.Equal(t, originalMessages, messages)
+}
+
+func TestGenerateCompactionSummaryUsesToolDefinitions(t *testing.T) {
+	t.Parallel()
+
+	toolDefinitions := []fantasy.Tool{
+		fantasy.FunctionTool{
+			Name:        "read_file",
+			Description: "Read a file.",
+			InputSchema: map[string]any{"type": "object"},
+		},
+		fantasy.ProviderDefinedTool{ID: "web_search", Name: "web_search"},
+	}
+	messages := []fantasy.Message{textMessage(fantasy.MessageRoleUser, "hello")}
+	originalMessages := append([]fantasy.Message(nil), messages...)
+	var got fantasy.Call
+	model := &chattest.FakeModel{
+		ProviderName: "fake",
+		ModelName:    "fake-model",
+		StreamFn: func(_ context.Context, call fantasy.Call) (fantasy.StreamResponse, error) {
+			got = call
+			return summaryTextStream(), nil
+		},
+	}
+
+	toolChoice := fantasy.ToolChoiceNone
+	summary, err := generateCompactionSummary(context.Background(), model, messages, CompactionOptions{
+		SummaryPrompt:   "summarize",
+		SummaryCall:     fantasy.Call{ToolChoice: &toolChoice},
+		ToolDefinitions: toolDefinitions,
+	})
+	require.NoError(t, err)
+	require.Equal(t, "summary", summary)
+	require.Equal(t, toolDefinitions, got.Tools)
+	require.NotNil(t, got.ToolChoice)
+	require.Equal(t, toolChoice, *got.ToolChoice)
+	require.Len(t, got.Prompt, 2)
+	require.Equal(t, originalMessages, messages)
+}
+
+func TestGenerateCompactionSummaryAppliesAnthropicPromptCaching(t *testing.T) {
+	t.Parallel()
+
+	messages := []fantasy.Message{
+		textMessage(fantasy.MessageRoleSystem, "system"),
+		textMessage(fantasy.MessageRoleUser, "hello"),
+		textMessage(fantasy.MessageRoleAssistant, "hi"),
+	}
+	originalMessages := append([]fantasy.Message(nil), messages...)
+	var got fantasy.Call
+	model := &chattest.FakeModel{
+		ProviderName: fantasyanthropic.Name,
+		ModelName:    "claude",
+		StreamFn: func(_ context.Context, call fantasy.Call) (fantasy.StreamResponse, error) {
+			got = call
+			return summaryTextStream(), nil
+		},
+	}
+
+	_, err := generateCompactionSummary(context.Background(), model, messages, CompactionOptions{
+		SummaryPrompt: "summarize",
+	})
+	require.NoError(t, err)
+	require.Len(t, got.Prompt, 4)
+	cacheControl := fantasy.ProviderOptions{
+		fantasyanthropic.Name: &fantasyanthropic.ProviderCacheControlOptions{
+			CacheControl: fantasyanthropic.CacheControl{Type: "ephemeral"},
+		},
+	}
+	// Breakpoints land on the system message and the final two messages.
+	require.Equal(t, cacheControl, got.Prompt[0].ProviderOptions)
+	require.Nil(t, got.Prompt[1].ProviderOptions)
+	require.Equal(t, cacheControl, got.Prompt[2].ProviderOptions)
+	require.Equal(t, cacheControl, got.Prompt[3].ProviderOptions)
+	require.Equal(t, originalMessages, messages)
+}
+
+func TestGenerateCompactionSummaryRetriesWithoutToolsWhenContextTooLarge(t *testing.T) {
+	t.Parallel()
+
+	toolDefinitions := []fantasy.Tool{
+		fantasy.FunctionTool{Name: "read_file", InputSchema: map[string]any{"type": "object"}},
+	}
+	toolChoice := fantasy.ToolChoiceNone
+	var calls []fantasy.Call
+	model := &chattest.FakeModel{
+		ProviderName: "fake",
+		ModelName:    "fake-model",
+		StreamFn: func(_ context.Context, call fantasy.Call) (fantasy.StreamResponse, error) {
+			calls = append(calls, call)
+			if len(call.Tools) > 0 {
+				return nil, &fantasy.ProviderError{
+					Title:      "bad request",
+					Message:    "Your input exceeds the context window of this model. Please adjust your input and try again.",
+					StatusCode: http.StatusBadRequest,
+				}
+			}
+			return summaryTextStream(), nil
+		},
+	}
+
+	summary, err := generateCompactionSummary(context.Background(), model,
+		[]fantasy.Message{textMessage(fantasy.MessageRoleUser, "hello")},
+		CompactionOptions{
+			SummaryPrompt:   "summarize",
+			SummaryCall:     fantasy.Call{ToolChoice: &toolChoice},
+			ToolDefinitions: toolDefinitions,
+		},
+	)
+	require.NoError(t, err)
+	require.Equal(t, "summary", summary)
+	require.Len(t, calls, 2)
+	require.Equal(t, toolDefinitions, calls[0].Tools)
+	require.Nil(t, calls[1].Tools)
+	require.Equal(t, calls[0].Prompt, calls[1].Prompt)
+	require.Equal(t, calls[0].ToolChoice, calls[1].ToolChoice)
+}
+
+func TestGenerateCompactionSummaryDoesNotRetryOtherFailures(t *testing.T) {
+	t.Parallel()
+
+	contextTooLarge := &fantasy.ProviderError{
+		Message:    "Your input exceeds the context window of this model.",
+		StatusCode: http.StatusBadRequest,
+	}
+	cases := []struct {
+		name            string
+		toolDefinitions []fantasy.Tool
+		err             error
+	}{
+		{
+			name:            "unrelated bad request",
+			toolDefinitions: []fantasy.Tool{fantasy.FunctionTool{Name: "read_file"}},
+			err: &fantasy.ProviderError{
+				Message:    "Unsupported parameter: 'temperature' is not supported with this model.",
+				StatusCode: http.StatusBadRequest,
+			},
+		},
+		{
+			name:            "server error",
+			toolDefinitions: []fantasy.Tool{fantasy.FunctionTool{Name: "read_file"}},
+			err: &fantasy.ProviderError{
+				Message:    "context window service unavailable",
+				StatusCode: http.StatusServiceUnavailable,
+			},
+		},
+		{
+			name:            "non-provider error",
+			toolDefinitions: []fantasy.Tool{fantasy.FunctionTool{Name: "read_file"}},
+			err:             xerrors.New("context window"),
+		},
+		{
+			name: "no tools to drop",
+			err:  contextTooLarge,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			calls := 0
+			model := &chattest.FakeModel{
+				ProviderName: "fake",
+				ModelName:    "fake-model",
+				StreamFn: func(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
+					calls++
+					return nil, tc.err
+				},
+			}
+
+			_, err := generateCompactionSummary(context.Background(), model,
+				[]fantasy.Message{textMessage(fantasy.MessageRoleUser, "hello")},
+				CompactionOptions{
+					SummaryPrompt:   "summarize",
+					ToolDefinitions: tc.toolDefinitions,
+				},
+			)
+			require.ErrorIs(t, err, tc.err)
+			require.Equal(t, 1, calls)
+		})
+	}
+}
+
+func TestIsContextTooLargeError(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name string
+		err  error
+		want bool
+	}{
+		{
+			name: "parsed by fantasy",
+			err: &fantasy.ProviderError{
+				StatusCode:         http.StatusBadRequest,
+				ContextTooLargeErr: true,
+				ContextMaxTokens:   16385,
+				ContextUsedTokens:  20000,
+			},
+			want: true,
+		},
+		{
+			name: "openai responses wording",
+			err: &fantasy.ProviderError{
+				StatusCode: http.StatusBadRequest,
+				Message:    "Your input exceeds the context window of this model. Please adjust your input and try again.",
+			},
+			want: true,
+		},
+		{
+			name: "anthropic wording",
+			err: &fantasy.ProviderError{
+				StatusCode: http.StatusBadRequest,
+				Message:    "prompt is too long: 213462 tokens > 200000 maximum",
+			},
+			want: true,
+		},
+		{
+			name: "openai error code in response body",
+			err: &fantasy.ProviderError{
+				StatusCode:   http.StatusBadRequest,
+				Message:      "Request too large for this model.",
+				ResponseBody: []byte(`{"error":{"message":"Request too large for this model.","type":"invalid_request_error","code":"context_length_exceeded"}}`),
+			},
+			want: true,
+		},
+		{
+			name: "wrapped provider error",
+			err: xerrors.Errorf("generate summary text: %w", &fantasy.ProviderError{
+				StatusCode: http.StatusBadRequest,
+				Message:    "This model's maximum context length is 16385 tokens.",
+			}),
+			want: true,
+		},
+		{
+			name: "request entity too large",
+			err: &fantasy.ProviderError{
+				StatusCode: http.StatusRequestEntityTooLarge,
+				Message:    "Request Entity Too Large",
+			},
+			want: true,
+		},
+		{
+			name: "unrelated bad request",
+			err: &fantasy.ProviderError{
+				StatusCode: http.StatusBadRequest,
+				Message:    "Invalid schema for function 'read_file'.",
+			},
+			want: false,
+		},
+		{
+			name: "matching wording on a non bad-request status",
+			err: &fantasy.ProviderError{
+				StatusCode: http.StatusTooManyRequests,
+				Message:    "context window tokens per minute exceeded",
+			},
+			want: false,
+		},
+		{
+			name: "non-provider error",
+			err:  xerrors.New("prompt is too long"),
+			want: false,
+		},
+		{
+			name: "nil",
+			err:  nil,
+			want: false,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			require.Equal(t, tc.want, isContextTooLargeError(tc.err))
+		})
 	}
 }
 

@@ -7,6 +7,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"slices"
 	"strconv"
 	"strings"
@@ -16,7 +17,6 @@ import (
 
 	"charm.land/fantasy"
 	fantasyanthropic "charm.land/fantasy/providers/anthropic"
-	"charm.land/fantasy/schema"
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
@@ -27,16 +27,19 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatsanitize"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
+	"github.com/coder/coder/v2/coderd/x/chatfiles"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/quartz"
 )
 
 const (
-	// defaultStreamSilenceTimeout bounds how long an individual
+	// DefaultStreamSilenceTimeout bounds how long an individual
 	// model attempt may go without receiving a stream part before
 	// the attempt is canceled and retried.
-	defaultStreamSilenceTimeout = 10 * time.Minute
-	streamSilenceGuardTimerTag  = "streamSilenceGuard"
+	DefaultStreamSilenceTimeout = 10 * time.Minute
+	// StreamSilenceTimeoutDisabled turns the silence guard off.
+	StreamSilenceTimeoutDisabled time.Duration = -1
+	streamSilenceGuardTimerTag                 = "streamSilenceGuard"
 )
 
 var (
@@ -218,8 +221,11 @@ type GenerateCompactionOptions struct {
 	ModelConfigID    uuid.UUID
 
 	// SummaryCall is copied before GenerateCompaction attaches the summary
-	// prompt.
+	// prompt and prepared tool definitions.
 	SummaryCall fantasy.Call
+	// ToolDefinitions is copied from the parent generation request so the
+	// summary call uses the exact same ordered definitions.
+	ToolDefinitions []fantasy.Tool
 
 	PublishMessagePart func(codersdk.ChatMessageRole, codersdk.ChatMessagePart)
 
@@ -279,8 +285,8 @@ func GenerateAssistant(ctx context.Context, opts GenerateAssistantOptions) (Assi
 	if opts.Model == nil {
 		return AssistantOutcome{}, xerrors.New("chat model is required")
 	}
-	if opts.StreamSilenceTimeout <= 0 {
-		opts.StreamSilenceTimeout = defaultStreamSilenceTimeout
+	if opts.StreamSilenceTimeout == 0 {
+		opts.StreamSilenceTimeout = DefaultStreamSilenceTimeout
 	}
 	if opts.Clock == nil {
 		opts.Clock = quartz.NewReal()
@@ -312,7 +318,7 @@ func GenerateAssistant(ctx context.Context, opts GenerateAssistantOptions) (Assi
 
 	call := opts.CallTemplate
 	call.Prompt = prepared
-	call.Tools = buildToolDefinitions(opts.Tools, opts.ActiveTools, opts.ProviderTools)
+	call.Tools = BuildToolDefinitions(opts.Tools, opts.ActiveTools, opts.ProviderTools)
 
 	stepStart := opts.Clock.Now()
 	if opts.OnModelStreamStart != nil {
@@ -693,6 +699,9 @@ func newStreamSilenceGuard(
 		cancel:  cancel,
 		timeout: timeout,
 	}
+	if timeout < 0 {
+		return guard
+	}
 	guard.timer = clock.AfterFunc(
 		timeout,
 		guard.onTimeout,
@@ -721,14 +730,14 @@ func (g *streamSilenceGuard) onTimeout() {
 func (g *streamSilenceGuard) Reset() {
 	g.mu.Lock()
 	defer g.mu.Unlock()
-	if g.settled {
+	if g.settled || g.timer == nil {
 		return
 	}
 	g.timer.Reset(g.timeout, streamSilenceGuardTimerTag)
 }
 
 func (g *streamSilenceGuard) Disarm() {
-	if !g.settle() {
+	if !g.settle() || g.timer == nil {
 		return
 	}
 	g.timer.Stop()
@@ -752,6 +761,14 @@ func classifyStreamSilenceTimeout(
 	})
 }
 
+type streamWatchdogKey struct{}
+
+// WithStreamWatchdog returns a context whose guarded streams call kick
+// with the silence timeout whenever the guard arms or resets.
+func WithStreamWatchdog(ctx context.Context, kick func(silence time.Duration)) context.Context {
+	return context.WithValue(ctx, streamWatchdogKey{}, kick)
+}
+
 func guardedStream(
 	parent context.Context,
 	provider, model string,
@@ -761,7 +778,12 @@ func guardedStream(
 	metrics *Metrics,
 ) (guardedAttempt, error) {
 	attemptCtx, cancelAttempt := context.WithCancelCause(parent)
+	kick, _ := parent.Value(streamWatchdogKey{}).(func(time.Duration))
+	if kick == nil {
+		kick = func(time.Duration) {}
+	}
 	guard := newStreamSilenceGuard(clock, timeout, cancelAttempt)
+	kick(timeout)
 	var releaseOnce sync.Once
 	release := func() {
 		releaseOnce.Do(func() {
@@ -788,6 +810,7 @@ func guardedStream(
 		stream: fantasy.StreamResponse(func(yield func(fantasy.StreamPart) bool) {
 			for part := range stream {
 				guard.Reset()
+				kick(timeout)
 				recordTTFT()
 				if !yield(part) {
 					return
@@ -1317,10 +1340,8 @@ func executeSingleTool(
 
 	result.ClientMetadata = resp.Metadata
 
-	// Cap tool output so a single oversized result (most often a large
-	// MCP response) cannot overflow the model's context window on the
-	// next request. Only the text payload is bounded; binary media data
-	// is passed through untouched.
+	// Bound text so one tool result cannot overflow the model's context window.
+	// Media limits are applied separately by normalizeToolMedia.
 	content := resp.Content
 	if truncated, didTruncate := truncateToolResultText(content, maxResultBytes); didTruncate {
 		metrics.RecordToolResultTruncated(provider, model, tc.ToolName)
@@ -1344,10 +1365,24 @@ func executeSingleTool(
 			slog.F("tool_error", content),
 		)
 	case resp.Type == "image" || resp.Type == "media":
+		text := strings.ToValidUTF8(content, "\uFFFD")
+		if note, rejected := normalizeToolMedia(&resp); rejected {
+			logger.Warn(ctx, "tool result media rejected, keeping text only",
+				slog.F("tool_name", tc.ToolName),
+				slog.F("tool_call_id", tc.ToolCallID),
+				slog.F("media_type", resp.MediaType),
+				slog.F("media_bytes", len(resp.Data)),
+			)
+			if text != "" {
+				text += "\n"
+			}
+			result.Result = fantasy.ToolResultOutputContentText{Text: text + note}
+			break
+		}
 		result.Result = fantasy.ToolResultOutputContentMedia{
 			Data:      base64.StdEncoding.EncodeToString(resp.Data),
 			MediaType: resp.MediaType,
-			Text:      strings.ToValidUTF8(content, "\uFFFD"),
+			Text:      text,
 		}
 	default:
 		result.Result = fantasy.ToolResultOutputContentText{
@@ -1367,6 +1402,29 @@ func executeSingleTool(
 		}
 	}
 	return result
+}
+
+// normalizeToolMedia bounds persisted payloads and corrects image MIME types
+// by signature, not full image decoding. Transport limits apply at prompt build.
+func normalizeToolMedia(resp *fantasy.ToolResponse) (string, bool) {
+	if len(resp.Data) > codersdk.MaxChatFileSizeBytes {
+		return fmt.Sprintf(
+			"[%s content omitted: %d bytes exceeds the %d byte tool media limit]",
+			resp.MediaType, len(resp.Data), codersdk.MaxChatFileSizeBytes,
+		), true
+	}
+	if !strings.HasPrefix(chatfiles.BaseMediaType(resp.MediaType), "image/") {
+		return "", false
+	}
+	detected := chatfiles.DetectMediaType(resp.Data)
+	if !strings.HasPrefix(detected, "image/") {
+		return fmt.Sprintf(
+			"[image omitted: payload declared as %s is %s]",
+			resp.MediaType, detected,
+		), true
+	}
+	resp.MediaType = detected
+	return "", false
 }
 
 func isToolActive(name string, activeTools []string) bool {
@@ -1484,49 +1542,6 @@ func isSerialToolCall(toolMap map[string]fantasy.AgentTool, toolNameAliases map[
 	}
 	serial, ok := tool.(serialToolCaller)
 	return ok && serial.SerialToolCalls()
-}
-
-// buildToolDefinitions converts AgentTool definitions into the
-// fantasy.Tool slice expected by fantasy.Call. When activeTools
-// is non-empty, only function tools whose name appears in the
-// list are included. Provider tool definitions are always
-// appended unconditionally.
-func buildToolDefinitions(tools []fantasy.AgentTool, activeTools []string, providerTools []ProviderTool) []fantasy.Tool {
-	prepared := make([]fantasy.Tool, 0, len(tools)+len(providerTools))
-	for _, tool := range tools {
-		info := tool.Info()
-		if !isToolActive(info.Name, activeTools) {
-			continue
-		}
-
-		// Substitute an empty object for nil properties so that a tool
-		// with no parameters never serializes "properties" to null,
-		// which OpenAI rejects.
-		properties := info.Parameters
-		if properties == nil {
-			properties = map[string]any{}
-		}
-		inputSchema := map[string]any{
-			"type":       "object",
-			"properties": properties,
-		}
-		// Only include "required" when non-empty so that a nil slice
-		// never serializes to null, which OpenAI rejects.
-		if len(info.Required) > 0 {
-			inputSchema["required"] = info.Required
-		}
-		schema.Normalize(inputSchema)
-		prepared = append(prepared, fantasy.FunctionTool{
-			Name:            info.Name,
-			Description:     info.Description,
-			InputSchema:     inputSchema,
-			ProviderOptions: tool.ProviderOptions(),
-		})
-	}
-	for _, pt := range providerTools {
-		prepared = append(prepared, pt.Definition)
-	}
-	return prepared
 }
 
 func shouldApplyAnthropicPromptCaching(model fantasy.LanguageModel) bool {

@@ -6,7 +6,6 @@ package database
 
 import (
 	"context"
-	"encoding/json"
 	"time"
 
 	"github.com/google/uuid"
@@ -355,6 +354,11 @@ type sqlcQuerier interface {
 	// between validation and writing the model config reference.
 	GetAIProviderByIDForReferenceLock(ctx context.Context, id uuid.UUID) (AIProvider, error)
 	GetAIProviderByName(ctx context.Context, name string) (AIProvider, error)
+	// Returns the display metadata AI Gateway session viewers need to filter
+	// interceptions by provider_name. Soft-deleted and disabled rows are
+	// included because interceptions keep referencing them. When a name has
+	// been reused, the live row wins so current metadata is shown.
+	GetAIProviderFilterOptions(ctx context.Context) ([]GetAIProviderFilterOptionsRow, error)
 	GetAIProviderKeyByID(ctx context.Context, id uuid.UUID) (AIProviderKey, error)
 	// Returns the provider IDs that have at least one provider-scoped key.
 	GetAIProviderKeyPresence(ctx context.Context, providerIds []uuid.UUID) ([]uuid.UUID, error)
@@ -841,6 +845,8 @@ type sqlcQuerier interface {
 	// workspaces in a given timeframe. The template IDs, active users, and
 	// usage_seconds all reflect any usage in the template, including apps.
 	//
+	// Session usage comes out per app name; callers group the names into families.
+	//
 	// When combining data from multiple templates, we must make a guess at
 	// how the user behaved for the 30 minute interval. In this case we make
 	// the assumption that if the user used two workspaces for 15 minutes,
@@ -854,6 +860,9 @@ type sqlcQuerier interface {
 	GetTemplateInsightsByInterval(ctx context.Context, arg GetTemplateInsightsByIntervalParams) ([]GetTemplateInsightsByIntervalRow, error)
 	// GetTemplateInsightsByTemplate is used for Prometheus metrics. Keep
 	// in sync with GetTemplateInsights and UpsertTemplateUsageStats.
+	//
+	// Session usage comes out per app name, as in GetTemplateInsights, so either
+	// query reports the same family totals once the names are grouped.
 	GetTemplateInsightsByTemplate(ctx context.Context, arg GetTemplateInsightsByTemplateParams) ([]GetTemplateInsightsByTemplateRow, error)
 	// GetTemplateParameterInsights does for each template in a given timeframe,
 	// look for the latest workspace build (for every workspace) that has been
@@ -1303,6 +1312,12 @@ type sqlcQuerier interface {
 	// Lists a chat's pinned context resources, ordered deterministically by
 	// source.
 	ListChatContextResourcesByChatID(ctx context.Context, chatID uuid.UUID) ([]ChatContextResource, error)
+	// Returns one page of per-user AI spend for @organization_id over the
+	// [period_start, period_end) window, most expensive first, together with the
+	// providers, clients, and models each user spent through and the count and
+	// totals over every matching user. It must keep the same joins and predicates as
+	// ExportOrganizationAISpend so both report the same token usage.
+	ListOrganizationAISpendUsers(ctx context.Context, arg ListOrganizationAISpendUsersParams) ([]ListOrganizationAISpendUsersRow, error)
 	ListProvisionerKeysByOrganization(ctx context.Context, organizationID uuid.UUID) ([]ProvisionerKey, error)
 	ListProvisionerKeysByOrganizationExcludeReserved(ctx context.Context, organizationID uuid.UUID) ([]ProvisionerKey, error)
 	// Used by the usage generator to find missing heartbeat buckets.
@@ -1718,7 +1733,14 @@ type sqlcQuerier interface {
 	// into a single table for efficient storage and querying. Half-hour buckets are
 	// used to store the data, and the minutes are summed for each user and template
 	// combination. The result is stored in the template_usage_stats table.
-	UpsertTemplateUsageStats(ctx context.Context, appFamilies json.RawMessage) error
+	//
+	// Session usage is stored per app name in the child table, so the main row
+	// carries no session columns at all. Every recomputed bucket rewrites its own
+	// child rows: app names that disappeared are deleted, the rest are upserted.
+	// The keys come from the computed set rather than from the main upsert,
+	// because the no-op guard below suppresses main rows whose columns did not
+	// change while their session usage still has to be corrected.
+	UpsertTemplateUsageStats(ctx context.Context) error
 	UpsertUserAIBudgetOverride(ctx context.Context, arg UpsertUserAIBudgetOverrideParams) (UserAIBudgetOverride, error)
 	// UpsertUserAIProviderKey preserves the original id and created_at when the
 	// user/provider pair already exists. On conflict, callers provide id and

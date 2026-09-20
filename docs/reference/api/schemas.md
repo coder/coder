@@ -320,6 +320,11 @@ title: Schemas
 
 ```json
 {
+  "attribution": {
+    "property1": "string",
+    "property2": "string"
+  },
+  "interception_id": "34d9b688-63ad-46f4-88b5-665c1e7f7824",
   "model": "string",
   "thinking": [
     {
@@ -357,12 +362,29 @@ title: Schemas
 
 ### Properties
 
-| Name          | Type                                                                                   | Required | Restrictions | Description |
-|---------------|----------------------------------------------------------------------------------------|----------|--------------|-------------|
-| `model`       | string                                                                                 | false    |              |             |
-| `thinking`    | array of [codersdk.AIBridgeModelThought](#codersdkaibridgemodelthought)                | false    |              |             |
-| `token_usage` | [codersdk.AIBridgeSessionThreadsTokenUsage](#codersdkaibridgesessionthreadstokenusage) | false    |              |             |
-| `tool_calls`  | array of [codersdk.AIBridgeToolCall](#codersdkaibridgetoolcall)                        | false    |              |             |
+| Name              | Type                                                                                   | Required | Restrictions | Description                                                                                                         |
+|-------------------|----------------------------------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------|
+| `attribution`     | [codersdk.AIBridgeAttribution](#codersdkaibridgeattribution)                           | false    |              | Attribution contains attribution data from this interception. Unknown attribution is serialized as an empty object. |
+| `interception_id` | string                                                                                 | false    |              |                                                                                                                     |
+| `model`           | string                                                                                 | false    |              |                                                                                                                     |
+| `thinking`        | array of [codersdk.AIBridgeModelThought](#codersdkaibridgemodelthought)                | false    |              |                                                                                                                     |
+| `token_usage`     | [codersdk.AIBridgeSessionThreadsTokenUsage](#codersdkaibridgesessionthreadstokenusage) | false    |              |                                                                                                                     |
+| `tool_calls`      | array of [codersdk.AIBridgeToolCall](#codersdkaibridgetoolcall)                        | false    |              |                                                                                                                     |
+
+## codersdk.AIBridgeAttribution
+
+```json
+{
+  "property1": "string",
+  "property2": "string"
+}
+```
+
+### Properties
+
+| Name             | Type   | Required | Restrictions | Description |
+|------------------|--------|----------|--------------|-------------|
+| `[any property]` | string | false    |              |             |
 
 ## codersdk.AIBridgeConfig
 
@@ -473,6 +495,26 @@ title: Schemas
 | Name   | Type   | Required | Restrictions | Description |
 |--------|--------|----------|--------------|-------------|
 | `text` | string | false    |              |             |
+
+## codersdk.AIBridgeProvider
+
+```json
+{
+  "display_name": "string",
+  "icon": "string",
+  "name": "string",
+  "type": "openai"
+}
+```
+
+### Properties
+
+| Name           | Type                                               | Required | Restrictions | Description |
+|----------------|----------------------------------------------------|----------|--------------|-------------|
+| `display_name` | string                                             | false    |              |             |
+| `icon`         | string                                             | false    |              |             |
+| `name`         | string                                             | false    |              |             |
+| `type`         | [codersdk.AIProviderType](#codersdkaiprovidertype) | false    |              |             |
 
 ## codersdk.AIBridgeProxyConfig
 
@@ -662,6 +704,11 @@ title: Schemas
       "agent_firewall_session_id": "3735294f-18b1-4e7a-a269-99c30f0b30e7",
       "agentic_actions": [
         {
+          "attribution": {
+            "property1": "string",
+            "property2": "string"
+          },
+          "interception_id": "34d9b688-63ad-46f4-88b5-665c1e7f7824",
           "model": "string",
           "thinking": [
             {
@@ -696,6 +743,10 @@ title: Schemas
           ]
         }
       ],
+      "attribution": {
+        "property1": "string",
+        "property2": "string"
+      },
       "credential_hint": "string",
       "credential_kind": "string",
       "ended_at": "2019-08-24T14:15:22Z",
@@ -807,6 +858,11 @@ title: Schemas
   "agent_firewall_session_id": "3735294f-18b1-4e7a-a269-99c30f0b30e7",
   "agentic_actions": [
     {
+      "attribution": {
+        "property1": "string",
+        "property2": "string"
+      },
+      "interception_id": "34d9b688-63ad-46f4-88b5-665c1e7f7824",
       "model": "string",
       "thinking": [
         {
@@ -841,6 +897,10 @@ title: Schemas
       ]
     }
   ],
+  "attribution": {
+    "property1": "string",
+    "property2": "string"
+  },
   "credential_hint": "string",
   "credential_kind": "string",
   "ended_at": "2019-08-24T14:15:22Z",
@@ -871,6 +931,7 @@ title: Schemas
 | `agent_firewall_sequence_number` | integer                                                                                | false    |              | Agent firewall sequence number is the firewall sequence number from the root interception. Used to determine the position of this LLM request in the firewall event stream. Nil when the request did not pass through the agent firewall. |
 | `agent_firewall_session_id`      | string                                                                                 | false    |              | Agent firewall session ID links this thread to an agent firewall confinement session. Nil when the request did not pass through the agent firewall.                                                                                       |
 | `agentic_actions`                | array of [codersdk.AIBridgeAgenticAction](#codersdkaibridgeagenticaction)              | false    |              |                                                                                                                                                                                                                                           |
+| `attribution`                    | [codersdk.AIBridgeAttribution](#codersdkaibridgeattribution)                           | false    |              | Attribution contains attribution data from the root interception. Unknown attribution is serialized as an empty object.                                                                                                                   |
 | `credential_hint`                | string                                                                                 | false    |              |                                                                                                                                                                                                                                           |
 | `credential_kind`                | string                                                                                 | false    |              |                                                                                                                                                                                                                                           |
 | `ended_at`                       | string                                                                                 | false    |              |                                                                                                                                                                                                                                           |
@@ -1006,7 +1067,8 @@ title: Schemas
       "rawQuery": "string",
       "scheme": "string",
       "user": {}
-    }
+    },
+    "stream_silence_timeout": 0
   }
 }
 ```
@@ -2495,21 +2557,23 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "rawQuery": "string",
     "scheme": "string",
     "user": {}
-  }
+  },
+  "stream_silence_timeout": 0
 }
 ```
 
 ### Properties
 
-| Name                    | Type                       | Required | Restrictions | Description |
-|-------------------------|----------------------------|----------|--------------|-------------|
-| `acquire_batch_size`    | integer                    | false    |              |             |
-| `debug_logging_enabled` | boolean                    | false    |              |             |
-| `hook_allow_insecure`   | boolean                    | false    |              |             |
-| `hook_enabled`          | boolean                    | false    |              |             |
-| `hook_secret`           | string                     | false    |              |             |
-| `hook_timeout`          | integer                    | false    |              |             |
-| `hook_url`              | [serpent.URL](#serpenturl) | false    |              |             |
+| Name                     | Type                       | Required | Restrictions | Description |
+|--------------------------|----------------------------|----------|--------------|-------------|
+| `acquire_batch_size`     | integer                    | false    |              |             |
+| `debug_logging_enabled`  | boolean                    | false    |              |             |
+| `hook_allow_insecure`    | boolean                    | false    |              |             |
+| `hook_enabled`           | boolean                    | false    |              |             |
+| `hook_secret`            | string                     | false    |              |             |
+| `hook_timeout`           | integer                    | false    |              |             |
+| `hook_url`               | [serpent.URL](#serpenturl) | false    |              |             |
+| `stream_silence_timeout` | integer                    | false    |              |             |
 
 ## codersdk.ChatContext
 
@@ -6635,7 +6699,7 @@ This is required on creation to enable a user-flow of validating a template work
 |-----------|--------|----------|--------------|-------------|
 | `api_key` | string | false    |              |             |
 
-## codersdk.CreateUserRequestWithOrgs
+## codersdk.CreateUserRequest
 
 ```json
 {
@@ -7291,7 +7355,8 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
           "rawQuery": "string",
           "scheme": "string",
           "user": {}
-        }
+        },
+        "stream_silence_timeout": 0
       }
     },
     "allow_workspace_renames": true,
@@ -7364,6 +7429,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "scheme": "string",
       "user": {}
     },
+    "dynamic_parameters_full_evaluation": true,
     "enable_authz_recording": true,
     "enable_terraform_debug_mode": true,
     "ephemeral_deployment": true,
@@ -7901,7 +7967,8 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         "rawQuery": "string",
         "scheme": "string",
         "user": {}
-      }
+      },
+      "stream_silence_timeout": 0
     }
   },
   "allow_workspace_renames": true,
@@ -7974,6 +8041,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     "scheme": "string",
     "user": {}
   },
+  "dynamic_parameters_full_evaluation": true,
   "enable_authz_recording": true,
   "enable_terraform_debug_mode": true,
   "ephemeral_deployment": true,
@@ -8365,6 +8433,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `disable_workspace_agent_context_sync`         | boolean                                                                                              | false    |              |                                                                           |
 | `disable_workspace_sharing`                    | boolean                                                                                              | false    |              |                                                                           |
 | `docs_url`                                     | [serpent.URL](#serpenturl)                                                                           | false    |              |                                                                           |
+| `dynamic_parameters_full_evaluation`           | boolean                                                                                              | false    |              |                                                                           |
 | `enable_authz_recording`                       | boolean                                                                                              | false    |              |                                                                           |
 | `enable_terraform_debug_mode`                  | boolean                                                                                              | false    |              |                                                                           |
 | `ephemeral_deployment`                         | boolean                                                                                              | false    |              |                                                                           |
@@ -8871,9 +8940,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                                                                                                                                                                           |
-|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `agent-lifecycle-hooks`, `ai-gateway-seat-exclusion`, `auto-fill-parameters`, `chat-advisor`, `chat-virtual-desktop`, `example`, `mcp-server-http`, `mcp-tool-search`, `nats_pubsub`, `notifications`, `workspace-build-updates`, `workspace-capable-licensing`, `workspace-usage` |
+| Value(s)                                                                                                                                                                                                                                                                                                          |
+|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `agent-lifecycle-hooks`, `ai-gateway-reverse-proxy`, `ai-gateway-seat-exclusion`, `auto-fill-parameters`, `chat-advisor`, `chat-virtual-desktop`, `example`, `mcp-server-http`, `mcp-tool-search`, `no_nats_pubsub`, `notifications`, `workspace-build-updates`, `workspace-capable-licensing`, `workspace-usage` |
 
 ## codersdk.ExternalAPIKeyScopes
 
@@ -10932,7 +11001,8 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
   },
   "icon": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-  "name": "string"
+  "name": "string",
+  "scope": "string"
 }
 ```
 
@@ -10946,6 +11016,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `icon`         | string                                                     | false    |              |                                                                                                                                                                                                         |
 | `id`           | string                                                     | false    |              |                                                                                                                                                                                                         |
 | `name`         | string                                                     | false    |              |                                                                                                                                                                                                         |
+| `scope`        | string                                                     | false    |              | Scope is the space-separated list of scopes this app's tokens may be granted. Empty means unrestricted. A non-empty value with no names is a configured allowlist that grants nothing.                  |
 
 ## codersdk.OAuth2ProviderAppSecret
 
@@ -11300,6 +11371,103 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `is_default`               | boolean         | true     |              |                                                                                                                                                 |
 | `name`                     | string          | false    |              |                                                                                                                                                 |
 | `updated_at`               | string          | true     |              |                                                                                                                                                 |
+
+## codersdk.OrganizationAISpendReport
+
+```json
+{
+  "count": 0,
+  "period_end": "2019-08-24T14:15:22Z",
+  "period_start": "2019-08-24T14:15:22Z",
+  "retention_start": "2019-08-24T14:15:22Z",
+  "totals": {
+    "cost_micros": 0,
+    "unpriced_usage_count": 0
+  },
+  "users": [
+    {
+      "avatar_url": "string",
+      "clients": [
+        "string"
+      ],
+      "cost_micros": 0,
+      "models": [
+        "string"
+      ],
+      "name": "string",
+      "providers": [
+        "string"
+      ],
+      "unpriced_usage_count": 0,
+      "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5",
+      "username": "string"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name              | Type                                                                          | Required | Restrictions | Description                                                                                                                                                                             |
+|-------------------|-------------------------------------------------------------------------------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `count`           | integer                                                                       | false    |              | Count is the number of users with token usage matching the filter.                                                                                                                      |
+| `period_end`      | string                                                                        | false    |              | Period end is the exclusive upper bound of the current budget period.                                                                                                                   |
+| `period_start`    | string                                                                        | false    |              | Period start is the inclusive lower bound of the current budget period.                                                                                                                 |
+| `retention_start` | string                                                                        | false    |              | Retention start is the oldest instant for which token usage is still retained. An explicit period must not start before it. Omitted when the deployment does not purge AI Gateway data. |
+| `totals`          | [codersdk.OrganizationAISpendTotals](#codersdkorganizationaispendtotals)      | false    |              |                                                                                                                                                                                         |
+| `users`           | array of [codersdk.OrganizationAISpendUser](#codersdkorganizationaispenduser) | false    |              | Users is the requested page, most expensive first.                                                                                                                                      |
+
+## codersdk.OrganizationAISpendTotals
+
+```json
+{
+  "cost_micros": 0,
+  "unpriced_usage_count": 0
+}
+```
+
+### Properties
+
+| Name                   | Type    | Required | Restrictions | Description                                                                                          |
+|------------------------|---------|----------|--------------|------------------------------------------------------------------------------------------------------|
+| `cost_micros`          | integer | false    |              | Cost micros is the priced spend of every matching user.                                              |
+| `unpriced_usage_count` | integer | false    |              | Unpriced usage count is the number of token usage records without a cost across every matching user. |
+
+## codersdk.OrganizationAISpendUser
+
+```json
+{
+  "avatar_url": "string",
+  "clients": [
+    "string"
+  ],
+  "cost_micros": 0,
+  "models": [
+    "string"
+  ],
+  "name": "string",
+  "providers": [
+    "string"
+  ],
+  "unpriced_usage_count": 0,
+  "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5",
+  "username": "string"
+}
+```
+
+### Properties
+
+| Name                   | Type            | Required | Restrictions | Description                                                                                                                                       |
+|------------------------|-----------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------------------|
+| `avatar_url`           | string          | false    |              |                                                                                                                                                   |
+| `clients`              | array of string | false    |              | Clients are the clients the user spent through, sorted. Usage without a recorded client is reported as Unknown.                                   |
+| `cost_micros`          | integer         | false    |              | Cost micros is the user's priced spend over the period.                                                                                           |
+| `models`               | array of string | false    |              | Models are the models the user spent through, sorted.                                                                                             |
+| `name`                 | string          | false    |              |                                                                                                                                                   |
+| `providers`            | array of string | false    |              | Providers are the provider types the user spent through, sorted.                                                                                  |
+| `unpriced_usage_count` | integer         | false    |              | Unpriced usage count is the number of the user's token usage records that carry no cost because their model had no price when they were recorded. |
+| `user_id`              | string          | false    |              |                                                                                                                                                   |
+| `username`             | string          | false    |              |                                                                                                                                                   |
 
 ## codersdk.OrganizationChatModelsResponse
 
@@ -12023,33 +12191,35 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 {
   "callback_url": "string",
   "icon": "string",
-  "name": "string"
+  "name": "string",
+  "scope": "string"
 }
 ```
 
 ### Properties
 
-| Name           | Type   | Required | Restrictions | Description |
-|----------------|--------|----------|--------------|-------------|
-| `callback_url` | string | true     |              |             |
-| `icon`         | string | false    |              |             |
-| `name`         | string | true     |              |             |
+| Name           | Type   | Required | Restrictions | Description                                                                                                           |
+|----------------|--------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------|
+| `callback_url` | string | true     |              |                                                                                                                       |
+| `icon`         | string | false    |              |                                                                                                                       |
+| `name`         | string | true     |              |                                                                                                                       |
+| `scope`        | string | false    |              | Scope is the space-separated list of scopes this app's tokens may be granted. Leave empty, or omit, for unrestricted. |
 
 ## codersdk.PostWorkspaceUsageRequest
 
 ```json
 {
   "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
-  "app_name": "vscode"
+  "app_name": "string"
 }
 ```
 
 ### Properties
 
-| Name       | Type                                           | Required | Restrictions | Description |
-|------------|------------------------------------------------|----------|--------------|-------------|
-| `agent_id` | string                                         | false    |              |             |
-| `app_name` | [codersdk.UsageAppName](#codersdkusageappname) | false    |              |             |
+| Name       | Type   | Required | Restrictions | Description                                                                                                                                                                        |
+|------------|--------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `agent_id` | string | false    |              |                                                                                                                                                                                    |
+| `app_name` | string | false    |              | App name is any name for the app reporting usage. The server normalizes it at ingestion, so a new app needs no server change. The UsageAppName constants are the well-known names. |
 
 ## codersdk.PprofConfig
 
@@ -12910,17 +13080,19 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 {
   "callback_url": "string",
   "icon": "string",
-  "name": "string"
+  "name": "string",
+  "scope": "string"
 }
 ```
 
 ### Properties
 
-| Name           | Type   | Required | Restrictions | Description |
-|----------------|--------|----------|--------------|-------------|
-| `callback_url` | string | true     |              |             |
-| `icon`         | string | false    |              |             |
-| `name`         | string | true     |              |             |
+| Name           | Type   | Required | Restrictions | Description                                                                                                                                                  |
+|----------------|--------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `callback_url` | string | true     |              |                                                                                                                                                              |
+| `icon`         | string | false    |              |                                                                                                                                                              |
+| `name`         | string | true     |              |                                                                                                                                                              |
+| `scope`        | string | false    |              | Scope replaces the app's current allowlist. Omit to leave the existing allowlist untouched. Set to an empty string to clear it, making the app unrestricted. |
 
 ## codersdk.RBACAction
 
@@ -16304,20 +16476,6 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 |---------------|----------------------------------------------------|
 | `protocol`    | `http`, `https`                                    |
 | `share_level` | `authenticated`, `organization`, `owner`, `public` |
-
-## codersdk.UsageAppName
-
-```json
-"vscode"
-```
-
-### Properties
-
-#### Enumerated Values
-
-| Value(s)                                         |
-|--------------------------------------------------|
-| `jetbrains`, `reconnecting-pty`, `ssh`, `vscode` |
 
 ## codersdk.UsagePeriod
 

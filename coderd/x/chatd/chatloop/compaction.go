@@ -3,6 +3,8 @@ package chatloop
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"net/http"
 	"strings"
 	"time"
 
@@ -97,10 +99,13 @@ type CompactionOptions struct {
 	ResolvedModel    string
 	ModelConfigID    uuid.UUID
 	SummaryCall      fantasy.Call
+	// ToolDefinitions is copied from the parent generation request so the
+	// summary call uses the exact same ordered definitions.
+	ToolDefinitions []fantasy.Tool
 
 	// Clock and StreamSilenceTimeout guard the summary stream against a
 	// provider that opens the stream but stops yielding parts. Zero values
-	// fall back to a real clock and defaultStreamSilenceTimeout.
+	// fall back to a real clock and DefaultStreamSilenceTimeout.
 	Clock                quartz.Clock
 	StreamSilenceTimeout time.Duration
 
@@ -258,6 +263,7 @@ func normalizedCompactionGenerateConfig(opts GenerateCompactionOptions) (Compact
 		ResolvedModel:        opts.ResolvedModel,
 		ModelConfigID:        opts.ModelConfigID,
 		SummaryCall:          opts.SummaryCall,
+		ToolDefinitions:      opts.ToolDefinitions,
 		Force:                opts.Force,
 		Source:               opts.Source,
 		ToolCallID:           opts.ToolCallID,
@@ -486,6 +492,11 @@ func generateCompactionSummary(
 		Role:    fantasy.MessageRoleUser,
 		Content: summaryParts,
 	})
+	// Anthropic only reads the cache at explicit breakpoints, so without
+	// these the shared tool and history prefix is never a cache hit.
+	if shouldApplyAnthropicPromptCaching(model) {
+		addAnthropicPromptCaching(summaryPrompt)
+	}
 
 	summaryCtx, finishDebugRun := startCompactionDebugRun(ctx, options)
 	defer func() {
@@ -505,99 +516,150 @@ func generateCompactionSummary(
 
 	call := options.SummaryCall
 	call.Prompt = summaryPrompt
+	call.Tools = options.ToolDefinitions
 	clock := options.Clock
 	if clock == nil {
 		clock = quartz.NewReal()
 	}
 	timeout := options.StreamSilenceTimeout
-	if timeout <= 0 {
-		timeout = defaultStreamSilenceTimeout
+	if timeout == 0 {
+		timeout = DefaultStreamSilenceTimeout
 	}
 	// NopMetrics: TTFT is an assistant-generation metric, so the summary
 	// stream must not record into it.
-	attempt, err := guardedStream(
-		summaryCtx,
-		options.ResolvedProvider,
-		options.ResolvedModel,
-		clock,
-		timeout,
-		func(attemptCtx context.Context) (fantasy.StreamResponse, error) {
-			return model.Stream(attemptCtx, call)
-		},
-		NopMetrics(),
-	)
-	if err != nil {
-		return "", xerrors.Errorf("stream summary text: %w", wrapProviderStreamError(options.ResolvedProvider, err))
-	}
-	defer attempt.release()
+	streamSummaryText := func() (string, error) {
+		attempt, err := guardedStream(
+			summaryCtx,
+			options.ResolvedProvider,
+			options.ResolvedModel,
+			clock,
+			timeout,
+			func(attemptCtx context.Context) (fantasy.StreamResponse, error) {
+				return model.Stream(attemptCtx, call)
+			},
+			NopMetrics(),
+		)
+		if err != nil {
+			return "", xerrors.Errorf("stream summary text: %w", wrapProviderStreamError(options.ResolvedProvider, err))
+		}
+		defer attempt.release()
 
-	textPartIndexes := make(map[string]int)
-	textParts := make([]string, 0, 1)
-	var (
-		reasoningSeen bool
-		finishSeen    bool
-		finishReason  fantasy.FinishReason
-		streamErr     error
-	)
-	for part := range attempt.stream {
-		switch part.Type {
-		case fantasy.StreamPartTypeTextStart:
-			if _, ok := textPartIndexes[part.ID]; ok {
-				continue
+		textPartIndexes := make(map[string]int)
+		textParts := make([]string, 0, 1)
+		var (
+			reasoningSeen bool
+			finishSeen    bool
+			finishReason  fantasy.FinishReason
+			streamErr     error
+		)
+		for part := range attempt.stream {
+			switch part.Type {
+			case fantasy.StreamPartTypeTextStart:
+				if _, ok := textPartIndexes[part.ID]; ok {
+					continue
+				}
+				textPartIndexes[part.ID] = len(textParts)
+				textParts = append(textParts, part.Delta)
+			case fantasy.StreamPartTypeTextDelta:
+				index, ok := textPartIndexes[part.ID]
+				if !ok {
+					index = len(textParts)
+					textPartIndexes[part.ID] = index
+					textParts = append(textParts, "")
+				}
+				textParts[index] += part.Delta
+			case fantasy.StreamPartTypeReasoningStart,
+				fantasy.StreamPartTypeReasoningDelta,
+				fantasy.StreamPartTypeReasoningEnd:
+				reasoningSeen = true
+			case fantasy.StreamPartTypeFinish:
+				finishSeen = true
+				finishReason = part.FinishReason
+			case fantasy.StreamPartTypeError:
+				streamErr = part.Error
+				if streamErr == nil {
+					streamErr = xerrors.New("model returned an error part")
+				}
 			}
-			textPartIndexes[part.ID] = len(textParts)
-			textParts = append(textParts, part.Delta)
-		case fantasy.StreamPartTypeTextDelta:
-			index, ok := textPartIndexes[part.ID]
-			if !ok {
-				index = len(textParts)
-				textPartIndexes[part.ID] = index
-				textParts = append(textParts, "")
-			}
-			textParts[index] += part.Delta
-		case fantasy.StreamPartTypeReasoningStart,
-			fantasy.StreamPartTypeReasoningDelta,
-			fantasy.StreamPartTypeReasoningEnd:
-			reasoningSeen = true
-		case fantasy.StreamPartTypeFinish:
-			finishSeen = true
-			finishReason = part.FinishReason
-		case fantasy.StreamPartTypeError:
-			streamErr = part.Error
-			if streamErr == nil {
-				streamErr = xerrors.New("model returned an error part")
+			if streamErr != nil {
+				break
 			}
 		}
-		if streamErr != nil {
-			break
+		if err := attempt.finish(streamErr); err != nil {
+			// Providers can surface remote stream resets as bare
+			// context.Canceled; wrap them like GenerateAssistant so the
+			// generation loop retries instead of terminally erroring.
+			return "", xerrors.Errorf("stream summary text: %w", wrapProviderStreamError(options.ResolvedProvider, err))
 		}
-	}
-	if err := attempt.finish(streamErr); err != nil {
-		// Providers can surface remote stream resets as bare
-		// context.Canceled; wrap them like GenerateAssistant so the
-		// generation loop retries instead of terminally erroring.
-		return "", xerrors.Errorf("stream summary text: %w", wrapProviderStreamError(options.ResolvedProvider, err))
-	}
-	if !finishSeen {
-		// A stream that ends without a finish part was interrupted.
-		// Committing its partial text would compact history against an
-		// incomplete summary.
-		if ctxErr := summaryCtx.Err(); ctxErr != nil {
-			return "", xerrors.Errorf("stream summary text: %w", ctxErr)
+		if !finishSeen {
+			// A stream that ends without a finish part was interrupted.
+			// Committing its partial text would compact history against an
+			// incomplete summary.
+			if ctxErr := summaryCtx.Err(); ctxErr != nil {
+				return "", xerrors.Errorf("stream summary text: %w", ctxErr)
+			}
+			return "", xerrors.New("compaction summary stream ended without a finish part")
 		}
-		return "", xerrors.New("compaction summary stream ended without a finish part")
-	}
 
-	parts := make([]string, 0, len(textParts))
-	for _, text := range textParts {
-		text = strings.TrimSpace(text)
-		if text != "" {
-			parts = append(parts, text)
+		parts := make([]string, 0, len(textParts))
+		for _, text := range textParts {
+			text = strings.TrimSpace(text)
+			if text != "" {
+				parts = append(parts, text)
+			}
+		}
+		joined := strings.TrimSpace(strings.Join(parts, " "))
+		if joined == "" && (finishReason == fantasy.FinishReasonLength || reasoningSeen) {
+			return "", xerrors.New("compaction summary was truncated at the output token cap")
+		}
+		return joined, nil
+	}
+	summary, err = streamSummaryText()
+	if err != nil && len(call.Tools) > 0 && isContextTooLargeError(err) {
+		// Tool definitions keep the summary request on the parent turn's
+		// cacheable prefix, but they also make it larger than the turn
+		// that just overflowed. Compaction is the recovery path for an
+		// over-limit conversation, so fall back to the tool-less request,
+		// which still fits whenever the history alone does. The rejection
+		// can arrive from the stream open or as an in-stream error part,
+		// so the retry wraps the whole attempt.
+		call.Tools = nil
+		summary, err = streamSummaryText()
+	}
+	return summary, err
+}
+
+// contextTooLargePhrases are context-window rejections fantasy does not
+// parse, such as the OpenAI Responses API "Your input exceeds the context
+// window of this model." and Anthropic-family "too long" rejections
+// without token counts. The response body is included so the OpenAI
+// error code "context_length_exceeded" matches regardless of wording.
+var contextTooLargePhrases = []string{
+	"context window",
+	"context length",
+	"context_length",
+	"too long",
+}
+
+// isContextTooLargeError reports whether a provider rejected a request for
+// its size: the prompt exceeded the model's context window, or the body
+// exceeded a request size limit on the provider or a gateway in front of it.
+func isContextTooLargeError(err error) bool {
+	providerErr, ok := errors.AsType[*fantasy.ProviderError](err)
+	if !ok {
+		return false
+	}
+	if providerErr.IsContextTooLarge() || providerErr.StatusCode == http.StatusRequestEntityTooLarge {
+		return true
+	}
+	if providerErr.StatusCode != http.StatusBadRequest {
+		return false
+	}
+	text := strings.ToLower(providerErr.Error() + " " + string(providerErr.ResponseBody))
+	for _, phrase := range contextTooLargePhrases {
+		if strings.Contains(text, phrase) {
+			return true
 		}
 	}
-	summary = strings.TrimSpace(strings.Join(parts, " "))
-	if summary == "" && (finishReason == fantasy.FinishReasonLength || reasoningSeen) {
-		return "", xerrors.New("compaction summary was truncated at the output token cap")
-	}
-	return summary, nil
+	return false
 }
