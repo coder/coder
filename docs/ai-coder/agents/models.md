@@ -350,7 +350,7 @@ The configurable contexts:
 |----------------------|--------------|----------------------------------------------------------------------------------------|
 | **General**          | Admin + user | Write-capable subagents (`spawn_agent` with `type=general` or `computer_use`).         |
 | **Explore**          | Admin + user | Read-only subagents (`spawn_agent` with `type=explore`).                               |
-| **Title generation** | Admin only   | Automatic title generation for new chats.                                              |
+| **Title generation** | Admin only   | Chat titles, turn status labels, and chat summaries.                                   |
 | **Compaction**       | Admin only   | Conversation summarization near the context limit.                                     |
 | **Advisor**          | Admin only   | The [advisor](./platform-controls/advisor.md). Requires the `chat-advisor` experiment. |
 | **Root**             | User only    | The user's own root chats.                                                             |
@@ -367,12 +367,12 @@ organization:
 If a referenced model is later disabled or deleted, that layer is skipped
 and resolution falls through to the next, with two exceptions: an unusable
 explicit `spawn_agent` `model_config_id` fails the tool call, and an
-unusable title generation override skips title generation instead of
-falling back. Agents discover selectable models (and their reasoning
-effort ranges) with the `list_subagent_models` tool, which only returns
-enabled models usable with the chat owner's credentials. Computer-use
-subagents always run on the administrator-configured computer-use model and
-reject explicit model selection.
+unusable title generation override skips titles, status labels, and
+summaries instead of falling back. Agents discover selectable models (and
+their reasoning effort ranges) with the `list_subagent_models` tool, which
+only returns enabled models usable with the chat owner's credentials.
+Computer-use subagents always run on the administrator-configured
+computer-use model and reject explicit model selection.
 
 > [!NOTE]
 > Both override layers may change between releases.

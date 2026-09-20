@@ -46,11 +46,12 @@ const settings: readonly {
 	{
 		context: "title_generation",
 		title: "Title generation",
-		description: "Used to generate chat titles.",
-		// Title generation fails hard on a broken override instead of falling
+		description:
+			"Used to generate chat titles, turn status labels, and chat summaries.",
+		// These side calls fail hard on a broken override instead of falling
 		// back to default model selection, so the generic warning is wrong here.
 		unavailableModelWarning:
-			"The selected model is currently unavailable. Title generation will be skipped until you choose another model or clear this setting.",
+			"The selected model is currently unavailable. Titles, status labels, and summaries will be skipped until you choose another model or clear this setting.",
 	},
 	{
 		context: "compaction",

@@ -137,7 +137,7 @@ export const UnavailableSavedModels: Story = {
 			name: "Title generation",
 		});
 		await expect(
-			within(titleSection).getByText(/Title generation will be skipped/),
+			within(titleSection).getByText(/summaries will be skipped/),
 		).toBeVisible();
 		const generalSection = canvas.getByRole("form", {
 			name: "General subagent",
