@@ -3402,3 +3402,73 @@ func TestBackfillChatMessagesSearchTsv(t *testing.T) {
 		testutil.TryReceive(ctx, t, done)
 	})
 }
+
+// TestDeleteOldChatsSubagentFamily covers purging an archived chat whose
+// archived subagents fall outside the LIMIT window: the subagents are
+// deleted in the same statement, and a chat with an unarchived subagent
+// is skipped.
+func TestDeleteOldChatsSubagentFamily(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2025, 6, 15, 12, 0, 0, 0, time.UTC)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	db, _, rawDB := dbtestutil.NewDBWithSQLDB(t)
+
+	user := dbgen.User(t, db, database.User{})
+	org := dbgen.Organization(t, db, database.Organization{})
+	_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: user.ID, OrganizationID: org.ID})
+	_ = dbgen.ChatProvider(t, db, database.ChatProvider{Provider: "openai", DisplayName: "OpenAI"})
+	modelConfig := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+		Model:          "test-model",
+		ContextLimit:   8192,
+		OrganizationID: org.ID,
+	})
+
+	newChat := func(title string, root uuid.NullUUID, archived bool, updatedAt time.Time) database.Chat {
+		chat := dbgen.Chat(t, db, database.Chat{
+			OrganizationID:    org.ID,
+			OwnerID:           user.ID,
+			LastModelConfigID: modelConfig.ID,
+			Title:             title,
+			ParentChatID:      root,
+			RootChatID:        root,
+		})
+		_, err := rawDB.ExecContext(ctx, "UPDATE chats SET archived = $1, updated_at = $2 WHERE id = $3", archived, updatedAt, chat.ID)
+		require.NoError(t, err)
+		return chat
+	}
+	ref := func(id uuid.UUID) uuid.NullUUID { return uuid.NullUUID{UUID: id, Valid: true} }
+	exists := func(id uuid.UUID) bool {
+		_, err := db.GetChatByID(ctx, id)
+		return err == nil
+	}
+
+	old := now.Add(-40 * 24 * time.Hour)
+	// The parent is the oldest row; its subagents are archived later, so a
+	// LIMIT of 1 selects only the parent.
+	parent := newChat("parent", uuid.NullUUID{}, true, old)
+	subagentA := newChat("subagent a", ref(parent.ID), true, old.Add(time.Hour))
+	subagentB := newChat("subagent b", ref(parent.ID), true, old.Add(2*time.Hour))
+	// An archived chat with an unarchived subagent must survive.
+	blocked := newChat("blocked", uuid.NullUUID{}, true, old.Add(3*time.Hour))
+	liveSubagent := newChat("live subagent", ref(blocked.ID), false, old.Add(4*time.Hour))
+
+	deleted, err := db.DeleteOldChats(ctx, database.DeleteOldChatsParams{
+		BeforeTime: now.Add(-30 * 24 * time.Hour),
+		LimitCount: 1,
+	})
+	require.NoError(t, err)
+	require.Equal(t, int64(3), deleted, "parent plus both subagents in one statement")
+	require.False(t, exists(parent.ID))
+	require.False(t, exists(subagentA.ID))
+	require.False(t, exists(subagentB.ID))
+
+	deleted, err = db.DeleteOldChats(ctx, database.DeleteOldChatsParams{
+		BeforeTime: now.Add(-30 * 24 * time.Hour),
+		LimitCount: 10,
+	})
+	require.NoError(t, err)
+	require.Zero(t, deleted)
+	require.True(t, exists(blocked.ID))
+	require.True(t, exists(liveSubagent.ID))
+}

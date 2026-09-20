@@ -7641,6 +7641,8 @@ type AutoArchiveInactiveChatsRow struct {
 	LastActivityAt           time.Time               `db:"last_activity_at" json:"last_activity_at"`
 }
 
+// Unused: no production caller. The chat worker archives through
+// GetAutoArchiveInactiveChatCandidates and chatstate.SetFamilyArchived.
 // Archives inactive user chats (pinned and already-archived chats skipped),
 // cascading to subagents via root_chat_id. Limits apply to candidates, not
 // total rows. The Go caller passes @archive_cutoff as UTC midnight so that all
@@ -8009,13 +8011,25 @@ func (q *sqlQuerier) DeleteChatQueuedMessageReturningCount(ctx context.Context, 
 }
 
 const deleteOldChats = `-- name: DeleteOldChats :execrows
-WITH deletable AS (
+WITH selected AS (
     SELECT id
     FROM chats
     WHERE archived = true
       AND updated_at < $1::timestamptz
+      AND NOT EXISTS (
+          SELECT 1 FROM chats subagent
+          WHERE subagent.root_chat_id = chats.id
+            AND subagent.archived = false
+      )
     ORDER BY updated_at ASC
     LIMIT $2
+),
+deletable AS (
+    SELECT id FROM selected
+    UNION
+    SELECT subagent.id
+    FROM chats subagent
+    JOIN selected ON subagent.root_chat_id = selected.id
 )
 DELETE FROM chats
 USING deletable
@@ -8029,9 +8043,11 @@ type DeleteOldChatsParams struct {
 }
 
 // Deletes chats that have been archived for longer than the given
-// threshold. Active (non-archived) chats are never deleted.
-// All chat-scoped child tables are removed via ON DELETE CASCADE.
-// Parent/root references on child chats are SET NULL.
+// threshold together with their subagent chats, in one statement so the
+// SET NULL foreign keys never leave a subagent without its parent. Active
+// (non-archived) chats are never deleted; a chat with an unarchived
+// subagent is skipped. All chat-scoped child tables are removed via
+// ON DELETE CASCADE. The returned count includes the subagents.
 func (q *sqlQuerier) DeleteOldChats(ctx context.Context, arg DeleteOldChatsParams) (int64, error) {
 	result, err := q.db.ExecContext(ctx, deleteOldChats, arg.BeforeTime, arg.LimitCount)
 	if err != nil {

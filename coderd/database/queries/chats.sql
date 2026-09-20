@@ -2385,16 +2385,30 @@ WHERE id = @id::uuid;
 
 -- name: DeleteOldChats :execrows
 -- Deletes chats that have been archived for longer than the given
--- threshold. Active (non-archived) chats are never deleted.
--- All chat-scoped child tables are removed via ON DELETE CASCADE.
--- Parent/root references on child chats are SET NULL.
-WITH deletable AS (
+-- threshold together with their subagent chats, in one statement so the
+-- SET NULL foreign keys never leave a subagent without its parent. Active
+-- (non-archived) chats are never deleted; a chat with an unarchived
+-- subagent is skipped. All chat-scoped child tables are removed via
+-- ON DELETE CASCADE. The returned count includes the subagents.
+WITH selected AS (
     SELECT id
     FROM chats
     WHERE archived = true
       AND updated_at < @before_time::timestamptz
+      AND NOT EXISTS (
+          SELECT 1 FROM chats subagent
+          WHERE subagent.root_chat_id = chats.id
+            AND subagent.archived = false
+      )
     ORDER BY updated_at ASC
     LIMIT @limit_count
+),
+deletable AS (
+    SELECT id FROM selected
+    UNION
+    SELECT subagent.id
+    FROM chats subagent
+    JOIN selected ON subagent.root_chat_id = selected.id
 )
 DELETE FROM chats
 USING deletable
@@ -2925,6 +2939,8 @@ WHERE id = ANY(@ids::uuid[])
 ORDER BY id ASC;
 
 -- name: AutoArchiveInactiveChats :many
+-- Unused: no production caller. The chat worker archives through
+-- GetAutoArchiveInactiveChatCandidates and chatstate.SetFamilyArchived.
 -- Archives inactive user chats (pinned and already-archived chats skipped),
 -- cascading to subagents via root_chat_id. Limits apply to candidates, not
 -- total rows. The Go caller passes @archive_cutoff as UTC midnight so that all

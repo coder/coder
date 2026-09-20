@@ -115,10 +115,10 @@ func Chat(t testing.TB, db database.Store, seed database.Chat) database.Chat {
 	return chat
 }
 
-// defaultChatKind derives the kind of a seeded chat from its family pointers:
-// a seed with a root or parent is a subagent, anything else is a user chat.
+// defaultChatKind derives the kind of a seeded chat: a seed with a
+// root_chat_id is a subagent, anything else is a user chat.
 func defaultChatKind(seed database.Chat) database.ChatKind {
-	if seed.RootChatID.Valid || seed.ParentChatID.Valid {
+	if seed.RootChatID.Valid {
 		return database.ChatKindSubagent
 	}
 	return database.ChatKindChat
