@@ -51,13 +51,9 @@ import type {
 	StreamState,
 } from "./types";
 import { UserMessageContent } from "./UserMessageContent";
+import { useLiveBlockItemKeys } from "./useLiveBlockItemKeys";
 import { WorkingBlockDisclosure } from "./WorkingBlockDisclosure";
-import {
-	groupWorkingBlocks,
-	type LiveBlockIdentity,
-	reconcileLiveBlockItemKeys,
-	type WorkingBlock,
-} from "./workingBlockGrouping";
+import { groupWorkingBlocks } from "./workingBlockGrouping";
 
 const getChatMessageTextContent = (
 	content: readonly TypesGen.ChatMessagePart[] | undefined,
@@ -406,38 +402,7 @@ const ChatMessageItem = memo<{
 	},
 );
 
-/**
- * Scroller item keys of blocks that rendered live, kept once they complete so
- * the handoff does not remount an open block.
- */
-const useLiveBlockItemKeys = (
-	workingBlocks: readonly WorkingBlock[],
-	streamStartedAt: string | undefined,
-): ReadonlyMap<string, string> => {
-	const [itemKeys, setItemKeys] = useState<ReadonlyMap<string, string>>(
-		new Map(),
-	);
-	const [identity, setIdentity] = useState<LiveBlockIdentity | null>(null);
-	const next = reconcileLiveBlockItemKeys(
-		workingBlocks,
-		streamStartedAt,
-		itemKeys,
-		identity,
-	);
-	if (next.itemKeys !== itemKeys) {
-		setItemKeys(next.itemKeys);
-	}
-	if (next.identity !== identity) {
-		setIdentity(next.identity);
-	}
-	return next.itemKeys;
-};
-
-/**
- * Expansion is recorded on the block's durable member rows and its item key,
- * so it survives the live-to-complete handoff and prepends. The live row is
- * excluded so the choice does not carry into the next turn.
- */
+// The newest member row's decision wins over the item key's.
 const isBlockExpanded = (
 	expandedBlocks: ReadonlyMap<string, boolean>,
 	itemKey: string,
@@ -453,6 +418,11 @@ const isBlockExpanded = (
 	return expanded;
 };
 
+/**
+ * Expansion is recorded on the block's durable member rows and its item key,
+ * so it survives the live-to-complete handoff and prepends. The live row is
+ * excluded so the choice does not carry into the next turn.
+ */
 const recordBlockExpansion = (
 	expandedBlocks: ReadonlyMap<string, boolean>,
 	itemKey: string,
