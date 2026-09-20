@@ -11817,6 +11817,159 @@ func (q *sqlQuerier) ReorderChatQueuedMessageToHead(ctx context.Context, arg Reo
 	return result.RowsAffected()
 }
 
+const searchChatMessages = `-- name: SearchChatMessages :many
+WITH candidates AS (
+    SELECT
+        cm.id,
+        cm.created_at,
+        cm.role,
+        (
+            SELECT string_agg(
+                concat_ws(' ',
+                    part->>'text',
+                    part->>'tool_name',
+                    (part->'args')::text,
+                    (part->'result')::text
+                ),
+                ' ' ORDER BY ordinality)
+            FROM jsonb_array_elements(cm.content) WITH ORDINALITY AS t(part, ordinality)
+            WHERE part->>'type' IN ('text', 'tool-call', 'tool-result')
+        ) AS search_text,
+        (
+            SELECT part->>'tool_name'
+            FROM jsonb_array_elements(cm.content) WITH ORDINALITY AS t(part, ordinality)
+            WHERE part->>'type' IN ('tool-call', 'tool-result')
+                AND part->>'tool_name' IS NOT NULL
+            ORDER BY ordinality
+            LIMIT 1
+        ) AS tool_name
+    FROM
+        chat_messages cm
+    WHERE
+        cm.chat_id = $4::uuid
+        AND cm.deleted = false
+        AND cm.visibility IN ('user', 'both')
+        AND jsonb_typeof(cm.content) = 'array'
+        AND CASE
+            WHEN $5::chat_message_role IS NULL THEN true
+            ELSE cm.role = $5::chat_message_role
+        END
+        AND CASE
+            WHEN $6::bigint > 0 THEN cm.id < $6::bigint
+            ELSE true
+        END
+        AND CASE
+            WHEN $7::timestamptz IS NULL THEN true
+            ELSE cm.created_at >= $7::timestamptz
+        END
+        AND CASE
+            WHEN $8::timestamptz IS NULL THEN true
+            ELSE cm.created_at <= $8::timestamptz
+        END
+), matched AS (
+    SELECT
+        c.id, c.created_at, c.role, c.search_text, c.tool_name,
+        strpos(lower(c.search_text), lower($9::text)) AS hit_pos
+    FROM
+        candidates c
+    WHERE
+        strpos(lower(c.search_text), lower($9::text)) > 0
+)
+SELECT
+    m.id,
+    m.created_at,
+    m.role,
+    COALESCE(m.tool_name, '')::text AS tool_name,
+    m.hit_pos::int AS hit_pos,
+    char_length(m.search_text)::int AS text_length,
+    substr(
+        m.search_text,
+        GREATEST(m.hit_pos - $1::int, 1),
+        $2::int
+    )::text AS excerpt
+FROM
+    matched m
+ORDER BY
+    m.id DESC
+LIMIT
+    $3::int
+`
+
+type SearchChatMessagesParams struct {
+	ContextChars int32               `db:"context_chars" json:"context_chars"`
+	ExcerptChars int32               `db:"excerpt_chars" json:"excerpt_chars"`
+	LimitVal     int32               `db:"limit_val" json:"limit_val"`
+	ChatID       uuid.UUID           `db:"chat_id" json:"chat_id"`
+	Role         NullChatMessageRole `db:"role" json:"role"`
+	BeforeID     int64               `db:"before_id" json:"before_id"`
+	Since        sql.NullTime        `db:"since" json:"since"`
+	Until        sql.NullTime        `db:"until" json:"until"`
+	Query        string              `db:"query" json:"query"`
+}
+
+type SearchChatMessagesRow struct {
+	ID         int64           `db:"id" json:"id"`
+	CreatedAt  time.Time       `db:"created_at" json:"created_at"`
+	Role       ChatMessageRole `db:"role" json:"role"`
+	ToolName   string          `db:"tool_name" json:"tool_name"`
+	HitPos     int32           `db:"hit_pos" json:"hit_pos"`
+	TextLength int32           `db:"text_length" json:"text_length"`
+	Excerpt    string          `db:"excerpt" json:"excerpt"`
+}
+
+// Case-insensitive substring search over the user-visible messages of one
+// chat, newest first. search_text concatenates text parts and, for tool
+// parts, tool_name plus args and result serialized as JSON text, so tool rows
+// match without decoding content outside the database but the query must
+// match the serialized form (strings are quoted and escaped). Reasoning and
+// file parts are excluded. The jsonb_typeof guard skips legacy V0 rows whose
+// content is a scalar JSON string. Only excerpt_chars characters starting
+// context_chars before the first hit are returned, never the whole message.
+// hit_pos is measured on lower(search_text) and applied to search_text, which
+// assumes lower() preserves character length (holds for libc UTF-8
+// collations, not guaranteed under ICU). Paged on id like
+// GetChatMessagesByChatIDDescPaginated because id is the append order.
+func (q *sqlQuerier) SearchChatMessages(ctx context.Context, arg SearchChatMessagesParams) ([]SearchChatMessagesRow, error) {
+	rows, err := q.db.QueryContext(ctx, searchChatMessages,
+		arg.ContextChars,
+		arg.ExcerptChars,
+		arg.LimitVal,
+		arg.ChatID,
+		arg.Role,
+		arg.BeforeID,
+		arg.Since,
+		arg.Until,
+		arg.Query,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []SearchChatMessagesRow
+	for rows.Next() {
+		var i SearchChatMessagesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.Role,
+			&i.ToolName,
+			&i.HitPos,
+			&i.TextLength,
+			&i.Excerpt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const setChatContextSnapshot = `-- name: SetChatContextSnapshot :exec
 UPDATE chats
 SET

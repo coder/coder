@@ -12299,6 +12299,222 @@ func TestGetLastChatMessageByRoleOrdersByID(t *testing.T) {
 	require.Equal(t, insertedIDs[len(insertedIDs)-1], last.ID)
 }
 
+func TestSearchChatMessages(t *testing.T) {
+	t.Parallel()
+
+	db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+	ctx := context.Background()
+
+	org := dbgen.Organization(t, db, database.Organization{})
+	owner := dbgen.User(t, db, database.User{})
+	modelCfg := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+		CreatedBy: uuid.NullUUID{UUID: owner.ID, Valid: true},
+		UpdatedBy: uuid.NullUUID{UUID: owner.ID, Valid: true},
+	})
+	chat := dbgen.Chat(t, db, database.Chat{
+		OrganizationID:    org.ID,
+		OwnerID:           owner.ID,
+		LastModelConfigID: modelCfg.ID,
+	})
+	otherChat := dbgen.Chat(t, db, database.Chat{
+		OrganizationID:    org.ID,
+		OwnerID:           owner.ID,
+		LastModelConfigID: modelCfg.ID,
+	})
+
+	textContent := func(text string) pqtype.NullRawMessage {
+		raw, err := json.Marshal([]map[string]any{{"type": "text", "text": text}})
+		require.NoError(t, err)
+		return pqtype.NullRawMessage{RawMessage: raw, Valid: true}
+	}
+	insert := func(role database.ChatMessageRole, visibility database.ChatMessageVisibility, content pqtype.NullRawMessage) database.ChatMessage {
+		return dbgen.ChatMessage(t, db, database.ChatMessage{
+			ChatID:     chat.ID,
+			Role:       role,
+			Visibility: visibility,
+			Content:    content,
+		})
+	}
+
+	both := database.ChatMessageVisibilityBoth
+	userHit := insert(database.ChatMessageRoleUser, both, textContent("Did the project assess an EAGER migration?"))
+	assistantHit := insert(database.ChatMessageRoleAssistant, both, textContent(
+		strings.Repeat("a", 500)+" eager migration "+strings.Repeat("b", 500)))
+	modelOnly := insert(database.ChatMessageRoleUser, database.ChatMessageVisibilityModel, textContent("eager migration summary"))
+	deleted := insert(database.ChatMessageRoleAssistant, both, textContent("eager migration deleted"))
+	require.NoError(t, db.SoftDeleteChatMessageByID(ctx, deleted.ID))
+	reasoningOnly := insert(database.ChatMessageRoleAssistant, both, pqtype.NullRawMessage{
+		RawMessage: json.RawMessage(`[{"type":"reasoning","text":"eager migration thinking"}]`),
+		Valid:      true,
+	})
+	unrelated := insert(database.ChatMessageRoleAssistant, both, textContent("nothing to see here"))
+	toolCall := insert(database.ChatMessageRoleAssistant, both, pqtype.NullRawMessage{
+		RawMessage: json.RawMessage(`[{"type":"tool-call","tool_call_id":"c1","tool_name":"execute","args":{"command":"rg -i 'eager migration' docs"}}]`),
+		Valid:      true,
+	})
+	toolResult := insert(database.ChatMessageRoleTool, both, pqtype.NullRawMessage{
+		RawMessage: json.RawMessage(`[{"type":"tool-result","tool_call_id":"c1","tool_name":"execute","result":{"output":"docs/plan.md: assessed an eager migration"}}]`),
+		Valid:      true,
+	})
+	legacyScalar := insert(database.ChatMessageRoleUser, both, pqtype.NullRawMessage{
+		RawMessage: json.RawMessage(`"eager migration legacy"`),
+		Valid:      true,
+	})
+	multibyte := insert(database.ChatMessageRoleAssistant, both, textContent(
+		strings.Repeat("é", 30)+" Über-Migration "+strings.Repeat("ß", 30)))
+	straddling := insert(database.ChatMessageRoleAssistant, both, pqtype.NullRawMessage{
+		RawMessage: json.RawMessage(`[{"type":"text","text":"first half of straddle"},{"type":"text","text":"second half joined"}]`),
+		Valid:      true,
+	})
+	other := dbgen.ChatMessage(t, db, database.ChatMessage{
+		ChatID:  otherChat.ID,
+		Role:    database.ChatMessageRoleUser,
+		Content: textContent("eager migration in another chat"),
+	})
+	excluded := []int64{modelOnly.ID, deleted.ID, reasoningOnly.ID, unrelated.ID, legacyScalar.ID, multibyte.ID, straddling.ID, other.ID}
+
+	base := database.SearchChatMessagesParams{
+		ChatID:       chat.ID,
+		Query:        "eager migration",
+		LimitVal:     50,
+		ContextChars: 20,
+		ExcerptChars: 20*2 + 15,
+	}
+	ids := func(rows []database.SearchChatMessagesRow) []int64 {
+		out := make([]int64, 0, len(rows))
+		for _, row := range rows {
+			out = append(out, row.ID)
+		}
+		return out
+	}
+
+	t.Run("MatchesVisibleRowsNewestFirst", func(t *testing.T) {
+		t.Parallel()
+		rows, err := db.SearchChatMessages(ctx, base)
+		require.NoError(t, err)
+		require.Equal(t, []int64{toolResult.ID, toolCall.ID, assistantHit.ID, userHit.ID}, ids(rows))
+		for _, id := range excluded {
+			require.NotContains(t, ids(rows), id)
+		}
+	})
+
+	t.Run("ExcerptIsBoundedAroundFirstHit", func(t *testing.T) {
+		t.Parallel()
+		params := base
+		params.Role = database.NullChatMessageRole{ChatMessageRole: database.ChatMessageRoleAssistant, Valid: true}
+		rows, err := db.SearchChatMessages(ctx, params)
+		require.NoError(t, err)
+		require.Equal(t, []int64{toolCall.ID, assistantHit.ID}, ids(rows))
+
+		long := rows[1]
+		require.Equal(t, int32(502), long.HitPos)
+		require.Equal(t, int32(500+len(" eager migration ")+500), long.TextLength)
+		require.Equal(t, strings.Repeat("a", 19)+" eager migration "+strings.Repeat("b", 19), long.Excerpt)
+		require.Empty(t, long.ToolName)
+
+		call := rows[0]
+		require.Equal(t, "execute", call.ToolName)
+		require.Contains(t, call.Excerpt, "eager migration")
+	})
+
+	t.Run("CaseInsensitiveAndExcerptStartsAtOne", func(t *testing.T) {
+		t.Parallel()
+		params := base
+		params.Query = "DID THE PROJECT"
+		params.ExcerptChars = 20*2 + 15
+		rows, err := db.SearchChatMessages(ctx, params)
+		require.NoError(t, err)
+		require.Equal(t, []int64{userHit.ID}, ids(rows))
+		require.Equal(t, int32(1), rows[0].HitPos)
+		require.Equal(t, "Did the project assess an EAGER migration?", rows[0].Excerpt)
+	})
+
+	t.Run("RoleFilterTool", func(t *testing.T) {
+		t.Parallel()
+		params := base
+		params.Role = database.NullChatMessageRole{ChatMessageRole: database.ChatMessageRoleTool, Valid: true}
+		rows, err := db.SearchChatMessages(ctx, params)
+		require.NoError(t, err)
+		require.Equal(t, []int64{toolResult.ID}, ids(rows))
+		require.Equal(t, "execute", rows[0].ToolName)
+	})
+
+	t.Run("PagesWithBeforeIDAndLimit", func(t *testing.T) {
+		t.Parallel()
+		params := base
+		params.LimitVal = 2
+		first, err := db.SearchChatMessages(ctx, params)
+		require.NoError(t, err)
+		require.Equal(t, []int64{toolResult.ID, toolCall.ID}, ids(first))
+
+		params.BeforeID = first[len(first)-1].ID
+		second, err := db.SearchChatMessages(ctx, params)
+		require.NoError(t, err)
+		require.Equal(t, []int64{assistantHit.ID, userHit.ID}, ids(second))
+
+		params.BeforeID = second[len(second)-1].ID
+		third, err := db.SearchChatMessages(ctx, params)
+		require.NoError(t, err)
+		require.Empty(t, third)
+	})
+
+	t.Run("NoMatch", func(t *testing.T) {
+		t.Parallel()
+		params := base
+		params.Query = "zzz-not-present"
+		rows, err := db.SearchChatMessages(ctx, params)
+		require.NoError(t, err)
+		require.Empty(t, rows)
+	})
+
+	t.Run("MultibyteCharacterPositions", func(t *testing.T) {
+		t.Parallel()
+		params := base
+		params.Query = "über-migration"
+		params.ExcerptChars = 20*2 + 14
+		rows, err := db.SearchChatMessages(ctx, params)
+		require.NoError(t, err)
+		require.Equal(t, []int64{multibyte.ID}, ids(rows))
+		require.Equal(t, int32(32), rows[0].HitPos)
+		require.Equal(t, int32(30+16+30), rows[0].TextLength)
+		require.Equal(t, strings.Repeat("é", 19)+" Über-Migration "+strings.Repeat("ß", 19), rows[0].Excerpt)
+	})
+
+	t.Run("HitStraddlingTextParts", func(t *testing.T) {
+		t.Parallel()
+		params := base
+		params.Query = "straddle second"
+		rows, err := db.SearchChatMessages(ctx, params)
+		require.NoError(t, err)
+		require.Equal(t, []int64{straddling.ID}, ids(rows))
+		require.Equal(t, "first half of straddle second half joined", rows[0].Excerpt)
+	})
+
+	t.Run("SinceUntil", func(t *testing.T) {
+		t.Parallel()
+		pivot := dbtime.Now().Add(-24 * time.Hour)
+		old := insert(database.ChatMessageRoleUser, both, textContent("since-until marker from yesterday"))
+		recent := insert(database.ChatMessageRoleUser, both, textContent("since-until marker from today"))
+		_, err := sqlDB.ExecContext(ctx,
+			"UPDATE chat_messages SET created_at = $1 WHERE id = $2",
+			pivot.Add(-time.Hour), old.ID)
+		require.NoError(t, err)
+
+		params := base
+		params.Query = "since-until marker"
+		params.Since = sql.NullTime{Time: pivot, Valid: true}
+		rows, err := db.SearchChatMessages(ctx, params)
+		require.NoError(t, err)
+		require.Equal(t, []int64{recent.ID}, ids(rows))
+
+		params.Since = sql.NullTime{}
+		params.Until = sql.NullTime{Time: pivot, Valid: true}
+		rows, err = db.SearchChatMessages(ctx, params)
+		require.NoError(t, err)
+		require.Equal(t, []int64{old.ID}, ids(rows))
+	})
+}
+
 // Sequence cache blocks are handed out per session, so above cache 1 a backend
 // holding stale cached values can take the chat row lock second and still commit
 // lower ids. Bumping a sequence cache is an ordinary throughput tweak.

@@ -9637,6 +9637,21 @@ func (mr *MockStoreMockRecorder) RevokeDBCryptKey(ctx, activeKeyDigest any) *gom
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RevokeDBCryptKey", reflect.TypeOf((*MockStore)(nil).RevokeDBCryptKey), ctx, activeKeyDigest)
 }
 
+// SearchChatMessages mocks base method.
+func (m *MockStore) SearchChatMessages(ctx context.Context, arg database.SearchChatMessagesParams) ([]database.SearchChatMessagesRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SearchChatMessages", ctx, arg)
+	ret0, _ := ret[0].([]database.SearchChatMessagesRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// SearchChatMessages indicates an expected call of SearchChatMessages.
+func (mr *MockStoreMockRecorder) SearchChatMessages(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SearchChatMessages", reflect.TypeOf((*MockStore)(nil).SearchChatMessages), ctx, arg)
+}
+
 // SelectUsageEventsForPublishing mocks base method.
 func (m *MockStore) SelectUsageEventsForPublishing(ctx context.Context, now time.Time) ([]database.UsageEvent, error) {
 	m.ctrl.T.Helper()
