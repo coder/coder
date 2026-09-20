@@ -2513,7 +2513,8 @@ WHERE id = @id::uuid;
 -- threshold. Active (non-archived) chats are never deleted, and a chat
 -- whose subtree still contains an unarchived chat is skipped so the FK
 -- cascade never removes a live descendant. All chat-scoped child tables
--- and descendant chats are removed via ON DELETE CASCADE.
+-- and descendant chats are removed via ON DELETE CASCADE; the returned
+-- count covers only the selected rows, not the cascaded descendants.
 WITH RECURSIVE blocked AS (
     -- Archived parents of unarchived chats, then every ancestor above them.
     SELECT child.parent_chat_id AS id, 0 AS depth
@@ -2686,20 +2687,8 @@ WHERE heartbeat_at < NOW() - (INTERVAL '1 second' * @stale_seconds::int);
 -- auto-archive. A candidate is inactive only when nothing in its subtree
 -- (named children and subagents) is active or has recent messages. Root
 -- chats are never candidates. The query limits candidates, not total
--- subtree members.
-WITH RECURSIVE candidate_subtree AS (
-    SELECT chats.id AS candidate_id, chats.id, chats.status, 0 AS depth
-    FROM chats
-    WHERE chats.archived = false
-      AND chats.pin_order = 0
-      AND chats.kind = 'chat'
-      AND chats.created_at < @archive_cutoff::timestamptz
-    UNION ALL
-    SELECT candidate_subtree.candidate_id, c.id, c.status, candidate_subtree.depth + 1
-    FROM chats c
-    JOIN candidate_subtree ON c.parent_chat_id = candidate_subtree.id
-    WHERE candidate_subtree.depth < 6
-)
+-- subtree members. The subtree walk (chat_subtree) is rooted at each outer
+-- row inside the LATERAL so it runs only for rows the scan reaches.
 SELECT
     chats_expanded.*,
     COALESCE(activity.last_activity_at, chats_expanded.created_at)::timestamptz AS last_activity_at
@@ -2707,15 +2696,14 @@ FROM chats_expanded
 LEFT JOIN LATERAL (
     SELECT
         MAX(chat_messages.created_at) AS last_activity_at,
-        BOOL_OR(candidate_subtree.status IN (
+        BOOL_OR(subtree.status IN (
             'running'::chat_status,
             'interrupting'::chat_status,
             'requires_action'::chat_status
         )) AS has_active_member
-    FROM candidate_subtree
-    LEFT JOIN chat_messages ON chat_messages.chat_id = candidate_subtree.id
+    FROM chat_subtree(chats_expanded.id) AS subtree
+    LEFT JOIN chat_messages ON chat_messages.chat_id = subtree.id
         AND chat_messages.deleted = false
-    WHERE candidate_subtree.candidate_id = chats_expanded.id
 ) activity ON TRUE
 WHERE
     chats_expanded.archived = false

@@ -91,7 +91,14 @@ func (w *chatWorker) archiveOnce(ctx context.Context, start time.Time) {
 	}
 
 	archived := make([]autoArchivedChat, 0, len(rows))
+	// A candidate can be archived by an earlier candidate's cascade in the
+	// same tick (a named child under an inactive parent), so members are
+	// recorded once.
+	seen := make(map[uuid.UUID]struct{}, len(rows))
 	for _, row := range rows {
+		if _, done := seen[row.ID]; done {
+			continue
+		}
 		family, err := w.archiveCandidateSafely(ctx, row)
 		if err != nil {
 			if ctx.Err() != nil {
@@ -110,7 +117,13 @@ func (w *chatWorker) archiveOnce(ctx context.Context, start time.Time) {
 			)
 			continue
 		}
-		archived = append(archived, family...)
+		for _, member := range family {
+			if _, done := seen[member.Chat.ID]; done {
+				continue
+			}
+			seen[member.Chat.ID] = struct{}{}
+			archived = append(archived, member)
+		}
 	}
 	if len(archived) == 0 {
 		return

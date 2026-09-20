@@ -8094,7 +8094,8 @@ type DeleteOldChatsParams struct {
 // threshold. Active (non-archived) chats are never deleted, and a chat
 // whose subtree still contains an unarchived chat is skipped so the FK
 // cascade never removes a live descendant. All chat-scoped child tables
-// and descendant chats are removed via ON DELETE CASCADE.
+// and descendant chats are removed via ON DELETE CASCADE; the returned
+// count covers only the selected rows, not the cascaded descendants.
 func (q *sqlQuerier) DeleteOldChats(ctx context.Context, arg DeleteOldChatsParams) (int64, error) {
 	result, err := q.db.ExecContext(ctx, deleteOldChats, arg.BeforeTime, arg.LimitCount)
 	if err != nil {
@@ -8200,19 +8201,6 @@ func (q *sqlQuerier) GetActiveChatsByAgentID(ctx context.Context, agentID uuid.U
 }
 
 const getAutoArchiveInactiveChatCandidates = `-- name: GetAutoArchiveInactiveChatCandidates :many
-WITH RECURSIVE candidate_subtree AS (
-    SELECT chats.id AS candidate_id, chats.id, chats.status, 0 AS depth
-    FROM chats
-    WHERE chats.archived = false
-      AND chats.pin_order = 0
-      AND chats.kind = 'chat'
-      AND chats.created_at < $1::timestamptz
-    UNION ALL
-    SELECT candidate_subtree.candidate_id, c.id, c.status, candidate_subtree.depth + 1
-    FROM chats c
-    JOIN candidate_subtree ON c.parent_chat_id = candidate_subtree.id
-    WHERE candidate_subtree.depth < 6
-)
 SELECT
     chats_expanded.id, chats_expanded.owner_id, chats_expanded.workspace_id, chats_expanded.title, chats_expanded.status, chats_expanded.worker_id, chats_expanded.started_at, chats_expanded.heartbeat_at, chats_expanded.created_at, chats_expanded.updated_at, chats_expanded.parent_chat_id, chats_expanded.root_chat_id, chats_expanded.kind, chats_expanded.last_model_config_id, chats_expanded.last_reasoning_effort, chats_expanded.archived, chats_expanded.last_error, chats_expanded.mode, chats_expanded.mcp_server_ids, chats_expanded.labels, chats_expanded.build_id, chats_expanded.agent_id, chats_expanded.pin_order, chats_expanded.last_read_message_id, chats_expanded.dynamic_tools, chats_expanded.organization_id, chats_expanded.plan_mode, chats_expanded.client_type, chats_expanded.last_turn_summary, chats_expanded.summary, chats_expanded.summary_generated_at, chats_expanded.snapshot_version, chats_expanded.history_version, chats_expanded.queue_version, chats_expanded.generation_attempt, chats_expanded.retry_state, chats_expanded.retry_state_version, chats_expanded.runner_id, chats_expanded.requires_action_deadline_at, chats_expanded.user_acl, chats_expanded.group_acl, chats_expanded.owner_username, chats_expanded.owner_name, chats_expanded.context_aggregate_hash, chats_expanded.context_dirty_since, chats_expanded.context_dirty_resources, chats_expanded.context_error, chats_expanded.compaction_requested_at,
     COALESCE(activity.last_activity_at, chats_expanded.created_at)::timestamptz AS last_activity_at
@@ -8220,15 +8208,14 @@ FROM chats_expanded
 LEFT JOIN LATERAL (
     SELECT
         MAX(chat_messages.created_at) AS last_activity_at,
-        BOOL_OR(candidate_subtree.status IN (
+        BOOL_OR(subtree.status IN (
             'running'::chat_status,
             'interrupting'::chat_status,
             'requires_action'::chat_status
         )) AS has_active_member
-    FROM candidate_subtree
-    LEFT JOIN chat_messages ON chat_messages.chat_id = candidate_subtree.id
+    FROM chat_subtree(chats_expanded.id) AS subtree
+    LEFT JOIN chat_messages ON chat_messages.chat_id = subtree.id
         AND chat_messages.deleted = false
-    WHERE candidate_subtree.candidate_id = chats_expanded.id
 ) activity ON TRUE
 WHERE
     chats_expanded.archived = false
@@ -8302,7 +8289,8 @@ type GetAutoArchiveInactiveChatCandidatesRow struct {
 // auto-archive. A candidate is inactive only when nothing in its subtree
 // (named children and subagents) is active or has recent messages. Root
 // chats are never candidates. The query limits candidates, not total
-// subtree members.
+// subtree members. The subtree walk (chat_subtree) is rooted at each outer
+// row inside the LATERAL so it runs only for rows the scan reaches.
 func (q *sqlQuerier) GetAutoArchiveInactiveChatCandidates(ctx context.Context, arg GetAutoArchiveInactiveChatCandidatesParams) ([]GetAutoArchiveInactiveChatCandidatesRow, error) {
 	rows, err := q.db.QueryContext(ctx, getAutoArchiveInactiveChatCandidates, arg.ArchiveCutoff, arg.LimitCount)
 	if err != nil {

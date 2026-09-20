@@ -1061,7 +1061,13 @@ func (s *MethodTestSuite) TestChats() {
 		check.Args(arg).Asserts(rbac.ResourceChat.WithOwner(arg.OwnerID.String()).InOrg(arg.OrganizationID), policy.ActionRead).Returns(rows)
 	}))
 	s.Run("AdoptParentlessChatsIntoTreeRoot", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
-		arg := testutil.Fake(s.T(), faker, database.AdoptParentlessChatsIntoTreeRootParams{})
+		root := testutil.Fake(s.T(), faker, database.Chat{Kind: database.ChatKindRoot})
+		arg := database.AdoptParentlessChatsIntoTreeRootParams{
+			RootChatID:     root.ID,
+			OwnerID:        root.OwnerID,
+			OrganizationID: root.OrganizationID,
+		}
+		dbm.EXPECT().GetChatByID(gomock.Any(), root.ID).Return(root, nil).AnyTimes()
 		dbm.EXPECT().AdoptParentlessChatsIntoTreeRoot(gomock.Any(), arg).Return(int64(3), nil).AnyTimes()
 		check.Args(arg).Asserts(rbac.ResourceChat.WithOwner(arg.OwnerID.String()).InOrg(arg.OrganizationID), policy.ActionUpdate).Returns(int64(3))
 	}))

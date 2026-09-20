@@ -27,22 +27,46 @@ func (api *API) chatTreeEnabled() bool {
 
 // chatTreeRootModelResolver resolves the model config a lazily created
 // tree root uses, following the same rules as creating a chat without an
-// explicit model config.
+// explicit model config. A client-class response (no usable model) is
+// returned as [chatd.ErrChatTreeRootUnavailable]; server failures are
+// returned as ordinary errors.
 func (api *API) chatTreeRootModelResolver(userID, organizationID uuid.UUID) func(context.Context) (uuid.UUID, error) {
 	return func(ctx context.Context) (uuid.UUID, error) {
-		modelConfigID, _, _, resp := api.resolveCreateChatModelConfigID(ctx, userID, codersdk.CreateChatRequest{
+		modelConfigID, _, status, resp := api.resolveCreateChatModelConfigID(ctx, userID, codersdk.CreateChatRequest{
 			OrganizationID: organizationID,
 		})
 		if resp != nil {
-			return uuid.Nil, xerrors.Errorf("%s: %s", resp.Message, resp.Detail)
+			err := xerrors.Errorf("%s: %s", resp.Message, resp.Detail)
+			if status >= 400 && status < 500 {
+				return uuid.Nil, errors.Join(chatd.ErrChatTreeRootUnavailable, err)
+			}
+			return uuid.Nil, err
 		}
 		return modelConfigID, nil
 	}
 }
 
+// auditChatTreeRootCreated records the creation of a tree root that
+// happened as a side effect of another request.
+func (api *API) auditChatTreeRootCreated(ctx context.Context, r *http.Request, root database.Chat) {
+	audit.BackgroundAudit(context.WithoutCancel(ctx), &audit.BackgroundAuditParams[database.Chat]{
+		Audit:          *api.Auditor.Load(),
+		Log:            api.Logger,
+		UserID:         root.OwnerID,
+		RequestID:      httpmw.RequestID(r),
+		Status:         http.StatusCreated,
+		IP:             r.RemoteAddr,
+		UserAgent:      r.UserAgent(),
+		Action:         database.AuditActionCreate,
+		OrganizationID: root.OrganizationID,
+		New:            root,
+	})
+}
+
 // ensureChatTreeRoot materializes the caller's tree root and adopts the
 // caller's parentless chats. It returns the root, or the nil UUID and no
-// error when no model config is available for the root.
+// error when no model config is available for the root. Other resolver
+// failures are returned as errors.
 func (api *API) ensureChatTreeRoot(ctx context.Context, userID, organizationID uuid.UUID) (database.Chat, bool, error) {
 	root, created, err := api.chatDaemon.EnsureChatTreeRoot(ctx, chatd.EnsureChatTreeRootOptions{
 		OwnerID:              userID,
@@ -154,6 +178,8 @@ func writeChatTreeParentError(ctx context.Context, rw http.ResponseWriter, err e
 	switch {
 	case errors.Is(err, chatd.ErrChatTreeParentMismatch):
 		message = "Parent chat not found."
+	case errors.Is(err, chatd.ErrChatTreeParentUnanchored):
+		message = "Parent chat is not attached to a chat tree."
 	case errors.Is(err, chatd.ErrChatTreeParentIsSubagent):
 		message = "Subagent chats cannot have child chats."
 	case errors.Is(err, chatd.ErrChatTreeParentArchived):

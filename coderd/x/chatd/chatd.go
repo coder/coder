@@ -1390,42 +1390,14 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 		}
 	}
 
-	userPrompt := codersdk.SanitizePromptText(opts.SystemPrompt)
-	workspaceAwareness := workspaceDetachedAwareness
-	if opts.WorkspaceID.Valid {
-		workspaceAwareness = workspaceAttachedAwareness
-	}
-	workspaceAwarenessContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
-		codersdk.ChatMessageText(workspaceAwareness),
-	})
-	if err != nil {
-		return database.Chat{}, xerrors.Errorf("marshal workspace awareness: %w", err)
-	}
 	userContent, err := chatprompt.MarshalParts(contentParts)
 	if err != nil {
 		return database.Chat{}, xerrors.Errorf("marshal initial user content: %w", err)
 	}
-
-	var initialMessages []chatstate.Message
-	if deploymentPrompt != "" {
-		deploymentContent, marshalErr := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
-			codersdk.ChatMessageText(deploymentPrompt),
-		})
-		if marshalErr != nil {
-			return database.Chat{}, xerrors.Errorf("marshal deployment system prompt: %w", marshalErr)
-		}
-		initialMessages = append(initialMessages, systemMessage(deploymentContent, opts.ModelConfigID))
+	initialMessages, err := initialSystemMessages(deploymentPrompt, opts.SystemPrompt, opts.WorkspaceID.Valid, opts.ModelConfigID)
+	if err != nil {
+		return database.Chat{}, err
 	}
-	if userPrompt != "" {
-		userPromptContent, marshalErr := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
-			codersdk.ChatMessageText(userPrompt),
-		})
-		if marshalErr != nil {
-			return database.Chat{}, xerrors.Errorf("marshal user system prompt: %w", marshalErr)
-		}
-		initialMessages = append(initialMessages, systemMessage(userPromptContent, opts.ModelConfigID))
-	}
-	initialMessages = append(initialMessages, systemMessage(workspaceAwarenessContent, opts.ModelConfigID))
 	initialMessages = append(initialMessages, userMessage(userContent, opts.ModelConfigID, opts.OwnerID, opts.ReasoningEffort))
 
 	createInput := chatstate.CreateChatInput{
@@ -5250,4 +5222,43 @@ func (p *Server) markMCPTokenRefreshFailure(
 	tok.Expiry = sql.NullTime{}
 	tok.OauthRefreshFailureReason = mcpclient.RefreshFailureReason(refreshErr)
 	return tok
+}
+
+// initialSystemMessages builds the system messages every new chat starts
+// with: the deployment prompt when configured, the caller's system prompt
+// when non-empty, and the workspace awareness note for the given binding.
+//
+//nolint:revive // The workspace binding is a property of the new chat, not a behavior switch.
+func initialSystemMessages(deploymentPrompt, systemPrompt string, workspaceAttached bool, modelConfigID uuid.UUID) ([]chatstate.Message, error) {
+	var messages []chatstate.Message
+	if deploymentPrompt != "" {
+		deploymentContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+			codersdk.ChatMessageText(deploymentPrompt),
+		})
+		if err != nil {
+			return nil, xerrors.Errorf("marshal deployment system prompt: %w", err)
+		}
+		messages = append(messages, systemMessage(deploymentContent, modelConfigID))
+	}
+	if userPrompt := codersdk.SanitizePromptText(systemPrompt); userPrompt != "" {
+		userPromptContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+			codersdk.ChatMessageText(userPrompt),
+		})
+		if err != nil {
+			return nil, xerrors.Errorf("marshal user system prompt: %w", err)
+		}
+		messages = append(messages, systemMessage(userPromptContent, modelConfigID))
+	}
+	workspaceAwareness := workspaceDetachedAwareness
+	if workspaceAttached {
+		workspaceAwareness = workspaceAttachedAwareness
+	}
+	workspaceAwarenessContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+		codersdk.ChatMessageText(workspaceAwareness),
+	})
+	if err != nil {
+		return nil, xerrors.Errorf("marshal workspace awareness: %w", err)
+	}
+	messages = append(messages, systemMessage(workspaceAwarenessContent, modelConfigID))
+	return messages, nil
 }

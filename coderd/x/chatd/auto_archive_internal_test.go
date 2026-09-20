@@ -915,4 +915,29 @@ func TestWorker_AutoArchiveTree(t *testing.T) {
 		require.True(t, f.archived(t, child.ID))
 		require.True(t, f.archived(t, subagent.ID))
 	})
+
+	t.Run("NestedCandidatesRecordedOnce", func(t *testing.T) {
+		t.Parallel()
+		f := newWorkerTestFixture(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+		now := time.Date(2026, 5, 29, 12, 0, 0, 0, time.UTC)
+		// Parent and named child are both candidates in the same tick.
+		parent := f.createArchiveCandidate(t, now.Add(-120*24*time.Hour))
+		child := f.createArchiveCandidate(t, now.Add(-119*24*time.Hour))
+		f.linkNamedChild(t, parent.ID, child.ID)
+		require.NoError(t, f.db.UpsertChatAutoArchiveDays(ctx, 90))
+
+		auditor := audit.NewMock()
+		enqueuer := notificationstest.NewFakeEnqueuer()
+		worker := f.newArchiveWorker(t, newRecordingPubsub(f.pubsub), mockAuditorPtr(auditor), enqueuer)
+		worker.archiveOnce(ctx, now)
+
+		require.True(t, f.archived(t, parent.ID))
+		require.True(t, f.archived(t, child.ID))
+		logs := auditor.AuditLogs()
+		require.Len(t, logs, 2, "each named chat is audited exactly once")
+		require.ElementsMatch(t, []uuid.UUID{parent.ID, child.ID}, []uuid.UUID{logs[0].ResourceID, logs[1].ResourceID})
+		require.Len(t, enqueuer.Sent(), 1)
+		require.Len(t, enqueuer.Sent()[0].Data["archived_chats"], 2, "the digest lists each chat once")
+	})
 }

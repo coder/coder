@@ -874,6 +874,25 @@ $$;
 
 COMMENT ON FUNCTION chat_message_search_text(content jsonb) IS 'Extracts searchable content from chat_messages. Returns NULL for scalar JSON strings (content_version=0). Immutable as it is used in indexes.';
 
+CREATE FUNCTION chat_subtree(top_chat_id uuid) RETURNS TABLE(id uuid, status chat_status, depth integer)
+    LANGUAGE plpgsql STABLE
+    AS $$
+BEGIN
+    RETURN QUERY
+    WITH RECURSIVE subtree AS (
+        SELECT c.id, c.status, 0 AS depth
+        FROM chats c
+        WHERE c.id = top_chat_id
+        UNION ALL
+        SELECT c.id, c.status, subtree.depth + 1
+        FROM chats c
+        JOIN subtree ON c.parent_chat_id = subtree.id
+        WHERE subtree.depth < 6
+    )
+    SELECT subtree.id, subtree.status, subtree.depth FROM subtree;
+END;
+$$;
+
 CREATE FUNCTION check_workspace_agent_name_unique() RETURNS trigger
     LANGUAGE plpgsql
     AS $$

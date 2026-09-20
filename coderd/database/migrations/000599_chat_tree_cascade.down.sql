@@ -1,3 +1,5 @@
+DROP FUNCTION IF EXISTS chat_subtree(uuid);
+
 DROP INDEX IF EXISTS idx_chats_tree_adoptable;
 
 ALTER TABLE chats

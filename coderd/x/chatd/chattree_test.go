@@ -77,11 +77,14 @@ func TestEnsureChatTreeRoot(t *testing.T) {
 		require.Equal(t, database.ChatKindChat, adopted.Kind)
 		require.Equal(t, legacy.UpdatedAt.UTC(), adopted.UpdatedAt.UTC())
 
-		// The root itself has no messages and no owner hint, so no worker
-		// would pick it up.
-		messages, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{ChatID: roots[0].ID})
+		// The root holds system messages only, so it stays in waiting and
+		// no worker picks it up.
+		messages, err := db.GetChatMessagesForPromptByChatID(ctx, roots[0].ID)
 		require.NoError(t, err)
-		require.Empty(t, messages)
+		require.NotEmpty(t, messages)
+		for _, m := range messages {
+			require.Equal(t, database.ChatMessageRoleSystem, m.Role)
+		}
 	})
 
 	t.Run("SubagentsAndOtherOrganizationsUntouched", func(t *testing.T) {

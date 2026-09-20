@@ -1214,6 +1214,20 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 	if !httpapi.ReadLimit(ctx, rw, r, int64(2*maxSystemPromptLenBytes), &req) {
 		return
 	}
+	if req.ParentChatID != nil {
+		if !api.chatTreeEnabled() {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "parent_chat_id requires the chat-tree experiment.",
+			})
+			return
+		}
+		if *req.ParentChatID == uuid.Nil {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Invalid parent_chat_id.",
+			})
+			return
+		}
+	}
 
 	aReq, commitAudit := audit.InitRequest[database.Chat](rw, &audit.RequestParams{
 		Audit:          *api.Auditor.Load(),
@@ -1379,17 +1393,11 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 
 	// With the chat-tree experiment on, every new chat is attached to the
 	// caller's tree: an explicit parent is validated by chatd and an
-	// omitted one defaults to the tree root. Without the experiment a
-	// parent is rejected and chats stay parentless.
+	// omitted one defaults to the tree root. Without the experiment
+	// chats stay parentless.
 	var parentChatID uuid.NullUUID
 	if api.chatTreeEnabled() {
 		if req.ParentChatID != nil {
-			if *req.ParentChatID == uuid.Nil {
-				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-					Message: "Invalid parent_chat_id.",
-				})
-				return
-			}
 			parentChatID = uuid.NullUUID{UUID: *req.ParentChatID, Valid: true}
 		}
 		root, created, err := api.ensureChatTreeRoot(ctx, apiKey.UserID, req.OrganizationID)
@@ -1401,20 +1409,11 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if created {
-			api.Logger.Info(ctx, "created chat tree root",
-				slog.F("root_chat_id", root.ID),
-				slog.F("owner_id", apiKey.UserID),
-				slog.F("organization_id", req.OrganizationID),
-			)
+			api.auditChatTreeRootCreated(ctx, r, root)
 		}
 		if !parentChatID.Valid && root.ID != uuid.Nil {
 			parentChatID = uuid.NullUUID{UUID: root.ID, Valid: true}
 		}
-	} else if req.ParentChatID != nil {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "parent_chat_id requires the chat-tree experiment.",
-		})
-		return
 	}
 
 	chat, err := api.chatDaemon.CreateChat(ctx, chatd.CreateOptions{
@@ -1540,7 +1539,9 @@ func (api *API) getChat(rw http.ResponseWriter, r *http.Request) {
 
 	sdkChat := db2sdk.Chat(chat, diffStatus, chatFiles)
 
-	if api.chatTreeEnabled() {
+	// Tree position is owner-only: a reader granted access through an ACL
+	// does not learn the shape of the owner's tree.
+	if api.chatTreeEnabled() && chat.OwnerID == httpmw.APIKey(r).UserID {
 		if err := api.attachChatTreePosition(ctx, chat, &sdkChat); err != nil {
 			api.Logger.Error(ctx, "failed to derive chat tree position",
 				slog.F("chat_id", chat.ID),
@@ -8362,6 +8363,9 @@ func (api *API) streamChatParts(rw http.ResponseWriter, r *http.Request) {
 //
 //nolint:revive // Existing API takes the target archive state as a boolean.
 func writeChatArchiveError(ctx context.Context, rw http.ResponseWriter, err error, archived bool) {
+	if writeChatInvalidState(ctx, rw, err) {
+		return
+	}
 	switch {
 	case errors.Is(err, chatd.ErrArchiveRequiresRootChat) || errors.Is(err, chatstate.ErrChatNotRoot):
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -8375,7 +8379,6 @@ func writeChatArchiveError(ctx context.Context, rw http.ResponseWriter, err erro
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Cannot unarchive a chat while its parent chat is archived.",
 		})
-	case writeChatInvalidState(ctx, rw, err):
 	case errors.Is(err, chatstate.ErrTransitionNotAllowed):
 		// Archive only succeeds from idle / error execution states (W,
 		// E0, E1) per the chatd RFC; active chats refuse archive instead

@@ -106,38 +106,36 @@ func SetFamilyArchived(
 			return ErrChatNotFound
 		}
 		familyChats = make([]database.Chat, 0, len(ids))
-		for _, id := range ids {
-			var chat database.Chat
-			machine := NewChatMachine(tx, buffer, id)
-			err := machine.Update(ctx, func(state *Tx, _ database.Store) error {
-				// Classify each member so any invalid execution state
-				// aborts and rolls back the whole family update, even
-				// when that member already has the requested archived
-				// value.
-				current, from, err := state.loadState()
+		seen := make(map[uuid.UUID]struct{}, len(ids))
+		// Each member is locked by machine.Update. A child created under
+		// a member between the subtree read and that member's lock is
+		// committed before the lock is granted, so the subtree is
+		// re-read after every pass until no unlocked member remains.
+		for len(ids) > 0 {
+			for _, id := range ids {
+				if _, done := seen[id]; done {
+					continue
+				}
+				seen[id] = struct{}{}
+				chat, err := setMemberArchived(ctx, tx, buffer, id, input.Archived)
 				if err != nil {
 					return err
 				}
-				if from == StateInvalid {
-					return ErrInvalidState
-				}
-				if current.Archived == input.Archived {
-					chat = current
-					return nil
-				}
-				if _, err := state.SetArchived(SetArchivedInput{Archived: input.Archived}); err != nil {
-					return err
-				}
-				chat, err = state.Store().GetChatByID(state.Ctx(), state.ChatID())
-				if err != nil {
-					return xerrors.Errorf("reload archived chat: %w", err)
-				}
-				return nil
-			})
-			if err != nil {
-				return err
+				familyChats = append(familyChats, chat)
 			}
-			familyChats = append(familyChats, chat)
+			if !input.Archived {
+				break
+			}
+			latest, err := tx.GetChatSubtreeIDs(ctx, input.RootID)
+			if err != nil {
+				return xerrors.Errorf("re-read chat subtree: %w", err)
+			}
+			ids = ids[:0]
+			for _, id := range latest {
+				if _, done := seen[id]; !done {
+					ids = append(ids, id)
+				}
+			}
 		}
 		return nil
 	}, nil)
@@ -148,4 +146,45 @@ func SetFamilyArchived(
 		return familyChats, err
 	}
 	return familyChats, nil
+}
+
+// setMemberArchived applies SetArchived(archived) to one chat through its
+// machine, locking the row. A member whose archived flag already matches
+// is still classified so an invalid execution state aborts the cascade.
+//
+//nolint:revive // Existing API takes the target archive state as a boolean.
+func setMemberArchived(
+	ctx context.Context,
+	tx database.Store,
+	buffer *PublishBuffer,
+	id uuid.UUID,
+	archived bool,
+) (database.Chat, error) {
+	var chat database.Chat
+	machine := NewChatMachine(tx, buffer, id)
+	err := machine.Update(ctx, func(state *Tx, _ database.Store) error {
+		current, from, err := state.loadState()
+		if err != nil {
+			return err
+		}
+		if from == StateInvalid {
+			return ErrInvalidState
+		}
+		if current.Archived == archived {
+			chat = current
+			return nil
+		}
+		if _, err := state.SetArchived(SetArchivedInput{Archived: archived}); err != nil {
+			return err
+		}
+		chat, err = state.Store().GetChatByID(state.Ctx(), state.ChatID())
+		if err != nil {
+			return xerrors.Errorf("reload archived chat: %w", err)
+		}
+		return nil
+	})
+	if err != nil {
+		return database.Chat{}, err
+	}
+	return chat, nil
 }

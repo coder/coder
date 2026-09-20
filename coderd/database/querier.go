@@ -218,7 +218,8 @@ type sqlcQuerier interface {
 	// threshold. Active (non-archived) chats are never deleted, and a chat
 	// whose subtree still contains an unarchived chat is skipped so the FK
 	// cascade never removes a live descendant. All chat-scoped child tables
-	// and descendant chats are removed via ON DELETE CASCADE.
+	// and descendant chats are removed via ON DELETE CASCADE; the returned
+	// count covers only the selected rows, not the cascaded descendants.
 	DeleteOldChats(ctx context.Context, arg DeleteOldChatsParams) (int64, error)
 	DeleteOldConnectionLogs(ctx context.Context, arg DeleteOldConnectionLogsParams) (int64, error)
 	// Delete all notification messages which have not been updated for over a week.
@@ -435,7 +436,8 @@ type sqlcQuerier interface {
 	// auto-archive. A candidate is inactive only when nothing in its subtree
 	// (named children and subagents) is active or has recent messages. Root
 	// chats are never candidates. The query limits candidates, not total
-	// subtree members.
+	// subtree members. The subtree walk (chat_subtree) is rooted at each outer
+	// row inside the LATERAL so it runs only for rows the scan reaches.
 	GetAutoArchiveInactiveChatCandidates(ctx context.Context, arg GetAutoArchiveInactiveChatCandidatesParams) ([]GetAutoArchiveInactiveChatCandidatesRow, error)
 	GetBoundaryLogByID(ctx context.Context, id uuid.UUID) (BoundaryLog, error)
 	GetBoundarySessionByID(ctx context.Context, id uuid.UUID) (GetBoundarySessionByIDRow, error)

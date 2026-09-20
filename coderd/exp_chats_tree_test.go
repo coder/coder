@@ -7,6 +7,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
+	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -86,9 +87,13 @@ func TestChatTree_LazyRootAndAdoption(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	client, db, api := newChatClientWithAPIAndDatabase(t, chatTreeExperiments())
+	mAudit := audit.NewMock()
+	client, db, api := newChatClientWithAPIAndDatabase(t, chatTreeExperiments(), func(o *coderdtest.Options) {
+		o.Auditor = mAudit
+	})
 	firstUser := coderdtest.CreateFirstUser(t, client.Client)
 	modelConfig := createChatModel(t, client)
+	mAudit.ResetLogs()
 
 	// A legacy parentless chat, an archived one, and a pinned one exist
 	// before the tree is materialized.
@@ -118,11 +123,30 @@ func TestChatTree_LazyRootAndAdoption(t *testing.T) {
 		Title:             "other owner",
 	})
 
+	// A non-member cannot read a tree in another organization.
+	otherOrg := dbgen.Organization(t, db, database.Organization{})
+	_, err = client.ChatTree(ctx, otherOrg.ID, nil)
+	requireChatAPIError(t, err, http.StatusNotFound, "")
+
 	tree, err := client.ChatTree(ctx, firstUser.OrganizationID, nil)
 	require.NoError(t, err)
 	require.NotNil(t, tree.RootChatID)
 	require.Len(t, tree.Chats, 2, "root plus the unarchived legacy chat")
 	root := tree.Chats[0]
+
+	// Root creation is audited once; adoption is not audited.
+	chatAudits := func() []database.AuditLog {
+		var rows []database.AuditLog
+		for _, log := range mAudit.AuditLogs() {
+			if log.ResourceType == database.ResourceTypeChat {
+				rows = append(rows, log)
+			}
+		}
+		return rows
+	}
+	require.Len(t, chatAudits(), 1, "root creation only; adoption produces no audit rows")
+	require.Equal(t, database.AuditActionCreate, chatAudits()[0].Action)
+	require.Equal(t, root.ID, chatAudits()[0].ResourceID)
 	require.Equal(t, *tree.RootChatID, root.ID)
 	require.Equal(t, codersdk.ChatKindRoot, root.Kind)
 	require.Equal(t, "Root", root.Title)
@@ -158,11 +182,34 @@ func TestChatTree_LazyRootAndAdoption(t *testing.T) {
 	require.Equal(t, root.ID, archivedTree.Chats[0].ID)
 	require.Equal(t, archived.ID, archivedTree.Chats[1].ID)
 
-	// A second read is idempotent: same root, nothing new.
+	// A second read is idempotent: same root, nothing new, no audit row.
 	again, err := client.ChatTree(ctx, firstUser.OrganizationID, nil)
 	require.NoError(t, err)
 	require.Equal(t, root.ID, *again.RootChatID)
 	require.Len(t, again.Chats, 2)
+	require.Len(t, chatAudits(), 1)
+
+	// A legacy chat that appears after the root exists is adopted on the
+	// next read.
+	late := dbgen.Chat(t, db, database.Chat{
+		OrganizationID:    firstUser.OrganizationID,
+		OwnerID:           firstUser.UserID,
+		LastModelConfigID: modelConfig.ID,
+		Title:             "late legacy",
+	})
+	_, err = client.ChatTree(ctx, firstUser.OrganizationID, nil)
+	require.NoError(t, err)
+	lateAdopted, err := db.GetChatByID(dbauthz.AsSystemRestricted(ctx), late.ID)
+	require.NoError(t, err)
+	require.Equal(t, root.ID, lateAdopted.ParentChatID.UUID)
+
+	// The root carries the initial system messages and no user message.
+	rootMessages, err := db.GetChatMessagesForPromptByChatID(dbauthz.AsSystemRestricted(ctx), root.ID)
+	require.NoError(t, err)
+	require.NotEmpty(t, rootMessages)
+	for _, m := range rootMessages {
+		require.Equal(t, database.ChatMessageRoleSystem, m.Role)
+	}
 
 	// The other owner gets a separate root in the same organization.
 	otherTree, err := codersdk.NewExperimentalClient(otherUserClient).ChatTree(ctx, firstUser.OrganizationID, nil)
@@ -180,7 +227,7 @@ func TestChatTree_LazyRootAndAdoption(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, codersdk.ChatKindRoot, gotRoot.Kind)
 	require.Equal(t, 1, *gotRoot.Depth)
-	require.Equal(t, 2, *gotRoot.ChildChatCount)
+	require.Equal(t, 3, *gotRoot.ChildChatCount, "legacy, archived legacy, and late legacy")
 
 	// New chats default to the root as parent.
 	created := createTreeChat(t, client, firstUser.OrganizationID, "under root", nil)
@@ -222,16 +269,18 @@ func TestChatTree_NamedChildren(t *testing.T) {
 	requireChatAPIError(t, err, http.StatusBadRequest, "depth limit")
 
 	// Missing, cross-owner, and shared parents produce the same error.
-	for name, parent := range map[string]uuid.UUID{
-		"missing": uuid.New(),
-	} {
-		_, err = client.CreateChat(ctx, codersdk.CreateChatRequest{
-			OrganizationID: firstUser.OrganizationID,
-			Content:        []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: name}},
-			ParentChatID:   &parent,
-		})
-		requireChatAPIError(t, err, http.StatusBadRequest, "Parent chat not found")
-	}
+	_, err = client.CreateChat(ctx, codersdk.CreateChatRequest{
+		OrganizationID: firstUser.OrganizationID,
+		Content:        []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: "missing"}},
+		ParentChatID:   ptr.Ref(uuid.New()),
+	})
+	requireChatAPIError(t, err, http.StatusBadRequest, "Parent chat not found")
+	_, err = client.CreateChat(ctx, codersdk.CreateChatRequest{
+		OrganizationID: firstUser.OrganizationID,
+		Content:        []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: "nil"}},
+		ParentChatID:   ptr.Ref(uuid.Nil),
+	})
+	requireChatAPIError(t, err, http.StatusBadRequest, "Invalid parent_chat_id")
 	otherExp := codersdk.NewExperimentalClient(otherClient)
 	_, err = otherExp.CreateChat(ctx, codersdk.CreateChatRequest{
 		OrganizationID: firstUser.OrganizationID,

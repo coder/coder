@@ -33,14 +33,17 @@ var (
 	// exist, is not readable, or belongs to another owner or organization.
 	// The cases share one error so callers cannot probe for chat IDs.
 	ErrChatTreeParentMismatch = xerrors.New("parent chat not found")
+	// ErrChatTreeParentUnanchored indicates the requested parent is owned
+	// by the caller but its ancestor chain does not end at a tree root.
+	ErrChatTreeParentUnanchored = xerrors.New("parent chat is not attached to a chat tree")
 )
 
 // EnsureChatTreeRootOptions configures [Server.EnsureChatTreeRoot].
 type EnsureChatTreeRootOptions struct {
 	OwnerID        uuid.UUID
 	OrganizationID uuid.UUID
-	// ResolveModelConfigID is called only when a root has to be created.
-	// It returns the model config the root is created with.
+	// ResolveModelConfigID is called only when no root exists yet. It
+	// returns the model config the root is created with.
 	ResolveModelConfigID func(ctx context.Context) (uuid.UUID, error)
 }
 
@@ -54,7 +57,9 @@ type EnsureChatTreeRootOptions struct {
 // published. The whole slow path runs in one transaction under a per
 // (owner, organization) advisory lock, so concurrent callers observe a
 // single root; the partial unique index on kind = 'root' rejects a
-// second root regardless.
+// second root regardless. The root starts with the same system messages
+// as any new chat and no user message, so it stays in waiting and is
+// never acquired by a worker.
 //
 // Every query runs as the acting user. Creating the root requires
 // chat create permission for the owner in the organization; adopting
@@ -86,6 +91,34 @@ func (p *Server) EnsureChatTreeRoot(ctx context.Context, opts EnsureChatTreeRoot
 		return root, false, nil
 	}
 
+	// The model config and the system messages are resolved before the
+	// transaction opens so no other connection is used while the advisory
+	// lock is held. A concurrent caller that wins the lock makes this
+	// work unused.
+	var rootInput chatstate.CreateIdleChatInput
+	if state.RootChatID == uuid.Nil {
+		modelConfigID, err := opts.ResolveModelConfigID(ctx)
+		if err != nil {
+			return database.Chat{}, false, errors.Join(ErrChatTreeRootUnavailable, xerrors.Errorf("resolve chat tree root model: %w", err))
+		}
+		if modelConfigID == uuid.Nil {
+			return database.Chat{}, false, ErrChatTreeRootUnavailable
+		}
+		systemMessages, err := initialSystemMessages(p.resolveDeploymentSystemPrompt(ctx), "", false, modelConfigID)
+		if err != nil {
+			return database.Chat{}, false, err
+		}
+		rootInput = chatstate.CreateIdleChatInput{
+			OrganizationID:    opts.OrganizationID,
+			OwnerID:           opts.OwnerID,
+			Kind:              database.ChatKindRoot,
+			LastModelConfigID: modelConfigID,
+			Title:             ChatTreeRootTitle,
+			ClientType:        database.ChatClientTypeApi,
+			InitialMessages:   systemMessages,
+		}
+	}
+
 	var (
 		root    database.Chat
 		created bool
@@ -99,27 +132,18 @@ func (p *Server) EnsureChatTreeRoot(ctx context.Context, opts EnsureChatTreeRoot
 		if err != nil {
 			return xerrors.Errorf("get chat tree root state: %w", err)
 		}
-		if state.RootChatID != uuid.Nil {
+		switch {
+		case state.RootChatID != uuid.Nil:
 			root, err = tx.GetChatByID(ctx, state.RootChatID)
 			if err != nil {
 				return xerrors.Errorf("get chat tree root: %w", err)
 			}
-		} else {
-			modelConfigID, err := opts.ResolveModelConfigID(ctx)
-			if err != nil {
-				return errors.Join(ErrChatTreeRootUnavailable, xerrors.Errorf("resolve chat tree root model: %w", err))
-			}
-			if modelConfigID == uuid.Nil {
-				return ErrChatTreeRootUnavailable
-			}
-			root, err = chatstate.CreateIdleChat(ctx, tx, chatstate.CreateIdleChatInput{
-				OrganizationID:    opts.OrganizationID,
-				OwnerID:           opts.OwnerID,
-				Kind:              database.ChatKindRoot,
-				LastModelConfigID: modelConfigID,
-				Title:             ChatTreeRootTitle,
-				ClientType:        database.ChatClientTypeApi,
-			})
+		case rootInput.Kind == "":
+			// The pre-check saw a root that is gone now; the caller
+			// retries and resolves a model config on the next call.
+			return ErrChatTreeRootUnavailable
+		default:
+			root, err = chatstate.CreateIdleChat(ctx, tx, rootInput)
 			if err != nil {
 				return xerrors.Errorf("create chat tree root: %w", err)
 			}
@@ -168,6 +192,9 @@ func validateChatTreeParent(
 	orgID uuid.UUID,
 	parentID uuid.UUID,
 ) error {
+	// The row lock is taken through a read-authorized fetch, so a chat
+	// readable through an ACL grant is locked until this transaction ends
+	// even when the owner check below rejects it.
 	parent, err := tx.GetChatByIDForUpdate(ctx, parentID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) || dbauthz.IsNotAuthorizedError(err) {
@@ -188,10 +215,9 @@ func validateChatTreeParent(
 	if err != nil {
 		return xerrors.Errorf("get parent chat depth: %w", err)
 	}
-	// Depth 0 means the parent's ancestor chain does not end at a root,
-	// so the parent is outside the owner's materialized tree.
+	// Depth 0 means the parent's ancestor chain does not end at a root.
 	if depth == 0 {
-		return ErrChatTreeParentMismatch
+		return ErrChatTreeParentUnanchored
 	}
 	if int(depth) >= codersdk.ChatTreeMaxDepth {
 		return ErrChatTreeDepthExceeded

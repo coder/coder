@@ -1829,6 +1829,15 @@ func (q *querier) AdoptParentlessChatsIntoTreeRoot(ctx context.Context, arg data
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceChat.WithOwner(arg.OwnerID.String()).InOrg(arg.OrganizationID)); err != nil {
 		return 0, err
 	}
+	// The target must be the owner's own tree root in that organization;
+	// the schema has no constraint tying parent_chat_id to the owner.
+	root, err := q.db.GetChatByID(ctx, arg.RootChatID)
+	if err != nil {
+		return 0, err
+	}
+	if root.Kind != database.ChatKindRoot || root.OwnerID != arg.OwnerID || root.OrganizationID != arg.OrganizationID {
+		return 0, NotAuthorizedError{Err: xerrors.New("chat tree root does not belong to the owner and organization")}
+	}
 	return q.db.AdoptParentlessChatsIntoTreeRoot(ctx, arg)
 }
 

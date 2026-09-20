@@ -291,3 +291,71 @@ func TestSetFamilyArchivedTree(t *testing.T) {
 	require.False(t, f.readChat(ctx, t, child.ID).Archived)
 	require.True(t, f.readChat(ctx, t, grandchild.ID).Archived)
 }
+
+// TestSetFamilyArchivedSeesChildCreatedDuringCascade verifies that a
+// named child committed under a descendant while the cascade waits for
+// that descendant's row lock is archived by the same cascade.
+func TestSetFamilyArchivedSeesChildCreatedDuringCascade(t *testing.T) {
+	t.Parallel()
+	db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, org, model := seedFamilyDeps(t, db)
+
+	newChat := func(title string, parent uuid.NullUUID) database.Chat {
+		return dbgen.Chat(t, db, database.Chat{
+			OrganizationID:    org.ID,
+			OwnerID:           user.ID,
+			LastModelConfigID: model.ID,
+			Title:             title,
+			Kind:              database.ChatKindChat,
+			ParentChatID:      parent,
+			Status:            database.ChatStatusWaiting,
+		})
+	}
+	top := newChat("top", uuid.NullUUID{})
+	middle := newChat("middle", uuid.NullUUID{UUID: top.ID, Valid: true})
+
+	// A concurrent creator holds the middle row lock, as the create
+	// transaction does while it validates the parent.
+	creator, err := sqlDB.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	defer func() { _ = creator.Rollback() }()
+	_, err = creator.ExecContext(ctx, `SELECT id FROM chats WHERE id = $1 FOR UPDATE`, middle.ID)
+	require.NoError(t, err)
+
+	cascadeErr := make(chan error, 1)
+	go func() {
+		_, err := chatstate.SetFamilyArchived(ctx, db, newRecordingPubsub(), chatstate.SetFamilyArchivedInput{RootID: top.ID, Archived: true})
+		cascadeErr <- err
+	}()
+
+	// Wait until the cascade blocks on the middle row lock.
+	require.Eventually(t, func() bool {
+		var waiting bool
+		err := sqlDB.QueryRowContext(ctx, `
+			SELECT EXISTS (
+				SELECT 1 FROM pg_stat_activity
+				WHERE datname = current_database()
+				  AND wait_event_type = 'Lock' AND query LIKE '%FOR UPDATE%'
+			)`).Scan(&waiting)
+		return err == nil && waiting
+	}, testutil.WaitLong, testutil.IntervalFast)
+
+	// The creator inserts a child under middle and commits, releasing the
+	// lock the cascade waits on.
+	lateChildID := uuid.New()
+	_, err = creator.ExecContext(ctx, `
+		INSERT INTO chats (id, owner_id, organization_id, last_model_config_id, kind, parent_chat_id, title, status)
+		VALUES ($1, $2, $3, $4, 'chat', $5, 'late child', 'waiting')
+	`, lateChildID, user.ID, org.ID, model.ID, middle.ID)
+	require.NoError(t, err)
+	require.NoError(t, creator.Commit())
+
+	require.NoError(t, testutil.RequireReceive(ctx, t, cascadeErr))
+
+	for _, id := range []uuid.UUID{top.ID, middle.ID, lateChildID} {
+		chat, err := db.GetChatByID(ctx, id)
+		require.NoError(t, err)
+		require.True(t, chat.Archived, "chat %s", chat.Title)
+	}
+}
