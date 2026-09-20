@@ -97,6 +97,14 @@ export const buildStreamRenderState = (
  */
 export const FIXTURE_NOW = new Date("2026-03-10T00:00:00.000Z").getTime();
 
+/**
+ * Start of the working-block fixtures. Their tool work begins one second in,
+ * so under the pinned clock a live block reads "Working for 12s".
+ */
+export const WORKING_FIXTURE_START = FIXTURE_NOW - 13_000;
+export const workingFixtureTime = (seconds: number) =>
+	new Date(WORKING_FIXTURE_START + seconds * 1000).toISOString();
+
 export const buildReconnectState = (
 	overrides: Partial<ReconnectState> = {},
 ): ReconnectState => ({
