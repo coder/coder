@@ -23,7 +23,8 @@ export const CollapseAssistantStepsSettings: FC = () => {
 					className="m-0 flex-1 text-xs text-content-secondary"
 				>
 					Collapse each turn's steps into a single row showing how long the
-					agent worked. Answers, questions, and failures stay visible.
+					agent worked. Answers and questions stay visible; failed steps are
+					counted on the row.
 				</p>
 				<Switch
 					checked={query.data?.collapse_assistant_steps ?? false}
