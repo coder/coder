@@ -1,5 +1,5 @@
 import { screen, waitFor } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import userEvent, { type UserEvent } from "@testing-library/user-event";
 import { createMemoryRouter } from "react-router";
 import { describe, expect, it, vi } from "vitest";
 import type { ChatModel } from "#/api/typesGenerated";
@@ -55,14 +55,10 @@ const renderModelForm = (editingModel?: ChatModel) => {
 	return { onCreateModel, onUpdateModel };
 };
 
-const openProviderConfig = (user: ReturnType<typeof userEvent.setup>) =>
+const openProviderConfig = (user: UserEvent) =>
 	user.click(screen.getByRole("button", { name: /provider configuration/i }));
 
-const selectOption = async (
-	user: ReturnType<typeof userEvent.setup>,
-	name: RegExp,
-	option: string,
-) => {
+const selectOption = async (user: UserEvent, name: RegExp, option: string) => {
 	await user.click(screen.getByRole("combobox", { name }));
 	await user.click(await screen.findByRole("option", { name: option }));
 };
@@ -142,6 +138,13 @@ describe("ModelForm reasoning mode", () => {
 		await user.clear(modelInput);
 		await user.type(modelInput, "gpt-5.6-pro");
 		await user.tab();
+		await openProviderConfig(user);
+		expect(
+			screen.getByRole("combobox", { name: /service tier/i }),
+		).toBeInTheDocument();
+		expect(
+			screen.queryByRole("combobox", { name: /reasoning mode/i }),
+		).not.toBeInTheDocument();
 		await user.click(screen.getByRole("button", { name: /update model/i }));
 
 		await waitFor(() =>

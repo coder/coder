@@ -129,8 +129,7 @@ export const ProviderConfigOpenAIWebSearch: Story = {
 	},
 };
 
-// Reasoning mode is only offered for GPT-5.6 family and GPT-6 Astra models
-// on OpenAI with the Responses API, so the saved Pro selection is shown here.
+// A saved Pro selection reveals the model-gated reasoning_mode dropdown.
 export const ProviderConfigOpenAIReasoningMode: Story = {
 	args: { editingModel: MockGPT56Pro },
 	play: async ({ canvasElement }) => {

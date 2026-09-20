@@ -27,6 +27,8 @@ export interface FieldSchema {
 	conflicts_with?: string[];
 	/** Raw provider types the field applies to; absent means every provider. */
 	visible_for_providers?: string[];
+	/** Regular expression the model identifier must match; absent means every model. */
+	supported_models?: string;
 }
 
 /**

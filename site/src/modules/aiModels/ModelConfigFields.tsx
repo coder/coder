@@ -43,8 +43,8 @@ import {
 	formatPricePerMillionTokens,
 } from "./knownModels/catalog";
 import {
+	isFieldApplicableToModel,
 	isFieldConflictDisabled,
-	isReasoningModeSupported,
 	isVisibleWhenSatisfied,
 	type ModelConfigFormBuildResult,
 	type ModelFormValues,
@@ -547,12 +547,12 @@ export const ModelConfigFields: FC<ModelConfigFieldsProps> = ({
 
 	const isFieldVisible = (field: FieldSchema): boolean =>
 		isVisibleWhenSatisfied(field, fieldValueByName) &&
-		(field.json_name !== "reasoning_mode" ||
-			isReasoningModeSupported(
-				normalized,
-				form.values.model,
-				form.values.config,
-			));
+		isFieldApplicableToModel(
+			field,
+			normalized,
+			form.values.model,
+			form.values.config,
+		);
 
 	// Sort wider fields to the end so compact fields fill the
 	// grid first, keeping the layout dense.
