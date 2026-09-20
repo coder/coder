@@ -1,7 +1,7 @@
-import { render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { type ComponentProps, useState } from "react";
-import { MockWorkingBlock } from "./storyFixtures";
+import { FIXTURE_NOW, MockWorkingBlock } from "./storyFixtures";
 import { WorkingBlockDisclosure } from "./WorkingBlockDisclosure";
 
 const ControlledDisclosure = (
@@ -55,5 +55,24 @@ describe("WorkingBlockDisclosure", () => {
 			screen.getByRole("button", { name: "Worked for 12s (2 steps)" }),
 		);
 		expect(onExpandedChange).toHaveBeenCalledWith(false);
+	});
+
+	it("advances the live label with the clock", () => {
+		vi.useFakeTimers();
+		vi.setSystemTime(FIXTURE_NOW);
+		try {
+			render(
+				<ControlledDisclosure
+					block={{ ...MockWorkingBlock, isLive: true, endedAt: undefined }}
+				/>,
+			);
+			screen.getByRole("button", { name: "Working for 12s" });
+			act(() => {
+				vi.advanceTimersByTime(1000);
+			});
+			screen.getByRole("button", { name: "Working for 13s" });
+		} finally {
+			vi.useRealTimers();
+		}
 	});
 });
