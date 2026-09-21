@@ -49,8 +49,6 @@ func (t *claudePlatformPassthroughTransport) RoundTrip(req *http.Request) (*http
 	//nolint:bodyclose // the response is returned to the caller, which closes it.
 	return awssig.SignMiddleware(t.creds, t.cfg.Region, config.ClaudePlatformSigningService)(
 		req,
-		func(r *http.Request) (*http.Response, error) {
-			return t.inner.RoundTrip(r)
-		},
+		t.inner.RoundTrip,
 	)
 }

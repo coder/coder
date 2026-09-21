@@ -13,6 +13,7 @@ import (
 	"github.com/coder/coder/v2/aibridge/aibridgetest"
 	"github.com/coder/coder/v2/aibridge/config"
 	"github.com/coder/coder/v2/aibridge/fixtures"
+	"github.com/coder/coder/v2/aibridge/intercept"
 	"github.com/coder/coder/v2/aibridge/internal/testutil"
 	"github.com/coder/coder/v2/aibridge/keypool"
 	"github.com/coder/coder/v2/aibridge/provider"
@@ -129,16 +130,37 @@ func TestAnthropic_KeyFailover(t *testing.T) {
 	fix := fixtures.Parse(t, fixtures.AntSimple)
 
 	tests := []struct {
-		name      string
-		streaming bool
+		name       string
+		streaming  bool
+		claudeMode config.ClaudePlatformAuthMode
 	}{
 		{
-			name:      "blocking",
+			name:      "anthropic_blocking",
 			streaming: false,
 		},
 		{
-			name:      "streaming",
+			name:      "anthropic_streaming",
 			streaming: true,
+		},
+		{
+			name:       "claude_platform_iam_blocking",
+			streaming:  false,
+			claudeMode: config.ClaudePlatformAuthModeIAM,
+		},
+		{
+			name:       "claude_platform_iam_streaming",
+			streaming:  true,
+			claudeMode: config.ClaudePlatformAuthModeIAM,
+		},
+		{
+			name:       "claude_platform_api_key_blocking",
+			streaming:  false,
+			claudeMode: config.ClaudePlatformAuthModeAPIKey,
+		},
+		{
+			name:       "claude_platform_api_key_streaming",
+			streaming:  true,
+			claudeMode: config.ClaudePlatformAuthModeAPIKey,
 		},
 	}
 
@@ -149,50 +171,64 @@ func TestAnthropic_KeyFailover(t *testing.T) {
 			pool, err := keypool.New(config.ProviderAnthropic, []string{"k0", "k1"}, quartz.NewMock(t), nil)
 			require.NoError(t, err)
 
-			// Sequential upstream responses: request 1 fails over
-			// from k0 to k1 (calls 1-2), and request 2 goes straight
-			// to k1 (call 3).
-			upstream := testutil.NewMockUpstream(t.Context(), t,
-				testutil.NewErrorResponse(http.StatusTooManyRequests, "60"),
-				testutil.NewFixtureResponse(fix),
-				testutil.NewFixtureResponse(fix),
-			)
-
-			bridgeServer := newBridgeTestServer(t.Context(), t, upstream.URL,
-				withCustomProvider(aibridgetest.NewAnthropicProvider(t, config.Anthropic{
-					BaseURL: upstream.URL,
-					KeyPool: pool,
-				}, nil)),
-			)
-
 			requestBody, err := sjson.SetBytes(fix.Request(), "stream", tc.streaming)
 			require.NoError(t, err)
 
-			// Request 1: walker starts at k0, fails over to k1
-			// after 429.
-			resp, err := bridgeServer.makeRequest(t, http.MethodPost, pathAnthropicMessages, requestBody)
-			require.NoError(t, err)
-			_, _ = io.Copy(io.Discard, resp.Body)
-			require.NoError(t, resp.Body.Close())
-			require.Equal(t, http.StatusOK, resp.StatusCode)
-
-			// Request 2: walker skips the now-temporary k0 and
-			// goes straight to k1 (1 upstream call, not 2).
-			resp, err = bridgeServer.makeRequest(t, http.MethodPost, pathAnthropicMessages, requestBody)
-			require.NoError(t, err)
-			_, _ = io.Copy(io.Discard, resp.Body)
-			require.NoError(t, resp.Body.Close())
-			require.Equal(t, http.StatusOK, resp.StatusCode)
-
-			var seenKeys []string
-			for _, r := range upstream.ReceivedRequests() {
-				seenKeys = append(seenKeys, testutil.KeyFromHeader("X-Api-Key", r.Header))
+			responses := []testutil.UpstreamResponse{
+				testutil.NewErrorResponse(http.StatusTooManyRequests, "60"),
+				testutil.NewFixtureResponse(fix),
+				testutil.NewFixtureResponse(fix),
 			}
-			// Request 1: 2 calls (k0 then k1). Request 2: 1 call (k1).
-			assert.Equal(t, []string{"k0", "k1", "k1"}, seenKeys, "seen keys")
+			upstream := testutil.NewMockUpstream(t.Context(), t, responses...)
 
-			// Pool state persists: k0 temporary, k1 valid.
-			assert.Equal(t, []keypool.KeyState{
+			var prov provider.Provider
+			if tc.claudeMode == "" {
+				prov = aibridgetest.NewAnthropicProvider(t, config.Anthropic{
+					BaseURL: upstream.URL,
+					KeyPool: pool,
+				}, nil)
+			} else {
+				prov = aibridgetest.NewClaudePlatformProvider(t, config.Anthropic{
+					BaseURL: upstream.URL,
+					KeyPool: pool,
+				}, claudePlatformCfg(upstream.URL, tc.claudeMode))
+			}
+			bridgeServer := newBridgeTestServer(t.Context(), t, upstream.URL, withCustomProvider(prov))
+
+			clientHeaders := http.Header{}
+			if tc.claudeMode != "" {
+				clientHeaders.Set(intercept.HeaderAnthropicWorkspaceID, "wrkspc_from_client")
+			}
+
+			// Request 1: walker starts at k0, fails over to k1 after 429.
+			resp, err := bridgeServer.makeRequest(t, http.MethodPost, pathAnthropicMessages, requestBody, clientHeaders)
+			require.NoError(t, err)
+			_, _ = io.Copy(io.Discard, resp.Body)
+			require.NoError(t, resp.Body.Close())
+			require.Equal(t, http.StatusOK, resp.StatusCode)
+
+			// Request 2: walker skips the now-temporary k0 and goes straight to k1.
+			resp, err = bridgeServer.makeRequest(t, http.MethodPost, pathAnthropicMessages, requestBody, clientHeaders)
+			require.NoError(t, err)
+			_, _ = io.Copy(io.Discard, resp.Body)
+			require.NoError(t, resp.Body.Close())
+			require.Equal(t, http.StatusOK, resp.StatusCode)
+
+			received := upstream.ReceivedRequests()
+			require.Len(t, received, 3)
+			var seenKeys []string
+			for _, r := range received {
+				seenKeys = append(seenKeys, testutil.KeyFromHeader("X-Api-Key", r.Header))
+				require.Equal(t, http.MethodPost, r.Method)
+				require.Equal(t, "/v1/messages", r.Path)
+				require.JSONEq(t, string(requestBody), string(r.Body))
+				require.Empty(t, r.Header.Get(intercept.AuthHeaderAuthorization), "pooled bridged requests must not be AWS signed")
+				if tc.claudeMode != "" {
+					require.Equal(t, claudePlatformWorkspaceID, r.Header.Get(intercept.HeaderAnthropicWorkspaceID))
+				}
+			}
+			require.Equal(t, []string{"k0", "k1", "k1"}, seenKeys, "seen keys")
+			require.Equal(t, []keypool.KeyState{
 				keypool.KeyStateTemporary,
 				keypool.KeyStateValid,
 			}, pool.PoolState(), "key states")
