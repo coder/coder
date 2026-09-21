@@ -2,79 +2,51 @@
 title: Install Coder in your infrastructure
 ---
 
-A single CLI (`coder`) is used for both the control plane and the client.
-
-We support two release channels: mainline and stable - read the
-[Releases](../reference/releases.md) page to learn more about which best suits your team.
-
-There are several ways to install Coder. Follow the steps on this page for a
-minimal installation of Coder, or for a step-by-step guide on how to install and
-configure your first Coder deployment, follow the
-[quickstart guide](../get-started/index.md).
+This section describes how to plan, install, and configure a Coder deployment, from the initial decisions you need to make in order to successfully run Coder to a steady-state operating environment.
+The five phases are meant to be read in order: each phase produces the required information for the next phase.
 
 > [!TIP]
-> If you're installing Coder for the first time, the [Quickstart](../get-started/index.md) guides you through installing Coder and launching your first workspace.
+> If you only need the `coder` command-line client on your own machine, refer to [Coder CLI](./cli.md).
+> You don't need the rest of this section.
+>
+> If you want a Coder deployment on a single machine as quickly as possible, follow the [Quickstart](../get-started/index.md) instead.
+> It installs Coder and launches a first workspace without the planning and preparation work described here.
+> Come back to this section when you want an expanded Coder deployment.
 
-## Local/Individual Installs
+## The five phases
 
-This install guide is meant for **individual developers, small teams, and/or open source community members** setting up Coder locally or on a single server. It covers the light weight install for Linux, macOS, and Windows.
+| Phase                                              | What it answers                                                          | What you finish with                                                           |
+|----------------------------------------------------|--------------------------------------------------------------------------|--------------------------------------------------------------------------------|
+| [1. Plan your deployment](./plan/index.md)         | Which components run where, how large they need to be, who operates them | A deployment shape and a size target you can hand to an infrastructure team    |
+| [2. Prepare prerequisites](./prepare/index.md)     | What must exist before installation starts, and who owns each piece      | DNS, certificates, a database, a license, and an identity provider application |
+| [3. Install the control plane](./server/index.md)  | How to install Coder on the platform your team operates                  | A running Coder deployment you can sign in to                                  |
+| [4. Validate your deployment](./validate/index.md) | Whether the deployment is hardened, works, and holds up under load       | Evidence that the deployment is ready for real users                           |
+| [5. Operate and maintain](./operate/index.md)      | How to keep the deployment healthy, upgraded, and correctly sized        | An upgrade and scaling routine, plus a removal path                            |
 
-<div class="tabs">
-
-## Linux/macOS
-
-Our install script is the fastest way to install Coder on Linux/macOS:
-
-```sh
-curl -L https://coder.com/install.sh | sh
-```
-
-Refer to [GitHub releases](https://github.com/coder/coder/releases) for
-alternate installation methods (e.g. standalone binaries, system packages).
-
-## Windows
-
-If you plan to use the built-in PostgreSQL database, ensure that the
-[Visual C++ Runtime](https://learn.microsoft.com/en-US/cpp/windows/latest-supported-vc-redist#latest-microsoft-visual-c-redistributable-version)
-is installed.
-
-Use [GitHub releases](https://github.com/coder/coder/releases) to download the
-Windows installer (`.msi`) or standalone binary (`.exe`).
-
-![Windows setup wizard](../images/install/windows-installer.png)
-
-Alternatively, you can use the
-[`winget`](https://learn.microsoft.com/en-us/windows/package-manager/winget/#use-winget)
-package manager to install Coder:
-
-```ps1
-winget install Coder.Coder
-```
-
-</div>
-
-## Hosted/Enterprise Installs
-
-This install guide is meant for **IT Administrators, DevOps, and Platform Teams** deploying Coder for an organization. It covers production-grade, multi-user installs on Kubernetes and other hosted platforms.
-
-<div>
+Phases 1 and 2 are advisory rather than a gate.
+Nothing stops you from installing the control plane first, but the recommendations in those phases are what keep a deployment from needing to be rebuilt later.
+Don't know where to start?
+Read [Plan your deployment](./plan/index.md) and [Prepare prerequisites](./prepare/index.md) first.
 
 <children></children>
 
-</div>
+## Who does the work
 
-## Starting the control plane
+A Coder deployment usually crosses team boundaries.
+The following actors appear throughout this section, so you can anticipate which conversations you need to start and how long they're likely to take.
 
-To start the control plane:
+| Actor                            | Responsible for                                                              | Appears in phase |
+|----------------------------------|------------------------------------------------------------------------------|------------------|
+| Coder platform owner             | The deployment itself: installation, configuration, upgrades, and support    | 1 to 5           |
+| Infrastructure team              | Clusters, virtual machines, networking, load balancers, and egress rules     | 1 to 4           |
+| DNS and TLS owner                | The Coder hostname, the wildcard record for workspace apps, and certificates | 2                |
+| Database administrator           | PostgreSQL provisioning, sizing, backups, and restore tests                  | 2, 4, 5          |
+| Identity provider administrator  | The OIDC or SAML application, claims, and group mappings                     | 2                |
+| Security and compliance reviewer | Audit requirements, network policy, data handling, and sign-off              | 2, 4             |
+| Licensing contact                | Purchasing and renewing the Coder license                                    | 2                |
+| Template author                  | The workspace templates developers use once the deployment is running        | 4, 5             |
 
-```sh
-coder server
-```
-
-![Coder install](../images/screenshots/welcome-create-admin-user.png)
-
-To log in to an existing Coder deployment:
-
-```sh
-coder login https://coder.example.com
-```
+These are roles, not people.
+One person may serve as several actors, which is common for a proof of concept run by a single platform engineer.
+Several people may also serve as one actor, which is common for an infrastructure team that splits networking and compute ownership.
+Use the table to identify who has to agree, not to count headcount.
