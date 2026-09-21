@@ -3475,6 +3475,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           "property2": null
         },
         "prompt_cache_key": "string",
+        "reasoning_mode": "string",
         "reasoning_summary": "string",
         "safety_identifier": "string",
         "search_context_size": "string",
@@ -3760,6 +3761,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         "property2": null
       },
       "prompt_cache_key": "string",
+      "reasoning_mode": "string",
       "reasoning_summary": "string",
       "safety_identifier": "string",
       "search_context_size": "string",
@@ -3987,6 +3989,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "property2": null
   },
   "prompt_cache_key": "string",
+  "reasoning_mode": "string",
   "reasoning_summary": "string",
   "safety_identifier": "string",
   "search_context_size": "string",
@@ -4019,6 +4022,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `prediction`            | object          | false    |              |             |
 | » `[any property]`      | any             | false    |              |             |
 | `prompt_cache_key`      | string          | false    |              |             |
+| `reasoning_mode`        | string          | false    |              |             |
 | `reasoning_summary`     | string          | false    |              |             |
 | `safety_identifier`     | string          | false    |              |             |
 | `search_context_size`   | string          | false    |              |             |
@@ -4271,6 +4275,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "property2": null
     },
     "prompt_cache_key": "string",
+    "reasoning_mode": "string",
     "reasoning_summary": "string",
     "safety_identifier": "string",
     "search_context_size": "string",
@@ -6059,6 +6064,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           "property2": null
         },
         "prompt_cache_key": "string",
+        "reasoning_mode": "string",
         "reasoning_summary": "string",
         "safety_identifier": "string",
         "search_context_size": "string",
@@ -11550,6 +11556,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
               "property2": null
             },
             "prompt_cache_key": "string",
+            "reasoning_mode": "string",
             "reasoning_summary": "string",
             "safety_identifier": "string",
             "search_context_size": "string",
@@ -15564,6 +15571,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
           "property2": null
         },
         "prompt_cache_key": "string",
+        "reasoning_mode": "string",
         "reasoning_summary": "string",
         "safety_identifier": "string",
         "search_context_size": "string",

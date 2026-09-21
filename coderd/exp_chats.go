@@ -54,6 +54,7 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/agentselect"
 	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
 	"github.com/coder/coder/v2/coderd/x/chatd/chathooks"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatopenai"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
@@ -7164,7 +7165,12 @@ func (e *chatModelConfigProviderModelError) Error() string {
 	return e.Response.Message
 }
 
-func validateChatModelConfigProviderModel(aiProvider database.AIProvider, model string) *chatModelConfigProviderModelError {
+func validateChatModelConfigProviderModel(aiProvider database.AIProvider, model string, config *codersdk.ChatModelCallConfig) *chatModelConfigProviderModelError {
+	if err := chatopenai.ValidateReasoningMode(string(aiProvider.Type), config); err != nil {
+		return &chatModelConfigProviderModelError{
+			Response: codersdk.Response{Message: "Invalid model config.", Detail: err.Error()},
+		}
+	}
 	if err := chatd.ValidateAIGatewayProviderModel(aiProvider, model); err != nil {
 		return &chatModelConfigProviderModelError{
 			Response: codersdk.Response{
@@ -7398,7 +7404,7 @@ func (api *API) createChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 		if !lockedAIProvider.Enabled {
 			return errChatProviderDisabled
 		}
-		if err := validateChatModelConfigProviderModel(lockedAIProvider, insertParams.Model); err != nil {
+		if err := validateChatModelConfigProviderModel(lockedAIProvider, insertParams.Model, req.ModelConfig); err != nil {
 			return err
 		}
 
@@ -7602,7 +7608,7 @@ func (api *API) updateChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 		// An update that touches neither the provider nor the model cannot
 		// invalidate the stored provider/model pair.
 		revalidateProviderModel := updateParams.AIProviderID.Valid && (req.AIProviderID != nil || strings.TrimSpace(req.Model) != "")
-		if revalidateProviderModel {
+		if revalidateProviderModel || chatopenai.ReasoningMode(req.ModelConfig) != nil {
 			//nolint:gocritic // The provider fetch only reads the redacted descriptor fields.
 			aiProvider, err := tx.GetAIProviderByIDForReferenceLock(dbauthz.AsChatd(ctx), updateParams.AIProviderID.UUID)
 			if err != nil {
@@ -7611,10 +7617,10 @@ func (api *API) updateChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 				}
 				return xerrors.Errorf("get AI provider for update: %w", err)
 			}
-			if !aiProvider.Enabled {
+			if revalidateProviderModel && !aiProvider.Enabled {
 				return errChatProviderDisabled
 			}
-			if err := validateChatModelConfigProviderModel(aiProvider, updateParams.Model); err != nil {
+			if err := validateChatModelConfigProviderModel(aiProvider, updateParams.Model, unmarshalChatModelCallConfig(modelConfigRaw)); err != nil {
 				return err
 			}
 		}
