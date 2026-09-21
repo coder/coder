@@ -30,10 +30,13 @@ vi.mock("../hooks/useSpeechRecognition", async (importOriginal) => {
 
 const mockedUseSpeechRecognition = vi.mocked(useSpeechRecognition);
 
+// Captured once so repeated stubs within a test wrap the real
+// implementation rather than a previous stub.
+const originalMatchMedia = window.matchMedia;
+
 const stubViewport = (isMobile: boolean) => {
-	const original = window.matchMedia;
 	vi.stubGlobal("matchMedia", (query: string) => {
-		const result = original(query);
+		const result = originalMatchMedia(query);
 		return query === mobileViewportMediaQuery
 			? { ...result, matches: isMobile }
 			: result;
@@ -205,7 +208,7 @@ describe("AgentChatInput", () => {
 		expect(onSend).not.toHaveBeenCalled();
 	});
 
-	it("advertises the send shortcut only on viewports where Enter sends", () => {
+	it("advertises the Enter send shortcut only on desktop viewports", () => {
 		const props = {
 			onSend: vi.fn(),
 			isDisabled: false,
