@@ -3,6 +3,12 @@ import { defineConfig, type Plugin } from "vite";
 
 const annotatorDir = path.resolve(import.meta.dirname, "src/annotator");
 
+// Spike: bippy reads React fibers and resolves their sources. Bundling it
+// is the one exception to the dependency-free rule below, and its own
+// `react` import is redirected to an empty shim so React never ends up
+// in the overlay. Both are why this remains an exploration; see the PR.
+const allowedPackages = new Set(["bippy", "bippy/source", "react"]);
+
 /**
  * The overlay is injected into third-party pages as a classic
  * `<script src>`, so it must not rely on anything those pages do not
@@ -19,7 +25,8 @@ function dependencyFree(): Plugin {
 				importer !== undefined &&
 				!source.startsWith(".") &&
 				!path.isAbsolute(source) &&
-				!source.startsWith("\0");
+				!source.startsWith("\0") &&
+				!allowedPackages.has(source);
 			if (external) {
 				this.error(
 					`${path.relative(annotatorDir, importer)} imports "${source}". ` +
@@ -38,6 +45,11 @@ function dependencyFree(): Plugin {
 export default defineConfig({
 	publicDir: false,
 	plugins: [dependencyFree()],
+	resolve: {
+		alias: {
+			react: path.join(annotatorDir, "reactShim.ts"),
+		},
+	},
 	build: {
 		outDir: path.resolve(import.meta.dirname, "out"),
 		emptyOutDir: false,

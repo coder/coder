@@ -119,24 +119,43 @@ describe("describeElement", () => {
 		function SettingsForm() {
 			return null;
 		}
-		const fiber = {
-			type: "span",
-			return: {
-				type: SaveButton,
-				_debugSource: { fileName: "src/SettingsForm.tsx", lineNumber: 42 },
-				return: {
-					type: { $$typeof: Symbol.for("react.memo"), type: SettingsForm },
-					return: { type: "div", return: null },
-				},
-			},
-		};
+		// Enough of a fiber for bippy to accept it. Work tags: 0
+		// FunctionComponent, 5 HostComponent, 14 MemoComponent.
+		const fakeFiber = (
+			tag: number,
+			type: unknown,
+			parent: object | null,
+			memoizedProps: object = {},
+		) => ({
+			tag,
+			type,
+			return: parent,
+			memoizedProps,
+			stateNode: null,
+			child: null,
+			sibling: null,
+			flags: 0,
+			alternate: null,
+		});
+		const root = fakeFiber(5, "div", null);
+		const form = fakeFiber(
+			14,
+			{ $$typeof: Symbol.for("react.memo"), type: SettingsForm },
+			root,
+		);
+		const button = fakeFiber(0, SaveButton, form, {
+			variant: "primary",
+			onClick: () => {},
+			children: 1,
+		});
+		const fiber = fakeFiber(5, "span", button);
 		Object.defineProperty(span, "__reactFiber$abc123", {
 			value: fiber,
 			enumerable: true,
 		});
 		const described = describeElement(span);
 		expect(described.reactComponents).toEqual(["SaveButton", "SettingsForm"]);
-		expect(described.sourceLocation).toBe("src/SettingsForm.tsx:42");
+		expect(described.reactProps).toEqual(["variant", "onClick"]);
 	});
 });
 
