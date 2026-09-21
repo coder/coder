@@ -351,21 +351,6 @@ func (mr *MockStoreMockRecorder) CalculateAIBridgeInterceptionsTelemetrySummary(
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CalculateAIBridgeInterceptionsTelemetrySummary", reflect.TypeOf((*MockStore)(nil).CalculateAIBridgeInterceptionsTelemetrySummary), ctx, arg)
 }
 
-// ClaimChatMemoryExtraction mocks base method.
-func (m *MockStore) ClaimChatMemoryExtraction(ctx context.Context, arg database.ClaimChatMemoryExtractionParams) (database.ChatMemoryCursor, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ClaimChatMemoryExtraction", ctx, arg)
-	ret0, _ := ret[0].(database.ChatMemoryCursor)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// ClaimChatMemoryExtraction indicates an expected call of ClaimChatMemoryExtraction.
-func (mr *MockStoreMockRecorder) ClaimChatMemoryExtraction(ctx, arg any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ClaimChatMemoryExtraction", reflect.TypeOf((*MockStore)(nil).ClaimChatMemoryExtraction), ctx, arg)
-}
-
 // ClaimPrebuiltWorkspace mocks base method.
 func (m *MockStore) ClaimPrebuiltWorkspace(ctx context.Context, arg database.ClaimPrebuiltWorkspaceParams) (database.ClaimPrebuiltWorkspaceRow, error) {
 	m.ctrl.T.Helper()
@@ -3131,21 +3116,6 @@ func (mr *MockStoreMockRecorder) GetChatIncludeDefaultSystemPrompt(ctx any) *gom
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatIncludeDefaultSystemPrompt", reflect.TypeOf((*MockStore)(nil).GetChatIncludeDefaultSystemPrompt), ctx)
 }
 
-// GetChatMemoryCursor mocks base method.
-func (m *MockStore) GetChatMemoryCursor(ctx context.Context, chatID uuid.UUID) (database.ChatMemoryCursor, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetChatMemoryCursor", ctx, chatID)
-	ret0, _ := ret[0].(database.ChatMemoryCursor)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetChatMemoryCursor indicates an expected call of GetChatMemoryCursor.
-func (mr *MockStoreMockRecorder) GetChatMemoryCursor(ctx, chatID any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatMemoryCursor", reflect.TypeOf((*MockStore)(nil).GetChatMemoryCursor), ctx, chatID)
-}
-
 // GetChatMessageByID mocks base method.
 func (m *MockStore) GetChatMessageByID(ctx context.Context, id int64) (database.ChatMessage, error) {
 	m.ctrl.T.Helper()
@@ -3234,21 +3204,6 @@ func (m *MockStore) GetChatMessagesByRevisionForStream(ctx context.Context, arg 
 func (mr *MockStoreMockRecorder) GetChatMessagesByRevisionForStream(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatMessagesByRevisionForStream", reflect.TypeOf((*MockStore)(nil).GetChatMessagesByRevisionForStream), ctx, arg)
-}
-
-// GetChatMessagesForMemoryExtraction mocks base method.
-func (m *MockStore) GetChatMessagesForMemoryExtraction(ctx context.Context, arg database.GetChatMessagesForMemoryExtractionParams) ([]database.ChatMessage, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetChatMessagesForMemoryExtraction", ctx, arg)
-	ret0, _ := ret[0].([]database.ChatMessage)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetChatMessagesForMemoryExtraction indicates an expected call of GetChatMessagesForMemoryExtraction.
-func (mr *MockStoreMockRecorder) GetChatMessagesForMemoryExtraction(ctx, arg any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatMessagesForMemoryExtraction", reflect.TypeOf((*MockStore)(nil).GetChatMessagesForMemoryExtraction), ctx, arg)
 }
 
 // GetChatMessagesForPromptByChatID mocks base method.
@@ -9771,20 +9726,6 @@ func (mr *MockStoreMockRecorder) ReindexStaleChatMessagesSearchTsv(ctx, batchSiz
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReindexStaleChatMessagesSearchTsv", reflect.TypeOf((*MockStore)(nil).ReindexStaleChatMessagesSearchTsv), ctx, batchSize)
 }
 
-// ReleaseChatMemoryExtraction mocks base method.
-func (m *MockStore) ReleaseChatMemoryExtraction(ctx context.Context, arg database.ReleaseChatMemoryExtractionParams) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ReleaseChatMemoryExtraction", ctx, arg)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// ReleaseChatMemoryExtraction indicates an expected call of ReleaseChatMemoryExtraction.
-func (mr *MockStoreMockRecorder) ReleaseChatMemoryExtraction(ctx, arg any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReleaseChatMemoryExtraction", reflect.TypeOf((*MockStore)(nil).ReleaseChatMemoryExtraction), ctx, arg)
-}
-
 // ReleaseExternalAuthLinkRefreshLease mocks base method.
 func (m *MockStore) ReleaseExternalAuthLinkRefreshLease(ctx context.Context, arg database.ReleaseExternalAuthLinkRefreshLeaseParams) error {
 	m.ctrl.T.Helper()
@@ -12252,21 +12193,6 @@ func (m *MockStore) UpsertChatIncludeDefaultSystemPrompt(ctx context.Context, in
 func (mr *MockStoreMockRecorder) UpsertChatIncludeDefaultSystemPrompt(ctx, includeDefaultSystemPrompt any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertChatIncludeDefaultSystemPrompt", reflect.TypeOf((*MockStore)(nil).UpsertChatIncludeDefaultSystemPrompt), ctx, includeDefaultSystemPrompt)
-}
-
-// UpsertChatMemoryCursor mocks base method.
-func (m *MockStore) UpsertChatMemoryCursor(ctx context.Context, arg database.UpsertChatMemoryCursorParams) (database.ChatMemoryCursor, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpsertChatMemoryCursor", ctx, arg)
-	ret0, _ := ret[0].(database.ChatMemoryCursor)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// UpsertChatMemoryCursor indicates an expected call of UpsertChatMemoryCursor.
-func (mr *MockStoreMockRecorder) UpsertChatMemoryCursor(ctx, arg any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertChatMemoryCursor", reflect.TypeOf((*MockStore)(nil).UpsertChatMemoryCursor), ctx, arg)
 }
 
 // UpsertChatOrganizationModelOverride mocks base method.

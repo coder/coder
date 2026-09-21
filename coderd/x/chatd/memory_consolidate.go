@@ -14,6 +14,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 const (
@@ -46,7 +47,7 @@ type memoryConsolidationMerge struct {
 }
 
 func (p *Server) maybeConsolidateMemoriesAsync(ctx context.Context, logger slog.Logger, chat database.Chat) {
-	if chat.ParentChatID.Valid {
+	if !p.experiments.Enabled(codersdk.ExperimentChatProjects) || chat.ParentChatID.Valid || !chat.ProjectID.Valid {
 		return
 	}
 	consolidationCtx, cancel := p.inflightContext(ctx)

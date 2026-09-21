@@ -5220,14 +5220,6 @@ type ChatHeartbeat struct {
 	HeartbeatAt time.Time `db:"heartbeat_at" json:"heartbeat_at"`
 }
 
-// Per-chat cursors for memory extraction.
-type ChatMemoryCursor struct {
-	ChatID         uuid.UUID    `db:"chat_id" json:"chat_id"`
-	HistoryVersion int64        `db:"history_version" json:"history_version"`
-	ExtractedAt    time.Time    `db:"extracted_at" json:"extracted_at"`
-	ClaimedUntil   sql.NullTime `db:"claimed_until" json:"claimed_until"`
-}
-
 type ChatMessage struct {
 	ID                  int64                 `db:"id" json:"id"`
 	ChatID              uuid.UUID             `db:"chat_id" json:"chat_id"`

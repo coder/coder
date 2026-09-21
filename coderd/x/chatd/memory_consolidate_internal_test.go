@@ -401,14 +401,15 @@ func TestConsolidateMemories(t *testing.T) {
 func TestMaybeConsolidateMemoriesAsync(t *testing.T) {
 	t.Parallel()
 
-	t.Run("SubagentSkips", func(t *testing.T) {
+	t.Run("SkipsChatsWithoutMemory", func(t *testing.T) {
 		t.Parallel()
 
+		// No database is wired, so reaching the worker would panic.
 		server := &Server{experiments: codersdk.ExperimentsKnown}
-		server.maybeConsolidateMemoriesAsync(t.Context(), slogtest.Make(t, nil), database.Chat{
-			ID:           uuid.New(),
-			ParentChatID: uuid.NullUUID{UUID: uuid.New(), Valid: true},
-		})
+		projectID := uuid.NullUUID{UUID: uuid.New(), Valid: true}
+		server.maybeConsolidateMemoriesAsync(t.Context(), slogtest.Make(t, nil), database.Chat{ID: uuid.New(), ProjectID: projectID, ParentChatID: uuid.NullUUID{UUID: uuid.New(), Valid: true}})
+		server.maybeConsolidateMemoriesAsync(t.Context(), slogtest.Make(t, nil), database.Chat{ID: uuid.New()})
+		(&Server{}).maybeConsolidateMemoriesAsync(t.Context(), slogtest.Make(t, nil), database.Chat{ID: uuid.New(), ProjectID: projectID})
 	})
 
 	t.Run("RunsConsolidation", func(t *testing.T) {

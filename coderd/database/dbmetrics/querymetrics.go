@@ -272,14 +272,6 @@ func (m queryMetricsStore) CalculateAIBridgeInterceptionsTelemetrySummary(ctx co
 	return r0, r1
 }
 
-func (m queryMetricsStore) ClaimChatMemoryExtraction(ctx context.Context, arg database.ClaimChatMemoryExtractionParams) (database.ChatMemoryCursor, error) {
-	start := time.Now()
-	r0, r1 := m.s.ClaimChatMemoryExtraction(ctx, arg)
-	m.queryLatencies.WithLabelValues("ClaimChatMemoryExtraction").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ClaimChatMemoryExtraction").Inc()
-	return r0, r1
-}
-
 func (m queryMetricsStore) ClaimPrebuiltWorkspace(ctx context.Context, arg database.ClaimPrebuiltWorkspaceParams) (database.ClaimPrebuiltWorkspaceRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.ClaimPrebuiltWorkspace(ctx, arg)
@@ -1672,14 +1664,6 @@ func (m queryMetricsStore) GetChatIncludeDefaultSystemPrompt(ctx context.Context
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetChatMemoryCursor(ctx context.Context, chatID uuid.UUID) (database.ChatMemoryCursor, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetChatMemoryCursor(ctx, chatID)
-	m.queryLatencies.WithLabelValues("GetChatMemoryCursor").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatMemoryCursor").Inc()
-	return r0, r1
-}
-
 func (m queryMetricsStore) GetChatMessageByID(ctx context.Context, id int64) (database.ChatMessage, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetChatMessageByID(ctx, id)
@@ -1725,14 +1709,6 @@ func (m queryMetricsStore) GetChatMessagesByRevisionForStream(ctx context.Contex
 	r0, r1 := m.s.GetChatMessagesByRevisionForStream(ctx, arg)
 	m.queryLatencies.WithLabelValues("GetChatMessagesByRevisionForStream").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatMessagesByRevisionForStream").Inc()
-	return r0, r1
-}
-
-func (m queryMetricsStore) GetChatMessagesForMemoryExtraction(ctx context.Context, arg database.GetChatMessagesForMemoryExtractionParams) ([]database.ChatMessage, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetChatMessagesForMemoryExtraction(ctx, arg)
-	m.queryLatencies.WithLabelValues("GetChatMessagesForMemoryExtraction").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatMessagesForMemoryExtraction").Inc()
 	return r0, r1
 }
 
@@ -5144,14 +5120,6 @@ func (m queryMetricsStore) ReindexStaleChatMessagesSearchTsv(ctx context.Context
 	return r0, r1
 }
 
-func (m queryMetricsStore) ReleaseChatMemoryExtraction(ctx context.Context, arg database.ReleaseChatMemoryExtractionParams) error {
-	start := time.Now()
-	r0 := m.s.ReleaseChatMemoryExtraction(ctx, arg)
-	m.queryLatencies.WithLabelValues("ReleaseChatMemoryExtraction").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ReleaseChatMemoryExtraction").Inc()
-	return r0
-}
-
 func (m queryMetricsStore) ReleaseExternalAuthLinkRefreshLease(ctx context.Context, arg database.ReleaseExternalAuthLinkRefreshLeaseParams) error {
 	start := time.Now()
 	r0 := m.s.ReleaseExternalAuthLinkRefreshLease(ctx, arg)
@@ -6510,14 +6478,6 @@ func (m queryMetricsStore) UpsertChatIncludeDefaultSystemPrompt(ctx context.Cont
 	m.queryLatencies.WithLabelValues("UpsertChatIncludeDefaultSystemPrompt").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpsertChatIncludeDefaultSystemPrompt").Inc()
 	return r0
-}
-
-func (m queryMetricsStore) UpsertChatMemoryCursor(ctx context.Context, arg database.UpsertChatMemoryCursorParams) (database.ChatMemoryCursor, error) {
-	start := time.Now()
-	r0, r1 := m.s.UpsertChatMemoryCursor(ctx, arg)
-	m.queryLatencies.WithLabelValues("UpsertChatMemoryCursor").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpsertChatMemoryCursor").Inc()
-	return r0, r1
 }
 
 func (m queryMetricsStore) UpsertChatOrganizationModelOverride(ctx context.Context, arg database.UpsertChatOrganizationModelOverrideParams) error {

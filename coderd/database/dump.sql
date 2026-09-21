@@ -2033,15 +2033,6 @@ CREATE UNLOGGED TABLE chat_heartbeats (
 
 COMMENT ON TABLE chat_heartbeats IS 'Ephemeral runner ownership leases for runnable chats. The table is unlogged because losing heartbeat rows after a crash is safe: missing heartbeats are treated as stale ownership and cause workers to reacquire runnable chats.';
 
-CREATE TABLE chat_memory_cursors (
-    chat_id uuid NOT NULL,
-    history_version bigint NOT NULL,
-    extracted_at timestamp with time zone DEFAULT now() NOT NULL,
-    claimed_until timestamp with time zone
-);
-
-COMMENT ON TABLE chat_memory_cursors IS 'Per-chat cursors for memory extraction.';
-
 CREATE TABLE chat_messages (
     id bigint NOT NULL,
     chat_id uuid NOT NULL,
@@ -4356,9 +4347,6 @@ ALTER TABLE ONLY chat_files
 ALTER TABLE ONLY chat_heartbeats
     ADD CONSTRAINT chat_heartbeats_pkey PRIMARY KEY (chat_id, runner_id);
 
-ALTER TABLE ONLY chat_memory_cursors
-    ADD CONSTRAINT chat_memory_cursors_pkey PRIMARY KEY (chat_id);
-
 ALTER TABLE ONLY chat_messages
     ADD CONSTRAINT chat_messages_pkey PRIMARY KEY (id);
 
@@ -5230,9 +5218,6 @@ ALTER TABLE ONLY chat_files
 
 ALTER TABLE ONLY chat_heartbeats
     ADD CONSTRAINT chat_heartbeats_chat_id_fkey FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE;
-
-ALTER TABLE ONLY chat_memory_cursors
-    ADD CONSTRAINT chat_memory_cursors_chat_id_fkey FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY chat_messages
     ADD CONSTRAINT chat_messages_chat_id_fkey FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE;

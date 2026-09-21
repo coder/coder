@@ -879,7 +879,7 @@ func (server *Server) afterGenerationOutcome(
 		finalizeCtx := context.WithoutCancel(ctx)
 		runResult := server.deriveFinalTurnRunResult(finalizeCtx, chat, logger)
 		server.maybeFinalizeTurnStatusLabelAndPush(finalizeCtx, chat, chat.Status, "", runResult, logger)
-		server.maybeExtractMemoriesAsync(finalizeCtx, logger, chat)
+		server.maybeConsolidateMemoriesAsync(finalizeCtx, logger, chat)
 	case runnerActionKindFinishError:
 		server.maybeFinalizeTurnStatusLabelAndPush(context.WithoutCancel(ctx), chat, chat.Status, outcome.LastError, runChatResult{}, logger)
 	case runnerActionKindEnterRequiresAction:
