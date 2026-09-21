@@ -106,6 +106,10 @@ __debug_bin*
 # Local agent configuration
 AGENTS.local.md
 
+# FuXi CLI local state (projects, settings, scheduled tasks)
+.fuxi/
+**/.fuxi/
+
 # mise local overrides
 mise.local.toml
 .mise.local.toml
