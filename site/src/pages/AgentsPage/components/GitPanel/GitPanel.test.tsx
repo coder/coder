@@ -162,7 +162,6 @@ describe("GitPanel per-ref views", () => {
 			],
 		});
 
-		// The default view targets the primary ref.
 		await waitFor(() =>
 			expect(getDiff).toHaveBeenCalledWith(
 				"test-chat",
@@ -177,7 +176,6 @@ describe("GitPanel per-ref views", () => {
 		const menu = await screen.findByRole("menu");
 		await user.click(within(menu).getByText("PR #23021"));
 
-		// After the switch, the fetch must target the second ref.
 		await waitFor(() =>
 			expect(getDiff).toHaveBeenLastCalledWith(
 				"test-chat",
@@ -243,7 +241,6 @@ describe("GitPanel per-ref views", () => {
 		};
 		view.rerenderPanel({ remoteDiffStats: [firstRef, secondRef] });
 
-		// The first arriving ref drives the default fetch.
 		await waitFor(() =>
 			expect(getDiff).toHaveBeenCalledWith(
 				"test-chat",
@@ -284,9 +281,6 @@ describe("GitPanel per-ref views", () => {
 		// primary and demotes the legacy row behind it.
 		rerenderPanel({ remoteDiffStats: [keyedRef, legacyKeyless] });
 
-		// The view must leave the hidden legacy row alone: an empty
-		// selector would fetch the primary's diff under the legacy
-		// PR's title. The fetch must target the new primary.
 		await waitFor(() =>
 			expect(getDiff).toHaveBeenLastCalledWith(
 				"test-chat",
