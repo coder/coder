@@ -304,10 +304,11 @@ func TestSearchTsvBackfillDoesNotTouchChatState(t *testing.T) {
 	require.NotEqual(t, bumped.SnapshotVersion, bumped.HistoryVersion,
 		"snapshot bump leaves history_version trailing")
 
-	// Backfill-shaped UPDATE: only search_tsv changes.
+	// Backfill-shaped UPDATE: only search_tsv and search_tsv_config change.
 	_, err = tf.sqlDB.ExecContext(ctx, `
 		UPDATE chat_messages
-		SET search_tsv = COALESCE(to_tsvector('simple', chat_message_search_text(content)), ''::tsvector)
+		SET search_tsv = COALESCE(to_tsvector('english', chat_message_search_text(content)), ''::tsvector),
+		    search_tsv_config = 'english'
 		WHERE id = $1
 	`, target.ID)
 	require.NoError(t, err)

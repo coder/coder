@@ -9,7 +9,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/aibridge"
-	"github.com/coder/coder/v2/aibridge/utils"
 )
 
 func TestGuessSessionID(t *testing.T) {
@@ -28,40 +27,40 @@ func TestGuessSessionID(t *testing.T) {
 			client:    aibridge.ClientClaudeCode,
 			headers:   map[string]string{"X-Claude-Code-Session-Id": "header-session-id"},
 			body:      `{"metadata":{"user_id":"user_abc123_account_456_session_body-session-id"}}`,
-			sessionID: utils.PtrTo("header-session-id"),
+			sessionID: new("header-session-id"),
 		},
 		{
 			name:      "claude_code_header_only",
 			client:    aibridge.ClientClaudeCode,
 			headers:   map[string]string{"X-Claude-Code-Session-Id": "aabb-ccdd"},
 			body:      `{"model":"claude-3"}`,
-			sessionID: utils.PtrTo("aabb-ccdd"),
+			sessionID: new("aabb-ccdd"),
 		},
 		{
 			name:      "claude_code_empty_header_falls_back_to_body",
 			client:    aibridge.ClientClaudeCode,
 			headers:   map[string]string{"X-Claude-Code-Session-Id": ""},
 			body:      `{"metadata":{"user_id":"user_abc123_account_456_session_f47ac10b-58cc-4372-a567-0e02b2c3d479"}}`,
-			sessionID: utils.PtrTo("f47ac10b-58cc-4372-a567-0e02b2c3d479"),
+			sessionID: new("f47ac10b-58cc-4372-a567-0e02b2c3d479"),
 		},
 		{
 			name:      "claude_code_whitespace_header_falls_back_to_body",
 			client:    aibridge.ClientClaudeCode,
 			headers:   map[string]string{"X-Claude-Code-Session-Id": "   "},
 			body:      `{"metadata":{"user_id":"user_abc123_account_456_session_f47ac10b-58cc-4372-a567-0e02b2c3d479"}}`,
-			sessionID: utils.PtrTo("f47ac10b-58cc-4372-a567-0e02b2c3d479"),
+			sessionID: new("f47ac10b-58cc-4372-a567-0e02b2c3d479"),
 		},
 		{
 			name:      "claude_code_with_valid_session",
 			client:    aibridge.ClientClaudeCode,
 			body:      `{"metadata":{"user_id":"user_abc123_account_456_session_f47ac10b-58cc-4372-a567-0e02b2c3d479"}}`,
-			sessionID: utils.PtrTo("f47ac10b-58cc-4372-a567-0e02b2c3d479"),
+			sessionID: new("f47ac10b-58cc-4372-a567-0e02b2c3d479"),
 		},
 		{
 			name:      "claude_code_with_valid_session_new_format",
 			client:    aibridge.ClientClaudeCode,
 			body:      `{"metadata":{"user_id":"{\"device_id\":\"45aa15c8c244ea2582f8144dde91a50ec3815851f6f648abef4ee15b173cc927\",\"account_uuid\":\"\",\"session_id\":\"54c1eb09-bc4c-4d2f-98eb-6d2ab2d5e2fe\"}"}}`,
-			sessionID: utils.PtrTo("54c1eb09-bc4c-4d2f-98eb-6d2ab2d5e2fe"),
+			sessionID: new("54c1eb09-bc4c-4d2f-98eb-6d2ab2d5e2fe"),
 		},
 		{
 			name:   "claude_code_new_format_empty_session_id",
@@ -103,25 +102,25 @@ func TestGuessSessionID(t *testing.T) {
 			name:      "codex_with_session_header",
 			client:    aibridge.ClientCodex,
 			headers:   map[string]string{"session_id": "codex-session-123"},
-			sessionID: utils.PtrTo("codex-session-123"),
+			sessionID: new("codex-session-123"),
 		},
 		{
 			name:      "codex_with_hyphenated_session_header",
 			client:    aibridge.ClientCodex,
 			headers:   map[string]string{"session-id": "codex-session-456"},
-			sessionID: utils.PtrTo("codex-session-456"),
+			sessionID: new("codex-session-456"),
 		},
 		{
 			name:      "codex_hyphenated_header_takes_precedence",
 			client:    aibridge.ClientCodex,
 			headers:   map[string]string{"session-id": "codex-session-new", "session_id": "codex-session-old"},
-			sessionID: utils.PtrTo("codex-session-new"),
+			sessionID: new("codex-session-new"),
 		},
 		{
 			name:      "codex_with_whitespace_in_header",
 			client:    aibridge.ClientCodex,
 			headers:   map[string]string{"session_id": "  codex-session-123  "},
-			sessionID: utils.PtrTo("codex-session-123"),
+			sessionID: new("codex-session-123"),
 		},
 		{
 			name:   "codex_without_session_header",
@@ -144,7 +143,7 @@ func TestGuessSessionID(t *testing.T) {
 			name:      "xum_with_workspace_header",
 			client:    aibridge.ClientXum,
 			headers:   map[string]string{"X-Mux-Workspace-Id": "ws-abc-123"},
-			sessionID: utils.PtrTo("ws-abc-123"),
+			sessionID: new("ws-abc-123"),
 		},
 		{
 			name:   "xum_without_workspace_header",
@@ -155,7 +154,7 @@ func TestGuessSessionID(t *testing.T) {
 			name:      "copilot_vsc_with_interaction_id",
 			client:    aibridge.ClientCopilotVSC,
 			headers:   map[string]string{"x-interaction-id": "interaction-xyz"},
-			sessionID: utils.PtrTo("interaction-xyz"),
+			sessionID: new("interaction-xyz"),
 		},
 		{
 			name:   "copilot_vsc_without_interaction_id",
@@ -166,7 +165,7 @@ func TestGuessSessionID(t *testing.T) {
 			name:      "copilot_cli_with_session_header",
 			client:    aibridge.ClientCopilotCLI,
 			headers:   map[string]string{"X-Client-Session-Id": "cli-sess-456"},
-			sessionID: utils.PtrTo("cli-sess-456"),
+			sessionID: new("cli-sess-456"),
 		},
 		{
 			name:   "copilot_cli_without_session_header",
@@ -177,7 +176,7 @@ func TestGuessSessionID(t *testing.T) {
 			name:      "kilo_with_task_id",
 			client:    aibridge.ClientKilo,
 			headers:   map[string]string{"X-KILOCODE-TASKID": "task-789"},
-			sessionID: utils.PtrTo("task-789"),
+			sessionID: new("task-789"),
 		},
 		{
 			name:   "kilo_without_task_id",
@@ -188,7 +187,7 @@ func TestGuessSessionID(t *testing.T) {
 			name:      "coder_agents_with_chat_id",
 			client:    aibridge.ClientCoderAgents,
 			headers:   map[string]string{"X-Coder-Chat-Id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890"},
-			sessionID: utils.PtrTo("a1b2c3d4-e5f6-7890-abcd-ef1234567890"),
+			sessionID: new("a1b2c3d4-e5f6-7890-abcd-ef1234567890"),
 		},
 		{
 			name:   "coder_agents_without_chat_id",
@@ -199,25 +198,25 @@ func TestGuessSessionID(t *testing.T) {
 			name:      "opencode_with_session_header",
 			client:    aibridge.ClientOpenCode,
 			headers:   map[string]string{"X-OpenCode-Session": "ses_15a48edefffe7oY0YcIHRv29dD"},
-			sessionID: utils.PtrTo("ses_15a48edefffe7oY0YcIHRv29dD"),
+			sessionID: new("ses_15a48edefffe7oY0YcIHRv29dD"),
 		},
 		{
 			name:      "opencode_with_whitespace_in_header",
 			client:    aibridge.ClientOpenCode,
 			headers:   map[string]string{"X-OpenCode-Session": "  ses_15a48edefffe7oY0YcIHRv29dD  "},
-			sessionID: utils.PtrTo("ses_15a48edefffe7oY0YcIHRv29dD"),
+			sessionID: new("ses_15a48edefffe7oY0YcIHRv29dD"),
 		},
 		{
 			name:      "opencode_zen_header_takes_precedence_over_session_affinity",
 			client:    aibridge.ClientOpenCode,
 			headers:   map[string]string{"X-OpenCode-Session": "zen-session", "x-session-affinity": "other-session"},
-			sessionID: utils.PtrTo("zen-session"),
+			sessionID: new("zen-session"),
 		},
 		{
 			name:      "opencode_session_affinity_fallback",
 			client:    aibridge.ClientOpenCode,
 			headers:   map[string]string{"x-session-affinity": "affinity-session-123"},
-			sessionID: utils.PtrTo("affinity-session-123"),
+			sessionID: new("affinity-session-123"),
 		},
 		{
 			name:   "opencode_without_session_header",

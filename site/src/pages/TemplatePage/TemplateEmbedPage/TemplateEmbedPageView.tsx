@@ -95,7 +95,7 @@ export const TemplateEmbedPageView: React.FC<TemplateEmbedPageViewProps> = ({
 
 	return (
 		<div className="flex flex-col-reverse gap-12 md:flex-row md:items-start md:justify-around">
-			<div className="flex flex-col grow gap-5 max-w-screen-sm">
+			<div className="flex flex-col grow gap-5 max-w-(--breakpoint-sm)">
 				<div className="flex flex-col gap-9">
 					<section className="flex flex-col gap-2">
 						<div>

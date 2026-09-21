@@ -1,4 +1,6 @@
-# Port Forwarding
+---
+title: Port Forwarding
+---
 
 Port forwarding lets developers securely access processes on their Coder
 workspace from a local machine. A common use case is testing web applications in

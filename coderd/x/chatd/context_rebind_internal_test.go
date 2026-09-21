@@ -78,9 +78,53 @@ func TestPersistBuildAgentBindingRepinsContext(t *testing.T) {
 		require.JSONEq(t, string(fix.bodyB), string(postRes[0].Body), "the new agent's resource body is copied verbatim")
 	})
 
-	// SkipsRepinWhenNoPriorAgent: binding a chat that had no agent must not
-	// re-pin here (the create/push path owns first-time pinning), so the guard
-	// leaves the chat's context untouched.
+	// RepinsStaleContextWhenLifecycleToolClearedAgent: workspace lifecycle
+	// tools temporarily clear agent_id while preserving the existing pin. The
+	// subsequent bind must replace that stale pin with the new agent's context.
+	t.Run("RepinsStaleContextWhenLifecycleToolClearedAgent", func(t *testing.T) {
+		t.Parallel()
+		fix := newRebindFixture(t)
+
+		chat := dbgen.Chat(t, fix.db, database.Chat{
+			OwnerID:           fix.user.ID,
+			OrganizationID:    fix.org.ID,
+			LastModelConfigID: fix.model.ID,
+			WorkspaceID:       uuid.NullUUID{UUID: fix.ws.ID, Valid: true},
+			AgentID:           uuid.NullUUID{UUID: fix.agentA, Valid: true},
+			Status:            database.ChatStatusWaiting,
+		})
+		_, err := fix.db.HydrateAgentChatsContext(fix.ctx, database.HydrateAgentChatsContextParams{
+			AgentID:       fix.agentA,
+			AggregateHash: fix.hashA,
+		})
+		require.NoError(t, err)
+
+		unbound, err := fix.db.UpdateChatWorkspaceBinding(fix.ctx, database.UpdateChatWorkspaceBindingParams{
+			ID:          chat.ID,
+			WorkspaceID: chat.WorkspaceID,
+			BuildID:     uuid.NullUUID{UUID: fix.buildID, Valid: true},
+			AgentID:     uuid.NullUUID{},
+		})
+		require.NoError(t, err)
+		require.False(t, unbound.AgentID.Valid, "lifecycle tool clears the agent binding")
+		require.Equal(t, fix.hashA, unbound.ContextAggregateHash, "lifecycle tool preserves the old pin")
+
+		wc := newRebindTurnContext(t, fix.db, unbound)
+		updated, err := wc.persistBuildAgentBinding(fix.ctx, unbound, fix.buildID, fix.agentB)
+		require.NoError(t, err)
+		require.Equal(t, fix.agentB, updated.AgentID.UUID, "the binding commits the new agent")
+
+		post, err := fix.db.GetChatByID(fix.ctx, chat.ID)
+		require.NoError(t, err)
+		require.Equal(t, fix.hashB, post.ContextAggregateHash, "rebind replaces the stale pin")
+		postRes, err := fix.db.ListChatContextResourcesByChatID(fix.ctx, chat.ID)
+		require.NoError(t, err)
+		require.Len(t, postRes, 1)
+		require.Equal(t, fix.srcB, postRes[0].Source)
+	})
+
+	// SkipsRepinWhenNoPriorAgent: binding a chat that had no agent or pinned
+	// context must not re-pin here. The create/push path owns first-time pinning.
 	t.Run("SkipsRepinWhenNoPriorAgent", func(t *testing.T) {
 		t.Parallel()
 		fix := newRebindFixture(t)

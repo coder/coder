@@ -3,8 +3,8 @@
  * @see {@link https://ui.shadcn.com/docs/components/button}
  */
 import { cva, type VariantProps } from "class-variance-authority";
+import { cn } from "cn";
 import { Slot } from "radix-ui";
-import { cn } from "#/utils/cn";
 
 // Be careful when changing the child styles from the button such as images
 // because they can override the styles from other components like Avatar.
@@ -13,7 +13,7 @@ const buttonVariants = cva(
 	group inline-flex items-center justify-center gap-1 whitespace-nowrap font-sans
 	border-solid rounded-md transition-colors shrink-0
 	text-sm font-medium cursor-pointer no-underline
-	focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-content-link
+	focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link
 	disabled:pointer-events-none disabled:text-content-disabled
 	[&:is(a):not([href])]:pointer-events-none [&:is(a):not([href])]:text-content-disabled
 	[&>svg]:pointer-events-none [&>svg]:shrink-0 [&>svg]:p-0.5

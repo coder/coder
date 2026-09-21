@@ -8,7 +8,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/healthcheck/health"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 )
 
 func Test_WorkspaceProxyReport_appendErrors(t *testing.T) {
@@ -52,7 +51,7 @@ func Test_WorkspaceProxyReport_appendErrors(t *testing.T) {
 
 			var rpt WorkspaceProxyReport
 			if tt.prevErr != "" {
-				rpt.Error = ptr.Ref(tt.prevErr)
+				rpt.Error = new(tt.prevErr)
 			}
 			rpt.appendError(tt.errs...)
 			if tt.expected == "" {

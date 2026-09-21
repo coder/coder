@@ -8,6 +8,7 @@ import {
 	MockWorkspaceProxies,
 	mockApiError,
 } from "#/testHelpers/entities";
+import { docs } from "#/utils/docs";
 import { WorkspaceProxyView } from "./WorkspaceProxyView";
 
 const meta: Meta<typeof WorkspaceProxyView> = {
@@ -29,6 +30,12 @@ export const PrimarySelected: Story = {
 		proxies: MockWorkspaceProxies,
 		proxyLatencies: MockProxyLatencies,
 		preferredProxy: MockPrimaryWorkspaceProxy,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(
+			canvas.getByRole("link", { name: /View docs/ }),
+		).toHaveAttribute("href", docs("/admin/networking/workspace-proxies"));
 	},
 };
 

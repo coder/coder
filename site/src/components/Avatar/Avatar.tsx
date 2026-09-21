@@ -10,19 +10,19 @@
  * @see {@link https://github.com/coder/coder/pull/15930#issuecomment-2552292440}
  */
 import { cva, type VariantProps } from "class-variance-authority";
+import { cn } from "cn";
 import { Avatar as AvatarPrimitive } from "radix-ui";
 import { useAppearance } from "#/theme/appearance";
 import { getExternalImageStylesFromUrl } from "#/theme/externalImages";
-import { cn } from "#/utils/cn";
 
 const avatarVariants = cva(
 	"relative flex shrink-0 overflow-hidden rounded border border-solid bg-surface-secondary text-content-secondary",
 	{
 		variants: {
 			size: {
-				lg: "size-[--avatar-lg] rounded-[6px] text-sm font-medium",
-				md: "size-[--avatar-default] text-2xs",
-				sm: "size-[--avatar-sm] text-[8px]",
+				lg: "size-(--avatar-lg) rounded-[6px] text-sm font-medium",
+				md: "size-(--avatar-default) text-2xs",
+				sm: "size-(--avatar-sm) text-[8px]",
 			},
 			variant: {
 				default: null,

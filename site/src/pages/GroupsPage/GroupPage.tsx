@@ -1,7 +1,8 @@
-import { TrashIcon, UserPlusIcon } from "lucide-react";
+import { ArrowLeftIcon, TrashIcon, UserPlusIcon } from "lucide-react";
 import { type ComponentProps, type FC, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import {
+	Link,
 	Outlet,
 	useLocation,
 	useNavigate,
@@ -24,7 +25,6 @@ import type {
 } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Avatar } from "#/components/Avatar/Avatar";
-import { AvatarData } from "#/components/Avatar/AvatarData";
 import { Button } from "#/components/Button/Button";
 import { DeleteDialog } from "#/components/Dialog/DeleteDialog/DeleteDialog";
 import {
@@ -38,11 +38,7 @@ import type { UsersFilter } from "#/components/Filter/UsersFilter";
 import { Loader } from "#/components/Loader/Loader";
 import { MultiMemberSelect } from "#/components/MultiUserSelect/MultiUserSelect";
 import type { PaginationResult } from "#/components/PaginationWidget/PaginationContainer";
-import {
-	SettingsHeader,
-	SettingsHeaderDescription,
-	SettingsHeaderTitle,
-} from "#/components/SettingsHeader/SettingsHeader";
+import { SettingsHeaderTitle } from "#/components/SettingsHeader/SettingsHeader";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { LinkTabs, LinkTabsList, TabLink } from "#/components/Tabs/Tabs";
 import { usePaginatedQuery } from "#/hooks/usePaginatedQuery";
@@ -128,54 +124,57 @@ const GroupPage: FC = () => {
 		<>
 			{title}
 
-			<SettingsHeader
-				actions={
-					canUpdateGroup && (
-						<div className="flex items-center gap-2">
-							{!isEveryoneGroup(groupData) && (
-								<AddUsersDialog
-									organizationId={groupData.organization_id}
-									onSubmit={async (users) => {
-										await addMembersMutation.mutateAsync({
-											groupId: groupData.id,
-											userIds: users.map((u) => u.user_id),
-										});
-									}}
-								/>
-							)}
-							<Button
-								variant="destructive"
-								disabled={groupData.id === groupData.organization_id}
-								onClick={() => {
-									setIsDeletingGroup(true);
+			<div className="flex justify-between items-center">
+				<Button variant="subtle" asChild className="-ml-3">
+					<Link to={activeTab === "settings" ? "../.." : ".."} relative="path">
+						<ArrowLeftIcon />
+						<span>Back to groups</span>
+					</Link>
+				</Button>
+				{canUpdateGroup && (
+					<div className="flex items-center gap-2">
+						{!isEveryoneGroup(groupData) && (
+							<AddUsersDialog
+								organizationId={groupData.organization_id}
+								onSubmit={async (users) => {
+									await addMembersMutation.mutateAsync({
+										groupId: groupData.id,
+										userIds: users.map((u) => u.user_id),
+									});
 								}}
-							>
-								<TrashIcon />
-								Delete&hellip;
-							</Button>
-						</div>
-					)
-				}
-			>
-				<AvatarData
-					avatar={
-						<Avatar
-							src={groupData.avatar_url}
-							fallback={groupData.display_name || groupData.name}
-							size="lg"
-						/>
-					}
-					title={
-						<SettingsHeaderTitle>
+							/>
+						)}
+						<Button
+							variant="destructive"
+							disabled={groupData.id === groupData.organization_id}
+							onClick={() => {
+								setIsDeletingGroup(true);
+							}}
+						>
+							<TrashIcon />
+							Delete
+						</Button>
+					</div>
+				)}
+			</div>
+
+			<div className="flex flex-col gap-6 pt-6">
+				<div className="flex items-center gap-4 min-w-0">
+					<Avatar
+						src={groupData.avatar_url}
+						fallback={groupData.display_name || groupData.name}
+						size="lg"
+					/>
+					<SettingsHeaderTitle>
+						<span className="block min-w-0 truncate">
 							{groupData.display_name || groupData.name || "Unknown Group"}
-						</SettingsHeaderTitle>
-					}
-				/>
-				<SettingsHeaderDescription>
+						</span>
+					</SettingsHeaderTitle>
+				</div>
+				<p className="text-sm text-content-secondary m-0">
 					Manage members for this group.
-				</SettingsHeaderDescription>
-			</SettingsHeader>
-			<div className="flex flex-col gap-10 w-full">
+				</p>
+
 				{canUpdateGroup && (
 					<LinkTabs
 						active={activeTab}

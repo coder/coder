@@ -35,7 +35,7 @@ const meta: Meta<typeof UpdateModelPageView> = {
 			<OrganizationModelsContext.Provider
 				value={{
 					organization: MockDefaultOrganization,
-					organizations: [MockDefaultOrganization],
+					accessibleOrganizations: [MockDefaultOrganization],
 					permissions: MockOrganizationPermissions,
 					requestedOrganizationDenied: false,
 				}}
@@ -73,6 +73,18 @@ export const Default: Story = {
 			canvas.getByRole("button", { name: /^update model$/i }),
 		).toBeVisible();
 		await expect(canvas.getByLabelText(/model identifier/i)).toBeEnabled();
+		// Switching org while editing would 404 the model, so the organization
+		// renders as a static value rather than a picker.
+		await expect(
+			canvas.getByLabelText(
+				`Organization ${MockDefaultOrganization.display_name}`,
+			),
+		).toBeVisible();
+		expect(
+			canvas.queryByRole("button", {
+				name: `Organization ${MockDefaultOrganization.display_name}`,
+			}),
+		).not.toBeInTheDocument();
 	},
 };
 

@@ -1,6 +1,6 @@
+import { cn } from "cn";
 import type { FC, ReactNode } from "react";
 import { Avatar } from "#/components/Avatar/Avatar";
-import { cn } from "#/utils/cn";
 
 type AvatarCardProps = {
 	header: string;

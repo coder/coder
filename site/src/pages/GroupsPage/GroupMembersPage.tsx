@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import dayjs from "dayjs";
 import { EllipsisVerticalIcon } from "lucide-react";
 import { type FC, useEffect, useState } from "react";
@@ -39,7 +40,6 @@ import {
 import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
-import { cn } from "#/utils/cn";
 import { formatBudgetUSD } from "#/utils/currency";
 import { SpendEstimateDocsLink } from "./AICostControl";
 import {
@@ -238,8 +238,8 @@ const GroupMemberRow: FC<GroupMemberRowProps> = ({
 	onManageAIBudget,
 	onRemove,
 }) => {
-	const budgetFromOtherGroup =
-		effectiveBudgetGroup(member.spend, group).kind === "other";
+	const budgetFromOtherOrganization =
+		effectiveBudgetGroup(member.spend, group).kind === "otherOrg";
 
 	return (
 		<TableRow key={member.id}>
@@ -288,7 +288,7 @@ const GroupMemberRow: FC<GroupMemberRowProps> = ({
 							{showAIBudget && (
 								<DropdownMenuItem
 									onClick={onManageAIBudget}
-									disabled={budgetFromOtherGroup}
+									disabled={budgetFromOtherOrganization}
 								>
 									Manage AI budget
 								</DropdownMenuItem>

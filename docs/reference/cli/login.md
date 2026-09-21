@@ -73,6 +73,69 @@ Specifies a password to use if creating the first user for the deployment.
 
 Specifies whether a trial license should be provisioned for the Coder deployment or not.
 
+### --first-user-trial-first-name
+
+|             |                                                 |
+|-------------|-------------------------------------------------|
+| Type        | <code>string</code>                             |
+| Environment | <code>$CODER_FIRST_USER_TRIAL_FIRST_NAME</code> |
+
+Specifies the first name of the first user for the deployment. Only used if --first-user-trial is set.
+
+### --first-user-trial-last-name
+
+|             |                                                |
+|-------------|------------------------------------------------|
+| Type        | <code>string</code>                            |
+| Environment | <code>$CODER_FIRST_USER_TRIAL_LAST_NAME</code> |
+
+Specifies the last name of the first user for the deployment. Only used if --first-user-trial is set.
+
+### --first-user-trial-phone-number
+
+|             |                                                   |
+|-------------|---------------------------------------------------|
+| Type        | <code>string</code>                               |
+| Environment | <code>$CODER_FIRST_USER_TRIAL_PHONE_NUMBER</code> |
+
+Specifies the phone number of the first user for the deployment. Only used if --first-user-trial is set.
+
+### --first-user-trial-job-title
+
+|             |                                                |
+|-------------|------------------------------------------------|
+| Type        | <code>string</code>                            |
+| Environment | <code>$CODER_FIRST_USER_TRIAL_JOB_TITLE</code> |
+
+Specifies the job title of the first user for the deployment. Only used if --first-user-trial is set.
+
+### --first-user-trial-company-name
+
+|             |                                                   |
+|-------------|---------------------------------------------------|
+| Type        | <code>string</code>                               |
+| Environment | <code>$CODER_FIRST_USER_TRIAL_COMPANY_NAME</code> |
+
+Specifies the company name of the first user for the deployment. Only used if --first-user-trial is set.
+
+### --first-user-trial-country
+
+|             |                                              |
+|-------------|----------------------------------------------|
+| Type        | <code>string</code>                          |
+| Environment | <code>$CODER_FIRST_USER_TRIAL_COUNTRY</code> |
+
+Specifies the country of the first user for the deployment. Only used if --first-user-trial is set.
+
+### --first-user-trial-developers
+
+|             |                                                 |
+|-------------|-------------------------------------------------|
+| Type        | <code>string</code>                             |
+| Environment | <code>$CODER_FIRST_USER_TRIAL_DEVELOPERS</code> |
+
+Specifies the number of developers using the deployment. Only used if --first-user-trial is set.
+
 ### --use-token-as-session
 
 |      |                   |

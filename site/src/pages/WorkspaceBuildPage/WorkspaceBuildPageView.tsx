@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import { ExternalLinkIcon } from "lucide-react";
 import {
 	type FC,
@@ -39,7 +40,6 @@ import {
 	WorkspaceBuildDataSkeleton,
 } from "#/modules/workspaces/WorkspaceBuildData/WorkspaceBuildData";
 import { WorkspaceBuildLogs } from "#/modules/workspaces/WorkspaceBuildLogs/WorkspaceBuildLogs";
-import { cn } from "#/utils/cn";
 import { formatDate } from "#/utils/time";
 import { displayWorkspaceBuildDuration } from "#/utils/workspace";
 import { WorkspaceDeletedBanner } from "../WorkspacePage/WorkspaceDeletedBanner";

@@ -1,11 +1,16 @@
+import { spyOn } from "storybook/test";
+
 /**
- * Replaces `window.matchMedia` with a controllable stub for tests and
- * stories. Queries listed in `initialMatches` report their configured
- * value; every other query delegates to the real `matchMedia` (or
- * reports `false` where none exists, e.g. jsdom) so unrelated
+ * Replaces `window.matchMedia` with a controllable stub for stories.
+ * Queries listed in `initialMatches` report their configured value;
+ * every other query delegates to the real `matchMedia` so unrelated
  * responsive components keep behaving truthfully. `setMatches` updates
  * a query and notifies its registered change listeners; `restore` puts
  * the original `window.matchMedia` back.
+ *
+ * Story-only: stories run in a real browser, so a real `matchMedia` to
+ * delegate to always exists. jsdom has no `matchMedia`, so unit tests
+ * must install their own stub with `vi.stubGlobal` instead.
  */
 export const setupMatchMedia = (initialMatches: Record<string, boolean>) => {
 	const matches = { ...initialMatches };
@@ -18,15 +23,11 @@ export const setupMatchMedia = (initialMatches: Record<string, boolean>) => {
 		}
 		return set;
 	};
-	const original = window.matchMedia;
-	const originalFn =
-		typeof original === "function" ? original.bind(window) : undefined;
-	Object.defineProperty(window, "matchMedia", {
-		configurable: true,
-		writable: true,
-		value: (query: string): MediaQueryList => {
-			if (!(query in matches) && originalFn) {
-				return originalFn(query);
+	const original = window.matchMedia.bind(window);
+	const spy = spyOn(window, "matchMedia").mockImplementation(
+		(query: string): MediaQueryList => {
+			if (!(query in matches)) {
+				return original(query);
 			}
 			return {
 				get matches() {
@@ -51,7 +52,7 @@ export const setupMatchMedia = (initialMatches: Record<string, boolean>) => {
 				removeListener: () => {},
 			} satisfies MediaQueryList;
 		},
-	});
+	);
 	return {
 		setMatches: (query: string, value: boolean) => {
 			matches[query] = value;
@@ -64,12 +65,6 @@ export const setupMatchMedia = (initialMatches: Record<string, boolean>) => {
 				}
 			}
 		},
-		restore: () => {
-			Object.defineProperty(window, "matchMedia", {
-				configurable: true,
-				writable: true,
-				value: original,
-			});
-		},
+		restore: () => spy.mockRestore(),
 	};
 };

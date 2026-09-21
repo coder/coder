@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import {
 	CircleAlertIcon,
 	CircleCheckIcon,
@@ -13,7 +14,6 @@ import {
 } from "react";
 import type { HealthCode, HealthSeverity } from "#/api/typesGenerated";
 import { Link } from "#/components/Link/Link";
-import { cn } from "#/utils/cn";
 import { docs } from "#/utils/docs";
 
 const CONTENT_PADDING = 36;

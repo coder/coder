@@ -61,7 +61,6 @@ export const CreateTokenForm: FC<CreateTokenFormProps> = ({
 	);
 	const currentTime = dayjs(now ?? new Date());
 
-	// biome-ignore lint/correctness/useExhaustiveDependencies: adding form will cause an infinite loop
 	useEffect(() => {
 		if (lifetimeDays !== "custom") {
 			void form.setFieldValue("lifetime", lifetimeDays);

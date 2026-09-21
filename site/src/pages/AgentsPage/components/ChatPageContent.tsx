@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import { type FC, Profiler, type ReactNode, useEffect, useRef } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { toast } from "sonner";
@@ -5,7 +6,6 @@ import type { UrlTransform } from "streamdown";
 import { chatPromptsQuery, refreshChatContext } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { AgentChatSendShortcut } from "#/api/typesGenerated";
-import { cn } from "#/utils/cn";
 import { useChatDraftAttachments } from "../hooks/useChatDraftAttachments";
 import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
 import { useFileAttachments } from "../hooks/useFileAttachments";

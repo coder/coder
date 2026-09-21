@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import {
 	ChevronDownIcon,
 	LayoutGridIcon,
@@ -28,7 +29,6 @@ import {
 	canShowPortForwarding,
 	usePortsData,
 } from "#/modules/resources/usePortsData";
-import { cn } from "#/utils/cn";
 import type { PortSelection } from "../../utils/rightPanelTabs";
 import { PortsMenuItem } from "../WorkspacePillPorts";
 
@@ -121,7 +121,7 @@ export const RightPanelAddTabControl: FC<{
 				<DropdownMenuContent
 					align="end"
 					side="bottom"
-					className="w-52 p-1 [&_[role=menuitem]]:py-1 [&_[role=menuitem]]:text-xs [&_img]:!size-3.5 [&_svg]:!size-3.5"
+					className="w-52 p-1 [&_[role=menuitem]]:py-1 [&_[role=menuitem]]:text-xs [&_img]:size-3.5! [&_svg]:size-3.5!"
 				>
 					<DropdownMenuItem
 						onSelect={onNewTerminal}

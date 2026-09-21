@@ -289,11 +289,10 @@ func (s APIKeyScopes) Has(target APIKeyScope) bool {
 }
 
 // expandRBACScope merges the permissions of all scopes in the list into a
-// single RBAC scope. If the list is empty, it defaults to rbac.ScopeAll for
-// backward compatibility. This method is internal; use ScopeSet() to combine
-// scopes with the API key's allow list for authorization.
+// single RBAC scope. An empty list is an error rather than rbac.ScopeAll, which
+// would widen a key rather than fail it. This method is internal; use
+// ScopeSet() to combine scopes with the API key's allow list for authorization.
 func (s APIKeyScopes) expandRBACScope() (rbac.Scope, error) {
-	// Default to ScopeAll for backward compatibility when no scopes provided.
 	if len(s) == 0 {
 		return rbac.Scope{}, xerrors.New("no scopes provided")
 	}

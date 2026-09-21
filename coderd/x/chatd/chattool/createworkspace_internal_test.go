@@ -21,7 +21,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/httpapi/httperror"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
@@ -937,7 +936,7 @@ func TestCreateWorkspace_GlobalTTL(t *testing.T) {
 		{
 			name:      "PositiveTTL",
 			ttlReturn: "2h",
-			wantTTLMs: ptr.Ref(int64(2 * time.Hour / time.Millisecond)),
+			wantTTLMs: new(int64(2 * time.Hour / time.Millisecond)),
 		},
 		{
 			name:      "ZeroTTLUsesTemplateDefault",

@@ -68,7 +68,8 @@
   "usage": {
     "input_tokens": 12033,
     "input_tokens_details": {
-      "cached_tokens": 11904
+      "cached_tokens": 11904,
+      "cache_write_tokens": 15
     },
     "output_tokens": 44,
     "output_tokens_details": {

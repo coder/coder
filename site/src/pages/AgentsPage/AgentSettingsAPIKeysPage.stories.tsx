@@ -365,7 +365,7 @@ export const ShowsProviderStatuses: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await expect(await canvas.findByText("Key saved")).toBeVisible();
-		await expect(canvas.getByText("Using shared key")).toBeVisible();
+		await expect(canvas.getByText("Shared key")).toBeVisible();
 		await expect(canvas.getByText("No key")).toBeVisible();
 		await expect(
 			canvas.getByText(

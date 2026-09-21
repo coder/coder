@@ -14,6 +14,9 @@ const SecuritySettingsPage: FC = () => {
 
 			<SecuritySettingsPageView
 				options={deploymentConfig.options}
+				isBrowserOnlyEntitled={
+					entitlements.features.browser_only.entitlement !== "not_entitled"
+				}
 				featureBrowserOnlyEnabled={entitlements.features.browser_only.enabled}
 			/>
 		</>

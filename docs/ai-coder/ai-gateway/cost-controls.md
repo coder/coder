@@ -1,4 +1,6 @@
-# AI Governance Cost Control
+---
+title: AI Governance Cost Control
+---
 
 > [!NOTE]
 > AI Gateway is part of [AI Governance](../ai-governance.md), which is

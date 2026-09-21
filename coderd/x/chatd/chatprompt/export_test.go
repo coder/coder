@@ -15,6 +15,12 @@ const SyntheticPasteTitleBudgetForTest = syntheticPasteTitleBudget
 // for external tests.
 var ToolResultPartToMessagePartForTest = toolResultPartToMessagePart
 
+// EncodeNulInJSONForTest exposes encodeNulInJSON for external tests.
+var EncodeNulInJSONForTest = encodeNulInJSON
+
+// NeedsNulEncodingInJSONForTest exposes needsNulEncodingInJSON for external tests.
+var NeedsNulEncodingInJSONForTest = needsNulEncodingInJSON
+
 // ToolResultContentToPartForTest exposes toolResultContentToPart
 // for external tests.
 var ToolResultContentToPartForTest = func(logger slog.Logger, content fantasy.ToolResultContent) codersdk.ChatMessagePart {

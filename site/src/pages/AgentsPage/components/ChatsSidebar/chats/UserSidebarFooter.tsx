@@ -17,7 +17,7 @@ export const UserSidebarFooter: FC = () => {
 	return (
 		<div className="hidden border-0 border-t border-solid sm:block">
 			{/* This footer is resizable, so child sizing must follow its container width instead of the viewport. */}
-			<div className="flex min-w-0 items-stretch [container-type:inline-size]">
+			<div className="flex min-w-0 items-stretch @container">
 				<DropdownMenu>
 					<DropdownMenuTrigger asChild>
 						<button
@@ -35,7 +35,7 @@ export const UserSidebarFooter: FC = () => {
 							</span>
 						</button>
 					</DropdownMenuTrigger>
-					<DropdownMenuContent align="start" className="min-w-auto w-[260px]">
+					<DropdownMenuContent align="start" className="w-[260px]">
 						<UserDropdownContent
 							user={user}
 							buildInfo={buildInfo}

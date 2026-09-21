@@ -9,7 +9,6 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/cli/cliui"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/pretty"
 	"github.com/coder/serpent"
@@ -154,10 +153,10 @@ func (r *RootCmd) templateCreate() *serpent.Command {
 			createReq := codersdk.CreateTemplateRequest{
 				Name:                           templateName,
 				VersionID:                      job.ID,
-				DefaultTTLMillis:               ptr.Ref(defaultTTL.Milliseconds()),
-				FailureTTLMillis:               ptr.Ref(failureTTL.Milliseconds()),
-				TimeTilDormantMillis:           ptr.Ref(dormancyThreshold.Milliseconds()),
-				TimeTilDormantAutoDeleteMillis: ptr.Ref(dormancyAutoDeletion.Milliseconds()),
+				DefaultTTLMillis:               new(defaultTTL.Milliseconds()),
+				FailureTTLMillis:               new(failureTTL.Milliseconds()),
+				TimeTilDormantMillis:           new(dormancyThreshold.Milliseconds()),
+				TimeTilDormantAutoDeleteMillis: new(dormancyAutoDeletion.Milliseconds()),
 				DisableEveryoneGroupAccess:     disableEveryone,
 				RequireActiveVersion:           requireActiveVersion,
 				AgentsAllowed:                  &agentsAllowed,

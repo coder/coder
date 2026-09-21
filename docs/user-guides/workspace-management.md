@@ -1,8 +1,7 @@
 # Workspaces
 
-A workspace is the environment that a developer works in. Developers in a team
-each work from their own workspace and can use
-[multiple IDEs](./workspace-access/index.md).
+A workspace is the environment where a developer or a coding agent works.
+Developers and agents in a team each work from their own workspace and can use [multiple IDEs](./workspace-access/index.md).
 
 A developer creates a workspace from a
 [shared template](../admin/templates/index.md). This lets an entire team work in
@@ -44,6 +43,10 @@ coder show <workspace-name>
 | Case sensitivity | Case-insensitive (lowercase recommended)   |
 | Reserved names   | Cannot use `new` or `create`               |
 | Uniqueness       | Must be unique within your workspaces      |
+
+Renaming a workspace after you create it is off by default. A template admin can
+allow it per template. Refer to
+[Workspace renaming](../admin/templates/managing-templates/index.md#workspace-renaming).
 
 ## Workspace filtering
 

@@ -18,6 +18,7 @@ import (
 	"github.com/sony/gobreaker/v2"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
+	"golang.org/x/net/http/httpguts"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
@@ -249,6 +250,18 @@ func newInterceptionProcessor(p provider.Provider, cbs *circuitbreaker.ProviderC
 		client := GuessClient(r)
 		sessionID := GuessSessionID(client, r)
 
+		if isWebSocketUpgrade(r) {
+			route := strings.TrimPrefix(r.URL.Path, fmt.Sprintf("/%s", p.Name()))
+			logger.Debug(ctx, "rejecting unsupported WebSocket upgrade",
+				slog.F("provider", p.Name()),
+				slog.F("route", route),
+				slog.F("client", string(client)),
+				slog.F("client_session_id", sessionID),
+			)
+			http.Error(w, "WebSocket transport is not supported, use HTTP", http.StatusNotImplemented)
+			return
+		}
+
 		// Read and validate Agent Firewall correlation headers. The
 		// values are captured here and recorded below; the headers
 		// themselves are stripped from the upstream request by
@@ -380,6 +393,13 @@ func newInterceptionProcessor(p provider.Provider, cbs *circuitbreaker.ProviderC
 		// Ensure all recording have completed before completing request.
 		asyncRecorder.Wait()
 	}
+}
+
+// isWebSocketUpgrade reports whether r is a WebSocket opening handshake.
+func isWebSocketUpgrade(r *http.Request) bool {
+	return r.Method == http.MethodGet &&
+		httpguts.HeaderValuesContainsToken(r.Header.Values("Connection"), "upgrade") &&
+		httpguts.HeaderValuesContainsToken(r.Header.Values("Upgrade"), "websocket")
 }
 
 // writeRequestBodyTooLarge writes a human-readable 413 response indicating that

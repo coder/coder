@@ -17,6 +17,7 @@ import {
 	SettingsHeaderTitle,
 } from "#/components/SettingsHeader/SettingsHeader";
 import { Spinner } from "#/components/Spinner/Spinner";
+import { Switch } from "#/components/Switch/Switch";
 import { PremiumPaywall } from "#/modules/paywall/PremiumPaywall";
 import { docs } from "#/utils/docs";
 import { getFormHelpers } from "#/utils/formUtils";
@@ -49,14 +50,11 @@ export const AppearanceSettingsPageView: FC<
 
 	return (
 		<div>
-			<SettingsHeader
-				actions={
-					<SettingsHeaderDocsLink href={docs("/admin/setup/appearance")} />
-				}
-			>
+			<SettingsHeader>
 				<SettingsHeaderTitle>Appearance</SettingsHeaderTitle>
 				<SettingsHeaderDescription>
-					Customize the look and feel of your Coder deployment.
+					Customize the look and feel of your Coder deployment.{" "}
+					<SettingsHeaderDocsLink href={docs("/admin/setup/appearance")} />
 				</SettingsHeaderDescription>
 			</SettingsHeader>
 
@@ -125,6 +123,27 @@ export const AppearanceSettingsPageView: FC<
 					/>
 				</div>
 			)}
+
+			<div className="overflow-hidden rounded-lg border border-solid border-border">
+				<div className="flex items-center justify-between gap-4 p-6">
+					<div>
+						<h3 className="m-0 text-xl font-semibold">
+							<label htmlFor="codernauts-enabled">Codernauts game</label>
+						</h3>
+						<div className="mt-2 text-sm text-content-secondary">
+							A lunar-lander game where you rescue stranded teammates. Disable
+							if you're experiencing any productivity loss.
+						</div>
+					</div>
+					<Switch
+						id="codernauts-enabled"
+						checked={appearance.codernauts_enabled}
+						onCheckedChange={(checked) =>
+							onSaveAppearance({ codernauts_enabled: checked })
+						}
+					/>
+				</div>
+			</div>
 		</div>
 	);
 };

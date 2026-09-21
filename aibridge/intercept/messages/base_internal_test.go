@@ -10,6 +10,7 @@ import (
 	"github.com/anthropics/anthropic-sdk-go"
 	"github.com/anthropics/anthropic-sdk-go/shared/constant"
 	"github.com/aws/aws-sdk-go-v2/credentials"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
@@ -21,7 +22,7 @@ import (
 	"github.com/coder/coder/v2/aibridge/internal/testutil"
 	"github.com/coder/coder/v2/aibridge/keypool"
 	"github.com/coder/coder/v2/aibridge/mcp"
-	"github.com/coder/coder/v2/aibridge/utils"
+	"github.com/coder/coder/v2/aibridge/recorder"
 	"github.com/coder/quartz"
 )
 
@@ -56,12 +57,12 @@ func TestScanForCorrelatingToolCallID(t *testing.T) {
 		{
 			name:        "single tool result block",
 			requestBody: `{"messages":[{"role":"user","content":[{"type":"tool_result","tool_use_id":"toolu_abc","content":"result"}]}]}`,
-			expected:    utils.PtrTo("toolu_abc"),
+			expected:    new("toolu_abc"),
 		},
 		{
 			name:        "multiple tool result blocks returns last",
 			requestBody: `{"messages":[{"role":"user","content":[{"type":"tool_result","tool_use_id":"toolu_first","content":"first"},{"type":"text","text":"ignored"},{"type":"tool_result","tool_use_id":"toolu_second","content":"second"}]}]}`,
-			expected:    utils.PtrTo("toolu_second"),
+			expected:    new("toolu_second"),
 		},
 		{
 			name:        "last message is not a tool result",
@@ -1229,6 +1230,106 @@ func TestAWSMantleOptionsValidation(t *testing.T) {
 				require.NoError(t, err)
 				require.NotEmpty(t, opts)
 			}
+		})
+	}
+}
+
+func TestRecordTokenUsage(t *testing.T) {
+	t.Parallel()
+
+	id := uuid.New()
+	tests := []struct {
+		name     string
+		msgID    string
+		usage    anthropic.Usage
+		expected *recorder.TokenUsageRecord
+	}{
+		{
+			name:  "without service tier or extra tokens",
+			msgID: "msg_basic",
+			usage: anthropic.Usage{
+				InputTokens:              10,
+				OutputTokens:             20,
+				CacheReadInputTokens:     3,
+				CacheCreationInputTokens: 4,
+				ServiceTier:              anthropic.UsageServiceTierStandard,
+			},
+			expected: &recorder.TokenUsageRecord{
+				InterceptionID:        id.String(),
+				MsgID:                 "msg_basic",
+				Input:                 10,
+				Output:                20,
+				CacheReadInputTokens:  3,
+				CacheWriteInputTokens: 4,
+				Metadata:              recorder.Metadata{recorder.MetadataKeyServiceTier: "standard"},
+			},
+		},
+		{
+			name:  "with service tier and all extra tokens",
+			msgID: "msg_full",
+			usage: anthropic.Usage{
+				InputTokens:              100,
+				OutputTokens:             200,
+				CacheReadInputTokens:     30,
+				CacheCreationInputTokens: 40,
+				ServiceTier:              anthropic.UsageServiceTierPriority,
+				ServerToolUse: anthropic.ServerToolUsage{
+					WebSearchRequests: 5,
+				},
+				CacheCreation: anthropic.CacheCreation{
+					Ephemeral1hInputTokens: 6,
+					Ephemeral5mInputTokens: 7,
+				},
+			},
+			expected: &recorder.TokenUsageRecord{
+				InterceptionID:        id.String(),
+				MsgID:                 "msg_full",
+				Input:                 100,
+				Output:                200,
+				CacheReadInputTokens:  30,
+				CacheWriteInputTokens: 40,
+				ExtraTokenTypes: map[string]int64{
+					"web_search_requests":      5,
+					"cache_ephemeral_1h_input": 6,
+					"cache_ephemeral_5m_input": 7,
+				},
+				Metadata: recorder.Metadata{
+					recorder.MetadataKeyServiceTier: "priority",
+				},
+			},
+		},
+		{
+			name:  "omits zero extra tokens and service tier",
+			msgID: "msg_partial_extra",
+			usage: anthropic.Usage{
+				ServerToolUse: anthropic.ServerToolUsage{
+					WebSearchRequests: 8,
+				},
+			},
+			expected: &recorder.TokenUsageRecord{
+				InterceptionID: id.String(),
+				MsgID:          "msg_partial_extra",
+				ExtraTokenTypes: map[string]int64{
+					"web_search_requests": 8,
+				},
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			rec := &testutil.MockRecorder{}
+			base := &interceptionBase{
+				id:       id,
+				recorder: rec,
+			}
+			base.recordTokenUsage(t.Context(), tc.msgID, tc.usage)
+
+			usages := rec.RecordedTokenUsages()
+			require.Len(t, usages, 1)
+			require.Equal(t, tc.expected, usages[0])
 		})
 	}
 }

@@ -41,7 +41,6 @@ import (
 	"github.com/coder/coder/v2/aibridge/mcp"
 	"github.com/coder/coder/v2/aibridge/provider"
 	"github.com/coder/coder/v2/aibridge/recorder"
-	"github.com/coder/coder/v2/aibridge/utils"
 )
 
 func TestMain(m *testing.M) {
@@ -863,11 +862,57 @@ func TestOpenAIChatCompletions(t *testing.T) {
 		}
 
 		require.True(t, finalUsage.Exists())
-		require.EqualValues(t, 6000, finalUsage.Get("prompt_tokens").Int())
-		require.EqualValues(t, 30, finalUsage.Get("completion_tokens").Int())
-		require.EqualValues(t, 6030, finalUsage.Get("total_tokens").Int())
-		require.EqualValues(t, 12000, bridgeServer.Recorder.TotalInputTokens())
-		require.EqualValues(t, 60, bridgeServer.Recorder.TotalOutputTokens())
+		require.EqualValues(t, 12000, finalUsage.Get("prompt_tokens").Int())
+		require.EqualValues(t, 60, finalUsage.Get("completion_tokens").Int())
+		require.EqualValues(t, 12060, finalUsage.Get("total_tokens").Int())
+		require.EqualValues(t, 300, finalUsage.Get("prompt_tokens_details.cached_tokens").Int())
+		require.EqualValues(t, 30, finalUsage.Get("prompt_tokens_details.cache_write_tokens").Int())
+		require.EqualValues(t, 12, finalUsage.Get("prompt_tokens_details.audio_tokens").Int())
+		require.EqualValues(t, 14, finalUsage.Get("completion_tokens_details.reasoning_tokens").Int())
+		require.EqualValues(t, 16, finalUsage.Get("completion_tokens_details.audio_tokens").Int())
+		require.EqualValues(t, 18, finalUsage.Get("completion_tokens_details.accepted_prediction_tokens").Int())
+		require.EqualValues(t, 20, finalUsage.Get("completion_tokens_details.rejected_prediction_tokens").Int())
+
+		tokenUsages := bridgeServer.Recorder.RecordedTokenUsages()
+		for i := range tokenUsages {
+			tokenUsages[i].InterceptionID = ""
+			tokenUsages[i].CreatedAt = time.Time{}
+		}
+
+		// Each upstream stream reports cumulative snapshots on every chunk. The
+		// recorded iteration usage must use only its latest snapshot, while the
+		// client response above sums those two latest snapshots across iterations.
+		expectedTokenUsages := []*recorder.TokenUsageRecord{
+			{
+				MsgID:                 "chatcmpl-cumulative-tool",
+				Input:                 5890,
+				Output:                30,
+				CacheReadInputTokens:  100,
+				CacheWriteInputTokens: 10,
+				ExtraTokenTypes: map[string]int64{
+					"prompt_audio":                   3,
+					"completion_reasoning":           4,
+					"completion_audio":               5,
+					"completion_accepted_prediction": 6,
+					"completion_rejected_prediction": 7,
+				},
+			},
+			{
+				MsgID:                 "chatcmpl-cumulative-final",
+				Input:                 5780,
+				Output:                30,
+				CacheReadInputTokens:  200,
+				CacheWriteInputTokens: 20,
+				ExtraTokenTypes: map[string]int64{
+					"prompt_audio":                   9,
+					"completion_reasoning":           10,
+					"completion_audio":               11,
+					"completion_accepted_prediction": 12,
+					"completion_rejected_prediction": 13,
+				},
+			},
+		}
+		require.ElementsMatch(t, expectedTokenUsages, tokenUsages)
 		require.Len(t, mockMCP.getCallsByTool(mockToolName), 1)
 		bridgeServer.Recorder.VerifyAllInterceptionsEnded(t)
 	})
@@ -1338,12 +1383,64 @@ func TestFallthrough(t *testing.T) {
 func TestAnthropicInjectedTools(t *testing.T) {
 	t.Parallel()
 
-	for _, streaming := range []bool{true, false} {
-		t.Run(fmt.Sprintf("streaming=%v", streaming), func(t *testing.T) {
+	tests := []struct {
+		name              string
+		streaming         bool
+		expectTokenUsages []*recorder.TokenUsageRecord
+	}{
+		{
+			name:      "streaming",
+			streaming: true,
+			expectTokenUsages: []*recorder.TokenUsageRecord{
+				{
+					MsgID:    "msg_01JWGa2JHsKBHL28Cjr2dvPK",
+					Input:    7545,
+					Output:   1,
+					Metadata: recorder.Metadata{recorder.MetadataKeyServiceTier: "standard"},
+				},
+				{
+					MsgID:    "msg_01JWGa2JHsKBHL28Cjr2dvPK",
+					Output:   74,
+					Metadata: recorder.Metadata{recorder.MetadataKeyServiceTier: "standard"},
+				},
+				{
+					MsgID:    "msg_01LZSVzMCLivzXrp6ZnTcmeG",
+					Input:    7763,
+					Output:   1,
+					Metadata: recorder.Metadata{recorder.MetadataKeyServiceTier: "priority"},
+				},
+				{
+					MsgID:    "msg_01LZSVzMCLivzXrp6ZnTcmeG",
+					Output:   128,
+					Metadata: recorder.Metadata{recorder.MetadataKeyServiceTier: "priority"},
+				},
+			},
+		},
+		{
+			name: "blocking",
+			expectTokenUsages: []*recorder.TokenUsageRecord{
+				{
+					MsgID:    "msg_01FwkWU26guw9EwkL8zeacPL",
+					Input:    7545,
+					Output:   75,
+					Metadata: recorder.Metadata{recorder.MetadataKeyServiceTier: "standard"},
+				},
+				{
+					MsgID:    "msg_01Sr5BnPSwodTo8Df4XvUBg5",
+					Input:    7763,
+					Output:   129,
+					Metadata: recorder.Metadata{recorder.MetadataKeyServiceTier: "priority"},
+				},
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
 			// Build the requirements & make the assertions which are common to all providers.
-			bridgeServer, mockMCP, resp := setupInjectedToolTest(t, fixtures.AntSingleInjectedTool, streaming, defaultTracer, pathAnthropicMessages, anthropicToolResultValidator(t))
+			bridgeServer, mockMCP, resp := setupInjectedToolTest(t, fixtures.AntSingleInjectedTool, tc.streaming, defaultTracer, pathAnthropicMessages, anthropicToolResultValidator(t))
 			defer resp.Body.Close()
 
 			// Ensure expected tool was invoked with expected input.
@@ -1365,7 +1462,7 @@ func TestAnthropicInjectedTools(t *testing.T) {
 				content *anthropic.ContentBlockUnion
 				message anthropic.Message
 			)
-			if streaming {
+			if tc.streaming {
 				// Parse the response stream.
 				decoder := ssestream.NewDecoder(resp)
 				stream := ssestream.NewStream[anthropic.MessageStreamEventUnion](decoder, nil)
@@ -1403,7 +1500,7 @@ func TestAnthropicInjectedTools(t *testing.T) {
 			// represented in the response.
 			//
 			// See https://github.com/anthropics/anthropic-sdk-go/blob/v1.12.0/message.go#L2619-L2622
-			if !streaming {
+			if !tc.streaming {
 				assert.EqualValues(t, 15308, message.Usage.InputTokens)
 			}
 			assert.EqualValues(t, 204, message.Usage.OutputTokens)
@@ -1411,6 +1508,13 @@ func TestAnthropicInjectedTools(t *testing.T) {
 			// Ensure tokens used during injected tool invocation are accounted for.
 			assert.EqualValues(t, 15308, bridgeServer.Recorder.TotalInputTokens())
 			assert.EqualValues(t, 204, bridgeServer.Recorder.TotalOutputTokens())
+
+			tokenUsages := bridgeServer.Recorder.RecordedTokenUsages()
+			for _, usage := range tokenUsages {
+				usage.InterceptionID = ""
+				usage.CreatedAt = time.Time{}
+			}
+			require.ElementsMatch(t, tc.expectTokenUsages, tokenUsages)
 
 			// Ensure we received exactly one prompt.
 			promptUsages := bridgeServer.Recorder.RecordedPromptUsages()
@@ -1446,8 +1550,9 @@ func TestOpenAIInjectedTools(t *testing.T) {
 			require.EqualValues(t, expected, actual)
 
 			var (
-				content *openai.ChatCompletionChoice
-				message openai.ChatCompletion
+				content     *openai.ChatCompletionChoice
+				message     openai.ChatCompletion
+				clientUsage openai.CompletionUsage
 			)
 			if streaming {
 				// Parse the response stream.
@@ -1458,6 +1563,9 @@ func TestOpenAIInjectedTools(t *testing.T) {
 				for stream.Next() {
 					chunk := stream.Current()
 					acc.AddChunk(chunk)
+					if chunk.JSON.Usage.Valid() {
+						clientUsage = chunk.Usage
+					}
 
 					if len(chunk.Choices) == 0 {
 						continue
@@ -1488,6 +1596,7 @@ func TestOpenAIInjectedTools(t *testing.T) {
 				body, err := io.ReadAll(resp.Body)
 				require.NoError(t, err, "read response body")
 				require.NoError(t, json.Unmarshal(body, &message), "unmarshal response")
+				clientUsage = message.Usage
 
 				// Verify that no injected tools were sent to the client.
 				require.GreaterOrEqual(t, len(message.Choices), 1)
@@ -1501,15 +1610,62 @@ func TestOpenAIInjectedTools(t *testing.T) {
 			require.NotNil(t, content)
 			require.Contains(t, content.Message.Content, "dd711d5c-83c6-4c08-a0af-b73055906e8c") // The ID of the workspace to be returned.
 
-			// Check the token usage from the client's perspective.
-			// This *should* work but the openai SDK doesn't accumulate the prompt token details :(.
-			// See https://github.com/openai/openai-go/blob/v2.7.0/streamaccumulator.go#L145-L147.
-			// assert.EqualValues(t, 5047, message.Usage.PromptTokens-message.Usage.PromptTokensDetails.CachedTokens)
-			assert.EqualValues(t, 105, message.Usage.CompletionTokens)
+			// Check the cumulative token usage from the client's perspective.
+			require.EqualValues(t, 9911, clientUsage.PromptTokens)
+			require.EqualValues(t, 105, clientUsage.CompletionTokens)
+			require.EqualValues(t, 10016, clientUsage.TotalTokens)
+			require.EqualValues(t, 4964, clientUsage.PromptTokensDetails.CachedTokens)
+			require.EqualValues(t, 30, clientUsage.PromptTokensDetails.CacheWriteTokens)
+			require.EqualValues(t, 12, clientUsage.PromptTokensDetails.AudioTokens)
+			require.EqualValues(t, 14, clientUsage.CompletionTokensDetails.ReasoningTokens)
+			require.EqualValues(t, 16, clientUsage.CompletionTokensDetails.AudioTokens)
+			require.EqualValues(t, 18, clientUsage.CompletionTokensDetails.AcceptedPredictionTokens)
+			require.EqualValues(t, 20, clientUsage.CompletionTokensDetails.RejectedPredictionTokens)
 
-			// Ensure tokens used during injected tool invocation are accounted for.
-			require.EqualValues(t, 5047, bridgeServer.Recorder.TotalInputTokens())
-			require.EqualValues(t, 105, bridgeServer.Recorder.TotalOutputTokens())
+			// Ensure both upstream iterations were recorded exactly.
+			tokenUsages := bridgeServer.Recorder.RecordedTokenUsages()
+			for _, usage := range tokenUsages {
+				usage.InterceptionID = ""
+				usage.CreatedAt = time.Time{}
+			}
+			firstMsgID := "chatcmpl-C1XAKDTVYnmWS7tgvg7vPje00PIiy"
+			secondMsgID := "chatcmpl-C1XANLwdflVxAjKOjbMP3LJxSlXsS"
+			if streaming {
+				firstMsgID = "chatcmpl-C1WTooFaxeQgtyLB1kg53t41aB0NV"
+				secondMsgID = "chatcmpl-C1WTqhYgK7bV01bW98Lww3zqaf8ZF"
+			}
+			require.ElementsMatch(t, []*recorder.TokenUsageRecord{
+				{
+					MsgID:                 firstMsgID,
+					Input:                 4742,
+					Output:                45,
+					CacheReadInputTokens:  100,
+					CacheWriteInputTokens: 20,
+					Metadata:              recorder.Metadata{recorder.MetadataKeyServiceTier: "default"},
+					ExtraTokenTypes: map[string]int64{
+						"prompt_audio":                   3,
+						"completion_accepted_prediction": 6,
+						"completion_rejected_prediction": 7,
+						"completion_audio":               5,
+						"completion_reasoning":           4,
+					},
+				},
+				{
+					MsgID:                 secondMsgID,
+					Input:                 175,
+					Output:                60,
+					CacheReadInputTokens:  4864,
+					CacheWriteInputTokens: 10,
+					Metadata:              recorder.Metadata{recorder.MetadataKeyServiceTier: "priority"},
+					ExtraTokenTypes: map[string]int64{
+						"prompt_audio":                   9,
+						"completion_accepted_prediction": 12,
+						"completion_rejected_prediction": 13,
+						"completion_audio":               11,
+						"completion_reasoning":           10,
+					},
+				},
+			}, tokenUsages)
 
 			// Ensure we received exactly one prompt.
 			promptUsages := bridgeServer.Recorder.RecordedPromptUsages()
@@ -1828,7 +1984,7 @@ func TestAnthropicToolChoiceParallelDisabled(t *testing.T) {
 			fixture:                       fixtures.AntSimple,
 			toolChoice:                    nil,
 			withInjectedTools:             true,
-			expectDisableParallel:         utils.PtrTo(true),
+			expectDisableParallel:         new(true),
 			expectToolChoiceTypeInRequest: toolChoiceAuto,
 		},
 		{
@@ -1836,7 +1992,7 @@ func TestAnthropicToolChoiceParallelDisabled(t *testing.T) {
 			fixture:                       fixtures.AntSimple,
 			toolChoice:                    map[string]any{"type": toolChoiceAuto},
 			withInjectedTools:             true,
-			expectDisableParallel:         utils.PtrTo(true),
+			expectDisableParallel:         new(true),
 			expectToolChoiceTypeInRequest: toolChoiceAuto,
 		},
 		{
@@ -1844,7 +2000,7 @@ func TestAnthropicToolChoiceParallelDisabled(t *testing.T) {
 			fixture:                       fixtures.AntSimple,
 			toolChoice:                    map[string]any{"type": toolChoiceAny},
 			withInjectedTools:             true,
-			expectDisableParallel:         utils.PtrTo(true),
+			expectDisableParallel:         new(true),
 			expectToolChoiceTypeInRequest: toolChoiceAny,
 		},
 		{
@@ -1852,7 +2008,7 @@ func TestAnthropicToolChoiceParallelDisabled(t *testing.T) {
 			fixture:                       fixtures.AntSimple,
 			toolChoice:                    map[string]any{"type": toolChoiceTool, "name": "some_tool"},
 			withInjectedTools:             true,
-			expectDisableParallel:         utils.PtrTo(true),
+			expectDisableParallel:         new(true),
 			expectToolChoiceTypeInRequest: toolChoiceTool,
 		},
 		{
@@ -1869,7 +2025,7 @@ func TestAnthropicToolChoiceParallelDisabled(t *testing.T) {
 			fixture:                       fixtures.AntSingleBuiltinTool,
 			toolChoice:                    nil,
 			withInjectedTools:             true,
-			expectDisableParallel:         utils.PtrTo(true),
+			expectDisableParallel:         new(true),
 			expectToolChoiceTypeInRequest: toolChoiceAuto,
 		},
 		{
@@ -1877,7 +2033,7 @@ func TestAnthropicToolChoiceParallelDisabled(t *testing.T) {
 			fixture:                       fixtures.AntSingleBuiltinTool,
 			toolChoice:                    map[string]any{"type": toolChoiceAuto},
 			withInjectedTools:             true,
-			expectDisableParallel:         utils.PtrTo(true),
+			expectDisableParallel:         new(true),
 			expectToolChoiceTypeInRequest: toolChoiceAuto,
 		},
 		{
@@ -1885,7 +2041,7 @@ func TestAnthropicToolChoiceParallelDisabled(t *testing.T) {
 			fixture:                       fixtures.AntSingleBuiltinTool,
 			toolChoice:                    map[string]any{"type": toolChoiceAny},
 			withInjectedTools:             true,
-			expectDisableParallel:         utils.PtrTo(true),
+			expectDisableParallel:         new(true),
 			expectToolChoiceTypeInRequest: toolChoiceAny,
 		},
 		{
@@ -1893,7 +2049,7 @@ func TestAnthropicToolChoiceParallelDisabled(t *testing.T) {
 			fixture:                       fixtures.AntSingleBuiltinTool,
 			toolChoice:                    map[string]any{"type": toolChoiceTool, "name": "some_tool"},
 			withInjectedTools:             true,
-			expectDisableParallel:         utils.PtrTo(true),
+			expectDisableParallel:         new(true),
 			expectToolChoiceTypeInRequest: toolChoiceTool,
 		},
 		{
@@ -1909,7 +2065,7 @@ func TestAnthropicToolChoiceParallelDisabled(t *testing.T) {
 			fixture:                       fixtures.AntSingleBuiltinTool,
 			toolChoice:                    map[string]any{"type": toolChoiceAuto, "disable_parallel_tool_use": true},
 			withInjectedTools:             true,
-			expectDisableParallel:         utils.PtrTo(true),
+			expectDisableParallel:         new(true),
 			expectToolChoiceTypeInRequest: toolChoiceAuto,
 		},
 		{
@@ -1917,7 +2073,7 @@ func TestAnthropicToolChoiceParallelDisabled(t *testing.T) {
 			fixture:                       fixtures.AntSingleBuiltinTool,
 			toolChoice:                    map[string]any{"type": toolChoiceAuto, "disable_parallel_tool_use": false},
 			withInjectedTools:             true,
-			expectDisableParallel:         utils.PtrTo(true),
+			expectDisableParallel:         new(true),
 			expectToolChoiceTypeInRequest: toolChoiceAuto,
 		},
 		// Without injected or builtin tools - disable_parallel_tool_use should NOT be set.
@@ -1959,7 +2115,7 @@ func TestAnthropicToolChoiceParallelDisabled(t *testing.T) {
 			fixture:                       fixtures.AntSingleBuiltinTool,
 			toolChoice:                    map[string]any{"type": toolChoiceAuto, "disable_parallel_tool_use": true},
 			withInjectedTools:             false,
-			expectDisableParallel:         utils.PtrTo(true),
+			expectDisableParallel:         new(true),
 			expectToolChoiceTypeInRequest: toolChoiceAuto,
 		},
 		{
@@ -1967,7 +2123,7 @@ func TestAnthropicToolChoiceParallelDisabled(t *testing.T) {
 			fixture:                       fixtures.AntSingleBuiltinTool,
 			toolChoice:                    map[string]any{"type": toolChoiceAuto, "disable_parallel_tool_use": false},
 			withInjectedTools:             false,
-			expectDisableParallel:         utils.PtrTo(false),
+			expectDisableParallel:         new(false),
 			expectToolChoiceTypeInRequest: toolChoiceAuto,
 		},
 		// Without injected or builtin tools - disable_parallel_tool_use should be preserved if set.
@@ -1976,7 +2132,7 @@ func TestAnthropicToolChoiceParallelDisabled(t *testing.T) {
 			fixture:                       fixtures.AntSimple,
 			toolChoice:                    map[string]any{"type": toolChoiceAuto, "disable_parallel_tool_use": true},
 			withInjectedTools:             false,
-			expectDisableParallel:         utils.PtrTo(true),
+			expectDisableParallel:         new(true),
 			expectToolChoiceTypeInRequest: toolChoiceAuto,
 		},
 		{
@@ -1984,7 +2140,7 @@ func TestAnthropicToolChoiceParallelDisabled(t *testing.T) {
 			fixture:                       fixtures.AntSimple,
 			toolChoice:                    map[string]any{"type": toolChoiceAuto, "disable_parallel_tool_use": false},
 			withInjectedTools:             false,
-			expectDisableParallel:         utils.PtrTo(false),
+			expectDisableParallel:         new(false),
 			expectToolChoiceTypeInRequest: toolChoiceAuto,
 		},
 		// Request already has disable_parallel_tool_use set - with injected tools it should be set to true.
@@ -1993,7 +2149,7 @@ func TestAnthropicToolChoiceParallelDisabled(t *testing.T) {
 			fixture:                       fixtures.AntSimple,
 			toolChoice:                    map[string]any{"type": toolChoiceAuto, "disable_parallel_tool_use": true},
 			withInjectedTools:             true,
-			expectDisableParallel:         utils.PtrTo(true),
+			expectDisableParallel:         new(true),
 			expectToolChoiceTypeInRequest: toolChoiceAuto,
 		},
 		{
@@ -2001,7 +2157,7 @@ func TestAnthropicToolChoiceParallelDisabled(t *testing.T) {
 			fixture:                       fixtures.AntSimple,
 			toolChoice:                    map[string]any{"type": toolChoiceAuto, "disable_parallel_tool_use": false},
 			withInjectedTools:             true,
-			expectDisableParallel:         utils.PtrTo(true),
+			expectDisableParallel:         new(true),
 			expectToolChoiceTypeInRequest: toolChoiceAuto,
 		},
 		// Request already has disable_parallel_tool_use set - without injected tools it should be preserved.
@@ -2010,7 +2166,7 @@ func TestAnthropicToolChoiceParallelDisabled(t *testing.T) {
 			fixture:                       fixtures.AntSimple,
 			toolChoice:                    map[string]any{"type": toolChoiceAuto, "disable_parallel_tool_use": true},
 			withInjectedTools:             false,
-			expectDisableParallel:         utils.PtrTo(true),
+			expectDisableParallel:         new(true),
 			expectToolChoiceTypeInRequest: toolChoiceAuto,
 		},
 		{
@@ -2018,7 +2174,7 @@ func TestAnthropicToolChoiceParallelDisabled(t *testing.T) {
 			fixture:                       fixtures.AntSimple,
 			toolChoice:                    map[string]any{"type": toolChoiceAuto, "disable_parallel_tool_use": false},
 			withInjectedTools:             false,
-			expectDisableParallel:         utils.PtrTo(false),
+			expectDisableParallel:         new(false),
 			expectToolChoiceTypeInRequest: toolChoiceAuto,
 		},
 	}
@@ -2101,59 +2257,59 @@ func TestChatCompletionsParallelToolCallsDisabled(t *testing.T) {
 			name:              "with injected and builtin tools: parallel_tool_calls true",
 			fixture:           fixtures.OaiChatSingleBuiltinTool,
 			withInjectedTools: true,
-			initialSetting:    utils.PtrTo(true),
-			expectedSetting:   utils.PtrTo(false),
+			initialSetting:    new(true),
+			expectedSetting:   new(false),
 		},
 		{
 			name:              "with injected and builtin tools: parallel_tool_calls false",
 			fixture:           fixtures.OaiChatSingleBuiltinTool,
 			withInjectedTools: true,
-			initialSetting:    utils.PtrTo(false),
-			expectedSetting:   utils.PtrTo(false),
+			initialSetting:    new(false),
+			expectedSetting:   new(false),
 		},
 		{
 			name:              "with injected and builtin tools: parallel_tool_calls unset",
 			fixture:           fixtures.OaiChatSingleBuiltinTool,
 			withInjectedTools: true,
 			initialSetting:    nil,
-			expectedSetting:   utils.PtrTo(false),
+			expectedSetting:   new(false),
 		},
 		// With injected tools but without builtin tools: parallel_tool_calls should be forced false.
 		{
 			name:              "with injected tools only: parallel_tool_calls true",
 			fixture:           fixtures.OaiChatSimple,
 			withInjectedTools: true,
-			initialSetting:    utils.PtrTo(true),
-			expectedSetting:   utils.PtrTo(false),
+			initialSetting:    new(true),
+			expectedSetting:   new(false),
 		},
 		{
 			name:              "with injected tools only: parallel_tool_calls false",
 			fixture:           fixtures.OaiChatSimple,
 			withInjectedTools: true,
-			initialSetting:    utils.PtrTo(false),
-			expectedSetting:   utils.PtrTo(false),
+			initialSetting:    new(false),
+			expectedSetting:   new(false),
 		},
 		{
 			name:              "with injected tools only: parallel_tool_calls unset",
 			fixture:           fixtures.OaiChatSimple,
 			withInjectedTools: true,
 			initialSetting:    nil,
-			expectedSetting:   utils.PtrTo(false),
+			expectedSetting:   new(false),
 		},
 		// With builtin tools but without injected tools: parallel_tool_calls should be preserved.
 		{
 			name:              "with builtin tools only: parallel_tool_calls true",
 			fixture:           fixtures.OaiChatSingleBuiltinTool,
 			withInjectedTools: false,
-			initialSetting:    utils.PtrTo(true),
-			expectedSetting:   utils.PtrTo(true),
+			initialSetting:    new(true),
+			expectedSetting:   new(true),
 		},
 		{
 			name:              "with builtin tools only: parallel_tool_calls false",
 			fixture:           fixtures.OaiChatSingleBuiltinTool,
 			withInjectedTools: false,
-			initialSetting:    utils.PtrTo(false),
-			expectedSetting:   utils.PtrTo(false),
+			initialSetting:    new(false),
+			expectedSetting:   new(false),
 		},
 		{
 			name:              "with builtin tools only: parallel_tool_calls unset",
@@ -2167,15 +2323,15 @@ func TestChatCompletionsParallelToolCallsDisabled(t *testing.T) {
 			name:              "no tools: parallel_tool_calls true",
 			fixture:           fixtures.OaiChatSimple,
 			withInjectedTools: false,
-			initialSetting:    utils.PtrTo(true),
-			expectedSetting:   utils.PtrTo(true),
+			initialSetting:    new(true),
+			expectedSetting:   new(true),
 		},
 		{
 			name:              "no tools: parallel_tool_calls false",
 			fixture:           fixtures.OaiChatSimple,
 			withInjectedTools: false,
-			initialSetting:    utils.PtrTo(false),
-			expectedSetting:   utils.PtrTo(false),
+			initialSetting:    new(false),
+			expectedSetting:   new(false),
 		},
 		{
 			name:              "no tools: parallel_tool_calls unset",

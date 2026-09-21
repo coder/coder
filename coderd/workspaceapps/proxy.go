@@ -703,7 +703,7 @@ func (s *Server) proxyWorkspaceApp(rw http.ResponseWriter, r *http.Request, appT
 	}
 
 	// end span so we don't get long lived trace data
-	tracing.EndHTTPSpan(r, http.StatusOK, trace.SpanFromContext(ctx))
+	tracing.EndHTTPSpan(r, http.StatusOK, trace.SpanFromContext(ctx), "coderd")
 
 	report := newStatsReportFromSignedToken(appToken)
 	defer func() {

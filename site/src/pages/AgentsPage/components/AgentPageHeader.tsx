@@ -113,7 +113,7 @@ export const AgentPageHeader: FC<AgentPageHeaderProps> = ({
 	};
 
 	return (
-		<div className="order-first flex shrink-0 items-center gap-2 pl-4 pr-2 pt-3 pb-0.5 sm:order-none sm:px-4 sm:py-0.5">
+		<div className="order-first flex shrink-0 items-center gap-2 pl-4 pr-2 pt-3 pb-0.5 sm:order-0 sm:px-4 sm:py-0.5">
 			{mobileBack ? (
 				<Button
 					asChild

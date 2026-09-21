@@ -3049,26 +3049,30 @@ effective AS (
 	LEFT JOIN user_highest_group ON user_highest_group.user_id = filtered_users.user_id
 	LEFT JOIN user_fallback_group ON user_fallback_group.user_id = filtered_users.user_id
 ),
-applied_budget AS (
-	-- The limit and source only for users whose effective budget source is the
-	-- queried group.
-	SELECT user_id, spend_limit_micros, limit_source
+visible_effective AS (
+	-- The effective group and budget only when the group belongs to the queried
+	-- group's organization.
+	SELECT
+		effective.user_id,
+		effective.raw_effective_group_id AS group_id,
+		effective.spend_limit_micros,
+		effective.limit_source
 	FROM effective
-	WHERE raw_effective_group_id = $1
+	JOIN groups ON groups.id = effective.raw_effective_group_id
+	CROSS JOIN queried_group
+	WHERE groups.organization_id = queried_group.organization_id
 )
 SELECT
 	effective.user_id,
 	queried_group.organization_id,
-	effective_group.id AS effective_group_id,
-	applied_budget.spend_limit_micros,
-	applied_budget.limit_source,
+	visible_effective.group_id AS effective_group_id,
+	visible_effective.spend_limit_micros AS effective_spend_limit_micros,
+	visible_effective.limit_source AS effective_limit_source,
 	COALESCE(SUM(spend.spend_micros), 0)::BIGINT AS group_spend_micros
 FROM effective
 CROSS JOIN queried_group
-LEFT JOIN groups effective_group
-	ON effective_group.id = effective.raw_effective_group_id
-	AND effective_group.organization_id = queried_group.organization_id
-LEFT JOIN applied_budget ON applied_budget.user_id = effective.user_id
+LEFT JOIN visible_effective
+	ON visible_effective.user_id = effective.user_id
 LEFT JOIN ai_user_daily_spend spend
 	ON spend.user_id = effective.user_id
 	AND spend.effective_group_id = $1
@@ -3076,9 +3080,9 @@ LEFT JOIN ai_user_daily_spend spend
 GROUP BY
 	effective.user_id,
 	queried_group.organization_id,
-	effective_group.id,
-	applied_budget.spend_limit_micros,
-	applied_budget.limit_source
+	visible_effective.group_id,
+	visible_effective.spend_limit_micros,
+	visible_effective.limit_source
 ORDER BY effective.user_id
 `
 
@@ -3089,25 +3093,24 @@ type GetGroupMembersAISpendParams struct {
 }
 
 type GetGroupMembersAISpendRow struct {
-	UserID           uuid.UUID      `db:"user_id" json:"user_id"`
-	OrganizationID   uuid.UUID      `db:"organization_id" json:"organization_id"`
-	EffectiveGroupID uuid.NullUUID  `db:"effective_group_id" json:"effective_group_id"`
-	SpendLimitMicros sql.NullInt64  `db:"spend_limit_micros" json:"spend_limit_micros"`
-	LimitSource      sql.NullString `db:"limit_source" json:"limit_source"`
-	GroupSpendMicros int64          `db:"group_spend_micros" json:"group_spend_micros"`
+	UserID                    uuid.UUID      `db:"user_id" json:"user_id"`
+	OrganizationID            uuid.UUID      `db:"organization_id" json:"organization_id"`
+	EffectiveGroupID          uuid.NullUUID  `db:"effective_group_id" json:"effective_group_id"`
+	EffectiveSpendLimitMicros sql.NullInt64  `db:"effective_spend_limit_micros" json:"effective_spend_limit_micros"`
+	EffectiveLimitSource      sql.NullString `db:"effective_limit_source" json:"effective_limit_source"`
+	GroupSpendMicros          int64          `db:"group_spend_micros" json:"group_spend_micros"`
 }
 
 // Returns each user's AI spend attributed to the queried group, on or after
 // period_start until NOW. Only current members of the queried group are
-// returned. spend_limit_micros and limit_source are populated only when the
-// queried group is the user's effective budget source. The effective group
-// falls back to the Everyone group, and effective_group_id is null only when
-// that group belongs to a different organization than the queried group.
+// returned. effective_spend_limit_micros and effective_limit_source describe
+// the user's effective budget when its group belongs to the queried group's
+// organization. The effective group falls back to the Everyone group, and
+// effective_group_id is null only when that group belongs to a different
+// organization than the queried group.
 // The period_start parameter is normalized to its UTC calendar day.
 // TODO(AIGOV-527): unify effective group resolution in a single place.
 // Spend is aggregated for the queried group, not the user's effective group.
-// A LEFT JOIN leaves spend_limit_micros and limit_source null for users
-// whose effective budget source is not the queried group.
 func (q *sqlQuerier) GetGroupMembersAISpend(ctx context.Context, arg GetGroupMembersAISpendParams) ([]GetGroupMembersAISpendRow, error) {
 	rows, err := q.db.QueryContext(ctx, getGroupMembersAISpend, arg.GroupID, arg.PeriodStart, pq.Array(arg.UserIds))
 	if err != nil {
@@ -3121,8 +3124,8 @@ func (q *sqlQuerier) GetGroupMembersAISpend(ctx context.Context, arg GetGroupMem
 			&i.UserID,
 			&i.OrganizationID,
 			&i.EffectiveGroupID,
-			&i.SpendLimitMicros,
-			&i.LimitSource,
+			&i.EffectiveSpendLimitMicros,
+			&i.EffectiveLimitSource,
 			&i.GroupSpendMicros,
 		); err != nil {
 			return nil, err
@@ -3394,6 +3397,71 @@ func (q *sqlQuerier) GetOverBudgetUsersPerGroup(ctx context.Context, periodStart
 	for rows.Next() {
 		var i GetOverBudgetUsersPerGroupRow
 		if err := rows.Scan(&i.GroupID, &i.OverBudgetUsers); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getUnpricedAIModelsSince = `-- name: GetUnpricedAIModelsSince :many
+SELECT
+	providers.type::text AS provider_type,
+	interceptions.model AS model,
+	SUM(
+		token_usages.input_tokens
+		+ token_usages.output_tokens
+		+ token_usages.cache_read_input_tokens
+		+ token_usages.cache_write_input_tokens
+	)::bigint AS token_count
+FROM aibridge_interceptions AS interceptions
+JOIN aibridge_token_usages AS token_usages
+	ON token_usages.interception_id = interceptions.id
+JOIN ai_providers AS providers
+	ON providers.name = interceptions.provider_name
+	AND providers.deleted = false
+WHERE interceptions.started_at >= $1::timestamptz
+	AND token_usages.cost_micros IS NULL
+	AND providers.type::text = ANY($2::text[])
+	AND NOT EXISTS (
+		SELECT 1
+		FROM ai_model_prices AS prices
+		WHERE prices.provider = providers.type::text
+			AND prices.model = interceptions.model
+	)
+GROUP BY providers.type, interceptions.model
+ORDER BY token_count DESC, provider_type ASC, model ASC
+`
+
+type GetUnpricedAIModelsSinceParams struct {
+	Since              time.Time `db:"since" json:"since"`
+	PriceableProviders []string  `db:"priceable_providers" json:"priceable_providers"`
+}
+
+type GetUnpricedAIModelsSinceRow struct {
+	ProviderType string `db:"provider_type" json:"provider_type"`
+	Model        string `db:"model" json:"model"`
+	TokenCount   int64  `db:"token_count" json:"token_count"`
+}
+
+// Returns the models used since the given time that hold no price, most used
+// first. openai-compat providers cannot be priced, so their models are excluded.
+func (q *sqlQuerier) GetUnpricedAIModelsSince(ctx context.Context, arg GetUnpricedAIModelsSinceParams) ([]GetUnpricedAIModelsSinceRow, error) {
+	rows, err := q.db.QueryContext(ctx, getUnpricedAIModelsSince, arg.Since, pq.Array(arg.PriceableProviders))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetUnpricedAIModelsSinceRow
+	for rows.Next() {
+		var i GetUnpricedAIModelsSinceRow
+		if err := rows.Scan(&i.ProviderType, &i.Model, &i.TokenCount); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -7410,8 +7478,9 @@ WITH batch AS (
 )
 UPDATE chat_messages cm
 SET search_tsv = COALESCE(
-    to_tsvector('simple', chat_message_search_text(cm.content)),
-    ''::tsvector)
+        to_tsvector('english', chat_message_search_text(cm.content)),
+        ''::tsvector),
+    search_tsv_config = 'english'
 FROM batch WHERE cm.id = batch.id
 `
 
@@ -7489,6 +7558,41 @@ type BatchUpsertChatHeartbeatsParams struct {
 
 func (q *sqlQuerier) BatchUpsertChatHeartbeats(ctx context.Context, arg BatchUpsertChatHeartbeatsParams) error {
 	_, err := q.db.ExecContext(ctx, batchUpsertChatHeartbeats, pq.Array(arg.ChatIds), pq.Array(arg.RunnerIds))
+	return err
+}
+
+const clearChatDiffStatusPR = `-- name: ClearChatDiffStatusPR :exec
+UPDATE
+    chat_diff_statuses
+SET
+    url = NULL,
+    pull_request_state = NULL,
+    pull_request_title = '',
+    pull_request_draft = FALSE,
+    changes_requested = FALSE,
+    additions = 0,
+    deletions = 0,
+    changed_files = 0,
+    author_login = NULL,
+    author_avatar_url = NULL,
+    base_branch = NULL,
+    head_branch = NULL,
+    pr_number = NULL,
+    commits = NULL,
+    approved = NULL,
+    reviewer_count = NULL,
+    stale_at = $1::timestamptz
+WHERE
+    chat_id = $2::uuid
+`
+
+type ClearChatDiffStatusPRParams struct {
+	StaleAt time.Time `db:"stale_at" json:"stale_at"`
+	ChatID  uuid.UUID `db:"chat_id" json:"chat_id"`
+}
+
+func (q *sqlQuerier) ClearChatDiffStatusPR(ctx context.Context, arg ClearChatDiffStatusPRParams) error {
+	_, err := q.db.ExecContext(ctx, clearChatDiffStatusPR, arg.StaleAt, arg.ChatID)
 	return err
 }
 
@@ -8449,7 +8553,7 @@ func (q *sqlQuerier) GetChatHeartbeat(ctx context.Context, arg GetChatHeartbeatP
 
 const getChatMessageByID = `-- name: GetChatMessageByID :one
 SELECT
-    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, revision, reasoning_effort, search_tsv
+    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, revision, reasoning_effort, search_tsv, search_tsv_config
 FROM
     chat_messages
 WHERE
@@ -8485,6 +8589,7 @@ func (q *sqlQuerier) GetChatMessageByID(ctx context.Context, id int64) (ChatMess
 		&i.Revision,
 		&i.ReasoningEffort,
 		&i.SearchTsv,
+		&i.SearchTsvConfig,
 	)
 	return i, err
 }
@@ -8571,7 +8676,7 @@ func (q *sqlQuerier) GetChatMessageSummariesPerChat(ctx context.Context, created
 
 const getChatMessagesByChatID = `-- name: GetChatMessagesByChatID :many
 SELECT
-    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, revision, reasoning_effort, search_tsv
+    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, revision, reasoning_effort, search_tsv, search_tsv_config
 FROM
     chat_messages
 WHERE
@@ -8625,6 +8730,7 @@ func (q *sqlQuerier) GetChatMessagesByChatID(ctx context.Context, arg GetChatMes
 			&i.Revision,
 			&i.ReasoningEffort,
 			&i.SearchTsv,
+			&i.SearchTsvConfig,
 		); err != nil {
 			return nil, err
 		}
@@ -8641,7 +8747,7 @@ func (q *sqlQuerier) GetChatMessagesByChatID(ctx context.Context, arg GetChatMes
 
 const getChatMessagesByChatIDAscPaginated = `-- name: GetChatMessagesByChatIDAscPaginated :many
 SELECT
-    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, revision, reasoning_effort, search_tsv
+    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, revision, reasoning_effort, search_tsv, search_tsv_config
 FROM
     chat_messages
 WHERE
@@ -8695,6 +8801,7 @@ func (q *sqlQuerier) GetChatMessagesByChatIDAscPaginated(ctx context.Context, ar
 			&i.Revision,
 			&i.ReasoningEffort,
 			&i.SearchTsv,
+			&i.SearchTsvConfig,
 		); err != nil {
 			return nil, err
 		}
@@ -8711,7 +8818,7 @@ func (q *sqlQuerier) GetChatMessagesByChatIDAscPaginated(ctx context.Context, ar
 
 const getChatMessagesByChatIDDescPaginated = `-- name: GetChatMessagesByChatIDDescPaginated :many
 SELECT
-    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, revision, reasoning_effort, search_tsv
+    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, revision, reasoning_effort, search_tsv, search_tsv_config
 FROM
     chat_messages
 WHERE
@@ -8778,6 +8885,7 @@ func (q *sqlQuerier) GetChatMessagesByChatIDDescPaginated(ctx context.Context, a
 			&i.Revision,
 			&i.ReasoningEffort,
 			&i.SearchTsv,
+			&i.SearchTsvConfig,
 		); err != nil {
 			return nil, err
 		}
@@ -8794,7 +8902,7 @@ func (q *sqlQuerier) GetChatMessagesByChatIDDescPaginated(ctx context.Context, a
 
 const getChatMessagesByRevisionForStream = `-- name: GetChatMessagesByRevisionForStream :many
 SELECT
-    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, revision, reasoning_effort, search_tsv
+    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, revision, reasoning_effort, search_tsv, search_tsv_config
 FROM
     chat_messages
 WHERE
@@ -8845,6 +8953,7 @@ func (q *sqlQuerier) GetChatMessagesByRevisionForStream(ctx context.Context, arg
 			&i.Revision,
 			&i.ReasoningEffort,
 			&i.SearchTsv,
+			&i.SearchTsvConfig,
 		); err != nil {
 			return nil, err
 		}
@@ -8876,7 +8985,7 @@ WITH latest_compressed_summary AS (
         1
 )
 SELECT
-    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, revision, reasoning_effort, search_tsv
+    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, revision, reasoning_effort, search_tsv, search_tsv_config
 FROM
     chat_messages
 WHERE
@@ -8952,6 +9061,7 @@ func (q *sqlQuerier) GetChatMessagesForPromptByChatID(ctx context.Context, chatI
 			&i.Revision,
 			&i.ReasoningEffort,
 			&i.SearchTsv,
+			&i.SearchTsvConfig,
 		); err != nil {
 			return nil, err
 		}
@@ -9588,7 +9698,10 @@ WHERE
                     AND cm.deleted = false
                     AND cm.visibility IN ('user', 'both')
                     AND cm.role IN ('user', 'assistant')
-                    AND cm.search_tsv @@ websearch_to_tsquery('simple', $16)
+                    AND (
+                        (cm.search_tsv_config = 'english' AND cm.search_tsv @@ websearch_to_tsquery('english', $16))
+                        OR (cm.search_tsv_config IS NULL AND cm.search_tsv @@ websearch_to_tsquery('simple', $16))
+                    )
             )
             -- Skip an explicit pr_number lookup unless the search is a valid bigint.
             OR CASE
@@ -10182,7 +10295,7 @@ func (q *sqlQuerier) GetDatabaseNow(ctx context.Context) (time.Time, error) {
 
 const getLastChatMessageByRole = `-- name: GetLastChatMessageByRole :one
 SELECT
-    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, revision, reasoning_effort, search_tsv
+    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, revision, reasoning_effort, search_tsv, search_tsv_config
 FROM
     chat_messages
 WHERE
@@ -10230,6 +10343,7 @@ func (q *sqlQuerier) GetLastChatMessageByRole(ctx context.Context, arg GetLastCh
 		&i.Revision,
 		&i.ReasoningEffort,
 		&i.SearchTsv,
+		&i.SearchTsvConfig,
 	)
 	return i, err
 }
@@ -10746,9 +10860,9 @@ inserted AS (
         ($16::boolean[])[allocated.ord],
         NULLIF(($17::bigint[])[allocated.ord], 0)
     FROM allocated
-    RETURNING id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, revision, reasoning_effort, search_tsv
+    RETURNING id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, revision, reasoning_effort, search_tsv, search_tsv_config
 )
-SELECT id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, revision, reasoning_effort, search_tsv
+SELECT id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, revision, reasoning_effort, search_tsv, search_tsv_config
 FROM inserted
 ORDER BY id
 `
@@ -10774,30 +10888,31 @@ type InsertChatMessagesParams struct {
 }
 
 type InsertChatMessagesRow struct {
-	ID                  int64                   `db:"id" json:"id"`
-	ChatID              uuid.UUID               `db:"chat_id" json:"chat_id"`
-	ModelConfigID       uuid.NullUUID           `db:"model_config_id" json:"model_config_id"`
-	CreatedAt           time.Time               `db:"created_at" json:"created_at"`
-	Role                ChatMessageRole         `db:"role" json:"role"`
-	Content             pqtype.NullRawMessage   `db:"content" json:"content"`
-	Visibility          ChatMessageVisibility   `db:"visibility" json:"visibility"`
-	InputTokens         sql.NullInt64           `db:"input_tokens" json:"input_tokens"`
-	OutputTokens        sql.NullInt64           `db:"output_tokens" json:"output_tokens"`
-	TotalTokens         sql.NullInt64           `db:"total_tokens" json:"total_tokens"`
-	ReasoningTokens     sql.NullInt64           `db:"reasoning_tokens" json:"reasoning_tokens"`
-	CacheCreationTokens sql.NullInt64           `db:"cache_creation_tokens" json:"cache_creation_tokens"`
-	CacheReadTokens     sql.NullInt64           `db:"cache_read_tokens" json:"cache_read_tokens"`
-	ContextLimit        sql.NullInt64           `db:"context_limit" json:"context_limit"`
-	Compressed          bool                    `db:"compressed" json:"compressed"`
-	CreatedBy           uuid.NullUUID           `db:"created_by" json:"created_by"`
-	ContentVersion      int16                   `db:"content_version" json:"content_version"`
-	TotalCostMicros     sql.NullInt64           `db:"total_cost_micros" json:"total_cost_micros"`
-	RuntimeMs           sql.NullInt64           `db:"runtime_ms" json:"runtime_ms"`
-	Deleted             bool                    `db:"deleted" json:"deleted"`
-	ProviderResponseID  sql.NullString          `db:"provider_response_id" json:"provider_response_id"`
-	Revision            int64                   `db:"revision" json:"revision"`
-	ReasoningEffort     NullChatReasoningEffort `db:"reasoning_effort" json:"reasoning_effort"`
-	SearchTsv           interface{}             `db:"search_tsv" json:"search_tsv"`
+	ID                  int64                          `db:"id" json:"id"`
+	ChatID              uuid.UUID                      `db:"chat_id" json:"chat_id"`
+	ModelConfigID       uuid.NullUUID                  `db:"model_config_id" json:"model_config_id"`
+	CreatedAt           time.Time                      `db:"created_at" json:"created_at"`
+	Role                ChatMessageRole                `db:"role" json:"role"`
+	Content             pqtype.NullRawMessage          `db:"content" json:"content"`
+	Visibility          ChatMessageVisibility          `db:"visibility" json:"visibility"`
+	InputTokens         sql.NullInt64                  `db:"input_tokens" json:"input_tokens"`
+	OutputTokens        sql.NullInt64                  `db:"output_tokens" json:"output_tokens"`
+	TotalTokens         sql.NullInt64                  `db:"total_tokens" json:"total_tokens"`
+	ReasoningTokens     sql.NullInt64                  `db:"reasoning_tokens" json:"reasoning_tokens"`
+	CacheCreationTokens sql.NullInt64                  `db:"cache_creation_tokens" json:"cache_creation_tokens"`
+	CacheReadTokens     sql.NullInt64                  `db:"cache_read_tokens" json:"cache_read_tokens"`
+	ContextLimit        sql.NullInt64                  `db:"context_limit" json:"context_limit"`
+	Compressed          bool                           `db:"compressed" json:"compressed"`
+	CreatedBy           uuid.NullUUID                  `db:"created_by" json:"created_by"`
+	ContentVersion      int16                          `db:"content_version" json:"content_version"`
+	TotalCostMicros     sql.NullInt64                  `db:"total_cost_micros" json:"total_cost_micros"`
+	RuntimeMs           sql.NullInt64                  `db:"runtime_ms" json:"runtime_ms"`
+	Deleted             bool                           `db:"deleted" json:"deleted"`
+	ProviderResponseID  sql.NullString                 `db:"provider_response_id" json:"provider_response_id"`
+	Revision            int64                          `db:"revision" json:"revision"`
+	ReasoningEffort     NullChatReasoningEffort        `db:"reasoning_effort" json:"reasoning_effort"`
+	SearchTsv           interface{}                    `db:"search_tsv" json:"search_tsv"`
+	SearchTsvConfig     NullChatMessageSearchTsvConfig `db:"search_tsv_config" json:"search_tsv_config"`
 }
 
 // Returns the inserted rows in input array order. Ids are allocated before the
@@ -10855,6 +10970,7 @@ func (q *sqlQuerier) InsertChatMessages(ctx context.Context, arg InsertChatMessa
 			&i.Revision,
 			&i.ReasoningEffort,
 			&i.SearchTsv,
+			&i.SearchTsvConfig,
 		); err != nil {
 			return nil, err
 		}
@@ -11352,6 +11468,33 @@ func (q *sqlQuerier) PopNextQueuedMessage(ctx context.Context, chatID uuid.UUID)
 	return i, err
 }
 
+const reindexStaleChatMessagesSearchTsv = `-- name: ReindexStaleChatMessagesSearchTsv :execrows
+WITH batch AS (
+    SELECT id FROM chat_messages
+    WHERE search_tsv IS NOT NULL
+      AND search_tsv_config IS DISTINCT FROM 'english'
+      AND deleted = false
+      AND visibility IN ('user', 'both')
+      AND role IN ('user', 'assistant')
+    ORDER BY id DESC
+    LIMIT $1::int
+)
+UPDATE chat_messages cm
+SET search_tsv = COALESCE(
+        to_tsvector('english', chat_message_search_text(cm.content)),
+        ''::tsvector),
+    search_tsv_config = 'english'
+FROM batch WHERE cm.id = batch.id
+`
+
+func (q *sqlQuerier) ReindexStaleChatMessagesSearchTsv(ctx context.Context, batchSize int32) (int64, error) {
+	result, err := q.db.ExecContext(ctx, reindexStaleChatMessagesSearchTsv, batchSize)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const reorderChatQueuedMessageToFront = `-- name: ReorderChatQueuedMessageToFront :execrows
 UPDATE chat_queued_messages AS target
 SET created_at = (
@@ -11474,6 +11617,108 @@ WHERE chat_id = $1::uuid
 func (q *sqlQuerier) SoftDeleteContextFileMessages(ctx context.Context, chatID uuid.UUID) error {
 	_, err := q.db.ExecContext(ctx, softDeleteContextFileMessages, chatID)
 	return err
+}
+
+const syncAgentChatsContextMCPResources = `-- name: SyncAgentChatsContextMCPResources :many
+WITH agent_mcp AS (
+    SELECT source, body_kind, body, content_hash, size_bytes, status, error, source_path
+    FROM workspace_agent_context_resources
+    WHERE workspace_agent_id = $1::uuid
+        AND body_kind IN ('mcp_config', 'mcp_server')
+),
+changed AS (
+    SELECT chats.id
+    FROM chats
+    WHERE chats.agent_id = $1::uuid
+        AND chats.archived = false
+        AND chats.context_aggregate_hash IS NOT NULL
+        AND (
+            EXISTS (
+                SELECT 1 FROM agent_mcp m
+                WHERE NOT EXISTS (
+                    SELECT 1 FROM chat_context_resources ccr
+                    WHERE ccr.chat_id = chats.id
+                        AND ccr.source = m.source
+                        AND ccr.body_kind = m.body_kind
+                        AND ccr.content_hash = m.content_hash
+                        AND ccr.status = m.status
+                        AND ccr.error = m.error
+                )
+            )
+            OR EXISTS (
+                SELECT 1 FROM chat_context_resources ccr
+                WHERE ccr.chat_id = chats.id
+                    AND ccr.body_kind IN ('mcp_config', 'mcp_server')
+                    AND NOT EXISTS (
+                        SELECT 1 FROM agent_mcp m
+                        WHERE m.source = ccr.source
+                            AND m.body_kind = ccr.body_kind
+                            AND m.content_hash = ccr.content_hash
+                            AND m.status = ccr.status
+                            AND m.error = ccr.error
+                    )
+            )
+        )
+),
+locked AS (
+    SELECT id FROM chats
+    WHERE id IN (SELECT id FROM changed)
+    ORDER BY id
+    FOR UPDATE
+),
+deleted AS (
+    DELETE FROM chat_context_resources
+    USING locked
+    WHERE chat_context_resources.chat_id = locked.id
+        AND chat_context_resources.body_kind IN ('mcp_config', 'mcp_server')
+        AND chat_context_resources.source NOT IN (SELECT source FROM agent_mcp)
+),
+upserted AS (
+    INSERT INTO chat_context_resources (
+        chat_id, source, body_kind, body, content_hash, size_bytes, status, error, source_path
+    )
+    SELECT
+        locked.id, m.source, m.body_kind, m.body, m.content_hash,
+        m.size_bytes, m.status, m.error, m.source_path
+    FROM locked
+    CROSS JOIN agent_mcp m
+    ON CONFLICT (chat_id, source) DO UPDATE SET
+        body_kind = EXCLUDED.body_kind,
+        body = EXCLUDED.body,
+        content_hash = EXCLUDED.content_hash,
+        size_bytes = EXCLUDED.size_bytes,
+        status = EXCLUDED.status,
+        error = EXCLUDED.error,
+        source_path = EXCLUDED.source_path,
+        updated_at = now()
+)
+SELECT id FROM locked
+`
+
+// MCP resources bypass context drift and are live-synced on each push.
+// Changed chats are locked in ID order so concurrent clear-then-copy re-pins
+// cannot interleave with the replacement.
+func (q *sqlQuerier) SyncAgentChatsContextMCPResources(ctx context.Context, agentID uuid.UUID) ([]uuid.UUID, error) {
+	rows, err := q.db.QueryContext(ctx, syncAgentChatsContextMCPResources, agentID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []uuid.UUID
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const unarchiveChatByID = `-- name: UnarchiveChatByID :many
@@ -14714,6 +14959,58 @@ func (q *sqlQuerier) UpdateExternalAuthLink(ctx context.Context, arg UpdateExter
 		&i.RefreshLeaseExpiresAt,
 	)
 	return i, err
+}
+
+const deleteCachedModuleFilesCreatedBetween = `-- name: DeleteCachedModuleFilesCreatedBetween :execrows
+WITH doomed AS (
+	SELECT
+		files.id
+	FROM
+		files
+	INNER JOIN
+		template_version_terraform_values
+		ON template_version_terraform_values.cached_module_files = files.id
+	WHERE
+		files.created_by = '00000000-0000-0000-0000-000000000000'
+		AND files.mimetype = 'application/x-tar'
+		AND files.created_at >= $1
+		AND files.created_at < $2
+), cleared AS (
+	-- The foreign key is NO ACTION, so references must be cleared before the
+	-- files rows can be deleted. Data-modifying CTEs always run to completion,
+	-- and the constraint is checked at the end of the statement.
+	UPDATE
+		template_version_terraform_values
+	SET
+		cached_module_files = NULL
+	WHERE
+		cached_module_files IN (SELECT id FROM doomed)
+	RETURNING 1
+)
+DELETE FROM
+	files
+USING
+	doomed
+WHERE
+	files.id = doomed.id
+`
+
+type DeleteCachedModuleFilesCreatedBetweenParams struct {
+	CreatedAtAfter  time.Time `db:"created_at_after" json:"created_at_after"`
+	CreatedAtBefore time.Time `db:"created_at_before" json:"created_at_before"`
+}
+
+// Deletes cached Terraform module archives ingested in the given time range and
+// clears the template version references to them. created_by and mimetype
+// identify a provisionerd-written module archive, matching the checks in
+// provisionerdserver, so user-uploaded template tarballs are never removed.
+// Only archives referenced by a template version are considered.
+func (q *sqlQuerier) DeleteCachedModuleFilesCreatedBetween(ctx context.Context, arg DeleteCachedModuleFilesCreatedBetweenParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deleteCachedModuleFilesCreatedBetween, arg.CreatedAtAfter, arg.CreatedAtBefore)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const getFileByHashAndCreator = `-- name: GetFileByHashAndCreator :one
@@ -25834,6 +26131,18 @@ func (q *sqlQuerier) GetChatWorkspaceTTL(ctx context.Context) (string, error) {
 	return workspace_ttl, err
 }
 
+const getCodernautsEnabled = `-- name: GetCodernautsEnabled :one
+SELECT
+	COALESCE((SELECT value = 'true' FROM site_configs WHERE key = 'codernauts_enabled'), true) :: boolean AS codernauts_enabled
+`
+
+func (q *sqlQuerier) GetCodernautsEnabled(ctx context.Context) (bool, error) {
+	row := q.db.QueryRowContext(ctx, getCodernautsEnabled)
+	var codernauts_enabled bool
+	err := row.Scan(&codernauts_enabled)
+	return codernauts_enabled, err
+}
+
 const getDERPMeshKey = `-- name: GetDERPMeshKey :one
 SELECT value FROM site_configs WHERE key = 'derp_mesh_key'
 `
@@ -26211,6 +26520,28 @@ WHERE site_configs.key = 'agents_workspace_ttl'
 
 func (q *sqlQuerier) UpsertChatWorkspaceTTL(ctx context.Context, workspaceTtl string) error {
 	_, err := q.db.ExecContext(ctx, upsertChatWorkspaceTTL, workspaceTtl)
+	return err
+}
+
+const upsertCodernautsEnabled = `-- name: UpsertCodernautsEnabled :exec
+INSERT INTO site_configs (key, value)
+VALUES (
+    'codernauts_enabled',
+    CASE
+        WHEN $1::bool THEN 'true'
+        ELSE 'false'
+    END
+)
+ON CONFLICT (key) DO UPDATE
+SET value = CASE
+    WHEN $1::bool THEN 'true'
+    ELSE 'false'
+END
+WHERE site_configs.key = 'codernauts_enabled'
+`
+
+func (q *sqlQuerier) UpsertCodernautsEnabled(ctx context.Context, enabled bool) error {
+	_, err := q.db.ExecContext(ctx, upsertCodernautsEnabled, enabled)
 	return err
 }
 
@@ -27634,7 +27965,7 @@ func (q *sqlQuerier) GetTemplateAverageBuildTime(ctx context.Context, templateID
 
 const getTemplateByID = `-- name: GetTemplateByID :one
 SELECT
-	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, allow_user_autostart, allow_user_autostop, failure_ttl, time_til_dormant, time_til_dormant_autodelete, autostop_requirement_days_of_week, autostop_requirement_weeks, autostart_block_days_of_week, require_active_version, deprecated, activity_bump, max_port_sharing_level, use_classic_parameter_flow, cors_behavior, disable_module_cache, time_til_autostop_notify, agents_allowed, created_by_avatar_url, created_by_username, created_by_name, organization_name, organization_display_name, organization_icon
+	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, allow_user_autostart, allow_user_autostop, failure_ttl, time_til_dormant, time_til_dormant_autodelete, autostop_requirement_days_of_week, autostop_requirement_weeks, autostart_block_days_of_week, require_active_version, deprecated, activity_bump, max_port_sharing_level, use_classic_parameter_flow, cors_behavior, disable_module_cache, time_til_autostop_notify, agents_allowed, allow_workspace_renames, created_by_avatar_url, created_by_username, created_by_name, organization_name, organization_display_name, organization_icon
 FROM
 	template_with_names
 WHERE
@@ -27680,6 +28011,7 @@ func (q *sqlQuerier) GetTemplateByID(ctx context.Context, id uuid.UUID) (Templat
 		&i.DisableModuleCache,
 		&i.TimeTilAutostopNotify,
 		&i.AgentsAllowed,
+		&i.AllowWorkspaceRenames,
 		&i.CreatedByAvatarURL,
 		&i.CreatedByUsername,
 		&i.CreatedByName,
@@ -27692,7 +28024,7 @@ func (q *sqlQuerier) GetTemplateByID(ctx context.Context, id uuid.UUID) (Templat
 
 const getTemplateByOrganizationAndName = `-- name: GetTemplateByOrganizationAndName :one
 SELECT
-	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, allow_user_autostart, allow_user_autostop, failure_ttl, time_til_dormant, time_til_dormant_autodelete, autostop_requirement_days_of_week, autostop_requirement_weeks, autostart_block_days_of_week, require_active_version, deprecated, activity_bump, max_port_sharing_level, use_classic_parameter_flow, cors_behavior, disable_module_cache, time_til_autostop_notify, agents_allowed, created_by_avatar_url, created_by_username, created_by_name, organization_name, organization_display_name, organization_icon
+	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, allow_user_autostart, allow_user_autostop, failure_ttl, time_til_dormant, time_til_dormant_autodelete, autostop_requirement_days_of_week, autostop_requirement_weeks, autostart_block_days_of_week, require_active_version, deprecated, activity_bump, max_port_sharing_level, use_classic_parameter_flow, cors_behavior, disable_module_cache, time_til_autostop_notify, agents_allowed, allow_workspace_renames, created_by_avatar_url, created_by_username, created_by_name, organization_name, organization_display_name, organization_icon
 FROM
 	template_with_names AS templates
 WHERE
@@ -27746,6 +28078,7 @@ func (q *sqlQuerier) GetTemplateByOrganizationAndName(ctx context.Context, arg G
 		&i.DisableModuleCache,
 		&i.TimeTilAutostopNotify,
 		&i.AgentsAllowed,
+		&i.AllowWorkspaceRenames,
 		&i.CreatedByAvatarURL,
 		&i.CreatedByUsername,
 		&i.CreatedByName,
@@ -27757,7 +28090,7 @@ func (q *sqlQuerier) GetTemplateByOrganizationAndName(ctx context.Context, arg G
 }
 
 const getTemplates = `-- name: GetTemplates :many
-SELECT id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, allow_user_autostart, allow_user_autostop, failure_ttl, time_til_dormant, time_til_dormant_autodelete, autostop_requirement_days_of_week, autostop_requirement_weeks, autostart_block_days_of_week, require_active_version, deprecated, activity_bump, max_port_sharing_level, use_classic_parameter_flow, cors_behavior, disable_module_cache, time_til_autostop_notify, agents_allowed, created_by_avatar_url, created_by_username, created_by_name, organization_name, organization_display_name, organization_icon FROM template_with_names AS templates
+SELECT id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, allow_user_autostart, allow_user_autostop, failure_ttl, time_til_dormant, time_til_dormant_autodelete, autostop_requirement_days_of_week, autostop_requirement_weeks, autostart_block_days_of_week, require_active_version, deprecated, activity_bump, max_port_sharing_level, use_classic_parameter_flow, cors_behavior, disable_module_cache, time_til_autostop_notify, agents_allowed, allow_workspace_renames, created_by_avatar_url, created_by_username, created_by_name, organization_name, organization_display_name, organization_icon FROM template_with_names AS templates
 ORDER BY (name, id) ASC
 `
 
@@ -27804,6 +28137,7 @@ func (q *sqlQuerier) GetTemplates(ctx context.Context) ([]Template, error) {
 			&i.DisableModuleCache,
 			&i.TimeTilAutostopNotify,
 			&i.AgentsAllowed,
+			&i.AllowWorkspaceRenames,
 			&i.CreatedByAvatarURL,
 			&i.CreatedByUsername,
 			&i.CreatedByName,
@@ -27826,7 +28160,7 @@ func (q *sqlQuerier) GetTemplates(ctx context.Context) ([]Template, error) {
 
 const getTemplatesWithFilter = `-- name: GetTemplatesWithFilter :many
 SELECT
-	t.id, t.created_at, t.updated_at, t.organization_id, t.deleted, t.name, t.provisioner, t.active_version_id, t.description, t.default_ttl, t.created_by, t.icon, t.user_acl, t.group_acl, t.display_name, t.allow_user_cancel_workspace_jobs, t.allow_user_autostart, t.allow_user_autostop, t.failure_ttl, t.time_til_dormant, t.time_til_dormant_autodelete, t.autostop_requirement_days_of_week, t.autostop_requirement_weeks, t.autostart_block_days_of_week, t.require_active_version, t.deprecated, t.activity_bump, t.max_port_sharing_level, t.use_classic_parameter_flow, t.cors_behavior, t.disable_module_cache, t.time_til_autostop_notify, t.agents_allowed, t.created_by_avatar_url, t.created_by_username, t.created_by_name, t.organization_name, t.organization_display_name, t.organization_icon
+	t.id, t.created_at, t.updated_at, t.organization_id, t.deleted, t.name, t.provisioner, t.active_version_id, t.description, t.default_ttl, t.created_by, t.icon, t.user_acl, t.group_acl, t.display_name, t.allow_user_cancel_workspace_jobs, t.allow_user_autostart, t.allow_user_autostop, t.failure_ttl, t.time_til_dormant, t.time_til_dormant_autodelete, t.autostop_requirement_days_of_week, t.autostop_requirement_weeks, t.autostart_block_days_of_week, t.require_active_version, t.deprecated, t.activity_bump, t.max_port_sharing_level, t.use_classic_parameter_flow, t.cors_behavior, t.disable_module_cache, t.time_til_autostop_notify, t.agents_allowed, t.allow_workspace_renames, t.created_by_avatar_url, t.created_by_username, t.created_by_name, t.organization_name, t.organization_display_name, t.organization_icon
 FROM
 	template_with_names AS t
 LEFT JOIN
@@ -27996,6 +28330,7 @@ func (q *sqlQuerier) GetTemplatesWithFilter(ctx context.Context, arg GetTemplate
 			&i.DisableModuleCache,
 			&i.TimeTilAutostopNotify,
 			&i.AgentsAllowed,
+			&i.AllowWorkspaceRenames,
 			&i.CreatedByAvatarURL,
 			&i.CreatedByUsername,
 			&i.CreatedByName,
@@ -28036,10 +28371,11 @@ INSERT INTO
 		max_port_sharing_level,
 		use_classic_parameter_flow,
 		cors_behavior,
-		agents_allowed
+		agents_allowed,
+		allow_workspace_renames
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
 `
 
 type InsertTemplateParams struct {
@@ -28061,6 +28397,7 @@ type InsertTemplateParams struct {
 	UseClassicParameterFlow      bool            `db:"use_classic_parameter_flow" json:"use_classic_parameter_flow"`
 	CorsBehavior                 CorsBehavior    `db:"cors_behavior" json:"cors_behavior"`
 	AgentsAllowed                bool            `db:"agents_allowed" json:"agents_allowed"`
+	AllowWorkspaceRenames        bool            `db:"allow_workspace_renames" json:"allow_workspace_renames"`
 }
 
 func (q *sqlQuerier) InsertTemplate(ctx context.Context, arg InsertTemplateParams) error {
@@ -28083,6 +28420,7 @@ func (q *sqlQuerier) InsertTemplate(ctx context.Context, arg InsertTemplateParam
 		arg.UseClassicParameterFlow,
 		arg.CorsBehavior,
 		arg.AgentsAllowed,
+		arg.AllowWorkspaceRenames,
 	)
 	return err
 }
@@ -28186,7 +28524,8 @@ SET
 	use_classic_parameter_flow = $10,
 	cors_behavior = $11,
 	disable_module_cache = $12,
-	agents_allowed = $13
+	agents_allowed = $13,
+	allow_workspace_renames = $14
 WHERE
 	id = $1
 `
@@ -28205,6 +28544,7 @@ type UpdateTemplateMetaByIDParams struct {
 	CorsBehavior                 CorsBehavior    `db:"cors_behavior" json:"cors_behavior"`
 	DisableModuleCache           bool            `db:"disable_module_cache" json:"disable_module_cache"`
 	AgentsAllowed                bool            `db:"agents_allowed" json:"agents_allowed"`
+	AllowWorkspaceRenames        bool            `db:"allow_workspace_renames" json:"allow_workspace_renames"`
 }
 
 func (q *sqlQuerier) UpdateTemplateMetaByID(ctx context.Context, arg UpdateTemplateMetaByIDParams) error {
@@ -28222,6 +28562,7 @@ func (q *sqlQuerier) UpdateTemplateMetaByID(ctx context.Context, arg UpdateTempl
 		arg.CorsBehavior,
 		arg.DisableModuleCache,
 		arg.AgentsAllowed,
+		arg.AllowWorkspaceRenames,
 	)
 	return err
 }
@@ -29417,6 +29758,38 @@ func (q *sqlQuerier) GetTotalUsageHBAgentRuntimeV1(ctx context.Context, arg GetT
 	return total_runtime_ms, err
 }
 
+const getUsageEventsStats = `-- name: GetUsageEventsStats :one
+SELECT
+    (COUNT(*) FILTER (WHERE created_at > ($1::timestamptz) - INTERVAL '30 days'))::bigint AS pending_count,
+    COALESCE(MIN(created_at) FILTER (WHERE created_at > ($1::timestamptz) - INTERVAL '30 days'), '0001-01-01 00:00:00+00'::timestamptz)::timestamptz AS oldest_pending_created_at,
+    (COUNT(*) FILTER (WHERE created_at <= ($1::timestamptz) - INTERVAL '30 days'))::bigint AS expired_count
+FROM
+    usage_events
+WHERE
+    published_at IS NULL
+    AND created_at > ($1::timestamptz) - INTERVAL '60 days'
+`
+
+type GetUsageEventsStatsRow struct {
+	PendingCount           int64     `db:"pending_count" json:"pending_count"`
+	OldestPendingCreatedAt time.Time `db:"oldest_pending_created_at" json:"oldest_pending_created_at"`
+	ExpiredCount           int64     `db:"expired_count" json:"expired_count"`
+}
+
+// Counts unpublished usage events in the last 60 days:
+//
+//	pending: created within the last 30 days (still eligible to publish)
+//	expired: created 30-60 days ago (too old to publish; Tallyman would reject)
+//
+// Events older than 60 days are ignored so this query stays bounded and the
+// expired gauge can recover to zero.
+func (q *sqlQuerier) GetUsageEventsStats(ctx context.Context, now time.Time) (GetUsageEventsStatsRow, error) {
+	row := q.db.QueryRowContext(ctx, getUsageEventsStats, now)
+	var i GetUsageEventsStatsRow
+	err := row.Scan(&i.PendingCount, &i.OldestPendingCreatedAt, &i.ExpiredCount)
+	return i, err
+}
+
 const insertUsageEvent = `-- name: InsertUsageEvent :exec
 INSERT INTO
     usage_events (
@@ -30456,6 +30829,37 @@ type GetUserSecretByUserIDAndNameParams struct {
 
 func (q *sqlQuerier) GetUserSecretByUserIDAndName(ctx context.Context, arg GetUserSecretByUserIDAndNameParams) (UserSecret, error) {
 	row := q.db.QueryRowContext(ctx, getUserSecretByUserIDAndName, arg.UserID, arg.Name)
+	var i UserSecret
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Name,
+		&i.Description,
+		&i.Value,
+		&i.EnvName,
+		&i.FilePath,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ValueKeyID,
+		&i.Enabled,
+	)
+	return i, err
+}
+
+const getUserSecretByUserIDAndNameForUpdate = `-- name: GetUserSecretByUserIDAndNameForUpdate :one
+SELECT id, user_id, name, description, value, env_name, file_path, created_at, updated_at, value_key_id, enabled
+FROM user_secrets
+WHERE user_id = $1 AND name = $2
+FOR UPDATE
+`
+
+type GetUserSecretByUserIDAndNameForUpdateParams struct {
+	UserID uuid.UUID `db:"user_id" json:"user_id"`
+	Name   string    `db:"name" json:"name"`
+}
+
+func (q *sqlQuerier) GetUserSecretByUserIDAndNameForUpdate(ctx context.Context, arg GetUserSecretByUserIDAndNameForUpdateParams) (UserSecret, error) {
+	row := q.db.QueryRowContext(ctx, getUserSecretByUserIDAndNameForUpdate, arg.UserID, arg.Name)
 	var i UserSecret
 	err := row.Scan(
 		&i.ID,
@@ -39475,7 +39879,7 @@ LEFT JOIN LATERAL (
 ) latest_build ON TRUE
 LEFT JOIN LATERAL (
 	SELECT
-		id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, allow_user_autostart, allow_user_autostop, failure_ttl, time_til_dormant, time_til_dormant_autodelete, autostop_requirement_days_of_week, autostop_requirement_weeks, autostart_block_days_of_week, require_active_version, deprecated, activity_bump, max_port_sharing_level, use_classic_parameter_flow, cors_behavior, disable_module_cache, time_til_autostop_notify, agents_allowed
+		id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, allow_user_autostart, allow_user_autostop, failure_ttl, time_til_dormant, time_til_dormant_autodelete, autostop_requirement_days_of_week, autostop_requirement_weeks, autostart_block_days_of_week, require_active_version, deprecated, activity_bump, max_port_sharing_level, use_classic_parameter_flow, cors_behavior, disable_module_cache, time_til_autostop_notify, agents_allowed, allow_workspace_renames
 	FROM
 		templates
 	WHERE

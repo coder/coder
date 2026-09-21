@@ -73,8 +73,8 @@ const AISessionListPage: FC = () => {
 		explicitTimeRange === null
 			? "last_24h"
 			: lastPicked?.preset !== undefined &&
-					sameSecond(lastPicked.start, timeRange.startedAfter) &&
-					sameSecond(lastPicked.end, timeRange.startedBefore)
+					sameSecond(lastPicked.start, timeRange.start) &&
+					sameSecond(lastPicked.end, timeRange.end)
 				? lastPicked.preset
 				: undefined;
 
@@ -138,18 +138,13 @@ const AISessionListPage: FC = () => {
 						model: modelMenu,
 					},
 					timeRange: {
-						start: timeRange.startedAfter,
-						end: timeRange.startedBefore,
+						start: timeRange.start,
+						end: timeRange.end,
 						preset,
 					},
 					onTimeRangeChange: (value) => {
 						setLastPicked(value);
-						filter.update(
-							queryWithTimeRange(filter.values, {
-								startedAfter: value.start,
-								startedBefore: value.end,
-							}),
-						);
+						filter.update(queryWithTimeRange(filter.values, value));
 					},
 				}}
 			/>

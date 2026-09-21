@@ -1,6 +1,6 @@
+import { cn } from "cn";
 import type { FC } from "react";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
-import { cn } from "#/utils/cn";
 
 type SeatUsageBarCardProps = {
 	title: string;

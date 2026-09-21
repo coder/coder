@@ -10,6 +10,8 @@ import (
 
 	"github.com/hashicorp/hcl/v2/hclwrite"
 	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/v2/codersdk"
 )
 
 // ComposeRequest describes which base template and modules to render.
@@ -28,6 +30,9 @@ type ComposeRequest struct {
 // to render into its module block.
 type ComposeModule struct {
 	ID string
+	// AgentName is the base coder_agent the module attaches to; empty uses the
+	// base default. Must name an agent the base declares.
+	AgentName string
 	// Variables maps variable names to HCL literal values for
 	// non-sensitive, non-computed variables.
 	Variables map[string]string
@@ -49,11 +54,21 @@ type ComposeResult struct {
 	ExtraFiles map[string][]byte
 }
 
-// Compose renders a base template and selected modules into Terraform
-// source files. It extracts the coder_agent resource name from the
-// rendered base HCL and wires it into each module block.
+// Compose renders a base template and the selected modules into Terraform
+// source files.
 func Compose(req ComposeRequest) (*ComposeResult, error) {
-	mainTF, err := renderBase(req.BaseTemplateID, req.BaseVariableValues)
+	// Validated at server start (codersdk.DeploymentValues.Validate). Normalize
+	// here too so a direct caller that bypasses the boot check gets the same
+	// scheme-stripping and rejection; default an unset value.
+	registryBase, err := codersdk.NormalizeTemplateBuilderRegistryURL(req.RegistryURL)
+	if err != nil {
+		return nil, err
+	}
+	if registryBase == "" {
+		registryBase = DefaultRegistryBase
+	}
+
+	mainTF, err := renderBase(req.BaseTemplateID, req.BaseVariableValues, registryBase)
 	if err != nil {
 		return nil, err
 	}
@@ -68,9 +83,21 @@ func Compose(req ComposeRequest) (*ComposeResult, error) {
 		}, nil
 	}
 
-	agentName, err := ExtractAgentResourceName(mainTF)
+	extractedAgents, err := ExtractAgentResourceNames(mainTF)
 	if err != nil {
-		return nil, xerrors.Errorf("extract agent name: %w", err)
+		return nil, xerrors.Errorf("extract agents: %w", err)
+	}
+	if len(extractedAgents) == 0 {
+		return nil, xerrors.New("no coder_agent resource found in rendered template")
+	}
+	agentRefByName := make(map[string]string, len(extractedAgents))
+	for _, a := range extractedAgents {
+		agentRefByName[a.Name] = a.Reference
+	}
+	// Bases that declare no agents fall back to the first rendered agent.
+	defaultName := BaseDefaultAgentName(req.BaseTemplateID)
+	if defaultName == "" {
+		defaultName = extractedAgents[0].Name
 	}
 
 	catalog, err := loadCatalogMap()
@@ -79,11 +106,12 @@ func Compose(req ComposeRequest) (*ComposeResult, error) {
 	}
 
 	baseOS := BaseTemplateOS(req.BaseTemplateID)
-	if err := validateModules(req.Modules, catalog, baseOS); err != nil {
+	baseModules := BaseIncludedModules(req.BaseTemplateID)
+	if err := validateModules(req.Modules, catalog, baseOS, baseModules); err != nil {
 		return nil, err
 	}
 
-	modulesTF, err := renderModules(req.Modules, catalog, req.RegistryURL, agentName)
+	modulesTF, err := renderModules(req.Modules, catalog, registryBase, agentRefByName, defaultName)
 	if err != nil {
 		return nil, err
 	}
@@ -108,11 +136,12 @@ func formatHCL(src []byte) []byte {
 
 // renderBase renders the base template for the given example ID,
 // merging any user-supplied variable values into the render context.
-func renderBase(baseTemplateID string, baseVars map[string]string) ([]byte, error) {
+func renderBase(baseTemplateID string, baseVars map[string]string, registryBase string) ([]byte, error) {
 	renderCtx := DefaultBaseRenderContext(baseTemplateID)
 	if renderCtx.Variables == nil {
 		renderCtx.Variables = make(map[string]string)
 	}
+	renderCtx.RegistryBase = registryBase
 
 	vars, err := mergeBaseVariables(baseTemplateID, baseVars)
 	if err != nil {
@@ -199,10 +228,22 @@ func loadCatalogMap() (map[string]ModuleManifest, error) {
 }
 
 // validateModules checks that all requested modules exist, are
-// OS-compatible, have no duplicates, and have no conflicts.
-func validateModules(requested []ComposeModule, catalog map[string]ModuleManifest, baseOS BaseOS) error {
-	seen := make(map[string]bool, len(requested))
+// OS-compatible, have no duplicates, do not collide with a module the base
+// already includes (see BaseIncludedModules), and have no conflicts.
+func validateModules(requested []ComposeModule, catalog map[string]ModuleManifest, baseOS BaseOS, baseModules []string) error {
+	// Seed the seen-set with the modules the base already declares so the
+	// base and wizard-selected modules occupy a disjoint namespace.
+	seen := make(map[string]bool, len(requested)+len(baseModules))
+	baseIncluded := make(map[string]bool, len(baseModules))
+	for _, id := range baseModules {
+		seen[id] = true
+		baseIncluded[id] = true
+	}
+
 	for _, cm := range requested {
+		if baseIncluded[cm.ID] {
+			return xerrors.Errorf("module %q is already included by this base template", cm.ID)
+		}
 		if seen[cm.ID] {
 			return xerrors.Errorf("duplicate module %q", cm.ID)
 		}
@@ -217,7 +258,11 @@ func validateModules(requested []ComposeModule, catalog map[string]ModuleManifes
 		}
 	}
 
-	// Check conflicts bidirectionally so that order does not matter.
+	// Reject a requested module whose ConflictsWith names an already-seen
+	// module. Every requested module is in `seen` by now, so order does not
+	// matter, and base-included modules seed `seen` too. A base-included
+	// module's own ConflictsWith list is not consulted, which is safe because
+	// base modules are curated.
 	for _, cm := range requested {
 		manifest := catalog[cm.ID]
 		for _, conflict := range manifest.ConflictsWith {
@@ -230,16 +275,27 @@ func validateModules(requested []ComposeModule, catalog map[string]ModuleManifes
 	return nil
 }
 
-// renderModules renders each module template and concatenates the
-// results with newline separators.
+// renderModules renders the selected module blocks, each attached to its
+// resolved agent.
 func renderModules(
 	requested []ComposeModule,
 	catalog map[string]ModuleManifest,
-	registryURL, agentName string,
+	registryURL string,
+	agentRefByName map[string]string,
+	defaultName string,
 ) ([]byte, error) {
 	var buf bytes.Buffer
 	for _, cm := range requested {
 		manifest := catalog[cm.ID]
+
+		agentName := cm.AgentName
+		if agentName == "" {
+			agentName = defaultName
+		}
+		agentRef, ok := agentRefByName[agentName]
+		if !ok {
+			return nil, xerrors.Errorf("module %q references unknown agent %q", cm.ID, agentName)
+		}
 
 		modFS, err := ModuleTemplateFS(cm.ID)
 		if err != nil {
@@ -253,7 +309,7 @@ func renderModules(
 		modCtx := ModuleRenderContext{
 			RegistryBase:      registryURL,
 			PinnedVersion:     manifest.PinnedVersion,
-			AgentResourceName: agentName,
+			AgentResourceName: agentRef,
 			Variables:         vars,
 		}
 

@@ -29,7 +29,7 @@ const meta: Meta<typeof ModelsPageView> = {
 			<OrganizationModelsContext.Provider
 				value={{
 					organization: MockDefaultOrganization,
-					organizations: [MockDefaultOrganization],
+					accessibleOrganizations: [MockDefaultOrganization],
 					permissions: MockOrganizationPermissions,
 					requestedOrganizationDenied: false,
 				}}
@@ -94,9 +94,10 @@ export const Default: Story = {
 		await expect(canvas.getByText("AWS Bedrock")).toBeInTheDocument();
 		// The provider icon is decorative (alt=""), so its name comes from the
 		// visible label asserted above rather than the image alt text.
-		await expect(canvas.getAllByText("Enabled").length).toBeGreaterThan(0);
+		expect(canvas.queryByText("Enabled")).not.toBeInTheDocument();
 		await expect(canvas.getByText("Default")).toBeInTheDocument();
-		await expect(canvas.getByText("Disabled")).toBeInTheDocument();
+		const disabledRow = canvas.getByRole("button", { name: /GPT-4o mini/i });
+		await expect(within(disabledRow).getByText("Disabled")).toBeInTheDocument();
 
 		// The Add model menu lists each provider by exact accessible name; a
 		// regressed icon would turn a name into "Anthropic Anthropic".
@@ -184,11 +185,12 @@ export const DisabledProviderModelsStillListed: Story = {
 		// so the row is queried by its clickable role.
 		const row = canvas.getByRole("button", { name: /GPT-4o Secondary/i });
 		await expect(within(row).getByText("OpenAI Secondary")).toBeInTheDocument();
-		// A model under a disabled provider is not usable, so the status
-		// column must show "Disabled" even though the stored enabled flag is
-		// true. Scope to the target row so a fixture change cannot pass this
-		// assertion via an unrelated "Disabled" cell.
-		await expect(within(row).getByText("Disabled")).toBeInTheDocument();
+		// A model under a disabled provider is not usable regardless of its
+		// stored enabled flag; scope to the row so an unrelated cell cannot pass.
+		await expect(
+			within(row).getByRole("button", { name: "Unavailable" }),
+		).toBeInTheDocument();
+		expect(within(row).queryByText("Disabled")).not.toBeInTheDocument();
 	},
 };
 
@@ -197,8 +199,8 @@ export const DisabledProviderModelsStillListed: Story = {
 // models entirely, so the row reaches "Unset" via a map-miss and the
 // `?? false` fallback at ModelsPageView.tsx wiring. Reproduce that shape
 // here: the model appears in `models` but is not present in any
-// providerState.models, so a `?? true` regression would flip this
-// story to "Enabled" and be caught.
+// providerState.models, so a `?? true` regression would hide the
+// unavailable notice and be caught.
 export const OrphanedModelShowsUnset: Story = {
 	args: {
 		models: [mockGPT5, mockOrphanedModel],
@@ -209,7 +211,9 @@ export const OrphanedModelShowsUnset: Story = {
 		const canvas = within(canvasElement);
 		const row = canvas.getByRole("button", { name: /Orphaned Model/i });
 		await expect(within(row).getByText("Unset")).toBeInTheDocument();
-		await expect(within(row).getByText("Disabled")).toBeInTheDocument();
+		await expect(
+			within(row).getByRole("button", { name: "Unavailable" }),
+		).toBeInTheDocument();
 	},
 };
 

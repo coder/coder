@@ -1,12 +1,15 @@
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";
-import type { TimeRange } from "#/components/DateTimeRangeFilter/timeRange";
+import type { DateTimeRangeValue } from "#/components/DateTimeRangePicker/dateTimeRange";
 import {
 	parseFilterQuery,
 	stringifyFilter,
 } from "#/components/Filter/filterQuery";
 
 dayjs.extend(utc);
+
+/** The resolved time window a sessions query spans. */
+export type TimeRange = Pick<DateTimeRangeValue, "start" | "end">;
 
 /** Serializes a Date as RFC 3339 in UTC with second precision. */
 export const toRFC3339 = (date: Date): string => {
@@ -15,8 +18,8 @@ export const toRFC3339 = (date: Date): string => {
 
 /** The default sessions window: the 24 hours ending at now. */
 export const defaultTimeRange = (now: Date): TimeRange => ({
-	startedAfter: new Date(now.getTime() - 24 * 60 * 60 * 1000),
-	startedBefore: now,
+	start: new Date(now.getTime() - 24 * 60 * 60 * 1000),
+	end: now,
 });
 
 /**
@@ -38,8 +41,8 @@ export const withDefaultTimeRange = (
 	}
 	const suffix = stringifyFilter({
 		...values,
-		started_after: toRFC3339(range.startedAfter),
-		started_before: toRFC3339(range.startedBefore),
+		started_after: toRFC3339(range.start),
+		started_before: toRFC3339(range.end),
 	});
 	return suffix;
 };
@@ -56,8 +59,8 @@ export const queryWithTimeRange = (
 ): string => {
 	return stringifyFilter({
 		...values,
-		started_after: toRFC3339(range.startedAfter),
-		started_before: toRFC3339(range.startedBefore),
+		started_after: toRFC3339(range.start),
+		started_before: toRFC3339(range.end),
 	});
 };
 
@@ -70,13 +73,10 @@ export const parseTimeRange = (
 	if (!after || !before) {
 		return null;
 	}
-	const startedAfter = new Date(after);
-	const startedBefore = new Date(before);
-	if (
-		Number.isNaN(startedAfter.getTime()) ||
-		Number.isNaN(startedBefore.getTime())
-	) {
+	const start = new Date(after);
+	const end = new Date(before);
+	if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
 		return null;
 	}
-	return { startedAfter, startedBefore };
+	return { start, end };
 };

@@ -22,6 +22,6 @@ export const Default: Story = {};
 export const CustomFaded: Story = {
 	args: {
 		className:
-			"opacity-40 [mask-image:linear-gradient(to_right,transparent,black_40%)]",
+			"opacity-40 mask-[linear-gradient(to_right,transparent,black_40%)]",
 	},
 };

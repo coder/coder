@@ -19,7 +19,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/wspubsub"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/websocket"
@@ -166,7 +165,7 @@ func TestAgentConnectionMonitor_PingTimeout(t *testing.T) {
 	}
 	uut.init()
 	// set the last ping to the past, so we go thru the timeout
-	uut.lastPing.Store(ptr.Ref(now.Add(-time.Hour)))
+	uut.lastPing.Store(new(now.Add(-time.Hour)))
 
 	connected := mDB.EXPECT().UpdateWorkspaceAgentConnectionByID(
 		gomock.Any(),

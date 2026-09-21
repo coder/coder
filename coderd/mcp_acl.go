@@ -2,6 +2,7 @@ package coderd
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"maps"
 	"net/http"
@@ -18,20 +19,19 @@ import (
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/rbac/acl"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
+	"github.com/coder/coder/v2/coderd/searchquery"
 	"github.com/coder/coder/v2/codersdk"
 )
 
-// EXPERIMENTAL: this endpoint is experimental and is subject to change.
-//
 // @Summary Get MCP server config ACL
 // @ID get-mcp-server-config-acl
 // @Security CoderSessionToken
 // @Tags MCP
 // @Produce json
-// @Param organization path string true "Organization ID" format(uuid)
+// @Param organization path string true "Organization name or ID"
 // @Param mcpserverconfig path string true "MCP server config ID" format(uuid)
 // @Success 200 {object} codersdk.MCPServerConfigACL
-// @Router /api/experimental/organizations/{organization}/mcp-servers/{mcpserverconfig}/acl [get]
+// @Router /api/v2/organizations/{organization}/mcp-servers/{mcpserverconfig}/acl [get]
 // @x-apidocgen {"skip": true}
 func (api *API) mcpServerConfigACL(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -58,18 +58,117 @@ func (api *API) mcpServerConfigACL(rw http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// EXPERIMENTAL: this endpoint is experimental and is subject to change.
-//
+// @Summary Get available MCP server config ACL users and groups
+// @ID get-available-mcp-server-config-acl-users-and-groups
+// @Security CoderSessionToken
+// @Tags MCP
+// @Produce json
+// @Param organization path string true "Organization name or ID"
+// @Param mcpserverconfig path string true "MCP server config ID" format(uuid)
+// @Param q query string false "User search query; free-text search also applies to groups"
+// @Param after_id query string false "User after ID" format(uuid)
+// @Param limit query int false "Page limit for users and groups, if 0 returns all candidates"
+// @Param offset query int false "User page offset"
+// @Success 200 {object} codersdk.ACLAvailable
+// @Router /api/v2/organizations/{organization}/mcp-servers/{mcpserverconfig}/acl/available [get]
+// @x-apidocgen {"skip": true}
+func (api *API) mcpServerConfigACLAvailable(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	config := httpmw.MCPServerConfigParam(r)
+	if !api.Authorize(r, policy.ActionShare, config.RBACObject()) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+
+	userFilter, validations := searchquery.Users(r.URL.Query().Get("q"))
+	if len(validations) > 0 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message:     "Invalid user search query.",
+			Validations: validations,
+		})
+		return
+	}
+	pagination, ok := ParsePagination(rw, r)
+	if !ok {
+		return
+	}
+
+	//nolint:gocritic // The MCP server config share permission authorizes this
+	// bounded organization-scoped lookup even when the caller cannot browse the
+	// ordinary directories.
+	restrictedCtx := dbauthz.AsSystemRestricted(ctx)
+	members, err := api.Database.PaginatedOrganizationMembers(restrictedCtx, database.PaginatedOrganizationMembersParams{
+		AfterID:          pagination.AfterID,
+		OrganizationID:   config.OrganizationID,
+		Search:           userFilter.Search,
+		Name:             userFilter.Name,
+		ExactUsername:    userFilter.ExactUsername,
+		ExactEmail:       userFilter.ExactEmail,
+		Status:           userFilter.Status,
+		IsServiceAccount: userFilter.IsServiceAccount,
+		RbacRole:         userFilter.RbacRole,
+		LastSeenBefore:   userFilter.LastSeenBefore,
+		LastSeenAfter:    userFilter.LastSeenAfter,
+		CreatedAfter:     userFilter.CreatedAfter,
+		CreatedBefore:    userFilter.CreatedBefore,
+		GithubComUserID:  userFilter.GithubComUserID,
+		LoginType:        userFilter.LoginType,
+		IncludeSystem:    false,
+		// #nosec G115 - Pagination offsets are small and fit in int32.
+		OffsetOpt: int32(pagination.Offset),
+		// #nosec G115 - Pagination limits are small and fit in int32.
+		LimitOpt: int32(pagination.Limit),
+	})
+	if err != nil {
+		httpapi.InternalServerError(rw, xerrors.Errorf("list MCP server config ACL users: %w", err))
+		return
+	}
+
+	groups, err := api.Database.GetGroups(restrictedCtx, database.GetGroupsParams{
+		OrganizationID: config.OrganizationID,
+		Search:         userFilter.Search,
+		// #nosec G115 - Pagination limits are small and fit in int32.
+		LimitOpt: int32(pagination.Limit),
+	})
+	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+		httpapi.InternalServerError(rw, xerrors.Errorf("list MCP server config ACL groups: %w", err))
+		return
+	}
+
+	groupIDs := make([]uuid.UUID, len(groups))
+	for i, group := range groups {
+		groupIDs[i] = group.Group.ID
+	}
+	countByGroup, ok := api.mcpServerConfigACLGroupMemberCounts(restrictedCtx, rw, groupIDs)
+	if !ok {
+		return
+	}
+
+	sdkUsers := make([]codersdk.ReducedUser, 0, len(members))
+	for _, member := range members {
+		sdkUsers = append(sdkUsers, mcpServerConfigACLReducedUser(member))
+	}
+	sdkGroups := make([]codersdk.Group, 0, len(groups))
+	for _, group := range groups {
+		sdkGroups = append(sdkGroups, db2sdk.Group(group, nil, int(countByGroup[group.Group.ID])))
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ACLAvailable{
+		Users:  sdkUsers,
+		Groups: sdkGroups,
+	})
+}
+
 // @Summary Update MCP server config ACL
 // @ID update-mcp-server-config-acl
 // @Security CoderSessionToken
 // @Tags MCP
 // @Accept json
-// @Param organization path string true "Organization ID" format(uuid)
+// @Param organization path string true "Organization name or ID"
 // @Param mcpserverconfig path string true "MCP server config ID" format(uuid)
 // @Param request body codersdk.UpdateMCPServerConfigACLRequest true "Update MCP server config ACL request"
 // @Success 204
-// @Router /api/experimental/organizations/{organization}/mcp-servers/{mcpserverconfig}/acl [patch]
+// @Router /api/v2/organizations/{organization}/mcp-servers/{mcpserverconfig}/acl [patch]
 // @x-apidocgen {"skip": true}
 func (api *API) patchMCPServerConfigACL(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -180,24 +279,14 @@ func (api *API) mcpServerConfigACLGroups(ctx context.Context, rw http.ResponseWr
 			return nil, false
 		}
 	}
-	countByGroup := make(map[uuid.UUID]int64, len(groups))
-	if len(groups) > 0 {
-		groupIDs := make([]uuid.UUID, 0, len(groups))
-		for _, group := range groups {
-			groupIDs = append(groupIDs, group.Group.ID)
-		}
-		//nolint:gocritic // ACL managers may resolve group sizes after the share gate passes.
-		countRows, err := api.Database.GetGroupMembersCountByGroupIDs(dbauthz.AsSystemRestricted(ctx), database.GetGroupMembersCountByGroupIDsParams{
-			GroupIds:      groupIDs,
-			IncludeSystem: false,
-		})
-		if err != nil {
-			httpapi.InternalServerError(rw, err)
-			return nil, false
-		}
-		for _, row := range countRows {
-			countByGroup[row.GroupID] = row.MemberCount
-		}
+	groupIDs := make([]uuid.UUID, 0, len(groups))
+	for _, group := range groups {
+		groupIDs = append(groupIDs, group.Group.ID)
+	}
+	//nolint:gocritic // ACL managers may resolve group sizes after the share gate passes.
+	countByGroup, ok := api.mcpServerConfigACLGroupMemberCounts(dbauthz.AsSystemRestricted(ctx), rw, groupIDs)
+	if !ok {
+		return nil, false
 	}
 	result := make([]codersdk.MCPServerConfigGroup, 0, len(groups))
 	for _, group := range groups {
@@ -207,6 +296,44 @@ func (api *API) mcpServerConfigACLGroups(ctx context.Context, rw http.ResponseWr
 		})
 	}
 	return result, true
+}
+
+func (api *API) mcpServerConfigACLGroupMemberCounts(ctx context.Context, rw http.ResponseWriter, groupIDs []uuid.UUID) (map[uuid.UUID]int64, bool) {
+	countByGroup := make(map[uuid.UUID]int64, len(groupIDs))
+	if len(groupIDs) == 0 {
+		return countByGroup, true
+	}
+
+	countRows, err := api.Database.GetGroupMembersCountByGroupIDs(ctx, database.GetGroupMembersCountByGroupIDsParams{
+		GroupIds:      groupIDs,
+		IncludeSystem: false,
+	})
+	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+		httpapi.InternalServerError(rw, xerrors.Errorf("count MCP server config ACL group members: %w", err))
+		return nil, false
+	}
+	for _, row := range countRows {
+		countByGroup[row.GroupID] = row.MemberCount
+	}
+	return countByGroup, true
+}
+
+func mcpServerConfigACLReducedUser(member database.PaginatedOrganizationMembersRow) codersdk.ReducedUser {
+	return codersdk.ReducedUser{
+		MinimalUser: codersdk.MinimalUser{
+			ID:        member.OrganizationMember.UserID,
+			Username:  member.Username,
+			Name:      member.Name,
+			AvatarURL: member.AvatarURL,
+		},
+		Email:            member.Email,
+		CreatedAt:        member.UserCreatedAt,
+		UpdatedAt:        member.UserUpdatedAt,
+		LastSeenAt:       member.LastSeenAt,
+		Status:           codersdk.UserStatus(member.Status),
+		LoginType:        codersdk.LoginType(member.LoginType),
+		IsServiceAccount: member.IsServiceAccount,
+	}
 }
 
 // canonicalMCPServerConfigACLRoles rekeys the request map by canonical

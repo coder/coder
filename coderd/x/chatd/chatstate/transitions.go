@@ -756,6 +756,53 @@ func (tx *Tx) RequestCompaction(_ RequestCompactionInput) (RequestCompactionResu
 	return RequestCompactionResult{Chat: updated}, nil
 }
 
+// ClearContextInput configures [Tx.ClearContext]. Messages carries
+// the boundary rows built by chatd; chatstate requires a non-empty
+// batch so the insert trigger grants the fresh history epoch.
+type ClearContextInput struct {
+	Messages []Message
+}
+
+// ClearContextResult is returned by [Tx.ClearContext].
+type ClearContextResult struct {
+	Chat             database.Chat
+	InsertedMessages []database.ChatMessage
+}
+
+// ClearContext commits a synchronous context reset: it inserts the
+// caller-built boundary rows, clears any stored error and pending
+// compaction request, preserves ownership, and lands in waiting. No
+// worker turn is needed; the message insert trigger advances
+// history_version and resets the retry budget.
+func (tx *Tx) ClearContext(input ClearContextInput) (ClearContextResult, error) {
+	chat, from, err := tx.requireFromAllowed(TransitionClearContext)
+	if err != nil {
+		return ClearContextResult{}, err
+	}
+	if len(input.Messages) == 0 {
+		return ClearContextResult{}, newTransitionError(
+			TransitionClearContext, from,
+			"ClearContext requires boundary messages",
+		)
+	}
+	inserted, err := tx.insertMessages(input.Messages)
+	if err != nil {
+		return ClearContextResult{}, xerrors.Errorf("insert clear boundary messages: %w", err)
+	}
+	updated, err := tx.applyExecutionState(executionStateUpdate{
+		Status:                   database.ChatStatusWaiting,
+		Archived:                 false,
+		WorkerID:                 chat.WorkerID,
+		RunnerID:                 chat.RunnerID,
+		LastError:                pqtype.NullRawMessage{},
+		RequiresActionDeadlineAt: sql.NullTime{},
+	})
+	if err != nil {
+		return ClearContextResult{}, xerrors.Errorf("set waiting: %w", err)
+	}
+	return ClearContextResult{Chat: updated, InsertedMessages: inserted}, nil
+}
+
 // DeleteQueuedMessageInput configures [Tx.DeleteQueuedMessage].
 type DeleteQueuedMessageInput struct {
 	QueuedMessageID int64

@@ -55,7 +55,7 @@ func TestRevokeOAuth2Token(t *testing.T) {
 
 		revoked, err := mcpclient.RevokeOAuth2Token(
 			context.Background(),
-			srv.Client(),
+			testMCPHTTPClient(srv.Client()),
 			database.MCPServerConfig{
 				OAuth2ClientID:      "cid",
 				OAuth2RevocationURL: srv.URL,
@@ -83,7 +83,7 @@ func TestRevokeOAuth2Token(t *testing.T) {
 
 		revoked, err := mcpclient.RevokeOAuth2Token(
 			context.Background(),
-			srv.Client(),
+			testMCPHTTPClient(srv.Client()),
 			database.MCPServerConfig{
 				OAuth2ClientID:      "cid",
 				OAuth2RevocationURL: srv.URL,
@@ -104,7 +104,7 @@ func TestRevokeOAuth2Token(t *testing.T) {
 
 		revoked, err := mcpclient.RevokeOAuth2Token(
 			context.Background(),
-			srv.Client(),
+			testMCPHTTPClient(srv.Client()),
 			database.MCPServerConfig{
 				OAuth2ClientID:      "cid",
 				OAuth2RevocationURL: srv.URL,
@@ -124,7 +124,7 @@ func TestRevokeOAuth2Token(t *testing.T) {
 
 		revoked, err := mcpclient.RevokeOAuth2Token(
 			context.Background(),
-			srv.Client(),
+			testMCPHTTPClient(srv.Client()),
 			database.MCPServerConfig{
 				OAuth2ClientID:      "cid",
 				OAuth2ClientSecret:  "secret",
@@ -164,7 +164,7 @@ func TestRevokeOAuth2Token(t *testing.T) {
 
 		revoked, err := mcpclient.RevokeOAuth2Token(
 			context.Background(),
-			srv.Client(),
+			testMCPHTTPClient(srv.Client()),
 			database.MCPServerConfig{
 				OAuth2ClientID:      "cid",
 				OAuth2RevocationURL: srv.URL,
@@ -193,7 +193,7 @@ func TestRevokeOAuth2Token(t *testing.T) {
 
 		revoked, err := mcpclient.RevokeOAuth2Token(
 			context.Background(),
-			srv.Client(),
+			testMCPHTTPClient(srv.Client()),
 			database.MCPServerConfig{
 				OAuth2ClientID:      "cid",
 				OAuth2RevocationURL: srv.URL,
@@ -223,7 +223,7 @@ func TestRevokeOAuth2Token(t *testing.T) {
 
 		revoked, err := mcpclient.RevokeOAuth2Token(
 			context.Background(),
-			srv.Client(),
+			testMCPHTTPClient(srv.Client()),
 			database.MCPServerConfig{
 				OAuth2ClientID:      "cid",
 				OAuth2RevocationURL: srv.URL,
@@ -272,7 +272,7 @@ func TestRevokeOAuth2Token(t *testing.T) {
 
 		revoked, err := mcpclient.RevokeOAuth2Token(
 			context.Background(),
-			srv.Client(),
+			testMCPHTTPClient(srv.Client()),
 			database.MCPServerConfig{
 				OAuth2ClientID:      "cid",
 				OAuth2RevocationURL: srv.URL,
@@ -281,7 +281,7 @@ func TestRevokeOAuth2Token(t *testing.T) {
 		)
 		require.Error(t, err)
 		require.False(t, revoked)
-		require.Contains(t, err.Error(), "must use https")
+		require.Contains(t, err.Error(), "must stay on origin")
 	})
 
 	t.Run("RejectsBodyDroppingRedirect", func(t *testing.T) {
@@ -301,7 +301,7 @@ func TestRevokeOAuth2Token(t *testing.T) {
 
 		revoked, err := mcpclient.RevokeOAuth2Token(
 			context.Background(),
-			srv.Client(),
+			testMCPHTTPClient(srv.Client()),
 			database.MCPServerConfig{
 				OAuth2ClientID:      "cid",
 				OAuth2RevocationURL: srv.URL,
@@ -310,7 +310,7 @@ func TestRevokeOAuth2Token(t *testing.T) {
 		)
 		require.Error(t, err)
 		require.False(t, revoked)
-		require.Contains(t, err.Error(), "dropped the POST body")
+		require.Contains(t, err.Error(), "changed method")
 	})
 
 	t.Run("RejectsCrossHostRedirect", func(t *testing.T) {
@@ -324,7 +324,7 @@ func TestRevokeOAuth2Token(t *testing.T) {
 
 		revoked, err := mcpclient.RevokeOAuth2Token(
 			context.Background(),
-			srv.Client(),
+			testMCPHTTPClient(srv.Client()),
 			database.MCPServerConfig{
 				OAuth2ClientID:      "cid",
 				OAuth2RevocationURL: srv.URL,
@@ -338,11 +338,14 @@ func TestRevokeOAuth2Token(t *testing.T) {
 		require.NotContains(t, err.Error(), "reflected-token")
 	})
 
-	t.Run("FollowsLoopbackRedirect", func(t *testing.T) {
+	t.Run("RejectsCrossOriginLoopbackRedirect", func(t *testing.T) {
 		t.Parallel()
 
-		got := make(chan revokeRequest, 1)
-		target := httptest.NewServer(captureRevoke(t, got))
+		var targetHits atomic.Int64
+		target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			targetHits.Add(1)
+			w.WriteHeader(http.StatusOK)
+		}))
 		defer target.Close()
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			http.Redirect(w, r, target.URL, http.StatusTemporaryRedirect)
@@ -351,10 +354,38 @@ func TestRevokeOAuth2Token(t *testing.T) {
 
 		revoked, err := mcpclient.RevokeOAuth2Token(
 			context.Background(),
-			srv.Client(),
+			testMCPHTTPClient(srv.Client()),
 			database.MCPServerConfig{
 				OAuth2ClientID:      "cid",
 				OAuth2RevocationURL: srv.URL,
+			},
+			database.MCPServerUserToken{AccessToken: "at", RefreshToken: "rt"},
+		)
+		require.Error(t, err)
+		require.False(t, revoked)
+		require.Zero(t, targetHits.Load())
+	})
+
+	t.Run("FollowsSameOriginRedirect", func(t *testing.T) {
+		t.Parallel()
+
+		got := make(chan revokeRequest, 1)
+		var srv *httptest.Server
+		srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Path == "/redirect" {
+				http.Redirect(w, r, srv.URL+"/revoke", http.StatusTemporaryRedirect)
+				return
+			}
+			captureRevoke(t, got)(w, r)
+		}))
+		defer srv.Close()
+
+		revoked, err := mcpclient.RevokeOAuth2Token(
+			context.Background(),
+			testMCPHTTPClient(srv.Client()),
+			database.MCPServerConfig{
+				OAuth2ClientID:      "cid",
+				OAuth2RevocationURL: srv.URL + "/redirect",
 			},
 			database.MCPServerUserToken{AccessToken: "at", RefreshToken: "rt"},
 		)
@@ -375,7 +406,7 @@ func TestRevokeOAuth2Token(t *testing.T) {
 
 		revoked, err := mcpclient.RevokeOAuth2Token(
 			context.Background(),
-			srv.Client(),
+			testMCPHTTPClient(srv.Client()),
 			database.MCPServerConfig{
 				OAuth2ClientID:      "cid",
 				OAuth2RevocationURL: srv.URL,
@@ -397,7 +428,7 @@ func TestRevokeOAuth2Token(t *testing.T) {
 
 		revoked, err := mcpclient.RevokeOAuth2Token(
 			context.Background(),
-			srv.Client(),
+			testMCPHTTPClient(srv.Client()),
 			database.MCPServerConfig{
 				OAuth2ClientID:      "cid",
 				OAuth2RevocationURL: srv.URL,

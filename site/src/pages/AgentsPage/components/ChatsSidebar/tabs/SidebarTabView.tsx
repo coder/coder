@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import {
 	ArrowLeftIcon,
 	ChevronLeftIcon,
@@ -17,7 +18,6 @@ import {
 	useState,
 } from "react";
 import { Button } from "#/components/Button/Button";
-import { cn } from "#/utils/cn";
 
 /** A single tab definition for the sidebar panel. */
 export interface SidebarTab {
@@ -255,7 +255,7 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 					)}
 					<div
 						ref={tabScrollRef}
-						className="flex w-full min-w-0 items-center gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+						className="flex w-full min-w-0 items-center gap-1 overflow-x-auto scrollbar-none [&::-webkit-scrollbar]:hidden"
 					>
 						{tabs.map((tab) => {
 							const isActive = effectiveTabId === tab.id;

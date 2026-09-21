@@ -1,4 +1,6 @@
-# Infrastructure
+---
+title: Infrastructure
+---
 
 Learn how to spin up & manage Coder infrastructure.
 

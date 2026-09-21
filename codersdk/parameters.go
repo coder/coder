@@ -7,7 +7,6 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk/wsjson"
 	"github.com/coder/websocket"
@@ -100,11 +99,11 @@ func (p PreviewParameter) TemplateVersionParameter() TemplateVersionParameter {
 		}
 		if valid.Min != nil {
 			//nolint:gosec
-			tp.ValidationMin = ptr.Ref(int32(*valid.Min))
+			tp.ValidationMin = new(int32(*valid.Min))
 		}
 		if valid.Max != nil {
 			//nolint:gosec
-			tp.ValidationMax = ptr.Ref(int32(*valid.Max))
+			tp.ValidationMax = new(int32(*valid.Max))
 		}
 	}
 	return tp

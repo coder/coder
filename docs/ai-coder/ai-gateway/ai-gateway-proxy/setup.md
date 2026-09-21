@@ -1,4 +1,6 @@
-# Setup
+---
+title: Setup
+---
 
 AI Gateway Proxy runs inside the Coder control plane (`coderd`), requiring no separate compute to deploy or scale.
 Once enabled, `coderd` runs the AI Gateway Proxy in-process and intercepts traffic to supported AI providers, forwarding it to AI Gateway.

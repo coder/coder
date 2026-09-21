@@ -1,7 +1,7 @@
 package agentcontext
 
-// defaultBuiltinRoots returns the scan roots layered in front
-// of any user-added sources. These mirror the paths the legacy
+// defaultBuiltinRoots returns the scan roots layered after
+// user-added sources and before working-directory discovery. These mirror the
 // agentcontextconfig API resolves at every chat hydrate. The
 // list is intentionally tolerant of missing entries; the
 // resolver silently skips canonicalization failures and

@@ -60,14 +60,13 @@ export const OrganizationProvisionersPageView: FC<
 	onRetry,
 }) => {
 	return (
-		<section className="w-full max-w-screen-2xl pb-10">
-			<SettingsHeader
-				actions={<SettingsHeaderDocsLink href={docs("/admin/provisioners")} />}
-			>
+		<section className="w-full max-w-(--breakpoint-2xl) pb-10">
+			<SettingsHeader>
 				<SettingsHeaderTitle>Provisioners</SettingsHeaderTitle>
 				<SettingsHeaderDescription>
 					Coder server runs provisioner daemons which execute terraform during
-					workspace and template builds.
+					workspace and template builds.{" "}
+					<SettingsHeaderDocsLink href={docs("/admin/provisioners")} />
 				</SettingsHeaderDescription>
 			</SettingsHeader>
 

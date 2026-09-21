@@ -20,7 +20,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -317,7 +316,7 @@ func (ru *ResourceUser) Patch(r *http.Request, idStr string, operations []scim.P
 			// TODO: If the path is unspecified, we should fail with the status code 400.
 			//  Today, we only accept the 'active' field and silently drop the rest.
 			if op.Path != nil && strings.EqualFold(op.Path.String(), "active") {
-				activeSet = ptr.Ref(false)
+				activeSet = new(false)
 			}
 		case "replace":
 			// TODO: Honor mutability rules of fields like `userName` and `email`.

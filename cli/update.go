@@ -16,7 +16,7 @@ func (r *RootCmd) update() *serpent.Command {
 		bflags         buildFlags
 	)
 	cmd := &serpent.Command{
-		Annotations: workspaceCommand,
+		Annotations: serpent.Annotations(workspaceCommand).Mark(annotationClientSessionID, ""),
 		Use:         "update <workspace>",
 		Short:       "Will update and start a given workspace if it is out of date. If the workspace is already running, it will be stopped first.",
 		Long:        "Use --always-prompt to change the parameter values of the workspace.",

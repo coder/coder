@@ -2979,6 +2979,9 @@ func InsertWorkspacePresetAndParameters(ctx context.Context, db database.Store, 
 
 		return nil
 	}, nil)
+	if database.IsUniqueViolation(err, database.UniqueIndexUniquePresetName) {
+		return xerrors.Errorf("duplicate preset name, must be unique per template: %q", protoPreset.Name)
+	}
 	if err != nil {
 		return xerrors.Errorf("insert preset and parameters: %w", err)
 	}

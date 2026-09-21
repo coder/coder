@@ -1432,7 +1432,7 @@ func (api *API) groupMembersAISpend(rw http.ResponseWriter, r *http.Request) {
 		Members: make([]codersdk.GroupMemberAISpend, 0, len(rows)),
 	}
 	for _, row := range rows {
-		resp.Members = append(resp.Members, db2sdk.GroupMemberAISpend(row))
+		resp.Members = append(resp.Members, db2sdk.GroupMemberAISpend(row, group.ID))
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, resp)

@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import {
 	ArrowLeftIcon,
 	ChevronRightIcon,
@@ -21,7 +22,6 @@ import {
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
 import { Popover, PopoverTrigger } from "#/components/Popover/Popover";
-import { cn } from "#/utils/cn";
 import { parsePullRequestUrl } from "../utils/pullRequest";
 import {
 	ChatActionsMenuItems,
@@ -255,7 +255,7 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 					<PrStateIcon
 						state={prState}
 						draft={prDraft}
-						className="!size-3.5 shrink-0"
+						className="size-3.5! shrink-0"
 					/>
 					<span className="truncate max-w-[120px] hidden sm:inline">
 						{prTitle || (prNumberMatch ? `#${prNumberMatch}` : "PR")}

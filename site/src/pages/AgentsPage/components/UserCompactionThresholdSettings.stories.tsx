@@ -2,12 +2,21 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import type * as TypesGen from "#/api/typesGenerated";
 import { MockChatModel } from "#/testHelpers/chatModels";
-import { MockDefaultOrganization, MockUserOwner } from "#/testHelpers/entities";
+import {
+	MockDefaultOrganization,
+	MockOrganization2,
+	MockUserOwner,
+} from "#/testHelpers/entities";
 import {
 	withAuthProvider,
 	withDashboardProvider,
 } from "#/testHelpers/storybook";
 import { UserCompactionThresholdSettings } from "./UserCompactionThresholdSettings";
+
+const modelsOrganization = {
+	...MockDefaultOrganization,
+	id: MockChatModel.organization_id,
+};
 
 const organizationWithEmptyDisplayName = {
 	...MockDefaultOrganization,
@@ -59,9 +68,7 @@ const meta = {
 			["provider-1", "openai"],
 			["provider-anthropic", "anthropic"],
 		]),
-		organizationNameByID: new Map<string, string>([
-			[MockChatModel.organization_id, MockDefaultOrganization.display_name],
-		]),
+		organizations: [modelsOrganization],
 		thresholds: [],
 		isThresholdsLoading: false,
 		thresholdsError: undefined,
@@ -116,20 +123,11 @@ export const Default: Story = {
 
 export const EmptyOrganizationDisplayNameFallsBackToName: Story = {
 	args: {
-		organizationNameByID: new Map<string, string>([
-			[
-				organizationWithEmptyDisplayName.id,
-				organizationWithEmptyDisplayName.display_name ||
-					organizationWithEmptyDisplayName.name,
-			],
-		]),
+		organizations: [organizationWithEmptyDisplayName],
 		thresholds: [{ model_config_id: "model-1", threshold_percent: 90 }],
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		expect(
-			canvas.getAllByText(organizationWithEmptyDisplayName.name).length,
-		).toBeGreaterThan(0);
 		expect(
 			canvas.getByRole("textbox", {
 				name: `GPT-4o compaction threshold for ${organizationWithEmptyDisplayName.name}`,
@@ -320,6 +318,131 @@ export const PartialSaveFailure: Story = {
 	},
 };
 
+export const OrganizationFilter: Story = {
+	args: {
+		models: [
+			mockModels[0],
+			{
+				...mockModels[1],
+				organization_id: MockOrganization2.id,
+			},
+		],
+		organizations: [modelsOrganization, MockOrganization2],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const filter = await canvas.findByRole("button", {
+			name: `Organization ${modelsOrganization.display_name}`,
+		});
+
+		expect(canvas.getByText("GPT-4o")).toBeInTheDocument();
+		expect(canvas.queryByText("Claude Sonnet")).not.toBeInTheDocument();
+
+		await userEvent.click(filter);
+		const option = await within(document.body).findByRole("option", {
+			name: MockOrganization2.display_name,
+		});
+		await userEvent.click(option);
+
+		await waitFor(() => {
+			expect(canvas.queryByText("GPT-4o")).not.toBeInTheDocument();
+			expect(canvas.getByText("Claude Sonnet")).toBeInTheDocument();
+		});
+
+		expect(
+			canvas.getByRole("button", {
+				name: `Organization ${MockOrganization2.display_name}`,
+			}),
+		).toBeInTheDocument();
+	},
+};
+
+export const SingleOrganizationHidesFilter: Story = {
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await canvas.findByText("GPT-4o");
+		expect(
+			canvas.queryByRole("button", { name: /^Organization / }),
+		).not.toBeInTheDocument();
+	},
+};
+
+export const OrganizationFilterScopesSaveActions: Story = {
+	args: {
+		models: [
+			mockModels[0],
+			{
+				...mockModels[1],
+				organization_id: MockOrganization2.id,
+			},
+		],
+		organizations: [modelsOrganization, MockOrganization2],
+	},
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		const gpt4oInput = await canvas.findByRole("textbox", {
+			name: /GPT-4o compaction threshold/i,
+		});
+		await userEvent.type(gpt4oInput, "95");
+		await canvas.findByRole("button", { name: /Save 1 change/i });
+
+		// Switch to the other organization: the draft belongs to a hidden
+		// row, so the footer must disappear.
+		await userEvent.click(
+			canvas.getByRole("button", {
+				name: `Organization ${modelsOrganization.display_name}`,
+			}),
+		);
+		await userEvent.click(
+			await within(document.body).findByRole("option", {
+				name: MockOrganization2.display_name,
+			}),
+		);
+		await waitFor(() => {
+			expect(canvas.queryByRole("button", { name: /Save/i })).toBeNull();
+		});
+
+		// Editing the visible row saves only that row.
+		const claudeInput = await canvas.findByRole("textbox", {
+			name: /Claude Sonnet compaction threshold/i,
+		});
+		await userEvent.type(claudeInput, "50");
+		await userEvent.click(
+			await canvas.findByRole("button", { name: /Save 1 change/i }),
+		);
+		await waitFor(() => {
+			expect(args.onSaveThreshold).toHaveBeenCalledWith("model-2", 50);
+			expect(args.onSaveThreshold).not.toHaveBeenCalledWith("model-1", 95);
+		});
+
+		// Switching back restores the hidden draft and its footer.
+		await userEvent.click(
+			canvas.getByRole("button", {
+				name: `Organization ${MockOrganization2.display_name}`,
+			}),
+		);
+		await userEvent.click(
+			await within(document.body).findByRole("option", {
+				name: modelsOrganization.display_name,
+			}),
+		);
+		const restoredInput = await canvas.findByRole("textbox", {
+			name: /GPT-4o compaction threshold/i,
+		});
+		expect(restoredInput).toHaveValue("95");
+		// Wait out the temporary "Saved" footer state (2.5s) before the
+		// action buttons reappear.
+		await waitFor(
+			() => {
+				expect(
+					canvas.getByRole("button", { name: /Save 1 change/i }),
+				).toBeInTheDocument();
+			},
+			{ timeout: 5000 },
+		);
+	},
+};
+
 export const ErrorState: Story = {
 	name: "Error",
 	args: {
@@ -338,9 +461,6 @@ export const PartialModelLoadError: Story = {
 		expect(
 			await canvas.findByText("Failed to load models from one organization"),
 		).toBeVisible();
-		expect(
-			canvas.getAllByText(MockDefaultOrganization.display_name).length,
-		).toBeGreaterThan(0);
 		expect(
 			canvas.getByRole("textbox", {
 				name: `GPT-4o compaction threshold for ${MockDefaultOrganization.display_name}`,

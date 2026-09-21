@@ -24,7 +24,6 @@ import (
 	tslogger "tailscale.com/types/logger"
 
 	"github.com/coder/coder/v2/coderd/healthcheck/health"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk/healthsdk"
 )
@@ -97,7 +96,7 @@ func (r *Report) Run(ctx context.Context, opts *ReportOptions) {
 			defer wg.Done()
 			defer func() {
 				if err := recover(); err != nil {
-					regionReport.Error = ptr.Ref(fmt.Sprint(err))
+					regionReport.Error = new(fmt.Sprint(err))
 				}
 			}()
 
@@ -193,7 +192,7 @@ func (r *RegionReport) Run(ctx context.Context) {
 			defer wg.Done()
 			defer func() {
 				if err := recover(); err != nil {
-					nodeReport.Error = ptr.Ref(fmt.Sprint(err))
+					nodeReport.Error = new(fmt.Sprint(err))
 					nodeReport.Severity = health.SeverityError
 				}
 			}()
@@ -220,7 +219,7 @@ func (r *RegionReport) Run(ctx context.Context) {
 	if len(r.Region.Nodes) != len(r.NodeReports) {
 		r.Healthy = false
 		r.Severity = health.SeverityError
-		r.Error = ptr.Ref(missingNodeReport)
+		r.Error = new(missingNodeReport)
 		return
 	}
 
@@ -366,7 +365,7 @@ func (r *NodeReport) doExchangeMessage(ctx context.Context) {
 
 		var iter uint8
 		for {
-			lastSent.Store(ptr.Ref(time.Now()))
+			lastSent.Store(new(time.Now()))
 			err = send.Send(receive.SelfPublicKey(), []byte{iter})
 			if err != nil {
 				r.writeClientErr(sendID, xerrors.Errorf("send derp message: %w", err))
@@ -552,7 +551,7 @@ func (r *NodeReport) recvData(client *derphttp.Client) (derp.ReceivedPacket, err
 
 func convertError(err error) *string {
 	if err != nil {
-		return ptr.Ref(err.Error())
+		return new(err.Error())
 	}
 
 	return nil

@@ -19,6 +19,7 @@ import {
 } from "#/testHelpers/entities";
 import { withDashboardProvider } from "#/testHelpers/storybook";
 import AddModelPage from "./AddModelPage/AddModelPage";
+import ModelsPage from "./ModelsPage";
 import OrganizationModelsLayout from "./OrganizationModelsLayout";
 
 const LocationProbe = () => {
@@ -43,7 +44,16 @@ const meta: Meta<typeof OrganizationModelsLayout> = {
 				path: "/ai/settings/models",
 				searchParams: { org: MockDefaultOrganization.name },
 			},
-			routing: [{ path: "*", useStoryElement: true }],
+			routing: [
+				{
+					path: "/ai/settings/models",
+					useStoryElement: true,
+					children: [
+						{ index: true, element: <ModelsPage /> },
+						{ path: "add", element: <AddModelPage /> },
+					],
+				},
+			],
 		}),
 		queries: [
 			{
@@ -53,6 +63,16 @@ const meta: Meta<typeof OrganizationModelsLayout> = {
 			{
 				key: chatModels(MockOrganization2.id).queryKey,
 				data: { models: [], providers: [], unsupported_providers: [] },
+			},
+			{
+				key: organizationsPermissions([
+					MockDefaultOrganization.id,
+					MockOrganization2.id,
+				]).queryKey,
+				data: {
+					[MockDefaultOrganization.id]: MockOrganizationPermissions,
+					[MockOrganization2.id]: MockOrganizationPermissions,
+				},
 			},
 			{
 				key: organizationsPermissions([MockDefaultOrganization.id]).queryKey,
@@ -92,7 +112,13 @@ export const SwitchOrganizationPreservesAuxiliaryParameters: Story = {
 					duplicate: "model-id",
 				},
 			},
-			routing: [{ path: "*", useStoryElement: true }],
+			routing: [
+				{
+					path: "/ai/settings/models",
+					useStoryElement: true,
+					children: [{ path: "add", element: <AddModelPage /> }],
+				},
+			],
 		}),
 	},
 	render: () => (
@@ -121,46 +147,6 @@ export const SwitchOrganizationPreservesAuxiliaryParameters: Story = {
 	},
 };
 
-export const DefaultsTabNavigatesToOrganizationDefaults: Story = {
-	beforeEach: () => {
-		// Mock at the API layer so a background refetch cannot replace the
-		// seeded permissions.
-		spyOn(API, "checkAuthorization").mockImplementation(async ({ checks }) =>
-			Object.fromEntries(Object.keys(checks).map((id) => [id, true])),
-		);
-	},
-	parameters: {
-		reactRouter: reactRouterParameters({
-			location: {
-				path: "/ai/settings/models",
-				searchParams: { org: MockOrganization2.name },
-			},
-			routing: [{ path: "*", useStoryElement: true }],
-		}),
-	},
-	render: () => (
-		<>
-			<OrganizationModelsLayout />
-			<LocationProbe />
-		</>
-	),
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const defaultsTab = await canvas.findByRole("link", {
-			name: "Defaults & overrides",
-		});
-		await userEvent.click(defaultsTab);
-		await waitFor(() => {
-			expect(screen.getByTestId("location-probe")).toHaveTextContent(
-				`/ai/settings/models/defaults?org=${MockOrganization2.name}`,
-			);
-			expect(
-				canvas.getByRole("link", { name: "Defaults & overrides" }),
-			).toHaveAttribute("aria-current", "page");
-		});
-	},
-};
-
 export const InvalidRequestedOrganizationFallsBackToDefault: Story = {
 	parameters: {
 		reactRouter: reactRouterParameters({
@@ -168,7 +154,13 @@ export const InvalidRequestedOrganizationFallsBackToDefault: Story = {
 				path: "/ai/settings/models",
 				searchParams: { org: "missing" },
 			},
-			routing: [{ path: "*", useStoryElement: true }],
+			routing: [
+				{
+					path: "/ai/settings/models",
+					useStoryElement: true,
+					children: [{ index: true, element: <ModelsPage /> }],
+				},
+			],
 		}),
 	},
 	play: async ({ canvasElement }) => {
@@ -207,6 +199,16 @@ export const InvalidRequestedOrganizationDeniesAdd: Story = {
 			{
 				key: chatModels(MockOrganization2.id).queryKey,
 				data: { models: [], providers: [], unsupported_providers: [] },
+			},
+			{
+				key: organizationsPermissions([
+					MockDefaultOrganization.id,
+					MockOrganization2.id,
+				]).queryKey,
+				data: {
+					[MockDefaultOrganization.id]: MockOrganizationPermissions,
+					[MockOrganization2.id]: MockOrganizationPermissions,
+				},
 			},
 			{
 				key: organizationsPermissions([MockDefaultOrganization.id]).queryKey,
@@ -281,6 +283,16 @@ export const DuplicateDisplayNamesAreDisambiguated: Story = {
 			{
 				key: chatModels(duplicateNameOrganization.id).queryKey,
 				data: { models: [], providers: [], unsupported_providers: [] },
+			},
+			{
+				key: organizationsPermissions([
+					MockDefaultOrganization.id,
+					duplicateNameOrganization.id,
+				]).queryKey,
+				data: {
+					[MockDefaultOrganization.id]: MockOrganizationPermissions,
+					[duplicateNameOrganization.id]: MockOrganizationPermissions,
+				},
 			},
 			{
 				key: organizationsPermissions([MockDefaultOrganization.id]).queryKey,
@@ -368,6 +380,24 @@ export const PermissionLoadErrorShowsAlert: Story = {
 	},
 };
 
+export const ModelLoadErrorShowsAlert: Story = {
+	beforeEach: () => {
+		spyOn(API.experimental, "getChatModels").mockRejectedValue(
+			new Error("Invalid chat models response: models must be an array."),
+		);
+		spyOn(API, "checkAuthorization").mockResolvedValue({});
+	},
+	parameters: { queries: [] },
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			await canvas.findByText(
+				"Invalid chat models response: models must be an array.",
+			),
+		).toBeVisible();
+	},
+};
+
 export const Loading: Story = {
 	beforeEach: () => {
 		spyOn(API.experimental, "getChatModels").mockImplementation(
@@ -383,6 +413,7 @@ export const Loading: Story = {
 
 export const NoReadableOrganizationIsNotFound: Story = {
 	beforeEach: () => {
+		spyOn(API, "checkAuthorization").mockResolvedValue({});
 		spyOn(API.experimental, "getChatModels").mockRejectedValue({
 			isAxiosError: true,
 			response: { status: 403 },

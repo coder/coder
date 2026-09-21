@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import { type FC, type ReactNode, useState } from "react";
 import { keepPreviousData, useQuery } from "react-query";
 import { organizationMembers } from "#/api/queries/organizations";
@@ -14,7 +15,6 @@ import { Checkbox } from "#/components/Checkbox/Checkbox";
 import { EmptyState } from "#/components/EmptyState/EmptyState";
 import { SearchField } from "#/components/SearchField/SearchField";
 import { useDebouncedFunction } from "#/hooks/debounce";
-import { cn } from "#/utils/cn";
 import { prepareQuery } from "#/utils/filters";
 
 const DEBOUNCE_MS = 750;
@@ -80,69 +80,6 @@ export const MultiMemberSelect: FC<MemberAutocompleteProps> = ({
 			users={membersQuery.data?.members}
 			{...props}
 		/>
-	);
-};
-
-type InnerAutocompleteProps<T extends SelectedUser> =
-	CommonMultiSelectProps<T> & {
-		/** The error is null if not loaded or no error. */
-		error: unknown;
-		setFilter: (filter: string) => void;
-		/** Users are undefined if not loaded or errored. */
-		users: readonly T[] | undefined;
-	};
-
-const InnerMultiSelect = <T extends SelectedUser>({
-	className,
-	error,
-	onChange,
-	selected,
-	setFilter,
-	users,
-}: InnerAutocompleteProps<T>) => {
-	const [inputValue, setInputValue] = useState("");
-	const { debounced, cancelDebounce } = useDebouncedFunction(
-		(nextFilter: string) => {
-			setFilter(nextFilter);
-		},
-		DEBOUNCE_MS,
-	);
-
-	return (
-		<div className={cn("flex flex-col gap-4", className)}>
-			<SearchField
-				className="h-12 w-full rounded-lg"
-				value={inputValue}
-				aria-label="Search users"
-				onChange={(query) => {
-					setInputValue(query);
-					debounced(query);
-				}}
-				onClear={() => {
-					cancelDebounce();
-					setInputValue("");
-					setFilter("");
-				}}
-				placeholder="Search users..."
-			/>
-			<div className="h-96 w-full rounded-lg border border-border border-solid">
-				<div className="h-full overflow-hidden p-px">
-					<div
-						className="h-full overflow-y-auto overflow-x-hidden overscroll-contain"
-						onWheel={(event) => {
-							event.stopPropagation();
-						}}
-					>
-						<UsersTable
-							error={error}
-							onChange={onChange}
-							selected={selected}
-							users={users}
-						/>
-					</div>
-				</div>
-			</div>
-		</div>
 	);
 };
 
@@ -217,6 +154,69 @@ const UsersTable = <T extends SelectedUser>({
 	);
 };
 
+type InnerAutocompleteProps<T extends SelectedUser> =
+	CommonMultiSelectProps<T> & {
+		/** The error is null if not loaded or no error. */
+		error: unknown;
+		setFilter: (filter: string) => void;
+		/** Users are undefined if not loaded or errored. */
+		users: readonly T[] | undefined;
+	};
+
+const InnerMultiSelect = <T extends SelectedUser>({
+	className,
+	error,
+	onChange,
+	selected,
+	setFilter,
+	users,
+}: InnerAutocompleteProps<T>) => {
+	const [inputValue, setInputValue] = useState("");
+	const { debounced, cancelDebounce } = useDebouncedFunction(
+		(nextFilter: string) => {
+			setFilter(nextFilter);
+		},
+		DEBOUNCE_MS,
+	);
+
+	return (
+		<div className={cn("flex flex-col gap-4", className)}>
+			<SearchField
+				className="h-12 w-full rounded-lg"
+				value={inputValue}
+				aria-label="Search users"
+				onChange={(query) => {
+					setInputValue(query);
+					debounced(query);
+				}}
+				onClear={() => {
+					cancelDebounce();
+					setInputValue("");
+					setFilter("");
+				}}
+				placeholder="Search users..."
+			/>
+			<div className="h-96 w-full rounded-lg border border-border border-solid">
+				<div className="h-full overflow-hidden p-px">
+					<div
+						className="h-full overflow-y-auto overflow-x-hidden overscroll-contain"
+						onWheel={(event) => {
+							event.stopPropagation();
+						}}
+					>
+						<UsersTable
+							error={error}
+							onChange={onChange}
+							selected={selected}
+							users={users}
+						/>
+					</div>
+				</div>
+			</div>
+		</div>
+	);
+};
+
 const TableLoader: FC = () => {
 	const skeletonRows = Array.from({ length: 6 }, (_, index) => index);
 
@@ -257,9 +257,9 @@ const UserRow = <T extends SelectedUser>({
 			tabIndex={-1}
 			className={cn(
 				"cursor-pointer",
-				"hover:[&>div]:ring-1 hover:[&>div]:ring-inset hover:[&>div]:ring-border-secondary",
+				"[&>div]:hover:ring-1 [&>div]:hover:ring-inset [&>div]:hover:ring-border-secondary",
 				checked
-					? "[&>div]:bg-surface-secondary hover:[&>div]:bg-surface-secondary"
+					? "[&>div]:bg-surface-secondary [&>div]:hover:bg-surface-secondary"
 					: undefined,
 			)}
 			onClick={() => onChange(user, !checked)}

@@ -28,7 +28,7 @@ export const DiffsWorkerPoolProvider: FC<DiffsWorkerPoolProviderProps> = ({
 	children,
 }) => {
 	if (!hasWorkerSupport()) {
-		return <>{children}</>;
+		return children;
 	}
 
 	const poolOptions: WorkerPoolOptions = {

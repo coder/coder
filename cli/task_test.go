@@ -27,7 +27,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/provisioner/echo"
@@ -208,9 +207,9 @@ func fakeAgentAPIEcho(ctx context.Context, t testing.TB, initMsg agentapisdk.Mes
 	writeAgentAPIError := func(w http.ResponseWriter, err error, status int) {
 		w.WriteHeader(status)
 		_ = json.NewEncoder(w).Encode(agentapisdk.ErrorModel{
-			Errors: ptr.Ref([]agentapisdk.ErrorDetail{
+			Errors: new([]agentapisdk.ErrorDetail{
 				{
-					Message: ptr.Ref(err.Error()),
+					Message: new(err.Error()),
 				},
 			}),
 		})

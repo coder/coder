@@ -38,7 +38,7 @@ const getProviderStatus = (
 
 	if (provider.has_central_api_key_fallback) {
 		return {
-			label: "Using shared key",
+			label: "Shared key",
 			variant: "default",
 			note: "The shared deployment key is being used. Add a personal key to use your own.",
 		};
@@ -133,7 +133,7 @@ const ProviderKeyPanel: FC<ProviderKeyPanelProps> = ({
 						<p className="m-0 text-sm text-content-secondary">{status.note}</p>
 					)}
 				</div>
-				<Badge size="sm" variant={status.variant} className="w-fit">
+				<Badge size="md" variant={status.variant} className="w-fit">
 					{status.label}
 				</Badge>
 			</div>
@@ -207,7 +207,7 @@ const ProviderKeyPanel: FC<ProviderKeyPanelProps> = ({
 				) : enabledModels.length > 0 ? (
 					<div className="flex flex-wrap gap-2">
 						{enabledModels.map((model) => (
-							<Badge key={model.id} size="xs" variant="default">
+							<Badge key={model.id} size="md" variant="default">
 								{model.display_name || model.model}
 							</Badge>
 						))}

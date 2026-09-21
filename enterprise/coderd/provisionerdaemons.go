@@ -31,7 +31,6 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/telemetry"
 	"github.com/coder/coder/v2/coderd/util/namesgenerator"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/drpcsdk"
 	"github.com/coder/coder/v2/provisionerd/proto"
@@ -297,7 +296,7 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 	tep := telemetry.ConvertExternalProvisioner(daemon.ID, tags, provisioners)
 	api.Telemetry.Report(&telemetry.Snapshot{ExternalProvisioners: []telemetry.ExternalProvisioner{tep}})
 	defer func() {
-		tep.ShutdownAt = ptr.Ref(time.Now())
+		tep.ShutdownAt = new(time.Now())
 		api.Telemetry.Report(&telemetry.Snapshot{ExternalProvisioners: []telemetry.ExternalProvisioner{tep}})
 	}()
 
@@ -378,7 +377,7 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 		_ = conn.Close(websocket.StatusInternalError, httpapi.WebsocketCloseSprintf("drpc register provisioner daemon: %s", err))
 		return
 	}
-	server := drpcserver.NewWithOptions(mux, drpcserver.Options{
+	server := drpcsdk.NewServer(logger, mux, drpcserver.Options{
 		Manager: drpcsdk.DefaultDRPCOptions(nil),
 		Log: func(err error) {
 			if xerrors.Is(err, io.EOF) {

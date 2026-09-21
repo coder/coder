@@ -1961,16 +1961,20 @@ var WorkspaceEditFile = Tool[WorkspaceEditFileArgs, WorkspaceEditFilesResponse]{
 					"items": map[string]any{
 						"type": "object",
 						"properties": map[string]any{
-							"search": map[string]any{
+							"old_text": map[string]any{
 								"type":        "string",
-								"description": "The old string to replace.",
+								"description": "The existing text to replace. Matching is fuzzy: whitespace and indentation differences are tolerated. Must uniquely match exactly one location in the file unless replace_all is true. Include enough surrounding context to make the match unique.",
 							},
-							"replace": map[string]any{
+							"new_text": map[string]any{
 								"type":        "string",
-								"description": "The new string that replaces the old string.",
+								"description": "The new text that replaces the old text.",
+							},
+							"replace_all": map[string]any{
+								"type":        "boolean",
+								"description": "When true, replaces all occurrences of old_text. Defaults to false, which requires old_text to match exactly once.",
 							},
 						},
-						"required": []string{"search", "replace"},
+						"required": []string{"old_text", "new_text"},
 					},
 				},
 			},
@@ -2037,20 +2041,20 @@ var WorkspaceEditFiles = Tool[WorkspaceEditFilesArgs, WorkspaceEditFilesResponse
 								"items": map[string]any{
 									"type": "object",
 									"properties": map[string]any{
-										"search": map[string]any{
+										"old_text": map[string]any{
 											"type":        "string",
-											"description": "The old string to replace. Must uniquely match exactly one location in the file unless replace_all is true. Include enough surrounding context to make the match unique.",
+											"description": "The existing text to replace. Matching is fuzzy: whitespace and indentation differences are tolerated. Must uniquely match exactly one location in the file unless replace_all is true. Include enough surrounding context to make the match unique.",
 										},
-										"replace": map[string]any{
+										"new_text": map[string]any{
 											"type":        "string",
-											"description": "The new string that replaces the old string.",
+											"description": "The new text that replaces the old text.",
 										},
 										"replace_all": map[string]any{
 											"type":        "boolean",
-											"description": "When true, replaces all occurrences of the search string. Defaults to false, which requires the search string to match exactly once.",
+											"description": "When true, replaces all occurrences of old_text. Defaults to false, which requires old_text to match exactly once.",
 										},
 									},
-									"required": []string{"search", "replace"},
+									"required": []string{"old_text", "new_text"},
 								},
 							},
 						},

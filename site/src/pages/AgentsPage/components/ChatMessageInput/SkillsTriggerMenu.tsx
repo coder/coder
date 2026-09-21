@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import { useLayoutEffect, useRef } from "react";
 import {
 	Command,
@@ -11,7 +12,6 @@ import {
 	PopoverAnchor,
 	PopoverContent,
 } from "#/components/Popover/Popover";
-import { cn } from "#/utils/cn";
 
 type SkillSource = "personal" | "workspace";
 
@@ -228,7 +228,7 @@ export const SkillsTriggerMenu = ({
 				align="start"
 				side="top"
 				sideOffset={8}
-				className="w-[var(--radix-popper-anchor-width)] overflow-hidden p-1 mobile-full-width-dropdown mobile-full-width-dropdown-above-composer"
+				className="w-(--radix-popper-anchor-width) overflow-hidden p-1 mobile-full-width-dropdown mobile-full-width-dropdown-above-composer"
 				onMouseDown={(event) => event.preventDefault()}
 				onOpenAutoFocus={(event) => event.preventDefault()}
 				onCloseAutoFocus={(event) => event.preventDefault()}

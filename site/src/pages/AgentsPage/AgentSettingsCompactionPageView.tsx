@@ -6,7 +6,7 @@ import { UserCompactionThresholdSettings } from "./components/UserCompactionThre
 export interface AgentSettingsCompactionPageViewProps {
 	models: readonly TypesGen.ChatModel[] | undefined;
 	providerTypeByID: ReadonlyMap<string, string>;
-	organizationNameByID: ReadonlyMap<string, string>;
+	organizations: readonly TypesGen.Organization[];
 	modelsError: unknown;
 	isLoadingModels: boolean;
 	thresholds: readonly TypesGen.UserChatCompactionThreshold[] | undefined;
@@ -24,7 +24,7 @@ export const AgentSettingsCompactionPageView: FC<
 > = ({
 	models,
 	providerTypeByID,
-	organizationNameByID,
+	organizations,
 	modelsError,
 	isLoadingModels,
 	thresholds,
@@ -42,7 +42,7 @@ export const AgentSettingsCompactionPageView: FC<
 			<UserCompactionThresholdSettings
 				models={models ?? []}
 				providerTypeByID={providerTypeByID}
-				organizationNameByID={organizationNameByID}
+				organizations={organizations}
 				modelsError={modelsError}
 				isLoadingModels={isLoadingModels}
 				thresholds={thresholds}

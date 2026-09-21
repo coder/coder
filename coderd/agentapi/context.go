@@ -12,6 +12,7 @@ import (
 	"golang.org/x/xerrors"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
+	"storj.io/drpc/drpcerr"
 
 	"cdr.dev/slog/v3"
 	agentproto "github.com/coder/coder/v2/agent/proto"
@@ -67,6 +68,13 @@ type ContextAPI struct {
 	// snapshot persisted by a push. It is nil when chatd is not running,
 	// in which case PushContextState stays a pure write path.
 	DirtyMarker ContextDirtyMarker
+	// Disabled rejects every push with a dRPC Unimplemented code. The
+	// agent's DRPCPusher translates that code into ErrPushUnimplemented,
+	// which terminates its RunPush loop for the life of the connection,
+	// exactly as if coderd predated the v2.10 Agent API. This is the
+	// deployment-wide kill switch for context sync write load
+	// (CODER_DISABLE_WORKSPACE_AGENT_CONTEXT_SYNC).
+	Disabled bool
 }
 
 // ContextDirtyMarker hydrates chats from, and marks chats dirty against, a
@@ -103,6 +111,14 @@ type ContextDirtyMarker interface {
 // authorizes the actor (the agent's token subject) against the
 // workspace that owns the agent.
 func (a *ContextAPI) PushContextState(ctx context.Context, req *agentproto.PushContextStateRequest) (*agentproto.PushContextStateResponse, error) {
+	if a.Disabled {
+		// The Unimplemented code (not a plain error) is what tells the
+		// agent to stop pushing instead of retrying with backoff.
+		return nil, drpcerr.WithCode(
+			xerrors.New("agentapi: workspace agent context sync is disabled on this deployment"),
+			drpcerr.Unimplemented,
+		)
+	}
 	if req == nil {
 		return nil, xerrors.New("agentapi: PushContextState request is nil")
 	}

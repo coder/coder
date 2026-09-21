@@ -112,7 +112,7 @@ export const ProxyMenu: FC<ProxyMenuProps> = ({ proxyContextValue }) => {
 				{proxyContextValue.proxies && proxyContextValue.proxies.length > 1 && (
 					<DropdownMenuItem
 						disabled
-						className="flex flex-col gap-1 items-start data-[disabled]:opacity-100"
+						className="flex flex-col gap-1 items-start data-disabled:opacity-100"
 					>
 						<div className="text-content-primary font-semibold text-left">
 							Select a region nearest to you
@@ -133,7 +133,7 @@ export const ProxyMenu: FC<ProxyMenuProps> = ({ proxyContextValue }) => {
 				)}
 
 				{proxyContextValue.proxies && (
-					<div className="max-h-[calc(100vh-22rem)] -mr-2 pr-2 overflow-y-auto [scrollbar-width:thin] [scrollbar-color:hsl(var(--surface-quaternary))_transparent]">
+					<div className="max-h-[calc(100vh-22rem)] -mr-2 pr-2 overflow-y-auto scrollbar-thin [scrollbar-color:hsl(var(--surface-quaternary))_transparent]">
 						<DropdownMenuRadioGroup value={selectedProxy?.id}>
 							{sortProxiesByLatency(proxyContextValue.proxies, latencies).map(
 								(proxy) => (

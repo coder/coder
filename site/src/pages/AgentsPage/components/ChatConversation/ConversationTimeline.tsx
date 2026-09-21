@@ -2,6 +2,7 @@ import {
 	MessageScroller,
 	useMessageScroller,
 } from "@shadcn/react/message-scroller";
+import { cn } from "cn";
 import {
 	ChevronLeftIcon,
 	ChevronRightIcon,
@@ -9,10 +10,8 @@ import {
 	PencilIcon,
 } from "lucide-react";
 import { type FC, memo, type ReactNode, useState } from "react";
-
 import type { UrlTransform } from "streamdown";
 import type * as TypesGen from "#/api/typesGenerated";
-
 import { AlertTitle } from "#/components/Alert/Alert";
 import { Button } from "#/components/Button/Button";
 import { CopyButton } from "#/components/CopyButton/CopyButton";
@@ -21,7 +20,6 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
-import { cn } from "#/utils/cn";
 
 import {
 	ConversationItem,

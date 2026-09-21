@@ -2393,17 +2393,21 @@ func TestExecutorAutostartSkipsWhenNoProvisionersAvailable(t *testing.T) {
 		_ = daemon2Closer.Close()
 	})
 
-	// Ensure the provisioner is  NOT stale, and see if we get a successful state transition.
+	// Ensure the provisioner is NOT stale, and see if we get a successful state transition.
 	p, err = coderdtest.GetProvisionerForTags(db, time.Now(), workspace.OrganizationID, provisionerDaemonTags)
 	require.NoError(t, err, "Error getting provisioner for workspace")
 
 	next = coderdtest.NextAutostartTick(t, workspace)
-	notStaleTime := next.Add((-1 * provisionerdserver.StaleInterval) + 10*time.Second)
-	coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, notStaleTime)
-	// Require that the provisioner time has actually been updated to the expected value.
-	p, err = coderdtest.GetProvisionerForTags(db, time.Now(), workspace.OrganizationID, provisionerDaemonTags)
+	// Move LastSeenAt forward to the tick. Backward updates are silently
+	// ignored, and the executor treats LastSeenAt at or after the tick as
+	// non-stale, so this cannot race with the daemon's heartbeat.
+	coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, next)
+	// Require that the provisioner is not stale relative to the tick,
+	// mirroring the executor's hasValidProvisioner check.
+	p, err = coderdtest.GetProvisionerForTags(db, next, workspace.OrganizationID, provisionerDaemonTags)
 	require.NoError(t, err, "Error getting provisioner for workspace")
-	require.True(t, next.UnixNano() > p.LastSeenAt.Time.UnixNano())
+	require.LessOrEqual(t, next.Sub(p.LastSeenAt.Time), provisionerdserver.StaleInterval,
+		"provisioner should not be stale at the autostart tick")
 
 	// Trigger autobuild
 	go func() {

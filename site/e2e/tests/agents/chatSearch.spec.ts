@@ -17,7 +17,7 @@ test("searches chats with backend full-text search", async ({ page }) => {
 	const searchResponse = page.waitForResponse((response) => {
 		const url = new URL(response.url());
 		return (
-			url.pathname === "/api/experimental/chats" &&
+			url.pathname === "/api/v2/chats" &&
 			url.searchParams.get("q") === 'search:"full-text-smoke"'
 		);
 	});

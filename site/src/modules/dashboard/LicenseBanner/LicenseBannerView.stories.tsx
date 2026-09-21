@@ -1,7 +1,14 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import type { FC } from "react";
 import { focusManager, type QueryClient, useQueryClient } from "react-query";
-import { expect, screen, spyOn, waitFor, within } from "storybook/test";
+import {
+	expect,
+	screen,
+	spyOn,
+	userEvent,
+	waitFor,
+	within,
+} from "storybook/test";
 import { API } from "#/api/api";
 import { entitlementsQueryKey } from "#/api/queries/entitlements";
 import {
@@ -78,7 +85,7 @@ export const TwoWarnings: Story = {
 			canvas.getByText("Your license limits have been reached"),
 		).toBeInTheDocument();
 		await expect(
-			canvas.queryByRole("button", { name: "Show more" }),
+			canvas.queryByRole("button", { name: /show more/i }),
 		).not.toBeInTheDocument();
 	},
 };
@@ -102,9 +109,13 @@ export const ThreeWarnings: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
+		const hidden = "Another warning that should be hidden until expanded.";
+		await expect(canvas.queryByText(hidden)).not.toBeInTheDocument();
+		await userEvent.click(canvas.getByRole("button", { name: /show more/i }));
+		await expect(canvas.getByText(hidden)).toBeVisible();
 		await expect(
-			canvas.getByRole("button", { name: "Show more" }),
-		).toBeInTheDocument();
+			canvas.getByText("You are flying too close to the sun."),
+		).toBeVisible();
 	},
 };
 
@@ -448,7 +459,7 @@ export const UsagePublishingFailing: Story = {
 // query state transitions that have no visible success indicator, such as
 // a background refetch that fails by design.
 let capturedQueryClient: QueryClient | undefined;
-const withQueryClientCapture = (Story: FC) => {
+const WithQueryClientCapture = (Story: FC) => {
 	capturedQueryClient = useQueryClient();
 	return <Story />;
 };
@@ -466,7 +477,7 @@ const refocusWindow = () => {
 };
 
 const dashboardProviderStory = {
-	decorators: [withQueryClientCapture, withAuthProvider],
+	decorators: [WithQueryClientCapture, withAuthProvider],
 	parameters: {
 		user: MockUserOwner,
 		permissions: MockPermissions,

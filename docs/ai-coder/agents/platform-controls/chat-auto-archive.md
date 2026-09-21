@@ -7,20 +7,12 @@ out of the separate retention window, at which point they are purged.
 
 ## How it works
 
-A background process periodically scans the chat database for root
-conversations whose most recent non-deleted message predates the
-configured auto-archive window and flips them from "active" to
-"archived". Eligibility is evaluated at UTC day boundaries: all
-conversations whose last activity falls on the same UTC date are
-archived together on the first tick after midnight UTC following the
-expiration of their archive window. Cascaded children (chats
-linked into a larger conversation via `root_chat_id`) are archived
-alongside their parent so the conversation stays coherent.
+The Coder Agents chat worker scans the chat database once an hour for root conversations where the most recent non-deleted message predates the configured auto-archive window, and flips them from "active" to "archived".
+Eligibility is evaluated at UTC day boundaries: all conversations with last activity falling on the same UTC date are archived together on the first tick after midnight UTC following the expiration of their archive window.
+Cascaded child chats are archived alongside their parent so the conversation stays coherent.
 
-Activity is defined as the most recent non-deleted message in the
-conversation family, counting messages from every role. Root chats
-whose status indicates ongoing work (`running`, `pending`, `paused`,
-or `requires_action`) are never selected for auto-archiving.
+Activity is defined as the most recent non-deleted message in the conversation family, counting messages from every role.
+Root chats that have ongoing work are never selected for auto-archiving.
 Children inherit their root's archival decision.
 
 Pinned root conversations (those with a non-zero pin order) are never
@@ -39,6 +31,9 @@ once per day (on the first tick after midnight UTC that finds newly
 eligible chats). A large backlog (initial enablement or bulk
 inactivity) may span multiple ticks, producing multiple notifications
 until the backlog drains.
+
+Each digest lists at most 25 conversation titles.
+When a tick archives more than that, the notification names the first 25 and reports the remainder as a count.
 
 If you find the digest noisy, you can disable the "Chats
 Auto-Archived" notification entirely from your notification preferences.
@@ -76,6 +71,8 @@ The auto-archive window is stored as the
 The default is `0` (disabled); set to a positive number of days to
 enable auto-archiving.
 
+Admins can set the window in the dashboard under **AI Settings** > **Coder Agents** > **Lifecycle**.
+
 Use the admin API to read or update the value:
 
     GET  /api/v2/chats/config/auto-archive-days
@@ -83,14 +80,11 @@ Use the admin API to read or update the value:
 
 ## Rollout advice
 
-Auto-archive is disabled by default, so upgrading to a release that
-includes this feature will not archive any existing chats until an
-admin opts in. The first tick after enabling auto-archive on a
-deployment with a long history will process up to 1,000 root chats
-(and their children). If your deployment has a large backlog, the
-initial rollout will span many ticks. This is intentional and avoids
-stalling the rest of `dbpurge` during the first run. To disable,
-set `auto_archive_days` back to `0`.
+Auto-archive is disabled by default, so upgrading to a release that includes this feature will not archive any existing chats until an admin opts in.
+The first tick after enabling auto-archive on a deployment with a long history will process up to 1,000 root chats (and their children).
+If your deployment has a large backlog, the initial rollout will span many ticks.
+This is intentional and keeps each tick bounded so auto-archive doesn't crowd out the chat worker's other background work.
+To disable, set `auto_archive_days` back to `0`.
 
 ## Audit trail
 

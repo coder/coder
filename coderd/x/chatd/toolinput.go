@@ -15,16 +15,13 @@ import (
 // reject before pre_tool_use so a hook consumer is never asked to authorize
 // bytes whose meaning depends on which reader resolves them, and so input that
 // cannot be carried in a hook payload fails as a retryable tool error instead
-// of a dispatch failure.
+// of a dispatch failure. allowedIndexes maps allowed calls back to the input
+// order without relying on duplicate-prone IDs.
 func partitionAmbiguousToolCalls(
 	prepared generationPrepared,
 	toolCalls []fantasy.ToolCallContent,
-) ([]fantasy.ToolCallContent, []fantasy.ToolResultContent) {
-	var (
-		allowed  []fantasy.ToolCallContent
-		rejected []fantasy.ToolResultContent
-	)
-	for _, toolCall := range toolCalls {
+) (allowed []fantasy.ToolCallContent, allowedIndexes []int, rejected []fantasy.ToolResultContent) {
+	for i, toolCall := range toolCalls {
 		if !json.Valid([]byte(toolCall.Input)) {
 			rejected = append(rejected, malformedToolResult(toolCall))
 			continue
@@ -34,8 +31,9 @@ func partitionAmbiguousToolCalls(
 			continue
 		}
 		allowed = append(allowed, toolCall)
+		allowedIndexes = append(allowedIndexes, i)
 	}
-	return allowed, rejected
+	return allowed, allowedIndexes, rejected
 }
 
 // validateOverriddenToolInputs rechecks the inputs a pre_tool_use consumer

@@ -42,16 +42,16 @@ export const SessionTimelineSkeleton: FC = () => {
 						>
 							{/* avatar + username */}
 							<div className="flex flex-row items-center gap-2">
-								<Skeleton className="size-6 rounded-full flex-shrink-0" />
+								<Skeleton className="size-6 rounded-full shrink-0" />
 								<Skeleton className="h-4 w-20" />
 							</div>
 							{/* prompt */}
-							<div className="flex-grow flex flex-col gap-2">
+							<div className="grow flex flex-col gap-2">
 								<Skeleton className="h-3 w-12" />
 								<Skeleton className="h-16 w-full" />
 							</div>
 							{/* right-column details */}
-							<div className="flex flex-col gap-2 lg:w-64 flex-shrink-0">
+							<div className="flex flex-col gap-2 lg:w-64 shrink-0">
 								<Skeleton className="h-3 w-full" />
 								<Skeleton className="h-3 w-4/5" />
 								<Skeleton className="h-3 w-3/5" />

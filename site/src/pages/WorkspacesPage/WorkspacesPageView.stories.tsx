@@ -16,7 +16,6 @@ import {
 	MockBuildInfo,
 	MockOrganization,
 	MockPendingProvisionerJob,
-	MockTaskWorkspace,
 	MockTemplate,
 	MockUserOwner,
 	MockWorkspace,
@@ -562,21 +561,6 @@ export const ShowOrganizations: Story = {
 		});
 
 		expect(accessibleTableCell).toBeDefined();
-	},
-};
-
-export const ShowWorkspaceTasks: Story = {
-	args: {
-		workspaces: [
-			{
-				...MockWorkspace,
-				name: "regular-user-workspace",
-			},
-			{
-				...MockTaskWorkspace,
-				name: "task-workspace",
-			},
-		],
 	},
 };
 

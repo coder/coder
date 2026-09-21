@@ -6,7 +6,6 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/coder/coder/v2/coderd/healthcheck/health"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk/healthsdk"
 )
 
@@ -15,7 +14,7 @@ func TestSummarize(t *testing.T) {
 
 	t.Run("HealthcheckReport", func(t *testing.T) {
 		unhealthy := healthsdk.BaseReport{
-			Error:    ptr.Ref("test error"),
+			Error:    new("test error"),
 			Warnings: []health.Message{{Code: "TEST", Message: "testing"}},
 		}
 		hr := healthsdk.HealthcheckReport{
@@ -78,7 +77,7 @@ func TestSummarize(t *testing.T) {
 		{
 			name: "no prefix",
 			br: healthsdk.BaseReport{
-				Error: ptr.Ref("testing"),
+				Error: new("testing"),
 				Warnings: []health.Message{
 					{
 						Code:    "TEST01",
@@ -102,7 +101,7 @@ func TestSummarize(t *testing.T) {
 		{
 			name: "prefix",
 			br: healthsdk.BaseReport{
-				Error: ptr.Ref("testing"),
+				Error: new("testing"),
 				Warnings: []health.Message{
 					{
 						Code:    "TEST01",
@@ -126,7 +125,7 @@ func TestSummarize(t *testing.T) {
 		{
 			name: "custom docs url",
 			br: healthsdk.BaseReport{
-				Error: ptr.Ref("testing"),
+				Error: new("testing"),
 				Warnings: []health.Message{
 					{
 						Code:    "TEST01",

@@ -272,30 +272,30 @@ describe("applyKnownModelDefaults", () => {
 		expect(result.appliedFields).toContain("config.reasoningEffort.max");
 	});
 
-	it.each([
-		"claude-haiku-4-5",
-		"claude-sonnet-4-5",
-	])("sets Anthropic thinking budget instead of effort for %s", (modelIdentifier) => {
-		const result = applyDefaults({
-			values: buildInitialModelFormValues(),
-			initialValues: buildInitialModelFormValues(),
-			provider: "anthropic",
-			knownModel: requireKnownModel("anthropic", modelIdentifier),
-		});
+	it.each(["claude-haiku-4-5", "claude-sonnet-4-5"])(
+		"sets Anthropic thinking budget instead of effort for %s",
+		(modelIdentifier) => {
+			const result = applyDefaults({
+				values: buildInitialModelFormValues(),
+				initialValues: buildInitialModelFormValues(),
+				provider: "anthropic",
+				knownModel: requireKnownModel("anthropic", modelIdentifier),
+			});
 
-		expect(
-			getPath(result.values, "config.anthropic.thinking.budgetTokens"),
-		).toBe("8192");
-		expect(result.appliedFields).toContain(
-			"config.anthropic.thinking.budgetTokens",
-		);
-		expect(getPath(result.values, "config.reasoningEffort.default")).toBe("");
-		expect(getPath(result.values, "config.reasoningEffort.max")).toBe("");
-		expect(result.appliedFields).not.toContain(
-			"config.reasoningEffort.default",
-		);
-		expect(result.appliedFields).not.toContain("config.reasoningEffort.max");
-	});
+			expect(
+				getPath(result.values, "config.anthropic.thinking.budgetTokens"),
+			).toBe("8192");
+			expect(result.appliedFields).toContain(
+				"config.anthropic.thinking.budgetTokens",
+			);
+			expect(getPath(result.values, "config.reasoningEffort.default")).toBe("");
+			expect(getPath(result.values, "config.reasoningEffort.max")).toBe("");
+			expect(result.appliedFields).not.toContain(
+				"config.reasoningEffort.default",
+			);
+			expect(result.appliedFields).not.toContain("config.reasoningEffort.max");
+		},
+	);
 
 	it("does not set Anthropic sendReasoning or thinking budget fields", () => {
 		const result = applyDefaults({

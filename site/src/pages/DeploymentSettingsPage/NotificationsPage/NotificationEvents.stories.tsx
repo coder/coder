@@ -1,9 +1,10 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { spyOn, userEvent, within } from "storybook/test";
+import { expect, spyOn, userEvent, within } from "storybook/test";
 import { API } from "#/api/api";
 import { selectTemplatesByGroup } from "#/api/queries/notifications";
 import type { DeploymentValues } from "#/api/typesGenerated";
 import { MockSystemNotificationTemplates } from "#/testHelpers/entities";
+import { docs } from "#/utils/docs";
 import { NotificationEvents } from "./NotificationEvents";
 import { baseMeta } from "./storybookUtils";
 
@@ -36,6 +37,15 @@ export const SMTPNotConfigured: Story = {
 			},
 		} as DeploymentValues,
 	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(
+			canvas.getByRole("link", { name: /View docs/ }),
+		).toHaveAttribute(
+			"href",
+			docs("/admin/monitoring/notifications#smtp-email"),
+		);
+	},
 };
 
 export const WebhookNotConfigured: Story = {
@@ -52,6 +62,12 @@ export const WebhookNotConfigured: Story = {
 				},
 			},
 		} as DeploymentValues,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(
+			canvas.getByRole("link", { name: /View docs/ }),
+		).toHaveAttribute("href", docs("/admin/monitoring/notifications#webhook"));
 	},
 };
 

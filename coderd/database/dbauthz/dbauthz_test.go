@@ -670,6 +670,12 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().MarkChatsContextDirtyByAgent(gomock.Any(), arg).Return(rows, nil).AnyTimes()
 		check.Args(arg).Asserts(rbac.ResourceChat, policy.ActionUpdate).Returns(rows)
 	}))
+	s.Run("SyncAgentChatsContextMCPResources", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		agentID := uuid.New()
+		synced := []uuid.UUID{uuid.New()}
+		dbm.EXPECT().SyncAgentChatsContextMCPResources(gomock.Any(), agentID).Return(synced, nil).AnyTimes()
+		check.Args(agentID).Asserts(rbac.ResourceChat, policy.ActionUpdate).Returns(synced)
+	}))
 	s.Run("SetChatContextSnapshot", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		chat := testutil.Fake(s.T(), faker, database.Chat{})
 		arg := database.SetChatContextSnapshotParams{ID: chat.ID}
@@ -1077,6 +1083,10 @@ func (s *MethodTestSuite) TestChats() {
 	}))
 	s.Run("BackfillChatMessagesSearchTsv", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		dbm.EXPECT().BackfillChatMessagesSearchTsv(gomock.Any(), int32(100)).Return(int64(0), nil).AnyTimes()
+		check.Args(int32(100)).Asserts(rbac.ResourceChat, policy.ActionUpdate)
+	}))
+	s.Run("ReindexStaleChatMessagesSearchTsv", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		dbm.EXPECT().ReindexStaleChatMessagesSearchTsv(gomock.Any(), int32(100)).Return(int64(0), nil).AnyTimes()
 		check.Args(int32(100)).Asserts(rbac.ResourceChat, policy.ActionUpdate)
 	}))
 	s.Run("GetChatRetentionDays", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
@@ -1763,6 +1773,14 @@ func (s *MethodTestSuite) TestChats() {
 			StaleAt: dbtime.Now(),
 		}
 		dbm.EXPECT().BackoffChatDiffStatus(gomock.Any(), arg).Return(nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceChat, policy.ActionUpdate).Returns()
+	}))
+	s.Run("ClearChatDiffStatusPR", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.ClearChatDiffStatusPRParams{
+			ChatID:  uuid.New(),
+			StaleAt: dbtime.Now(),
+		}
+		dbm.EXPECT().ClearChatDiffStatusPR(gomock.Any(), arg).Return(nil).AnyTimes()
 		check.Args(arg).Asserts(rbac.ResourceChat, policy.ActionUpdate).Returns()
 	}))
 	s.Run("AutoArchiveInactiveChats", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
@@ -5425,6 +5443,11 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		dbm.EXPECT().DeleteOldWorkspaceAgentLogs(gomock.Any(), t).Return(int64(0), nil).AnyTimes()
 		check.Args(t).Asserts(rbac.ResourceSystem, policy.ActionDelete)
 	}))
+	s.Run("DeleteCachedModuleFilesCreatedBetween", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.DeleteCachedModuleFilesCreatedBetweenParams{}
+		dbm.EXPECT().DeleteCachedModuleFilesCreatedBetween(gomock.Any(), arg).Return(int64(0), nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionDelete)
+	}))
 	s.Run("InsertWorkspaceAgentStats", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		arg := database.InsertWorkspaceAgentStatsParams{}
 		dbm.EXPECT().InsertWorkspaceAgentStats(gomock.Any(), arg).Return(xerrors.New("any error")).AnyTimes()
@@ -5480,6 +5503,14 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 	s.Run("UpsertApplicationName", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		dbm.EXPECT().UpsertApplicationName(gomock.Any(), "").Return(nil).AnyTimes()
 		check.Args("").Asserts(rbac.ResourceDeploymentConfig, policy.ActionUpdate)
+	}))
+	s.Run("GetCodernautsEnabled", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		dbm.EXPECT().GetCodernautsEnabled(gomock.Any()).Return(true, nil).AnyTimes()
+		check.Args().Asserts()
+	}))
+	s.Run("UpsertCodernautsEnabled", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		dbm.EXPECT().UpsertCodernautsEnabled(gomock.Any(), false).Return(nil).AnyTimes()
+		check.Args(false).Asserts(rbac.ResourceDeploymentConfig, policy.ActionUpdate)
 	}))
 	s.Run("UpsertBoundaryUsageStats", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		arg := database.UpsertBoundaryUsageStatsParams{ReplicaID: uuid.New()}
@@ -6638,6 +6669,15 @@ func (s *MethodTestSuite) TestUserSecrets() {
 			Asserts(rbac.ResourceUserSecret.WithOwner(user.ID.String()), policy.ActionRead).
 			Returns(secret)
 	}))
+	s.Run("GetUserSecretByUserIDAndNameForUpdate", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		user := testutil.Fake(s.T(), faker, database.User{})
+		secret := testutil.Fake(s.T(), faker, database.UserSecret{UserID: user.ID})
+		arg := database.GetUserSecretByUserIDAndNameForUpdateParams{UserID: user.ID, Name: secret.Name}
+		dbm.EXPECT().GetUserSecretByUserIDAndNameForUpdate(gomock.Any(), arg).Return(secret, nil).AnyTimes()
+		check.Args(arg).
+			Asserts(rbac.ResourceUserSecret.WithOwner(user.ID.String()), policy.ActionUpdate).
+			Returns(secret)
+	}))
 	s.Run("ListUserSecrets", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		user := testutil.Fake(s.T(), faker, database.User{})
 		row := testutil.Fake(s.T(), faker, database.ListUserSecretsRow{UserID: user.ID})
@@ -6784,6 +6824,12 @@ func (s *MethodTestSuite) TestUsageEvents() {
 		}
 		db.EXPECT().UpdateUsageEventsPostPublish(gomock.Any(), params).Return(nil)
 		check.Args(params).Asserts(rbac.ResourceUsageEvent, policy.ActionUpdate)
+	}))
+
+	s.Run("GetUsageEventsStats", s.Mocked(func(db *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		now := dbtime.Now()
+		db.EXPECT().GetUsageEventsStats(gomock.Any(), now).Return(database.GetUsageEventsStatsRow{}, nil)
+		check.Args(now).Asserts(rbac.ResourceUsageEvent, policy.ActionRead)
 	}))
 
 	s.Run("GetTotalUsageDCManagedAgentsV1", s.Mocked(func(db *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
@@ -7127,6 +7173,11 @@ func (s *MethodTestSuite) TestAIBridge() {
 	s.Run("GetAIModelPrices", s.Mocked(func(db *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		db.EXPECT().GetAIModelPrices(gomock.Any(), gomock.Any()).Return([]database.AIModelPrice{}, nil).AnyTimes()
 		check.Args(database.GetAIModelPricesParams{}).Asserts(rbac.ResourceAiModelPrice, policy.ActionRead)
+	}))
+
+	s.Run("GetUnpricedAIModelsSince", s.Mocked(func(db *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		db.EXPECT().GetUnpricedAIModelsSince(gomock.Any(), gomock.Any()).Return([]database.GetUnpricedAIModelsSinceRow{}, nil).AnyTimes()
+		check.Args(database.GetUnpricedAIModelsSinceParams{}).Asserts(rbac.ResourceAiModelPrice, policy.ActionRead)
 	}))
 
 	s.Run("GetOrganizationGroupsAISpend", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {

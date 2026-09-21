@@ -1,7 +1,13 @@
+import { cn } from "cn";
 import type { FormikContextType } from "formik";
 import { ChevronDownIcon, ChevronRightIcon, InfoIcon } from "lucide-react";
 import type { FC, ReactNode } from "react";
-import { Link as RouterLink } from "react-router";
+import {
+	Link as RouterLink,
+	useLocation,
+	useNavigate,
+	useSearchParams,
+} from "react-router";
 import { getVisibleProviderFields } from "#/api/chatModelOptions";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
@@ -19,6 +25,7 @@ import {
 } from "#/components/InputGroup/InputGroup";
 import { Label } from "#/components/Label/Label";
 import { Link } from "#/components/Link/Link";
+import { OrganizationField } from "#/components/OrganizationAutocomplete/OrganizationAutocomplete";
 import { Spinner } from "#/components/Spinner/Spinner";
 import {
 	Tooltip,
@@ -37,10 +44,14 @@ import type {
 	ModelConfigFormBuildResult,
 	ModelFormValues,
 } from "#/pages/AgentsPage/components/ChatModelAdminPanel/modelConfigFormLogic";
-import { cn } from "#/utils/cn";
 import { docs } from "#/utils/docs";
 import type { FormHelpers } from "#/utils/formUtils";
-import { useOrganizationModelsPath } from "../organizationModels";
+import {
+	creatableModelOrganizations,
+	selectModelOrganizationPath,
+	useOrganizationModels,
+	useOrganizationModelsPath,
+} from "../organizationModels";
 import { ModelFormProviderSelect } from "./ModelFormProviderSelect";
 
 const CollapsibleSection: FC<{
@@ -140,6 +151,41 @@ export const ModelFormFields: FC<{
 	setShowAdvanced,
 }) => {
 	const modelsPath = useOrganizationModelsPath();
+	const { organization, accessibleOrganizations, permissionsByOrganization } =
+		useOrganizationModels();
+	const location = useLocation();
+	const navigate = useNavigate();
+	const [searchParams] = useSearchParams();
+	const selectableOrganizations = isEditing
+		? accessibleOrganizations
+		: creatableModelOrganizations(
+				accessibleOrganizations,
+				permissionsByOrganization,
+			);
+	const organizationField = isEditing ? (
+		<OrganizationField
+			id="model-form-organization"
+			organization={organization}
+			organizations={accessibleOrganizations}
+			readOnly
+		/>
+	) : selectableOrganizations.length > 1 ? (
+		<OrganizationField
+			id="model-form-organization"
+			organization={organization}
+			organizations={selectableOrganizations}
+			optionsTabbable
+			onChange={(nextOrganization) => {
+				void navigate(
+					selectModelOrganizationPath(
+						location.pathname,
+						nextOrganization,
+						searchParams,
+					),
+				);
+			}}
+		/>
+	) : null;
 	const hasProviderConfigFields =
 		getVisibleProviderFields(selectedProviderState.provider).length > 0;
 
@@ -249,6 +295,7 @@ export const ModelFormFields: FC<{
 							</InputGroupAddon>
 						</InputGroup>
 					</div>
+					{organizationField}
 				</div>
 
 				<div className="overflow-hidden rounded-lg border border-solid border-border">

@@ -20,7 +20,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/jwtutils"
 	"github.com/coder/coder/v2/coderd/rbac"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
 	"github.com/coder/coder/v2/codersdk"
@@ -80,6 +79,7 @@ func TestChatTools(t *testing.T) {
 	t.Run("ListChatModelConfigs", func(t *testing.T) {
 		result, err := testTool(t, toolsdk.ListChatModelConfigs, tb, toolsdk.ListChatModelConfigsArgs{})
 		require.NoError(t, err)
+		require.Equal(t, firstUser.OrganizationID.String(), result.OrganizationID)
 		require.Len(t, result.ModelConfigs, 1)
 		require.Equal(t, defaultModelConfig.ID.String(), result.ModelConfigs[0].ID)
 		require.Equal(t, coderdtest.TestChatModelOpenAICompat, result.ModelConfigs[0].Model)
@@ -114,6 +114,7 @@ func TestChatTools(t *testing.T) {
 			OrganizationID: organization.ID.String(),
 		})
 		require.NoError(t, err)
+		require.Equal(t, organization.ID.String(), result.OrganizationID)
 		require.Len(t, result.ModelConfigs, 1)
 		require.Equal(t, model.ID.String(), result.ModelConfigs[0].ID)
 	})
@@ -122,8 +123,9 @@ func TestChatTools(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		created, err := testTool(t, toolsdk.CreateChat, tb, toolsdk.CreateChatArgs{
-			Prompt: "Say hello.",
-			Labels: map[string]string{"purpose": "toolsdk-test"},
+			Prompt:         "Say hello.",
+			OrganizationID: firstUser.OrganizationID.String(),
+			Labels:         map[string]string{"purpose": "toolsdk-test"},
 		})
 		require.NoError(t, err)
 		chatID, err := uuid.Parse(created.ID)
@@ -505,7 +507,7 @@ func TestChatTools(t *testing.T) {
 		getSeen := make(chan struct{})
 		getRelease := make(chan struct{})
 		transport := &signalPathTransport{
-			path:    "/api/experimental/chats/" + running.ID.String(),
+			path:    "/api/v2/chats/" + running.ID.String(),
 			seen:    getSeen,
 			release: getRelease,
 		}
@@ -591,7 +593,7 @@ func TestChatTools(t *testing.T) {
 		sharedAwaitClient := codersdk.New(sharedClient.URL)
 		sharedAwaitClient.SetSessionToken(sharedClient.SessionToken())
 		sharedAwaitClient.HTTPClient = &http.Client{Transport: &signalPathTransport{
-			path:    "/api/experimental/chats/" + sharedRunning.ID.String(),
+			path:    "/api/v2/chats/" + sharedRunning.ID.String(),
 			seen:    sharedGetSeen,
 			release: sharedGetRelease,
 		}}
@@ -686,12 +688,14 @@ func TestChatTools(t *testing.T) {
 
 		disabledProviderConfig := coderdtest.CreateOpenAICompatChatModel(t, expClient, chattest.OpenAI(t))
 		provider, err := client.UpdateAIProvider(ctx, disabledProviderConfig.AIProviderID.String(), codersdk.UpdateAIProviderRequest{
-			Enabled: ptr.Ref(false),
+			Enabled: new(false),
 		})
 		require.NoError(t, err)
 		require.False(t, provider.Enabled)
 
-		result, err := testTool(t, toolsdk.ListChatModelConfigs, tb, toolsdk.ListChatModelConfigsArgs{})
+		result, err := testTool(t, toolsdk.ListChatModelConfigs, tb, toolsdk.ListChatModelConfigsArgs{
+			OrganizationID: firstUser.OrganizationID.String(),
+		})
 		require.NoError(t, err)
 		var ids []string
 		for _, config := range result.ModelConfigs {
@@ -708,7 +712,9 @@ func TestChatTools(t *testing.T) {
 		err := client.DeleteAIProvider(ctx, deletedProviderConfig.AIProviderID.String())
 		require.NoError(t, err)
 
-		result, err := testTool(t, toolsdk.ListChatModelConfigs, tb, toolsdk.ListChatModelConfigsArgs{})
+		result, err := testTool(t, toolsdk.ListChatModelConfigs, tb, toolsdk.ListChatModelConfigsArgs{
+			OrganizationID: firstUser.OrganizationID.String(),
+		})
 		require.NoError(t, err)
 		var ids []string
 		for _, config := range result.ModelConfigs {
@@ -736,8 +742,9 @@ func TestChatTools(t *testing.T) {
 		blockingModelConfig := coderdtest.CreateOpenAICompatChatModel(t, expClient, blockingURL)
 
 		created, err := testTool(t, toolsdk.CreateChat, tb, toolsdk.CreateChatArgs{
-			Prompt:        "Block forever.",
-			ModelConfigID: blockingModelConfig.ID.String(),
+			Prompt:         "Block forever.",
+			OrganizationID: firstUser.OrganizationID.String(),
+			ModelConfigID:  blockingModelConfig.ID.String(),
 		})
 		require.NoError(t, err)
 		require.Equal(t, codersdk.ChatStatusRunning, created.Status)
@@ -792,6 +799,208 @@ func TestChatTools(t *testing.T) {
 			auditorIDs = append(auditorIDs, config.ID)
 		}
 		require.Contains(t, auditorIDs, defaultModelConfig.ID.String())
+	})
+
+	t.Run("CreateChatUsesLastUpdatedOrganization", func(t *testing.T) {
+		ctx := testutil.Context(t, testutil.WaitLong)
+		model := coderdtest.CreateOpenAICompatChatModel(t, expClient, "")
+		organization := dbgen.Organization(t, api.Database, database.Organization{})
+		dbgen.OrganizationMember(t, api.Database, database.OrganizationMember{
+			OrganizationID: organization.ID,
+			UserID:         firstUser.UserID,
+		})
+		defaultOrgChat := dbgen.Chat(t, api.Database, database.Chat{
+			OrganizationID:    firstUser.OrganizationID,
+			OwnerID:           firstUser.UserID,
+			LastModelConfigID: model.ID,
+		})
+		dbgen.Chat(t, api.Database, database.Chat{
+			OrganizationID:    organization.ID,
+			OwnerID:           firstUser.UserID,
+			LastModelConfigID: model.ID,
+		})
+
+		err := expClient.UpdateChat(ctx, defaultOrgChat.ID, codersdk.UpdateChatRequest{
+			Archived: new(true),
+		})
+		require.NoError(t, err)
+		err = expClient.UpdateChat(ctx, defaultOrgChat.ID, codersdk.UpdateChatRequest{
+			Archived: new(false),
+		})
+		require.NoError(t, err)
+
+		created, err := testTool(t, toolsdk.CreateChat, tb, toolsdk.CreateChatArgs{
+			Prompt:        "Reuse the last updated organization.",
+			ModelConfigID: model.ID.String(),
+		})
+		require.NoError(t, err)
+		chat, err := expClient.GetChat(ctx, uuid.MustParse(created.ID))
+		require.NoError(t, err)
+		require.Equal(t, firstUser.OrganizationID, chat.OrganizationID)
+	})
+
+	t.Run("CreateChatRequiresOrganizationForNewMultiOrgUser", func(t *testing.T) {
+		organization := dbgen.Organization(t, api.Database, database.Organization{})
+		memberClient, member := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID)
+		dbgen.OrganizationMember(t, api.Database, database.OrganizationMember{
+			OrganizationID: organization.ID,
+			UserID:         member.ID,
+		})
+		memberDeps, err := toolsdk.NewDeps(memberClient)
+		require.NoError(t, err)
+
+		_, err = testTool(t, toolsdk.CreateChat, memberDeps, toolsdk.CreateChatArgs{Prompt: "hi"})
+		require.ErrorContains(t, err, "belongs to multiple organizations")
+		require.ErrorContains(t, err, "organization_id is required")
+	})
+
+	t.Run("ListChatModelConfigsUsesLastUpdatedOrganization", func(t *testing.T) {
+		ctx := testutil.Context(t, testutil.WaitLong)
+		organization := dbgen.Organization(t, api.Database, database.Organization{})
+		memberClient, member := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID)
+		dbgen.OrganizationMember(t, api.Database, database.OrganizationMember{
+			OrganizationID: organization.ID,
+			UserID:         member.ID,
+		})
+
+		provider, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+			Type:    codersdk.AIProviderTypeOpenAICompat,
+			Name:    "recent-org-" + uuid.NewString(),
+			BaseURL: chattest.OpenAI(t),
+			Enabled: true,
+			APIKeys: []string{"test-api-key"},
+		})
+		require.NoError(t, err)
+		contextLimit := int64(4096)
+		model, err := expClient.CreateChatModel(ctx, organization.ID, codersdk.CreateChatModelRequest{
+			AIProviderID: &provider.ID,
+			Model:        "gpt-4o-recent-org",
+			ContextLimit: &contextLimit,
+		})
+		require.NoError(t, err)
+		dbgen.Chat(t, api.Database, database.Chat{
+			OrganizationID:    organization.ID,
+			OwnerID:           member.ID,
+			LastModelConfigID: model.ID,
+		})
+
+		memberDeps, err := toolsdk.NewDeps(memberClient)
+		require.NoError(t, err)
+		result, err := testTool(t, toolsdk.ListChatModelConfigs, memberDeps, toolsdk.ListChatModelConfigsArgs{})
+		require.NoError(t, err)
+		require.Equal(t, organization.ID.String(), result.OrganizationID)
+		require.Len(t, result.ModelConfigs, 1)
+		require.Equal(t, model.ID.String(), result.ModelConfigs[0].ID)
+	})
+
+	t.Run("ListChatModelConfigsRequiresOrganizationForNewMultiOrgUser", func(t *testing.T) {
+		organization := dbgen.Organization(t, api.Database, database.Organization{})
+		memberClient, member := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID)
+		dbgen.OrganizationMember(t, api.Database, database.OrganizationMember{
+			OrganizationID: organization.ID,
+			UserID:         member.ID,
+		})
+		memberDeps, err := toolsdk.NewDeps(memberClient)
+		require.NoError(t, err)
+
+		_, err = testTool(t, toolsdk.ListChatModelConfigs, memberDeps, toolsdk.ListChatModelConfigsArgs{})
+		require.ErrorContains(t, err, "belongs to multiple organizations")
+		require.ErrorContains(t, err, "organization_id is required")
+	})
+
+	t.Run("DefaultOrganizationAllChatsArchived", func(t *testing.T) {
+		ctx := testutil.Context(t, testutil.WaitLong)
+		organization := dbgen.Organization(t, api.Database, database.Organization{})
+		memberClient, member := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID)
+		dbgen.OrganizationMember(t, api.Database, database.OrganizationMember{
+			OrganizationID: organization.ID,
+			UserID:         member.ID,
+		})
+		chat := dbgen.Chat(t, api.Database, database.Chat{
+			OrganizationID:    organization.ID,
+			OwnerID:           member.ID,
+			LastModelConfigID: defaultModelConfig.ID,
+		})
+		memberExpClient := codersdk.NewExperimentalClient(memberClient)
+		err := memberExpClient.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{
+			Archived: new(true),
+		})
+		require.NoError(t, err)
+
+		memberDeps, err := toolsdk.NewDeps(memberClient)
+		require.NoError(t, err)
+		result, err := testTool(t, toolsdk.ListChatModelConfigs, memberDeps, toolsdk.ListChatModelConfigsArgs{})
+		require.NoError(t, err)
+		require.Equal(t, organization.ID.String(), result.OrganizationID)
+	})
+
+	t.Run("DefaultOrganizationPrefersNewerArchivedChat", func(t *testing.T) {
+		ctx := testutil.Context(t, testutil.WaitLong)
+		organization := dbgen.Organization(t, api.Database, database.Organization{})
+		memberClient, member := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID)
+		dbgen.OrganizationMember(t, api.Database, database.OrganizationMember{
+			OrganizationID: organization.ID,
+			UserID:         member.ID,
+		})
+		activeChat := dbgen.Chat(t, api.Database, database.Chat{
+			OrganizationID:    firstUser.OrganizationID,
+			OwnerID:           member.ID,
+			LastModelConfigID: defaultModelConfig.ID,
+		})
+		archivedChat := dbgen.Chat(t, api.Database, database.Chat{
+			OrganizationID:    organization.ID,
+			OwnerID:           member.ID,
+			LastModelConfigID: defaultModelConfig.ID,
+		})
+		require.True(t, archivedChat.UpdatedAt.After(activeChat.UpdatedAt))
+		// Archiving bumps updated_at, so the archived chat stays newest.
+		memberExpClient := codersdk.NewExperimentalClient(memberClient)
+		err := memberExpClient.UpdateChat(ctx, archivedChat.ID, codersdk.UpdateChatRequest{
+			Archived: new(true),
+		})
+		require.NoError(t, err)
+
+		memberDeps, err := toolsdk.NewDeps(memberClient)
+		require.NoError(t, err)
+		result, err := testTool(t, toolsdk.ListChatModelConfigs, memberDeps, toolsdk.ListChatModelConfigsArgs{})
+		require.NoError(t, err)
+		require.Equal(t, organization.ID.String(), result.OrganizationID)
+	})
+
+	t.Run("DefaultOrganizationConsidersChildChats", func(t *testing.T) {
+		organization := dbgen.Organization(t, api.Database, database.Organization{})
+		memberClient, member := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID)
+		dbgen.OrganizationMember(t, api.Database, database.OrganizationMember{
+			OrganizationID: organization.ID,
+			UserID:         member.ID,
+		})
+		childOrgRoot := dbgen.Chat(t, api.Database, database.Chat{
+			OrganizationID:    organization.ID,
+			OwnerID:           member.ID,
+			LastModelConfigID: defaultModelConfig.ID,
+		})
+		rootOrgChat := dbgen.Chat(t, api.Database, database.Chat{
+			OrganizationID:    firstUser.OrganizationID,
+			OwnerID:           member.ID,
+			LastModelConfigID: defaultModelConfig.ID,
+		})
+		child := dbgen.Chat(t, api.Database, database.Chat{
+			OrganizationID:    organization.ID,
+			OwnerID:           member.ID,
+			LastModelConfigID: defaultModelConfig.ID,
+			ParentChatID:      uuid.NullUUID{UUID: childOrgRoot.ID, Valid: true},
+			RootChatID:        uuid.NullUUID{UUID: childOrgRoot.ID, Valid: true},
+		})
+		// The child must be the newest chat while its root stays older than
+		// the other organization's root, or the scenario is not exercised.
+		require.True(t, child.UpdatedAt.After(rootOrgChat.UpdatedAt))
+		require.True(t, rootOrgChat.UpdatedAt.After(childOrgRoot.UpdatedAt))
+
+		memberDeps, err := toolsdk.NewDeps(memberClient)
+		require.NoError(t, err)
+		result, err := testTool(t, toolsdk.ListChatModelConfigs, memberDeps, toolsdk.ListChatModelConfigsArgs{})
+		require.NoError(t, err)
+		require.Equal(t, organization.ID.String(), result.OrganizationID)
 	})
 
 	t.Run("CreateChatZeroOrgUser", func(t *testing.T) {

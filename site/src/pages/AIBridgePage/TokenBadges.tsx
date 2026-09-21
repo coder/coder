@@ -11,14 +11,12 @@ import { JsonPrettyPrinter } from "./JsonPrettyPrinter";
 import { roundTokenDisplay } from "./utils";
 
 interface TokenBadgesProps {
-	size?: "xs" | "sm" | "md";
 	inputTokens: number;
 	outputTokens: number;
 	tokenUsageMetadata?: Record<string, unknown>;
 }
 
 export const TokenBadges: FC<TokenBadgesProps> = ({
-	size = "sm",
 	inputTokens,
 	outputTokens,
 	tokenUsageMetadata,
@@ -28,17 +26,14 @@ export const TokenBadges: FC<TokenBadgesProps> = ({
 			<Tooltip>
 				<TooltipTrigger asChild>
 					<span>
-						<Badge className="gap-0 rounded-e-none" size={size}>
-							<ArrowDownIcon className="size-icon-lg flex-shrink-0" />
+						<Badge className="gap-0.5 rounded-e-none">
+							<ArrowDownIcon className="size-icon-xs shrink-0" />
 							<span className="truncate min-w-0">
 								{roundTokenDisplay(inputTokens)}
 							</span>
 						</Badge>
-						<Badge
-							className="gap-0 bg-surface-tertiary rounded-s-none"
-							size={size}
-						>
-							<ArrowUpIcon className="size-icon-lg flex-shrink-0" />
+						<Badge className="gap-0.5 bg-surface-tertiary rounded-s-none">
+							<ArrowUpIcon className="size-icon-xs shrink-0" />
 							<span className="truncate min-w-0">
 								{roundTokenDisplay(outputTokens)}
 							</span>
@@ -49,7 +44,7 @@ export const TokenBadges: FC<TokenBadgesProps> = ({
 					<div className="grid grid-cols-2 gap-8">
 						<div>
 							<div className="flex items-center gap-1">
-								<ArrowDownIcon className="size-icon-sm flex-shrink-0" />
+								<ArrowDownIcon className="size-icon-sm shrink-0" />
 								<span className="text-content-primary text-sm">
 									Input tokens
 								</span>
@@ -64,7 +59,7 @@ export const TokenBadges: FC<TokenBadgesProps> = ({
 
 						<div>
 							<div className="flex items-center gap-1">
-								<ArrowUpIcon className="size-icon-sm flex-shrink-0" />
+								<ArrowUpIcon className="size-icon-sm shrink-0" />
 								<span className="text-content-primary text-sm">
 									Output tokens
 								</span>

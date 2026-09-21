@@ -153,19 +153,7 @@ func (i *BlockingInterception) ProcessRequest(w http.ResponseWriter, r *http.Req
 			prompt = nil
 		}
 
-		_ = i.recorder.RecordTokenUsage(ctx, &recorder.TokenUsageRecord{
-			InterceptionID:        i.ID().String(),
-			MsgID:                 resp.ID,
-			Input:                 resp.Usage.InputTokens,
-			Output:                resp.Usage.OutputTokens,
-			CacheReadInputTokens:  resp.Usage.CacheReadInputTokens,
-			CacheWriteInputTokens: resp.Usage.CacheCreationInputTokens,
-			ExtraTokenTypes: map[string]int64{
-				"web_search_requests":      resp.Usage.ServerToolUse.WebSearchRequests,
-				"cache_ephemeral_1h_input": resp.Usage.CacheCreation.Ephemeral1hInputTokens,
-				"cache_ephemeral_5m_input": resp.Usage.CacheCreation.Ephemeral5mInputTokens,
-			},
-		})
+		i.recordTokenUsage(ctx, resp.ID, resp.Usage)
 
 		accumulateUsage(&cumulativeUsage, resp.Usage)
 

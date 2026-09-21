@@ -23,11 +23,7 @@ export const ObservabilitySettingsPageView: FC<
 	return (
 		<div className="flex flex-col gap-12">
 			<div>
-				<SettingsHeader
-					actions={
-						<SettingsHeaderDocsLink href={docs("/admin/security/audit-logs")} />
-					}
-				>
+				<SettingsHeader>
 					<SettingsHeaderTitle>Observability</SettingsHeaderTitle>
 				</SettingsHeader>
 
@@ -36,7 +32,11 @@ export const ObservabilitySettingsPageView: FC<
 						Audit Logging
 					</SettingsHeaderTitle>
 					<SettingsHeaderDescription>
-						Allow auditors to monitor user operations in your deployment.
+						Allow auditors to monitor user operations in your deployment.{" "}
+						<SettingsHeaderDocsLink
+							href={docs("/admin/security/audit-logs")}
+							context="about audit logging"
+						/>
 					</SettingsHeaderDescription>
 				</SettingsHeader>
 
@@ -66,7 +66,11 @@ export const ObservabilitySettingsPageView: FC<
 						Monitoring
 					</SettingsHeaderTitle>
 					<SettingsHeaderDescription>
-						Monitoring your Coder application with logs and metrics.
+						Monitoring your Coder application with logs and metrics.{" "}
+						<SettingsHeaderDocsLink
+							href={docs("/admin/monitoring")}
+							context="about monitoring"
+						/>
 					</SettingsHeaderDescription>
 				</SettingsHeader>
 

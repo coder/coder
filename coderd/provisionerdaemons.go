@@ -12,7 +12,6 @@ import (
 	"github.com/coder/coder/v2/coderd/provisionerdserver"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
 )
@@ -26,7 +25,7 @@ import (
 // @Param limit query int false "Page limit"
 // @Param ids query []string false "Filter results by job IDs" format(uuid)
 // @Param status query codersdk.ProvisionerJobStatus false "Filter results by status" enums(pending,running,succeeded,canceling,canceled,failed)
-// @Param tags query object false "Provisioner tags to filter by (JSON of the form `{'tag1':'value1','tag2':'value2'}`)"
+// @Param tags query string false "Provisioner tags to filter by (JSON of the form `{'tag1':'value1','tag2':'value2'}`)"
 // @Success 200 {array} codersdk.ProvisionerDaemon
 // @Router /api/v2/organizations/{organization}/provisionerdaemons [get]
 func (api *API) provisionerDaemons(rw http.ResponseWriter, r *http.Request) {
@@ -106,7 +105,7 @@ func (api *API) provisionerDaemons(rw http.ResponseWriter, r *http.Request) {
 
 		// Add optional fields.
 		pd.KeyName = &dbDaemon.KeyName
-		pd.Status = ptr.Ref(codersdk.ProvisionerDaemonStatus(dbDaemon.Status))
+		pd.Status = new(codersdk.ProvisionerDaemonStatus(dbDaemon.Status))
 		pd.CurrentJob = currentJob
 		pd.PreviousJob = previousJob
 

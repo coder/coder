@@ -12,8 +12,8 @@ import { GlobalErrorBoundary } from "./components/ErrorBoundary/GlobalErrorBound
 import { Loader } from "./components/Loader/Loader";
 import { RequireAuth } from "./contexts/auth/RequireAuth";
 import { DashboardLayout } from "./modules/dashboard/DashboardLayout";
-import { aiTasksEnabled } from "./modules/tasks/useAITasksEnabled";
 import { AISettingsIndexRedirect } from "./pages/AISettingsPage/AISettingsIndexRedirect";
+import { ModelDefaultsRedirect } from "./pages/AISettingsPage/ModelsPage/ModelDefaultsRedirect";
 import AuditPage from "./pages/AuditPage/AuditPage";
 import ConnectionLogPage from "./pages/ConnectionLogPage/ConnectionLogPage";
 import { HealthLayout } from "./pages/HealthPage/HealthLayout";
@@ -233,6 +233,12 @@ const TemplateSchedulePage = lazy(
 			"./pages/TemplateSettingsPage/TemplateSchedulePage/TemplateSchedulePage"
 		),
 );
+const TemplateParametersPage = lazy(
+	() =>
+		import(
+			"./pages/TemplateSettingsPage/TemplateParametersPage/TemplateParametersPage"
+		),
+);
 const TemplateSettingsPage = lazy(
 	() =>
 		import(
@@ -396,8 +402,6 @@ import {
 } from "./pages/AgentsPage/components/AgentsSkeletons";
 
 const CoderCupPage = lazy(() => import("./pages/CoderCupPage/CoderCupPage"));
-const TasksPage = lazy(() => import("./pages/TasksPage/TasksPage"));
-const TaskPage = lazy(() => import("./pages/TaskPage/TaskPage"));
 const AIBridgeLayout = lazy(
 	() => import("./pages/AIBridgePage/AIBridgeLayout"),
 );
@@ -435,9 +439,6 @@ const AISettingsGatewayKeysPage = lazy(
 );
 const AISettingsModelsPage = lazy(
 	() => import("./pages/AISettingsPage/ModelsPage/ModelsPage"),
-);
-const AISettingsModelDefaultsPage = lazy(
-	() => import("./pages/AISettingsPage/ModelsPage/DefaultsPage/DefaultsPage"),
 );
 const AISettingsOrganizationModelsLayout = lazy(
 	() => import("./pages/AISettingsPage/ModelsPage/OrganizationModelsLayout"),
@@ -501,6 +502,7 @@ const templateRouter = () => {
 					<Route index element={<TemplateSettingsPage />} />
 					<Route path="permissions" element={<TemplatePermissionsPage />} />
 					<Route path="variables" element={<TemplateVariablesPage />} />
+					<Route path="parameters" element={<TemplateParametersPage />} />
 					<Route path="schedule" element={<TemplateSchedulePage />} />
 				</Route>
 
@@ -587,8 +589,6 @@ export const router = createBrowserRouter(
 					<Route path="/audit" element={<AuditPage />} />
 
 					<Route path="/connectionlog" element={<ConnectionLogPage />} />
-
-					{aiTasksEnabled() && <Route path="/tasks" element={<TasksPage />} />}
 
 					<Route path="/organizations" element={<OrganizationSettingsLayout />}>
 						<Route path="new" element={<CreateOrganizationPage />} />
@@ -743,15 +743,12 @@ export const router = createBrowserRouter(
 							element={<AISettingsGatewayKeysPage />}
 						/>
 						<Route index element={<AISettingsIndexRedirect />} />
+						<Route path="models/defaults" element={<ModelDefaultsRedirect />} />
 						<Route
 							path="models"
 							element={<AISettingsOrganizationModelsLayout />}
 						>
 							<Route index element={<AISettingsModelsPage />} />
-							<Route
-								path="defaults"
-								element={<AISettingsModelDefaultsPage />}
-							/>
 							<Route path="add" element={<AISettingsAddModelPage />} />
 							<Route path=":modelId" element={<AISettingsUpdateModelPage />} />
 						</Route>
@@ -823,9 +820,6 @@ export const router = createBrowserRouter(
 				<Route path="/cli-auth" element={<CliAuthPage />} />
 				<Route path="/coder-cup" element={<CoderCupPage />} />
 				<Route path="/icons" element={<IconsPage />} />
-				{aiTasksEnabled() && (
-					<Route path="/tasks/:username/:taskId" element={<TaskPage />} />
-				)}
 				<Route
 					path="/agents"
 					element={

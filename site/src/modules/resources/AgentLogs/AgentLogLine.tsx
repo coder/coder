@@ -7,7 +7,7 @@ export const AGENT_LOG_LINE_HEIGHT = 20;
 
 interface AgentLogLineProps {
 	line: Line;
-	style: React.CSSProperties;
+	style?: React.CSSProperties;
 	sourceIcon: ReactNode;
 }
 
@@ -28,7 +28,7 @@ export const AgentLogLine: FC<AgentLogLineProps> = ({
 	}, [line.time]);
 
 	return (
-		<LogLine className="pl-4" level={line.level} style={style}>
+		<LogLine className="pl-4 min-h-5" level={line.level} style={style}>
 			{sourceIcon}
 			<LogLinePrefix>{timestamp}</LogLinePrefix>
 			<AnsiHtml text={output} />

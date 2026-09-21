@@ -49,6 +49,12 @@ interface ChatsSidebarProps {
 	onCollapse?: () => void;
 	isPersonalModelOverridesEnabled?: boolean;
 	isAdmin?: boolean;
+	/**
+	 * Whether the user can open the Coder Agents settings page. Broader
+	 * than isAdmin: organization model admins qualify without deployment
+	 * config access.
+	 */
+	canManageAgentSettings?: boolean;
 	currentUserId: string;
 }
 
@@ -85,6 +91,7 @@ export const ChatsSidebar: FC<ChatsSidebarProps> = (props) => {
 		onCollapse,
 		isPersonalModelOverridesEnabled = false,
 		isAdmin = false,
+		canManageAgentSettings = false,
 		currentUserId,
 	} = props;
 	const { agentId, chatId } = useParams<{
@@ -156,7 +163,7 @@ export const ChatsSidebar: FC<ChatsSidebarProps> = (props) => {
 				settingsSection={settingsSection}
 				showApiKeysItem={showApiKeysItem}
 				isPersonalModelOverridesEnabled={isPersonalModelOverridesEnabled}
-				isAdmin={isAdmin}
+				canManageAgentSettings={canManageAgentSettings}
 				location={location}
 				onCollapse={onCollapse}
 			/>

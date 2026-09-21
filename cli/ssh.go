@@ -142,7 +142,7 @@ func (r *RootCmd) ssh() *serpent.Command {
 		containerUser string
 	)
 	cmd := &serpent.Command{
-		Annotations: workspaceCommand,
+		Annotations: serpent.Annotations(workspaceCommand).Mark(annotationClientSessionID, ""),
 		Use:         "ssh <workspace> [command]",
 		Short:       "Start a shell into a workspace or run a command",
 		Long: "This command does not have full parity with the standard SSH command. For users who need the full functionality of SSH, create an ssh configuration with `coder config-ssh`.\n\n" +
@@ -211,6 +211,9 @@ func (r *RootCmd) ssh() *serpent.Command {
 			return completions
 		},
 		Handler: func(inv *serpent.Invocation) (retErr error) {
+			// Get the session ID to additionally propagate it to tailnet telemetry.
+			sessionID := clientSessionIDFromContext(inv.Context())
+
 			client, err := r.InitClient(inv)
 			if err != nil {
 				return err
@@ -474,6 +477,7 @@ func (r *RootCmd) ssh() *serpent.Command {
 					Logger:          logger,
 					BlockEndpoints:  r.disableDirect,
 					EnableTelemetry: !r.disableNetworkTelemetry,
+					ClientSessionID: sessionID,
 				})
 				return err
 			}); err != nil {

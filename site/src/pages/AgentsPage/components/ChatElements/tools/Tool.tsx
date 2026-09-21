@@ -1,14 +1,15 @@
 import { File as FileViewer } from "@pierre/diffs/react";
+import { cn } from "cn";
 import { type ComponentPropsWithRef, type FC, memo } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import { useTheme } from "#/theme/context";
-import { cn } from "#/utils/cn";
 import { AdvisorTool, type AdvisorToolResultType } from "./AdvisorTool";
 import {
 	type AskUserQuestion,
 	AskUserQuestionTool,
 } from "./AskUserQuestionTool";
+import { ChatClearedTool } from "./ChatClearedTool";
 import { ChatSummarizedTool } from "./ChatSummarizedTool";
 import { ComputerTool } from "./ComputerTool";
 import { CreateWorkspaceTool } from "./CreateWorkspaceTool";
@@ -628,6 +629,21 @@ const ReadTemplateRenderer: FC<ToolRendererProps> = ({
 	);
 };
 
+const ChatClearedRenderer: FC<ToolRendererProps> = ({
+	status,
+	result,
+	isError,
+}) => {
+	const rec = asRecord(result);
+	return (
+		<ChatClearedTool
+			status={status}
+			isError={isError}
+			errorMessage={rec ? asString(rec.error || rec.message) : undefined}
+		/>
+	);
+};
+
 const ChatSummarizedRenderer: FC<ToolRendererProps> = ({
 	status,
 	args,
@@ -1156,6 +1172,7 @@ export const toolRenderers: Record<string, FC<ToolRendererProps>> = {
 	read_template: ReadTemplateRenderer,
 	read_skill: ReadSkillRenderer,
 	read_skill_file: ReadSkillFileRenderer,
+	chat_cleared: ChatClearedRenderer,
 	chat_summarized: ChatSummarizedRenderer,
 	ask_user_question: AskUserQuestionRenderer,
 	propose_plan: ProposePlanRenderer,

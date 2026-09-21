@@ -73,6 +73,11 @@ type Template struct {
 	// DisableModuleCache disables the use of cached Terraform modules during
 	// provisioning.
 	DisableModuleCache bool `json:"disable_module_cache"`
+
+	// AllowWorkspaceRenames permits users to rename workspaces built from this
+	// template. Renaming can be destructive for templates whose Terraform
+	// references the workspace name.
+	AllowWorkspaceRenames bool `json:"allow_workspace_renames"`
 }
 
 // WeekdaysToBitmap converts a list of weekdays to a bitmap in accordance with
@@ -212,7 +217,7 @@ type UpdateTemplateACL struct {
 	GroupPerms map[string]TemplateRole `json:"group_perms,omitempty" example:"<group_id>:admin,8bd26b20-f3e8-48be-a903-46bb920cf671:use"`
 }
 
-// ACLAvailable is a list of users and groups that can be added to a template
+// ACLAvailable is a list of users and groups that can be added to a resource
 // ACL.
 type ACLAvailable struct {
 	Users  []ReducedUser `json:"users"`
@@ -286,6 +291,10 @@ type UpdateTemplateMeta struct {
 	// AgentsAllowed controls whether Coder Agents can create workspaces using
 	// this template. If omitted, the current value is preserved.
 	AgentsAllowed *bool `json:"agents_allowed,omitempty"`
+	// AllowWorkspaceRenames permits users to rename workspaces built from this
+	// template. Renaming can be destructive for templates whose Terraform
+	// references the workspace name.
+	AllowWorkspaceRenames *bool `json:"allow_workspace_renames,omitempty"`
 }
 
 type TemplateExample struct {

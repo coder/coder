@@ -15,6 +15,7 @@ import {
 	InputGroupAddon,
 	InputGroupInput,
 } from "#/components/InputGroup/InputGroup";
+import { OrganizationField } from "#/components/OrganizationAutocomplete/OrganizationAutocomplete";
 import { PaginationWidgetBase } from "#/components/PaginationWidget/PaginationWidgetBase";
 import {
 	Select,
@@ -47,6 +48,7 @@ import { ModelRow } from "./components/ModelRow";
 import {
 	organizationAddModelPath,
 	organizationModelPath,
+	selectModelOrganizationPath,
 	useOrganizationModels,
 } from "./organizationModels";
 
@@ -120,7 +122,7 @@ const ModelsPageView: FC<ModelsPageViewProps> = ({
 }) => {
 	const navigate = useNavigate();
 	const [searchParams] = useSearchParams();
-	const { organization } = useOrganizationModels();
+	const { organization, accessibleOrganizations } = useOrganizationModels();
 	const [page, setPage] = useState(1);
 	const [searchQuery, setSearchQuery] = useState("");
 	const [providerFilter, setProviderFilter] =
@@ -247,6 +249,26 @@ const ModelsPageView: FC<ModelsPageViewProps> = ({
 						/>
 					</InputGroup>
 				</div>
+				{accessibleOrganizations.length > 1 && (
+					<OrganizationField
+						id="models-organization"
+						organization={organization}
+						organizations={accessibleOrganizations}
+						showLabel={false}
+						className="w-full sm:w-60"
+						triggerClassName="w-full sm:w-60"
+						optionsTabbable
+						onChange={(nextOrganization) => {
+							void navigate(
+								selectModelOrganizationPath(
+									"/ai/settings/models",
+									nextOrganization,
+									searchParams,
+								),
+							);
+						}}
+					/>
+				)}
 				<Select value={providerFilter} onValueChange={handleProviderChange}>
 					<SelectTrigger
 						className="w-full shadow-none sm:w-60"
@@ -273,7 +295,6 @@ const ModelsPageView: FC<ModelsPageViewProps> = ({
 						<TableHead className="w-1/3">Name</TableHead>
 						<TableHead className="w-1/4">Provider</TableHead>
 						<TableHead className="w-1/4">Context limit</TableHead>
-						<TableHead className="w-40">Status</TableHead>
 						<TableHead className="w-12">
 							<span className="sr-only">Open model</span>
 						</TableHead>

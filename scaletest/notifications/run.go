@@ -19,7 +19,6 @@ import (
 	"cdr.dev/slog/v3/sloggers/sloghuman"
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/codersdk"
-	"github.com/coder/coder/v2/scaletest/createusers"
 	"github.com/coder/coder/v2/scaletest/harness"
 	"github.com/coder/coder/v2/scaletest/loadtestutil"
 	"github.com/coder/coder/v2/scaletest/smtpmock"
@@ -30,8 +29,6 @@ import (
 type Runner struct {
 	client *codersdk.Client
 	cfg    Config
-
-	createUserRunner *createusers.Runner
 
 	// websocketReceiptTimes stores the receipt time for websocket notifications
 	websocketReceiptTimes   map[uuid.UUID]time.Time
@@ -65,7 +62,7 @@ var (
 	_ harness.Collectable = &Runner{}
 )
 
-func (r *Runner) Run(ctx context.Context, id string, logs io.Writer) error {
+func (r *Runner) Run(ctx context.Context, _ string, logs io.Writer) error {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
 
@@ -88,47 +85,15 @@ func (r *Runner) Run(ctx context.Context, id string, logs io.Writer) error {
 	r.client.SetLogger(logger)
 	r.client.SetLogBodies(true)
 
-	var (
-		newUser       codersdk.User
-		newUserClient *codersdk.Client
-	)
-	if r.cfg.SessionToken != "" {
-		// Reuse mode assigns no roles; the user must already hold any role needed
-		// to receive the notifications under test.
-		newUser = r.cfg.PreCreatedUser
-		newUserClient = codersdk.New(r.client.URL,
-			codersdk.WithSessionToken(r.cfg.SessionToken),
-			codersdk.WithLogger(logger),
-			codersdk.WithLogBodies())
+	// The runner always reuses an existing user; it never creates one. The user
+	// must already hold any role needed to receive the notifications under test.
+	newUser := r.cfg.PreCreatedUser
+	newUserClient := codersdk.New(r.client.URL,
+		codersdk.WithSessionToken(r.cfg.SessionToken),
+		codersdk.WithLogger(logger),
+		codersdk.WithLogBodies())
 
-		logger.Info(ctx, "reusing existing user", slog.F("username", newUser.Username), slog.F("user_id", newUser.ID.String()))
-	} else {
-		r.createUserRunner = createusers.NewRunner(r.client, r.cfg.User)
-		newUserAndToken, err := r.createUserRunner.RunReturningUser(ctx, id, logs)
-		if err != nil {
-			r.cfg.Metrics.AddError("create_user")
-			return xerrors.Errorf("create user: %w", err)
-		}
-		newUser = newUserAndToken.User
-		newUserClient = codersdk.New(r.client.URL,
-			codersdk.WithSessionToken(newUserAndToken.SessionToken),
-			codersdk.WithLogger(logger),
-			codersdk.WithLogBodies())
-
-		logger.Info(ctx, "runner user created", slog.F("username", newUser.Username), slog.F("user_id", newUser.ID.String()))
-
-		if len(r.cfg.Roles) > 0 {
-			logger.Info(ctx, "assigning roles to user", slog.F("roles", r.cfg.Roles))
-
-			_, err := r.client.UpdateUserRoles(ctx, newUser.ID.String(), codersdk.UpdateRoles{
-				Roles: r.cfg.Roles,
-			})
-			if err != nil {
-				r.cfg.Metrics.AddError("assign_roles")
-				return xerrors.Errorf("assign roles: %w", err)
-			}
-		}
-	}
+	logger.Info(ctx, "reusing existing user", slog.F("username", newUser.Username), slog.F("user_id", newUser.ID.String()))
 
 	logger.Info(ctx, "notification runner is ready")
 
@@ -194,14 +159,9 @@ func (r *Runner) Run(ctx context.Context, id string, logs io.Writer) error {
 	return nil
 }
 
-func (r *Runner) Cleanup(ctx context.Context, id string, logs io.Writer) error {
-	if r.createUserRunner != nil {
-		_, _ = fmt.Fprintln(logs, "Cleaning up user...")
-		if err := r.createUserRunner.Cleanup(ctx, id, logs); err != nil {
-			return xerrors.Errorf("cleanup user: %w", err)
-		}
-	}
-
+func (*Runner) Cleanup(_ context.Context, _ string, _ io.Writer) error {
+	// The runner reuses an existing user and never creates one, so there is
+	// nothing to clean up.
 	return nil
 }
 

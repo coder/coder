@@ -1,4 +1,6 @@
-# AI Gateway Proxy
+---
+title: AI Gateway Proxy
+---
 
 > [!NOTE]
 > AI Gateway Proxy is part of [AI Governance](../../ai-governance.md), which is

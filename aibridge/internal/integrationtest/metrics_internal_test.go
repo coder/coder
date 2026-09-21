@@ -294,10 +294,10 @@ func TestMetrics_TokenUseCount(t *testing.T) {
 			expectProvider: config.ProviderOpenAI,
 			expectModel:    "gpt-4.1",
 			expectedLabels: map[string]float64{
-				"input":                    129, // 12033 - 11904 cached
+				"input":                    114, // 12033 - 11904 cached - 15 cache write
 				"output":                   44,
 				"cache_read_input_tokens":  11904,
-				"cache_write_input_tokens": 0,
+				"cache_write_input_tokens": 15,
 				"output_reasoning":         0,
 				"total_tokens":             12077,
 			},
@@ -323,10 +323,10 @@ func TestMetrics_TokenUseCount(t *testing.T) {
 			expectProvider: config.ProviderOpenAI,
 			expectModel:    "gpt-4.1",
 			expectedLabels: map[string]float64{
-				"input":                          19,
+				"input":                          14, // 19 prompt - 5 cache write
 				"output":                         200,
 				"cache_read_input_tokens":        0,
-				"cache_write_input_tokens":       0,
+				"cache_write_input_tokens":       5,
 				"completion_reasoning":           0,
 				"completion_accepted_prediction": 0,
 				"completion_rejected_prediction": 0,

@@ -146,7 +146,7 @@ const createMockSocket = (): MockSocket => {
 	}) as WatchChatSocket["removeEventListener"];
 
 	return {
-		url: "ws://example.test/api/experimental/chats/mock-stream",
+		url: "ws://example.test/api/v2/chats/mock-stream",
 		addEventListener,
 		removeEventListener,
 		close: vi.fn(),
