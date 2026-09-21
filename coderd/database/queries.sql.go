@@ -7510,8 +7510,6 @@ WITH acquired AS (
         -- Claim for 5 minutes. The worker sets the real stale_at
         -- after refresh. If the worker crashes, rows become eligible
         -- again after this interval.
-        -- Do not touch updated_at or reported_at. A claim is not a
-        -- report, and the worker reads updated_at as the row's age.
         stale_at = NOW() + INTERVAL '5 minutes'
     WHERE
         (chat_id, git_remote_origin, git_branch) IN (
@@ -7977,8 +7975,6 @@ const backoffChatDiffStatus = `-- name: BackoffChatDiffStatus :exec
 UPDATE
     chat_diff_statuses
 SET
-    -- Do not touch updated_at or reported_at. A backoff is not a
-    -- report, and the worker reads updated_at as the row's age.
     stale_at = $1::timestamptz
 WHERE
     chat_id = $2::uuid
@@ -8910,7 +8906,6 @@ ORDER BY
     git_branch
 `
 
-// Newest report first. The first row is the primary.
 func (q *sqlQuerier) GetChatDiffStatusesByChatID(ctx context.Context, chatID uuid.UUID) ([]ChatDiffStatus, error) {
 	rows, err := q.db.QueryContext(ctx, getChatDiffStatusesByChatID, chatID)
 	if err != nil {
@@ -8972,7 +8967,6 @@ ORDER BY
     git_branch
 `
 
-// Newest report first. The first row of each chat is its primary.
 func (q *sqlQuerier) GetChatDiffStatusesByChatIDs(ctx context.Context, chatIds []uuid.UUID) ([]ChatDiffStatus, error) {
 	rows, err := q.db.QueryContext(ctx, getChatDiffStatusesByChatIDs, pq.Array(chatIds))
 	if err != nil {
@@ -10659,7 +10653,6 @@ type GetChatsUpdatedAfterRow struct {
 // Retrieves chats updated after the given timestamp for telemetry
 // snapshot collection. Uses updated_at so that long-running chats
 // still appear in each snapshot window while they are active.
-// One row per chat. The row is the chat's newest-reported ref.
 func (q *sqlQuerier) GetChatsUpdatedAfter(ctx context.Context, updatedAfter time.Time) ([]GetChatsUpdatedAfterRow, error) {
 	rows, err := q.db.QueryContext(ctx, getChatsUpdatedAfter, updatedAfter)
 	if err != nil {
@@ -12776,8 +12769,6 @@ type UpdateChatDiffStatusReferenceURLParams struct {
 	GitBranch       string    `db:"git_branch" json:"git_branch"`
 }
 
-// Stores a pull request URL that the server found by itself. The
-// agent did not report it, so reported_at stays the same.
 func (q *sqlQuerier) UpdateChatDiffStatusReferenceURL(ctx context.Context, arg UpdateChatDiffStatusReferenceURLParams) error {
 	_, err := q.db.ExecContext(ctx, updateChatDiffStatusReferenceURL,
 		arg.Url,
@@ -14401,7 +14392,6 @@ type UpsertChatDiffStatusReferenceParams struct {
 	StaleAt         time.Time      `db:"stale_at" json:"stale_at"`
 }
 
-// The agent reports the ref it is on. A report sets reported_at.
 func (q *sqlQuerier) UpsertChatDiffStatusReference(ctx context.Context, arg UpsertChatDiffStatusReferenceParams) (ChatDiffStatus, error) {
 	row := q.db.QueryRowContext(ctx, upsertChatDiffStatusReference,
 		arg.ChatID,
