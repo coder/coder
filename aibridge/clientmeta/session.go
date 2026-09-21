@@ -10,6 +10,9 @@ import (
 	"github.com/tidwall/gjson"
 )
 
+// maxSessionIDRunes matches aibridge_interceptions.client_session_id's
+// VARCHAR(256) width. Longer optional IDs are dropped rather than truncated to
+// avoid merging unrelated sessions; persistence then uses its per-request ID.
 const maxSessionIDRunes = 256
 
 var claudeCodePattern = regexp.MustCompile(`_session_(.+)$`) // Legacy format: save compilation on each call.
@@ -17,7 +20,9 @@ var claudeCodePattern = regexp.MustCompile(`_session_(.+)$`) // Legacy format: s
 // GuessSessionID attempts to retrieve a session ID which may have been sent by
 // the client. We only attempt to retrieve sessions using methods recognized for
 // the given client. If payload inspection is needed, it drains and replaces
-// r.Body before returning.
+// r.Body before returning. IDs longer than 256 characters are dropped because
+// they cannot be persisted safely; the record then falls back to a per-request
+// session ID.
 func GuessSessionID(client Client, r *http.Request) *string {
 	sessionID, needsPayload := sessionIDFromInputs(client, r, nil)
 	if sessionID != nil || !needsPayload {
@@ -39,14 +44,18 @@ func GuessSessionID(client Client, r *http.Request) *string {
 }
 
 // GuessSessionIDFromPayload attempts to retrieve a client session ID without
-// reading the request body.
+// reading the request body. IDs longer than 256 characters are dropped because
+// they cannot be persisted safely; the record then falls back to a per-request
+// session ID.
 func GuessSessionIDFromPayload(client Client, r *http.Request, payload []byte) *string {
 	sessionID, _ := sessionIDFromInputs(client, r, payload)
 	return sessionID
 }
 
-// sessionIDFromInputs returns the session ID and whether this client may need
-// payload inspection when no usable header value is present.
+// sessionIDFromInputs returns the session ID and whether a later call may need
+// payload inspection because no usable header value was present. The bool can
+// remain true when a supplied payload produced a result; only the first
+// header-only call uses it to decide whether to read the body.
 func sessionIDFromInputs(client Client, r *http.Request, payload []byte) (*string, bool) {
 	switch client {
 	case ClientClaudeCode:

@@ -202,7 +202,7 @@ func TestBackendMode_ProxyWhenNoMCPConfigs(t *testing.T) {
 	require.Equal(t, int32(1), f.mcpCalls.Load())
 	require.Nil(t, f.srv.InterceptionPoolForTest())
 	warnings := f.logSink.Entries(func(entry slog.SinkEntry) bool {
-		return entry.Message == "selected experimental reverse proxy routing; records interception lifecycle only; token/prompt/tool/model accounting and spend accrual are incomplete; Bedrock routing and actor-header injection are unsupported"
+		return entry.Message == "selected experimental reverse proxy routing; only request start and end are recorded; token/prompt/tool/model accounting and spend accrual, Bedrock, and actor-header injection are unsupported; remove ai-gateway-reverse-proxy and restart to restore interception mode"
 	})
 	require.Len(t, warnings, 1)
 	require.Equal(t, slog.LevelWarn, warnings[0].Level)

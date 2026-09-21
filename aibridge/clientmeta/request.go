@@ -11,8 +11,8 @@ import (
 	agplaibridge "github.com/coder/coder/v2/coderd/aibridge"
 )
 
-// HasConnectionUpgrade reports whether a request asks to switch protocols.
-// Proxy mode is HTTP-only and rejects every such handshake before dispatch.
+// HasConnectionUpgrade reports whether the Connection header requests a
+// protocol switch.
 func HasConnectionUpgrade(r *http.Request) bool {
 	return httpguts.HeaderValuesContainsToken(r.Header.Values("Connection"), "upgrade")
 }
@@ -49,11 +49,11 @@ func ExtractAgentFirewallHeaders(r *http.Request) (*string, *int32, error) {
 	// invalid value would silently drop the firewall correlation to NULL
 	// downstream, so reject it here instead.
 	if _, err := uuid.Parse(rawSessionID); err != nil {
-		return nil, nil, xerrors.New("invalid agent firewall session ID")
+		return nil, nil, xerrors.New("agent firewall session ID must be a UUID")
 	}
 	n, err := strconv.ParseInt(rawSeqNumber, 10, 32)
 	if err != nil {
-		return nil, nil, xerrors.New("invalid agent firewall sequence number")
+		return nil, nil, xerrors.New("agent firewall sequence number must be a base-10 int32")
 	}
 	if n < 0 {
 		return nil, nil, xerrors.New("agent firewall sequence number must be non-negative")

@@ -11,16 +11,19 @@ import (
 	"time"
 )
 
-const ActorHeaderPrefix = "X-AI-Bridge-Actor"
+const (
+	ActorHeaderPrefix      = "X-AI-Bridge-Actor"
+	actorHeaderPrefixLower = "x-ai-bridge-actor"
+)
 
 // IsActorHeader reports whether name is an AI Bridge actor header.
 func IsActorHeader(name string) bool {
-	return strings.HasPrefix(strings.ToLower(name), strings.ToLower(ActorHeaderPrefix))
+	return strings.HasPrefix(strings.ToLower(name), actorHeaderPrefixLower)
 }
 
-// NewStreamingTransport returns an HTTP transport tuned for streaming AI
-// provider responses. It deliberately has no ResponseHeaderTimeout because the
-// first model response can take an unbounded amount of time.
+// NewStreamingTransport returns an HTTP transport for long-lived provider
+// responses. It intentionally omits both dial and response-header timeouts so
+// slow connection establishment and first-token latency are not cut off here.
 func NewStreamingTransport() *http.Transport {
 	return &http.Transport{
 		Proxy:                 http.ProxyFromEnvironment,
@@ -32,13 +35,13 @@ func NewStreamingTransport() *http.Transport {
 	}
 }
 
-// StripSensitiveRequestHeaders removes deployment credentials, untrusted actor
-// identity, and inbound proxy-chain headers before forwarding a request. Provider
-// authentication and standard HTTP headers are left unchanged.
+// StripSensitiveRequestHeaders removes Cookie, Coder-* and X-Coder-* headers,
+// untrusted actor identity headers, and inbound Forwarded and X-Forwarded-*
+// values. Provider authentication headers are left unchanged.
 func StripSensitiveRequestHeaders(headers http.Header) {
 	for name := range headers {
 		lower := strings.ToLower(name)
-		if lower == "cookie" || IsActorHeader(name) ||
+		if lower == "cookie" || strings.HasPrefix(lower, actorHeaderPrefixLower) ||
 			strings.HasPrefix(lower, "coder-") || strings.HasPrefix(lower, "x-coder-") ||
 			lower == "forwarded" || strings.HasPrefix(lower, "x-forwarded-") {
 			delete(headers, name)

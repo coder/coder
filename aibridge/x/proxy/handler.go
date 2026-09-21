@@ -103,11 +103,11 @@ func (h *forwardingHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	failoverConfig := h.failover
 	route := h.metricRoute
-	payload := []byte(nil)
+	var payload []byte
 	var sessionID *string
 	credentialKind, credentialHint := "", ""
 	if h.record {
-		payload, err = captureRequestBody(w, r)
+		payload, err = captureRequestBody(r)
 		if err != nil {
 			if _, ok := errors.AsType[*http.MaxBytesError](err); ok {
 				log.Warn(ctx, "rejecting oversized request body")
@@ -194,6 +194,7 @@ func (h *forwardingHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		FlushInterval: -1,
 		ModifyResponse: func(resp *http.Response) error {
 			utils.StripSensitiveResponseHeaders(resp.Header)
+			utils.DropResponseTrailers(resp)
 			state.status = resp.StatusCode
 			if resp.StatusCode == http.StatusSwitchingProtocols {
 				return xerrors.New("upstream protocol upgrades are not supported")
@@ -205,6 +206,10 @@ func (h *forwardingHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		ErrorHandler: func(rw http.ResponseWriter, req *http.Request, proxyErr error) {
 			state.transportErr = proxyErr
 			if _, ok := errors.AsType[*http.MaxBytesError](proxyErr); ok {
+				if r.Body != nil {
+					_ = r.Body.Close()
+				}
+				log.Warn(req.Context(), "rejecting oversized request body", slog.Error(proxyErr))
 				routing.WriteRequestBodyTooLarge(req.Context(), rw)
 				return
 			}
@@ -221,7 +226,7 @@ func (h *forwardingHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		ErrorLog: slog.Stdlib(ctx, log, slog.LevelWarn),
 	}
 
-	execErr := h.breaker.Execute(route, "", w, func(rw http.ResponseWriter) error {
+	execErr := h.breaker.Execute(route, unknownModel, w, func(rw http.ResponseWriter) error {
 		writer := &errorCapturingResponseWriter{ResponseWriter: rw}
 		defer func() { state.writeErr = writer.err }()
 		requestProxy.ServeHTTP(writer, r)
@@ -230,13 +235,13 @@ func (h *forwardingHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	state.execErr = execErr
 }
 
-func captureRequestBody(w http.ResponseWriter, r *http.Request) ([]byte, error) {
+func captureRequestBody(r *http.Request) ([]byte, error) {
 	if r.Body == nil {
 		return nil, nil
 	}
 	body := r.Body
 	defer body.Close()
-	return io.ReadAll(http.MaxBytesReader(w, body, routing.MaxRequestBodyBytes))
+	return io.ReadAll(body)
 }
 
 func setReplayBody(r *http.Request, payload []byte) {
@@ -257,10 +262,7 @@ func rewriteRequest(pr *httputil.ProxyRequest, routePrefix string, baseURL *url.
 	// Proxy mode never injects configured actor headers because it does not build
 	// provider SDK requests. Client-supplied actor headers are always untrusted.
 	utils.StripSensitiveRequestHeaders(pr.Out.Header)
-	if _, ok := pr.Out.Header["User-Agent"]; !ok {
-		// A nil value suppresses net/http's default User-Agent.
-		pr.Out.Header["User-Agent"] = nil
-	}
+	utils.DropRequestTrailers(pr.Out)
 }
 
 func credentialMetadata(prov provider.Provider, failoverConfig keypool.KeyFailoverConfig, r *http.Request) (kind, hint string) {
@@ -276,7 +278,12 @@ func credentialMetadata(prov provider.Provider, failoverConfig keypool.KeyFailov
 		secret = r.Header.Get("X-Api-Key")
 	}
 	if secret == "" {
-		secret = utils.ExtractBearerToken(r.Header.Get("Authorization"))
+		authorization := strings.TrimSpace(r.Header.Get("Authorization"))
+		if _, value, ok := strings.Cut(authorization, " "); ok && strings.TrimSpace(value) != "" {
+			secret = strings.TrimSpace(value)
+		} else {
+			secret = authorization
+		}
 	}
 	if secret == "" {
 		secret = r.Header.Get(prov.AuthHeader())
@@ -285,6 +292,8 @@ func credentialMetadata(prov provider.Provider, failoverConfig keypool.KeyFailov
 }
 
 type forwardingState struct {
+	// ReverseProxy and its transports update this state synchronously on the
+	// serving goroutine. The stdlib flush timer never accesses these fields.
 	status         int
 	credentialHint string
 	poolErr        error
@@ -309,9 +318,19 @@ func (h *forwardingHandler) finalize(ctx context.Context, span trace.Span, r *ht
 
 	errType, errMessage := interceptionerror.Categorize(h.provider, terminalErr, state.status)
 	status := metrics.InterceptionCountStatusCompleted
-	if terminalErr != nil || (state.status >= 400) {
+	if terminalErr != nil || state.status >= http.StatusBadRequest {
 		status = metrics.InterceptionCountStatusFailed
 		span.SetStatus(codes.Error, errMessage)
+		fields := []slog.Field{
+			slog.F("interception_id", interceptionID),
+			slog.F("status_code", state.status),
+			slog.F("error_type", string(errType)),
+		}
+		if errors.Is(terminalErr, context.Canceled) || errors.Is(terminalErr, context.DeadlineExceeded) {
+			h.logger.Debug(ctx, "interception failed", fields...)
+		} else {
+			h.logger.Warn(ctx, "interception failed", fields...)
+		}
 	}
 	if h.metrics != nil {
 		h.metrics.InterceptionCount.WithLabelValues(h.provider.Name(), unknownModel, status, route, routing.MetricMethod(r.Method), actorID, client).Inc()
@@ -328,7 +347,10 @@ func (h *forwardingHandler) finalize(ctx context.Context, span trace.Span, r *ht
 	return aborted
 }
 
-func terminalError(r *http.Request, state *forwardingState, panicValue any) (bool, error) {
+// terminalError reports whether the response stream must be aborted and the
+// terminal error to classify. Abort detection is independent from terminal
+// error precedence because pool or transport errors can coexist with an abort.
+func terminalError(r *http.Request, state *forwardingState, panicValue any) (aborted bool, terminal error) {
 	var abortErr error
 	switch {
 	case r.Context().Err() != nil && (state.body == nil || !state.body.eof):

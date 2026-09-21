@@ -75,10 +75,10 @@ func TestExtractAgentFirewallHeaders(t *testing.T) {
 		{name: "only session ID", sessionID: new(validSessionID), errContains: "without sequence number"},
 		{name: "only sequence number", sequence: new("7"), errContains: "without session ID"},
 		{name: "sequence zero", sessionID: new(validSessionID), sequence: new("0"), wantSession: new(validSessionID), wantSeq: new(int32(0))},
-		{name: "invalid session ID", sessionID: new("not-a-uuid"), sequence: new("42"), errContains: "invalid agent firewall session ID"},
-		{name: "invalid sequence", sessionID: new(validSessionID), sequence: new("not-a-number"), errContains: "invalid agent firewall sequence number"},
+		{name: "invalid session ID", sessionID: new("not-a-uuid"), sequence: new("42"), errContains: "must be a UUID"},
+		{name: "invalid sequence", sessionID: new(validSessionID), sequence: new("not-a-number"), errContains: "must be a base-10 int32"},
 		{name: "negative sequence", sessionID: new(validSessionID), sequence: new("-1"), errContains: "must be non-negative"},
-		{name: "sequence exceeds int32", sessionID: new(validSessionID), sequence: new("2147483648"), errContains: "invalid agent firewall sequence number"},
+		{name: "sequence exceeds int32", sessionID: new(validSessionID), sequence: new("2147483648"), errContains: "must be a base-10 int32"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()

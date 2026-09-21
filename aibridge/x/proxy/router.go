@@ -96,6 +96,8 @@ func NewRouter(providers []provider.Provider, rec recorder.Recorder, logger slog
 		}
 
 		transport := utils.NewStreamingTransport()
+		// Preserve encoded upstream bytes so response observation sees the same
+		// stream sent to the client and never depends on transparent decompression.
 		transport.DisableCompression = true
 		router.transports = append(router.transports, transport)
 		dumpTransport := apidump.NewPassthroughMiddleware(transport, prov.APIDumpDir(), prov.Name(), logger, quartz.NewReal())

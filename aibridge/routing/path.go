@@ -15,6 +15,8 @@ func ValidateForwardPath(u *url.URL) error {
 	for segment := range strings.SplitSeq(escapedPath, "/") {
 		decoded, err := url.PathUnescape(segment)
 		if err != nil {
+			// EscapedPath currently guarantees valid escaping. Keep this fail-safe
+			// so a future URL representation cannot bypass traversal validation.
 			return xerrors.Errorf("decode path segment: %w", err)
 		}
 		for nested := range strings.SplitSeq(decoded, "/") {

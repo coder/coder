@@ -1,6 +1,7 @@
 package httpmw_test
 
 import (
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -11,6 +12,43 @@ import (
 	"github.com/coder/coder/v2/httpmw"
 	"github.com/coder/coder/v2/testutil"
 )
+
+func TestRecoverErrAbortHandler(t *testing.T) {
+	t.Parallel()
+
+	sink := testutil.NewFakeSink(t)
+	handlerErr := make(chan error, 1)
+	handler := httpmw.Recover(sink.Logger())(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, err := w.Write([]byte("partial response"))
+		if err != nil {
+			handlerErr <- err
+			return
+		}
+		if err := http.NewResponseController(w).Flush(); err != nil {
+			handlerErr <- err
+			return
+		}
+		handlerErr <- nil
+		panic(http.ErrAbortHandler)
+	}))
+
+	server := httptest.NewServer(handler)
+	t.Cleanup(server.Close)
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, server.URL, nil)
+	require.NoError(t, err)
+	res, err := server.Client().Do(req)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = res.Body.Close() })
+
+	body, err := io.ReadAll(res.Body)
+	require.NoError(t, testutil.TryReceive(ctx, t, handlerErr))
+	require.ErrorIs(t, err, io.ErrUnexpectedEOF)
+	require.Equal(t, http.StatusOK, res.StatusCode)
+	require.Equal(t, "partial response", string(body))
+	require.Empty(t, sink.Entries())
+}
 
 func TestRecover(t *testing.T) {
 	t.Parallel()

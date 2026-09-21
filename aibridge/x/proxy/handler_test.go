@@ -156,6 +156,82 @@ func (r *countingRecorder) ended() *recorder.InterceptionRecordEnded {
 	return &ended
 }
 
+type lateTrailerReader struct {
+	io.Reader
+	trailer http.Header
+	values  http.Header
+	set     bool
+}
+
+func (r *lateTrailerReader) Read(p []byte) (int, error) {
+	n, err := r.Reader.Read(p)
+	if err == io.EOF && !r.set {
+		for name, values := range r.values {
+			r.trailer[name] = append([]string(nil), values...)
+		}
+		r.set = true
+	}
+	return n, err
+}
+
+func TestHandlerDropsRequestAndResponseTrailers(t *testing.T) {
+	t.Parallel()
+
+	const body = "request-body"
+	upstreamResult := make(chan error, 1)
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotBody, err := io.ReadAll(r.Body)
+		if err == nil && string(gotBody) != body {
+			err = xerrors.Errorf("unexpected body %q", gotBody)
+		}
+		if err == nil && len(r.Trailer) != 0 {
+			err = xerrors.Errorf("unexpected request trailers: %v", r.Trailer)
+		}
+		upstreamResult <- err
+		w.Header().Add("Trailer", "Set-Cookie")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("response-body"))
+		w.Header().Set("Set-Cookie", "coder_session_token=upstream-trailer")
+	}))
+	t.Cleanup(upstream.Close)
+
+	provider := &proxyTestProvider{
+		MockProvider: &testutil.MockProvider{NameStr: "copilot", URL: upstream.URL, Passthrough: []string{"/"}},
+		typ:          config.ProviderCopilot, authHeader: "Authorization",
+	}
+	router, err := proxy.NewRouter([]aibridge.Provider{provider}, nil, slogtest.Make(t, nil), nil, testTracer(t))
+	require.NoError(t, err)
+	t.Cleanup(router.CloseIdleConnections)
+
+	gateway := httptest.NewServer(router)
+	t.Cleanup(gateway.Close)
+	requestTrailers := http.Header{
+		"Cookie":               nil,
+		"X-AI-Bridge-Actor-Id": nil,
+	}
+	requestBody := &lateTrailerReader{
+		Reader:  strings.NewReader(body),
+		trailer: requestTrailers,
+		values: http.Header{
+			"Cookie":               {"coder_session_token=request-trailer"},
+			"X-AI-Bridge-Actor-Id": {"spoofed"},
+		},
+	}
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, gateway.URL+"/copilot/other", requestBody)
+	require.NoError(t, err)
+	req.ContentLength = -1
+	req.Trailer = requestTrailers
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	gotBody, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	require.Equal(t, "response-body", string(gotBody))
+	require.Empty(t, resp.Trailer)
+	ctx := codertestutil.Context(t, codertestutil.WaitShort)
+	require.NoError(t, codertestutil.RequireReceive(ctx, t, upstreamResult))
+}
+
 func TestHandlerDoesNotSynthesizeUserAgent(t *testing.T) {
 	t.Parallel()
 
@@ -177,6 +253,45 @@ func TestHandlerDoesNotSynthesizeUserAgent(t *testing.T) {
 	router.ServeHTTP(response, httptest.NewRequest(http.MethodPost, "/copilot/other", nil))
 	require.Equal(t, http.StatusNoContent, response.Code)
 	require.Empty(t, <-userAgents)
+}
+
+func TestHandlerCredentialMetadataForAuthorizationSchemes(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name          string
+		authorization string
+		wantHint      string
+	}{
+		{name: "Token", authorization: "Token opaque-provider-token", wantHint: "opaq...oken"},
+		{name: "Basic", authorization: "Basic dXNlcjpwYXNz", wantHint: "dX...Nz"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.WriteHeader(http.StatusNoContent)
+			}))
+			t.Cleanup(upstream.Close)
+			rec := &testutil.MockRecorder{}
+			provider, err := aibridge.NewAnthropicProvider(t.Context(), config.Anthropic{BaseURL: upstream.URL}, nil)
+			require.NoError(t, err)
+			router, err := proxy.NewRouter([]aibridge.Provider{provider}, rec, slogtest.Make(t, nil), nil, testTracer(t))
+			require.NoError(t, err)
+			t.Cleanup(router.CloseIdleConnections)
+
+			req := httptest.NewRequest(http.MethodPost, "/anthropic/v1/messages", strings.NewReader(`{}`))
+			req = req.WithContext(aibridge.AsActor(req.Context(), "actor", nil))
+			req.Header.Set("Authorization", tc.authorization)
+			response := httptest.NewRecorder()
+			router.ServeHTTP(response, req)
+
+			require.Equal(t, http.StatusNoContent, response.Code)
+			starts := rec.RecordedInterceptions()
+			require.Len(t, starts, 1)
+			require.Equal(t, recorder.CredentialKindBYOK, starts[0].CredentialKind)
+			require.Equal(t, tc.wantHint, starts[0].CredentialHint)
+		})
+	}
 }
 
 func TestHandlerCentralizedFailoverRecordsFinalKeyHint(t *testing.T) {
@@ -398,15 +513,17 @@ func TestHandlerPassthroughDispatchesBeforeInputEOF(t *testing.T) {
 		responseCodes <- response.Code
 	}()
 
-	codertestutil.RequireReceive(t.Context(), t, started)
+	ctx := codertestutil.Context(t, codertestutil.WaitShort)
+	codertestutil.RequireReceive(ctx, t, started)
 	require.NoError(t, writer.Close())
-	require.Equal(t, http.StatusNoContent, codertestutil.RequireReceive(t.Context(), t, responseCodes))
+	require.Equal(t, http.StatusNoContent, codertestutil.RequireReceive(ctx, t, responseCodes))
 }
 
 func TestHandlerPassthroughUnknownLengthOversizeReturns413(t *testing.T) {
 	t.Parallel()
 
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		defer r.Body.Close()
 		_, _ = io.Copy(io.Discard, r.Body)
 		w.WriteHeader(http.StatusNoContent)
 	}))
@@ -415,7 +532,8 @@ func TestHandlerPassthroughUnknownLengthOversizeReturns413(t *testing.T) {
 		MockProvider: &testutil.MockProvider{NameStr: "copilot", URL: upstream.URL, Passthrough: []string{"/"}},
 		typ:          config.ProviderCopilot, authHeader: "Authorization",
 	}
-	router, err := proxy.NewRouter([]aibridge.Provider{provider}, nil, slogtest.Make(t, nil), nil, testTracer(t))
+	sink := codertestutil.NewFakeSink(t)
+	router, err := proxy.NewRouter([]aibridge.Provider{provider}, nil, sink.Logger(), nil, testTracer(t))
 	require.NoError(t, err)
 	t.Cleanup(router.CloseIdleConnections)
 
@@ -426,6 +544,10 @@ func TestHandlerPassthroughUnknownLengthOversizeReturns413(t *testing.T) {
 	router.ServeHTTP(response, req)
 
 	require.Equal(t, http.StatusRequestEntityTooLarge, response.Code)
+	require.True(t, body.closed)
+	entries := sink.Entries(func(entry slog.SinkEntry) bool { return entry.Message == "rejecting oversized request body" })
+	require.Len(t, entries, 1)
+	require.Equal(t, slog.LevelWarn, entries[0].Level)
 }
 
 func TestHandlerRejectsTraversalAndPreservesEscapedSeparator(t *testing.T) {
@@ -454,7 +576,8 @@ func TestHandlerRejectsTraversalAndPreservesEscapedSeparator(t *testing.T) {
 	response := httptest.NewRecorder()
 	router.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/copilot/models/a%2Fb", nil))
 	require.Equal(t, http.StatusNoContent, response.Code)
-	require.Equal(t, "/models/a%2Fb", codertestutil.RequireReceive(t.Context(), t, upstreamPaths))
+	ctx := codertestutil.Context(t, codertestutil.WaitShort)
+	require.Equal(t, "/models/a%2Fb", codertestutil.RequireReceive(ctx, t, upstreamPaths))
 }
 
 func TestHandlerRequestReadFailureIsSafe(t *testing.T) {
@@ -569,7 +692,8 @@ func TestHandlerForwardsAndRecords(t *testing.T) {
 	require.Equal(t, "response", response.Body.String())
 	require.Equal(t, "gzip", response.Header().Get("Content-Encoding"))
 	require.Empty(t, response.Header().Values("Set-Cookie"))
-	gotUpstream := codertestutil.RequireReceive(t.Context(), t, upstreamRequests)
+	ctx := codertestutil.Context(t, codertestutil.WaitShort)
+	gotUpstream := codertestutil.RequireReceive(ctx, t, upstreamRequests)
 	require.Equal(t, "/base/v1/messages", gotUpstream.path)
 	require.Equal(t, "configured=1&raw=a;b", gotUpstream.rawQuery)
 	require.Equal(t, payload, gotUpstream.body)
@@ -628,10 +752,17 @@ func TestHandlerStartFailureDoesNotDispatchOrEnd(t *testing.T) {
 func TestHandlerClosesIncomingBodyAfterSuccessfulCapture(t *testing.T) {
 	t.Parallel()
 
+	upstreamResult := make(chan error, 1)
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		body, err := io.ReadAll(r.Body)
-		require.NoError(t, err)
-		require.Equal(t, "payload", string(body))
+		if err == nil && string(body) != "payload" {
+			err = xerrors.Errorf("unexpected body %q", body)
+		}
+		upstreamResult <- err
+		if err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
 		w.WriteHeader(http.StatusNoContent)
 	}))
 	t.Cleanup(upstream.Close)
@@ -651,6 +782,8 @@ func TestHandlerClosesIncomingBodyAfterSuccessfulCapture(t *testing.T) {
 	router.ServeHTTP(response, req)
 
 	require.Equal(t, http.StatusNoContent, response.Code)
+	ctx := codertestutil.Context(t, codertestutil.WaitShort)
+	require.NoError(t, codertestutil.RequireReceive(ctx, t, upstreamResult))
 	require.True(t, body.closed)
 	rec.VerifyAllInterceptionsEnded(t)
 }
@@ -754,11 +887,17 @@ func TestHandlerBodyLimitBoundaries(t *testing.T) {
 	t.Parallel()
 
 	var upstreamCalls int
+	upstreamResult := make(chan error, 1)
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		upstreamCalls++
 		body, err := io.ReadAll(r.Body)
-		require.NoError(t, err)
-		require.Len(t, body, routing.MaxRequestBodyBytes)
+		if err == nil && len(body) != routing.MaxRequestBodyBytes {
+			err = xerrors.Errorf("unexpected body length %d", len(body))
+		}
+		upstreamResult <- err
+		if err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
 		w.WriteHeader(http.StatusNoContent)
 	}))
 	t.Cleanup(upstream.Close)
@@ -776,6 +915,9 @@ func TestHandlerBodyLimitBoundaries(t *testing.T) {
 	exactResponse := httptest.NewRecorder()
 	router.ServeHTTP(exactResponse, exact)
 	require.Equal(t, http.StatusNoContent, exactResponse.Code)
+	ctx := codertestutil.Context(t, codertestutil.WaitShort)
+	require.NoError(t, codertestutil.RequireReceive(ctx, t, upstreamResult))
+	upstreamCalls++
 	require.Equal(t, 1, upstreamCalls)
 
 	declared := httptest.NewRequest(http.MethodPost, "/openai/v1/chat", bytes.NewBufferString("small"))
@@ -1137,6 +1279,70 @@ func TestHandlerMetrics(t *testing.T) {
 	require.EqualValues(t, 3, histogram.GetSampleCount())
 }
 
+func TestHandlerProviderStatusClassificationAndFailureLog(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name        string
+		status      int
+		newProvider func(*testing.T, string) aibridge.Provider
+		path        string
+		wantMsg     string
+	}{
+		{
+			name:   "Anthropic529",
+			status: 529,
+			newProvider: func(t *testing.T, baseURL string) aibridge.Provider {
+				provider, err := aibridge.NewAnthropicProvider(t.Context(), config.Anthropic{BaseURL: baseURL}, nil)
+				require.NoError(t, err)
+				return provider
+			},
+			path:    "/anthropic/v1/messages",
+			wantMsg: "HTTP status 529",
+		},
+		{
+			name:   "OpenAI503",
+			status: http.StatusServiceUnavailable,
+			newProvider: func(_ *testing.T, baseURL string) aibridge.Provider {
+				return aibridge.NewOpenAIProvider(config.OpenAI{BaseURL: baseURL})
+			},
+			path:    "/openai/v1/chat/completions",
+			wantMsg: http.StatusText(http.StatusServiceUnavailable),
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.WriteHeader(tc.status)
+			}))
+			t.Cleanup(upstream.Close)
+			rec := &testutil.MockRecorder{}
+			sink := codertestutil.NewFakeSink(t)
+			router, err := proxy.NewRouter([]aibridge.Provider{tc.newProvider(t, upstream.URL)}, rec, sink.Logger(), nil, testTracer(t))
+			require.NoError(t, err)
+			t.Cleanup(router.CloseIdleConnections)
+
+			req := httptest.NewRequest(http.MethodPost, tc.path, strings.NewReader(`{}`))
+			req = req.WithContext(aibridge.AsActor(req.Context(), "actor", nil))
+			response := httptest.NewRecorder()
+			router.ServeHTTP(response, req)
+			require.Equal(t, tc.status, response.Code)
+
+			starts := rec.RecordedInterceptions()
+			require.Len(t, starts, 1)
+			end := rec.RecordedInterceptionEnd(starts[0].ID)
+			require.NotNil(t, end)
+			require.Equal(t, recorder.ErrorTypeOverloaded, end.ErrorType)
+			require.Equal(t, tc.wantMsg, end.ErrorMessage)
+			entries := sink.Entries(func(entry slog.SinkEntry) bool { return entry.Message == "interception failed" })
+			require.Len(t, entries, 1)
+			require.Equal(t, slog.LevelWarn, entries[0].Level)
+			require.Contains(t, fmt.Sprint(entries[0].Fields), starts[0].ID)
+			require.Contains(t, fmt.Sprint(entries[0].Fields), string(recorder.ErrorTypeOverloaded))
+		})
+	}
+}
+
 func TestHandlerRecordsSharedErrorClassifications(t *testing.T) {
 	t.Parallel()
 
@@ -1166,11 +1372,12 @@ func TestHandlerRecordsSharedErrorClassifications(t *testing.T) {
 	t.Run("Timeout", func(t *testing.T) {
 		t.Parallel()
 		rec := &testutil.MockRecorder{}
+		sink := codertestutil.NewFakeSink(t)
 		provider := &proxyTestProvider{
 			MockProvider: &testutil.MockProvider{NameStr: "openai", URL: "http://127.0.0.1:1", Bridged: []string{"/v1/chat"}},
 			typ:          config.ProviderOpenAI, authHeader: "Authorization",
 		}
-		router, err := proxy.NewRouter([]aibridge.Provider{provider}, rec, codertestutil.NewFakeSink(t).Logger(), nil, testTracer(t))
+		router, err := proxy.NewRouter([]aibridge.Provider{provider}, rec, sink.Logger(), nil, testTracer(t))
 		require.NoError(t, err)
 		t.Cleanup(router.CloseIdleConnections)
 		ctx, cancel := context.WithDeadline(t.Context(), time.Now().Add(-time.Second))
@@ -1183,5 +1390,8 @@ func TestHandlerRecordsSharedErrorClassifications(t *testing.T) {
 		starts := rec.RecordedInterceptions()
 		require.Len(t, starts, 1)
 		require.Equal(t, recorder.ErrorTypeTimeout, rec.RecordedInterceptionEnd(starts[0].ID).ErrorType)
+		entries := sink.Entries(func(entry slog.SinkEntry) bool { return entry.Message == "interception failed" })
+		require.Len(t, entries, 1)
+		require.Equal(t, slog.LevelDebug, entries[0].Level)
 	})
 }

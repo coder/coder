@@ -21,6 +21,13 @@ type categorizer struct {
 
 func (c categorizer) CategorizeError(error) *recorder.ErrorType { return c.result }
 
+type statusCategorizer struct {
+	categorizer
+	statusResult *recorder.ErrorType
+}
+
+func (c statusCategorizer) CategorizeStatus(int) *recorder.ErrorType { return c.statusResult }
+
 func TestCategorize(t *testing.T) {
 	t.Parallel()
 
@@ -36,6 +43,7 @@ func TestCategorize(t *testing.T) {
 		{name: "Timeout", err: context.DeadlineExceeded, wantType: recorder.ErrorTypeTimeout, wantMsg: context.DeadlineExceeded.Error()},
 		{name: "RateLimited", err: &keypool.Error{Kind: keypool.ErrorKindRateLimited}, wantType: recorder.ErrorTypeRateLimited, wantMsg: (&keypool.Error{Kind: keypool.ErrorKindRateLimited}).Error()},
 		{name: "HTTPStatusFallback", status: http.StatusForbidden, wantType: recorder.ErrorTypeUnauthorized, wantMsg: http.StatusText(http.StatusForbidden)},
+		{name: "ProviderStatus", cat: statusCategorizer{statusResult: new(recorder.ErrorTypeOverloaded)}, status: 529, wantType: recorder.ErrorTypeOverloaded, wantMsg: "HTTP status 529"},
 		{name: "Provider", cat: categorizer{result: new(recorder.ErrorTypeOverloaded)}, err: xerrors.New("provider error"), wantType: recorder.ErrorTypeOverloaded, wantMsg: "provider error"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

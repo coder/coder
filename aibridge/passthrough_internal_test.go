@@ -1,15 +1,18 @@
 package aibridge
 
 import (
+	"bufio"
 	"context"
 	"crypto/tls"
 	"fmt"
+	"io"
 	"maps"
 	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/http/httputil"
 	"net/url"
+	"strings"
 	"sync/atomic"
 	"testing"
 
@@ -18,6 +21,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel"
+	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/aibridge/config"
@@ -30,6 +34,126 @@ import (
 )
 
 var testTracer = otel.Tracer("bridge_test")
+
+type lateTrailerReader struct {
+	io.Reader
+	trailer http.Header
+	values  http.Header
+	set     bool
+}
+
+func (r *lateTrailerReader) Read(p []byte) (int, error) {
+	n, err := r.Reader.Read(p)
+	if err == io.EOF && !r.set {
+		for name, values := range r.values {
+			r.trailer[name] = append([]string(nil), values...)
+		}
+		r.set = true
+	}
+	return n, err
+}
+
+func TestPassthroughSupportsProtocolUpgrade(t *testing.T) {
+	t.Parallel()
+
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hijacker, ok := w.(http.Hijacker)
+		if !assert.True(t, ok) {
+			return
+		}
+		conn, rw, err := hijacker.Hijack()
+		if !assert.NoError(t, err) {
+			return
+		}
+		defer conn.Close()
+		_, _ = rw.WriteString("HTTP/1.1 101 Switching Protocols\r\nConnection: Upgrade\r\nUpgrade: test\r\n\r\n")
+		_ = rw.Flush()
+		buf := make([]byte, 4)
+		_, err = io.ReadFull(rw, buf)
+		if !assert.NoError(t, err) {
+			return
+		}
+		_, _ = rw.Write(buf)
+		_ = rw.Flush()
+	}))
+	t.Cleanup(upstream.Close)
+
+	prov := &testutil.MockProvider{NameStr: "test", URL: upstream.URL}
+	handler := newPassthroughRouter(prov, slogtest.Make(t, nil), nil, testTracer)
+	gateway := httptest.NewServer(handler)
+	t.Cleanup(gateway.Close)
+
+	gatewayURL, err := url.Parse(gateway.URL)
+	require.NoError(t, err)
+	conn, err := net.Dial("tcp", gatewayURL.Host)
+	require.NoError(t, err)
+	defer conn.Close()
+	_, err = fmt.Fprintf(conn, "GET /upgrade HTTP/1.1\r\nHost: %s\r\nConnection: Upgrade\r\nUpgrade: test\r\n\r\n", gatewayURL.Host)
+	require.NoError(t, err)
+	rw := bufio.NewReadWriter(bufio.NewReader(conn), bufio.NewWriter(conn))
+	resp, err := http.ReadResponse(rw.Reader, &http.Request{Method: http.MethodGet})
+	require.NoError(t, err)
+	require.Equal(t, http.StatusSwitchingProtocols, resp.StatusCode)
+	require.NoError(t, resp.Body.Close())
+	_, err = conn.Write([]byte("ping"))
+	require.NoError(t, err)
+	echo := make([]byte, 4)
+	_, err = io.ReadFull(conn, echo)
+	require.NoError(t, err)
+	require.Equal(t, "ping", string(echo))
+}
+
+func TestPassthroughDropsRequestAndResponseTrailers(t *testing.T) {
+	t.Parallel()
+
+	const body = "request-body"
+	upstreamResult := make(chan error, 1)
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotBody, err := io.ReadAll(r.Body)
+		if err == nil && string(gotBody) != body {
+			err = xerrors.Errorf("unexpected body %q", gotBody)
+		}
+		if err == nil && len(r.Trailer) != 0 {
+			err = xerrors.Errorf("unexpected request trailers: %v", r.Trailer)
+		}
+		upstreamResult <- err
+		w.Header().Add("Trailer", "Set-Cookie")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("response-body"))
+		w.Header().Set("Set-Cookie", "coder_session_token=upstream-trailer")
+	}))
+	t.Cleanup(upstream.Close)
+
+	prov := &testutil.MockProvider{NameStr: "test", URL: upstream.URL}
+	handler := newPassthroughRouter(prov, slogtest.Make(t, nil), nil, testTracer)
+	gateway := httptest.NewServer(handler)
+	t.Cleanup(gateway.Close)
+	requestTrailers := http.Header{
+		"Cookie":               nil,
+		"X-AI-Bridge-Actor-Id": nil,
+	}
+	requestBody := &lateTrailerReader{
+		Reader:  strings.NewReader(body),
+		trailer: requestTrailers,
+		values: http.Header{
+			"Cookie":               {"coder_session_token=request-trailer"},
+			"X-AI-Bridge-Actor-Id": {"spoofed"},
+		},
+	}
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, gateway.URL+"/v1/models", requestBody)
+	require.NoError(t, err)
+	req.ContentLength = -1
+	req.Trailer = requestTrailers
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	gotBody, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	require.Equal(t, "response-body", string(gotBody))
+	require.Empty(t, resp.Trailer)
+	ctx := codertestutil.Context(t, codertestutil.WaitShort)
+	require.NoError(t, codertestutil.RequireReceive(ctx, t, upstreamResult))
+}
 
 func TestPassthroughRoutes(t *testing.T) {
 	t.Parallel()
@@ -290,7 +414,8 @@ func TestPassthroughRejectsTraversalAndPreservesEscapedSeparator(t *testing.T) {
 	resp := httptest.NewRecorder()
 	handler.ServeHTTP(resp, httptest.NewRequest(http.MethodGet, "/v1/models/a%2Fb", nil))
 	require.Equal(t, http.StatusNoContent, resp.Code)
-	require.Equal(t, "/v1/models/a%2Fb", codertestutil.RequireReceive(t.Context(), t, upstreamPaths))
+	ctx := codertestutil.Context(t, codertestutil.WaitShort)
+	require.Equal(t, "/v1/models/a%2Fb", codertestutil.RequireReceive(ctx, t, upstreamPaths))
 }
 
 func TestPassthroughStripsSetCookie(t *testing.T) {

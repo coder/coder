@@ -358,6 +358,30 @@ func TestInMemoryRoundTripper_HandlerPanic(t *testing.T) {
 	require.Contains(t, err.Error(), "handler panicked")
 }
 
+func TestInMemoryRoundTripper_HandlerAbortBeforeHeaders(t *testing.T) {
+	t.Parallel()
+
+	handler := http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+		panic(http.ErrAbortHandler)
+	})
+	rt, err := aibridged.NewTransportFactory(handler).TransportFor("openai", aibridge.SourceAgents)
+	require.NoError(t, err)
+
+	ctx := aibridge.WithDelegatedAPIKeyID(testutil.Context(t, testutil.WaitShort), "test-key-id")
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "http://aibridge/abort", nil)
+	require.NoError(t, err)
+	resp, err := rt.RoundTrip(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+	require.NotNil(t, resp.Header)
+	resp.Header.Set("X-Test", "writable")
+	require.Equal(t, "writable", resp.Header.Get("X-Test"))
+	_, err = io.ReadAll(resp.Body)
+	require.ErrorIs(t, err, io.ErrUnexpectedEOF)
+}
+
 // The in-memory transport must reject any RoundTrip whose context does not
 // carry a delegated API key ID. The handler relies on this invariant to know
 // the request has a delegated identity attached.
@@ -650,4 +674,7 @@ func TestInMemoryRoundTripper_HandlerReturnsWithoutWriting(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, body)
 	require.Equal(t, http.StatusOK, resp.StatusCode)
+	require.NotNil(t, resp.Header)
+	resp.Header.Set("X-Test", "writable")
+	require.Equal(t, "writable", resp.Header.Get("X-Test"))
 }

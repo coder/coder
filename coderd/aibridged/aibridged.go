@@ -44,9 +44,11 @@ type Server struct {
 	// Provider reloads update the pool in interception mode or atomically replace
 	// the handler in proxy mode. In-flight requests retain their original router.
 	backend atomic.Pointer[backend]
-	// backendMu serializes mode selection and provider replacement construction.
+	// backendMu serializes mode selection and provider candidate construction;
+	// it does not guard backend publication or shutdown snapshots.
 	backendMu sync.Mutex
-	// backendPublishMu serializes only the final publication step with shutdown.
+	// backendPublishMu guards the final backend swap and shutdown snapshot.
+	// Expensive provider construction must not run while this mutex is held.
 	backendPublishMu sync.Mutex
 
 	// inflight tracks request acquisition and serving across backend snapshots.
@@ -83,10 +85,10 @@ type Server struct {
 // Its fields are fixed after publication. Both pool and proxyRouter are nil when
 // proxy mode is selected but providers are not yet loaded.
 type backend struct {
-	pool        Pooler                 // RequestBridge pool.
-	proxyRouter http.Handler           // Proxy router for this snapshot.
-	keyPools    func() []*keypool.Pool // Current key pools for metric scrapes.
-	cleanup     func()                 // Releases resources owned by this snapshot.
+	pool           Pooler                 // RequestBridge pool.
+	proxyRouter    http.Handler           // Proxy router for this snapshot.
+	keyPools       func() []*keypool.Pool // Current key pools for metric scrapes.
+	closeIdleConns func()                 // Safe while snapshot requests are in flight.
 }
 
 // New starts a gateway server. Creates a request pool only when interception
@@ -156,7 +158,7 @@ connectLoop:
 	for retrier := retry.New(50*time.Millisecond, 10*time.Second); retrier.Wait(s.lifecycleCtx); {
 		// It's possible for the aibridge daemon to be shut down
 		// before the wait is complete!
-		if s.isShutdown() {
+		if s.shouldStopConnecting() {
 			return
 		}
 		s.logger.Debug(s.lifecycleCtx, "dialing coderd")
@@ -192,7 +194,7 @@ connectLoop:
 					err = xerrors.Errorf("unexpected HTTP response dialing coderd: %w", err)
 				}
 			}
-			if s.isShutdown() {
+			if s.shouldStopConnecting() {
 				return
 			}
 			s.logger.Warn(s.lifecycleCtx, "coderd client failed to dial", slog.Error(err))
@@ -266,7 +268,7 @@ func (s *Server) initializeBackend(ctx context.Context, client DRPCClient) error
 	if _, err := s.publishBackend(&backend{}); err != nil {
 		return err
 	}
-	s.logger.Warn(ctx, "selected experimental reverse proxy routing; records interception lifecycle only; token/prompt/tool/model accounting and spend accrual are incomplete; Bedrock routing and actor-header injection are unsupported")
+	s.logger.Warn(ctx, "selected experimental reverse proxy routing; only request start and end are recorded; token/prompt/tool/model accounting and spend accrual, Bedrock, and actor-header injection are unsupported; remove ai-gateway-reverse-proxy and restart to restore interception mode")
 	return nil
 }
 
@@ -338,9 +340,10 @@ func (s *Server) GetRequestHandler(ctx context.Context, req Request) (http.Handl
 		return http.HandlerFunc(notReadyHandler), nil
 	}
 	if current.pool != nil {
-		// Once lifecycle shutdown completes, preserve the pool's existing
-		// post-shutdown error semantics instead of replacing them with a handler.
-		if s.lifecycleCtx.Err() != nil {
+		// Explicit shutdown is the only state in which the pool has already been
+		// closed. Fatal connection-loop errors also cancel lifecycleCtx, but the
+		// live pool still requires normal admission and drain tracking.
+		if s.shuttingDown.Load() {
 			reqBridge, err := current.pool.Acquire(ctx, req, s.Client, NewMCPProxyFactory(s.logger, s.tracer, s.Client))
 			if err != nil {
 				return nil, xerrors.Errorf("acquire request bridge: %w", err)
@@ -354,6 +357,10 @@ func (s *Server) GetRequestHandler(ctx context.Context, req Request) (http.Handl
 		if !ok {
 			return http.HandlerFunc(shuttingDownHandler), nil
 		}
+		// Acquisition and serving are separate admissions. GetRequestHandler callers
+		// are not required to serve the returned handler, so retaining this release
+		// until ServeHTTP could pin shutdown forever. If shutdown wins the handoff,
+		// the returned handler refuses the not-yet-served request with 503.
 		acquireCtx, cleanup := s.inflight.RequestContext(ctx)
 		reqBridge, err := current.pool.Acquire(acquireCtx, req, s.Client, NewMCPProxyFactory(s.logger, s.tracer, s.Client))
 		cleanup()
@@ -401,12 +408,6 @@ func (s *Server) ReplaceProviders(ctx context.Context, providers []aibridge.Prov
 		return xerrors.New("gateway mode not selected")
 	}
 	if current.pool != nil {
-		s.backendPublishMu.Lock()
-		if s.shuttingDown.Load() {
-			s.backendPublishMu.Unlock()
-			return ErrShutdown
-		}
-		s.backendPublishMu.Unlock()
 		current.pool.ReplaceProviders(providers)
 		return nil
 	}
@@ -415,17 +416,17 @@ func (s *Server) ReplaceProviders(ctx context.Context, providers []aibridge.Prov
 		return xerrors.Errorf("create proxy router: %w", err)
 	}
 	next := &backend{
-		proxyRouter: s.inflight.Middleware(router),
-		keyPools:    router.KeyPools,
-		cleanup:     router.CloseIdleConnections,
+		proxyRouter:    s.inflight.Middleware(router),
+		keyPools:       router.KeyPools,
+		closeIdleConns: router.CloseIdleConnections,
 	}
 	previous, err := s.publishBackend(next)
 	if err != nil {
-		next.cleanup()
+		next.closeIdleConns()
 		return err
 	}
-	if previous != nil && previous.cleanup != nil {
-		previous.cleanup()
+	if previous != nil && previous.closeIdleConns != nil {
+		previous.closeIdleConns()
 	}
 	return nil
 }
@@ -443,8 +444,10 @@ func (s *Server) keyPools() []*keypool.Pool {
 	return current.keyPools()
 }
 
-// isShutdown returns whether the Server is shutdown or not.
-func (s *Server) isShutdown() bool {
+// shouldStopConnecting reports whether explicit shutdown has begun or the
+// lifecycle has ended for another reason. During graceful shutdown admitted
+// requests may still be running even though this returns true.
+func (s *Server) shouldStopConnecting() bool {
 	if s.shuttingDown.Load() {
 		return true
 	}
@@ -456,9 +459,13 @@ func (s *Server) isShutdown() bool {
 	}
 }
 
-// Shutdown stops new requests and provider reloads, then waits for admitted
-// requests to complete while the recorder connection remains available. If ctx
-// expires, admitted request contexts are canceled before the connection closes.
+// Shutdown refuses new work before draining admitted acquisition and handler
+// calls. If they finish before ctx expires, the DRPC connection remains live
+// through their completion, including synchronous end-record attempts. If ctx
+// expires, request contexts are canceled and finalization becomes best-effort;
+// Shutdown does not wait past the caller's deadline for handlers or the connect
+// loop, and end records may be lost. Pooler implementations remain responsible
+// for honoring ctx in their own Shutdown methods.
 func (s *Server) Shutdown(ctx context.Context) error {
 	var err error
 	s.shutdownOnce.Do(func() {
@@ -486,8 +493,8 @@ func (s *Server) Shutdown(ctx context.Context) error {
 					s.logger.Error(ctx, "request pool shutdown failed with error", slog.Error(poolErr))
 				}
 			}
-			if current.cleanup != nil {
-				current.cleanup()
+			if current.closeIdleConns != nil {
+				current.closeIdleConns()
 			}
 		}
 
@@ -502,6 +509,9 @@ func (s *Server) Shutdown(ctx context.Context) error {
 		select {
 		case <-connectionDone:
 		case <-ctx.Done():
+			// Lifecycle cancellation asks the connect loop to stop, but a dialer
+			// that has not returned may outlive Shutdown. The returned context error
+			// indicates that full goroutine quiescence was not guaranteed.
 		}
 
 		switch {

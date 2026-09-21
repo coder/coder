@@ -52,6 +52,9 @@ func newPassthroughRouter(prov provider.Provider, logger slog.Logger, m *metrics
 		),
 		ModifyResponse: func(resp *http.Response) error {
 			utils.StripSensitiveResponseHeaders(resp.Header)
+			if resp.StatusCode != http.StatusSwitchingProtocols {
+				utils.DropResponseTrailers(resp)
+			}
 			return nil
 		},
 		ErrorHandler: func(rw http.ResponseWriter, req *http.Request, e error) {
@@ -88,6 +91,7 @@ func newPassthroughRouter(prov provider.Provider, logger slog.Logger, m *metrics
 func rewritePassthroughRequest(pr *httputil.ProxyRequest, provBaseURL *url.URL) {
 	pr.SetURL(provBaseURL)
 	utils.StripSensitiveRequestHeaders(pr.Out.Header)
+	utils.DropRequestTrailers(pr.Out)
 
 	// SetXForwarded synthesizes a new trusted proxy chain from the request peer.
 	// Client-supplied Forwarded and X-Forwarded-* values were removed above.

@@ -4,6 +4,7 @@ package interceptionerror
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 
@@ -21,15 +22,27 @@ type Categorizer interface {
 	CategorizeError(error) *recorder.ErrorType
 }
 
+// statusCategorizer optionally maps provider-specific HTTP status codes that
+// have no portable meaning across providers.
+type statusCategorizer interface {
+	CategorizeStatus(int) *recorder.ErrorType
+}
+
 // Categorize maps a terminal error to a recorder error type and bounded message.
-// When err is nil, status is used as an HTTP fallback. Provider-specific errors
-// are delegated after gateway-owned context, circuit, and key-pool errors.
+// When err is nil, provider-specific status mappings are consulted before the
+// HTTP fallback. Provider-specific errors are delegated after gateway-owned
+// context, circuit, and key-pool errors.
 func Categorize(c Categorizer, err error, status int) (recorder.ErrorType, string) {
 	if err == nil {
 		if status < http.StatusBadRequest {
 			return "", ""
 		}
-		return recorder.ErrorTypeFromStatus(status), http.StatusText(status)
+		if statusCategorizer, ok := c.(statusCategorizer); ok {
+			if errorType := statusCategorizer.CategorizeStatus(status); errorType != nil {
+				return *errorType, statusMessage(status)
+			}
+		}
+		return recorder.ErrorTypeFromStatus(status), statusMessage(status)
 	}
 
 	message := err.Error()
@@ -70,4 +83,11 @@ func Categorize(c Categorizer, err error, status int) (recorder.ErrorType, strin
 		}
 	}
 	return recorder.ErrorTypeUnknown, message
+}
+
+func statusMessage(status int) string {
+	if message := http.StatusText(status); message != "" {
+		return message
+	}
+	return fmt.Sprintf("HTTP status %d", status)
 }

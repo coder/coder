@@ -205,6 +205,14 @@ func (p *OpenAI) APIDumpDir() string {
 	return p.cfg.APIDumpDir
 }
 
+// CategorizeStatus maps OpenAI-specific HTTP status codes.
+func (*OpenAI) CategorizeStatus(status int) *recorder.ErrorType {
+	if status == http.StatusServiceUnavailable {
+		return new(recorder.ErrorTypeOverloaded)
+	}
+	return nil
+}
+
 func (*OpenAI) CategorizeError(err error) *recorder.ErrorType {
 	return categorizeOpenAIError(err)
 }

@@ -2012,9 +2012,10 @@ communicating directly.`,
 	}
 	aiGatewaySendActorHeaders := serpent.Option{
 		Name: "AI Gateway Send Actor Headers",
-		Description: "Once enabled, extra headers will be added to upstream requests to identify the user (actor) making requests to AI Gateway. " +
-			"This is only needed if you are using a proxy between AI Gateway and an upstream AI provider. " +
-			"This will send X-Ai-Bridge-Actor-Id (the ID of the user making the request) and X-Ai-Bridge-Actor-Metadata-Username (their username).",
+		Description: "Send actor identity headers to upstream requests when AI Gateway uses interception mode. " +
+			"This option has no effect when AI Gateway runs in reverse proxy mode. " +
+			"Use it when a proxy between AI Gateway and the upstream provider needs the actor ID or username. " +
+			"Sends X-Ai-Bridge-Actor-Id and X-Ai-Bridge-Actor-Metadata-Username.",
 		Flag:    "ai-gateway-send-actor-headers",
 		Env:     "CODER_AI_GATEWAY_SEND_ACTOR_HEADERS",
 		Value:   &c.AI.BridgeConfig.SendActorHeaders,
@@ -4487,9 +4488,11 @@ Write out the current server config as YAML to stdout.`,
 		aiGatewayStructuredLogging,
 		{
 			Name: "AI Bridge Send Actor Headers",
-			Description: "Deprecated: use --ai-gateway-send-actor-headers or CODER_AI_GATEWAY_SEND_ACTOR_HEADERS instead. Once enabled, extra headers will be added to upstream requests to identify the user (actor) making requests to AI Bridge. " +
-				"This is only needed if you are using a proxy between AI Bridge and an upstream AI provider. " +
-				"This will send X-Ai-Bridge-Actor-Id (the ID of the user making the request) and X-Ai-Bridge-Actor-Metadata-Username (their username).",
+			Description: "Deprecated: use --ai-gateway-send-actor-headers or CODER_AI_GATEWAY_SEND_ACTOR_HEADERS instead. " +
+				"Send actor identity headers to upstream requests when AI Gateway uses interception mode. " +
+				"This option has no effect when AI Gateway runs in reverse proxy mode. " +
+				"Use it when a proxy between AI Gateway and the upstream provider needs the actor ID or username. " +
+				"Sends X-Ai-Bridge-Actor-Id and X-Ai-Bridge-Actor-Metadata-Username.",
 			Flag:       "aibridge-send-actor-headers",
 			Env:        "CODER_AIBRIDGE_SEND_ACTOR_HEADERS",
 			Value:      &c.AI.BridgeConfig.SendActorHeaders,
@@ -5241,10 +5244,14 @@ const (
 	ExperimentNoNATSPubsub              Experiment = "no_nats_pubsub"              // Disables the embedded NATS pubsub, falling back to PostgreSQL pubsub.
 	ExperimentWorkspaceCapableLicensing Experiment = "workspace-capable-licensing" // Counts only users holding the workspace-create permission toward the license seat limit.
 	ExperimentAIGatewaySeatExclusion    Experiment = "ai-gateway-seat-exclusion"   // Excludes AI Gateway (AI Bridge) usage from AI Governance seat consumption.
-	ExperimentAIGatewayReverseProxy     Experiment = "ai-gateway-reverse-proxy"    // Uses stateless reverse proxy routing when MCP injection is not configured.
-	ExperimentChatAdvisor               Experiment = "chat-advisor"                // Enables the advisor tool for root agent chats.
-	ExperimentChatVirtualDesktop        Experiment = "chat-virtual-desktop"        // Enables virtual desktop and computer use provider for agents.
-	ExperimentAgentLifecycleHooks       Experiment = "agent-lifecycle-hooks"       // Enables chat lifecycle hook webhooks for agent chats.
+	// ExperimentAIGatewayReverseProxy enables unsafe stateless proxy routing.
+	// It records request lifecycle events only, without token, model, prompt, or
+	// tool data or spend accrual. Budgets cannot account for this traffic. Leave
+	// the experiment off, or remove it, when spend enforcement is required.
+	ExperimentAIGatewayReverseProxy Experiment = "ai-gateway-reverse-proxy" // Unsafe reverse proxy routing without usage accounting or spend accrual; budgets cannot account for this traffic.
+	ExperimentChatAdvisor           Experiment = "chat-advisor"             // Enables the advisor tool for root agent chats.
+	ExperimentChatVirtualDesktop    Experiment = "chat-virtual-desktop"     // Enables virtual desktop and computer use provider for agents.
+	ExperimentAgentLifecycleHooks   Experiment = "agent-lifecycle-hooks"    // Enables chat lifecycle hook webhooks for agent chats.
 )
 
 func (e Experiment) DisplayName() string {

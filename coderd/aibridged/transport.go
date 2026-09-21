@@ -211,6 +211,7 @@ func (*pipeResponseWriter) Flush() {}
 // current status. Used to unblock RoundTrip on handler return-without-write.
 func (w *pipeResponseWriter) ensureHeaders() {
 	w.once.Do(func() {
+		w.frozenHeader = w.header.Clone()
 		close(w.gotHeaders)
 	})
 }
