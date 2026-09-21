@@ -141,7 +141,7 @@ const SpendUserRow: FC<SpendUserRowProps> = ({ user }) => (
 		</TableCell>
 		<TableCell className="text-right">
 			<SpendAmount
-				scope="user"
+				scope={{ user: user.name || user.username }}
 				costMicros={user.cost_micros}
 				unpricedUsageCount={user.unpriced_usage_count}
 			/>

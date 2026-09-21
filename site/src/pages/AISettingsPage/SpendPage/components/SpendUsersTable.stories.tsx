@@ -92,11 +92,11 @@ export const UnpricedUsage: Story = {
 			...mockReportQuery,
 			data: {
 				...MockOrganizationAISpendReport,
-				totals: { cost_micros: 3_500_000, unpriced_usage_count: 3 },
-				users: [
-					{ ...MockOrganizationAISpendUser, unpriced_usage_count: 3 },
-					...MockOrganizationAISpendReport.users.slice(1),
-				],
+				totals: { cost_micros: 3_500_000, unpriced_usage_count: 4 },
+				users: MockOrganizationAISpendReport.users.map((user, index) => ({
+					...user,
+					unpriced_usage_count: index === 0 ? 3 : 1,
+				})),
 			},
 		},
 	},
@@ -106,7 +106,9 @@ export const UnpricedModelsTooltip: Story = {
 	...UnpricedUsage,
 	play: async ({ canvasElement }) => {
 		await userEvent.hover(
-			within(canvasElement).getByRole("button", { name: "Unpriced models" }),
+			within(canvasElement).getByRole("button", {
+				name: `Unpriced models for ${MockOrganizationAISpendUser.name}`,
+			}),
 		);
 		await screen.findByRole("tooltip");
 	},
