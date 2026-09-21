@@ -702,6 +702,8 @@ func (server *Server) prepareGeneration(
 		builtinToolNames[chattool.FindToolsName] = true
 	}
 
+	tools = withSubagentToolGuidance(tools, activeToolNames)
+
 	toolDefinitions := chatloop.BuildToolDefinitions(tools, activeToolNames, providerTools)
 	toolNameToConfigID := make(map[string]uuid.UUID)
 	for _, t := range tools {

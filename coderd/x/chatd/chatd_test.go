@@ -72,10 +72,11 @@ import (
 )
 
 type recordedOpenAIRequest struct {
-	Messages      []chattest.OpenAIMessage
-	Tools         []string
-	Store         *bool
-	ContentLength int64
+	Messages         []chattest.OpenAIMessage
+	Tools            []string
+	ToolDescriptions map[string]string
+	Store            *bool
+	ContentLength    int64
 }
 
 func testMCPHTTPClient() *http.Client {
@@ -161,8 +162,10 @@ func chatLastErrorMessage(raw pqtype.NullRawMessage) string {
 func recordOpenAIRequest(req *chattest.OpenAIRequest) recordedOpenAIRequest {
 	messages := append([]chattest.OpenAIMessage(nil), req.Messages...)
 	tools := make([]string, 0, len(req.Tools))
+	descriptions := make(map[string]string, len(req.Tools))
 	for _, tool := range req.Tools {
 		tools = append(tools, openAIToolName(tool))
+		descriptions[openAIToolName(tool)] = tool.Function.Description
 	}
 
 	var store *bool
@@ -177,10 +180,11 @@ func recordOpenAIRequest(req *chattest.OpenAIRequest) recordedOpenAIRequest {
 	}
 
 	return recordedOpenAIRequest{
-		Messages:      messages,
-		Tools:         tools,
-		Store:         store,
-		ContentLength: contentLength,
+		Messages:         messages,
+		Tools:            tools,
+		ToolDescriptions: descriptions,
+		Store:            store,
+		ContentLength:    contentLength,
 	}
 }
 
@@ -655,6 +659,10 @@ func TestExploreSubagentIsReadOnly(t *testing.T) {
 	require.NotEmpty(t, rootRequests, "expected at least one root prompt")
 	require.NotEmpty(t, childRequests, "expected at least one subagent prompt")
 	require.Contains(t, rootCalls[0], "spawn_agent")
+	require.Contains(t, rootRequests[0].ToolDescriptions["spawn_agent"], "message_agent")
+	require.Contains(t, rootRequests[0].ToolDescriptions["spawn_agent"], "interrupt_agent")
+	require.False(t, requestHasSystemSubstring(rootRequests[0], "<subagent-orchestration>"))
+	require.False(t, requestHasSystemSubstring(childRequests[0], "<subagent-orchestration>"))
 	require.Contains(t, rootCalls[0], "write_file")
 	require.Contains(t, rootCalls[0], "edit_files")
 	require.NotContains(t, childCalls[0], "write_file")
@@ -1846,11 +1854,18 @@ func TestPlanTurnPromptContract(t *testing.T) {
 	requestsMu.Unlock()
 
 	require.Len(t, recorded, 1, "expected exactly 1 streamed model call")
+	spawnDescription := recorded[0].ToolDescriptions["spawn_agent"]
+	require.Contains(t, spawnDescription, "wait_agent")
+	require.Contains(t, spawnDescription, "list_agents")
+	require.Contains(t, spawnDescription, "list_subagent_models")
+	require.NotContains(t, spawnDescription, "message_agent")
+	require.NotContains(t, spawnDescription, "interrupt_agent")
+	require.False(t, requestHasSystemSubstring(recorded[0], "<subagent-orchestration>"))
 	require.True(t, requestHasSystemSubstring(recorded[0], "You are in Plan Mode."))
 	require.True(t, requestHasSystemSubstring(recorded[0], "The plan file at the path specified in the <plan-file-path> block below is the deliverable for review"))
 	require.True(t, requestHasSystemSubstring(recorded[0], "You may use execute and process_output for exploration"))
 	require.True(t, requestHasSystemSubstring(recorded[0], "approved external MCP tools when available"))
-	require.True(t, requestHasSystemSubstring(recorded[0], "Workspace MCP tools are not available in root plan mode"))
+	require.True(t, requestHasSystemSubstring(recorded[0], "workspace MCP tools remain unavailable after workspace creation"))
 	require.True(t, requestHasSystemSubstring(recorded[0], "After a successful propose_plan call, stop immediately"))
 	require.True(t, requestHasSystemSubstring(recorded[0], planModeInstructions))
 	for _, msg := range recorded[0].Messages {

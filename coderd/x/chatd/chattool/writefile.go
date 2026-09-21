@@ -23,7 +23,7 @@ type WriteFileArgs struct {
 func WriteFile(options WriteFileOptions) fantasy.AgentTool {
 	return fantasy.NewAgentTool(
 		"write_file",
-		"Write a file to the workspace.",
+		"Write complete content to an absolute workspace path, creating parent directories when necessary. Existing content is replaced, not appended. Use edit_files for targeted changes when replacing the whole file would risk losing unrelated work.",
 		func(ctx context.Context, args WriteFileArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
 			var planPath string
 			if options.IsPlanTurn {

@@ -884,6 +884,7 @@ The generation goroutine supports:
 - MCP tools
 - subagents (`spawn_agent`, `wait_agent`, `message_agent`, `interrupt_agent`, `list_agents`, `list_subagent_models`)
     - `close_agent` is a deprecated alias that dispatches to `interrupt_agent`, so historical tool calls in chat history still resolve
+    - delegation tool descriptions carry lifecycle guidance selected from the turn's final active tool set (`withSubagentToolGuidance`), so a description never refers to a tool the turn cannot call
 - file links
 - workspace binding
 - plan mode
