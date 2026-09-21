@@ -1483,11 +1483,6 @@ func TestOAuth2ProviderRevokeClientAuthentication(t *testing.T) {
 		requireInvalidRequest(t, status, oauthErr, "URL query string", works)
 	})
 
-	// RFC 6749 §3.2: a valueless parameter is the omitted case, so ?client_secret=
-	// leaks nothing and must not cost a client that authenticated in the body.
-	// That holds here because revocation reads the first value of each field.
-	// The token endpoint refuses the same request as a repeated parameter; its
-	// EmptySecretInQueryString case pins that.
 	t.Run("EmptySecretInQueryString", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -1506,8 +1501,6 @@ func TestOAuth2ProviderRevokeClientAuthentication(t *testing.T) {
 		require.False(t, works(), "the revocation must end the session")
 	})
 
-	// The parse error quotes the bad escape, and RFC 6749 §5.2 has no room for
-	// a double quote in error_description.
 	t.Run("MalformedQueryDescriptionIsSanitized", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -1523,7 +1516,6 @@ func TestOAuth2ProviderRevokeClientAuthentication(t *testing.T) {
 		require.NotContains(t, oauthErr.ErrorDescription, `"`)
 	})
 
-	// An empty first value must not hide a real one behind it.
 	t.Run("EmptyAndRealSecretInQueryString", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)

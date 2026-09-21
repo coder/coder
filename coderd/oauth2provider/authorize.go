@@ -305,11 +305,6 @@ func extractAuthorizeParams(r *http.Request, logger slog.Logger, app database.OA
 	p := httpapi.NewQueryParamParser()
 	vals := r.URL.Query()
 
-	// Ignored like any other unrecognized parameter, as §3.1 requires, but
-	// this URL sits in the user's address bar and browser history, so the
-	// operator is told which client leaks its secret. The consent POST repeats
-	// the GET's query, so only the GET logs, and it logs before any failure
-	// below can end the request.
 	if r.Method == http.MethodGet && clientSecretInQuery(vals) {
 		logger.Warn(r.Context(), "oauth2 authorization request carried client_secret in the URL query string",
 			append(requestSource(r), slog.F("app_id", app.ID))...)

@@ -311,10 +311,7 @@ func repeatedParameter(p *httpapi.QueryParamParser, vals url.Values) (string, bo
 	return "", false
 }
 
-// requestSource identifies the sender of a refused request. The refusals it
-// decorates run before client authentication, so anyone who knows the public
-// client_id can produce them; the source is what lets an operator tell their
-// own integration from a stranger.
+// requestSource identifies the sender of a refused request.
 func requestSource(r *http.Request) []slog.Field {
 	return []slog.Field{
 		slog.F("remote_addr", r.RemoteAddr),
@@ -353,8 +350,7 @@ func authenticateClient(ctx context.Context, db database.Store, app database.OAu
 }
 
 // writeRefusal renders an RFC 6749 §5.2 error body for the token and
-// revocation endpoints. Descriptions can quote what the client sent, so they
-// are confined and capped here rather than at each call site.
+// revocation endpoints.
 func writeRefusal(ctx context.Context, rw http.ResponseWriter, status int, code codersdk.OAuth2ErrorCode, description string) {
 	// Sanitized before the cap, so the bound is on what the client receives.
 	httpapi.WriteOAuth2Error(ctx, rw, status, code, capErrorDescription(sanitizeErrorDescription(description)))

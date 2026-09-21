@@ -521,9 +521,6 @@ func TestOAuth2TokenErrorDescription(t *testing.T) {
 	})
 }
 
-// The docs tell operators to search for this log line, so its text, the app id
-// beside it, and the absence of the secret are asserted at both endpoints that
-// refuse.
 func TestOAuth2ClientSecretInQueryIsLogged(t *testing.T) {
 	t.Parallel()
 
@@ -946,10 +943,6 @@ func TestOAuth2RefreshClientAuthentication(t *testing.T) {
 		requireNothingConsumed(ctx, t, app, refreshToken)
 	})
 
-	// A correct secret in the body does not excuse a copy in the URL. The copy
-	// leaves client_secret in r.Form twice, which extractTokenRequest already
-	// refuses as a repeated parameter with the same status and code, so the
-	// description is what distinguishes this rule from that one.
 	t.Run("SecretInQueryStringAndBody", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -969,10 +962,6 @@ func TestOAuth2RefreshClientAuthentication(t *testing.T) {
 		requireNothingConsumed(ctx, t, app, refreshToken)
 	})
 
-	// The query-string rule treats a valueless ?client_secret= as absent, as
-	// revocation does. This endpoint still refuses it, because r.Form holds the
-	// body copy and the empty URL copy as one parameter sent twice. The
-	// description records which rule answered.
 	t.Run("EmptySecretInQueryString", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
