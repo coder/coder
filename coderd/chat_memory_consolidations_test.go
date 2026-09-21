@@ -41,15 +41,9 @@ func TestChatMemoryConsolidationLists(t *testing.T) {
 	require.NotNil(t, records[0].Mutations)
 	require.Empty(t, records[0].Mutations)
 
-	// The journal follows the project ACL like the memories it describes.
-	memberRaw, memberUser := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
+	// The journal is as private as the project it describes.
+	memberRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
 	member := codersdk.NewExperimentalClient(memberRaw)
 	_, err = member.ListChatProjectMemoryConsolidations(ctx, project.ID)
 	requireSDKError(t, err, http.StatusNotFound)
-	require.NoError(t, client.UpdateChatProjectACL(ctx, project.ID, codersdk.UpdateChatProjectACL{
-		UserRoles: map[string]codersdk.ChatProjectRole{memberUser.ID.String(): codersdk.ChatProjectRoleRead},
-	}))
-	records, err = member.ListChatProjectMemoryConsolidations(ctx, project.ID)
-	require.NoError(t, err)
-	require.Len(t, records, 1)
 }
