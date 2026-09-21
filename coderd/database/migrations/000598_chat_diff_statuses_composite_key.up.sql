@@ -8,8 +8,6 @@ ALTER TABLE chat_diff_statuses
 ALTER TABLE chat_diff_statuses
     ADD PRIMARY KEY (chat_id, git_remote_origin, git_branch);
 
--- When the agent last reported the ref. The newest report is the
--- chat's primary.
 ALTER TABLE chat_diff_statuses
     ADD COLUMN reported_at timestamp with time zone DEFAULT now() NOT NULL;
 
