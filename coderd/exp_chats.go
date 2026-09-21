@@ -964,14 +964,13 @@ func (api *API) getUserChatProviderAvailability(
 		}
 	}
 
-	fallbackKeys := ChatProviderAPIKeysFromDeploymentValues(api.DeploymentValues)
 	for _, configuredProvider := range configuredProviders {
 		normalizedProvider := chatprovider.NormalizeProvider(configuredProvider.Provider)
 		if normalizedProvider == "" {
 			continue
 		}
 		_, providerStatus := chatprovider.ResolveUserProviderKeys(
-			fallbackKeys,
+			chatprovider.ProviderAPIKeys{},
 			[]chatprovider.ConfiguredProvider{configuredProvider},
 			userKeys,
 		)
@@ -8092,17 +8091,6 @@ var (
 	errChatProviderMissing     = xerrors.New("AI provider is not configured")
 	errChatModelConfigNotFound = xerrors.New("chat model config not found")
 )
-
-// ChatProviderAPIKeysFromDeploymentValues returns deployment-backed chat
-// provider API keys.
-func ChatProviderAPIKeysFromDeploymentValues(
-	_ *codersdk.DeploymentValues,
-) chatprovider.ProviderAPIKeys {
-	// AI bridge deployment config is intentionally not reused for chat
-	// provider credentials. Bridge keys serve AI Bridge interception and
-	// should not silently broaden into chat execution paths.
-	return chatprovider.ProviderAPIKeys{}
-}
 
 // @Summary Submit chat tool results
 // @ID submit-chat-tool-results
