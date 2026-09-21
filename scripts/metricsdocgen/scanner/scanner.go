@@ -46,6 +46,19 @@ var skipPaths = []string{
 	"enterprise/scaletest/agentfake/metrics.go",
 }
 
+// metricPrefixes supplies prefixes added by registerer wrappers such as
+// WrapRegistererWithPrefix or NewMetricAliasRegisterer, which this scanner does
+// not trace. Add a directory when its metrics share such a prefix, but not for
+// names already declared in Name, Namespace, or Subsystem. Rules also apply to
+// subdirectories. Update them when prefixes change or definitions move elsewhere.
+// TODO: Automatically resolve prefixes from registration code.
+var metricPrefixes = map[string]string{
+	"aibridge/":                  "coder_ai_gateway_",
+	"coderd/aibridged/":          "coder_ai_gateway_",
+	"coderd/aibridgedserver/":    "coder_ai_gateway_",
+	"enterprise/aibridgeproxyd/": "coder_ai_gateway_proxy_",
+}
+
 // MetricType represents the type of Prometheus metric.
 type MetricType string
 
@@ -189,8 +202,23 @@ func scanDirectory(root string) ([]Metric, error) {
 	return metrics, err
 }
 
+// metricPrefix returns the prefix for the longest matching directory.
+func metricPrefix(path string) string {
+	path = filepath.ToSlash(filepath.Clean(path))
+	var prefix string
+	var matchedLength int
+	for directory, candidate := range metricPrefixes {
+		if len(directory) > matchedLength && strings.HasPrefix(path, directory) {
+			prefix = candidate
+			matchedLength = len(directory)
+		}
+	}
+	return prefix
+}
+
 // scanFile parses a single Go file and extracts all Prometheus metric definitions.
 func scanFile(path string) ([]Metric, error) {
+	prefix := metricPrefix(path)
 	fset := token.NewFileSet()
 	file, err := parser.ParseFile(fset, path, nil, parser.SkipObjectResolution)
 	if err != nil {
@@ -220,6 +248,7 @@ func scanFile(path string) ([]Metric, error) {
 				// or added to the static metrics file with a manual description.
 				return true
 			}
+			metric.Name = prefix + metric.Name
 			metrics = append(metrics, metric)
 		}
 
