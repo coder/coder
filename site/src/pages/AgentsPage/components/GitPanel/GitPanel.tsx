@@ -343,14 +343,13 @@ export const GitPanel: FC<GitPanelProps> = ({
 			(status) => viewRefId !== undefined && viewIdFor(status) === viewRefId,
 		) ?? remoteDiffStats?.[0];
 
-	// The PR metadata follows the selection, not the primary.
 	const prTitle = selectedRemote?.pull_request_title;
 	const selectedPrNumber =
 		selectedRemote?.pr_number ??
 		parsePullRequestUrl(selectedRemote?.url ?? "")?.number;
 
-	// A branch-only primary must not hide an older selected PR's
-	// title.
+	// The selected ref can be branch-only with no PR, so the title
+	// row needs a PR number to belong to.
 	const showPrTitleRow =
 		isRemoteView && Boolean(selectedPrNumber) && Boolean(prTitle);
 
