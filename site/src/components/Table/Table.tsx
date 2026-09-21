@@ -37,7 +37,7 @@ export const TableHeader: React.FC<React.ComponentProps<"thead">> = ({
 const tableBodyVariants = cva(null, {
 	variants: {
 		size: {
-			lg: "[&>tr>td]:box-border [&>tr>td]:h-[72px]",
+			lg: "[&>tr>*]:box-border [&>tr>*]:h-[72px]",
 		},
 	},
 });
@@ -53,10 +53,12 @@ export const TableBody: React.FC<TableBodyProps> = ({
 	return (
 		<tbody
 			className={cn(
-				"[&>tr:first-of-type>td]:border-t [&>tr>td:first-of-type]:border-l",
-				"[&>tr:last-child>td]:border-b [&>tr>td:last-child]:border-r",
-				"[&>tr:first-of-type>td:first-of-type]:rounded-tl-md [&>tr:first-of-type>td:last-child]:rounded-tr-md",
-				"[&>tr:last-child>td:first-of-type]:rounded-bl-md [&>tr:last-child>td:last-child]:rounded-br-md",
+				// Body rows may start with a scope="row" header cell, so the outer
+				// edges follow child position rather than the td tag.
+				"[&>tr:first-of-type>*]:border-t [&>tr>*:first-child]:border-l",
+				"[&>tr:last-child>*]:border-b [&>tr>*:last-child]:border-r",
+				"[&>tr:first-of-type>*:first-child]:rounded-tl-md [&>tr:first-of-type>*:last-child]:rounded-tr-md",
+				"[&>tr:last-child>*:first-child]:rounded-bl-md [&>tr:last-child>*:last-child]:rounded-br-md",
 				tableBodyVariants({ size }),
 				className,
 			)}
