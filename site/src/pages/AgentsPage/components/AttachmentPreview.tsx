@@ -145,12 +145,16 @@ export const AttachmentPreview: FC<{
 							// Key combines file metadata with index as a fallback for
 							// duplicate names. Acceptable for a small, append-only list.
 							key={`${file.name}-${file.size}-${file.lastModified}-${index}`}
+							// The overlay buttons reveal on `peer-focus` of the preceding
+							// siblings, not `group-focus-within`: a `:focus-within`
+							// ancestor selector makes WebKit walk every ancestor's subtree
+							// on each focus change (~200 ms per focus in long chats).
 							className="group relative"
 						>
 							{isRasterImageMediaType(file.type) && previewUrl ? (
 								<button
 									type="button"
-									className="border-0 bg-transparent p-0 cursor-pointer transition-opacity hover:opacity-80"
+									className="peer border-0 bg-transparent p-0 cursor-pointer transition-opacity hover:opacity-80"
 									onClick={() => onPreview?.(previewUrl)}
 								>
 									<ImageThumbnail previewUrl={previewUrl} name={file.name} />
@@ -159,7 +163,7 @@ export const AttachmentPreview: FC<{
 								<button
 									type="button"
 									aria-label={`View ${file.name}`}
-									className="flex h-16 w-28 flex-col items-start justify-start overflow-hidden rounded-md border-0 bg-surface-tertiary p-2 text-left transition-colors hover:bg-surface-quaternary focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link"
+									className="peer flex h-16 w-28 flex-col items-start justify-start overflow-hidden rounded-md border-0 bg-surface-tertiary p-2 text-left transition-colors hover:bg-surface-quaternary focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link"
 									onClick={async () => {
 										const nextContent = await loadTextAttachmentContent(
 											textContent,
@@ -189,7 +193,7 @@ export const AttachmentPreview: FC<{
 										);
 										onInlineText?.(file, nextContent);
 									}}
-									className="absolute -bottom-2 -right-2 flex size-6 cursor-pointer items-center justify-center rounded-full border-0 bg-surface-primary text-content-secondary shadow-xs opacity-0 transition-opacity hover:bg-surface-secondary hover:text-content-primary group-hover:opacity-100 group-focus-within:opacity-100 focus:opacity-100"
+									className="peer absolute -bottom-2 -right-2 flex size-6 cursor-pointer items-center justify-center rounded-full border-0 bg-surface-primary text-content-secondary shadow-xs opacity-0 transition-opacity hover:bg-surface-secondary hover:text-content-primary group-hover:opacity-100 peer-focus:opacity-100 focus:opacity-100"
 									aria-label="Paste inline"
 								>
 									<ClipboardPasteIcon aria-hidden="true" className="size-3.5" />
@@ -223,7 +227,7 @@ export const AttachmentPreview: FC<{
 							<button
 								type="button"
 								onClick={() => onRemove(file)}
-								className="absolute -right-2 -top-2 flex size-6 cursor-pointer items-center justify-center rounded-full border-0 bg-surface-primary text-content-secondary shadow-xs opacity-0 transition-opacity hover:bg-surface-secondary hover:text-content-primary group-hover:opacity-100 group-focus-within:opacity-100 focus:opacity-100"
+								className="absolute -right-2 -top-2 flex size-6 cursor-pointer items-center justify-center rounded-full border-0 bg-surface-primary text-content-secondary shadow-xs opacity-0 transition-opacity hover:bg-surface-secondary hover:text-content-primary group-hover:opacity-100 peer-focus:opacity-100 focus:opacity-100"
 								aria-label={`Remove ${file.name}`}
 							>
 								<XIcon aria-hidden="true" className="size-3.5" />

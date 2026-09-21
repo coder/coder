@@ -181,7 +181,7 @@ const DownloadOverlay: FC<{
 				});
 			}}
 			aria-label={`Download ${displayName}`}
-			className="invisible absolute right-1 top-1 flex size-6 items-center justify-center rounded bg-surface-primary/80 text-content-secondary opacity-0 shadow-xs backdrop-blur-xs transition-opacity hover:text-content-primary group-hover/attachment:visible group-hover/attachment:opacity-100 group-focus-within/attachment:visible group-focus-within/attachment:opacity-100 [@media(hover:none)]:visible [@media(hover:none)]:opacity-100 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link"
+			className="invisible absolute right-1 top-1 flex size-6 items-center justify-center rounded bg-surface-primary/80 text-content-secondary opacity-0 shadow-xs backdrop-blur-xs transition-opacity hover:text-content-primary group-hover/attachment:visible group-hover/attachment:opacity-100 peer-focus-within/attachment:visible peer-focus-within/attachment:opacity-100 focus:visible focus:opacity-100 [@media(hover:none)]:visible [@media(hover:none)]:opacity-100 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link"
 		>
 			<DownloadIcon aria-hidden="true" className="size-3.5" />
 		</a>
@@ -197,7 +197,14 @@ const AttachmentPreviewFrame: FC<{
 }> = ({ href, displayName, downloadName, mediaType, children }) => {
 	return (
 		<div className="group/attachment relative inline-flex flex-col items-start">
-			{children}
+			{/*
+			 * Sibling (peer) rather than ancestor (group-focus-within) focus
+			 * state: WebKit invalidates every ancestor's whole subtree on each
+			 * focus change when a stylesheet has `:focus-within` before a
+			 * descendant combinator, which cost ~200 ms per focus in long
+			 * chats. Sibling selectors only invalidate siblings.
+			 */}
+			<div className="peer/attachment contents">{children}</div>
 			{href ? (
 				<DownloadOverlay
 					href={href}

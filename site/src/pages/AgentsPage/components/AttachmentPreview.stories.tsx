@@ -40,6 +40,27 @@ export const SingleImage: Story = {
 	},
 };
 
+// Keyboard focus on the thumbnail reveals the overlay actions. The reveal
+// uses sibling focus state (peer-focus), not group-focus-within, which
+// WebKit invalidates across the whole document on every focus change.
+export const ThumbnailFocused: Story = {
+	args: (() => {
+		const file = createMockFile("photo.png", "image/png");
+		return {
+			attachments: [file],
+			uploadStates: new Map<File, UploadState>([
+				[file, { status: "uploaded", fileId: "file-1" }],
+			]),
+			previewUrls: new Map<File, string>([[file, TINY_PNG]]),
+		};
+	})(),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await canvas.findByRole("img", { name: "photo.png" });
+		await userEvent.tab();
+	},
+};
+
 export const MultipleImages: Story = {
 	args: (() => {
 		const files = [
