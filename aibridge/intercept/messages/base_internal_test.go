@@ -183,7 +183,7 @@ func TestAWSBedrockValidation(t *testing.T) {
 			t.Parallel()
 
 			base := &interceptionBase{
-				auth: AuthRuntime{Bedrock: NewBedrockRuntime(tt.cfg, credentials.NewStaticCredentialsProvider("test-key", "test-secret", ""))},
+				bedrock: NewBedrockRuntime(tt.cfg, credentials.NewStaticCredentialsProvider("test-key", "test-secret", "")),
 			}
 			opts, err := base.withBedrockInvokeModelOptions(context.Background())
 
@@ -200,7 +200,7 @@ func TestAWSBedrockValidation(t *testing.T) {
 
 // TestAWSBedrockOptionsRequireRuntime verifies that option assembly fails when
 // the Bedrock runtime was not set. This should never happen in practice, since
-// withBedrockInvokeModelOptions is only called when i.auth.Bedrock != nil.
+// withBedrockInvokeModelOptions is only called when i.bedrock != nil.
 func TestAWSBedrockOptionsRequireRuntime(t *testing.T) {
 	t.Parallel()
 
@@ -252,7 +252,7 @@ func TestModelForBedrockInvokeModel(t *testing.T) {
 
 			i := &interceptionBase{
 				reqPayload:       mustMessagesPayload(t, `{"model":"claude-opus-4-8","max_tokens":10000}`),
-				auth:             AuthRuntime{Bedrock: runtime},
+				bedrock:          runtime,
 				isSmallFastModel: tt.smallFast,
 				logger:           slog.Make(),
 			}
@@ -294,10 +294,10 @@ func TestSmallFastModelCapturedAtConstruction(t *testing.T) {
 		newInterception func(payload RequestPayload) *interceptionBase
 	}{
 		{name: "blocking", newInterception: func(payload RequestPayload) *interceptionBase {
-			return &NewBlockingInterceptor(uuid.New(), payload, intercept.Config{}, nil, AuthRuntime{Bedrock: runtime}, http.Header{}, nil).interceptionBase
+			return &NewBlockingInterceptor(uuid.New(), payload, intercept.Config{}, nil, runtime, http.Header{}, nil).interceptionBase
 		}},
 		{name: "streaming", newInterception: func(payload RequestPayload) *interceptionBase {
-			return &NewStreamingInterceptor(uuid.New(), payload, intercept.Config{}, nil, AuthRuntime{Bedrock: runtime}, http.Header{}, nil).interceptionBase
+			return &NewStreamingInterceptor(uuid.New(), payload, intercept.Config{}, nil, runtime, http.Header{}, nil).interceptionBase
 		}},
 	}
 
@@ -341,10 +341,10 @@ func TestModelForPlainBedrockModelID(t *testing.T) {
 
 	i := &interceptionBase{
 		reqPayload: mustMessagesPayload(t, `{"model":"claude-opus-4-8","max_tokens":10000}`),
-		auth: AuthRuntime{Bedrock: NewBedrockRuntime(config.AWSBedrock{
+		bedrock: NewBedrockRuntime(config.AWSBedrock{
 			Model:          "eu.anthropic.claude-opus-4-8",
 			SmallFastModel: "anthropic.claude-haiku-4-5",
-		}, nil)},
+		}, nil),
 		logger: slog.Make(),
 	}
 
@@ -1001,12 +1001,12 @@ func TestAugmentRequestForBedrock_AdaptiveThinking(t *testing.T) {
 			// Plain model IDs resolve to themselves; an application inference
 			i := &interceptionBase{
 				reqPayload: mustMessagesPayload(t, tc.requestBody),
-				auth: AuthRuntime{Bedrock: NewBedrockRuntime(config.AWSBedrock{
+				bedrock: NewBedrockRuntime(config.AWSBedrock{
 					Model:                  tc.bedrockModel,
 					SmallFastModel:         "anthropic.claude-haiku-3-5",
 					ResolvedModel:          tc.resolvedModel,
 					ResolvedSmallFastModel: "anthropic.claude-haiku-3-5",
-				}, nil)},
+				}, nil),
 				clientHeaders: clientHeaders,
 				logger:        slog.Make(),
 			}
@@ -1355,11 +1355,11 @@ func TestBedrockMantleIsPassthrough(t *testing.T) {
 	i := &interceptionBase{
 		reqPayload: mustMessagesPayload(t,
 			`{"model":"anthropic.claude-opus-4-8","max_tokens":10000,"thinking":{"type":"adaptive"},"metadata":{"user_id":"u123"},"context_management":{"type":"auto"}}`),
-		auth: AuthRuntime{Bedrock: NewBedrockRuntime(config.AWSBedrock{
+		bedrock: NewBedrockRuntime(config.AWSBedrock{
 			Region:   "us-east-1",
 			BaseURL:  "https://bedrock-mantle.us-east-1.api.aws/anthropic",
 			Protocol: config.BedrockProtocolMantle,
-		}, credentials.NewStaticCredentialsProvider("test-key", "test-secret", ""))},
+		}, credentials.NewStaticCredentialsProvider("test-key", "test-secret", "")),
 		logger: slog.Make(),
 	}
 
@@ -1377,14 +1377,13 @@ func TestBedrockMantleIsPassthrough(t *testing.T) {
 	require.Equal(t, before, string(i.reqPayload))
 }
 
-// TestCredentialResolutionContext verifies credential resolution is bounded and
-// that a streaming response remains live after the resolution bound expires.
+// TestCredentialResolutionContext verifies Bedrock credential resolution is bounded
+// and that a streaming response remains live after the resolution bound expires.
 func TestCredentialResolutionContext(t *testing.T) {
 	t.Parallel()
 
 	t.Run("cancellation and deadline", func(t *testing.T) {
 		t.Parallel()
-
 		tests := []struct {
 			name          string
 			callerTimeout time.Duration
@@ -1395,7 +1394,6 @@ func TestCredentialResolutionContext(t *testing.T) {
 			{name: "resolution deadline", wantErr: context.DeadlineExceeded},
 			{name: "earlier caller deadline", callerTimeout: 5 * time.Second, wantErr: context.DeadlineExceeded},
 		}
-
 		for _, tt := range tests {
 			t.Run(tt.name, func(t *testing.T) {
 				synctest.Test(t, func(t *testing.T) {
@@ -1405,32 +1403,26 @@ func TestCredentialResolutionContext(t *testing.T) {
 						<-ctx.Done()
 						return aws.Credentials{}, ctx.Err()
 					})
-					i := &interceptionBase{auth: AuthRuntime{ClaudePlatform: &ClaudePlatformRuntime{
-						Cfg: config.AWSClaudePlatform{
-							AuthMode:    config.ClaudePlatformAuthModeIAM,
-							Region:      "us-east-1",
-							BaseURL:     "https://claude.example",
-							WorkspaceID: "workspace",
-						},
-						Creds: creds,
-					}}}
-
+					i := &interceptionBase{bedrock: NewBedrockRuntime(config.AWSBedrock{
+						Region:         "us-east-1",
+						BaseURL:        "https://bedrock.example",
+						Model:          "anthropic.claude-opus-4-8",
+						SmallFastModel: "anthropic.claude-haiku-4-5",
+					}, creds)}
 					ctx := context.Background()
 					var cancel context.CancelFunc
 					if tt.callerTimeout > 0 {
-						//nolint:gocritic // This simulated deadline tests precedence against the 30-second credential bound.
+						//nolint:gocritic // Simulated deadline tests precedence over the credential timeout.
 						ctx, cancel = context.WithTimeout(ctx, tt.callerTimeout)
 					} else {
 						ctx, cancel = context.WithCancel(ctx)
 					}
 					defer cancel()
-
 					result := make(chan error, 1)
 					go func() {
 						_, err := i.newMessagesService(ctx)
 						result <- err
 					}()
-
 					resolvedCtx := <-called
 					deadline, ok := resolvedCtx.Deadline()
 					require.True(t, ok, "credential resolution must have a deadline")
@@ -1440,7 +1432,6 @@ func TestCredentialResolutionContext(t *testing.T) {
 					if tt.callerTimeout > 0 {
 						require.LessOrEqual(t, remaining, tt.callerTimeout)
 					}
-
 					switch {
 					case tt.cancel:
 						cancel()
@@ -1457,66 +1448,40 @@ func TestCredentialResolutionContext(t *testing.T) {
 
 	t.Run("stream survives resolution deadline", func(t *testing.T) {
 		t.Parallel()
-
-		tests := []struct {
+		for _, tt := range []struct {
 			name string
 			base func(string, aws.CredentialsProvider) *interceptionBase
 		}{
 			{
-				name: "claude platform",
-				base: func(url string, creds aws.CredentialsProvider) *interceptionBase {
-					return &interceptionBase{auth: AuthRuntime{ClaudePlatform: &ClaudePlatformRuntime{
-						Cfg: config.AWSClaudePlatform{
-							AuthMode:    config.ClaudePlatformAuthModeIAM,
-							Region:      "us-east-1",
-							BaseURL:     url,
-							WorkspaceID: "workspace",
-						},
-						Creds: creds,
-					}}}
-				},
-			},
-			{
 				name: "bedrock invoke model",
 				base: func(url string, creds aws.CredentialsProvider) *interceptionBase {
-					return &interceptionBase{auth: AuthRuntime{Bedrock: NewBedrockRuntime(config.AWSBedrock{
+					return &interceptionBase{bedrock: NewBedrockRuntime(config.AWSBedrock{
 						Region:         "us-east-1",
 						BaseURL:        url,
 						Model:          "anthropic.claude-opus-4-8",
 						SmallFastModel: "anthropic.claude-haiku-4-5",
-					}, creds)}}
+					}, creds)}
 				},
 			},
 			{
 				name: "bedrock mantle",
 				base: func(url string, creds aws.CredentialsProvider) *interceptionBase {
-					return &interceptionBase{auth: AuthRuntime{Bedrock: NewBedrockRuntime(config.AWSBedrock{
+					return &interceptionBase{bedrock: NewBedrockRuntime(config.AWSBedrock{
 						Region:   "us-east-1",
 						BaseURL:  url,
 						Protocol: config.BedrockProtocolMantle,
-					}, creds)}}
+					}, creds)}
 				},
 			},
-		}
-
-		for _, tt := range tests {
+		} {
 			t.Run(tt.name, func(t *testing.T) {
 				synctest.Test(t, func(t *testing.T) {
 					reader, writer := io.Pipe()
 					defer reader.Close()
 					defer writer.Close()
 					var requestCtx context.Context
-					var stop func() bool
-					defer func() {
-						if stop != nil {
-							stop()
-						}
-					}()
 					transport := roundTripFunc(func(req *http.Request) (*http.Response, error) {
 						requestCtx = req.Context()
-						stop = context.AfterFunc(req.Context(), func() {
-							_ = reader.CloseWithError(req.Context().Err())
-						})
 						if req.Body != nil {
 							_ = req.Body.Close()
 						}
@@ -1526,22 +1491,15 @@ func TestCredentialResolutionContext(t *testing.T) {
 							Body:       reader,
 						}, nil
 					})
-					creds := credentials.NewStaticCredentialsProvider("test-key", "test-secret", "")
-					i := tt.base("https://upstream.example", creds)
+					i := tt.base("https://upstream.example", credentials.NewStaticCredentialsProvider("test-key", "test-secret", ""))
 					service, err := i.newMessagesService(context.Background(), option.WithHTTPClient(&http.Client{Transport: transport}))
 					require.NoError(t, err)
-
 					ctx, cancel := context.WithCancel(context.Background())
 					defer cancel()
 					stream := service.NewStreaming(ctx, anthropic.MessageNewParams{
-						Model:     "claude-opus-4-8",
-						MaxTokens: 1,
-						Messages: []anthropic.MessageParam{{
-							Role:    anthropic.MessageParamRoleUser,
-							Content: []anthropic.ContentBlockParamUnion{anthropic.NewTextBlock("hello")},
-						}},
+						Model: "claude-opus-4-8", MaxTokens: 1,
+						Messages: []anthropic.MessageParam{{Role: anthropic.MessageParamRoleUser, Content: []anthropic.ContentBlockParamUnion{anthropic.NewTextBlock("hello")}}},
 					})
-
 					done := make(chan bool, 1)
 					go func() { done <- stream.Next() }()
 					<-time.NewTimer(31 * time.Second).C
@@ -1598,7 +1556,7 @@ func TestAWSMantleOptionsValidation(t *testing.T) {
 			t.Parallel()
 
 			base := &interceptionBase{
-				auth: AuthRuntime{Bedrock: NewBedrockRuntime(tt.cfg, credentials.NewStaticCredentialsProvider("test-key", "test-secret", ""))},
+				bedrock: NewBedrockRuntime(tt.cfg, credentials.NewStaticCredentialsProvider("test-key", "test-secret", "")),
 			}
 			opts, err := base.withBedrockMantleOptions(t.Context())
 			if tt.errorMsg != "" {

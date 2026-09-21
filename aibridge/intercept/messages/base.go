@@ -113,36 +113,14 @@ func (b *BedrockRuntime) ResolvedSmallFastModel() string {
 	return b.Cfg.ResolvedSmallFastModelWithFallback()
 }
 
-// ClaudePlatformRuntime carries everything a Claude Platform for AWS
-// interception needs. Creds is nil in api_key mode, where the workspace key
-// comes from the provider's key pool instead of AWS signing.
-type ClaudePlatformRuntime struct {
-	Cfg   aibconfig.AWSClaudePlatform
-	Creds aws.CredentialsProvider
-}
-
-// AuthRuntime carries the provider-level authentication configuration resolved
-// once at provider construction. At most one variant is non-nil; all nil means
-// a plain bearer-token Anthropic provider (BYOK or a centralized key pool).
-//
-// Grouping the variants keeps the interceptor constructors from growing a
-// positional argument per authentication method.
-type AuthRuntime struct {
-	// Bedrock is set for AWS Bedrock providers.
-	Bedrock *BedrockRuntime
-	// ClaudePlatform is set for Claude Platform for AWS providers.
-	ClaudePlatform *ClaudePlatformRuntime
-}
-
 type interceptionBase struct {
 	id         uuid.UUID
 	reqPayload RequestPayload
 
 	cfg  intercept.Config
 	cred intercept.Credential
-	// auth carries the provider's resolved authentication runtime; its fields
-	// are nil for plain bearer-token providers.
-	auth AuthRuntime
+	// bedrock carries the provider's resolved Bedrock runtime, when applicable.
+	bedrock *BedrockRuntime
 
 	// clientHeaders are the original HTTP headers from the client request.
 	clientHeaders http.Header
@@ -219,13 +197,13 @@ func (i *interceptionBase) CorrelatingToolCallID() *string {
 // isBedrockMantle reports whether the interception targets the Bedrock mantle
 // protocol.
 func (i *interceptionBase) isBedrockMantle() bool {
-	return i.auth.Bedrock != nil && i.auth.Bedrock.Cfg.ResolvedProtocol() == aibconfig.BedrockProtocolMantle
+	return i.bedrock != nil && i.bedrock.Cfg.ResolvedProtocol() == aibconfig.BedrockProtocolMantle
 }
 
 // isBedrockInvokeModel reports whether the interception targets the Bedrock
 // InvokeModel protocol.
 func (i *interceptionBase) isBedrockInvokeModel() bool {
-	return i.auth.Bedrock != nil && i.auth.Bedrock.Cfg.ResolvedProtocol() == aibconfig.BedrockProtocolInvokeModel
+	return i.bedrock != nil && i.bedrock.Cfg.ResolvedProtocol() == aibconfig.BedrockProtocolInvokeModel
 }
 
 func (i *interceptionBase) Model() string {
@@ -238,9 +216,9 @@ func (i *interceptionBase) Model() string {
 	// passthrough, non-Bedrock providers) returns the model the client sent in
 	// the body.
 	if i.isBedrockInvokeModel() {
-		model := i.auth.Bedrock.ResolvedModel()
+		model := i.bedrock.ResolvedModel()
 		if i.isSmallFastModel {
-			model = i.auth.Bedrock.ResolvedSmallFastModel()
+			model = i.bedrock.ResolvedSmallFastModel()
 		}
 		return model
 	}
@@ -251,9 +229,9 @@ func (i *interceptionBase) Model() string {
 // upstreamModel returns the identifier sent to Bedrock as the invocation
 // target, which may be an application inference profile ARN.
 func (i *interceptionBase) upstreamModel() string {
-	model := i.auth.Bedrock.ConfiguredModel()
+	model := i.bedrock.ConfiguredModel()
 	if i.isSmallFastModel {
-		model = i.auth.Bedrock.ConfiguredSmallFastModel()
+		model = i.bedrock.ConfiguredSmallFastModel()
 	}
 	return model
 }
@@ -266,10 +244,10 @@ func (i *interceptionBase) baseTraceAttributes(r *http.Request, streaming bool) 
 		attribute.String(tracing.Provider, i.cfg.ProviderName),
 		attribute.String(tracing.Model, i.Model()),
 		attribute.Bool(tracing.Streaming, streaming),
-		attribute.Bool(tracing.IsBedrock, i.auth.Bedrock != nil),
+		attribute.Bool(tracing.IsBedrock, i.bedrock != nil),
 	}
-	if i.auth.Bedrock != nil {
-		attrs = append(attrs, attribute.String(tracing.BedrockProtocol, string(i.auth.Bedrock.Cfg.ResolvedProtocol())))
+	if i.bedrock != nil {
+		attrs = append(attrs, attribute.String(tracing.BedrockProtocol, string(i.bedrock.Cfg.ResolvedProtocol())))
 	}
 	return attrs
 }
@@ -363,6 +341,9 @@ func (i *interceptionBase) newMessagesService(ctx context.Context, opts ...optio
 		}
 	}
 	opts = append(opts, option.WithBaseURL(i.cfg.BaseURL))
+	if i.cfg.HTTPClient != nil {
+		opts = append(opts, option.WithHTTPClient(i.cfg.HTTPClient))
+	}
 
 	// Forward client headers to upstream. This middleware runs after the SDK
 	// has built the request, and replaces the outgoing headers with the sanitized
@@ -404,16 +385,6 @@ func (i *interceptionBase) newMessagesService(ctx context.Context, opts ...optio
 		opts = append(opts, bedrockOpts...)
 	}
 
-	if i.auth.ClaudePlatform != nil {
-		ctx, cancel := context.WithTimeout(ctx, bedrockCredentialResolutionTimeout)
-		defer cancel()
-		claudePlatformOpts, err := i.withClaudePlatformOptions(ctx)
-		if err != nil {
-			return anthropic.MessageService{}, err
-		}
-		opts = append(opts, claudePlatformOpts...)
-	}
-
 	return anthropic.NewMessageService(opts...), nil
 }
 
@@ -428,13 +399,13 @@ func (i *interceptionBase) withBody() option.RequestOption {
 // withBedrockInvokeModelOptions returns request options for the AWS Bedrock
 // InvokeModel protocol.
 //
-// Credentials come from i.auth.Bedrock.Creds. It is a shared credentials cache, so the per-request Retrieve()
+// Credentials come from i.bedrock.Creds. It is a shared credentials cache, so the per-request Retrieve()
 // below is served from that cache and does not re-resolve or re-assume on every request.
 func (i *interceptionBase) withBedrockInvokeModelOptions(ctx context.Context) ([]option.RequestOption, error) {
-	if i.auth.Bedrock == nil {
+	if i.bedrock == nil {
 		return nil, xerrors.New("nil bedrock runtime")
 	}
-	cfg := i.auth.Bedrock.Cfg
+	cfg := i.bedrock.Cfg
 	if err := cfg.Validate(); err != nil {
 		return nil, xerrors.Errorf("bedrock invoke-model config: %w", err)
 	}
@@ -442,13 +413,13 @@ func (i *interceptionBase) withBedrockInvokeModelOptions(ctx context.Context) ([
 	// Fail fast: ensure credentials can be resolved before signing. Served from
 	// the shared cache on most requests (no network); on the cold or refresh
 	// path this performs the actual STS/IMDS call.
-	if _, err := i.auth.Bedrock.Creds.Retrieve(ctx); err != nil {
+	if _, err := i.bedrock.Creds.Retrieve(ctx); err != nil {
 		return nil, xerrors.Errorf("resolve AWS credentials: %w", err)
 	}
 
 	awsCfg := aws.Config{
 		Region:      cfg.Region,
-		Credentials: i.auth.Bedrock.Creds,
+		Credentials: i.bedrock.Creds,
 	}
 
 	var out []option.RequestOption
@@ -467,16 +438,13 @@ func (i *interceptionBase) withBedrockInvokeModelOptions(ctx context.Context) ([
 }
 
 // withAWSSignedMessagesOptions returns request options for an AWS-signed
-// endpoint that speaks the native Messages wire format: the upstream base URL,
-// any endpoint-specific headers, and SigV4 signing for the named service.
+// endpoint that speaks the native Messages wire format. It is used by the
+// Bedrock mantle path to set its base URL and SigV4 middleware.
 //
 // Credentials come from creds, a shared credentials cache, so the per-request
 // Retrieve is served from that cache and does not re-resolve or re-assume on
 // every request. It is called once here to fail fast before signing.
-//
-// Callers own any service-specific attribution such as the Bedrock PRM
-// user-agent; this helper only routes and signs.
-func withAWSSignedMessagesOptions(ctx context.Context, creds aws.CredentialsProvider, baseURL, region, service string, headers map[string]string) ([]option.RequestOption, error) {
+func withAWSSignedMessagesOptions(ctx context.Context, creds aws.CredentialsProvider, baseURL, region, service string) ([]option.RequestOption, error) {
 	// Fail fast: ensure credentials can be resolved before signing. Served from
 	// the shared cache on most requests (no network); on the cold or refresh
 	// path this performs the actual STS/IMDS call.
@@ -486,16 +454,6 @@ func withAWSSignedMessagesOptions(ctx context.Context, creds aws.CredentialsProv
 
 	var out []option.RequestOption
 	out = append(out, option.WithBaseURL(baseURL))
-	if len(headers) > 0 {
-		// Set after the client-header rebuild and before signing, so the values
-		// are ours rather than the client's and are covered by the signature.
-		out = append(out, option.WithMiddleware(func(req *http.Request, next option.MiddlewareNext) (*http.Response, error) {
-			for name, value := range headers {
-				req.Header.Set(name, value)
-			}
-			return next(req)
-		}))
-	}
 	// Appended last so it runs innermost (right before the HTTP send) and signs
 	// the request after all other headers are set.
 	//nolint:bodyclose // awssig.SignMiddleware reads and closes the request body in order to sign it.
@@ -509,10 +467,10 @@ func withAWSSignedMessagesOptions(ctx context.Context, creds aws.CredentialsProv
 // the native Messages wire format, so this only SigV4-signs the request
 // (service "bedrock-mantle") and forwards it; the response is plain SSE.
 func (i *interceptionBase) withBedrockMantleOptions(ctx context.Context) ([]option.RequestOption, error) {
-	if i.auth.Bedrock == nil {
+	if i.bedrock == nil {
 		return nil, xerrors.New("nil bedrock runtime")
 	}
-	cfg := i.auth.Bedrock.Cfg
+	cfg := i.bedrock.Cfg
 	if err := cfg.Validate(); err != nil {
 		return nil, xerrors.Errorf("bedrock mantle config: %w", err)
 	}
@@ -527,62 +485,12 @@ func (i *interceptionBase) withBedrockMantleOptions(ctx context.Context) ([]opti
 		}),
 	}
 
-	signed, err := withAWSSignedMessagesOptions(ctx, i.auth.Bedrock.Creds, cfg.BaseURL, cfg.Region, awssig.ServiceBedrockMantle, nil)
+	signed, err := withAWSSignedMessagesOptions(ctx, i.bedrock.Creds, cfg.BaseURL, cfg.Region, awssig.ServiceBedrockMantle)
 	if err != nil {
 		return nil, err
 	}
 
 	return append(out, signed...), nil
-}
-
-// withClaudePlatformOptions returns request options for Claude Platform for
-// AWS (aws-external-anthropic.{region}.api.aws/v1/messages). It speaks the
-// native Messages wire format with standard Anthropic model IDs, so nothing in
-// the request or response is translated.
-//
-// In IAM mode the request is SigV4-signed for the aws-external-anthropic
-// service unless a BYOK or centralized-pool credential takes precedence.
-// Key-authenticated requests only need routing and the workspace header.
-//
-// Bedrock's PRM attribution marker is deliberately not sent: it is a
-// Bedrock-specific revenue-attribution agreement.
-func (i *interceptionBase) withClaudePlatformOptions(ctx context.Context) ([]option.RequestOption, error) {
-	if i.auth.ClaudePlatform == nil {
-		return nil, xerrors.New("nil claude platform runtime")
-	}
-	cfg := i.auth.ClaudePlatform.Cfg
-	if err := cfg.Validate(); err != nil {
-		return nil, xerrors.Errorf("claude platform config: %w", err)
-	}
-
-	// anthropic-workspace-id is required on every data plane request. It is set
-	// from provider configuration rather than preserved from the client, so a
-	// client cannot choose which workspace its traffic is billed to.
-	headers := map[string]string{
-		intercept.HeaderAnthropicWorkspaceID: cfg.WorkspaceID,
-	}
-
-	_, byok := intercept.AsBYOK(i.cred)
-	_, pooled := intercept.AsCentralizedPool(i.cred)
-	if cfg.AuthMode == aibconfig.ClaudePlatformAuthModeAPIKey || byok || pooled {
-		// The selected credential supplies auth; only route and set the header.
-		return []option.RequestOption{
-			option.WithBaseURL(cfg.ResolvedBaseURL()),
-			option.WithMiddleware(func(req *http.Request, next option.MiddlewareNext) (*http.Response, error) {
-				for name, value := range headers {
-					req.Header.Set(name, value)
-				}
-				return next(req)
-			}),
-		}, nil
-	}
-
-	if i.auth.ClaudePlatform.Creds == nil {
-		return nil, xerrors.New("claude platform iam mode requires aws credentials")
-	}
-
-	return withAWSSignedMessagesOptions(ctx, i.auth.ClaudePlatform.Creds,
-		cfg.ResolvedBaseURL(), cfg.Region, aibconfig.ClaudePlatformSigningService, headers)
 }
 
 // augmentRequestForBedrockInvokeModel changes the model used for the request since AWS Bedrock doesn't support
@@ -593,7 +501,7 @@ func (i *interceptionBase) withClaudePlatformOptions(ctx context.Context) ([]opt
 // The request carries the configured identifier, which may be an application
 // inference profile ARN, while capability decisions use the model ID behind it.
 func (i *interceptionBase) augmentRequestForBedrockInvokeModel() {
-	if i.auth.Bedrock == nil {
+	if i.bedrock == nil {
 		return
 	}
 
