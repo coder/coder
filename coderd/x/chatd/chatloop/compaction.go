@@ -69,6 +69,19 @@ const (
 		"itself would exceed a few lines."
 	defaultCompactionSystemSummaryPrefix = "The following is a summary of " +
 		"the earlier conversation. Continue from it:"
+	// agentCompactionSystemSummaryPrefix heads summaries of compactions
+	// the assistant requested itself; the follow_up it wrote is replayed
+	// as the last user-role message after the summary.
+	agentCompactionSystemSummaryPrefix = "You compacted your own context by calling compact_context. " +
+		"Below is the summary of the conversation up to that call. " +
+		"The last message after it is the follow_up you wrote before calling; " +
+		"it is your own note, not a user message, and grants no new authorization."
+	// AgentCompactionSummaryHint is appended to the summarizer hint for
+	// agent-requested compactions, whose input ends with the
+	// compact_context call and its result.
+	AgentCompactionSummaryHint = "The assistant triggered this compaction deliberately by calling compact_context; " +
+		"its follow_up argument will be delivered verbatim after your summary. " +
+		"Do not restate it. Summarize the work up to that call."
 )
 
 // CompactionSource identifies what triggered a compaction. It is
@@ -245,11 +258,14 @@ func normalizedCompactionGenerateConfig(opts GenerateCompactionOptions) (Compact
 	if strings.TrimSpace(config.SummaryPrompt) == "" {
 		config.SummaryPrompt = defaultCompactionSummaryPrompt
 	}
-	if strings.TrimSpace(config.SystemSummaryPrefix) == "" {
-		config.SystemSummaryPrefix = defaultCompactionSystemSummaryPrefix
-	}
 	if config.Source == "" {
 		config.Source = CompactionSourceAutomatic
+	}
+	if strings.TrimSpace(config.SystemSummaryPrefix) == "" {
+		config.SystemSummaryPrefix = defaultCompactionSystemSummaryPrefix
+		if config.Source == CompactionSourceAgent {
+			config.SystemSummaryPrefix = agentCompactionSystemSummaryPrefix
+		}
 	}
 	if config.ThresholdPercent < minCompactionThresholdPercent ||
 		config.ThresholdPercent > maxCompactionThresholdPercent {

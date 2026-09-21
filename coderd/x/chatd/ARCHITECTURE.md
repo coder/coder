@@ -130,7 +130,7 @@ I don't recommend reading the rest of section thoroughly if this is your first t
 - `Acquire(worker_id, runner_id)` locks the chat row, sets `chats.worker_id` and `chats.runner_id`, and inserts an initial heartbeat row for `(chat_id, runner_id)`.
 - `Abandon` clears `worker_id` and `runner_id` on the chat row.
 - `CommitStep(step)` inserts one durable message suffix while remaining `running`. A committed step may insert ordinary assistant/tool messages, and a compaction step may insert a compressed summary boundary plus visible compaction tool-call and tool-result messages, optionally followed by uncompressed model-only user rows replaying the pending-user segment (see [Manual compaction](#manual-compaction)).
-    <!-- TODO(compaction-tools): a tool step whose batch contains a successful clear_context result commits [assistant call, tool result(s), tool-batch-usage?, chat_cleared triplet (source "agent"), post_tool_use hook rows, model-only follow_up row] in one CommitStep. -->
+    <!-- TODO(compaction-tools): a tool step whose batch contains a successful clear_context result commits [assistant call, tool result(s), tool-batch-usage?, chat_cleared triplet (source "agent"), post_tool_use hook rows, model-only follow_up row] in one CommitStep. A successful compact_context result commits [assistant call, tool result(s), tool-batch-usage?, post_tool_use hook rows, model-only follow_up row] and sets compaction_requested_at in the same CommitStep. -->
 - `EnterRequiresAction` records a pending-action episode by relying on the committed assistant tool-call messages as the durable call set, sets `requires_action_deadline_at`, which is a timestamp 5 minutes in the future, and lands in `requires_action`.
 - `FinishInterruption(optionalPartialStep)` inserts one final interrupted assistant/tool suffix if present, or finalizes interruption without a suffix if none is available, clears the interrupting state, and lands in `waiting` if no queued message is promoted. If interrupt finalization also promotes the queue head, it inserts the promoted queued message into history and lands in `running`.
 - `RecordGenerationAttempt` verifies the chat is still `running`, increments `generation_attempt`, and returns the updated chat snapshot.
@@ -262,6 +262,7 @@ Notice that the `Acquire` and `Abandon` transitions only affect ownership state,
 - Any transition that's not `CompleteRequiresAction` which supports `A0` or `A1` as input states, and lands in output states different from `A0` and `A1`, must insert synthetic, cancellation tool-call results for pending dynamic tool calls to avoid corrupting the message history.
 - Any transition that inserts a new user message into active history must answer outstanding tool calls in active history before inserting the user message. It may do this by inserting synthetic cancellation tool-call results.
 - Any transition leaving `E0` or `E1` (except `SetArchived(true)`) should clear the `last_error` field.
+    <!-- TODO(compaction-tools): CommitStep(RequestCompaction) sets compaction_requested_at from R0 and R1 while the turn continues; it carries the rest of the execution state forward and grants no history epoch beyond the insert trigger. RequestCompaction and ConsumeCompactionRequest on one CommitStep is a transition error. The chats.compaction_requested_at column comment still says the marker is set only by a manual request. -->
 
 ### Invalid states
 
@@ -578,6 +579,8 @@ This endpoint uses `RequestCompaction`:
 - `E0 -> RequestCompaction -> R0`
 - `E1 -> RequestCompaction -> R1`
 
+<!-- TODO(compaction-tools): the HTTP endpoint is no longer the only writer of compaction_requested_at; the worker sets it from a compact_context tool step (CommitStep(RequestCompaction)). A later /compact on a chat whose last non-system row after the latest boundary is a successful compact_context result (an interrupted agent sequence) is labelled source "agent" and takes the agent failure continuation. -->
+
 No other input states are supported: generating chats get a conflict error, and archived chats are rejected. Requesting compaction from an error state clears `last_error`, so a context-overflowed chat can recover by compacting instead of re-running the same oversized prompt. The endpoint is owner-only because the compaction runs LLM inference with the owner's delegated credentials. Inside the same transaction, after the transition succeeds, the endpoint verifies there is at least one uncompressed assistant message after the latest compaction boundary and rolls back with a "nothing to compact" conflict otherwise, so no LLM call is ever started for an empty or already-compacted chat. See [Manual compaction](#manual-compaction) for how the worker consumes the request.
 
 ### `POST /api/experimental/chats/{chat}/clear`
@@ -886,7 +889,7 @@ Parallel tool call results must be inserted in bulk after all parallel tool call
 The generation goroutine supports:
 
 - chat compaction (automatic and manual, see [Manual compaction](#manual-compaction))
-    <!-- TODO(compaction-tools): add agent-triggered context clearing via the exclusive clear_context tool (root chats only; exclusive tool names now include the context tools alongside advisor, with a per-tool skipped-sibling message). -->
+    <!-- TODO(compaction-tools): add agent-triggered context clearing and compaction via the exclusive clear_context and compact_context tools (root chats only; exclusive tool names now include the context tools alongside advisor, with a per-tool skipped-sibling message). -->
 - MCP tools
 - subagents (`spawn_agent`, `wait_agent`, `message_agent`, `interrupt_agent`, `list_agents`, `list_subagent_models`)
     - `close_agent` is a deprecated alias that dispatches to `interrupt_agent`, so historical tool calls in chat history still resolve
@@ -1030,6 +1033,15 @@ Users can also request a compaction on demand via `POST /api/experimental/chats/
 4. The compaction `CommitStep` consumes the request by clearing `compaction_requested_at` in the same transaction that commits the summary triplet. The next decision pass finds the history complete and finishes the turn, so a chat with an empty queue returns to `waiting` with no assistant follow-up; a chat compacted from `E1` proceeds to its queued messages instead. A `post_compact` hook effect is the one exception: because the decision reads user-visible history, an effect that commits a user-visible message leaves the history incomplete and the turn continues with an assistant response. A model-only effect such as `model_context` reaches the model without resuming generation.
 
 The `compaction_requested_at` marker is one-shot: transitions that keep an active turn alive (`Acquire`, `Abandon`, `SetArchived`, queueing a message on a busy chat) carry it forward, while every other transition that rewrites the execution state (`FinishTurn`, `FinishError`, `Interrupt`, `EditMessage`, `PromoteQueuedMessage`, `CancelRequiresAction`, `ReconcileInvalidState`, and so on) clears it by construction, so a stale request can never replay on a later turn.
+
+<!-- TODO(compaction-tools): CommitStep(RequestCompaction) is a second setter of the marker, used by the worker mid-turn; the same one-shot rules apply to it. -->
+
+<!-- TODO(compaction-tools): document the third source, "agent", and the in-turn flow behind the root-chat compact_context(follow_up) tool:
+- Step N (tool step) commits [assistant call, tool result "Compaction scheduled. Follow-up: ...", tool-batch-usage?, post_tool_use hook rows, follow_up as a model-only user row] and sets compaction_requested_at through CommitStep(RequestCompaction).
+- Step N+1 takes the forced path. The source is "agent" when the last active, uncompressed, non-system row after the latest boundary in the decision view is a successful compact_context tool result, "manual" otherwise; Force is set for every non-automatic source. The follow_up rides the existing pending-user replay (excluded from the summarizer input, re-committed after the triplet). The summarizer hint gets a fixed agent suffix (do not restate the follow_up; summarize up to the call) and the system summary uses a second-person prefix stating the assistant compacted its own context and that the follow_up grants no authorization.
+- Step N+2 generates from [system, summary, follow_up].
+- A terminal failure of an agent-requested summary (non-retryable model error, empty summary, pre_compact dispatch failure, retry budget exhausted) does not FinishError: the worker consumes the marker and commits a user-visible system-role notice plus a model-only note in one CommitStep, and the turn continues. post_compact failure after a committed boundary still FinishErrors. Limitations: if the compact_context assistant row is over the usage threshold, the next decision runs an automatic compaction whose failure still errors; the hook protocol accepts no permission decision on pre_compact (a deny response is a malformed response and a dispatch failure), so the lever for blocking agent compaction is pre_tool_use denial of compact_context.
+- Guards: compact_context rejects blank or oversized follow_up, calls with nothing but the calling assistant row after the latest boundary, and calls when a successful compact_context result already sits after the latest boundary. -->
 
 # Lifecycle hooks
 

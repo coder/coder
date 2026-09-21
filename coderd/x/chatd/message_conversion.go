@@ -40,6 +40,10 @@ type stepMessagesForCommit struct {
 	// ConsumeCompactionRequest clears the compaction marker atomically
 	// with the commit. Set on compaction commits.
 	ConsumeCompactionRequest bool
+	// RequestCompaction sets the compaction marker atomically with the
+	// commit. Set when the step's batch carries a successful
+	// compact_context result.
+	RequestCompaction bool
 }
 
 func buildCommitStepMessages(input buildCommitStepMessagesInput) (stepMessagesForCommit, error) {

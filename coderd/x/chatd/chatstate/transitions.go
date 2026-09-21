@@ -177,10 +177,12 @@ func insertChat(
 // compaction request marker as one atomic update.
 //
 // CompactionRequestedAt is one-shot by construction: leaving it at
-// its zero value clears any pending manual compaction request, so a
-// stale request can never replay on a later turn. Transitions that
-// must keep a pending request alive (archive toggles, ownership
-// changes, queue appends) explicitly carry the current value forward.
+// its zero value clears any pending compaction request, so a stale
+// request can never replay on a later turn. Transitions that must
+// keep a pending request alive (archive toggles, ownership changes,
+// queue appends) explicitly carry the current value forward.
+// RequestCompaction sets it from idle states; CommitStep with
+// RequestCompaction sets it from R0 and R1 while the turn continues.
 type executionStateUpdate struct {
 	Status                   database.ChatStatus
 	Archived                 bool
@@ -1250,11 +1252,17 @@ func (tx *Tx) RecordRetryState(input RecordRetryStateInput) (RecordRetryStateRes
 // CommitStepInput configures [Tx.CommitStep].
 type CommitStepInput struct {
 	Messages []Message
-	// ConsumeCompactionRequest clears the one-shot manual compaction
-	// marker atomically with the committed step. Compaction commits
-	// set this so a request is consumed exactly once and never
-	// replays on a later turn.
+	// ConsumeCompactionRequest clears the one-shot compaction marker
+	// atomically with the committed step. Compaction commits set this
+	// so a request is consumed exactly once and never replays on a
+	// later turn.
 	ConsumeCompactionRequest bool
+	// RequestCompaction sets the compaction marker atomically with the
+	// committed step while the chat stays running. The rest of the
+	// execution state is carried forward unchanged and no history
+	// epoch is granted beyond what the insert trigger provides.
+	// Mutually exclusive with ConsumeCompactionRequest.
+	RequestCompaction bool
 }
 
 // CommitStepResult is returned by [Tx.CommitStep].
@@ -1275,9 +1283,32 @@ func (tx *Tx) CommitStep(input CommitStepInput) (CommitStepResult, error) {
 			"CommitStep requires at least one message",
 		)
 	}
+	if input.RequestCompaction && input.ConsumeCompactionRequest {
+		return CommitStepResult{}, newTransitionError(
+			TransitionCommitStep, from,
+			"CommitStep cannot both request and consume a compaction",
+		)
+	}
 	inserted, err := tx.insertMessages(input.Messages)
 	if err != nil {
 		return CommitStepResult{}, xerrors.Errorf("insert commit step messages: %w", err)
+	}
+	if input.RequestCompaction {
+		now, err := tx.store.GetDatabaseNow(tx.ctx)
+		if err != nil {
+			return CommitStepResult{}, xerrors.Errorf("get db now: %w", err)
+		}
+		if _, err := tx.applyExecutionState(executionStateUpdate{
+			Status:                   chat.Status,
+			Archived:                 chat.Archived,
+			WorkerID:                 chat.WorkerID,
+			RunnerID:                 chat.RunnerID,
+			LastError:                chat.LastError,
+			RequiresActionDeadlineAt: chat.RequiresActionDeadlineAt,
+			CompactionRequestedAt:    sql.NullTime{Time: now, Valid: true},
+		}); err != nil {
+			return CommitStepResult{}, xerrors.Errorf("request compaction: %w", err)
+		}
 	}
 	if input.ConsumeCompactionRequest && chat.CompactionRequestedAt.Valid {
 		if _, err := tx.applyExecutionState(executionStateUpdate{
