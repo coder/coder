@@ -5480,14 +5480,6 @@ func (m queryMetricsStore) UpdateChatProjectMemoryByID(ctx context.Context, arg 
 	return r0, r1
 }
 
-func (m queryMetricsStore) UpdateChatProjectMemoryConsolidatedAt(ctx context.Context, arg database.UpdateChatProjectMemoryConsolidatedAtParams) error {
-	start := time.Now()
-	r0 := m.s.UpdateChatProjectMemoryConsolidatedAt(ctx, arg)
-	m.queryLatencies.WithLabelValues("UpdateChatProjectMemoryConsolidatedAt").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateChatProjectMemoryConsolidatedAt").Inc()
-	return r0
-}
-
 func (m queryMetricsStore) UpdateChatRetryState(ctx context.Context, arg database.UpdateChatRetryStateParams) (database.Chat, error) {
 	start := time.Now()
 	r0, r1 := m.s.UpdateChatRetryState(ctx, arg)

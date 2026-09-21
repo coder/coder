@@ -1543,7 +1543,6 @@ type sqlcQuerier interface {
 	UpdateChatProjectBinding(ctx context.Context, arg UpdateChatProjectBindingParams) (ChatTable, error)
 	UpdateChatProjectByID(ctx context.Context, arg UpdateChatProjectByIDParams) (ChatProject, error)
 	UpdateChatProjectMemoryByID(ctx context.Context, arg UpdateChatProjectMemoryByIDParams) (ChatProjectMemory, error)
-	UpdateChatProjectMemoryConsolidatedAt(ctx context.Context, arg UpdateChatProjectMemoryConsolidatedAtParams) error
 	// Stores the client-visible retry payload. retry_state_version is
 	// assigned by trigger from the current snapshot_version.
 	UpdateChatRetryState(ctx context.Context, arg UpdateChatRetryStateParams) (Chat, error)

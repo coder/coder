@@ -53,10 +53,6 @@ func (s *memoryStore) Delete(_ context.Context, name string) error {
 	return nil
 }
 
-func (*memoryStore) Lock(context.Context) error { return nil }
-
-func (s *memoryStore) InTx(fn func(chattool.MemoryStore) error) error { return fn(s) }
-
 func TestMemoryValidationAndNormalization(t *testing.T) {
 	t.Parallel()
 	require.NoError(t, chattool.ValidateMemoryName("release_notes-2026"))
@@ -102,7 +98,22 @@ func TestSaveMemoryCapAndUpsert(t *testing.T) {
 		response, err := tool.Run(context.Background(), fantasy.ToolCall{Input: `{"name":"durable-fact","description":"Durable fact","body":"Body"}`})
 		require.NoError(t, err)
 		require.True(t, response.IsError)
-		require.Contains(t, response.Content, "merge or delete")
+		require.Contains(t, response.Content, "memory is full (200/200)")
+		require.Contains(t, response.Content, "delete_memory")
+	})
+	t.Run("NearCapWarns", func(t *testing.T) {
+		t.Parallel()
+		store := &memoryStore{memories: make(map[string]chattool.Memory, chattool.MemoryNearCapWarning)}
+		for i := range chattool.MemoryNearCapWarning - 1 {
+			store.memories[string(rune(i))] = chattool.Memory{}
+		}
+		tool := chattool.SaveMemory(store, chattool.MemoryScope{Label: "platform"})
+		response, err := tool.Run(context.Background(), fantasy.ToolCall{Input: `{"name":"durable-fact","description":"Durable fact","body":"Body"}`})
+		require.NoError(t, err)
+		require.False(t, response.IsError)
+		var result map[string]any
+		require.NoError(t, json.Unmarshal([]byte(response.Content), &result))
+		require.Equal(t, "memory is 180/200; merge or delete stale entries soon", result["warning"])
 	})
 	t.Run("Upsert", func(t *testing.T) {
 		t.Parallel()
@@ -114,6 +125,7 @@ func TestSaveMemoryCapAndUpsert(t *testing.T) {
 		var result map[string]any
 		require.NoError(t, json.Unmarshal([]byte(response.Content), &result))
 		require.Equal(t, "durable-fact", result["name"])
+		require.NotContains(t, result, "warning")
 	})
 }
 

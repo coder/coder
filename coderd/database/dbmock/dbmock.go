@@ -10383,20 +10383,6 @@ func (mr *MockStoreMockRecorder) UpdateChatProjectMemoryByID(ctx, arg any) *gomo
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateChatProjectMemoryByID", reflect.TypeOf((*MockStore)(nil).UpdateChatProjectMemoryByID), ctx, arg)
 }
 
-// UpdateChatProjectMemoryConsolidatedAt mocks base method.
-func (m *MockStore) UpdateChatProjectMemoryConsolidatedAt(ctx context.Context, arg database.UpdateChatProjectMemoryConsolidatedAtParams) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdateChatProjectMemoryConsolidatedAt", ctx, arg)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// UpdateChatProjectMemoryConsolidatedAt indicates an expected call of UpdateChatProjectMemoryConsolidatedAt.
-func (mr *MockStoreMockRecorder) UpdateChatProjectMemoryConsolidatedAt(ctx, arg any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateChatProjectMemoryConsolidatedAt", reflect.TypeOf((*MockStore)(nil).UpdateChatProjectMemoryConsolidatedAt), ctx, arg)
-}
-
 // UpdateChatRetryState mocks base method.
 func (m *MockStore) UpdateChatRetryState(ctx context.Context, arg database.UpdateChatRetryStateParams) (database.Chat, error) {
 	m.ctrl.T.Helper()

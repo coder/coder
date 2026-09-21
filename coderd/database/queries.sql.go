@@ -7620,7 +7620,7 @@ func (q *sqlQuerier) DeleteChatProjectByID(ctx context.Context, id uuid.UUID) er
 }
 
 const getChatProjectByID = `-- name: GetChatProjectByID :one
-SELECT id, organization_id, owner_id, name, description, created_at, updated_at, memory_consolidated_at
+SELECT id, organization_id, owner_id, name, description, created_at, updated_at
 FROM chat_projects
 WHERE id = $1::uuid
 `
@@ -7636,13 +7636,12 @@ func (q *sqlQuerier) GetChatProjectByID(ctx context.Context, id uuid.UUID) (Chat
 		&i.Description,
 		&i.CreatedAt,
 		&i.UpdatedAt,
-		&i.MemoryConsolidatedAt,
 	)
 	return i, err
 }
 
 const getChatProjectsByOrganizationID = `-- name: GetChatProjectsByOrganizationID :many
-SELECT id, organization_id, owner_id, name, description, created_at, updated_at, memory_consolidated_at
+SELECT id, organization_id, owner_id, name, description, created_at, updated_at
 FROM chat_projects
 WHERE organization_id = $1::uuid
 ORDER BY lower(name)
@@ -7665,7 +7664,6 @@ func (q *sqlQuerier) GetChatProjectsByOrganizationID(ctx context.Context, organi
 			&i.Description,
 			&i.CreatedAt,
 			&i.UpdatedAt,
-			&i.MemoryConsolidatedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -7689,7 +7687,7 @@ VALUES (
     $4::text,
     $5::text
 )
-RETURNING id, organization_id, owner_id, name, description, created_at, updated_at, memory_consolidated_at
+RETURNING id, organization_id, owner_id, name, description, created_at, updated_at
 `
 
 type InsertChatProjectParams struct {
@@ -7717,7 +7715,6 @@ func (q *sqlQuerier) InsertChatProject(ctx context.Context, arg InsertChatProjec
 		&i.Description,
 		&i.CreatedAt,
 		&i.UpdatedAt,
-		&i.MemoryConsolidatedAt,
 	)
 	return i, err
 }
@@ -7729,7 +7726,7 @@ SET
     description = $2::text,
     updated_at = now()
 WHERE id = $3::uuid
-RETURNING id, organization_id, owner_id, name, description, created_at, updated_at, memory_consolidated_at
+RETURNING id, organization_id, owner_id, name, description, created_at, updated_at
 `
 
 type UpdateChatProjectByIDParams struct {
@@ -7749,25 +7746,8 @@ func (q *sqlQuerier) UpdateChatProjectByID(ctx context.Context, arg UpdateChatPr
 		&i.Description,
 		&i.CreatedAt,
 		&i.UpdatedAt,
-		&i.MemoryConsolidatedAt,
 	)
 	return i, err
-}
-
-const updateChatProjectMemoryConsolidatedAt = `-- name: UpdateChatProjectMemoryConsolidatedAt :exec
-UPDATE chat_projects
-SET memory_consolidated_at = $1::timestamptz
-WHERE id = $2::uuid
-`
-
-type UpdateChatProjectMemoryConsolidatedAtParams struct {
-	MemoryConsolidatedAt time.Time `db:"memory_consolidated_at" json:"memory_consolidated_at"`
-	ID                   uuid.UUID `db:"id" json:"id"`
-}
-
-func (q *sqlQuerier) UpdateChatProjectMemoryConsolidatedAt(ctx context.Context, arg UpdateChatProjectMemoryConsolidatedAtParams) error {
-	_, err := q.db.ExecContext(ctx, updateChatProjectMemoryConsolidatedAt, arg.MemoryConsolidatedAt, arg.ID)
-	return err
 }
 
 const acquireStaleChatDiffStatuses = `-- name: AcquireStaleChatDiffStatuses :many

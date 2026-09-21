@@ -7768,17 +7768,6 @@ func (q *querier) UpdateChatProjectMemoryByID(ctx context.Context, arg database.
 	return q.db.UpdateChatProjectMemoryByID(ctx, arg)
 }
 
-func (q *querier) UpdateChatProjectMemoryConsolidatedAt(ctx context.Context, arg database.UpdateChatProjectMemoryConsolidatedAtParams) error {
-	project, err := q.db.GetChatProjectByID(ctx, arg.ID)
-	if err != nil {
-		return err
-	}
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, database.ChatProjectMemoryRBACObject(project)); err != nil {
-		return err
-	}
-	return q.db.UpdateChatProjectMemoryConsolidatedAt(ctx, arg)
-}
-
 func (q *querier) UpdateChatRetryState(ctx context.Context, arg database.UpdateChatRetryStateParams) (database.Chat, error) {
 	// UpdateChatRetryState is used by the chat processor to publish
 	// transient retry state. It should be called with system context.

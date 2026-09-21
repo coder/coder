@@ -897,7 +897,7 @@ The generation goroutine supports:
 
 ##### Project memory
 
-Root chats in a project share durable memory; other chats have none. The agent saves memory itself with `save_memory`; there is no background extraction. The system prompt gets only the memory guidance block; the live index lives in the `read_memory` tool description so the prompt prefix stays cacheable. Saves and deletes take a per-project advisory lock, and a project holds at most 200 memories. When a project is at that cap, `FinishTurn` triggers a consolidation, at most hourly per project, that shows the model the name and description index only and applies its deletions and merges; merged bodies are appended verbatim, never rewritten.
+Root chats in a project share durable memory; other chats have none. The agent saves memory itself with `save_memory`; there is no background extraction. The system prompt gets only the memory guidance block; the live index lives in the `read_memory` tool description so the prompt prefix stays cacheable. Saves and deletes take a per-project advisory lock, and a project holds at most 200 memories. There is no background cleanup: from 180 memories `save_memory` results carry a reminder to prune, and at the cap a save of a new name fails with an error telling the agent to delete or fold in the same turn.
 
 ##### Reasoning effort
 

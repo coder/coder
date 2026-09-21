@@ -493,14 +493,13 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"compaction_requested_at":     ActionIgnore, // Internal one-shot manual compaction signal.
 	},
 	&database.ChatProject{}: {
-		"id":                     ActionTrack,
-		"organization_id":        ActionTrack,
-		"owner_id":               ActionTrack,
-		"name":                   ActionTrack,
-		"description":            ActionTrack,
-		"created_at":             ActionIgnore,
-		"updated_at":             ActionIgnore,
-		"memory_consolidated_at": ActionIgnore,
+		"id":              ActionTrack,
+		"organization_id": ActionTrack,
+		"owner_id":        ActionTrack,
+		"name":            ActionTrack,
+		"description":     ActionTrack,
+		"created_at":      ActionIgnore,
+		"updated_at":      ActionIgnore,
 	},
 	&database.ChatProjectMemory{}: {
 		"id":              ActionTrack,

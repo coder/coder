@@ -5289,8 +5289,6 @@ type ChatProject struct {
 	Description    string    `db:"description" json:"description"`
 	CreatedAt      time.Time `db:"created_at" json:"created_at"`
 	UpdatedAt      time.Time `db:"updated_at" json:"updated_at"`
-	// When project memory was last consolidated at the cap; rate-limits the next run.
-	MemoryConsolidatedAt sql.NullTime `db:"memory_consolidated_at" json:"memory_consolidated_at"`
 }
 
 // Organization-scoped durable memories for chat projects.
