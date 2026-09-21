@@ -67,6 +67,7 @@ type FilterComboboxRootProps = {
 	highlightResetVersion?: number;
 	/** Accessible label for the input. cmdk wires it via `aria-labelledby`. */
 	label?: string;
+	className?: string;
 	children?: ReactNode;
 };
 
@@ -90,6 +91,7 @@ export function FilterComboboxRoot({
 	onItemHighlighted,
 	highlightResetVersion = 0,
 	label,
+	className,
 	children,
 }: FilterComboboxRootProps) {
 	const anchorRef = useRef<HTMLDivElement | null>(null);
@@ -113,7 +115,7 @@ export function FilterComboboxRoot({
 					shouldFilter={false}
 					loop
 					label={label}
-					className="flex w-full flex-col"
+					className={cn("flex w-full flex-col", className)}
 					value={highlightedValue}
 					onValueChange={(highlighted) => {
 						setHighlightedValue(highlighted);

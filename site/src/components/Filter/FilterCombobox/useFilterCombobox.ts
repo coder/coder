@@ -267,19 +267,47 @@ export const useFilterCombobox = ({
 		() => queryToChips(value, chipKeys),
 		[chipKeys, value],
 	);
+	// Categories with a flyout or drill-in list. Inline categories render their
+	// options directly in the main panel and never enter category mode.
+	const submenuCategories = useMemo(
+		() => categories.filter((category) => !category.inlineOptions),
+		[categories],
+	);
+	const inlineCategories = useMemo(
+		() => categories.filter((category) => category.inlineOptions),
+		[categories],
+	);
+	const typeaheadActive = activeCategoryKey === null && isBrowsing;
+	// A typed `status:` style prefix for an inline category narrows the main
+	// panel to that category's options; the text after the colon is the query.
+	const typedInlinePrefix = useMemo(
+		() =>
+			typeaheadActive && !browseAll
+				? parseTypedCategoryPrefix(inputValue, inlineCategories)
+				: null,
+		[typeaheadActive, browseAll, inputValue, inlineCategories],
+	);
 
 	const listedCategories = useMemo<FilterCategory[]>(() => {
-		if (activeCategoryKey !== null || !isBrowsing) {
+		if (!open || typedInlinePrefix !== null) {
 			return [];
 		}
-		const submenuCategories = categories.filter(
-			(category) => !category.inlineOptions,
-		);
-		if (browseAll || inputValue.trim().length === 0) {
+		if (
+			activeCategoryKey !== null ||
+			browseAll ||
+			inputValue.trim().length === 0
+		) {
 			return submenuCategories;
 		}
 		return matchCategories(inputValue, submenuCategories);
-	}, [activeCategoryKey, browseAll, isBrowsing, categories, inputValue]);
+	}, [
+		activeCategoryKey,
+		browseAll,
+		open,
+		submenuCategories,
+		inputValue,
+		typedInlinePrefix,
+	]);
 
 	const activeOptionsQuerySource = activeCategoryKey !== null ? inputValue : "";
 	const debouncedActiveOptionsQuery = useDebouncedValue(
@@ -312,8 +340,8 @@ export const useFilterCombobox = ({
 	};
 
 	const typeaheadQuerySource =
-		activeCategoryKey === null && isBrowsing && !browseAll
-			? inputValue.trim()
+		typeaheadActive && !browseAll
+			? (typedInlinePrefix?.query ?? inputValue).trim()
 			: "";
 	const debouncedTypeaheadQuery = useDebouncedValue(
 		typeaheadQuerySource,
@@ -330,8 +358,9 @@ export const useFilterCombobox = ({
 				category.getOptions,
 				debouncedTypeaheadQuery,
 				debouncedTypeaheadQuery.length > 0 &&
-					activeCategoryKey === null &&
-					isBrowsing,
+					typeaheadActive &&
+					(typedInlinePrefix === null ||
+						typedInlinePrefix.categoryKey === category.key),
 			),
 		),
 		// Derive the per-category map and loading/error flags through `combine` so
@@ -394,7 +423,7 @@ export const useFilterCombobox = ({
 		},
 	});
 	const inlineOptionsSource =
-		browseAll || inputValue.trim().length === 0
+		typeaheadQuerySource.length === 0
 			? previewOptions.optionsByKey
 			: typeaheadQueryPending
 				? new Map<string, readonly FilterOption[]>()
@@ -419,10 +448,14 @@ export const useFilterCombobox = ({
 		});
 	const inlineOptions = useMemo(
 		() =>
-			activeCategoryKey !== null || !isBrowsing
-				? []
-				: inlineOptionsFor(inlineOptionsSource),
-		[activeCategoryKey, chipValues, inlineOptionsSource, isBrowsing],
+			open
+				? inlineOptionsFor(inlineOptionsSource).filter(
+						(option) =>
+							typedInlinePrefix === null ||
+							option.categoryKey === typedInlinePrefix.categoryKey,
+					)
+				: [],
+		[chipValues, inlineOptionsSource, open, typedInlinePrefix],
 	);
 	const mainInlineOptions = useMemo(
 		() => inlineOptionsFor(previewOptions.optionsByKey),
@@ -430,11 +463,11 @@ export const useFilterCombobox = ({
 	);
 
 	const valueSuggestions =
-		activeCategoryKey !== null || !isBrowsing || typeaheadQueryPending
+		!typeaheadActive || typeaheadQueryPending || typedInlinePrefix !== null
 			? []
 			: collectValueSuggestions(
 					inputValue,
-					categories.filter((category) => !category.inlineOptions),
+					submenuCategories,
 					suggestionOptions.optionsByKey,
 					chipValues,
 				);
@@ -452,7 +485,6 @@ export const useFilterCombobox = ({
 
 	const typeaheadError = suggestionsError;
 
-	const typeaheadActive = activeCategoryKey === null && isBrowsing;
 	const hasTypeaheadQuery = typeaheadActive && inputValue.trim().length > 0;
 	const typeaheadLoading =
 		hasTypeaheadQuery &&
@@ -601,30 +633,46 @@ export const useFilterCombobox = ({
 		dispatch({ type: "openBrowsing" });
 	};
 
+	// Text typed ahead of a `key:` prefix is committed on the spot. Chip tokens
+	// in it (e.g. a pasted `owner:me template:docker`) become chips rather than
+	// free text that would duplicate the token on the next commit.
+	const commitTextBeforePrefix = (text: string) => {
+		const priorChips = queryToChips(text, chipKeys);
+		const mergedChips = dedupeChips([...chipValues, ...priorChips], chipKeys);
+		const freeText = extractFreeText(text, chipKeys);
+		emitQuery(composeFilterQuery(mergedChips, chipKeys, freeText), true);
+		return freeText;
+	};
+
 	const handleInputValueChange = (nextValue: string) => {
-		const typedCategory = parseTypedCategoryPrefix(nextValue, categories);
+		const typedCategory = parseTypedCategoryPrefix(
+			nextValue,
+			submenuCategories,
+		);
 		if (typedCategory) {
-			// Promote any chip tokens sitting in the prefix's free text (e.g. a
-			// pasted `owner:me template:docker`) instead of re-emitting them as
-			// free text, which would duplicate the token on the next commit.
-			const priorChips = queryToChips(typedCategory.freeText, chipKeys);
-			const mergedChips = dedupeChips([...chipValues, ...priorChips], chipKeys);
-			const cleanedFreeText = extractFreeText(typedCategory.freeText, chipKeys);
-			emitQuery(
-				composeFilterQuery(mergedChips, chipKeys, cleanedFreeText),
-				true,
-			);
 			dispatch({
 				type: "enterCategory",
 				categoryKey: typedCategory.categoryKey,
 				query: typedCategory.query,
-				committedFreeText: cleanedFreeText,
+				committedFreeText: commitTextBeforePrefix(typedCategory.freeText),
 			});
 			return;
 		}
 
 		if (mode === "category") {
 			dispatch({ type: "typeInCategory", value: nextValue });
+			return;
+		}
+
+		// Inline category prefixes are filter search, never workspace search, so
+		// the prefix itself is withheld until an option is picked.
+		const typedInline = parseTypedCategoryPrefix(nextValue, inlineCategories);
+		if (typedInline) {
+			dispatch({
+				type: "setCommittedFreeText",
+				value: commitTextBeforePrefix(typedInline.freeText),
+			});
+			dispatch({ type: "typeFilterSearch", value: nextValue });
 			return;
 		}
 
@@ -803,13 +851,7 @@ export const useFilterCombobox = ({
 		inlineOptions,
 		mainInlineOptions,
 		chipValues,
-		// Derived typeahead view-model, so the view renders flags instead of
-		// recomputing loading/visibility from raw query state.
-		typeahead: {
-			active: typeaheadActive,
-			loading: typeaheadLoading,
-			error: typeaheadError,
-		},
+		typeaheadError,
 		actions: {
 			setInputRef: (node: HTMLInputElement | null) => {
 				inputRef.current = node;

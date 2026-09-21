@@ -591,6 +591,53 @@ export const AttributesAreSingleSelect: Story = {
 	},
 };
 
+// Typing an inline category prefix narrows the main panel to that category
+// instead of opening a second panel beside it.
+export const TypedInlinePrefix: Story = {
+	render: () => (
+		<FilterComboboxHarness
+			initialQuery=""
+			categories={categoriesWithAttributes}
+		/>
+	),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+		const input = canvas.getByRole("combobox", {
+			name: "Search and filter…",
+		});
+		await userEvent.click(input);
+		await userEvent.type(input, "status:");
+		await body.findByRole("option", { name: "Running" });
+	},
+};
+
+// The pointer flyout follows the cmdk highlight, so keyboard navigation into
+// the inline groups closes it.
+export const KeyboardHighlightClosesFlyout: Story = {
+	render: () => (
+		<FilterComboboxHarness
+			initialQuery=""
+			categories={categoriesWithAttributes}
+		/>
+	),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+		await userEvent.click(
+			canvas.getByRole("button", { name: "Toggle filters" }),
+		);
+		await userEvent.hover(await body.findByRole("option", { name: "Owner" }));
+		await body.findByRole("button", { name: "alice" });
+		await userEvent.keyboard("{ArrowDown}");
+		await waitFor(() =>
+			expect(
+				body.queryByRole("button", { name: "alice" }),
+			).not.toBeInTheDocument(),
+		);
+	},
+};
+
 // Escape closes the popup without clearing the committed chips.
 export const DismissOnEscape: Story = {
 	render: () => <FilterComboboxHarness initialQuery="owner:me" />,

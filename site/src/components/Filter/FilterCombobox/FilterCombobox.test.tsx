@@ -156,6 +156,48 @@ describe("FilterCombobox", () => {
 		);
 	});
 
+	it("keeps a typed inline category prefix as filter search", async () => {
+		const user = userEvent.setup();
+		const onChange = vi.fn();
+		render(
+			<FilterComboboxHarness
+				categories={[ownerCategory, statusCategory]}
+				onChange={onChange}
+			/>,
+		);
+
+		const input = screen.getByRole("combobox", { name: "Search and filter" });
+		await user.click(input);
+		await user.type(input, "status:");
+
+		await user.click(await screen.findByRole("option", { name: "Running" }));
+		await waitFor(() =>
+			expect(onChange).toHaveBeenLastCalledWith("status:running"),
+		);
+		expect(onChange).not.toHaveBeenCalledWith("status:");
+		expect(input).toHaveValue("");
+	});
+
+	it("selects an inline option by keyboard after hovering a category", async () => {
+		const user = userEvent.setup();
+		const onChange = vi.fn();
+		render(
+			<FilterComboboxHarness
+				categories={[ownerCategory, statusCategory]}
+				onChange={onChange}
+			/>,
+		);
+
+		await user.click(screen.getByRole("button", { name: "Toggle filters" }));
+		await user.hover(await screen.findByRole("option", { name: "Owner" }));
+		await screen.findByRole("button", { name: "alice" });
+
+		await user.keyboard("{ArrowDown}{Enter}");
+		await waitFor(() =>
+			expect(onChange).toHaveBeenLastCalledWith("status:running"),
+		);
+	});
+
 	it("removes a selected inline option", async () => {
 		const user = userEvent.setup();
 		const onChange = vi.fn();
