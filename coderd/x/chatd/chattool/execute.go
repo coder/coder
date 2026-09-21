@@ -88,55 +88,6 @@ type ExecuteResult struct {
 	Command             string                          `json:"command,omitempty"`
 	Running             bool                            `json:"running,omitempty"`
 	Backgrounded        bool                            `json:"backgrounded,omitempty"`
-	// Hooks lists the workspace hooks that ran for this call and their
-	// decisions. PROTOTYPE (CODAGT-1083).
-	Hooks []workspacesdk.HookDecision `json:"hooks,omitempty"`
-}
-
-// hookDenied reports whether a workspace hook denied the call.
-func hookDenied(hooks []workspacesdk.HookDecision) bool {
-	for _, h := range hooks {
-		if h.Decision == "deny" {
-			return true
-		}
-	}
-	return false
-}
-
-// hookDeniedResult renders a workspace hook denial the way the
-// deployment lifecycle hook renders one: the model must read it as a
-// policy decision, not a tool failure, or it retries.
-func hookDeniedResult(hooks []workspacesdk.HookDecision) fantasy.ToolResponse {
-	var denied workspacesdk.HookDecision
-	for _, h := range hooks {
-		if h.Decision == "deny" {
-			denied = h
-			break
-		}
-	}
-	message := "This tool usage was blocked by a workspace hook"
-	if denied.Hook != "" {
-		message += fmt.Sprintf(" (%q)", denied.Hook)
-	}
-	message += "; the command was not executed."
-	if reason := strings.TrimSpace(denied.Reason); reason != "" {
-		message += " Reason: " + reason + "."
-	}
-	message += " This is a policy decision declared in the workspace, not a" +
-		" tool or workspace failure; retrying the same call will be denied" +
-		" again. Explain the block to the user and adjust your approach."
-	if ctx := strings.TrimSpace(denied.ModelContext); ctx != "" {
-		message += "\n\n" + ctx
-	}
-	data, err := json.Marshal(ExecuteResult{
-		Success: false,
-		Error:   message,
-		Hooks:   hooks,
-	})
-	if err != nil {
-		return fantasy.NewTextErrorResponse(message)
-	}
-	return fantasy.NewTextResponse(string(data))
 }
 
 // ExecuteOptions configures the execute tool.
@@ -174,7 +125,7 @@ func Execute(options ExecuteOptions) fantasy.AgentTool {
 	return fantasy.NewAgentTool(
 		ExecuteToolName,
 		"Execute a shell command in the workspace. Runs under \"sh -c\" (POSIX). Waits for completion up to the timeout (default 10s, override with the timeout parameter e.g. '30s', '5m'). If the command exceeds the timeout, the response includes a background_process_id; use process_output with that ID to re-attach and wait for the result. Use run_in_background=true for persistent processes (dev servers, file watchers) or when you want to continue other work while the command runs. Never use shell '&' for backgrounding.",
-		func(ctx context.Context, args ExecuteArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
+		func(ctx context.Context, args ExecuteArgs, call fantasy.ToolCall) (fantasy.ToolResponse, error) {
 			if options.GetWorkspaceConn == nil {
 				return fantasy.NewTextErrorResponse("workspace connection resolver is not configured"), nil
 			}
@@ -182,7 +133,7 @@ func Execute(options ExecuteOptions) fantasy.AgentTool {
 			if err != nil {
 				return fantasy.NewTextErrorResponse(err.Error()), nil
 			}
-			return executeTool(ctx, conn, args, options), nil
+			return executeTool(workspacesdk.WithToolCallID(ctx, call.ID), conn, args, options), nil
 		},
 	)
 }
@@ -246,23 +197,22 @@ func executeBackground(
 		Background: true,
 	})
 	if err != nil {
+		if message, hooks, denied := workspaceHookDenial(err, "command"); denied {
+			return withWorkspaceHooks(errorResult(message), hooks)
+		}
 		return errorResult(enrichStartError(fmt.Sprintf("start background process: %v", err)))
-	}
-	if hookDenied(resp.Hooks) {
-		return hookDeniedResult(resp.Hooks)
 	}
 
 	result := ExecuteResult{
 		Success:             true,
 		BackgroundProcessID: resp.ID,
 		Backgrounded:        true,
-		Hooks:               resp.Hooks,
 	}
 	data, err := json.Marshal(result)
 	if err != nil {
 		return fantasy.NewTextErrorResponse(err.Error())
 	}
-	return fantasy.NewTextResponse(string(data))
+	return withWorkspaceHooks(fantasy.NewTextResponse(string(data)), resp.Hooks)
 }
 
 // executeForeground starts a process and waits for its
@@ -301,15 +251,14 @@ func executeForeground(
 		Background: false,
 	})
 	if err != nil {
+		if message, hooks, denied := workspaceHookDenial(err, "command"); denied {
+			return withWorkspaceHooks(errorResult(message), hooks)
+		}
 		return errorResult(enrichStartError(fmt.Sprintf("start process: %v", err)))
-	}
-	if hookDenied(resp.Hooks) {
-		return hookDeniedResult(resp.Hooks)
 	}
 
 	result := waitForProcess(cmdCtx, ctx, conn, resp.ID, timeout)
 	result.WallDurationMs = time.Since(start).Milliseconds()
-	result.Hooks = resp.Hooks
 
 	// Add an advisory note for file-dump commands.
 	if note := detectFileDump(args.Command); note != "" {
@@ -320,7 +269,7 @@ func executeForeground(
 	if err != nil {
 		return fantasy.NewTextErrorResponse(err.Error())
 	}
-	return fantasy.NewTextResponse(string(data))
+	return withWorkspaceHooks(fantasy.NewTextResponse(string(data)), resp.Hooks)
 }
 
 // truncateOutput safely truncates output to maxOutputToModel,

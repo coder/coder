@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -17,8 +18,10 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
+	"github.com/coder/coder/v2/agent/agentchat"
 	"github.com/coder/coder/v2/agent/agentexec"
 	"github.com/coder/coder/v2/agent/usershell"
+	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/codersdk/x/agenthooks"
 )
@@ -31,9 +34,10 @@ import (
 //   - hooks inherit the agent process environment (no allowlist);
 //   - matchers are exact tool names or "*" (no regex, no argument
 //     filters);
-//   - no tool_use_id is available on the agent, so it is empty;
 //   - every failure (crash, timeout, malformed output) fails closed
-//     for pre_tool_use, with no per-hook override yet.
+//     for pre_tool_use, with no per-hook override yet;
+//   - the tool input a hook sees is rebuilt by the agent handler from
+//     the HTTP request, so it can lag the chattool argument schema.
 
 const (
 	// DefaultFileName is the hooks file looked up in the workspace
@@ -140,60 +144,133 @@ func (r *Runner) load() ([]located, error) {
 	return hooks, nil
 }
 
-// PreToolUse runs every pre_tool_use hook matching toolName, in
-// declaration order, stopping at the first deny. It returns one
-// decision per hook that ran. A load failure is reported as a single
-// denying decision so the caller does not have to distinguish "no
-// hooks" from "hooks broken".
-func (r *Runner) PreToolUse(ctx context.Context, chatID uuid.UUID, toolName string, toolInput any) []workspacesdk.HookDecision {
+// ToolCall identifies the tool invocation a hook is asked about.
+type ToolCall struct {
+	ChatID    uuid.UUID
+	ToolUseID string
+	ToolName  string
+	// Input is the tool input as the hook sees it. It must marshal to
+	// the same JSON shape an input_override is expected to use.
+	Input any
+}
+
+// Outcome is the combined result of every hook that ran for one call.
+type Outcome struct {
+	Decisions []workspacesdk.HookDecision
+	// Input is the final tool input after any input_override, or nil
+	// when no hook rewrote it.
+	Input json.RawMessage
+}
+
+// Denied reports whether any hook denied the call.
+func (o Outcome) Denied() bool {
+	for _, d := range o.Decisions {
+		if d.Decision == workspacesdk.HookDecisionDeny {
+			return true
+		}
+	}
+	return false
+}
+
+// Rewritten reports whether a hook replaced the tool input.
+func (o Outcome) Rewritten() bool {
+	return len(o.Input) > 0
+}
+
+// PreToolHook is the seam agent handlers call before doing tool work.
+// A nil hook means hooks are disabled.
+type PreToolHook func(ctx context.Context, call ToolCall) Outcome
+
+// Gate runs hook for call and, when it denies, writes the 403 denial
+// response. It returns false when the handler must stop. Handlers
+// pass the request so the chat and tool call IDs come from the same
+// headers chatd already sends.
+func Gate(rw http.ResponseWriter, r *http.Request, hook PreToolHook, toolName string, input any) (Outcome, bool) {
+	if hook == nil {
+		return Outcome{}, true
+	}
+	ctx := r.Context()
+	call := ToolCall{
+		ToolUseID: r.Header.Get(workspacesdk.CoderToolCallIDHeader),
+		ToolName:  toolName,
+		Input:     input,
+	}
+	if chatContext, ok := agentchat.FromContext(ctx); ok {
+		call.ChatID = chatContext.ID
+	}
+	outcome := hook(ctx, call)
+	if !outcome.Denied() {
+		return outcome, true
+	}
+	rw.Header().Set(workspacesdk.CoderWorkspaceHookHeader, workspacesdk.HookDecisionDeny)
+	httpapi.Write(ctx, rw, http.StatusForbidden, workspacesdk.HookDeniedResponse{
+		Message: (&workspacesdk.HookDeniedError{Hooks: outcome.Decisions}).Error(),
+		Hooks:   outcome.Decisions,
+	})
+	return outcome, false
+}
+
+// PreToolUse runs every pre_tool_use hook matching the call, in
+// declaration order, stopping at the first deny. An allow with
+// input_override replaces the input for the remaining hooks and for
+// the tool. A load failure is reported as a single denying decision so
+// the caller does not have to distinguish "no hooks" from "hooks
+// broken".
+func (r *Runner) PreToolUse(ctx context.Context, call ToolCall) Outcome {
+	denyAll := func(reason string, err error) Outcome {
+		return Outcome{Decisions: []workspacesdk.HookDecision{{
+			Event:    string(agenthooks.EventPreToolUse),
+			Decision: workspacesdk.HookDecisionDeny,
+			Reason:   reason,
+			Error:    err.Error(),
+		}}}
+	}
 	hooks, err := r.load()
 	if err != nil {
-		return []workspacesdk.HookDecision{{
-			Event:    string(agenthooks.EventPreToolUse),
-			Decision: string(agenthooks.PermissionDeny),
-			Reason:   "hooks file could not be loaded",
-			Error:    err.Error(),
-		}}
+		return denyAll("hooks file could not be loaded", err)
 	}
 
-	input, err := json.Marshal(toolInput)
+	input, err := json.Marshal(call.Input)
 	if err != nil {
-		return []workspacesdk.HookDecision{{
-			Event:    string(agenthooks.EventPreToolUse),
-			Decision: string(agenthooks.PermissionDeny),
-			Reason:   "tool input could not be encoded",
-			Error:    err.Error(),
-		}}
+		return denyAll("tool input could not be encoded", err)
 	}
-	data, _ := json.Marshal(agenthooks.PreToolUseData{
-		ToolName:  toolName,
-		ToolInput: input,
-	})
 
-	var decisions []workspacesdk.HookDecision
+	var out Outcome
 	for _, h := range hooks {
 		if h.Event != string(agenthooks.EventPreToolUse) {
 			continue
 		}
-		if h.Matcher != "" && h.Matcher != "*" && h.Matcher != toolName {
+		if h.Matcher != "" && h.Matcher != "*" && h.Matcher != call.ToolName {
 			continue
 		}
+		current := input
+		if out.Input != nil {
+			current = out.Input
+		}
+		data, _ := json.Marshal(agenthooks.PreToolUseData{
+			ToolUseID: call.ToolUseID,
+			ToolName:  call.ToolName,
+			ToolInput: current,
+		})
 		req := agenthooks.Request{
 			Type: agenthooks.EventPreToolUse,
 			Meta: agenthooks.Meta{
 				DispatchID:    uuid.New(),
 				SchemaVersion: agenthooks.SchemaVersion,
-				ChatRef:       agenthooks.ChatRef{ChatID: chatID},
+				ChatRef:       agenthooks.ChatRef{ChatID: call.ChatID},
 			},
 			Data: data,
 		}
 		d := r.run(ctx, h, req)
-		decisions = append(decisions, d)
-		if d.Decision == string(agenthooks.PermissionDeny) {
+		out.Decisions = append(out.Decisions, d)
+		if d.Decision == workspacesdk.HookDecisionDeny {
 			break
 		}
+		if len(d.InputOverride) > 0 {
+			out.Input = d.InputOverride
+		}
 	}
-	return decisions
+	return out
 }
 
 func (r *Runner) run(ctx context.Context, h located, req agenthooks.Request) workspacesdk.HookDecision {
@@ -267,6 +344,9 @@ func (r *Runner) run(ctx context.Context, h located, req agenthooks.Request) wor
 	if resp.Permission != nil {
 		switch resp.Permission.Decision {
 		case agenthooks.PermissionAllow:
+			if len(resp.Permission.InputOverride) > 0 && !json.Valid(resp.Permission.InputOverride) {
+				return deny(fmt.Sprintf("hook %q returned an invalid input_override", h.Name), nil)
+			}
 			decision.InputOverride = resp.Permission.InputOverride
 		case agenthooks.PermissionDeny:
 			decision.Decision = string(agenthooks.PermissionDeny)

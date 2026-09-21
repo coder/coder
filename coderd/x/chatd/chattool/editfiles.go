@@ -34,7 +34,8 @@ func EditFiles(options EditFilesOptions) fantasy.AgentTool {
 			" old_text matches zero locations, or more than one unless"+
 			" replace_all is set. All edits in a batch are validated before"+
 			" any file is written.",
-		func(ctx context.Context, args EditFilesArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
+		func(ctx context.Context, args EditFilesArgs, call fantasy.ToolCall) (fantasy.ToolResponse, error) {
+			ctx = workspacesdk.WithToolCallID(ctx, call.ID)
 			if len(args.Files) == 0 {
 				return fantasy.NewTextErrorResponse("files is required"), nil
 			}
@@ -119,12 +120,15 @@ func executeEditFilesTool(
 		IncludeDiff: true,
 	})
 	if err != nil {
+		if message, hooks, denied := workspaceHookDenial(err, "edit"); denied {
+			return withWorkspaceHooks(fantasy.NewTextErrorResponse(message+" No files in this batch were applied."), hooks), nil
+		}
 		return fantasy.NewTextErrorResponse(agentAPIErrorMessage(err)), nil
 	}
-	return toolResponse(map[string]any{
+	return withWorkspaceHooks(toolResponse(map[string]any{
 		"ok":    true,
 		"files": resp.Files,
-	}), nil
+	}), resp.Hooks), nil
 }
 
 // agentAPIErrorMessage preserves the agent's actionable message while

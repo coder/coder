@@ -17,6 +17,7 @@ import (
 	"github.com/coder/coder/v2/agent/agentchat"
 	"github.com/coder/coder/v2/agent/agentexec"
 	"github.com/coder/coder/v2/agent/agentgit"
+	"github.com/coder/coder/v2/agent/agenthooks"
 	"github.com/coder/coder/v2/agent/usershell"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/codersdk"
@@ -36,17 +37,22 @@ type API struct {
 	manager   *manager
 	pathStore *agentgit.PathStore
 	// preToolHook, when set, runs workspace hooks before a command
-	// starts and returns the decisions. PROTOTYPE (CODAGT-1083).
-	preToolHook PreToolHookFunc
+	// starts. PROTOTYPE (CODAGT-1083).
+	preToolHook agenthooks.PreToolHook
 }
 
-// PreToolHookFunc runs pre_tool_use hooks for a tool call and returns
-// one decision per hook that ran.
-type PreToolHookFunc func(ctx context.Context, chatID uuid.UUID, toolName string, toolInput any) []workspacesdk.HookDecision
+// executeHookInput is the execute tool input as hooks see it and as an
+// input_override must be shaped. Env is chatd-managed and stays out of
+// reach of hooks.
+type executeHookInput struct {
+	Command    string `json:"command"`
+	WorkDir    string `json:"workdir,omitempty"`
+	Background bool   `json:"background,omitempty"`
+}
 
 // SetPreToolHook installs the workspace hook runner. Passing nil
 // disables hooks.
-func (api *API) SetPreToolHook(fn PreToolHookFunc) {
+func (api *API) SetPreToolHook(fn agenthooks.PreToolHook) {
 	api.preToolHook = fn
 }
 
@@ -96,29 +102,32 @@ func (api *API) handleStartProcess(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	var chatID string
-	var chatUUID uuid.UUID
 	if chatContext, ok := agentchat.FromContext(ctx); ok {
 		chatID = chatContext.ID.String()
-		chatUUID = chatContext.ID
 	}
 
-	var decisions []workspacesdk.HookDecision
-	if api.preToolHook != nil {
-		decisions = api.preToolHook(ctx, chatUUID, "execute", map[string]any{
-			"command":    req.Command,
-			"workdir":    req.WorkDir,
-			"background": req.Background,
-		})
-		for _, d := range decisions {
-			if d.Decision == "deny" {
-				httpapi.Write(ctx, rw, http.StatusOK, workspacesdk.StartProcessResponse{
-					Started: false,
-					Hooks:   decisions,
-				})
-				return
-			}
-		}
+	hooks, ok := agenthooks.Gate(rw, r, api.preToolHook, "execute", executeHookInput{
+		Command:    req.Command,
+		WorkDir:    req.WorkDir,
+		Background: req.Background,
+	})
+	if !ok {
+		return
 	}
+	if hooks.Rewritten() {
+		var rewritten executeHookInput
+		if err := json.Unmarshal(hooks.Input, &rewritten); err != nil || rewritten.Command == "" {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Workspace hook returned an unusable input_override for execute.",
+				Detail:  fmt.Sprintf("override %s: %v", hooks.Input, err),
+			})
+			return
+		}
+		req.Command = rewritten.Command
+		req.WorkDir = rewritten.WorkDir
+		req.Background = rewritten.Background
+	}
+	decisions := hooks.Decisions
 
 	proc, err := api.manager.start(req, chatID)
 	if err != nil {

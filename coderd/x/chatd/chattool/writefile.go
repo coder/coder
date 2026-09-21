@@ -24,7 +24,8 @@ func WriteFile(options WriteFileOptions) fantasy.AgentTool {
 	return fantasy.NewAgentTool(
 		"write_file",
 		"Write a file to the workspace.",
-		func(ctx context.Context, args WriteFileArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
+		func(ctx context.Context, args WriteFileArgs, call fantasy.ToolCall) (fantasy.ToolResponse, error) {
+			ctx = workspacesdk.WithToolCallID(ctx, call.ID)
 			var planPath string
 			if options.IsPlanTurn {
 				args.Path = strings.TrimSpace(args.Path)
@@ -79,8 +80,12 @@ func executeWriteFileTool(
 		}
 	}
 
-	if err := conn.WriteFile(ctx, requestedPath, strings.NewReader(args.Content)); err != nil {
+	resp, err := conn.WriteFile(ctx, requestedPath, strings.NewReader(args.Content))
+	if err != nil {
+		if message, hooks, denied := workspaceHookDenial(err, "write"); denied {
+			return withWorkspaceHooks(fantasy.NewTextErrorResponse(message), hooks), nil
+		}
 		return fantasy.NewTextErrorResponse(err.Error()), nil
 	}
-	return toolResponse(map[string]any{"ok": true}), nil
+	return withWorkspaceHooks(toolResponse(map[string]any{"ok": true}), resp.Hooks), nil
 }
