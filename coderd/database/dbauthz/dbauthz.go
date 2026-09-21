@@ -3592,6 +3592,14 @@ func (q *querier) GetChatMessagesByRevisionForStream(ctx context.Context, arg da
 	return q.db.GetChatMessagesByRevisionForStream(ctx, arg)
 }
 
+func (q *querier) GetChatMessagesForMemoryExtraction(ctx context.Context, arg database.GetChatMessagesForMemoryExtractionParams) ([]database.ChatMessage, error) {
+	// Authorize read on the parent chat.
+	if _, err := q.GetChatByID(ctx, arg.ChatID); err != nil {
+		return nil, err
+	}
+	return q.db.GetChatMessagesForMemoryExtraction(ctx, arg)
+}
+
 func (q *querier) GetChatMessagesForPromptByChatID(ctx context.Context, chatID uuid.UUID) ([]database.ChatMessage, error) {
 	// Authorize read on the parent chat.
 	_, err := q.GetChatByID(ctx, chatID)

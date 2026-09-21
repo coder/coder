@@ -504,6 +504,10 @@ type sqlcQuerier interface {
 	GetChatMessagesByChatIDDescPaginated(ctx context.Context, arg GetChatMessagesByChatIDDescPaginatedParams) ([]ChatMessage, error)
 	// Stream deltas and reset snapshots must use the same message order.
 	GetChatMessagesByRevisionForStream(ctx context.Context, arg GetChatMessagesByRevisionForStreamParams) ([]ChatMessage, error)
+	// Unpruned history above a revision. The prompt query hides rows behind the
+	// latest compaction boundary, but extraction must still see the original
+	// user turns; callers filter injected model-only rows themselves.
+	GetChatMessagesForMemoryExtraction(ctx context.Context, arg GetChatMessagesForMemoryExtractionParams) ([]ChatMessage, error)
 	// The compaction boundary and final ordering must use the same key so tool
 	// results remain after their assistant calls.
 	GetChatMessagesForPromptByChatID(ctx context.Context, chatID uuid.UUID) ([]ChatMessage, error)

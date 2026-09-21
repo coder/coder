@@ -3236,6 +3236,21 @@ func (mr *MockStoreMockRecorder) GetChatMessagesByRevisionForStream(ctx, arg any
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatMessagesByRevisionForStream", reflect.TypeOf((*MockStore)(nil).GetChatMessagesByRevisionForStream), ctx, arg)
 }
 
+// GetChatMessagesForMemoryExtraction mocks base method.
+func (m *MockStore) GetChatMessagesForMemoryExtraction(ctx context.Context, arg database.GetChatMessagesForMemoryExtractionParams) ([]database.ChatMessage, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetChatMessagesForMemoryExtraction", ctx, arg)
+	ret0, _ := ret[0].([]database.ChatMessage)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetChatMessagesForMemoryExtraction indicates an expected call of GetChatMessagesForMemoryExtraction.
+func (mr *MockStoreMockRecorder) GetChatMessagesForMemoryExtraction(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatMessagesForMemoryExtraction", reflect.TypeOf((*MockStore)(nil).GetChatMessagesForMemoryExtraction), ctx, arg)
+}
+
 // GetChatMessagesForPromptByChatID mocks base method.
 func (m *MockStore) GetChatMessagesForPromptByChatID(ctx context.Context, chatID uuid.UUID) ([]database.ChatMessage, error) {
 	m.ctrl.T.Helper()

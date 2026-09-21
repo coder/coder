@@ -134,3 +134,14 @@ SET
     ),
     extracted_at = now()
 RETURNING *;
+
+-- name: GetChatMessagesForMemoryExtraction :many
+-- Unpruned history above a revision. The prompt query hides rows behind the
+-- latest compaction boundary, but extraction must still see the original
+-- user turns; callers filter injected model-only rows themselves.
+SELECT *
+FROM chat_messages
+WHERE chat_id = @chat_id::uuid
+    AND revision > @after_revision::bigint
+    AND deleted = false
+ORDER BY id ASC;

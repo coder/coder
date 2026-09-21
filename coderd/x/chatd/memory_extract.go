@@ -143,7 +143,12 @@ func (p *Server) extractMemories(ctx context.Context, logger slog.Logger, chat d
 		if err != nil || current.HistoryVersion <= processedTo {
 			return
 		}
+		chat = current
 	}
+	// The drain budget ran out with work still pending. Hand off to a fresh
+	// extractor with its own deadline rather than leaving that window until
+	// the next turn.
+	p.maybeExtractMemoriesAsync(context.WithoutCancel(ctx), logger, chat)
 }
 
 // extractMemoriesOnce runs one extraction pass from the cursor to the chat's
@@ -172,7 +177,7 @@ func (p *Server) extractMemoriesOnce(ctx context.Context, logger slog.Logger, ch
 		return 0, false
 	}
 
-	messages, err := p.db.GetChatMessagesForPromptByChatID(ctx, chat.ID)
+	messages, err := p.db.GetChatMessagesForMemoryExtraction(ctx, database.GetChatMessagesForMemoryExtractionParams{ChatID: chat.ID, AfterRevision: cursor})
 	if err != nil {
 		logger.Debug(ctx, "failed to load memory transcript", slog.F("chat_id", chat.ID), slog.Error(err))
 		return 0, false

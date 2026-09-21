@@ -19662,3 +19662,59 @@ func TestClaimChatMemoryExtraction(t *testing.T) {
 	_, err = db.ClaimChatMemoryExtraction(ctx, database.ClaimChatMemoryExtractionParams{ChatID: chat.ID, ClaimedUntil: now.Add(time.Minute)})
 	require.NoError(t, err)
 }
+
+func TestGetChatMessagesForMemoryExtraction(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.SkipNow()
+	}
+
+	sqlDB := testSQLDB(t)
+	require.NoError(t, migrations.Up(sqlDB))
+	db := database.New(sqlDB)
+	ctx := testutil.Context(t, testutil.WaitMedium)
+
+	org := dbgen.Organization(t, db, database.Organization{})
+	owner := dbgen.User(t, db, database.User{})
+	_ = dbgen.ChatProvider(t, db, database.ChatProvider{Provider: "openai", DisplayName: "OpenAI"})
+	modelCfg := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+		Model:                "test-model",
+		CreatedBy:            uuid.NullUUID{UUID: owner.ID, Valid: true},
+		UpdatedBy:            uuid.NullUUID{UUID: owner.ID, Valid: true},
+		IsDefault:            true,
+		CompressionThreshold: 80,
+	})
+	chat := dbgen.Chat(t, db, database.Chat{OrganizationID: org.ID, OwnerID: owner.ID, LastModelConfigID: modelCfg.ID})
+	// Revisions come from the chat's snapshot version, so bump it between
+	// inserts the way a turn would.
+	first := dbgen.ChatMessage(t, db, database.ChatMessage{ChatID: chat.ID, Role: database.ChatMessageRoleUser})
+	_, err := db.LockChatAndBumpSnapshotVersion(ctx, chat.ID)
+	require.NoError(t, err)
+	// A compaction summary hides earlier rows from the prompt query, but the
+	// extractor must still see them.
+	summary := dbgen.ChatMessage(t, db, database.ChatMessage{ChatID: chat.ID, Role: database.ChatMessageRoleAssistant, Visibility: database.ChatMessageVisibilityModel, Compressed: true})
+	_, err = db.LockChatAndBumpSnapshotVersion(ctx, chat.ID)
+	require.NoError(t, err)
+	later := dbgen.ChatMessage(t, db, database.ChatMessage{ChatID: chat.ID, Role: database.ChatMessageRoleUser})
+
+	prompt, err := db.GetChatMessagesForPromptByChatID(ctx, chat.ID)
+	require.NoError(t, err)
+	require.NotContains(t, messageIDs(prompt), first.ID)
+	require.Greater(t, later.Revision, summary.Revision)
+
+	all, err := db.GetChatMessagesForMemoryExtraction(ctx, database.GetChatMessagesForMemoryExtractionParams{ChatID: chat.ID, AfterRevision: 0})
+	require.NoError(t, err)
+	require.Equal(t, []int64{first.ID, summary.ID, later.ID}, messageIDs(all))
+
+	fenced, err := db.GetChatMessagesForMemoryExtraction(ctx, database.GetChatMessagesForMemoryExtractionParams{ChatID: chat.ID, AfterRevision: summary.Revision})
+	require.NoError(t, err)
+	require.Equal(t, []int64{later.ID}, messageIDs(fenced))
+}
+
+func messageIDs(messages []database.ChatMessage) []int64 {
+	ids := make([]int64, 0, len(messages))
+	for _, message := range messages {
+		ids = append(ids, message.ID)
+	}
+	return ids
+}
