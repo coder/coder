@@ -128,6 +128,15 @@ file directly.
 We support two release channels: mainline and stable - read the
 [Releases](./releases/index.md) page to learn more about which best suits your team.
 
+> [!TIP]
+> The `--version` examples below are updated on every Coder release, but a
+> newer patch may already be available by the time you read this. Before
+> installing, run `helm repo update` followed by
+> `helm search repo coder-v2/coder --versions` (or check the
+> [releases page](https://github.com/coder/coder/releases)) to confirm the
+> latest mainline/stable version, and use that value instead of copying the
+> example verbatim.
+
 - **Mainline** Coder release:
 
   - **Chart Registry**
@@ -137,7 +146,7 @@ We support two release channels: mainline and stable - read the
     helm install coder coder-v2/coder \
         --namespace coder \
         --values values.yaml \
-        --version 2.35.3
+        --version 2.37.1
     ```
 
   - **OCI Registry**
@@ -148,7 +157,7 @@ We support two release channels: mainline and stable - read the
     helm install coder oci://ghcr.io/coder/chart/coder \
         --namespace coder \
         --values values.yaml \
-        --version 2.35.3
+        --version 2.37.1
     ```
 
 - **Stable** Coder release:
@@ -161,7 +170,7 @@ We support two release channels: mainline and stable - read the
     helm install coder coder-v2/coder \
         --namespace coder \
         --values values.yaml \
-        --version 2.33.6
+        --version 2.36.5
     ```
 
   - **OCI Registry**
@@ -172,7 +181,7 @@ We support two release channels: mainline and stable - read the
     helm install coder oci://ghcr.io/coder/chart/coder \
         --namespace coder \
         --values values.yaml \
-        --version 2.33.6
+        --version 2.36.5
     ```
 
 You can watch Coder start up by running `kubectl get pods -n coder`. Once Coder
