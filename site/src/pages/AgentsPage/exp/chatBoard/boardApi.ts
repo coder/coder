@@ -153,13 +153,18 @@ export const mergeCards = (
 	if (!keep.color && join.color) labels = setColorLabel(labels, join.color);
 	let index = nextCommentIndex(keep.comments);
 	const carried = join.comments.map((c) => [c.text, c.timestamp] as const);
-	if (getTitleLabel(join.primary) && getTitleLabel(keep.primary)) {
+	// The joining card's explicit title has nowhere to go; keep it as a note
+	// whether or not the keeper has a title of its own.
+	if (getTitleLabel(join.primary)) {
 		carried.push([`Merged card: ${join.title}`, Date.now()]);
 	}
 	for (const [text, timestamp] of carried) {
 		Object.assign(labels, commentLabels(index, text, timestamp));
 		index += 1;
 	}
+	// When the source card wins, its other members follow it into the target column.
+	const followers =
+		keep === target ? [] : keep.members.filter((m) => m.id !== keep.id);
 	return {
 		writes: [
 			{ chat: keep.primary, labels },
@@ -170,14 +175,10 @@ export const mergeCards = (
 					target.column,
 				),
 			})),
-			...(keep === target
-				? []
-				: keep.members
-						.filter((member) => member.id !== keep.id)
-						.map((member) => ({
-							chat: member,
-							labels: setColumnLabel(member.labels, target.column),
-						}))),
+			...followers.map((member) => ({
+				chat: member,
+				labels: setColumnLabel(member.labels, target.column),
+			})),
 		],
 		undo: `Merged into "${keep.title}"`,
 	};
@@ -444,11 +445,11 @@ export const moveNote = (
 	const same = from === to;
 	const remaining = from.comments.filter((c) => c.index !== note.index);
 	const list = [...(same ? remaining : to.comments)];
-	const at = slot
-		? list.findIndex((c) => c.index === slot.index) +
-			(slot.side === "after" ? 1 : 0)
-		: list.length;
-	list.splice(at < 0 ? list.length : at, 0, note);
+	// No slot means the end; a slot names a neighbour and which side of it.
+	const neighbour = slot ? list.findIndex((c) => c.index === slot.index) : -1;
+	const at =
+		neighbour < 0 ? list.length : neighbour + (slot?.side === "after" ? 1 : 0);
+	list.splice(at, 0, note);
 	return {
 		writes: [
 			{ chat: to.primary, labels: setCommentsLabels(to.primary.labels, list) },

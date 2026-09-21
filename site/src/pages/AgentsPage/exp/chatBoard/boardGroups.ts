@@ -17,11 +17,11 @@ export const collectBoardGroups = (chats: readonly Chat[]): BoardGroups => {
 	const ids = new Set(chats.map((chat) => chat.id));
 	const members = new Map<string, Chat[]>();
 	for (const chat of chats) {
-		const primaryID = getGroupLabel(chat);
-		if (primaryID === chat.id || !ids.has(primaryID)) continue;
-		const list = members.get(primaryID) ?? [];
+		const primaryId = getGroupLabel(chat);
+		if (primaryId === chat.id || !ids.has(primaryId)) continue;
+		const list = members.get(primaryId) ?? [];
 		list.push(chat);
-		members.set(primaryID, list);
+		members.set(primaryId, list);
 	}
 	return members;
 };
@@ -38,6 +38,6 @@ export const boardSidebarChats = (
 ): { chats: readonly Chat[]; groups: BoardGroups | null } => {
 	if (!enabled) return { chats, groups: null };
 	const groups = collectBoardGroups(chats);
-	const memberIDs = new Set([...groups.values()].flat().map((chat) => chat.id));
-	return { chats: chats.filter((chat) => !memberIDs.has(chat.id)), groups };
+	const memberIds = new Set([...groups.values()].flat().map((chat) => chat.id));
+	return { chats: chats.filter((chat) => !memberIds.has(chat.id)), groups };
 };

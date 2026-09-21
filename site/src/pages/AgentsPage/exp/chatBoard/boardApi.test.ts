@@ -144,6 +144,22 @@ describe("boardApi", () => {
 		expect(mergeCards(state, "s", "nope")).toBeNull();
 	});
 
+	it("mergeCards records the losing title as a note even when the keeper has none", () => {
+		vi.spyOn(Date, "now").mockReturnValue(5);
+		// An untitled group dropped onto a single that kept a board/title
+		// after its group dissolved: the group wins, the title must survive.
+		const state = stateOf([
+			chat("t", { "board/pos": "200", "board/title": "Target" }),
+			chat("s", { "board/pos": "100" }),
+			chat("sm", { "board/group": "s" }),
+		]);
+
+		expect(written(mergeCards(state, "s", "t")).s).toMatchObject({
+			"board/comment.0.timestamp": "5",
+			"board/comment.0.0": "Merged card: Target",
+		});
+	});
+
 	it("joinCard moves one chat out of its card into the target", () => {
 		const state = stateOf([
 			chat("p", { "board/column": "Doing" }),

@@ -1,7 +1,7 @@
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ComponentProps } from "react";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Chat } from "#/api/typesGenerated";
 import { MockChat } from "#/testHelpers/chatEntities";
 import { renderComponent } from "#/testHelpers/renderHelpers";
@@ -48,6 +48,9 @@ const renderCard = (chats: readonly Chat[]) => {
 };
 
 describe("BoardCard", () => {
+	afterEach(() => {
+		vi.restoreAllMocks();
+	});
 	it("reports an edited title as the card title, single chat or group", async () => {
 		const user = userEvent.setup();
 		const { onRenameChat, onSetTitle } = renderCard([chat("p")]);
