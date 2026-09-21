@@ -87,9 +87,8 @@ import {
 	type ChatMessageInputRef,
 } from "./ChatMessageInput/ChatMessageInput";
 import type { SkillMetadata } from "./ChatMessageInput/SkillsTriggerMenu";
-import type { AgentContextUsage } from "./ContextUsageIndicator";
-import { ContextUsageIndicator } from "./ContextUsageIndicator";
 import { ImageLightbox } from "./ImageLightbox";
+
 import { QueuedMessagesList } from "./QueuedMessagesList";
 import { TextPreviewDialog } from "./TextPreviewDialog";
 import { WorkspacePill } from "./WorkspacePill";
@@ -100,7 +99,6 @@ export {
 	type UploadState,
 } from "./AttachmentPreview";
 export type { ChatMessageInputRef } from "./ChatMessageInput/ChatMessageInput";
-export type { AgentContextUsage } from "./ContextUsageIndicator";
 
 interface AgentChatInputProps {
 	onSend: (message: string) => void;
@@ -161,15 +159,6 @@ interface AgentChatInputProps {
 	// Newest-first list of non-empty user prompts for local history cycling.
 	userPromptHistory?: readonly string[];
 
-	// Optional context-usage summary shown to the left of the send button.
-	// Pass `null` to render fallback values (e.g. when limit is unknown).
-	// Omit entirely to hide the indicator.
-	contextUsage?: AgentContextUsage | null;
-	// Re-pins the chat to the workspace's latest context snapshot,
-	// surfaced by the context indicator when the pinned context has
-	// drifted.
-	onRefreshContext?: () => void;
-	isRefreshingContext?: boolean;
 	attachments?: readonly File[];
 	onAttach?: (files: File[]) => void;
 	onRemoveAttachment?: (attachment: number | File) => void;
@@ -221,7 +210,6 @@ const pillSizingClasses =
 type ToolBadgeData =
 	| { kind: "workspace"; name: string }
 	| ({ kind: "attached-workspace" } & AttachedWorkspaceInfo)
-	| { kind: "mcp"; server: TypesGen.MCPServerConfig }
 	| { kind: "planning" };
 
 // Small `X` button rendered inside pill-style badges (attached
@@ -249,7 +237,6 @@ const BadgeDismissButton: FC<{
 const ToolBadge: FC<{
 	badge: ToolBadgeData;
 	onRemoveWorkspace?: () => void;
-	onRemoveMcp?: (serverId: string) => void;
 	onRemovePlanning?: () => void;
 	isDisabled?: boolean;
 	className?: string;
@@ -258,7 +245,6 @@ const ToolBadge: FC<{
 }> = ({
 	badge,
 	onRemoveWorkspace,
-	onRemoveMcp,
 	onRemovePlanning,
 	isDisabled,
 	className,
@@ -337,27 +323,7 @@ const ToolBadge: FC<{
 		);
 	}
 
-	const isForceOn = badge.server.availability === "force_on";
-	return (
-		<span className={badgeCls}>
-			{badge.server.icon_url ? (
-				<ExternalImage
-					src={badge.server.icon_url}
-					alt=""
-					className="size-3 rounded-sm"
-				/>
-			) : (
-				<ServerIcon className="size-3" />
-			)}
-			{badge.server.display_name}
-			{!isForceOn && onRemoveMcp && (
-				<BadgeDismissButton
-					onClick={() => onRemoveMcp(badge.server.id)}
-					ariaLabel={`Remove ${badge.server.display_name}`}
-				/>
-			)}
-		</span>
-	);
+	return null;
 };
 
 export const AgentChatInput: FC<AgentChatInputProps> = ({
@@ -395,9 +361,6 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	isEditingHistoryMessage = false,
 	onCancelHistoryEdit,
 	userPromptHistory = [],
-	contextUsage,
-	onRefreshContext,
-	isRefreshingContext,
 	attachments = [],
 	onAttach,
 	onRemoveAttachment,
@@ -598,17 +561,9 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 		: false;
 
 	const enabledMcpServers = mcpServers?.filter((s) => s.enabled) ?? [];
-	const activeMcpServers = enabledMcpServers.filter(
-		(s) =>
-			(s.availability === "force_on" || selectedMCPServerIds?.includes(s.id)) &&
-			!(s.auth_type === "oauth2" && !s.auth_connected),
-	);
-
 	const badgeContainerRef = useRef<HTMLDivElement>(null);
 
 	const [overflowPopoverOpen, setOverflowPopoverOpen] = useState(false);
-	const shouldOverflowPlanningBadge =
-		planModeEnabled && contextUsage !== undefined;
 
 	let workspacePillBadge: ToolBadgeData | undefined;
 	if (workspace && workspaceAgent && chatId) {
@@ -620,9 +575,6 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	// Ordered list of active tool badge data so we can determine
 	// which ones ended up in the overflow popover.
 	const allBadges: ToolBadgeData[] = [];
-	if (shouldOverflowPlanningBadge) {
-		allBadges.push({ kind: "planning" });
-	}
 	if (workspacePillBadge) {
 		allBadges.push(workspacePillBadge);
 	} else if (attachedWorkspace) {
@@ -630,9 +582,6 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	}
 	if (shouldShowSelectedWorkspaceBadge && selectedWorkspace) {
 		allBadges.push({ kind: "workspace", name: selectedWorkspace.name });
-	}
-	for (const s of activeMcpServers) {
-		allBadges.push({ kind: "mcp", server: s });
 	}
 
 	const overflowCount = useOverflowCount(badgeContainerRef, allBadges.length);
@@ -643,8 +592,6 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	const removeWorkspaceHandler = onWorkspaceChange
 		? handleRemoveWorkspace
 		: undefined;
-	const handleRemoveMcp = (serverId: string) =>
-		handleMcpToggle(serverId, false);
 
 	const handlePlanModeToggle = () => {
 		onPlanModeToggle?.(!planModeEnabled);
@@ -1467,7 +1414,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 								onReasoningEffortChange={onReasoningEffortChange}
 							/>
 						)}
-						{planModeEnabled && !shouldOverflowPlanningBadge && (
+						{planModeEnabled && (
 							<span
 								data-testid="planning-badge"
 								className="hidden shrink-0 items-center gap-1 rounded-full bg-surface-secondary px-2 py-0.5 text-xs font-medium text-content-secondary sm:inline-flex"
@@ -1520,10 +1467,9 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 								}
 								return (
 									<ToolBadge
-										key={badge.kind === "mcp" ? badge.server.id : badge.kind}
+										key={`${badge.kind}-${i}`}
 										badge={badge}
 										onRemoveWorkspace={removeWorkspaceHandler}
-										onRemoveMcp={handleRemoveMcp}
 										onRemovePlanning={
 											onPlanModeToggle ? handleDisablePlanMode : undefined
 										}
@@ -1599,14 +1545,9 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 											<ToolBadge
 												// Non-MCP badges can share a kind, so keys
 												// are position-qualified.
-												key={
-													badge.kind === "mcp"
-														? badge.server.id
-														: `${badge.kind}-overflow-${visibleCount + i}`
-												}
+												key={`${badge.kind}-overflow-${visibleCount + i}`}
 												badge={badge}
 												onRemoveWorkspace={removeWorkspaceHandler}
-												onRemoveMcp={handleRemoveMcp}
 												onRemovePlanning={
 													onPlanModeToggle ? handleDisablePlanMode : undefined
 												}
@@ -1654,23 +1595,6 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 									</span>
 								)}
 							</>
-						)}
-						{contextUsage !== undefined && (
-							<div
-								className={cn(
-									"flex",
-									speech.isSupported &&
-										!isStreaming &&
-										!speech.error &&
-										"-ml-2",
-								)}
-							>
-								<ContextUsageIndicator
-									usage={contextUsage}
-									onRefreshContext={onRefreshContext}
-									isRefreshingContext={isRefreshingContext}
-								/>
-							</div>
 						)}
 						{isStreaming && onInterrupt && (
 							<Tooltip>

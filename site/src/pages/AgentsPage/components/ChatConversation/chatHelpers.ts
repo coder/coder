@@ -1,9 +1,9 @@
 import type * as TypesGen from "#/api/typesGenerated";
 import type { ModelSelectorOption } from "#/modules/aiModels/ModelSelector";
 import { findWorkspaceAgent } from "#/utils/workspace";
-import type { AgentContextUsage } from "../AgentChatInput";
 import { asNumber, asString } from "../ChatElements/runtimeTypeUtils";
 import { parseArgs } from "../ChatElements/tools/utils";
+import type { AgentContextUsage } from "../ChatSummaryResources";
 import { asNonEmptyString } from "./blockUtils";
 
 export const extractContextUsageFromMessage = (
