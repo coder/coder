@@ -74,7 +74,7 @@ func (api *API) postChatProject(rw http.ResponseWriter, r *http.Request) {
 	}
 	if !api.Authorize(r, policy.ActionCreate, database.ChatProject{
 		OrganizationID: req.OrganizationID,
-		CreatedBy:      apiKey.UserID,
+		OwnerID:        apiKey.UserID,
 	}.RBACObject()) {
 		httpapi.Forbidden(rw)
 		return
@@ -92,7 +92,7 @@ func (api *API) postChatProject(rw http.ResponseWriter, r *http.Request) {
 	project, err := api.Database.InsertChatProject(ctx, database.InsertChatProjectParams{
 		ID:             uuid.NullUUID{},
 		OrganizationID: req.OrganizationID,
-		CreatedBy:      apiKey.UserID,
+		OwnerID:        apiKey.UserID,
 		Name:           strings.TrimSpace(req.Name),
 		Description:    req.Description,
 	})

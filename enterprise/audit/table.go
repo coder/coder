@@ -495,7 +495,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 	&database.ChatProject{}: {
 		"id":              ActionTrack,
 		"organization_id": ActionTrack,
-		"created_by":      ActionTrack,
+		"owner_id":        ActionTrack,
 		"name":            ActionTrack,
 		"description":     ActionTrack,
 		"created_at":      ActionIgnore,

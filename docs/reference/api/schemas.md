@@ -4603,11 +4603,11 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 ```json
 {
   "created_at": "2019-08-24T14:15:22Z",
-  "created_by": "ee824cad-d7a6-4f48-87dc-e8461a9201c4",
   "description": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
   "updated_at": "2019-08-24T14:15:22Z"
 }
 ```
@@ -4617,11 +4617,11 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | Name              | Type   | Required | Restrictions | Description |
 |-------------------|--------|----------|--------------|-------------|
 | `created_at`      | string | false    |              |             |
-| `created_by`      | string | false    |              |             |
 | `description`     | string | false    |              |             |
 | `id`              | string | false    |              |             |
 | `name`            | string | false    |              |             |
 | `organization_id` | string | false    |              |             |
+| `owner_id`        | string | false    |              |             |
 | `updated_at`      | string | false    |              |             |
 
 ## codersdk.ChatProjectMemory

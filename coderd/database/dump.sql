@@ -2141,7 +2141,7 @@ COMMENT ON TABLE chat_project_memories IS 'Organization-scoped durable memories 
 CREATE TABLE chat_projects (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     organization_id uuid NOT NULL,
-    created_by uuid NOT NULL,
+    owner_id uuid NOT NULL,
     name text NOT NULL,
     description text DEFAULT ''::text NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
@@ -4866,9 +4866,9 @@ CREATE UNIQUE INDEX idx_chat_project_memories_project_lower_name ON chat_project
 
 CREATE INDEX idx_chat_project_memories_project_updated_at ON chat_project_memories USING btree (project_id, updated_at DESC);
 
-CREATE UNIQUE INDEX idx_chat_projects_creator_lower_name ON chat_projects USING btree (organization_id, created_by, lower(name));
-
 CREATE INDEX idx_chat_projects_organization_id ON chat_projects USING btree (organization_id);
+
+CREATE UNIQUE INDEX idx_chat_projects_owner_lower_name ON chat_projects USING btree (organization_id, owner_id, lower(name));
 
 CREATE INDEX idx_chat_queued_messages_chat_id ON chat_queued_messages USING btree (chat_id);
 
@@ -5268,10 +5268,10 @@ ALTER TABLE ONLY chat_project_memories
     ADD CONSTRAINT chat_project_memories_source_chat_id_fkey FOREIGN KEY (source_chat_id) REFERENCES chats(id) ON DELETE SET NULL;
 
 ALTER TABLE ONLY chat_projects
-    ADD CONSTRAINT chat_projects_created_by_fkey FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE CASCADE;
+    ADD CONSTRAINT chat_projects_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY chat_projects
-    ADD CONSTRAINT chat_projects_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
+    ADD CONSTRAINT chat_projects_owner_id_fkey FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY chat_queued_messages
     ADD CONSTRAINT chat_queued_messages_chat_id_fkey FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE;

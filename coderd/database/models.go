@@ -5292,7 +5292,7 @@ type ChatOrganizationModelOverride struct {
 type ChatProject struct {
 	ID             uuid.UUID `db:"id" json:"id"`
 	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
-	CreatedBy      uuid.UUID `db:"created_by" json:"created_by"`
+	OwnerID        uuid.UUID `db:"owner_id" json:"owner_id"`
 	Name           string    `db:"name" json:"name"`
 	Description    string    `db:"description" json:"description"`
 	CreatedAt      time.Time `db:"created_at" json:"created_at"`

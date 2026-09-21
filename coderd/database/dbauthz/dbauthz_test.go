@@ -1533,9 +1533,9 @@ func (s *MethodTestSuite) TestChats() {
 	}))
 	s.Run("InsertChatProject", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		arg := testutil.Fake(s.T(), faker, database.InsertChatProjectParams{})
-		project := testutil.Fake(s.T(), faker, database.ChatProject{OrganizationID: arg.OrganizationID, CreatedBy: arg.CreatedBy})
+		project := testutil.Fake(s.T(), faker, database.ChatProject{OrganizationID: arg.OrganizationID, OwnerID: arg.OwnerID})
 		dbm.EXPECT().InsertChatProject(gomock.Any(), arg).Return(project, nil).AnyTimes()
-		check.Args(arg).Asserts(rbac.ResourceChatProject.InOrg(arg.OrganizationID).WithOwner(arg.CreatedBy.String()), policy.ActionCreate).Returns(project)
+		check.Args(arg).Asserts(rbac.ResourceChatProject.InOrg(arg.OrganizationID).WithOwner(arg.OwnerID.String()), policy.ActionCreate).Returns(project)
 	}))
 	s.Run("InsertChatFile", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		arg := testutil.Fake(s.T(), faker, database.InsertChatFileParams{})
