@@ -556,9 +556,12 @@ const mergeDiffStatuses = (
 	const merged = new Map(
 		(cached ?? []).map((status) => [diffStatusRefKey(status), status]),
 	);
+
+	// The event's rows replace the cached rows for the same refs.
 	for (const status of incoming ?? []) {
 		merged.set(diffStatusRefKey(status), status);
 	}
+
 	// The embedded primary can be older than cached rows by
 	// delivery delay; only adopt it when the merge missed its row.
 	const primaryKey = primary ? diffStatusRefKey(primary) : undefined;
@@ -604,11 +607,14 @@ export const mergeWatchedChatSummary = (
 		watchedChat.updated_at,
 	);
 	const isFreshEnough = updatedAtComparison <= 0;
+
 	const nextStatus =
 		isFreshEnough && isStatusEvent ? watchedChat.status : cachedChat.status;
+
 	// maybeGenerateChatTitle can publish a previously loaded chat snapshot, so
 	// apply title_change payloads even when the chat summary timestamp is older.
 	const nextTitle = isTitleEvent ? watchedChat.title : cachedChat.title;
+
 	// A diff_status_change carries the changed ref and the
 	// embedded primary. Merge by ref key so other refs stay
 	// cached, and adopt the embedded primary so the first row keeps
