@@ -12,10 +12,14 @@ import (
 )
 
 const (
-	LicenseExpiryClaim                      = "license_expires"
-	LicenseTelemetryRequiredErrorText       = "License requires telemetry but telemetry is disabled"
-	LicenseAIGovernance90PercentWarningText = "You have used %d%% of your AI Governance add-on seats."
-	LicenseAIGovernanceOverLimitWarningText = "Your organization is using %d of %d AI Governance add-on seats (%d over the limit)."
+	LicenseExpiryClaim                = "license_expires"
+	LicenseTelemetryRequiredErrorText = "License requires telemetry but telemetry is disabled"
+	// Deprecated: the server no longer emits this warning. Nothing records
+	// dc_managed_agents_v1 usage, so the managed agent count is historical
+	// only. Kept so external SDK consumers keep compiling.
+	LicenseManagedAgentLimitExceededWarningText = "You have built more workspaces with managed agents than your license allows."
+	LicenseAIGovernance90PercentWarningText     = "You have used %d%% of your AI Governance add-on seats."
+	LicenseAIGovernanceOverLimitWarningText     = "Your organization is using %d of %d AI Governance add-on seats (%d over the limit)."
 	// The dashboard's LicenseBanner matches this text's pre-placeholder
 	// prefix to render it muted and without a sales link, so the license
 	// warning texts must stay pairwise distinct before their first

@@ -5871,6 +5871,15 @@ export const LicenseAgentRuntimeUsageUnavailableErrorText =
 export const LicenseExpiryClaim = "license_expires";
 
 // From codersdk/licenses.go
+/**
+ * @deprecated the server no longer emits this warning. Nothing records
+ * dc_managed_agents_v1 usage, so the managed agent count is historical
+ * only. Kept so external SDK consumers keep compiling.
+ */
+export const LicenseManagedAgentLimitExceededWarningText =
+	"You have built more workspaces with managed agents than your license allows.";
+
+// From codersdk/licenses.go
 export const LicenseTelemetryRequiredErrorText =
 	"License requires telemetry but telemetry is disabled";
 
