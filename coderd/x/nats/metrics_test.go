@@ -55,8 +55,8 @@ func TestPubsub_Metrics(t *testing.T) {
 			testutil.PromCounterAssertion(t, metrics, positive, "coder_pubsub_messages_total", backend, "normal") &&
 			testutil.PromCounterAssertion(t, metrics, positive, "coder_pubsub_received_bytes_total", backend) &&
 			testutil.PromCounterAssertion(t, metrics, positive, "coder_pubsub_published_bytes_total", backend) &&
-			testutil.PromHistogramSampleCount(t, metrics, "coder_pubsub_send_latency_seconds", backend) > 0 &&
-			testutil.PromHistogramSampleCount(t, metrics, "coder_pubsub_receive_latency_seconds", backend) > 0 &&
+			testutil.PromHistogramSampleCount(t, metrics, "coder_pubsub_send_duration_seconds", backend) > 0 &&
+			testutil.PromHistogramSampleCount(t, metrics, "coder_pubsub_receive_duration_seconds", backend) > 0 &&
 			testutil.PromCounterAssertion(t, metrics, positive, "coder_pubsub_latency_measures_total", backend) &&
 			testutil.PromCounterHasValue(t, metrics, 0, "coder_pubsub_latency_measure_errs_total", backend)
 	}, testutil.WaitShort, testutil.IntervalFast)

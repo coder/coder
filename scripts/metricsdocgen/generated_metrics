@@ -109,14 +109,20 @@ coder_pubsub_published_bytes_total{backend=""} 0
 # HELP coder_pubsub_publishes_total Total number of calls to Publish
 # TYPE coder_pubsub_publishes_total counter
 coder_pubsub_publishes_total{backend="",success=""} 0
-# HELP coder_pubsub_receive_latency_seconds The time taken to receive a message from a pubsub event channel
-# TYPE coder_pubsub_receive_latency_seconds histogram
+# HELP coder_pubsub_receive_duration_seconds The time taken to receive a message from a pubsub event channel
+# TYPE coder_pubsub_receive_duration_seconds histogram
+coder_pubsub_receive_duration_seconds{backend=""} 0
+# HELP coder_pubsub_receive_latency_seconds The most recent time taken to receive a message from a pubsub event channel. New integrations should prefer the coder_pubsub_receive_duration_seconds histogram.
+# TYPE coder_pubsub_receive_latency_seconds gauge
 coder_pubsub_receive_latency_seconds{backend=""} 0
 # HELP coder_pubsub_received_bytes_total Total number of bytes received across all messages
 # TYPE coder_pubsub_received_bytes_total counter
 coder_pubsub_received_bytes_total{backend=""} 0
-# HELP coder_pubsub_send_latency_seconds The time taken to send a message into a pubsub event channel
-# TYPE coder_pubsub_send_latency_seconds histogram
+# HELP coder_pubsub_send_duration_seconds The time taken to send a message into a pubsub event channel
+# TYPE coder_pubsub_send_duration_seconds histogram
+coder_pubsub_send_duration_seconds{backend=""} 0
+# HELP coder_pubsub_send_latency_seconds The most recent time taken to send a message into a pubsub event channel. New integrations should prefer the coder_pubsub_send_duration_seconds histogram.
+# TYPE coder_pubsub_send_latency_seconds gauge
 coder_pubsub_send_latency_seconds{backend=""} 0
 # HELP coder_pubsub_subscribes_total Total number of calls to Subscribe/SubscribeWithErr
 # TYPE coder_pubsub_subscribes_total counter

@@ -33,8 +33,10 @@ type Metrics struct {
 	connected           *prometheus.GaugeVec
 	currentSubscribers  *prometheus.GaugeVec
 	currentEvents       *prometheus.GaugeVec
-	sendLatency         *prometheus.HistogramVec
-	recvLatency         *prometheus.HistogramVec
+	sendLatency         *prometheus.GaugeVec
+	recvLatency         *prometheus.GaugeVec
+	sendDuration        *prometheus.HistogramVec
+	recvDuration        *prometheus.HistogramVec
 	latencyMeasures     *prometheus.CounterVec
 	latencyErrs         *prometheus.CounterVec
 }
@@ -98,19 +100,37 @@ func NewMetrics(reg prometheus.Registerer) *Metrics {
 			Name:      "current_events",
 			Help:      "The current number of pubsub event channels listened for",
 		}, []string{"backend"}),
-		sendLatency: factory.NewHistogramVec(prometheus.HistogramOpts{
+		sendLatency: factory.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: "coder",
 			Subsystem: "pubsub",
 			Name:      "send_latency_seconds",
-			Help:      "The time taken to send a message into a pubsub event channel",
-			Buckets:   latencyBuckets,
+			Help:      "The most recent time taken to send a message into a pubsub event channel. New integrations should prefer the coder_pubsub_send_duration_seconds histogram.",
 		}, []string{"backend"}),
-		recvLatency: factory.NewHistogramVec(prometheus.HistogramOpts{
+		recvLatency: factory.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: "coder",
 			Subsystem: "pubsub",
 			Name:      "receive_latency_seconds",
-			Help:      "The time taken to receive a message from a pubsub event channel",
-			Buckets:   latencyBuckets,
+			Help:      "The most recent time taken to receive a message from a pubsub event channel. New integrations should prefer the coder_pubsub_receive_duration_seconds histogram.",
+		}, []string{"backend"}),
+		sendDuration: factory.NewHistogramVec(prometheus.HistogramOpts{
+			Namespace:                       "coder",
+			Subsystem:                       "pubsub",
+			Name:                            "send_duration_seconds",
+			Help:                            "The time taken to send a message into a pubsub event channel",
+			Buckets:                         latencyBuckets,
+			NativeHistogramBucketFactor:     1.1,
+			NativeHistogramMaxBucketNumber:  100,
+			NativeHistogramMinResetDuration: time.Hour,
+		}, []string{"backend"}),
+		recvDuration: factory.NewHistogramVec(prometheus.HistogramOpts{
+			Namespace:                       "coder",
+			Subsystem:                       "pubsub",
+			Name:                            "receive_duration_seconds",
+			Help:                            "The time taken to receive a message from a pubsub event channel",
+			Buckets:                         latencyBuckets,
+			NativeHistogramBucketFactor:     1.1,
+			NativeHistogramMaxBucketNumber:  100,
+			NativeHistogramMinResetDuration: time.Hour,
 		}, []string{"backend"}),
 		latencyMeasures: factory.NewCounterVec(prometheus.CounterOpts{
 			Namespace: "coder",
@@ -156,6 +176,8 @@ func (m *Metrics) ForBackend(logger slog.Logger, backend string) *BackendMetrics
 	m.connected.WithLabelValues(backend)
 	m.currentSubscribers.WithLabelValues(backend)
 	m.currentEvents.WithLabelValues(backend)
+	m.sendLatency.WithLabelValues(backend)
+	m.recvLatency.WithLabelValues(backend)
 	m.latencyMeasures.WithLabelValues(backend)
 	m.latencyErrs.WithLabelValues(backend)
 
@@ -307,6 +329,8 @@ func (b *BackendMetrics) recordLatency(ctx context.Context, p Pubsub) {
 		b.m.latencyErrs.WithLabelValues(b.backend).Inc()
 		return
 	}
-	b.m.sendLatency.WithLabelValues(b.backend).Observe(send.Seconds())
-	b.m.recvLatency.WithLabelValues(b.backend).Observe(recv.Seconds())
+	b.m.sendDuration.WithLabelValues(b.backend).Observe(send.Seconds())
+	b.m.recvDuration.WithLabelValues(b.backend).Observe(recv.Seconds())
+	b.m.sendLatency.WithLabelValues(b.backend).Set(send.Seconds())
+	b.m.recvLatency.WithLabelValues(b.backend).Set(recv.Seconds())
 }

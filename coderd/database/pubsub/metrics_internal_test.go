@@ -86,8 +86,8 @@ func TestMetrics_RecordLatency(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, testutil.PromCounterHasValue(t, metrics, 1, "coder_pubsub_latency_measures_total", backend))
 	require.True(t, testutil.PromCounterHasValue(t, metrics, 0, "coder_pubsub_latency_measure_errs_total", backend))
-	require.Equal(t, uint64(1), testutil.PromHistogramSampleCount(t, metrics, "coder_pubsub_send_latency_seconds", backend))
-	require.Equal(t, uint64(1), testutil.PromHistogramSampleCount(t, metrics, "coder_pubsub_receive_latency_seconds", backend))
+	require.Equal(t, uint64(1), testutil.PromHistogramSampleCount(t, metrics, "coder_pubsub_send_duration_seconds", backend))
+	require.Equal(t, uint64(1), testutil.PromHistogramSampleCount(t, metrics, "coder_pubsub_receive_duration_seconds", backend))
 }
 
 // failPublishPubsub subscribes like the in-memory pubsub but always fails to
@@ -117,7 +117,7 @@ func TestMetrics_RecordLatencyError(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, testutil.PromCounterHasValue(t, metrics, 1, "coder_pubsub_latency_measures_total", backend))
 	require.True(t, testutil.PromCounterHasValue(t, metrics, 1, "coder_pubsub_latency_measure_errs_total", backend))
-	require.Equal(t, uint64(0), testutil.PromHistogramSampleCount(t, metrics, "coder_pubsub_send_latency_seconds", backend))
+	require.Equal(t, uint64(0), testutil.PromHistogramSampleCount(t, metrics, "coder_pubsub_send_duration_seconds", backend))
 }
 
 func TestMetrics_StopLatencyLoopWithoutStart(t *testing.T) {
