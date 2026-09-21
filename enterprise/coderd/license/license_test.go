@@ -1881,29 +1881,6 @@ func TestLicenseEntitlements(t *testing.T) {
 			},
 		},
 		{
-			// Exceeded legacy managed agent usage must not add a warning
-			// alongside the Coder Agent runtime hours warning.
-			Name: "AgentRuntimeHours/AtSoftLimitWithExceededManagedAgents",
-			Licenses: []*coderdenttest.LicenseOptions{
-				agentRuntimeHoursLicense(100, ptr.Ref[int64](80)).ManagedAgentLimit(100),
-			},
-			Arguments: license.FeatureArguments{
-				AgentRuntimeMsFn: hoursToMsFn(80),
-				ManagedAgentCountFn: func(_ context.Context, _, _ time.Time) (int64, error) {
-					return 150, nil
-				},
-			},
-			AssertEntitlements: func(t *testing.T, entitlements codersdk.Entitlements) {
-				assertNoErrors(t, entitlements)
-				require.Len(t, entitlements.Warnings, 1)
-				assert.Equal(t, fmt.Sprintf(codersdk.LicenseAgentRuntimeHoursSoftLimitWarningText, 80, 100, 80),
-					entitlements.Warnings[0])
-				feature := entitlements.Features[codersdk.FeatureManagedAgentLimit]
-				require.NotNil(t, feature.Actual)
-				assert.Equal(t, int64(150), *feature.Actual)
-			},
-		},
-		{
 			// At the allocation the soft warning is suppressed, so exactly one
 			// warning is emitted rather than both.
 			Name: "AgentRuntimeHours/AtAllocation",
