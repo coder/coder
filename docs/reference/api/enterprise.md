@@ -1968,6 +1968,75 @@ curl -X PUT http://coder-server:8080/api/v2/oauth2-provider/settings \
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## Get organization AI spend details
+
+### Code samples
+
+```sh
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/ai/spend \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /api/v2/organizations/{organization}/ai/spend`
+
+Returns paginated per-user, per-group, per-model, per-provider aggregated AI spend for the organization.
+The optional period_start and period_end query parameters must be provided together and span at most 31 days. When omitted, the current UTC monthly period is used.
+
+### Parameters
+
+| Name            | In    | Type              | Required | Description                          |
+|-----------------|-------|-------------------|----------|--------------------------------------|
+| `organization`  | path  | string(uuid)      | true     | Organization ID                      |
+| `period_start`  | query | string(date-time) | false    | Inclusive lower bound (RFC3339)      |
+| `period_end`    | query | string(date-time) | false    | Exclusive upper bound (RFC3339)      |
+| `user_id`       | query | string(uuid)      | false    | User ID                              |
+| `group_id`      | query | string(uuid)      | false    | Effective group ID                   |
+| `provider_name` | query | string            | false    | Configured provider name             |
+| `model`         | query | string            | false    | Model name                           |
+| `limit`         | query | integer           | false    | Page limit (default 10, maximum 100) |
+| `offset`        | query | integer           | false    | Page offset                          |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "count": 0,
+  "period_end": "2019-08-24T14:15:22Z",
+  "period_start": "2019-08-24T14:15:22Z",
+  "retention_start": "2019-08-24T14:15:22Z",
+  "rows": [
+    {
+      "cache_read_tokens": 0,
+      "cache_write_tokens": 0,
+      "cost_micros": 0,
+      "group_id": "306db4e0-7449-4501-b76f-075576fe2d8f",
+      "group_name": "string",
+      "input_tokens": 0,
+      "model": "string",
+      "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+      "organization_name": "string",
+      "output_tokens": 0,
+      "provider": "string",
+      "provider_name": "string",
+      "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5",
+      "username": "string"
+    }
+  ]
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                               |
+|--------|---------------------------------------------------------|-------------|--------------------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.OrganizationAISpendDetails](schemas.md#codersdkorganizationaispenddetails) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Export organization AI spend as CSV
 
 ### Code samples

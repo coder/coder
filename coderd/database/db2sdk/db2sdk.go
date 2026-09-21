@@ -1539,6 +1539,25 @@ func UserAIBudgetOverride(o database.UserAIBudgetOverride) codersdk.UserAIBudget
 	}
 }
 
+func OrganizationAISpendRow(row database.ExportOrganizationAISpendRow) codersdk.OrganizationAISpendRow {
+	return codersdk.OrganizationAISpendRow{
+		UserID:           row.UserID,
+		Username:         row.Username,
+		GroupID:          row.GroupID.UUID,
+		GroupName:        row.GroupName,
+		OrganizationID:   row.OrganizationID,
+		OrganizationName: row.OrganizationName,
+		Model:            row.Model,
+		Provider:         row.Provider,
+		ProviderName:     row.ProviderName,
+		InputTokens:      row.InputTokens,
+		OutputTokens:     row.OutputTokens,
+		CacheReadTokens:  row.CacheReadTokens,
+		CacheWriteTokens: row.CacheWriteTokens,
+		CostMicros:       row.CostMicros,
+	}
+}
+
 func OrganizationGroupAISpend(row database.GetOrganizationGroupsAISpendRow) codersdk.OrganizationGroupAISpend {
 	group := codersdk.OrganizationGroupAISpend{
 		GroupID:            row.GroupID,

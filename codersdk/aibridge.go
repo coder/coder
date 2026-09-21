@@ -554,6 +554,34 @@ type OrganizationAISpendDetailsFilter struct {
 	Model        string    `json:"model,omitempty"`
 }
 
+// OrganizationAISpendRow represents a unique combination of user, effective
+// group, model, provider, and provider name, with token usage and spend
+// aggregated within an organization and reporting period.
+type OrganizationAISpendRow struct {
+	UserID           uuid.UUID `json:"user_id" format:"uuid"`
+	Username         string    `json:"username"`
+	GroupID          uuid.UUID `json:"group_id" format:"uuid"`
+	GroupName        string    `json:"group_name"`
+	OrganizationID   uuid.UUID `json:"organization_id" format:"uuid"`
+	OrganizationName string    `json:"organization_name"`
+	Model            string    `json:"model"`
+	Provider         string    `json:"provider"`
+	ProviderName     string    `json:"provider_name"`
+	InputTokens      int64     `json:"input_tokens"`
+	OutputTokens     int64     `json:"output_tokens"`
+	CacheReadTokens  int64     `json:"cache_read_tokens"`
+	CacheWriteTokens int64     `json:"cache_write_tokens"`
+	CostMicros       int64     `json:"cost_micros"`
+}
+
+// OrganizationAISpendDetails is a paginated organization AI spend report.
+type OrganizationAISpendDetails struct {
+	AISpendPeriodWindow
+	RetentionStart *time.Time               `json:"retention_start,omitempty" format:"date-time"`
+	Count          int64                    `json:"count"`
+	Rows           []OrganizationAISpendRow `json:"rows"`
+}
+
 // asRequestOption returns a function that applies the filter's query
 // parameters to a request.
 func (f OrganizationAISpendDetailsFilter) asRequestOption() RequestOption {
@@ -579,6 +607,26 @@ func (f OrganizationAISpendDetailsFilter) asRequestOption() RequestOption {
 		}
 		r.URL.RawQuery = q.Encode()
 	}
+}
+
+// OrganizationAISpendDetails returns paginated per-user, per-group, per-model,
+// per-provider AI spend for an organization.
+func (c *Client) OrganizationAISpendDetails(ctx context.Context, organization uuid.UUID, filter OrganizationAISpendDetailsFilter, pagination Pagination) (OrganizationAISpendDetails, error) {
+	res, err := c.Request(ctx, http.MethodGet,
+		fmt.Sprintf("/api/v2/organizations/%s/ai/spend", organization.String()),
+		nil,
+		filter.asRequestOption(),
+		pagination.asRequestOption(),
+	)
+	if err != nil {
+		return OrganizationAISpendDetails{}, xerrors.Errorf("make request: %w", err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return OrganizationAISpendDetails{}, ReadBodyAsError(res)
+	}
+	var resp OrganizationAISpendDetails
+	return resp, ReadBodyAsJSON(res, &resp)
 }
 
 // ExportOrganizationAISpend returns a CSV of per-user, per-group, per-model,
