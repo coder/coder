@@ -92,6 +92,9 @@ type ExecuteResult struct {
 	Running             bool                            `json:"running,omitempty"`
 	Backgrounded        bool                            `json:"backgrounded,omitempty"`
 	Canceled            bool                            `json:"canceled,omitempty"` // an interrupt canceled the command while it ran
+	// Hooks lists the workspace hooks that ran for this call and their
+	// decisions. PROTOTYPE (CODAGT-1083).
+	Hooks []workspacesdk.HookDecision `json:"hooks,omitempty"`
 }
 
 // ExecuteRequest describes a command to run in the workspace.
@@ -152,10 +155,14 @@ func Execute(ctx context.Context, conn workspacesdk.AgentConn, req ExecuteReques
 		if err != nil {
 			return StartErrorResult("start background process", err), nil
 		}
+		if hookDenied(resp.Hooks) {
+			return hookDeniedResult(resp.Hooks), nil
+		}
 		return ExecuteResult{
 			Success:             true,
 			BackgroundProcessID: resp.ID,
 			Backgrounded:        true,
+			Hooks:               resp.Hooks,
 		}, nil
 	}
 
@@ -191,9 +198,13 @@ func Execute(ctx context.Context, conn workspacesdk.AgentConn, req ExecuteReques
 	if err != nil {
 		return StartErrorResult("start process", err), nil
 	}
+	if hookDenied(resp.Hooks) {
+		return hookDeniedResult(resp.Hooks), nil
+	}
 
 	result := waitForProcess(cmdCtx, ctx, conn, resp.ID, timeout, req.Names)
 	result.WallDurationMs = time.Since(start).Milliseconds()
+	result.Hooks = resp.Hooks
 	if note := detectFileDump(command, req.Names); note != "" {
 		result.Note = note
 	}
