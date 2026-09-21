@@ -40,13 +40,14 @@ func (t Transition) String() string { return string(t) }
 // states that the transition implementation may reach. Outputs may
 // depend on the post-mutation queue (for example DeleteQueuedMessage
 // from E1 reaches E0 when the deleted row was the last queued
-// message, in E1P when the row behind a deleted ready head is under
-// edit, or stays in E1 otherwise), which is why several entries list
-// more than one output.
+// message, E1P when the row behind the deleted head is under edit, or
+// stays in E1 otherwise), which is why several entries list more than
+// one output.
 //
-// The "1P" states have a blocked queue head (see queuePaused). They
-// admit what their "1" siblings admit; the cells below record where
-// they differ.
+// The "1P" states have a blocked queue head (see queuePaused). Each
+// admits the same transitions as its "1" sibling. The outputs differ
+// where the sibling would promote the head: E1P + SendMessage stays
+// E1P, and R1P + FinishTurn and I1P + FinishInterruption reach P.
 //
 // Ownership transitions (Acquire, Abandon) are intentionally not
 // included; they are orthogonal to execution state.
