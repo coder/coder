@@ -35,6 +35,8 @@ export const DraftChat: FC<DraftChatProps> = ({
 	const workspacesQuery = useQuery(workspaces({ q: "owner:me", limit: 0 }));
 	const createMutation = useMutation(createChat(queryClient));
 
+	// Kept as a copy: this experiment copies small helpers instead of
+	// exporting them from shared modules.
 	const handleCreateChat = async ({
 		message,
 		fileIDs,

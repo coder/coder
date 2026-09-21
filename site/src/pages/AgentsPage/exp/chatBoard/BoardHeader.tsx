@@ -117,10 +117,6 @@ type EffortMenuProps = {
 // no effort can be called because blank names are dropped on write.
 const ALL = "";
 
-/**
- * The effort filter as a menu in the header: the trigger reads "Efforts"
- * or the selected name, and the selected effort can be renamed in place.
- */
 const EffortMenu: FC<EffortMenuProps> = ({
 	efforts,
 	cardCount,
@@ -145,7 +141,6 @@ const EffortMenu: FC<EffortMenuProps> = ({
 			<DropdownMenuTrigger asChild>
 				<button
 					type="button"
-					aria-label="Filter by effort"
 					className="flex items-center gap-1 border-0 bg-transparent p-0 text-[11px] text-content-secondary hover:text-content-primary data-[state=open]:text-content-primary"
 				>
 					{value ?? "Efforts"}

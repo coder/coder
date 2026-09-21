@@ -33,13 +33,13 @@ describe("BoardHeader", () => {
 		const user = userEvent.setup();
 		const { onEffortFilter } = renderHeader(null);
 
-		await user.click(screen.getByRole("button", { name: "Filter by effort" }));
+		await user.click(screen.getByRole("button", { name: "Efforts" }));
 		await user.click(
 			await screen.findByRole("menuitemradio", { name: /This week/ }),
 		);
 		expect(onEffortFilter).toHaveBeenCalledWith("This week");
 
-		await user.click(screen.getByRole("button", { name: "Filter by effort" }));
+		await user.click(screen.getByRole("button", { name: "Efforts" }));
 		await user.click(await screen.findByRole("menuitemradio", { name: /All/ }));
 		expect(onEffortFilter).toHaveBeenLastCalledWith(null);
 	});
@@ -48,7 +48,7 @@ describe("BoardHeader", () => {
 		const user = userEvent.setup();
 		const { onRenameEffort } = renderHeader("Q3");
 
-		await user.click(screen.getByRole("button", { name: "Filter by effort" }));
+		await user.click(screen.getByRole("button", { name: "Q3" }));
 		await user.click(
 			await screen.findByRole("menuitem", { name: "Rename effort" }),
 		);
@@ -57,7 +57,7 @@ describe("BoardHeader", () => {
 		await user.type(field, "Q4{Enter}");
 		expect(onRenameEffort).toHaveBeenCalledWith("Q3", "Q4");
 
-		await user.click(screen.getByRole("button", { name: "Filter by effort" }));
+		await user.click(screen.getByRole("button", { name: "Q3" }));
 		await user.click(
 			await screen.findByRole("menuitem", { name: "Rename effort" }),
 		);
@@ -66,8 +66,5 @@ describe("BoardHeader", () => {
 			"{Escape}",
 		);
 		expect(onRenameEffort).toHaveBeenCalledTimes(1);
-		expect(
-			screen.getByRole("button", { name: "Filter by effort" }),
-		).toHaveTextContent("Q3");
 	});
 });

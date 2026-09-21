@@ -2,23 +2,18 @@ import { cn } from "cn";
 import { BotIcon, XIcon } from "lucide-react";
 import {
 	type FC,
-	lazy,
 	type KeyboardEvent as ReactKeyboardEvent,
 	type ReactNode,
 	type PointerEvent as ReactPointerEvent,
-	Suspense,
 	useEffect,
 	useEffectEvent,
 	useState,
 } from "react";
 import { Button } from "#/components/Button/Button";
-import { AgentChatPageSkeleton } from "../../components/AgentsSkeletons";
 import type { CardColor } from "./boardLabels";
 import type { ChatWindow } from "./boardStorage";
 import { cardSwatch } from "./cardColor";
 import { clampWindow, MIN_WINDOW_SIZE } from "./windows";
-
-const AgentChatPage = lazy(() => import("../../AgentChatPage"));
 
 /** How far one arrow press moves or resizes a window. */
 const KEY_STEP_PX = 16;
@@ -72,17 +67,6 @@ type FloatingChatProps = {
 	readonly onAssistant?: Readonly<{ cardTitle: string; open: () => void }>;
 	readonly children: ReactNode;
 };
-
-type ChatBodyProps = {
-	readonly chatId: string;
-};
-
-/** The body of a chat window. Lazy so the board loads without the chat page. */
-export const ChatBody: FC<ChatBodyProps> = ({ chatId }) => (
-	<Suspense fallback={<AgentChatPageSkeleton />}>
-		<AgentChatPage chatId={chatId} />
-	</Suspense>
-);
 
 /**
  * One window floating over the board. The title bar drags it, the corner

@@ -10,10 +10,23 @@ const MAX_RETRIES = 3;
  * Invalidates the chat lists and, while the board's refetch keeps getting
  * cancelled, asks again. Stops listening once a network response lands or
  * the retries run out. Returns a function that stops listening early.
+ *
+ * With no observer on the board list (the board unmounted), invalidation
+ * only marks it stale and no response ever arrives, so it invalidates once
+ * and does not subscribe.
  */
 export const refetchChatListUntilLanded = (
 	queryClient: QueryClient,
 ): (() => void) => {
+	const observers =
+		queryClient
+			.getQueryCache()
+			.find({ queryKey: boardChatsKey })
+			?.getObserversCount() ?? 0;
+	if (observers === 0) {
+		void invalidateChatListQueries(queryClient);
+		return () => undefined;
+	}
 	const boardHash = hashKey(boardChatsKey);
 	let retries = 0;
 	const unsubscribe = queryClient.getQueryCache().subscribe((event) => {

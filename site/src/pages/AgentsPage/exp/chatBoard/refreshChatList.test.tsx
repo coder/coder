@@ -5,7 +5,7 @@ import {
 	QueryClientProvider,
 	useInfiniteQuery,
 } from "react-query";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { chatListFamilyKey } from "#/api/queries/chats";
 import type { Chat } from "#/api/typesGenerated";
 import { createDeferred, type Deferred } from "#/testHelpers/deferred";
@@ -58,5 +58,17 @@ describe("refetchChatListUntilLanded", () => {
 		await queryClient.cancelQueries({ queryKey: chatListFamilyKey });
 		expect(fetches).toHaveLength(3);
 		stop();
+	});
+
+	it("invalidates once and does not listen when nothing observes the board list", () => {
+		const queryClient = new QueryClient();
+		const invalidate = vi.spyOn(queryClient, "invalidateQueries");
+		const subscribe = vi.spyOn(queryClient.getQueryCache(), "subscribe");
+
+		refetchChatListUntilLanded(queryClient);
+
+		expect(invalidate).toHaveBeenCalledTimes(1);
+		expect(invalidate).toHaveBeenCalledWith({ queryKey: chatListFamilyKey });
+		expect(subscribe).not.toHaveBeenCalled();
 	});
 });
