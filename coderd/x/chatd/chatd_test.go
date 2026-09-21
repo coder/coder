@@ -1847,7 +1847,7 @@ func TestPlanTurnPromptContract(t *testing.T) {
 
 	require.Len(t, recorded, 1, "expected exactly 1 streamed model call")
 	require.True(t, requestHasSystemSubstring(recorded[0], "You are in Plan Mode."))
-	require.True(t, requestHasSystemSubstring(recorded[0], "The only intentional authored workspace artifact is the plan file"))
+	require.True(t, requestHasSystemSubstring(recorded[0], "The plan file at the path specified in the <plan-file-path> block below is the deliverable for review"))
 	require.True(t, requestHasSystemSubstring(recorded[0], "You may use execute and process_output for exploration"))
 	require.True(t, requestHasSystemSubstring(recorded[0], "approved external MCP tools when available"))
 	require.True(t, requestHasSystemSubstring(recorded[0], "Workspace MCP tools are not available in root plan mode"))

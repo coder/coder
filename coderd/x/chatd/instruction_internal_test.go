@@ -7,6 +7,7 @@ import (
 	"charm.land/fantasy"
 	"github.com/stretchr/testify/require"
 
+	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/codersdk"
@@ -151,6 +152,83 @@ func TestDefaultSystemPromptTaskDiscipline(t *testing.T) {
 		"DO NOT provide an answer",
 	} {
 		require.NotContains(t, DefaultSystemPrompt, instruction)
+	}
+}
+
+// TestPlanningPromptContract checks which planning instructions each
+// audience and mode receives, not whether a model follows them.
+func TestPlanningPromptContract(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name         string
+		mode         systemPromptBehaviorContext
+		want         []string
+		dontWant     []string
+		hasWorkspace bool
+	}{
+		{
+			name:         "Conversation",
+			mode:         systemPromptBehaviorContext{isRootChat: true},
+			want:         []string{"<planning>", subagentOrchestrationPromptBlock},
+			dontWant:     []string{"You are in Plan Mode", planningInvestigationGuidance, "propose_plan"},
+			hasWorkspace: true,
+		},
+		{
+			name:     "DetachedConversation",
+			mode:     systemPromptBehaviorContext{isRootChat: true},
+			want:     []string{"<planning>"},
+			dontWant: []string{"<plan-file-path>", "propose_plan"},
+		},
+		{
+			name: "PlanMode",
+			mode: systemPromptBehaviorContext{
+				planMode:   database.NullChatPlanMode{ChatPlanMode: database.ChatPlanModePlan, Valid: true},
+				isRootChat: true,
+			},
+			want:         []string{"You are in Plan Mode.", planningInvestigationGuidance, "propose_plan"},
+			dontWant:     []string{PlanningSubagentOverlayPrompt},
+			hasWorkspace: true,
+		},
+		{
+			name: "PlanDelegate",
+			mode: systemPromptBehaviorContext{
+				planMode: database.NullChatPlanMode{ChatPlanMode: database.ChatPlanModePlan, Valid: true},
+			},
+			want:     []string{PlanningSubagentOverlayPrompt, planningInvestigationGuidance},
+			dontWant: []string{"You are in Plan Mode.", "propose_plan", subagentOrchestrationPromptBlock},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			deploymentPrompt := DefaultSystemPrompt
+			var subagentInstruction string
+			if !tc.mode.isRootChat {
+				deploymentPrompt = strings.Replace(deploymentPrompt, subagentOrchestrationPromptBlock, "", 1)
+				subagentInstruction = defaultSubagentInstruction
+			}
+			messages := chatprompt.InsertSystem(nil, deploymentPrompt)
+			messages = buildSystemPrompt(messages, subagentInstruction, "", nil, "", tc.mode)
+			var pathBlock string
+			if tc.hasWorkspace {
+				pathBlock = formatPlanPathBlock("/home/coder/.coder/plans/PLAN-test.md", "/home/coder")
+			}
+			messages = renderPlanPathPrompt(messages, pathBlock)
+			text := systemPromptText(t, messages)
+			for _, want := range tc.want {
+				require.Contains(t, text, want)
+			}
+			for _, unwanted := range tc.dontWant {
+				require.NotContains(t, text, unwanted)
+			}
+			require.NotContains(t, text, defaultSystemPromptPlanPathBlockPlaceholder)
+			if tc.hasWorkspace {
+				require.Contains(t, text, "<plan-file-path>\nYour plan file path for this chat is: /home/coder/.coder/plans/PLAN-test.md")
+			} else {
+				require.NotContains(t, text, "<plan-file-path>")
+			}
+		})
 	}
 }
 
