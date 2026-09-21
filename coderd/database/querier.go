@@ -572,7 +572,7 @@ type sqlcQuerier interface {
 	// Retrieves chats updated after the given timestamp for telemetry
 	// snapshot collection. Uses updated_at so that long-running chats
 	// still appear in each snapshot window while they are active.
-	// One row per chat. The newest ref wins ties.
+	// One row per chat. The row carries the chat's newest-reported ref.
 	GetChatsUpdatedAfter(ctx context.Context, updatedAfter time.Time) ([]GetChatsUpdatedAfterRow, error)
 	// Fetches child chats of the given parents, optionally filtered by
 	// archive state (NULL = all, true/false = match). The archive
@@ -1502,8 +1502,7 @@ type sqlcQuerier interface {
 	// the injectable quartz.Clock used by FinalizeStale sweeps.
 	UpdateChatDebugStep(ctx context.Context, arg UpdateChatDebugStepParams) (ChatDebugStep, error)
 	// Stores a discovered pull request URL on an existing ref row.
-	// reported_at is untouched, so a late discovery write cannot
-	// reorder the primary.
+	// Discovery is not a report, so reported_at is not updated.
 	UpdateChatDiffStatusReferenceURL(ctx context.Context, arg UpdateChatDiffStatusReferenceURLParams) error
 	// Atomically updates the execution-state-managed fields on a chat:
 	// status, archived, last_error, ownership identifiers, the
@@ -1702,8 +1701,7 @@ type sqlcQuerier interface {
 	UpsertChatDebugRetentionDays(ctx context.Context, debugRetentionDays int32) error
 	UpsertChatDesktopEnabled(ctx context.Context, enableDesktop bool) error
 	UpsertChatDiffStatus(ctx context.Context, arg UpsertChatDiffStatusParams) (ChatDiffStatus, error)
-	// A report names a ref the agent is on. The write time is the
-	// report time, and the report time decides the primary ordering.
+	// A report names a ref the agent is on. Reports update reported_at.
 	UpsertChatDiffStatusReference(ctx context.Context, arg UpsertChatDiffStatusReferenceParams) (ChatDiffStatus, error)
 	// Upserts a heartbeat row for the (chat_id, runner_id) lease. Uses
 	// database time so callers do not depend on a local clock.
