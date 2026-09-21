@@ -149,7 +149,15 @@ func Test_SubscribeWithErr(t *testing.T) {
 
 		ps.mu.Lock()
 		defer ps.mu.Unlock()
-		require.Len(t, ps.subscriptions, 1)
+		// Assert on the coalesce_evt group directly rather than the whole
+		// subscriptions map: the always-on latency probe keeps its own
+		// transient latency-measure subscription, which would otherwise race
+		// the count. Two subscribes to the same subject share one groupSub.
+		gSub, ok := ps.subscriptions["coalesce_evt"]
+		require.True(t, ok, "expected a shared subscription for coalesce_evt")
+		gSub.mu.Lock()
+		defer gSub.mu.Unlock()
+		require.Len(t, gSub.localSubs, 2)
 	})
 }
 
@@ -617,10 +625,10 @@ func goroutineBlockedInChanReceive(funcName string) bool {
 }
 
 func defaultTestOptions() Options {
-	// Leave Metrics nil so the background latency loop stays off by default:
-	// most tests inspect internal subscription state or connection counts
-	// that the loop's transient probe subscription would perturb. Tests that
-	// exercise latency metrics supply a Metrics set to opt back in.
+	// Leave Metrics nil so metrics record into no-op instruments and are not
+	// exported. The background latency loop still runs, so tests that inspect
+	// internal subscription state must tolerate its transient probe
+	// subscription (see Test_SubscribeWithErr).
 	return Options{disableCluster: true}
 }
 

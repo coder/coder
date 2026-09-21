@@ -147,8 +147,9 @@ type Options struct {
 
 	// Metrics is the shared pubsub metrics. When nil, an unregistered set is
 	// created internally so the Pubsub still works without exporting metrics.
-	// The background latency measurement loop only runs when Metrics is
-	// non-nil, so nothing probes the backend when metrics are discarded.
+	// The background latency measurement loop always runs (recording into no-op
+	// instruments when Metrics is nil) so the loop lifecycle does not depend on
+	// whether metrics are collected.
 	Metrics *pubsub.Metrics
 
 	// RoutePoolSize is the NATS route pool size. Zero means the package
