@@ -2,11 +2,11 @@ package codersdk_test
 
 import (
 	"encoding/json"
-	"maps"
 	"slices"
 	"strings"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/codersdk"
@@ -31,6 +31,11 @@ func TestNormalizeAppName(t *testing.T) {
 		{"UnknownLowercased", "Cursor Nightly", "cursor nightly"},
 		{"UnknownPreservesUnicode", "エディタ", "エディタ"},
 		{"StripsNullBytes", "cur\x00sor", "cursor"},
+		{"StripsControlCharacters", "vs\ncode\r\t", "vscode"},
+		// Only the escape byte itself is a control character, so the rest of
+		// an ANSI sequence survives as ordinary text.
+		{"StripsANSIEscape", "\x1b[31mvscode\x1b[0m", "[31mvscode[0m"},
+		{"OnlyControlCharacters", "\n\r\t\x1b", "unknown"},
 		{"TrimsWhitespace", " vscode\t", "vscode"},
 		{"Empty", "", "unknown"},
 		{"OnlyNullBytes", "\x00\x00", "unknown"},
@@ -87,77 +92,51 @@ func TestAppNameFamily(t *testing.T) {
 	}
 }
 
-func TestAppNamesInFamily(t *testing.T) {
+// Family sets are derived from the one registry, so callers that need the app
+// names in a family do not need a second list.
+func TestRegistryFamilySets(t *testing.T) {
 	t.Parallel()
 
-	// Forks share the VS Code family, and the list is sorted.
-	vscode := codersdk.AppNamesInFamily(codersdk.AppFamilyVSCode)
+	registry := codersdk.SessionCountAppFamilies()
+	inFamily := func(want codersdk.AppFamilyName) []string {
+		var names []string
+		for appName, family := range registry {
+			if family == want {
+				names = append(names, appName)
+			}
+		}
+		slices.Sort(names)
+		return names
+	}
+
+	// Forks share the VS Code family.
+	vscode := inFamily(codersdk.AppFamilyVSCode)
 	require.Contains(t, vscode, "cursor")
 	require.Contains(t, vscode, "vscode")
-	require.True(t, slices.IsSorted(vscode))
 
 	// Zed speaks SSH, so it reports under the SSH family.
-	require.Equal(t, []string{"ssh", "zed"},
-		codersdk.AppNamesInFamily(codersdk.AppFamilySSH))
+	require.Equal(t, []string{"ssh", "zed"}, inFamily(codersdk.AppFamilySSH))
 
-	require.Empty(t, codersdk.AppNamesInFamily("no_such_family"))
-}
-
-// The SQL queries that report per-family session counts hardcode one probe
-// expression and one output column per family, because sqlc output columns
-// are static. This pins the Go registry to the families those queries know
-// about.
-//
-// When adding a family, update, in this order:
-//  1. attributedAppFamilies in appname.go.
-//  2. Every query that reports per-family session counts: the fams CTE list,
-//     the probe expression, and the output column, in
-//     coderd/database/queries/workspaceagentstats.sql and insights.sql.
-//  3. The Go readers of those columns, then this list.
-//
-// dbauthz validation rejects a registry that does not match
-// AttributedAppFamilies, so a family added to Go but not to SQL fails at
-// runtime too.
-func TestAttributedAppFamiliesMatchQueries(t *testing.T) {
-	t.Parallel()
-
-	require.Equal(t, []codersdk.AppFamilyName{
-		codersdk.AppFamilyVSCode,
-		codersdk.AppFamilyJetBrains,
-		codersdk.AppFamilySSH,
-		codersdk.AppFamilyReconnectingPTY,
-	}, codersdk.AttributedAppFamilies())
-
-	// The registry keys are what the queries index by name.
-	require.ElementsMatch(t, codersdk.AttributedAppFamilies(),
-		slices.Collect(maps.Keys(codersdk.SessionCountAppFamilies())),
-		"registry keys must match the attributed families")
+	require.Empty(t, inFamily("no_such_family"))
 }
 
 func TestSessionCountAppFamilies(t *testing.T) {
 	t.Parallel()
 
-	families := codersdk.SessionCountAppFamilies()
-	require.Len(t, families, 4, "every attributed family must be present")
-	require.Contains(t, families, codersdk.AppFamilyVSCode)
-	require.Contains(t, families, codersdk.AppFamilyJetBrains)
-	require.Contains(t, families, codersdk.AppFamilySSH)
-	require.Contains(t, families, codersdk.AppFamilyReconnectingPTY)
-	require.Equal(t, codersdk.AppNamesInFamily(codersdk.AppFamilyVSCode), families[codersdk.AppFamilyVSCode])
+	registry := codersdk.SessionCountAppFamilies()
+	require.NotEmpty(t, registry)
+	for appName, family := range registry {
+		require.Equal(t, family, codersdk.AppNameFamily(appName),
+			"registry entry %q must agree with lookup", appName)
+	}
+
+	// The registry is a copy, so a caller cannot corrupt attribution.
+	registry["cursor"] = codersdk.AppFamilySSH
+	require.Equal(t, codersdk.AppFamilyVSCode, codersdk.AppNameFamily("cursor"))
+	require.Equal(t, codersdk.AppFamilyVSCode, codersdk.SessionCountAppFamilies()["cursor"])
 }
 
-func TestSessionCountAppFamiliesJSON(t *testing.T) {
-	t.Parallel()
-
-	raw := codersdk.SessionCountAppFamiliesJSON()
-	require.NotEmpty(t, raw)
-
-	var decoded map[codersdk.AppFamilyName][]string
-	require.NoError(t, json.Unmarshal(raw, &decoded), "registry must marshal to a valid jsonb object")
-	require.Equal(t, codersdk.SessionCountAppFamilies(), decoded)
-}
-
-func TestSessionCountsByFamily(t *testing.T) {
+func TestSumByFamily(t *testing.T) {
 	t.Parallel()
 
 	for _, tc := range []struct {
@@ -214,25 +193,23 @@ func TestSessionCountsByFamily(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			require.Equal(t, tc.want, codersdk.SessionCountsByFamily(tc.appCounts))
+			require.Equal(t, tc.want, codersdk.SumByFamily(tc.appCounts))
 		})
 	}
 }
 
-// Every app name the registry attributes must fold back into the family it is
-// registered under, so no attributed family can go uncounted.
-func TestSessionCountsByFamilyCoversEveryAttributedFamily(t *testing.T) {
+// A family is registered by adding app names alone, with no SQL, column, or
+// second list to update.
+func TestSumByFamilyCoversEveryRegisteredFamily(t *testing.T) {
 	t.Parallel()
 
 	appCounts := map[string]int64{}
 	want := map[codersdk.AppFamilyName]int64{}
-	for family, appNames := range codersdk.SessionCountAppFamilies() {
-		for _, appName := range appNames {
-			appCounts[appName] = 1
-			want[family]++
-		}
+	for appName, family := range codersdk.SessionCountAppFamilies() {
+		appCounts[appName] = 1
+		want[family]++
 	}
-	require.Equal(t, want, codersdk.SessionCountsByFamily(appCounts))
+	require.Equal(t, want, codersdk.SumByFamily(appCounts))
 }
 
 func TestSessionCountsByFamilyJSON(t *testing.T) {
@@ -283,4 +260,62 @@ func TestSessionCountsByFamilyJSONMalformed(t *testing.T) {
 			require.Nil(t, got)
 		})
 	}
+}
+
+func TestDecodeAppMap(t *testing.T) {
+	t.Parallel()
+
+	for name, raw := range map[string]json.RawMessage{
+		"NotJSON":     json.RawMessage(`{`),
+		"NotAnObject": json.RawMessage(`[1, 2]`),
+		"WrongValue":  json.RawMessage(`{"vscode": "sixty"}`),
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			// A malformed payload must not decode to zero usage, or an
+			// encoding bug would look like an idle deployment.
+			got, err := codersdk.DecodeAppMap[int64](raw)
+			require.Error(t, err)
+			require.Nil(t, got)
+		})
+	}
+
+	t.Run("UsageSeconds", func(t *testing.T) {
+		t.Parallel()
+
+		got, err := codersdk.DecodeAppMap[int64](json.RawMessage(`{"cursor": 60}`))
+		require.NoError(t, err)
+		require.Equal(t, map[string]int64{"cursor": 60}, got)
+	})
+
+	for name, raw := range map[string]json.RawMessage{"Absent": nil, "EmptyObject": json.RawMessage(`{}`)} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			got, err := codersdk.DecodeAppMap[int64](raw)
+			require.NoError(t, err)
+			require.Equal(t, map[string]int64{}, got)
+			require.Zero(t, got["ssh"])
+		})
+	}
+}
+
+func TestUnionByFamily(t *testing.T) {
+	t.Parallel()
+
+	shared, cursorOnly, sshOnly := uuid.New(), uuid.New(), uuid.New()
+	got := codersdk.UnionByFamily(map[string][]uuid.UUID{
+		"vscode": {shared},
+		"cursor": {shared, cursorOnly},
+		"ssh":    {sshOnly},
+		// An app the registry does not know still lands somewhere.
+		"some_new_ide": {cursorOnly},
+	})
+
+	// A template both apps saw appears once for the family.
+	require.ElementsMatch(t, []uuid.UUID{shared, cursorOnly}, got[codersdk.AppFamilyVSCode])
+	require.Equal(t, []uuid.UUID{sshOnly}, got[codersdk.AppFamilySSH])
+	require.Equal(t, []uuid.UUID{cursorOnly}, got[codersdk.AppFamilyUnknown])
+	require.Empty(t, got[codersdk.AppFamilyJetBrains])
 }

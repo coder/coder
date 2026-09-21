@@ -7,16 +7,17 @@ import { Button } from "#/components/Button/Button";
 import { InfoTooltip } from "#/components/InfoTooltip/InfoTooltip";
 import { TableCell } from "#/components/Table/Table";
 import { TimelineEntry } from "#/components/Timeline/TimelineEntry";
+import { TooltipMessage, TooltipTitle } from "#/components/Tooltip/Tooltip";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useClickableTableRow } from "#/hooks/useClickableTableRow";
 
-interface VersionRowProps {
+type VersionRowProps = {
 	version: TemplateVersion;
 	isActive: boolean;
 	isLatest: boolean;
 	onPromoteClick?: (version: TemplateVersion) => void;
 	onArchiveClick?: (version: TemplateVersion) => void;
-}
+};
 
 export const VersionRow: FC<VersionRowProps> = ({
 	version,
@@ -53,7 +54,10 @@ export const VersionRow: FC<VersionRowProps> = ({
 								version <strong>{version.name}</strong>
 							</span>
 							{version.message && (
-								<InfoTooltip title="Message" message={version.message} />
+								<InfoTooltip size="small">
+									<TooltipTitle>Message</TooltipTitle>
+									<TooltipMessage>{version.message}</TooltipMessage>
+								</InfoTooltip>
 							)}
 							<span className="text-xs text-content-secondary">
 								{new Date(version.created_at).toLocaleTimeString()}

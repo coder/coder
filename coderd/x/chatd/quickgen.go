@@ -143,6 +143,11 @@ type shortTextCandidate struct {
 	resolved resolvedModelCall
 }
 
+// modelSnapshotSuffix matches a dated snapshot suffix on a model ID, such as
+// claude-haiku-4-5-20251001 or gpt-4o-mini-2024-07-18, which admins commonly
+// configure in place of the alias.
+var modelSnapshotSuffix = regexp.MustCompile(`-(\d{8}|\d{4}-\d{2}-\d{2})$`)
+
 func selectPreferredConfiguredShortTextModelConfig(
 	configs []database.GetEnabledChatModelConfigsByOrganizationRow,
 ) (database.ChatModelConfig, bool) {
@@ -151,13 +156,110 @@ func selectPreferredConfiguredShortTextModelConfig(
 			if chatprovider.NormalizeProvider(config.Provider) != preferred.provider {
 				continue
 			}
-			if !strings.EqualFold(strings.TrimSpace(config.ChatModelConfig.Model), preferred.model) {
+			model := strings.TrimSpace(config.ChatModelConfig.Model)
+			if !strings.EqualFold(model, preferred.model) &&
+				!strings.EqualFold(modelSnapshotSuffix.ReplaceAllString(model, ""), preferred.model) {
 				continue
 			}
 			return config.ChatModelConfig, true
 		}
 	}
 	return database.ChatModelConfig{}, false
+}
+
+// resolveQuickgenModel resolves the model for a quickgen side call (title,
+// turn status label, chat summary). It prefers the organization's title
+// generation model override, then an enabled preferred small model, and uses
+// the chat's own model only as a last resort, so side calls avoid chat models
+// that cannot serve structured generations. A configured but unusable
+// override is a hard error. purpose labels resolver logs only.
+func (p *Server) resolveQuickgenModel(
+	ctx context.Context,
+	purpose string,
+	chat database.Chat,
+	modelOpts modelBuildOptions,
+) (resolvedModelCall, error) {
+	overrideResolved, overrideSet, overrideErr := p.resolveTitleGenerationModelOverride(
+		ctx,
+		purpose,
+		chat,
+		modelOpts,
+	)
+	if overrideErr != nil {
+		if overrideSet {
+			return resolvedModelCall{}, xerrors.Errorf(
+				"resolve title generation model override for %s: %w",
+				purpose,
+				overrideErr,
+			)
+		}
+		p.logger.Debug(ctx, "failed to resolve title generation model override",
+			slog.F("purpose", purpose),
+			slog.F("chat_id", chat.ID),
+			slog.Error(overrideErr),
+		)
+	} else if overrideSet {
+		return overrideResolved, nil
+	}
+
+	modelCtx, err := p.callerModelConfigContext(ctx, chat.OwnerID)
+	if err != nil {
+		return resolvedModelCall{}, err
+	}
+	configs, err := enabledChatModelConfigsForOrganization(modelCtx, p.db, chat.OrganizationID)
+	if err != nil {
+		p.logger.Debug(ctx, "failed to list quickgen model configs",
+			slog.F("purpose", purpose),
+			slog.F("chat_id", chat.ID),
+			slog.Error(err),
+		)
+		return p.resolveQuickgenChatModelFallback(ctx, purpose, chat, modelOpts)
+	}
+
+	config, ok := selectPreferredConfiguredShortTextModelConfig(configs)
+	if !ok {
+		return p.resolveQuickgenChatModelFallback(ctx, purpose, chat, modelOpts)
+	}
+
+	resolved, err := p.resolveModelCall(ctx, modelCallSpec{
+		purpose:        purpose,
+		chat:           chat,
+		explicitConfig: &config,
+		buildOptions:   modelOpts,
+	})
+	if err != nil {
+		p.logger.Debug(ctx, "preferred quickgen model unavailable",
+			slog.F("purpose", purpose),
+			slog.F("chat_id", chat.ID),
+			slog.F("model", config.Model),
+			slog.Error(err),
+		)
+		return p.resolveQuickgenChatModelFallback(ctx, purpose, chat, modelOpts)
+	}
+	return resolved, nil
+}
+
+// resolveQuickgenChatModelFallback resolves the chat's own model as the last
+// resort for a quickgen side call.
+func (p *Server) resolveQuickgenChatModelFallback(
+	ctx context.Context,
+	purpose string,
+	chat database.Chat,
+	modelOpts modelBuildOptions,
+) (resolvedModelCall, error) {
+	resolved, err := p.resolveModelCall(ctx, modelCallSpec{
+		purpose:      purpose,
+		chat:         chat,
+		buildOptions: modelOpts,
+	})
+	if err != nil {
+		return resolvedModelCall{}, xerrors.Errorf(
+			"resolve fallback chat model for %s: %w",
+			purpose,
+			err,
+		)
+	}
+	return resolved, nil
 }
 
 func normalizeShortTextOutput(text string) string {
@@ -187,10 +289,10 @@ type generatedTurnStatusLabel struct {
 // request but bound to the server: it neither blocks the HTTP response
 // nor is canceled when the request completes, and Close cancels it
 // instead of blocking on the title timeout while a provider is
-// unreachable. It resolves the chat's model and provider keys, then
-// delegates to maybeGenerateChatTitle, which only acts on the first user
-// turn (see titleInput) and is otherwise a no-op. Errors are logged and
-// swallowed.
+// unreachable. It resolves the title generation model (see
+// resolveQuickgenModel), then delegates to maybeGenerateChatTitle, which
+// only acts on the first user turn (see titleInput) and is otherwise a
+// no-op. Errors are logged and swallowed.
 func (p *Server) GenerateChatTitleAsync(ctx context.Context, chat database.Chat) {
 	logger := p.logger.With(
 		slog.F("chat_id", chat.ID),
@@ -227,25 +329,19 @@ func (p *Server) GenerateChatTitleAsync(ctx context.Context, chat database.Chat)
 			return
 		}
 		modelOpts := modelBuildOptions{ActiveAPIKeyID: apiKeyID}
-		turnCtx := titleCtx
-		fallback, err := p.resolveModelCall(turnCtx, modelCallSpec{
-			purpose:      "title",
-			chat:         chat,
-			buildOptions: modelOpts,
-		})
+		resolved, err := p.resolveQuickgenModel(titleCtx, "title", chat, modelOpts)
 		if err != nil {
-			logger.Debug(titleCtx, "failed to resolve model for automatic title generation",
+			logger.Warn(titleCtx, "failed to resolve model for automatic title generation",
 				slog.Error(err),
 			)
 			return
 		}
 		p.maybeGenerateChatTitle(
-			turnCtx,
+			titleCtx,
 			chat,
 			messages,
 			pasteText,
-			fallback,
-			modelOpts,
+			resolved,
 			&generatedChatTitle{},
 			logger,
 			p.existingDebugService(),
@@ -262,18 +358,15 @@ func (p *Server) GenerateChatTitleAsync(ctx context.Context, chat database.Chat)
 
 // maybeGenerateChatTitle generates an AI title for the chat when
 // appropriate (first user message, no assistant reply yet, and the
-// current title is either empty or still the fallback truncation).
-// It uses the configured title generation model override when set.
-// Otherwise, it tries cheap, fast models first and falls back to the
-// user's chat model. It is a best-effort operation that logs and
-// swallows errors.
+// current title is either empty or still the fallback truncation) using
+// the resolved title generation model (see resolveQuickgenModel). It is a
+// best-effort operation that logs and swallows errors.
 func (p *Server) maybeGenerateChatTitle(
 	ctx context.Context,
 	chat database.Chat,
 	messages []database.ChatMessage,
 	pasteText map[uuid.UUID]string,
-	fallback resolvedModelCall,
-	modelOpts modelBuildOptions,
+	resolved resolvedModelCall,
 	generatedTitle *generatedChatTitle,
 	logger slog.Logger,
 	debugSvc *chatdebug.Service,
@@ -287,35 +380,10 @@ func (p *Server) maybeGenerateChatTitle(
 	titleCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
-	overrideResolved, overrideSet, overrideErr := p.resolveTitleGenerationModelOverride(
-		titleCtx,
-		chat,
-		modelOpts,
-	)
-	if overrideErr != nil {
-		if overrideSet {
-			logger.Warn(ctx, "title generation model override unavailable, skipping title generation",
-				slog.F("chat_id", chat.ID),
-				slog.F("override_context", titleGenerationOverrideContext),
-				slog.Error(overrideErr),
-			)
-			return
-		}
-		logger.Debug(ctx, "failed to resolve title generation model override",
-			slog.F("chat_id", chat.ID),
-			slog.F("override_context", titleGenerationOverrideContext),
-			slog.Error(overrideErr),
-		)
-	}
-
-	selected := fallback
-	if overrideSet {
-		selected = overrideResolved
-	}
 	candidate := shortTextCandidate{
-		provider: string(selected.route.Provider.Type),
-		model:    selected.dbConfig.Model,
-		resolved: selected,
+		provider: string(resolved.route.Provider.Type),
+		model:    resolved.dbConfig.Model,
+		resolved: resolved,
 	}
 
 	var historyTipMessageID int64
@@ -357,20 +425,12 @@ func (p *Server) maybeGenerateChatTitle(
 	title, err := generateTitle(candidateCtx, candidate.resolved.model.LanguageModel(), titleObjectCall(candidate.resolved), input)
 	finishDebugRun(err)
 	if err != nil {
-		if overrideSet {
-			logger.Warn(ctx, "title model candidate failed",
-				slog.F("chat_id", chat.ID),
-				slog.F("override_context", titleGenerationOverrideContext),
-				slog.F("provider", candidate.provider),
-				slog.F("model", candidate.model),
-				slog.Error(err),
-			)
-		} else {
-			logger.Debug(ctx, "title model candidate failed",
-				slog.F("chat_id", chat.ID),
-				slog.Error(err),
-			)
-		}
+		logger.Warn(ctx, "title model candidate failed",
+			slog.F("chat_id", chat.ID),
+			slog.F("provider", resolved.resolvedProvider),
+			slog.F("model", resolved.resolvedModel),
+			slog.Error(err),
+		)
 		return
 	}
 	if title == "" || title == chat.Title {
@@ -1388,7 +1448,9 @@ func generateTurnStatusLabel(
 	)
 	finishDebugRun(err)
 	if err != nil {
-		logger.Debug(ctx, "turn status label model candidate failed",
+		logger.Warn(ctx, "turn status label model candidate failed",
+			slog.F("provider", resolved.resolvedProvider),
+			slog.F("model", resolved.resolvedModel),
 			slog.Error(err),
 		)
 		return ""

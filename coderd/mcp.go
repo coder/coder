@@ -1567,8 +1567,6 @@ func (api *API) markMCPTokenRefreshFailure(
 // external authorization servers, so it must not change when other MCP
 // routes move. The route registration in coderd.go and the OAuth cookie
 // Path values must stay aligned with it.
-// TODO(CODAGT-922): define a migration story before moving registered
-// redirect URIs to /api/v2.
 func mcpServerOAuth2CallbackPath(configID uuid.UUID) string {
 	return fmt.Sprintf("/api/experimental/mcp/servers/%s/oauth2/callback", configID)
 }

@@ -32,13 +32,13 @@ export const persistedAttachmentsStorageKey = "agents.persisted-attachments";
  * Serializable metadata stored in localStorage so that already-uploaded
  * attachments survive page navigations on the create form.
  */
-interface PersistedAttachment {
+type PersistedAttachment = {
 	fileId: string;
 	fileName: string;
 	fileType: string;
 	lastModified: number;
 	organizationId: string;
-}
+};
 
 /**
  * Restore previously persisted attachments from localStorage.
@@ -162,7 +162,7 @@ function clearPersistedAttachments() {
 	localStorage.removeItem(persistedAttachmentsStorageKey);
 }
 
-interface UseFileAttachmentsReturn {
+type UseFileAttachmentsReturn = {
 	/**
 	 * True after the post-commit effect assigns in-memory attachment state to
 	 * the supplied organization. Keep attach and send controls disabled until then.
@@ -179,7 +179,7 @@ interface UseFileAttachmentsReturn {
 	setAttachments: Dispatch<SetStateAction<File[]>>;
 	setPreviewUrls: Dispatch<SetStateAction<Map<File, string>>>;
 	setUploadStates: Dispatch<SetStateAction<Map<File, UploadState>>>;
-}
+};
 
 export function useFileAttachments(
 	organizationId: string | undefined,

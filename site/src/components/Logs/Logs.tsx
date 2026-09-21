@@ -5,11 +5,11 @@ import { type Line, LogLine, LogLinePrefix } from "./LogLine";
 
 export const DEFAULT_LOG_LINE_SIDE_PADDING = 24;
 
-interface LogsProps {
+type LogsProps = {
 	lines: Line[];
 	hideTimestamps?: boolean;
 	className?: string;
-}
+};
 
 export const Logs: FC<LogsProps> = ({
 	hideTimestamps,

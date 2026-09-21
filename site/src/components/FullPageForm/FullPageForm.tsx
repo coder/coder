@@ -5,12 +5,12 @@ import {
 	PageHeaderSubtitle,
 	PageHeaderTitle,
 } from "#/components/PageHeader/PageHeader";
-export interface FullPageFormProps {
+export type FullPageFormProps = {
 	title: string;
 	detail?: ReactNode;
 	children?: ReactNode;
 	size?: Size;
-}
+};
 
 export const FullPageForm: FC<FullPageFormProps> = ({
 	title,

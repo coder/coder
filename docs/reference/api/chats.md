@@ -315,6 +315,7 @@ curl -X POST http://coder-server:8080/api/v2/chats \
   ],
   "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
   "plan_mode": "plan",
   "reasoning_effort": "string",
   "system_prompt": "string",
@@ -3815,6 +3816,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/chats/m
         "frequency_penalty": 0,
         "max_output_tokens": 0,
         "openai_config": {
+          "reasoning_model": true,
           "use_responses_api": true
         },
         "presence_penalty": 0,
@@ -3876,6 +3878,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/chats/m
               "property2": null
             },
             "prompt_cache_key": "string",
+            "reasoning_mode": "string",
             "reasoning_summary": "string",
             "safety_identifier": "string",
             "search_context_size": "string",
@@ -4032,6 +4035,7 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/chats/
     "frequency_penalty": 0,
     "max_output_tokens": 0,
     "openai_config": {
+      "reasoning_model": true,
       "use_responses_api": true
     },
     "presence_penalty": 0,
@@ -4093,6 +4097,7 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/chats/
           "property2": null
         },
         "prompt_cache_key": "string",
+        "reasoning_mode": "string",
         "reasoning_summary": "string",
         "safety_identifier": "string",
         "search_context_size": "string",
@@ -4210,6 +4215,7 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/chats/
     "frequency_penalty": 0,
     "max_output_tokens": 0,
     "openai_config": {
+      "reasoning_model": true,
       "use_responses_api": true
     },
     "presence_penalty": 0,
@@ -4271,6 +4277,7 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/chats/
           "property2": null
         },
         "prompt_cache_key": "string",
+        "reasoning_mode": "string",
         "reasoning_summary": "string",
         "safety_identifier": "string",
         "search_context_size": "string",

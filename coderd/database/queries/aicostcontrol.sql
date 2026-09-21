@@ -467,7 +467,8 @@ SELECT
 	COALESCE(SUM(tu.output_tokens), 0)::BIGINT AS output_tokens,
 	COALESCE(SUM(tu.cache_read_input_tokens), 0)::BIGINT AS cache_read_tokens,
 	COALESCE(SUM(tu.cache_write_input_tokens), 0)::BIGINT AS cache_write_tokens,
-	COALESCE(SUM(tu.cost_micros), 0)::BIGINT AS cost_micros
+	COALESCE(SUM(tu.cost_micros), 0)::BIGINT AS cost_micros,
+	COUNT(*) OVER()::BIGINT AS count
 FROM aibridge_token_usages tu
 JOIN aibridge_interceptions ai ON ai.id = tu.interception_id
 JOIN users ON users.id = ai.initiator_id
@@ -476,6 +477,10 @@ JOIN organizations ON organizations.id = groups.organization_id
 WHERE groups.organization_id = @organization_id
 	AND tu.created_at >= @period_start::timestamptz
 	AND tu.created_at < @period_end::timestamptz
+	AND (@user_id::uuid = '00000000-0000-0000-0000-000000000000'::uuid OR ai.initiator_id = @user_id)
+	AND (@group_id::uuid = '00000000-0000-0000-0000-000000000000'::uuid OR tu.effective_group_id = @group_id)
+	AND (@provider_name::text = '' OR ai.provider_name = @provider_name)
+	AND (@model::text = '' OR ai.model = @model)
 GROUP BY
 	ai.initiator_id,
 	users.username,
@@ -486,7 +491,58 @@ GROUP BY
 	ai.model,
 	ai.provider,
 	ai.provider_name
-ORDER BY ai.initiator_id, tu.effective_group_id, ai.provider, ai.provider_name, ai.model;
+ORDER BY ai.initiator_id, tu.effective_group_id, ai.provider, ai.provider_name, ai.model
+OFFSET @offset_opt
+LIMIT NULLIF(@limit_opt::int, 0);
+
+-- name: ListOrganizationAISpendUsers :many
+-- Returns one page of per-user AI spend for @organization_id over the
+-- [period_start, period_end) window, most expensive first, together with the
+-- providers, clients, and models each user spent through and the count and
+-- totals over every matching user. It must keep the same joins and predicates as
+-- ExportOrganizationAISpend so both report the same token usage.
+SELECT
+	ai.initiator_id AS user_id,
+	users.username AS username,
+	users.name AS name,
+	users.avatar_url AS avatar_url,
+	groups.organization_id AS organization_id,
+	COALESCE(SUM(tu.cost_micros), 0)::BIGINT AS cost_micros,
+	COUNT(*) FILTER (WHERE tu.cost_micros IS NULL)::BIGINT AS unpriced_usage_count,
+	ARRAY_AGG(DISTINCT ai.provider ORDER BY ai.provider)::text[] AS providers,
+	ARRAY_AGG(DISTINCT COALESCE(ai.client, 'Unknown') ORDER BY COALESCE(ai.client, 'Unknown'))::text[] AS clients,
+	ARRAY_AGG(DISTINCT ai.model ORDER BY ai.model)::text[] AS models,
+	COUNT(*) OVER ()::BIGINT AS count,
+	COALESCE(SUM(SUM(tu.cost_micros)) OVER (), 0)::BIGINT AS total_cost_micros,
+	COALESCE(SUM(COUNT(*) FILTER (WHERE tu.cost_micros IS NULL)) OVER (), 0)::BIGINT AS total_unpriced_usage_count
+FROM aibridge_token_usages tu
+JOIN aibridge_interceptions ai ON ai.id = tu.interception_id
+JOIN users ON users.id = ai.initiator_id
+JOIN groups ON groups.id = tu.effective_group_id
+WHERE groups.organization_id = @organization_id
+	AND tu.created_at >= @period_start::timestamptz
+	AND tu.created_at < @period_end::timestamptz
+	AND CASE
+		WHEN @provider_name::text != '' THEN ai.provider_name = @provider_name::text
+		ELSE true
+	END
+	AND CASE
+		WHEN @model::text != '' THEN ai.model = @model::text
+		ELSE true
+	END
+	AND CASE
+		WHEN @client::text != '' THEN COALESCE(ai.client, 'Unknown') = @client::text
+		ELSE true
+	END
+GROUP BY
+	ai.initiator_id,
+	users.username,
+	users.name,
+	users.avatar_url,
+	groups.organization_id
+ORDER BY cost_micros DESC, LOWER(users.username), ai.initiator_id
+LIMIT NULLIF(@limit_opt::int, 0)
+OFFSET @offset_opt::int;
 
 -- name: GetUnpricedAIModelsSince :many
 -- Returns the models used since the given time that hold no price, most used

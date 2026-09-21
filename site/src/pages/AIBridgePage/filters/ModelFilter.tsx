@@ -53,10 +53,10 @@ export const useModelFilterMenu = ({
 
 export type ModelFilterMenu = ReturnType<typeof useModelFilterMenu>;
 
-interface ModelFilterProps {
+type ModelFilterProps = {
 	menu: ModelFilterMenu;
 	width?: number;
-}
+};
 
 export const ModelFilter: FC<ModelFilterProps> = ({ menu, width }) => {
 	return (

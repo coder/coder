@@ -12,10 +12,10 @@ import { AddWorkspaceUserOrGroup } from "#/modules/workspaces/WorkspaceSharingFo
 import { useWorkspaceSharing } from "#/modules/workspaces/WorkspaceSharingForm/useWorkspaceSharing";
 import { WorkspaceSharingForm } from "#/modules/workspaces/WorkspaceSharingForm/WorkspaceSharingForm";
 
-interface ShareButtonProps {
+type ShareButtonProps = {
 	workspace: Workspace;
 	canUpdatePermissions: boolean;
-}
+};
 
 export const ShareButton: FC<ShareButtonProps> = ({
 	workspace,

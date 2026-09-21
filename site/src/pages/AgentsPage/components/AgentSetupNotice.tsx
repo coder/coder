@@ -4,7 +4,7 @@ import type { Organization } from "#/api/typesGenerated";
 import { organizationModelsPath } from "#/pages/AISettingsPage/ModelsPage/organizationModels";
 import { docs } from "#/utils/docs";
 
-interface AgentSetupNoticeProps {
+type AgentSetupNoticeProps = {
 	isAdmin: boolean;
 	providerCount: number;
 	modelCount: number;
@@ -13,7 +13,7 @@ interface AgentSetupNoticeProps {
 	// the page only when no supported provider is configured.
 	unsupportedProviderNames?: readonly string[];
 	aiGatewayDisabled?: boolean;
-}
+};
 
 const formatProviderList = (names: readonly string[]): string => {
 	if (names.length === 1) {
