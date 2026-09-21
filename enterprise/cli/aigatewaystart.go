@@ -24,6 +24,7 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/aibridge"
+	"github.com/coder/coder/v2/aibridge/keypool"
 	aibridgemetrics "github.com/coder/coder/v2/aibridge/metrics"
 	agpl "github.com/coder/coder/v2/cli"
 	"github.com/coder/coder/v2/cli/clilog"
@@ -81,10 +82,15 @@ var aiGatewayInheritedEnvs = map[string]struct{}{
 	"CODER_AI_GATEWAY_CIRCUIT_BREAKER_INTERVAL":          {},
 	"CODER_AI_GATEWAY_CIRCUIT_BREAKER_MAX_REQUESTS":      {},
 	"CODER_AI_GATEWAY_CIRCUIT_BREAKER_TIMEOUT":           {},
+	"CODER_AI_GATEWAY_DISABLE_CONTENT_RECORDING":         {},
 	"CODER_AI_GATEWAY_DUMP_DIR":                          {},
 	"CODER_AI_GATEWAY_MAX_CONCURRENCY":                   {},
 	"CODER_AI_GATEWAY_RATE_LIMIT":                        {},
 	"CODER_AI_GATEWAY_SEND_ACTOR_HEADERS":                {},
+	// Structured logging is inherited because the gateway is now one of the
+	// processes that can emit the records; which one does is the source.
+	"CODER_AI_GATEWAY_STRUCTURED_LOGGING":        {},
+	"CODER_AI_GATEWAY_STRUCTURED_LOGGING_SOURCE": {},
 
 	// Prometheus
 	"CODER_PROMETHEUS_ADDRESS": {},
@@ -177,6 +183,14 @@ func (r *RootCmd) aiGatewayStart() *serpent.Command {
 			}
 
 			gatewayLogger := logger.Named("ai-gateway")
+
+			// Standalone Gateway starts with an empty pool. Providers are
+			// fetched later via GetAIProviders DRPC and pool is updated.
+			pool, err := aibridged.NewCachedBridgePool(aibridged.PoolOptionsFromConfig(vals.AI.BridgeConfig), nil, gatewayLogger.Named("pool"), metrics, tracer)
+			if err != nil {
+				return xerrors.Errorf("create request pool: %w", err)
+			}
+			gatewayRegisterer.MustRegister(keypool.NewStateCollector(pool.KeyPools))
 
 			return runStandaloneGateway(signalCtx, standaloneGatewayParams{
 				bridgeConfig: vals.AI.BridgeConfig,

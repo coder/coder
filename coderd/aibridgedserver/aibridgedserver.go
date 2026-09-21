@@ -170,7 +170,7 @@ func NewServer(lifecycleCtx context.Context, opts Options) (*Server, error) {
 		pubsub:              opts.Pubsub,
 		logger:              opts.Logger,
 		externalAuthConfigs: eac,
-		structuredLogging:   opts.GatewayCfg.StructuredLogging.Value(),
+		structuredLogging:   opts.GatewayCfg.EmitsStructuredLogs(codersdk.AIStructuredLoggingSourceCoderd),
 		aiSeatTracker:       opts.AISeatTracker,
 		experiments:         opts.Experiments,
 		budgetPolicy:        codersdk.NewAIBudgetPolicyFromString(opts.GatewayCfg.BudgetPolicy),

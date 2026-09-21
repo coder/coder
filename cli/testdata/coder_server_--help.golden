@@ -139,6 +139,15 @@ AI GATEWAY OPTIONS:
           Length of time to retain data such as interceptions and all related
           records (token, prompt, tool use).
 
+      --ai-gateway-disable-content-recording bool, $CODER_AI_GATEWAY_DISABLE_CONTENT_RECORDING (default: false)
+          Stop recording the content of intercepted conversations: user prompts,
+          tool call arguments and model thoughts. Interceptions and token usage
+          are still recorded, so cost controls, budget enforcement and spend
+          reporting are unaffected. Sessions pages, prompt and tool call
+          telemetry, and the audit trail of what was asked are lost. Combine
+          with --ai-gateway-structured-logging-source=gateway to keep exporting
+          the dropped records to a SIEM.
+
       --ai-gateway-enabled bool, $CODER_AI_GATEWAY_ENABLED (default: true)
           Whether to start an in-memory AI Gateway instance.
 
@@ -161,6 +170,16 @@ AI GATEWAY OPTIONS:
       --ai-gateway-structured-logging bool, $CODER_AI_GATEWAY_STRUCTURED_LOGGING (default: false)
           Emit structured logs for AI Gateway interception records. Use this for
           exporting these records to external SIEM or observability systems.
+
+      --ai-gateway-structured-logging-source coderd|gateway|both, $CODER_AI_GATEWAY_STRUCTURED_LOGGING_SOURCE (default: coderd)
+          Which process emits AI Gateway interception records when structured
+          logging is enabled: coderd, the gateway, or both. The gateway emits
+          records that are never persisted, such as those dropped by
+          --ai-gateway-disable-content-recording, but cannot report
+          thread_parent_id or thread_root_id. Use both to verify a move from one
+          to the other; records reaching coderd are then reported twice. A
+          standalone gateway must be configured to emit its own records, and its
+          logs shipped rather than coderd's.
 
 AI GATEWAY PROXY OPTIONS: 
       --ai-gateway-proxy-dump-dir string, $CODER_AI_GATEWAY_PROXY_DUMP_DIR

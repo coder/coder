@@ -49,6 +49,17 @@ func newAIBridgeDaemon(coderAPI *coderd.API, cfg codersdk.AIBridgeConfig, reg pr
 	providerMetrics := aibridged.NewMetrics(reg)
 	tracer := coderAPI.TracerProvider.Tracer(tracing.TracerName)
 
+	// Create an empty pool for reusable stateful [aibridge.RequestBridge]
+	// instances (one per user). The reloader populates it via the initial
+	// reload below.
+	pool, err := aibridged.NewCachedBridgePool(aibridged.PoolOptionsFromConfig(cfg), nil, logger.Named("pool"), metrics, tracer) // TODO: configurable size.
+	if err != nil {
+		return nil, nil, xerrors.Errorf("create request pool: %w", err)
+	}
+
+	// Report current key pool state per provider at scrape time.
+	reg.MustRegister(keypool.NewStateCollector(pool.KeyPools))
+
 	// Create daemon. Construct it before subscribing so the reloader can use
 	// srv.Client to fetch providers over the in-memory RPC.
 	srv, err := aibridged.New(ctx, func(dialCtx context.Context) (aibridged.DRPCClient, error) {

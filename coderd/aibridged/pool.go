@@ -21,6 +21,7 @@ import (
 	"github.com/coder/coder/v2/aibridge/mcp"
 	"github.com/coder/coder/v2/aibridge/recorder"
 	"github.com/coder/coder/v2/aibridge/tracing"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/quartz"
 )
 
@@ -60,9 +61,23 @@ type PoolOptions struct {
 	// thoughts from being recorded. Interceptions and token usage are still
 	// recorded, so AI spend accounting and budget enforcement are unaffected.
 	DisableContentRecording bool
+	// WarnContentNotExported reports, at startup, that content records are
+	// being dropped without being exported anywhere.
+	WarnContentNotExported bool
 }
 
 var DefaultPoolOptions = PoolOptions{MaxItems: 5000, TTL: time.Minute * 15}
+
+// PoolOptionsFromConfig returns DefaultPoolOptions with the record policy the
+// deployment configured. Every construction site uses it, so the in-process
+// daemon, the standalone gateway and the test harness cannot drift.
+func PoolOptionsFromConfig(cfg codersdk.AIBridgeConfig) PoolOptions {
+	options := DefaultPoolOptions
+	options.StructuredLogging = cfg.EmitsStructuredLogs(codersdk.AIStructuredLoggingSourceGateway)
+	options.DisableContentRecording = cfg.DisableContentRecording.Value()
+	options.WarnContentNotExported = options.DisableContentRecording && !options.StructuredLogging
+	return options
+}
 
 var _ Pooler = &CachedBridgePool{}
 
@@ -134,6 +149,13 @@ func NewCachedBridgePool(options PoolOptions, providers []aibridge.Provider, log
 			ToolUsage:    true,
 			ModelThought: true,
 		}))
+
+		// Content records never reach coderd, so if coderd is the only
+		// emitter the deployment has silently stopped exporting the very
+		// records it is declining to store. Nothing else reports this.
+		if options.WarnContentNotExported {
+			logger.Warn(context.Background(), "content recording is disabled but structured logs are emitted by coderd, so prompts, tool calls and model thoughts will not be exported; set --ai-gateway-structured-logging-source to gateway or both to keep exporting them")
+		}
 	}
 
 	pool := &CachedBridgePool{

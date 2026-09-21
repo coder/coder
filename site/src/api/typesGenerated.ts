@@ -47,6 +47,11 @@ export interface AIBridgeConfig {
 	readonly max_concurrency: number;
 	readonly rate_limit: number;
 	readonly structured_logging: boolean;
+	/**
+	 * StructuredLoggingSource selects which process emits the records that
+	 * StructuredLogging enables. See AIStructuredLoggingSource.
+	 */
+	readonly structured_logging_source?: string;
 	readonly send_actor_headers: boolean;
 	readonly allow_byok: boolean;
 	/**
@@ -69,6 +74,12 @@ export interface AIBridgeConfig {
 	 * the provider. Empty disables dumping.
 	 */
 	readonly api_dump_dir: string;
+	/**
+	 * DisableContentRecording stops prompts, tool call arguments and model
+	 * thoughts from being recorded. Interceptions and token usage are still
+	 * recorded, so AI spend accounting and budget enforcement are unaffected.
+	 */
+	readonly disable_content_recording: boolean;
 }
 
 // From codersdk/aibridge.go
@@ -608,6 +619,15 @@ export interface AISpendPeriodWindow {
 	 */
 	readonly period_end: string;
 }
+
+// From codersdk/deployment.go
+export type AIStructuredLoggingSource = "both" | "coderd" | "gateway";
+
+export const AIStructuredLoggingSources: AIStructuredLoggingSource[] = [
+	"both",
+	"coderd",
+	"gateway",
+];
 
 // From codersdk/allowlist.go
 /**
