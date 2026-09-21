@@ -989,14 +989,6 @@ func WorkspaceRoleActions(role codersdk.WorkspaceRole) []policy.Action {
 	return []policy.Action{}
 }
 
-// ChatProjectRoleActions maps a project sharing role to its RBAC actions.
-func ChatProjectRoleActions(role codersdk.ChatProjectRole) []policy.Action {
-	if role == codersdk.ChatProjectRoleRead {
-		return []policy.Action{policy.ActionRead}
-	}
-	return []policy.Action{}
-}
-
 func ChatRoleActions(role codersdk.ChatRole) []policy.Action {
 	if role == codersdk.ChatRoleRead {
 		return []policy.Action{policy.ActionRead}

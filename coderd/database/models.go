@@ -535,7 +535,6 @@ const (
 	ApiKeyScopeChatProjectRead                     APIKeyScope = "chat_project:read"
 	ApiKeyScopeChatProjectUpdate                   APIKeyScope = "chat_project:update"
 	ApiKeyScopeChatProjectDelete                   APIKeyScope = "chat_project:delete"
-	ApiKeyScopeChatProjectShare                    APIKeyScope = "chat_project:share"
 	ApiKeyScopeChatProjectMemory                   APIKeyScope = "chat_project_memory:*"
 	ApiKeyScopeChatProjectMemoryCreate             APIKeyScope = "chat_project_memory:create"
 	ApiKeyScopeChatProjectMemoryRead               APIKeyScope = "chat_project_memory:read"
@@ -828,7 +827,6 @@ func (e APIKeyScope) Valid() bool {
 		ApiKeyScopeChatProjectRead,
 		ApiKeyScopeChatProjectUpdate,
 		ApiKeyScopeChatProjectDelete,
-		ApiKeyScopeChatProjectShare,
 		ApiKeyScopeChatProjectMemory,
 		ApiKeyScopeChatProjectMemoryCreate,
 		ApiKeyScopeChatProjectMemoryRead,
@@ -1089,7 +1087,6 @@ func AllAPIKeyScopeValues() []APIKeyScope {
 		ApiKeyScopeChatProjectRead,
 		ApiKeyScopeChatProjectUpdate,
 		ApiKeyScopeChatProjectDelete,
-		ApiKeyScopeChatProjectShare,
 		ApiKeyScopeChatProjectMemory,
 		ApiKeyScopeChatProjectMemoryCreate,
 		ApiKeyScopeChatProjectMemoryRead,
@@ -5300,10 +5297,6 @@ type ChatProject struct {
 	Description    string    `db:"description" json:"description"`
 	CreatedAt      time.Time `db:"created_at" json:"created_at"`
 	UpdatedAt      time.Time `db:"updated_at" json:"updated_at"`
-	// Per-user permissions granted on the project, keyed by user ID. Same shape as chats.user_acl.
-	UserACL ChatACL `db:"user_acl" json:"user_acl"`
-	// Per-group permissions granted on the project, keyed by group ID. Same shape as chats.group_acl.
-	GroupACL ChatACL `db:"group_acl" json:"group_acl"`
 }
 
 // Organization-scoped durable memories for chat projects.

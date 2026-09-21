@@ -181,39 +181,6 @@ type UpdateChatProjectRequest struct {
 	Description *string `json:"description,omitempty"`
 }
 
-// ChatProjectRole is the access a shared user or group holds on a project.
-// Like chats, sharing grants read: seeing the project, its memory, and the
-// ability to start chats in it.
-type ChatProjectRole string
-
-const (
-	ChatProjectRoleRead    ChatProjectRole = "read"
-	ChatProjectRoleDeleted ChatProjectRole = ""
-)
-
-type ChatProjectUser struct {
-	MinimalUser
-	Role ChatProjectRole `json:"role" enums:"read"`
-}
-
-type ChatProjectGroup struct {
-	Group
-	Role ChatProjectRole `json:"role" enums:"read"`
-}
-
-// ChatProjectACL lists the users and groups a project is shared with.
-type ChatProjectACL struct {
-	Users  []ChatProjectUser  `json:"users"`
-	Groups []ChatProjectGroup `json:"groups"`
-}
-
-// UpdateChatProjectACL applies role changes for the listed principals.
-// ChatProjectRoleDeleted removes an entry; omitted entries are untouched.
-type UpdateChatProjectACL struct {
-	UserRoles  map[string]ChatProjectRole `json:"user_roles,omitempty"`
-	GroupRoles map[string]ChatProjectRole `json:"group_roles,omitempty"`
-}
-
 // ChatProjectMemory is a durable memory shared by chats in a project.
 type ChatProjectMemory struct {
 	ID                uuid.UUID  `json:"id" format:"uuid"`
@@ -2180,31 +2147,6 @@ func (c *ExperimentalClient) UpdateChatProject(ctx context.Context, projectID uu
 }
 
 // DeleteChatProject deletes a chat project and detaches its chats.
-func (c *ExperimentalClient) GetChatProjectACL(ctx context.Context, projectID uuid.UUID) (ChatProjectACL, error) {
-	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/experimental/chats/projects/%s/acl", projectID), nil)
-	if err != nil {
-		return ChatProjectACL{}, err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		return ChatProjectACL{}, ReadBodyAsError(res)
-	}
-	var acl ChatProjectACL
-	return acl, ReadBodyAsJSON(res, &acl)
-}
-
-func (c *ExperimentalClient) UpdateChatProjectACL(ctx context.Context, projectID uuid.UUID, req UpdateChatProjectACL) error {
-	res, err := c.Request(ctx, http.MethodPatch, fmt.Sprintf("/api/experimental/chats/projects/%s/acl", projectID), req)
-	if err != nil {
-		return err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusNoContent {
-		return ReadBodyAsError(res)
-	}
-	return nil
-}
-
 func (c *ExperimentalClient) DeleteChatProject(ctx context.Context, projectID uuid.UUID) error {
 	res, err := c.Request(ctx, http.MethodDelete, fmt.Sprintf("/api/experimental/chats/projects/%s", projectID), nil)
 	if err != nil {

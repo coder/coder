@@ -117,15 +117,16 @@ func TestOrgSharingPermissions(t *testing.T) {
 
 //nolint:tparallel,paralleltest
 func TestChatSharingPermissions(t *testing.T) {
+	target := rbac.Permission{
+		Negate:       true,
+		ResourceType: rbac.ResourceChat.Type,
+		Action:       policy.ActionShare,
+	}
 	orgID := uuid.New()
 	userID := uuid.NewString()
-	// The kill switch covers every shareable chat resource.
-	resources := map[string]rbac.Object{
-		rbac.ResourceChat.Type:        rbac.ResourceChat.WithID(uuid.New()).InOrg(orgID).WithOwner(userID),
-		rbac.ResourceChatProject.Type: rbac.ResourceChatProject.WithID(uuid.New()).InOrg(orgID).WithOwner(userID),
-	}
+	resource := rbac.ResourceChat.WithID(uuid.New()).InOrg(orgID).WithOwner(userID)
 
-	authorizeOrgMember := func(t *testing.T, resource rbac.Object) error {
+	authorizeOrgMember := func(t *testing.T) error {
 		t.Helper()
 
 		memberRole, err := rbac.RoleByName(rbac.RoleMember())
@@ -155,14 +156,8 @@ func TestChatSharingPermissions(t *testing.T) {
 
 		memberRole, err := rbac.RoleByName(rbac.RoleMember())
 		require.NoError(t, err)
-		for resourceType, resource := range resources {
-			assert.False(t, permissionGranted(memberRole.Site, rbac.Permission{
-				Negate:       true,
-				ResourceType: resourceType,
-				Action:       policy.ActionShare,
-			}))
-			require.NoError(t, authorizeOrgMember(t, resource))
-		}
+		assert.False(t, permissionGranted(memberRole.Site, target))
+		require.NoError(t, authorizeOrgMember(t))
 	})
 
 	t.Run("Disabled", func(t *testing.T) {
@@ -173,15 +168,10 @@ func TestChatSharingPermissions(t *testing.T) {
 
 		memberRole, err := rbac.RoleByName(rbac.RoleMember())
 		require.NoError(t, err)
-		for resourceType, resource := range resources {
-			assert.True(t, permissionGranted(memberRole.Site, rbac.Permission{
-				Negate:       true,
-				ResourceType: resourceType,
-				Action:       policy.ActionShare,
-			}))
-			err = authorizeOrgMember(t, resource)
-			require.ErrorAs(t, err, &rbac.UnauthorizedError{})
-		}
+		assert.True(t, permissionGranted(memberRole.Site, target))
+
+		err = authorizeOrgMember(t)
+		require.ErrorAs(t, err, &rbac.UnauthorizedError{})
 	})
 }
 
@@ -1456,17 +1446,8 @@ func TestRolePermissions(t *testing.T) {
 			},
 		},
 		{
-			Name:     "ChatProjectShare",
-			Actions:  []policy.Action{policy.ActionShare},
-			Resource: rbac.ResourceChatProject.WithID(uuid.New()).InOrg(orgID).WithOwner(currentUser.String()),
-			AuthorizeMap: map[bool][]hasAuthSubjects{
-				true:  {owner, orgAdmin, orgMemberMe},
-				false: {setOtherOrg, memberMe, userAdmin, templateAdmin, orgTemplateAdmin, orgUserAdmin, orgAuditor, orgWorkspaceAccessUser},
-			},
-		},
-		{
-			// Memory is owned by the project creator; other members reach it
-			// only through the project ACL.
+			// Memory is owned by the project creator; org admins reach every
+			// project's memory.
 			Name:     "ChatProjectMemoryCRUD",
 			Actions:  []policy.Action{policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
 			Resource: rbac.ResourceChatProjectMemory.WithID(uuid.New()).InOrg(orgID).WithOwner(currentUser.String()),
@@ -1482,19 +1463,6 @@ func TestRolePermissions(t *testing.T) {
 			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true:  {owner, orgAdmin},
 				false: {setOtherOrg, memberMe, orgMemberMe, userAdmin, templateAdmin, orgTemplateAdmin, orgUserAdmin, orgAuditor, orgWorkspaceAccessUser},
-			},
-		},
-		{
-			Name:    "ChatProjectMemoryShared",
-			Actions: []policy.Action{policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
-			Resource: rbac.ResourceChatProjectMemory.WithID(uuid.New()).InOrg(orgID).WithOwner(uuid.NewString()).WithACLUserList(map[string][]policy.Action{
-				currentUser.String(): rbac.ResourceChatProjectMemory.AvailableActions(),
-			}),
-			// Any org member listed in the ACL gets access, whatever their
-			// other roles.
-			AuthorizeMap: map[bool][]hasAuthSubjects{
-				true:  {owner, orgAdmin, orgMemberMe, orgWorkspaceAccessUser},
-				false: {setOtherOrg, memberMe, userAdmin, templateAdmin, orgTemplateAdmin, orgUserAdmin, orgAuditor},
 			},
 		},
 		{

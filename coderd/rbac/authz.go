@@ -737,18 +737,6 @@ func ConfigWorkspaces() regosql.ConvertConfig {
 	}
 }
 
-// ConfigChatProjects mirrors ConfigChats so the sharing kill switch also
-// applies to project list filters.
-func ConfigChatProjects() regosql.ConvertConfig {
-	converter := regosql.ChatProjectConverter()
-	if ChatACLDisabled() {
-		converter = regosql.ChatProjectNoACLConverter()
-	}
-	return regosql.ConvertConfig{
-		VariableConverter: converter,
-	}
-}
-
 // ConfigChatModelConfigs uses a resource converter so SQL filters qualify
 // chat model config columns consistently with GetChatModelConfigs.
 func ConfigChatModelConfigs() regosql.ConvertConfig {

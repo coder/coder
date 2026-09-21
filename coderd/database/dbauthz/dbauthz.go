@@ -3693,23 +3693,8 @@ func (q *querier) GetChatPlanModeInstructions(ctx context.Context) (string, erro
 	return q.db.GetChatPlanModeInstructions(ctx)
 }
 
-func (q *querier) GetChatProjectACLByID(ctx context.Context, id uuid.UUID) (database.GetChatProjectACLByIDRow, error) {
-	project, err := q.db.GetChatProjectByID(ctx, id)
-	if err != nil {
-		return database.GetChatProjectACLByIDRow{}, err
-	}
-	if err := q.authorizeContext(ctx, policy.ActionRead, project); err != nil {
-		return database.GetChatProjectACLByIDRow{}, err
-	}
-	return q.db.GetChatProjectACLByID(ctx, id)
-}
-
 func (q *querier) GetChatProjectByID(ctx context.Context, id uuid.UUID) (database.ChatProject, error) {
 	return fetch(q.log, q.auth, q.db.GetChatProjectByID)(ctx, id)
-}
-
-func (q *querier) GetChatProjectByIDForUpdate(ctx context.Context, id uuid.UUID) (database.ChatProject, error) {
-	return fetch(q.log, q.auth, q.db.GetChatProjectByIDForUpdate)(ctx, id)
 }
 
 func (q *querier) GetChatProjectMemoriesByProjectID(ctx context.Context, projectID uuid.UUID) ([]database.GetChatProjectMemoriesByProjectIDRow, error) {
@@ -3742,11 +3727,7 @@ func (q *querier) GetChatProjectMemoryByName(ctx context.Context, arg database.G
 }
 
 func (q *querier) GetChatProjectsByOrganizationID(ctx context.Context, organizationID uuid.UUID) ([]database.ChatProject, error) {
-	prepared, err := prepareSQLFilter(ctx, q.auth, policy.ActionRead, rbac.ResourceChatProject.Type)
-	if err != nil {
-		return nil, xerrors.Errorf("(dev error) prepare sql filter: %w", err)
-	}
-	return q.db.GetAuthorizedChatProjects(ctx, organizationID, prepared)
+	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetChatProjectsByOrganizationID)(ctx, organizationID)
 }
 
 func (q *querier) GetChatQueuedForCapacity(ctx context.Context, arg database.GetChatQueuedForCapacityParams) (bool, error) {
@@ -7792,16 +7773,6 @@ func (q *querier) UpdateChatPlanModeByID(ctx context.Context, arg database.Updat
 	return q.db.UpdateChatPlanModeByID(ctx, arg)
 }
 
-func (q *querier) UpdateChatProjectACLByID(ctx context.Context, arg database.UpdateChatProjectACLByIDParams) error {
-	if rbac.ChatACLDisabled() {
-		return NotAuthorizedError{Err: xerrors.New("chat sharing is disabled")}
-	}
-	fetch := func(ctx context.Context, arg database.UpdateChatProjectACLByIDParams) (database.ChatProject, error) {
-		return q.db.GetChatProjectByID(ctx, arg.ID)
-	}
-	return fetchAndExec(q.log, q.auth, policy.ActionShare, fetch, q.db.UpdateChatProjectACLByID)(ctx, arg)
-}
-
 func (q *querier) UpdateChatProjectBinding(ctx context.Context, arg database.UpdateChatProjectBindingParams) (database.ChatTable, error) {
 	chat, err := q.db.GetChatByID(ctx, arg.ID)
 	if err != nil {
@@ -9738,8 +9709,4 @@ func (q *querier) GetAuthorizedChatModelConfigs(ctx context.Context, organizatio
 
 func (q *querier) GetAuthorizedMCPServerConfigs(ctx context.Context, organizationID uuid.UUID, prepared rbac.PreparedAuthorized) ([]database.MCPServerConfig, error) {
 	return q.db.GetAuthorizedMCPServerConfigs(ctx, organizationID, prepared)
-}
-
-func (q *querier) GetAuthorizedChatProjects(ctx context.Context, organizationID uuid.UUID, _ rbac.PreparedAuthorized) ([]database.ChatProject, error) {
-	return q.GetChatProjectsByOrganizationID(ctx, organizationID)
 }
