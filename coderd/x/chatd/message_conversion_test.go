@@ -875,6 +875,47 @@ func TestBufferedPartsToPartialMessages_NormalizesToolCallDeltasBeforeFinal(t *t
 	require.Equal(t, "call-1", syntheticParts[0].ToolCallID)
 }
 
+func TestBufferedPartsToPartialMessages_CoalescesStreamedTextDeltas(t *testing.T) {
+	t.Parallel()
+
+	// A stream delivers text and reasoning one token at a time. When a
+	// turn is interrupted, the persisted assistant message must hold one
+	// part per contiguous run of the same type, as a completed turn does,
+	// not one part per token.
+	parts := []messagepartbuffer.Part{
+		{Seq: 1, Role: codersdk.ChatMessageRoleAssistant, MessagePart: codersdk.ChatMessageReasoning("think")},
+		{Seq: 2, Role: codersdk.ChatMessageRoleAssistant, MessagePart: codersdk.ChatMessageReasoning("ing")},
+		{Seq: 3, Role: codersdk.ChatMessageRoleAssistant, MessagePart: codersdk.ChatMessageText("Hel")},
+		{Seq: 4, Role: codersdk.ChatMessageRoleAssistant, MessagePart: codersdk.ChatMessageText("lo, ")},
+		{Seq: 5, Role: codersdk.ChatMessageRoleAssistant, MessagePart: codersdk.ChatMessageText("world")},
+		{Seq: 6, Role: codersdk.ChatMessageRoleAssistant, MessagePart: codersdk.ChatMessageToolCall("call-1", "execute", json.RawMessage(`{"cmd":"pwd"}`))},
+		{Seq: 7, Role: codersdk.ChatMessageRoleAssistant, MessagePart: codersdk.ChatMessageText("after")},
+		{Seq: 8, Role: codersdk.ChatMessageRoleAssistant, MessagePart: codersdk.ChatMessageText(" the call")},
+	}
+	got, err := bufferedPartsToPartialMessages(bufferedPartsToPartialMessagesInput{
+		parts:          parts,
+		modelConfigID:  uuid.New(),
+		contentVersion: chatprompt.CurrentContentVersion,
+		logger:         slog.Make(),
+		interruptedAt:  time.Date(2026, 3, 4, 5, 6, 7, 0, time.UTC),
+	})
+	require.NoError(t, err)
+	require.NotEmpty(t, got)
+	require.Equal(t, database.ChatMessageRoleAssistant, got[0].Role)
+	assistantParts := parseMessageParts(t, got[0].Role, got[0].Content)
+
+	var summary []string
+	for _, part := range assistantParts {
+		summary = append(summary, string(part.Type)+":"+part.Text)
+	}
+	require.Equal(t, []string{
+		"reasoning:thinking",
+		"text:Hello, world",
+		"tool-call:",
+		"text:after the call",
+	}, summary, "adjacent deltas of the same type must be persisted as one part")
+}
+
 func TestBufferedPartsToPartialMessages_AttachesAttemptRuntime(t *testing.T) {
 	t.Parallel()
 

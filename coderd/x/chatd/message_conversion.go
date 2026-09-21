@@ -819,6 +819,9 @@ func (s *partialMessageConversionState) consumeAssistantPart(buffered messagepar
 				part.CompletedAt = &interruptedAt
 			}
 		}
+		if s.appendStreamedDelta(part) {
+			return
+		}
 		s.assistantParts = append(s.assistantParts, part)
 		return
 	}
@@ -864,6 +867,38 @@ func (s *partialMessageConversionState) consumeAssistantPart(buffered messagepar
 	call.valid = true
 	call.durable = true
 	s.assistantParts[call.index] = durable
+}
+
+// appendStreamedDelta merges a streamed text or reasoning delta into the
+// previous assistant part when both belong to the same contiguous run.
+// Streams deliver these one token at a time; a completed turn stores one
+// part per run (processStepStream accumulates TextStart..TextEnd), and an
+// interrupted turn must persist the same shape rather than one part per
+// token. Like the completed path, the run keeps the latest non-empty
+// provider metadata; a reasoning run keeps its first start time and the
+// latest completion time. Returns false when the delta starts a new part.
+func (s *partialMessageConversionState) appendStreamedDelta(part codersdk.ChatMessagePart) bool {
+	if part.Type != codersdk.ChatMessagePartTypeText && part.Type != codersdk.ChatMessagePartTypeReasoning {
+		return false
+	}
+	if len(s.assistantParts) == 0 {
+		return false
+	}
+	prev := &s.assistantParts[len(s.assistantParts)-1]
+	if prev.Type != part.Type {
+		return false
+	}
+	prev.Text += part.Text
+	if len(part.ProviderMetadata) > 0 {
+		prev.ProviderMetadata = part.ProviderMetadata
+	}
+	if part.CompletedAt != nil {
+		prev.CompletedAt = part.CompletedAt
+	}
+	if prev.CreatedAt == nil {
+		prev.CreatedAt = part.CreatedAt
+	}
+	return true
 }
 
 func (s *partialMessageConversionState) consumeToolPart(buffered messagepartbuffer.Part) error {
