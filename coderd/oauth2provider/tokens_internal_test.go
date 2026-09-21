@@ -919,41 +919,61 @@ func TestExtractTokenRequest_UnrecognizedParametersLogged(t *testing.T) {
 }
 
 // RFC 6749 §3.1 makes the authorization endpoint ignore a client_secret in its
-// URL, so the only trace of the misconfiguration is this warning.
+// URL, so the only trace of the misconfiguration is this warning. The consent
+// POST repeats the GET's query, so one flow logs once.
 func TestExtractAuthorizeParams_ClientSecretInQueryWarns(t *testing.T) {
 	t.Parallel()
 
-	app := database.OAuth2ProviderApp{ID: uuid.New(), CallbackURL: "http://localhost:3000/callback"}
-	query := url.Values{}
-	query.Set("response_type", "code")
-	query.Set("client_id", app.ID.String())
-	query.Set("redirect_uri", app.CallbackURL)
-	query.Set("code_challenge", strings.Repeat("a", pkceVerifierMinLength))
-	query.Set("client_secret", "secret-value")
-	req := httptest.NewRequest(http.MethodGet, "/oauth2/authorize?"+query.Encode(), nil)
-	req.Header.Set("User-Agent", "probe/1.0")
+	const msg = "oauth2 authorization request carried client_secret in the URL query string"
 
-	var logs bytes.Buffer
-	logger := slog.Make(slogjson.Sink(&logs)).Leveled(slog.LevelWarn)
-	_, failure := extractAuthorizeParams(req, logger, app)
-	require.Nil(t, failure, "the secret must be ignored, not rejected")
+	for _, method := range []string{http.MethodGet, http.MethodPost} {
+		t.Run(method, func(t *testing.T) {
+			t.Parallel()
 
-	var entry struct {
-		Level  string `json:"level"`
-		Msg    string `json:"msg"`
-		Fields struct {
-			AppID      string `json:"app_id"`
-			RemoteAddr string `json:"remote_addr"`
-			UserAgent  string `json:"user_agent"`
-		} `json:"fields"`
+			app := database.OAuth2ProviderApp{ID: uuid.New(), CallbackURL: "http://localhost:3000/callback"}
+			query := url.Values{}
+			query.Set("response_type", "code")
+			query.Set("client_id", app.ID.String())
+			query.Set("redirect_uri", app.CallbackURL)
+			query.Set("code_challenge", strings.Repeat("a", pkceVerifierMinLength))
+			query.Set("client_secret", "secret-value")
+			req := httptest.NewRequest(method, "/oauth2/authorize?"+query.Encode(), nil)
+			req.Header.Set("User-Agent", "probe/1.0")
+
+			var logs bytes.Buffer
+			logger := slog.Make(slogjson.Sink(&logs)).Leveled(slog.LevelDebug)
+			_, failure := extractAuthorizeParams(req, logger, app)
+			require.Nil(t, failure, "the secret must be ignored, not rejected")
+			require.NotContains(t, logs.String(), "secret-value")
+
+			type entry struct {
+				Level  string `json:"level"`
+				Msg    string `json:"msg"`
+				Fields struct {
+					AppID      string `json:"app_id"`
+					RemoteAddr string `json:"remote_addr"`
+					UserAgent  string `json:"user_agent"`
+				} `json:"fields"`
+			}
+			var warnings []entry
+			for _, line := range strings.Split(strings.TrimSpace(logs.String()), "\n") {
+				var e entry
+				require.NoError(t, json.Unmarshal([]byte(line), &e), line)
+				if e.Msg == msg {
+					warnings = append(warnings, e)
+				}
+			}
+			if method == http.MethodPost {
+				require.Empty(t, warnings, "the consent POST must not log a second time")
+				return
+			}
+			require.Len(t, warnings, 1)
+			require.Equal(t, "WARN", warnings[0].Level)
+			require.Equal(t, app.ID.String(), warnings[0].Fields.AppID)
+			require.Equal(t, req.RemoteAddr, warnings[0].Fields.RemoteAddr)
+			require.Equal(t, "probe/1.0", warnings[0].Fields.UserAgent)
+		})
 	}
-	require.NoError(t, json.Unmarshal(logs.Bytes(), &entry), logs.String())
-	require.Equal(t, "WARN", entry.Level)
-	require.Equal(t, "oauth2 authorization request carried client_secret in the URL query string", entry.Msg)
-	require.Equal(t, app.ID.String(), entry.Fields.AppID)
-	require.Equal(t, req.RemoteAddr, entry.Fields.RemoteAddr)
-	require.Equal(t, "probe/1.0", entry.Fields.UserAgent)
-	require.NotContains(t, logs.String(), "secret-value")
 }
 
 // Every failure is errBadSecret so the caller cannot tell a malformed secret
