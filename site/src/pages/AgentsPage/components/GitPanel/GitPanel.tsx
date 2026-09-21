@@ -333,21 +333,24 @@ export const GitPanel: FC<GitPanelProps> = ({
 	});
 
 	const isRemoteView = effectiveView.type === "remote";
-	const viewRefId =
-		effectiveView.type === "remote" ? effectiveView.refId : undefined;
+
 	// The selected status row, or the primary when the view has no
 	// remote selector, so the panel always shows a diff.
+	const viewRefId =
+		effectiveView.type === "remote" ? effectiveView.refId : undefined;
 	const selectedRemote =
 		remoteDiffStats?.find(
 			(status) => viewRefId !== undefined && viewIdFor(status) === viewRefId,
 		) ?? remoteDiffStats?.[0];
+
+	// The PR metadata follows the selection, not the primary.
 	const prTitle = selectedRemote?.pull_request_title;
 	const selectedPrNumber =
 		selectedRemote?.pr_number ??
 		parsePullRequestUrl(selectedRemote?.url ?? "")?.number;
 
-	// The selected ref decides the title row, not the primary. A
-	// branch-only primary must not hide an older selected PR's title.
+	// A branch-only primary must not hide an older selected PR's
+	// title.
 	const showPrTitleRow =
 		isRemoteView && Boolean(selectedPrNumber) && Boolean(prTitle);
 
