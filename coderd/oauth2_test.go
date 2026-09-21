@@ -1486,6 +1486,9 @@ func TestOAuth2ProviderRevokeClientAuthentication(t *testing.T) {
 
 	// RFC 6749 §3.2: a valueless parameter is the omitted case, so ?client_secret=
 	// leaks nothing and must not cost a client that authenticated in the body.
+	// That holds here because revocation reads the first value of each field.
+	// The token endpoint refuses the same request as a repeated parameter; its
+	// EmptySecretInQueryString case pins that.
 	t.Run("EmptySecretInQueryString", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)

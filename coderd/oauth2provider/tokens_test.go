@@ -860,6 +860,28 @@ func TestOAuth2RefreshClientAuthentication(t *testing.T) {
 		requireNothingConsumed(ctx, t, app, refreshToken)
 	})
 
+	// The query-string rule treats a valueless ?client_secret= as absent, as
+	// revocation does. This endpoint still refuses it, because r.Form holds the
+	// body copy and the empty URL copy as one parameter sent twice. The
+	// description records which rule answered.
+	t.Run("EmptySecretInQueryString", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		app := seedAppWithSecret(t, db, sql.NullString{})
+		refreshToken := seedRefreshToken(ctx, t, db, app, owner.UserID, "workspace:ssh")
+
+		status, _, body := postForm(ctx, t, refreshForm(app, refreshToken), func(r *http.Request) {
+			q := r.URL.Query()
+			q.Set("client_secret", "")
+			r.URL.RawQuery = q.Encode()
+		})
+		desc := requireTokenError(t, status, body, codersdk.OAuth2ErrorCodeInvalidRequest)
+		require.Contains(t, desc, "more than once")
+		require.NotContains(t, desc, "URL query string")
+		requireNothingConsumed(ctx, t, app, refreshToken)
+	})
+
 	// A public client has no secret to check; the token's app binding and
 	// single-use rotation are what tie its refresh to the client.
 	t.Run("PublicClientNoSecret", func(t *testing.T) {

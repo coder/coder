@@ -150,7 +150,7 @@ Coder supports the following OAuth2 client authentication methods at the token e
 
 Coder supports both secret-based methods for compatibility; existing integrations using `client_secret_post` do not need to change.
 
-Send `client_secret` in the request body or in the `Authorization` header. A request that puts `client_secret` in the URL query string is rejected with `invalid_request`, because OAuth 2.1 section 2.4.1 does not allow it there. This applies to both `POST /oauth2/tokens` and `POST /oauth2/revoke`. The rule covers `client_secret` only. Coder still reads `refresh_token`, `code`, and the revocation `token` from the query string, so send those in the request body as well. `GET /oauth2/authorize` is not rejected when its URL carries `client_secret`, because RFC 6749 section 3.1 requires that endpoint to ignore parameters it does not recognize. Coder ignores the value and logs a warning that names the client, so search the Coder logs for `client_secret in the URL query string` to find the integration that sends it.
+Send `client_secret` in the request body or in the `Authorization` header. A request that puts a `client_secret` value in the URL query string is rejected with `invalid_request`, because OAuth 2.1 section 2.4.1 does not allow it there. This applies to both `POST /oauth2/tokens` and `POST /oauth2/revoke`. The rule covers `client_secret` only. Coder still reads `refresh_token`, `code`, and the revocation `token` from the query string, so send those in the request body as well. `GET /oauth2/authorize` is not rejected when its URL carries `client_secret`, because RFC 6749 section 3.1 requires that endpoint to ignore parameters it does not recognize. Coder ignores the value and logs a warning that names the client, so search the Coder logs for `client_secret in the URL query string` to find the integration that sends it.
 
 Public clients suit native, mobile, and CLI applications that cannot keep a secret confidential. Note the redirect URI restrictions below before choosing one.
 
@@ -600,6 +600,12 @@ secret and never receive this error for omitting one.
 OAuth 2.1 section 2.4.1 allows the secret in the request body or the
 `Authorization` header only. Send it as a form parameter or as HTTP Basic,
 following [Client Authentication Methods](#client-authentication-methods).
+
+A `client_secret` with no value, as in `?client_secret=`, counts as absent
+under RFC 6749 section 3.2 and is not refused by this rule. `POST /oauth2/revoke`
+accepts such a request when the body authenticates. `POST /oauth2/tokens` still
+answers 400, because it reads the body copy and the empty URL copy as the same
+parameter sent twice, and the error says so.
 
 A copy in the body does not excuse one in the URL: the request is refused on
 the query string alone, whatever the body holds. The refusal issues no token
