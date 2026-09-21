@@ -107,7 +107,6 @@ const SpendPageContent: FC<SpendPageContentProps> = ({
 				{refetchErrorAlert}
 				<OrganizationAutocomplete
 					value={null}
-					ariaLabel="Organization"
 					options={organizations}
 					required
 					triggerClassName="w-60"
