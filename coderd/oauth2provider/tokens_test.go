@@ -17,6 +17,9 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/v3"
+	"cdr.dev/slog/v3/sloggers/slogjson"
+	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -470,20 +473,34 @@ func TestOAuth2TokenErrorDescription(t *testing.T) {
 		require.Contains(t, description, "(truncated)")
 	})
 
-	t.Run("RepeatedCodeIsNotReportedAsMissing", func(t *testing.T) {
+	t.Run("MissingCodeIsReportedAsMissing", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		app := seedAppWithSecret(t, db, sql.NullString{})
-		code, verifier := authorizeCode(ctx, t, client, app.ID.String(), "")
+		_, verifier := authorizeCode(ctx, t, client, app.ID.String(), "")
 
-		form := tokenExchangeForm(app, code, verifier)
-		form.Add("code", code)
+		form := tokenExchangeForm(app, "", verifier)
+		form.Del("code")
 		status, body := postTokenRequest(ctx, t, client, form)
 		description := requireTokenError(t, status, body, codersdk.OAuth2ErrorCodeInvalidRequest)
-		require.Contains(t, description, "code")
-		require.Contains(t, description, "more than once")
-		require.NotContains(t, description, "Missing")
+		require.Equal(t, "Missing required parameter: code", description)
+	})
+
+	// The parser reads an empty first value as absent (RFC 6749 §3.2), so two
+	// empty copies are a missing code, not a repeated one.
+	t.Run("EmptyRepeatedCodeIsReportedAsMissing", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		app := seedAppWithSecret(t, db, sql.NullString{})
+		_, verifier := authorizeCode(ctx, t, client, app.ID.String(), "")
+
+		form := tokenExchangeForm(app, "", verifier)
+		form["code"] = []string{"", ""}
+		status, body := postTokenRequest(ctx, t, client, form)
+		description := requireTokenError(t, status, body, codersdk.OAuth2ErrorCodeInvalidRequest)
+		require.Equal(t, "Missing required parameter: code", description)
 	})
 
 	// The sanitizer runs on every description, so a fixed message outside the
@@ -502,6 +519,101 @@ func TestOAuth2TokenErrorDescription(t *testing.T) {
 		requireNQSCHAR(t, description)
 		require.Contains(t, description, "RFC 7636 section 4.1")
 	})
+}
+
+// The docs tell operators to search for this log line, so its text, the app id
+// beside it, and the absence of the secret are asserted at both endpoints that
+// refuse.
+func TestOAuth2ClientSecretInQueryIsLogged(t *testing.T) {
+	t.Parallel()
+
+	const searchString = "client_secret in the URL query string"
+
+	newServer := func(t *testing.T) (*codersdk.Client, database.Store, uuid.UUID, *lockedBuffer) {
+		t.Helper()
+
+		logs := &lockedBuffer{}
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).
+			AppendSinks(slogjson.Sink(logs)).Leveled(slog.LevelWarn)
+		db, pubsub := dbtestutil.NewDB(t)
+		client := coderdtest.New(t, &coderdtest.Options{
+			Database: db,
+			Pubsub:   pubsub,
+			Logger:   &logger,
+		})
+		owner := coderdtest.CreateFirstUser(t, client)
+		return client, db, owner.UserID, logs
+	}
+
+	requireLogged := func(t *testing.T, logs *lockedBuffer, message string, app appWithSecret) {
+		t.Helper()
+
+		require.Contains(t, logs.String(), message)
+		require.Contains(t, logs.String(), searchString)
+		require.Contains(t, logs.String(), app.ID.String())
+		require.NotContains(t, logs.String(), app.ClientSecret)
+	}
+
+	t.Run("Tokens", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db, userID, logs := newServer(t)
+
+		app := seedAppWithSecret(t, db, sql.NullString{})
+		refreshToken := seedRefreshToken(ctx, t, db, app, userID, "workspace:ssh")
+
+		form := refreshForm(app, refreshToken)
+		form.Del("client_secret")
+		status, _, body, err := tryTokenRequest(ctx, t, client, form, func(r *http.Request) {
+			q := r.URL.Query()
+			q.Set("client_secret", app.ClientSecret)
+			r.URL.RawQuery = q.Encode()
+		})
+		require.NoError(t, err)
+		requireTokenError(t, status, body, codersdk.OAuth2ErrorCodeInvalidRequest)
+		requireLogged(t, logs, "oauth2 token request refused: client_secret in the URL query string", app)
+	})
+
+	t.Run("Revoke", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db, userID, logs := newServer(t)
+
+		app := seedAppWithSecret(t, db, sql.NullString{})
+		refreshToken := seedRefreshToken(ctx, t, db, app, userID, "workspace:ssh")
+
+		form := url.Values{}
+		form.Set("token", refreshToken)
+		form.Set("client_id", app.ID.String())
+		req, err := http.NewRequestWithContext(ctx, http.MethodPost,
+			client.URL.String()+"/oauth2/revoke?client_secret="+url.QueryEscape(app.ClientSecret),
+			strings.NewReader(form.Encode()))
+		require.NoError(t, err)
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		resp, err := http.DefaultClient.Do(req)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		require.Equal(t, http.StatusBadRequest, resp.StatusCode)
+		requireLogged(t, logs, "oauth2 revocation refused: client_secret in the URL query string", app)
+	})
+}
+
+// lockedBuffer collects log output written from the server's goroutines.
+type lockedBuffer struct {
+	mu  sync.Mutex
+	buf strings.Builder
+}
+
+func (b *lockedBuffer) Write(p []byte) (int, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.Write(p)
+}
+
+func (b *lockedBuffer) String() string {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.String()
 }
 
 // The redemptions race rather than run in sequence: a sequential pair passes
@@ -705,9 +817,8 @@ func TestOAuth2RefreshClientAuthentication(t *testing.T) {
 		return status, header, body
 	}
 
-	// A refusal must leave the grant untouched: the row is still there and the
-	// single-use refresh token still redeems on the next, correct attempt.
-	// Neither is visible from the error response the call site sees.
+	// Neither the surviving row nor the redeemability shows up in the error
+	// response the call site sees, so both are checked here.
 	requireNothingConsumed := func(ctx context.Context, t *testing.T, app appWithSecret, refreshToken string) {
 		t.Helper()
 
@@ -716,9 +827,7 @@ func TestOAuth2RefreshClientAuthentication(t *testing.T) {
 		requireTokenResponse(t, status, body)
 	}
 
-	// A client authentication failure is a 401 invalid_client that costs the
-	// grant nothing.
-	requireRefused := func(ctx context.Context, t *testing.T, app appWithSecret, refreshToken string, status int, body string) {
+	requireInvalidClient := func(ctx context.Context, t *testing.T, app appWithSecret, refreshToken string, status int, body string) {
 		t.Helper()
 
 		requireTokenClientError(t, status, body)
@@ -736,7 +845,7 @@ func TestOAuth2RefreshClientAuthentication(t *testing.T) {
 		form.Del("client_secret")
 		status, header, body := postForm(ctx, t, form)
 		require.Equal(t, `Basic realm="coder"`, header.Get("WWW-Authenticate"))
-		requireRefused(ctx, t, app, refreshToken, status, body)
+		requireInvalidClient(ctx, t, app, refreshToken, status, body)
 	})
 
 	t.Run("WrongSecret", func(t *testing.T) {
@@ -749,7 +858,7 @@ func TestOAuth2RefreshClientAuthentication(t *testing.T) {
 		form := refreshForm(app, refreshToken)
 		form.Set("client_secret", app.ClientSecret+"x")
 		status, body := postTokenRequest(ctx, t, client, form)
-		requireRefused(ctx, t, app, refreshToken, status, body)
+		requireInvalidClient(ctx, t, app, refreshToken, status, body)
 	})
 
 	// Right hash, wrong app: the secret is valid, but not for the client_id
@@ -767,7 +876,7 @@ func TestOAuth2RefreshClientAuthentication(t *testing.T) {
 		form := refreshForm(app, refreshToken)
 		form.Set("client_secret", other.ClientSecret)
 		status, body := postTokenRequest(ctx, t, client, form)
-		requireRefused(ctx, t, app, refreshToken, status, body)
+		requireInvalidClient(ctx, t, app, refreshToken, status, body)
 	})
 
 	// Authentication runs before the token is examined, so a caller without
@@ -1434,19 +1543,18 @@ func TestOAuth2TokenRepeatedParameterRejected(t *testing.T) {
 		// first is the value a valid request would carry, used only when the
 		// base form does not already set the parameter. The parser refuses
 		// the repeat before any grant runs, so it only has to be well formed.
-		first    string
-		grant    codersdk.OAuth2ProviderGrantType
-		wantCode codersdk.OAuth2ErrorCode
+		first string
+		grant codersdk.OAuth2ProviderGrantType
 	}{
-		{param: "grant_type", grant: codersdk.OAuth2ProviderGrantTypeAuthorizationCode, wantCode: codersdk.OAuth2ErrorCodeUnsupportedGrantType},
-		{param: "code", grant: codersdk.OAuth2ProviderGrantTypeAuthorizationCode, wantCode: codersdk.OAuth2ErrorCodeInvalidRequest},
-		{param: "client_id", grant: codersdk.OAuth2ProviderGrantTypeAuthorizationCode, wantCode: codersdk.OAuth2ErrorCodeInvalidRequest},
-		{param: "client_secret", grant: codersdk.OAuth2ProviderGrantTypeAuthorizationCode, wantCode: codersdk.OAuth2ErrorCodeInvalidRequest},
-		{param: "code_verifier", grant: codersdk.OAuth2ProviderGrantTypeAuthorizationCode, wantCode: codersdk.OAuth2ErrorCodeInvalidRequest},
-		{param: "redirect_uri", first: appCallbackURL, grant: codersdk.OAuth2ProviderGrantTypeAuthorizationCode, wantCode: codersdk.OAuth2ErrorCodeInvalidRequest},
-		{param: "resource", first: "https://api.example.com", grant: codersdk.OAuth2ProviderGrantTypeAuthorizationCode, wantCode: codersdk.OAuth2ErrorCodeInvalidRequest},
-		{param: "scope", first: "workspace:ssh", grant: codersdk.OAuth2ProviderGrantTypeAuthorizationCode, wantCode: codersdk.OAuth2ErrorCodeInvalidRequest},
-		{param: "refresh_token", grant: codersdk.OAuth2ProviderGrantTypeRefreshToken, wantCode: codersdk.OAuth2ErrorCodeInvalidRequest},
+		{param: "grant_type", grant: codersdk.OAuth2ProviderGrantTypeAuthorizationCode},
+		{param: "code", grant: codersdk.OAuth2ProviderGrantTypeAuthorizationCode},
+		{param: "client_id", grant: codersdk.OAuth2ProviderGrantTypeAuthorizationCode},
+		{param: "client_secret", grant: codersdk.OAuth2ProviderGrantTypeAuthorizationCode},
+		{param: "code_verifier", grant: codersdk.OAuth2ProviderGrantTypeAuthorizationCode},
+		{param: "redirect_uri", first: appCallbackURL, grant: codersdk.OAuth2ProviderGrantTypeAuthorizationCode},
+		{param: "resource", first: "https://api.example.com", grant: codersdk.OAuth2ProviderGrantTypeAuthorizationCode},
+		{param: "scope", first: "workspace:ssh", grant: codersdk.OAuth2ProviderGrantTypeAuthorizationCode},
+		{param: "refresh_token", grant: codersdk.OAuth2ProviderGrantTypeRefreshToken},
 	}
 
 	for _, tc := range cases {
@@ -1468,13 +1576,11 @@ func TestOAuth2TokenRepeatedParameterRejected(t *testing.T) {
 			}
 			form.Add(tc.param, "second")
 
+			// RFC 6749 §5.2 assigns a repeat to invalid_request, so grant_type
+			// is not recast as unsupported and code_verifier as malformed.
 			status, body := postTokenRequest(ctx, t, client, form)
-			require.Equal(t, http.StatusBadRequest, status, body)
-			var oauthErr struct {
-				Error string `json:"error"`
-			}
-			require.NoError(t, json.Unmarshal([]byte(body), &oauthErr))
-			require.Equal(t, string(tc.wantCode), oauthErr.Error, body)
+			description := requireTokenError(t, status, body, codersdk.OAuth2ErrorCodeInvalidRequest)
+			require.Equal(t, fmt.Sprintf("Parameter %s was provided more than once", tc.param), description)
 		})
 	}
 }

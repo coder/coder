@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"maps"
 	"net/http"
 	"net/url"
 	"slices"
@@ -247,6 +248,9 @@ func extractTokenRequest(r *http.Request, logger slog.Logger, primary *url.URL, 
 			slog.F("params", ignored))
 	}
 
+	if name, ok := repeatedParameter(p, vals); ok {
+		return codersdk.OAuth2TokenRequest{}, p.Errors, repeatedParameterError{name: name}
+	}
 	if len(p.Errors) > 0 {
 		return codersdk.OAuth2TokenRequest{}, p.Errors, xerrors.Errorf("invalid query params: %w", p.Errors)
 	}
@@ -274,19 +278,37 @@ func mergeBasicClientAuth(r *http.Request, clientID, clientSecret string) (merge
 	return user, pass, nil
 }
 
-// clientSecretInQuery reports whether the request carries client_secret in the
-// query string. OAuth 2.1 §2.4.1 prohibits it there. The other parameters read
-// from the merged form carry no such prohibition and stay accepted; PLAT-660
-// tracks them.
-//
-// It reads the URL query rather than r.Form, which cannot tell a body value
-// from a query value. Nothing constrains where a caller places the check.
-//
-// RFC 6749 §3.2: a parameter sent without a value counts as omitted.
-func clientSecretInQuery(r *http.Request) bool {
-	return slices.ContainsFunc(r.URL.Query()["client_secret"], func(v string) bool {
+// clientSecretInQuery reports whether the URL query carries a client_secret
+// with a value, which OAuth 2.1 §2.4.1 forbids. An empty value counts as
+// omitted (RFC 6749 §3.2), and every value is checked because the first of a
+// repeated parameter may be the empty one.
+func clientSecretInQuery(vals url.Values) bool {
+	return slices.ContainsFunc(vals["client_secret"], func(v string) bool {
 		return v != ""
 	})
+}
+
+// repeatedParameterError names a parameter the endpoint read that arrived more
+// than once. It is answered before the per-field dispatch, because a repeat
+// leaves the same validation error as a genuine failure of that field.
+type repeatedParameterError struct {
+	name string
+}
+
+func (e repeatedParameterError) Error() string {
+	return fmt.Sprintf("parameter %s provided more than once", e.name)
+}
+
+// repeatedParameter returns the first parameter the parser judged repeated: a
+// non-empty first value followed by another. An empty first value counts as
+// absent, so ?code=&code= is a missing code, not a repeated one.
+func repeatedParameter(p *httpapi.QueryParamParser, vals url.Values) (string, bool) {
+	for _, name := range slices.Sorted(maps.Keys(p.Parsed)) {
+		if vals.Get(name) != "" && len(vals[name]) > 1 {
+			return name, true
+		}
+	}
+	return "", false
 }
 
 // requestSource identifies the sender of a refused request. The refusals it
@@ -330,10 +352,10 @@ func authenticateClient(ctx context.Context, db database.Store, app database.OAu
 	return dbSecret, nil
 }
 
-// writeTokenError renders an RFC 6749 §5.2 error body. Descriptions can quote
-// what the client sent, so they are confined and capped here rather than at each
-// call site, leaving the guarantee with the endpoint.
-func writeTokenError(ctx context.Context, rw http.ResponseWriter, status int, code codersdk.OAuth2ErrorCode, description string) {
+// writeRefusal renders an RFC 6749 §5.2 error body for the token and
+// revocation endpoints. Descriptions can quote what the client sent, so they
+// are confined and capped here rather than at each call site.
+func writeRefusal(ctx context.Context, rw http.ResponseWriter, status int, code codersdk.OAuth2ErrorCode, description string) {
 	// Sanitized before the cap, so the bound is on what the client receives.
 	httpapi.WriteOAuth2Error(ctx, rw, status, code, capErrorDescription(sanitizeErrorDescription(description)))
 }
@@ -346,10 +368,10 @@ func Tokens(db database.Store, lifetimes codersdk.SessionLifetime, logger slog.L
 		ctx := r.Context()
 		app := httpmw.OAuth2ProviderApp(r)
 
-		if clientSecretInQuery(r) {
-			logger.Warn(ctx, "oauth2 token request refused: client_secret in query string",
+		if clientSecretInQuery(r.URL.Query()) {
+			logger.Warn(ctx, "oauth2 token request refused: client_secret in the URL query string",
 				append(requestSource(r), slog.F("app_id", app.ID))...)
-			writeTokenError(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidRequest, errMsgClientSecretInQuery)
+			writeRefusal(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidRequest, errMsgClientSecretInQuery)
 			return
 		}
 
@@ -373,7 +395,11 @@ func Tokens(db database.Store, lifetimes codersdk.SessionLifetime, logger slog.L
 				return
 			}
 			if errors.Is(err, errConflictingClientAuth) {
-				writeTokenError(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidRequest, errMsgConflictingClientAuth)
+				writeRefusal(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidRequest, errMsgConflictingClientAuth)
+				return
+			}
+			if repeated, ok := errors.AsType[repeatedParameterError](err); ok {
+				writeRefusal(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidRequest, fmt.Sprintf("Parameter %s was provided more than once", repeated.name))
 				return
 			}
 
@@ -381,23 +407,18 @@ func Tokens(db database.Store, lifetimes codersdk.SessionLifetime, logger slog.L
 			if slices.ContainsFunc(validationErrs, func(validationError codersdk.ValidationError) bool {
 				return validationError.Field == "grant_type"
 			}) {
-				writeTokenError(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeUnsupportedGrantType, "The grant type is missing or unsupported")
+				writeRefusal(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeUnsupportedGrantType, "The grant type is missing or unsupported")
 				return
 			}
 
-			// Check for missing required parameters for authorization_code grant
+			// Report the first required parameter that is missing, by name.
 			for _, field := range []string{"code", "client_id", "client_secret"} {
-				if !slices.ContainsFunc(validationErrs, func(validationError codersdk.ValidationError) bool {
+				if slices.ContainsFunc(validationErrs, func(validationError codersdk.ValidationError) bool {
 					return validationError.Field == field
 				}) {
-					continue
+					writeRefusal(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidRequest, fmt.Sprintf("Missing required parameter: %s", field))
+					return
 				}
-				description := fmt.Sprintf("Missing required parameter: %s", field)
-				if len(r.Form[field]) > 1 {
-					description = fmt.Sprintf("Parameter %s was provided more than once", field)
-				}
-				writeTokenError(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidRequest, description)
-				return
 			}
 
 			// A malformed code_verifier gets its own message so a client that
@@ -408,12 +429,12 @@ func Tokens(db database.Store, lifetimes codersdk.SessionLifetime, logger slog.L
 				return validationError.Field == "code_verifier"
 			}) {
 				// Spelled out: §5.2 excludes the section sign.
-				writeTokenError(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidRequest, "The code_verifier parameter must be 43 to 128 characters from the unreserved character set [A-Za-z0-9-._~] (RFC 7636 section 4.1)")
+				writeRefusal(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidRequest, "The code_verifier parameter must be 43 to 128 characters from the unreserved character set [A-Za-z0-9-._~] (RFC 7636 section 4.1)")
 				return
 			}
 
 			// Generic invalid request for other validation errors
-			writeTokenError(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidRequest, "The request is missing required parameters or is otherwise malformed")
+			writeRefusal(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidRequest, "The request is missing required parameters or is otherwise malformed")
 			return
 		}
 
@@ -427,7 +448,7 @@ func Tokens(db database.Store, lifetimes codersdk.SessionLifetime, logger slog.L
 			token, err = authorizationCodeGrant(ctx, db, logger, app, lifetimes, req)
 		default:
 			// This should handle truly invalid grant types
-			writeTokenError(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeUnsupportedGrantType, fmt.Sprintf("The grant type %q is not supported", req.GrantType))
+			writeRefusal(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeUnsupportedGrantType, fmt.Sprintf("The grant type %q is not supported", req.GrantType))
 			return
 		}
 
@@ -438,23 +459,23 @@ func Tokens(db database.Store, lifetimes codersdk.SessionLifetime, logger slog.L
 			// sent should not be recorded.
 			logger.Warn(ctx, "oauth2 token request refused: client authentication failed",
 				slog.F("grant_type", req.GrantType), slog.F("app_id", app.ID))
-			writeTokenError(ctx, rw, http.StatusUnauthorized, codersdk.OAuth2ErrorCodeInvalidClient, "The client credentials are invalid")
+			writeRefusal(ctx, rw, http.StatusUnauthorized, codersdk.OAuth2ErrorCodeInvalidClient, "The client credentials are invalid")
 			return
 		}
 		if errors.Is(err, errBadCode) {
-			writeTokenError(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidGrant, "The authorization code is invalid or expired")
+			writeRefusal(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidGrant, "The authorization code is invalid or expired")
 			return
 		}
 		if errors.Is(err, errInvalidPKCE) {
-			writeTokenError(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidGrant, "The PKCE code verifier is invalid")
+			writeRefusal(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidGrant, "The PKCE code verifier is invalid")
 			return
 		}
 		if errors.Is(err, errInvalidResource) {
-			writeTokenError(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidTarget, "The resource parameter is invalid")
+			writeRefusal(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidTarget, "The resource parameter is invalid")
 			return
 		}
 		if errors.Is(err, errBadToken) {
-			writeTokenError(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidGrant, "The refresh token is invalid or expired")
+			writeRefusal(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidGrant, "The refresh token is invalid or expired")
 			return
 		}
 		// invalid_grant, not invalid_scope (RFC 6749 §5.2): all three report a
@@ -464,17 +485,17 @@ func Tokens(db database.Store, lifetimes codersdk.SessionLifetime, logger slog.L
 		// reaches it.
 		if errors.Is(err, errUnmintableScope) || errors.Is(err, errStaleScope) ||
 			errors.Is(err, errNoGrantableScope) {
-			writeTokenError(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidGrant, err.Error())
+			writeRefusal(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidGrant, err.Error())
 			return
 		}
 		// invalid_scope for these: the refresh named them itself, so the
 		// client can fix it by asking differently.
 		if errors.Is(err, errUnknownScope) || errors.Is(err, errScopeNotGranted) {
-			writeTokenError(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidScope, err.Error())
+			writeRefusal(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidScope, err.Error())
 			return
 		}
 		if errors.Is(err, errCoverageUndecidable) {
-			writeTokenError(ctx, rw, http.StatusInternalServerError, codersdk.OAuth2ErrorCodeServerError, "The requested scope could not be evaluated")
+			writeRefusal(ctx, rw, http.StatusInternalServerError, codersdk.OAuth2ErrorCodeServerError, "The requested scope could not be evaluated")
 			return
 		}
 		if err != nil {

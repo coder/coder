@@ -363,9 +363,9 @@ func extractAuthorizeParams(r *http.Request, logger slog.Logger, app database.OA
 	}
 
 	// Ignored like any other unrecognized parameter, as §3.1 requires, but
-	// this URL also reaches the browser history and the callback host's
-	// Referer, so the operator is told which client leaks its secret.
-	if clientSecretInQuery(r) {
+	// this URL sits in the user's address bar and browser history, so the
+	// operator is told which client leaks its secret.
+	if clientSecretInQuery(vals) {
 		logger.Warn(r.Context(), "oauth2 authorization request carried client_secret in the URL query string",
 			append(requestSource(r), slog.F("app_id", app.ID))...)
 	}
