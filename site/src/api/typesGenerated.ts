@@ -11672,6 +11672,24 @@ export interface WorkspaceConnectionLatencyMS {
 	readonly P95: number;
 }
 
+// From codersdk/chats.go
+/**
+ * WorkspaceDebugChatResponse is returned when a workspace debugging chat is
+ * requested for a failed build.
+ */
+export interface WorkspaceDebugChatResponse {
+	readonly chat: Chat;
+	/**
+	 * Created is true when this call created the chat rather than returning
+	 * an existing debugging chat for the same build.
+	 */
+	readonly created: boolean;
+	/**
+	 * FailureSummary is the one-line error the chat was opened with.
+	 */
+	readonly failure_summary: string;
+}
+
 // From codersdk/deployment.go
 export interface WorkspaceDeploymentStats {
 	readonly pending: number;

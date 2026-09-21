@@ -1344,6 +1344,15 @@ func New(options *Options) *API {
 		})
 		api.registerExperimentalChatRoutes(r, apiKeyMiddleware)
 
+		r.Route("/workspacebuilds/{workspacebuild}", func(r chi.Router) {
+			r.Use(
+				apiKeyMiddleware,
+				httpmw.ExtractWorkspaceBuildParam(options.Database),
+				httpmw.ExtractWorkspaceParam(options.Database),
+			)
+			r.Post("/debug-chat", api.postWorkspaceBuildDebugChat)
+		})
+
 		r.Route("/mcp", func(r chi.Router) {
 			r.Use(apiKeyMiddleware)
 			// Providers pin the redirect URI when a session is established,

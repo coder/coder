@@ -54,6 +54,7 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/messagepartbuffer"
 	"github.com/coder/coder/v2/coderd/x/chatfiles"
 	skillspkg "github.com/coder/coder/v2/coderd/x/skills"
+	"github.com/coder/coder/v2/coderd/x/workspacedebug"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/codersdk/x/agenthooks"
@@ -3776,6 +3777,17 @@ func (p *Server) appendRootChatTools(
 			Logger:        p.logger,
 		}),
 	)
+	// TODO(ARCHITECTURE.md, chat worker tools): workspace debugging chats
+	// carry read-only log and template source tools that never dial an
+	// agent. Document them alongside the root workspace-management tools.
+	if workspacedebug.IsDebugChat(opts.chat.Labels) {
+		debugOpts := chattool.WorkspaceDebugOptions{OwnerID: opts.chat.OwnerID}
+		tools = append(tools,
+			chattool.GetWorkspaceBuildLogs(p.db, debugOpts),
+			chattool.GetWorkspaceAgentLogs(p.db, debugOpts),
+			chattool.GetTemplateVersionFiles(p.db, debugOpts),
+		)
+	}
 	if opts.isPlanModeTurn {
 		tools = append(tools, chattool.ProposePlan(chattool.ProposePlanOptions{
 			GetWorkspaceConn: opts.workspaceCtx.getWorkspaceConn,

@@ -528,6 +528,47 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/experimental/workspacebuilds/{workspacebuild}/debug-chat": {
+            "post": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Builds"
+                ],
+                "summary": "Get or create a workspace build debugging chat",
+                "operationId": "get-or-create-workspace-build-debugging-chat",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Workspace build ID",
+                        "name": "workspacebuild",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.WorkspaceDebugChatResponse"
+                        }
+                    },
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.WorkspaceDebugChatResponse"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
         "/api/v2/": {
             "get": {
                 "produces": [
@@ -32282,6 +32323,22 @@ const docTemplate = `{
                 "p95": {
                     "type": "number",
                     "format": "float64"
+                }
+            }
+        },
+        "codersdk.WorkspaceDebugChatResponse": {
+            "type": "object",
+            "properties": {
+                "chat": {
+                    "$ref": "#/definitions/codersdk.Chat"
+                },
+                "created": {
+                    "description": "Created is true when this call created the chat rather than returning\nan existing debugging chat for the same build.",
+                    "type": "boolean"
+                },
+                "failure_summary": {
+                    "description": "FailureSummary is the one-line error the chat was opened with.",
+                    "type": "string"
                 }
             }
         },

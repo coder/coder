@@ -1,12 +1,25 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { action } from "storybook/actions";
 import { userEvent, within } from "storybook/test";
+import {
+	chatEntityKey,
+	chatMessagesKey,
+	organizationChatModelsKey,
+	workspaceDebugChatKey,
+} from "#/api/queries/chats";
 import type { ProvisionerJobLog } from "#/api/typesGenerated";
+import {
+	MockWorkspaceDebugChat,
+	MockWorkspaceDebugChatMessages,
+	MockWorkspaceDebugChatResponse,
+} from "#/testHelpers/chatEntities";
+import { MockChatModel } from "#/testHelpers/chatModels";
 import * as Mocks from "#/testHelpers/entities";
 import {
 	withAuthProvider,
 	withDashboardProvider,
 	withProxyProvider,
+	withWebSocket,
 } from "#/testHelpers/storybook";
 import type { WorkspacePermissions } from "../../modules/workspaces/permissions";
 import { Workspace } from "./Workspace";
@@ -31,21 +44,59 @@ const permissions: WorkspacePermissions = {
 	deleteFailedWorkspace: true,
 };
 
+const baseQueries = [
+	{
+		key: ["buildInfo"],
+		data: Mocks.MockBuildInfo,
+	},
+	{
+		key: ["portForward", Mocks.MockWorkspaceAgent.id],
+		data: Mocks.MockListeningPortsResponse,
+	},
+];
+
+// Primes the AI debugging panel with an existing chat so failed-build stories
+// render the two-column layout without network access.
+const debugChatQueries = [
+	{
+		key: workspaceDebugChatKey(Mocks.MockFailedWorkspace.latest_build.id),
+		data: MockWorkspaceDebugChatResponse,
+	},
+	{
+		key: chatEntityKey(MockWorkspaceDebugChat.id),
+		data: MockWorkspaceDebugChat,
+	},
+	{
+		key: chatMessagesKey(MockWorkspaceDebugChat.id),
+		data: {
+			pages: [
+				{
+					messages: [...MockWorkspaceDebugChatMessages].reverse(),
+					queued_messages: [],
+					has_more: false,
+				},
+			],
+			pageParams: [undefined],
+		},
+	},
+	{
+		key: organizationChatModelsKey(Mocks.MockFailedWorkspace.organization_id),
+		data: {
+			models: [
+				{ ...MockChatModel, id: MockWorkspaceDebugChat.last_model_config_id },
+			],
+			providers: [],
+			unsupported_providers: [],
+		},
+	},
+];
+
 const meta: Meta<typeof Workspace> = {
 	title: "pages/WorkspacePage/Workspace",
 	args: { permissions },
 	component: Workspace,
 	parameters: {
-		queries: [
-			{
-				key: ["buildInfo"],
-				data: Mocks.MockBuildInfo,
-			},
-			{
-				key: ["portForward", Mocks.MockWorkspaceAgent.id],
-				data: Mocks.MockListeningPortsResponse,
-			},
-		],
+		queries: baseQueries,
 		user: Mocks.MockUserOwner,
 	},
 	decorators: [withAuthProvider, withDashboardProvider, withProxyProvider()],
@@ -414,6 +465,11 @@ export const UnhealthyWithoutUpdatePermission: Story = {
 };
 
 export const FailedWithLogs: Story = {
+	decorators: [withWebSocket],
+	parameters: {
+		webSocket: [],
+		queries: [...baseQueries, ...debugChatQueries],
+	},
 	args: {
 		...Running.args,
 		workspace: {
@@ -432,6 +488,11 @@ export const FailedWithLogs: Story = {
 };
 
 export const FailedWithRetry: Story = {
+	decorators: [withWebSocket],
+	parameters: {
+		webSocket: [],
+		queries: [...baseQueries, ...debugChatQueries],
+	},
 	args: {
 		...Running.args,
 		workspace: {

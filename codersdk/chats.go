@@ -2626,6 +2626,34 @@ func (c *Client) CreateChat(ctx context.Context, req CreateChatRequest) (Chat, e
 	return chat, ReadBodyAsJSON(res, &chat)
 }
 
+// WorkspaceDebugChatResponse is returned when a workspace debugging chat is
+// requested for a failed build.
+type WorkspaceDebugChatResponse struct {
+	Chat Chat `json:"chat"`
+	// Created is true when this call created the chat rather than returning
+	// an existing debugging chat for the same build.
+	Created bool `json:"created"`
+	// FailureSummary is the one-line error the chat was opened with.
+	FailureSummary string `json:"failure_summary"`
+}
+
+// CreateWorkspaceDebugChat returns the caller's debugging chat for a failed
+// workspace build, creating one seeded with the failure context if none
+// exists. The chat is not bound to the workspace because a failed build
+// usually has no agent to connect to.
+func (c *ExperimentalClient) CreateWorkspaceDebugChat(ctx context.Context, buildID uuid.UUID) (WorkspaceDebugChatResponse, error) {
+	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/experimental/workspacebuilds/%s/debug-chat", buildID), nil)
+	if err != nil {
+		return WorkspaceDebugChatResponse{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK && res.StatusCode != http.StatusCreated {
+		return WorkspaceDebugChatResponse{}, ReadBodyAsError(res)
+	}
+	var resp WorkspaceDebugChatResponse
+	return resp, ReadBodyAsJSON(res, &resp)
+}
+
 // StreamChatOptions are optional parameters for StreamChat.
 type StreamChatOptions struct {
 	// AfterID limits the initial snapshot to messages created

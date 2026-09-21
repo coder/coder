@@ -30,6 +30,35 @@ const chatsByWorkspaceFamilyKey = [
 	"by-workspace",
 ] as const;
 
+const workspaceDebugChatFamilyKey = [
+	...chatCollectionsKey,
+	"workspace-debug",
+] as const;
+
+export const workspaceDebugChatKey = (buildId: string) =>
+	[...workspaceDebugChatFamilyKey, buildId] as const;
+
+/**
+ * Get-or-create the debugging chat for a failed workspace build. The
+ * endpoint is idempotent per build and owner, so a query models it well and
+ * a page refresh reuses the same chat. On success the chat entity cache is
+ * primed so the panel does not refetch it.
+ */
+export const workspaceDebugChat = (queryClient: QueryClient, buildId: string) =>
+	queryOptions({
+		queryKey: workspaceDebugChatKey(buildId),
+		queryFn: async () => {
+			const response = await API.experimental.createWorkspaceDebugChat(buildId);
+			queryClient.setQueryData(chatEntityKey(response.chat.id), response.chat);
+			if (response.created) {
+				void queryClient.invalidateQueries({ queryKey: chatListFamilyKey });
+			}
+			return response;
+		},
+		staleTime: Number.POSITIVE_INFINITY,
+		retry: false,
+	});
+
 export const chatEntitiesFamilyKey = ["chats", "entities"] as const;
 
 export const chatEntityKey = (chatId: string) =>

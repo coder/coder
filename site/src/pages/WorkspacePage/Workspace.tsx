@@ -18,6 +18,8 @@ import {
 	getActiveTransitionStats,
 	WorkspaceBuildProgress,
 } from "./WorkspaceBuildProgress";
+import { WorkspaceDebugPanel } from "./WorkspaceDebug/WorkspaceDebugPanel";
+import { getWorkspaceFailure } from "./WorkspaceDebug/workspaceFailure";
 import { WorkspaceDeletedBanner } from "./WorkspaceDeletedBanner";
 import { WorkspaceTopbar } from "./WorkspaceTopbar";
 
@@ -102,6 +104,7 @@ export const Workspace: FC<WorkspaceProps> = ({
 		(workspace.latest_build.matched_provisioners?.available ?? 1) > 0;
 	const shouldShowProvisionerAlert =
 		workspacePending && !haveBuildLogs && !provisionersHealthy && !isRestarting;
+	const failure = getWorkspaceFailure(workspace);
 
 	return (
 		<div className="flex flex-col flex-1 min-h-0">
@@ -159,7 +162,7 @@ export const Workspace: FC<WorkspaceProps> = ({
 					)}
 				</div>
 
-				<div className="relative w-full overflow-y-auto bg-[radial-gradient(circle_at_1px_1px,hsl(var(--content-disabled))_0,transparent_1px)] bg-position-[-2px_-2px] bg-size-[16px_16px] p-4 md:p-8">
+				<div className="relative flex-1 min-w-0 overflow-y-auto bg-[radial-gradient(circle_at_1px_1px,hsl(var(--content-disabled))_0,transparent_1px)] bg-position-[-2px_-2px] bg-size-[16px_16px] p-4 md:p-8">
 					<div className="absolute top-0 left-0 right-0 h-32 bg-linear-to-b from-surface-primary to-transparent"></div>
 
 					<div className="relative z-10">
@@ -251,6 +254,15 @@ export const Workspace: FC<WorkspaceProps> = ({
 						</div>
 					</div>
 				</div>
+
+				{failure && (
+					// The navbar is sticky at 72px and the workspace topbar above this
+					// row is 49px, so the panel fills the viewport below both on first
+					// paint and sticks under the navbar as the left column scrolls.
+					<div className="hidden lg:flex lg:sticky lg:top-[72px] lg:self-start lg:h-[calc(100dvh-121px)] w-[440px] xl:w-[520px] shrink-0 min-h-0 overflow-hidden border-0 border-l border-solid border-border">
+						<WorkspaceDebugPanel workspace={workspace} failure={failure} />
+					</div>
+				)}
 			</div>
 		</div>
 	);

@@ -3259,6 +3259,19 @@ class ExperimentalApiMethods {
 		);
 		return response.data;
 	};
+	/**
+	 * Returns the caller's debugging chat for a failed workspace build,
+	 * creating one seeded with the failure context when none exists. The
+	 * call is idempotent per build, so it is safe to model as a query.
+	 */
+	createWorkspaceDebugChat = async (
+		buildId: string,
+	): Promise<TypesGen.WorkspaceDebugChatResponse> => {
+		const response = await this.axios.post<TypesGen.WorkspaceDebugChatResponse>(
+			`/api/experimental/workspacebuilds/${buildId}/debug-chat`,
+		);
+		return response.data;
+	};
 	getChatCost = async (chatId: string): Promise<TypesGen.ChatCost> => {
 		const response = await this.axios.get<TypesGen.ChatCost>(
 			`/api/v2/chats/${chatId}/cost`,

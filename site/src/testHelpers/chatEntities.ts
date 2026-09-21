@@ -6,8 +6,9 @@ import type {
 	ChatMessage,
 	ChatQueuedMessage,
 	MCPServerConfig,
+	WorkspaceDebugChatResponse,
 } from "#/api/typesGenerated";
-import { MockUserOwner } from "./entities";
+import { MockFailedWorkspace, MockUserOwner } from "./entities";
 
 export const MOCK_TIMESTAMP = "2024-01-01T00:00:00Z";
 
@@ -160,3 +161,69 @@ export const MockChatQueuedMessage: ChatQueuedMessage = {
 	content: [{ type: "text", text: "Queued message" }],
 	created_at: MOCK_TIMESTAMP,
 };
+
+export const MockWorkspaceDebugChat: Chat = {
+	...MockChat,
+	id: "workspace-debug-chat-1",
+	title: "Debug: test-workspace build #1",
+	labels: {
+		"coder.workspace_debug": "true",
+		"coder.workspace_debug/build_id": MockFailedWorkspace.latest_build.id,
+		"coder.workspace_debug/workspace_id": MockFailedWorkspace.id,
+	},
+};
+
+export const MockWorkspaceDebugChatResponse: WorkspaceDebugChatResponse = {
+	chat: MockWorkspaceDebugChat,
+	created: false,
+	failure_summary: "terraform apply: exit status 1",
+};
+
+export const MockWorkspaceDebugChatMessages: ChatMessage[] = [
+	{
+		id: 4,
+		chat_id: MockWorkspaceDebugChat.id,
+		created_at: MOCK_TIMESTAMP,
+		role: "user",
+		content: [
+			{
+				type: "text",
+				text: 'This workspace failed to startup with "terraform apply: exit status 1" error. Investigate why it failed and provide a resolving action the user can take, or if they need admin assistance.',
+			},
+		],
+	},
+	{
+		id: 5,
+		chat_id: MockWorkspaceDebugChat.id,
+		created_at: MOCK_TIMESTAMP,
+		role: "assistant",
+		content: [
+			{
+				type: "tool-call",
+				tool_call_id: "call-logs",
+				tool_name: "get_workspace_build_logs",
+				args: { build_id: MockFailedWorkspace.latest_build.id },
+			},
+			{
+				type: "tool-result",
+				tool_call_id: "call-logs",
+				tool_name: "get_workspace_build_logs",
+				result: { has_more: "false" },
+			},
+			{
+				type: "text",
+				text: [
+					"_(simulated) This diagnosis comes from the simulated model server._",
+					"",
+					"### What failed",
+					"",
+					"The container image referenced by the template could not be pulled.",
+					"",
+					"### Who",
+					"",
+					"**You need an administrator.**",
+				].join("\n"),
+			},
+		],
+	},
+];
