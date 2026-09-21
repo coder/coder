@@ -170,7 +170,6 @@ func TestProxyRecorderUsesAuthenticatedAPIKeyIDPerRequest(t *testing.T) {
 	srv.ServeHTTP(missingResponse, missingID)
 	require.Equal(t, http.StatusInternalServerError, missingResponse.Code)
 
-	ctx := testutil.Context(t, testutil.WaitShort)
 	require.Eventually(t, func() bool {
 		mu.Lock()
 		defer mu.Unlock()
@@ -197,5 +196,4 @@ func TestProxyRecorderUsesAuthenticatedAPIKeyIDPerRequest(t *testing.T) {
 	require.Empty(t, upstreamHeaders["direct"].Get(agplaibridge.HeaderCoderToken))
 	require.NotContains(t, upstreamHeaders, "missing-id")
 	upstreamMu.Unlock()
-	require.NoError(t, ctx.Err())
 }

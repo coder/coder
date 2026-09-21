@@ -40,7 +40,8 @@ type Router struct {
 
 var _ http.Handler = (*Router)(nil)
 
-// NewRouter creates a Router for valid, uniquely named providers.
+// NewRouter creates a Router for valid, uniquely named providers. A recorder is
+// required when any eligible enabled provider has bridged routes.
 func NewRouter(providers []provider.Provider, rec recorder.Recorder, logger slog.Logger, m *metrics.Metrics, tracer trace.Tracer) (_ *Router, outErr error) {
 	if err := provider.ValidateProviders(providers); err != nil {
 		return nil, err
@@ -61,6 +62,9 @@ func NewRouter(providers []provider.Provider, rec recorder.Recorder, logger slog
 	for _, prov := range snapshot {
 		if prov.Type() == config.ProviderBedrock || !prov.Enabled() {
 			continue
+		}
+		if rec == nil && len(prov.BridgedRoutes()) > 0 {
+			return nil, xerrors.Errorf("configure provider %q: recorder is required for bridged routes", prov.Name())
 		}
 		baseURL, err := url.Parse(prov.BaseURL())
 		if err != nil {

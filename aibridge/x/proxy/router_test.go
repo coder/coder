@@ -17,6 +17,7 @@ import (
 	"github.com/coder/coder/v2/aibridge/internal/testutil"
 	"github.com/coder/coder/v2/aibridge/keypool"
 	"github.com/coder/coder/v2/aibridge/provider"
+	"github.com/coder/coder/v2/aibridge/recorder"
 	"github.com/coder/coder/v2/aibridge/routing"
 	"github.com/coder/coder/v2/aibridge/x/proxy"
 )
@@ -32,6 +33,57 @@ type keyPoolProvider struct {
 }
 
 func (p keyPoolProvider) KeyPool() *keypool.Pool { return p.pool }
+
+func TestNewRouterRequiresRecorderForBridgedRoutes(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name      string
+		provider  provider.Provider
+		wantError bool
+	}{
+		{
+			name: "EnabledBridged",
+			provider: &testutil.MockProvider{
+				NameStr: "openai", URL: "https://openai.example.test",
+				Bridged: []string{"/v1/chat/completions"},
+			},
+			wantError: true,
+		},
+		{
+			name: "PassthroughOnly",
+			provider: &testutil.MockProvider{
+				NameStr: "openai", URL: "https://openai.example.test",
+				Passthrough: []string{"/v1/models"},
+			},
+		},
+		{
+			name:     "NoRoutes",
+			provider: &testutil.MockProvider{NameStr: "openai", URL: "https://openai.example.test"},
+		},
+		{
+			name: "DisabledBridged",
+			provider: &testutil.MockProvider{
+				NameStr: "openai", URL: "https://openai.example.test", Disabled: true,
+				Bridged: []string{"/v1/chat/completions"},
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			router, err := proxy.NewRouter([]provider.Provider{tc.provider}, nil, slogtest.Make(t, nil), nil, testTracer(t))
+			if tc.wantError {
+				require.ErrorContains(t, err, "recorder is required for bridged routes")
+				require.Nil(t, router)
+				return
+			}
+			require.NoError(t, err)
+			require.NotNil(t, router)
+			router.CloseIdleConnections()
+		})
+	}
+}
 
 func TestRouterSkipsBedrock(t *testing.T) {
 	t.Parallel()
@@ -140,7 +192,7 @@ func TestRouterDisabledProvider(t *testing.T) {
 	}
 	router, err := proxy.NewRouter(
 		[]provider.Provider{enabled, provider.NewDisabledStub("disabled-openai", "openai")},
-		nil, slogtest.Make(t, nil), nil, testTracer(t),
+		recorder.NewLogRecorder(slogtest.Make(t, nil), nil), slogtest.Make(t, nil), nil, testTracer(t),
 	)
 	require.NoError(t, err)
 

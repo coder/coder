@@ -532,7 +532,7 @@ func TestInMemoryRoundTripper_ProxyForwardsNilBody(t *testing.T) {
 
 	router, err := proxy.NewRouter([]aibridgecore.Provider{
 		aibridgecore.NewCopilotProvider(config.Copilot{BaseURL: upstream.URL}),
-	}, nil, slogtest.Make(t, nil), nil, nil)
+	}, &transportRecorder{}, slogtest.Make(t, nil), nil, nil)
 	require.NoError(t, err)
 	t.Cleanup(router.CloseIdleConnections)
 
@@ -565,7 +565,7 @@ func TestInMemoryRoundTripper_PassthroughTruncatedStreamReturnsReadError(t *test
 
 	router, err := proxy.NewRouter([]aibridgecore.Provider{
 		aibridgecore.NewCopilotProvider(config.Copilot{BaseURL: upstream.URL}),
-	}, nil, slogtest.Make(t, nil), nil, nil)
+	}, &transportRecorder{}, slogtest.Make(t, nil), nil, nil)
 	require.NoError(t, err)
 	t.Cleanup(router.CloseIdleConnections)
 

@@ -31,8 +31,12 @@ type Metadata map[string]any
 const (
 	MetadataKeyServiceTier = "service_tier"
 
+	// CredentialKindCentralized identifies provider-managed credentials.
 	CredentialKindCentralized = "centralized"
-	CredentialKindBYOK        = "byok"
+	// CredentialKindBYOK identifies user-supplied provider credentials.
+	CredentialKindBYOK = "byok"
+	// CredentialHintFailoverKey is used before a centralized key is selected.
+	// Persisted hints use VARCHAR(15), so this value must remain at most 15 bytes.
 	CredentialHintFailoverKey = "<failover key>" //nolint:gosec // Placeholder, not a credential.
 )
 

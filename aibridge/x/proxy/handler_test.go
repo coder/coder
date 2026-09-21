@@ -38,15 +38,15 @@ type proxyTestProvider struct {
 	pool         *keypool.Pool
 	failover     keypool.KeyFailoverConfig
 	breaker      *config.CircuitBreaker
-	failoverCall func() keypool.KeyFailoverConfig
+	failoverCall func(slog.Logger) keypool.KeyFailoverConfig
 }
 
 func (p *proxyTestProvider) Type() string           { return p.typ }
 func (p *proxyTestProvider) AuthHeader() string     { return p.authHeader }
 func (p *proxyTestProvider) KeyPool() *keypool.Pool { return p.pool }
-func (p *proxyTestProvider) KeyFailoverConfig(slog.Logger) keypool.KeyFailoverConfig {
+func (p *proxyTestProvider) KeyFailoverConfig(logger slog.Logger) keypool.KeyFailoverConfig {
 	if p.failoverCall != nil {
-		return p.failoverCall()
+		return p.failoverCall(logger)
 	}
 	return p.failover
 }
@@ -314,16 +314,22 @@ func TestHandlerStartRecordingBlocksUpstream(t *testing.T) {
 func TestHandlerPanicAfterStartEndsExactlyOnceAndPropagates(t *testing.T) {
 	t.Parallel()
 
-	var calls int
+	configCalls := 0
 	provider := &proxyTestProvider{
 		MockProvider: &testutil.MockProvider{NameStr: "openai", URL: "http://127.0.0.1:1", Bridged: []string{"/v1/chat"}},
 		typ:          config.ProviderOpenAI, authHeader: "Authorization",
-		failoverCall: func() keypool.KeyFailoverConfig {
-			calls++
-			if calls == 2 {
-				panic("after start")
+		failoverCall: func(slog.Logger) keypool.KeyFailoverConfig {
+			configCalls++
+			return keypool.KeyFailoverConfig{
+				Pool: testutil.SingleKeyPool(config.ProviderOpenAI, "panic-key"),
+				IsBYOK: func(*http.Request) bool {
+					return false
+				},
+				InjectAuthKey: func(*http.Header, string) {
+					panic("after start")
+				},
+				BuildKeyPoolResponse: func(*keypool.Error) *http.Response { return nil },
 			}
-			return keypool.KeyFailoverConfig{}
 		},
 	}
 	rec := &countingRecorder{}
@@ -336,6 +342,7 @@ func TestHandlerPanicAfterStartEndsExactlyOnceAndPropagates(t *testing.T) {
 	require.PanicsWithValue(t, "after start", func() {
 		router.ServeHTTP(httptest.NewRecorder(), req)
 	})
+	require.Equal(t, 1, configCalls)
 	starts, ends := rec.counts()
 	require.Equal(t, 1, starts)
 	require.Equal(t, 1, ends)

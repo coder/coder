@@ -27,9 +27,6 @@ const (
 
 // Hint placeholders for credentials with no static key value to mask: a pool
 // before failover selects a key, and a key resolved dynamically at request time.
-//
-// Hints are persisted to aibridge_interceptions.credential_hint, a
-// VARCHAR(15), so every value here must be at most 15 characters.
 const (
 	hintFailoverKey = recorder.CredentialHintFailoverKey
 	hintAWSChainKey = "<aws chain>"
