@@ -29,6 +29,7 @@ const (
 // before failover selects a key, and a key resolved dynamically at request time.
 const (
 	hintFailoverKey = recorder.CredentialHintFailoverKey
+	// Persisted hints use VARCHAR(15), so this value must remain at most 15 bytes.
 	hintAWSChainKey = "<aws chain>"
 )
 

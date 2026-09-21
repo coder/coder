@@ -90,6 +90,37 @@ func TestNewJSONErrorResponse(t *testing.T) {
 	}
 }
 
+func TestActorHeaders(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name   string
+		header string
+		want   bool
+	}{
+		{name: "ID", header: utils.ActorHeaderPrefix + "-ID", want: true},
+		{name: "MetadataCaseInsensitive", header: "x-ai-bridge-actor-metadata-name", want: true},
+		{name: "Other", header: "X-AI-Bridge-Request-ID"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			require.Equal(t, tc.want, utils.IsActorHeader(tc.header))
+		})
+	}
+}
+
+func TestNewStreamingTransport(t *testing.T) {
+	t.Parallel()
+
+	transport := utils.NewStreamingTransport()
+	require.Equal(t, 100, transport.MaxIdleConns)
+	require.Equal(t, 90*time.Second, transport.IdleConnTimeout)
+	require.Equal(t, 10*time.Second, transport.TLSHandshakeTimeout)
+	require.Equal(t, time.Second, transport.ExpectContinueTimeout)
+	require.Zero(t, transport.ResponseHeaderTimeout)
+	require.False(t, transport.DisableCompression)
+}
+
 func TestStripCoderHeaders(t *testing.T) {
 	t.Parallel()
 

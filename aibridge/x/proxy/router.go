@@ -2,13 +2,10 @@
 package proxy
 
 import (
-	"context"
 	"net/http"
 	"net/url"
 	"slices"
-	"time"
 
-	"github.com/sony/gobreaker/v2"
 	"go.opentelemetry.io/otel/trace"
 	"go.opentelemetry.io/otel/trace/noop"
 	"golang.org/x/xerrors"
@@ -22,6 +19,7 @@ import (
 	"github.com/coder/coder/v2/aibridge/provider"
 	"github.com/coder/coder/v2/aibridge/recorder"
 	"github.com/coder/coder/v2/aibridge/routing"
+	"github.com/coder/coder/v2/aibridge/utils"
 	"github.com/coder/quartz"
 )
 
@@ -77,31 +75,14 @@ func NewRouter(providers []provider.Provider, rec recorder.Recorder, logger slog
 			return nil, xerrors.Errorf("configure provider %q base URL path: %w", prov.Name(), err)
 		}
 
-		transport := &http.Transport{
-			Proxy:                 http.ProxyFromEnvironment,
-			ForceAttemptHTTP2:     true,
-			MaxIdleConns:          100,
-			IdleConnTimeout:       90 * time.Second,
-			TLSHandshakeTimeout:   10 * time.Second,
-			ExpectContinueTimeout: time.Second,
-			DisableCompression:    true,
-		}
+		transport := utils.NewStreamingTransport()
+		transport.DisableCompression = true
 		router.transports = append(router.transports, transport)
 		dumpTransport := apidump.NewPassthroughMiddleware(transport, prov.APIDumpDir(), prov.Name(), logger, quartz.NewReal())
 
-		providerName := prov.Name()
-		onChange := func(endpoint, model string, from, to gobreaker.State) {
-			logger.Info(context.Background(), "circuit breaker state change",
-				slog.F("provider", providerName), slog.F("endpoint", endpoint),
-				slog.F("model", model), slog.F("from", from.String()), slog.F("to", to.String()))
-			if m != nil {
-				m.CircuitBreakerState.WithLabelValues(providerName, endpoint, model).Set(circuitbreaker.StateToGaugeValue(to))
-				if to == gobreaker.StateOpen {
-					m.CircuitBreakerTrips.WithLabelValues(providerName, endpoint, model).Inc()
-				}
-			}
-		}
-		breakers := circuitbreaker.NewProviderCircuitBreakers(providerName, prov.CircuitBreakerConfig(), onChange, m)
+		breakers := circuitbreaker.NewProviderCircuitBreakersWithObservability(
+			prov.Name(), prov.CircuitBreakerConfig(), logger, m,
+		)
 
 		for _, path := range prov.BridgedRoutes() {
 			route, err := url.JoinPath(prov.RoutePrefix(), path)
@@ -111,7 +92,7 @@ func NewRouter(providers []provider.Provider, rec recorder.Recorder, logger slog
 			router.mux.Handle(route, &forwardingHandler{
 				provider: prov, baseURL: baseURL, transport: dumpTransport,
 				breaker: breakers, recorder: rec, logger: logger.Named("proxy." + prov.Name()),
-				metrics: m, tracer: tracer, record: true,
+				metrics: m, tracer: tracer, record: true, metricRoute: path,
 			})
 		}
 		for _, path := range prov.PassthroughRoutes() {
@@ -122,7 +103,7 @@ func NewRouter(providers []provider.Provider, rec recorder.Recorder, logger slog
 			router.mux.Handle(route, &forwardingHandler{
 				provider: prov, baseURL: baseURL, transport: dumpTransport,
 				logger: logger.Named("passthrough." + prov.Name()), metrics: m,
-				tracer: tracer,
+				tracer: tracer, metricRoute: path,
 			})
 		}
 	}

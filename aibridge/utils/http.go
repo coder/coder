@@ -11,6 +11,27 @@ import (
 	"time"
 )
 
+const ActorHeaderPrefix = "X-AI-Bridge-Actor"
+
+// IsActorHeader reports whether name is an AI Bridge actor header.
+func IsActorHeader(name string) bool {
+	return strings.HasPrefix(strings.ToLower(name), strings.ToLower(ActorHeaderPrefix))
+}
+
+// NewStreamingTransport returns an HTTP transport tuned for streaming AI
+// provider responses. It deliberately has no ResponseHeaderTimeout because the
+// first model response can take an unbounded amount of time.
+func NewStreamingTransport() *http.Transport {
+	return &http.Transport{
+		Proxy:                 http.ProxyFromEnvironment,
+		ForceAttemptHTTP2:     true,
+		MaxIdleConns:          100,
+		IdleConnTimeout:       90 * time.Second,
+		TLSHandshakeTimeout:   10 * time.Second,
+		ExpectContinueTimeout: time.Second,
+	}
+}
+
 // StripCoderHeaders removes Coder-internal headers from headers. Provider
 // authentication and standard HTTP headers are left unchanged.
 func StripCoderHeaders(headers http.Header) {

@@ -39,15 +39,16 @@ import (
 const unknownModel = ""
 
 type forwardingHandler struct {
-	provider  provider.Provider
-	baseURL   *url.URL
-	transport http.RoundTripper
-	breaker   *circuitbreaker.ProviderCircuitBreakers
-	recorder  recorder.Recorder
-	logger    slog.Logger
-	metrics   *metrics.Metrics
-	tracer    trace.Tracer
-	record    bool
+	provider    provider.Provider
+	baseURL     *url.URL
+	transport   http.RoundTripper
+	breaker     *circuitbreaker.ProviderCircuitBreakers
+	recorder    recorder.Recorder
+	logger      slog.Logger
+	metrics     *metrics.Metrics
+	tracer      trace.Tracer
+	record      bool
+	metricRoute string
 }
 
 func (h *forwardingHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -140,7 +141,9 @@ func (h *forwardingHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		state.metricsStarted = true
 	}
 	if !h.record && h.metrics != nil {
-		h.metrics.PassthroughCount.WithLabelValues(h.provider.Name(), route, r.Method).Inc()
+		h.metrics.PassthroughCount.WithLabelValues(
+			h.provider.Name(), routing.MetricRoute(h.metricRoute), routing.MetricMethod(r.Method),
+		).Inc()
 	}
 
 	if failoverConfig.InjectAuthKey != nil {
@@ -230,7 +233,7 @@ func rewriteRequest(pr *httputil.ProxyRequest, routePrefix string, baseURL *url.
 func stripProxyHeaders(headers http.Header) {
 	for name := range headers {
 		lower := strings.ToLower(name)
-		if strings.HasPrefix(lower, "x-ai-bridge-actor") || lower == "forwarded" || strings.HasPrefix(lower, "x-forwarded-") {
+		if utils.IsActorHeader(name) || lower == "forwarded" || strings.HasPrefix(lower, "x-forwarded-") {
 			delete(headers, name)
 		}
 	}
@@ -287,15 +290,17 @@ func (h *forwardingHandler) finalize(ctx context.Context, span trace.Span, r *ht
 		span.SetStatus(codes.Error, errMessage)
 	}
 	if h.metrics != nil {
-		h.metrics.InterceptionCount.WithLabelValues(h.provider.Name(), unknownModel, status, route, r.Method, actorID, client).Inc()
+		h.metrics.InterceptionCount.WithLabelValues(h.provider.Name(), unknownModel, status, route, routing.MetricMethod(r.Method), actorID, client).Inc()
 	}
 
-	async := recorder.NewAsyncRecorder(h.recorder, recorder.DefaultAsyncTimeout)
-	_ = async.RecordInterceptionEnded(ctx, &recorder.InterceptionRecordEnded{
+	recordCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), recorder.DefaultAsyncTimeout)
+	defer cancel()
+	if err := h.recorder.RecordInterceptionEnded(recordCtx, &recorder.InterceptionRecordEnded{
 		ID: interceptionID, CredentialHint: state.credentialHint,
 		ErrorType: errType, ErrorMessage: errMessage,
-	})
-	async.Wait()
+	}); err != nil {
+		h.logger.Warn(recordCtx, "failed to record interception end", slog.Error(err), slog.F("interception_id", interceptionID))
+	}
 	return aborted
 }
 

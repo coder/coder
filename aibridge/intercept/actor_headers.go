@@ -2,28 +2,24 @@ package intercept
 
 import (
 	"fmt"
-	"strings"
 
 	ant_option "github.com/anthropics/anthropic-sdk-go/option"
 	oai_option "github.com/openai/openai-go/v3/option"
 
 	"github.com/coder/coder/v2/aibridge/context"
-)
-
-const (
-	prefix = "X-AI-Bridge-Actor"
+	"github.com/coder/coder/v2/aibridge/utils"
 )
 
 func ActorIDHeader() string {
-	return fmt.Sprintf("%s-ID", prefix)
+	return fmt.Sprintf("%s-ID", utils.ActorHeaderPrefix)
 }
 
 func ActorMetadataHeader(name string) string {
-	return fmt.Sprintf("%s-Metadata-%s", prefix, name)
+	return fmt.Sprintf("%s-Metadata-%s", utils.ActorHeaderPrefix, name)
 }
 
 func IsActorHeader(name string) bool {
-	return strings.HasPrefix(strings.ToLower(name), strings.ToLower(prefix))
+	return utils.IsActorHeader(name)
 }
 
 // ActorHeadersAsOpenAIOpts produces a slice of headers using OpenAI's RequestOption type.

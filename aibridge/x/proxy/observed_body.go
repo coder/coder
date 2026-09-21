@@ -4,6 +4,8 @@ import "io"
 
 type observedBody struct {
 	io.ReadCloser
+	// onRead receives a borrowed slice backed by the caller's Read buffer. The
+	// callback must copy bytes it retains and must not block or perform I/O.
 	onRead  func([]byte)
 	eof     bool
 	readErr error

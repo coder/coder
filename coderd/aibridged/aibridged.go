@@ -53,7 +53,8 @@ type Server struct {
 	// reverseProxyExp is the experiment flag. Proxy mode also requires no MCP configs.
 	reverseProxyExp bool
 	metrics         *aibridge.Metrics
-	recorder        recorder.Recorder
+	// recorder is shared only by proxy-mode router snapshots.
+	recorder recorder.Recorder
 
 	logger slog.Logger
 	tracer trace.Tracer

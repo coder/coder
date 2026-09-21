@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/hashicorp/go-multierror"
-	"github.com/sony/gobreaker/v2"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/xerrors"
@@ -76,25 +75,9 @@ func NewRequestBridge(ctx context.Context, providers []provider.Provider, rec re
 			continue
 		}
 
-		// Create per-provider circuit breaker if configured
-		cfg := prov.CircuitBreakerConfig()
-		providerName := prov.Name()
-		onChange := func(endpoint, model string, from, to gobreaker.State) {
-			logger.Info(context.Background(), "circuit breaker state change",
-				slog.F("provider", providerName),
-				slog.F("endpoint", endpoint),
-				slog.F("model", model),
-				slog.F("from", from.String()),
-				slog.F("to", to.String()),
-			)
-			if m != nil {
-				m.CircuitBreakerState.WithLabelValues(providerName, endpoint, model).Set(circuitbreaker.StateToGaugeValue(to))
-				if to == gobreaker.StateOpen {
-					m.CircuitBreakerTrips.WithLabelValues(providerName, endpoint, model).Inc()
-				}
-			}
-		}
-		cbs := circuitbreaker.NewProviderCircuitBreakers(providerName, cfg, onChange, m)
+		cbs := circuitbreaker.NewProviderCircuitBreakersWithObservability(
+			prov.Name(), prov.CircuitBreakerConfig(), logger, m,
+		)
 
 		// Add the known provider-specific routes which are bridged (i.e. intercepted and augmented).
 		for _, path := range prov.BridgedRoutes() {
@@ -103,11 +86,11 @@ func NewRequestBridge(ctx context.Context, providers []provider.Provider, rec re
 			if err != nil {
 				logger.Error(ctx, "failed to join path",
 					slog.Error(err),
-					slog.F("provider", providerName),
+					slog.F("provider", prov.Name()),
 					slog.F("prefix", prov.RoutePrefix()),
 					slog.F("path", path),
 				)
-				return nil, xerrors.Errorf("failed to configure provider '%v': failed to join bridged path: %w", providerName, err)
+				return nil, xerrors.Errorf("failed to configure provider '%v': failed to join bridged path: %w", prov.Name(), err)
 			}
 			mux.Handle(route, handler)
 		}
@@ -116,17 +99,17 @@ func NewRequestBridge(ctx context.Context, providers []provider.Provider, rec re
 		//
 		// We have to whitelist the known-safe routes because an API key with elevated privileges (i.e. admin) might be
 		// configured, so we should just reverse-proxy known-safe routes.
-		ftr := newPassthroughRouter(prov, logger.Named(fmt.Sprintf("passthrough.%s", prov.Name())), m, tracer)
+		ftr := newPassthroughRouter(prov, "/", logger.Named(fmt.Sprintf("passthrough.%s", prov.Name())), m, tracer)
 		for _, path := range prov.PassthroughRoutes() {
 			route, err := url.JoinPath(prov.RoutePrefix(), path)
 			if err != nil {
 				logger.Error(ctx, "failed to join path",
 					slog.Error(err),
-					slog.F("provider", providerName),
+					slog.F("provider", prov.Name()),
 					slog.F("prefix", prov.RoutePrefix()),
 					slog.F("path", path),
 				)
-				return nil, xerrors.Errorf("failed to configure provider '%v': failed to join passed through path: %w", providerName, err)
+				return nil, xerrors.Errorf("failed to configure provider '%v': failed to join passed through path: %w", prov.Name(), err)
 			}
 			mux.Handle(route, http.StripPrefix(prov.RoutePrefix(), ftr))
 		}

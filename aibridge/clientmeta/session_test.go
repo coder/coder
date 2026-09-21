@@ -269,6 +269,47 @@ func TestGuessSessionID(t *testing.T) {
 	}
 }
 
+func TestGuessSessionIDHelpersAgree(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name    string
+		client  clientmeta.Client
+		body    string
+		headers http.Header
+	}{
+		{
+			name:   "ClaudeBody",
+			client: clientmeta.ClientClaudeCode,
+			body:   `{"metadata":{"user_id":"user_abc_session_shared-id"}}`,
+		},
+		{
+			name:    "CodexHeader",
+			client:  clientmeta.ClientCodex,
+			headers: http.Header{"session-id": {"shared-id"}},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, "http://localhost", strings.NewReader(tc.body))
+			require.NoError(t, err)
+			req.Header = tc.headers.Clone()
+			fromRequest := clientmeta.GuessSessionID(tc.client, req)
+			fromPayload := clientmeta.GuessSessionIDFromPayload(tc.client, req, []byte(tc.body))
+			require.Equal(t, fromRequest, fromPayload)
+		})
+	}
+}
+
+func TestGuessSessionIDHeaderOnlyClientDoesNotReadBody(t *testing.T) {
+	t.Parallel()
+
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, "http://localhost", &errReader{})
+	require.NoError(t, err)
+	req.Header.Set("session-id", "header-id")
+	require.Equal(t, new("header-id"), clientmeta.GuessSessionID(clientmeta.ClientCodex, req))
+}
+
 func TestGuessSessionIDClaudeHeaderDoesNotReadBody(t *testing.T) {
 	t.Parallel()
 

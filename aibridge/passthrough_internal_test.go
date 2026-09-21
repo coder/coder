@@ -3,6 +3,7 @@ package aibridge
 import (
 	"context"
 	"crypto/tls"
+	"fmt"
 	"maps"
 	"net"
 	"net/http"
@@ -13,6 +14,7 @@ import (
 	"testing"
 
 	"github.com/prometheus/client_golang/prometheus"
+	promtest "github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel"
@@ -125,7 +127,7 @@ func TestPassthroughRoutes(t *testing.T) {
 				URL: upstream.URL + tc.baseURLPath,
 			}
 
-			handler := newPassthroughRouter(prov, logger, nil, testTracer)
+			handler := newPassthroughRouter(prov, "/", logger, nil, testTracer)
 
 			req := httptest.NewRequest("", tc.reqPath, nil)
 			maps.Copy(req.Header, tc.reqHeaders)
@@ -277,7 +279,7 @@ func TestPassthroughRouterReusesProxyInstance(t *testing.T) {
 
 	logger := slogtest.Make(t, nil)
 	prov := &testutil.MockProvider{URL: upstream.URL}
-	handler := newPassthroughRouter(prov, logger, nil, testTracer)
+	handler := newPassthroughRouter(prov, "/", logger, nil, testTracer)
 
 	for i := range 2 {
 		req := httptest.NewRequest(http.MethodGet, "http://proxy.example.test/v1/models", nil)
@@ -290,6 +292,29 @@ func TestPassthroughRouterReusesProxyInstance(t *testing.T) {
 	}
 
 	assert.EqualValues(t, 1, newConnections.Load())
+}
+
+func TestPassthroughMetricCardinalityIsBounded(t *testing.T) {
+	t.Parallel()
+
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	t.Cleanup(upstream.Close)
+	registry := prometheus.NewRegistry()
+	m := NewMetrics(registry)
+	prov := provider.NewCopilot(config.Copilot{BaseURL: upstream.URL})
+	handler := newPassthroughRouter(prov, "/", slogtest.Make(t, nil), m, testTracer)
+
+	for i := range 50 {
+		req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/v1/threads/%d/messages", i), nil)
+		resp := httptest.NewRecorder()
+		handler.ServeHTTP(resp, req)
+		require.Equal(t, http.StatusNoContent, resp.Code)
+	}
+
+	require.Equal(t, 50.0, promtest.ToFloat64(m.PassthroughCount.WithLabelValues(config.ProviderCopilot, "/", http.MethodGet)))
+	require.Equal(t, 1, promtest.CollectAndCount(m.PassthroughCount))
 }
 
 // TestPassthrough_KeyFailover exercises the KeyFailoverTransport
@@ -533,7 +558,7 @@ func TestPassthrough_KeyFailover(t *testing.T) {
 
 				p := prov.newProvider(upstream.URL, pool)
 				logger := slogtest.Make(t, nil)
-				handler := newPassthroughRouter(p, logger, nil, testTracer)
+				handler := newPassthroughRouter(p, "/v1/models", logger, nil, testTracer)
 
 				req := httptest.NewRequest(http.MethodGet, "/v1/models", nil)
 				if tc.byokKey != "" {

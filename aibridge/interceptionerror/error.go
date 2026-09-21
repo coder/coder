@@ -12,6 +12,8 @@ import (
 	"github.com/coder/coder/v2/aibridge/recorder"
 )
 
+// maxRecordedMessageBytes bounds error messages persisted with interception
+// records so provider payloads cannot create unbounded database values.
 const maxRecordedMessageBytes = 1024
 
 // Categorizer maps provider-specific terminal errors to recorder error types.
@@ -39,11 +41,18 @@ func Categorize(c Categorizer, err error, status int) (recorder.ErrorType, strin
 	case errors.Is(err, context.DeadlineExceeded):
 		return recorder.ErrorTypeTimeout, message
 	case errors.Is(err, context.Canceled):
+		// The caller went away. This is not an upstream failure, but the
+		// interception did not complete, so record unknown rather than success.
 		return recorder.ErrorTypeUnknown, message
 	case errors.Is(err, circuitbreaker.ErrCircuitOpen):
+		// Circuit-open responses are HTTP 503, but the sentinel itself carries no
+		// status and must be classified directly.
 		return recorder.ErrorTypeServerError, message
 	}
 
+	// Key-pool errors take precedence over provider delegation because the pool
+	// masks the client response, for example by rendering permanent failures as
+	// HTTP 502, which would otherwise hide the cause.
 	var poolErr *keypool.Error
 	if errors.As(err, &poolErr) {
 		switch poolErr.Kind {

@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
-	"time"
+	"strings"
 
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -19,30 +19,25 @@ import (
 	"github.com/coder/coder/v2/aibridge/provider"
 	"github.com/coder/coder/v2/aibridge/routing"
 	"github.com/coder/coder/v2/aibridge/tracing"
+	"github.com/coder/coder/v2/aibridge/utils"
 	"github.com/coder/quartz"
 )
 
 // newPassthroughRouter returns a simple reverse-proxy implementation which will be used when a route is not handled specifically
 // by a [intercept.Provider].
 // A single reverse proxy is created per provider and reused across all requests.
-func newPassthroughRouter(prov provider.Provider, logger slog.Logger, m *metrics.Metrics, tracer trace.Tracer) http.HandlerFunc {
+func newPassthroughRouter(prov provider.Provider, metricRouteFallback string, logger slog.Logger, m *metrics.Metrics, tracer trace.Tracer) http.HandlerFunc {
 	provBaseURL, err := url.Parse(prov.BaseURL())
 	if err != nil {
-		return newInvalidBaseURLHandler(prov, logger, m, tracer, err)
+		return newInvalidBaseURLHandler(prov, metricRouteFallback, logger, m, tracer, err)
 	}
 	if _, err := url.JoinPath(provBaseURL.Path, "/"); err != nil {
-		return newInvalidBaseURLHandler(prov, logger, m, tracer, err)
+		return newInvalidBaseURLHandler(prov, metricRouteFallback, logger, m, tracer, err)
 	}
 
-	// Transport tuned for streaming (no response header timeout).
-	t := &http.Transport{
-		Proxy:                 http.ProxyFromEnvironment,
-		ForceAttemptHTTP2:     true,
-		MaxIdleConns:          100,
-		IdleConnTimeout:       90 * time.Second,
-		TLSHandshakeTimeout:   10 * time.Second,
-		ExpectContinueTimeout: 1 * time.Second,
-	}
+	// The shared transport is tuned for streaming and deliberately omits a
+	// response header timeout.
+	t := utils.NewStreamingTransport()
 
 	// Build the passthrough proxy, reused across all requests for this provider.
 	// Rewrite sets proxy headers. For centralized requests, KeyFailoverTransport
@@ -67,7 +62,7 @@ func newPassthroughRouter(prov provider.Provider, logger slog.Logger, m *metrics
 
 	return func(w http.ResponseWriter, r *http.Request) {
 		if m != nil {
-			m.PassthroughCount.WithLabelValues(prov.Name(), r.URL.Path, r.Method).Add(1)
+			m.PassthroughCount.WithLabelValues(prov.Name(), passthroughMetricRoute(prov, r, metricRouteFallback), routing.MetricMethod(r.Method)).Add(1)
 		}
 
 		ctx, span := startSpan(r, tracer)
@@ -102,19 +97,26 @@ func rewritePassthroughRequest(pr *httputil.ProxyRequest, provBaseURL *url.URL) 
 
 // newInvalidBaseURLHandler returns a handler that always returns 502
 // when the provider's base URL is invalid.
-func newInvalidBaseURLHandler(prov provider.Provider, logger slog.Logger, m *metrics.Metrics, tracer trace.Tracer, baseURLErr error) http.HandlerFunc {
+func newInvalidBaseURLHandler(prov provider.Provider, metricRouteFallback string, logger slog.Logger, m *metrics.Metrics, tracer trace.Tracer, baseURLErr error) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx, span := startSpan(r, tracer)
 		defer span.End()
 
 		if m != nil {
-			m.PassthroughCount.WithLabelValues(prov.Name(), r.URL.Path, r.Method).Add(1)
+			m.PassthroughCount.WithLabelValues(prov.Name(), passthroughMetricRoute(prov, r, metricRouteFallback), routing.MetricMethod(r.Method)).Add(1)
 		}
 
 		logger.Warn(ctx, "invalid provider base URL", slog.Error(baseURLErr))
 		http.Error(w, "invalid provider base URL", http.StatusBadGateway)
 		span.SetStatus(codes.Error, "invalid provider base URL: "+baseURLErr.Error())
 	}
+}
+
+func passthroughMetricRoute(prov provider.Provider, r *http.Request, fallback string) string {
+	if route, ok := strings.CutPrefix(r.Pattern, prov.RoutePrefix()); ok && route != "" {
+		return routing.MetricRoute(route)
+	}
+	return routing.MetricRoute(fallback)
 }
 
 func startSpan(r *http.Request, tracer trace.Tracer) (context.Context, trace.Span) {
