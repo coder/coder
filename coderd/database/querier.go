@@ -1258,8 +1258,6 @@ type sqlcQuerier interface {
 	// chat can lose a file here. The batch is rejected only when the batch itself
 	// exceeds the cap.
 	LinkChatFilesAfterLock(ctx context.Context, arg LinkChatFilesAfterLockParams) (int32, error)
-	// Group by the coalesced value so a NULL client and a literal 'Unknown'
-	// client collapse into one entry.
 	ListAIBridgeClients(ctx context.Context, arg ListAIBridgeClientsParams) ([]string, error)
 	// Finds all unique AI Bridge interception telemetry summaries combinations
 	// (provider, model, client) in the given timeframe for telemetry reporting.

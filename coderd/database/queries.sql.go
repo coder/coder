@@ -1904,8 +1904,10 @@ WHERE
 	-- Authorize Filter clause will be injected below in
 	-- ListAIBridgeClientsAuthorized.
 	-- @authorize_filter
+	-- Group by the coalesced value so a NULL client and a literal 'Unknown'
+	-- client collapse into one entry.
 GROUP BY
-	1
+	COALESCE(client, 'Unknown')
 ORDER BY
 	client ASC
 LIMIT COALESCE(NULLIF($3::integer, 0), 100)
@@ -1918,8 +1920,6 @@ type ListAIBridgeClientsParams struct {
 	Limit  int32  `db:"limit_" json:"limit_"`
 }
 
-// Group by the coalesced value so a NULL client and a literal 'Unknown'
-// client collapse into one entry.
 func (q *sqlQuerier) ListAIBridgeClients(ctx context.Context, arg ListAIBridgeClientsParams) ([]string, error) {
 	rows, err := q.db.QueryContext(ctx, listAIBridgeClients, arg.Client, arg.Offset, arg.Limit)
 	if err != nil {
