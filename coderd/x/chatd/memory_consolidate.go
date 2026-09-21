@@ -2,11 +2,8 @@ package chatd
 
 import (
 	"context"
-	"database/sql"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"sort"
 	"strings"
 	"time"
 
@@ -21,61 +18,36 @@ import (
 )
 
 const (
-	memoryConsolidationMinMemories   = 20
-	memoryConsolidationDebounce      = 24 * time.Hour
-	memoryConsolidationRunningStale  = 10 * time.Minute
-	memoryConsolidationFailureRetry  = 15 * time.Minute
-	memoryConsolidationMaxMutations  = 8
-	memoryConsolidationModelTimeout  = 90 * time.Second
-	memoryConsolidationWorkTimeout   = 3 * time.Minute
-	memoryConsolidationInputBytes    = 96 * 1024
-	memoryConsolidationProtectWindow = 24 * time.Hour
-	memoryConsolidationKeepRecords   = 20
-	// Every merge or update returns a complete body of up to
-	// chattool.MaxMemoryBodyBytes, so the budget must hold several full
-	// bodies plus the JSON envelope. It matches the advisor's ceiling,
-	// which every supported provider accepts.
-	memoryConsolidationMaxOutputTokens = 16384
+	// memoryConsolidationInterval bounds how often a full project pays for a
+	// consolidation call, including runs that failed or changed nothing.
+	memoryConsolidationInterval        = time.Hour
+	memoryConsolidationWorkTimeout     = 2 * time.Minute
+	memoryConsolidationModelTimeout    = 60 * time.Second
+	memoryConsolidationMaxOutputTokens = 2048
+	memoryConsolidationMergeSeparator  = "\n\n"
 )
 
-const memoryConsolidationPrompt = "You consolidate durable chat memories. Review the memories below and return only high-confidence changes. " +
-	"Merge near-duplicates into the existing name with the most history. Delete only facts that are clearly superseded or one-off. " +
-	"Never invent facts. Prefer fewer edits. Leave any memory updated in the last 24 hours alone. " +
-	"A merge must combine at least two existing memories; its target may be new only when it combines at least two memories. " +
-	"For each merge or update, provide a concise description and complete body. Return no mutations when no change is clearly warranted."
+// The model only chooses which memories go; it never writes memory text.
+// Merged bodies are concatenated verbatim, so nothing the user said can be
+// paraphrased away or invented.
+const memoryConsolidationPrompt = "A project's memory index has reached its limit. Every memory is listed below by name and description. " +
+	"Return names to delete only for memories that are clearly superseded, one-off, or exact duplicates. " +
+	"Return merge groups when several memories cover the same topic: keep the name that best describes the topic and drop the rest; " +
+	"their bodies are appended to the kept memory verbatim. " +
+	"Prefer fewer changes. Return nothing when no change is clearly warranted."
 
 type memoryConsolidation struct {
-	Mutations []memoryConsolidationMutation `json:"mutations"`
+	Delete []string                   `json:"delete"`
+	Merge  []memoryConsolidationMerge `json:"merge"`
 }
 
-type memoryConsolidationMutation struct {
-	Op          string   `json:"op"`
-	Name        string   `json:"name"`
-	Into        string   `json:"into"`
-	From        []string `json:"from"`
-	Description string   `json:"description"`
-	Body        string   `json:"body"`
-	Reason      string   `json:"reason"`
-}
-
-type memoryConsolidationScope struct {
-	organizationID uuid.UUID
-	projectID      uuid.UUID
-}
-
-// memoryConsolidationScopeForChat identifies the project a chat's memory
-// belongs to. Callers only reach this after resolveMemoryScope confirmed the
-// chat is in a project.
-func memoryConsolidationScopeForChat(chat database.Chat) memoryConsolidationScope {
-	return memoryConsolidationScope{organizationID: chat.OrganizationID, projectID: chat.ProjectID.UUID}
-}
-
-func (s memoryConsolidationScope) lockID() int64 {
-	return database.GenLockID("chat-memory-consolidation:" + s.projectID.String())
+type memoryConsolidationMerge struct {
+	Keep string   `json:"keep"`
+	Drop []string `json:"drop"`
 }
 
 func (p *Server) maybeConsolidateMemoriesAsync(ctx context.Context, logger slog.Logger, chat database.Chat) {
-	if chat.ParentChatID.Valid {
+	if !p.experiments.Enabled(codersdk.ExperimentChatProjects) || chat.ParentChatID.Valid || !chat.ProjectID.Valid {
 		return
 	}
 	consolidationCtx, cancel := p.inflightContext(ctx)
@@ -88,11 +60,14 @@ func (p *Server) maybeConsolidateMemoriesAsync(ctx context.Context, logger slog.
 	}
 }
 
+// consolidateMemories frees room in a project's memory once it reaches the
+// cap. Below the cap duplicates are harmless, so nothing runs.
 func (p *Server) consolidateMemories(ctx context.Context, logger slog.Logger, chat database.Chat) {
 	ctx, cancel := context.WithTimeout(ctx, memoryConsolidationWorkTimeout)
 	defer cancel()
 	//nolint:gocritic // Consolidation is detached internal chatd work.
 	ctx = dbauthz.AsChatd(ctx)
+	logger = logger.With(slog.F("chat_id", chat.ID), slog.F("project_id", chat.ProjectID.UUID))
 
 	chat, err := p.db.GetChatByID(ctx, chat.ID)
 	if err != nil {
@@ -103,19 +78,28 @@ func (p *Server) consolidateMemories(ctx context.Context, logger slog.Logger, ch
 	if status != memoryScopeAvailable {
 		return
 	}
-	before, err := store.Count(ctx)
+	count, err := store.Count(ctx)
 	if err != nil {
-		logger.Debug(ctx, "failed to count memories for consolidation", slog.F("chat_id", chat.ID), slog.Error(err))
+		logger.Debug(ctx, "failed to count memories for consolidation", slog.Error(err))
 		return
 	}
-	if before < memoryConsolidationMinMemories {
+	if count < chattool.MaxMemories {
 		return
 	}
 
-	scope := memoryConsolidationScopeForChat(chat)
-	now := time.Now()
-	debounced, previousNextWindowStart := memoryConsolidationDebounced(ctx, p.db, scope, before, now, logger)
-	if debounced {
+	now := p.clock.Now()
+	claimed, err := p.claimMemoryConsolidation(ctx, chat.ProjectID.UUID, now)
+	if err != nil {
+		logger.Warn(ctx, "failed to claim memory consolidation", slog.Error(err))
+		return
+	}
+	if !claimed {
+		return
+	}
+
+	entries, err := store.List(ctx)
+	if err != nil {
+		logger.Warn(ctx, "failed to list memories for consolidation", slog.Error(err))
 		return
 	}
 	apiKeyID, err := p.ensureSyntheticAPIKeyID(ctx, chat.OwnerID)
@@ -128,427 +112,163 @@ func (p *Server) consolidateMemories(ctx context.Context, logger slog.Logger, ch
 		logger.Debug(ctx, "failed to resolve model for memory consolidation", slog.Error(err))
 		return
 	}
-
-	var record database.ChatMemoryConsolidation
-	started := false
-	err = p.db.InTx(func(tx database.Store) error {
-		locked, err := tx.TryAcquireLock(ctx, scope.lockID())
-		if err != nil {
-			return xerrors.Errorf("try acquire consolidation lock: %w", err)
-		}
-		if !locked {
-			return nil
-		}
-		if debounced, _ := memoryConsolidationDebounced(ctx, tx, scope, before, now, logger); debounced {
-			return nil
-		}
-		record, err = tx.InsertChatMemoryConsolidation(ctx, database.InsertChatMemoryConsolidationParams{
-			OrganizationID: scope.organizationID,
-			ProjectID:      scope.projectID,
-			Model:          resolved.resolvedModel,
-			MemoriesBefore: memoryConsolidationCount(before),
-		})
-		if err != nil {
-			return xerrors.Errorf("insert running consolidation: %w", err)
-		}
-		started = true
-		return nil
-	}, nil)
-	if err != nil {
-		logger.Warn(ctx, "failed to start memory consolidation", slog.F("chat_id", chat.ID), slog.Error(err))
-		return
-	}
-	if !started {
-		return
-	}
-
-	// A run that fails before the model answers keeps the previous cursor so
-	// the same window is retried rather than skipped.
-	resumeAt := previousNextWindowStart
-	finish := func(status database.ChatMemoryConsolidationStatus, after int64, mutations []codersdk.ChatMemoryMutation, finishErr error) {
-		if err := finishMemoryConsolidation(ctx, p.db, scope, record.ID, status, after, mutations, resumeAt, finishErr); err != nil {
-			logger.Warn(ctx, "failed to finish memory consolidation", slog.F("chat_id", chat.ID), slog.Error(err))
-		}
-	}
-
-	memories, err := store.ListFull(ctx)
-	if err != nil {
-		finish(database.ChatMemoryConsolidationStatusFailed, before, nil, xerrors.Errorf("load memories: %w", err))
-		return
-	}
-	candidates := memoryConsolidationCandidates(memories, time.Now())
-	if len(candidates) == 0 {
-		resumeAt = 0
-		finish(database.ChatMemoryConsolidationStatusSkipped, before, nil, nil)
-		return
-	}
-	// A run that could not fit every candidate records where the next one
-	// should resume, so a stuck prefix cannot starve the rest of the set.
-	window, nextWindowStart := memoryConsolidationWindow(candidates, previousNextWindowStart)
-	call := resolved.newObjectCall("memory_consolidation", "Consolidate durable chat memories.", memoryConsolidationMaxOutputTokens)
-	call.Prompt = quickgenPrompt(memoryConsolidationPrompt, formatMemoryConsolidationInput(window))
+	call := resolved.newObjectCall("memory_consolidation", "Choose memories to delete or merge.", memoryConsolidationMaxOutputTokens)
+	call.Prompt = quickgenPrompt(memoryConsolidationPrompt, chattool.FormatMemoryIndexForTool(entries))
 	modelCtx, cancelModel := context.WithTimeout(ctx, memoryConsolidationModelTimeout)
 	result, err := generateQuickgenObject[memoryConsolidation](modelCtx, resolved.model.LanguageModel(), call)
 	cancelModel()
 	if err != nil {
-		finish(database.ChatMemoryConsolidationStatusFailed, before, nil, xerrors.Errorf("generate consolidation: %w", err))
+		logger.Warn(ctx, "memory consolidation model call failed", slog.Error(err))
 		return
 	}
-	resumeAt = nextWindowStart
 
-	// Only memories the model actually saw may be touched; the full
-	// snapshot rejects targets it did not see and later detects
-	// concurrent edits.
-	mutations := validateMemoryConsolidationMutations(result.Object.Mutations, window, memories, time.Now())
-	if len(mutations) == 0 {
-		finish(database.ChatMemoryConsolidationStatusSkipped, before, nil, nil)
+	plan := planMemoryConsolidation(result.Object, entries)
+	if len(plan.Delete) == 0 && len(plan.Merge) == 0 {
+		logger.Info(ctx, "memory consolidation proposed no changes", slog.F("memories", count))
 		return
 	}
-	// The journal commits with the mutations it describes, so the record
-	// can never claim nothing changed after a destructive write landed.
-	journaled := false
-	if err := store.InTx(func(txStore chattool.MemoryStore, tx database.Store) error {
-		applied, err := applyMemoryConsolidationMutations(ctx, txStore, mutations, memories, time.Now())
-		if err != nil {
-			return err
+	var deleted, merged int
+	if err := store.InTx(func(tx chattool.MemoryStore) error {
+		if err := tx.Lock(ctx); err != nil {
+			return xerrors.Errorf("lock memory scope: %w", err)
 		}
-		if len(applied) == 0 {
+		var err error
+		deleted, merged, err = applyMemoryConsolidation(ctx, tx, plan)
+		return err
+	}); err != nil {
+		logger.Warn(ctx, "failed to apply memory consolidation", slog.Error(err))
+		return
+	}
+	logger.Info(ctx, "consolidated project memory",
+		slog.F("memories_before", count),
+		slog.F("deleted", deleted),
+		slog.F("merged", merged),
+		slog.F("plan", fmt.Sprintf("%+v", plan)),
+	)
+}
+
+// claimMemoryConsolidation records the attempt before any model call so a
+// failing run is rate-limited like a successful one. The advisory lock keeps
+// two replicas from claiming the same project at once.
+func (p *Server) claimMemoryConsolidation(ctx context.Context, projectID uuid.UUID, now time.Time) (bool, error) {
+	claimed := false
+	err := p.db.InTx(func(tx database.Store) error {
+		locked, err := tx.TryAcquireLock(ctx, database.GenLockID("chat-memory-consolidation:"+projectID.String()))
+		if err != nil {
+			return xerrors.Errorf("try acquire lock: %w", err)
+		}
+		if !locked {
 			return nil
 		}
-		after, err := txStore.Count(ctx)
+		project, err := tx.GetChatProjectByID(ctx, projectID)
 		if err != nil {
-			return xerrors.Errorf("count consolidated memories: %w", err)
+			return xerrors.Errorf("get project: %w", err)
 		}
-		journaled = true
-		return finishMemoryConsolidation(ctx, tx, scope, record.ID, database.ChatMemoryConsolidationStatusSucceeded, after, memoryConsolidationJournalMutations(applied), resumeAt, nil)
-	}); err != nil {
-		finish(database.ChatMemoryConsolidationStatusFailed, before, nil, xerrors.Errorf("apply mutations: %w", err))
-		return
-	}
-	// Concurrent edits can invalidate every mutation at apply time. That is
-	// a skipped run, not a successful one, so a partial window at the cap
-	// still continues to the rest of the set.
-	if !journaled {
-		finish(database.ChatMemoryConsolidationStatusSkipped, before, nil, nil)
-	}
+		if project.MemoryConsolidatedAt.Valid && now.Sub(project.MemoryConsolidatedAt.Time) < memoryConsolidationInterval {
+			return nil
+		}
+		if err := tx.UpdateChatProjectMemoryConsolidatedAt(ctx, database.UpdateChatProjectMemoryConsolidatedAtParams{ID: projectID, MemoryConsolidatedAt: now}); err != nil {
+			return xerrors.Errorf("record consolidation: %w", err)
+		}
+		claimed = true
+		return nil
+	}, nil)
+	return claimed, err
 }
 
-// memoryConsolidationDebounced reports whether the project was consolidated
-// recently, and where the next run should start reading candidates. It takes
-// the store explicitly so the transactional check runs against the
-// transaction that also inserts the running record.
-func memoryConsolidationDebounced(ctx context.Context, db database.Store, scope memoryConsolidationScope, count int64, now time.Time, logger slog.Logger) (debounced bool, nextWindowStart int32) {
-	record, err := db.GetLatestChatMemoryConsolidationByProject(ctx, scope.projectID)
-	if errors.Is(err, sql.ErrNoRows) {
-		return false, 0
+// planMemoryConsolidation keeps the proposals that name memories in the
+// index, touching each memory at most once.
+func planMemoryConsolidation(proposed memoryConsolidation, entries []chattool.MemoryIndexEntry) memoryConsolidation {
+	known := make(map[string]struct{}, len(entries))
+	for _, entry := range entries {
+		known[entry.Name] = struct{}{}
 	}
-	if err != nil {
-		logger.Debug(ctx, "failed to load latest memory consolidation", slog.Error(err))
-		return true, 0
-	}
-	if record.Status == database.ChatMemoryConsolidationStatusRunning {
-		return now.Sub(record.StartedAt) < memoryConsolidationRunningStale, record.NextWindowStart
-	}
-	if count >= chattool.MaxMemories {
-		// At the cap a run that shrank the project may continue immediately
-		// so new saves are unblocked, and a skipped run that only saw part
-		// of the set moves on to the rest. A full pass that changed nothing
-		// still debounces, or a full project would pay for the same model
-		// call on every turn.
-		if record.Status == database.ChatMemoryConsolidationStatusSucceeded && record.MemoriesAfter < record.MemoriesBefore {
-			return false, record.NextWindowStart
-		}
-		if record.Status == database.ChatMemoryConsolidationStatusSkipped && record.NextWindowStart > 0 {
-			return false, record.NextWindowStart
-		}
-		// A transient model or apply failure must not leave a full project
-		// unable to save for the whole debounce.
-		if record.Status == database.ChatMemoryConsolidationStatusFailed {
-			return now.Sub(record.StartedAt) < memoryConsolidationFailureRetry, record.NextWindowStart
-		}
-	}
-	return now.Sub(record.StartedAt) < memoryConsolidationDebounce, record.NextWindowStart
-}
-
-func finishMemoryConsolidation(ctx context.Context, db database.Store, scope memoryConsolidationScope, id uuid.UUID, status database.ChatMemoryConsolidationStatus, after int64, mutations []codersdk.ChatMemoryMutation, nextWindowStart int32, finishErr error) error {
-	if mutations == nil {
-		mutations = []codersdk.ChatMemoryMutation{}
-	}
-	encoded, err := json.Marshal(mutations)
-	if err != nil {
-		return xerrors.Errorf("marshal mutations: %w", err)
-	}
-	errText := ""
-	if finishErr != nil {
-		errText = finishErr.Error()
-	}
-	if _, err := db.FinishChatMemoryConsolidation(ctx, database.FinishChatMemoryConsolidationParams{ID: id, Status: status, MemoriesAfter: memoryConsolidationCount(after), Mutations: encoded, Error: errText, NextWindowStart: nextWindowStart}); err != nil {
-		return err
-	}
-	return db.PruneChatMemoryConsolidationsByProject(ctx, database.PruneChatMemoryConsolidationsByProjectParams{ProjectID: scope.projectID, KeepCount: memoryConsolidationKeepRecords})
-}
-
-// memoryConsolidationCandidates returns the memories the model may change,
-// sorted by name. Memories inside the protect window are excluded because
-// no mutation touching them would be applied. Near-duplicates tend to share
-// a name prefix, so name order keeps them adjacent when the set has to be
-// split across windows.
-func memoryConsolidationCandidates(memories []chattool.Memory, now time.Time) []chattool.Memory {
-	candidates := make([]chattool.Memory, 0, len(memories))
-	for _, memory := range memories {
-		if now.Sub(memory.UpdatedAt) < memoryConsolidationProtectWindow {
-			continue
-		}
-		candidates = append(candidates, memory)
-	}
-	sort.Slice(candidates, func(i, j int) bool { return candidates[i].Name < candidates[j].Name })
-	return candidates
-}
-
-// memoryConsolidationWindow picks the candidates that fit the input cap,
-// starting at the offset the previous run left off. Bodies are never cut:
-// the model replaces bodies wholesale, so it must see everything it may
-// rewrite. Consecutive windows overlap by half so a pair split by one
-// boundary is shown together by the next run. The returned start is 0 once
-// the window reaches the end.
-func memoryConsolidationWindow(candidates []chattool.Memory, start int32) (window []chattool.Memory, nextStart int32) {
-	if int(start) >= len(candidates) || start < 0 {
-		start = 0
-	}
-	size := len(memoryConsolidationInputHeader)
-	for i := int(start); i < len(candidates); i++ {
-		size += len(formatMemoryConsolidationEntry(candidates[i]))
-		if size > memoryConsolidationInputBytes && len(window) > 0 {
-			// #nosec G115 -- bounded by the 200-memory cap.
-			return window, start + int32((len(window)+1)/2)
-		}
-		window = append(window, candidates[i])
-	}
-	return window, 0
-}
-
-const memoryConsolidationInputHeader = "Memories, oldest first:\n"
-
-func formatMemoryConsolidationEntry(memory chattool.Memory) string {
-	return fmt.Sprintf("\n<memory name=%q updated_at=%q>\nDescription: %s\nBody:\n%s\n</memory>\n", memory.Name, memory.UpdatedAt.Format(time.RFC3339), memory.Description, memory.Body)
-}
-
-func formatMemoryConsolidationInput(memories []chattool.Memory) string {
-	var b strings.Builder
-	_, _ = b.WriteString(memoryConsolidationInputHeader)
-	for _, memory := range memories {
-		_, _ = b.WriteString(formatMemoryConsolidationEntry(memory))
-	}
-	return b.String()
-}
-
-// validateMemoryConsolidationMutations keeps the proposals that only touch
-// memories in window, the set the model was shown. snapshot is the full
-// memory set; a merge into a name that exists there but not in the window
-// would overwrite a body the model never saw, so it is rejected.
-func validateMemoryConsolidationMutations(proposed []memoryConsolidationMutation, window, snapshot []chattool.Memory, now time.Time) []memoryConsolidationMutation {
-	byName := make(map[string]chattool.Memory, len(window))
-	for _, memory := range window {
-		byName[memory.Name] = memory
-	}
-	unseen := make(map[string]struct{}, len(snapshot))
-	for _, memory := range snapshot {
-		if _, shown := byName[memory.Name]; !shown {
-			unseen[memory.Name] = struct{}{}
-		}
-	}
-	// Each memory may be touched by one mutation per run. Overlapping
-	// proposals would otherwise fail apply-time revalidation after the
-	// first one changes the row, so they are rejected up front.
 	claimed := make(map[string]struct{})
-	valid := make([]memoryConsolidationMutation, 0, min(len(proposed), memoryConsolidationMaxMutations))
-	for _, mutation := range proposed[:min(len(proposed), memoryConsolidationMaxMutations)] {
-		mutation.Op = strings.ToLower(strings.TrimSpace(mutation.Op))
-		var touched []string
-		switch mutation.Op {
-		case "merge":
-			mutation.Into = strings.ToLower(strings.TrimSpace(mutation.Into))
-			if _, hidden := unseen[mutation.Into]; hidden {
-				continue
-			}
-			_, intoExists := byName[mutation.Into]
-			// A merge must combine something: two sources into a new name,
-			// or at least one source into an existing memory. Anything less
-			// is an overwrite the model should have proposed as an update.
-			minSources := 2
-			if intoExists {
-				minSources = 1
-			}
-			if err := chattool.ValidateMemoryName(mutation.Into); err != nil || len(mutation.From) < minSources {
-				continue
-			}
-			seen := map[string]struct{}{}
-			proposedFrom := mutation.From
-			mutation.From = nil
-			for _, from := range proposedFrom {
-				name := strings.ToLower(strings.TrimSpace(from))
-				if err := chattool.ValidateMemoryName(name); err != nil {
-					continue
-				}
-				if _, exists := byName[name]; !exists || name == mutation.Into {
-					continue
-				}
-				if _, duplicate := seen[name]; duplicate {
-					continue
-				}
-				seen[name] = struct{}{}
-				mutation.From = append(mutation.From, name)
-			}
-			if len(mutation.From) < minSources {
-				continue
-			}
-			description, body, ok := normalizeConsolidatedMemory(mutation.Description, mutation.Body)
-			if !ok {
-				continue
-			}
-			mutation.Description, mutation.Body = description, body
-			touched = append(touched, mutation.From...)
-			touched = append(touched, mutation.Into)
-		case "update":
-			mutation.Name = strings.ToLower(strings.TrimSpace(mutation.Name))
-			if _, exists := byName[mutation.Name]; !exists {
-				continue
-			}
-			description, body, ok := normalizeConsolidatedMemory(mutation.Description, mutation.Body)
-			if !ok {
-				continue
-			}
-			mutation.Description, mutation.Body = description, body
-			touched = []string{mutation.Name}
-		case "delete":
-			mutation.Name = strings.ToLower(strings.TrimSpace(mutation.Name))
-			if _, exists := byName[mutation.Name]; !exists {
-				continue
-			}
-			touched = []string{mutation.Name}
-		default:
+	claim := func(raw string) (string, bool) {
+		name := strings.ToLower(strings.TrimSpace(raw))
+		if _, exists := known[name]; !exists {
+			return "", false
+		}
+		if _, taken := claimed[name]; taken {
+			return "", false
+		}
+		claimed[name] = struct{}{}
+		return name, true
+	}
+
+	var plan memoryConsolidation
+	for _, merge := range proposed.Merge {
+		keep, ok := claim(merge.Keep)
+		if !ok {
 			continue
 		}
-		rejected := false
-		for _, name := range touched {
-			if _, overlaps := claimed[name]; overlaps {
-				rejected = true
-				break
-			}
-			if memory, exists := byName[name]; exists && now.Sub(memory.UpdatedAt) < memoryConsolidationProtectWindow {
-				rejected = true
-				break
+		var drop []string
+		for _, raw := range merge.Drop {
+			if name, ok := claim(raw); ok {
+				drop = append(drop, name)
 			}
 		}
-		if rejected {
+		if len(drop) == 0 {
+			delete(claimed, keep)
 			continue
 		}
-		for _, name := range touched {
-			claimed[name] = struct{}{}
-		}
-		valid = append(valid, mutation)
+		plan.Merge = append(plan.Merge, memoryConsolidationMerge{Keep: keep, Drop: drop})
 	}
-	return valid
+	for _, raw := range proposed.Delete {
+		if name, ok := claim(raw); ok {
+			plan.Delete = append(plan.Delete, name)
+		}
+	}
+	return plan
 }
 
-func normalizeConsolidatedMemory(description, body string) (normalizedDescription, normalizedBody string, ok bool) {
-	normalizedDescription = chattool.NormalizeMemoryText(description)
-	normalizedBody = chattool.NormalizeMemoryText(body)
-	if normalizedDescription == "" || len([]rune(normalizedDescription)) > chattool.MaxMemoryDescriptionChars || normalizedBody == "" || len(normalizedBody) > chattool.MaxMemoryBodyBytes {
-		return "", "", false
-	}
-	return normalizedDescription, normalizedBody, true
-}
-
-func memoryConsolidationCount(count int64) int32 {
-	// #nosec G115 -- MemoryStore enforces the 200-memory cap before each run.
-	return int32(count)
-}
-
-func applyMemoryConsolidationMutations(ctx context.Context, store chattool.MemoryStore, mutations []memoryConsolidationMutation, snapshot []chattool.Memory, now time.Time) ([]memoryConsolidationMutation, error) {
-	byName := make(map[string]chattool.Memory, len(snapshot))
-	for _, memory := range snapshot {
-		byName[memory.Name] = memory
-	}
-
-	// The scope lock comes before any row lock, matching save_memory's
-	// order so the two cannot deadlock. It also serializes the absence
-	// check for a new merge target against concurrent creation.
-	if err := store.Lock(ctx); err != nil {
-		return nil, xerrors.Errorf("lock memory scope: %w", err)
-	}
-	applied := make([]memoryConsolidationMutation, 0, len(mutations))
-	for _, mutation := range mutations {
-		current, err := memoryConsolidationMutationCurrent(ctx, store, mutation, byName, now)
-		if err != nil {
-			return nil, err
-		}
-		if !current {
-			continue
-		}
-
-		switch mutation.Op {
-		case "merge":
-			// Sources go first so a merge into a new name at the cap has
-			// room for the target instead of failing the whole run.
-			for _, from := range mutation.From {
-				if err := store.Delete(ctx, from); err != nil {
-					return nil, err
-				}
-			}
-			if _, err := store.Upsert(ctx, chattool.MemoryInput{Name: mutation.Into, Description: mutation.Description, Body: mutation.Body}); err != nil {
-				return nil, err
-			}
-		case "update":
-			if _, err := store.Upsert(ctx, chattool.MemoryInput{Name: mutation.Name, Description: mutation.Description, Body: mutation.Body}); err != nil {
-				return nil, err
-			}
-		case "delete":
-			if err := store.Delete(ctx, mutation.Name); err != nil {
-				return nil, err
-			}
-		}
-		applied = append(applied, mutation)
-	}
-	return applied, nil
-}
-
-func memoryConsolidationMutationCurrent(ctx context.Context, store chattool.MemoryStore, mutation memoryConsolidationMutation, snapshot map[string]chattool.Memory, now time.Time) (bool, error) {
-	touched := mutation.From
-	if mutation.Op != "merge" {
-		touched = []string{mutation.Name}
-	} else if _, exists := snapshot[mutation.Into]; exists {
-		touched = append(touched, mutation.Into)
-	} else {
-		_, err := store.GetForUpdate(ctx, mutation.Into)
-		if err == nil {
-			return false, nil
-		}
-		if !errors.Is(err, chattool.ErrMemoryNotFound) {
-			return false, err
-		}
-	}
-
-	for _, name := range touched {
-		expected := snapshot[name]
-		memory, err := store.GetForUpdate(ctx, name)
+// applyMemoryConsolidation appends each dropped body to its kept memory and
+// removes the dropped rows. A drop that would push the kept body over the
+// size limit is left in place rather than truncated.
+func applyMemoryConsolidation(ctx context.Context, store chattool.MemoryStore, plan memoryConsolidation) (deleted, merged int, err error) {
+	for _, merge := range plan.Merge {
+		keep, err := store.Get(ctx, merge.Keep)
 		if errors.Is(err, chattool.ErrMemoryNotFound) {
-			return false, nil
+			continue
 		}
 		if err != nil {
-			return false, err
+			return deleted, merged, err
 		}
-		if !memory.UpdatedAt.Equal(expected.UpdatedAt) || now.Sub(memory.UpdatedAt) < memoryConsolidationProtectWindow {
-			return false, nil
+		body := keep.Body
+		var drops []string
+		for _, name := range merge.Drop {
+			drop, err := store.Get(ctx, name)
+			if errors.Is(err, chattool.ErrMemoryNotFound) {
+				continue
+			}
+			if err != nil {
+				return deleted, merged, err
+			}
+			combined := body + memoryConsolidationMergeSeparator + drop.Body
+			if len(combined) > chattool.MaxMemoryBodyBytes {
+				continue
+			}
+			body = combined
+			drops = append(drops, name)
+		}
+		if len(drops) == 0 {
+			continue
+		}
+		if _, err := store.Upsert(ctx, chattool.MemoryInput{Name: keep.Name, Description: keep.Description, Body: body}); err != nil {
+			return deleted, merged, err
+		}
+		for _, name := range drops {
+			if err := store.Delete(ctx, name); err != nil && !errors.Is(err, chattool.ErrMemoryNotFound) {
+				return deleted, merged, err
+			}
+			merged++
 		}
 	}
-	return true, nil
-}
-
-func memoryConsolidationJournalMutations(mutations []memoryConsolidationMutation) []codersdk.ChatMemoryMutation {
-	journal := make([]codersdk.ChatMemoryMutation, len(mutations))
-	for i, mutation := range mutations {
-		journal[i] = codersdk.ChatMemoryMutation{Op: mutation.Op, Name: mutation.Name, Into: mutation.Into, From: mutation.From, Reason: mutation.Reason}
+	for _, name := range plan.Delete {
+		if err := store.Delete(ctx, name); err != nil && !errors.Is(err, chattool.ErrMemoryNotFound) {
+			return deleted, merged, err
+		}
+		deleted++
 	}
-	return journal
+	return deleted, merged, nil
 }
