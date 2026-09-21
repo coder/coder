@@ -1463,10 +1463,9 @@ func TestOAuth2ProviderRevokeClientAuthentication(t *testing.T) {
 			q.Set("client_secret", secret.ClientSecretFull)
 			r.URL.RawQuery = q.Encode()
 		})
-		requireInvalidRequest(t, status, oauthErr, "client_secret", works)
+		requireInvalidRequest(t, status, oauthErr, "URL query string", works)
 	})
 
-	// A correct secret in the body does not excuse a copy in the URL.
 	t.Run("SecretInQueryStringAndBody", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -1481,7 +1480,7 @@ func TestOAuth2ProviderRevokeClientAuthentication(t *testing.T) {
 			q.Set("client_secret", secret.ClientSecretFull)
 			r.URL.RawQuery = q.Encode()
 		})
-		requireInvalidRequest(t, status, oauthErr, "client_secret", works)
+		requireInvalidRequest(t, status, oauthErr, "URL query string", works)
 	})
 
 	// RFC 6749 §3.2: a valueless parameter is the omitted case, so ?client_secret=
@@ -1507,8 +1506,8 @@ func TestOAuth2ProviderRevokeClientAuthentication(t *testing.T) {
 		require.False(t, works(), "the revocation must end the session")
 	})
 
-	// The parse error quotes the bad escape, and RFC 6749 section 5.2 has no
-	// room for a double quote in error_description.
+	// The parse error quotes the bad escape, and RFC 6749 §5.2 has no room for
+	// a double quote in error_description.
 	t.Run("MalformedQueryDescriptionIsSanitized", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
