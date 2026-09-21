@@ -52,8 +52,6 @@ import {
 import type { ChatDetailError } from "./components/ChatConversation/chatError";
 import { createChatStore } from "./components/ChatConversation/chatStore";
 import { buildLongConversation } from "./components/ChatConversation/storyFixtures";
-import { visibleSingletonTabsStorageKeyPrefix } from "./utils/rightPanelTabStorage";
-import type { SingletonRightPanelTabId } from "./utils/rightPanelTabs";
 import { lastActiveSidebarTabStorageKeyPrefix } from "./utils/sidebarTabStorage";
 
 // ---------------------------------------------------------------------------
@@ -1565,34 +1563,7 @@ const mockAgentWithBrowserApp: TypesGen.WorkspaceAgent = {
 	apps: [...MockWorkspaceAgent.apps, mockAgentBrowserApp],
 };
 
-const singletonTabsStorageKey = `${visibleSingletonTabsStorageKeyPrefix}${AGENT_ID}`;
-
-/**
- * Singleton panels start hidden, so a story that needs a visible Browser,
- * Desktop, or Debug tab seeds the per-chat storage entry before mount.
- */
-const seedVisibleSingletonTabs = (
-	tabIds: readonly SingletonRightPanelTabId[],
-) => {
-	localStorage.setItem(singletonTabsStorageKey, JSON.stringify(tabIds));
-	return () => {
-		localStorage.removeItem(singletonTabsStorageKey);
-	};
-};
-
-const clearVisibleSingletonTabs = () => {
-	localStorage.removeItem(singletonTabsStorageKey);
-	return () => {
-		localStorage.removeItem(singletonTabsStorageKey);
-	};
-};
-
-const openAddPanelMenu = async (canvas: ReturnType<typeof within>) => {
-	await userEvent.click(canvas.getByLabelText("Add panel"));
-};
-
 export const BrowserTabForHealthyAgentBrowserApp: Story = {
-	beforeEach: () => seedVisibleSingletonTabs(["browser"]),
 	render: () => (
 		<StoryAgentChatPageView
 			showSidebarPanel
@@ -1610,7 +1581,6 @@ export const BrowserTabForHealthyAgentBrowserApp: Story = {
 };
 
 export const BrowserTabForHealthDisabledAgentBrowserApp: Story = {
-	beforeEach: () => seedVisibleSingletonTabs(["browser"]),
 	render: () => (
 		<StoryAgentChatPageView
 			showSidebarPanel
@@ -1630,9 +1600,6 @@ export const BrowserTabForHealthDisabledAgentBrowserApp: Story = {
 };
 
 export const NoBrowserTabForUnhealthyAgentBrowserApp: Story = {
-	// Seed the saved choice so the assertion proves the health gate hides
-	// the tab, instead of passing because panels start hidden.
-	beforeEach: () => seedVisibleSingletonTabs(["browser"]),
 	render: () => (
 		<StoryAgentChatPageView
 			showSidebarPanel
@@ -1647,9 +1614,6 @@ export const NoBrowserTabForUnhealthyAgentBrowserApp: Story = {
 };
 
 export const NoBrowserTabForAppOnNonBoundAgent: Story = {
-	// Seed the saved choice so the assertion proves the agent-binding gate
-	// hides the tab, instead of passing because panels start hidden.
-	beforeEach: () => seedVisibleSingletonTabs(["browser"]),
 	render: () => (
 		<StoryAgentChatPageView
 			showSidebarPanel
@@ -1707,160 +1671,15 @@ export const PreservesUnavailableBrowserTab: Story = {
 	},
 };
 
-const renderWithSingletonSupport = () => (
-	<StoryAgentChatPageView
-		showSidebarPanel
-		debugLoggingEnabled
-		workspace={MockWorkspace}
-		workspaceAgent={mockAgentWithBrowserApp}
-		desktopChatId={AGENT_ID}
-		sshCommand="ssh coder.workspace"
-	/>
-);
-
-export const SingletonPanelsHiddenByDefault: Story = {
-	beforeEach: clearVisibleSingletonTabs,
-	render: renderWithSingletonSupport,
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const body = within(document.body);
-
-		await canvas.findByRole("tab", { name: "Summary" });
-
-		await openAddPanelMenu(canvas);
-		for (const label of ["Browser", "Desktop", "Debug"]) {
-			await body.findByRole("menuitemcheckbox", { name: label });
-		}
-	},
-};
-
-export const TogglesSingletonPanelFromDropdown: Story = {
-	beforeEach: clearVisibleSingletonTabs,
-	render: renderWithSingletonSupport,
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const body = within(document.body);
-
-		await canvas.findByRole("tab", { name: "Summary" });
-
-		await openAddPanelMenu(canvas);
-		await userEvent.click(
-			await body.findByRole("menuitemcheckbox", { name: "Browser" }),
-		);
-
-		const browserTab = await canvas.findByRole("tab", { name: "Browser" });
-		await waitFor(() => {
-			expect(browserTab).toHaveAttribute("aria-selected", "true");
-		});
-		expect(
-			canvas.getByRole("button", { name: "Close Browser tab" }),
-		).toBeVisible();
-		expect(localStorage.getItem(singletonTabsStorageKey)).toBe('["browser"]');
-
-		await openAddPanelMenu(canvas);
-		expect(
-			await body.findByRole("menuitemcheckbox", { name: "Browser" }),
-		).toHaveAttribute("aria-checked", "true");
-
-		// Select another tab first: closing the active singleton selects a
-		// neighbor, and "Closes Active Singleton Panel" covers that path.
-		await userEvent.keyboard("{Escape}");
-		// The open menu marks the rest of the page aria-hidden, so wait for it
-		// to close before reaching a tab.
-		await waitFor(() => {
-			expect(
-				body.queryByRole("menuitemcheckbox", { name: "Browser" }),
-			).toBeNull();
-		});
-		await userEvent.click(canvas.getByRole("tab", { name: "Git" }));
-
-		await openAddPanelMenu(canvas);
-		await userEvent.click(
-			await body.findByRole("menuitemcheckbox", { name: "Browser" }),
-		);
-		await waitFor(() => {
-			expect(canvas.queryByRole("tab", { name: "Browser" })).toBeNull();
-		});
-		expect(localStorage.getItem(singletonTabsStorageKey)).toBe("[]");
-	},
-};
-
-export const ClosesActiveSingletonPanel: Story = {
-	beforeEach: () => seedVisibleSingletonTabs(["browser", "debug"]),
-	render: renderWithSingletonSupport,
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const body = within(document.body);
-
-		const debugTab = await canvas.findByRole("tab", { name: "Debug" });
-		const tabLabels = canvas.getAllByRole("tab").map((tab) => tab.textContent);
-		expect(tabLabels).toEqual([
-			"Summary",
-			"Git",
-			"Debug",
-			"Browser",
-			"Terminal",
-		]);
-
-		await userEvent.click(debugTab);
-		await waitFor(() => {
-			expect(debugTab).toHaveAttribute("aria-selected", "true");
-		});
-
-		await userEvent.click(
-			canvas.getByRole("button", { name: "Close Debug tab" }),
-		);
-
-		await waitFor(() => {
-			expect(canvas.queryByRole("tab", { name: "Debug" })).toBeNull();
-		});
-		expect(canvas.getByRole("tab", { name: "Browser" })).toHaveAttribute(
-			"aria-selected",
-			"true",
-		);
-		expect(localStorage.getItem(singletonTabsStorageKey)).toBe('["browser"]');
-
-		await openAddPanelMenu(canvas);
-		expect(
-			await body.findByRole("menuitemcheckbox", { name: "Debug" }),
-		).toHaveAttribute("aria-checked", "false");
-	},
-};
-
-export const ReopenedSingletonPanelStaysSingle: Story = {
-	beforeEach: () => seedVisibleSingletonTabs(["debug"]),
-	render: renderWithSingletonSupport,
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const body = within(document.body);
-
-		await canvas.findByRole("tab", { name: "Debug" });
-
-		await openAddPanelMenu(canvas);
-		await userEvent.click(
-			await body.findByRole("menuitemcheckbox", { name: "Debug" }),
-		);
-
-		await openAddPanelMenu(canvas);
-		await userEvent.click(
-			await body.findByRole("menuitemcheckbox", { name: "Debug" }),
-		);
-		await canvas.findByRole("tab", { name: "Debug" });
-	},
-};
-
 /**
- * An archived chat is read-only, so showing a singleton panel must not write
- * the per-chat entry. The archive flow clears that entry on purpose, and
- * persisting here would recreate it for a chat the user cannot change.
+ * Every tab appears once its content is available, in a fixed order, with
+ * no close controls. Browser needs the agent-browser app, Desktop needs a
+ * desktop chat, Debug needs debug logging.
  */
-export const DoesNotPersistSingletonTabsForArchivedChat: Story = {
-	beforeEach: clearVisibleSingletonTabs,
+export const AllTabsAvailable: Story = {
 	render: () => (
 		<StoryAgentChatPageView
 			showSidebarPanel
-			chat={{ archived: true }}
-			isInputDisabled
 			debugLoggingEnabled
 			workspace={MockWorkspace}
 			workspaceAgent={mockAgentWithBrowserApp}
@@ -1870,31 +1689,79 @@ export const DoesNotPersistSingletonTabsForArchivedChat: Story = {
 	),
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const body = within(document.body);
 
-		await canvas.findByRole("tab", { name: "Summary" });
-
-		await openAddPanelMenu(canvas);
-		await userEvent.click(
-			await body.findByRole("menuitemcheckbox", { name: "Debug" }),
-		);
-
-		const debugTab = await canvas.findByRole("tab", { name: "Debug" });
-		await waitFor(() => {
-			expect(debugTab).toHaveAttribute("aria-selected", "true");
-		});
-
-		expect(localStorage.getItem(singletonTabsStorageKey)).toBeNull();
+		await canvas.findByRole("tab", { name: "Debug" });
+		const tabLabels = canvas.getAllByRole("tab").map((tab) => tab.textContent);
+		expect(tabLabels).toEqual([
+			"Summary",
+			"Git",
+			"Terminal",
+			"Browser",
+			"Desktop",
+			"Workspace",
+			"Debug",
+		]);
+		expect(canvas.queryByRole("button", { name: /^Close .* tab$/ })).toBeNull();
 	},
 };
 
-export const RestoresPersistedSingletonPanel: Story = {
-	beforeEach: () => seedVisibleSingletonTabs(["desktop"]),
-	render: renderWithSingletonSupport,
+export const HidesUnsupportedTabs: Story = {
+	render: () => (
+		<StoryAgentChatPageView
+			showSidebarPanel
+			workspace={MockWorkspace}
+			workspaceAgent={MockWorkspaceAgent}
+			sshCommand="ssh coder.workspace"
+		/>
+	),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		await canvas.findByRole("tab", { name: "Summary" });
+		const tabLabels = canvas.getAllByRole("tab").map((tab) => tab.textContent);
+		expect(tabLabels).toEqual(["Summary", "Git", "Terminal", "Workspace"]);
+	},
 };
 
-export const HidesUnsupportedSingletonPanels: Story = {
-	beforeEach: () => seedVisibleSingletonTabs(["browser", "desktop", "debug"]),
+/**
+ * A tab ID persisted by the previous strip, where each terminal was its own
+ * top-level tab, lands on the Terminal group that now holds it.
+ */
+export const MigratesLegacyTerminalTabSelection: Story = {
+	beforeEach: () => {
+		localStorage.setItem(sidebarTabStorageKey, "terminal-legacy-id");
+		return () => {
+			localStorage.removeItem(sidebarTabStorageKey);
+		};
+	},
+	parameters: {
+		pixel: { exclude: true },
+		webSocket: [],
+	},
+	decorators: [withWebSocket],
+	render: () => (
+		<StoryAgentChatPageView
+			showSidebarPanel
+			workspace={MockWorkspace}
+			workspaceAgent={MockWorkspaceAgent}
+			sshCommand="ssh coder.workspace"
+		/>
+	),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		await waitFor(() => {
+			const terminalTab = canvas.getByRole("tab", { name: "Terminal" });
+			expect(terminalTab).toHaveAttribute("aria-selected", "true");
+		});
+	},
+};
+
+/**
+ * The Workspace tab starts on its empty state, and the open menu lists the
+ * agent's apps so the first click on the tab reveals what is available.
+ */
+export const WorkspaceTabOpenMenu: Story = {
 	render: () => (
 		<StoryAgentChatPageView
 			showSidebarPanel
@@ -1907,19 +1774,13 @@ export const HidesUnsupportedSingletonPanels: Story = {
 		const canvas = within(canvasElement);
 		const body = within(document.body);
 
-		await canvas.findByRole("tab", { name: "Summary" });
-		const tabLabels = canvas.getAllByRole("tab").map((tab) => tab.textContent);
-		expect(tabLabels).toEqual(["Summary", "Git", "Terminal"]);
-
-		await openAddPanelMenu(canvas);
-		await body.findByText("New Terminal");
-		for (const label of ["Browser", "Desktop", "Debug"]) {
-			expect(body.queryByRole("menuitemcheckbox", { name: label })).toBeNull();
-		}
-
-		expect(localStorage.getItem(singletonTabsStorageKey)).toBe(
-			'["browser","desktop","debug"]',
+		await userEvent.click(
+			await canvas.findByRole("tab", { name: "Workspace" }),
 		);
+		await userEvent.click(
+			await canvas.findByRole("button", { name: "Open app or port" }),
+		);
+		await body.findByRole("menu");
 	},
 };
 

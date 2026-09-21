@@ -76,6 +76,7 @@ type TabsTriggerProps = ComponentProps<typeof TabsPrimitive.Trigger>;
 
 export const TabsTrigger = ({
 	type: triggerType = "button",
+	className,
 	...props
 }: TabsTriggerProps) => {
 	const type = props.asChild ? undefined : triggerType;
@@ -91,6 +92,7 @@ export const TabsTrigger = ({
 				"cursor-pointer",
 				"transition-colors duration-150 ease-linear",
 				"-mb-px",
+				className,
 			)}
 			{...props}
 		/>

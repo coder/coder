@@ -89,6 +89,79 @@ function repoLabel(repoRoot: string): string {
 	return segments[segments.length - 1] ?? repoRoot;
 }
 
+function hasRemoteDiffChanges(remoteDiffStats: ChatDiffStatus | undefined) {
+	return (
+		(remoteDiffStats?.changed_files ?? 0) > 0 ||
+		(remoteDiffStats?.additions ?? 0) > 0 ||
+		(remoteDiffStats?.deletions ?? 0) > 0
+	);
+}
+
+/** Per-repo diff stats parsed from each repository's unified diff. */
+function computeRepoStats(
+	repositories: ReadonlyMap<string, WorkspaceAgentRepoChanges>,
+): Map<string, DiffStats> {
+	const stats = new Map<string, DiffStats>();
+	for (const [root, repo] of repositories.entries()) {
+		if (!repo.unified_diff) continue;
+		let additions = 0;
+		let deletions = 0;
+		for (const line of repo.unified_diff.split("\n")) {
+			if (line.startsWith("+") && !line.startsWith("+++")) {
+				additions++;
+			} else if (line.startsWith("-") && !line.startsWith("---")) {
+				deletions++;
+			}
+		}
+		if (additions > 0 || deletions > 0) {
+			stats.set(root, { additions, deletions });
+		}
+	}
+	return stats;
+}
+
+/**
+ * Union of currently-dirty and ever-dirty repos (still known to the
+ * watcher) so a clean-revert does not hide the entry.
+ */
+function computeLocalRepos(
+	repoStats: ReadonlyMap<string, DiffStats>,
+	repositories: ReadonlyMap<string, WorkspaceAgentRepoChanges>,
+	everDirty: ReadonlySet<string> | undefined,
+): string[] {
+	const roots = new Set<string>(repoStats.keys());
+	if (everDirty) {
+		for (const root of everDirty) {
+			if (repositories.has(root)) {
+				roots.add(root);
+			}
+		}
+	}
+	return Array.from(roots).sort((a, b) => a.localeCompare(b));
+}
+
+/**
+ * Number of entries in the panel's view selector: the PR or branch view
+ * plus one per dirty local repository.
+ */
+export function countGitViews({
+	prTab,
+	repositories,
+	remoteDiffStats,
+	everDirty,
+}: Pick<
+	GitPanelProps,
+	"prTab" | "repositories" | "remoteDiffStats" | "everDirty"
+>): number {
+	const showRemoteTab = Boolean(prTab) || hasRemoteDiffChanges(remoteDiffStats);
+	const localRepos = computeLocalRepos(
+		computeRepoStats(repositories),
+		repositories,
+		everDirty,
+	);
+	return (showRemoteTab ? 1 : 0) + localRepos.length;
+}
+
 type ViewItemBase = {
 	id: string;
 	/** Left-pill label on the trigger (e.g. "Open", "Merged", "Working"). */
@@ -118,10 +191,7 @@ export const GitPanel: FC<GitPanelProps> = ({
 	chatInputRef,
 	everDirty,
 }) => {
-	const hasRemoteDiff =
-		(remoteDiffStats?.changed_files ?? 0) > 0 ||
-		(remoteDiffStats?.additions ?? 0) > 0 ||
-		(remoteDiffStats?.deletions ?? 0) > 0;
+	const hasRemoteDiff = hasRemoteDiffChanges(remoteDiffStats);
 
 	const showRemoteTab = Boolean(prTab) || hasRemoteDiff;
 	const hasGitContext = repositories.size > 0 || showRemoteTab;
@@ -131,41 +201,9 @@ export const GitPanel: FC<GitPanelProps> = ({
 	const prState = remoteDiffStats?.pull_request_state;
 	const prDraft = remoteDiffStats?.pull_request_draft;
 
-	// Compute per-repo diff stats from unified diffs. The React
-	// Compiler memoizes these derivations.
-	const repoStats = (() => {
-		const stats = new Map<string, DiffStats>();
-		for (const [root, repo] of repositories.entries()) {
-			if (!repo.unified_diff) continue;
-			let additions = 0;
-			let deletions = 0;
-			for (const line of repo.unified_diff.split("\n")) {
-				if (line.startsWith("+") && !line.startsWith("+++")) {
-					additions++;
-				} else if (line.startsWith("-") && !line.startsWith("---")) {
-					deletions++;
-				}
-			}
-			if (additions > 0 || deletions > 0) {
-				stats.set(root, { additions, deletions });
-			}
-		}
-		return stats;
-	})();
-
-	// Union of currently-dirty and ever-dirty repos (still known to
-	// the watcher) so a clean-revert does not hide the entry.
-	const localRepos = (() => {
-		const roots = new Set<string>(repoStats.keys());
-		if (everDirty) {
-			for (const root of everDirty) {
-				if (repositories.has(root)) {
-					roots.add(root);
-				}
-			}
-		}
-		return Array.from(roots).sort((a, b) => a.localeCompare(b));
-	})();
+	// The React Compiler memoizes these derivations.
+	const repoStats = computeRepoStats(repositories);
+	const localRepos = computeLocalRepos(repoStats, repositories, everDirty);
 
 	// Default to the first local repo when nothing has been pushed
 	// upstream yet, so the panel opens on the diff the user just made.

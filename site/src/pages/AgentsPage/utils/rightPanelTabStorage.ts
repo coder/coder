@@ -1,8 +1,6 @@
 import {
-	isSingletonRightPanelTabId,
 	isUserRightPanelTab,
-	type SingletonRightPanelTabId,
-	singletonRightPanelTabIds,
+	type RightPanelGroupTabId,
 	type UserRightPanelTab,
 } from "./rightPanelTabs";
 
@@ -46,51 +44,57 @@ export function savePersistedRightPanelTabs(
 	);
 }
 
-export const visibleSingletonTabsStorageKeyPrefix =
-	"agents.right-panel-singleton-tabs.";
+export const activeSubTabStorageKeyPrefix = "agents.right-panel-active-chips.";
+
+export type ActiveSubTabIds = Partial<Record<RightPanelGroupTabId, string>>;
 
 /**
- * Singleton panels start hidden, so an absent or unreadable entry means no
- * singleton tab is shown.
+ * The chip last selected inside each group tab. A missing or unreadable
+ * entry means the group falls back to its first chip.
  */
-export function getPersistedVisibleSingletonTabs(
+export function getPersistedActiveSubTabIds(
 	chatID: string | undefined,
-): SingletonRightPanelTabId[] {
+): ActiveSubTabIds {
 	if (!chatID) {
-		return [];
+		return {};
 	}
 
 	const value = localStorage.getItem(
-		`${visibleSingletonTabsStorageKeyPrefix}${chatID}`,
+		`${activeSubTabStorageKeyPrefix}${chatID}`,
 	);
 	if (!value) {
-		return [];
+		return {};
 	}
 
 	try {
 		const parsed: unknown = JSON.parse(value);
-		if (!Array.isArray(parsed)) {
-			return [];
+		if (typeof parsed !== "object" || parsed === null) {
+			return {};
 		}
-		const storedIds = parsed.filter(isSingletonRightPanelTabId);
-		// Reading through the canonical list drops duplicates and keeps a
-		// stable order regardless of the order the user enabled the panels.
-		return singletonRightPanelTabIds.filter((id) => storedIds.includes(id));
+		const record = parsed as Record<string, unknown>;
+		const result: ActiveSubTabIds = {};
+		if (typeof record.terminal === "string") {
+			result.terminal = record.terminal;
+		}
+		if (typeof record.workspace === "string") {
+			result.workspace = record.workspace;
+		}
+		return result;
 	} catch {
-		return [];
+		return {};
 	}
 }
 
-export function savePersistedVisibleSingletonTabs(
+export function savePersistedActiveSubTabIds(
 	chatID: string | undefined,
-	tabIds: readonly SingletonRightPanelTabId[],
+	ids: ActiveSubTabIds,
 ): void {
 	if (!chatID) {
 		return;
 	}
 	localStorage.setItem(
-		`${visibleSingletonTabsStorageKeyPrefix}${chatID}`,
-		JSON.stringify(tabIds),
+		`${activeSubTabStorageKeyPrefix}${chatID}`,
+		JSON.stringify(ids),
 	);
 }
 
@@ -124,6 +128,10 @@ export function savePersistedDefaultTerminalHidden(
 	}
 }
 
+/** Written by the previous strip, where Browser, Desktop, and Debug were opt-in. */
+const legacyVisibleSingletonTabsStorageKeyPrefix =
+	"agents.right-panel-singleton-tabs.";
+
 export function clearPersistedRightPanelState(
 	chatID: string | undefined,
 ): void {
@@ -131,6 +139,9 @@ export function clearPersistedRightPanelState(
 		return;
 	}
 	localStorage.removeItem(`${rightPanelTabStorageKeyPrefix}${chatID}`);
-	localStorage.removeItem(`${visibleSingletonTabsStorageKeyPrefix}${chatID}`);
+	localStorage.removeItem(`${activeSubTabStorageKeyPrefix}${chatID}`);
 	localStorage.removeItem(`${defaultTerminalHiddenStorageKeyPrefix}${chatID}`);
+	localStorage.removeItem(
+		`${legacyVisibleSingletonTabsStorageKeyPrefix}${chatID}`,
+	);
 }

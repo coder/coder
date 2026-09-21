@@ -16,15 +16,10 @@ import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { useProxy } from "#/contexts/ProxyContext";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import type { ModelSelectorOption } from "#/modules/aiModels/ModelSelector";
-import {
-	getAgentBrowserApp,
-	isWorkspaceAppEmbeddable,
-} from "#/modules/apps/apps";
+import { getAgentBrowserApp } from "#/modules/apps/apps";
 import { WorkspaceAppFrame } from "#/modules/apps/WorkspaceAppFrame";
-import { findWorkspaceAppWithAgent } from "#/modules/apps/workspaceApps";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { generateConnectionSessionId, generateUUID } from "#/utils/random";
-import { findWorkspaceAgent } from "#/utils/workspace";
 import {
 	AgentChatInput,
 	type ChatMessageInputRef,
@@ -48,31 +43,36 @@ import { ChatSummaryPanel } from "./components/ChatSummaryPanel";
 import { getEffectiveTabId } from "./components/ChatsSidebar/tabs/getEffectiveTabId";
 import { SidebarTabView } from "./components/ChatsSidebar/tabs/SidebarTabView";
 import { ChatTopBar } from "./components/ChatTopBar";
-import { GitPanel } from "./components/GitPanel/GitPanel";
+import { countGitViews, GitPanel } from "./components/GitPanel/GitPanel";
 import { DebugPanel } from "./components/RightPanel/DebugPanel/DebugPanel";
 import { DesktopPanel } from "./components/RightPanel/DesktopPanel";
-import { PortPreviewPanel } from "./components/RightPanel/PortPreviewPanel";
 import { RightPanel } from "./components/RightPanel/RightPanel";
-import { RightPanelAddTabControl } from "./components/RightPanel/RightPanelAddTabControl";
+import {
+	type TerminalChip,
+	TerminalTabPanel,
+} from "./components/RightPanel/TerminalTabPanel";
+import { WorkspaceTabPanel } from "./components/RightPanel/WorkspaceTabPanel";
 import { getWorkspaceStatus, StatusIcon } from "./components/StatusIcon";
-import { TerminalPanel } from "./components/TerminalPanel";
 import { ChatWorkspaceContext } from "./context/ChatWorkspaceContext";
 import { TerminalClientSessionContext } from "./context/TerminalClientSessionContext";
 import { chatWidthClass, useChatFullWidth } from "./hooks/useChatFullWidth";
 import { parsePullRequestUrl } from "./utils/pullRequest";
 import {
+	type ActiveSubTabIds,
+	getPersistedActiveSubTabIds,
 	getPersistedDefaultTerminalHidden,
 	getPersistedRightPanelTabs,
-	getPersistedVisibleSingletonTabs,
+	savePersistedActiveSubTabIds,
 	savePersistedDefaultTerminalHidden,
 	savePersistedRightPanelTabs,
-	savePersistedVisibleSingletonTabs,
 } from "./utils/rightPanelTabStorage";
 import {
-	isSingletonRightPanelTabId,
+	isTerminalRightPanelTab,
+	isWorkspacePreviewRightPanelTab,
 	type PortSelection,
-	type SingletonRightPanelTabId,
-	singletonRightPanelTabIds,
+	type RightPanelGroupTabId,
+	type RightPanelTabId,
+	resolveRightPanelTabId,
 	type UserRightPanelTab,
 	validateUserRightPanelTabs,
 } from "./utils/rightPanelTabs";
@@ -192,91 +192,6 @@ type AgentChatPageViewProps = {
 	desktopChatId?: string;
 };
 
-const UnavailableTabMessage: FC<{ message: string }> = ({ message }) => (
-	<div className="flex h-full min-h-0 items-center justify-center px-6 text-center text-xs text-content-secondary">
-		{message}
-	</div>
-);
-
-type UserTabContentProps = {
-	tab: UserRightPanelTab;
-	chatId: string;
-	workspace: TypesGen.Workspace | undefined;
-	workspaceAgent: TypesGen.WorkspaceAgent | undefined;
-	wildcardHostname: string;
-	sidebarVisible: boolean;
-	isActive: boolean;
-	isPending: boolean;
-	onTerminalReady: (tabId: string) => void;
-};
-
-const UserTabContent: FC<UserTabContentProps> = ({
-	tab,
-	chatId,
-	workspace,
-	workspaceAgent,
-	wildcardHostname,
-	sidebarVisible,
-	isActive,
-	isPending,
-	onTerminalReady,
-}) => {
-	switch (tab.kind) {
-		case "terminal":
-			return workspace && workspaceAgent ? (
-				<TerminalPanel
-					chatId={chatId}
-					reconnectionToken={tab.reconnectionToken}
-					initialCommand={tab.initialCommand}
-					isHot={sidebarVisible && (isActive || isPending)}
-					autoFocus={sidebarVisible && isActive}
-					onReady={() => onTerminalReady(tab.id)}
-					workspace={workspace}
-					workspaceAgent={workspaceAgent}
-				/>
-			) : (
-				<UnavailableTabMessage message="Terminal will be available once the workspace agent is ready." />
-			);
-		case "workspace_app": {
-			if (!workspace) {
-				return null;
-			}
-			const app = findWorkspaceAppWithAgent(workspace, tab.agentId, tab.appId);
-			if (!app || !isWorkspaceAppEmbeddable(app)) {
-				return (
-					<UnavailableTabMessage message="This workspace app is no longer available as a right-panel tab." />
-				);
-			}
-			return (
-				<WorkspaceAppFrame workspace={workspace} app={app} active={isActive} />
-			);
-		}
-		case "port": {
-			if (!workspace) {
-				return null;
-			}
-			const agent = findWorkspaceAgent(workspace, tab.agentId);
-			if (!agent) {
-				return (
-					<UnavailableTabMessage message="This port preview tab is no longer available." />
-				);
-			}
-			return (
-				<PortPreviewPanel
-					workspace={workspace}
-					agent={agent}
-					host={wildcardHostname}
-					tab={tab}
-				/>
-			);
-		}
-		default: {
-			const _exhaustive: never = tab;
-			return _exhaustive;
-		}
-	}
-};
-
 export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	chat,
 	persistedError,
@@ -379,17 +294,19 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 		showSidebarPanel && (dragVisualExpanded ?? isRightPanelExpanded);
 
 	const [sidebarTabId, setSidebarTabIdState] = useState<string | null>(() =>
-		getPersistedSidebarTabId(agentId),
+		resolveRightPanelTabId(getPersistedSidebarTabId(agentId)),
 	);
 	const [userRightPanelTabs, setUserRightPanelTabsState] = useState<
 		UserRightPanelTab[]
 	>(() => getPersistedRightPanelTabs(agentId));
 	const [defaultTerminalHidden, setDefaultTerminalHiddenState] =
 		useState<boolean>(() => getPersistedDefaultTerminalHidden(agentId));
-	const [visibleSingletonTabs, setVisibleSingletonTabsState] = useState<
-		SingletonRightPanelTabId[]
-	>(() => getPersistedVisibleSingletonTabs(agentId));
-	const [pendingTabId, setPendingTabId] = useState<string | null>(null);
+	const [activeSubTabIds, setActiveSubTabIdsState] = useState<ActiveSubTabIds>(
+		() => getPersistedActiveSubTabIds(agentId),
+	);
+	const [pendingTerminalId, setPendingTerminalId] = useState<string | null>(
+		null,
+	);
 	// One client session ID per page visit, shared by every terminal in this
 	// chat. It regenerates when this view remounts (switching chats or
 	// reloading), independent of any terminal's reconnection token.
@@ -416,9 +333,9 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 
 	useEffect(() => {
 		if (!isArchived) {
-			savePersistedVisibleSingletonTabs(agentId, visibleSingletonTabs);
+			savePersistedActiveSubTabIds(agentId, activeSubTabIds);
 		}
-	}, [agentId, isArchived, visibleSingletonTabs]);
+	}, [agentId, isArchived, activeSubTabIds]);
 
 	const shouldShowSidebar = showSidebarPanel;
 
@@ -451,8 +368,8 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	})();
 
 	// Desktop is only available when the workspace and agent are ready;
-	// offer it as a singleton panel on that same condition to avoid
-	// selecting "desktop" when no desktop panel is rendered.
+	// offer the tab on that same condition to avoid selecting "desktop"
+	// when no desktop panel is rendered.
 	const availableDesktopChatId =
 		workspace && workspaceAgent ? desktopChatId : undefined;
 
@@ -460,86 +377,113 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 		? getAgentBrowserApp(workspaceAgent)
 		: undefined;
 
-	const singletonTabSupport: Record<SingletonRightPanelTabId, boolean> = {
-		browser: availableBrowserApp !== undefined,
-		desktop: availableDesktopChatId !== undefined,
-		debug: debugLoggingEnabled === true,
-	};
-	const supportedSingletonTabs = singletonRightPanelTabIds.filter(
-		(tabId) => singletonTabSupport[tabId],
-	);
-	// A saved choice survives a panel losing support, so the tab returns
-	// once the workspace, app, or debug setting is available again.
-	const shownSingletonTabs = supportedSingletonTabs.filter((tabId) =>
-		visibleSingletonTabs.includes(tabId),
-	);
-	const isSingletonTabShown = (tabId: SingletonRightPanelTabId) =>
-		shownSingletonTabs.includes(tabId);
+	const hasWorkspaceAgent =
+		workspace !== undefined && workspaceAgent !== undefined;
+	const isWorkspaceRunning = workspace?.latest_build.status === "running";
 
 	const validatedUserRightPanelTabs = validateUserRightPanelTabs(
 		userRightPanelTabs,
 		{ workspace, workspaceAgent, wildcardHostname },
 	);
+	const userTerminalTabs = validatedUserRightPanelTabs.filter(
+		isTerminalRightPanelTab,
+	);
+	const previewTabs = validatedUserRightPanelTabs.filter(
+		isWorkspacePreviewRightPanelTab,
+	);
 
-	const hasBuiltInTerminal = Boolean(
-		workspace && workspaceAgent && !defaultTerminalHidden,
+	// Dense terminal numbering: the built-in terminal (reconnect token = chat
+	// ID) is first when shown, then each unlabeled terminal in order. Labeled
+	// terminals (command apps) display their own label and do not consume a
+	// number. Closing a terminal renumbers the ones after it.
+	let terminalNumber = 0;
+	const terminalChips: TerminalChip[] = [];
+	if (hasWorkspaceAgent && !defaultTerminalHidden) {
+		terminalNumber += 1;
+		terminalChips.push({
+			id: "terminal",
+			label: `Terminal ${terminalNumber}`,
+			reconnectionToken: agentId,
+		});
+	}
+	for (const tab of userTerminalTabs) {
+		if (tab.label === undefined) {
+			terminalNumber += 1;
+		}
+		terminalChips.push({
+			id: tab.id,
+			label: tab.label ?? `Terminal ${terminalNumber}`,
+			reconnectionToken: tab.reconnectionToken,
+			initialCommand: tab.initialCommand,
+		});
+	}
+	const terminalChipIds = terminalChips.map((chip) => chip.id);
+	const effectiveTerminalId = getEffectiveTabId(
+		terminalChipIds,
+		activeSubTabIds.terminal ?? null,
 	);
-	// Single source of truth for available tabs and their order. The list
-	// of tab IDs used by `getEffectiveTabId` is derived from this so a
-	// new tab can never be added to one without the other going out of
-	// sync. Desktop is ordered before terminals so terminals are rightmost.
-	const builtInSidebarTabConfigs = [
+	const previewIds = previewTabs.map((tab) => tab.id);
+	const effectivePreviewId = getEffectiveTabId(
+		previewIds,
+		activeSubTabIds.workspace ?? null,
+	);
+
+	const prTab = prNumber && agentId ? { prNumber, chatId: agentId } : undefined;
+	const gitViewCount = countGitViews({
+		prTab,
+		repositories: gitWatcher.repositories,
+		remoteDiffStats: chat.diff_status,
+		everDirty: gitWatcher.everDirty,
+	});
+
+	// A badge only appears when there is something to choose between.
+	const countBadge = (count: number) => (count > 1 ? count : undefined);
+
+	// Single source of truth for available tabs and their order. Tabs appear
+	// when their content is available and are never closed by the user.
+	const sidebarTabConfigs: {
+		id: RightPanelTabId;
+		label: string;
+		badge?: number;
+	}[] = [
 		{ id: "summary", label: "Summary" },
-		{ id: "git", label: "Git" },
-		...(isSingletonTabShown("debug") ? [{ id: "debug", label: "Debug" }] : []),
-		...(isSingletonTabShown("browser")
-			? [{ id: "browser", label: "Browser" }]
+		{ id: "git", label: "Git", badge: countBadge(gitViewCount) },
+		...(hasWorkspaceAgent
+			? [
+					{
+						id: "terminal" as const,
+						label: "Terminal",
+						badge: countBadge(terminalChips.length),
+					},
+				]
 			: []),
-		...(isSingletonTabShown("desktop")
-			? [{ id: "desktop", label: "Desktop" }]
+		...(availableBrowserApp
+			? [{ id: "browser" as const, label: "Browser" }]
 			: []),
-		...(hasBuiltInTerminal ? [{ id: "terminal", label: "Terminal" }] : []),
-	];
-	// Dense terminal numbering: position among unlabeled terminal tabs,
-	// after the built-in Terminal when visible. Labeled terminals (command
-	// apps) display their own label, so they don't consume a number.
-	// Closing a terminal renumbers the ones after it.
-	const terminalNumbers = new Map(
-		validatedUserRightPanelTabs
-			.filter((tab) => tab.kind === "terminal" && tab.label === undefined)
-			.map(
-				(tab, index) =>
-					[tab.id, (hasBuiltInTerminal ? 1 : 0) + index + 1] as const,
-			),
-	);
-	const sidebarTabConfigs = [
-		...builtInSidebarTabConfigs,
-		// Only unlabeled terminal tabs fall through to the numbered label;
-		// every other tab kind has a required label.
-		...validatedUserRightPanelTabs.map((tab) => {
-			const terminalNumber = terminalNumbers.get(tab.id);
-			return {
-				id: tab.id,
-				label:
-					tab.label ??
-					(terminalNumber === 1 ? "Terminal" : `Terminal ${terminalNumber}`),
-			};
-		}),
+		...(availableDesktopChatId
+			? [{ id: "desktop" as const, label: "Desktop" }]
+			: []),
+		...(hasWorkspaceAgent
+			? [
+					{
+						id: "workspace" as const,
+						label: "Workspace",
+						badge: countBadge(previewTabs.length),
+					},
+				]
+			: []),
+		...(debugLoggingEnabled ? [{ id: "debug" as const, label: "Debug" }] : []),
 	];
 	const sidebarTabIds = sidebarTabConfigs.map((tab) => tab.id);
 	const effectiveSidebarTabId = getEffectiveTabId(sidebarTabIds, sidebarTabId);
 
-	const activateRightPanelTab = (tabId: string) => {
+	const activateRightPanelTab = (tabId: RightPanelTabId) => {
 		onSetShowSidebarPanel(true);
-		setPendingTabId(null);
 		setSidebarTabId(tabId);
 	};
 
-	const showSingletonTab = (tabId: SingletonRightPanelTabId) => {
-		setVisibleSingletonTabsState((currentTabIds) =>
-			currentTabIds.includes(tabId) ? currentTabIds : [...currentTabIds, tabId],
-		);
-		activateRightPanelTab(tabId);
+	const setActiveSubTabId = (group: RightPanelGroupTabId, tabId: string) => {
+		setActiveSubTabIdsState((current) => ({ ...current, [group]: tabId }));
 	};
 
 	const desktopPanelCtx = {
@@ -547,27 +491,29 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 		// Only offer the action when the panel can render, which keeps a tool
 		// action from selecting a Desktop tab that the tab list omits.
 		onOpenDesktop: availableDesktopChatId
-			? () => showSingletonTab("desktop")
+			? () => activateRightPanelTab("desktop")
 			: undefined,
 	};
 
-	// Ignore late readiness from a tab the user already navigated past.
-	const handleTerminalTabReady = (tabId: string) => {
-		if (pendingTabId !== tabId) {
+	const activateTerminalChip = (terminalId: string) => {
+		setPendingTerminalId(null);
+		setActiveSubTabId("terminal", terminalId);
+	};
+
+	// Ignore late readiness from a terminal the user already navigated past.
+	const handleTerminalReady = (terminalId: string) => {
+		if (pendingTerminalId !== terminalId) {
 			return;
 		}
-		setPendingTabId(null);
-		setSidebarTabId(tabId);
+		setPendingTerminalId(null);
+		setActiveSubTabId("terminal", terminalId);
 	};
 
-	const handleActiveTabChange = (tabId: string) => {
-		setPendingTabId(null);
-		setSidebarTabId(tabId);
-	};
-
-	const startPendingTab = (tabId: string) => {
-		onSetShowSidebarPanel(true);
-		setPendingTabId(tabId);
+	// A new terminal is shown once it reports ready so the chip does not
+	// switch to a blank canvas mid-connect.
+	const startPendingTerminal = (terminalId: string) => {
+		activateRightPanelTab("terminal");
+		setPendingTerminalId(terminalId);
 	};
 
 	const createUserRightPanelTabId = (
@@ -576,14 +522,14 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 		return `${kind}-${generateUUID()}`;
 	};
 
-	const handleAddTerminalTab = () => {
-		if (!workspace || !workspaceAgent) {
+	const handleAddTerminal = () => {
+		if (!hasWorkspaceAgent) {
 			return;
 		}
 		// Reopen the built-in Terminal instead of creating Terminal 2 with no Terminal 1.
 		if (defaultTerminalHidden) {
 			setDefaultTerminalHiddenState(false);
-			startPendingTab("terminal");
+			startPendingTerminal("terminal");
 			return;
 		}
 		const tabId = createUserRightPanelTabId("terminal");
@@ -595,21 +541,26 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 				reconnectionToken: generateUUID(),
 			},
 		]);
-		startPendingTab(tabId);
+		startPendingTerminal(tabId);
+	};
+
+	const openPreview = (previewId: string) => {
+		activateRightPanelTab("workspace");
+		setActiveSubTabId("workspace", previewId);
 	};
 
 	const handleOpenWorkspaceAppTab = (app: TypesGen.WorkspaceApp) => {
 		if (!workspaceAgent) {
 			return;
 		}
-		const existingTab = validatedUserRightPanelTabs.find(
+		const existingTab = previewTabs.find(
 			(tab) =>
 				tab.kind === "workspace_app" &&
 				tab.agentId === workspaceAgent.id &&
 				tab.appId === app.id,
 		);
 		if (existingTab) {
-			activateRightPanelTab(existingTab.id);
+			openPreview(existingTab.id);
 			return;
 		}
 		const tab: UserRightPanelTab = {
@@ -620,18 +571,19 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 			appId: app.id,
 		};
 		setUserRightPanelTabsState((currentTabs) => [...currentTabs, tab]);
-		activateRightPanelTab(tab.id);
+		openPreview(tab.id);
 	};
 
 	const handleOpenCommandAppTab = (app: TypesGen.WorkspaceApp) => {
-		if (!workspace || !workspaceAgent || !app.command) {
+		if (!hasWorkspaceAgent || !app.command) {
 			return;
 		}
-		const existingTab = validatedUserRightPanelTabs.find(
-			(tab) => tab.kind === "terminal" && tab.sourceAppId === app.id,
+		const existingTab = userTerminalTabs.find(
+			(tab) => tab.sourceAppId === app.id,
 		);
 		if (existingTab) {
-			activateRightPanelTab(existingTab.id);
+			activateRightPanelTab("terminal");
+			activateTerminalChip(existingTab.id);
 			return;
 		}
 		const tab: UserRightPanelTab = {
@@ -643,14 +595,14 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 			sourceAppId: app.id,
 		};
 		setUserRightPanelTabsState((currentTabs) => [...currentTabs, tab]);
-		startPendingTab(tab.id);
+		startPendingTerminal(tab.id);
 	};
 
 	const handleOpenPortTab = (selection: PortSelection) => {
 		if (!workspaceAgent) {
 			return;
 		}
-		const existingTab = validatedUserRightPanelTabs.find(
+		const existingTab = previewTabs.find(
 			(tab) =>
 				tab.kind === "port" &&
 				tab.agentId === workspaceAgent.id &&
@@ -658,7 +610,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 				tab.protocol === selection.protocol,
 		);
 		if (existingTab) {
-			activateRightPanelTab(existingTab.id);
+			openPreview(existingTab.id);
 			return;
 		}
 		const tab: UserRightPanelTab = {
@@ -670,24 +622,68 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 			protocol: selection.protocol,
 		};
 		setUserRightPanelTabsState((currentTabs) => [...currentTabs, tab]);
-		activateRightPanelTab(tab.id);
+		openPreview(tab.id);
 	};
 
-	const renderTabContent = (tabId: string): ReactNode => {
+	// Closing the active chip selects its right-hand neighbor, or the new
+	// last chip when the closed one was last.
+	const selectNeighborAfterClose = (
+		group: RightPanelGroupTabId,
+		chipIds: readonly string[],
+		activeId: string | null,
+		closedId: string,
+	) => {
+		if (activeId !== closedId) {
+			return;
+		}
+		const remainingIds = chipIds.filter((id) => id !== closedId);
+		const closedIndex = chipIds.indexOf(closedId);
+		const nextId = remainingIds[Math.min(closedIndex, remainingIds.length - 1)];
+		if (nextId) {
+			setActiveSubTabId(group, nextId);
+		}
+	};
+
+	const handleCloseTerminal = (terminalId: string) => {
+		setPendingTerminalId((current) =>
+			current === terminalId ? null : current,
+		);
+		if (terminalId === "terminal") {
+			setDefaultTerminalHiddenState(true);
+		} else {
+			setUserRightPanelTabsState((currentTabs) =>
+				currentTabs.filter((tab) => tab.id !== terminalId),
+			);
+		}
+		selectNeighborAfterClose(
+			"terminal",
+			terminalChipIds,
+			effectiveTerminalId,
+			terminalId,
+		);
+	};
+
+	const handleClosePreview = (previewId: string) => {
+		setUserRightPanelTabsState((currentTabs) =>
+			currentTabs.filter((tab) => tab.id !== previewId),
+		);
+		selectNeighborAfterClose(
+			"workspace",
+			previewIds,
+			effectivePreviewId,
+			previewId,
+		);
+	};
+
+	const renderTabContent = (tabId: RightPanelTabId): ReactNode => {
+		const isTabActive = shouldShowSidebar && effectiveSidebarTabId === tabId;
 		switch (tabId) {
 			case "summary":
-				return (
-					<ChatSummaryPanel
-						chatId={agentId}
-						isVisible={shouldShowSidebar && effectiveSidebarTabId === "summary"}
-					/>
-				);
+				return <ChatSummaryPanel chatId={agentId} isVisible={isTabActive} />;
 			case "git":
 				return (
 					<GitPanel
-						prTab={
-							prNumber && agentId ? { prNumber, chatId: agentId } : undefined
-						}
+						prTab={prTab}
 						repositories={gitWatcher.repositories}
 						everDirty={gitWatcher.everDirty}
 						isGitStatusLoading={
@@ -718,101 +714,55 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 				) : null;
 			case "terminal":
 				return workspace && workspaceAgent ? (
-					<TerminalPanel
+					<TerminalTabPanel
 						chatId={agentId}
-						isHot={
-							shouldShowSidebar &&
-							(effectiveSidebarTabId === "terminal" ||
-								pendingTabId === "terminal")
-						}
-						autoFocus={
-							shouldShowSidebar && effectiveSidebarTabId === "terminal"
-						}
-						onReady={() => handleTerminalTabReady("terminal")}
 						workspace={workspace}
 						workspaceAgent={workspaceAgent}
+						terminals={terminalChips}
+						activeTerminalId={effectiveTerminalId}
+						pendingTerminalId={pendingTerminalId}
+						isVisible={isTabActive}
+						canCreateTerminal={isWorkspaceRunning}
+						onActiveTerminalChange={activateTerminalChip}
+						onCloseTerminal={handleCloseTerminal}
+						onNewTerminal={handleAddTerminal}
+						onTerminalReady={handleTerminalReady}
+					/>
+				) : null;
+			case "workspace":
+				return workspace && workspaceAgent ? (
+					<WorkspaceTabPanel
+						workspace={workspace}
+						agent={workspaceAgent}
+						host={wildcardHostname}
+						isRunning={isWorkspaceRunning}
+						previews={previewTabs}
+						activePreviewId={effectivePreviewId}
+						isVisible={isTabActive}
+						onActivePreviewChange={(previewId) =>
+							setActiveSubTabId("workspace", previewId)
+						}
+						onClosePreview={handleClosePreview}
+						onOpenWorkspaceApp={handleOpenWorkspaceAppTab}
+						onOpenCommandApp={handleOpenCommandAppTab}
+						onOpenPort={handleOpenPortTab}
 					/>
 				) : null;
 			case "debug":
-				return (
-					<DebugPanel
-						chatId={agentId}
-						isVisible={shouldShowSidebar && effectiveSidebarTabId === "debug"}
-					/>
-				);
+				return <DebugPanel chatId={agentId} isVisible={isTabActive} />;
 			default: {
-				const userTab = validatedUserRightPanelTabs.find(
-					(tab) => tab.id === tabId,
-				);
-				return userTab ? (
-					<UserTabContent
-						tab={userTab}
-						chatId={agentId}
-						workspace={workspace}
-						workspaceAgent={workspaceAgent}
-						wildcardHostname={wildcardHostname}
-						sidebarVisible={shouldShowSidebar}
-						isActive={effectiveSidebarTabId === userTab.id}
-						isPending={pendingTabId === userTab.id}
-						onTerminalReady={handleTerminalTabReady}
-					/>
-				) : null;
+				const _exhaustive: never = tabId;
+				return _exhaustive;
 			}
 		}
 	};
 
-	const handleCloseTab = (tabId: string) => {
-		setPendingTabId((currentTabId) =>
-			currentTabId === tabId ? null : currentTabId,
-		);
-		const remainingTabIds = sidebarTabIds.filter((id) => id !== tabId);
-		const closedTabIndex = sidebarTabIds.indexOf(tabId);
-
-		if (tabId === "terminal") {
-			setDefaultTerminalHiddenState(true);
-		} else if (isSingletonRightPanelTabId(tabId)) {
-			setVisibleSingletonTabsState((currentTabIds) =>
-				currentTabIds.filter((id) => id !== tabId),
-			);
-		} else {
-			setUserRightPanelTabsState((currentTabs) =>
-				currentTabs.filter((tab) => tab.id !== tabId),
-			);
-		}
-
-		if (effectiveSidebarTabId !== tabId) {
-			return;
-		}
-		const nextActiveTabId =
-			remainingTabIds[Math.min(closedTabIndex, remainingTabIds.length - 1)];
-		if (nextActiveTabId) {
-			setSidebarTabId(nextActiveTabId);
-		}
-	};
-
-	const handleToggleSingletonTab = (tabId: SingletonRightPanelTabId) => {
-		if (!singletonTabSupport[tabId]) {
-			return;
-		}
-		if (isSingletonTabShown(tabId)) {
-			handleCloseTab(tabId);
-		} else {
-			showSingletonTab(tabId);
-		}
-	};
-
-	const sidebarTabs = sidebarTabConfigs.map((tab) => {
-		const isCloseable =
-			tab.id === "terminal" ||
-			isSingletonRightPanelTabId(tab.id) ||
-			validatedUserRightPanelTabs.some((userTab) => userTab.id === tab.id);
-		return {
-			id: tab.id,
-			label: tab.label,
-			content: renderTabContent(tab.id),
-			onClose: isCloseable ? () => handleCloseTab(tab.id) : undefined,
-		};
-	});
+	const sidebarTabs = sidebarTabConfigs.map((tab) => ({
+		id: tab.id,
+		label: tab.label,
+		badge: tab.badge,
+		content: renderTabContent(tab.id),
+	}));
 
 	const isEditing = editing.editingMessageId !== null;
 
@@ -1009,23 +959,8 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 						>
 							<SidebarTabView
 								effectiveTabId={effectiveSidebarTabId}
-								onActiveTabChange={handleActiveTabChange}
+								onActiveTabChange={setSidebarTabId}
 								tabs={sidebarTabs}
-								addTabControl={
-									<RightPanelAddTabControl
-										workspace={workspace}
-										agent={workspaceAgent}
-										host={wildcardHostname}
-										isRunning={workspace?.latest_build.status === "running"}
-										supportedSingletonTabs={supportedSingletonTabs}
-										visibleSingletonTabs={shownSingletonTabs}
-										onToggleSingletonTab={handleToggleSingletonTab}
-										onNewTerminal={handleAddTerminalTab}
-										onOpenWorkspaceApp={handleOpenWorkspaceAppTab}
-										onOpenCommandApp={handleOpenCommandAppTab}
-										onOpenPort={handleOpenPortTab}
-									/>
-								}
 								onClose={() => onSetShowSidebarPanel(false)}
 								isExpanded={visualExpanded}
 								onToggleExpanded={() =>
