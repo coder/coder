@@ -529,9 +529,7 @@ type sqlcQuerier interface {
 	// personal chat model overrides. It defaults to false when unset.
 	GetChatPersonalModelOverridesEnabled(ctx context.Context) (bool, error)
 	GetChatPlanModeInstructions(ctx context.Context) (string, error)
-	GetChatProjectACLByID(ctx context.Context, id uuid.UUID) (GetChatProjectACLByIDRow, error)
 	GetChatProjectByID(ctx context.Context, id uuid.UUID) (ChatProject, error)
-	GetChatProjectByIDForUpdate(ctx context.Context, id uuid.UUID) (ChatProject, error)
 	GetChatProjectMemoriesByProjectID(ctx context.Context, projectID uuid.UUID) ([]GetChatProjectMemoriesByProjectIDRow, error)
 	GetChatProjectMemoryByID(ctx context.Context, id uuid.UUID) (GetChatProjectMemoryByIDRow, error)
 	GetChatProjectMemoryByName(ctx context.Context, arg GetChatProjectMemoryByNameParams) (GetChatProjectMemoryByNameRow, error)
@@ -1557,7 +1555,6 @@ type sqlcQuerier interface {
 	UpdateChatModelConfigACLByID(ctx context.Context, arg UpdateChatModelConfigACLByIDParams) (ChatModelConfig, error)
 	UpdateChatPinOrder(ctx context.Context, arg UpdateChatPinOrderParams) error
 	UpdateChatPlanModeByID(ctx context.Context, arg UpdateChatPlanModeByIDParams) (Chat, error)
-	UpdateChatProjectACLByID(ctx context.Context, arg UpdateChatProjectACLByIDParams) error
 	UpdateChatProjectBinding(ctx context.Context, arg UpdateChatProjectBindingParams) (ChatTable, error)
 	UpdateChatProjectByID(ctx context.Context, arg UpdateChatProjectByIDParams) (ChatProject, error)
 	UpdateChatProjectMemoryByID(ctx context.Context, arg UpdateChatProjectMemoryByIDParams) (ChatProjectMemory, error)

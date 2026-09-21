@@ -9,6 +9,7 @@ import (
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -61,33 +62,33 @@ func TestChatProjectMemoriesCRUD(t *testing.T) {
 	_, err = other.GetChatProjectMemory(ctx, project.ID, created.ID)
 	require.Equal(t, 404, coderdtest.SDKError(t, err).StatusCode())
 
-	// Memory follows the project ACL: hidden until shared, then editable by
-	// anyone the project is shared with.
-	memberRaw, memberUser := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
+	// Memory is private to the project creator like the project itself; org
+	// admins manage every project's memory.
+	memberRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
 	member := codersdk.NewExperimentalClient(memberRaw)
 	_, err = member.ListChatProjectMemories(ctx, project.ID)
 	require.Equal(t, 404, coderdtest.SDKError(t, err).StatusCode())
 	_, err = member.GetChatProjectMemory(ctx, project.ID, created.ID)
 	require.Equal(t, 404, coderdtest.SDKError(t, err).StatusCode())
 
-	require.NoError(t, client.UpdateChatProjectACL(ctx, project.ID, codersdk.UpdateChatProjectACL{
-		UserRoles: map[string]codersdk.ChatProjectRole{memberUser.ID.String(): codersdk.ChatProjectRoleRead},
-	}))
-	memories, err = member.ListChatProjectMemories(ctx, project.ID)
+	adminRaw, adminUser := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID,
+		rbac.ScopedRoleOrgAdmin(firstUser.OrganizationID))
+	admin := codersdk.NewExperimentalClient(adminRaw)
+	memories, err = admin.ListChatProjectMemories(ctx, project.ID)
 	require.NoError(t, err)
 	require.Len(t, memories, 1)
-	memberBody := "Members can collaboratively edit project memory."
-	memberUpdated, err := member.UpdateChatProjectMemory(ctx, project.ID, created.ID, codersdk.UpdateChatProjectMemoryRequest{Body: &memberBody})
+	adminBody := "Org admins can edit project memory."
+	adminUpdated, err := admin.UpdateChatProjectMemory(ctx, project.ID, created.ID, codersdk.UpdateChatProjectMemoryRequest{Body: &adminBody})
 	require.NoError(t, err)
-	require.Equal(t, memberBody, memberUpdated.Body)
-	memberCreated, err := member.CreateChatProjectMemory(ctx, project.ID, codersdk.CreateChatProjectMemoryRequest{
-		Name:        "member-note",
-		Description: "Added by a shared member",
-		Body:        "Shared members contribute memory too.",
+	require.Equal(t, adminBody, adminUpdated.Body)
+	adminCreated, err := admin.CreateChatProjectMemory(ctx, project.ID, codersdk.CreateChatProjectMemoryRequest{
+		Name:        "admin-note",
+		Description: "Added by an org admin",
+		Body:        "Admins contribute memory too.",
 	})
 	require.NoError(t, err)
-	require.Equal(t, memberUser.ID, memberCreated.CreatedBy)
-	require.NoError(t, member.DeleteChatProjectMemory(ctx, project.ID, created.ID))
+	require.Equal(t, adminUser.ID, adminCreated.CreatedBy)
+	require.NoError(t, admin.DeleteChatProjectMemory(ctx, project.ID, created.ID))
 }
 
 func TestChatProjectMemoryCap(t *testing.T) {

@@ -7935,28 +7935,8 @@ func (q *sqlQuerier) DeleteChatProjectByID(ctx context.Context, id uuid.UUID) er
 	return err
 }
 
-const getChatProjectACLByID = `-- name: GetChatProjectACLByID :one
-SELECT
-    user_acl AS users,
-    group_acl AS groups
-FROM chat_projects
-WHERE id = $1::uuid
-`
-
-type GetChatProjectACLByIDRow struct {
-	Users  ChatACL `db:"users" json:"users"`
-	Groups ChatACL `db:"groups" json:"groups"`
-}
-
-func (q *sqlQuerier) GetChatProjectACLByID(ctx context.Context, id uuid.UUID) (GetChatProjectACLByIDRow, error) {
-	row := q.db.QueryRowContext(ctx, getChatProjectACLByID, id)
-	var i GetChatProjectACLByIDRow
-	err := row.Scan(&i.Users, &i.Groups)
-	return i, err
-}
-
 const getChatProjectByID = `-- name: GetChatProjectByID :one
-SELECT id, organization_id, created_by, name, description, created_at, updated_at, user_acl, group_acl
+SELECT id, organization_id, created_by, name, description, created_at, updated_at
 FROM chat_projects
 WHERE id = $1::uuid
 `
@@ -7972,42 +7952,14 @@ func (q *sqlQuerier) GetChatProjectByID(ctx context.Context, id uuid.UUID) (Chat
 		&i.Description,
 		&i.CreatedAt,
 		&i.UpdatedAt,
-		&i.UserACL,
-		&i.GroupACL,
-	)
-	return i, err
-}
-
-const getChatProjectByIDForUpdate = `-- name: GetChatProjectByIDForUpdate :one
-SELECT id, organization_id, created_by, name, description, created_at, updated_at, user_acl, group_acl
-FROM chat_projects
-WHERE id = $1::uuid
-FOR UPDATE
-`
-
-func (q *sqlQuerier) GetChatProjectByIDForUpdate(ctx context.Context, id uuid.UUID) (ChatProject, error) {
-	row := q.db.QueryRowContext(ctx, getChatProjectByIDForUpdate, id)
-	var i ChatProject
-	err := row.Scan(
-		&i.ID,
-		&i.OrganizationID,
-		&i.CreatedBy,
-		&i.Name,
-		&i.Description,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.UserACL,
-		&i.GroupACL,
 	)
 	return i, err
 }
 
 const getChatProjectsByOrganizationID = `-- name: GetChatProjectsByOrganizationID :many
-SELECT id, organization_id, created_by, name, description, created_at, updated_at, user_acl, group_acl
+SELECT id, organization_id, created_by, name, description, created_at, updated_at
 FROM chat_projects
 WHERE organization_id = $1::uuid
-    -- Authorize Filter clause will be injected below in GetAuthorizedChatProjects
-    -- @authorize_filter
 ORDER BY lower(name)
 `
 
@@ -8028,8 +7980,6 @@ func (q *sqlQuerier) GetChatProjectsByOrganizationID(ctx context.Context, organi
 			&i.Description,
 			&i.CreatedAt,
 			&i.UpdatedAt,
-			&i.UserACL,
-			&i.GroupACL,
 		); err != nil {
 			return nil, err
 		}
@@ -8053,7 +8003,7 @@ VALUES (
     $4::text,
     $5::text
 )
-RETURNING id, organization_id, created_by, name, description, created_at, updated_at, user_acl, group_acl
+RETURNING id, organization_id, created_by, name, description, created_at, updated_at
 `
 
 type InsertChatProjectParams struct {
@@ -8081,30 +8031,8 @@ func (q *sqlQuerier) InsertChatProject(ctx context.Context, arg InsertChatProjec
 		&i.Description,
 		&i.CreatedAt,
 		&i.UpdatedAt,
-		&i.UserACL,
-		&i.GroupACL,
 	)
 	return i, err
-}
-
-const updateChatProjectACLByID = `-- name: UpdateChatProjectACLByID :exec
-UPDATE chat_projects
-SET
-    user_acl = $1,
-    group_acl = $2,
-    updated_at = now()
-WHERE id = $3::uuid
-`
-
-type UpdateChatProjectACLByIDParams struct {
-	UserACL  ChatACL   `db:"user_acl" json:"user_acl"`
-	GroupACL ChatACL   `db:"group_acl" json:"group_acl"`
-	ID       uuid.UUID `db:"id" json:"id"`
-}
-
-func (q *sqlQuerier) UpdateChatProjectACLByID(ctx context.Context, arg UpdateChatProjectACLByIDParams) error {
-	_, err := q.db.ExecContext(ctx, updateChatProjectACLByID, arg.UserACL, arg.GroupACL, arg.ID)
-	return err
 }
 
 const updateChatProjectByID = `-- name: UpdateChatProjectByID :one
@@ -8114,7 +8042,7 @@ SET
     description = $2::text,
     updated_at = now()
 WHERE id = $3::uuid
-RETURNING id, organization_id, created_by, name, description, created_at, updated_at, user_acl, group_acl
+RETURNING id, organization_id, created_by, name, description, created_at, updated_at
 `
 
 type UpdateChatProjectByIDParams struct {
@@ -8134,8 +8062,6 @@ func (q *sqlQuerier) UpdateChatProjectByID(ctx context.Context, arg UpdateChatPr
 		&i.Description,
 		&i.CreatedAt,
 		&i.UpdatedAt,
-		&i.UserACL,
-		&i.GroupACL,
 	)
 	return i, err
 }

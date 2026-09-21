@@ -144,7 +144,6 @@ var (
 	//  - "ActionCreate" :: create a new chat project
 	//  - "ActionDelete" :: delete a chat project
 	//  - "ActionRead" :: read chat projects
-	//  - "ActionShare" :: share a chat project with other users or groups
 	//  - "ActionUpdate" :: update a chat project
 	ResourceChatProject = Object{
 		Type: "chat_project",
