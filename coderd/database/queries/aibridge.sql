@@ -764,8 +764,10 @@ WHERE
 	-- Authorize Filter clause will be injected below in
 	-- ListAIBridgeClientsAuthorized.
 	-- @authorize_filter
+	-- Group by the coalesced value so a NULL client and a literal 'Unknown'
+	-- client collapse into one entry.
 GROUP BY
-	client
+	COALESCE(client, 'Unknown')
 ORDER BY
 	client ASC
 LIMIT COALESCE(NULLIF(@limit_::integer, 0), 100)
