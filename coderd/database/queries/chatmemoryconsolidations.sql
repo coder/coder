@@ -22,7 +22,8 @@ SET
     finished_at = now(),
     memories_after = @memories_after::int,
     mutations = @mutations::jsonb,
-    error = @error::text
+    error = @error::text,
+    next_window_start = @next_window_start::int
 WHERE id = @id::uuid
 RETURNING *;
 

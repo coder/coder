@@ -2051,7 +2051,8 @@ CREATE TABLE chat_memory_consolidations (
     memories_before integer DEFAULT 0 NOT NULL,
     memories_after integer DEFAULT 0 NOT NULL,
     mutations jsonb DEFAULT '[]'::jsonb NOT NULL,
-    error text DEFAULT ''::text NOT NULL
+    error text DEFAULT ''::text NOT NULL,
+    next_window_start integer DEFAULT 0 NOT NULL
 );
 
 COMMENT ON TABLE chat_memory_consolidations IS 'Bounded journal of detached project memory consolidation runs.';

@@ -6459,17 +6459,19 @@ SET
     finished_at = now(),
     memories_after = $2::int,
     mutations = $3::jsonb,
-    error = $4::text
-WHERE id = $5::uuid
-RETURNING id, organization_id, project_id, status, started_at, finished_at, model, memories_before, memories_after, mutations, error
+    error = $4::text,
+    next_window_start = $5::int
+WHERE id = $6::uuid
+RETURNING id, organization_id, project_id, status, started_at, finished_at, model, memories_before, memories_after, mutations, error, next_window_start
 `
 
 type FinishChatMemoryConsolidationParams struct {
-	Status        ChatMemoryConsolidationStatus `db:"status" json:"status"`
-	MemoriesAfter int32                         `db:"memories_after" json:"memories_after"`
-	Mutations     json.RawMessage               `db:"mutations" json:"mutations"`
-	Error         string                        `db:"error" json:"error"`
-	ID            uuid.UUID                     `db:"id" json:"id"`
+	Status          ChatMemoryConsolidationStatus `db:"status" json:"status"`
+	MemoriesAfter   int32                         `db:"memories_after" json:"memories_after"`
+	Mutations       json.RawMessage               `db:"mutations" json:"mutations"`
+	Error           string                        `db:"error" json:"error"`
+	NextWindowStart int32                         `db:"next_window_start" json:"next_window_start"`
+	ID              uuid.UUID                     `db:"id" json:"id"`
 }
 
 func (q *sqlQuerier) FinishChatMemoryConsolidation(ctx context.Context, arg FinishChatMemoryConsolidationParams) (ChatMemoryConsolidation, error) {
@@ -6478,6 +6480,7 @@ func (q *sqlQuerier) FinishChatMemoryConsolidation(ctx context.Context, arg Fini
 		arg.MemoriesAfter,
 		arg.Mutations,
 		arg.Error,
+		arg.NextWindowStart,
 		arg.ID,
 	)
 	var i ChatMemoryConsolidation
@@ -6493,12 +6496,13 @@ func (q *sqlQuerier) FinishChatMemoryConsolidation(ctx context.Context, arg Fini
 		&i.MemoriesAfter,
 		&i.Mutations,
 		&i.Error,
+		&i.NextWindowStart,
 	)
 	return i, err
 }
 
 const getChatMemoryConsolidationsByProject = `-- name: GetChatMemoryConsolidationsByProject :many
-SELECT id, organization_id, project_id, status, started_at, finished_at, model, memories_before, memories_after, mutations, error
+SELECT id, organization_id, project_id, status, started_at, finished_at, model, memories_before, memories_after, mutations, error, next_window_start
 FROM chat_memory_consolidations
 WHERE project_id = $1::uuid
 ORDER BY started_at DESC
@@ -6531,6 +6535,7 @@ func (q *sqlQuerier) GetChatMemoryConsolidationsByProject(ctx context.Context, a
 			&i.MemoriesAfter,
 			&i.Mutations,
 			&i.Error,
+			&i.NextWindowStart,
 		); err != nil {
 			return nil, err
 		}
@@ -6546,7 +6551,7 @@ func (q *sqlQuerier) GetChatMemoryConsolidationsByProject(ctx context.Context, a
 }
 
 const getLatestChatMemoryConsolidationByProject = `-- name: GetLatestChatMemoryConsolidationByProject :one
-SELECT id, organization_id, project_id, status, started_at, finished_at, model, memories_before, memories_after, mutations, error
+SELECT id, organization_id, project_id, status, started_at, finished_at, model, memories_before, memories_after, mutations, error, next_window_start
 FROM chat_memory_consolidations
 WHERE project_id = $1::uuid
 ORDER BY started_at DESC
@@ -6568,6 +6573,7 @@ func (q *sqlQuerier) GetLatestChatMemoryConsolidationByProject(ctx context.Conte
 		&i.MemoriesAfter,
 		&i.Mutations,
 		&i.Error,
+		&i.NextWindowStart,
 	)
 	return i, err
 }
@@ -6587,7 +6593,7 @@ VALUES (
     $3::text,
     $4::int
 )
-RETURNING id, organization_id, project_id, status, started_at, finished_at, model, memories_before, memories_after, mutations, error
+RETURNING id, organization_id, project_id, status, started_at, finished_at, model, memories_before, memories_after, mutations, error, next_window_start
 `
 
 type InsertChatMemoryConsolidationParams struct {
@@ -6617,6 +6623,7 @@ func (q *sqlQuerier) InsertChatMemoryConsolidation(ctx context.Context, arg Inse
 		&i.MemoriesAfter,
 		&i.Mutations,
 		&i.Error,
+		&i.NextWindowStart,
 	)
 	return i, err
 }

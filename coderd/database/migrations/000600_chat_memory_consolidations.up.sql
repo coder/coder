@@ -16,7 +16,11 @@ CREATE TABLE chat_memory_consolidations (
     memories_before int NOT NULL DEFAULT 0,
     memories_after int NOT NULL DEFAULT 0,
     mutations jsonb NOT NULL DEFAULT '[]',
-    error text NOT NULL DEFAULT ''
+    error text NOT NULL DEFAULT '',
+    -- Where the next run should start reading candidates when this run
+    -- could not fit every candidate into the model input. Zero means the
+    -- whole set was covered.
+    next_window_start int NOT NULL DEFAULT 0
 );
 
 COMMENT ON TABLE chat_memory_consolidations IS 'Bounded journal of detached project memory consolidation runs.';
