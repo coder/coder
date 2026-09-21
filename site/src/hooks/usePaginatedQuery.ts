@@ -317,7 +317,9 @@ export function usePaginatedQuery<
 			}
 		},
 
-		...(query.isSuccess
+		// A failed refetch keeps the previous page, so the pagination info must
+		// stay available alongside the error instead of falling back to loading.
+		...(query.data !== undefined
 			? {
 					isSuccess: true,
 					hasNextPage,
