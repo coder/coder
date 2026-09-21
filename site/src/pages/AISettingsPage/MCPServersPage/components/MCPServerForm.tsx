@@ -1,6 +1,5 @@
 import { useFormik } from "formik";
 import { type FC, type ReactNode, useState } from "react";
-import { flushSync } from "react-dom";
 import type * as TypesGen from "#/api/typesGenerated";
 import { useUnsavedChangesPrompt } from "#/hooks/useUnsavedChangesPrompt";
 import { MCPServerFormDialogs } from "./MCPServerFormDialogs";
@@ -15,10 +14,6 @@ import {
 	type MCPServerFormValues,
 } from "./mcpServerFormLogic";
 
-export type MCPServerFormSaveResult = {
-	afterSave?: () => void;
-};
-
 type MCPServerFormCreateProps = {
 	server?: undefined;
 	// Create-only callers cannot open the server list, so the back link and
@@ -26,16 +21,14 @@ type MCPServerFormCreateProps = {
 	listPath?: string;
 	isSaving: boolean;
 	isDeleting?: false;
-	isRegeneratingSigningSecret?: false;
 	canSelectUserOIDC: boolean;
 	organizationPicker?: ReactNode;
 	canShareServer?: false;
 	onCreateServer: (
 		req: TypesGen.CreateMCPServerConfigRequest,
-	) => Promise<MCPServerFormSaveResult | undefined>;
+	) => Promise<unknown>;
 	onUpdateServer?: undefined;
 	onDeleteServer?: undefined;
-	onRegenerateSigningSecret?: undefined;
 	onToggleEnabled?: undefined;
 	onCancel?: () => void;
 };
@@ -45,7 +38,6 @@ type MCPServerFormEditProps = {
 	listPath: string;
 	isSaving: boolean;
 	isDeleting: boolean;
-	isRegeneratingSigningSecret: boolean;
 	canSelectUserOIDC: boolean;
 	organizationPicker?: ReactNode;
 	canShareServer?: boolean;
@@ -53,9 +45,8 @@ type MCPServerFormEditProps = {
 	onUpdateServer?: (
 		serverId: string,
 		req: TypesGen.UpdateMCPServerConfigRequest,
-	) => Promise<MCPServerFormSaveResult | undefined>;
+	) => Promise<unknown>;
 	onDeleteServer?: (serverId: string) => Promise<void>;
-	onRegenerateSigningSecret?: () => void;
 	onToggleEnabled?: (enabled: boolean) => void;
 	onCancel: () => void;
 };
@@ -67,14 +58,12 @@ export const MCPServerForm: FC<MCPServerFormProps> = ({
 	listPath,
 	isSaving,
 	isDeleting = false,
-	isRegeneratingSigningSecret = false,
 	canSelectUserOIDC,
 	organizationPicker,
 	canShareServer = false,
 	onCreateServer,
 	onUpdateServer,
 	onDeleteServer,
-	onRegenerateSigningSecret,
 	onToggleEnabled,
 	onCancel,
 }) => {
@@ -85,41 +74,28 @@ export const MCPServerForm: FC<MCPServerFormProps> = ({
 	const [showBehavior, setShowBehavior] = useState(false);
 	const [confirmingDelete, setConfirmingDelete] = useState(false);
 	const [sharingOpen, setSharingOpen] = useState(false);
-	const [
-		confirmingRegenerateSigningSecret,
-		setConfirmingRegenerateSigningSecret,
-	] = useState(false);
 
 	const form = useFormik<MCPServerFormValues>({
 		initialValues: buildInitialMCPServerFormValues(server),
-		onSubmit: async (values, helpers) => {
+		onSubmit: async (values) => {
 			if (isSaving) return;
-			let result: MCPServerFormSaveResult | undefined;
 			if (server && onUpdateServer) {
-				result = await onUpdateServer(
+				await onUpdateServer(
 					server.id,
 					buildUpdateMCPServerConfigRequest(values),
 				);
 			} else if (onCreateServer) {
-				result = await onCreateServer(
+				const created = await onCreateServer(
 					buildCreateMCPServerConfigRequest(values),
 				);
-			}
-			if (!result) return;
-			// Commit the clean baseline before deferred navigation so the route
-			// blocker does not observe stale dirty state.
-			flushSync(() => {
-				if (isEditing) {
-					helpers.resetForm({ values });
-				} else {
-					helpers.resetForm();
+				if (created === true) {
+					form.resetForm();
 				}
-			});
-			result.afterSave?.();
+			}
 		},
 	});
 
-	const isDisabled = isSaving || isDeleting || isRegeneratingSigningSecret;
+	const isDisabled = isSaving || isDeleting;
 	const areFieldsDisabled =
 		isDisabled || (isEditing && onUpdateServer === undefined);
 	// Editing requires a change before submitting, matching the provider form.
@@ -144,11 +120,6 @@ export const MCPServerForm: FC<MCPServerFormProps> = ({
 				isDisabled={isDisabled}
 				onRequestDelete={
 					onDeleteServer ? () => setConfirmingDelete(true) : undefined
-				}
-				onRequestRegenerateSigningSecret={
-					onRegenerateSigningSecret
-						? () => setConfirmingRegenerateSigningSecret(true)
-						: undefined
 				}
 				onShareServer={canShareServer ? () => setSharingOpen(true) : undefined}
 				onToggleEnabled={onToggleEnabled}
@@ -186,11 +157,6 @@ export const MCPServerForm: FC<MCPServerFormProps> = ({
 				setConfirmingDelete={setConfirmingDelete}
 				onDeleteServer={onDeleteServer}
 				isDeleting={isDeleting}
-				confirmingRegenerateSigningSecret={confirmingRegenerateSigningSecret}
-				setConfirmingRegenerateSigningSecret={
-					setConfirmingRegenerateSigningSecret
-				}
-				onRegenerateSigningSecret={onRegenerateSigningSecret}
 				unsavedChanges={unsavedChanges}
 			/>
 		</>

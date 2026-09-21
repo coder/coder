@@ -7505,52 +7505,6 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v2/organizations/{organization}/mcp-servers/{mcpserverconfig}/regenerate-signing-secret": {
-            "post": {
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "MCP"
-                ],
-                "summary": "Regenerate MCP server config signing secret",
-                "operationId": "regenerate-mcp-server-config-signing-secret",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Organization ID",
-                        "name": "organization",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "MCP server config ID",
-                        "name": "mcpserverconfig",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.MCPServerConfig"
-                        }
-                    }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "x-apidocgen": {
-                    "skip": true
-                }
-            }
-        },
         "/api/v2/organizations/{organization}/members": {
             "get": {
                 "produces": [
@@ -22200,6 +22154,10 @@ const docTemplate = `{
                 "oauth2_token_url": {
                     "type": "string"
                 },
+                "signing_secret": {
+                    "description": "SigningSecret signs forwarded identity headers and request bodies.\nConfigure the same secret on the MCP server. It is never returned.",
+                    "type": "string"
+                },
                 "slug": {
                     "type": "string"
                 },
@@ -24721,10 +24679,6 @@ const docTemplate = `{
                 "organization_id": {
                     "type": "string",
                     "format": "uuid"
-                },
-                "signing_secret": {
-                    "description": "SigningSecret is returned only by the mutation that generated it.",
-                    "type": "string"
                 },
                 "slug": {
                     "type": "string"
@@ -29902,6 +29856,10 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "oauth2_token_url": {
+                    "type": "string"
+                },
+                "signing_secret": {
+                    "description": "SigningSecret replaces the shared signing key. Omit to preserve it;\nan empty string clears it. It is never returned.",
                     "type": "string"
                 },
                 "slug": {

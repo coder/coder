@@ -195,19 +195,6 @@ SET
 WHERE
     id = @id::uuid;
 
--- name: UpdateMCPServerConfigSigningSecret :one
-UPDATE
-    mcp_server_configs
-SET
-    signing_secret = @signing_secret::text,
-    signing_secret_key_id = sqlc.narg('signing_secret_key_id')::text,
-    updated_by = @updated_by::uuid,
-    updated_at = NOW()
-WHERE
-    id = @id::uuid
-RETURNING
-    *;
-
 -- name: DeleteMCPServerConfigByID :exec
 DELETE FROM
     mcp_server_configs

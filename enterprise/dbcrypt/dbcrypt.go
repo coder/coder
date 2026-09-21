@@ -883,23 +883,6 @@ func (db *dbCrypt) UpdateMCPServerConfig(ctx context.Context, params database.Up
 	return cfg, nil
 }
 
-func (db *dbCrypt) UpdateMCPServerConfigSigningSecret(ctx context.Context, params database.UpdateMCPServerConfigSigningSecretParams) (database.MCPServerConfig, error) {
-	if strings.TrimSpace(params.SigningSecret) == "" {
-		params.SigningSecretKeyID = sql.NullString{}
-	} else if err := db.encryptField(&params.SigningSecret, &params.SigningSecretKeyID); err != nil {
-		return database.MCPServerConfig{}, err
-	}
-
-	cfg, err := db.Store.UpdateMCPServerConfigSigningSecret(ctx, params)
-	if err != nil {
-		return database.MCPServerConfig{}, err
-	}
-	if err := db.decryptMCPServerConfig(&cfg); err != nil {
-		return database.MCPServerConfig{}, err
-	}
-	return cfg, nil
-}
-
 func (db *dbCrypt) UpsertMCPServerUserToken(ctx context.Context, params database.UpsertMCPServerUserTokenParams) (database.MCPServerUserToken, error) {
 	if strings.TrimSpace(params.AccessToken) == "" {
 		params.AccessTokenKeyID = sql.NullString{}

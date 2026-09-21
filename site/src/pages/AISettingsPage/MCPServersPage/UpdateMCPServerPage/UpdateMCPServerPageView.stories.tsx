@@ -7,7 +7,10 @@ import { MockCoderMCPServer } from "../testFixtures";
 import UpdateMCPServerPageView from "./UpdateMCPServerPageView";
 
 const onUpdateServer = fn(
-	async (_id: string, _req: TypesGen.UpdateMCPServerConfigRequest) => ({}),
+	async (
+		_id: string,
+		req: TypesGen.UpdateMCPServerConfigRequest,
+	): Promise<unknown> => req,
 );
 
 const meta: Meta<typeof UpdateMCPServerPageView> = {
@@ -19,12 +22,10 @@ const meta: Meta<typeof UpdateMCPServerPageView> = {
 		organization: MockDefaultOrganization,
 		listPath: "/ai/settings/mcp-servers",
 		isSaving: false,
-		isRegeneratingSigningSecret: false,
 		canSelectUserOIDC: true,
 		isDeleting: false,
 		onUpdateServer,
 		onDeleteServer: fn(async () => undefined),
-		onRegenerateSigningSecret: fn(),
 		onToggleEnabled: fn(),
 		onCancel: fn(),
 	},
@@ -77,12 +78,10 @@ export const Default: Story = {
 	},
 };
 
-export const RegenerateSigningSecret: Story = {
+export const SigningSecret: Story = {
 	play: async ({ canvasElement }) => {
 		await userEvent.click(
-			within(canvasElement).getByRole("button", {
-				name: "Regenerate signing secret",
-			}),
+			within(canvasElement).getByRole("button", { name: /behavior/i }),
 		);
 	},
 };
@@ -113,7 +112,6 @@ export const UserOIDCRequiresDeploymentPermission: Story = {
 export const DeleteOnly: Story = {
 	args: {
 		onUpdateServer: undefined,
-		onRegenerateSigningSecret: undefined,
 		onToggleEnabled: undefined,
 	},
 	play: async ({ canvasElement }) => {
@@ -145,7 +143,6 @@ export const ShareOnlyAccess: Story = {
 		canShareServer: true,
 		onUpdateServer: undefined,
 		onDeleteServer: undefined,
-		onRegenerateSigningSecret: undefined,
 		onToggleEnabled: undefined,
 	},
 	play: async ({ canvasElement }) => {
@@ -169,7 +166,6 @@ export const NoShareReadOnlyAccess: Story = {
 		canShareServer: false,
 		onUpdateServer: undefined,
 		onDeleteServer: undefined,
-		onRegenerateSigningSecret: undefined,
 		onToggleEnabled: undefined,
 	},
 	play: async ({ canvasElement }) => {

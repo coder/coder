@@ -6,7 +6,6 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
-	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -63,6 +62,10 @@ type recordedMCPRequest struct {
 func newSigningTestMCPServer(t *testing.T, signingSecret string) (*httptest.Server, <-chan recordedMCPRequest) {
 	t.Helper()
 
+	srv := mcp.NewServer(&mcp.Implementation{Name: "signed", Version: "1.0.0"}, nil)
+	tool := makeTool("ping")
+	srv.AddTool(tool.tool, tool.handler)
+	mcpHandler := mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server { return srv }, nil)
 	recorded := make(chan recordedMCPRequest, 16)
 	handler := http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 		body, err := io.ReadAll(r.Body)
@@ -85,32 +88,8 @@ func newSigningTestMCPServer(t *testing.T, signingSecret string) (*httptest.Serv
 			return
 		}
 
-		switch r.Method {
-		case http.MethodGet:
-			rw.WriteHeader(http.StatusMethodNotAllowed)
-			return
-		case http.MethodPost:
-		default:
-			rw.WriteHeader(http.StatusMethodNotAllowed)
-			return
-		}
-
-		rw.Header().Set("Content-Type", "application/json")
-		switch rpcRequest.Method {
-		case "server/discover":
-			_, _ = fmt.Fprintf(rw, `{"jsonrpc":"2.0","id":%s,"error":{"code":-32601,"message":"method not found"}}`, rpcRequest.ID)
-		case "initialize":
-			rw.Header().Set("Mcp-Session-Id", "test-session")
-			_, _ = fmt.Fprintf(rw, `{"jsonrpc":"2.0","id":%s,"result":{"protocolVersion":"2025-06-18","capabilities":{"tools":{}},"serverInfo":{"name":"test-server","version":"1.0.0"}}}`, rpcRequest.ID)
-		case "notifications/initialized":
-			rw.WriteHeader(http.StatusAccepted)
-		case "tools/list":
-			_, _ = fmt.Fprintf(rw, `{"jsonrpc":"2.0","id":%s,"result":{"tools":[{"name":"ping","description":"test tool","inputSchema":{"type":"object"}}]}}`, rpcRequest.ID)
-		case "tools/call":
-			_, _ = fmt.Fprintf(rw, `{"jsonrpc":"2.0","id":%s,"result":{"content":[{"type":"text","text":"ok"}],"isError":false}}`, rpcRequest.ID)
-		default:
-			_, _ = fmt.Fprintf(rw, `{"jsonrpc":"2.0","id":%s,"error":{"code":-32601,"message":"method not found"}}`, rpcRequest.ID)
-		}
+		r.Body = io.NopCloser(strings.NewReader(string(body)))
+		mcpHandler.ServeHTTP(rw, r)
 	})
 
 	server := httptest.NewServer(handler)

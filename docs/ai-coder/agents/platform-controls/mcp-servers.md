@@ -165,19 +165,21 @@ When the server config has a signing secret, Coder also signs the request body a
 
 Coder sends the same identity headers to LLM providers, so a first-party MCP server can correlate a tool call with the originating chat.
 
-### Manage the signing secret
+### Configure request signing
 
-Coder generates a 32-byte random signing secret when you create or update a server with **Forward Coder identity headers** enabled and the server has no secret.
-The mutation response returns the hexadecimal `signing_secret` once.
-Later list and get responses omit `signing_secret` and return only `has_signing_secret`.
+Enable **Forward Coder identity headers** and enter a **Signing secret** under **Behavior**.
+Generate a strong random secret, for example with `openssl rand -hex 32`, and configure the same secret on the MCP server.
+Use the hexadecimal text as the HMAC key, not the decoded bytes.
+Without a secret, forwarding remains unsigned.
+
+The existing create and update APIs accept `signing_secret`.
+Coder never returns it; responses expose only `has_signing_secret`.
+Omitting it in an update preserves the stored value; an explicit empty string clears it.
+In the UI, leaving the secret field unchanged or blank preserves the existing secret.
 
 > [!WARNING]
-> Copy the signing secret before you close the response.
-> Coder cannot display the same secret again, so losing it requires regeneration and receiver reconfiguration.
-
-To replace the secret in the UI, select **Regenerate signing secret** on the server settings page and confirm the change.
-You can also send `POST /api/v2/organizations/{organization}/mcp-servers/{id}/regenerate-signing-secret`.
-The response returns the new `signing_secret` once, and the old secret stops verifying requests immediately.
+> Coordinate secret changes with the MCP server.
+> Requests fail verification when Coder and the MCP server use different secrets.
 
 ### Signature format
 
@@ -207,68 +209,7 @@ Coder signs the effective header value that the request sends.
 ### Verify signatures
 
 The receiver must hash the raw request body before JSON parsing or other transformations.
-The following TypeScript example verifies the signature and enforces a 300-second timestamp window:
-
-```ts
-import { createHash, createHmac, timingSafeEqual } from "node:crypto";
-
-type VerifyCoderRequest = {
-  method: string;
-  pathWithQuery: string;
-  rawBody: Uint8Array;
-  headers: Headers;
-  signingSecret: string;
-  nowSeconds?: number;
-};
-
-export function verifyCoderRequest({
-  method,
-  pathWithQuery,
-  rawBody,
-  headers,
-  signingSecret,
-  nowSeconds = Math.floor(Date.now() / 1000),
-}: VerifyCoderRequest): boolean {
-  const timestamp = headers.get("x-coder-signature-timestamp") ?? "";
-  const received = headers.get("x-coder-signature") ?? "";
-  if (!/^\d+$/.test(timestamp) || !received.startsWith("v1=")) {
-    return false;
-  }
-
-  const timestampSeconds = Number(timestamp);
-  if (
-    !Number.isSafeInteger(timestampSeconds) ||
-    Math.abs(nowSeconds - timestampSeconds) > 300
-  ) {
-    return false;
-  }
-
-  const bodyHash = createHash("sha256").update(rawBody).digest("hex");
-  const canonical = [
-    "v1",
-    timestamp,
-    method.toUpperCase(),
-    pathWithQuery,
-    bodyHash,
-    `owner=${headers.get("x-coder-owner-id") ?? ""}`,
-    `chat=${headers.get("x-coder-chat-id") ?? ""}`,
-    `subchat=${headers.get("x-coder-subchat-id") ?? ""}`,
-    `workspace=${headers.get("x-coder-workspace-id") ?? ""}`,
-  ].join("\n");
-  const expected = `v1=${createHmac("sha256", signingSecret)
-    .update(canonical)
-    .digest("hex")}`;
-  const receivedBytes = Buffer.from(received, "utf8");
-  const expectedBytes = Buffer.from(expected, "utf8");
-
-  return (
-    receivedBytes.length === expectedBytes.length &&
-    timingSafeEqual(receivedBytes, expectedBytes)
-  );
-}
-```
-
-Use the raw request target for `pathWithQuery`, including its leading slash and query string.
+Use the raw request target, including its leading slash and query string, in the canonical string.
 Receivers MUST use constant-time comparison for the signature.
 Receivers MUST treat the identity headers as trustworthy only after signature verification succeeds.
 Reject requests when the timestamp differs from the receiver's current time by more than 300 seconds.
@@ -279,13 +220,13 @@ Enable it only for first-party or trusted internal MCP servers.
 
 ## Permissions
 
-| Action                                                   | Required role              |
-|----------------------------------------------------------|----------------------------|
-| Create, update, delete, or regenerate the signing secret | Organization admin         |
-| View enabled servers                                     | Member granted through ACL |
-| OAuth2 connect                                           | Member granted through ACL |
-| OAuth2 disconnect                                        | Token owner                |
-| Manage ACLs                                              | Organization admin         |
+| Action                    | Required role              |
+|---------------------------|----------------------------|
+| Create, update, or delete | Organization admin         |
+| View enabled servers      | Member granted through ACL |
+| OAuth2 connect            | Member granted through ACL |
+| OAuth2 disconnect         | Token owner                |
+| Manage ACLs               | Organization admin         |
 
 Disconnect only needs a valid session: users removed from the ACL or the
 organization can still delete their stored token and revoke the provider

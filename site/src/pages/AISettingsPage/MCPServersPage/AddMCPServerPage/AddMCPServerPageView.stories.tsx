@@ -17,7 +17,7 @@ const meta: Meta<typeof AddMCPServerPageView> = {
 		organization: MockDefaultOrganization,
 		onSelectOrganization: fn(),
 		onCreateServer: fn(
-			async (_req: TypesGen.CreateMCPServerConfigRequest) => ({}),
+			async (_req: TypesGen.CreateMCPServerConfigRequest) => true,
 		),
 		onCancel: fn(),
 	},

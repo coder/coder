@@ -1142,30 +1142,6 @@ func TestMCPServerConfigs(t *testing.T) {
 	})
 }
 
-func TestMCPServerConfigSigningSecretUpdate(t *testing.T) {
-	t.Parallel()
-
-	ctx := context.Background()
-	db, crypt, ciphers := setup(t)
-	cfg := dbgen.MCPServerConfig(t, crypt, database.MCPServerConfig{
-		SigningSecret: "initial-signing-secret",
-	})
-
-	const regeneratedSigningSecret = "regenerated-signing-secret"
-	updated, err := crypt.UpdateMCPServerConfigSigningSecret(ctx, database.UpdateMCPServerConfigSigningSecretParams{
-		ID:            cfg.ID,
-		SigningSecret: regeneratedSigningSecret,
-		UpdatedBy:     cfg.CreatedBy.UUID,
-	})
-	require.NoError(t, err)
-	require.Equal(t, regeneratedSigningSecret, updated.SigningSecret)
-	require.Equal(t, ciphers[0].HexDigest(), updated.SigningSecretKeyID.String)
-
-	raw, err := db.GetMCPServerConfigByID(ctx, cfg.ID)
-	require.NoError(t, err)
-	requireEncryptedEquals(t, ciphers[0], raw.SigningSecret, regeneratedSigningSecret)
-}
-
 func requireAIProviderDecrypted(
 	t *testing.T,
 	provider database.AIProvider,

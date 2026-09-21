@@ -78,7 +78,6 @@ func httpClientWithHeaders(base *http.Client, headers map[string]string, signing
 		base:          base.Transport,
 		headers:       headers,
 		signingSecret: signingSecret,
-		now:           time.Now,
 	}
 	return &client
 }
@@ -87,7 +86,6 @@ type signingRoundTripper struct {
 	base          http.RoundTripper
 	headers       map[string]string
 	signingSecret string
-	now           func() time.Time
 }
 
 func (s *signingRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
@@ -100,7 +98,7 @@ func (s *signingRoundTripper) RoundTrip(req *http.Request) (*http.Response, erro
 		if err != nil {
 			return nil, xerrors.Errorf("buffer MCP request body: %w", err)
 		}
-		timestamp := strconv.FormatInt(s.now().Unix(), 10)
+		timestamp := strconv.FormatInt(time.Now().Unix(), 10)
 		clone.Header.Set(HeaderCoderSignatureTimestamp, timestamp)
 		clone.Header.Set(HeaderCoderSignature, signMCPRequest(
 			s.signingSecret,
@@ -115,42 +113,27 @@ func bufferRequestBody(req, clone *http.Request) ([]byte, error) {
 		return nil, nil
 	}
 
+	reader := req.Body
 	if req.GetBody != nil {
-		bodyReader, err := req.GetBody()
+		var err error
+		reader, err = req.GetBody()
 		if err != nil {
 			return nil, err
 		}
-		defer bodyReader.Close()
-		body, err := io.ReadAll(bodyReader)
-		if err != nil {
-			return nil, err
-		}
-		getBody := func() (io.ReadCloser, error) {
-			return io.NopCloser(bytes.NewReader(body)), nil
-		}
-		clone.Body, err = getBody()
-		if err != nil {
-			return nil, err
-		}
-		clone.GetBody = getBody
-		return body, nil
 	}
-
-	body, err := io.ReadAll(req.Body)
+	body, err := io.ReadAll(reader)
+	_ = reader.Close()
 	if err != nil {
 		return nil, err
 	}
-	_ = req.Body.Close()
 	getBody := func() (io.ReadCloser, error) {
 		return io.NopCloser(bytes.NewReader(body)), nil
 	}
-	req.Body = io.NopCloser(bytes.NewReader(body))
-	req.GetBody = getBody
-	cloneBody, err := getBody()
-	if err != nil {
-		return nil, err
+	if req.GetBody == nil {
+		req.Body = io.NopCloser(bytes.NewReader(body))
+		req.GetBody = getBody
 	}
-	clone.Body = cloneBody
+	clone.Body = io.NopCloser(bytes.NewReader(body))
 	clone.GetBody = getBody
 	return body, nil
 }

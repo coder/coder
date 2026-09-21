@@ -31,19 +31,12 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/x/chatd/mcpclient"
 	"github.com/coder/coder/v2/codersdk"
-	"github.com/coder/coder/v2/cryptorand"
 	"github.com/coder/safedial"
 )
 
 // mcpProtocolVersion is copied from the official SDK, which does not export
 // protocol version constants.
 const mcpProtocolVersion = "2026-07-28"
-
-const mcpServerSigningSecretBytes = 32
-
-func generateMCPServerSigningSecret() (string, error) {
-	return cryptorand.HexString(mcpServerSigningSecretBytes * 2)
-}
 
 // oidcMCPTokenSource implements mcpclient.UserOIDCTokenSource using
 // the same refresh strategy as provisionerdserver.ObtainOIDCAccessToken.
@@ -337,19 +330,6 @@ func (api *API) createMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	var signingSecret string
-	if req.ForwardCoderHeaders {
-		var err error
-		signingSecret, err = generateMCPServerSigningSecret()
-		if err != nil {
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Failed to generate MCP server signing secret.",
-				Detail:  err.Error(),
-			})
-			return
-		}
-	}
-
 	configID := uuid.New()
 
 	// Validate auth-type-dependent fields.
@@ -489,7 +469,7 @@ func (api *API) createMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 		APIKeyValueKeyID:        sql.NullString{},
 		CustomHeaders:           customHeadersJSON,
 		CustomHeadersKeyID:      sql.NullString{},
-		SigningSecret:           signingSecret,
+		SigningSecret:           strings.TrimSpace(req.SigningSecret),
 		SigningSecretKeyID:      sql.NullString{},
 		ToolAllowList:           coalesceStringSlice(trimStringSlice(req.ToolAllowList)),
 		ToolDenyList:            coalesceStringSlice(trimStringSlice(req.ToolDenyList)),
@@ -530,7 +510,7 @@ func (api *API) createMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 
 	aReq.New = inserted
 
-	httpapi.Write(ctx, rw, http.StatusCreated, convertMCPServerConfigWithSigningSecret(inserted, signingSecret))
+	httpapi.Write(ctx, rw, http.StatusCreated, convertMCPServerConfig(inserted))
 }
 
 // @Summary Get MCP server config
@@ -698,10 +678,7 @@ func (api *API) updateMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	var (
-		updated                database.MCPServerConfig
-		generatedSigningSecret string
-	)
+	var updated database.MCPServerConfig
 	err := api.Database.InTx(func(tx database.Store) error {
 		// Lock and re-fetch the row so omitted fields and the audit baseline
 		// match the row this update replaces, and so grant invalidation
@@ -809,6 +786,13 @@ func (api *API) updateMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 			customHeadersKeyID = sql.NullString{}
 		}
 
+		signingSecret := existing.SigningSecret
+		signingSecretKeyID := existing.SigningSecretKeyID
+		if req.SigningSecret != nil {
+			signingSecret = strings.TrimSpace(*req.SigningSecret)
+			signingSecretKeyID = sql.NullString{}
+		}
+
 		toolAllowList := existing.ToolAllowList
 		if req.ToolAllowList != nil {
 			toolAllowList = coalesceStringSlice(trimStringSlice(*req.ToolAllowList))
@@ -842,17 +826,6 @@ func (api *API) updateMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 		forwardCoderHeaders := existing.ForwardCoderHeaders
 		if req.ForwardCoderHeaders != nil {
 			forwardCoderHeaders = *req.ForwardCoderHeaders
-		}
-
-		signingSecret := existing.SigningSecret
-		signingSecretKeyID := existing.SigningSecretKeyID
-		if forwardCoderHeaders && signingSecret == "" {
-			signingSecret, err = generateMCPServerSigningSecret()
-			if err != nil {
-				return xerrors.Errorf("generate MCP server signing secret: %w", err)
-			}
-			signingSecretKeyID = sql.NullString{}
-			generatedSigningSecret = signingSecret
 		}
 
 		// When auth_type changes, clear fields belonging to the
@@ -1000,83 +973,7 @@ func (api *API) updateMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 
 	aReq.New = updated
 
-	httpapi.Write(ctx, rw, http.StatusOK, convertMCPServerConfigWithSigningSecret(updated, generatedSigningSecret))
-}
-
-// EXPERIMENTAL: this endpoint is experimental and is subject to change.
-//
-// @Summary Regenerate MCP server config signing secret
-// @ID regenerate-mcp-server-config-signing-secret
-// @Security CoderSessionToken
-// @Tags MCP
-// @Produce json
-// @Param organization path string true "Organization ID" format(uuid)
-// @Param mcpserverconfig path string true "MCP server config ID" format(uuid)
-// @Success 200 {object} codersdk.MCPServerConfig
-// @Router /api/v2/organizations/{organization}/mcp-servers/{mcpserverconfig}/regenerate-signing-secret [post]
-// @x-apidocgen {"skip": true}
-//
-//nolint:revive // HTTP handler writes to ResponseWriter.
-func (api *API) regenerateMCPServerConfigSigningSecret(rw http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	apiKey := httpmw.APIKey(r)
-	auditor := api.Auditor.Load()
-	aReq, commitAudit := audit.InitRequest[database.MCPServerConfig](rw, &audit.RequestParams{
-		Audit:   *auditor,
-		Log:     api.Logger,
-		Request: r,
-		Action:  database.AuditActionWrite,
-	})
-	defer commitAudit()
-
-	aReq.Old = httpmw.MCPServerConfigParam(r)
-	aReq.UpdateOrganizationID(aReq.Old.OrganizationID)
-
-	existing, ok := api.getMCPServerConfigForMutation(rw, r, policy.ActionUpdate)
-	if !ok {
-		return
-	}
-
-	signingSecret, err := generateMCPServerSigningSecret()
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to generate MCP server signing secret.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	var updated database.MCPServerConfig
-	err = api.Database.InTx(func(tx database.Store) error {
-		//nolint:gocritic // The update write reauthorizes the locked row.
-		current, err := tx.GetMCPServerConfigByIDForUpdate(dbauthz.AsSystemRestricted(ctx), existing.ID)
-		if err != nil {
-			return err
-		}
-		aReq.Old = current
-
-		updated, err = tx.UpdateMCPServerConfigSigningSecret(ctx, database.UpdateMCPServerConfigSigningSecretParams{
-			ID:                 current.ID,
-			SigningSecret:      signingSecret,
-			SigningSecretKeyID: sql.NullString{},
-			UpdatedBy:          apiKey.UserID,
-		})
-		return err
-	}, nil)
-	if err != nil {
-		if httpapi.Is404Error(err) {
-			httpapi.ResourceNotFound(rw)
-			return
-		}
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to regenerate MCP server signing secret.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	aReq.New = updated
-	httpapi.Write(ctx, rw, http.StatusOK, convertMCPServerConfigWithSigningSecret(updated, signingSecret))
+	httpapi.Write(ctx, rw, http.StatusOK, convertMCPServerConfig(updated))
 }
 
 // @Summary Delete MCP server config
@@ -1745,12 +1642,6 @@ func convertMCPServerConfig(config database.MCPServerConfig) codersdk.MCPServerC
 		// calling user's token state (list/get) overwrite this.
 		AuthConnected: config.AuthType != "oauth2",
 	}
-}
-
-func convertMCPServerConfigWithSigningSecret(config database.MCPServerConfig, signingSecret string) codersdk.MCPServerConfig {
-	converted := convertMCPServerConfig(config)
-	converted.SigningSecret = signingSecret
-	return converted
 }
 
 // convertMCPServerConfigRedacted is the same as convertMCPServerConfig

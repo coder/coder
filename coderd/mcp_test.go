@@ -5,7 +5,6 @@ import (
 	"crypto/sha256"
 	"database/sql"
 	"encoding/base64"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"net"
@@ -246,122 +245,61 @@ func TestMCPServerConfigsCRUD(t *testing.T) {
 	require.Empty(t, configs)
 }
 
-func TestMCPServerConfigSigningSecretDisplayOnce(t *testing.T) {
+func TestMCPServerConfigSigningSecret(t *testing.T) {
 	t.Parallel()
-
 	ctx := testutil.Context(t, testutil.WaitLong)
-	client := newMCPClient(t)
+	db, pubsub := dbtestutil.NewDB(t)
+	client := coderdtest.New(t, &coderdtest.Options{Database: db, Pubsub: pubsub})
 	firstUser := coderdtest.CreateFirstUser(t, client)
+	path := "/api/v2/organizations/" + firstUser.OrganizationID.String() + "/mcp-servers"
+	secret := strings.Repeat("a", 64)
 
-	requireSigningSecret := func(t *testing.T, secret string) {
+	request := func(method, path string, body any, status int) codersdk.MCPServerConfig {
 		t.Helper()
-		require.Len(t, secret, 64)
-		decoded, err := hex.DecodeString(secret)
-		require.NoError(t, err)
-		require.Len(t, decoded, 32)
-	}
-	assertReadRedacted := func(t *testing.T, id uuid.UUID) {
-		t.Helper()
-		config, err := client.MCPServerConfigByID(ctx, firstUser.OrganizationID, id)
-		require.NoError(t, err)
-		require.True(t, config.HasSigningSecret)
-		require.Empty(t, config.SigningSecret)
-
-		path := "/api/experimental/organizations/" + firstUser.OrganizationID.String() + "/mcp-servers/" + id.String()
-		res, err := client.Request(ctx, http.MethodGet, path, nil)
+		res, err := client.Request(ctx, method, path, body)
 		require.NoError(t, err)
 		defer res.Body.Close()
-		require.Equal(t, http.StatusOK, res.StatusCode)
-		var raw map[string]json.RawMessage
-		require.NoError(t, json.NewDecoder(res.Body).Decode(&raw))
-		_, hasPlaintext := raw["signing_secret"]
-		require.False(t, hasPlaintext)
-		require.JSONEq(t, "true", string(raw["has_signing_secret"]))
+		require.Equal(t, status, res.StatusCode)
+		var response struct {
+			codersdk.MCPServerConfig
+			SigningSecret *string `json:"signing_secret"`
+		}
+		require.NoError(t, json.NewDecoder(res.Body).Decode(&response))
+		require.Nil(t, response.SigningSecret, "secrets must never be returned")
+		return response.MCPServerConfig
 	}
-
-	created, err := client.CreateMCPServerConfig(ctx, firstUser.OrganizationID, codersdk.CreateMCPServerConfigRequest{
-		DisplayName:         "Signed on Create",
-		Slug:                "signed-on-create",
-		Transport:           "streamable_http",
-		URL:                 "https://mcp.example.com/create",
-		AuthType:            "none",
-		Availability:        "default_on",
-		Enabled:             true,
-		ForwardCoderHeaders: true,
-	})
-	require.NoError(t, err)
+	created := request(http.MethodPost, path, codersdk.CreateMCPServerConfigRequest{
+		DisplayName: "Signed", Slug: "signed", Transport: "streamable_http",
+		URL: "https://mcp.example.com", AuthType: "none", Availability: "default_on",
+		Enabled: true, ForwardCoderHeaders: true, SigningSecret: secret,
+	}, http.StatusCreated)
 	require.True(t, created.HasSigningSecret)
-	requireSigningSecret(t, created.SigningSecret)
-	assertReadRedacted(t, created.ID)
+	path += "/" + created.ID.String()
 
-	enabled, err := client.CreateMCPServerConfig(ctx, firstUser.OrganizationID, codersdk.CreateMCPServerConfigRequest{
-		DisplayName:  "Signed on Enable",
-		Slug:         "signed-on-enable",
-		Transport:    "streamable_http",
-		URL:          "https://mcp.example.com/enable",
-		AuthType:     "none",
-		Availability: "default_on",
-		Enabled:      true,
-	})
-	require.NoError(t, err)
-	require.False(t, enabled.HasSigningSecret)
-	require.Empty(t, enabled.SigningSecret)
-
-	forwardCoderHeaders := true
-	enabled, err = client.UpdateMCPServerConfig(ctx, firstUser.OrganizationID, enabled.ID, codersdk.UpdateMCPServerConfigRequest{
-		ForwardCoderHeaders: &forwardCoderHeaders,
-	})
-	require.NoError(t, err)
-	require.True(t, enabled.HasSigningSecret)
-	requireSigningSecret(t, enabled.SigningSecret)
-	enabledSecret := enabled.SigningSecret
-	assertReadRedacted(t, enabled.ID)
-
-	newDisplayName := "Signed on Enable Updated"
-	enabled, err = client.UpdateMCPServerConfig(ctx, firstUser.OrganizationID, enabled.ID, codersdk.UpdateMCPServerConfigRequest{
-		DisplayName: &newDisplayName,
-	})
-	require.NoError(t, err)
-	require.True(t, enabled.HasSigningSecret)
-	require.Empty(t, enabled.SigningSecret)
-
-	regenerated, err := client.RegenerateMCPServerConfigSigningSecret(ctx, firstUser.OrganizationID, enabled.ID)
-	require.NoError(t, err)
-	require.True(t, regenerated.HasSigningSecret)
-	requireSigningSecret(t, regenerated.SigningSecret)
-	require.NotEqual(t, enabledSecret, regenerated.SigningSecret)
-	assertReadRedacted(t, enabled.ID)
-
-	configs, err := client.MCPServerConfigs(ctx, firstUser.OrganizationID)
-	require.NoError(t, err)
-	require.Len(t, configs, 2)
-	for _, config := range configs {
-		require.True(t, config.HasSigningSecret)
-		require.Empty(t, config.SigningSecret)
+	for _, tc := range []struct {
+		name string
+		req  codersdk.UpdateMCPServerConfigRequest
+		want string
+	}{
+		{"preserve", codersdk.UpdateMCPServerConfigRequest{}, secret},
+		{"replace", codersdk.UpdateMCPServerConfigRequest{SigningSecret: new(strings.Repeat("b", 64))}, strings.Repeat("b", 64)},
+		{"clear", codersdk.UpdateMCPServerConfigRequest{SigningSecret: new("")}, ""},
+	} {
+		updated := request(http.MethodPatch, path, tc.req, http.StatusOK)
+		require.Equal(t, tc.want != "", updated.HasSigningSecret)
+		stored, err := db.GetMCPServerConfigByID(ctx, created.ID)
+		require.NoError(t, err)
+		require.Equal(t, tc.want, stored.SigningSecret)
+		read := request(http.MethodGet, path, nil, http.StatusOK)
+		require.Equal(t, updated.HasSigningSecret, read.HasSigningSecret)
 	}
-}
 
-func TestMCPServerConfigRegenerateSigningSecretRBAC(t *testing.T) {
-	t.Parallel()
-
-	ctx := testutil.Context(t, testutil.WaitLong)
-	adminClient := newMCPClient(t)
-	firstUser := coderdtest.CreateFirstUser(t, adminClient)
-	memberClient, _ := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
-	config := createMCPServerConfig(t, adminClient, firstUser.OrganizationID, "signing-rbac", true)
-
-	newDisplayName := "Forbidden update"
-	_, updateErr := memberClient.UpdateMCPServerConfig(ctx, firstUser.OrganizationID, config.ID, codersdk.UpdateMCPServerConfigRequest{
-		DisplayName: &newDisplayName,
-	})
-	var updateSDKError *codersdk.Error
-	require.ErrorAs(t, updateErr, &updateSDKError)
-	require.Equal(t, http.StatusNotFound, updateSDKError.StatusCode())
-
-	_, regenerateErr := memberClient.RegenerateMCPServerConfigSigningSecret(ctx, firstUser.OrganizationID, config.ID)
-	var regenerateSDKError *codersdk.Error
-	require.ErrorAs(t, regenerateErr, &regenerateSDKError)
-	require.Equal(t, updateSDKError.StatusCode(), regenerateSDKError.StatusCode())
+	member, _ := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID)
+	_, err := member.UpdateMCPServerConfig(ctx, firstUser.OrganizationID, created.ID,
+		codersdk.UpdateMCPServerConfigRequest{SigningSecret: &secret})
+	var sdkErr *codersdk.Error
+	require.ErrorAs(t, err, &sdkErr)
+	require.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
 }
 
 func TestMCPServerConfigWrongOrganization(t *testing.T) {
@@ -456,28 +394,6 @@ func TestMCPServerConfigsAudit(t *testing.T) {
 		require.Equal(t, config.ID, logs[0].ResourceID)
 		require.Equal(t, newName, logs[0].ResourceTarget)
 		require.Equal(t, firstUser.UserID, logs[0].UserID)
-		require.Equal(t, firstUser.OrganizationID, logs[0].OrganizationID)
-		require.EqualValues(t, http.StatusOK, logs[0].StatusCode)
-	})
-
-	t.Run("RegenerateSigningSecret", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitLong)
-		client, mAudit := newAuditedMCPClient(t)
-		firstUser := coderdtest.CreateFirstUser(t, client)
-		config := createMCPServerConfig(t, client, firstUser.OrganizationID, "audit-signing-secret", true)
-
-		mAudit.ResetLogs()
-		updated, err := client.RegenerateMCPServerConfigSigningSecret(ctx, firstUser.OrganizationID, config.ID)
-		require.NoError(t, err)
-		require.NotEmpty(t, updated.SigningSecret)
-
-		logs := mAudit.AuditLogs()
-		require.Len(t, logs, 1)
-		require.Equal(t, database.AuditActionWrite, logs[0].Action)
-		require.Equal(t, database.ResourceTypeMCPServerConfig, logs[0].ResourceType)
-		require.Equal(t, config.ID, logs[0].ResourceID)
 		require.Equal(t, firstUser.OrganizationID, logs[0].OrganizationID)
 		require.EqualValues(t, http.StatusOK, logs[0].StatusCode)
 	})

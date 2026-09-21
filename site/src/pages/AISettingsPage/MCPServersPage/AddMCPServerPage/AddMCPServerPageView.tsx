@@ -2,10 +2,7 @@ import type { FC } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
 import { pageTitle } from "#/utils/page";
-import {
-	MCPServerForm,
-	type MCPServerFormSaveResult,
-} from "../components/MCPServerForm";
+import { MCPServerForm } from "../components/MCPServerForm";
 import { OrganizationPicker } from "../components/OrganizationPicker";
 import { mcpServersPath } from "../organizationParam";
 
@@ -19,7 +16,7 @@ type AddMCPServerPageViewProps = {
 	onSelectOrganization: (organization: TypesGen.Organization) => void;
 	onCreateServer: (
 		req: TypesGen.CreateMCPServerConfigRequest,
-	) => Promise<MCPServerFormSaveResult | undefined>;
+	) => Promise<unknown>;
 	onCancel: () => void;
 };
 

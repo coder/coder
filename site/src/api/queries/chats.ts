@@ -2546,17 +2546,6 @@ export const updateMCPServerConfig = (
 	},
 });
 
-export const regenerateMCPServerConfigSigningSecret = (
-	queryClient: QueryClient,
-	organization: string,
-) => ({
-	mutationFn: (id: string) =>
-		API.experimental.regenerateMCPServerConfigSigningSecret(organization, id),
-	onSuccess: async () => {
-		await invalidateMCPServerConfigQueries(queryClient);
-	},
-});
-
 export const deleteMCPServerConfig = (
 	queryClient: QueryClient,
 	organization: string,
