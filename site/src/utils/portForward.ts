@@ -1,9 +1,5 @@
 import type { WorkspaceAgentPortShareProtocol } from "#/api/typesGenerated";
 
-// Port range accepted by coderd for port shares and forwards.
-export const MIN_PORT = 9;
-export const MAX_PORT = 65535;
-
 const localHosts = new Set(["localhost", "127.0.0.1", "0.0.0.0"]);
 
 /**

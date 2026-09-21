@@ -1,6 +1,7 @@
 import { useFormik } from "formik";
 import {
 	BuildingIcon,
+	ExternalLinkIcon,
 	LockIcon,
 	LockOpenIcon,
 	RadioIcon,
@@ -38,6 +39,7 @@ import {
 	PopoverContent,
 	PopoverTrigger,
 } from "#/components/Popover/Popover";
+import { SearchField } from "#/components/SearchField/SearchField";
 import {
 	Select,
 	SelectContent,
@@ -57,12 +59,9 @@ import { docs } from "#/utils/docs";
 import { getFormHelpers } from "#/utils/formUtils";
 import {
 	getWorkspaceListeningPortsProtocol,
-	MAX_PORT,
-	MIN_PORT,
 	portForwardURL,
 	saveWorkspaceListeningPortsProtocol,
 } from "#/utils/portForward";
-import { PortPicker } from "./PortPicker";
 
 interface PortForwardButtonProps {
 	host: string;
@@ -124,6 +123,17 @@ type OpenPortFormValues = {
 	port: string;
 	protocol: WorkspaceAgentPortShareProtocol;
 	share_level: WorkspaceAgentPortShareLevel;
+};
+
+// Port range accepted by coderd for port shares and forwards.
+const MIN_PORT = 9;
+const MAX_PORT = 65535;
+
+const parsePort = (value: string): number | undefined => {
+	const port = Number.parseInt(value, 10);
+	return Number.isInteger(port) && port >= MIN_PORT && port <= MAX_PORT
+		? port
+		: undefined;
 };
 
 const openPortSchema = () =>
@@ -205,6 +215,7 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 	const [listeningPortProtocol, setListeningPortProtocol] = useState(
 		getWorkspaceListeningPortsProtocol(workspace.id),
 	);
+	const [portQuery, setPortQuery] = useState("");
 	const protocolFieldId = useId();
 	const shareLevelFieldId = useId();
 
@@ -254,6 +265,10 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 	const unsharedListeningPorts = listeningPorts.filter((port) =>
 		sharedPorts.every((sharedPort) => sharedPort.port !== port.port),
 	);
+	const filteredListeningPorts = unsharedListeningPorts.filter((port) =>
+		port.port.toString().includes(portQuery),
+	);
+	const typedPort = parsePort(portQuery);
 	// only disable the form if shared port controls are entitled and the template doesn't allow sharing ports
 	const canSharePorts = !(
 		portSharingControlsEnabled && template.max_port_share_level === "owner"
@@ -268,6 +283,16 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 		template.max_port_share_level === "organization"
 			? "organization"
 			: "authenticated";
+
+	let emptyListMessage: string | undefined;
+	if (unsharedListeningPorts.length === 0) {
+		emptyListMessage = "No open ports were detected.";
+	} else if (filteredListeningPorts.length === 0) {
+		emptyListMessage =
+			typedPort !== undefined
+				? `No listening port matches "${portQuery}". Connect to it anyway if it is not detected yet.`
+				: `No listening port matches "${portQuery}". Enter a port from ${MIN_PORT} to ${MAX_PORT} to connect.`;
+	}
 
 	return (
 		<>
@@ -286,7 +311,7 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 							The listening ports are exclusively accessible to you. Selecting
 							HTTP/S will change the protocol for all listening ports.
 						</HelpPopoverText>
-						<div className="flex flex-row gap-2 pb-2">
+						<div className="mt-2 flex items-center gap-2 pb-2">
 							<Select
 								value={listeningPortProtocol}
 								onValueChange={(value) => {
@@ -299,7 +324,7 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 							>
 								<SelectTrigger
 									aria-label="Listening port protocol"
-									className="h-[34px] min-w-[100px] mt-2 w-auto"
+									className="h-9 min-w-[100px] w-auto"
 								>
 									<SelectValue />
 								</SelectTrigger>
@@ -308,13 +333,17 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 									<SelectItem value="https">HTTPS</SelectItem>
 								</SelectContent>
 							</Select>
-							<PortPicker
-								listeningPorts={unsharedListeningPorts}
-								onConnect={(port) => {
+							<form
+								className="flex flex-1 items-center gap-2"
+								onSubmit={(event) => {
+									event.preventDefault();
+									if (typedPort === undefined) {
+										return;
+									}
 									window.open(
 										portForwardURL(
 											host,
-											port,
+											typedPort,
 											agent.name,
 											workspace.name,
 											workspace.owner_name,
@@ -323,15 +352,32 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 										"_blank",
 									);
 								}}
-							/>
+							>
+								<SearchField
+									className="h-9 flex-1 [&_input]:h-9"
+									value={portQuery}
+									onChange={setPortQuery}
+									placeholder="Filter ports..."
+									aria-label="Filter ports"
+								/>
+								<Button
+									type="submit"
+									size="sm"
+									variant="outline"
+									disabled={typedPort === undefined}
+								>
+									<ExternalLinkIcon />
+									Connect
+								</Button>
+							</form>
 						</div>
 					</div>
-					{unsharedListeningPorts.length === 0 && (
+					{emptyListMessage && (
 						<HelpPopoverText className="text-content-secondary pt-5 pb-2.5 text-center">
-							No open ports were detected.
+							{emptyListMessage}
 						</HelpPopoverText>
 					)}
-					{unsharedListeningPorts.map((port) => {
+					{filteredListeningPorts.map((port) => {
 						const url = portForwardURL(
 							host,
 							port.port,

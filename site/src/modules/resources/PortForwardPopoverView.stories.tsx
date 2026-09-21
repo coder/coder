@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { screen, userEvent, within } from "storybook/test";
+import { userEvent, within } from "storybook/test";
 import {
 	MockListeningPortsResponse,
 	MockSharedPortsResponse,
@@ -39,15 +39,11 @@ const listeningPortsWithSubstringMatch = [
 	{ process_name: "substring-match", network: "", port: 18080 },
 ];
 
-const typeInPortPicker = async (canvasElement: HTMLElement, text: string) => {
-	await userEvent.click(
-		within(canvasElement).getByRole("button", { name: "Connect to port..." }),
-	);
-	await userEvent.type(
-		screen.getByRole("combobox", { name: "Filter or enter port" }),
+const typeInPortFilter = (canvasElement: HTMLElement, text: string) =>
+	userEvent.type(
+		within(canvasElement).getByRole("textbox", { name: "Filter ports" }),
 		text,
 	);
-};
 
 export const WithPorts: Story = {
 	args: {
@@ -64,7 +60,19 @@ export const FilterPorts: Story = {
 		),
 	},
 	play: async ({ canvasElement }) => {
-		await typeInPortPicker(canvasElement, "808");
+		await typeInPortFilter(canvasElement, "808");
+	},
+};
+
+export const NoMatchingPorts: Story = {
+	play: async ({ canvasElement }) => {
+		await typeInPortFilter(canvasElement, "1234");
+	},
+};
+
+export const InvalidPort: Story = {
+	play: async ({ canvasElement }) => {
+		await typeInPortFilter(canvasElement, "5");
 	},
 };
 
@@ -82,9 +90,6 @@ export const Empty: Story = {
 	args: {
 		listeningPorts: [],
 		sharedPorts: [],
-	},
-	play: async ({ canvasElement }) => {
-		await typeInPortPicker(canvasElement, "5");
 	},
 };
 

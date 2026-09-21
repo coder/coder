@@ -1,4 +1,4 @@
-import { screen, within } from "@testing-library/react";
+import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import {
 	MockListeningPortsResponse,
@@ -40,10 +40,8 @@ const expectedURL = (port: number) =>
 		getWorkspaceListeningPortsProtocol(MockWorkspace.id),
 	);
 
-const openPortPicker = async (triggerName = "Connect to port...") => {
-	await userEvent.click(screen.getByRole("button", { name: triggerName }));
-	return screen.getByRole("dialog", { name: "Port picker" });
-};
+const typePort = (text: string) =>
+	userEvent.type(screen.getByRole("textbox", { name: "Filter ports" }), text);
 
 describe("PortForwardPopoverView", () => {
 	it("adds an accessible name to each shared-port delete button", () => {
@@ -54,52 +52,22 @@ describe("PortForwardPopoverView", () => {
 		).toHaveLength(MockSharedPortsResponse.shares.length);
 	});
 
-	it("opens the selected listening port in a new tab", async () => {
+	it("opens the typed port in a new tab and strips leading zeros", async () => {
 		const open = vi.spyOn(window, "open").mockReturnValue(null);
 		renderPopover();
 
-		const dialog = await openPortPicker();
-		await userEvent.click(within(dialog).getByRole("option", { name: /8080/ }));
-		await userEvent.click(
-			screen.getByRole("button", { name: "Connect to selected port" }),
-		);
-
-		expect(open).toHaveBeenCalledWith(expectedURL(8080), "_blank");
-	});
-
-	it("keeps the port selected when it is picked again", async () => {
-		const open = vi.spyOn(window, "open").mockReturnValue(null);
-		renderPopover();
-
-		const dialog = await openPortPicker();
-		await userEvent.click(within(dialog).getByRole("option", { name: /8080/ }));
-		const reopened = await openPortPicker("Connect to port 8080");
-		await userEvent.click(
-			within(reopened).getByRole("option", { name: /8080/ }),
-		);
-		await userEvent.click(
-			screen.getByRole("button", { name: "Connect to selected port" }),
-		);
-
-		expect(open).toHaveBeenCalledWith(expectedURL(8080), "_blank");
-	});
-
-	it("opens a custom port and strips leading zeros", async () => {
-		const open = vi.spyOn(window, "open").mockReturnValue(null);
-		renderPopover();
-
-		const dialog = await openPortPicker();
-		await userEvent.type(
-			within(dialog).getByRole("combobox", { name: "Filter or enter port" }),
-			"09999",
-		);
-		await userEvent.click(
-			within(dialog).getByRole("option", { name: "Use port 9999" }),
-		);
-		await userEvent.click(
-			screen.getByRole("button", { name: "Connect to selected port" }),
-		);
+		await typePort("09999{enter}");
 
 		expect(open).toHaveBeenCalledWith(expectedURL(9999), "_blank");
+	});
+
+	it("does not connect to a port outside the valid range", async () => {
+		const open = vi.spyOn(window, "open").mockReturnValue(null);
+		renderPopover();
+
+		await typePort("5{enter}");
+		await userEvent.click(screen.getByRole("button", { name: "Connect" }));
+
+		expect(open).not.toHaveBeenCalled();
 	});
 });
