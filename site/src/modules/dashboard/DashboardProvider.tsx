@@ -42,17 +42,6 @@ export const DashboardProvider: FC<PropsWithChildren> = ({ children }) => {
 	const buildInfoQuery = useQuery(buildInfo(metadata["build-info"]));
 	const organizationsQuery = useQuery(organizations(metadata.organizations));
 
-	const error =
-		entitlementsQuery.error ||
-		appearanceQuery.error ||
-		experimentsQuery.error ||
-		buildInfoQuery.error ||
-		organizationsQuery.error;
-
-	if (error) {
-		return <ErrorAlert error={error} />;
-	}
-
 	const isLoading =
 		!entitlementsQuery.data ||
 		!appearanceQuery.data ||
@@ -60,7 +49,20 @@ export const DashboardProvider: FC<PropsWithChildren> = ({ children }) => {
 		!buildInfoQuery.data ||
 		!organizationsQuery.data;
 
+	// A failed background refetch keeps the cached data usable, so only a
+	// missing initial load replaces the dashboard with the error.
 	if (isLoading) {
+		const error =
+			entitlementsQuery.error ||
+			appearanceQuery.error ||
+			experimentsQuery.error ||
+			buildInfoQuery.error ||
+			organizationsQuery.error;
+
+		if (error) {
+			return <ErrorAlert error={error} />;
+		}
+
 		return <Loader fullscreen />;
 	}
 
