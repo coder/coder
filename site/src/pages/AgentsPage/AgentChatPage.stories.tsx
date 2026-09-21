@@ -53,7 +53,10 @@ import {
 import { belowLgViewportMediaQuery } from "#/utils/mobile";
 import AgentChatPage from "./AgentChatPage";
 import type { AgentsPageOutletContext } from "./AgentsPageLayout";
-import { buildLongConversation } from "./components/ChatConversation/storyFixtures";
+import {
+	buildLongConversation,
+	MockWorkingMessages,
+} from "./components/ChatConversation/storyFixtures";
 import { RIGHT_PANEL_OPEN_KEY } from "./components/RightPanel/RightPanel";
 
 // ---------------------------------------------------------------------------
@@ -1572,6 +1575,34 @@ export const Loading: Story = {
 			{ messages: [], queued_messages: [], has_more: false },
 			{ diffUrl: undefined },
 		),
+	},
+};
+
+// The preference request never settles, so the capture shows the skeleton
+// still gating messages that have already loaded.
+export const ColdLoadWaitsForCollapsePreference: Story = {
+	parameters: {
+		queries: withoutQuery(
+			buildQueries(
+				{
+					id: CHAT_ID,
+					...baseChatFields,
+					title: "Cold load",
+					status: "waiting",
+				},
+				{
+					messages: MockWorkingMessages,
+					queued_messages: [],
+					has_more: false,
+				},
+			),
+			preferenceSettingsKey,
+		),
+	},
+	beforeEach: () => {
+		spyOn(API, "getUserPreferenceSettings").mockImplementation(
+			() => new Promise(() => {}),
+		);
 	},
 };
 
