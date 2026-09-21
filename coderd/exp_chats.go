@@ -3953,9 +3953,8 @@ func (api *API) resolveChatDiffContents(
 	if reference.PullRequestURL != "" {
 		pullRequestURL := strings.TrimSpace(reference.PullRequestURL)
 		result.PullRequestURL = &pullRequestURL
-		// The write must be keyed to the ref the status belongs to.
-		// Without a stored ref there is no row to key, and an empty-key
-		// row would only shadow the real rows once one is reported.
+		// The agent's report creates the row; discovery only fills in
+		// its URL. Skip until the ref has been reported.
 		if found && (!strings.EqualFold(strings.TrimSpace(status.Url.String), pullRequestURL)) {
 			err := api.Database.UpdateChatDiffStatusReferenceURL(
 				ctx,
