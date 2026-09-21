@@ -13,11 +13,11 @@ export type InfoTooltipType = "info" | "warning";
 
 type InfoTooltipSize = "small" | "medium";
 
-interface InfoTooltipProps {
+type InfoTooltipProps = {
 	type?: InfoTooltipType;
 	size?: InfoTooltipSize;
 	children: ReactNode;
-}
+};
 
 const typeIcon: Record<InfoTooltipType, typeof InfoIcon> = {
 	info: InfoIcon,

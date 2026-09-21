@@ -18,7 +18,7 @@ import {
 	PopoverTrigger,
 } from "#/components/Popover/Popover";
 
-interface CompactOrgSelectorProps {
+type CompactOrgSelectorProps = {
 	value: Organization | null;
 	onChange?: (organization: Organization) => void;
 	options: readonly Organization[];
@@ -26,7 +26,7 @@ interface CompactOrgSelectorProps {
 	className?: string;
 	dropdownSide?: "top" | "bottom" | "left" | "right";
 	dropdownAlign?: "start" | "center" | "end";
-}
+};
 
 export const CompactOrgSelector: FC<CompactOrgSelectorProps> = ({
 	value,

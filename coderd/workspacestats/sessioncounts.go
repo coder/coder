@@ -41,19 +41,22 @@ func normalizedSessionCounts(st *agentproto.Stats) map[string]int64 {
 // aggregates under AppFamilyUnknown.
 const maxSessionCountEntries = 64
 
-// capSessionCounts keeps the busiest maxSessionCountEntries names, preferring
-// known apps, and sums the rest into AppFamilyUnknown, so the result can hold
-// one name past the cap.
-func capSessionCounts(counts map[string]int64) map[string]int64 {
+// capSessionCounts keeps the busiest maxSessionCountEntries normalized names,
+// preferring known apps, and sums the rest into AppFamilyUnknown, so the
+// result can hold one name past the cap. The second return counts the names
+// summed away.
+func capSessionCounts(counts map[string]int64) (map[string]int64, int) {
 	if len(counts) <= maxSessionCountEntries {
-		return counts
+		return counts, 0
 	}
-	// Known apps rank 0, unknown 1, so known apps win the cap.
+	// Names are already normalized, so look up families directly rather
+	// than normalizing again on every sort comparison.
+	families := codersdk.SessionCountAppFamilies()
 	rank := func(name string) int {
-		if codersdk.AppNameFamily(name) == codersdk.AppFamilyUnknown {
-			return 1
+		if family, ok := families[name]; ok && family != codersdk.AppFamilyUnknown {
+			return 0
 		}
-		return 0
+		return 1
 	}
 	ranked := slices.SortedFunc(maps.Keys(counts), func(a, b string) int {
 		return cmp.Or(
@@ -66,10 +69,11 @@ func capSessionCounts(counts map[string]int64) map[string]int64 {
 	for _, name := range ranked[:maxSessionCountEntries] {
 		capped[name] = counts[name]
 	}
-	for _, name := range ranked[maxSessionCountEntries:] {
+	overflow := ranked[maxSessionCountEntries:]
+	for _, name := range overflow {
 		capped[string(codersdk.AppFamilyUnknown)] += counts[name]
 	}
-	return capped
+	return capped, len(overflow)
 }
 
 // HasSessionCounts reports whether the stats contain any active session.

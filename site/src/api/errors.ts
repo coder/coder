@@ -1,17 +1,17 @@
 import { type AxiosError, type AxiosResponse, isAxiosError } from "axios";
 
-export interface FieldError {
+export type FieldError = {
 	field: string;
 	detail: string;
-}
+};
 
 type FieldErrors = Record<FieldError["field"], FieldError["detail"]>;
 
-export interface ApiErrorResponse {
+export type ApiErrorResponse = {
 	message: string;
 	detail?: string;
 	validations?: FieldError[];
-}
+};
 
 export type ApiError = AxiosError<ApiErrorResponse> & {
 	response: AxiosResponse<ApiErrorResponse>;

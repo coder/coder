@@ -35,13 +35,13 @@ import {
 	toClockFields,
 } from "./dateTimeRange";
 
-interface DateTimeRangePickerProps {
+type DateTimeRangePickerProps = {
 	value: DateTimeRangeValue;
 	onChange: (value: DateTimeRangeValue) => void;
 	now?: Date;
 	presets?: QuickPreset[];
 	size?: ButtonProps["size"];
-}
+};
 
 const INVALID_TIME_MESSAGE = "Enter a valid time, e.g. 09:30:00";
 const RANGE_ORDER_MESSAGE = "End must be after start";
@@ -50,14 +50,14 @@ const RANGE_ORDER_MESSAGE = "End must be after start";
 // until the input is corrected.
 const ERROR_DISMISS_TIMEOUT_MS = 5_000;
 
-interface TimeFieldsState {
+type TimeFieldsState = {
 	from: string;
 	fromMeridiem: Meridiem;
 	fromTouched: boolean;
 	to: string;
 	toMeridiem: Meridiem;
 	toTouched: boolean;
-}
+};
 
 // From defaults to the start of the day and To to the end, so any
 // day-only selection spans the full final day.
@@ -354,12 +354,12 @@ export const DateTimeRangePicker: FC<DateTimeRangePickerProps> = ({
 	);
 };
 
-interface QuickPickButtonProps {
+type QuickPickButtonProps = {
 	label: string;
 	selected: boolean;
 	tabIndex: number;
 	onClick: () => void;
-}
+};
 
 const QuickPickButton: FC<QuickPickButtonProps> = ({
 	label,
@@ -386,7 +386,7 @@ const QuickPickButton: FC<QuickPickButtonProps> = ({
 	</button>
 );
 
-interface TimeRowProps {
+type TimeRowProps = {
 	id: string;
 	label: string;
 	time: string;
@@ -396,7 +396,7 @@ interface TimeRowProps {
 	onTimeChange: (time: string) => void;
 	onBlur: () => void;
 	onMeridiemChange: (meridiem: Meridiem) => void;
-}
+};
 
 const TimeRow: FC<TimeRowProps> = ({
 	id,

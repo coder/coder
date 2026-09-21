@@ -20,13 +20,13 @@ const getMotionComponent = (element: keyof JSX.IntrinsicElements) => {
 	return component;
 };
 
-interface TextShimmerProps {
+type TextShimmerProps = {
 	children: string;
 	as?: ElementType;
 	className?: string;
 	duration?: number;
 	spread?: number;
-}
+};
 
 const ShimmerComponent = ({
 	children,

@@ -186,6 +186,8 @@ func (p *Server) newModel(
 		openAIConfig.UseResponsesAPI = &force
 	}
 	extraHeaders := mergeConfigBetaHeaders(req.ExtraHeaders, config.ProviderHint, req.CallConfig)
+	callConfig := req.CallConfig
+	callConfig.OpenAIConfig = openAIConfig
 	return newLanguageModel(
 		config.ProviderHint,
 		req.ModelName,
@@ -193,7 +195,7 @@ func (p *Server) newModel(
 		req.UserAgent,
 		extraHeaders,
 		&http.Client{Transport: baseRT},
-		openAIConfig,
+		&callConfig,
 	)
 }
 

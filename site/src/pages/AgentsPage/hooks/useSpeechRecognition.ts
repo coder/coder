@@ -3,35 +3,35 @@ import { useCallback, useEffect, useRef, useState } from "react";
 // Inline type declarations for the Web Speech API, which is not covered
 // by TypeScript's built-in lib types in all environments.
 
-interface SpeechRecognitionResultItem {
+type SpeechRecognitionResultItem = {
 	readonly transcript: string;
 	readonly confidence: number;
-}
+};
 
-interface SpeechRecognitionResult {
+type SpeechRecognitionResult = {
 	readonly length: number;
 	readonly isFinal: boolean;
 	item(index: number): SpeechRecognitionResultItem;
 	[index: number]: SpeechRecognitionResultItem;
-}
+};
 
-interface SpeechRecognitionResultList {
+type SpeechRecognitionResultList = {
 	readonly length: number;
 	item(index: number): SpeechRecognitionResult;
 	[index: number]: SpeechRecognitionResult;
-}
+};
 
-interface SpeechRecognitionEvent extends Event {
+type SpeechRecognitionEvent = Event & {
 	readonly resultIndex: number;
 	readonly results: SpeechRecognitionResultList;
-}
+};
 
-interface SpeechRecognitionErrorEvent extends Event {
+type SpeechRecognitionErrorEvent = Event & {
 	readonly error: string;
 	readonly message: string;
-}
+};
 
-interface SpeechRecognitionInstance extends EventTarget {
+type SpeechRecognitionInstance = EventTarget & {
 	lang: string;
 	continuous: boolean;
 	interimResults: boolean;
@@ -41,11 +41,11 @@ interface SpeechRecognitionInstance extends EventTarget {
 	start(): void;
 	stop(): void;
 	abort(): void;
-}
+};
 
-interface SpeechRecognitionConstructor {
+type SpeechRecognitionConstructor = {
 	new (): SpeechRecognitionInstance;
-}
+};
 
 /**
  * Returns the SpeechRecognition constructor if the browser supports it,
