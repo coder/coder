@@ -1485,6 +1485,15 @@ func (api *API) userPreferenceSettings(rw http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	collapseAssistantSteps, err := api.Database.GetUserCollapseAssistantSteps(ctx, user.ID)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Error reading user preference settings.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
 	agentChatSendShortcut, err := api.Database.GetUserAgentChatSendShortcut(ctx, user.ID)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -1495,10 +1504,11 @@ func (api *API) userPreferenceSettings(rw http.ResponseWriter, r *http.Request) 
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.UserPreferenceSettings{
-		ThinkingDisplayMode:   sanitizeThinkingDisplayMode(thinkingMode),
-		ShellToolDisplayMode:  sanitizeShellToolDisplayMode(shellToolMode),
-		CodeDiffDisplayMode:   sanitizeAgentDisplayMode(codeDiffMode),
-		AgentChatSendShortcut: sanitizeAgentChatSendShortcut(agentChatSendShortcut),
+		ThinkingDisplayMode:    sanitizeThinkingDisplayMode(thinkingMode),
+		ShellToolDisplayMode:   sanitizeShellToolDisplayMode(shellToolMode),
+		CodeDiffDisplayMode:    sanitizeAgentDisplayMode(codeDiffMode),
+		CollapseAssistantSteps: collapseAssistantSteps,
+		AgentChatSendShortcut:  sanitizeAgentChatSendShortcut(agentChatSendShortcut),
 	})
 }
 
@@ -1614,6 +1624,23 @@ func (api *API) putUserPreferenceSettings(rw http.ResponseWriter, r *http.Reques
 				return newUserPreferenceSettingsAPIError("Error reading code diff display mode.", err)
 			}
 			settings.CodeDiffDisplayMode = sanitizeAgentDisplayMode(stored)
+		}
+
+		if params.CollapseAssistantSteps != nil {
+			updated, err := tx.UpdateUserCollapseAssistantSteps(ctx, database.UpdateUserCollapseAssistantStepsParams{
+				UserID:                 user.ID,
+				CollapseAssistantSteps: *params.CollapseAssistantSteps,
+			})
+			if err != nil {
+				return newUserPreferenceSettingsAPIError("Internal error updating user collapse assistant steps.", err)
+			}
+			settings.CollapseAssistantSteps = updated
+		} else {
+			stored, err := tx.GetUserCollapseAssistantSteps(ctx, user.ID)
+			if err != nil && !errors.Is(err, sql.ErrNoRows) {
+				return newUserPreferenceSettingsAPIError("Error reading collapse assistant steps.", err)
+			}
+			settings.CollapseAssistantSteps = stored
 		}
 
 		if params.AgentChatSendShortcut != "" {
