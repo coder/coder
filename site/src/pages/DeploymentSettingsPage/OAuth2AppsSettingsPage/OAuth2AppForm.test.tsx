@@ -46,6 +46,7 @@ describe("OAuth2AppForm", () => {
 			...MockOAuth2ProviderApps[0],
 			name: "VS Code Coder Extension",
 			callback_url: "vscode://coder.coder-remote/oauth/callback",
+			redirect_uris: ["vscode://coder.coder-remote/oauth/callback"],
 		};
 
 		render(

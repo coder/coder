@@ -128,7 +128,7 @@ func (api *API) deleteOAuth2ProviderAppSecret() http.HandlerFunc {
 // @Success 200 "Returns HTML authorization page"
 // @Success 302 "Redirects to the app's registered callback carrying an OAuth2 error (RFC 6749 4.1.2.1)"
 // @Failure 400 "HTML error page. The failure names the redirect URI or the client, so RFC 6749 4.1.2.1 withholds the callback"
-// @Failure 500 "HTML error page. The app's registered callback URL is not usable"
+// @Failure 500 "HTML error page. One of the app's registered redirect URIs is not usable"
 // @Router /oauth2/authorize [get]
 func (api *API) getOAuth2ProviderAppAuthorize() http.HandlerFunc {
 	return oauth2provider.ShowAuthorizePage(api.AccessURL, api.Logger)
@@ -149,7 +149,7 @@ func (api *API) getOAuth2ProviderAppAuthorize() http.HandlerFunc {
 // @Param resource query string false "RFC 8707 resource indicator: an absolute URI without a fragment"
 // @Success 302 "Redirects to the app's registered callback carrying either an authorization code or an OAuth2 error (RFC 6749 4.1.2.1)"
 // @Failure 400 {object} codersdk.OAuth2Error "The failure names the redirect URI or the client, so RFC 6749 4.1.2.1 withholds the callback"
-// @Failure 500 {object} codersdk.OAuth2Error "The app's registered callback URL is not usable"
+// @Failure 500 {object} codersdk.OAuth2Error "One of the app's registered redirect URIs is not usable"
 // @Router /oauth2/authorize [post]
 func (api *API) postOAuth2ProviderAppAuthorize() http.HandlerFunc {
 	return oauth2provider.ProcessAuthorize(api.Database, api.Logger)
