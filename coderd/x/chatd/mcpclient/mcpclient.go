@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"cmp"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -287,7 +288,7 @@ func connectAllWithHooks(
 					slog.F("server_slug", cfg.Slug),
 					slog.F("server_url", redactServerURL(opts.kind, cfg.Url)),
 					slog.F("duration", duration),
-					slog.F("error", errText),
+					slog.F("error", summary.Error),
 				)
 			} else if duration >= slowConnectThreshold {
 				logger.Warn(ctx,
@@ -893,16 +894,19 @@ const redactedPlaceholder = "[REDACTED]"
 // secretRedactor replaces a fixed set of sensitive strings with
 // redactedPlaceholder. The zero value redacts nothing. Longer values
 // are replaced first so a value that contains another value is
-// redacted whole. Only empty values are dropped: ReplaceAll would
-// insert the placeholder between every byte. Redaction can lengthen
-// its input, so size caps are checked after it.
+// redacted whole. Empty values and substrings of the placeholder are
+// dropped: the first would insert the placeholder between every byte,
+// the second would mangle placeholders and cannot hide anything.
+// Redaction can lengthen its input, so size caps are checked after it.
 type secretRedactor struct {
 	values []string
 }
 
 func newSecretRedactor(values []string) secretRedactor {
 	values = slices.Clone(values)
-	values = slices.DeleteFunc(values, func(value string) bool { return value == "" })
+	values = slices.DeleteFunc(values, func(value string) bool {
+		return value == "" || strings.Contains(redactedPlaceholder, value)
+	})
 	slices.SortFunc(values, func(a, b string) int {
 		return cmp.Or(cmp.Compare(len(b), len(a)), cmp.Compare(a, b))
 	})
@@ -1131,17 +1135,19 @@ func (t *mcpToolWrapper) Run(
 		callParams.Meta = mcp.Meta{toolCallIDMetaKey: params.ID}
 	}
 	result, err := t.session.CallTool(callCtx, callParams)
+	var resp fantasy.ToolResponse
 	if err != nil {
-		return fantasy.NewTextErrorResponse(t.redactor.redactString(err.Error())), nil
+		resp = fantasy.NewTextErrorResponse(t.redactor.redactString(err.Error()))
+	} else {
+		// Structured content is redacted before convertCallResult encodes it
+		// as JSON, where escaping would hide a secret from the string match.
+		if result != nil {
+			result.StructuredContent = t.redactor.redactValue(result.StructuredContent)
+		}
+		resp = t.redactor.redactResponse(convertCallResult(result))
 	}
-
-	// Structured content is redacted before convertCallResult encodes it
-	// as JSON, where escaping would hide a secret from the string match.
-	if result != nil {
-		result.StructuredContent = t.redactor.redactValue(result.StructuredContent)
-	}
-	resp := t.redactor.redactResponse(convertCallResult(result))
-	if t.maxResultBytes > 0 && len(resp.Content)+len(resp.Data) > t.maxResultBytes {
+	// Measure the result as the model receives it: Data is sent base64-encoded.
+	if t.maxResultBytes > 0 && len(resp.Content)+len(resp.MediaType)+base64.StdEncoding.EncodedLen(len(resp.Data)) > t.maxResultBytes {
 		return fantasy.NewTextErrorResponse(fmt.Sprintf(
 			"tool result exceeded maximum size of %d bytes", t.maxResultBytes,
 		)), nil

@@ -211,10 +211,14 @@ func TestConnectChatAttached_ToolResultCap(t *testing.T) {
 		name      string
 		result    string
 		sensitive []string
+		asError   bool
+		asImage   bool
 		wantError bool
 	}{
 		{name: "OverCap", result: strings.Repeat("a", maxBytes+1), wantError: true},
 		{name: "ShortSecretInflatesOverCap", result: strings.Repeat("prod", (maxBytes-1024)/4), sensitive: []string{"prod"}, wantError: true},
+		{name: "ServerErrorOverCap", result: strings.Repeat("a", maxBytes+1), asError: true, wantError: true},
+		{name: "Base64InflatesOverCap", result: strings.Repeat("a", maxBytes*3/4+1), asImage: true, wantError: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -228,6 +232,14 @@ func TestConnectChatAttached_ToolResultCap(t *testing.T) {
 					InputSchema: map[string]any{"type": "object"},
 				},
 				handler: func(context.Context, *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+					switch {
+					case tc.asError:
+						return nil, xerrors.New(tc.result)
+					case tc.asImage:
+						return &mcp.CallToolResult{Content: []mcp.Content{
+							&mcp.ImageContent{Data: []byte(tc.result), MIMEType: "image/png"},
+						}}, nil
+					}
 					return textToolResult(tc.result), nil
 				},
 			}
@@ -307,7 +319,7 @@ func TestConnectChatAttached_RedactsSensitiveValues(t *testing.T) {
 	srv.AddTool(failing.tool, failing.handler)
 
 	cfg := makeChatAttachedConfig("bot", ts.URL, `{"X-Bot-Key":"`+secret+`"}`)
-	sensitive := map[uuid.UUID][]string{cfg.ID: {ts.URL, secret, "X-Bot-Key"}}
+	sensitive := map[uuid.UUID][]string{cfg.ID: {ts.URL, secret, "X-Bot-Key", "D"}}
 
 	tools, summaries, cleanup := mcpclient.ConnectChatAttachedForTest(
 		ctx, logger, []database.MCPServerConfig{cfg}, nil, sensitive, testutil.WaitLong,
