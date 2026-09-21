@@ -765,7 +765,7 @@ WHERE
 	-- ListAIBridgeClientsAuthorized.
 	-- @authorize_filter
 GROUP BY
-	client
+	1
 LIMIT COALESCE(NULLIF(@limit_::integer, 0), 100)
 OFFSET @offset_
 ;
