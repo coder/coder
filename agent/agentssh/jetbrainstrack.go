@@ -37,7 +37,14 @@ type JetbrainsChannelWatcher struct {
 	reportConnection reportConnectionFunc
 }
 
-func NewJetbrainsChannelWatcher(ctx ssh.Context, logger slog.Logger, reportConnection reportConnectionFunc, newChannel gossh.NewChannel, startSession startSessionFunc) gossh.NewChannel {
+func NewJetbrainsChannelWatcher(ctx ssh.Context, logger slog.Logger,
+	reportConnection reportConnectionFunc,
+	newChannel gossh.NewChannel,
+	startSession startSessionFunc,
+	clientSessionID string,
+) gossh.NewChannel {
+	logger = logger.With(slog.F("client_session_id", clientSessionID))
+
 	d := localForwardChannelData{}
 	if err := gossh.Unmarshal(newChannel.ExtraData(), &d); err != nil {
 		// If the data fails to unmarshal, do nothing.
@@ -69,6 +76,7 @@ func NewJetbrainsChannelWatcher(ctx ssh.Context, logger slog.Logger, reportConne
 		startSession:     startSession,
 		logger:           logger.With(slog.F("destination_port", d.DestPort)),
 		originAddr:       d.OriginAddr,
+		clientSessionID:  clientSessionID,
 		reportConnection: reportConnection,
 	}
 }
