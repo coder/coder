@@ -1360,6 +1360,14 @@ func TestAIBridgeListClients(t *testing.T) {
 		StartedAt:   now,
 	}, &endedAt)
 
+	// Completed interception whose client is literally "Unknown". Must share
+	// the entry for the missing client rather than duplicate it.
+	dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+		InitiatorID: firstUser.UserID,
+		StartedAt:   now,
+		Client:      sql.NullString{String: "Unknown", Valid: true},
+	}, &endedAt)
+
 	// Duplicate client. Should be deduplicated in results.
 	dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
 		InitiatorID: firstUser.UserID,
