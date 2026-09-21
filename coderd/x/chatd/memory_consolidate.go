@@ -21,17 +21,21 @@ import (
 )
 
 const (
-	memoryConsolidationMinMemories     = 20
-	memoryConsolidationDebounce        = 24 * time.Hour
-	memoryConsolidationRunningStale    = 10 * time.Minute
-	memoryConsolidationFailureRetry    = 15 * time.Minute
-	memoryConsolidationMaxMutations    = 8
-	memoryConsolidationModelTimeout    = 90 * time.Second
-	memoryConsolidationWorkTimeout     = 3 * time.Minute
-	memoryConsolidationInputBytes      = 96 * 1024
-	memoryConsolidationProtectWindow   = 24 * time.Hour
-	memoryConsolidationKeepRecords     = 20
-	memoryConsolidationMaxOutputTokens = 2048
+	memoryConsolidationMinMemories   = 20
+	memoryConsolidationDebounce      = 24 * time.Hour
+	memoryConsolidationRunningStale  = 10 * time.Minute
+	memoryConsolidationFailureRetry  = 15 * time.Minute
+	memoryConsolidationMaxMutations  = 8
+	memoryConsolidationModelTimeout  = 90 * time.Second
+	memoryConsolidationWorkTimeout   = 3 * time.Minute
+	memoryConsolidationInputBytes    = 96 * 1024
+	memoryConsolidationProtectWindow = 24 * time.Hour
+	memoryConsolidationKeepRecords   = 20
+	// Every merge or update returns a complete body of up to
+	// chattool.MaxMemoryBodyBytes, so the budget must hold several full
+	// bodies plus the JSON envelope. It matches the advisor's ceiling,
+	// which every supported provider accepts.
+	memoryConsolidationMaxOutputTokens = 16384
 )
 
 const memoryConsolidationPrompt = "You consolidate durable chat memories. Review the memories below and return only high-confidence changes. " +
