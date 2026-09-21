@@ -251,6 +251,11 @@ export const buildDisplayMessages = (
 
 	for (const entry of entries) {
 		if (shouldHideTimelineEntry(entry)) {
+			// A metadata-only prompt has no row but still ends the turn, so
+			// reads on either side of it must not merge.
+			if (entry.message.role === "user") {
+				flushReadFileEntries();
+			}
 			continue;
 		}
 		if (isReadFileOnlyMessage(entry)) {
