@@ -25,7 +25,7 @@ const chatMemoryConsolidationListLimit int32 = 20
 func (api *API) listChatProjectMemoryConsolidations(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	project := httpmw.ChatProjectParam(r)
-	if !api.Authorize(r, policy.ActionRead, project.RBACObject()) {
+	if !api.Authorize(r, policy.ActionRead, database.ChatProjectMemoryRBACObject(project)) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}

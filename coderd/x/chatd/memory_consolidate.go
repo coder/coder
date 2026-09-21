@@ -24,6 +24,7 @@ const (
 	memoryConsolidationMinMemories     = 20
 	memoryConsolidationDebounce        = 24 * time.Hour
 	memoryConsolidationRunningStale    = 10 * time.Minute
+	memoryConsolidationFailureRetry    = 15 * time.Minute
 	memoryConsolidationMaxMutations    = 8
 	memoryConsolidationModelTimeout    = 90 * time.Second
 	memoryConsolidationWorkTimeout     = 3 * time.Minute
@@ -208,6 +209,13 @@ func (p *Server) consolidateMemories(ctx context.Context, logger slog.Logger, ch
 		finish(database.ChatMemoryConsolidationStatusFailed, before, nil, xerrors.Errorf("apply mutations: %w", err))
 		return
 	}
+	// Concurrent edits can invalidate every mutation at apply time. That is
+	// a skipped run, not a successful one, so a partial window at the cap
+	// still continues to the rest of the set.
+	if len(applied) == 0 {
+		finish(database.ChatMemoryConsolidationStatusSkipped, before, nil, nil)
+		return
+	}
 	after, err := store.Count(ctx)
 	if err != nil {
 		finish(database.ChatMemoryConsolidationStatusFailed, before, nil, xerrors.Errorf("count consolidated memories: %w", err))
@@ -243,6 +251,11 @@ func memoryConsolidationDebounced(ctx context.Context, db database.Store, scope 
 		}
 		if record.Status == database.ChatMemoryConsolidationStatusSkipped && record.NextWindowStart > 0 {
 			return false, record.NextWindowStart
+		}
+		// A transient model or apply failure must not leave a full project
+		// unable to save for the whole debounce.
+		if record.Status == database.ChatMemoryConsolidationStatusFailed {
+			return now.Sub(record.StartedAt) < memoryConsolidationFailureRetry, record.NextWindowStart
 		}
 	}
 	return now.Sub(record.StartedAt) < memoryConsolidationDebounce, record.NextWindowStart

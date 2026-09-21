@@ -100,6 +100,23 @@ func UpsertProjectMemory(ctx context.Context, db database.Store, params database
 	return memory, err
 }
 
+// UpdateProjectMemory rewrites a project memory behind the per-project
+// advisory lock. Consolidation checks that a new merge target is absent
+// under that lock before writing it, so a rename must not be able to create
+// the target in between.
+func UpdateProjectMemory(ctx context.Context, db database.Store, projectID uuid.UUID, params database.UpdateChatProjectMemoryByIDParams) (database.ChatProjectMemory, error) {
+	var memory database.ChatProjectMemory
+	err := db.InTx(func(tx database.Store) error {
+		if err := tx.AcquireLock(ctx, projectMemoryLockID(projectID)); err != nil {
+			return xerrors.Errorf("lock memories: %w", err)
+		}
+		var err error
+		memory, err = tx.UpdateChatProjectMemoryByID(ctx, params)
+		return err
+	}, nil)
+	return memory, err
+}
+
 // MemoryScope identifies the project whose durable memory a chat uses.
 type MemoryScope struct {
 	Label string

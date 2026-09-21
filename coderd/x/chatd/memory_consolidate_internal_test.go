@@ -363,6 +363,27 @@ func TestMemoryConsolidationDebounced(t *testing.T) {
 		require.Equal(t, int32(7), next)
 	})
 
+	t.Run("AtCapFailureRetriesSooner", func(t *testing.T) {
+		t.Parallel()
+
+		failed := database.ChatMemoryConsolidation{
+			Status:          database.ChatMemoryConsolidationStatusFailed,
+			StartedAt:       now.Add(-time.Minute),
+			NextWindowStart: 4,
+		}
+		debounced, next := check(t, failed, chattool.MaxMemories)
+		require.True(t, debounced)
+		require.Equal(t, int32(4), next)
+
+		failed.StartedAt = now.Add(-memoryConsolidationFailureRetry - time.Minute)
+		debounced, next = check(t, failed, chattool.MaxMemories)
+		require.False(t, debounced)
+		require.Equal(t, int32(4), next)
+
+		debounced, _ = check(t, failed, 30)
+		require.True(t, debounced, "below the cap a failure waits for the full debounce")
+	})
+
 	t.Run("AtCapFullSkipDebounces", func(t *testing.T) {
 		t.Parallel()
 
@@ -708,6 +729,53 @@ func TestConsolidateMemories(t *testing.T) {
 		require.NotContains(t, capturedPrompt, "fresh body")
 		require.Contains(t, capturedPrompt, "last 24 hours")
 		require.Contains(t, capturedPrompt, "at least two existing memories")
+	})
+
+	t.Run("AllMutationsStaleFinishesSkipped", func(t *testing.T) {
+		t.Parallel()
+
+		ctrl := gomock.NewController(t)
+		db := dbmock.NewMockStore(ctrl)
+		chat := newProjectChat()
+		stale := chattool.Memory{Name: "stale", Description: "stale", Body: "stale", UpdatedAt: time.Now().Add(-72 * time.Hour)}
+		server := newServer(t, db, roundTripFunc(func(req *http.Request) (*http.Response, error) {
+			response := objectResponse(t, map[string]any{"mutations": []map[string]any{
+				{"op": "delete", "name": "stale", "into": "", "from": []string{}, "description": "", "body": "", "reason": ""},
+			}})
+			response.Request = req
+			return response, nil
+		}))
+		record := database.ChatMemoryConsolidation{ID: uuid.New()}
+		calls := []*gomock.Call{
+			db.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil),
+			db.EXPECT().GetChatProjectByID(gomock.Any(), chat.ProjectID.UUID).Return(database.ChatProject{Name: "platform"}, nil),
+			db.EXPECT().CountChatProjectMemoriesByProjectID(gomock.Any(), chat.ProjectID.UUID).Return(int64(30), nil),
+			db.EXPECT().GetLatestChatMemoryConsolidationByProject(gomock.Any(), chat.ProjectID.UUID).Return(database.ChatMemoryConsolidation{}, sql.ErrNoRows),
+		}
+		calls = append(calls, expectModelResolution(db, chat)...)
+		calls = append(calls,
+			inTx(db),
+			db.EXPECT().TryAcquireLock(gomock.Any(), memoryConsolidationScopeForChat(chat).lockID()).Return(true, nil),
+			db.EXPECT().GetLatestChatMemoryConsolidationByProject(gomock.Any(), chat.ProjectID.UUID).Return(database.ChatMemoryConsolidation{}, sql.ErrNoRows),
+			db.EXPECT().InsertChatMemoryConsolidation(gomock.Any(), gomock.Any()).Return(record, nil),
+			db.EXPECT().GetChatProjectMemoriesByProjectID(gomock.Any(), chat.ProjectID.UUID).Return(projectRows([]chattool.Memory{stale}), nil),
+			inTx(db),
+			db.EXPECT().AcquireLock(gomock.Any(), gomock.Any()).Return(nil),
+			// A user rewrote the memory after the snapshot, so the delete is
+			// no longer current and nothing is applied.
+			db.EXPECT().GetChatProjectMemoryByNameForUpdate(gomock.Any(), database.GetChatProjectMemoryByNameForUpdateParams{ProjectID: chat.ProjectID.UUID, Name: "stale"}).Return(database.ChatProjectMemory{Name: "stale", UpdatedAt: time.Now()}, nil),
+			db.EXPECT().FinishChatMemoryConsolidation(gomock.Any(), gomock.Any()).DoAndReturn(
+				func(_ context.Context, params database.FinishChatMemoryConsolidationParams) (database.ChatMemoryConsolidation, error) {
+					require.Equal(t, database.ChatMemoryConsolidationStatusSkipped, params.Status)
+					require.Equal(t, int32(30), params.MemoriesAfter)
+					return database.ChatMemoryConsolidation{}, nil
+				},
+			),
+			db.EXPECT().PruneChatMemoryConsolidationsByProject(gomock.Any(), gomock.Any()).Return(nil),
+		)
+		inOrder(calls)
+
+		server.consolidateMemories(t.Context(), slogtest.Make(t, nil), chat)
 	})
 
 	t.Run("ModelErrorFinishesFailedAndKeepsCursor", func(t *testing.T) {
