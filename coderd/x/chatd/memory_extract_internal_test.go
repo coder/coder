@@ -281,6 +281,36 @@ func TestExtractMemories(t *testing.T) {
 		newServer(t, db, nil).extractMemories(t.Context(), slogtest.Make(t, nil), chat)
 	})
 
+	t.Run("OutsideProjectAdvancesCursorWithoutModelCall", func(t *testing.T) {
+		t.Parallel()
+
+		ctrl := gomock.NewController(t)
+		db := dbmock.NewMockStore(ctrl)
+		chat := newChat()
+		chat.ProjectID = uuid.NullUUID{}
+		expectClaim(t, db, chat, 0)
+		db.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil)
+		// Consuming these turns keeps them out of any project the chat
+		// joins later.
+		advanceCursor(db, chat)
+		db.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil)
+
+		newServer(t, db, nil).extractMemories(t.Context(), slogtest.Make(t, nil), chat)
+	})
+
+	t.Run("ProjectLookupFailureKeepsCursor", func(t *testing.T) {
+		t.Parallel()
+
+		ctrl := gomock.NewController(t)
+		db := dbmock.NewMockStore(ctrl)
+		chat := newChat()
+		expectClaim(t, db, chat, 0)
+		db.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil)
+		db.EXPECT().GetChatProjectByID(gomock.Any(), chat.ProjectID.UUID).Return(database.ChatProject{}, xerrors.New("connection reset"))
+
+		newServer(t, db, nil).extractMemories(t.Context(), slogtest.Make(t, nil), chat)
+	})
+
 	t.Run("ExitsWhenAnotherExtractorHoldsTheClaim", func(t *testing.T) {
 		t.Parallel()
 
@@ -730,6 +760,16 @@ func TestResolveMemoryScope(t *testing.T) {
 		db := dbmock.NewMockStore(ctrl)
 		server := &Server{db: db, logger: slogtest.Make(t, nil), experiments: codersdk.ExperimentsKnown}
 		_, _, status := server.resolveMemoryScope(t.Context(), database.Chat{ID: uuid.New(), OwnerID: uuid.New(), OrganizationID: uuid.New()})
+		require.Equal(t, memoryScopeNone, status)
+	})
+	t.Run("ProjectLookupFailure", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		db := dbmock.NewMockStore(ctrl)
+		projectID := uuid.New()
+		db.EXPECT().GetChatProjectByID(gomock.Any(), projectID).Return(database.ChatProject{}, xerrors.New("connection reset"))
+		server := &Server{db: db, logger: slogtest.Make(t, nil), experiments: codersdk.ExperimentsKnown}
+		_, _, status := server.resolveMemoryScope(t.Context(), database.Chat{ID: uuid.New(), ProjectID: uuid.NullUUID{UUID: projectID, Valid: true}})
 		require.Equal(t, memoryScopeUnavailable, status)
 	})
 }

@@ -35,9 +35,13 @@ const (
 type memoryScopeStatus int
 
 const (
-	// memoryScopeUnavailable covers chats outside a project, subagents, and
-	// transient lookup failures.
+	// memoryScopeUnavailable covers transient lookup failures and the
+	// disabled experiment: the chat may have memory, it just cannot be
+	// reached right now.
 	memoryScopeUnavailable memoryScopeStatus = iota
+	// memoryScopeNone covers chats outside a project and subagents, which
+	// have no memory by design.
+	memoryScopeNone
 	memoryScopeAvailable
 )
 
@@ -68,7 +72,7 @@ func (p *Server) resolveMemoryScope(ctx context.Context, chat database.Chat) (ch
 		return nil, chattool.MemoryScope{}, memoryScopeUnavailable
 	}
 	if chat.ParentChatID.Valid || !chat.ProjectID.Valid {
-		return nil, chattool.MemoryScope{}, memoryScopeUnavailable
+		return nil, chattool.MemoryScope{}, memoryScopeNone
 	}
 	project, err := p.db.GetChatProjectByID(ctx, chat.ProjectID.UUID)
 	if err != nil {
@@ -173,7 +177,14 @@ func (p *Server) extractMemoriesOnce(ctx context.Context, logger slog.Logger, ch
 	}
 
 	store, scope, status := p.resolveMemoryScope(ctx, chat)
-	if status != memoryScopeAvailable {
+	switch status {
+	case memoryScopeAvailable:
+	case memoryScopeNone:
+		// Turns completed outside a project are consumed, not deferred:
+		// if the chat later joins a project, only what is said from then
+		// on belongs to that project's memory.
+		return advance()
+	default:
 		return 0, false
 	}
 
