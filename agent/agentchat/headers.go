@@ -36,5 +36,10 @@ func extractContext(r *http.Request) (chatCtx Context, ok bool) {
 			}
 		}
 	}
-	return Context{ID: chatID, AncestorIDs: ancestorIDs, ToolCallID: toolCallID}, true
+	return Context{
+		ID:              chatID,
+		AncestorIDs:     ancestorIDs,
+		ToolCallID:      toolCallID,
+		ModelToolCallID: r.Header.Get(workspacesdk.CoderModelToolCallIDHeader),
+	}, true
 }

@@ -23,7 +23,7 @@ func ReadFile(options ReadFileOptions) fantasy.AgentTool {
 	return fantasy.NewAgentTool(
 		"read_file",
 		workspacetools.ReadFileDescription,
-		func(ctx context.Context, args ReadFileArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
+		func(ctx context.Context, args ReadFileArgs, call fantasy.ToolCall) (fantasy.ToolResponse, error) {
 			if options.GetWorkspaceConn == nil {
 				return fantasy.NewTextErrorResponse("workspace connection resolver is not configured"), nil
 			}
@@ -31,7 +31,7 @@ func ReadFile(options ReadFileOptions) fantasy.AgentTool {
 			if err != nil {
 				return fantasy.NewTextErrorResponse(err.Error()), nil
 			}
-			return executeReadFileTool(ctx, conn, args)
+			return executeReadFileTool(workspacesdk.WithModelToolCallID(ctx, call.ID), conn, args)
 		},
 	)
 }
@@ -43,7 +43,7 @@ func executeReadFileTool(
 ) (fantasy.ToolResponse, error) {
 	result, err := workspacetools.ReadFile(ctx, conn, args.Path, args.Offset, args.Limit)
 	if err != nil {
-		return fantasy.NewTextErrorResponse(err.Error()), nil
+		return workspaceToolErrorResponse(err.Error(), err, result.Hooks), nil
 	}
-	return marshalToolResponse(result), nil
+	return withWorkspaceHooks(marshalToolResponse(result), result.Hooks), nil
 }

@@ -126,10 +126,11 @@ var WorkspaceWriteFile = Tool[WorkspaceWriteFileArgs, workspacetools.OKResult]{
 			return workspacetools.OKResult{}, err
 		}
 		defer conn.Close()
-		if err := conn.WriteFile(ctx, path, strings.NewReader(args.Content)); err != nil {
+		res, err := workspacetools.WriteFile(ctx, conn, path, args.Content)
+		if err != nil {
 			return workspacetools.OKResult{}, workspaceToolError(err)
 		}
-		return workspacetools.OKResult{OK: true}, nil
+		return res, nil
 	},
 }
 
