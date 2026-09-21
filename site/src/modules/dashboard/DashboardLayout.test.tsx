@@ -1,6 +1,6 @@
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { HttpResponse, http } from "msw";
+import { HttpResponse, http, type PathParams } from "msw";
 import type { RouteObject } from "react-router";
 import type { AuthorizationRequest, Entitlements } from "#/api/typesGenerated";
 import {
@@ -60,16 +60,19 @@ const renderDashboardLayout = async ({
 		http.get("/api/v2/notifications/inbox", () => {
 			return HttpResponse.json({ notifications: [], unread_count: 0 });
 		}),
-		http.post("/api/v2/authcheck", async ({ request }) => {
-			const { checks } = (await request.json()) as AuthorizationRequest;
-			return HttpResponse.json(
-				MockDefaultOrganization.id in checks
-					? Object.fromEntries(
-							Object.keys(checks).map((id) => [id, organizationChecks]),
-						)
-					: permissions,
-			);
-		}),
+		http.post<PathParams, AuthorizationRequest>(
+			"/api/v2/authcheck",
+			async ({ request }) => {
+				const { checks } = await request.json();
+				return HttpResponse.json(
+					MockDefaultOrganization.id in checks
+						? Object.fromEntries(
+								Object.keys(checks).map((id) => [id, organizationChecks]),
+							)
+						: permissions,
+				);
+			},
+		),
 	);
 
 	const result = renderWithAuth(<DashboardLayout />, { children });
