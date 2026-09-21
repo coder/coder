@@ -141,6 +141,7 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, depth = 0 }) => {
 	// counts are zeroed.
 	const solePR = prStatuses.length === 1 ? prStatuses[0] : undefined;
 	const hasLinkedDiffStatus = Boolean(solePR?.url);
+
 	const changedFiles = solePR?.changed_files ?? 0;
 	const additions = solePR?.additions ?? 0;
 	const deletions = solePR?.deletions ?? 0;

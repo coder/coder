@@ -262,6 +262,7 @@ const ChatSearchResultRow: FC<ChatSearchResultRowProps> = ({
 	// Line stats only make sense for one PR; several PRs have no
 	// single set of counts, and the icon shows the count instead.
 	const solePR = prStatuses.length === 1 ? prStatuses[0] : undefined;
+
 	const additions = solePR?.additions ?? 0;
 	const deletions = solePR?.deletions ?? 0;
 	const changedFiles = solePR?.changed_files ?? 0;
