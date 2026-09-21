@@ -1,5 +1,5 @@
 import { PlusIcon, XIcon } from "lucide-react";
-import { type FC, useId, useMemo } from "react";
+import { type FC, useId } from "react";
 import { OAuth2RedirectURIsMaxCount } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import { FormField } from "#/components/FormField/FormField";
@@ -23,10 +23,6 @@ export const RedirectURIsField: FC<RedirectURIsFieldProps> = ({
 	errors,
 }) => {
 	const baseId = useId();
-	const rowIds = useMemo(
-		() => Array.from({ length: values.length }, (_, i) => `${baseId}-${i}`),
-		[baseId, values.length],
-	);
 	const atMax = values.length >= OAuth2RedirectURIsMaxCount;
 
 	const setEntry = (index: number, value: string) => {
@@ -51,7 +47,7 @@ export const RedirectURIsField: FC<RedirectURIsFieldProps> = ({
 			{values.map((value, index) => {
 				const fieldHelpers: FormHelpers = {
 					name: `redirect_uris.${index}`,
-					id: `redirect-uri-${index}`,
+					id: `${baseId}-${index}`,
 					value,
 					error: Boolean(errors?.[index]),
 					helperText: errors?.[index],
@@ -60,7 +56,7 @@ export const RedirectURIsField: FC<RedirectURIsFieldProps> = ({
 				};
 
 				return (
-					<div key={rowIds[index]} className="flex items-start gap-2">
+					<div key={index} className="flex items-start gap-2">
 						<div className="flex-1">
 							<FormField
 								field={fieldHelpers}
@@ -68,6 +64,7 @@ export const RedirectURIsField: FC<RedirectURIsFieldProps> = ({
 									index === 0 ? "Default callback" : `Redirect URI ${index + 1}`
 								}
 								disabled={disabled}
+								required={index === 0}
 							/>
 						</div>
 						<Button

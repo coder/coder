@@ -8056,6 +8056,10 @@ export interface PutOAuth2ProviderAppRequest {
 	 * must equal the first entry of redirect_uris.
 	 */
 	readonly callback_url?: string;
+	/**
+	 * Icon replaces the app's stored icon. Omitting it clears the stored
+	 * icon rather than leaving it unchanged.
+	 */
 	readonly icon: string;
 	/**
 	 * Scope replaces the app's current allowlist. Omit to leave the existing

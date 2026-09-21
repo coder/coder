@@ -252,7 +252,12 @@ const OAuth2AppRow: FC<OAuth2AppRowProps> = ({ app }) => {
 						{app.redirect_uris[0]}
 					</span>
 					{app.redirect_uris.length > 1 && (
-						<Badge size="sm" className="shrink-0">
+						<Badge
+							size="sm"
+							className="shrink-0"
+							title={app.redirect_uris.slice(1).join("\n")}
+							aria-label={`${app.redirect_uris.length - 1} more redirect URI${app.redirect_uris.length > 2 ? "s" : ""}`}
+						>
 							+{app.redirect_uris.length - 1}
 						</Badge>
 					)}
