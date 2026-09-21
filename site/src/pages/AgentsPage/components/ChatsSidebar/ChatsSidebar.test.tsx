@@ -627,8 +627,8 @@ describe("ChatsSidebar PR icon", () => {
 	});
 
 	// The popover contents are visual state, covered by the
-	// WithMultiplePRs story screenshot. The non-visual contract is
-	// what screen readers announce.
+	// WithMultiplePRs story screenshot. Assert what screen readers
+	// announce.
 	it("announces the pull request state when the chat tracks one pull request", () => {
 		render(
 			<Wrapper>

@@ -15,8 +15,8 @@ type ChatNodePRIconProps = {
 };
 
 export const ChatNodePRIcon: FC<ChatNodePRIconProps> = ({ prStatuses }) => {
-	// One PR shows that PR's state. Several PRs share the count
-	// glyph: picking one state would misrepresent the rest.
+	// Several PRs share the count glyph: picking one state would
+	// misrepresent the rest.
 	if (prStatuses.length === 0) {
 		return null;
 	}
@@ -63,13 +63,11 @@ export const ChatNodePRIcon: FC<ChatNodePRIconProps> = ({ prStatuses }) => {
 					}
 					const Icon = config.icon;
 
-					// The label, trimmed, with a URL fallback so the row
-					// always shows something readable.
 					const label =
 						status.pull_request_title.trim() || status.url || "Pull request";
 
-					// Prefer the stored number; parse it from the URL when
-					// the row predates the column.
+					// Legacy rows predate the pr_number column, so parse it
+					// from the URL.
 					const parsed = parsePullRequestUrl(status.url);
 					const prNumber =
 						status.pr_number ?? (parsed && Number(parsed.number));
