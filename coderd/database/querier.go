@@ -460,11 +460,9 @@ type sqlcQuerier interface {
 	// always equals open + merged + closed; other non-NULL states are
 	// intentionally excluded from these aggregates.
 	GetChatDiffStatusSummary(ctx context.Context) (GetChatDiffStatusSummaryRow, error)
-	// The rows are ordered newest report first. The first row is the
-	// primary.
+	// Newest report first. The first row is the primary.
 	GetChatDiffStatusesByChatID(ctx context.Context, chatID uuid.UUID) ([]ChatDiffStatus, error)
-	// The rows are ordered newest report first. The first row per chat
-	// is its most recently reported ref.
+	// Newest report first. The first row of each chat is its primary.
 	GetChatDiffStatusesByChatIDs(ctx context.Context, chatIds []uuid.UUID) ([]ChatDiffStatus, error)
 	// Returns the chat IDs of every chat in a family (root + all children)
 	// in deterministic order. The id parameter must be the root id; the
@@ -572,7 +570,7 @@ type sqlcQuerier interface {
 	// Retrieves chats updated after the given timestamp for telemetry
 	// snapshot collection. Uses updated_at so that long-running chats
 	// still appear in each snapshot window while they are active.
-	// One row per chat. The row carries the chat's newest-reported ref.
+	// One row per chat. The row is the chat's newest-reported ref.
 	GetChatsUpdatedAfter(ctx context.Context, updatedAfter time.Time) ([]GetChatsUpdatedAfterRow, error)
 	// Fetches child chats of the given parents, optionally filtered by
 	// archive state (NULL = all, true/false = match). The archive
@@ -1502,8 +1500,8 @@ type sqlcQuerier interface {
 	// parameter keeps updated_at under the caller's clock, matching
 	// the injectable quartz.Clock used by FinalizeStale sweeps.
 	UpdateChatDebugStep(ctx context.Context, arg UpdateChatDebugStepParams) (ChatDebugStep, error)
-	// Stores a discovered pull request URL on an existing ref row.
-	// Discovery is not a report, so reported_at is not updated.
+	// Stores a pull request URL that the server found by itself. The
+	// agent did not report it, so reported_at stays the same.
 	UpdateChatDiffStatusReferenceURL(ctx context.Context, arg UpdateChatDiffStatusReferenceURLParams) error
 	// Atomically updates the execution-state-managed fields on a chat:
 	// status, archived, last_error, ownership identifiers, the
@@ -1702,7 +1700,7 @@ type sqlcQuerier interface {
 	UpsertChatDebugRetentionDays(ctx context.Context, debugRetentionDays int32) error
 	UpsertChatDesktopEnabled(ctx context.Context, enableDesktop bool) error
 	UpsertChatDiffStatus(ctx context.Context, arg UpsertChatDiffStatusParams) (ChatDiffStatus, error)
-	// A report names a ref the agent is on. Reports update reported_at.
+	// The agent reports the ref it is on. A report sets reported_at.
 	UpsertChatDiffStatusReference(ctx context.Context, arg UpsertChatDiffStatusReferenceParams) (ChatDiffStatus, error)
 	// Upserts a heartbeat row for the (chat_id, runner_id) lease. Uses
 	// database time so callers do not depend on a local clock.
