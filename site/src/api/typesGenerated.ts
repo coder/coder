@@ -10,6 +10,71 @@ export interface ACLAvailable {
 	readonly groups: readonly Group[];
 }
 
+// From codersdk/acp.go
+/**
+ * ACPEntry is a displayable part of an in-memory ACP transcript.
+ */
+export interface ACPEntry {
+	readonly id: string;
+	readonly role: string;
+	readonly kind: string;
+	readonly text: string;
+	readonly title?: string;
+	readonly status?: string;
+	// empty interface{} type, falling back to unknown
+	readonly input?: unknown;
+	// empty interface{} type, falling back to unknown
+	readonly output?: unknown;
+}
+
+// From codersdk/acp.go
+/**
+ * ACPListResponse lists sessions belonging to a parent chat.
+ */
+export interface ACPListResponse {
+	readonly agents: readonly ACPSession[];
+	readonly total: number;
+	readonly has_more: boolean;
+}
+
+// From codersdk/acp.go
+/**
+ * ACPMessageRequest submits a prompt to an existing ACP session.
+ */
+export interface ACPMessageRequest {
+	readonly message: string;
+	readonly interrupt?: boolean;
+}
+
+// From codersdk/acp.go
+/**
+ * ACPSession is an ephemeral session owned by a workspace agent.
+ */
+export interface ACPSession {
+	readonly session_id: string;
+	readonly workspace_agent_id: string;
+	readonly parent_chat_id: string;
+	readonly agent: string;
+	readonly title: string;
+	readonly status: string;
+	readonly error?: string;
+	readonly created_at: string;
+	readonly updated_at: string;
+	readonly version: number;
+	readonly entries: readonly ACPEntry[];
+	readonly queued: number;
+}
+
+// From codersdk/acp.go
+/**
+ * ACPSpawnRequest starts one of the two PoC adapters in the workspace.
+ */
+export interface ACPSpawnRequest {
+	readonly agent: string;
+	readonly prompt: string;
+	readonly title?: string;
+}
+
 // From codersdk/aibridge.go
 /**
  * AIBridgeAgenticAction represents data from one interception, including

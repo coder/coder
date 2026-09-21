@@ -15,6 +15,7 @@ import { Link, useLocation, useOutletContext } from "react-router";
 import { checkAuthorization } from "#/api/queries/authCheck";
 import { chat as chatById } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
+import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
 import {
 	DropdownMenu,
@@ -47,6 +48,8 @@ type ChatSharingTopBarButtonProps = {
 };
 
 type ChatTopBarProps = {
+	/** Header identity for a chat managed outside the regular chat API. */
+	externalChat?: { title: string; parentChatId: string; agentName?: string };
 	chat?: TypesGen.Chat;
 	liveChatStatus?: TypesGen.ChatStatus | null;
 	panel: SidebarPanelState;
@@ -90,13 +93,14 @@ const ChatSharingTopBarButton: FC<ChatSharingTopBarButtonProps> = ({
 };
 
 export const ChatTopBar: FC<ChatTopBarProps> = ({
+	externalChat,
 	chat,
 	liveChatStatus,
 	panel,
 }) => {
 	const { isEmbedded } = useEmbedContext();
 	const location = useLocation();
-	const parentChatID = getParentChatID(chat);
+	const parentChatID = externalChat?.parentChatId ?? getParentChatID(chat);
 	const parentChatQuery = useQuery({
 		...chatById(parentChatID ?? ""),
 		enabled: Boolean(parentChatID),
@@ -134,7 +138,7 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 		activeChatChildren,
 	} = useOutletContext<AgentsPageOutletContext | undefined>() ?? {};
 
-	const chatTitle = chat?.title;
+	const chatTitle = externalChat?.title ?? chat?.title;
 	const isArchived = chat?.archived ?? false;
 	const isSharedChat = chat?.shared;
 	const hasWorkspace = Boolean(chat?.workspace_id);
@@ -222,6 +226,15 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 						<span className="truncate text-sm text-content-primary">
 							{chatTitle}
 						</span>
+						{externalChat?.agentName && (
+							<Badge
+								asChild
+								size="xs"
+								className="shrink-0 bg-surface-tertiary text-sm font-medium text-content-primary"
+							>
+								<span>{externalChat.agentName}</span>
+							</Badge>
+						)}
 						{isSharedChat && (
 							<UsersIcon
 								className="size-3.5 shrink-0 text-content-secondary"
@@ -333,7 +346,7 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 						organizationId={chat.organization_id}
 					/>
 				)}
-				{!isEmbedded && (
+				{!isEmbedded && !externalChat && (
 					<Button
 						variant="subtle"
 						size="icon"

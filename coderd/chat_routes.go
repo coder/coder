@@ -75,6 +75,7 @@ func (api *API) registerChatAPIRoutes(r chi.Router, apiKeyMiddleware func(http.H
 			r.Get("/", api.getChat)
 			r.Patch("/", api.patchChat)
 			r.Get("/cost", api.getChatCost)
+			r.HandleFunc("/acp/agents/{workspaceagent}/sessions/*", api.proxyACP)
 			r.Get("/messages", api.getChatMessages)
 			r.Post("/messages", api.postChatMessages)
 			r.Patch("/messages/{message}", api.patchChatMessage)

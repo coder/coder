@@ -296,6 +296,7 @@ export const Response = ({
 			ref={ref}
 			className={cn(
 				"text-[13px] leading-relaxed text-content-primary",
+				"[&_[data-streamdown=table-wrapper]]:border-0 [&_[data-streamdown=table-wrapper]]:bg-transparent [&_[data-streamdown=table-wrapper]]:p-0",
 				className,
 			)}
 			{...props}

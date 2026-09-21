@@ -2308,6 +2308,100 @@
 				}
 			}
 		},
+		"/api/v2/chats/{chat}/acp/agents/{workspaceagent}/sessions/{acppath}": {
+			"get": {
+				"tags": ["Chats"],
+				"summary": "Access ephemeral ACP sessions",
+				"operationId": "access-acp-sessions",
+				"parameters": [
+					{
+						"type": "string",
+						"format": "uuid",
+						"description": "Parent chat ID",
+						"name": "chat",
+						"in": "path",
+						"required": true
+					},
+					{
+						"type": "string",
+						"format": "uuid",
+						"description": "Workspace agent ID",
+						"name": "workspaceagent",
+						"in": "path",
+						"required": true
+					},
+					{
+						"type": "string",
+						"description": "Session operation",
+						"name": "acppath",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/codersdk.ACPSession"
+						}
+					}
+				},
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
+				"x-apidocgen": {
+					"skip": true
+				}
+			},
+			"post": {
+				"tags": ["Chats"],
+				"summary": "Access ephemeral ACP sessions",
+				"operationId": "access-acp-sessions",
+				"parameters": [
+					{
+						"type": "string",
+						"format": "uuid",
+						"description": "Parent chat ID",
+						"name": "chat",
+						"in": "path",
+						"required": true
+					},
+					{
+						"type": "string",
+						"format": "uuid",
+						"description": "Workspace agent ID",
+						"name": "workspaceagent",
+						"in": "path",
+						"required": true
+					},
+					{
+						"type": "string",
+						"description": "Session operation",
+						"name": "acppath",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/codersdk.ACPSession"
+						}
+					}
+				},
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
+				"x-apidocgen": {
+					"skip": true
+				}
+			}
+		},
 		"/api/v2/chats/{chat}/clear": {
 			"post": {
 				"description": "Resets the model context of an idle or errored chat,\nclearing any stored error. The reset commits\nsynchronously with no model call: the transcript is\npreserved and the next prompt starts from a fresh\ncontext.",
@@ -15688,6 +15782,80 @@
 					"items": {
 						"$ref": "#/definitions/codersdk.ReducedUser"
 					}
+				}
+			}
+		},
+		"codersdk.ACPEntry": {
+			"type": "object",
+			"properties": {
+				"id": {
+					"type": "string"
+				},
+				"input": {},
+				"kind": {
+					"type": "string"
+				},
+				"output": {},
+				"role": {
+					"type": "string"
+				},
+				"status": {
+					"type": "string"
+				},
+				"text": {
+					"type": "string"
+				},
+				"title": {
+					"type": "string"
+				}
+			}
+		},
+		"codersdk.ACPSession": {
+			"type": "object",
+			"properties": {
+				"agent": {
+					"type": "string"
+				},
+				"created_at": {
+					"type": "string",
+					"format": "date-time"
+				},
+				"entries": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/codersdk.ACPEntry"
+					}
+				},
+				"error": {
+					"type": "string"
+				},
+				"parent_chat_id": {
+					"type": "string",
+					"format": "uuid"
+				},
+				"queued": {
+					"type": "integer"
+				},
+				"session_id": {
+					"type": "string",
+					"format": "uuid"
+				},
+				"status": {
+					"type": "string"
+				},
+				"title": {
+					"type": "string"
+				},
+				"updated_at": {
+					"type": "string",
+					"format": "date-time"
+				},
+				"version": {
+					"type": "integer"
+				},
+				"workspace_agent_id": {
+					"type": "string",
+					"format": "uuid"
 				}
 			}
 		},

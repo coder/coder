@@ -87,6 +87,16 @@ export const watchChat = (
 	});
 };
 
+export const watchACPSession = (
+	path: string,
+): OneWayWebSocket<TypesGen.ACPSession> => {
+	const token = API.getSessionToken();
+	return new OneWayWebSocket({
+		apiRoute: `${path}/stream`,
+		searchParams: token ? { [SessionTokenCookie]: token } : {},
+	});
+};
+
 export const watchChats = (): OneWayWebSocket<TypesGen.ChatWatchEvent> => {
 	const searchParams: Record<string, string> = {};
 	const token = API.getSessionToken();
@@ -455,6 +465,23 @@ export type GetProvisionerDaemonsParams = {
  */
 class ApiMethods {
 	experimental: ExperimentalApiMethods;
+
+	getACPSession = async (path: string): Promise<TypesGen.ACPSession | null> => {
+		try {
+			return (await this.axios.get<TypesGen.ACPSession>(path)).data;
+		} catch (error) {
+			if (isAxiosError(error) && error.response?.status === 404) return null;
+			throw error;
+		}
+	};
+	sendACPMessage = async (
+		path: string,
+		request: TypesGen.ACPMessageRequest,
+	): Promise<TypesGen.ACPSession> =>
+		(await this.axios.post<TypesGen.ACPSession>(`${path}/messages`, request))
+			.data;
+	interruptACPSession = async (path: string): Promise<TypesGen.ACPSession> =>
+		(await this.axios.post<TypesGen.ACPSession>(`${path}/interrupt`)).data;
 
 	constructor(protected readonly axios: AxiosInstance) {
 		this.experimental = new ExperimentalApiMethods(this.axios);

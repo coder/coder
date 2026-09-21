@@ -4,6 +4,7 @@ import { type ComponentProps, type FC, memo } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import { useTheme } from "#/theme/context";
+import { ACPTool } from "./ACPTool";
 import { AdvisorTool, type AdvisorToolResultType } from "./AdvisorTool";
 import {
 	type AskUserQuestion,
@@ -1172,7 +1173,16 @@ const StartWorkspaceRenderer: FC<ToolRendererProps> = ({
 // Renderer lookup map for tool names and specialized renderers.
 // ---------------------------------------------------------------------------
 
+const ACPToolRenderer: FC<ToolRendererProps> = (props) => (
+	<ACPTool {...props} ToolComponent={Tool} />
+);
+
 export const toolRenderers: Record<string, FC<ToolRendererProps>> = {
+	acp_spawn_agent: ACPToolRenderer,
+	acp_message_agent: ACPToolRenderer,
+	acp_wait_agent: ACPToolRenderer,
+	acp_interrupt_agent: ACPToolRenderer,
+	acp_list_agents: ACPToolRenderer,
 	find_tools: FindToolsRenderer,
 	execute: ExecuteRenderer,
 	process_output: ProcessOutputRenderer,

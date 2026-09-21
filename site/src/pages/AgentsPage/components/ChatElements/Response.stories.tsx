@@ -62,6 +62,21 @@ type Story = StoryObj<typeof Response>;
 
 export const MarkdownAndLinks: Story = {};
 
+export const Table: Story = {
+	args: {
+		children: `| Directory | Description |
+| --- | --- |
+| \`coder\` | Coder source code |
+| \`Downloads\` | Downloaded files |
+| \`Documents\` | Local documents |`,
+	},
+};
+
+export const TableLight: Story = {
+	args: Table.args,
+	parameters: { themes: { themeOverride: "light" } },
+};
+
 export const FencedFileBlock: Story = {
 	args: {
 		children: sampleFileMarkdown,

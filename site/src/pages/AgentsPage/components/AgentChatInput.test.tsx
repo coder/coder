@@ -93,3 +93,31 @@ describe("AgentChatInput", () => {
 		);
 	});
 });
+
+it("sends messages and interrupts externally managed agents", async () => {
+	const user = userEvent.setup();
+	const onSend = vi.fn();
+	const onInterrupt = vi.fn();
+	renderInput(
+		<AgentChatInput
+			messageOnly
+			onSend={onSend}
+			onInterrupt={onInterrupt}
+			isStreaming
+			isDisabled={false}
+			isLoading={false}
+			selectedModel=""
+			onModelChange={vi.fn()}
+			modelOptions={[]}
+			modelSelectorPlaceholder=""
+			hasModelOptions
+			canConfigureAgentSetup={false}
+		/>,
+	);
+	await user.click(screen.getByRole("textbox", { name: "Chat message" }));
+	await user.paste("Please check the second test too.");
+	await user.keyboard("{Enter}");
+	expect(onSend).toHaveBeenCalledWith("Please check the second test too.");
+	await user.click(screen.getByRole("button", { name: "Stop" }));
+	expect(onInterrupt).toHaveBeenCalledOnce();
+});

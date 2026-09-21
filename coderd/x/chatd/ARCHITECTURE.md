@@ -1,5 +1,7 @@
 # Overview of the architecture
 
+TODO: Document the ACP PoC tools, workspace-agent-owned ephemeral sessions, and custom proxy/stream endpoints.
+
 Chatd has 4 main pieces:
 
 - **core state machine**: describes how a chat's state in the database can change over time. It defines the valid states and transitions for committed chat data: status, messages, queued messages, pending actions, worker ownership, and the fields used to reject stale work. It's a specification implemented by [chatstate/machine.go](./chatstate/machine.go). Runtime components, such as the HTTP endpoints and the chat worker, use it to ensure that they modify the state only in valid ways.

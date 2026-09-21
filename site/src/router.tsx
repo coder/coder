@@ -362,6 +362,7 @@ const ProvisionerJobsPage = lazy(
 const AgentsPageLayout = lazy(
 	() => import("./pages/AgentsPage/AgentsPageLayout"),
 );
+const ACPChatPage = lazy(() => import("./pages/AgentsPage/ACPChatPage"));
 const AgentChatPage = lazy(() => import("./pages/AgentsPage/AgentChatPage"));
 const AgentEmbedPage = lazy(() => import("./pages/AgentsPage/AgentEmbedPage"));
 const DesktopPopoutPage = lazy(
@@ -886,6 +887,14 @@ export const router = createBrowserRouter(
 							element={<Navigate to="/ai/settings/templates" replace />}
 						/>
 					</Route>
+					<Route
+						path=":agentId/acp/:workspaceAgentId/:sessionId"
+						element={
+							<Suspense fallback={<AgentChatPageSkeleton />}>
+								<ACPChatPage />
+							</Suspense>
+						}
+					/>
 					<Route
 						path=":agentId"
 						element={

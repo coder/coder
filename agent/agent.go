@@ -38,6 +38,7 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/clistat"
+	"github.com/coder/coder/v2/agent/agentacp"
 	"github.com/coder/coder/v2/agent/agentcontainers"
 	"github.com/coder/coder/v2/agent/agentcontext"
 	"github.com/coder/coder/v2/agent/agentcontextconfig"
@@ -344,6 +345,7 @@ type agent struct {
 	filesAPI         *agentfiles.API
 	gitAPI           *agentgit.API
 	processAPI       *agentproc.API
+	acpManager       *agentacp.Manager
 	desktopAPI       *agentdesktop.API
 	mcpManager       *agentmcp.Manager
 	mcpAPI           *agentmcp.API
@@ -469,6 +471,12 @@ func (a *agent) init() {
 		}
 		return ""
 	}
+	a.acpManager = agentacp.New(a.gracefulCtx, workingDirFn, a.updateCommandEnv, func() uuid.UUID {
+		if m := a.manifest.Load(); m != nil {
+			return m.AgentID
+		}
+		return uuid.Nil
+	})
 	a.processAPI = agentproc.NewAPI(a.logger.Named("processes"), a.execer, a.filesystem, pathStore, a.envInfo, a.updateCommandEnv, workingDirFn)
 	gitOpts := append([]agentgit.Option{agentgit.WithClock(a.clock)}, a.gitAPIOptions...)
 	a.gitAPI = agentgit.NewAPI(a.logger.Named("git"), pathStore, gitOpts...)
@@ -2374,6 +2382,7 @@ func (a *agent) Close() error {
 		a.logger.Error(a.hardCtx, "container API close", slog.Error(err))
 	}
 
+	a.acpManager.Close()
 	if err := a.processAPI.Close(); err != nil {
 		a.logger.Error(a.hardCtx, "process API close", slog.Error(err))
 	}

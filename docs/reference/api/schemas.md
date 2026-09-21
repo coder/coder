@@ -316,6 +316,81 @@ title: Schemas
 | `groups` | array of [codersdk.Group](#codersdkgroup)             | false    |              |             |
 | `users`  | array of [codersdk.ReducedUser](#codersdkreduceduser) | false    |              |             |
 
+## codersdk.ACPEntry
+
+```json
+{
+  "id": "string",
+  "input": null,
+  "kind": "string",
+  "output": null,
+  "role": "string",
+  "status": "string",
+  "text": "string",
+  "title": "string"
+}
+```
+
+### Properties
+
+| Name     | Type   | Required | Restrictions | Description |
+|----------|--------|----------|--------------|-------------|
+| `id`     | string | false    |              |             |
+| `input`  | any    | false    |              |             |
+| `kind`   | string | false    |              |             |
+| `output` | any    | false    |              |             |
+| `role`   | string | false    |              |             |
+| `status` | string | false    |              |             |
+| `text`   | string | false    |              |             |
+| `title`  | string | false    |              |             |
+
+## codersdk.ACPSession
+
+```json
+{
+  "agent": "string",
+  "created_at": "2019-08-24T14:15:22Z",
+  "entries": [
+    {
+      "id": "string",
+      "input": null,
+      "kind": "string",
+      "output": null,
+      "role": "string",
+      "status": "string",
+      "text": "string",
+      "title": "string"
+    }
+  ],
+  "error": "string",
+  "parent_chat_id": "c3609ee6-3b11-4a93-b9ae-e4fabcc99359",
+  "queued": 0,
+  "session_id": "1ffd059c-17ea-40a8-8aef-70fd0307db82",
+  "status": "string",
+  "title": "string",
+  "updated_at": "2019-08-24T14:15:22Z",
+  "version": 0,
+  "workspace_agent_id": "7ad2e618-fea7-4c1a-b70a-f501566a72f1"
+}
+```
+
+### Properties
+
+| Name                 | Type                                            | Required | Restrictions | Description |
+|----------------------|-------------------------------------------------|----------|--------------|-------------|
+| `agent`              | string                                          | false    |              |             |
+| `created_at`         | string                                          | false    |              |             |
+| `entries`            | array of [codersdk.ACPEntry](#codersdkacpentry) | false    |              |             |
+| `error`              | string                                          | false    |              |             |
+| `parent_chat_id`     | string                                          | false    |              |             |
+| `queued`             | integer                                         | false    |              |             |
+| `session_id`         | string                                          | false    |              |             |
+| `status`             | string                                          | false    |              |             |
+| `title`              | string                                          | false    |              |             |
+| `updated_at`         | string                                          | false    |              |             |
+| `version`            | integer                                         | false    |              |             |
+| `workspace_agent_id` | string                                          | false    |              |             |
+
 ## codersdk.AIBridgeAgenticAction
 
 ```json

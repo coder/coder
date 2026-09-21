@@ -103,6 +103,8 @@ export type { ChatMessageInputRef } from "./ChatMessageInput/ChatMessageInput";
 export type { AgentContextUsage } from "./ContextUsageIndicator";
 
 type AgentChatInputProps = {
+	/** Hide configuration controls for externally managed agents. */
+	messageOnly?: boolean;
 	onSend: (message: string) => void;
 	placeholder?: string;
 	isDisabled: boolean;
@@ -361,6 +363,7 @@ const ToolBadge: FC<{
 };
 
 export const AgentChatInput: FC<AgentChatInputProps> = ({
+	messageOnly = false,
 	onSend,
 	placeholder = "Type a message...",
 	isDisabled,
@@ -1232,241 +1235,248 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 					{/* flex-1 routes free row space to the growing pills. */}
 					<div className="flex min-w-0 flex-1 items-center gap-1">
 						{/* Plus menu */}
-						<Popover
-							modal={false}
-							open={plusMenuOpen}
-							onOpenChange={(open) => {
-								setPlusMenuOpen(open);
-								if (!open) setPlusMenuView("main");
-							}}
-						>
-							{" "}
-							<PopoverTrigger asChild>
-								<Button
-									type="button"
-									variant="subtle"
-									size="icon"
-									className="size-7 shrink-0 rounded-full [&>svg]:size-icon-sm! [&>svg]:p-0"
-									disabled={
-										isDisabled &&
-										!showAgentSetupNotice &&
-										!canUseWorkspacePicker
-									}
-									aria-label="More options"
-								>
-									<PlusIcon />
-								</Button>
-							</PopoverTrigger>
-							<PopoverContent
-								side="bottom"
-								align="start"
-								className="mobile-full-width-dropdown mobile-full-width-dropdown-bottom w-auto min-w-[200px] p-1"
+						{!messageOnly && (
+							<Popover
+								modal={false}
+								open={plusMenuOpen}
+								onOpenChange={(open) => {
+									setPlusMenuOpen(open);
+									if (!open) setPlusMenuView("main");
+								}}
 							>
-								{plusMenuView === "workspace" ? (
-									<div className="p-0">
-										<button
-											type="button"
-											onClick={() => setPlusMenuView("main")}
-											className="flex h-8 w-full cursor-pointer items-center gap-1.5 border-none bg-transparent px-1 text-xs text-content-secondary shadow-none transition-colors hover:text-content-primary"
-										>
-											<ArrowLeftIcon className="size-3.5 shrink-0" />
-											<span>Back</span>
-										</button>
-										<Separator className="my-1" />
-										<WorkspacePickerList
-											workspaceOptions={workspaceOptions}
-											selectedWorkspaceId={selectedWorkspaceId}
-											chatOrganizationId={chatOrganizationId}
-											onSelect={(id) => {
-												onWorkspaceChange?.(id);
-												setPlusMenuOpen(false);
-											}}
-										/>
-									</div>
-								) : (
-									<>
-										{onAttach && (
+								{" "}
+								<PopoverTrigger asChild>
+									<Button
+										type="button"
+										variant="subtle"
+										size="icon"
+										className="size-7 shrink-0 rounded-full [&>svg]:size-icon-sm! [&>svg]:p-0"
+										disabled={
+											isDisabled &&
+											!showAgentSetupNotice &&
+											!canUseWorkspacePicker
+										}
+										aria-label="More options"
+									>
+										<PlusIcon />
+									</Button>
+								</PopoverTrigger>
+								<PopoverContent
+									side="bottom"
+									align="start"
+									className="mobile-full-width-dropdown mobile-full-width-dropdown-bottom w-auto min-w-[200px] p-1"
+								>
+									{plusMenuView === "workspace" ? (
+										<div className="p-0">
 											<button
 												type="button"
-												onClick={() => {
-													resetPromptCycle();
+												onClick={() => setPlusMenuView("main")}
+												className="flex h-8 w-full cursor-pointer items-center gap-1.5 border-none bg-transparent px-1 text-xs text-content-secondary shadow-none transition-colors hover:text-content-primary"
+											>
+												<ArrowLeftIcon className="size-3.5 shrink-0" />
+												<span>Back</span>
+											</button>
+											<Separator className="my-1" />
+											<WorkspacePickerList
+												workspaceOptions={workspaceOptions}
+												selectedWorkspaceId={selectedWorkspaceId}
+												chatOrganizationId={chatOrganizationId}
+												onSelect={(id) => {
+													onWorkspaceChange?.(id);
 													setPlusMenuOpen(false);
-													fileInputRef.current?.click();
 												}}
-												className="group flex h-8 w-full cursor-pointer items-center gap-1.5 border-none bg-transparent px-1 text-xs text-content-secondary shadow-none transition-colors hover:text-content-primary"
-											>
-												<PaperclipIcon className="size-3.5 shrink-0" />
-												Attach file
-											</button>
-										)}
-										{onPlanModeToggle && (
-											<button
-												type="button"
-												role="menuitemcheckbox"
-												aria-checked={planModeEnabled}
-												onClick={handlePlanModeToggle}
-												disabled={isDisabled}
-												className="group flex h-8 w-full cursor-pointer items-center gap-1.5 border-none bg-transparent px-1 text-xs text-content-secondary shadow-none transition-colors hover:text-content-primary disabled:cursor-not-allowed disabled:opacity-50"
-											>
-												<PencilIcon className="size-3.5 shrink-0" />
-												<span>Plan first</span>
-												{planModeEnabled && (
-													<CheckIcon className="ml-auto size-icon-sm shrink-0" />
-												)}
-											</button>
-										)}
-										{workspaceOptions &&
-											onWorkspaceChange &&
-											(isBelowMdViewport() ? (
+											/>
+										</div>
+									) : (
+										<>
+											{onAttach && (
 												<button
 													type="button"
-													disabled={!canUseWorkspacePicker}
-													onClick={() => setPlusMenuView("workspace")}
+													onClick={() => {
+														resetPromptCycle();
+														setPlusMenuOpen(false);
+														fileInputRef.current?.click();
+													}}
+													className="group flex h-8 w-full cursor-pointer items-center gap-1.5 border-none bg-transparent px-1 text-xs text-content-secondary shadow-none transition-colors hover:text-content-primary"
+												>
+													<PaperclipIcon className="size-3.5 shrink-0" />
+													Attach file
+												</button>
+											)}
+											{onPlanModeToggle && (
+												<button
+													type="button"
+													role="menuitemcheckbox"
+													aria-checked={planModeEnabled}
+													onClick={handlePlanModeToggle}
+													disabled={isDisabled}
 													className="group flex h-8 w-full cursor-pointer items-center gap-1.5 border-none bg-transparent px-1 text-xs text-content-secondary shadow-none transition-colors hover:text-content-primary disabled:cursor-not-allowed disabled:opacity-50"
 												>
-													<MonitorIcon className="size-3.5 shrink-0" />
-													<span>Attach workspace</span>
-													<ChevronRightIcon className="ml-auto size-icon-sm" />
+													<PencilIcon className="size-3.5 shrink-0" />
+													<span>Plan first</span>
+													{planModeEnabled && (
+														<CheckIcon className="ml-auto size-icon-sm shrink-0" />
+													)}
 												</button>
-											) : (
-												<Popover
-													open={workspacePickerOpen}
-													onOpenChange={setWorkspacePickerOpen}
-												>
-													<PopoverTrigger asChild>
-														<button
-															type="button"
-															disabled={!canUseWorkspacePicker}
-															className="group flex h-8 w-full cursor-pointer items-center gap-1.5 border-none bg-transparent px-1 text-xs text-content-secondary shadow-none transition-colors hover:text-content-primary disabled:cursor-not-allowed disabled:opacity-50"
-														>
-															<MonitorIcon className="size-3.5 shrink-0" />
-															<span>Attach workspace</span>
-															<ChevronRightIcon
-																className={cn(
-																	"ml-auto size-icon-sm transition-transform",
-																	workspacePickerOpen && "rotate-180",
-																)}
-															/>
-														</button>
-													</PopoverTrigger>
-													<PopoverContent
-														side="right"
-														align="start"
-														sideOffset={8}
-														className="w-64 p-0"
+											)}
+											{workspaceOptions &&
+												onWorkspaceChange &&
+												(isBelowMdViewport() ? (
+													<button
+														type="button"
+														disabled={!canUseWorkspacePicker}
+														onClick={() => setPlusMenuView("workspace")}
+														className="group flex h-8 w-full cursor-pointer items-center gap-1.5 border-none bg-transparent px-1 text-xs text-content-secondary shadow-none transition-colors hover:text-content-primary disabled:cursor-not-allowed disabled:opacity-50"
 													>
-														<WorkspacePickerList
-															workspaceOptions={workspaceOptions}
-															selectedWorkspaceId={selectedWorkspaceId}
-															chatOrganizationId={chatOrganizationId}
-															onSelect={(id) => {
-																onWorkspaceChange(id);
-																setWorkspacePickerOpen(false);
-																setPlusMenuOpen(false);
-															}}
-														/>
-													</PopoverContent>
-												</Popover>
-											))}
-										{enabledMcpServers.length > 0 && (
-											<>
-												<Separator className="my-1" />
-												{enabledMcpServers.map((server) => {
-													const isForceOn = server.availability === "force_on";
-													const isSelected =
-														isForceOn ||
-														(selectedMCPServerIds?.includes(server.id) ??
-															false);
-													const needsAuth =
-														server.auth_type === "oauth2" &&
-														!server.auth_connected;
-													const isConnecting = mcpConnectingId === server.id;
-													return (
-														<div
-															key={server.id}
-															className="flex items-center gap-1.5 px-1 py-1.5"
-														>
-															{server.icon_url ? (
-																<ExternalImage
-																	src={server.icon_url}
-																	alt=""
-																	className="size-3.5 shrink-0 rounded-sm"
-																/>
-															) : (
-																<ServerIcon className="size-3.5 shrink-0 text-content-secondary" />
-															)}
-															<span className="min-w-0 flex-1 truncate text-xs text-content-secondary">
-																{server.display_name}
-															</span>
-															{needsAuth ? (
-																<Button
-																	variant="outline"
-																	size="sm"
-																	className="h-6 shrink-0 px-2 text-[10px] leading-none"
-																	onClick={() => connectMCPServer(server.id)}
-																	disabled={
-																		isDisabled || mcpConnectingId !== null
-																	}
-																>
-																	{isConnecting ? (
-																		<Spinner loading className="h-2.5 w-2.5" />
-																	) : null}
-																	Auth
-																</Button>
-															) : (
-																<>
-																	{server.auth_type === "oauth2" && (
-																		<Button
-																			variant="subtle"
-																			size="icon"
-																			className="size-6 shrink-0 text-content-secondary [&>svg]:size-3"
-																			onClick={() => {
-																				setPlusMenuOpen(false);
-																				setMcpDisconnectTarget(server);
-																			}}
-																			disabled={isDisabled}
-																			aria-label={`Disconnect ${server.display_name}`}
-																		>
-																			<UnlinkIcon />
-																		</Button>
+														<MonitorIcon className="size-3.5 shrink-0" />
+														<span>Attach workspace</span>
+														<ChevronRightIcon className="ml-auto size-icon-sm" />
+													</button>
+												) : (
+													<Popover
+														open={workspacePickerOpen}
+														onOpenChange={setWorkspacePickerOpen}
+													>
+														<PopoverTrigger asChild>
+															<button
+																type="button"
+																disabled={!canUseWorkspacePicker}
+																className="group flex h-8 w-full cursor-pointer items-center gap-1.5 border-none bg-transparent px-1 text-xs text-content-secondary shadow-none transition-colors hover:text-content-primary disabled:cursor-not-allowed disabled:opacity-50"
+															>
+																<MonitorIcon className="size-3.5 shrink-0" />
+																<span>Attach workspace</span>
+																<ChevronRightIcon
+																	className={cn(
+																		"ml-auto size-icon-sm transition-transform",
+																		workspacePickerOpen && "rotate-180",
 																	)}
-																	<Switch
-																		size="sm"
-																		checked={isSelected}
-																		onCheckedChange={(checked) =>
-																			handleMcpToggle(server.id, checked)
-																		}
-																		disabled={isDisabled || isForceOn}
-																		aria-label={`${isSelected ? "Disable" : "Enable"} ${server.display_name}`}
+																/>
+															</button>
+														</PopoverTrigger>
+														<PopoverContent
+															side="right"
+															align="start"
+															sideOffset={8}
+															className="w-64 p-0"
+														>
+															<WorkspacePickerList
+																workspaceOptions={workspaceOptions}
+																selectedWorkspaceId={selectedWorkspaceId}
+																chatOrganizationId={chatOrganizationId}
+																onSelect={(id) => {
+																	onWorkspaceChange(id);
+																	setWorkspacePickerOpen(false);
+																	setPlusMenuOpen(false);
+																}}
+															/>
+														</PopoverContent>
+													</Popover>
+												))}
+											{enabledMcpServers.length > 0 && (
+												<>
+													<Separator className="my-1" />
+													{enabledMcpServers.map((server) => {
+														const isForceOn =
+															server.availability === "force_on";
+														const isSelected =
+															isForceOn ||
+															(selectedMCPServerIds?.includes(server.id) ??
+																false);
+														const needsAuth =
+															server.auth_type === "oauth2" &&
+															!server.auth_connected;
+														const isConnecting = mcpConnectingId === server.id;
+														return (
+															<div
+																key={server.id}
+																className="flex items-center gap-1.5 px-1 py-1.5"
+															>
+																{server.icon_url ? (
+																	<ExternalImage
+																		src={server.icon_url}
+																		alt=""
+																		className="size-3.5 shrink-0 rounded-sm"
 																	/>
-																</>
-															)}
-														</div>
-													);
-												})}
-											</>
-										)}
-									</>
-								)}
-							</PopoverContent>
-						</Popover>
-						{isModelCatalogLoading ? (
-							<Skeleton className="h-6 w-24 rounded" />
-						) : (
-							<ModelSelector
-								value={selectedModel}
-								onValueChange={onModelChange}
-								options={modelOptions}
-								disabled={isDisabled}
-								placeholder={modelSelectorPlaceholder}
-								className={cn(pillSizingClasses, "md:h-auto")}
-								dropdownSide="top"
-								dropdownAlign="start"
-								enableMobileFullWidthDropdown
-								reasoningEffort={reasoningEffort}
-								onReasoningEffortChange={onReasoningEffortChange}
-							/>
+																) : (
+																	<ServerIcon className="size-3.5 shrink-0 text-content-secondary" />
+																)}
+																<span className="min-w-0 flex-1 truncate text-xs text-content-secondary">
+																	{server.display_name}
+																</span>
+																{needsAuth ? (
+																	<Button
+																		variant="outline"
+																		size="sm"
+																		className="h-6 shrink-0 px-2 text-[10px] leading-none"
+																		onClick={() => connectMCPServer(server.id)}
+																		disabled={
+																			isDisabled || mcpConnectingId !== null
+																		}
+																	>
+																		{isConnecting ? (
+																			<Spinner
+																				loading
+																				className="h-2.5 w-2.5"
+																			/>
+																		) : null}
+																		Auth
+																	</Button>
+																) : (
+																	<>
+																		{server.auth_type === "oauth2" && (
+																			<Button
+																				variant="subtle"
+																				size="icon"
+																				className="size-6 shrink-0 text-content-secondary [&>svg]:size-3"
+																				onClick={() => {
+																					setPlusMenuOpen(false);
+																					setMcpDisconnectTarget(server);
+																				}}
+																				disabled={isDisabled}
+																				aria-label={`Disconnect ${server.display_name}`}
+																			>
+																				<UnlinkIcon />
+																			</Button>
+																		)}
+																		<Switch
+																			size="sm"
+																			checked={isSelected}
+																			onCheckedChange={(checked) =>
+																				handleMcpToggle(server.id, checked)
+																			}
+																			disabled={isDisabled || isForceOn}
+																			aria-label={`${isSelected ? "Disable" : "Enable"} ${server.display_name}`}
+																		/>
+																	</>
+																)}
+															</div>
+														);
+													})}
+												</>
+											)}
+										</>
+									)}
+								</PopoverContent>
+							</Popover>
 						)}
+						{!messageOnly &&
+							(isModelCatalogLoading ? (
+								<Skeleton className="h-6 w-24 rounded" />
+							) : (
+								<ModelSelector
+									value={selectedModel}
+									onValueChange={onModelChange}
+									options={modelOptions}
+									disabled={isDisabled}
+									placeholder={modelSelectorPlaceholder}
+									className={cn(pillSizingClasses, "md:h-auto")}
+									dropdownSide="top"
+									dropdownAlign="start"
+									enableMobileFullWidthDropdown
+									reasoningEffort={reasoningEffort}
+									onReasoningEffortChange={onReasoningEffortChange}
+								/>
+							))}
 						{planModeEnabled && !shouldOverflowPlanningBadge && (
 							<span
 								data-testid="planning-badge"
