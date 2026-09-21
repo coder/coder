@@ -8,6 +8,10 @@ import {
 import { SelectFilter } from "#/components/Filter/SelectFilter";
 import { AIBridgeModelIcon } from "../icons/AIBridgeModelIcon";
 
+// The search parser reads a bare ':' as key:value syntax, so identifiers such
+// as Bedrock's "...-v2:0" must travel as a quoted literal.
+const modelSearch = (model: string) => `model:"${model}"`;
+
 export const useModelFilterMenu = ({
 	value,
 	onChange,
@@ -17,7 +21,7 @@ export const useModelFilterMenu = ({
 		id: "model",
 		getSelectedOption: async () => {
 			const modelsRes = await API.getAIBridgeModels({
-				q: value,
+				q: value && modelSearch(value),
 				limit: 1,
 			});
 			const firstModel = modelsRes.at(0);
@@ -36,7 +40,7 @@ export const useModelFilterMenu = ({
 		},
 		getOptions: async (query) => {
 			const modelsRes = await API.getAIBridgeModels({
-				q: query,
+				q: modelSearch(query),
 				limit: 25,
 			});
 			return modelsRes.map((model) => ({
