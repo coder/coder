@@ -557,7 +557,6 @@ const mergeDiffStatuses = (
 		(cached ?? []).map((status) => [diffStatusRefKey(status), status]),
 	);
 
-	// The event's rows replace the cached rows for the same refs.
 	for (const status of incoming ?? []) {
 		merged.set(diffStatusRefKey(status), status);
 	}
@@ -568,8 +567,8 @@ const mergeDiffStatuses = (
 	if (primary && primaryKey && !merged.has(primaryKey)) {
 		merged.set(primaryKey, primary);
 	}
-	// A tombstone removes its ref instead of adding a blank entry;
-	// the delete runs after the adoption so a removed primary
+
+	// The delete runs after the adoption so a removed primary
 	// cannot come back through the embedded snapshot.
 	if (removedRef) {
 		merged.delete(diffStatusRefKey(removedRef));
@@ -615,17 +614,12 @@ export const mergeWatchedChatSummary = (
 	// apply title_change payloads even when the chat summary timestamp is older.
 	const nextTitle = isTitleEvent ? watchedChat.title : cachedChat.title;
 
-	// A diff_status_change carries the changed ref and the
-	// embedded primary. Merge by ref key so other refs stay
-	// cached, and adopt the embedded primary so the first row keeps
-	// the server order. A tombstone status means the ref has no row
-	// anymore, so remove it.
+	// A diff_status_change carries one changed ref. A tombstone
+	// names the removed ref; any other status is the changed row.
 	const changedStatus = changedDiffStatus?.status ?? undefined;
 	const changedIsTombstone =
 		changedStatus !== undefined && isDiffStatusTombstone(changedStatus);
 
-	// A tombstone event only names the ref it removed. Every other
-	// event carries one changed row to merge.
 	let incomingRows: readonly TypesGen.ChatDiffStatus[] | undefined;
 	let removedRef: TypesGen.DiffStatusRef | undefined;
 	if (changedIsTombstone) {
@@ -877,8 +871,8 @@ export const invalidateChatDebugRuns = (
 		queryKey: chatDebugRunsKey(chatId),
 	});
 
-// Every per-ref diff-contents query key starts with this prefix,
-// so invalidating it drops every ref's cached diff at once.
+// Every per-ref diff-contents key starts with this prefix, so
+// invalidating it drops every ref's cached diff at once.
 const chatDiffContentsFamilyKey = (chatId: string) =>
 	[...chatEntityKey(chatId), "diff-contents"] as const;
 
