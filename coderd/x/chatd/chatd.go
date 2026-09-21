@@ -2647,7 +2647,7 @@ func (p *Server) ProposeChatTitle(
 ) (string, error) {
 	//nolint:gocritic // Non-admin users need chatd-scoped config reads here.
 	chatdCtx := dbauthz.AsChatd(ctx)
-	return p.generateManualTitleCandidate(chatdCtx, p.db, chat)
+	return p.generateManualTitleCandidate(chatdCtx, chat)
 }
 
 // generateManualTitleCandidate generates a title candidate from the chat's
@@ -2655,10 +2655,9 @@ func (p *Server) ProposeChatTitle(
 // Endpoint-specific commit paths decide whether to persist the title.
 func (p *Server) generateManualTitleCandidate(
 	ctx context.Context,
-	store database.Store,
 	chat database.Chat,
 ) (string, error) {
-	headMessages, err := store.GetChatMessagesByChatIDAscPaginated(
+	headMessages, err := p.db.GetChatMessagesByChatIDAscPaginated(
 		ctx,
 		database.GetChatMessagesByChatIDAscPaginatedParams{
 			ChatID:   chat.ID,
@@ -2669,7 +2668,7 @@ func (p *Server) generateManualTitleCandidate(
 	if err != nil {
 		return "", xerrors.Errorf("get head chat messages: %w", err)
 	}
-	tailMessages, err := store.GetChatMessagesByChatIDDescPaginated(
+	tailMessages, err := p.db.GetChatMessagesByChatIDDescPaginated(
 		ctx,
 		database.GetChatMessagesByChatIDDescPaginatedParams{
 			ChatID:   chat.ID,
@@ -2684,7 +2683,7 @@ func (p *Server) generateManualTitleCandidate(
 	if len(messages) == 0 {
 		return "", nil
 	}
-	pasteText, err := titlePasteText(ctx, store, messages)
+	pasteText, err := titlePasteText(ctx, p.db, messages)
 	if err != nil {
 		return "", xerrors.Errorf("get pasted-text attachments for manual title: %w", err)
 	}
@@ -2694,7 +2693,7 @@ func (p *Server) generateManualTitleCandidate(
 	}
 	modelOpts := modelBuildOptions{ActiveAPIKeyID: apiKeyID}
 
-	resolved, err := p.resolveManualTitleModel(ctx, store, chat, modelOpts)
+	resolved, err := p.resolveQuickgenModel(ctx, "title", chat, modelOpts)
 	if err != nil {
 		return "", err
 	}
@@ -2851,94 +2850,6 @@ func deriveChatDebugSeed(messages []database.ChatMessage) (
 	}
 
 	return triggerMessageID, historyTipMessageID, triggerLabel
-}
-
-func (p *Server) resolveManualTitleModel(
-	ctx context.Context,
-	store database.Store,
-	chat database.Chat,
-	modelOpts modelBuildOptions,
-) (resolvedModelCall, error) {
-	overrideResolved, overrideSet, overrideErr := p.resolveTitleGenerationModelOverride(
-		ctx,
-		chat,
-		modelOpts,
-	)
-	if overrideErr != nil {
-		if overrideSet {
-			return resolvedModelCall{}, xerrors.Errorf(
-				"resolve manual title generation model override: %w",
-				overrideErr,
-			)
-		}
-		p.logger.Debug(ctx, "failed to resolve title generation model override for manual title",
-			slog.F("chat_id", chat.ID),
-			slog.Error(overrideErr),
-		)
-	} else if overrideSet {
-		return overrideResolved, nil
-	}
-
-	modelCtx, err := p.callerModelConfigContext(ctx, chat.OwnerID)
-	if err != nil {
-		return resolvedModelCall{}, err
-	}
-	configs, err := enabledChatModelConfigsForOrganization(modelCtx, store, chat.OrganizationID)
-	if err != nil {
-		p.logger.Debug(ctx, "failed to list manual title model configs",
-			slog.F("chat_id", chat.ID),
-			slog.Error(err),
-		)
-		return p.resolveFallbackManualTitleModel(ctx, chat, modelOpts)
-	}
-
-	config, ok := selectPreferredConfiguredShortTextModelConfig(configs)
-	if !ok {
-		return p.resolveFallbackManualTitleModel(ctx, chat, modelOpts)
-	}
-
-	resolved, err := p.resolveModelCall(ctx, modelCallSpec{
-		purpose:        "title",
-		chat:           chat,
-		explicitConfig: &config,
-		buildOptions:   modelOpts,
-	})
-	if err != nil {
-		p.logger.Debug(ctx, "manual title preferred model unavailable",
-			slog.F("chat_id", chat.ID),
-			slog.F("model", config.Model),
-			slog.Error(err),
-		)
-		return p.resolveFallbackManualTitleModel(ctx, chat, modelOpts)
-	}
-	return resolved, nil
-}
-
-func (p *Server) resolveFallbackManualTitleModel(
-	ctx context.Context,
-	chat database.Chat,
-	modelOpts modelBuildOptions,
-) (resolvedModelCall, error) {
-	config, err := p.resolveModelConfig(ctx, chat)
-	if err != nil {
-		return resolvedModelCall{}, xerrors.Errorf(
-			"resolve fallback manual title model config: %w",
-			err,
-		)
-	}
-	resolved, err := p.resolveModelCall(ctx, modelCallSpec{
-		purpose:        "title",
-		chat:           chat,
-		explicitConfig: &config,
-		buildOptions:   modelOpts,
-	})
-	if err != nil {
-		return resolvedModelCall{}, xerrors.Errorf(
-			"create fallback manual title model: %w",
-			err,
-		)
-	}
-	return resolved, nil
 }
 
 func mergeManualTitleMessages(
@@ -4788,8 +4699,12 @@ func (p *Server) generateAndStoreChatSummary(
 	summary, _, genErr := generateChatSummary(summaryCtx, resolved.model.LanguageModel(), summaryObjectCall(resolved), transcript)
 
 	if genErr != nil {
-		logger.Debug(ctx, "failed to generate chat summary",
-			slog.F("chat_id", chat.ID), slog.Error(genErr))
+		logger.Warn(ctx, "failed to generate chat summary",
+			slog.F("chat_id", chat.ID),
+			slog.F("provider", resolved.resolvedProvider),
+			slog.F("model", resolved.resolvedModel),
+			slog.Error(genErr),
+		)
 		return
 	}
 
@@ -4802,13 +4717,9 @@ func (p *Server) resolveChatSummaryModel(
 	chat database.Chat,
 	modelOpts modelBuildOptions,
 ) (resolvedModelCall, bool) {
-	resolved, err := p.resolveModelCall(ctx, modelCallSpec{
-		purpose:      "chat_summary",
-		chat:         chat,
-		buildOptions: modelOpts,
-	})
+	resolved, err := p.resolveQuickgenModel(ctx, "chat_summary", chat, modelOpts)
 	if err != nil {
-		logger.Debug(ctx, "failed to resolve chat model for summary",
+		logger.Warn(ctx, "failed to resolve model for chat summary",
 			slog.F("chat_id", chat.ID), slog.Error(err))
 		return resolvedModelCall{}, false
 	}

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
@@ -51,6 +52,10 @@ type DBBatcher struct {
 	flushForced atomic.Bool
 	// flushed is used during testing to signal that a flush has completed.
 	flushed chan<- int
+
+	metrics batcherMetrics
+	// registerer is nil unless BatcherWithRegisterer is passed.
+	registerer prometheus.Registerer
 }
 
 // Option is a functional option for configuring a Batcher.
@@ -84,14 +89,24 @@ func BatcherWithLogger(log slog.Logger) BatcherOption {
 	}
 }
 
+// BatcherWithRegisterer sets the Prometheus registerer for batcher metrics.
+func BatcherWithRegisterer(reg prometheus.Registerer) BatcherOption {
+	return func(b *DBBatcher) {
+		b.registerer = reg
+	}
+}
+
 // NewBatcher creates a new Batcher and starts it.
 func NewBatcher(ctx context.Context, opts ...BatcherOption) (*DBBatcher, func(), error) {
 	b := &DBBatcher{}
 	b.log = slog.Make(sloghuman.Sink(os.Stderr))
+	b.metrics = newBatcherMetrics()
 	b.flushLever = make(chan struct{}, 1) // Buffered so that it doesn't block.
 	for _, opt := range opts {
 		opt(b)
 	}
+
+	b.metrics.register(b.registerer)
 
 	if b.store == nil {
 		return nil, nil, xerrors.Errorf("no store configured for batcher")
@@ -141,15 +156,17 @@ func (b *DBBatcher) Add(
 	usage bool,
 ) {
 	// Normalize and cap outside the lock.
-	sessionCounts := normalizedSessionCounts(st)
-	if len(sessionCounts) > maxSessionCountEntries {
-		b.log.Warn(context.Background(), "too many distinct session types, overflow counted under unknown",
+	sessionCounts, overflow := capSessionCounts(normalizedSessionCounts(st))
+	if overflow > 0 {
+		// A misbehaving agent hits this on every report, so alert on the
+		// counter and keep the log at debug.
+		b.log.Debug(context.Background(), "too many distinct session types, overflow counted under unknown",
 			slog.F("agent_id", agentID),
-			slog.F("reported", len(sessionCounts)),
+			slog.F("overflow", overflow),
 			slog.F("max", maxSessionCountEntries),
 		)
+		b.metrics.SessionCountsOverflowTotal.Add(float64(overflow))
 	}
-	sessionCounts = capSessionCounts(sessionCounts)
 
 	b.mu.Lock()
 	defer b.mu.Unlock()

@@ -45,7 +45,7 @@ func newLanguageModel(
 	userAgent string,
 	extraHeaders map[string]string,
 	httpClient *http.Client,
-	openAIConfig *codersdk.ChatModelOpenAIConfig,
+	callConfig *codersdk.ChatModelCallConfig,
 ) (chatprovider.Model, error) {
 	model, err := chatprovider.ModelFromConfig(
 		providerHint,
@@ -54,7 +54,7 @@ func newLanguageModel(
 		userAgent,
 		extraHeaders,
 		httpClient,
-		openAIConfig,
+		callConfig,
 	)
 	if err != nil {
 		return chatprovider.Model{}, err

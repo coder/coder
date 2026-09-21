@@ -1,10 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import type {
-	ComponentProps,
-	FC,
-	HTMLAttributes,
-	PropsWithChildren,
-} from "react";
+import type { ComponentProps, FC, PropsWithChildren } from "react";
 import { PaginationContainer } from "./PaginationContainer";
 import {
 	mockInitialRenderResult,
@@ -15,7 +10,7 @@ import {
 type EssentialComponent = FC<
 	Omit<
 		ComponentProps<typeof PaginationContainer>,
-		keyof HTMLAttributes<HTMLDivElement>
+		keyof ComponentProps<"div">
 	> &
 		PropsWithChildren
 >;

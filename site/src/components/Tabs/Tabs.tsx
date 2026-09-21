@@ -4,7 +4,6 @@ import { Tabs as TabsPrimitive } from "radix-ui";
 import {
 	type ComponentProps,
 	createContext,
-	type HTMLAttributes,
 	useCallback,
 	useContext,
 	useEffect,
@@ -117,7 +116,7 @@ const LinkTabsContext = createContext<LinkTabsContextValue | undefined>(
 	undefined,
 );
 
-type LinkTabsProps = HTMLAttributes<HTMLDivElement> & LinkTabsContextValue;
+type LinkTabsProps = ComponentProps<"div"> & LinkTabsContextValue;
 
 export const LinkTabs = ({
 	className,
@@ -140,7 +139,7 @@ export const LinkTabs = ({
 	);
 };
 
-type LinkTabsListProps = HTMLAttributes<HTMLDivElement>;
+type LinkTabsListProps = ComponentProps<"div">;
 
 export const LinkTabsList = ({ className, ...props }: LinkTabsListProps) => {
 	const tabsContext = useContext(LinkTabsContext);

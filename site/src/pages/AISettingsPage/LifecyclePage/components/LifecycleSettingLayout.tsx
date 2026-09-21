@@ -6,7 +6,7 @@ import { Spinner } from "#/components/Spinner/Spinner";
 import { Switch } from "#/components/Switch/Switch";
 import { TemporarySavedState } from "#/components/TemporarySavedState/TemporarySavedState";
 
-interface LifecycleSettingLayoutProps {
+type LifecycleSettingLayoutProps = {
 	title: string;
 	description: string;
 	docsHref?: string;
@@ -21,7 +21,7 @@ interface LifecycleSettingLayoutProps {
 	isSavedVisible: boolean;
 	saveDisabled: boolean;
 	onSubmit: FormEventHandler<HTMLFormElement>;
-}
+};
 
 export const LifecycleSettingLayout: FC<LifecycleSettingLayoutProps> = ({
 	title,
@@ -91,7 +91,7 @@ export const LifecycleSettingLayout: FC<LifecycleSettingLayoutProps> = ({
 	);
 };
 
-interface DaysFieldProps {
+type DaysFieldProps = {
 	name: string;
 	value: number;
 	onChange: (event: React.ChangeEvent<HTMLInputElement>) => void;
@@ -101,7 +101,7 @@ interface DaysFieldProps {
 	error?: boolean;
 	min: number;
 	max: number;
-}
+};
 
 export const DaysField: FC<DaysFieldProps> = ({
 	name,

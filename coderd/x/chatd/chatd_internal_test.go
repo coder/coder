@@ -31,6 +31,8 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
+	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	skillspkg "github.com/coder/coder/v2/coderd/x/skills"
 	"github.com/coder/coder/v2/codersdk"
@@ -325,6 +327,96 @@ func TestMaybeGenerateChatSummaryAsync_CloseCancelsInflight(t *testing.T) {
 		_ = server.Close()
 	}()
 	testutil.TryReceive(ctx, t, closed)
+}
+
+// The whole-chat summary is a structured side call, so it must run on the
+// title generation model rather than the chat's own model.
+func TestGenerateAndStoreChatSummary_UsesTitleGenerationModel(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	ctx := chatdTestContext(t)
+
+	summaryModels := make(chan string, 1)
+	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if strings.Contains(string(req.RawBody), "chat_summary") {
+			summaryModels <- req.Model
+		}
+		return chattest.OpenAINonStreamingResponse(`{"headline":"Explains the answer to the question","bullets":[]}`)
+	})
+
+	user := dbgen.User(t, db, database.User{})
+	org := dbgen.Organization(t, db, database.Organization{})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{
+		UserID:         user.ID,
+		OrganizationID: org.ID,
+	})
+	dbgen.ChatProvider(t, db, database.ChatProvider{
+		Provider:    "openai",
+		DisplayName: "OpenAI",
+		BaseUrl:     openAIURL,
+	})
+	insertModel := func(model string, isDefault bool) database.ChatModelConfig {
+		return dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+			Model:          model,
+			DisplayName:    model,
+			Options:        json.RawMessage(`{"openai_config":{"use_responses_api":false}}`),
+			OrganizationID: org.ID,
+		}, func(p *database.InsertChatModelConfigParams) {
+			p.Enabled = true
+			p.IsDefault = isDefault
+		})
+	}
+	chatModel := insertModel("gpt-4.1", true)
+	insertModel("gpt-4o-mini", false)
+
+	created, err := chatstate.CreateChat(ctx, db, ps, chatstate.CreateChatInput{
+		OrganizationID:    org.ID,
+		OwnerID:           user.ID,
+		LastModelConfigID: chatModel.ID,
+		Title:             "summary-model-chat",
+		ClientType:        database.ChatClientTypeUi,
+		InitialMessages: []chatstate.Message{
+			{
+				Role:           database.ChatMessageRoleUser,
+				Content:        mustMarshalText(t, "what is the answer to life, the universe, and everything?"),
+				Visibility:     database.ChatMessageVisibilityBoth,
+				ContentVersion: chatprompt.CurrentContentVersion,
+				CreatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
+				ModelConfigID:  uuid.NullUUID{UUID: chatModel.ID, Valid: true},
+			},
+		},
+	})
+	require.NoError(t, err)
+	chat := created.Chat
+
+	machine := chatstate.NewChatMachine(db, ps, chat.ID)
+	require.NoError(t, machine.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+		_, err := tx.CommitStep(chatstate.CommitStepInput{
+			Messages: []chatstate.Message{
+				{
+					Role:           database.ChatMessageRoleAssistant,
+					Content:        mustMarshalText(t, strings.Repeat("The answer is 42. ", summaryMinTranscriptRunes/10)),
+					Visibility:     database.ChatMessageVisibilityBoth,
+					ContentVersion: chatprompt.CurrentContentVersion,
+					ModelConfigID:  uuid.NullUUID{UUID: chatModel.ID, Valid: true},
+				},
+			},
+		})
+		return err
+	}))
+
+	server := newInternalTestServer(
+		t, db, ps, chatprovider.ProviderAPIKeys{},
+		withInternalTestServerTransportFactory(chattest.NewMockAIBridgeTransport(t, openAIURL)),
+	)
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	server.generateAndStoreChatSummary(ctx, logger, chat)
+
+	require.Equal(t, "gpt-4o-mini", testutil.RequireReceive(ctx, t, summaryModels))
+	fetched, err := db.GetChatByID(ctx, chat.ID)
+	require.NoError(t, err)
+	require.True(t, fetched.Summary.Valid)
 }
 
 func TestComputerUseProviderAndModelFromConfig(t *testing.T) {
