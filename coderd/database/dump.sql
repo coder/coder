@@ -4823,7 +4823,7 @@ CREATE INDEX idx_chat_model_configs_organization_id ON chat_model_configs USING 
 
 CREATE UNIQUE INDEX idx_chat_model_configs_single_default ON chat_model_configs USING btree (organization_id) WHERE ((is_default = true) AND (deleted = false));
 
-CREATE UNIQUE INDEX idx_chat_projects_org_lower_name ON chat_projects USING btree (organization_id, lower(name));
+CREATE UNIQUE INDEX idx_chat_projects_creator_lower_name ON chat_projects USING btree (organization_id, created_by, lower(name));
 
 CREATE INDEX idx_chat_projects_organization_id ON chat_projects USING btree (organization_id);
 

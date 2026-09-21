@@ -20,7 +20,9 @@ CREATE TABLE chat_projects (
 COMMENT ON TABLE chat_projects IS 'Organization-scoped projects that group agent chats.';
 
 CREATE INDEX idx_chat_projects_organization_id ON chat_projects (organization_id);
-CREATE UNIQUE INDEX idx_chat_projects_org_lower_name ON chat_projects (organization_id, lower(name));
+-- Projects are private to their creator, so names are unique per creator
+-- rather than per organization.
+CREATE UNIQUE INDEX idx_chat_projects_creator_lower_name ON chat_projects (organization_id, created_by, lower(name));
 
 ALTER TABLE chats ADD COLUMN project_id uuid REFERENCES chat_projects(id) ON DELETE SET NULL;
 COMMENT ON COLUMN chats.project_id IS 'Optional project that groups a root chat with related chats.';
