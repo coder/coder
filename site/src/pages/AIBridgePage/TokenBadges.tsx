@@ -13,12 +13,16 @@ import { roundTokenDisplay } from "./utils";
 interface TokenBadgesProps {
 	inputTokens: number;
 	outputTokens: number;
+	inputLabel?: string;
+	outputLabel?: string;
 	tokenUsageMetadata?: Record<string, unknown>;
 }
 
 export const TokenBadges: FC<TokenBadgesProps> = ({
 	inputTokens,
 	outputTokens,
+	inputLabel = "Input",
+	outputLabel = "Output",
 	tokenUsageMetadata,
 }) => (
 	<div className="flex items-center whitespace-nowrap">
@@ -46,11 +50,13 @@ export const TokenBadges: FC<TokenBadgesProps> = ({
 							<div className="flex items-center gap-1">
 								<ArrowDownIcon className="size-icon-sm shrink-0" />
 								<span className="text-content-primary text-sm">
-									Input tokens
+									{inputLabel} tokens
 								</span>
 							</div>
 							<div className="flex items-center justify-between gap-4">
-								<div className="text-sm text-content-secondary">Input</div>
+								<div className="text-sm text-content-secondary">
+									{inputLabel}
+								</div>
 								<div className="text-sm text-content-secondary">
 									{inputTokens.toLocaleString()}
 								</div>
@@ -61,11 +67,13 @@ export const TokenBadges: FC<TokenBadgesProps> = ({
 							<div className="flex items-center gap-1">
 								<ArrowUpIcon className="size-icon-sm shrink-0" />
 								<span className="text-content-primary text-sm">
-									Output tokens
+									{outputLabel} tokens
 								</span>
 							</div>
 							<div className="flex items-center justify-between gap-4">
-								<div className="text-sm text-content-secondary">Output</div>
+								<div className="text-sm text-content-secondary">
+									{outputLabel}
+								</div>
 								<div className="text-sm text-content-secondary">
 									{outputTokens.toLocaleString()}
 								</div>

@@ -423,6 +423,10 @@ export class ParameterValidationError extends Error {
 	}
 }
 
+type OrganizationAISpendDetailsParams =
+	TypesGen.OrganizationAISpendDetailsFilter &
+		Pick<TypesGen.Pagination, "limit" | "offset">;
+
 export type GetProvisionerJobsParams = {
 	status?: string;
 	limit?: number;
@@ -2202,6 +2206,31 @@ class ApiMethods {
 	 * meaningful response.
 	 * @param organization Can be the organization's ID or name
 	 */
+	getOrganizationAISpendDetails = async (
+		organization: string,
+		params: OrganizationAISpendDetailsParams,
+	): Promise<TypesGen.OrganizationAISpendDetails> => {
+		const url = getURLWithSearchParams(
+			`/api/v2/organizations/${organization}/ai/spend`,
+			params,
+		);
+		const response =
+			await this.axios.get<TypesGen.OrganizationAISpendDetails>(url);
+		return response.data;
+	};
+
+	exportOrganizationAISpend = async (
+		organization: string,
+		params: TypesGen.OrganizationAISpendDetailsFilter,
+	): Promise<Blob> => {
+		const url = getURLWithSearchParams(
+			`/api/v2/organizations/${organization}/ai/spend/export`,
+			params,
+		);
+		const response = await this.axios.get<Blob>(url, { responseType: "blob" });
+		return response.data;
+	};
+
 	getOrganizationGroupsAISpend = async (
 		organization: string,
 		groupIds: readonly string[],
