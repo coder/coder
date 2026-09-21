@@ -195,7 +195,10 @@ func (s *memoryConsolidationStore) Delete(_ context.Context, name string) error 
 	delete(s.memories, name)
 	return nil
 }
-func (s *memoryConsolidationStore) InTx(fn func(chattool.MemoryStore) error) error { return fn(s) }
+
+func (s *memoryConsolidationStore) InTx(fn func(chattool.MemoryStore, database.Store) error) error {
+	return fn(s, nil)
+}
 
 func TestApplyMemoryConsolidationMutations(t *testing.T) {
 	t.Parallel()
@@ -278,7 +281,7 @@ func TestMemoryConsolidationCandidates(t *testing.T) {
 		{Name: "protected", UpdatedAt: now.Add(-time.Hour)},
 		{Name: "oldest", UpdatedAt: now.Add(-96 * time.Hour)},
 	}, now)
-	require.Equal(t, []string{"oldest", "newest"}, []string{candidates[0].Name, candidates[1].Name})
+	require.Equal(t, []string{"newest", "oldest"}, []string{candidates[0].Name, candidates[1].Name}, "sorted by name so near-duplicate names stay adjacent")
 	require.Len(t, candidates, 2)
 }
 
@@ -306,14 +309,14 @@ func TestMemoryConsolidationWindow(t *testing.T) {
 	window, next := memoryConsolidationWindow(candidates, 0)
 	require.Equal(t, []string{"first", "second"}, []string{window[0].Name, window[1].Name})
 	require.Len(t, window, 2)
-	require.Equal(t, int32(2), next)
+	require.Equal(t, int32(1), next, "the next window overlaps by half")
 	for _, memory := range window {
 		require.Equal(t, body, memory.Body, "bodies are never truncated")
 	}
 
 	window, next = memoryConsolidationWindow(candidates, next)
-	require.Len(t, window, 1)
-	require.Equal(t, "third", window[0].Name)
+	require.Equal(t, []string{"second", "third"}, []string{window[0].Name, window[1].Name})
+	require.Len(t, window, 2)
 	require.Equal(t, int32(0), next, "the window wraps once it reaches the end")
 
 	t.Run("OversizedCandidateStillFits", func(t *testing.T) {
@@ -731,6 +734,63 @@ func TestConsolidateMemories(t *testing.T) {
 		require.Contains(t, capturedPrompt, "at least two existing memories")
 	})
 
+	t.Run("JournalFailureFailsTheApplyTransaction", func(t *testing.T) {
+		t.Parallel()
+
+		ctrl := gomock.NewController(t)
+		db := dbmock.NewMockStore(ctrl)
+		chat := newProjectChat()
+		stale := chattool.Memory{Name: "stale", Description: "stale", Body: "stale", UpdatedAt: time.Now().Add(-72 * time.Hour)}
+		server := newServer(t, db, roundTripFunc(func(req *http.Request) (*http.Response, error) {
+			response := objectResponse(t, map[string]any{"mutations": []map[string]any{
+				{"op": "delete", "name": "stale", "into": "", "from": []string{}, "description": "", "body": "", "reason": ""},
+			}})
+			response.Request = req
+			return response, nil
+		}))
+		record := database.ChatMemoryConsolidation{ID: uuid.New()}
+		calls := []*gomock.Call{
+			db.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil),
+			db.EXPECT().GetChatProjectByID(gomock.Any(), chat.ProjectID.UUID).Return(database.ChatProject{Name: "platform"}, nil),
+			db.EXPECT().CountChatProjectMemoriesByProjectID(gomock.Any(), chat.ProjectID.UUID).Return(int64(30), nil),
+			db.EXPECT().GetLatestChatMemoryConsolidationByProject(gomock.Any(), chat.ProjectID.UUID).Return(database.ChatMemoryConsolidation{}, sql.ErrNoRows),
+		}
+		calls = append(calls, expectModelResolution(db, chat)...)
+		calls = append(calls,
+			inTx(db),
+			db.EXPECT().TryAcquireLock(gomock.Any(), memoryConsolidationScopeForChat(chat).lockID()).Return(true, nil),
+			db.EXPECT().GetLatestChatMemoryConsolidationByProject(gomock.Any(), chat.ProjectID.UUID).Return(database.ChatMemoryConsolidation{}, sql.ErrNoRows),
+			db.EXPECT().InsertChatMemoryConsolidation(gomock.Any(), gomock.Any()).Return(record, nil),
+			db.EXPECT().GetChatProjectMemoriesByProjectID(gomock.Any(), chat.ProjectID.UUID).Return(projectRows([]chattool.Memory{stale}), nil),
+			inTx(db),
+			db.EXPECT().AcquireLock(gomock.Any(), gomock.Any()).Return(nil),
+			db.EXPECT().GetChatProjectMemoryByNameForUpdate(gomock.Any(), database.GetChatProjectMemoryByNameForUpdateParams{ProjectID: chat.ProjectID.UUID, Name: "stale"}).Return(database.ChatProjectMemory{Name: "stale", UpdatedAt: stale.UpdatedAt}, nil),
+			db.EXPECT().DeleteChatProjectMemoryByName(gomock.Any(), database.DeleteChatProjectMemoryByNameParams{ProjectID: chat.ProjectID.UUID, Name: "stale"}).Return(nil),
+			db.EXPECT().CountChatProjectMemoriesByProjectID(gomock.Any(), chat.ProjectID.UUID).Return(int64(29), nil),
+			// The journal is written inside the apply transaction, so its
+			// failure rolls the delete back and the run is recorded as failed.
+			db.EXPECT().FinishChatMemoryConsolidation(gomock.Any(), gomock.Any()).DoAndReturn(
+				func(_ context.Context, params database.FinishChatMemoryConsolidationParams) (database.ChatMemoryConsolidation, error) {
+					require.Equal(t, database.ChatMemoryConsolidationStatusSucceeded, params.Status)
+					require.Equal(t, int32(29), params.MemoriesAfter)
+					return database.ChatMemoryConsolidation{}, xerrors.New("journal unavailable")
+				},
+			),
+			db.EXPECT().FinishChatMemoryConsolidation(gomock.Any(), gomock.Any()).DoAndReturn(
+				func(_ context.Context, params database.FinishChatMemoryConsolidationParams) (database.ChatMemoryConsolidation, error) {
+					require.Equal(t, database.ChatMemoryConsolidationStatusFailed, params.Status)
+					require.Equal(t, int32(30), params.MemoriesAfter)
+					require.Contains(t, params.Error, "journal unavailable")
+					return database.ChatMemoryConsolidation{}, nil
+				},
+			),
+			db.EXPECT().PruneChatMemoryConsolidationsByProject(gomock.Any(), gomock.Any()).Return(nil),
+		)
+		inOrder(calls)
+
+		server.consolidateMemories(t.Context(), slogtest.Make(t, nil), chat)
+	})
+
 	t.Run("AllMutationsStaleFinishesSkipped", func(t *testing.T) {
 		t.Parallel()
 
@@ -925,7 +985,7 @@ func TestConsolidateMemories(t *testing.T) {
 			db.EXPECT().FinishChatMemoryConsolidation(gomock.Any(), gomock.Any()).DoAndReturn(
 				func(_ context.Context, params database.FinishChatMemoryConsolidationParams) (database.ChatMemoryConsolidation, error) {
 					require.Equal(t, database.ChatMemoryConsolidationStatusSkipped, params.Status)
-					require.Equal(t, int32(2), params.NextWindowStart)
+					require.Equal(t, int32(1), params.NextWindowStart)
 					return database.ChatMemoryConsolidation{}, nil
 				},
 			),

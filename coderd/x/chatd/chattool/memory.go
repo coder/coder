@@ -165,7 +165,10 @@ type MemoryStore interface {
 	Insert(ctx context.Context, input MemoryInput) (Memory, error)
 	Upsert(ctx context.Context, input MemoryInput) (Memory, error)
 	Delete(ctx context.Context, name string) error
-	InTx(func(MemoryStore) error) error
+	// InTx runs fn in one transaction. The store it receives is bound to
+	// that transaction, and the raw handle lets callers commit related
+	// bookkeeping atomically with the memory writes.
+	InTx(fn func(store MemoryStore, tx database.Store) error) error
 }
 
 type projectMemoryStore struct {
@@ -269,9 +272,9 @@ func (s projectMemoryStore) Lock(ctx context.Context) error {
 	return s.db.AcquireLock(ctx, projectMemoryLockID(s.projectID))
 }
 
-func (s projectMemoryStore) InTx(fn func(MemoryStore) error) error {
+func (s projectMemoryStore) InTx(fn func(store MemoryStore, tx database.Store) error) error {
 	return s.db.InTx(func(tx database.Store) error {
-		return fn(projectMemoryStore{db: tx, projectID: s.projectID, organizationID: s.organizationID, chatID: s.chatID, ownerID: s.ownerID})
+		return fn(projectMemoryStore{db: tx, projectID: s.projectID, organizationID: s.organizationID, chatID: s.chatID, ownerID: s.ownerID}, tx)
 	}, nil)
 }
 

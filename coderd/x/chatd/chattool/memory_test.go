@@ -60,7 +60,10 @@ func (s *memoryStore) Delete(_ context.Context, name string) error {
 	delete(s.memories, name)
 	return nil
 }
-func (s *memoryStore) InTx(fn func(chattool.MemoryStore) error) error { return fn(s) }
+
+func (s *memoryStore) InTx(fn func(chattool.MemoryStore, database.Store) error) error {
+	return fn(s, nil)
+}
 
 func TestMemoryValidationAndNormalization(t *testing.T) {
 	t.Parallel()
