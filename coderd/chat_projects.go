@@ -97,7 +97,7 @@ func (api *API) postChatProject(rw http.ResponseWriter, r *http.Request) {
 		Description:    req.Description,
 	})
 	if database.IsUniqueViolation(err) {
-		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{Message: "A chat project with this name already exists in the organization."})
+		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{Message: "You already have a chat project with this name."})
 		return
 	}
 	if err != nil {
@@ -184,7 +184,7 @@ func (api *API) patchChatProject(rw http.ResponseWriter, r *http.Request) {
 		Description: description,
 	})
 	if database.IsUniqueViolation(err) {
-		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{Message: "A chat project with this name already exists in the organization."})
+		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{Message: "You already have a chat project with this name."})
 		return
 	}
 	if err != nil {

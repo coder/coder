@@ -2289,6 +2289,34 @@ func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Resolve the project before any field is written so a rejected
+	// project cannot leave a partially applied update behind.
+	var projectUpdate *uuid.NullUUID
+	if req.ProjectID != nil {
+		if !api.Experiments.Enabled(codersdk.ExperimentChatProjects) && !buildinfo.IsDev() {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{Message: "chat projects experiment is not enabled"})
+			return
+		}
+		if chat.ParentChatID.Valid {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{Message: "Only root chats belong to projects."})
+			return
+		}
+		projectID := uuid.NullUUID{}
+		if *req.ProjectID != uuid.Nil {
+			project, err := api.Database.GetChatProjectByID(ctx, *req.ProjectID)
+			if err != nil {
+				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{Message: "Invalid chat project."})
+				return
+			}
+			if project.OrganizationID != chat.OrganizationID {
+				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{Message: "Project does not belong to this chat's organization."})
+				return
+			}
+			projectID = uuid.NullUUID{UUID: project.ID, Valid: true}
+		}
+		projectUpdate = &projectID
+	}
+
 	var planModeUpdate *database.NullChatPlanMode
 	if req.PlanMode != nil {
 		if !validateChatPlanMode(*req.PlanMode) {
@@ -2514,29 +2542,8 @@ func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
 		chat = updatedChat
 	}
 
-	if req.ProjectID != nil {
-		if !api.Experiments.Enabled(codersdk.ExperimentChatProjects) && !buildinfo.IsDev() {
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{Message: "chat projects experiment is not enabled"})
-			return
-		}
-		if chat.ParentChatID.Valid {
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{Message: "Only root chats belong to projects."})
-			return
-		}
-		projectID := uuid.NullUUID{}
-		if *req.ProjectID != uuid.Nil {
-			project, err := api.Database.GetChatProjectByID(ctx, *req.ProjectID)
-			if err != nil {
-				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{Message: "Invalid chat project."})
-				return
-			}
-			if project.OrganizationID != chat.OrganizationID {
-				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{Message: "Project does not belong to this chat's organization."})
-				return
-			}
-			projectID = uuid.NullUUID{UUID: project.ID, Valid: true}
-		}
-		_, err := api.Database.UpdateChatProjectBinding(ctx, database.UpdateChatProjectBindingParams{ID: chat.ID, ProjectID: projectID})
+	if projectUpdate != nil {
+		_, err := api.Database.UpdateChatProjectBinding(ctx, database.UpdateChatProjectBindingParams{ID: chat.ID, ProjectID: *projectUpdate})
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{Message: "Failed to update chat project.", Detail: err.Error()})
 			return
