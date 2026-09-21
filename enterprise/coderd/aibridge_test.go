@@ -5696,7 +5696,7 @@ func TestOrganizationAISpendUsersRoleAccess(t *testing.T) {
 func TestOrganizationAISpendDetails(t *testing.T) {
 	t.Parallel()
 
-	// Given: three spend rows across users, groups, providers, and models.
+	// Setup
 	now := time.Date(2026, time.March, 15, 12, 0, 0, 0, time.UTC)
 	clock := quartz.NewMock(t)
 	clock.Set(now)
@@ -5711,27 +5711,33 @@ func TestOrganizationAISpendDetails(t *testing.T) {
 	otherGroup := dbgen.Group(t, db, database.Group{OrganizationID: group.OrganizationID})
 	at := time.Date(2026, time.March, 10, 8, 0, 0, 0, time.UTC)
 
-	for _, seed := range []struct {
-		userID       uuid.UUID
-		groupID      uuid.UUID
-		providerName string
-		model        string
-		costMicros   int64
-	}{
-		{userA.ID, group.ID, "provider-one", "model-one", 100},
-		{userA.ID, otherGroup.ID, "provider-two", "model-two", 200},
-		{userB.ID, group.ID, "provider-three", "model-three", 300},
-	} {
+	type spendRow struct {
+		userID           uuid.UUID
+		groupID          uuid.UUID
+		providerName     string
+		model            string
+		inputTokens      int64
+		outputTokens     int64
+		cacheReadTokens  int64
+		cacheWriteTokens int64
+		costMicros       int64
+	}
+	userAGroupA := spendRow{userID: userA.ID, groupID: group.ID, providerName: "provider-one", model: "model-one", inputTokens: 10, outputTokens: 20, cacheReadTokens: 30, cacheWriteTokens: 40, costMicros: 100}
+	userAGroupB := spendRow{userID: userA.ID, groupID: otherGroup.ID, providerName: "provider-two", model: "model-two", inputTokens: 11, outputTokens: 21, cacheReadTokens: 31, cacheWriteTokens: 41, costMicros: 200}
+	userBGroupA := spendRow{userID: userB.ID, groupID: group.ID, providerName: "provider-three", model: "model-three", inputTokens: 12, outputTokens: 22, cacheReadTokens: 32, cacheWriteTokens: 42, costMicros: 300}
+
+	for _, seed := range []spendRow{userAGroupA, userAGroupB, userBGroupA} {
 		intc := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
 			InitiatorID: seed.userID, Provider: "anthropic", ProviderName: seed.providerName, Model: seed.model, StartedAt: at,
 		}, nil)
 		dbgen.AIBridgeTokenUsage(t, db, database.InsertAIBridgeTokenUsageParams{
-			InterceptionID: intc.ID, CreatedAt: at,
+			InterceptionID:        intc.ID,
+			CreatedAt:             at,
 			EffectiveGroupID:      uuid.NullUUID{UUID: seed.groupID, Valid: true},
-			InputTokens:           seed.costMicros,
-			OutputTokens:          seed.costMicros + 1,
-			CacheReadInputTokens:  seed.costMicros + 2,
-			CacheWriteInputTokens: seed.costMicros + 3,
+			InputTokens:           seed.inputTokens,
+			OutputTokens:          seed.outputTokens,
+			CacheReadInputTokens:  seed.cacheReadTokens,
+			CacheWriteInputTokens: seed.cacheWriteTokens,
 			CostMicros:            sql.NullInt64{Int64: seed.costMicros, Valid: true},
 		})
 	}
@@ -5844,17 +5850,6 @@ func TestOrganizationAISpendDetails(t *testing.T) {
 
 	t.Run("Filters", func(t *testing.T) {
 		t.Parallel()
-		type spendRow struct {
-			userID       uuid.UUID
-			groupID      uuid.UUID
-			providerName string
-			model        string
-			costMicros   int64
-		}
-		userAGroupA := spendRow{userA.ID, group.ID, "provider-one", "model-one", 100}
-		userAGroupB := spendRow{userA.ID, otherGroup.ID, "provider-two", "model-two", 200}
-		userBGroupA := spendRow{userB.ID, group.ID, "provider-three", "model-three", 300}
-
 		tests := []struct {
 			name     string
 			filter   codersdk.OrganizationAISpendDetailsFilter
@@ -5875,12 +5870,22 @@ func TestOrganizationAISpendDetails(t *testing.T) {
 				resp, err := adminClient.OrganizationAISpendDetails(ctx, group.OrganizationID, tc.filter, codersdk.Pagination{Limit: 100})
 				require.NoError(t, err)
 
-				// Then: the filter fields, costs, and full count match.
+				// Then: the filter fields, tokens, costs, and full count match.
 				require.EqualValues(t, len(tc.wantRows), resp.Count)
 				rows := make([]spendRow, 0, len(resp.Rows))
 				for _, row := range resp.Rows {
 					require.Equal(t, group.OrganizationID, row.OrganizationID)
-					rows = append(rows, spendRow{row.UserID, row.GroupID, row.ProviderName, row.Model, row.CostMicros})
+					rows = append(rows, spendRow{
+						userID:           row.UserID,
+						groupID:          row.GroupID,
+						providerName:     row.ProviderName,
+						model:            row.Model,
+						inputTokens:      row.InputTokens,
+						outputTokens:     row.OutputTokens,
+						cacheReadTokens:  row.CacheReadTokens,
+						cacheWriteTokens: row.CacheWriteTokens,
+						costMicros:       row.CostMicros,
+					})
 				}
 				require.ElementsMatch(t, tc.wantRows, rows)
 			})
@@ -5920,7 +5925,7 @@ func TestOrganizationAISpendDetails(t *testing.T) {
 func TestOrganizationAISpendDetailsRoleAccess(t *testing.T) {
 	t.Parallel()
 
-	// Given: users with different roles and spend in the same organization.
+	// Setup
 	now := time.Date(2026, time.March, 15, 12, 0, 0, 0, time.UTC)
 	inMonth := time.Date(2026, time.March, 10, 8, 0, 0, 0, time.UTC)
 	clock := quartz.NewMock(t)
@@ -5939,6 +5944,8 @@ func TestOrganizationAISpendDetailsRoleAccess(t *testing.T) {
 			},
 		},
 	})
+
+	// Given: users with different roles and spend in the same organization.
 	userAdminClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.RoleUserAdmin())
 	orgAdminClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.ScopedRoleOrgAdmin(owner.OrganizationID))
 	orgUserAdminClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.ScopedRoleOrgUserAdmin(owner.OrganizationID))
