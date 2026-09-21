@@ -982,9 +982,9 @@ func TestEntitlements(t *testing.T) {
 		require.NotNil(t, aiGovernanceSeatLimit.Limit)
 		require.EqualValues(t, 100, *aiGovernanceSeatLimit.Limit)
 
-		// Usage exceeds the limit, so an exceeded warning should be present.
-		require.Len(t, entitlements.Warnings, 1)
-		require.Equal(t, codersdk.LicenseManagedAgentLimitExceededWarningText, entitlements.Warnings[0])
+		// Usage exceeds the limit, but the historical managed agent count
+		// never warns.
+		require.Empty(t, entitlements.Warnings)
 	})
 
 	t.Run("AgentRuntimeHoursHasValue", func(t *testing.T) {
@@ -1808,7 +1808,9 @@ func TestLicenseEntitlements(t *testing.T) {
 			},
 		},
 		{
-			Name: "ManagedAgentLimitWarning/ExceededLimit",
+			// Legacy managed agent usage is still reported as Actual but
+			// no longer warns, even past the limit.
+			Name: "ManagedAgentLimit/ExceededLimitNoWarning",
 			Licenses: []*coderdenttest.LicenseOptions{
 				enterpriseLicense().
 					UserLimit(100).
@@ -1820,8 +1822,7 @@ func TestLicenseEntitlements(t *testing.T) {
 				},
 			},
 			AssertEntitlements: func(t *testing.T, entitlements codersdk.Entitlements) {
-				assert.Len(t, entitlements.Warnings, 1)
-				assert.Equal(t, codersdk.LicenseManagedAgentLimitExceededWarningText, entitlements.Warnings[0])
+				assertNoWarnings(t, entitlements)
 				assertNoErrors(t, entitlements)
 
 				feature := entitlements.Features[codersdk.FeatureManagedAgentLimit]
@@ -1877,6 +1878,29 @@ func TestLicenseEntitlements(t *testing.T) {
 				assert.Equal(t, int64(80), *feature.Actual)
 				require.NotNil(t, feature.ActualMs)
 				assert.Equal(t, (80 * time.Hour).Milliseconds(), *feature.ActualMs)
+			},
+		},
+		{
+			// Exceeded legacy managed agent usage must not add a warning
+			// alongside the Coder Agent runtime hours warning.
+			Name: "AgentRuntimeHours/AtSoftLimitWithExceededManagedAgents",
+			Licenses: []*coderdenttest.LicenseOptions{
+				agentRuntimeHoursLicense(100, ptr.Ref[int64](80)).ManagedAgentLimit(100),
+			},
+			Arguments: license.FeatureArguments{
+				AgentRuntimeMsFn: hoursToMsFn(80),
+				ManagedAgentCountFn: func(_ context.Context, _, _ time.Time) (int64, error) {
+					return 150, nil
+				},
+			},
+			AssertEntitlements: func(t *testing.T, entitlements codersdk.Entitlements) {
+				assertNoErrors(t, entitlements)
+				require.Len(t, entitlements.Warnings, 1)
+				assert.Equal(t, fmt.Sprintf(codersdk.LicenseAgentRuntimeHoursSoftLimitWarningText, 80, 100, 80),
+					entitlements.Warnings[0])
+				feature := entitlements.Features[codersdk.FeatureManagedAgentLimit]
+				require.NotNil(t, feature.Actual)
+				assert.Equal(t, int64(150), *feature.Actual)
 			},
 		},
 		{
