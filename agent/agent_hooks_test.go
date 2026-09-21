@@ -24,7 +24,9 @@ import (
 )
 
 // hookedAgent starts a real agent whose workspace directory declares
-// the given hooks and returns the chat tools wired to it.
+// the given hooks and returns the chat tools wired to it. A nil hooks
+// slice writes no hooks file at all; an empty one writes a file that
+// declares nothing.
 // PROTOTYPE (CODAGT-1083): this is the end-to-end path minus coderd's
 // tool loop.
 func hookedAgent(t *testing.T, hooks []agenthooks.Hook, scripts map[string]string) (dir string, conn workspacesdk.AgentConn) {
@@ -34,9 +36,11 @@ func hookedAgent(t *testing.T, hooks []agenthooks.Hook, scripts map[string]strin
 	}
 	dir = t.TempDir()
 	require.NoError(t, os.MkdirAll(filepath.Join(dir, ".coder"), 0o755))
-	file, err := json.Marshal(agenthooks.File{Version: 1, Hooks: hooks})
-	require.NoError(t, err)
-	require.NoError(t, os.WriteFile(filepath.Join(dir, ".coder", "hooks.json"), file, 0o600))
+	if hooks != nil {
+		file, err := json.Marshal(agenthooks.File{Version: 1, Hooks: hooks})
+		require.NoError(t, err)
+		require.NoError(t, os.WriteFile(filepath.Join(dir, ".coder", "hooks.json"), file, 0o600))
+	}
 	for name, body := range scripts {
 		//nolint:gosec // hook scripts must be executable
 		require.NoError(t, os.WriteFile(filepath.Join(dir, ".coder", name), []byte(body), 0o700))
