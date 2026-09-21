@@ -1,13 +1,15 @@
-import { screen, waitFor } from "@testing-library/react";
+import { act, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import dayjs from "dayjs";
 import { createMemoryRouter } from "react-router";
 import { afterEach, expect, it, vi } from "vitest";
 import { API, withDefaultFeatures } from "#/api/api";
+import { paginatedOrganizationAISpend } from "#/api/queries/aiBridge";
 import type {
 	OrganizationAISpendReport,
 	OrganizationAISpendUser,
 } from "#/api/typesGenerated";
+import { usePaginatedQuery } from "#/hooks/usePaginatedQuery";
 import {
 	MockEntitlements,
 	MockNoPermissions,
@@ -17,6 +19,7 @@ import {
 	MockOrganizationAISpendUser,
 	MockUserMember,
 } from "#/testHelpers/entities";
+import { renderHookWithAuth } from "#/testHelpers/hooks";
 import { renderWithRouter } from "#/testHelpers/renderHelpers";
 import SpendPage from "./SpendPage";
 
@@ -51,7 +54,7 @@ const initialSearch = new URLSearchParams({
 	endDate: period.period_end,
 }).toString();
 
-function renderSpend(search = initialSearch) {
+function mockSpendApi() {
 	const users: OrganizationAISpendUser[] = Array.from(
 		{ length: 12 },
 		(_, i) => ({
@@ -84,6 +87,11 @@ function renderSpend(search = initialSearch) {
 	const spendSpy = vi
 		.spyOn(API, "getOrganizationAISpendUsers")
 		.mockImplementation(async (_organizationId, params) => buildReport(params));
+	return { spendSpy, buildReport };
+}
+
+function renderSpend(search = initialSearch) {
+	const { spendSpy, buildReport } = mockSpendApi();
 	const router = createMemoryRouter(
 		[
 			{
@@ -200,10 +208,20 @@ it("requests the next page offset", async () => {
 	expect(searchParam(router, "page")).toBe("2");
 });
 
-it("keeps the loaded rows while paging but not across organizations", async () => {
-	const user = userEvent.setup();
-	const { spendSpy, buildReport } = renderSpend();
-	await screen.findByRole("table", { name: "Spend by user" });
+it("keeps the loaded page while paging but not across organizations", async () => {
+	const { spendSpy, buildReport } = mockSpendApi();
+	const { result, rerender } = await renderHookWithAuth(
+		({ organizationId }) =>
+			usePaginatedQuery({
+				...paginatedOrganizationAISpend(organizationId, period),
+				recordsPerPage: 10,
+			}),
+		{
+			renderOptions: { initialProps: { organizationId: MockOrganization.id } },
+		},
+	);
+	const firstPage = buildReport({ offset: 0, limit: 10 });
+	await waitFor(() => expect(result.current.data).toEqual(firstPage));
 
 	let deliverPage = () => {};
 	spendSpy.mockImplementationOnce(
@@ -212,21 +230,16 @@ it("keeps the loaded rows while paging but not across organizations", async () =
 				deliverPage = () => resolve(buildReport(params));
 			}),
 	);
-	await user.click(screen.getByRole("button", { name: "Next page" }));
-	await screen.findByRole("status", { name: "Refreshing spend" });
-	screen.getByText("@user01");
+	act(() => result.current.goToNextPage());
+	await waitFor(() => expect(result.current.isPlaceholderData).toBe(true));
+	expect(result.current.data).toEqual(firstPage);
 	deliverPage();
-	await screen.findByText("@user11");
+	await waitFor(() =>
+		expect(result.current.data).toEqual(buildReport({ offset: 10, limit: 10 })),
+	);
 
 	spendSpy.mockImplementation(() => new Promise(() => {}));
-	await user.click(
-		screen.getByRole("button", {
-			name: `Organization ${MockOrganization.display_name}`,
-		}),
-	);
-	await user.click(
-		await screen.findByRole("option", { name: /My Organization 2/ }),
-	);
-	await screen.findByRole("status", { name: "Loading spend" });
-	expect(screen.queryByText("@user11")).toBeNull();
+	await rerender({ organizationId: MockOrganization2.id });
+	expect(result.current.isLoading).toBe(true);
+	expect(result.current.data).toBeUndefined();
 });
