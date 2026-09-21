@@ -2354,7 +2354,8 @@ CREATE TABLE connection_logs (
     connection_id uuid,
     disconnect_time timestamp with time zone,
     disconnect_reason text,
-    client_session_id text
+    client_session_id text,
+    CONSTRAINT connection_logs_client_session_id_check CHECK (((client_session_id IS NULL) OR (client_session_id ~ '^[0-9a-f]{32}$'::text)))
 );
 
 COMMENT ON COLUMN connection_logs.code IS 'Either the HTTP status code of the web request, or the exit code of an SSH connection. For non-web connections, this is Null until we receive a disconnect event for the same connection_id.';

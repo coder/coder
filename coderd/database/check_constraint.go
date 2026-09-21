@@ -44,6 +44,7 @@ const (
 	CheckUsersEmailNotEmpty                                  CheckConstraint = "users_email_not_empty"                                     // users
 	CheckUsersServiceAccountLoginType                        CheckConstraint = "users_service_account_login_type"                          // users
 	CheckUsersUsernameMinLength                              CheckConstraint = "users_username_min_length"                                 // users
+	CheckConnectionLogsClientSessionIDCheck                  CheckConstraint = "connection_logs_client_session_id_check"                   // connection_logs
 	CheckOrganizationIDNotZero                               CheckConstraint = "organization_id_not_zero"                                  // custom_roles
 	CheckGroupAIBudgetsSpendLimitMicrosCheck                 CheckConstraint = "group_ai_budgets_spend_limit_micros_check"                 // group_ai_budgets
 	CheckGroupsChatSpendLimitMicrosCheck                     CheckConstraint = "groups_chat_spend_limit_micros_check"                      // groups
