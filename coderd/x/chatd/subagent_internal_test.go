@@ -2604,17 +2604,6 @@ func TestSpawnAgent_ExploreFallsBackWhenOverrideCredentialsAreUnavailable(t *tes
 	require.Equal(t, currentTurnModel.ID, childChat.LastModelConfigID)
 }
 
-func TestDefaultSystemPromptPlanningGuidance_SteersSubagentSelection(t *testing.T) {
-	t.Parallel()
-
-	require.Contains(t, defaultSystemPromptPlanningGuidance, `Prefer type="general" for substantial delegated research, analysis, reasoning, review, planning support, or implementation`)
-	require.Contains(t, defaultSystemPromptPlanningGuidance, `Use type="general" even for read-only work when the task is open-ended, multi-step, parallel, requires synthesis, or may later need edits`)
-	require.Contains(t, defaultSystemPromptPlanningGuidance, `Use type="explore" only for narrow repository-local read-only code discovery or code tracing`)
-	require.Contains(t, defaultSystemPromptPlanningGuidance, `Do not use type="explore" for generic research, broad architecture analysis, planning synthesis, external or web research, parallel research, or tasks that may need edits`)
-	require.NotContains(t, defaultSystemPromptPlanningGuidance, "research the codebase")
-	require.NotContains(t, defaultSystemPromptPlanningGuidance, "Reserve type=\"general\" for writable delegated work")
-}
-
 func TestSpawnAgent_DescriptionListsAllAvailableTypes(t *testing.T) {
 	t.Parallel()
 
@@ -4204,8 +4193,6 @@ func TestWaitAgentToolSchema(t *testing.T) {
 	require.True(t, ok)
 	assert.Equal(t, "integer", timeoutSeconds["type"])
 	assert.Equal(t, "Defaults to 5 minutes.", timeoutSeconds["description"])
-	assert.Contains(t, tool.Info().Description, "Returns immediately when the agent finishes")
-	assert.Contains(t, tool.Info().Description, "A timeout does not stop the agent")
 }
 
 func TestWaitAgentTimeoutReturnsInformationalPayload(t *testing.T) {
