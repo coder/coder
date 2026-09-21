@@ -1363,6 +1363,7 @@ type ChatModelOpenAIProviderOptions struct {
 	Metadata            map[string]any   `json:"metadata,omitempty" description:"Arbitrary metadata to attach to the request" hidden:"true"`
 	PromptCacheKey      *string          `json:"prompt_cache_key,omitempty" description:"Key for enabling cross-request prompt caching"`
 	SafetyIdentifier    *string          `json:"safety_identifier,omitempty" description:"Developer-specific safety identifier for the request" hidden:"true"`
+	ReasoningMode       *string          `json:"reasoning_mode,omitempty" providers:"openai" description:"Supported from the GPT-5.6 Sol generation of OpenAI models. Requests fail when Pro is set on a model that does not support it. Pro increases model work, latency, and token usage." enum:"pro"`
 	ServiceTier         *string          `json:"service_tier,omitempty" description:"Latency tier to use for processing the request" enum:"auto,default,flex,scale,priority"`
 	StructuredOutputs   *bool            `json:"structured_outputs,omitempty" description:"Whether to enable structured JSON output mode" hidden:"true"`
 	StrictJSONSchema    *bool            `json:"strict_json_schema,omitempty" description:"Whether to enforce strict adherence to the JSON schema" hidden:"true"`

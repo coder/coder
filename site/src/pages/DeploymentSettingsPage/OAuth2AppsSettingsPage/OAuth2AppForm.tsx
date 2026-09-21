@@ -1,8 +1,11 @@
 import { useFormik } from "formik";
 import { TriangleAlertIcon } from "lucide-react";
 import { type FC, useEffect, useRef } from "react";
+import { useQuery } from "react-query";
 import { Link } from "react-router";
 import * as Yup from "yup";
+import { getErrorMessage } from "#/api/errors";
+import { getExternalScopes } from "#/api/queries/oauth2";
 import type * as TypesGen from "#/api/typesGenerated";
 import { OAuth2AppNameMaxBytes } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
@@ -12,6 +15,7 @@ import { Form, FormFields } from "#/components/Form/Form";
 import { FormField } from "#/components/FormField/FormField";
 import { IconField } from "#/components/IconField/IconField";
 import { Label } from "#/components/Label/Label";
+import { MultiSelectCombobox } from "#/components/MultiSelectCombobox/MultiSelectCombobox";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { useUnsavedChangesPrompt } from "#/hooks/useUnsavedChangesPrompt";
 import { getFormHelpers, iconValidator } from "#/utils/formUtils";
@@ -20,19 +24,27 @@ type OAuth2AppFormValues = {
 	name: string;
 	callback_url: string;
 	icon: string;
+	scope: string[];
 };
+
+// The create page sends this as a POST and the edit page as a PUT, so it has
+// to satisfy both request types, and a field added to either is a type error
+// here rather than a silently missing field.
+type OAuth2AppFormRequest = TypesGen.PostOAuth2ProviderAppRequest &
+	TypesGen.PutOAuth2ProviderAppRequest;
 
 type OAuth2AppFormProps = {
 	app?: TypesGen.OAuth2ProviderApp;
-	onSubmit: (data: OAuth2AppFormValues) => void | Promise<void>;
+	onSubmit: (data: OAuth2AppFormRequest) => void | Promise<void>;
 	error?: unknown;
 	isUpdating: boolean;
-	defaultValues?: OAuth2AppFormValues;
+	defaultValues?: Partial<OAuth2AppFormValues>;
 	disabled: boolean;
 	onIconChange?: (icon: string) => void;
 };
 
 const BACK_HREF = "/deployment/oauth2-provider/apps";
+const SCOPE_LABEL = "Allowed scopes";
 
 // Mirror codersdk.ValidateRedirectURIShape.
 // The server remains authoritative for URL syntax differences between parsers.
@@ -121,18 +133,28 @@ export const OAuth2AppForm: FC<OAuth2AppFormProps> = ({
 			name: app?.name ?? defaultValues?.name ?? "",
 			callback_url: app?.callback_url ?? defaultValues?.callback_url ?? "",
 			icon: app?.icon ?? defaultValues?.icon ?? "",
+			scope:
+				app?.scope.split(" ").filter(Boolean) ?? defaultValues?.scope ?? [],
 		},
 		validationSchema: validationSchema(app?.client_type === "public"),
 		validateOnMount: true,
-		onSubmit: async (values) => {
+		onSubmit: async ({ scope: selectedScopes, ...values }) => {
 			didSubmit.current = true;
+			const scope = selectedScopes.join(" ");
+			// An untouched allowlist is left out of updates rather than echoed
+			// back. The form cannot round-trip a stored list exactly: a whitespace
+			// only list grants nothing but would resend as "" and lift the
+			// restriction, and a legacy list may exceed the current size limits.
+			const scopeChanged = !app || scope !== form.initialValues.scope.join(" ");
 			await onSubmit({
 				...values,
 				name: values.name.trim(),
 				callback_url: values.callback_url.trim(),
+				...(scopeChanged ? { scope } : {}),
 			});
 		},
 	});
+	const scopesQuery = useQuery(getExternalScopes());
 	const getFieldHelpers = getFormHelpers(form, error);
 	const iconField = getFieldHelpers("icon");
 	const formDisabled = disabled || isUpdating;
@@ -206,6 +228,68 @@ export const OAuth2AppForm: FC<OAuth2AppFormProps> = ({
 								{iconField.helperText}
 							</span>
 						)
+					)}
+				</div>
+
+				<div className="flex flex-col gap-2">
+					<Label>{SCOPE_LABEL}</Label>
+					<div className="text-xs text-content-secondary">
+						Optional. Limits the scopes this application's tokens can be
+						granted. Empty means no restriction: tokens can be granted any
+						scope.
+					</div>
+					<MultiSelectCombobox
+						// cmdk generates the input's id and aria-labelledby itself, so
+						// the accessible name has to come from its own label prop.
+						commandProps={{ label: SCOPE_LABEL }}
+						value={form.values.scope.map((scope) => ({
+							value: scope,
+							label: scope,
+						}))}
+						options={
+							scopesQuery.data?.external.map((scope) => ({
+								value: scope,
+								label: scope,
+							})) ?? []
+						}
+						onChange={(options) => {
+							void form.setFieldValue(
+								"scope",
+								options.map((option) => option.value),
+							);
+						}}
+						disabled={
+							formDisabled || scopesQuery.isLoading || scopesQuery.isError
+						}
+						hidePlaceholderWhenSelected={!scopesQuery.isLoading}
+						placeholder={
+							scopesQuery.isLoading ? "Loading scopes..." : "Select scopes"
+						}
+						emptyIndicator={
+							<p className="text-center text-md text-content-primary">
+								No matching scopes
+							</p>
+						}
+					/>
+					{scopesQuery.isError && (
+						<div className="flex items-center gap-3">
+							<span className="text-xs text-content-destructive">
+								{getErrorMessage(
+									scopesQuery.error,
+									"Failed to load the list of scopes.",
+								)}
+							</span>
+							<Button
+								type="button"
+								variant="outline"
+								size="xs"
+								disabled={scopesQuery.isFetching}
+								onClick={() => void scopesQuery.refetch()}
+							>
+								<Spinner loading={scopesQuery.isFetching} />
+								Retry
+							</Button>
+						</div>
 					)}
 				</div>
 

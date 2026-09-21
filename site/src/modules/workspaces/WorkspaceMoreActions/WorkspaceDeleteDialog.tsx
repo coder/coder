@@ -14,13 +14,13 @@ import { docs } from "#/utils/docs";
 const warnBoxClassName =
 	"mt-6 flex gap-2 rounded-lg border border-solid border-border-warning bg-surface-orange p-3 leading-snug text-content-warning";
 
-interface WorkspaceDeleteDialogProps {
+type WorkspaceDeleteDialogProps = {
 	workspace: Workspace;
 	canDeleteFailedWorkspace: boolean;
 	isOpen: boolean;
 	onCancel: () => void;
 	onConfirm: (arg: CreateWorkspaceBuildRequest["orphan"]) => void;
-}
+};
 
 export const WorkspaceDeleteDialog: FC<WorkspaceDeleteDialogProps> = ({
 	workspace,

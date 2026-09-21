@@ -19,7 +19,7 @@ import { ProxyMenu } from "./ProxyMenu";
 import { SupportIcon } from "./SupportIcon";
 import { UserDropdown } from "./UserDropdown/UserDropdown";
 
-interface NavbarViewProps {
+type NavbarViewProps = {
 	user: TypesGen.User;
 	buildInfo?: TypesGen.BuildInfoResponse;
 	supportLinks: readonly TypesGen.LinkConfig[];
@@ -29,7 +29,7 @@ interface NavbarViewProps {
 	canCreateChat: boolean;
 	canViewLicenses: boolean;
 	proxyContextValue?: ProxyContextValue;
-}
+};
 
 const linkStyles = {
 	default:
@@ -151,10 +151,10 @@ export const NavbarView: FC<NavbarViewProps> = ({
 	);
 };
 
-interface NavItemsProps {
+type NavItemsProps = {
 	className?: string;
 	canCreateChat: boolean;
-}
+};
 
 const NavItems: FC<NavItemsProps> = ({ className, canCreateChat }) => {
 	const location = useLocation();
@@ -198,12 +198,12 @@ function isNavbarLink(link: TypesGen.LinkConfig): boolean {
 	return link.location === "navbar";
 }
 
-interface SupportButtonProps {
+type SupportButtonProps = {
 	name: string;
 	target: string;
 	icon: string;
 	location?: string;
-}
+};
 
 const SupportButton: FC<SupportButtonProps> = ({ name, target, icon }) => {
 	return (

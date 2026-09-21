@@ -22,7 +22,7 @@ import { Button } from "#/components/Button/Button";
 import type { AgentsPageOutletContext } from "../../../AgentsPageLayout";
 
 /** A single tab definition for the sidebar panel. */
-export interface SidebarTab {
+export type SidebarTab = {
 	id: string;
 	/** Label shown in the tab button. */
 	label: string;
@@ -32,9 +32,9 @@ export interface SidebarTab {
 	/** The content to render when this tab is active. */
 	content: ReactNode;
 	onClose?: () => void;
-}
+};
 
-interface SidebarTabViewProps {
+type SidebarTabViewProps = {
 	/** The tabs to display. */
 	tabs: SidebarTab[];
 	/** Whether the panel is in expanded/fullscreen mode. */
@@ -56,7 +56,7 @@ interface SidebarTabViewProps {
 	/** Called when the user switches tabs. */
 	onActiveTabChange: (tabId: string) => void;
 	addTabControl?: ReactNode;
-}
+};
 
 const TAB_SCROLL_AMOUNT = 120;
 
@@ -115,11 +115,11 @@ function useTabScroll() {
 	return { ref, canScrollLeft, canScrollRight, scrollLeft, scrollRight };
 }
 
-interface ScrollChevronButtonProps {
+type ScrollChevronButtonProps = {
 	direction: "left" | "right";
 	onClick: () => void;
 	ariaLabel: string;
-}
+};
 
 const ScrollChevronButton: FC<ScrollChevronButtonProps> = ({
 	direction,

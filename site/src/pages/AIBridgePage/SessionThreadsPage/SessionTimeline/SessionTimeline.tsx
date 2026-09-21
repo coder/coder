@@ -32,7 +32,7 @@ import {
 } from "./sessionSearch";
 import { ToolCallTable } from "./ToolCallTable";
 
-interface ExpandableTextProps {
+type ExpandableTextProps = {
 	maxHeight: number;
 	text: string;
 	className?: string;
@@ -43,7 +43,7 @@ interface ExpandableTextProps {
 	 * the reason it surfaced is visible. Explicit user toggles still win.
 	 */
 	expandToMatch?: boolean;
-}
+};
 
 const ExpandableText: FC<ExpandableTextProps> = ({
 	maxHeight,
@@ -111,12 +111,12 @@ const ExpandableText: FC<ExpandableTextProps> = ({
 	);
 };
 
-interface CollapseButtonProps {
+type CollapseButtonProps = {
 	isOpen: boolean;
 	onClick: () => void;
 	children: React.ReactNode;
 	className?: string;
-}
+};
 
 const CollapseButton: FC<CollapseButtonProps> = ({
 	isOpen,
@@ -143,12 +143,12 @@ const CollapseButton: FC<CollapseButtonProps> = ({
 
 // Wraps content with a visual left-bracket connector: two rounded corner lines
 // that flank the content row, creating an indented visual grouping.
-interface BracketConnectorProps {
+type BracketConnectorProps = {
 	children: React.ReactNode;
 	contentClassName?: string;
 	firstRowHeight?: "2rem" | "60px";
 	hideBottomLine?: boolean;
-}
+};
 
 const BracketConnector: FC<BracketConnectorProps> = ({
 	children,
@@ -178,9 +178,9 @@ const BracketConnector: FC<BracketConnectorProps> = ({
 	</div>
 );
 
-interface ThinkingBlockProps {
+type ThinkingBlockProps = {
 	text: string;
-}
+};
 
 const ThinkingBlock: FC<ThinkingBlockProps> = ({ text }) => (
 	<BracketConnector contentClassName="mt-5 pl-2 pr-4 text-sm text-content-secondary">
@@ -196,7 +196,7 @@ const ThinkingBlock: FC<ThinkingBlockProps> = ({ text }) => (
 	</BracketConnector>
 );
 
-interface ToolCallBlockProps {
+type ToolCallBlockProps = {
 	tool: string;
 	serverURL: string;
 	input: string;
@@ -207,7 +207,7 @@ interface ToolCallBlockProps {
 	expandedByDefault?: boolean;
 	/** The active query, used to bold matches in the tool name and input. */
 	highlight: string;
-}
+};
 
 const ToolCallBlock: FC<ToolCallBlockProps> = ({
 	tool,
@@ -261,7 +261,7 @@ const ToolCallBlock: FC<ToolCallBlockProps> = ({
 	);
 };
 
-interface AgenticActionItemProps {
+type AgenticActionItemProps = {
 	action: AIBridgeAgenticAction;
 	/**
 	 * When set with entries, only these tool calls render, and they start
@@ -272,7 +272,7 @@ interface AgenticActionItemProps {
 	matchedToolCallIds?: Set<string>;
 	/** The active query, used to bold matches in the tool calls. */
 	highlight: string;
-}
+};
 
 const AgenticActionItem: FC<AgenticActionItemProps> = ({
 	action,
@@ -311,7 +311,7 @@ const AgenticActionItem: FC<AgenticActionItemProps> = ({
 	);
 };
 
-interface ThreadItemProps {
+type ThreadItemProps = {
 	thread: AIBridgeThread;
 	initiator: MinimalUser;
 	/**
@@ -329,7 +329,7 @@ interface ThreadItemProps {
 	matchedToolCallIds?: Set<string>;
 	/** The active query, used to bold matching prompt and tool text. */
 	highlight: string;
-}
+};
 
 const ThreadItem: FC<ThreadItemProps> = ({
 	thread,
@@ -490,7 +490,7 @@ const ThreadItem: FC<ThreadItemProps> = ({
 	);
 };
 
-interface SessionTimelineProps {
+type SessionTimelineProps = {
 	initiator: MinimalUser;
 	threads: readonly AIBridgeThread[];
 	/**
@@ -507,7 +507,7 @@ interface SessionTimelineProps {
 	hasNextPage: boolean;
 	isFetchingNextPage: boolean;
 	onFetchNextPage: () => void;
-}
+};
 
 export const SessionTimeline: FC<SessionTimelineProps> = ({
 	initiator,

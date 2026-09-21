@@ -75,7 +75,7 @@ import { TemplateVersionStatusBadge } from "./TemplateVersionStatusBadge";
 
 type Tab = "logs" | "resources" | undefined; // Undefined is to hide the tab
 
-interface TemplateVersionEditorProps {
+type TemplateVersionEditorProps = {
 	template: Template;
 	templateVersion: TemplateVersion;
 	fileTree: FileTree;
@@ -102,7 +102,7 @@ interface TemplateVersionEditorProps {
 	onUpdateProvisionerTags: (tags: Record<string, string>) => void;
 	activePath: string | undefined;
 	onActivePathChange: (path: string | undefined) => void;
-}
+};
 
 export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 	isBuilding,

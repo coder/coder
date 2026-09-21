@@ -272,7 +272,7 @@ type Options struct {
 	ChatStreamPartsDialer chatd.StreamPartsDialer
 	// Nil keeps the default chat agent caps active.
 	ChatAgentCapacityUnlock chatd.AgentCapacityUnlock
-	// ChatProviderAPIKeys overrides deployment-derived provider keys.
+	// ChatProviderAPIKeys supplies fallback provider keys for chat execution.
 	// Test harnesses use this to route chat models to local providers.
 	ChatProviderAPIKeys *chatprovider.ProviderAPIKeys
 	// ChatWorkerDisabled skips starting the chat daemon's background
@@ -889,7 +889,7 @@ func New(options *Options) *API {
 				options.Logger.Named("mcp-user-oidc"),
 			)
 		}
-		providerAPIKeys := ChatProviderAPIKeysFromDeploymentValues(options.DeploymentValues)
+		providerAPIKeys := chatprovider.ProviderAPIKeys{}
 		if options.ChatProviderAPIKeys != nil {
 			providerAPIKeys = *options.ChatProviderAPIKeys
 		}

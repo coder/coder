@@ -5,9 +5,9 @@ import { getAuthorizationKey } from "#/api/queries/authCheck";
 import { meKey } from "#/api/queries/users";
 import type { AuthorizationRequest } from "#/api/typesGenerated";
 
-interface EmbedContextValue {
+type EmbedContextValue = {
 	isEmbedded: boolean;
-}
+};
 
 const EmbedContext = createContext<EmbedContextValue>({
 	isEmbedded: false,

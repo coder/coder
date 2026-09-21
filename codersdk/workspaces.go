@@ -16,6 +16,7 @@ import (
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/codersdk/wsjson"
+	"github.com/coder/coder/v2/codersdk/wsrelated"
 	"github.com/coder/websocket"
 )
 
@@ -167,6 +168,10 @@ type CreateWorkspaceBuildOnSuccessRequest struct {
 
 type WorkspaceOptions struct {
 	IncludeDeleted bool `json:"include_deleted,omitempty"`
+	// IncludeRelated selects which related data to load alongside the workspace.
+	// A nil value loads everything; a non-nil value is encoded into the
+	// include_related query parameter and loads only the selected data.
+	IncludeRelated *wsrelated.Config `json:"include_related,omitempty"`
 }
 
 // asRequestOption returns a function that can be used in (*Client).Request.
@@ -177,13 +182,20 @@ func (o WorkspaceOptions) asRequestOption() RequestOption {
 		if o.IncludeDeleted {
 			q.Set("include_deleted", "true")
 		}
+		if o.IncludeRelated != nil {
+			q.Set("include_related", o.IncludeRelated.QueryParam())
+		}
 		r.URL.RawQuery = q.Encode()
 	}
 }
 
 // Workspace returns a single workspace.
-func (c *Client) Workspace(ctx context.Context, id uuid.UUID) (Workspace, error) {
-	return c.getWorkspace(ctx, id)
+func (c *Client) Workspace(ctx context.Context, id uuid.UUID, opts ...WorkspaceOptions) (Workspace, error) {
+	reqOpts := make([]RequestOption, 0, len(opts))
+	for _, o := range opts {
+		reqOpts = append(reqOpts, o.asRequestOption())
+	}
+	return c.getWorkspace(ctx, id, reqOpts...)
 }
 
 // DeletedWorkspace returns a single workspace that was deleted.
@@ -376,25 +388,24 @@ func (c *Client) PutExtendWorkspace(ctx context.Context, id uuid.UUID, req PutEx
 }
 
 type PostWorkspaceUsageRequest struct {
-	AgentID uuid.UUID    `json:"agent_id" format:"uuid"`
-	AppName UsageAppName `json:"app_name"`
+	AgentID uuid.UUID `json:"agent_id" format:"uuid"`
+	// AppName is any name for the app reporting usage. The server normalizes
+	// it at ingestion, so a new app needs no server change. The UsageAppName
+	// constants are the well-known names.
+	AppName string `json:"app_name"`
 }
 
 type UsageAppName string
 
+// Well-known usage app names. The values are wire format and cannot change.
+// UsageAppNameReconnectingPty keeps its hyphen, which the server folds to the
+// canonical reconnecting_pty.
 const (
 	UsageAppNameVscode          UsageAppName = "vscode"
 	UsageAppNameJetbrains       UsageAppName = "jetbrains"
 	UsageAppNameReconnectingPty UsageAppName = "reconnecting-pty"
 	UsageAppNameSSH             UsageAppName = "ssh"
 )
-
-var AllowedAppNames = []UsageAppName{
-	UsageAppNameVscode,
-	UsageAppNameJetbrains,
-	UsageAppNameReconnectingPty,
-	UsageAppNameSSH,
-}
 
 // PostWorkspaceUsage marks the workspace as having been used recently and records an app stat.
 func (c *Client) PostWorkspaceUsageWithBody(ctx context.Context, id uuid.UUID, req PostWorkspaceUsageRequest) error {

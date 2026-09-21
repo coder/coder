@@ -7,9 +7,9 @@ import { Spinner } from "#/components/Spinner/Spinner";
 import { Welcome } from "#/components/Welcome/Welcome";
 import { useClipboard } from "#/hooks/useClipboard";
 
-interface CliAuthPageViewProps {
+type CliAuthPageViewProps = {
 	sessionToken?: string;
-}
+};
 
 export const CliAuthPageView: FC<CliAuthPageViewProps> = ({ sessionToken }) => {
 	const clipboardState = useClipboard();
