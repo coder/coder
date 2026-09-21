@@ -285,19 +285,24 @@ func TestMaxResponseBodyRoundTripper(t *testing.T) {
 		require.Nil(t, resp)
 	})
 
-	t.Run("ChatAttachedClientWrapsTransport", func(t *testing.T) {
+	t.Run("ChatAttachedClientPreservesGuard", func(t *testing.T) {
 		t.Parallel()
-		base := NewHTTPClient(nil)
-		client := chatAttachedHTTPClient(base)
-		require.NotSame(t, base, client)
-		wrapped, ok := client.Transport.(*maxResponseBodyRoundTripper)
-		require.True(t, ok)
-		require.Same(t, base.Transport, wrapped.base)
-		require.EqualValues(t, maxChatAttachedHTTPResponseBytes, wrapped.maxBytes)
-		require.Equal(t, base.Timeout, client.Timeout)
+		var hits atomic.Int64
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			hits.Add(1)
+			w.WriteHeader(http.StatusOK)
+		}))
+		defer server.Close()
 
-		fallback := chatAttachedHTTPClient(nil)
-		_, ok = fallback.Transport.(*maxResponseBodyRoundTripper)
-		require.True(t, ok)
+		for _, base := range []*http.Client{nil, NewHTTPClient(nil)} {
+			req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, server.URL, nil)
+			require.NoError(t, err)
+			resp, err := chatAttachedHTTPClient(base).Do(req)
+			if resp != nil {
+				_ = resp.Body.Close()
+			}
+			require.Error(t, err)
+		}
+		require.Zero(t, hits.Load())
 	})
 }

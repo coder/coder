@@ -266,7 +266,7 @@ func connectAllWithHooks(
 			// cannot leak a prefix into the persisted summary.
 			var errText string
 			if connectErr != nil {
-				errText = redactor.redactString(redactErrorURL(connectErr))
+				errText = redactor.redactString(redactErrorURL(opts.kind, connectErr))
 			}
 			switch {
 			case connectErr != nil && errors.Is(connectErr, context.DeadlineExceeded):
@@ -285,7 +285,7 @@ func connectAllWithHooks(
 				logger.Warn(ctx,
 					"skipping MCP server due to connection failure",
 					slog.F("server_slug", cfg.Slug),
-					slog.F("server_url", RedactURL(cfg.Url)),
+					slog.F("server_url", redactServerURL(opts.kind, cfg.Url)),
 					slog.F("duration", duration),
 					slog.F("error", errText),
 				)
@@ -293,7 +293,7 @@ func connectAllWithHooks(
 				logger.Warn(ctx,
 					"slow MCP server connect",
 					slog.F("server_slug", cfg.Slug),
-					slog.F("server_url", RedactURL(cfg.Url)),
+					slog.F("server_url", redactServerURL(opts.kind, cfg.Url)),
 					slog.F("duration", duration),
 				)
 			}
@@ -771,16 +771,30 @@ func RedactURL(rawURL string) string {
 	return u.String()
 }
 
+// redactServerURL renders a server URL for logs and persisted connect
+// errors. Chat-attached URLs are chosen by an end user and commonly
+// carry the credential in the path, so only their origin is kept.
+func redactServerURL(kind connectionKind, rawURL string) string {
+	if kind != connectionKindChatAttached {
+		return RedactURL(rawURL)
+	}
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return ""
+	}
+	return u.Scheme + "://" + u.Host
+}
+
 // redactErrorURL rewrites URLs in an error string to strip
 // credentials. Go's net/http embeds the full request URL in
 // *url.Error messages, which can leak userinfo.
-func redactErrorURL(err error) string {
+func redactErrorURL(kind connectionKind, err error) string {
 	if err == nil {
 		return ""
 	}
 	var urlErr *url.Error
 	if errors.As(err, &urlErr) {
-		urlErr.URL = RedactURL(urlErr.URL)
+		urlErr.URL = redactServerURL(kind, urlErr.URL)
 		return urlErr.Error()
 	}
 	return err.Error()
@@ -797,7 +811,7 @@ const maxSummaryErrorLen = 512
 // credential-bearing URLs are redacted and the result is truncated
 // to maxSummaryErrorLen bytes on a rune boundary.
 func summaryError(err error) string {
-	return truncateSummaryError(redactErrorURL(err))
+	return truncateSummaryError(redactErrorURL(connectionKindOrg, err))
 }
 
 // truncateSummaryError caps an already-redacted error message at
@@ -865,17 +879,22 @@ func AppendChatAttached(
 // made. The key is reverse-DNS namespaced per the MCP _meta guidance.
 const toolCallIDMetaKey = "com.coder/tool_call_id"
 
+// redactedPlaceholder replaces each sensitive value in redacted text.
+const redactedPlaceholder = "[REDACTED]"
+
 // secretRedactor replaces a fixed set of sensitive strings with
-// "[REDACTED]". The zero value redacts nothing. Longer values are
-// replaced first so a value that contains another value is redacted
-// whole.
+// redactedPlaceholder. The zero value redacts nothing. Longer values
+// are replaced first so a value that contains another value is
+// redacted whole. Values shorter than the placeholder are ignored so
+// redaction never lengthens its input and size caps checked before it
+// still hold.
 type secretRedactor struct {
 	values []string
 }
 
 func newSecretRedactor(values []string) secretRedactor {
 	values = slices.Clone(values)
-	values = slices.DeleteFunc(values, func(value string) bool { return value == "" })
+	values = slices.DeleteFunc(values, func(value string) bool { return len(value) < len(redactedPlaceholder) })
 	slices.SortFunc(values, func(a, b string) int {
 		return cmp.Or(cmp.Compare(len(b), len(a)), cmp.Compare(a, b))
 	})
@@ -885,7 +904,7 @@ func newSecretRedactor(values []string) secretRedactor {
 
 func (r secretRedactor) redactString(value string) string {
 	for _, secret := range r.values {
-		value = strings.ReplaceAll(value, secret, "[REDACTED]")
+		value = strings.ReplaceAll(value, secret, redactedPlaceholder)
 	}
 	return value
 }
@@ -907,7 +926,7 @@ func (r secretRedactor) redactBytes(value []byte) []byte {
 	}
 	redacted := bytes.Clone(value)
 	for _, secret := range r.values {
-		redacted = bytes.ReplaceAll(redacted, []byte(secret), []byte("[REDACTED]"))
+		redacted = bytes.ReplaceAll(redacted, []byte(secret), []byte(redactedPlaceholder))
 	}
 	return redacted
 }
@@ -924,6 +943,9 @@ func (r secretRedactor) redactMap(value map[string]any) map[string]any {
 }
 
 func (r secretRedactor) redactValue(value any) any {
+	if len(r.values) == 0 {
+		return value
+	}
 	switch typed := value.(type) {
 	case string:
 		return r.redactString(typed)
@@ -1118,6 +1140,11 @@ func (t *mcpToolWrapper) Run(
 		}
 	}
 
+	// Structured content is redacted before convertCallResult encodes it
+	// as JSON, where escaping would hide a secret from the string match.
+	if result != nil {
+		result.StructuredContent = t.redactor.redactValue(result.StructuredContent)
+	}
 	return t.redactor.redactResponse(convertCallResult(result)), nil
 }
 

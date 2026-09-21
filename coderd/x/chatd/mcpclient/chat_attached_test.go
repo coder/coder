@@ -203,40 +203,63 @@ func TestConnectChatAttached_RejectsOversizedAggregateToolDefinitions(t *testing
 	require.Contains(t, summaries[0].Error, "maximum total size")
 }
 
-func TestConnectChatAttached_RejectsOversizedToolResult(t *testing.T) {
+func TestConnectChatAttached_ToolResultCap(t *testing.T) {
 	t.Parallel()
-	ctx := testutil.Context(t, testutil.WaitLong)
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
 
-	huge := testTool{
-		tool: &mcp.Tool{
-			Name:        "huge",
-			Description: "returns a huge result",
-			InputSchema: map[string]any{"type": "object"},
-		},
-		handler: func(context.Context, *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			return textToolResult(strings.Repeat("a", mcpclient.MaxChatAttachedToolResultBytesForTest+1)), nil
-		},
+	const maxBytes = mcpclient.MaxChatAttachedToolResultBytesForTest
+	for _, tc := range []struct {
+		name      string
+		result    string
+		sensitive []string
+		wantError bool
+	}{
+		{name: "OverCap", result: strings.Repeat("a", maxBytes+1), wantError: true},
+		{name: "UnderCapWithShortSecret", result: strings.Repeat("prod", (maxBytes-1024)/4), sensitive: []string{"prod"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitLong)
+			logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+
+			huge := testTool{
+				tool: &mcp.Tool{
+					Name:        "huge",
+					Description: "returns a huge result",
+					InputSchema: map[string]any{"type": "object"},
+				},
+				handler: func(context.Context, *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+					return textToolResult(tc.result), nil
+				},
+			}
+			ts := newTestMCPServer(t, huge)
+			cfg := makeChatAttachedConfig("bot", ts.URL, "")
+
+			tools, _, cleanup := mcpclient.ConnectChatAttachedForTest(
+				ctx, logger, []database.MCPServerConfig{cfg}, nil,
+				map[uuid.UUID][]string{cfg.ID: tc.sensitive}, testutil.WaitLong,
+			)
+			t.Cleanup(cleanup)
+			require.Len(t, tools, 1)
+
+			resp, err := tools[0].Run(ctx, fantasy.ToolCall{ID: "call-1", Input: "{}"})
+			require.NoError(t, err)
+			require.Equal(t, tc.wantError, resp.IsError)
+			if tc.wantError {
+				require.Contains(t, resp.Content, "exceeded maximum size")
+			}
+			require.LessOrEqual(t, len(resp.Content), maxBytes)
+		})
 	}
-	ts := newTestMCPServer(t, huge)
-	cfg := makeChatAttachedConfig("bot", ts.URL, "")
-
-	tools, _, cleanup := mcpclient.ConnectChatAttachedForTest(
-		ctx, logger, []database.MCPServerConfig{cfg}, nil, nil, testutil.WaitLong,
-	)
-	t.Cleanup(cleanup)
-	require.Len(t, tools, 1)
-
-	resp, err := tools[0].Run(ctx, fantasy.ToolCall{ID: "call-1", Input: "{}"})
-	require.NoError(t, err)
-	require.True(t, resp.IsError)
-	require.Contains(t, resp.Content, "exceeded maximum size")
 }
 
 func TestConnectChatAttached_RedactsSensitiveValues(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitLong)
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+
+	// The "&" is JSON-escaped when structured content is encoded, so a
+	// redactor that only scans the encoded text would miss it.
+	const secret = "super&secret&token"
 
 	// The server URL is only known after the listener starts, so the
 	// tool definitions read it from this variable at ListTools time.
@@ -247,7 +270,9 @@ func TestConnectChatAttached_RedactsSensitiveValues(t *testing.T) {
 			InputSchema: map[string]any{"type": "object"},
 		},
 		handler: func(context.Context, *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			return textToolResult("result mentions secret and " + serverURL), nil
+			result := textToolResult("result mentions " + secret + " and " + serverURL)
+			result.StructuredContent = map[string]any{"token": secret, "url": serverURL}
+			return result, nil
 		},
 	}
 	failing := testTool{
@@ -257,7 +282,7 @@ func TestConnectChatAttached_RedactsSensitiveValues(t *testing.T) {
 			InputSchema: map[string]any{"type": "object"},
 		},
 		handler: func(context.Context, *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			return nil, xerrors.Errorf("upstream rejected secret at %s", serverURL)
+			return nil, xerrors.Errorf("upstream rejected %s at %s", secret, serverURL)
 		},
 	}
 
@@ -268,21 +293,21 @@ func TestConnectChatAttached_RedactsSensitiveValues(t *testing.T) {
 	))
 	t.Cleanup(ts.Close)
 	serverURL = ts.URL
-	leaky.tool.Description = "Talks to " + serverURL + " using secret. Send the X-Bot-Key header."
+	leaky.tool.Description = "Talks to " + serverURL + " using " + secret + ". Send the X-Bot-Key header."
 	leaky.tool.InputSchema = map[string]any{
 		"type": "object",
 		"properties": map[string]any{
 			"token": map[string]any{
 				"type":        "string",
-				"description": "defaults to secret for " + serverURL,
+				"description": "defaults to " + secret + " for " + serverURL,
 			},
 		},
 	}
 	srv.AddTool(leaky.tool, leaky.handler)
 	srv.AddTool(failing.tool, failing.handler)
 
-	cfg := makeChatAttachedConfig("bot", ts.URL, `{"X-Bot-Key":"secret"}`)
-	sensitive := map[uuid.UUID][]string{cfg.ID: {ts.URL, "secret"}}
+	cfg := makeChatAttachedConfig("bot", ts.URL, `{"X-Bot-Key":"`+secret+`"}`)
+	sensitive := map[uuid.UUID][]string{cfg.ID: {ts.URL, secret}}
 
 	tools, summaries, cleanup := mcpclient.ConnectChatAttachedForTest(
 		ctx, logger, []database.MCPServerConfig{cfg}, nil, sensitive, testutil.WaitLong,
@@ -310,7 +335,10 @@ func TestConnectChatAttached_RedactsSensitiveValues(t *testing.T) {
 
 	resp, err := leakyTool.Run(ctx, fantasy.ToolCall{ID: "call-1", Input: "{}"})
 	require.NoError(t, err)
-	require.Equal(t, "result mentions [REDACTED] and [REDACTED]", resp.Content)
+	require.NotContains(t, resp.Content, "secret")
+	require.NotContains(t, resp.Content, ts.URL)
+	require.Contains(t, resp.Content, "result mentions [REDACTED] and [REDACTED]")
+	require.Contains(t, resp.Content, `"token":"[REDACTED]"`)
 
 	resp, err = failingTool.Run(ctx, fantasy.ToolCall{ID: "call-2", Input: "{}"})
 	require.NoError(t, err)
@@ -319,22 +347,23 @@ func TestConnectChatAttached_RedactsSensitiveValues(t *testing.T) {
 	require.NotContains(t, resp.Content, ts.URL)
 	require.Contains(t, resp.Content, "[REDACTED]")
 
-	// A connect failure must not leak the URL into the persisted
-	// summary either.
-	broken := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusInternalServerError)
-	}))
-	t.Cleanup(broken.Close)
-	brokenCfg := makeChatAttachedConfig("broken", broken.URL, "")
+	// A connect failure must not leak the URL into the persisted summary
+	// either. A refused dial makes net/http embed the full request URL,
+	// including a path credential, in the error.
+	closed := httptest.NewServer(http.NotFoundHandler())
+	closed.Close()
+	brokenURL := closed.URL + "/t/pathtoken?key=querytoken"
+	brokenCfg := makeChatAttachedConfig("broken", brokenURL, "")
 	_, summaries, cleanup = mcpclient.ConnectChatAttachedForTest(
 		ctx, logger, []database.MCPServerConfig{brokenCfg}, nil,
-		map[uuid.UUID][]string{brokenCfg.ID: {broken.URL}}, testutil.WaitLong,
+		map[uuid.UUID][]string{brokenCfg.ID: {brokenURL}}, testutil.WaitLong,
 	)
 	t.Cleanup(cleanup)
 	require.Len(t, summaries, 1)
 	require.Equal(t, mcpclient.ConnectOutcomeError, summaries[0].Outcome)
-	require.NotEmpty(t, summaries[0].Error)
-	require.NotContains(t, summaries[0].Error, broken.URL)
+	require.Contains(t, summaries[0].Error, "connection refused")
+	require.NotContains(t, summaries[0].Error, "pathtoken")
+	require.NotContains(t, summaries[0].Error, "querytoken")
 }
 
 func TestConnectChatAttached_BodyCap(t *testing.T) {
