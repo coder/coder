@@ -32,3 +32,8 @@ RETURNING *;
 -- name: DeleteChatProjectByID :exec
 DELETE FROM chat_projects
 WHERE id = @id::uuid;
+
+-- name: UpdateChatProjectMemoryConsolidatedAt :exec
+UPDATE chat_projects
+SET memory_consolidated_at = @memory_consolidated_at::timestamptz
+WHERE id = @id::uuid;

@@ -1354,14 +1354,6 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().GetChatProjectByID(gomock.Any(), project.ID).Return(project, nil).AnyTimes()
 		check.Args(arg).Asserts(memory.ChatProjectMemory.RBACObject(project), policy.ActionRead).Returns(memory)
 	}))
-	s.Run("GetChatProjectMemoryByNameForUpdate", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
-		memory := testutil.Fake(s.T(), faker, database.ChatProjectMemory{})
-		project := testutil.Fake(s.T(), faker, database.ChatProject{ID: memory.ProjectID})
-		arg := database.GetChatProjectMemoryByNameForUpdateParams{ProjectID: memory.ProjectID, Name: memory.Name}
-		dbm.EXPECT().GetChatProjectMemoryByNameForUpdate(gomock.Any(), arg).Return(memory, nil).AnyTimes()
-		dbm.EXPECT().GetChatProjectByID(gomock.Any(), project.ID).Return(project, nil).AnyTimes()
-		check.Args(arg).Asserts(memory.RBACObject(project), policy.ActionRead).Returns(memory)
-	}))
 	s.Run("GetChatMemoryCursor", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		chat := testutil.Fake(s.T(), faker, database.Chat{})
 		cursor := testutil.Fake(s.T(), faker, database.ChatMemoryCursor{ChatID: chat.ID})
@@ -1791,6 +1783,13 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
 		dbm.EXPECT().UpdateChatLastModelConfigByID(gomock.Any(), arg).Return(chat, nil).AnyTimes()
 		check.Args(arg).Asserts(chat, policy.ActionUpdate).Returns(chat)
+	}))
+	s.Run("UpdateChatProjectMemoryConsolidatedAt", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		project := testutil.Fake(s.T(), faker, database.ChatProject{})
+		arg := database.UpdateChatProjectMemoryConsolidatedAtParams{ID: project.ID}
+		dbm.EXPECT().GetChatProjectByID(gomock.Any(), project.ID).Return(project, nil).AnyTimes()
+		dbm.EXPECT().UpdateChatProjectMemoryConsolidatedAt(gomock.Any(), arg).Return(nil).AnyTimes()
+		check.Args(arg).Asserts(database.ChatProjectMemoryRBACObject(project), policy.ActionUpdate)
 	}))
 	s.Run("UpdateChatProjectMemoryByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		memory := testutil.Fake(s.T(), faker, database.GetChatProjectMemoryByIDRow{})

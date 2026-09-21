@@ -116,7 +116,6 @@ func (api *API) registerExperimentalChatRoutes(r chi.Router, apiKeyMiddleware fu
 				r.Route("/memories", func(r chi.Router) {
 					r.Get("/", api.listChatProjectMemories)
 					r.Post("/", api.postChatProjectMemory)
-					r.Get("/consolidations", api.listChatProjectMemoryConsolidations)
 					r.Route("/{memory}", func(r chi.Router) {
 						r.Use(httpmw.ExtractChatProjectMemoryParam(api.Database))
 						r.Get("/", api.getChatProjectMemory)

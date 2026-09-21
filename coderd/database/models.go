@@ -1510,70 +1510,6 @@ func AllChatClientTypeValues() []ChatClientType {
 	}
 }
 
-type ChatMemoryConsolidationStatus string
-
-const (
-	ChatMemoryConsolidationStatusRunning   ChatMemoryConsolidationStatus = "running"
-	ChatMemoryConsolidationStatusSucceeded ChatMemoryConsolidationStatus = "succeeded"
-	ChatMemoryConsolidationStatusFailed    ChatMemoryConsolidationStatus = "failed"
-	ChatMemoryConsolidationStatusSkipped   ChatMemoryConsolidationStatus = "skipped"
-)
-
-func (e *ChatMemoryConsolidationStatus) Scan(src interface{}) error {
-	switch s := src.(type) {
-	case []byte:
-		*e = ChatMemoryConsolidationStatus(s)
-	case string:
-		*e = ChatMemoryConsolidationStatus(s)
-	default:
-		return fmt.Errorf("unsupported scan type for ChatMemoryConsolidationStatus: %T", src)
-	}
-	return nil
-}
-
-type NullChatMemoryConsolidationStatus struct {
-	ChatMemoryConsolidationStatus ChatMemoryConsolidationStatus `json:"chat_memory_consolidation_status"`
-	Valid                         bool                          `json:"valid"` // Valid is true if ChatMemoryConsolidationStatus is not NULL
-}
-
-// Scan implements the Scanner interface.
-func (ns *NullChatMemoryConsolidationStatus) Scan(value interface{}) error {
-	if value == nil {
-		ns.ChatMemoryConsolidationStatus, ns.Valid = "", false
-		return nil
-	}
-	ns.Valid = true
-	return ns.ChatMemoryConsolidationStatus.Scan(value)
-}
-
-// Value implements the driver Valuer interface.
-func (ns NullChatMemoryConsolidationStatus) Value() (driver.Value, error) {
-	if !ns.Valid {
-		return nil, nil
-	}
-	return string(ns.ChatMemoryConsolidationStatus), nil
-}
-
-func (e ChatMemoryConsolidationStatus) Valid() bool {
-	switch e {
-	case ChatMemoryConsolidationStatusRunning,
-		ChatMemoryConsolidationStatusSucceeded,
-		ChatMemoryConsolidationStatusFailed,
-		ChatMemoryConsolidationStatusSkipped:
-		return true
-	}
-	return false
-}
-
-func AllChatMemoryConsolidationStatusValues() []ChatMemoryConsolidationStatus {
-	return []ChatMemoryConsolidationStatus{
-		ChatMemoryConsolidationStatusRunning,
-		ChatMemoryConsolidationStatusSucceeded,
-		ChatMemoryConsolidationStatusFailed,
-		ChatMemoryConsolidationStatusSkipped,
-	}
-}
-
 type ChatMessageRole string
 
 const (
@@ -5284,22 +5220,6 @@ type ChatHeartbeat struct {
 	HeartbeatAt time.Time `db:"heartbeat_at" json:"heartbeat_at"`
 }
 
-// Bounded journal of detached project memory consolidation runs.
-type ChatMemoryConsolidation struct {
-	ID              uuid.UUID                     `db:"id" json:"id"`
-	OrganizationID  uuid.UUID                     `db:"organization_id" json:"organization_id"`
-	ProjectID       uuid.UUID                     `db:"project_id" json:"project_id"`
-	Status          ChatMemoryConsolidationStatus `db:"status" json:"status"`
-	StartedAt       time.Time                     `db:"started_at" json:"started_at"`
-	FinishedAt      sql.NullTime                  `db:"finished_at" json:"finished_at"`
-	Model           string                        `db:"model" json:"model"`
-	MemoriesBefore  int32                         `db:"memories_before" json:"memories_before"`
-	MemoriesAfter   int32                         `db:"memories_after" json:"memories_after"`
-	Mutations       json.RawMessage               `db:"mutations" json:"mutations"`
-	Error           string                        `db:"error" json:"error"`
-	NextWindowStart int32                         `db:"next_window_start" json:"next_window_start"`
-}
-
 // Per-chat cursors for memory extraction.
 type ChatMemoryCursor struct {
 	ChatID         uuid.UUID    `db:"chat_id" json:"chat_id"`
@@ -5377,6 +5297,8 @@ type ChatProject struct {
 	Description    string    `db:"description" json:"description"`
 	CreatedAt      time.Time `db:"created_at" json:"created_at"`
 	UpdatedAt      time.Time `db:"updated_at" json:"updated_at"`
+	// When project memory was last consolidated at the cap; rate-limits the next run.
+	MemoryConsolidatedAt sql.NullTime `db:"memory_consolidated_at" json:"memory_consolidated_at"`
 }
 
 // Organization-scoped durable memories for chat projects.
