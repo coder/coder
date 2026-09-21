@@ -166,6 +166,7 @@ func (api *API) postOAuth2ProviderAppAuthorize() http.HandlerFunc {
 // @Param refresh_token formData string false "Refresh token, required if grant_type=refresh_token"
 // @Param grant_type formData codersdk.OAuth2ProviderGrantType true "Grant type"
 // @Success 200 {object} codersdk.OAuth2TokenResponse
+// @Failure 400 {object} codersdk.OAuth2Error "invalid_request: client_secret in the URL query string, or a missing or malformed parameter"
 // @Failure 413 {object} codersdk.OAuth2Error "Request body exceeds 4 MiB"
 // @Router /oauth2/tokens [post]
 func (api *API) postOAuth2ProviderAppToken() http.HandlerFunc {

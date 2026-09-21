@@ -17169,6 +17169,12 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.OAuth2TokenResponse"
                         }
                     },
+                    "400": {
+                        "description": "invalid_request: client_secret in the URL query string, or a missing or malformed parameter",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.OAuth2Error"
+                        }
+                    },
                     "413": {
                         "description": "Request body exceeds 4 MiB",
                         "schema": {

@@ -5462,10 +5462,11 @@ grant_type: authorization_code
 
 ### Responses
 
-| Status | Meaning                                                                 | Description                | Schema                                                                 |
-|--------|-------------------------------------------------------------------------|----------------------------|------------------------------------------------------------------------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)                 | OK                         | [codersdk.OAuth2TokenResponse](schemas.md#codersdkoauth2tokenresponse) |
-| 413    | [Payload Too Large](https://tools.ietf.org/html/rfc7231#section-6.5.11) | Request body exceeds 4 MiB | [codersdk.OAuth2Error](schemas.md#codersdkoauth2error)                 |
+| Status | Meaning                                                                 | Description                                                                                 | Schema                                                                 |
+|--------|-------------------------------------------------------------------------|---------------------------------------------------------------------------------------------|------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)                 | OK                                                                                          | [codersdk.OAuth2TokenResponse](schemas.md#codersdkoauth2tokenresponse) |
+| 400    | [Bad Request](https://tools.ietf.org/html/rfc7231#section-6.5.1)        | invalid_request: client_secret in the URL query string, or a missing or malformed parameter | [codersdk.OAuth2Error](schemas.md#codersdkoauth2error)                 |
+| 413    | [Payload Too Large](https://tools.ietf.org/html/rfc7231#section-6.5.11) | Request body exceeds 4 MiB                                                                  | [codersdk.OAuth2Error](schemas.md#codersdkoauth2error)                 |
 
 ## Delete OAuth2 application tokens
 
