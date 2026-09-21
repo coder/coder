@@ -793,8 +793,10 @@ func (p *Server) subagentTools(
 			"wait_agent",
 			"Wait for a spawned child agent to finish and return its response "+
 				"and status. Returns immediately when the agent finishes, even if "+
-				"a longer timeout is set. A timeout does not stop the agent; call "+
-				"wait_agent again or use list_agents to check its status.",
+				"a longer timeout is set. A timeout does not stop the child; it "+
+				"still owns its task. Wait again or check its status with "+
+				"list_agents; do not take over its work without an acknowledged "+
+				"handoff.",
 			func(ctx context.Context, args waitAgentArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
 				if currentChat == nil {
 					return fantasy.NewTextErrorResponse("subagent callbacks are not configured"), nil
@@ -941,11 +943,16 @@ func (p *Server) subagentTools(
 			"message_agent",
 			"Send a follow-up message to a previously spawned child "+
 				"agent. If the agent is idle, it resumes work on the "+
-				"message. If the agent is busy, the message is queued and "+
-				"processed after current work. Set interrupt to true to "+
-				"stop the agent's current work; the message is queued and "+
-				"processed next, after any already-queued messages. "+
-				"After sending, use wait_agent to retrieve the response.",
+				"message. If it is busy, the message is queued behind its "+
+				"current work and any earlier queued messages; set interrupt "+
+				"to true for corrections, changed scope, or a handoff that "+
+				"returns the child's task to you, so its current work stops "+
+				"first. Interrupting does not clear earlier queued messages, "+
+				"and the tool result does not confirm the child has stopped. "+
+				"Use wait_agent to collect the child's response. A handoff is "+
+				"acknowledged only when wait_agent returns the child's response "+
+				"to your handoff message; a message_agent result or an "+
+				"interrupting status is not an acknowledgment.",
 			func(ctx context.Context, args messageAgentArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
 				if currentChat == nil {
 					return fantasy.NewTextErrorResponse("subagent callbacks are not configured"), nil
