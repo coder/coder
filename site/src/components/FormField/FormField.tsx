@@ -1,5 +1,5 @@
 import { cn } from "cn";
-import { type FC, type HTMLAttributes, type ReactNode, useId } from "react";
+import { type ComponentProps, type FC, type ReactNode, useId } from "react";
 import { Input } from "#/components/Input/Input";
 import { Label } from "#/components/Label/Label";
 import {
@@ -8,11 +8,11 @@ import {
 } from "#/utils/formUtils";
 
 type ControlProps = Pick<
-	HTMLAttributes<HTMLElement>,
+	ComponentProps<"input">,
 	"id" | "aria-invalid" | "aria-describedby"
 >;
 
-type FormFieldProps = React.ComponentPropsWithRef<"input"> & {
+type FormFieldProps = React.ComponentProps<"input"> & {
 	field: FormHelpers;
 	label: ReactNode;
 	description?: ReactNode;

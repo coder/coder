@@ -1,10 +1,10 @@
 import type { FC } from "react";
 import { Lightbox } from "./Lightbox";
 
-interface ImageLightboxProps {
+type ImageLightboxProps = {
 	src: string;
 	onClose: () => void;
-}
+};
 
 export const ImageLightbox: FC<ImageLightboxProps> = ({ src, onClose }) => {
 	return (

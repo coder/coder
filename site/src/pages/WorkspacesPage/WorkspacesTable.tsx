@@ -87,7 +87,7 @@ import { getDisplayWorkspaceTemplateName } from "#/utils/workspace";
 import { WorkspaceSharingIndicator } from "./WorkspaceSharingIndicator";
 import { WorkspacesEmpty } from "./WorkspacesEmpty";
 
-interface WorkspacesTableProps {
+type WorkspacesTableProps = {
 	workspaces?: readonly Workspace[];
 	checkedWorkspaces: readonly Workspace[];
 	error?: unknown;
@@ -99,7 +99,7 @@ interface WorkspacesTableProps {
 	onActionSuccess: () => Promise<void>;
 	onActionError: (error: unknown) => void;
 	chatsByWorkspace?: Record<string, string>;
-}
+};
 
 export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 	workspaces,
@@ -304,11 +304,11 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 	);
 };
 
-interface WorkspacesRowProps {
+type WorkspacesRowProps = {
 	workspace: Workspace;
 	children?: ReactNode;
 	checked: boolean;
-}
+};
 
 const WorkspacesRow: FC<WorkspacesRowProps> = ({
 	workspace,

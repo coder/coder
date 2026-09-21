@@ -9,7 +9,7 @@ export type SaveModelOverride = (
 	options?: { onSuccess?: () => void; onError?: () => void },
 ) => void;
 
-interface OrganizationAgentSettingsViewProps {
+type OrganizationAgentSettingsViewProps = {
 	overrides: readonly TypesGen.ChatModelOverrideResponse[] | undefined;
 	enabledModels: readonly TypesGen.ChatModel[];
 	providerInfoByID: ReadonlyMap<string, ProviderInfo>;
@@ -24,7 +24,7 @@ interface OrganizationAgentSettingsViewProps {
 	>;
 	savingContexts: ReadonlySet<TypesGen.ChatModelOverrideContext>;
 	errorContexts: ReadonlySet<TypesGen.ChatModelOverrideContext>;
-}
+};
 
 const settings: readonly {
 	context: TypesGen.ChatModelOverrideContext;
@@ -46,11 +46,12 @@ const settings: readonly {
 	{
 		context: "title_generation",
 		title: "Title generation",
-		description: "Used to generate chat titles.",
-		// Title generation fails hard on a broken override instead of falling
+		description:
+			"Used to generate chat titles, turn status labels, and chat summaries.",
+		// These side calls fail hard on a broken override instead of falling
 		// back to default model selection, so the generic warning is wrong here.
 		unavailableModelWarning:
-			"The selected model is currently unavailable. Title generation will be skipped until you choose another model or clear this setting.",
+			"The selected model is currently unavailable. Titles, status labels, and summaries will be skipped until you choose another model or clear this setting.",
 	},
 	{
 		context: "compaction",

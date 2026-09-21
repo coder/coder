@@ -109,8 +109,10 @@ export default function DesktopPopoutPage() {
 	);
 }
 
-export interface DesktopPopoutPageViewProps
-	extends Omit<DesktopWorkspaceStateProps, "workspaceStatus"> {
+export type DesktopPopoutPageViewProps = Omit<
+	DesktopWorkspaceStateProps,
+	"workspaceStatus"
+> & {
 	status: DesktopConnectionStatus;
 	/** Undefined until the chat's workspace has loaded. */
 	workspaceStatus: WorkspaceStatus | undefined;
@@ -122,7 +124,7 @@ export interface DesktopPopoutPageViewProps
 	isControlling: boolean;
 	onTakeControl: () => void;
 	onReleaseControl: () => void;
-}
+};
 
 export const DesktopPopoutPageView: FC<DesktopPopoutPageViewProps> = ({
 	status,

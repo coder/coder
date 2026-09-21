@@ -41,7 +41,7 @@ export const AVAILABILITY_LABELS = Object.fromEntries(
 	AVAILABILITY_OPTIONS.map(({ value, label }) => [value, label]),
 ) as Record<string, string>;
 
-export interface MCPServerFormValues {
+export type MCPServerFormValues = {
 	displayName: string;
 	slug: string;
 	slugTouched: boolean;
@@ -69,7 +69,7 @@ export interface MCPServerFormValues {
 	toolDenyList: string;
 	customHeaders: Array<{ key: string; value: string }>;
 	customHeadersTouched: boolean;
-}
+};
 
 export const slugify = (value: string): string =>
 	value

@@ -857,29 +857,20 @@ func TestGetTemplateInsightsByTemplate(t *testing.T) {
 	insertStat(15*time.Second, sharedConnectionTemplateID, sharedConnectionUserID, uuid.New(), 0, map[string]int64{"vscode": 1})
 	insertStat(30*time.Second, sharedConnectionTemplateID, sharedConnectionUserID, uuid.New(), 1, map[string]int64{"unknown": 1})
 
-	appFamilies := codersdk.SessionCountAppFamiliesJSON()
 	insights, err := db.GetTemplateInsightsByTemplate(ctx, database.GetTemplateInsightsByTemplateParams{
-		StartTime:   startTime,
-		EndTime:     endTime,
-		AppFamilies: appFamilies,
+		StartTime: startTime,
+		EndTime:   endTime,
 	})
 	require.NoError(t, err)
-	// The query does not order its rows.
-	require.ElementsMatch(t, []database.GetTemplateInsightsByTemplateRow{
-		{
-			TemplateID:                  templateID,
-			ActiveUsers:                 2,
-			UsageVscodeSeconds:          120,
-			UsageJetbrainsSeconds:       60,
-			UsageReconnectingPtySeconds: 60,
-			UsageSshSeconds:             120,
-		},
-		{
-			TemplateID:         sharedConnectionTemplateID,
-			ActiveUsers:        1,
-			UsageVscodeSeconds: 60,
-		},
-	}, insights)
+	byTemplate := make(map[uuid.UUID]database.GetTemplateInsightsByTemplateRow)
+	for _, row := range insights {
+		byTemplate[row.TemplateID] = row
+	}
+	require.Len(t, byTemplate, 2)
+	require.EqualValues(t, 2, byTemplate[templateID].ActiveUsers)
+	require.Equal(t, database.StringMapOfInt{"vscode": 120, "jetbrains": 60, "reconnecting_pty": 60, "ssh": 120, "unknown": 60}, byTemplate[templateID].SessionAppUsageSeconds)
+	require.EqualValues(t, 1, byTemplate[sharedConnectionTemplateID].ActiveUsers)
+	require.Equal(t, database.StringMapOfInt{"vscode": 60, "unknown": 60}, byTemplate[sharedConnectionTemplateID].SessionAppUsageSeconds)
 }
 
 func TestGetWorkspaceAgentUsageStats(t *testing.T) {
@@ -6213,6 +6204,10 @@ func TestGroupRemovalTrigger(t *testing.T) {
 func TestGetUserStatusCounts(t *testing.T) {
 	t.Parallel()
 
+	// Every leaf subtest runs in its own rolled-back transaction, so one
+	// database serves the whole timezone x date matrix.
+	store, _ := dbtestutil.NewDB(t)
+
 	type testCase struct {
 		timezone    string
 		location    *time.Location
@@ -6269,7 +6264,7 @@ func TestGetUserStatusCounts(t *testing.T) {
 
 			t.Run("No Users", func(t *testing.T) {
 				t.Parallel()
-				db, _ := dbtestutil.NewDB(t)
+				db := dbtestutil.StartRolledBackTx(t, store)
 				ctx := testutil.Context(t, testutil.WaitShort)
 
 				counts, err := db.GetUserStatusCounts(ctx, database.GetUserStatusCountsParams{
@@ -6305,7 +6300,7 @@ func TestGetUserStatusCounts(t *testing.T) {
 				for _, stc := range subTestCases {
 					t.Run(stc.name, func(t *testing.T) {
 						t.Parallel()
-						db, _ := dbtestutil.NewDB(t)
+						db := dbtestutil.StartRolledBackTx(t, store)
 						ctx := testutil.Context(t, testutil.WaitShort)
 
 						dbgen.User(t, db, database.User{
@@ -6486,7 +6481,7 @@ func TestGetUserStatusCounts(t *testing.T) {
 				for _, stc := range subTestCases {
 					t.Run(stc.name, func(t *testing.T) {
 						t.Parallel()
-						db, _ := dbtestutil.NewDB(t)
+						db := dbtestutil.StartRolledBackTx(t, store)
 						ctx := testutil.Context(t, testutil.WaitShort)
 
 						user := dbgen.User(t, db, database.User{
@@ -6621,7 +6616,7 @@ func TestGetUserStatusCounts(t *testing.T) {
 					t.Run(stc.name, func(t *testing.T) {
 						t.Parallel()
 
-						db, _ := dbtestutil.NewDB(t)
+						db := dbtestutil.StartRolledBackTx(t, store)
 						ctx := testutil.Context(t, testutil.WaitShort)
 
 						user1 := dbgen.User(t, db, database.User{
@@ -6700,7 +6695,7 @@ func TestGetUserStatusCounts(t *testing.T) {
 
 			t.Run("User precedes and survives query range", func(t *testing.T) {
 				t.Parallel()
-				db, _ := dbtestutil.NewDB(t)
+				db := dbtestutil.StartRolledBackTx(t, store)
 				ctx := testutil.Context(t, testutil.WaitShort)
 
 				_ = dbgen.User(t, db, database.User{
@@ -6732,7 +6727,7 @@ func TestGetUserStatusCounts(t *testing.T) {
 
 			t.Run("User deleted before query range", func(t *testing.T) {
 				t.Parallel()
-				db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+				db := dbtestutil.StartRolledBackTx(t, store)
 				ctx := testutil.Context(t, testutil.WaitShort)
 
 				user := dbgen.User(t, db, database.User{
@@ -6741,10 +6736,14 @@ func TestGetUserStatusCounts(t *testing.T) {
 					UpdatedAt: userCreatedAt,
 				})
 
-				err := db.UpdateUserDeletedByID(ctx, user.ID)
+				// The deletion trigger records users.updated_at as deleted_at.
+				_, err := db.UpdateUserStatus(ctx, database.UpdateUserStatusParams{
+					ID:        user.ID,
+					Status:    user.Status,
+					UpdatedAt: tc.reportUntil,
+				})
 				require.NoError(t, err)
-
-				_, err = sqlDB.ExecContext(ctx, "UPDATE user_deleted SET deleted_at = $1 WHERE user_id = $2", tc.reportUntil, user.ID)
+				err = db.UpdateUserDeletedByID(ctx, user.ID)
 				require.NoError(t, err)
 
 				userStatusChanges, err := db.GetUserStatusCounts(ctx, database.GetUserStatusCountsParams{
@@ -6759,7 +6758,7 @@ func TestGetUserStatusCounts(t *testing.T) {
 			t.Run("User deleted during query range", func(t *testing.T) {
 				t.Parallel()
 
-				db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+				db := dbtestutil.StartRolledBackTx(t, store)
 				ctx := testutil.Context(t, testutil.WaitShort)
 
 				user := dbgen.User(t, db, database.User{
@@ -6768,10 +6767,14 @@ func TestGetUserStatusCounts(t *testing.T) {
 					UpdatedAt: userCreatedAt,
 				})
 
-				err := db.UpdateUserDeletedByID(ctx, user.ID)
+				// The deletion trigger records users.updated_at as deleted_at.
+				_, err := db.UpdateUserStatus(ctx, database.UpdateUserStatusParams{
+					ID:        user.ID,
+					Status:    user.Status,
+					UpdatedAt: tc.reportUntil,
+				})
 				require.NoError(t, err)
-
-				_, err = sqlDB.ExecContext(ctx, "UPDATE user_deleted SET deleted_at = $1 WHERE user_id = $2", tc.reportUntil, user.ID)
+				err = db.UpdateUserDeletedByID(ctx, user.ID)
 				require.NoError(t, err)
 
 				userStatusChanges, err := db.GetUserStatusCounts(ctx, database.GetUserStatusCountsParams{
@@ -19048,8 +19051,6 @@ func TestSessionCountsAttributeByFamily(t *testing.T) {
 		})
 	}
 
-	appFamilies := codersdk.SessionCountAppFamiliesJSON()
-
 	// A VS Code fork counts as VS Code, and Zed counts as SSH.
 	stats, err := db.GetDeploymentWorkspaceAgentStats(ctx, dbtime.Now().Add(-time.Hour))
 	require.NoError(t, err)
@@ -19059,9 +19060,8 @@ func TestSessionCountsAttributeByFamily(t *testing.T) {
 	require.Zero(t, sessionFamilyCounts(t, stats.SessionCounts)["reconnecting_pty"])
 
 	insights, err := db.GetTemplateInsightsByTemplate(ctx, database.GetTemplateInsightsByTemplateParams{
-		StartTime:   dbtime.Now().Add(-time.Hour),
-		EndTime:     dbtime.Now().Add(time.Hour),
-		AppFamilies: appFamilies,
+		StartTime: dbtime.Now().Add(-time.Hour),
+		EndTime:   dbtime.Now().Add(time.Hour),
 	})
 	require.NoError(t, err)
 
@@ -19069,21 +19069,19 @@ func TestSessionCountsAttributeByFamily(t *testing.T) {
 	for _, row := range insights {
 		byTemplate[row.TemplateID] = row
 	}
-	require.Equal(t, int64(60), byTemplate[cursorTemplate].UsageVscodeSeconds)
-	require.Equal(t, int64(60), byTemplate[zedTemplate].UsageSshSeconds)
+	require.Equal(t, database.StringMapOfInt{"cursor": 60}, byTemplate[cursorTemplate].SessionAppUsageSeconds)
+	require.Equal(t, database.StringMapOfInt{"zed": 60}, byTemplate[zedTemplate].SessionAppUsageSeconds)
 
 	// An app with no family is still activity, so the user is not counted idle.
 	unknown, ok := byTemplate[unknownTemplate]
 	require.True(t, ok, "a session with no family must still appear as usage")
 	require.Equal(t, int64(1), unknown.ActiveUsers)
-	require.Zero(t, unknown.UsageVscodeSeconds)
-	require.Zero(t, unknown.UsageSshSeconds)
+	require.Equal(t, database.StringMapOfInt{"some_new_ide": 60}, unknown.SessionAppUsageSeconds)
 }
 
-// The rollup attributes session counts the same way the read queries do, so a
-// VS Code fork rolls up as VS Code, an SSH-speaking editor as SSH, and an app
-// with no family is still usage.
-func TestUpsertTemplateUsageStatsAttributesSessionCountsByFamily(t *testing.T) {
+// The rollup stores the app name the agent reported, whether or not the
+// registry knows it. Callers group the names into families.
+func TestUpsertTemplateUsageStatsStoresReportedAppNames(t *testing.T) {
 	t.Parallel()
 	if testing.Short() {
 		t.SkipNow()
@@ -19121,7 +19119,7 @@ func TestUpsertTemplateUsageStatsAttributesSessionCountsByFamily(t *testing.T) {
 		})
 	}
 
-	require.NoError(t, db.UpsertTemplateUsageStats(ctx, codersdk.SessionCountAppFamiliesJSON()))
+	require.NoError(t, db.UpsertTemplateUsageStats(ctx))
 
 	stats, err := db.GetTemplateUsageStats(ctx, database.GetTemplateUsageStatsParams{
 		StartTime: createdAt.Add(-time.Hour),
@@ -19137,24 +19135,19 @@ func TestUpsertTemplateUsageStatsAttributesSessionCountsByFamily(t *testing.T) {
 	cursor, ok := byTemplate[cursorTemplate]
 	require.True(t, ok, "a VS Code fork must be rolled up")
 	require.Equal(t, int16(1), cursor.UsageMins)
-	require.Equal(t, int16(1), cursor.VscodeMins)
-	require.Zero(t, cursor.SshMins)
+	require.Equal(t, map[string]int64{"cursor": 1}, sessionUsageMins(ctx, t, sqlDB, cursor.StartTime, cursor.UserID, cursorTemplate))
 
 	zed, ok := byTemplate[zedTemplate]
 	require.True(t, ok, "an SSH-speaking editor must be rolled up")
 	require.Equal(t, int16(1), zed.UsageMins)
-	require.Equal(t, int16(1), zed.SshMins)
-	require.Zero(t, zed.VscodeMins)
+	require.Equal(t, map[string]int64{"zed": 1}, sessionUsageMins(ctx, t, sqlDB, zed.StartTime, zed.UserID, zedTemplate))
 
-	// An app with no family is still activity, so it produces usage minutes
-	// without any family minutes.
+	// An app the registry does not know is still activity, and keeps the name
+	// the agent reported so a later registry entry can attribute it.
 	unknown, ok := byTemplate[unknownTemplate]
 	require.True(t, ok, "a session with no family must still appear as usage")
 	require.Equal(t, int16(1), unknown.UsageMins)
-	require.Zero(t, unknown.VscodeMins)
-	require.Zero(t, unknown.SshMins)
-	require.Zero(t, unknown.JetbrainsMins)
-	require.Zero(t, unknown.ReconnectingPtyMins)
+	require.Equal(t, map[string]int64{"some_new_ide": 1}, sessionUsageMins(ctx, t, sqlDB, unknown.StartTime, unknown.UserID, unknownTemplate))
 }
 
 func sessionFamilyCounts(t *testing.T, data json.RawMessage) map[codersdk.AppFamilyName]int64 {
@@ -19471,5 +19464,143 @@ func TestListOrganizationAISpendUsers(t *testing.T) {
 			UserID: bob.ID, Username: bob.Username, Name: bob.Name, AvatarURL: bob.AvatarURL, OrganizationID: otherOrg.ID,
 			CostMicros: 99_999, Providers: []string{"anthropic"}, Clients: []string{"Unknown"}, Models: []string{"claude"}, Count: 1, TotalCostMicros: 99_999,
 		}}, rows)
+	})
+}
+
+func TestExportOrganizationAISpend(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	org := dbgen.Organization(t, db, database.Organization{})
+	otherOrg := dbgen.Organization(t, db, database.Organization{})
+	groupA := dbgen.Group(t, db, database.Group{OrganizationID: org.ID})
+	groupB := dbgen.Group(t, db, database.Group{OrganizationID: org.ID})
+	otherGroup := dbgen.Group(t, db, database.Group{OrganizationID: otherOrg.ID})
+	userA := dbgen.User(t, db, database.User{})
+	userB := dbgen.User(t, db, database.User{})
+	periodStart := time.Date(2026, time.March, 1, 0, 0, 0, 0, time.UTC)
+	periodEnd := periodStart.AddDate(0, 1, 0)
+
+	seedUsage := func(userID, groupID uuid.UUID, providerName, model string, startedAt, createdAt time.Time, costMicros int64) {
+		t.Helper()
+		interception := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+			InitiatorID:  userID,
+			Provider:     "anthropic",
+			ProviderName: providerName,
+			Model:        model,
+			StartedAt:    startedAt,
+		}, nil)
+		dbgen.AIBridgeTokenUsage(t, db, database.InsertAIBridgeTokenUsageParams{
+			InterceptionID:   interception.ID,
+			CreatedAt:        createdAt,
+			EffectiveGroupID: uuid.NullUUID{UUID: groupID, Valid: groupID != uuid.Nil},
+			CostMicros:       sql.NullInt64{Int64: costMicros, Valid: true},
+		})
+	}
+
+	// Given: three exportable rows across users, groups, and models.
+	inPeriod := periodStart.Add(time.Hour)
+	seedUsage(userA.ID, groupA.ID, "provider-one", "model-one", periodStart.Add(-time.Hour), inPeriod, 100)
+	seedUsage(userA.ID, groupB.ID, "provider-two", "model-two", inPeriod, inPeriod, 200)
+	seedUsage(userB.ID, groupA.ID, "provider-one", "model-two", inPeriod, inPeriod, 300)
+
+	// Given: rows excluded because they have no effective group, belong to
+	// another organization, or have usage outside the requested time window.
+	seedUsage(userA.ID, uuid.Nil, "provider-one", "model-one", inPeriod, inPeriod, 400)
+	seedUsage(userA.ID, otherGroup.ID, "provider-one", "model-one", inPeriod, inPeriod, 500)
+	seedUsage(userB.ID, groupB.ID, "provider-two", "model-one", inPeriod, periodEnd, 600)
+
+	base := database.ExportOrganizationAISpendParams{
+		OrganizationID: org.ID,
+		PeriodStart:    periodStart,
+		PeriodEnd:      periodEnd,
+	}
+
+	t.Run("Filters", func(t *testing.T) {
+		t.Parallel()
+		type spendRow struct {
+			userID       uuid.UUID
+			groupID      uuid.UUID
+			providerName string
+			model        string
+			costMicros   int64
+		}
+		userAGroupA := spendRow{userA.ID, groupA.ID, "provider-one", "model-one", 100}
+		userAGroupB := spendRow{userA.ID, groupB.ID, "provider-two", "model-two", 200}
+		userBGroupA := spendRow{userB.ID, groupA.ID, "provider-one", "model-two", 300}
+
+		tests := []struct {
+			name     string
+			filters  database.ExportOrganizationAISpendParams
+			wantRows []spendRow
+		}{
+			{name: "Unfiltered", wantRows: []spendRow{userAGroupA, userAGroupB, userBGroupA}},
+			{name: "User", filters: database.ExportOrganizationAISpendParams{UserID: userA.ID}, wantRows: []spendRow{userAGroupA, userAGroupB}},
+			{name: "EffectiveGroup", filters: database.ExportOrganizationAISpendParams{GroupID: groupA.ID}, wantRows: []spendRow{userAGroupA, userBGroupA}},
+			{name: "ProviderName", filters: database.ExportOrganizationAISpendParams{ProviderName: "provider-one"}, wantRows: []spendRow{userAGroupA, userBGroupA}},
+			{name: "Model", filters: database.ExportOrganizationAISpendParams{Model: "model-two"}, wantRows: []spendRow{userAGroupB, userBGroupA}},
+			{
+				name: "Combined",
+				filters: database.ExportOrganizationAISpendParams{
+					UserID: userA.ID, GroupID: groupB.ID,
+					ProviderName: "provider-two", Model: "model-two",
+				},
+				wantRows: []spendRow{userAGroupB},
+			},
+			{name: "NoMatch", filters: database.ExportOrganizationAISpendParams{ProviderName: "missing"}},
+		}
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+				ctx := testutil.Context(t, testutil.WaitLong)
+				params := base
+				params.UserID = tt.filters.UserID
+				params.GroupID = tt.filters.GroupID
+				params.ProviderName = tt.filters.ProviderName
+				params.Model = tt.filters.Model
+
+				// When: exporting with the selected filters.
+				got, err := db.ExportOrganizationAISpend(ctx, params)
+				require.NoError(t, err)
+
+				// Then: the filter fields, costs, and full count match.
+				rows := make([]spendRow, 0, len(got))
+				for _, row := range got {
+					rows = append(rows, spendRow{row.UserID, row.GroupID.UUID, row.ProviderName, row.Model, row.CostMicros})
+					require.Equal(t, int64(len(tt.wantRows)), row.Count)
+				}
+				require.ElementsMatch(t, tt.wantRows, rows)
+			})
+		}
+	})
+
+	t.Run("Pagination", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// Given: the three matching rows in export order.
+		unpaginated, err := db.ExportOrganizationAISpend(ctx, base)
+		require.NoError(t, err)
+		require.Len(t, unpaginated, 3)
+
+		// When: requesting the second row as a one-row page.
+		params := base
+		params.LimitOpt = 1
+		params.OffsetOpt = 1
+		paged, err := db.ExportOrganizationAISpend(ctx, params)
+		require.NoError(t, err)
+
+		// Then: it matches the second export row and keeps the full count.
+		require.Len(t, paged, 1)
+		require.Equal(t, unpaginated[1], paged[0])
+		require.Equal(t, int64(3), paged[0].Count)
+
+		// When: requesting a page beyond the matching rows.
+		params.OffsetOpt = 3
+		outOfRange, err := db.ExportOrganizationAISpend(ctx, params)
+		require.NoError(t, err)
+
+		// Then: the page is empty.
+		require.Empty(t, outOfRange)
 	})
 }

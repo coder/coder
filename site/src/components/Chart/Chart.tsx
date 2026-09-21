@@ -36,10 +36,7 @@ function useChart() {
 	return context;
 }
 
-type ChartContainerProps = Omit<
-	React.ComponentPropsWithRef<"div">,
-	"children"
-> &
+type ChartContainerProps = Omit<React.ComponentProps<"div">, "children"> &
 	Pick<
 		React.ComponentProps<typeof RechartsPrimitive.ResponsiveContainer>,
 		"children"

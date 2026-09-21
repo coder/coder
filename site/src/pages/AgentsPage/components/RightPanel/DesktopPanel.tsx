@@ -21,14 +21,14 @@ import {
 	useStartDesktopWorkspace,
 } from "./DesktopWorkspaceState";
 
-interface DesktopPanelProps {
+type DesktopPanelProps = {
 	chatId: string;
 	workspace: Workspace;
 	/** Absent while the workspace is stopped or rebuilding. */
 	workspaceAgent: WorkspaceAgent | undefined;
 	/** When true the panel is the active sidebar tab. */
 	isVisible?: boolean;
-}
+};
 
 export const DesktopPanel: FC<DesktopPanelProps> = ({
 	chatId,
@@ -138,7 +138,7 @@ export const DesktopPanel: FC<DesktopPanelProps> = ({
 	);
 };
 
-export interface DesktopPanelViewProps extends DesktopWorkspaceStateProps {
+export type DesktopPanelViewProps = DesktopWorkspaceStateProps & {
 	status: DesktopConnectionStatus;
 	agentStatus: WorkspaceAgentStatus | undefined;
 	reconnect: () => void;
@@ -149,7 +149,7 @@ export interface DesktopPanelViewProps extends DesktopWorkspaceStateProps {
 	onTakeControl: () => void;
 	onReleaseControl: () => void;
 	onPopOut?: () => void;
-}
+};
 
 export const DesktopPanelView: FC<DesktopPanelViewProps> = ({
 	status,

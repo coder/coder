@@ -16,6 +16,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
@@ -165,6 +166,11 @@ func TestPrepareGenerationClampsRequestedReasoningEffortToMax(t *testing.T) {
 	require.True(t, ok, "%T", prepared.CallTemplate.ProviderOptions[fantasyopenai.Name])
 	require.NotNil(t, providerOptions.ReasoningEffort)
 	require.Equal(t, fantasyopenai.ReasoningEffortMedium, *providerOptions.ReasoningEffort)
+	require.NotNil(t, prepared.Compaction.Options.ToolDefinitions)
+	require.Equal(t,
+		chatloop.BuildToolDefinitions(prepared.Tools, prepared.ActiveTools, prepared.ProviderTools),
+		prepared.Compaction.Options.ToolDefinitions,
+	)
 
 	require.NotNil(t, providerOptions.User)
 	require.Equal(t, "turn-options-sentinel", *providerOptions.User)
@@ -179,6 +185,115 @@ func TestPrepareGenerationClampsRequestedReasoningEffortToMax(t *testing.T) {
 	// Non-streaming summaries must not inherit the default output cap the
 	// Anthropic SDK rejects.
 	require.Nil(t, summaryCall.MaxOutputTokens)
+}
+
+func TestPrepareGenerationReplacesUnsupportedToolMedia(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name      string
+		provider  database.AIProviderType
+		model     string
+		mediaType string
+	}{
+		// Anthropic is a native transport; Google is bridged through an
+		// OpenAI-compatible transport that hides the vendor restriction.
+		{name: "AnthropicAudio", provider: database.AIProviderTypeAnthropic, model: "claude-sonnet-4-5", mediaType: "audio/mpeg"},
+		{name: "GoogleSVG", provider: database.AIProviderTypeGoogle, model: "gemini-2.5-flash", mediaType: "image/svg+xml"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			db, ps := dbtestutil.NewDB(t)
+			ctx := chatdTestContext(t)
+			user := dbgen.User(t, db, database.User{})
+			org := dbgen.Organization(t, db, database.Organization{})
+			dbgen.OrganizationMember(t, db, database.OrganizationMember{
+				UserID:         user.ID,
+				OrganizationID: org.ID,
+			})
+			provider := dbgen.AIProviderWithOptionalKey(t, db, database.AIProvider{
+				Type: tc.provider,
+			}, "test-key")
+			modelConfig := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+				Model:          tc.model,
+				AIProviderID:   uuid.NullUUID{UUID: provider.ID, Valid: true},
+				OrganizationID: org.ID,
+			}, func(p *database.InsertChatModelConfigParams) {
+				p.Enabled = true
+			})
+
+			const toolCallID = "call-media-1"
+			mediaResult, err := json.Marshal(map[string]string{
+				"data":      "AAAA",
+				"mime_type": tc.mediaType,
+				"text":      "Tool output",
+			})
+			require.NoError(t, err)
+			assistantContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+				codersdk.ChatMessageToolCall(toolCallID, "media__render", json.RawMessage(`{}`)),
+			})
+			require.NoError(t, err)
+			toolContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+				codersdk.ChatMessageToolResult(toolCallID, "media__render", mediaResult, false, true),
+			})
+			require.NoError(t, err)
+			message := func(role database.ChatMessageRole, content pqtype.NullRawMessage) chatstate.Message {
+				return chatstate.Message{
+					Role:           role,
+					Content:        content,
+					Visibility:     database.ChatMessageVisibilityBoth,
+					ModelConfigID:  uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
+					CreatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
+					ContentVersion: chatprompt.CurrentContentVersion,
+				}
+			}
+			created, err := chatstate.CreateChat(ctx, db, ps, chatstate.CreateChatInput{
+				OrganizationID:    org.ID,
+				OwnerID:           user.ID,
+				LastModelConfigID: modelConfig.ID,
+				Title:             "tool media after provider switch",
+				ClientType:        database.ChatClientTypeApi,
+				InitialMessages: []chatstate.Message{
+					message(database.ChatMessageRoleUser, mustMarshalText(t, "render media")),
+					message(database.ChatMessageRoleAssistant, assistantContent),
+					message(database.ChatMessageRoleTool, toolContent),
+					message(database.ChatMessageRoleUser, mustMarshalText(t, "what did it show?")),
+				},
+			})
+			require.NoError(t, err)
+
+			server := newInternalTestServer(
+				t,
+				db,
+				ps,
+				chatprovider.ProviderAPIKeys{},
+				withInternalTestServerTransportFactory(&aibridgeTestFactory{}),
+			)
+			prepared, err := server.prepareGeneration(ctx, generationPrepareInput{
+				Chat:     created.Chat,
+				Messages: created.InitialMessages,
+			})
+			require.NoError(t, err)
+			t.Cleanup(prepared.Cleanup)
+
+			var sawToolResult bool
+			for _, msg := range prepared.Prompt {
+				for _, part := range msg.Content {
+					result, ok := part.(fantasy.ToolResultPart)
+					if !ok || result.ToolCallID != toolCallID {
+						continue
+					}
+					sawToolResult = true
+					text, ok := result.Output.(fantasy.ToolResultOutputContentText)
+					require.True(t, ok, "expected text output, got %T", result.Output)
+					require.Contains(t, text.Text, "Tool output")
+					require.Contains(t, text.Text, "["+tc.mediaType+" content omitted: unsupported tool result media type]")
+				}
+			}
+			require.True(t, sawToolResult, "tool result missing from prompt")
+		})
+	}
 }
 
 func TestPrepareGenerationComputerUseIgnoresChatTransportOverride(t *testing.T) {
@@ -368,7 +483,10 @@ func TestDeriveFinalTurnRunResult(t *testing.T) {
 
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
 
-	setup := func(t *testing.T) (*Server, database.Chat) {
+	// setup seeds an OpenAI provider with one enabled config per model. The
+	// first model is the chat's default model; the rest are extra enabled
+	// configs, returned by model name.
+	setup := func(t *testing.T, chatModel string, extraModels ...string) (*Server, database.Chat, map[string]database.ChatModelConfig) {
 		t.Helper()
 		db, ps := dbtestutil.NewDB(t)
 		ctx := chatdTestContext(t)
@@ -386,15 +504,22 @@ func TestDeriveFinalTurnRunResult(t *testing.T) {
 			Enabled:     true,
 			CreatedBy:   uuid.NullUUID{UUID: user.ID, Valid: true},
 		})
-		modelCfg := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-			Model:          "gpt-4o-mini",
-			DisplayName:    "gpt-4o-mini",
-			Options:        json.RawMessage(`{"openai_config":{"use_responses_api":false}}`),
-			OrganizationID: org.ID,
-		}, func(p *database.InsertChatModelConfigParams) {
-			p.Enabled = true
-			p.IsDefault = true
-		})
+		insertModel := func(model string, isDefault bool) database.ChatModelConfig {
+			return dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+				Model:          model,
+				DisplayName:    model,
+				Options:        json.RawMessage(`{"openai_config":{"use_responses_api":false}}`),
+				OrganizationID: org.ID,
+			}, func(p *database.InsertChatModelConfigParams) {
+				p.Enabled = true
+				p.IsDefault = isDefault
+			})
+		}
+		modelCfg := insertModel(chatModel, true)
+		extra := make(map[string]database.ChatModelConfig, len(extraModels))
+		for _, model := range extraModels {
+			extra[model] = insertModel(model, false)
+		}
 
 		created, err := chatstate.CreateChat(ctx, db, ps, chatstate.CreateChatInput{
 			OrganizationID:    org.ID,
@@ -419,7 +544,7 @@ func TestDeriveFinalTurnRunResult(t *testing.T) {
 			t, db, ps, chatprovider.ProviderAPIKeys{},
 			withInternalTestServerTransportFactory(&aibridgeTestFactory{}),
 		)
-		return server, created.Chat
+		return server, created.Chat, extra
 	}
 
 	commitAssistant := func(t *testing.T, server *Server, chat database.Chat, text string) {
@@ -444,7 +569,7 @@ func TestDeriveFinalTurnRunResult(t *testing.T) {
 
 	t.Run("WaitingDerivesFromHistory", func(t *testing.T) {
 		t.Parallel()
-		server, chat := setup(t)
+		server, chat, _ := setup(t, "gpt-4o-mini")
 		ctx := chatdTestContext(t)
 		commitAssistant(t, server, chat, "the answer is 42")
 
@@ -472,9 +597,44 @@ func TestDeriveFinalTurnRunResult(t *testing.T) {
 		require.JSONEq(t, `{"openai_config":{"use_responses_api":false}}`, string(result.StatusLabelCall.dbConfig.Options))
 	})
 
+	// The status label is a structured side call, so it must prefer the
+	// title generation model over a chat model that may reject forced tools.
+	t.Run("WaitingPrefersSmallModelOverChatModel", func(t *testing.T) {
+		t.Parallel()
+		server, chat, extra := setup(t, "gpt-4.1", "gpt-4o-mini")
+		ctx := chatdTestContext(t)
+		commitAssistant(t, server, chat, "the answer is 42")
+
+		chat.Status = database.ChatStatusWaiting
+		result := server.deriveFinalTurnRunResult(ctx, chat, logger)
+
+		require.NotNil(t, result.StatusLabelCall)
+		require.Equal(t, extra["gpt-4o-mini"].ID, result.StatusLabelCall.dbConfig.ID)
+		require.Equal(t, "gpt-4o-mini", result.StatusLabelCall.resolvedModel)
+	})
+
+	t.Run("WaitingPrefersTitleGenerationOverride", func(t *testing.T) {
+		t.Parallel()
+		server, chat, extra := setup(t, "gpt-4.1", "gpt-4o-mini", "gpt-4.1-nano")
+		ctx := chatdTestContext(t)
+		commitAssistant(t, server, chat, "the answer is 42")
+		upsertInternalChatOrganizationModelOverride(
+			t, server.db, chat.OrganizationID,
+			codersdk.ChatModelOverrideContextTitleGeneration,
+			extra["gpt-4.1-nano"].ID.String(),
+		)
+
+		chat.Status = database.ChatStatusWaiting
+		result := server.deriveFinalTurnRunResult(ctx, chat, logger)
+
+		require.NotNil(t, result.StatusLabelCall)
+		require.Equal(t, extra["gpt-4.1-nano"].ID, result.StatusLabelCall.dbConfig.ID)
+		require.Equal(t, "gpt-4.1-nano", result.StatusLabelCall.resolvedModel)
+	})
+
 	t.Run("NonWaitingReturnsEmpty", func(t *testing.T) {
 		t.Parallel()
-		server, chat := setup(t)
+		server, chat, _ := setup(t, "gpt-4o-mini")
 		ctx := chatdTestContext(t)
 		commitAssistant(t, server, chat, "the answer is 42")
 
@@ -485,7 +645,7 @@ func TestDeriveFinalTurnRunResult(t *testing.T) {
 
 	t.Run("WaitingWithoutAssistantReturnsEmpty", func(t *testing.T) {
 		t.Parallel()
-		server, chat := setup(t)
+		server, chat, _ := setup(t, "gpt-4o-mini")
 		ctx := chatdTestContext(t)
 
 		// No assistant message was committed, so there is nothing to label.

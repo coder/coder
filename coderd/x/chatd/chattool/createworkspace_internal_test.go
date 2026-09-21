@@ -34,7 +34,7 @@ func newCreateWorkspaceMockStore(ctrl *gomock.Controller) *dbmock.MockStore {
 	return db
 }
 
-func TestCreateWorkspaceDescriptionDelaysWorkspaceCreation(t *testing.T) {
+func TestCreateWorkspaceDescriptionSupportsWorkspaceFallback(t *testing.T) {
 	t.Parallel()
 
 	ctrl := gomock.NewController(t)
@@ -42,9 +42,15 @@ func TestCreateWorkspaceDescriptionDelaysWorkspaceCreation(t *testing.T) {
 	tool := CreateWorkspace(db, uuid.New(), uuid.New(), CreateWorkspaceOptions{})
 	info := tool.Info()
 
-	require.Contains(t, info.Description, "Create a new workspace from a template only when workspace-backed")
+	require.Contains(t, info.Description, "missing tools, skills, MCPs, or context prevent progress")
+	require.Contains(t, info.Description, "Use the workspace's available context and capabilities to continue the request")
 	require.Contains(t, info.Description, "user explicitly asks")
-	require.Contains(t, info.Description, "Do not use this as a default first step")
+	require.Contains(t, info.Description, "Prefer existing tools and context when they are sufficient")
+	require.Contains(t, info.Description, "Readiness does not guarantee skills, MCP tools, or context have finished loading")
+	require.Contains(t, info.Description, "Do not recreate the workspace to retry discovery")
+	require.Contains(t, info.Description, "In Plan Mode, workspace MCP tools remain unavailable; do not create a workspace solely to access them")
+	require.NotContains(t, info.Description, "only when workspace-backed")
+	require.NotContains(t, info.Description, "Do not use this as a default first step")
 }
 
 func TestWaitForAgentReady(t *testing.T) {
@@ -858,6 +864,117 @@ func TestCreateWorkspace_ResponderErrorPreservesStructuredFields(t *testing.T) {
 		Field:  "region",
 		Detail: "region must be set before the workspace can start",
 	}}, result.Validations)
+}
+
+func TestCreateWorkspace_ExternalAuthRequiredGuidance(t *testing.T) {
+	t.Parallel()
+
+	const authenticateURL = "https://coder.example.com/external-auth/github"
+
+	tests := []struct {
+		name               string
+		validations        []codersdk.ValidationError
+		wantActionRequired bool
+	}{
+		{
+			name: "ExternalAuth",
+			validations: []codersdk.ValidationError{{
+				Field:  "external_auth",
+				Detail: "github",
+			}},
+			wantActionRequired: true,
+		},
+		{
+			name: "OtherValidation",
+			validations: []codersdk.ValidationError{{
+				Field:  "region",
+				Detail: "region must be set",
+			}},
+			wantActionRequired: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctrl := gomock.NewController(t)
+			db := newCreateWorkspaceMockStore(ctrl)
+
+			ownerID := uuid.New()
+			orgID := uuid.New()
+			chatID := uuid.New()
+			templateID := uuid.New()
+
+			detail := fmt.Sprintf(
+				"The workspace owner must authenticate with the following external auth providers: GitHub (%s).",
+				authenticateURL,
+			)
+
+			db.EXPECT().
+				GetChatByID(gomock.Any(), chatID).
+				Return(database.Chat{ID: chatID}, nil)
+
+			db.EXPECT().
+				GetAuthorizationUserRoles(gomock.Any(), ownerID).
+				Return(database.GetAuthorizationUserRolesRow{
+					ID:     ownerID,
+					Roles:  []string{},
+					Groups: []string{},
+					Status: database.UserStatusActive,
+				}, nil)
+
+			db.EXPECT().
+				GetTemplateByID(gomock.Any(), templateID).
+				Return(database.Template{
+					ID:             templateID,
+					OrganizationID: orgID,
+					AgentsAllowed:  true,
+				}, nil)
+
+			db.EXPECT().
+				GetChatWorkspaceTTL(gomock.Any()).
+				Return("0s", nil)
+
+			tool := CreateWorkspace(db, orgID, chatID, CreateWorkspaceOptions{
+				OwnerID: ownerID,
+				CreateFn: func(context.Context, uuid.UUID, codersdk.CreateWorkspaceRequest) (codersdk.Workspace, error) {
+					return codersdk.Workspace{}, httperror.NewResponseError(http.StatusForbidden, codersdk.Response{
+						Message:     "External authentication is required to create a workspace with this template.",
+						Detail:      detail,
+						Validations: tt.validations,
+					})
+				},
+				WorkspaceMu: &sync.Mutex{},
+				Logger:      slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
+			})
+
+			input := fmt.Sprintf(`{"template_id":%q,"name":"test-external-auth"}`, templateID.String())
+			resp, err := tool.Run(context.Background(), fantasy.ToolCall{
+				ID:    "call-1",
+				Name:  "create_workspace",
+				Input: input,
+			})
+			require.NoError(t, err)
+			require.False(t, resp.IsError)
+
+			var result struct {
+				Error          string                     `json:"error"`
+				Detail         string                     `json:"detail"`
+				Validations    []codersdk.ValidationError `json:"validations"`
+				ActionRequired string                     `json:"action_required"`
+			}
+			require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
+			require.Equal(t, detail, result.Detail)
+			require.Contains(t, result.Detail, authenticateURL)
+			require.Equal(t, tt.validations, result.Validations)
+			if tt.wantActionRequired {
+				require.Equal(t, externalAuthRequiredMessage, result.ActionRequired)
+			} else {
+				require.Empty(t, result.ActionRequired)
+			}
+		})
+	}
 }
 
 func TestCreateWorkspaceWithNameRetry(t *testing.T) {

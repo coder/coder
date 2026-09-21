@@ -2,7 +2,7 @@ import { createContext, useContext } from "react";
 import type { Chat, ChatModel } from "#/api/typesGenerated";
 import type { ChatTree } from "./chatTree";
 
-export interface ChatTreeContextValue {
+export type ChatTreeContextValue = {
 	readonly chatTree: ChatTree;
 	readonly chatById: ReadonlyMap<string, Chat>;
 	readonly visibleChatIDs: ReadonlySet<string>;
@@ -24,7 +24,7 @@ export interface ChatTreeContextValue {
 	readonly onPinAgent: (chatId: string) => void;
 	readonly onUnpinAgent: (chatId: string) => void;
 	readonly onOpenRenameDialog?: (chat: Chat) => void;
-}
+};
 
 export const ChatTreeContext = createContext<ChatTreeContextValue | null>(null);
 

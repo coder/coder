@@ -17,19 +17,13 @@ on:
   #   `github.ref == 'refs/heads/main'`. Fork PRs skip the entire
   #   base+mise-oci pipeline since GITHUB_TOKEN is read-only for
   #   packages.
-  #   `deploy_template` runs `terraform init` + `validate` only; the
-  #   apply step and SHA/title gathering are gated on main.
   #
   #   Pushes to main: `build_image` retags rolling tags on
-  #   `codercom/oss-dogfood` (`:latest`, `:22.04`, `:26.04`) and
+  #   `codercom/oss-dogfood` (`:latest`, `:26.04`) and
   #   `codercom/oss-dogfood-vscode-coder` (`:latest`), plus a
   #   per-branch tag on each. The image-tooling validation runs as
   #   above before any push, so a broken image never reaches Docker
   #   Hub.
-  #   `deploy_template` runs `terraform apply` and creates new
-  #   `coderd_template` versions on dogfood.cdr.dev whose `name` is the
-  #   commit short SHA. Content is unchanged when `dogfood/**` is
-  #   unchanged, so the new versions are cosmetic.
   push:
     branches:
       - main
@@ -39,7 +33,6 @@ on:
       - "mise.toml"
       - "mise.lock"
       - "scripts/dogfood/**"
-      - "scripts/dogfood_test_image.sh"
   pull_request:
     paths:
       - "dogfood/**"
@@ -47,7 +40,6 @@ on:
       - "mise.toml"
       - "mise.lock"
       - "scripts/dogfood/**"
-      - "scripts/dogfood_test_image.sh"
   workflow_dispatch:
 
 permissions:
@@ -58,7 +50,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        image-version: ["22.04", "26.04"]
+        image-version: ["26.04"]
 
     if: github.actor != 'dependabot[bot]' # Skip Dependabot PRs
     runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
@@ -79,7 +71,7 @@ jobs:
         with:
           # Depth 2 makes the PR merge commit's first parent (the base
           # branch tip) available so lint/emdash, run inside the image via
-          # scripts/dogfood_test_image.sh, can diff against HEAD^1 without
+          # scripts/dogfood/test_image.sh, can diff against HEAD^1 without
           # fetching the base branch at runtime.
           fetch-depth: 2
           persist-credentials: false
@@ -147,7 +139,7 @@ jobs:
           token: ${{ secrets.DEPOT_TOKEN }}
           buildx-fallback: true
           # Context is the repo root so Dockerfile.base can COPY the
-          # distro-specific files/ tree and configure-chrome-flags.sh.
+          # distro-specific files/ tree.
           context: "{{defaultContext}}"
           file: dogfood/coder/ubuntu-${{ matrix.image-version }}/Dockerfile.base
           pull: true
@@ -204,27 +196,7 @@ jobs:
         if: ${{ !github.event.pull_request.head.repo.fork }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: ./scripts/dogfood_test_image.sh "dogfood-test:${{ matrix.image-version }}"
-
-      - name: Push final Ubuntu 22.04 image
-        if: matrix.image-version == '22.04' && github.ref == 'refs/heads/main'
-        env:
-          FINAL_SHA: ${{ steps.shas.outputs.final_sha }}
-          DOCKER_TAG: ${{ steps.docker-tag-name.outputs.tag }}
-        # --image-dir points at the OCI layout written by the previous
-        # `mise oci build` step. Without it, `mise oci push` rebuilds
-        # from mise.toml and forgets the --from base. --tool crane
-        # forces the registry client mise oci shells out to, so we
-        # don't drift between the apt-shipped skopeo on whatever runner
-        # image we land on.
-        # TODO: move the `latest` tag to 26.04 soon. we don't want to
-        # transition it immediately because that would make workspaces
-        # switch to it automatically without any grace period.
-        run: |
-          set -euo pipefail
-          for tag in "${FINAL_SHA}-22.04" "$DOCKER_TAG" 22.04 latest; do
-            mise oci push --tool crane --image-dir ./mise-oci "codercom/oss-dogfood:$tag"
-          done
+        run: ./scripts/dogfood/test_image.sh "dogfood-test:${{ matrix.image-version }}"
 
       - name: Push final Ubuntu 26.04 image
         if: matrix.image-version == '26.04' && github.ref == 'refs/heads/main'
@@ -233,7 +205,7 @@ jobs:
           DOCKER_TAG: ${{ steps.docker-tag-name.outputs.tag }}
         run: |
           set -euo pipefail
-          for tag in "${FINAL_SHA}-26.04" "$DOCKER_TAG" 26.04; do
+          for tag in "${FINAL_SHA}-26.04" "$DOCKER_TAG" 26.04 latest; do
             mise oci push --tool crane --image-dir ./mise-oci "codercom/oss-dogfood:$tag"
           done
 
@@ -249,78 +221,3 @@ jobs:
           push: ${{ github.ref == 'refs/heads/main' }}
           tags: "codercom/oss-dogfood-vscode-coder:${{ steps.docker-tag-name.outputs.tag }},codercom/oss-dogfood-vscode-coder:latest"
         if: matrix.image-version == '22.04'
-
-  deploy_template:
-    needs: build_image
-    runs-on: ubuntu-latest
-    permissions:
-      # Necessary for GCP authentication (https://github.com/google-github-actions/setup-gcloud#usage)
-      id-token: write
-    steps:
-      - name: Harden Runner
-        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
-        with:
-          egress-policy: audit
-
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-
-      - name: Set up mise tools
-        uses: ./.github/actions/setup-mise
-        with:
-          install-args: "terraform"
-
-      - name: Authenticate to Google Cloud
-        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
-        with:
-          workload_identity_provider: ${{ vars.GCP_WORKLOAD_ID_PROVIDER }}
-          service_account: ${{ vars.GCP_SERVICE_ACCOUNT }}
-
-      - name: Terraform init and validate
-        run: |
-          pushd dogfood/
-          terraform init
-          terraform validate
-          popd
-          pushd dogfood/coder
-          terraform init
-          terraform validate
-          popd
-          pushd dogfood/coder-envbuilder
-          terraform init
-          terraform validate
-          popd
-          pushd dogfood/vscode-coder
-          terraform init
-          terraform validate
-          popd
-
-      - name: Get short commit SHA
-        if: github.ref == 'refs/heads/main'
-        id: vars
-        run: echo "sha_short=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
-
-      - name: Get latest commit title
-        if: github.ref == 'refs/heads/main'
-        id: message
-        run: echo "pr_title=$(git log --format=%s -n 1 ${{ github.sha }})" >> "$GITHUB_OUTPUT"
-
-      - name: "Push template"
-        if: github.ref == 'refs/heads/main'
-        run: |
-          cd dogfood
-          terraform apply -auto-approve
-        env:
-          # Consumed by coderd provider
-          CODER_URL: https://dogfood.cdr.dev
-          CODER_SESSION_TOKEN: ${{ secrets.CODER_SESSION_TOKEN }}
-          # Template source & details
-          TF_VAR_CODER_DOGFOOD_ANTHROPIC_API_KEY: ${{ secrets.CODER_DOGFOOD_ANTHROPIC_API_KEY }}
-          TF_VAR_CODER_DOGFOOD_OPENAI_API_KEY: ${{ secrets.CODER_DOGFOOD_OPENAI_API_KEY }}
-          TF_VAR_CODER_TEMPLATE_NAME: ${{ secrets.CODER_TEMPLATE_NAME }}
-          TF_VAR_CODER_TEMPLATE_VERSION: ${{ steps.vars.outputs.sha_short }}
-          TF_VAR_CODER_TEMPLATE_DIR: ./coder
-          TF_VAR_CODER_TEMPLATE_MESSAGE: ${{ steps.message.outputs.pr_title }}
-          TF_LOG: info

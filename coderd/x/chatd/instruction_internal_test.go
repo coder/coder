@@ -201,38 +201,73 @@ func TestExploreSubagentOverlayPromptSearchDiscipline(t *testing.T) {
 	}
 }
 
-func TestWorkspaceAwarenessDelaysWorkspaceCreation(t *testing.T) {
+func TestWorkspaceAwarenessSupportsWorkspaceFallback(t *testing.T) {
 	t.Parallel()
 
 	detached := workspaceDetachedAwareness
-	require.Contains(t, detached, "No workspace is attached to this chat yet")
-	require.Contains(t, detached, "Do not create or start a workspace by default")
-	require.Contains(t, detached, "Only call create_workspace or start_workspace")
-	require.NotContains(t, detached, "Create one using the create_workspace tool before using workspace tools")
+	require.Contains(t, detached, "This chat started without an attached workspace")
+	require.Contains(t, detached, "Follow subsequent workspace tool results and context for its current state")
+	require.Contains(t, detached, "If no workspace is attached, create")
+	require.Contains(t, detached, "Workspace readiness does not guarantee that skills, MCP tools, or context have finished loading")
+	require.Contains(t, detached, "continue with workspace file and shell tools where possible instead of recreating the workspace")
+	require.NotContains(t, detached, "No workspace is attached to this chat yet")
+	require.Contains(t, detached, "when they are sufficient for the request")
+	require.Contains(t, detached, "missing tools, skills, MCPs, or context prevent progress")
+	require.Contains(t, detached, "create a suitable workspace with create_workspace")
+	require.NotContains(t, detached, "start_workspace")
+	require.Contains(t, detached, "Use the workspace's available context and capabilities to continue the user's request")
+	require.Contains(t, detached, `Requests such as "fix this bug" or "build this app" authorize the workspace setup needed to complete them`)
+	require.Contains(t, detached, "the user does not need to request a workspace separately")
+	require.Contains(t, detached, "Do not refuse solely because no workspace is attached")
+	require.Contains(t, detached, "If setup is blocked, explain the specific blocker or required user choice")
+	require.Contains(t, detached, "Answer questions and self-contained code examples directly when the conversation and available tools are sufficient")
+	require.Contains(t, detached, "use list_templates before create_workspace")
+	require.NotContains(t, detached, "Do not create or start a workspace by default")
+	require.NotContains(t, detached, "Only call create_workspace or start_workspace")
 
 	delegated := workspaceDetachedNoCreateAwareness
 	require.Contains(t, delegated, "This delegated chat cannot create or start a workspace")
 	require.Contains(t, delegated, "report that need to the parent agent")
-	require.NotContains(t, delegated, "Only call create_workspace or start_workspace")
+	require.NotContains(t, delegated, "create a suitable workspace with create_workspace")
+	require.NotContains(t, delegated, "authorize the workspace setup needed to complete them")
 
 	attached := workspaceAttachedAwareness
 	require.Contains(t, attached, "This chat is attached to a workspace")
 }
 
-func TestDefaultSystemPromptDelaysWorkspaceCreation(t *testing.T) {
+func TestDefaultSystemPromptSupportsWorkspaceFallback(t *testing.T) {
 	t.Parallel()
 
-	require.Contains(t, DefaultSystemPrompt, "Do not create a workspace by default")
+	require.Contains(t, DefaultSystemPrompt, "when they are sufficient for the request")
+	require.Contains(t, DefaultSystemPrompt, "missing tools, skills, MCPs, or context prevent progress")
+	require.Contains(t, DefaultSystemPrompt, "root chats should create a suitable workspace if none is attached")
+	require.Contains(t, DefaultSystemPrompt, "Reuse an attached workspace; root chats can use start_workspace if it is stopped")
+	require.Contains(t, DefaultSystemPrompt, "Delegated chats must report workspace needs to the parent agent instead of attempting to create or start a workspace")
+	require.Contains(t, DefaultSystemPrompt, "use its available context and capabilities to continue the user's request")
+	require.Contains(t, DefaultSystemPrompt, "Workspace readiness does not guarantee that skills, MCP tools, or context have finished loading")
+	require.Contains(t, DefaultSystemPrompt, "root chats should create one when missing tools, skills, or context block planning")
+	require.Contains(t, DefaultSystemPrompt, "In Plan Mode, workspace MCP tools remain unavailable after workspace creation; do not provision a workspace solely to access them")
+	require.NotContains(t, DefaultSystemPrompt, "missing tools, skills, MCPs, or context block planning")
+	require.NotContains(t, DefaultSystemPrompt, "Do not create a workspace by default")
+	require.NotContains(t, DefaultSystemPrompt, "do not create one as the first action merely because you are planning")
+	require.NotContains(t, DefaultSystemPrompt, "Create and start a workspace only when")
 	require.Contains(t, DefaultSystemPrompt, "Do not clone repositories already present")
 	require.Contains(t, DefaultSystemPrompt, "including AGENTS.md")
 	require.NotContains(t, DefaultSystemPrompt, "create and start one first using create_workspace and start_workspace")
 }
 
-func TestPlanningOverlayPromptDelaysWorkspaceCreation(t *testing.T) {
+func TestPlanningOverlayPromptSupportsWorkspaceFallback(t *testing.T) {
 	t.Parallel()
 
 	prompt := PlanningOverlayPrompt()
-	require.Contains(t, prompt, "do not create one as the first action merely because you are planning")
+	require.Contains(t, prompt, "when they are sufficient for planning")
+	require.Contains(t, prompt, "root chats should create one when missing tools, skills, or context block planning")
+	require.Contains(t, prompt, "Delegated chats must report workspace needs to the parent agent")
+	require.Contains(t, prompt, "In Plan Mode, workspace MCP tools remain unavailable after workspace creation; do not provision a workspace solely to access them")
+	require.NotContains(t, prompt, "missing tools, skills, MCPs, or context block planning")
+	require.Contains(t, prompt, "Use the workspace's available context and capabilities to continue planning")
+	require.NotContains(t, prompt, "do not create one as the first action merely because you are planning")
+	require.NotContains(t, prompt, "Create and start a workspace only when")
 	require.Contains(t, prompt, "Before cloning, inspect the current workspace and reuse existing repositories")
 	require.NotContains(t, prompt, "create and start one with create_workspace and start_workspace before investigating")
 }

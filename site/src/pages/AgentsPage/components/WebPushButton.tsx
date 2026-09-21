@@ -11,10 +11,10 @@ import {
 } from "#/components/Tooltip/Tooltip";
 import { useWebpushNotifications } from "#/contexts/useWebpushNotifications";
 
-interface WebPushButtonProps {
+type WebPushButtonProps = {
 	webPush?: ReturnType<typeof useWebpushNotifications>;
 	onToggle?: () => Promise<void> | void;
-}
+};
 
 export const WebPushButton: FC<WebPushButtonProps> = ({
 	webPush,

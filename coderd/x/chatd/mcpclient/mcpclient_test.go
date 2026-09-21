@@ -1572,6 +1572,71 @@ func TestModelIntent_Run_FallbackOnBadJSON(t *testing.T) {
 	assert.True(t, resp.IsError, "malformed input should produce an error response")
 }
 
+func TestConvertCallResult_MixedContent(t *testing.T) {
+	t.Parallel()
+
+	text := func(s string) mcp.Content { return &mcp.TextContent{Text: s} }
+	png := &mcp.ImageContent{Data: []byte("first-image"), MIMEType: "image/png"}
+
+	for _, tc := range []struct {
+		name   string
+		result *mcp.CallToolResult
+		want   fantasy.ToolResponse
+	}{
+		{
+			name:   "TextThenImage",
+			result: &mcp.CallToolResult{Content: []mcp.Content{text("Screenshot captured"), png}},
+			want:   fantasy.ToolResponse{Type: "image", Data: []byte("first-image"), MediaType: "image/png", Content: "Screenshot captured"},
+		},
+		{
+			name: "StructuredContentJoinsText",
+			result: &mcp.CallToolResult{
+				Content:           []mcp.Content{text("Screenshot captured"), png},
+				StructuredContent: map[string]any{"width": 800},
+			},
+			want: fantasy.ToolResponse{Type: "image", Data: []byte("first-image"), MediaType: "image/png", Content: "Screenshot captured\n{\"width\":800}"},
+		},
+		{
+			name:   "ErrorFlagKept",
+			result: &mcp.CallToolResult{IsError: true, Content: []mcp.Content{text("Screenshot failed"), png}},
+			want:   fantasy.ToolResponse{Type: "image", Data: []byte("first-image"), MediaType: "image/png", Content: "Screenshot failed", IsError: true},
+		},
+		{
+			name: "EmbeddedBlobIsMedia",
+			result: &mcp.CallToolResult{Content: []mcp.Content{
+				text("Document retrieved"),
+				&mcp.EmbeddedResource{Resource: &mcp.ResourceContents{URI: "file:///document.pdf", MIMEType: "application/pdf", Blob: []byte("pdf-data")}},
+			}},
+			want: fantasy.ToolResponse{Type: "media", Data: []byte("pdf-data"), MediaType: "application/pdf", Content: "Document retrieved"},
+		},
+		{
+			name: "FirstUsableImageKept",
+			result: &mcp.CallToolResult{Content: []mcp.Content{
+				&mcp.ImageContent{Data: []byte{}, MIMEType: "image/png"},
+				&mcp.ImageContent{Data: []byte("real-image"), MIMEType: "image/jpeg"},
+				png,
+				text("Screenshots captured"),
+			}},
+			want: fantasy.ToolResponse{Type: "image", Data: []byte("real-image"), MediaType: "image/jpeg", Content: "Screenshots captured"},
+		},
+		{
+			name: "UnusableBinaryStaysText",
+			result: &mcp.CallToolResult{Content: []mcp.Content{
+				text("Document retrieved"),
+				&mcp.ImageContent{MIMEType: "image/png"},
+				&mcp.EmbeddedResource{Resource: &mcp.ResourceContents{URI: "file:///document.bin", Blob: []byte("opaque")}},
+			}},
+			want: fantasy.ToolResponse{Type: "text", Content: "Document retrieved"},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			require.Equal(t, tc.want, mcpclient.ConvertCallResultForTest(tc.result))
+		})
+	}
+}
+
 func TestConvertCallResult_UTF8Sanitization(t *testing.T) {
 	t.Parallel()
 

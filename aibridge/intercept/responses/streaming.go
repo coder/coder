@@ -18,7 +18,7 @@ import (
 	"cdr.dev/slog/v3"
 	aibcontext "github.com/coder/coder/v2/aibridge/context"
 	"github.com/coder/coder/v2/aibridge/intercept"
-	"github.com/coder/coder/v2/aibridge/intercept/bedrocksig"
+	"github.com/coder/coder/v2/aibridge/intercept/awssig"
 	"github.com/coder/coder/v2/aibridge/intercept/eventstream"
 	"github.com/coder/coder/v2/aibridge/keypool"
 	"github.com/coder/coder/v2/aibridge/mcp"
@@ -51,7 +51,7 @@ func NewBedrockStreamingInterceptor(
 	reqPayload RequestPayload,
 	cfg intercept.Config,
 	cred intercept.Credential,
-	bedrockMantle *bedrocksig.MantleConfig,
+	bedrockMantle *awssig.MantleConfig,
 	clientHeaders http.Header,
 	tracer trace.Tracer,
 ) *StreamingResponsesInterceptor {
@@ -63,7 +63,7 @@ func buildStreamingInterceptor(
 	reqPayload RequestPayload,
 	cfg intercept.Config,
 	cred intercept.Credential,
-	bedrockMantle *bedrocksig.MantleConfig,
+	bedrockMantle *awssig.MantleConfig,
 	clientHeaders http.Header,
 	tracer trace.Tracer,
 ) *StreamingResponsesInterceptor {
@@ -105,7 +105,11 @@ func (i *StreamingResponsesInterceptor) ProcessRequest(w http.ResponseWriter, r 
 		return err
 	}
 
-	i.injectTools()
+	// Only injected tools let the inner agentic loop rerun upstream, which
+	// requires holding back everything but the final response so response.id
+	// stays consistent. Otherwise events are relayed as they arrive: buffering
+	// starves the client of headers and bytes until upstream completes.
+	toolsInjected := i.injectTools()
 
 	events := eventstream.NewEventStream(ctx, i.logger.Named("sse-sender"), nil, quartz.NewReal())
 	go events.Start(w, r)
@@ -120,6 +124,7 @@ func (i *StreamingResponsesInterceptor) ProcessRequest(w http.ResponseWriter, r 
 	var completedResponse *responses.Response
 	var innerLoopErr error
 	var streamErr error
+	var relayed bool
 
 	prompt, promptFound, err := i.reqPayload.lastUserPrompt(ctx, i.logger)
 	if err != nil {
@@ -247,16 +252,12 @@ func (i *StreamingResponsesInterceptor) ProcessRequest(w http.ResponseWriter, r 
 					completedResponse = &completedEvent.Response
 				}
 
-				// If no MCP proxy is provided then no tools are injected.
-				// Inner loop will never iterate more than once, so events can be forwarded as soon as received.
-				//
-				// Otherwise inner loop could iterate. Only last response should be forwarded.
-				// This is needed to keep consistency between response.id and response.previous_response_id fields.
-				if i.mcpProxy == nil {
+				if !toolsInjected {
 					if err := events.Send(ctx, respCopy.buff.readDelta()); err != nil {
 						err = xerrors.Errorf("failed to relay chunk: %w", err)
 						return err
 					}
+					relayed = true
 				}
 			}
 
@@ -275,7 +276,7 @@ func (i *StreamingResponsesInterceptor) ProcessRequest(w http.ResponseWriter, r 
 			i.recordTokenUsage(ctx, completedResponse)
 		}
 
-		if i.mcpProxy != nil && completedResponse != nil {
+		if toolsInjected && completedResponse != nil {
 			pending := i.getPendingInjectedToolCalls(completedResponse)
 			shouldLoop, innerLoopErr = i.handleInnerAgenticLoop(ctx, pending, completedResponse)
 			if innerLoopErr != nil {
@@ -300,7 +301,14 @@ func (i *StreamingResponsesInterceptor) ProcessRequest(w http.ResponseWriter, r 
 
 	b, err := respCopy.readAll()
 	if err != nil {
-		return xerrors.Errorf("failed to read response body: %w", err)
+		err = xerrors.Errorf("failed to read response body: %w", err)
+		// Returning without a response would let the server emit an empty 200.
+		// A queued payload commits the response to SSE before IsStreaming
+		// reports it, so decide from what this request relayed instead.
+		if !relayed {
+			i.sendCustomErr(ctx, w, http.StatusBadGateway, err)
+		}
+		return err
 	}
 
 	err = events.Send(ctx, b)

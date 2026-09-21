@@ -28,11 +28,11 @@ export const isDesktopReachable = (
 	agentStatus: WorkspaceAgentStatus | undefined,
 ): boolean => workspaceStatus === "running" && agentStatus === "connected";
 
-export interface DesktopWorkspaceStateProps {
+export type DesktopWorkspaceStateProps = {
 	workspaceStatus: WorkspaceStatus;
 	onStartWorkspace: () => void;
 	isStartingWorkspace: boolean;
-}
+};
 
 /**
  * Renders why the desktop cannot connect yet at the workspace level:

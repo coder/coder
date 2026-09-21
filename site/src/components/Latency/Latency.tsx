@@ -10,11 +10,11 @@ import {
 } from "#/components/Tooltip/Tooltip";
 import { getLatencyColor } from "#/utils/latency";
 
-interface LatencyProps {
+type LatencyProps = {
 	latency?: number;
 	isLoading?: boolean;
 	className?: string;
-}
+};
 
 export const Latency: FC<LatencyProps> = ({
 	latency,

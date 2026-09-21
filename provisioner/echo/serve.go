@@ -709,20 +709,6 @@ data "coder_parameter" "{{ .Name }}" {
 	return buf.String(), err
 }
 
-func WithResources(resources []*proto.Resource) *Responses {
-	return &Responses{
-		Parse:          ParseComplete,
-		ProvisionInit:  InitComplete,
-		ProvisionApply: []*proto.Response{{Type: &proto.Response_Apply{Apply: &proto.ApplyComplete{}}}},
-		ProvisionGraph: []*proto.Response{{Type: &proto.Response_Graph{Graph: &proto.GraphComplete{
-			Resources: resources,
-		}}}},
-		ProvisionPlan: []*proto.Response{{Type: &proto.Response_Plan{Plan: &proto.PlanComplete{
-			Plan: []byte("{}"),
-		}}}},
-	}
-}
-
 func WithExtraFiles(extraFiles map[string][]byte) *Responses {
 	return &Responses{
 		Parse:          ParseComplete,

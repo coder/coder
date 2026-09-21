@@ -609,6 +609,48 @@ func (api *API) aiBridgeListClients(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, clients)
 }
 
+// aiBridgeListProviders returns the provider metadata used to filter AI
+// Gateway sessions by provider_name. It reads ai_providers rather than
+// scanning interceptions so the response stays cheap on large deployments,
+// and is authorized on interception read (see dbauthz), so session viewers
+// get labels and icons without access to provider configuration.
+//
+// @Summary List AI Gateway providers
+// @ID list-ai-gateway-providers
+// @Security CoderSessionToken
+// @Produce json
+// @Tags AI Gateway
+// @Success 200 {array} codersdk.AIBridgeProvider
+// @Router /api/v2/ai-gateway/providers [get]
+func (api *API) aiBridgeListProviders(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	rows, err := api.Database.GetAIProviderFilterOptions(ctx)
+	if httpapi.Is404Error(err) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error getting AI Gateway providers.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	providers := make([]codersdk.AIBridgeProvider, 0, len(rows))
+	for _, row := range rows {
+		providers = append(providers, codersdk.AIBridgeProvider{
+			Name:        row.Name,
+			Type:        codersdk.AIProviderType(row.Type),
+			DisplayName: row.DisplayName.String,
+			Icon:        row.Icon,
+		})
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, providers)
+}
+
 // validateInterceptionCursor checks that a pagination cursor refers to an
 // existing interception. When sessionID is non-empty the interception must
 // also belong to that session. Returns errInvalidCursor on failure so
@@ -1226,6 +1268,10 @@ func (api *API) aiSpendPeriod(ctx context.Context, rw http.ResponseWriter, r *ht
 // @Param organization path string true "Organization ID" format(uuid)
 // @Param period_start query string false "Inclusive lower bound (RFC3339)" format(date-time)
 // @Param period_end query string false "Exclusive upper bound (RFC3339)" format(date-time)
+// @Param user_id query string false "User ID" format(uuid)
+// @Param group_id query string false "Effective group ID" format(uuid)
+// @Param provider_name query string false "Configured provider name"
+// @Param model query string false "Model name"
 // @Success 200
 // @Router /api/v2/organizations/{organization}/ai/spend/export [get]
 func (api *API) exportOrganizationAISpend(rw http.ResponseWriter, r *http.Request) {
@@ -1240,7 +1286,13 @@ func (api *API) exportOrganizationAISpend(rw http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	period, ok := api.aiSpendPeriod(ctx, rw, r, httpapi.NewQueryParamParser())
+	parser := httpapi.NewQueryParamParser()
+	query := r.URL.Query()
+	userID := parser.UUID(query, uuid.Nil, "user_id")
+	groupID := parser.UUID(query, uuid.Nil, "group_id")
+	providerName := parser.String(query, "", "provider_name")
+	model := parser.String(query, "", "model")
+	period, ok := api.aiSpendPeriod(ctx, rw, r, parser)
 	if !ok {
 		return
 	}
@@ -1254,6 +1306,12 @@ func (api *API) exportOrganizationAISpend(rw http.ResponseWriter, r *http.Reques
 		OrganizationID: org.ID,
 		PeriodStart:    periodStart,
 		PeriodEnd:      periodEnd,
+		UserID:         userID,
+		GroupID:        groupID,
+		ProviderName:   providerName,
+		Model:          model,
+		LimitOpt:       0,
+		OffsetOpt:      0,
 	})
 	if err != nil {
 		logger.Error(ctx, "failed to export organization AI spend", slog.Error(err))
