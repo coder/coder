@@ -1,6 +1,8 @@
 import { type FC, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useLocation, useParams } from "react-router";
+import { toast } from "sonner";
+import { getErrorMessage } from "#/api/errors";
 import {
 	chatProjectPermissions,
 	chatProjects,
@@ -152,6 +154,9 @@ export const ChatsSidebar: FC<ChatsSidebarProps> = (props) => {
 		}
 		deleteProjectMutation.mutate(projectPendingDelete.id, {
 			onSuccess: () => setProjectPendingDelete(null),
+			onError: (error) => {
+				toast.error(getErrorMessage(error, "Failed to delete project."));
+			},
 		});
 	};
 	const { agentId, chatId } = useParams<{
@@ -189,6 +194,10 @@ export const ChatsSidebar: FC<ChatsSidebarProps> = (props) => {
 			<ChatsPanel
 				projects={projects}
 				projectPermissions={projectPermissionsQuery.data}
+				projectPermissionsError={
+					chatProjectsEnabled ? projectPermissionsQuery.error : undefined
+				}
+				onRetryProjectPermissions={() => void projectPermissionsQuery.refetch()}
 				isProjectsLoading={chatProjectsEnabled && projectsQuery.isLoading}
 				projectsError={chatProjectsEnabled ? projectsQuery.error : undefined}
 				onRetryProjects={() => void projectsQuery.refetch()}

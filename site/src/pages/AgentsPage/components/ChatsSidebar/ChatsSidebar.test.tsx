@@ -4,6 +4,7 @@ import { HttpResponse, http } from "msw";
 import type { FC, PropsWithChildren } from "react";
 import { QueryClientProvider } from "react-query";
 import { MemoryRouter } from "react-router";
+import { toast } from "sonner";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { Chat } from "#/api/typesGenerated";
@@ -288,6 +289,76 @@ describe("ChatsSidebar projects", () => {
 		});
 	});
 
+	it("reports a failed project deletion", async () => {
+		const user = userEvent.setup();
+		const toastError = vi.spyOn(toast, "error");
+		server.use(
+			http.get("/api/experimental/chats/projects", () =>
+				HttpResponse.json([MockChatProject]),
+			),
+			grantProjectPermissions(true),
+			http.delete("*", () =>
+				HttpResponse.json({ message: "Project is locked" }, { status: 500 }),
+			),
+		);
+
+		render(
+			<Wrapper experiments={["chat-projects"]}>
+				<ChatsSidebar {...defaultProps} />
+			</Wrapper>,
+		);
+
+		await user.click(
+			await screen.findByRole("button", {
+				name: `Open project actions for ${MockChatProject.name}`,
+			}),
+		);
+		await user.click(screen.getByRole("menuitem", { name: "Delete project" }));
+		await user.type(
+			screen.getByLabelText("Name of the project to delete"),
+			MockChatProject.name,
+		);
+		await user.click(screen.getByRole("button", { name: "Delete" }));
+
+		await waitFor(() => {
+			expect(toastError).toHaveBeenCalledWith("Project is locked");
+		});
+	});
+
+	it("retries a failed project permission check", async () => {
+		const user = userEvent.setup();
+		let authCheckCount = 0;
+		server.use(
+			http.get("/api/experimental/chats/projects", () =>
+				HttpResponse.json([MockChatProject]),
+			),
+			http.post("/api/v2/authcheck", async ({ request }) => {
+				authCheckCount++;
+				if (authCheckCount === 1) {
+					return HttpResponse.json(
+						{ message: "Permission check failed" },
+						{ status: 500 },
+					);
+				}
+				const { checks } = (await request.json()) as {
+					checks: Record<string, unknown>;
+				};
+				return HttpResponse.json(
+					Object.fromEntries(Object.keys(checks).map((key) => [key, true])),
+				);
+			}),
+		);
+
+		render(
+			<Wrapper experiments={["chat-projects"]}>
+				<ChatsSidebar {...defaultProps} />
+			</Wrapper>,
+		);
+
+		await user.click(await screen.findByRole("button", { name: "Retry" }));
+		await waitFor(() => expect(authCheckCount).toBe(2));
+	});
+
 	it("hides project actions the user is not allowed to perform", async () => {
 		const user = userEvent.setup();
 		let authChecks: Record<string, unknown> | undefined;
@@ -314,7 +385,7 @@ describe("ChatsSidebar projects", () => {
 					object: {
 						resource_type: "chat_project",
 						organization_id: MockChatProject.organization_id,
-						owner_id: MockChatProject.created_by,
+						owner_id: MockChatProject.owner_id,
 					},
 					action: "update",
 				},
@@ -322,7 +393,7 @@ describe("ChatsSidebar projects", () => {
 					object: {
 						resource_type: "chat_project",
 						organization_id: MockChatProject.organization_id,
-						owner_id: MockChatProject.created_by,
+						owner_id: MockChatProject.owner_id,
 					},
 					action: "delete",
 				},

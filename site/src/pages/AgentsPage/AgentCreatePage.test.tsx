@@ -20,6 +20,10 @@ import { createTestQueryClient } from "#/testHelpers/renderHelpers";
 import { server } from "#/testHelpers/server";
 import AgentCreatePage from "./AgentCreatePage";
 
+const { mountedLockedOrganizationIds } = vi.hoisted(() => ({
+	mountedLockedOrganizationIds: [] as Array<string | undefined>,
+}));
+
 vi.mock("./components/AgentCreateForm", () => ({
 	AgentCreateForm: ({
 		onCreateChat,
@@ -36,25 +40,28 @@ vi.mock("./components/AgentCreateForm", () => ({
 		lockedOrganizationId?: string;
 		header?: ReactNode;
 		footer?: ReactNode;
-	}) => (
-		<div>
-			<span data-testid="locked-organization">{lockedOrganizationId}</span>
-			{header}
-			<button
-				type="button"
-				disabled={isCreating}
-				onClick={() =>
-					onCreateChat({
-						message: "Create this chat",
-						organizationId: MockDefaultOrganization.id,
-					})
-				}
-			>
-				Create chat
-			</button>
-			{footer}
-		</div>
-	),
+	}) => {
+		mountedLockedOrganizationIds.push(lockedOrganizationId);
+		return (
+			<div>
+				<span data-testid="locked-organization">{lockedOrganizationId}</span>
+				{header}
+				<button
+					type="button"
+					disabled={isCreating}
+					onClick={() =>
+						onCreateChat({
+							message: "Create this chat",
+							organizationId: MockDefaultOrganization.id,
+						})
+					}
+				>
+					Create chat
+				</button>
+				{footer}
+			</div>
+		);
+	},
 }));
 
 vi.mock("./components/AgentPageHeader", () => ({
@@ -129,7 +136,10 @@ const grantProjectPermissions = (granted: boolean, onChecked?: () => void) =>
 		);
 	});
 
-afterEach(() => server.resetHandlers());
+afterEach(() => {
+	server.resetHandlers();
+	mountedLockedOrganizationIds.length = 0;
+});
 
 describe("AgentCreatePage project assignment", () => {
 	it("includes the project ID from the route when chat projects are enabled", async () => {
@@ -160,13 +170,14 @@ describe("AgentCreatePage project assignment", () => {
 		await waitFor(() => {
 			expect(projectRequested).toBe(true);
 		});
-		// The form itself is pinned to the project's organization so
-		// workspace, model, and MCP choices resolve against it.
+		// The form binds attachments and remembered choices to its organization
+		// on mount, so it must never render against a provisional one.
 		await waitFor(() => {
 			expect(screen.getByTestId("locked-organization")).toHaveTextContent(
 				MockOrganization.id,
 			);
 		});
+		expect(mountedLockedOrganizationIds).not.toContain(undefined);
 		await user.click(screen.getByRole("button", { name: "Create chat" }));
 
 		await waitFor(() => {
@@ -201,18 +212,22 @@ describe("AgentCreatePage project assignment", () => {
 		expect(requestBody).not.toHaveProperty("project_id");
 	});
 
-	it("blocks chat creation when the project lookup fails", async () => {
+	it("retries a failed project lookup before offering the composer", async () => {
 		const user = userEvent.setup();
-		let chatPostCount = 0;
+		let lookupCount = 0;
+		let requestBody: unknown;
 		server.use(
-			http.get(`/api/experimental/chats/projects/${MockChatProject.id}`, () =>
-				HttpResponse.json(
-					{ message: "Project lookup failed" },
-					{ status: 500 },
-				),
-			),
-			http.post("/api/v2/chats", () => {
-				chatPostCount++;
+			http.get(`/api/experimental/chats/projects/${MockChatProject.id}`, () => {
+				lookupCount++;
+				return lookupCount === 1
+					? HttpResponse.json(
+							{ message: "Project lookup failed" },
+							{ status: 500 },
+						)
+					: HttpResponse.json(MockChatProject);
+			}),
+			http.post("/api/v2/chats", async ({ request }) => {
+				requestBody = await request.json();
 				return HttpResponse.json({ ...MockChat, id: "created-chat" });
 			}),
 		);
@@ -223,10 +238,16 @@ describe("AgentCreatePage project assignment", () => {
 			</Wrapper>,
 		);
 
-		await screen.findByText("Project lookup failed");
-		await user.click(screen.getByRole("button", { name: "Create chat" }));
+		await user.click(await screen.findByRole("button", { name: "Retry" }));
+		await user.click(
+			await screen.findByRole("button", { name: "Create chat" }),
+		);
 
-		expect(chatPostCount).toBe(0);
+		await waitFor(() => {
+			expect(requestBody).toMatchObject({ project_id: MockChatProject.id });
+		});
+		expect(lookupCount).toBe(2);
+		expect(mountedLockedOrganizationIds).not.toContain(undefined);
 	});
 
 	it("redirects to the new chat page when the project is missing", async () => {

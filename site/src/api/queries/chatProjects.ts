@@ -27,7 +27,7 @@ export const chatProject = (projectId: string) =>
 export const chatProjectPermissions = (
 	projects: readonly Pick<
 		TypesGen.ChatProject,
-		"organization_id" | "created_by"
+		"organization_id" | "owner_id"
 	>[],
 ) =>
 	queryOptions({

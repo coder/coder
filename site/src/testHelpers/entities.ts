@@ -57,7 +57,7 @@ export const MockOrganization3: TypesGen.Organization = {
 export const MockChatProject: TypesGen.ChatProject = {
 	id: "chat-project-1",
 	organization_id: MockDefaultOrganization.id,
-	created_by: "user-owner-id",
+	owner_id: "user-owner-id",
 	name: "Launch",
 	description: "Chats for the launch work.",
 	created_at: "2026-09-01T12:00:00Z",

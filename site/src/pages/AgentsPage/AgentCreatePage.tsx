@@ -8,6 +8,8 @@ import { createChat } from "#/api/queries/chats";
 import { workspaces } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import { Button } from "#/components/Button/Button";
+import { Loader } from "#/components/Loader/Loader";
 import { useWebpushNotifications } from "#/contexts/useWebpushNotifications";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useAIGatewayEnabled } from "#/hooks/useEmbeddedMetadata";
@@ -49,12 +51,23 @@ const AgentCreatePage: FC = () => {
 	const isProjectMissing =
 		isApiError(projectQuery.error) &&
 		projectQuery.error.response.status === 404;
+	// A cached project stays usable when a background refetch fails; only a
+	// lookup with nothing to show blocks the composer.
 	const projectLookupError =
-		projectId && chatProjectsEnabled && projectQuery.error && !isProjectMissing
+		projectId &&
+		chatProjectsEnabled &&
+		!selectedProject &&
+		projectQuery.error &&
+		!isProjectMissing
 			? projectQuery.error
 			: undefined;
+	// The form binds attachments and remembered choices to its organization
+	// on mount, so it must not mount until the project's organization is known.
 	const isProjectLookupPending =
-		Boolean(projectId) && chatProjectsEnabled && projectQuery.isLoading;
+		Boolean(projectId) &&
+		chatProjectsEnabled &&
+		!selectedProject &&
+		!projectLookupError;
 	const aiGatewayDisabled = !useAIGatewayEnabled();
 	const workspacesQuery = useQuery(workspaces({ q: "owner:me", limit: 0 }));
 	const createMutation = useMutation(createChat(queryClient));
@@ -75,9 +88,6 @@ const AgentCreatePage: FC = () => {
 		organizationId,
 		planMode,
 	}: CreateChatOptions) => {
-		if (isProjectLookupPending || projectLookupError) {
-			return;
-		}
 		const content: TypesGen.ChatInputPart[] = [];
 		if (message.trim()) {
 			content.push({ type: "text", text: message });
@@ -140,35 +150,47 @@ const AgentCreatePage: FC = () => {
 				<ChimeButton enabled={chimeEnabled} onToggle={handleChimeToggle} />
 				<WebPushButton webPush={webPush} onToggle={handleNotificationToggle} />
 			</AgentPageHeader>
-			{projectLookupError && (
+			{projectLookupError ? (
 				<ErrorAlert
 					error={projectLookupError}
 					className="mx-auto mt-4 w-full max-w-3xl"
+					actions={
+						<Button
+							size="sm"
+							variant="outline"
+							onClick={() => void projectQuery.refetch()}
+						>
+							Retry
+						</Button>
+					}
+				/>
+			) : isProjectLookupPending ? (
+				<Loader label="Loading project" />
+			) : (
+				<AgentCreateForm
+					lockedOrganizationId={selectedProject?.organization_id}
+					header={
+						selectedProject && (
+							<ProjectComposerHeader project={selectedProject} />
+						)
+					}
+					footer={
+						selectedProject && (
+							<ProjectComposerFooter project={selectedProject} />
+						)
+					}
+					onCreateChat={handleCreateChat}
+					isCreating={createMutation.isPending}
+					createError={createMutation.error}
+					canCreateChat={permissions.createChat}
+					canConfigureAgentSetup={permissions.editDeploymentConfig}
+					aiGatewayDisabled={aiGatewayDisabled}
+					workspaceCount={workspacesQuery.data?.count}
+					workspaceOptions={workspacesQuery.data?.workspaces ?? []}
+					workspacesError={workspacesQuery.error}
+					isWorkspacesLoading={workspacesQuery.isLoading}
 				/>
 			)}
-			<AgentCreateForm
-				lockedOrganizationId={selectedProject?.organization_id}
-				header={
-					selectedProject && <ProjectComposerHeader project={selectedProject} />
-				}
-				footer={
-					selectedProject && <ProjectComposerFooter project={selectedProject} />
-				}
-				onCreateChat={handleCreateChat}
-				isCreating={
-					createMutation.isPending ||
-					isProjectLookupPending ||
-					Boolean(projectLookupError)
-				}
-				createError={createMutation.error}
-				canCreateChat={permissions.createChat}
-				canConfigureAgentSetup={permissions.editDeploymentConfig}
-				aiGatewayDisabled={aiGatewayDisabled}
-				workspaceCount={workspacesQuery.data?.count}
-				workspaceOptions={workspacesQuery.data?.workspaces ?? []}
-				workspacesError={workspacesQuery.error}
-				isWorkspacesLoading={workspacesQuery.isLoading}
-			/>
 		</>
 	);
 };

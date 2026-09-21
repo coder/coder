@@ -36,6 +36,8 @@ const getProjectFolderToggleTestId = (projectId: string) =>
 type ProjectFoldersProps = {
 	readonly projects: readonly ChatProject[];
 	readonly projectPermissions?: Record<string, boolean>;
+	readonly projectPermissionsError?: unknown;
+	readonly onRetryPermissions: () => void;
 	readonly chatsByProjectId: ReadonlyMap<string, readonly Chat[]>;
 	readonly expandedProjectIds: Readonly<Record<string, boolean>>;
 	readonly onToggle: (projectId: string) => void;
@@ -54,6 +56,8 @@ type ProjectFoldersProps = {
 export const ProjectFolders: FC<ProjectFoldersProps> = ({
 	projects,
 	projectPermissions,
+	projectPermissionsError,
+	onRetryPermissions,
 	chatsByProjectId,
 	expandedProjectIds,
 	onToggle,
@@ -79,14 +83,25 @@ export const ProjectFolders: FC<ProjectFoldersProps> = ({
 					<PlusIcon className="size-3.5" />
 				</Button>
 			</div>
-			{error ? (
-				<div className="flex items-center justify-between gap-2 px-2 py-1 text-xs text-content-destructive">
-					<span>{getErrorMessage(error, "Failed to load projects.")}</span>
-					<Button size="sm" variant="outline" onClick={onRetry}>
-						Retry
-					</Button>
-				</div>
-			) : (
+			{Boolean(error) && (
+				<FolderError
+					message={getErrorMessage(error, "Failed to load projects.")}
+					onRetry={onRetry}
+				/>
+			)}
+			{/* Permissions only gate edit and delete, so a failed check must not
+			    hide the folders. Cached checks keep working through a failed
+			    background refetch. */}
+			{projectPermissions === undefined && Boolean(projectPermissionsError) && (
+				<FolderError
+					message={getErrorMessage(
+						projectPermissionsError,
+						"Failed to load project permissions.",
+					)}
+					onRetry={onRetryPermissions}
+				/>
+			)}
+			{projects.length > 0 && (
 				<div className="flex flex-col gap-0.5">
 					{projects.map((project) => (
 						<ProjectFolder
@@ -109,6 +124,18 @@ export const ProjectFolders: FC<ProjectFoldersProps> = ({
 		</div>
 	);
 };
+
+const FolderError: FC<{
+	readonly message: string;
+	readonly onRetry: () => void;
+}> = ({ message, onRetry }) => (
+	<div className="mb-1 flex items-center justify-between gap-2 px-2 py-1 text-xs text-content-destructive">
+		<span>{message}</span>
+		<Button size="sm" variant="outline" onClick={onRetry}>
+			Retry
+		</Button>
+	</div>
+);
 
 type ProjectFolderProps = {
 	readonly project: ChatProject;
