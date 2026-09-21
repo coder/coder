@@ -1201,53 +1201,6 @@ func invalidChatMCPServerIDsResponse(ids []uuid.UUID) codersdk.Response {
 // @Failure 413 {object} codersdk.Response "Request body exceeds 256 KiB"
 // @Router /api/v2/chats [post]
 func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
-	apiKey := httpmw.APIKey(r)
-	api.createChat(rw, r, func(ctx context.Context, organizationID uuid.UUID) (uuid.UUID, error) {
-		isMember, err := httpmw.UserAuthorization(ctx).HasOrganizationMembership(organizationID)
-		if err != nil {
-			return uuid.Nil, httperror.NewResponseError(http.StatusInternalServerError, codersdk.Response{
-				Message: "Failed to validate organization membership.",
-				Detail:  xerrors.Errorf("check organization membership: %w", err).Error(),
-			})
-		}
-		if !isMember {
-			return uuid.Nil, httperror.NewResponseError(http.StatusForbidden, codersdk.Response{
-				Message: "You are not a member of the specified organization.",
-			})
-		}
-		return apiKey.UserID, nil
-	})
-}
-
-// @Summary Create user chat
-// @ID create-user-chat
-// @Security CoderSessionToken
-// @Tags Chats
-// @Accept json
-// @Produce json
-// @Param user path string true "Username, UUID, or me"
-// @Param request body codersdk.CreateChatRequest true "Create chat request"
-// @Success 201 {object} codersdk.Chat
-// @Failure 413 {object} codersdk.Response "Request body exceeds 256 KiB"
-// @Router /api/v2/users/{user}/chats [post]
-func (api *API) postUserChats(rw http.ResponseWriter, r *http.Request) {
-	mems := httpmw.OrganizationMembersParam(r)
-	api.createChat(rw, r, func(_ context.Context, organizationID uuid.UUID) (uuid.UUID, error) {
-		// The memberships are already limited to what the caller may read,
-		// so a missing match stays a vague 404 like postUserWorkspaces.
-		idx := slices.IndexFunc(mems.Memberships, func(member httpmw.OrganizationMember) bool {
-			return member.OrganizationID == organizationID
-		})
-		if idx == -1 {
-			return uuid.Nil, httperror.ErrResourceNotFound
-		}
-		return mems.Memberships[idx].UserID, nil
-	})
-}
-
-// createChat backs both chat creation endpoints. resolveOwner runs after the
-// body is parsed because the owner depends on req.OrganizationID.
-func (api *API) createChat(rw http.ResponseWriter, r *http.Request, resolveOwner func(ctx context.Context, organizationID uuid.UUID) (uuid.UUID, error)) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
 
@@ -1276,10 +1229,26 @@ func (api *API) createChat(rw http.ResponseWriter, r *http.Request, resolveOwner
 		})
 		return
 	}
-	ownerID, err := resolveOwner(ctx, req.OrganizationID)
-	if err != nil {
-		httperror.WriteResponseError(ctx, rw, err)
-		return
+	ownerID := apiKey.UserID
+	if req.OwnerID != nil && *req.OwnerID != uuid.Nil {
+		ownerID = *req.OwnerID
+	}
+	if ownerID == apiKey.UserID {
+		// Validate organization membership.
+		isMember, err := httpmw.UserAuthorization(ctx).HasOrganizationMembership(req.OrganizationID)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Failed to validate organization membership.",
+				Detail:  xerrors.Errorf("check organization membership: %w", err).Error(),
+			})
+			return
+		}
+		if !isMember {
+			httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+				Message: "You are not a member of the specified organization.",
+			})
+			return
+		}
 	}
 	// NOTE: This authorize check is intentionally placed after request
 	// parsing because we need req.OrganizationID to scope the RBAC check
@@ -1300,17 +1269,23 @@ func (api *API) createChat(rw http.ResponseWriter, r *http.Request, resolveOwner
 			httpapi.Forbidden(rw)
 			return
 		}
-		//nolint:gocritic // The caller may hold this authority without being able to read the owner's user object.
-		ownerUser, err := api.Database.GetUserByID(dbauthz.AsSystemRestricted(ctx), ownerID)
+		//nolint:gocritic // The caller may hold this authority without being able to read the owner's membership.
+		memberships, err := api.Database.OrganizationMembers(dbauthz.AsSystemRestricted(ctx), database.OrganizationMembersParams{
+			OrganizationID: req.OrganizationID,
+			UserID:         ownerID,
+			IncludeSystem:  false,
+			GithubUserID:   0,
+		})
 		if err != nil {
 			httpapi.InternalServerError(rw, err)
 			return
 		}
 		// AI Bridge refuses to authorize inactive and system users, so a
-		// chat owned by one could never run.
-		if ownerUser.Status != database.UserStatusActive || ownerUser.IsSystem {
+		// chat owned by one could never run. The query already omits
+		// system and deleted users.
+		if len(memberships) == 0 || memberships[0].Status != database.UserStatusActive {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: "Chat owner must be an active user.",
+				Message: "Chat owner must be an active member of the organization.",
 			})
 			return
 		}

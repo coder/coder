@@ -1804,12 +1804,13 @@ func TestPostChats(t *testing.T) {
 	})
 }
 
-func TestPostUserChats(t *testing.T) {
+func TestPostChats_OwnerID(t *testing.T) {
 	t.Parallel()
 
-	helloRequest := func(organizationID uuid.UUID) codersdk.CreateChatRequest {
+	helloRequest := func(ownerID, organizationID uuid.UUID) codersdk.CreateChatRequest {
 		return codersdk.CreateChatRequest{
 			OrganizationID: organizationID,
+			OwnerID:        &ownerID,
 			Content: []codersdk.ChatInputPart{{
 				Type: codersdk.ChatInputPartTypeText,
 				Text: "hello on behalf of another user",
@@ -1827,7 +1828,7 @@ func TestPostUserChats(t *testing.T) {
 		memberClientRaw, member := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
 		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
 
-		chat, err := client.CreateUserChat(ctx, member.Username, helloRequest(firstUser.OrganizationID))
+		chat, err := client.CreateChat(ctx, helloRequest(member.ID, firstUser.OrganizationID))
 		require.NoError(t, err)
 		require.Equal(t, member.ID, chat.OwnerID)
 
@@ -1868,12 +1869,12 @@ func TestPostUserChats(t *testing.T) {
 		)
 		t.Cleanup(serviceAccountClient.HTTPClient.CloseIdleConnections)
 
-		chat, err := serviceAccountClient.CreateUserChat(ctx, member.ID.String(), helloRequest(firstUser.OrganizationID))
+		chat, err := serviceAccountClient.CreateChat(ctx, helloRequest(member.ID, firstUser.OrganizationID))
 		require.NoError(t, err)
 		require.Equal(t, member.ID, chat.OwnerID)
 	})
 
-	t.Run("MeCreatesOwnChat", func(t *testing.T) {
+	t.Run("OwnerIDIsCaller", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -1883,7 +1884,7 @@ func TestPostUserChats(t *testing.T) {
 		memberClientRaw, member := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
 		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
 
-		chat, err := memberClient.CreateUserChat(ctx, codersdk.Me, helloRequest(firstUser.OrganizationID))
+		chat, err := memberClient.CreateChat(ctx, helloRequest(member.ID, firstUser.OrganizationID))
 		require.NoError(t, err)
 		require.Equal(t, member.ID, chat.OwnerID)
 	})
@@ -1901,9 +1902,9 @@ func TestPostUserChats(t *testing.T) {
 			OwnerID:        member.ID,
 		}).WithAgent().Do()
 
-		req := helloRequest(firstUser.OrganizationID)
+		req := helloRequest(member.ID, firstUser.OrganizationID)
 		req.WorkspaceID = &workspaceBuild.Workspace.ID
-		chat, err := client.CreateUserChat(ctx, member.Username, req)
+		chat, err := client.CreateChat(ctx, req)
 		require.NoError(t, err)
 		require.NotNil(t, chat.WorkspaceID)
 		require.Equal(t, workspaceBuild.Workspace.ID, *chat.WorkspaceID)
@@ -1924,9 +1925,9 @@ func TestPostUserChats(t *testing.T) {
 
 		// The admin can reach their own workspace, but the chat connects
 		// as the member, who cannot.
-		req := helloRequest(firstUser.OrganizationID)
+		req := helloRequest(member.ID, firstUser.OrganizationID)
 		req.WorkspaceID = &workspaceBuild.Workspace.ID
-		_, err := client.CreateUserChat(ctx, member.Username, req)
+		_, err := client.CreateChat(ctx, req)
 		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
 		require.Equal(t, "Workspace not found or you do not have access to this resource", sdkErr.Message)
 	})
@@ -1947,9 +1948,9 @@ func TestPostUserChats(t *testing.T) {
 
 		// The admin can read the private model; the member cannot, and
 		// chatd would silently fall back to the default at run time.
-		req := helloRequest(firstUser.OrganizationID)
+		req := helloRequest(member.ID, firstUser.OrganizationID)
 		req.ModelConfigID = &privateConfig.ID
-		_, err := client.CreateUserChat(ctx, member.Username, req)
+		_, err := client.CreateChat(ctx, req)
 		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
 		require.Equal(t, "Invalid model_config_id: model config not found or disabled.", sdkErr.Message)
 	})
@@ -1968,7 +1969,7 @@ func TestPostUserChats(t *testing.T) {
 		// Org admins hold org-scoped chat:create, but a chat runs with its
 		// owner's credentials, so acting as another user needs site-wide
 		// authority.
-		_, err := orgAdminClient.CreateUserChat(ctx, member.Username, helloRequest(firstUser.OrganizationID))
+		_, err := orgAdminClient.CreateChat(ctx, helloRequest(member.ID, firstUser.OrganizationID))
 		requireSDKError(t, err, http.StatusForbidden)
 	})
 
@@ -1983,7 +1984,7 @@ func TestPostUserChats(t *testing.T) {
 		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
 		_, other := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
 
-		_, err := memberClient.CreateUserChat(ctx, other.Username, helloRequest(firstUser.OrganizationID))
+		_, err := memberClient.CreateChat(ctx, helloRequest(other.ID, firstUser.OrganizationID))
 		requireSDKError(t, err, http.StatusForbidden)
 	})
 
@@ -1997,8 +1998,22 @@ func TestPostUserChats(t *testing.T) {
 		otherOrg := dbgen.Organization(t, db, database.Organization{})
 		_, member := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
 
-		_, err := client.CreateUserChat(ctx, member.Username, helloRequest(otherOrg.ID))
-		requireSDKError(t, err, http.StatusNotFound)
+		_, err := client.CreateChat(ctx, helloRequest(member.ID, otherOrg.ID))
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Equal(t, "Chat owner must be an active member of the organization.", sdkErr.Message)
+	})
+
+	t.Run("OwnerNotFound", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModel(t, client)
+
+		_, err := client.CreateChat(ctx, helloRequest(uuid.New(), firstUser.OrganizationID))
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Equal(t, "Chat owner must be an active member of the organization.", sdkErr.Message)
 	})
 
 	t.Run("OwnerSuspended", func(t *testing.T) {
@@ -2012,9 +2027,9 @@ func TestPostUserChats(t *testing.T) {
 		_, err := client.UpdateUserStatus(ctx, member.ID.String(), codersdk.UserStatusSuspended)
 		require.NoError(t, err)
 
-		_, err = client.CreateUserChat(ctx, member.Username, helloRequest(firstUser.OrganizationID))
+		_, err = client.CreateChat(ctx, helloRequest(member.ID, firstUser.OrganizationID))
 		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
-		require.Equal(t, "Chat owner must be an active user.", sdkErr.Message)
+		require.Equal(t, "Chat owner must be an active member of the organization.", sdkErr.Message)
 	})
 
 	t.Run("OwnerWithoutChatPermission", func(t *testing.T) {
@@ -2031,7 +2046,7 @@ func TestPostUserChats(t *testing.T) {
 			UserID:         serviceAccount.ID,
 		})
 
-		_, err := client.CreateUserChat(ctx, serviceAccount.ID.String(), helloRequest(firstUser.OrganizationID))
+		_, err := client.CreateChat(ctx, helloRequest(serviceAccount.ID, firstUser.OrganizationID))
 		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
 		require.Equal(t, "Chat owner does not have permission to use chats.", sdkErr.Message)
 	})

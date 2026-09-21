@@ -1673,7 +1673,6 @@ func New(options *Options) *API {
 						// organization member. This endpoint should match the authz story of
 						// postWorkspacesByOrganization
 						r.Post("/workspaces", api.postUserWorkspaces)
-						r.Post("/chats", api.postUserChats)
 						r.Route("/workspace/{workspacename}", func(r chi.Router) {
 							r.Get("/", api.workspaceByOwnerAndName)
 							r.Get("/builds/{buildnumber}", api.workspaceBuildByBuildNumber)

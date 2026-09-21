@@ -566,7 +566,11 @@ type ToolResult struct {
 
 // CreateChatRequest is the request to create a new chat.
 type CreateChatRequest struct {
-	OrganizationID  uuid.UUID         `json:"organization_id" format:"uuid"`
+	OrganizationID uuid.UUID `json:"organization_id" format:"uuid"`
+	// OwnerID makes another user the chat owner. It defaults to the
+	// caller. The chat runs with the owner's credentials, so setting it
+	// requires site-wide authority over that user.
+	OwnerID         *uuid.UUID        `json:"owner_id,omitempty" format:"uuid"`
 	Content         []ChatInputPart   `json:"content"`
 	SystemPrompt    string            `json:"system_prompt,omitempty"`
 	WorkspaceID     *uuid.UUID        `json:"workspace_id,omitempty" format:"uuid"`
@@ -2738,21 +2742,6 @@ func (c *Client) DeleteUserChatCompactionThreshold(ctx context.Context, modelID 
 // CreateChat creates a new chat.
 func (c *Client) CreateChat(ctx context.Context, req CreateChatRequest) (Chat, error) {
 	res, err := c.Request(ctx, http.MethodPost, "/api/v2/chats", req)
-	if err != nil {
-		return Chat{}, err
-	}
-	if res.StatusCode != http.StatusCreated {
-		return Chat{}, ReadBodyAsError(res)
-	}
-	defer res.Body.Close()
-	var chat Chat
-	return chat, ReadBodyAsJSON(res, &chat)
-}
-
-// CreateUserChat creates a chat owned by the given user, who is
-// identified by username, ID, or "me".
-func (c *Client) CreateUserChat(ctx context.Context, user string, req CreateChatRequest) (Chat, error) {
-	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/users/%s/chats", user), req)
 	if err != nil {
 		return Chat{}, err
 	}
