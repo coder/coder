@@ -143,11 +143,11 @@ func ConnectAll(
 // ConnectChatAttached connects to MCP servers that a chat owner attached
 // to their own chat. Unlike org-configured servers, these endpoints are
 // chosen by an end user, so the connection is hardened: response bodies,
-// tool counts, tool definitions, and tool results are size-capped, and
-// sensitiveValues (keyed by config ID) are redacted from every string a
-// model or a non-owner chat viewer can see. Chat-attached servers have no
-// OAuth tokens or OIDC identity, so those inputs are always empty. A nil
-// httpClient falls back to the default guarded client.
+// tool counts, tool definitions, and tool results are size-capped after
+// redaction, and sensitiveValues (keyed by config ID) are redacted from
+// every string a model or a non-owner chat viewer can see. Chat-attached
+// servers have no OAuth tokens or OIDC identity, so those inputs are
+// always empty. A nil httpClient falls back to the default guarded client.
 func ConnectChatAttached(
 	ctx context.Context,
 	logger slog.Logger,
@@ -492,15 +492,15 @@ func connectOne(
 
 	maxResultBytes := 0
 	if opts.kind == connectionKindChatAttached {
-		if err := validateChatAttachedToolDefinitions(toolsResult.Tools); err != nil {
-			go func() { _ = session.Close() }()
-			return nil, nil, err
-		}
 		maxResultBytes = maxChatAttachedToolResultBytes
 	}
 
 	var tools []fantasy.AgentTool
 	for _, mcpTool := range toolsResult.Tools {
+		if mcpTool == nil {
+			go func() { _ = session.Close() }()
+			return nil, nil, xerrors.New("MCP server returned a null tool definition")
+		}
 		if !isToolAllowed(
 			mcpTool.Name,
 			cfg.ToolAllowList,
@@ -516,6 +516,13 @@ func connectOne(
 		tools = append(
 			tools, newMCPTool(cfg.ID, cfg.Slug, mcpTool, session, cfg.ModelIntent, redactor, maxResultBytes),
 		)
+	}
+
+	if opts.kind == connectionKindChatAttached {
+		if err := validateChatAttachedToolDefinitions(tools); err != nil {
+			go func() { _ = session.Close() }()
+			return nil, nil, err
+		}
 	}
 
 	if len(tools) == 0 {
@@ -541,9 +548,10 @@ const (
 )
 
 // validateChatAttachedToolDefinitions rejects a tool list that exceeds
-// the chat-attached count or size caps. The whole server is skipped
+// the chat-attached count or size caps. Sizes are measured on the
+// redacted definitions the model sees. The whole server is skipped
 // rather than truncated so the model never sees a partial tool set.
-func validateChatAttachedToolDefinitions(tools []*mcp.Tool) error {
+func validateChatAttachedToolDefinitions(tools []fantasy.AgentTool) error {
 	if len(tools) > maxChatAttachedTools {
 		return xerrors.Errorf(
 			"chat-attached MCP server returned %d tools, maximum is %d",
@@ -553,10 +561,7 @@ func validateChatAttachedToolDefinitions(tools []*mcp.Tool) error {
 
 	totalBytes := 0
 	for _, tool := range tools {
-		if tool == nil {
-			return xerrors.New("chat-attached MCP server returned a null tool definition")
-		}
-		definition, err := json.Marshal(tool)
+		definition, err := json.Marshal(tool.Info())
 		if err != nil {
 			return xerrors.Errorf("marshal chat-attached MCP tool definition: %w", err)
 		}
@@ -885,16 +890,16 @@ const redactedPlaceholder = "[REDACTED]"
 // secretRedactor replaces a fixed set of sensitive strings with
 // redactedPlaceholder. The zero value redacts nothing. Longer values
 // are replaced first so a value that contains another value is
-// redacted whole. Values shorter than the placeholder are ignored so
-// redaction never lengthens its input and size caps checked before it
-// still hold.
+// redacted whole. Only empty values are dropped: ReplaceAll would
+// insert the placeholder between every byte. Redaction can lengthen
+// its input, so size caps are checked after it.
 type secretRedactor struct {
 	values []string
 }
 
 func newSecretRedactor(values []string) secretRedactor {
 	values = slices.Clone(values)
-	values = slices.DeleteFunc(values, func(value string) bool { return len(value) < len(redactedPlaceholder) })
+	values = slices.DeleteFunc(values, func(value string) bool { return value == "" })
 	slices.SortFunc(values, func(a, b string) int {
 		return cmp.Or(cmp.Compare(len(b), len(a)), cmp.Compare(a, b))
 	})
@@ -1127,25 +1132,18 @@ func (t *mcpToolWrapper) Run(
 		return fantasy.NewTextErrorResponse(t.redactor.redactString(err.Error())), nil
 	}
 
-	if t.maxResultBytes > 0 {
-		resultJSON, err := json.Marshal(result)
-		if err != nil {
-			return fantasy.NewTextErrorResponse("tool result could not be validated"), nil
-		}
-		if len(resultJSON) > t.maxResultBytes {
-			return fantasy.NewTextErrorResponse(fmt.Sprintf(
-				"tool result exceeded maximum size of %d bytes",
-				t.maxResultBytes,
-			)), nil
-		}
-	}
-
 	// Structured content is redacted before convertCallResult encodes it
 	// as JSON, where escaping would hide a secret from the string match.
 	if result != nil {
 		result.StructuredContent = t.redactor.redactValue(result.StructuredContent)
 	}
-	return t.redactor.redactResponse(convertCallResult(result)), nil
+	resp := t.redactor.redactResponse(convertCallResult(result))
+	if t.maxResultBytes > 0 && len(resp.Content)+len(resp.Data) > t.maxResultBytes {
+		return fantasy.NewTextErrorResponse(fmt.Sprintf(
+			"tool result exceeded maximum size of %d bytes", t.maxResultBytes,
+		)), nil
+	}
+	return resp, nil
 }
 
 func (t *mcpToolWrapper) ProviderOptions() fantasy.ProviderOptions {

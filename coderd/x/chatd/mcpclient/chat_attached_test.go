@@ -214,7 +214,7 @@ func TestConnectChatAttached_ToolResultCap(t *testing.T) {
 		wantError bool
 	}{
 		{name: "OverCap", result: strings.Repeat("a", maxBytes+1), wantError: true},
-		{name: "UnderCapWithShortSecret", result: strings.Repeat("prod", (maxBytes-1024)/4), sensitive: []string{"prod"}},
+		{name: "ShortSecretInflatesOverCap", result: strings.Repeat("prod", (maxBytes-1024)/4), sensitive: []string{"prod"}, wantError: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -307,7 +307,7 @@ func TestConnectChatAttached_RedactsSensitiveValues(t *testing.T) {
 	srv.AddTool(failing.tool, failing.handler)
 
 	cfg := makeChatAttachedConfig("bot", ts.URL, `{"X-Bot-Key":"`+secret+`"}`)
-	sensitive := map[uuid.UUID][]string{cfg.ID: {ts.URL, secret}}
+	sensitive := map[uuid.UUID][]string{cfg.ID: {ts.URL, secret, "X-Bot-Key"}}
 
 	tools, summaries, cleanup := mcpclient.ConnectChatAttachedForTest(
 		ctx, logger, []database.MCPServerConfig{cfg}, nil, sensitive, testutil.WaitLong,
@@ -327,7 +327,7 @@ func TestConnectChatAttached_RedactsSensitiveValues(t *testing.T) {
 	require.True(t, ok)
 
 	info := leakyTool.Info()
-	require.Equal(t, "Talks to [REDACTED] using [REDACTED]. Send the X-Bot-Key header.", info.Description)
+	require.Equal(t, "Talks to [REDACTED] using [REDACTED]. Send the [REDACTED] header.", info.Description)
 	require.NotContains(t, info.Description, ts.URL)
 	prop, ok := info.Parameters["token"].(map[string]any)
 	require.True(t, ok, "parameters: %#v", info.Parameters)
