@@ -1346,7 +1346,8 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 			return database.Chat{}, err
 		}
 		contentParts = composed
-		// Avoid deriving titles from the prompt that policy replaced.
+		// A derived title must not repeat the prompt that policy replaced.
+		// A title the caller chose is stored as sent.
 		if overridden && opts.TitleSource == database.ChatTitleSourceFallback {
 			opts.Title = chatprompt.FallbackTitle(chatprompt.TitleText(contentParts, nil))
 		}

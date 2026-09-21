@@ -15,6 +15,7 @@ import (
 	fantasyopenaicompat "charm.land/fantasy/providers/openaicompat"
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 	"golang.org/x/xerrors"
@@ -540,12 +541,15 @@ func TestMaybeGenerateChatTitle(t *testing.T) {
 	const userPrompt = "summarize failed workspace build logs"
 	fallback := chatprompt.FallbackTitle(userPrompt)
 
-	newFakeModel := func(beforeReturn func(), title string) *chattest.FakeModel {
+	newFakeModel := func(t *testing.T, beforeReturn func(), title string, err error) *chattest.FakeModel {
 		return &chattest.FakeModel{
 			GenerateObjectFn: func(_ context.Context, call fantasy.ObjectCall) (*fantasy.ObjectResponse, error) {
-				require.Equal(t, "propose_title", call.SchemaName)
+				assert.Equal(t, "propose_title", call.SchemaName)
 				if beforeReturn != nil {
 					beforeReturn()
+				}
+				if err != nil {
+					return nil, err
 				}
 				return &fantasy.ObjectResponse{Object: map[string]any{"title": title}}, nil
 			},
@@ -594,7 +598,7 @@ func TestMaybeGenerateChatTitle(t *testing.T) {
 				ps := dbpubsub.NewInMemory()
 				events := subscribeChatWatchEvents(t, ps, owner.ID)
 
-				generated := run(t, db, ps, chat, newFakeModel(nil, tc.title))
+				generated := run(t, db, ps, chat, newFakeModel(t, nil, tc.title, nil))
 
 				fetched, err := db.GetChatByID(ctx, chat.ID)
 				require.NoError(t, err)
@@ -610,56 +614,76 @@ func TestMaybeGenerateChatTitle(t *testing.T) {
 				require.Equal(t, codersdk.ChatWatchEventKindTitleChange, event.Kind)
 				require.Equal(t, tc.title, event.Chat.Title)
 				require.Equal(t, codersdk.ChatTitleSourceGenerated, event.Chat.TitleSource)
+				require.True(t, event.Chat.TitleUpdatedAt.After(chat.TitleUpdatedAt), "a title write must advance title_updated_at")
 			})
 		}
 	})
 
-	t.Run("KeepsTitleRenamedDuringGeneration", func(t *testing.T) {
+	// A model call that writes no title still publishes the current row
+	// so watchers refetch the call's cost.
+	t.Run("PublishesCurrentRowWhenNoTitleIsWritten", func(t *testing.T) {
 		t.Parallel()
 
-		db, _ := dbtestutil.NewDB(t)
-		ctx := testutil.Context(t, testutil.WaitMedium)
-		owner, chat := seedTitleGenerationChat(t, db, fallback)
-		ps := dbpubsub.NewInMemory()
-		events := subscribeChatWatchEvents(t, ps, owner.ID)
-
 		const renamed = "My build investigation"
-		switchedModel := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{Model: "switched-model"})
-		model := newFakeModel(func() {
-			_, err := db.UpdateChatTitleByID(ctx, database.UpdateChatTitleByIDParams{
-				ID:          chat.ID,
-				Title:       renamed,
-				TitleSource: database.ChatTitleSourceUser,
+		cases := []struct {
+			name     string
+			modelErr error
+		}{
+			{name: "write refused by a rename during the call"},
+			{name: "model call failed", modelErr: xerrors.New("provider returned status 400: invalid request")},
+		}
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				db, _ := dbtestutil.NewDB(t)
+				ctx := testutil.Context(t, testutil.WaitMedium)
+				owner, chat := seedTitleGenerationChat(t, db, fallback)
+				ps := dbpubsub.NewInMemory()
+				events := subscribeChatWatchEvents(t, ps, owner.ID)
+
+				switchedModel := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{Model: "switched-model"})
+				var renamedChat database.Chat
+				model := newFakeModel(t, func() {
+					var err error
+					renamedChat, err = db.UpdateChatTitleByID(ctx, database.UpdateChatTitleByIDParams{
+						ID:          chat.ID,
+						Title:       renamed,
+						TitleSource: database.ChatTitleSourceUser,
+					})
+					assert.NoError(t, err)
+					_, err = db.UpdateChatLastModelConfigByID(ctx, database.UpdateChatLastModelConfigByIDParams{
+						ID:                chat.ID,
+						LastModelConfigID: switchedModel.ID,
+					})
+					assert.NoError(t, err)
+				}, "Generated title", tc.modelErr)
+
+				generated := run(t, db, ps, chat, model)
+
+				fetched, err := db.GetChatByID(ctx, chat.ID)
+				require.NoError(t, err)
+				require.Equal(t, renamed, fetched.Title)
+				require.Equal(t, database.ChatTitleSourceUser, fetched.TitleSource)
+
+				_, ok := generated.Load()
+				require.False(t, ok)
+
+				// The event describes the chat as it is now, not as it was
+				// before the model call, and its title_updated_at is the
+				// rename's so clients holding the rename do not reorder.
+				event := testutil.RequireReceive(ctx, t, events)
+				require.Equal(t, codersdk.ChatWatchEventKindTitleChange, event.Kind)
+				require.Equal(t, renamed, event.Chat.Title)
+				require.Equal(t, codersdk.ChatTitleSourceUser, event.Chat.TitleSource)
+				require.Equal(t, switchedModel.ID, event.Chat.LastModelConfigID)
+				require.True(t, event.Chat.TitleUpdatedAt.Equal(renamedChat.TitleUpdatedAt))
+				select {
+				case extra := <-events:
+					t.Fatalf("unexpected second event %q", extra.Kind)
+				default:
+				}
 			})
-			require.NoError(t, err)
-			_, err = db.UpdateChatLastModelConfigByID(ctx, database.UpdateChatLastModelConfigByIDParams{
-				ID:                chat.ID,
-				LastModelConfigID: switchedModel.ID,
-			})
-			require.NoError(t, err)
-		}, "Generated title")
-
-		generated := run(t, db, ps, chat, model)
-
-		fetched, err := db.GetChatByID(ctx, chat.ID)
-		require.NoError(t, err)
-		require.Equal(t, renamed, fetched.Title)
-		require.Equal(t, database.ChatTitleSourceUser, fetched.TitleSource)
-
-		_, ok := generated.Load()
-		require.False(t, ok)
-
-		// The event must describe the chat as it is now, not as it was
-		// before the model call.
-		event := testutil.RequireReceive(ctx, t, events)
-		require.Equal(t, codersdk.ChatWatchEventKindCostChange, event.Kind)
-		require.Equal(t, renamed, event.Chat.Title)
-		require.Equal(t, codersdk.ChatTitleSourceUser, event.Chat.TitleSource)
-		require.Equal(t, switchedModel.ID, event.Chat.LastModelConfigID)
-		select {
-		case extra := <-events:
-			t.Fatalf("unexpected second event %q", extra.Kind)
-		default:
 		}
 	})
 }
@@ -694,11 +718,13 @@ func seedTitleGenerationChat(t *testing.T, db database.Store, title string) (dat
 func subscribeChatWatchEvents(t *testing.T, ps dbpubsub.Pubsub, ownerID uuid.UUID) <-chan codersdk.ChatWatchEvent {
 	t.Helper()
 	events := make(chan codersdk.ChatWatchEvent, 8)
-	cancel, err := ps.Subscribe(coderdpubsub.ChatWatchEventChannel(ownerID), func(_ context.Context, payload []byte) {
-		var event codersdk.ChatWatchEvent
-		require.NoError(t, json.Unmarshal(payload, &event))
-		events <- event
-	})
+	cancel, err := ps.SubscribeWithErr(
+		coderdpubsub.ChatWatchEventChannel(ownerID),
+		coderdpubsub.HandleChatWatchEvent(func(_ context.Context, event codersdk.ChatWatchEvent, err error) {
+			assert.NoError(t, err)
+			events <- event
+		}),
+	)
 	require.NoError(t, err)
 	t.Cleanup(cancel)
 	return events
@@ -740,7 +766,7 @@ func TestMaybeGenerateChatTitleAppliesModelConfigReasoningEffort(t *testing.T) {
 		ID:          chat.ID,
 		Title:       "Reasoning title",
 		TitleSource: database.ChatTitleSourceGenerated,
-	}).Return(chatWithTitle(chat, "Reasoning title"), nil)
+	}).Return(chatWithGeneratedTitle(chat, "Reasoning title"), nil)
 
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
 	server := titleOverrideTestServer(db, logger)

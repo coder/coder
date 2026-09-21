@@ -449,33 +449,17 @@ func (p *Server) maybeGenerateChatTitle(
 			slog.F("model", resolved.resolvedModel),
 			slog.Error(err),
 		)
-		return
-	}
-	if title == "" {
+		p.publishCurrentChatTitle(ctx, chat.ID, logger)
 		return
 	}
 
-	// The write is refused when a rename was committed during the model call.
 	updatedChat, err := p.db.UpdateChatTitleByID(ctx, database.UpdateChatTitleByIDParams{
 		ID:          chat.ID,
 		Title:       title,
 		TitleSource: database.ChatTitleSourceGenerated,
 	})
 	if errors.Is(err, sql.ErrNoRows) {
-		logger.Debug(ctx, "title changed during generation, keeping user title",
-			slog.F("chat_id", chat.ID),
-		)
-		// Only the cost changed. Publish the current row, not the one
-		// captured before the model call.
-		currentChat, err := p.db.GetChatByID(ctx, chat.ID)
-		if err != nil {
-			logger.Warn(ctx, "failed to load chat after refused title write",
-				slog.F("chat_id", chat.ID),
-				slog.Error(err),
-			)
-			return
-		}
-		p.publishChatPubsubEvent(currentChat, codersdk.ChatWatchEventKindCostChange, nil)
+		p.publishCurrentChatTitle(ctx, chat.ID, logger)
 		return
 	}
 	if err != nil {
@@ -483,10 +467,31 @@ func (p *Server) maybeGenerateChatTitle(
 			slog.F("chat_id", chat.ID),
 			slog.Error(err),
 		)
+		p.publishCurrentChatTitle(ctx, chat.ID, logger)
 		return
 	}
 	generatedTitle.Store(title)
 	p.publishChatPubsubEvent(updatedChat, codersdk.ChatWatchEventKindTitleChange, nil)
+}
+
+// publishCurrentChatTitle publishes the chat's current row after a title
+// model call that wrote no title, so watchers refetch the call's cost.
+// The row is read after the call because the title may have been
+// written by another source while the call ran.
+func (p *Server) publishCurrentChatTitle(ctx context.Context, chatID uuid.UUID, logger slog.Logger) {
+	chat, err := p.db.GetChatByID(ctx, chatID)
+	if err != nil {
+		logger.Warn(ctx, "failed to load chat after title generation",
+			slog.F("chat_id", chatID),
+			slog.Error(err),
+		)
+		return
+	}
+	logger.Debug(ctx, "title generation wrote no title",
+		slog.F("chat_id", chatID),
+		slog.F("title_source", chat.TitleSource),
+	)
+	p.publishChatPubsubEvent(chat, codersdk.ChatWatchEventKindTitleChange, nil)
 }
 
 const titleMaxOutputTokens = int64(256)
@@ -652,9 +657,9 @@ func validateGeneratedTitle(title string) error {
 // titleInput returns the first user message title text and whether
 // title generation should proceed. It returns false when the chat
 // already has assistant/tool replies, has more than one visible user
-// message, or the current title doesn't look like a candidate for
-// replacement. pasteText carries resolved pasted-text attachment
-// content (see titlePasteText) so paste-only messages stay eligible.
+// message, or the current title source is not fallback. pasteText
+// carries resolved pasted-text attachment content (see titlePasteText)
+// so paste-only messages stay eligible.
 func titleInput(
 	chat database.Chat,
 	messages []database.ChatMessage,

@@ -6684,7 +6684,7 @@ func TestPatchChat(t *testing.T) {
 				"rename bumped updated_at; it should be preserved to keep list ordering stable")
 		})
 
-		t.Run("NoOpWhenTitleUnchanged", func(t *testing.T) {
+		t.Run("UnchangedTitleRecordsUserSource", func(t *testing.T) {
 			t.Parallel()
 
 			ctx := testutil.Context(t, testutil.WaitLong)
@@ -6706,7 +6706,7 @@ func TestPatchChat(t *testing.T) {
 
 			past := time.Now().UTC().Add(-2 * time.Hour).Truncate(time.Second)
 			_, err := sqlDB.ExecContext(ctx,
-				"UPDATE chats SET title = $1, updated_at = $2 WHERE id = $3",
+				"UPDATE chats SET title = $1, title_source = 'fallback', updated_at = $2 WHERE id = $3",
 				"steady title", past, chat.ID,
 			)
 			require.NoError(t, err)

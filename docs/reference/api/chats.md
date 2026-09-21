@@ -181,6 +181,7 @@ curl -X GET http://coder-server:8080/api/v2/chats \
     "summary": "string",
     "title": "string",
     "title_source": "fallback",
+    "title_updated_at": "2019-08-24T14:15:22Z",
     "updated_at": "2019-08-24T14:15:22Z",
     "warnings": [
       "string"
@@ -292,6 +293,7 @@ Status Code **200**
 | `» summary`                | string                                                                             | false    |              | Summary is the persisted whole-chat summary, generated in the background. It is nil until the first summary has been produced.                                                                                                                                             |
 | `» title`                  | string                                                                             | false    |              |                                                                                                                                                                                                                                                                            |
 | `» title_source`           | [codersdk.ChatTitleSource](schemas.md#codersdkchattitlesource)                     | false    |              |                                                                                                                                                                                                                                                                            |
+| `» title_updated_at`       | string(date-time)                                                                  | false    |              | Title updated at orders title changes. Title writes do not change UpdatedAt.                                                                                                                                                                                               |
 | `» updated_at`             | string(date-time)                                                                  | false    |              |                                                                                                                                                                                                                                                                            |
 | `» warnings`               | array                                                                              | false    |              |                                                                                                                                                                                                                                                                            |
 | `» workspace_id`           | string(uuid)                                                                       | false    |              |                                                                                                                                                                                                                                                                            |
@@ -512,6 +514,7 @@ curl -X POST http://coder-server:8080/api/v2/chats \
       "summary": "string",
       "title": "string",
       "title_source": "fallback",
+      "title_updated_at": "2019-08-24T14:15:22Z",
       "updated_at": "2019-08-24T14:15:22Z",
       "warnings": [
         "string"
@@ -627,6 +630,7 @@ curl -X POST http://coder-server:8080/api/v2/chats \
   "summary": "string",
   "title": "string",
   "title_source": "fallback",
+  "title_updated_at": "2019-08-24T14:15:22Z",
   "updated_at": "2019-08-24T14:15:22Z",
   "warnings": [
     "string"
@@ -1496,6 +1500,7 @@ curl -X GET http://coder-server:8080/api/v2/chats/watch \
     "summary": "string",
     "title": "string",
     "title_source": "fallback",
+    "title_updated_at": "2019-08-24T14:15:22Z",
     "updated_at": "2019-08-24T14:15:22Z",
     "warnings": [
       "string"
@@ -1663,6 +1668,7 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat} \
       "summary": "string",
       "title": "string",
       "title_source": "fallback",
+      "title_updated_at": "2019-08-24T14:15:22Z",
       "updated_at": "2019-08-24T14:15:22Z",
       "warnings": [
         "string"
@@ -1778,6 +1784,7 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat} \
   "summary": "string",
   "title": "string",
   "title_source": "fallback",
+  "title_updated_at": "2019-08-24T14:15:22Z",
   "updated_at": "2019-08-24T14:15:22Z",
   "warnings": [
     "string"
@@ -1980,6 +1987,7 @@ curl -X PUT http://coder-server:8080/api/v2/chats/{chat}/context \
       "summary": "string",
       "title": "string",
       "title_source": "fallback",
+      "title_updated_at": "2019-08-24T14:15:22Z",
       "updated_at": "2019-08-24T14:15:22Z",
       "warnings": [
         "string"
@@ -2095,6 +2103,7 @@ curl -X PUT http://coder-server:8080/api/v2/chats/{chat}/context \
   "summary": "string",
   "title": "string",
   "title_source": "fallback",
+  "title_updated_at": "2019-08-24T14:15:22Z",
   "updated_at": "2019-08-24T14:15:22Z",
   "warnings": [
     "string"
@@ -2345,6 +2354,7 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/interrupt \
       "summary": "string",
       "title": "string",
       "title_source": "fallback",
+      "title_updated_at": "2019-08-24T14:15:22Z",
       "updated_at": "2019-08-24T14:15:22Z",
       "warnings": [
         "string"
@@ -2460,6 +2470,7 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/interrupt \
   "summary": "string",
   "title": "string",
   "title_source": "fallback",
+  "title_updated_at": "2019-08-24T14:15:22Z",
   "updated_at": "2019-08-24T14:15:22Z",
   "warnings": [
     "string"
@@ -3434,6 +3445,7 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/reconcile-invalid \
       "summary": "string",
       "title": "string",
       "title_source": "fallback",
+      "title_updated_at": "2019-08-24T14:15:22Z",
       "updated_at": "2019-08-24T14:15:22Z",
       "warnings": [
         "string"
@@ -3549,6 +3561,7 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/reconcile-invalid \
   "summary": "string",
   "title": "string",
   "title_source": "fallback",
+  "title_updated_at": "2019-08-24T14:15:22Z",
   "updated_at": "2019-08-24T14:15:22Z",
   "warnings": [
     "string"

@@ -197,6 +197,7 @@ const makeChat = (
 	labels: {},
 	title: `Chat ${id}`,
 	title_source: "generated",
+	title_updated_at: "2025-01-01T00:00:00.000Z",
 	status: "running",
 	created_at: "2025-01-01T00:00:00.000Z",
 	updated_at: "2025-01-01T00:00:00.000Z",
@@ -688,39 +689,6 @@ describe("updateChatPlanMode", () => {
 });
 
 describe("updateChatTitle cache update", () => {
-	it("patches chat detail and infinite chat list caches after success", () => {
-		const queryClient = createTestQueryClient();
-		const chatId = "chat-1";
-		queryClient.setQueryData(
-			chatEntityKey(chatId),
-			makeChat(chatId, { title: "Old" }),
-		);
-		seedInfiniteChats(queryClient, [
-			makeChat(chatId, { title: "Old" }),
-			makeChat("chat-2", { title: "Other" }),
-		]);
-		seedInfiniteChats(
-			queryClient,
-			[makeChat(chatId, { archived: true, title: "Old" })],
-			{ archived: true },
-		);
-
-		const mutation = updateChatTitle(queryClient);
-		mutation.onSuccess(undefined, { chatId, title: "New" });
-
-		expect(
-			queryClient.getQueryData<TypesGen.Chat>(chatEntityKey(chatId)),
-		).toMatchObject({ title: "New", title_source: "user" });
-		expect(
-			readInfiniteChats(queryClient)?.find((chat) => chat.id === chatId),
-		).toMatchObject({ title: "New", title_source: "user" });
-		expect(
-			readInfiniteChats(queryClient, { archived: true })?.find(
-				(chat) => chat.id === chatId,
-			),
-		).toMatchObject({ title: "New", title_source: "user" });
-	});
-
 	it("does not return pending invalidation promises from settlement", () => {
 		const queryClient = createTestQueryClient();
 		const chatId = "chat-1";
@@ -3057,6 +3025,7 @@ describe("mergeWatchedChatSummary", () => {
 		const watchedChat = makeChat("chat-1", {
 			status: "waiting",
 			title: "Updated title",
+			title_updated_at: "2025-01-01T00:05:00.000Z",
 			updated_at: "2025-01-01T00:05:00.000Z",
 		});
 
@@ -3079,6 +3048,7 @@ describe("mergeWatchedChatSummary", () => {
 		const watchedChat = makeChat("chat-1", {
 			status: "waiting",
 			title: "Newer generated title",
+			title_updated_at: "2025-01-01T00:05:00.000Z",
 			updated_at: "2025-01-01T00:05:00.000Z",
 		});
 
@@ -3094,38 +3064,113 @@ describe("mergeWatchedChatSummary", () => {
 	});
 
 	it.each<{
-		cached: TypesGen.ChatTitleSource;
-		incoming: TypesGen.ChatTitleSource;
+		name: string;
+		watchedTitleUpdatedAt: string;
 		applied: boolean;
 	}>([
-		{ cached: "fallback", incoming: "generated", applied: true },
-		{ cached: "user", incoming: "generated", applied: false },
-		{ cached: "fallback", incoming: "user", applied: true },
-		{ cached: "generated", incoming: "user", applied: true },
-		{ cached: "user", incoming: "user", applied: true },
-	])(
-		"title_change with $incoming over cached $cached applied=$applied",
-		({ cached, incoming, applied }) => {
-			const cachedChat = makeChat("chat-1", {
-				title: "Before",
-				title_source: cached,
-			});
-			const watchedChat = makeChat("chat-1", {
-				title: "After",
-				title_source: incoming,
-			});
-
-			expect(
-				mergeWatchedChatSummary(cachedChat, watchedChat, {
-					eventKind: "title_change",
-				}),
-			).toMatchObject(
-				applied
-					? { title: "After", title_source: incoming }
-					: { title: "Before", title_source: cached },
-			);
+		{
+			name: "applies a title written after the cached one",
+			watchedTitleUpdatedAt: "2025-01-01T00:00:01.000Z",
+			applied: true,
 		},
-	);
+		{
+			name: "ignores a title written before the cached one",
+			watchedTitleUpdatedAt: "2024-12-31T23:59:59.000Z",
+			applied: false,
+		},
+		{
+			name: "ignores a row whose title_updated_at equals the cached one",
+			watchedTitleUpdatedAt: "2025-01-01T00:00:00.000Z",
+			applied: false,
+		},
+	])("$name", ({ watchedTitleUpdatedAt, applied }) => {
+		const cachedChat = makeChat("chat-1", {
+			title: "Before",
+			title_source: "user",
+			title_updated_at: "2025-01-01T00:00:00.000Z",
+		});
+		const watchedChat = makeChat("chat-1", {
+			title: "After",
+			title_source: "generated",
+			title_updated_at: watchedTitleUpdatedAt,
+		});
+
+		expect(
+			mergeWatchedChatSummary(cachedChat, watchedChat, {
+				eventKind: "title_change",
+			}),
+		).toMatchObject(
+			applied
+				? {
+						title: "After",
+						title_source: "generated",
+						title_updated_at: watchedTitleUpdatedAt,
+					}
+				: {
+						title: "Before",
+						title_source: "user",
+						title_updated_at: "2025-01-01T00:00:00.000Z",
+					},
+		);
+	});
+
+	it("applies a newer title write whose text is unchanged", () => {
+		const cachedChat = makeChat("chat-1", {
+			title: "Same",
+			title_source: "fallback",
+			title_updated_at: "2025-01-01T00:00:00.000Z",
+		});
+		const watchedChat = makeChat("chat-1", {
+			title: "Same",
+			title_source: "generated",
+			title_updated_at: "2025-01-01T00:00:01.000Z",
+		});
+
+		const merged = mergeWatchedChatSummary(cachedChat, watchedChat, {
+			eventKind: "title_change",
+		});
+
+		expect(merged).not.toBe(cachedChat);
+		expect(merged).toMatchObject({
+			title_source: "generated",
+			title_updated_at: "2025-01-01T00:00:01.000Z",
+		});
+	});
+
+	it("does not advance updated_at from a non-status event", () => {
+		const cachedChat = makeChat("chat-1", {
+			status: "running",
+			updated_at: "2025-01-01T00:00:01.000Z",
+		});
+		const titleEvent = makeChat("chat-1", {
+			status: "waiting",
+			title: "New title",
+			title_updated_at: "2025-01-01T00:00:03.000Z",
+			updated_at: "2025-01-01T00:00:03.000Z",
+		});
+		const delayedStatus = makeChat("chat-1", {
+			status: "waiting",
+			updated_at: "2025-01-01T00:00:02.000Z",
+		});
+
+		const afterTitle = mergeWatchedChatSummary(cachedChat, titleEvent, {
+			eventKind: "title_change",
+		});
+		expect(afterTitle).toMatchObject({
+			status: "running",
+			title: "New title",
+			updated_at: "2025-01-01T00:00:01.000Z",
+		});
+
+		expect(
+			mergeWatchedChatSummary(afterTitle, delayedStatus, {
+				eventKind: "status_change",
+			}),
+		).toMatchObject({
+			status: "waiting",
+			updated_at: "2025-01-01T00:00:02.000Z",
+		});
+	});
 
 	it("merges fresh diff status updates without clobbering status or title", () => {
 		const cachedDiffStatus = {
@@ -3775,7 +3820,6 @@ describe("semantic cache operations: prefix invalidations", () => {
 			action_required: true,
 			chat_summary_change: false,
 			context_dirty: false,
-			cost_change: false,
 			created: false,
 			deleted: false,
 			diff_status_change: false,
@@ -3855,7 +3899,6 @@ describe("semantic cache operations: prefix invalidations", () => {
 			action_required: true,
 			chat_summary_change: false,
 			context_dirty: false,
-			cost_change: false,
 			created: false,
 			deleted: false,
 			diff_status_change: true,

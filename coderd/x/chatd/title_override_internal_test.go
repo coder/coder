@@ -85,7 +85,7 @@ func TestMaybeGenerateChatTitle_TitleGenerationOverrideSetUsable(t *testing.T) {
 		ID:          chat.ID,
 		Title:       wantTitle,
 		TitleSource: database.ChatTitleSourceGenerated,
-	}).Return(chatWithTitle(chat, wantTitle), nil)
+	}).Return(chatWithGeneratedTitle(chat, wantTitle), nil)
 
 	generated := &generatedChatTitle{}
 	server := titleOverrideTestServer(db, logger)
@@ -135,6 +135,8 @@ func TestMaybeGenerateChatTitle_TitleGenerationOverrideCallFailure(t *testing.T)
 		ProviderID: providerID,
 		APIKey:     "test-key",
 	}}, nil).AnyTimes()
+	// The failed call still publishes the current row.
+	db.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil)
 
 	generated := &generatedChatTitle{}
 	server := titleOverrideTestServer(db, logger)
@@ -368,8 +370,7 @@ func titleOverrideModelConfig(model string, enabled bool) database.ChatModelConf
 	}
 }
 
-// chatWithTitle mirrors the row a generated-title write returns.
-func chatWithTitle(chat database.Chat, title string) database.Chat {
+func chatWithGeneratedTitle(chat database.Chat, title string) database.Chat {
 	chat.Title = title
 	chat.TitleSource = database.ChatTitleSourceGenerated
 	return chat

@@ -1964,6 +1964,11 @@ export interface Chat {
 	readonly last_reasoning_effort?: string;
 	readonly title: string;
 	readonly title_source: ChatTitleSource;
+	/**
+	 * TitleUpdatedAt orders title changes. Title writes do not change
+	 * UpdatedAt.
+	 */
+	readonly title_updated_at: string;
 	readonly status: ChatStatus;
 	readonly plan_mode?: ChatPlanMode;
 	readonly last_error?: ChatError;
@@ -3648,7 +3653,6 @@ export type ChatWatchEventKind =
 	| "action_required"
 	| "chat_summary_change"
 	| "context_dirty"
-	| "cost_change"
 	| "created"
 	| "deleted"
 	| "diff_status_change"
@@ -3660,7 +3664,6 @@ export const ChatWatchEventKinds: ChatWatchEventKind[] = [
 	"action_required",
 	"chat_summary_change",
 	"context_dirty",
-	"cost_change",
 	"created",
 	"deleted",
 	"diff_status_change",
@@ -3952,9 +3955,12 @@ export interface CreateChatRequest {
 	readonly owner_id?: string;
 	readonly content: readonly ChatInputPart[];
 	/**
-	 * Title, when set, is trimmed and stored as the user title; automatic
-	 * title generation is skipped. When omitted, the title is derived from
-	 * the first prompt and later replaced by a generated title.
+	 * Title, when set, is stored as the user title and automatic title
+	 * generation does not run. It is trimmed of surrounding whitespace and
+	 * must then be non-empty and at most MaxChatTitleRunes characters;
+	 * otherwise the request is rejected with 400. When omitted, the title
+	 * is derived from the first prompt and may later be replaced by a
+	 * generated title.
 	 */
 	readonly title?: string;
 	readonly system_prompt?: string;
@@ -6258,6 +6264,13 @@ export const MaxChatFileIDs = 50;
  * attachments.
  */
 export const MaxChatFileSizeBytes = 10485760;
+
+// From codersdk/chats.go
+/**
+ * MaxChatTitleRunes is the longest title accepted at creation or rename,
+ * counted in Unicode code points after trimming.
+ */
+export const MaxChatTitleRunes = 200;
 
 // From codersdk/chats.go
 /**
@@ -10148,6 +10161,11 @@ export interface UpdateChatPlanModeInstructionsRequest {
  * UpdateChatRequest is the request to update a chat.
  */
 export interface UpdateChatRequest {
+	/**
+	 * Title, when set, is stored as the user title even when its text is
+	 * unchanged, so a generated title never replaces it afterwards. It is
+	 * validated like CreateChatRequest.Title.
+	 */
 	readonly title?: string;
 	readonly archived?: boolean;
 	readonly workspace_id?: string;

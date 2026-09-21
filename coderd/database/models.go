@@ -1916,7 +1916,7 @@ func AllChatStatusValues() []ChatStatus {
 	}
 }
 
-// Where a chat title came from. fallback: derived from the first prompt. generated: written by automatic title generation. user: supplied by the caller at creation or by rename.
+// Where a chat title came from. fallback: derived from the first prompt. generated: written by automatic title generation. user: supplied by the caller at creation or by rename. Rows that existed before this column was added are fallback regardless of who set their title.
 type ChatTitleSource string
 
 const (
@@ -5135,6 +5135,7 @@ type Chat struct {
 	ContextError             string                  `db:"context_error" json:"context_error"`
 	CompactionRequestedAt    sql.NullTime            `db:"compaction_requested_at" json:"compaction_requested_at"`
 	TitleSource              ChatTitleSource         `db:"title_source" json:"title_source"`
+	TitleUpdatedAt           time.Time               `db:"title_updated_at" json:"title_updated_at"`
 }
 
 // Per-chat pinned copy of the agent context resources a chat is hydrated against. Copied from workspace_agent_context_resources at chat hydration and context refresh; survives agent replacement and workspace rebuilds.
@@ -5393,8 +5394,10 @@ type ChatTable struct {
 	CompactionRequestedAt sql.NullTime   `db:"compaction_requested_at" json:"compaction_requested_at"`
 	Summary               sql.NullString `db:"summary" json:"summary"`
 	SummaryGeneratedAt    sql.NullTime   `db:"summary_generated_at" json:"summary_generated_at"`
-	// Where title came from. Only a user title may replace a generated or user title.
+	// Only a user title may replace a generated or user title.
 	TitleSource ChatTitleSource `db:"title_source" json:"title_source"`
+	// When title was last written. Orders title events; updated_at is not changed by title writes.
+	TitleUpdatedAt time.Time `db:"title_updated_at" json:"title_updated_at"`
 }
 
 type ChatUsageLimitConfig struct {

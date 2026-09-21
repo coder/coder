@@ -1335,9 +1335,9 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 	title := chatprompt.FallbackTitle(titleText)
 	titleSource := database.ChatTitleSourceFallback
 	if req.Title != nil {
-		userTitle, invalid := normalizeChatTitle(*req.Title)
-		if invalid != nil {
-			httpapi.Write(ctx, rw, http.StatusBadRequest, *invalid)
+		userTitle, titleError := normalizeChatTitle(*req.Title)
+		if titleError != nil {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, *titleError)
 			return
 		}
 		title = userTitle
@@ -1545,10 +1545,6 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 	}
 	aReq.New = chat
 
-	// Kick off best-effort automatic title generation now that the
-	// chat and its initial user message are persisted. It runs
-	// detached so it never blocks the create response, and only acts
-	// on the first user turn.
 	if chat.TitleSource == database.ChatTitleSourceFallback {
 		api.chatDaemon.GenerateChatTitleAsync(ownerCtx, chat)
 	}
@@ -2228,9 +2224,6 @@ func (api *API) watchChatDesktop(rw http.ResponseWriter, r *http.Request) {
 	logger.Debug(ctx, "desktop Bicopy finished")
 }
 
-// maxChatTitleRunes bounds user-supplied chat titles on create and rename.
-const maxChatTitleRunes = 200
-
 // normalizeChatTitle trims and validates a user-supplied title. The
 // response is non-nil when the title is rejected.
 func normalizeChatTitle(rawTitle string) (string, *codersdk.Response) {
@@ -2238,9 +2231,9 @@ func normalizeChatTitle(rawTitle string) (string, *codersdk.Response) {
 	if title == "" {
 		return "", &codersdk.Response{Message: "Title cannot be empty."}
 	}
-	if utf8.RuneCountInString(title) > maxChatTitleRunes {
+	if utf8.RuneCountInString(title) > codersdk.MaxChatTitleRunes {
 		return "", &codersdk.Response{
-			Message: fmt.Sprintf("Title must be at most %d characters.", maxChatTitleRunes),
+			Message: fmt.Sprintf("Title must be at most %d characters.", codersdk.MaxChatTitleRunes),
 		}
 	}
 	return title, nil
@@ -2252,9 +2245,9 @@ func (api *API) applyChatTitleUpdate(
 	chat database.Chat,
 	rawTitle string,
 ) (database.Chat, bool) {
-	trimmedTitle, invalid := normalizeChatTitle(rawTitle)
-	if invalid != nil {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, *invalid)
+	trimmedTitle, titleError := normalizeChatTitle(rawTitle)
+	if titleError != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, *titleError)
 		return chat, true
 	}
 
@@ -6651,8 +6644,6 @@ func createChatInputFromRequest(ctx context.Context, db database.Store, req code
 	if inputError != nil {
 		return nil, "", inputError
 	}
-	// Paste blobs are copied only when text and file-reference parts
-	// yield nothing.
 	titleText := chatprompt.TitleText(content, nil)
 	if titleText == "" && len(pasteData) > 0 {
 		pasteText := make(map[uuid.UUID]string, len(pasteData))

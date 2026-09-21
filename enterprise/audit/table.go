@@ -450,7 +450,8 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"build_id":                    ActionIgnore, // Internal lifecycle.
 		"agent_id":                    ActionIgnore, // Internal lifecycle.
 		"title":                       ActionSecret, // May contain sensitive content.
-		"title_source":                ActionIgnore, // The title itself is audited.
+		"title_source":                ActionTrack,
+		"title_updated_at":            ActionIgnore, // Ordering key for title events.
 		"status":                      ActionIgnore, // Churns every message.
 		"worker_id":                   ActionIgnore, // Internal.
 		"started_at":                  ActionIgnore,

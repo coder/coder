@@ -536,17 +536,21 @@ export const mergeWatchedChatSummary = (
 	const isFreshEnough = updatedAtComparison <= 0;
 	const nextStatus =
 		isFreshEnough && isStatusEvent ? watchedChat.status : cachedChat.status;
-	// Title writes do not change updated_at, so isFreshEnough cannot order
-	// title events. A generated title_change received after a user rename
-	// is stale: on the server only a user title can replace a user title.
-	const isStaleGeneratedTitle =
-		cachedChat.title_source === "user" &&
-		watchedChat.title_source === "generated";
-	const applyTitle = isTitleEvent && !isStaleGeneratedTitle;
+	// Title writes do not change updated_at, so title events are ordered
+	// by title_updated_at instead.
+	const applyTitle =
+		isTitleEvent &&
+		compareUpdatedAtInstants(
+			cachedChat.title_updated_at,
+			watchedChat.title_updated_at,
+		) < 0;
 	const nextTitle = applyTitle ? watchedChat.title : cachedChat.title;
 	const nextTitleSource = applyTitle
 		? watchedChat.title_source
 		: cachedChat.title_source;
+	const nextTitleUpdatedAt = applyTitle
+		? watchedChat.title_updated_at
+		: cachedChat.title_updated_at;
 	// Diff status freshness is tracked outside chats.updated_at, so apply
 	// diff_status_change payloads even when the chat summary timestamp is older.
 	const nextDiffStatus = isDiffStatusEvent
@@ -594,8 +598,13 @@ export const mergeWatchedChatSummary = (
 		isFreshEnough && isStatusEvent && watchedChat.id !== activeChatId
 			? true
 			: cachedChat.has_unread;
+	// The watermark advances only with status_change. A current row in
+	// another event can carry an updated_at newer than a status_change
+	// that has not arrived yet; advancing on it would refuse that status.
 	const nextUpdatedAt =
-		updatedAtComparison > 0 ? cachedChat.updated_at : watchedChat.updated_at;
+		isStatusEvent && updatedAtComparison <= 0
+			? watchedChat.updated_at
+			: cachedChat.updated_at;
 
 	// Keep updated_at in the no-op guard. This gives up the old streaming
 	// rerender shortcut so later stale events cannot pass isFreshEnough
@@ -604,6 +613,7 @@ export const mergeWatchedChatSummary = (
 		nextStatus === cachedChat.status &&
 		nextTitle === cachedChat.title &&
 		nextTitleSource === cachedChat.title_source &&
+		nextTitleUpdatedAt === cachedChat.title_updated_at &&
 		diffStatusEqual(nextDiffStatus, cachedChat.diff_status) &&
 		nextWorkspaceId === cachedChat.workspace_id &&
 		nextBuildId === cachedChat.build_id &&
@@ -623,6 +633,7 @@ export const mergeWatchedChatSummary = (
 		status: nextStatus,
 		title: nextTitle,
 		title_source: nextTitleSource,
+		title_updated_at: nextTitleUpdatedAt,
 		diff_status: nextDiffStatus,
 		workspace_id: nextWorkspaceId,
 		build_id: nextBuildId,
@@ -1620,20 +1631,9 @@ export const updateChatTitle = (queryClient: QueryClient) => ({
 	mutationFn: ({ chatId, title }: UpdateChatTitleVariables) =>
 		API.experimental.updateChat(chatId, { title }),
 
-	onSuccess: (_data: unknown, { chatId, title }: UpdateChatTitleVariables) => {
-		const renamed = (chat: TypesGen.Chat): TypesGen.Chat => ({
-			...chat,
-			title,
-			title_source: "user",
-		});
-		patchChatEntity(queryClient, chatId, (chat) =>
-			chat ? renamed(chat) : chat,
-		);
-		updateInfiniteChatsCache(queryClient, (chats) =>
-			chats.map((chat) => (chat.id === chatId ? renamed(chat) : chat)),
-		);
-	},
-
+	// The rename's title_change event (for the owner) or the settle
+	// refetch updates the caches. A local patch would lack the
+	// title_updated_at that orders title events.
 	onSettled: (
 		_data: unknown,
 		_error: unknown,
