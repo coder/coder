@@ -101,12 +101,16 @@ export const BudgetPeriod: Story = {
 	},
 };
 
+// Without a URL range the server narrows the budget period to retention, and
+// the endpoint rejects any explicit start before that cutoff.
 export const RetentionLimitedPicker: Story = {
-	parameters: { reactRouter: explicitRange },
 	beforeEach: () => {
+		const retentionStart = fixedNow.subtract(10, "day").toISOString();
 		spyOn(API, "getOrganizationAISpendUsers").mockResolvedValue({
 			...MockOrganizationAISpendReport,
-			retention_start: fixedNow.subtract(10, "day").toISOString(),
+			period_start: retentionStart,
+			period_end: "2026-04-01T00:00:00.000Z",
+			retention_start: retentionStart,
 			count: mockSpendUsers.length,
 			users: mockSpendUsers.slice(0, 10),
 		});
@@ -114,7 +118,7 @@ export const RetentionLimitedPicker: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await canvas.findByRole("table", { name: "Spend by user" });
-		await userEvent.click(canvas.getByRole("button", { name: /Feb 10, 2026/ }));
+		await userEvent.click(canvas.getByRole("button", { name: /Mar 3, 2026/ }));
 		await screen.findByRole("button", { name: "Apply" });
 	},
 };
