@@ -259,7 +259,7 @@ func connectAllWithHooks(
 			duration := time.Since(start)
 			summary := ConnectSummary{
 				ConfigID:   cfg.ID,
-				Slug:       cfg.Slug,
+				Slug:       redactor.redactString(cfg.Slug),
 				DurationMS: duration.Milliseconds(),
 				ToolCount:  len(serverTools),
 			}
@@ -1029,7 +1029,7 @@ func newMCPTool(
 	// server must recognize it.
 	return &mcpToolWrapper{
 		configID:       configID,
-		prefixedName:   truncateToolName(aidmcp.SanitizeToolName(serverSlug) + toolNameSep + aidmcp.SanitizeToolName(redactor.redactString(tool.Name))),
+		prefixedName:   truncateToolName(aidmcp.SanitizeToolName(redactor.redactString(serverSlug)) + toolNameSep + aidmcp.SanitizeToolName(redactor.redactString(tool.Name))),
 		originalName:   tool.Name,
 		description:    redactor.redactString(tool.Description),
 		parameters:     redactor.redactMap(properties),

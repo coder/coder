@@ -319,7 +319,7 @@ func TestConnectChatAttached_RedactsSensitiveValues(t *testing.T) {
 	srv.AddTool(failing.tool, failing.handler)
 
 	cfg := makeChatAttachedConfig("bot", ts.URL, `{"X-Bot-Key":"`+secret+`"}`)
-	sensitive := map[uuid.UUID][]string{cfg.ID: {ts.URL, secret, "D"}}
+	sensitive := map[uuid.UUID][]string{cfg.ID: {ts.URL, secret, "D", "bot"}}
 
 	tools, summaries, cleanup := mcpclient.ConnectChatAttachedForTest(
 		ctx, logger, []database.MCPServerConfig{cfg}, nil, sensitive, testutil.WaitLong,
@@ -327,15 +327,16 @@ func TestConnectChatAttached_RedactsSensitiveValues(t *testing.T) {
 	t.Cleanup(cleanup)
 	require.Len(t, summaries, 1)
 	require.Equal(t, mcpclient.ConnectOutcomeConnected, summaries[0].Outcome)
+	require.Equal(t, "[REDACTED]", summaries[0].Slug)
 	require.Len(t, tools, 2)
 
 	byName := map[string]fantasy.AgentTool{}
 	for _, tool := range tools {
 		byName[tool.Info().Name] = tool
 	}
-	leakyTool, ok := byName["bot__leaky"]
+	leakyTool, ok := byName["_REDACTED___leaky"]
 	require.True(t, ok, "tool names: %v", byName)
-	failingTool, ok := byName["bot__failing"]
+	failingTool, ok := byName["_REDACTED___failing"]
 	require.True(t, ok)
 
 	info := leakyTool.Info()
