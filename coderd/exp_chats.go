@@ -3823,8 +3823,8 @@ func (api *API) resolveChatDiffContents(
 	if reference.PullRequestURL != "" {
 		pullRequestURL := strings.TrimSpace(reference.PullRequestURL)
 		result.PullRequestURL = &pullRequestURL
-		// The agent's report creates the row; discovery only fills in
-		// its URL. Skip until the ref has been reported.
+		// The agent's report creates the row. Discovery only fills in
+		// the URL, so skip until the ref was reported.
 		if found && (!strings.EqualFold(strings.TrimSpace(status.Url.String), pullRequestURL)) {
 			err := api.Database.UpdateChatDiffStatusReferenceURL(
 				ctx,
