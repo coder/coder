@@ -390,6 +390,9 @@ describe("OAuth2AppForm", () => {
 				screen.getByRole("button", { name: /update application/i }),
 			).toBeDisabled(),
 		);
+		expect(
+			screen.getByText(/at least one redirect uri is required/i),
+		).toBeInTheDocument();
 	});
 
 	it("does not submit when a public app has a disallowed entry in another row", async () => {

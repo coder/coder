@@ -198,6 +198,14 @@ export const OAuth2AppForm: FC<OAuth2AppFormProps> = ({
 
 	const handleRedirectURIsChange = (values: string[]) => {
 		void form.setFieldValue("redirect_uris", values);
+		// Removing the last row disables Update without a blur event to mark
+		// the field touched, so the required-URI message never shows. Mark it
+		// touched here (skipping its own validate call, since setFieldValue
+		// above already triggers one) only for that case, since doing this on
+		// every keystroke would race with the blur-triggered validateForm below.
+		if (values.length === 0) {
+			void form.setFieldTouched("redirect_uris", true, false);
+		}
 	};
 	// Touched is set on blur rather than on every keystroke. Setting it in
 	// handleRedirectURIsChange as well would fire a second concurrent
