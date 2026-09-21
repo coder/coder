@@ -351,86 +351,6 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/experimental/chats/projects/{project}/acl": {
-            "get": {
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Chats"
-                ],
-                "summary": "Get chat project ACL",
-                "operationId": "get-chat-project-acl",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Chat project ID",
-                        "name": "project",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.ChatProjectACL"
-                        }
-                    }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "x-apidocgen": {
-                    "skip": true
-                }
-            },
-            "patch": {
-                "consumes": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Chats"
-                ],
-                "summary": "Update chat project ACL",
-                "operationId": "update-chat-project-acl",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Chat project ID",
-                        "name": "project",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "Update chat project ACL request",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.UpdateChatProjectACL"
-                        }
-                    }
-                ],
-                "responses": {
-                    "204": {
-                        "description": "No Content"
-                    }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "x-apidocgen": {
-                    "skip": true
-                }
-            }
-        },
         "/api/experimental/chats/projects/{project}/memories": {
             "get": {
                 "produces": [
@@ -19088,7 +19008,6 @@ const docTemplate = `{
                 "chat_project:create",
                 "chat_project:delete",
                 "chat_project:read",
-                "chat_project:share",
                 "chat_project:update",
                 "chat_project_memory:*",
                 "chat_project_memory:create",
@@ -19346,7 +19265,6 @@ const docTemplate = `{
                 "APIKeyScopeChatProjectCreate",
                 "APIKeyScopeChatProjectDelete",
                 "APIKeyScopeChatProjectRead",
-                "APIKeyScopeChatProjectShare",
                 "APIKeyScopeChatProjectUpdate",
                 "APIKeyScopeChatProjectMemoryAll",
                 "APIKeyScopeChatProjectMemoryCreate",
@@ -21906,78 +21824,6 @@ const docTemplate = `{
                 }
             }
         },
-        "codersdk.ChatProjectACL": {
-            "type": "object",
-            "properties": {
-                "groups": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/codersdk.ChatProjectGroup"
-                    }
-                },
-                "users": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/codersdk.ChatProjectUser"
-                    }
-                }
-            }
-        },
-        "codersdk.ChatProjectGroup": {
-            "type": "object",
-            "properties": {
-                "avatar_url": {
-                    "type": "string",
-                    "format": "uri"
-                },
-                "display_name": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "string",
-                    "format": "uuid"
-                },
-                "members": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/codersdk.ReducedUser"
-                    }
-                },
-                "name": {
-                    "type": "string"
-                },
-                "organization_display_name": {
-                    "type": "string"
-                },
-                "organization_id": {
-                    "type": "string",
-                    "format": "uuid"
-                },
-                "organization_name": {
-                    "type": "string"
-                },
-                "quota_allowance": {
-                    "type": "integer"
-                },
-                "role": {
-                    "enum": [
-                        "read"
-                    ],
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.ChatProjectRole"
-                        }
-                    ]
-                },
-                "source": {
-                    "$ref": "#/definitions/codersdk.GroupSource"
-                },
-                "total_member_count": {
-                    "description": "How many members are in this group. Shows the total count,\neven if the user is not authorized to read group member details.\nMay be greater than ` + "`" + `len(Group.Members)` + "`" + `.",
-                    "type": "integer"
-                }
-            }
-        },
         "codersdk.ChatProjectMemory": {
             "type": "object",
             "properties": {
@@ -22020,50 +21866,6 @@ const docTemplate = `{
                 "updated_at": {
                     "type": "string",
                     "format": "date-time"
-                }
-            }
-        },
-        "codersdk.ChatProjectRole": {
-            "type": "string",
-            "enum": [
-                "read",
-                ""
-            ],
-            "x-enum-varnames": [
-                "ChatProjectRoleRead",
-                "ChatProjectRoleDeleted"
-            ]
-        },
-        "codersdk.ChatProjectUser": {
-            "type": "object",
-            "required": [
-                "id",
-                "username"
-            ],
-            "properties": {
-                "avatar_url": {
-                    "type": "string",
-                    "format": "uri"
-                },
-                "id": {
-                    "type": "string",
-                    "format": "uuid"
-                },
-                "name": {
-                    "type": "string"
-                },
-                "role": {
-                    "enum": [
-                        "read"
-                    ],
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.ChatProjectRole"
-                        }
-                    ]
-                },
-                "username": {
-                    "type": "string"
                 }
             }
         },
@@ -30574,23 +30376,6 @@ const docTemplate = `{
             "properties": {
                 "plan_mode_instructions": {
                     "type": "string"
-                }
-            }
-        },
-        "codersdk.UpdateChatProjectACL": {
-            "type": "object",
-            "properties": {
-                "group_roles": {
-                    "type": "object",
-                    "additionalProperties": {
-                        "$ref": "#/definitions/codersdk.ChatProjectRole"
-                    }
-                },
-                "user_roles": {
-                    "type": "object",
-                    "additionalProperties": {
-                        "$ref": "#/definitions/codersdk.ChatProjectRole"
-                    }
                 }
             }
         },

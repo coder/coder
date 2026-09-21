@@ -79,10 +79,6 @@ func (api *API) registerChatAPIRoutes(r chi.Router, apiKeyMiddleware func(http.H
 					r.Get("/", api.getChatProject)
 					r.Patch("/", api.patchChatProject)
 					r.Delete("/", api.deleteChatProject)
-					r.Route("/acl", func(r chi.Router) {
-						r.Get("/", api.getChatProjectACL)
-						r.Patch("/", api.patchChatProjectACL)
-					})
 				})
 			})
 			// TODO(cian): place under /api/experimental/chats/config
