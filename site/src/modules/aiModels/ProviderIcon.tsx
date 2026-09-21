@@ -26,6 +26,8 @@ export const getProviderIcon = (provider: string): string | undefined => {
 			return "/icon/vercel.svg";
 		case "gemini":
 			return "/icon/gemini.svg";
+		case "openrouter":
+			return "/icon/openrouter.svg";
 		default:
 			return undefined;
 	}

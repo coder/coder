@@ -704,3 +704,12 @@ func TestMaybeWriteManualTitleTimeoutErr(t *testing.T) {
 		})
 	}
 }
+
+func TestIsZeroChatModelCallConfigReasoningModel(t *testing.T) {
+	t.Parallel()
+	for _, value := range []bool{true, false} {
+		config := &codersdk.ChatModelCallConfig{OpenAIConfig: &codersdk.ChatModelOpenAIConfig{ReasoningModel: new(value)}}
+		require.False(t, isZeroChatModelCallConfig(config))
+	}
+	require.True(t, isZeroChatModelCallConfig(&codersdk.ChatModelCallConfig{OpenAIConfig: &codersdk.ChatModelOpenAIConfig{}}))
+}

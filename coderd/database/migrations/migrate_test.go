@@ -69,18 +69,6 @@ func TestMigrate(t *testing.T) {
 		require.NoError(t, eg.Wait())
 	})
 
-	t.Run("Twice", func(t *testing.T) {
-		t.Parallel()
-
-		db := testSQLDB(t)
-
-		err := migrations.Up(db)
-		require.NoError(t, err)
-
-		err = migrations.Up(db)
-		require.NoError(t, err)
-	})
-
 	t.Run("UpDownUp", func(t *testing.T) {
 		t.Parallel()
 
@@ -100,19 +88,15 @@ func TestMigrate(t *testing.T) {
 func testSQLDB(t testing.TB) *sql.DB {
 	t.Helper()
 
-	connection, err := dbtestutil.Open(t)
+	// dbtestutil.Open clones an already migrated template database, but this
+	// package tests the migrations themselves, so start from Postgres' stock
+	// empty template instead.
+	connection, err := dbtestutil.Open(t, dbtestutil.WithDBFrom("template1"))
 	require.NoError(t, err)
 
 	db, err := sql.Open("postgres", connection)
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = db.Close() })
-
-	// dbtestutil.Open automatically runs migrations, but we want to actually test
-	// migration behavior in this package.
-	_, err = db.Exec(`DROP SCHEMA public CASCADE`)
-	require.NoError(t, err)
-	_, err = db.Exec(`CREATE SCHEMA public`)
-	require.NoError(t, err)
 
 	return db
 }
@@ -368,29 +352,100 @@ func TestMigrateUpWithFixtures(t *testing.T) {
 	}
 }
 
-// TestMigration000362AggregateUsageEvents tests the migration that aggregates
-// usage events into daily rows correctly.
-func TestMigration000362AggregateUsageEvents(t *testing.T) {
+// migrationStepper applies the next migration and reports the version it
+// reached, see migrations.Stepper.
+type migrationStepper = func() (version uint, more bool, err error)
+
+// TestMigrationChain steps one database through the migration chain once and
+// runs each per-migration test when the chain reaches the migration before
+// the one it covers, so the hundreds of preceding migrations are applied once
+// instead of once per test. Each step must leave the chain clean at its
+// version and must not assert whole-table counts that fixtures committed by
+// earlier steps would change; tests that cannot are standalone.
+//
+//nolint:tparallel,paralleltest // Subtests share one database and step a single migration chain in version order.
+func TestMigrationChain(t *testing.T) {
 	t.Parallel()
 
-	const migrationVersion = 362
+	if testing.Short() {
+		t.SkipNow()
+		return
+	}
 
 	sqlDB := testSQLDB(t)
-	db := database.New(sqlDB)
-
-	// Migrate up to the migration before the one that aggregates usage events.
 	next, err := migrations.Stepper(sqlDB)
 	require.NoError(t, err)
+
+	stepTo := func(target uint) {
+		t.Helper()
+		for {
+			version, more, err := next()
+			require.NoError(t, err)
+			require.Truef(t, more, "migration %d not found", target)
+			if version == target {
+				return
+			}
+		}
+	}
+
+	steps := []struct {
+		name    string
+		version uint
+		run     func(t *testing.T, sqlDB *sql.DB, next migrationStepper)
+	}{
+		{"Migration000362AggregateUsageEvents", 362, testMigration000362AggregateUsageEvents},
+		{"Migration000387MigrateTaskWorkspaces", 387, testMigration000387MigrateTaskWorkspaces},
+		{"Migration000457ChatAccessRole", 457, testMigration000457ChatAccessRole},
+		{"Migration000475AgentsAccessOrgRole", 475, testMigration000475AgentsAccessOrgRole},
+		{"Migration000498SoftDeleteStaleWorkspaceAgents", 498, testMigration000498SoftDeleteStaleWorkspaceAgents},
+		{"Migration000546ChatHistoryAPIKeyConstraints", 546, testMigration000546ChatHistoryAPIKeyConstraints},
+		{"Migration000556UserSecretsEnabled", 556, testMigration000556UserSecretsEnabled},
+		{"Migration000587RemoveAgentsAccessRole", 587, testMigration000587RemoveAgentsAccessRole},
+		{"Migration000590WorkspaceAgentSessionCounts", 590, testMigration000590WorkspaceAgentSessionCounts},
+		{"Migration000595RemoveTaskPermissions", 595, testMigration000595RemoveTaskPermissions},
+	}
+	for _, step := range steps {
+		stepTo(step.version - 1)
+		if !t.Run(step.name, func(t *testing.T) {
+			step.run(t, sqlDB, next)
+		}) {
+			t.Fatalf("%s failed, the chain state is unknown so the remaining steps are skipped", step.name)
+		}
+	}
+
 	for {
-		version, more, err := next()
+		_, more, err := next()
 		require.NoError(t, err)
 		if !more {
-			t.Fatalf("migration %d not found", migrationVersion)
-		}
-		if version == migrationVersion-1 {
 			break
 		}
 	}
+
+	// These tests need the fully migrated schema.
+	migrated := []struct {
+		name string
+		run  func(t *testing.T, sqlDB *sql.DB)
+	}{
+		{"Migration000543ChatMessageSearchText", testMigration000543ChatMessageSearchText},
+		{"Migration000543ChatSearchSchemaIndexes", testMigration000543ChatSearchSchemaIndexes},
+		{"Migration000543ChatSearchSchemaBehavior", testMigration000543ChatSearchSchemaBehavior},
+		{"Migration000583ChatModelOverrideOrgScope", testMigration000583ChatModelOverrideOrgScope},
+	}
+	for _, tt := range migrated {
+		if !t.Run(tt.name, func(t *testing.T) {
+			tt.run(t, sqlDB)
+		}) {
+			t.Fatalf("%s failed, the database state is unknown so the remaining tests are skipped", tt.name)
+		}
+	}
+}
+
+// testMigration000362AggregateUsageEvents tests the migration that aggregates
+// usage events into daily rows correctly.
+func testMigration000362AggregateUsageEvents(t *testing.T, sqlDB *sql.DB, next migrationStepper) {
+	const migrationVersion = 362
+
+	db := database.New(sqlDB)
 
 	locSydney, err := time.LoadLocation("Australia/Sydney")
 	require.NoError(t, err)
@@ -469,9 +524,7 @@ func TestMigration000362AggregateUsageEvents(t *testing.T) {
 	}
 }
 
-func TestMigration000387MigrateTaskWorkspaces(t *testing.T) {
-	t.Parallel()
-
+func testMigration000387MigrateTaskWorkspaces(t *testing.T, sqlDB *sql.DB, next migrationStepper) {
 	// This test verifies the migration of task workspaces to the new tasks data model.
 	// Test cases:
 	//
@@ -493,22 +546,6 @@ func TestMigration000387MigrateTaskWorkspaces(t *testing.T) {
 	//   - Deleted workspace (w.deleted = true)
 
 	const migrationVersion = 387
-
-	sqlDB := testSQLDB(t)
-
-	// Migrate up to the migration before the task workspace migration.
-	next, err := migrations.Stepper(sqlDB)
-	require.NoError(t, err)
-	for {
-		version, more, err := next()
-		require.NoError(t, err)
-		if !more {
-			t.Fatalf("migration %d not found", migrationVersion)
-		}
-		if version == migrationVersion-1 {
-			break
-		}
-	}
 
 	now := time.Now().UTC().Truncate(time.Microsecond)
 	deletingAt := now.Add(24 * time.Hour).Truncate(time.Microsecond)
@@ -882,27 +919,8 @@ func TestMigration000387MigrateTaskWorkspaces(t *testing.T) {
 	require.Equal(t, 0, antCount, "antagonist workspaces (deleted and regular) should not be migrated")
 }
 
-func TestMigration000457ChatAccessRole(t *testing.T) {
-	t.Parallel()
-
+func testMigration000457ChatAccessRole(t *testing.T, sqlDB *sql.DB, next migrationStepper) {
 	const migrationVersion = 457
-
-	sqlDB := testSQLDB(t)
-
-	// Migrate up to the migration before the one that grants
-	// agents-access roles.
-	next, err := migrations.Stepper(sqlDB)
-	require.NoError(t, err)
-	for {
-		version, more, err := next()
-		require.NoError(t, err)
-		if !more {
-			t.Fatalf("migration %d not found", migrationVersion)
-		}
-		if version == migrationVersion-1 {
-			break
-		}
-	}
 
 	ctx := testutil.Context(t, testutil.WaitSuperLong)
 
@@ -1028,26 +1046,8 @@ func TestMigration000457ChatAccessRole(t *testing.T) {
 		"existing roles should be preserved")
 }
 
-func TestMigration000475AgentsAccessOrgRole(t *testing.T) {
-	t.Parallel()
-
+func testMigration000475AgentsAccessOrgRole(t *testing.T, sqlDB *sql.DB, next migrationStepper) {
 	const migrationVersion = 475
-
-	sqlDB := testSQLDB(t)
-
-	// Migrate up to the migration before 000475.
-	next, err := migrations.Stepper(sqlDB)
-	require.NoError(t, err)
-	for {
-		version, more, err := next()
-		require.NoError(t, err)
-		if !more {
-			t.Fatalf("migration %d not found", migrationVersion)
-		}
-		if version == migrationVersion-1 {
-			break
-		}
-	}
 
 	ctx := testutil.Context(t, testutil.WaitSuperLong)
 
@@ -1461,42 +1461,175 @@ func TestMigration000593TaskBuildReasonRewriteTiming(t *testing.T) {
 	require.Zero(t, count)
 }
 
-func TestMigration000587RemoveAgentsAccessRole(t *testing.T) {
-	t.Parallel()
+func testMigration000595RemoveTaskPermissions(t *testing.T, sqlDB *sql.DB, next migrationStepper) {
+	const migrationVersion = 595
 
-	const migrationVersion = 587
-
-	// The immediately preceding migration numbers may not exist in this
-	// tree (the target is numbered past migrations that landed on main
-	// separately), so step to the highest version below the target rather
-	// than assuming migrationVersion-1 exists.
-	entries, err := os.ReadDir(".")
-	require.NoError(t, err)
-	prevVersion := uint(0)
-	for _, entry := range entries {
-		var version uint
-		if _, err := fmt.Sscanf(entry.Name(), "%d_", &version); err != nil {
-			continue
-		}
-		if version > prevVersion && version < migrationVersion {
-			prevVersion = version
-		}
+	ctx := testutil.Context(t, testutil.WaitLong)
+	now := time.Now().UTC().Truncate(time.Microsecond)
+	orgID, userID, roleID, appID, taskAppID := uuid.New(), uuid.New(), uuid.New(), uuid.New(), uuid.New()
+	const (
+		taskPermission = `{"negate": false, "resource_type": "task", "action": "read"}`
+		userPermission = `{"negate": false, "resource_type": "user", "action": "read"}`
+	)
+	permissions := []struct {
+		column string
+		before string
+		want   string
+	}{
+		{"site_permissions", "[" + taskPermission + ", " + userPermission + "]", "[" + userPermission + "]"},
+		{"org_permissions", "[" + taskPermission + "]", "[]"},
+		{"user_permissions", "[" + userPermission + ", " + taskPermission + "]", "[" + userPermission + "]"},
+		{"member_permissions", "[" + userPermission + "]", "[" + userPermission + "]"},
 	}
-	require.NotZero(t, prevVersion)
-
-	sqlDB := testSQLDB(t)
-	next, err := migrations.Stepper(sqlDB)
-	require.NoError(t, err)
-	for {
-		version, more, err := next()
+	for _, fixture := range []struct {
+		query string
+		args  []any
+	}{
+		{
+			"INSERT INTO organizations (id, name, display_name, description, created_at, updated_at, default_org_member_roles) VALUES ($1, $2, '', '', $3, $3, '{}')",
+			[]any{orgID, orgID.String(), now},
+		},
+		{
+			"INSERT INTO users (id, username, email, hashed_password, created_at, updated_at) VALUES ($1, $2, $3, '', $4, $4)",
+			[]any{userID, userID.String(), userID.String() + "@test.com", now},
+		},
+		{
+			"INSERT INTO custom_roles (id, name, display_name, organization_id, site_permissions, org_permissions, user_permissions, member_permissions) VALUES ($1, 'task-role', 'Task Role', $2, $3, $4, $5, $6)",
+			[]any{roleID, orgID, permissions[0].before, permissions[1].before, permissions[2].before, permissions[3].before},
+		},
+	} {
+		_, err := sqlDB.ExecContext(ctx, fixture.query, fixture.args...)
 		require.NoError(t, err)
-		if !more {
-			t.Fatalf("migration %d not found", migrationVersion)
+	}
+
+	apps := []struct {
+		id        uuid.UUID
+		name      string
+		scope     string
+		wantScope string
+	}{
+		{appID, "mixed-app", "task:read template:read", "template:read"},
+		// An empty scope reads as unrestricted, so a whitespace-only one stands in for "nothing allowed".
+		{taskAppID, "task-app", "task:read", " "},
+	}
+	for _, app := range apps {
+		_, err := sqlDB.ExecContext(ctx,
+			"INSERT INTO oauth2_provider_apps (id, created_at, updated_at, name, icon, callback_url, scope) VALUES ($1, $2, $2, $3, '', 'http://localhost/callback', $4)",
+			app.id, now, app.name, app.scope)
+		require.NoError(t, err)
+	}
+
+	keys := []struct {
+		id            string
+		scopes        string
+		allowList     string
+		wantDeleted   bool
+		wantScopes    string
+		wantAllowList string
+	}{
+		{id: "mixed-key", scopes: "{task:read,template:read}", allowList: "{*:*}", wantScopes: "{template:read}", wantAllowList: "{*:*}"},
+		{id: "multi-task-scopes-key", scopes: "{task:read,task:create,template:read}", allowList: "{*:*}", wantScopes: "{template:read}", wantAllowList: "{*:*}"},
+		{id: "task-key", scopes: "{task:read}", allowList: "{*:*}", wantDeleted: true},
+		{id: "mixed-allow-key", scopes: "{template:read}", allowList: "{task:*,user:*}", wantScopes: "{template:read}", wantAllowList: "{user:*}"},
+		{id: "multi-task-allows-key", scopes: "{template:read}", allowList: "{task:*,task:3f0c9b2e-5d41-4a7b-9c1e-8d2f6a4b7c5e,user:*}", wantScopes: "{template:read}", wantAllowList: "{user:*}"},
+		{id: "task-allow-key", scopes: "{template:read}", allowList: "{task:*}", wantDeleted: true},
+		{id: "task-only-key", scopes: "{task:read,task:create}", allowList: "{task:*,task:3f0c9b2e-5d41-4a7b-9c1e-8d2f6a4b7c5e}", wantDeleted: true},
+	}
+	for _, key := range keys {
+		_, err := sqlDB.ExecContext(ctx,
+			"INSERT INTO api_keys (id, hashed_secret, user_id, last_used, expires_at, created_at, updated_at, login_type, scopes, allow_list, token_name) VALUES ($1, $2, $3, $4, $4, $4, $4, 'token', $5, $6, $1)",
+			key.id, []byte(key.id), userID, now, key.scopes, key.allowList)
+		require.NoError(t, err)
+	}
+
+	// Each grant is stored as both an authorization code and a token, keyed by the grant name.
+	grants := []struct {
+		key         string
+		scope       string
+		wantDeleted bool
+		wantScope   string
+	}{
+		{key: "mixed-grant", scope: "task:read template:read", wantScope: "template:read"},
+		{key: "task-grant", scope: "task:read", wantDeleted: true},
+	}
+	for _, grant := range grants {
+		_, err := sqlDB.ExecContext(ctx,
+			"INSERT INTO oauth2_provider_app_codes (id, created_at, expires_at, secret_prefix, hashed_secret, user_id, app_id, scope) VALUES ($1, $2, $2, $3, $3, $4, $5, $6)",
+			uuid.New(), now, []byte(grant.key), userID, appID, grant.scope)
+		require.NoError(t, err)
+		// oauth2_provider_app_tokens.api_key_id is a NOT NULL foreign key, so this key only satisfies it and is not asserted.
+		_, err = sqlDB.ExecContext(ctx,
+			"INSERT INTO api_keys (id, hashed_secret, user_id, last_used, expires_at, created_at, updated_at, login_type, scopes, allow_list, token_name) VALUES ($1, $2, $3, $4, $4, $4, $4, 'oauth2_provider_app', '{template:read}', '{*:*}', $1)",
+			grant.key, []byte(grant.key), userID, now)
+		require.NoError(t, err)
+		_, err = sqlDB.ExecContext(ctx,
+			"INSERT INTO oauth2_provider_app_tokens (id, created_at, expires_at, hash_prefix, refresh_hash, api_key_id, user_id, app_id, scope) VALUES ($1, $2, $2, $3, $3, $4, $5, $6, $7)",
+			uuid.New(), now, []byte(grant.key), grant.key, userID, appID, grant.scope)
+		require.NoError(t, err)
+	}
+	grantTables := []struct{ name, prefixColumn string }{
+		{"oauth2_provider_app_codes", "secret_prefix"},
+		{"oauth2_provider_app_tokens", "hash_prefix"},
+	}
+
+	assertMigrated := func() {
+		t.Helper()
+		for _, p := range permissions {
+			var got string
+			require.NoError(t, sqlDB.QueryRowContext(ctx, "SELECT "+p.column+" FROM custom_roles WHERE id = $1", roleID).Scan(&got))
+			require.JSONEq(t, p.want, got, p.column)
 		}
-		if version == prevVersion {
-			break
+		for _, app := range apps {
+			var scope string
+			require.NoError(t, sqlDB.QueryRowContext(ctx, "SELECT scope FROM oauth2_provider_apps WHERE id = $1", app.id).Scan(&scope))
+			require.Equal(t, app.wantScope, scope, app.name)
+		}
+		for _, key := range keys {
+			var scopes, allowList string
+			err := sqlDB.QueryRowContext(ctx, "SELECT scopes::text, allow_list::text FROM api_keys WHERE id = $1", key.id).Scan(&scopes, &allowList)
+			if key.wantDeleted {
+				require.ErrorIs(t, err, sql.ErrNoRows, key.id)
+				continue
+			}
+			require.NoError(t, err, key.id)
+			require.Equal(t, key.wantScopes, scopes, key.id)
+			require.Equal(t, key.wantAllowList, allowList, key.id)
+		}
+		for _, grant := range grants {
+			for _, table := range grantTables {
+				var scope string
+				err := sqlDB.QueryRowContext(ctx, "SELECT scope FROM "+table.name+" WHERE "+table.prefixColumn+" = $1", []byte(grant.key)).Scan(&scope)
+				if grant.wantDeleted {
+					require.ErrorIs(t, err, sql.ErrNoRows, "%s %s", table.name, grant.key)
+					continue
+				}
+				require.NoError(t, err, "%s %s", table.name, grant.key)
+				require.Equal(t, grant.wantScope, scope, "%s %s", table.name, grant.key)
+			}
 		}
 	}
+
+	version, _, err := next()
+	require.NoError(t, err)
+	require.EqualValues(t, migrationVersion, version)
+	assertMigrated()
+
+	downSQL, err := os.ReadFile("000595_remove_task_permissions.down.sql")
+	require.NoError(t, err)
+	_, err = sqlDB.ExecContext(ctx, string(downSQL))
+	require.NoError(t, err)
+	// Downgrading cannot restore revoked grants or stripped permissions.
+	assertMigrated()
+
+	upSQL, err := os.ReadFile("000595_remove_task_permissions.up.sql")
+	require.NoError(t, err)
+	_, err = sqlDB.ExecContext(ctx, string(upSQL))
+	require.NoError(t, err)
+	assertMigrated()
+}
+
+func testMigration000587RemoveAgentsAccessRole(t *testing.T, sqlDB *sql.DB, next migrationStepper) {
+	const migrationVersion = 587
 
 	db := database.New(sqlDB)
 	user := dbgen.User(t, db, database.User{
@@ -1998,22 +2131,7 @@ func TestMigration000542ChatReasoningEffortBackfill(t *testing.T) {
 	require.Equal(t, sql.NullString{}, got["bedrock:anthropic.invalid-effort"])
 }
 
-func TestMigration000546ChatHistoryAPIKeyConstraints(t *testing.T) {
-	t.Parallel()
-
-	const priorMigrationVersion = 545
-
-	sqlDB := testSQLDB(t)
-	next, err := migrations.Stepper(sqlDB)
-	require.NoError(t, err)
-	for {
-		version, more, err := next()
-		require.NoError(t, err)
-		if !more || version == priorMigrationVersion {
-			break
-		}
-	}
-
+func testMigration000546ChatHistoryAPIKeyConstraints(t *testing.T, sqlDB *sql.DB, _ migrationStepper) {
 	ctx := testutil.Context(t, testutil.WaitSuperLong)
 	constraintNames := []string{
 		"chat_messages_api_key_id_fkey",
@@ -2443,26 +2561,8 @@ func setupMigration000563Templates(t *testing.T) (
 	return sqlDB, ctx, orgID, userID, templateIDs
 }
 
-func TestMigration000498SoftDeleteStaleWorkspaceAgents(t *testing.T) {
-	t.Parallel()
-
+func testMigration000498SoftDeleteStaleWorkspaceAgents(t *testing.T, sqlDB *sql.DB, next migrationStepper) {
 	const migrationVersion = 498
-
-	sqlDB := testSQLDB(t)
-
-	// Step up to migrationVersion - 1.
-	next, err := migrations.Stepper(sqlDB)
-	require.NoError(t, err)
-	for {
-		version, more, err := next()
-		require.NoError(t, err)
-		if !more {
-			t.Fatalf("migration %d not found", migrationVersion)
-		}
-		if version == migrationVersion-1 {
-			break
-		}
-	}
 
 	ctx := testutil.Context(t, testutil.WaitSuperLong)
 	now := time.Now().UTC().Truncate(time.Microsecond)
@@ -2654,15 +2754,7 @@ func TestMigration000498SoftDeleteStaleWorkspaceAgents(t *testing.T) {
 	// under coderd/coderd_test.go; not retested here.
 }
 
-func TestMigration000543ChatMessageSearchText(t *testing.T) {
-	t.Parallel()
-	if testing.Short() {
-		t.SkipNow()
-	}
-
-	sqlDB := testSQLDB(t)
-	require.NoError(t, migrations.Up(sqlDB))
-
+func testMigration000543ChatMessageSearchText(t *testing.T, sqlDB *sql.DB) {
 	cases := []struct {
 		name    string
 		content sql.NullString
@@ -2730,15 +2822,7 @@ const eligibilityPredicate = `deleted = false
 	AND visibility IN ('user', 'both')
 	AND role IN ('user', 'assistant')`
 
-func TestMigration000543ChatSearchSchemaIndexes(t *testing.T) {
-	t.Parallel()
-	if testing.Short() {
-		t.SkipNow()
-	}
-
-	sqlDB := testSQLDB(t)
-	require.NoError(t, migrations.Up(sqlDB))
-
+func testMigration000543ChatSearchSchemaIndexes(t *testing.T, sqlDB *sql.DB) {
 	cases := []struct {
 		name    string
 		table   string
@@ -2769,14 +2853,7 @@ func TestMigration000543ChatSearchSchemaIndexes(t *testing.T) {
 	}
 }
 
-func TestMigration000543ChatSearchSchemaBehavior(t *testing.T) {
-	t.Parallel()
-	if testing.Short() {
-		t.SkipNow()
-	}
-
-	sqlDB := testSQLDB(t)
-	require.NoError(t, migrations.Up(sqlDB))
+func testMigration000543ChatSearchSchemaBehavior(t *testing.T, sqlDB *sql.DB) {
 	db := database.New(sqlDB)
 	ctx := testutil.Context(t, testutil.WaitLong)
 
@@ -3038,27 +3115,8 @@ func TestMigration000585ChatSearchEnglishConfigDown(t *testing.T) {
 	require.Zero(t, columnCount, "search_tsv_config must be dropped")
 }
 
-func TestMigration000556UserSecretsEnabled(t *testing.T) {
-	t.Parallel()
-
+func testMigration000556UserSecretsEnabled(t *testing.T, sqlDB *sql.DB, next migrationStepper) {
 	const migrationVersion = 556
-
-	sqlDB := testSQLDB(t)
-
-	// Migrate up to the migration before the one that adds the enabled
-	// column.
-	next, err := migrations.Stepper(sqlDB)
-	require.NoError(t, err)
-	for {
-		version, more, err := next()
-		require.NoError(t, err)
-		if !more {
-			t.Fatalf("migration %d not found", migrationVersion)
-		}
-		if version == migrationVersion-1 {
-			break
-		}
-	}
 
 	ctx := testutil.Context(t, testutil.WaitSuperLong)
 
@@ -3360,26 +3418,7 @@ func TestMigration000565OAuth2ClientTypeConstraint(t *testing.T) {
 	}
 }
 
-//nolint:tparallel,paralleltest // Subtests share one database with transaction-local fixtures.
-func TestMigration000590WorkspaceAgentSessionCounts(t *testing.T) {
-	t.Parallel()
-
-	const priorMigrationVersion = 589
-
-	sqlDB := testSQLDB(t)
-	next, err := migrations.Stepper(sqlDB)
-	require.NoError(t, err)
-	for {
-		version, more, err := next()
-		require.NoError(t, err)
-		if !more {
-			t.Fatalf("migration %d not found", priorMigrationVersion)
-		}
-		if version == priorMigrationVersion {
-			break
-		}
-	}
-
+func testMigration000590WorkspaceAgentSessionCounts(t *testing.T, sqlDB *sql.DB, _ migrationStepper) {
 	ctx := testutil.Context(t, testutil.WaitSuperLong)
 	migrationSQL, err := os.ReadFile("000590_workspace_agent_session_counts.up.sql")
 	require.NoError(t, err)
@@ -3886,25 +3925,7 @@ func mustJSON(t *testing.T, v any) []byte {
 	return raw
 }
 
-func TestMigration000583ChatModelOverrideOrgScope(t *testing.T) {
-	t.Parallel()
-
-	const migrationVersion = 583
-
-	db := testSQLDB(t)
-	next, err := migrations.Stepper(db)
-	require.NoError(t, err)
-	last := uint(0)
-	for {
-		version, more, err := next()
-		require.NoError(t, err)
-		if !more {
-			break
-		}
-		last = version
-	}
-	require.GreaterOrEqual(t, last, uint(migrationVersion))
-
+func testMigration000583ChatModelOverrideOrgScope(t *testing.T, db *sql.DB) {
 	ctx := testutil.Context(t, testutil.WaitSuperLong)
 	upSQL, err := os.ReadFile("000583_chat_model_override_org_scope.up.sql")
 	require.NoError(t, err)

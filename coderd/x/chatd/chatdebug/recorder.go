@@ -198,7 +198,7 @@ type stepHandle struct {
 }
 
 // beginStep validates preconditions, creates a debug step, and returns a
-// handle plus an enriched context carrying StepContext and attemptSink.
+// handle plus an enriched context carrying the attempt sink.
 // Returns (nil, original ctx) when debug recording should be skipped.
 func beginStep(
 	ctx context.Context,
@@ -232,8 +232,7 @@ func beginStep(
 		// A different RunContext means a new logical run, so we must
 		// create a fresh step to avoid cross-run attribution.
 		if holder.handle != nil && holder.handle.stepCtx.RunID == rc.RunID {
-			enriched := ContextWithStep(ctx, holder.handle.stepCtx)
-			enriched = withAttemptSink(enriched, holder.handle.sink)
+			enriched := withAttemptSink(ctx, holder.handle.sink)
 			return holder.handle, enriched
 		}
 	}
@@ -259,21 +258,14 @@ func beginStep(
 	}
 
 	syncStepCounter(rc.RunID, step.StepNumber)
-	actualStepNumber := step.StepNumber
-	if actualStepNumber == 0 {
-		actualStepNumber = stepNum
-	}
 
 	sc := &StepContext{
-		StepID:     step.ID,
-		RunID:      rc.RunID,
-		ChatID:     chatID,
-		StepNumber: actualStepNumber,
-		Operation:  op,
+		StepID: step.ID,
+		RunID:  rc.RunID,
+		ChatID: chatID,
 	}
 	handle := &stepHandle{stepCtx: sc, sink: &attemptSink{}, svc: svc}
-	enriched := ContextWithStep(ctx, handle.stepCtx)
-	enriched = withAttemptSink(enriched, handle.sink)
+	enriched := withAttemptSink(ctx, handle.sink)
 	if reuseStep {
 		holder.handle = handle
 	}

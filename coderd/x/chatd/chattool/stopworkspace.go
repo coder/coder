@@ -77,9 +77,7 @@ func StopWorkspace(db database.Store, chatID uuid.UUID, options StopWorkspaceOpt
 
 			ws, err := db.GetWorkspaceByID(ctx, chat.WorkspaceID.UUID)
 			if err != nil {
-				return fantasy.NewTextErrorResponse(
-					xerrors.Errorf("load workspace: %w", err).Error(),
-				), nil
+				return workspaceLoadErrorResponse(err), nil
 			}
 			if ws.Deleted {
 				return fantasy.NewTextErrorResponse(
@@ -105,9 +103,7 @@ func StopWorkspace(db database.Store, chatID uuid.UUID, options StopWorkspaceOpt
 				// have completed while this tool was blocked.
 				ws, err = db.GetWorkspaceByID(ctx, ws.ID)
 				if err != nil {
-					return fantasy.NewTextErrorResponse(
-						xerrors.Errorf("load workspace: %w", err).Error(),
-					), nil
+					return workspaceLoadErrorResponse(err), nil
 				}
 				if ws.Deleted {
 					return fantasy.NewTextErrorResponse(

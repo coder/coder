@@ -29,16 +29,13 @@ import {
 	ComboboxTrigger,
 } from "#/components/Combobox/Combobox";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
-import {
-	HelpPopover,
-	HelpPopoverContent,
-	HelpPopoverIconTrigger,
-} from "#/components/HelpPopover/HelpPopover";
+import { InfoTooltip } from "#/components/InfoTooltip/InfoTooltip";
 import { Input } from "#/components/Input/Input";
 import { Label } from "#/components/Label/Label";
 import { Link } from "#/components/Link/Link";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { Switch } from "#/components/Switch/Switch";
+import { TooltipMessage } from "#/components/Tooltip/Tooltip";
 import { useDebouncedFunction } from "#/hooks/debounce";
 import type { ExternalAuthPollingState } from "#/hooks/useExternalAuth";
 import { useSyncFormParameters } from "#/modules/hooks/useSyncFormParameters";
@@ -440,22 +437,22 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 					<span className="flex flex-row items-center gap-2">
 						<h1 className="text-3xl font-semibold m-0">New workspace</h1>
 
-						<HelpPopover>
-							<HelpPopoverIconTrigger />
-							<HelpPopoverContent className="max-w-xs text-sm">
+						<InfoTooltip>
+							<TooltipMessage>
 								Dynamic Parameters enhances Coder's existing parameter system
 								with real-time validation, conditional parameter behavior, and
 								richer input types.
 								<br />
 								<Link
+									size="sm"
 									href={docs(
 										"/admin/templates/extending-templates/dynamic-parameters",
 									)}
 								>
 									View docs
 								</Link>
-							</HelpPopoverContent>
-						</HelpPopover>
+							</TooltipMessage>
+						</InfoTooltip>
 					</span>
 				</header>
 

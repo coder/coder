@@ -15,6 +15,7 @@
 	"linter": {
 		"rules": {
 			"a11y": {
+				"useMediaCaption": "off", // oxlint owns media-has-caption
 				"noSvgWithoutTitle": "off",
 				"useButtonType": "off",
 				"useSemanticElements": "off",

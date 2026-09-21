@@ -354,12 +354,6 @@ func User(user database.User, organizationIDs []uuid.UUID) codersdk.User {
 	return convertedUser
 }
 
-func Users(users []database.User, organizationIDs map[uuid.UUID][]uuid.UUID) []codersdk.User {
-	return slice.List(users, func(user database.User) codersdk.User {
-		return User(user, organizationIDs[user.ID])
-	})
-}
-
 func Group(row database.GetGroupsRow, members []database.GroupMember, totalMemberCount int) codersdk.Group {
 	return codersdk.Group{
 		ID:                      row.Group.ID,
@@ -489,6 +483,8 @@ func OAuth2ProviderApp(accessURL *url.URL, dbApp database.OAuth2ProviderApp) cod
 		Name:        dbApp.Name,
 		CallbackURL: dbApp.CallbackURL,
 		Icon:        dbApp.Icon,
+		Scope:       rbac.CanonicalScopeList(dbApp.Scope.String),
+		ClientType:  codersdk.OAuth2ClientType(dbApp.ClientType),
 		Endpoints: codersdk.OAuth2AppEndpoints{
 			Authorization: accessURL.ResolveReference(&url.URL{
 				Path: "/oauth2/authorize",
@@ -1386,13 +1382,13 @@ func buildAIBridgeThread(
 		}
 	}
 
-	// Build agentic actions grouped by interception. Each interception that
-	// has tool calls produces one action with all its tool calls, thinking
-	// blocks, and token usage.
+	// Build one action per interception. Child interceptions always produce
+	// an action, including when they have no tool calls. The root action is
+	// emitted only when the actual thread-root interception has tool calls.
 	var actions []codersdk.AIBridgeAgenticAction
 	for _, intc := range interceptions {
 		tools := toolsByInterception[intc.ID]
-		if len(tools) == 0 {
+		if intc.ID == threadID && len(tools) == 0 {
 			continue
 		}
 
@@ -1425,10 +1421,12 @@ func buildAIBridgeThread(
 		}
 
 		actions = append(actions, codersdk.AIBridgeAgenticAction{
-			Model:      intc.Model,
-			TokenUsage: actionTokenUsage,
-			Thinking:   thinking,
-			ToolCalls:  toolCalls,
+			InterceptionID: intc.ID,
+			Model:          intc.Model,
+			Attribution:    aiBridgeInterceptionAttribution(intc),
+			TokenUsage:     actionTokenUsage,
+			Thinking:       thinking,
+			ToolCalls:      toolCalls,
 		})
 	}
 
@@ -1438,6 +1436,10 @@ func buildAIBridgeThread(
 	}
 
 	thread.AgenticActions = actions
+
+	if rootIntc != nil && rootIntc.ID == threadID {
+		thread.Attribution = aiBridgeInterceptionAttribution(*rootIntc)
+	}
 
 	// Aggregate thread-level token usage.
 	var threadTokens []database.AIBridgeTokenUsage
@@ -1551,6 +1553,20 @@ func OrganizationGroupAISpend(row database.GetOrganizationGroupsAISpendRow) code
 	return group
 }
 
+func OrganizationAISpendUser(row database.ListOrganizationAISpendUsersRow) codersdk.OrganizationAISpendUser {
+	return codersdk.OrganizationAISpendUser{
+		UserID:             row.UserID,
+		Username:           row.Username,
+		Name:               row.Name,
+		AvatarURL:          row.AvatarURL,
+		CostMicros:         row.CostMicros,
+		UnpricedUsageCount: row.UnpricedUsageCount,
+		Providers:          row.Providers,
+		Clients:            row.Clients,
+		Models:             row.Models,
+	}
+}
+
 func GroupMemberAISpend(row database.GetGroupMembersAISpendRow, queriedGroupID uuid.UUID) codersdk.GroupMemberAISpend {
 	member := codersdk.GroupMemberAISpend{
 		UserID:           row.UserID,
@@ -1582,6 +1598,17 @@ func InvalidatedPresets(invalidatedPresets []database.UpdatePresetsLastInvalidat
 		})
 	}
 	return presets
+}
+
+// aiBridgeInterceptionAttribution builds attribution from the dedicated
+// interception columns. It returns nil when no workspace context is recorded.
+func aiBridgeInterceptionAttribution(intc database.AIBridgeInterception) codersdk.AIBridgeAttribution {
+	if !intc.WorkspaceID.Valid {
+		return nil
+	}
+	return codersdk.AIBridgeAttribution{
+		"workspace_id": intc.WorkspaceID.UUID.String(),
+	}
 }
 
 // sanitizeCredentialHint ensures the hint looks masked before exposing

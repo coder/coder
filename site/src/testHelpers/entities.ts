@@ -248,6 +248,7 @@ export const MockBuildInfo: TypesGen.BuildInfoResponse = {
 	deployment_id: "510d407f-e521-4180-b559-eab4a6d802b8",
 	webpush_public_key: "fake-public-key",
 	telemetry: true,
+	oauth2_provider: true,
 };
 
 export const MockSupportLinks: TypesGen.LinkConfig[] = [
@@ -662,7 +663,7 @@ export const MockImportedUserSecrets: TypesGen.UserSecret[] = [
 	},
 ];
 
-export const MockAIGatewayEnabled: boolean = true;
+export const MockAIGatewayEnabled = true;
 
 export const MockOrganizationMember: TypesGen.OrganizationMemberWithUserData = {
 	organization_id: MockOrganization.id,
@@ -976,6 +977,7 @@ export const MockTemplate: TypesGen.Template = {
 	use_classic_parameter_flow: false,
 	cors_behavior: "simple",
 	disable_module_cache: false,
+	module_cache_disabled_by_deployment: false,
 	allow_workspace_renames: false,
 };
 
@@ -1428,10 +1430,11 @@ export const MockWorkspaceResourceMultipleAgents: TypesGen.WorkspaceResource = {
 	],
 };
 
-const _MockWorkspaceResourceHidden: TypesGen.WorkspaceResource = {
+export const MockWorkspaceResourceHidden: TypesGen.WorkspaceResource = {
 	...MockWorkspaceResource,
 	id: "test-workspace-resource-hidden",
 	name: "workspace-resource-hidden",
+	agents: [],
 	hide: true,
 };
 
@@ -4973,6 +4976,8 @@ export const MockOAuth2ProviderApps: TypesGen.OAuth2ProviderApp[] = [
 		name: "foo",
 		callback_url: "http://127.0.0.1:3001",
 		icon: "/icon/github.svg",
+		scope: "",
+		client_type: "confidential",
 		endpoints: {
 			authorization: "http://127.0.0.1:3001/oauth2/authorize",
 			token: "http://127.0.0.1:3001/oauth2/token",
@@ -4982,8 +4987,37 @@ export const MockOAuth2ProviderApps: TypesGen.OAuth2ProviderApp[] = [
 	},
 ];
 
+export const MockOAuth2ProviderAppPublic: TypesGen.OAuth2ProviderApp = {
+	id: "2",
+	name: "bar (public)",
+	callback_url: "http://127.0.0.1:3002",
+	icon: "/icon/github.svg",
+	scope: "",
+	client_type: "public",
+	endpoints: {
+		authorization: "http://127.0.0.1:3002/oauth2/authorize",
+		token: "http://127.0.0.1:3002/oauth2/token",
+		device_authorization: "",
+		token_revoke: "http://127.0.0.1:3002/oauth2/revoke",
+	},
+};
+
 export const MockOAuth2ProviderSettings: TypesGen.OAuth2ProviderSettings = {
 	dynamic_client_registration_enabled: false,
+};
+
+// Sorted, matching the endpoint's order.
+export const MockExternalAPIKeyScopes: TypesGen.ExternalAPIKeyScopes = {
+	external: [
+		"api_key:read",
+		"coder:all",
+		"coder:application_connect",
+		"coder:workspaces.access",
+		"coder:workspaces.create",
+		"template:read",
+		"workspace:read",
+		"workspace:ssh",
+	],
 };
 
 export const MockOAuth2ProviderAppSecrets: TypesGen.OAuth2ProviderAppSecret[] =
@@ -5405,9 +5439,16 @@ export const MockAIBridgeThread: TypesGen.AIBridgeThread = {
 		cache_write_input_tokens: 140,
 		metadata: {},
 	},
+	attribution: {
+		workspace_id: "workspace-1",
+	},
 	agentic_actions: [
 		{
+			interception_id: "interception-1",
 			model: "claude-opus-4-6",
+			attribution: {
+				workspace_id: "workspace-1",
+			},
 			token_usage: {
 				input_tokens: 620,
 				output_tokens: 160,

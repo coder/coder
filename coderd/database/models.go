@@ -474,11 +474,6 @@ const (
 	ApiKeyScopeWorkspaceAgentResourceMonitor       APIKeyScope = "workspace_agent_resource_monitor:*"
 	ApiKeyScopeWorkspaceDormant                    APIKeyScope = "workspace_dormant:*"
 	ApiKeyScopeWorkspaceProxy                      APIKeyScope = "workspace_proxy:*"
-	ApiKeyScopeTaskCreate                          APIKeyScope = "task:create"
-	ApiKeyScopeTaskRead                            APIKeyScope = "task:read"
-	ApiKeyScopeTaskUpdate                          APIKeyScope = "task:update"
-	ApiKeyScopeTaskDelete                          APIKeyScope = "task:delete"
-	ApiKeyScopeTask                                APIKeyScope = "task:*"
 	ApiKeyScopeWorkspaceShare                      APIKeyScope = "workspace:share"
 	ApiKeyScopeWorkspaceDormantShare               APIKeyScope = "workspace_dormant:share"
 	ApiKeyScopeBoundaryUsage                       APIKeyScope = "boundary_usage:*"
@@ -761,11 +756,6 @@ func (e APIKeyScope) Valid() bool {
 		ApiKeyScopeWorkspaceAgentResourceMonitor,
 		ApiKeyScopeWorkspaceDormant,
 		ApiKeyScopeWorkspaceProxy,
-		ApiKeyScopeTaskCreate,
-		ApiKeyScopeTaskRead,
-		ApiKeyScopeTaskUpdate,
-		ApiKeyScopeTaskDelete,
-		ApiKeyScopeTask,
 		ApiKeyScopeWorkspaceShare,
 		ApiKeyScopeWorkspaceDormantShare,
 		ApiKeyScopeBoundaryUsage,
@@ -1016,11 +1006,6 @@ func AllAPIKeyScopeValues() []APIKeyScope {
 		ApiKeyScopeWorkspaceAgentResourceMonitor,
 		ApiKeyScopeWorkspaceDormant,
 		ApiKeyScopeWorkspaceProxy,
-		ApiKeyScopeTaskCreate,
-		ApiKeyScopeTaskRead,
-		ApiKeyScopeTaskUpdate,
-		ApiKeyScopeTaskDelete,
-		ApiKeyScopeTask,
 		ApiKeyScopeWorkspaceShare,
 		ApiKeyScopeWorkspaceDormantShare,
 		ApiKeyScopeBoundaryUsage,
@@ -3988,76 +3973,6 @@ func AllTailnetStatusValues() []TailnetStatus {
 	}
 }
 
-type TaskStatus string
-
-const (
-	TaskStatusPending      TaskStatus = "pending"
-	TaskStatusInitializing TaskStatus = "initializing"
-	TaskStatusActive       TaskStatus = "active"
-	TaskStatusPaused       TaskStatus = "paused"
-	TaskStatusUnknown      TaskStatus = "unknown"
-	TaskStatusError        TaskStatus = "error"
-)
-
-func (e *TaskStatus) Scan(src interface{}) error {
-	switch s := src.(type) {
-	case []byte:
-		*e = TaskStatus(s)
-	case string:
-		*e = TaskStatus(s)
-	default:
-		return fmt.Errorf("unsupported scan type for TaskStatus: %T", src)
-	}
-	return nil
-}
-
-type NullTaskStatus struct {
-	TaskStatus TaskStatus `json:"task_status"`
-	Valid      bool       `json:"valid"` // Valid is true if TaskStatus is not NULL
-}
-
-// Scan implements the Scanner interface.
-func (ns *NullTaskStatus) Scan(value interface{}) error {
-	if value == nil {
-		ns.TaskStatus, ns.Valid = "", false
-		return nil
-	}
-	ns.Valid = true
-	return ns.TaskStatus.Scan(value)
-}
-
-// Value implements the driver Valuer interface.
-func (ns NullTaskStatus) Value() (driver.Value, error) {
-	if !ns.Valid {
-		return nil, nil
-	}
-	return string(ns.TaskStatus), nil
-}
-
-func (e TaskStatus) Valid() bool {
-	switch e {
-	case TaskStatusPending,
-		TaskStatusInitializing,
-		TaskStatusActive,
-		TaskStatusPaused,
-		TaskStatusUnknown,
-		TaskStatusError:
-		return true
-	}
-	return false
-}
-
-func AllTaskStatusValues() []TaskStatus {
-	return []TaskStatus{
-		TaskStatusPending,
-		TaskStatusInitializing,
-		TaskStatusActive,
-		TaskStatusPaused,
-		TaskStatusUnknown,
-		TaskStatusError,
-	}
-}
-
 // Defines the users status: active, dormant, or suspended.
 type UserStatus string
 
@@ -4875,6 +4790,8 @@ type AIBridgeInterception struct {
 	ErrorType NullAIBridgeInterceptionErrorType `db:"error_type" json:"error_type"`
 	// Raw terminal upstream error message for a failed interception; NULL when the interception succeeded.
 	ErrorMessage sql.NullString `db:"error_message" json:"error_message"`
+	// The workspace in which the agent ran. NULL when no workspace context is available.
+	WorkspaceID uuid.NullUUID `db:"workspace_id" json:"workspace_id"`
 }
 
 // Audit log of model thinking in intercepted requests in AI Bridge
@@ -5995,64 +5912,6 @@ type TailnetTunnel struct {
 	UpdatedAt     time.Time `db:"updated_at" json:"updated_at"`
 }
 
-type Task struct {
-	ID                           uuid.UUID                        `db:"id" json:"id"`
-	OrganizationID               uuid.UUID                        `db:"organization_id" json:"organization_id"`
-	OwnerID                      uuid.UUID                        `db:"owner_id" json:"owner_id"`
-	Name                         string                           `db:"name" json:"name"`
-	WorkspaceID                  uuid.NullUUID                    `db:"workspace_id" json:"workspace_id"`
-	TemplateVersionID            uuid.UUID                        `db:"template_version_id" json:"template_version_id"`
-	TemplateParameters           json.RawMessage                  `db:"template_parameters" json:"template_parameters"`
-	Prompt                       string                           `db:"prompt" json:"prompt"`
-	CreatedAt                    time.Time                        `db:"created_at" json:"created_at"`
-	DeletedAt                    sql.NullTime                     `db:"deleted_at" json:"deleted_at"`
-	DisplayName                  string                           `db:"display_name" json:"display_name"`
-	WorkspaceGroupACL            WorkspaceACL                     `db:"workspace_group_acl" json:"workspace_group_acl"`
-	WorkspaceUserACL             WorkspaceACL                     `db:"workspace_user_acl" json:"workspace_user_acl"`
-	Status                       TaskStatus                       `db:"status" json:"status"`
-	StatusDebug                  json.RawMessage                  `db:"status_debug" json:"status_debug"`
-	WorkspaceBuildNumber         sql.NullInt32                    `db:"workspace_build_number" json:"workspace_build_number"`
-	WorkspaceAgentID             uuid.NullUUID                    `db:"workspace_agent_id" json:"workspace_agent_id"`
-	WorkspaceAppID               uuid.NullUUID                    `db:"workspace_app_id" json:"workspace_app_id"`
-	WorkspaceAgentLifecycleState NullWorkspaceAgentLifecycleState `db:"workspace_agent_lifecycle_state" json:"workspace_agent_lifecycle_state"`
-	WorkspaceAppHealth           NullWorkspaceAppHealth           `db:"workspace_app_health" json:"workspace_app_health"`
-	OwnerUsername                string                           `db:"owner_username" json:"owner_username"`
-	OwnerName                    string                           `db:"owner_name" json:"owner_name"`
-	OwnerAvatarUrl               string                           `db:"owner_avatar_url" json:"owner_avatar_url"`
-}
-
-// Stores snapshots of task state when paused, currently limited to conversation history.
-type TaskSnapshot struct {
-	// The task this snapshot belongs to.
-	TaskID uuid.UUID `db:"task_id" json:"task_id"`
-	// Task conversation history in JSON format, allowing users to view logs when the workspace is stopped.
-	LogSnapshot json.RawMessage `db:"log_snapshot" json:"log_snapshot"`
-	// When this log snapshot was captured.
-	LogSnapshotCreatedAt time.Time `db:"log_snapshot_created_at" json:"log_snapshot_created_at"`
-}
-
-type TaskTable struct {
-	ID                 uuid.UUID       `db:"id" json:"id"`
-	OrganizationID     uuid.UUID       `db:"organization_id" json:"organization_id"`
-	OwnerID            uuid.UUID       `db:"owner_id" json:"owner_id"`
-	Name               string          `db:"name" json:"name"`
-	WorkspaceID        uuid.NullUUID   `db:"workspace_id" json:"workspace_id"`
-	TemplateVersionID  uuid.UUID       `db:"template_version_id" json:"template_version_id"`
-	TemplateParameters json.RawMessage `db:"template_parameters" json:"template_parameters"`
-	Prompt             string          `db:"prompt" json:"prompt"`
-	CreatedAt          time.Time       `db:"created_at" json:"created_at"`
-	DeletedAt          sql.NullTime    `db:"deleted_at" json:"deleted_at"`
-	// Display name is a custom, human-friendly task name.
-	DisplayName string `db:"display_name" json:"display_name"`
-}
-
-type TaskWorkspaceApp struct {
-	TaskID               uuid.UUID     `db:"task_id" json:"task_id"`
-	WorkspaceAgentID     uuid.NullUUID `db:"workspace_agent_id" json:"workspace_agent_id"`
-	WorkspaceAppID       uuid.NullUUID `db:"workspace_app_id" json:"workspace_app_id"`
-	WorkspaceBuildNumber int32         `db:"workspace_build_number" json:"workspace_build_number"`
-}
-
 type TelemetryItem struct {
 	Key       string    `db:"key" json:"key"`
 	Value     string    `db:"value" json:"value"`
@@ -6176,18 +6035,19 @@ type TemplateUsageStat struct {
 	MedianLatencyMs sql.NullFloat64 `db:"median_latency_ms" json:"median_latency_ms"`
 	// Total minutes the user has been using the template.
 	UsageMins int16 `db:"usage_mins" json:"usage_mins"`
-	// Total minutes the user has been using SSH.
-	SshMins int16 `db:"ssh_mins" json:"ssh_mins"`
-	// Total minutes the user has been using SFTP.
-	SftpMins int16 `db:"sftp_mins" json:"sftp_mins"`
-	// Total minutes the user has been using the reconnecting PTY.
-	ReconnectingPtyMins int16 `db:"reconnecting_pty_mins" json:"reconnecting_pty_mins"`
-	// Total minutes the user has been using VSCode.
-	VscodeMins int16 `db:"vscode_mins" json:"vscode_mins"`
-	// Total minutes the user has been using JetBrains.
-	JetbrainsMins int16 `db:"jetbrains_mins" json:"jetbrains_mins"`
 	// Object with app names as keys and total minutes used as values. Null means no app usage was recorded.
 	AppUsageMins StringMapOfInt `db:"app_usage_mins" json:"app_usage_mins"`
+}
+
+// Session usage of each template_usage_stats bucket, split by app name. No row means the bucket recorded no session usage. Reads group app names into families through the codersdk registry.
+type TemplateUsageStatsSessionApp struct {
+	StartTime  time.Time `db:"start_time" json:"start_time"`
+	TemplateID uuid.UUID `db:"template_id" json:"template_id"`
+	UserID     uuid.UUID `db:"user_id" json:"user_id"`
+	// App name as the agent reported it, so a source label rather than a curated identity. Rows converted from the fixed session columns carry a family name here instead.
+	AppName string `db:"app_name" json:"app_name"`
+	// Total minutes the user has been using the app. A minute counts once however many sessions were open.
+	UsageMins int16 `db:"usage_mins" json:"usage_mins"`
 }
 
 // Joins in the username + avatar url of the created by user.
@@ -6518,7 +6378,6 @@ type Workspace struct {
 	TemplateDisplayName     string                  `db:"template_display_name" json:"template_display_name"`
 	TemplateIcon            string                  `db:"template_icon" json:"template_icon"`
 	TemplateDescription     string                  `db:"template_description" json:"template_description"`
-	TaskID                  uuid.NullUUID           `db:"task_id" json:"task_id"`
 	GroupACLDisplayInfo     WorkspaceACLDisplayInfo `db:"group_acl_display_info" json:"group_acl_display_info"`
 	UserACLDisplayInfo      WorkspaceACLDisplayInfo `db:"user_acl_display_info" json:"user_acl_display_info"`
 }

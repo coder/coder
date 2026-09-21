@@ -25,10 +25,13 @@ writing them.
    - For local changes: `git diff main` or `git diff --staged`
    - For a branch: `git diff main...<branch>`
 
-2. **Triage the diff.** Walk the
+2. **Triage the diff.** Check the changed paths against
+   [`path-priors.md`](./path-priors.md) for what they predict, then walk the
    [quick decision checklist](../../../docs/.style/content-guidelines.md#quick-decision-checklist)
    in the content guidelines. Most non-user-facing diffs route out of
    the docs entirely; see [What not to comment on](#what-not-to-comment-on).
+   A prior sets the starting assumption, not the verdict: verify it against
+   the diff either way.
 
 3. **Understand the scope.** Consider what changed:
    - Is this user-facing or internal?
@@ -44,7 +47,8 @@ writing them.
    - Or is everything already covered?
 
 6. **Report findings.** Use the method provided in the prompt, or if none
-   specified, summarize findings directly.
+   specified, summarize findings directly. When the prompt asks for a
+   comment on a pull request, follow [Writing the comment](#writing-the-comment).
 
 ## Evidence discipline
 
@@ -96,6 +100,114 @@ Follow this order on every review.
    `docs/reference/`. "The diff already updates its own reference page" is
    not a reason to skip the search.
 
+## Writing the comment
+
+### A finding needs a page and a sentence
+
+Name the page, and name the sentence that is now wrong or the list that is
+now missing an entry. If you cannot name both, you have a hunch, not a
+finding, and a hunch costs the author more than it saves.
+
+Two habits produce weak findings:
+
+- **Documenting the interface.** A button, a filter preset, or a dialog is
+  not a documented surface on its own. Flag it only when a page already
+  enumerates the thing it belongs to, such as a table of settings or a
+  list of filters.
+- **Filing on the nearest page instead of the right one.** An
+  admin-facing change does not belong on an agents page because that page
+  happens to mention a similar option. When no page is the right home,
+  say so in one sentence and file nothing.
+
+One surface earns one item. Do not split a single change into a required
+item plus two nearby suggestions.
+
+### Checkboxes are work, not opinions
+
+Every `[ ]` is work the author owes. Anything optional belongs in the
+sentence under an item, or nowhere. An item that says "consider" or "not
+strictly required" is not an item.
+
+### Every item carries a link
+
+An item names a page, so it can always link that page. Give the published
+URL, which is `https://coder.com/docs/` plus the path with the `docs/`
+prefix and the `.md` suffix removed. `docs/ai-coder/ai-gateway/reference.md`
+becomes `https://coder.com/docs/ai-coder/ai-gateway/reference`.
+
+Write the path in backticks so it is greppable, then link it, so a reader
+can open the page in one click:
+
+```markdown
+- [ ] `docs/ai-coder/ai-gateway/reference.md` ([open](https://coder.com/docs/ai-coder/ai-gateway/reference)) - What needs to change
+```
+
+A page this pull request creates has no published URL yet. Name the path in
+backticks alone and say the page is new.
+
+### Links resolve on GitHub, not in the docs tree
+
+A relative docs link resolves against the repository in a comment and
+404s. Write the path in backticks, or link the published page in full,
+such as `https://coder.com/docs/reference/api/enterprise`.
+
+Link an anchor only when that heading exists on the base branch today. A
+heading this pull request generates does not exist yet, so name the
+endpoint or section in words instead.
+
+### The marker is not optional
+
+The comment ends with `<!-- doc-check-sticky -->`, on its own line, every
+time. It is how the next review finds this comment instead of posting a
+second one, and how the Slack notice knows a review had findings. A
+comment without it reads as silence to everything downstream.
+
+After you post or edit, read the comment back and confirm the marker is
+there. If it is not, edit the comment to add it. This happened on
+`coder/coder#28723`: the review found a real gap, posted it without the
+marker, and the notice said "No docs needed".
+
+### One comment per pull request
+
+Search the pull request for `<!-- doc-check-sticky -->` and edit that
+comment instead of adding another. Search again immediately before you
+post: a comment you wrote earlier in this same review counts, and reviews
+of one pull request can overlap. Edit it, never post a second.
+
+When a comment already exists, compare your findings against it. Check off
+`[x]` items that are now addressed, strike through items the code reverted,
+and add `[ ]` items for new gaps. If an item is checked but you cannot
+verify the documentation landed, add a warning note below it. If nothing
+meaningful changed, leave the comment alone.
+
+### Comment format
+
+Include only the sections that apply.
+
+```markdown
+## Documentation Check
+
+### Updates Needed
+- [ ] `docs/path/file.md` ([open](https://coder.com/docs/path/file)) - What needs to change
+- [x] `docs/other/file.md` ([open](https://coder.com/docs/other/file)) - This was addressed
+- ~~`docs/removed.md` - No longer needed~~ *(reverted in abc123)*
+
+### New Documentation Needed
+- [ ] `docs/suggested/path.md` - What should be documented, on a page that does not exist yet
+  > ⚠️ *Checked but no corresponding documentation changes found in this PR*
+
+---
+*Automated review via [Coder Agents](https://coder.com/docs/ai-coder/agents)*
+<!-- doc-check-sticky -->
+```
+
+Keep to this structure. Do not add sections it does not have, such as an
+evidence block. The evidence belongs in your answer, not in the author's
+comment.
+
+The `<!-- doc-check-sticky -->` marker goes last, so the next review can
+find this comment.
+
 ## What to Check
 
 - **Accuracy**: Does documentation match current code behavior?
@@ -118,7 +230,11 @@ Follow this order on every review.
 ## What not to comment on
 
 Do not produce sticky-comment suggestions for these classes of change.
-They have no user-visible documentation surface.
+They have no user-visible documentation surface. When every changed file
+falls in one of these classes, CI skips the review before this skill
+runs, so a diff in front of you has already passed that gate or a
+maintainer forced the review with the `doc-check` label. See
+[`path-priors.md`](./path-priors.md).
 
 - **Auto-generated CLI docs** under `docs/reference/cli/`. These are
   generated from Go code under `cli/`; suggest edits to the CLI

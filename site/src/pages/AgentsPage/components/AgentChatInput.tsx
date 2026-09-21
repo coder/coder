@@ -852,9 +852,14 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 		e.preventDefault();
 		setIsDragging(false);
 		if (!onAttach || !e.dataTransfer.files.length) return;
-		const attachable = Array.from(e.dataTransfer.files).filter(
-			isChatAttachmentFile,
-		);
+		const dropped = Array.from(e.dataTransfer.files);
+		const attachable = dropped.filter(isChatAttachmentFile);
+		const rejected = dropped.filter((file) => !isChatAttachmentFile(file));
+		if (rejected.length > 0) {
+			toast.error(
+				`Unsupported file type: ${rejected.map((file) => file.name).join(", ")}`,
+			);
+		}
 		if (attachable.length === 0) return;
 		resetPromptCycle();
 		onAttach(attachable);

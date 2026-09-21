@@ -5,10 +5,12 @@ import { chatModelKey } from "#/api/queries/chats";
 import { workspaceBuildLogs } from "#/api/queries/workspaceBuilds";
 import { workspaceByIdKey } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
+import type { MCPServerConfig } from "#/api/typesGenerated";
 import { MockChatModel } from "#/testHelpers/chatModels";
 import { MockWorkspace, MockWorkspaceBuild } from "#/testHelpers/entities";
 import { ChatWorkspaceContext } from "../../../context/ChatWorkspaceContext";
 import { BlockList } from "../../ChatConversation/MessageBlocks";
+import { DESKTOP_SCREENSHOT_BASE64 } from "./__fixtures__/desktopScreenshot";
 import { DesktopPanelContext } from "./DesktopPanelContext";
 import { Tool, toolRendererNames } from "./Tool";
 
@@ -550,10 +552,11 @@ export const ProcessOutputExitZeroNoBadge: Story = {
 	},
 };
 
+/** A model_intent result replaces the command in the label. */
 export const ProcessOutputModelIntent: Story = {
 	args: {
 		name: "process_output",
-		status: "running",
+		status: "completed",
 		args: {
 			process_id: "process-123",
 			model_intent: "Waiting for the dev server to be ready",
@@ -1364,7 +1367,7 @@ const sampleMCPServers = [
 		created_at: "2025-01-01T00:00:00Z",
 		updated_at: "2025-01-01T00:00:00Z",
 	},
-] satisfies readonly import("#/api/typesGenerated").MCPServerConfig[];
+] satisfies MCPServerConfig[];
 
 export const MCPToolRunning: Story = {
 	args: {
@@ -1395,6 +1398,66 @@ export const MCPToolCompleted: Story = {
 		const toggle = canvas.getByRole("button");
 		await userEvent.click(toggle);
 	},
+};
+
+export const MCPToolImageResult: Story = {
+	args: {
+		name: "playwright__browser_take_screenshot",
+		status: "completed",
+		isMedia: true,
+		args: { type: "jpeg" },
+		result: {
+			data: DESKTOP_SCREENSHOT_BASE64,
+			mime_type: "image/jpeg",
+			text: "### Ran Playwright code\nawait page.screenshot({ type: 'jpeg' });",
+		},
+		mcpServerConfigId: "mcp-server-1",
+		mcpServers: sampleMCPServers,
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.click(within(canvasElement).getByRole("button"));
+	},
+};
+
+export const MCPToolImageResultLightboxOpen: Story = {
+	args: MCPToolImageResult.args,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(canvas.getByRole("button"));
+		await userEvent.click(
+			canvas.getByRole("button", { name: "Image from tool result" }),
+		);
+		await within(document.body).findByRole("dialog");
+	},
+};
+
+export const MCPToolAudioResult: Story = {
+	args: {
+		...MCPToolImageResult.args,
+		name: "voice__synthesize",
+		args: { text: "Build finished" },
+		result: {
+			data: "UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YQAAAAA=",
+			mime_type: "audio/wav",
+			text: "Synthesized 1.2s of audio",
+		},
+	},
+	play: MCPToolImageResult.play,
+};
+
+// A text result that merely looks like a media payload stays in the
+// JSON viewer because the server did not flag it with is_media.
+export const MCPToolMediaShapedTextResult: Story = {
+	args: {
+		...MCPToolImageResult.args,
+		isMedia: false,
+		result: {
+			data: TEST_PNG_B64,
+			mime_type: "image/png",
+			source: "structured-content",
+		},
+	},
+	play: MCPToolImageResult.play,
 };
 
 export const MCPToolError: Story = {
@@ -1879,8 +1942,6 @@ export const EditFilesServerDiffPartialFallback: Story = {
 // ---------------------------------------------------------------------------
 // Computer tool stories
 // ---------------------------------------------------------------------------
-
-import { DESKTOP_SCREENSHOT_BASE64 } from "./__fixtures__/desktopScreenshot";
 
 export const ComputerScreenshot: Story = {
 	args: {

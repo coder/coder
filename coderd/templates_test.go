@@ -31,6 +31,7 @@ import (
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/provisioner/echo"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/serpent"
 )
 
 // TestTemplatesListSingleAuthorizePrepare guards against reintroducing the
@@ -1843,6 +1844,33 @@ func TestPatchTemplateMeta(t *testing.T) {
 		assert.False(t, updated.DisableModuleCache, "expected false")
 	})
 
+	t.Run("DisableModuleCacheDeploymentWide", func(t *testing.T) {
+		t.Parallel()
+
+		dv := coderdtest.DeploymentValues(t)
+		dv.Provisioner.DisableModuleCache = serpent.Bool(true)
+		client := coderdtest.New(t, &coderdtest.Options{DeploymentValues: dv})
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		require.True(t, template.ModuleCacheDisabledByDeployment, "the deployment disables the module cache")
+		require.False(t, template.DisableModuleCache, "the template itself does not opt out")
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// The per-template toggle is read-only while the deployment disables the
+		// cache, so this request does not change anything.
+		_, err := client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
+			DisableModuleCache: new(true),
+		})
+		require.NoError(t, err)
+
+		updated, err := client.Template(ctx, template.ID)
+		require.NoError(t, err)
+		assert.False(t, updated.DisableModuleCache, "expected the stored value to be untouched")
+		assert.True(t, updated.ModuleCacheDisabledByDeployment, "expected true")
+	})
+
 	t.Run("AllowWorkspaceRenames", func(t *testing.T) {
 		t.Parallel()
 
@@ -2410,6 +2438,47 @@ func TestTemplateNotifications(t *testing.T) {
 			}
 		})
 	})
+}
+
+func TestTemplateFilterUseClassicParameterFlow(t *testing.T) {
+	t.Parallel()
+
+	db, pubsub := dbtestutil.NewDB(t)
+	client := coderdtest.New(t, &coderdtest.Options{
+		Database:                 db,
+		Pubsub:                   pubsub,
+		IncludeProvisionerDaemon: true,
+	})
+	user := coderdtest.CreateFirstUser(t, client)
+	classicVersion := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+	classic := coderdtest.CreateTemplate(t, client, user.OrganizationID, classicVersion.ID, func(request *codersdk.CreateTemplateRequest) {
+		request.Name = "classic"
+		request.UseClassicParameterFlow = new(true)
+	})
+	dynamicVersion := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+	dynamic := coderdtest.CreateTemplate(t, client, user.OrganizationID, dynamicVersion.ID, func(request *codersdk.CreateTemplateRequest) {
+		request.Name = "dynamic"
+		request.UseClassicParameterFlow = new(false)
+	})
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	templates, err := client.Templates(ctx, codersdk.TemplateFilter{
+		SearchQuery: "compatibility_mode:true",
+	})
+	require.NoError(t, err)
+	require.Len(t, templates, 1)
+	require.Equal(t, classic.ID, templates[0].ID)
+
+	templates, err = client.Templates(ctx, codersdk.TemplateFilter{
+		SearchQuery: "compatibility_mode:false",
+	})
+	require.NoError(t, err)
+	require.Len(t, templates, 1)
+	require.Equal(t, dynamic.ID, templates[0].ID)
+
+	templates, err = client.Templates(ctx, codersdk.TemplateFilter{})
+	require.NoError(t, err)
+	require.Len(t, templates, 2)
 }
 
 func TestTemplateFilterHasExternalAgent(t *testing.T) {
