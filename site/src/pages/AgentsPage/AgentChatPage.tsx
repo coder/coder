@@ -78,6 +78,7 @@ import type { PendingAttachment } from "./components/ChatPageContent";
 import { workspaceSkillsFromChat } from "./components/ChatPageContent";
 import { getModelSelectorHelp } from "./components/ModelSelectorHelp";
 import { useAgentChatPanelPreference } from "./components/RightPanel/useAgentChatPanelPreference";
+import type { ComposerSendResult } from "./context/ComposerContext";
 import { useConversationEditingState } from "./hooks/useConversationEditingState";
 import { useGitWatcher } from "./hooks/useGitWatcher";
 import {
@@ -685,6 +686,22 @@ const AgentChatPage: FC = () => {
 		});
 	};
 
+	// Right-panel tools (port preview annotations) send through here. The
+	// composer's own draft is left alone, and the caller learns whether a
+	// concurrent submission made this one a no-op.
+	const handleSendToolMessage = async (
+		message: string,
+	): Promise<ComposerSendResult> => {
+		if (isSubmissionPending || !hasModelOptions) {
+			return "busy";
+		}
+		await submitChatTurn({
+			...chatTurnDeps,
+			message,
+		});
+		return "sent";
+	};
+
 	const handleImplementPlan = async () => {
 		await submitChatTurn({
 			...chatTurnDeps,
@@ -789,6 +806,7 @@ const AgentChatPage: FC = () => {
 					handlePromoteQueuedMessage={handlePromoteQueuedMessage}
 					onImplementPlan={handleImplementPlan}
 					onSendAskUserQuestionResponse={handleSendAskUserQuestionResponse}
+					onSendToolMessage={handleSendToolMessage}
 					urlTransform={urlTransform}
 					hasMoreMessages={Boolean(chatMessagesQuery.hasNextPage)}
 					isFetchingMoreMessages={chatMessagesQuery.isFetchingNextPage}
