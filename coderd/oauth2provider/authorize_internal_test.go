@@ -643,13 +643,13 @@ func TestFailureKind(t *testing.T) {
 	t.Parallel()
 
 	deliverable := authorizeResponse{callback: &url.URL{Scheme: "https", Host: "app.example.com"}}
-	unusable := xerrors.New("registered callback is not usable")
+	unusable := xerrors.New("registered redirect URI is not usable")
 
 	require.Equal(t, failureAnswerHere, authorizeFailure{}.kind())
 	require.Equal(t, failureDeliverToClient, authorizeFailure{redirect: deliverable}.kind())
-	require.Equal(t, failureCorruptRegistration, authorizeFailure{corruptCallback: unusable}.kind())
+	require.Equal(t, failureCorruptRegistration, authorizeFailure{corruptRedirectURI: unusable}.kind())
 	require.Equal(t, failureCorruptRegistration,
-		authorizeFailure{corruptCallback: unusable, redirect: deliverable}.kind(),
+		authorizeFailure{corruptRedirectURI: unusable, redirect: deliverable}.kind(),
 		"the registration is what a Location header would be trusting, so its failure outranks a usable callback")
 }
 

@@ -283,12 +283,12 @@ type SelectorQuery<T> = {
 	readonly isLoading: boolean;
 };
 
-interface ModelSelectorState {
+type ModelSelectorState = {
 	readonly options: readonly ModelSelectorOption[];
 	readonly isModelCatalogLoading: boolean;
 	readonly modelCatalog: TypesGen.OrganizationChatModelsResponse | undefined;
 	readonly hasConfiguredModels: boolean;
-}
+};
 
 // Provider identity comes from a separate query (userProviderModels).
 // Folding both loading states into one flag here spares every caller the

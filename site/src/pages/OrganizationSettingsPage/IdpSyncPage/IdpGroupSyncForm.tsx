@@ -63,7 +63,7 @@ const groupSyncValidationSchema = Yup.object({
 		.default({}),
 });
 
-interface IdpGroupSyncFormProps {
+type IdpGroupSyncFormProps = {
 	groupSyncSettings: GroupSyncSettings;
 	claimFieldValues: readonly string[] | undefined;
 	groupsMap: Map<string, string>;
@@ -72,7 +72,7 @@ interface IdpGroupSyncFormProps {
 	legacyGroupMappingCount: number;
 	onSubmit: (data: GroupSyncSettings) => void;
 	onSyncFieldChange: (value: string) => void;
-}
+};
 
 export const IdpGroupSyncForm: FC<IdpGroupSyncFormProps> = ({
 	groupSyncSettings,
@@ -419,12 +419,12 @@ export const IdpGroupSyncForm: FC<IdpGroupSyncFormProps> = ({
 	);
 };
 
-interface GroupRowProps {
+type GroupRowProps = {
 	idpGroup: string;
 	exists: boolean | undefined;
 	coderGroup: readonly string[];
 	onDelete: (idpOrg: string) => void;
-}
+};
 
 const GroupRow: FC<GroupRowProps> = ({
 	idpGroup,

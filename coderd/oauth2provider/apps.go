@@ -71,11 +71,13 @@ func emptyRedirectURIsDetail(fromCallback string) string {
 
 // validateAppRedirectURIFields checks the list an admin request resolved to
 // and reports each failure against the request field that caused it. Every
-// entry passes ValidateRedirectURIShape; entries of a public app also
-// pass ValidateRedirectURI.
+// entry passes both ValidateRedirectURIShape and ValidateRedirectURI, so an
+// admin cannot store a redirect URI that dynamic client registration would
+// refuse for the same client type.
 //
 // Stored URIs are checked again on every update, so an app that predates the
-// caps cannot be saved until a request sends a list that fits.
+// caps, or that stored a cleartext http URI while this path did not check
+// the scheme, cannot be saved until a request sends a list that passes.
 func validateAppRedirectURIFields(uris []string, clientType codersdk.OAuth2ClientType, fromCallback string) []codersdk.ValidationError {
 	// A failure on the request's callback_url is reported against that field
 	// and without a list index, since the caller never sent a list.
@@ -107,9 +109,8 @@ func validateAppRedirectURIFields(uris []string, clientType codersdk.OAuth2Clien
 		if err := codersdk.ValidateRedirectURIShape(uri); err != nil {
 			return invalid(i, uri, err.Error())
 		}
-		if clientType != codersdk.OAuth2ClientTypePublic {
-			continue
-		}
+		// The shape check runs first because it names the more specific
+		// reason for a malformed URI.
 		if err := codersdk.ValidateRedirectURI(uri, clientType); err != nil {
 			return invalid(i, uri, err.Error())
 		}

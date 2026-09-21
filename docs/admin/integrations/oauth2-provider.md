@@ -707,6 +707,8 @@ The following schemes are blocked for security reasons: `javascript:`, `data:`, 
 
 Public clients (`token_endpoint_auth_method: none`) additionally cannot register `mailto:`, `tel:`, or `sms:` redirect URIs, since those schemes hand off to another app rather than returning an authorization code to the client. Confidential clients are not subject to this restriction.
 
+A cleartext `http://` redirect URI is accepted only for a local host. A confidential client may use `localhost`, `127.0.0.1`, `::1`, or a `.localhost` subdomain such as `http://app.localhost/callback`. A public client is limited to `localhost`, `127.0.0.1`, and `::1`. Every other host must use `https://`, so that an authorization code is never delivered in the clear. The management API and Dynamic Client Registration apply the same rule, so an administrator cannot store a target that a client could not register for itself.
+
 These rules apply to every entry in `redirect_uris`, not only the first one.
 
 ## Security Considerations
@@ -737,6 +739,7 @@ The current implementation has these limitations:
 - Implicit grant (`response_type=token`) is not supported; OAuth 2.1 deprecated this flow due to token leakage risks, and a request for it redirects to the registered callback with `unsupported_response_type`
 - Limited to opaque access tokens (no JWT support)
 - An application may register at most 32 redirect URIs of at most 2048 bytes each. An application that stored a longer list before this limit existed keeps working, but it cannot be saved again until the list fits. To fix it, send a `PUT` with a `redirect_uris` list that fits, as shown under [Management API](#method-2-management-api). The web UI cannot edit the list.
+- A cleartext `http://` redirect URI to a host that is not local is rejected. Earlier versions accepted one through the management API for a confidential application, although Dynamic Client Registration always refused it. An application that stored one keeps working, but it cannot be saved again until its list uses `https://` or a local host, as described under [Callback URL schemes](#callback-url-schemes).
 - A redirect URI with a private-use scheme must name a path or an authority, as in `com.example.app:/callback` or `com.example.app://auth/callback`. The bare form `com.example.app:callback` is rejected. Dynamic Client Registration accepted it in earlier versions. A client that registered one can re-register with one of the other two forms, or an administrator can correct it with the same `PUT`.
 
 The `redirect_uris` list is now the source of truth for an application's callbacks, and its first entry is the primary:

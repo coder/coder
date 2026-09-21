@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/dustin/go-humanize"
 	"github.com/go-chi/chi/v5"
@@ -42,10 +43,10 @@ import (
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/coderd/wsbuilder"
 	"github.com/coder/coder/v2/coderd/wspubsub"
-	"github.com/coder/coder/v2/coderd/wsrelated"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/codersdk/wsjson"
+	"github.com/coder/coder/v2/codersdk/wsrelated"
 	"github.com/coder/websocket"
 )
 
@@ -66,6 +67,7 @@ var (
 // @Tags Workspaces
 // @Param workspace path string true "Workspace ID" format(uuid)
 // @Param include_deleted query bool false "Return data instead of HTTP 404 if the workspace is deleted"
+// @Param include_related query string false "Comma-separated list of related data to include (e.g. `template,latest_build.resources.agents.*`). Omit to include everything."
 // @Success 200 {object} codersdk.Workspace
 // @Router /api/v2/workspaces/{workspace} [get]
 func (api *API) workspace(rw http.ResponseWriter, r *http.Request) {
@@ -97,7 +99,22 @@ func (api *API) workspace(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	data, err := api.workspaceData(ctx, []database.Workspace{workspace}, wsrelated.All())
+	// Omitting include_related is backward compatible: everything is returned.
+	// When present, only the requested related data is loaded.
+	related := wsrelated.All()
+	if r.URL.Query().Has("include_related") {
+		var err error
+		related, err = wsrelated.Parse(r.URL.Query().Get("include_related"))
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Invalid include_related query param.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+	}
+
+	data, err := api.workspaceData(ctx, []database.Workspace{workspace}, related)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching workspace resources.",
@@ -106,7 +123,10 @@ func (api *API) workspace(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if len(data.templates) == 0 {
+	// workspaceData omits templates the requester cannot read. If the template
+	// was requested but is absent, the requester is not authorized to read it.
+	// When the template was not requested there is nothing to authorize here.
+	if related.Template && len(data.templates) == 0 {
 		httpapi.Forbidden(rw)
 		return
 	}
@@ -116,13 +136,23 @@ func (api *API) workspace(rw http.ResponseWriter, r *http.Request) {
 		appStatus = data.appStatuses[0]
 	}
 
+	// Related data may be omitted, in which case these carry zero values.
+	var build codersdk.WorkspaceBuild
+	if len(data.builds) > 0 {
+		build = data.builds[0]
+	}
+	var template database.Template
+	if len(data.templates) > 0 {
+		template = data.templates[0]
+	}
+
 	w, err := convertWorkspace(
 		ctx,
 		api.Logger,
 		apiKey.UserID,
 		workspace,
-		data.builds[0],
-		data.templates[0],
+		build,
+		template,
 		api.AllowWorkspaceRenames,
 		appStatus,
 	)
@@ -1766,7 +1796,11 @@ func (api *API) postWorkspaceUsage(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.AgentID == uuid.Nil && req.AppName == "" {
+	// Normalize at the edge so storage and lookup agree on the key, and so a
+	// name that carries no information reads the same as an absent one.
+	appName := normalizeUsageAppName(req.AppName)
+
+	if req.AgentID == uuid.Nil && appName == "" {
 		// Continue previous behavior if body is empty.
 		rw.WriteHeader(http.StatusNoContent)
 		return
@@ -1781,7 +1815,7 @@ func (api *API) postWorkspaceUsage(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	if req.AppName == "" {
+	if appName == "" {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Invalid request",
 			Validations: []codersdk.ValidationError{{
@@ -1791,34 +1825,10 @@ func (api *API) postWorkspaceUsage(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	if !slices.Contains(codersdk.AllowedAppNames, req.AppName) {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Invalid request",
-			Validations: []codersdk.ValidationError{{
-				Field:  "app_name",
-				Detail: fmt.Sprintf("must be one of %v", codersdk.AllowedAppNames),
-			}},
-		})
-		return
-	}
 
 	stat := &proto.Stats{
 		ConnectionCount: 1,
-	}
-	switch req.AppName {
-	case codersdk.UsageAppNameVscode:
-		stat.SessionCountVscode = 1
-	case codersdk.UsageAppNameJetbrains:
-		stat.SessionCountJetbrains = 1
-	case codersdk.UsageAppNameReconnectingPty:
-		stat.SessionCountReconnectingPty = 1
-	case codersdk.UsageAppNameSSH:
-		stat.SessionCountSsh = 1
-	default:
-		// This means the app_name is in the codersdk.AllowedAppNames but not being
-		// handled by this switch statement.
-		httpapi.InternalServerError(rw, xerrors.Errorf("unknown app_name %q", req.AppName))
-		return
+		SessionCounts:   map[string]int64{appName: 1},
 	}
 
 	agent, err := api.Database.GetWorkspaceAgentByID(ctx, req.AgentID)
@@ -1844,6 +1854,20 @@ func (api *API) postWorkspaceUsage(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	rw.WriteHeader(http.StatusNoContent)
+}
+
+// normalizeUsageAppName prepares a client-supplied app name for storage. A
+// name of only whitespace and control characters carries no app, so it
+// returns the empty string and the caller rejects the request rather than
+// counting a session under the unknown family.
+func normalizeUsageAppName(appName string) string {
+	named := strings.ContainsFunc(appName, func(r rune) bool {
+		return !unicode.IsControl(r) && !unicode.IsSpace(r)
+	})
+	if !named {
+		return ""
+	}
+	return codersdk.NormalizeAppName(appName)
 }
 
 // @Summary Favorite workspace by ID.
@@ -2747,14 +2771,17 @@ func (api *API) workspaceData(ctx context.Context, workspaces []database.Workspa
 	}
 
 	var data workspaceBuildsData
+	var latestBuildCfg wsrelated.LatestBuild
 	if cfg.LatestBuild != nil {
-		data, err = api.workspaceBuildsData(ctx, builds, *cfg.LatestBuild)
+		latestBuildCfg = *cfg.LatestBuild
+		data, err = api.workspaceBuildsData(ctx, builds, latestBuildCfg)
 		if err != nil {
 			return workspaceData{}, xerrors.Errorf("get workspace builds data: %w", err)
 		}
 	}
 
 	apiBuilds, err := api.convertWorkspaceBuilds(
+		latestBuildCfg,
 		builds,
 		workspaces,
 		data.jobs,

@@ -5033,7 +5033,7 @@ curl -X GET http://coder-server:8080/oauth2/authorize?client_id=string&response_
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)                    | Returns HTML authorization page                                                                               |        |
 | 302    | [Found](https://tools.ietf.org/html/rfc7231#section-6.4.3)                 | Redirects to the app's registered callback carrying an OAuth2 error (RFC 6749 4.1.2.1)                        |        |
 | 400    | [Bad Request](https://tools.ietf.org/html/rfc7231#section-6.5.1)           | HTML error page. The failure names the redirect URI or the client, so RFC 6749 4.1.2.1 withholds the callback |        |
-| 500    | [Internal Server Error](https://tools.ietf.org/html/rfc7231#section-6.6.1) | HTML error page. The app's registered callback URL is not usable                                              |        |
+| 500    | [Internal Server Error](https://tools.ietf.org/html/rfc7231#section-6.6.1) | HTML error page. One of the app's registered redirect URIs is not usable                                      |        |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -5088,7 +5088,7 @@ curl -X POST http://coder-server:8080/oauth2/authorize?client_id=string&response
 |--------|----------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------|--------------------------------------------------------|
 | 302    | [Found](https://tools.ietf.org/html/rfc7231#section-6.4.3)                 | Redirects to the app's registered callback carrying either an authorization code or an OAuth2 error (RFC 6749 4.1.2.1) |                                                        |
 | 400    | [Bad Request](https://tools.ietf.org/html/rfc7231#section-6.5.1)           | The failure names the redirect URI or the client, so RFC 6749 4.1.2.1 withholds the callback                           | [codersdk.OAuth2Error](schemas.md#codersdkoauth2error) |
-| 500    | [Internal Server Error](https://tools.ietf.org/html/rfc7231#section-6.6.1) | The app's registered callback URL is not usable                                                                        | [codersdk.OAuth2Error](schemas.md#codersdkoauth2error) |
+| 500    | [Internal Server Error](https://tools.ietf.org/html/rfc7231#section-6.6.1) | One of the app's registered redirect URIs is not usable                                                                | [codersdk.OAuth2Error](schemas.md#codersdkoauth2error) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
