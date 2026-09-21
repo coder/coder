@@ -223,6 +223,11 @@ export const RenameChatDialog: React.FC<RenameChatDialogProps> = ({
 		setIsRenamingChat(false);
 	};
 
+	// Saving the unchanged text of a fallback title records it as the
+	// user's title.
+	const isUnchangedUserTitle =
+		renameTitle.trim() === chat?.title && chat?.title_source === "user";
+
 	return (
 		<Dialog
 			open={chat !== null}
@@ -328,7 +333,7 @@ export const RenameChatDialog: React.FC<RenameChatDialogProps> = ({
 							size="sm"
 							disabled={
 								!renameTitle.trim() ||
-								renameTitle.trim() === chat?.title ||
+								isUnchangedUserTitle ||
 								isRenamingChat ||
 								isGeneratingTitle ||
 								isTypingGeneratedTitle

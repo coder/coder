@@ -1090,21 +1090,22 @@ type CreateOptions struct {
 	OrganizationID uuid.UUID
 	OwnerID        uuid.UUID
 	// CreatedBy attributes the initial user message; defaults to OwnerID.
-	CreatedBy               uuid.UUID
-	ProjectID               uuid.NullUUID
-	WorkspaceID             uuid.NullUUID
-	BuildID                 uuid.NullUUID
-	AgentID                 uuid.NullUUID
-	ParentChatID            uuid.NullUUID
-	RootChatID              uuid.NullUUID
-	Title                   string
-	TitleDerivedFromContent bool
-	ModelConfigID           uuid.UUID
-	ReasoningEffort         *string
-	ChatMode                database.NullChatMode
-	PlanMode                database.NullChatPlanMode
-	ClientType              database.ChatClientType
-	SystemPrompt            string
+	CreatedBy    uuid.UUID
+	ProjectID    uuid.NullUUID
+	WorkspaceID  uuid.NullUUID
+	BuildID      uuid.NullUUID
+	AgentID      uuid.NullUUID
+	ParentChatID uuid.NullUUID
+	RootChatID   uuid.NullUUID
+	Title        string
+	// TitleSource defaults to fallback.
+	TitleSource     database.ChatTitleSource
+	ModelConfigID   uuid.UUID
+	ReasoningEffort *string
+	ChatMode        database.NullChatMode
+	PlanMode        database.NullChatPlanMode
+	ClientType      database.ChatClientType
+	SystemPrompt    string
 	// InitialUserContent is the first user message. When empty, the
 	// chat is created idle (`waiting`) with system messages only and
 	// no worker processes it until the first SendMessage.
@@ -1288,6 +1289,7 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 	if strings.TrimSpace(opts.Title) == "" {
 		return database.Chat{}, xerrors.New("title is required")
 	}
+	opts.TitleSource = cmp.Or(opts.TitleSource, database.ChatTitleSourceFallback)
 	initialStatus := database.ChatStatusWaiting
 	if len(opts.InitialUserContent) > 0 {
 		initialStatus = database.ChatStatusRunning
@@ -1358,7 +1360,7 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 		}
 		contentParts = composed
 		// Avoid deriving titles from the prompt that policy replaced.
-		if overridden && opts.TitleDerivedFromContent {
+		if overridden && opts.TitleSource == database.ChatTitleSourceFallback {
 			opts.Title = chatprompt.FallbackTitle(chatprompt.TitleText(contentParts, nil))
 		}
 	}
@@ -1413,6 +1415,7 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 		RootChatID:        opts.RootChatID,
 		LastModelConfigID: opts.ModelConfigID,
 		Title:             opts.Title,
+		TitleSource:       opts.TitleSource,
 		Mode:              opts.ChatMode,
 		PlanMode:          opts.PlanMode,
 		MCPServerIDs:      opts.MCPServerIDs,
@@ -1629,8 +1632,9 @@ func (p *Server) SendMessage(
 			}
 			if titleText, ok := titleInput(lockedChat, firstMessage, pasteText); ok {
 				if _, err := store.UpdateChatTitleByID(ctx, database.UpdateChatTitleByIDParams{
-					ID:    opts.ChatID,
-					Title: chatprompt.FallbackTitle(titleText),
+					ID:          opts.ChatID,
+					Title:       chatprompt.FallbackTitle(titleText),
+					TitleSource: database.ChatTitleSourceFallback,
 				}); err != nil {
 					return xerrors.Errorf("update fallback chat title: %w", err)
 				}
@@ -2661,7 +2665,8 @@ func (t *generatedChatTitle) Load() (string, bool) {
 	return t.title, true
 }
 
-// RenameChatTitle persists a user-supplied chat title.
+// RenameChatTitle persists a user-supplied chat title. An unchanged
+// title is still written when its source is not yet user.
 func (p *Server) RenameChatTitle(
 	ctx context.Context,
 	chat database.Chat,
@@ -2671,13 +2676,14 @@ func (p *Server) RenameChatTitle(
 	if err != nil {
 		return database.Chat{}, false, xerrors.Errorf("get chat for rename: %w", err)
 	}
-	if newTitle == currentChat.Title {
+	if newTitle == currentChat.Title && currentChat.TitleSource == database.ChatTitleSourceUser {
 		return currentChat, false, nil
 	}
 
 	updatedChat, err := p.db.UpdateChatTitleByID(ctx, database.UpdateChatTitleByIDParams{
-		ID:    chat.ID,
-		Title: newTitle,
+		ID:          chat.ID,
+		Title:       newTitle,
+		TitleSource: database.ChatTitleSourceUser,
 	})
 	if err != nil {
 		return database.Chat{}, false, xerrors.Errorf("update chat title: %w", err)

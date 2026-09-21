@@ -81,6 +81,7 @@ type CreateChatArgs struct {
 	OrganizationID string            `json:"organization_id"`
 	OwnerID        string            `json:"owner_id"`
 	ModelConfigID  string            `json:"model_config_id"`
+	Title          string            `json:"title,omitempty"`
 	Labels         map[string]string `json:"labels,omitempty"`
 }
 
@@ -107,6 +108,10 @@ The chat runs asynchronously. Poll coder_get_chat for status and read the transc
 				"model_config_id": map[string]any{
 					"type":        "string",
 					"description": "Optional chat model config UUID from coder_list_chat_model_configs. Must belong to the chat's organization. When omitted, the server uses an applicable personal override or the organization's default model.",
+				},
+				"title": map[string]any{
+					"type":        "string",
+					"description": "Optional chat title, at most 200 characters. When set it is kept as-is; when omitted the server derives one from the prompt and later replaces it with a generated title.",
 				},
 				"labels": map[string]any{
 					"type":                 "object",
@@ -145,6 +150,10 @@ The chat runs asynchronously. Poll coder_get_chat for status and read the transc
 			}
 			modelConfigID = &id
 		}
+		var title *string
+		if args.Title != "" {
+			title = &args.Title
+		}
 		chat, err := codersdk.NewExperimentalClient(deps.coderClient).CreateChat(ctx, codersdk.CreateChatRequest{
 			OrganizationID: orgID,
 			OwnerID:        ownerID,
@@ -152,6 +161,7 @@ The chat runs asynchronously. Poll coder_get_chat for status and read the transc
 				Type: codersdk.ChatInputPartTypeText,
 				Text: args.Prompt,
 			}},
+			Title:         title,
 			ModelConfigID: modelConfigID,
 			Labels:        args.Labels,
 		})

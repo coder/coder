@@ -136,26 +136,41 @@ const (
 	ChatClientTypeAPI ChatClientType = "api"
 )
 
+// ChatTitleSource is where a chat's title came from. Only a user title
+// may replace a generated or user title.
+type ChatTitleSource string
+
+const (
+	// ChatTitleSourceFallback is derived from the first prompt.
+	ChatTitleSourceFallback ChatTitleSource = "fallback"
+	// ChatTitleSourceGenerated is written by automatic title generation.
+	ChatTitleSourceGenerated ChatTitleSource = "generated"
+	// ChatTitleSourceUser is supplied by the caller at creation or by
+	// rename.
+	ChatTitleSourceUser ChatTitleSource = "user"
+)
+
 // Chat represents a chat session with an AI agent.
 type Chat struct {
-	ID                  uuid.UUID    `json:"id" format:"uuid"`
-	OrganizationID      uuid.UUID    `json:"organization_id" format:"uuid"`
-	OwnerID             uuid.UUID    `json:"owner_id" format:"uuid"`
-	OwnerUsername       string       `json:"owner_username,omitempty"`
-	OwnerName           string       `json:"owner_name,omitempty"`
-	WorkspaceID         *uuid.UUID   `json:"workspace_id,omitempty" format:"uuid"`
-	ProjectID           *uuid.UUID   `json:"project_id,omitempty" format:"uuid"`
-	BuildID             *uuid.UUID   `json:"build_id,omitempty" format:"uuid"`
-	AgentID             *uuid.UUID   `json:"agent_id,omitempty" format:"uuid"`
-	ParentChatID        *uuid.UUID   `json:"parent_chat_id,omitempty" format:"uuid"`
-	RootChatID          *uuid.UUID   `json:"root_chat_id,omitempty" format:"uuid"`
-	LastModelConfigID   uuid.UUID    `json:"last_model_config_id" format:"uuid"`
-	LastReasoningEffort *string      `json:"last_reasoning_effort,omitempty"`
-	Title               string       `json:"title"`
-	Status              ChatStatus   `json:"status"`
-	PlanMode            ChatPlanMode `json:"plan_mode,omitempty"`
-	LastError           *ChatError   `json:"last_error,omitempty"`
-	LastTurnSummary     *string      `json:"last_turn_summary"`
+	ID                  uuid.UUID       `json:"id" format:"uuid"`
+	OrganizationID      uuid.UUID       `json:"organization_id" format:"uuid"`
+	OwnerID             uuid.UUID       `json:"owner_id" format:"uuid"`
+	OwnerUsername       string          `json:"owner_username,omitempty"`
+	OwnerName           string          `json:"owner_name,omitempty"`
+	WorkspaceID         *uuid.UUID      `json:"workspace_id,omitempty" format:"uuid"`
+	ProjectID           *uuid.UUID      `json:"project_id,omitempty" format:"uuid"`
+	BuildID             *uuid.UUID      `json:"build_id,omitempty" format:"uuid"`
+	AgentID             *uuid.UUID      `json:"agent_id,omitempty" format:"uuid"`
+	ParentChatID        *uuid.UUID      `json:"parent_chat_id,omitempty" format:"uuid"`
+	RootChatID          *uuid.UUID      `json:"root_chat_id,omitempty" format:"uuid"`
+	LastModelConfigID   uuid.UUID       `json:"last_model_config_id" format:"uuid"`
+	LastReasoningEffort *string         `json:"last_reasoning_effort,omitempty"`
+	Title               string          `json:"title"`
+	TitleSource         ChatTitleSource `json:"title_source"`
+	Status              ChatStatus      `json:"status"`
+	PlanMode            ChatPlanMode    `json:"plan_mode,omitempty"`
+	LastError           *ChatError      `json:"last_error,omitempty"`
+	LastTurnSummary     *string         `json:"last_turn_summary"`
 	// Summary is the persisted whole-chat summary, generated in the background.
 	// It is nil until the first summary has been produced.
 	Summary    *string         `json:"summary"`
@@ -691,7 +706,11 @@ type CreateChatRequest struct {
 	// empty, the chat is created idle with no initial user message
 	// and generation starts with the first message POSTed to
 	// /chats/{chat}/messages.
-	Content         []ChatInputPart   `json:"content"`
+	Content []ChatInputPart `json:"content"`
+	// Title, when set, is trimmed and stored as the user title; automatic
+	// title generation is skipped. When omitted, the title is derived from
+	// the first prompt and later replaced by a generated title.
+	Title           *string           `json:"title,omitempty"`
 	SystemPrompt    string            `json:"system_prompt,omitempty"`
 	WorkspaceID     *uuid.UUID        `json:"workspace_id,omitempty" format:"uuid"`
 	ProjectID       *uuid.UUID        `json:"project_id,omitempty" format:"uuid"`
@@ -2036,6 +2055,9 @@ const (
 	ChatWatchEventKindDeleted           ChatWatchEventKind = "deleted"
 	ChatWatchEventKindDiffStatusChange  ChatWatchEventKind = "diff_status_change"
 	ChatWatchEventKindActionRequired    ChatWatchEventKind = "action_required"
+	// ChatWatchEventKindCostChange signals that the chat's cost changed
+	// and no other chat field did.
+	ChatWatchEventKindCostChange ChatWatchEventKind = "cost_change"
 	// ChatWatchEventKindContextDirty signals that the chat's pinned
 	// workspace context changed: it drifted from the agent's latest
 	// pushed snapshot, or hydration first populated it (a first-turn

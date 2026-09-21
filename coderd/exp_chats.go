@@ -1385,7 +1385,7 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		projectID = uuid.NullUUID{UUID: project.ID, Valid: true}
 	}
 
-	contentBlocks, titleSource, inputError := createChatInputFromRequest(ctx, api.Database, req)
+	contentBlocks, titleText, inputError := createChatInputFromRequest(ctx, api.Database, req)
 	if inputError != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, *inputError)
 		return
@@ -1397,7 +1397,17 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	title := chatprompt.FallbackTitle(titleSource)
+	title := chatprompt.FallbackTitle(titleText)
+	titleSource := database.ChatTitleSourceFallback
+	if req.Title != nil {
+		userTitle, invalid := normalizeChatTitle(*req.Title)
+		if invalid != nil {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, *invalid)
+			return
+		}
+		title = userTitle
+		titleSource = database.ChatTitleSourceUser
+	}
 
 	modelConfigID, personalOverrideEffort, modelConfigStatus, modelConfigError := api.resolveCreateChatModelConfigID(ownerCtx, ownerID, req)
 	if modelConfigError != nil {
@@ -1525,23 +1535,23 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	chat, err := api.chatDaemon.CreateChat(ownerCtx, chatd.CreateOptions{
-		OrganizationID:          req.OrganizationID,
-		OwnerID:                 ownerID,
-		CreatedBy:               apiKey.UserID,
-		ProjectID:               projectID,
-		WorkspaceID:             workspaceSelection.WorkspaceID,
-		Title:                   title,
-		TitleDerivedFromContent: true,
-		ModelConfigID:           modelConfigID,
-		ReasoningEffort:         reasoningEffort,
-		PlanMode:                planModeToNullChatPlanMode(req.PlanMode),
-		ClientType:              clientType,
-		SystemPrompt:            req.SystemPrompt,
-		InitialUserContent:      contentBlocks,
-		MCPServerIDs:            mcpServerIDs,
-		InlineMCPServers:        req.InlineMCPServers,
-		Labels:                  labels,
-		DynamicTools:            dynamicToolsJSON,
+		OrganizationID:     req.OrganizationID,
+		OwnerID:            ownerID,
+		CreatedBy:          apiKey.UserID,
+		ProjectID:          projectID,
+		WorkspaceID:        workspaceSelection.WorkspaceID,
+		Title:              title,
+		TitleSource:        titleSource,
+		ModelConfigID:      modelConfigID,
+		ReasoningEffort:    reasoningEffort,
+		PlanMode:           planModeToNullChatPlanMode(req.PlanMode),
+		ClientType:         clientType,
+		SystemPrompt:       req.SystemPrompt,
+		InitialUserContent: contentBlocks,
+		MCPServerIDs:       mcpServerIDs,
+		InlineMCPServers:   req.InlineMCPServers,
+		Labels:             labels,
+		DynamicTools:       dynamicToolsJSON,
 		// IMPORTANT: users can only create root chats at the time of writing.
 		ParentChatID: uuid.NullUUID{},
 	})
@@ -1605,7 +1615,7 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 	// chat and its initial user message are persisted. It runs
 	// detached so it never blocks the create response, and only acts
 	// on the first user turn. Empty creates title on their first send.
-	if len(contentBlocks) > 0 {
+	if len(contentBlocks) > 0 && chat.TitleSource == database.ChatTitleSourceFallback {
 		api.chatDaemon.GenerateChatTitleAsync(ownerCtx, chat)
 	}
 
@@ -2310,28 +2320,34 @@ func (api *API) watchChatDesktop(rw http.ResponseWriter, r *http.Request) {
 	logger.Debug(ctx, "desktop Bicopy finished")
 }
 
+// maxChatTitleRunes bounds user-supplied chat titles on create and rename.
+const maxChatTitleRunes = 200
+
+// normalizeChatTitle trims and validates a user-supplied title. The
+// response is non-nil when the title is rejected.
+func normalizeChatTitle(rawTitle string) (string, *codersdk.Response) {
+	title := strings.TrimSpace(rawTitle)
+	if title == "" {
+		return "", &codersdk.Response{Message: "Title cannot be empty."}
+	}
+	if utf8.RuneCountInString(title) > maxChatTitleRunes {
+		return "", &codersdk.Response{
+			Message: fmt.Sprintf("Title must be at most %d characters.", maxChatTitleRunes),
+		}
+	}
+	return title, nil
+}
+
 func (api *API) applyChatTitleUpdate(
 	ctx context.Context,
 	rw http.ResponseWriter,
 	chat database.Chat,
 	rawTitle string,
 ) (database.Chat, bool) {
-	trimmedTitle := strings.TrimSpace(rawTitle)
-	if trimmedTitle == "" {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Title cannot be empty.",
-		})
+	trimmedTitle, invalid := normalizeChatTitle(rawTitle)
+	if invalid != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, *invalid)
 		return chat, true
-	}
-	const maxChatTitleRunes = 200
-	if utf8.RuneCountInString(trimmedTitle) > maxChatTitleRunes {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: fmt.Sprintf("Title must be at most %d characters.", maxChatTitleRunes),
-		})
-		return chat, true
-	}
-	if trimmedTitle == chat.Title {
-		return chat, false
 	}
 
 	updatedChat, wrote, err := api.chatDaemon.RenameChatTitle(ctx, chat, trimmedTitle)
@@ -7228,18 +7244,17 @@ func createChatInputFromRequest(ctx context.Context, db database.Store, req code
 	if inputError != nil {
 		return nil, "", inputError
 	}
-	// Derive titleSource through the same chatprompt.TitleText used at
-	// generation time; auto-titling gates on that equality. Paste blobs
-	// are copied only when text and file-reference parts yield nothing.
-	titleSource := chatprompt.TitleText(content, nil)
-	if titleSource == "" && len(pasteData) > 0 {
+	// Paste blobs are copied only when text and file-reference parts
+	// yield nothing.
+	titleText := chatprompt.TitleText(content, nil)
+	if titleText == "" && len(pasteData) > 0 {
 		pasteText := make(map[uuid.UUID]string, len(pasteData))
 		for id, data := range pasteData {
 			pasteText[id] = chatprompt.TitlePasteText(data)
 		}
-		titleSource = chatprompt.TitleText(content, pasteText)
+		titleText = chatprompt.TitleText(content, pasteText)
 	}
-	return content, titleSource, nil
+	return content, titleText, nil
 }
 
 // createChatInputFromParts validates input parts and converts them to

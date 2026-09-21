@@ -2350,6 +2350,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "status": "waiting",
       "summary": "string",
       "title": "string",
+      "title_source": "fallback",
       "updated_at": "2019-08-24T14:15:22Z",
       "warnings": [
         "string"
@@ -2465,6 +2466,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "status": "waiting",
   "summary": "string",
   "title": "string",
+  "title_source": "fallback",
   "updated_at": "2019-08-24T14:15:22Z",
   "warnings": [
     "string"
@@ -2510,6 +2512,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `status`                | [codersdk.ChatStatus](#codersdkchatstatus)                      | false    |              |                                                                                                                                                                                                                                                                            |
 | `summary`               | string                                                          | false    |              | Summary is the persisted whole-chat summary, generated in the background. It is nil until the first summary has been produced.                                                                                                                                             |
 | `title`                 | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
+| `title_source`          | [codersdk.ChatTitleSource](#codersdkchattitlesource)            | false    |              |                                                                                                                                                                                                                                                                            |
 | `updated_at`            | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
 | `warnings`              | array of string                                                 | false    |              |                                                                                                                                                                                                                                                                            |
 | `workspace_id`          | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
@@ -5372,6 +5375,20 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `include_default_system_prompt` | boolean | false    |              |             |
 | `system_prompt`                 | string  | false    |              |             |
 
+## codersdk.ChatTitleSource
+
+```json
+"fallback"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                        |
+|---------------------------------|
+| `fallback`, `generated`, `user` |
+
 ## codersdk.ChatUnsupportedProvider
 
 ```json
@@ -5535,6 +5552,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "status": "waiting",
     "summary": "string",
     "title": "string",
+    "title_source": "fallback",
     "updated_at": "2019-08-24T14:15:22Z",
     "warnings": [
       "string"
@@ -5570,9 +5588,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                                                 |
-|----------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `action_required`, `chat_summary_change`, `context_dirty`, `created`, `deleted`, `diff_status_change`, `status_change`, `summary_change`, `title_change` |
+| Value(s)                                                                                                                                                                |
+|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `action_required`, `chat_summary_change`, `context_dirty`, `cost_change`, `created`, `deleted`, `diff_status_change`, `status_change`, `summary_change`, `title_change` |
 
 ## codersdk.ChatWorkspaceTTLResponse
 
@@ -6492,6 +6510,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "project_id": "405d8375-3514-403b-8c43-83ae74cfe0e9",
   "reasoning_effort": "string",
   "system_prompt": "string",
+  "title": "string",
   "unsafe_dynamic_tools": [
     {
       "description": "string",
@@ -6522,6 +6541,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `project_id`           | string                                                                      | false    |              |                                                                                                                                                                                                       |
 | `reasoning_effort`     | string                                                                      | false    |              |                                                                                                                                                                                                       |
 | `system_prompt`        | string                                                                      | false    |              |                                                                                                                                                                                                       |
+| `title`                | string                                                                      | false    |              | Title, when set, is trimmed and stored as the user title; automatic title generation is skipped. When omitted, the title is derived from the first prompt and later replaced by a generated title.    |
 | `unsafe_dynamic_tools` | array of [codersdk.DynamicTool](#codersdkdynamictool)                       | false    |              | Unsafe dynamic tools declares client-executed tools that the LLM can invoke. This API is highly experimental and highly subject to change.                                                            |
 | `workspace_id`         | string                                                                      | false    |              |                                                                                                                                                                                                       |
 
