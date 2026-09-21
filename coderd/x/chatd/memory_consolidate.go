@@ -192,8 +192,9 @@ func (p *Server) consolidateMemories(ctx context.Context, logger slog.Logger, ch
 	resumeAt = nextWindowStart
 
 	// Only memories the model actually saw may be touched; the full
-	// snapshot is used later purely to detect concurrent edits.
-	mutations := validateMemoryConsolidationMutations(result.Object.Mutations, window, time.Now())
+	// snapshot rejects targets it did not see and later detects
+	// concurrent edits.
+	mutations := validateMemoryConsolidationMutations(result.Object.Mutations, window, memories, time.Now())
 	if len(mutations) == 0 {
 		finish(database.ChatMemoryConsolidationStatusSkipped, before, nil, nil)
 		return
@@ -317,10 +318,20 @@ func formatMemoryConsolidationInput(memories []chattool.Memory) string {
 	return b.String()
 }
 
-func validateMemoryConsolidationMutations(proposed []memoryConsolidationMutation, memories []chattool.Memory, now time.Time) []memoryConsolidationMutation {
-	byName := make(map[string]chattool.Memory, len(memories))
-	for _, memory := range memories {
+// validateMemoryConsolidationMutations keeps the proposals that only touch
+// memories in window, the set the model was shown. snapshot is the full
+// memory set; a merge into a name that exists there but not in the window
+// would overwrite a body the model never saw, so it is rejected.
+func validateMemoryConsolidationMutations(proposed []memoryConsolidationMutation, window, snapshot []chattool.Memory, now time.Time) []memoryConsolidationMutation {
+	byName := make(map[string]chattool.Memory, len(window))
+	for _, memory := range window {
 		byName[memory.Name] = memory
+	}
+	unseen := make(map[string]struct{}, len(snapshot))
+	for _, memory := range snapshot {
+		if _, shown := byName[memory.Name]; !shown {
+			unseen[memory.Name] = struct{}{}
+		}
 	}
 	// Each memory may be touched by one mutation per run. Overlapping
 	// proposals would otherwise fail apply-time revalidation after the
@@ -333,6 +344,9 @@ func validateMemoryConsolidationMutations(proposed []memoryConsolidationMutation
 		switch mutation.Op {
 		case "merge":
 			mutation.Into = strings.ToLower(strings.TrimSpace(mutation.Into))
+			if _, hidden := unseen[mutation.Into]; hidden {
+				continue
+			}
 			_, intoExists := byName[mutation.Into]
 			// A merge must combine something: two sources into a new name,
 			// or at least one source into an existing memory. Anything less
