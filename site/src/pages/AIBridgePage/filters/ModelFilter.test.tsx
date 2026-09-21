@@ -1,10 +1,10 @@
-import { act, renderHook, waitFor } from "@testing-library/react";
-import type { PropsWithChildren } from "react";
-import { QueryClientProvider } from "react-query";
+import { screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import type { FC } from "react";
 import { afterEach, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
-import { createTestQueryClient } from "#/testHelpers/renderHelpers";
-import { useModelFilterMenu } from "./ModelFilter";
+import { render } from "#/testHelpers/renderHelpers";
+import { ModelFilter, useModelFilterMenu } from "./ModelFilter";
 
 afterEach(() => {
 	vi.restoreAllMocks();
@@ -12,48 +12,33 @@ afterEach(() => {
 
 const bedrockModel = "us.anthropic.claude-3-5-sonnet-20241022-v2:0";
 
-function renderMenu(value: string | undefined) {
-	const queryClient = createTestQueryClient();
-	return renderHook(
-		() => useModelFilterMenu({ value, onChange: vi.fn(), enabled: true }),
-		{
-			wrapper: ({ children }: PropsWithChildren) => (
-				<QueryClientProvider client={queryClient}>
-					{children}
-				</QueryClientProvider>
-			),
-		},
-	);
-}
+const ModelFilterHarness: FC<{ value?: string }> = ({ value }) => {
+	const menu = useModelFilterMenu({ value, onChange: vi.fn(), enabled: true });
+	return <ModelFilter menu={menu} />;
+};
 
-it("searches for the selected model as a literal", async () => {
+it("looks up the selected model as a quoted literal", async () => {
 	const modelsSpy = vi
 		.spyOn(API, "getAIBridgeModels")
 		.mockResolvedValue([bedrockModel]);
-	const { result } = renderMenu(bedrockModel);
-	await waitFor(() =>
-		expect(result.current.selectedOption).toMatchObject({
-			value: bedrockModel,
-		}),
-	);
-	expect(modelsSpy).toHaveBeenCalledWith({
-		q: `model:"${bedrockModel}"`,
-		limit: 1,
-	});
-});
-
-it("searches typed text as a literal model prefix", async () => {
-	const modelsSpy = vi
-		.spyOn(API, "getAIBridgeModels")
-		.mockResolvedValue([bedrockModel]);
-	const { result } = renderMenu(undefined);
-	await waitFor(() =>
-		expect(modelsSpy).toHaveBeenCalledWith({ q: 'model:""', limit: 25 }),
-	);
-	act(() => result.current.setQuery("us.anthropic:"));
+	render(<ModelFilterHarness value={bedrockModel} />);
 	await waitFor(() =>
 		expect(modelsSpy).toHaveBeenCalledWith({
-			q: 'model:"us.anthropic:"',
+			q: `model:"${bedrockModel}"`,
+			limit: 1,
+		}),
+	);
+});
+
+it("searches typed text as a quoted literal with LIKE wildcards escaped", async () => {
+	const user = userEvent.setup();
+	const modelsSpy = vi.spyOn(API, "getAIBridgeModels").mockResolvedValue([]);
+	render(<ModelFilterHarness />);
+	await user.click(screen.getByRole("button", { name: "Select model" }));
+	await user.type(await screen.findByRole("combobox"), "gpt_4%:");
+	await waitFor(() =>
+		expect(modelsSpy).toHaveBeenCalledWith({
+			q: 'model:"gpt\\_4\\%:"',
 			limit: 25,
 		}),
 	);
