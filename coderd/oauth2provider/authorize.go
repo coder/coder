@@ -362,6 +362,14 @@ func extractAuthorizeParams(r *http.Request, logger slog.Logger, app database.OA
 			slog.F("params", ignored))
 	}
 
+	// Ignored like any other unrecognized parameter, as §3.1 requires, but
+	// this URL also reaches the browser history and the callback host's
+	// Referer, so the operator is told which client leaks its secret.
+	if clientSecretInQuery(r) {
+		logger.Warn(r.Context(), "oauth2 authorization request carried client_secret in the URL query string",
+			slog.F("app_id", app.ID))
+	}
+
 	if len(p.Errors) > 0 {
 		// Not err.Error(): its "field: x detail: y" shape is a Coder debug
 		// formatter, and details contain commas, so a comma join cannot be split

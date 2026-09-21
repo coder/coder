@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"slices"
 	"strings"
@@ -915,6 +916,39 @@ func TestExtractTokenRequest_UnrecognizedParametersLogged(t *testing.T) {
 			require.NotContains(t, logs.String(), "audience-value")
 		})
 	}
+}
+
+// RFC 6749 §3.1 makes the authorization endpoint ignore a client_secret in its
+// URL, so the only trace of the misconfiguration is this warning.
+func TestExtractAuthorizeParams_ClientSecretInQueryWarns(t *testing.T) {
+	t.Parallel()
+
+	app := database.OAuth2ProviderApp{ID: uuid.New(), CallbackURL: "http://localhost:3000/callback"}
+	query := url.Values{}
+	query.Set("response_type", "code")
+	query.Set("client_id", app.ID.String())
+	query.Set("redirect_uri", app.CallbackURL)
+	query.Set("code_challenge", strings.Repeat("a", pkceVerifierMinLength))
+	query.Set("client_secret", "secret-value")
+	req := httptest.NewRequest(http.MethodGet, "/oauth2/authorize?"+query.Encode(), nil)
+
+	var logs bytes.Buffer
+	logger := slog.Make(slogjson.Sink(&logs)).Leveled(slog.LevelWarn)
+	_, failure := extractAuthorizeParams(req, logger, app)
+	require.Nil(t, failure, "the secret must be ignored, not rejected")
+
+	var entry struct {
+		Level  string `json:"level"`
+		Msg    string `json:"msg"`
+		Fields struct {
+			AppID string `json:"app_id"`
+		} `json:"fields"`
+	}
+	require.NoError(t, json.Unmarshal(logs.Bytes(), &entry), logs.String())
+	require.Equal(t, "WARN", entry.Level)
+	require.Equal(t, "oauth2 authorization request carried client_secret in the URL query string", entry.Msg)
+	require.Equal(t, app.ID.String(), entry.Fields.AppID)
+	require.NotContains(t, logs.String(), "secret-value")
 }
 
 // Every failure is errBadSecret so the caller cannot tell a malformed secret

@@ -150,7 +150,7 @@ Coder supports the following OAuth2 client authentication methods at the token e
 
 Coder supports both secret-based methods for compatibility; existing integrations using `client_secret_post` do not need to change.
 
-Send `client_secret` in the request body or in the `Authorization` header. A request that puts `client_secret` in the URL query string is rejected with `invalid_request`, because OAuth 2.1 section 2.4.1 does not allow it there. This applies to both `POST /oauth2/tokens` and `POST /oauth2/revoke`. The rule covers `client_secret` only. Coder still reads `refresh_token`, `code`, and the revocation `token` from the query string, so send those in the request body as well.
+Send `client_secret` in the request body or in the `Authorization` header. A request that puts `client_secret` in the URL query string is rejected with `invalid_request`, because OAuth 2.1 section 2.4.1 does not allow it there. This applies to both `POST /oauth2/tokens` and `POST /oauth2/revoke`. The rule covers `client_secret` only. Coder still reads `refresh_token`, `code`, and the revocation `token` from the query string, so send those in the request body as well. `GET /oauth2/authorize` is not rejected when its URL carries `client_secret`, because RFC 6749 section 3.1 requires that endpoint to ignore parameters it does not recognize. Coder ignores the value and logs a warning that names the client, so search the Coder logs for `client_secret in the URL query string` to find the integration that sends it.
 
 Public clients suit native, mobile, and CLI applications that cannot keep a secret confidential. Note the redirect URI restrictions below before choosing one.
 
