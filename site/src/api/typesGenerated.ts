@@ -8047,8 +8047,8 @@ export interface PutOAuth2ProviderAppRequest {
 	/**
 	 * RedirectURIs is the ordered list of URIs the app may redirect to. The
 	 * first entry is the primary. Omit both this and callback_url to keep the
-	 * stored redirect URIs. Other fields are replaced. An empty slice is
-	 * omitted on the wire, so it also keeps the stored list.
+	 * stored redirect URIs. Other fields are replaced. Sending an empty list
+	 * is an error, not a way to keep the stored list.
 	 */
 	readonly redirect_uris?: readonly string[];
 	/**

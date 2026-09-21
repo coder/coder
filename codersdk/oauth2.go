@@ -91,7 +91,7 @@ type PostOAuth2ProviderAppRequest struct {
 	// RedirectURIs is the ordered list of URIs the app may redirect to. The
 	// first entry is the primary. Required, unless the deprecated
 	// callback_url is sent instead.
-	RedirectURIs []string `json:"redirect_uris,omitempty"`
+	RedirectURIs []string `json:"redirect_uris,omitzero"`
 	// Deprecated: send redirect_uris instead. If both are sent, callback_url
 	// must equal the first entry of redirect_uris.
 	CallbackURL string `json:"callback_url,omitempty" validate:"omitempty"`
@@ -120,9 +120,9 @@ type PutOAuth2ProviderAppRequest struct {
 	Name string `json:"name" validate:"required,oauth2_app_name"`
 	// RedirectURIs is the ordered list of URIs the app may redirect to. The
 	// first entry is the primary. Omit both this and callback_url to keep the
-	// stored redirect URIs. Other fields are replaced. An empty slice is
-	// omitted on the wire, so it also keeps the stored list.
-	RedirectURIs []string `json:"redirect_uris,omitempty"`
+	// stored redirect URIs. Other fields are replaced. Sending an empty list
+	// is an error, not a way to keep the stored list.
+	RedirectURIs []string `json:"redirect_uris,omitzero"`
 	// Deprecated: send redirect_uris instead. If both are sent, callback_url
 	// must equal the first entry of redirect_uris.
 	CallbackURL string `json:"callback_url,omitempty" validate:"omitempty"`

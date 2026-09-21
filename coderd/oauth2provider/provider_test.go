@@ -2,7 +2,6 @@ package oauth2provider_test
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -1270,39 +1269,32 @@ func TestOAuth2ProviderAppRedirectURIs(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		// The SDK's omitempty tag drops an empty slice before it reaches the
-		// wire, so this sends the raw body to tell "explicit empty list"
-		// apart from "field omitted".
 		//nolint:gocritic // OAuth2 app management requires owner permission.
-		res, err := client.Request(ctx, http.MethodPut, fmt.Sprintf("/api/v2/oauth2-provider/apps/%s", app.ID), map[string]any{
-			"name":          "empty-list-update",
-			"redirect_uris": []string{},
+		_, err = client.PutOAuth2ProviderApp(ctx, app.ID, codersdk.PutOAuth2ProviderAppRequest{
+			Name:         "empty-list-update",
+			RedirectURIs: []string{},
 		})
-		require.NoError(t, err)
-		defer res.Body.Close()
-		require.Equal(t, http.StatusBadRequest, res.StatusCode)
-		var apiErr codersdk.Response
-		require.NoError(t, json.NewDecoder(res.Body).Decode(&apiErr))
-		require.Len(t, apiErr.Validations, 1)
-		require.Equal(t, "redirect_uris", apiErr.Validations[0].Field)
-		require.Equal(t, "at least one redirect URI is required", apiErr.Validations[0].Detail)
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+		require.Len(t, sdkErr.Validations, 1)
+		require.Equal(t, "redirect_uris", sdkErr.Validations[0].Field)
+		require.Equal(t, "at least one redirect URI is required", sdkErr.Validations[0].Detail)
 
-		// With callback_url in the same body, the message says the empty
+		// With callback_url in the same request, the message says the empty
 		// list is what discarded it.
 		//nolint:gocritic // OAuth2 app management requires owner permission.
-		res, err = client.Request(ctx, http.MethodPut, fmt.Sprintf("/api/v2/oauth2-provider/apps/%s", app.ID), map[string]any{
-			"name":          "empty-list-update",
-			"callback_url":  second,
-			"redirect_uris": []string{},
+		_, err = client.PutOAuth2ProviderApp(ctx, app.ID, codersdk.PutOAuth2ProviderAppRequest{
+			Name:         "empty-list-update",
+			CallbackURL:  second,
+			RedirectURIs: []string{},
 		})
-		require.NoError(t, err)
-		defer res.Body.Close()
-		require.Equal(t, http.StatusBadRequest, res.StatusCode)
-		apiErr = codersdk.Response{}
-		require.NoError(t, json.NewDecoder(res.Body).Decode(&apiErr))
-		require.Len(t, apiErr.Validations, 1)
-		require.Equal(t, "redirect_uris", apiErr.Validations[0].Field)
-		require.Equal(t, "redirect_uris was sent as an empty list, which overrides callback_url; send at least one redirect URI, or omit redirect_uris to use callback_url", apiErr.Validations[0].Detail)
+		sdkErr = nil
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+		require.Len(t, sdkErr.Validations, 1)
+		require.Equal(t, "redirect_uris", sdkErr.Validations[0].Field)
+		require.Equal(t, "redirect_uris was sent as an empty list, which overrides callback_url; send at least one redirect URI, or omit redirect_uris to use callback_url", sdkErr.Validations[0].Detail)
 	})
 
 	// A create that sends neither URI field is refused.
