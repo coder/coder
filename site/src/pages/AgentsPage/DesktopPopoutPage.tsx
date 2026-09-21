@@ -8,6 +8,13 @@ import {
 	type ScaleMode,
 } from "./components/RightPanel/DesktopToolbar";
 import {
+	DesktopWorkspaceState,
+	type DesktopWorkspaceStateProps,
+	isDesktopReachable,
+	useChatDesktopWorkspace,
+	useStartDesktopWorkspace,
+} from "./components/RightPanel/DesktopWorkspaceState";
+import {
 	type DesktopConnectionStatus,
 	useDesktopConnection,
 } from "./hooks/useDesktopConnection";
@@ -18,9 +25,18 @@ export default function DesktopPopoutPage() {
 	const [scaleMode, setScaleMode] = useState<ScaleMode>("fit");
 	const [isControlling, setIsControlling] = useState(false);
 
+	const { workspace, workspaceAgent } = useChatDesktopWorkspace(agentId);
+	const { startWorkspace, isStartingWorkspace } =
+		useStartDesktopWorkspace(workspace);
+
+	// Same gating as DesktopPanel: dial only while the agent is connected
+	// so a stopped workspace tears the session down and a restarted one
+	// reconnects on its own.
 	const { status, reconnect, attach } = useDesktopConnection({
 		chatId: agentId,
-		activated: true,
+		activated:
+			workspace !== undefined &&
+			isDesktopReachable(workspace.latest_build.status, workspaceAgent?.status),
 		scaleViewport: scaleMode === "fit",
 	});
 
@@ -59,6 +75,10 @@ export default function DesktopPopoutPage() {
 	return (
 		<DesktopPopoutPageView
 			status={status}
+			workspaceStatus={workspace?.latest_build.status}
+			agentStatus={workspaceAgent?.status}
+			onStartWorkspace={startWorkspace}
+			isStartingWorkspace={isStartingWorkspace}
 			reconnect={reconnect}
 			attach={attach}
 			scaleMode={scaleMode}
@@ -70,8 +90,11 @@ export default function DesktopPopoutPage() {
 	);
 }
 
-export interface DesktopPopoutPageViewProps {
+export interface DesktopPopoutPageViewProps
+	extends Omit<DesktopWorkspaceStateProps, "workspaceStatus"> {
 	status: DesktopConnectionStatus;
+	/** Undefined until the chat's workspace has loaded. */
+	workspaceStatus: DesktopWorkspaceStateProps["workspaceStatus"] | undefined;
 	reconnect: () => void;
 	attach: (container: HTMLElement) => void;
 	scaleMode: ScaleMode;
@@ -83,6 +106,10 @@ export interface DesktopPopoutPageViewProps {
 
 export const DesktopPopoutPageView: FC<DesktopPopoutPageViewProps> = ({
 	status,
+	workspaceStatus,
+	agentStatus,
+	onStartWorkspace,
+	isStartingWorkspace,
 	reconnect,
 	attach,
 	scaleMode,
@@ -91,6 +118,22 @@ export const DesktopPopoutPageView: FC<DesktopPopoutPageViewProps> = ({
 	onTakeControl,
 	onReleaseControl,
 }) => {
+	if (
+		workspaceStatus !== undefined &&
+		!isDesktopReachable(workspaceStatus, agentStatus)
+	) {
+		return (
+			<div className="h-screen w-screen bg-surface-primary">
+				<DesktopWorkspaceState
+					workspaceStatus={workspaceStatus}
+					agentStatus={agentStatus}
+					onStartWorkspace={onStartWorkspace}
+					isStartingWorkspace={isStartingWorkspace}
+				/>
+			</div>
+		);
+	}
+
 	if (status === "idle" || status === "connecting") {
 		return (
 			<div className="flex h-screen w-screen items-center justify-center bg-surface-primary">

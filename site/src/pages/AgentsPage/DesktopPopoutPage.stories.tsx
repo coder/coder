@@ -16,6 +16,10 @@ type Story = StoryObj<typeof meta>;
 export const Connecting: Story = {
 	args: {
 		status: "connecting",
+		workspaceStatus: "running",
+		agentStatus: "connected",
+		onStartWorkspace: fn(),
+		isStartingWorkspace: false,
 		reconnect: fn(),
 		attach: fn(),
 		scaleMode: "fit",
@@ -44,5 +48,14 @@ export const Disconnected: Story = {
 	args: {
 		...Connecting.args,
 		status: "disconnected",
+	},
+};
+
+export const WorkspaceStopped: Story = {
+	args: {
+		...Connecting.args,
+		status: "idle",
+		workspaceStatus: "stopped",
+		agentStatus: undefined,
 	},
 };

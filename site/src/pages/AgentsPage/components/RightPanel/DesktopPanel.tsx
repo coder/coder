@@ -1,16 +1,7 @@
 import { ExternalLinkIcon } from "lucide-react";
 import type { FC } from "react";
 import { useEffect, useState } from "react";
-import { useMutation, useQueryClient } from "react-query";
-import { toast } from "sonner";
-import { getErrorMessage } from "#/api/errors";
-import { startWorkspace } from "#/api/queries/workspaces";
-import type {
-	Workspace,
-	WorkspaceAgent,
-	WorkspaceAgentStatus,
-	WorkspaceStatus,
-} from "#/api/typesGenerated";
+import type { Workspace, WorkspaceAgent } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import { Spinner } from "#/components/Spinner/Spinner";
 import {
@@ -19,6 +10,12 @@ import {
 } from "../../hooks/useDesktopConnection";
 import { useZoomShortcuts } from "../../hooks/useZoomShortcuts";
 import { DesktopToolbar, type ScaleMode } from "./DesktopToolbar";
+import {
+	DesktopWorkspaceState,
+	type DesktopWorkspaceStateProps,
+	isDesktopReachable,
+	useStartDesktopWorkspace,
+} from "./DesktopWorkspaceState";
 
 interface DesktopPanelProps {
 	chatId: string;
@@ -28,20 +25,6 @@ interface DesktopPanelProps {
 	/** When true the panel is the active sidebar tab. */
 	isVisible?: boolean;
 }
-
-/** Build statuses from which the workspace can be started again. */
-const startableWorkspaceStatuses: readonly WorkspaceStatus[] = [
-	"stopped",
-	"failed",
-	"canceled",
-];
-
-// The desktop endpoint rejects any agent that is not connected, so this
-// is the precondition for dialing it.
-const isDesktopReachable = (
-	workspaceStatus: WorkspaceStatus,
-	agentStatus: WorkspaceAgentStatus | undefined,
-): boolean => workspaceStatus === "running" && agentStatus === "connected";
 
 export const DesktopPanel: FC<DesktopPanelProps> = ({
 	chatId,
@@ -57,13 +40,8 @@ export const DesktopPanel: FC<DesktopPanelProps> = ({
 		setActivated(true);
 	}
 
-	const queryClient = useQueryClient();
-	const { mutate: start, isPending: isStartingWorkspace } = useMutation({
-		...startWorkspace(workspace, queryClient),
-		onError: (error) => {
-			toast.error(getErrorMessage(error, "Failed to start workspace."));
-		},
-	});
+	const { startWorkspace, isStartingWorkspace } =
+		useStartDesktopWorkspace(workspace);
 
 	const [isControlling, setIsControlling] = useState(false);
 	if (!isVisible && isControlling) {
@@ -142,7 +120,7 @@ export const DesktopPanel: FC<DesktopPanelProps> = ({
 			status={status}
 			workspaceStatus={workspace.latest_build.status}
 			agentStatus={workspaceAgent?.status}
-			onStartWorkspace={() => start({})}
+			onStartWorkspace={startWorkspace}
 			isStartingWorkspace={isStartingWorkspace}
 			reconnect={reconnect}
 			attach={attach}
@@ -156,12 +134,8 @@ export const DesktopPanel: FC<DesktopPanelProps> = ({
 	);
 };
 
-export interface DesktopPanelViewProps {
+export interface DesktopPanelViewProps extends DesktopWorkspaceStateProps {
 	status: DesktopConnectionStatus;
-	workspaceStatus: WorkspaceStatus;
-	agentStatus: WorkspaceAgentStatus | undefined;
-	onStartWorkspace: () => void;
-	isStartingWorkspace: boolean;
 	reconnect: () => void;
 	attach: (container: HTMLElement) => void;
 	scaleMode: ScaleMode;
@@ -187,43 +161,14 @@ export const DesktopPanelView: FC<DesktopPanelViewProps> = ({
 	onReleaseControl,
 	onPopOut,
 }) => {
-	if (startableWorkspaceStatuses.includes(workspaceStatus)) {
-		return (
-			<div className="flex h-full flex-col items-center justify-center gap-3 text-content-secondary">
-				<span className="text-center text-sm">
-					The workspace is stopped. Start it to reconnect to the desktop.
-				</span>
-				<Button
-					variant="outline"
-					size="sm"
-					onClick={onStartWorkspace}
-					disabled={isStartingWorkspace}
-				>
-					<Spinner loading={isStartingWorkspace} />
-					Start workspace
-				</Button>
-			</div>
-		);
-	}
-
-	if (workspaceStatus === "deleted") {
-		return (
-			<div className="flex h-full flex-col items-center justify-center gap-2 text-content-secondary">
-				<span className="text-sm">The workspace has been deleted.</span>
-			</div>
-		);
-	}
-
 	if (!isDesktopReachable(workspaceStatus, agentStatus)) {
 		return (
-			<div className="flex h-full flex-col items-center justify-center gap-2 text-content-secondary">
-				<Spinner loading className="size-6" />
-				<span className="text-sm">
-					{workspaceStatus === "running"
-						? "Waiting for the workspace agent to connect..."
-						: `Workspace is ${workspaceStatus}...`}
-				</span>
-			</div>
+			<DesktopWorkspaceState
+				workspaceStatus={workspaceStatus}
+				agentStatus={agentStatus}
+				onStartWorkspace={onStartWorkspace}
+				isStartingWorkspace={isStartingWorkspace}
+			/>
 		);
 	}
 
