@@ -31,6 +31,11 @@ var (
 	errProcessNotFound   = xerrors.New("process not found")
 	errProcessNotRunning = xerrors.New("process is not running")
 
+	// errProcessStartPending reports a reservation that has not
+	// published its process yet, so the request reached nothing
+	// though the command may still run.
+	errProcessStartPending = xerrors.New("process start is still pending")
+
 	// exitedProcessReapAge is how long an exited process without
 	// an idempotency key is kept before being automatically
 	// removed from the map.
@@ -444,6 +449,24 @@ func (m *manager) signal(id string, sig string) error {
 	}
 
 	return nil
+}
+
+// signalByKey signals the process started under an idempotency key,
+// so a caller that lost the start response can still act on it.
+// Reservations are chat-scoped, so another chat's key is absent here.
+//
+// A reservation that has not spawned yet is the expected state on this
+// path, since it is used precisely when the start response was lost.
+// Waiting within ctx keeps that from reading as a missing process.
+func (m *manager) signalByKey(ctx context.Context, chatID, idempotencyKey, sig string) error {
+	procID, err := m.runOnce.Await(ctx, runOnceKey{chatID: chatID, key: idempotencyKey})
+	if err != nil {
+		if errors.Is(err, agentrunonce.ErrPublicationPending) {
+			return errProcessStartPending
+		}
+		return errProcessNotFound
+	}
+	return m.signal(procID, sig)
 }
 
 // Close kills all running processes and prevents new ones from

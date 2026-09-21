@@ -570,6 +570,20 @@ func (mr *MockAgentConnMockRecorder) SignalProcess(ctx, id, signal any) *gomock.
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SignalProcess", reflect.TypeOf((*MockAgentConn)(nil).SignalProcess), ctx, id, signal)
 }
 
+// SignalProcessByIdempotencyKey mocks base method.
+func (m *MockAgentConn) SignalProcessByIdempotencyKey(ctx context.Context, idempotencyKey, signal string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SignalProcessByIdempotencyKey", ctx, idempotencyKey, signal)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// SignalProcessByIdempotencyKey indicates an expected call of SignalProcessByIdempotencyKey.
+func (mr *MockAgentConnMockRecorder) SignalProcessByIdempotencyKey(ctx, idempotencyKey, signal any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SignalProcessByIdempotencyKey", reflect.TypeOf((*MockAgentConn)(nil).SignalProcessByIdempotencyKey), ctx, idempotencyKey, signal)
+}
+
 // Speedtest mocks base method.
 func (m *MockAgentConn) Speedtest(ctx context.Context, direction speedtest.Direction, duration time.Duration) ([]speedtest.Result, error) {
 	m.ctrl.T.Helper()

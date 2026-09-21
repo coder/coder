@@ -1027,6 +1027,27 @@ Attached foreground starts also return the process's original start time. The re
 
 This is at-least-once execution with best-effort deduplication. The registry does not survive agent restarts, reservations are reaped 60 minutes after process exit, and agents that predate the mechanism ignore the key entirely; in all of those cases a replay runs the command again.
 
+### Interrupt kill
+
+When a user action supersedes a running turn (an interrupt, an edit, or a message sent with `busy_behavior=interrupt`), the runner cancels the active task with the `chattool.ErrUserInterrupt` cause. A foreground `execute` call unwinding on that cause sends a best-effort kill signal on a detached, bounded context: the user asked for the work to stop, and the command would otherwise keep running after the turn result is discarded. Background processes are deliberately spared; they are addressable through their handle and the process list.
+
+The kill is armed before the start request, not after it, so it also covers a start whose response never arrived. In that case chatd knows no process ID, but it does know the idempotency key, and the agent can resolve that key to the process it started. The key travels in the request body rather than the URL path, because it carries a provider-supplied tool call ID that may contain characters needing escaping.
+
+A reservation whose start has not spawned yet is the expected state on that path, so the agent waits for it to publish within the request context before signaling. Only two answers prove there is nothing left to kill, and only those suppress the kill:
+
+| Answer | Meaning |
+|---|---|
+| 404 `process_key_not_found` | No reservation holds the key. |
+| 409 `not_running` | The process under the key has exited. |
+| 409 `start_pending` | The start has not spawned yet, so the command may still run. |
+| plain 404 | The agent predates the route, which says nothing about the process. |
+
+The last two are logged rather than treated as success, along with the case where the dispatch never identified the call and there is no key to signal by.
+
+Every other cancellation kills nothing: an attempt timeout, worker shutdown, or runner rebalancing cancels without the interrupt cause, leaving the process running so a retried attempt re-attaches through its idempotency key instead of starting the command again.
+
+The kill is best-effort. If the `StartProcess` response was lost, the agent is unreachable, or the worker dies before unwinding, the process keeps running but stays visible and killable through the process list.
+
 # Lifecycle hooks
 
 When the `agent-lifecycle-hooks` experiment is enabled and a hook URL is configured, chatd sends events to an external consumer at key points in a conversation: session start, prompt submission, tool use, compaction, and turn completion.

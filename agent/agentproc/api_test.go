@@ -116,6 +116,28 @@ func postSignal(t *testing.T, handler http.Handler, id string, req workspacesdk.
 	return w
 }
 
+func postSignalByKey(t *testing.T, handler http.Handler, req workspacesdk.SignalProcessByIdempotencyKeyRequest, headers ...http.Header) *httptest.ResponseRecorder {
+	t.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+
+	body, err := json.Marshal(req)
+	require.NoError(t, err)
+
+	w := httptest.NewRecorder()
+	r := httptest.NewRequestWithContext(ctx, http.MethodPost, "/signal-by-idempotency-key", bytes.NewReader(body))
+	for _, header := range headers {
+		for key, values := range header {
+			for _, value := range values {
+				r.Header.Add(key, value)
+			}
+		}
+	}
+	handler.ServeHTTP(w, r)
+	return w
+}
+
 // newTestAPI creates a new API with a test logger and default
 // execer, returning the handler and API.
 func newTestAPI(t *testing.T) http.Handler {
@@ -1219,6 +1241,141 @@ func getOutputWithWaitCtx(ctx context.Context, t *testing.T, handler http.Handle
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 	return w
+}
+
+func TestSignalProcessByIdempotencyKey(t *testing.T) {
+	t.Parallel()
+
+	t.Run("KillsProcessStartedUnderKey", func(t *testing.T) {
+		t.Parallel()
+
+		handler := newTestAPI(t)
+		id := startAndGetID(t, handler, workspacesdk.StartProcessRequest{
+			Command:        "sleep 60",
+			IdempotencyKey: "key-1",
+			Background:     true,
+		})
+
+		w := postSignalByKey(t, handler, workspacesdk.SignalProcessByIdempotencyKeyRequest{
+			IdempotencyKey: "key-1",
+			Signal:         "kill",
+		})
+		require.Equal(t, http.StatusOK, w.Code)
+
+		resp := waitForExit(t, handler, id)
+		require.False(t, resp.Running)
+	})
+
+	// Keys carry provider-supplied tool call IDs, so the route must
+	// accept values that would need escaping in a URL path.
+	t.Run("AcceptsKeysNeedingURLEscaping", func(t *testing.T) {
+		t.Parallel()
+
+		for _, key := range []string{"7-a/b", "7-a b", "7-a%b", "7-a?b#c", "7-.."} {
+			t.Run(key, func(t *testing.T) {
+				t.Parallel()
+
+				handler := newTestAPI(t)
+				id := startAndGetID(t, handler, workspacesdk.StartProcessRequest{
+					Command:        "sleep 60",
+					IdempotencyKey: key,
+					Background:     true,
+				})
+
+				w := postSignalByKey(t, handler, workspacesdk.SignalProcessByIdempotencyKeyRequest{
+					IdempotencyKey: key,
+					Signal:         "kill",
+				})
+				require.Equal(t, http.StatusOK, w.Code)
+				require.False(t, waitForExit(t, handler, id).Running)
+			})
+		}
+	})
+
+	t.Run("UnknownKeyNotFound", func(t *testing.T) {
+		t.Parallel()
+
+		handler := newTestAPI(t)
+		w := postSignalByKey(t, handler, workspacesdk.SignalProcessByIdempotencyKeyRequest{
+			IdempotencyKey: "key-missing",
+			Signal:         "kill",
+		})
+		require.Equal(t, http.StatusNotFound, w.Code)
+		var notFound workspacesdk.ProcessKeyNotFoundError
+		require.NoError(t, json.NewDecoder(w.Body).Decode(&notFound))
+		require.Equal(t, workspacesdk.ProcessKeyNotFoundCode, notFound.Code)
+	})
+
+	t.Run("ForeignChatKeyNotFound", func(t *testing.T) {
+		t.Parallel()
+
+		// Reservations are chat-scoped, so another chat's key is
+		// simply absent rather than forbidden.
+		handler := newTestAPI(t)
+		headerA := http.Header{}
+		headerA.Set(workspacesdk.CoderChatIDHeader, uuid.New().String())
+		headerB := http.Header{}
+		headerB.Set(workspacesdk.CoderChatIDHeader, uuid.New().String())
+
+		id := startAndGetID(t, handler, workspacesdk.StartProcessRequest{
+			Command:        "sleep 60",
+			IdempotencyKey: "key-1",
+			Background:     true,
+		}, headerA)
+
+		w := postSignalByKey(t, handler, workspacesdk.SignalProcessByIdempotencyKeyRequest{
+			IdempotencyKey: "key-1",
+			Signal:         "kill",
+		}, headerB)
+		require.Equal(t, http.StatusNotFound, w.Code)
+
+		// The process is untouched.
+		w = getOutputWithHeaders(t, handler, id, headerA)
+		require.Equal(t, http.StatusOK, w.Code)
+		var output workspacesdk.ProcessOutputResponse
+		require.NoError(t, json.NewDecoder(w.Body).Decode(&output))
+		require.True(t, output.Running)
+	})
+
+	t.Run("ExitedProcessConflicts", func(t *testing.T) {
+		t.Parallel()
+
+		handler := newTestAPI(t)
+		id := startAndGetID(t, handler, workspacesdk.StartProcessRequest{
+			Command:        "echo hello",
+			IdempotencyKey: "key-1",
+		})
+		waitForExit(t, handler, id)
+
+		w := postSignalByKey(t, handler, workspacesdk.SignalProcessByIdempotencyKeyRequest{
+			IdempotencyKey: "key-1",
+			Signal:         "kill",
+		})
+		// The code must distinguish this from a start conflict, since
+		// callers suppress the kill only for an exited process.
+		requireConflictCode(t, w, workspacesdk.ProcessConflictNotRunning)
+	})
+
+	t.Run("RejectsUnsupportedSignal", func(t *testing.T) {
+		t.Parallel()
+
+		handler := newTestAPI(t)
+		w := postSignalByKey(t, handler, workspacesdk.SignalProcessByIdempotencyKeyRequest{
+			IdempotencyKey: "key-1",
+			Signal:         "hup",
+		})
+		require.Equal(t, http.StatusBadRequest, w.Code)
+	})
+
+	t.Run("RejectsMissingKey", func(t *testing.T) {
+		t.Parallel()
+
+		handler := newTestAPI(t)
+		w := postSignalByKey(t, handler, workspacesdk.SignalProcessByIdempotencyKeyRequest{
+			Signal: "kill",
+		})
+		require.Equal(t, http.StatusBadRequest, w.Code)
+	})
 }
 
 func TestSignalProcess(t *testing.T) {

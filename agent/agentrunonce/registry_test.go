@@ -433,3 +433,83 @@ func TestForgetIgnoresSupersededGeneration(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, fresh.Ticket)
 }
+
+func TestAwaitReportsUnreservedKey(t *testing.T) {
+	t.Parallel()
+
+	registry := agentrunonce.NewRegistry[string, string](testRetention)
+
+	_, err := registry.Await(context.Background(), "key")
+	require.ErrorIs(t, err, agentrunonce.ErrNotReserved)
+}
+
+func TestAwaitReturnsPublishedValue(t *testing.T) {
+	t.Parallel()
+
+	registry := agentrunonce.NewRegistry[string, string](testRetention)
+
+	outcome, err := registry.Reserve(context.Background(), "key", "fp")
+	require.NoError(t, err)
+	outcome.Ticket.Publish("value")
+
+	value, err := registry.Await(context.Background(), "key")
+	require.NoError(t, err)
+	require.Equal(t, "value", value)
+}
+
+func TestAwaitWaitsForPendingReservation(t *testing.T) {
+	t.Parallel()
+
+	registry := agentrunonce.NewRegistry[string, string](testRetention)
+
+	outcome, err := registry.Reserve(context.Background(), "key", "fp")
+	require.NoError(t, err)
+
+	awaited := make(chan string, 1)
+	go func() {
+		value, err := registry.Await(context.Background(), "key")
+		if err == nil {
+			awaited <- value
+		}
+	}()
+
+	require.Never(t, func() bool {
+		return len(awaited) > 0
+	}, testutil.IntervalMedium, testutil.IntervalFast)
+
+	outcome.Ticket.Publish("value")
+	require.Equal(t, "value", testutil.RequireReceive(testutil.Context(t, testutil.WaitShort), t, awaited))
+}
+
+func TestAwaitReportsPendingAtDeadline(t *testing.T) {
+	t.Parallel()
+
+	registry := agentrunonce.NewRegistry[string, string](testRetention)
+
+	_, err := registry.Reserve(context.Background(), "key", "fp")
+	require.NoError(t, err)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	_, err = registry.Await(ctx, "key")
+	require.ErrorIs(t, err, agentrunonce.ErrPublicationPending)
+	require.NotErrorIs(t, err, agentrunonce.ErrNotReserved)
+}
+
+func TestAwaitTreatsReleasedReservationAsUnreserved(t *testing.T) {
+	t.Parallel()
+
+	registry := agentrunonce.NewRegistry[string, string](testRetention)
+
+	outcome, err := registry.Reserve(context.Background(), "key", "fp")
+	require.NoError(t, err)
+
+	awaited := make(chan error, 1)
+	go func() {
+		_, err := registry.Await(context.Background(), "key")
+		awaited <- err
+	}()
+
+	outcome.Ticket.Release()
+	require.ErrorIs(t, testutil.RequireReceive(testutil.Context(t, testutil.WaitShort), t, awaited), agentrunonce.ErrNotReserved)
+}

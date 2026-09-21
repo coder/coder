@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"regexp"
 	"strings"
 	"time"
@@ -12,6 +13,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
 
@@ -33,7 +35,14 @@ const (
 	// early, so a short agent-side wait cannot degenerate into a
 	// zero-delay request loop.
 	processWaitRetryDelay = time.Second
+
+	killSignalTimeout = 5 * time.Second
 )
+
+// ErrUserInterrupt is the cancellation cause chatd uses when a user
+// action supersedes the running turn. Foreground execute kills its
+// process only for this cause.
+var ErrUserInterrupt = xerrors.New("chat turn superseded by a user action")
 
 // idempotencyKeyFromContext derives the idempotency key for the tool
 // call being run, or "" when the dispatch did not identify it, in
@@ -237,6 +246,82 @@ func startProcessResolvingPendingWait(ctx context.Context, conn workspacesdk.Age
 	}
 }
 
+// userInterruptStopper kills a foreground process when a user action
+// supersedes the turn, and does nothing for any other cancellation
+// cause. It is armed before the start request, so a start whose
+// response never arrives cannot leave an unreachable command running.
+//
+// All methods run on the single goroutine executing the tool call.
+type userInterruptStopper struct {
+	conn           workspacesdk.AgentConn
+	logger         slog.Logger
+	idempotencyKey string
+	processID      string
+	disarmed       bool
+}
+
+func (s *userInterruptStopper) observeStart(processID string) {
+	s.processID = processID
+}
+
+func (s *userInterruptStopper) disarm() {
+	s.disarmed = true
+}
+
+// stop signals the process if the turn was superseded, on a detached
+// context because the tool context is already canceled. An unproven
+// failure is logged and dropped, leaving the process killable through
+// the process list.
+func (s *userInterruptStopper) stop(ctx context.Context) {
+	if s.disarmed || !xerrors.Is(context.Cause(ctx), ErrUserInterrupt) {
+		return
+	}
+	killCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), killSignalTimeout)
+	defer cancel()
+
+	var err error
+	switch {
+	case s.processID != "":
+		err = s.conn.SignalProcess(killCtx, s.processID, "kill")
+	case s.idempotencyKey != "":
+		// The start response never arrived, so the key is the only
+		// handle on the process.
+		err = s.conn.SignalProcessByIdempotencyKey(killCtx, s.idempotencyKey, "kill")
+	default:
+		return
+	}
+	if err == nil || isAlreadyGoneError(err) {
+		return
+	}
+	s.logger.Warn(ctx, "failed to kill foreground process on user interrupt",
+		slog.F("process_id", s.processID),
+		slog.F("idempotency_key", s.idempotencyKey),
+		slog.Error(err),
+	)
+}
+
+// isAlreadyGoneError reports a signal answer proving the process no
+// longer needs stopping.
+//
+// The by-key route's other answers do not prove that: an agent without
+// the route answers 404, and a start that has not spawned yet answers
+// 409. Both are logged rather than suppressed.
+func isAlreadyGoneError(err error) bool {
+	var notFound *workspacesdk.ProcessKeyNotFoundError
+	if xerrors.As(err, &notFound) {
+		return true
+	}
+	var conflict *workspacesdk.ProcessConflictError
+	if xerrors.As(err, &conflict) {
+		return conflict.Code == workspacesdk.ProcessConflictNotRunning
+	}
+	var sdkErr *codersdk.Error
+	if !xerrors.As(err, &sdkErr) {
+		return false
+	}
+	return sdkErr.StatusCode() == http.StatusNotFound || sdkErr.StatusCode() == http.StatusConflict
+}
+
 // startConflictResult converts a start conflict into an error result.
 // A parameter mismatch is permanent and started nothing. A
 // start-pending conflict is unresolved: the concurrent start may
@@ -324,6 +409,11 @@ func executeForeground(
 
 	start := time.Now()
 
+	// Armed before the start so an interrupt still stops the command
+	// when the start response is lost.
+	stopper := &userInterruptStopper{conn: conn, logger: options.Logger, idempotencyKey: idempotencyKey}
+	defer func() { stopper.stop(ctx) }()
+
 	resp, err := startProcessResolvingPendingWait(cmdCtx, conn, workspacesdk.StartProcessRequest{
 		Command:        args.Command,
 		WorkDir:        workDir,
@@ -333,10 +423,14 @@ func executeForeground(
 	})
 	if err != nil {
 		if idempotencyKey != "" && isConflictError(err) {
+			// The command belongs to another dispatch, which owns
+			// stopping it.
+			stopper.disarm()
 			return startConflictResult(ctx, options.Logger, idempotencyKey, err)
 		}
 		return errorResult(enrichStartError(fmt.Sprintf("start process: %v", err)))
 	}
+	stopper.observeStart(resp.ID)
 
 	var result ExecuteResult
 	if resp.Attached {
@@ -352,6 +446,10 @@ func executeForeground(
 		}
 	} else {
 		result = waitForProcess(cmdCtx, ctx, conn, resp.ID, timeout)
+	}
+	if result.BackgroundProcessID == "" {
+		// The wait observed the command finish.
+		stopper.disarm()
 	}
 	// An agent clock running ahead can place start in the future;
 	// clamp instead of reporting a negative duration.

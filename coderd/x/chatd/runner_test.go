@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
 )
@@ -40,6 +41,7 @@ func TestRunner_CancelsActiveTaskWhenHistoryChanges(t *testing.T) {
 	require.Greater(t, updated.HistoryVersion, first.input.HistoryVersion)
 	requireTaskCanceled(t, first)
 	require.NotErrorIs(t, context.Cause(first.ctx), errTaskTimeout)
+	require.ErrorIs(t, context.Cause(first.ctx), chattool.ErrUserInterrupt)
 	second := starter.waitCall(t, taskKindGeneration, chat.ID)
 	require.Equal(t, updated.HistoryVersion, second.input.HistoryVersion)
 	require.Same(t, first.input.SessionStart, second.input.SessionStart)
@@ -56,6 +58,7 @@ func TestRunner_CancelsActiveTaskWhenStatusChanges(t *testing.T) {
 	updated := interruptChat(t, f, chat.ID)
 	require.Equal(t, database.ChatStatusInterrupting, updated.Status)
 	requireTaskCanceled(t, first)
+	require.ErrorIs(t, context.Cause(first.ctx), chattool.ErrUserInterrupt)
 	second := starter.waitCall(t, taskKindInterrupt, chat.ID)
 	require.Equal(t, updated.HistoryVersion, second.input.HistoryVersion)
 }
@@ -70,6 +73,9 @@ func TestRunner_CleansUpOnOwnershipTakeover(t *testing.T) {
 
 	acquireChat(t, f, chat.ID, uuid.New(), uuid.New())
 	requireTaskCanceled(t, first)
+	// Ownership takeover is not a user interrupt: the chat's work
+	// continues on the new owner, so tools must not kill processes.
+	require.NotErrorIs(t, context.Cause(first.ctx), chattool.ErrUserInterrupt)
 	starter.assertNoCall(t)
 }
 
