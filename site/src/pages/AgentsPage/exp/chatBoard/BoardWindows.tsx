@@ -1,5 +1,6 @@
-import { type FC, useEffect, useEffectEvent } from "react";
+import { type FC, lazy, Suspense, useEffect, useEffectEvent } from "react";
 import type { Chat } from "#/api/typesGenerated";
+import { AgentChatPageSkeleton } from "../../components/AgentsSkeletons";
 import {
 	type BoardState,
 	cardContext,
@@ -8,8 +9,11 @@ import {
 } from "./boardApi";
 import type { BoardCard, CardColor } from "./boardLabels";
 import { type ChatWindow, type DraftTarget, windowKey } from "./boardStorage";
-import { ChatBody, FloatingChat } from "./ChatWindows";
+import { FloatingChat } from "./ChatWindows";
 import { DraftChat } from "./DraftChat";
+
+// Lazy so the board loads without the chat page.
+const AgentChatPage = lazy(() => import("../../AgentChatPage"));
 
 type BoardWindowsProps = {
 	readonly windows: readonly ChatWindow[];
@@ -84,7 +88,9 @@ export const BoardWindows: FC<BoardWindowsProps> = ({
 						}
 					}
 				>
-					<ChatBody chatId={win.chatId} />
+					<Suspense fallback={<AgentChatPageSkeleton />}>
+						<AgentChatPage chatId={win.chatId} />
+					</Suspense>
 				</FloatingChat>
 			);
 		}

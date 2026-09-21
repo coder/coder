@@ -307,7 +307,6 @@ type EffortsSubMenuProps = {
 	readonly onToggle: (name: string, on: boolean) => void;
 };
 
-/** One checkbox per effort on the board, then a line to coin a new one; each change saves. */
 const EffortsSubMenu: FC<EffortsSubMenuProps> = ({
 	selected,
 	known,
@@ -337,7 +336,6 @@ const EffortsSubMenu: FC<EffortsSubMenuProps> = ({
 			}}
 		>
 			<InlineEdit
-				key={selected.length}
 				value=""
 				placeholder="New effort"
 				ariaLabel="New effort"

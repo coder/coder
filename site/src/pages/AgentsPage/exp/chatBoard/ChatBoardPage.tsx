@@ -186,10 +186,8 @@ const ChatBoardPage: FC = () => {
 				: [];
 		}),
 	);
-	// Watch events carry status but not labels. While the board assistant is
-	// on a turn it may relabel chats, so the turn ending refetches the list.
-	// The effect's cleanup is that ending: it runs when the status leaves the
-	// active set, or when the board unmounts mid-turn.
+	// Watch events carry status but not labels, and the board assistant
+	// relabels chats during a turn, so the turn ending refetches the list.
 	const boardAssistantId = assistantByKey.get(BOARD_ASSISTANT_KEY);
 	const boardAssistantActive = isActiveChatStatus(
 		(boardAssistantId ? chatsById.get(boardAssistantId)?.status : null) ?? null,
@@ -308,7 +306,6 @@ const ChatBoardPage: FC = () => {
 	};
 	const endPreview = () => setPendingPreview({ kind: "close" });
 
-	// Opens the chat for the assistant labelled `key`, creating it on first use.
 	const showAssistant = (
 		key: string,
 		spec: (tools: AssistantTools) => AssistantSpec,

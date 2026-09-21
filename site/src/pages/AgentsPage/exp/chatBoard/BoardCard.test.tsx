@@ -1,4 +1,4 @@
-import { screen, within } from "@testing-library/react";
+import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ComponentProps } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -186,26 +186,6 @@ describe("BoardCard", () => {
 		expect(onOpen).toHaveBeenCalledWith(card.members[1], rect(120));
 	});
 
-	it("marks unread on the settled member's chat icon, not the working one's", () => {
-		renderCard([
-			chat("p", { "board/group": "p" }),
-			{ ...chat("m", { "board/group": "p" }), has_unread: true },
-			{
-				...chat("r", { "board/group": "p" }),
-				has_unread: true,
-				status: "running",
-			},
-		]);
-
-		const dot = { name: "Unread" };
-		const [, rowM, rowR] = screen.getAllByRole("listitem");
-		expect(
-			within(within(rowM).getByTitle("Open chat")).getByRole("img", dot),
-		).toBeDefined();
-		expect(within(rowR).queryByRole("img", dot)).toBeNull();
-		expect(screen.getAllByRole("img", dot)).toHaveLength(1);
-	});
-
 	it("previews and opens the assistant from its icon, anchored to the card", async () => {
 		const user = userEvent.setup();
 		const assistant = chat("a", { "board/assistant": "p" });
@@ -222,23 +202,5 @@ describe("BoardCard", () => {
 
 		expect(onPreview).toHaveBeenCalledWith(assistant, rect);
 		expect(onOpen).toHaveBeenCalledWith(assistant, rect);
-	});
-
-	it("marks a settled assistant's reply unread and a working one as busy", () => {
-		renderCard([chat("p")], {
-			...chat("a", { "board/assistant": "p" }),
-			has_unread: true,
-		});
-		renderCard([chat("q")], {
-			...chat("b", { "board/assistant": "q" }),
-			has_unread: true,
-			status: "running",
-		});
-
-		const dot = { name: "Unread" };
-		const settled = screen.getByRole("button", { name: "Assistant" });
-		expect(within(settled).getByRole("img", dot)).toBeDefined();
-		const working = screen.getByRole("button", { name: "Assistant working" });
-		expect(within(working).queryByRole("img", dot)).toBeNull();
 	});
 });

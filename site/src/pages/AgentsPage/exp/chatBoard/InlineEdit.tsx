@@ -31,6 +31,9 @@ export const InlineEdit: FC<InlineEditProps> = ({
 		const next = draft.trim();
 		onDone();
 		if (next && next !== value) onSave(next);
+		// A parent that keeps the field mounted for the next entry, like the
+		// new-effort line, gets it back blank without remounting it.
+		setDraft(value);
 	};
 
 	return (
