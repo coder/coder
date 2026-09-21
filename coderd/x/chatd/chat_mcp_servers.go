@@ -58,11 +58,7 @@ func (server *Server) loadChatMCPServers(ctx context.Context, chat database.Chat
 			OrganizationID:      chat.OrganizationID,
 		})
 
-		values := []string{row.Url}
-		for _, name := range slices.Sorted(maps.Keys(headers)) {
-			values = append(values, name, headers[name])
-		}
-		sensitiveValues[row.ID] = values
+		sensitiveValues[row.ID] = append([]string{row.Url}, slices.Collect(maps.Values(headers))...)
 	}
 	return configs, sensitiveValues, nil
 }
