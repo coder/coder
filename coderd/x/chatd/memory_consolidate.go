@@ -166,7 +166,7 @@ func (p *Server) consolidateMemories(ctx context.Context, logger slog.Logger, ch
 	// the same window is retried rather than skipped.
 	resumeAt := previousNextWindowStart
 	finish := func(status database.ChatMemoryConsolidationStatus, after int64, mutations []codersdk.ChatMemoryMutation, finishErr error) {
-		if err := p.finishMemoryConsolidation(ctx, scope, record.ID, status, after, mutations, resumeAt, finishErr); err != nil {
+		if err := finishMemoryConsolidation(ctx, p.db, scope, record.ID, status, after, mutations, resumeAt, finishErr); err != nil {
 			logger.Warn(ctx, "failed to finish memory consolidation", slog.F("chat_id", chat.ID), slog.Error(err))
 		}
 	}
@@ -204,11 +204,23 @@ func (p *Server) consolidateMemories(ctx context.Context, logger slog.Logger, ch
 		finish(database.ChatMemoryConsolidationStatusSkipped, before, nil, nil)
 		return
 	}
-	var applied []memoryConsolidationMutation
-	if err := store.InTx(func(txStore chattool.MemoryStore) error {
-		var err error
-		applied, err = applyMemoryConsolidationMutations(ctx, txStore, mutations, memories, time.Now())
-		return err
+	// The journal commits with the mutations it describes, so the record
+	// can never claim nothing changed after a destructive write landed.
+	journaled := false
+	if err := store.InTx(func(txStore chattool.MemoryStore, tx database.Store) error {
+		applied, err := applyMemoryConsolidationMutations(ctx, txStore, mutations, memories, time.Now())
+		if err != nil {
+			return err
+		}
+		if len(applied) == 0 {
+			return nil
+		}
+		after, err := txStore.Count(ctx)
+		if err != nil {
+			return xerrors.Errorf("count consolidated memories: %w", err)
+		}
+		journaled = true
+		return finishMemoryConsolidation(ctx, tx, scope, record.ID, database.ChatMemoryConsolidationStatusSucceeded, after, memoryConsolidationJournalMutations(applied), resumeAt, nil)
 	}); err != nil {
 		finish(database.ChatMemoryConsolidationStatusFailed, before, nil, xerrors.Errorf("apply mutations: %w", err))
 		return
@@ -216,16 +228,9 @@ func (p *Server) consolidateMemories(ctx context.Context, logger slog.Logger, ch
 	// Concurrent edits can invalidate every mutation at apply time. That is
 	// a skipped run, not a successful one, so a partial window at the cap
 	// still continues to the rest of the set.
-	if len(applied) == 0 {
+	if !journaled {
 		finish(database.ChatMemoryConsolidationStatusSkipped, before, nil, nil)
-		return
 	}
-	after, err := store.Count(ctx)
-	if err != nil {
-		finish(database.ChatMemoryConsolidationStatusFailed, before, nil, xerrors.Errorf("count consolidated memories: %w", err))
-		return
-	}
-	finish(database.ChatMemoryConsolidationStatusSucceeded, after, memoryConsolidationJournalMutations(applied), nil)
 }
 
 // memoryConsolidationDebounced reports whether the project was consolidated
@@ -265,7 +270,7 @@ func memoryConsolidationDebounced(ctx context.Context, db database.Store, scope 
 	return now.Sub(record.StartedAt) < memoryConsolidationDebounce, record.NextWindowStart
 }
 
-func (p *Server) finishMemoryConsolidation(ctx context.Context, scope memoryConsolidationScope, id uuid.UUID, status database.ChatMemoryConsolidationStatus, after int64, mutations []codersdk.ChatMemoryMutation, nextWindowStart int32, finishErr error) error {
+func finishMemoryConsolidation(ctx context.Context, db database.Store, scope memoryConsolidationScope, id uuid.UUID, status database.ChatMemoryConsolidationStatus, after int64, mutations []codersdk.ChatMemoryMutation, nextWindowStart int32, finishErr error) error {
 	if mutations == nil {
 		mutations = []codersdk.ChatMemoryMutation{}
 	}
@@ -277,17 +282,17 @@ func (p *Server) finishMemoryConsolidation(ctx context.Context, scope memoryCons
 	if finishErr != nil {
 		errText = finishErr.Error()
 	}
-	if _, err := p.db.FinishChatMemoryConsolidation(ctx, database.FinishChatMemoryConsolidationParams{ID: id, Status: status, MemoriesAfter: memoryConsolidationCount(after), Mutations: encoded, Error: errText, NextWindowStart: nextWindowStart}); err != nil {
+	if _, err := db.FinishChatMemoryConsolidation(ctx, database.FinishChatMemoryConsolidationParams{ID: id, Status: status, MemoriesAfter: memoryConsolidationCount(after), Mutations: encoded, Error: errText, NextWindowStart: nextWindowStart}); err != nil {
 		return err
 	}
-	return p.db.PruneChatMemoryConsolidationsByProject(ctx, database.PruneChatMemoryConsolidationsByProjectParams{ProjectID: scope.projectID, KeepCount: memoryConsolidationKeepRecords})
+	return db.PruneChatMemoryConsolidationsByProject(ctx, database.PruneChatMemoryConsolidationsByProjectParams{ProjectID: scope.projectID, KeepCount: memoryConsolidationKeepRecords})
 }
 
 // memoryConsolidationCandidates returns the memories the model may change,
-// oldest first. Memories inside the protect window are excluded because no
-// mutation touching them would be applied, and presenting the oldest first
-// means a window that cannot fit everything shows stale duplicates before
-// recent memories.
+// sorted by name. Memories inside the protect window are excluded because
+// no mutation touching them would be applied. Near-duplicates tend to share
+// a name prefix, so name order keeps them adjacent when the set has to be
+// split across windows.
 func memoryConsolidationCandidates(memories []chattool.Memory, now time.Time) []chattool.Memory {
 	candidates := make([]chattool.Memory, 0, len(memories))
 	for _, memory := range memories {
@@ -296,14 +301,16 @@ func memoryConsolidationCandidates(memories []chattool.Memory, now time.Time) []
 		}
 		candidates = append(candidates, memory)
 	}
-	sort.SliceStable(candidates, func(i, j int) bool { return candidates[i].UpdatedAt.Before(candidates[j].UpdatedAt) })
+	sort.Slice(candidates, func(i, j int) bool { return candidates[i].Name < candidates[j].Name })
 	return candidates
 }
 
 // memoryConsolidationWindow picks the candidates that fit the input cap,
 // starting at the offset the previous run left off. Bodies are never cut:
 // the model replaces bodies wholesale, so it must see everything it may
-// rewrite. The returned start is 0 once the window reaches the end.
+// rewrite. Consecutive windows overlap by half so a pair split by one
+// boundary is shown together by the next run. The returned start is 0 once
+// the window reaches the end.
 func memoryConsolidationWindow(candidates []chattool.Memory, start int32) (window []chattool.Memory, nextStart int32) {
 	if int(start) >= len(candidates) || start < 0 {
 		start = 0
@@ -313,7 +320,7 @@ func memoryConsolidationWindow(candidates []chattool.Memory, start int32) (windo
 		size += len(formatMemoryConsolidationEntry(candidates[i]))
 		if size > memoryConsolidationInputBytes && len(window) > 0 {
 			// #nosec G115 -- bounded by the 200-memory cap.
-			return window, int32(i)
+			return window, start + int32((len(window)+1)/2)
 		}
 		window = append(window, candidates[i])
 	}
