@@ -2,6 +2,7 @@ package aibridged_test
 
 import (
 	"context"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"sync"
@@ -210,7 +211,7 @@ func TestBackendMode_ProxyWhenNoMCPConfigs(t *testing.T) {
 	h, err = f.srv.GetRequestHandler(ctx, aibridged.Request{})
 	require.NoError(t, err)
 	rec = serveHandler(t, h, "/openai/v1/chat/completions")
-	require.Equal(t, http.StatusNotFound, rec.Code, "the router has no provider routes registered yet")
+	require.Equal(t, http.StatusBadRequest, rec.Code, "bridged routes require authenticated actor context")
 	requireKeyPoolState(t, f.srv, 1, "openai", "valid")
 }
 
@@ -287,7 +288,7 @@ func TestBackendMode_SelectedOnceAcrossReconnects(t *testing.T) {
 			require.NoError(t, err)
 			require.Nil(t, srv.InterceptionPoolForTest())
 			requireKeyPoolState(t, srv, 1, "openai", "valid")
-			require.Equal(t, http.StatusNotFound, serveHandler(t, h, "/openai/v1/chat/completions").Code)
+			require.Equal(t, http.StatusBadRequest, serveHandler(t, h, "/openai/v1/chat/completions").Code)
 		})
 	}
 }
@@ -332,7 +333,7 @@ func TestBackendMode_MCPDiscoveryFailureRetries(t *testing.T) {
 			}))
 			h, err = f.srv.GetRequestHandler(ctx, aibridged.Request{})
 			require.NoError(t, err)
-			require.Equal(t, http.StatusNotFound, serveHandler(t, h, "/openai/v1/chat/completions").Code)
+			require.Equal(t, http.StatusBadRequest, serveHandler(t, h, "/openai/v1/chat/completions").Code)
 		})
 	}
 }
@@ -370,6 +371,97 @@ func TestReplaceProviders_SwapsRouter(t *testing.T) {
 	require.Equal(t, http.StatusServiceUnavailable, serveHandler(t, newHandler, "/disabled/v1/models").Code)
 }
 
+func TestReplaceProvidersClosesIdleConnectionsWithoutCancelingInflight(t *testing.T) {
+	t.Parallel()
+
+	activeStarted := make(chan struct{})
+	activeRelease := make(chan struct{})
+	activeCanceled := make(chan struct{}, 1)
+	idleConnections := make(chan string, 4)
+	closedConnections := make(chan string, 4)
+	firstUpstream := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/models/active" {
+			close(activeStarted)
+			select {
+			case <-activeRelease:
+			case <-r.Context().Done():
+				activeCanceled <- struct{}{}
+				return
+			}
+		}
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	firstUpstream.Config.ConnState = func(conn net.Conn, state http.ConnState) {
+		remoteAddr := conn.RemoteAddr()
+		if remoteAddr == nil {
+			return
+		}
+		switch state {
+		case http.StateIdle:
+			idleConnections <- remoteAddr.String()
+		case http.StateClosed:
+			closedConnections <- remoteAddr.String()
+		default:
+		}
+	}
+	firstUpstream.Start()
+	t.Cleanup(firstUpstream.Close)
+
+	var secondHits atomic.Int32
+	secondUpstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		secondHits.Add(1)
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	t.Cleanup(secondUpstream.Close)
+
+	f := newBackendServer(t, proxyExperiments(), staticConfigs(noMCPConfigs()), false)
+	ctx := testutil.Context(t, testutil.WaitShort)
+	waitReady(t, f.srv)
+	firstProvider := aibridge.NewOpenAIProvider(config.OpenAI{
+		BaseURL: firstUpstream.URL,
+		KeyPool: singleKeyPool(t, "openai", "first-key"),
+	})
+	require.NoError(t, f.srv.ReplaceProviders(ctx, []aibridge.Provider{firstProvider}))
+	oldHandler, err := f.srv.GetRequestHandler(ctx, aibridged.Request{})
+	require.NoError(t, err)
+
+	activeDone := make(chan int, 1)
+	go func() {
+		rec := serveHandler(t, oldHandler, "/openai/v1/models/active")
+		activeDone <- rec.Code
+	}()
+	testutil.TryReceive(ctx, t, activeStarted)
+
+	require.Equal(t, http.StatusNoContent, serveHandler(t, oldHandler, "/openai/v1/models").Code)
+	idleAddr := testutil.TryReceive(ctx, t, idleConnections)
+
+	secondProvider := aibridge.NewOpenAIProvider(config.OpenAI{
+		BaseURL: secondUpstream.URL,
+		KeyPool: singleKeyPool(t, "openai", "second-key"),
+	})
+	require.NoError(t, f.srv.ReplaceProviders(ctx, []aibridge.Provider{secondProvider}))
+
+	for {
+		closedAddr := testutil.TryReceive(ctx, t, closedConnections)
+		if closedAddr == idleAddr {
+			break
+		}
+	}
+	select {
+	case <-activeCanceled:
+		t.Fatal("provider replacement canceled an in-flight old-router request")
+	default:
+	}
+
+	newHandler, err := f.srv.GetRequestHandler(ctx, aibridged.Request{})
+	require.NoError(t, err)
+	require.Equal(t, http.StatusNoContent, serveHandler(t, newHandler, "/openai/v1/models").Code)
+	require.Equal(t, int32(1), secondHits.Load())
+
+	close(activeRelease)
+	require.Equal(t, http.StatusNoContent, testutil.TryReceive(ctx, t, activeDone))
+}
+
 // Invalid snapshots leave the previous router serving.
 func TestReplaceProviders_FailureRetainsRouter(t *testing.T) {
 	t.Parallel()
@@ -398,7 +490,7 @@ func TestReplaceProviders_FailureRetainsRouter(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, http.StatusServiceUnavailable, serveHandler(t, handler, "/disabled/v1/models").Code)
 	require.Equal(t, http.StatusServiceUnavailable, serveHandler(t, retained, "/disabled/v1/models").Code)
-	require.Equal(t, http.StatusNotFound, serveHandler(t, retained, "/openai/v1/chat/completions").Code)
+	require.Equal(t, http.StatusBadRequest, serveHandler(t, retained, "/openai/v1/chat/completions").Code)
 }
 
 // Cancellation and shutdown prevent publication; shutdown also stops serving.

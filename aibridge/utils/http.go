@@ -7,8 +7,20 @@ import (
 	"math"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 )
+
+// StripCoderHeaders removes Coder-internal headers from headers. Provider
+// authentication and standard HTTP headers are left unchanged.
+func StripCoderHeaders(headers http.Header) {
+	for name := range headers {
+		lower := strings.ToLower(name)
+		if strings.HasPrefix(lower, "coder-") || strings.HasPrefix(lower, "x-coder-") {
+			delete(headers, name)
+		}
+	}
+}
 
 // NewJSONErrorResponse builds an *http.Response with a JSON body
 // and optional Retry-After header. Used to synthesize bridge-side

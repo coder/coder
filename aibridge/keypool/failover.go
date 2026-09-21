@@ -61,8 +61,7 @@ func (t *keyFailoverTransport) RoundTrip(req *http.Request) (*http.Response, err
 		return t.inner.RoundTrip(req)
 	}
 
-	// Buffer once so retries can replay the body.
-	body, err := bufferBody(req)
+	newBody, err := bufferBody(req)
 	if err != nil {
 		return nil, err
 	}
@@ -84,9 +83,14 @@ func (t *keyFailoverTransport) RoundTrip(req *http.Request) (*http.Response, err
 
 		// Clone per attempt so the original request isn't mutated.
 		outReq := req.Clone(req.Context())
-		if body != nil {
-			outReq.Body = io.NopCloser(bytes.NewReader(body))
+		attemptBody, err := newBody()
+		if err != nil {
+			if attemptBody != nil {
+				_ = attemptBody.Close()
+			}
+			return nil, err
 		}
+		outReq.Body = attemptBody
 		t.config.InjectAuthKey(&outReq.Header, key.Value())
 
 		resp, rtErr := t.inner.RoundTrip(outReq)
@@ -106,12 +110,28 @@ func (t *keyFailoverTransport) RoundTrip(req *http.Request) (*http.Response, err
 	}
 }
 
-// bufferBody reads the request body fully so it can be replayed
-// across key-failover retries. Returns nil for a nil body.
-func bufferBody(req *http.Request) ([]byte, error) {
-	if req.Body == nil {
-		return nil, nil
+// bufferBody returns a factory for replaying the request body. It uses GetBody
+// when available; otherwise it buffers the body once. The original body is closed.
+func bufferBody(req *http.Request) (func() (io.ReadCloser, error), error) {
+	if req.Body != nil {
+		defer req.Body.Close()
 	}
-	defer req.Body.Close()
-	return io.ReadAll(req.Body)
+	if req.GetBody != nil {
+		return req.GetBody, nil
+	}
+
+	var body []byte
+	if req.Body != nil {
+		var err error
+		body, err = io.ReadAll(req.Body)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return func() (io.ReadCloser, error) {
+		if body == nil {
+			return http.NoBody, nil
+		}
+		return io.NopCloser(bytes.NewReader(body)), nil
+	}, nil
 }

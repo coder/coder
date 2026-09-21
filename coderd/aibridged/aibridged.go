@@ -16,6 +16,7 @@ import (
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/aibridge"
 	"github.com/coder/coder/v2/aibridge/keypool"
+	"github.com/coder/coder/v2/aibridge/recorder"
 	"github.com/coder/coder/v2/aibridge/x/proxy"
 	"github.com/coder/coder/v2/coderd/aibridged/proto"
 	"github.com/coder/coder/v2/codersdk"
@@ -52,6 +53,7 @@ type Server struct {
 	// reverseProxyExp is the experiment flag. Proxy mode also requires no MCP configs.
 	reverseProxyExp bool
 	metrics         *aibridge.Metrics
+	recorder        recorder.Recorder
 
 	logger slog.Logger
 	tracer trace.Tracer
@@ -76,6 +78,7 @@ type backend struct {
 	pool        Pooler                 // RequestBridge pool.
 	proxyRouter http.Handler           // Proxy router for this snapshot.
 	keyPools    func() []*keypool.Pool // Current key pools for metric scrapes.
+	cleanup     func()                 // Releases resources owned by this snapshot.
 }
 
 // New starts a gateway server. Creates a request pool only when interception
@@ -98,6 +101,22 @@ func New(ctx context.Context, rpcDialer Dialer, logger slog.Logger, tracer trace
 		metrics:         metrics,
 		inflight:        aibridge.NewInflightGate(logger),
 	}
+
+	daemon.recorder = aibridge.NewRecorder(
+		logger.Named("recorder"),
+		tracer,
+		func(recordCtx context.Context) (aibridge.Recorder, error) {
+			apiKeyID, ok := authenticatedAPIKeyIDFromContext(recordCtx)
+			if !ok {
+				return nil, xerrors.New("authenticated API key ID missing from recorder context")
+			}
+			client, err := daemon.Client(recordCtx)
+			if err != nil {
+				return nil, xerrors.Errorf("acquire recorder client: %w", err)
+			}
+			return recorder.NewDRPCRecorder(apiKeyID, client), nil
+		},
+	)
 
 	if !daemon.reverseProxyExp {
 		if err := daemon.initializeInterception(); err != nil {
@@ -231,7 +250,7 @@ func (s *Server) initializeBackend(ctx context.Context, client DRPCClient) error
 
 	// Otherwise, use proxy mode.
 	s.backend.Store(&backend{})
-	s.logger.Warn(ctx, "reverse proxy routing is not yet functional")
+	s.logger.Info(ctx, "selected reverse proxy routing")
 	return nil
 }
 
@@ -326,11 +345,18 @@ func (s *Server) ReplaceProviders(ctx context.Context, providers []aibridge.Prov
 		current.pool.ReplaceProviders(providers)
 		return nil
 	}
-	router, err := proxy.NewRouter(providers, s.logger)
+	router, err := proxy.NewRouter(providers, s.recorder, s.logger, s.metrics, s.tracer)
 	if err != nil {
 		return xerrors.Errorf("create proxy router: %w", err)
 	}
-	s.backend.Store(&backend{proxyRouter: s.inflight.Middleware(router), keyPools: router.KeyPools})
+	s.backend.Store(&backend{
+		proxyRouter: s.inflight.Middleware(router),
+		keyPools:    router.KeyPools,
+		cleanup:     router.CloseIdleConnections,
+	})
+	if current.cleanup != nil {
+		current.cleanup()
+	}
 	return nil
 }
 
@@ -367,7 +393,9 @@ func (s *Server) Shutdown(ctx context.Context) error {
 		s.wg.Wait()
 
 		var pool Pooler
+		var cleanup func()
 		if current := s.backend.Load(); current != nil {
+			cleanup = current.cleanup
 			if current.pool != nil {
 				pool = current.pool
 			} else {
@@ -379,6 +407,10 @@ func (s *Server) Shutdown(ctx context.Context) error {
 					s.logger.Debug(ctx, "shutdown deadline passed, canceled in-flight proxy requests", slog.Error(drainErr))
 				}
 			}
+		}
+
+		if cleanup != nil {
+			cleanup()
 		}
 
 		select {

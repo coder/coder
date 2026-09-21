@@ -66,7 +66,7 @@ func TestServerKeyPoolStateCollector(t *testing.T) {
 	// Replacing proxy snapshots similarly changes the output without
 	// registering another collector.
 	thirdProvider := newProvider(t, "third")
-	firstRouter, err := proxy.NewRouter([]aibridge.Provider{thirdProvider}, slogtest.Make(t, nil))
+	firstRouter, err := proxy.NewRouter([]aibridge.Provider{thirdProvider}, nil, slogtest.Make(t, nil), nil, nil)
 	require.NoError(t, err)
 	server.backend.Store(&backend{proxyRouter: firstRouter, keyPools: firstRouter.KeyPools})
 
@@ -75,7 +75,7 @@ func TestServerKeyPoolStateCollector(t *testing.T) {
 	require.True(t, testutil.PromGaugeHasValue(t, metrics, 1, "key_pool_state", "third", "valid"))
 
 	fourthProvider := newProvider(t, "fourth")
-	secondRouter, err := proxy.NewRouter([]aibridge.Provider{fourthProvider}, slogtest.Make(t, nil))
+	secondRouter, err := proxy.NewRouter([]aibridge.Provider{fourthProvider}, nil, slogtest.Make(t, nil), nil, nil)
 	require.NoError(t, err)
 	server.backend.Store(&backend{proxyRouter: secondRouter, keyPools: secondRouter.KeyPools})
 

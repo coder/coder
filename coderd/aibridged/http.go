@@ -1,6 +1,7 @@
 package aibridged
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"strings"
@@ -16,6 +17,17 @@ import (
 )
 
 var _ http.Handler = &Server{}
+
+type authenticatedAPIKeyIDContextKey struct{}
+
+func withAuthenticatedAPIKeyID(ctx context.Context, id string) context.Context {
+	return context.WithValue(ctx, authenticatedAPIKeyIDContextKey{}, id)
+}
+
+func authenticatedAPIKeyIDFromContext(ctx context.Context) (string, bool) {
+	id, ok := ctx.Value(authenticatedAPIKeyIDContextKey{}).(string)
+	return id, ok && id != ""
+}
 
 var (
 	ErrNoAuthKey             = xerrors.New("no authentication key provided")
@@ -161,6 +173,7 @@ func (s *Server) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 	ctx = agplaibridge.WithAttribution(ctx, attribution)
+	ctx = withAuthenticatedAPIKeyID(ctx, resp.GetApiKeyId())
 
 	budgetResp, err := client.IsBudgetExceeded(ctx, &proto.IsBudgetExceededRequest{
 		UserId: id.String(),

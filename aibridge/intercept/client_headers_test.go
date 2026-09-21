@@ -122,10 +122,12 @@ func TestPrepareClientHeaders(t *testing.T) {
 		require.Equal(t, originalCopy, input)
 	})
 
-	t.Run("agent firewall headers are removed", func(t *testing.T) {
+	t.Run("Coder headers are removed", func(t *testing.T) {
 		t.Parallel()
 
 		input := http.Header{
+			"Coder-Session-Token":                    {"session-token"},
+			"X-Coder-AI-Governance-Token":            {"governance-token"},
 			"X-Coder-Agent-Firewall-Session-Id":      {"e5f6a7b8-1234-5678-9abc-def012345678"},
 			"X-Coder-Agent-Firewall-Sequence-Number": {"42"},
 			"X-Custom":                               {"preserved"},
@@ -133,6 +135,8 @@ func TestPrepareClientHeaders(t *testing.T) {
 
 		result := intercept.PrepareClientHeaders(input)
 
+		assert.Empty(t, result.Get("Coder-Session-Token"))
+		assert.Empty(t, result.Get("X-Coder-AI-Governance-Token"))
 		assert.Empty(t, result.Get("X-Coder-Agent-Firewall-Session-Id"))
 		assert.Empty(t, result.Get("X-Coder-Agent-Firewall-Sequence-Number"))
 		assert.Equal(t, "preserved", result.Get("X-Custom"))

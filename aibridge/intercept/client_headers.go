@@ -2,6 +2,8 @@ package intercept
 
 import (
 	"net/http"
+
+	"github.com/coder/coder/v2/aibridge/utils"
 )
 
 // hopByHopHeaders are connection-level headers specific to the connection
@@ -47,15 +49,6 @@ var proxyHeaders = []string{
 	"Forwarded",
 }
 
-// agentFirewallHeaders carry Agent Firewall correlation data used by
-// AI Gateway for session correlation. AI Gateway records the values
-// from the incoming request and strips the headers here so they are
-// never forwarded to upstream LLM providers.
-var agentFirewallHeaders = []string{
-	"X-Coder-Agent-Firewall-Session-Id",
-	"X-Coder-Agent-Firewall-Sequence-Number",
-}
-
 // PrepareClientHeaders returns a copy of the client headers with hop-by-hop,
 // transport, auth, and proxy headers removed.
 func PrepareClientHeaders(clientHeaders http.Header) http.Header {
@@ -72,9 +65,7 @@ func PrepareClientHeaders(clientHeaders http.Header) http.Header {
 	for _, h := range proxyHeaders {
 		prepared.Del(h)
 	}
-	for _, h := range agentFirewallHeaders {
-		prepared.Del(h)
-	}
+	utils.StripCoderHeaders(prepared)
 	return prepared
 }
 

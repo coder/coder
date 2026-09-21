@@ -89,3 +89,30 @@ func TestNewJSONErrorResponse(t *testing.T) {
 		})
 	}
 }
+
+func TestStripCoderHeaders(t *testing.T) {
+	t.Parallel()
+
+	headers := http.Header{
+		"Coder-Session-Token":                    {"secret"},
+		"cOdEr-Custom":                           {"secret"},
+		"X-Coder-AI-Governance-Token":            {"secret"},
+		"x-CoDeR-Agent-Firewall-Session-Id":      {"secret"},
+		"X-Coder-Agent-Firewall-Sequence-Number": {"42"},
+		"Authorization":                          {"Bearer provider"},
+		"X-Api-Key":                              {"provider-key"},
+		"User-Agent":                             {"client/1.0"},
+		"Accept-Encoding":                        {"gzip"},
+		"X-AI-Bridge-Actor-Id":                   {"actor"},
+	}
+
+	utils.StripCoderHeaders(headers)
+
+	require.Equal(t, http.Header{
+		"Authorization":        {"Bearer provider"},
+		"X-Api-Key":            {"provider-key"},
+		"User-Agent":           {"client/1.0"},
+		"Accept-Encoding":      {"gzip"},
+		"X-AI-Bridge-Actor-Id": {"actor"},
+	}, headers)
+}

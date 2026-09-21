@@ -5,6 +5,7 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/aibridge/keypool"
+	"github.com/coder/coder/v2/aibridge/recorder"
 	"github.com/coder/coder/v2/aibridge/utils"
 )
 
@@ -13,8 +14,8 @@ import (
 type CredentialKind string
 
 const (
-	CredentialKindCentralized CredentialKind = "centralized"
-	CredentialKindBYOK        CredentialKind = "byok"
+	CredentialKindCentralized CredentialKind = recorder.CredentialKindCentralized
+	CredentialKindBYOK        CredentialKind = recorder.CredentialKindBYOK
 )
 
 // Auth header names shared by providers (which set them on resolved
@@ -30,7 +31,7 @@ const (
 // Hints are persisted to aibridge_interceptions.credential_hint, a
 // VARCHAR(15), so every value here must be at most 15 characters.
 const (
-	hintFailoverKey = "<failover key>"
+	hintFailoverKey = recorder.CredentialHintFailoverKey
 	hintAWSChainKey = "<aws chain>"
 )
 

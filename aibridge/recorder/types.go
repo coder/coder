@@ -28,7 +28,13 @@ type ToolArgs any
 
 type Metadata map[string]any
 
-const MetadataKeyServiceTier = "service_tier"
+const (
+	MetadataKeyServiceTier = "service_tier"
+
+	CredentialKindCentralized = "centralized"
+	CredentialKindBYOK        = "byok"
+	CredentialHintFailoverKey = "<failover key>" //nolint:gosec // Placeholder, not a credential.
+)
 
 type InterceptionRecord struct {
 	ID                    string

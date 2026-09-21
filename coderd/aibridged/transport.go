@@ -1,6 +1,7 @@
 package aibridged
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"net/http"
@@ -69,7 +70,9 @@ func (t *inMemoryRoundTripper) RoundTrip(req *http.Request) (*http.Response, err
 	if err != nil {
 		return nil, xerrors.Errorf("rewrite request URL for provider %q: %w", t.providerName, err)
 	}
-	req = req.Clone(req.Context())
+	callerCtx := req.Context()
+	servedCtx, cancelServed := context.WithCancel(callerCtx)
+	req = req.Clone(callerCtx)
 	req.URL.Path = newPath
 
 	pr, pw := io.Pipe()
@@ -84,7 +87,7 @@ func (t *inMemoryRoundTripper) RoundTrip(req *http.Request) (*http.Response, err
 	// handler operate on its own request value without surprising the caller
 	// if it mutates Headers or stores the request. The Source is attached to
 	// the served context so downstream handlers can log the call site.
-	served := req.Clone(aibridge.WithSource(req.Context(), t.source))
+	served := req.Clone(aibridge.WithSource(servedCtx, t.source))
 
 	handlerDone := make(chan struct{})
 	go func() {
@@ -94,20 +97,17 @@ func (t *inMemoryRoundTripper) RoundTrip(req *http.Request) (*http.Response, err
 				// produces a 500 instead of crashing the process.
 				rw.WriteHeader(http.StatusInternalServerError)
 				_ = pw.CloseWithError(xerrors.Errorf("handler panicked: %v", r))
-			}
-			// Make sure we always unblock RoundTrip even if the handler
-			// returns before writing headers (e.g. handler returns early
-			// without writing).
-			rw.ensureHeaders()
-			// If the request context was canceled, surface that as a
-			// body-read error so the caller sees a network-style failure
-			// rather than EOF. Otherwise close cleanly.
-			if cerr := served.Context().Err(); cerr != nil {
+			} else if cerr := served.Context().Err(); cerr != nil {
 				_ = pw.CloseWithError(cerr)
 			} else {
+				// Finalize the stream before canceling internal work so normal
+				// completion remains a clean EOF.
 				_ = pw.Close()
 			}
+			// Always unblock RoundTrip if the handler returned without writing.
+			rw.ensureHeaders()
 			close(handlerDone)
+			cancelServed()
 		}()
 		t.handler.ServeHTTP(rw, served)
 	}()
@@ -129,8 +129,10 @@ func (t *inMemoryRoundTripper) RoundTrip(req *http.Request) (*http.Response, err
 
 	select {
 	case <-rw.gotHeaders:
-	case <-served.Context().Done():
-		return nil, served.Context().Err()
+	case <-callerCtx.Done():
+		cancelServed()
+		_ = pr.Close()
+		return nil, callerCtx.Err()
 	}
 
 	return &http.Response{
@@ -140,10 +142,20 @@ func (t *inMemoryRoundTripper) RoundTrip(req *http.Request) (*http.Response, err
 		ProtoMajor:    1,
 		ProtoMinor:    1,
 		Header:        rw.frozenHeader,
-		Body:          pr,
+		Body:          &cancelingResponseBody{ReadCloser: pr, cancel: cancelServed},
 		Request:       req,
 		ContentLength: -1, // streaming; unknown length
 	}, nil
+}
+
+type cancelingResponseBody struct {
+	io.ReadCloser
+	cancel context.CancelFunc
+}
+
+func (b *cancelingResponseBody) Close() error {
+	b.cancel()
+	return b.ReadCloser.Close()
 }
 
 // pipeResponseWriter is an [http.ResponseWriter] that streams the response
