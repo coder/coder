@@ -432,7 +432,7 @@ func TestPrepareGenerationMemory(t *testing.T) {
 
 			projectID := uuid.NullUUID{}
 			if tt.project {
-				project := dbgen.ChatProject(t, db, database.ChatProject{OrganizationID: org.ID, CreatedBy: user.ID, Name: "platform"})
+				project := dbgen.ChatProject(t, db, database.ChatProject{OrganizationID: org.ID, OwnerID: user.ID, Name: "platform"})
 				projectID = uuid.NullUUID{UUID: project.ID, Valid: true}
 				dbgen.ChatProjectMemory(t, db, database.ChatProjectMemory{ProjectID: project.ID, OrganizationID: org.ID, CreatedBy: user.ID, Name: "release_notes", Description: "Durable release process", Body: "Run the release checklist."})
 			}

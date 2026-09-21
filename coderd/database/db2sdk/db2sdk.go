@@ -1848,7 +1848,7 @@ func ChatProject(project database.ChatProject) codersdk.ChatProject {
 	return codersdk.ChatProject{
 		ID:             project.ID,
 		OrganizationID: project.OrganizationID,
-		CreatedBy:      project.CreatedBy,
+		OwnerID:        project.OwnerID,
 		Name:           project.Name,
 		Description:    project.Description,
 		CreatedAt:      project.CreatedAt,

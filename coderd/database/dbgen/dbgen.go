@@ -87,7 +87,7 @@ func ChatProject(t testing.TB, db database.Store, seed database.ChatProject) dat
 	project, err := db.InsertChatProject(genCtx, database.InsertChatProjectParams{
 		ID:             uuid.NullUUID{UUID: seed.ID, Valid: seed.ID != uuid.Nil},
 		OrganizationID: takeFirst(seed.OrganizationID, uuid.New()),
-		CreatedBy:      takeFirst(seed.CreatedBy, uuid.New()),
+		OwnerID:        takeFirst(seed.OwnerID, uuid.New()),
 		Name:           takeFirst(seed.Name, testutil.GetRandomName(t)),
 		Description:    seed.Description,
 	})

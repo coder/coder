@@ -1,4 +1,4 @@
-INSERT INTO chat_projects (id, organization_id, created_by, name, description)
+INSERT INTO chat_projects (id, organization_id, owner_id, name, description)
 VALUES (
     '59400000-0000-4000-8000-000000000001',
     'bb640d07-ca8a-4869-b6bc-ae61ebb2fda1',
