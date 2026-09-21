@@ -11,6 +11,7 @@ import type {
 	RetryState,
 	StreamState,
 } from "./types";
+import type { WorkingBlock } from "./workingBlockGrouping";
 
 export type StoryStreamRenderState = {
 	streamState: StreamState | null;
@@ -104,6 +105,20 @@ export const FIXTURE_NOW = new Date("2026-03-10T00:00:00.000Z").getTime();
 export const WORKING_FIXTURE_START = FIXTURE_NOW - 13_000;
 export const workingFixtureTime = (seconds: number) =>
 	new Date(WORKING_FIXTURE_START + seconds * 1000).toISOString();
+
+/** Two completed steps that ran for the twelve seconds before the pinned clock. */
+export const MockWorkingBlock: WorkingBlock = {
+	key: "working:through:message:5",
+	liveKey: "working:live:message:1:0",
+	rowIndices: [0, 1],
+	memberIds: [2, 4],
+	startedAt: FIXTURE_NOW - 12_000,
+	endedAt: FIXTURE_NOW,
+	stepCount: 2,
+	failedCount: 0,
+	isLive: false,
+	isPartial: false,
+};
 
 export const buildReconnectState = (
 	overrides: Partial<ReconnectState> = {},

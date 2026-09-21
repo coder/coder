@@ -1,0 +1,174 @@
+import { ListChecksIcon, TriangleAlertIcon } from "lucide-react";
+import { Component, type FC, type ReactNode } from "react";
+import { useTime } from "#/hooks/useTime";
+import { ToolCall } from "../ChatElements/tools/ToolCall";
+import {
+	didPrependIntoBlock,
+	formatWorkingDuration,
+	type WorkingBlock,
+} from "./workingBlockGrouping";
+
+type LiveLabelProps = { block: WorkingBlock };
+
+const LiveLabel: FC<LiveLabelProps> = ({ block }) => {
+	// Only the live block subscribes to a clock; completed blocks render a
+	// fixed label, so long transcripts never tick.
+	const now = useTime(() => Date.now());
+	if (block.startedAt === undefined) {
+		return <ToolCall.Label>Working</ToolCall.Label>;
+	}
+	const elapsed = formatWorkingDuration(now - block.startedAt);
+	return (
+		<ToolCall.Label>
+			{block.isPartial
+				? `Working for at least ${elapsed}`
+				: `Working for ${elapsed}`}
+		</ToolCall.Label>
+	);
+};
+
+const pluralize = (count: number, noun: string): string =>
+	`${count} ${noun}${count === 1 ? "" : "s"}`;
+
+/**
+ * A partial block may be missing earlier rows that are not loaded yet, so its
+ * duration and step count are lower bounds (the live label does the same).
+ */
+const getCompletedWorkingLabel = (block: WorkingBlock): string => {
+	const steps = pluralize(block.stepCount, "step");
+	const stepsLabel = block.isPartial ? `${steps} or more` : steps;
+	if (block.startedAt === undefined || block.endedAt === undefined) {
+		return `Completed ${stepsLabel}`;
+	}
+	const duration = formatWorkingDuration(block.endedAt - block.startedAt);
+	return block.isPartial
+		? `Worked for at least ${duration} (${stepsLabel})`
+		: `Worked for ${duration} (${stepsLabel})`;
+};
+
+const getScrollParent = (element: HTMLElement): HTMLElement | null => {
+	for (let node = element.parentElement; node; node = node.parentElement) {
+		const { overflowY } = getComputedStyle(node);
+		if (overflowY === "auto" || overflowY === "scroll") {
+			return node;
+		}
+	}
+	return null;
+};
+
+type WorkingBlockContentProps = {
+	memberIds: readonly number[];
+	children: ReactNode;
+};
+
+/**
+ * Older pages prepend rows inside an expanded partial block rather than as
+ * new scroller items, so the scroller cannot hold the reading position and
+ * browsers skip scroll anchoring at the top. Scroll by the growth instead.
+ *
+ * A class component because getSnapshotBeforeUpdate is the only React API
+ * that measures the DOM right before a commit mutates it. Nested rows expand
+ * on their own state without rendering this component, so any height cached
+ * at an earlier render or observer callback can be stale by the time a
+ * prepend commits, and the growth would then include the nested resize.
+ */
+class WorkingBlockContent extends Component<WorkingBlockContentProps> {
+	private content: HTMLDivElement | null = null;
+
+	getSnapshotBeforeUpdate(): number | null {
+		return this.content?.offsetHeight ?? null;
+	}
+
+	componentDidUpdate(
+		previous: WorkingBlockContentProps,
+		_state: unknown,
+		heightBefore: number | null,
+	) {
+		const content = this.content;
+		if (
+			!content ||
+			heightBefore === null ||
+			!didPrependIntoBlock(previous.memberIds, this.props.memberIds)
+		) {
+			return;
+		}
+		const delta = content.offsetHeight - heightBefore;
+		const viewport = getScrollParent(content);
+		if (delta === 0 || !viewport) {
+			return;
+		}
+		// When the same page also prepends rows above the block, MessageScroller
+		// restores the block's own top edge from a MutationObserver callback,
+		// which runs after this update and would cancel a synchronous adjustment.
+		queueMicrotask(() => {
+			viewport.scrollTop += delta;
+		});
+	}
+
+	render() {
+		return (
+			<div
+				ref={(content) => {
+					this.content = content;
+				}}
+				className="mt-1.5 flex flex-col gap-2 border-0 border-l border-solid border-border-default pl-3"
+			>
+				{this.props.children}
+			</div>
+		);
+	}
+}
+
+type WorkingBlockDisclosureProps = {
+	block: WorkingBlock;
+	expanded: boolean;
+	onExpandedChange: (expanded: boolean) => void;
+	children: ReactNode;
+};
+
+/**
+ * Folds a block's step rows behind a summary row that reads like a tool row.
+ * Failed steps stay inside the block but are counted on the summary so a
+ * failure is never hidden without a trace.
+ */
+export const WorkingBlockDisclosure: FC<WorkingBlockDisclosureProps> = ({
+	block,
+	expanded,
+	onExpandedChange,
+	children,
+}) => {
+	return (
+		<ToolCall.Root
+			status={block.isLive ? "running" : "completed"}
+			expanded={expanded}
+			onExpandedChange={onExpandedChange}
+		>
+			<ToolCall.HeaderButton>
+				<ToolCall.LeadingIcon>
+					<ListChecksIcon className="size-4 shrink-0 stroke-[1.5] text-current" />
+				</ToolCall.LeadingIcon>
+				{block.isLive ? (
+					<LiveLabel block={block} />
+				) : (
+					<ToolCall.Label>{getCompletedWorkingLabel(block)}</ToolCall.Label>
+				)}
+				{block.failedCount > 0 && (
+					<span className="flex shrink-0 items-center gap-1 text-[13px] leading-6 text-content-destructive">
+						{/* Separates the badge from the label in the button's accessible name. */}
+						<span className="sr-only">, </span>
+						<TriangleAlertIcon aria-hidden className="size-3.5 shrink-0" />
+						{block.isPartial
+							? `${pluralize(block.failedCount, "failed step")} or more`
+							: pluralize(block.failedCount, "failed step")}
+					</span>
+				)}
+				<ToolCall.Chevron />
+			</ToolCall.HeaderButton>
+			<ToolCall.Content>
+				<WorkingBlockContent memberIds={block.memberIds}>
+					{children}
+				</WorkingBlockContent>
+			</ToolCall.Content>
+		</ToolCall.Root>
+	);
+};
