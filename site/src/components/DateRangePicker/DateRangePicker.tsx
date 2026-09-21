@@ -83,7 +83,10 @@ interface DateRangePickerProps {
 	now?: Date;
 	presets?: DateRangePreset[];
 	size?: ButtonProps["size"];
-	/** Longest range the calendar lets the user select, in inclusive days. */
+	/**
+	 * Longest range the user can select, in inclusive days. Presets that
+	 * would exceed it are hidden.
+	 */
 	maxDays?: number;
 	/** Earliest selectable day. Presets that would start before it are hidden. */
 	minDate?: Date;
@@ -141,14 +144,41 @@ export const DateRangePicker: FC<DateRangePickerProps> = ({
 		setOpen(false);
 	}
 	const currentTime = now ?? new Date();
+
+	// maxDays counts local calendar days, but the committed boundary is an
+	// interval that APIs bound by exact duration, and a maximal range of local
+	// days that crosses a fall daylight-saving transition runs long by the
+	// shift (an hour, or half an hour in some zones). Allow one day less from
+	// such a start rather than trimming the committed range.
+	const selectableDaysFrom = (from: Date): number | undefined => {
+		if (maxDays === undefined) {
+			return undefined;
+		}
+		const lastDay = dayjs(from)
+			.add(maxDays - 1, "day")
+			.toDate();
+		const { startDate, endDate } = toBoundary(from, lastDay, currentTime);
+		return dayjs(endDate).diff(startDate, "hour", true) > maxDays * 24
+			? maxDays - 1
+			: maxDays;
+	};
+	const fitsMaxDays = (from: Date, to: Date): boolean => {
+		const limit = selectableDaysFrom(from);
+		return limit === undefined || dayjs(to).diff(from, "day") + 1 <= limit;
+	};
+
 	// Committed starts are local midnights, so a cutoff inside a day excludes
 	// that whole day rather than emitting a start before the cutoff.
 	const firstSelectableDay =
 		minDate === undefined ? undefined : firstDayOnOrAfter(minDate);
 	const resolvedPresets = (presets ?? buildDefaultPresets(now)).filter(
-		(preset) =>
-			firstSelectableDay === undefined ||
-			preset.range().from >= firstSelectableDay,
+		(preset) => {
+			const { from, to } = preset.range();
+			return (
+				(firstSelectableDay === undefined || from >= firstSelectableDay) &&
+				fitsMaxDays(from, to)
+			);
+		},
 	);
 
 	// Internal selection state kept separate from the committed value
@@ -173,24 +203,6 @@ export const DateRangePicker: FC<DateRangePickerProps> = ({
 		setOpen(false);
 	};
 
-	// maxDays counts local calendar days, but the committed boundary is an
-	// interval that APIs bound by exact duration, and a maximal range of local
-	// days that crosses a fall daylight-saving transition runs long by the
-	// shift (an hour, or half an hour in some zones). Allow one day less from
-	// such a start rather than trimming the committed range.
-	const selectableDaysFrom = (from: Date): number | undefined => {
-		if (maxDays === undefined) {
-			return undefined;
-		}
-		const lastDay = dayjs(from)
-			.add(maxDays - 1, "day")
-			.toDate();
-		const { startDate, endDate } = toBoundary(from, lastDay, currentTime);
-		return dayjs(endDate).diff(startDate, "hour", true) > maxDays * 24
-			? maxDays - 1
-			: maxDays;
-	};
-
 	// The limit depends on the candidate's own start, which react-day-picker's
 	// max cannot express (and it treats a max of zero as unlimited), so the
 	// candidate is checked here and, like an over-long react-day-picker range,
@@ -200,18 +212,12 @@ export const DateRangePicker: FC<DateRangePickerProps> = ({
 		triggerDate: Date,
 	) => {
 		if (!range) return;
-		if (range.from && range.to) {
-			const limit = selectableDaysFrom(range.from);
-			if (
-				limit !== undefined &&
-				dayjs(range.to).diff(range.from, "day") + 1 > limit
-			) {
-				setSelection({
-					from: triggerDate,
-					to: selectableDaysFrom(triggerDate) === 1 ? triggerDate : undefined,
-				});
-				return;
-			}
+		if (range.from && range.to && !fitsMaxDays(range.from, range.to)) {
+			setSelection({
+				from: triggerDate,
+				to: selectableDaysFrom(triggerDate) === 1 ? triggerDate : undefined,
+			});
+			return;
 		}
 		setSelection(range);
 	};

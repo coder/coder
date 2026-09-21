@@ -220,6 +220,40 @@ it("keeps a single day selected when maxDays is 1", async () => {
 	});
 });
 
+it("only offers presets that fit within maxDays", async () => {
+	const user = userEvent.setup();
+	const onChange = vi.fn();
+	const now = new Date(2025, 2, 15, 12);
+	render(
+		<DateRangePicker
+			now={now}
+			maxDays={7}
+			value={{
+				startDate: new Date(2025, 2, 12),
+				endDate: new Date(2025, 2, 14),
+			}}
+			onChange={onChange}
+		/>,
+	);
+	const trigger = screen.getByRole("button", { name: /Mar 12, 2025/ });
+
+	await user.click(trigger);
+	const offered = screen
+		.getAllByRole("button", { name: /^(Today|Yesterday|Last \d+ days)$/ })
+		.map((preset) => preset.textContent ?? "");
+	for (const label of offered) {
+		await user.click(screen.getByRole("button", { name: label }));
+		await user.click(trigger);
+	}
+	expect(onChange).toHaveBeenCalled();
+	expect(onChange).toHaveBeenCalledTimes(offered.length);
+	for (const [range] of onChange.mock.calls) {
+		expect(
+			range.endDate.getTime() - range.startDate.getTime(),
+		).toBeLessThanOrEqual(7 * 24 * 60 * 60 * 1000);
+	}
+});
+
 it("excludes the day a minDate cutoff falls inside of", async () => {
 	const user = userEvent.setup();
 	const onChange = vi.fn();
