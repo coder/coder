@@ -161,7 +161,7 @@ func (api *API) patchChatProjectMemory(rw http.ResponseWriter, r *http.Request) 
 	aReq, commit := audit.InitRequest[database.ChatProjectMemory](rw, &audit.RequestParams{Audit: *api.Auditor.Load(), Log: api.Logger, Request: r, Action: database.AuditActionWrite, OrganizationID: project.OrganizationID})
 	defer commit()
 	aReq.Old = memory
-	updated, err := api.Database.UpdateChatProjectMemoryByID(ctx, database.UpdateChatProjectMemoryByIDParams{ID: memory.ID, Name: normalized.Name, Description: normalized.Description, Body: normalized.Body})
+	updated, err := chattool.UpdateProjectMemory(ctx, api.Database, project.ID, database.UpdateChatProjectMemoryByIDParams{ID: memory.ID, Name: normalized.Name, Description: normalized.Description, Body: normalized.Body})
 	if database.IsUniqueViolation(err) {
 		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{Message: "A chat project memory with this name already exists."})
 		return
