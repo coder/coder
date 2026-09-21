@@ -60,8 +60,7 @@ We track the following resources:
 > [!NOTE]
 > `ChatProjectMemory` events cover changes made through the REST API.
 > Memories the agent saves, updates, or deletes with its own tools, and
-> changes made by background memory extraction and consolidation, are not
-> audited.
+> changes made by background maintenance, are not audited.
 
 ## How to Filter Audit Logs
 

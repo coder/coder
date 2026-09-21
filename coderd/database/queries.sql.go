@@ -7279,35 +7279,6 @@ func (q *sqlQuerier) UpsertChatUserModelOverride(ctx context.Context, arg Upsert
 	return err
 }
 
-const claimChatMemoryExtraction = `-- name: ClaimChatMemoryExtraction :one
-INSERT INTO chat_memory_cursors (chat_id, history_version, claimed_until)
-VALUES ($1::uuid, 0, $2::timestamptz)
-ON CONFLICT (chat_id) DO UPDATE
-SET claimed_until = EXCLUDED.claimed_until
-WHERE chat_memory_cursors.claimed_until IS NULL
-    OR chat_memory_cursors.claimed_until < now()
-RETURNING chat_id, history_version, extracted_at, claimed_until
-`
-
-type ClaimChatMemoryExtractionParams struct {
-	ChatID       uuid.UUID `db:"chat_id" json:"chat_id"`
-	ClaimedUntil time.Time `db:"claimed_until" json:"claimed_until"`
-}
-
-// Claims the chat for one extractor and returns the current cursor. No row
-// is returned while another unexpired claim holds the chat.
-func (q *sqlQuerier) ClaimChatMemoryExtraction(ctx context.Context, arg ClaimChatMemoryExtractionParams) (ChatMemoryCursor, error) {
-	row := q.db.QueryRowContext(ctx, claimChatMemoryExtraction, arg.ChatID, arg.ClaimedUntil)
-	var i ChatMemoryCursor
-	err := row.Scan(
-		&i.ChatID,
-		&i.HistoryVersion,
-		&i.ExtractedAt,
-		&i.ClaimedUntil,
-	)
-	return i, err
-}
-
 const countChatProjectMemoriesByProjectID = `-- name: CountChatProjectMemoriesByProjectID :one
 SELECT COUNT(*)::bigint
 FROM chat_project_memories
@@ -7345,90 +7316,6 @@ type DeleteChatProjectMemoryByNameParams struct {
 func (q *sqlQuerier) DeleteChatProjectMemoryByName(ctx context.Context, arg DeleteChatProjectMemoryByNameParams) error {
 	_, err := q.db.ExecContext(ctx, deleteChatProjectMemoryByName, arg.ProjectID, arg.Name)
 	return err
-}
-
-const getChatMemoryCursor = `-- name: GetChatMemoryCursor :one
-SELECT chat_id, history_version, extracted_at, claimed_until
-FROM chat_memory_cursors
-WHERE chat_id = $1::uuid
-`
-
-func (q *sqlQuerier) GetChatMemoryCursor(ctx context.Context, chatID uuid.UUID) (ChatMemoryCursor, error) {
-	row := q.db.QueryRowContext(ctx, getChatMemoryCursor, chatID)
-	var i ChatMemoryCursor
-	err := row.Scan(
-		&i.ChatID,
-		&i.HistoryVersion,
-		&i.ExtractedAt,
-		&i.ClaimedUntil,
-	)
-	return i, err
-}
-
-const getChatMessagesForMemoryExtraction = `-- name: GetChatMessagesForMemoryExtraction :many
-SELECT id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, revision, reasoning_effort, search_tsv, search_tsv_config
-FROM chat_messages
-WHERE chat_id = $1::uuid
-    AND revision > $2::bigint
-    AND deleted = false
-ORDER BY id ASC
-`
-
-type GetChatMessagesForMemoryExtractionParams struct {
-	ChatID        uuid.UUID `db:"chat_id" json:"chat_id"`
-	AfterRevision int64     `db:"after_revision" json:"after_revision"`
-}
-
-// Unpruned history above a revision. The prompt query hides rows behind the
-// latest compaction boundary, but extraction must still see the original
-// user turns; callers filter injected model-only rows themselves.
-func (q *sqlQuerier) GetChatMessagesForMemoryExtraction(ctx context.Context, arg GetChatMessagesForMemoryExtractionParams) ([]ChatMessage, error) {
-	rows, err := q.db.QueryContext(ctx, getChatMessagesForMemoryExtraction, arg.ChatID, arg.AfterRevision)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []ChatMessage
-	for rows.Next() {
-		var i ChatMessage
-		if err := rows.Scan(
-			&i.ID,
-			&i.ChatID,
-			&i.ModelConfigID,
-			&i.CreatedAt,
-			&i.Role,
-			&i.Content,
-			&i.Visibility,
-			&i.InputTokens,
-			&i.OutputTokens,
-			&i.TotalTokens,
-			&i.ReasoningTokens,
-			&i.CacheCreationTokens,
-			&i.CacheReadTokens,
-			&i.ContextLimit,
-			&i.Compressed,
-			&i.CreatedBy,
-			&i.ContentVersion,
-			&i.TotalCostMicros,
-			&i.RuntimeMs,
-			&i.Deleted,
-			&i.ProviderResponseID,
-			&i.Revision,
-			&i.ReasoningEffort,
-			&i.SearchTsv,
-			&i.SearchTsvConfig,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
 }
 
 const getChatProjectMemoriesByProjectID = `-- name: GetChatProjectMemoriesByProjectID :many
@@ -7615,25 +7502,6 @@ func (q *sqlQuerier) InsertChatProjectMemory(ctx context.Context, arg InsertChat
 	return i, err
 }
 
-const releaseChatMemoryExtraction = `-- name: ReleaseChatMemoryExtraction :exec
-UPDATE chat_memory_cursors
-SET claimed_until = NULL
-WHERE chat_id = $1::uuid
-    AND claimed_until = $2::timestamptz
-`
-
-type ReleaseChatMemoryExtractionParams struct {
-	ChatID       uuid.UUID `db:"chat_id" json:"chat_id"`
-	ClaimedUntil time.Time `db:"claimed_until" json:"claimed_until"`
-}
-
-// Releases a claim only while it is still ours, so an expired claim cannot
-// release a newer extractor's claim.
-func (q *sqlQuerier) ReleaseChatMemoryExtraction(ctx context.Context, arg ReleaseChatMemoryExtractionParams) error {
-	_, err := q.db.ExecContext(ctx, releaseChatMemoryExtraction, arg.ChatID, arg.ClaimedUntil)
-	return err
-}
-
 const updateChatProjectMemoryByID = `-- name: UpdateChatProjectMemoryByID :one
 UPDATE chat_project_memories
 SET
@@ -7671,37 +7539,6 @@ func (q *sqlQuerier) UpdateChatProjectMemoryByID(ctx context.Context, arg Update
 		&i.CreatedBy,
 		&i.CreatedAt,
 		&i.UpdatedAt,
-	)
-	return i, err
-}
-
-const upsertChatMemoryCursor = `-- name: UpsertChatMemoryCursor :one
-INSERT INTO chat_memory_cursors (chat_id, history_version)
-VALUES ($1::uuid, $2::bigint)
-ON CONFLICT (chat_id) DO UPDATE
-SET
-    -- Detached extractors can finish out of order, so never regress the cursor.
-    history_version = GREATEST(
-        chat_memory_cursors.history_version,
-        EXCLUDED.history_version
-    ),
-    extracted_at = now()
-RETURNING chat_id, history_version, extracted_at, claimed_until
-`
-
-type UpsertChatMemoryCursorParams struct {
-	ChatID         uuid.UUID `db:"chat_id" json:"chat_id"`
-	HistoryVersion int64     `db:"history_version" json:"history_version"`
-}
-
-func (q *sqlQuerier) UpsertChatMemoryCursor(ctx context.Context, arg UpsertChatMemoryCursorParams) (ChatMemoryCursor, error) {
-	row := q.db.QueryRowContext(ctx, upsertChatMemoryCursor, arg.ChatID, arg.HistoryVersion)
-	var i ChatMemoryCursor
-	err := row.Scan(
-		&i.ChatID,
-		&i.HistoryVersion,
-		&i.ExtractedAt,
-		&i.ClaimedUntil,
 	)
 	return i, err
 }

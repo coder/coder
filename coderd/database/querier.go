@@ -88,9 +88,6 @@ type sqlcQuerier interface {
 	// Calculates the telemetry summary for a given provider, model, and client
 	// combination for telemetry reporting.
 	CalculateAIBridgeInterceptionsTelemetrySummary(ctx context.Context, arg CalculateAIBridgeInterceptionsTelemetrySummaryParams) (CalculateAIBridgeInterceptionsTelemetrySummaryRow, error)
-	// Claims the chat for one extractor and returns the current cursor. No row
-	// is returned while another unexpired claim holds the chat.
-	ClaimChatMemoryExtraction(ctx context.Context, arg ClaimChatMemoryExtractionParams) (ChatMemoryCursor, error)
 	ClaimPrebuiltWorkspace(ctx context.Context, arg ClaimPrebuiltWorkspaceParams) (ClaimPrebuiltWorkspaceRow, error)
 	CleanTailnetCoordinators(ctx context.Context) error
 	CleanTailnetLostPeers(ctx context.Context) error
@@ -490,7 +487,6 @@ type sqlcQuerier interface {
 	// When the toggle is unset, a non-empty custom prompt implies false;
 	// otherwise the setting defaults to true.
 	GetChatIncludeDefaultSystemPrompt(ctx context.Context) (bool, error)
-	GetChatMemoryCursor(ctx context.Context, chatID uuid.UUID) (ChatMemoryCursor, error)
 	GetChatMessageByID(ctx context.Context, id int64) (ChatMessage, error)
 	// Aggregates message-level metrics per chat for messages created
 	// after the given timestamp. Uses message created_at so that
@@ -504,10 +500,6 @@ type sqlcQuerier interface {
 	GetChatMessagesByChatIDDescPaginated(ctx context.Context, arg GetChatMessagesByChatIDDescPaginatedParams) ([]ChatMessage, error)
 	// Stream deltas and reset snapshots must use the same message order.
 	GetChatMessagesByRevisionForStream(ctx context.Context, arg GetChatMessagesByRevisionForStreamParams) ([]ChatMessage, error)
-	// Unpruned history above a revision. The prompt query hides rows behind the
-	// latest compaction boundary, but extraction must still see the original
-	// user turns; callers filter injected model-only rows themselves.
-	GetChatMessagesForMemoryExtraction(ctx context.Context, arg GetChatMessagesForMemoryExtractionParams) ([]ChatMessage, error)
 	// The compaction boundary and final ordering must use the same key so tool
 	// results remain after their assistant calls.
 	GetChatMessagesForPromptByChatID(ctx context.Context, chatID uuid.UUID) ([]ChatMessage, error)
@@ -1396,9 +1388,6 @@ type sqlcQuerier interface {
 	ReduceWorkspaceAgentShareLevelToAuthenticatedByTemplate(ctx context.Context, templateID uuid.UUID) error
 	RegisterWorkspaceProxy(ctx context.Context, arg RegisterWorkspaceProxyParams) (WorkspaceProxy, error)
 	ReindexStaleChatMessagesSearchTsv(ctx context.Context, batchSize int32) (int64, error)
-	// Releases a claim only while it is still ours, so an expired claim cannot
-	// release a newer extractor's claim.
-	ReleaseChatMemoryExtraction(ctx context.Context, arg ReleaseChatMemoryExtractionParams) error
 	// The lease is only removed if it is the current lease.
 	ReleaseExternalAuthLinkRefreshLease(ctx context.Context, arg ReleaseExternalAuthLinkRefreshLeaseParams) error
 	RemoveUserFromGroups(ctx context.Context, arg RemoveUserFromGroupsParams) ([]uuid.UUID, error)
@@ -1723,7 +1712,6 @@ type sqlcQuerier interface {
 	// database time so callers do not depend on a local clock.
 	UpsertChatHeartbeat(ctx context.Context, arg UpsertChatHeartbeatParams) error
 	UpsertChatIncludeDefaultSystemPrompt(ctx context.Context, includeDefaultSystemPrompt bool) error
-	UpsertChatMemoryCursor(ctx context.Context, arg UpsertChatMemoryCursorParams) (ChatMemoryCursor, error)
 	UpsertChatOrganizationModelOverride(ctx context.Context, arg UpsertChatOrganizationModelOverrideParams) error
 	// UpsertChatPersonalModelOverridesEnabled updates whether users may configure
 	// personal chat model overrides.
