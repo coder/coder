@@ -53,8 +53,10 @@ export const firstDayWithinRetention = (cutoff: Date): Date => {
 
 /**
  * Maps the server's UTC window to local picker days, advancing the start past
- * retention where possible. Undefined when no selectable day remains, since
- * every day the picker could commit would start before the cutoff.
+ * retention where possible. Undefined when no selectable day remains: the
+ * first local day is still ahead of the viewer's clock, either because the
+ * UTC period began after local midnight or because every day the picker could
+ * commit would start before the retention cutoff.
  */
 export const appliedWindowToDateRange = (
 	reportWindow: Pick<
@@ -73,13 +75,13 @@ export const appliedWindowToDateRange = (
 		firstDay.getTime() < Date.parse(reportWindow.retention_start)
 	) {
 		firstDay = firstDayWithinRetention(new Date(reportWindow.retention_start));
-		const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-		if (firstDay > today) {
-			return undefined;
-		}
 		if (firstDay > lastDay) {
 			lastDay = firstDay;
 		}
+	}
+	const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+	if (firstDay > today) {
+		return undefined;
 	}
 	return toBoundary(firstDay, lastDay, now);
 };

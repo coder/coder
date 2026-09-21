@@ -103,6 +103,22 @@ it("offers no range when retention is shorter than a day", () => {
 	).toBeUndefined();
 });
 
+it("offers no range while the period's first local day is still tomorrow", () => {
+	// 19:00 on September 30 in America/Los_Angeles, already October 1 in UTC,
+	// so the server has moved on to the October budget period.
+	vi.stubEnv("TZ", "America/Los_Angeles");
+	expect(
+		appliedWindowToDateRange(
+			{
+				period_start: "2026-10-01T00:00:00Z",
+				period_end: "2026-11-01T00:00:00Z",
+			},
+			new Date("2026-10-01T02:00:00Z"),
+		),
+	).toBeUndefined();
+	vi.stubEnv("TZ", "Asia/Tokyo");
+});
+
 it("bounds the picker at the first local midnight after the retention cutoff", () => {
 	const cutoff = new Date(2026, 1, 14, 15, 32, 10);
 	expect(firstDayWithinRetention(cutoff)).toEqual(new Date(2026, 1, 15));
