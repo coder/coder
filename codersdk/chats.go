@@ -1227,31 +1227,6 @@ type ChatProviderConfig struct {
 	UpdatedAt                  time.Time                `json:"updated_at,omitempty" format:"date-time"`
 }
 
-// CreateChatProviderConfigRequest creates a chat provider config.
-type CreateChatProviderConfigRequest struct {
-	Provider                   string `json:"provider"`
-	DisplayName                string `json:"display_name,omitempty"`
-	Icon                       string `json:"icon,omitempty"`
-	APIKey                     string `json:"api_key,omitempty"`
-	BaseURL                    string `json:"base_url,omitempty"`
-	Enabled                    *bool  `json:"enabled,omitempty"`
-	CentralAPIKeyEnabled       *bool  `json:"central_api_key_enabled,omitempty"`
-	AllowUserAPIKey            *bool  `json:"allow_user_api_key,omitempty"`
-	AllowCentralAPIKeyFallback *bool  `json:"allow_central_api_key_fallback,omitempty"`
-}
-
-// UpdateChatProviderConfigRequest updates a chat provider config.
-type UpdateChatProviderConfigRequest struct {
-	DisplayName                string  `json:"display_name,omitempty"`
-	Icon                       string  `json:"icon,omitempty"`
-	APIKey                     *string `json:"api_key,omitempty"`
-	BaseURL                    *string `json:"base_url,omitempty"`
-	Enabled                    *bool   `json:"enabled,omitempty"`
-	CentralAPIKeyEnabled       *bool   `json:"central_api_key_enabled,omitempty"`
-	AllowUserAPIKey            *bool   `json:"allow_user_api_key,omitempty"`
-	AllowCentralAPIKeyFallback *bool   `json:"allow_central_api_key_fallback,omitempty"`
-}
-
 // AIProviderSummary is provider metadata embedded in other API responses.
 type AIProviderSummary struct {
 	ID          uuid.UUID      `json:"id" format:"uuid"`
@@ -2028,64 +2003,6 @@ func (c *Client) ListChats(ctx context.Context, opts *ListChatsOptions) ([]Chat,
 	return chats, ReadBodyAsJSON(res, &chats)
 }
 
-// ListChatProviders returns admin-managed chat provider configs.
-func (c *ExperimentalClient) ListChatProviders(ctx context.Context) ([]ChatProviderConfig, error) {
-	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/chats/providers", nil)
-	if err != nil {
-		return nil, err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		return nil, ReadBodyAsError(res)
-	}
-
-	var providers []ChatProviderConfig
-	return providers, ReadBodyAsJSON(res, &providers)
-}
-
-// CreateChatProvider creates an admin-managed chat provider config.
-func (c *ExperimentalClient) CreateChatProvider(ctx context.Context, req CreateChatProviderConfigRequest) (ChatProviderConfig, error) {
-	res, err := c.Request(ctx, http.MethodPost, "/api/experimental/chats/providers", req)
-	if err != nil {
-		return ChatProviderConfig{}, err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusCreated {
-		return ChatProviderConfig{}, ReadBodyAsError(res)
-	}
-
-	var provider ChatProviderConfig
-	return provider, ReadBodyAsJSON(res, &provider)
-}
-
-// UpdateChatProvider updates an admin-managed chat provider config.
-func (c *ExperimentalClient) UpdateChatProvider(ctx context.Context, providerID uuid.UUID, req UpdateChatProviderConfigRequest) (ChatProviderConfig, error) {
-	res, err := c.Request(ctx, http.MethodPatch, fmt.Sprintf("/api/experimental/chats/providers/%s", providerID), req)
-	if err != nil {
-		return ChatProviderConfig{}, err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		return ChatProviderConfig{}, ReadBodyAsError(res)
-	}
-
-	var provider ChatProviderConfig
-	return provider, ReadBodyAsJSON(res, &provider)
-}
-
-// DeleteChatProvider deletes an admin-managed chat provider config.
-func (c *ExperimentalClient) DeleteChatProvider(ctx context.Context, providerID uuid.UUID) error {
-	res, err := c.Request(ctx, http.MethodDelete, fmt.Sprintf("/api/experimental/chats/providers/%s", providerID), nil)
-	if err != nil {
-		return err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusNoContent {
-		return ReadBodyAsError(res)
-	}
-	return nil
-}
-
 // ListUserAIProviderKeyConfigs returns user-scoped AI provider key configs.
 func (c *Client) ListUserAIProviderKeyConfigs(ctx context.Context, user string) ([]UserAIProviderKeyConfig, error) {
 	res, err := c.Request(ctx, http.MethodGet, userAIProviderKeysPath(user), nil)
@@ -2129,47 +2046,6 @@ func (c *Client) DeleteUserAIProviderKey(ctx context.Context, user string, provi
 
 func userAIProviderKeysPath(user string) string {
 	return fmt.Sprintf("/api/v2/users/%s/ai-provider-keys", url.PathEscape(user))
-}
-
-// ListUserChatProviderConfigs returns user-scoped chat provider configs.
-func (c *ExperimentalClient) ListUserChatProviderConfigs(ctx context.Context) ([]UserChatProviderConfig, error) {
-	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/chats/user-provider-configs", nil)
-	if err != nil {
-		return nil, xerrors.Errorf("list user chat provider configs: %w", err)
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		return nil, ReadBodyAsError(res)
-	}
-	var configs []UserChatProviderConfig
-	return configs, ReadBodyAsJSON(res, &configs)
-}
-
-// UpsertUserChatProviderKey creates or replaces a user API key for a provider.
-func (c *ExperimentalClient) UpsertUserChatProviderKey(ctx context.Context, providerID uuid.UUID, req CreateUserChatProviderKeyRequest) (UserChatProviderConfig, error) {
-	res, err := c.Request(ctx, http.MethodPut, fmt.Sprintf("/api/experimental/chats/user-provider-configs/%s", providerID), req)
-	if err != nil {
-		return UserChatProviderConfig{}, xerrors.Errorf("upsert user chat provider key: %w", err)
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		return UserChatProviderConfig{}, ReadBodyAsError(res)
-	}
-	var config UserChatProviderConfig
-	return config, ReadBodyAsJSON(res, &config)
-}
-
-// DeleteUserChatProviderKey deletes a user API key for a provider.
-func (c *ExperimentalClient) DeleteUserChatProviderKey(ctx context.Context, providerID uuid.UUID) error {
-	res, err := c.Request(ctx, http.MethodDelete, fmt.Sprintf("/api/experimental/chats/user-provider-configs/%s", providerID), nil)
-	if err != nil {
-		return xerrors.Errorf("delete user chat provider key: %w", err)
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusNoContent {
-		return ReadBodyAsError(res)
-	}
-	return nil
 }
 
 // ChatModels returns the chat model configs the caller can read in one
