@@ -1,7 +1,7 @@
 import { SparklesIcon } from "lucide-react";
 import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { getErrorMessage, isApiError } from "#/api/errors";
-import type { Chat } from "#/api/typesGenerated";
+import { type Chat, MaxChatTitleRunes } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import {
 	Dialog,
@@ -223,8 +223,8 @@ export const RenameChatDialog: React.FC<RenameChatDialogProps> = ({
 		setIsRenamingChat(false);
 	};
 
-	// Saving the unchanged text of a fallback title records it as the
-	// user's title.
+	// Saving the unchanged text of a title that is not yet the user's
+	// records it as the user's title.
 	const isUnchangedUserTitle =
 		renameTitle.trim() === chat?.title && chat?.title_source === "user";
 
@@ -299,7 +299,7 @@ export const RenameChatDialog: React.FC<RenameChatDialogProps> = ({
 								}
 							}}
 							disabled={isRenamingChat || isGeneratingTitle}
-							maxLength={200}
+							maxLength={MaxChatTitleRunes}
 							aria-label="Chat title"
 							aria-invalid={generateTitleError ? true : undefined}
 							aria-describedby={generateTitleError ? errorId : undefined}

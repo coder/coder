@@ -1,7 +1,8 @@
 DROP VIEW IF EXISTS chats_expanded;
 
 ALTER TABLE chats
-    DROP COLUMN title_source;
+    DROP COLUMN title_source,
+    DROP COLUMN title_updated_at;
 
 DROP TYPE chat_title_source;
 
