@@ -1267,6 +1267,14 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().GetLastChatMessageByRole(gomock.Any(), arg).Return(msg, nil).AnyTimes()
 		check.Args(arg).Asserts(chat, policy.ActionRead).Returns(msg)
 	}))
+	s.Run("GetChatMessagesForMemoryExtraction", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		chat := testutil.Fake(s.T(), faker, database.Chat{})
+		arg := database.GetChatMessagesForMemoryExtractionParams{ChatID: chat.ID, AfterRevision: 3}
+		msgs := []database.ChatMessage{testutil.Fake(s.T(), faker, database.ChatMessage{ChatID: chat.ID})}
+		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
+		dbm.EXPECT().GetChatMessagesForMemoryExtraction(gomock.Any(), arg).Return(msgs, nil).AnyTimes()
+		check.Args(arg).Asserts(chat, policy.ActionRead).Returns(msgs)
+	}))
 	s.Run("GetChatMessagesForPromptByChatID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		chat := testutil.Fake(s.T(), faker, database.Chat{})
 		msgs := []database.ChatMessage{testutil.Fake(s.T(), faker, database.ChatMessage{ChatID: chat.ID})}
@@ -1533,9 +1541,9 @@ func (s *MethodTestSuite) TestChats() {
 	}))
 	s.Run("InsertChatProject", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		arg := testutil.Fake(s.T(), faker, database.InsertChatProjectParams{})
-		project := testutil.Fake(s.T(), faker, database.ChatProject{OrganizationID: arg.OrganizationID, CreatedBy: arg.CreatedBy})
+		project := testutil.Fake(s.T(), faker, database.ChatProject{OrganizationID: arg.OrganizationID, OwnerID: arg.OwnerID})
 		dbm.EXPECT().InsertChatProject(gomock.Any(), arg).Return(project, nil).AnyTimes()
-		check.Args(arg).Asserts(rbac.ResourceChatProject.InOrg(arg.OrganizationID).WithOwner(arg.CreatedBy.String()), policy.ActionCreate).Returns(project)
+		check.Args(arg).Asserts(rbac.ResourceChatProject.InOrg(arg.OrganizationID).WithOwner(arg.OwnerID.String()), policy.ActionCreate).Returns(project)
 	}))
 	s.Run("InsertChatFile", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		arg := testutil.Fake(s.T(), faker, database.InsertChatFileParams{})

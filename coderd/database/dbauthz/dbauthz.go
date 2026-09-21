@@ -3616,6 +3616,14 @@ func (q *querier) GetChatMessagesByRevisionForStream(ctx context.Context, arg da
 	return q.db.GetChatMessagesByRevisionForStream(ctx, arg)
 }
 
+func (q *querier) GetChatMessagesForMemoryExtraction(ctx context.Context, arg database.GetChatMessagesForMemoryExtractionParams) ([]database.ChatMessage, error) {
+	// Authorize read on the parent chat.
+	if _, err := q.GetChatByID(ctx, arg.ChatID); err != nil {
+		return nil, err
+	}
+	return q.db.GetChatMessagesForMemoryExtraction(ctx, arg)
+}
+
 func (q *querier) GetChatMessagesForPromptByChatID(ctx context.Context, chatID uuid.UUID) ([]database.ChatMessage, error) {
 	// Authorize read on the parent chat.
 	_, err := q.GetChatByID(ctx, chatID)
@@ -6376,7 +6384,7 @@ func (q *querier) InsertChatModelConfig(ctx context.Context, arg database.Insert
 }
 
 func (q *querier) InsertChatProject(ctx context.Context, arg database.InsertChatProjectParams) (database.ChatProject, error) {
-	return insert(q.log, q.auth, rbac.ResourceChatProject.InOrg(arg.OrganizationID).WithOwner(arg.CreatedBy.String()), q.db.InsertChatProject)(ctx, arg)
+	return insert(q.log, q.auth, rbac.ResourceChatProject.InOrg(arg.OrganizationID).WithOwner(arg.OwnerID.String()), q.db.InsertChatProject)(ctx, arg)
 }
 
 func (q *querier) InsertChatProjectMemory(ctx context.Context, arg database.InsertChatProjectMemoryParams) (database.ChatProjectMemory, error) {

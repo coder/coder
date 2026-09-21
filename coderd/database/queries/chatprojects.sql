@@ -1,9 +1,9 @@
 -- name: InsertChatProject :one
-INSERT INTO chat_projects (id, organization_id, created_by, name, description)
+INSERT INTO chat_projects (id, organization_id, owner_id, name, description)
 VALUES (
     COALESCE(sqlc.narg('id')::uuid, gen_random_uuid()),
     @organization_id::uuid,
-    @created_by::uuid,
+    @owner_id::uuid,
     @name::text,
     @description::text
 )

@@ -5286,17 +5286,18 @@ type ChatHeartbeat struct {
 
 // Bounded journal of detached project memory consolidation runs.
 type ChatMemoryConsolidation struct {
-	ID             uuid.UUID                     `db:"id" json:"id"`
-	OrganizationID uuid.UUID                     `db:"organization_id" json:"organization_id"`
-	ProjectID      uuid.UUID                     `db:"project_id" json:"project_id"`
-	Status         ChatMemoryConsolidationStatus `db:"status" json:"status"`
-	StartedAt      time.Time                     `db:"started_at" json:"started_at"`
-	FinishedAt     sql.NullTime                  `db:"finished_at" json:"finished_at"`
-	Model          string                        `db:"model" json:"model"`
-	MemoriesBefore int32                         `db:"memories_before" json:"memories_before"`
-	MemoriesAfter  int32                         `db:"memories_after" json:"memories_after"`
-	Mutations      json.RawMessage               `db:"mutations" json:"mutations"`
-	Error          string                        `db:"error" json:"error"`
+	ID              uuid.UUID                     `db:"id" json:"id"`
+	OrganizationID  uuid.UUID                     `db:"organization_id" json:"organization_id"`
+	ProjectID       uuid.UUID                     `db:"project_id" json:"project_id"`
+	Status          ChatMemoryConsolidationStatus `db:"status" json:"status"`
+	StartedAt       time.Time                     `db:"started_at" json:"started_at"`
+	FinishedAt      sql.NullTime                  `db:"finished_at" json:"finished_at"`
+	Model           string                        `db:"model" json:"model"`
+	MemoriesBefore  int32                         `db:"memories_before" json:"memories_before"`
+	MemoriesAfter   int32                         `db:"memories_after" json:"memories_after"`
+	Mutations       json.RawMessage               `db:"mutations" json:"mutations"`
+	Error           string                        `db:"error" json:"error"`
+	NextWindowStart int32                         `db:"next_window_start" json:"next_window_start"`
 }
 
 // Per-chat cursors for memory extraction.
@@ -5371,7 +5372,7 @@ type ChatOrganizationModelOverride struct {
 type ChatProject struct {
 	ID             uuid.UUID `db:"id" json:"id"`
 	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
-	CreatedBy      uuid.UUID `db:"created_by" json:"created_by"`
+	OwnerID        uuid.UUID `db:"owner_id" json:"owner_id"`
 	Name           string    `db:"name" json:"name"`
 	Description    string    `db:"description" json:"description"`
 	CreatedAt      time.Time `db:"created_at" json:"created_at"`

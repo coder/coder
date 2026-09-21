@@ -74,7 +74,7 @@ func (api *API) postChatProject(rw http.ResponseWriter, r *http.Request) {
 	}
 	if !api.Authorize(r, policy.ActionCreate, database.ChatProject{
 		OrganizationID: req.OrganizationID,
-		CreatedBy:      apiKey.UserID,
+		OwnerID:        apiKey.UserID,
 	}.RBACObject()) {
 		httpapi.Forbidden(rw)
 		return
@@ -92,12 +92,12 @@ func (api *API) postChatProject(rw http.ResponseWriter, r *http.Request) {
 	project, err := api.Database.InsertChatProject(ctx, database.InsertChatProjectParams{
 		ID:             uuid.NullUUID{},
 		OrganizationID: req.OrganizationID,
-		CreatedBy:      apiKey.UserID,
+		OwnerID:        apiKey.UserID,
 		Name:           strings.TrimSpace(req.Name),
 		Description:    req.Description,
 	})
 	if database.IsUniqueViolation(err) {
-		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{Message: "A chat project with this name already exists in the organization."})
+		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{Message: "You already have a chat project with this name."})
 		return
 	}
 	if err != nil {
@@ -184,7 +184,7 @@ func (api *API) patchChatProject(rw http.ResponseWriter, r *http.Request) {
 		Description: description,
 	})
 	if database.IsUniqueViolation(err) {
-		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{Message: "A chat project with this name already exists in the organization."})
+		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{Message: "You already have a chat project with this name."})
 		return
 	}
 	if err != nil {

@@ -1744,6 +1744,14 @@ func (m queryMetricsStore) GetChatMessagesByRevisionForStream(ctx context.Contex
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetChatMessagesForMemoryExtraction(ctx context.Context, arg database.GetChatMessagesForMemoryExtractionParams) ([]database.ChatMessage, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetChatMessagesForMemoryExtraction(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetChatMessagesForMemoryExtraction").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatMessagesForMemoryExtraction").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetChatMessagesForPromptByChatID(ctx context.Context, chatID uuid.UUID) ([]database.ChatMessage, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetChatMessagesForPromptByChatID(ctx, chatID)

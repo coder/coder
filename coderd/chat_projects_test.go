@@ -28,7 +28,7 @@ func TestChatProjectsCRUDListAndDeleteDetaches(t *testing.T) {
 	otherOrganization := dbgen.Organization(t, db, database.Organization{IsDefault: false})
 	_ = dbgen.ChatProject(t, db, database.ChatProject{
 		OrganizationID: otherOrganization.ID,
-		CreatedBy:      firstUser.UserID,
+		OwnerID:        firstUser.UserID,
 		Name:           "Other Organization Project",
 	})
 
@@ -58,6 +58,13 @@ func TestChatProjectsCRUDListAndDeleteDetaches(t *testing.T) {
 		Name:           updatedName,
 	})
 	require.Equal(t, 409, coderdtest.SDKError(t, err).StatusCode())
+
+	// Names are unique per creator, so another member's private project can
+	// reuse one without learning that it exists elsewhere.
+	otherRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
+	other := codersdk.NewExperimentalClient(otherRaw)
+	otherProject := createChatProject(t, other, firstUser.OrganizationID, updatedName)
+	require.Equal(t, updatedName, otherProject.Name)
 
 	require.NoError(t, client.DeleteChatProject(ctx, project.ID))
 	storedChat, err := client.GetChat(ctx, chat.ID)
@@ -112,7 +119,7 @@ func TestChatProjectsAuthorizationAndCrossOrganizationBinding(t *testing.T) {
 	otherOrganization := dbgen.Organization(t, db, database.Organization{IsDefault: false})
 	otherProject := dbgen.ChatProject(t, db, database.ChatProject{
 		OrganizationID: otherOrganization.ID,
-		CreatedBy:      firstUser.UserID,
+		OwnerID:        firstUser.UserID,
 		Name:           "Other Project",
 	})
 	otherMemberRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, otherOrganization.ID)
@@ -172,6 +179,16 @@ func TestChatProjectBindingPatchClearAndListFilter(t *testing.T) {
 	chats, err = client.ListChats(ctx, &codersdk.ListChatsOptions{ProjectID: &projectA.ID})
 	require.NoError(t, err)
 	require.Empty(t, chats)
+
+	// A rejected project fails the whole PATCH; fields listed before it in
+	// the request are not applied.
+	missing := uuid.New()
+	err = client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{Title: new("should not apply"), ProjectID: &missing})
+	require.Equal(t, 400, coderdtest.SDKError(t, err).StatusCode())
+	unchanged, err := client.GetChat(ctx, chat.ID)
+	require.NoError(t, err)
+	require.Equal(t, updated.Title, unchanged.Title)
+	require.Nil(t, unchanged.ProjectID)
 
 	// Child chats are created by chatd, not the public API. Seed one to verify
 	// the public PATCH endpoint still enforces the root-chat invariant.

@@ -161,7 +161,7 @@ type Chat struct {
 type ChatProject struct {
 	ID             uuid.UUID `json:"id" format:"uuid"`
 	OrganizationID uuid.UUID `json:"organization_id" format:"uuid"`
-	CreatedBy      uuid.UUID `json:"created_by" format:"uuid"`
+	OwnerID        uuid.UUID `json:"owner_id" format:"uuid"`
 	Name           string    `json:"name"`
 	Description    string    `json:"description"`
 	CreatedAt      time.Time `json:"created_at" format:"date-time"`

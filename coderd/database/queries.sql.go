@@ -6459,17 +6459,19 @@ SET
     finished_at = now(),
     memories_after = $2::int,
     mutations = $3::jsonb,
-    error = $4::text
-WHERE id = $5::uuid
-RETURNING id, organization_id, project_id, status, started_at, finished_at, model, memories_before, memories_after, mutations, error
+    error = $4::text,
+    next_window_start = $5::int
+WHERE id = $6::uuid
+RETURNING id, organization_id, project_id, status, started_at, finished_at, model, memories_before, memories_after, mutations, error, next_window_start
 `
 
 type FinishChatMemoryConsolidationParams struct {
-	Status        ChatMemoryConsolidationStatus `db:"status" json:"status"`
-	MemoriesAfter int32                         `db:"memories_after" json:"memories_after"`
-	Mutations     json.RawMessage               `db:"mutations" json:"mutations"`
-	Error         string                        `db:"error" json:"error"`
-	ID            uuid.UUID                     `db:"id" json:"id"`
+	Status          ChatMemoryConsolidationStatus `db:"status" json:"status"`
+	MemoriesAfter   int32                         `db:"memories_after" json:"memories_after"`
+	Mutations       json.RawMessage               `db:"mutations" json:"mutations"`
+	Error           string                        `db:"error" json:"error"`
+	NextWindowStart int32                         `db:"next_window_start" json:"next_window_start"`
+	ID              uuid.UUID                     `db:"id" json:"id"`
 }
 
 func (q *sqlQuerier) FinishChatMemoryConsolidation(ctx context.Context, arg FinishChatMemoryConsolidationParams) (ChatMemoryConsolidation, error) {
@@ -6478,6 +6480,7 @@ func (q *sqlQuerier) FinishChatMemoryConsolidation(ctx context.Context, arg Fini
 		arg.MemoriesAfter,
 		arg.Mutations,
 		arg.Error,
+		arg.NextWindowStart,
 		arg.ID,
 	)
 	var i ChatMemoryConsolidation
@@ -6493,12 +6496,13 @@ func (q *sqlQuerier) FinishChatMemoryConsolidation(ctx context.Context, arg Fini
 		&i.MemoriesAfter,
 		&i.Mutations,
 		&i.Error,
+		&i.NextWindowStart,
 	)
 	return i, err
 }
 
 const getChatMemoryConsolidationsByProject = `-- name: GetChatMemoryConsolidationsByProject :many
-SELECT id, organization_id, project_id, status, started_at, finished_at, model, memories_before, memories_after, mutations, error
+SELECT id, organization_id, project_id, status, started_at, finished_at, model, memories_before, memories_after, mutations, error, next_window_start
 FROM chat_memory_consolidations
 WHERE project_id = $1::uuid
 ORDER BY started_at DESC
@@ -6531,6 +6535,7 @@ func (q *sqlQuerier) GetChatMemoryConsolidationsByProject(ctx context.Context, a
 			&i.MemoriesAfter,
 			&i.Mutations,
 			&i.Error,
+			&i.NextWindowStart,
 		); err != nil {
 			return nil, err
 		}
@@ -6546,7 +6551,7 @@ func (q *sqlQuerier) GetChatMemoryConsolidationsByProject(ctx context.Context, a
 }
 
 const getLatestChatMemoryConsolidationByProject = `-- name: GetLatestChatMemoryConsolidationByProject :one
-SELECT id, organization_id, project_id, status, started_at, finished_at, model, memories_before, memories_after, mutations, error
+SELECT id, organization_id, project_id, status, started_at, finished_at, model, memories_before, memories_after, mutations, error, next_window_start
 FROM chat_memory_consolidations
 WHERE project_id = $1::uuid
 ORDER BY started_at DESC
@@ -6568,6 +6573,7 @@ func (q *sqlQuerier) GetLatestChatMemoryConsolidationByProject(ctx context.Conte
 		&i.MemoriesAfter,
 		&i.Mutations,
 		&i.Error,
+		&i.NextWindowStart,
 	)
 	return i, err
 }
@@ -6587,7 +6593,7 @@ VALUES (
     $3::text,
     $4::int
 )
-RETURNING id, organization_id, project_id, status, started_at, finished_at, model, memories_before, memories_after, mutations, error
+RETURNING id, organization_id, project_id, status, started_at, finished_at, model, memories_before, memories_after, mutations, error, next_window_start
 `
 
 type InsertChatMemoryConsolidationParams struct {
@@ -6617,6 +6623,7 @@ func (q *sqlQuerier) InsertChatMemoryConsolidation(ctx context.Context, arg Inse
 		&i.MemoriesAfter,
 		&i.Mutations,
 		&i.Error,
+		&i.NextWindowStart,
 	)
 	return i, err
 }
@@ -7553,6 +7560,72 @@ func (q *sqlQuerier) GetChatMemoryCursor(ctx context.Context, chatID uuid.UUID) 
 	return i, err
 }
 
+const getChatMessagesForMemoryExtraction = `-- name: GetChatMessagesForMemoryExtraction :many
+SELECT id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, revision, reasoning_effort, search_tsv, search_tsv_config
+FROM chat_messages
+WHERE chat_id = $1::uuid
+    AND revision > $2::bigint
+    AND deleted = false
+ORDER BY id ASC
+`
+
+type GetChatMessagesForMemoryExtractionParams struct {
+	ChatID        uuid.UUID `db:"chat_id" json:"chat_id"`
+	AfterRevision int64     `db:"after_revision" json:"after_revision"`
+}
+
+// Unpruned history above a revision. The prompt query hides rows behind the
+// latest compaction boundary, but extraction must still see the original
+// user turns; callers filter injected model-only rows themselves.
+func (q *sqlQuerier) GetChatMessagesForMemoryExtraction(ctx context.Context, arg GetChatMessagesForMemoryExtractionParams) ([]ChatMessage, error) {
+	rows, err := q.db.QueryContext(ctx, getChatMessagesForMemoryExtraction, arg.ChatID, arg.AfterRevision)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ChatMessage
+	for rows.Next() {
+		var i ChatMessage
+		if err := rows.Scan(
+			&i.ID,
+			&i.ChatID,
+			&i.ModelConfigID,
+			&i.CreatedAt,
+			&i.Role,
+			&i.Content,
+			&i.Visibility,
+			&i.InputTokens,
+			&i.OutputTokens,
+			&i.TotalTokens,
+			&i.ReasoningTokens,
+			&i.CacheCreationTokens,
+			&i.CacheReadTokens,
+			&i.ContextLimit,
+			&i.Compressed,
+			&i.CreatedBy,
+			&i.ContentVersion,
+			&i.TotalCostMicros,
+			&i.RuntimeMs,
+			&i.Deleted,
+			&i.ProviderResponseID,
+			&i.Revision,
+			&i.ReasoningEffort,
+			&i.SearchTsv,
+			&i.SearchTsvConfig,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getChatProjectMemoriesByProjectID = `-- name: GetChatProjectMemoriesByProjectID :many
 SELECT
     chat_project_memories.id, chat_project_memories.project_id, chat_project_memories.organization_id, chat_project_memories.name, chat_project_memories.description, chat_project_memories.body, chat_project_memories.source_chat_id, chat_project_memories.created_by, chat_project_memories.created_at, chat_project_memories.updated_at,
@@ -7936,7 +8009,7 @@ func (q *sqlQuerier) DeleteChatProjectByID(ctx context.Context, id uuid.UUID) er
 }
 
 const getChatProjectByID = `-- name: GetChatProjectByID :one
-SELECT id, organization_id, created_by, name, description, created_at, updated_at
+SELECT id, organization_id, owner_id, name, description, created_at, updated_at
 FROM chat_projects
 WHERE id = $1::uuid
 `
@@ -7947,7 +8020,7 @@ func (q *sqlQuerier) GetChatProjectByID(ctx context.Context, id uuid.UUID) (Chat
 	err := row.Scan(
 		&i.ID,
 		&i.OrganizationID,
-		&i.CreatedBy,
+		&i.OwnerID,
 		&i.Name,
 		&i.Description,
 		&i.CreatedAt,
@@ -7957,7 +8030,7 @@ func (q *sqlQuerier) GetChatProjectByID(ctx context.Context, id uuid.UUID) (Chat
 }
 
 const getChatProjectsByOrganizationID = `-- name: GetChatProjectsByOrganizationID :many
-SELECT id, organization_id, created_by, name, description, created_at, updated_at
+SELECT id, organization_id, owner_id, name, description, created_at, updated_at
 FROM chat_projects
 WHERE organization_id = $1::uuid
 ORDER BY lower(name)
@@ -7975,7 +8048,7 @@ func (q *sqlQuerier) GetChatProjectsByOrganizationID(ctx context.Context, organi
 		if err := rows.Scan(
 			&i.ID,
 			&i.OrganizationID,
-			&i.CreatedBy,
+			&i.OwnerID,
 			&i.Name,
 			&i.Description,
 			&i.CreatedAt,
@@ -7995,7 +8068,7 @@ func (q *sqlQuerier) GetChatProjectsByOrganizationID(ctx context.Context, organi
 }
 
 const insertChatProject = `-- name: InsertChatProject :one
-INSERT INTO chat_projects (id, organization_id, created_by, name, description)
+INSERT INTO chat_projects (id, organization_id, owner_id, name, description)
 VALUES (
     COALESCE($1::uuid, gen_random_uuid()),
     $2::uuid,
@@ -8003,13 +8076,13 @@ VALUES (
     $4::text,
     $5::text
 )
-RETURNING id, organization_id, created_by, name, description, created_at, updated_at
+RETURNING id, organization_id, owner_id, name, description, created_at, updated_at
 `
 
 type InsertChatProjectParams struct {
 	ID             uuid.NullUUID `db:"id" json:"id"`
 	OrganizationID uuid.UUID     `db:"organization_id" json:"organization_id"`
-	CreatedBy      uuid.UUID     `db:"created_by" json:"created_by"`
+	OwnerID        uuid.UUID     `db:"owner_id" json:"owner_id"`
 	Name           string        `db:"name" json:"name"`
 	Description    string        `db:"description" json:"description"`
 }
@@ -8018,7 +8091,7 @@ func (q *sqlQuerier) InsertChatProject(ctx context.Context, arg InsertChatProjec
 	row := q.db.QueryRowContext(ctx, insertChatProject,
 		arg.ID,
 		arg.OrganizationID,
-		arg.CreatedBy,
+		arg.OwnerID,
 		arg.Name,
 		arg.Description,
 	)
@@ -8026,7 +8099,7 @@ func (q *sqlQuerier) InsertChatProject(ctx context.Context, arg InsertChatProjec
 	err := row.Scan(
 		&i.ID,
 		&i.OrganizationID,
-		&i.CreatedBy,
+		&i.OwnerID,
 		&i.Name,
 		&i.Description,
 		&i.CreatedAt,
@@ -8042,7 +8115,7 @@ SET
     description = $2::text,
     updated_at = now()
 WHERE id = $3::uuid
-RETURNING id, organization_id, created_by, name, description, created_at, updated_at
+RETURNING id, organization_id, owner_id, name, description, created_at, updated_at
 `
 
 type UpdateChatProjectByIDParams struct {
@@ -8057,7 +8130,7 @@ func (q *sqlQuerier) UpdateChatProjectByID(ctx context.Context, arg UpdateChatPr
 	err := row.Scan(
 		&i.ID,
 		&i.OrganizationID,
-		&i.CreatedBy,
+		&i.OwnerID,
 		&i.Name,
 		&i.Description,
 		&i.CreatedAt,
