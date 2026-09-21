@@ -8,9 +8,8 @@ ALTER TABLE chat_diff_statuses
 ALTER TABLE chat_diff_statuses
     ADD PRIMARY KEY (chat_id, git_remote_origin, git_branch);
 
--- Primary ordering follows the last report, not the last write.
--- updated_at is the generic mutation time, so refreshes and URL
--- backfills must not reorder the primary through it.
+-- When the agent last reported the ref. The newest reported ref
+-- is the chat's primary.
 ALTER TABLE chat_diff_statuses
     ADD COLUMN reported_at timestamp with time zone DEFAULT now() NOT NULL;
 

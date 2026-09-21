@@ -5147,7 +5147,6 @@ type ChatDiffStatus struct {
 	StaleAt          time.Time      `db:"stale_at" json:"stale_at"`
 	CreatedAt        time.Time      `db:"created_at" json:"created_at"`
 	UpdatedAt        time.Time      `db:"updated_at" json:"updated_at"`
-	ReportedAt       time.Time      `db:"reported_at" json:"reported_at"`
 	GitBranch        string         `db:"git_branch" json:"git_branch"`
 	GitRemoteOrigin  string         `db:"git_remote_origin" json:"git_remote_origin"`
 	PullRequestTitle string         `db:"pull_request_title" json:"pull_request_title"`
@@ -5160,6 +5159,7 @@ type ChatDiffStatus struct {
 	Approved         sql.NullBool   `db:"approved" json:"approved"`
 	ReviewerCount    sql.NullInt32  `db:"reviewer_count" json:"reviewer_count"`
 	HeadBranch       sql.NullString `db:"head_branch" json:"head_branch"`
+	ReportedAt       time.Time      `db:"reported_at" json:"reported_at"`
 }
 
 type ChatFile struct {

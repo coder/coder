@@ -1984,7 +1984,6 @@ CREATE TABLE chat_diff_statuses (
     stale_at timestamp with time zone DEFAULT now() NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    reported_at timestamp with time zone DEFAULT now() NOT NULL,
     git_branch text DEFAULT ''::text NOT NULL,
     git_remote_origin text DEFAULT ''::text NOT NULL,
     pull_request_title text DEFAULT ''::text NOT NULL,
@@ -1996,7 +1995,8 @@ CREATE TABLE chat_diff_statuses (
     commits integer,
     approved boolean,
     reviewer_count integer,
-    head_branch text
+    head_branch text,
+    reported_at timestamp with time zone DEFAULT now() NOT NULL
 );
 
 CREATE TABLE chat_file_links (
