@@ -1,5 +1,5 @@
 import { cn } from "cn";
-import { type FC, type ReactNode, useId } from "react";
+import type { FC, ReactNode } from "react";
 import {
 	Link,
 	NavLink,
@@ -44,30 +44,11 @@ const SubNavItem: FC<{ href: To; children?: ReactNode }> = ({
 	</NavLink>
 );
 
-const SubNavGroup: FC<{ label?: string; children: ReactNode }> = ({
-	label,
-	children,
-}) => {
-	const labelId = useId();
-	const className =
-		"flex flex-col gap-1 ml-3 border-0 border-solid border-l border-l-border";
-	if (!label) {
-		return <div className={className}>{children}</div>;
-	}
-	return (
-		<>
-			<span
-				id={labelId}
-				className="px-3 py-1.5 text-xs font-medium uppercase tracking-widest text-content-secondary"
-			>
-				{label}
-			</span>
-			<div role="group" aria-labelledby={labelId} className={className}>
-				{children}
-			</div>
-		</>
-	);
-};
+const SubNavGroup: FC<{ children: ReactNode }> = ({ children }) => (
+	<div className="flex flex-col gap-1 ml-3 border-0 border-solid border-l border-l-border">
+		{children}
+	</div>
+);
 
 const organizationScopedPath = (
 	pathname: string,
@@ -140,9 +121,7 @@ const AISettingsSidebarView: FC<AISettingsSidebarViewProps> = ({
 					</SidebarNavItem>
 				)}
 				{canViewAISpend && (
-					<SubNavGroup label="Spend">
-						<SubNavItem href={spendPath}>User spend</SubNavItem>
-					</SubNavGroup>
+					<SidebarNavItem href={spendPath}>User spend</SidebarNavItem>
 				)}
 				{permissions.viewAIGatewayKeys && (
 					<SidebarNavItem href="/ai/settings/gateway-keys">
