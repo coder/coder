@@ -269,6 +269,36 @@ func TestGuessSessionID(t *testing.T) {
 	}
 }
 
+func TestGuessSessionIDRejectsOverlongValues(t *testing.T) {
+	t.Parallel()
+
+	const maxRunes = 256
+	validHeader := strings.Repeat("界", maxRunes)
+	validBody := strings.Repeat("界", maxRunes)
+	overlongHeader := strings.Repeat("界", maxRunes+1)
+	overlongBody := strings.Repeat("界", maxRunes+1)
+	for _, tc := range []struct {
+		name   string
+		client clientmeta.Client
+		body   string
+		header http.Header
+		want   *string
+	}{
+		{name: "HeaderAtLimit", client: clientmeta.ClientCodex, header: http.Header{"Session-Id": {validHeader}}, want: new(validHeader)},
+		{name: "HeaderOverLimit", client: clientmeta.ClientCodex, header: http.Header{"Session-Id": {overlongHeader}}},
+		{name: "BodyAtLimit", client: clientmeta.ClientClaudeCode, body: `{"metadata":{"user_id":"user_hash_session_` + validBody + `"}}`, want: new(validBody)},
+		{name: "BodyOverLimit", client: clientmeta.ClientClaudeCode, body: `{"metadata":{"user_id":"user_hash_session_` + overlongBody + `"}}`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, "http://localhost", strings.NewReader(tc.body))
+			require.NoError(t, err)
+			req.Header = tc.header.Clone()
+			require.Equal(t, tc.want, clientmeta.GuessSessionID(tc.client, req))
+		})
+	}
+}
+
 func TestGuessSessionIDHelpersAgree(t *testing.T) {
 	t.Parallel()
 

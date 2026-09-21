@@ -11,11 +11,13 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 	promtest "github.com/prometheus/client_golang/prometheus/testutil"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -190,7 +192,10 @@ func TestHandlerCentralizedFailoverRecordsFinalKeyHint(t *testing.T) {
 	var attempts []string
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		body, err := io.ReadAll(r.Body)
-		require.NoError(t, err)
+		if !assert.NoError(t, err) {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
 		mu.Lock()
 		attempts = append(attempts, r.Header.Get("Authorization")+":"+string(body))
 		attempt := len(attempts)
@@ -216,6 +221,7 @@ func TestHandlerCentralizedFailoverRecordsFinalKeyHint(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodPost, "/openai/v1/chat/completions", bytes.NewBufferString("payload"))
 	req = req.WithContext(aibridge.AsActor(req.Context(), "actor", nil))
+	req.Header.Set("Cookie", "coder_session_token=cookie-secret")
 	response := httptest.NewRecorder()
 	router.ServeHTTP(response, req)
 
@@ -245,13 +251,16 @@ func TestHandlerCentralizedFailoverRecordsFinalKeyHint(t *testing.T) {
 		require.Contains(t, string(content), "Authorization:")
 		require.NotContains(t, string(content), "first-centralized-provider-key")
 		require.NotContains(t, string(content), "second-centralized-provider-key")
+		require.NotContains(t, string(content), "cookie-secret")
 	}
 }
 
 func TestHandlerCircuitOpenStillEndsEveryStartedInterception(t *testing.T) {
 	t.Parallel()
 
+	upstreamCalls := atomic.Int32{}
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		upstreamCalls.Add(1)
 		w.WriteHeader(http.StatusServiceUnavailable)
 	}))
 	t.Cleanup(upstream.Close)
@@ -265,13 +274,17 @@ func TestHandlerCircuitOpenStillEndsEveryStartedInterception(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(router.CloseIdleConnections)
 
+	responses := make([]*httptest.ResponseRecorder, 0, 2)
 	for range 2 {
 		req := httptest.NewRequest(http.MethodPost, "/openai/v1/chat", nil)
 		req = req.WithContext(aibridge.AsActor(req.Context(), "actor", nil))
 		response := httptest.NewRecorder()
 		router.ServeHTTP(response, req)
+		responses = append(responses, response)
 		require.Equal(t, http.StatusServiceUnavailable, response.Code)
 	}
+	require.EqualValues(t, 1, upstreamCalls.Load())
+	require.Contains(t, responses[1].Body.String(), "circuit breaker is open")
 	starts, ends := rec.counts()
 	require.Equal(t, 2, starts)
 	require.Equal(t, 2, ends)
@@ -359,6 +372,139 @@ func TestHandlerPanicAfterStartEndsExactlyOnceAndPropagates(t *testing.T) {
 	require.Equal(t, 1, ends)
 }
 
+func TestHandlerPassthroughDispatchesBeforeInputEOF(t *testing.T) {
+	t.Parallel()
+
+	started := make(chan struct{}, 1)
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		started <- struct{}{}
+		_, _ = io.Copy(io.Discard, r.Body)
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	t.Cleanup(upstream.Close)
+	provider := &proxyTestProvider{
+		MockProvider: &testutil.MockProvider{NameStr: "copilot", URL: upstream.URL, Passthrough: []string{"/"}},
+		typ:          config.ProviderCopilot, authHeader: "Authorization",
+	}
+	router, err := proxy.NewRouter([]aibridge.Provider{provider}, nil, slogtest.Make(t, nil), nil, testTracer(t))
+	require.NoError(t, err)
+	t.Cleanup(router.CloseIdleConnections)
+
+	reader, writer := io.Pipe()
+	responseCodes := make(chan int, 1)
+	go func() {
+		response := httptest.NewRecorder()
+		router.ServeHTTP(response, httptest.NewRequest(http.MethodPost, "/copilot/stream", reader))
+		responseCodes <- response.Code
+	}()
+
+	codertestutil.RequireReceive(t.Context(), t, started)
+	require.NoError(t, writer.Close())
+	require.Equal(t, http.StatusNoContent, codertestutil.RequireReceive(t.Context(), t, responseCodes))
+}
+
+func TestHandlerPassthroughUnknownLengthOversizeReturns413(t *testing.T) {
+	t.Parallel()
+
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = io.Copy(io.Discard, r.Body)
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	t.Cleanup(upstream.Close)
+	provider := &proxyTestProvider{
+		MockProvider: &testutil.MockProvider{NameStr: "copilot", URL: upstream.URL, Passthrough: []string{"/"}},
+		typ:          config.ProviderCopilot, authHeader: "Authorization",
+	}
+	router, err := proxy.NewRouter([]aibridge.Provider{provider}, nil, slogtest.Make(t, nil), nil, testTracer(t))
+	require.NoError(t, err)
+	t.Cleanup(router.CloseIdleConnections)
+
+	body := &closeTrackingBody{Reader: io.LimitReader(zeroReader{}, routing.MaxRequestBodyBytes+1)}
+	req := httptest.NewRequest(http.MethodPost, "/copilot/stream", body)
+	req.ContentLength = -1
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, req)
+
+	require.Equal(t, http.StatusRequestEntityTooLarge, response.Code)
+}
+
+func TestHandlerRejectsTraversalAndPreservesEscapedSeparator(t *testing.T) {
+	t.Parallel()
+
+	upstreamPaths := make(chan string, 1)
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		upstreamPaths <- r.URL.EscapedPath()
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	t.Cleanup(upstream.Close)
+	provider := &proxyTestProvider{
+		MockProvider: &testutil.MockProvider{NameStr: "copilot", URL: upstream.URL, Passthrough: []string{"/"}},
+		typ:          config.ProviderCopilot, authHeader: "Authorization",
+	}
+	router, err := proxy.NewRouter([]aibridge.Provider{provider}, nil, slogtest.Make(t, nil), nil, testTracer(t))
+	require.NoError(t, err)
+	t.Cleanup(router.CloseIdleConnections)
+
+	for _, path := range []string{"/copilot/models/%2e%2e/admin", "/copilot/models/%2E/admin"} {
+		response := httptest.NewRecorder()
+		router.ServeHTTP(response, httptest.NewRequest(http.MethodGet, path, nil))
+		require.Equal(t, http.StatusBadRequest, response.Code)
+	}
+
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/copilot/models/a%2Fb", nil))
+	require.Equal(t, http.StatusNoContent, response.Code)
+	require.Equal(t, "/models/a%2Fb", codertestutil.RequireReceive(t.Context(), t, upstreamPaths))
+}
+
+func TestHandlerRequestReadFailureIsSafe(t *testing.T) {
+	t.Parallel()
+
+	const secret = "body-secret-value"
+	upstreamCalls := atomic.Int32{}
+	upstream := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+		upstreamCalls.Add(1)
+	}))
+	t.Cleanup(upstream.Close)
+	sink := codertestutil.NewFakeSink(t)
+	provider := &proxyTestProvider{
+		MockProvider: &testutil.MockProvider{NameStr: "openai", URL: upstream.URL, Bridged: []string{"/v1/chat"}},
+		typ:          config.ProviderOpenAI, authHeader: "Authorization",
+	}
+	rec := &testutil.MockRecorder{}
+	router, err := proxy.NewRouter([]aibridge.Provider{provider}, rec, sink.Logger(), nil, testTracer(t))
+	require.NoError(t, err)
+	t.Cleanup(router.CloseIdleConnections)
+
+	req := httptest.NewRequest(http.MethodPost, "/openai/v1/chat", &failingBody{payload: []byte(secret), err: xerrors.New("read failed")})
+	req = req.WithContext(aibridge.AsActor(req.Context(), "actor", nil))
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, req)
+
+	require.Equal(t, http.StatusBadRequest, response.Code)
+	require.Zero(t, upstreamCalls.Load())
+	require.Empty(t, rec.RecordedInterceptions())
+	entries := fmt.Sprint(sink.Entries())
+	require.Contains(t, entries, "read failed")
+	require.NotContains(t, entries, secret)
+}
+
+type failingBody struct {
+	payload []byte
+	err     error
+}
+
+func (b *failingBody) Read(p []byte) (int, error) {
+	if len(b.payload) == 0 {
+		return 0, b.err
+	}
+	n := copy(p, b.payload)
+	b.payload = b.payload[n:]
+	return n, nil
+}
+
+func (*failingBody) Close() error { return nil }
+
 func TestHandlerForwardsAndRecords(t *testing.T) {
 	t.Parallel()
 
@@ -371,9 +517,14 @@ func TestHandlerForwardsAndRecords(t *testing.T) {
 	upstreamRequests := make(chan upstreamRequest, 1)
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		body, err := io.ReadAll(r.Body)
-		require.NoError(t, err)
+		if err != nil {
+			upstreamRequests <- upstreamRequest{body: "read error: " + err.Error()}
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
 		upstreamRequests <- upstreamRequest{path: r.URL.EscapedPath(), rawQuery: r.URL.RawQuery, body: string(body), header: r.Header.Clone()}
 		w.Header().Set("Content-Encoding", "gzip")
+		w.Header().Set("Set-Cookie", "coder_session_token=upstream")
 		w.WriteHeader(http.StatusCreated)
 		_, _ = w.Write([]byte("response"))
 	}))
@@ -402,6 +553,7 @@ func TestHandlerForwardsAndRecords(t *testing.T) {
 	req.Header.Set("Accept-Encoding", "gzip")
 	req.Header.Set("X-Api-Key", apiKey)
 	req.Header.Set("Authorization", "Bearer secondary-token")
+	req.Header.Set("Cookie", "coder_session_token=secret")
 	req.Header.Set("Coder-Session-Token", "secret")
 	req.Header.Set("X-Coder-AI-Governance-Token", "secret")
 	req.Header.Set("X-AI-Bridge-Actor-Id", "spoofed")
@@ -416,7 +568,8 @@ func TestHandlerForwardsAndRecords(t *testing.T) {
 	require.Equal(t, http.StatusCreated, response.Code)
 	require.Equal(t, "response", response.Body.String())
 	require.Equal(t, "gzip", response.Header().Get("Content-Encoding"))
-	gotUpstream := <-upstreamRequests
+	require.Empty(t, response.Header().Values("Set-Cookie"))
+	gotUpstream := codertestutil.RequireReceive(t.Context(), t, upstreamRequests)
 	require.Equal(t, "/base/v1/messages", gotUpstream.path)
 	require.Equal(t, "configured=1&raw=a;b", gotUpstream.rawQuery)
 	require.Equal(t, payload, gotUpstream.body)
@@ -425,7 +578,7 @@ func TestHandlerForwardsAndRecords(t *testing.T) {
 	require.Equal(t, apiKey, gotUpstream.header.Get("X-Api-Key"))
 	require.Equal(t, "Bearer secondary-token", gotUpstream.header.Get("Authorization"))
 	for name := range gotUpstream.header {
-		require.NotRegexp(t, `(?i)^(coder-|x-coder-|x-ai-bridge-actor|forwarded$|x-forwarded-)`, name)
+		require.NotRegexp(t, `(?i)^(cookie$|coder-|x-coder-|x-ai-bridge-actor|forwarded$|x-forwarded-)`, name)
 	}
 
 	starts := rec.RecordedInterceptions()
@@ -715,22 +868,25 @@ func TestHandlerPreflightRejections(t *testing.T) {
 		name       string
 		prepare    func(*http.Request) *http.Request
 		wantStatus int
+		wantBody   string
 	}{
 		{
 			name:       "MissingActor",
 			prepare:    func(r *http.Request) *http.Request { return r },
 			wantStatus: http.StatusBadRequest,
+			wantBody:   "no actor found",
 		},
 		{
-			name: "WebSocket",
+			name: "HTTPUpgradeAnyMethod",
 			prepare: func(r *http.Request) *http.Request {
 				r = r.WithContext(aibridge.AsActor(r.Context(), "actor", nil))
-				r.Method = http.MethodGet
+				r.Method = http.MethodPost
 				r.Header.Set("Connection", "Upgrade")
-				r.Header.Set("Upgrade", "websocket")
+				r.Header.Set("Upgrade", "h2c")
 				return r
 			},
 			wantStatus: http.StatusNotImplemented,
+			wantBody:   "HTTP upgrades are not supported",
 		},
 		{
 			name: "MalformedAgentFirewallHeaders",
@@ -741,6 +897,7 @@ func TestHandlerPreflightRejections(t *testing.T) {
 				return r
 			},
 			wantStatus: http.StatusBadRequest,
+			wantBody:   "invalid agent firewall headers",
 		},
 		{
 			name: "PartialAgentFirewallHeaders",
@@ -750,14 +907,15 @@ func TestHandlerPreflightRejections(t *testing.T) {
 				return r
 			},
 			wantStatus: http.StatusBadRequest,
+			wantBody:   "invalid agent firewall headers",
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			upstreamCalls := 0
+			upstreamCalls := atomic.Int32{}
 			upstream := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
-				upstreamCalls++
+				upstreamCalls.Add(1)
 			}))
 			t.Cleanup(upstream.Close)
 			rec := &testutil.MockRecorder{}
@@ -775,9 +933,12 @@ func TestHandlerPreflightRejections(t *testing.T) {
 			router.ServeHTTP(response, req)
 
 			require.Equal(t, tc.wantStatus, response.Code)
-			require.Zero(t, upstreamCalls)
+			require.Contains(t, response.Body.String(), tc.wantBody)
+			require.Zero(t, upstreamCalls.Load())
 			require.Empty(t, rec.RecordedInterceptions())
-			require.NotEmpty(t, sink.Entries())
+			entries := fmt.Sprint(sink.Entries())
+			require.NotEmpty(t, entries)
+			require.NotContains(t, entries, "not-a-uuid")
 		})
 	}
 }

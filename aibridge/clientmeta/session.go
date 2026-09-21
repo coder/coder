@@ -10,11 +10,14 @@ import (
 	"github.com/tidwall/gjson"
 )
 
+const maxSessionIDRunes = 256
+
 var claudeCodePattern = regexp.MustCompile(`_session_(.+)$`) // Legacy format: save compilation on each call.
 
 // GuessSessionID attempts to retrieve a session ID which may have been sent by
 // the client. We only attempt to retrieve sessions using methods recognized for
-// the given client.
+// the given client. If payload inspection is needed, it drains and replaces
+// r.Body before returning.
 func GuessSessionID(client Client, r *http.Request) *string {
 	sessionID, needsPayload := sessionIDFromInputs(client, r, nil)
 	if sessionID != nil || !needsPayload {
@@ -42,6 +45,8 @@ func GuessSessionIDFromPayload(client Client, r *http.Request, payload []byte) *
 	return sessionID
 }
 
+// sessionIDFromInputs returns the session ID and whether this client may need
+// payload inspection when no usable header value is present.
 func sessionIDFromInputs(client Client, r *http.Request, payload []byte) (*string, bool) {
 	switch client {
 	case ClientClaudeCode:
@@ -116,7 +121,7 @@ func sessionIDFromInputs(client Client, r *http.Request, payload []byte) (*strin
 
 func cleanRef(str string) *string {
 	str = strings.TrimSpace(str)
-	if str == "" {
+	if str == "" || len([]rune(str)) > maxSessionIDRunes {
 		return nil
 	}
 	return new(str)

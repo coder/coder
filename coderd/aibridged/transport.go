@@ -2,6 +2,7 @@ package aibridged
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -93,12 +94,21 @@ func (t *inMemoryRoundTripper) RoundTrip(req *http.Request) (*http.Response, err
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				// Mirror net/http.Server behavior: a panicking handler
-				// produces a 500 instead of crashing the process.
-				rw.WriteHeader(http.StatusInternalServerError)
-				_ = pw.CloseWithError(xerrors.Errorf("handler panicked: %v", r))
-			} else if cerr := served.Context().Err(); cerr != nil {
-				_ = pw.CloseWithError(cerr)
+				panicErr, isError := r.(error)
+				if isError && errors.Is(panicErr, http.ErrAbortHandler) {
+					abortErr := io.ErrUnexpectedEOF
+					if cause := context.Cause(served.Context()); cause != nil {
+						abortErr = cause
+					}
+					_ = pw.CloseWithError(abortErr)
+				} else {
+					// Mirror net/http.Server behavior: a panicking handler
+					// produces a 500 instead of crashing the process.
+					rw.WriteHeader(http.StatusInternalServerError)
+					_ = pw.CloseWithError(xerrors.Errorf("handler panicked: %v", r))
+				}
+			} else if cause := context.Cause(served.Context()); cause != nil {
+				_ = pw.CloseWithError(cause)
 			} else {
 				// Finalize the stream before canceling internal work so normal
 				// completion remains a clean EOF.
@@ -121,7 +131,7 @@ func (t *inMemoryRoundTripper) RoundTrip(req *http.Request) (*http.Response, err
 	go func() {
 		select {
 		case <-served.Context().Done():
-			_ = pw.CloseWithError(served.Context().Err())
+			_ = pw.CloseWithError(context.Cause(served.Context()))
 		case <-handlerDone:
 			// Handler finished; nothing to cancel.
 		}
@@ -132,7 +142,7 @@ func (t *inMemoryRoundTripper) RoundTrip(req *http.Request) (*http.Response, err
 	case <-callerCtx.Done():
 		cancelServed()
 		_ = pr.Close()
-		return nil, callerCtx.Err()
+		return nil, context.Cause(callerCtx)
 	}
 
 	return &http.Response{

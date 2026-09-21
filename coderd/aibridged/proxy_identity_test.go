@@ -12,6 +12,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
+	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/aibridge"
@@ -28,6 +29,8 @@ func TestProxyRecorderUsesAuthenticatedAPIKeyIDPerRequest(t *testing.T) {
 
 	var upstreamMu sync.Mutex
 	upstreamHeaders := map[string]http.Header{}
+	shutdownUpstreamStarted := make(chan struct{})
+	shutdownUpstreamRelease := make(chan struct{})
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		upstreamMu.Lock()
 		upstreamHeaders[r.Header.Get("X-Test-ID")] = r.Header.Clone()
@@ -40,6 +43,10 @@ func TestProxyRecorderUsesAuthenticatedAPIKeyIDPerRequest(t *testing.T) {
 			<-r.Context().Done()
 			return
 		}
+		if r.Header.Get("X-Test-ID") == "shutdown" {
+			close(shutdownUpstreamStarted)
+			<-shutdownUpstreamRelease
+		}
 		w.WriteHeader(http.StatusNoContent)
 	}))
 	t.Cleanup(upstream.Close)
@@ -51,19 +58,23 @@ func TestProxyRecorderUsesAuthenticatedAPIKeyIDPerRequest(t *testing.T) {
 	client.EXPECT().IsBudgetExceeded(gomock.Any(), gomock.Any()).AnyTimes().Return(&proto.IsBudgetExceededResponse{}, nil)
 
 	owners := map[string]string{
-		"direct-secret":  uuid.NewString(),
-		"delegated-id":   uuid.NewString(),
-		"canceled-id":    uuid.NewString(),
-		"missing-id-key": uuid.NewString(),
+		"direct-secret":   uuid.NewString(),
+		"delegated-id":    uuid.NewString(),
+		"canceled-id":     uuid.NewString(),
+		"shutdown-secret": uuid.NewString(),
+		"missing-id-key":  uuid.NewString(),
 	}
 	directWorkspaceID := uuid.New()
 	delegatedWorkspaceID := uuid.New()
 	canceledWorkspaceID := uuid.New()
+	shutdownWorkspaceID := uuid.New()
 	client.EXPECT().IsAuthorized(gomock.Any(), gomock.Any()).AnyTimes().DoAndReturn(func(_ context.Context, req *proto.IsAuthorizedRequest) (*proto.IsAuthorizedResponse, error) {
 		apiKeyID := req.GetKeyId()
 		if apiKeyID == "" {
 			switch req.GetKey() {
 			case "missing-id-key":
+			case "shutdown-secret":
+				apiKeyID = "shutdown-id"
 			default:
 				apiKeyID = "direct-id"
 			}
@@ -76,6 +87,8 @@ func TestProxyRecorderUsesAuthenticatedAPIKeyIDPerRequest(t *testing.T) {
 		switch lookup {
 		case "direct-secret":
 			response.WorkspaceId = directWorkspaceID.String()
+		case "shutdown-secret":
+			response.WorkspaceId = shutdownWorkspaceID.String()
 		default:
 			response.WorkspaceId = uuid.NewString()
 		}
@@ -88,7 +101,7 @@ func TestProxyRecorderUsesAuthenticatedAPIKeyIDPerRequest(t *testing.T) {
 	canceledStarted := make(chan struct{})
 	var canceledEndContextErr error
 	var canceledEndWorkspaceID uuid.UUID
-	client.EXPECT().RecordInterception(gomock.Any(), gomock.Any()).Times(3).DoAndReturn(func(_ context.Context, req *proto.RecordInterceptionRequest) (*proto.RecordInterceptionResponse, error) {
+	client.EXPECT().RecordInterception(gomock.Any(), gomock.Any()).Times(4).DoAndReturn(func(_ context.Context, req *proto.RecordInterceptionRequest) (*proto.RecordInterceptionResponse, error) {
 		mu.Lock()
 		starts[req.GetId()] = req
 		if req.GetApiKeyId() == "canceled-id" {
@@ -97,7 +110,7 @@ func TestProxyRecorderUsesAuthenticatedAPIKeyIDPerRequest(t *testing.T) {
 		mu.Unlock()
 		return &proto.RecordInterceptionResponse{}, nil
 	})
-	client.EXPECT().RecordInterceptionEnded(gomock.Any(), gomock.Any()).Times(3).DoAndReturn(func(ctx context.Context, req *proto.RecordInterceptionEndedRequest) (*proto.RecordInterceptionEndedResponse, error) {
+	client.EXPECT().RecordInterceptionEnded(gomock.Any(), gomock.Any()).Times(4).DoAndReturn(func(ctx context.Context, req *proto.RecordInterceptionEndedRequest) (*proto.RecordInterceptionEndedResponse, error) {
 		mu.Lock()
 		ends[req.GetId()] = req
 		if start := starts[req.GetId()]; start != nil && start.GetApiKeyId() == "canceled-id" {
@@ -131,14 +144,23 @@ func TestProxyRecorderUsesAuthenticatedAPIKeyIDPerRequest(t *testing.T) {
 	requests = append(requests, delegated)
 
 	var wg sync.WaitGroup
+	requestErrors := make(chan error, len(requests))
 	for _, req := range requests {
 		wg.Go(func() {
 			rec := httptest.NewRecorder()
 			srv.ServeHTTP(rec, req)
-			require.Equal(t, http.StatusNoContent, rec.Code)
+			if rec.Code != http.StatusNoContent {
+				requestErrors <- xerrors.Errorf("request returned status %d", rec.Code)
+				return
+			}
+			requestErrors <- nil
 		})
 	}
 	wg.Wait()
+	close(requestErrors)
+	for err := range requestErrors {
+		require.NoError(t, err)
+	}
 
 	transport, err := aibridged.NewTransportFactory(http.StripPrefix(agplaibridge.AIGatewayRootPath, srv)).TransportFor("openai", agplaibridge.SourceAgents)
 	require.NoError(t, err)
@@ -170,10 +192,43 @@ func TestProxyRecorderUsesAuthenticatedAPIKeyIDPerRequest(t *testing.T) {
 	srv.ServeHTTP(missingResponse, missingID)
 	require.Equal(t, http.StatusInternalServerError, missingResponse.Code)
 
+	shutdownRequest := httptest.NewRequest(http.MethodPost, "/openai/v1/chat/completions", bytes.NewBufferString(`{}`))
+	shutdownRequest.Header.Set(agplaibridge.HeaderCoderToken, "shutdown-secret")
+	shutdownRequest.Header.Set("Authorization", "Bearer provider-secret")
+	shutdownRequest.Header.Set("X-Test-ID", "shutdown")
+	shutdownResponse := make(chan int, 1)
+	go func() {
+		rec := httptest.NewRecorder()
+		srv.ServeHTTP(rec, shutdownRequest)
+		shutdownResponse <- rec.Code
+	}()
+	testutil.TryReceive(testCtx, t, shutdownUpstreamStarted)
+
+	shutdownDone := make(chan error, 1)
+	go func() {
+		shutdownDone <- srv.Shutdown(testCtx)
+	}()
+	require.Eventually(t, func() bool {
+		probe := httptest.NewRequest(http.MethodPost, "/openai/v1/models", nil)
+		probe.Header.Set(agplaibridge.HeaderCoderToken, "direct-secret")
+		probe.Header.Set("Authorization", "Bearer provider-secret")
+		rec := httptest.NewRecorder()
+		srv.ServeHTTP(rec, probe)
+		return rec.Code == http.StatusServiceUnavailable && rec.Body.String() == "AI Gateway is shutting down\n"
+	}, testutil.WaitShort, testutil.IntervalFast)
+	select {
+	case err := <-shutdownDone:
+		t.Fatalf("shutdown returned before the admitted request completed: %v", err)
+	default:
+	}
+	close(shutdownUpstreamRelease)
+	require.Equal(t, http.StatusNoContent, testutil.TryReceive(testCtx, t, shutdownResponse))
+	require.NoError(t, testutil.TryReceive(testCtx, t, shutdownDone))
+
 	require.Eventually(t, func() bool {
 		mu.Lock()
 		defer mu.Unlock()
-		return len(starts) == 3 && len(ends) == 3
+		return len(starts) == 4 && len(ends) == 4
 	}, testutil.WaitShort, testutil.IntervalFast)
 
 	mu.Lock()
@@ -189,6 +244,8 @@ func TestProxyRecorderUsesAuthenticatedAPIKeyIDPerRequest(t *testing.T) {
 	require.Equal(t, delegatedWorkspaceID.String(), seenKeys["delegated-id"].GetWorkspaceId())
 	require.Equal(t, owners["canceled-id"], seenKeys["canceled-id"].GetInitiatorId())
 	require.Equal(t, canceledWorkspaceID.String(), seenKeys["canceled-id"].GetWorkspaceId())
+	require.Equal(t, owners["shutdown-secret"], seenKeys["shutdown-id"].GetInitiatorId())
+	require.Equal(t, shutdownWorkspaceID.String(), seenKeys["shutdown-id"].GetWorkspaceId())
 	require.NoError(t, canceledEndContextErr)
 	require.Equal(t, canceledWorkspaceID, canceledEndWorkspaceID)
 	upstreamMu.Lock()

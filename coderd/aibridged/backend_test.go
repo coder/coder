@@ -16,6 +16,7 @@ import (
 	"golang.org/x/xerrors"
 	"storj.io/drpc"
 
+	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/aibridge"
 	"github.com/coder/coder/v2/aibridge/config"
@@ -86,6 +87,7 @@ type backendFixture struct {
 	srv      *aibridged.Server
 	conn     *countingDRPCConn
 	mcpCalls *atomic.Int32
+	logSink  *testutil.FakeSink
 }
 
 // newBackendServer starts a server whose single mock client answers MCP
@@ -98,15 +100,17 @@ func newBackendServer(t *testing.T, experiments codersdk.Experiments, fn mcpConf
 	conn := newCountingDRPCConn(nil)
 	client.EXPECT().DRPCConn().AnyTimes().Return(conn)
 	calls := expectMCPConfigs(client, fn)
+	logSink := testutil.NewFakeSink(t)
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: ignoreErrors}).AppendSinks(logSink)
 
 	srv, err := aibridged.New(t.Context(),
 		func(context.Context) (aibridged.DRPCClient, error) { return client, nil },
-		slogtest.Make(t, &slogtest.Options{IgnoreErrors: ignoreErrors}), testTracer,
+		logger, testTracer,
 		experiments, nil)
 	require.NoError(t, err, "create aibridged server")
 	t.Cleanup(func() { _ = srv.Shutdown(context.Background()) })
 
-	return &backendFixture{srv: srv, conn: conn, mcpCalls: calls}
+	return &backendFixture{srv: srv, conn: conn, mcpCalls: calls, logSink: logSink}
 }
 
 func proxyExperiments() codersdk.Experiments {
@@ -197,6 +201,11 @@ func TestBackendMode_ProxyWhenNoMCPConfigs(t *testing.T) {
 	waitReady(t, f.srv)
 	require.Equal(t, int32(1), f.mcpCalls.Load())
 	require.Nil(t, f.srv.InterceptionPoolForTest())
+	warnings := f.logSink.Entries(func(entry slog.SinkEntry) bool {
+		return entry.Message == "selected experimental reverse proxy routing; records interception lifecycle only; token/prompt/tool/model accounting and spend accrual are incomplete; Bedrock routing and actor-header injection are unsupported"
+	})
+	require.Len(t, warnings, 1)
+	require.Equal(t, slog.LevelWarn, warnings[0].Level)
 
 	h, err := f.srv.GetRequestHandler(ctx, aibridged.Request{})
 	require.NoError(t, err, "the proxy backend must answer requests instead of erroring")
@@ -212,6 +221,7 @@ func TestBackendMode_ProxyWhenNoMCPConfigs(t *testing.T) {
 	require.NoError(t, err)
 	rec = serveHandler(t, h, "/openai/v1/chat/completions")
 	require.Equal(t, http.StatusBadRequest, rec.Code, "bridged routes require authenticated actor context")
+	require.Equal(t, "no actor found\n", rec.Body.String())
 	requireKeyPoolState(t, f.srv, 1, "openai", "valid")
 }
 

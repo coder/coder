@@ -78,12 +78,18 @@ func TestPassthroughRoutes(t *testing.T) {
 			expectRespBody:   "invalid provider base URL",
 		},
 		{
-			name:          "proxy_headers_are_set_and_forwarded_chain_is_appended",
+			name:          "sanitizes_sensitive_and_untrusted_proxy_headers",
 			reqPath:       "/v1/models",
 			reqHost:       "client.example.com",
 			reqRemoteAddr: "1.1.1.1:1111",
 			reqHeaders: http.Header{
-				"X-Forwarded-For": {"2.2.2.2, 3.3.3.3"},
+				"Cookie":                      {"coder_session_token=secret"},
+				"Coder-Session-Token":         {"secret"},
+				"X-Coder-AI-Governance-Token": {"secret"},
+				"X-AI-Bridge-Actor-Id":        {"spoofed"},
+				"Forwarded":                   {"for=2.2.2.2"},
+				"X-Forwarded-For":             {"2.2.2.2"},
+				"X-Forwarded-Server":          {"client"},
 			},
 			expectRequestPath: "/v1/models",
 			expectRespStatus:  http.StatusOK,
@@ -91,7 +97,7 @@ func TestPassthroughRoutes(t *testing.T) {
 			expectHeaders: http.Header{
 				"Accept-Encoding":   {"gzip"},
 				"User-Agent":        {"aibridge"},
-				"X-Forwarded-For":   {"2.2.2.2, 3.3.3.3, 1.1.1.1"},
+				"X-Forwarded-For":   {"1.1.1.1"},
 				"X-Forwarded-Host":  {"client.example.com"},
 				"X-Forwarded-Proto": {"http"},
 			},
@@ -127,7 +133,7 @@ func TestPassthroughRoutes(t *testing.T) {
 				URL: upstream.URL + tc.baseURLPath,
 			}
 
-			handler := newPassthroughRouter(prov, "/", logger, nil, testTracer)
+			handler := newPassthroughRouter(prov, logger, nil, testTracer)
 
 			req := httptest.NewRequest("", tc.reqPath, nil)
 			maps.Copy(req.Header, tc.reqHeaders)
@@ -183,7 +189,9 @@ func TestRewritePassthroughRequest(t *testing.T) {
 			},
 		},
 		{
-			name:          "appends_remote_addr_to_existing_forwarded_for_chain",
+			// Incoming forwarding chains are untrusted. The proxy starts a new chain
+			// from its directly connected client peer.
+			name:          "replaces_existing_forwarded_for_chain",
 			reqPath:       "http://client-host/chat",
 			reqRemoteAddr: "1.1.1.1:1111",
 			reqHeaders: http.Header{
@@ -194,7 +202,7 @@ func TestRewritePassthroughRequest(t *testing.T) {
 			expectHeaders: http.Header{
 				"X-Forwarded-Host":  {"client-host"},
 				"X-Forwarded-Proto": {"http"},
-				"X-Forwarded-For":   {"2.2.2.2, 3.3.3.3, 1.1.1.1"},
+				"X-Forwarded-For":   {"1.1.1.1"},
 				"User-Agent":        {"aibridge"},
 			},
 		},
@@ -261,6 +269,45 @@ func TestRewritePassthroughRequest(t *testing.T) {
 	}
 }
 
+func TestPassthroughRejectsTraversalAndPreservesEscapedSeparator(t *testing.T) {
+	t.Parallel()
+
+	upstreamPaths := make(chan string, 1)
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		upstreamPaths <- r.URL.EscapedPath()
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	t.Cleanup(upstream.Close)
+	prov := &testutil.MockProvider{NameStr: "test", URL: upstream.URL}
+	handler := newPassthroughRouter(prov, slogtest.Make(t, nil), nil, testTracer)
+
+	for _, path := range []string{"/v1/models/%2e%2e/admin", "/v1/models/%2E/admin"} {
+		resp := httptest.NewRecorder()
+		handler.ServeHTTP(resp, httptest.NewRequest(http.MethodGet, path, nil))
+		require.Equal(t, http.StatusBadRequest, resp.Code)
+	}
+
+	resp := httptest.NewRecorder()
+	handler.ServeHTTP(resp, httptest.NewRequest(http.MethodGet, "/v1/models/a%2Fb", nil))
+	require.Equal(t, http.StatusNoContent, resp.Code)
+	require.Equal(t, "/v1/models/a%2Fb", codertestutil.RequireReceive(t.Context(), t, upstreamPaths))
+}
+
+func TestPassthroughStripsSetCookie(t *testing.T) {
+	t.Parallel()
+
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Set-Cookie", "coder_session_token=upstream")
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	t.Cleanup(upstream.Close)
+	prov := &testutil.MockProvider{NameStr: "test", URL: upstream.URL}
+	handler := newPassthroughRouter(prov, slogtest.Make(t, nil), nil, testTracer)
+	resp := httptest.NewRecorder()
+	handler.ServeHTTP(resp, httptest.NewRequest(http.MethodGet, "/v1/models", nil))
+	require.Empty(t, resp.Header().Values("Set-Cookie"))
+}
+
 func TestPassthroughRouterReusesProxyInstance(t *testing.T) {
 	t.Parallel()
 
@@ -279,7 +326,7 @@ func TestPassthroughRouterReusesProxyInstance(t *testing.T) {
 
 	logger := slogtest.Make(t, nil)
 	prov := &testutil.MockProvider{URL: upstream.URL}
-	handler := newPassthroughRouter(prov, "/", logger, nil, testTracer)
+	handler := newPassthroughRouter(prov, logger, nil, testTracer)
 
 	for i := range 2 {
 		req := httptest.NewRequest(http.MethodGet, "http://proxy.example.test/v1/models", nil)
@@ -304,7 +351,7 @@ func TestPassthroughMetricCardinalityIsBounded(t *testing.T) {
 	registry := prometheus.NewRegistry()
 	m := NewMetrics(registry)
 	prov := provider.NewCopilot(config.Copilot{BaseURL: upstream.URL})
-	handler := newPassthroughRouter(prov, "/", slogtest.Make(t, nil), m, testTracer)
+	handler := newPassthroughRouter(prov, slogtest.Make(t, nil), m, testTracer)
 
 	for i := range 50 {
 		req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/v1/threads/%d/messages", i), nil)
@@ -558,7 +605,7 @@ func TestPassthrough_KeyFailover(t *testing.T) {
 
 				p := prov.newProvider(upstream.URL, pool)
 				logger := slogtest.Make(t, nil)
-				handler := newPassthroughRouter(p, "/v1/models", logger, nil, testTracer)
+				handler := newPassthroughRouter(p, logger, nil, testTracer)
 
 				req := httptest.NewRequest(http.MethodGet, "/v1/models", nil)
 				if tc.byokKey != "" {

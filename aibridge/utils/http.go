@@ -32,15 +32,24 @@ func NewStreamingTransport() *http.Transport {
 	}
 }
 
-// StripCoderHeaders removes Coder-internal headers from headers. Provider
+// StripSensitiveRequestHeaders removes deployment credentials, untrusted actor
+// identity, and inbound proxy-chain headers before forwarding a request. Provider
 // authentication and standard HTTP headers are left unchanged.
-func StripCoderHeaders(headers http.Header) {
+func StripSensitiveRequestHeaders(headers http.Header) {
 	for name := range headers {
 		lower := strings.ToLower(name)
-		if strings.HasPrefix(lower, "coder-") || strings.HasPrefix(lower, "x-coder-") {
+		if lower == "cookie" || IsActorHeader(name) ||
+			strings.HasPrefix(lower, "coder-") || strings.HasPrefix(lower, "x-coder-") ||
+			lower == "forwarded" || strings.HasPrefix(lower, "x-forwarded-") {
 			delete(headers, name)
 		}
 	}
+}
+
+// StripSensitiveResponseHeaders removes credentials that an upstream must not
+// set on the Coder origin.
+func StripSensitiveResponseHeaders(headers http.Header) {
+	headers.Del("Set-Cookie")
 }
 
 // NewJSONErrorResponse builds an *http.Response with a JSON body

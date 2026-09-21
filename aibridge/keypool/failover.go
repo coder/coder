@@ -17,16 +17,16 @@ type KeyFailoverConfig struct {
 
 	Logger slog.Logger
 
-	// IsBYOK returns true when the request already carries
-	// user-supplied auth. BYOK requests skip key failover.
+	// IsBYOK returns true when the request already carries user-supplied auth.
+	// It is required whenever Pool is non-nil. BYOK requests skip key failover.
 	IsBYOK func(*http.Request) bool
 
-	// InjectAuthKey writes the key value into the outbound headers
-	// in the format the provider expects.
+	// InjectAuthKey writes the key value into the outbound headers in the format
+	// the provider expects. It is required whenever Pool is non-nil.
 	InjectAuthKey func(*http.Header, string)
 
-	// BuildKeyPoolResponse renders the response sent to the client
-	// when the walker has no more keys to try.
+	// BuildKeyPoolResponse renders the response sent to the client when the walker
+	// has no more keys to try. It is required whenever Pool is non-nil.
 	BuildKeyPoolResponse func(*Error) *http.Response
 }
 

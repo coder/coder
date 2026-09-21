@@ -43,6 +43,7 @@ type forwardingHandler struct {
 	baseURL     *url.URL
 	transport   http.RoundTripper
 	breaker     *circuitbreaker.ProviderCircuitBreakers
+	failover    keypool.KeyFailoverConfig
 	recorder    recorder.Recorder
 	logger      slog.Logger
 	metrics     *metrics.Metrics
@@ -56,49 +57,73 @@ func (h *forwardingHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	defer span.End()
 	r = r.WithContext(ctx)
 
+	client := clientmeta.GuessClient(r)
 	actor := aibcontext.ActorFromContext(ctx)
+	actorID := ""
+	if actor != nil {
+		actorID = actor.ID
+	}
+	log := h.logger.With(
+		slog.F("provider", h.provider.Name()),
+		slog.F("path", r.URL.Path),
+		slog.F("method", r.Method),
+		slog.F("actor_id", actorID),
+		slog.F("client", string(client)),
+	)
+
 	if h.record && actor == nil {
-		h.logger.Warn(ctx, "rejecting request without actor", slog.F("path", r.URL.Path))
+		log.Warn(ctx, "rejecting request without actor")
 		http.Error(w, "no actor found", http.StatusBadRequest)
 		return
 	}
-	if clientmeta.IsWebSocketUpgrade(r) {
-		h.logger.Debug(ctx, "rejecting unsupported WebSocket upgrade", slog.F("path", r.URL.Path))
-		http.Error(w, "WebSocket transport is not supported, use HTTP", http.StatusNotImplemented)
+	if clientmeta.HasConnectionUpgrade(r) {
+		log.Debug(ctx, "rejecting unsupported HTTP upgrade")
+		http.Error(w, "HTTP upgrades are not supported", http.StatusNotImplemented)
 		return
 	}
 	firewallSessionID, firewallSequence, err := clientmeta.ExtractAgentFirewallHeaders(r)
 	if err != nil {
-		// Do not log the malformed header values.
-		h.logger.Warn(ctx, "rejecting request with invalid agent firewall headers", slog.F("path", r.URL.Path))
+		log.Warn(ctx, "rejecting request with invalid agent firewall headers", slog.Error(err))
 		http.Error(w, "invalid agent firewall headers", http.StatusBadRequest)
 		return
 	}
-
-	payload, err := captureRequestBody(w, r)
-	if err != nil {
-		if errors.As(err, new(*http.MaxBytesError)) || errors.Is(err, errDeclaredBodyTooLarge) {
-			h.logger.Warn(ctx, "rejecting oversized request body", slog.F("path", r.URL.Path))
-			routing.WriteRequestBodyTooLarge(ctx, w)
-		} else {
-			h.logger.Warn(ctx, "failed to read request body", slog.F("path", r.URL.Path))
-			http.Error(w, "failed to read request body", http.StatusBadRequest)
-		}
+	if err := routing.ValidateForwardPath(r.URL); err != nil {
+		log.Warn(ctx, "rejecting unsafe upstream path", slog.Error(err))
+		http.Error(w, "invalid request path", http.StatusBadRequest)
 		return
 	}
-	setReplayBody(r, payload)
+	if r.ContentLength > routing.MaxRequestBodyBytes {
+		if r.Body != nil {
+			_ = r.Body.Close()
+		}
+		log.Warn(ctx, "rejecting oversized request body")
+		routing.WriteRequestBodyTooLarge(ctx, w)
+		return
+	}
 
-	client := clientmeta.GuessClient(r)
-	sessionID := clientmeta.GuessSessionIDFromPayload(client, r, payload)
-	failoverConfig := h.provider.KeyFailoverConfig(h.logger)
-	credentialKind, credentialHint := credentialMetadata(h.provider, failoverConfig, r)
-	route := strings.TrimPrefix(r.URL.Path, h.provider.RoutePrefix())
+	failoverConfig := h.failover
+	route := h.metricRoute
+	payload := []byte(nil)
+	var sessionID *string
+	credentialKind, credentialHint := "", ""
+	if h.record {
+		payload, err = captureRequestBody(w, r)
+		if err != nil {
+			if _, ok := errors.AsType[*http.MaxBytesError](err); ok {
+				log.Warn(ctx, "rejecting oversized request body")
+				routing.WriteRequestBodyTooLarge(ctx, w)
+			} else {
+				log.Warn(ctx, "failed to read request body", slog.Error(err))
+				http.Error(w, "failed to read request body", http.StatusBadRequest)
+			}
+			return
+		}
+		setReplayBody(r, payload)
+		sessionID = clientmeta.GuessSessionIDFromPayload(client, r, payload)
+		credentialKind, credentialHint = credentialMetadata(h.provider, failoverConfig, r)
+	}
 
 	var interceptionID string
-	var actorID string
-	if actor != nil {
-		actorID = actor.ID
-	}
 	state := forwardingState{credentialHint: credentialHint}
 	start := time.Now()
 	if h.record {
@@ -119,7 +144,7 @@ func (h *forwardingHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			CredentialHint:              credentialHint,
 		}); err != nil {
 			span.SetStatus(codes.Error, "failed to record interception")
-			h.logger.Warn(ctx, "failed to record interception", slog.Error(err), slog.F("path", r.URL.Path))
+			log.Warn(ctx, "failed to record interception", slog.Error(err))
 			http.Error(w, "failed to record interception", http.StatusInternalServerError)
 			return
 		}
@@ -142,7 +167,7 @@ func (h *forwardingHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	if !h.record && h.metrics != nil {
 		h.metrics.PassthroughCount.WithLabelValues(
-			h.provider.Name(), routing.MetricRoute(h.metricRoute), routing.MetricMethod(r.Method),
+			h.provider.Name(), route, routing.MetricMethod(r.Method),
 		).Inc()
 	}
 
@@ -161,44 +186,51 @@ func (h *forwardingHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	proxy := &httputil.ReverseProxy{
+	requestProxy := &httputil.ReverseProxy{
 		Rewrite: func(pr *httputil.ProxyRequest) {
 			rewriteRequest(pr, h.provider.RoutePrefix(), h.baseURL)
 		},
 		Transport:     keypool.NewKeyFailoverTransport(h.transport, failoverConfig),
 		FlushInterval: -1,
 		ModifyResponse: func(resp *http.Response) error {
+			utils.StripSensitiveResponseHeaders(resp.Header)
 			state.status = resp.StatusCode
+			if resp.StatusCode == http.StatusSwitchingProtocols {
+				return xerrors.New("upstream protocol upgrades are not supported")
+			}
 			state.body = newObservedBody(resp.Body, nil)
 			resp.Body = state.body
 			return nil
 		},
 		ErrorHandler: func(rw http.ResponseWriter, req *http.Request, proxyErr error) {
 			state.transportErr = proxyErr
-			h.logger.Warn(req.Context(), "reverse proxy error", slog.Error(proxyErr), slog.F("path", req.URL.Path))
+			if _, ok := errors.AsType[*http.MaxBytesError](proxyErr); ok {
+				routing.WriteRequestBodyTooLarge(req.Context(), rw)
+				return
+			}
+			requestEnded := req.Context().Err() != nil &&
+				(errors.Is(proxyErr, context.Canceled) || errors.Is(proxyErr, context.DeadlineExceeded))
+			if requestEnded {
+				log.Debug(req.Context(), "reverse proxy request ended", slog.Error(proxyErr))
+			} else {
+				log.Warn(req.Context(), "reverse proxy error", slog.Error(proxyErr))
+			}
 			span.SetStatus(codes.Error, "upstream proxy error")
 			http.Error(rw, "upstream proxy error", http.StatusBadGateway)
 		},
+		ErrorLog: slog.Stdlib(ctx, log, slog.LevelWarn),
 	}
 
 	execErr := h.breaker.Execute(route, "", w, func(rw http.ResponseWriter) error {
 		writer := &errorCapturingResponseWriter{ResponseWriter: rw}
 		defer func() { state.writeErr = writer.err }()
-		proxy.ServeHTTP(writer, r)
+		requestProxy.ServeHTTP(writer, r)
 		return nil
 	})
 	state.execErr = execErr
 }
 
-var errDeclaredBodyTooLarge = xerrors.New("declared request body too large")
-
 func captureRequestBody(w http.ResponseWriter, r *http.Request) ([]byte, error) {
-	if r.ContentLength > routing.MaxRequestBodyBytes {
-		if r.Body != nil {
-			_ = r.Body.Close()
-		}
-		return nil, errDeclaredBodyTooLarge
-	}
 	if r.Body == nil {
 		return nil, nil
 	}
@@ -222,20 +254,12 @@ func rewriteRequest(pr *httputil.ProxyRequest, routePrefix string, baseURL *url.
 	pr.Out.URL.RawQuery = pr.In.URL.RawQuery
 	pr.SetURL(baseURL)
 	trace.SpanFromContext(pr.Out.Context()).SetAttributes(attribute.String(tracing.PassthroughUpstreamURL, pr.Out.URL.String()))
-	utils.StripCoderHeaders(pr.Out.Header)
-	stripProxyHeaders(pr.Out.Header)
+	// Proxy mode never injects configured actor headers because it does not build
+	// provider SDK requests. Client-supplied actor headers are always untrusted.
+	utils.StripSensitiveRequestHeaders(pr.Out.Header)
 	if _, ok := pr.Out.Header["User-Agent"]; !ok {
 		// A nil value suppresses net/http's default User-Agent.
 		pr.Out.Header["User-Agent"] = nil
-	}
-}
-
-func stripProxyHeaders(headers http.Header) {
-	for name := range headers {
-		lower := strings.ToLower(name)
-		if utils.IsActorHeader(name) || lower == "forwarded" || strings.HasPrefix(lower, "x-forwarded-") {
-			delete(headers, name)
-		}
 	}
 }
 
@@ -315,7 +339,7 @@ func terminalError(r *http.Request, state *forwardingState, panicValue any) (boo
 		abortErr = state.writeErr
 	case panicValue != nil:
 		abortErr = xerrors.Errorf("proxy stream aborted: %v", panicValue)
-	case state.body != nil && !state.body.eof:
+	case state.body != nil && !state.body.eof && state.transportErr == nil:
 		abortErr = xerrors.New("proxy stream aborted before EOF")
 	}
 
@@ -355,7 +379,7 @@ func (w *errorCapturingResponseWriter) Flush() {
 func (w *errorCapturingResponseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
 	h, ok := w.ResponseWriter.(http.Hijacker)
 	if !ok {
-		return nil, nil, xerrors.New("response writer does not support hijacking")
+		return nil, nil, http.ErrNotSupported
 	}
 	return h.Hijack()
 }

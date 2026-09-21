@@ -13,17 +13,9 @@ const (
 	// ErrorCodeProviderDisabled is the code written in the response body when a
 	// request targets a configured-but-disabled provider. Paired with HTTP 503.
 	ErrorCodeProviderDisabled = "provider_disabled"
-	metricMethodOther         = "OTHER"
 )
 
-// MetricRoute returns a bounded route label from a registered route pattern.
-// The root pattern is used when a handler is invoked directly without one.
-func MetricRoute(pattern string) string {
-	if pattern == "" {
-		return "/"
-	}
-	return pattern
-}
+const metricMethodOther = "OTHER"
 
 // MetricMethod returns a bounded HTTP method label.
 func MetricMethod(method string) string {

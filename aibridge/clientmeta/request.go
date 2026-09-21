@@ -11,6 +11,12 @@ import (
 	agplaibridge "github.com/coder/coder/v2/coderd/aibridge"
 )
 
+// HasConnectionUpgrade reports whether a request asks to switch protocols.
+// Proxy mode is HTTP-only and rejects every such handshake before dispatch.
+func HasConnectionUpgrade(r *http.Request) bool {
+	return httpguts.HeaderValuesContainsToken(r.Header.Values("Connection"), "upgrade")
+}
+
 // IsWebSocketUpgrade reports whether r is a WebSocket opening handshake.
 func IsWebSocketUpgrade(r *http.Request) bool {
 	return r.Method == http.MethodGet &&
@@ -43,14 +49,14 @@ func ExtractAgentFirewallHeaders(r *http.Request) (*string, *int32, error) {
 	// invalid value would silently drop the firewall correlation to NULL
 	// downstream, so reject it here instead.
 	if _, err := uuid.Parse(rawSessionID); err != nil {
-		return nil, nil, xerrors.Errorf("invalid agent firewall session ID %q: %w", rawSessionID, err)
+		return nil, nil, xerrors.New("invalid agent firewall session ID")
 	}
 	n, err := strconv.ParseInt(rawSeqNumber, 10, 32)
 	if err != nil {
-		return nil, nil, xerrors.Errorf("invalid agent firewall sequence number %q: %w", rawSeqNumber, err)
+		return nil, nil, xerrors.New("invalid agent firewall sequence number")
 	}
 	if n < 0 {
-		return nil, nil, xerrors.Errorf("invalid agent firewall sequence number %q: must be non-negative", rawSeqNumber)
+		return nil, nil, xerrors.New("agent firewall sequence number must be non-negative")
 	}
 	n32 := int32(n)
 	return &rawSessionID, &n32, nil

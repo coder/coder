@@ -1,25 +1,31 @@
 package proxy_test
 
 import (
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
+	"github.com/prometheus/client_golang/prometheus"
 	promtestutil "github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel/trace"
 	"go.opentelemetry.io/otel/trace/noop"
 
+	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/slogtest"
+	"github.com/coder/coder/v2/aibridge"
 	"github.com/coder/coder/v2/aibridge/config"
 	"github.com/coder/coder/v2/aibridge/internal/testutil"
 	"github.com/coder/coder/v2/aibridge/keypool"
+	"github.com/coder/coder/v2/aibridge/metrics"
 	"github.com/coder/coder/v2/aibridge/provider"
 	"github.com/coder/coder/v2/aibridge/recorder"
 	"github.com/coder/coder/v2/aibridge/routing"
 	"github.com/coder/coder/v2/aibridge/x/proxy"
+	codertestutil "github.com/coder/coder/v2/testutil"
 )
 
 func testTracer(t *testing.T) trace.Tracer {
@@ -33,6 +39,27 @@ type keyPoolProvider struct {
 }
 
 func (p keyPoolProvider) KeyPool() *keypool.Pool { return p.pool }
+
+func TestNewRouterRegisteredRouteLabels(t *testing.T) {
+	t.Parallel()
+
+	registry := prometheus.NewRegistry()
+	m := metrics.NewMetrics(registry)
+	prov := aibridge.NewOpenAIProvider(config.OpenAI{BaseURL: "http://127.0.0.1:1"})
+	router, err := proxy.NewRouter([]provider.Provider{prov}, &testutil.MockRecorder{}, slogtest.Make(t, nil), m, testTracer(t))
+	require.NoError(t, err)
+	t.Cleanup(router.CloseIdleConnections)
+
+	req := httptest.NewRequest(http.MethodPost, "/openai/v1/chat/completions", strings.NewReader(`{}`))
+	req = req.WithContext(aibridge.AsActor(req.Context(), "actor", nil))
+	resp := httptest.NewRecorder()
+	router.ServeHTTP(resp, req)
+
+	require.Equal(t, 1.0, promtestutil.ToFloat64(m.InterceptionCount.WithLabelValues(
+		"openai", "", metrics.InterceptionCountStatusFailed, "/v1/chat/completions",
+		http.MethodPost, "actor", string(aibridge.ClientUnknown),
+	)))
+}
 
 func TestNewRouterRequiresRecorderForBridgedRoutes(t *testing.T) {
 	t.Parallel()
@@ -85,6 +112,24 @@ func TestNewRouterRequiresRecorderForBridgedRoutes(t *testing.T) {
 	}
 }
 
+func TestRouterDoesNotWarnForDisabledBedrock(t *testing.T) {
+	t.Parallel()
+
+	bedrock := &testutil.MockProvider{
+		NameStr: "bedrock", URL: "http://127.0.0.1:1", Disabled: true,
+		Bridged: []string{"/v1/messages"},
+	}
+	sink := codertestutil.NewFakeSink(t)
+	router, err := proxy.NewRouter(
+		[]provider.Provider{typedProvider{Provider: bedrock, providerType: config.ProviderBedrock}},
+		nil, sink.Logger(), nil, testTracer(t),
+	)
+	require.NoError(t, err)
+	require.NotNil(t, router)
+	t.Cleanup(router.CloseIdleConnections)
+	require.NotContains(t, fmt.Sprint(sink.Entries()), "skipping unsupported Bedrock provider in proxy mode")
+}
+
 func TestRouterSkipsBedrock(t *testing.T) {
 	t.Parallel()
 
@@ -93,8 +138,10 @@ func TestRouterSkipsBedrock(t *testing.T) {
 		Bridged: []string{"/v1/messages"}, Passthrough: []string{"/v1/models"},
 	}
 	bedrockProvider := typedProvider{Provider: bedrock, providerType: config.ProviderBedrock}
-	router, err := proxy.NewRouter([]provider.Provider{bedrockProvider}, nil, slogtest.Make(t, nil), nil, testTracer(t))
+	sink := codertestutil.NewFakeSink(t)
+	router, err := proxy.NewRouter([]provider.Provider{bedrockProvider}, nil, sink.Logger(), nil, testTracer(t))
 	require.NoError(t, err)
+	require.Contains(t, fmt.Sprint(sink.Entries()), "skipping unsupported Bedrock provider in proxy mode")
 
 	for _, path := range []string{"/bedrock/v1/messages", "/bedrock/v1/models"} {
 		rec := httptest.NewRecorder()
@@ -110,17 +157,55 @@ type typedProvider struct {
 
 func (p typedProvider) Type() string { return p.providerType }
 
+type invalidFailoverProvider struct {
+	*testutil.MockProvider
+	config keypool.KeyFailoverConfig
+}
+
+func (p *invalidFailoverProvider) KeyPool() *keypool.Pool { return p.config.Pool }
+func (p *invalidFailoverProvider) KeyFailoverConfig(slog.Logger) keypool.KeyFailoverConfig {
+	return p.config
+}
+
+func TestNewRouterValidatesKeyFailoverCallbacks(t *testing.T) {
+	t.Parallel()
+
+	pool := testutil.SingleKeyPool(config.ProviderOpenAI, "key")
+	for _, tc := range []struct {
+		name        string
+		config      keypool.KeyFailoverConfig
+		errContains string
+	}{
+		{name: "MissingIsBYOK", config: keypool.KeyFailoverConfig{Pool: pool}, errContains: "IsBYOK callback is required"},
+		{name: "MissingInjectAuthKey", config: keypool.KeyFailoverConfig{Pool: pool, IsBYOK: func(*http.Request) bool { return false }}, errContains: "InjectAuthKey callback is required"},
+		{name: "MissingBuildResponse", config: keypool.KeyFailoverConfig{Pool: pool, IsBYOK: func(*http.Request) bool { return false }, InjectAuthKey: func(*http.Header, string) {}}, errContains: "BuildKeyPoolResponse callback is required"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			prov := &invalidFailoverProvider{
+				MockProvider: &testutil.MockProvider{NameStr: "openai", URL: "https://openai.example.test", Passthrough: []string{"/v1/models"}},
+				config:       tc.config,
+			}
+			router, err := proxy.NewRouter([]provider.Provider{prov}, nil, slogtest.Make(t, nil), nil, testTracer(t))
+			require.ErrorContains(t, err, tc.errContains)
+			require.Nil(t, router)
+		})
+	}
+}
+
 func TestNewRouterRejectsInvalidBaseURL(t *testing.T) {
 	t.Parallel()
 
 	for _, tc := range []struct {
-		name    string
-		baseURL string
+		name        string
+		baseURL     string
+		errContains string
 	}{
 		{name: "Empty"},
 		{name: "Relative", baseURL: "/v1"},
 		{name: "MissingHost", baseURL: "https:///v1"},
 		{name: "UnsupportedScheme", baseURL: "ftp://provider.example.test"},
+		{name: "Malformed", baseURL: "http://[::1", errContains: "missing ']' in host"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -129,7 +214,11 @@ func TestNewRouterRejectsInvalidBaseURL(t *testing.T) {
 				NameStr: "openai",
 				URL:     tc.baseURL,
 			}}, nil, slogtest.Make(t, nil), nil, testTracer(t))
-			require.ErrorContains(t, err, "absolute HTTP or HTTPS URL with host required")
+			if tc.errContains != "" {
+				require.ErrorContains(t, err, tc.errContains)
+			} else {
+				require.ErrorContains(t, err, "absolute HTTP or HTTPS URL with host required")
+			}
 			require.Nil(t, router)
 		})
 	}

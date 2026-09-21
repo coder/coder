@@ -7,11 +7,14 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/prometheus/client_golang/prometheus"
+	promtest "github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/aibridge/keypool"
+	"github.com/coder/coder/v2/aibridge/metrics"
 	"github.com/coder/quartz"
 )
 
@@ -49,6 +52,48 @@ func (b *trackingBody) state() (reads int, closed bool) {
 type roundTripFunc func(*http.Request) (*http.Response, error)
 
 func (f roundTripFunc) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
+
+type failingTrackingBody struct {
+	*trackingBody
+	err error
+}
+
+func (b *failingTrackingBody) Read(p []byte) (int, error) {
+	if b.reader.Len() == 0 {
+		return 0, b.err
+	}
+	return b.trackingBody.Read(p)
+}
+
+func TestKeyFailoverTransportBodyReadErrorDoesNotSpendKey(t *testing.T) {
+	t.Parallel()
+
+	registry := prometheus.NewRegistry()
+	m := metrics.NewMetrics(registry)
+	pool, err := keypool.New("test", []string{"first"}, quartz.NewMock(t), m)
+	require.NoError(t, err)
+	readErr := xerrors.New("request read failed")
+	original := &failingTrackingBody{trackingBody: newTrackingBody("payload"), err: readErr}
+	called := false
+	rt := keypool.NewKeyFailoverTransport(roundTripFunc(func(*http.Request) (*http.Response, error) {
+		called = true
+		return nil, xerrors.New("inner transport unexpectedly called")
+	}), failoverConfig(pool))
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, "http://example.test", original)
+	require.NoError(t, err)
+	req.GetBody = nil
+
+	resp, err := rt.RoundTrip(req)
+	if resp != nil {
+		require.NoError(t, resp.Body.Close())
+	}
+	require.Nil(t, resp)
+	require.ErrorIs(t, err, readErr)
+	require.False(t, called)
+	_, closed := original.state()
+	require.True(t, closed)
+	require.Zero(t, promtest.CollectAndCount(m.KeyPoolFailoverAttempts))
+}
 
 func TestKeyFailoverTransportUsesGetBody(t *testing.T) {
 	t.Parallel()

@@ -2,9 +2,11 @@
 package proxy
 
 import (
+	"context"
 	"net/http"
 	"net/url"
 	"slices"
+	"strings"
 
 	"go.opentelemetry.io/otel/trace"
 	"go.opentelemetry.io/otel/trace/noop"
@@ -58,12 +60,30 @@ func NewRouter(providers []provider.Provider, rec recorder.Recorder, logger slog
 	}()
 
 	for _, prov := range snapshot {
-		if prov.Type() == config.ProviderBedrock || !prov.Enabled() {
+		if !prov.Enabled() {
+			continue
+		}
+		if prov.Type() == config.ProviderBedrock {
+			// Bedrock signing is implemented only by interception mode. Keep the
+			// existing catch-all 404 behavior, but make the skipped provider visible.
+			logger.Warn(context.Background(), "skipping unsupported Bedrock provider in proxy mode", slog.F("provider", prov.Name()))
 			continue
 		}
 		if rec == nil && len(prov.BridgedRoutes()) > 0 {
 			return nil, xerrors.Errorf("configure provider %q: recorder is required for bridged routes", prov.Name())
 		}
+		failoverConfig := prov.KeyFailoverConfig(logger)
+		if failoverConfig.Pool != nil {
+			switch {
+			case failoverConfig.IsBYOK == nil:
+				return nil, xerrors.Errorf("configure provider %q key failover: IsBYOK callback is required with a key pool", prov.Name())
+			case failoverConfig.InjectAuthKey == nil:
+				return nil, xerrors.Errorf("configure provider %q key failover: InjectAuthKey callback is required with a key pool", prov.Name())
+			case failoverConfig.BuildKeyPoolResponse == nil:
+				return nil, xerrors.Errorf("configure provider %q key failover: BuildKeyPoolResponse callback is required with a key pool", prov.Name())
+			}
+		}
+
 		baseURL, err := url.Parse(prov.BaseURL())
 		if err != nil {
 			return nil, xerrors.Errorf("configure provider %q base URL: %w", prov.Name(), err)
@@ -89,10 +109,12 @@ func NewRouter(providers []provider.Provider, rec recorder.Recorder, logger slog
 			if err != nil {
 				return nil, xerrors.Errorf("configure provider %q bridged route: %w", prov.Name(), err)
 			}
+			metricRoute := strings.TrimPrefix(route, "/"+prov.Name())
 			router.mux.Handle(route, &forwardingHandler{
 				provider: prov, baseURL: baseURL, transport: dumpTransport,
-				breaker: breakers, recorder: rec, logger: logger.Named("proxy." + prov.Name()),
-				metrics: m, tracer: tracer, record: true, metricRoute: path,
+				breaker: breakers, failover: failoverConfig, recorder: rec,
+				logger:  logger.Named("proxy." + prov.Name()),
+				metrics: m, tracer: tracer, record: true, metricRoute: metricRoute,
 			})
 		}
 		for _, path := range prov.PassthroughRoutes() {
@@ -102,7 +124,8 @@ func NewRouter(providers []provider.Provider, rec recorder.Recorder, logger slog
 			}
 			router.mux.Handle(route, &forwardingHandler{
 				provider: prov, baseURL: baseURL, transport: dumpTransport,
-				logger: logger.Named("passthrough." + prov.Name()), metrics: m,
+				failover: failoverConfig,
+				logger:   logger.Named("passthrough." + prov.Name()), metrics: m,
 				tracer: tracer, metricRoute: path,
 			})
 		}

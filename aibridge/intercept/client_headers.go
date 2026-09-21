@@ -50,7 +50,8 @@ var proxyHeaders = []string{
 }
 
 // PrepareClientHeaders returns a copy of the client headers with hop-by-hop,
-// transport, auth, and proxy headers removed.
+// transport, authentication, deployment-sensitive, actor, and proxy headers
+// removed.
 func PrepareClientHeaders(clientHeaders http.Header) http.Header {
 	prepared := clientHeaders.Clone()
 	for _, h := range hopByHopHeaders {
@@ -65,7 +66,7 @@ func PrepareClientHeaders(clientHeaders http.Header) http.Header {
 	for _, h := range proxyHeaders {
 		prepared.Del(h)
 	}
-	utils.StripCoderHeaders(prepared)
+	utils.StripSensitiveRequestHeaders(prepared)
 	return prepared
 }
 

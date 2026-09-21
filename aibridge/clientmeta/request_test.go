@@ -11,6 +11,27 @@ import (
 	agplaibridge "github.com/coder/coder/v2/coderd/aibridge"
 )
 
+func TestHasConnectionUpgrade(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name       string
+		connection string
+		want       bool
+	}{
+		{name: "Upgrade", connection: "keep-alive, Upgrade", want: true},
+		{name: "NoUpgrade", connection: "keep-alive"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, "http://localhost", nil)
+			require.NoError(t, err)
+			req.Header.Set("Connection", tc.connection)
+			require.Equal(t, tc.want, clientmeta.HasConnectionUpgrade(req))
+		})
+	}
+}
+
 func TestIsWebSocketUpgrade(t *testing.T) {
 	t.Parallel()
 
@@ -72,6 +93,12 @@ func TestExtractAgentFirewallHeaders(t *testing.T) {
 			sessionID, sequence, err := clientmeta.ExtractAgentFirewallHeaders(req)
 			if tc.errContains != "" {
 				require.ErrorContains(t, err, tc.errContains)
+				if tc.sessionID != nil {
+					require.NotContains(t, err.Error(), *tc.sessionID)
+				}
+				if tc.sequence != nil {
+					require.NotContains(t, err.Error(), *tc.sequence)
+				}
 				require.Nil(t, sessionID)
 				require.Nil(t, sequence)
 				return

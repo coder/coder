@@ -53,8 +53,7 @@ func Categorize(c Categorizer, err error, status int) (recorder.ErrorType, strin
 	// Key-pool errors take precedence over provider delegation because the pool
 	// masks the client response, for example by rendering permanent failures as
 	// HTTP 502, which would otherwise hide the cause.
-	var poolErr *keypool.Error
-	if errors.As(err, &poolErr) {
+	if poolErr, ok := errors.AsType[*keypool.Error](err); ok {
 		switch poolErr.Kind {
 		case keypool.ErrorKindRateLimited:
 			return recorder.ErrorTypeRateLimited, message

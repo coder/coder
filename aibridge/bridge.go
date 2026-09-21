@@ -81,7 +81,6 @@ func NewRequestBridge(ctx context.Context, providers []provider.Provider, rec re
 
 		// Add the known provider-specific routes which are bridged (i.e. intercepted and augmented).
 		for _, path := range prov.BridgedRoutes() {
-			handler := newInterceptionProcessor(prov, cbs, rec, mcpProxy, logger, m, tracer)
 			route, err := url.JoinPath(prov.RoutePrefix(), path)
 			if err != nil {
 				logger.Error(ctx, "failed to join path",
@@ -92,6 +91,10 @@ func NewRequestBridge(ctx context.Context, providers []provider.Provider, rec re
 				)
 				return nil, xerrors.Errorf("failed to configure provider '%v': failed to join bridged path: %w", prov.Name(), err)
 			}
+			handler := newInterceptionProcessor(
+				prov, cbs, rec, mcpProxy, logger, m, tracer,
+				strings.TrimPrefix(route, "/"+prov.Name()),
+			)
 			mux.Handle(route, handler)
 		}
 
@@ -99,7 +102,7 @@ func NewRequestBridge(ctx context.Context, providers []provider.Provider, rec re
 		//
 		// We have to whitelist the known-safe routes because an API key with elevated privileges (i.e. admin) might be
 		// configured, so we should just reverse-proxy known-safe routes.
-		ftr := newPassthroughRouter(prov, "/", logger.Named(fmt.Sprintf("passthrough.%s", prov.Name())), m, tracer)
+		ftr := newPassthroughRouter(prov, logger.Named(fmt.Sprintf("passthrough.%s", prov.Name())), m, tracer)
 		for _, path := range prov.PassthroughRoutes() {
 			route, err := url.JoinPath(prov.RoutePrefix(), path)
 			if err != nil {
@@ -136,7 +139,7 @@ func WithClock(clock quartz.Clock) RequestBridgeOption {
 // newInterceptionProcessor returns an [http.HandlerFunc] which is capable of creating a new interceptor and processing a given request
 // using [Provider] p, recording all usage events using [Recorder] rec.
 // If cbs is non-nil, circuit breaker protection is applied per endpoint/model tuple.
-func newInterceptionProcessor(p provider.Provider, cbs *circuitbreaker.ProviderCircuitBreakers, rec recorder.Recorder, mcpProxy mcp.ServerProxier, logger slog.Logger, m *metrics.Metrics, tracer trace.Tracer) http.HandlerFunc {
+func newInterceptionProcessor(p provider.Provider, cbs *circuitbreaker.ProviderCircuitBreakers, rec recorder.Recorder, mcpProxy mcp.ServerProxier, logger slog.Logger, m *metrics.Metrics, tracer trace.Tracer, route string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx, span := tracer.Start(r.Context(), "Intercept")
 		defer span.End()
@@ -147,7 +150,6 @@ func newInterceptionProcessor(p provider.Provider, cbs *circuitbreaker.ProviderC
 		sessionID := GuessSessionID(client, r)
 
 		if isWebSocketUpgrade(r) {
-			route := strings.TrimPrefix(r.URL.Path, fmt.Sprintf("/%s", p.Name()))
 			logger.Debug(ctx, "rejecting unsupported WebSocket upgrade",
 				slog.F("provider", p.Name()),
 				slog.F("route", route),
@@ -239,7 +241,6 @@ func newInterceptionProcessor(p provider.Provider, cbs *circuitbreaker.ProviderC
 			return
 		}
 
-		route := strings.TrimPrefix(r.URL.Path, fmt.Sprintf("/%s", p.Name()))
 		log := logger.With(
 			slog.F("route", route),
 			slog.F("provider", p.Name()),
@@ -268,13 +269,13 @@ func newInterceptionProcessor(p provider.Provider, cbs *circuitbreaker.ProviderC
 		errType, errMsg := categorizeInterceptionError(p, execErr)
 		if execErr != nil {
 			if m != nil {
-				m.InterceptionCount.WithLabelValues(p.Name(), interceptor.Model(), metrics.InterceptionCountStatusFailed, route, r.Method, actor.ID, string(client)).Add(1)
+				m.InterceptionCount.WithLabelValues(p.Name(), interceptor.Model(), metrics.InterceptionCountStatusFailed, route, routing.MetricMethod(r.Method), actor.ID, string(client)).Add(1)
 			}
 			span.SetStatus(codes.Error, fmt.Sprintf("interception failed: %v", execErr))
 			log.Warn(credCtx, "interception failed", slog.Error(execErr), slog.F("error_type", string(errType)))
 		} else {
 			if m != nil {
-				m.InterceptionCount.WithLabelValues(p.Name(), interceptor.Model(), metrics.InterceptionCountStatusCompleted, route, r.Method, actor.ID, string(client)).Add(1)
+				m.InterceptionCount.WithLabelValues(p.Name(), interceptor.Model(), metrics.InterceptionCountStatusCompleted, route, routing.MetricMethod(r.Method), actor.ID, string(client)).Add(1)
 			}
 			log.Debug(credCtx, "interception ended")
 		}
@@ -325,8 +326,8 @@ func (b *RequestBridge) Shutdown(ctx context.Context) error {
 	return err
 }
 
-// extractAgentFirewallHeaders validates and returns Agent Firewall correlation
-// metadata without forwarding the headers to provider-specific processing.
+// extractAgentFirewallHeaders returns validated Agent Firewall correlation
+// metadata without exposing raw malformed values in errors.
 func extractAgentFirewallHeaders(r *http.Request) (*string, *int32, error) {
 	return clientmeta.ExtractAgentFirewallHeaders(r)
 }

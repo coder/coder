@@ -18,6 +18,7 @@ import (
 	"github.com/coder/coder/v2/aibridge/fixtures"
 	"github.com/coder/coder/v2/aibridge/internal/testutil"
 	"github.com/coder/coder/v2/aibridge/metrics"
+	"github.com/coder/coder/v2/aibridge/routing"
 )
 
 func TestMetrics_Interception(t *testing.T) {
@@ -26,6 +27,7 @@ func TestMetrics_Interception(t *testing.T) {
 	cases := []struct {
 		name           string
 		fixture        []byte
+		method         string
 		path           string
 		headers        http.Header
 		expectStatus   string
@@ -38,6 +40,17 @@ func TestMetrics_Interception(t *testing.T) {
 		{
 			name:           "ant_simple",
 			fixture:        fixtures.AntSimple,
+			path:           pathAnthropicMessages,
+			expectStatus:   metrics.InterceptionCountStatusCompleted,
+			expectModel:    "claude-sonnet-4-0",
+			expectRoute:    "/v1/messages",
+			expectProvider: config.ProviderAnthropic,
+			expectClient:   aibridge.ClientUnknown,
+		},
+		{
+			name:           "ant_unknown_method_is_bounded",
+			fixture:        fixtures.AntSimple,
+			method:         "CUSTOM",
 			path:           pathAnthropicMessages,
 			expectStatus:   metrics.InterceptionCountStatusCompleted,
 			expectModel:    "claude-sonnet-4-0",
@@ -155,14 +168,19 @@ func TestMetrics_Interception(t *testing.T) {
 				withMetrics(m),
 			)
 
-			resp, err := bridgeServer.makeRequest(t, http.MethodPost, tc.path, fix.Request(), tc.headers)
+			method := tc.method
+			if method == "" {
+				method = http.MethodPost
+			}
+			resp, err := bridgeServer.makeRequest(t, method, tc.path, fix.Request(), tc.headers)
 			require.NoError(t, err)
 			defer resp.Body.Close()
 			_, err = io.ReadAll(resp.Body)
 			require.NoError(t, err)
 
+			expectMethod := routing.MetricMethod(method)
 			count := promtest.ToFloat64(m.InterceptionCount.WithLabelValues(
-				tc.expectProvider, tc.expectModel, tc.expectStatus, tc.expectRoute, "POST", defaultActorID, string(tc.expectClient)))
+				tc.expectProvider, tc.expectModel, tc.expectStatus, tc.expectRoute, expectMethod, defaultActorID, string(tc.expectClient)))
 			require.Equal(t, 1.0, count)
 			require.Equal(t, 1, promtest.CollectAndCount(m.InterceptionDuration))
 			require.Equal(t, 1, promtest.CollectAndCount(m.InterceptionCount))

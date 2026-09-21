@@ -43,11 +43,14 @@ type Server struct {
 	// backend holds the current request handler. Mode is fixed at startup.
 	// Provider reloads update the pool in interception mode or atomically replace
 	// the handler in proxy mode. In-flight requests retain their original router.
-	backend   atomic.Pointer[backend]
+	backend atomic.Pointer[backend]
+	// backendMu serializes mode selection and provider replacement construction.
 	backendMu sync.Mutex
+	// backendPublishMu serializes only the final publication step with shutdown.
+	backendPublishMu sync.Mutex
 
-	// inflight tracks proxy requests across router snapshots. Shutdown waits
-	// for completion or cancels their contexts when its deadline expires.
+	// inflight tracks request acquisition and serving across backend snapshots.
+	// Shutdown waits for completion or cancels contexts when its deadline expires.
 	inflight *aibridge.InflightGate
 
 	// reverseProxyExp is the experiment flag. Proxy mode also requires no MCP configs.
@@ -62,6 +65,10 @@ type Server struct {
 
 	// connected tracks whether the DRPC connection to coderd is currently active.
 	connected atomic.Bool
+	// shuttingDown stops backend publication and request admission before the
+	// connection lifecycle is canceled, allowing admitted requests to record
+	// their completion during graceful shutdown.
+	shuttingDown atomic.Bool
 
 	// lifecycleCtx is canceled when we start closing or when the
 	// connection loop exits permanently.
@@ -137,7 +144,7 @@ func (s *Server) connect() {
 	defer s.logger.Debug(s.lifecycleCtx, "connect loop exited")
 	defer s.wg.Done()
 	defer func() {
-		if s.lifecycleCtx.Err() == nil {
+		if s.lifecycleCtx.Err() == nil && !s.shuttingDown.Load() {
 			s.cancelFn(xerrors.New("connect loop exited"))
 		}
 	}()
@@ -232,6 +239,12 @@ func (s *Server) initializeBackend(ctx context.Context, client DRPCClient) error
 	if s.backend.Load() != nil {
 		return nil
 	}
+	if s.shuttingDown.Load() {
+		return ErrShutdown
+	}
+	if err := s.lifecycleCtx.Err(); err != nil {
+		return s.Err()
+	}
 
 	configCtx, cancel := context.WithTimeout(ctx, mcpConfigTimeout)
 	defer cancel()
@@ -250,8 +263,10 @@ func (s *Server) initializeBackend(ctx context.Context, client DRPCClient) error
 	}
 
 	// Otherwise, use proxy mode.
-	s.backend.Store(&backend{})
-	s.logger.Info(ctx, "selected reverse proxy routing")
+	if _, err := s.publishBackend(&backend{}); err != nil {
+		return err
+	}
+	s.logger.Warn(ctx, "selected experimental reverse proxy routing; records interception lifecycle only; token/prompt/tool/model accounting and spend accrual are incomplete; Bedrock routing and actor-header injection are unsupported")
 	return nil
 }
 
@@ -261,8 +276,26 @@ func (s *Server) initializeInterception() error {
 	if err != nil {
 		return xerrors.Errorf("create request pool: %w", err)
 	}
-	s.backend.Store(&backend{pool: pool, keyPools: pool.KeyPools})
+	if _, err := s.publishBackend(&backend{pool: pool, keyPools: pool.KeyPools}); err != nil {
+		_ = pool.Shutdown(context.Background())
+		return err
+	}
 	return nil
+}
+
+// publishBackend linearizes backend publication with shutdown. Expensive
+// candidate construction happens before this method so shutdown never waits on
+// provider initialization or router construction.
+func (s *Server) publishBackend(next *backend) (*backend, error) {
+	s.backendPublishMu.Lock()
+	defer s.backendPublishMu.Unlock()
+	if s.shuttingDown.Load() {
+		return nil, ErrShutdown
+	}
+	if err := s.lifecycleCtx.Err(); err != nil {
+		return nil, s.Err()
+	}
+	return s.backend.Swap(next), nil
 }
 
 // Done returns a channel that is closed when the server lifecycle ends.
@@ -297,16 +330,38 @@ func (s *Server) Client(ctx context.Context) (DRPCClient, error) {
 
 // GetRequestHandler retrieves the selected gateway handler for the request.
 func (s *Server) GetRequestHandler(ctx context.Context, req Request) (http.Handler, error) {
+	if s.shuttingDown.Load() && s.lifecycleCtx.Err() == nil {
+		return http.HandlerFunc(shuttingDownHandler), nil
+	}
 	current := s.backend.Load()
 	if current == nil {
 		return http.HandlerFunc(notReadyHandler), nil
 	}
 	if current.pool != nil {
-		reqBridge, err := current.pool.Acquire(ctx, req, s.Client, NewMCPProxyFactory(s.logger, s.tracer, s.Client))
+		// Once lifecycle shutdown completes, preserve the pool's existing
+		// post-shutdown error semantics instead of replacing them with a handler.
+		if s.lifecycleCtx.Err() != nil {
+			reqBridge, err := current.pool.Acquire(ctx, req, s.Client, NewMCPProxyFactory(s.logger, s.tracer, s.Client))
+			if err != nil {
+				return nil, xerrors.Errorf("acquire request bridge: %w", err)
+			}
+			return reqBridge, nil
+		}
+		// Admit before potentially expensive legacy bridge acquisition so
+		// shutdown prevents new MCP bridge construction and can cancel an
+		// acquisition that is still running when its deadline expires.
+		release, ok := s.inflight.Admit()
+		if !ok {
+			return http.HandlerFunc(shuttingDownHandler), nil
+		}
+		acquireCtx, cleanup := s.inflight.RequestContext(ctx)
+		reqBridge, err := current.pool.Acquire(acquireCtx, req, s.Client, NewMCPProxyFactory(s.logger, s.tracer, s.Client))
+		cleanup()
+		release()
 		if err != nil {
 			return nil, xerrors.Errorf("acquire request bridge: %w", err)
 		}
-		return reqBridge, nil
+		return s.inflight.Middleware(reqBridge), nil
 	}
 	// Proxy mode serves every request from one handler, which does not exist
 	// until the first provider snapshot arrives.
@@ -332,7 +387,10 @@ func (s *Server) Ready() bool {
 func (s *Server) ReplaceProviders(ctx context.Context, providers []aibridge.Provider) error {
 	s.backendMu.Lock()
 	defer s.backendMu.Unlock()
-	if s.isShutdown() {
+	if s.shuttingDown.Load() {
+		return ErrShutdown
+	}
+	if err := s.lifecycleCtx.Err(); err != nil {
 		return s.Err()
 	}
 	if err := ctx.Err(); err != nil {
@@ -343,6 +401,12 @@ func (s *Server) ReplaceProviders(ctx context.Context, providers []aibridge.Prov
 		return xerrors.New("gateway mode not selected")
 	}
 	if current.pool != nil {
+		s.backendPublishMu.Lock()
+		if s.shuttingDown.Load() {
+			s.backendPublishMu.Unlock()
+			return ErrShutdown
+		}
+		s.backendPublishMu.Unlock()
 		current.pool.ReplaceProviders(providers)
 		return nil
 	}
@@ -350,13 +414,18 @@ func (s *Server) ReplaceProviders(ctx context.Context, providers []aibridge.Prov
 	if err != nil {
 		return xerrors.Errorf("create proxy router: %w", err)
 	}
-	s.backend.Store(&backend{
+	next := &backend{
 		proxyRouter: s.inflight.Middleware(router),
 		keyPools:    router.KeyPools,
 		cleanup:     router.CloseIdleConnections,
-	})
-	if current.cleanup != nil {
-		current.cleanup()
+	}
+	previous, err := s.publishBackend(next)
+	if err != nil {
+		next.cleanup()
+		return err
+	}
+	if previous != nil && previous.cleanup != nil {
+		previous.cleanup()
 	}
 	return nil
 }
@@ -376,6 +445,9 @@ func (s *Server) keyPools() []*keypool.Pool {
 
 // isShutdown returns whether the Server is shutdown or not.
 func (s *Server) isShutdown() bool {
+	if s.shuttingDown.Load() {
+		return true
+	}
 	select {
 	case <-s.lifecycleCtx.Done():
 		return true
@@ -384,53 +456,67 @@ func (s *Server) isShutdown() bool {
 	}
 }
 
-// Shutdown waits for all exiting in-flight requests to complete, or the context to expire, whichever comes first.
+// Shutdown stops new requests and provider reloads, then waits for admitted
+// requests to complete while the recorder connection remains available. If ctx
+// expires, admitted request contexts are canceled before the connection closes.
 func (s *Server) Shutdown(ctx context.Context) error {
 	var err error
 	s.shutdownOnce.Do(func() {
-		s.cancelFn(ErrShutdown)
+		s.backendPublishMu.Lock()
+		s.shuttingDown.Store(true)
+		current := s.backend.Load()
+		s.backendPublishMu.Unlock()
 
-		// Wait for any outstanding connections to terminate.
-		s.wg.Wait()
+		drainErr := s.inflight.Shutdown(ctx)
+		s.inflight.Close()
+		if drainErr != nil {
+			s.logger.Debug(ctx, "shutdown deadline passed, canceled in-flight requests", slog.Error(drainErr))
+		}
 
-		var pool Pooler
-		var cleanup func()
-		if current := s.backend.Load(); current != nil {
-			cleanup = current.cleanup
+		// Provider publication is already stopped and the current snapshot was
+		// captured atomically with the shutdown flag. Request drainage never
+		// waits for backendMu, which may be held by slow provider construction.
+
+		var poolErr error
+		if current != nil {
 			if current.pool != nil {
-				pool = current.pool
-			} else {
-				// Proxy snapshots share this gate. On deadline, cancel requests
-				// without waiting for their handlers to exit.
-				drainErr := s.inflight.Shutdown(ctx)
-				s.inflight.Close()
-				if drainErr != nil {
-					s.logger.Debug(ctx, "shutdown deadline passed, canceled in-flight proxy requests", slog.Error(drainErr))
+				s.logger.Info(ctx, "shutting down request pool")
+				poolErr = current.pool.Shutdown(ctx)
+				if poolErr != nil {
+					s.logger.Error(ctx, "request pool shutdown failed with error", slog.Error(poolErr))
 				}
 			}
-		}
-
-		if cleanup != nil {
-			cleanup()
-		}
-
-		select {
-		case <-ctx.Done():
-			s.logger.Warn(ctx, "graceful shutdown failed", slog.Error(ctx.Err()))
-			err = ctx.Err()
-			return
-		default:
-		}
-
-		if pool != nil {
-			s.logger.Info(ctx, "shutting down request pool")
-			if err = pool.Shutdown(ctx); err != nil {
-				s.logger.Error(ctx, "request pool shutdown failed with error", slog.Error(err))
-				return
+			if current.cleanup != nil {
+				current.cleanup()
 			}
 		}
 
-		s.logger.Info(ctx, "gracefully shutdown")
+		// Keep the DRPC client available through request drainage and resource
+		// cleanup so end records can complete before terminating the connection.
+		s.cancelFn(ErrShutdown)
+		connectionDone := make(chan struct{})
+		go func() {
+			s.wg.Wait()
+			close(connectionDone)
+		}()
+		select {
+		case <-connectionDone:
+		case <-ctx.Done():
+		}
+
+		switch {
+		case drainErr != nil:
+			err = drainErr
+		case ctx.Err() != nil:
+			err = ctx.Err()
+		case poolErr != nil:
+			err = poolErr
+		default:
+			s.logger.Info(ctx, "gracefully shutdown")
+		}
+		if err != nil {
+			s.logger.Warn(ctx, "graceful shutdown failed", slog.Error(err))
+		}
 	})
 	return err
 }
@@ -444,4 +530,8 @@ func (s *Server) Close() error {
 
 func notReadyHandler(w http.ResponseWriter, _ *http.Request) {
 	http.Error(w, "AI Gateway is starting up, retry shortly", http.StatusServiceUnavailable)
+}
+
+func shuttingDownHandler(w http.ResponseWriter, _ *http.Request) {
+	http.Error(w, "AI Gateway is shutting down", http.StatusServiceUnavailable)
 }

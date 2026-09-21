@@ -257,7 +257,8 @@ func TestInMemoryRoundTripper_CancelCloses(t *testing.T) {
 	require.NoError(t, err)
 
 	parentCtx := testutil.Context(t, testutil.WaitShort)
-	ctx, cancel := context.WithCancel(parentCtx)
+	cancelCause := xerrors.New("caller canceled")
+	ctx, cancel := context.WithCancelCause(parentCtx)
 	ctx = aibridge.WithDelegatedAPIKeyID(ctx, "test-key-id")
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "http://aibridge/stream", nil)
 	require.NoError(t, err)
@@ -266,9 +267,9 @@ func TestInMemoryRoundTripper_CancelCloses(t *testing.T) {
 	require.NoError(t, err)
 	defer resp.Body.Close()
 
-	cancel()
+	cancel(cancelCause)
 	_, err = io.ReadAll(resp.Body)
-	require.Error(t, err)
+	require.ErrorIs(t, err, cancelCause)
 
 	select {
 	case <-handlerCtxObserved:
@@ -514,7 +515,8 @@ func TestInMemoryRoundTripper_ProxyCloseCancelsStalledUpstream(t *testing.T) {
 		end = ends[starts[0].ID]
 		return end != nil
 	}, testutil.WaitShort, testutil.IntervalFast)
-	require.NotEmpty(t, end.ErrorType)
+	require.Equal(t, recorder.ErrorTypeUnknown, end.ErrorType)
+	require.Equal(t, context.Canceled.Error(), end.ErrorMessage)
 }
 
 func TestInMemoryRoundTripper_ProxyForwardsNilBody(t *testing.T) {
@@ -578,7 +580,7 @@ func TestInMemoryRoundTripper_PassthroughTruncatedStreamReturnsReadError(t *test
 	resp, err := rt.RoundTrip(req)
 	require.NoError(t, err)
 	_, readErr := io.ReadAll(resp.Body)
-	require.Error(t, readErr)
+	require.ErrorIs(t, readErr, io.ErrUnexpectedEOF)
 	require.NoError(t, resp.Body.Close())
 }
 
@@ -609,7 +611,7 @@ func TestInMemoryRoundTripper_ProxyTruncatedStreamReturnsReadErrorAndEnds(t *tes
 	resp, err := rt.RoundTrip(req)
 	require.NoError(t, err)
 	body, readErr := io.ReadAll(resp.Body)
-	require.Error(t, readErr)
+	require.ErrorIs(t, readErr, io.ErrUnexpectedEOF)
 	require.Equal(t, "chunk", string(body))
 	require.NoError(t, resp.Body.Close())
 
@@ -622,7 +624,8 @@ func TestInMemoryRoundTripper_ProxyTruncatedStreamReturnsReadErrorAndEnds(t *tes
 		end = ends[starts[0].ID]
 		return end != nil
 	}, testutil.WaitShort, testutil.IntervalFast)
-	require.NotEmpty(t, end.ErrorType)
+	require.Equal(t, recorder.ErrorTypeUnknown, end.ErrorType)
+	require.Equal(t, io.ErrUnexpectedEOF.Error(), end.ErrorMessage)
 }
 
 // A handler that returns without writing must not block RoundTrip; the caller
