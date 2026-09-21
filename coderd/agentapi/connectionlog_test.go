@@ -168,7 +168,7 @@ func TestConnectionLog(t *testing.T) {
 }
 
 func agentProtoConnectionTypeToConnectionLog(t *testing.T, typ agentproto.Connection_Type) database.ConnectionType {
-	a, err := db2sdk.ConnectionLogConnectionTypeFromAgentProtoConnectionType(typ)
+	a, err := db2sdk.ConnectionLogTypeFromAgentProto(&agentproto.Connection{Type: typ})
 	require.NoError(t, err)
 	return a
 }
@@ -183,4 +183,52 @@ func asAtomicPointer[T any](v T) *atomic.Pointer[T] {
 	var p atomic.Pointer[T]
 	p.Store(&v)
 	return &p
+}
+
+func TestConnectionLogType(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		appName string
+		typ     agentproto.Connection_Type
+		want    database.ConnectionType
+	}{
+		{
+			name:    "AppNamePreferred",
+			appName: "cursor",
+			typ:     agentproto.Connection_VSCODE,
+			want:    "cursor",
+		},
+		{
+			name:    "AppNameNormalized",
+			appName: "  VS-Code  ",
+			typ:     agentproto.Connection_VSCODE,
+			want:    "vs_code",
+		},
+		{
+			name: "FallsBackToEnum",
+			typ:  agentproto.Connection_JETBRAINS,
+			want: database.ConnectionTypeJetbrains,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			got, err := db2sdk.ConnectionLogTypeFromAgentProto(&agentproto.Connection{
+				AppName: tt.appName,
+				Type:    tt.typ,
+			})
+			require.NoError(t, err)
+			require.Equal(t, tt.want, got)
+		})
+	}
+
+	t.Run("NoAppNameOrEnum", func(t *testing.T) {
+		t.Parallel()
+
+		_, err := db2sdk.ConnectionLogTypeFromAgentProto(&agentproto.Connection{})
+		require.Error(t, err)
+	})
 }

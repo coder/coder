@@ -21627,7 +21627,7 @@ const docTemplate = `{
                     "$ref": "#/definitions/codersdk.MinimalOrganization"
                 },
                 "ssh_info": {
-                    "description": "SSHInfo is only set when ` + "`" + `type` + "`" + ` is one of:\n- ` + "`" + `ConnectionTypeSSH` + "`" + `\n- ` + "`" + `ConnectionTypeReconnectingPTY` + "`" + `\n- ` + "`" + `ConnectionTypeVSCode` + "`" + `\n- ` + "`" + `ConnectionTypeJetBrains` + "`" + `",
+                    "description": "SSHInfo is set for every other ` + "`" + `type` + "`" + `, which is any connection the\nagent reported.",
                     "allOf": [
                         {
                             "$ref": "#/definitions/codersdk.ConnectionLogSSHInfo"
@@ -21636,6 +21636,10 @@ const docTemplate = `{
                 },
                 "type": {
                     "$ref": "#/definitions/codersdk.ConnectionType"
+                },
+                "type_display_name": {
+                    "description": "TypeDisplayName is how to present ` + "`" + `type` + "`" + `, such as \"VS Code\".",
+                    "type": "string"
                 },
                 "web_info": {
                     "description": "WebInfo is only set when ` + "`" + `type` + "`" + ` is one of:\n- ` + "`" + `ConnectionTypePortForwarding` + "`" + `\n- ` + "`" + `ConnectionTypeWorkspaceApp` + "`" + `\n- ` + "`" + `ConnectionTypeTunnel` + "`" + `",

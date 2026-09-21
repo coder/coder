@@ -1,5 +1,7 @@
 import type { ConnectionType } from "#/api/typesGenerated";
 
+// Labels the filter menu. A log entry uses its own `type_display_name`,
+// since an agent can report any app.
 export const connectionTypeToFriendlyName = (type: ConnectionType): string => {
 	switch (type) {
 		case "jetbrains":
@@ -19,23 +21,16 @@ export const connectionTypeToFriendlyName = (type: ConnectionType): string => {
 	}
 };
 
-// connectionTypeIsWeb returns true for connection types reported by
-// coderd from an HTTP request. These carry `web_info` (user, IP, user
-// agent, HTTP status code) rather than agent-reported `ssh_info`, and
-// are not necessarily browser connections (tunnels are typically
-// established by the CLI or an IDE extension).
-export const connectionTypeIsWeb = (type: ConnectionType): boolean => {
-	switch (type) {
-		case "port_forwarding":
-		case "workspace_app":
-		case "tunnel": {
-			return true;
-		}
-		case "reconnecting_pty":
-		case "ssh":
-		case "jetbrains":
-		case "vscode": {
-			return false;
-		}
-	}
-};
+// Types coderd records from an HTTP request. They carry `web_info` (user,
+// IP, user agent, HTTP status code) rather than agent-reported `ssh_info`,
+// and are not necessarily browser connections: tunnels are typically
+// established by the CLI or an IDE extension.
+const WEB_CONNECTION_TYPES = new Set<string>([
+	"port_forwarding",
+	"workspace_app",
+	"tunnel",
+]);
+
+// A log entry's type is open, so this takes any string.
+export const connectionTypeIsWeb = (type: string): boolean =>
+	WEB_CONNECTION_TYPES.has(type);

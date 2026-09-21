@@ -3693,7 +3693,15 @@ export interface ConnectionLog {
 	readonly workspace_name: string;
 	readonly agent_name: string;
 	readonly ip?: string;
-	readonly type: ConnectionType;
+	/**
+	 * Type is the recorded type, which for an agent-reported connection is
+	 * the app that connected. Unlike ConnectionType it is not a closed set.
+	 */
+	readonly type: string;
+	/**
+	 * TypeDisplayName is how to present `type`, such as "VS Code".
+	 */
+	readonly type_display_name: string;
 	/**
 	 * WebInfo is only set when `type` is one of:
 	 * - `ConnectionTypePortForwarding`
@@ -3702,11 +3710,7 @@ export interface ConnectionLog {
 	 */
 	readonly web_info?: ConnectionLogWebInfo;
 	/**
-	 * SSHInfo is only set when `type` is one of:
-	 * - `ConnectionTypeSSH`
-	 * - `ConnectionTypeReconnectingPTY`
-	 * - `ConnectionTypeVSCode`
-	 * - `ConnectionTypeJetBrains`
+	 * SSHInfo is set for every other `type`, all agent-reported.
 	 */
 	readonly ssh_info?: ConnectionLogSSHInfo;
 }

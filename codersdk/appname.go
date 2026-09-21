@@ -138,6 +138,26 @@ func AppNameFamily(appName string) AppFamilyName {
 	return AppFamilyUnknown
 }
 
+// AppDisplayName is the registry's name for a known app, otherwise the
+// normalized identifier itself.
+func AppDisplayName(appName string) string {
+	appName = NormalizeAppName(appName)
+	return cmp.Or(sessionApps[appName].displayName, appName)
+}
+
+// AppNamesInFamily lists a family's registered app names, sorted. The family
+// name itself always comes back.
+func AppNamesInFamily(family AppFamilyName) []string {
+	names := []string{string(family)}
+	for appName, app := range sessionApps {
+		if app.family == family && appName != string(family) {
+			names = append(names, appName)
+		}
+	}
+	slices.Sort(names)
+	return names
+}
+
 // NormalizeAppName prepares a client-supplied app name for storage and
 // lookup: it strips control characters, then trims, truncates, lowercases,
 // and folds hyphens to underscores. Empty becomes AppFamilyUnknown.

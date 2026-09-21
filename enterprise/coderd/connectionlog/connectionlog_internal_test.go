@@ -495,7 +495,7 @@ func fakeConnectEvent(workspaceID uuid.UUID, agentName string, connectionID uuid
 		WorkspaceID:      workspaceID,
 		WorkspaceName:    "test-workspace",
 		AgentName:        agentName,
-		Type:             database.ConnectionTypeSsh,
+		Type:             database.ConnectionTypeSSH,
 		ConnectionID:     uuid.NullUUID{UUID: connectionID, Valid: true},
 		ConnectionStatus: database.ConnectionStatusConnected,
 	}
@@ -510,7 +510,7 @@ func fakeDisconnectEvent(workspaceID uuid.UUID, agentName string, connectionID u
 		WorkspaceID:      workspaceID,
 		WorkspaceName:    "test-workspace",
 		AgentName:        agentName,
-		Type:             database.ConnectionTypeSsh,
+		Type:             database.ConnectionTypeSSH,
 		ConnectionID:     uuid.NullUUID{UUID: connectionID, Valid: true},
 		ConnectionStatus: database.ConnectionStatusDisconnected,
 		Code:             sql.NullInt32{Int32: 0, Valid: true},

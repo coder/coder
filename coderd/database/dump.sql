@@ -387,16 +387,6 @@ CREATE TYPE connection_status AS ENUM (
     'disconnected'
 );
 
-CREATE TYPE connection_type AS ENUM (
-    'ssh',
-    'vscode',
-    'jetbrains',
-    'reconnecting_pty',
-    'workspace_app',
-    'port_forwarding',
-    'tunnel'
-);
-
 CREATE TYPE cors_behavior AS ENUM (
     'simple',
     'passthru'
@@ -2345,7 +2335,7 @@ CREATE TABLE connection_logs (
     workspace_id uuid NOT NULL,
     workspace_name text NOT NULL,
     agent_name text NOT NULL,
-    type connection_type NOT NULL,
+    type text NOT NULL,
     ip inet,
     code integer,
     user_agent text,

@@ -503,6 +503,7 @@ curl -X GET http://coder-server:8080/api/v2/connectionlog?limit=0 \
         "exit_code": 0
       },
       "type": "ssh",
+      "type_display_name": "string",
       "web_info": {
         "slug_or_port": "string",
         "status_code": 0,

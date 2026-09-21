@@ -59,6 +59,7 @@ export const PortForwardingAuthenticated: Story = {
 		connectionLog: {
 			...MockWebConnectionLog,
 			type: "port_forwarding",
+			type_display_name: "Port Forwarding",
 			web_info: {
 				...MockWebConnectionLog.web_info!,
 				slug_or_port: "8080",
@@ -85,6 +86,29 @@ export const VSCode: Story = {
 		connectionLog: {
 			...MockWebConnectionLog,
 			type: "vscode",
+			type_display_name: "VS Code",
+		},
+	},
+};
+
+// An IDE the agent named itself, stored as-is.
+export const Cursor: Story = {
+	args: {
+		connectionLog: {
+			...MockWebConnectionLog,
+			type: "cursor",
+			type_display_name: "Cursor",
+		},
+	},
+};
+
+// An IDE Coder does not recognize presents as its own identifier.
+export const UnregisteredIDE: Story = {
+	args: {
+		connectionLog: {
+			...MockWebConnectionLog,
+			type: "some_new_ide",
+			type_display_name: "some_new_ide",
 		},
 	},
 };
@@ -94,6 +118,7 @@ export const JetBrains: Story = {
 		connectionLog: {
 			...MockWebConnectionLog,
 			type: "jetbrains",
+			type_display_name: "JetBrains",
 		},
 	},
 };
@@ -134,6 +159,7 @@ export const WebTerminal: Story = {
 		connectionLog: {
 			...MockWebConnectionLog,
 			type: "reconnecting_pty",
+			type_display_name: "Web Terminal",
 		},
 	},
 };

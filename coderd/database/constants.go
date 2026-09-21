@@ -30,3 +30,20 @@ const (
 	OAuth2ProviderAppClientTypeConfidential = string(codersdk.OAuth2ClientTypeConfidential)
 	OAuth2ProviderAppClientTypePublic       = string(codersdk.OAuth2ClientTypePublic)
 )
+
+// ConnectionType is how a connection reached the workspace. The column is
+// TEXT, so a row can hold any app name, such as "cursor".
+//
+// Converted from the codersdk constants rather than redeclared, so the two
+// cannot drift.
+type ConnectionType string
+
+const (
+	ConnectionTypeSSH             = ConnectionType(codersdk.ConnectionTypeSSH)
+	ConnectionTypeVscode          = ConnectionType(codersdk.ConnectionTypeVSCode)
+	ConnectionTypeJetbrains       = ConnectionType(codersdk.ConnectionTypeJetBrains)
+	ConnectionTypeReconnectingPty = ConnectionType(codersdk.ConnectionTypeReconnectingPTY)
+	ConnectionTypeWorkspaceApp    = ConnectionType(codersdk.ConnectionTypeWorkspaceApp)
+	ConnectionTypePortForwarding  = ConnectionType(codersdk.ConnectionTypePortForwarding)
+	ConnectionTypeTunnel          = ConnectionType(codersdk.ConnectionTypeTunnel)
+)

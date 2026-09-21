@@ -41,7 +41,7 @@ func TestReportConnectionEmpty(t *testing.T) {
 		hardCtx: ctx,
 		logger:  logger,
 	}
-	disconnected := uut.reportConnection(connID, proto.Connection_TYPE_UNSPECIFIED, "")
+	disconnected := uut.reportConnection(connID, "", "")
 
 	require.Len(t, uut.reportConnections, 1)
 	req0 := uut.reportConnections[0]

@@ -996,10 +996,16 @@ func ChatRoleActions(role codersdk.ChatRole) []policy.Action {
 	return []policy.Action{}
 }
 
-func ConnectionLogConnectionTypeFromAgentProtoConnectionType(typ agentproto.Connection_Type) (database.ConnectionType, error) {
-	switch typ {
+// ConnectionLogTypeFromAgentProto prefers the app name, falling back to the
+// family enum for agents predating API v2.13.
+func ConnectionLogTypeFromAgentProto(conn *agentproto.Connection) (database.ConnectionType, error) {
+	if appName := conn.GetAppName(); appName != "" {
+		// The column is TEXT, so bound what the agent sends.
+		return database.ConnectionType(codersdk.NormalizeAppName(appName)), nil
+	}
+	switch typ := conn.GetType(); typ {
 	case agentproto.Connection_SSH:
-		return database.ConnectionTypeSsh, nil
+		return database.ConnectionTypeSSH, nil
 	case agentproto.Connection_JETBRAINS:
 		return database.ConnectionTypeJetbrains, nil
 	case agentproto.Connection_VSCODE:

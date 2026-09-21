@@ -20,7 +20,11 @@ type ConnectionLog struct {
 	WorkspaceName          string              `json:"workspace_name"`
 	AgentName              string              `json:"agent_name"`
 	IP                     *netip.Addr         `json:"ip,omitempty"`
-	Type                   ConnectionType      `json:"type"`
+	// Type is the recorded type. For an agent-reported connection it is the
+	// app that connected, so unlike ConnectionType the set is open.
+	Type string `json:"type"`
+	// TypeDisplayName is how to present `type`, such as "VS Code".
+	TypeDisplayName string `json:"type_display_name"`
 
 	// WebInfo is only set when `type` is one of:
 	// - `ConnectionTypePortForwarding`
@@ -28,28 +32,64 @@ type ConnectionLog struct {
 	// - `ConnectionTypeTunnel`
 	WebInfo *ConnectionLogWebInfo `json:"web_info,omitempty"`
 
-	// SSHInfo is only set when `type` is one of:
-	// - `ConnectionTypeSSH`
-	// - `ConnectionTypeReconnectingPTY`
-	// - `ConnectionTypeVSCode`
-	// - `ConnectionTypeJetBrains`
+	// SSHInfo is set for every other `type`, all agent-reported.
 	SSHInfo *ConnectionLogSSHInfo `json:"ssh_info,omitempty"`
 }
 
-// ConnectionType is the type of connection that the agent is receiving.
+// ConnectionType is a value the connection log can be filtered by. The
+// recorded type itself is open, since an agent reports the app that
+// connected.
 type ConnectionType string
 
 const (
-	ConnectionTypeSSH             ConnectionType = "ssh"
-	ConnectionTypeVSCode          ConnectionType = "vscode"
-	ConnectionTypeJetBrains       ConnectionType = "jetbrains"
-	ConnectionTypeReconnectingPTY ConnectionType = "reconnecting_pty"
-	ConnectionTypeWorkspaceApp    ConnectionType = "workspace_app"
-	ConnectionTypePortForwarding  ConnectionType = "port_forwarding"
+	// Families, which also match their apps: `vscode` finds Cursor.
+	ConnectionTypeSSH             = ConnectionType(AppFamilySSH)
+	ConnectionTypeVSCode          = ConnectionType(AppFamilyVSCode)
+	ConnectionTypeJetBrains       = ConnectionType(AppFamilyJetBrains)
+	ConnectionTypeReconnectingPTY = ConnectionType(AppFamilyReconnectingPTY)
+
+	// Recorded by coderd from an HTTP request, so not apps.
+	ConnectionTypeWorkspaceApp   ConnectionType = "workspace_app"
+	ConnectionTypePortForwarding ConnectionType = "port_forwarding"
 	// ConnectionTypeTunnel records accepted and denied tailnet tunnel
 	// requests made by authenticated users.
 	ConnectionTypeTunnel ConnectionType = "tunnel"
 )
+
+// Valid reports whether t is filterable, not what the column accepts.
+func (t ConnectionType) Valid() bool {
+	switch t {
+	case ConnectionTypeSSH, ConnectionTypeVSCode,
+		ConnectionTypeJetBrains, ConnectionTypeReconnectingPTY:
+		return true
+	}
+	_, ok := webTypeNames[t]
+	return ok
+}
+
+// webTypeNames names the types that are not apps.
+var webTypeNames = map[ConnectionType]string{
+	ConnectionTypeWorkspaceApp:   "Workspace App",
+	ConnectionTypePortForwarding: "Port Forwarding",
+	ConnectionTypeTunnel:         "Tunnel",
+}
+
+// DisplayName presents t, such as "VS Code", or t itself if unrecognized.
+func (t ConnectionType) DisplayName() string {
+	if name, ok := webTypeNames[t]; ok {
+		return name
+	}
+	return AppDisplayName(string(t))
+}
+
+// MatchingTypes lists the types a filter on t matches: a family also matches
+// its apps. An empty t filters nothing.
+func (t ConnectionType) MatchingTypes() []string {
+	if t == "" {
+		return nil
+	}
+	return AppNamesInFamily(AppFamilyName(t))
+}
 
 // ConnectionLogStatus is the status of a connection log entry.
 // It's the argument to the `status` filter when fetching connection logs.

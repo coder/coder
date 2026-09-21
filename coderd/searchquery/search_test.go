@@ -669,7 +669,7 @@ func TestSearchConnectionLogs(t *testing.T) {
 			OrganizationID:      orgID,
 			WorkspaceOwner:      "testowner",
 			WorkspaceOwnerEmail: "owner@example.com",
-			Type:                string(database.ConnectionTypePortForwarding),
+			Types:               []string{string(database.ConnectionTypePortForwarding)},
 			Username:            "testuser",
 			UserEmail:           "test@example.com",
 			ConnectedAfter:      time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC),

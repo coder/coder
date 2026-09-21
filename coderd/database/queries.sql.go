@@ -14166,7 +14166,7 @@ FROM (
         unnest($5::uuid[]) AS workspace_id,
         unnest($6::text[]) AS workspace_name,
         unnest($7::text[]) AS agent_name,
-        unnest($8::connection_type[]) AS type,
+        unnest($8::text[]) AS type,
         unnest($9::int4[]) AS code,
         unnest($10::bool[]) AS code_valid,
         unnest($11::inet[]) AS ip,
@@ -14207,23 +14207,23 @@ DO UPDATE SET
 `
 
 type BatchUpsertConnectionLogsParams struct {
-	ID               []uuid.UUID      `db:"id" json:"id"`
-	ConnectTime      []time.Time      `db:"connect_time" json:"connect_time"`
-	OrganizationID   []uuid.UUID      `db:"organization_id" json:"organization_id"`
-	WorkspaceOwnerID []uuid.UUID      `db:"workspace_owner_id" json:"workspace_owner_id"`
-	WorkspaceID      []uuid.UUID      `db:"workspace_id" json:"workspace_id"`
-	WorkspaceName    []string         `db:"workspace_name" json:"workspace_name"`
-	AgentName        []string         `db:"agent_name" json:"agent_name"`
-	Type             []ConnectionType `db:"type" json:"type"`
-	Code             []int32          `db:"code" json:"code"`
-	CodeValid        []bool           `db:"code_valid" json:"code_valid"`
-	Ip               []pqtype.Inet    `db:"ip" json:"ip"`
-	UserAgent        []string         `db:"user_agent" json:"user_agent"`
-	UserID           []uuid.UUID      `db:"user_id" json:"user_id"`
-	SlugOrPort       []string         `db:"slug_or_port" json:"slug_or_port"`
-	ConnectionID     []uuid.UUID      `db:"connection_id" json:"connection_id"`
-	DisconnectReason []string         `db:"disconnect_reason" json:"disconnect_reason"`
-	DisconnectTime   []time.Time      `db:"disconnect_time" json:"disconnect_time"`
+	ID               []uuid.UUID   `db:"id" json:"id"`
+	ConnectTime      []time.Time   `db:"connect_time" json:"connect_time"`
+	OrganizationID   []uuid.UUID   `db:"organization_id" json:"organization_id"`
+	WorkspaceOwnerID []uuid.UUID   `db:"workspace_owner_id" json:"workspace_owner_id"`
+	WorkspaceID      []uuid.UUID   `db:"workspace_id" json:"workspace_id"`
+	WorkspaceName    []string      `db:"workspace_name" json:"workspace_name"`
+	AgentName        []string      `db:"agent_name" json:"agent_name"`
+	Type             []string      `db:"type" json:"type"`
+	Code             []int32       `db:"code" json:"code"`
+	CodeValid        []bool        `db:"code_valid" json:"code_valid"`
+	Ip               []pqtype.Inet `db:"ip" json:"ip"`
+	UserAgent        []string      `db:"user_agent" json:"user_agent"`
+	UserID           []uuid.UUID   `db:"user_id" json:"user_id"`
+	SlugOrPort       []string      `db:"slug_or_port" json:"slug_or_port"`
+	ConnectionID     []uuid.UUID   `db:"connection_id" json:"connection_id"`
+	DisconnectReason []string      `db:"disconnect_reason" json:"disconnect_reason"`
+	DisconnectTime   []time.Time   `db:"disconnect_time" json:"disconnect_time"`
 }
 
 func (q *sqlQuerier) BatchUpsertConnectionLogs(ctx context.Context, arg BatchUpsertConnectionLogsParams) error {
@@ -14291,10 +14291,10 @@ SELECT COUNT(*) AS count FROM (
 				)
 			ELSE true
 		END
-		-- Filter by type
+		-- Filter by type, family expanded
 		AND CASE
-			WHEN $5 :: text != '' THEN
-				type = $5 :: connection_type
+			WHEN cardinality($5 :: text[]) > 0 THEN
+				type = ANY($5 :: text[])
 			ELSE true
 		END
 		-- Filter by user_id
@@ -14365,7 +14365,7 @@ type CountConnectionLogsParams struct {
 	WorkspaceOwner      string    `db:"workspace_owner" json:"workspace_owner"`
 	WorkspaceOwnerID    uuid.UUID `db:"workspace_owner_id" json:"workspace_owner_id"`
 	WorkspaceOwnerEmail string    `db:"workspace_owner_email" json:"workspace_owner_email"`
-	Type                string    `db:"type" json:"type"`
+	Types               []string  `db:"types" json:"types"`
 	UserID              uuid.UUID `db:"user_id" json:"user_id"`
 	Username            string    `db:"username" json:"username"`
 	UserEmail           string    `db:"user_email" json:"user_email"`
@@ -14383,7 +14383,7 @@ func (q *sqlQuerier) CountConnectionLogs(ctx context.Context, arg CountConnectio
 		arg.WorkspaceOwner,
 		arg.WorkspaceOwnerID,
 		arg.WorkspaceOwnerEmail,
-		arg.Type,
+		pq.Array(arg.Types),
 		arg.UserID,
 		arg.Username,
 		arg.UserEmail,
@@ -14486,10 +14486,10 @@ WHERE
 			)
 		ELSE true
 	END
-	-- Filter by type
+	-- Filter by type, family expanded
 	AND CASE
-		WHEN $5 :: text != '' THEN
-			type = $5 :: connection_type
+		WHEN cardinality($5 :: text[]) > 0 THEN
+			type = ANY($5 :: text[])
 		ELSE true
 	END
 	-- Filter by user_id
@@ -14566,7 +14566,7 @@ type GetConnectionLogsOffsetParams struct {
 	WorkspaceOwner      string    `db:"workspace_owner" json:"workspace_owner"`
 	WorkspaceOwnerID    uuid.UUID `db:"workspace_owner_id" json:"workspace_owner_id"`
 	WorkspaceOwnerEmail string    `db:"workspace_owner_email" json:"workspace_owner_email"`
-	Type                string    `db:"type" json:"type"`
+	Types               []string  `db:"types" json:"types"`
 	UserID              uuid.UUID `db:"user_id" json:"user_id"`
 	Username            string    `db:"username" json:"username"`
 	UserEmail           string    `db:"user_email" json:"user_email"`
@@ -14605,7 +14605,7 @@ func (q *sqlQuerier) GetConnectionLogsOffset(ctx context.Context, arg GetConnect
 		arg.WorkspaceOwner,
 		arg.WorkspaceOwnerID,
 		arg.WorkspaceOwnerEmail,
-		arg.Type,
+		pq.Array(arg.Types),
 		arg.UserID,
 		arg.Username,
 		arg.UserEmail,

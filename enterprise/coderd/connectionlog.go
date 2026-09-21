@@ -132,6 +132,7 @@ func convertConnectionLog(dblog database.GetConnectionLogsOffsetRow) codersdk.Co
 		sshInfo *codersdk.ConnectionLogSSHInfo
 	)
 
+	connType := codersdk.ConnectionType(dblog.ConnectionLog.Type)
 	switch dblog.ConnectionLog.Type {
 	case database.ConnectionTypeWorkspaceApp,
 		database.ConnectionTypePortForwarding,
@@ -142,10 +143,8 @@ func convertConnectionLog(dblog database.GetConnectionLogsOffsetRow) codersdk.Co
 			SlugOrPort: dblog.ConnectionLog.SlugOrPort.String,
 			StatusCode: dblog.ConnectionLog.Code.Int32,
 		}
-	case database.ConnectionTypeSsh,
-		database.ConnectionTypeReconnectingPty,
-		database.ConnectionTypeJetbrains,
-		database.ConnectionTypeVscode:
+	// Every other type is agent-reported and can name any app.
+	default:
 		sshInfo = &codersdk.ConnectionLogSSHInfo{
 			ConnectionID:     dblog.ConnectionLog.ConnectionID.UUID,
 			DisconnectReason: dblog.ConnectionLog.DisconnectReason.String,
@@ -172,7 +171,8 @@ func convertConnectionLog(dblog database.GetConnectionLogsOffsetRow) codersdk.Co
 		WorkspaceID:            dblog.ConnectionLog.WorkspaceID,
 		WorkspaceName:          dblog.ConnectionLog.WorkspaceName,
 		AgentName:              dblog.ConnectionLog.AgentName,
-		Type:                   codersdk.ConnectionType(dblog.ConnectionLog.Type),
+		Type:                   string(connType),
+		TypeDisplayName:        connType.DisplayName(),
 		IP:                     ip,
 		WebInfo:                webInfo,
 		SSHInfo:                sshInfo,

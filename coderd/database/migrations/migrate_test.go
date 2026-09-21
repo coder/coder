@@ -4034,3 +4034,73 @@ func testMigration000583ChatModelOverrideOrgScope(t *testing.T, db *sql.DB) {
 	_, err = db.ExecContext(ctx, string(upSQL))
 	require.NoError(t, err)
 }
+
+// TestMigration000598ConnectionLogsTypeTextDown checks the fold back into
+// the families the enum holds.
+func TestMigration000598ConnectionLogsTypeTextDown(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.SkipNow()
+	}
+
+	sqlDB := testSQLDB(t)
+	require.NoError(t, migrations.Up(sqlDB))
+	db := database.New(sqlDB)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	org := dbgen.Organization(t, db, database.Organization{})
+	owner := dbgen.User(t, db, database.User{})
+	tpl := dbgen.Template(t, db, database.Template{
+		OrganizationID: org.ID,
+		CreatedBy:      owner.ID,
+	})
+	ws := dbgen.Workspace(t, db, database.WorkspaceTable{
+		OrganizationID: org.ID,
+		OwnerID:        owner.ID,
+		TemplateID:     tpl.ID,
+	})
+
+	folds := map[string]string{
+		"cursor":           "vscode",
+		"vscode_insiders":  "vscode",
+		"zed":              "ssh",
+		"sftp":             "ssh",
+		"a_new_ide":        "ssh",
+		"vscode":           "vscode",
+		"ssh":              "ssh",
+		"jetbrains":        "jetbrains",
+		"reconnecting_pty": "reconnecting_pty",
+		"workspace_app":    "workspace_app",
+		"port_forwarding":  "port_forwarding",
+		"tunnel":           "tunnel",
+	}
+
+	ids := make(map[string]uuid.UUID, len(folds))
+	for connType := range folds {
+		log := dbgen.ConnectionLog(t, db, database.UpsertConnectionLogParams{
+			OrganizationID:   org.ID,
+			WorkspaceOwnerID: ws.OwnerID,
+			WorkspaceID:      ws.ID,
+			WorkspaceName:    ws.Name,
+			AgentName:        "agent",
+			Type:             database.ConnectionType(connType),
+			ConnectionStatus: database.ConnectionStatusConnected,
+			ConnectionID:     uuid.NullUUID{UUID: uuid.New(), Valid: true},
+		})
+		ids[connType] = log.ID
+	}
+
+	downSQL, err := os.ReadFile("000598_connection_logs_type_text.down.sql")
+	require.NoError(t, err)
+	_, err = sqlDB.ExecContext(ctx, string(downSQL))
+	require.NoError(t, err)
+
+	for connType, want := range folds {
+		var got string
+		err := sqlDB.QueryRowContext(ctx,
+			`SELECT type::text FROM connection_logs WHERE id = $1`, ids[connType],
+		).Scan(&got)
+		require.NoError(t, err)
+		require.Equal(t, want, got, "type %q", connType)
+	}
+}

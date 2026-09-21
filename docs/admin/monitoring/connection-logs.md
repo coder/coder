@@ -56,6 +56,8 @@ You can filter connection logs by the following parameters:
 - `workspace_owner` - The username of the owner of the workspace being connected
     to.
 - `type` - The type of the connection, such as SSH, VS Code, or workspace app.
+    Filtering by an IDE family also returns its forks, so `type:vscode`
+    includes Cursor and Windsurf sessions.
     For more connection types, refer to the
     [CoderSDK documentation](https://pkg.go.dev/github.com/coder/coder/v2/codersdk#ConnectionType).
 - `username`: The name of the user who initiated the connection.

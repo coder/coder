@@ -40,6 +40,9 @@ sql:
           - column: "api_keys.allow_list"
             go_type:
               type: "AllowList"
+          - column: "connection_logs.type"
+            go_type:
+              type: "ConnectionType"
           - db_type: "agent_id_name_pair"
             go_type:
               type: "AgentIDNamePair"
