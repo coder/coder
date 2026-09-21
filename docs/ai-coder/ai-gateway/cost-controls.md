@@ -315,7 +315,7 @@ Visibility follows the viewer's role:
 | Owners, User Admins, and organization administrators | Spend and budgets for every group and every member                   |
 | Readers of an organization's group members           | Organization totals and per-user spend on the **User spend** page    |
 
-- The **User spend** page under **Admin settings** > **AI** > **Spend** shows total and per-user AI Gateway spend for the selected organization and reporting period.
+- The **User spend** page under **Admin settings** > **AI** shows total and per-user AI Gateway spend for the selected organization and reporting period.
   You can open it if you can read the organization's group members, as Owners, Auditors, Template Admins, User Admins, and their organization-scoped equivalents can.
   If you can also view AI sessions, you can filter it by provider, model, and client.
 - The **Groups** page compares each group's spend with the combined limits of

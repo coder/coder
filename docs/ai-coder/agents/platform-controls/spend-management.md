@@ -55,7 +55,7 @@ Both appear only when the deployment has the AI Gateway entitlement.
 
 Spend is shown where it is actionable:
 
-- **Admin settings** > **AI** > **Spend** > **User spend**: total and per-user AI Gateway spend for the selected organization and reporting period.
+- **Admin settings** > **AI** > **User spend**: total and per-user AI Gateway spend for the selected organization and reporting period.
   If you can also view AI sessions, you can filter it by provider, model, and client.
 - **Agents page and user menu**: the signed-in user's spend against their budget, as described previously.
 - **Group settings**: each member's spend against the group's budget, for admins who can manage the group.
