@@ -785,6 +785,14 @@ type partialMessageConversionState struct {
 	// modelStreamedAssistant distinguishes streamed content from tool
 	// attachment parts, which must not carry model runtime.
 	modelStreamedAssistant bool
+	// streamedRun accumulates the text of the open text or reasoning run
+	// at assistantParts[streamedRunIndex]. Appending to a builder keeps a
+	// turn of N deltas linear; concatenating onto the part copied the
+	// whole prefix per delta. The run closes when any other part is
+	// appended or the message is flushed.
+	streamedRun      strings.Builder
+	streamedRunIndex int
+	streamedRunOpen  bool
 }
 
 func (s *partialMessageConversionState) consume(buffered messagepartbuffer.Part) error {
@@ -822,7 +830,7 @@ func (s *partialMessageConversionState) consumeAssistantPart(buffered messagepar
 		if s.appendStreamedDelta(part) {
 			return
 		}
-		s.assistantParts = append(s.assistantParts, part)
+		s.appendAssistantPart(part)
 		return
 	}
 	if part.ToolCallID == "" {
@@ -881,14 +889,14 @@ func (s *partialMessageConversionState) appendStreamedDelta(part codersdk.ChatMe
 	if part.Type != codersdk.ChatMessagePartTypeText && part.Type != codersdk.ChatMessagePartTypeReasoning {
 		return false
 	}
-	if len(s.assistantParts) == 0 {
+	if !s.streamedRunOpen {
 		return false
 	}
-	prev := &s.assistantParts[len(s.assistantParts)-1]
+	prev := &s.assistantParts[s.streamedRunIndex]
 	if prev.Type != part.Type {
 		return false
 	}
-	prev.Text += part.Text
+	_, _ = s.streamedRun.WriteString(part.Text)
 	if len(part.ProviderMetadata) > 0 {
 		prev.ProviderMetadata = part.ProviderMetadata
 	}
@@ -899,6 +907,31 @@ func (s *partialMessageConversionState) appendStreamedDelta(part codersdk.ChatMe
 		prev.CreatedAt = part.CreatedAt
 	}
 	return true
+}
+
+// appendAssistantPart adds a part that did not merge into the open run.
+// A text or reasoning part opens a new run so later deltas of the same
+// type accumulate onto it.
+func (s *partialMessageConversionState) appendAssistantPart(part codersdk.ChatMessagePart) {
+	s.closeStreamedRun()
+	s.assistantParts = append(s.assistantParts, part)
+	if part.Type != codersdk.ChatMessagePartTypeText && part.Type != codersdk.ChatMessagePartTypeReasoning {
+		return
+	}
+	s.streamedRunIndex = len(s.assistantParts) - 1
+	s.streamedRunOpen = true
+	s.streamedRun.Reset()
+	_, _ = s.streamedRun.WriteString(part.Text)
+}
+
+// closeStreamedRun writes the accumulated text back onto the run's part.
+func (s *partialMessageConversionState) closeStreamedRun() {
+	if !s.streamedRunOpen {
+		return
+	}
+	s.assistantParts[s.streamedRunIndex].Text = s.streamedRun.String()
+	s.streamedRun.Reset()
+	s.streamedRunOpen = false
 }
 
 func (s *partialMessageConversionState) consumeToolPart(buffered messagepartbuffer.Part) error {
@@ -970,6 +1003,7 @@ func (s *partialMessageConversionState) toolCall(id string) *partialToolCall {
 	call = &partialToolCall{index: len(s.assistantParts), valid: true}
 	s.toolCalls[id] = call
 	s.toolCallOrder = append(s.toolCallOrder, id)
+	s.closeStreamedRun()
 	s.assistantParts = append(s.assistantParts, codersdk.ChatMessagePart{})
 	return call
 }
@@ -1010,6 +1044,7 @@ func (s *partialMessageConversionState) finalizeToolCallPlaceholders() error {
 }
 
 func (s *partialMessageConversionState) flushAssistant() error {
+	s.closeStreamedRun()
 	if len(s.assistantParts) == 0 {
 		return nil
 	}

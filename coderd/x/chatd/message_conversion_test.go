@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"strconv"
 	"sync"
 	"testing"
 	"time"
@@ -914,6 +915,38 @@ func TestBufferedPartsToPartialMessages_CoalescesStreamedTextDeltas(t *testing.T
 		"tool-call:",
 		"text:after the call",
 	}, summary, "adjacent deltas of the same type must be persisted as one part")
+}
+
+// BenchmarkBufferedPartsToPartialMessages_StreamedTextDeltas persists one
+// interrupted turn delivered as N small text deltas. Allocations must grow
+// linearly with N; a measured interrupted turn had 3,987 deltas.
+func BenchmarkBufferedPartsToPartialMessages_StreamedTextDeltas(b *testing.B) {
+	for _, n := range []int{1000, 4000} {
+		b.Run(strconv.Itoa(n), func(b *testing.B) {
+			parts := make([]messagepartbuffer.Part, n)
+			for i := range parts {
+				parts[i] = messagepartbuffer.Part{
+					Seq:         int64(i + 1),
+					Role:        codersdk.ChatMessageRoleAssistant,
+					MessagePart: codersdk.ChatMessageText("1234567"),
+				}
+			}
+			input := bufferedPartsToPartialMessagesInput{
+				parts:          parts,
+				modelConfigID:  uuid.New(),
+				contentVersion: chatprompt.CurrentContentVersion,
+				logger:         slog.Make(),
+				interruptedAt:  time.Date(2026, 3, 4, 5, 6, 7, 0, time.UTC),
+			}
+			b.ReportAllocs()
+			b.ResetTimer()
+			for range b.N {
+				if _, err := bufferedPartsToPartialMessages(input); err != nil {
+					b.Fatal(err)
+				}
+			}
+		})
+	}
 }
 
 func TestBufferedPartsToPartialMessages_AttachesAttemptRuntime(t *testing.T) {
