@@ -913,10 +913,28 @@ type StartProcessRequest struct {
 	Background bool              `json:"background,omitempty"`
 }
 
-// StartProcessResponse is returned when a process is started.
+// StartProcessResponse is returned when a process is started. When a
+// workspace hook denied the command, Started is false, ID is empty,
+// and Hooks carries the denying decision.
 type StartProcessResponse struct {
-	ID      string `json:"id"`
-	Started bool   `json:"started"`
+	ID      string         `json:"id"`
+	Started bool           `json:"started"`
+	Hooks   []HookDecision `json:"hooks,omitempty"`
+}
+
+// HookDecision records one workspace hook run for a tool call.
+// PROTOTYPE (CODAGT-1083): shape is not final.
+type HookDecision struct {
+	Hook          string          `json:"hook"`
+	Event         string          `json:"event"`
+	Decision      string          `json:"decision"`
+	Reason        string          `json:"reason,omitempty"`
+	ModelContext  string          `json:"model_context,omitempty"`
+	UserMessage   string          `json:"user_message,omitempty"`
+	InputOverride json.RawMessage `json:"input_override,omitempty"`
+	DurationMs    int64           `json:"duration_ms"`
+	// Error carries the failure detail when a hook failed closed.
+	Error string `json:"error,omitempty"`
 }
 
 // ListProcessesResponse contains information about tracked

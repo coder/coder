@@ -35,6 +35,19 @@ type API struct {
 	logger    slog.Logger
 	manager   *manager
 	pathStore *agentgit.PathStore
+	// preToolHook, when set, runs workspace hooks before a command
+	// starts and returns the decisions. PROTOTYPE (CODAGT-1083).
+	preToolHook PreToolHookFunc
+}
+
+// PreToolHookFunc runs pre_tool_use hooks for a tool call and returns
+// one decision per hook that ran.
+type PreToolHookFunc func(ctx context.Context, chatID uuid.UUID, toolName string, toolInput any) []workspacesdk.HookDecision
+
+// SetPreToolHook installs the workspace hook runner. Passing nil
+// disables hooks.
+func (api *API) SetPreToolHook(fn PreToolHookFunc) {
+	api.preToolHook = fn
 }
 
 // NewAPI creates a new process API handler.
@@ -83,8 +96,28 @@ func (api *API) handleStartProcess(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	var chatID string
+	var chatUUID uuid.UUID
 	if chatContext, ok := agentchat.FromContext(ctx); ok {
 		chatID = chatContext.ID.String()
+		chatUUID = chatContext.ID
+	}
+
+	var decisions []workspacesdk.HookDecision
+	if api.preToolHook != nil {
+		decisions = api.preToolHook(ctx, chatUUID, "execute", map[string]any{
+			"command":    req.Command,
+			"workdir":    req.WorkDir,
+			"background": req.Background,
+		})
+		for _, d := range decisions {
+			if d.Decision == "deny" {
+				httpapi.Write(ctx, rw, http.StatusOK, workspacesdk.StartProcessResponse{
+					Started: false,
+					Hooks:   decisions,
+				})
+				return
+			}
+		}
 	}
 
 	proc, err := api.manager.start(req, chatID)
@@ -116,6 +149,7 @@ func (api *API) handleStartProcess(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, workspacesdk.StartProcessResponse{
 		ID:      proc.id,
 		Started: true,
+		Hooks:   decisions,
 	})
 }
 
