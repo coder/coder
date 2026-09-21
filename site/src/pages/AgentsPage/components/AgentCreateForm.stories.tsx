@@ -10,6 +10,7 @@ import {
 	spyOn,
 	userEvent,
 	waitFor,
+	waitForElementToBeRemoved,
 	within,
 } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
@@ -1753,22 +1754,15 @@ export const RevokedSelectionDoesNotResurrect: Story = {
 		await userEvent.click(
 			await screen.findByRole("option", { name: /My Organization 2/ }),
 		);
-		await canvas.findByRole("button", {
+		const revokedPicker = await canvas.findByRole("button", {
 			name: "Organization: My Organization 2",
 		});
 
 		revocablePermissions[MockOrganization2.id] = false;
-		await revocableQueryClient?.invalidateQueries();
-		// invalidateQueries resolves when the refetch lands, before React renders
-		// it. Wait for the picker to unmount (one permitted org hides it) so the
+		void revocableQueryClient?.invalidateQueries();
+		// One permitted org hides the picker. Wait for it to unmount so the
 		// re-permit cannot arrive before the revoked selection is cleared.
-		await waitFor(() =>
-			expect(
-				canvas.queryByRole("button", {
-					name: "Organization: My Organization 2",
-				}),
-			).not.toBeInTheDocument(),
-		);
+		await waitForElementToBeRemoved(revokedPicker);
 
 		revocablePermissions[MockOrganization2.id] = true;
 		await revocableQueryClient?.invalidateQueries();
