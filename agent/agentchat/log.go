@@ -17,6 +17,9 @@ type Context struct {
 	ID          uuid.UUID
 	AncestorIDs []uuid.UUID
 	ToolCallID  uuid.UUID // from Coder-Tool-Call-Id; uuid.Nil if absent or malformed
+	// ModelToolCallID is the model provider's tool call ID, from
+	// Coder-Model-Tool-Call-Id; empty if absent. PROTOTYPE (CODAGT-1083).
+	ModelToolCallID string
 }
 
 // FromContext returns the chat identity stored on the context.

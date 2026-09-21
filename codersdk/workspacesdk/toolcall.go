@@ -51,7 +51,7 @@ func (r CancelToolCallResponse) EditFilesResult() (FileEditResponse, error) {
 }
 
 // WriteFileResult decodes a saved write response as WriteFile does.
-func (r CancelToolCallResponse) WriteFileResult() error {
+func (r CancelToolCallResponse) WriteFileResult() (WriteFileResponse, error) {
 	return readWriteFileResponse(r.httpResponse()) //nolint:bodyclose // In-memory body.
 }
 

@@ -93,8 +93,9 @@ type ExecuteResult struct {
 	Backgrounded        bool                            `json:"backgrounded,omitempty"`
 	Canceled            bool                            `json:"canceled,omitempty"` // an interrupt canceled the command while it ran
 	// Hooks lists the workspace hooks that ran for this call and their
-	// decisions. PROTOTYPE (CODAGT-1083).
-	Hooks []workspacesdk.HookDecision `json:"hooks,omitempty"`
+	// decisions. It is not serialized: a decision's model_context must not
+	// reach the model as tool output. PROTOTYPE (CODAGT-1083).
+	Hooks []workspacesdk.HookDecision `json:"-"`
 }
 
 // ExecuteRequest describes a command to run in the workspace.
@@ -155,9 +156,6 @@ func Execute(ctx context.Context, conn workspacesdk.AgentConn, req ExecuteReques
 		if err != nil {
 			return StartErrorResult("start background process", err), nil
 		}
-		if hookDenied(resp.Hooks) {
-			return hookDeniedResult(resp.Hooks), nil
-		}
 		return ExecuteResult{
 			Success:             true,
 			BackgroundProcessID: resp.ID,
@@ -198,9 +196,6 @@ func Execute(ctx context.Context, conn workspacesdk.AgentConn, req ExecuteReques
 	if err != nil {
 		return StartErrorResult("start process", err), nil
 	}
-	if hookDenied(resp.Hooks) {
-		return hookDeniedResult(resp.Hooks), nil
-	}
 
 	result := waitForProcess(cmdCtx, ctx, conn, resp.ID, timeout, req.Names)
 	result.WallDurationMs = time.Since(start).Milliseconds()
@@ -212,8 +207,12 @@ func Execute(ctx context.Context, conn workspacesdk.AgentConn, req ExecuteReques
 }
 
 // StartErrorResult reports a failed process start, adding remediation
-// guidance when the workspace has no POSIX shell.
+// guidance when the workspace has no POSIX shell. A workspace hook
+// denial is reported as the policy decision it is.
 func StartErrorResult(action string, err error) ExecuteResult {
+	if denied := hookDenial(err, "command"); denied != nil {
+		return ExecuteResult{Success: false, Error: denied.Message, Hooks: denied.Hooks}
+	}
 	msg := fmt.Sprintf("%s: %v", action, err)
 	if strings.Contains(msg, shNotFoundFragment) {
 		msg += "\n\n" + shNotFoundGuidance

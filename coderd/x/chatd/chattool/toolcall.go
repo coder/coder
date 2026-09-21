@@ -61,12 +61,12 @@ func CancelToolCall(ctx context.Context, conn workspacesdk.AgentConn, id uuid.UU
 		if !canceled.Received {
 			return fantasy.NewTextErrorResponse(canceledBeforeRunMessage), nil
 		}
-		return editFilesResponse(canceled.EditFilesResult()), nil
+		return editFilesResponse(workspacetools.EditFilesResultFrom(canceled.EditFilesResult())), nil
 	case WriteFileToolName:
 		if !canceled.Received {
 			return fantasy.NewTextErrorResponse(canceledBeforeRunMessage), nil
 		}
-		return writeFileResponse(canceled.WriteFileResult()), nil
+		return writeFileResponse(workspacetools.WriteFileResultFrom(canceled.WriteFileResult())), nil
 	case ExecuteToolName:
 		if canceled.Received {
 			if _, err := canceled.StartProcessResult(); err != nil {

@@ -4868,9 +4868,9 @@ func TestAgent_ToolCall(t *testing.T) {
 			name: "WriteFile",
 			fs:   agentFS,
 			act: func(ctx context.Context, path string) (any, error) {
-				return nil, conn.WriteFile(ctx, path, strings.NewReader("run"))
+				return conn.WriteFile(ctx, path, strings.NewReader("run"))
 			},
-			saved: func(r workspacesdk.CancelToolCallResponse) (any, error) { return nil, r.WriteFileResult() },
+			saved: func(r workspacesdk.CancelToolCallResponse) (any, error) { return r.WriteFileResult() },
 		},
 		{
 			name: "EditFiles",
