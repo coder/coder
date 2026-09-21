@@ -392,6 +392,10 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 			Negate:       true,
 			ResourceType: ResourceChat.Type,
 			Action:       policy.ActionShare,
+		}, Permission{
+			Negate:       true,
+			ResourceType: ResourceChatProject.Type,
+			Action:       policy.ActionShare,
 		})
 	}
 
@@ -1212,7 +1216,7 @@ func OrgMemberPermissions(org OrgSettings) OrgRolePermissions {
 			policy.ActionShare,
 			policy.ActionUpdate,
 		},
-		ResourceChatProject.Type: {policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
+		ResourceChatProject.Type: {policy.ActionRead, policy.ActionUpdate, policy.ActionDelete, policy.ActionShare},
 	})
 
 	if org.ShareableWorkspaceOwners != ShareableWorkspaceOwnersEveryone {

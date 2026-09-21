@@ -172,7 +172,14 @@ func (w ConnectionLog) RBACObject() rbac.Object {
 }
 
 func (p ChatProject) RBACObject() rbac.Object {
-	return rbac.ResourceChatProject.WithID(p.ID).InOrg(p.OrganizationID).WithOwner(p.CreatedBy.String())
+	obj := rbac.ResourceChatProject.WithID(p.ID).InOrg(p.OrganizationID).WithOwner(p.CreatedBy.String())
+	// Project sharing follows the chat sharing kill switch.
+	if rbac.ChatACLDisabled() {
+		return obj
+	}
+	return obj.
+		WithACLUserList(p.UserACL.RBACACL()).
+		WithGroupACL(p.GroupACL.RBACACL())
 }
 
 func (c Chat) RBACObject() rbac.Object {

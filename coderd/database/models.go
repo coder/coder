@@ -535,6 +535,7 @@ const (
 	ApiKeyScopeChatProjectRead                     APIKeyScope = "chat_project:read"
 	ApiKeyScopeChatProjectUpdate                   APIKeyScope = "chat_project:update"
 	ApiKeyScopeChatProjectDelete                   APIKeyScope = "chat_project:delete"
+	ApiKeyScopeChatProjectShare                    APIKeyScope = "chat_project:share"
 )
 
 func (e *APIKeyScope) Scan(src interface{}) error {
@@ -821,7 +822,8 @@ func (e APIKeyScope) Valid() bool {
 		ApiKeyScopeChatProjectCreate,
 		ApiKeyScopeChatProjectRead,
 		ApiKeyScopeChatProjectUpdate,
-		ApiKeyScopeChatProjectDelete:
+		ApiKeyScopeChatProjectDelete,
+		ApiKeyScopeChatProjectShare:
 		return true
 	}
 	return false
@@ -1077,6 +1079,7 @@ func AllAPIKeyScopeValues() []APIKeyScope {
 		ApiKeyScopeChatProjectRead,
 		ApiKeyScopeChatProjectUpdate,
 		ApiKeyScopeChatProjectDelete,
+		ApiKeyScopeChatProjectShare,
 	}
 }
 
@@ -5271,6 +5274,10 @@ type ChatProject struct {
 	Description    string    `db:"description" json:"description"`
 	CreatedAt      time.Time `db:"created_at" json:"created_at"`
 	UpdatedAt      time.Time `db:"updated_at" json:"updated_at"`
+	// Per-user permissions granted on the project, keyed by user ID. Same shape as chats.user_acl.
+	UserACL ChatACL `db:"user_acl" json:"user_acl"`
+	// Per-group permissions granted on the project, keyed by group ID. Same shape as chats.group_acl.
+	GroupACL ChatACL `db:"group_acl" json:"group_acl"`
 }
 
 type ChatQueuedMessage struct {

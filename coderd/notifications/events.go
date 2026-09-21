@@ -58,6 +58,7 @@ var (
 var (
 	TemplateChatAutoArchiveDigest = uuid.MustParse("764031be-4863-4220-867b-6ce1a1b7a5f5")
 	TemplateChatShared            = uuid.MustParse("b789bd75-d7c6-4cab-9757-1147ab184903")
+	TemplateChatProjectShared     = uuid.MustParse("3f1c6d8a-5b2e-4f7a-9c0d-7e8b2a4c6d1f")
 )
 
 // AI cost control related events.
