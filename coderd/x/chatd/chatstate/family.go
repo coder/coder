@@ -74,7 +74,7 @@ func SetFamilyArchived(
 			}
 			return xerrors.Errorf("lock root chat for archive: %w", err)
 		}
-		if root.ParentChatID.Valid {
+		if root.Kind == database.ChatKindSubagent {
 			return ErrChatNotRoot
 		}
 		ids, err := tx.GetChatFamilyIDsByRootID(ctx, input.RootID)

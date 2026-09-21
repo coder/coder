@@ -194,8 +194,10 @@ func (m MCPServerConfig) RBACObject() rbac.Object {
 		WithACLUserList(m.UserACL.RBACACL())
 }
 
+// IsSubChat reports whether the chat is a subagent chat. Named children
+// in the chat tree also carry a parent but are not subagents.
 func (c Chat) IsSubChat() bool {
-	return c.RootChatID.Valid || c.ParentChatID.Valid
+	return c.Kind == ChatKindSubagent
 }
 
 func (r GetChatsRow) RBACObject() rbac.Object {

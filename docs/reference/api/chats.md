@@ -131,6 +131,7 @@ curl -X GET http://coder-server:8080/api/v2/chats \
     ],
     "has_unread": true,
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "kind": "root",
     "labels": {
       "property1": "string",
       "property2": "string"
@@ -187,7 +188,7 @@ Status Code **200**
 | `» agent_id`              | string(uuid)                                                                       | false    |              |                                                                                                                                                                                                                                                                            |
 | `» archived`              | boolean                                                                            | false    |              |                                                                                                                                                                                                                                                                            |
 | `» build_id`              | string(uuid)                                                                       | false    |              |                                                                                                                                                                                                                                                                            |
-| `» children`              | [codersdk.Chat](schemas.md#codersdkchat)                                           | false    |              | Children holds child (subagent) chats nested under this root chat. Always initialized to an empty slice so the JSON field is present as []. Child chats cannot create their own subagents, so nesting depth is capped at 1 and this slice is always empty for child chats. |
+| `» children`              | [codersdk.Chat](schemas.md#codersdkchat)                                           | false    |              | Children holds subagent chats spawned by this chat. Always initialized to an empty slice so the JSON field is present as []. Subagents cannot spawn subagents, so the slice is always empty for subagent chats. Named tree children are not embedded here.                 |
 | `» client_type`           | [codersdk.ChatClientType](schemas.md#codersdkchatclienttype)                       | false    |              |                                                                                                                                                                                                                                                                            |
 | `» context`               | [codersdk.ChatContext](schemas.md#codersdkchatcontext)                             | false    |              | Context reports the chat's pinned workspace-context state and whether it has drifted from the agent's latest pushed snapshot. Nil when the chat has no pinned context yet.                                                                                                 |
 | `»» dirty`                | boolean                                                                            | false    |              | Dirty is true when the agent's latest snapshot hash differs from the chat's pinned hash.                                                                                                                                                                                   |
@@ -235,6 +236,7 @@ Status Code **200**
 | `»» size_bytes`           | integer                                                                            | false    |              |                                                                                                                                                                                                                                                                            |
 | `» has_unread`            | boolean                                                                            | false    |              | Has unread is true when assistant messages exist beyond the owner's read cursor, which updates on stream connect and disconnect.                                                                                                                                           |
 | `» id`                    | string(uuid)                                                                       | false    |              |                                                                                                                                                                                                                                                                            |
+| `» kind`                  | [codersdk.ChatKind](schemas.md#codersdkchatkind)                                   | false    |              | Kind distinguishes tree roots, user chats, and subagents. A set ParentChatID does not by itself identify a subagent.                                                                                                                                                       |
 | `» labels`                | object                                                                             | false    |              |                                                                                                                                                                                                                                                                            |
 | `»» [any property]`       | string                                                                             | false    |              |                                                                                                                                                                                                                                                                            |
 | `» last_error`            | [codersdk.ChatError](schemas.md#codersdkchaterror)                                 | false    |              |                                                                                                                                                                                                                                                                            |
@@ -256,7 +258,7 @@ Status Code **200**
 | `» pin_order`             | integer                                                                            | false    |              |                                                                                                                                                                                                                                                                            |
 | `» plan_mode`             | [codersdk.ChatPlanMode](schemas.md#codersdkchatplanmode)                           | false    |              |                                                                                                                                                                                                                                                                            |
 | `» queued_for_capacity`   | boolean                                                                            | false    |              | Queued for capacity reports that the chat is waiting for a concurrent agent slot. Single-chat reads derive it; list responses leave it false.                                                                                                                              |
-| `» root_chat_id`          | string(uuid)                                                                       | false    |              |                                                                                                                                                                                                                                                                            |
+| `» root_chat_id`          | string(uuid)                                                                       | false    |              | Root chat ID is the spawning chat of a subagent. For every other kind it is the chat's own ID; it is never the tree root.                                                                                                                                                  |
 | `» shared`                | boolean                                                                            | false    |              | Shared is true when this chat's root chat has explicit user or group ACL entries.                                                                                                                                                                                          |
 | `» status`                | [codersdk.ChatStatus](schemas.md#codersdkchatstatus)                               | false    |              |                                                                                                                                                                                                                                                                            |
 | `» summary`               | string                                                                             | false    |              | Summary is the persisted whole-chat summary, generated in the background. It is nil until the first summary has been produced.                                                                                                                                             |
@@ -267,12 +269,12 @@ Status Code **200**
 
 #### Enumerated Values
 
-| Property      | Value(s)                                                                                                                                                                                                                                                          |
-|---------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `client_type` | `api`, `ui`                                                                                                                                                                                                                                                       |
-| `kind`        | `auth`, `config`, `content_filter`, `generic`, `hook_denied`, `hook_dispatch_failed`, `instruction_file`, `mcp_config`, `mcp_server`, `missing_key`, `overloaded`, `provider_disabled`, `rate_limit`, `skill`, `stream_silence_timeout`, `timeout`, `usage_limit` |
-| `status`      | `error`, `excluded`, `interrupting`, `invalid`, `ok`, `oversize`, `requires_action`, `running`, `unreadable`, `waiting`                                                                                                                                           |
-| `plan_mode`   | `plan`                                                                                                                                                                                                                                                            |
+| Property      | Value(s)                                                                                                                                                                                                                                                                                      |
+|---------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `client_type` | `api`, `ui`                                                                                                                                                                                                                                                                                   |
+| `kind`        | `auth`, `chat`, `config`, `content_filter`, `generic`, `hook_denied`, `hook_dispatch_failed`, `instruction_file`, `mcp_config`, `mcp_server`, `missing_key`, `overloaded`, `provider_disabled`, `rate_limit`, `root`, `skill`, `stream_silence_timeout`, `subagent`, `timeout`, `usage_limit` |
+| `status`      | `error`, `excluded`, `interrupting`, `invalid`, `ok`, `oversize`, `requires_action`, `running`, `unreadable`, `waiting`                                                                                                                                                                       |
+| `plan_mode`   | `plan`                                                                                                                                                                                                                                                                                        |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -411,6 +413,7 @@ curl -X POST http://coder-server:8080/api/v2/chats \
       ],
       "has_unread": true,
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "kind": "root",
       "labels": {
         "property1": "string",
         "property2": "string"
@@ -507,6 +510,7 @@ curl -X POST http://coder-server:8080/api/v2/chats \
   ],
   "has_unread": true,
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "kind": "root",
   "labels": {
     "property1": "string",
     "property2": "string"
@@ -1357,6 +1361,7 @@ curl -X GET http://coder-server:8080/api/v2/chats/watch \
     ],
     "has_unread": true,
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "kind": "root",
     "labels": {
       "property1": "string",
       "property2": "string"
@@ -1505,6 +1510,7 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat} \
       ],
       "has_unread": true,
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "kind": "root",
       "labels": {
         "property1": "string",
         "property2": "string"
@@ -1601,6 +1607,7 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat} \
   ],
   "has_unread": true,
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "kind": "root",
   "labels": {
     "property1": "string",
     "property2": "string"
@@ -1784,6 +1791,7 @@ curl -X PUT http://coder-server:8080/api/v2/chats/{chat}/context \
       ],
       "has_unread": true,
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "kind": "root",
       "labels": {
         "property1": "string",
         "property2": "string"
@@ -1880,6 +1888,7 @@ curl -X PUT http://coder-server:8080/api/v2/chats/{chat}/context \
   ],
   "has_unread": true,
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "kind": "root",
   "labels": {
     "property1": "string",
     "property2": "string"
@@ -2111,6 +2120,7 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/interrupt \
       ],
       "has_unread": true,
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "kind": "root",
       "labels": {
         "property1": "string",
         "property2": "string"
@@ -2207,6 +2217,7 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/interrupt \
   ],
   "has_unread": true,
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "kind": "root",
   "labels": {
     "property1": "string",
     "property2": "string"
@@ -3132,6 +3143,7 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/reconcile-invalid \
       ],
       "has_unread": true,
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "kind": "root",
       "labels": {
         "property1": "string",
         "property2": "string"
@@ -3228,6 +3240,7 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/reconcile-invalid \
   ],
   "has_unread": true,
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "kind": "root",
   "labels": {
     "property1": "string",
     "property2": "string"

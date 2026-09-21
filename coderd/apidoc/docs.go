@@ -19626,7 +19626,7 @@ const docTemplate = `{
                     "format": "uuid"
                 },
                 "children": {
-                    "description": "Children holds child (subagent) chats nested under this root\nchat. Always initialized to an empty slice so the JSON field\nis present as []. Child chats cannot create their own\nsubagents, so nesting depth is capped at 1 and this slice is\nalways empty for child chats.",
+                    "description": "Children holds subagent chats spawned by this chat. Always\ninitialized to an empty slice so the JSON field is present as [].\nSubagents cannot spawn subagents, so the slice is always empty for\nsubagent chats. Named tree children are not embedded here.",
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/codersdk.Chat"
@@ -19663,6 +19663,19 @@ const docTemplate = `{
                 "id": {
                     "type": "string",
                     "format": "uuid"
+                },
+                "kind": {
+                    "description": "Kind distinguishes tree roots, user chats, and subagents. A set\nParentChatID does not by itself identify a subagent.",
+                    "enum": [
+                        "root",
+                        "chat",
+                        "subagent"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ChatKind"
+                        }
+                    ]
                 },
                 "labels": {
                     "type": "object",
@@ -19719,6 +19732,7 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "root_chat_id": {
+                    "description": "RootChatID is the spawning chat of a subagent. For every other\nkind it is the chat's own ID; it is never the tree root.",
                     "type": "string",
                     "format": "uuid"
                 },
@@ -20282,6 +20296,19 @@ const docTemplate = `{
                 "ChatInputPartTypeText",
                 "ChatInputPartTypeFile",
                 "ChatInputPartTypeFileReference"
+            ]
+        },
+        "codersdk.ChatKind": {
+            "type": "string",
+            "enum": [
+                "root",
+                "chat",
+                "subagent"
+            ],
+            "x-enum-varnames": [
+                "ChatKindRoot",
+                "ChatKindChat",
+                "ChatKindSubagent"
             ]
         },
         "codersdk.ChatMessage": {

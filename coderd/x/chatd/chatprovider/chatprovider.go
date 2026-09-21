@@ -642,17 +642,18 @@ const (
 )
 
 // CoderHeaders builds the set of Coder identity headers to attach
-// to outgoing LLM API requests for the given chat.
+// to outgoing LLM API requests for the given chat. Subagent chats are
+// attributed to their root_chat_id and identified by the subchat header.
 func CoderHeaders(chat database.Chat) map[string]string {
 	chatID := chat.ID
-	if chat.ParentChatID.Valid {
-		chatID = chat.ParentChatID.UUID
+	if chat.RootChatID.Valid {
+		chatID = chat.RootChatID.UUID
 	}
 	h := map[string]string{
 		HeaderCoderOwnerID: chat.OwnerID.String(),
 		HeaderCoderChatID:  chatID.String(),
 	}
-	if chat.ParentChatID.Valid {
+	if chat.Kind == database.ChatKindSubagent {
 		h[HeaderCoderSubchatID] = chat.ID.String()
 	}
 	if chat.WorkspaceID.Valid {

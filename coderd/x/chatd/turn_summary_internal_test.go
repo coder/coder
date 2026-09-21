@@ -156,6 +156,7 @@ func TestSuccessfulChildChatOutcomeStoresReportSummaryWithoutPush(t *testing.T) 
 	require.NoError(t, err)
 
 	parent, err := db.InsertChat(ctx, database.InsertChatParams{
+		Kind:              database.ChatKindChat,
 		OrganizationID:    org.ID,
 		Status:            database.ChatStatusWaiting,
 		ClientType:        database.ChatClientTypeUi,
@@ -166,6 +167,7 @@ func TestSuccessfulChildChatOutcomeStoresReportSummaryWithoutPush(t *testing.T) 
 	})
 	require.NoError(t, err)
 	child, err := db.InsertChat(ctx, database.InsertChatParams{
+		Kind:              database.ChatKindSubagent,
 		OrganizationID:    org.ID,
 		Status:            database.ChatStatusWaiting,
 		ClientType:        database.ChatClientTypeUi,

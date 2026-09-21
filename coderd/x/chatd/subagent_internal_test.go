@@ -382,6 +382,7 @@ func TestCreateChildSubagentChatDispatchesUserPromptSubmit(t *testing.T) {
 
 		chats, err := db.GetChildChatsByParentIDs(ctx, database.GetChildChatsByParentIDsParams{
 			ParentIds: []uuid.UUID{parent.ID},
+			Kinds:     []database.ChatKind{database.ChatKindSubagent},
 		})
 		require.NoError(t, err)
 		require.Empty(t, chats, "a denied spawn must not create a child chat")
@@ -415,6 +416,7 @@ func TestCreateChildSubagentChatDispatchesUserPromptSubmit(t *testing.T) {
 
 		chats, err := db.GetChildChatsByParentIDs(ctx, database.GetChildChatsByParentIDsParams{
 			ParentIds: []uuid.UUID{parent.ID},
+			Kinds:     []database.ChatKind{database.ChatKindSubagent},
 		})
 		require.NoError(t, err)
 		require.Empty(t, chats)
@@ -1829,6 +1831,7 @@ func TestSpawnAgent_ModelArgsRejections(t *testing.T) {
 
 			children, err := db.GetChildChatsByParentIDs(ctx, database.GetChildChatsByParentIDsParams{
 				ParentIds: []uuid.UUID{parentChat.ID},
+				Kinds:     []database.ChatKind{database.ChatKindSubagent},
 				Archived:  sql.NullBool{},
 			})
 			require.NoError(t, err)
@@ -1884,6 +1887,7 @@ func TestSpawnAgent_ComputerUseRejectsModelArgs(t *testing.T) {
 
 			children, err := db.GetChildChatsByParentIDs(ctx, database.GetChildChatsByParentIDsParams{
 				ParentIds: []uuid.UUID{parentChat.ID},
+				Kinds:     []database.ChatKind{database.ChatKindSubagent},
 				Archived:  sql.NullBool{},
 			})
 			require.NoError(t, err)

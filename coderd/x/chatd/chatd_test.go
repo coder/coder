@@ -678,6 +678,7 @@ func TestExploreSubagentIsReadOnly(t *testing.T) {
 	}
 	childRows, err := db.GetChildChatsByParentIDs(dbauthz.AsChatd(ctx), database.GetChildChatsByParentIDsParams{
 		ParentIds: rootIDs,
+		Kinds:     []database.ChatKind{database.ChatKindSubagent},
 	})
 	require.NoError(t, err)
 	var exploreChildren []database.Chat
@@ -1114,6 +1115,7 @@ func TestExploreChatSendMessageCannotMutateMCPSnapshot(t *testing.T) {
 	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 		childRows, err := db.GetChildChatsByParentIDs(dbauthz.AsChatd(ctx), database.GetChildChatsByParentIDsParams{
 			ParentIds: []uuid.UUID{rootChat.ID},
+			Kinds:     []database.ChatKind{database.ChatKindSubagent},
 		})
 		if err != nil {
 			return false
@@ -10537,6 +10539,7 @@ func TestComputerUseSubagentToolsAndModel(t *testing.T) {
 	//    the DB.
 	childRows, err := db.GetChildChatsByParentIDs(ctx, database.GetChildChatsByParentIDsParams{
 		ParentIds: []uuid.UUID{chat.ID},
+		Kinds:     []database.ChatKind{database.ChatKindSubagent},
 	})
 	require.NoError(t, err)
 	children := make([]database.Chat, 0, len(childRows))

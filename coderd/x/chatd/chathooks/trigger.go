@@ -54,6 +54,7 @@ func (t *Trigger) Enabled() bool {
 type Chat struct {
 	ID           uuid.UUID
 	OwnerID      uuid.UUID
+	Kind         database.ChatKind
 	WorkspaceID  uuid.NullUUID
 	ParentChatID uuid.NullUUID
 	RootChatID   uuid.NullUUID
@@ -64,6 +65,7 @@ func ChatFor(chat database.Chat, turnID *uuid.UUID) Chat {
 	return Chat{
 		ID:           chat.ID,
 		OwnerID:      chat.OwnerID,
+		Kind:         chat.Kind,
 		WorkspaceID:  chat.WorkspaceID,
 		ParentChatID: chat.ParentChatID,
 		RootChatID:   chat.RootChatID,
@@ -75,6 +77,7 @@ func (c Chat) ref() agenthooks.ChatRef {
 	ref := agenthooks.ChatRef{
 		ChatID:  c.ID,
 		OwnerID: c.OwnerID,
+		Kind:    string(c.Kind),
 		TurnID:  c.TurnID,
 	}
 	if c.WorkspaceID.Valid {

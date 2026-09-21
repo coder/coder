@@ -103,17 +103,36 @@ const (
 	ChatClientTypeAPI ChatClientType = "api"
 )
 
+// ChatKind classifies a chat row within the owner's chat tree.
+type ChatKind string
+
+const (
+	// ChatKindRoot is the per owner and organization tree root.
+	ChatKindRoot ChatKind = "root"
+	// ChatKindChat is a user chat. It may carry a parent_chat_id when it
+	// is a named child in the chat tree.
+	ChatKindChat ChatKind = "chat"
+	// ChatKindSubagent is a delegated agent chat spawned by a root or
+	// chat kind chat. Its root_chat_id is the spawning chat.
+	ChatKindSubagent ChatKind = "subagent"
+)
+
 // Chat represents a chat session with an AI agent.
 type Chat struct {
-	ID                  uuid.UUID    `json:"id" format:"uuid"`
-	OrganizationID      uuid.UUID    `json:"organization_id" format:"uuid"`
-	OwnerID             uuid.UUID    `json:"owner_id" format:"uuid"`
-	OwnerUsername       string       `json:"owner_username,omitempty"`
-	OwnerName           string       `json:"owner_name,omitempty"`
-	WorkspaceID         *uuid.UUID   `json:"workspace_id,omitempty" format:"uuid"`
-	BuildID             *uuid.UUID   `json:"build_id,omitempty" format:"uuid"`
-	AgentID             *uuid.UUID   `json:"agent_id,omitempty" format:"uuid"`
-	ParentChatID        *uuid.UUID   `json:"parent_chat_id,omitempty" format:"uuid"`
+	ID             uuid.UUID `json:"id" format:"uuid"`
+	OrganizationID uuid.UUID `json:"organization_id" format:"uuid"`
+	OwnerID        uuid.UUID `json:"owner_id" format:"uuid"`
+	OwnerUsername  string    `json:"owner_username,omitempty"`
+	OwnerName      string    `json:"owner_name,omitempty"`
+	// Kind distinguishes tree roots, user chats, and subagents. A set
+	// ParentChatID does not by itself identify a subagent.
+	Kind         ChatKind   `json:"kind" enums:"root,chat,subagent"`
+	WorkspaceID  *uuid.UUID `json:"workspace_id,omitempty" format:"uuid"`
+	BuildID      *uuid.UUID `json:"build_id,omitempty" format:"uuid"`
+	AgentID      *uuid.UUID `json:"agent_id,omitempty" format:"uuid"`
+	ParentChatID *uuid.UUID `json:"parent_chat_id,omitempty" format:"uuid"`
+	// RootChatID is the spawning chat of a subagent. For every other
+	// kind it is the chat's own ID; it is never the tree root.
 	RootChatID          *uuid.UUID   `json:"root_chat_id,omitempty" format:"uuid"`
 	LastModelConfigID   uuid.UUID    `json:"last_model_config_id" format:"uuid"`
 	LastReasoningEffort *string      `json:"last_reasoning_effort,omitempty"`
@@ -148,11 +167,10 @@ type Chat struct {
 	QueuedForCapacity bool           `json:"queued_for_capacity,omitempty"`
 	Warnings          []string       `json:"warnings,omitempty"`
 	ClientType        ChatClientType `json:"client_type"`
-	// Children holds child (subagent) chats nested under this root
-	// chat. Always initialized to an empty slice so the JSON field
-	// is present as []. Child chats cannot create their own
-	// subagents, so nesting depth is capped at 1 and this slice is
-	// always empty for child chats.
+	// Children holds subagent chats spawned by this chat. Always
+	// initialized to an empty slice so the JSON field is present as [].
+	// Subagents cannot spawn subagents, so the slice is always empty for
+	// subagent chats. Named tree children are not embedded here.
 	Children []Chat `json:"children"`
 }
 

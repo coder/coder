@@ -187,6 +187,7 @@ func TestStoreSubagentReportSummary(t *testing.T) {
 		chat := database.Chat{
 			ID:             uuid.New(),
 			OwnerID:        uuid.New(),
+			Kind:           database.ChatKindSubagent,
 			ParentChatID:   uuid.NullUUID{UUID: uuid.New(), Valid: true},
 			HistoryVersion: 3,
 		}
@@ -216,6 +217,7 @@ func TestStoreSubagentReportSummary(t *testing.T) {
 		chat := database.Chat{
 			ID:             uuid.New(),
 			OwnerID:        uuid.New(),
+			Kind:           database.ChatKindSubagent,
 			ParentChatID:   uuid.NullUUID{UUID: uuid.New(), Valid: true},
 			HistoryVersion: 3,
 		}
@@ -237,6 +239,7 @@ func TestStoreSubagentReportSummary(t *testing.T) {
 		chat := database.Chat{
 			ID:             uuid.New(),
 			OwnerID:        uuid.New(),
+			Kind:           database.ChatKindSubagent,
 			ParentChatID:   uuid.NullUUID{UUID: uuid.New(), Valid: true},
 			HistoryVersion: 3,
 		}
@@ -268,6 +271,7 @@ func TestStoreSubagentReportSummary(t *testing.T) {
 		chat := database.Chat{
 			ID:             uuid.New(),
 			OwnerID:        uuid.New(),
+			Kind:           database.ChatKindSubagent,
 			ParentChatID:   uuid.NullUUID{UUID: uuid.New(), Valid: true},
 			HistoryVersion: 3,
 		}

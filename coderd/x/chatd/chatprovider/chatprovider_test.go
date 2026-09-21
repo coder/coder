@@ -800,7 +800,9 @@ func TestCoderHeaders(t *testing.T) {
 		chat := database.Chat{
 			ID:           subchatID,
 			OwnerID:      ownerID,
+			Kind:         database.ChatKindSubagent,
 			ParentChatID: uuid.NullUUID{UUID: parentID, Valid: true},
+			RootChatID:   uuid.NullUUID{UUID: parentID, Valid: true},
 			WorkspaceID:  uuid.NullUUID{UUID: workspaceID, Valid: true},
 		}
 		h := chatprovider.CoderHeaders(chat)
@@ -818,7 +820,9 @@ func TestCoderHeaders(t *testing.T) {
 		chat := database.Chat{
 			ID:           subchatID,
 			OwnerID:      ownerID,
+			Kind:         database.ChatKindSubagent,
 			ParentChatID: uuid.NullUUID{UUID: parentID, Valid: true},
+			RootChatID:   uuid.NullUUID{UUID: parentID, Valid: true},
 		}
 		h := chatprovider.CoderHeaders(chat)
 		require.Equal(t, ownerID.String(), h[chatprovider.HeaderCoderOwnerID])
@@ -1241,7 +1245,9 @@ func TestModelFromConfig_ExtraHeaders(t *testing.T) {
 	chat := database.Chat{
 		ID:           subchatID,
 		OwnerID:      ownerID,
+		Kind:         database.ChatKindSubagent,
 		ParentChatID: uuid.NullUUID{UUID: parentID, Valid: true},
+		RootChatID:   uuid.NullUUID{UUID: parentID, Valid: true},
 		WorkspaceID:  uuid.NullUUID{UUID: workspaceID, Valid: true},
 	}
 	headers := chatprovider.CoderHeaders(chat)

@@ -185,6 +185,7 @@ const baseChatFields = {
 	owner_id: MockUserOwner.id,
 	owner_username: MockUserOwner.username,
 	owner_name: MockUserOwner.name,
+	kind: "chat" as const,
 	workspace_id: mockWorkspace.id,
 	last_model_config_id: MODEL_CONFIG_ID,
 	mcp_server_ids: [],

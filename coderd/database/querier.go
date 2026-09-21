@@ -61,9 +61,11 @@ type sqlcQuerier interface {
 	// Only unused template versions will be archived, which are any versions not
 	// referenced by the latest build of a workspace.
 	ArchiveUnusedTemplateVersions(ctx context.Context, arg ArchiveUnusedTemplateVersionsParams) ([]uuid.UUID, error)
-	// Archives inactive root chats (pinned and already-archived chats skipped),
-	// cascading to children via root_chat_id. Limits apply to roots, not total
-	// rows. The Go caller passes @archive_cutoff as UTC midnight so that all
+	// Unused: no production caller. The chat worker archives through
+	// GetAutoArchiveInactiveChatCandidates and chatstate.SetFamilyArchived.
+	// Archives inactive user chats (pinned and already-archived chats skipped),
+	// cascading to subagents via root_chat_id. Limits apply to candidates, not
+	// total rows. The Go caller passes @archive_cutoff as UTC midnight so that all
 	// chats sharing the same last-activity date are archived together.
 	// Used by dbpurge.
 	// created_at ASC flows through to dbpurge's digest truncation; see
@@ -208,9 +210,11 @@ type sqlcQuerier interface {
 	// older than the cutoff are also purged.
 	DeleteOldChatDebugRuns(ctx context.Context, arg DeleteOldChatDebugRunsParams) (int64, error)
 	// Deletes chats that have been archived for longer than the given
-	// threshold. Active (non-archived) chats are never deleted.
-	// All chat-scoped child tables are removed via ON DELETE CASCADE.
-	// Parent/root references on child chats are SET NULL.
+	// threshold together with their subagent chats, in one statement so the
+	// SET NULL foreign keys never leave a subagent without its parent. Active
+	// (non-archived) chats are never deleted; a chat with an unarchived
+	// subagent is skipped. All chat-scoped child tables are removed via
+	// ON DELETE CASCADE. The returned count includes the subagents.
 	DeleteOldChats(ctx context.Context, arg DeleteOldChatsParams) (int64, error)
 	DeleteOldConnectionLogs(ctx context.Context, arg DeleteOldConnectionLogsParams) (int64, error)
 	// Delete all notification messages which have not been updated for over a week.
@@ -423,9 +427,9 @@ type sqlcQuerier interface {
 	// (implied member roles, org default roles, groups);
 	// TestGetActiveUsersAuthorizationRolesParity enforces this.
 	GetAuthorizationUserRoles(ctx context.Context, userID uuid.UUID) (GetAuthorizationUserRolesRow, error)
-	// Returns read-only root chat candidates for state-machine-backed
-	// auto-archive. Activity is computed across the root family. The query
-	// limits roots, not total family members.
+	// Returns read-only user chat candidates for state-machine-backed
+	// auto-archive. Activity is computed across the chat and its subagents.
+	// The query limits candidates, not total family members.
 	GetAutoArchiveInactiveChatCandidates(ctx context.Context, arg GetAutoArchiveInactiveChatCandidatesParams) ([]GetAutoArchiveInactiveChatCandidatesRow, error)
 	GetBoundaryLogByID(ctx context.Context, id uuid.UUID) (BoundaryLog, error)
 	GetBoundarySessionByID(ctx context.Context, id uuid.UUID) (GetBoundarySessionByIDRow, error)

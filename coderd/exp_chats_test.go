@@ -5896,6 +5896,7 @@ func TestGetChatUserPrompts(t *testing.T) {
 		modelConfig := createChatModel(t, client)
 
 		chat, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
+			Kind:              database.ChatKindChat,
 			OrganizationID:    user.OrganizationID,
 			Status:            database.ChatStatusWaiting,
 			ClientType:        database.ChatClientTypeUi,
@@ -6035,6 +6036,7 @@ func TestGetChatUserPrompts(t *testing.T) {
 		modelConfig := createChatModel(t, client)
 
 		chat, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
+			Kind:              database.ChatKindChat,
 			OrganizationID:    user.OrganizationID,
 			Status:            database.ChatStatusWaiting,
 			ClientType:        database.ChatClientTypeUi,
@@ -6069,6 +6071,7 @@ func TestGetChatUserPrompts(t *testing.T) {
 		modelConfig := createChatModel(t, client)
 
 		chat, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
+			Kind:              database.ChatKindChat,
 			OrganizationID:    user.OrganizationID,
 			Status:            database.ChatStatusWaiting,
 			ClientType:        database.ChatClientTypeUi,
@@ -6094,6 +6097,7 @@ func TestGetChatUserPrompts(t *testing.T) {
 		modelConfig := createChatModel(t, client)
 
 		chat, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
+			Kind:              database.ChatKindChat,
 			OrganizationID:    firstUser.OrganizationID,
 			Status:            database.ChatStatusWaiting,
 			ClientType:        database.ChatClientTypeUi,
@@ -6134,6 +6138,7 @@ func TestGetChatUserPrompts(t *testing.T) {
 		modelConfig := createChatModel(t, client)
 
 		emptyChat, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
+			Kind:              database.ChatKindChat,
 			OrganizationID:    user.OrganizationID,
 			Status:            database.ChatStatusWaiting,
 			ClientType:        database.ChatClientTypeUi,
@@ -6149,6 +6154,7 @@ func TestGetChatUserPrompts(t *testing.T) {
 		require.Empty(t, resp.Prompts)
 
 		assistantOnlyChat, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
+			Kind:              database.ChatKindChat,
 			OrganizationID:    user.OrganizationID,
 			Status:            database.ChatStatusWaiting,
 			ClientType:        database.ChatClientTypeUi,
@@ -11577,6 +11583,7 @@ func TestPromoteChatQueuedMessage(t *testing.T) {
 		require.NoError(t, err)
 
 		chat, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
+			Kind:              database.ChatKindChat,
 			OrganizationID:    user.OrganizationID,
 			Status:            database.ChatStatusWaiting,
 			ClientType:        database.ChatClientTypeUi,
@@ -11693,6 +11700,7 @@ func TestPromoteChatQueuedMessage(t *testing.T) {
 		modelConfig := createChatModel(t, client)
 
 		chat, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
+			Kind:              database.ChatKindChat,
 			OrganizationID:    user.OrganizationID,
 			Status:            database.ChatStatusWaiting,
 			ClientType:        database.ChatClientTypeUi,

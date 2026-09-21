@@ -251,7 +251,7 @@ func resolveSubagentDefinition(
 }
 
 func validateSubagentSpawnParent(currentChat database.Chat) error {
-	if currentChat.ParentChatID.Valid {
+	if currentChat.Kind == database.ChatKindSubagent {
 		return xerrors.New("delegated chats cannot create child subagents")
 	}
 	if isExploreSubagentMode(currentChat.Mode) {

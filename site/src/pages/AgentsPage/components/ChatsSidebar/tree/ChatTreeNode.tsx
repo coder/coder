@@ -33,7 +33,6 @@ import {
 import { asNonEmptyString } from "../../ChatConversation/blockUtils";
 import { normalizeLocationSearch } from "../locationSearch";
 import { useChatTree } from "./ChatTreeContext";
-import { getParentChatID } from "./chatTree";
 import { getModelDisplayName } from "./modelDisplayName";
 import { getChatDisplayConfig } from "./statusConfig";
 
@@ -73,7 +72,7 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, depth = 0 }) => {
 		visibleChatIDs.has(childID),
 	);
 	const hasChildren = childIDs.length > 0;
-	const isDelegated = Boolean(getParentChatID(chat));
+	const isDelegated = chat.kind === "subagent";
 	const isDelegatedExecuting = isDelegated && chat.status === "running";
 	const modelName = getModelDisplayName(
 		chat.last_model_config_id,

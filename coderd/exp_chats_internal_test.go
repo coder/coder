@@ -117,6 +117,7 @@ func TestGetChatCostQueriesRootChat(t *testing.T) {
 		ID:             uuid.New(),
 		OrganizationID: uuid.New(),
 		OwnerID:        uuid.New(),
+		Kind:           database.ChatKindSubagent,
 		ParentChatID:   uuid.NullUUID{UUID: rootID, Valid: true},
 		RootChatID:     uuid.NullUUID{UUID: rootID, Valid: true},
 	}
@@ -150,21 +151,22 @@ func TestGetChatCostQueriesRootChat(t *testing.T) {
 	require.Equal(t, int64(1), cost.UnpricedRequestCount)
 }
 
-func TestGetChatCostFallsBackToParentChat(t *testing.T) {
+func TestGetChatCostNamedChildQueriesOwnID(t *testing.T) {
 	t.Parallel()
 
 	dbm := dbmock.NewMockStore(gomock.NewController(t))
 	parentID := uuid.New()
-	// chats.parent_chat_id and chats.root_chat_id are both ON DELETE SET NULL,
-	// so deleting a root leaves descendants with only a parent.
+	// A named tree child carries parent_chat_id without root_chat_id and
+	// is its own cost root.
 	child := database.Chat{
 		ID:           uuid.New(),
 		OwnerID:      uuid.New(),
+		Kind:         database.ChatKindChat,
 		ParentChatID: uuid.NullUUID{UUID: parentID, Valid: true},
 	}
 
 	dbm.EXPECT().GetChatByID(gomock.Any(), child.ID).Return(child, nil)
-	dbm.EXPECT().GetAIBridgeChatCost(gomock.Any(), parentID).Return(
+	dbm.EXPECT().GetAIBridgeChatCost(gomock.Any(), child.ID).Return(
 		database.GetAIBridgeChatCostRow{TotalCostMicros: 125, RequestCount: 1},
 		nil,
 	)

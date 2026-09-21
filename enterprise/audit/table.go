@@ -456,8 +456,9 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"heartbeat_at":                ActionIgnore, // Internal.
 		"created_at":                  ActionIgnore, // Never changes.
 		"updated_at":                  ActionIgnore, // Bumped on every mutation.
-		"parent_chat_id":              ActionIgnore, // Immutable after creation.
+		"parent_chat_id":              ActionTrack,
 		"root_chat_id":                ActionIgnore, // Immutable after creation.
+		"kind":                        ActionTrack,
 		"last_model_config_id":        ActionIgnore, // Churns every message.
 		"last_reasoning_effort":       ActionIgnore, // Churns every message.
 		"archived":                    ActionTrack,

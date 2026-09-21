@@ -36,7 +36,7 @@ var (
 	ErrChatNotFound = xerrors.New("chat not found")
 
 	// ErrChatNotRoot is returned by family-archive helpers when the
-	// supplied chat is not a root chat (its parent_chat_id is set).
+	// supplied chat is a subagent chat.
 	ErrChatNotRoot = xerrors.New("chat is not a root chat")
 
 	// ErrEditedMessageNotUser is returned by [Tx.EditMessage] when the

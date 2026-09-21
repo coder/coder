@@ -226,7 +226,7 @@ func (f *workerTestFixture) archived(t *testing.T, chatID uuid.UUID) bool {
 
 func (f *workerTestFixture) linkChild(t *testing.T, rootID uuid.UUID, childID uuid.UUID) {
 	t.Helper()
-	_, err := f.sqlDB.ExecContext(testutil.Context(t, testutil.WaitShort), "UPDATE chats SET parent_chat_id = $1, root_chat_id = $1 WHERE id = $2", rootID, childID)
+	_, err := f.sqlDB.ExecContext(testutil.Context(t, testutil.WaitShort), "UPDATE chats SET parent_chat_id = $1, root_chat_id = $1, kind = 'subagent' WHERE id = $2", rootID, childID)
 	require.NoError(t, err)
 }
 

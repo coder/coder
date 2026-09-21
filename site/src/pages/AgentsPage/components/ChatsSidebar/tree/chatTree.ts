@@ -8,7 +8,7 @@ export type ChatTree = {
 	readonly parentById: ReadonlyMap<string, string | undefined>;
 };
 
-export const getParentChatID = (chat: Chat): string | undefined => {
+const getParentChatID = (chat: Chat): string | undefined => {
 	return asNonEmptyString(chat.parent_chat_id);
 };
 
@@ -50,7 +50,8 @@ export const buildChatTree = (chats: readonly Chat[]): ChatTree => {
 	// but was not embedded, build the link. This handles stale
 	// cache entries from before the backend change.
 	for (const chat of chats) {
-		const parentID = getParentChatID(chat);
+		const parentID =
+			chat.kind === "subagent" ? getParentChatID(chat) : undefined;
 		if (
 			parentID &&
 			parentID !== chat.id &&

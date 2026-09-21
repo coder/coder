@@ -33,7 +33,7 @@ export const ChatSummaryPanel: FC<ChatSummaryPanelProps> = ({
 		content = (
 			<ChatSummary
 				summary={chatData.summary}
-				isSubagent={Boolean(chatData.parent_chat_id)}
+				isSubagent={chatData.kind === "subagent"}
 				createdAt={chatData.created_at}
 				updatedAt={chatData.updated_at}
 				costMicros={costQuery.data?.total_cost_micros}

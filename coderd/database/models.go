@@ -1480,6 +1480,67 @@ func AllChatClientTypeValues() []ChatClientType {
 	}
 }
 
+type ChatKind string
+
+const (
+	ChatKindRoot     ChatKind = "root"
+	ChatKindChat     ChatKind = "chat"
+	ChatKindSubagent ChatKind = "subagent"
+)
+
+func (e *ChatKind) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = ChatKind(s)
+	case string:
+		*e = ChatKind(s)
+	default:
+		return fmt.Errorf("unsupported scan type for ChatKind: %T", src)
+	}
+	return nil
+}
+
+type NullChatKind struct {
+	ChatKind ChatKind `json:"chat_kind"`
+	Valid    bool     `json:"valid"` // Valid is true if ChatKind is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullChatKind) Scan(value interface{}) error {
+	if value == nil {
+		ns.ChatKind, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.ChatKind.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullChatKind) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.ChatKind), nil
+}
+
+func (e ChatKind) Valid() bool {
+	switch e {
+	case ChatKindRoot,
+		ChatKindChat,
+		ChatKindSubagent:
+		return true
+	}
+	return false
+}
+
+func AllChatKindValues() []ChatKind {
+	return []ChatKind{
+		ChatKindRoot,
+		ChatKindChat,
+		ChatKindSubagent,
+	}
+}
+
 type ChatMessageRole string
 
 const (
@@ -5037,6 +5098,7 @@ type Chat struct {
 	UpdatedAt                time.Time               `db:"updated_at" json:"updated_at"`
 	ParentChatID             uuid.NullUUID           `db:"parent_chat_id" json:"parent_chat_id"`
 	RootChatID               uuid.NullUUID           `db:"root_chat_id" json:"root_chat_id"`
+	Kind                     ChatKind                `db:"kind" json:"kind"`
 	LastModelConfigID        uuid.UUID               `db:"last_model_config_id" json:"last_model_config_id"`
 	LastReasoningEffort      NullChatReasoningEffort `db:"last_reasoning_effort" json:"last_reasoning_effort"`
 	Archived                 bool                    `db:"archived" json:"archived"`
@@ -5310,6 +5372,7 @@ type ChatTable struct {
 	CompactionRequestedAt sql.NullTime   `db:"compaction_requested_at" json:"compaction_requested_at"`
 	Summary               sql.NullString `db:"summary" json:"summary"`
 	SummaryGeneratedAt    sql.NullTime   `db:"summary_generated_at" json:"summary_generated_at"`
+	Kind                  ChatKind       `db:"kind" json:"kind"`
 }
 
 type ChatUsageLimitConfig struct {

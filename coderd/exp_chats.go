@@ -516,6 +516,7 @@ func (api *API) listChats(rw http.ResponseWriter, r *http.Request) {
 	if len(rootIDs) > 0 {
 		childRows, err = api.Database.GetChildChatsByParentIDs(ctx, database.GetChildChatsByParentIDsParams{
 			ParentIds: rootIDs,
+			Kinds:     []database.ChatKind{database.ChatKindSubagent},
 			Archived:  searchParams.Archived,
 		})
 		if err != nil {
@@ -1500,10 +1501,10 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 
 	aReq.New = chat
 
-	if chat.ParentChatID.Valid {
+	if chat.Kind != database.ChatKindChat {
 		// Should not be possible. If we get here, something is very wrong. Bail.
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Developer error: ParentChatID got set somehow in api.postChats. This should never happen.",
+			Message: "Developer error: api.postChats created a chat whose kind is not 'chat'. This should never happen.",
 		})
 		return
 	}
@@ -1594,12 +1595,13 @@ func (api *API) getChat(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// For root chats, embed children so callers get a complete
-	// tree in a single response.
-	if !chat.ParentChatID.Valid {
+	// For non-subagent chats, embed subagent children so callers get
+	// the chat and its delegated agents in a single response.
+	if chat.Kind != database.ChatKindSubagent {
 		// Embed children matching the parent's archive state.
 		childRows, err := api.Database.GetChildChatsByParentIDs(ctx, database.GetChildChatsByParentIDsParams{
 			ParentIds: []uuid.UUID{chat.ID},
+			Kinds:     []database.ChatKind{database.ChatKindSubagent},
 			Archived:  sql.NullBool{Bool: chat.Archived, Valid: true},
 		})
 		if err != nil {
@@ -1760,18 +1762,11 @@ func (api *API) getChatCost(rw http.ResponseWriter, r *http.Request) {
 	chat := httpmw.ChatParam(r)
 
 	// AI Gateway attributes a subagent's requests to the chat that spawned
-	// it, so cost is only meaningful for a whole chat tree. Resolve the root
-	// chat and report the tree total, including for subagent chats. Fall back
-	// to the parent when root_chat_id is NULL, matching the
-	// COALESCE(root_chat_id, parent_chat_id) resolution the chat queries use:
-	// both columns are ON DELETE SET NULL, so deleting a root leaves
-	// descendants with only a parent.
+	// it, so cost is only meaningful for a chat together with its subagents.
+	// Subagent chats carry root_chat_id; every other chat is its own root.
 	rootChatID := chat.ID
-	switch {
-	case chat.RootChatID.Valid:
+	if chat.RootChatID.Valid {
 		rootChatID = chat.RootChatID.UUID
-	case chat.ParentChatID.Valid:
-		rootChatID = chat.ParentChatID.UUID
 	}
 
 	row, err := api.Database.GetAIBridgeChatCost(ctx, rootChatID)
@@ -2382,7 +2377,7 @@ func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
 		// This check precedes the no-op check so any child attempt
 		// surfaces the root-only error regardless of the chat's
 		// current archived value.
-		if chat.ParentChatID.Valid {
+		if chat.Kind == database.ChatKindSubagent {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: "Chat archive state can only be changed on the root chat.",
 			})
@@ -2455,7 +2450,7 @@ func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		if pinOrder > 0 && chat.ParentChatID.Valid {
+		if pinOrder > 0 && chat.Kind == database.ChatKindSubagent {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: "Cannot pin a child chat.",
 			})

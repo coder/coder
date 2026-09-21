@@ -20,13 +20,15 @@ import (
 
 // CreateChatInput configures [CreateChat].
 type CreateChatInput struct {
-	OrganizationID    uuid.UUID
-	OwnerID           uuid.UUID
-	WorkspaceID       uuid.NullUUID
-	BuildID           uuid.NullUUID
-	AgentID           uuid.NullUUID
-	ParentChatID      uuid.NullUUID
-	RootChatID        uuid.NullUUID
+	OrganizationID uuid.UUID
+	OwnerID        uuid.UUID
+	WorkspaceID    uuid.NullUUID
+	BuildID        uuid.NullUUID
+	AgentID        uuid.NullUUID
+	ParentChatID   uuid.NullUUID
+	RootChatID     uuid.NullUUID
+	// Kind defaults to subagent when RootChatID is set and to chat otherwise.
+	Kind              database.ChatKind
 	LastModelConfigID uuid.UUID
 	Title             string
 	Mode              database.NullChatMode
@@ -38,6 +40,17 @@ type CreateChatInput struct {
 	InitialMessages   []Message
 	// FileIDs are linked atomically with the initial messages.
 	FileIDs []uuid.UUID
+}
+
+// kind returns the explicit Kind or derives it from RootChatID.
+func (input CreateChatInput) kind() database.ChatKind {
+	if input.Kind != "" {
+		return input.Kind
+	}
+	if input.RootChatID.Valid {
+		return database.ChatKindSubagent
+	}
+	return database.ChatKindChat
 }
 
 // CreateChatResult is the value returned by [CreateChat]. It carries
@@ -114,6 +127,7 @@ func insertChat(
 			AgentID:           input.AgentID,
 			ParentChatID:      input.ParentChatID,
 			RootChatID:        input.RootChatID,
+			Kind:              input.kind(),
 			LastModelConfigID: input.LastModelConfigID,
 			Title:             input.Title,
 			Mode:              input.Mode,

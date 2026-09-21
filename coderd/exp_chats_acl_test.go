@@ -279,6 +279,7 @@ func TestChatACLSubChatInheritance(t *testing.T) {
 		OrganizationID:    firstUser.OrganizationID,
 		OwnerID:           firstUser.UserID,
 		ParentChatID:      uuid.NullUUID{UUID: root.ID, Valid: true},
+		RootChatID:        uuid.NullUUID{UUID: root.ID, Valid: true},
 		LastModelConfigID: modelConfig.ID,
 		Title:             "child chat",
 	})

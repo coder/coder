@@ -1069,11 +1069,12 @@ func (p *Server) subagentTools(
 				}
 
 				parent := currentChat()
-				if parent.ParentChatID.Valid {
+				if parent.Kind == database.ChatKindSubagent {
 					return fantasy.NewTextErrorResponse("list_agents is only available on root chats"), nil
 				}
 				rows, err := p.db.GetChildChatsByParentIDs(ctx, database.GetChildChatsByParentIDsParams{
 					ParentIds: []uuid.UUID{parent.ID},
+					Kinds:     []database.ChatKind{database.ChatKindSubagent},
 					// Exclude archived children by default. Do not pass an
 					// invalid NullBool, which would include archived rows.
 					Archived: sql.NullBool{Bool: false, Valid: true},
@@ -1219,7 +1220,7 @@ func (p *Server) createChildSubagentChatWithOptions(
 	title string,
 	opts childSubagentChatOptions,
 ) (database.Chat, error) {
-	if parent.ParentChatID.Valid {
+	if parent.Kind == database.ChatKindSubagent {
 		return database.Chat{}, xerrors.New("delegated chats cannot create child subagents")
 	}
 
@@ -1280,6 +1281,7 @@ func (p *Server) createChildSubagentChatWithOptions(
 		promptResult, err = p.hooks.Trigger(ctx, chathooks.Chat{
 			ID:           childChatID,
 			OwnerID:      parent.OwnerID,
+			Kind:         database.ChatKindSubagent,
 			WorkspaceID:  parent.WorkspaceID,
 			ParentChatID: uuid.NullUUID{UUID: parent.ID, Valid: true},
 			RootChatID:   uuid.NullUUID{UUID: rootChatID, Valid: true},
@@ -1357,6 +1359,7 @@ func (p *Server) createChildSubagentChatWithOptions(
 		AgentID:           parent.AgentID,
 		ParentChatID:      uuid.NullUUID{UUID: parent.ID, Valid: true},
 		RootChatID:        uuid.NullUUID{UUID: rootChatID, Valid: true},
+		Kind:              database.ChatKindSubagent,
 		LastModelConfigID: modelConfigID,
 		Title:             title,
 		Mode:              opts.chatMode,
@@ -1686,8 +1689,10 @@ func latestSubagentAssistantMessage(
 	return "", nil
 }
 
-// isSubagentDescendant reports whether targetChatID is a descendant
-// of ancestorChatID by walking up the parent chain from the target.
+// isSubagentDescendant reports whether targetChatID is a subagent
+// descendant of ancestorChatID by walking up the parent chain from the
+// target. The walk stops at the first non-subagent row, so named tree
+// children never count as descendants.
 // This is O(depth) DB queries instead of O(nodes) BFS.
 func isSubagentDescendant(
 	ctx context.Context,
@@ -1714,8 +1719,8 @@ func isSubagentDescendant(
 			}
 			return false, xerrors.Errorf("get chat %s: %w", currentID, err)
 		}
-		if !chat.ParentChatID.Valid {
-			return false, nil // reached root without finding ancestor
+		if chat.Kind != database.ChatKindSubagent || !chat.ParentChatID.Valid {
+			return false, nil // reached a non-subagent chat without finding ancestor
 		}
 		if chat.ParentChatID.UUID == ancestorChatID {
 			return true, nil
