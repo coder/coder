@@ -59,14 +59,14 @@ const SecurityPage: FC = () => {
 	);
 };
 
-interface SecurityPageViewProps {
+type SecurityPageViewProps = {
 	security: {
 		form: ComponentProps<typeof SecurityForm>;
 	};
 	oidc?: {
 		section: ComponentProps<typeof SingleSignOnSection>;
 	};
-}
+};
 
 export const SecurityPageView: FC<SecurityPageViewProps> = ({
 	security,

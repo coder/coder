@@ -2,9 +2,9 @@ import type { FC } from "react";
 import type { AuditDiff } from "#/api/typesGenerated";
 import { formatAuditDiffValue } from "./auditUtils";
 
-interface AuditLogDiffProps {
+type AuditLogDiffProps = {
 	diff: AuditDiff;
-}
+};
 
 export const AuditLogDiff: FC<AuditLogDiffProps> = ({ diff }) => {
 	const diffEntries = Object.entries(diff);

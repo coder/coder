@@ -124,6 +124,7 @@
 		"prefer-literal-enum-member": "error",
 		"prefer-node-protocol": "error",
 		"prefer-const": ["error", { "destructuring": "all" }],
+		"consistent-type-definitions": ["error", "type"],
 
 		// --- style (coder-enabled as error) ---
 		"prefer-as-const": "error",
@@ -275,6 +276,12 @@
 				"**/DiffViewer/parseDiff.test.ts"
 			],
 			"rules": { "no-restricted-imports": "off" }
+		},
+		{
+			// Ambient declarations (global and module augmentation) must stay
+			// interfaces; type aliases cannot merge with the upstream declaration.
+			"files": ["src/@types/*.d.ts"],
+			"rules": { "consistent-type-definitions": "off" }
 		},
 		{
 			"files": ["src/components/**/*.ts", "src/components/**/*.tsx"],

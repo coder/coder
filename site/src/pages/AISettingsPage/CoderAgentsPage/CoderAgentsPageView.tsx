@@ -21,7 +21,7 @@ import {
 } from "./components/AdminPersonalModelOverridesSettings";
 import type { MutationCallbacks } from "./components/SubagentModelOverrideSettings";
 
-export interface CoderAgentsPageViewProps {
+export type CoderAgentsPageViewProps = {
 	organization?: TypesGen.Organization;
 	organizations: readonly TypesGen.Organization[];
 	onSelectOrganization: (organization: TypesGen.Organization) => void;
@@ -61,7 +61,7 @@ export interface CoderAgentsPageViewProps {
 	>;
 	isSavingComputerUseProvider: boolean;
 	computerUseProviderSaveError: Error | null;
-}
+};
 
 export const CoderAgentsPageView: FC<CoderAgentsPageViewProps> = ({
 	organization,

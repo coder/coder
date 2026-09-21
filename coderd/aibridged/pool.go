@@ -19,6 +19,7 @@ import (
 	"github.com/coder/coder/v2/aibridge"
 	"github.com/coder/coder/v2/aibridge/keypool"
 	"github.com/coder/coder/v2/aibridge/mcp"
+	"github.com/coder/coder/v2/aibridge/provider"
 	"github.com/coder/coder/v2/aibridge/recorder"
 	"github.com/coder/coder/v2/aibridge/tracing"
 	"github.com/coder/quartz"
@@ -173,7 +174,7 @@ func (p *CachedBridgePool) loadProviders() []aibridge.Provider {
 
 // KeyPools returns the non-nil key pools of the current providers.
 func (p *CachedBridgePool) KeyPools() []*keypool.Pool {
-	return aibridge.CollectKeyPools(p.loadProviders())
+	return provider.CollectKeyPools(p.loadProviders())
 }
 
 // Acquire retrieves or creates a [*aibridge.RequestBridge] instance per given key.

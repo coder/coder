@@ -35,8 +35,8 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/wsbuilder"
 	"github.com/coder/coder/v2/coderd/wspubsub"
-	"github.com/coder/coder/v2/coderd/wsrelated"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/wsrelated"
 )
 
 // @Summary Get workspace build
@@ -201,6 +201,7 @@ func (api *API) workspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	apiBuilds, err := api.convertWorkspaceBuilds(
+		wsrelated.AllLatestBuild(),
 		workspaceBuilds,
 		[]database.Workspace{workspace},
 		data.jobs,
@@ -1391,6 +1392,7 @@ func newWorkspaceBuildIndex(
 }
 
 func (api *API) convertWorkspaceBuilds(
+	cfg wsrelated.LatestBuild,
 	workspaceBuilds []database.WorkspaceBuild,
 	workspaces []database.Workspace,
 	jobs []database.GetProvisionerJobsByIDsWithQueuePositionRow,
@@ -1432,7 +1434,7 @@ func (api *API) convertWorkspaceBuilds(
 	apiBuilds := []codersdk.WorkspaceBuild{}
 	for _, build := range workspaceBuilds {
 		job, exists := jobByID[build.JobID]
-		if !exists {
+		if !exists && cfg.Job != nil {
 			return nil, xerrors.New("build job not found")
 		}
 		workspace, exists := workspaceByID[build.WorkspaceID]
@@ -1440,7 +1442,7 @@ func (api *API) convertWorkspaceBuilds(
 			return nil, xerrors.New("workspace not found")
 		}
 		templateVersion, exists := templateVersionByID[build.TemplateVersionID]
-		if !exists {
+		if !exists && cfg.TemplateVersion {
 			return nil, xerrors.New("template version not found")
 		}
 
@@ -1468,9 +1470,9 @@ func (api *API) convertWorkspaceBuild(
 	index *workspaceBuildIndex,
 	templateVersion database.TemplateVersion,
 ) (codersdk.WorkspaceBuild, error) {
-	matchedProvisioners := db2sdk.MatchedProvisioners(index.daemonsByJobID[job.ProvisionerJob.ID], job.ProvisionerJob.CreatedAt, provisionerdserver.StaleInterval)
+	matchedProvisioners := db2sdk.MatchedProvisioners(index.daemonsByJobID[build.JobID], job.ProvisionerJob.CreatedAt, provisionerdserver.StaleInterval)
 
-	resources := index.resourcesByJobID[job.ProvisionerJob.ID]
+	resources := index.resourcesByJobID[build.JobID]
 	apiResources := make([]codersdk.WorkspaceResource, 0)
 	resourceAgentsMinOrder := map[uuid.UUID]int32{} // map[resource.ID]minOrder
 	for _, resource := range resources {

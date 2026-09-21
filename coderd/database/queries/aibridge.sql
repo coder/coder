@@ -766,6 +766,8 @@ WHERE
 	-- @authorize_filter
 GROUP BY
 	client
+ORDER BY
+	client ASC
 LIMIT COALESCE(NULLIF(@limit_::integer, 0), 100)
 OFFSET @offset_
 ;

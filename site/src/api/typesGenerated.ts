@@ -2940,6 +2940,7 @@ export interface ChatModelOpenAIProviderOptions {
 	readonly metadata?: Record<string, unknown>;
 	readonly prompt_cache_key?: string;
 	readonly safety_identifier?: string;
+	readonly reasoning_mode?: string;
 	readonly service_tier?: string;
 	readonly structured_outputs?: boolean;
 	readonly strict_json_schema?: boolean;
@@ -5869,10 +5870,6 @@ export const LicenseAgentRuntimeUsageUnavailableErrorText =
 
 // From codersdk/licenses.go
 export const LicenseExpiryClaim = "license_expires";
-
-// From codersdk/licenses.go
-export const LicenseManagedAgentLimitExceededWarningText =
-	"You have built more workspaces with managed agents than your license allows.";
 
 // From codersdk/licenses.go
 export const LicenseTelemetryRequiredErrorText =
@@ -11740,6 +11737,12 @@ export interface WorkspaceHealth {
 // From codersdk/workspaces.go
 export interface WorkspaceOptions {
 	readonly include_deleted?: boolean;
+	/**
+	 * IncludeRelated selects which related data to load alongside the workspace.
+	 * A nil value loads everything; a non-nil value is encoded into the
+	 * include_related query parameter and loads only the selected data.
+	 */
+	readonly include_related?: string;
 }
 
 // From codersdk/workspaceproxy.go
