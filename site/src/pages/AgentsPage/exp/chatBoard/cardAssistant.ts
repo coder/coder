@@ -27,7 +27,7 @@ Reading live data, from your workspace (CODER_URL and CODER_SESSION_TOKEN are se
 - Follow-up to a chat, only when the user asks: curl -sH "$H" -H 'Content-Type: application/json' -X POST "$CODER_URL/api/v2/chats/<id>/messages" -d '{"content":[{"type":"text","text":"..."}]}'.
 - GitHub (PR state, checks, reviews): the gh CLI, for example gh pr view <url> --json state,reviewDecision,statusCheckRollup.
 
-A workspace is required for all of this. If none is attached, create it before your first verification, without asking: list_templates, then create_workspace named "${WORKSPACE_NAME}" from the "coder" template in the "Falkenstein" region.
+A workspace is required for all of this. If none is attached, create it before your first verification, without asking: list_templates, then create_workspace named "${WORKSPACE_NAME}" from the recommended template with its default parameters.
 
 After reading the snapshot, acknowledge in one sentence and wait for the user's question. Do not start work on your own.`;
 
