@@ -51,10 +51,12 @@ var defaultRotatedFeatures = []database.CryptoKeyFeature{
 	database.CryptoKeyFeatureOIDCConvert,
 	database.CryptoKeyFeatureChatFilesToken,
 	database.CryptoKeyFeatureTailnetResume,
+	// NATS pubsub is on by default, so its cluster mTLS CA is always rotated.
+	database.CryptoKeyFeatureNATSCA,
 }
 
 // DefaultRotatedFeatures returns the crypto key features the rotator manages by
-// default. It excludes experiment-gated features such as the NATS CA.
+// default.
 func DefaultRotatedFeatures() []database.CryptoKeyFeature {
 	return slices.Clone(defaultRotatedFeatures)
 }
@@ -74,12 +76,6 @@ type RotatorOption func(*rotator)
 func WithClock(clock quartz.Clock) RotatorOption {
 	return func(r *rotator) {
 		r.clock = clock
-	}
-}
-
-func WithKeyDuration(keyDuration time.Duration) RotatorOption {
-	return func(r *rotator) {
-		r.keyDuration = keyDuration
 	}
 }
 

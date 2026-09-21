@@ -1,9 +1,9 @@
 import { cn } from "cn";
-import type { FC, HTMLAttributes } from "react";
+import type { ComponentProps, FC } from "react";
 
 type Pronunciation = "shorthand" | "acronym" | "initialism";
 
-type AbbrProps = HTMLAttributes<HTMLElement> & {
+type AbbrProps = ComponentProps<"abbr"> & {
 	children: string;
 	title: string;
 	pronunciation?: Pronunciation;

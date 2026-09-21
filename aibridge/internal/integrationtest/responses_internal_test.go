@@ -2,6 +2,7 @@ package integrationtest
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -518,6 +519,95 @@ func TestResponsesBackgroundModeForbidden(t *testing.T) {
 			requireResponsesError(t, http.StatusNotImplemented, "background requests are currently not supported by AI Gateway", body)
 		})
 	}
+}
+
+// The default bridge test server carries an MCP proxy manager with no tools,
+// like a deployment where no user has injectable MCP tools. Events must still
+// reach the client while upstream is mid-stream instead of being buffered
+// until the response completes.
+func TestResponsesStreamingRelaysWithoutInjectedTools(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithTimeout(t.Context(), testutil.WaitLong)
+	t.Cleanup(cancel)
+
+	fix := fixtures.Parse(t, fixtures.OaiResponsesStreamingSimple)
+	events := bytes.SplitAfter(fix.Streaming(), []byte("\n\n"))
+	require.Greater(t, len(events), 2)
+	head := bytes.Join(events[:2], nil)
+	tail := bytes.Join(events[2:], nil)
+
+	release := make(chan struct{})
+	var releaseOnce sync.Once
+	releaseUpstream := func() { releaseOnce.Do(func() { close(release) }) }
+
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write(head)
+		w.(http.Flusher).Flush()
+		select {
+		case <-release:
+		case <-r.Context().Done():
+			return
+		}
+		_, _ = w.Write(tail)
+	}))
+	t.Cleanup(upstream.Close)
+	t.Cleanup(releaseUpstream)
+
+	bridgeServer := newBridgeTestServer(ctx, t, upstream.URL)
+
+	// Bound the wait with ctx: a buffered bridge never sends headers while
+	// upstream is held back.
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, bridgeServer.URL+pathOpenAIResponses, bytes.NewReader(fix.Request()))
+	require.NoError(t, err)
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err, "bridge did not relay headers while upstream was mid-stream")
+	defer resp.Body.Close()
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+	require.Equal(t, "text/event-stream", resp.Header.Get("Content-Type"))
+
+	got := make([]byte, len(head))
+	_, err = io.ReadFull(resp.Body, got)
+	require.NoError(t, err)
+	require.Equal(t, string(head), string(got))
+
+	releaseUpstream()
+	rest, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	require.Equal(t, string(fix.Streaming()), string(got)+string(rest))
+}
+
+// Upstream accepts the stream but drops the connection before a complete
+// event arrives, so nothing has been relayed when the body read fails. The
+// client must get an explicit error instead of an empty 200.
+func TestResponsesStreamingUpstreamReadFailure(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithTimeout(t.Context(), testutil.WaitLong)
+	t.Cleanup(cancel)
+
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.WriteHeader(http.StatusOK)
+		w.(http.Flusher).Flush()
+		panic(http.ErrAbortHandler)
+	}))
+	t.Cleanup(upstream.Close)
+
+	bridgeServer := newBridgeTestServer(ctx, t, upstream.URL)
+
+	resp, err := bridgeServer.makeRequest(t, http.MethodPost, pathOpenAIResponses, responsesRequestBytes(t, true))
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	require.Equal(t, http.StatusBadGateway, resp.StatusCode)
+	require.Equal(t, "application/json", resp.Header.Get("Content-Type"))
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	requireResponsesError(t, http.StatusBadGateway, "failed to read response body", body)
 }
 
 func TestResponsesParallelToolsOverwritten(t *testing.T) {

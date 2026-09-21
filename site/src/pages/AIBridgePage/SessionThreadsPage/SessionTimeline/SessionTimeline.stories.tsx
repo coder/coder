@@ -48,7 +48,9 @@ const mockThreadLong: AIBridgeThread = {
 	},
 	agentic_actions: [
 		{
+			interception_id: "interception-2",
 			model: "claude-opus-4-6",
+			attribution: { workspace_id: "workspace-2" },
 			token_usage: {
 				input_tokens: 2800,
 				output_tokens: 1100,
@@ -69,6 +71,21 @@ const mockThreadLong: AIBridgeThread = {
 					metadata: {},
 					created_at: "2026-03-09T10:00:15.000Z",
 				},
+			],
+		},
+		{
+			interception_id: "interception-3",
+			model: "claude-opus-4-6",
+			attribution: { workspace_id: "workspace-3" },
+			token_usage: {
+				input_tokens: 2800,
+				output_tokens: 1100,
+				cache_read_input_tokens: 1800,
+				cache_write_input_tokens: 500,
+				metadata: {},
+			},
+			thinking: [],
+			tool_calls: [
 				{
 					id: "tool-2b",
 					interception_id: "interception-3",
@@ -84,6 +101,20 @@ const mockThreadLong: AIBridgeThread = {
 					created_at: "2026-03-09T10:01:00.000Z",
 				},
 			],
+		},
+		{
+			interception_id: "interception-4",
+			model: "claude-opus-4-6",
+			attribution: {},
+			token_usage: {
+				input_tokens: 0,
+				output_tokens: 0,
+				cache_read_input_tokens: 0,
+				cache_write_input_tokens: 0,
+				metadata: {},
+			},
+			thinking: [],
+			tool_calls: [],
 		},
 	],
 };

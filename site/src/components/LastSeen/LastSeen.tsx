@@ -1,10 +1,9 @@
 import { cn } from "cn";
 import type dayjs from "dayjs";
-import type { FC, HTMLAttributes } from "react";
+import type { ComponentProps, FC } from "react";
 import { isAfter, subtractTime, timeFrom } from "#/utils/time";
 
-interface LastSeenProps
-	extends Omit<HTMLAttributes<HTMLSpanElement>, "children"> {
+interface LastSeenProps extends Omit<ComponentProps<"span">, "children"> {
 	at: dayjs.ConfigType;
 	// Injectable reference time so the component is deterministic in tests.
 	now?: dayjs.ConfigType;

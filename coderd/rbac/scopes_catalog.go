@@ -3,6 +3,8 @@ package rbac
 import (
 	"sort"
 	"strings"
+
+	"github.com/coder/coder/v2/coderd/util/slice"
 )
 
 // externalLowLevel is the curated set of low-level scope names exposed to users.
@@ -129,6 +131,27 @@ func CanonicalScopeName(name ScopeName) ScopeName {
 		return canonical
 	}
 	return name
+}
+
+// CanonicalScopeList rewrites a space-separated scope list into its canonical
+// spelling and drops duplicates, keeping first-seen order. Both app write paths
+// store the caller's spelling as given, so this is where a stored allowlist
+// gets one display form. Unknown names are kept: this shows what is
+// configured, not what is grantable.
+//
+// A list with no names is returned as given. An empty allowlist means
+// unrestricted, but a whitespace-only one is configured and grants nothing,
+// so collapsing it to "" would report the opposite of how it authorizes.
+func CanonicalScopeList(raw string) string {
+	names := strings.Fields(raw)
+	if len(names) == 0 {
+		return raw
+	}
+	canonical := make([]string, 0, len(names))
+	for _, name := range names {
+		canonical = append(canonical, string(CanonicalScopeName(ScopeName(name))))
+	}
+	return strings.Join(slice.Unique(canonical), " ")
 }
 
 // ExternalScopeNames returns a sorted list of all public scopes: the canonical
