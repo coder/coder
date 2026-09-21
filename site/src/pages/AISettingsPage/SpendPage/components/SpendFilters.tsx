@@ -1,7 +1,6 @@
 import { CalendarIcon } from "lucide-react";
 import type { FC } from "react";
 import { MaxAISpendPeriodDays, type Organization } from "#/api/typesGenerated";
-import { Button } from "#/components/Button/Button";
 import {
 	DateRangePicker,
 	type DateRangeValue,
@@ -91,10 +90,10 @@ export const SpendFilters: FC<SpendFiltersProps> = ({
 					size="lg"
 				/>
 			) : (
-				<Button variant="outline" size="lg" disabled>
-					<CalendarIcon className="size-4 text-content-secondary" />
+				<div className="flex h-10 items-center gap-2 rounded-md border border-solid border-border px-3 py-2 text-sm text-content-secondary">
+					<CalendarIcon className="size-4" />
 					Current budget period
-				</Button>
+				</div>
 			)}
 		</div>
 	);
