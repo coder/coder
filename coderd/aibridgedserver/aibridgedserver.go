@@ -17,6 +17,7 @@ import (
 	"google.golang.org/protobuf/types/known/structpb"
 
 	"cdr.dev/slog/v3"
+	"github.com/coder/coder/v2/aibridge/recorder"
 	"github.com/coder/coder/v2/coderd/aibridge/budget"
 	"github.com/coder/coder/v2/coderd/aibridged"
 	"github.com/coder/coder/v2/coderd/aibridged/proto"
@@ -58,11 +59,6 @@ var (
 	ErrWorkspaceAttribution = xerrors.New("invalid workspace attribution")
 
 	ErrNoExternalAuthLinkFound = xerrors.New("no external auth link found")
-)
-
-const (
-	InterceptionLogMarker = "interception log"
-	MetadataUserAgentKey  = "request_user_agent"
 )
 
 var _ aibridged.DRPCServer = &Server{}
@@ -215,10 +211,10 @@ func (s *Server) RecordInterception(ctx context.Context, in *proto.RecordInterce
 	metadata := metadataToMap(in.GetMetadata())
 
 	if in.UserAgent != "" {
-		if _, ok := metadata[MetadataUserAgentKey]; ok {
+		if _, ok := metadata[recorder.MetadataUserAgentKey]; ok {
 			s.logger.Warn(ctx, "interception metadata contains user agent key, will be overwritten")
 		}
-		metadata[MetadataUserAgentKey] = in.UserAgent
+		metadata[recorder.MetadataUserAgentKey] = in.UserAgent
 	}
 
 	// Look up the interception lineage using the correlating tool call ID.
@@ -247,7 +243,7 @@ func (s *Server) RecordInterception(ctx context.Context, in *proto.RecordInterce
 
 	if s.structuredLogging {
 		fields := []slog.Field{
-			slog.F("record_type", "interception_start"),
+			slog.F("record_type", recorder.RecordTypeInterceptionStart),
 			slog.F("interception_id", intcID.String()),
 			slog.F("initiator_id", initID.String()),
 			slog.F("api_key_id", in.ApiKeyId),
@@ -264,7 +260,7 @@ func (s *Server) RecordInterception(ctx context.Context, in *proto.RecordInterce
 		if workspaceID.Valid {
 			fields = append(fields, slog.F("workspace_id", workspaceID.UUID))
 		}
-		s.logger.Info(ctx, InterceptionLogMarker, fields...)
+		s.logger.Info(ctx, recorder.InterceptionLogMarker, fields...)
 	}
 
 	_, err = s.store.InsertAIBridgeInterception(ctx, database.InsertAIBridgeInterceptionParams{
@@ -307,8 +303,8 @@ func (s *Server) RecordInterceptionEnded(ctx context.Context, in *proto.RecordIn
 	}
 
 	if s.structuredLogging {
-		s.logger.Info(ctx, InterceptionLogMarker,
-			slog.F("record_type", "interception_end"),
+		s.logger.Info(ctx, recorder.InterceptionLogMarker,
+			slog.F("record_type", recorder.RecordTypeInterceptionEnd),
 			slog.F("interception_id", intcID.String()),
 			slog.F("ended_at", in.EndedAt.AsTime()),
 		)
@@ -348,8 +344,8 @@ func (s *Server) RecordTokenUsage(ctx context.Context, in *proto.RecordTokenUsag
 	metadata := metadataToMap(in.GetMetadata())
 
 	if s.structuredLogging {
-		s.logger.Info(ctx, InterceptionLogMarker,
-			slog.F("record_type", "token_usage"),
+		s.logger.Info(ctx, recorder.InterceptionLogMarker,
+			slog.F("record_type", recorder.RecordTypeTokenUsage),
 			slog.F("interception_id", intcID.String()),
 			slog.F("msg_id", in.GetMsgId()),
 			slog.F("input_tokens", in.GetInputTokens()),
@@ -488,8 +484,8 @@ func (s *Server) RecordPromptUsage(ctx context.Context, in *proto.RecordPromptUs
 	metadata := metadataToMap(in.GetMetadata())
 
 	if s.structuredLogging {
-		s.logger.Info(ctx, InterceptionLogMarker,
-			slog.F("record_type", "prompt_usage"),
+		s.logger.Info(ctx, recorder.InterceptionLogMarker,
+			slog.F("record_type", recorder.RecordTypePromptUsage),
 			slog.F("interception_id", intcID.String()),
 			slog.F("msg_id", in.GetMsgId()),
 			slog.F("prompt", in.GetPrompt()),
@@ -530,8 +526,8 @@ func (s *Server) RecordToolUsage(ctx context.Context, in *proto.RecordToolUsageR
 	metadata := metadataToMap(in.GetMetadata())
 
 	if s.structuredLogging {
-		s.logger.Info(ctx, InterceptionLogMarker,
-			slog.F("record_type", "tool_usage"),
+		s.logger.Info(ctx, recorder.InterceptionLogMarker,
+			slog.F("record_type", recorder.RecordTypeToolUsage),
 			slog.F("interception_id", intcID.String()),
 			slog.F("msg_id", in.GetMsgId()),
 			slog.F("tool_call_id", in.GetToolCallId()),
@@ -584,8 +580,8 @@ func (s *Server) RecordModelThought(ctx context.Context, in *proto.RecordModelTh
 	metadata := metadataToMap(in.GetMetadata())
 
 	if s.structuredLogging {
-		s.logger.Info(ctx, InterceptionLogMarker,
-			slog.F("record_type", "model_thought"),
+		s.logger.Info(ctx, recorder.InterceptionLogMarker,
+			slog.F("record_type", recorder.RecordTypeModelThought),
 			slog.F("interception_id", intcID.String()),
 			slog.F("content", in.GetContent()),
 			slog.F("created_at", in.GetCreatedAt().AsTime()),
