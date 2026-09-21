@@ -1091,8 +1091,10 @@ func (p *Server) createChildSubagentChatWithOptions(
 			prompt = override
 		}
 	}
+	titleSource := database.ChatTitleSourceUser
 	if title == "" {
 		title = subagentFallbackChatTitle(prompt)
+		titleSource = database.ChatTitleSourceFallback
 	}
 
 	workspaceAwareness := workspaceDetachedNoCreateAwareness
@@ -1153,6 +1155,7 @@ func (p *Server) createChildSubagentChatWithOptions(
 		RootChatID:        uuid.NullUUID{UUID: rootChatID, Valid: true},
 		LastModelConfigID: modelConfigID,
 		Title:             title,
+		TitleSource:       titleSource,
 		Mode:              opts.chatMode,
 		PlanMode:          childPlanMode,
 		MCPServerIDs:      mcpServerIDs,

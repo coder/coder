@@ -180,6 +180,7 @@ curl -X GET http://coder-server:8080/api/v2/chats \
     "status": "waiting",
     "summary": "string",
     "title": "string",
+    "title_source": "fallback",
     "updated_at": "2019-08-24T14:15:22Z",
     "warnings": [
       "string"
@@ -290,18 +291,20 @@ Status Code **200**
 | `» status`                 | [codersdk.ChatStatus](schemas.md#codersdkchatstatus)                               | false    |              |                                                                                                                                                                                                                                                                            |
 | `» summary`                | string                                                                             | false    |              | Summary is the persisted whole-chat summary, generated in the background. It is nil until the first summary has been produced.                                                                                                                                             |
 | `» title`                  | string                                                                             | false    |              |                                                                                                                                                                                                                                                                            |
+| `» title_source`           | [codersdk.ChatTitleSource](schemas.md#codersdkchattitlesource)                     | false    |              |                                                                                                                                                                                                                                                                            |
 | `» updated_at`             | string(date-time)                                                                  | false    |              |                                                                                                                                                                                                                                                                            |
 | `» warnings`               | array                                                                              | false    |              |                                                                                                                                                                                                                                                                            |
 | `» workspace_id`           | string(uuid)                                                                       | false    |              |                                                                                                                                                                                                                                                                            |
 
 #### Enumerated Values
 
-| Property      | Value(s)                                                                                                                                                                                                                                                          |
-|---------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `client_type` | `api`, `ui`                                                                                                                                                                                                                                                       |
-| `kind`        | `auth`, `config`, `content_filter`, `generic`, `hook_denied`, `hook_dispatch_failed`, `instruction_file`, `mcp_config`, `mcp_server`, `missing_key`, `overloaded`, `provider_disabled`, `rate_limit`, `skill`, `stream_silence_timeout`, `timeout`, `usage_limit` |
-| `status`      | `error`, `excluded`, `interrupting`, `invalid`, `ok`, `oversize`, `requires_action`, `running`, `unreadable`, `waiting`                                                                                                                                           |
-| `plan_mode`   | `plan`                                                                                                                                                                                                                                                            |
+| Property       | Value(s)                                                                                                                                                                                                                                                          |
+|----------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `client_type`  | `api`, `ui`                                                                                                                                                                                                                                                       |
+| `kind`         | `auth`, `config`, `content_filter`, `generic`, `hook_denied`, `hook_dispatch_failed`, `instruction_file`, `mcp_config`, `mcp_server`, `missing_key`, `overloaded`, `provider_disabled`, `rate_limit`, `skill`, `stream_silence_timeout`, `timeout`, `usage_limit` |
+| `status`       | `error`, `excluded`, `interrupting`, `invalid`, `ok`, `oversize`, `requires_action`, `running`, `unreadable`, `waiting`                                                                                                                                           |
+| `plan_mode`    | `plan`                                                                                                                                                                                                                                                            |
+| `title_source` | `fallback`, `generated`, `user`                                                                                                                                                                                                                                   |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -366,6 +369,7 @@ curl -X POST http://coder-server:8080/api/v2/chats \
   "plan_mode": "plan",
   "reasoning_effort": "string",
   "system_prompt": "string",
+  "title": "string",
   "unsafe_dynamic_tools": [
     {
       "description": "string",
@@ -507,6 +511,7 @@ curl -X POST http://coder-server:8080/api/v2/chats \
       "status": "waiting",
       "summary": "string",
       "title": "string",
+      "title_source": "fallback",
       "updated_at": "2019-08-24T14:15:22Z",
       "warnings": [
         "string"
@@ -621,6 +626,7 @@ curl -X POST http://coder-server:8080/api/v2/chats \
   "status": "waiting",
   "summary": "string",
   "title": "string",
+  "title_source": "fallback",
   "updated_at": "2019-08-24T14:15:22Z",
   "warnings": [
     "string"
@@ -1489,6 +1495,7 @@ curl -X GET http://coder-server:8080/api/v2/chats/watch \
     "status": "waiting",
     "summary": "string",
     "title": "string",
+    "title_source": "fallback",
     "updated_at": "2019-08-24T14:15:22Z",
     "warnings": [
       "string"
@@ -1655,6 +1662,7 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat} \
       "status": "waiting",
       "summary": "string",
       "title": "string",
+      "title_source": "fallback",
       "updated_at": "2019-08-24T14:15:22Z",
       "warnings": [
         "string"
@@ -1769,6 +1777,7 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat} \
   "status": "waiting",
   "summary": "string",
   "title": "string",
+  "title_source": "fallback",
   "updated_at": "2019-08-24T14:15:22Z",
   "warnings": [
     "string"
@@ -1970,6 +1979,7 @@ curl -X PUT http://coder-server:8080/api/v2/chats/{chat}/context \
       "status": "waiting",
       "summary": "string",
       "title": "string",
+      "title_source": "fallback",
       "updated_at": "2019-08-24T14:15:22Z",
       "warnings": [
         "string"
@@ -2084,6 +2094,7 @@ curl -X PUT http://coder-server:8080/api/v2/chats/{chat}/context \
   "status": "waiting",
   "summary": "string",
   "title": "string",
+  "title_source": "fallback",
   "updated_at": "2019-08-24T14:15:22Z",
   "warnings": [
     "string"
@@ -2333,6 +2344,7 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/interrupt \
       "status": "waiting",
       "summary": "string",
       "title": "string",
+      "title_source": "fallback",
       "updated_at": "2019-08-24T14:15:22Z",
       "warnings": [
         "string"
@@ -2447,6 +2459,7 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/interrupt \
   "status": "waiting",
   "summary": "string",
   "title": "string",
+  "title_source": "fallback",
   "updated_at": "2019-08-24T14:15:22Z",
   "warnings": [
     "string"
@@ -3420,6 +3433,7 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/reconcile-invalid \
       "status": "waiting",
       "summary": "string",
       "title": "string",
+      "title_source": "fallback",
       "updated_at": "2019-08-24T14:15:22Z",
       "warnings": [
         "string"
@@ -3534,6 +3548,7 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/reconcile-invalid \
   "status": "waiting",
   "summary": "string",
   "title": "string",
+  "title_source": "fallback",
   "updated_at": "2019-08-24T14:15:22Z",
   "warnings": [
     "string"

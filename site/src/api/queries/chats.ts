@@ -536,9 +536,16 @@ export const mergeWatchedChatSummary = (
 	const isFreshEnough = updatedAtComparison <= 0;
 	const nextStatus =
 		isFreshEnough && isStatusEvent ? watchedChat.status : cachedChat.status;
-	// maybeGenerateChatTitle can publish a previously loaded chat snapshot, so
-	// apply title_change payloads even when the chat summary timestamp is older.
-	const nextTitle = isTitleEvent ? watchedChat.title : cachedChat.title;
+	// A generated title_change received after a user rename is stale: on
+	// the server only a user title can replace a user title.
+	const isStaleGeneratedTitle =
+		cachedChat.title_source === "user" &&
+		watchedChat.title_source === "generated";
+	const applyTitle = isTitleEvent && !isStaleGeneratedTitle;
+	const nextTitle = applyTitle ? watchedChat.title : cachedChat.title;
+	const nextTitleSource = applyTitle
+		? watchedChat.title_source
+		: cachedChat.title_source;
 	// Diff status freshness is tracked outside chats.updated_at, so apply
 	// diff_status_change payloads even when the chat summary timestamp is older.
 	const nextDiffStatus = isDiffStatusEvent
@@ -595,6 +602,7 @@ export const mergeWatchedChatSummary = (
 	if (
 		nextStatus === cachedChat.status &&
 		nextTitle === cachedChat.title &&
+		nextTitleSource === cachedChat.title_source &&
 		diffStatusEqual(nextDiffStatus, cachedChat.diff_status) &&
 		nextWorkspaceId === cachedChat.workspace_id &&
 		nextBuildId === cachedChat.build_id &&
@@ -613,6 +621,7 @@ export const mergeWatchedChatSummary = (
 		...cachedChat,
 		status: nextStatus,
 		title: nextTitle,
+		title_source: nextTitleSource,
 		diff_status: nextDiffStatus,
 		workspace_id: nextWorkspaceId,
 		build_id: nextBuildId,
@@ -1611,11 +1620,16 @@ export const updateChatTitle = (queryClient: QueryClient) => ({
 		API.experimental.updateChat(chatId, { title }),
 
 	onSuccess: (_data: unknown, { chatId, title }: UpdateChatTitleVariables) => {
+		const renamed = (chat: TypesGen.Chat): TypesGen.Chat => ({
+			...chat,
+			title,
+			title_source: "user",
+		});
 		patchChatEntity(queryClient, chatId, (chat) =>
-			chat ? { ...chat, title } : chat,
+			chat ? renamed(chat) : chat,
 		);
 		updateInfiniteChatsCache(queryClient, (chats) =>
-			chats.map((chat) => (chat.id === chatId ? { ...chat, title } : chat)),
+			chats.map((chat) => (chat.id === chatId ? renamed(chat) : chat)),
 		);
 	},
 

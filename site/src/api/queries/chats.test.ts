@@ -196,6 +196,7 @@ const makeChat = (
 	mcp_server_ids: [],
 	labels: {},
 	title: `Chat ${id}`,
+	title_source: "generated",
 	status: "running",
 	created_at: "2025-01-01T00:00:00.000Z",
 	updated_at: "2025-01-01T00:00:00.000Z",
@@ -708,16 +709,16 @@ describe("updateChatTitle cache update", () => {
 		mutation.onSuccess(undefined, { chatId, title: "New" });
 
 		expect(
-			queryClient.getQueryData<TypesGen.Chat>(chatEntityKey(chatId))?.title,
-		).toBe("New");
+			queryClient.getQueryData<TypesGen.Chat>(chatEntityKey(chatId)),
+		).toMatchObject({ title: "New", title_source: "user" });
 		expect(
 			readInfiniteChats(queryClient)?.find((chat) => chat.id === chatId),
-		).toMatchObject({ title: "New" });
+		).toMatchObject({ title: "New", title_source: "user" });
 		expect(
 			readInfiniteChats(queryClient, { archived: true })?.find(
 				(chat) => chat.id === chatId,
 			),
-		).toMatchObject({ title: "New" });
+		).toMatchObject({ title: "New", title_source: "user" });
 	});
 
 	it("does not return pending invalidation promises from settlement", () => {
@@ -3092,6 +3093,40 @@ describe("mergeWatchedChatSummary", () => {
 		});
 	});
 
+	it.each<{
+		cached: TypesGen.ChatTitleSource;
+		incoming: TypesGen.ChatTitleSource;
+		applied: boolean;
+	}>([
+		{ cached: "fallback", incoming: "generated", applied: true },
+		{ cached: "user", incoming: "generated", applied: false },
+		{ cached: "fallback", incoming: "user", applied: true },
+		{ cached: "generated", incoming: "user", applied: true },
+		{ cached: "user", incoming: "user", applied: true },
+	])(
+		"title_change with $incoming over cached $cached applied=$applied",
+		({ cached, incoming, applied }) => {
+			const cachedChat = makeChat("chat-1", {
+				title: "Before",
+				title_source: cached,
+			});
+			const watchedChat = makeChat("chat-1", {
+				title: "After",
+				title_source: incoming,
+			});
+
+			expect(
+				mergeWatchedChatSummary(cachedChat, watchedChat, {
+					eventKind: "title_change",
+				}),
+			).toMatchObject(
+				applied
+					? { title: "After", title_source: incoming }
+					: { title: "Before", title_source: cached },
+			);
+		},
+	);
+
 	it("merges fresh diff status updates without clobbering status or title", () => {
 		const cachedDiffStatus = {
 			chat_id: "chat-1",
@@ -3740,6 +3775,7 @@ describe("semantic cache operations: prefix invalidations", () => {
 			action_required: true,
 			chat_summary_change: false,
 			context_dirty: false,
+			cost_change: false,
 			created: false,
 			deleted: false,
 			diff_status_change: false,
@@ -3819,6 +3855,7 @@ describe("semantic cache operations: prefix invalidations", () => {
 			action_required: true,
 			chat_summary_change: false,
 			context_dirty: false,
+			cost_change: false,
 			created: false,
 			deleted: false,
 			diff_status_change: true,

@@ -2,6 +2,7 @@ package chatd
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"net/http"
@@ -375,9 +376,9 @@ func (p *Server) GenerateChatTitleAsync(ctx context.Context, chat database.Chat)
 
 // maybeGenerateChatTitle generates an AI title for the chat when
 // appropriate (first user message, no assistant reply yet, and the
-// current title is either empty or still the fallback truncation) using
-// the resolved title generation model (see resolveQuickgenModel). It is a
-// best-effort operation that logs and swallows errors.
+// current title source is fallback) using the resolved title generation
+// model (see resolveQuickgenModel). It is a best-effort operation that
+// logs and swallows errors.
 func (p *Server) maybeGenerateChatTitle(
 	ctx context.Context,
 	chat database.Chat,
@@ -450,14 +451,25 @@ func (p *Server) maybeGenerateChatTitle(
 		)
 		return
 	}
-	if title == "" || title == chat.Title {
+	if title == "" {
 		return
 	}
 
-	_, err = p.db.UpdateChatTitleByID(ctx, database.UpdateChatTitleByIDParams{
-		ID:    chat.ID,
-		Title: title,
+	// The write is refused when a rename was committed during the model call.
+	updatedChat, err := p.db.UpdateChatTitleByID(ctx, database.UpdateChatTitleByIDParams{
+		ID:          chat.ID,
+		Title:       title,
+		TitleSource: database.ChatTitleSourceGenerated,
 	})
+	if errors.Is(err, sql.ErrNoRows) {
+		logger.Debug(ctx, "title changed during generation, keeping user title",
+			slog.F("chat_id", chat.ID),
+		)
+		// The chat's cost changed. No title_change is published because
+		// this goroutine did not write the current title.
+		p.publishChatPubsubEvent(chat, codersdk.ChatWatchEventKindCostChange, nil)
+		return
+	}
 	if err != nil {
 		logger.Warn(ctx, "failed to update generated chat title",
 			slog.F("chat_id", chat.ID),
@@ -465,9 +477,8 @@ func (p *Server) maybeGenerateChatTitle(
 		)
 		return
 	}
-	chat.Title = title
 	generatedTitle.Store(title)
-	p.publishChatPubsubEvent(chat, codersdk.ChatWatchEventKindTitleChange, nil)
+	p.publishChatPubsubEvent(updatedChat, codersdk.ChatWatchEventKindTitleChange, nil)
 }
 
 const titleMaxOutputTokens = int64(256)
@@ -668,12 +679,7 @@ func titleInput(
 		return "", false
 	}
 
-	currentTitle := strings.TrimSpace(chat.Title)
-	if currentTitle == "" {
-		return firstUserText, true
-	}
-
-	if currentTitle != chatprompt.FallbackTitle(firstUserText) {
+	if chat.TitleSource != database.ChatTitleSourceFallback {
 		return "", false
 	}
 

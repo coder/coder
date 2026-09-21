@@ -139,6 +139,7 @@ const POST_TURN_BILLED_EVENT_KINDS = new Set<TypesGen.ChatWatchEventKind>([
 	"chat_summary_change",
 	"summary_change",
 	"title_change",
+	"cost_change",
 ]);
 
 export const chatCostIdToInvalidate = (
