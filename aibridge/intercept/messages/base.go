@@ -221,12 +221,6 @@ func (i *interceptionBase) CorrelatingToolCallID() *string {
 	return i.reqPayload.correlatingToolCallID()
 }
 
-// isClaudePlatform reports whether the interception targets Claude Platform
-// for AWS.
-func (i *interceptionBase) isClaudePlatform() bool {
-	return i.auth.ClaudePlatform != nil
-}
-
 // isBedrockMantle reports whether the interception targets the Bedrock mantle
 // protocol.
 func (i *interceptionBase) isBedrockMantle() bool {
@@ -434,7 +428,7 @@ func (i *interceptionBase) newMessagesService(ctx context.Context, opts ...optio
 		opts = append(opts, bedrockOpts...)
 	}
 
-	if i.isClaudePlatform() {
+	if i.auth.ClaudePlatform != nil {
 		ctx, cancel := context.WithTimeout(ctx, bedrockCredentialResolutionTimeout)
 		defer cancel()
 		claudePlatformOpts, err := i.withClaudePlatformOptions(ctx)
@@ -677,8 +671,8 @@ func bedrockInvokeModelBearerMiddleware(token string) func(*http.Request, option
 // the request or response is translated.
 //
 // In IAM mode the request is SigV4-signed for the aws-external-anthropic
-// service. In api_key mode the workspace key is already carried by the
-// provider's key pool, so only routing and the workspace header apply.
+// service unless a BYOK or centralized-pool credential takes precedence.
+// Key-authenticated requests only need routing and the workspace header.
 //
 // Bedrock's PRM attribution marker is deliberately not sent: it is a
 // Bedrock-specific revenue-attribution agreement.
@@ -698,8 +692,10 @@ func (i *interceptionBase) withClaudePlatformOptions(ctx context.Context) ([]opt
 		intercept.HeaderAnthropicWorkspaceID: cfg.WorkspaceID,
 	}
 
-	if cfg.AuthMode == aibconfig.ClaudePlatformAuthModeAPIKey {
-		// The key pool supplies x-api-key; only route and set the header.
+	_, byok := intercept.AsBYOK(i.cred)
+	_, pooled := intercept.AsCentralizedPool(i.cred)
+	if cfg.AuthMode == aibconfig.ClaudePlatformAuthModeAPIKey || byok || pooled {
+		// The selected credential supplies auth; only route and set the header.
 		return []option.RequestOption{
 			option.WithBaseURL(cfg.ResolvedBaseURL()),
 			option.WithMiddleware(func(req *http.Request, next option.MiddlewareNext) (*http.Response, error) {
