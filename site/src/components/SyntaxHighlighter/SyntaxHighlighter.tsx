@@ -27,12 +27,12 @@ type CommonEditorProps = Omit<
 	) => void;
 };
 
-interface SyntaxHighlighterProps {
+type SyntaxHighlighterProps = {
 	value: string;
 	language?: string;
 	editorProps?: CommonEditorProps;
 	compareWith?: string;
-}
+};
 
 export const SyntaxHighlighter: FC<SyntaxHighlighterProps> = ({
 	value,

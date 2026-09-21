@@ -51,7 +51,6 @@ import (
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/x/chatd"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
-	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
@@ -3546,26 +3545,6 @@ func TestUserAIProviderKeys(t *testing.T) {
 		require.NotNil(t, cfg)
 		require.False(t, cfg.BYOKEnabled)
 		require.NoError(t, client.DeleteUserAIProviderKey(ctx, "me", provider.ID))
-	})
-}
-
-func TestChatProviderAPIKeysFromDeploymentValues(t *testing.T) {
-	t.Parallel()
-
-	t.Run("NonNilDeploymentValues", func(t *testing.T) {
-		t.Parallel()
-
-		values := coderdtest.DeploymentValues(t)
-
-		keys := coderd.ChatProviderAPIKeysFromDeploymentValues(values)
-		require.Equal(t, chatprovider.ProviderAPIKeys{}, keys)
-	})
-
-	t.Run("NilDeploymentValues", func(t *testing.T) {
-		t.Parallel()
-
-		keys := coderd.ChatProviderAPIKeysFromDeploymentValues(nil)
-		require.Equal(t, chatprovider.ProviderAPIKeys{}, keys)
 	})
 }
 

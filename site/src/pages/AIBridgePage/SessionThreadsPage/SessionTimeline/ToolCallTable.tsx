@@ -4,14 +4,14 @@ import { CopyButton } from "#/components/CopyButton/CopyButton";
 import { formatDate } from "#/utils/time";
 import { TokenBadges } from "../../TokenBadges";
 
-interface ToolCallTableProps {
+type ToolCallTableProps = {
 	timestamp: Date;
 	serverURL: string;
 	inputTokens: number;
 	outputTokens: number;
 	tokenUsageMetadata?: Record<string, unknown>;
 	className?: string;
-}
+};
 
 export const ToolCallTable: FC<ToolCallTableProps> = ({
 	timestamp,

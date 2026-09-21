@@ -9,7 +9,7 @@ import { Button } from "#/components/Button/Button";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
 
-interface EarlierMessagesProps {
+type EarlierMessagesProps = {
 	hasMoreMessages: boolean;
 	isFetchingMoreMessages: boolean;
 	// True while fetched pages have not reached the store yet. Blocks paging
@@ -18,7 +18,7 @@ interface EarlierMessagesProps {
 	hasFetchMoreError: boolean;
 	hasTranscriptRows: boolean;
 	onFetchMoreMessages: () => Promise<unknown>;
-}
+};
 
 /**
  * Owns history paging for the transcript. It reads the scroller's own state
@@ -102,10 +102,10 @@ const EarlierMessages: FC<EarlierMessagesProps> = ({
 	);
 };
 
-interface ChatMessageScrollerProps extends EarlierMessagesProps {
+type ChatMessageScrollerProps = EarlierMessagesProps & {
 	/** One `MessageScroller.Item` per transcript row, and nothing else. */
 	children: ReactNode;
-}
+};
 
 export const ChatMessageScroller: FC<ChatMessageScrollerProps> = ({
 	children,

@@ -1,7 +1,7 @@
 import type { FC, FormEventHandler, JSX, ReactNode } from "react";
 import { Button } from "#/components/Button/Button";
 
-interface FieldsetProps {
+type FieldsetProps = {
 	children: ReactNode;
 	title: string | JSX.Element;
 	subtitle?: string | JSX.Element;
@@ -9,7 +9,7 @@ interface FieldsetProps {
 	button?: JSX.Element | false;
 	onSubmit: FormEventHandler<HTMLFormElement>;
 	isSubmitting?: boolean;
-}
+};
 
 export const Fieldset: FC<FieldsetProps> = ({
 	title,

@@ -14,12 +14,12 @@ import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { useTemporarySavedState } from "#/components/TemporarySavedState/TemporarySavedState";
 import { AgentSettingLayout } from "#/pages/AISettingsPage/CoderAgentsPage/components/AgentSettingLayout";
 
-interface MutationCallbacks {
+type MutationCallbacks = {
 	onSuccess?: () => void;
 	onError?: () => void;
-}
+};
 
-interface VirtualDesktopSettingsProps {
+type VirtualDesktopSettingsProps = {
 	computerUseProviderData: TypesGen.ChatComputerUseProviderResponse | undefined;
 	isLoadingComputerUseProvider: boolean;
 	onSaveComputerUseProvider: (
@@ -28,7 +28,7 @@ interface VirtualDesktopSettingsProps {
 	) => void;
 	isSavingComputerUseProvider: boolean;
 	computerUseProviderSaveError: Error | null;
-}
+};
 
 const computerUseProviderOptions = [
 	{ label: "Anthropic", value: "anthropic" },

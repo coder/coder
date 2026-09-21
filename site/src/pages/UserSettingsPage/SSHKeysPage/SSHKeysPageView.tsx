@@ -5,12 +5,12 @@ import { Button } from "#/components/Button/Button";
 import { CodeExample } from "#/components/CodeExample/CodeExample";
 import { Spinner } from "#/components/Spinner/Spinner";
 
-interface SSHKeysPageViewProps {
+type SSHKeysPageViewProps = {
 	isLoading: boolean;
 	getSSHKeyError?: unknown;
 	sshKey?: GitSSHKey;
 	onRegenerateClick: () => void;
-}
+};
 
 export const SSHKeysPageView: FC<SSHKeysPageViewProps> = ({
 	isLoading,
