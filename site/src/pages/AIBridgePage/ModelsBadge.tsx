@@ -1,5 +1,5 @@
 import type { FC } from "react";
-import { DimensionBadge } from "./DimensionBadge";
+import { ItemsBadge } from "./ItemsBadge";
 import { AIBridgeModelIcon } from "./icons/AIBridgeModelIcon";
 
 type ModelsBadgeProps = {
@@ -7,7 +7,7 @@ type ModelsBadgeProps = {
 };
 
 export const ModelsBadge: FC<ModelsBadgeProps> = ({ models }) => (
-	<DimensionBadge
+	<ItemsBadge
 		noun="models"
 		items={models.map((model) => ({
 			key: model,
