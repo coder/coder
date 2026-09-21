@@ -289,6 +289,17 @@ func clientSecretInQuery(r *http.Request) bool {
 	})
 }
 
+// requestSource identifies the sender of a refused request. The refusals it
+// decorates run before client authentication, so anyone who knows the public
+// client_id can produce them; the source is what lets an operator tell their
+// own integration from a stranger.
+func requestSource(r *http.Request) []slog.Field {
+	return []slog.Field{
+		slog.F("remote_addr", r.RemoteAddr),
+		slog.F("user_agent", r.Header.Get("User-Agent")),
+	}
+}
+
 // authenticateClient checks a client secret and confirms it belongs to the
 // app named by client_id. That id arrives unverified, so without the app
 // check a valid secret for one app could issue a token for another. It
@@ -337,7 +348,7 @@ func Tokens(db database.Store, lifetimes codersdk.SessionLifetime, logger slog.L
 
 		if clientSecretInQuery(r) {
 			logger.Warn(ctx, "oauth2 token request refused: client_secret in query string",
-				slog.F("app_id", app.ID))
+				append(requestSource(r), slog.F("app_id", app.ID))...)
 			writeTokenError(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidRequest, errMsgClientSecretInQuery)
 			return
 		}

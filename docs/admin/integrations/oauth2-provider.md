@@ -605,6 +605,13 @@ A copy in the body does not excuse one in the URL: the request is refused on
 the query string alone, whatever the body holds. The refusal issues no token
 and revokes nothing, so the retry needs no new authorization.
 
+The warning in the Coder logs records that the parameter was present, not that
+its value was a valid secret. The refusal runs before client authentication, so
+anyone who knows the public `client_id` can produce the same log line without
+credentials. Check the `remote_addr` and `user_agent` fields on the warning and
+confirm with the client's owner that their integration sent the request before
+rotating.
+
 Rotate the secret that was in the URL. It is still valid, and a URL is
 recorded by reverse proxies, load balancers, CDN access logs, shell history,
 and client libraries. Coder does not log query strings, so an empty result

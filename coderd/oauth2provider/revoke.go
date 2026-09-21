@@ -80,8 +80,9 @@ func RevokeToken(db database.Store, logger slog.Logger) http.HandlerFunc {
 
 		if clientSecretInQuery(r) {
 			logger.Warn(ctx, "oauth2 revocation refused: client_secret in query string",
-				slog.F("client_id", app.ID.String()),
-				slog.F("app_name", app.Name))
+				append(requestSource(r),
+					slog.F("client_id", app.ID.String()),
+					slog.F("app_name", app.Name))...)
 			httpapi.WriteOAuth2Error(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidRequest, errMsgClientSecretInQuery)
 			return
 		}

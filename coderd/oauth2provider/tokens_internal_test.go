@@ -931,6 +931,7 @@ func TestExtractAuthorizeParams_ClientSecretInQueryWarns(t *testing.T) {
 	query.Set("code_challenge", strings.Repeat("a", pkceVerifierMinLength))
 	query.Set("client_secret", "secret-value")
 	req := httptest.NewRequest(http.MethodGet, "/oauth2/authorize?"+query.Encode(), nil)
+	req.Header.Set("User-Agent", "probe/1.0")
 
 	var logs bytes.Buffer
 	logger := slog.Make(slogjson.Sink(&logs)).Leveled(slog.LevelWarn)
@@ -941,13 +942,17 @@ func TestExtractAuthorizeParams_ClientSecretInQueryWarns(t *testing.T) {
 		Level  string `json:"level"`
 		Msg    string `json:"msg"`
 		Fields struct {
-			AppID string `json:"app_id"`
+			AppID      string `json:"app_id"`
+			RemoteAddr string `json:"remote_addr"`
+			UserAgent  string `json:"user_agent"`
 		} `json:"fields"`
 	}
 	require.NoError(t, json.Unmarshal(logs.Bytes(), &entry), logs.String())
 	require.Equal(t, "WARN", entry.Level)
 	require.Equal(t, "oauth2 authorization request carried client_secret in the URL query string", entry.Msg)
 	require.Equal(t, app.ID.String(), entry.Fields.AppID)
+	require.Equal(t, req.RemoteAddr, entry.Fields.RemoteAddr)
+	require.Equal(t, "probe/1.0", entry.Fields.UserAgent)
 	require.NotContains(t, logs.String(), "secret-value")
 }
 

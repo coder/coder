@@ -367,7 +367,7 @@ func extractAuthorizeParams(r *http.Request, logger slog.Logger, app database.OA
 	// Referer, so the operator is told which client leaks its secret.
 	if clientSecretInQuery(r) {
 		logger.Warn(r.Context(), "oauth2 authorization request carried client_secret in the URL query string",
-			slog.F("app_id", app.ID))
+			append(requestSource(r), slog.F("app_id", app.ID))...)
 	}
 
 	if len(p.Errors) > 0 {
