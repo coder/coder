@@ -1,0 +1,520 @@
+import { act, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { toast } from "sonner";
+import { describe, expect, it, vi } from "vitest";
+import type { AnnotatorToHostMessage } from "#/annotator/protocol";
+import { createDeferred } from "#/testHelpers/deferred";
+import { MockWorkspace, MockWorkspaceAgent } from "#/testHelpers/entities";
+import { renderComponent } from "#/testHelpers/renderHelpers";
+import { portForwardURL } from "#/utils/portForward";
+import {
+	ComposerProvider,
+	type ComposerSendResult,
+	useRegisterComposer,
+} from "../../context/ComposerContext";
+import type { UserRightPanelTab } from "../../utils/rightPanelTabs";
+import { PortPreviewPanel } from "./PortPreviewPanel";
+
+vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
+
+const tab: Extract<UserRightPanelTab, { kind: "port" }> = {
+	id: "port-3000",
+	kind: "port",
+	label: "Preview :3000",
+	agentId: MockWorkspaceAgent.id,
+	port: 3000,
+	protocol: "http",
+};
+
+type Send = (message: string) => Promise<ComposerSendResult>;
+
+const Composer: React.FC<{ onSend: Send }> = ({ onSend }) => {
+	useRegisterComposer({ send: onSend });
+	return null;
+};
+
+const sent = () => vi.fn<Send>().mockResolvedValue("sent");
+
+function frameWindow(frame: HTMLIFrameElement): Window {
+	if (!frame.contentWindow) {
+		throw new Error("frame has no window");
+	}
+	return frame.contentWindow;
+}
+
+function renderPanel(onSend = sent(), readyTimeoutMs?: number) {
+	renderComponent(
+		<ComposerProvider>
+			<Composer onSend={onSend} />
+			<PortPreviewPanel
+				workspace={MockWorkspace}
+				agent={MockWorkspaceAgent}
+				host="*.apps.example.com"
+				tab={tab}
+				canAnnotate
+				annotatorReadyTimeoutMs={readyTimeoutMs}
+			/>
+		</ComposerProvider>,
+	);
+	// Requesting the overlay remounts the iframe, so always look it up fresh.
+	const frame = () => screen.getByTitle<HTMLIFrameElement>("Preview :3000");
+	const frameOrigin = new URL(frame().src).origin;
+	const receive = (data: AnnotatorToHostMessage) => {
+		window.dispatchEvent(
+			new MessageEvent("message", {
+				data,
+				origin: frameOrigin,
+				source: frameWindow(frame()),
+			}),
+		);
+	};
+	return { frame, frameOrigin, receive, onSend };
+}
+
+// The origin the panel loads the preview from; submissions must come
+// from a page there.
+const previewOrigin = new URL(
+	portForwardURL(
+		"*.apps.example.com",
+		tab.port,
+		MockWorkspaceAgent.name,
+		MockWorkspace.name,
+		MockWorkspace.owner_name,
+		tab.protocol,
+	),
+).origin;
+
+const submission: AnnotatorToHostMessage = {
+	type: "coder-annotator:submit",
+	page: {
+		url: `${previewOrigin}/`,
+		title: "App",
+		viewport: { width: 800, height: 600 },
+	},
+	annotations: [
+		{
+			id: "a",
+			comment: "Make this red",
+			element: {
+				tag: "button",
+				selector: "#save",
+				classes: [],
+				openingTag: '<button id="save">',
+				rect: { x: 1, y: 2, width: 3, height: 4 },
+			},
+		},
+	],
+};
+
+const annotateButton = () =>
+	screen.getByRole("button", { name: /annotate elements|stop annotating/i });
+
+const requestOverlay = () => userEvent.click(annotateButton());
+
+// Sends run on a promise chain, so proving one did not happen needs a
+// turn of the event loop rather than a `waitFor`.
+const settled = () => new Promise((resolve) => setTimeout(resolve, 20));
+
+describe("PortPreviewPanel annotations", () => {
+	it("requests the overlay and starts picking once it is ready", async () => {
+		const { frame, frameOrigin, receive } = renderPanel();
+		await requestOverlay();
+
+		expect(new URL(frame().src).searchParams.get("coder_annotate")).toBe("1");
+		const postMessage = vi.spyOn(frameWindow(frame()), "postMessage");
+		expect(postMessage).not.toHaveBeenCalled();
+
+		receive({ type: "coder-annotator:ready" });
+		expect(postMessage).toHaveBeenCalledWith(
+			{ type: "coder-annotator:set-picking", picking: true },
+			frameOrigin,
+		);
+	});
+
+	it("does not reload the frame for clicks while the overlay is loading", async () => {
+		const { frame } = renderPanel();
+		await requestOverlay();
+		const requestedSrc = frame().src;
+		const requestedFrame = frame();
+
+		await userEvent.click(annotateButton());
+		expect(frame()).toBe(requestedFrame);
+		expect(frame().src).toBe(requestedSrc);
+	});
+
+	it("lets a click while the overlay is loading cancel the request", async () => {
+		const { frame, frameOrigin, receive } = renderPanel();
+		await requestOverlay();
+		frame().dispatchEvent(new Event("load"));
+		const postMessage = vi.spyOn(frameWindow(frame()), "postMessage");
+
+		// Second click: the user changed their mind before the overlay loaded.
+		await userEvent.click(annotateButton());
+		receive({ type: "coder-annotator:ready" });
+		expect(postMessage).not.toHaveBeenCalled();
+
+		// Asking again after the overlay is ready no longer needs a reload.
+		const readyFrame = frame();
+		await userEvent.click(annotateButton());
+		expect(frame()).toBe(readyFrame);
+		expect(postMessage).toHaveBeenCalledWith(
+			{ type: "coder-annotator:set-picking", picking: true },
+			frameOrigin,
+		);
+	});
+
+	it("keeps the request through the overlay's initial state reports", async () => {
+		const { receive, onSend } = renderPanel();
+		await requestOverlay();
+		// The overlay reports idle when it mounts and again after ready, before
+		// it has processed the dashboard's request to pick.
+		await act(async () => {
+			receive({ type: "coder-annotator:state", picking: false });
+			receive({ type: "coder-annotator:ready" });
+			receive({ type: "coder-annotator:state", picking: false });
+			receive({ type: "coder-annotator:state", picking: true });
+		});
+		expect(annotateButton()).toHaveAttribute("aria-pressed", "true");
+
+		receive(submission);
+		await waitFor(() => expect(onSend).toHaveBeenCalledTimes(1));
+	});
+
+	it("moves focus into the preview once the overlay confirms picking", async () => {
+		const { frame, receive } = renderPanel();
+		await requestOverlay();
+		receive({ type: "coder-annotator:ready" });
+		const focus = vi.spyOn(frame(), "focus");
+		await act(async () => {
+			receive({ type: "coder-annotator:state", picking: true });
+		});
+		expect(focus).toHaveBeenCalled();
+	});
+
+	it("keeps a new request when the overlay acknowledges the stop before it late", async () => {
+		const { frame, frameOrigin, receive, onSend } = renderPanel();
+		await requestOverlay();
+		await act(async () => {
+			receive({ type: "coder-annotator:ready" });
+			receive({ type: "coder-annotator:state", picking: true });
+		});
+		// Off and on again before the overlay has echoed the stop.
+		await userEvent.click(annotateButton());
+		await userEvent.click(annotateButton());
+		const postMessage = vi.spyOn(frameWindow(frame()), "postMessage");
+		await act(async () => {
+			receive({ type: "coder-annotator:state", picking: false });
+			receive({ type: "coder-annotator:state", picking: true });
+		});
+		expect(annotateButton()).toHaveAttribute("aria-pressed", "true");
+		expect(postMessage).not.toHaveBeenCalledWith(
+			expect.objectContaining({ picking: false }),
+			frameOrigin,
+		);
+		receive(submission);
+		await waitFor(() => expect(onSend).toHaveBeenCalledTimes(1));
+	});
+
+	it("sends each submission to the agent as a message", async () => {
+		const { receive, onSend } = renderPanel();
+		await requestOverlay();
+		receive({ type: "coder-annotator:ready" });
+		receive(submission);
+
+		await waitFor(() => expect(onSend).toHaveBeenCalledTimes(1));
+		const [message] = onSend.mock.calls[0];
+		expect(message).toContain("# UI annotations");
+		expect(message).toContain("> Make this red");
+		expect(message).toContain("`#save`");
+	});
+
+	it("ignores submissions claiming a page at another origin", async () => {
+		const { receive, onSend } = renderPanel();
+		await requestOverlay();
+		receive({ type: "coder-annotator:ready" });
+		receive({
+			...submission,
+			page: { ...submission.page, url: "https://elsewhere.example.com/admin" },
+		});
+		await settled();
+		expect(onSend).not.toHaveBeenCalled();
+	});
+
+	it("bounds how many submissions wait to be sent", async () => {
+		vi.mocked(toast.error).mockClear();
+		const first = createDeferred<ComposerSendResult>();
+		const onSend = vi
+			.fn<Send>()
+			.mockReturnValueOnce(first.promise)
+			.mockResolvedValue("sent");
+		const { receive } = renderPanel(onSend);
+		await requestOverlay();
+		receive({ type: "coder-annotator:ready" });
+		// A flood while the first send is still in flight.
+		for (let index = 0; index < 6; index++) {
+			receive({
+				...submission,
+				annotations: [{ ...submission.annotations[0], id: `${index}` }],
+			});
+		}
+		await waitFor(() => expect(onSend).toHaveBeenCalledTimes(1));
+		expect(toast.error).toHaveBeenCalledWith(
+			"Too many UI annotations at once; the latest was not sent.",
+			expect.anything(),
+		);
+
+		first.resolve("sent");
+		await waitFor(() => expect(onSend).toHaveBeenCalledTimes(3));
+		await settled();
+		expect(onSend).toHaveBeenCalledTimes(3);
+	});
+
+	it("drops waiting submissions once annotate mode is turned off", async () => {
+		vi.mocked(toast.error).mockClear();
+		const first = createDeferred<ComposerSendResult>();
+		const onSend = vi
+			.fn<Send>()
+			.mockReturnValueOnce(first.promise)
+			.mockResolvedValue("sent");
+		const { receive } = renderPanel(onSend);
+		await requestOverlay();
+		await act(async () => {
+			receive({ type: "coder-annotator:ready" });
+			receive({ type: "coder-annotator:state", picking: true });
+		});
+		for (const id of ["a", "b", "c"]) {
+			receive({
+				...submission,
+				annotations: [{ ...submission.annotations[0], id }],
+			});
+		}
+		await waitFor(() => expect(onSend).toHaveBeenCalledTimes(1));
+
+		// Leaving annotate mode withdraws the page's authorization. The send
+		// in flight was accepted while it was on and completes; the rest go.
+		await userEvent.keyboard("{Escape}");
+		expect(toast.error).toHaveBeenCalledWith(
+			"2 UI annotations were not sent: annotate mode was turned off first.",
+			expect.anything(),
+		);
+		first.resolve("sent");
+		await settled();
+		expect(onSend).toHaveBeenCalledTimes(1);
+	});
+
+	it("sends submissions in order and retries while the chat is busy", async () => {
+		const onSend = vi
+			.fn<Send>()
+			.mockResolvedValueOnce("busy")
+			.mockResolvedValue("sent");
+		const { receive } = renderPanel(onSend);
+		await requestOverlay();
+		receive({ type: "coder-annotator:ready" });
+		receive(submission);
+		receive({
+			...submission,
+			annotations: [
+				{ ...submission.annotations[0], id: "b", comment: "Then this" },
+			],
+		});
+
+		await waitFor(() => expect(onSend).toHaveBeenCalledTimes(3), {
+			timeout: 3000,
+		});
+		expect(onSend.mock.calls[0][0]).toContain("> Make this red");
+		expect(onSend.mock.calls[1][0]).toContain("> Make this red");
+		expect(onSend.mock.calls[2][0]).toContain("> Then this");
+	});
+
+	it("ignores the frame until the user requests the overlay", () => {
+		const { receive, onSend } = renderPanel();
+		receive({ type: "coder-annotator:ready" });
+		receive(submission);
+		expect(onSend).not.toHaveBeenCalled();
+	});
+
+	it("ignores submissions once the user has left annotate mode", async () => {
+		const { receive, onSend } = renderPanel();
+		await requestOverlay();
+		await act(async () => {
+			receive({ type: "coder-annotator:ready" });
+			receive({ type: "coder-annotator:state", picking: true });
+			// The user switches picking off from inside the preview; anything
+			// the page posts afterwards is not an annotation the user made.
+			receive({ type: "coder-annotator:state", picking: false });
+		});
+		expect(annotateButton()).toHaveAttribute("aria-pressed", "false");
+		receive(submission);
+		await settled();
+		expect(onSend).not.toHaveBeenCalled();
+	});
+
+	it("refuses picking the dashboard did not start", async () => {
+		const { frame, frameOrigin, receive, onSend } = renderPanel();
+		await requestOverlay();
+		await act(async () => {
+			receive({ type: "coder-annotator:ready" });
+			receive({ type: "coder-annotator:state", picking: true });
+		});
+		await userEvent.keyboard("{Escape}");
+		await act(async () => {
+			receive({ type: "coder-annotator:state", picking: false });
+		});
+		const postMessage = vi.spyOn(frameWindow(frame()), "postMessage");
+
+		// The page claims annotate mode is back on without the user asking.
+		await act(async () => {
+			receive({ type: "coder-annotator:state", picking: true });
+		});
+		expect(postMessage).toHaveBeenCalledWith(
+			{ type: "coder-annotator:set-picking", picking: false },
+			frameOrigin,
+		);
+		expect(annotateButton()).toHaveAttribute("aria-pressed", "false");
+		receive(submission);
+		await settled();
+		expect(onSend).not.toHaveBeenCalled();
+	});
+
+	it("disarms when the frame loads another document", async () => {
+		const { frame, receive, onSend } = renderPanel();
+		await requestOverlay();
+		await act(async () => {
+			receive({ type: "coder-annotator:ready" });
+			receive({ type: "coder-annotator:state", picking: true });
+		});
+
+		// The app navigated on its own. Whatever the new document sends, it
+		// was never told to pick.
+		await act(async () => {
+			frame().dispatchEvent(new Event("load"));
+		});
+		expect(annotateButton()).toHaveAttribute("aria-pressed", "false");
+		receive({ type: "coder-annotator:ready" });
+		receive(submission);
+		await settled();
+		expect(onSend).not.toHaveBeenCalled();
+	});
+
+	it("requests the overlay again after the app navigated away from it", async () => {
+		const { frame, frameOrigin, receive } = renderPanel(sent(), 0);
+		await requestOverlay();
+		receive({ type: "coder-annotator:ready" });
+		const loadedFrame = frame();
+
+		// A navigation without the marker drops the overlay. That is not a
+		// failure to load, so the control must not give up.
+		await act(async () => {
+			loadedFrame.dispatchEvent(new Event("load"));
+			await settled();
+		});
+		expect(annotateButton()).not.toHaveAttribute("aria-disabled", "true");
+		expect(annotateButton()).not.toHaveAttribute("aria-busy", "true");
+
+		await userEvent.click(annotateButton());
+		expect(frame()).not.toBe(loadedFrame);
+		expect(new URL(frame().src).searchParams.get("coder_annotate")).toBe("1");
+		const postMessage = vi.spyOn(frameWindow(frame()), "postMessage");
+		receive({ type: "coder-annotator:ready" });
+		expect(postMessage).toHaveBeenCalledWith(
+			{ type: "coder-annotator:set-picking", picking: true },
+			frameOrigin,
+		);
+	});
+
+	it("drops malformed submissions", async () => {
+		const { frame, frameOrigin, receive, onSend } = renderPanel();
+		await requestOverlay();
+		receive({ type: "coder-annotator:ready" });
+		window.dispatchEvent(
+			new MessageEvent("message", {
+				data: { type: "coder-annotator:submit", page: {}, annotations: "nope" },
+				origin: frameOrigin,
+				source: frameWindow(frame()),
+			}),
+		);
+		await settled();
+		expect(onSend).not.toHaveBeenCalled();
+	});
+
+	it("ignores messages from other origins or windows", async () => {
+		const { frame, frameOrigin, receive, onSend } = renderPanel();
+		await requestOverlay();
+		receive({ type: "coder-annotator:ready" });
+		for (const init of [
+			{ origin: "https://evil.example.com", source: frameWindow(frame()) },
+			{ origin: frameOrigin, source: window },
+		]) {
+			window.dispatchEvent(
+				new MessageEvent("message", { data: submission, ...init }),
+			);
+		}
+		await settled();
+		expect(onSend).not.toHaveBeenCalled();
+		// The same submission from the frame itself goes through.
+		receive(submission);
+		await waitFor(() => expect(onSend).toHaveBeenCalledTimes(1));
+	});
+
+	it("stops requesting the overlay once it failed to load", async () => {
+		const { frame, frameOrigin, receive } = renderPanel(sent(), 0);
+		await requestOverlay();
+		const requestedSrc = frame().src;
+		const requestedFrame = frame();
+		frame().dispatchEvent(new Event("load"));
+		await waitFor(() =>
+			expect(annotateButton()).toHaveAttribute("aria-disabled", "true"),
+		);
+		// Still focusable, so keyboard users get the explanation too.
+		expect(annotateButton()).toHaveAccessibleDescription(
+			/could not load in this app/,
+		);
+
+		await userEvent.click(annotateButton());
+		expect(annotateButton()).toHaveFocus();
+		await userEvent.keyboard("{Enter} ");
+		expect(frame()).toBe(requestedFrame);
+		expect(frame().src).toBe(requestedSrc);
+
+		// A late ready no longer delivers the request the control gave up on;
+		// it just makes the overlay available to ask again.
+		const postMessage = vi.spyOn(frameWindow(frame()), "postMessage");
+		await act(async () => {
+			receive({ type: "coder-annotator:ready" });
+		});
+		expect(postMessage).not.toHaveBeenCalled();
+		expect(annotateButton()).not.toHaveAttribute("aria-disabled", "true");
+		expect(annotateButton()).toHaveAttribute("aria-pressed", "false");
+
+		await userEvent.click(annotateButton());
+		expect(postMessage).toHaveBeenCalledWith(
+			{ type: "coder-annotator:set-picking", picking: true },
+			frameOrigin,
+		);
+		expect(annotateButton()).toHaveAttribute("aria-pressed", "true");
+	});
+
+	it("shows annotate mode on until the dashboard turns it off, whatever the overlay reports", async () => {
+		const { frame, frameOrigin, receive, onSend } = renderPanel();
+		await requestOverlay();
+		// The page announces the overlay but never echoes picking. The
+		// request stands, so the control must say so.
+		await act(async () => {
+			receive({ type: "coder-annotator:ready" });
+		});
+		expect(annotateButton()).toHaveAttribute("aria-pressed", "true");
+		expect(annotateButton()).toHaveAccessibleName("Stop annotating");
+
+		// And Escape must close it from here without the overlay's help.
+		const postMessage = vi.spyOn(frameWindow(frame()), "postMessage");
+		await userEvent.keyboard("{Escape}");
+		expect(postMessage).toHaveBeenCalledWith(
+			{ type: "coder-annotator:set-picking", picking: false },
+			frameOrigin,
+		);
+		expect(annotateButton()).toHaveAttribute("aria-pressed", "false");
+		receive(submission);
+		await settled();
+		expect(onSend).not.toHaveBeenCalled();
+	});
+});

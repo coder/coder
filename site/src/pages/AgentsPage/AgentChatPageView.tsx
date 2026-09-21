@@ -51,6 +51,11 @@ import { RightPanelAddTabControl } from "./components/RightPanel/RightPanelAddTa
 import { getWorkspaceStatus, StatusIcon } from "./components/StatusIcon";
 import { TerminalPanel } from "./components/TerminalPanel";
 import { ChatWorkspaceContext } from "./context/ChatWorkspaceContext";
+import {
+	ComposerProvider,
+	type ComposerSendResult,
+	useRegisterComposer,
+} from "./context/ComposerContext";
 import { TerminalClientSessionContext } from "./context/TerminalClientSessionContext";
 import { chatWidthClass, useChatFullWidth } from "./hooks/useChatFullWidth";
 import { parsePullRequestUrl } from "./utils/pullRequest";
@@ -162,6 +167,7 @@ type AgentChatPageViewProps = {
 
 	onImplementPlan?: () => Promise<void> | void;
 	onSendAskUserQuestionResponse?: (message: string) => Promise<void> | void;
+	onSendToolMessage?: (message: string) => Promise<ComposerSendResult>;
 
 	// Pagination for loading older messages.
 	hasMoreMessages: boolean;
@@ -182,6 +188,26 @@ type AgentChatPageViewProps = {
 	desktopChatId?: string;
 };
 
+// Providers shared by the chat column and the right panel.
+const ChatToolProviders: React.FC<{
+	desktopPanel: React.ComponentProps<typeof DesktopPanelContext>["value"];
+	children: React.ReactNode;
+}> = ({ desktopPanel, children }) => (
+	<DesktopPanelContext value={desktopPanel}>
+		<ComposerProvider>{children}</ComposerProvider>
+	</DesktopPanelContext>
+);
+
+// Exposes the page's send to right-panel tools under the same gating as
+// the visible input, so a tool cannot submit where the user could not.
+const ComposerRegistrar: React.FC<{
+	send: ((message: string) => Promise<ComposerSendResult>) | undefined;
+	enabled: boolean;
+}> = ({ send, enabled }) => {
+	useRegisterComposer(enabled && send ? { send } : null);
+	return null;
+};
+
 const UnavailableTabMessage: React.FC<{ message: string }> = ({ message }) => (
 	<div className="flex h-full min-h-0 items-center justify-center px-6 text-center text-xs text-content-secondary">
 		{message}
@@ -194,6 +220,7 @@ type UserTabContentProps = {
 	workspace: TypesGen.Workspace | undefined;
 	workspaceAgent: TypesGen.WorkspaceAgent | undefined;
 	wildcardHostname: string;
+	canAnnotate: boolean;
 	sidebarVisible: boolean;
 	isActive: boolean;
 	isPending: boolean;
@@ -206,6 +233,7 @@ const UserTabContent: React.FC<UserTabContentProps> = ({
 	workspace,
 	workspaceAgent,
 	wildcardHostname,
+	canAnnotate,
 	sidebarVisible,
 	isActive,
 	isPending,
@@ -257,6 +285,7 @@ const UserTabContent: React.FC<UserTabContentProps> = ({
 					agent={agent}
 					host={wildcardHostname}
 					tab={tab}
+					canAnnotate={canAnnotate}
 				/>
 			);
 		}
@@ -308,6 +337,7 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 	handlePromoteQueuedMessage,
 	onImplementPlan,
 	onSendAskUserQuestionResponse,
+	onSendToolMessage,
 	hasMoreMessages,
 	isFetchingMoreMessages,
 	isHydratingMessages,
@@ -322,7 +352,7 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 }) => {
 	const queryClient = useQueryClient();
 	const { proxy } = useProxy();
-	const { entitlements } = useDashboard();
+	const { entitlements, experiments } = useDashboard();
 	const { permissions, user: currentUser } = useAuthenticated();
 	const wildcardHostname = proxy.preferredWildcardHostname;
 	const agentId = chat.id;
@@ -739,6 +769,7 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 						workspace={workspace}
 						workspaceAgent={workspaceAgent}
 						wildcardHostname={wildcardHostname}
+						canAnnotate={experiments.includes("chat-ui-annotations")}
 						sidebarVisible={shouldShowSidebar}
 						isActive={effectiveSidebarTabId === userTab.id}
 						isPending={pendingTabId === userTab.id}
@@ -833,7 +864,11 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 					agentId: chat.agent_id,
 				}}
 			>
-				<DesktopPanelContext value={desktopPanelCtx}>
+				<ChatToolProviders desktopPanel={desktopPanelCtx}>
+					<ComposerRegistrar
+						send={onSendToolMessage}
+						enabled={!isInputDisabled && !isOtherUserReadOnly}
+					/>
 					<div
 						className={cn(
 							"relative flex h-full min-h-0 min-w-0 flex-1 sm:[--agents-chat-panel-min-width:360px]",
@@ -1027,7 +1062,7 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 							/>
 						</RightPanel>
 					</div>
-				</DesktopPanelContext>
+				</ChatToolProviders>
 			</ChatWorkspaceContext>
 		</TerminalClientSessionContext>
 	);
