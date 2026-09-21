@@ -60,7 +60,7 @@ import {
 	microsToDollars,
 } from "#/utils/currency";
 
-interface UserAIBudgetOverrideDialogProps {
+type UserAIBudgetOverrideDialogProps = {
 	open: boolean;
 	onOpenChange: (open: boolean) => void;
 	user: ReducedUser;
@@ -68,7 +68,7 @@ interface UserAIBudgetOverrideDialogProps {
 	effectiveGroupId?: string | null;
 	// When false, the budget is shown without the controls to change it.
 	canUpdate: boolean;
-}
+};
 
 export const UserAIBudgetOverrideDialog: FC<
 	UserAIBudgetOverrideDialogProps
@@ -177,13 +177,13 @@ export const UserAIBudgetOverrideDialog: FC<
 	);
 };
 
-interface BudgetProps {
+type BudgetProps = {
 	user: ReducedUser;
 	currentGroup: Group;
 	override: UserAIBudgetOverride | null;
 	groupBudget: GroupAIBudget | null;
 	userGroups: readonly Group[];
-}
+};
 
 /** The member's effective limit as a sentence, to place inside a paragraph. */
 const BudgetSummary: FC<BudgetProps> = ({
@@ -234,14 +234,14 @@ const ReadOnlyBudget: FC<BudgetProps> = (props) => (
 	</p>
 );
 
-interface OverrideFormProps extends BudgetProps {
+type OverrideFormProps = BudgetProps & {
 	// Group marked "(default)" in the picker; null marks none.
 	defaultGroupId: string | null;
 	isSubmitting: boolean;
 	onSave: (request: UpsertUserAIBudgetOverrideRequest) => Promise<unknown>;
 	onRemove: () => Promise<unknown>;
 	onClose: () => void;
-}
+};
 
 /** Mounted only after budget data loads, so state seeds from it without a sync effect. */
 const OverrideForm: FC<OverrideFormProps> = ({

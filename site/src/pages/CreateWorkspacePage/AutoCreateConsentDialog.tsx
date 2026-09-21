@@ -11,13 +11,13 @@ import {
 } from "#/components/Dialog/Dialog";
 import type { AutofillBuildParameter } from "#/utils/richParameters";
 
-interface AutoCreateConsentDialogProps {
+type AutoCreateConsentDialogProps = {
 	open: boolean;
 	autofillParameters: AutofillBuildParameter[];
 	presetName?: string;
 	onConfirm: () => void;
 	onDeny: () => void;
-}
+};
 
 export const AutoCreateConsentDialog: FC<AutoCreateConsentDialogProps> = ({
 	open,

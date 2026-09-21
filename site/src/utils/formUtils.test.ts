@@ -2,7 +2,7 @@ import type { FormikContextType } from "formik/dist/types";
 import { mockApiError } from "#/testHelpers/entities";
 import { getFormHelpers, nameValidator, onChangeTrimmed } from "./formUtils";
 
-interface TestType {
+type TestType = {
 	untouchedGoodField: string;
 	untouchedBadField: string;
 	touchedGoodField: string;
@@ -10,7 +10,7 @@ interface TestType {
 	maxLengthOk: string;
 	maxLengthClose: string;
 	maxLengthOver: string;
-}
+};
 
 const mockHandleChange = vi.fn();
 

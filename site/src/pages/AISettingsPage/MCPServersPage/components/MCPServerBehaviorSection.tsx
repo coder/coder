@@ -21,11 +21,11 @@ import {
 	type MCPServerFormValues,
 } from "./mcpServerFormLogic";
 
-interface MCPServerBehaviorSectionProps {
+type MCPServerBehaviorSectionProps = {
 	form: FormikContextType<MCPServerFormValues>;
 	formId: string;
 	disabled: boolean;
-}
+};
 
 export const MCPServerBehaviorSection: FC<MCPServerBehaviorSectionProps> = ({
 	form,

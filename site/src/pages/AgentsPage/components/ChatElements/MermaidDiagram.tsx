@@ -13,12 +13,12 @@ type RenderState =
 	| { status: "rendered"; svg: string }
 	| { status: "error"; message: string };
 
-interface MermaidDiagramProps {
+type MermaidDiagramProps = {
 	source: string;
 	/** Rendered below the error message so the viewer can still read
 	 * the diagram source when Mermaid rejects it. */
 	fallback: ReactNode;
-}
+};
 
 // Elements that can trigger a network request or navigation when the
 // SVG is inserted into the page. Mermaid's strict security level

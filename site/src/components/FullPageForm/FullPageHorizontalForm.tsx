@@ -7,12 +7,12 @@ import {
 	PageHeaderTitle,
 } from "#/components/PageHeader/PageHeader";
 
-interface FullPageHorizontalFormProps {
+type FullPageHorizontalFormProps = {
 	title: string;
 	detail?: ReactNode;
 	onCancel?: () => void;
 	children?: ReactNode;
-}
+};
 
 export const FullPageHorizontalForm: FC<FullPageHorizontalFormProps> = ({
 	title,
