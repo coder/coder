@@ -7553,6 +7553,72 @@ func (q *sqlQuerier) GetChatMemoryCursor(ctx context.Context, chatID uuid.UUID) 
 	return i, err
 }
 
+const getChatMessagesForMemoryExtraction = `-- name: GetChatMessagesForMemoryExtraction :many
+SELECT id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, revision, reasoning_effort, search_tsv, search_tsv_config
+FROM chat_messages
+WHERE chat_id = $1::uuid
+    AND revision > $2::bigint
+    AND deleted = false
+ORDER BY id ASC
+`
+
+type GetChatMessagesForMemoryExtractionParams struct {
+	ChatID        uuid.UUID `db:"chat_id" json:"chat_id"`
+	AfterRevision int64     `db:"after_revision" json:"after_revision"`
+}
+
+// Unpruned history above a revision. The prompt query hides rows behind the
+// latest compaction boundary, but extraction must still see the original
+// user turns; callers filter injected model-only rows themselves.
+func (q *sqlQuerier) GetChatMessagesForMemoryExtraction(ctx context.Context, arg GetChatMessagesForMemoryExtractionParams) ([]ChatMessage, error) {
+	rows, err := q.db.QueryContext(ctx, getChatMessagesForMemoryExtraction, arg.ChatID, arg.AfterRevision)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ChatMessage
+	for rows.Next() {
+		var i ChatMessage
+		if err := rows.Scan(
+			&i.ID,
+			&i.ChatID,
+			&i.ModelConfigID,
+			&i.CreatedAt,
+			&i.Role,
+			&i.Content,
+			&i.Visibility,
+			&i.InputTokens,
+			&i.OutputTokens,
+			&i.TotalTokens,
+			&i.ReasoningTokens,
+			&i.CacheCreationTokens,
+			&i.CacheReadTokens,
+			&i.ContextLimit,
+			&i.Compressed,
+			&i.CreatedBy,
+			&i.ContentVersion,
+			&i.TotalCostMicros,
+			&i.RuntimeMs,
+			&i.Deleted,
+			&i.ProviderResponseID,
+			&i.Revision,
+			&i.ReasoningEffort,
+			&i.SearchTsv,
+			&i.SearchTsvConfig,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getChatProjectMemoriesByProjectID = `-- name: GetChatProjectMemoriesByProjectID :many
 SELECT
     chat_project_memories.id, chat_project_memories.project_id, chat_project_memories.organization_id, chat_project_memories.name, chat_project_memories.description, chat_project_memories.body, chat_project_memories.source_chat_id, chat_project_memories.created_by, chat_project_memories.created_at, chat_project_memories.updated_at,

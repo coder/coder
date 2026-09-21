@@ -350,7 +350,7 @@ func TestExtractMemories(t *testing.T) {
 		gomock.InOrder(
 			db.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil),
 			expectProject(db, chat),
-			db.EXPECT().GetChatMessagesForPromptByChatID(gomock.Any(), chat.ID).Return([]database.ChatMessage{
+			db.EXPECT().GetChatMessagesForMemoryExtraction(gomock.Any(), gomock.Any()).Return([]database.ChatMessage{
 				message(t, 1, database.ChatMessageRoleUser, "remember this", 5),
 				saveCall,
 				saveResult,
@@ -406,7 +406,7 @@ func TestExtractMemories(t *testing.T) {
 		gomock.InOrder(
 			db.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil),
 			expectProject(db, chat),
-			db.EXPECT().GetChatMessagesForPromptByChatID(gomock.Any(), chat.ID).Return([]database.ChatMessage{
+			db.EXPECT().GetChatMessagesForMemoryExtraction(gomock.Any(), gomock.Any()).Return([]database.ChatMessage{
 				message(t, 1, database.ChatMessageRoleUser, "old detail", 2),
 				message(t, 2, database.ChatMessageRoleUser, "new durable detail", 5),
 			}, nil),
@@ -452,7 +452,7 @@ func TestExtractMemories(t *testing.T) {
 		gomock.InOrder(
 			db.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil),
 			expectProject(db, chat),
-			db.EXPECT().GetChatMessagesForPromptByChatID(gomock.Any(), chat.ID).Return([]database.ChatMessage{
+			db.EXPECT().GetChatMessagesForMemoryExtraction(gomock.Any(), gomock.Any()).Return([]database.ChatMessage{
 				message(t, 1, database.ChatMessageRoleUser, "new durable detail", 5),
 			}, nil),
 			db.EXPECT().GetChatProjectMemoriesByProjectID(gomock.Any(), chat.ProjectID.UUID).Return(nil, nil),
@@ -468,7 +468,7 @@ func TestExtractMemories(t *testing.T) {
 		gomock.InOrder(
 			db.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(advanced, nil),
 			expectProject(db, chat),
-			db.EXPECT().GetChatMessagesForPromptByChatID(gomock.Any(), chat.ID).Return([]database.ChatMessage{
+			db.EXPECT().GetChatMessagesForMemoryExtraction(gomock.Any(), gomock.Any()).Return([]database.ChatMessage{
 				message(t, 1, database.ChatMessageRoleUser, "new durable detail", 5),
 			}, nil),
 			advanceCursor(db, advanced),
@@ -476,6 +476,92 @@ func TestExtractMemories(t *testing.T) {
 		)
 
 		server.extractMemories(t.Context(), slogtest.Make(t, nil), chat)
+	})
+
+	t.Run("HandsOffWhenDrainBudgetRunsOut", func(t *testing.T) {
+		t.Parallel()
+
+		ctrl := gomock.NewController(t)
+		db := dbmock.NewMockStore(ctrl)
+		chat := newChat()
+		serverCtx, cancel := context.WithCancel(t.Context())
+		t.Cleanup(cancel)
+		server := newServer(t, db, nil)
+		server.ctx = serverCtx
+		server.cancel = cancel
+
+		// Every pass finds another completed turn with nothing to extract,
+		// so the extractor keeps draining until the budget is spent.
+		for i := range memoryExtractionMaxDrains {
+			current := chat
+			current.HistoryVersion = chat.HistoryVersion + int64(i)
+			next := current
+			next.HistoryVersion = current.HistoryVersion + 1
+			expectClaim(t, db, chat, current.HistoryVersion-1)
+			gomock.InOrder(
+				db.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(current, nil),
+				expectProject(db, chat),
+				db.EXPECT().GetChatMessagesForMemoryExtraction(gomock.Any(), gomock.Any()).Return(nil, nil),
+				advanceCursor(db, current),
+				db.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(next, nil),
+			)
+		}
+		// The successor extractor claims once more for the leftover window.
+		handoff := make(chan struct{})
+		db.EXPECT().ClaimChatMemoryExtraction(gomock.Any(), gomock.Any()).DoAndReturn(func(context.Context, database.ClaimChatMemoryExtractionParams) (database.ChatMemoryCursor, error) {
+			close(handoff)
+			return database.ChatMemoryCursor{}, sql.ErrNoRows
+		})
+
+		server.extractMemories(t.Context(), slogtest.Make(t, nil), chat)
+		select {
+		case <-handoff:
+		case <-time.After(10 * time.Second):
+			t.Fatal("successor extractor never claimed the leftover window")
+		}
+	})
+
+	t.Run("CompactedHistoryStillReachesExtraction", func(t *testing.T) {
+		t.Parallel()
+
+		ctrl := gomock.NewController(t)
+		db := dbmock.NewMockStore(ctrl)
+		chat := newChat()
+		var gotArgs database.GetChatMessagesForMemoryExtractionParams
+		var sentTranscript string
+		server := newServer(t, db, roundTripFunc(func(req *http.Request) (*http.Response, error) {
+			body, _ := io.ReadAll(req.Body)
+			sentTranscript = string(body)
+			response := objectResponse(t, map[string]any{"upserts": []map[string]any{}})
+			response.Request = req
+			return response, nil
+		}))
+		// Compaction replays the user turn as a model-only row; the original
+		// user-visible row must still be what the extractor reads.
+		replayed := message(t, 2, database.ChatMessageRoleUser, "durable fact from before compaction", 5)
+		replayed.Visibility = database.ChatMessageVisibilityModel
+		expectClaim(t, db, chat, 3)
+		gomock.InOrder(
+			db.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil),
+			expectProject(db, chat),
+			db.EXPECT().GetChatMessagesForMemoryExtraction(gomock.Any(), gomock.Any()).DoAndReturn(func(_ context.Context, arg database.GetChatMessagesForMemoryExtractionParams) ([]database.ChatMessage, error) {
+				gotArgs = arg
+				return []database.ChatMessage{
+					message(t, 1, database.ChatMessageRoleUser, "durable fact from before compaction", 5),
+					replayed,
+				}, nil
+			}),
+			db.EXPECT().GetChatProjectMemoriesByProjectID(gomock.Any(), chat.ProjectID.UUID).Return(nil, nil),
+		)
+		expectModelResolution(db, chat)
+		gomock.InOrder(
+			advanceCursor(db, chat),
+			db.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil),
+		)
+
+		server.extractMemories(t.Context(), slogtest.Make(t, nil), chat)
+		require.Equal(t, database.GetChatMessagesForMemoryExtractionParams{ChatID: chat.ID, AfterRevision: 3}, gotArgs)
+		require.Equal(t, 1, strings.Count(sentTranscript, "durable fact from before compaction"), "the replayed model-only row is not sent twice")
 	})
 
 	t.Run("NeverOverwritesExistingMemory", func(t *testing.T) {
@@ -499,7 +585,7 @@ func TestExtractMemories(t *testing.T) {
 		gomock.InOrder(
 			db.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil),
 			expectProject(db, chat),
-			db.EXPECT().GetChatMessagesForPromptByChatID(gomock.Any(), chat.ID).Return([]database.ChatMessage{
+			db.EXPECT().GetChatMessagesForMemoryExtraction(gomock.Any(), gomock.Any()).Return([]database.ChatMessage{
 				message(t, 1, database.ChatMessageRoleUser, "when do we deploy?", 5),
 			}, nil),
 			db.EXPECT().GetChatProjectMemoriesByProjectID(gomock.Any(), chat.ProjectID.UUID).Return(nil, nil),
@@ -548,7 +634,7 @@ func TestExtractMemories(t *testing.T) {
 		gomock.InOrder(
 			db.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil),
 			expectProject(db, chat),
-			db.EXPECT().GetChatMessagesForPromptByChatID(gomock.Any(), chat.ID).Return([]database.ChatMessage{
+			db.EXPECT().GetChatMessagesForMemoryExtraction(gomock.Any(), gomock.Any()).Return([]database.ChatMessage{
 				message(t, 1, database.ChatMessageRoleUser, "new durable detail", 5),
 			}, nil),
 			db.EXPECT().GetChatProjectMemoriesByProjectID(gomock.Any(), chat.ProjectID.UUID).Return(nil, nil),
@@ -586,7 +672,7 @@ func TestExtractMemories(t *testing.T) {
 		gomock.InOrder(
 			db.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil),
 			expectProject(db, chat),
-			db.EXPECT().GetChatMessagesForPromptByChatID(gomock.Any(), chat.ID).Return([]database.ChatMessage{
+			db.EXPECT().GetChatMessagesForMemoryExtraction(gomock.Any(), gomock.Any()).Return([]database.ChatMessage{
 				message(t, 1, database.ChatMessageRoleUser, "new durable detail", 5),
 			}, nil),
 			db.EXPECT().GetChatProjectMemoriesByProjectID(gomock.Any(), chat.ProjectID.UUID).Return(nil, nil),
@@ -621,7 +707,7 @@ func TestExtractMemories(t *testing.T) {
 		gomock.InOrder(
 			db.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil),
 			expectProject(db, chat),
-			db.EXPECT().GetChatMessagesForPromptByChatID(gomock.Any(), chat.ID).Return([]database.ChatMessage{
+			db.EXPECT().GetChatMessagesForMemoryExtraction(gomock.Any(), gomock.Any()).Return([]database.ChatMessage{
 				message(t, 1, database.ChatMessageRoleUser, "new durable detail", 5),
 			}, nil),
 			db.EXPECT().GetChatProjectMemoriesByProjectID(gomock.Any(), chat.ProjectID.UUID).Return(nil, nil),

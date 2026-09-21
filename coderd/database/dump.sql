@@ -4894,7 +4894,7 @@ CREATE UNIQUE INDEX idx_chat_project_memories_project_lower_name ON chat_project
 
 CREATE INDEX idx_chat_project_memories_project_updated_at ON chat_project_memories USING btree (project_id, updated_at DESC);
 
-CREATE UNIQUE INDEX idx_chat_projects_org_lower_name ON chat_projects USING btree (organization_id, lower(name));
+CREATE UNIQUE INDEX idx_chat_projects_creator_lower_name ON chat_projects USING btree (organization_id, created_by, lower(name));
 
 CREATE INDEX idx_chat_projects_organization_id ON chat_projects USING btree (organization_id);
 

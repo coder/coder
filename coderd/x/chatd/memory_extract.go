@@ -118,7 +118,8 @@ func (p *Server) extractMemories(ctx context.Context, logger slog.Logger, chat d
 	// owns a chat at a time; the owner drains any turns that completed
 	// while it was working, and a rival that fails to claim simply exits.
 	extracted := false
-	for range memoryExtractionMaxDrains {
+	pending := false
+	for i := range memoryExtractionMaxDrains {
 		claim, err := p.db.ClaimChatMemoryExtraction(ctx, database.ClaimChatMemoryExtractionParams{
 			ChatID:       chat.ID,
 			ClaimedUntil: p.clock.Now().Add(memoryExtractionClaimTTL),
@@ -145,6 +146,14 @@ func (p *Server) extractMemories(ctx context.Context, logger slog.Logger, chat d
 		if err != nil || current.HistoryVersion <= processedTo {
 			break
 		}
+		chat = current
+		pending = i == memoryExtractionMaxDrains-1
+	}
+	if pending {
+		// The drain budget ran out with work still pending. Hand off to a
+		// fresh extractor with its own deadline rather than leaving that
+		// window until the next turn.
+		p.maybeExtractMemoriesAsync(context.WithoutCancel(ctx), logger, chat)
 	}
 	if extracted {
 		p.runAfterMemoryExtraction(ctx, logger, chat)
@@ -185,7 +194,7 @@ func (p *Server) extractMemoriesOnce(ctx context.Context, logger slog.Logger, ch
 		return 0, false
 	}
 
-	messages, err := p.db.GetChatMessagesForPromptByChatID(ctx, chat.ID)
+	messages, err := p.db.GetChatMessagesForMemoryExtraction(ctx, database.GetChatMessagesForMemoryExtractionParams{ChatID: chat.ID, AfterRevision: cursor})
 	if err != nil {
 		logger.Debug(ctx, "failed to load memory transcript", slog.F("chat_id", chat.ID), slog.Error(err))
 		return 0, false
