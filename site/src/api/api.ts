@@ -3288,25 +3288,6 @@ class ExperimentalApiMethods {
 		await this.axios.delete(`/api/experimental/chats/projects/${projectId}`);
 	};
 
-	getChatProjectACL = async (
-		projectId: string,
-	): Promise<TypesGen.ChatProjectACL> => {
-		const response = await this.axios.get<TypesGen.ChatProjectACL>(
-			`/api/experimental/chats/projects/${projectId}/acl`,
-		);
-		return response.data;
-	};
-
-	updateChatProjectACL = async (
-		projectId: string,
-		req: TypesGen.UpdateChatProjectACL,
-	): Promise<void> => {
-		await this.axios.patch(
-			`/api/experimental/chats/projects/${projectId}/acl`,
-			req,
-		);
-	};
-
 	getChat = async (chatId: string): Promise<TypesGen.Chat> => {
 		const response = await this.axios.get<TypesGen.Chat>(
 			`/api/v2/chats/${chatId}`,

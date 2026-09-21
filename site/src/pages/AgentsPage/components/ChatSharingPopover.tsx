@@ -8,11 +8,6 @@ import { type FC, type ReactNode, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { toast } from "sonner";
 import {
-	chatProjectACL,
-	setChatProjectGroupRole,
-	setChatProjectUserRole,
-} from "#/api/queries/chatProjects";
-import {
 	chatACL,
 	setChatGroupRole,
 	setChatUserRole,
@@ -52,74 +47,13 @@ import {
 	type UserOrGroupAutocompleteValue,
 } from "#/modules/workspaces/WorkspaceSharingForm/UserOrGroupAutocomplete";
 
-/**
- * What is being shared. Chats and projects share the same ACL shape and
- * read-only role, so one popover serves both.
- */
-type SharingTarget = {
-	kind: "chat" | "project";
-	id: string;
-	organizationId: string;
-};
-
 type ChatShareButtonProps = {
 	chatId: string;
 	organizationId: string;
 };
 
-type ProjectShareButtonProps = {
-	projectId: string;
-	organizationId: string;
-};
-
-type SharingPopoverContentProps = {
-	target: SharingTarget;
+type ChatSharingPopoverContentProps = ChatShareButtonProps & {
 	open: boolean;
-};
-
-const sharingTargetLabel = (target: SharingTarget) =>
-	target.kind === "chat" ? "Chat" : "Project";
-
-const sharingTargetPath = (target: SharingTarget) =>
-	target.kind === "chat"
-		? `/agents/${target.id}`
-		: `/agents/projects/${target.id}`;
-
-/** ACL role mutations for both targets, normalized to the same variables. */
-const useSharingMutations = (target: SharingTarget) => {
-	const queryClient = useQueryClient();
-	const chatUser = useMutation(setChatUserRole(queryClient));
-	const chatGroup = useMutation(setChatGroupRole(queryClient));
-	const projectUser = useMutation(setChatProjectUserRole(queryClient));
-	const projectGroup = useMutation(setChatProjectGroupRole(queryClient));
-	const isChat = target.kind === "chat";
-	const user = isChat ? chatUser : projectUser;
-	const group = isChat ? chatGroup : projectGroup;
-
-	return {
-		error: user.error ?? group.error,
-		isPending: user.isPending || group.isPending,
-		reset: () => {
-			user.reset();
-			group.reset();
-		},
-		setUserRole: (
-			userId: string,
-			role: TypesGen.ChatRole,
-			options?: { onSuccess: () => void },
-		) =>
-			isChat
-				? chatUser.mutate({ chatId: target.id, userId, role }, options)
-				: projectUser.mutate({ projectId: target.id, userId, role }, options),
-		setGroupRole: (
-			groupId: string,
-			role: TypesGen.ChatRole,
-			options?: { onSuccess: () => void },
-		) =>
-			isChat
-				? chatGroup.mutate({ chatId: target.id, groupId, role }, options)
-				: projectGroup.mutate({ projectId: target.id, groupId, role }, options),
-	};
 };
 
 type MemberRowMenuProps = {
@@ -219,18 +153,17 @@ const MemberIdentity: FC<MemberIdentityProps> = (props) => {
 	);
 };
 
-type CopyLinkButtonProps = {
-	target: SharingTarget;
+type CopyChatLinkButtonProps = {
+	chatId: string;
 };
 
 /**
- * Copies the absolute URL so it can be shared from contexts without an
+ * Copies the absolute chat URL so it can be shared from contexts without an
  * address bar, such as an installed PWA.
  */
-const CopyLinkButton: FC<CopyLinkButtonProps> = ({ target }) => {
+const CopyChatLinkButton: FC<CopyChatLinkButtonProps> = ({ chatId }) => {
 	const { copyToClipboard, showCopiedSuccess } = useClipboard();
-	const chatLink = new URL(sharingTargetPath(target), window.location.origin)
-		.href;
+	const chatLink = new URL(`/agents/${chatId}`, window.location.origin).href;
 
 	return (
 		<Button
@@ -266,31 +199,41 @@ const MobileMemberRow: FC<MobileMemberRowProps> = ({
 	</div>
 );
 
-export const SharingPopoverContent: FC<SharingPopoverContentProps> = ({
-	target,
+export const ChatSharingPopoverContent: FC<ChatSharingPopoverContentProps> = ({
+	chatId,
+	organizationId,
 	open,
 }) => {
 	const { user: currentUser } = useAuthenticated();
-	const { organizationId } = target;
-	const label = sharingTargetLabel(target);
+	const queryClient = useQueryClient();
 	const [selectedOption, setSelectedOption] =
 		useState<UserOrGroupAutocompleteValue>(null);
 
-	// Both ACLs have the same shape; the union of query options is widened
-	// so react-query accepts either key.
-	const aclOptions: {
-		queryKey: readonly unknown[];
-		queryFn: () => Promise<TypesGen.ChatACL>;
-	} = target.kind === "chat" ? chatACL(target.id) : chatProjectACL(target.id);
-	const aclQuery = useQuery({ ...aclOptions, enabled: open });
+	const aclQuery = useQuery({
+		...chatACL(chatId),
+		enabled: open,
+	});
 
 	const {
-		error: mutationError,
-		isPending: isMutating,
-		reset: resetMutationErrors,
-		setUserRole,
-		setGroupRole,
-	} = useSharingMutations(target);
+		error: userRoleError,
+		isPending: isUserRolePending,
+		mutate: mutateUserRole,
+		reset: resetUserRole,
+	} = useMutation(setChatUserRole(queryClient));
+	const {
+		error: groupRoleError,
+		isPending: isGroupRolePending,
+		mutate: mutateGroupRole,
+		reset: resetGroupRole,
+	} = useMutation(setChatGroupRole(queryClient));
+
+	const mutationError = userRoleError ?? groupRoleError;
+	const isMutating = isUserRolePending || isGroupRolePending;
+
+	const resetMutationErrors = () => {
+		resetUserRole();
+		resetGroupRole();
+	};
 
 	const acl = aclQuery.data;
 	const users = (acl?.users ?? []).filter((user) => user.id !== currentUser.id);
@@ -309,21 +252,35 @@ export const SharingPopoverContent: FC<SharingPopoverContentProps> = ({
 		resetMutationErrors();
 
 		if (isGroup(selectedOption)) {
-			setGroupRole(selectedOption.id, "read", {
-				onSuccess: () => {
-					setSelectedOption(null);
-					toast.success(`Group added to ${target.kind}.`);
+			mutateGroupRole(
+				{
+					chatId,
+					groupId: selectedOption.id,
+					role: "read",
 				},
-			});
+				{
+					onSuccess: () => {
+						setSelectedOption(null);
+						toast.success("Group added to chat.");
+					},
+				},
+			);
 			return;
 		}
 
-		setUserRole(selectedOption.id, "read", {
-			onSuccess: () => {
-				setSelectedOption(null);
-				toast.success(`Member added to ${target.kind}.`);
+		mutateUserRole(
+			{
+				chatId,
+				userId: selectedOption.id,
+				role: "read",
 			},
-		});
+			{
+				onSuccess: () => {
+					setSelectedOption(null);
+					toast.success("Member added to chat.");
+				},
+			},
+		);
 	};
 
 	const handleRemoveUser = (user: TypesGen.ChatUser) => {
@@ -332,9 +289,10 @@ export const SharingPopoverContent: FC<SharingPopoverContentProps> = ({
 		}
 
 		resetMutationErrors();
-		setUserRole(user.id, "", {
-			onSuccess: () => toast.success(`Member removed from ${target.kind}.`),
-		});
+		mutateUserRole(
+			{ chatId, userId: user.id, role: "" },
+			{ onSuccess: () => toast.success("Member removed from chat.") },
+		);
 	};
 
 	const handleRemoveGroup = (group: TypesGen.ChatGroup) => {
@@ -343,9 +301,10 @@ export const SharingPopoverContent: FC<SharingPopoverContentProps> = ({
 		}
 
 		resetMutationErrors();
-		setGroupRole(group.id, "", {
-			onSuccess: () => toast.success(`Group removed from ${target.kind}.`),
-		});
+		mutateGroupRole(
+			{ chatId, groupId: group.id, role: "" },
+			{ onSuccess: () => toast.success("Group removed from chat.") },
+		);
 	};
 
 	const isEmpty = groups.length === 0 && users.length === 0;
@@ -356,8 +315,8 @@ export const SharingPopoverContent: FC<SharingPopoverContentProps> = ({
 			className="w-[calc(100vw-2rem)] p-3 sm:w-[580px] sm:p-4"
 		>
 			<div className="flex items-center justify-between gap-2 mb-4">
-				<h3 className="text-lg font-semibold m-0">{label} sharing</h3>
-				<CopyLinkButton target={target} />
+				<h3 className="text-lg font-semibold m-0">Chat sharing</h3>
+				<CopyChatLinkButton chatId={chatId} />
 			</div>
 
 			<div className="flex flex-col gap-4">
@@ -367,7 +326,7 @@ export const SharingPopoverContent: FC<SharingPopoverContentProps> = ({
 				{aclQuery.isLoading ? (
 					<div role="status" className="flex flex-col items-center gap-4 py-8">
 						<Spinner loading />
-						<span>Loading {target.kind} sharing</span>
+						<span>Loading chat sharing</span>
 					</div>
 				) : acl ? (
 					<>
@@ -420,7 +379,7 @@ export const SharingPopoverContent: FC<SharingPopoverContentProps> = ({
 						{!isEmpty && (
 							<div className="hidden sm:block">
 								<Table
-									aria-label={`Shared ${target.kind} members and groups`}
+									aria-label="Shared chat members and groups"
 									wrapperClassName="max-h-60 overflow-y-auto"
 								>
 									<TableHeader>
@@ -478,16 +437,10 @@ export const SharingPopoverContent: FC<SharingPopoverContentProps> = ({
 	);
 };
 
-type SharingPopoverProps = {
-	target: SharingTarget;
-	trigger: ReactNode;
-};
-
-/**
- * Remounts the content on every open so stale selections and errors from a
- * previous session do not carry over.
- */
-const SharingPopover: FC<SharingPopoverProps> = ({ target, trigger }) => {
+export const ChatShareButton: FC<ChatShareButtonProps> = ({
+	chatId,
+	organizationId,
+}) => {
 	const [open, setOpen] = useState(false);
 	const [contentGeneration, setContentGeneration] = useState(0);
 
@@ -501,47 +454,18 @@ const SharingPopover: FC<SharingPopoverProps> = ({ target, trigger }) => {
 
 	return (
 		<Popover open={open} onOpenChange={handleOpenChange}>
-			<PopoverTrigger asChild>{trigger}</PopoverTrigger>
-			<SharingPopoverContent
+			<PopoverTrigger asChild>
+				<TopbarButton data-testid="chat-share-button">
+					<Share2Icon />
+					Share
+				</TopbarButton>
+			</PopoverTrigger>
+			<ChatSharingPopoverContent
 				key={contentGeneration}
-				target={target}
+				chatId={chatId}
+				organizationId={organizationId}
 				open={open}
 			/>
 		</Popover>
 	);
 };
-
-export const ChatShareButton: FC<ChatShareButtonProps> = ({
-	chatId,
-	organizationId,
-}) => (
-	<SharingPopover
-		target={{ kind: "chat", id: chatId, organizationId }}
-		trigger={
-			<TopbarButton data-testid="chat-share-button">
-				<Share2Icon />
-				Share
-			</TopbarButton>
-		}
-	/>
-);
-
-export const ProjectShareButton: FC<ProjectShareButtonProps> = ({
-	projectId,
-	organizationId,
-}) => (
-	<SharingPopover
-		target={{ kind: "project", id: projectId, organizationId }}
-		trigger={
-			<Button
-				variant="subtle"
-				size="sm"
-				className="text-content-secondary"
-				data-testid="project-share-button"
-			>
-				<Share2Icon />
-				Share project
-			</Button>
-		}
-	/>
-);

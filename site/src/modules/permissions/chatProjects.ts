@@ -3,16 +3,11 @@ import type { AuthorizationCheck, ChatProject } from "#/api/typesGenerated";
 type ChatProjectPermissions = {
 	readonly canUpdate: boolean;
 	readonly canDelete: boolean;
-	readonly canShare: boolean;
 };
 
-type ChatProjectAction = "update" | "delete" | "share";
+type ChatProjectAction = "update" | "delete";
 
-const chatProjectActions: readonly ChatProjectAction[] = [
-	"update",
-	"delete",
-	"share",
-];
+const chatProjectActions: readonly ChatProjectAction[] = ["update", "delete"];
 
 const chatProjectCheckKey = (
 	project: Pick<ChatProject, "organization_id" | "created_by">,
@@ -47,5 +42,4 @@ export const chatProjectPermissionsFor = (
 ): ChatProjectPermissions => ({
 	canUpdate: response?.[chatProjectCheckKey(project, "update")] ?? false,
 	canDelete: response?.[chatProjectCheckKey(project, "delete")] ?? false,
-	canShare: response?.[chatProjectCheckKey(project, "share")] ?? false,
 });
