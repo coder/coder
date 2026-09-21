@@ -20,7 +20,7 @@ Bring them in now: these are the decisions that are hardest to revisit after ins
 ## Before you move on
 
 You should be able to state, in a sentence each, where Coder will run, how many users it's sized for, and how users will reach it.
-If any of those is still open, the answer usually lives in [Architecture](./architecture.md) or in the [Coder Validated Architecture](./sizing/index.md) reference designs.
+If any of those are unclear, the answer usually lives in [Architecture](./architecture.md) or in the [Coder Validated Architecture](./sizing/index.md) reference designs.
 
 Next: [Prepare prerequisites](../prepare/index.md).
 

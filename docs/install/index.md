@@ -2,8 +2,8 @@
 title: Install Coder in your infrastructure
 ---
 
-This section takes a Coder deployment from the first decision to steady-state operation.
-The five phases are meant to be read in order: each one produces the information that the next one needs.
+This section describes how to plan, install, and configure a Coder deployment, from the initial decisions you need to make in order to successfully run Coder to a steady-state operating environment.
+The five phases are meant to be read in order: each phase produces the required information for the next phase.
 
 > [!TIP]
 > If you only need the `coder` command-line client on your own machine, refer to [Coder CLI](./cli.md).
@@ -11,7 +11,7 @@ The five phases are meant to be read in order: each one produces the information
 >
 > If you want a Coder deployment on a single machine as quickly as possible, follow the [Quickstart](../get-started/index.md) instead.
 > It installs Coder and launches a first workspace without the planning and preparation work described here.
-> Come back to this section when other people depend on the deployment.
+> Come back to this section when you want an expanded Coder deployment.
 
 ## The five phases
 
@@ -19,7 +19,7 @@ The five phases are meant to be read in order: each one produces the information
 |----------------------------------------------------|--------------------------------------------------------------------------|--------------------------------------------------------------------------------|
 | [1. Plan your deployment](./plan/index.md)         | Which components run where, how large they need to be, who operates them | A deployment shape and a size target you can hand to an infrastructure team    |
 | [2. Prepare prerequisites](./prepare/index.md)     | What must exist before installation starts, and who owns each piece      | DNS, certificates, a database, a license, and an identity provider application |
-| [3. Install the control plane](./server/index.md)  | How to install Coder on the platform your team operates                  | A running control plane you can sign in to                                     |
+| [3. Install the control plane](./server/index.md)  | How to install Coder on the platform your team operates                  | A running Coder deployment you can sign in to                                  |
 | [4. Validate your deployment](./validate/index.md) | Whether the deployment is hardened, works, and holds up under load       | Evidence that the deployment is ready for real users                           |
 | [5. Operate and maintain](./operate/index.md)      | How to keep the deployment healthy, upgraded, and correctly sized        | An upgrade and scaling routine, plus a removal path                            |
 
@@ -33,7 +33,7 @@ Read [Plan your deployment](./plan/index.md) and [Prepare prerequisites](./prepa
 ## Who does the work
 
 A Coder deployment usually crosses team boundaries.
-The following actors appear throughout this section, so you can tell early which conversations you need to start and how long they're likely to take.
+The following actors appear throughout this section, so you can anticipate which conversations you need to start and how long they're likely to take.
 
 | Actor                            | Responsible for                                                              | Appears in phase |
 |----------------------------------|------------------------------------------------------------------------------|------------------|
