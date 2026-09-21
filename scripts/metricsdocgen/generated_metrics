@@ -268,6 +268,9 @@ coderd_agentstats_currently_reachable_peers{connection_type=""} 0
 # HELP coderd_agentstats_rx_bytes Agent Rx bytes
 # TYPE coderd_agentstats_rx_bytes gauge
 coderd_agentstats_rx_bytes 0
+# HELP coderd_agentstats_session_count The number of sessions established by app name and family
+# TYPE coderd_agentstats_session_count gauge
+coderd_agentstats_session_count 0
 # HELP coderd_agentstats_session_count_jetbrains The number of session established by JetBrains
 # TYPE coderd_agentstats_session_count_jetbrains gauge
 coderd_agentstats_session_count_jetbrains 0
@@ -280,7 +283,7 @@ coderd_agentstats_session_count_ssh 0
 # HELP coderd_agentstats_session_count_vscode The number of session established by VSCode
 # TYPE coderd_agentstats_session_count_vscode gauge
 coderd_agentstats_session_count_vscode 0
-# HELP coderd_agentstats_session_counts_overflow_total Total number of reported session count entries summed into the unknown app after exceeding the per-report cap.
+# HELP coderd_agentstats_session_counts_overflow_total Total number of reported session count entries summed into the overflow app after exceeding the per-report cap.
 # TYPE coderd_agentstats_session_counts_overflow_total counter
 coderd_agentstats_session_counts_overflow_total 0
 # HELP coderd_agentstats_startup_script_seconds Amount of time taken to run the startup script in seconds.

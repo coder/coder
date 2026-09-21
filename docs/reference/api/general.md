@@ -768,6 +768,20 @@ curl -X GET http://coder-server:8080/api/v2/deployment/stats \
   "collected_at": "2019-08-24T14:15:22Z",
   "next_update_at": "2019-08-24T14:15:22Z",
   "session_count": {
+    "apps": {
+      "property1": {
+        "count": 0,
+        "display_name": "string",
+        "family": "vscode",
+        "icon": "string"
+      },
+      "property2": {
+        "count": 0,
+        "display_name": "string",
+        "family": "vscode",
+        "icon": "string"
+      }
+    },
     "jetbrains": 0,
     "reconnecting_pty": 0,
     "ssh": 0,
