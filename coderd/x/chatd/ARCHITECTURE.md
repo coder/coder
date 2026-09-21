@@ -882,11 +882,9 @@ Parallel tool call results must be inserted in bulk after all parallel tool call
 
 The generation goroutine supports:
 
-<!-- TODO(chat-project-memory): document project memory prompt injection order and detached extraction after FinishTurn. -->
-
 - chat compaction (automatic and manual, see [Manual compaction](#manual-compaction))
 - MCP tools
-- memory tools <!-- TODO(chat-project-memory): document root-chat memory tools (read_memory, save_memory, delete_memory) scoped to the project -->
+- memory tools (`read_memory`, `save_memory`, `delete_memory`) for root chats in a project, see [Project memory](#project-memory)
 - subagents (`spawn_agent`, `wait_agent`, `message_agent`, `interrupt_agent`, `list_agents`, `list_subagent_models`)
     - `close_agent` is a deprecated alias that dispatches to `interrupt_agent`, so historical tool calls in chat history still resolve
 - file links
@@ -896,6 +894,12 @@ The generation goroutine supports:
 - provider-specific tools like web search and computer use
 - turn limit after a user message (the LLM shouldn't be able to spin forever in loop)
 - and other things
+
+##### Project memory
+
+Root chats in a project share durable memory; other chats have none. The system prompt gets only the memory guidance block; the live index lives in the `read_memory` tool description so the prompt prefix stays cacheable.
+
+After `FinishTurn`, a detached extractor claims `chat_memory_cursors.claimed_until`, reads the user messages since the cursor (unpruned, so compaction cannot hide turns), creates new memories, and advances the cursor only if every write succeeded. It drains turns that finished meanwhile, up to five passes, then hands off. Turns outside a project just advance the cursor. Extraction never overwrites an existing memory.
 
 ##### Reasoning effort
 
