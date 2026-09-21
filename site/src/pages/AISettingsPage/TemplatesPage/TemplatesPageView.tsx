@@ -10,6 +10,7 @@ import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { AvatarData } from "#/components/Avatar/AvatarData";
 import { Button } from "#/components/Button/Button";
+import { TableSearchEmpty } from "#/components/SearchEmptyState/SearchEmptyState";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
@@ -171,20 +172,19 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = ({
 						{isLoading || !templates ? (
 							<TableLoader />
 						) : templates.length === 0 ? (
-							<TableEmpty
-								message={
-									filterState.filter.used
-										? "No results matched your search."
-										: "No templates found."
-								}
-								description={
-									filterState.filter.used
-										? undefined
-										: "Create a template before configuring whether Coder Agents can create workspaces."
-								}
-								isCompact
-								className="min-h-52"
-							/>
+							filterState.filter.used ? (
+								<TableSearchEmpty
+									message="No templates match your search"
+									onClearFilters={() => filterState.filter.update("")}
+								/>
+							) : (
+								<TableEmpty
+									message="No templates found."
+									description="Create a template before configuring whether Coder Agents can create workspaces."
+									isCompact
+									className="min-h-52"
+								/>
+							)
 						) : (
 							templates.map((template) => (
 								<TemplateRow

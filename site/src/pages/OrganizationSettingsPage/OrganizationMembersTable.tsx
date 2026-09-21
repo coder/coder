@@ -15,6 +15,7 @@ import {
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
+import { TableSearchEmpty } from "#/components/SearchEmptyState/SearchEmptyState";
 import {
 	Table,
 	TableBody,
@@ -50,6 +51,10 @@ export type OrganizationMembersTableProps = {
 	me: string;
 	canEditMembers: boolean;
 	canViewActivity: boolean;
+	/** True when a search or filter is currently applied. */
+	filterUsed?: boolean;
+	/** Clears the active search or filter. */
+	onClearFilters?: () => void;
 };
 
 type OrganizationMemberTableEntry = OrganizationMemberWithUserData & {
@@ -96,12 +101,22 @@ const OrganizationMembersTableBody: React.FC<OrganizationMembersTableProps> = ({
 	me,
 	canEditMembers,
 	canViewActivity,
+	filterUsed,
+	onClearFilters,
 }) => {
 	if (!members) {
 		return <TableLoader />;
 	}
 
 	if (!members.length) {
+		if (filterUsed) {
+			return (
+				<TableSearchEmpty
+					message="No members match your search"
+					onClearFilters={onClearFilters}
+				/>
+			);
+		}
 		return <TableEmpty message="No members in this organization" />;
 	}
 

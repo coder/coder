@@ -6,6 +6,7 @@ import type * as TypesGen from "#/api/typesGenerated";
 import { AvatarData } from "#/components/Avatar/AvatarData";
 import { AvatarDataSkeleton } from "#/components/Avatar/AvatarDataSkeleton";
 import { LastSeen } from "#/components/LastSeen/LastSeen";
+import { TableSearchEmpty } from "#/components/SearchEmptyState/SearchEmptyState";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import {
 	Table,
@@ -45,6 +46,10 @@ export type UsersTableProps = {
 	/** User roles cannot be edited if OIDC Role Sync is enabled. */
 	oidcRoleSyncEnabled?: boolean;
 	onAction: (action: UserAdminAction) => void;
+	/** True when a search or filter is currently applied. */
+	filterUsed?: boolean;
+	/** Clears the active search or filter. */
+	onClearFilters?: () => void;
 };
 
 export const UsersTable: React.FC<UsersTableProps> = (props) => {
@@ -85,12 +90,22 @@ const UsersTableBody: React.FC<UsersTableProps> = ({
 	canViewActivity,
 	oidcRoleSyncEnabled,
 	onAction,
+	filterUsed,
+	onClearFilters,
 }) => {
 	if (isLoading) {
 		return <UsersTableSkeleton canEditUsers={canEditUsers} />;
 	}
 
 	if (!users || users.length === 0) {
+		if (filterUsed) {
+			return (
+				<TableSearchEmpty
+					message="No users match your search"
+					onClearFilters={onClearFilters}
+				/>
+			);
+		}
 		return <TableEmpty message="No users found" />;
 	}
 
