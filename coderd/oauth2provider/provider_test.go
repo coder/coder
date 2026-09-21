@@ -533,7 +533,7 @@ func TestOAuth2ProviderAppOperations(t *testing.T) {
 		// Should be able to keep the same name when updating.
 		req := codersdk.PutOAuth2ProviderAppRequest{
 			Name:        expectedApps.Default.Name,
-			CallbackURL: "http://coder.com",
+			CallbackURL: "https://coder.com",
 			Icon:        "test",
 		}
 		//nolint:gocritic // OAuth2 app management requires owner permission.
@@ -554,7 +554,7 @@ func TestOAuth2ProviderAppOperations(t *testing.T) {
 		// Should be able to update name.
 		req = codersdk.PutOAuth2ProviderAppRequest{
 			Name:        "new-foo",
-			CallbackURL: "http://coder.com",
+			CallbackURL: "https://coder.com",
 			Icon:        "test",
 		}
 		//nolint:gocritic // OAuth2 app management requires owner permission.
@@ -608,7 +608,7 @@ func TestOAuth2ProviderAppOperations(t *testing.T) {
 		//nolint:gocritic // OAuth2 app management requires owner permission.
 		app, err := client.PostOAuth2ProviderApp(ctx, codersdk.PostOAuth2ProviderAppRequest{
 			Name:        "scope-test-unrestricted",
-			CallbackURL: "http://coder.com",
+			CallbackURL: "https://coder.com",
 		})
 		require.NoError(t, err)
 		require.Empty(t, app.Scope)
@@ -618,7 +618,7 @@ func TestOAuth2ProviderAppOperations(t *testing.T) {
 		//nolint:gocritic // OAuth2 app management requires owner permission.
 		app, err = client.PostOAuth2ProviderApp(ctx, codersdk.PostOAuth2ProviderAppRequest{
 			Name:        "scope-test-scoped",
-			CallbackURL: "http://coder.com",
+			CallbackURL: "https://coder.com",
 			Scope:       "all workspace:read all",
 		})
 		require.NoError(t, err)
@@ -687,7 +687,7 @@ func TestOAuth2ProviderAppOperations(t *testing.T) {
 		//nolint:gocritic // OAuth2 app management requires owner permission.
 		admin, err := client.PostOAuth2ProviderApp(ctx, codersdk.PostOAuth2ProviderAppRequest{
 			Name:        "scope-origin-admin",
-			CallbackURL: "http://coder.com",
+			CallbackURL: "https://coder.com",
 			Scope:       "all workspace:read all",
 		})
 		require.NoError(t, err)
@@ -790,8 +790,8 @@ func generateApps(ctx context.Context, t *testing.T, client *codersdk.Client, su
 	}
 
 	return provisionedApps{
-		Default:   create("app-a", "http://localhost1:8080/foo/bar"),
-		NoPort:    create("app-b", "http://localhost2"),
+		Default:   create("app-a", "https://localhost1:8080/foo/bar"),
+		NoPort:    create("app-b", "https://localhost2"),
 		Subdomain: create("app-z", "http://30.localhost:3000"),
 		Extra: []codersdk.OAuth2ProviderApp{
 			create("app-x", "http://20.localhost:3000"),
@@ -1251,6 +1251,79 @@ func TestOAuth2ProviderAppRedirectURIs(t *testing.T) {
 		require.Len(t, sdkErr.Validations, 1)
 		require.Equal(t, "redirect_uris", sdkErr.Validations[0].Field)
 		require.Equal(t, "at most 32 redirect URIs are allowed", sdkErr.Validations[0].Detail)
+	})
+
+	// The admin path applies the same transport rule as dynamic client
+	// registration, so an admin cannot store a cleartext target that a client
+	// could not register for itself.
+	t.Run("CleartextHTTPIsRefused", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		var sdkErr *codersdk.Error
+		//nolint:gocritic // OAuth2 app management requires owner permission.
+		_, err := client.PostOAuth2ProviderApp(ctx, codersdk.PostOAuth2ProviderAppRequest{
+			Name:         "cleartext-create",
+			RedirectURIs: []string{"http://plaintext.example.com/callback"},
+		})
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+		require.Len(t, sdkErr.Validations, 1)
+		require.Equal(t, "redirect_uris", sdkErr.Validations[0].Field)
+		require.Equal(t, "redirect URI at index 0 must use https scheme for non-localhost URLs", sdkErr.Validations[0].Detail)
+
+		// The index names the offending entry rather than the first one.
+		//nolint:gocritic // OAuth2 app management requires owner permission.
+		_, err = client.PostOAuth2ProviderApp(ctx, codersdk.PostOAuth2ProviderAppRequest{
+			Name:         "cleartext-create-second",
+			RedirectURIs: []string{first, "http://plaintext.example.com/callback"},
+		})
+		sdkErr = nil
+		require.ErrorAs(t, err, &sdkErr)
+		require.Len(t, sdkErr.Validations, 1)
+		require.Equal(t, "redirect URI at index 1 must use https scheme for non-localhost URLs", sdkErr.Validations[0].Detail)
+
+		// The deprecated field is reported against its own name.
+		//nolint:gocritic // OAuth2 app management requires owner permission.
+		_, err = client.PostOAuth2ProviderApp(ctx, codersdk.PostOAuth2ProviderAppRequest{
+			Name:        "cleartext-create-callback",
+			CallbackURL: "http://plaintext.example.com/callback",
+		})
+		sdkErr = nil
+		require.ErrorAs(t, err, &sdkErr)
+		require.Len(t, sdkErr.Validations, 1)
+		require.Equal(t, "callback_url", sdkErr.Validations[0].Field)
+		require.Equal(t, "callback URL must use https scheme for non-localhost URLs", sdkErr.Validations[0].Detail)
+
+		// Loopback and localhost subdomains stay usable for local development,
+		// and https to any host is unaffected.
+		//nolint:gocritic // OAuth2 app management requires owner permission.
+		app, err := client.PostOAuth2ProviderApp(ctx, codersdk.PostOAuth2ProviderAppRequest{
+			Name: "cleartext-allowed-forms",
+			RedirectURIs: []string{
+				"http://localhost:3000/callback",
+				"http://127.0.0.1:3000/callback",
+				"http://app.localhost/callback",
+				"https://plaintext.example.com/callback",
+			},
+		})
+		require.NoError(t, err)
+		require.Len(t, app.RedirectURIs, 4)
+
+		// An update is checked the same way.
+		//nolint:gocritic // OAuth2 app management requires owner permission.
+		_, err = client.PutOAuth2ProviderApp(ctx, app.ID, codersdk.PutOAuth2ProviderAppRequest{
+			Name:         "cleartext-allowed-forms",
+			RedirectURIs: []string{"http://plaintext.example.com/callback"},
+		})
+		sdkErr = nil
+		require.ErrorAs(t, err, &sdkErr)
+		require.Len(t, sdkErr.Validations, 1)
+		require.Equal(t, "redirect_uris", sdkErr.Validations[0].Field)
+		require.Equal(t, "redirect URI at index 0 must use https scheme for non-localhost URLs", sdkErr.Validations[0].Detail)
 	})
 
 	// An update sending redirect_uris as an empty list is refused rather than

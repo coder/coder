@@ -183,6 +183,7 @@ describe("OAuth2AppForm", () => {
 		{ callback: "http://localhost:3000/callback", valid: true },
 		{ callback: "http://127.0.0.1:3000/callback", valid: true },
 		{ callback: "http://[::1]:3000/callback", valid: true },
+		{ callback: "http://app.localhost/callback", valid: false },
 		{ callback: "https://example.com/callback", valid: true },
 		{ callback: "vscode://coder.coder-remote/oauth/callback", valid: true },
 		{ callback: "com.example.app:/oauth2redirect", valid: true },
@@ -215,6 +216,50 @@ describe("OAuth2AppForm", () => {
 						name: `${MockOAuth2ProviderAppPublic.name} updated`,
 						callback_url: callback,
 						icon: MockOAuth2ProviderAppPublic.icon,
+					}),
+				);
+			} else {
+				expect(onSubmit).not.toHaveBeenCalled();
+			}
+		},
+	);
+
+	it.each([
+		{ callback: "http://example.com/callback", valid: false },
+		{ callback: "http://10.0.0.5:8080/callback", valid: false },
+		{ callback: "http://localhost:3000/callback", valid: true },
+		{ callback: "http://127.0.0.1:3000/callback", valid: true },
+		{ callback: "http://[::1]:3000/callback", valid: true },
+		{ callback: "http://app.localhost/callback", valid: true },
+		{ callback: "https://example.com/callback", valid: true },
+		{ callback: "vscode://coder.coder-remote/oauth/callback", valid: true },
+	])(
+		"validates confidential client callback $callback",
+		async ({ callback, valid }) => {
+			const user = userEvent.setup();
+			const onSubmit = vi.fn();
+			render(
+				<OAuth2AppForm
+					onSubmit={onSubmit}
+					isUpdating={false}
+					disabled={false}
+				/>,
+			);
+			await user.type(screen.getByLabelText(/^name/i), "confidential-app");
+			await user.type(
+				screen.getByLabelText(/callback url/i),
+				callback.replaceAll("[", "[["),
+			);
+			await user.click(
+				screen.getByRole("button", { name: /create application/i }),
+			);
+			await act(async () => {});
+			if (valid) {
+				await waitFor(() =>
+					expect(onSubmit).toHaveBeenCalledWith({
+						name: "confidential-app",
+						callback_url: callback,
+						icon: "",
 					}),
 				);
 			} else {

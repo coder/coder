@@ -39,6 +39,14 @@ const BACK_HREF = "/deployment/oauth2-provider/apps";
 // oxlint-disable-next-line eslint/no-script-url -- This blocklist rejects the scheme; it is never used as a navigation target.
 const DANGEROUS_CALLBACK_SCHEMES = ["javascript:", "data:", "file:", "ftp:"];
 
+const LOOPBACK_HOSTS = ["localhost", "127.0.0.1", "[::1]"];
+
+// A public client is held to RFC 8252 loopback. A confidential client may also
+// use a .localhost subdomain, which is how the server draws the line.
+const allowsCleartextHTTP = (hostname: string, isPublicClient: boolean) =>
+	LOOPBACK_HOSTS.includes(hostname) ||
+	(!isPublicClient && hostname.endsWith(".localhost"));
+
 const isValidCallbackURL = (
 	value: string | undefined,
 	isPublicClient: boolean,
@@ -65,12 +73,12 @@ const isValidCallbackURL = (
 			) {
 				return false;
 			}
-			if (
-				url.protocol === "http:" &&
-				!["localhost", "127.0.0.1", "[::1]"].includes(url.hostname)
-			) {
-				return false;
-			}
+		}
+		if (
+			url.protocol === "http:" &&
+			!allowsCleartextHTTP(url.hostname, isPublicClient)
+		) {
+			return false;
 		}
 		if (
 			(url.protocol === "http:" || url.protocol === "https:") &&
