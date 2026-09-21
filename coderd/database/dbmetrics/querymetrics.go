@@ -5280,6 +5280,15 @@ func (m queryMetricsStore) UpdateChatDebugStep(ctx context.Context, arg database
 	return r0, r1
 }
 
+func (m queryMetricsStore) UpdateChatDiffStatusReferenceURL(ctx context.Context, arg database.UpdateChatDiffStatusReferenceURLParams) error {
+	start := time.Now()
+	defer func() {
+		m.queryLatencies.WithLabelValues("UpdateChatDiffStatusReferenceURL").Observe(time.Since(start).Seconds())
+		m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateChatDiffStatusReferenceURL").Inc()
+	}()
+	return m.s.UpdateChatDiffStatusReferenceURL(ctx, arg)
+}
+
 func (m queryMetricsStore) UpdateChatExecutionState(ctx context.Context, arg database.UpdateChatExecutionStateParams) (database.Chat, error) {
 	start := time.Now()
 	r0, r1 := m.s.UpdateChatExecutionState(ctx, arg)

@@ -7285,9 +7285,8 @@ WITH acquired AS (
         -- Claim for 5 minutes. The worker sets the real stale_at
         -- after refresh. If the worker crashes, rows become eligible
         -- again after this interval.
-        -- NOTE: updated_at is intentionally NOT touched here. It
-        -- tracks the last report, and reports decide the primary
-        -- ordering.
+        -- NOTE: reported_at is intentionally NOT touched here; a
+        -- claim is not a report and must not reorder the primary.
         stale_at = NOW() + INTERVAL '5 minutes'
     WHERE
         (chat_id, git_remote_origin, git_branch) IN (
@@ -7311,10 +7310,10 @@ WITH acquired AS (
             LIMIT
                 $1::int
         )
-    RETURNING chat_id, url, pull_request_state, changes_requested, additions, deletions, changed_files, refreshed_at, stale_at, created_at, updated_at, git_branch, git_remote_origin, pull_request_title, pull_request_draft, author_login, author_avatar_url, base_branch, pr_number, commits, approved, reviewer_count, head_branch
+    RETURNING chat_id, url, pull_request_state, changes_requested, additions, deletions, changed_files, refreshed_at, stale_at, created_at, updated_at, reported_at, git_branch, git_remote_origin, pull_request_title, pull_request_draft, author_login, author_avatar_url, base_branch, pr_number, commits, approved, reviewer_count, head_branch
 )
 SELECT
-    acquired.chat_id, acquired.url, acquired.pull_request_state, acquired.changes_requested, acquired.additions, acquired.deletions, acquired.changed_files, acquired.refreshed_at, acquired.stale_at, acquired.created_at, acquired.updated_at, acquired.git_branch, acquired.git_remote_origin, acquired.pull_request_title, acquired.pull_request_draft, acquired.author_login, acquired.author_avatar_url, acquired.base_branch, acquired.pr_number, acquired.commits, acquired.approved, acquired.reviewer_count, acquired.head_branch,
+    acquired.chat_id, acquired.url, acquired.pull_request_state, acquired.changes_requested, acquired.additions, acquired.deletions, acquired.changed_files, acquired.refreshed_at, acquired.stale_at, acquired.created_at, acquired.updated_at, acquired.reported_at, acquired.git_branch, acquired.git_remote_origin, acquired.pull_request_title, acquired.pull_request_draft, acquired.author_login, acquired.author_avatar_url, acquired.base_branch, acquired.pr_number, acquired.commits, acquired.approved, acquired.reviewer_count, acquired.head_branch,
     c.owner_id
 FROM
     acquired
@@ -7334,6 +7333,7 @@ type AcquireStaleChatDiffStatusesRow struct {
 	StaleAt          time.Time      `db:"stale_at" json:"stale_at"`
 	CreatedAt        time.Time      `db:"created_at" json:"created_at"`
 	UpdatedAt        time.Time      `db:"updated_at" json:"updated_at"`
+	ReportedAt       time.Time      `db:"reported_at" json:"reported_at"`
 	GitBranch        string         `db:"git_branch" json:"git_branch"`
 	GitRemoteOrigin  string         `db:"git_remote_origin" json:"git_remote_origin"`
 	PullRequestTitle string         `db:"pull_request_title" json:"pull_request_title"`
@@ -7370,6 +7370,7 @@ func (q *sqlQuerier) AcquireStaleChatDiffStatuses(ctx context.Context, limitVal 
 			&i.StaleAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.ReportedAt,
 			&i.GitBranch,
 			&i.GitRemoteOrigin,
 			&i.PullRequestTitle,
@@ -7751,8 +7752,8 @@ const backoffChatDiffStatus = `-- name: BackoffChatDiffStatus :exec
 UPDATE
     chat_diff_statuses
 SET
-    -- updated_at is intentionally NOT touched here. It tracks the
-    -- last report, and reports decide the primary ordering.
+    -- reported_at is intentionally NOT touched; a backoff is not a
+    -- report and must not reorder the primary.
     stale_at = $1::timestamptz
 WHERE
     chat_id = $2::uuid
@@ -8673,18 +8674,19 @@ func (q *sqlQuerier) GetChatDiffStatusSummary(ctx context.Context) (GetChatDiffS
 
 const getChatDiffStatusesByChatID = `-- name: GetChatDiffStatusesByChatID :many
 SELECT
-    chat_id, url, pull_request_state, changes_requested, additions, deletions, changed_files, refreshed_at, stale_at, created_at, updated_at, git_branch, git_remote_origin, pull_request_title, pull_request_draft, author_login, author_avatar_url, base_branch, pr_number, commits, approved, reviewer_count, head_branch
+    chat_id, url, pull_request_state, changes_requested, additions, deletions, changed_files, refreshed_at, stale_at, created_at, updated_at, reported_at, git_branch, git_remote_origin, pull_request_title, pull_request_draft, author_login, author_avatar_url, base_branch, pr_number, commits, approved, reviewer_count, head_branch
 FROM
     chat_diff_statuses
 WHERE
     chat_id = $1::uuid
 ORDER BY
-    updated_at DESC,
+    reported_at DESC,
     git_remote_origin,
     git_branch
 `
 
-// The rows are ordered newest first.
+// The rows are ordered newest report first. The first row is the
+// primary.
 func (q *sqlQuerier) GetChatDiffStatusesByChatID(ctx context.Context, chatID uuid.UUID) ([]ChatDiffStatus, error) {
 	rows, err := q.db.QueryContext(ctx, getChatDiffStatusesByChatID, chatID)
 	if err != nil {
@@ -8706,6 +8708,7 @@ func (q *sqlQuerier) GetChatDiffStatusesByChatID(ctx context.Context, chatID uui
 			&i.StaleAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.ReportedAt,
 			&i.GitBranch,
 			&i.GitRemoteOrigin,
 			&i.PullRequestTitle,
@@ -8734,19 +8737,19 @@ func (q *sqlQuerier) GetChatDiffStatusesByChatID(ctx context.Context, chatID uui
 
 const getChatDiffStatusesByChatIDs = `-- name: GetChatDiffStatusesByChatIDs :many
 SELECT
-    chat_id, url, pull_request_state, changes_requested, additions, deletions, changed_files, refreshed_at, stale_at, created_at, updated_at, git_branch, git_remote_origin, pull_request_title, pull_request_draft, author_login, author_avatar_url, base_branch, pr_number, commits, approved, reviewer_count, head_branch
+    chat_id, url, pull_request_state, changes_requested, additions, deletions, changed_files, refreshed_at, stale_at, created_at, updated_at, reported_at, git_branch, git_remote_origin, pull_request_title, pull_request_draft, author_login, author_avatar_url, base_branch, pr_number, commits, approved, reviewer_count, head_branch
 FROM
     chat_diff_statuses
 WHERE
     chat_id = ANY($1::uuid[])
 ORDER BY
-    updated_at DESC,
+    reported_at DESC,
     git_remote_origin,
     git_branch
 `
 
-// The rows are ordered newest first. The first row per chat is its
-// most recently reported ref.
+// The rows are ordered newest report first. The first row per chat
+// is its most recently reported ref.
 func (q *sqlQuerier) GetChatDiffStatusesByChatIDs(ctx context.Context, chatIds []uuid.UUID) ([]ChatDiffStatus, error) {
 	rows, err := q.db.QueryContext(ctx, getChatDiffStatusesByChatIDs, pq.Array(chatIds))
 	if err != nil {
@@ -8768,6 +8771,7 @@ func (q *sqlQuerier) GetChatDiffStatusesByChatIDs(ctx context.Context, chatIds [
 			&i.StaleAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.ReportedAt,
 			&i.GitBranch,
 			&i.GitRemoteOrigin,
 			&i.PullRequestTitle,
@@ -10403,7 +10407,7 @@ SELECT DISTINCT ON (c.id)
 FROM chats c
 LEFT JOIN chat_diff_statuses cds ON cds.chat_id = c.id
 WHERE c.updated_at > $1
-ORDER BY c.id, cds.updated_at DESC NULLS LAST, cds.git_remote_origin, cds.git_branch
+ORDER BY c.id, cds.reported_at DESC NULLS LAST, cds.git_remote_origin, cds.git_branch
 `
 
 type GetChatsUpdatedAfterRow struct {
@@ -12511,6 +12515,40 @@ func (q *sqlQuerier) UpdateChatByID(ctx context.Context, arg UpdateChatByIDParam
 	return i, err
 }
 
+const updateChatDiffStatusReferenceURL = `-- name: UpdateChatDiffStatusReferenceURL :exec
+UPDATE
+    chat_diff_statuses
+SET
+    url = $1::text,
+    stale_at = $2::timestamptz
+WHERE
+    chat_id = $3::uuid
+    AND git_remote_origin = $4::text
+    AND git_branch = $5::text
+`
+
+type UpdateChatDiffStatusReferenceURLParams struct {
+	Url             string    `db:"url" json:"url"`
+	StaleAt         time.Time `db:"stale_at" json:"stale_at"`
+	ChatID          uuid.UUID `db:"chat_id" json:"chat_id"`
+	GitRemoteOrigin string    `db:"git_remote_origin" json:"git_remote_origin"`
+	GitBranch       string    `db:"git_branch" json:"git_branch"`
+}
+
+// Stores a discovered pull request URL on an existing ref row.
+// reported_at is untouched, so a late discovery write cannot
+// reorder the primary.
+func (q *sqlQuerier) UpdateChatDiffStatusReferenceURL(ctx context.Context, arg UpdateChatDiffStatusReferenceURLParams) error {
+	_, err := q.db.ExecContext(ctx, updateChatDiffStatusReferenceURL,
+		arg.Url,
+		arg.StaleAt,
+		arg.ChatID,
+		arg.GitRemoteOrigin,
+		arg.GitBranch,
+	)
+	return err
+}
+
 const updateChatExecutionState = `-- name: UpdateChatExecutionState :one
 WITH updated_chat AS (
     UPDATE chats
@@ -14007,7 +14045,7 @@ SET
     refreshed_at = EXCLUDED.refreshed_at,
     stale_at = EXCLUDED.stale_at
 RETURNING
-    chat_id, url, pull_request_state, changes_requested, additions, deletions, changed_files, refreshed_at, stale_at, created_at, updated_at, git_branch, git_remote_origin, pull_request_title, pull_request_draft, author_login, author_avatar_url, base_branch, pr_number, commits, approved, reviewer_count, head_branch
+    chat_id, url, pull_request_state, changes_requested, additions, deletions, changed_files, refreshed_at, stale_at, created_at, updated_at, reported_at, git_branch, git_remote_origin, pull_request_title, pull_request_draft, author_login, author_avatar_url, base_branch, pr_number, commits, approved, reviewer_count, head_branch
 `
 
 type UpsertChatDiffStatusParams struct {
@@ -14071,6 +14109,7 @@ func (q *sqlQuerier) UpsertChatDiffStatus(ctx context.Context, arg UpsertChatDif
 		&i.StaleAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ReportedAt,
 		&i.GitBranch,
 		&i.GitRemoteOrigin,
 		&i.PullRequestTitle,
@@ -14108,9 +14147,10 @@ SET
         ELSE chat_diff_statuses.url
     END,
     stale_at = EXCLUDED.stale_at,
+    reported_at = NOW(),
     updated_at = NOW()
 RETURNING
-    chat_id, url, pull_request_state, changes_requested, additions, deletions, changed_files, refreshed_at, stale_at, created_at, updated_at, git_branch, git_remote_origin, pull_request_title, pull_request_draft, author_login, author_avatar_url, base_branch, pr_number, commits, approved, reviewer_count, head_branch
+    chat_id, url, pull_request_state, changes_requested, additions, deletions, changed_files, refreshed_at, stale_at, created_at, updated_at, reported_at, git_branch, git_remote_origin, pull_request_title, pull_request_draft, author_login, author_avatar_url, base_branch, pr_number, commits, approved, reviewer_count, head_branch
 `
 
 type UpsertChatDiffStatusReferenceParams struct {
@@ -14121,6 +14161,8 @@ type UpsertChatDiffStatusReferenceParams struct {
 	StaleAt         time.Time      `db:"stale_at" json:"stale_at"`
 }
 
+// A report names a ref the agent is on. The write time is the
+// report time, and the report time decides the primary ordering.
 func (q *sqlQuerier) UpsertChatDiffStatusReference(ctx context.Context, arg UpsertChatDiffStatusReferenceParams) (ChatDiffStatus, error) {
 	row := q.db.QueryRowContext(ctx, upsertChatDiffStatusReference,
 		arg.ChatID,
@@ -14142,6 +14184,7 @@ func (q *sqlQuerier) UpsertChatDiffStatusReference(ctx context.Context, arg Upse
 		&i.StaleAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ReportedAt,
 		&i.GitBranch,
 		&i.GitRemoteOrigin,
 		&i.PullRequestTitle,

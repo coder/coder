@@ -3827,9 +3827,18 @@ func (api *API) resolveChatDiffContents(
 		// Without a stored ref there is no row to key, and an empty-key
 		// row would only shadow the real rows once one is reported.
 		if found && (!strings.EqualFold(strings.TrimSpace(status.Url.String), pullRequestURL)) {
-			_, err := api.upsertChatDiffStatusReference(ctx, status.ChatID, status.GitRemoteOrigin, status.GitBranch, pullRequestURL, time.Now().UTC().Add(-time.Second))
+			err := api.Database.UpdateChatDiffStatusReferenceURL(
+				ctx,
+				database.UpdateChatDiffStatusReferenceURLParams{
+					ChatID:          status.ChatID,
+					GitBranch:       status.GitBranch,
+					GitRemoteOrigin: status.GitRemoteOrigin,
+					StaleAt:         time.Now().UTC().Add(-time.Second),
+					Url:             pullRequestURL,
+				},
+			)
 			if err != nil {
-				return result, err
+				return result, xerrors.Errorf("update chat diff status reference url: %w", err)
 			}
 		}
 	}
@@ -3984,32 +3993,6 @@ func (api *API) buildChatRepositoryRefFromStatus(ctx context.Context, status dat
 	}
 
 	return repoRef
-}
-
-func (api *API) upsertChatDiffStatusReference(
-	ctx context.Context,
-	chatID uuid.UUID,
-	gitRemoteOrigin, gitBranch string,
-	pullRequestURL string,
-	staleAt time.Time,
-) (database.ChatDiffStatus, error) {
-	status, err := api.Database.UpsertChatDiffStatusReference(
-		ctx,
-		database.UpsertChatDiffStatusReferenceParams{
-			ChatID: chatID,
-			Url: sql.NullString{
-				String: pullRequestURL,
-				Valid:  strings.TrimSpace(pullRequestURL) != "",
-			},
-			GitBranch:       gitBranch,
-			GitRemoteOrigin: gitRemoteOrigin,
-			StaleAt:         staleAt,
-		},
-	)
-	if err != nil {
-		return database.ChatDiffStatus{}, xerrors.Errorf("upsert chat diff status reference: %w", err)
-	}
-	return status, nil
 }
 
 func (api *API) getCachedChatDiffStatus(
