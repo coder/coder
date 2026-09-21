@@ -1230,7 +1230,13 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	ownerID := apiKey.UserID
-	if req.OwnerID != nil && *req.OwnerID != uuid.Nil {
+	if req.OwnerID != nil {
+		if *req.OwnerID == uuid.Nil {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Invalid owner_id: must be a user ID or omitted.",
+			})
+			return
+		}
 		ownerID = *req.OwnerID
 	}
 	if ownerID == apiKey.UserID {
@@ -1294,9 +1300,10 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 			httpapi.InternalServerError(rw, err)
 			return
 		}
-		// The workspace, model config, and MCP servers must be usable by
-		// the owner, who is the one the chat runs as: chatd re-resolves
-		// them under the owner's ACLs and would silently fall back.
+		// From here on the request proceeds as the owner. The chat is the
+		// owner's and chatd runs it under the owner's ACLs, so the
+		// workspace, model config, MCP servers, and the creation itself
+		// must succeed for the owner, not merely for the caller.
 		ownerCtx = dbauthz.As(ctx, owner)
 		// Service accounts and custom roles may lack chat permissions
 		// entirely; the owner could then never read the chat.
@@ -1431,7 +1438,7 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	chat, err := api.chatDaemon.CreateChat(ctx, chatd.CreateOptions{
+	chat, err := api.chatDaemon.CreateChat(ownerCtx, chatd.CreateOptions{
 		OrganizationID:          req.OrganizationID,
 		OwnerID:                 ownerID,
 		CreatedBy:               apiKey.UserID,
@@ -1496,7 +1503,7 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	chat, err = api.Database.GetChatByID(ctx, chat.ID)
+	chat, err = api.Database.GetChatByID(ownerCtx, chat.ID)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to read back chat after creation.",
@@ -1510,9 +1517,9 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 	// chat and its initial user message are persisted. It runs
 	// detached so it never blocks the create response, and only acts
 	// on the first user turn.
-	api.chatDaemon.GenerateChatTitleAsync(ctx, chat)
+	api.chatDaemon.GenerateChatTitleAsync(ownerCtx, chat)
 
-	chatFiles := api.fetchChatFileMetadata(ctx, chat.ID)
+	chatFiles := api.fetchChatFileMetadata(ownerCtx, chat.ID)
 	response := db2sdk.Chat(chat, nil, chatFiles)
 	httpapi.Write(ctx, rw, http.StatusCreated, response)
 }

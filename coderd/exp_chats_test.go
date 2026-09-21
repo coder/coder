@@ -1874,6 +1874,19 @@ func TestPostChats_OwnerID(t *testing.T) {
 		require.Equal(t, member.ID, chat.OwnerID)
 	})
 
+	t.Run("OwnerIDNil", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModel(t, client)
+
+		_, err := client.CreateChat(ctx, helloRequest(uuid.Nil, firstUser.OrganizationID))
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Equal(t, "Invalid owner_id: must be a user ID or omitted.", sdkErr.Message)
+	})
+
 	t.Run("OwnerIDIsCaller", func(t *testing.T) {
 		t.Parallel()
 
