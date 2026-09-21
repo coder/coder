@@ -291,6 +291,23 @@ describe("api.ts", () => {
 			expect(url).toContain("offset=20");
 			expect(result).toStrictEqual(MockOrganizationAISpendReport);
 		});
+
+		it("omits a zero limit and offset so the server applies its defaults", async () => {
+			const getSpy = vi
+				.spyOn(axiosInstance, "get")
+				.mockResolvedValueOnce({ data: MockOrganizationAISpendReport });
+
+			await API.getOrganizationAISpendUsers("my-org", {
+				provider_name: "openai",
+				limit: 0,
+				offset: 0,
+			});
+
+			const [url] = getSpy.mock.calls[0];
+			expect(url).toBe(
+				"/api/v2/organizations/my-org/ai/spend/users?provider_name=openai",
+			);
+		});
 	});
 
 	describe("update", () => {
