@@ -124,17 +124,42 @@ export const TotalUnpricedModelsKeyboard: Story = {
 	},
 };
 
+// Every row collapses into count badges, so the badges are told apart only
+// by their row header.
+export const MultipleDimensions: Story = {
+	args: {
+		reportQuery: {
+			...mockReportQuery,
+			data: {
+				...MockOrganizationAISpendReport,
+				users: MockOrganizationAISpendReport.users.map((user) => ({
+					...user,
+					providers: MockOrganizationAISpendUser.providers,
+					models: MockOrganizationAISpendUser.models,
+					clients: MockOrganizationAISpendUser.clients,
+				})),
+			},
+		},
+	},
+};
+
 export const ClientsList: Story = {
+	...MultipleDimensions,
 	play: async ({ canvasElement }) => {
-		within(canvasElement).getByRole("button", { name: "2 clients" }).focus();
+		within(within(canvasElement).getByRole("row", { name: /alice/ }))
+			.getByRole("button", { name: "2 clients" })
+			.focus();
 		await screen.findByRole("tooltip");
 	},
 };
 
 export const ModelsList: Story = {
+	...MultipleDimensions,
 	play: async ({ canvasElement }) => {
 		await userEvent.hover(
-			within(canvasElement).getByRole("button", { name: "2 models" }),
+			within(
+				within(canvasElement).getByRole("row", { name: /alice/ }),
+			).getByRole("button", { name: "2 models" }),
 		);
 		await screen.findByRole("tooltip");
 	},

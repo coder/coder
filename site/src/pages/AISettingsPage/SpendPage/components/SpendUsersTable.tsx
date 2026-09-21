@@ -121,7 +121,11 @@ type SpendUserRowProps = {
 
 const SpendUserRow: FC<SpendUserRowProps> = ({ user }) => (
 	<TableRow>
-		<TableCell className="py-2">
+		{/* The row header gives the count badges and warning their user. */}
+		<TableHead
+			scope="row"
+			className="border-0 border-t border-border border-solid py-2"
+		>
 			<AvatarData
 				truncate
 				title={user.name || user.username}
@@ -129,7 +133,7 @@ const SpendUserRow: FC<SpendUserRowProps> = ({ user }) => (
 				src={user.avatar_url}
 				imgFallbackText={user.username}
 			/>
-		</TableCell>
+		</TableHead>
 		<TableCell>
 			<ProvidersBadge providers={user.providers} />
 		</TableCell>
