@@ -250,10 +250,10 @@ func TestNewAnthropic_ServesStoredResolution(t *testing.T) {
 			cfg.ResolvedModel = "anthropic.claude-opus-4-8"
 		}), nil)
 		require.NoError(t, err)
-		require.Equal(t, "anthropic.claude-opus-4-8", p.auth.Bedrock.ResolvedModel())
+		require.Equal(t, "anthropic.claude-opus-4-8", p.bedrock.ResolvedModel())
 		// The profile stays the configured identifier so AWS attributes spend to it.
-		require.Equal(t, profileARN, p.auth.Bedrock.ConfiguredModel())
-		require.Equal(t, "anthropic.claude-haiku-4-5", p.auth.Bedrock.ResolvedSmallFastModel())
+		require.Equal(t, profileARN, p.bedrock.ConfiguredModel())
+		require.Equal(t, "anthropic.claude-haiku-4-5", p.bedrock.ResolvedSmallFastModel())
 	})
 
 	t.Run("unresolved profile serves the configured identifier", func(t *testing.T) {
@@ -265,7 +265,7 @@ func TestNewAnthropic_ServesStoredResolution(t *testing.T) {
 		// error their save returned.
 		p, err := NewAnthropic(context.Background(), config.Anthropic{}, bedrockCfg(func(*config.AWSBedrock) {}), nil)
 		require.NoError(t, err)
-		require.Equal(t, profileARN, p.auth.Bedrock.ResolvedModel())
+		require.Equal(t, profileARN, p.bedrock.ResolvedModel())
 	})
 
 	t.Run("plain model ids serve themselves", func(t *testing.T) {
@@ -275,7 +275,7 @@ func TestNewAnthropic_ServesStoredResolution(t *testing.T) {
 			cfg.Model = "eu.anthropic.claude-opus-4-8"
 		}), nil)
 		require.NoError(t, err)
-		require.Equal(t, "eu.anthropic.claude-opus-4-8", p.auth.Bedrock.ResolvedModel())
-		require.Equal(t, "eu.anthropic.claude-opus-4-8", p.auth.Bedrock.ConfiguredModel())
+		require.Equal(t, "eu.anthropic.claude-opus-4-8", p.bedrock.ResolvedModel())
+		require.Equal(t, "eu.anthropic.claude-opus-4-8", p.bedrock.ConfiguredModel())
 	})
 }

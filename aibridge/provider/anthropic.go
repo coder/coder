@@ -28,10 +28,9 @@ var _ Provider = &Anthropic{}
 
 // Anthropic allows for interactions with the Anthropic API.
 type Anthropic struct {
-	cfg config.Anthropic
-	// auth carries the provider's AWS-backed authentication runtime. Both
-	// fields are nil for a plain bearer-token Anthropic provider.
-	auth messages.AuthRuntime
+	cfg            config.Anthropic
+	bedrock        *messages.BedrockRuntime
+	claudePlatform *claudePlatformTransport
 }
 
 const routeMessages = "/v1/messages" // https://docs.anthropic.com/en/api/messages
@@ -71,7 +70,8 @@ func NewAnthropic(ctx context.Context, cfg config.Anthropic, bedrockCfg *config.
 	// This performs no network call (the base identity and any AssumeRole
 	// resolve lazily on first retrieval); it only wires up the provider chain,
 	// so it is cheap to run at construction.
-	var auth messages.AuthRuntime
+	var bedrock *messages.BedrockRuntime
+	var claudePlatform *claudePlatformTransport
 	if bedrockCfg != nil {
 		awsCfg, err := buildBedrockCredentials(ctx, *bedrockCfg)
 		if err != nil {
@@ -87,7 +87,7 @@ func NewAnthropic(ctx context.Context, cfg config.Anthropic, bedrockCfg *config.
 			return nil, xerrors.Errorf("bedrock config: %w", err)
 		}
 
-		auth.Bedrock = messages.NewBedrockRuntime(runtimeCfg, awsCfg.Credentials)
+		bedrock = messages.NewBedrockRuntime(runtimeCfg, awsCfg.Credentials)
 	}
 
 	if claudePlatformCfg != nil {
@@ -99,7 +99,7 @@ func NewAnthropic(ctx context.Context, cfg config.Anthropic, bedrockCfg *config.
 			return nil, xerrors.Errorf("claude platform config: %w", err)
 		}
 
-		runtime := &messages.ClaudePlatformRuntime{Cfg: runtimeCfg}
+		runtime := &claudePlatformTransport{cfg: runtimeCfg, inner: http.DefaultTransport}
 		if runtimeCfg.AuthMode == config.ClaudePlatformAuthModeIAM {
 			awsCfg, err := buildAWSCredentials(ctx, awsCredentialSpec{
 				Region:          runtimeCfg.Region,
@@ -111,14 +111,16 @@ func NewAnthropic(ctx context.Context, cfg config.Anthropic, bedrockCfg *config.
 			if err != nil {
 				return nil, xerrors.Errorf("build claude platform credentials: %w", err)
 			}
-			runtime.Creds = awsCfg.Credentials
+			runtime.creds = awsCfg.Credentials
 		}
-		auth.ClaudePlatform = runtime
+		claudePlatform = runtime
+		cfg.BaseURL = runtimeCfg.ResolvedBaseURL()
 	}
 
 	return &Anthropic{
-		cfg:  cfg,
-		auth: auth,
+		cfg:            cfg,
+		bedrock:        bedrock,
+		claudePlatform: claudePlatform,
 	}, nil
 }
 
@@ -176,6 +178,9 @@ func (p *Anthropic) CreateInterceptor(_ http.ResponseWriter, r *http.Request, tr
 		APIDumpDir:       p.cfg.APIDumpDir,
 		SendActorHeaders: p.cfg.SendActorHeaders,
 	}
+	if p.claudePlatform != nil {
+		cfg.HTTPClient = &http.Client{Transport: p.claudePlatform}
+	}
 	cred, err := p.resolveCredential(r)
 	if err != nil {
 		span.SetStatus(codes.Error, err.Error())
@@ -184,9 +189,9 @@ func (p *Anthropic) CreateInterceptor(_ http.ResponseWriter, r *http.Request, tr
 
 	var interceptor intercept.Interceptor
 	if reqPayload.Stream() {
-		interceptor = messages.NewStreamingInterceptor(id, reqPayload, cfg, cred, p.auth, r.Header, tracer)
+		interceptor = messages.NewStreamingInterceptor(id, reqPayload, cfg, cred, p.bedrock, r.Header, tracer)
 	} else {
-		interceptor = messages.NewBlockingInterceptor(id, reqPayload, cfg, cred, p.auth, r.Header, tracer)
+		interceptor = messages.NewBlockingInterceptor(id, reqPayload, cfg, cred, p.bedrock, r.Header, tracer)
 	}
 	span.SetAttributes(interceptor.TraceAttributes(r)...)
 	return interceptor, nil
@@ -215,11 +220,11 @@ func (p *Anthropic) resolveCredential(r *http.Request) (intercept.Credential, er
 	if p.cfg.KeyPool != nil {
 		return &intercept.CentralizedPool{Pool: p.cfg.KeyPool, Header: p.AuthHeader()}, nil
 	}
-	if p.auth.Bedrock != nil {
-		return intercept.AWSSigV4{AccessKey: p.auth.Bedrock.Cfg.AccessKey}, nil
+	if p.bedrock != nil {
+		return intercept.AWSSigV4{AccessKey: p.bedrock.Cfg.AccessKey}, nil
 	}
-	if cp := p.auth.ClaudePlatform; cp != nil && cp.Cfg.AuthMode == config.ClaudePlatformAuthModeIAM {
-		return intercept.AWSSigV4{AccessKey: cp.Cfg.AccessKey}, nil
+	if cp := p.claudePlatform; cp != nil && cp.cfg.AuthMode == config.ClaudePlatformAuthModeIAM {
+		return intercept.AWSSigV4{AccessKey: cp.cfg.AccessKey}, nil
 	}
 	return nil, ErrNoCredential
 }
@@ -228,9 +233,6 @@ func (p *Anthropic) resolveCredential(r *http.Request) (intercept.Credential, er
 // derives it from the configured region unless explicitly overridden, so its
 // passthrough routes reach the same host as bridged requests.
 func (p *Anthropic) BaseURL() string {
-	if p.auth.ClaudePlatform != nil {
-		return p.auth.ClaudePlatform.Cfg.ResolvedBaseURL()
-	}
 	return p.cfg.BaseURL
 }
 
@@ -242,11 +244,11 @@ func (p *Anthropic) BaseURL() string {
 // It is installed beneath the key failover transport, so a BYOK or centralized
 // key still wins; this only fills the gap where neither is present.
 func (p *Anthropic) WrapPassthroughTransport(inner http.RoundTripper) http.RoundTripper {
-	cp := p.auth.ClaudePlatform
+	cp := p.claudePlatform
 	if cp == nil {
 		return inner
 	}
-	return &claudePlatformPassthroughTransport{inner: inner, cfg: cp.Cfg, creds: cp.Creds}
+	return &claudePlatformTransport{inner: inner, cfg: cp.cfg, creds: cp.creds}
 }
 
 func (*Anthropic) AuthHeader() string {

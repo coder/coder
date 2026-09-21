@@ -92,8 +92,8 @@ func TestNewAnthropic_BedrockRegionResolution(t *testing.T) {
 			AccessKeySecret: "test-secret",
 		}, nil)
 		require.NoError(t, err)
-		require.NotNil(t, p.auth.Bedrock)
-		require.Equal(t, "us-west-2", p.auth.Bedrock.Cfg.Region)
+		require.NotNil(t, p.bedrock)
+		require.Equal(t, "us-west-2", p.bedrock.Cfg.Region)
 	})
 
 	t.Run("mantle_no_region_anywhere", func(t *testing.T) {
