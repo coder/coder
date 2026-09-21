@@ -16,10 +16,10 @@ export const TableLoader: FC = () => {
 	);
 };
 
-interface TableLoaderSkeletonProps {
+type TableLoaderSkeletonProps = {
 	rows?: number;
 	children?: ReactNode;
-}
+};
 
 export const TableLoaderSkeleton: FC<TableLoaderSkeletonProps> = ({
 	rows = 4,

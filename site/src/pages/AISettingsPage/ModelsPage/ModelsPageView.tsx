@@ -106,7 +106,7 @@ const AddModelDropdown: FC<{
 	);
 };
 
-interface ModelsPageViewProps {
+type ModelsPageViewProps = {
 	isLoading: boolean;
 	loadError: unknown;
 	refetchError: unknown;
@@ -114,7 +114,7 @@ interface ModelsPageViewProps {
 	providerStates: readonly ProviderState[];
 	providerTypeByID: ReadonlyMap<string, string>;
 	canCreateModel: boolean;
-}
+};
 
 const ModelsPageView: FC<ModelsPageViewProps> = ({
 	isLoading,

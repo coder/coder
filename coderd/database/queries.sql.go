@@ -1906,6 +1906,8 @@ WHERE
 	-- @authorize_filter
 GROUP BY
 	client
+ORDER BY
+	client ASC
 LIMIT COALESCE(NULLIF($3::integer, 0), 100)
 OFFSET $2
 `

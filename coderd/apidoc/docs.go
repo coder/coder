@@ -15997,6 +15997,12 @@ const docTemplate = `{
                         "description": "Return data instead of HTTP 404 if the workspace is deleted",
                         "name": "include_deleted",
                         "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Comma-separated list of related data to include (e.g. ` + "`" + `template,latest_build.resources.agents.*` + "`" + `). Omit to include everything.",
+                        "name": "include_related",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -21042,6 +21048,9 @@ const docTemplate = `{
                     "additionalProperties": {}
                 },
                 "prompt_cache_key": {
+                    "type": "string"
+                },
+                "reasoning_mode": {
                     "type": "string"
                 },
                 "reasoning_summary": {
@@ -26872,7 +26881,8 @@ const docTemplate = `{
                     "format": "uuid"
                 },
                 "app_name": {
-                    "$ref": "#/definitions/codersdk.UsageAppName"
+                    "description": "AppName is any name for the app reporting usage. The server normalizes\nit at ingestion, so a new app needs no server change. The UsageAppName\nconstants are the well-known names.",
+                    "type": "string"
                 }
             }
         },
@@ -30706,21 +30716,6 @@ const docTemplate = `{
                     ]
                 }
             }
-        },
-        "codersdk.UsageAppName": {
-            "type": "string",
-            "enum": [
-                "vscode",
-                "jetbrains",
-                "reconnecting-pty",
-                "ssh"
-            ],
-            "x-enum-varnames": [
-                "UsageAppNameVscode",
-                "UsageAppNameJetbrains",
-                "UsageAppNameReconnectingPty",
-                "UsageAppNameSSH"
-            ]
         },
         "codersdk.UsagePeriod": {
             "type": "object",

@@ -3478,6 +3478,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           "property2": null
         },
         "prompt_cache_key": "string",
+        "reasoning_mode": "string",
         "reasoning_summary": "string",
         "safety_identifier": "string",
         "search_context_size": "string",
@@ -3763,6 +3764,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         "property2": null
       },
       "prompt_cache_key": "string",
+      "reasoning_mode": "string",
       "reasoning_summary": "string",
       "safety_identifier": "string",
       "search_context_size": "string",
@@ -3990,6 +3992,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "property2": null
   },
   "prompt_cache_key": "string",
+  "reasoning_mode": "string",
   "reasoning_summary": "string",
   "safety_identifier": "string",
   "search_context_size": "string",
@@ -4022,6 +4025,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `prediction`            | object          | false    |              |             |
 | » `[any property]`      | any             | false    |              |             |
 | `prompt_cache_key`      | string          | false    |              |             |
+| `reasoning_mode`        | string          | false    |              |             |
 | `reasoning_summary`     | string          | false    |              |             |
 | `safety_identifier`     | string          | false    |              |             |
 | `search_context_size`   | string          | false    |              |             |
@@ -4274,6 +4278,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "property2": null
     },
     "prompt_cache_key": "string",
+    "reasoning_mode": "string",
     "reasoning_summary": "string",
     "safety_identifier": "string",
     "search_context_size": "string",
@@ -6089,6 +6094,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           "property2": null
         },
         "prompt_cache_key": "string",
+        "reasoning_mode": "string",
         "reasoning_summary": "string",
         "safety_identifier": "string",
         "search_context_size": "string",
@@ -11600,6 +11606,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
               "property2": null
             },
             "prompt_cache_key": "string",
+            "reasoning_mode": "string",
             "reasoning_summary": "string",
             "safety_identifier": "string",
             "search_context_size": "string",
@@ -12260,16 +12267,16 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 ```json
 {
   "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
-  "app_name": "vscode"
+  "app_name": "string"
 }
 ```
 
 ### Properties
 
-| Name       | Type                                           | Required | Restrictions | Description |
-|------------|------------------------------------------------|----------|--------------|-------------|
-| `agent_id` | string                                         | false    |              |             |
-| `app_name` | [codersdk.UsageAppName](#codersdkusageappname) | false    |              |             |
+| Name       | Type   | Required | Restrictions | Description                                                                                                                                                                        |
+|------------|--------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `agent_id` | string | false    |              |                                                                                                                                                                                    |
+| `app_name` | string | false    |              | App name is any name for the app reporting usage. The server normalizes it at ingestion, so a new app needs no server change. The UsageAppName constants are the well-known names. |
 
 ## codersdk.PprofConfig
 
@@ -15614,6 +15621,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
           "property2": null
         },
         "prompt_cache_key": "string",
+        "reasoning_mode": "string",
         "reasoning_summary": "string",
         "safety_identifier": "string",
         "search_context_size": "string",
@@ -16544,20 +16552,6 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 |---------------|----------------------------------------------------|
 | `protocol`    | `http`, `https`                                    |
 | `share_level` | `authenticated`, `organization`, `owner`, `public` |
-
-## codersdk.UsageAppName
-
-```json
-"vscode"
-```
-
-### Properties
-
-#### Enumerated Values
-
-| Value(s)                                         |
-|--------------------------------------------------|
-| `jetbrains`, `reconnecting-pty`, `ssh`, `vscode` |
 
 ## codersdk.UsagePeriod
 

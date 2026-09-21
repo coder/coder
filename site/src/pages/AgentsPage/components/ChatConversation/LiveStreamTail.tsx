@@ -2,10 +2,10 @@ import { MessageScroller } from "@shadcn/react/message-scroller";
 import { ChatStatusCallout } from "./ChatStatusCallout";
 import type { LiveStatusModel } from "./liveStatusModel";
 
-interface LiveStreamTailContentProps {
+type LiveStreamTailContentProps = {
 	isTranscriptEmpty: boolean;
 	liveStatus: LiveStatusModel;
-}
+};
 
 // The live assistant turn renders as a timeline row, so the tail below the
 // transcript only carries the empty state.

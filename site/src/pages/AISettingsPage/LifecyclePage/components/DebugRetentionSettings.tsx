@@ -7,12 +7,12 @@ import { useTemporarySavedState } from "#/components/TemporarySavedState/Tempora
 import { docs } from "#/utils/docs";
 import { DaysField, LifecycleSettingLayout } from "./LifecycleSettingLayout";
 
-interface MutationCallbacks {
+type MutationCallbacks = {
 	onSuccess?: () => void;
 	onError?: () => void;
-}
+};
 
-interface DebugRetentionSettingsProps {
+type DebugRetentionSettingsProps = {
 	debugRetentionDaysData: TypesGen.ChatDebugRetentionDaysResponse | undefined;
 	isDebugRetentionDaysLoading: boolean;
 	isDebugRetentionDaysLoadError: boolean;
@@ -22,7 +22,7 @@ interface DebugRetentionSettingsProps {
 	) => void;
 	isSavingDebugRetentionDays: boolean;
 	isSaveDebugRetentionDaysError: boolean;
-}
+};
 
 // Keep in sync with chatDebugRetentionDaysMaximum in coderd/exp_chats.go.
 const DAYS_MIN = 1;

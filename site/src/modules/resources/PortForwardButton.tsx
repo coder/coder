@@ -62,12 +62,12 @@ import {
 	saveWorkspaceListeningPortsProtocol,
 } from "#/utils/portForward";
 
-interface PortForwardButtonProps {
+type PortForwardButtonProps = {
 	host: string;
 	workspace: Workspace;
 	agent: WorkspaceAgent;
 	template: Template;
-}
+};
 
 export const PortForwardButton: FC<PortForwardButtonProps> = ({
 	host,
@@ -130,7 +130,7 @@ const openPortSchema = () =>
 		share_level: Yup.string().required().oneOf(WorkspaceAgentPortShareLevels),
 	});
 
-interface PortForwardPopoverViewProps {
+type PortForwardPopoverViewProps = {
 	host: string;
 	workspace: Workspace;
 	agent: WorkspaceAgent;
@@ -139,7 +139,7 @@ interface PortForwardPopoverViewProps {
 	listeningPorts: readonly WorkspaceAgentListeningPort[];
 	portSharingControlsEnabled: boolean;
 	refetchSharedPorts: () => void;
-}
+};
 
 const isPortShareProtocol = (
 	value: string,

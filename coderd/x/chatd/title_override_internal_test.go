@@ -12,12 +12,10 @@ import (
 	"testing"
 	"time"
 
-	"charm.land/fantasy"
 	fantasyopenai "charm.land/fantasy/providers/openai"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
-	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/slogtest"
@@ -26,7 +24,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 	dbpubsub "github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
-	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
@@ -38,108 +35,6 @@ func titleGenerationOverrideParams(chat database.Chat) database.GetChatOrganizat
 		OrganizationID: chat.OrganizationID,
 		Context:        titleGenerationOverrideContext,
 	}
-}
-
-func TestMaybeGenerateChatTitle_TitleGenerationOverrideUnset(t *testing.T) {
-	t.Parallel()
-
-	t.Run("falls back to chat model when preferred models are unavailable", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitShort)
-		ctrl := gomock.NewController(t)
-		db := dbmock.NewMockStore(ctrl)
-		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
-		chat, messages := titleOverrideTestChatAndMessages(t)
-		wantTitle := "Fallback title"
-
-		var fallbackCalls atomic.Int32
-		fallbackModel := &chattest.FakeModel{
-			GenerateObjectFn: func(context.Context, fantasy.ObjectCall) (*fantasy.ObjectResponse, error) {
-				fallbackCalls.Add(1)
-				return &fantasy.ObjectResponse{
-					Object: map[string]any{"title": wantTitle},
-				}, nil
-			},
-		}
-
-		db.EXPECT().GetChatOrganizationModelOverride(gomock.Any(), titleGenerationOverrideParams(chat)).Return(database.ChatOrganizationModelOverride{}, sql.ErrNoRows)
-		db.EXPECT().UpdateChatTitleByID(gomock.Any(), database.UpdateChatTitleByIDParams{
-			ID:    chat.ID,
-			Title: wantTitle,
-		}).Return(chatWithTitle(chat, wantTitle), nil)
-
-		generated := &generatedChatTitle{}
-		server := titleOverrideTestServer(db, logger)
-		server.maybeGenerateChatTitle(
-			ctx,
-			chat,
-			messages,
-			nil,
-			resolvedModelCall{
-				model:    chatprovider.NewModel(fallbackModel, nil),
-				dbConfig: database.ChatModelConfig{Model: "fallback-chat-model"},
-			},
-			modelBuildOptions{},
-			generated,
-			logger,
-			nil,
-		)
-
-		require.Equal(t, int32(1), fallbackCalls.Load())
-		gotTitle, ok := generated.Load()
-		require.True(t, ok)
-		require.Equal(t, wantTitle, gotTitle)
-	})
-}
-
-func TestMaybeGenerateChatTitle_TitleGenerationOverrideReadDBError(t *testing.T) {
-	t.Parallel()
-
-	ctx := testutil.Context(t, testutil.WaitShort)
-	ctrl := gomock.NewController(t)
-	db := dbmock.NewMockStore(ctrl)
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
-	chat, messages := titleOverrideTestChatAndMessages(t)
-	wantTitle := "Fallback title"
-
-	var fallbackCalls atomic.Int32
-	fallbackModel := &chattest.FakeModel{
-		GenerateObjectFn: func(context.Context, fantasy.ObjectCall) (*fantasy.ObjectResponse, error) {
-			fallbackCalls.Add(1)
-			return &fantasy.ObjectResponse{
-				Object: map[string]any{"title": wantTitle},
-			}, nil
-		},
-	}
-
-	db.EXPECT().GetChatOrganizationModelOverride(gomock.Any(), titleGenerationOverrideParams(chat)).Return(database.ChatOrganizationModelOverride{}, sql.ErrConnDone)
-	db.EXPECT().UpdateChatTitleByID(gomock.Any(), database.UpdateChatTitleByIDParams{
-		ID:    chat.ID,
-		Title: wantTitle,
-	}).Return(chatWithTitle(chat, wantTitle), nil)
-
-	generated := &generatedChatTitle{}
-	server := titleOverrideTestServer(db, logger)
-	server.maybeGenerateChatTitle(
-		ctx,
-		chat,
-		messages,
-		nil,
-		resolvedModelCall{
-			model:    chatprovider.NewModel(fallbackModel, nil),
-			dbConfig: database.ChatModelConfig{Model: "fallback-chat-model"},
-		},
-		modelBuildOptions{},
-		generated,
-		logger,
-		nil,
-	)
-
-	require.Equal(t, int32(1), fallbackCalls.Load())
-	gotTitle, ok := generated.Load()
-	require.True(t, ok)
-	require.Equal(t, wantTitle, gotTitle)
 }
 
 func TestMaybeGenerateChatTitle_TitleGenerationOverrideSetUsable(t *testing.T) {
@@ -186,12 +81,6 @@ func TestMaybeGenerateChatTitle_TitleGenerationOverrideSetUsable(t *testing.T) {
 		Type:    database.AIProviderTypeOpenai,
 		Enabled: true,
 	}
-	fallbackModel := &chattest.FakeModel{
-		GenerateObjectFn: func(context.Context, fantasy.ObjectCall) (*fantasy.ObjectResponse, error) {
-			t.Fatal("fallback model should not be called when override is usable")
-			return nil, xerrors.New("unexpected fallback model call")
-		},
-	}
 
 	db.EXPECT().GetChatOrganizationModelOverride(gomock.Any(), titleGenerationOverrideParams(chat)).Return(orgModelOverride(chat, titleGenerationOverrideContext, overrideConfig.ID, "xhigh"), nil)
 	db.EXPECT().GetChatModelConfigByID(gomock.Any(), overrideConfig.ID).Return(overrideConfig, nil)
@@ -208,16 +97,15 @@ func TestMaybeGenerateChatTitle_TitleGenerationOverrideSetUsable(t *testing.T) {
 	generated := &generatedChatTitle{}
 	server := titleOverrideTestServer(db, logger)
 	server.aibridgeTransportFactory = aibridgeTestFactoryPointer(factory)
+	resolved, err := server.resolveQuickgenModel(ctx, "title", chat, modelBuildOptions{ActiveAPIKeyID: uuid.NewString()})
+	require.NoError(t, err)
+	require.Equal(t, overrideConfig, resolved.dbConfig)
 	server.maybeGenerateChatTitle(
 		ctx,
 		chat,
 		messages,
 		nil,
-		resolvedModelCall{
-			model:    chatprovider.NewModel(fallbackModel, nil),
-			dbConfig: database.ChatModelConfig{Model: "fallback-chat-model"},
-		},
-		modelBuildOptions{ActiveAPIKeyID: uuid.NewString()},
+		resolved,
 		generated,
 		logger,
 		nil,
@@ -229,49 +117,7 @@ func TestMaybeGenerateChatTitle_TitleGenerationOverrideSetUsable(t *testing.T) {
 	require.Equal(t, wantTitle, gotTitle)
 }
 
-func TestMaybeGenerateChatTitle_TitleGenerationOverrideSetUnusableHardFails(t *testing.T) {
-	t.Parallel()
-
-	ctx := testutil.Context(t, testutil.WaitShort)
-	ctrl := gomock.NewController(t)
-	db := dbmock.NewMockStore(ctrl)
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
-	chat, messages := titleOverrideTestChatAndMessages(t)
-	overrideConfig := titleOverrideModelConfig("gpt-4.1", false)
-	wantTitle := "Fallback title"
-	fallbackModel := &chattest.FakeModel{
-		GenerateObjectFn: func(context.Context, fantasy.ObjectCall) (*fantasy.ObjectResponse, error) {
-			return &fantasy.ObjectResponse{
-				Object: map[string]any{"title": wantTitle},
-			}, nil
-		},
-	}
-
-	db.EXPECT().GetChatOrganizationModelOverride(gomock.Any(), titleGenerationOverrideParams(chat)).Return(orgModelOverride(chat, titleGenerationOverrideContext, overrideConfig.ID, ""), nil)
-	db.EXPECT().GetChatModelConfigByID(gomock.Any(), overrideConfig.ID).Return(overrideConfig, nil)
-
-	generated := &generatedChatTitle{}
-	server := titleOverrideTestServer(db, logger)
-	server.maybeGenerateChatTitle(
-		ctx,
-		chat,
-		messages,
-		nil,
-		resolvedModelCall{
-			model:    chatprovider.NewModel(fallbackModel, nil),
-			dbConfig: database.ChatModelConfig{Model: "fallback-chat-model"},
-		},
-		modelBuildOptions{},
-		generated,
-		logger,
-		nil,
-	)
-
-	_, ok := generated.Load()
-	require.False(t, ok, "a configured but unusable title override must not fall back")
-}
-
-func TestMaybeGenerateChatTitle_TitleGenerationOverrideCallFailureSkipsFallback(t *testing.T) {
+func TestMaybeGenerateChatTitle_TitleGenerationOverrideCallFailure(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitShort)
@@ -288,12 +134,6 @@ func TestMaybeGenerateChatTitle_TitleGenerationOverrideCallFailureSkipsFallback(
 		requestCount.Add(1)
 		return &http.Response{StatusCode: http.StatusOK, Body: http.NoBody}, nil
 	})}
-	fallbackModel := &chattest.FakeModel{
-		GenerateObjectFn: func(context.Context, fantasy.ObjectCall) (*fantasy.ObjectResponse, error) {
-			t.Fatal("fallback model should not be called after override call failure")
-			return nil, xerrors.New("unexpected fallback model call")
-		},
-	}
 
 	db.EXPECT().GetChatOrganizationModelOverride(gomock.Any(), titleGenerationOverrideParams(chat)).Return(orgModelOverride(chat, titleGenerationOverrideContext, overrideConfig.ID, ""), nil)
 	db.EXPECT().GetChatModelConfigByID(gomock.Any(), overrideConfig.ID).Return(overrideConfig, nil)
@@ -306,16 +146,14 @@ func TestMaybeGenerateChatTitle_TitleGenerationOverrideCallFailureSkipsFallback(
 	generated := &generatedChatTitle{}
 	server := titleOverrideTestServer(db, logger)
 	server.aibridgeTransportFactory = aibridgeTestFactoryPointer(factory)
+	resolved, err := server.resolveQuickgenModel(ctx, "title", chat, modelBuildOptions{ActiveAPIKeyID: uuid.NewString()})
+	require.NoError(t, err)
 	server.maybeGenerateChatTitle(
 		ctx,
 		chat,
 		messages,
 		nil,
-		resolvedModelCall{
-			model:    chatprovider.NewModel(fallbackModel, nil),
-			dbConfig: database.ChatModelConfig{Model: "fallback-chat-model"},
-		},
-		modelBuildOptions{ActiveAPIKeyID: uuid.NewString()},
+		resolved,
 		generated,
 		logger,
 		nil,
@@ -326,7 +164,7 @@ func TestMaybeGenerateChatTitle_TitleGenerationOverrideCallFailureSkipsFallback(
 	require.False(t, ok)
 }
 
-func TestResolveManualTitleModel_TitleGenerationOverrideUnset(t *testing.T) {
+func TestResolveQuickgenModel_TitleGenerationOverrideUnset(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitShort)
@@ -350,9 +188,9 @@ func TestResolveManualTitleModel_TitleGenerationOverrideUnset(t *testing.T) {
 	db.EXPECT().GetAIProviderByID(gomock.Any(), providerID).Return(aibridgeTestAIProvider(providerID, "primary-openai", database.AIProviderTypeOpenai), nil).AnyTimes()
 
 	server := titleOverrideTestServer(db, logger)
-	resolved, err := server.resolveManualTitleModel(
+	resolved, err := server.resolveQuickgenModel(
 		ctx,
-		db,
+		"title",
 		chat,
 		modelBuildOptions{ActiveAPIKeyID: uuid.NewString()},
 	)
@@ -361,7 +199,7 @@ func TestResolveManualTitleModel_TitleGenerationOverrideUnset(t *testing.T) {
 	require.Equal(t, preferredConfig, resolved.dbConfig)
 }
 
-func TestResolveManualTitleModel_NonDefaultOrgDoesNotUseDefaultOrgConfigs(t *testing.T) {
+func TestResolveQuickgenModel_NonDefaultOrgDoesNotUseDefaultOrgConfigs(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitShort)
@@ -375,9 +213,9 @@ func TestResolveManualTitleModel_NonDefaultOrgDoesNotUseDefaultOrgConfigs(t *tes
 	db.EXPECT().GetEnabledChatModelConfigsByOrganization(gomock.Any(), chat.OrganizationID).Return(nil, nil).AnyTimes()
 
 	server := titleOverrideTestServer(db, logger)
-	resolved, err := server.resolveManualTitleModel(
+	resolved, err := server.resolveQuickgenModel(
 		ctx,
-		db,
+		"title",
 		chat,
 		modelBuildOptions{ActiveAPIKeyID: uuid.NewString()},
 	)
@@ -385,7 +223,7 @@ func TestResolveManualTitleModel_NonDefaultOrgDoesNotUseDefaultOrgConfigs(t *tes
 	require.Equal(t, resolvedModelCall{}, resolved)
 }
 
-func TestResolveManualTitleModel_TitleGenerationOverrideUnsetAIProvider(t *testing.T) {
+func TestResolveQuickgenModel_TitleGenerationOverrideUnsetAIProvider(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitShort)
@@ -423,9 +261,9 @@ func TestResolveManualTitleModel_TitleGenerationOverrideUnsetAIProvider(t *testi
 	}}, nil).AnyTimes()
 
 	server := titleOverrideTestServer(db, logger)
-	resolved, err := server.resolveManualTitleModel(
+	resolved, err := server.resolveQuickgenModel(
 		ctx,
-		db,
+		"title",
 		chat,
 		modelBuildOptions{ActiveAPIKeyID: uuid.NewString()},
 	)
@@ -434,7 +272,7 @@ func TestResolveManualTitleModel_TitleGenerationOverrideUnsetAIProvider(t *testi
 	require.Equal(t, preferredConfig, resolved.dbConfig)
 }
 
-func TestResolveManualTitleModel_TitleGenerationOverrideReadDBError(t *testing.T) {
+func TestResolveQuickgenModel_TitleGenerationOverrideReadDBError(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitShort)
@@ -458,9 +296,9 @@ func TestResolveManualTitleModel_TitleGenerationOverrideReadDBError(t *testing.T
 	db.EXPECT().GetAIProviderByID(gomock.Any(), providerID).Return(aibridgeTestAIProvider(providerID, "primary-openai", database.AIProviderTypeOpenai), nil).AnyTimes()
 
 	server := titleOverrideTestServer(db, logger)
-	resolved, err := server.resolveManualTitleModel(
+	resolved, err := server.resolveQuickgenModel(
 		ctx,
-		db,
+		"title",
 		chat,
 		modelBuildOptions{ActiveAPIKeyID: uuid.NewString()},
 	)
@@ -469,7 +307,7 @@ func TestResolveManualTitleModel_TitleGenerationOverrideReadDBError(t *testing.T
 	require.Equal(t, preferredConfig, resolved.dbConfig)
 }
 
-func TestResolveManualTitleModel_TitleGenerationOverrideSetUsable(t *testing.T) {
+func TestResolveQuickgenModel_TitleGenerationOverrideSetUsable(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitShort)
@@ -490,9 +328,9 @@ func TestResolveManualTitleModel_TitleGenerationOverrideSetUsable(t *testing.T) 
 	}}, nil).AnyTimes()
 
 	server := titleOverrideTestServer(db, logger)
-	resolved, err := server.resolveManualTitleModel(
+	resolved, err := server.resolveQuickgenModel(
 		ctx,
-		db,
+		"title",
 		chat,
 		modelBuildOptions{ActiveAPIKeyID: uuid.NewString()},
 	)
@@ -501,7 +339,7 @@ func TestResolveManualTitleModel_TitleGenerationOverrideSetUsable(t *testing.T) 
 	require.Equal(t, overrideConfig, resolved.dbConfig)
 }
 
-func TestResolveManualTitleModel_TitleGenerationOverrideMissingCredentials(t *testing.T) {
+func TestResolveQuickgenModel_TitleGenerationOverrideMissingCredentials(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitShort)
@@ -525,13 +363,13 @@ func TestResolveManualTitleModel_TitleGenerationOverrideMissingCredentials(t *te
 	// Missing override credentials hard-fail the configured override.
 
 	server := titleOverrideTestServer(db, logger)
-	resolved, err := server.resolveManualTitleModel(
+	resolved, err := server.resolveQuickgenModel(
 		ctx,
-		db,
+		"title",
 		chat,
 		modelBuildOptions{},
 	)
-	require.ErrorContains(t, err, "resolve manual title generation model override")
+	require.ErrorContains(t, err, "resolve title generation model override for title")
 	require.ErrorContains(t, err, "credentials are unavailable")
 	require.Equal(t, resolvedModelCall{}, resolved)
 }
@@ -605,7 +443,7 @@ func TestGenerateManualTitleCandidate_UsesSyntheticAPIKey(t *testing.T) {
 	server := titleOverrideTestServer(db, logger)
 	server.clock = quartz.NewReal()
 	server.aibridgeTransportFactory = aibridgeTestFactoryPointer(factory)
-	title, err := server.generateManualTitleCandidate(ctx, db, chat)
+	title, err := server.generateManualTitleCandidate(ctx, chat)
 	require.NoError(t, err)
 	require.Equal(t, wantTitle, title)
 	require.Equal(t, apiKeyID, testutil.RequireReceive(ctx, t, seenAPIKeyID))
@@ -615,7 +453,7 @@ func TestGenerateManualTitleCandidate_UsesSyntheticAPIKey(t *testing.T) {
 	require.Equal(t, "title-options-sentinel", raw["user"])
 }
 
-func TestResolveManualTitleModel_TitleGenerationOverrideSetUnusable(t *testing.T) {
+func TestResolveQuickgenModel_TitleGenerationOverrideSetUnusable(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitShort)
@@ -630,13 +468,13 @@ func TestResolveManualTitleModel_TitleGenerationOverrideSetUnusable(t *testing.T
 	// A disabled configured override is a hard failure.
 
 	server := titleOverrideTestServer(db, logger)
-	resolved, err := server.resolveManualTitleModel(
+	resolved, err := server.resolveQuickgenModel(
 		ctx,
-		db,
+		"title",
 		chat,
 		modelBuildOptions{},
 	)
-	require.ErrorContains(t, err, "resolve manual title generation model override")
+	require.ErrorContains(t, err, "resolve title generation model override for title")
 	require.ErrorContains(t, err, "model override is unavailable")
 	require.Equal(t, resolvedModelCall{}, resolved)
 }

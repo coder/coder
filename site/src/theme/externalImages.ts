@@ -1,6 +1,6 @@
 import type { CSSProperties } from "react";
 
-export interface ExternalImageModeStyles {
+export type ExternalImageModeStyles = {
 	/**
 	 * monochrome icons will be flattened to a neutral, theme-appropriate color.
 	 * eg. white, light gray, dark gray, black
@@ -30,7 +30,7 @@ export interface ExternalImageModeStyles {
 	 * eg. /icon/aws.svg?blackWithColor&brightness=1.5
 	 */
 	blackWithColor?: CSSProperties;
-}
+};
 
 export const forDarkThemes: ExternalImageModeStyles = {
 	// brighten icons a little to make sure they have good contrast with the background
@@ -179,6 +179,7 @@ export const defaultParametersForBuiltinIcons = new Map<string, string>([
 	["/icon/okta.svg", "monochrome"],
 	["/icon/openai-codex.svg", "monochrome"],
 	["/icon/openai.svg", "monochrome"],
+	["/icon/openrouter.svg", "monochrome"],
 	["/icon/openwebui.svg", "monochrome"],
 	["/icon/perplexica.svg", "monochrome"],
 	["/icon/roo-code.svg", "whiteWithColor"],

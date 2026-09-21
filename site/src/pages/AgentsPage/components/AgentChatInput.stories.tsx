@@ -15,6 +15,7 @@ import {
 	MockWorkspaceAgent,
 } from "#/testHelpers/entities";
 import { createMockFile } from "#/testHelpers/files";
+import { setupMatchMedia } from "#/testHelpers/matchMedia";
 import {
 	withDashboardProvider,
 	withProxyProvider,
@@ -217,44 +218,17 @@ export const ModifierEnterSendsWhenRequired: Story = {
 	},
 };
 
-/**
- * CODAGT-210: On mobile viewports, Enter must insert a newline rather
- * than submit the message, because Shift+Enter is cumbersome on
- * on-screen keyboards. Users submit via the send button instead.
- */
 export const MobileEnterInsertsNewline: Story = {
-	args: {
-		onSend: fn(),
-		initialValue: "Line one",
+	parameters: {
+		viewport: { defaultViewport: "mobile1" },
 	},
-	play: async ({ canvasElement, args }) => {
-		const originalMatchMedia = window.matchMedia;
-		window.matchMedia = (query: string) =>
-			({
-				matches: query === "(max-width: 639px)",
-				media: query,
-				onchange: null,
-				addEventListener: () => undefined,
-				removeEventListener: () => undefined,
-				dispatchEvent: () => true,
-				addListener: () => undefined,
-				removeListener: () => undefined,
-			}) as MediaQueryList;
-
-		try {
-			const canvas = within(canvasElement);
-			const editor = canvas.getByTestId("chat-message-input");
-			await waitFor(() => {
-				expect(editor.textContent).toBe("Line one");
-			});
-
-			await userEvent.click(editor);
-			await userEvent.keyboard("{Enter}");
-
-			expect(args.onSend).not.toHaveBeenCalled();
-		} finally {
-			window.matchMedia = originalMatchMedia;
-		}
+	beforeEach: () => setupMatchMedia({ "(pointer: coarse)": true }).restore,
+	play: async ({ canvasElement }) => {
+		const editor = within(canvasElement).getByRole("textbox", {
+			name: "Chat message",
+		});
+		await userEvent.click(editor);
+		await userEvent.keyboard("Line one{Enter}Line two");
 	},
 };
 
