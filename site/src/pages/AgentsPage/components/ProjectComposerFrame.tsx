@@ -1,6 +1,7 @@
 import { PencilIcon } from "lucide-react";
 import { type FC, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
+import { getErrorMessage } from "#/api/errors";
 import {
 	chatProjectPermissions,
 	updateChatProject,
@@ -49,6 +50,29 @@ export const ProjectComposerFooter: FC<ProjectComposerFooterProps> = ({
 		project,
 		permissionsQuery.data,
 	);
+
+	// Without any permission data the edit control cannot be decided, so
+	// offer a retry instead of silently hiding it. Cached data keeps the
+	// control through a failed background refetch.
+	if (permissionsQuery.data === undefined && permissionsQuery.error) {
+		return (
+			<div className="flex items-center justify-center gap-2 pt-2 text-xs text-content-destructive">
+				<span>
+					{getErrorMessage(
+						permissionsQuery.error,
+						"Failed to load project permissions.",
+					)}
+				</span>
+				<Button
+					size="sm"
+					variant="outline"
+					onClick={() => void permissionsQuery.refetch()}
+				>
+					Retry
+				</Button>
+			</div>
+		);
+	}
 
 	if (!canUpdate) {
 		return null;

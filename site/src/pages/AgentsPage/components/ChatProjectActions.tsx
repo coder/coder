@@ -71,15 +71,31 @@ export const ChatProjectActions: FC<ChatProjectActionsProps> = ({
 				>
 					No project
 				</Item>
-				{projectsQuery.data?.map((project) => (
-					<Item
-						key={project.id}
-						disabled={updateProjectMutation.isPending}
-						onSelect={() => selectProject(project.id)}
-					>
-						{project.name}
-					</Item>
-				))}
+				{projectsQuery.data === undefined && projectsQuery.error ? (
+					<>
+						<Item disabled className="text-content-destructive">
+							{getErrorMessage(projectsQuery.error, "Failed to load projects.")}
+						</Item>
+						<Item
+							onSelect={(event) => {
+								event.preventDefault();
+								void projectsQuery.refetch();
+							}}
+						>
+							Retry
+						</Item>
+					</>
+				) : (
+					projectsQuery.data?.map((project) => (
+						<Item
+							key={project.id}
+							disabled={updateProjectMutation.isPending}
+							onSelect={() => selectProject(project.id)}
+						>
+							{project.name}
+						</Item>
+					))
+				)}
 			</SubContent>
 		</Sub>
 	);

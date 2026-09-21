@@ -224,8 +224,13 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	const orgSelectionSettled =
 		!showOrganizations || permittedOrgsQuery.data !== undefined;
 	// Keep an authoritative empty permission set distinct from pending data.
+	// A locked organization the user cannot use is also a denial, even when
+	// other organizations would be permitted.
 	const noPermittedOrgs =
-		showOrganizations && permittedOrgsQuery.data?.length === 0;
+		(showOrganizations && permittedOrgsQuery.data?.length === 0) ||
+		(orgSelectionSettled &&
+			Boolean(lockedOrganizationId) &&
+			permittedOrgs.length === 0);
 	const selectedOrgIsPermitted =
 		selectedOrg !== null &&
 		permittedOrgs.some((org) => org.id === selectedOrg.id);

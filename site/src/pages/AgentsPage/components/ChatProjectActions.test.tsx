@@ -84,4 +84,34 @@ describe("ChatProjectActions", () => {
 			expect(requestBody).toEqual({ project_id: MockChatProject.id });
 		});
 	});
+
+	it("retries a failed project list from the submenu", async () => {
+		const user = userEvent.setup();
+		let requestCount = 0;
+		server.use(
+			http.get("/api/experimental/chats/projects", () => {
+				requestCount++;
+				return requestCount === 1
+					? HttpResponse.json(
+							{ message: "Projects unavailable" },
+							{ status: 500 },
+						)
+					: HttpResponse.json([MockChatProject]);
+			}),
+		);
+
+		render(
+			<Wrapper>
+				<ChatProjectActions chat={MockChat} menu="dropdown" />
+			</Wrapper>,
+		);
+
+		await user.click(screen.getByRole("menuitem", { name: "Move to project" }));
+		await user.keyboard("{ArrowRight}");
+		const retry = await screen.findByRole("menuitem", { name: "Retry" });
+		retry.focus();
+		await user.keyboard("{Enter}");
+
+		await waitFor(() => expect(requestCount).toBe(2));
+	});
 });

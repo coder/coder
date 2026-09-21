@@ -342,4 +342,41 @@ describe("AgentCreatePage project frame", () => {
 			expect(requestBody).toMatchObject({ name: "Renamed" });
 		});
 	});
+
+	it("retries a failed project permission check under the composer", async () => {
+		const user = userEvent.setup();
+		let authCheckCount = 0;
+		server.use(
+			http.get(`/api/experimental/chats/projects/${MockChatProject.id}`, () =>
+				HttpResponse.json(MockChatProject),
+			),
+			http.post("/api/v2/authcheck", async ({ request }) => {
+				authCheckCount++;
+				if (authCheckCount === 1) {
+					return HttpResponse.json(
+						{ message: "Permission check failed" },
+						{ status: 500 },
+					);
+				}
+				const { checks } = (await request.json()) as {
+					checks: Record<string, unknown>;
+				};
+				return HttpResponse.json(
+					Object.fromEntries(Object.keys(checks).map((key) => [key, true])),
+				);
+			}),
+		);
+
+		render(
+			<Wrapper experiments={["chat-projects"]}>
+				<AgentCreatePage />
+			</Wrapper>,
+		);
+
+		await user.click(await screen.findByRole("button", { name: "Retry" }));
+		await waitFor(() => expect(authCheckCount).toBe(2));
+		await user.click(
+			await screen.findByRole("button", { name: "Edit project" }),
+		);
+	});
 });
