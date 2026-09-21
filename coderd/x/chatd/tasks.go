@@ -698,7 +698,7 @@ func committedPendingLocalToolCancellationMessages(
 	if err != nil {
 		return nil, xerrors.Errorf("load committed messages for interruption: %w", err)
 	}
-	localCalls, _, err := unresolvedToolCallsFromHistory(messages, dynamicToolNamesFromChat(chat))
+	_, localCalls, _, err := unresolvedToolCallsFromHistory(messages, dynamicToolNamesFromChat(chat))
 	if err != nil {
 		return nil, err
 	}
