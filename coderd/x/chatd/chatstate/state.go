@@ -69,10 +69,9 @@ func (s ExecutionState) String() string { return string(s) }
 // IsRunnable returns true for the execution states that the chat
 // worker is allowed to acquire and drive forward: R0, R1, R1P, I0,
 // I1, I1P, A0, A1, and A1P. A blocked queue head does not stop the
-// current turn, so the P variants of the busy states stay runnable.
-// Requires-action states need worker ownership for timeout
-// processing. Other states are idle (W, E*, XW, XE*), paused (P),
-// absent (N), or invalid.
+// current turn, so the "1P" states stay runnable. Requires-action
+// states need worker ownership for timeout processing. Other states
+// are idle (W, E*, XW, XE*), paused (P), absent (N), or invalid.
 func (s ExecutionState) IsRunnable() bool {
 	switch s {
 	case StateR0, StateR1, StateR1P, StateI0, StateI1, StateI1P, StateA0, StateA1, StateA1P:
@@ -87,14 +86,16 @@ type QueueState struct {
 	// HasRows is the "1" queue sub-state.
 	HasRows bool
 	// Paused is [queuePaused] of the head: the "P" suffix of the "1"
-	// sub-state. P requires it so a paused status whose head is ready
-	// classifies invalid and is reconciled, like waiting with rows.
+	// sub-state.
 	Paused bool
 }
 
 // queuePaused reports whether a pause condition holds for the queue
 // head, so it must not be promoted. Each pause mechanism adds its
-// condition here.
+// condition here. A condition may change only inside a state machine
+// transition: P is classified from the head, so a condition that
+// changes outside a transition leaves a paused chat that classifies
+// invalid.
 func queuePaused(head database.ChatQueuedMessage) bool {
 	return head.EditingSince.Valid
 }
@@ -124,11 +125,12 @@ func LoadQueueState(ctx context.Context, store database.Store, chatID uuid.UUID)
 // The classifier is a single flat switch over the valid (status,
 // archived, queue) tuples in the chat execution state model. A
 // non-empty queue classifies by its head: ready ("1") or blocked by a
-// pause condition ("1P"). A head with a pause condition is blocked; a
-// chat whose turn ends at a blocked head is paused. Anything outside
-// that set (archived busy states, waiting with a non-empty queue,
-// paused without a pause condition, future enum values) falls through
-// to [StateInvalid].
+// pause condition ("1P", see [queuePaused]). Status paused classifies
+// P only with a blocked head: P's transitions do not re-read the head,
+// so paused with a ready head or an empty queue is invalid, like
+// waiting with rows. Anything outside the valid set (archived busy
+// states, waiting with a non-empty queue, paused without a blocked
+// head, future enum values) falls through to [StateInvalid].
 //
 //nolint:revive // exists is a simple classifier input.
 func ClassifyExecutionState(chat database.Chat, queue QueueState, exists bool) ExecutionState {
