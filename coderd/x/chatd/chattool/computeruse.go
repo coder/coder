@@ -213,7 +213,9 @@ func (t *computerUseTool) runAnthropicComputerUse(
 		action.Text = &input.Text
 	}
 	if input.Duration > 0 {
-		d := int(input.Duration)
+		// The agent blocks for forwarded durations (hold_key), so
+		// bound them like local waits.
+		d := int(min(input.Duration, int64(maxComputerWait/time.Millisecond)))
 		action.Duration = &d
 	}
 	if input.ScrollAmount > 0 {
@@ -325,12 +327,22 @@ func (*computerUseTool) desktopAction(
 	}
 }
 
+// maxComputerWait caps a single model-supplied wait action. Without
+// it, an oversized wait could ride an attempt whose watchdog a
+// concurrently progressing execute keeps kicking, far past the
+// attempt idle window. The model repeats the wait action when a UI
+// needs longer to settle.
+const maxComputerWait = 30 * time.Second
+
 func (t *computerUseTool) wait(ctx context.Context, durationMillis int64) {
-	d := durationMillis
-	if d <= 0 {
-		d = 1000
+	if durationMillis <= 0 {
+		durationMillis = int64(time.Second / time.Millisecond)
 	}
-	timer := t.clock.NewTimer(time.Duration(d)*time.Millisecond, "computeruse", "wait")
+	// Clamp before converting so an oversized model-supplied value
+	// cannot overflow time.Duration and dodge the cap.
+	durationMillis = min(durationMillis, int64(maxComputerWait/time.Millisecond))
+	d := time.Duration(durationMillis) * time.Millisecond
+	timer := t.clock.NewTimer(d, "computeruse", "wait")
 	defer timer.Stop()
 	select {
 	case <-ctx.Done():

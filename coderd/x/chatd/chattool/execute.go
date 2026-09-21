@@ -281,6 +281,7 @@ func executeBackground(
 		}
 		return errorResult(enrichStartError(fmt.Sprintf("start background process: %v", err)))
 	}
+	KickAttemptKeepalive(ctx)
 
 	result := ExecuteResult{
 		Success:             true,
@@ -337,6 +338,7 @@ func executeForeground(
 		}
 		return errorResult(enrichStartError(fmt.Sprintf("start process: %v", err)))
 	}
+	KickAttemptKeepalive(ctx)
 
 	var result ExecuteResult
 	if resp.Attached {
@@ -403,6 +405,7 @@ func resumeAttachedProcess(
 				BackgroundProcessID: processID,
 			}
 		}
+		KickAttemptKeepalive(ctx)
 		if resp.Running {
 			return timedOutRunningResult(resp, timeout, processID)
 		}
@@ -466,6 +469,9 @@ func waitForProcess(
 		resp, err := conn.ProcessOutput(ctx, processID, &workspacesdk.ProcessOutputOptions{
 			Wait: true,
 		})
+		if err == nil {
+			KickAttemptKeepalive(parentCtx)
+		}
 		if err == nil && resp.Running && ctx.Err() == nil {
 			// The server-side wait can return before the process
 			// exits when its maximum wait is shorter than the
@@ -540,6 +546,8 @@ func resolveProcessWait(
 				BackgroundProcessID: processID,
 			}
 		}
+
+		KickAttemptKeepalive(parentCtx)
 
 		// Snapshot succeeded. If the process finished, return
 		// its real result (transparent recovery).
@@ -678,6 +686,10 @@ func ProcessOutput(options ProcessToolOptions) fantasy.AgentTool {
 				}
 				// Fall through to normal response handling below.
 			}
+			// Each successful poll proves the agent is responsive;
+			// a wait longer than the attempt idle window must not
+			// trip the watchdog while the agent responds.
+			KickAttemptKeepalive(parentCtx)
 			output := truncateOutput(resp.Output)
 			exitCode := 0
 			if resp.ExitCode != nil {

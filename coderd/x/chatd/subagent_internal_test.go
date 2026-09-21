@@ -4207,6 +4207,41 @@ func TestAwaitSubagentCompletion(t *testing.T) {
 		assert.Contains(t, result.err.Error(), "timed out waiting for delegated subagent completion")
 	})
 
+	t.Run("TimeoutClamped", func(t *testing.T) {
+		t.Parallel()
+
+		db, ps := dbtestutil.NewDB(t)
+		mClock := quartz.NewMock(t)
+		server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{}, withInternalTestServerClock(mClock))
+		ctx := chatdTestContext(t)
+		user, org, model := seedInternalChatDeps(t, db)
+
+		parent, child := createParentChildChats(ctx, t, server, user, org, model)
+
+		timerTrap := mClock.Trap().NewTimer("chatd", "subagent_await")
+
+		awaitCtx, cancelAwait := context.WithCancel(ctx)
+		defer cancelAwait()
+		resultCh := make(chan error, 1)
+		go func() {
+			_, _, err := server.awaitSubagentCompletion(
+				awaitCtx, parent.ID, child.ID, 10*time.Hour,
+			)
+			resultCh <- err
+		}()
+
+		// An oversized model-supplied timeout is clamped to the
+		// per-call cap instead of blocking the attempt for hours.
+		call := timerTrap.MustWait(ctx)
+		assert.Equal(t, maxSubagentWaitTimeout, call.Duration)
+		call.MustRelease(ctx)
+		timerTrap.Close()
+
+		cancelAwait()
+		err := testutil.RequireReceive(ctx, t, resultCh)
+		require.ErrorIs(t, err, context.Canceled)
+	})
+
 	t.Run("ContextCanceled", func(t *testing.T) {
 		t.Parallel()
 

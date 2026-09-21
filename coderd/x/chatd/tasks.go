@@ -18,6 +18,8 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
+	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
+	"github.com/coder/coder/v2/coderd/x/chatd/internal/watchdog"
 	"github.com/coder/coder/v2/coderd/x/chatd/messagepartbuffer"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/quartz"
@@ -25,10 +27,16 @@ import (
 
 const (
 	postCommitWatchPublishTimeout = 10 * time.Second
-	// defaultTaskTimeout must exceed chatloop's stream-silence guard so
-	// silent provider streams fail through chat-specific retry handling
-	// before the runner retries the whole task.
+	// defaultTaskTimeout is the attempt idle window: how long an
+	// attempt may run without a keepalive kick before it is canceled.
+	// It must exceed chatloop's stream-silence guard so silent
+	// provider streams fail through chat-specific retry handling
+	// before the runner retries the whole task; streaming code never
+	// kicks the watchdog.
 	defaultTaskTimeout = 15 * time.Minute
+	// maxTaskAttemptDuration is the absolute cap on a single task
+	// attempt. It is never reset by keepalive kicks.
+	maxTaskAttemptDuration = 24 * time.Hour
 )
 
 var (
@@ -154,13 +162,20 @@ func runTaskWithRetry(
 	}
 }
 
+// taskAttemptContext bounds a single task attempt with two watchdogs:
+// a resettable idle window kicked by tools after successful agent
+// round-trips, and a non-resettable absolute cap.
 func taskAttemptContext(ctx context.Context, clock quartz.Clock, kind taskKind) (context.Context, func()) {
 	attemptCtx, cancelCause := context.WithCancelCause(ctx)
-	timer := clock.AfterFunc(defaultTaskTimeout, func() {
+	idle := watchdog.New(clock, defaultTaskTimeout, cancelCause, errTaskTimeout,
+		"chatworker", "task-timeout-"+string(kind))
+	capTimer := clock.AfterFunc(maxTaskAttemptDuration, func() {
 		cancelCause(errTaskTimeout)
-	}, "chatworker", "task-timeout-"+string(kind))
+	}, "chatworker", "task-attempt-cap-"+string(kind))
+	attemptCtx = chattool.WithAttemptKeepalive(attemptCtx, idle.Reset)
 	return attemptCtx, func() {
-		timer.Stop()
+		idle.Disarm()
+		capTimer.Stop()
 		cancelCause(nil)
 	}
 }
