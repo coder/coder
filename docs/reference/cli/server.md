@@ -2108,3 +2108,11 @@ Disable the template builder feature for guided template creation. When disabled
 | Default     | <code>registry.coder.com</code>                   |
 
 The module registry host the template builder uses for module source paths (for example, "registry.coder.com" or "mirror.internal:8443"). An http(s):// scheme and trailing slash are stripped; a path, query, fragment, or credentials is rejected.
+
+### -n, --dry-run
+
+|      |                   |
+|------|-------------------|
+| Type | <code>bool</code> |
+
+Validate the effective server configuration and exit without starting services.
