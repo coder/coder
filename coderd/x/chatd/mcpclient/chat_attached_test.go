@@ -416,6 +416,41 @@ func TestConnectChatAttached_BodyCap(t *testing.T) {
 		require.Equal(t, mcpclient.ConnectOutcomeError, summaries[0].Outcome)
 		require.Contains(t, summaries[0].Error, "exceeds maximum size")
 	})
+
+	t.Run("EventStream", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+
+		// One call streams more than the body cap in total, but each
+		// event stays under it, so the stream must not be cut off.
+		chatty := testTool{
+			tool: &mcp.Tool{Name: "chatty", InputSchema: map[string]any{"type": "object"}},
+			handler: func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+				for i := 0; i < 5; i++ {
+					_ = req.Session.NotifyProgress(ctx, &mcp.ProgressNotificationParams{
+						ProgressToken: "t",
+						Message:       strings.Repeat("a", mcpclient.MaxChatAttachedHTTPResponseBytesForTest/4),
+						Progress:      float64(i),
+					})
+				}
+				return textToolResult("done"), nil
+			},
+		}
+		ts := newTestMCPServer(t, chatty)
+		cfg := makeChatAttachedConfig("bot", ts.URL, "")
+
+		tools, _, cleanup := mcpclient.ConnectChatAttachedForTest(
+			ctx, logger, []database.MCPServerConfig{cfg}, nil, nil, testutil.WaitLong,
+		)
+		t.Cleanup(cleanup)
+		require.Len(t, tools, 1)
+
+		resp, err := tools[0].Run(ctx, fantasy.ToolCall{ID: "call-1", Input: "{}"})
+		require.NoError(t, err)
+		require.False(t, resp.IsError, resp.Content)
+		require.Contains(t, resp.Content, "done")
+	})
 }
 
 type stubTool struct {

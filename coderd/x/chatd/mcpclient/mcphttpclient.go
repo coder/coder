@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"io"
+	"mime"
 	"net/http"
 	"strconv"
 	"strings"
@@ -65,10 +66,10 @@ const (
 	headerCoderWorkspaceID = "X-Coder-Workspace-Id"
 )
 
-// maxChatAttachedHTTPResponseBytes caps one HTTP response body from a
-// chat-attached MCP server. Chat owners, not org admins, choose these
-// servers, so a hostile server must not be able to exhaust memory with
-// an unbounded tool list or tool result.
+// maxChatAttachedHTTPResponseBytes caps one HTTP response body, or one
+// server-sent event, from a chat-attached MCP server. Chat owners, not
+// org admins, choose these servers, so a hostile server must not be
+// able to exhaust memory with an unbounded tool list or tool result.
 const maxChatAttachedHTTPResponseBytes = 1 << 20
 
 var errChatAttachedResponseTooLarge = xerrors.New("chat-attached MCP response body exceeds maximum size")
@@ -98,7 +99,10 @@ func (t *maxResponseBodyRoundTripper) RoundTrip(req *http.Request) (*http.Respon
 	if err != nil {
 		return nil, err
 	}
-	if resp.Body == nil {
+	// An SSE stream lives for the whole session; the transport caps it
+	// per event through MaxEventSize instead.
+	mediaType, _, _ := mime.ParseMediaType(resp.Header.Get("Content-Type"))
+	if resp.Body == nil || mediaType == "text/event-stream" {
 		return resp, nil
 	}
 	if resp.ContentLength > t.maxBytes {

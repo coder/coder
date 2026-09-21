@@ -416,7 +416,12 @@ func connectOne(
 		}
 	}
 
-	tr, err := createTransport(cfg, headers, opts.httpClient)
+	maxResultBytes, maxEventSize := 0, 0
+	if opts.kind == connectionKindChatAttached {
+		maxResultBytes = maxChatAttachedToolResultBytes
+		maxEventSize = maxChatAttachedHTTPResponseBytes
+	}
+	tr, err := createTransport(cfg, headers, opts.httpClient, maxEventSize)
 	if err != nil {
 		return nil, nil, xerrors.Errorf(
 			"create transport: %w", err,
@@ -489,11 +494,6 @@ func connectOne(
 		return nil, nil, res.err
 	}
 	session, toolsResult := res.session, res.tools
-
-	maxResultBytes := 0
-	if opts.kind == connectionKindChatAttached {
-		maxResultBytes = maxChatAttachedToolResultBytes
-	}
 
 	var tools []fantasy.AgentTool
 	for _, mcpTool := range toolsResult.Tools {
@@ -586,6 +586,7 @@ func createTransport(
 	cfg database.MCPServerConfig,
 	headers map[string]string,
 	baseHTTPClient *http.Client,
+	maxEventSize int,
 ) (mcp.Transport, error) {
 	signingSecret := ""
 	if cfg.ForwardCoderHeaders {
@@ -596,14 +597,16 @@ func createTransport(
 	switch cfg.Transport {
 	case "sse":
 		return &mcp.SSEClientTransport{
-			Endpoint:   cfg.Url,
-			HTTPClient: httpClient,
+			Endpoint:     cfg.Url,
+			HTTPClient:   httpClient,
+			MaxEventSize: maxEventSize,
 		}, nil
 	case "", "streamable_http":
 		// Default to streamable HTTP, the newer transport.
 		return &mcp.StreamableClientTransport{
-			Endpoint:   cfg.Url,
-			HTTPClient: httpClient,
+			Endpoint:     cfg.Url,
+			HTTPClient:   httpClient,
+			MaxEventSize: maxEventSize,
 		}, nil
 	default:
 		return nil, xerrors.Errorf(
