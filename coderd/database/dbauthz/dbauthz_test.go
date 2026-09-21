@@ -1819,6 +1819,19 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().UpsertChatDiffStatus(gomock.Any(), arg).Return(diffStatus, nil).AnyTimes()
 		check.Args(arg).Asserts(chat, policy.ActionUpdate).Returns(diffStatus)
 	}))
+	s.Run("UpdateChatDiffStatusReferenceURL", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		chat := testutil.Fake(s.T(), faker, database.Chat{})
+		arg := database.UpdateChatDiffStatusReferenceURLParams{
+			ChatID:          chat.ID,
+			Url:             "https://example.com/pr/123",
+			GitBranch:       "feature/test",
+			GitRemoteOrigin: "origin",
+			StaleAt:         dbtime.Now().Add(time.Hour),
+		}
+		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
+		dbm.EXPECT().UpdateChatDiffStatusReferenceURL(gomock.Any(), arg).Return(nil).AnyTimes()
+		check.Args(arg).Asserts(chat, policy.ActionUpdate).Returns()
+	}))
 	s.Run("UpsertChatDiffStatusReference", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		chat := testutil.Fake(s.T(), faker, database.Chat{})
 		arg := database.UpsertChatDiffStatusReferenceParams{

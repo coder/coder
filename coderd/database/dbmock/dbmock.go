@@ -10072,6 +10072,20 @@ func (mr *MockStoreMockRecorder) UpdateChatDebugStep(ctx, arg any) *gomock.Call 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateChatDebugStep", reflect.TypeOf((*MockStore)(nil).UpdateChatDebugStep), ctx, arg)
 }
 
+// UpdateChatDiffStatusReferenceURL mocks base method.
+func (m *MockStore) UpdateChatDiffStatusReferenceURL(ctx context.Context, arg database.UpdateChatDiffStatusReferenceURLParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateChatDiffStatusReferenceURL", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpdateChatDiffStatusReferenceURL indicates an expected call of UpdateChatDiffStatusReferenceURL.
+func (mr *MockStoreMockRecorder) UpdateChatDiffStatusReferenceURL(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateChatDiffStatusReferenceURL", reflect.TypeOf((*MockStore)(nil).UpdateChatDiffStatusReferenceURL), ctx, arg)
+}
+
 // UpdateChatExecutionState mocks base method.
 func (m *MockStore) UpdateChatExecutionState(ctx context.Context, arg database.UpdateChatExecutionStateParams) (database.Chat, error) {
 	m.ctrl.T.Helper()

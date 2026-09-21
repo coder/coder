@@ -1921,7 +1921,8 @@ WHERE
 RETURNING id;
 
 -- name: GetChatDiffStatusesByChatID :many
--- The rows are ordered newest first.
+-- The rows are ordered newest report first. The first row is the
+-- primary.
 SELECT
     *
 FROM
@@ -1929,13 +1930,13 @@ FROM
 WHERE
     chat_id = @chat_id::uuid
 ORDER BY
-    updated_at DESC,
+    reported_at DESC,
     git_remote_origin,
     git_branch;
 
 -- name: GetChatDiffStatusesByChatIDs :many
--- The rows are ordered newest first. The first row per chat is its
--- most recently reported ref.
+-- The rows are ordered newest report first. The first row per chat
+-- is its most recently reported ref.
 SELECT
     *
 FROM
@@ -1943,11 +1944,27 @@ FROM
 WHERE
     chat_id = ANY(@chat_ids::uuid[])
 ORDER BY
-    updated_at DESC,
+    reported_at DESC,
     git_remote_origin,
     git_branch;
 
+-- name: UpdateChatDiffStatusReferenceURL :exec
+-- Stores a discovered pull request URL on an existing ref row.
+-- reported_at is untouched, so a late discovery write cannot
+-- reorder the primary.
+UPDATE
+    chat_diff_statuses
+SET
+    url = @url::text,
+    stale_at = @stale_at::timestamptz
+WHERE
+    chat_id = @chat_id::uuid
+    AND git_remote_origin = @git_remote_origin::text
+    AND git_branch = @git_branch::text;
+
 -- name: UpsertChatDiffStatusReference :one
+-- A report names a ref the agent is on. The write time is the
+-- report time, and the report time decides the primary ordering.
 INSERT INTO chat_diff_statuses (
     chat_id,
     url,
@@ -1968,6 +1985,7 @@ SET
         ELSE chat_diff_statuses.url
     END,
     stale_at = EXCLUDED.stale_at,
+    reported_at = NOW(),
     updated_at = NOW()
 RETURNING
     *;
@@ -2261,9 +2279,8 @@ WITH acquired AS (
         -- Claim for 5 minutes. The worker sets the real stale_at
         -- after refresh. If the worker crashes, rows become eligible
         -- again after this interval.
-        -- NOTE: updated_at is intentionally NOT touched here. It
-        -- tracks the last report, and reports decide the primary
-        -- ordering.
+        -- NOTE: reported_at is intentionally NOT touched here; a
+        -- claim is not a report and must not reorder the primary.
         stale_at = NOW() + INTERVAL '5 minutes'
     WHERE
         (chat_id, git_remote_origin, git_branch) IN (
@@ -2301,8 +2318,8 @@ INNER JOIN
 UPDATE
     chat_diff_statuses
 SET
-    -- updated_at is intentionally NOT touched here. It tracks the
-    -- last report, and reports decide the primary ordering.
+    -- reported_at is intentionally NOT touched; a backoff is not a
+    -- report and must not reorder the primary.
     stale_at = @stale_at::timestamptz
 WHERE
     chat_id = @chat_id::uuid
@@ -2412,7 +2429,7 @@ SELECT DISTINCT ON (c.id)
 FROM chats c
 LEFT JOIN chat_diff_statuses cds ON cds.chat_id = c.id
 WHERE c.updated_at > @updated_after
-ORDER BY c.id, cds.updated_at DESC NULLS LAST, cds.git_remote_origin, cds.git_branch;
+ORDER BY c.id, cds.reported_at DESC NULLS LAST, cds.git_remote_origin, cds.git_branch;
 
 -- name: GetChatMessageSummariesPerChat :many
 -- Aggregates message-level metrics per chat for messages created
