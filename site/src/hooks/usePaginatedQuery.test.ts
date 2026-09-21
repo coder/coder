@@ -499,6 +499,7 @@ describe(`${usePaginatedQuery.name} - Returned properties`, () => {
 			await result.current.refetch();
 			await waitFor(() => expect(result.current.isError).toBe(true));
 
+			expect(result.current.isSuccess).toBe(false);
 			expect(result.current.totalRecords).toBe(50);
 			expect(result.current.totalPages).toBe(5);
 			expect(result.current.hasNextPage).toBe(true);
