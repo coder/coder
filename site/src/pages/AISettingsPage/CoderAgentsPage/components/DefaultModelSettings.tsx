@@ -10,7 +10,7 @@ import {
 import { AgentSettingLayout } from "./AgentSettingLayout";
 import type { MutationCallbacks } from "./SubagentModelOverrideSettings";
 
-interface DefaultModelSettingsProps {
+type DefaultModelSettingsProps = {
 	/** "" when the organization has no default; undefined until the default is known. */
 	defaultModelID: string | undefined;
 	enabledModels: readonly TypesGen.ChatModel[];
@@ -21,7 +21,7 @@ interface DefaultModelSettingsProps {
 	isSaving: boolean;
 	isSaveError: boolean;
 	disabled: boolean;
-}
+};
 
 export const DefaultModelSettings: FC<DefaultModelSettingsProps> = ({
 	defaultModelID,
