@@ -1,19 +1,15 @@
 import type { FC } from "react";
-import { useMutation, useQuery, useQueryClient } from "react-query";
+import { useMutation, useQueryClient } from "react-query";
 import { toast } from "sonner";
 import { getErrorMessage } from "#/api/errors";
-import { chat } from "#/api/queries/chats";
-import { startWorkspace, workspaceById } from "#/api/queries/workspaces";
+import { startWorkspace } from "#/api/queries/workspaces";
 import type {
 	Workspace,
-	WorkspaceAgent,
 	WorkspaceAgentStatus,
 	WorkspaceStatus,
 } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import { Spinner } from "#/components/Spinner/Spinner";
-import { getWorkspaceAgent } from "../ChatConversation/chatHelpers";
-import { useWorkspaceWatch } from "../ChatConversation/useWorkspaceWatch";
 
 /** Build statuses from which the workspace can be started again. */
 const startableWorkspaceStatuses: readonly WorkspaceStatus[] = [
@@ -34,7 +30,6 @@ export const isDesktopReachable = (
 
 export interface DesktopWorkspaceStateProps {
 	workspaceStatus: WorkspaceStatus;
-	agentStatus: WorkspaceAgentStatus | undefined;
 	onStartWorkspace: () => void;
 	isStartingWorkspace: boolean;
 }
@@ -90,8 +85,9 @@ export const DesktopWorkspaceState: FC<DesktopWorkspaceStateProps> = ({
 };
 
 /**
- * Start mutation for the desktop's workspace with error reporting.
- * Disabled while no workspace is loaded.
+ * Start mutation for the desktop's workspace with error reporting. The
+ * workspace may still be loading in the pop-out window, so the start
+ * action rejects until it arrives.
  */
 export const useStartDesktopWorkspace = (workspace: Workspace | undefined) => {
 	const queryClient = useQueryClient();
@@ -107,30 +103,4 @@ export const useStartDesktopWorkspace = (workspace: Workspace | undefined) => {
 		},
 	});
 	return { startWorkspace: () => mutate(), isStartingWorkspace: isPending };
-};
-
-/**
- * Resolves the workspace and agent bound to a chat and keeps them live
- * through the workspace watch. Used by surfaces that render outside the
- * chat page, such as the desktop pop-out window.
- */
-export const useChatDesktopWorkspace = (
-	chatId: string,
-): {
-	workspace: Workspace | undefined;
-	workspaceAgent: WorkspaceAgent | undefined;
-} => {
-	const chatQuery = useQuery(chat(chatId));
-	const workspaceId = chatQuery.data?.workspace_id;
-	const chatAgentId = chatQuery.data?.agent_id;
-	const workspaceQuery = useQuery({
-		...workspaceById(workspaceId ?? ""),
-		enabled: Boolean(workspaceId),
-	});
-	useWorkspaceWatch({ workspaceId, agentId: chatId, chatAgentId });
-	const workspace = workspaceQuery.data;
-	return {
-		workspace,
-		workspaceAgent: getWorkspaceAgent(workspace, chatAgentId),
-	};
 };

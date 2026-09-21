@@ -1,7 +1,11 @@
 import { ExternalLinkIcon } from "lucide-react";
 import type { FC } from "react";
 import { useEffect, useState } from "react";
-import type { Workspace, WorkspaceAgent } from "#/api/typesGenerated";
+import type {
+	Workspace,
+	WorkspaceAgent,
+	WorkspaceAgentStatus,
+} from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import { Spinner } from "#/components/Spinner/Spinner";
 import {
@@ -136,6 +140,7 @@ export const DesktopPanel: FC<DesktopPanelProps> = ({
 
 export interface DesktopPanelViewProps extends DesktopWorkspaceStateProps {
 	status: DesktopConnectionStatus;
+	agentStatus: WorkspaceAgentStatus | undefined;
 	reconnect: () => void;
 	attach: (container: HTMLElement) => void;
 	scaleMode: ScaleMode;
@@ -165,7 +170,6 @@ export const DesktopPanelView: FC<DesktopPanelViewProps> = ({
 		return (
 			<DesktopWorkspaceState
 				workspaceStatus={workspaceStatus}
-				agentStatus={agentStatus}
 				onStartWorkspace={onStartWorkspace}
 				isStartingWorkspace={isStartingWorkspace}
 			/>

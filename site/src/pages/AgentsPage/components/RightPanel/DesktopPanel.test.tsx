@@ -26,7 +26,8 @@ vi.mock("#/api/api", async (importOriginal) => ({
 }));
 
 // The panel is driven through the real useDesktopConnection hook; only
-// the noVNC client is replaced so no canvas or socket is needed.
+// the noVNC client and the browser socket are replaced so no canvas or
+// network is needed.
 const { rfbDisconnect } = vi.hoisted(() => ({ rfbDisconnect: vi.fn() }));
 vi.mock("@novnc/novnc/lib/rfb", () => ({
 	default: class FakeRFB {
@@ -38,6 +39,11 @@ vi.mock("@novnc/novnc/lib/rfb", () => ({
 		addEventListener = vi.fn();
 	},
 }));
+
+class FakeWebSocket {
+	binaryType = "blob";
+	close = vi.fn();
+}
 
 const mockWatchChatDesktop = vi.mocked(watchChatDesktop);
 
@@ -55,10 +61,9 @@ const render = (element: ReactNode) => {
 describe("DesktopPanel", () => {
 	beforeEach(() => {
 		vi.stubGlobal("ResizeObserver", MockResizeObserver);
+		vi.stubGlobal("WebSocket", FakeWebSocket);
 		mockWatchChatDesktop.mockReset();
-		mockWatchChatDesktop.mockImplementation(
-			() => ({ close: vi.fn() }) as unknown as WebSocket,
-		);
+		mockWatchChatDesktop.mockImplementation(() => new WebSocket("ws://test"));
 		rfbDisconnect.mockClear();
 	});
 

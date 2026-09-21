@@ -1,8 +1,17 @@
 import type { FC } from "react";
 import { useEffect, useState } from "react";
+import { useQuery } from "react-query";
 import { useParams } from "react-router";
+import { chat } from "#/api/queries/chats";
+import { workspaceById } from "#/api/queries/workspaces";
+import type {
+	WorkspaceAgentStatus,
+	WorkspaceStatus,
+} from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import { Spinner } from "#/components/Spinner/Spinner";
+import { getWorkspaceAgent } from "./components/ChatConversation/chatHelpers";
+import { useWorkspaceWatch } from "./components/ChatConversation/useWorkspaceWatch";
 import {
 	DesktopToolbar,
 	type ScaleMode,
@@ -11,7 +20,6 @@ import {
 	DesktopWorkspaceState,
 	type DesktopWorkspaceStateProps,
 	isDesktopReachable,
-	useChatDesktopWorkspace,
 	useStartDesktopWorkspace,
 } from "./components/RightPanel/DesktopWorkspaceState";
 import {
@@ -25,7 +33,18 @@ export default function DesktopPopoutPage() {
 	const [scaleMode, setScaleMode] = useState<ScaleMode>("fit");
 	const [isControlling, setIsControlling] = useState(false);
 
-	const { workspace, workspaceAgent } = useChatDesktopWorkspace(agentId);
+	// The pop-out renders outside the chat page, so it resolves the
+	// chat's workspace itself and keeps it live through the same watch.
+	const chatQuery = useQuery(chat(agentId));
+	const workspaceId = chatQuery.data?.workspace_id;
+	const chatAgentId = chatQuery.data?.agent_id;
+	const workspaceQuery = useQuery({
+		...workspaceById(workspaceId ?? ""),
+		enabled: Boolean(workspaceId),
+	});
+	useWorkspaceWatch({ workspaceId, agentId, chatAgentId });
+	const workspace = workspaceQuery.data;
+	const workspaceAgent = getWorkspaceAgent(workspace, chatAgentId);
 	const { startWorkspace, isStartingWorkspace } =
 		useStartDesktopWorkspace(workspace);
 
@@ -94,7 +113,8 @@ export interface DesktopPopoutPageViewProps
 	extends Omit<DesktopWorkspaceStateProps, "workspaceStatus"> {
 	status: DesktopConnectionStatus;
 	/** Undefined until the chat's workspace has loaded. */
-	workspaceStatus: DesktopWorkspaceStateProps["workspaceStatus"] | undefined;
+	workspaceStatus: WorkspaceStatus | undefined;
+	agentStatus: WorkspaceAgentStatus | undefined;
 	reconnect: () => void;
 	attach: (container: HTMLElement) => void;
 	scaleMode: ScaleMode;
@@ -126,7 +146,6 @@ export const DesktopPopoutPageView: FC<DesktopPopoutPageViewProps> = ({
 			<div className="h-screen w-screen bg-surface-primary">
 				<DesktopWorkspaceState
 					workspaceStatus={workspaceStatus}
-					agentStatus={agentStatus}
 					onStartWorkspace={onStartWorkspace}
 					isStartingWorkspace={isStartingWorkspace}
 				/>
