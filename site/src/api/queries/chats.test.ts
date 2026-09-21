@@ -2724,7 +2724,6 @@ describe("updateChildInParentCache", () => {
 });
 
 describe("mergeWatchedChatSummary", () => {
-	// A tracked-ref row for the diff-status merge tests.
 	const mockDiffStatusRef: TypesGen.ChatDiffStatus = {
 		chat_id: "chat-1",
 		remote_origin: "https://github.com/o/r.git",
@@ -3326,8 +3325,8 @@ describe("mergeWatchedChatSummary", () => {
 			git_branch: "feature-b",
 			additions: 2,
 		};
-		// The server's primary row was never cached, but every
-		// event embeds it as the deprecated diff_status.
+		// The server's primary row was never cached, but every event
+		// embeds it as diff_status.
 		const primaryRef = {
 			...mockDiffStatusRef,
 			git_branch: "feature-newest",
