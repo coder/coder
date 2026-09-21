@@ -40,6 +40,12 @@ import (
 	"github.com/coder/serpent"
 )
 
+// agentLogFlightRecorderSize is the number of below-level (debug) log entries
+// the agent keeps in memory and emits when it loses its connection to coderd.
+// TODO(CLIENT-672): RFC req 13 says the buffer size must be configurable;
+// expose a flag/env, likely mirroring the CLI-4 naming once that is settled.
+const agentLogFlightRecorderSize = 1000
+
 func workspaceAgent() *serpent.Command {
 	var (
 		logDir                          string
@@ -167,7 +173,12 @@ func workspaceAgent() *serpent.Command {
 			defer logWriter.Close()
 
 			sinks = append(sinks, sloghuman.Sink(logWriter))
-			logger := inv.Logger.AppendSinks(sinks...).Leveled(slog.LevelDebug)
+			// Run at Info so normal operation stays quiet, but keep a rolling
+			// in-memory history of the debug entries via a flight recorder. The
+			// history is flushed on a connection failure (see agent.runLoop) so the
+			// detail leading up to the failure is emitted without logging debug all
+			// the time.
+			logger := inv.Logger.AppendSinks(sinks...).Leveled(slog.LevelInfo).FlightRecorder(agentLogFlightRecorderSize)
 
 			// Handle interrupt signals to allow for graceful shutdown,
 			// note that calling stopNotify disables the signal handler
