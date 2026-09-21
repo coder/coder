@@ -21,12 +21,24 @@ const card: BoardCard = {
 	comments: notes,
 };
 
-const renderNotes = () => {
+const renderNotes = (comments = notes) => {
 	const handlers = { onAdd: vi.fn(), onEdit: vi.fn(), onRemove: vi.fn() };
-	renderComponent(
-		<NotesSection card={card} noteDrop={undefined} {...handlers} />,
+	const view = renderComponent(
+		<NotesSection
+			card={{ ...card, comments }}
+			noteDrop={undefined}
+			{...handlers}
+		/>,
 	);
-	return handlers;
+	const rerender = (next: BoardCard["comments"]) =>
+		view.rerender(
+			<NotesSection
+				card={{ ...card, comments: next }}
+				noteDrop={undefined}
+				{...handlers}
+			/>,
+		);
+	return { ...handlers, rerender };
 };
 
 describe("NotesSection", () => {
@@ -73,6 +85,27 @@ describe("NotesSection", () => {
 
 		expect(onEdit).toHaveBeenCalledWith(3, "changed");
 		expect(onEdit).toHaveBeenCalledTimes(1);
+	});
+
+	it("keeps an open editor on its note when the notes are renumbered", async () => {
+		const user = userEvent.setup();
+		const { onEdit, rerender } = renderNotes([
+			{ index: 0, timestamp: 1000, text: "first note" },
+			{ index: 1, timestamp: 2000, text: "later note" },
+		]);
+
+		await user.click(screen.getAllByRole("button", { name: "Edit note" })[1]);
+		// A sibling was dragged above it: same notes, indices swapped.
+		rerender([
+			{ index: 0, timestamp: 2000, text: "later note" },
+			{ index: 1, timestamp: 1000, text: "first note" },
+		]);
+		const field = screen.getByRole("textbox", { name: "Note text" });
+		expect(field).toHaveValue("later note");
+		await user.clear(field);
+		await user.type(field, "changed{Enter}");
+
+		expect(onEdit).toHaveBeenCalledWith(0, "changed");
 	});
 
 	it("saves an edited note once from the arrow button", async () => {

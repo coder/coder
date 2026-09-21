@@ -42,6 +42,7 @@ export const NotesSection: FC<NotesSectionProps> = ({
 	onRemove,
 }) => {
 	const notes = card.comments;
+	const keys = noteKeys(notes);
 	return (
 		// Always present, so the divider above is stable and edge to edge.
 		// Typing and selecting text must not start a card drag.
@@ -49,9 +50,9 @@ export const NotesSection: FC<NotesSectionProps> = ({
 			className="flex flex-col border-t border-border px-3 py-1"
 			onPointerDown={(e) => e.stopPropagation()}
 		>
-			{notes.map((note) => (
+			{notes.map((note, i) => (
 				<Note
-					key={note.index}
+					key={keys[i]}
 					card={card}
 					note={note}
 					dropSide={noteDrop?.index === note.index ? noteDrop.side : undefined}
@@ -76,6 +77,19 @@ interface NoteProps {
 	readonly onEdit: (text: string) => void;
 	readonly onRemove: () => void;
 }
+
+// Notes have no id. Reordering renumbers indices, so an index key would hand
+// an open editor to a different note; the timestamp survives edits and moves,
+// so it is the key. Equal timestamps (notes stored without one) are told
+// apart by rank, which is display order for those notes only.
+const noteKeys = (notes: readonly BoardNote[]): string[] => {
+	const seen = new Map<number, number>();
+	return notes.map((note) => {
+		const rank = seen.get(note.timestamp) ?? 0;
+		seen.set(note.timestamp, rank + 1);
+		return `${note.timestamp}.${rank}`;
+	});
+};
 
 const Note: FC<NoteProps> = ({ card, note, dropSide, onEdit, onRemove }) => {
 	const [editing, setEditing] = useState(false);

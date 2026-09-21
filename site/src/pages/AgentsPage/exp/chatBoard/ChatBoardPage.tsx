@@ -102,20 +102,17 @@ const ChatBoardPage: FC = () => {
 		const timer = setTimeout(
 			() => {
 				setPendingPreview(null);
-				setStorage((prev) => ({
-					...prev,
-					windows:
-						pendingPreview.kind === "open"
-							? [
-									...dropPreview(prev.windows),
-									windowBeside(
-										pendingPreview.chatId,
-										pendingPreview.anchor,
-										false,
-									),
-								]
-							: dropPreview(prev.windows),
-				}));
+				setStorage((prev) => {
+					// Either way the old preview goes; opening adds the new one.
+					const windows = dropPreview(prev.windows);
+					if (pendingPreview.kind !== "open") return { ...prev, windows };
+					const preview = windowBeside(
+						pendingPreview.chatId,
+						pendingPreview.anchor,
+						false,
+					);
+					return { ...prev, windows: [...windows, preview] };
+				});
 			},
 			pendingPreview.kind === "open" ? PREVIEW_OPEN_MS : PREVIEW_CLOSE_MS,
 		);
