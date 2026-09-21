@@ -424,4 +424,37 @@ describe("OAuth2AppForm", () => {
 		await act(async () => {});
 		expect(onSubmit).not.toHaveBeenCalled();
 	});
+
+	it("does not submit when a row duplicates another row", async () => {
+		const user = userEvent.setup();
+		const onSubmit = vi.fn();
+		const app = {
+			...MockOAuth2ProviderApps[0],
+			redirect_uris: ["https://a.example.com/cb", "https://b.example.com/cb"],
+		};
+
+		render(
+			<OAuth2AppForm
+				app={app}
+				onSubmit={onSubmit}
+				isUpdating={false}
+				disabled={false}
+			/>,
+		);
+
+		await user.clear(screen.getByLabelText(/^redirect uri 2/i));
+		await user.type(
+			screen.getByLabelText(/^redirect uri 2/i),
+			"https://a.example.com/cb",
+		);
+		await user.click(
+			screen.getByRole("button", { name: /update application/i }),
+		);
+
+		await act(async () => {});
+		expect(onSubmit).not.toHaveBeenCalled();
+		expect(
+			screen.getByText(/already used by another row/i),
+		).toBeInTheDocument();
+	});
 });

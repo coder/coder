@@ -114,6 +114,30 @@ const validationSchema = (isPublicClient: boolean) =>
 						"valid-redirect-uri",
 						"Please enter a valid redirect URI.",
 						(value) => isValidCallbackURL(value, isPublicClient),
+					)
+					// The server also deduplicates on save, so without this the form
+					// would submit a URI it never actually saved and mislead the user.
+					.test(
+						"unique-redirect-uri",
+						"This redirect URI is already used by another row.",
+						function (value) {
+							const trimmed = value?.trim();
+							if (!trimmed) {
+								return true;
+							}
+							const siblings: unknown = this.parent;
+							if (!Array.isArray(siblings)) {
+								return true;
+							}
+							const ownIndexMatch = /\[(\d+)\]$/.exec(this.path);
+							if (!ownIndexMatch) {
+								return true;
+							}
+							const firstIndex = siblings.findIndex(
+								(uri) => typeof uri === "string" && uri.trim() === trimmed,
+							);
+							return firstIndex === Number(ownIndexMatch[1]);
+						},
 					),
 			)
 			.min(1, "At least one redirect URI is required.")
@@ -155,7 +179,7 @@ export const OAuth2AppForm: FC<OAuth2AppFormProps> = ({
 			await onSubmit({
 				...values,
 				name: values.name.trim(),
-				redirect_uris: Array.from(new Set(redirectURIs)),
+				redirect_uris: redirectURIs,
 			});
 		},
 	});
