@@ -50,14 +50,14 @@ import { docs } from "#/utils/docs";
 import { isUUID } from "#/utils/uuid";
 import { OrganizationPills } from "./OrganizationPills";
 
-interface IdpSyncPageViewProps {
+type IdpSyncPageViewProps = {
 	organizationSyncSettings: OrganizationSyncSettings | undefined;
 	claimFieldValues: readonly string[] | undefined;
 	organizations: readonly Organization[];
 	onSubmit: (data: OrganizationSyncSettings) => void;
 	onSyncFieldChange: (value: string) => void;
 	error?: unknown;
-}
+};
 
 const validationSchema = Yup.object({
 	field: Yup.string().trim(),
@@ -383,10 +383,10 @@ export const IdpOrgSyncPageView: FC<IdpSyncPageViewProps> = ({
 	);
 };
 
-interface IdpMappingTableProps {
+type IdpMappingTableProps = {
 	isEmpty: boolean;
 	children: React.ReactNode;
-}
+};
 
 const IdpMappingTable: FC<IdpMappingTableProps> = ({ isEmpty, children }) => {
 	return (
@@ -417,12 +417,12 @@ const IdpMappingTable: FC<IdpMappingTableProps> = ({ isEmpty, children }) => {
 	);
 };
 
-interface OrganizationRowProps {
+type OrganizationRowProps = {
 	idpOrg: string;
 	exists: boolean | undefined;
 	coderOrgs: readonly string[];
 	onDelete: (idpOrg: string) => void;
-}
+};
 
 const OrganizationRow: FC<OrganizationRowProps> = ({
 	idpOrg,

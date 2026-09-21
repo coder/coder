@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -28,35 +27,10 @@ import (
 	"github.com/coder/coder/v2/aibridge/metrics"
 	"github.com/coder/coder/v2/aibridge/provider"
 	"github.com/coder/coder/v2/aibridge/recorder"
+	"github.com/coder/coder/v2/aibridge/routing"
 	"github.com/coder/coder/v2/aibridge/tracing"
 	agplaibridge "github.com/coder/coder/v2/coderd/aibridge"
-	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/quartz"
-)
-
-const (
-	// The duration after which an async recording will be aborted.
-	recordingTimeout = time.Second * 5
-
-	// maxRequestBodyBytes caps the request body size for AI Gateway
-	// provider endpoints to prevent denial-of-service via memory exhaustion.
-	// Anthropic enforces 32 MB on the direct API, 30 MB on Vertex AI,
-	// and 20 MB on Amazon Bedrock.
-	// See https://docs.anthropic.com/en/api/overview#request-size-limits
-	// OpenAI and GitHub Copilot do not document an equivalent HTTP body size limit.
-	// Using highest documented provider limit (32 MiB).
-	//
-	// NOTE: aibridge does not currently proxy file-upload endpoints
-	// (e.g. /v1/files). Those endpoints accept much larger bodies
-	// (up to 500 MB for Anthropic, 50 MB for OpenAI). If file-upload
-	// routes are added, they will need a per-route limit instead of
-	// this single global cap.
-	maxRequestBodyBytes = 32 << 20 // 32 MiB
-
-	// ErrorCodeProviderDisabled is the code written in the response
-	// body when a request targets a configured-but-disabled provider.
-	// Paired with HTTP 503.
-	ErrorCodeProviderDisabled = "provider_disabled"
 )
 
 // RequestBridge is an [http.Handler] which is capable of masquerading as AI providers' APIs;
@@ -83,25 +57,6 @@ type RequestBridge struct {
 
 var _ http.Handler = &RequestBridge{}
 
-// validProviderName matches names containing only lowercase alphanumeric characters and hyphens.
-var validProviderName = regexp.MustCompile(`^[a-z0-9]+(-[a-z0-9]+)*$`)
-
-// validateProviders checks that provider names are valid and unique.
-func validateProviders(providers []provider.Provider) error {
-	names := make(map[string]bool, len(providers))
-	for _, prov := range providers {
-		name := prov.Name()
-		if !validProviderName.MatchString(name) {
-			return xerrors.Errorf("invalid provider name %q: must contain only lowercase alphanumeric characters and hyphens", name)
-		}
-		if names[name] {
-			return xerrors.Errorf("duplicate provider name: %q", name)
-		}
-		names[name] = true
-	}
-	return nil
-}
-
 // NewRequestBridge creates a new *[RequestBridge] and registers the HTTP routes defined by the given providers.
 // Any routes which are requested but not registered will be reverse-proxied to the upstream service.
 //
@@ -112,14 +67,14 @@ func validateProviders(providers []provider.Provider) error {
 // Circuit breaker configuration is obtained from each provider's CircuitBreakerConfig() method.
 // Providers returning nil will not have circuit breaker protection.
 func NewRequestBridge(ctx context.Context, providers []provider.Provider, rec recorder.Recorder, mcpProxy mcp.ServerProxier, logger slog.Logger, m *metrics.Metrics, tracer trace.Tracer, opts ...RequestBridgeOption) (*RequestBridge, error) {
-	if err := validateProviders(providers); err != nil {
+	if err := provider.ValidateProviders(providers); err != nil {
 		return nil, err
 	}
 
-	mux := newProviderMux(providers, logger)
+	mux := routing.NewProviderMux(providers, logger)
 
 	for _, prov := range providers {
-		// Disabled providers have 503 sentinel registered by newProviderMux
+		// The shared mux already returns 503 for disabled providers.
 		if !prov.Enabled() {
 			continue
 		}
@@ -188,7 +143,7 @@ func NewRequestBridge(ctx context.Context, providers []provider.Provider, rec re
 	for _, opt := range opts {
 		opt(b)
 	}
-	b.handler = b.inflight.Middleware(http.MaxBytesHandler(mux, maxRequestBodyBytes))
+	b.handler = b.inflight.Middleware(http.MaxBytesHandler(mux, routing.MaxRequestBodyBytes))
 	return b, nil
 }
 
@@ -196,20 +151,6 @@ type RequestBridgeOption func(*RequestBridge)
 
 func WithClock(clock quartz.Clock) RequestBridgeOption {
 	return func(b *RequestBridge) { b.inflight.clock = clock }
-}
-
-// disabledProviderHandler returns 503 with a body containing
-// [ErrorCodeProviderDisabled] and the provider name for every request
-// targeting name.
-func disabledProviderHandler(name string, logger slog.Logger) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		logger.Debug(r.Context(), "refusing request for disabled ai provider",
-			slog.F("provider", name),
-			slog.F("path", r.URL.Path),
-			slog.F("method", r.Method),
-		)
-		http.Error(w, fmt.Sprintf("%s: AI provider %q is disabled", ErrorCodeProviderDisabled, name), http.StatusServiceUnavailable)
-	}
 }
 
 // newInterceptionProcessor returns an [http.HandlerFunc] which is capable of creating a new interceptor and processing a given request
@@ -253,7 +194,7 @@ func newInterceptionProcessor(p provider.Provider, cbs *circuitbreaker.ProviderC
 		if err != nil {
 			span.SetStatus(codes.Error, fmt.Sprintf("failed to create interceptor: %v", err))
 			if _, ok := errors.AsType[*http.MaxBytesError](err); ok {
-				writeRequestBodyTooLarge(ctx, w)
+				routing.WriteRequestBodyTooLarge(ctx, w)
 			} else {
 				logger.Warn(ctx, "failed to create interceptor", slog.Error(err), slog.F("path", r.URL.Path))
 				http.Error(w, fmt.Sprintf("failed to create %q interceptor", r.URL.Path), http.StatusInternalServerError)
@@ -288,7 +229,7 @@ func newInterceptionProcessor(p provider.Provider, cbs *circuitbreaker.ProviderC
 		r = r.WithContext(ctx)
 
 		// Record usage in the background to not block request flow.
-		asyncRecorder := recorder.NewAsyncRecorder(rec, recordingTimeout)
+		asyncRecorder := recorder.NewAsyncRecorder(rec, recorder.DefaultAsyncTimeout)
 		asyncRecorder.WithMetrics(m)
 		asyncRecorder.WithProvider(p.Name())
 		asyncRecorder.WithModel(interceptor.Model())
@@ -375,22 +316,6 @@ func isWebSocketUpgrade(r *http.Request) bool {
 	return r.Method == http.MethodGet &&
 		httpguts.HeaderValuesContainsToken(r.Header.Values("Connection"), "upgrade") &&
 		httpguts.HeaderValuesContainsToken(r.Header.Values("Upgrade"), "websocket")
-}
-
-// writeRequestBodyTooLarge writes a human-readable 413 response indicating that
-// the request body exceeded maxRequestBodyBytes.
-//
-// It records the limit before writing, so the request log names the limit that
-// tripped and the too-large metric attributes the rejection to body size rather
-// than to the other reasons coderd answers 413. Recording here rather than at
-// each call site keeps the two inseparable: this helper is the only path to a
-// body-too-large response from aibridge.
-func writeRequestBodyTooLarge(ctx context.Context, w http.ResponseWriter) {
-	httpapi.RecordRequestBodyLimit(ctx, maxRequestBodyBytes)
-	http.Error(w, fmt.Sprintf(
-		"Request body too large. The maximum allowed request body size is %dMiB.",
-		maxRequestBodyBytes>>20,
-	), http.StatusRequestEntityTooLarge)
 }
 
 // ServeHTTP exposes the internal http.Handler, which has all [Provider]s' routes registered.

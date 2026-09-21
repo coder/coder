@@ -56,7 +56,7 @@ export const chatHasMenuActions = (chat: TypesGen.Chat): boolean => {
 	return !isArchivedChild;
 };
 
-interface ChatActionsMenuItemsProps {
+type ChatActionsMenuItemsProps = {
 	readonly chat: TypesGen.Chat;
 	readonly hasWorkspace: boolean;
 	readonly isArchiving?: boolean;
@@ -73,7 +73,7 @@ interface ChatActionsMenuItemsProps {
 	readonly onOpenRenameDialog?: () => void;
 	readonly Item: ItemComponent;
 	readonly Separator: SeparatorComponent;
-}
+};
 
 export const ChatActionsMenuItems: FC<ChatActionsMenuItemsProps> = ({
 	chat,

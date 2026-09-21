@@ -189,12 +189,12 @@ export const GroupsPageView: FC<GroupsPageViewProps> = ({
 	);
 };
 
-interface GroupsTableBodyProps {
+type GroupsTableBodyProps = {
 	groups: GroupWithSpend[] | undefined;
 	canCreateGroup: boolean;
 	showAIBudget: boolean;
 	filterUsed: boolean;
-}
+};
 
 const GroupsTableBody: FC<GroupsTableBodyProps> = ({
 	groups,
@@ -250,10 +250,10 @@ const GroupsTableBody: FC<GroupsTableBodyProps> = ({
 	);
 };
 
-interface GroupRowProps {
+type GroupRowProps = {
 	group: GroupWithSpend;
 	showAIBudget: boolean;
-}
+};
 
 const GroupRow: FC<GroupRowProps> = ({ group, showAIBudget }) => {
 	const navigate = useNavigate();
