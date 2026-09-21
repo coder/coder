@@ -1916,7 +1916,6 @@ WHERE
 RETURNING id;
 
 -- name: GetChatDiffStatusesByChatID :many
--- Newest report first. The first row is the primary.
 SELECT
     *
 FROM
@@ -1929,7 +1928,6 @@ ORDER BY
     git_branch;
 
 -- name: GetChatDiffStatusesByChatIDs :many
--- Newest report first. The first row of each chat is its primary.
 SELECT
     *
 FROM
@@ -1942,8 +1940,6 @@ ORDER BY
     git_branch;
 
 -- name: UpdateChatDiffStatusReferenceURL :exec
--- Stores a pull request URL that the server found by itself. The
--- agent did not report it, so reported_at stays the same.
 UPDATE
     chat_diff_statuses
 SET
@@ -1955,7 +1951,6 @@ WHERE
     AND git_branch = @git_branch::text;
 
 -- name: UpsertChatDiffStatusReference :one
--- The agent reports the ref it is on. A report sets reported_at.
 INSERT INTO chat_diff_statuses (
     chat_id,
     url,
@@ -2270,8 +2265,6 @@ WITH acquired AS (
         -- Claim for 5 minutes. The worker sets the real stale_at
         -- after refresh. If the worker crashes, rows become eligible
         -- again after this interval.
-        -- Do not touch updated_at or reported_at. A claim is not a
-        -- report, and the worker reads updated_at as the row's age.
         stale_at = NOW() + INTERVAL '5 minutes'
     WHERE
         (chat_id, git_remote_origin, git_branch) IN (
@@ -2309,8 +2302,6 @@ INNER JOIN
 UPDATE
     chat_diff_statuses
 SET
-    -- Do not touch updated_at or reported_at. A backoff is not a
-    -- report, and the worker reads updated_at as the row's age.
     stale_at = @stale_at::timestamptz
 WHERE
     chat_id = @chat_id::uuid
@@ -2410,7 +2401,6 @@ WHERE chats.id = deletable.id
 -- Retrieves chats updated after the given timestamp for telemetry
 -- snapshot collection. Uses updated_at so that long-running chats
 -- still appear in each snapshot window while they are active.
--- One row per chat. The row is the chat's newest-reported ref.
 SELECT DISTINCT ON (c.id)
     c.id, c.owner_id, c.organization_id, c.created_at, c.updated_at, c.status,
     (c.parent_chat_id IS NOT NULL)::bool AS has_parent,
