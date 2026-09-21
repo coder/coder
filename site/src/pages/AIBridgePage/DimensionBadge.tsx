@@ -31,16 +31,19 @@ export const DimensionBadge: FC<DimensionBadgeProps> = ({ items, noun }) => {
 			<Tooltip>
 				<TooltipTrigger asChild>
 					<Badge asChild hover className="max-w-full">
-						<button
-							type="button"
-							// Opening the list must not also open the clickable session row.
-							onClick={(event) => event.stopPropagation()}
-						>
+						{/* Radix opens tooltips on hover or focus only, so a click or tap
+						must keep reaching the clickable session row. */}
+						<button type="button">
 							{items.length} {noun}
 						</button>
 					</Badge>
 				</TooltipTrigger>
-				<TooltipContent side="top" align="start">
+				<TooltipContent
+					side="top"
+					align="start"
+					// The portal still bubbles React clicks up to the session row.
+					onClick={(event) => event.stopPropagation()}
+				>
 					<ul className="m-0 flex list-none flex-col gap-1 p-0">
 						{items.map((item) => (
 							<li key={item.key} className="flex items-center gap-1.5">
