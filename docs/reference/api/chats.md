@@ -3893,6 +3893,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/chats/m
               "property2": null
             },
             "prompt_cache_key": "string",
+            "reasoning_mode": "string",
             "reasoning_summary": "string",
             "safety_identifier": "string",
             "search_context_size": "string",
@@ -4111,6 +4112,7 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/chats/
           "property2": null
         },
         "prompt_cache_key": "string",
+        "reasoning_mode": "string",
         "reasoning_summary": "string",
         "safety_identifier": "string",
         "search_context_size": "string",
@@ -4290,6 +4292,7 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/chats/
           "property2": null
         },
         "prompt_cache_key": "string",
+        "reasoning_mode": "string",
         "reasoning_summary": "string",
         "safety_identifier": "string",
         "search_context_size": "string",

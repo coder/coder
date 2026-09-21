@@ -7,7 +7,7 @@ import {
 } from "#/components/SettingsHeader/SettingsHeader";
 import { TemplateScheduleForm } from "./TemplateScheduleForm";
 
-interface TemplateSchedulePageViewProps {
+type TemplateSchedulePageViewProps = {
 	template: Template;
 	onSubmit: (data: UpdateTemplateMeta) => void;
 	onCancel: () => void;
@@ -17,7 +17,7 @@ interface TemplateSchedulePageViewProps {
 		typeof TemplateScheduleForm
 	>["initialTouched"];
 	allowAdvancedScheduling: boolean;
-}
+};
 
 export const TemplateSchedulePageView: FC<TemplateSchedulePageViewProps> = ({
 	template,

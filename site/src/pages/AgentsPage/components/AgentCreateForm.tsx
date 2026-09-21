@@ -129,7 +129,7 @@ export function useEmptyStateDraft() {
 	};
 }
 
-interface AgentCreateFormProps {
+type AgentCreateFormProps = {
 	onCreateChat: (options: CreateChatOptions) => Promise<void>;
 	isCreating: boolean;
 	createError: unknown;
@@ -150,7 +150,7 @@ interface AgentCreateFormProps {
 	header?: ReactNode;
 	/** Rendered below the composer, in the same column. */
 	footer?: ReactNode;
-}
+};
 
 export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	onCreateChat,

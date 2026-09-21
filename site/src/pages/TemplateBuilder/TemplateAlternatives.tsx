@@ -3,11 +3,11 @@ import type { FC } from "react";
 import { Link } from "react-router";
 import { Button } from "#/components/Button/Button";
 
-interface AlternativeLink {
+type AlternativeLink = {
 	label: string;
 	href: string;
 	external: boolean;
-}
+};
 
 const alternatives: readonly AlternativeLink[] = [
 	{

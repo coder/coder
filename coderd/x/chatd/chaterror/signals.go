@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/coder/coder/v2/aibridge"
+	"github.com/coder/coder/v2/aibridge/routing"
 )
 
 type providerHint struct {
@@ -88,7 +88,7 @@ var (
 	}
 	genericRetryablePatterns = []string{"server error", "internal server error"}
 	interruptedPatterns      = []string{"chat interrupted", "request interrupted", "operation interrupted"}
-	providerDisabledPatterns = []string{aibridge.ErrorCodeProviderDisabled}
+	providerDisabledPatterns = []string{routing.ErrorCodeProviderDisabled}
 )
 
 func extractStatusCode(lower string) int {

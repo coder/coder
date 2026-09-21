@@ -22,7 +22,7 @@ import {
 	TableRow,
 } from "#/components/Table/Table";
 
-interface MarkdownProps {
+type MarkdownProps = {
 	/**
 	 * The Markdown text to parse and render
 	 */
@@ -34,7 +34,7 @@ interface MarkdownProps {
 	 * Can override the behavior of the generated elements
 	 */
 	components?: Options["components"];
-}
+};
 
 export const Markdown: FC<MarkdownProps> = (props) => {
 	const { children, className, components = {} } = props;

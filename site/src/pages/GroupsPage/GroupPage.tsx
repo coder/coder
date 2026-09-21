@@ -246,10 +246,10 @@ const GroupPage: FC = () => {
 	);
 };
 
-interface AddUsersDialogProps {
+type AddUsersDialogProps = {
 	onSubmit: (users: OrganizationMemberWithUserData[]) => Promise<void>;
 	organizationId: string;
-}
+};
 
 const AddUsersDialog: FC<AddUsersDialogProps> = ({
 	onSubmit,

@@ -12,113 +12,33 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
-// chatFilesRateLimitMW returns the middleware enforcing FilesRateLimit
-// on chat file routes. Both API prefixes mount the same instance, and
-// the limiter keys on a prefix-stripped endpoint, so alternating
-// prefixes cannot double the budget.
-func (api *API) chatFilesRateLimitMW() func(http.Handler) http.Handler {
-	api.chatFilesRateLimitOnce.Do(func() {
-		api.chatFilesRateLimit = httpmw.RateLimitByAPICompatibilityEndpoint(api.FilesRateLimit, time.Minute)
-	})
-	return api.chatFilesRateLimit
-}
-
-// chatAPIPrefix identifies which API prefix a chat route mount serves.
-type chatAPIPrefix int
-
-const (
-	chatAPIPrefixV2 chatAPIPrefix = iota
-	chatAPIPrefixExperimental
-)
-
-// registerChatAPIRoutes mounts the chat API surface on r, the root router
-// of an API prefix. /api/v2 and /api/experimental serve the same promoted
-// routes during the CODAGT-921 compatibility window. The experimental
-// mount also serves the routes that were not promoted, while /api/v2
-// reserves their path segments so they return 404 instead of falling into
-// the {chat} wildcard.
-// TODO(CODAGT-921): unmount from /api/experimental after the transition
-// window (tracked in CODAGT-922).
-func (api *API) registerChatAPIRoutes(r chi.Router, apiKeyMiddleware func(http.Handler) http.Handler, prefix chatAPIPrefix) {
-	experimental := prefix == chatAPIPrefixExperimental
+// registerChatAPIRoutes mounts the chat API surface on r, the /api/v2 root
+// router.
+func (api *API) registerChatAPIRoutes(r chi.Router, apiKeyMiddleware func(http.Handler) http.Handler) {
 	// Signed URL tokens authenticate downloads, so the route stays
 	// outside the API key middleware.
 	r.Group(func(r chi.Router) {
-		r.Use(api.chatFilesRateLimitMW())
+		r.Use(httpmw.RateLimit(api.FilesRateLimit, time.Minute))
 		r.Get("/chats/files/{file}/download", api.downloadChatFile)
 	})
 	r.Route("/chats", func(r chi.Router) {
 		r.Use(apiKeyMiddleware)
-		if experimental {
-			// Reserve removed collection paths so they return 404 instead of
-			// falling into the {chat} wildcard and failing UUID parsing.
-			for _, segment := range []string{"/models", "/model-configs"} {
-				r.Route(segment, func(r chi.Router) {
-					r.NotFound(func(rw http.ResponseWriter, _ *http.Request) {
-						httpapi.RouteNotFound(rw)
-					})
-				})
-			}
-			r.Route("/projects", func(r chi.Router) {
-				r.Use(httpmw.RequireExperimentWithDevBypass(api.Experiments, codersdk.ExperimentChatProjects))
-				r.Get("/", api.listChatProjects)
-				r.Post("/", api.postChatProject)
-				r.Route("/{project}", func(r chi.Router) {
-					r.Use(httpmw.ExtractChatProjectParam(api.Database))
-					r.Route("/memories", func(r chi.Router) {
-						r.Get("/", api.listChatProjectMemories)
-						r.Get("/consolidations", api.listChatProjectMemoryConsolidations)
-						r.Post("/", api.postChatProjectMemory)
-						r.Route("/{memory}", func(r chi.Router) {
-							r.Use(httpmw.ExtractChatProjectMemoryParam(api.Database))
-							r.Get("/", api.getChatProjectMemory)
-							r.Patch("/", api.patchChatProjectMemory)
-							r.Delete("/", api.deleteChatProjectMemory)
-						})
-					})
-					r.Get("/", api.getChatProject)
-					r.Patch("/", api.patchChatProject)
-					r.Delete("/", api.deleteChatProject)
+		// Reserve unmounted segments so they return 404 instead of
+		// falling into the {chat} wildcard and failing UUID parsing
+		// with a 400.
+		for _, segment := range []string{"/model-configs", "/projects"} {
+			r.Route(segment, func(r chi.Router) {
+				r.NotFound(func(rw http.ResponseWriter, _ *http.Request) {
+					httpapi.RouteNotFound(rw)
 				})
 			})
-			// TODO(cian): place under /api/experimental/chats/config
-			r.Route("/providers", func(r chi.Router) {
-				r.Get("/", api.listChatProviders)
-				r.Post("/", api.createChatProvider)
-				r.Route("/{providerConfig}", func(r chi.Router) {
-					r.Patch("/", api.updateChatProvider)
-					r.Delete("/", api.deleteChatProvider)
-				})
-			})
-			r.Route("/user-provider-configs", func(r chi.Router) {
-				r.Get("/", api.listUserChatProviderConfigs)
-				r.Route("/{providerConfig}", func(r chi.Router) {
-					r.Put("/", api.upsertUserChatProviderKey)
-					r.Delete("/", api.deleteUserChatProviderKey)
-				})
-			})
-		} else {
-			// Reserve unmounted segments so they return 404 instead of
-			// falling into the {chat} wildcard and failing UUID parsing
-			// with a 400.
-			segments := []string{"/model-configs", "/projects"}
-			// TODO(CODAGT-922): drop the provider reservations with the
-			// experimental mounts.
-			segments = append(segments, "/providers", "/user-provider-configs")
-			for _, segment := range segments {
-				r.Route(segment, func(r chi.Router) {
-					r.NotFound(func(rw http.ResponseWriter, _ *http.Request) {
-						httpapi.RouteNotFound(rw)
-					})
-				})
-			}
 		}
 		r.Get("/by-workspace", api.chatsByWorkspace)
 		r.Get("/", api.listChats)
 		r.Post("/", api.postChats)
 		r.Get("/watch", api.watchChats)
 		r.Route("/files", func(r chi.Router) {
-			r.Use(api.chatFilesRateLimitMW())
+			r.Use(httpmw.RateLimit(api.FilesRateLimit, time.Minute))
 			r.Post("/", api.postChatFile)
 			r.Post("/{file}/download-url", api.postChatFileDownloadURL)
 			r.Get("/{file}", api.chatFileByID)
@@ -147,18 +67,6 @@ func (api *API) registerChatAPIRoutes(r chi.Router, apiKeyMiddleware func(http.H
 			r.Put("/debug-retention-days", api.putChatDebugRetentionDays)
 			r.Get("/auto-archive-days", api.getChatAutoArchiveDays)
 			r.Put("/auto-archive-days", api.putChatAutoArchiveDays)
-			if experimental {
-				r.Group(func(r chi.Router) {
-					r.Use(httpmw.RequireExperimentWithDevBypass(api.Experiments, codersdk.ExperimentChatVirtualDesktop))
-					r.Get("/computer-use-provider", api.getChatComputerUseProvider)
-					r.Put("/computer-use-provider", api.putChatComputerUseProvider)
-				})
-				r.Group(func(r chi.Router) {
-					r.Use(httpmw.RequireExperimentWithDevBypass(api.Experiments, codersdk.ExperimentChatAdvisor))
-					r.Get("/advisor", api.getChatAdvisorConfig)
-					r.Put("/advisor", api.putChatAdvisorConfig)
-				})
-			}
 		})
 		r.Route("/{chat}", func(r chi.Router) {
 			r.Use(httpmw.ExtractChatParam(api.Database))
@@ -189,34 +97,59 @@ func (api *API) registerChatAPIRoutes(r chi.Router, apiKeyMiddleware func(http.H
 				r.Get("/", api.streamChat)
 				r.Get("/parts", api.streamChatParts)
 				r.Get("/git", api.watchChatGit)
-				if experimental {
-					r.Get("/desktop", api.watchChatDesktop)
-				}
 			})
-			if experimental {
-				r.Route("/debug", func(r chi.Router) {
-					r.Get("/runs", api.getChatDebugRuns)
-					r.Get("/runs/{debugRun}", api.getChatDebugRun)
-				})
-			}
 		})
 	})
 }
 
-// registerMCPServerOAuth2Routes mounts the user-scoped MCP server OAuth2
-// routes shared by both API prefixes.
-func (api *API) registerMCPServerOAuth2Routes(r chi.Router, prefix chatAPIPrefix) {
-	if prefix == chatAPIPrefixExperimental {
-		// Providers pin the redirect URI when a session is established,
-		// so the callback URL cannot change for existing sessions without
-		// breaking token refresh and forcing a re-auth.
-		// TODO(CODAGT-922): promote once existing sessions can be
-		// re-authenticated against a /api/v2 callback.
-		r.Get("/servers/{mcpServer}/oauth2/callback", api.mcpServerOAuth2Callback)
-	}
-	// Disconnect stays outside organization routes so former organization
-	// members can delete their stored token after losing config read access.
-	r.Delete("/servers/{mcpServer}/oauth2/disconnect", api.mcpServerOAuth2Disconnect)
+// registerExperimentalChatRoutes mounts the chat routes that were not
+// promoted to /api/v2 on r, the /api/experimental root router.
+func (api *API) registerExperimentalChatRoutes(r chi.Router, apiKeyMiddleware func(http.Handler) http.Handler) {
+	r.Route("/chats", func(r chi.Router) {
+		r.Use(apiKeyMiddleware)
+		r.Route("/projects", func(r chi.Router) {
+			r.Use(httpmw.RequireExperimentWithDevBypass(api.Experiments, codersdk.ExperimentChatProjects))
+			r.Get("/", api.listChatProjects)
+			r.Post("/", api.postChatProject)
+			r.Route("/{project}", func(r chi.Router) {
+				r.Use(httpmw.ExtractChatProjectParam(api.Database))
+				r.Route("/memories", func(r chi.Router) {
+					r.Get("/", api.listChatProjectMemories)
+					r.Post("/", api.postChatProjectMemory)
+					r.Get("/consolidations", api.listChatProjectMemoryConsolidations)
+					r.Route("/{memory}", func(r chi.Router) {
+						r.Use(httpmw.ExtractChatProjectMemoryParam(api.Database))
+						r.Get("/", api.getChatProjectMemory)
+						r.Patch("/", api.patchChatProjectMemory)
+						r.Delete("/", api.deleteChatProjectMemory)
+					})
+				})
+				r.Get("/", api.getChatProject)
+				r.Patch("/", api.patchChatProject)
+				r.Delete("/", api.deleteChatProject)
+			})
+		})
+		r.Route("/config", func(r chi.Router) {
+			r.Group(func(r chi.Router) {
+				r.Use(httpmw.RequireExperimentWithDevBypass(api.Experiments, codersdk.ExperimentChatVirtualDesktop))
+				r.Get("/computer-use-provider", api.getChatComputerUseProvider)
+				r.Put("/computer-use-provider", api.putChatComputerUseProvider)
+			})
+			r.Group(func(r chi.Router) {
+				r.Use(httpmw.RequireExperimentWithDevBypass(api.Experiments, codersdk.ExperimentChatAdvisor))
+				r.Get("/advisor", api.getChatAdvisorConfig)
+				r.Put("/advisor", api.putChatAdvisorConfig)
+			})
+		})
+		r.Route("/{chat}", func(r chi.Router) {
+			r.Use(httpmw.ExtractChatParam(api.Database))
+			r.Get("/stream/desktop", api.watchChatDesktop)
+			r.Route("/debug", func(r chi.Router) {
+				r.Get("/runs", api.getChatDebugRuns)
+				r.Get("/runs/{debugRun}", api.getChatDebugRun)
+			})
+		})
+	})
 }
 
 func (api *API) registerUserAIProviderKeyRoutes(r chi.Router) {
@@ -230,7 +163,7 @@ func (api *API) registerUserAIProviderKeyRoutes(r chi.Router) {
 // registerOrganizationChatRoutes mounts the organization-scoped chat and
 // MCP server configuration routes; r must already extract the
 // organization parameter.
-func (api *API) registerOrganizationChatRoutes(r chi.Router, prefix chatAPIPrefix) {
+func (api *API) registerOrganizationChatRoutes(r chi.Router) {
 	r.Route("/mcp-servers", func(r chi.Router) {
 		r.Get("/", api.listMCPServerConfigs)
 		r.Post("/", api.createMCPServerConfig)
@@ -245,10 +178,8 @@ func (api *API) registerOrganizationChatRoutes(r chi.Router, prefix chatAPIPrefi
 				policy.ActionShare)).Get("/acl", api.mcpServerConfigACL)
 			r.With(httpmw.ExtractMCPServerConfigParam(api.Database, api.HTTPAuth.Authorize,
 				policy.ActionShare)).Patch("/acl", api.patchMCPServerConfigACL)
-			if prefix == chatAPIPrefixV2 {
-				r.With(httpmw.ExtractMCPServerConfigParam(api.Database, api.HTTPAuth.Authorize,
-					policy.ActionShare)).Get("/acl/available", api.mcpServerConfigACLAvailable)
-			}
+			r.With(httpmw.ExtractMCPServerConfigParam(api.Database, api.HTTPAuth.Authorize,
+				policy.ActionShare)).Get("/acl/available", api.mcpServerConfigACLAvailable)
 			r.With(httpmw.ExtractMCPServerConfigParam(api.Database, api.HTTPAuth.Authorize,
 				policy.ActionRead)).Get("/oauth2/connect", api.mcpServerOAuth2Connect)
 		})

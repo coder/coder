@@ -64,7 +64,7 @@ const UNREAD_SECTION_KEY = "Unread";
 const READ_SECTION_KEY = "Read";
 const SHARED_WITH_YOU_SECTION_KEY = "Shared with you";
 
-interface ChatsPanelProps {
+type ChatsPanelProps = {
 	readonly projects: readonly ChatProject[];
 	readonly projectPermissions?: Record<string, boolean>;
 	readonly projectPermissionsError?: unknown;
@@ -107,7 +107,7 @@ interface ChatsPanelProps {
 	readonly isChatsActive: boolean;
 	readonly location: Location;
 	readonly currentUserId: string;
-}
+};
 
 export const ChatsPanel: FC<ChatsPanelProps> = ({
 	projects,

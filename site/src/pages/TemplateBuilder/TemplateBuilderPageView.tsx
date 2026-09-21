@@ -59,7 +59,7 @@ import {
 	wizardReducer,
 } from "./wizardState";
 
-interface TemplateBuilderPageViewProps {
+type TemplateBuilderPageViewProps = {
 	error: unknown;
 	basesData: TemplateBuilderBasesResponse | undefined;
 	preselectedBase?: SelectedBaseMeta;
@@ -71,7 +71,7 @@ interface TemplateBuilderPageViewProps {
 	isCreating: boolean;
 	onClearCreateError?: () => void;
 	sessionId: string;
-}
+};
 
 export const TemplateBuilderPageView: FC<TemplateBuilderPageViewProps> = ({
 	error,
@@ -389,7 +389,7 @@ export const TemplateBuilderPageView: FC<TemplateBuilderPageViewProps> = ({
 	);
 };
 
-interface StepContentProps {
+type StepContentProps = {
 	stepId: StepId;
 	state: TemplateBuilderWizardState;
 	dispatch: (action: WizardAction) => void;
@@ -400,7 +400,7 @@ interface StepContentProps {
 	registerModuleRef: (moduleId: string, node: HTMLDivElement | null) => void;
 	onCreate: (values: CustomizationsFormValues) => void;
 	showValidationErrors: boolean;
-}
+};
 
 const StepContent: FC<StepContentProps> = ({
 	stepId,

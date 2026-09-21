@@ -8,10 +8,10 @@ const countAgents = (resource: WorkspaceResource) => {
 	return resource.agents ? resource.agents.length : 0;
 };
 
-interface ResourcesProps {
+type ResourcesProps = {
 	resources: WorkspaceResource[];
 	agentRow: (agent: WorkspaceAgent, numberOfAgents: number) => JSX.Element;
-}
+};
 
 export const Resources: FC<ResourcesProps> = ({ resources, agentRow }) => {
 	const [shouldDisplayHideResources, setShouldDisplayHideResources] =

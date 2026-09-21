@@ -6,12 +6,12 @@ import { TableLoader } from "#/components/TableLoader/TableLoader";
 import { Timeline } from "#/components/Timeline/Timeline";
 import { VersionRow } from "./VersionRow";
 
-interface VersionsTableProps {
+type VersionsTableProps = {
 	activeVersionId: string;
 	versions?: TemplateVersion[];
 	onPromoteClick?: (version: TemplateVersion) => void;
 	onArchiveClick?: (version: TemplateVersion) => void;
-}
+};
 
 export const VersionsTable: FC<VersionsTableProps> = ({
 	activeVersionId,

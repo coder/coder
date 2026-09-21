@@ -25,7 +25,7 @@ import { isSettingsView, sidebarViewFromPath } from "./sidebarView";
 
 export { isSettingsView, sidebarViewFromPath } from "./sidebarView";
 
-interface ChatsSidebarProps {
+type ChatsSidebarProps = {
 	chats: readonly Chat[];
 	chatErrorReasons: Record<string, string>;
 	modelConfigs: readonly ChatModel[];
@@ -70,7 +70,7 @@ interface ChatsSidebarProps {
 	 */
 	canManageAgentSettings?: boolean;
 	currentUserId: string;
-}
+};
 
 export const ChatsSidebar: FC<ChatsSidebarProps> = (props) => {
 	const {

@@ -14,10 +14,10 @@ import {
 	PageHeaderTitle,
 } from "#/components/PageHeader/PageHeader";
 
-interface StarterTemplatePageViewProps {
+type StarterTemplatePageViewProps = {
 	starterTemplate?: TemplateExample;
 	error?: unknown;
-}
+};
 
 export const StarterTemplatePageView: FC<StarterTemplatePageViewProps> = ({
 	starterTemplate,
