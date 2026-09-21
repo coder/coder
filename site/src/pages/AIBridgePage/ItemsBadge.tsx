@@ -6,14 +6,14 @@ import {
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 
-type DimensionBadgeItem = {
+type ItemsBadgeItem = {
 	key: string;
 	label: string;
 	icon: ReactNode;
 };
 
-type DimensionBadgeProps = {
-	items: readonly DimensionBadgeItem[];
+type ItemsBadgeProps = {
+	items: readonly ItemsBadgeItem[];
 	/** Plural label for the count badge, such as "providers". */
 	noun: string;
 };
@@ -22,7 +22,7 @@ type DimensionBadgeProps = {
  * One item renders as a labeled badge; several collapse into a count badge
  * whose tooltip lists them.
  */
-export const DimensionBadge: FC<DimensionBadgeProps> = ({ items, noun }) => {
+export const ItemsBadge: FC<ItemsBadgeProps> = ({ items, noun }) => {
 	if (items.length === 0) {
 		return null;
 	}
