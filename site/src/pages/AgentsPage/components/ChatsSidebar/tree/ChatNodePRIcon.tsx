@@ -62,15 +62,18 @@ export const ChatNodePRIcon: FC<ChatNodePRIconProps> = ({ prStatuses }) => {
 						return null;
 					}
 					const Icon = config.icon;
+
 					// The label, trimmed, with a URL fallback so the row
 					// always shows something readable.
 					const label =
 						status.pull_request_title.trim() || status.url || "Pull request";
+
 					// Prefer the stored number; parse it from the URL when
 					// the row predates the column.
 					const parsed = parsePullRequestUrl(status.url);
 					const prNumber =
 						status.pr_number ?? (parsed && Number(parsed.number));
+
 					return (
 						<div
 							key={`${status.remote_origin ?? ""}/${status.git_branch ?? ""}/${index}`}
