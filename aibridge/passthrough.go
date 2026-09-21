@@ -3,8 +3,10 @@ package aibridge
 import (
 	"context"
 	"errors"
+	"net"
 	"net/http"
 	"net/http/httputil"
+	"net/netip"
 	"net/url"
 	"strings"
 
@@ -95,7 +97,16 @@ func rewritePassthroughRequest(pr *httputil.ProxyRequest, provBaseURL *url.URL) 
 
 	// SetXForwarded synthesizes a new trusted proxy chain from the request peer.
 	// Client-supplied Forwarded and X-Forwarded-* values were removed above.
-	pr.SetXForwarded()
+	// Coder's real-IP middleware stores a trusted client address as a bare IP,
+	// while SetXForwarded accepts only host:port. Add a synthetic port on a local
+	// request copy so the trusted IP is forwarded without mutating the caller.
+	forwarded := *pr
+	if ip, err := netip.ParseAddr(pr.In.RemoteAddr); err == nil {
+		in := *pr.In
+		in.RemoteAddr = net.JoinHostPort(ip.String(), "0")
+		forwarded.In = &in
+	}
+	forwarded.SetXForwarded()
 
 	span := trace.SpanFromContext(pr.Out.Context())
 	span.SetAttributes(attribute.String(tracing.PassthroughUpstreamURL, pr.Out.URL.String()))

@@ -299,6 +299,35 @@ func TestRewritePassthroughRequest(t *testing.T) {
 			},
 		},
 		{
+			name:          "bare_IPv4_remote_addr_sets_forwarded_for",
+			reqPath:       "http://client-host/chat",
+			reqRemoteAddr: "1.1.1.1",
+			reqHeaders: http.Header{
+				"X-Forwarded-For": {"203.0.113.10"},
+			},
+			provider:  &testutil.MockProvider{URL: "https://upstream-host/base"},
+			expectURL: "https://upstream-host/base/chat",
+			expectHeaders: http.Header{
+				"X-Forwarded-Host":  {"client-host"},
+				"X-Forwarded-Proto": {"http"},
+				"X-Forwarded-For":   {"1.1.1.1"},
+				"User-Agent":        {"aibridge"},
+			},
+		},
+		{
+			name:          "bare_IPv6_remote_addr_sets_forwarded_for",
+			reqPath:       "http://client-host/chat",
+			reqRemoteAddr: "2001:db8::1",
+			provider:      &testutil.MockProvider{URL: "https://upstream-host/base"},
+			expectURL:     "https://upstream-host/base/chat",
+			expectHeaders: http.Header{
+				"X-Forwarded-Host":  {"client-host"},
+				"X-Forwarded-Proto": {"http"},
+				"X-Forwarded-For":   {"2001:db8::1"},
+				"User-Agent":        {"aibridge"},
+			},
+		},
+		{
 			name:          "preserves_client_user_agent",
 			reqPath:       "http://client-host/chat",
 			reqRemoteAddr: "1.1.1.1:1111",
@@ -384,8 +413,12 @@ func TestRewritePassthroughRequest(t *testing.T) {
 				Out: r.Clone(r.Context()),
 			}
 
+			originalIn := pr.In
+			originalRemoteAddr := pr.In.RemoteAddr
 			rewritePassthroughRequest(pr, provBaseURL)
 
+			assert.Same(t, originalIn, pr.In)
+			assert.Equal(t, originalRemoteAddr, pr.In.RemoteAddr)
 			assert.Equal(t, tc.expectURL, pr.Out.URL.String())
 			assert.Equal(t, "", pr.Out.Host)
 			assert.Equal(t, tc.expectHeaders, pr.Out.Header)

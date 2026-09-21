@@ -1279,6 +1279,47 @@ func TestHandlerMetrics(t *testing.T) {
 	require.EqualValues(t, 3, histogram.GetSampleCount())
 }
 
+func TestHandlerTruncatedUpstreamRecordsReadError(t *testing.T) {
+	t.Parallel()
+
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Length", "100")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("chunk"))
+	}))
+	t.Cleanup(upstream.Close)
+
+	rec := &testutil.MockRecorder{}
+	router, err := proxy.NewRouter([]aibridge.Provider{
+		aibridge.NewOpenAIProvider(config.OpenAI{BaseURL: upstream.URL}),
+	}, rec, slogtest.Make(t, nil), nil, testTracer(t))
+	require.NoError(t, err)
+	t.Cleanup(router.CloseIdleConnections)
+
+	gateway := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		r = r.WithContext(aibridge.AsActor(r.Context(), "actor", nil))
+		router.ServeHTTP(w, r)
+	}))
+	t.Cleanup(gateway.Close)
+
+	ctx := codertestutil.Context(t, codertestutil.WaitShort)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, gateway.URL+"/openai/v1/chat/completions", strings.NewReader(`{}`))
+	require.NoError(t, err)
+	resp, err := gateway.Client().Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	body, readErr := io.ReadAll(resp.Body)
+	require.ErrorIs(t, readErr, io.ErrUnexpectedEOF)
+	require.Equal(t, "chunk", string(body))
+
+	starts := rec.RecordedInterceptions()
+	require.Len(t, starts, 1)
+	end := rec.RecordedInterceptionEnd(starts[0].ID)
+	require.NotNil(t, end)
+	require.Equal(t, recorder.ErrorTypeUnknown, end.ErrorType)
+	require.Equal(t, io.ErrUnexpectedEOF.Error(), end.ErrorMessage)
+}
+
 func TestHandlerProviderStatusClassificationAndFailureLog(t *testing.T) {
 	t.Parallel()
 
