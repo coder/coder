@@ -41,6 +41,9 @@ async function comment(target: Element, text: string, hold = false) {
 	if (hold) {
 		await user.keyboard("{/Shift}");
 	}
+	// Describing an element resolves its source asynchronously, so the
+	// comment only lands after the microtasks behind Send have run.
+	await new Promise((resolve) => setTimeout(resolve, 0));
 }
 
 describe("mountAnnotator", () => {
