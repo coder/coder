@@ -1504,6 +1504,23 @@ func TestOAuth2ProviderRevokeClientAuthentication(t *testing.T) {
 		require.False(t, works(), "the revocation must end the session")
 	})
 
+	// The parse error quotes the bad escape, and RFC 6749 section 5.2 has no
+	// room for a double quote in error_description.
+	t.Run("MalformedQueryDescriptionIsSanitized", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		userClient, refreshToken, works := newSession(ctx, t)
+
+		form := url.Values{}
+		form.Set("token", refreshToken)
+		form.Set("client_secret", secret.ClientSecretFull)
+		status, _, oauthErr := postRevoke(ctx, t, userClient, form, func(r *http.Request) {
+			r.URL.RawQuery = "client_id=" + apps.Default.ID.String() + "&%zz=1"
+		})
+		requireInvalidRequest(t, status, oauthErr, "invalid URL escape", works)
+		require.NotContains(t, oauthErr.ErrorDescription, `"`)
+	})
+
 	// An empty first value must not hide a real one behind it.
 	t.Run("EmptyAndRealSecretInQueryString", func(t *testing.T) {
 		t.Parallel()

@@ -100,7 +100,7 @@ func RevokeToken(db database.Store, logger slog.Logger) http.HandlerFunc {
 				httpapi.WriteOAuth2RequestTooLarge(ctx, rw, maxBytesErr.Limit)
 				return
 			}
-			httpapi.WriteOAuth2Error(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidRequest, err.Error())
+			writeTokenError(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidRequest, err.Error())
 			return
 		}
 
