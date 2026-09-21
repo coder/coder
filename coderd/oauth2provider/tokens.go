@@ -376,12 +376,17 @@ func Tokens(db database.Store, lifetimes codersdk.SessionLifetime, logger slog.L
 
 			// Check for missing required parameters for authorization_code grant
 			for _, field := range []string{"code", "client_id", "client_secret"} {
-				if slices.ContainsFunc(validationErrs, func(validationError codersdk.ValidationError) bool {
+				if !slices.ContainsFunc(validationErrs, func(validationError codersdk.ValidationError) bool {
 					return validationError.Field == field
 				}) {
-					writeTokenError(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidRequest, fmt.Sprintf("Missing required parameter: %s", field))
-					return
+					continue
 				}
+				description := fmt.Sprintf("Missing required parameter: %s", field)
+				if len(r.Form[field]) > 1 {
+					description = fmt.Sprintf("Parameter %s was provided more than once", field)
+				}
+				writeTokenError(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidRequest, description)
+				return
 			}
 
 			// A malformed code_verifier gets its own message so a client that

@@ -470,6 +470,22 @@ func TestOAuth2TokenErrorDescription(t *testing.T) {
 		require.Contains(t, description, "(truncated)")
 	})
 
+	t.Run("RepeatedCodeIsNotReportedAsMissing", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		app := seedAppWithSecret(t, db, sql.NullString{})
+		code, verifier := authorizeCode(ctx, t, client, app.ID.String(), "")
+
+		form := tokenExchangeForm(app, code, verifier)
+		form.Add("code", code)
+		status, body := postTokenRequest(ctx, t, client, form)
+		description := requireTokenError(t, status, body, codersdk.OAuth2ErrorCodeInvalidRequest)
+		require.Contains(t, description, "code")
+		require.Contains(t, description, "more than once")
+		require.NotContains(t, description, "Missing")
+	})
+
 	// The sanitizer runs on every description, so a fixed message outside the
 	// set silently loses characters. A section sign is the easy mistake.
 	t.Run("FixedMessageIsUnchangedBySanitizing", func(t *testing.T) {
