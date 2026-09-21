@@ -9,7 +9,7 @@ ALTER TYPE api_key_scope ADD VALUE IF NOT EXISTS 'chat_project:delete';
 CREATE TABLE chat_projects (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     organization_id uuid NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-    created_by uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    owner_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     name text NOT NULL,
     description text NOT NULL DEFAULT '',
     created_at timestamptz NOT NULL DEFAULT now(),
@@ -22,7 +22,7 @@ COMMENT ON TABLE chat_projects IS 'Organization-scoped projects that group agent
 CREATE INDEX idx_chat_projects_organization_id ON chat_projects (organization_id);
 -- Projects are private to their creator, so names are unique per creator
 -- rather than per organization.
-CREATE UNIQUE INDEX idx_chat_projects_creator_lower_name ON chat_projects (organization_id, created_by, lower(name));
+CREATE UNIQUE INDEX idx_chat_projects_owner_lower_name ON chat_projects (organization_id, owner_id, lower(name));
 
 ALTER TABLE chats ADD COLUMN project_id uuid REFERENCES chat_projects(id) ON DELETE SET NULL;
 COMMENT ON COLUMN chats.project_id IS 'Optional project that groups a root chat with related chats.';

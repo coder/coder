@@ -21436,10 +21436,6 @@ const docTemplate = `{
                     "type": "string",
                     "format": "date-time"
                 },
-                "created_by": {
-                    "type": "string",
-                    "format": "uuid"
-                },
                 "description": {
                     "type": "string"
                 },
@@ -21451,6 +21447,10 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "organization_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "owner_id": {
                     "type": "string",
                     "format": "uuid"
                 },

@@ -28,7 +28,7 @@ func TestChatProjectsCRUDListAndDeleteDetaches(t *testing.T) {
 	otherOrganization := dbgen.Organization(t, db, database.Organization{IsDefault: false})
 	_ = dbgen.ChatProject(t, db, database.ChatProject{
 		OrganizationID: otherOrganization.ID,
-		CreatedBy:      firstUser.UserID,
+		OwnerID:        firstUser.UserID,
 		Name:           "Other Organization Project",
 	})
 
@@ -119,7 +119,7 @@ func TestChatProjectsAuthorizationAndCrossOrganizationBinding(t *testing.T) {
 	otherOrganization := dbgen.Organization(t, db, database.Organization{IsDefault: false})
 	otherProject := dbgen.ChatProject(t, db, database.ChatProject{
 		OrganizationID: otherOrganization.ID,
-		CreatedBy:      firstUser.UserID,
+		OwnerID:        firstUser.UserID,
 		Name:           "Other Project",
 	})
 	otherMemberRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, otherOrganization.ID)

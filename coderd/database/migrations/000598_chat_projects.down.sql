@@ -5,7 +5,7 @@ DROP VIEW IF EXISTS chats_expanded;
 DROP INDEX IF EXISTS idx_chats_project_id;
 ALTER TABLE chats DROP COLUMN project_id;
 
-DROP INDEX IF EXISTS idx_chat_projects_creator_lower_name;
+DROP INDEX IF EXISTS idx_chat_projects_owner_lower_name;
 DROP INDEX IF EXISTS idx_chat_projects_organization_id;
 DROP TABLE chat_projects;
 

@@ -172,7 +172,7 @@ func (w ConnectionLog) RBACObject() rbac.Object {
 }
 
 func (p ChatProject) RBACObject() rbac.Object {
-	return rbac.ResourceChatProject.WithID(p.ID).InOrg(p.OrganizationID).WithOwner(p.CreatedBy.String())
+	return rbac.ResourceChatProject.WithID(p.ID).InOrg(p.OrganizationID).WithOwner(p.OwnerID.String())
 }
 
 func (c Chat) RBACObject() rbac.Object {

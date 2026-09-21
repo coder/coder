@@ -3230,7 +3230,7 @@ export const ChatPlanModes: ChatPlanMode[] = ["plan"];
 export interface ChatProject {
 	readonly id: string;
 	readonly organization_id: string;
-	readonly created_by: string;
+	readonly owner_id: string;
 	readonly name: string;
 	readonly description: string;
 	readonly created_at: string;
