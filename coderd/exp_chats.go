@@ -5522,7 +5522,7 @@ func (api *API) putChatAdvisorConfig(rw http.ResponseWriter, r *http.Request) {
 	}
 	if req.DeprecatedModelConfigID != nil || req.DeprecatedReasoningEffort != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Advisor model settings moved to PUT /api/experimental/organizations/{organization}/chats/model-overrides/advisor.",
+			Message: "Advisor model settings moved to PUT /api/v2/organizations/{organization}/chats/model-overrides/advisor.",
 		})
 		return
 	}
@@ -6376,8 +6376,7 @@ func (api *API) postChatFileDownloadURL(rw http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	// TODO(CODAGT-922): flip to /api/v2 when experimental mounts are removed.
-	downloadURL := api.AccessURL.JoinPath("api", "experimental", "chats", "files", fileID.String(), "download")
+	downloadURL := api.AccessURL.JoinPath("api", "v2", "chats", "files", fileID.String(), "download")
 	downloadURL.RawQuery = url.Values{"token": {token}}.Encode()
 	digest := sha256.Sum256(chatFile.Data)
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ChatFileDownloadURLResponse{
@@ -6940,41 +6939,6 @@ func (api *API) configuredProviderFromAIProviderKeys(provider database.AIProvide
 		AllowUserAPIKey:            api.DeploymentValues.AI.BridgeConfig.AllowBYOK.Value(),
 		AllowCentralAPIKeyFallback: true,
 	}
-}
-
-func writeLegacyChatProviderGone(rw http.ResponseWriter, r *http.Request) {
-	httpapi.Write(r.Context(), rw, http.StatusGone, codersdk.Response{
-		Message: "Legacy chat provider APIs were removed. Use AI provider APIs instead.",
-		Detail:  "See https://coder.com/docs/ai-coder/agents/models#providers for AI provider configuration.",
-	})
-}
-
-func (*API) listChatProviders(rw http.ResponseWriter, r *http.Request) {
-	writeLegacyChatProviderGone(rw, r)
-}
-
-func (*API) createChatProvider(rw http.ResponseWriter, r *http.Request) {
-	writeLegacyChatProviderGone(rw, r)
-}
-
-func (*API) updateChatProvider(rw http.ResponseWriter, r *http.Request) {
-	writeLegacyChatProviderGone(rw, r)
-}
-
-func (*API) deleteChatProvider(rw http.ResponseWriter, r *http.Request) {
-	writeLegacyChatProviderGone(rw, r)
-}
-
-func (*API) listUserChatProviderConfigs(rw http.ResponseWriter, r *http.Request) {
-	writeLegacyChatProviderGone(rw, r)
-}
-
-func (*API) upsertUserChatProviderKey(rw http.ResponseWriter, r *http.Request) {
-	writeLegacyChatProviderGone(rw, r)
-}
-
-func (*API) deleteUserChatProviderKey(rw http.ResponseWriter, r *http.Request) {
-	writeLegacyChatProviderGone(rw, r)
 }
 
 // @Summary List AI models and provider descriptors in an organization
