@@ -350,7 +350,7 @@ jobs:
         with:
           path: |
             ${{ env.LINT_CACHE_DIR }}
-          key: golangci-lint-${{ runner.os }}-${{ hashFiles('**/*.go') }}
+          key: golangci-lint-${{ runner.os }}-${{ hashFiles('go.mod', 'go.sum', '.golangci.yaml', '.github/workflows/ci.yaml', '.github/workflows/doc-check.yaml', 'mise.toml') }}
           restore-keys: |
             golangci-lint-${{ runner.os }}-
 
