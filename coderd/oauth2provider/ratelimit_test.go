@@ -2,6 +2,7 @@ package oauth2provider_test
 
 import (
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/url"
 	"strings"
@@ -40,9 +41,15 @@ func TestOAuth2RateLimit(t *testing.T) {
 		defer resp.Body.Close()
 		require.Equal(t, http.StatusTooManyRequests, resp.StatusCode, "request %d should be rate limited", rateLimit+1)
 
+		body, err := io.ReadAll(resp.Body)
+		require.NoError(t, err)
 		var oauthErr codersdk.OAuth2Error
-		require.NoError(t, json.NewDecoder(resp.Body).Decode(&oauthErr), "a refusal should carry an RFC 6749 body")
+		require.NoError(t, json.Unmarshal(body, &oauthErr), "a refusal should carry an RFC 6749 body")
 		require.Equal(t, codersdk.OAuth2ErrorCodeTemporarilyUnavailable, oauthErr.Error)
+		// The dashboard and codersdk read message, not error_description.
+		var apiErr codersdk.Response
+		require.NoError(t, json.Unmarshal(body, &apiErr))
+		require.Equal(t, oauthErr.ErrorDescription, apiErr.Message)
 	}
 
 	t.Run("Authorize", func(t *testing.T) {

@@ -39,10 +39,25 @@ func RateLimitOAuth2(count int, window time.Duration) func(http.Handler) http.Ha
 			return "oauth2", nil
 		},
 		func(rw http.ResponseWriter, r *http.Request) {
-			httpapi.WriteOAuth2Error(r.Context(), rw, http.StatusTooManyRequests,
-				codersdk.OAuth2ErrorCodeTemporarilyUnavailable, rateLimitMessage(count, window))
+			message := rateLimitMessage(count, window)
+			httpapi.Write(r.Context(), rw, http.StatusTooManyRequests, oauth2RateLimitError{
+				OAuth2Error: codersdk.OAuth2Error{
+					Error:            codersdk.OAuth2ErrorCodeTemporarilyUnavailable,
+					ErrorDescription: message,
+				},
+				Message: message,
+			})
 		},
 	)
+}
+
+// oauth2RateLimitError is the body of a refused OAuth2 request. DELETE
+// /oauth2/tokens shares the limiter with the RFC 6749 routes, and the
+// dashboard and codersdk read message rather than error_description, so
+// the body carries both. RFC 6749 allows extra members in an error response.
+type oauth2RateLimitError struct {
+	codersdk.OAuth2Error
+	Message string `json:"message"`
 }
 
 // rateLimitMessage is the message a refused request reports, shared so the
