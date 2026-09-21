@@ -33,7 +33,6 @@ describe("ChatProjectDialog", () => {
 		const onSubmit = vi.fn(async () => {});
 		const { rerender } = render(
 			<ChatProjectDialog
-				key="closed"
 				organizationId={MockChatProject.organization_id}
 				open={false}
 				onOpenChange={vi.fn()}
@@ -43,7 +42,6 @@ describe("ChatProjectDialog", () => {
 
 		rerender(
 			<ChatProjectDialog
-				key={MockChatProject.id}
 				organizationId={MockChatProject.organization_id}
 				project={MockChatProject}
 				open

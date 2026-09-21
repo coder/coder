@@ -254,10 +254,6 @@ export const ChatsSidebar: FC<ChatsSidebarProps> = (props) => {
 				recentChats={chats}
 			/>
 			<ChatProjectDialog
-				key={
-					projectDialogProject?.id ??
-					(projectDialogProject !== undefined ? "new" : "closed")
-				}
 				organizationId={defaultOrganizationId}
 				project={projectDialogProject}
 				open={projectDialogProject !== undefined}

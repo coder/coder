@@ -90,7 +90,6 @@ export const ProjectComposerFooter: FC<ProjectComposerFooterProps> = ({
 				Edit project
 			</Button>
 			<ChatProjectDialog
-				key={isEditing ? project.id : "closed"}
 				organizationId={project.organization_id}
 				project={project}
 				open={isEditing}
