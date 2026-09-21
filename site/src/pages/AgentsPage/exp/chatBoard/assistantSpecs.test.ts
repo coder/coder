@@ -148,8 +148,22 @@ describe("boardAssistantSpec", () => {
 			);
 			expect(prompt).toContain("by its subject and outcome");
 			expect(prompt).toContain("Refer to chats by title in prose");
-			expect(prompt).toContain("gives messages newest first");
+			expect(prompt).toContain("newest first");
 			expect(prompt).not.toContain("oldest to newest");
+			// Lessons from the 21 Sep session: PR truth, readable proposals,
+			// sending work, dates, and the API's paging and parsing traps.
+			expect(prompt).toContain("PR state comes from the timeline");
+			expect(prompt).toContain(
+				"Never propose merge, ready-for-review or draft flips",
+			);
+			expect(prompt).toContain("Read thread content, not counts");
+			expect(prompt).toContain("each named by its subject");
+			expect(prompt).toContain('"Get work going" is the yes');
+			expect(prompt).toContain("ambiguous numeric date such as 09-18");
+			expect(prompt).toContain("without limit the API returns 50");
+			expect(prompt).toContain("not jq");
+			expect(prompt).toContain("PATCH answers 204 with no body");
+			expect(prompt).not.toContain("reviewDecision");
 		}
 	});
 
@@ -162,6 +176,10 @@ describe("boardAssistantSpec", () => {
 		);
 		expect(board).toContain("Use an effort when cards share a theme");
 		expect(board).toContain("State never goes in a title");
+		expect(board).toContain("one or two short lines");
+		expect(board).toContain("never shorten the old text");
+		expect(board).toContain("Archive one chat at a time, never a batch");
+		expect(board).toContain("read its messages before treating it as a helper");
 		expect(board).toContain(
 			'coder_archive_chat, or PATCH $CODER_URL/api/v2/chats/<id> with {"archived": true}',
 		);
