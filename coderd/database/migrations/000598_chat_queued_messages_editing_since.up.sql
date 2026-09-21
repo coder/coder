@@ -1,4 +1,4 @@
--- 'paused': a turn finished at a queued message under edit. IF NOT EXISTS tolerates databases where the value survived earlier enum rewrites.
+-- 'paused': a turn finished at a queued message under edit.
 ALTER TYPE chat_status ADD VALUE IF NOT EXISTS 'paused';
 
 ALTER TABLE chat_queued_messages ADD COLUMN editing_since timestamptz;

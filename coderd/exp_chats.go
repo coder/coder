@@ -2418,7 +2418,7 @@ func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
 			}
 			if errors.Is(err, chatstate.ErrTransitionNotAllowed) {
 				// Archive only succeeds from W, E0, E1, and E1P; busy
-				// and paused chats refuse it.
+				// and paused chats are refused.
 				message := "Cannot archive an active chat. Interrupt or wait for the chat to finish first."
 				if chat.Status == database.ChatStatusPaused {
 					message = "Cannot archive a paused chat. Finish editing, send, or remove the queued message under edit first."

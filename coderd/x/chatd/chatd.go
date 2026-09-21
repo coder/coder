@@ -2180,10 +2180,10 @@ type EditQueuedMessageOptions struct {
 	Editing         *bool
 }
 
-// EditQueuedMessage rewrites a queued row's content and/or edit marker through
-// the chatstate state machine. Stream side effects are handled by
-// chat:update consumers; a status change publishes the sidebar watch
-// event.
+// EditQueuedMessage rewrites a queued row's content and/or edit marker
+// through the chatstate state machine. Stream side effects are handled
+// by chat:update consumers; a status change publishes the sidebar
+// watch event.
 func (p *Server) EditQueuedMessage(
 	ctx context.Context,
 	opts EditQueuedMessageOptions,

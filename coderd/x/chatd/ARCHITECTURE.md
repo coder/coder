@@ -62,7 +62,7 @@ A chat's execution state lets the chat worker and the HTTP endpoints decide what
 - By the `archived` marker on the `chats` table;
 - By the queued messages in the `chat_queued_messages` table.
 
-The shorthands in the table below use the convention that the first 1 or 2 letters indicate the status, then `1` or `0` indicate the presence or absence of queued messages, and a trailing `P` indicates that the queue head is blocked. A queue head is blocked while a pause condition holds for it; today the only pause condition is `editing_since`, set while the owner edits the row. At most one queued message per chat is under edit. A blocked head is not promoted: the turn that would promote it ends in `paused`, and the chat stays there until the edit ends or the message is sent or removed.
+The shorthands in the table below use the convention that the first 1 or 2 letters indicate the status, then `1` or `0` indicate the presence or absence of queued messages, and a trailing `P` indicates that the queue head is blocked. A queue head is blocked while a pause condition holds for it; today the only pause condition is `editing_since`, set while the owner edits the row. At most one queued message per chat is under edit. A blocked head is not promoted: the turn that would promote it ends in `paused`, and the chat stays `paused` until the head's edit ends or the head is promoted or removed.
 
 | Shorthand | Status | Queue | Archived | Meaning |
 | --- | --- | --- | --- | --- |
@@ -70,21 +70,21 @@ The shorthands in the table below use the convention that the first 1 or 2 lette
 | `W` | `waiting` | empty | `false` | There's no work to be done by the chat worker |
 | `E0` | `error` | empty | `false` | The worker encountered an unrecoverable error while processing the chat. There's no more work to be done by the chat worker |
 | `E1` | `error` | non-empty | `false` | The worker encountered an unrecoverable error while processing the chat, and there's currently no work to be done by the chat worker. There's a queued message that should be processed once the error is cleared |
-| `E1P` | `error` | non-empty, head blocked | `false` | Like `E1`, but the queue head is under edit; sending a new message appends to the queue and keeps the head queued |
+| `E1P` | `error` | non-empty, head blocked | `false` | The worker encountered an unrecoverable error while processing the chat, and the queue head is under edit. There's no work to be done by the chat worker. Sending a new message appends it to the queue and leaves the head queued |
 | `R0` | `running` | empty | `false` | Running state with no queued messages: a chat worker should be processing the chat |
 | `R1` | `running` | non-empty | `false` | Running state with queued messages: a chat worker should be processing the chat, and there's a queued message that should be processed next |
-| `R1P` | `running` | non-empty, head blocked | `false` | Like `R1`, but the queue head is under edit; when the turn finishes the chat pauses and the head stays queued |
+| `R1P` | `running` | non-empty, head blocked | `false` | Running state with the queue head under edit: a chat worker should be processing the chat. When the turn finishes, the head is not promoted and the chat enters `paused` |
 | `I0` | `interrupting` | empty | `false` | The chat was interrupted by the user, and the chat worker should commit any partial message that had been generated before the interruption |
 | `I1` | `interrupting` | non-empty | `false` | The chat was interrupted by the user, and the chat worker should commit any partial message that had been generated before the interruption, and there's a queued message that should be processed next |
-| `I1P` | `interrupting` | non-empty, head blocked | `false` | Like `I1`, but the queue head is under edit; when the interruption finishes the chat pauses and the head stays queued |
+| `I1P` | `interrupting` | non-empty, head blocked | `false` | The chat was interrupted by the user, the chat worker should commit any partial message that had been generated before the interruption, and the queue head is under edit. When the interruption finishes, the head is not promoted and the chat enters `paused` |
 | `A0` | `requires_action` | empty | `false` | The chat worker is waiting until the user submits tool results; this state is used only by the “dynamic tools” feature |
 | `A1` | `requires_action` | non-empty | `false` | The chat worker is waiting until the user submits tool results, and there's a queued message that should be processed next; this state is used only by the “dynamic tools” feature |
-| `A1P` | `requires_action` | non-empty, head blocked | `false` | Like `A1`, but the queue head is under edit; tool results or their cancellation resume the current turn and leave the head queued |
-| `P` | `paused` | non-empty, head blocked | `false` | A turn finished at a queued message under edit. There's no work to be done by the chat worker until the edit ends, or the message is sent or removed |
+| `A1P` | `requires_action` | non-empty, head blocked | `false` | The chat worker is waiting until the user submits tool results, and the queue head is under edit. Tool results or their cancellation continue the current turn and leave the head queued; this state is used only by the “dynamic tools” feature |
+| `P` | `paused` | non-empty, head blocked | `false` | A turn finished while the queue head was under edit. There's no work to be done by the chat worker until the head's edit ends or the head is promoted or removed |
 | `XW` | `waiting` | empty | `true` | The chat was archived while it was in the `waiting` state, it will go back to `waiting` once unarchived |
 | `XE0` | `error` | empty | `true` | The chat was archived while it was in the `error` state, it will go back to `error` once unarchived |
 | `XE1` | `error` | non-empty | `true` | The chat was archived while it was in the `error` state, it will go back to `error` once unarchived, and there's a queued message that should be processed once the error is cleared |
-| `XE1P` | `error` | non-empty, head blocked | `true` | The chat was archived while it was in the error state with a queue head under edit; it will go back to `E1P` once unarchived |
+| `XE1P` | `error` | non-empty, head blocked | `true` | The chat was archived while it was in the `error` state with the queue head under edit; it will go back to `E1P` once unarchived |
 
 If these states seem arbitrary and abstract at this point, that's expected. Each one of these states is needed by some runtime component of chatd for some specific use case, and their purpose will emerge as we discuss the implementation of the HTTP endpoints and the chat worker.
 
@@ -122,9 +122,9 @@ I don't recommend reading the rest of section thoroughly if this is your first t
 - `SetArchived(archived)` sets or clears the archived marker for one chat.
 - `SendMessage(m, busy_behavior)` inserts a user message directly when the chat is idle, or queues it when the chat is busy. `busy_behavior` must be either `queue` or `interrupt`. With `busy_behavior=interrupt`, it also requests interruption or cancels a pending dynamic-tool action as needed. When the chat is paused, or in error with a blocked head, the message is queued and the head stays queued.
 - `EditMessage(k, replacement)` clears queued messages, cancels or obsoletes active work, marks the truncated active-history suffix as deleted, inserts the replacement turn followed by any caller-provided suffix messages, and lands in `running`.
-- `DeleteQueuedMessage(qid)` removes one queued message without changing the active history. From `P`, removing the head promotes the message behind it and reaches `running`, or reaches `waiting` when the queue is empty.
+- `DeleteQueuedMessage(qid)` removes one queued message without changing the active history. From `P`, removing the head promotes the message behind it and reaches `running`, or reaches `waiting` when the head was the last queued message.
 - `PromoteQueuedMessage(qid)` makes a queued message the next message to process. It reorders the queue, interrupts active work, cancels pending dynamic-tool action, or promotes into history immediately as required by the input state. It ends the target's edit first, so the new head is always ready.
-- `EditQueuedMessage(qid, content?, editing?)` rewrites a queued message's content, begins or ends its edit, or both. Beginning an edit ends any other edit on the chat. From `P`, ending the head's edit promotes it and reaches `running`; beginning an edit on a different message is refused, because the head under edit is what keeps the chat paused.
+- `EditQueuedMessage(qid, content?, editing?)` rewrites a queued message's content, begins or ends its edit, or both. Beginning an edit ends any other edit on the chat. From `P`, ending the head's edit promotes it and reaches `running`; beginning an edit on a different message is refused.
 - `Interrupt(reason)` requests cancellation of an active generation or closes pending dynamic-tool action. It preserves queued backlog.
 - `CompleteRequiresAction(results)` inserts submitted tool-result messages followed by any caller-provided suffix messages, clears `requires_action_deadline_at`, and lands in `running`. It preserves queued messages.
 - `RequestCompaction` records a manual compaction request on an idle or errored chat by setting `compaction_requested_at` and landing in `running` without inserting any message. It clears `last_error` per the leave-error rule, advances `history_version` to the transaction's new `snapshot_version`, and resets `generation_attempt`, so the compaction turn gets a full retry budget and message part episode keys that cannot collide with episodes retained from the previous turn. The chat worker picks the chat up like any other running chat and consumes the request. See [Manual compaction](#manual-compaction).
@@ -195,7 +195,7 @@ stateDiagram-v2
     E1P --> R1: PromoteQueuedMessage / new head ready
     E1P --> R1P: PromoteQueuedMessage / new head under edit
     E1P --> E1P: EditQueuedMessage / content edit
-    E1P --> E1: EditQueuedMessage / end or move head edit
+    E1P --> E1: EditQueuedMessage / end head edit or begin edit behind head
     E1P --> XE1P: SetArchived(true)
 
     R0 --> R0: RecordGenerationAttempt
@@ -242,7 +242,7 @@ stateDiagram-v2
     R1P --> R1P: DeleteQueuedMessage / removed row behind head
     R1P --> I1: PromoteQueuedMessage
     R1P --> R1P: EditQueuedMessage / content edit
-    R1P --> R1: EditQueuedMessage / end or move head edit
+    R1P --> R1: EditQueuedMessage / end head edit or begin edit behind head
     R1P --> P: FinishTurn
 
     I0 --> I1: SendMessage
@@ -268,7 +268,7 @@ stateDiagram-v2
     I1P --> I1P: DeleteQueuedMessage / removed row behind head
     I1P --> I1: PromoteQueuedMessage
     I1P --> I1P: EditQueuedMessage / content edit
-    I1P --> I1: EditQueuedMessage / end or move head edit
+    I1P --> I1: EditQueuedMessage / end head edit or begin edit behind head
     I1P --> P: FinishInterruption
 
     A0 --> R0: CompleteRequiresAction
@@ -306,12 +306,12 @@ stateDiagram-v2
     A1P --> R1: PromoteQueuedMessage / new head ready
     A1P --> R1P: PromoteQueuedMessage / new head under edit
     A1P --> A1P: EditQueuedMessage / content edit
-    A1P --> A1: EditQueuedMessage / end or move head edit
+    A1P --> A1: EditQueuedMessage / end head edit or begin edit behind head
 
     P --> P: SendMessage
     P --> R0: EditMessage
     P --> W: DeleteQueuedMessage / removed last queued
-    P --> R0: DeleteQueuedMessage / removed head, promoted last remaining
+    P --> R0: DeleteQueuedMessage / removed head, promoted last queued
     P --> R1: DeleteQueuedMessage / removed head, queue still non-empty after promoting next
     P --> P: DeleteQueuedMessage / removed row behind head
     P --> R0: PromoteQueuedMessage / promoted last queued
@@ -327,8 +327,8 @@ stateDiagram-v2
     XE1P --> E1P: SetArchived(false)
 
     [Invalid] --> E0: ReconcileInvalidState / no queued messages
-    [Invalid] --> E1: ReconcileInvalidState / queued messages
-    [Invalid] --> E1P: ReconcileInvalidState / queue head under edit
+    [Invalid] --> E1: ReconcileInvalidState / ready head
+    [Invalid] --> E1P: ReconcileInvalidState / head under edit
 ```
 
 ### Ownership state transition diagram
@@ -356,7 +356,7 @@ Notice that the `Acquire` and `Abandon` transitions only affect ownership state,
 
 ### Invalid states
 
-Right after the refactor described in this document is complete, some chats may be in invalid states. For example, a chat may have `archived` set to `true` and status to `running`, which isn't allowed by the new state machine, or a chat may have status `paused` while no queued message is under edit. To get the chat out of an invalid state, the `ReconcileInvalidState` transition is used, which does the following:
+Right after the refactor described in this document is complete, some chats may be in invalid states. For example, a chat may have `archived` set to `true` and status to `running`, which isn't allowed by the new state machine, or a chat may have status `paused` while its queue is empty or its queue head is not under edit. To get the chat out of an invalid state, the `ReconcileInvalidState` transition is used, which does the following:
 
 1. Increment `snapshot_version` by 1.
 2. Set `archived = false`.
@@ -558,7 +558,7 @@ For `archived` updates, the supported input and output states are:
 
 If the request does not change `archived`, this endpoint doesn't emit any state transitions.
 
-Other execution-state classes are not supported for archive/unarchive. A paused chat refuses archiving with a message telling the user to finish editing, send, or remove the queued message under edit.
+Other execution-state classes are not supported for archive/unarchive. Archiving a paused chat is refused; the error tells the user to finish editing, send, or remove the queued message under edit.
 
 ### `POST /api/v2/chats/{chat}/messages`
 
@@ -599,7 +599,7 @@ For `busy_behavior=interrupt`, `SendMessage(m, interrupt)` supports:
 - `A1P -> SendMessage(m, interrupt) -> R1P`
 - `P -> SendMessage(m, interrupt) -> P`
 
-When `SendMessage(m, interrupt)` lands in `I1`, the queued message is promoted later by `FinishInterruption(partial?)` after the interrupted suffix is finalized.
+When `SendMessage(m, interrupt)` reaches `I1` or `I1P`, `FinishInterruption(partial?)` runs after the interrupted suffix is finalized: from `I1` it promotes the queue head, from `I1P` it reaches `paused`.
 
 Other input states are not supported.
 
@@ -650,7 +650,7 @@ This endpoint uses `DeleteQueuedMessage(qid)`:
 - `P -> DeleteQueuedMessage(qid) -> R0 | R1` if removing the head: the message behind it is promoted into history, and the queue is then empty (`R0`) or not (`R1`)
 - `P -> DeleteQueuedMessage(qid) -> P` if removing a message behind the head
 
-This endpoint is owner-only, like promote: from `P`, removing the head sends the message behind it with the owner's credentials.
+The endpoint is owner-only because removing the head from `P` promotes the message behind it, which runs LLM inference with the owner's delegated credentials.
 
 No other input states are supported.
 
@@ -682,7 +682,7 @@ No other input states are supported.
 
 ### `PATCH /api/v2/chats/{chat}/queue/{queuedMessage}`
 
-This endpoint uses `EditQueuedMessage(qid, content?, editing?)`. It is owner-only. The request accepts any of `content`, `model_config_id`, `reasoning_effort`, and `editing`; at least one of `content` or `editing` is required, and empty `content` is rejected. `content` goes through the same input validation, `user_prompt_submit` hook, model and effort checks, and file linking as `POST /api/v2/chats/{chat}/messages`. The response is `204`; the outcome arrives through the stream as a `queue_update` event and, when the status changes, a status event.
+This endpoint uses `EditQueuedMessage(qid, content?, editing?)`. It is owner-only because ending the head's edit from `P` promotes it, which runs LLM inference with the owner's delegated credentials. The request accepts any of `content`, `model_config_id`, `reasoning_effort`, and `editing`; at least one of `content` or `editing` is required, and empty `content` is rejected. `content` goes through the same input validation, `user_prompt_submit` hook, model and effort checks, and file linking as `POST /api/v2/chats/{chat}/messages`. The response is `204`; the outcome arrives through the stream as a `queue_update` event and, when the status changes, a status event.
 
 - `E1 -> EditQueuedMessage(qid, content?, editing?) -> E1P` if `qid` is the head and its edit begins, otherwise `E1`
 - `R1 -> EditQueuedMessage(qid, content?, editing?) -> R1P` if `qid` is the head and its edit begins, otherwise `R1`
@@ -694,9 +694,9 @@ This endpoint uses `EditQueuedMessage(qid, content?, editing?)`. It is owner-onl
 - `A1P -> EditQueuedMessage(qid, content?, editing?) -> A1` if the head's edit ends, including when an edit begins on a message behind the head, otherwise `A1P`
 - `P -> EditQueuedMessage(qid, content?, editing=false) -> R0 | R1` when the head's edit ends: the head is promoted into history, and the queue is then empty (`R0`) or not (`R1`)
 - `P -> EditQueuedMessage(qid, content) -> P` for content edits
-- From `P`, beginning an edit on a message other than the head is refused with `409`, because the head under edit is what keeps the chat paused.
+- From `P`, beginning an edit on a message other than the head is refused with `409`: it would end the head's edit and promote the head.
 
-Clients begin an edit with `{"editing": true}`, save with `{"content": ..., "editing": false}`, and cancel with `{"editing": false}`. A `404` means the message was already promoted into history. While an edit blocks the head, clients see status `paused` on the chat and `editing_since` on the head.
+Clients begin an edit with `{"editing": true}`, save with `{"content": ..., "editing": false}`, and cancel with `{"editing": false}`. A `404` means the queued message no longer exists: it was promoted into history or removed. `editing_since` is set on the head while it is under edit; once a turn ends at it, the chat status is `paused`.
 
 No other input states are supported.
 
@@ -706,10 +706,12 @@ This endpoint uses `Interrupt(user_cancel)`:
 
 - `R0 -> Interrupt(user_cancel) -> I0`
 - `R1 -> Interrupt(user_cancel) -> I1`
+- `R1P -> Interrupt(user_cancel) -> I1P`
 - `A0 -> Interrupt(user_cancel) -> R0`
 - `A1 -> Interrupt(user_cancel) -> R1`
+- `A1P -> Interrupt(user_cancel) -> R1P`
 
-When `Interrupt(user_cancel)` lands in `I0` or `I1`, the chat is later picked up by a `ChatRunner` to apply `FinishInterruption(partial?)`.
+When `Interrupt(user_cancel)` reaches `I0`, `I1`, or `I1P`, the chat is later picked up by a `ChatRunner` to apply `FinishInterruption(partial?)`.
 
 No other input states are supported.
 
@@ -719,6 +721,7 @@ This endpoint uses `CompleteRequiresAction(results)`:
 
 - `A0 -> CompleteRequiresAction(results) -> R0`
 - `A1 -> CompleteRequiresAction(results) -> R1`
+- `A1P -> CompleteRequiresAction(results) -> R1P`
 
 No other input states are supported.
 
@@ -729,6 +732,7 @@ This endpoint uses `RequestCompaction`:
 - `W -> RequestCompaction -> R0`
 - `E0 -> RequestCompaction -> R0`
 - `E1 -> RequestCompaction -> R1`
+- `E1P -> RequestCompaction -> R1P`
 
 No other input states are supported: generating chats get a conflict error, and archived chats are rejected. Requesting compaction from an error state clears `last_error`, so a context-overflowed chat can recover by compacting instead of re-running the same oversized prompt. The endpoint is owner-only because the compaction runs LLM inference with the owner's delegated credentials. Inside the same transaction, after the transition succeeds, the endpoint verifies there is at least one uncompressed assistant message after the latest compaction boundary and rolls back with a "nothing to compact" conflict otherwise, so no LLM call is ever started for an empty or already-compacted chat. See [Manual compaction](#manual-compaction) for how the worker consumes the request.
 
@@ -1393,7 +1397,7 @@ Flow:
 Required invariant:
 
 - every client-visible queue insert, update, reorder, or delete advances `queue_version`.
-- `editing_since` is part of the client-visible queue: the update trigger lists it, and the `queue_update` snapshot carries it so clients can render the message under edit and the messages waiting behind it.
+- `editing_since` changes are client-visible queue updates: they advance `queue_version` and the `queue_update` snapshot carries the field.
 
 ### Retry-state synchronization
 
