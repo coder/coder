@@ -20,7 +20,11 @@ import (
 )
 
 const (
-	MaxMemories               = 200
+	MaxMemories = 200
+	// MemoryNearCapWarning is the count from which save_memory results carry
+	// a reminder to prune, so the agent tidies before the cap refuses a save.
+	MemoryNearCapWarning = 180
+
 	MaxMemoryIndexLines       = 200
 	MaxMemoryIndexBytes       = 25 * 1024
 	MaxMemoryBodyBytes        = 8192
@@ -349,12 +353,18 @@ func SaveMemory(store MemoryStore, scope MemoryScope) fantasy.AgentTool {
 		}
 		memory, err := store.Upsert(ctx, input)
 		if errors.Is(err, ErrMemoryLimit) {
-			return fantasy.NewTextErrorResponse("memory limit reached; merge or delete existing memories first"), nil
+			// The agent resolves a full project itself, in this turn, with
+			// the tools it already has; there is no background cleanup.
+			return fantasy.NewTextErrorResponse(fmt.Sprintf("memory is full (%d/%d); delete a stale memory with %s or fold this into an existing memory with %s, then retry", MaxMemories, MaxMemories, DeleteMemoryToolName, SaveMemoryToolName)), nil
 		}
 		if err != nil {
 			return fantasy.NewTextErrorResponse("failed to save memory"), nil
 		}
-		return toolResponse(map[string]any{"name": memory.Name, "updated_at": memory.UpdatedAt}), nil
+		result := map[string]any{"name": memory.Name, "updated_at": memory.UpdatedAt}
+		if count, err := store.Count(ctx); err == nil && count >= MemoryNearCapWarning {
+			result["warning"] = fmt.Sprintf("memory is %d/%d; merge or delete stale entries soon", count, MaxMemories)
+		}
+		return toolResponse(result), nil
 	})
 }
 
