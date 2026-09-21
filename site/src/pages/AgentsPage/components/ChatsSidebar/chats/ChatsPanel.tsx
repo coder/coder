@@ -155,7 +155,9 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 	const [collapsedSections, setCollapsedSections] = useState<
 		Record<string, boolean>
 	>({});
-	const [expandedProjectIds, setExpandedProjectIds] = useState<
+	// Explicit folder toggles. Folders without an entry follow the active
+	// project, so navigation opens the right folder in the same render.
+	const [projectFolderOverrides, setProjectFolderOverrides] = useState<
 		Record<string, boolean>
 	>({});
 	const chatProjectsEnabled = Boolean(onOpenProjectDialog && onDeleteProject);
@@ -324,22 +326,35 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 		}
 	}, [activeChatId]);
 
-	// Open the folder that holds the active chat or the project being viewed.
+	// The folder holding the active chat or the project being viewed opens
+	// by default. Arriving at a project clears a collapse the user made
+	// earlier so the folder opens again, while a collapse made while the
+	// project is active is respected until the next arrival.
 	const activeProjectId =
 		(activeChatId ? chatById.get(activeChatId)?.project_id : undefined) ??
 		location.pathname.match(/^\/agents\/projects\/([^/]+)/)?.[1];
-	useEffect(() => {
-		if (!activeProjectId) {
-			return;
+	const [seenActiveProjectId, setSeenActiveProjectId] =
+		useState(activeProjectId);
+	if (activeProjectId !== seenActiveProjectId) {
+		setSeenActiveProjectId(activeProjectId);
+		if (activeProjectId && activeProjectId in projectFolderOverrides) {
+			setProjectFolderOverrides((prev) => {
+				const next = { ...prev };
+				delete next[activeProjectId];
+				return next;
+			});
 		}
-		setExpandedProjectIds((prev) =>
-			prev[activeProjectId] ? prev : { ...prev, [activeProjectId]: true },
-		);
-	}, [activeProjectId]);
+	}
+	const expandedProjectIds = Object.fromEntries(
+		projects.map((project) => [
+			project.id,
+			projectFolderOverrides[project.id] ?? project.id === activeProjectId,
+		]),
+	);
 	const toggleProject = (projectId: string) => {
-		setExpandedProjectIds((prev) => ({
+		setProjectFolderOverrides((prev) => ({
 			...prev,
-			[projectId]: !prev[projectId],
+			[projectId]: !(prev[projectId] ?? projectId === activeProjectId),
 		}));
 	};
 

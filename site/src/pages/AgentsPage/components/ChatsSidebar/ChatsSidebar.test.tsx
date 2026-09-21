@@ -74,11 +74,13 @@ const Wrapper: FC<
 	PropsWithChildren<{
 		experiments?: TypesGen.Experiment[];
 		organizations?: TypesGen.Organization[];
+		initialEntry?: string;
 	}>
 > = ({
 	children,
 	experiments = [],
 	organizations = [MockDefaultOrganization],
+	initialEntry = "/agents",
 }) => {
 	const queryClient = createTestQueryClient();
 	const dashboardValue = {
@@ -94,7 +96,7 @@ const Wrapper: FC<
 		<QueryClientProvider client={queryClient}>
 			<ThemeOverride theme={themes[DEFAULT_THEME]}>
 				<TooltipProvider>
-					<MemoryRouter initialEntries={["/agents"]}>
+					<MemoryRouter initialEntries={[initialEntry]}>
 						<DashboardContext.Provider value={dashboardValue}>
 							{children}
 						</DashboardContext.Provider>
@@ -446,6 +448,34 @@ describe("ChatsSidebar projects", () => {
 			screen.getByRole("button", { name: `Expand ${MockChatProject.name}` }),
 		);
 		expect(screen.getByText("Project chat")).toBeInTheDocument();
+	});
+
+	it("opens the folder of the project being viewed until the user collapses it", async () => {
+		const user = userEvent.setup();
+		server.use(
+			http.get("/api/experimental/chats/projects", () =>
+				HttpResponse.json([MockChatProject]),
+			),
+			grantProjectPermissions(false),
+		);
+
+		render(
+			<Wrapper
+				experiments={["chat-projects"]}
+				initialEntry={`/agents/projects/${MockChatProject.id}`}
+			>
+				<ChatsSidebar {...defaultProps} />
+			</Wrapper>,
+		);
+
+		await user.click(
+			await screen.findByRole("button", {
+				name: `Collapse ${MockChatProject.name}`,
+			}),
+		);
+		await user.click(
+			screen.getByRole("button", { name: `Expand ${MockChatProject.name}` }),
+		);
 	});
 
 	it("keeps a chat in the date sections when its project is not loaded", async () => {
