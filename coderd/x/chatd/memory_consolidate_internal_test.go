@@ -44,7 +44,7 @@ func TestValidateMemoryConsolidationMutations(t *testing.T) {
 		proposed = append(proposed, memoryConsolidationMutation{Op: "delete", Name: "old-a"})
 	}
 
-	mutations := validateMemoryConsolidationMutations(proposed, memories, now)
+	mutations := validateMemoryConsolidationMutations(proposed, memories, memories, now)
 	require.Len(t, mutations, 1)
 	require.Equal(t, "merge", mutations[0].Op)
 	require.NotContains(t, mutations, memoryConsolidationMutation{Op: "update", Name: "fresh", Description: "Changed", Body: "Changed body"})
@@ -58,7 +58,7 @@ func TestValidateMemoryConsolidationMutations(t *testing.T) {
 			From:        []string{"old-b"},
 			Description: "Merged",
 			Body:        "Merged body",
-		}}, memories, now)
+		}}, memories, memories, now)
 		require.Len(t, mutations, 1)
 	})
 
@@ -71,7 +71,7 @@ func TestValidateMemoryConsolidationMutations(t *testing.T) {
 			From:        []string{"old-a"},
 			Description: "Merged",
 			Body:        "Merged body",
-		}}, memories, now)
+		}}, memories, memories, now)
 		require.Empty(t, mutations)
 	})
 
@@ -86,7 +86,7 @@ func TestValidateMemoryConsolidationMutations(t *testing.T) {
 			From:        []string{"old-a", "missing"},
 			Description: "Merged",
 			Body:        "Merged body",
-		}}, memories, now)
+		}}, memories, memories, now)
 		require.Empty(t, mutations)
 	})
 
@@ -94,16 +94,19 @@ func TestValidateMemoryConsolidationMutations(t *testing.T) {
 		t.Parallel()
 
 		// The full snapshot also holds old-c, but the model only saw old-a
-		// and old-b, so nothing may touch old-c.
+		// and old-b, so nothing may touch old-c: not as a source, a target,
+		// or a supposedly new merge name.
 		window := []chattool.Memory{
 			{Name: "old-a", Description: "Old A", Body: "A", UpdatedAt: now.Add(-48 * time.Hour)},
 			{Name: "old-b", Description: "Old B", Body: "B", UpdatedAt: now.Add(-48 * time.Hour)},
 		}
+		snapshot := append([]chattool.Memory{{Name: "old-c", Description: "Old C", Body: "C", UpdatedAt: now.Add(-72 * time.Hour)}}, window...)
 		mutations := validateMemoryConsolidationMutations([]memoryConsolidationMutation{
 			{Op: "delete", Name: "old-c"},
 			{Op: "merge", Into: "old-a", From: []string{"old-c"}, Description: "Merged", Body: "Merged body"},
+			{Op: "merge", Into: "old-c", From: []string{"old-a", "old-b"}, Description: "Merged", Body: "Merged body"},
 			{Op: "update", Name: "old-b", Description: "Changed", Body: "Changed body"},
-		}, window, now)
+		}, window, snapshot, now)
 		require.Len(t, mutations, 1)
 		require.Equal(t, "old-b", mutations[0].Name)
 	})
@@ -115,7 +118,7 @@ func TestValidateMemoryConsolidationMutations(t *testing.T) {
 			{Op: "update", Name: "old-a", Description: "Changed", Body: "Changed body"},
 			{Op: "merge", Into: "merged", From: []string{"old-a", "old-b"}, Description: "Merged", Body: "Merged body"},
 			{Op: "delete", Name: "old-b"},
-		}, memories, now)
+		}, memories, memories, now)
 		require.Len(t, mutations, 2)
 		require.Equal(t, "update", mutations[0].Op)
 		// The merge lost old-a to the update, so old-b stays free for the
@@ -129,7 +132,7 @@ func TestValidateMemoryConsolidationMutations(t *testing.T) {
 		mutations := validateMemoryConsolidationMutations([]memoryConsolidationMutation{
 			{Op: "merge", Into: "merged", From: []string{"old-a", "old-b"}, Description: "Merged", Body: "Merged body"},
 			{Op: "update", Name: "old-b", Description: "Changed", Body: "Changed body"},
-		}, memories, now)
+		}, memories, memories, now)
 		require.Len(t, mutations, 1)
 		require.Equal(t, "merge", mutations[0].Op)
 	})
