@@ -285,6 +285,7 @@ func (req CreateAIProviderRequest) Validate() []ValidationError {
 		})
 	}
 	if req.Settings.Bedrock != nil {
+		validations = append(validations, req.Settings.Bedrock.ValidateCredentials()...)
 		validations = append(validations, validateAIProviderRoleARN(req.Settings.Bedrock.RoleARN)...)
 		validations = append(validations, validateAIProviderBedrockProtocol(req.Settings.Bedrock.Protocol)...)
 		if req.Settings.Bedrock.ExternalID != "" {
@@ -352,6 +353,9 @@ func (req UpdateAIProviderRequest) Validate() []ValidationError {
 	// omitted. Omitting any other field clears it, so the checks below apply
 	// to the patch exactly as they would to what gets stored.
 	if req.Settings != nil && req.Settings.Bedrock != nil {
+		if req.Settings.Bedrock.AccessKey != nil && req.Settings.Bedrock.AccessKeySecret != nil {
+			validations = append(validations, req.Settings.Bedrock.ValidateCredentials()...)
+		}
 		validations = append(validations, validateAIProviderRoleARN(req.Settings.Bedrock.RoleARN)...)
 		validations = append(validations, validateAIProviderBedrockProtocol(req.Settings.Bedrock.Protocol)...)
 		validations = append(validations, validateAIProviderBedrockMantleRegion(*req.Settings.Bedrock)...)
@@ -475,14 +479,25 @@ func validateAIProviderBaseURL(raw string) []ValidationError {
 	return validations
 }
 
-// validateAIProviderAPIKeys checks that each supplied key is non-empty
-// and free of leading/trailing whitespace. An empty slice itself is
+func validateAIProviderKeyCount(count int) []ValidationError {
+	if count > 5 {
+		return []ValidationError{{
+			Field:  "api_keys",
+			Detail: "api_keys must contain at most 5 keys",
+		}}
+	}
+	return nil
+}
+
+// validateAIProviderAPIKeys checks that at most five distinct keys are supplied,
+// each non-empty and free of leading/trailing whitespace. An empty slice is
 // permitted: on create it means "no keys yet"; on update it means
 // "clear all keys". Keys are stored verbatim; surrounding whitespace
 // would silently corrupt the credential, so callers must trim before
 // sending.
 func validateAIProviderAPIKeys(keys []string) []ValidationError {
-	var validations []ValidationError
+	validations := validateAIProviderKeyCount(len(keys))
+	seen := make(map[string]int, len(keys))
 	for i, key := range keys {
 		switch {
 		case key == "":
@@ -496,17 +511,26 @@ func validateAIProviderAPIKeys(keys []string) []ValidationError {
 				Detail: "api_keys entries must not contain leading or trailing whitespace",
 			})
 		}
+		if prev, ok := seen[key]; ok {
+			validations = append(validations, ValidationError{
+				Field:  fmt.Sprintf("api_keys[%d]", i),
+				Detail: fmt.Sprintf("duplicate key already provided at api_keys[%d]", prev),
+			})
+		} else {
+			seen[key] = i
+		}
 	}
 	return validations
 }
 
 // validateAIProviderKeyMutations checks each entry has exactly one of
-// ID or APIKey set, that plaintexts are non-empty after trimming, and
-// that no ID is referenced twice in the same request. An empty slice
-// itself is permitted (it clears all keys).
+// ID or APIKey set, that plaintexts are non-empty without surrounding whitespace,
+// and that no ID or plaintext is repeated. At most five entries are permitted.
+// An empty slice is permitted (it clears all keys).
 func validateAIProviderKeyMutations(muts []AIProviderKeyMutation) []ValidationError {
-	var validations []ValidationError
+	validations := validateAIProviderKeyCount(len(muts))
 	seen := make(map[uuid.UUID]int, len(muts))
+	seenKeys := make(map[string]int, len(muts))
 	for i, m := range muts {
 		hasID := m.ID != nil
 		hasKey := m.APIKey != nil
@@ -526,6 +550,16 @@ func validateAIProviderKeyMutations(muts []AIProviderKeyMutation) []ValidationEr
 				Field:  fmt.Sprintf("api_keys[%d].api_key", i),
 				Detail: "api_key must not contain leading or trailing whitespace",
 			})
+		}
+		if hasKey && !hasID {
+			if prev, ok := seenKeys[*m.APIKey]; ok {
+				validations = append(validations, ValidationError{
+					Field:  fmt.Sprintf("api_keys[%d].api_key", i),
+					Detail: fmt.Sprintf("duplicate key already provided at api_keys[%d]", prev),
+				})
+			} else {
+				seenKeys[*m.APIKey] = i
+			}
 		}
 		if hasID && !hasKey {
 			if prev, ok := seen[*m.ID]; ok {
