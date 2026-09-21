@@ -127,6 +127,23 @@ export const DropdownMenuSubContent: React.FC<
 	);
 };
 
+export const DropdownMenuLabel: React.FC<
+	React.ComponentProps<typeof DropdownMenuPrimitive.Label> & {
+		inset?: boolean;
+	}
+> = ({ className, inset, ...props }) => {
+	return (
+		<DropdownMenuPrimitive.Label
+			className={cn(
+				"px-2 py-1.5 text-sm font-semibold text-content-secondary",
+				inset && "pl-8",
+				className,
+			)}
+			{...props}
+		/>
+	);
+};
+
 export const DropdownMenuSeparator: React.FC<
 	React.ComponentProps<typeof DropdownMenuPrimitive.Separator>
 > = ({ className, ...props }) => {

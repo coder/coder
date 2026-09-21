@@ -1,0 +1,491 @@
+import { cn } from "cn";
+import { CheckIcon, FilterIcon, RotateCcwIcon, XIcon } from "lucide-react";
+import { DropdownMenu as DropdownMenuPrimitive } from "radix-ui";
+import type { ComponentProps, FC, KeyboardEvent, ReactNode } from "react";
+import { useState } from "react";
+import { Badge } from "#/components/Badge/Badge";
+import { Button } from "#/components/Button/Button";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuLabel,
+	DropdownMenuRadioGroup,
+	DropdownMenuRadioItem,
+	DropdownMenuSub,
+	DropdownMenuSubContent,
+	DropdownMenuSubTrigger,
+	DropdownMenuTrigger,
+} from "#/components/DropdownMenu/DropdownMenu";
+import { menuItemClass } from "#/components/DropdownMenu/menuClasses";
+import { SearchField } from "#/components/SearchField/SearchField";
+import {
+	AGENT_ARCHIVE_STATUS_ORDER,
+	AGENT_CHAT_ATTRIBUTE_ORDER,
+	AGENT_PR_STATUS_ORDER,
+	AGENT_TIME_RANGE_ORDER,
+	type AgentArchiveStatusFilter,
+	type AgentChatAttributeFilter,
+	type AgentPRStatusFilter,
+	type AgentSidebarFilters,
+	type AgentSidebarGroupBy,
+	type AgentSourceFilter,
+	type AgentTimeRangeFilter,
+	DEFAULT_AGENT_SIDEBAR_FILTERS,
+} from "../../../utils/agentSidebarFilters";
+
+const GROUP_BY_ORDER: readonly AgentSidebarGroupBy[] = ["date", "chat_status"];
+
+// Submenus cannot open beside a full-width mobile menu, so on small
+// screens they overlay it at the same position instead.
+const MOBILE_MENU_CLASS =
+	"mobile-full-width-dropdown mobile-full-width-dropdown-top-below-header";
+
+const GROUP_BY_LABELS: Record<AgentSidebarGroupBy, string> = {
+	date: "Date",
+	chat_status: "Chat status",
+};
+
+const ARCHIVE_STATUS_LABELS: Record<AgentArchiveStatusFilter, string> = {
+	active: "Active",
+	archived: "Archived",
+};
+
+type OwnerFilter = "myself" | "someone_else" | "all";
+
+const OWNER_ORDER: readonly OwnerFilter[] = ["myself", "someone_else", "all"];
+
+const OWNER_LABELS: Record<OwnerFilter, string> = {
+	myself: "Myself",
+	someone_else: "Someone else",
+	all: "All",
+};
+
+const OWNER_SOURCES: Record<OwnerFilter, readonly AgentSourceFilter[]> = {
+	myself: ["created_by_me"],
+	someone_else: ["shared_with_me"],
+	all: ["created_by_me", "shared_with_me"],
+};
+
+const TIME_RANGE_LABELS: Record<AgentTimeRangeFilter, string> = {
+	"1d": "1 day",
+	"7d": "7 days",
+	"15d": "15 days",
+	"30d": "30 days",
+	all: "All",
+};
+
+const ATTRIBUTE_LABELS: Record<AgentChatAttributeFilter, string> = {
+	shared_with_me: "Shared with me",
+	shared_with_others: "Shared with others",
+	has_error: "Has an error",
+};
+
+const PR_STATUS_LABELS: Record<AgentPRStatusFilter, string> = {
+	draft: "PR: draft",
+	open: "PR: open",
+	merged: "PR: merged",
+	closed: "PR: closed",
+};
+
+const ownerFromSources = (
+	sources: readonly AgentSourceFilter[],
+): OwnerFilter => {
+	const ownsChats = sources.includes("created_by_me");
+	const sharedChats = sources.includes("shared_with_me");
+	if (ownsChats && sharedChats) {
+		return "all";
+	}
+	return sharedChats ? "someone_else" : "myself";
+};
+
+const isGroupBy = (value: string): value is AgentSidebarGroupBy =>
+	GROUP_BY_ORDER.some((groupBy) => groupBy === value);
+
+const isArchiveStatus = (value: string): value is AgentArchiveStatusFilter =>
+	AGENT_ARCHIVE_STATUS_ORDER.some((status) => status === value);
+
+const isOwner = (value: string): value is OwnerFilter =>
+	OWNER_ORDER.some((owner) => owner === value);
+
+const isTimeRange = (value: string): value is AgentTimeRangeFilter =>
+	AGENT_TIME_RANGE_ORDER.some((range) => range === value);
+
+const haveSameSelections = <T extends string>(
+	left: readonly T[],
+	right: readonly T[],
+): boolean => {
+	return (
+		left.length === right.length && left.every((value) => right.includes(value))
+	);
+};
+
+const hasActiveFilters = (filters: AgentSidebarFilters): boolean => {
+	return (
+		filters.archiveStatus !== DEFAULT_AGENT_SIDEBAR_FILTERS.archiveStatus ||
+		filters.groupBy !== DEFAULT_AGENT_SIDEBAR_FILTERS.groupBy ||
+		filters.timeRange !== DEFAULT_AGENT_SIDEBAR_FILTERS.timeRange ||
+		filters.prStatuses.length > 0 ||
+		filters.attributes.length > 0 ||
+		!haveSameSelections(
+			filters.chatStatuses,
+			DEFAULT_AGENT_SIDEBAR_FILTERS.chatStatuses,
+		) ||
+		!haveSameSelections(filters.sources, DEFAULT_AGENT_SIDEBAR_FILTERS.sources)
+	);
+};
+
+// Radix closes the whole menu when an item is selected. Filters apply
+// immediately, so keep the menu open to allow adjusting several at once.
+const keepMenuOpen = (event: Event) => {
+	event.preventDefault();
+};
+
+// Radix menus use typeahead on printable keys, which would steal focus
+// from the search input while typing.
+const stopTypeahead = (event: KeyboardEvent<HTMLDivElement>) => {
+	if (event.key.length === 1) {
+		event.stopPropagation();
+	}
+};
+
+type AdvancedFilterOption = Readonly<{
+	key: string;
+	label: string;
+	checked: boolean;
+	setChecked: (checked: boolean) => void;
+}>;
+
+// Menu checkbox items with a leading checkbox so multi-select is visually
+// distinct from the single-select radio submenus. The box mirrors the
+// Checkbox component styles without nesting a second interactive control.
+const MultiSelectMenuItem: FC<
+	ComponentProps<typeof DropdownMenuPrimitive.CheckboxItem>
+> = ({ className, children, ...props }) => (
+	<DropdownMenuPrimitive.CheckboxItem
+		className={cn(menuItemClass, "group gap-3", className)}
+		{...props}
+	>
+		<span
+			className={cn(
+				"flex size-[18px] shrink-0 items-center justify-center rounded-xs border border-solid border-border bg-surface-primary",
+				"group-data-[state=checked]:border-surface-invert-primary group-data-[state=checked]:bg-surface-invert-primary group-data-[state=checked]:text-content-invert",
+			)}
+		>
+			<DropdownMenuPrimitive.ItemIndicator>
+				<CheckIcon className="size-4" strokeWidth={2.5} />
+			</DropdownMenuPrimitive.ItemIndicator>
+		</span>
+		{children}
+	</DropdownMenuPrimitive.CheckboxItem>
+);
+
+const FilterRow: FC<{
+	readonly label: string;
+	readonly value: ReactNode;
+}> = ({ label, value }) => (
+	<>
+		<span>{label}</span>
+		<span className="ml-auto truncate text-content-primary">{value}</span>
+	</>
+);
+
+interface FilterMenuProps {
+	readonly filters: AgentSidebarFilters;
+	readonly onFiltersChange: (filters: AgentSidebarFilters) => void;
+}
+
+export const FilterMenu: FC<FilterMenuProps> = ({
+	filters,
+	onFiltersChange,
+}) => {
+	const [optionSearch, setOptionSearch] = useState("");
+
+	const handleOpenChange = (open: boolean) => {
+		if (!open) {
+			setOptionSearch("");
+		}
+	};
+
+	const setGroupBy = (value: string) => {
+		if (isGroupBy(value)) {
+			onFiltersChange({ ...filters, groupBy: value });
+		}
+	};
+
+	const setArchiveStatus = (value: string) => {
+		if (isArchiveStatus(value)) {
+			onFiltersChange({ ...filters, archiveStatus: value });
+		}
+	};
+
+	const setOwner = (value: string) => {
+		if (isOwner(value)) {
+			onFiltersChange({ ...filters, sources: OWNER_SOURCES[value] });
+		}
+	};
+
+	const setTimeRange = (value: string) => {
+		if (isTimeRange(value)) {
+			onFiltersChange({ ...filters, timeRange: value });
+		}
+	};
+
+	const setAttribute = (
+		attribute: AgentChatAttributeFilter,
+		checked: boolean,
+	) => {
+		const selected = new Set(filters.attributes);
+		if (checked) {
+			selected.add(attribute);
+		} else {
+			selected.delete(attribute);
+		}
+		onFiltersChange({
+			...filters,
+			attributes: AGENT_CHAT_ATTRIBUTE_ORDER.filter((value) =>
+				selected.has(value),
+			),
+		});
+	};
+
+	const setPRStatus = (status: AgentPRStatusFilter, checked: boolean) => {
+		const selected = new Set(filters.prStatuses);
+		if (checked) {
+			selected.add(status);
+		} else {
+			selected.delete(status);
+		}
+		onFiltersChange({
+			...filters,
+			prStatuses: AGENT_PR_STATUS_ORDER.filter((value) => selected.has(value)),
+		});
+	};
+
+	const advancedOptions: readonly AdvancedFilterOption[] = [
+		...AGENT_CHAT_ATTRIBUTE_ORDER.map((attribute) => ({
+			key: `attribute-${attribute}`,
+			label: ATTRIBUTE_LABELS[attribute],
+			checked: filters.attributes.includes(attribute),
+			setChecked: (checked: boolean) => setAttribute(attribute, checked),
+		})),
+		...AGENT_PR_STATUS_ORDER.map((status) => ({
+			key: `pr-${status}`,
+			label: PR_STATUS_LABELS[status],
+			checked: filters.prStatuses.includes(status),
+			setChecked: (checked: boolean) => setPRStatus(status, checked),
+		})),
+	];
+	const selectedAdvancedOptions = advancedOptions.filter(
+		(option) => option.checked,
+	);
+	const normalizedOptionSearch = optionSearch.trim().toLowerCase();
+	const visibleAdvancedOptions = advancedOptions.filter((option) =>
+		option.label.toLowerCase().includes(normalizedOptionSearch),
+	);
+
+	return (
+		<DropdownMenu onOpenChange={handleOpenChange}>
+			<DropdownMenuTrigger asChild>
+				<Button
+					variant="subtle"
+					size="icon"
+					aria-label="Filter agents"
+					className={cn(
+						"size-7 min-w-0 -mr-0.5 justify-end px-0 text-content-secondary hover:text-content-primary",
+						hasActiveFilters(filters) && "text-content-primary",
+					)}
+				>
+					<FilterIcon />
+				</Button>
+			</DropdownMenuTrigger>
+			<DropdownMenuContent
+				align="end"
+				aria-label="Filter agents"
+				className={cn(MOBILE_MENU_CLASS, "w-64 p-0")}
+			>
+				<div className="border-0 border-b border-solid border-border p-1">
+					<DropdownMenuSub>
+						<DropdownMenuSubTrigger>
+							<FilterRow
+								label="Sort by"
+								value={GROUP_BY_LABELS[filters.groupBy]}
+							/>
+						</DropdownMenuSubTrigger>
+						<DropdownMenuSubContent className={MOBILE_MENU_CLASS}>
+							<DropdownMenuRadioGroup
+								value={filters.groupBy}
+								onValueChange={setGroupBy}
+							>
+								{GROUP_BY_ORDER.map((groupBy) => (
+									<DropdownMenuRadioItem
+										key={groupBy}
+										value={groupBy}
+										onSelect={keepMenuOpen}
+									>
+										{GROUP_BY_LABELS[groupBy]}
+									</DropdownMenuRadioItem>
+								))}
+							</DropdownMenuRadioGroup>
+						</DropdownMenuSubContent>
+					</DropdownMenuSub>
+				</div>
+
+				<div className="border-0 border-b border-solid border-border p-1">
+					<DropdownMenuLabel className="font-normal">
+						Filter by
+					</DropdownMenuLabel>
+
+					<DropdownMenuSub>
+						<DropdownMenuSubTrigger>
+							<FilterRow
+								label="Visibility"
+								value={ARCHIVE_STATUS_LABELS[filters.archiveStatus]}
+							/>
+						</DropdownMenuSubTrigger>
+						<DropdownMenuSubContent className={MOBILE_MENU_CLASS}>
+							<DropdownMenuRadioGroup
+								value={filters.archiveStatus}
+								onValueChange={setArchiveStatus}
+							>
+								{AGENT_ARCHIVE_STATUS_ORDER.map((status) => (
+									<DropdownMenuRadioItem
+										key={status}
+										value={status}
+										onSelect={keepMenuOpen}
+									>
+										{ARCHIVE_STATUS_LABELS[status]}
+									</DropdownMenuRadioItem>
+								))}
+							</DropdownMenuRadioGroup>
+						</DropdownMenuSubContent>
+					</DropdownMenuSub>
+
+					<DropdownMenuSub>
+						<DropdownMenuSubTrigger>
+							<FilterRow
+								label="Owner"
+								value={OWNER_LABELS[ownerFromSources(filters.sources)]}
+							/>
+						</DropdownMenuSubTrigger>
+						<DropdownMenuSubContent className={MOBILE_MENU_CLASS}>
+							<DropdownMenuRadioGroup
+								value={ownerFromSources(filters.sources)}
+								onValueChange={setOwner}
+							>
+								{OWNER_ORDER.map((owner) => (
+									<DropdownMenuRadioItem
+										key={owner}
+										value={owner}
+										onSelect={keepMenuOpen}
+									>
+										{OWNER_LABELS[owner]}
+									</DropdownMenuRadioItem>
+								))}
+							</DropdownMenuRadioGroup>
+						</DropdownMenuSubContent>
+					</DropdownMenuSub>
+
+					<DropdownMenuSub>
+						<DropdownMenuSubTrigger>
+							<FilterRow
+								label="Time range"
+								value={TIME_RANGE_LABELS[filters.timeRange]}
+							/>
+						</DropdownMenuSubTrigger>
+						<DropdownMenuSubContent className={MOBILE_MENU_CLASS}>
+							<DropdownMenuRadioGroup
+								value={filters.timeRange}
+								onValueChange={setTimeRange}
+							>
+								{AGENT_TIME_RANGE_ORDER.map((range) => (
+									<DropdownMenuRadioItem
+										key={range}
+										value={range}
+										onSelect={keepMenuOpen}
+									>
+										{TIME_RANGE_LABELS[range]}
+									</DropdownMenuRadioItem>
+								))}
+							</DropdownMenuRadioGroup>
+						</DropdownMenuSubContent>
+					</DropdownMenuSub>
+
+					<DropdownMenuSub>
+						<DropdownMenuSubTrigger>
+							<FilterRow
+								label="Advanced filters"
+								value={
+									selectedAdvancedOptions.length > 0
+										? selectedAdvancedOptions.length
+										: "None"
+								}
+							/>
+						</DropdownMenuSubTrigger>
+						<DropdownMenuSubContent
+							className={cn(MOBILE_MENU_CLASS, "w-64 p-1")}
+						>
+							<div onKeyDown={stopTypeahead} className="p-1">
+								<SearchField
+									value={optionSearch}
+									onChange={setOptionSearch}
+									placeholder="Search..."
+									aria-label="Search advanced filters"
+									className="h-8 [&_input]:h-8 [&_input]:text-sm [&_svg]:size-4"
+								/>
+							</div>
+							<div className="max-h-72 overflow-y-auto">
+								{visibleAdvancedOptions.map((option) => (
+									<MultiSelectMenuItem
+										key={option.key}
+										checked={option.checked}
+										onCheckedChange={option.setChecked}
+										onSelect={keepMenuOpen}
+									>
+										{option.label}
+									</MultiSelectMenuItem>
+								))}
+								{visibleAdvancedOptions.length === 0 && (
+									<p className="m-0 px-2 py-3 text-sm text-content-secondary">
+										No filters found
+									</p>
+								)}
+							</div>
+						</DropdownMenuSubContent>
+					</DropdownMenuSub>
+
+					{selectedAdvancedOptions.length > 0 && (
+						<div className="flex flex-wrap gap-1 px-2 pt-1 pb-2">
+							{selectedAdvancedOptions.map((option) => (
+								<Badge key={option.key} size="xs" className="pr-0.5">
+									{option.label}
+									<button
+										type="button"
+										aria-label={`Remove ${option.label} filter`}
+										onClick={() => option.setChecked(false)}
+										className="flex size-4 cursor-pointer items-center justify-center rounded border-0 bg-transparent p-0 text-content-secondary hover:text-content-primary"
+									>
+										<XIcon className="size-3" />
+									</button>
+								</Badge>
+							))}
+						</div>
+					)}
+				</div>
+
+				<div className="p-1">
+					<DropdownMenuItem
+						className="justify-center"
+						onSelect={(event) => {
+							keepMenuOpen(event);
+							onFiltersChange(DEFAULT_AGENT_SIDEBAR_FILTERS);
+						}}
+					>
+						<RotateCcwIcon />
+						Reset to defaults
+					</DropdownMenuItem>
+				</div>
+			</DropdownMenuContent>
+		</DropdownMenu>
+	);
+};
