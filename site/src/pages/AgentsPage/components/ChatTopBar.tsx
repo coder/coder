@@ -93,9 +93,8 @@ const ChatSharingTopBarButton: FC<ChatSharingTopBarButtonProps> = ({
 	);
 };
 
-// The PR number as a string, from the column or parsed from the
-// URL. Branch rows carry a /tree URL and have none, which is what
-// keeps them out of the PR chips.
+// Branch rows carry a /tree URL with no number, so they stay out
+// of the PR chips.
 const prNumber = (status: TypesGen.ChatDiffStatus): string | undefined =>
 	status.pr_number?.toString() ?? parsePullRequestUrl(status.url)?.number;
 
@@ -172,8 +171,6 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 		Boolean(chatTitle) &&
 		chatHasMenuActions(chat, { canManage });
 
-	// A chat tracks one status row per ref, ordered newest first.
-	// The first row is the primary.
 	const prStatuses = (chat?.diff_statuses ?? []).filter(
 		(status) => prNumber(status) !== undefined,
 	);
