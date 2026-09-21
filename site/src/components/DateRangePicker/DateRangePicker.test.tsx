@@ -90,6 +90,42 @@ describe("maxDays across a daylight-saving transition", () => {
 			expect(onChange).not.toHaveBeenCalled();
 		}
 	});
+
+	it("restarts a backward extension that would run an hour past the limit", async () => {
+		vi.stubEnv("TZ", "America/New_York");
+		const user = userEvent.setup();
+		const onChange = vi.fn();
+		render(
+			<DateRangePicker
+				now={new Date(2026, 10, 15, 12)}
+				maxDays={31}
+				value={{
+					startDate: new Date(2026, 10, 10),
+					endDate: new Date(2026, 10, 12),
+				}}
+				onChange={onChange}
+			/>,
+		);
+
+		await user.click(screen.getByRole("button", { name: /Nov 10, 2026/ }));
+		await user.click(
+			await screen.findByRole("button", { name: "Go to the Previous Month" }),
+		);
+		await user.click(
+			await screen.findByRole("button", { name: /October 12th, 2026/ }),
+		);
+		await user.click(screen.getByRole("button", { name: "Apply" }));
+		expect(onChange).not.toHaveBeenCalled();
+
+		await user.click(
+			screen.getByRole("button", { name: /November 10th, 2026/ }),
+		);
+		await user.click(screen.getByRole("button", { name: "Apply" }));
+		expect(onChange).toHaveBeenCalledWith({
+			startDate: new Date(2026, 9, 12),
+			endDate: new Date(2026, 10, 11),
+		});
+	});
 });
 
 it("ignores days before minDate", async () => {
@@ -153,4 +189,106 @@ it.each([
 	expect(onChange).toHaveBeenCalledWith(
 		expect.objectContaining({ endDate: new Date(2025, 2, 15, 13) }),
 	);
+});
+
+it("keeps a single day selected when maxDays is 1", async () => {
+	const user = userEvent.setup();
+	const onChange = vi.fn();
+	render(
+		<DateRangePicker
+			now={new Date(2025, 2, 15, 12)}
+			maxDays={1}
+			value={{
+				startDate: new Date(2025, 2, 12),
+				endDate: new Date(2025, 2, 13),
+			}}
+			onChange={onChange}
+		/>,
+	);
+
+	await user.click(screen.getByRole("button", { name: /Mar 12, 2025/ }));
+	await user.click(
+		await screen.findByRole("button", { name: /March 10th, 2025/ }),
+	);
+	await user.click(screen.getByRole("button", { name: /March 11th, 2025/ }));
+	await user.click(screen.getByRole("button", { name: "Apply" }));
+
+	expect(onChange).toHaveBeenCalledTimes(1);
+	expect(onChange).toHaveBeenCalledWith({
+		startDate: new Date(2025, 2, 11),
+		endDate: new Date(2025, 2, 12),
+	});
+});
+
+it("excludes the day a minDate cutoff falls inside of", async () => {
+	const user = userEvent.setup();
+	const onChange = vi.fn();
+	const minDate = new Date(2025, 2, 10, 15);
+	render(
+		<DateRangePicker
+			now={new Date(2025, 2, 16, 18)}
+			minDate={minDate}
+			value={{
+				startDate: new Date(2025, 2, 12),
+				endDate: new Date(2025, 2, 14),
+			}}
+			onChange={onChange}
+		/>,
+	);
+	const trigger = screen.getByRole("button", { name: /Mar 12, 2025/ });
+
+	// "Last 7 days" starts at 18:00 on the cutoff day and must not be offered,
+	// since its committed start would be that day's midnight.
+	await user.click(trigger);
+	const offered = screen
+		.getAllByRole("button", { name: /^(Today|Yesterday|Last \d+ days)$/ })
+		.map((preset) => preset.textContent ?? "");
+	for (const label of offered) {
+		await user.click(screen.getByRole("button", { name: label }));
+		await user.click(trigger);
+	}
+	expect(onChange).toHaveBeenCalled();
+	expect(onChange).toHaveBeenCalledTimes(offered.length);
+	for (const [range] of onChange.mock.calls) {
+		expect(range.startDate.getTime()).toBeGreaterThanOrEqual(minDate.getTime());
+	}
+	onChange.mockClear();
+
+	await user.click(screen.getByRole("button", { name: /March 10th, 2025/ }));
+	await user.click(screen.getByRole("button", { name: "Apply" }));
+	expect(onChange).not.toHaveBeenCalled();
+	await user.click(screen.getByRole("button", { name: /March 11th, 2025/ }));
+	await user.click(screen.getByRole("button", { name: "Apply" }));
+	expect(onChange).toHaveBeenCalledWith(
+		expect.objectContaining({ startDate: new Date(2025, 2, 11) }),
+	);
+});
+
+it("stays closed after being disabled and re-enabled while open", async () => {
+	const user = userEvent.setup();
+	const onChange = vi.fn();
+	const props = {
+		now: new Date(2025, 2, 15, 12),
+		value: { startDate: new Date(2025, 2, 12), endDate: new Date(2025, 2, 14) },
+		onChange,
+	};
+	const { rerender } = render(<DateRangePicker {...props} />);
+	const trigger = screen.getByRole("button", { name: /Mar 12, 2025/ });
+	await user.click(trigger);
+	await screen.findByRole("button", { name: "Apply" });
+
+	rerender(<DateRangePicker {...props} disabled />);
+	rerender(<DateRangePicker {...props} />);
+
+	// The click opens a closed picker; it would close one that reopened by itself.
+	await user.click(trigger);
+	await user.click(
+		await screen.findByRole("button", { name: /March 10th, 2025/ }),
+	);
+	await user.click(screen.getByRole("button", { name: /March 11th, 2025/ }));
+	await user.click(screen.getByRole("button", { name: "Apply" }));
+	expect(onChange).toHaveBeenCalledWith({
+		startDate: new Date(2025, 2, 10),
+		endDate: new Date(2025, 2, 12),
+	});
 });

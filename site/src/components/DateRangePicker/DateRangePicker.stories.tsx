@@ -38,6 +38,14 @@ export const ClosedExclusiveEnd: Story = {
 	},
 };
 
+export const Disabled: Story = {
+	args: {
+		value: defaultValue,
+		onChange: () => {},
+		disabled: true,
+	},
+};
+
 export const Open: Story = {
 	args: {
 		value: defaultValue,

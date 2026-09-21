@@ -105,6 +105,11 @@ function toBoundary(from: Date, to: Date, now: Date): DateRangeValue {
 	return { startDate: start, endDate: end };
 }
 
+function firstDayOnOrAfter(date: Date): Date {
+	const day = dayjs(date).startOf("day");
+	return (day.isSame(date) ? day : day.add(1, "day")).toDate();
+}
+
 /**
  * Reverse the boundary normalization so the calendar highlights the
  * inclusive end date the user originally selected, not the exclusive
@@ -131,9 +136,19 @@ export const DateRangePicker: FC<DateRangePickerProps> = ({
 	disabled,
 }) => {
 	const [open, setOpen] = useState(false);
+	// A disabled picker must not reopen by itself once it is enabled again.
+	if (disabled && open) {
+		setOpen(false);
+	}
 	const currentTime = now ?? new Date();
+	// Committed starts are local midnights, so a cutoff inside a day excludes
+	// that whole day rather than emitting a start before the cutoff.
+	const firstSelectableDay =
+		minDate === undefined ? undefined : firstDayOnOrAfter(minDate);
 	const resolvedPresets = (presets ?? buildDefaultPresets(now)).filter(
-		(preset) => minDate === undefined || preset.range().from >= minDate,
+		(preset) =>
+			firstSelectableDay === undefined ||
+			preset.range().from >= firstSelectableDay,
 	);
 
 	// Internal selection state kept separate from the committed value
@@ -158,32 +173,48 @@ export const DateRangePicker: FC<DateRangePickerProps> = ({
 		setOpen(false);
 	};
 
-	const handleCalendarSelect = (range: DayPickerDateRange | undefined) => {
-		if (!range) return;
-		setSelection(range);
-	};
-
 	// maxDays counts local calendar days, but the committed boundary is an
 	// interval that APIs bound by exact duration, and a maximal range of local
 	// days that crosses a fall daylight-saving transition runs long by the
 	// shift (an hour, or half an hour in some zones). Allow one day less from
 	// such a start rather than trimming the committed range.
-	const selectableDays = (() => {
-		if (maxDays === undefined || !selection?.from) {
-			return maxDays;
+	const selectableDaysFrom = (from: Date): number | undefined => {
+		if (maxDays === undefined) {
+			return undefined;
 		}
-		const lastDay = dayjs(selection.from)
+		const lastDay = dayjs(from)
 			.add(maxDays - 1, "day")
 			.toDate();
-		const { startDate, endDate } = toBoundary(
-			selection.from,
-			lastDay,
-			currentTime,
-		);
+		const { startDate, endDate } = toBoundary(from, lastDay, currentTime);
 		return dayjs(endDate).diff(startDate, "hour", true) > maxDays * 24
 			? maxDays - 1
 			: maxDays;
-	})();
+	};
+
+	// The limit depends on the candidate's own start, which react-day-picker's
+	// max cannot express (and it treats a max of zero as unlimited), so the
+	// candidate is checked here and, like an over-long react-day-picker range,
+	// restarted from the clicked day.
+	const handleCalendarSelect = (
+		range: DayPickerDateRange | undefined,
+		triggerDate: Date,
+	) => {
+		if (!range) return;
+		if (range.from && range.to) {
+			const limit = selectableDaysFrom(range.from);
+			if (
+				limit !== undefined &&
+				dayjs(range.to).diff(range.from, "day") + 1 > limit
+			) {
+				setSelection({
+					from: triggerDate,
+					to: selectableDaysFrom(triggerDate) === 1 ? triggerDate : undefined,
+				});
+				return;
+			}
+		}
+		setSelection(range);
+	};
 
 	// Sync local selection when the popover opens so it reflects the
 	// latest committed value. Reverse the boundary normalization so
@@ -205,7 +236,7 @@ export const DateRangePicker: FC<DateRangePickerProps> = ({
 			selection.to.getTime() !== committed.to?.getTime());
 
 	return (
-		<Popover open={open && !disabled} onOpenChange={handleOpenChange}>
+		<Popover open={open} onOpenChange={handleOpenChange}>
 			<PopoverTrigger asChild>
 				<Button variant="outline" size={size} disabled={disabled}>
 					<CalendarIcon className="size-4 text-content-secondary" />
@@ -277,13 +308,10 @@ export const DateRangePicker: FC<DateRangePickerProps> = ({
 								selected={selection}
 								onSelect={handleCalendarSelect}
 								numberOfMonths={2}
-								max={
-									selectableDays === undefined ? undefined : selectableDays - 1
-								}
 								disabled={
-									minDate === undefined
+									firstSelectableDay === undefined
 										? { after: currentTime }
-										: [{ before: minDate }, { after: currentTime }]
+										: [{ before: firstSelectableDay }, { after: currentTime }]
 								}
 								today={currentTime}
 							/>
