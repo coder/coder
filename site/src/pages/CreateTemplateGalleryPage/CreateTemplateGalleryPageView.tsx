@@ -13,11 +13,11 @@ import {
 import type { StarterTemplatesByTag } from "#/utils/starterTemplates";
 import { StarterTemplates } from "./StarterTemplates";
 
-interface CreateTemplateGalleryPageViewProps {
+type CreateTemplateGalleryPageViewProps = {
 	starterTemplatesByTag?: StarterTemplatesByTag;
 	templateBuilderEnabled: boolean;
 	error?: unknown;
-}
+};
 
 export const CreateTemplateGalleryPageView: FC<
 	CreateTemplateGalleryPageViewProps

@@ -273,11 +273,12 @@ fields appear dynamically in the admin UI when you select a provider.
 
 #### OpenAI
 
-| Option                | Description                                                                               |
-|-----------------------|-------------------------------------------------------------------------------------------|
-| Reasoning Effort      | How much effort the model spends reasoning (`minimal`, `low`, `medium`, `high`, `xhigh`). |
-| Max Completion Tokens | Cap on completion tokens for reasoning models.                                            |
-| Parallel Tool Calls   | Whether the model can call multiple tools at once.                                        |
+| Option                | Description                                                                                                                                                                                                                                                                                                                                          |
+|-----------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Reasoning Effort      | How much effort the model spends reasoning (`minimal`, `low`, `medium`, `high`, `xhigh`).                                                                                                                                                                                                                                                            |
+| Max Completion Tokens | Cap on completion tokens for reasoning models.                                                                                                                                                                                                                                                                                                       |
+| Parallel Tool Calls   | Whether the model can call multiple tools at once.                                                                                                                                                                                                                                                                                                   |
+| Reasoning Mode        | Set to `pro` to use OpenAI's Pro reasoning mode. Supported from the GPT-5.6 Sol generation; requests fail on models that do not support it. Pro increases model work, latency, and token usage. It requires the Responses API and a reasoning model, so it is rejected when the **Use Responses API** or **Reasoning Model** override is set to Off. |
 
 #### Google
 
@@ -301,9 +302,9 @@ fields appear dynamically in the admin UI when you select a provider.
 | Reasoning Effort  | Reasoning effort level.         |
 
 > [!NOTE]
-> Azure OpenAI uses the same options as OpenAI. AWS Bedrock uses the same
-> model configuration options as Anthropic (thinking budget, reasoning
-> effort).
+> Azure OpenAI uses the same options as OpenAI except Reasoning Mode. AWS
+> Bedrock uses the same model configuration options as Anthropic (thinking
+> budget, reasoning effort).
 
 ## How developers select models
 
@@ -350,7 +351,7 @@ The configurable contexts:
 |----------------------|--------------|----------------------------------------------------------------------------------------|
 | **General**          | Admin + user | Write-capable subagents (`spawn_agent` with `type=general` or `computer_use`).         |
 | **Explore**          | Admin + user | Read-only subagents (`spawn_agent` with `type=explore`).                               |
-| **Title generation** | Admin only   | Automatic title generation for new chats.                                              |
+| **Title generation** | Admin only   | Chat titles, turn status labels, and chat summaries.                                   |
 | **Compaction**       | Admin only   | Conversation summarization near the context limit.                                     |
 | **Advisor**          | Admin only   | The [advisor](./platform-controls/advisor.md). Requires the `chat-advisor` experiment. |
 | **Root**             | User only    | The user's own root chats.                                                             |
@@ -367,12 +368,12 @@ organization:
 If a referenced model is later disabled or deleted, that layer is skipped
 and resolution falls through to the next, with two exceptions: an unusable
 explicit `spawn_agent` `model_config_id` fails the tool call, and an
-unusable title generation override skips title generation instead of
-falling back. Agents discover selectable models (and their reasoning
-effort ranges) with the `list_subagent_models` tool, which only returns
-enabled models usable with the chat owner's credentials. Computer-use
-subagents always run on the administrator-configured computer-use model and
-reject explicit model selection.
+unusable title generation override skips titles, status labels, and
+summaries instead of falling back. Agents discover selectable models (and
+their reasoning effort ranges) with the `list_subagent_models` tool, which
+only returns enabled models usable with the chat owner's credentials.
+Computer-use subagents always run on the administrator-configured
+computer-use model and reject explicit model selection.
 
 > [!NOTE]
 > Both override layers may change between releases.

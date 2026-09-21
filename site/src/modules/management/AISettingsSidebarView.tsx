@@ -17,12 +17,12 @@ import {
 } from "#/modules/permissions";
 import { modelOrganizationSearchParam } from "#/pages/AISettingsPage/ModelsPage/organizationModels";
 
-interface AISettingsSidebarViewProps {
+type AISettingsSidebarViewProps = {
 	/** Site-wide permissions. */
 	permissions: Permissions;
 	canAccessOrganizationModels?: boolean;
 	canShareOrganizationMCPServers?: boolean;
-}
+};
 
 const SubNavItem: FC<{ href: To; children?: ReactNode }> = ({
 	href,

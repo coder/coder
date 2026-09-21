@@ -37,11 +37,11 @@ import {
 } from "#/components/Tooltip/Tooltip";
 import { getDisplayWorkspaceStatus } from "#/utils/workspace";
 
-interface DeploymentBannerViewProps {
+type DeploymentBannerViewProps = {
 	health?: HealthcheckReport;
 	stats?: DeploymentStats;
 	fetchStats?: () => void;
-}
+};
 
 export const DeploymentBannerView: FC<DeploymentBannerViewProps> = ({
 	health,
@@ -358,10 +358,10 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = ({
 	);
 };
 
-interface WorkspaceBuildValueProps {
+type WorkspaceBuildValueProps = {
 	status: WorkspaceStatus;
 	count?: number;
-}
+};
 
 const WorkspaceBuildValue: FC<WorkspaceBuildValueProps> = ({
 	status,

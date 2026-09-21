@@ -17,9 +17,9 @@ import {
 	WorkspaceBuildDataSkeleton,
 } from "#/modules/workspaces/WorkspaceBuildData/WorkspaceBuildData";
 
-interface HistorySidebarProps {
+type HistorySidebarProps = {
 	workspace: Workspace;
-}
+};
 
 export const HistorySidebar: FC<HistorySidebarProps> = ({ workspace }) => {
 	const buildsQuery = useInfiniteQuery({

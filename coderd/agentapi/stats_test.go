@@ -3,6 +3,9 @@ package agentapi_test
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
+	"fmt"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -665,6 +668,133 @@ func TestUpdateStats(t *testing.T) {
 		case <-notifyDescription:
 		}
 		require.True(t, updateAgentMetricsFnCalled)
+	})
+
+	t.Run("SessionCounts", func(t *testing.T) {
+		t.Parallel()
+
+		// Every case starts from 300 whitespace aliases of one app, which
+		// normalize to a single name.
+		vscodeAliases := func() map[string]int64 {
+			counts := make(map[string]int64, 300)
+			for i := range 300 {
+				counts["VSCode"+strings.Repeat(" ", i)] = 1
+			}
+			return counts
+		}
+
+		for _, tc := range []struct {
+			name  string
+			setup func() (counts, want map[string]int64)
+		}{
+			{
+				name: "AliasesFitWithoutFolding",
+				setup: func() (map[string]int64, map[string]int64) {
+					return vscodeAliases(), map[string]int64{"vscode": 300}
+				},
+			},
+			{
+				// Known apps win even with smaller counts. Unknown aliases
+				// merge before ranking, with name breaking count ties, and
+				// the kept names fill the 64 cap.
+				name: "RankAfterMerging",
+				setup: func() (map[string]int64, map[string]int64) {
+					counts := vscodeAliases()
+					counts["SSH"] = 1
+					counts["unknown"] = -1_000
+					counts[" VSCODE"] = -1_000
+					counts["idle"] = 0
+					for i := range 300 {
+						counts[fmt.Sprintf("app-%03d", i)] = 2
+						counts["zzz-busy"+strings.Repeat(" ", i)] = 1
+					}
+					want := map[string]int64{"vscode": 300, "ssh": 1, "zzz_busy": 300, "unknown": 478}
+					for i := range 61 {
+						want[fmt.Sprintf("app_%03d", i)] = 2
+					}
+					return counts, want
+				},
+			},
+			{
+				name: "NonPositiveSuppressesFallback",
+				setup: func() (map[string]int64, map[string]int64) {
+					counts := vscodeAliases()
+					for key := range counts {
+						counts[key] = -1
+					}
+					counts["unknown"] = 0
+					return counts, map[string]int64{}
+				},
+			},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				counts, wantCounts := tc.setup()
+				ctx := testutil.Context(t, testutil.WaitLong)
+				dbM := dbmock.NewMockStore(gomock.NewController(t))
+				inserted := make(chan database.InsertWorkspaceAgentStatsParams, 1)
+				dbM.EXPECT().InsertWorkspaceAgentStats(gomock.Any(), gomock.Any()).Times(1).DoAndReturn(
+					func(_ context.Context, params database.InsertWorkspaceAgentStatsParams) error {
+						inserted <- params
+						return nil
+					})
+				batcher, closeBatcher, err := workspacestats.NewBatcher(ctx,
+					workspacestats.BatcherWithStore(dbM),
+					workspacestats.BatcherWithLogger(testutil.Logger(t)),
+					workspacestats.BatcherWithInterval(time.Hour),
+				)
+				require.NoError(t, err)
+				t.Cleanup(closeBatcher)
+				api := agentapi.StatsAPI{
+					AgentID:   agent.ID,
+					AgentName: agent.Name,
+					Workspace: &workspaceAsCacheFields,
+					Database:  dbM,
+					StatsReporter: workspacestats.NewReporter(workspacestats.ReporterOptions{
+						StatsBatcher: batcher,
+					}),
+					AgentStatsRefreshInterval: 10 * time.Second,
+				}
+				_, err = api.UpdateStats(ctx, &agentproto.UpdateStatsRequest{Stats: &agentproto.Stats{
+					SessionCounts: counts,
+					// A present map must suppress deprecated fields even when
+					// every reported count is non-positive.
+					SessionCountVscode:        9,
+					ConnectionsByProto:        map[string]int64{"tcp": 1},
+					ConnectionMedianLatencyMs: 23,
+					RxPackets:                 120,
+					RxBytes:                   1000,
+					TxPackets:                 130,
+					TxBytes:                   2000,
+				}})
+				require.NoError(t, err)
+				closeBatcher() // Flush synchronously without waiting for a timer.
+
+				params := testutil.RequireReceive(ctx, t, inserted)
+				wantSessionCounts, err := json.Marshal([]map[string]int64{wantCounts})
+				require.NoError(t, err)
+				// ID and CreatedAt are generated inside the batcher; the rest
+				// must survive capping untouched.
+				require.Equal(t, database.InsertWorkspaceAgentStatsParams{
+					ID:                        params.ID,
+					CreatedAt:                 params.CreatedAt,
+					UserID:                    []uuid.UUID{workspace.OwnerID},
+					WorkspaceID:               []uuid.UUID{workspace.ID},
+					TemplateID:                []uuid.UUID{workspace.TemplateID},
+					AgentID:                   []uuid.UUID{agent.ID},
+					ConnectionsByProto:        json.RawMessage(`[{"tcp":1}]`),
+					ConnectionCount:           []int64{0},
+					RxPackets:                 []int64{120},
+					RxBytes:                   []int64{1000},
+					TxPackets:                 []int64{130},
+					TxBytes:                   []int64{2000},
+					SessionCounts:             wantSessionCounts,
+					ConnectionMedianLatencyMS: []float64{23},
+					Usage:                     []bool{false},
+				}, params)
+			})
+		}
 	})
 }
 
