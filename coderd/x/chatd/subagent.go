@@ -667,7 +667,7 @@ func (p *Server) subagentTools(
 	)
 
 	return []fantasy.AgentTool{
-		fantasy.NewAgentTool(
+		newSubagentTool(
 			spawnAgentToolName,
 			spawnAgentDescription,
 			func(ctx context.Context, args spawnAgentArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
@@ -756,7 +756,7 @@ func (p *Server) subagentTools(
 				}, childChat)), nil
 			},
 		),
-		fantasy.NewAgentTool(
+		newSubagentTool(
 			listSubagentModelsToolName,
 			"List the enabled model configurations available for "+
 				spawnAgentToolName+"'s model_config_id argument. Only models "+
@@ -789,14 +789,16 @@ func (p *Server) subagentTools(
 				}), nil
 			},
 		),
-		fantasy.NewAgentTool(
+		newSubagentTool(
 			"wait_agent",
 			"Wait for a spawned child agent to finish and return its response "+
 				"and status. Returns immediately when the agent finishes, even if "+
 				"a longer timeout is set. A timeout does not stop the child; it "+
-				"still owns its task. Wait again or check its status with "+
-				"list_agents; do not take over its work without an acknowledged "+
-				"handoff.",
+				"still owns its task. Wait again when the result is needed; do "+
+				"not take over its work without an acknowledged handoff. After "+
+				"an error or interruption, the returned response may be older "+
+				"than your latest message; check its status and content before "+
+				"claiming completion.",
 			func(ctx context.Context, args waitAgentArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
 				if currentChat == nil {
 					return fantasy.NewTextErrorResponse("subagent callbacks are not configured"), nil
@@ -939,7 +941,7 @@ func (p *Server) subagentTools(
 				return p.waitAgentSuccessResponse(ctx, recordingID, agentConn, parent, targetChat, report), nil
 			},
 		),
-		fantasy.NewAgentTool(
+		newSubagentTool(
 			"message_agent",
 			"Send a follow-up message to a previously spawned child "+
 				"agent. If the agent is idle, it resumes work on the "+
@@ -948,11 +950,12 @@ func (p *Server) subagentTools(
 				"to true for corrections, changed scope, or a handoff that "+
 				"returns the child's task to you, so its current work stops "+
 				"first. Interrupting does not clear earlier queued messages, "+
-				"and the tool result does not confirm the child has stopped. "+
-				"Use wait_agent to collect the child's response. A handoff is "+
+				"and the tool result confirms neither that the child has "+
+				"stopped nor that the assignment has finished. A handoff is "+
 				"acknowledged only when wait_agent returns the child's response "+
 				"to your handoff message; a message_agent result or an "+
-				"interrupting status is not an acknowledgment.",
+				"interrupting status is not an acknowledgment. This tool "+
+				"addresses children, not the parent agent.",
 			func(ctx context.Context, args messageAgentArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
 				if currentChat == nil {
 					return fantasy.NewTextErrorResponse("subagent callbacks are not configured"), nil
@@ -1000,12 +1003,13 @@ func (p *Server) subagentTools(
 				}, targetChat)), nil
 			},
 		),
-		fantasy.NewAgentTool(
+		newSubagentTool(
 			"interrupt_agent",
 			"Interrupt a spawned child agent's current work. The "+
 				"status may briefly read interrupting before transitioning "+
 				"to waiting, or running if there are queued messages. "+
-				"Resume with message_agent or leave it idle.",
+				"Check status before relying on the work having stopped or "+
+				"starting conflicting replacement work.",
 			func(ctx context.Context, args interruptAgentArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
 				if currentChat == nil {
 					return fantasy.NewTextErrorResponse("subagent callbacks are not configured"), nil
@@ -1043,7 +1047,7 @@ func (p *Server) subagentTools(
 				}, targetChat)), nil
 			},
 		),
-		fantasy.NewAgentTool(
+		newSubagentTool(
 			"list_agents",
 			"List the child agents spawned by this chat, most recently "+
 				"active first. Returns up to `limit` agents (default 10) "+

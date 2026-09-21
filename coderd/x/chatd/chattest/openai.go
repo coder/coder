@@ -127,7 +127,8 @@ func (m *OpenAIMessage) UnmarshalJSON(data []byte) error {
 
 // OpenAIToolFunction represents the function definition inside a tool.
 type OpenAIToolFunction struct {
-	Name string `json:"name"`
+	Name        string `json:"name"`
+	Description string `json:"description,omitempty"`
 }
 
 // OpenAITool represents a tool definition in an OpenAI request.
