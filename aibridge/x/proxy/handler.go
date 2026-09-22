@@ -2,14 +2,18 @@ package proxy
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"errors"
+	"io"
 	"net"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
 	"strings"
+	"time"
 
+	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
@@ -19,11 +23,14 @@ import (
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/aibridge/circuitbreaker"
 	"github.com/coder/coder/v2/aibridge/clientmeta"
+	"github.com/coder/coder/v2/aibridge/config"
 	aibcontext "github.com/coder/coder/v2/aibridge/context"
 	"github.com/coder/coder/v2/aibridge/intercept/apidump"
+	"github.com/coder/coder/v2/aibridge/interceptionerror"
 	"github.com/coder/coder/v2/aibridge/keypool"
 	"github.com/coder/coder/v2/aibridge/metrics"
 	"github.com/coder/coder/v2/aibridge/provider"
+	"github.com/coder/coder/v2/aibridge/recorder"
 	"github.com/coder/coder/v2/aibridge/routing"
 	"github.com/coder/coder/v2/aibridge/tracing"
 	"github.com/coder/coder/v2/aibridge/utils"
@@ -40,9 +47,11 @@ type forwardingHandler struct {
 	transport   http.RoundTripper
 	breaker     *circuitbreaker.ProviderCircuitBreakers
 	failover    keypool.KeyFailoverConfig
+	recorder    recorder.Recorder
 	logger      slog.Logger
 	metrics     *metrics.Metrics
 	tracer      trace.Tracer
+	record      bool
 	metricRoute string
 }
 
@@ -100,7 +109,11 @@ func (h *forwardingHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	r = r.WithContext(ctx)
 
 	client := clientmeta.GuessClient(r)
-	actorID := aibcontext.ActorIDFromContext(ctx)
+	actor := aibcontext.ActorFromContext(ctx)
+	actorID := ""
+	if actor != nil {
+		actorID = actor.ID
+	}
 	log := h.logger.With(
 		slog.F("provider", h.provider.Name()),
 		slog.F("path", r.URL.Path),
@@ -109,12 +122,18 @@ func (h *forwardingHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		slog.F("client", string(client)),
 	)
 
+	if h.record && actor == nil {
+		log.Warn(ctx, "rejecting request without actor")
+		http.Error(w, "no actor found", http.StatusBadRequest)
+		return
+	}
 	if clientmeta.HasConnectionUpgrade(r) {
 		log.Debug(ctx, "rejecting unsupported HTTP upgrade")
 		http.Error(w, "HTTP upgrades are not supported", http.StatusNotImplemented)
 		return
 	}
-	if _, _, err := clientmeta.ExtractAgentFirewallHeaders(r); err != nil {
+	firewallSessionID, firewallSequence, err := clientmeta.ExtractAgentFirewallHeaders(r)
+	if err != nil {
 		log.Warn(ctx, "rejecting request with invalid agent firewall headers", slog.Error(err))
 		http.Error(w, "invalid agent firewall headers", http.StatusBadRequest)
 		return
@@ -136,10 +155,57 @@ func (h *forwardingHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		r.Body = http.MaxBytesReader(w, r.Body, routing.MaxRequestBodyBytes)
 	}
 
-	state := forwardingState{}
+	failoverConfig := h.failover
+	route := h.metricRoute
+	var sessionID *string
+	credentialKind, credentialHint := "", ""
+	if h.record {
+		payload, captureErr := captureRequestBody(r)
+		if captureErr != nil {
+			if _, ok := errors.AsType[*http.MaxBytesError](captureErr); ok {
+				log.Warn(ctx, "rejecting oversized request body")
+				routing.WriteRequestBodyTooLarge(ctx, w)
+			} else {
+				log.Warn(ctx, "failed to read request body", slog.Error(captureErr))
+				http.Error(w, "failed to read request body", http.StatusBadRequest)
+			}
+			return
+		}
+		setReplayBody(r, payload)
+		sessionID = clientmeta.GuessSessionIDFromPayload(client, r, payload)
+		credentialKind, credentialHint = credentialMetadata(h.provider, failoverConfig, r)
+	}
+
+	state := forwardingState{credentialHint: credentialHint}
+	start := time.Now()
+	var interceptionID string
+	if h.record {
+		interceptionID = uuid.NewString()
+		if err := h.recorder.RecordInterception(ctx, &recorder.InterceptionRecord{
+			ID:                          interceptionID,
+			InitiatorID:                 actor.ID,
+			Metadata:                    actor.Metadata,
+			Provider:                    h.provider.Type(),
+			ProviderName:                h.provider.Name(),
+			Model:                       unknownModel,
+			UserAgent:                   r.UserAgent(),
+			Client:                      string(client),
+			ClientSessionID:             sessionID,
+			AgentFirewallSessionID:      firewallSessionID,
+			AgentFirewallSequenceNumber: firewallSequence,
+			CredentialKind:              credentialKind,
+			CredentialHint:              credentialHint,
+		}); err != nil {
+			span.SetStatus(codes.Error, "failed to record interception")
+			log.Warn(ctx, "failed to record interception", slog.Error(err))
+			http.Error(w, "failed to record interception", http.StatusInternalServerError)
+			return
+		}
+	}
+
 	defer func() {
 		panicValue := recover()
-		aborted, _ := terminalError(r, &state, panicValue)
+		aborted := h.finalize(ctx, span, r, actorID, string(client), route, interceptionID, start, &state, panicValue)
 		if panicValue != nil {
 			panic(panicValue)
 		}
@@ -148,17 +214,36 @@ func (h *forwardingHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}()
 
-	if h.metrics != nil {
+	if h.record && h.metrics != nil {
+		h.metrics.InterceptionsInflight.WithLabelValues(h.provider.Name(), unknownModel, route).Inc()
+		state.metricsStarted = true
+	}
+	if !h.record && h.metrics != nil {
 		h.metrics.PassthroughCount.WithLabelValues(
-			h.provider.Name(), h.metricRoute, routing.MetricMethod(r.Method),
+			h.provider.Name(), route, routing.MetricMethod(r.Method),
 		).Inc()
+	}
+
+	if failoverConfig.InjectAuthKey != nil {
+		inject := failoverConfig.InjectAuthKey
+		failoverConfig.InjectAuthKey = func(headers *http.Header, key string) {
+			state.credentialHint = utils.MaskSecret(key)
+			inject(headers, key)
+		}
+	}
+	if failoverConfig.BuildKeyPoolResponse != nil {
+		build := failoverConfig.BuildKeyPoolResponse
+		failoverConfig.BuildKeyPoolResponse = func(poolErr *keypool.Error) *http.Response {
+			state.poolErr = poolErr
+			return build(poolErr)
+		}
 	}
 
 	requestProxy := &httputil.ReverseProxy{
 		Rewrite: func(pr *httputil.ProxyRequest) {
 			rewriteRequest(pr, h.provider.RoutePrefix(), h.baseURL)
 		},
-		Transport:     keypool.NewKeyFailoverTransport(h.transport, h.failover),
+		Transport:     keypool.NewKeyFailoverTransport(h.transport, failoverConfig),
 		FlushInterval: -1,
 		ModifyResponse: func(resp *http.Response) error {
 			utils.StripSensitiveResponseHeaders(resp.Header)
@@ -194,12 +279,28 @@ func (h *forwardingHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		ErrorLog: slog.Stdlib(ctx, log, slog.LevelWarn),
 	}
 
-	state.execErr = h.breaker.Execute(h.metricRoute, unknownModel, w, func(rw http.ResponseWriter) error {
+	state.execErr = h.breaker.Execute(route, unknownModel, w, func(rw http.ResponseWriter) error {
 		writer := &errorCapturingResponseWriter{ResponseWriter: rw}
 		defer func() { state.writeErr = writer.err }()
 		requestProxy.ServeHTTP(writer, r)
 		return nil
 	})
+}
+
+func captureRequestBody(r *http.Request) ([]byte, error) {
+	if r.Body == nil {
+		return nil, nil
+	}
+	body := r.Body
+	defer body.Close()
+	return io.ReadAll(body)
+}
+
+func setReplayBody(r *http.Request, payload []byte) {
+	newBody := func() io.ReadCloser { return io.NopCloser(bytes.NewReader(payload)) }
+	r.Body = newBody()
+	r.GetBody = func() (io.ReadCloser, error) { return newBody(), nil }
+	r.ContentLength = int64(len(payload))
 }
 
 func rewriteRequest(pr *httputil.ProxyRequest, routePrefix string, baseURL *url.URL) {
@@ -218,18 +319,93 @@ func rewriteRequest(pr *httputil.ProxyRequest, routePrefix string, baseURL *url.
 	utils.DropRequestTrailers(pr.Out)
 }
 
+func credentialMetadata(prov provider.Provider, failoverConfig keypool.KeyFailoverConfig, r *http.Request) (kind, hint string) {
+	byok := prov.Type() == config.ProviderCopilot
+	if failoverConfig.IsBYOK != nil {
+		byok = failoverConfig.IsBYOK(r)
+	}
+	if !byok {
+		return recorder.CredentialKindCentralized, recorder.CredentialHintFailoverKey
+	}
+	secret := ""
+	if prov.Type() == config.ProviderAnthropic {
+		secret = r.Header.Get("X-Api-Key")
+	}
+	if secret == "" {
+		authorization := strings.TrimSpace(r.Header.Get("Authorization"))
+		if _, value, ok := strings.Cut(authorization, " "); ok && strings.TrimSpace(value) != "" {
+			secret = strings.TrimSpace(value)
+		} else {
+			secret = authorization
+		}
+	}
+	if secret == "" {
+		secret = r.Header.Get(prov.AuthHeader())
+	}
+	return recorder.CredentialKindBYOK, utils.MaskSecret(secret)
+}
+
 type forwardingState struct {
 	// ReverseProxy and its transports update this state synchronously on the
 	// serving goroutine. The stdlib flush timer never accesses these fields.
-	status       int
-	transportErr error
-	execErr      error
-	writeErr     error
-	body         *observedBody
+	status         int
+	credentialHint string
+	poolErr        error
+	transportErr   error
+	execErr        error
+	writeErr       error
+	body           *observedBody
+	metricsStarted bool
+}
+
+func (h *forwardingHandler) finalize(ctx context.Context, span trace.Span, r *http.Request, actorID, client, route, interceptionID string, start time.Time, state *forwardingState, panicValue any) bool {
+	aborted, terminalErr := terminalError(r, state, panicValue)
+	if !h.record {
+		return aborted
+	}
+	if h.metrics != nil {
+		if state.metricsStarted {
+			h.metrics.InterceptionsInflight.WithLabelValues(h.provider.Name(), unknownModel, route).Dec()
+		}
+		h.metrics.InterceptionDuration.WithLabelValues(h.provider.Name(), unknownModel).Observe(time.Since(start).Seconds())
+	}
+
+	errType, errMessage := interceptionerror.Categorize(h.provider, terminalErr, state.status)
+	status := metrics.InterceptionCountStatusCompleted
+	if terminalErr != nil || state.status >= http.StatusBadRequest {
+		status = metrics.InterceptionCountStatusFailed
+		span.SetStatus(codes.Error, errMessage)
+		fields := []slog.Field{
+			slog.F("interception_id", interceptionID),
+			slog.F("status_code", state.status),
+			slog.F("error_type", string(errType)),
+		}
+		if errors.Is(terminalErr, context.Canceled) || errors.Is(terminalErr, context.DeadlineExceeded) {
+			h.logger.Debug(ctx, "interception failed", fields...)
+		} else {
+			h.logger.Warn(ctx, "interception failed", fields...)
+		}
+	}
+	if h.metrics != nil {
+		h.metrics.InterceptionCount.WithLabelValues(h.provider.Name(), unknownModel, status, route, routing.MetricMethod(r.Method), actorID, client).Inc()
+	}
+
+	recordCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), recorder.DefaultAsyncTimeout)
+	defer cancel()
+	if err := h.recorder.RecordInterceptionEnded(recordCtx, &recorder.InterceptionRecordEnded{
+		ID:             interceptionID,
+		CredentialHint: state.credentialHint,
+		ErrorType:      errType,
+		ErrorMessage:   errMessage,
+	}); err != nil {
+		h.logger.Warn(recordCtx, "failed to record interception end", slog.Error(err), slog.F("interception_id", interceptionID))
+	}
+	return aborted
 }
 
 // terminalError reports whether the response stream must be aborted and the
-// terminal forwarding error. Breaker errors retain precedence over copy aborts.
+// terminal error to classify. Abort detection is independent from terminal
+// error precedence because pool or transport errors can coexist with an abort.
 func terminalError(r *http.Request, state *forwardingState, panicValue any) (aborted bool, terminal error) {
 	var abortErr error
 	switch {
@@ -246,6 +422,8 @@ func terminalError(r *http.Request, state *forwardingState, panicValue any) (abo
 	}
 
 	switch {
+	case state.poolErr != nil:
+		return abortErr != nil, state.poolErr
 	case state.execErr != nil:
 		return abortErr != nil, state.execErr
 	case abortErr != nil:
