@@ -74,11 +74,14 @@ export const useChatContext = ({
 	const contextLimitTokens =
 		contextLimit && contextLimit > 0 ? contextLimit : undefined;
 	const rawUsage = getLatestContextUsage(messages, contextLimitTokens);
-	const compressionThreshold = resolveCompactionThreshold(
-		modelId,
-		thresholdsQuery.data?.thresholds,
-		models,
-	);
+	// User settings belong to the viewer, but compaction uses the chat owner.
+	const compressionThreshold = isReadOnly
+		? undefined
+		: resolveCompactionThreshold(
+				modelId,
+				thresholdsQuery.data?.thresholds,
+				models,
+			);
 	const contextUsage: AgentContextUsage | null =
 		rawUsage ||
 		observedChat.context ||

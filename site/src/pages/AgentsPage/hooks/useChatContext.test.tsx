@@ -238,11 +238,16 @@ describe("useChatContext", () => {
 		);
 	});
 
-	it.each([{ chat: { ...dirtyChat, archived: true } }, { isReadOnly: true }])(
-		"uses the historical model for archived/read-only chats despite a selected model: %j",
-		async (props) => {
+	it.each([
+		{ archived: true, isReadOnly: false, threshold: 60 },
+		{ archived: false, isReadOnly: true, threshold: undefined },
+		{ archived: true, isReadOnly: true, threshold: undefined },
+	])(
+		"preserves historical windows but only shows the owner threshold: %j",
+		async ({ archived, isReadOnly, threshold }) => {
 			const { inspect, onInspect } = setup({
-				...props,
+				chat: { ...dirtyChat, archived },
+				isReadOnly,
 				models: [chatModel, compactionModel, alternateModel],
 				selectedModelId: alternateModel.id,
 			});
@@ -251,7 +256,7 @@ describe("useChatContext", () => {
 				expect.objectContaining({
 					contextUsage: expect.objectContaining({
 						contextLimitTokens: 100000,
-						compressionThreshold: 60,
+						compressionThreshold: threshold,
 					}),
 					onApplyContext: undefined,
 				}),
