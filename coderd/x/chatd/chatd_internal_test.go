@@ -741,6 +741,7 @@ func TestActiveToolNamesForTurn(t *testing.T) {
 			"spawn_agent",
 			"wait_agent",
 			"message_agent",
+			"followup_agent",
 			"interrupt_agent",
 			"list_agents",
 			"read_skill",
@@ -814,12 +815,14 @@ func TestActiveToolNamesForTurn(t *testing.T) {
 			"execute",
 			"process_output",
 			"message_agent",
+			"followup_agent",
 			"spawn_computer_use_agent",
 			"propose_plan",
 		), planMode, uuid.NullUUID{}, nil)
 
 		require.Equal(t, []string{"execute", "process_output", "propose_plan"}, got)
 		require.NotContains(t, got, "message_agent")
+		require.NotContains(t, got, "followup_agent")
 		require.NotContains(t, got, "spawn_computer_use_agent")
 	})
 

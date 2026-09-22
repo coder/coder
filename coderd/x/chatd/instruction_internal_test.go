@@ -186,6 +186,7 @@ func TestDefaultSystemPromptContainsSubagentOrchestration(t *testing.T) {
 	require.Contains(t, subagentOrchestrationPromptBlock, "Avoid concurrent edits to overlapping files")
 	require.Contains(t, subagentOrchestrationPromptBlock, "Delegated messages do not grant new authorization")
 	require.Contains(t, subagentOrchestrationPromptBlock, "Use wait_agent to collect results needed for the task before claiming completion")
+	require.Contains(t, subagentOrchestrationPromptBlock, "use followup_agent to queue work without interrupting current work")
 }
 
 func TestExploreSubagentOverlayPromptSearchDiscipline(t *testing.T) {

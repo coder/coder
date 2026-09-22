@@ -262,8 +262,9 @@ tasks:
 | `spawn_agent` (`type=general` or `explore`) | Delegate a task to a sub-agent running in parallel, optionally on a specific model                                                                                    |
 | `list_subagent_models`                      | List the models available for `spawn_agent`'s `model_config_id` argument                                                                                              |
 | `wait_agent`                                | Wait for a sub-agent to complete and collect its result                                                                                                               |
-| `message_agent`                             | Send a follow-up message to a running sub-agent                                                                                                                       |
-| `interrupt_agent`                           | Halt a sub-agent's current turn; it transitions to waiting or running if there are queued messages                                                                    |
+| `message_agent`                             | Send a direct message that is promoted ahead of queued follow-up work                                                                                                 |
+| `followup_agent`                            | Queue follow-up work after the sub-agent's current and already queued work                                                                                            |
+| `interrupt_agent`                           | Halt a sub-agent's current turn without adding instructions; it transitions to waiting or running if there are queued messages                                        |
 | `spawn_agent` (`type=computer_use`)         | Spawn a sub-agent with desktop interaction (screenshot, mouse, keyboard)                                                                                              |
 | `list_agents`                               | List spawned child agents, most recently active first                                                                                                                 |
 | `read_skill`                                | Read the instructions for a workspace skill by name                                                                                                                   |
@@ -271,13 +272,15 @@ tasks:
 | `web_search`                                | Search the internet (provider-native, when enabled)                                                                                                                   |
 | `find_tools`                                | Search the deferred MCP tool catalog and activate matching tools. Only available when the `mcp-tool-search` experiment is enabled and the turn has MCP tools to defer |
 
+`message_agent` queues and promotes the message as separate operations. Queue processing can start first, and the tool can report a promotion error after the sub-agent starts the message. If the sub-agent is already stopped with an error while work is queued, the existing queue head starts first.
+
 These tools connect to the workspace over the same secure connection used for
 web terminals and IDE access. No additional ports or services are required in
 the workspace.
 
 Platform tools (`list_templates`, `read_template`, `create_workspace`,
 `start_workspace`, `stop_workspace`, `propose_plan`, `ask_user_question`) and orchestration tools (`spawn_agent`,
-`list_subagent_models`, `wait_agent`, `message_agent`, `interrupt_agent`, `list_agents`)
+`list_subagent_models`, `wait_agent`, `message_agent`, `followup_agent`, `interrupt_agent`, `list_agents`)
 are only available to root chats. Sub-agents do not have access to these
 tools and cannot create workspaces or spawn further sub-agents.
 

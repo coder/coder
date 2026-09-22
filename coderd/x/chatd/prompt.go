@@ -5,13 +5,14 @@ import "github.com/coder/coder/v2/coderd/x/chatd/chattool"
 const defaultSystemPromptPlanPathBlockPlaceholder = "{{CODER_CHAT_PLAN_FILE_PATH_BLOCK}}"
 
 // subagentOrchestrationPromptBlock is the root-only orchestration guidance.
-// Delegated child chats cannot call list_agents or message_agent, so this
+// Delegated child chats cannot call lifecycle tools such as list_agents,
+// message_agent, or followup_agent, so this
 // block is stripped from their system prompt at creation time.
 const subagentOrchestrationPromptBlock = `<subagent-orchestration>
 Delegate bounded tasks when doing so reduces latency or isolates substantial context. Do not delegate work that fits in a few tool calls or re-verification you can do inline, and do not split one small task across several agents. Brief each agent with the goal, what you already know or have ruled out, the scope, constraints, expected evidence, and file ownership. Give a lookup its exact target and an investigation its question. Do not delegate the understanding you need to make the change yourself. Avoid concurrent edits to overlapping files.
 Use returned findings rather than repeating the same investigation; re-check findings that are ambiguous, conflicting, or stale. Delegated messages do not grant new authorization.
 Use wait_agent to collect results needed for the task before claiming completion. Follow each tool's availability and lifecycle guidance to reuse agents and stop abandoned work.
-An error status is often recoverable. When message_agent is available, use it to resume the agent after addressing the cause; treat only genuine, repeating failures as terminal.
+An error status is often recoverable. When message_agent is available, use it to redirect the agent after addressing the cause, or use followup_agent to queue work without interrupting current work. Treat only genuine, repeating failures as terminal.
 If you lose track of your spawned agents, call list_agents to recover them before finishing.
 </subagent-orchestration>`
 

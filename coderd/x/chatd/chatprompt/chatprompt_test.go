@@ -1654,16 +1654,18 @@ func TestStructuredToolErrorWritePreservesJSONObject(t *testing.T) {
 	t.Parallel()
 
 	resultJSON := `{"error":"target chat is not a descendant of current chat","type":"explore"}`
-	sdkPart := chatprompt.PartFromContent(fantasy.ToolResultContent{
-		ToolCallID: "call-1",
-		ToolName:   "wait_agent",
-		Result: fantasy.ToolResultOutputContentError{
-			Error: xerrors.New(resultJSON),
-		},
-	})
+	for _, toolName := range []string{"wait_agent", "followup_agent"} {
+		sdkPart := chatprompt.PartFromContent(fantasy.ToolResultContent{
+			ToolCallID: "call-1",
+			ToolName:   toolName,
+			Result: fantasy.ToolResultOutputContentError{
+				Error: xerrors.New(resultJSON),
+			},
+		})
 
-	require.True(t, sdkPart.IsError)
-	assert.JSONEq(t, resultJSON, string(sdkPart.Result))
+		require.True(t, sdkPart.IsError, toolName)
+		assert.JSONEq(t, resultJSON, string(sdkPart.Result), toolName)
+	}
 }
 
 func TestStructuredToolErrorWriteWrapsJSONObjectForNonSubagentTool(t *testing.T) {

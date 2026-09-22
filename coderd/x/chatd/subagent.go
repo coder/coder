@@ -105,9 +105,13 @@ type waitAgentArgs struct {
 }
 
 type messageAgentArgs struct {
-	ChatID    string `json:"chat_id"`
-	Message   string `json:"message"`
-	Interrupt bool   `json:"interrupt,omitempty"`
+	ChatID  string `json:"chat_id"`
+	Message string `json:"message"`
+}
+
+type followupAgentArgs struct {
+	ChatID  string `json:"chat_id"`
+	Message string `json:"message"`
 }
 
 type interruptAgentArgs struct {
@@ -941,63 +945,27 @@ func (p *Server) subagentTools(
 		),
 		fantasy.NewAgentTool(
 			"message_agent",
-			"Send a follow-up message to a previously spawned child "+
-				"agent. If the agent is idle, it resumes work on the "+
-				"message. If it is busy, the message is queued behind its "+
-				"current work and any earlier queued messages; set interrupt "+
-				"to true for corrections, changed scope, or a handoff that "+
-				"returns the child's task to you, so its current work stops "+
-				"first. Interrupting does not clear earlier queued messages, "+
-				"and the tool result does not confirm the child has stopped. "+
-				"Use wait_agent to collect the child's response. A handoff is "+
-				"acknowledged only when wait_agent returns the child's response "+
-				"to your handoff message; a message_agent result or an "+
-				"interrupting status is not an acknowledgment.",
+			"Send a direct message to a previously spawned child agent. If "+
+				"the agent is idle, it starts work on the message. If it is busy, "+
+				"the message is promoted ahead of queued follow-up work and its "+
+				"current work is interrupted. An errored agent with queued work "+
+				"starts its existing queue head before this message can be "+
+				"promoted. Queueing and promotion are separate operations, so "+
+				"queue processing can win the race and the tool may report a "+
+				"promotion error after the child starts the message. Use "+
+				"wait_agent to collect the child's response.",
 			func(ctx context.Context, args messageAgentArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
-				if currentChat == nil {
-					return fantasy.NewTextErrorResponse("subagent callbacks are not configured"), nil
-				}
-
-				targetChatID, err := parseSubagentToolChatID(args.ChatID)
-				if err != nil {
-					return fantasy.NewTextErrorResponse(err.Error()), nil
-				}
-
-				parent := currentChat()
-				var targetChatInfo *database.Chat
-				if chat, lookupErr := p.db.GetChatByID(ctx, targetChatID); lookupErr == nil {
-					targetChatInfo = &chat
-				} else if !xerrors.Is(lookupErr, sql.ErrNoRows) {
-					p.logger.Warn(ctx, "unexpected error looking up chat for message",
-						slog.F("chat_id", targetChatID),
-						slog.Error(lookupErr),
-					)
-				}
-				busyBehavior := SendMessageBusyBehaviorQueue
-				if args.Interrupt {
-					busyBehavior = SendMessageBusyBehaviorInterrupt
-				}
-				targetChat, err := p.sendSubagentMessage(
-					ctx,
-					parent.ID,
-					targetChatID,
-					args.Message,
-					busyBehavior,
-				)
-				if err != nil {
-					return subagentErrorResponse(err, targetChatInfo), nil
-				}
-
-				interrupted := false
-				if args.Interrupt && targetChatInfo != nil {
-					interrupted = targetChatInfo.Status == database.ChatStatusRunning
-				}
-				return toolJSONResponse(withSubagentType(map[string]any{
-					"chat_id":     targetChat.ID.String(),
-					"title":       targetChat.Title,
-					"status":      string(targetChat.Status),
-					"interrupted": interrupted,
-				}, targetChat)), nil
+				return p.runSubagentMessageTool(ctx, currentChat, args.ChatID, args.Message, true)
+			},
+		),
+		fantasy.NewAgentTool(
+			"followup_agent",
+			"Queue follow-up work for a previously spawned child agent. If "+
+				"the agent is idle, it starts work on the message. If it is busy, "+
+				"the message remains behind its current work and any earlier "+
+				"queued messages.",
+			func(ctx context.Context, args followupAgentArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
+				return p.runSubagentMessageTool(ctx, currentChat, args.ChatID, args.Message, false)
 			},
 		),
 		fantasy.NewAgentTool(
@@ -1264,8 +1232,8 @@ func (p *Server) createChildSubagentChatWithOptions(
 	// child chat creation does not hold one DB connection while waiting
 	// for another pool checkout.
 	deploymentPrompt := p.resolveDeploymentSystemPrompt(ctx)
-	// Delegated chats cannot call list_agents or message_agent, so
-	// strip the root-only orchestration guidance from their prompt.
+	// Delegated chats cannot call root lifecycle tools, so strip the
+	// root-only orchestration guidance from their prompt.
 	deploymentPrompt = strings.Replace(deploymentPrompt, subagentOrchestrationPromptBlock, "", 1)
 
 	// Review before persistence so spawned chats cannot bypass prompt policy.
@@ -1386,19 +1354,58 @@ func (p *Server) createChildSubagentChatWithOptions(
 	return child, nil
 }
 
+func (p *Server) runSubagentMessageTool(
+	ctx context.Context,
+	currentChat func() database.Chat,
+	rawTargetChatID string,
+	message string,
+	direct bool,
+) (fantasy.ToolResponse, error) {
+	if currentChat == nil {
+		return fantasy.NewTextErrorResponse("subagent callbacks are not configured"), nil
+	}
+
+	targetChatID, err := parseSubagentToolChatID(rawTargetChatID)
+	if err != nil {
+		return fantasy.NewTextErrorResponse(err.Error()), nil
+	}
+
+	parent := currentChat()
+	var targetChatInfo *database.Chat
+	if chat, lookupErr := p.db.GetChatByID(ctx, targetChatID); lookupErr == nil {
+		targetChatInfo = &chat
+	} else if !xerrors.Is(lookupErr, sql.ErrNoRows) {
+		p.logger.Warn(ctx, "unexpected error looking up chat for message",
+			slog.F("chat_id", targetChatID),
+			slog.Error(lookupErr),
+		)
+	}
+
+	targetChat, err := p.sendSubagentMessage(ctx, parent, targetChatID, message, direct)
+	if err != nil {
+		return subagentErrorResponse(err, targetChatInfo), nil
+	}
+
+	return toolJSONResponse(withSubagentType(map[string]any{
+		"chat_id": targetChat.ID.String(),
+		"title":   targetChat.Title,
+		"status":  string(targetChat.Status),
+	}, targetChat)), nil
+}
+
 func (p *Server) sendSubagentMessage(
 	ctx context.Context,
-	parentChatID uuid.UUID,
+	parentChat database.Chat,
 	targetChatID uuid.UUID,
 	message string,
-	busyBehavior SendMessageBusyBehavior,
+	direct bool,
 ) (database.Chat, error) {
 	message = strings.TrimSpace(message)
 	if message == "" {
 		return database.Chat{}, xerrors.New("message is required")
 	}
 
-	isDescendant, err := isSubagentDescendant(ctx, p.db, parentChatID, targetChatID)
+	isDescendant, err := isSubagentDescendant(ctx, p.db, parentChat.ID, targetChatID)
 	if err != nil {
 		return database.Chat{}, err
 	}
@@ -1406,20 +1413,37 @@ func (p *Server) sendSubagentMessage(
 		return database.Chat{}, ErrSubagentNotDescendant
 	}
 
-	// Look up the target chat to get the owner for CreatedBy.
+	// CreatedBy remains the target owner because agent messages are persisted as
+	// user turns. The content envelope carries the authoritative sending chat ID.
 	targetChat, err := p.db.GetChatByID(ctx, targetChatID)
 	if err != nil {
 		return database.Chat{}, xerrors.Errorf("get target chat: %w", err)
 	}
+	content := fmt.Sprintf(
+		"Message from agent %s (%s):\n%s",
+		parentChat.Title,
+		parentChat.ID,
+		message,
+	)
 
 	sendResult, err := p.SendMessage(ctx, SendMessageOptions{
 		ChatID:       targetChatID,
 		CreatedBy:    targetChat.OwnerID,
-		Content:      []codersdk.ChatMessagePart{codersdk.ChatMessageText(message)},
-		BusyBehavior: busyBehavior,
+		Content:      []codersdk.ChatMessagePart{codersdk.ChatMessageText(content)},
+		BusyBehavior: SendMessageBusyBehaviorQueue,
 	})
 	if err != nil {
 		return database.Chat{}, err
+	}
+	if direct && sendResult.QueuedMessage != nil {
+		_, err = p.PromoteQueued(ctx, PromoteQueuedOptions{
+			ChatID:          targetChatID,
+			QueuedMessageID: sendResult.QueuedMessage.ID,
+		})
+		if err != nil {
+			return database.Chat{}, xerrors.Errorf("promote direct agent message: %w", err)
+		}
+		return p.db.GetChatByID(ctx, targetChatID)
 	}
 
 	return sendResult.Chat, nil

@@ -94,12 +94,13 @@ const shouldRenderSubagentLifecycleTool = ({
 	if (
 		descriptor.action !== "wait" &&
 		descriptor.action !== "message" &&
+		descriptor.action !== "followup" &&
 		descriptor.action !== "interrupt"
 	) {
 		return true;
 	}
 
-	// Wait, message, and interrupt rows can stream before their target
+	// Wait, message, follow-up, and interrupt rows can stream before their target
 	// chat_id arrives. Hiding them until that id exists avoids flashing generic
 	// lifecycle copy before the transcript can resolve the real title.
 	return Boolean(getSubagentChatId({ args, result }));
