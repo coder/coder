@@ -292,6 +292,74 @@ describe("OAuth2AppForm", () => {
 		},
 	);
 
+	// Confidential apps could store a non-local http callback before the form
+	// checked for it. The stored value fails validation on load, so the error
+	// must show without the field being touched.
+	it("shows the error for a stored callback that fails validation", async () => {
+		const user = userEvent.setup();
+		const onSubmit = vi.fn();
+		render(
+			<OAuth2AppForm
+				app={{
+					...MockOAuth2ProviderApps[0],
+					callback_url: "http://intranet.example.com/callback",
+				}}
+				onSubmit={onSubmit}
+				isUpdating={false}
+				disabled={false}
+			/>,
+		);
+
+		expect(
+			await screen.findByText("Please enter a valid callback URL."),
+		).toBeInTheDocument();
+		await user.type(screen.getByLabelText(/^name/i), " updated");
+		expect(
+			screen.getByRole("button", { name: /update application/i }),
+		).toBeDisabled();
+
+		await user.clear(screen.getByLabelText(/callback url/i));
+		await user.type(
+			screen.getByLabelText(/callback url/i),
+			"https://intranet.example.com/callback",
+		);
+		await waitFor(() =>
+			expect(
+				screen.queryByText("Please enter a valid callback URL."),
+			).not.toBeInTheDocument(),
+		);
+		await user.click(
+			screen.getByRole("button", { name: /update application/i }),
+		);
+		await waitFor(() =>
+			expect(onSubmit).toHaveBeenCalledWith({
+				name: `${MockOAuth2ProviderApps[0].name} updated`,
+				callback_url: "https://intranet.example.com/callback",
+				icon: MockOAuth2ProviderApps[0].icon,
+			}),
+		);
+	});
+
+	it("keeps the callback error hidden when the stored callback is valid", async () => {
+		const user = userEvent.setup();
+		render(
+			<OAuth2AppForm
+				app={MockOAuth2ProviderApps[0]}
+				onSubmit={vi.fn()}
+				isUpdating={false}
+				disabled={false}
+			/>,
+		);
+
+		await user.type(screen.getByLabelText(/^name/i), " updated");
+		expect(
+			screen.queryByText("Please enter a valid callback URL."),
+		).not.toBeInTheDocument();
+		expect(
+			screen.getByRole("button", { name: /update application/i }),
+		).toBeEnabled();
+	});
+
 	it("submits the selected scopes as a space separated list", async () => {
 		const onSubmit = vi.fn();
 		const user = userEvent.setup();
