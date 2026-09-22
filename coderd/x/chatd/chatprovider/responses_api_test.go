@@ -161,7 +161,7 @@ func TestModelFromConfig_OpenAICompatUsesConfiguredTransport(t *testing.T) {
 				chatprovider.UserAgent(),
 				map[string]string{"x-opencode-session": "test-session"},
 				nil,
-				&codersdk.ChatModelOpenAIConfig{UseResponsesAPI: tc.override},
+				&codersdk.ChatModelCallConfig{OpenAIConfig: &codersdk.ChatModelOpenAIConfig{UseResponsesAPI: tc.override}},
 			)
 			require.NoError(t, err)
 
