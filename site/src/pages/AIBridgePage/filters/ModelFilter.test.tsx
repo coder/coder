@@ -17,29 +17,23 @@ const ModelFilterHarness: FC<{ value?: string }> = ({ value }) => {
 	return <ModelFilter menu={menu} />;
 };
 
-it("looks up the selected model as a quoted literal", async () => {
+it("looks up the selected model by its literal identifier", async () => {
 	const modelsSpy = vi
 		.spyOn(API, "getAIBridgeModels")
 		.mockResolvedValue([bedrockModel]);
 	render(<ModelFilterHarness value={bedrockModel} />);
 	await waitFor(() =>
-		expect(modelsSpy).toHaveBeenCalledWith({
-			q: `model:"${bedrockModel}"`,
-			limit: 1,
-		}),
+		expect(modelsSpy).toHaveBeenCalledWith({ model: bedrockModel, limit: 1 }),
 	);
 });
 
-it("searches typed text as a quoted literal with LIKE wildcards escaped", async () => {
+it("searches typed text as a literal model prefix", async () => {
 	const user = userEvent.setup();
 	const modelsSpy = vi.spyOn(API, "getAIBridgeModels").mockResolvedValue([]);
 	render(<ModelFilterHarness />);
 	await user.click(screen.getByRole("button", { name: "Select model" }));
 	await user.type(await screen.findByRole("combobox"), "gpt_4%:");
 	await waitFor(() =>
-		expect(modelsSpy).toHaveBeenCalledWith({
-			q: 'model:"gpt\\_4\\%:"',
-			limit: 25,
-		}),
+		expect(modelsSpy).toHaveBeenCalledWith({ model: "gpt_4%:", limit: 25 }),
 	);
 });

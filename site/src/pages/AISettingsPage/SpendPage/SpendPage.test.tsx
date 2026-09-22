@@ -211,28 +211,16 @@ it("applies a date preset and resets pagination", async () => {
 	expect(searchParam(router, "page")).toBeNull();
 });
 
-it("holds the date picker until the filtered report brings its retention bound", async () => {
+it("keeps the retention bound while a filtered report is pending", async () => {
 	const user = userEvent.setup();
-	const { router, spendSpy, buildReport } = renderSpend(initialSearch, {
-		retention_start: fixedNow.subtract(10, "day").toISOString(),
+	const retentionStart = fixedNow.subtract(10, "day");
+	const { spendSpy } = renderSpend(initialSearch, {
+		retention_start: retentionStart.toISOString(),
 	});
 	await screen.findByRole("table", { name: "Spend by user" });
-	const pickerName = /Feb 10, 2026.*Mar 11, 2026/;
-	await screen.findByRole("button", { name: pickerName });
 
-	let deliverReport = () => {};
-	spendSpy.mockImplementationOnce(
-		(_organizationId, params) =>
-			new Promise((resolve) => {
-				deliverReport = () =>
-					resolve({
-						...buildReport(params),
-						count: 0,
-						totals: { cost_micros: 0, unpriced_usage_count: 0 },
-						users: [],
-					});
-			}),
-	);
+	// Leave the refiltered report pending so its retention bound never arrives.
+	spendSpy.mockImplementationOnce(() => new Promise(() => {}));
 	await user.click(screen.getByRole("button", { name: "Select provider" }));
 	await user.click(await screen.findByRole("option", { name: /OpenAI/ }));
 	await waitFor(() =>
@@ -242,30 +230,67 @@ it("holds the date picker until the filtered report brings its retention bound",
 		),
 	);
 
-	// Without the report's retention bound an open picker would offer this
-	// preset, which starts before retention.
+	// The picker stays usable with the bound the first report delivered, so
+	// every preset it offers requests a period that starts within retention.
 	const requestsBeforePicking = spendSpy.mock.calls.length;
-	for (const picker of screen.queryAllByRole("button", { name: pickerName })) {
-		await user.click(picker);
+	const picker = screen.getByRole("button", {
+		name: /Feb 10, 2026.*Mar 11, 2026/,
+	});
+	await user.click(picker);
+	const offered = screen
+		.getAllByRole("button", { name: /^Last \d+ days$/ })
+		.map((preset) => preset.textContent ?? "");
+	for (const label of offered) {
+		await user.click(screen.getByRole("button", { name: label }));
+		await waitFor(() =>
+			expect(spendSpy.mock.calls.length).toBeGreaterThan(requestsBeforePicking),
+		);
+		await user.click(
+			screen.getByRole("button", { name: /Mar \d+, 2026.*Mar 12, 2026/ }),
+		);
 	}
-	for (const preset of screen.queryAllByRole("button", {
-		name: "Last 30 days",
-	})) {
-		await user.click(preset);
+	const presetRequests = spendSpy.mock.calls.slice(requestsBeforePicking);
+	expect(presetRequests).toHaveLength(offered.length);
+	expect(presetRequests.length).toBeGreaterThan(0);
+	for (const [, params] of presetRequests) {
+		expect(params.provider_name).toBe("openai");
+		expect(dayjs(params.period_start).isBefore(retentionStart)).toBe(false);
 	}
-	expect(spendSpy).toHaveBeenCalledTimes(requestsBeforePicking);
-	expect(searchParam(router, "startDate")).toBe(period.period_start);
+	expect(spendSpy).not.toHaveBeenCalledWith(
+		MockOrganization.id,
+		expect.objectContaining({
+			period_start: fixedNow.subtract(29, "day").startOf("day").toISOString(),
+		}),
+	);
+});
 
-	deliverReport();
-	await screen.findByText("No AI Gateway spend found");
-	await user.click(await screen.findByRole("button", { name: pickerName }));
+it("applies a second range from the keyboard after the first one resolves", async () => {
+	const user = userEvent.setup();
+	const { spendSpy } = renderSpend();
+	await screen.findByRole("table", { name: "Spend by user" });
+
+	await user.click(
+		screen.getByRole("button", { name: /Feb 10, 2026.*Mar 11, 2026/ }),
+	);
 	await user.click(await screen.findByRole("button", { name: "Last 7 days" }));
 	await waitFor(() =>
 		expect(spendSpy).toHaveBeenCalledWith(
 			MockOrganization.id,
 			expect.objectContaining({
-				provider_name: "openai",
 				period_start: fixedNow.subtract(6, "day").startOf("day").toISOString(),
+			}),
+		),
+	);
+	await screen.findByRole("button", { name: /Mar 6, 2026.*Mar 12, 2026/ });
+
+	// Focus returned to the picker when its popover closed, so Enter reopens it.
+	await user.keyboard("{Enter}");
+	await user.click(await screen.findByRole("button", { name: "Yesterday" }));
+	await waitFor(() =>
+		expect(spendSpy).toHaveBeenCalledWith(
+			MockOrganization.id,
+			expect.objectContaining({
+				period_start: fixedNow.subtract(1, "day").startOf("day").toISOString(),
 			}),
 		),
 	);
