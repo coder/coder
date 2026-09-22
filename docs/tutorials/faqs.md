@@ -561,6 +561,11 @@ Agent API capabilities, such as file operations performed by AI agents in
 Coder Agents chat (including chat file uploads into the workspace), are not
 affected by this setting because they do not go through the SSH transfer path.
 
+The `sftp` subsystem is blocked in full, not just the `sftp` command. Any
+workflow that moves files over SFTP stops working, including IDE remote file
+browsers and file synchronization features that use SFTP underneath. Confirm
+which workflows your developers rely on before you enable this setting.
+
 For more advanced security needs, consider adopting an endpoint security
 solution.
 
