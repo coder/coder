@@ -245,6 +245,63 @@ func TestMCPServerConfigsCRUD(t *testing.T) {
 	require.Empty(t, configs)
 }
 
+func TestMCPServerConfigSigningSecret(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitLong)
+	db, pubsub := dbtestutil.NewDB(t)
+	client := coderdtest.New(t, &coderdtest.Options{Database: db, Pubsub: pubsub})
+	firstUser := coderdtest.CreateFirstUser(t, client)
+	path := "/api/v2/organizations/" + firstUser.OrganizationID.String() + "/mcp-servers"
+	secret := strings.Repeat("a", 64)
+
+	request := func(method, path string, body any, status int) codersdk.MCPServerConfig {
+		t.Helper()
+		res, err := client.Request(ctx, method, path, body)
+		require.NoError(t, err)
+		defer res.Body.Close()
+		require.Equal(t, status, res.StatusCode)
+		var response struct {
+			codersdk.MCPServerConfig
+			SigningSecret *string `json:"signing_secret"`
+		}
+		require.NoError(t, json.NewDecoder(res.Body).Decode(&response))
+		require.Nil(t, response.SigningSecret, "secrets must never be returned")
+		return response.MCPServerConfig
+	}
+	created := request(http.MethodPost, path, codersdk.CreateMCPServerConfigRequest{
+		DisplayName: "Signed", Slug: "signed", Transport: "streamable_http",
+		URL: "https://mcp.example.com", AuthType: "none", Availability: "default_on",
+		Enabled: true, ForwardCoderHeaders: true, SigningSecret: secret,
+	}, http.StatusCreated)
+	require.True(t, created.HasSigningSecret)
+	path += "/" + created.ID.String()
+
+	for _, tc := range []struct {
+		name string
+		req  codersdk.UpdateMCPServerConfigRequest
+		want string
+	}{
+		{"preserve", codersdk.UpdateMCPServerConfigRequest{}, secret},
+		{"replace", codersdk.UpdateMCPServerConfigRequest{SigningSecret: new(strings.Repeat("b", 64))}, strings.Repeat("b", 64)},
+		{"clear", codersdk.UpdateMCPServerConfigRequest{SigningSecret: new("")}, ""},
+	} {
+		updated := request(http.MethodPatch, path, tc.req, http.StatusOK)
+		require.Equal(t, tc.want != "", updated.HasSigningSecret)
+		stored, err := db.GetMCPServerConfigByID(ctx, created.ID)
+		require.NoError(t, err)
+		require.Equal(t, tc.want, stored.SigningSecret)
+		read := request(http.MethodGet, path, nil, http.StatusOK)
+		require.Equal(t, updated.HasSigningSecret, read.HasSigningSecret)
+	}
+
+	member, _ := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID)
+	_, err := member.UpdateMCPServerConfig(ctx, firstUser.OrganizationID, created.ID,
+		codersdk.UpdateMCPServerConfigRequest{SigningSecret: &secret})
+	var sdkErr *codersdk.Error
+	require.ErrorAs(t, err, &sdkErr)
+	require.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
+}
+
 func TestMCPServerConfigWrongOrganization(t *testing.T) {
 	t.Parallel()
 
