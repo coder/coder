@@ -1240,12 +1240,20 @@ func New(options *Options) *API {
 
 	// OAuth2 metadata endpoint for RFC 8414 discovery
 	r.Route("/.well-known/oauth-authorization-server", func(r chi.Router) {
-		r.Use(httpmw.RequireOAuth2Provider(oauth2ProviderEnabled))
+		r.Use(
+			httpmw.RequireOAuth2Provider(oauth2ProviderEnabled),
+			// Discovery carries no credential, so the limiter keys on the
+			// address rather than a user.
+			httpmw.RateLimitOAuth2(options.LoginRateLimit, time.Minute),
+		)
 		r.Get("/*", api.oauth2AuthorizationServerMetadata())
 	})
 	// OAuth2 protected resource metadata endpoint for RFC 9728 discovery
 	r.Route("/.well-known/oauth-protected-resource", func(r chi.Router) {
-		r.Use(httpmw.RequireOAuth2Provider(oauth2ProviderEnabled))
+		r.Use(
+			httpmw.RequireOAuth2Provider(oauth2ProviderEnabled),
+			httpmw.RateLimitOAuth2(options.LoginRateLimit, time.Minute),
+		)
 		r.Get("/*", api.oauth2ProtectedResourceMetadata())
 	})
 
@@ -1261,56 +1269,49 @@ func New(options *Options) *API {
 			// rejection carries no credential, so it needs none.
 			httpmw.NoStore,
 		)
-		r.Route("/authorize", func(r chi.Router) {
-			r.Use(
-				// Fetch the app as system for the authorize endpoint
-				httpmw.AsAuthzSystem(httpmw.ExtractOAuth2ProviderAppWithOAuth2Errors(options.Database)),
-				apiKeyMiddlewareRedirect,
-			)
-			// GET shows the consent page, POST processes the consent
-			r.Get("/", api.getOAuth2ProviderAppAuthorize())
-			r.Post("/", api.postOAuth2ProviderAppAuthorize())
-		})
-		r.Route("/tokens", func(r chi.Router) {
-			r.Use(
-				// Use OAuth2-compliant error responses for the tokens endpoint
-				httpmw.AsAuthzSystem(httpmw.ExtractOAuth2ProviderAppWithOAuth2Errors(options.Database)),
-			)
-			r.Group(func(r chi.Router) {
-				r.Use(apiKeyMiddleware)
-				// DELETE on /tokens is not part of the OAuth2 spec.  It is our own
-				// route used to revoke permissions from an application.  It is here for
-				// parity with POST on /tokens.
-				r.Delete("/", api.deleteOAuth2ProviderAppTokens())
-			})
-			// The POST /tokens endpoint will be called from an unauthorized client so
-			// we cannot require an API key.
-			r.Post("/", api.postOAuth2ProviderAppToken())
-		})
+		authorize := r.With(
+			httpmw.RateLimitOAuth2(options.LoginRateLimit, time.Minute),
+			// Fetch the app as system for the authorize endpoint
+			httpmw.AsAuthzSystem(httpmw.ExtractOAuth2ProviderAppWithOAuth2Errors(options.Database)),
+			apiKeyMiddlewareRedirect,
+		)
+		// GET shows the consent page, POST processes the consent
+		authorize.Get("/authorize", api.getOAuth2ProviderAppAuthorize())
+		authorize.Post("/authorize", api.postOAuth2ProviderAppAuthorize())
+
+		tokens := r.With(
+			httpmw.RateLimitOAuth2(options.LoginRateLimit, time.Minute),
+			// Use OAuth2-compliant error responses for the tokens endpoint
+			httpmw.AsAuthzSystem(httpmw.ExtractOAuth2ProviderAppWithOAuth2Errors(options.Database)),
+		)
+		// DELETE on /tokens is not part of the OAuth2 spec.  It is our own
+		// route used to revoke permissions from an application.  It is here for
+		// parity with POST on /tokens.
+		tokens.With(apiKeyMiddleware).Delete("/tokens", api.deleteOAuth2ProviderAppTokens())
+		// The POST /tokens endpoint will be called from an unauthorized client so
+		// we cannot require an API key.
+		tokens.Post("/tokens", api.postOAuth2ProviderAppToken())
 
 		// RFC 7009 Token Revocation Endpoint
-		r.Route("/revoke", func(r chi.Router) {
-			r.Use(
-				// RFC 7009 endpoint uses OAuth2 client authentication, not API key
-				httpmw.AsAuthzSystem(httpmw.ExtractOAuth2ProviderAppWithOAuth2Errors(options.Database)),
-			)
-			// POST /revoke is the standard OAuth2 token revocation endpoint per RFC 7009
-			r.Post("/", api.revokeOAuth2Token())
-		})
+		r.With(
+			httpmw.RateLimitOAuth2(options.LoginRateLimit, time.Minute),
+			// RFC 7009 endpoint uses OAuth2 client authentication, not API key
+			httpmw.AsAuthzSystem(httpmw.ExtractOAuth2ProviderAppWithOAuth2Errors(options.Database)),
+		).Post("/revoke", api.revokeOAuth2Token())
 
 		// RFC 7591 Dynamic Client Registration - Public endpoint
-		r.Post("/register", api.postOAuth2ClientRegistration())
+		r.With(httpmw.RateLimitOAuth2(options.LoginRateLimit, time.Minute)).
+			Post("/register", api.postOAuth2ClientRegistration())
 
 		// RFC 7592 Client Configuration Management - Protected by registration access token
-		r.Route("/clients/{client_id}", func(r chi.Router) {
-			r.Use(
-				// Middleware to validate registration access token
-				oauth2provider.RequireRegistrationAccessToken(api.Database),
-			)
-			r.Get("/", api.oauth2ClientConfiguration())          // Read client configuration
-			r.Put("/", api.putOAuth2ClientConfiguration())       // Update client configuration
-			r.Delete("/", api.deleteOAuth2ClientConfiguration()) // Delete client
-		})
+		clients := r.With(
+			httpmw.RateLimitOAuth2(options.LoginRateLimit, time.Minute),
+			// Middleware to validate registration access token
+			oauth2provider.RequireRegistrationAccessToken(api.Database),
+		)
+		clients.Get("/clients/{client_id}", api.oauth2ClientConfiguration())          // Read client configuration
+		clients.Put("/clients/{client_id}", api.putOAuth2ClientConfiguration())       // Update client configuration
+		clients.Delete("/clients/{client_id}", api.deleteOAuth2ClientConfiguration()) // Delete client
 	})
 
 	// Experimental routes are not guaranteed to be stable and may change at any time.
