@@ -126,6 +126,8 @@ type AgentConn interface {
 	SSH(ctx context.Context) (*gonet.TCPConn, error)
 	SSHClient(ctx context.Context) (*ssh.Client, error)
 	SSHClientOnPort(ctx context.Context, port uint16) (*ssh.Client, error)
+	SSHUpgrade(ctx context.Context) (TCPConn, error)
+	SSHClientUpgrade(ctx context.Context) (*ssh.Client, error)
 	SSHOnPort(ctx context.Context, port uint16) (*gonet.TCPConn, error)
 	Speedtest(ctx context.Context, direction speedtest.Direction, duration time.Duration) ([]speedtest.Result, error)
 	WatchContainers(ctx context.Context, logger slog.Logger) (<-chan codersdk.WorkspaceAgentListContainersResponse, io.Closer, error)
@@ -308,6 +310,108 @@ func (c *agentConn) SSHClientOnPort(ctx context.Context, port uint16) (*ssh.Clie
 	defer span.End()
 
 	netConn, err := c.SSHOnPort(ctx, port)
+	if err != nil {
+		return nil, xerrors.Errorf("ssh: %w", err)
+	}
+
+	sshConn, channels, requests, err := ssh.NewClientConn(netConn, "localhost:22", &ssh.ClientConfig{
+		// SSH host validation isn't helpful, because obtaining a peer
+		// connection already signifies user-intent to dial a workspace.
+		// #nosec
+		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+	})
+	if err != nil {
+		return nil, xerrors.Errorf("ssh conn: %w", err)
+	}
+
+	return ssh.NewClient(sshConn, channels, requests), nil
+}
+
+type TCPConn interface {
+	net.Conn
+	CloseWrite() error
+}
+
+// SSHUpgrade makes an HTTP request with the client session ID that then
+// upgrades into an SSH connection.  If the agent does not support the endpoint,
+// falls back to dialing the port directly.
+func (c *agentConn) SSHUpgrade(ctx context.Context) (TCPConn, error) {
+	ctx, span := tracing.StartSpan(ctx)
+	defer span.End()
+
+	if !c.AwaitReachable(ctx) {
+		return nil, xerrors.Errorf("workspace agent not reachable in time: %v", ctx.Err())
+	}
+
+	c.SendConnectedTelemetry(c.agentAddress(), tailnet.TelemetryApplicationSSH)
+
+	addr := netip.AddrPortFrom(c.agentAddress(), AgentHTTPAPIServerPort)
+	url := fmt.Sprintf("http://%s/api/v0/tcp/%d", addr, AgentStandardSSHPort)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return nil, xerrors.Errorf("new http api request to %q: %w", url, err)
+	}
+	req.Header.Set("Connection", "Upgrade")
+	req.Header.Set("Upgrade", "ssh")
+
+	c.headersMu.RLock()
+	for k, v := range c.extraHeaders {
+		req.Header[k] = v
+	}
+	c.headersMu.RUnlock()
+
+	resp, err := c.apiClient(ctx).Do(req)
+	if err != nil {
+		return nil, xerrors.Errorf("do upgrade request to %q: %w", url, err)
+	}
+	if resp.StatusCode != http.StatusSwitchingProtocols {
+		// Fall back to dialing the port directly.
+		return c.DialContextTCP(ctx, netip.AddrPortFrom(c.agentAddress(), AgentStandardSSHPort))
+	}
+
+	respBody := resp.Body
+	conn, ok := respBody.(rawConn)
+	if !ok {
+		return nil, xerrors.Errorf("response body is not a rawConn: %T", respBody)
+	}
+
+	return &upgradedConn{
+		rawConn: conn,
+		addr:    upgradeAddr{addr: "ssh"},
+	}, nil
+}
+
+type rawConn interface {
+	io.ReadWriteCloser
+	CloseWrite() error
+}
+
+type upgradedConn struct {
+	rawConn
+	addr upgradeAddr
+}
+
+func (u *upgradedConn) LocalAddr() net.Addr              { return u.addr }
+func (u *upgradedConn) RemoteAddr() net.Addr             { return u.addr }
+func (*upgradedConn) SetDeadline(_ time.Time) error      { return nil }
+func (*upgradedConn) SetReadDeadline(_ time.Time) error  { return nil }
+func (*upgradedConn) SetWriteDeadline(_ time.Time) error { return nil }
+
+type upgradeAddr struct {
+	addr string
+}
+
+func (u upgradeAddr) Network() string { return u.addr }
+func (u upgradeAddr) String() string  { return u.addr }
+
+// SSHUpgrade makes an HTTP request with the client session ID that then
+// upgrades into an SSH client connection.  If the agent does not support the
+// endpoint, falls back to dialing the port directly.
+func (c *agentConn) SSHClientUpgrade(ctx context.Context) (*ssh.Client, error) {
+	ctx, span := tracing.StartSpan(ctx)
+	defer span.End()
+
+	netConn, err := c.SSHUpgrade(ctx)
 	if err != nil {
 		return nil, xerrors.Errorf("ssh: %w", err)
 	}

@@ -529,6 +529,21 @@ func (mr *MockAgentConnMockRecorder) SSHClientOnPort(ctx, port any) *gomock.Call
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SSHClientOnPort", reflect.TypeOf((*MockAgentConn)(nil).SSHClientOnPort), ctx, port)
 }
 
+// SSHClientUpgrade mocks base method.
+func (m *MockAgentConn) SSHClientUpgrade(ctx context.Context) (*ssh.Client, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SSHClientUpgrade", ctx)
+	ret0, _ := ret[0].(*ssh.Client)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// SSHClientUpgrade indicates an expected call of SSHClientUpgrade.
+func (mr *MockAgentConnMockRecorder) SSHClientUpgrade(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SSHClientUpgrade", reflect.TypeOf((*MockAgentConn)(nil).SSHClientUpgrade), ctx)
+}
+
 // SSHOnPort mocks base method.
 func (m *MockAgentConn) SSHOnPort(ctx context.Context, port uint16) (*gonet.TCPConn, error) {
 	m.ctrl.T.Helper()
@@ -542,6 +557,21 @@ func (m *MockAgentConn) SSHOnPort(ctx context.Context, port uint16) (*gonet.TCPC
 func (mr *MockAgentConnMockRecorder) SSHOnPort(ctx, port any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SSHOnPort", reflect.TypeOf((*MockAgentConn)(nil).SSHOnPort), ctx, port)
+}
+
+// SSHUpgrade mocks base method.
+func (m *MockAgentConn) SSHUpgrade(ctx context.Context) (workspacesdk.TCPConn, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SSHUpgrade", ctx)
+	ret0, _ := ret[0].(workspacesdk.TCPConn)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// SSHUpgrade indicates an expected call of SSHUpgrade.
+func (mr *MockAgentConnMockRecorder) SSHUpgrade(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SSHUpgrade", reflect.TypeOf((*MockAgentConn)(nil).SSHUpgrade), ctx)
 }
 
 // SetExtraHeaders mocks base method.
