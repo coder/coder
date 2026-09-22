@@ -167,11 +167,11 @@ type ViewItem =
 	| (ViewItemBase & { kind: "local"; repoRoot: string });
 
 // Inputs the view reconciliation needs for one render.
-interface ViewFallbackInput {
+type ViewFallbackInput = {
 	localRepos: readonly string[];
 	remoteDiffStats?: readonly ChatDiffStatus[];
 	primaryRefId: string;
-}
+};
 
 // The view to render when the active one is no longer valid: the
 // remote tab hid, its ref lost its row, or its repo left the set.
