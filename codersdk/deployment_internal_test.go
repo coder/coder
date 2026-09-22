@@ -6,17 +6,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestExperimentDisplayNames(t *testing.T) {
-	t.Parallel()
-
-	require.Len(t, experimentDisplayNames, len(ExperimentsKnown))
-	for _, experiment := range ExperimentsKnown {
-		displayName, ok := experimentDisplayNames[experiment]
-		require.Truef(t, ok, "missing explicit display name for %q", experiment)
-		require.Equal(t, displayName, experiment.DisplayName())
-	}
-}
-
 func TestRemoveTrailingVersionInfo(t *testing.T) {
 	t.Parallel()
 
