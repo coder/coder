@@ -4,7 +4,10 @@ import type { FC, PropsWithChildren } from "react";
 import { QueryClientProvider } from "react-query";
 import { describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
-import type { ChatDiffContents } from "#/api/typesGenerated";
+import type {
+	ChatDiffContents,
+	WorkspaceAgentRepoChanges,
+} from "#/api/typesGenerated";
 import { TooltipProvider } from "#/components/Tooltip/Tooltip";
 import { ThemeOverride } from "#/contexts/ThemeProvider";
 import { MockChatDiffStatus } from "#/testHelpers/chatEntities";
@@ -12,8 +15,22 @@ import { createTestQueryClient } from "#/testHelpers/renderHelpers";
 import themes, { DEFAULT_THEME } from "#/theme";
 import { GitPanel } from "./GitPanel";
 
+// The local diff renders a web component that jsdom cannot
+// construct. The header tests only need the panel to mount.
+vi.mock("../DiffViewer/LocalDiffPanel", () => ({
+	LocalDiffPanel: () => <div data-testid="local-diff-panel" />,
+}));
+
 const mockDiffContents: ChatDiffContents = {
 	chat_id: "test-chat",
+};
+
+const mockRepo: WorkspaceAgentRepoChanges = {
+	repo_root: "/home/coder/coder",
+	branch: "feat/add-logging",
+	remote_origin: "https://github.com/coder/coder.git",
+	unified_diff:
+		"diff --git a/a.ts b/a.ts\n--- a/a.ts\n+++ b/a.ts\n@@ -1 +1 @@\n-old\n+new\n",
 };
 
 const Wrapper: FC<PropsWithChildren> = ({ children }) => {
@@ -56,6 +73,113 @@ const renderPanel = (props: Partial<React.ComponentProps<typeof GitPanel>>) => {
 	};
 	return { view, rerenderPanel };
 };
+
+describe("GitPanel header", () => {
+	it("shows a lone PR as a label with a View PR link, not a menu", async () => {
+		vi.spyOn(API.experimental, "getChatDiffContents").mockResolvedValue(
+			mockDiffContents,
+		);
+
+		renderPanel({
+			remoteDiffStats: [
+				{
+					...MockChatDiffStatus,
+					pr_number: 4847,
+					url: "https://github.com/coder/coder/pull/4847",
+				},
+			],
+		});
+
+		expect(screen.getByTestId("git-panel-view-switcher")).toHaveTextContent(
+			"PR #4847",
+		);
+		expect(
+			screen.queryByRole("button", { name: "Switch git view" }),
+		).not.toBeInTheDocument();
+		expect(screen.getByRole("link", { name: /View PR/ })).toHaveAttribute(
+			"href",
+			"https://github.com/coder/coder/pull/4847",
+		);
+		expect(
+			screen.queryByRole("button", { name: /Commit/ }),
+		).not.toBeInTheDocument();
+	});
+
+	it("hides View PR for a branch-only ref", async () => {
+		vi.spyOn(API.experimental, "getChatDiffContents").mockResolvedValue(
+			mockDiffContents,
+		);
+
+		renderPanel({
+			remoteDiffStats: [
+				{
+					...MockChatDiffStatus,
+					git_branch: "feat/branch-only",
+					url: "https://github.com/coder/coder/tree/feat/branch-only",
+					pr_number: undefined,
+					pull_request_state: undefined,
+					pull_request_title: "",
+				},
+			],
+		});
+
+		expect(screen.getByTestId("git-panel-view-switcher")).toHaveTextContent(
+			"feat/branch-only",
+		);
+		expect(
+			screen.queryByRole("link", { name: /View PR/ }),
+		).not.toBeInTheDocument();
+	});
+
+	it("replaces View PR with a Commit button for a local-only repo", async () => {
+		const user = userEvent.setup();
+		const onCommit = vi.fn();
+
+		renderPanel({
+			onCommit,
+			repositories: new Map([[mockRepo.repo_root, mockRepo]]),
+		});
+
+		expect(
+			screen.queryByRole("button", { name: "Switch git view" }),
+		).not.toBeInTheDocument();
+		expect(
+			screen.queryByRole("link", { name: /View PR/ }),
+		).not.toBeInTheDocument();
+
+		await user.click(screen.getByRole("button", { name: /Commit/ }));
+		expect(onCommit).toHaveBeenCalledWith(mockRepo.repo_root);
+	});
+
+	it("swaps the header action when switching between a PR and a repo", async () => {
+		const user = userEvent.setup();
+		vi.spyOn(API.experimental, "getChatDiffContents").mockResolvedValue(
+			mockDiffContents,
+		);
+
+		renderPanel({
+			remoteDiffStats: [
+				{
+					...MockChatDiffStatus,
+					pr_number: 4847,
+					url: "https://github.com/coder/coder/pull/4847",
+				},
+			],
+			repositories: new Map([[mockRepo.repo_root, mockRepo]]),
+		});
+
+		expect(screen.getByRole("link", { name: /View PR/ })).toBeInTheDocument();
+
+		await user.click(screen.getByRole("button", { name: "Switch git view" }));
+		const menu = await screen.findByRole("menu");
+		await user.click(within(menu).getByText("Working"));
+
+		expect(screen.getByRole("button", { name: /Commit/ })).toBeInTheDocument();
+		expect(
+			screen.queryByRole("link", { name: /View PR/ }),
+		).not.toBeInTheDocument();
+	});
+});
 
 describe("GitPanel per-ref views", () => {
 	it("fetches the selected ref's diff, not the primary's", async () => {

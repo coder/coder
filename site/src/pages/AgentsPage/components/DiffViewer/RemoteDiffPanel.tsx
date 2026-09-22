@@ -1,9 +1,4 @@
-import {
-	ArrowLeftIcon,
-	CopyIcon,
-	ExternalLinkIcon,
-	GitBranchIcon,
-} from "lucide-react";
+import { ArrowLeftIcon, CopyIcon, GitBranchIcon } from "lucide-react";
 import { type FC, type RefObject, useEffect, useState } from "react";
 import { useQuery } from "react-query";
 import { chatDiffContents } from "#/api/queries/chats";
@@ -19,7 +14,7 @@ import { parsePullRequestUrl } from "../../utils/pullRequest";
 import type { ChatMessageInputRef } from "../AgentChatInput";
 import { CommentableDiffViewer } from "../DiffViewer/CommentableDiffViewer";
 import { DiffStatBadge } from "../DiffViewer/DiffStats";
-import type { DiffStyle } from "../DiffViewer/DiffViewer";
+import { type DiffStyle, DiffStyleToggle } from "../DiffViewer/DiffViewer";
 import { parseDiffString } from "../DiffViewer/parseDiff";
 
 export { InlinePromptInput } from "../DiffViewer/CommentableDiffViewer";
@@ -62,6 +57,7 @@ interface RemoteDiffPanelProps {
 	isExpanded?: boolean;
 	chatInputRef?: RefObject<ChatMessageInputRef | null>;
 	diffStyle: DiffStyle;
+	onDiffStyleChange: (style: DiffStyle) => void;
 	diffStatus?: TypesGen.ChatDiffStatus;
 	remoteRef?: TypesGen.DiffStatusRef;
 }
@@ -71,6 +67,7 @@ export const RemoteDiffPanel: FC<RemoteDiffPanelProps> = ({
 	isExpanded,
 	chatInputRef,
 	diffStyle,
+	onDiffStyleChange,
 	diffStatus,
 	remoteRef,
 }) => {
@@ -113,9 +110,6 @@ export const RemoteDiffPanel: FC<RemoteDiffPanelProps> = ({
 	// ---------------------------------------------------------------
 	const pullRequestUrl = diffStatus?.url;
 	const parsedPr = pullRequestUrl ? parsePullRequestUrl(pullRequestUrl) : null;
-	// The server synthesizes /tree/<branch> URLs for refs without
-	// a PR, so classify before rendering the PR link.
-	const hasPullRequest = Boolean(diffStatus?.pr_number ?? parsedPr);
 	const baseBranch = diffStatus?.base_branch;
 	// A cleared PR clears head_branch but keeps git_branch.
 	const headBranch = diffStatus?.head_branch || diffStatus?.git_branch;
@@ -151,24 +145,14 @@ export const RemoteDiffPanel: FC<RemoteDiffPanelProps> = ({
 							<span className="truncate">{pullRequestUrl}</span>
 						)}
 					</div>
-					<div className="ml-auto flex shrink-0 items-center gap-1.5">
+					<div className="ml-auto flex shrink-0 items-center gap-2">
 						{diffStatus?.additions || diffStatus?.deletions ? (
 							<DiffStatBadge
 								additions={diffStatus.additions}
 								deletions={diffStatus.deletions}
 							/>
 						) : null}
-						{pullRequestUrl && hasPullRequest && (
-							<a
-								href={pullRequestUrl}
-								target="_blank"
-								rel="noreferrer"
-								className="inline-flex items-center gap-1 rounded-sm border border-solid border-border-default px-2 text-[13px] font-medium leading-5 text-content-primary no-underline transition-colors hover:bg-surface-secondary"
-							>
-								View PR
-								<ExternalLinkIcon className="size-3" />
-							</a>
-						)}
+						<DiffStyleToggle value={diffStyle} onChange={onDiffStyleChange} />
 					</div>
 				</div>
 			)}
