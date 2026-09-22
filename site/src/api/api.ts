@@ -3065,7 +3065,9 @@ class ApiMethods {
 		await this.axios.put<void>("/api/v2/notifications/inbox/mark-all-as-read");
 	};
 
-	getAIBridgeModels = async (options: SearchParamOptions) => {
+	getAIBridgeModels = async (
+		options: TypesGen.Pagination & { model?: string },
+	) => {
 		const url = getURLWithSearchParams(`${aiGatewayPath}/models`, options);
 
 		const response = await this.axios.get<string[]>(url);

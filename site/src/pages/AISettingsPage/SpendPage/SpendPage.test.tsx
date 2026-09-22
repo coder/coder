@@ -10,7 +10,9 @@ import type {
 	OrganizationAISpendUser,
 } from "#/api/typesGenerated";
 import { usePaginatedQuery } from "#/hooks/usePaginatedQuery";
+import type { Permissions } from "#/modules/permissions";
 import {
+	MockAIProviders,
 	MockEntitlements,
 	MockNoPermissions,
 	MockOrganization,
@@ -23,10 +25,15 @@ import { renderHookWithAuth } from "#/testHelpers/hooks";
 import { renderWithRouter } from "#/testHelpers/renderHelpers";
 import SpendPage from "./SpendPage";
 
+const sessionViewerPermissions: Permissions = {
+	...MockNoPermissions,
+	viewAnyAIBridgeInterception: true,
+};
+const auth = { permissions: sessionViewerPermissions };
 vi.mock("#/hooks/useAuthenticated", () => ({
 	useAuthenticated: () => ({
 		user: MockUserMember,
-		permissions: MockNoPermissions,
+		permissions: auth.permissions,
 	}),
 }));
 vi.mock("#/modules/dashboard/useDashboard", () => ({
@@ -42,6 +49,7 @@ vi.mock("#/modules/dashboard/useDashboard", () => ({
 
 afterEach(() => {
 	vi.restoreAllMocks();
+	auth.permissions = sessionViewerPermissions;
 });
 
 const fixedNow = dayjs("2026-03-12T12:00:00Z");
@@ -54,7 +62,7 @@ const initialSearch = new URLSearchParams({
 	endDate: period.period_end,
 }).toString();
 
-function mockSpendApi() {
+function mockSpendApi(report: Partial<OrganizationAISpendReport> = {}) {
 	const users: OrganizationAISpendUser[] = Array.from(
 		{ length: 12 },
 		(_, i) => ({
@@ -83,6 +91,7 @@ function mockSpendApi() {
 			params.offset ?? 0,
 			(params.offset ?? 0) + (params.limit ?? 10),
 		),
+		...report,
 	});
 	const spendSpy = vi
 		.spyOn(API, "getOrganizationAISpendUsers")
@@ -90,8 +99,14 @@ function mockSpendApi() {
 	return { spendSpy, buildReport };
 }
 
-function renderSpend(search = initialSearch) {
-	const { spendSpy, buildReport } = mockSpendApi();
+function renderSpend(
+	search = initialSearch,
+	report: Partial<OrganizationAISpendReport> = {},
+) {
+	const { spendSpy, buildReport } = mockSpendApi(report);
+	vi.spyOn(API, "getAIBridgeProviders").mockResolvedValue(MockAIProviders);
+	vi.spyOn(API, "getAIBridgeClients").mockResolvedValue(["Claude Code"]);
+	vi.spyOn(API, "getAIBridgeModels").mockResolvedValue(["gpt-4o"]);
 	const router = createMemoryRouter(
 		[
 			{
@@ -193,6 +208,121 @@ it("applies a date preset and resets pagination", async () => {
 	);
 	expect(searchParam(router, "startDate")).toBe(window.period_start);
 	expect(searchParam(router, "endDate")).toBe(window.period_end);
+	expect(searchParam(router, "page")).toBeNull();
+});
+
+it("keeps the retention bound while a filtered report is pending", async () => {
+	const user = userEvent.setup();
+	const retentionStart = fixedNow.subtract(10, "day");
+	const { spendSpy } = renderSpend(initialSearch, {
+		retention_start: retentionStart.toISOString(),
+	});
+	await screen.findByRole("table", { name: "Spend by user" });
+
+	// Leave the refiltered report pending so its retention bound never arrives.
+	spendSpy.mockImplementationOnce(() => new Promise(() => {}));
+	await user.click(screen.getByRole("button", { name: "Select provider" }));
+	await user.click(await screen.findByRole("option", { name: /OpenAI/ }));
+	await waitFor(() =>
+		expect(spendSpy).toHaveBeenCalledWith(
+			MockOrganization.id,
+			expect.objectContaining({ provider_name: "openai" }),
+		),
+	);
+
+	// The picker stays usable with the bound the first report delivered, so
+	// every preset it offers requests a period that starts within retention.
+	const requestsBeforePicking = spendSpy.mock.calls.length;
+	const picker = screen.getByRole("button", {
+		name: /Feb 10, 2026.*Mar 11, 2026/,
+	});
+	await user.click(picker);
+	const offered = screen
+		.getAllByRole("button", { name: /^Last \d+ days$/ })
+		.map((preset) => preset.textContent ?? "");
+	for (const label of offered) {
+		await user.click(screen.getByRole("button", { name: label }));
+		await waitFor(() =>
+			expect(spendSpy.mock.calls.length).toBeGreaterThan(requestsBeforePicking),
+		);
+		await user.click(
+			screen.getByRole("button", { name: /Mar \d+, 2026.*Mar 12, 2026/ }),
+		);
+	}
+	const presetRequests = spendSpy.mock.calls.slice(requestsBeforePicking);
+	expect(presetRequests).toHaveLength(offered.length);
+	expect(presetRequests.length).toBeGreaterThan(0);
+	for (const [, params] of presetRequests) {
+		expect(params.provider_name).toBe("openai");
+		expect(dayjs(params.period_start).isBefore(retentionStart)).toBe(false);
+	}
+	expect(spendSpy).not.toHaveBeenCalledWith(
+		MockOrganization.id,
+		expect.objectContaining({
+			period_start: fixedNow.subtract(29, "day").startOf("day").toISOString(),
+		}),
+	);
+});
+
+it("applies a second range from the keyboard after the first one resolves", async () => {
+	const user = userEvent.setup();
+	const { spendSpy } = renderSpend();
+	await screen.findByRole("table", { name: "Spend by user" });
+
+	await user.click(
+		screen.getByRole("button", { name: /Feb 10, 2026.*Mar 11, 2026/ }),
+	);
+	await user.click(await screen.findByRole("button", { name: "Last 7 days" }));
+	await waitFor(() =>
+		expect(spendSpy).toHaveBeenCalledWith(
+			MockOrganization.id,
+			expect.objectContaining({
+				period_start: fixedNow.subtract(6, "day").startOf("day").toISOString(),
+			}),
+		),
+	);
+	await screen.findByRole("button", { name: /Mar 6, 2026.*Mar 12, 2026/ });
+
+	// Focus returned to the picker when its popover closed, so Enter reopens it.
+	await user.keyboard("{Enter}");
+	await user.click(await screen.findByRole("button", { name: "Yesterday" }));
+	await waitFor(() =>
+		expect(spendSpy).toHaveBeenCalledWith(
+			MockOrganization.id,
+			expect.objectContaining({
+				period_start: fixedNow.subtract(1, "day").startOf("day").toISOString(),
+			}),
+		),
+	);
+});
+
+it("shows spend without dimension filters to viewers who cannot read AI sessions", async () => {
+	auth.permissions = MockNoPermissions;
+	const { spendSpy } = renderSpend(`${initialSearch}&provider_name=openai`);
+	await screen.findByRole("table", { name: "Spend by user" });
+	expect(API.getAIBridgeProviders).not.toHaveBeenCalled();
+	expect(API.getAIBridgeModels).not.toHaveBeenCalled();
+	expect(API.getAIBridgeClients).not.toHaveBeenCalled();
+	expect(spendSpy).toHaveBeenCalledWith(
+		MockOrganization.id,
+		expect.objectContaining(period),
+	);
+	expect(spendSpy.mock.calls[0][1]).not.toHaveProperty("provider_name");
+});
+
+it("applies the provider filter and resets pagination", async () => {
+	const user = userEvent.setup();
+	const { router, spendSpy } = renderSpend(`${initialSearch}&page=2`);
+	await screen.findByRole("table", { name: "Spend by user" });
+	await user.click(screen.getByRole("button", { name: "Select provider" }));
+	await user.click(await screen.findByRole("option", { name: /OpenAI/ }));
+	await waitFor(() =>
+		expect(spendSpy).toHaveBeenCalledWith(
+			MockOrganization.id,
+			expect.objectContaining({ provider_name: "openai", offset: 0 }),
+		),
+	);
+	expect(searchParam(router, "provider_name")).toBe("openai");
 	expect(searchParam(router, "page")).toBeNull();
 });
 
