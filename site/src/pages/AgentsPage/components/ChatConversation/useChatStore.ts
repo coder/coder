@@ -172,6 +172,22 @@ export const useChatStore = (
 				: undefined;
 	});
 
+	// Stream reconnect cursor. Page refetches must not move it: a page does
+	// not show which stream events the client has applied.
+	const historyVersionRef = useRef<
+		{ chatID: string; version: number } | undefined
+	>(undefined);
+	const pageHistoryVersion = chatMessagesData?.history_version;
+	useEffect(() => {
+		if (
+			chatID &&
+			pageHistoryVersion !== undefined &&
+			historyVersionRef.current?.chatID !== chatID
+		) {
+			historyVersionRef.current = { chatID, version: pageHistoryVersion };
+		}
+	}, [chatID, pageHistoryVersion]);
+
 	// Wrap error-reason callbacks so the WebSocket effect can call
 	// them without including them in its dependency array.
 	const setChatErrorReasonEvent = useEffectEvent(setChatErrorReason);
@@ -604,6 +620,13 @@ export const useChatStore = (
 							if (!nextStatus) {
 								continue;
 							}
+							const syncedVersion = streamEvent.status?.history_version;
+							if (
+								syncedVersion !== undefined &&
+								syncedVersion > (historyVersionRef.current?.version ?? 0)
+							) {
+								historyVersionRef.current = { chatID, version: syncedVersion };
+							}
 
 							streamReportedWaiting = nextStatus === "waiting";
 							wsStatusReceivedRef.current = true;
@@ -707,7 +730,11 @@ export const useChatStore = (
 			connect() {
 				// Use the latest known message ID so the server only
 				// sends events the client hasn't seen yet.
-				const socket = watchChat(chatID, lastMessageIdRef.current);
+				const socket = watchChat(
+					chatID,
+					lastMessageIdRef.current,
+					historyVersionRef.current?.version,
+				);
 				socket.addEventListener("message", handleMessage);
 				return socket;
 			},
