@@ -607,7 +607,8 @@ type CreateChatRequest struct {
 }
 
 // InlineMCPServerRequest declares a streamable HTTP MCP server by value on
-// one chat. Header values are stored encrypted and never returned.
+// one chat. Header values are never returned. They are encrypted at rest
+// when database encryption is configured.
 type InlineMCPServerRequest struct {
 	Slug                string            `json:"slug"`
 	URL                 string            `json:"url"`

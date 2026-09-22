@@ -5834,7 +5834,8 @@ export interface InlineMCPServer {
 // From codersdk/chats.go
 /**
  * InlineMCPServerRequest declares a streamable HTTP MCP server by value on
- * one chat. Header values are stored encrypted and never returned.
+ * one chat. Header values are never returned. They are encrypted at rest
+ * when database encryption is configured.
  */
 export interface InlineMCPServerRequest {
 	readonly slug: string;
