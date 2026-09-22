@@ -260,6 +260,7 @@ func TestGuessSessionID(t *testing.T) {
 
 			got := clientmeta.GuessSessionID(tc.client, req)
 			require.Equal(t, tc.sessionID, got)
+			require.Equal(t, tc.sessionID, clientmeta.GuessSessionIDFromPayload(tc.client, req, []byte(body)))
 
 			// Verify the body was restored and can be read again.
 			restored, err := io.ReadAll(req.Body)
@@ -269,14 +270,74 @@ func TestGuessSessionID(t *testing.T) {
 	}
 }
 
-func TestUnreadableBody(t *testing.T) {
+func TestGuessSessionIDRejectsOverlongValues(t *testing.T) {
 	t.Parallel()
 
-	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, "http://localhost", &errReader{})
-	require.NoError(t, err)
+	const maxRunes = 256
+	validHeader := strings.Repeat("界", maxRunes)
+	validBody := strings.Repeat("界", maxRunes)
+	overlongHeader := strings.Repeat("界", maxRunes+1)
+	overlongBody := strings.Repeat("界", maxRunes+1)
+	for _, tc := range []struct {
+		name   string
+		client clientmeta.Client
+		body   string
+		header http.Header
+		want   *string
+	}{
+		{name: "HeaderAtLimit", client: clientmeta.ClientCodex, header: http.Header{"Session-Id": {validHeader}}, want: new(validHeader)},
+		{name: "HeaderOverLimit", client: clientmeta.ClientCodex, header: http.Header{"Session-Id": {overlongHeader}}},
+		{name: "BodyAtLimit", client: clientmeta.ClientClaudeCode, body: `{"metadata":{"user_id":"user_hash_session_` + validBody + `"}}`, want: new(validBody)},
+		{name: "BodyOverLimit", client: clientmeta.ClientClaudeCode, body: `{"metadata":{"user_id":"user_hash_session_` + overlongBody + `"}}`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, "http://localhost", strings.NewReader(tc.body))
+			require.NoError(t, err)
+			req.Header = tc.header.Clone()
+			require.Equal(t, tc.want, clientmeta.GuessSessionID(tc.client, req))
+		})
+	}
+}
 
-	got := clientmeta.GuessSessionID(clientmeta.ClientClaudeCode, req)
-	require.Nil(t, got)
+func TestGuessSessionIDHeaderDoesNotReadBody(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name   string
+		client clientmeta.Client
+		header string
+	}{
+		{name: "Codex", client: clientmeta.ClientCodex, header: "session-id"},
+		{name: "ClaudeCode", client: clientmeta.ClientClaudeCode, header: "X-Claude-Code-Session-Id"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, "http://localhost", &errReader{})
+			require.NoError(t, err)
+			req.Header.Set(tc.header, "header-id")
+			require.Equal(t, new("header-id"), clientmeta.GuessSessionID(tc.client, req))
+		})
+	}
+}
+
+func TestGuessSessionIDMissingBody(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name string
+		body io.Reader
+	}{
+		{name: "Nil"},
+		{name: "Unreadable", body: &errReader{}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, "http://localhost", tc.body)
+			require.NoError(t, err)
+			require.Nil(t, clientmeta.GuessSessionID(clientmeta.ClientClaudeCode, req))
+		})
+	}
 }
 
 // errReader is an io.Reader that always returns an error.

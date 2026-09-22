@@ -4,7 +4,6 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/aibridge/clientmeta"
@@ -15,16 +14,17 @@ func TestIsWebSocketUpgrade(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name       string
-		method     string
-		connection string
-		upgrade    string
-		want       bool
+		name                  string
+		method                string
+		connection            string
+		upgrade               string
+		wantConnectionUpgrade bool
+		wantWebSocketUpgrade  bool
 	}{
-		{name: "websocket upgrade", method: http.MethodGet, connection: "keep-alive, Upgrade", upgrade: "WebSocket", want: true},
-		{name: "non-GET request", method: http.MethodPost, connection: "Upgrade", upgrade: "websocket", want: false},
-		{name: "missing connection upgrade", method: http.MethodGet, connection: "keep-alive", upgrade: "websocket", want: false},
-		{name: "different upgrade protocol", method: http.MethodGet, connection: "Upgrade", upgrade: "h2c", want: false},
+		{name: "websocket upgrade", method: http.MethodGet, connection: "keep-alive, Upgrade", upgrade: "WebSocket", wantConnectionUpgrade: true, wantWebSocketUpgrade: true},
+		{name: "non-GET request", method: http.MethodPost, connection: "Upgrade", upgrade: "websocket", wantConnectionUpgrade: true},
+		{name: "missing connection upgrade", method: http.MethodGet, connection: "keep-alive", upgrade: "websocket"},
+		{name: "different upgrade protocol", method: http.MethodGet, connection: "Upgrade", upgrade: "h2c", wantConnectionUpgrade: true},
 	}
 
 	for _, tc := range tests {
@@ -36,7 +36,8 @@ func TestIsWebSocketUpgrade(t *testing.T) {
 			req.Header.Set("Connection", tc.connection)
 			req.Header.Set("Upgrade", tc.upgrade)
 
-			assert.Equal(t, tc.want, clientmeta.IsWebSocketUpgrade(req))
+			require.Equal(t, tc.wantConnectionUpgrade, clientmeta.HasConnectionUpgrade(req))
+			require.Equal(t, tc.wantWebSocketUpgrade, clientmeta.IsWebSocketUpgrade(req))
 		})
 	}
 }
@@ -55,7 +56,6 @@ func TestExtractAgentFirewallHeaders(t *testing.T) {
 		sessionID *string
 		seqNumber *string
 
-		wantErr     bool
 		errContains string
 		wantSession *string
 		wantSeq     *int32
@@ -65,7 +65,7 @@ func TestExtractAgentFirewallHeaders(t *testing.T) {
 			sessionID:   ptr(validSessionID),
 			seqNumber:   ptr("42"),
 			wantSession: ptr(validSessionID),
-			wantSeq:     int32Ptr(42),
+			wantSeq:     new(int32(42)),
 		},
 		{
 			name: "no headers present",
@@ -73,13 +73,11 @@ func TestExtractAgentFirewallHeaders(t *testing.T) {
 		{
 			name:        "only session ID returns error",
 			sessionID:   ptr(validSessionID),
-			wantErr:     true,
 			errContains: "without sequence number",
 		},
 		{
 			name:        "only sequence number returns error",
 			seqNumber:   ptr("7"),
-			wantErr:     true,
 			errContains: "without session ID",
 		},
 		{
@@ -87,35 +85,31 @@ func TestExtractAgentFirewallHeaders(t *testing.T) {
 			sessionID:   ptr(validSessionID),
 			seqNumber:   ptr("0"),
 			wantSession: ptr(validSessionID),
-			wantSeq:     int32Ptr(0),
+			wantSeq:     new(int32(0)),
 		},
 		{
 			name:        "invalid session ID returns error",
 			sessionID:   ptr("not-a-uuid"),
 			seqNumber:   ptr("42"),
-			wantErr:     true,
-			errContains: "invalid agent firewall session ID",
+			errContains: "must be a UUID",
 		},
 		{
 			name:        "invalid sequence number returns error",
 			sessionID:   ptr(validSessionID),
 			seqNumber:   ptr("not-a-number"),
-			wantErr:     true,
-			errContains: "invalid agent firewall sequence number",
+			errContains: "must be a base-10 int32",
 		},
 		{
 			name:        "negative sequence number returns error",
 			sessionID:   ptr(validSessionID),
 			seqNumber:   ptr("-1"),
-			wantErr:     true,
 			errContains: "must be non-negative",
 		},
 		{
 			name:        "sequence number exceeding int32 range returns error",
 			sessionID:   ptr(validSessionID),
 			seqNumber:   ptr("2147483648"), // max int32 + 1
-			wantErr:     true,
-			errContains: "invalid agent firewall sequence number",
+			errContains: "must be a base-10 int32",
 		},
 	}
 
@@ -134,29 +128,22 @@ func TestExtractAgentFirewallHeaders(t *testing.T) {
 
 			sessionID, seqNumber, extractErr := clientmeta.ExtractAgentFirewallHeaders(req)
 
-			if tc.wantErr {
-				require.Error(t, extractErr)
-				assert.Contains(t, extractErr.Error(), tc.errContains)
-				assert.Nil(t, sessionID)
-				assert.Nil(t, seqNumber)
+			if tc.errContains != "" {
+				require.ErrorContains(t, extractErr, tc.errContains)
+				if tc.sessionID != nil {
+					require.NotContains(t, extractErr.Error(), *tc.sessionID)
+				}
+				if tc.seqNumber != nil {
+					require.NotContains(t, extractErr.Error(), *tc.seqNumber)
+				}
+				require.Nil(t, sessionID)
+				require.Nil(t, seqNumber)
 				return
 			}
 
 			require.NoError(t, extractErr)
-			if tc.wantSession == nil {
-				assert.Nil(t, sessionID)
-			} else {
-				require.NotNil(t, sessionID)
-				assert.Equal(t, *tc.wantSession, *sessionID)
-			}
-			if tc.wantSeq == nil {
-				assert.Nil(t, seqNumber)
-			} else {
-				require.NotNil(t, seqNumber)
-				assert.Equal(t, *tc.wantSeq, *seqNumber)
-			}
+			require.Equal(t, tc.wantSession, sessionID)
+			require.Equal(t, tc.wantSeq, seqNumber)
 		})
 	}
 }
-
-func int32Ptr(n int32) *int32 { return &n }

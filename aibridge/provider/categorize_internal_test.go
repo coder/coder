@@ -1,9 +1,11 @@
 package provider
 
 import (
+	"net/http"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/aibridge/intercept"
@@ -12,6 +14,17 @@ import (
 )
 
 func ptr(t recorder.ErrorType) *recorder.ErrorType { return &t }
+
+func TestProviderCategorizeStatus(t *testing.T) {
+	t.Parallel()
+
+	anthropic := &Anthropic{}
+	openAI := &OpenAI{}
+	require.Equal(t, new(recorder.ErrorTypeOverloaded), anthropic.CategorizeStatus(statusOverloaded))
+	require.Nil(t, anthropic.CategorizeStatus(http.StatusServiceUnavailable))
+	require.Equal(t, new(recorder.ErrorTypeOverloaded), openAI.CategorizeStatus(http.StatusServiceUnavailable))
+	require.Nil(t, openAI.CategorizeStatus(statusOverloaded))
+}
 
 func TestAnthropicCategorizeError(t *testing.T) {
 	t.Parallel()

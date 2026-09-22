@@ -226,6 +226,14 @@ func (p *Anthropic) APIDumpDir() string {
 	return p.cfg.APIDumpDir
 }
 
+// CategorizeStatus maps Anthropic-specific HTTP status codes.
+func (*Anthropic) CategorizeStatus(status int) *recorder.ErrorType {
+	if status == statusOverloaded {
+		return new(recorder.ErrorTypeOverloaded)
+	}
+	return nil
+}
+
 func (*Anthropic) CategorizeError(err error) *recorder.ErrorType {
 	return categorizeAnthropicError(err)
 }

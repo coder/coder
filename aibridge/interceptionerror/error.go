@@ -4,6 +4,8 @@ package interceptionerror
 import (
 	"context"
 	"errors"
+	"fmt"
+	"net/http"
 	"strings"
 
 	"github.com/coder/coder/v2/aibridge/circuitbreaker"
@@ -11,69 +13,81 @@ import (
 	"github.com/coder/coder/v2/aibridge/recorder"
 )
 
-// maxRecordedErrorMessageBytes caps the raw upstream error message persisted on
-// the interception record to avoid storing unbounded provider payloads.
-const maxRecordedErrorMessageBytes = 1024
+// maxRecordedMessageBytes bounds error messages persisted with interception
+// records so provider payloads cannot create unbounded database values.
+const maxRecordedMessageBytes = 1024
 
-// Categorizer categorizes a provider's own terminal errors. It is implemented
-// by provider.Provider.
+// Categorizer maps provider-specific terminal errors to recorder error types.
 type Categorizer interface {
-	CategorizeError(err error) *recorder.ErrorType
+	CategorizeError(error) *recorder.ErrorType
 }
 
-// Categorize maps a terminal interception error to a recorder error type and a
-// truncated raw message. It returns the empty ErrorType and an empty message
-// when err is nil (the interception succeeded).
-//
-// Provider-agnostic failures (circuit breaker, key-pool exhaustion) are handled
-// here; anything provider-specific is delegated to the provider, which owns the
-// knowledge of its SDK errors and response envelopes.
-func Categorize(c Categorizer, err error) (recorder.ErrorType, string) {
+// statusCategorizer optionally maps provider-specific HTTP status codes that
+// have no portable meaning across providers.
+type statusCategorizer interface {
+	CategorizeStatus(int) *recorder.ErrorType
+}
+
+// Categorize maps a terminal error to a recorder error type and bounded message.
+// When err is nil, provider-specific status mappings are consulted before the
+// HTTP fallback. Provider-specific errors are delegated after gateway-owned
+// context, circuit, and key-pool errors.
+func Categorize(c Categorizer, err error, status int) (recorder.ErrorType, string) {
 	if err == nil {
-		return "", ""
-	}
-	msg := err.Error()
-	if len(msg) > maxRecordedErrorMessageBytes {
-		msg = strings.ToValidUTF8(msg[:maxRecordedErrorMessageBytes], "")
+		if status < http.StatusBadRequest {
+			return "", ""
+		}
+		if statusCategorizer, ok := c.(statusCategorizer); ok {
+			if errorType := statusCategorizer.CategorizeStatus(status); errorType != nil {
+				return *errorType, statusMessage(status)
+			}
+		}
+		return recorder.ErrorTypeFromStatus(status), statusMessage(status)
 	}
 
-	// Go context errors. These originate in the gateway or the caller, not
-	// upstream, so they are classified before any provider delegation.
+	message := err.Error()
+	if len(message) > maxRecordedMessageBytes {
+		message = strings.ToValidUTF8(message[:maxRecordedMessageBytes], "")
+	}
+
 	switch {
 	case errors.Is(err, context.DeadlineExceeded):
-		return recorder.ErrorTypeTimeout, msg
+		return recorder.ErrorTypeTimeout, message
 	case errors.Is(err, context.Canceled):
-		// The caller went away before the interception completed. This is not
-		// an upstream failure, but the interception did not succeed either, so
-		// it is recorded as unknown rather than dropped.
-		return recorder.ErrorTypeUnknown, msg
+		// The caller went away. This is not an upstream failure, but the
+		// interception did not complete, so record unknown rather than success.
+		return recorder.ErrorTypeUnknown, message
+	case errors.Is(err, circuitbreaker.ErrCircuitOpen):
+		// Circuit-open responses are HTTP 503, but the sentinel itself carries no
+		// status and must be classified directly.
+		return recorder.ErrorTypeServerError, message
 	}
 
-	// Circuit breaker. It responds with 503 Service Unavailable when open, but
-	// returns a sentinel error that carries no HTTP status of its own.
-	if errors.Is(err, circuitbreaker.ErrCircuitOpen) {
-		return recorder.ErrorTypeServerError, msg
-	}
-
-	// Centralized key-pool failover. Checked before delegating because the pool
-	// masks the client response (e.g. permanent failures become 502), which
-	// would otherwise hide the cause.
-	var keyPoolErr *keypool.Error
-	if errors.As(err, &keyPoolErr) {
-		switch keyPoolErr.Kind {
+	// Key-pool errors take precedence over provider delegation because the pool
+	// masks the client response, for example by rendering permanent failures as
+	// HTTP 502, which would otherwise hide the cause.
+	if poolErr, ok := errors.AsType[*keypool.Error](err); ok {
+		switch poolErr.Kind {
 		case keypool.ErrorKindRateLimited:
-			return recorder.ErrorTypeRateLimited, msg
+			return recorder.ErrorTypeRateLimited, message
 		case keypool.ErrorKindPermanent, keypool.ErrorKindUnauthorized:
-			return recorder.ErrorTypeUnauthorized, msg
+			return recorder.ErrorTypeUnauthorized, message
 		default:
-			return recorder.ErrorTypeUnknown, msg
+			return recorder.ErrorTypeUnknown, message
 		}
 	}
 
-	// Anything provider-specific is delegated to the provider, which owns the
-	// knowledge of its SDK errors and response envelopes.
-	if cat := c.CategorizeError(err); cat != nil {
-		return *cat, msg
+	if c != nil {
+		if errorType := c.CategorizeError(err); errorType != nil {
+			return *errorType, message
+		}
 	}
-	return recorder.ErrorTypeUnknown, msg
+	return recorder.ErrorTypeUnknown, message
+}
+
+func statusMessage(status int) string {
+	if message := http.StatusText(status); message != "" {
+		return message
+	}
+	return fmt.Sprintf("HTTP status %d", status)
 }

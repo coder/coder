@@ -2,6 +2,7 @@ package interceptionerror_test
 
 import (
 	"context"
+	"net/http"
 	"strings"
 	"testing"
 	"unicode/utf8"
@@ -24,6 +25,15 @@ func (s stubCategorizer) CategorizeError(error) *recorder.ErrorType {
 	return s.result
 }
 
+type statusCategorizer struct {
+	stubCategorizer
+	statusResult *recorder.ErrorType
+}
+
+func (s statusCategorizer) CategorizeStatus(int) *recorder.ErrorType {
+	return s.statusResult
+}
+
 func ptr(t recorder.ErrorType) *recorder.ErrorType { return &t }
 
 func TestCategorizeInterceptionError(t *testing.T) {
@@ -31,8 +41,9 @@ func TestCategorizeInterceptionError(t *testing.T) {
 
 	cases := []struct {
 		name     string
-		cat      stubCategorizer
+		cat      interceptionerror.Categorizer
 		err      error
+		status   int
 		wantType recorder.ErrorType
 		wantMsg  string
 	}{
@@ -91,6 +102,25 @@ func TestCategorizeInterceptionError(t *testing.T) {
 			wantMsg:  "key pool exhausted: all configured keys are permanently unavailable",
 		},
 		{
+			name:     "HTTP status fallback",
+			status:   http.StatusForbidden,
+			wantType: recorder.ErrorTypeUnauthorized,
+			wantMsg:  http.StatusText(http.StatusForbidden),
+		},
+		{
+			name:     "provider status",
+			cat:      statusCategorizer{statusResult: ptr(recorder.ErrorTypeOverloaded)},
+			status:   529,
+			wantType: recorder.ErrorTypeOverloaded,
+			wantMsg:  "HTTP status 529",
+		},
+		{
+			name:     "unknown HTTP status has nonempty message",
+			status:   599,
+			wantType: recorder.ErrorTypeServerError,
+			wantMsg:  "HTTP status 599",
+		},
+		{
 			name:     "delegated to provider",
 			cat:      stubCategorizer{result: ptr(recorder.ErrorTypeOverloaded)},
 			err:      xerrors.New("provider error"),
@@ -109,7 +139,7 @@ func TestCategorizeInterceptionError(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			gotType, gotMsg := interceptionerror.Categorize(tc.cat, tc.err)
+			gotType, gotMsg := interceptionerror.Categorize(tc.cat, tc.err, tc.status)
 			assert.Equal(t, tc.wantType, gotType)
 			assert.Equal(t, tc.wantMsg, gotMsg)
 		})
@@ -123,13 +153,13 @@ func TestCategorizeInterceptionErrorTruncatesMessage(t *testing.T) {
 
 	// ASCII: truncated exactly at the byte cap.
 	ascii := strings.Repeat("a", maxRecordedErrorMessageBytes*2)
-	_, gotMsg := interceptionerror.Categorize(stubCategorizer{}, xerrors.New(ascii))
+	_, gotMsg := interceptionerror.Categorize(stubCategorizer{}, xerrors.New(ascii), 0)
 	assert.Len(t, gotMsg, maxRecordedErrorMessageBytes)
 
 	// Multi-byte: the '€' rune (3 bytes) split at the cap is dropped, leaving
 	// valid UTF-8 just below the cap rather than an invalid trailing fragment.
 	multibyte := strings.Repeat("€", maxRecordedErrorMessageBytes)
-	_, gotMsg = interceptionerror.Categorize(stubCategorizer{}, xerrors.New(multibyte))
+	_, gotMsg = interceptionerror.Categorize(stubCategorizer{}, xerrors.New(multibyte), 0)
 	assert.True(t, utf8.ValidString(gotMsg), "truncated message must stay valid UTF-8")
 	assert.Less(t, len(gotMsg), maxRecordedErrorMessageBytes)
 	assert.Positive(t, len(gotMsg))

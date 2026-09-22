@@ -17,5 +17,5 @@ type errorCategorizer = interceptionerror.Categorizer
 // here; anything provider-specific is delegated to the provider, which owns the
 // knowledge of its SDK errors and response envelopes.
 func categorizeInterceptionError(c errorCategorizer, err error) (recorder.ErrorType, string) {
-	return interceptionerror.Categorize(c, err)
+	return interceptionerror.Categorize(c, err, 0)
 }
