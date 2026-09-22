@@ -96,14 +96,14 @@ describe("resizeImageToMaxBytes", () => {
 describe("resizeImageToMaxBytes with stubbed decoders", () => {
 	// Each test installs its own fakes; track per-test state on a
 	// shared object so the stubs can read the active configuration.
-	interface StubState {
+	type StubState = {
 		srcWidth: number;
 		srcHeight: number;
 		decodeThrows: boolean;
 		convertBlobType: string;
 		decodeCalls: number;
 		encodeCalls: Array<{ width: number; height: number; quality: number }>;
-	}
+	};
 
 	let state: StubState;
 

@@ -19,7 +19,7 @@ import { useEmbeddedMetadata } from "#/hooks/useEmbeddedMetadata";
 import { canViewAnyOrganization } from "#/modules/permissions";
 import { selectFeatureVisibility } from "./entitlements";
 
-export interface DashboardValue {
+export type DashboardValue = {
 	entitlements: Entitlements;
 	experiments: Experiment[];
 	appearance: AppearanceConfig;
@@ -27,7 +27,7 @@ export interface DashboardValue {
 	organizations: readonly Organization[];
 	showOrganizations: boolean;
 	canViewOrganizationSettings: boolean;
-}
+};
 
 export const DashboardContext = createContext<DashboardValue | undefined>(
 	undefined,

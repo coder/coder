@@ -3,7 +3,7 @@ import { ToolCall } from "./ToolCall";
 import type { ToolStatus } from "./utils";
 import { WorkspaceBuildLogSection } from "./WorkspaceBuildLogSection";
 
-interface StartWorkspaceToolProps {
+type StartWorkspaceToolProps = {
 	status: ToolStatus;
 	buildId?: string;
 	workspaceName: string;
@@ -11,7 +11,7 @@ interface StartWorkspaceToolProps {
 	errorMessage?: string;
 	noBuild?: boolean;
 	labelOverride?: string;
-}
+};
 
 export const StartWorkspaceTool: FC<StartWorkspaceToolProps> = ({
 	status,

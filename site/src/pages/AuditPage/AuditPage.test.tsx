@@ -23,10 +23,10 @@ import { server } from "#/testHelpers/server";
 import * as CreateDayString from "#/utils/createDayString";
 import AuditPage from "./AuditPage";
 
-interface RenderPageOptions {
+type RenderPageOptions = {
 	filter?: string;
 	page?: number;
-}
+};
 
 const renderPage = async ({ filter, page }: RenderPageOptions = {}) => {
 	let route = "/audit";

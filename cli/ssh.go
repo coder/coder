@@ -1532,21 +1532,18 @@ func (r stdioErrLogReader) Read(_ []byte) (int, error) {
 	return 0, io.EOF
 }
 
-func getUsageAppName(usageApp string) codersdk.UsageAppName {
-	if usageApp == disableUsageApp {
+// getUsageAppName returns the app name to report usage under, or the empty
+// string to report none. Any name is valid because the server normalizes it
+// at ingestion.
+func getUsageAppName(usageApp string) string {
+	switch usageApp {
+	case disableUsageApp:
 		return ""
+	case "":
+		return string(codersdk.UsageAppNameSSH)
+	default:
+		return usageApp
 	}
-
-	allowedUsageApps := []string{
-		string(codersdk.UsageAppNameSSH),
-		string(codersdk.UsageAppNameVscode),
-		string(codersdk.UsageAppNameJetbrains),
-	}
-	if slices.Contains(allowedUsageApps, usageApp) {
-		return codersdk.UsageAppName(usageApp)
-	}
-
-	return codersdk.UsageAppNameSSH
 }
 
 func setStatsCallback(

@@ -4,9 +4,9 @@ import { API } from "#/api/api";
 import { getErrorDetail } from "#/api/errors";
 import type { Workspace, WorkspaceBuild } from "#/api/typesGenerated";
 
-interface UseBatchActionsOptions {
+type UseBatchActionsOptions = {
 	onSuccess: () => Promise<void>;
-}
+};
 
 type UpdateAllPayload = Readonly<{
 	workspaces: readonly Workspace[];

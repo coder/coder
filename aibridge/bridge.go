@@ -6,11 +6,9 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"regexp"
 	"strconv"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
@@ -29,35 +27,10 @@ import (
 	"github.com/coder/coder/v2/aibridge/metrics"
 	"github.com/coder/coder/v2/aibridge/provider"
 	"github.com/coder/coder/v2/aibridge/recorder"
+	"github.com/coder/coder/v2/aibridge/routing"
 	"github.com/coder/coder/v2/aibridge/tracing"
 	agplaibridge "github.com/coder/coder/v2/coderd/aibridge"
-	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/quartz"
-)
-
-const (
-	// The duration after which an async recording will be aborted.
-	recordingTimeout = time.Second * 5
-
-	// maxRequestBodyBytes caps the request body size for AI Gateway
-	// provider endpoints to prevent denial-of-service via memory exhaustion.
-	// Anthropic enforces 32 MB on the direct API, 30 MB on Vertex AI,
-	// and 20 MB on Amazon Bedrock.
-	// See https://docs.anthropic.com/en/api/overview#request-size-limits
-	// OpenAI and GitHub Copilot do not document an equivalent HTTP body size limit.
-	// Using highest documented provider limit (32 MiB).
-	//
-	// NOTE: aibridge does not currently proxy file-upload endpoints
-	// (e.g. /v1/files). Those endpoints accept much larger bodies
-	// (up to 500 MB for Anthropic, 50 MB for OpenAI). If file-upload
-	// routes are added, they will need a per-route limit instead of
-	// this single global cap.
-	maxRequestBodyBytes = 32 << 20 // 32 MiB
-
-	// ErrorCodeProviderDisabled is the code written in the response
-	// body when a request targets a configured-but-disabled provider.
-	// Paired with HTTP 503.
-	ErrorCodeProviderDisabled = "provider_disabled"
 )
 
 // RequestBridge is an [http.Handler] which is capable of masquerading as AI providers' APIs;
@@ -71,47 +44,18 @@ const (
 //
 // RequestBridge is safe for concurrent use.
 type RequestBridge struct {
-	mux    *http.ServeMux
-	logger slog.Logger
+	handler http.Handler
+	logger  slog.Logger
 
 	mcpProxy mcp.ServerProxier
 
-	inflightReqs atomic.Int32
-	inflightWG   sync.WaitGroup // For graceful shutdown.
-
-	// inflightMu orders inflightWG.Add (ServeHTTP, read-held) before
-	// close(b.closed) (Shutdown, write-held), so Add never races Wait.
-	inflightMu sync.RWMutex
-
-	inflightCtx    context.Context
-	inflightCancel func()
-
-	clock quartz.Clock
+	// inflight provides the shared admission and drain machinery.
+	inflight *InflightGate
 
 	shutdownOnce sync.Once
-	closed       chan struct{}
 }
 
 var _ http.Handler = &RequestBridge{}
-
-// validProviderName matches names containing only lowercase alphanumeric characters and hyphens.
-var validProviderName = regexp.MustCompile(`^[a-z0-9]+(-[a-z0-9]+)*$`)
-
-// validateProviders checks that provider names are valid and unique.
-func validateProviders(providers []provider.Provider) error {
-	names := make(map[string]bool, len(providers))
-	for _, prov := range providers {
-		name := prov.Name()
-		if !validProviderName.MatchString(name) {
-			return xerrors.Errorf("invalid provider name %q: must contain only lowercase alphanumeric characters and hyphens", name)
-		}
-		if names[name] {
-			return xerrors.Errorf("duplicate provider name: %q", name)
-		}
-		names[name] = true
-	}
-	return nil
-}
 
 // NewRequestBridge creates a new *[RequestBridge] and registers the HTTP routes defined by the given providers.
 // Any routes which are requested but not registered will be reverse-proxied to the upstream service.
@@ -123,14 +67,14 @@ func validateProviders(providers []provider.Provider) error {
 // Circuit breaker configuration is obtained from each provider's CircuitBreakerConfig() method.
 // Providers returning nil will not have circuit breaker protection.
 func NewRequestBridge(ctx context.Context, providers []provider.Provider, rec recorder.Recorder, mcpProxy mcp.ServerProxier, logger slog.Logger, m *metrics.Metrics, tracer trace.Tracer, opts ...RequestBridgeOption) (*RequestBridge, error) {
-	if err := validateProviders(providers); err != nil {
+	if err := provider.ValidateProviders(providers); err != nil {
 		return nil, err
 	}
 
-	mux := newProviderMux(providers, logger)
+	mux := routing.NewProviderMux(providers, logger)
 
 	for _, prov := range providers {
-		// Disabled providers have 503 sentinel registered by newProviderMux
+		// The shared mux already returns 503 for disabled providers.
 		if !prov.Enabled() {
 			continue
 		}
@@ -191,41 +135,22 @@ func NewRequestBridge(ctx context.Context, providers []provider.Provider, rec re
 		}
 	}
 
-	inflightCtx, cancel := context.WithCancel(context.Background())
 	b := &RequestBridge{
-		mux:            mux,
-		logger:         logger,
-		mcpProxy:       mcpProxy,
-		inflightCtx:    inflightCtx,
-		inflightCancel: cancel,
-		clock:          quartz.NewReal(),
-
-		closed: make(chan struct{}, 1),
+		logger:   logger,
+		mcpProxy: mcpProxy,
+		inflight: NewInflightGate(logger),
 	}
 	for _, opt := range opts {
 		opt(b)
 	}
+	b.handler = b.inflight.Middleware(http.MaxBytesHandler(mux, routing.MaxRequestBodyBytes))
 	return b, nil
 }
 
 type RequestBridgeOption func(*RequestBridge)
 
 func WithClock(clock quartz.Clock) RequestBridgeOption {
-	return func(b *RequestBridge) { b.clock = clock }
-}
-
-// disabledProviderHandler returns 503 with a body containing
-// [ErrorCodeProviderDisabled] and the provider name for every request
-// targeting name.
-func disabledProviderHandler(name string, logger slog.Logger) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		logger.Debug(r.Context(), "refusing request for disabled ai provider",
-			slog.F("provider", name),
-			slog.F("path", r.URL.Path),
-			slog.F("method", r.Method),
-		)
-		http.Error(w, fmt.Sprintf("%s: AI provider %q is disabled", ErrorCodeProviderDisabled, name), http.StatusServiceUnavailable)
-	}
+	return func(b *RequestBridge) { b.inflight.clock = clock }
 }
 
 // newInterceptionProcessor returns an [http.HandlerFunc] which is capable of creating a new interceptor and processing a given request
@@ -269,7 +194,7 @@ func newInterceptionProcessor(p provider.Provider, cbs *circuitbreaker.ProviderC
 		if err != nil {
 			span.SetStatus(codes.Error, fmt.Sprintf("failed to create interceptor: %v", err))
 			if _, ok := errors.AsType[*http.MaxBytesError](err); ok {
-				writeRequestBodyTooLarge(ctx, w)
+				routing.WriteRequestBodyTooLarge(ctx, w)
 			} else {
 				logger.Warn(ctx, "failed to create interceptor", slog.Error(err), slog.F("path", r.URL.Path))
 				http.Error(w, fmt.Sprintf("failed to create %q interceptor", r.URL.Path), http.StatusInternalServerError)
@@ -304,7 +229,7 @@ func newInterceptionProcessor(p provider.Provider, cbs *circuitbreaker.ProviderC
 		r = r.WithContext(ctx)
 
 		// Record usage in the background to not block request flow.
-		asyncRecorder := recorder.NewAsyncRecorder(rec, recordingTimeout)
+		asyncRecorder := recorder.NewAsyncRecorder(rec, recorder.DefaultAsyncTimeout)
 		asyncRecorder.WithMetrics(m)
 		asyncRecorder.WithProvider(p.Name())
 		asyncRecorder.WithModel(interceptor.Model())
@@ -393,83 +318,23 @@ func isWebSocketUpgrade(r *http.Request) bool {
 		httpguts.HeaderValuesContainsToken(r.Header.Values("Upgrade"), "websocket")
 }
 
-// writeRequestBodyTooLarge writes a human-readable 413 response indicating that
-// the request body exceeded maxRequestBodyBytes.
-//
-// It records the limit before writing, so the request log names the limit that
-// tripped and the too-large metric attributes the rejection to body size rather
-// than to the other reasons coderd answers 413. Recording here rather than at
-// each call site keeps the two inseparable: this helper is the only path to a
-// body-too-large response from aibridge.
-func writeRequestBodyTooLarge(ctx context.Context, w http.ResponseWriter) {
-	httpapi.RecordRequestBodyLimit(ctx, maxRequestBodyBytes)
-	http.Error(w, fmt.Sprintf(
-		"Request body too large. The maximum allowed request body size is %dMiB.",
-		maxRequestBodyBytes>>20,
-	), http.StatusRequestEntityTooLarge)
-}
-
 // ServeHTTP exposes the internal http.Handler, which has all [Provider]s' routes registered.
 // It also tracks inflight requests.
 func (b *RequestBridge) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
-	b.inflightMu.RLock()
-	select {
-	case <-b.closed:
-		b.inflightMu.RUnlock()
-		http.Error(rw, "server closed", http.StatusInternalServerError)
-		return
-	default:
-	}
-
-	// Trap point for deterministic race tests.
-	_ = b.clock.Now("serve_admission")
-
-	b.inflightReqs.Add(1)
-	b.inflightWG.Add(1)
-	b.inflightMu.RUnlock()
-	defer func() {
-		b.inflightReqs.Add(-1)
-		b.inflightWG.Done()
-	}()
-
-	// We want to abide by the context passed in without losing any of its
-	// functionality, but we still want to link our shutdown context to each
-	// request.
-	ctx := mergeContexts(r.Context(), b.inflightCtx)
-
-	// Enforce the request body size limit. MaxBytesReader counts bytes as
-	// they are read from the connection and fails when the limit is exceeded.
-	r.Body = http.MaxBytesReader(rw, r.Body, maxRequestBodyBytes)
-	b.mux.ServeHTTP(rw, r.WithContext(ctx))
+	b.handler.ServeHTTP(rw, r)
 }
 
-// Shutdown will attempt to gracefully shutdown. This entails waiting for all requests to
-// complete, and shutting down the MCP server proxier.
-// TODO: add tests.
+// Shutdown drains requests until ctx expires, then cancels remaining requests
+// without waiting for their handlers to return. MCP cleanup is attempted even
+// while canceled handlers are still running.
 func (b *RequestBridge) Shutdown(ctx context.Context) error {
 	var err error
 	b.shutdownOnce.Do(func() {
-		// Close under inflightMu so no ServeHTTP sits mid-admission (see inflightMu).
-		b.inflightMu.Lock()
-		close(b.closed)
-		b.inflightMu.Unlock()
-
-		// Wait for inflight requests to complete or context cancellation.
-		done := make(chan struct{})
-		go func() {
-			b.inflightWG.Wait()
-			close(done)
-		}()
-
-		select {
-		case <-ctx.Done():
-			// Cancel all inflight requests, if any are still running.
-			b.logger.Debug(ctx, "shutdown context canceled; canceling inflight requests", slog.Error(ctx.Err()))
-			b.inflightCancel()
-			<-done
-			err = ctx.Err()
-		case <-done:
+		err = b.inflight.Shutdown(ctx)
+		if err != nil {
+			b.logger.Debug(ctx, "shutdown context canceled; canceling inflight requests", slog.Error(err))
 		}
+		b.inflight.Close()
 
 		if b.mcpProxy != nil {
 			// It's ok that we reuse the ctx here even if it's done, since the
@@ -480,25 +345,6 @@ func (b *RequestBridge) Shutdown(ctx context.Context) error {
 	})
 
 	return err
-}
-
-func (b *RequestBridge) InflightRequests() int32 {
-	return b.inflightReqs.Load()
-}
-
-// mergeContexts merges two contexts together, so that if either is canceled
-// the returned context is canceled. The context values will only be used from
-// the first context.
-func mergeContexts(base, other context.Context) context.Context {
-	ctx, cancel := context.WithCancel(base)
-	go func() {
-		defer cancel()
-		select {
-		case <-base.Done():
-		case <-other.Done():
-		}
-	}()
-	return ctx
 }
 
 // extractAgentFirewallHeaders reads and parses the Agent Firewall

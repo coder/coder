@@ -320,6 +320,11 @@ title: Schemas
 
 ```json
 {
+  "attribution": {
+    "property1": "string",
+    "property2": "string"
+  },
+  "interception_id": "34d9b688-63ad-46f4-88b5-665c1e7f7824",
   "model": "string",
   "thinking": [
     {
@@ -357,12 +362,29 @@ title: Schemas
 
 ### Properties
 
-| Name          | Type                                                                                   | Required | Restrictions | Description |
-|---------------|----------------------------------------------------------------------------------------|----------|--------------|-------------|
-| `model`       | string                                                                                 | false    |              |             |
-| `thinking`    | array of [codersdk.AIBridgeModelThought](#codersdkaibridgemodelthought)                | false    |              |             |
-| `token_usage` | [codersdk.AIBridgeSessionThreadsTokenUsage](#codersdkaibridgesessionthreadstokenusage) | false    |              |             |
-| `tool_calls`  | array of [codersdk.AIBridgeToolCall](#codersdkaibridgetoolcall)                        | false    |              |             |
+| Name              | Type                                                                                   | Required | Restrictions | Description                                                                                                         |
+|-------------------|----------------------------------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------|
+| `attribution`     | [codersdk.AIBridgeAttribution](#codersdkaibridgeattribution)                           | false    |              | Attribution contains attribution data from this interception. Unknown attribution is serialized as an empty object. |
+| `interception_id` | string                                                                                 | false    |              |                                                                                                                     |
+| `model`           | string                                                                                 | false    |              |                                                                                                                     |
+| `thinking`        | array of [codersdk.AIBridgeModelThought](#codersdkaibridgemodelthought)                | false    |              |                                                                                                                     |
+| `token_usage`     | [codersdk.AIBridgeSessionThreadsTokenUsage](#codersdkaibridgesessionthreadstokenusage) | false    |              |                                                                                                                     |
+| `tool_calls`      | array of [codersdk.AIBridgeToolCall](#codersdkaibridgetoolcall)                        | false    |              |                                                                                                                     |
+
+## codersdk.AIBridgeAttribution
+
+```json
+{
+  "property1": "string",
+  "property2": "string"
+}
+```
+
+### Properties
+
+| Name             | Type   | Required | Restrictions | Description |
+|------------------|--------|----------|--------------|-------------|
+| `[any property]` | string | false    |              |             |
 
 ## codersdk.AIBridgeConfig
 
@@ -473,6 +495,26 @@ title: Schemas
 | Name   | Type   | Required | Restrictions | Description |
 |--------|--------|----------|--------------|-------------|
 | `text` | string | false    |              |             |
+
+## codersdk.AIBridgeProvider
+
+```json
+{
+  "display_name": "string",
+  "icon": "string",
+  "name": "string",
+  "type": "openai"
+}
+```
+
+### Properties
+
+| Name           | Type                                               | Required | Restrictions | Description |
+|----------------|----------------------------------------------------|----------|--------------|-------------|
+| `display_name` | string                                             | false    |              |             |
+| `icon`         | string                                             | false    |              |             |
+| `name`         | string                                             | false    |              |             |
+| `type`         | [codersdk.AIProviderType](#codersdkaiprovidertype) | false    |              |             |
 
 ## codersdk.AIBridgeProxyConfig
 
@@ -662,6 +704,11 @@ title: Schemas
       "agent_firewall_session_id": "3735294f-18b1-4e7a-a269-99c30f0b30e7",
       "agentic_actions": [
         {
+          "attribution": {
+            "property1": "string",
+            "property2": "string"
+          },
+          "interception_id": "34d9b688-63ad-46f4-88b5-665c1e7f7824",
           "model": "string",
           "thinking": [
             {
@@ -696,6 +743,10 @@ title: Schemas
           ]
         }
       ],
+      "attribution": {
+        "property1": "string",
+        "property2": "string"
+      },
       "credential_hint": "string",
       "credential_kind": "string",
       "ended_at": "2019-08-24T14:15:22Z",
@@ -807,6 +858,11 @@ title: Schemas
   "agent_firewall_session_id": "3735294f-18b1-4e7a-a269-99c30f0b30e7",
   "agentic_actions": [
     {
+      "attribution": {
+        "property1": "string",
+        "property2": "string"
+      },
+      "interception_id": "34d9b688-63ad-46f4-88b5-665c1e7f7824",
       "model": "string",
       "thinking": [
         {
@@ -841,6 +897,10 @@ title: Schemas
       ]
     }
   ],
+  "attribution": {
+    "property1": "string",
+    "property2": "string"
+  },
   "credential_hint": "string",
   "credential_kind": "string",
   "ended_at": "2019-08-24T14:15:22Z",
@@ -871,6 +931,7 @@ title: Schemas
 | `agent_firewall_sequence_number` | integer                                                                                | false    |              | Agent firewall sequence number is the firewall sequence number from the root interception. Used to determine the position of this LLM request in the firewall event stream. Nil when the request did not pass through the agent firewall. |
 | `agent_firewall_session_id`      | string                                                                                 | false    |              | Agent firewall session ID links this thread to an agent firewall confinement session. Nil when the request did not pass through the agent firewall.                                                                                       |
 | `agentic_actions`                | array of [codersdk.AIBridgeAgenticAction](#codersdkaibridgeagenticaction)              | false    |              |                                                                                                                                                                                                                                           |
+| `attribution`                    | [codersdk.AIBridgeAttribution](#codersdkaibridgeattribution)                           | false    |              | Attribution contains attribution data from the root interception. Unknown attribution is serialized as an empty object.                                                                                                                   |
 | `credential_hint`                | string                                                                                 | false    |              |                                                                                                                                                                                                                                           |
 | `credential_kind`                | string                                                                                 | false    |              |                                                                                                                                                                                                                                           |
 | `ended_at`                       | string                                                                                 | false    |              |                                                                                                                                                                                                                                           |
@@ -1006,7 +1067,8 @@ title: Schemas
       "rawQuery": "string",
       "scheme": "string",
       "user": {}
-    }
+    },
+    "stream_silence_timeout": 0
   }
 }
 ```
@@ -2495,21 +2557,23 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "rawQuery": "string",
     "scheme": "string",
     "user": {}
-  }
+  },
+  "stream_silence_timeout": 0
 }
 ```
 
 ### Properties
 
-| Name                    | Type                       | Required | Restrictions | Description |
-|-------------------------|----------------------------|----------|--------------|-------------|
-| `acquire_batch_size`    | integer                    | false    |              |             |
-| `debug_logging_enabled` | boolean                    | false    |              |             |
-| `hook_allow_insecure`   | boolean                    | false    |              |             |
-| `hook_enabled`          | boolean                    | false    |              |             |
-| `hook_secret`           | string                     | false    |              |             |
-| `hook_timeout`          | integer                    | false    |              |             |
-| `hook_url`              | [serpent.URL](#serpenturl) | false    |              |             |
+| Name                     | Type                       | Required | Restrictions | Description |
+|--------------------------|----------------------------|----------|--------------|-------------|
+| `acquire_batch_size`     | integer                    | false    |              |             |
+| `debug_logging_enabled`  | boolean                    | false    |              |             |
+| `hook_allow_insecure`    | boolean                    | false    |              |             |
+| `hook_enabled`           | boolean                    | false    |              |             |
+| `hook_secret`            | string                     | false    |              |             |
+| `hook_timeout`           | integer                    | false    |              |             |
+| `hook_url`               | [serpent.URL](#serpenturl) | false    |              |             |
+| `stream_silence_timeout` | integer                    | false    |              |             |
 
 ## codersdk.ChatContext
 
@@ -3411,6 +3475,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           "property2": null
         },
         "prompt_cache_key": "string",
+        "reasoning_mode": "string",
         "reasoning_summary": "string",
         "safety_identifier": "string",
         "search_context_size": "string",
@@ -3696,6 +3761,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         "property2": null
       },
       "prompt_cache_key": "string",
+      "reasoning_mode": "string",
       "reasoning_summary": "string",
       "safety_identifier": "string",
       "search_context_size": "string",
@@ -3923,6 +3989,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "property2": null
   },
   "prompt_cache_key": "string",
+  "reasoning_mode": "string",
   "reasoning_summary": "string",
   "safety_identifier": "string",
   "search_context_size": "string",
@@ -3955,6 +4022,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `prediction`            | object          | false    |              |             |
 | » `[any property]`      | any             | false    |              |             |
 | `prompt_cache_key`      | string          | false    |              |             |
+| `reasoning_mode`        | string          | false    |              |             |
 | `reasoning_summary`     | string          | false    |              |             |
 | `safety_identifier`     | string          | false    |              |             |
 | `search_context_size`   | string          | false    |              |             |
@@ -4207,6 +4275,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "property2": null
     },
     "prompt_cache_key": "string",
+    "reasoning_mode": "string",
     "reasoning_summary": "string",
     "safety_identifier": "string",
     "search_context_size": "string",
@@ -5995,6 +6064,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           "property2": null
         },
         "prompt_cache_key": "string",
+        "reasoning_mode": "string",
         "reasoning_summary": "string",
         "safety_identifier": "string",
         "search_context_size": "string",
@@ -6124,6 +6194,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   ],
   "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
   "plan_mode": "plan",
   "reasoning_effort": "string",
   "system_prompt": "string",
@@ -6142,20 +6213,21 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name                   | Type                                                      | Required | Restrictions | Description                                                                                                                                |
-|------------------------|-----------------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------|
-| `client_type`          | [codersdk.ChatClientType](#codersdkchatclienttype)        | false    |              |                                                                                                                                            |
-| `content`              | array of [codersdk.ChatInputPart](#codersdkchatinputpart) | false    |              |                                                                                                                                            |
-| `labels`               | object                                                    | false    |              |                                                                                                                                            |
-| » `[any property]`     | string                                                    | false    |              |                                                                                                                                            |
-| `mcp_server_ids`       | array of string                                           | false    |              |                                                                                                                                            |
-| `model_config_id`      | string                                                    | false    |              |                                                                                                                                            |
-| `organization_id`      | string                                                    | false    |              |                                                                                                                                            |
-| `plan_mode`            | [codersdk.ChatPlanMode](#codersdkchatplanmode)            | false    |              |                                                                                                                                            |
-| `reasoning_effort`     | string                                                    | false    |              |                                                                                                                                            |
-| `system_prompt`        | string                                                    | false    |              |                                                                                                                                            |
-| `unsafe_dynamic_tools` | array of [codersdk.DynamicTool](#codersdkdynamictool)     | false    |              | Unsafe dynamic tools declares client-executed tools that the LLM can invoke. This API is highly experimental and highly subject to change. |
-| `workspace_id`         | string                                                    | false    |              |                                                                                                                                            |
+| Name                   | Type                                                      | Required | Restrictions | Description                                                                                                                                                                   |
+|------------------------|-----------------------------------------------------------|----------|--------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `client_type`          | [codersdk.ChatClientType](#codersdkchatclienttype)        | false    |              |                                                                                                                                                                               |
+| `content`              | array of [codersdk.ChatInputPart](#codersdkchatinputpart) | false    |              |                                                                                                                                                                               |
+| `labels`               | object                                                    | false    |              |                                                                                                                                                                               |
+| » `[any property]`     | string                                                    | false    |              |                                                                                                                                                                               |
+| `mcp_server_ids`       | array of string                                           | false    |              |                                                                                                                                                                               |
+| `model_config_id`      | string                                                    | false    |              |                                                                                                                                                                               |
+| `organization_id`      | string                                                    | false    |              |                                                                                                                                                                               |
+| `owner_id`             | string                                                    | false    |              | Owner ID makes another user the chat owner. It defaults to the caller. The chat runs with the owner's credentials, so setting it requires site-wide authority over that user. |
+| `plan_mode`            | [codersdk.ChatPlanMode](#codersdkchatplanmode)            | false    |              |                                                                                                                                                                               |
+| `reasoning_effort`     | string                                                    | false    |              |                                                                                                                                                                               |
+| `system_prompt`        | string                                                    | false    |              |                                                                                                                                                                               |
+| `unsafe_dynamic_tools` | array of [codersdk.DynamicTool](#codersdkdynamictool)     | false    |              | Unsafe dynamic tools declares client-executed tools that the LLM can invoke. This API is highly experimental and highly subject to change.                                    |
+| `workspace_id`         | string                                                    | false    |              |                                                                                                                                                                               |
 
 ## codersdk.CreateFirstUserOnboardingInfo
 
@@ -6297,6 +6369,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "oauth2_revocation_url": "string",
   "oauth2_scopes": "string",
   "oauth2_token_url": "string",
+  "signing_secret": "string",
   "slug": "string",
   "tool_allow_list": [
     "string"
@@ -6311,32 +6384,33 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name                    | Type            | Required | Restrictions | Description                                                                                                            |
-|-------------------------|-----------------|----------|--------------|------------------------------------------------------------------------------------------------------------------------|
-| `allow_in_plan_mode`    | boolean         | false    |              |                                                                                                                        |
-| `api_key_header`        | string          | false    |              |                                                                                                                        |
-| `api_key_value`         | string          | false    |              |                                                                                                                        |
-| `auth_type`             | string          | true     |              |                                                                                                                        |
-| `availability`          | string          | true     |              |                                                                                                                        |
-| `custom_headers`        | object          | false    |              |                                                                                                                        |
-| » `[any property]`      | string          | false    |              |                                                                                                                        |
-| `description`           | string          | false    |              |                                                                                                                        |
-| `display_name`          | string          | true     |              |                                                                                                                        |
-| `enabled`               | boolean         | false    |              |                                                                                                                        |
-| `forward_coder_headers` | boolean         | false    |              | Forward coder headers when true, forwards Coder identity headers on every outgoing MCP request. See MCPServerConfig.   |
-| `icon_url`              | string          | false    |              |                                                                                                                        |
-| `model_intent`          | boolean         | false    |              |                                                                                                                        |
-| `oauth2_auth_url`       | string          | false    |              |                                                                                                                        |
-| `oauth2_client_id`      | string          | false    |              |                                                                                                                        |
-| `oauth2_client_secret`  | string          | false    |              |                                                                                                                        |
-| `oauth2_revocation_url` | string          | false    |              | Oauth2 revocation URL is the provider's RFC 7009 revocation endpoint; auto-populated by OAuth2 discovery when omitted. |
-| `oauth2_scopes`         | string          | false    |              |                                                                                                                        |
-| `oauth2_token_url`      | string          | false    |              |                                                                                                                        |
-| `slug`                  | string          | true     |              |                                                                                                                        |
-| `tool_allow_list`       | array of string | false    |              |                                                                                                                        |
-| `tool_deny_list`        | array of string | false    |              |                                                                                                                        |
-| `transport`             | string          | true     |              |                                                                                                                        |
-| `url`                   | string          | true     |              |                                                                                                                        |
+| Name                    | Type            | Required | Restrictions | Description                                                                                                                            |
+|-------------------------|-----------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------|
+| `allow_in_plan_mode`    | boolean         | false    |              |                                                                                                                                        |
+| `api_key_header`        | string          | false    |              |                                                                                                                                        |
+| `api_key_value`         | string          | false    |              |                                                                                                                                        |
+| `auth_type`             | string          | true     |              |                                                                                                                                        |
+| `availability`          | string          | true     |              |                                                                                                                                        |
+| `custom_headers`        | object          | false    |              |                                                                                                                                        |
+| » `[any property]`      | string          | false    |              |                                                                                                                                        |
+| `description`           | string          | false    |              |                                                                                                                                        |
+| `display_name`          | string          | true     |              |                                                                                                                                        |
+| `enabled`               | boolean         | false    |              |                                                                                                                                        |
+| `forward_coder_headers` | boolean         | false    |              | Forward coder headers when true, forwards Coder identity headers on every outgoing MCP request. See MCPServerConfig.                   |
+| `icon_url`              | string          | false    |              |                                                                                                                                        |
+| `model_intent`          | boolean         | false    |              |                                                                                                                                        |
+| `oauth2_auth_url`       | string          | false    |              |                                                                                                                                        |
+| `oauth2_client_id`      | string          | false    |              |                                                                                                                                        |
+| `oauth2_client_secret`  | string          | false    |              |                                                                                                                                        |
+| `oauth2_revocation_url` | string          | false    |              | Oauth2 revocation URL is the provider's RFC 7009 revocation endpoint; auto-populated by OAuth2 discovery when omitted.                 |
+| `oauth2_scopes`         | string          | false    |              |                                                                                                                                        |
+| `oauth2_token_url`      | string          | false    |              |                                                                                                                                        |
+| `signing_secret`        | string          | false    |              | Signing secret signs forwarded identity headers and request bodies. Configure the same secret on the MCP server. It is never returned. |
+| `slug`                  | string          | true     |              |                                                                                                                                        |
+| `tool_allow_list`       | array of string | false    |              |                                                                                                                                        |
+| `tool_deny_list`        | array of string | false    |              |                                                                                                                                        |
+| `transport`             | string          | true     |              |                                                                                                                                        |
+| `url`                   | string          | true     |              |                                                                                                                                        |
 
 #### Enumerated Values
 
@@ -6635,7 +6709,7 @@ This is required on creation to enable a user-flow of validating a template work
 |-----------|--------|----------|--------------|-------------|
 | `api_key` | string | false    |              |             |
 
-## codersdk.CreateUserRequestWithOrgs
+## codersdk.CreateUserRequest
 
 ```json
 {
@@ -7291,7 +7365,8 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
           "rawQuery": "string",
           "scheme": "string",
           "user": {}
-        }
+        },
+        "stream_silence_timeout": 0
       }
     },
     "allow_workspace_renames": true,
@@ -7364,6 +7439,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "scheme": "string",
       "user": {}
     },
+    "dynamic_parameters_full_evaluation": true,
     "enable_authz_recording": true,
     "enable_terraform_debug_mode": true,
     "ephemeral_deployment": true,
@@ -7901,7 +7977,8 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         "rawQuery": "string",
         "scheme": "string",
         "user": {}
-      }
+      },
+      "stream_silence_timeout": 0
     }
   },
   "allow_workspace_renames": true,
@@ -7974,6 +8051,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     "scheme": "string",
     "user": {}
   },
+  "dynamic_parameters_full_evaluation": true,
   "enable_authz_recording": true,
   "enable_terraform_debug_mode": true,
   "ephemeral_deployment": true,
@@ -8365,6 +8443,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `disable_workspace_agent_context_sync`         | boolean                                                                                              | false    |              |                                                                           |
 | `disable_workspace_sharing`                    | boolean                                                                                              | false    |              |                                                                           |
 | `docs_url`                                     | [serpent.URL](#serpenturl)                                                                           | false    |              |                                                                           |
+| `dynamic_parameters_full_evaluation`           | boolean                                                                                              | false    |              |                                                                           |
 | `enable_authz_recording`                       | boolean                                                                                              | false    |              |                                                                           |
 | `enable_terraform_debug_mode`                  | boolean                                                                                              | false    |              |                                                                           |
 | `ephemeral_deployment`                         | boolean                                                                                              | false    |              |                                                                           |
@@ -8871,9 +8950,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                                                                                                                                                                                                       |
-|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `agent-lifecycle-hooks`, `ai-gateway-reverse-proxy`, `ai-gateway-seat-exclusion`, `auto-fill-parameters`, `chat-advisor`, `chat-virtual-desktop`, `example`, `mcp-server-http`, `mcp-tool-search`, `nats_pubsub`, `notifications`, `workspace-build-updates`, `workspace-capable-licensing`, `workspace-usage` |
+| Value(s)                                                                                                                                                                                                                                                                                                          |
+|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `agent-lifecycle-hooks`, `ai-gateway-reverse-proxy`, `ai-gateway-seat-exclusion`, `auto-fill-parameters`, `chat-advisor`, `chat-virtual-desktop`, `example`, `mcp-server-http`, `mcp-tool-search`, `no_nats_pubsub`, `notifications`, `workspace-build-updates`, `workspace-capable-licensing`, `workspace-usage` |
 
 ## codersdk.ExternalAPIKeyScopes
 
@@ -9961,6 +10040,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
   "has_api_key": true,
   "has_custom_headers": true,
   "has_oauth2_secret": true,
+  "has_signing_secret": true,
   "icon_url": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "model_intent": true,
@@ -10000,6 +10080,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `has_api_key`           | boolean         | false    |              |                                                                                                                                                                                                                                                                                                      |
 | `has_custom_headers`    | boolean         | false    |              |                                                                                                                                                                                                                                                                                                      |
 | `has_oauth2_secret`     | boolean         | false    |              |                                                                                                                                                                                                                                                                                                      |
+| `has_signing_secret`    | boolean         | false    |              |                                                                                                                                                                                                                                                                                                      |
 | `icon_url`              | string          | false    |              |                                                                                                                                                                                                                                                                                                      |
 | `id`                    | string          | false    |              |                                                                                                                                                                                                                                                                                                      |
 | `model_intent`          | boolean         | false    |              |                                                                                                                                                                                                                                                                                                      |
@@ -10932,7 +11013,8 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
   },
   "icon": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-  "name": "string"
+  "name": "string",
+  "scope": "string"
 }
 ```
 
@@ -10946,6 +11028,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `icon`         | string                                                     | false    |              |                                                                                                                                                                                                         |
 | `id`           | string                                                     | false    |              |                                                                                                                                                                                                         |
 | `name`         | string                                                     | false    |              |                                                                                                                                                                                                         |
+| `scope`        | string                                                     | false    |              | Scope is the space-separated list of scopes this app's tokens may be granted. Empty means unrestricted. A non-empty value with no names is a configured allowlist that grants nothing.                  |
 
 ## codersdk.OAuth2ProviderAppSecret
 
@@ -11479,6 +11562,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
               "property2": null
             },
             "prompt_cache_key": "string",
+            "reasoning_mode": "string",
             "reasoning_summary": "string",
             "safety_identifier": "string",
             "search_context_size": "string",
@@ -12120,33 +12204,35 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 {
   "callback_url": "string",
   "icon": "string",
-  "name": "string"
+  "name": "string",
+  "scope": "string"
 }
 ```
 
 ### Properties
 
-| Name           | Type   | Required | Restrictions | Description |
-|----------------|--------|----------|--------------|-------------|
-| `callback_url` | string | true     |              |             |
-| `icon`         | string | false    |              |             |
-| `name`         | string | true     |              |             |
+| Name           | Type   | Required | Restrictions | Description                                                                                                           |
+|----------------|--------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------|
+| `callback_url` | string | true     |              |                                                                                                                       |
+| `icon`         | string | false    |              |                                                                                                                       |
+| `name`         | string | true     |              |                                                                                                                       |
+| `scope`        | string | false    |              | Scope is the space-separated list of scopes this app's tokens may be granted. Leave empty, or omit, for unrestricted. |
 
 ## codersdk.PostWorkspaceUsageRequest
 
 ```json
 {
   "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
-  "app_name": "vscode"
+  "app_name": "string"
 }
 ```
 
 ### Properties
 
-| Name       | Type                                           | Required | Restrictions | Description |
-|------------|------------------------------------------------|----------|--------------|-------------|
-| `agent_id` | string                                         | false    |              |             |
-| `app_name` | [codersdk.UsageAppName](#codersdkusageappname) | false    |              |             |
+| Name       | Type   | Required | Restrictions | Description                                                                                                                                                                        |
+|------------|--------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `agent_id` | string | false    |              |                                                                                                                                                                                    |
+| `app_name` | string | false    |              | App name is any name for the app reporting usage. The server normalizes it at ingestion, so a new app needs no server change. The UsageAppName constants are the well-known names. |
 
 ## codersdk.PprofConfig
 
@@ -13007,17 +13093,19 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 {
   "callback_url": "string",
   "icon": "string",
-  "name": "string"
+  "name": "string",
+  "scope": "string"
 }
 ```
 
 ### Properties
 
-| Name           | Type   | Required | Restrictions | Description |
-|----------------|--------|----------|--------------|-------------|
-| `callback_url` | string | true     |              |             |
-| `icon`         | string | false    |              |             |
-| `name`         | string | true     |              |             |
+| Name           | Type   | Required | Restrictions | Description                                                                                                                                                  |
+|----------------|--------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `callback_url` | string | true     |              |                                                                                                                                                              |
+| `icon`         | string | false    |              |                                                                                                                                                              |
+| `name`         | string | true     |              |                                                                                                                                                              |
+| `scope`        | string | false    |              | Scope replaces the app's current allowlist. Omit to leave the existing allowlist untouched. Set to an empty string to clear it, making the app unrestricted. |
 
 ## codersdk.RBACAction
 
@@ -15489,6 +15577,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
           "property2": null
         },
         "prompt_cache_key": "string",
+        "reasoning_mode": "string",
         "reasoning_summary": "string",
         "safety_identifier": "string",
         "search_context_size": "string",
@@ -15760,6 +15849,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
   "oauth2_revocation_url": "string",
   "oauth2_scopes": "string",
   "oauth2_token_url": "string",
+  "signing_secret": "string",
   "slug": "string",
   "tool_allow_list": [
     "string"
@@ -15795,6 +15885,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 | `oauth2_revocation_url` | string          | false    |              | Oauth2 revocation URL is validated in the handler because a validate tag would reject the pointer to "" that clears it. |
 | `oauth2_scopes`         | string          | false    |              |                                                                                                                         |
 | `oauth2_token_url`      | string          | false    |              |                                                                                                                         |
+| `signing_secret`        | string          | false    |              | Signing secret replaces the shared signing key. Omit to preserve it; an empty string clears it. It is never returned.   |
 | `slug`                  | string          | false    |              |                                                                                                                         |
 | `tool_allow_list`       | array of string | false    |              |                                                                                                                         |
 | `tool_deny_list`        | array of string | false    |              |                                                                                                                         |
@@ -16401,20 +16492,6 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 |---------------|----------------------------------------------------|
 | `protocol`    | `http`, `https`                                    |
 | `share_level` | `authenticated`, `organization`, `owner`, `public` |
-
-## codersdk.UsageAppName
-
-```json
-"vscode"
-```
-
-### Properties
-
-#### Enumerated Values
-
-| Value(s)                                         |
-|--------------------------------------------------|
-| `jetbrains`, `reconnecting-pty`, `ssh`, `vscode` |
 
 ## codersdk.UsagePeriod
 

@@ -37,8 +37,10 @@ func readTitleGenerationModelOverride(
 // resolveTitleGenerationModelOverride resolves the chat organization's title
 // generation model override. A configured but unusable override is a hard
 // failure. When no row is configured, callers may use the default title model.
+// purpose labels resolver logs only.
 func (p *Server) resolveTitleGenerationModelOverride(
 	ctx context.Context,
+	purpose string,
 	chat database.Chat,
 	modelOpts modelBuildOptions,
 ) (resolvedModelCall, bool, error) {
@@ -73,7 +75,7 @@ func (p *Server) resolveTitleGenerationModelOverride(
 		return resolvedModelCall{}, false, nil
 	}
 	resolved, err := p.resolveModelCall(ctx, modelCallSpec{
-		purpose:          "title",
+		purpose:          purpose,
 		chat:             chat,
 		explicitConfig:   &modelConfig,
 		requestedEffort:  overrideEffort,

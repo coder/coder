@@ -1858,7 +1858,7 @@ func (api *API) dynamicTemplateVersionTags(ctx context.Context, rw http.Response
 		Logger:          stdslog.New(stdslog.DiscardHandler),
 		TFVars:          tfVarValues,
 	}
-	output, diags := preview.Preview(ctx, input, files)
+	output, diags := preview.Preview(ctx, input, files, dynamicparameters.PreviewOptions(api.DeploymentValues)...)
 	if output != nil {
 		// ValidatePrebuilds iterates through the presets and validate their values. This
 		// ensures the prebuild can actually succeed in a workspace build. The failure

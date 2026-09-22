@@ -11,10 +11,10 @@ import {
 import { createDayString } from "#/utils/createDayString";
 import { ProvisionerTag } from "./ProvisionerTag";
 
-interface ProvisionerProps {
+type ProvisionerProps = {
 	readonly provisioner: ProvisionerDaemon;
 	readonly warnings?: readonly HealthMessage[];
-}
+};
 
 export const Provisioner: FC<ProvisionerProps> = ({
 	provisioner,

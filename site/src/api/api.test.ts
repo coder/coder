@@ -2,6 +2,7 @@ import {
 	MockChatModelACL,
 	MockMCPServerConfigACL,
 	MockMCPServerConfigACLAvailable,
+	MockOrganizationAISpendReport,
 	MockProvisionerJob,
 	MockStoppedWorkspace,
 	MockTemplate,
@@ -261,6 +262,51 @@ describe("api.ts", () => {
 				);
 				expect(result).toStrictEqual(response(ids));
 			});
+		});
+	});
+
+	describe("getOrganizationAISpendUsers", () => {
+		afterEach(() => {
+			vi.restoreAllMocks();
+		});
+
+		it("passes the filters and page to the per-user spend endpoint", async () => {
+			const getSpy = vi
+				.spyOn(axiosInstance, "get")
+				.mockResolvedValueOnce({ data: MockOrganizationAISpendReport });
+
+			const result = await API.getOrganizationAISpendUsers("my-org", {
+				period_start: "2026-07-01T00:00:00Z",
+				period_end: "2026-08-01T00:00:00Z",
+				provider_name: "openai",
+				limit: 10,
+				offset: 20,
+			});
+
+			expect(getSpy).toHaveBeenCalledTimes(1);
+			const [url] = getSpy.mock.calls[0];
+			expect(url).toContain("/api/v2/organizations/my-org/ai/spend/users?");
+			expect(url).toContain("provider_name=openai");
+			expect(url).toContain("limit=10");
+			expect(url).toContain("offset=20");
+			expect(result).toStrictEqual(MockOrganizationAISpendReport);
+		});
+
+		it("omits a zero limit and offset so the server applies its defaults", async () => {
+			const getSpy = vi
+				.spyOn(axiosInstance, "get")
+				.mockResolvedValueOnce({ data: MockOrganizationAISpendReport });
+
+			await API.getOrganizationAISpendUsers("my-org", {
+				provider_name: "openai",
+				limit: 0,
+				offset: 0,
+			});
+
+			const [url] = getSpy.mock.calls[0];
+			expect(url).toBe(
+				"/api/v2/organizations/my-org/ai/spend/users?provider_name=openai",
+			);
 		});
 	});
 
@@ -765,6 +811,36 @@ describe("api.ts", () => {
 
 			await expect(API.putOAuth2ProviderSettings(settings)).rejects.toBe(
 				expectedError,
+			);
+		});
+	});
+
+	describe("getWorkspace", () => {
+		it("passes include_related through as a query param", async () => {
+			const getSpy = vi
+				.spyOn(axiosInstance, "get")
+				.mockResolvedValueOnce({ data: MockWorkspace });
+
+			const params: TypesGen.WorkspaceOptions = { include_related: "template" };
+			const result = await API.getWorkspace(MockWorkspace.id, params);
+
+			expect(getSpy).toHaveBeenCalledWith(
+				`/api/v2/workspaces/${MockWorkspace.id}`,
+				{ params },
+			);
+			expect(result).toBe(MockWorkspace);
+		});
+
+		it("omits params when none are given", async () => {
+			const getSpy = vi
+				.spyOn(axiosInstance, "get")
+				.mockResolvedValueOnce({ data: MockWorkspace });
+
+			await API.getWorkspace(MockWorkspace.id);
+
+			expect(getSpy).toHaveBeenCalledWith(
+				`/api/v2/workspaces/${MockWorkspace.id}`,
+				{ params: undefined },
 			);
 		});
 	});

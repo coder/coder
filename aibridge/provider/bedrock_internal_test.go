@@ -212,7 +212,7 @@ func TestBuildBedrockCredentialsAssumeRole(t *testing.T) {
 	require.Equal(t, "assumed-token", got.SessionToken)
 
 	require.Equal(t, "arn:aws:iam::123456789012:role/target", gotRoleARN)
-	require.Equal(t, bedrockSessionName, gotSessionName)
+	require.Equal(t, awsSessionName, gotSessionName)
 	// The STS client disables keep-alive so each AssumeRole opens a fresh
 	// connection; Go signals this with a Connection: close request header.
 	require.Equal(t, "close", gotConnection,
@@ -480,30 +480,6 @@ func TestBedrock_CircuitBreakerOpenErrorResponse(t *testing.T) {
 	assert.Equal(t, "api_error", openAIEnvelope.Error.Type)
 	assert.Equal(t, "circuit breaker is open", openAIEnvelope.Error.Message)
 	assert.Equal(t, "service_unavailable", openAIEnvelope.Error.Code)
-}
-
-func TestBedrock_TypeAndName(t *testing.T) {
-	t.Parallel()
-
-	p := newTestBedrock(t, config.Anthropic{}, config.AWSBedrock{
-		Region:          "us-west-2",
-		AccessKey:       "test-key",
-		AccessKeySecret: "test-secret",
-		Model:           "m",
-		SmallFastModel:  "s",
-	})
-	assert.Equal(t, config.ProviderBedrock, p.Type())
-	assert.Equal(t, config.ProviderBedrock, p.Name())
-
-	p2 := newTestBedrock(t, config.Anthropic{Name: "bedrock-custom"}, config.AWSBedrock{
-		Region:          "us-west-2",
-		AccessKey:       "test-key",
-		AccessKeySecret: "test-secret",
-		Model:           "m",
-		SmallFastModel:  "s",
-	})
-	assert.Equal(t, config.ProviderBedrock, p2.Type())
-	assert.Equal(t, "bedrock-custom", p2.Name())
 }
 
 func TestBedrock_KeyPool(t *testing.T) {

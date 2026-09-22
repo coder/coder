@@ -21,11 +21,11 @@ import { linkToTemplate, useLinks } from "#/modules/navigation";
 
 type TemplatesQuery = UseQueryResult<Template[]>;
 
-interface WorkspacesButtonProps {
+type WorkspacesButtonProps = {
 	children?: ReactNode;
 	templatesFetchStatus: TemplatesQuery["status"];
 	templates: TemplatesQuery["data"];
-}
+};
 
 export const WorkspacesButton: FC<WorkspacesButtonProps> = ({
 	children,

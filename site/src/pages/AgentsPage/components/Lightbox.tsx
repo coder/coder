@@ -1,7 +1,7 @@
 import type { FC, ReactNode } from "react";
 import { Dialog, DialogContent, DialogTitle } from "#/components/Dialog/Dialog";
 
-interface LightboxProps {
+type LightboxProps = {
 	/** Screen-reader title for the dialog. */
 	title: string;
 	onClose: () => void;
@@ -10,7 +10,7 @@ interface LightboxProps {
 	 * when the trigger lives inside a re-rendering message tree. */
 	onCloseAutoFocus?: () => void;
 	children: ReactNode;
-}
+};
 
 /**
  * Chat preview dialog for media that should be shown as large as the

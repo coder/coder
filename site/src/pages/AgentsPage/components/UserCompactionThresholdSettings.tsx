@@ -37,7 +37,7 @@ import {
 	resolveCompactionContextLimit,
 } from "../utils/modelOptions";
 
-interface UserCompactionThresholdSettingsProps {
+type UserCompactionThresholdSettingsProps = {
 	models: readonly TypesGen.ChatModel[];
 	providerTypeByID: ReadonlyMap<string, string>;
 	organizations: readonly TypesGen.Organization[];
@@ -56,7 +56,7 @@ interface UserCompactionThresholdSettingsProps {
 		thresholdPercent: number,
 	) => Promise<unknown>;
 	onResetThreshold: (modelId: string) => Promise<unknown>;
-}
+};
 
 const noCompactionOverrides: ReadonlyMap<string, string> = new Map();
 
