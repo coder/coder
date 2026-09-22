@@ -712,6 +712,12 @@ export const mergeWatchedChatSummary = (
 				removedRef,
 			)
 		: cachedChat.diff_statuses;
+
+	// The first merged row is the primary. Consumers that have not
+	// migrated to diff_statuses still read diff_status.
+	const nextDiffStatus = isDiffStatusEvent
+		? nextDiffStatuses?.[0]
+		: cachedChat.diff_status;
 	// Context drift is tracked outside chats.updated_at (it is driven by
 	// agent context pushes), so apply context_dirty payloads regardless of
 	// the summary timestamp. Merge rather than replace so the pinned
@@ -764,6 +770,7 @@ export const mergeWatchedChatSummary = (
 		nextStatus === cachedChat.status &&
 		nextTitle === cachedChat.title &&
 		diffStatusesEqual(nextDiffStatuses, cachedChat.diff_statuses) &&
+		diffStatusEqual(nextDiffStatus, cachedChat.diff_status) &&
 		nextWorkspaceId === cachedChat.workspace_id &&
 		nextBuildId === cachedChat.build_id &&
 		nextLastModelConfigId === cachedChat.last_model_config_id &&
@@ -782,6 +789,7 @@ export const mergeWatchedChatSummary = (
 		status: nextStatus,
 		title: nextTitle,
 		diff_statuses: nextDiffStatuses,
+		diff_status: nextDiffStatus,
 		workspace_id: nextWorkspaceId,
 		build_id: nextBuildId,
 		last_model_config_id: nextLastModelConfigId,

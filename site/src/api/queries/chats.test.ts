@@ -3279,6 +3279,7 @@ describe("mergeWatchedChatSummary", () => {
 			status: "running",
 			title: "Fresh title",
 			diff_statuses: [watchedDiffStatus],
+			diff_status: watchedDiffStatus,
 		});
 	});
 
@@ -3438,6 +3439,7 @@ describe("mergeWatchedChatSummary", () => {
 		);
 		expect(byBranch.get("feature-a")?.additions).toBe(7);
 		expect(byBranch.get("feature-b")).toBe(refB);
+		expect(merged.diff_status).toEqual(refAUpdated);
 	});
 
 	it("adopts the embedded primary when the cache missed its row", () => {
@@ -3473,6 +3475,7 @@ describe("mergeWatchedChatSummary", () => {
 		});
 
 		expect(merged.diff_statuses).toEqual([primaryRef, cachedRef, refreshedRef]);
+		expect(merged.diff_status).toEqual(primaryRef);
 	});
 
 	it("keeps the cached primary row over the embedded snapshot", () => {
@@ -3511,6 +3514,7 @@ describe("mergeWatchedChatSummary", () => {
 		});
 
 		expect(merged.diff_statuses?.[0]?.additions).toBe(9);
+		expect(merged.diff_status?.additions).toBe(9);
 	});
 
 	it("adopts the primary from an empty cache", () => {
@@ -3598,6 +3602,7 @@ describe("mergeWatchedChatSummary", () => {
 		});
 
 		expect(merged.diff_statuses).toEqual([refB]);
+		expect(merged.diff_status).toEqual(refB);
 	});
 
 	it("returns the cached chat when only refreshed_at/stale_at differ", () => {
@@ -3624,6 +3629,7 @@ describe("mergeWatchedChatSummary", () => {
 		};
 		const cachedChat = makeChat("chat-1", {
 			diff_statuses: [cachedDiffStatus],
+			diff_status: cachedDiffStatus,
 			updated_at: "2025-01-01T00:00:00.000Z",
 		});
 		const watchedChat = makeChat("chat-1", {
