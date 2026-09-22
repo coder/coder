@@ -35,6 +35,36 @@ func NewStreamingTransport() *http.Transport {
 	}
 }
 
+// proxyHeaders describe the path the inbound request took to reach AI Gateway.
+// They are not meaningful on the outbound request to the provider.
+var proxyHeaders = []string{
+	"X-Forwarded-For",
+	"X-Forwarded-Host",
+	"X-Forwarded-Proto",
+	"X-Forwarded-Port",
+	"Forwarded",
+}
+
+// agentFirewallHeaders carry Agent Firewall correlation data used by
+// AI Gateway for session correlation. AI Gateway records the values
+// from the incoming request and strips the headers so they are never
+// forwarded to upstream LLM providers.
+var agentFirewallHeaders = []string{
+	"X-Coder-Agent-Firewall-Session-Id",
+	"X-Coder-Agent-Firewall-Sequence-Number",
+}
+
+// StripProxyAndFirewallHeaders removes inbound proxy and Agent Firewall
+// correlation headers, which must not reach upstream providers.
+func StripProxyAndFirewallHeaders(headers http.Header) {
+	for _, h := range proxyHeaders {
+		headers.Del(h)
+	}
+	for _, h := range agentFirewallHeaders {
+		headers.Del(h)
+	}
+}
+
 // NewJSONErrorResponse builds an *http.Response with a JSON body
 // and optional Retry-After header. Used to synthesize bridge-side
 // error responses (e.g. key-pool exhaustion, marshaling

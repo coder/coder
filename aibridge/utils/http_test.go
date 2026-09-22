@@ -110,3 +110,28 @@ func TestNewStreamingTransport(t *testing.T) {
 	require.Zero(t, transport.ResponseHeaderTimeout)
 	require.False(t, transport.DisableCompression)
 }
+
+func TestStripProxyAndFirewallHeaders(t *testing.T) {
+	t.Parallel()
+
+	headers := http.Header{
+		"X-Forwarded-For":                        {"192.0.2.1"},
+		"X-Forwarded-Host":                       {"client.example.com"},
+		"X-Forwarded-Proto":                      {"https"},
+		"X-Forwarded-Port":                       {"443"},
+		"Forwarded":                              {"for=192.0.2.1"},
+		"X-Coder-Agent-Firewall-Session-Id":      {"e5f6a7b8-1234-5678-9abc-def012345678"},
+		"X-Coder-Agent-Firewall-Sequence-Number": {"42"},
+		"Authorization":                          {"Bearer provider"},
+		"Accept-Encoding":                        {"gzip"},
+		"Cookie":                                 {"session=abc"},
+	}
+
+	utils.StripProxyAndFirewallHeaders(headers)
+
+	require.Equal(t, http.Header{
+		"Authorization":   {"Bearer provider"},
+		"Accept-Encoding": {"gzip"},
+		"Cookie":          {"session=abc"},
+	}, headers)
+}
