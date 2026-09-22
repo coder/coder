@@ -1409,6 +1409,55 @@ func TestOAuth2ProviderAppRedirectURIs(t *testing.T) {
 		require.Equal(t, "redirect URI at index 0 must use https scheme for non-localhost URLs", sdkErr.Validations[0].Detail)
 	})
 
+	t.Run("LegacyCleartextHTTPCallback", func(t *testing.T) {
+		t.Parallel()
+
+		db, pubsub := dbtestutil.NewDB(t)
+		client := coderdtest.New(t, &coderdtest.Options{Database: db, Pubsub: pubsub})
+		_ = coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		const legacy = "http://intranet.example.com/callback"
+		app := dbgen.OAuth2ProviderApp(t, db, database.OAuth2ProviderApp{
+			Name:         "legacy-cleartext",
+			CallbackURL:  legacy,
+			RedirectUris: []string{legacy},
+		})
+
+		query := authorizeQuery(t, app.ID.String(), "")
+		query.Set("redirect_uri", legacy)
+		resp := sendAuthorizeRequest(ctx, t, client, http.MethodGet, query)
+		defer resp.Body.Close()
+		require.Equal(t, http.StatusOK, resp.StatusCode, readBody(t, resp))
+
+		//nolint:gocritic // OAuth2 app management requires owner permission.
+		_, err := client.PutOAuth2ProviderApp(ctx, app.ID, codersdk.PutOAuth2ProviderAppRequest{
+			Name: "renamed",
+		})
+		requireRedirectURIsValidationError(t, err, "redirect URI at index 0 must use https scheme for non-localhost URLs")
+
+		stored, err := db.GetOAuth2ProviderAppByID(ctx, app.ID)
+		require.NoError(t, err)
+		require.Equal(t, "legacy-cleartext", stored.Name)
+		require.Equal(t, legacy, stored.CallbackURL)
+		require.Equal(t, []string{legacy}, stored.RedirectUris)
+
+		//nolint:gocritic // OAuth2 app management requires owner permission.
+		updated, err := client.PutOAuth2ProviderApp(ctx, app.ID, codersdk.PutOAuth2ProviderAppRequest{
+			Name:         "renamed",
+			RedirectURIs: []string{first, second},
+		})
+		require.NoError(t, err)
+		require.Equal(t, "renamed", updated.Name)
+		require.Equal(t, first, updated.CallbackURL)
+		require.Equal(t, []string{first, second}, updated.RedirectURIs)
+
+		stored, err = db.GetOAuth2ProviderAppByID(ctx, app.ID)
+		require.NoError(t, err)
+		require.Equal(t, first, stored.CallbackURL)
+		require.Equal(t, []string{first, second}, stored.RedirectUris)
+	})
+
 	// An update sending redirect_uris as an empty list is refused rather than
 	// silently keeping the stored list, with or without callback_url.
 	t.Run("EmptyListIsRefused", func(t *testing.T) {
