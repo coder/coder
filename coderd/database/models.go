@@ -5212,6 +5212,8 @@ type ChatMessage struct {
 	SearchTsv interface{} `db:"search_tsv" json:"search_tsv"`
 	// Text search config that produced search_tsv. NULL means an unknown config (a pre-migration vector or one written by an old binary); the dbpurge sweep re-vectorizes such rows.
 	SearchTsvConfig NullChatMessageSearchTsvConfig `db:"search_tsv_config" json:"search_tsv_config"`
+	// AI Gateway interception (aibridge_interceptions.id) that produced this message. No foreign key because gateway retention is independent.
+	AIBridgeInterceptionID uuid.NullUUID `db:"aibridge_interception_id" json:"aibridge_interception_id"`
 }
 
 type ChatModelConfig struct {

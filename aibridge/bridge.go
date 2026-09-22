@@ -278,6 +278,8 @@ func newInterceptionProcessor(p provider.Provider, cbs *circuitbreaker.ProviderC
 			}()
 		}
 
+		agplaibridge.NotifyInterceptionRecorded(ctx, interceptor.ID())
+
 		// Process request with circuit breaker protection if configured
 		execErr := cbs.Execute(route, interceptor.Model(), w, func(rw http.ResponseWriter) error {
 			return interceptor.ProcessRequest(rw, r)

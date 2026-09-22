@@ -103,6 +103,7 @@ type episodeState struct {
 	// that never invoke a model, such as local tool execution
 	// batches.
 	modelStartedAt time.Time
+	interceptionID uuid.NullUUID
 	// toolCompletions stores started occurrences by unresolved-call position.
 	toolCompletions map[int]ToolCompletion
 	closed          bool
@@ -218,6 +219,25 @@ func (b *Buffer) StartModelInvocation(key Key) error {
 		return ErrEpisodeClosed
 	}
 	episode.modelStartedAt = b.opts.Clock.Now("message-part-buffer", "model-invocation-start")
+	return nil
+}
+
+// RecordInterception associates the most recently recorded gateway interception
+// with this episode.
+func (b *Buffer) RecordInterception(key Key, interceptionID uuid.UUID) error {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if b.closed {
+		return ErrMessagePartBufferClosed
+	}
+	episode, err := b.getEpisodeLocked(key)
+	if err != nil {
+		return err
+	}
+	if episode.closed {
+		return ErrEpisodeClosed
+	}
+	episode.interceptionID = uuid.NullUUID{UUID: interceptionID, Valid: interceptionID != uuid.Nil}
 	return nil
 }
 
@@ -363,6 +383,17 @@ func (b *Buffer) ModelInvokedAt(key Key) time.Time {
 		return time.Time{}
 	}
 	return episode.modelStartedAt
+}
+
+// InterceptionID returns the episode's last interception ID, if any. Read it
+// before CloseEpisode because closed episodes are garbage collected.
+func (b *Buffer) InterceptionID(key Key) uuid.NullUUID {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if episode := b.episodes[key]; episode != nil {
+		return episode.interceptionID
+	}
+	return uuid.NullUUID{}
 }
 
 // ToolCompletions returns copied started-occurrence state. A zero completion

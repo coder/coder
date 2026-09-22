@@ -229,6 +229,105 @@ func newWorkspaceToolTestServer(
 	return newActiveTestServer(t, db, ps, configOverrides...)
 }
 
+func TestChatMessageAIBridgeInterception(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	client, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
+		DeploymentValues: coderdtest.DeploymentValues(t),
+	})
+	aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
+	user := coderdtest.CreateFirstUser(t, client)
+	expClient := codersdk.NewExperimentalClient(client)
+	streamID := "chatcmpl-" + uuid.NewString()[:8]
+	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse("title")
+		}
+		chunks := chattest.OpenAITextChunks("Hello!")
+		for i := range chunks {
+			chunks[i].ID = streamID
+		}
+		return chattest.OpenAIStreamingResponse(chunks...)
+	})
+	coderdtest.CreateOpenAICompatChatModel(t, expClient, openAIURL)
+	chat, err := expClient.CreateChat(ctx, codersdk.CreateChatRequest{
+		OrganizationID: user.OrganizationID,
+		Content:        []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: "Hello"}},
+	})
+	require.NoError(t, err)
+	require.Eventually(t, func() bool {
+		got, getErr := expClient.GetChat(ctx, chat.ID)
+		return getErr == nil && (got.Status == codersdk.ChatStatusWaiting || got.Status == codersdk.ChatStatusError)
+	}, testutil.WaitLong, testutil.IntervalFast)
+
+	dbCtx := dbauthz.AsSystemRestricted(ctx)
+	messages, err := api.Database.GetChatMessagesByChatID(dbCtx, database.GetChatMessagesByChatIDParams{ChatID: chat.ID})
+	require.NoError(t, err)
+	var assistantID uuid.UUID
+	for _, msg := range messages {
+		if msg.Role != database.ChatMessageRoleAssistant {
+			require.False(t, msg.AIBridgeInterceptionID.Valid)
+			continue
+		}
+		require.True(t, msg.AIBridgeInterceptionID.Valid)
+		assistantID = msg.AIBridgeInterceptionID.UUID
+	}
+	require.NotEqual(t, uuid.Nil, assistantID)
+	interception, err := api.Database.GetAIBridgeInterceptionByID(dbCtx, assistantID)
+	require.NoError(t, err)
+	require.Equal(t, sql.NullString{String: chat.ID.String(), Valid: true}, interception.ClientSessionID)
+	// The gateway records prompt usage asynchronously.
+	var prompts []database.AIBridgeUserPrompt
+	testutil.Eventually(ctx, t, func(context.Context) bool {
+		prompts, err = api.Database.GetAIBridgeUserPromptsByInterceptionID(dbCtx, assistantID)
+		return err == nil && len(prompts) > 0
+	}, testutil.IntervalFast)
+	require.Equal(t, streamID, prompts[0].ProviderResponseID)
+}
+
+func TestChatMessageInterceptionFollowsSuccessfulRetry(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	db, ps := dbtestutil.NewDB(t)
+	var attempts atomic.Int32
+	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse("title")
+		}
+		if attempts.Add(1) == 1 {
+			return chattest.OpenAIErrorResponse(http.StatusInternalServerError, "server_error", "temporary failure")
+		}
+		return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("recovered")...)
+	})
+	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
+	factory := chattest.NewMockAIBridgeTransport(t, openAIURL)
+	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(factory)
+	})
+	chat := createChatThroughServer(ctx, t, db, server, org.ID, user.ID, model.ID, "hello")
+	waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
+	require.EqualValues(t, 2, attempts.Load())
+	// Post-turn summary requests are asynchronous, so select the
+	// generation attempts by their stream flag.
+	var streamed []chattest.RecordedRequest
+	for _, req := range factory.RequestsSnapshot() {
+		var body struct {
+			Stream bool `json:"stream"`
+		}
+		if json.Unmarshal(req.Body, &body) == nil && body.Stream {
+			streamed = append(streamed, req)
+		}
+	}
+	require.Len(t, streamed, 2)
+	require.NotEqual(t, streamed[0].InterceptionID, streamed[1].InterceptionID)
+	messages := chatMessages(ctx, t, db, chat.ID)
+	require.Len(t, messages, 2)
+	require.False(t, messages[0].AIBridgeInterceptionID.Valid)
+	require.Equal(t, uuid.NullUUID{UUID: streamed[1].InterceptionID, Valid: true}, messages[1].AIBridgeInterceptionID)
+}
+
 func TestSubagentChatExcludesWorkspaceProvisioningTools(t *testing.T) {
 	t.Parallel()
 
@@ -5904,11 +6003,15 @@ func TestActiveServer_ManualCompaction(t *testing.T) {
 		})
 		user, org, model := seedAnthropicChatDependencies(t, db, anthropicURL)
 
+		factory := chattest.NewMockAIBridgeTransport(t, anthropicURL, chattest.WithPreservePath())
 		server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
-			cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, anthropicURL, chattest.WithPreservePath()))
+			cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(factory)
 		})
 		chat := createChatThroughServer(ctx, t, db, server, org.ID, user.ID, model.ID, "hello from the user")
 		chat = waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
+		firstMessages := chatMessages(ctx, t, db, chat.ID)
+		firstAssistantID := firstMessages[len(firstMessages)-1].AIBridgeInterceptionID
+		require.True(t, firstAssistantID.Valid)
 
 		compacted, err := server.CompactChat(ctx, chat)
 		require.NoError(t, err)
@@ -5924,8 +6027,26 @@ func TestActiveServer_ManualCompaction(t *testing.T) {
 		require.Len(t, toolCounts, 2, "one rejected request with tools, one tool-less retry")
 		require.Positive(t, toolCounts[0], "the first summary request carries the turn's tool definitions")
 		require.Zero(t, toolCounts[1], "the retry drops the tool definitions")
+		var summaryRequests []chattest.RecordedRequest
+		for _, req := range factory.RequestsSnapshot() {
+			if strings.Contains(string(req.Body), "You are performing a context compaction") {
+				summaryRequests = append(summaryRequests, req)
+			}
+		}
+		require.Len(t, summaryRequests, 2)
+		finalSummaryID := summaryRequests[1].InterceptionID
+		require.NotEqual(t, summaryRequests[0].InterceptionID, finalSummaryID)
+		require.NotEqual(t, firstAssistantID.UUID, finalSummaryID)
 
 		messages := chatMessages(ctx, t, db, chat.ID)
+		var summaryRows int
+		for _, message := range messages {
+			if message.Role == database.ChatMessageRoleAssistant && message.Compressed {
+				summaryRows++
+				require.Equal(t, uuid.NullUUID{UUID: finalSummaryID, Valid: true}, message.AIBridgeInterceptionID)
+			}
+		}
+		require.Equal(t, 1, summaryRows)
 		promptMessages, err := db.GetChatMessagesForPromptByChatID(ctx, chat.ID)
 		require.NoError(t, err)
 		compressed := compressedChatSummarizedMessages(t, append(promptMessages, messages...))
@@ -10584,6 +10705,7 @@ func TestInterruptChatPersistsPartialResponse(t *testing.T) {
 	})
 
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	factory := chattest.NewMockAIBridgeTransport(t, openAIURL)
 	server := chatd.New(ps, chatd.Config{
 		Logger:                     logger,
 		Database:                   db,
@@ -10591,7 +10713,7 @@ func TestInterruptChatPersistsPartialResponse(t *testing.T) {
 		PendingChatAcquireInterval: 10 * time.Millisecond,
 		InFlightChatStaleAfter:     testutil.WaitSuperLong,
 		Experiments:                codersdk.ExperimentsKnown,
-		AIBridgeTransportFactory:   chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL)),
+		AIBridgeTransportFactory:   chatAIGatewayTransportFactoryPointer(factory),
 	})
 	server.Start()
 	t.Cleanup(func() {
@@ -10648,6 +10770,11 @@ func TestInterruptChatPersistsPartialResponse(t *testing.T) {
 		return false
 	}, testutil.IntervalFast)
 	require.NotNilf(t, assistantMsg, "expected a persisted assistant message after interrupt")
+	require.True(t, assistantMsg.AIBridgeInterceptionID.Valid)
+	requests := factory.RequestsSnapshot()
+	require.True(t, slices.ContainsFunc(requests, func(req chattest.RecordedRequest) bool {
+		return req.InterceptionID == assistantMsg.AIBridgeInterceptionID.UUID
+	}))
 
 	// Parse the content and verify it contains the partial text.
 	parts, err := chatprompt.ParseContent(*assistantMsg)

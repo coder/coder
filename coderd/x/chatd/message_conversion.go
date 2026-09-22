@@ -203,6 +203,7 @@ func assistantMessage(
 		msg.CacheReadTokens = nullInt64IfNonZero(step.Usage.CacheReadTokens)
 	}
 	msg.ContextLimit = step.ContextLimit
+	msg.AIBridgeInterceptionID = step.AIBridgeInterceptionID
 	// InsertChatMessages maps a zero runtime to NULL, so a model
 	// invocation shorter than a millisecond persists the same way an
 	// unmeasured one does.
@@ -292,12 +293,13 @@ func textFromParts(parts []codersdk.ChatMessagePart) string {
 }
 
 type buildCompactionMessagesInput struct {
-	modelConfigID       uuid.UUID
-	toolCallID          string
-	toolName            string
-	compaction          compactionOutcome
-	contentVersion      int16
-	pendingUserMessages []database.ChatMessage
+	modelConfigID          uuid.UUID
+	toolCallID             string
+	toolName               string
+	compaction             compactionOutcome
+	aibridgeInterceptionID uuid.NullUUID
+	contentVersion         int16
+	pendingUserMessages    []database.ChatMessage
 }
 
 type compactionMessagesForCommit struct {
@@ -356,6 +358,7 @@ func buildCompactionMessages(input buildCompactionMessagesInput) (compactionMess
 
 	assistantMsg := baseMessage(database.ChatMessageRoleAssistant, database.ChatMessageVisibilityUser, input.modelConfigID, contentVersion, assistantContent)
 	assistantMsg.RuntimeMs = nullInt64IfNonZero(input.compaction.Runtime.Milliseconds())
+	assistantMsg.AIBridgeInterceptionID = input.aibridgeInterceptionID
 	messages := []chatstate.Message{
 		{
 			Role:           database.ChatMessageRoleUser,
@@ -706,7 +709,8 @@ type bufferedPartsToPartialMessagesInput struct {
 	// the interrupt closing its buffer episode. It is persisted as
 	// runtime_ms on the first partial assistant message when the
 	// attempt streamed model-generated assistant content.
-	attemptRuntime time.Duration
+	attemptRuntime         time.Duration
+	aibridgeInterceptionID uuid.NullUUID
 }
 
 type partialToolCall struct {
@@ -756,6 +760,13 @@ func bufferedPartsToPartialMessages(input bufferedPartsToPartialMessagesInput) (
 	}
 	if err := state.appendSyntheticInterruptionResults(); err != nil {
 		return nil, err
+	}
+	if input.aibridgeInterceptionID.Valid {
+		for i := range state.messages {
+			if state.messages[i].Role == database.ChatMessageRoleAssistant {
+				state.messages[i].AIBridgeInterceptionID = input.aibridgeInterceptionID
+			}
+		}
 	}
 	if input.attemptRuntime > 0 && state.modelStreamedAssistant {
 		// Usage reporting sums runtime_ms across rows, so placing the

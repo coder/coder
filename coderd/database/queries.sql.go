@@ -8811,7 +8811,7 @@ func (q *sqlQuerier) GetChatHeartbeat(ctx context.Context, arg GetChatHeartbeatP
 
 const getChatMessageByID = `-- name: GetChatMessageByID :one
 SELECT
-    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, revision, reasoning_effort, search_tsv, search_tsv_config
+    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, revision, reasoning_effort, search_tsv, search_tsv_config, aibridge_interception_id
 FROM
     chat_messages
 WHERE
@@ -8848,6 +8848,7 @@ func (q *sqlQuerier) GetChatMessageByID(ctx context.Context, id int64) (ChatMess
 		&i.ReasoningEffort,
 		&i.SearchTsv,
 		&i.SearchTsvConfig,
+		&i.AIBridgeInterceptionID,
 	)
 	return i, err
 }
@@ -8934,7 +8935,7 @@ func (q *sqlQuerier) GetChatMessageSummariesPerChat(ctx context.Context, created
 
 const getChatMessagesByChatID = `-- name: GetChatMessagesByChatID :many
 SELECT
-    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, revision, reasoning_effort, search_tsv, search_tsv_config
+    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, revision, reasoning_effort, search_tsv, search_tsv_config, aibridge_interception_id
 FROM
     chat_messages
 WHERE
@@ -8989,6 +8990,7 @@ func (q *sqlQuerier) GetChatMessagesByChatID(ctx context.Context, arg GetChatMes
 			&i.ReasoningEffort,
 			&i.SearchTsv,
 			&i.SearchTsvConfig,
+			&i.AIBridgeInterceptionID,
 		); err != nil {
 			return nil, err
 		}
@@ -9005,7 +9007,7 @@ func (q *sqlQuerier) GetChatMessagesByChatID(ctx context.Context, arg GetChatMes
 
 const getChatMessagesByChatIDAscPaginated = `-- name: GetChatMessagesByChatIDAscPaginated :many
 SELECT
-    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, revision, reasoning_effort, search_tsv, search_tsv_config
+    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, revision, reasoning_effort, search_tsv, search_tsv_config, aibridge_interception_id
 FROM
     chat_messages
 WHERE
@@ -9060,6 +9062,7 @@ func (q *sqlQuerier) GetChatMessagesByChatIDAscPaginated(ctx context.Context, ar
 			&i.ReasoningEffort,
 			&i.SearchTsv,
 			&i.SearchTsvConfig,
+			&i.AIBridgeInterceptionID,
 		); err != nil {
 			return nil, err
 		}
@@ -9076,7 +9079,7 @@ func (q *sqlQuerier) GetChatMessagesByChatIDAscPaginated(ctx context.Context, ar
 
 const getChatMessagesByChatIDDescPaginated = `-- name: GetChatMessagesByChatIDDescPaginated :many
 SELECT
-    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, revision, reasoning_effort, search_tsv, search_tsv_config
+    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, revision, reasoning_effort, search_tsv, search_tsv_config, aibridge_interception_id
 FROM
     chat_messages
 WHERE
@@ -9144,6 +9147,7 @@ func (q *sqlQuerier) GetChatMessagesByChatIDDescPaginated(ctx context.Context, a
 			&i.ReasoningEffort,
 			&i.SearchTsv,
 			&i.SearchTsvConfig,
+			&i.AIBridgeInterceptionID,
 		); err != nil {
 			return nil, err
 		}
@@ -9160,7 +9164,7 @@ func (q *sqlQuerier) GetChatMessagesByChatIDDescPaginated(ctx context.Context, a
 
 const getChatMessagesByRevisionForStream = `-- name: GetChatMessagesByRevisionForStream :many
 SELECT
-    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, revision, reasoning_effort, search_tsv, search_tsv_config
+    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, revision, reasoning_effort, search_tsv, search_tsv_config, aibridge_interception_id
 FROM
     chat_messages
 WHERE
@@ -9212,6 +9216,7 @@ func (q *sqlQuerier) GetChatMessagesByRevisionForStream(ctx context.Context, arg
 			&i.ReasoningEffort,
 			&i.SearchTsv,
 			&i.SearchTsvConfig,
+			&i.AIBridgeInterceptionID,
 		); err != nil {
 			return nil, err
 		}
@@ -9243,7 +9248,7 @@ WITH latest_compressed_summary AS (
         1
 )
 SELECT
-    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, revision, reasoning_effort, search_tsv, search_tsv_config
+    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, revision, reasoning_effort, search_tsv, search_tsv_config, aibridge_interception_id
 FROM
     chat_messages
 WHERE
@@ -9320,6 +9325,7 @@ func (q *sqlQuerier) GetChatMessagesForPromptByChatID(ctx context.Context, chatI
 			&i.ReasoningEffort,
 			&i.SearchTsv,
 			&i.SearchTsvConfig,
+			&i.AIBridgeInterceptionID,
 		); err != nil {
 			return nil, err
 		}
@@ -10553,7 +10559,7 @@ func (q *sqlQuerier) GetDatabaseNow(ctx context.Context) (time.Time, error) {
 
 const getLastChatMessageByRole = `-- name: GetLastChatMessageByRole :one
 SELECT
-    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, revision, reasoning_effort, search_tsv, search_tsv_config
+    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, revision, reasoning_effort, search_tsv, search_tsv_config, aibridge_interception_id
 FROM
     chat_messages
 WHERE
@@ -10602,6 +10608,7 @@ func (q *sqlQuerier) GetLastChatMessageByRole(ctx context.Context, arg GetLastCh
 		&i.ReasoningEffort,
 		&i.SearchTsv,
 		&i.SearchTsvConfig,
+		&i.AIBridgeInterceptionID,
 	)
 	return i, err
 }
@@ -11083,6 +11090,7 @@ inserted AS (
         chat_id,
         created_by,
         model_config_id,
+        aibridge_interception_id,
         reasoning_effort,
         role,
         content,
@@ -11103,74 +11111,77 @@ inserted AS (
         $3::uuid,
         NULLIF(($5::uuid[])[allocated.ord], '00000000-0000-0000-0000-000000000000'::uuid),
         NULLIF(($1::uuid[])[allocated.ord], '00000000-0000-0000-0000-000000000000'::uuid),
+        NULLIF(($6::uuid[])[allocated.ord], '00000000-0000-0000-0000-000000000000'::uuid),
         NULLIF(($2::text[])[allocated.ord], '')::chat_reasoning_effort,
         ($4::chat_message_role[])[allocated.ord],
-        ($6::text[])[allocated.ord]::jsonb,
-        ($7::smallint[])[allocated.ord],
-        ($8::chat_message_visibility[])[allocated.ord],
-        NULLIF(($9::bigint[])[allocated.ord], 0),
+        ($7::text[])[allocated.ord]::jsonb,
+        ($8::smallint[])[allocated.ord],
+        ($9::chat_message_visibility[])[allocated.ord],
         NULLIF(($10::bigint[])[allocated.ord], 0),
         NULLIF(($11::bigint[])[allocated.ord], 0),
         NULLIF(($12::bigint[])[allocated.ord], 0),
         NULLIF(($13::bigint[])[allocated.ord], 0),
         NULLIF(($14::bigint[])[allocated.ord], 0),
         NULLIF(($15::bigint[])[allocated.ord], 0),
-        ($16::boolean[])[allocated.ord],
-        NULLIF(($17::bigint[])[allocated.ord], 0)
+        NULLIF(($16::bigint[])[allocated.ord], 0),
+        ($17::boolean[])[allocated.ord],
+        NULLIF(($18::bigint[])[allocated.ord], 0)
     FROM allocated
-    RETURNING id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, revision, reasoning_effort, search_tsv, search_tsv_config
+    RETURNING id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, revision, reasoning_effort, search_tsv, search_tsv_config, aibridge_interception_id
 )
-SELECT id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, revision, reasoning_effort, search_tsv, search_tsv_config
+SELECT id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, revision, reasoning_effort, search_tsv, search_tsv_config, aibridge_interception_id
 FROM inserted
 ORDER BY id
 `
 
 type InsertChatMessagesParams struct {
-	ModelConfigID       []uuid.UUID             `db:"model_config_id" json:"model_config_id"`
-	ReasoningEffort     []string                `db:"reasoning_effort" json:"reasoning_effort"`
-	ChatID              uuid.UUID               `db:"chat_id" json:"chat_id"`
-	Role                []ChatMessageRole       `db:"role" json:"role"`
-	CreatedBy           []uuid.UUID             `db:"created_by" json:"created_by"`
-	Content             []string                `db:"content" json:"content"`
-	ContentVersion      []int16                 `db:"content_version" json:"content_version"`
-	Visibility          []ChatMessageVisibility `db:"visibility" json:"visibility"`
-	InputTokens         []int64                 `db:"input_tokens" json:"input_tokens"`
-	OutputTokens        []int64                 `db:"output_tokens" json:"output_tokens"`
-	TotalTokens         []int64                 `db:"total_tokens" json:"total_tokens"`
-	ReasoningTokens     []int64                 `db:"reasoning_tokens" json:"reasoning_tokens"`
-	CacheCreationTokens []int64                 `db:"cache_creation_tokens" json:"cache_creation_tokens"`
-	CacheReadTokens     []int64                 `db:"cache_read_tokens" json:"cache_read_tokens"`
-	ContextLimit        []int64                 `db:"context_limit" json:"context_limit"`
-	Compressed          []bool                  `db:"compressed" json:"compressed"`
-	RuntimeMs           []int64                 `db:"runtime_ms" json:"runtime_ms"`
+	ModelConfigID          []uuid.UUID             `db:"model_config_id" json:"model_config_id"`
+	ReasoningEffort        []string                `db:"reasoning_effort" json:"reasoning_effort"`
+	ChatID                 uuid.UUID               `db:"chat_id" json:"chat_id"`
+	Role                   []ChatMessageRole       `db:"role" json:"role"`
+	CreatedBy              []uuid.UUID             `db:"created_by" json:"created_by"`
+	AIBridgeInterceptionID []uuid.UUID             `db:"aibridge_interception_id" json:"aibridge_interception_id"`
+	Content                []string                `db:"content" json:"content"`
+	ContentVersion         []int16                 `db:"content_version" json:"content_version"`
+	Visibility             []ChatMessageVisibility `db:"visibility" json:"visibility"`
+	InputTokens            []int64                 `db:"input_tokens" json:"input_tokens"`
+	OutputTokens           []int64                 `db:"output_tokens" json:"output_tokens"`
+	TotalTokens            []int64                 `db:"total_tokens" json:"total_tokens"`
+	ReasoningTokens        []int64                 `db:"reasoning_tokens" json:"reasoning_tokens"`
+	CacheCreationTokens    []int64                 `db:"cache_creation_tokens" json:"cache_creation_tokens"`
+	CacheReadTokens        []int64                 `db:"cache_read_tokens" json:"cache_read_tokens"`
+	ContextLimit           []int64                 `db:"context_limit" json:"context_limit"`
+	Compressed             []bool                  `db:"compressed" json:"compressed"`
+	RuntimeMs              []int64                 `db:"runtime_ms" json:"runtime_ms"`
 }
 
 type InsertChatMessagesRow struct {
-	ID                  int64                          `db:"id" json:"id"`
-	ChatID              uuid.UUID                      `db:"chat_id" json:"chat_id"`
-	ModelConfigID       uuid.NullUUID                  `db:"model_config_id" json:"model_config_id"`
-	CreatedAt           time.Time                      `db:"created_at" json:"created_at"`
-	Role                ChatMessageRole                `db:"role" json:"role"`
-	Content             pqtype.NullRawMessage          `db:"content" json:"content"`
-	Visibility          ChatMessageVisibility          `db:"visibility" json:"visibility"`
-	InputTokens         sql.NullInt64                  `db:"input_tokens" json:"input_tokens"`
-	OutputTokens        sql.NullInt64                  `db:"output_tokens" json:"output_tokens"`
-	TotalTokens         sql.NullInt64                  `db:"total_tokens" json:"total_tokens"`
-	ReasoningTokens     sql.NullInt64                  `db:"reasoning_tokens" json:"reasoning_tokens"`
-	CacheCreationTokens sql.NullInt64                  `db:"cache_creation_tokens" json:"cache_creation_tokens"`
-	CacheReadTokens     sql.NullInt64                  `db:"cache_read_tokens" json:"cache_read_tokens"`
-	ContextLimit        sql.NullInt64                  `db:"context_limit" json:"context_limit"`
-	Compressed          bool                           `db:"compressed" json:"compressed"`
-	CreatedBy           uuid.NullUUID                  `db:"created_by" json:"created_by"`
-	ContentVersion      int16                          `db:"content_version" json:"content_version"`
-	TotalCostMicros     sql.NullInt64                  `db:"total_cost_micros" json:"total_cost_micros"`
-	RuntimeMs           sql.NullInt64                  `db:"runtime_ms" json:"runtime_ms"`
-	Deleted             bool                           `db:"deleted" json:"deleted"`
-	ProviderResponseID  sql.NullString                 `db:"provider_response_id" json:"provider_response_id"`
-	Revision            int64                          `db:"revision" json:"revision"`
-	ReasoningEffort     NullChatReasoningEffort        `db:"reasoning_effort" json:"reasoning_effort"`
-	SearchTsv           interface{}                    `db:"search_tsv" json:"search_tsv"`
-	SearchTsvConfig     NullChatMessageSearchTsvConfig `db:"search_tsv_config" json:"search_tsv_config"`
+	ID                     int64                          `db:"id" json:"id"`
+	ChatID                 uuid.UUID                      `db:"chat_id" json:"chat_id"`
+	ModelConfigID          uuid.NullUUID                  `db:"model_config_id" json:"model_config_id"`
+	CreatedAt              time.Time                      `db:"created_at" json:"created_at"`
+	Role                   ChatMessageRole                `db:"role" json:"role"`
+	Content                pqtype.NullRawMessage          `db:"content" json:"content"`
+	Visibility             ChatMessageVisibility          `db:"visibility" json:"visibility"`
+	InputTokens            sql.NullInt64                  `db:"input_tokens" json:"input_tokens"`
+	OutputTokens           sql.NullInt64                  `db:"output_tokens" json:"output_tokens"`
+	TotalTokens            sql.NullInt64                  `db:"total_tokens" json:"total_tokens"`
+	ReasoningTokens        sql.NullInt64                  `db:"reasoning_tokens" json:"reasoning_tokens"`
+	CacheCreationTokens    sql.NullInt64                  `db:"cache_creation_tokens" json:"cache_creation_tokens"`
+	CacheReadTokens        sql.NullInt64                  `db:"cache_read_tokens" json:"cache_read_tokens"`
+	ContextLimit           sql.NullInt64                  `db:"context_limit" json:"context_limit"`
+	Compressed             bool                           `db:"compressed" json:"compressed"`
+	CreatedBy              uuid.NullUUID                  `db:"created_by" json:"created_by"`
+	ContentVersion         int16                          `db:"content_version" json:"content_version"`
+	TotalCostMicros        sql.NullInt64                  `db:"total_cost_micros" json:"total_cost_micros"`
+	RuntimeMs              sql.NullInt64                  `db:"runtime_ms" json:"runtime_ms"`
+	Deleted                bool                           `db:"deleted" json:"deleted"`
+	ProviderResponseID     sql.NullString                 `db:"provider_response_id" json:"provider_response_id"`
+	Revision               int64                          `db:"revision" json:"revision"`
+	ReasoningEffort        NullChatReasoningEffort        `db:"reasoning_effort" json:"reasoning_effort"`
+	SearchTsv              interface{}                    `db:"search_tsv" json:"search_tsv"`
+	SearchTsvConfig        NullChatMessageSearchTsvConfig `db:"search_tsv_config" json:"search_tsv_config"`
+	AIBridgeInterceptionID uuid.NullUUID                  `db:"aibridge_interception_id" json:"aibridge_interception_id"`
 }
 
 // Returns the inserted rows in input array order. Ids are allocated before the
@@ -11183,6 +11194,7 @@ func (q *sqlQuerier) InsertChatMessages(ctx context.Context, arg InsertChatMessa
 		arg.ChatID,
 		pq.Array(arg.Role),
 		pq.Array(arg.CreatedBy),
+		pq.Array(arg.AIBridgeInterceptionID),
 		pq.Array(arg.Content),
 		pq.Array(arg.ContentVersion),
 		pq.Array(arg.Visibility),
@@ -11229,6 +11241,7 @@ func (q *sqlQuerier) InsertChatMessages(ctx context.Context, arg InsertChatMessa
 			&i.ReasoningEffort,
 			&i.SearchTsv,
 			&i.SearchTsvConfig,
+			&i.AIBridgeInterceptionID,
 		); err != nil {
 			return nil, err
 		}

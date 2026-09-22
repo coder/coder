@@ -269,6 +269,7 @@ func (s *taskStarter) StartInterrupt(ctx context.Context, input chatWorkerTaskSt
 		GenerationAttempt: chat.GenerationAttempt,
 	}
 	modelInvokedAt := s.opts.MessagePartBuffer.ModelInvokedAt(key)
+	interceptionID := s.opts.MessagePartBuffer.InterceptionID(key)
 	toolCompletions := s.opts.MessagePartBuffer.ToolCompletions(key)
 	if err := s.opts.MessagePartBuffer.CloseEpisode(key); err != nil {
 		if ctx.Err() != nil {
@@ -293,12 +294,13 @@ func (s *taskStarter) StartInterrupt(ctx context.Context, input chatWorkerTaskSt
 		attemptRuntime = interruptedAt.Sub(modelInvokedAt)
 	}
 	partialMessages, err := bufferedPartsToPartialMessages(bufferedPartsToPartialMessagesInput{
-		parts:          parts,
-		modelConfigID:  chat.LastModelConfigID,
-		contentVersion: chatprompt.CurrentContentVersion,
-		logger:         s.opts.Logger,
-		interruptedAt:  interruptedAt,
-		attemptRuntime: attemptRuntime,
+		parts:                  parts,
+		modelConfigID:          chat.LastModelConfigID,
+		contentVersion:         chatprompt.CurrentContentVersion,
+		logger:                 s.opts.Logger,
+		interruptedAt:          interruptedAt,
+		attemptRuntime:         attemptRuntime,
+		aibridgeInterceptionID: interceptionID,
 	})
 	if err != nil {
 		return xerrors.Errorf("convert buffered parts: %w", err)

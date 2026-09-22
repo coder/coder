@@ -57,6 +57,7 @@ func SourceFromContext(ctx context.Context) Source {
 type (
 	deletedAPIKeyIDCtxKey      struct{}
 	delegatedAttributionCtxKey struct{}
+	interceptionHookCtxKey     struct{}
 )
 
 // WithDelegatedAPIKeyID returns a copy of ctx carrying an API key ID on whose
@@ -91,6 +92,21 @@ func DelegatedAPIKeyIDFromContext(ctx context.Context) (string, bool) {
 func DelegatedAttributionFromContext(ctx context.Context) (Attribution, bool) {
 	attr, ok := ctx.Value(delegatedAttributionCtxKey{}).(Attribution)
 	return attr, ok
+}
+
+// WithInterceptionRecordedHook attaches a trusted in-process callback to ctx.
+// Never derive the hook from HTTP headers. The gateway calls it synchronously
+// after recording the interception and before contacting upstream. The callback
+// must be cheap, non-blocking, and safe for concurrent use.
+func WithInterceptionRecordedHook(ctx context.Context, fn func(uuid.UUID)) context.Context {
+	return context.WithValue(ctx, interceptionHookCtxKey{}, fn)
+}
+
+// NotifyInterceptionRecorded invokes the callback when one is present.
+func NotifyInterceptionRecorded(ctx context.Context, interceptionID uuid.UUID) {
+	if fn, ok := ctx.Value(interceptionHookCtxKey{}).(func(uuid.UUID)); ok && fn != nil {
+		fn(interceptionID)
+	}
 }
 
 // TransportFactory returns an [http.RoundTripper] that dispatches an aibridge

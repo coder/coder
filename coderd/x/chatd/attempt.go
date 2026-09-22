@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"charm.land/fantasy"
+	"github.com/google/uuid"
 
 	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
 )
@@ -20,10 +21,11 @@ const (
 
 // stepData is the durable content produced by one provider attempt.
 type stepData struct {
-	Content      []fantasy.Content
-	Usage        fantasy.Usage
-	ContextLimit sql.NullInt64
-	Runtime      time.Duration
+	Content                []fantasy.Content
+	Usage                  fantasy.Usage
+	ContextLimit           sql.NullInt64
+	Runtime                time.Duration
+	AIBridgeInterceptionID uuid.NullUUID
 
 	// BatchRuntime is the local-tool batch window. Model steps use Runtime.
 	BatchRuntime time.Duration
