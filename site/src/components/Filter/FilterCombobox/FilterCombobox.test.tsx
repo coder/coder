@@ -198,6 +198,35 @@ describe("FilterCombobox", () => {
 		);
 	});
 
+	it("keeps the category row highlighted after leaving it with ArrowLeft", async () => {
+		const user = userEvent.setup();
+		const onChange = vi.fn();
+		render(
+			<FilterComboboxHarness
+				categories={[ownerCategory, statusCategory]}
+				onChange={onChange}
+			/>,
+		);
+
+		await user.click(screen.getByRole("button", { name: "Toggle filters" }));
+		await screen.findByRole("option", { name: "Running" });
+		await user.keyboard("{ArrowRight}");
+		await screen.findByRole("option", { name: "alice" });
+		await user.keyboard("{ArrowDown}{ArrowLeft}");
+		await waitFor(() =>
+			expect(
+				screen.queryByRole("option", { name: "alice" }),
+			).not.toBeInTheDocument(),
+		);
+
+		await user.keyboard("{ArrowRight}");
+		await screen.findByRole("option", { name: "alice" });
+		await user.keyboard("{ArrowDown}{Enter}");
+		await waitFor(() =>
+			expect(onChange).toHaveBeenLastCalledWith("owner:alice"),
+		);
+	});
+
 	it("removes a selected inline option", async () => {
 		const user = userEvent.setup();
 		const onChange = vi.fn();

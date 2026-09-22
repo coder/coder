@@ -8,9 +8,7 @@ import {
 	type ReactNode,
 	type RefObject,
 	useContext,
-	useEffect,
 	useRef,
-	useState,
 } from "react";
 import { Badge } from "#/components/Badge/Badge";
 import { InputGroup } from "#/components/InputGroup/InputGroup";
@@ -63,8 +61,9 @@ type FilterComboboxRootProps = {
 	onRemoveValue?: (value: string) => void;
 	inputValue?: string;
 	onInputValueChange?: (value: string) => void;
-	onItemHighlighted?: (value: string | undefined) => void;
-	highlightResetVersion?: number;
+	/** Highlighted row value. Controlled so callers can clear it directly. */
+	highlightedValue?: string;
+	onHighlightedValueChange?: (value: string) => void;
 	/** Accessible label for the input. cmdk wires it via `aria-labelledby`. */
 	label?: string;
 	className?: string;
@@ -88,19 +87,13 @@ export function FilterComboboxRoot({
 	onRemoveValue,
 	inputValue = "",
 	onInputValueChange,
-	onItemHighlighted,
-	highlightResetVersion = 0,
+	highlightedValue = "",
+	onHighlightedValueChange,
 	label,
 	className,
 	children,
 }: FilterComboboxRootProps) {
 	const anchorRef = useRef<HTMLDivElement | null>(null);
-	// cmdk only reports highlight changes through `onValueChange` when its value
-	// is controlled, so track the highlighted row here and surface it to callers.
-	const [highlightedValue, setHighlightedValue] = useState("");
-	useEffect(() => {
-		setHighlightedValue("");
-	}, [highlightResetVersion]);
 
 	const state: FilterComboboxStateValue = {
 		inputValue,
@@ -117,10 +110,7 @@ export function FilterComboboxRoot({
 					label={label}
 					className={cn("flex w-full flex-col", className)}
 					value={highlightedValue}
-					onValueChange={(highlighted) => {
-						setHighlightedValue(highlighted);
-						onItemHighlighted?.(highlighted || undefined);
-					}}
+					onValueChange={onHighlightedValueChange}
 				>
 					{/* No PopoverTrigger: opens are caller-driven via `open`; Radix only
 					    originates close requests, forwarded as `onDismiss`. */}

@@ -4,6 +4,7 @@ import {
 	useMemo,
 	useReducer,
 	useRef,
+	useState,
 } from "react";
 import { useQueries, useQuery } from "react-query";
 import { useDebouncedFunction, useDebouncedValue } from "#/hooks/debounce";
@@ -219,7 +220,8 @@ export const useFilterCombobox = ({
 
 	const lastEmittedRef = useRef(value);
 	const prevChipKeysRef = useRef(chipKeys);
-	const highlightedItemRef = useRef<string | null>(null);
+	// cmdk only reports highlight changes when its value is controlled.
+	const [highlightedItem, setHighlightedItem] = useState("");
 	const inputRef = useRef<HTMLInputElement | null>(null);
 
 	const { debounced: debouncedOnChange, cancelDebounce } = useDebouncedFunction(
@@ -269,45 +271,28 @@ export const useFilterCombobox = ({
 	);
 	// Categories with a flyout or drill-in list. Inline categories render their
 	// options directly in the main panel and never enter category mode.
-	const submenuCategories = useMemo(
-		() => categories.filter((category) => !category.inlineOptions),
-		[categories],
+	const submenuCategories = categories.filter(
+		(category) => !category.inlineOptions,
 	);
-	const inlineCategories = useMemo(
-		() => categories.filter((category) => category.inlineOptions),
-		[categories],
+	const inlineCategories = categories.filter(
+		(category) => category.inlineOptions,
 	);
 	const typeaheadActive = activeCategoryKey === null && isBrowsing;
 	// A typed `status:` style prefix for an inline category narrows the main
 	// panel to that category's options; the text after the colon is the query.
-	const typedInlinePrefix = useMemo(
-		() =>
-			typeaheadActive && !browseAll
-				? parseTypedCategoryPrefix(inputValue, inlineCategories)
-				: null,
-		[typeaheadActive, browseAll, inputValue, inlineCategories],
-	);
+	const typedInlinePrefix =
+		typeaheadActive && !browseAll
+			? parseTypedCategoryPrefix(inputValue, inlineCategories)
+			: null;
 
-	const listedCategories = useMemo<FilterCategory[]>(() => {
-		if (!open || typedInlinePrefix !== null) {
-			return [];
-		}
-		if (
-			activeCategoryKey !== null ||
-			browseAll ||
-			inputValue.trim().length === 0
-		) {
-			return submenuCategories;
-		}
-		return matchCategories(inputValue, submenuCategories);
-	}, [
-		activeCategoryKey,
-		browseAll,
-		open,
-		submenuCategories,
-		inputValue,
-		typedInlinePrefix,
-	]);
+	const categoryQuery =
+		activeCategoryKey !== null || browseAll ? "" : inputValue.trim();
+	const listedCategories =
+		!open || typedInlinePrefix !== null
+			? []
+			: categoryQuery.length === 0
+				? submenuCategories
+				: matchCategories(categoryQuery, submenuCategories);
 
 	const activeOptionsQuerySource = activeCategoryKey !== null ? inputValue : "";
 	const debouncedActiveOptionsQuery = useDebouncedValue(
@@ -446,21 +431,14 @@ export const useFilterCombobox = ({
 				};
 			});
 		});
-	const inlineOptions = useMemo(
-		() =>
-			open
-				? inlineOptionsFor(inlineOptionsSource).filter(
-						(option) =>
-							typedInlinePrefix === null ||
-							option.categoryKey === typedInlinePrefix.categoryKey,
-					)
-				: [],
-		[chipValues, inlineOptionsSource, open, typedInlinePrefix],
-	);
-	const mainInlineOptions = useMemo(
-		() => inlineOptionsFor(previewOptions.optionsByKey),
-		[chipValues, previewOptions.optionsByKey],
-	);
+	const inlineOptions = open
+		? inlineOptionsFor(inlineOptionsSource).filter(
+				(option) =>
+					typedInlinePrefix === null ||
+					option.categoryKey === typedInlinePrefix.categoryKey,
+			)
+		: [];
+	const mainInlineOptions = inlineOptionsFor(previewOptions.optionsByKey);
 
 	const valueSuggestions =
 		!typeaheadActive || typeaheadQueryPending || typedInlinePrefix !== null
@@ -576,9 +554,16 @@ export const useFilterCombobox = ({
 		dispatch({ type: "close", input: selected ? "restore" : "clear" });
 	};
 
+	// Returning to the category list highlights the row that was open, so the
+	// keyboard position is never lost when the option rows unmount.
+	const returnToCategories = () => {
+		setHighlightedItem(activeCategoryKey ?? "");
+		dispatch({ type: "leaveCategory" });
+	};
+
 	const selectCategoryOption = (token: string) => {
 		updateFromChips([...chipValues, token]);
-		dispatch({ type: "leaveCategory" });
+		returnToCategories();
 	};
 
 	const toggleInlineOption = (token: string) => {
@@ -595,7 +580,7 @@ export const useFilterCombobox = ({
 
 	const leaveCategory = () => {
 		inputRef.current?.focus();
-		dispatch({ type: "leaveCategory" });
+		returnToCategories();
 	};
 
 	// From inside a category the toggle steps back to the category list rather
@@ -776,7 +761,7 @@ export const useFilterCombobox = ({
 			activeCategoryKey !== null &&
 			inputValue.trim().length > 0
 		) {
-			const highlighted = highlightedItemRef.current;
+			const highlighted = highlightedItem;
 			const candidate = chipToken(activeCategoryKey, inputValue.trim());
 			const hasHighlightedOption = activeOptions?.some(
 				(option) =>
@@ -799,7 +784,7 @@ export const useFilterCombobox = ({
 			mode === "browsing"
 		) {
 			const category = listedCategories.find(
-				(entry) => entry.key === highlightedItemRef.current,
+				(entry) => entry.key === highlightedItem,
 			);
 			if (category) {
 				event.preventDefault();
@@ -814,7 +799,7 @@ export const useFilterCombobox = ({
 			return;
 		}
 
-		const highlighted = highlightedItemRef.current;
+		const highlighted = highlightedItem;
 		if (!highlighted) {
 			return;
 		}
@@ -851,6 +836,7 @@ export const useFilterCombobox = ({
 		inlineOptions,
 		mainInlineOptions,
 		chipValues,
+		highlightedItem,
 		typeaheadError,
 		actions: {
 			setInputRef: (node: HTMLInputElement | null) => {
@@ -870,9 +856,7 @@ export const useFilterCombobox = ({
 			onInputFocus: handleInputFocus,
 			onInputKeyDown: handleInputKeyDown,
 			onInputValueChange: handleInputValueChange,
-			onItemHighlighted: (highlightedValue: string | undefined) => {
-				highlightedItemRef.current = highlightedValue ?? null;
-			},
+			setHighlightedItem,
 		},
 	};
 };

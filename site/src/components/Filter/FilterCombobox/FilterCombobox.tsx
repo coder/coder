@@ -95,6 +95,7 @@ export function FilterCombobox({
 		inlineOptions,
 		mainInlineOptions,
 		chipValues,
+		highlightedItem,
 		typeaheadError,
 		actions,
 	} = useFilterCombobox({
@@ -109,7 +110,6 @@ export function FilterCombobox({
 	const isCoarsePointer = useMediaQuery(coarsePointerMediaQuery);
 	const isMobile = useMediaQuery(mobileViewportMediaQuery);
 	const mobileOverlay = isMobile && open;
-	const [highlightResetVersion, setHighlightResetVersion] = useState(0);
 	// Category previewed in the pointer flyout. Distinct from `activeCategoryKey`,
 	// which is the committed drill-in state shared with keyboard navigation.
 	const [flyoutCategoryKey, setFlyoutCategoryKey] = useState<string | null>(
@@ -166,18 +166,15 @@ export function FilterCombobox({
 	// cmdk owns the highlighted row for both pointer and keyboard, so the flyout
 	// follows it: it closes when the highlight leaves the category rows and
 	// switches when it lands on another category.
-	const handleItemHighlighted = (highlighted: string | undefined) => {
-		actions.onItemHighlighted(highlighted);
+	const handleItemHighlighted = (highlighted: string) => {
+		actions.setHighlightedItem(highlighted);
 		if (flyoutCategoryKey === null || highlighted === flyoutCategoryKey) {
 			return;
 		}
 		const isCategoryRow = listedCategories.some(
 			(category) => category.key === highlighted,
 		);
-		updateFlyoutCategory(
-			isCategoryRow ? (highlighted ?? null) : null,
-			!isCategoryRow,
-		);
+		updateFlyoutCategory(isCategoryRow ? highlighted : null, !isCategoryRow);
 	};
 	const flyoutCategory = categories.find(
 		(category) => category.key === flyoutCategoryKey,
@@ -205,8 +202,8 @@ export function FilterCombobox({
 				onRemoveValue={actions.removeChip}
 				inputValue={inputValue}
 				onInputValueChange={actions.onInputValueChange}
-				onItemHighlighted={handleItemHighlighted}
-				highlightResetVersion={highlightResetVersion}
+				highlightedValue={highlightedItem}
+				onHighlightedValueChange={handleItemHighlighted}
 				label={placeholder}
 				className={cn(mobileOverlay && "min-h-10")}
 			>
@@ -386,7 +383,7 @@ export function FilterCombobox({
 							className="relative flex items-start gap-1 overflow-visible"
 							onMouseLeave={() => {
 								updateFlyoutCategory(null, true);
-								setHighlightResetVersion((version) => version + 1);
+								actions.setHighlightedItem("");
 							}}
 						>
 							<MainPanel
