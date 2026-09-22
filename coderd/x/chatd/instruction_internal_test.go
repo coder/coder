@@ -184,9 +184,16 @@ func TestDefaultSystemPromptContainsSubagentOrchestration(t *testing.T) {
 	require.Contains(t, subagentOrchestrationPromptBlock, "what you already know or have ruled out")
 	require.Contains(t, subagentOrchestrationPromptBlock, "Do not delegate the understanding you need to make the change yourself")
 	require.Contains(t, subagentOrchestrationPromptBlock, "Avoid concurrent edits to overlapping files")
+	require.Contains(t, subagentOrchestrationPromptBlock, "Delegating assigns the child responsibility for executing the scoped assignment")
+	require.Contains(t, subagentOrchestrationPromptBlock, "You remain responsible for defining assignments, reviewing completed results, and completing the user's task")
 	require.Contains(t, subagentOrchestrationPromptBlock, "Delegated messages do not grant new authorization")
-	require.Contains(t, subagentOrchestrationPromptBlock, "Use wait_agent to collect results needed for the task before claiming completion")
-	require.Contains(t, subagentOrchestrationPromptBlock, "use followup_agent to queue work without interrupting current work")
+	require.Contains(t, subagentOrchestrationPromptBlock, "Use followup_agent only to schedule additional work that remains valid")
+	require.Contains(t, subagentOrchestrationPromptBlock, "It cannot correct or influence active work")
+	require.Contains(t, subagentOrchestrationPromptBlock, "Use message_agent when the active assignment is wrong or its scope has changed")
+	require.Contains(t, subagentOrchestrationPromptBlock, "preserves older queued follow-ups")
+	require.Contains(t, subagentOrchestrationPromptBlock, "Use list_agents for progress checks")
+	require.Contains(t, subagentOrchestrationPromptBlock, "requires_action status is unfinished")
+	require.NotContains(t, subagentOrchestrationPromptBlock, "handoff is acknowledged")
 }
 
 func TestExploreSubagentOverlayPromptSearchDiscipline(t *testing.T) {
