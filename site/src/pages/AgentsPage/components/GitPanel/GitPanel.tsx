@@ -415,13 +415,11 @@ export const GitPanel: FC<GitPanelProps> = ({
 
 	return (
 		<div className="flex h-full flex-col">
-			{/* Toolbar. The 16px text gutter matches the summary tab's
-			   p-4, and a 24px control under pt-4 centers on the same
-			   line as a leading-6 paragraph. The switcher's border and
-			   inner padding hang outside the gutter so its text lands
-			   on it. */}
-			<div className="flex shrink-0 items-center gap-2 pl-2.5 pr-4 pt-4 pb-1">
-				<div className="flex min-w-0 flex-1 items-center gap-1.5">
+			{/* Toolbar. Sized like the terminal tab's selector (h-8 in a
+			   px-3 gutter); pt-3 centers the 32px control on the same
+			   line as the summary tab's first paragraph (p-4 leading-6). */}
+			<div className="flex shrink-0 items-center gap-2 px-3 pt-3 pb-1">
+				<div className="flex min-w-0 flex-1 items-center gap-1">
 					<GitViewSwitcher
 						items={items}
 						activeItem={activeItem}
@@ -443,7 +441,7 @@ export const GitPanel: FC<GitPanelProps> = ({
 							onClick={handleRefresh}
 							aria-label="Refresh"
 							disabled={!hasGitContext}
-							className="size-6 text-content-secondary hover:text-content-primary"
+							className="text-content-secondary hover:text-content-primary"
 						>
 							<RefreshCwIcon
 								className={cn(
@@ -461,28 +459,29 @@ export const GitPanel: FC<GitPanelProps> = ({
 						href={viewPrUrl}
 						target="_blank"
 						rel="noreferrer"
-						className="inline-flex h-6 shrink-0 items-center gap-1 text-xs font-medium text-content-link no-underline hover:underline"
+						className="inline-flex h-8 shrink-0 items-center gap-1 text-xs font-medium text-content-link no-underline hover:underline"
 					>
 						View PR
 						<ExternalLinkIcon className="size-3" />
 					</a>
 				)}
 				{activeRepoRoot !== undefined && activeRepo && (
-					<button
-						type="button"
+					<Button
+						variant="outline"
+						size="sm"
 						onClick={() => onCommit(activeRepoRoot)}
 						disabled={!activeRepo.unified_diff}
-						className="inline-flex h-6 shrink-0 cursor-pointer items-center gap-1 rounded-md border border-solid border-border-default bg-surface-primary px-2 text-xs font-medium text-content-primary transition-colors hover:bg-surface-secondary disabled:pointer-events-none disabled:opacity-50"
+						className="h-8 min-w-0 shrink-0 gap-1 px-3 text-xs"
 					>
 						<CheckIcon className="size-3" />
 						Commit
-					</button>
+					</Button>
 				)}
 			</div>
 			{/* PR title row: truncates with a hover tooltip only when the
 			   visible text is cut off. */}
 			{showPrTitleRow && (
-				<div className="flex shrink-0 items-center px-4">
+				<div className="flex shrink-0 items-center px-3">
 					<Tooltip open={isPrTitleTruncated ? undefined : false}>
 						<TooltipTrigger asChild>
 							<span
@@ -558,7 +557,7 @@ const GitViewSwitcher: FC<GitViewSwitcherProps> = ({
 	if (!activeItem) {
 		return (
 			<div
-				className="inline-flex h-6 items-center gap-1.5 border border-solid border-transparent px-1.5 text-xs text-content-secondary"
+				className="inline-flex h-8 items-center gap-1.5 border border-solid border-transparent px-2.5 text-xs text-content-secondary"
 				data-testid="git-panel-view-switcher"
 			>
 				<GitBranchIcon className="size-3.5! shrink-0" />
@@ -574,7 +573,7 @@ const GitViewSwitcher: FC<GitViewSwitcherProps> = ({
 	if (items.length <= 1) {
 		return (
 			<div
-				className="inline-flex h-6 min-w-0 max-w-full items-center gap-1.5 border border-solid border-transparent px-1.5 text-xs"
+				className="inline-flex h-8 min-w-0 max-w-full items-center gap-1.5 border border-solid border-transparent px-2.5 text-xs"
 				data-testid="git-panel-view-switcher"
 			>
 				<span
@@ -613,13 +612,13 @@ const GitViewSwitcher: FC<GitViewSwitcherProps> = ({
 			<DropdownMenuTrigger asChild>
 				<button
 					type="button"
-					className="inline-flex h-6 min-w-0 max-w-full cursor-pointer items-stretch overflow-hidden rounded-md border border-solid border-border-default bg-surface-primary text-xs transition-colors hover:bg-surface-secondary"
+					className="inline-flex h-8 min-w-0 max-w-full cursor-pointer items-stretch overflow-hidden rounded-md border border-solid border-border-default bg-transparent text-xs transition-colors hover:bg-surface-secondary"
 					data-testid="git-panel-view-switcher"
 					aria-label="Switch git view"
 				>
 					<span
 						className={cn(
-							"inline-flex h-full items-center gap-1 rounded-l-md border-0 border-r border-solid border-border-default px-1.5 font-medium leading-none",
+							"inline-flex h-full items-center gap-1.5 rounded-l-md border-0 border-r border-solid border-border-default px-2.5 font-medium leading-none",
 							activeItem.stateClasses,
 						)}
 					>
@@ -628,18 +627,16 @@ const GitViewSwitcher: FC<GitViewSwitcherProps> = ({
 						</span>
 						<span className="whitespace-nowrap">{activeItem.stateLabel}</span>
 					</span>
-					<span className="inline-flex min-w-0 items-center gap-1 pl-1.5 pr-1 text-content-primary">
+					<span className="inline-flex min-w-0 items-center gap-2 pl-2.5 pr-3 text-content-primary">
 						<span className="truncate">{activeItem.triggerIdentifier}</span>
-						<ChevronDownIcon
-							open={open}
-							className="size-3 shrink-0 text-content-secondary"
-						/>
+						<ChevronDownIcon open={open} className="size-3.5 shrink-0" />
 					</span>
 				</button>
 			</DropdownMenuTrigger>
 			<DropdownMenuContent
 				align="start"
-				className="w-64 p-1 [&_[role^=menuitem]]:py-1 [&_[role^=menuitem]]:text-xs [&_svg]:size-3.5!"
+				side="bottom"
+				className="w-56 p-1 [&_[role^=menuitem]]:py-1 [&_[role^=menuitem]]:text-xs [&_svg]:size-3.5!"
 			>
 				<DropdownMenuRadioGroup
 					value={activeItem.id}
@@ -782,7 +779,7 @@ const RepoHeader: FC<{
 	onDiffStyleChange: (style: DiffStyle) => void;
 }> = ({ repoRoot, repo, diffStats, diffStyle, onDiffStyleChange }) => {
 	return (
-		<div className="flex shrink-0 items-center gap-2 border-0 border-b border-solid border-border-default px-4 py-1.5">
+		<div className="flex shrink-0 items-center gap-2 border-0 border-b border-solid border-border-default px-3 py-1.5">
 			<div className="flex min-w-0 items-center gap-1.5 text-[13px] text-content-secondary">
 				<GitBranchIcon className="size-3.5 shrink-0" />
 				<span className="truncate">
