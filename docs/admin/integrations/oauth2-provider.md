@@ -635,9 +635,12 @@ request body too, not in the query string.
 
 A `client_secret` with no value, as in `?client_secret=`, counts as absent
 under RFC 6749 section 3.2 and is not refused by this rule. `POST /oauth2/revoke`
-accepts such a request when the body authenticates. `POST /oauth2/tokens` still
-answers 400, because it reads the body copy and the empty URL copy as the same
-parameter sent twice, and the error says so.
+accepts such a request when the body authenticates. `POST /oauth2/tokens`
+answers 400 only when the body also carries a `client_secret`, because it reads
+the body copy and the empty URL copy as the same parameter sent twice, and the
+error says so. An empty query value alone never causes a 400: a request that
+authenticates with HTTP Basic and sends no secret in the body, or one from a
+public client, succeeds.
 
 A copy in the body does not excuse one in the URL: the request is refused on
 the query string alone, whatever the body holds. The refusal issues no token
