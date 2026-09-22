@@ -538,7 +538,7 @@ like `scp` or `rsync`.
 To achieve this, template admins can use the environment variable
 `CODER_AGENT_BLOCK_FILE_TRANSFER` to enable additional SSH command controls.
 This variable allows the system to check if the executed application is on the
-block list, which includes `scp`, `rsync`, `ftp`, and `nc`.
+block list, which includes `nc`, `rsync`, `scp`, and `sftp`.
 
 ```tf
 resource "docker_container" "workspace" {
