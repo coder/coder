@@ -64,16 +64,18 @@ export const BoardHeader: FC<BoardHeaderProps> = ({
 		<h1 className="m-0 text-sm font-medium tracking-[-0.01em] text-content-primary">
 			Board
 		</h1>
-		<span className="pl-1 text-[11px] text-content-secondary/70">
-			{chatCount} chats · {cardCount} cards
-		</span>
+		{chatCount !== undefined && cardCount !== undefined && (
+			<span className="pl-1 text-[11px] text-content-secondary/70">
+				{chatCount} chats · {cardCount} cards
+			</span>
+		)}
 		<Button
 			variant="subtle"
 			size="icon"
 			aria-label="Board assistant"
 			title="Board assistant"
 			className="ml-auto size-7 text-content-secondary"
-			disabled={chatCount === 0}
+			disabled={!chatCount}
 			onClick={onAssistant}
 		>
 			<BotIcon className="size-4" />
@@ -81,7 +83,7 @@ export const BoardHeader: FC<BoardHeaderProps> = ({
 		{efforts.length > 0 && (
 			<EffortMenu
 				efforts={efforts}
-				cardCount={cardCount}
+				cardCount={cardCount ?? 0}
 				value={effortFilter}
 				onChange={onEffortFilter}
 				onRename={onRenameEffort}

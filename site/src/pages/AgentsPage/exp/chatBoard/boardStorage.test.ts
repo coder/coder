@@ -34,9 +34,9 @@ describe("boardStorage", () => {
 
 	it("keeps a stored effort filter and drops other values", () => {
 		localStorage.setItem(KEY, JSON.stringify({ effortFilter: "Q3" }));
-		expect(readBoardStorage().effortFilter).toBe("Q3");
+		expect(readBoardStorage(USER).effortFilter).toBe("Q3");
 		localStorage.setItem(KEY, JSON.stringify({ effortFilter: 7 }));
-		expect(readBoardStorage().effortFilter).toBeNull();
+		expect(readBoardStorage(USER).effortFilter).toBeNull();
 	});
 
 	it("keeps valid entries and drops unpinned, draft or malformed windows", () => {
@@ -89,11 +89,13 @@ describe("boardStorage", () => {
 			columnOrder: ["Inbox", "Doing"],
 			emptyColumns: [],
 			windows: [pinned],
+			effortFilter: null,
 		});
 		expect(readBoardStorage("user-b")).toEqual({
 			columnOrder: [],
 			emptyColumns: [],
 			windows: [],
+			effortFilter: null,
 		});
 	});
 });

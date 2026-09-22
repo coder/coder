@@ -190,7 +190,7 @@ describe("BoardCard", () => {
 		const user = userEvent.setup();
 		const assistant = chat("a", { "board/assistant": "p" });
 		const { onOpen, onPreview } = renderCard([chat("p")], assistant);
-		const rect = { top: 10 } as DOMRect;
+		const rect = new DOMRect(0, 10, 0, 0);
 		vi.spyOn(
 			screen.getByRole("article"),
 			"getBoundingClientRect",

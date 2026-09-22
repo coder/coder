@@ -247,10 +247,11 @@ const ChatBoardPage: FC = () => {
 			columnOrder: [...storage.columnOrder, ...unsavedColumns],
 		});
 	}
-	const matchingIds =
-		debouncedSearch && searchQuery.data
-			? new Set(searchQuery.data.map((chat) => chat.id))
-			: undefined;
+	// An active search must not fall back to unfiltered cards when results
+	// are unavailable; the body below shows the loading or error state then.
+	const matchingIds = searchActive
+		? new Set((searchQuery.data ?? []).map((chat) => chat.id))
+		: undefined;
 	const visibleColumns = columns.map((column) => ({
 		...column,
 		cards: column.cards.filter(
@@ -354,41 +355,24 @@ const ChatBoardPage: FC = () => {
 		if (command) void run(command(boardState));
 	};
 
-	return (
-		// No text may be selected while something is dragged over the board.
-		<div
-			className={cn(
-				"flex min-h-0 flex-1 flex-col",
-				activeDrag && "select-none",
-			)}
-		>
-			<title>{pageTitle("Board", "Agents")}</title>
-			<BoardHeader
-				chatCount={chats.length}
-				cardCount={allCards.length}
-				visibleCount={matchingIds ? visibleCount : undefined}
-				search={search}
-				onSearchChange={setSearch}
-				// Leaving lands on the chat in front, or the agents home.
-				onExit={() => {
-					const reading = windows
-						.flatMap((w) => (w.kind === "chat" && w.pinned ? [w.chatId] : []))
-						.at(-1);
-					void navigate(reading ? `/agents/${reading}` : "/agents");
-				}}
-				onAssistant={openBoardAssistant}
-				efforts={efforts}
-				effortFilter={effortFilter}
-				onEffortFilter={(effort) => updateStorage({ effortFilter: effort })}
-				onRenameEffort={(from, to) =>
-					void run(renameEffort(boardState, from, to))
-				}
-			/>
-			{chatsQuery.isError && (
-				<p className="m-0 px-3 py-2 text-sm text-content-destructive">
-					Failed to load chats.
-				</p>
-			)}
+	// The board is replaced only while a query has nothing to show. A failed
+	// refetch keeps its data, and the board with it, so open note editors
+	// are not unmounted by a background request; the failure is shown inline.
+	let body: ReactNode;
+	if (chatsQuery.data === undefined) {
+		body = chatsQuery.isError ? (
+			<ErrorAlert error={chatsQuery.error} />
+		) : (
+			<Loader />
+		);
+	} else if (searchActive && searchQuery.data === undefined) {
+		body = searchQuery.isError ? (
+			<ErrorAlert error={searchQuery.error} />
+		) : (
+			<Loader />
+		);
+	} else {
+		body = (
 			<DndContext
 				sensors={sensors}
 				collisionDetection={boardCollision}
@@ -439,9 +423,18 @@ const ChatBoardPage: FC = () => {
 				onSearchChange={setSearch}
 				// Leaving lands on the chat in front, or the agents home.
 				onExit={() => {
-					const reading = windows.filter((w) => w.pinned).at(-1)?.chatId;
+					const reading = windows
+						.flatMap((w) => (w.kind === "chat" && w.pinned ? [w.chatId] : []))
+						.at(-1);
 					void navigate(reading ? `/agents/${reading}` : "/agents");
 				}}
+				onAssistant={openBoardAssistant}
+				efforts={efforts}
+				effortFilter={effortFilter}
+				onEffortFilter={(effort) => updateStorage({ effortFilter: effort })}
+				onRenameEffort={(from, to) =>
+					void run(renameEffort(boardState, from, to))
+				}
 			/>
 			{chatsQuery.data && chatsQuery.isError && (
 				<p className="m-0 px-3 py-2 text-sm text-content-destructive">

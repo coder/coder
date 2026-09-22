@@ -25,6 +25,7 @@ export const ChatStatusLine: FC<ChatStatusLineProps> = ({
 	const pr = display.diffStatus;
 	const settled = !isActiveChatStatus(chat.status);
 	if (!chat.last_turn_summary && !pr?.url && !settled) return null;
+	const visible = pr?.pr_number ? `#${pr.pr_number}` : "PR";
 	return (
 		<div
 			className={cn(
