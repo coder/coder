@@ -4,34 +4,9 @@ import (
 	"context"
 
 	"cdr.dev/slog/v3"
+	"github.com/coder/coder/v2/aibridge/credential"
 	"github.com/coder/coder/v2/aibridge/keypool"
 	"github.com/coder/coder/v2/aibridge/utils"
-)
-
-// CredentialKind identifies how a request was authenticated.
-// Keep in sync with the credential_kind enum in coderd's database.
-type CredentialKind string
-
-const (
-	CredentialKindCentralized CredentialKind = "centralized"
-	CredentialKindBYOK        CredentialKind = "byok"
-)
-
-// Auth header names shared by providers (which set them on resolved
-// credentials) and interceptors (which present credentials under them).
-const (
-	AuthHeaderXAPIKey       = "X-Api-Key" //nolint:gosec // G101 false positive: HTTP header name, not a credential.
-	AuthHeaderAuthorization = "Authorization"
-)
-
-// Hint placeholders for credentials with no static key value to mask: a pool
-// before failover selects a key, and a key resolved dynamically at request time.
-//
-// Hints are persisted to aibridge_interceptions.credential_hint, a
-// VARCHAR(15), so every value here must be at most 15 characters.
-const (
-	hintFailoverKey = "<failover key>"
-	hintAWSChainKey = "<aws chain>"
 )
 
 // Credential is the per-request upstream authentication for an interception:
@@ -39,7 +14,7 @@ const (
 //   - AWSSigV4: AWS credentials, used to sign requests.
 //   - CentralizedPool: a provider-managed key pool with failover.
 type Credential interface {
-	Kind() CredentialKind
+	Kind() credential.Kind
 	// AuthHeader is the header carrying this request's credential, or empty when
 	// the credential is not carried in a header.
 	AuthHeader() string
@@ -55,10 +30,10 @@ type BYOK struct {
 	Header string
 }
 
-func (BYOK) Kind() CredentialKind { return CredentialKindBYOK }
-func (b BYOK) AuthHeader() string { return b.Header }
-func (b BYOK) Hint() string       { return utils.MaskSecret(b.Secret) }
-func (b BYOK) Length() int        { return len(b.Secret) }
+func (BYOK) Kind() credential.Kind { return credential.KindBYOK }
+func (b BYOK) AuthHeader() string  { return b.Header }
+func (b BYOK) Hint() string        { return utils.MaskSecret(b.Secret) }
+func (b BYOK) Length() int         { return len(b.Secret) }
 
 // AWSSigV4 authenticates with AWS SigV4 request signing: requests are signed
 // (so there is no auth header) using either static credentials (when an access
@@ -68,13 +43,13 @@ type AWSSigV4 struct {
 	AccessKey string
 }
 
-func (AWSSigV4) Kind() CredentialKind { return CredentialKindCentralized }
-func (AWSSigV4) AuthHeader() string   { return "" }
-func (c AWSSigV4) Length() int        { return len(c.AccessKey) }
+func (AWSSigV4) Kind() credential.Kind { return credential.KindCentralized }
+func (AWSSigV4) AuthHeader() string    { return "" }
+func (c AWSSigV4) Length() int         { return len(c.AccessKey) }
 
 func (c AWSSigV4) Hint() string {
 	if c.AccessKey == "" {
-		return hintAWSChainKey
+		return credential.HintAWSChainKey
 	}
 	return utils.MaskSecret(c.AccessKey)
 }
@@ -88,14 +63,14 @@ type CentralizedPool struct {
 	currentKey *keypool.Key
 }
 
-func (*CentralizedPool) Kind() CredentialKind { return CredentialKindCentralized }
-func (c *CentralizedPool) AuthHeader() string { return c.Header }
+func (*CentralizedPool) Kind() credential.Kind { return credential.KindCentralized }
+func (c *CentralizedPool) AuthHeader() string  { return c.Header }
 
 func (c *CentralizedPool) Hint() string {
 	if c.currentKey != nil {
 		return c.currentKey.Hint()
 	}
-	return hintFailoverKey
+	return credential.HintFailoverKey
 }
 
 func (c *CentralizedPool) Length() int {

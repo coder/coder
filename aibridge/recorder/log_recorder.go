@@ -54,7 +54,7 @@ func (r *LogRecorder) RecordInterception(ctx context.Context, req *InterceptionR
 			slog.F("client_session_id", ptr.NilToEmpty(req.ClientSessionID)),
 			slog.F("user_agent", req.UserAgent),
 			slog.F("correlating_tool_call_id", ptr.NilToEmpty(req.CorrelatingToolCallID)),
-			slog.F("credential_kind", req.CredentialKind),
+			slog.F("credential_kind", string(req.CredentialKind)),
 			slog.F("credential_hint", req.CredentialHint),
 			slog.F("agent_firewall_session_id", ptr.NilToEmpty(req.AgentFirewallSessionID)),
 			slog.F("agent_firewall_sequence_number", ptr.NilToEmpty(req.AgentFirewallSequenceNumber)),
