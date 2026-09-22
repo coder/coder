@@ -37,6 +37,7 @@ import {
 	DEFAULT_AGENT_SIDEBAR_FILTERS,
 } from "../../../utils/agentSidebarFilters";
 import { getTimeGroup, TIME_GROUPS } from "../../../utils/timeGroups";
+import { canManageChat } from "../../ChatActionsMenuItems";
 import { FilterPopover } from "../filters/FilterPopover";
 import { normalizeLocationSearch } from "../locationSearch";
 import { SettingsNavItem } from "../settings/SettingsNavItem";
@@ -148,18 +149,21 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 		visibleChatIDs.has(chatID),
 	);
 
-	const pinnedChats = visibleRootIDs
+	const visibleRootChats = visibleRootIDs
 		.map((id) => chatById.get(id))
-		.filter((chat): chat is Chat => (chat?.pin_order ?? 0) > 0)
-		.sort((a, b) => a.pin_order - b.pin_order);
-	const unpinnedChats = visibleRootIDs
-		.map((id) => chatById.get(id))
-		.filter((chat): chat is Chat => chat !== undefined && chat.pin_order === 0);
-	const sharedWithYouChats = unpinnedChats.filter(
-		(chat) => chat.shared && chat.owner_id !== currentUserId,
+		.filter((chat): chat is Chat => chat !== undefined);
+	// Pin order is the owner's sidebar preference and the server ranks it
+	// per owner, so another user's chat stays out of the sortable Pinned
+	// section regardless of its pin_order.
+	const ownedChats = visibleRootChats.filter((chat) =>
+		canManageChat(chat, currentUserId),
 	);
-	const unpinnedOwnedChats = unpinnedChats.filter(
-		(chat) => !chat.shared || chat.owner_id === currentUserId,
+	const pinnedChats = ownedChats
+		.filter((chat) => chat.pin_order > 0)
+		.sort((a, b) => a.pin_order - b.pin_order);
+	const unpinnedOwnedChats = ownedChats.filter((chat) => chat.pin_order === 0);
+	const sharedWithYouChats = visibleRootChats.filter(
+		(chat) => !canManageChat(chat, currentUserId),
 	);
 	const hasAppliedResultFilters =
 		sidebarFilters.prStatuses.length > 0 ||

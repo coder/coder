@@ -317,6 +317,31 @@ export const SharedChatViewerMenuOnlyTogglesSubagents: Story = {
 	},
 };
 
+/**
+ * Pin order belongs to the owner, so a chat another user pinned lists under
+ * Shared with you instead of joining the viewer's sortable Pinned section.
+ */
+export const SharedChatPinnedByOwnerStaysInSharedWithYou: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "own-pinned",
+				title: "Own pinned chat",
+				pin_order: 1,
+			}),
+			buildChat({
+				id: "shared-pinned-by-owner",
+				title: "Shared chat pinned by its owner",
+				owner_id: "sharing-user",
+				owner_name: "Sharing User",
+				owner_username: "sharing-user",
+				shared: true,
+				pin_order: 1,
+			}),
+		],
+	},
+};
+
 export const ChatStreamingOverridesTurnSummary: Story = {
 	args: {
 		chats: [
