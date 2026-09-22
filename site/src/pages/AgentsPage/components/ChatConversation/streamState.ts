@@ -298,12 +298,8 @@ export const buildStreamTools = (
 };
 
 /**
- * Drops live tool output that belongs to a call already persisted in a durable
- * assistant message. The server persists that message before its tools run,
- * so a streamed result arrives with no live call for its ID. The durable card
- * renders it (see parseMessagesWithMergedTools); keeping it here would add a
- * second card for the same call. Returns null once nothing live remains, so
- * the live row disappears as it does while any other tool runs.
+ * Removes live output already rendered on a durable tool call's card.
+ * Returns null when nothing remains, preventing an empty live row.
  */
 export const excludeDurableToolResults = (
 	streamState: StreamState | null,

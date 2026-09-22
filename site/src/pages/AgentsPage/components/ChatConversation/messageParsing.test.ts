@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ChatMessage, ChatMessagePart } from "#/api/typesGenerated";
+import { MockChatMessage } from "#/testHelpers/chatEntities";
 import { getSubagentDescriptor } from "../ChatElements/tools/subagentDescriptor";
 import {
 	buildSubagentMaps,
@@ -660,9 +661,8 @@ describe("live tool result overlay", () => {
 		role: "assistant" | "tool" | "user",
 		parts: ChatMessagePart[],
 	): ChatMessage => ({
+		...MockChatMessage,
 		id,
-		chat_id: "chat-1",
-		created_at: new Date(2026, 0, id).toISOString(),
 		role,
 		content: parts,
 	});
@@ -730,39 +730,42 @@ describe("live tool result overlay", () => {
 		expect(parsed[1]?.parsed.tools[0]?.reasoning).toBeUndefined();
 	});
 
-	it("prefers the durable result over a stale live result", () => {
-		const resolvedMessages = [
-			...messages,
-			msg(26, "tool", [
-				{
-					type: "tool-result",
-					tool_call_id: "call-advisor",
-					tool_name: "advisor",
-					result: { type: "advice", advice: "Durable advice" },
-				},
-			]),
-		];
+	it.each([null, { type: "advice", advice: "Durable advice" }])(
+		"prefers the durable result over a stale live result: %j",
+		(durableResult) => {
+			const resolvedMessages = [
+				...messages,
+				msg(26, "tool", [
+					{
+						type: "tool-result",
+						tool_call_id: "call-advisor",
+						tool_name: "advisor",
+						result: durableResult,
+					},
+				]),
+			];
 
-		const parsed = parseMessagesWithMergedTools(resolvedMessages, {
-			pendingToolCallIDs: getPendingToolCallIDs(resolvedMessages, "running"),
-			liveToolResults: {
-				"call-advisor": {
-					id: "call-advisor",
-					name: "advisor",
-					result: "Stale partial advice",
-					reasoning: "Stale thinking",
-					isError: false,
-					isStreaming: true,
+			const parsed = parseMessagesWithMergedTools(resolvedMessages, {
+				pendingToolCallIDs: getPendingToolCallIDs(resolvedMessages, "running"),
+				liveToolResults: {
+					"call-advisor": {
+						id: "call-advisor",
+						name: "advisor",
+						result: "Stale partial advice",
+						reasoning: "Stale thinking",
+						isError: false,
+						isStreaming: true,
+					},
 				},
-			},
-		});
+			});
 
-		expect(parsed[1]?.parsed.tools[0]).toMatchObject({
-			status: "completed",
-			result: { type: "advice", advice: "Durable advice" },
-		});
-		expect(parsed[1]?.parsed.tools[0]?.reasoning).toBeUndefined();
-	});
+			expect(parsed[1]?.parsed.tools[0]).toMatchObject({
+				status: "completed",
+				result: durableResult,
+			});
+			expect(parsed[1]?.parsed.tools[0]?.reasoning).toBeUndefined();
+		},
+	);
 
 	it("ignores live results for other tool calls", () => {
 		const parsed = parseMessagesWithMergedTools(messages, {

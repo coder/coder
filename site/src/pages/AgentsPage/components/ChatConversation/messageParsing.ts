@@ -187,7 +187,7 @@ export const mergeTools = (
 			id: call.id,
 			name: call.name,
 			args: call.args,
-			result: result?.result ?? liveResult?.result,
+			result: result ? result.result : liveResult?.result,
 			reasoning: liveResult?.reasoning,
 			isError: result?.isError ?? liveResult?.isError ?? false,
 			isMedia: result?.isMedia ?? liveResult?.isMedia,

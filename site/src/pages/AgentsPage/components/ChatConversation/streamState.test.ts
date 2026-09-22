@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ChatMessage, ChatMessagePart } from "#/api/typesGenerated";
+import { MockChatMessage } from "#/testHelpers/chatEntities";
 import {
 	getPendingToolCallIDs,
 	parseMessagesWithMergedTools,
@@ -917,9 +918,8 @@ describe("excludeDurableToolResults", () => {
 		parts.reduce<StreamState | null>(applyMessagePartToStreamState, null);
 
 	const durableAdvisorMessage: ChatMessage = {
+		...MockChatMessage,
 		id: 25,
-		chat_id: "chat-1",
-		created_at: "2026-03-10T00:00:00.000Z",
 		role: "assistant",
 		content: [
 			{
@@ -1006,14 +1006,12 @@ describe("excludeDurableToolResults", () => {
 	});
 
 	it("renders one advisor call as one card across the durable/live seam", () => {
-		// Observed event order: durable assistant message with the call, then
-		// tool-result parts for the same ID, then a reset once the durable
-		// result lands.
+		// The call is durable before live deltas arrive; a retry removes only
+		// the transient output.
 		const messages: ChatMessage[] = [
 			{
+				...MockChatMessage,
 				id: 24,
-				chat_id: "chat-1",
-				created_at: "2026-03-10T00:00:00.000Z",
 				role: "user",
 				content: [{ type: "text", text: "Should this be on by default?" }],
 			},
