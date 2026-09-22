@@ -186,6 +186,7 @@
 		"no-explicit-any": "error",
 		"no-irregular-whitespace": "error",
 		"no-redeclare": "error",
+		"no-empty-interface": "error",
 		"no-use-before-define": [
 			"error",
 			{ "functions": false, "classes": false, "variables": false }
@@ -209,7 +210,6 @@
 		"no-fallthrough": "off", // suspicious/noFallthroughSwitchClause (medium)
 		"click-events-have-key-events": "off", // a11y/useKeyWithClickEvents (small)
 		"prefer-function-type": "off", // style/useShorthandFunctionType (small)
-		"no-empty-interface": "off", // suspicious/noEmptyInterface (small)
 		"no-danger": "off", // security/noDangerouslySetInnerHtml (small: Biome suppression to migrate)
 		"no-noninteractive-tabindex": "off", // a11y/noNoninteractiveTabindex (small)
 		"interactive-supports-focus": "off", // a11y/useFocusableInteractive (small)
