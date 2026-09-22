@@ -1,7 +1,6 @@
 import { TriangleAlertIcon } from "lucide-react";
 import type { FC } from "react";
 import { Badge } from "#/components/Badge/Badge";
-import { InfoTooltip } from "#/components/InfoTooltip/InfoTooltip";
 import {
 	Tooltip,
 	TooltipContent,
@@ -43,14 +42,21 @@ const CostSetupWarning: FC<{ scope: SpendScope }> = ({ scope }) => {
 		);
 	}
 	return (
-		<InfoTooltip
-			type="warning"
-			size="small"
-			ariaLabel={`Cost setup for ${scope.user}`}
-		>
-			This user has used models without configured pricing. That usage is
-			excluded, so their actual spend may be higher than shown.
-		</InfoTooltip>
+		<Tooltip>
+			<TooltipTrigger asChild>
+				<button
+					type="button"
+					aria-label={`Cost setup for ${scope.user}`}
+					className="flex cursor-default items-center border-0 bg-transparent p-0 text-content-warning opacity-75 transition-opacity hover:opacity-100 [&_svg]:size-3"
+				>
+					<TriangleAlertIcon />
+				</button>
+			</TooltipTrigger>
+			<TooltipContent side="bottom" className="max-w-xs">
+				This user has used models without configured pricing. That usage is
+				excluded, so their actual spend may be higher than shown.
+			</TooltipContent>
+		</Tooltip>
 	);
 };
 
