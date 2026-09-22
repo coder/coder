@@ -186,7 +186,7 @@ const APIKeyFields: FC<MCPServerAuthFieldsProps> = ({
 	</div>
 );
 
-const SecretInput: FC<{
+export const SecretInput: FC<{
 	id: string;
 	value: string;
 	touched: boolean;
