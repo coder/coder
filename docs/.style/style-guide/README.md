@@ -55,12 +55,12 @@ The markdownlint and emdash checks do fail the build.
 | [Audience and scope](./audience-and-scope.md)                         | 6     | 0            | 0       | 6                  |
 | [Voice and tone](./voice-and-tone.md)                                 | 10    | 0            | 2       | 8                  |
 | [Procedural writing](./procedural-writing.md)                         | 5     | 0            | 0       | 5                  |
-| [Word choice](./word-choice.md)                                       | 15    | 2            | 9       | 4                  |
+| [Word choice](./word-choice.md)                                       | 16    | 2            | 9       | 5                  |
 | [Accessibility and inclusion](./accessibility-and-inclusion.md)       | 13    | 2            | 3       | 8                  |
 | [Capitalization and punctuation](./capitalization-and-punctuation.md) | 11    | 2            | 6       | 3                  |
 | [Formatting](./formatting.md)                                         | 12    | 2            | 0       | 10                 |
 | [Numbers, units, and dates](./numbers-units-and-dates.md)             | 5     | 0            | 5       | 0                  |
-| **Total**                                                             | 77    | 8            | 25      | 44                 |
+| **Total**                                                             | 78    | 8            | 25      | 45                 |
 
 Every column counts rule sections, not linter rule names.
 A rule section is a heading that carries an enforcement footer, the italic line that names the section's enforcement status.
