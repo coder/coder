@@ -66,9 +66,6 @@ const SHARED_WITH_YOU_SECTION_KEY = "Shared with you";
 
 type ChatsPanelProps = {
 	readonly projects: readonly ChatProject[];
-	readonly projectPermissions?: Record<string, boolean>;
-	readonly projectPermissionsError?: unknown;
-	readonly onRetryProjectPermissions: () => void;
 	readonly isProjectsLoading: boolean;
 	readonly projectsError?: unknown;
 	readonly onRetryProjects: () => void;
@@ -111,9 +108,6 @@ type ChatsPanelProps = {
 
 export const ChatsPanel: FC<ChatsPanelProps> = ({
 	projects,
-	projectPermissions,
-	projectPermissionsError,
-	onRetryProjectPermissions,
 	isProjectsLoading,
 	projectsError,
 	onRetryProjects,
@@ -578,9 +572,6 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 									{onOpenProjectDialog && onDeleteProject && (
 										<ProjectFolders
 											projects={projects}
-											projectPermissions={projectPermissions}
-											projectPermissionsError={projectPermissionsError}
-											onRetryPermissions={onRetryProjectPermissions}
 											chatsByProjectId={chatsByProjectId}
 											expandedProjectIds={expandedProjectIds}
 											onToggle={toggleProject}

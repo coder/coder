@@ -137,20 +137,6 @@ const defaultProps: React.ComponentProps<typeof ChatsSidebar> = {
 afterEach(() => server.resetHandlers());
 
 describe("ChatsSidebar projects", () => {
-	const grantProjectPermissions = (
-		granted: boolean,
-		onChecked?: (checks: Record<string, unknown>) => void,
-	) =>
-		http.post("/api/v2/authcheck", async ({ request }) => {
-			const { checks } = (await request.json()) as {
-				checks: Record<string, unknown>;
-			};
-			onChecked?.(checks);
-			return HttpResponse.json(
-				Object.fromEntries(Object.keys(checks).map((key) => [key, granted])),
-			);
-		});
-
 	it("creates a project when there are no chats", async () => {
 		const user = userEvent.setup();
 		let requestBody: unknown;
@@ -261,7 +247,6 @@ describe("ChatsSidebar projects", () => {
 			http.get("/api/experimental/chats/projects", () =>
 				HttpResponse.json([MockChatProject]),
 			),
-			grantProjectPermissions(true),
 			http.delete("*", ({ request }) => {
 				deletedProjectID = request.url.split("/").at(-1);
 				return new HttpResponse(null, { status: 204 });
@@ -298,7 +283,6 @@ describe("ChatsSidebar projects", () => {
 			http.get("/api/experimental/chats/projects", () =>
 				HttpResponse.json([MockChatProject]),
 			),
-			grantProjectPermissions(true),
 			http.delete("*", () =>
 				HttpResponse.json({ message: "Project is locked" }, { status: 500 }),
 			),
@@ -327,101 +311,12 @@ describe("ChatsSidebar projects", () => {
 		});
 	});
 
-	it("retries a failed project permission check", async () => {
-		const user = userEvent.setup();
-		let authCheckCount = 0;
-		server.use(
-			http.get("/api/experimental/chats/projects", () =>
-				HttpResponse.json([MockChatProject]),
-			),
-			http.post("/api/v2/authcheck", async ({ request }) => {
-				authCheckCount++;
-				if (authCheckCount === 1) {
-					return HttpResponse.json(
-						{ message: "Permission check failed" },
-						{ status: 500 },
-					);
-				}
-				const { checks } = (await request.json()) as {
-					checks: Record<string, unknown>;
-				};
-				return HttpResponse.json(
-					Object.fromEntries(Object.keys(checks).map((key) => [key, true])),
-				);
-			}),
-		);
-
-		render(
-			<Wrapper experiments={["chat-projects"]}>
-				<ChatsSidebar {...defaultProps} />
-			</Wrapper>,
-		);
-
-		await user.click(await screen.findByRole("button", { name: "Retry" }));
-		await waitFor(() => expect(authCheckCount).toBe(2));
-	});
-
-	it("hides project actions the user is not allowed to perform", async () => {
-		const user = userEvent.setup();
-		let authChecks: Record<string, unknown> | undefined;
-		server.use(
-			http.get("/api/experimental/chats/projects", () =>
-				HttpResponse.json([MockChatProject]),
-			),
-			grantProjectPermissions(false, (checks) => {
-				authChecks = checks;
-			}),
-		);
-
-		render(
-			<Wrapper experiments={["chat-projects"]}>
-				<ChatsSidebar {...defaultProps} />
-			</Wrapper>,
-		);
-
-		await screen.findByRole("link", { name: MockChatProject.name });
-		await waitFor(() => expect(authChecks).toBeDefined());
-		expect(Object.values(authChecks ?? {})).toEqual(
-			expect.arrayContaining([
-				{
-					object: {
-						resource_type: "chat_project",
-						organization_id: MockChatProject.organization_id,
-						owner_id: MockChatProject.owner_id,
-					},
-					action: "update",
-				},
-				{
-					object: {
-						resource_type: "chat_project",
-						organization_id: MockChatProject.organization_id,
-						owner_id: MockChatProject.owner_id,
-					},
-					action: "delete",
-				},
-			]),
-		);
-		await user.click(
-			screen.getByRole("button", {
-				name: `Open project actions for ${MockChatProject.name}`,
-			}),
-		);
-		expect(
-			screen.getByRole("menuitem", { name: "New chat" }),
-		).toBeInTheDocument();
-		expect(screen.queryByRole("menuitem", { name: "Edit project" })).toBeNull();
-		expect(
-			screen.queryByRole("menuitem", { name: "Delete project" }),
-		).toBeNull();
-	});
-
 	it("files project chats under their folder instead of the date sections", async () => {
 		const user = userEvent.setup();
 		server.use(
 			http.get("/api/experimental/chats/projects", () =>
 				HttpResponse.json([MockChatProject]),
 			),
-			grantProjectPermissions(false),
 		);
 
 		render(
@@ -456,7 +351,6 @@ describe("ChatsSidebar projects", () => {
 			http.get("/api/experimental/chats/projects", () =>
 				HttpResponse.json([MockChatProject]),
 			),
-			grantProjectPermissions(false),
 		);
 
 		render(
@@ -489,7 +383,6 @@ describe("ChatsSidebar projects", () => {
 			http.get("/api/experimental/chats/projects", () =>
 				HttpResponse.json([MockChatProject]),
 			),
-			grantProjectPermissions(false),
 		);
 
 		render(

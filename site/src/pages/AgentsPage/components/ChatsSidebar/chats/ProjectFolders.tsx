@@ -26,7 +26,6 @@ import {
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
-import { chatProjectPermissionsFor } from "#/modules/permissions/chatProjects";
 import { buildAgentProjectPath } from "../../../utils/navigation";
 import { ChatTreeNode } from "../tree/ChatTreeNode";
 
@@ -35,9 +34,6 @@ const getProjectFolderToggleTestId = (projectId: string) =>
 
 type ProjectFoldersProps = {
 	readonly projects: readonly ChatProject[];
-	readonly projectPermissions?: Record<string, boolean>;
-	readonly projectPermissionsError?: unknown;
-	readonly onRetryPermissions: () => void;
 	readonly chatsByProjectId: ReadonlyMap<string, readonly Chat[]>;
 	readonly expandedProjectIds: Readonly<Record<string, boolean>>;
 	readonly onToggle: (projectId: string) => void;
@@ -55,9 +51,6 @@ type ProjectFoldersProps = {
  */
 export const ProjectFolders: FC<ProjectFoldersProps> = ({
 	projects,
-	projectPermissions,
-	projectPermissionsError,
-	onRetryPermissions,
 	chatsByProjectId,
 	expandedProjectIds,
 	onToggle,
@@ -89,18 +82,6 @@ export const ProjectFolders: FC<ProjectFoldersProps> = ({
 					onRetry={onRetry}
 				/>
 			)}
-			{/* Permissions only gate edit and delete, so a failed check must not
-			    hide the folders. Cached checks keep working through a failed
-			    background refetch. */}
-			{projectPermissions === undefined && Boolean(projectPermissionsError) && (
-				<FolderError
-					message={getErrorMessage(
-						projectPermissionsError,
-						"Failed to load project permissions.",
-					)}
-					onRetry={onRetryPermissions}
-				/>
-			)}
 			{projects.length > 0 && (
 				<div className="flex flex-col gap-0.5">
 					{projects.map((project) => (
@@ -109,10 +90,6 @@ export const ProjectFolders: FC<ProjectFoldersProps> = ({
 							project={project}
 							chats={chatsByProjectId.get(project.id) ?? []}
 							expanded={Boolean(expandedProjectIds[project.id])}
-							permissions={chatProjectPermissionsFor(
-								project,
-								projectPermissions,
-							)}
 							locationSearch={location.search}
 							onToggle={() => onToggle(project.id)}
 							onEdit={() => onEdit(project)}
@@ -141,7 +118,6 @@ type ProjectFolderProps = {
 	readonly project: ChatProject;
 	readonly chats: readonly Chat[];
 	readonly expanded: boolean;
-	readonly permissions: { canUpdate: boolean; canDelete: boolean };
 	readonly locationSearch: string;
 	readonly onToggle: () => void;
 	readonly onEdit: () => void;
@@ -152,7 +128,6 @@ const ProjectFolder: FC<ProjectFolderProps> = ({
 	project,
 	chats,
 	expanded,
-	permissions: { canUpdate, canDelete },
 	locationSearch,
 	onToggle,
 	onEdit,
@@ -206,18 +181,14 @@ const ProjectFolder: FC<ProjectFolderProps> = ({
 							New chat
 						</Link>
 					</DropdownMenuItem>
-					{(canUpdate || canDelete) && <DropdownMenuSeparator />}
-					{canUpdate && (
-						<DropdownMenuItem onSelect={onEdit}>Edit project</DropdownMenuItem>
-					)}
-					{canDelete && (
-						<DropdownMenuItem
-							className="text-content-destructive focus:text-content-destructive"
-							onSelect={onDelete}
-						>
-							Delete project
-						</DropdownMenuItem>
-					)}
+					<DropdownMenuSeparator />
+					<DropdownMenuItem onSelect={onEdit}>Edit project</DropdownMenuItem>
+					<DropdownMenuItem
+						className="text-content-destructive focus:text-content-destructive"
+						onSelect={onDelete}
+					>
+						Delete project
+					</DropdownMenuItem>
 				</DropdownMenuContent>
 			</DropdownMenu>
 		</div>
@@ -234,18 +205,14 @@ const ProjectFolder: FC<ProjectFolderProps> = ({
 							New chat
 						</Link>
 					</ContextMenuItem>
-					{(canUpdate || canDelete) && <ContextMenuSeparator />}
-					{canUpdate && (
-						<ContextMenuItem onSelect={onEdit}>Edit project</ContextMenuItem>
-					)}
-					{canDelete && (
-						<ContextMenuItem
-							className="text-content-destructive focus:text-content-destructive"
-							onSelect={onDelete}
-						>
-							Delete project
-						</ContextMenuItem>
-					)}
+					<ContextMenuSeparator />
+					<ContextMenuItem onSelect={onEdit}>Edit project</ContextMenuItem>
+					<ContextMenuItem
+						className="text-content-destructive focus:text-content-destructive"
+						onSelect={onDelete}
+					>
+						Delete project
+					</ContextMenuItem>
 				</ContextMenuContent>
 			</ContextMenu>
 			{expanded && (

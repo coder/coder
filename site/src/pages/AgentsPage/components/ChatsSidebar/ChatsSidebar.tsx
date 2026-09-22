@@ -4,7 +4,6 @@ import { useLocation, useParams } from "react-router";
 import { toast } from "sonner";
 import { getErrorMessage } from "#/api/errors";
 import {
-	chatProjectPermissions,
 	chatProjects,
 	createChatProject,
 	deleteChatProject,
@@ -120,10 +119,6 @@ export const ChatsSidebar: FC<ChatsSidebarProps> = (props) => {
 		enabled: chatProjectsEnabled && Boolean(defaultOrganizationId),
 	});
 	const projects = chatProjectsEnabled ? (projectsQuery.data ?? []) : [];
-	const projectPermissionsQuery = useQuery({
-		...chatProjectPermissions(projects),
-		enabled: chatProjectsEnabled && projects.length > 0,
-	});
 	const createProjectMutation = useMutation(createChatProject(queryClient));
 	const updateProjectMutation = useMutation(updateChatProject(queryClient));
 	const deleteProjectMutation = useMutation(deleteChatProject(queryClient));
@@ -193,11 +188,6 @@ export const ChatsSidebar: FC<ChatsSidebarProps> = (props) => {
 		<div className="relative flex size-full min-h-0 border-0 border-r border-solid overflow-hidden">
 			<ChatsPanel
 				projects={projects}
-				projectPermissions={projectPermissionsQuery.data}
-				projectPermissionsError={
-					chatProjectsEnabled ? projectPermissionsQuery.error : undefined
-				}
-				onRetryProjectPermissions={() => void projectPermissionsQuery.refetch()}
 				isProjectsLoading={chatProjectsEnabled && projectsQuery.isLoading}
 				projectsError={chatProjectsEnabled ? projectsQuery.error : undefined}
 				onRetryProjects={() => void projectsQuery.refetch()}

@@ -125,17 +125,6 @@ const Wrapper: FC<
 	);
 };
 
-const grantProjectPermissions = (granted: boolean, onChecked?: () => void) =>
-	http.post("/api/v2/authcheck", async ({ request }) => {
-		const { checks } = (await request.json()) as {
-			checks: Record<string, unknown>;
-		};
-		onChecked?.();
-		return HttpResponse.json(
-			Object.fromEntries(Object.keys(checks).map((key) => [key, granted])),
-		);
-	});
-
 afterEach(() => {
 	server.resetHandlers();
 	mountedLockedOrganizationIds.length = 0;
@@ -283,14 +272,10 @@ describe("AgentCreatePage project assignment", () => {
 
 describe("AgentCreatePage project frame", () => {
 	it("shows the project name and description around the composer", async () => {
-		let authChecked = false;
 		server.use(
 			http.get(`/api/experimental/chats/projects/${MockChatProject.id}`, () =>
 				HttpResponse.json(MockChatProject),
 			),
-			grantProjectPermissions(false, () => {
-				authChecked = true;
-			}),
 		);
 
 		render(
@@ -303,18 +288,15 @@ describe("AgentCreatePage project frame", () => {
 			await screen.findByRole("heading", { name: MockChatProject.name }),
 		).toBeInTheDocument();
 		expect(screen.getByText(MockChatProject.description)).toBeInTheDocument();
-		await waitFor(() => expect(authChecked).toBe(true));
-		expect(screen.queryByRole("button", { name: "Edit project" })).toBeNull();
 	});
 
-	it("edits the project when the user may update it", async () => {
+	it("edits the project from the composer", async () => {
 		const user = userEvent.setup();
 		let requestBody: unknown;
 		server.use(
 			http.get(`/api/experimental/chats/projects/${MockChatProject.id}`, () =>
 				HttpResponse.json(MockChatProject),
 			),
-			grantProjectPermissions(true),
 			http.patch(
 				`/api/experimental/chats/projects/${MockChatProject.id}`,
 				async ({ request }) => {
@@ -341,42 +323,5 @@ describe("AgentCreatePage project frame", () => {
 		await waitFor(() => {
 			expect(requestBody).toMatchObject({ name: "Renamed" });
 		});
-	});
-
-	it("retries a failed project permission check under the composer", async () => {
-		const user = userEvent.setup();
-		let authCheckCount = 0;
-		server.use(
-			http.get(`/api/experimental/chats/projects/${MockChatProject.id}`, () =>
-				HttpResponse.json(MockChatProject),
-			),
-			http.post("/api/v2/authcheck", async ({ request }) => {
-				authCheckCount++;
-				if (authCheckCount === 1) {
-					return HttpResponse.json(
-						{ message: "Permission check failed" },
-						{ status: 500 },
-					);
-				}
-				const { checks } = (await request.json()) as {
-					checks: Record<string, unknown>;
-				};
-				return HttpResponse.json(
-					Object.fromEntries(Object.keys(checks).map((key) => [key, true])),
-				);
-			}),
-		);
-
-		render(
-			<Wrapper experiments={["chat-projects"]}>
-				<AgentCreatePage />
-			</Wrapper>,
-		);
-
-		await user.click(await screen.findByRole("button", { name: "Retry" }));
-		await waitFor(() => expect(authCheckCount).toBe(2));
-		await user.click(
-			await screen.findByRole("button", { name: "Edit project" }),
-		);
 	});
 });

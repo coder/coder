@@ -21,7 +21,6 @@ describe("ProjectFolders", () => {
 					onCreate={vi.fn()}
 					onEdit={vi.fn()}
 					onDelete={vi.fn()}
-					onRetryPermissions={vi.fn()}
 					error={new Error("Projects unavailable")}
 					onRetry={onRetry}
 				/>

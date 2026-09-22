@@ -1,14 +1,9 @@
 import { PencilIcon } from "lucide-react";
 import { type FC, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "react-query";
-import { getErrorMessage } from "#/api/errors";
-import {
-	chatProjectPermissions,
-	updateChatProject,
-} from "#/api/queries/chatProjects";
+import { useMutation, useQueryClient } from "react-query";
+import { updateChatProject } from "#/api/queries/chatProjects";
 import type { ChatProject } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
-import { chatProjectPermissionsFor } from "#/modules/permissions/chatProjects";
 import { ChatProjectDialog } from "./ChatsSidebar/dialogs/ChatProjectDialog";
 
 type ProjectComposerHeaderProps = {
@@ -38,45 +33,13 @@ type ProjectComposerFooterProps = {
 	readonly project: ChatProject;
 };
 
-/** Edit control under the composer for users allowed to update the project. */
+/** Edit control under the composer. */
 export const ProjectComposerFooter: FC<ProjectComposerFooterProps> = ({
 	project,
 }) => {
 	const queryClient = useQueryClient();
 	const [isEditing, setIsEditing] = useState(false);
-	const permissionsQuery = useQuery(chatProjectPermissions([project]));
 	const updateProjectMutation = useMutation(updateChatProject(queryClient));
-	const { canUpdate } = chatProjectPermissionsFor(
-		project,
-		permissionsQuery.data,
-	);
-
-	// Without any permission data the edit control cannot be decided, so
-	// offer a retry instead of silently hiding it. Cached data keeps the
-	// control through a failed background refetch.
-	if (permissionsQuery.data === undefined && permissionsQuery.error) {
-		return (
-			<div className="flex items-center justify-center gap-2 pt-2 text-xs text-content-destructive">
-				<span>
-					{getErrorMessage(
-						permissionsQuery.error,
-						"Failed to load project permissions.",
-					)}
-				</span>
-				<Button
-					size="sm"
-					variant="outline"
-					onClick={() => void permissionsQuery.refetch()}
-				>
-					Retry
-				</Button>
-			</div>
-		);
-	}
-
-	if (!canUpdate) {
-		return null;
-	}
 
 	return (
 		<div className="flex justify-center pt-2">
