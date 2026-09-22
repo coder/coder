@@ -20,6 +20,7 @@ import (
 	"go.opentelemetry.io/otel"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/aibridge/config"
 	"github.com/coder/coder/v2/aibridge/internal/testutil"
@@ -471,6 +472,28 @@ func TestPassthroughRejectsTraversalAndPreservesEscapedSeparator(t *testing.T) {
 	require.Equal(t, http.StatusNoContent, resp.Code)
 	ctx := codertestutil.Context(t, codertestutil.WaitShort)
 	require.Equal(t, "/v1/models/a%2Fb", codertestutil.RequireReceive(ctx, t, upstreamPaths))
+}
+
+func TestPassthroughUsesContextualReverseProxyDiagnostics(t *testing.T) {
+	t.Parallel()
+
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Length", "100")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("chunk"))
+	}))
+	t.Cleanup(upstream.Close)
+	sink := codertestutil.NewFakeSink(t)
+	prov := &testutil.MockProvider{NameStr: "test", URL: upstream.URL}
+	handler := newPassthroughRouter(prov, sink.Logger(), nil, testTracer)
+
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/v1/models", nil))
+	require.Equal(t, http.StatusOK, response.Code)
+	entries := sink.Entries(func(entry slog.SinkEntry) bool {
+		return strings.Contains(entry.Message, "copyResponse error")
+	})
+	require.Len(t, entries, 1)
 }
 
 func TestPassthroughRouterReusesProxyInstance(t *testing.T) {

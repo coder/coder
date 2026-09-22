@@ -81,7 +81,9 @@ func newPassthroughRouter(prov provider.Provider, logger slog.Logger, m *metrics
 			http.Error(w, "invalid request path", http.StatusBadRequest)
 			return
 		}
-		proxy.ServeHTTP(w, r.WithContext(ctx))
+		requestProxy := *proxy
+		requestProxy.ErrorLog = slog.Stdlib(ctx, logger, slog.LevelWarn)
+		requestProxy.ServeHTTP(w, r.WithContext(ctx))
 	}
 }
 
