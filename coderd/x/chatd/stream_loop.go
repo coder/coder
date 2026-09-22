@@ -160,9 +160,12 @@ func (l *streamLoop) loadDBSnapshot(ctx context.Context) (streamDBSnapshot, erro
 		if chat.HistoryVersion > l.state.historyVersion {
 			afterRevision := l.state.historyVersion
 			if !l.state.initialMessageSyncDone && l.state.afterMessageID > 0 {
-				afterRevision, err = l.initialAfterRevision(ctx, tx)
+				row, ok, err := l.initialSyncCursor(ctx, tx)
 				if err != nil {
 					return err
+				}
+				if ok {
+					afterRevision = row.Revision - 1
 				}
 			}
 			snapshot.changedMessages, err = tx.GetChatMessagesByRevisionForStream(ctx, database.GetChatMessagesByRevisionForStreamParams{
@@ -240,23 +243,24 @@ func (l *streamLoop) historyResetRequired(changed []database.ChatMessage) bool {
 	return idx < 0 || changed[idx].Deleted
 }
 
-// initialAfterRevision bounds the first message fetch to what a client
-// holding afterMessageID can be missing. Rows the client already has were
-// committed at or before that message's revision, and an edit truncating
-// any of them soft-deletes the cursor row itself. A cursor that is gone
-// falls back to the full scan so the deletion surfaces as a history reset.
-func (l *streamLoop) initialAfterRevision(ctx context.Context, tx database.Store) (int64, error) {
+// initialSyncCursor loads the live row a client holds as afterMessageID so
+// the first fetch can start at its revision. Rows the client already has
+// were committed at or before that revision, and an edit truncating any of
+// them soft-deletes the cursor row itself. A cursor that is gone, unknown,
+// or from another chat reports false so the full scan surfaces the deletion
+// as a history reset.
+func (l *streamLoop) initialSyncCursor(ctx context.Context, tx database.Store) (database.ChatMessage, bool, error) {
 	cursor, err := tx.GetChatMessageByID(ctx, l.state.afterMessageID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return 0, nil
+			return database.ChatMessage{}, false, nil
 		}
-		return 0, xerrors.Errorf("get stream cursor message: %w", err)
+		return database.ChatMessage{}, false, xerrors.Errorf("get stream cursor message: %w", err)
 	}
 	if cursor.ChatID != l.chatID {
-		return 0, nil
+		return database.ChatMessage{}, false, nil
 	}
-	return cursor.Revision - 1, nil
+	return cursor, true, nil
 }
 
 func (*streamLoop) actionRequiredFromHistory(chat database.Chat, messages []database.ChatMessage) (*codersdk.ChatStreamActionRequired, error) {
