@@ -559,6 +559,11 @@ can still SSH into the workspace and manually initiate file transfers. The
 primary purpose of this feature is to warn and discourage users from downloading
 confidential resources to their local machines.
 
+The `sftp` subsystem is blocked in full, not just the `sftp` command. Any
+workflow that moves files over SFTP stops working, including IDE remote file
+browsers and file synchronization features that use SFTP underneath. Confirm
+which workflows your developers rely on before you enable this setting.
+
 For more advanced security needs, consider adopting an endpoint security
 solution.
 
