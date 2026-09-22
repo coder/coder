@@ -4,10 +4,9 @@
 // This file is the raw JSON safety boundary every untrusted document
 // (inline schemas, finalizer arguments, output values, recovered metadata)
 // crosses before schema compilation, validation, or JSONB persistence. It
-// parses exactly one value, keeps numbers as json.Number, and rejects what
-// encoding/json silently repairs or JSONB cannot store: duplicate keys,
-// invalid UTF-8, unpaired surrogate escapes, and U+0000. Fixed server-owned
-// caps bound bytes, depth, value count, array length, and numeric literals.
+// parses exactly one value under fixed server-owned caps, keeps numbers as
+// json.Number, and rejects what encoding/json silently repairs or JSONB
+// cannot store: duplicate keys, invalid UTF-8, unpaired surrogates, U+0000.
 package chatstructured
 
 import (
@@ -46,10 +45,9 @@ const (
 	maxNumberExponent     = 1024
 )
 
-// limits are fixed server-owned caps for one raw JSON document. maxBytes
-// and maxDepth are always enforced. A zero maxNodes or maxArrayLen leaves
-// that dimension bounded only by maxBytes, which is a real bound because
-// every value and array element costs at least one input byte.
+// limits are fixed server-owned caps for one raw JSON document. A zero
+// maxNodes or maxArrayLen leaves that dimension bounded only by maxBytes,
+// a real bound because every value and array element costs an input byte.
 type limits struct {
 	maxBytes    int
 	maxDepth    int
@@ -65,22 +63,15 @@ var (
 	outputValueLimits = limits{maxBytes: 64 << 10, maxDepth: 32, maxNodes: 4096, maxArrayLen: 256}
 	// finalizerArgumentLimits bound the raw finalizer tool-call envelope
 	// {"output": <value>}: one wrapper level and node above the output caps.
-	finalizerArgumentLimits = limits{
-		maxBytes:    80 << 10,
-		maxDepth:    outputValueLimits.maxDepth + 1,
-		maxNodes:    outputValueLimits.maxNodes + 1,
-		maxArrayLen: outputValueLimits.maxArrayLen,
-	}
+	finalizerArgumentLimits = limits{maxBytes: 80 << 10, maxDepth: 33, maxNodes: 4097, maxArrayLen: 256}
 )
 
-// ParseSchemaDocument parses one untrusted inline schema document. See
-// ParseOutputValue for the result shape and rejection rules.
+// ParseSchemaDocument is ParseOutputValue under the inline schema document caps.
 func ParseSchemaDocument(raw []byte) (any, error) {
 	return parseJSON(raw, schemaDocumentLimits)
 }
 
-// ParseFinalizerArguments parses one untrusted finalizer tool-call argument
-// envelope. See ParseOutputValue for the result shape and rejection rules.
+// ParseFinalizerArguments is ParseOutputValue under the finalizer envelope caps.
 func ParseFinalizerArguments(raw []byte) (any, error) {
 	return parseJSON(raw, finalizerArgumentLimits)
 }
@@ -132,7 +123,7 @@ func (p *parser) value(depth int) (any, error) {
 	start := p.dec.InputOffset()
 	tok, err := p.dec.Token()
 	if err != nil {
-		return nil, malformed(start)
+		return nil, ErrMalformed
 	}
 	// Every scalar and container is one node; keys are not counted.
 	p.nodes++
@@ -172,7 +163,7 @@ func (p *parser) array(depth int) ([]any, error) {
 		out = append(out, elem)
 	}
 	if _, err := p.dec.Token(); err != nil {
-		return nil, malformed(p.dec.InputOffset())
+		return nil, ErrMalformed
 	}
 	return out, nil
 }
@@ -182,13 +173,10 @@ func (p *parser) object(depth int) (map[string]any, error) {
 	for p.dec.More() {
 		start := p.dec.InputOffset()
 		tok, err := p.dec.Token()
-		if err != nil {
-			return nil, malformed(start)
-		}
-		// In key position the tokenizer only yields strings.
+		// In key position the tokenizer yields a string or an error.
 		key, ok := tok.(string)
-		if !ok {
-			return nil, malformed(start)
+		if err != nil || !ok {
+			return nil, ErrMalformed
 		}
 		if err := p.checkString(key, start); err != nil {
 			return nil, err
@@ -205,26 +193,20 @@ func (p *parser) object(depth int) (map[string]any, error) {
 		out[key] = val
 	}
 	if _, err := p.dec.Token(); err != nil {
-		return nil, malformed(p.dec.InputOffset())
+		return nil, ErrMalformed
 	}
 	return out, nil
 }
 
 // checkString rejects U+0000 and unpaired UTF-16 surrogate escapes, which
-// encoding/json silently replaces with U+FFFD. start is the decoder offset
-// before the token, so the raw slice may begin with separators, none of
-// which is a backslash.
+// encoding/json silently replaces with U+FFFD. The raw literal starts at
+// decoder offset start, possibly with separators (never a backslash), and
+// the tokenizer accepted its grammar, so every backslash starts a full escape.
 func (p *parser) checkString(decoded string, start int64) error {
 	if strings.IndexByte(decoded, 0) >= 0 {
 		return ErrNullCharacter
 	}
-	return checkEscapes(p.raw[start:p.dec.InputOffset()])
-}
-
-// checkEscapes rejects unpaired surrogate escapes in a string literal whose
-// grammar the tokenizer already accepted, so every backslash introduces a
-// complete, valid escape.
-func checkEscapes(lit []byte) error {
+	lit := p.raw[start:p.dec.InputOffset()]
 	for i := 0; i < len(lit); i++ {
 		if lit[i] != '\\' {
 			continue
@@ -265,23 +247,14 @@ func checkNumber(n json.Number) error {
 	if len(n) > maxNumberLiteralBytes {
 		return ErrNumberTooLong
 	}
-	e := strings.IndexAny(string(n), "eE")
-	if e < 0 {
-		return nil
-	}
-	// One optional sign then digits: trimming both leaves the significant
-	// digits, and Atoi fails cleanly on digit strings beyond the int range.
-	exp := strings.TrimLeft(string(n[e+1:]), "+-0")
-	if exp == "" {
-		return nil
-	}
-	if v, err := strconv.Atoi(exp); err != nil || v > maxNumberExponent {
-		return ErrExponentTooLarge
+	if e := strings.IndexAny(string(n), "eE"); e >= 0 {
+		// One optional sign then digits: trimming both leaves the significant
+		// digits, the "0" prefix keeps a zero exponent parseable, and Atoi
+		// fails cleanly on digit strings beyond the int range.
+		v, err := strconv.Atoi("0" + strings.TrimLeft(string(n[e+1:]), "+-0"))
+		if err != nil || v > maxNumberExponent {
+			return ErrExponentTooLarge
+		}
 	}
 	return nil
-}
-
-// malformed reports a grammar failure by offset, never by echoing input.
-func malformed(offset int64) error {
-	return xerrors.Errorf("%w near byte %d", ErrMalformed, offset)
 }
