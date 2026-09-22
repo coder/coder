@@ -1349,6 +1349,12 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{Message: "Project does not belong to this chat's organization."})
 			return
 		}
+		// Projects are private to their owner, and a chat in a project reads
+		// and writes its memory, so the chat's owner must own the project.
+		if project.OwnerID != ownerID {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{Message: "Project belongs to another user."})
+			return
+		}
 		projectID = uuid.NullUUID{UUID: project.ID, Valid: true}
 	}
 
@@ -2373,6 +2379,10 @@ func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
 			}
 			if project.OrganizationID != chat.OrganizationID {
 				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{Message: "Project does not belong to this chat's organization."})
+				return
+			}
+			if project.OwnerID != chat.OwnerID {
+				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{Message: "Project belongs to another user."})
 				return
 			}
 			projectID = uuid.NullUUID{UUID: project.ID, Valid: true}

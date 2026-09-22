@@ -1,6 +1,7 @@
 package coderd_test
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -143,7 +144,44 @@ func TestChatProjectsAuthorizationAndCrossOrganizationBinding(t *testing.T) {
 	adminName := "Updated by admin"
 	_, err = admin.UpdateChatProject(ctx, project.ID, codersdk.UpdateChatProjectRequest{Name: &adminName})
 	require.NoError(t, err)
+
+	// The owner may create chats for other users, but binding one to the
+	// owner's project would expose its memory to someone who cannot read
+	// the project, so the chat owner must own the project.
+	_, memberUser := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
+	_, err = client.CreateChat(ctx, codersdk.CreateChatRequest{
+		OrganizationID: firstUser.OrganizationID,
+		OwnerID:        &memberUser.ID,
+		ProjectID:      &project.ID,
+		Content: []codersdk.ChatInputPart{{
+			Type: codersdk.ChatInputPartTypeText,
+			Text: "reject binding another user's chat",
+		}},
+	})
+	require.Equal(t, 400, coderdtest.SDKError(t, err).StatusCode())
+	memberChat := createChatInProject(t, member, firstUser.OrganizationID, nil)
+	err = client.UpdateChat(ctx, memberChat.ID, codersdk.UpdateChatRequest{ProjectID: &project.ID})
+	require.Equal(t, 400, coderdtest.SDKError(t, err).StatusCode())
+
 	require.NoError(t, admin.DeleteChatProject(ctx, project.ID))
+}
+
+func TestChatProjectFieldLimits(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	client, _ := newChatProjectClient(t)
+	firstUser := coderdtest.CreateFirstUser(t, client.Client)
+
+	_, err := client.CreateChatProject(ctx, codersdk.CreateChatProjectRequest{
+		OrganizationID: firstUser.OrganizationID,
+		Name:           strings.Repeat("n", 65),
+	})
+	require.Equal(t, 400, coderdtest.SDKError(t, err).StatusCode())
+	project := createChatProject(t, client, firstUser.OrganizationID, strings.Repeat("n", 64))
+	longDescription := strings.Repeat("d", 1025)
+	_, err = client.UpdateChatProject(ctx, project.ID, codersdk.UpdateChatProjectRequest{Description: &longDescription})
+	require.Equal(t, 400, coderdtest.SDKError(t, err).StatusCode())
 }
 
 func TestChatProjectBindingPatchClearAndListFilter(t *testing.T) {
