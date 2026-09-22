@@ -82,19 +82,26 @@ func IsAgentsUnsupportedProviderType(t AIProviderType) bool {
 //
 // On the wire, settings serialize as a JSON object that always carries
 // _type and _version discriminator keys alongside the type-specific
-// fields. The custom (Un)MarshalJSON implementations on this type
-// handle the routing automatically; callers should never marshal the
-// concrete settings struct directly.
+// fields. Bedrock settings may also carry upstream headers in the same
+// object. The custom (Un)MarshalJSON implementations on this type handle
+// the routing automatically; callers should never marshal the concrete
+// settings struct directly.
 type AIProviderSettings struct {
 	// Bedrock, when set, indicates this provider authenticates against
 	// AWS Bedrock instead of api.anthropic.com. Only meaningful for
 	// AIProviderTypeAnthropic.
 	Bedrock *AIProviderBedrockSettings `json:"-"`
+	// UpstreamHeaders, when set, carries custom headers sent on every
+	// upstream request for the provider (e.g. a routing session header
+	// required by OpenAI-compatible endpoints such as OpenCode Zen).
+	// Headers may be combined with Bedrock settings; when both are set,
+	// they are encoded in the Bedrock settings object.
+	UpstreamHeaders *AIProviderUpstreamHeadersSettings `json:"-"`
 }
 
 // IsZero reports whether the settings carry no type-specific data.
 func (s AIProviderSettings) IsZero() bool {
-	return s.Bedrock == nil
+	return s.Bedrock == nil && (s.UpstreamHeaders == nil || s.UpstreamHeaders.IsZero())
 }
 
 // MarshalJSON emits the discriminated wire form. Empty settings encode
@@ -102,7 +109,13 @@ func (s AIProviderSettings) IsZero() bool {
 func (s AIProviderSettings) MarshalJSON() ([]byte, error) {
 	switch {
 	case s.Bedrock != nil:
-		return marshalSettings(*s.Bedrock)
+		wire := aiProviderBedrockSettingsWire{AIProviderBedrockSettings: *s.Bedrock}
+		if s.UpstreamHeaders != nil && !s.UpstreamHeaders.IsZero() {
+			wire.Headers = s.UpstreamHeaders.Headers
+		}
+		return marshalSettings(wire)
+	case s.UpstreamHeaders != nil && !s.UpstreamHeaders.IsZero():
+		return marshalSettings(*s.UpstreamHeaders)
 	default:
 		return []byte("null"), nil
 	}
@@ -131,11 +144,25 @@ func (s *AIProviderSettings) UnmarshalJSON(data []byte) error {
 			return xerrors.Errorf("unsupported %q settings version %d (expected %d)",
 				header.Type, header.Version, AIProviderBedrockSettingsVersion)
 		}
-		var b AIProviderBedrockSettings
-		if err := json.Unmarshal(data, &b); err != nil {
+		var wire aiProviderBedrockSettingsWire
+		if err := json.Unmarshal(data, &wire); err != nil {
 			return xerrors.Errorf("decode bedrock settings: %w", err)
 		}
-		s.Bedrock = &b
+		s.Bedrock = &wire.AIProviderBedrockSettings
+		if wire.Headers != nil {
+			s.UpstreamHeaders = &AIProviderUpstreamHeadersSettings{Headers: wire.Headers}
+		}
+		return nil
+	case AIProviderSettingsTypeUpstreamHeaders:
+		if header.Version != AIProviderUpstreamHeadersSettingsVersion {
+			return xerrors.Errorf("unsupported %q settings version %d (expected %d)",
+				header.Type, header.Version, AIProviderUpstreamHeadersSettingsVersion)
+		}
+		var h AIProviderUpstreamHeadersSettings
+		if err := json.Unmarshal(data, &h); err != nil {
+			return xerrors.Errorf("decode upstream-headers settings: %w", err)
+		}
+		s.UpstreamHeaders = &h
 		return nil
 	default:
 		return xerrors.Errorf("unknown settings type %q", header.Type)
@@ -147,6 +174,22 @@ func (s *AIProviderSettings) UnmarshalJSON(data []byte) error {
 type aiProviderSettingsHeader struct {
 	Type    string `json:"_type"`
 	Version int    `json:"_version"`
+}
+
+// aiProviderBedrockSettingsWire preserves the single Bedrock discriminator
+// while allowing provider-wide upstream headers to coexist with Bedrock
+// authentication settings.
+type aiProviderBedrockSettingsWire struct {
+	AIProviderBedrockSettings
+	Headers map[string]string `json:"headers,omitempty"`
+}
+
+func (aiProviderBedrockSettingsWire) settingsType() string {
+	return AIProviderSettingsTypeBedrock
+}
+
+func (aiProviderBedrockSettingsWire) settingsVersion() int {
+	return AIProviderBedrockSettingsVersion
 }
 
 // settingsTyped is implemented by concrete settings structs so that
@@ -264,6 +307,9 @@ func (req CreateAIProviderRequest) Validate() []ValidationError {
 	validations = append(validations, validateAIProviderName(req.Name)...)
 	validations = append(validations, validateRequiredAIProviderBaseURL(req.BaseURL)...)
 	validations = append(validations, validateAIProviderAPIKeys(req.APIKeys)...)
+	if req.Settings.UpstreamHeaders != nil {
+		validations = append(validations, validateAIProviderUpstreamHeaders(*req.Settings.UpstreamHeaders)...)
+	}
 	if req.Settings.Bedrock != nil &&
 		req.Type != AIProviderTypeAnthropic &&
 		req.Type != AIProviderTypeBedrock {
@@ -344,6 +390,9 @@ func (req UpdateAIProviderRequest) Validate() []ValidationError {
 	}
 	if req.APIKeys != nil {
 		validations = append(validations, validateAIProviderKeyMutations(*req.APIKeys)...)
+	}
+	if req.Settings != nil && req.Settings.UpstreamHeaders != nil {
+		validations = append(validations, validateAIProviderUpstreamHeaders(*req.Settings.UpstreamHeaders)...)
 	}
 	// Despite arriving on a PATCH, a bedrock settings blob is a full
 	// replacement rather than a per-field patch: the caller must set every

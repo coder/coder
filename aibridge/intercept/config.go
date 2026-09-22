@@ -16,4 +16,8 @@ type Config struct {
 	// SendActorHeaders reports whether actor identity headers should be
 	// forwarded to the upstream provider.
 	SendActorHeaders bool
+	// UpstreamHeaders carries admin-configured custom headers applied to
+	// every upstream request for the provider. See ApplyUpstreamHeaders.
+	// Nil or empty leaves default behavior unchanged.
+	UpstreamHeaders map[string]string
 }

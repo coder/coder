@@ -109,6 +109,14 @@ type Provider interface {
 	APIDumpDir() string
 }
 
+// UpstreamHeadersProvider is implemented by providers that expose
+// admin-configured custom headers sent on every upstream request for the
+// provider. The passthrough router reads it; intercepted routes read the
+// same configuration from intercept.Config instead.
+type UpstreamHeadersProvider interface {
+	UpstreamHeaders() map[string]string
+}
+
 // validProviderName matches lowercase alphanumeric names separated by hyphens.
 var validProviderName = regexp.MustCompile(`^[a-z0-9]+(-[a-z0-9]+)*$`)
 
