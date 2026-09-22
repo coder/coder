@@ -654,6 +654,137 @@ describe("pending durable tool parsing", () => {
 	});
 });
 
+describe("live tool result overlay", () => {
+	const msg = (
+		id: number,
+		role: "assistant" | "tool" | "user",
+		parts: ChatMessagePart[],
+	): ChatMessage => ({
+		id,
+		chat_id: "chat-1",
+		created_at: new Date(2026, 0, id).toISOString(),
+		role,
+		content: parts,
+	});
+
+	const advisorArgs = {
+		question: "on or off by default?",
+		model_intent: "Checking the default",
+	};
+	const advisorCall: ChatMessagePart = {
+		type: "tool-call",
+		tool_call_id: "call-advisor",
+		tool_name: "advisor",
+		args: advisorArgs,
+	};
+	const messages = [
+		msg(24, "user", [{ type: "text", text: "Should this be on by default?" }]),
+		msg(25, "assistant", [advisorCall]),
+	];
+	const pendingToolCallIDs = getPendingToolCallIDs(messages, "running");
+
+	it("streams a live result into the durable call that owns it", () => {
+		const parsed = parseMessagesWithMergedTools(messages, {
+			pendingToolCallIDs,
+			liveToolResults: {
+				"call-advisor": {
+					id: "call-advisor",
+					name: "advisor",
+					result: "Turn it on",
+					reasoning: "Weighing the default",
+					isError: false,
+					isStreaming: true,
+				},
+			},
+		});
+
+		expect(parsed[1]?.parsed.tools).toEqual([
+			expect.objectContaining({
+				id: "call-advisor",
+				status: "running",
+				args: advisorArgs,
+				modelIntent: "Checking the default",
+				result: "Turn it on",
+				reasoning: "Weighing the default",
+			}),
+		]);
+	});
+
+	it("completes the durable call from a final live result before the durable result lands", () => {
+		const parsed = parseMessagesWithMergedTools(messages, {
+			pendingToolCallIDs,
+			liveToolResults: {
+				"call-advisor": {
+					id: "call-advisor",
+					name: "advisor",
+					result: { type: "advice", advice: "Turn it on" },
+					isError: false,
+				},
+			},
+		});
+
+		expect(parsed[1]?.parsed.tools[0]).toMatchObject({
+			status: "completed",
+			result: { type: "advice", advice: "Turn it on" },
+		});
+		expect(parsed[1]?.parsed.tools[0]?.reasoning).toBeUndefined();
+	});
+
+	it("prefers the durable result over a stale live result", () => {
+		const resolvedMessages = [
+			...messages,
+			msg(26, "tool", [
+				{
+					type: "tool-result",
+					tool_call_id: "call-advisor",
+					tool_name: "advisor",
+					result: { type: "advice", advice: "Durable advice" },
+				},
+			]),
+		];
+
+		const parsed = parseMessagesWithMergedTools(resolvedMessages, {
+			pendingToolCallIDs: getPendingToolCallIDs(resolvedMessages, "running"),
+			liveToolResults: {
+				"call-advisor": {
+					id: "call-advisor",
+					name: "advisor",
+					result: "Stale partial advice",
+					reasoning: "Stale thinking",
+					isError: false,
+					isStreaming: true,
+				},
+			},
+		});
+
+		expect(parsed[1]?.parsed.tools[0]).toMatchObject({
+			status: "completed",
+			result: { type: "advice", advice: "Durable advice" },
+		});
+		expect(parsed[1]?.parsed.tools[0]?.reasoning).toBeUndefined();
+	});
+
+	it("ignores live results for other tool calls", () => {
+		const parsed = parseMessagesWithMergedTools(messages, {
+			pendingToolCallIDs,
+			liveToolResults: {
+				"call-other": {
+					id: "call-other",
+					name: "advisor",
+					result: "Unrelated",
+					reasoning: "Unrelated thinking",
+					isError: false,
+					isStreaming: true,
+				},
+			},
+		});
+
+		expect(parsed[1]?.parsed.tools[0]).toMatchObject({ status: "running" });
+		expect(parsed[1]?.parsed.tools[0]?.result).toBeUndefined();
+		expect(parsed[1]?.parsed.tools[0]?.reasoning).toBeUndefined();
+	});
+});
+
 describe("parseMessagesWithMergedTools — killedBySignal annotation", () => {
 	const msg = (
 		id: number,

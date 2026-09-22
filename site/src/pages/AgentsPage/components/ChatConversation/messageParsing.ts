@@ -16,6 +16,7 @@ import type {
 	ParsedToolCall,
 	ParsedToolResult,
 	RenderBlock,
+	StreamState,
 } from "./types";
 
 /** Concatenate text chunks, skipping whitespace-only values. */
@@ -134,6 +135,27 @@ export const getPendingToolCallIDs = (
 
 type MergeToolsOptions = {
 	pendingToolCallIDs?: ReadonlySet<string>;
+	// Live results for calls whose assistant message is already durable. The
+	// server persists that message before its tools run, so a streamed result
+	// has no live call to attach to and renders on the durable call instead.
+	liveToolResults?: StreamState["toolResults"];
+};
+
+const getMergedToolStatus = (
+	result: ParsedToolResult | undefined,
+	liveResult: StreamState["toolResults"][string] | undefined,
+	isPending: boolean,
+): MergedTool["status"] => {
+	if (result) {
+		return result.isError ? "error" : "completed";
+	}
+	if (liveResult) {
+		if (liveResult.isStreaming) {
+			return "running";
+		}
+		return liveResult.isError ? "error" : "completed";
+	}
+	return isPending ? "running" : "completed";
 };
 
 export const mergeTools = (
@@ -148,28 +170,32 @@ export const mergeTools = (
 	for (const call of calls) {
 		seen.add(call.id);
 		const result = resultById.get(call.id);
+		// A durable result is final; live data for the same call is stale.
+		const liveResult = result ? undefined : options.liveToolResults?.[call.id];
 		// Extract model_intent from the tool call args if present.
 		const callArgs = call.args as Record<string, unknown> | undefined;
 		const modelIntent =
 			typeof callArgs?.model_intent === "string"
 				? callArgs.model_intent
 				: undefined;
-		const status = result
-			? result.isError
-				? "error"
-				: "completed"
-			: options.pendingToolCallIDs?.has(call.id)
-				? "running"
-				: "completed";
+		const status = getMergedToolStatus(
+			result,
+			liveResult,
+			options.pendingToolCallIDs?.has(call.id) ?? false,
+		);
 		merged.push({
 			id: call.id,
 			name: call.name,
 			args: call.args,
-			result: result?.result,
-			isError: result?.isError ?? false,
-			isMedia: result?.isMedia,
+			result: result?.result ?? liveResult?.result,
+			reasoning: liveResult?.reasoning,
+			isError: result?.isError ?? liveResult?.isError ?? false,
+			isMedia: result?.isMedia ?? liveResult?.isMedia,
 			status,
-			mcpServerConfigId: call.mcpServerConfigId || result?.mcpServerConfigId,
+			mcpServerConfigId:
+				call.mcpServerConfigId ||
+				result?.mcpServerConfigId ||
+				liveResult?.mcpServerConfigId,
 			modelIntent,
 			parsedCommands: call.parsedCommands,
 			hookRewritten: call.hookRewritten,
@@ -341,9 +367,7 @@ export const getEditableUserMessagePayload = (
 	};
 };
 
-type ParseMessagesWithMergedToolsOptions = {
-	pendingToolCallIDs?: ReadonlySet<string>;
-};
+type ParseMessagesWithMergedToolsOptions = MergeToolsOptions;
 
 export const parseMessagesWithMergedTools = (
 	messages: readonly TypesGen.ChatMessage[],
@@ -377,7 +401,7 @@ export const parseMessagesWithMergedTools = (
 		parsed.tools = mergeTools(
 			parsed.toolCalls,
 			Array.from(resultById.values()),
-			{ pendingToolCallIDs: options.pendingToolCallIDs },
+			options,
 		);
 	}
 

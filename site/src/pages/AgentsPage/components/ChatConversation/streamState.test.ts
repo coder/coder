@@ -1,8 +1,14 @@
 import { describe, expect, it } from "vitest";
+import type { ChatMessage, ChatMessagePart } from "#/api/typesGenerated";
+import {
+	getPendingToolCallIDs,
+	parseMessagesWithMergedTools,
+} from "./messageParsing";
 import {
 	applyMessagePartToStreamState,
 	buildStreamTools,
 	createEmptyStreamState,
+	excludeDurableToolResults,
 } from "./streamState";
 import type { StreamState } from "./types";
 
@@ -903,6 +909,163 @@ describe("buildStreamTools", () => {
 		const tools = buildStreamTools(state.toolCalls, state.toolResults);
 		expect(tools).toHaveLength(1);
 		expect(tools[0].status).toBe("completed");
+	});
+});
+
+describe("excludeDurableToolResults", () => {
+	const applyParts = (parts: readonly ChatMessagePart[]): StreamState | null =>
+		parts.reduce<StreamState | null>(applyMessagePartToStreamState, null);
+
+	const durableAdvisorMessage: ChatMessage = {
+		id: 25,
+		chat_id: "chat-1",
+		created_at: "2026-03-10T00:00:00.000Z",
+		role: "assistant",
+		content: [
+			{
+				type: "tool-call",
+				tool_call_id: "call-advisor",
+				tool_name: "advisor",
+				args: { question: "on or off by default?" },
+			},
+		],
+	};
+	const durableEntries = parseMessagesWithMergedTools([durableAdvisorMessage]);
+
+	// The server persists the assistant message before the tool runs, so
+	// these parts arrive with no live tool-call for the same ID.
+	const advisorResultParts: ChatMessagePart[] = [
+		{
+			type: "tool-result",
+			tool_call_id: "call-advisor",
+			tool_name: "advisor",
+			reasoning_delta: "Weighing the default",
+		},
+		{
+			type: "tool-result",
+			tool_call_id: "call-advisor",
+			tool_name: "advisor",
+			result_delta: "Turn it on",
+		},
+	];
+
+	it("removes a streamed result whose call is durable and leaves no live output", () => {
+		const state = applyParts(advisorResultParts);
+
+		expect(excludeDurableToolResults(state, durableEntries)).toBeNull();
+	});
+
+	it("keeps live tool calls, unrelated results, and text", () => {
+		const state = applyParts([
+			{
+				type: "tool-call",
+				tool_call_id: "call-live",
+				tool_name: "execute",
+				args: { command: "ls" },
+			},
+			...advisorResultParts,
+			{
+				type: "tool-result",
+				tool_call_id: "call-orphan",
+				tool_name: "execute",
+				result: "ok",
+			},
+			{ type: "text", text: "Done" },
+		]);
+
+		const live = excludeDurableToolResults(state, durableEntries);
+
+		expect(live?.blocks).toEqual([
+			{ type: "tool", id: "call-live" },
+			{ type: "tool", id: "call-orphan" },
+			{ type: "response", text: "Done" },
+		]);
+		expect(Object.keys(live?.toolCalls ?? {})).toEqual(["call-live"]);
+		expect(Object.keys(live?.toolResults ?? {})).toEqual(["call-orphan"]);
+	});
+
+	it("keeps a result whose call is also live", () => {
+		const state = applyParts([
+			{
+				type: "tool-call",
+				tool_call_id: "call-advisor",
+				tool_name: "advisor",
+				args: { question: "on or off by default?" },
+			},
+			...advisorResultParts,
+		]);
+
+		expect(excludeDurableToolResults(state, durableEntries)).toBe(state);
+	});
+
+	it("returns the same stream when nothing belongs to a durable call", () => {
+		const state = applyParts([{ type: "text", text: "Hello" }]);
+
+		expect(excludeDurableToolResults(state, durableEntries)).toBe(state);
+		expect(excludeDurableToolResults(null, durableEntries)).toBeNull();
+	});
+
+	it("renders one advisor call as one card across the durable/live seam", () => {
+		// Observed event order: durable assistant message with the call, then
+		// tool-result parts for the same ID, then a reset once the durable
+		// result lands.
+		const messages: ChatMessage[] = [
+			{
+				id: 24,
+				chat_id: "chat-1",
+				created_at: "2026-03-10T00:00:00.000Z",
+				role: "user",
+				content: [{ type: "text", text: "Should this be on by default?" }],
+			},
+			{
+				...durableAdvisorMessage,
+				content: [
+					{
+						type: "tool-call",
+						tool_call_id: "call-advisor",
+						tool_name: "advisor",
+						args: {
+							question: "on or off by default?",
+							model_intent: "Checking the default",
+						},
+					},
+				],
+			},
+		];
+		const streamState = applyParts(advisorResultParts);
+
+		const parsed = parseMessagesWithMergedTools(messages, {
+			pendingToolCallIDs: getPendingToolCallIDs(messages, "running"),
+			liveToolResults: streamState?.toolResults,
+		});
+		const liveStreamState = excludeDurableToolResults(streamState, parsed);
+
+		expect(parsed[1]?.parsed.tools).toEqual([
+			expect.objectContaining({
+				id: "call-advisor",
+				status: "running",
+				modelIntent: "Checking the default",
+				reasoning: "Weighing the default",
+				result: "Turn it on",
+			}),
+		]);
+		expect(liveStreamState).toBeNull();
+		expect(
+			buildStreamTools(
+				liveStreamState?.toolCalls,
+				liveStreamState?.toolResults,
+			),
+		).toEqual([]);
+
+		const afterReset = parseMessagesWithMergedTools(messages, {
+			pendingToolCallIDs: getPendingToolCallIDs(messages, "running"),
+			liveToolResults: undefined,
+		});
+		expect(afterReset[1]?.parsed.tools[0]).toMatchObject({
+			status: "running",
+			reasoning: undefined,
+			result: undefined,
+		});
 	});
 });
 

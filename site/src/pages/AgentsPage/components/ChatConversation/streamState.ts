@@ -2,7 +2,12 @@ import type * as TypesGen from "#/api/typesGenerated";
 import { appendTextBlock } from "./blockUtils";
 import { ensureToolBlock, parseToolResultIsError } from "./messageParsing";
 import { mergeStreamPayload } from "./streamingJson";
-import type { MergedTool, RenderBlock, StreamState } from "./types";
+import type {
+	MergedTool,
+	ParsedMessageEntry,
+	RenderBlock,
+	StreamState,
+} from "./types";
 
 let nextFallbackID = 0;
 
@@ -290,4 +295,49 @@ export const buildStreamTools = (
 	}
 
 	return merged;
+};
+
+/**
+ * Drops live tool output that belongs to a call already persisted in a durable
+ * assistant message. The server persists that message before its tools run,
+ * so a streamed result arrives with no live call for its ID. The durable card
+ * renders it (see parseMessagesWithMergedTools); keeping it here would add a
+ * second card for the same call. Returns null once nothing live remains, so
+ * the live row disappears as it does while any other tool runs.
+ */
+export const excludeDurableToolResults = (
+	streamState: StreamState | null,
+	durableEntries: readonly ParsedMessageEntry[],
+): StreamState | null => {
+	if (!streamState) {
+		return null;
+	}
+	const isOrphanToolBlock = (block: RenderBlock): boolean =>
+		block.type === "tool" && !streamState.toolCalls[block.id];
+	if (!streamState.blocks.some(isOrphanToolBlock)) {
+		return streamState;
+	}
+
+	const durableToolCallIDs = new Set(
+		durableEntries.flatMap(({ parsed }) =>
+			parsed.toolCalls.map((call) => call.id),
+		),
+	);
+	const isDurableOrphan = (id: string): boolean =>
+		durableToolCallIDs.has(id) && !streamState.toolCalls[id];
+	const blocks = streamState.blocks.filter(
+		(block) => block.type !== "tool" || !isDurableOrphan(block.id),
+	);
+	if (blocks.length === streamState.blocks.length) {
+		return streamState;
+	}
+	if (blocks.length === 0) {
+		return null;
+	}
+	const toolResults = Object.fromEntries(
+		Object.entries(streamState.toolResults).filter(
+			([id]) => !isDurableOrphan(id),
+		),
+	);
+	return { ...streamState, blocks, toolResults };
 };

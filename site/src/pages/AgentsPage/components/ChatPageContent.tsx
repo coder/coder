@@ -57,7 +57,10 @@ import {
 	getPendingToolCallIDs,
 	parseMessagesWithMergedTools,
 } from "./ChatConversation/messageParsing";
-import { buildStreamTools } from "./ChatConversation/streamState";
+import {
+	buildStreamTools,
+	excludeDurableToolResults,
+} from "./ChatConversation/streamState";
 import { useOnRenderProfiler } from "./ChatConversation/useOnRenderProfiler";
 import type { SkillMetadata } from "./ChatMessageInput/SkillsTriggerMenu";
 import { ChatMessageScroller } from "./ChatMessageScroller";
@@ -158,20 +161,6 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 	);
 	const isChatCompleted = !hasStream;
 
-	const liveStatus = deriveLiveStatus({
-		streamState,
-		retryState,
-		reconnectState,
-		streamError,
-		persistedError: persistedError ?? null,
-		isAwaitingFirstStreamChunk,
-		chatStatus,
-	});
-	const streamTools = buildStreamTools(
-		streamState?.toolCalls,
-		streamState?.toolResults,
-	);
-
 	const messages = orderedMessageIDs
 		.map((messageID) => {
 			const message = messagesByID.get(messageID);
@@ -188,7 +177,27 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 	const pendingToolCallIDs = getPendingToolCallIDs(messages, chatStatus);
 	const parsedMessages = parseMessagesWithMergedTools(messages, {
 		pendingToolCallIDs,
+		liveToolResults: streamState?.toolResults,
 	});
+	// Output streamed for a durable call renders on that call's card, so the
+	// live row only shows what no durable message owns yet.
+	const liveStreamState = excludeDurableToolResults(
+		streamState,
+		parsedMessages,
+	);
+	const liveStatus = deriveLiveStatus({
+		streamState: liveStreamState,
+		retryState,
+		reconnectState,
+		streamError,
+		persistedError: persistedError ?? null,
+		isAwaitingFirstStreamChunk,
+		chatStatus,
+	});
+	const streamTools = buildStreamTools(
+		liveStreamState?.toolCalls,
+		liveStreamState?.toolResults,
+	);
 	const { titles: subagentTitles, variants: subagentVariants } =
 		buildSubagentMaps(parsedMessages);
 	const onRenderProfiler = useOnRenderProfiler();
@@ -213,7 +222,7 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 					parsedMessages={parsedMessages}
 					chatFiles={chatFiles}
 					initialActiveTurnMaxMessageId={initialActiveTurnMaxMessageId}
-					streamState={streamState}
+					streamState={liveStreamState}
 					streamTools={streamTools}
 					liveStatus={liveStatus}
 					subagentStatusOverrides={subagentStatusOverrides}
