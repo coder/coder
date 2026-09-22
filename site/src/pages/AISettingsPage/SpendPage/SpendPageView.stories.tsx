@@ -49,6 +49,7 @@ const meta = {
 			endDate: new Date("2026-03-12T00:00:00Z"),
 		},
 		minDate: new Date("2026-01-12T00:00:00Z"),
+		isRetentionLoading: false,
 		onDateRangeChange: fn(),
 		filterMenus: { provider: MockMenu, client: MockMenu, model: MockMenu },
 		reportQuery: mockReportQuery,
@@ -89,6 +90,7 @@ export const NoPermittedOrganizations: Story = {
 export const Loading: Story = {
 	args: {
 		dateRange: undefined,
+		isRetentionLoading: true,
 		reportQuery: mockPendingReportQuery,
 	},
 };

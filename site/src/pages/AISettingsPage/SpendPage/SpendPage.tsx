@@ -1,4 +1,4 @@
-import type { FC } from "react";
+import { type FC, useState } from "react";
 import { useQuery } from "react-query";
 import { useSearchParams } from "react-router";
 import {
@@ -183,11 +183,20 @@ const SpendPage: FC<SpendPageProps> = ({ now }) => {
 		dateRange ??
 		(reportQuery.data &&
 			appliedWindowToDateRange(reportQuery.data, currentTime));
-	// Usage before the retention cutoff has been purged, so the picker does not
-	// offer those days. Absent when the deployment does not purge.
-	const retentionStart = reportQuery.data?.retention_start;
-	const minDate = retentionStart
-		? firstDayWithinRetention(new Date(retentionStart))
+
+	// Retention is deployment-wide. Keep the last reported cutoff while the
+	// next report loads so the date picker stays mounted.
+	const [retention, setRetention] = useState<{ start: string | undefined }>();
+	if (
+		reportQuery.data &&
+		!reportQuery.isPlaceholderData &&
+		(retention === undefined ||
+			retention.start !== reportQuery.data.retention_start)
+	) {
+		setRetention({ start: reportQuery.data.retention_start });
+	}
+	const minDate = retention?.start
+		? firstDayWithinRetention(new Date(retention.start))
 		: undefined;
 
 	return (
@@ -206,6 +215,7 @@ const SpendPage: FC<SpendPageProps> = ({ now }) => {
 				organizationsError={organizationsQuery.error}
 				dateRange={appliedDateRange}
 				minDate={minDate}
+				isRetentionLoading={retention === undefined && reportQuery.isLoading}
 				onDateRangeChange={onDateRangeChange}
 				filterMenus={undefined}
 				reportQuery={reportQuery}

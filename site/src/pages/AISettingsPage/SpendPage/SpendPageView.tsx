@@ -30,6 +30,7 @@ type SpendPageViewProps = {
 	organizationsError: unknown;
 	dateRange: DateRangeValue | undefined;
 	minDate: Date | undefined;
+	isRetentionLoading: boolean;
 	onDateRangeChange: (value: DateRangeValue) => void;
 	filterMenus: SpendFilterMenus | undefined;
 	reportQuery: SpendReportQuery;
@@ -78,6 +79,7 @@ const SpendPageContent: FC<SpendPageContentProps> = ({
 	organizationsError,
 	dateRange,
 	minDate,
+	isRetentionLoading,
 	onDateRangeChange,
 	filterMenus,
 	reportQuery,
@@ -135,7 +137,7 @@ const SpendPageContent: FC<SpendPageContentProps> = ({
 				now={now}
 				dateRange={dateRange}
 				minDate={minDate}
-				isReportLoading={reportQuery.isLoading}
+				isRetentionLoading={isRetentionLoading}
 				onDateRangeChange={onDateRangeChange}
 			/>
 			<SpendUsersTable reportQuery={reportQuery} />

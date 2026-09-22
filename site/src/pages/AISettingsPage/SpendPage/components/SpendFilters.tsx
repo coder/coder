@@ -39,7 +39,7 @@ type SpendFiltersProps = {
 	now: Date | undefined;
 	dateRange: DateRangeValue | undefined;
 	minDate: Date | undefined;
-	isReportLoading: boolean;
+	isRetentionLoading: boolean;
 	onDateRangeChange: (value: DateRangeValue) => void;
 };
 
@@ -51,7 +51,7 @@ export const SpendFilters: FC<SpendFiltersProps> = ({
 	now,
 	dateRange,
 	minDate,
-	isReportLoading,
+	isRetentionLoading,
 	onDateRangeChange,
 }) => {
 	return (
@@ -80,9 +80,9 @@ export const SpendFilters: FC<SpendFiltersProps> = ({
 					<ClientFilter menu={menus.client} width={FILTER_WIDTH} />
 				</>
 			)}
-			{isReportLoading ? (
-				// The retention bound arrives with the report, so a picker shown
-				// before it could offer days the server rejects.
+			{isRetentionLoading ? (
+				// The retention bound arrives with the first report, so a picker
+				// shown before it could offer days the server rejects.
 				<Skeleton className="h-10 w-64" />
 			) : dateRange ? (
 				<DateRangePicker

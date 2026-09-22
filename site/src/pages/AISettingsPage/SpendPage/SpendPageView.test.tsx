@@ -30,6 +30,7 @@ const renderView = (organization: typeof MockOrganization | undefined) => {
 			organizationsError={null}
 			dateRange={undefined}
 			minDate={undefined}
+			isRetentionLoading
 			onDateRangeChange={vi.fn()}
 			filterMenus={undefined}
 			reportQuery={pendingReportQuery}
