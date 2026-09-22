@@ -74,7 +74,7 @@ func (api *API) postChatProject(rw http.ResponseWriter, r *http.Request) {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{Message: "organization_id and name are required."})
 		return
 	}
-	if resp := validateChatProjectFields(strings.TrimSpace(req.Name), req.Description); resp != nil {
+	if resp := validateChatProjectFields(strings.TrimSpace(req.Name), req.Description, strings.TrimSpace(req.Icon)); resp != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, *resp)
 		return
 	}
@@ -101,6 +101,7 @@ func (api *API) postChatProject(rw http.ResponseWriter, r *http.Request) {
 		OwnerID:        apiKey.UserID,
 		Name:           strings.TrimSpace(req.Name),
 		Description:    req.Description,
+		Icon:           strings.TrimSpace(req.Icon),
 	})
 	if database.IsUniqueViolation(err) {
 		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{Message: "You already have a chat project with this name."})
@@ -183,7 +184,11 @@ func (api *API) patchChatProject(rw http.ResponseWriter, r *http.Request) {
 	if req.Description != nil {
 		description = *req.Description
 	}
-	if resp := validateChatProjectFields(name, description); resp != nil {
+	icon := project.Icon
+	if req.Icon != nil {
+		icon = strings.TrimSpace(*req.Icon)
+	}
+	if resp := validateChatProjectFields(name, description, icon); resp != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, *resp)
 		return
 	}
@@ -192,6 +197,7 @@ func (api *API) patchChatProject(rw http.ResponseWriter, r *http.Request) {
 		ID:          project.ID,
 		Name:        name,
 		Description: description,
+		Icon:        icon,
 	})
 	if database.IsUniqueViolation(err) {
 		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{Message: "You already have a chat project with this name."})
@@ -254,14 +260,18 @@ const (
 	// memory tool descriptions, so it is kept short.
 	chatProjectNameMaxChars        = 64
 	chatProjectDescriptionMaxChars = 1024
+	chatProjectIconMaxChars        = 256
 )
 
-func validateChatProjectFields(name, description string) *codersdk.Response {
+func validateChatProjectFields(name, description, icon string) *codersdk.Response {
 	if utf8.RuneCountInString(name) > chatProjectNameMaxChars {
 		return &codersdk.Response{Message: fmt.Sprintf("name must be at most %d characters.", chatProjectNameMaxChars)}
 	}
 	if utf8.RuneCountInString(description) > chatProjectDescriptionMaxChars {
 		return &codersdk.Response{Message: fmt.Sprintf("description must be at most %d characters.", chatProjectDescriptionMaxChars)}
+	}
+	if utf8.RuneCountInString(icon) > chatProjectIconMaxChars {
+		return &codersdk.Response{Message: fmt.Sprintf("icon must be at most %d characters.", chatProjectIconMaxChars)}
 	}
 	return nil
 }

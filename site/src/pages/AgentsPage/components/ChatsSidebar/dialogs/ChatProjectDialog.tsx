@@ -9,6 +9,7 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "#/components/Dialog/Dialog";
+import { IconField } from "#/components/IconField/IconField";
 import { Input } from "#/components/Input/Input";
 import { Label } from "#/components/Label/Label";
 import { Spinner } from "#/components/Spinner/Spinner";
@@ -76,6 +77,7 @@ const ChatProjectForm: FC<ChatProjectFormProps> = ({
 	const descriptionId = useId();
 	const [name, setName] = useState(project?.name ?? "");
 	const [description, setDescription] = useState(project?.description ?? "");
+	const [icon, setIcon] = useState(project?.icon ?? "");
 	const [error, setError] = useState<string>();
 	const isEditing = project !== null && project !== undefined;
 
@@ -89,11 +91,16 @@ const ChatProjectForm: FC<ChatProjectFormProps> = ({
 		setError(undefined);
 		await onSubmit(
 			isEditing
-				? { name: trimmedName, description: description.trim() }
+				? {
+						name: trimmedName,
+						description: description.trim(),
+						icon: icon.trim(),
+					}
 				: {
 						organization_id: organizationId,
 						name: trimmedName,
 						description: description.trim(),
+						icon: icon.trim(),
 					},
 		)
 			.then(() => {
@@ -132,6 +139,13 @@ const ChatProjectForm: FC<ChatProjectFormProps> = ({
 						maxLength={1024}
 					/>
 				</div>
+				<IconField
+					value={icon}
+					onChange={(event) => setIcon(event.target.value)}
+					onPickEmoji={setIcon}
+					disabled={isSaving}
+					maxLength={256}
+				/>
 				{error && (
 					<p className="m-0 text-sm text-content-destructive">{error}</p>
 				)}

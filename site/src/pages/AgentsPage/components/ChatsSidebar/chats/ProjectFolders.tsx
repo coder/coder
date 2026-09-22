@@ -2,8 +2,6 @@ import { cn } from "cn";
 import {
 	ChevronRightIcon,
 	EllipsisVerticalIcon,
-	FolderIcon,
-	FolderOpenIcon,
 	PlusIcon,
 	SquarePenIcon,
 } from "lucide-react";
@@ -27,6 +25,7 @@ import {
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
 import { buildAgentProjectPath } from "../../../utils/navigation";
+import { ChatProjectIcon } from "../../ChatProjectIcon";
 import { ChatTreeNode } from "../tree/ChatTreeNode";
 
 const getProjectFolderToggleTestId = (projectId: string) =>
@@ -137,7 +136,6 @@ const ProjectFolder: FC<ProjectFolderProps> = ({
 		pathname: buildAgentProjectPath(project.id),
 		search: locationSearch,
 	};
-	const FolderGlyph = expanded ? FolderOpenIcon : FolderIcon;
 	const row = (
 		<div className="group relative flex items-center gap-1 rounded-md pl-1 pr-2 text-content-secondary hover:bg-surface-tertiary/50 hover:text-content-primary has-[[aria-current=page]]:bg-surface-quaternary/50 has-[[aria-current=page]]:text-content-primary">
 			<button
@@ -160,7 +158,11 @@ const ProjectFolder: FC<ProjectFolderProps> = ({
 				to={projectPath}
 				className="flex min-w-0 flex-1 items-center gap-2 py-1 text-[13px] text-content-primary no-underline"
 			>
-				<FolderGlyph aria-hidden="true" className="size-4 shrink-0" />
+				<ChatProjectIcon
+					project={project}
+					expanded={expanded}
+					className="size-4"
+				/>
 				<span className="min-w-0 flex-1 truncate">{project.name}</span>
 			</NavLink>
 			<DropdownMenu>
