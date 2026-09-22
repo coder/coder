@@ -66,14 +66,26 @@ type streamDBSnapshot struct {
 	actionRequired *codersdk.ChatStreamActionRequired
 }
 
-func newStreamLoop(chat database.Chat, db database.Store, logger slog.Logger, afterMessageID int64) *streamLoop {
+// StreamCursor is the history a stream client already holds; the initial
+// sync sends only what it is missing.
+type StreamCursor struct {
+	// AfterMessageID is the newest message ID the client holds.
+	AfterMessageID int64
+	// AfterRevision is the chat history_version the client's messages were
+	// read at. Zero treats every past deletion as new and forces a
+	// history_reset.
+	AfterRevision int64
+}
+
+func newStreamLoop(chat database.Chat, db database.Store, logger slog.Logger, cursor StreamCursor) *streamLoop {
 	return &streamLoop{
 		chatID: chat.ID,
 		db:     db,
 		logger: logger,
 		state: streamLocalState{
+			historyVersion: cursor.AfterRevision,
 			knownMessages:  make(map[int64]int64),
-			afterMessageID: afterMessageID,
+			afterMessageID: cursor.AfterMessageID,
 		},
 	}
 }
@@ -248,7 +260,11 @@ func (l *streamLoop) applyDBSnapshot(snapshot streamDBSnapshot) []codersdk.ChatS
 		events = append(events, codersdk.ChatStreamEvent{
 			Type:   codersdk.ChatStreamEventTypeStatus,
 			ChatID: l.chatID,
-			Status: &codersdk.ChatStreamStatus{Status: codersdk.ChatStatus(chat.Status)},
+			Status: &codersdk.ChatStreamStatus{
+				Status: codersdk.ChatStatus(chat.Status),
+				// Emitted after this sync's message events: clients reconnect from it.
+				HistoryVersion: chat.HistoryVersion,
+			},
 		})
 	}
 

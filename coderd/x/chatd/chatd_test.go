@@ -2821,7 +2821,7 @@ func TestSubscribeSnapshotIncludesStatusEvent(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	snapshot, _, cancel, ok := replica.Subscribe(ctx, chat.ID, nil, 0)
+	snapshot, _, cancel, ok := replica.Subscribe(ctx, chat.ID, nil, chatd.StreamCursor{})
 	require.True(t, ok)
 	t.Cleanup(cancel)
 
@@ -4422,7 +4422,7 @@ func TestSubscribeNoDuplicateMessageParts(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	snapshot, events, cancel, ok := replica.Subscribe(ctx, chat.ID, nil, 0)
+	snapshot, events, cancel, ok := replica.Subscribe(ctx, chat.ID, nil, chatd.StreamCursor{})
 	require.True(t, ok)
 	t.Cleanup(cancel)
 
@@ -4505,7 +4505,7 @@ func TestSubscribeAfterMessageID(t *testing.T) {
 	})
 
 	// Control: Subscribe with afterMessageID=0 returns ALL messages.
-	allSnapshot, _, cancelAll, ok := replica.Subscribe(ctx, chat.ID, nil, 0)
+	allSnapshot, _, cancelAll, ok := replica.Subscribe(ctx, chat.ID, nil, chatd.StreamCursor{})
 	require.True(t, ok)
 	cancelAll()
 
@@ -4514,7 +4514,7 @@ func TestSubscribeAfterMessageID(t *testing.T) {
 
 	// Subscribe with afterMessageID set to the second message's ID.
 	// Only the third message (inserted after msg2) should appear.
-	partialSnapshot, _, cancelPartial, ok := replica.Subscribe(ctx, chat.ID, nil, msg2.ID)
+	partialSnapshot, _, cancelPartial, ok := replica.Subscribe(ctx, chat.ID, nil, chatd.StreamCursor{AfterMessageID: msg2.ID})
 	require.True(t, ok)
 	cancelPartial()
 
@@ -10795,7 +10795,7 @@ func TestProcessChat_RoutingUsesDelegatedAPIKey(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	_, events, cancel, ok := creator.Subscribe(ctx, chat.ID, nil, 0)
+	_, events, cancel, ok := creator.Subscribe(ctx, chat.ID, nil, chatd.StreamCursor{})
 	require.True(t, ok)
 	t.Cleanup(cancel)
 
@@ -14090,7 +14090,7 @@ func TestAdvisorHappyPath_RootChat(t *testing.T) {
 	require.NoError(t, err)
 
 	// Advisor deltas are transient; a late subscriber misses them.
-	_, liveEvents, cancelLive, ok := server.Subscribe(ctx, chat.ID, nil, 0)
+	_, liveEvents, cancelLive, ok := server.Subscribe(ctx, chat.ID, nil, chatd.StreamCursor{})
 	require.True(t, ok)
 	liveCollectorDone := make(chan struct{})
 	go func() {

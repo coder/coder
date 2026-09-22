@@ -2283,6 +2283,7 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/messages \
 ```json
 {
   "has_more": true,
+  "history_version": 0,
   "messages": [
     {
       "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
@@ -3290,10 +3291,11 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/stream \
 
 ### Parameters
 
-| Name       | In    | Type         | Required | Description                                             |
-|------------|-------|--------------|----------|---------------------------------------------------------|
-| `chat`     | path  | string(uuid) | true     | Chat ID                                                 |
-| `after_id` | query | integer      | false    | Skip snapshot messages with id at or before this cursor |
+| Name             | In    | Type         | Required | Description                                                                              |
+|------------------|-------|--------------|----------|------------------------------------------------------------------------------------------|
+| `chat`           | path  | string(uuid) | true     | Chat ID                                                                                  |
+| `after_id`       | query | integer      | false    | Skip snapshot messages with id at or before this cursor                                  |
+| `after_revision` | query | integer      | false    | Skip history changed at or before this history_version, as returned by the messages page |
 
 ### Example responses
 
@@ -3524,6 +3526,7 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/stream \
       "status_code": 0
     },
     "status": {
+      "history_version": 0,
       "status": "waiting"
     },
     "type": "message_part"
@@ -3633,6 +3636,7 @@ Status Code **200**
 | `»» retrying_at`                   | string(date-time)                                                                | false    |              | Retrying at is the timestamp when the retry will be attempted.                                                                                                                                                                                                                                                                                                                                             |
 | `»» status_code`                   | integer                                                                          | false    |              | Status code is the best-effort upstream HTTP status code.                                                                                                                                                                                                                                                                                                                                                  |
 | `» status`                         | [codersdk.ChatStreamStatus](schemas.md#codersdkchatstreamstatus)                 | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `»» history_version`               | integer                                                                          | false    |              | History version is the chat history_version after the message events sent before this status. Pass it as after_revision when reconnecting.                                                                                                                                                                                                                                                                 |
 | `»» status`                        | [codersdk.ChatStatus](schemas.md#codersdkchatstatus)                             | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `» type`                           | [codersdk.ChatStreamEventType](schemas.md#codersdkchatstreameventtype)           | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 

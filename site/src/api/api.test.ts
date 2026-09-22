@@ -9,7 +9,12 @@ import {
 	MockWorkspace,
 	MockWorkspaceBuild,
 } from "#/testHelpers/entities";
-import { API, getURLWithSearchParams, ParameterValidationError } from "./api";
+import {
+	API,
+	getURLWithSearchParams,
+	ParameterValidationError,
+	watchChat,
+} from "./api";
 import type * as TypesGen from "./typesGenerated";
 
 const axiosInstance = API.getAxiosInstance();
@@ -52,6 +57,27 @@ describe("api.ts", () => {
 			} catch (error) {
 				expect(error).toStrictEqual(expectedError);
 			}
+		});
+	});
+
+	describe("watchChat", () => {
+		const routeOf = (afterMessageId?: number, afterRevision?: number) => {
+			const socket = watchChat("chat-1", afterMessageId, afterRevision);
+			const route = new URL(socket.url);
+			socket.close();
+			return Object.fromEntries(route.searchParams.entries());
+		};
+
+		it("sends the page's history version as after_revision", () => {
+			expect(routeOf(12, 7)).toMatchObject({
+				after_id: "12",
+				after_revision: "7",
+			});
+		});
+
+		it("omits after_revision when the version is unknown or zero", () => {
+			expect(routeOf(12)).not.toHaveProperty("after_revision");
+			expect(routeOf(12, 0)).not.toHaveProperty("after_revision");
 		});
 	});
 

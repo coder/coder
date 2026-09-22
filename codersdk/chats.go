@@ -702,6 +702,9 @@ type ChatMessagesResponse struct {
 	Messages       []ChatMessage       `json:"messages"`
 	QueuedMessages []ChatQueuedMessage `json:"queued_messages"`
 	HasMore        bool                `json:"has_more"`
+	// HistoryVersion is the chat history_version this page was read at.
+	// Pass it as after_revision when opening the stream.
+	HistoryVersion int64 `json:"history_version,omitempty"`
 }
 
 // ChatPrompt is a single user-authored prompt in a chat, returned by
@@ -1682,6 +1685,9 @@ type ChatStreamMessagePart struct {
 // ChatStreamStatus represents an updated chat status.
 type ChatStreamStatus struct {
 	Status ChatStatus `json:"status"`
+	// HistoryVersion is the chat history_version after the message events
+	// sent before this status. Pass it as after_revision when reconnecting.
+	HistoryVersion int64 `json:"history_version,omitempty"`
 }
 
 // ChatErrorKind classifies chat errors for consistent client rendering.
@@ -2637,6 +2643,10 @@ type StreamChatOptions struct {
 	// that only need live message_part events and can skip the
 	// full message history.
 	AfterID *int64
+	// AfterRevision is the ChatMessagesResponse.HistoryVersion the caller's
+	// messages were read at. Without it, any past edit makes the server
+	// resend the whole history.
+	AfterRevision *int64
 }
 
 // StreamChat streams chat updates in real time.
@@ -2646,8 +2656,17 @@ type StreamChatOptions struct {
 // websocket connection when done.
 func (c *Client) StreamChat(ctx context.Context, chatID uuid.UUID, opts *StreamChatOptions) (<-chan ChatStreamEvent, io.Closer, error) {
 	path := fmt.Sprintf("/api/v2/chats/%s/stream", chatID)
-	if opts != nil && opts.AfterID != nil {
-		path += fmt.Sprintf("?after_id=%d", *opts.AfterID)
+	if opts != nil {
+		query := url.Values{}
+		if opts.AfterID != nil {
+			query.Set("after_id", strconv.FormatInt(*opts.AfterID, 10))
+		}
+		if opts.AfterRevision != nil {
+			query.Set("after_revision", strconv.FormatInt(*opts.AfterRevision, 10))
+		}
+		if len(query) > 0 {
+			path += "?" + query.Encode()
+		}
 	}
 
 	conn, err := c.Dial(

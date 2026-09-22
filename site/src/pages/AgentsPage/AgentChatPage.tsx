@@ -287,6 +287,7 @@ const AgentChatPage: FC = () => {
 					messages: chatMessagesList,
 					queued_messages: chatQueuedMessages ?? [],
 					has_more: Boolean(chatMessagesQuery.data?.pages.at(-1)?.has_more),
+					history_version: chatMessagesQuery.data?.pages[0]?.history_version,
 				}
 			: undefined;
 	const chatLastModelConfigID = chat?.last_model_config_id;
