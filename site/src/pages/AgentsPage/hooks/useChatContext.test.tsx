@@ -1,5 +1,6 @@
 import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { useState } from "react";
 import { QueryClient, QueryClientProvider } from "react-query";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
@@ -32,6 +33,12 @@ const compactionModel: ChatModel = {
 	id: "compaction",
 	context_limit: 100000,
 };
+const alternateModel: ChatModel = {
+	...chatModel,
+	id: "alternate",
+	context_limit: 50000,
+	compression_threshold: 80,
+};
 const messages: ChatMessage[] = [
 	{
 		...MockChatMessage,
@@ -52,22 +59,38 @@ const Harness = ({
 	chatMessages = messages,
 	models = [chatModel, compactionModel],
 	isReadOnly = false,
+	selectedModelId,
 	onInspect,
 }: {
 	chat?: Chat;
 	chatMessages?: readonly ChatMessage[];
 	models?: readonly ChatModel[];
 	isReadOnly?: boolean;
+	selectedModelId?: string;
 	onInspect: (state: ContextState) => void;
 }) => {
+	const [selection, setSelection] = useState(selectedModelId);
 	const state = useChatContext({
 		chat,
 		messages: chatMessages,
 		models,
 		isReadOnly,
+		selectedModelId: selection,
 	});
 	return (
 		<>
+			<select
+				aria-label="Model"
+				value={selection ?? ""}
+				onChange={(event) => setSelection(event.target.value)}
+			>
+				<option value="">Last used model</option>
+				{models.map((model) => (
+					<option key={model.id} value={model.id}>
+						{model.id}
+					</option>
+				))}
+			</select>
 			<button
 				type="button"
 				onClick={state.onApplyContext}
@@ -161,6 +184,80 @@ describe("useChatContext", () => {
 		);
 		expect(API.experimental.refreshChatContext).not.toHaveBeenCalled();
 	});
+
+	it("updates both the effective window and user threshold immediately when the selected model changes", async () => {
+		const { queryClient, inspect, onInspect, user } = setup({
+			models: [chatModel, compactionModel, alternateModel],
+		});
+		await act(async () => {
+			queryClient.setQueryData(userCompactionThresholds().queryKey, {
+				thresholds: [
+					{ model_config_id: chatModel.id, threshold_percent: 60 },
+					{ model_config_id: alternateModel.id, threshold_percent: 45 },
+				],
+			});
+		});
+		await inspect();
+		expect(onInspect).toHaveBeenLastCalledWith(
+			expect.objectContaining({
+				contextUsage: expect.objectContaining({
+					usedTokens: 150,
+					contextLimitTokens: 100000,
+					compressionThreshold: 60,
+				}),
+			}),
+		);
+		await user.selectOptions(
+			screen.getByRole("combobox", { name: "Model" }),
+			alternateModel.id,
+		);
+		await inspect();
+		expect(onInspect).toHaveBeenLastCalledWith(
+			expect.objectContaining({
+				observedChat: dirtyChat,
+				contextUsage: expect.objectContaining({
+					usedTokens: 150,
+					contextLimitTokens: 50000,
+					compressionThreshold: 45,
+				}),
+			}),
+		);
+		expect(API.experimental.refreshChatContext).not.toHaveBeenCalled();
+		await user.selectOptions(
+			screen.getByRole("combobox", { name: "Model" }),
+			"",
+		);
+		await inspect();
+		expect(onInspect).toHaveBeenLastCalledWith(
+			expect.objectContaining({
+				contextUsage: expect.objectContaining({
+					contextLimitTokens: 100000,
+					compressionThreshold: 60,
+				}),
+			}),
+		);
+	});
+
+	it.each([{ chat: { ...dirtyChat, archived: true } }, { isReadOnly: true }])(
+		"uses the historical model for archived/read-only chats despite a selected model: %j",
+		async (props) => {
+			const { inspect, onInspect } = setup({
+				...props,
+				models: [chatModel, compactionModel, alternateModel],
+				selectedModelId: alternateModel.id,
+			});
+			await inspect();
+			expect(onInspect).toHaveBeenLastCalledWith(
+				expect.objectContaining({
+					contextUsage: expect.objectContaining({
+						contextLimitTokens: 100000,
+						compressionThreshold: 60,
+					}),
+					onApplyContext: undefined,
+				}),
+			);
+		},
+	);
 
 	it.each([0, 100])(
 		"retains known settings at %i%% before the first message or context snapshot",

@@ -19,6 +19,7 @@ type UseChatContextOptions = {
 	messages: readonly TypesGen.ChatMessage[];
 	models: readonly TypesGen.ChatModel[] | undefined;
 	isReadOnly?: boolean;
+	selectedModelId?: string;
 };
 
 /** Shares the observed pinned snapshot and compaction usage across chat surfaces. */
@@ -27,6 +28,7 @@ export const useChatContext = ({
 	messages,
 	models,
 	isReadOnly = false,
+	selectedModelId,
 }: UseChatContextOptions) => {
 	const queryClient = useQueryClient();
 	const { data: observedChat = chat } = useQuery({
@@ -37,9 +39,11 @@ export const useChatContext = ({
 	const overridesQuery = useQuery(
 		organizationChatModelOverrides(observedChat.organization_id),
 	);
-	const model = models?.find(
-		(candidate) => candidate.id === observedChat.last_model_config_id,
-	);
+	const modelId =
+		!observedChat.archived && !isReadOnly && selectedModelId
+			? selectedModelId
+			: observedChat.last_model_config_id;
+	const model = models?.find((candidate) => candidate.id === modelId);
 	const compactionOverride = overridesQuery.data?.overrides.find(
 		(override) => override.context === "compaction",
 	);
@@ -71,7 +75,7 @@ export const useChatContext = ({
 		contextLimit && contextLimit > 0 ? contextLimit : undefined;
 	const rawUsage = getLatestContextUsage(messages, contextLimitTokens);
 	const compressionThreshold = resolveCompactionThreshold(
-		observedChat.last_model_config_id,
+		modelId,
 		thresholdsQuery.data?.thresholds,
 		models,
 	);
