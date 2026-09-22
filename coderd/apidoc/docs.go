@@ -3361,6 +3361,94 @@ const docTemplate = `{
                 ]
             }
         },
+        "/api/v2/chats/{chat}/workspace-files": {
+            "post": {
+                "description": "Streams the request body into the chat workspace's\nupload directory. The request Content-Type header is\nrecorded as the file's media type. There is no\nserver-imposed size cap; client cancellation aborts the\nstream and the agent leaves no partial target file behind.",
+                "consumes": [
+                    "*/*"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Upload a file to a chat's workspace",
+                "operationId": "upload-a-file-to-a-chats-workspace",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat ID",
+                        "name": "chat",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filename of the file (attachment; filename=...)",
+                        "name": "Content-Disposition",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "description": "Raw file binary data",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UploadChatWorkspaceFileResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    },
+                    "502": {
+                        "description": "Bad Gateway",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "rawBodyFile": "archive.zip"
+                }
+            }
+        },
         "/api/v2/connectionlog": {
             "get": {
                 "produces": [
@@ -20282,6 +20370,24 @@ const docTemplate = `{
                 },
                 "type": {
                     "$ref": "#/definitions/codersdk.ChatInputPartType"
+                },
+                "workspace_file_media_type": {
+                    "type": "string"
+                },
+                "workspace_file_name": {
+                    "type": "string"
+                },
+                "workspace_file_path": {
+                    "description": "The following fields are only set when Type is\nChatInputPartTypeWorkspaceFileReference.",
+                    "type": "string"
+                },
+                "workspace_file_size": {
+                    "type": "integer"
+                },
+                "workspace_file_workspace_id": {
+                    "description": "WorkspaceFileWorkspaceID is the workspace the file was uploaded\nto, as returned by the upload endpoint. It must match the chat's\ncurrently bound workspace.",
+                    "type": "string",
+                    "format": "uuid"
                 }
             }
         },
@@ -20290,12 +20396,14 @@ const docTemplate = `{
             "enum": [
                 "text",
                 "file",
-                "file-reference"
+                "file-reference",
+                "workspace-file-reference"
             ],
             "x-enum-varnames": [
                 "ChatInputPartTypeText",
                 "ChatInputPartTypeFile",
-                "ChatInputPartTypeFileReference"
+                "ChatInputPartTypeFileReference",
+                "ChatInputPartTypeWorkspaceFileReference"
             ]
         },
         "codersdk.ChatMessage": {
@@ -20493,6 +20601,27 @@ const docTemplate = `{
                 },
                 "url": {
                     "type": "string"
+                },
+                "workspace_file_media_type": {
+                    "description": "WorkspaceFileMediaType is the best-effort declared MIME type.",
+                    "type": "string"
+                },
+                "workspace_file_name": {
+                    "description": "WorkspaceFileName is the sanitized basename of a workspace upload.",
+                    "type": "string"
+                },
+                "workspace_file_path": {
+                    "description": "WorkspaceFilePath is the absolute path of a workspace upload.\nThe bytes live on the workspace filesystem; only metadata is\npersisted on the message.",
+                    "type": "string"
+                },
+                "workspace_file_size": {
+                    "description": "WorkspaceFileSize is the byte size of a workspace upload.",
+                    "type": "integer"
+                },
+                "workspace_file_workspace_id": {
+                    "description": "WorkspaceFileWorkspaceID identifies the workspace whose\nfilesystem holds the uploaded bytes. References are only\nreadable while the chat stays bound to that workspace.",
+                    "type": "string",
+                    "format": "uuid"
                 }
             }
         },
@@ -20508,6 +20637,7 @@ const docTemplate = `{
                 "file-reference",
                 "context-file",
                 "skill",
+                "workspace-file-reference",
                 "hook-context",
                 "hook-notice"
             ],
@@ -20521,6 +20651,7 @@ const docTemplate = `{
                 "ChatMessagePartTypeFileReference",
                 "ChatMessagePartTypeContextFile",
                 "ChatMessagePartTypeSkill",
+                "ChatMessagePartTypeWorkspaceFileReference",
                 "ChatMessagePartTypeHookContext",
                 "ChatMessagePartTypeHookNotice"
             ]
@@ -30385,6 +30516,32 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "id": {
+                    "type": "string",
+                    "format": "uuid"
+                }
+            }
+        },
+        "codersdk.UploadChatWorkspaceFileResponse": {
+            "type": "object",
+            "properties": {
+                "media_type": {
+                    "description": "MediaType is the client-declared content type for display.",
+                    "type": "string"
+                },
+                "name": {
+                    "description": "Name is the final basename of the uploaded file.",
+                    "type": "string"
+                },
+                "path": {
+                    "description": "Path is the absolute path of the file on the workspace.",
+                    "type": "string"
+                },
+                "size": {
+                    "description": "Size is the number of bytes written to the workspace.",
+                    "type": "integer"
+                },
+                "workspace_id": {
+                    "description": "WorkspaceID is the workspace whose filesystem received the\nbytes. Message parts referencing this upload must carry it.",
                     "type": "string",
                     "format": "uuid"
                 }
