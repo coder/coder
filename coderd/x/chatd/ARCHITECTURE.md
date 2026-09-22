@@ -5,7 +5,7 @@ Chatd has 4 main pieces:
 - **core state machine**: describes how a chat's state in the database can change over time. It defines the valid states and transitions for committed chat data: status, messages, queued messages, pending actions, worker ownership, and the fields used to reject stale work. It's a specification implemented by [chatstate/machine.go](./chatstate/machine.go). Runtime components, such as the HTTP endpoints and the chat worker, use it to ensure that they modify the state only in valid ways.
 - **API surface**: the HTTP endpoints that coderd exposes. Responsible for: creating chats, sending messages, editing messages, updating metadata, managing the queue, interrupting active work, and submitting tool results. These are used by the client, usually via the browser, to interact with chats.
 - **chat worker**: lives inside every coderd replica. It acquires chats, calls the LLM API, executes tools, handles interrupts and tool-result waits, and commits completed outcomes through the core state machine.
-- **stream loop**: powers `GET /api/experimental/chats/{chat}/stream`, the WebSocket endpoint that the UI uses to consume a live chat. It combines two kinds of data: messages committed to the database and streaming message parts emitted by the chat worker. It receives notifications over pubsub whenever the chat state is updated, fetches messages from the database, and connects to the coderd replica that currently owns the chat to relay the streaming message parts to the client.
+- **stream loop**: powers `GET /api/v2/chats/{chat}/stream`, the WebSocket endpoint that the UI uses to consume a live chat. It combines two kinds of data: messages committed to the database and streaming message parts emitted by the chat worker. It receives notifications over pubsub whenever the chat state is updated, fetches messages from the database, and connects to the coderd replica that currently owns the chat to relay the streaming message parts to the client.
 
 # Gateway attribution keys
 
@@ -273,7 +273,7 @@ Right after the refactor described in this document is complete, some chats may 
 
 This will land the chat in either `E0` or `E1`, depending on whether it has any queued messages.
 
-Users can reconcile a chat's state by calling the `POST /api/experimental/chats/{chat}/reconcile-invalid` endpoint.
+Users can reconcile a chat's state by calling the `POST /api/v2/chats/{chat}/reconcile-invalid` endpoint.
 
 ## Message revisions and history version
 
@@ -425,7 +425,7 @@ EXECUTE FUNCTION sync_chat_retry_state();
 
 This section maps the public endpoints that mutate chat state to the transitions they use.
 
-Chat routes are registered once by `registerChatAPIRoutes` and mounted under both `/api/experimental` and `/api/v2` during a compatibility window. Paths in this document are written with one prefix or the other, but every promoted route answers on both. The routes that were not promoted answer only on `/api/experimental`; at the time of writing these are the `providers` and `user-provider-configs` collections under `/chats`, the `computer-use-provider` and `advisor` routes under `/chats/config`, `GET /chats/{chat}/stream/desktop`, and `GET /chats/{chat}/debug/runs` with `GET /chats/{chat}/debug/runs/{debugRun}`. Each mount reserves the top-level `/chats/<segment>` collection paths it does not serve (`model-configs`, `providers`, and `user-provider-configs` on `/api/v2`; `models` and `model-configs` on `/api/experimental`) so they return 404 instead of matching the `{chat}` wildcard and failing UUID parsing.
+Chat routes are registered by `registerChatAPIRoutes` and mounted under `/api/v2`. The routes that were not promoted are registered by `registerExperimentalChatRoutes` and answer only on `/api/experimental`: the `computer-use-provider` and `advisor` routes under `/chats/config`, `GET /chats/{chat}/stream/desktop`, and `GET /chats/{chat}/debug/runs` with `GET /chats/{chat}/debug/runs/{debugRun}`. The `/api/v2` mount reserves `/chats/model-configs` so it returns 404 instead of matching the `{chat}` wildcard and failing UUID parsing.
 
 ### Organization-scoped model discovery
 
@@ -439,7 +439,7 @@ Model configuration writes are serialized per organization by `inChatModelConfig
 
 The write paths maintain exactly one default whenever an organization has at least one live model config. The partial unique index permits at most one default per organization, while the locked write logic self-promotes the first config, unsets an old default before replacing it, and elects a replacement when the current default is demoted or deleted. Election prefers an enabled config whose provider is enabled, then falls back to another live config. If the only config is explicitly demoted, it is promoted again to preserve the invariant.
 
-### `POST /api/experimental/chats`
+### `POST /api/v2/chats`
 
 This endpoint uses `Create(initialMessages)`:
 
@@ -447,7 +447,7 @@ This endpoint uses `Create(initialMessages)`:
 
 No other input states are supported.
 
-### `PATCH /api/experimental/chats/{chat}`
+### `PATCH /api/v2/chats/{chat}`
 
 When archiving or unarchiving a root chat, the operation applies `SetArchived(archived)` to the root and all descendants atomically. If any chat in the family cannot apply the requested archived-state transition, the whole operation fails without changing any chat. Unarchiving an individual child chat remains guarded: it must fail while its parent is archived
 
@@ -464,7 +464,7 @@ If the request does not change `archived`, this endpoint doesn't emit any state 
 
 Other execution-state classes are not supported for archive/unarchive.
 
-### `POST /api/experimental/chats/{chat}/messages`
+### `POST /api/v2/chats/{chat}/messages`
 
 For `busy_behavior=queue`, `SendMessage(m, queue)` supports:
 
@@ -497,7 +497,7 @@ When `SendMessage(m, interrupt)` lands in `I1`, the queued message is promoted l
 
 Other input states are not supported.
 
-### `PATCH /api/experimental/chats/{chat}/messages/{message}`
+### `PATCH /api/v2/chats/{chat}/messages/{message}`
 
 This endpoint uses `EditMessage(k, replacement)`:
 
@@ -515,7 +515,7 @@ This endpoint uses `EditMessage(k, replacement)`:
 
 Other input states are not supported.
 
-### `DELETE /api/experimental/chats/{chat}/queue/{queuedMessage}`
+### `DELETE /api/v2/chats/{chat}/queue/{queuedMessage}`
 
 This endpoint uses `DeleteQueuedMessage(qid)`:
 
@@ -530,7 +530,7 @@ This endpoint uses `DeleteQueuedMessage(qid)`:
 
 No other input states are supported.
 
-### `POST /api/experimental/chats/{chat}/queue/{queuedMessage}/promote`
+### `POST /api/v2/chats/{chat}/queue/{queuedMessage}/promote`
 
 This endpoint uses `PromoteQueuedMessage(qid)`:
 
@@ -545,7 +545,7 @@ This endpoint uses `PromoteQueuedMessage(qid)`:
 
 No other input states are supported.
 
-### `POST /api/experimental/chats/{chat}/interrupt`
+### `POST /api/v2/chats/{chat}/interrupt`
 
 This endpoint uses `Interrupt(user_cancel)`:
 
@@ -558,7 +558,7 @@ When `Interrupt(user_cancel)` lands in `I0` or `I1`, the chat is later picked up
 
 No other input states are supported.
 
-### `POST /api/experimental/chats/{chat}/tool-results`
+### `POST /api/v2/chats/{chat}/tool-results`
 
 This endpoint uses `CompleteRequiresAction(results)`:
 
@@ -567,7 +567,7 @@ This endpoint uses `CompleteRequiresAction(results)`:
 
 No other input states are supported.
 
-### `POST /api/experimental/chats/{chat}/compact`
+### `POST /api/v2/chats/{chat}/compact`
 
 This endpoint uses `RequestCompaction`:
 
@@ -577,7 +577,7 @@ This endpoint uses `RequestCompaction`:
 
 No other input states are supported: generating chats get a conflict error, and archived chats are rejected. Requesting compaction from an error state clears `last_error`, so a context-overflowed chat can recover by compacting instead of re-running the same oversized prompt. The endpoint is owner-only because the compaction runs LLM inference with the owner's delegated credentials. Inside the same transaction, after the transition succeeds, the endpoint verifies there is at least one uncompressed assistant message after the latest compaction boundary and rolls back with a "nothing to compact" conflict otherwise, so no LLM call is ever started for an empty or already-compacted chat. See [Manual compaction](#manual-compaction) for how the worker consumes the request.
 
-### `POST /api/experimental/chats/{chat}/clear`
+### `POST /api/v2/chats/{chat}/clear`
 
 This endpoint uses `ClearContext`:
 
@@ -590,7 +590,7 @@ No other input states are supported: generating chats and chats with queued mess
 
 The chat worker and the stream loop need real-time notifications when the chat state changes to ensure they are responsive. To achieve this, we use pubsub.
 
-As with the transitions section, I don't recommend reading the rest of this section thoroughly at first. Give it a cursory look, and treat it as a reference that you can return to later when you're analyzing the `GET /api/experimental/chats/{chat}/stream` endpoint or the chat worker.
+As with the transitions section, I don't recommend reading the rest of this section thoroughly at first. Give it a cursory look, and treat it as a reference that you can return to later when you're analyzing the `GET /api/v2/chats/{chat}/stream` endpoint or the chat worker.
 
 ### Notification channels
 
@@ -647,17 +647,15 @@ Queued-message promotion revalidates the stored model with daemon authorization.
 
 The acquisition loop is a simple component that greedily acquires unowned or lease-expired chats from the database anytime it has a chance. It's driven by two triggers:
 
-- a periodic timer that wakes up every second.
+- a periodic timer that wakes up every 30 seconds.
 - a pubsub message on the `chat:ownership` channel.
 
 It finds suitable chats by fetching every chat that:
 
 - is in a runnable execution state, meaning one of: `R0`, `R1`, `I0`, `I1`, `A0`, `A1`; and
-- doesn't have an owner, meaning `worker_id` or `runner_id` is null, or there is no `chat_heartbeats` row for the current `(chat_id, runner_id)` newer than the lease expiry threshold of 5 minutes.
+- doesn't have an owner, meaning `worker_id` is null, or its heartbeat is expired (older than 30 seconds).
 
 For every matching chat, it locks it, checks if the chat still meets the aforementioned conditions, and performs the `Acquire(worker_id, runner_id)` transition on it. The `runner_id` is a random UUID generated by the acquisition loop.
-
-Both the 1-second timer interval and the 5-minute lease expiry threshold are defaults applied by `chatd.New` (`DefaultPendingChatAcquireInterval` and `DefaultInFlightChatStaleAfter`); `coderd` does not override them and no deployment flag exposes them.
 
 When a chat is successfully acquired, the acquisition loop requests the [Runner manager](#runner-manager) to spawn a chat runner for it.
 
@@ -722,7 +720,7 @@ CREATE INDEX chat_heartbeats_heartbeat_at_idx
     ON chat_heartbeats (heartbeat_at);
 ```
 
-For every runner registered with the runner manager, the heartbeat loop upserts the corresponding row in `chat_heartbeats` every 30 seconds (`DefaultChatHeartbeatInterval`, applied by `chatd.New` the same way as the acquisition defaults). Rows are keyed by `(chat_id, runner_id)`. Against the 5-minute lease expiry threshold, a lease survives ten heartbeat intervals after the last successful heartbeat write; a worker whose heartbeat writes stop or fail for that long loses the lease, and the acquisition loop on any replica can acquire the chat under a new `runner_id`.
+For every runner registered with the runner manager, the heartbeat loop upserts the corresponding row in `chat_heartbeats` every 9 seconds. Rows are keyed by `(chat_id, runner_id)`. 9 seconds is chosen so that a worker must miss 3 heartbeats before its lease on the chat expires, and the acquisition loop on another replica can acquire its chat.
 
 The loop uses this query:
 
@@ -738,11 +736,11 @@ Updating heartbeat rows does not advance `snapshot_version` and does not emit pu
 
 ### Heartbeat cleanup loop
 
-The heartbeat cleanup loop runs every 30 seconds and removes heartbeat rows older than the lease expiry threshold used by the acquisition loop:
+The heartbeat cleanup loop periodically removes stale heartbeat rows:
 
 ```sql
 DELETE FROM chat_heartbeats
-WHERE heartbeat_at < NOW() - (INTERVAL '1 second' * $1::int);
+WHERE heartbeat_at < now() - interval '30 seconds';
 ```
 
 Heartbeat rows are also removed automatically when their chat is deleted via the `chat_heartbeats.chat_id` foreign key.
@@ -979,6 +977,7 @@ Details that follow from the override:
   A usable override that fails at use (route or client construction, provider call failure) fails the generation visibly through the normal error path; there is no silent fallback.
   The override model client is constructed inside the compact generation action, not at prepare time, so a broken override cannot fail turns that finish without compacting (including turns over the threshold whose last assistant step already completed).
 - Prompt safety: the prompt is built and sanitized for the chat model, so when the override points at a different provider the compaction copy of the prompt is re-sanitized: provider-executed tool history is flattened into plain text parts (keeping its content while dropping the provider-specific wire shape), file parts the compaction model rejects are replaced with text placeholders, and Anthropic provider-tool sanitization is re-run for the compaction provider. The assistant generation prompt is never mutated.
+- TODO (#29436): the summary request carries the chat model's tool definitions only when the override resolves to the chat model itself (same provider instance and model); any other override sends the summary without tool definitions.
 - Observability: compaction metrics and chat debug runs record the provider and model that actually generated the summary. This includes the "still over limit" terminal error, which is recorded before the override client is built: prepare-time resolution keeps the override's provider/model identity so that error lands on the same metric series as the compact action's own events.
 
 #### Interrupt goroutine
@@ -1016,9 +1015,11 @@ The worker periodically archives old, unused chats.
 
 Compaction reduces the LLM prompt size by summarizing older history into a compressed boundary. It normally runs automatically: while preparing a generation, the worker compares the latest known token usage against the model's compaction threshold, and when the threshold is exceeded it makes a non-streaming LLM call to produce a summary and commits it as a compressed message triplet (a hidden model-only summary boundary, a visible `chat_summarized` tool call, and its tool result). Prompt queries prune history at the newest boundary.
 
+TODO (#29436): the summary request now carries the turn's tool definitions (and, on Anthropic, the same cache-control breakpoints as the turn) so it shares the turn's cached prefix. When the provider rejects that request for its size (context window or HTTP 413), the summary is regenerated once without tool definitions. Describe this here.
+
 Trailing user messages the assistant has not answered yet are not summarized: they are excluded from the summarizer's input and re-committed after the triplet as model-only user rows, so the pruned prompt keeps them verbatim instead of relying on summary fidelity.
 
-Users can also request a compaction on demand via `POST /api/experimental/chats/{chat}/compact` (surfaced in the web UI as the `/compact` slash command). Manual compaction is a durable one-shot request executed through the normal worker loop rather than synchronously in the HTTP handler. This reuses the worker's lock fencing, retry accounting, streamed "Summarizing..." progress parts, metrics, and debug runs, and it survives replica crashes. The flow:
+Users can also request a compaction on demand via `POST /api/v2/chats/{chat}/compact` (surfaced in the web UI as the `/compact` slash command). Manual compaction is a durable one-shot request executed through the normal worker loop rather than synchronously in the HTTP handler. This reuses the worker's lock fencing, retry accounting, streamed "Summarizing..." progress parts, metrics, and debug runs, and it survives replica crashes. The flow:
 
 1. The endpoint applies the `RequestCompaction` transition: allowed from `W`, `E0`, and `E1`, it sets `chats.compaction_requested_at = now()`, clears `last_error`, lands in `R0` (or `R1` from `E1`, preserving the queue) without inserting any message, and publishes a status-change pubsub event to wake workers. Because the transition inserts no history, it advances `history_version` to the transaction's new `snapshot_version` and resets `generation_attempt` itself, granting the fresh retry budget and episode keys a history change would otherwise provide. A timestamp is used instead of a boolean for debuggability. AI Gateway attribution needs no per-request key: generation preparation resolves the owner's synthetic API key like any other turn.
 2. The generation goroutine's decision logic checks `compaction_requested_at` after the unresolved local/dynamic tool guards but before the history-completeness check (an idle chat's history is otherwise complete, which would end the turn). If the marker is set and at least one uncompressed assistant message exists after the latest compaction boundary, it selects a forced compaction; if there is nothing to compact, the marker is ignored and the turn finishes normally, clearing it.
@@ -1041,7 +1042,7 @@ Coder stores no hook-specific dispatch or decision state. Delivery is best-effor
 
 # Stream loop
 
-The stream loop powers the `GET /api/experimental/chats/{chat}/stream` endpoint. It is scoped to one chat and one client WebSocket. It's responsible for delivering a stream of chat updates to the client, including:
+The stream loop powers the `GET /api/v2/chats/{chat}/stream` endpoint. It is scoped to one chat and one client WebSocket. It's responsible for delivering a stream of chat updates to the client, including:
 
 - messages committed to the database; and
 - streaming message parts emitted by the chat worker via the relay mechanism.

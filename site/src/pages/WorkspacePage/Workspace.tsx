@@ -21,7 +21,7 @@ import {
 import { WorkspaceDeletedBanner } from "./WorkspaceDeletedBanner";
 import { WorkspaceTopbar } from "./WorkspaceTopbar";
 
-interface WorkspaceProps {
+type WorkspaceProps = {
 	workspace: TypesGen.Workspace;
 	template: TypesGen.Template;
 	permissions: WorkspacePermissions;
@@ -40,7 +40,7 @@ interface WorkspaceProps {
 	handleToggleFavorite: () => void;
 	handleRetry: (buildParameters?: TypesGen.WorkspaceBuildParameter[]) => void;
 	handleDebug: (buildParameters?: TypesGen.WorkspaceBuildParameter[]) => void;
-}
+};
 
 /**
  * Workspace is the top-level component for viewing an individual workspace

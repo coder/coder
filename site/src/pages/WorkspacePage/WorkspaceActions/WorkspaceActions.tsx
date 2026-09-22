@@ -23,7 +23,7 @@ import { DebugButton } from "./DebugButton";
 import { RetryButton } from "./RetryButton";
 import { ShareButton } from "./ShareButton";
 
-interface WorkspaceActionsProps {
+type WorkspaceActionsProps = {
 	workspace: Workspace;
 	isUpdating: boolean;
 	isRestarting: boolean;
@@ -37,7 +37,7 @@ interface WorkspaceActionsProps {
 	handleRetry: (buildParameters?: WorkspaceBuildParameter[]) => void;
 	handleDebug: (buildParameters?: WorkspaceBuildParameter[]) => void;
 	handleDormantActivate: () => void;
-}
+};
 
 export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
 	workspace,

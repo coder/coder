@@ -18,11 +18,11 @@ import { AnnouncementBannerView } from "#/modules/dashboard/AnnouncementBanners/
 import { useTheme } from "#/theme/context";
 import { getFormHelpers } from "#/utils/formUtils";
 
-interface AnnouncementBannerDialogProps {
+type AnnouncementBannerDialogProps = {
 	banner: BannerConfig;
 	onCancel: () => void;
 	onUpdate: (banner: Partial<BannerConfig>) => Promise<void>;
-}
+};
 
 export const AnnouncementBannerDialog: FC<AnnouncementBannerDialogProps> = ({
 	banner,

@@ -145,6 +145,7 @@ func (q *sqlQuerier) GetAuthorizedTemplates(ctx context.Context, arg GetTemplate
 		arg.FuzzyDisplayName,
 		pq.Array(arg.IDs),
 		arg.Deprecated,
+		arg.UseClassicParameterFlow,
 		arg.AgentsAllowed,
 		arg.AuthorID,
 		arg.AuthorUsername,
@@ -343,6 +344,7 @@ func (q *sqlQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg GetWorkspa
 		arg.Shared,
 		arg.SharedWithUserID,
 		arg.SharedWithGroupID,
+		arg.UserID,
 		arg.RequesterID,
 		arg.Offset,
 		arg.Limit,
@@ -1230,6 +1232,7 @@ func (q *sqlQuerier) ListAuthorizedAIBridgeSessionThreads(ctx context.Context, a
 			&i.AIBridgeInterception.AgentFirewallSequenceNumber,
 			&i.AIBridgeInterception.ErrorType,
 			&i.AIBridgeInterception.ErrorMessage,
+			&i.AIBridgeInterception.WorkspaceID,
 		); err != nil {
 			return nil, err
 		}

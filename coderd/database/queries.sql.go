@@ -660,6 +660,59 @@ func (q *sqlQuerier) GetAIProviderByName(ctx context.Context, name string) (AIPr
 	return i, err
 }
 
+const getAIProviderFilterOptions = `-- name: GetAIProviderFilterOptions :many
+SELECT DISTINCT ON (name)
+    name,
+    type,
+    display_name,
+    icon
+FROM
+    ai_providers
+ORDER BY
+    name ASC,
+    deleted ASC,
+    updated_at DESC
+`
+
+type GetAIProviderFilterOptionsRow struct {
+	Name        string         `db:"name" json:"name"`
+	Type        AIProviderType `db:"type" json:"type"`
+	DisplayName sql.NullString `db:"display_name" json:"display_name"`
+	Icon        string         `db:"icon" json:"icon"`
+}
+
+// Returns the display metadata AI Gateway session viewers need to filter
+// interceptions by provider_name. Soft-deleted and disabled rows are
+// included because interceptions keep referencing them. When a name has
+// been reused, the live row wins so current metadata is shown.
+func (q *sqlQuerier) GetAIProviderFilterOptions(ctx context.Context) ([]GetAIProviderFilterOptionsRow, error) {
+	rows, err := q.db.QueryContext(ctx, getAIProviderFilterOptions)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetAIProviderFilterOptionsRow
+	for rows.Next() {
+		var i GetAIProviderFilterOptionsRow
+		if err := rows.Scan(
+			&i.Name,
+			&i.Type,
+			&i.DisplayName,
+			&i.Icon,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getAIProviders = `-- name: GetAIProviders :many
 SELECT
     id, type, name, display_name, enabled, deleted, base_url, settings, settings_key_id, created_at, updated_at, icon
@@ -1211,7 +1264,7 @@ func (q *sqlQuerier) GetAIBridgeChatCost(ctx context.Context, rootChatID uuid.UU
 
 const getAIBridgeInterceptionByID = `-- name: GetAIBridgeInterceptionByID :one
 SELECT
-	id, initiator_id, provider, model, started_at, metadata, ended_at, api_key_id, client, thread_parent_id, thread_root_id, client_session_id, session_id, provider_name, credential_kind, credential_hint, agent_firewall_session_id, agent_firewall_sequence_number, error_type, error_message
+	id, initiator_id, provider, model, started_at, metadata, ended_at, api_key_id, client, thread_parent_id, thread_root_id, client_session_id, session_id, provider_name, credential_kind, credential_hint, agent_firewall_session_id, agent_firewall_sequence_number, error_type, error_message, workspace_id
 FROM
 	aibridge_interceptions
 WHERE
@@ -1242,6 +1295,7 @@ func (q *sqlQuerier) GetAIBridgeInterceptionByID(ctx context.Context, id uuid.UU
 		&i.AgentFirewallSequenceNumber,
 		&i.ErrorType,
 		&i.ErrorMessage,
+		&i.WorkspaceID,
 	)
 	return i, err
 }
@@ -1276,7 +1330,7 @@ func (q *sqlQuerier) GetAIBridgeInterceptionLineageByToolCallID(ctx context.Cont
 
 const getAIBridgeInterceptions = `-- name: GetAIBridgeInterceptions :many
 SELECT
-	id, initiator_id, provider, model, started_at, metadata, ended_at, api_key_id, client, thread_parent_id, thread_root_id, client_session_id, session_id, provider_name, credential_kind, credential_hint, agent_firewall_session_id, agent_firewall_sequence_number, error_type, error_message
+	id, initiator_id, provider, model, started_at, metadata, ended_at, api_key_id, client, thread_parent_id, thread_root_id, client_session_id, session_id, provider_name, credential_kind, credential_hint, agent_firewall_session_id, agent_firewall_sequence_number, error_type, error_message, workspace_id
 FROM
 	aibridge_interceptions
 `
@@ -1311,6 +1365,7 @@ func (q *sqlQuerier) GetAIBridgeInterceptions(ctx context.Context) ([]AIBridgeIn
 			&i.AgentFirewallSequenceNumber,
 			&i.ErrorType,
 			&i.ErrorMessage,
+			&i.WorkspaceID,
 		); err != nil {
 			return nil, err
 		}
@@ -1561,11 +1616,11 @@ func (q *sqlQuerier) GetAIBridgeUserPromptsByInterceptionID(ctx context.Context,
 
 const insertAIBridgeInterception = `-- name: InsertAIBridgeInterception :one
 INSERT INTO aibridge_interceptions (
-	id, api_key_id, initiator_id, provider, provider_name, model, metadata, started_at, client, client_session_id, thread_parent_id, thread_root_id, credential_kind, credential_hint, agent_firewall_session_id, agent_firewall_sequence_number
+	id, api_key_id, initiator_id, provider, provider_name, model, metadata, started_at, client, client_session_id, thread_parent_id, thread_root_id, credential_kind, credential_hint, agent_firewall_session_id, agent_firewall_sequence_number, workspace_id
 ) VALUES (
-	$1, $2, $3, $4, $5, $6, COALESCE($7::jsonb, '{}'::jsonb), $8, $9, $10, $11::uuid, $12::uuid, $13, $14, $15::uuid, $16
+	$1, $2, $3, $4, $5, $6, COALESCE($7::jsonb, '{}'::jsonb), $8, $9, $10, $11::uuid, $12::uuid, $13, $14, $15::uuid, $16, $17::uuid
 )
-RETURNING id, initiator_id, provider, model, started_at, metadata, ended_at, api_key_id, client, thread_parent_id, thread_root_id, client_session_id, session_id, provider_name, credential_kind, credential_hint, agent_firewall_session_id, agent_firewall_sequence_number, error_type, error_message
+RETURNING id, initiator_id, provider, model, started_at, metadata, ended_at, api_key_id, client, thread_parent_id, thread_root_id, client_session_id, session_id, provider_name, credential_kind, credential_hint, agent_firewall_session_id, agent_firewall_sequence_number, error_type, error_message, workspace_id
 `
 
 type InsertAIBridgeInterceptionParams struct {
@@ -1585,6 +1640,7 @@ type InsertAIBridgeInterceptionParams struct {
 	CredentialHint              string          `db:"credential_hint" json:"credential_hint"`
 	AgentFirewallSessionID      uuid.NullUUID   `db:"agent_firewall_session_id" json:"agent_firewall_session_id"`
 	AgentFirewallSequenceNumber sql.NullInt32   `db:"agent_firewall_sequence_number" json:"agent_firewall_sequence_number"`
+	WorkspaceID                 uuid.NullUUID   `db:"workspace_id" json:"workspace_id"`
 }
 
 func (q *sqlQuerier) InsertAIBridgeInterception(ctx context.Context, arg InsertAIBridgeInterceptionParams) (AIBridgeInterception, error) {
@@ -1605,6 +1661,7 @@ func (q *sqlQuerier) InsertAIBridgeInterception(ctx context.Context, arg InsertA
 		arg.CredentialHint,
 		arg.AgentFirewallSessionID,
 		arg.AgentFirewallSequenceNumber,
+		arg.WorkspaceID,
 	)
 	var i AIBridgeInterception
 	err := row.Scan(
@@ -1628,6 +1685,7 @@ func (q *sqlQuerier) InsertAIBridgeInterception(ctx context.Context, arg InsertA
 		&i.AgentFirewallSequenceNumber,
 		&i.ErrorType,
 		&i.ErrorMessage,
+		&i.WorkspaceID,
 	)
 	return i, err
 }
@@ -1846,8 +1904,12 @@ WHERE
 	-- Authorize Filter clause will be injected below in
 	-- ListAIBridgeClientsAuthorized.
 	-- @authorize_filter
+	-- Group by the coalesced value so a NULL client and a literal 'Unknown'
+	-- client collapse into one entry.
 GROUP BY
-	client
+	COALESCE(client, 'Unknown')
+ORDER BY
+	client ASC
 LIMIT COALESCE(NULLIF($3::integer, 0), 100)
 OFFSET $2
 `
@@ -2137,7 +2199,7 @@ WITH paginated_threads AS (
 )
 SELECT
 	COALESCE(aibridge_interceptions.thread_root_id, aibridge_interceptions.id) AS thread_id,
-	aibridge_interceptions.id, aibridge_interceptions.initiator_id, aibridge_interceptions.provider, aibridge_interceptions.model, aibridge_interceptions.started_at, aibridge_interceptions.metadata, aibridge_interceptions.ended_at, aibridge_interceptions.api_key_id, aibridge_interceptions.client, aibridge_interceptions.thread_parent_id, aibridge_interceptions.thread_root_id, aibridge_interceptions.client_session_id, aibridge_interceptions.session_id, aibridge_interceptions.provider_name, aibridge_interceptions.credential_kind, aibridge_interceptions.credential_hint, aibridge_interceptions.agent_firewall_session_id, aibridge_interceptions.agent_firewall_sequence_number, aibridge_interceptions.error_type, aibridge_interceptions.error_message
+	aibridge_interceptions.id, aibridge_interceptions.initiator_id, aibridge_interceptions.provider, aibridge_interceptions.model, aibridge_interceptions.started_at, aibridge_interceptions.metadata, aibridge_interceptions.ended_at, aibridge_interceptions.api_key_id, aibridge_interceptions.client, aibridge_interceptions.thread_parent_id, aibridge_interceptions.thread_root_id, aibridge_interceptions.client_session_id, aibridge_interceptions.session_id, aibridge_interceptions.provider_name, aibridge_interceptions.credential_kind, aibridge_interceptions.credential_hint, aibridge_interceptions.agent_firewall_session_id, aibridge_interceptions.agent_firewall_sequence_number, aibridge_interceptions.error_type, aibridge_interceptions.error_message, aibridge_interceptions.workspace_id
 FROM
 	aibridge_interceptions
 JOIN
@@ -2205,6 +2267,7 @@ func (q *sqlQuerier) ListAIBridgeSessionThreads(ctx context.Context, arg ListAIB
 			&i.AIBridgeInterception.AgentFirewallSequenceNumber,
 			&i.AIBridgeInterception.ErrorType,
 			&i.AIBridgeInterception.ErrorMessage,
+			&i.AIBridgeInterception.WorkspaceID,
 		); err != nil {
 			return nil, err
 		}
@@ -2681,7 +2744,7 @@ UPDATE aibridge_interceptions
 WHERE
 	id = $5::uuid
 	AND ended_at IS NULL
-RETURNING id, initiator_id, provider, model, started_at, metadata, ended_at, api_key_id, client, thread_parent_id, thread_root_id, client_session_id, session_id, provider_name, credential_kind, credential_hint, agent_firewall_session_id, agent_firewall_sequence_number, error_type, error_message
+RETURNING id, initiator_id, provider, model, started_at, metadata, ended_at, api_key_id, client, thread_parent_id, thread_root_id, client_session_id, session_id, provider_name, credential_kind, credential_hint, agent_firewall_session_id, agent_firewall_sequence_number, error_type, error_message, workspace_id
 `
 
 type UpdateAIBridgeInterceptionEndedParams struct {
@@ -2722,6 +2785,7 @@ func (q *sqlQuerier) UpdateAIBridgeInterceptionEnded(ctx context.Context, arg Up
 		&i.AgentFirewallSequenceNumber,
 		&i.ErrorType,
 		&i.ErrorMessage,
+		&i.WorkspaceID,
 	)
 	return i, err
 }
@@ -2774,7 +2838,8 @@ SELECT
 	COALESCE(SUM(tu.output_tokens), 0)::BIGINT AS output_tokens,
 	COALESCE(SUM(tu.cache_read_input_tokens), 0)::BIGINT AS cache_read_tokens,
 	COALESCE(SUM(tu.cache_write_input_tokens), 0)::BIGINT AS cache_write_tokens,
-	COALESCE(SUM(tu.cost_micros), 0)::BIGINT AS cost_micros
+	COALESCE(SUM(tu.cost_micros), 0)::BIGINT AS cost_micros,
+	COUNT(*) OVER()::BIGINT AS count
 FROM aibridge_token_usages tu
 JOIN aibridge_interceptions ai ON ai.id = tu.interception_id
 JOIN users ON users.id = ai.initiator_id
@@ -2783,6 +2848,10 @@ JOIN organizations ON organizations.id = groups.organization_id
 WHERE groups.organization_id = $1
 	AND tu.created_at >= $2::timestamptz
 	AND tu.created_at < $3::timestamptz
+	AND ($4::uuid = '00000000-0000-0000-0000-000000000000'::uuid OR ai.initiator_id = $4)
+	AND ($5::uuid = '00000000-0000-0000-0000-000000000000'::uuid OR tu.effective_group_id = $5)
+	AND ($6::text = '' OR ai.provider_name = $6)
+	AND ($7::text = '' OR ai.model = $7)
 GROUP BY
 	ai.initiator_id,
 	users.username,
@@ -2794,12 +2863,20 @@ GROUP BY
 	ai.provider,
 	ai.provider_name
 ORDER BY ai.initiator_id, tu.effective_group_id, ai.provider, ai.provider_name, ai.model
+OFFSET $8
+LIMIT NULLIF($9::int, 0)
 `
 
 type ExportOrganizationAISpendParams struct {
 	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
 	PeriodStart    time.Time `db:"period_start" json:"period_start"`
 	PeriodEnd      time.Time `db:"period_end" json:"period_end"`
+	UserID         uuid.UUID `db:"user_id" json:"user_id"`
+	GroupID        uuid.UUID `db:"group_id" json:"group_id"`
+	ProviderName   string    `db:"provider_name" json:"provider_name"`
+	Model          string    `db:"model" json:"model"`
+	OffsetOpt      int32     `db:"offset_opt" json:"offset_opt"`
+	LimitOpt       int32     `db:"limit_opt" json:"limit_opt"`
 }
 
 type ExportOrganizationAISpendRow struct {
@@ -2817,6 +2894,7 @@ type ExportOrganizationAISpendRow struct {
 	CacheReadTokens  int64         `db:"cache_read_tokens" json:"cache_read_tokens"`
 	CacheWriteTokens int64         `db:"cache_write_tokens" json:"cache_write_tokens"`
 	CostMicros       int64         `db:"cost_micros" json:"cost_micros"`
+	Count            int64         `db:"count" json:"count"`
 }
 
 // Returns per-user, per-group, per-model, per-provider aggregated AI spend for
@@ -2824,7 +2902,17 @@ type ExportOrganizationAISpendRow struct {
 // attributed through the token usage's effective group, and rows are bucketed
 // by the token usage created_at, matching how ai_user_daily_spend is derived.
 func (q *sqlQuerier) ExportOrganizationAISpend(ctx context.Context, arg ExportOrganizationAISpendParams) ([]ExportOrganizationAISpendRow, error) {
-	rows, err := q.db.QueryContext(ctx, exportOrganizationAISpend, arg.OrganizationID, arg.PeriodStart, arg.PeriodEnd)
+	rows, err := q.db.QueryContext(ctx, exportOrganizationAISpend,
+		arg.OrganizationID,
+		arg.PeriodStart,
+		arg.PeriodEnd,
+		arg.UserID,
+		arg.GroupID,
+		arg.ProviderName,
+		arg.Model,
+		arg.OffsetOpt,
+		arg.LimitOpt,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -2847,6 +2935,7 @@ func (q *sqlQuerier) ExportOrganizationAISpend(ctx context.Context, arg ExportOr
 			&i.CacheReadTokens,
 			&i.CacheWriteTokens,
 			&i.CostMicros,
+			&i.Count,
 		); err != nil {
 			return nil, err
 		}
@@ -3594,6 +3683,129 @@ func (q *sqlQuerier) IncrementUserAIDailySpend(ctx context.Context, arg Incremen
 		&i.SpendMicros,
 	)
 	return i, err
+}
+
+const listOrganizationAISpendUsers = `-- name: ListOrganizationAISpendUsers :many
+SELECT
+	ai.initiator_id AS user_id,
+	users.username AS username,
+	users.name AS name,
+	users.avatar_url AS avatar_url,
+	groups.organization_id AS organization_id,
+	COALESCE(SUM(tu.cost_micros), 0)::BIGINT AS cost_micros,
+	COUNT(*) FILTER (WHERE tu.cost_micros IS NULL)::BIGINT AS unpriced_usage_count,
+	ARRAY_AGG(DISTINCT ai.provider ORDER BY ai.provider)::text[] AS providers,
+	ARRAY_AGG(DISTINCT COALESCE(ai.client, 'Unknown') ORDER BY COALESCE(ai.client, 'Unknown'))::text[] AS clients,
+	ARRAY_AGG(DISTINCT ai.model ORDER BY ai.model)::text[] AS models,
+	COUNT(*) OVER ()::BIGINT AS count,
+	COALESCE(SUM(SUM(tu.cost_micros)) OVER (), 0)::BIGINT AS total_cost_micros,
+	COALESCE(SUM(COUNT(*) FILTER (WHERE tu.cost_micros IS NULL)) OVER (), 0)::BIGINT AS total_unpriced_usage_count
+FROM aibridge_token_usages tu
+JOIN aibridge_interceptions ai ON ai.id = tu.interception_id
+JOIN users ON users.id = ai.initiator_id
+JOIN groups ON groups.id = tu.effective_group_id
+WHERE groups.organization_id = $1
+	AND tu.created_at >= $2::timestamptz
+	AND tu.created_at < $3::timestamptz
+	AND CASE
+		WHEN $4::text != '' THEN ai.provider_name = $4::text
+		ELSE true
+	END
+	AND CASE
+		WHEN $5::text != '' THEN ai.model = $5::text
+		ELSE true
+	END
+	AND CASE
+		WHEN $6::text != '' THEN COALESCE(ai.client, 'Unknown') = $6::text
+		ELSE true
+	END
+GROUP BY
+	ai.initiator_id,
+	users.username,
+	users.name,
+	users.avatar_url,
+	groups.organization_id
+ORDER BY cost_micros DESC, LOWER(users.username), ai.initiator_id
+LIMIT NULLIF($8::int, 0)
+OFFSET $7::int
+`
+
+type ListOrganizationAISpendUsersParams struct {
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	PeriodStart    time.Time `db:"period_start" json:"period_start"`
+	PeriodEnd      time.Time `db:"period_end" json:"period_end"`
+	ProviderName   string    `db:"provider_name" json:"provider_name"`
+	Model          string    `db:"model" json:"model"`
+	Client         string    `db:"client" json:"client"`
+	OffsetOpt      int32     `db:"offset_opt" json:"offset_opt"`
+	LimitOpt       int32     `db:"limit_opt" json:"limit_opt"`
+}
+
+type ListOrganizationAISpendUsersRow struct {
+	UserID                  uuid.UUID `db:"user_id" json:"user_id"`
+	Username                string    `db:"username" json:"username"`
+	Name                    string    `db:"name" json:"name"`
+	AvatarURL               string    `db:"avatar_url" json:"avatar_url"`
+	OrganizationID          uuid.UUID `db:"organization_id" json:"organization_id"`
+	CostMicros              int64     `db:"cost_micros" json:"cost_micros"`
+	UnpricedUsageCount      int64     `db:"unpriced_usage_count" json:"unpriced_usage_count"`
+	Providers               []string  `db:"providers" json:"providers"`
+	Clients                 []string  `db:"clients" json:"clients"`
+	Models                  []string  `db:"models" json:"models"`
+	Count                   int64     `db:"count" json:"count"`
+	TotalCostMicros         int64     `db:"total_cost_micros" json:"total_cost_micros"`
+	TotalUnpricedUsageCount int64     `db:"total_unpriced_usage_count" json:"total_unpriced_usage_count"`
+}
+
+// Returns one page of per-user AI spend for @organization_id over the
+// [period_start, period_end) window, most expensive first, together with the
+// providers, clients, and models each user spent through and the count and
+// totals over every matching user. It must keep the same joins and predicates as
+// ExportOrganizationAISpend so both report the same token usage.
+func (q *sqlQuerier) ListOrganizationAISpendUsers(ctx context.Context, arg ListOrganizationAISpendUsersParams) ([]ListOrganizationAISpendUsersRow, error) {
+	rows, err := q.db.QueryContext(ctx, listOrganizationAISpendUsers,
+		arg.OrganizationID,
+		arg.PeriodStart,
+		arg.PeriodEnd,
+		arg.ProviderName,
+		arg.Model,
+		arg.Client,
+		arg.OffsetOpt,
+		arg.LimitOpt,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListOrganizationAISpendUsersRow
+	for rows.Next() {
+		var i ListOrganizationAISpendUsersRow
+		if err := rows.Scan(
+			&i.UserID,
+			&i.Username,
+			&i.Name,
+			&i.AvatarURL,
+			&i.OrganizationID,
+			&i.CostMicros,
+			&i.UnpricedUsageCount,
+			pq.Array(&i.Providers),
+			pq.Array(&i.Clients),
+			pq.Array(&i.Models),
+			&i.Count,
+			&i.TotalCostMicros,
+			&i.TotalUnpricedUsageCount,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const upsertAIModelPrices = `-- name: UpsertAIModelPrices :exec
@@ -16645,57 +16857,118 @@ func (q *sqlQuerier) GetTemplateAppInsightsByTemplate(ctx context.Context, arg G
 
 const getTemplateInsights = `-- name: GetTemplateInsights :one
 WITH
-	insights AS (
+	base AS (
+		-- One pass over the window: per-user capped minutes and the template
+		-- list. GROUPING tells the two row kinds apart.
 		SELECT
+			GROUPING(template_id) = 1 AS is_user_row,
+			start_time,
 			user_id,
-			-- See motivation in GetTemplateInsights for LEAST(SUM(n), 30).
-			LEAST(SUM(usage_mins), 30) AS usage_mins,
-			LEAST(SUM(ssh_mins), 30) AS ssh_mins,
-			LEAST(SUM(sftp_mins), 30) AS sftp_mins,
-			LEAST(SUM(reconnecting_pty_mins), 30) AS reconnecting_pty_mins,
-			LEAST(SUM(vscode_mins), 30) AS vscode_mins,
-			LEAST(SUM(jetbrains_mins), 30) AS jetbrains_mins
+			template_id,
+			COUNT(*) AS template_count,
+			LEAST(SUM(usage_mins), 30) AS usage_mins
 		FROM
 			template_usage_stats
 		WHERE
 			start_time >= $1::timestamptz
 			AND end_time <= $2::timestamptz
 			AND CASE WHEN COALESCE(array_length($3::uuid[], 1), 0) > 0 THEN template_id = ANY($3::uuid[]) ELSE TRUE END
-		GROUP BY
-			start_time, user_id
+		GROUP BY GROUPING SETS ((start_time, user_id), (template_id))
 	),
-	templates AS (
+	users AS (
 		SELECT
-			array_agg(DISTINCT template_id) AS template_ids,
-			array_agg(DISTINCT template_id) FILTER (WHERE ssh_mins > 0) AS ssh_template_ids,
-			array_agg(DISTINCT template_id) FILTER (WHERE sftp_mins > 0) AS sftp_template_ids,
-			array_agg(DISTINCT template_id) FILTER (WHERE reconnecting_pty_mins > 0) AS reconnecting_pty_template_ids,
-			array_agg(DISTINCT template_id) FILTER (WHERE vscode_mins > 0) AS vscode_template_ids,
-			array_agg(DISTINCT template_id) FILTER (WHERE jetbrains_mins > 0) AS jetbrains_template_ids
+			start_time,
+			user_id,
+			template_count,
+			usage_mins
 		FROM
-			template_usage_stats
+			base
 		WHERE
-			start_time >= $1::timestamptz
-			AND end_time <= $2::timestamptz
-			AND CASE WHEN COALESCE(array_length($3::uuid[], 1), 0) > 0 THEN template_id = ANY($3::uuid[]) ELSE TRUE END
+			is_user_row
+	),
+	multi_template_buckets AS (
+		-- An app's minutes cap per user per half hour, across templates. Only
+		-- these buckets can reach the cap, and most deployments have few, so
+		-- the capped grouping below runs on them alone.
+		SELECT
+			start_time,
+			user_id
+		FROM
+			users
+		WHERE
+			template_count > 1
+	),
+	app_usage_by_template AS (
+		-- A single row cannot exceed the cap, so these need no per-user
+		-- grouping. FILTER, not WHERE: the excluded buckets' minutes belong to
+		-- app_usage_capped, but their templates still belong in the list.
+		SELECT
+			sessions.app_name,
+			sessions.template_id,
+			SUM(sessions.usage_mins) FILTER (
+				WHERE (sessions.start_time, sessions.user_id) NOT IN (SELECT start_time, user_id FROM multi_template_buckets)
+			) AS usage_mins
+		FROM
+			template_usage_stats_session_apps AS sessions
+		WHERE
+			sessions.start_time >= $1::timestamptz
+			-- The child table has no end_time, hence the bucket width. Keep
+			-- start_time bare so the range stays index-usable.
+			AND sessions.start_time <= ($2::timestamptz) - '30 minutes'::interval
+			AND CASE WHEN COALESCE(array_length($3::uuid[], 1), 0) > 0 THEN sessions.template_id = ANY($3::uuid[]) ELSE TRUE END
+		GROUP BY
+			sessions.app_name, sessions.template_id
+	),
+	app_usage_capped AS (
+		SELECT
+			sessions.app_name,
+			LEAST(SUM(sessions.usage_mins), 30) AS usage_mins
+		FROM
+			template_usage_stats_session_apps AS sessions
+		WHERE
+			sessions.start_time >= $1::timestamptz
+			AND sessions.start_time <= ($2::timestamptz) - '30 minutes'::interval
+			AND CASE WHEN COALESCE(array_length($3::uuid[], 1), 0) > 0 THEN sessions.template_id = ANY($3::uuid[]) ELSE TRUE END
+			AND EXISTS (
+				SELECT 1
+				FROM multi_template_buckets AS buckets
+				WHERE buckets.start_time = sessions.start_time
+					AND buckets.user_id = sessions.user_id
+			)
+		GROUP BY
+			sessions.start_time, sessions.user_id, sessions.app_name
+	),
+	app_usage AS (
+		SELECT
+			app_name,
+			(SUM(usage_mins) * 60)::bigint AS usage_seconds
+		FROM (
+			SELECT app_name, usage_mins FROM app_usage_by_template
+			UNION ALL
+			SELECT app_name, usage_mins FROM app_usage_capped
+		) AS parts
+		GROUP BY
+			app_name
+	),
+	app_templates AS (
+		SELECT
+			app_name,
+			array_agg(DISTINCT template_id) AS template_ids
+		FROM
+			app_usage_by_template
+		GROUP BY
+			app_name
 	)
 
 SELECT
-	COALESCE((SELECT template_ids FROM templates), '{}')::uuid[] AS template_ids, -- Includes app usage.
-	COALESCE((SELECT ssh_template_ids FROM templates), '{}')::uuid[] AS ssh_template_ids,
-	COALESCE((SELECT sftp_template_ids FROM templates), '{}')::uuid[] AS sftp_template_ids,
-	COALESCE((SELECT reconnecting_pty_template_ids FROM templates), '{}')::uuid[] AS reconnecting_pty_template_ids,
-	COALESCE((SELECT vscode_template_ids FROM templates), '{}')::uuid[] AS vscode_template_ids,
-	COALESCE((SELECT jetbrains_template_ids FROM templates), '{}')::uuid[] AS jetbrains_template_ids,
+	COALESCE((SELECT array_agg(DISTINCT template_id) FROM base WHERE NOT is_user_row), '{}')::uuid[] AS template_ids, -- Includes app usage.
 	COALESCE(COUNT(DISTINCT user_id), 0)::bigint AS active_users, -- Includes app usage.
 	COALESCE(SUM(usage_mins) * 60, 0)::bigint AS usage_total_seconds, -- Includes app usage.
-	COALESCE(SUM(ssh_mins) * 60, 0)::bigint AS usage_ssh_seconds,
-	COALESCE(SUM(sftp_mins) * 60, 0)::bigint AS usage_sftp_seconds,
-	COALESCE(SUM(reconnecting_pty_mins) * 60, 0)::bigint AS usage_reconnecting_pty_seconds,
-	COALESCE(SUM(vscode_mins) * 60, 0)::bigint AS usage_vscode_seconds,
-	COALESCE(SUM(jetbrains_mins) * 60, 0)::bigint AS usage_jetbrains_seconds
+	-- Keyed by app name; callers fold both into families.
+	COALESCE((SELECT jsonb_object_agg(app_name, usage_seconds) FROM app_usage), '{}'::jsonb)::jsonb AS session_app_usage_seconds,
+	COALESCE((SELECT jsonb_object_agg(app_name, template_ids) FROM app_templates), '{}'::jsonb)::jsonb AS session_app_template_ids
 FROM
-	insights
+	users
 `
 
 type GetTemplateInsightsParams struct {
@@ -16705,24 +16978,18 @@ type GetTemplateInsightsParams struct {
 }
 
 type GetTemplateInsightsRow struct {
-	TemplateIDs                 []uuid.UUID `db:"template_ids" json:"template_ids"`
-	SshTemplateIds              []uuid.UUID `db:"ssh_template_ids" json:"ssh_template_ids"`
-	SftpTemplateIds             []uuid.UUID `db:"sftp_template_ids" json:"sftp_template_ids"`
-	ReconnectingPtyTemplateIds  []uuid.UUID `db:"reconnecting_pty_template_ids" json:"reconnecting_pty_template_ids"`
-	VscodeTemplateIds           []uuid.UUID `db:"vscode_template_ids" json:"vscode_template_ids"`
-	JetbrainsTemplateIds        []uuid.UUID `db:"jetbrains_template_ids" json:"jetbrains_template_ids"`
-	ActiveUsers                 int64       `db:"active_users" json:"active_users"`
-	UsageTotalSeconds           int64       `db:"usage_total_seconds" json:"usage_total_seconds"`
-	UsageSshSeconds             int64       `db:"usage_ssh_seconds" json:"usage_ssh_seconds"`
-	UsageSftpSeconds            int64       `db:"usage_sftp_seconds" json:"usage_sftp_seconds"`
-	UsageReconnectingPtySeconds int64       `db:"usage_reconnecting_pty_seconds" json:"usage_reconnecting_pty_seconds"`
-	UsageVscodeSeconds          int64       `db:"usage_vscode_seconds" json:"usage_vscode_seconds"`
-	UsageJetbrainsSeconds       int64       `db:"usage_jetbrains_seconds" json:"usage_jetbrains_seconds"`
+	TemplateIDs            []uuid.UUID     `db:"template_ids" json:"template_ids"`
+	ActiveUsers            int64           `db:"active_users" json:"active_users"`
+	UsageTotalSeconds      int64           `db:"usage_total_seconds" json:"usage_total_seconds"`
+	SessionAppUsageSeconds json.RawMessage `db:"session_app_usage_seconds" json:"session_app_usage_seconds"`
+	SessionAppTemplateIds  json.RawMessage `db:"session_app_template_ids" json:"session_app_template_ids"`
 }
 
 // GetTemplateInsights returns the aggregate user-produced usage of all
 // workspaces in a given timeframe. The template IDs, active users, and
 // usage_seconds all reflect any usage in the template, including apps.
+//
+// Session usage comes out per app name; callers group the names into families.
 //
 // When combining data from multiple templates, we must make a guess at
 // how the user behaved for the 30 minute interval. In this case we make
@@ -16734,18 +17001,10 @@ func (q *sqlQuerier) GetTemplateInsights(ctx context.Context, arg GetTemplateIns
 	var i GetTemplateInsightsRow
 	err := row.Scan(
 		pq.Array(&i.TemplateIDs),
-		pq.Array(&i.SshTemplateIds),
-		pq.Array(&i.SftpTemplateIds),
-		pq.Array(&i.ReconnectingPtyTemplateIds),
-		pq.Array(&i.VscodeTemplateIds),
-		pq.Array(&i.JetbrainsTemplateIds),
 		&i.ActiveUsers,
 		&i.UsageTotalSeconds,
-		&i.UsageSshSeconds,
-		&i.UsageSftpSeconds,
-		&i.UsageReconnectingPtySeconds,
-		&i.UsageVscodeSeconds,
-		&i.UsageJetbrainsSeconds,
+		&i.SessionAppUsageSeconds,
+		&i.SessionAppTemplateIds,
 	)
 	return i, err
 }
@@ -16839,93 +17098,111 @@ func (q *sqlQuerier) GetTemplateInsightsByInterval(ctx context.Context, arg GetT
 
 const getTemplateInsightsByTemplate = `-- name: GetTemplateInsightsByTemplate :many
 WITH
-	-- app_families maps each attributed family to its app names, so the
-	-- probes below stay one expression per family: adding a family needs a
-	-- new list in fams plus one probe here, because sqlc output columns are
-	-- static. fams turns the jsonb parameter into arrays once for the whole
-	-- query. These probes only ask whether any app of a family is present,
-	-- so the jsonb key-existence operator beats decomposing session_counts
-	-- per row (measured ~2.4x faster on a 1M row scan).
-	fams AS (
-		SELECT
-			ARRAY(SELECT jsonb_array_elements_text($1::jsonb -> 'ssh')) AS ssh,
-			ARRAY(SELECT jsonb_array_elements_text($1::jsonb -> 'reconnecting_pty')) AS reconnecting_pty,
-			ARRAY(SELECT jsonb_array_elements_text($1::jsonb -> 'vscode')) AS vscode,
-			ARRAY(SELECT jsonb_array_elements_text($1::jsonb -> 'jetbrains')) AS jetbrains
-	),
-	-- Deduplicate activity by template, user, and minute.
-	minute_activity AS (
+	connected AS (
+		-- NOTE(mafredri): connection_count covers one report interval, while
+		-- the session counts are a gauge, so an idle session reports none.
+		-- Hence "any connection within this bucket", pending a better solution.
+		-- Grouped, not a WHERE: one connection anywhere in the window keeps
+		-- every minute of that pair. One row per pair, so no fan-out.
 		SELECT
 			template_id,
-			user_id,
-			date_trunc('minute', created_at) AS minute,
-			BOOL_OR(session_counts ?| fams.ssh) AS ssh,
-			BOOL_OR(session_counts ?| fams.reconnecting_pty) AS reconnecting_pty,
-			BOOL_OR(session_counts ?| fams.vscode) AS vscode,
-			BOOL_OR(session_counts ?| fams.jetbrains) AS jetbrains,
-			BOOL_OR(connection_count > 0) AS has_connection
+			user_id
 		FROM
-			workspace_agent_stats, fams
+			workspace_agent_stats
 		WHERE
-			created_at >= $2::timestamptz
-			AND created_at < $3::timestamptz
+			created_at >= $1::timestamptz
+			AND created_at < $2::timestamptz
 			AND session_counts <> '{}'::jsonb
 		GROUP BY
-			template_id, user_id, minute
+			template_id, user_id
+		HAVING
+			BOOL_OR(connection_count > 0)
 	),
 	insights AS (
+		-- A minute counts once per app however many of its sessions were open,
+		-- which COUNT(DISTINCT) does in the grouping. Deduplicating the
+		-- expanded rows first instead spills to disk once a deployment has a
+		-- few thousand agents.
+		SELECT
+			was.template_id,
+			was.user_id,
+			app_name,
+			COUNT(DISTINCT date_trunc('minute', was.created_at)) AS usage_mins
+		FROM
+			workspace_agent_stats AS was
+		CROSS JOIN
+			jsonb_object_keys(was.session_counts) AS app_name
+		JOIN
+			connected AS c
+		ON
+			c.template_id = was.template_id
+			AND c.user_id = was.user_id
+		WHERE
+			was.created_at >= $1::timestamptz
+			AND was.created_at < $2::timestamptz
+			AND was.session_counts <> '{}'::jsonb
+		GROUP BY
+			was.template_id, was.user_id, app_name
+	),
+	app_usage AS (
 		SELECT
 			template_id,
-			user_id,
-			COUNT(*) FILTER (WHERE ssh) AS ssh_mins,
-			COUNT(*) FILTER (WHERE reconnecting_pty) AS reconnecting_pty_mins,
-			COUNT(*) FILTER (WHERE vscode) AS vscode_mins,
-			COUNT(*) FILTER (WHERE jetbrains) AS jetbrains_mins,
-			-- NOTE(mafredri): The agent stats are currently very unreliable, and
-			-- sometimes the connections are missing, even during active sessions.
-			-- Since we can't fully rely on this, we check for "any connection
-			-- within this bucket". A better solution here would be preferable.
-			BOOL_OR(has_connection) AS has_connection
-		FROM
-			minute_activity
+			jsonb_object_agg(app_name, usage_seconds) AS session_app_usage_seconds
+		FROM (
+			SELECT
+				template_id,
+				app_name,
+				(SUM(usage_mins) * 60)::bigint AS usage_seconds
+			FROM
+				insights
+			GROUP BY
+				template_id, app_name
+		) AS app_seconds
 		GROUP BY
-			template_id, user_id
+			template_id
+	),
+	active_users AS (
+		SELECT
+			template_id,
+			COUNT(DISTINCT user_id)::bigint AS active_users
+		FROM
+			insights
+		GROUP BY
+			template_id
 	)
 
 SELECT
-	template_id,
-	COUNT(DISTINCT user_id)::bigint AS active_users,
-	(SUM(vscode_mins) * 60)::bigint AS usage_vscode_seconds,
-	(SUM(jetbrains_mins) * 60)::bigint AS usage_jetbrains_seconds,
-	(SUM(reconnecting_pty_mins) * 60)::bigint AS usage_reconnecting_pty_seconds,
-	(SUM(ssh_mins) * 60)::bigint AS usage_ssh_seconds
+	active_users.template_id,
+	active_users.active_users,
+	app_usage.session_app_usage_seconds
 FROM
-	insights
-WHERE
-	has_connection
-GROUP BY
-	template_id
+	active_users
+JOIN
+	-- Every counted template has at least one app; both sides come from
+	-- insights.
+	app_usage
+ON
+	app_usage.template_id = active_users.template_id
 `
 
 type GetTemplateInsightsByTemplateParams struct {
-	AppFamilies json.RawMessage `db:"app_families" json:"app_families"`
-	StartTime   time.Time       `db:"start_time" json:"start_time"`
-	EndTime     time.Time       `db:"end_time" json:"end_time"`
+	StartTime time.Time `db:"start_time" json:"start_time"`
+	EndTime   time.Time `db:"end_time" json:"end_time"`
 }
 
 type GetTemplateInsightsByTemplateRow struct {
-	TemplateID                  uuid.UUID `db:"template_id" json:"template_id"`
-	ActiveUsers                 int64     `db:"active_users" json:"active_users"`
-	UsageVscodeSeconds          int64     `db:"usage_vscode_seconds" json:"usage_vscode_seconds"`
-	UsageJetbrainsSeconds       int64     `db:"usage_jetbrains_seconds" json:"usage_jetbrains_seconds"`
-	UsageReconnectingPtySeconds int64     `db:"usage_reconnecting_pty_seconds" json:"usage_reconnecting_pty_seconds"`
-	UsageSshSeconds             int64     `db:"usage_ssh_seconds" json:"usage_ssh_seconds"`
+	TemplateID             uuid.UUID      `db:"template_id" json:"template_id"`
+	ActiveUsers            int64          `db:"active_users" json:"active_users"`
+	SessionAppUsageSeconds StringMapOfInt `db:"session_app_usage_seconds" json:"session_app_usage_seconds"`
 }
 
 // GetTemplateInsightsByTemplate is used for Prometheus metrics. Keep
 // in sync with GetTemplateInsights and UpsertTemplateUsageStats.
+//
+// Session usage comes out per app name, as in GetTemplateInsights, so either
+// query reports the same family totals once the names are grouped.
 func (q *sqlQuerier) GetTemplateInsightsByTemplate(ctx context.Context, arg GetTemplateInsightsByTemplateParams) ([]GetTemplateInsightsByTemplateRow, error) {
-	rows, err := q.db.QueryContext(ctx, getTemplateInsightsByTemplate, arg.AppFamilies, arg.StartTime, arg.EndTime)
+	rows, err := q.db.QueryContext(ctx, getTemplateInsightsByTemplate, arg.StartTime, arg.EndTime)
 	if err != nil {
 		return nil, err
 	}
@@ -16933,14 +17210,7 @@ func (q *sqlQuerier) GetTemplateInsightsByTemplate(ctx context.Context, arg GetT
 	var items []GetTemplateInsightsByTemplateRow
 	for rows.Next() {
 		var i GetTemplateInsightsByTemplateRow
-		if err := rows.Scan(
-			&i.TemplateID,
-			&i.ActiveUsers,
-			&i.UsageVscodeSeconds,
-			&i.UsageJetbrainsSeconds,
-			&i.UsageReconnectingPtySeconds,
-			&i.UsageSshSeconds,
-		); err != nil {
+		if err := rows.Scan(&i.TemplateID, &i.ActiveUsers, &i.SessionAppUsageSeconds); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -17062,7 +17332,7 @@ func (q *sqlQuerier) GetTemplateParameterInsights(ctx context.Context, arg GetTe
 
 const getTemplateUsageStats = `-- name: GetTemplateUsageStats :many
 SELECT
-	start_time, end_time, template_id, user_id, median_latency_ms, usage_mins, ssh_mins, sftp_mins, reconnecting_pty_mins, vscode_mins, jetbrains_mins, app_usage_mins
+	start_time, end_time, template_id, user_id, median_latency_ms, usage_mins, app_usage_mins
 FROM
 	template_usage_stats
 WHERE
@@ -17093,11 +17363,6 @@ func (q *sqlQuerier) GetTemplateUsageStats(ctx context.Context, arg GetTemplateU
 			&i.UserID,
 			&i.MedianLatencyMs,
 			&i.UsageMins,
-			&i.SshMins,
-			&i.SftpMins,
-			&i.ReconnectingPtyMins,
-			&i.VscodeMins,
-			&i.JetbrainsMins,
 			&i.AppUsageMins,
 		); err != nil {
 			return nil, err
@@ -17421,20 +17686,6 @@ func (q *sqlQuerier) GetUserStatusCounts(ctx context.Context, arg GetUserStatusC
 
 const upsertTemplateUsageStats = `-- name: UpsertTemplateUsageStats :exec
 WITH
-	-- app_families maps each attributed family to its app names, so the
-	-- probes below stay one expression per family: adding a family needs a
-	-- new list in fams plus one probe here, because sqlc output columns are
-	-- static. fams turns the jsonb parameter into arrays once for the whole
-	-- query. These probes only ask whether any app of a family is present,
-	-- so the jsonb key-existence operator beats decomposing session_counts
-	-- per row (measured ~2.4x faster on a 1M row scan).
-	fams AS (
-		SELECT
-			ARRAY(SELECT jsonb_array_elements_text($1::jsonb -> 'ssh')) AS ssh,
-			ARRAY(SELECT jsonb_array_elements_text($1::jsonb -> 'reconnecting_pty')) AS reconnecting_pty,
-			ARRAY(SELECT jsonb_array_elements_text($1::jsonb -> 'vscode')) AS vscode,
-			ARRAY(SELECT jsonb_array_elements_text($1::jsonb -> 'jetbrains')) AS jetbrains
-	),
 	latest_start AS (
 		SELECT
 			-- Truncate to hour so that we always look at even ranges of data.
@@ -17504,34 +17755,64 @@ WITH
 		GROUP BY
 			time_bucket, w.template_id, fas.user_id, fas.access_method, fas.slug_or_port
 	),
-	agent_stats_buckets AS (
+	agent_stats_rows AS (
+		-- One filtered pass feeds both groupings below.
 		SELECT
-			-- Truncate the minute to the nearest half hour, this is the bucket size
-			-- for the data.
 			date_trunc('hour', created_at) + trunc(date_part('minute', created_at) / 30) * 30 * '1 minute'::interval AS time_bucket,
 			template_id,
 			user_id,
-			-- Store each unique minute bucket for later merge between datasets.
-			array_agg(DISTINCT date_trunc('minute', created_at)) AS minute_buckets,
-			COUNT(DISTINCT CASE WHEN session_counts ?| fams.ssh THEN date_trunc('minute', created_at) ELSE NULL END) AS ssh_mins,
-			COUNT(DISTINCT CASE WHEN session_counts ?| fams.reconnecting_pty THEN date_trunc('minute', created_at) ELSE NULL END) AS reconnecting_pty_mins,
-			COUNT(DISTINCT CASE WHEN session_counts ?| fams.vscode THEN date_trunc('minute', created_at) ELSE NULL END) AS vscode_mins,
-			COUNT(DISTINCT CASE WHEN session_counts ?| fams.jetbrains THEN date_trunc('minute', created_at) ELSE NULL END) AS jetbrains_mins,
-			-- NOTE(mafredri): The agent stats are currently very unreliable, and
-			-- sometimes the connections are missing, even during active sessions.
-			-- Since we can't fully rely on this, we check for "any connection
-			-- during this half-hour". A better solution here would be preferable.
-			MAX(connection_count) > 0 AS has_connection
+			date_trunc('minute', created_at) AS minute_bucket,
+			connection_count,
+			session_counts
 		FROM
-			workspace_agent_stats, fams
+			workspace_agent_stats
 		WHERE
 			-- created_at >= @start_time::timestamptz
 			-- AND created_at < @end_time::timestamptz
 			created_at >= (SELECT t FROM latest_start)
 			AND created_at < NOW()
 			AND session_counts <> '{}'::jsonb
+	),
+	agent_stats_buckets AS (
+		SELECT
+			time_bucket,
+			template_id,
+			user_id,
+			-- Store each unique minute bucket for later merge between datasets.
+			array_agg(DISTINCT minute_bucket) AS minute_buckets,
+			-- NOTE(mafredri): connection_count covers one report interval,
+			-- while the session counts are a gauge, so an idle session reports
+			-- none. Hence "any connection during this half-hour", pending a
+			-- better solution.
+			MAX(connection_count) > 0 AS has_connection
+		FROM
+			agent_stats_rows
 		GROUP BY
 			time_bucket, template_id, user_id
+	),
+	agent_stats_session_minutes AS (
+		-- A minute counts once per app however many of its sessions were open.
+		SELECT
+			agent_stats.time_bucket,
+			agent_stats.template_id,
+			agent_stats.user_id,
+			app_name,
+			COUNT(DISTINCT agent_stats.minute_bucket)::smallint AS usage_mins
+		FROM
+			agent_stats_rows AS agent_stats
+		JOIN
+			agent_stats_buckets AS buckets
+		ON
+			buckets.time_bucket = agent_stats.time_bucket
+			AND buckets.template_id = agent_stats.template_id
+			AND buckets.user_id = agent_stats.user_id
+			-- Same gate as the union below, so an app-stats-only bucket
+			-- records no session usage.
+			AND buckets.has_connection
+		CROSS JOIN
+			jsonb_object_keys(agent_stats.session_counts) AS app_name
+		GROUP BY
+			agent_stats.time_bucket, agent_stats.template_id, agent_stats.user_id, app_name
 	),
 	stats AS (
 		SELECT
@@ -17539,14 +17820,9 @@ WITH
 			stats.time_bucket + '30 minutes'::interval AS end_time,
 			stats.template_id,
 			stats.user_id,
-			-- Sum/distinct to handle zero/duplicate values due union and to unnest.
+			-- Distinct to handle duplicate values due union and to unnest.
 			COUNT(DISTINCT minute_bucket) AS usage_mins,
 			array_agg(DISTINCT minute_bucket) AS minute_buckets,
-			SUM(DISTINCT stats.ssh_mins) AS ssh_mins,
-			SUM(DISTINCT stats.sftp_mins) AS sftp_mins,
-			SUM(DISTINCT stats.reconnecting_pty_mins) AS reconnecting_pty_mins,
-			SUM(DISTINCT stats.vscode_mins) AS vscode_mins,
-			SUM(DISTINCT stats.jetbrains_mins) AS jetbrains_mins,
 			-- This is what we unnested, re-nest as json.
 			jsonb_object_agg(stats.app_name, stats.app_minutes) FILTER (WHERE stats.app_name IS NOT NULL) AS app_usage_mins
 		FROM (
@@ -17554,11 +17830,6 @@ WITH
 				time_bucket,
 				template_id,
 				user_id,
-				0 AS ssh_mins,
-				0 AS sftp_mins,
-				0 AS reconnecting_pty_mins,
-				0 AS vscode_mins,
-				0 AS jetbrains_mins,
 				app_name,
 				app_minutes,
 				minute_buckets
@@ -17571,12 +17842,6 @@ WITH
 				time_bucket,
 				template_id,
 				user_id,
-				ssh_mins,
-				-- TODO(mafredri): Enable when we have the column.
-				0 AS sftp_mins,
-				reconnecting_pty_mins,
-				vscode_mins,
-				jetbrains_mins,
 				NULL AS app_name,
 				NULL AS app_minutes,
 				minute_buckets
@@ -17623,67 +17888,105 @@ WITH
 			AND was.connection_median_latency_ms > 0
 		GROUP BY
 			mb.start_time, mb.template_id, mb.user_id
+	),
+	upsert_stats AS (
+		INSERT INTO template_usage_stats AS tus (
+			start_time,
+			end_time,
+			template_id,
+			user_id,
+			usage_mins,
+			median_latency_ms,
+			app_usage_mins
+		) (
+			SELECT
+				stats.start_time,
+				stats.end_time,
+				stats.template_id,
+				stats.user_id,
+				stats.usage_mins,
+				latencies.median_latency_ms,
+				stats.app_usage_mins
+			FROM
+				stats
+			LEFT JOIN
+				latencies
+			ON
+				-- The latencies group-by ensures there at most one row.
+				latencies.start_time = stats.start_time
+				AND latencies.template_id = stats.template_id
+				AND latencies.user_id = stats.user_id
+		)
+		ON CONFLICT
+			(start_time, template_id, user_id)
+		DO UPDATE
+		SET
+			usage_mins = EXCLUDED.usage_mins,
+			median_latency_ms = EXCLUDED.median_latency_ms,
+			app_usage_mins = EXCLUDED.app_usage_mins
+		WHERE
+			(tus.*) IS DISTINCT FROM (EXCLUDED.*)
+	),
+	-- The child writes share this statement, so the foreign keys are checked
+	-- once it completes and see the main rows the upsert added; Postgres runs
+	-- that upsert whether or not the statement reads it.
+	--
+	-- NOT IN, not NOT EXISTS: the planner has no statistics for the CTE and
+	-- turns NOT EXISTS into a nested loop that rescans it per row, 20 seconds
+	-- per rollup. Every column is non-null, so both delete the same rows.
+	delete_apps AS (
+		DELETE FROM
+			template_usage_stats_session_apps AS apps
+		USING
+			agent_stats_buckets AS buckets
+		WHERE
+			apps.start_time = buckets.time_bucket
+			AND apps.template_id = buckets.template_id
+			AND apps.user_id = buckets.user_id
+			AND (apps.start_time, apps.template_id, apps.user_id, apps.app_name) NOT IN (
+				SELECT time_bucket, template_id, user_id, app_name
+				FROM agent_stats_session_minutes
+			)
 	)
 
-INSERT INTO template_usage_stats AS tus (
+INSERT INTO template_usage_stats_session_apps AS apps (
 	start_time,
-	end_time,
 	template_id,
 	user_id,
-	usage_mins,
-	median_latency_ms,
-	ssh_mins,
-	sftp_mins,
-	reconnecting_pty_mins,
-	vscode_mins,
-	jetbrains_mins,
-	app_usage_mins
+	app_name,
+	usage_mins
 ) (
 	SELECT
-		stats.start_time,
-		stats.end_time,
-		stats.template_id,
-		stats.user_id,
-		stats.usage_mins,
-		latencies.median_latency_ms,
-		stats.ssh_mins,
-		stats.sftp_mins,
-		stats.reconnecting_pty_mins,
-		stats.vscode_mins,
-		stats.jetbrains_mins,
-		stats.app_usage_mins
+		time_bucket,
+		template_id,
+		user_id,
+		app_name,
+		usage_mins
 	FROM
-		stats
-	LEFT JOIN
-		latencies
-	ON
-		-- The latencies group-by ensures there at most one row.
-		latencies.start_time = stats.start_time
-		AND latencies.template_id = stats.template_id
-		AND latencies.user_id = stats.user_id
+		agent_stats_session_minutes
 )
 ON CONFLICT
-	(start_time, template_id, user_id)
+	(start_time, template_id, user_id, app_name)
 DO UPDATE
 SET
-	usage_mins = EXCLUDED.usage_mins,
-	median_latency_ms = EXCLUDED.median_latency_ms,
-	ssh_mins = EXCLUDED.ssh_mins,
-	sftp_mins = EXCLUDED.sftp_mins,
-	reconnecting_pty_mins = EXCLUDED.reconnecting_pty_mins,
-	vscode_mins = EXCLUDED.vscode_mins,
-	jetbrains_mins = EXCLUDED.jetbrains_mins,
-	app_usage_mins = EXCLUDED.app_usage_mins
+	usage_mins = EXCLUDED.usage_mins
 WHERE
-	(tus.*) IS DISTINCT FROM (EXCLUDED.*)
+	apps.usage_mins IS DISTINCT FROM EXCLUDED.usage_mins
 `
 
 // This query aggregates the workspace_agent_stats and workspace_app_stats data
 // into a single table for efficient storage and querying. Half-hour buckets are
 // used to store the data, and the minutes are summed for each user and template
 // combination. The result is stored in the template_usage_stats table.
-func (q *sqlQuerier) UpsertTemplateUsageStats(ctx context.Context, appFamilies json.RawMessage) error {
-	_, err := q.db.ExecContext(ctx, upsertTemplateUsageStats, appFamilies)
+//
+// Session usage is stored per app name in the child table, so the main row
+// carries no session columns at all. Every recomputed bucket rewrites its own
+// child rows: app names that disappeared are deleted, the rest are upserted.
+// The keys come from the computed set rather than from the main upsert,
+// because the no-op guard below suppresses main rows whose columns did not
+// change while their session usage still has to be corrected.
+func (q *sqlQuerier) UpsertTemplateUsageStats(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, upsertTemplateUsageStats)
 	return err
 }
 
@@ -27653,29 +27956,35 @@ WHERE
 			END
 		ELSE true
 	END
-	-- Filter by agents_allowed
+	-- Filter by classic parameter flow
 	AND CASE
 		WHEN $9 :: boolean IS NOT NULL THEN
-			t.agents_allowed = $9 :: boolean
+			t.use_classic_parameter_flow = $9 :: boolean
+		ELSE true
+	END
+	-- Filter by agents_allowed
+	AND CASE
+		WHEN $10 :: boolean IS NOT NULL THEN
+			t.agents_allowed = $10 :: boolean
 		ELSE true
 	END
 	-- Filter by author_id
 	AND CASE
-		  WHEN $10 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
-			  t.created_by = $10
+		  WHEN $11 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+			  t.created_by = $11
 		  ELSE true
 	END
 	-- Filter by author_username
 	AND CASE
-		  WHEN $11 :: text != '' THEN
-			  t.created_by = (SELECT id FROM users WHERE lower(users.username) = lower($11) AND deleted = false)
+		  WHEN $12 :: text != '' THEN
+			  t.created_by = (SELECT id FROM users WHERE lower(users.username) = lower($12) AND deleted = false)
 		  ELSE true
 	END
 
 	-- Filter by has_external_agent in latest version
 	AND CASE
-		WHEN $12 :: boolean IS NOT NULL THEN
-			tv.has_external_agent = $12 :: boolean
+		WHEN $13 :: boolean IS NOT NULL THEN
+			tv.has_external_agent = $13 :: boolean
 		ELSE true
 	END
   -- Authorize Filter clause will be injected below in GetAuthorizedTemplates
@@ -27684,18 +27993,19 @@ ORDER BY (t.name, t.id) ASC
 `
 
 type GetTemplatesWithFilterParams struct {
-	Deleted          bool         `db:"deleted" json:"deleted"`
-	OrganizationID   uuid.UUID    `db:"organization_id" json:"organization_id"`
-	ExactName        string       `db:"exact_name" json:"exact_name"`
-	ExactDisplayName string       `db:"exact_display_name" json:"exact_display_name"`
-	FuzzyName        string       `db:"fuzzy_name" json:"fuzzy_name"`
-	FuzzyDisplayName string       `db:"fuzzy_display_name" json:"fuzzy_display_name"`
-	IDs              []uuid.UUID  `db:"ids" json:"ids"`
-	Deprecated       sql.NullBool `db:"deprecated" json:"deprecated"`
-	AgentsAllowed    sql.NullBool `db:"agents_allowed" json:"agents_allowed"`
-	AuthorID         uuid.UUID    `db:"author_id" json:"author_id"`
-	AuthorUsername   string       `db:"author_username" json:"author_username"`
-	HasExternalAgent sql.NullBool `db:"has_external_agent" json:"has_external_agent"`
+	Deleted                 bool         `db:"deleted" json:"deleted"`
+	OrganizationID          uuid.UUID    `db:"organization_id" json:"organization_id"`
+	ExactName               string       `db:"exact_name" json:"exact_name"`
+	ExactDisplayName        string       `db:"exact_display_name" json:"exact_display_name"`
+	FuzzyName               string       `db:"fuzzy_name" json:"fuzzy_name"`
+	FuzzyDisplayName        string       `db:"fuzzy_display_name" json:"fuzzy_display_name"`
+	IDs                     []uuid.UUID  `db:"ids" json:"ids"`
+	Deprecated              sql.NullBool `db:"deprecated" json:"deprecated"`
+	UseClassicParameterFlow sql.NullBool `db:"use_classic_parameter_flow" json:"use_classic_parameter_flow"`
+	AgentsAllowed           sql.NullBool `db:"agents_allowed" json:"agents_allowed"`
+	AuthorID                uuid.UUID    `db:"author_id" json:"author_id"`
+	AuthorUsername          string       `db:"author_username" json:"author_username"`
+	HasExternalAgent        sql.NullBool `db:"has_external_agent" json:"has_external_agent"`
 }
 
 func (q *sqlQuerier) GetTemplatesWithFilter(ctx context.Context, arg GetTemplatesWithFilterParams) ([]Template, error) {
@@ -27708,6 +28018,7 @@ func (q *sqlQuerier) GetTemplatesWithFilter(ctx context.Context, arg GetTemplate
 		arg.FuzzyDisplayName,
 		pq.Array(arg.IDs),
 		arg.Deprecated,
+		arg.UseClassicParameterFlow,
 		arg.AgentsAllowed,
 		arg.AuthorID,
 		arg.AuthorUsername,
@@ -39428,6 +39739,20 @@ WHERE
 			workspaces.group_acl ? ($23 :: uuid) :: text
 		ELSE true
 	END
+	-- Filter by user_id: workspaces the user owns, or that are shared with
+	-- them directly or through a group they belong to.
+	AND CASE
+		WHEN $24 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+			workspaces.owner_id = $24
+			OR workspaces.user_acl ? ($24 :: uuid) :: text
+			OR EXISTS (
+				SELECT 1
+				FROM group_members_expanded
+				WHERE group_members_expanded.user_id = $24
+					AND workspaces.group_acl ? group_members_expanded.group_id :: text
+			)
+		ELSE true
+	END
 
 	-- Authorize Filter clause will be injected below in GetAuthorizedWorkspaces
 	-- @authorize_filter
@@ -39438,7 +39763,7 @@ WHERE
 		filtered_workspaces fw
 	ORDER BY
 		-- To ensure that 'favorite' workspaces show up first in the list only for their owner.
-		CASE WHEN favorite AND owner_username = (SELECT users.username FROM users WHERE users.id = $24) THEN 0 ELSE 1 END ASC,
+		CASE WHEN favorite AND owner_username = (SELECT users.username FROM users WHERE users.id = $25) THEN 0 ELSE 1 END ASC,
 		(latest_build_completed_at IS NOT NULL AND
 			latest_build_canceled_at IS NULL AND
 			latest_build_error IS NULL AND
@@ -39447,11 +39772,11 @@ WHERE
 		LOWER(name) ASC
 	LIMIT
 		CASE
-			WHEN $26 :: integer > 0 THEN
-				$26
+			WHEN $27 :: integer > 0 THEN
+				$27
 		END
 	OFFSET
-		$25
+		$26
 ), filtered_workspaces_order_with_summary AS (
 	SELECT
 		fwo.id, fwo.created_at, fwo.updated_at, fwo.owner_id, fwo.organization_id, fwo.template_id, fwo.deleted, fwo.name, fwo.autostart_schedule, fwo.ttl, fwo.last_used_at, fwo.dormant_at, fwo.deleting_at, fwo.automatic_updates, fwo.favorite, fwo.next_start_at, fwo.group_acl, fwo.user_acl, fwo.owner_avatar_url, fwo.owner_username, fwo.owner_name, fwo.organization_name, fwo.organization_display_name, fwo.organization_icon, fwo.organization_description, fwo.template_name, fwo.template_display_name, fwo.template_icon, fwo.template_description, fwo.group_acl_display_info, fwo.user_acl_display_info, fwo.template_version_id, fwo.template_version_name, fwo.latest_build_completed_at, fwo.latest_build_canceled_at, fwo.latest_build_error, fwo.latest_build_transition, fwo.latest_build_status, fwo.latest_build_has_external_agent, fwo.latest_build_provisioner_job_id
@@ -39503,7 +39828,7 @@ WHERE
 		false, -- latest_build_has_external_agent
 		'00000000-0000-0000-0000-000000000000'::uuid -- latest_build_provisioner_job_id
 	WHERE
-		$27 :: boolean = true
+		$28 :: boolean = true
 ), total_count AS (
 	SELECT
 		count(*) AS count
@@ -39596,6 +39921,7 @@ type GetWorkspacesParams struct {
 	Shared                                sql.NullBool `db:"shared" json:"shared"`
 	SharedWithUserID                      uuid.UUID    `db:"shared_with_user_id" json:"shared_with_user_id"`
 	SharedWithGroupID                     uuid.UUID    `db:"shared_with_group_id" json:"shared_with_group_id"`
+	UserID                                uuid.UUID    `db:"user_id" json:"user_id"`
 	RequesterID                           uuid.UUID    `db:"requester_id" json:"requester_id"`
 	Offset                                int32        `db:"offset_" json:"offset_"`
 	Limit                                 int32        `db:"limit_" json:"limit_"`
@@ -39675,6 +40001,7 @@ func (q *sqlQuerier) GetWorkspaces(ctx context.Context, arg GetWorkspacesParams)
 		arg.Shared,
 		arg.SharedWithUserID,
 		arg.SharedWithGroupID,
+		arg.UserID,
 		arg.RequesterID,
 		arg.Offset,
 		arg.Limit,

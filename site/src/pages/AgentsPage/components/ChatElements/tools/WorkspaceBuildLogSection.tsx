@@ -13,11 +13,11 @@ import {
 } from "../../../context/ChatWorkspaceContext";
 import type { ToolStatus } from "./utils";
 
-interface WorkspaceBuildLogSectionProps {
+type WorkspaceBuildLogSectionProps = {
 	status: ToolStatus;
 	/** Build ID from the completed tool result. */
 	buildId?: string;
-}
+};
 
 // How long to wait for the first log entry before showing a
 // warning. Builds can stay queued or run slow Terraform init for

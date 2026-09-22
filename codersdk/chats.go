@@ -566,7 +566,11 @@ type ToolResult struct {
 
 // CreateChatRequest is the request to create a new chat.
 type CreateChatRequest struct {
-	OrganizationID  uuid.UUID         `json:"organization_id" format:"uuid"`
+	OrganizationID uuid.UUID `json:"organization_id" format:"uuid"`
+	// OwnerID makes another user the chat owner. It defaults to the
+	// caller. The chat runs with the owner's credentials, so setting it
+	// requires site-wide authority over that user.
+	OwnerID         *uuid.UUID        `json:"owner_id,omitempty" format:"uuid"`
 	Content         []ChatInputPart   `json:"content"`
 	SystemPrompt    string            `json:"system_prompt,omitempty"`
 	WorkspaceID     *uuid.UUID        `json:"workspace_id,omitempty" format:"uuid"`
@@ -1227,31 +1231,6 @@ type ChatProviderConfig struct {
 	UpdatedAt                  time.Time                `json:"updated_at,omitempty" format:"date-time"`
 }
 
-// CreateChatProviderConfigRequest creates a chat provider config.
-type CreateChatProviderConfigRequest struct {
-	Provider                   string `json:"provider"`
-	DisplayName                string `json:"display_name,omitempty"`
-	Icon                       string `json:"icon,omitempty"`
-	APIKey                     string `json:"api_key,omitempty"`
-	BaseURL                    string `json:"base_url,omitempty"`
-	Enabled                    *bool  `json:"enabled,omitempty"`
-	CentralAPIKeyEnabled       *bool  `json:"central_api_key_enabled,omitempty"`
-	AllowUserAPIKey            *bool  `json:"allow_user_api_key,omitempty"`
-	AllowCentralAPIKeyFallback *bool  `json:"allow_central_api_key_fallback,omitempty"`
-}
-
-// UpdateChatProviderConfigRequest updates a chat provider config.
-type UpdateChatProviderConfigRequest struct {
-	DisplayName                string  `json:"display_name,omitempty"`
-	Icon                       string  `json:"icon,omitempty"`
-	APIKey                     *string `json:"api_key,omitempty"`
-	BaseURL                    *string `json:"base_url,omitempty"`
-	Enabled                    *bool   `json:"enabled,omitempty"`
-	CentralAPIKeyEnabled       *bool   `json:"central_api_key_enabled,omitempty"`
-	AllowUserAPIKey            *bool   `json:"allow_user_api_key,omitempty"`
-	AllowCentralAPIKeyFallback *bool   `json:"allow_central_api_key_fallback,omitempty"`
-}
-
 // AIProviderSummary is provider metadata embedded in other API responses.
 type AIProviderSummary struct {
 	ID          uuid.UUID      `json:"id" format:"uuid"`
@@ -1363,6 +1342,7 @@ type ChatModelOpenAIProviderOptions struct {
 	Metadata            map[string]any   `json:"metadata,omitempty" description:"Arbitrary metadata to attach to the request" hidden:"true"`
 	PromptCacheKey      *string          `json:"prompt_cache_key,omitempty" description:"Key for enabling cross-request prompt caching"`
 	SafetyIdentifier    *string          `json:"safety_identifier,omitempty" description:"Developer-specific safety identifier for the request" hidden:"true"`
+	ReasoningMode       *string          `json:"reasoning_mode,omitempty" providers:"openai" description:"Supported from the GPT-5.6 Sol generation of OpenAI models. Requests fail when Pro is set on a model that does not support it. Pro increases model work, latency, and token usage." enum:"pro"`
 	ServiceTier         *string          `json:"service_tier,omitempty" description:"Latency tier to use for processing the request" enum:"auto,default,flex,scale,priority"`
 	StructuredOutputs   *bool            `json:"structured_outputs,omitempty" description:"Whether to enable structured JSON output mode" hidden:"true"`
 	StrictJSONSchema    *bool            `json:"strict_json_schema,omitempty" description:"Whether to enforce strict adherence to the JSON schema" hidden:"true"`
@@ -1513,9 +1493,10 @@ type ChatModelCallConfig struct {
 }
 
 // ChatModelOpenAIConfig holds settings applied once when the OpenAI client
-// is built, not per request.
+// is built, not per request, including OpenAI-format models on Bedrock.
 type ChatModelOpenAIConfig struct {
 	UseResponsesAPI *bool `json:"use_responses_api,omitempty" label:"Use Responses API" description:"Override which OpenAI API this model uses. Leave unset to decide from the provider SDK's known-model list, true to force the Responses API, false to force Chat Completions. Azure OpenAI providers ignore this and always follow the known-model list."`
+	ReasoningModel  *bool `json:"reasoning_model,omitempty" label:"Reasoning Model" providers:"openai,bedrock" description:"Override whether this OpenAI-format model is treated as a reasoning model (reasoning effort and summary are sent, temperature and top_p are dropped). Leave unset to decide from the model name, true for models newer than the provider SDK knows, false to force plain sampling. Ignored for Anthropic models on Bedrock."`
 }
 
 // UnmarshalStrict rejects unknown fields except for removed pricing fields,
@@ -2026,64 +2007,6 @@ func (c *Client) ListChats(ctx context.Context, opts *ListChatsOptions) ([]Chat,
 	return chats, ReadBodyAsJSON(res, &chats)
 }
 
-// ListChatProviders returns admin-managed chat provider configs.
-func (c *ExperimentalClient) ListChatProviders(ctx context.Context) ([]ChatProviderConfig, error) {
-	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/chats/providers", nil)
-	if err != nil {
-		return nil, err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		return nil, ReadBodyAsError(res)
-	}
-
-	var providers []ChatProviderConfig
-	return providers, ReadBodyAsJSON(res, &providers)
-}
-
-// CreateChatProvider creates an admin-managed chat provider config.
-func (c *ExperimentalClient) CreateChatProvider(ctx context.Context, req CreateChatProviderConfigRequest) (ChatProviderConfig, error) {
-	res, err := c.Request(ctx, http.MethodPost, "/api/experimental/chats/providers", req)
-	if err != nil {
-		return ChatProviderConfig{}, err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusCreated {
-		return ChatProviderConfig{}, ReadBodyAsError(res)
-	}
-
-	var provider ChatProviderConfig
-	return provider, ReadBodyAsJSON(res, &provider)
-}
-
-// UpdateChatProvider updates an admin-managed chat provider config.
-func (c *ExperimentalClient) UpdateChatProvider(ctx context.Context, providerID uuid.UUID, req UpdateChatProviderConfigRequest) (ChatProviderConfig, error) {
-	res, err := c.Request(ctx, http.MethodPatch, fmt.Sprintf("/api/experimental/chats/providers/%s", providerID), req)
-	if err != nil {
-		return ChatProviderConfig{}, err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		return ChatProviderConfig{}, ReadBodyAsError(res)
-	}
-
-	var provider ChatProviderConfig
-	return provider, ReadBodyAsJSON(res, &provider)
-}
-
-// DeleteChatProvider deletes an admin-managed chat provider config.
-func (c *ExperimentalClient) DeleteChatProvider(ctx context.Context, providerID uuid.UUID) error {
-	res, err := c.Request(ctx, http.MethodDelete, fmt.Sprintf("/api/experimental/chats/providers/%s", providerID), nil)
-	if err != nil {
-		return err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusNoContent {
-		return ReadBodyAsError(res)
-	}
-	return nil
-}
-
 // ListUserAIProviderKeyConfigs returns user-scoped AI provider key configs.
 func (c *Client) ListUserAIProviderKeyConfigs(ctx context.Context, user string) ([]UserAIProviderKeyConfig, error) {
 	res, err := c.Request(ctx, http.MethodGet, userAIProviderKeysPath(user), nil)
@@ -2127,47 +2050,6 @@ func (c *Client) DeleteUserAIProviderKey(ctx context.Context, user string, provi
 
 func userAIProviderKeysPath(user string) string {
 	return fmt.Sprintf("/api/v2/users/%s/ai-provider-keys", url.PathEscape(user))
-}
-
-// ListUserChatProviderConfigs returns user-scoped chat provider configs.
-func (c *ExperimentalClient) ListUserChatProviderConfigs(ctx context.Context) ([]UserChatProviderConfig, error) {
-	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/chats/user-provider-configs", nil)
-	if err != nil {
-		return nil, xerrors.Errorf("list user chat provider configs: %w", err)
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		return nil, ReadBodyAsError(res)
-	}
-	var configs []UserChatProviderConfig
-	return configs, ReadBodyAsJSON(res, &configs)
-}
-
-// UpsertUserChatProviderKey creates or replaces a user API key for a provider.
-func (c *ExperimentalClient) UpsertUserChatProviderKey(ctx context.Context, providerID uuid.UUID, req CreateUserChatProviderKeyRequest) (UserChatProviderConfig, error) {
-	res, err := c.Request(ctx, http.MethodPut, fmt.Sprintf("/api/experimental/chats/user-provider-configs/%s", providerID), req)
-	if err != nil {
-		return UserChatProviderConfig{}, xerrors.Errorf("upsert user chat provider key: %w", err)
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		return UserChatProviderConfig{}, ReadBodyAsError(res)
-	}
-	var config UserChatProviderConfig
-	return config, ReadBodyAsJSON(res, &config)
-}
-
-// DeleteUserChatProviderKey deletes a user API key for a provider.
-func (c *ExperimentalClient) DeleteUserChatProviderKey(ctx context.Context, providerID uuid.UUID) error {
-	res, err := c.Request(ctx, http.MethodDelete, fmt.Sprintf("/api/experimental/chats/user-provider-configs/%s", providerID), nil)
-	if err != nil {
-		return xerrors.Errorf("delete user chat provider key: %w", err)
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusNoContent {
-		return ReadBodyAsError(res)
-	}
-	return nil
 }
 
 // ChatModels returns the chat model configs the caller can read in one

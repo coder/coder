@@ -229,7 +229,7 @@ func assertSSHStats(t *testing.T, stats <-chan *proto.Stats) {
 			return false
 		}
 		t.Logf("got stats: ConnectionCount=%d, RxBytes=%d, TxBytes=%d, SessionCountSsh=%d",
-			s.ConnectionCount, s.RxBytes, s.TxBytes, s.SessionCountSsh)
+			s.ConnectionCount, s.RxBytes, s.TxBytes, s.SessionCounts["ssh"])
 		if s.ConnectionCount > 0 {
 			connectionCountSeen = true
 		}
@@ -239,7 +239,7 @@ func assertSSHStats(t *testing.T, stats <-chan *proto.Stats) {
 		if s.TxBytes > 0 {
 			txBytesSeen = true
 		}
-		if s.SessionCountSsh == 1 {
+		if s.SessionCounts["ssh"] == 1 {
 			sessionCountSSHSeen = true
 		}
 		return connectionCountSeen && rxBytesSeen && txBytesSeen && sessionCountSSHSeen
@@ -287,7 +287,7 @@ func TestAgent_Stats_ReconnectingPTY(t *testing.T) {
 		if s.TxBytes > 0 {
 			txBytesSeen = true
 		}
-		if s.SessionCountReconnectingPty == 1 {
+		if s.SessionCounts["reconnecting_pty"] == 1 {
 			sessionCountReconnectingPTYSeen = true
 		}
 		return connectionCountSeen && rxBytesSeen && txBytesSeen && sessionCountReconnectingPTYSeen
@@ -346,12 +346,12 @@ func TestAgent_Stats_Magic(t *testing.T) {
 		require.NoError(t, err)
 		require.Eventuallyf(t, func() bool {
 			s, ok := <-stats
-			t.Logf("got stats: ok=%t, ConnectionCount=%d, RxBytes=%d, TxBytes=%d, SessionCountVSCode=%d, ConnectionMedianLatencyMS=%f",
-				ok, s.ConnectionCount, s.RxBytes, s.TxBytes, s.SessionCountVscode, s.ConnectionMedianLatencyMs)
+			t.Logf("got stats: ok=%t, ConnectionCount=%d, RxBytes=%d, TxBytes=%d, SessionCounts[vscode]=%d, ConnectionMedianLatencyMS=%f",
+				ok, s.ConnectionCount, s.RxBytes, s.TxBytes, s.SessionCounts["vscode"], s.ConnectionMedianLatencyMs)
 			return ok &&
 				// Ensure that the connection didn't count as a "normal" SSH session.
 				// This was a special one, so it should be labeled specially in the stats!
-				s.SessionCountVscode == 1 &&
+				s.SessionCounts["vscode"] == 1 &&
 				// Ensure that connection latency is being counted!
 				// If it isn't, it's set to -1.
 				s.ConnectionMedianLatencyMs >= 0
@@ -417,8 +417,8 @@ func TestAgent_Stats_Magic(t *testing.T) {
 		require.Eventuallyf(t, func() bool {
 			s, ok := <-stats
 			t.Logf("got stats with conn open: ok=%t, ConnectionCount=%d, SessionCountJetBrains=%d",
-				ok, s.ConnectionCount, s.SessionCountJetbrains)
-			return ok && s.SessionCountJetbrains == 1
+				ok, s.ConnectionCount, s.SessionCounts["jetbrains"])
+			return ok && s.SessionCounts["jetbrains"] == 1
 		}, testutil.WaitLong, testutil.IntervalFast,
 			"never saw stats with conn open",
 		)
@@ -431,9 +431,9 @@ func TestAgent_Stats_Magic(t *testing.T) {
 		require.Eventuallyf(t, func() bool {
 			s, ok := <-stats
 			t.Logf("got stats after disconnect %t, %d",
-				ok, s.SessionCountJetbrains)
+				ok, s.SessionCounts["jetbrains"])
 			return ok &&
-				s.SessionCountJetbrains == 0
+				s.SessionCounts["jetbrains"] == 0
 		}, testutil.WaitLong, testutil.IntervalFast,
 			"never saw stats after conn closes",
 		)
@@ -961,9 +961,20 @@ func TestAgent_Session_TTY_QuietLogin(t *testing.T) {
 
 	// Only the MOTD should be silenced when hushlogin is present.
 	t.Run("Hushlogin", func(t *testing.T) {
+		// The agent writes banners and the MOTD before starting the
+		// login shell. The working theory is that, under CI contention,
+		// the host login shell can stall during startup and fail to
+		// process the PTY exit command, leaving session.Wait blocked.
+		// Use a self-terminating test shell so unrelated host-shell
+		// behavior cannot block the quiet-login assertions.
+		shellPath := filepath.Join(t.TempDir(), "shell")
+		//nolint:gosec // Executable test shell with test-controlled content.
+		err := os.WriteFile(shellPath, []byte("#!/bin/sh\nexit 0\n"), 0o700)
+		require.NoError(t, err, "write test shell")
+
 		session := setupSSHSession(t, agentsdk.Manifest{
 			MOTDFile: motdPath,
-		}, codersdk.ServiceBannerConfig{
+		}, codersdk.BannerConfig{
 			Enabled: true,
 			Message: wantServiceBanner,
 		}, func(fs afero.Fs) {
@@ -974,6 +985,8 @@ func TestAgent_Session_TTY_QuietLogin(t *testing.T) {
 			// isQuietLogin lookup succeeds and showMOTD is skipped.
 			err = afero.WriteFile(fs, hushloginPath, []byte{}, 0o600)
 			require.NoError(t, err, "write hushlogin file")
+		}, func(_ *agenttest.Client, opts *agent.Options) {
+			opts.EnvInfo = shellOverrideEnvInfo{shell: shellPath}
 		})
 		err = session.RequestPty("xterm", 128, 128, ssh.TerminalModes{})
 		require.NoError(t, err)
@@ -981,23 +994,13 @@ func TestAgent_Session_TTY_QuietLogin(t *testing.T) {
 		stdout := testutil.NewWaitBuffer()
 
 		session.Stdout = stdout
-		stdin, err := session.StdinPipe()
-		require.NoError(t, err)
 		require.NoError(t, session.Shell())
 
 		ctx := testutil.Context(t, testutil.WaitShort)
-		context.AfterFunc(ctx, func() { _ = session.Close() })
-
-		testutil.Go(t, func() {
-			for {
-				if _, err := stdin.Write([]byte("exit 0\n")); err != nil {
-					return
-				}
-				time.Sleep(testutil.IntervalFast)
-			}
-		})
+		stopClose := context.AfterFunc(ctx, func() { _ = session.Close() })
 
 		err = session.Wait()
+		stopClose()
 		require.NoError(t, err)
 
 		require.Contains(t, stdout.String(), wantServiceBanner, "should show service banner")

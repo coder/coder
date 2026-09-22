@@ -283,12 +283,12 @@ type SelectorQuery<T> = {
 	readonly isLoading: boolean;
 };
 
-interface ModelSelectorState {
+type ModelSelectorState = {
 	readonly options: readonly ModelSelectorOption[];
 	readonly isModelCatalogLoading: boolean;
 	readonly modelCatalog: TypesGen.OrganizationChatModelsResponse | undefined;
 	readonly hasConfiguredModels: boolean;
-}
+};
 
 // Provider identity comes from a separate query (userProviderModels).
 // Folding both loading states into one flag here spares every caller the
@@ -340,6 +340,42 @@ export function resolveCompactionThreshold(
 		return userOverride.threshold_percent;
 	}
 	return model.compression_threshold;
+}
+
+/**
+ * Context window the compaction trigger is measured against. Mirrors the
+ * backend: when the organization routes compaction to an override model,
+ * the history must also fit that model's window, so the smaller of the
+ * two limits wins. Returns 0 when neither limit is known.
+ */
+export function resolveCompactionContextLimit(
+	model: TypesGen.ChatModel,
+	models: readonly TypesGen.ChatModel[],
+	compactionModelIDByOrganization: ReadonlyMap<string, string>,
+): number {
+	const chatLimit = model.context_limit > 0 ? model.context_limit : 0;
+	const overrideID = compactionModelIDByOrganization.get(model.organization_id);
+	const overrideLimit =
+		models.find((candidate) => candidate.id === overrideID)?.context_limit ?? 0;
+	if (overrideLimit > 0 && (chatLimit <= 0 || overrideLimit < chatLimit)) {
+		return overrideLimit;
+	}
+	return chatLimit;
+}
+
+/**
+ * Token count at which compaction triggers for the given context window and
+ * threshold, or undefined when the window is unknown or compaction is
+ * disabled (100%).
+ */
+export function compactionTriggerTokens(
+	contextLimit: number,
+	thresholdPercent: number,
+): number | undefined {
+	if (contextLimit <= 0 || thresholdPercent >= 100) {
+		return undefined;
+	}
+	return Math.round((contextLimit * thresholdPercent) / 100);
 }
 
 export const getModelSelectorPlaceholder = (

@@ -70,11 +70,12 @@ const (
 type aiGatewayRoundTripper struct {
 	base         http.RoundTripper
 	apiKeyID     string
+	attribution  aibridge.Attribution
 	providerAuth aiGatewayProviderAuth
 }
 
 func (t *aiGatewayRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
-	ctx := aibridge.WithDelegatedAPIKeyID(req.Context(), t.apiKeyID)
+	ctx := aibridge.WithDelegatedAttribution(aibridge.WithDelegatedAPIKeyID(req.Context(), t.apiKeyID), t.attribution)
 	cloned := req.Clone(ctx)
 	for name, value := range t.providerAuth.Headers {
 		cloned.Header.Set(name, value)
@@ -144,6 +145,12 @@ func (p *Server) newModel(
 		)
 	}
 
+	// Use the trusted workspace binding already persisted on the chat.
+	attr := aibridge.Attribution{}
+	if req.Chat.WorkspaceID.Valid {
+		attr.WorkspaceID = req.Chat.WorkspaceID.UUID
+	}
+
 	factoryPtr := p.aibridgeTransportFactory
 	if factoryPtr == nil {
 		return chatprovider.Model{}, xerrors.New("AI Gateway transport factory is not configured")
@@ -159,6 +166,7 @@ func (p *Server) newModel(
 	baseRT := http.RoundTripper(&aiGatewayRoundTripper{
 		base:         rt,
 		apiKeyID:     opts.ActiveAPIKeyID,
+		attribution:  attr,
 		providerAuth: route.ProviderAuth,
 	})
 	if opts.RecordHTTP {
@@ -178,6 +186,8 @@ func (p *Server) newModel(
 		openAIConfig.UseResponsesAPI = &force
 	}
 	extraHeaders := mergeConfigBetaHeaders(req.ExtraHeaders, config.ProviderHint, req.CallConfig)
+	callConfig := req.CallConfig
+	callConfig.OpenAIConfig = openAIConfig
 	return newLanguageModel(
 		config.ProviderHint,
 		req.ModelName,
@@ -185,7 +195,7 @@ func (p *Server) newModel(
 		req.UserAgent,
 		extraHeaders,
 		&http.Client{Transport: baseRT},
-		openAIConfig,
+		&callConfig,
 	)
 }
 
