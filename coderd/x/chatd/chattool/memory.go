@@ -107,14 +107,8 @@ func UpsertProjectMemory(ctx context.Context, db database.Store, params database
 	return memory, err
 }
 
-// MemoryScope identifies the project whose durable memory a chat uses.
-type MemoryScope struct {
-	Label string
-}
-
-// Intro explains the durable-memory scope to the model.
-func (s MemoryScope) Intro() string {
-	return fmt.Sprintf("Memory is durable context shared by every chat in the project %q.", s.Label)
+func memoryIntro(projectName string) string {
+	return fmt.Sprintf("Memory is durable context shared by every chat in the project %q.", projectName)
 }
 
 // Memory is a durable memory with its provenance.
@@ -261,28 +255,22 @@ func normalizeMemoryInput(name, description, body string) (MemoryInput, error) {
 	return MemoryInput{Name: name, Description: description, Body: body}, nil
 }
 
-// Guidance tells the model what belongs in durable memory.
-func (MemoryScope) Guidance() string {
-	return projectMemoryGuidance + "\n" + sharedMemoryGuidance
-}
-
-const (
-	projectMemoryGuidance = "Save facts that will matter in future chats: who the people on this project are and how they like to work; " +
-		"corrections you received and approaches that were explicitly confirmed; ongoing work, deadlines, and decisions that cannot be derived from the code or git history; " +
-		"and where to find information outside the project, such as an issue tracker or dashboard."
-	sharedMemoryGuidance = "Save a memory as soon as durable information surfaces, without waiting to be asked. " +
-		"Do not save anything derivable from the codebase (architecture, file paths, debugging fixes), anything already stated in instructions, or temporary in-progress state. " +
-		"Never save that something is unknown or undecided. " +
-		"When a question might be answered by a memory in the index, call read_memory before answering or asking the user. " +
-		"Memories may be stale or wrong; verify before relying on one and update or delete it when it no longer holds."
-)
+// memoryGuidance tells the model what belongs in durable memory.
+const memoryGuidance = "Save facts that will matter in future chats: who the people on this project are and how they like to work; " +
+	"corrections you received and approaches that were explicitly confirmed; ongoing work, deadlines, and decisions that cannot be derived from the code or git history; " +
+	"and where to find information outside the project, such as an issue tracker or dashboard.\n" +
+	"Save a memory as soon as durable information surfaces, without waiting to be asked. " +
+	"Do not save anything derivable from the codebase (architecture, file paths, debugging fixes), anything already stated in instructions, or temporary in-progress state. " +
+	"Never save that something is unknown or undecided. " +
+	"When a question might be answered by a memory in the index, call read_memory before answering or asking the user. " +
+	"Memories may be stale or wrong; verify before relying on one and update or delete it when it no longer holds."
 
 // FormatMemoryGuidance renders the stable durable-memory prompt block. It
 // carries no per-turn state so the system prompt prefix stays identical
 // across turns and remains cacheable; the live index is in the read tool's
 // description instead.
-func FormatMemoryGuidance(scope MemoryScope) string {
-	return "<memory>\n" + scope.Intro() + "\n" + scope.Guidance() + "\n</memory>"
+func FormatMemoryGuidance(projectName string) string {
+	return "<memory>\n" + memoryIntro(projectName) + "\n" + memoryGuidance + "\n</memory>"
 }
 
 // FormatMemoryIndexForTool renders the compact memory index for read_memory.
@@ -327,7 +315,7 @@ type deleteMemoryArgs struct {
 }
 
 // ReadMemory returns a tool that reads a full memory body.
-func ReadMemory(store MemoryStore, _ MemoryScope, entries []MemoryIndexEntry) fantasy.AgentTool {
+func ReadMemory(store MemoryStore, entries []MemoryIndexEntry) fantasy.AgentTool {
 	return fantasy.NewAgentTool(ReadMemoryToolName, "Read a memory by name. "+FormatMemoryIndexForTool(entries), func(ctx context.Context, args readMemoryArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
 		if store == nil {
 			return fantasy.NewTextErrorResponse("memory store is not configured"), nil
@@ -345,8 +333,8 @@ func ReadMemory(store MemoryStore, _ MemoryScope, entries []MemoryIndexEntry) fa
 }
 
 // SaveMemory returns a tool that upserts a durable memory.
-func SaveMemory(store MemoryStore, scope MemoryScope) fantasy.AgentTool {
-	return fantasy.NewAgentTool(SaveMemoryToolName, "Save or update a durable memory by name. Scope: "+scope.Intro(), func(ctx context.Context, args saveMemoryArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
+func SaveMemory(store MemoryStore, projectName string) fantasy.AgentTool {
+	return fantasy.NewAgentTool(SaveMemoryToolName, "Save or update a durable memory by name. "+memoryIntro(projectName), func(ctx context.Context, args saveMemoryArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
 		if store == nil {
 			return fantasy.NewTextErrorResponse("memory store is not configured"), nil
 		}
@@ -372,8 +360,8 @@ func SaveMemory(store MemoryStore, scope MemoryScope) fantasy.AgentTool {
 }
 
 // DeleteMemory returns a tool that deletes a durable memory.
-func DeleteMemory(store MemoryStore, scope MemoryScope) fantasy.AgentTool {
-	return fantasy.NewAgentTool(DeleteMemoryToolName, "Delete a durable memory by name. Scope: "+scope.Intro(), func(ctx context.Context, args deleteMemoryArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
+func DeleteMemory(store MemoryStore, projectName string) fantasy.AgentTool {
+	return fantasy.NewAgentTool(DeleteMemoryToolName, "Delete a durable memory by name. "+memoryIntro(projectName), func(ctx context.Context, args deleteMemoryArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
 		if store == nil {
 			return fantasy.NewTextErrorResponse("memory store is not configured"), nil
 		}
