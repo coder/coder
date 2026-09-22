@@ -235,7 +235,8 @@ func TestMemberRolesExcludeWorkspacePerms(t *testing.T) {
 	require.False(t, hasResource(member.Member, rbac.ResourceWorkspace.Type), "organization-member must not grant workspace permissions")
 	require.True(t, hasResource(member.Member, rbac.ResourceOrganizationMember.Type), "organization-member should grant read-self")
 	require.True(t, hasResource(member.Member, rbac.ResourceChat.Type), "organization-member should grant chat access")
-	require.True(t, hasResource(member.Member, rbac.ResourceChatProjectMemory.Type), "organization-member should grant chat project memory access")
+	require.False(t, hasResource(member.Member, rbac.ResourceChatProject.Type), "organization-member must not grant chat project access")
+	require.False(t, hasResource(member.Member, rbac.ResourceChatProjectMemory.Type), "organization-member must not grant chat project memory access")
 
 	sa := rbac.OrgServiceAccountPermissions(orgSettings)
 	require.False(t, hasResource(sa.Member, rbac.ResourceWorkspace.Type), "organization-service-account must not grant workspace permissions")
@@ -250,6 +251,10 @@ func TestMemberRolesExcludeWorkspacePerms(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, hasResource(wsAccess.ByOrgID[orgID.String()].Member, rbac.ResourceWorkspace.Type),
 		"organization-workspace-access should grant workspace permissions")
+	require.True(t, hasResource(wsAccess.ByOrgID[orgID.String()].Member, rbac.ResourceChatProject.Type),
+		"organization-workspace-access should grant chat project access")
+	require.True(t, hasResource(wsAccess.ByOrgID[orgID.String()].Member, rbac.ResourceChatProjectMemory.Type),
+		"organization-workspace-access should grant chat project memory access")
 }
 
 // These were "pared down" in https://github.com/coder/coder/pull/21359 to avoid
@@ -1413,8 +1418,8 @@ func TestRolePermissions(t *testing.T) {
 			Actions:  []policy.Action{policy.ActionRead},
 			Resource: rbac.ResourceChatProject.WithID(uuid.New()).InOrg(orgID).WithOwner(currentUser.String()),
 			AuthorizeMap: map[bool][]hasAuthSubjects{
-				true:  {owner, orgAdmin, orgMemberMe},
-				false: {setOtherOrg, memberMe, userAdmin, templateAdmin, orgTemplateAdmin, orgUserAdmin, orgAuditor, orgWorkspaceAccessUser},
+				true:  {owner, orgAdmin, orgWorkspaceAccessUser},
+				false: {setOtherOrg, memberMe, orgMemberMe, userAdmin, templateAdmin, orgTemplateAdmin, orgUserAdmin, orgAuditor},
 			},
 		},
 		{
@@ -1432,8 +1437,8 @@ func TestRolePermissions(t *testing.T) {
 			Actions:  []policy.Action{policy.ActionCreate},
 			Resource: rbac.ResourceChatProject.WithID(uuid.New()).InOrg(orgID).WithOwner(currentUser.String()),
 			AuthorizeMap: map[bool][]hasAuthSubjects{
-				true:  {owner, orgAdmin, orgMemberMe},
-				false: {setOtherOrg, memberMe, userAdmin, templateAdmin, orgTemplateAdmin, orgUserAdmin, orgAuditor, orgWorkspaceAccessUser},
+				true:  {owner, orgAdmin, orgWorkspaceAccessUser},
+				false: {setOtherOrg, memberMe, orgMemberMe, userAdmin, templateAdmin, orgTemplateAdmin, orgUserAdmin, orgAuditor},
 			},
 		},
 		{
@@ -1441,8 +1446,8 @@ func TestRolePermissions(t *testing.T) {
 			Actions:  []policy.Action{policy.ActionUpdate, policy.ActionDelete},
 			Resource: rbac.ResourceChatProject.WithID(uuid.New()).InOrg(orgID).WithOwner(currentUser.String()),
 			AuthorizeMap: map[bool][]hasAuthSubjects{
-				true:  {owner, orgAdmin, orgMemberMe},
-				false: {setOtherOrg, memberMe, userAdmin, templateAdmin, orgTemplateAdmin, orgUserAdmin, orgAuditor, orgWorkspaceAccessUser},
+				true:  {owner, orgAdmin, orgWorkspaceAccessUser},
+				false: {setOtherOrg, memberMe, orgMemberMe, userAdmin, templateAdmin, orgTemplateAdmin, orgUserAdmin, orgAuditor},
 			},
 		},
 		{
@@ -1452,8 +1457,8 @@ func TestRolePermissions(t *testing.T) {
 			Actions:  []policy.Action{policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
 			Resource: rbac.ResourceChatProjectMemory.WithID(uuid.New()).InOrg(orgID).WithOwner(currentUser.String()),
 			AuthorizeMap: map[bool][]hasAuthSubjects{
-				true:  {owner, orgAdmin, orgMemberMe},
-				false: {setOtherOrg, memberMe, userAdmin, templateAdmin, orgTemplateAdmin, orgUserAdmin, orgAuditor, orgWorkspaceAccessUser},
+				true:  {owner, orgAdmin, orgWorkspaceAccessUser},
+				false: {setOtherOrg, memberMe, orgMemberMe, userAdmin, templateAdmin, orgTemplateAdmin, orgUserAdmin, orgAuditor},
 			},
 		},
 		{

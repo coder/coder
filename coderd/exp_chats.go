@@ -29,7 +29,6 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/agent/agentssh"
-	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/cryptokeys"
 	"github.com/coder/coder/v2/coderd/database"
@@ -478,7 +477,7 @@ func (api *API) listChats(rw http.ResponseWriter, r *http.Request) {
 	if rawProjectID := r.URL.Query().Get("project_id"); rawProjectID != "" {
 		// Ignoring the filter would return every chat as if it were the
 		// project's contents, so reject it like create and update do.
-		if !api.Experiments.Enabled(codersdk.ExperimentChatProjects) && !buildinfo.IsDev() {
+		if !api.Experiments.Enabled(codersdk.ExperimentChatProjects) {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{Message: "chat projects experiment is not enabled"})
 			return
 		}
@@ -1339,7 +1338,7 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	if req.ProjectID != nil && !api.Experiments.Enabled(codersdk.ExperimentChatProjects) && !buildinfo.IsDev() {
+	if req.ProjectID != nil && !api.Experiments.Enabled(codersdk.ExperimentChatProjects) {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{Message: "chat projects experiment is not enabled"})
 		return
 	}
@@ -2367,7 +2366,7 @@ func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
 	// project cannot leave a partially applied update behind.
 	var projectUpdate *uuid.NullUUID
 	if req.ProjectID != nil {
-		if !api.Experiments.Enabled(codersdk.ExperimentChatProjects) && !buildinfo.IsDev() {
+		if !api.Experiments.Enabled(codersdk.ExperimentChatProjects) {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{Message: "chat projects experiment is not enabled"})
 			return
 		}
