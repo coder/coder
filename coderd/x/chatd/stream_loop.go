@@ -2,7 +2,9 @@ package chatd
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
+	"errors"
 	"net/http"
 
 	"github.com/google/uuid"
@@ -147,9 +149,16 @@ func (l *streamLoop) loadDBSnapshot(ctx context.Context) (streamDBSnapshot, erro
 		snapshot.chat = chat
 
 		if chat.HistoryVersion > l.state.historyVersion {
+			afterRevision := l.state.historyVersion
+			if !l.state.initialMessageSyncDone && l.state.afterMessageID > 0 {
+				afterRevision, err = l.initialAfterRevision(ctx, tx)
+				if err != nil {
+					return err
+				}
+			}
 			snapshot.changedMessages, err = tx.GetChatMessagesByRevisionForStream(ctx, database.GetChatMessagesByRevisionForStreamParams{
 				ChatID:        l.chatID,
-				AfterRevision: l.state.historyVersion,
+				AfterRevision: afterRevision,
 			})
 			if err != nil {
 				return xerrors.Errorf("get changed chat messages: %w", err)
@@ -201,6 +210,25 @@ func (l *streamLoop) loadDBSnapshot(ctx context.Context) (streamDBSnapshot, erro
 		return streamDBSnapshot{}, err
 	}
 	return snapshot, nil
+}
+
+// initialAfterRevision bounds the first message fetch to what a client
+// holding afterMessageID can be missing. Rows the client already has were
+// committed at or before that message's revision, and an edit truncating
+// any of them soft-deletes the cursor row itself. A cursor that is gone
+// falls back to the full scan so the deletion surfaces as a history reset.
+func (l *streamLoop) initialAfterRevision(ctx context.Context, tx database.Store) (int64, error) {
+	cursor, err := tx.GetChatMessageByID(ctx, l.state.afterMessageID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return 0, nil
+		}
+		return 0, xerrors.Errorf("get stream cursor message: %w", err)
+	}
+	if cursor.ChatID != l.chatID {
+		return 0, nil
+	}
+	return cursor.Revision - 1, nil
 }
 
 func (*streamLoop) actionRequiredFromHistory(chat database.Chat, messages []database.ChatMessage) (*codersdk.ChatStreamActionRequired, error) {

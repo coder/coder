@@ -10050,6 +10050,50 @@ func TestStreamChat(t *testing.T) {
 		}
 	})
 
+	t.Run("AfterID", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModel(t, client)
+
+		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
+			Content: []codersdk.ChatInputPart{
+				{Type: codersdk.ChatInputPartTypeText, Text: "stream chat after_id cursor"},
+			},
+		})
+		require.NoError(t, err)
+
+		page, err := client.GetChatMessages(ctx, chat.ID, nil)
+		require.NoError(t, err)
+		require.NotEmpty(t, page.Messages)
+		afterID := page.Messages[0].ID
+
+		events, closer, err := client.StreamChat(ctx, chat.ID, &codersdk.StreamChatOptions{AfterID: &afterID})
+		require.NoError(t, err)
+		defer closer.Close()
+
+		// The snapshot emits its messages before its status event, so any
+		// replay of the cursor row would have arrived by then.
+		for {
+			select {
+			case <-ctx.Done():
+				require.FailNow(t, "timed out waiting for the snapshot status event")
+			case event, ok := <-events:
+				require.True(t, ok, "stream closed before the snapshot status event")
+				require.NotEqual(t, codersdk.ChatStreamEventTypeError, event.Type)
+				if event.Type == codersdk.ChatStreamEventTypeMessage {
+					require.Greater(t, event.Message.ID, afterID)
+				}
+				if event.Type == codersdk.ChatStreamEventTypeStatus {
+					return
+				}
+			}
+		}
+	})
+
 	t.Run("Unauthenticated", func(t *testing.T) {
 		t.Parallel()
 

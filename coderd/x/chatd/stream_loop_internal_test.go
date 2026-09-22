@@ -1,6 +1,7 @@
 package chatd
 
 import (
+	"database/sql"
 	"encoding/json"
 	"testing"
 	"time"
@@ -318,6 +319,103 @@ func TestStreamLoopInitialSyncRecoversWithoutHint(t *testing.T) {
 	require.True(t, changed)
 	requireEventTypes(t, events, codersdk.ChatStreamEventTypeStatus)
 	require.Equal(t, codersdk.ChatStatusWaiting, events[0].Status.Status)
+}
+
+func TestStreamLoopInitialSyncBoundsFetchToCursorRevision(t *testing.T) {
+	t.Parallel()
+
+	newLockedTx := func(t *testing.T, chatID uuid.UUID, chat database.Chat) (*dbmock.MockStore, *dbmock.MockStore) {
+		t.Helper()
+		ctrl := gomock.NewController(t)
+		db := dbmock.NewMockStore(ctrl)
+		tx := dbmock.NewMockStore(ctrl)
+		db.EXPECT().InTx(gomock.Any(), nil).DoAndReturn(
+			func(fn func(database.Store) error, _ *database.TxOptions) error { return fn(tx) },
+		)
+		tx.EXPECT().GetChatByIDForShare(gomock.Any(), chatID).Return(chat, nil)
+		tx.EXPECT().GetChatByID(gomock.Any(), chatID).Return(chat, nil)
+		return db, tx
+	}
+
+	t.Run("CursorPresent", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		chatID := uuid.New()
+		chat := database.Chat{
+			ID:              chatID,
+			Status:          database.ChatStatusWaiting,
+			SnapshotVersion: 9,
+			HistoryVersion:  9,
+		}
+		db, tx := newLockedTx(t, chatID, chat)
+		loop := newStreamLoop(chat, db, slogtest.Make(t, nil), 7)
+
+		cursor := streamMessage(t, chatID, 7, 5, database.ChatMessageRoleUser, "already seen", false)
+		tx.EXPECT().GetChatMessageByID(gomock.Any(), int64(7)).Return(cursor, nil)
+		// Only revisions from the cursor onward are read; the rest of the
+		// transcript is never loaded.
+		tx.EXPECT().GetChatMessagesByRevisionForStream(gomock.Any(), database.GetChatMessagesByRevisionForStreamParams{
+			ChatID:        chatID,
+			AfterRevision: 4,
+		}).Return([]database.ChatMessage{
+			cursor,
+			streamMessage(t, chatID, 8, 9, database.ChatMessageRoleAssistant, "new", false),
+		}, nil)
+
+		events, _, changed, err := loop.syncDB(ctx)
+		require.NoError(t, err)
+		require.True(t, changed)
+		requireEventTypes(t, events,
+			codersdk.ChatStreamEventTypeMessage,
+			codersdk.ChatStreamEventTypeStatus,
+			codersdk.ChatStreamEventTypePreviewReset,
+		)
+		require.Equal(t, int64(8), events[0].Message.ID)
+	})
+
+	t.Run("CursorDeleted", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		chatID := uuid.New()
+		chat := database.Chat{
+			ID:              chatID,
+			Status:          database.ChatStatusWaiting,
+			SnapshotVersion: 9,
+			HistoryVersion:  9,
+		}
+		db, tx := newLockedTx(t, chatID, chat)
+		loop := newStreamLoop(chat, db, slogtest.Make(t, nil), 7)
+
+		// An edit truncated the client's cursor, so the full scan runs and
+		// the deletion surfaces as a history reset.
+		tx.EXPECT().GetChatMessageByID(gomock.Any(), int64(7)).Return(database.ChatMessage{}, sql.ErrNoRows)
+		tx.EXPECT().GetChatMessagesByRevisionForStream(gomock.Any(), database.GetChatMessagesByRevisionForStreamParams{
+			ChatID:        chatID,
+			AfterRevision: 0,
+		}).Return([]database.ChatMessage{
+			streamMessage(t, chatID, 6, 5, database.ChatMessageRoleUser, "kept", false),
+			streamMessage(t, chatID, 7, 9, database.ChatMessageRoleUser, "deleted", true),
+		}, nil)
+		tx.EXPECT().GetChatMessagesByChatID(gomock.Any(), database.GetChatMessagesByChatIDParams{
+			ChatID:  chatID,
+			AfterID: 0,
+		}).Return([]database.ChatMessage{
+			streamMessage(t, chatID, 6, 5, database.ChatMessageRoleUser, "kept", false),
+		}, nil)
+
+		events, _, changed, err := loop.syncDB(ctx)
+		require.NoError(t, err)
+		require.True(t, changed)
+		requireEventTypes(t, events,
+			codersdk.ChatStreamEventTypeHistoryReset,
+			codersdk.ChatStreamEventTypeMessage,
+			codersdk.ChatStreamEventTypeStatus,
+			codersdk.ChatStreamEventTypePreviewReset,
+		)
+		require.Equal(t, int64(6), events[1].Message.ID)
+	})
 }
 
 func requireEventTypes(t *testing.T, events []codersdk.ChatStreamEvent, types ...codersdk.ChatStreamEventType) {
