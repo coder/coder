@@ -162,6 +162,50 @@ describe("useChatContext", () => {
 		expect(API.experimental.refreshChatContext).not.toHaveBeenCalled();
 	});
 
+	it.each([0, 100])(
+		"retains known settings at %i%% before the first message or context snapshot",
+		async (threshold) => {
+			const { queryClient, inspect, onInspect } = setup({
+				chat: MockChat,
+				chatMessages: [],
+			});
+			await act(async () => {
+				queryClient.setQueryData(userCompactionThresholds().queryKey, {
+					thresholds: [
+						{ model_config_id: chatModel.id, threshold_percent: threshold },
+					],
+				});
+			});
+			await inspect();
+			expect(onInspect).toHaveBeenLastCalledWith(
+				expect.objectContaining({
+					contextUsage: {
+						contextLimitTokens: 100000,
+						compressionThreshold: threshold,
+						context: undefined,
+					},
+					onApplyContext: undefined,
+				}),
+			);
+			expect(API.experimental.refreshChatContext).not.toHaveBeenCalled();
+		},
+	);
+
+	it("returns no usage when both context and settings are unknown", async () => {
+		const { inspect, onInspect } = setup({
+			chat: MockChat,
+			chatMessages: [],
+			models: [],
+		});
+		await inspect();
+		expect(onInspect).toHaveBeenLastCalledWith(
+			expect.objectContaining({
+				contextUsage: null,
+				onApplyContext: undefined,
+			}),
+		);
+	});
+
 	it("observes invalidated snapshots without applying context on mount or refetch", async () => {
 		const { queryClient, inspect, onInspect } = setup();
 		const updatedChat = {

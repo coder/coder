@@ -70,16 +70,20 @@ export const useChatContext = ({
 	const contextLimitTokens =
 		contextLimit && contextLimit > 0 ? contextLimit : undefined;
 	const rawUsage = getLatestContextUsage(messages, contextLimitTokens);
+	const compressionThreshold = resolveCompactionThreshold(
+		observedChat.last_model_config_id,
+		thresholdsQuery.data?.thresholds,
+		models,
+	);
 	const contextUsage: AgentContextUsage | null =
-		rawUsage || observedChat.context
+		rawUsage ||
+		observedChat.context ||
+		contextLimitTokens !== undefined ||
+		compressionThreshold !== undefined
 			? {
 					...rawUsage,
 					contextLimitTokens,
-					compressionThreshold: resolveCompactionThreshold(
-						observedChat.last_model_config_id,
-						thresholdsQuery.data?.thresholds,
-						models,
-					),
+					compressionThreshold,
 					context: observedChat.context,
 				}
 			: null;
