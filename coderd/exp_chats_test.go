@@ -10241,9 +10241,8 @@ func TestPatchChatMessage(t *testing.T) {
 	})
 }
 
-// readStreamChatSnapshot collects the initial stream snapshot. The snapshot
-// emits its messages before its status event, so every replayed row has
-// arrived once the status event is observed.
+// readStreamChatSnapshot reads through the initial status event, which
+// follows replayed messages.
 func readStreamChatSnapshot(ctx context.Context, t *testing.T, events <-chan codersdk.ChatStreamEvent) []codersdk.ChatStreamEvent {
 	t.Helper()
 	var snapshot []codersdk.ChatStreamEvent
@@ -10397,9 +10396,6 @@ func TestStreamChat(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		// The edit soft-deletes the original in the same transaction that
-		// inserts its replacement. A client that loaded the edited history
-		// must not get the transcript replayed because of those tombstones.
 		afterID := edited.Message.ID
 		events, closer, err := client.StreamChat(ctx, chat.ID, &codersdk.StreamChatOptions{AfterID: &afterID})
 		require.NoError(t, err)
@@ -10428,9 +10424,6 @@ func TestStreamChat(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		// A cursor no row ever had cannot be resolved to a revision, so the
-		// snapshot falls back to the unbounded scan. It still opens and
-		// reaches its status event without an error or a spurious reset.
 		afterID := int64(1 << 40)
 		events, closer, err := client.StreamChat(ctx, chat.ID, &codersdk.StreamChatOptions{AfterID: &afterID})
 		require.NoError(t, err)
@@ -10472,8 +10465,6 @@ func TestStreamChat(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		// The foreign cursor precedes every row of this chat, so the whole
-		// history must still arrive and nothing from the other chat may.
 		afterID := otherPage.Messages[0].ID
 		events, closer, err := client.StreamChat(ctx, chat.ID, &codersdk.StreamChatOptions{AfterID: &afterID})
 		require.NoError(t, err)

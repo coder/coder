@@ -243,12 +243,9 @@ func (l *streamLoop) historyResetRequired(changed []database.ChatMessage) bool {
 	return idx < 0 || changed[idx].Deleted
 }
 
-// initialSyncCursor loads the live row a client holds as afterMessageID so
-// the first fetch can start at its revision. Rows the client already has
-// were committed at or before that revision, and an edit truncating any of
-// them soft-deletes the cursor row itself. A cursor that is gone, unknown,
-// or from another chat reports false so the full scan surfaces the deletion
-// as a history reset.
+// initialSyncCursor resolves afterMessageID to bound the first fetch by
+// revision. Missing or foreign cursors use an unbounded scan so deletions can
+// trigger a history reset.
 func (l *streamLoop) initialSyncCursor(ctx context.Context, tx database.Store) (database.ChatMessage, bool, error) {
 	cursor, err := tx.GetChatMessageByID(ctx, l.state.afterMessageID)
 	if err != nil {
