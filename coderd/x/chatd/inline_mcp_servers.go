@@ -3,8 +3,6 @@ package chatd
 import (
 	"context"
 	"encoding/json"
-	"maps"
-	"slices"
 
 	"github.com/google/uuid"
 
@@ -77,13 +75,6 @@ func (server *Server) loadInlineMCPServers(ctx context.Context, chat database.Ch
 			})
 			continue
 		}
-		// URL first, then header values in name order, so the list is a
-		// deterministic projection of the row.
-		sensitive := make([]string, 0, 1+len(headers))
-		sensitive = append(sensitive, row.Url)
-		for _, name := range slices.Sorted(maps.Keys(headers)) {
-			sensitive = append(sensitive, headers[name])
-		}
 		servers = append(servers, inlineMCPServer{
 			Server: mcpclient.Server{
 				ID:                  row.ID,
@@ -94,7 +85,6 @@ func (server *Server) loadInlineMCPServers(ctx context.Context, chat database.Ch
 				ForwardCoderHeaders: row.ForwardCoderHeaders,
 				ToolAllowList:       row.ToolAllowList,
 				ToolDenyList:        row.ToolDenyList,
-				SensitiveValues:     sensitive,
 			},
 			AllowInPlanMode: row.AllowInPlanMode,
 		})

@@ -356,6 +356,7 @@ A declaration that repeats a name with different casing is rejected.
 
 Header values are encrypted at rest when [database encryption](../../../admin/security/database-encryption.md) is configured.
 The URL and header values are redacted from every string the model sees, including tool descriptions and tool results.
+For a header value such as `Bearer <token>`, the token alone is also redacted.
 Header names are not secret; the read-back endpoint returns them.
 
 Tool calls are at-least-once.

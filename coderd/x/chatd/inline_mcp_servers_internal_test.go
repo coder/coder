@@ -79,15 +79,11 @@ func TestLoadInlineMCPServers(t *testing.T) {
 		}, bySlug["shared"].Server.Headers)
 		require.Equal(t, []string{"echo"}, bySlug["shared"].Server.ToolAllowList)
 		require.True(t, bySlug["shared"].AllowInPlanMode)
-		require.Equal(t, []string{
-			"https://shared.example.com/mcp", "Bearer token", "bot-secret",
-		}, bySlug["shared"].Server.SensitiveValues)
 
 		require.Equal(t, rootOnly.ID, bySlug["root-only"].Server.ID)
 		require.Empty(t, bySlug["root-only"].Server.Headers)
 		require.True(t, bySlug["root-only"].Server.ForwardCoderHeaders)
 		require.False(t, bySlug["root-only"].AllowInPlanMode)
-		require.Equal(t, []string{"https://root.example.com/mcp"}, bySlug["root-only"].Server.SensitiveValues)
 	})
 
 	t.Run("ChildKeepsAllowInSubagents", func(t *testing.T) {
