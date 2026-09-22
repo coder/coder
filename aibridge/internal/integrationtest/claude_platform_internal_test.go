@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -33,25 +35,82 @@ const claudePlatformWorkspaceID = "wrkspc_config"
 // claudePlatformCfg returns a Claude Platform for AWS config pointing at the
 // given URL. The base URL override keeps both bridged and passthrough routes
 // on the mock upstream while the signing scope stays region-based.
-func claudePlatformCfg(url string, authMode config.ClaudePlatformAuthMode) *config.AWSClaudePlatform {
-	cfg := &config.AWSClaudePlatform{
-		AuthMode:    authMode,
+func claudePlatformCfg(url string) *config.AWSClaudePlatform {
+	return &config.AWSClaudePlatform{
 		Region:      "us-west-2",
 		WorkspaceID: claudePlatformWorkspaceID,
 		BaseURL:     url,
 	}
-	if authMode == config.ClaudePlatformAuthModeIAM {
-		cfg.AccessKey = "test-access-key"
-		cfg.AccessKeySecret = "test-secret-key"
-	}
-	return cfg
 }
 
-// TestClaudePlatformIntegration covers Anthropic's AWS-hosted Messages API.
+func setFakeAWSChain(t *testing.T) {
+	t.Helper()
+	configDir := t.TempDir()
+	t.Setenv("AWS_ACCESS_KEY_ID", "test-access-key")
+	t.Setenv("AWS_SECRET_ACCESS_KEY", "test-secret-key")
+	t.Setenv("AWS_SESSION_TOKEN", "test-session-token")
+	t.Setenv("AWS_PROFILE", "")
+	t.Setenv("AWS_CONFIG_FILE", filepath.Join(configDir, "config"))
+	t.Setenv("AWS_SHARED_CREDENTIALS_FILE", filepath.Join(configDir, "credentials"))
+	t.Setenv("AWS_WEB_IDENTITY_TOKEN_FILE", "")
+	t.Setenv("AWS_ROLE_ARN", "")
+	t.Setenv("AWS_ROLE_SESSION_NAME", "")
+	t.Setenv("AWS_CONTAINER_CREDENTIALS_RELATIVE_URI", "")
+	t.Setenv("AWS_CONTAINER_CREDENTIALS_FULL_URI", "")
+	t.Setenv("AWS_CONTAINER_AUTHORIZATION_TOKEN", "")
+	t.Setenv("AWS_EC2_METADATA_DISABLED", "true")
+}
+
+func TestClaudePlatformLive(t *testing.T) {
+	t.Parallel()
+	// Run with CODER_TEST_CLAUDE_PLATFORM_LIVE=1 and set
+	// CLAUDE_PLATFORM_LIVE_REGION, CLAUDE_PLATFORM_LIVE_WORKSPACE_ID, and
+	// CLAUDE_PLATFORM_LIVE_MODEL to use real ambient AWS credentials.
+	if os.Getenv("CODER_TEST_CLAUDE_PLATFORM_LIVE") != "1" {
+		t.Skip("CODER_TEST_CLAUDE_PLATFORM_LIVE=1 not set; skipping live Claude Platform test")
+	}
+
+	region := os.Getenv("CLAUDE_PLATFORM_LIVE_REGION")
+	workspaceID := os.Getenv("CLAUDE_PLATFORM_LIVE_WORKSPACE_ID")
+	model := os.Getenv("CLAUDE_PLATFORM_LIVE_MODEL")
+	if region == "" || workspaceID == "" || model == "" {
+		t.Fatalf("CLAUDE_PLATFORM_LIVE_REGION, CLAUDE_PLATFORM_LIVE_WORKSPACE_ID, and CLAUDE_PLATFORM_LIVE_MODEL are required when live testing is enabled")
+	}
+
+	ctx, cancel := context.WithTimeout(t.Context(), testutil.WaitLong*4)
+	t.Cleanup(cancel)
+	p, err := provider.NewAnthropic(ctx, config.Anthropic{}, nil, &config.AWSClaudePlatform{
+		Region:      region,
+		WorkspaceID: workspaceID,
+	})
+	require.NoError(t, err)
+	bridgeServer := newBridgeTestServer(ctx, t, "", withCustomProvider(p), withActor(defaultActorID, nil))
+
+	body := []byte(fmt.Sprintf(`{"model":%q,"max_tokens":16,"messages":[{"role":"user","content":"Say OK"}]}`, model))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, bridgeServer.URL+pathAnthropicMessages, bytes.NewReader(body))
+	require.NoError(t, err)
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := bridgeServer.Client().Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	responseBody, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, resp.StatusCode, "Claude Platform response: %s", responseBody)
+	require.Equal(t, "message", gjson.GetBytes(responseBody, "type").String())
+	require.NotEmpty(t, gjson.GetBytes(responseBody, "id").String())
+	content := gjson.GetBytes(responseBody, "content")
+	require.True(t, content.IsArray())
+	require.NotEmpty(t, content.Array())
+	require.NotEmpty(t, bridgeServer.Recorder.RecordedInterceptions())
+	bridgeServer.Recorder.VerifyAllInterceptionsEnded(t)
+}
+
 // Unlike Bedrock it speaks the native Messages wire format, so only routing and
 // authentication differ from a direct Anthropic provider.
+//
+//nolint:paralleltest,tparallel // The parent scopes AWS environment variables for parallel subtests.
 func TestClaudePlatformIntegration(t *testing.T) {
-	t.Parallel()
+	setFakeAWSChain(t)
 
 	t.Run("invalid config", func(t *testing.T) {
 		t.Parallel()
@@ -59,7 +118,7 @@ func TestClaudePlatformIntegration(t *testing.T) {
 		ctx, cancel := context.WithTimeout(t.Context(), testutil.WaitLong)
 		t.Cleanup(cancel)
 
-		cpCfg := claudePlatformCfg("http://unused", config.ClaudePlatformAuthModeIAM)
+		cpCfg := claudePlatformCfg("http://unused")
 		cpCfg.Region = ""
 
 		_, err := provider.NewAnthropic(ctx, config.Anthropic{}, nil, cpCfg)
@@ -91,7 +150,7 @@ func TestClaudePlatformIntegration(t *testing.T) {
 		require.NoError(t, err)
 		hash := sha256.Sum256(body)
 		err = v4signer.NewSigner().SignHTTP(r.Context(), aws.Credentials{
-			AccessKeyID: "test-access-key", SecretAccessKey: "test-secret-key",
+			AccessKeyID: "test-access-key", SecretAccessKey: "test-secret-key", SessionToken: "test-session-token",
 		}, verifyReq, hex.EncodeToString(hash[:]), config.ClaudePlatformSigningService, "us-west-2", signingTime)
 		require.NoError(t, err)
 		require.Equal(t, extractSigV4Field(auth, "Signature="),
@@ -119,7 +178,7 @@ func TestClaudePlatformIntegration(t *testing.T) {
 						responses = append([]testutil.UpstreamResponse{failure}, responses...)
 					}
 					upstream := testutil.NewMockUpstream(ctx, t, responses...)
-					cpCfg := claudePlatformCfg(upstream.URL, config.ClaudePlatformAuthModeIAM)
+					cpCfg := claudePlatformCfg(upstream.URL)
 					bridgeServer := newBridgeTestServer(ctx, t, upstream.URL,
 						withCustomProvider(aibridgetest.NewClaudePlatformProvider(t, config.Anthropic{}, cpCfg)))
 					reqBody, err := sjson.SetBytes(fix.Request(), "stream", streaming)
@@ -151,13 +210,13 @@ func TestClaudePlatformIntegration(t *testing.T) {
 
 	for _, tc := range []struct {
 		name       string
-		mode       config.ClaudePlatformAuthMode
 		byokHeader string
 		key        string
 	}{
-		{name: "api_key/v1/messages", mode: config.ClaudePlatformAuthModeAPIKey, key: apiKey},
-		{name: "byok api key wins over iam signing", mode: config.ClaudePlatformAuthModeIAM, byokHeader: intercept.AuthHeaderXAPIKey, key: "user-key"},
-		{name: "byok bearer wins over iam signing", mode: config.ClaudePlatformAuthModeIAM, byokHeader: intercept.AuthHeaderAuthorization, key: "Bearer user-token"},
+		{name: "api_key/v1/messages", key: apiKey},
+		{name: "api_key BYOK without pool", byokHeader: intercept.AuthHeaderXAPIKey, key: "user-key"},
+		{name: "byok api key wins over ambient IAM", byokHeader: intercept.AuthHeaderXAPIKey, key: "user-key"},
+		{name: "byok bearer wins over ambient IAM", byokHeader: intercept.AuthHeaderAuthorization, key: "Bearer user-token"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -176,7 +235,7 @@ func TestClaudePlatformIntegration(t *testing.T) {
 						headers.Set(tc.byokHeader, tc.key)
 					}
 					bridgeServer := newBridgeTestServer(ctx, t, upstream.URL,
-						withCustomProvider(aibridgetest.NewClaudePlatformProvider(t, cfg, claudePlatformCfg(upstream.URL, tc.mode))))
+						withCustomProvider(aibridgetest.NewClaudePlatformProvider(t, cfg, claudePlatformCfg(upstream.URL))))
 					reqBody, err := sjson.SetBytes(fix.Request(), "stream", streaming)
 					require.NoError(t, err)
 					resp, err := bridgeServer.makeRequest(t, http.MethodPost, pathAnthropicMessages, reqBody, headers)
@@ -204,6 +263,34 @@ func TestClaudePlatformIntegration(t *testing.T) {
 		})
 	}
 
+	t.Run("iam BYOK upstream 401 does not retry with ambient identity", func(t *testing.T) {
+		t.Parallel()
+		ctx, cancel := context.WithTimeout(t.Context(), testutil.WaitLong)
+		t.Cleanup(cancel)
+		fix := fixtures.Parse(t, fixtures.AntSingleBuiltinTool)
+		upstream := testutil.NewMockUpstream(ctx, t,
+			testutil.NewErrorResponse(http.StatusUnauthorized, ""),
+		)
+		upstream.AllowOverflow = true
+		bridgeServer := newBridgeTestServer(ctx, t, upstream.URL,
+			withCustomProvider(aibridgetest.NewClaudePlatformProvider(t, config.Anthropic{}, claudePlatformCfg(upstream.URL))))
+		reqBody, err := sjson.SetBytes(fix.Request(), "stream", false)
+		require.NoError(t, err)
+		resp, err := bridgeServer.makeRequest(t, http.MethodPost, pathAnthropicMessages, reqBody, http.Header{
+			intercept.HeaderAnthropicWorkspaceID: {"wrkspc_from_client"},
+			intercept.AuthHeaderXAPIKey:          {"rejected-user-key"},
+		})
+		require.NoError(t, err)
+		_, err = io.ReadAll(resp.Body)
+		require.NoError(t, err)
+		require.NoError(t, resp.Body.Close())
+		require.Equal(t, http.StatusUnauthorized, resp.StatusCode)
+		received := upstream.ReceivedRequests()
+		require.Len(t, received, 1, "BYOK 401 must not retry with ambient IAM credentials")
+		require.Equal(t, "rejected-user-key", received[0].Header.Get(intercept.AuthHeaderXAPIKey))
+		require.Empty(t, received[0].Header.Get(intercept.AuthHeaderAuthorization), "BYOK must not be replaced by IAM signing")
+		bridgeServer.Recorder.VerifyAllInterceptionsEnded(t)
+	})
 	t.Run("iam passthrough", func(t *testing.T) {
 		t.Parallel()
 		ctx, cancel := context.WithTimeout(t.Context(), testutil.WaitLong)
@@ -213,7 +300,7 @@ func TestClaudePlatformIntegration(t *testing.T) {
 			OnRequest: func(r *http.Request, body []byte) { verifySignature(t, r, body) },
 		})
 		bridgeServer := newBridgeTestServer(ctx, t, upstream.URL,
-			withCustomProvider(aibridgetest.NewClaudePlatformProvider(t, config.Anthropic{}, claudePlatformCfg(upstream.URL, config.ClaudePlatformAuthModeIAM))))
+			withCustomProvider(aibridgetest.NewClaudePlatformProvider(t, config.Anthropic{}, claudePlatformCfg(upstream.URL))))
 		resp, err := bridgeServer.makeRequest(t, http.MethodGet, "/anthropic/v1/models", nil, http.Header{
 			intercept.HeaderAnthropicWorkspaceID: {"wrkspc_from_client"},
 		})

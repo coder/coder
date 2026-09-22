@@ -124,15 +124,17 @@ func TestOpenAI_KeyFailover(t *testing.T) {
 // persists across distinct client requests: a key marked
 // temporary on request 1 is still skipped on request 2 without
 // a wasted upstream attempt.
+//
+//nolint:paralleltest,tparallel // The parent scopes AWS environment variables for parallel subtests.
 func TestAnthropic_KeyFailover(t *testing.T) {
-	t.Parallel()
+	setFakeAWSChain(t)
 
 	fix := fixtures.Parse(t, fixtures.AntSimple)
 
 	tests := []struct {
-		name       string
-		streaming  bool
-		claudeMode config.ClaudePlatformAuthMode
+		name           string
+		streaming      bool
+		claudePlatform bool
 	}{
 		{
 			name:      "anthropic_blocking",
@@ -143,24 +145,24 @@ func TestAnthropic_KeyFailover(t *testing.T) {
 			streaming: true,
 		},
 		{
-			name:       "claude_platform_iam_blocking",
-			streaming:  false,
-			claudeMode: config.ClaudePlatformAuthModeIAM,
+			name:           "claude_platform_iam_blocking",
+			streaming:      false,
+			claudePlatform: true,
 		},
 		{
-			name:       "claude_platform_iam_streaming",
-			streaming:  true,
-			claudeMode: config.ClaudePlatformAuthModeIAM,
+			name:           "claude_platform_iam_streaming",
+			streaming:      true,
+			claudePlatform: true,
 		},
 		{
-			name:       "claude_platform_api_key_blocking",
-			streaming:  false,
-			claudeMode: config.ClaudePlatformAuthModeAPIKey,
+			name:           "claude_platform_api_key_blocking",
+			streaming:      false,
+			claudePlatform: true,
 		},
 		{
-			name:       "claude_platform_api_key_streaming",
-			streaming:  true,
-			claudeMode: config.ClaudePlatformAuthModeAPIKey,
+			name:           "claude_platform_api_key_streaming",
+			streaming:      true,
+			claudePlatform: true,
 		},
 	}
 
@@ -182,7 +184,7 @@ func TestAnthropic_KeyFailover(t *testing.T) {
 			upstream := testutil.NewMockUpstream(t.Context(), t, responses...)
 
 			var prov provider.Provider
-			if tc.claudeMode == "" {
+			if !tc.claudePlatform {
 				prov = aibridgetest.NewAnthropicProvider(t, config.Anthropic{
 					BaseURL: upstream.URL,
 					KeyPool: pool,
@@ -191,12 +193,12 @@ func TestAnthropic_KeyFailover(t *testing.T) {
 				prov = aibridgetest.NewClaudePlatformProvider(t, config.Anthropic{
 					BaseURL: upstream.URL,
 					KeyPool: pool,
-				}, claudePlatformCfg(upstream.URL, tc.claudeMode))
+				}, claudePlatformCfg(upstream.URL))
 			}
 			bridgeServer := newBridgeTestServer(t.Context(), t, upstream.URL, withCustomProvider(prov))
 
 			clientHeaders := http.Header{}
-			if tc.claudeMode != "" {
+			if tc.claudePlatform {
 				clientHeaders.Set(intercept.HeaderAnthropicWorkspaceID, "wrkspc_from_client")
 			}
 
@@ -223,7 +225,7 @@ func TestAnthropic_KeyFailover(t *testing.T) {
 				require.Equal(t, "/v1/messages", r.Path)
 				require.JSONEq(t, string(requestBody), string(r.Body))
 				require.Empty(t, r.Header.Get(intercept.AuthHeaderAuthorization), "pooled bridged requests must not be AWS signed")
-				if tc.claudeMode != "" {
+				if tc.claudePlatform {
 					require.Equal(t, claudePlatformWorkspaceID, r.Header.Get(intercept.HeaderAnthropicWorkspaceID))
 				}
 			}

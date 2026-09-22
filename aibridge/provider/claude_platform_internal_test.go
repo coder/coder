@@ -21,27 +21,16 @@ import (
 )
 
 func claudePlatformIAMCfg() *config.AWSClaudePlatform {
-	return &config.AWSClaudePlatform{
-		AuthMode:        config.ClaudePlatformAuthModeIAM,
-		Region:          "us-west-2",
-		WorkspaceID:     "wrkspc_config",
-		AccessKey:       "test-access-key",
-		AccessKeySecret: "test-secret-key",
-	}
-}
-
-func claudePlatformAPIKeyCfg() *config.AWSClaudePlatform {
-	return &config.AWSClaudePlatform{
-		AuthMode:    config.ClaudePlatformAuthModeAPIKey,
-		Region:      "us-west-2",
-		WorkspaceID: "wrkspc_config",
-	}
+	return &config.AWSClaudePlatform{Region: "us-west-2", WorkspaceID: "wrkspc_config"}
 }
 
 func newTestClaudePlatform(t testing.TB, cfg config.Anthropic, cpCfg *config.AWSClaudePlatform) *Anthropic {
 	t.Helper()
 	p, err := NewAnthropic(context.Background(), cfg, nil, cpCfg)
 	require.NoError(t, err)
+	p.claudePlatform.creds = aws.CredentialsProviderFunc(func(context.Context) (aws.Credentials, error) {
+		return aws.Credentials{AccessKeyID: "test-access-key", SecretAccessKey: "test-secret-key", SessionToken: "test-session-token"}, nil
+	})
 	return p
 }
 
@@ -69,23 +58,12 @@ func TestNewAnthropic_ClaudePlatform(t *testing.T) {
 		require.ErrorContains(t, err, "workspace id required")
 	})
 
-	t.Run("iam mode resolves credentials", func(t *testing.T) {
+	t.Run("ambient IAM credentials are lazy", func(t *testing.T) {
 		t.Parallel()
-
-		p := newTestClaudePlatform(t, config.Anthropic{}, claudePlatformIAMCfg())
+		p, err := NewAnthropic(context.Background(), config.Anthropic{}, nil, claudePlatformIAMCfg())
+		require.NoError(t, err)
 		require.NotNil(t, p.claudePlatform)
-		require.Nil(t, p.bedrock)
 		require.NotNil(t, p.claudePlatform.creds)
-	})
-
-	t.Run("api key mode resolves no credentials", func(t *testing.T) {
-		t.Parallel()
-
-		p := newTestClaudePlatform(t, config.Anthropic{}, claudePlatformAPIKeyCfg())
-		require.NotNil(t, p.claudePlatform)
-		// The workspace key comes from the key pool, so no AWS identity is
-		// resolved and nothing is signed.
-		require.Nil(t, p.claudePlatform.creds)
 	})
 }
 
@@ -113,53 +91,42 @@ func TestAnthropic_ClaudePlatformBaseURL(t *testing.T) {
 	})
 }
 
+//nolint:tparallel // The BYOK subtest changes AWS environment variables.
 func TestAnthropic_ClaudePlatformResolveCredential(t *testing.T) {
-	t.Parallel()
-
-	t.Run("iam mode signs when no key is present", func(t *testing.T) {
+	t.Run("ambient IAM signs when no key is present", func(t *testing.T) {
 		t.Parallel()
-
 		p := newTestClaudePlatform(t, config.Anthropic{}, claudePlatformIAMCfg())
-
 		cred, err := p.resolveCredential(httptest.NewRequest(http.MethodPost, routeMessages, nil))
 		require.NoError(t, err)
-		sig, ok := cred.(intercept.AWSSigV4)
-		require.True(t, ok, "expected AWS SigV4 credential, got %T", cred)
-		require.Equal(t, "test-access-key", sig.AccessKey)
+		require.IsType(t, intercept.AWSSigV4{}, cred)
 	})
 
-	t.Run("byok takes precedence over signing", func(t *testing.T) {
-		t.Parallel()
-
-		p := newTestClaudePlatform(t, config.Anthropic{}, claudePlatformIAMCfg())
-
+	t.Run("BYOK takes precedence without loading AWS", func(t *testing.T) {
+		t.Setenv("AWS_PROFILE", "missing-profile")
+		t.Setenv("AWS_CONFIG_FILE", "/dev/null")
+		t.Setenv("AWS_SHARED_CREDENTIALS_FILE", "/dev/null")
+		p, err := NewAnthropic(context.Background(), config.Anthropic{}, nil, claudePlatformIAMCfg())
+		require.NoError(t, err)
 		req := httptest.NewRequest(http.MethodPost, routeMessages, nil)
 		req.Header.Set(intercept.AuthHeaderXAPIKey, "user-key")
-
 		cred, err := p.resolveCredential(req)
 		require.NoError(t, err)
 		require.Equal(t, intercept.BYOK{Secret: "user-key", Header: intercept.AuthHeaderXAPIKey}, cred)
+		inner := &captureTransport{}
+		p.claudePlatform.inner = inner
+		resp, err := p.claudePlatform.RoundTrip(req)
+		require.NoError(t, err)
+		require.NoError(t, resp.Body.Close())
+		require.Equal(t, "user-key", inner.req.Header.Get(intercept.AuthHeaderXAPIKey))
+		require.Empty(t, inner.req.Header.Get(intercept.AuthHeaderAuthorization))
 	})
 
-	t.Run("api key mode uses the key pool", func(t *testing.T) {
+	t.Run("pool is selected before ambient IAM", func(t *testing.T) {
 		t.Parallel()
-
-		p := newTestClaudePlatform(t, config.Anthropic{
-			KeyPool: testutil.SingleKeyPool(config.ProviderAnthropic, "workspace-key"),
-		}, claudePlatformAPIKeyCfg())
-
+		p := newTestClaudePlatform(t, config.Anthropic{KeyPool: testutil.SingleKeyPool(config.ProviderAnthropic, "workspace-key")}, claudePlatformIAMCfg())
 		cred, err := p.resolveCredential(httptest.NewRequest(http.MethodPost, routeMessages, nil))
 		require.NoError(t, err)
 		require.IsType(t, &intercept.CentralizedPool{}, cred)
-	})
-
-	t.Run("api key mode without a pool has no credential", func(t *testing.T) {
-		t.Parallel()
-
-		p := newTestClaudePlatform(t, config.Anthropic{}, claudePlatformAPIKeyCfg())
-
-		_, err := p.resolveCredential(httptest.NewRequest(http.MethodPost, routeMessages, nil))
-		require.ErrorIs(t, err, ErrNoCredential)
 	})
 }
 
@@ -192,6 +159,37 @@ func (b *trackingBody) Close() error {
 
 func (f roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
 	return f(req)
+}
+
+func TestAnthropic_ClaudePlatformCredentialInitializationRetries(t *testing.T) {
+	p, err := NewAnthropic(context.Background(), config.Anthropic{}, nil, claudePlatformIAMCfg())
+	require.NoError(t, err)
+	t.Setenv("AWS_ACCESS_KEY_ID", "")
+	t.Setenv("AWS_SECRET_ACCESS_KEY", "")
+	t.Setenv("AWS_SESSION_TOKEN", "")
+	t.Setenv("AWS_PROFILE", "missing-profile")
+	t.Setenv("AWS_CONFIG_FILE", "/dev/null")
+	t.Setenv("AWS_SHARED_CREDENTIALS_FILE", "/dev/null")
+	t.Setenv("AWS_EC2_METADATA_DISABLED", "true")
+
+	_, err = p.claudePlatform.creds.Retrieve(context.Background())
+	require.Error(t, err)
+
+	t.Setenv("AWS_PROFILE", "")
+	t.Setenv("AWS_ACCESS_KEY_ID", "test-access-key")
+	t.Setenv("AWS_SECRET_ACCESS_KEY", "test-secret-key")
+	t.Setenv("AWS_SESSION_TOKEN", "test-session-token")
+	creds, err := p.claudePlatform.creds.Retrieve(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, "test-access-key", creds.AccessKeyID)
+	require.Equal(t, "test-secret-key", creds.SecretAccessKey)
+	require.Equal(t, "test-session-token", creds.SessionToken)
+
+	// A successful load stays cached even if subsequent AWS configuration fails.
+	t.Setenv("AWS_PROFILE", "missing-profile")
+	cached, err := p.claudePlatform.creds.Retrieve(t.Context())
+	require.NoError(t, err)
+	require.Equal(t, creds, cached)
 }
 
 func TestAnthropic_ClaudePlatformCredentialResolutionContext(t *testing.T) {
@@ -410,10 +408,10 @@ func TestAnthropic_WrapPassthroughTransport(t *testing.T) {
 		require.Equal(t, "wrkspc_config", inner.req.Header.Get(intercept.HeaderAnthropicWorkspaceID))
 	})
 
-	t.Run("api key mode only sets the workspace header", func(t *testing.T) {
+	t.Run("ambient IAM sets the workspace header", func(t *testing.T) {
 		t.Parallel()
 
-		p := newTestClaudePlatform(t, config.Anthropic{}, claudePlatformAPIKeyCfg())
+		p := newTestClaudePlatform(t, config.Anthropic{}, claudePlatformIAMCfg())
 		inner := &captureTransport{}
 
 		req := httptest.NewRequest(http.MethodGet, "https://aws-external-anthropic.us-west-2.api.aws/v1/models", nil)
@@ -424,6 +422,6 @@ func TestAnthropic_WrapPassthroughTransport(t *testing.T) {
 
 		require.NotNil(t, inner.req)
 		require.Equal(t, "wrkspc_config", inner.req.Header.Get(intercept.HeaderAnthropicWorkspaceID))
-		require.Empty(t, inner.req.Header.Get(intercept.AuthHeaderAuthorization))
+		require.True(t, strings.HasPrefix(inner.req.Header.Get(intercept.AuthHeaderAuthorization), "AWS4-HMAC-SHA256"))
 	})
 }

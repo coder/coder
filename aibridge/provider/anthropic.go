@@ -99,19 +99,10 @@ func NewAnthropic(ctx context.Context, cfg config.Anthropic, bedrockCfg *config.
 			return nil, xerrors.Errorf("claude platform config: %w", err)
 		}
 
-		runtime := &claudePlatformTransport{cfg: runtimeCfg, inner: http.DefaultTransport}
-		if runtimeCfg.AuthMode == config.ClaudePlatformAuthModeIAM {
-			awsCfg, err := buildAWSCredentials(ctx, awsCredentialSpec{
-				Region:          runtimeCfg.Region,
-				AccessKey:       runtimeCfg.AccessKey,
-				AccessKeySecret: runtimeCfg.AccessKeySecret,
-				RoleARN:         runtimeCfg.RoleARN,
-				ExternalID:      runtimeCfg.ExternalID,
-			})
-			if err != nil {
-				return nil, xerrors.Errorf("build claude platform credentials: %w", err)
-			}
-			runtime.creds = awsCfg.Credentials
+		runtime := &claudePlatformTransport{
+			cfg:   runtimeCfg,
+			inner: http.DefaultTransport,
+			creds: newLazyAWSCredentials(runtimeCfg.Region),
 		}
 		claudePlatform = runtime
 		cfg.BaseURL = runtimeCfg.ResolvedBaseURL()
@@ -208,7 +199,7 @@ func (p *Anthropic) CreateInterceptor(_ http.ResponseWriter, r *http.Request, tr
 //
 // When both BYOK headers are present, X-Api-Key takes priority to match
 // claude-code behavior. Centralized requests require a key pool, except for
-// AWS-signed providers (Bedrock, and Claude Platform in IAM mode), which
+// AWS-signed providers (Bedrock and Claude Platform), which
 // authenticate via request signing rather than a pool.
 func (p *Anthropic) resolveCredential(r *http.Request) (intercept.Credential, error) {
 	if apiKey := r.Header.Get(intercept.AuthHeaderXAPIKey); apiKey != "" {
@@ -223,8 +214,8 @@ func (p *Anthropic) resolveCredential(r *http.Request) (intercept.Credential, er
 	if p.bedrock != nil {
 		return intercept.AWSSigV4{AccessKey: p.bedrock.Cfg.AccessKey}, nil
 	}
-	if cp := p.claudePlatform; cp != nil && cp.cfg.AuthMode == config.ClaudePlatformAuthModeIAM {
-		return intercept.AWSSigV4{AccessKey: cp.cfg.AccessKey}, nil
+	if p.claudePlatform != nil {
+		return intercept.AWSSigV4{}, nil
 	}
 	return nil, ErrNoCredential
 }

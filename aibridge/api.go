@@ -42,14 +42,6 @@ type (
 	AWSClaudePlatformConfig = config.AWSClaudePlatform
 	OpenAIConfig            = config.OpenAI
 	CopilotConfig           = config.Copilot
-
-	ClaudePlatformAuthMode = config.ClaudePlatformAuthMode
-)
-
-// Claude Platform for AWS authentication modes.
-const (
-	ClaudePlatformAuthModeIAM    = config.ClaudePlatformAuthModeIAM
-	ClaudePlatformAuthModeAPIKey = config.ClaudePlatformAuthModeAPIKey
 )
 
 func AsActor(ctx context.Context, actorID string, metadata recorder.Metadata) context.Context {

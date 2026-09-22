@@ -17,16 +17,30 @@ import (
 type claudePlatformTransport struct {
 	inner http.RoundTripper
 	cfg   config.AWSClaudePlatform
-	// creds is nil in api_key mode, where the key pool supplies x-api-key.
+	// creds is loaded lazily so BYOK and pooled requests do not consult AWS.
 	creds aws.CredentialsProvider
 }
 
-var _ http.RoundTripper = &claudePlatformTransport{}
+var _ http.RoundTripper = (*claudePlatformTransport)(nil)
+
+func newLazyAWSCredentials(region string) aws.CredentialsProvider {
+	return aws.NewCredentialsCache(aws.CredentialsProviderFunc(func(ctx context.Context) (aws.Credentials, error) {
+		// AWS caches refresh credentials independently of any one caller's deadline,
+		// so bound configuration loading as well as the request's wait below.
+		ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+		defer cancel()
+		cfg, err := buildAWSCredentials(ctx, awsCredentialSpec{Region: region})
+		if err != nil {
+			return aws.Credentials{}, err
+		}
+		return cfg.Credentials.Retrieve(ctx)
+	}))
+}
 
 func (t *claudePlatformTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	// Keep signing headers private to this attempt so SDK retries are signed again.
 	req = req.Clone(req.Context())
-	// The workspace header is required in both auth modes. Set it from provider
+	// Set the required workspace header from provider
 	// configuration, overwriting anything the client sent.
 	req.Header.Set(intercept.HeaderAnthropicWorkspaceID, t.cfg.WorkspaceID)
 
@@ -35,13 +49,6 @@ func (t *claudePlatformTransport) RoundTrip(req *http.Request) (*http.Response, 
 	// top would produce two credentials on one request.
 	if req.Header.Get(intercept.AuthHeaderXAPIKey) != "" ||
 		req.Header.Get(intercept.AuthHeaderAuthorization) != "" {
-		return t.inner.RoundTrip(req)
-	}
-
-	if t.creds == nil {
-		// api_key mode with no key available. Forward unsigned and let the
-		// upstream reject it, matching how other providers surface a missing
-		// centralized key on passthrough routes.
 		return t.inner.RoundTrip(req)
 	}
 
