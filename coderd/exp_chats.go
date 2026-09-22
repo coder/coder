@@ -1279,7 +1279,8 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 	// parsing because we need req.OrganizationID to scope the RBAC check
 	// to the correct org. The request body is bounded by the ReadLimit above,
 	// limiting the cost of parsing before rejection.
-	if !api.Authorize(r, policy.ActionCreate, rbac.ResourceChat.WithOwner(ownerID.String()).InOrg(req.OrganizationID)) {
+	chatObject := rbac.ResourceChat.WithOwner(ownerID.String()).InOrg(req.OrganizationID)
+	if !api.Authorize(r, policy.ActionCreate, chatObject) {
 		httpapi.Forbidden(rw)
 		return
 	}
@@ -1325,12 +1326,16 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		// must succeed for the owner, not merely for the caller.
 		ownerCtx = dbauthz.As(ctx, owner)
 		// Service accounts and custom roles may lack chat permissions
-		// entirely; the owner could then never read the chat.
-		if !api.HTTPAuth.AuthorizeContext(ownerCtx, policy.ActionCreate, rbac.ResourceChat.WithOwner(ownerID.String()).InOrg(req.OrganizationID)) {
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: "Chat owner does not have permission to use chats.",
-			})
-			return
+		// entirely or hold only some of them. Creation inserts the first
+		// message and reads the chat back under the owner, so a partial
+		// grant would fail inside the transaction with a generic 403.
+		for _, action := range []policy.Action{policy.ActionCreate, policy.ActionRead, policy.ActionUpdate} {
+			if !api.HTTPAuth.AuthorizeContext(ownerCtx, action, chatObject) {
+				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+					Message: "Chat owner does not have permission to use chats.",
+				})
+				return
+			}
 		}
 	}
 

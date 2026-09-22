@@ -2062,6 +2062,40 @@ func TestPostChats_OwnerID(t *testing.T) {
 		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
 		require.Equal(t, "Chat owner does not have permission to use chats.", sdkErr.Message)
 	})
+
+	t.Run("OwnerWithCreateOnlyChatPermission", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		rawDB, pubsub := dbtestutil.NewDB(t)
+		client, _ := newChatClientWithDatabase(t, func(opts *coderdtest.Options) {
+			opts.Database = rawDB
+			opts.Pubsub = pubsub
+		})
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModel(t, client)
+		// A custom role can grant chat:create without read or update.
+		role, err := rawDB.InsertCustomRole(ctx, database.InsertCustomRoleParams{
+			Name:           testutil.GetRandomName(t),
+			DisplayName:    "Chat Creator",
+			OrganizationID: uuid.NullUUID{UUID: firstUser.OrganizationID, Valid: true},
+			OrgPermissions: database.CustomRolePermissions{{
+				ResourceType: rbac.ResourceChat.Type,
+				Action:       policy.ActionCreate,
+			}},
+		})
+		require.NoError(t, err)
+		serviceAccount := dbgen.User(t, rawDB, database.User{IsServiceAccount: true})
+		dbgen.OrganizationMember(t, rawDB, database.OrganizationMember{
+			OrganizationID: firstUser.OrganizationID,
+			UserID:         serviceAccount.ID,
+			Roles:          []string{role.Name},
+		})
+
+		_, err = client.CreateChat(ctx, helloRequest(serviceAccount.ID, firstUser.OrganizationID))
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Equal(t, "Chat owner does not have permission to use chats.", sdkErr.Message)
+	})
 }
 
 // TestChats_ForceOnMCPServerEnforced is the endpoint-level regression
