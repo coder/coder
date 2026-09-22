@@ -134,6 +134,7 @@
 		"no-else-return": ["error", { "allowElseIf": false }],
 		"jsx-curly-brace-presence": "error",
 		"no-inferrable-types": "error",
+		"prefer-function-type": "error",
 
 		// --- suspicious ---
 		"no-cond-assign": "error",
@@ -209,7 +210,6 @@
 		"no-invalid-void-type": "off", // suspicious/noConfusingVoidType (large)
 		"no-fallthrough": "off", // suspicious/noFallthroughSwitchClause (medium)
 		"click-events-have-key-events": "off", // a11y/useKeyWithClickEvents (small)
-		"prefer-function-type": "off", // style/useShorthandFunctionType (small)
 		"no-danger": "off", // security/noDangerouslySetInnerHtml (small: Biome suppression to migrate)
 		"no-noninteractive-tabindex": "off", // a11y/noNoninteractiveTabindex (small)
 		"interactive-supports-focus": "off", // a11y/useFocusableInteractive (small)
