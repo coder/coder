@@ -145,6 +145,22 @@ func TestList(t *testing.T) {
 		require.NoError(t, json.Unmarshal(stdout.Bytes(), &workspaces))
 		require.Len(t, workspaces, 1)
 		require.Equal(t, sharedWorkspace.ID, workspaces[0].ID)
+
+		// The default search is user:me, so shared workspaces are listed
+		// without any flags too. The member can see every workspace as an
+		// auditor, so this also proves the default is narrower than --all.
+		inv, root = clitest.New(t, "list", "--output=json")
+		clitest.SetupConfig(t, memberClient, root)
+
+		stdout = new(bytes.Buffer)
+		inv.Stdout = stdout
+		err = inv.WithContext(ctx).Run()
+		require.NoError(t, err)
+
+		workspaces = nil
+		require.NoError(t, json.Unmarshal(stdout.Bytes(), &workspaces))
+		require.Len(t, workspaces, 1)
+		require.Equal(t, sharedWorkspace.ID, workspaces[0].ID)
 	})
 
 	t.Run("HTMLResponse", func(t *testing.T) {
