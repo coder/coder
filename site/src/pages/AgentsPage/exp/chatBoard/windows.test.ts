@@ -34,7 +34,7 @@ describe("window geometry", () => {
 
 	it("opens to the right of the anchor when there is room", () => {
 		viewport(1400, 900);
-		const win = windowBeside("c", rect(100, 200, 300, 40), true);
+		const win = windowBeside("c", rect(100, 200, 300, 40), { pinned: true });
 		expect(win).toMatchObject({
 			chatId: "c",
 			x: 100 + 300 + 8,
@@ -47,26 +47,26 @@ describe("window geometry", () => {
 
 	it("flips to the left when the right side does not fit", () => {
 		viewport(1400, 900);
-		const win = windowBeside("c", rect(1000, 200, 300, 40), false);
+		const win = windowBeside("c", rect(1000, 200, 300, 40), { pinned: false });
 		expect(win.x).toBe(1000 - 8 - 520);
 		expect(win.pinned).toBe(false);
 	});
 
 	it("clamps into the viewport margin", () => {
 		viewport(1400, 900);
-		const win = windowBeside("c", rect(0, 850, 300, 40), true);
+		const win = windowBeside("c", rect(0, 850, 300, 40), { pinned: true });
 		expect(win.y).toBe(900 - 640 - 12);
-		const left = windowBeside("c", rect(20, 0, 300, 40), true);
+		const left = windowBeside("c", rect(20, 0, 300, 40), { pinned: true });
 		// Neither side fits fully; the flip goes negative and is clamped.
 		viewport(600, 900);
-		const narrow = windowBeside("c", rect(400, 0, 150, 40), true);
+		const narrow = windowBeside("c", rect(400, 0, 150, 40), { pinned: true });
 		expect(narrow.x).toBe(12);
 		expect(left.y).toBe(12);
 	});
 
 	it("shrinks to the viewport on small screens", () => {
 		viewport(400, 300);
-		const win = windowBeside("c", rect(0, 0, 50, 20), true);
+		const win = windowBeside("c", rect(0, 0, 50, 20), { pinned: true });
 		expect(win.width).toBe(400 - 24);
 		expect(win.height).toBe(300 - 24);
 		expect(win.x).toBe(12);

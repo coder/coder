@@ -1,9 +1,11 @@
 import { fireEvent, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { MockChat } from "#/testHelpers/chatEntities";
 import { renderComponent } from "#/testHelpers/renderHelpers";
 import type { ChatWindow } from "./boardStorage";
 import { FloatingChat } from "./ChatWindows";
+import { MIN_WINDOW_SIZE } from "./windows";
 
 vi.mock("../../AgentChatPage", () => ({
 	default: () => <div>chat body</div>,
@@ -18,11 +20,11 @@ const win: ChatWindow = {
 	pinned: true,
 };
 
-const renderWindow = () => {
+const renderWindow = (overrides: Partial<ChatWindow> = {}) => {
 	const onChange = vi.fn();
 	renderComponent(
 		<FloatingChat
-			window={win}
+			window={{ ...win, ...overrides }}
 			chat={MockChat}
 			color={undefined}
 			onChange={onChange}
@@ -92,7 +94,47 @@ describe("FloatingChat", () => {
 		expect(onChange).toHaveBeenCalledTimes(1);
 	});
 
-	it("draws one frame per burst of moves and commits the last position", () => {
+	it("drops the gesture on pointercancel and commits nothing", () => {
+		const { onChange } = renderWindow();
+		const title = screen.getByText(MockChat.title);
+		fireEvent.pointerDown(title, { button: 0, clientX: 150, clientY: 90 });
+		fireEvent.pointerMove(window, { clientX: 180, clientY: 130 });
+		fireEvent.pointerCancel(window);
+		fireEvent.pointerMove(window, { clientX: 400, clientY: 400 });
+		fireEvent.pointerUp(window, { clientX: 400, clientY: 400 });
+		expect(onChange).not.toHaveBeenCalled();
+	});
+
+	it("moves one step per arrow press from the title bar", async () => {
+		const user = userEvent.setup();
+		const { onChange } = renderWindow();
+		screen
+			.getByRole("button", { name: `Move or resize ${MockChat.title}` })
+			.focus();
+		await user.keyboard("{ArrowRight}");
+		expect(onChange).toHaveBeenCalledWith({ ...win, x: 116 });
+	});
+
+	it("resizes with Shift+arrow and stops at the minimum size", async () => {
+		const user = userEvent.setup();
+		const { onChange } = renderWindow({ width: MIN_WINDOW_SIZE.width });
+		screen
+			.getByRole("button", { name: `Move or resize ${MockChat.title}` })
+			.focus();
+		await user.keyboard("{Shift>}{ArrowLeft}{/Shift}");
+		expect(onChange).toHaveBeenCalledWith({
+			...win,
+			width: MIN_WINDOW_SIZE.width,
+		});
+		await user.keyboard("{Shift>}{ArrowDown}{/Shift}");
+		expect(onChange).toHaveBeenLastCalledWith({
+			...win,
+			width: MIN_WINDOW_SIZE.width,
+			height: 316,
+		});
+	});
+
+	it("schedules one frame per burst of moves and commits the last position on release", () => {
 		// Frames never run: the release must still commit the latest geometry,
 		// and the frame left pending must be cancelled with the listeners.
 		const raf = vi

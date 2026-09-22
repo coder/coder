@@ -18,7 +18,10 @@ export type ChatWindow = Readonly<{
 
 export type BoardStorage = Readonly<{
 	columnOrder: readonly string[];
-	/** Columns the user created that have no cards yet. Labels cannot hold these. */
+	/**
+	 * Columns the user created. A label holds a column only while a card is in
+	 * it; this keeps a created column on the board while it is empty.
+	 */
 	emptyColumns: readonly string[];
 	/** Chat windows, back to front. */
 	windows: readonly ChatWindow[];

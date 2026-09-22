@@ -18,10 +18,11 @@ import {
 	type BoardState,
 	mergeCards,
 	moveCard,
+	moveNote,
 	renameCard,
 } from "./boardApi";
 import { boardChatsKey, updateChatLabels } from "./boardChats";
-import { buildCards, buildColumns } from "./boardLabels";
+import { addCommentLabels, buildCards, buildColumns } from "./boardLabels";
 import type { BoardStorage } from "./boardStorage";
 import { type PlanDeps, runPlan } from "./runPlan";
 
@@ -67,22 +68,6 @@ const stateOf = (
 	};
 };
 
-// The page wires the two mutations the same way; the test runs them for
-// real so the cache behaviour of updateChatLabels is covered.
-const usePlanDeps = (updateStorage: PlanDeps["updateStorage"]): PlanDeps => {
-	const queryClient = useQueryClient();
-	const labels = useMutation({
-		...updateChatLabels(queryClient),
-		onError: (error: Error) => toast.error(error.message),
-	});
-	const titles = useMutation(updateChatTitle(queryClient));
-	return {
-		write: (chatId, map) => labels.mutateAsync({ chatId, labels: map }),
-		rename: (chatId, title) => titles.mutateAsync({ chatId, title }),
-		updateStorage,
-	};
-};
-
 const renderDeps = () => {
 	const queryClient = new QueryClient({
 		defaultOptions: { mutations: { retry: false } },
@@ -91,8 +76,25 @@ const renderDeps = () => {
 		<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
 	);
 	const updateStorage = vi.fn();
-	const deps = renderHook(() => usePlanDeps(updateStorage), { wrapper }).result
-		.current;
+	// The page wires the two mutations the same way; the test runs them for
+	// real so the cache behaviour of updateChatLabels is covered.
+	const deps = renderHook(
+		(): PlanDeps => {
+			const queryClient = useQueryClient();
+			const labels = useMutation({
+				...updateChatLabels(queryClient),
+				onError: (error: Error) => toast.error(error.message),
+			});
+			const titles = useMutation(updateChatTitle(queryClient));
+			return {
+				write: (chatId, map, after) =>
+					labels.mutateAsync({ chatId, labels: map, after }),
+				rename: (chatId, title) => titles.mutateAsync({ chatId, title }),
+				updateStorage,
+			};
+		},
+		{ wrapper },
+	).result.current;
 	return { queryClient, updateStorage, deps };
 };
 
@@ -116,7 +118,9 @@ describe("runPlan", () => {
 		]);
 		const { deps } = renderDeps();
 
-		await runPlan(moveCard(state, "p", "Doing", null), deps);
+		await expect(
+			runPlan(moveCard(state, "p", "Doing", null), deps),
+		).resolves.toBe(true);
 		await runPlan(renameCard(state, "s", "Solo"), deps);
 
 		expect(sent(spy)).toEqual({
@@ -145,7 +149,7 @@ describe("runPlan", () => {
 		expect(spy).not.toHaveBeenCalled();
 	});
 
-	it("offers undo that puts every touched chat's labels back", async () => {
+	it("offers undo that restores the sources first and the receiver after them", async () => {
 		const spy = vi
 			.spyOn(API.experimental, "updateChat")
 			.mockResolvedValue(undefined);
@@ -160,27 +164,89 @@ describe("runPlan", () => {
 			expect.objectContaining({ action: expect.anything() }),
 		);
 		spy.mockClear();
+		// The source restore hangs; the receiver's must wait for it.
+		const sourceRestore = createDeferred<void>();
+		spy.mockImplementation((chatId) =>
+			chatId === "t" ? sourceRestore.promise : Promise.resolve(),
+		);
 
 		lastUndo()();
-		await waitFor(() => expect(spy).toHaveBeenCalledTimes(2));
+		await waitFor(() => expect(spy).toHaveBeenCalledTimes(1));
+		expect(spy).toHaveBeenCalledWith("t", {
+			labels: { "board/pos": "200" },
+		});
+		expect(spy).not.toHaveBeenCalledWith("s", expect.anything());
 
-		expect(sent(spy)).toEqual({
-			s: { labels: { "board/pos": "100", "board/title": "Source" } },
-			t: { labels: { "board/pos": "200" } },
+		sourceRestore.resolve();
+		await waitFor(() => expect(spy).toHaveBeenCalledTimes(2));
+		expect(spy).toHaveBeenLastCalledWith("s", {
+			labels: { "board/pos": "100", "board/title": "Source" },
 		});
 	});
 
-	it("reports a failed write with a toast, resolves, and offers no undo", async () => {
-		vi.spyOn(API.experimental, "updateChat").mockImplementation((chatId) =>
-			chatId === "t" ? Promise.reject(new Error("boom")) : Promise.resolve(),
+	it("sends the receiver first and skips the sources when it fails", async () => {
+		const receiver = createDeferred<void>();
+		const spy = vi
+			.spyOn(API.experimental, "updateChat")
+			.mockImplementation((chatId) =>
+				chatId === "b" ? receiver.promise : Promise.resolve(),
+			);
+		const state = stateOf([
+			chat("a", { "board/pos": "200", ...addCommentLabels({}, "one", 1) }),
+			chat("b", { "board/pos": "100" }),
+		]);
+		const { deps } = renderDeps();
+
+		const pending = runPlan(moveNote(state, "a", 0, "b", null), deps);
+		await waitFor(() => expect(spy).toHaveBeenCalledTimes(1));
+		expect(spy).toHaveBeenCalledWith("b", expect.anything());
+		receiver.reject(new Error("too many labels"));
+
+		await expect(pending).resolves.toBe(false);
+		expect(spy).toHaveBeenCalledTimes(1);
+		expect(toast.error).toHaveBeenCalledWith("too many labels");
+		expect(toast).not.toHaveBeenCalled();
+	});
+
+	it("reports a failed undo of a plan without a receiver with a toast only", async () => {
+		// Vitest fails the run on an unhandled rejection, so reaching the
+		// assertions is the check that the rejection was observed.
+		const spy = vi
+			.spyOn(API.experimental, "updateChat")
+			.mockResolvedValue(undefined);
+		const state = stateOf([
+			chat("a", {
+				"board/pos": "200",
+				...addCommentLabels(addCommentLabels({}, "one", 1), "two", 2),
+			}),
+		]);
+		const { deps } = renderDeps();
+		await runPlan(moveNote(state, "a", 0, "a", null), deps);
+		spy.mockRejectedValue(new Error("undo rejected"));
+
+		lastUndo()();
+
+		await waitFor(() =>
+			expect(toast.error).toHaveBeenCalledWith("undo rejected"),
 		);
+	});
+
+	it("reports a failed source write with a toast, resolves false, and offers no undo", async () => {
+		// Untitled single "s" onto untitled single "t": "t" keeps and receives,
+		// "s" is the source write that fails.
+		const spy = vi
+			.spyOn(API.experimental, "updateChat")
+			.mockImplementation((chatId) =>
+				chatId === "s" ? Promise.reject(new Error("boom")) : Promise.resolve(),
+			);
 		const state = stateOf([chat("t", { "board/pos": "200" }), chat("s")]);
 		const { deps } = renderDeps();
 
 		await expect(runPlan(mergeCards(state, "s", "t"), deps)).resolves.toBe(
-			undefined,
+			false,
 		);
 
+		expect(spy).toHaveBeenCalledWith("t", expect.anything());
 		expect(toast.error).toHaveBeenCalledWith("boom");
 		expect(toast).not.toHaveBeenCalled();
 	});

@@ -106,9 +106,9 @@ type AgentChatPageProps = {
 	readonly chatId?: string;
 };
 
-const AgentChatPage: React.FC<AgentChatPageProps> = ({ chatId }) => {
-	const params = useParams() as { agentId: string };
-	const agentId = chatId ?? params.agentId;
+const AgentChatPage: React.FC<{ readonly chatId: string }> = ({
+	chatId: agentId,
+}) => {
 	const {
 		chatErrorReasons,
 		setChatErrorReason,

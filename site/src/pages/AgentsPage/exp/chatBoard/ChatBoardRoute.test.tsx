@@ -26,14 +26,14 @@ describe("ChatBoardRoute", () => {
 
 	it("leaves for /agents while the board is off", async () => {
 		const { router } = renderBoardRoute();
-		expect(await screen.findByText("agents home")).toBeInTheDocument();
+		await screen.findByText("agents home");
 		expect(router.state.location.pathname).toBe("/agents");
 	});
 
 	it("renders the board while on", async () => {
 		localStorage.setItem("agents.exp.chat-board", "true");
 		const { router } = renderBoardRoute();
-		expect(await screen.findByText("the board")).toBeInTheDocument();
+		await screen.findByText("the board");
 		expect(router.state.location.pathname).toBe("/agents/board");
 	});
 });

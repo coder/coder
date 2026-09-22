@@ -35,12 +35,20 @@ export type BoardState = Readonly<{
 	storage: BoardStorage;
 }>;
 
-type Write = Readonly<{ chat: Chat; labels: Record<string, string> }>;
+export type Write = Readonly<{ chat: Chat; labels: Record<string, string> }>;
+
+type TitleWrite = Readonly<{ chat: Chat; title: string }>;
 
 /** The effects of one command. `undo` present means the user is offered to revert the writes. */
 export type Plan = Readonly<{
+	/**
+	 * The chat that takes on content the other writes take away. Sent first;
+	 * `writes` go out only once it has landed, so a rejected receiver leaves
+	 * the sources untouched.
+	 */
+	receiver?: Write;
 	writes: readonly Write[];
-	titles?: readonly Readonly<{ chat: Chat; title: string }>[];
+	titles?: readonly TitleWrite[];
 	storage?: Partial<BoardStorage>;
 	undo?: string;
 }>;
@@ -164,8 +172,8 @@ export const mergeCards = (
 	const followers =
 		keep === target ? [] : keep.members.filter((m) => m.id !== keep.id);
 	return {
+		receiver: { chat: keep.primary, labels },
 		writes: [
-			{ chat: keep.primary, labels },
 			...join.members.map((member) => ({
 				chat: member,
 				labels: setColumnLabel(
@@ -185,12 +193,15 @@ export const mergeCards = (
 // A primary that leaves hands the card (title, color, position, notes) to
 // the oldest remaining member and the others follow it. The card keeps its
 // effective title, so the departure renames nothing.
-const leaveGroup = (chat: Chat, card: BoardCard): Write[] => {
-	if (chat.id !== card.id || card.members.length < 2) return [];
+const leaveGroup = (
+	chat: Chat,
+	card: BoardCard,
+): Pick<Plan, "receiver" | "writes"> => {
+	if (chat.id !== card.id || card.members.length < 2) return { writes: [] };
 	const [next, ...rest] = card.members.filter((m) => m.id !== chat.id);
-	if (!next) return [];
-	return [
-		{
+	if (!next) return { writes: [] };
+	return {
+		receiver: {
 			chat: next,
 			labels: setTitleLabel(
 				{
@@ -200,11 +211,11 @@ const leaveGroup = (chat: Chat, card: BoardCard): Write[] => {
 				card.title,
 			),
 		},
-		...rest.map((member) => ({
+		writes: rest.map((member) => ({
 			chat: member,
 			labels: setGroupLabel(member.labels, next.id, member.id),
 		})),
-	];
+	};
 };
 
 const detachAt = (
@@ -212,19 +223,23 @@ const detachAt = (
 	card: BoardCard,
 	column: string,
 	placedAt: number,
-): Plan => ({
-	writes: [
-		...leaveGroup(chat, card),
-		{
-			chat,
-			labels: setPositionLabel(
-				setColumnLabel(stripCardLabels(chat.labels), column),
-				placedAt,
-			),
-		},
-	],
-	undo: `Removed "${chat.title}" from "${card.title}"`,
-});
+): Plan => {
+	const handoff = leaveGroup(chat, card);
+	return {
+		...handoff,
+		writes: [
+			...handoff.writes,
+			{
+				chat,
+				labels: setPositionLabel(
+					setColumnLabel(stripCardLabels(chat.labels), column),
+					placedAt,
+				),
+			},
+		],
+		undo: `Removed "${chat.title}" from "${card.title}"`,
+	};
+};
 
 const memberOf = (state: BoardState, chatId: string) => {
 	const card = cardWith(state, chatId);
@@ -270,9 +285,11 @@ export const joinCard = (
 	const target = cardOf(state, targetCardId);
 	if (!found || !target || found.card === target) return null;
 	const { card, chat } = found;
+	const handoff = leaveGroup(chat, card);
 	return {
+		...handoff,
 		writes: [
-			...leaveGroup(chat, card),
+			...handoff.writes,
 			{
 				chat,
 				labels: setColumnLabel(
@@ -371,8 +388,9 @@ export const setCardColor = (
 		setColorLabel(card.primary.labels, color),
 	);
 
-// A single chat's card title is the chat title, so renaming the card renames
-// the chat. A group has its own title label.
+// A group always gets a card title label. A single chat renames whatever
+// holds its displayed title: the title label it kept when its group
+// dissolved, else the chat title.
 export const renameCard = (
 	state: BoardState,
 	cardId: string,
@@ -380,14 +398,17 @@ export const renameCard = (
 ): Plan | null => {
 	const card = cardOf(state, cardId);
 	if (!card) return null;
-	if (card.members.length === 1) {
-		return { writes: [], titles: [{ chat: card.primary, title }] };
+	if (getTitleLabel(card.primary) !== undefined || card.members.length > 1) {
+		return {
+			writes: [
+				{
+					chat: card.primary,
+					labels: setTitleLabel(card.primary.labels, title),
+				},
+			],
+		};
 	}
-	return {
-		writes: [
-			{ chat: card.primary, labels: setTitleLabel(card.primary.labels, title) },
-		],
-	};
+	return { writes: [], titles: [{ chat: card.primary, title }] };
 };
 
 export const renameChat = (
@@ -448,18 +469,19 @@ export const moveNote = (
 	const at =
 		neighbour < 0 ? list.length : neighbour + (slot?.side === "after" ? 1 : 0);
 	list.splice(at, 0, note);
+	const destination = {
+		chat: to.primary,
+		labels: setCommentsLabels(to.primary.labels, list),
+	};
+	if (same) return { writes: [destination], undo: "Moved note" };
 	return {
+		receiver: destination,
 		writes: [
-			{ chat: to.primary, labels: setCommentsLabels(to.primary.labels, list) },
-			...(same
-				? []
-				: [
-						{
-							chat: from.primary,
-							labels: setCommentsLabels(from.primary.labels, remaining),
-						},
-					]),
+			{
+				chat: from.primary,
+				labels: setCommentsLabels(from.primary.labels, remaining),
+			},
 		],
-		undo: same ? "Moved note" : `Moved note to "${to.title}"`,
+		undo: `Moved note to "${to.title}"`,
 	};
 };

@@ -54,7 +54,7 @@ describe("ChatInfoPopover", () => {
 		vi.restoreAllMocks();
 	});
 
-	it("fetches the detail after resting on the icon, and once more only while open", async () => {
+	it("fetches the detail after resting on the icon and not again after it closes", async () => {
 		const { trigger, invalidate } = renderInfo();
 
 		fireEvent.pointerEnter(trigger);

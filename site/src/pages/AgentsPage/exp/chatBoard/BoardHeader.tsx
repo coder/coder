@@ -50,7 +50,7 @@ export const BoardHeader: FC<BoardHeaderProps> = ({
 			/>
 			{visibleCount !== undefined && (
 				<span className="text-[11px] text-content-secondary">
-					{visibleCount}
+					{visibleCount} {visibleCount === 1 ? "card" : "cards"}
 				</span>
 			)}
 		</div>

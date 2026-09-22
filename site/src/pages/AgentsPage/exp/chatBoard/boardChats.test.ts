@@ -1,15 +1,15 @@
-import { QueryClient } from "react-query";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { MutationObserver, QueryClient } from "react-query";
+import { afterEach, describe, expect, it, type MockInstance, vi } from "vitest";
 import { API } from "#/api/api";
 import {
 	applyWatchedChatArchived,
 	chatListFamilyKey,
 	chatListKey,
 	toChatListParams,
-	updateInfiniteChatsCache,
 } from "#/api/queries/chats";
 import type { Chat } from "#/api/typesGenerated";
 import { MockChat } from "#/testHelpers/chatEntities";
+import { createDeferred } from "#/testHelpers/deferred";
 import { boardChats, boardChatsKey, updateChatLabels } from "./boardChats";
 
 const chat = (id: string, labels: Record<string, string> = {}): Chat => ({
@@ -19,6 +19,24 @@ const chat = (id: string, labels: Record<string, string> = {}): Chat => ({
 });
 
 const boardPage = (chats: Chat[]) => ({ pages: [chats], pageParams: [0] });
+
+/** Runs the mutation the way useMutation does, without a component. */
+const write = (
+	queryClient: QueryClient,
+	chatId: string,
+	after?: Promise<unknown>,
+) =>
+	new MutationObserver(queryClient, {
+		...updateChatLabels(queryClient),
+		retry: false,
+	}).mutate({ chatId, labels: { "board/column": "Doing" }, after });
+
+const listInvalidations = (
+	invalidate: MockInstance<QueryClient["invalidateQueries"]>,
+) =>
+	invalidate.mock.calls.filter(
+		([filters]) => filters?.queryKey === chatListFamilyKey,
+	).length;
 
 describe("boardChats", () => {
 	afterEach(() => {
@@ -62,26 +80,69 @@ describe("boardChats", () => {
 		);
 	});
 
-	it("is patched by the shared infinite list updater", () => {
+	it("relabels the board cache before the request", async () => {
+		const request = createDeferred<void>();
+		vi.spyOn(API.experimental, "updateChat").mockReturnValue(request.promise);
 		const queryClient = new QueryClient();
 		queryClient.setQueryData(boardChatsKey, boardPage([chat("a"), chat("b")]));
-		updateInfiniteChatsCache(queryClient, (chats) =>
-			chats.map((c) => (c.id === "a" ? { ...c, labels: { k: "v" } } : c)),
+
+		const pending = write(queryClient, "b");
+		await vi.waitFor(() =>
+			expect(queryClient.getQueryData(boardChatsKey)).toEqual(
+				boardPage([chat("a"), chat("b", { "board/column": "Doing" })]),
+			),
 		);
-		expect(queryClient.getQueryData(boardChatsKey)).toEqual(
-			boardPage([chat("a", { k: "v" }), chat("b")]),
-		);
+
+		request.resolve();
+		await pending;
 	});
 
-	it("relabels the board cache before the request", async () => {
-		const queryClient = new QueryClient();
-		queryClient.setQueryData(boardChatsKey, boardPage([chat("a"), chat("b")]));
-		await updateChatLabels(queryClient).onMutate({
-			chatId: "b",
-			labels: { "board/column": "Doing" },
-		});
-		expect(queryClient.getQueryData(boardChatsKey)).toEqual(
-			boardPage([chat("a"), chat("b", { "board/column": "Doing" })]),
+	it("invalidates the list once, after the last of two overlapping writes settles", async () => {
+		const first = createDeferred<void>();
+		const second = createDeferred<void>();
+		vi.spyOn(API.experimental, "updateChat").mockImplementation((chatId) =>
+			chatId === "a" ? first.promise : second.promise,
 		);
+		const queryClient = new QueryClient();
+		const invalidate = vi.spyOn(queryClient, "invalidateQueries");
+		queryClient.setQueryData(boardChatsKey, boardPage([chat("a"), chat("b")]));
+
+		const writes = [write(queryClient, "a"), write(queryClient, "b")];
+		first.resolve();
+		await writes[0];
+		expect(listInvalidations(invalidate)).toBe(0);
+
+		second.resolve();
+		await Promise.all(writes);
+		expect(listInvalidations(invalidate)).toBe(1);
+		expect(invalidate).toHaveBeenCalledTimes(3);
+	});
+
+	it("invalidates the list when two writes settle in the same tick", async () => {
+		const first = createDeferred<void>();
+		const second = createDeferred<void>();
+		vi.spyOn(API.experimental, "updateChat").mockImplementation((chatId) =>
+			chatId === "a" ? first.promise : second.promise,
+		);
+		const queryClient = new QueryClient();
+		const invalidate = vi.spyOn(queryClient, "invalidateQueries");
+
+		const writes = [write(queryClient, "a"), write(queryClient, "b")];
+		first.resolve();
+		second.resolve();
+		await Promise.all(writes);
+
+		expect(listInvalidations(invalidate)).toBe(1);
+	});
+
+	it("sends no request for a write whose gate rejected", async () => {
+		const spy = vi.spyOn(API.experimental, "updateChat");
+		const queryClient = new QueryClient();
+
+		await expect(
+			write(queryClient, "a", Promise.reject(new Error("receiver failed"))),
+		).resolves.toBeUndefined();
+
+		expect(spy).not.toHaveBeenCalled();
 	});
 });
