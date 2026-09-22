@@ -90,7 +90,6 @@ type DateRangePickerProps = {
 	maxDays?: number;
 	/** Earliest selectable day. Presets that would start before it are hidden. */
 	minDate?: Date;
-	disabled?: boolean;
 };
 
 /**
@@ -136,13 +135,8 @@ export const DateRangePicker: FC<DateRangePickerProps> = ({
 	size = "sm",
 	maxDays,
 	minDate,
-	disabled,
 }) => {
 	const [open, setOpen] = useState(false);
-	// A disabled picker must not reopen by itself once it is enabled again.
-	if (disabled && open) {
-		setOpen(false);
-	}
 	const currentTime = now ?? new Date();
 
 	// maxDays counts local calendar days, but the committed boundary is an
@@ -244,7 +238,7 @@ export const DateRangePicker: FC<DateRangePickerProps> = ({
 	return (
 		<Popover open={open} onOpenChange={handleOpenChange}>
 			<PopoverTrigger asChild>
-				<Button variant="outline" size={size} disabled={disabled}>
+				<Button variant="outline" size={size}>
 					<CalendarIcon className="size-4 text-content-secondary" />
 					<span>{dayjs(committed.from).format("MMM D, YYYY")}</span>
 					<MoveRightIcon className="size-3.5 text-content-secondary" />

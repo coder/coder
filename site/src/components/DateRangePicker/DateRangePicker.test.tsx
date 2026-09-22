@@ -297,32 +297,3 @@ it("excludes the day a minDate cutoff falls inside of", async () => {
 		expect.objectContaining({ startDate: new Date(2025, 2, 11) }),
 	);
 });
-
-it("stays closed after being disabled and re-enabled while open", async () => {
-	const user = userEvent.setup();
-	const onChange = vi.fn();
-	const props = {
-		now: new Date(2025, 2, 15, 12),
-		value: { startDate: new Date(2025, 2, 12), endDate: new Date(2025, 2, 14) },
-		onChange,
-	};
-	const { rerender } = render(<DateRangePicker {...props} />);
-	const trigger = screen.getByRole("button", { name: /Mar 12, 2025/ });
-	await user.click(trigger);
-	await screen.findByRole("button", { name: "Apply" });
-
-	rerender(<DateRangePicker {...props} disabled />);
-	rerender(<DateRangePicker {...props} />);
-
-	// The click opens a closed picker; it would close one that reopened by itself.
-	await user.click(trigger);
-	await user.click(
-		await screen.findByRole("button", { name: /March 10th, 2025/ }),
-	);
-	await user.click(screen.getByRole("button", { name: /March 11th, 2025/ }));
-	await user.click(screen.getByRole("button", { name: "Apply" }));
-	expect(onChange).toHaveBeenCalledWith({
-		startDate: new Date(2025, 2, 10),
-		endDate: new Date(2025, 2, 12),
-	});
-});
