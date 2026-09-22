@@ -87,17 +87,13 @@ describe("SidebarTabView", () => {
 		}
 	});
 
-	it("keeps inactive tabs out of sequential navigation and leaves toolbar controls independent", async () => {
+	it("keeps a single tablist stop and leaves toolbar controls independent", async () => {
 		const user = userEvent.setup();
 		const { onActiveTabChange, onAddTab, onToggleExpanded } = renderTabs({
 			activeTabId: "terminal",
 		});
 		await user.tab();
 		expect(screen.getByRole("tab", { name: "Terminal" })).toHaveFocus();
-		await user.tab();
-		expect(
-			screen.getByRole("button", { name: "Close Terminal tab" }),
-		).toHaveFocus();
 		await user.tab();
 		expect(
 			screen.getByRole("button", { name: "New terminal tab" }),
@@ -164,6 +160,12 @@ describe("SidebarTabView", () => {
 		const user = userEvent.setup();
 		const { onCloseTab } = renderTabs({ activeTabId: "terminal" });
 		await user.tab();
+		expect(
+			screen.getByRole("tab", {
+				name: "Terminal",
+				description: "Press Delete to close this tab.",
+			}),
+		).toHaveFocus();
 		await user.keyboard("{Delete}");
 		expect(onCloseTab).toHaveBeenLastCalledWith("terminal");
 		expect(
@@ -182,9 +184,9 @@ describe("SidebarTabView", () => {
 	it("returns focus to the selected tab after activating a close button", async () => {
 		const user = userEvent.setup();
 		const { onCloseTab } = renderTabs({ activeTabId: "terminal" });
-		await user.tab();
-		await user.tab();
-		await user.keyboard("{Enter}");
+		await user.click(
+			screen.getByRole("button", { name: "Close Terminal tab" }),
+		);
 		expect(onCloseTab).toHaveBeenCalledWith("terminal");
 		expect(
 			screen.getByRole("tab", { name: "Preview", selected: true }),

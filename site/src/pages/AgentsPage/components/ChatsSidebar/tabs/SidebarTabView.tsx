@@ -13,6 +13,7 @@ import {
 	type ReactNode,
 	useEffect,
 	useEffectEvent,
+	useId,
 	useLayoutEffect,
 	useRef,
 	useState,
@@ -164,6 +165,7 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 }) => {
 	const { isSidebarCollapsed, onToggleSidebarCollapsed } =
 		useOutletContext<AgentsPageOutletContext | undefined>() ?? {};
+	const closeTabDescriptionId = useId();
 	const tabRefs = useRef(new Map<string, HTMLButtonElement>());
 	const emptyPanelRef = useRef<HTMLDivElement>(null);
 	const restoreTabFocus = useRef(false);
@@ -295,6 +297,10 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 								const tabButton = (
 									<TabsTrigger
 										value={tab.id}
+										aria-keyshortcuts={isCloseable ? "Delete" : undefined}
+										aria-describedby={
+											isCloseable ? closeTabDescriptionId : undefined
+										}
 										asChild
 										className=""
 										ref={(element) => {
@@ -353,7 +359,7 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 										<Button
 											variant="outline"
 											size="icon"
-											tabIndex={isActive ? 0 : -1}
+											tabIndex={-1}
 											onClick={() => handleCloseTab(tab)}
 											aria-label={`Close ${tab.label} tab`}
 											className={cn(
@@ -395,6 +401,9 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 					{isExpanded ? <MinimizeIcon /> : <MaximizeIcon />}
 				</Button>
 			</div>
+			<span id={closeTabDescriptionId} className="sr-only">
+				Press Delete to close this tab.
+			</span>
 			<div className="relative flex min-h-0 flex-1 flex-col">
 				{allPanels.map((panel) => {
 					const isActive = effectiveTabId === panel.id;
