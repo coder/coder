@@ -787,6 +787,7 @@ func TestActiveToolNamesForTurn(t *testing.T) {
 			"propose_plan",
 			"spawn_agent",
 			"wait_agent",
+			"message_agent",
 			"read_skill",
 			"read_skill_file",
 			"ask_user_question",
@@ -796,6 +797,7 @@ func TestActiveToolNamesForTurn(t *testing.T) {
 			"read_file",
 			"execute",
 			"process_output",
+			"message_agent",
 			"read_skill",
 			"read_skill_file",
 		}, got)
@@ -871,7 +873,7 @@ func TestAllowedExploreToolNames(t *testing.T) {
 	t.Parallel()
 
 	externalConfigID := uuid.New()
-	got := allowedExploreToolNames([]fantasy.AgentTool{
+	tools := []fantasy.AgentTool{
 		newTestAgentTool("read_file"),
 		newTestAgentTool("write_file"),
 		newTestMCPAgentTool("external-mcp__echo", externalConfigID),
@@ -884,17 +886,20 @@ func TestAllowedExploreToolNames(t *testing.T) {
 		newTestAgentTool("process_signal"),
 		newTestAgentTool("spawn_agent"),
 		newTestAgentTool("wait_agent"),
+		newTestAgentTool("message_agent"),
 		newTestAgentTool("read_skill"),
 		newTestAgentTool("read_skill_file"),
 		newTestAgentTool("ask_user_question"),
 		newTestAgentTool(chattool.FindToolsName),
-	})
+	}
+	got := allowedExploreToolNames(tools, true)
 
 	require.Equal(t, []string{
 		"read_file",
 		"external-mcp__echo",
 		"execute",
 		"process_output",
+		"message_agent",
 		"read_skill",
 		"read_skill_file",
 	}, got)
@@ -903,6 +908,9 @@ func TestAllowedExploreToolNames(t *testing.T) {
 	require.NotContains(t, got, "stop_workspace")
 	require.NotContains(t, got, "ask_user_question")
 	require.NotContains(t, got, chattool.FindToolsName)
+
+	rootExplore := allowedExploreToolNames(tools, false)
+	require.NotContains(t, rootExplore, "message_agent")
 }
 
 func TestAllowedBehaviorToolNames(t *testing.T) {

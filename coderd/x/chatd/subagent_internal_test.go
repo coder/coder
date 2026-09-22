@@ -3401,6 +3401,77 @@ func TestSubagentMessageDelivery(t *testing.T) {
 		}
 	})
 
+	t.Run("ChildMessagesDirectParent", func(t *testing.T) {
+		t.Parallel()
+
+		db, ps := dbtestutil.NewDB(t)
+		server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
+		ctx := chatdTestContext(t)
+		user, org, model := seedInternalChatDeps(t, db)
+		parent, child := createParentChildChats(ctx, t, server, user, org, model)
+		setChatStatus(ctx, t, db, parent.ID, database.ChatStatusWaiting, "")
+
+		tool := server.childMessageAgentTool(child)
+		require.Contains(t, tool.Info().Description, parent.ID.String())
+		input, err := json.Marshal(messageAgentArgs{
+			ChatID:  parent.ID.String(),
+			Message: "I need a decision",
+		})
+		require.NoError(t, err)
+		resp, err := tool.Run(ctx, fantasy.ToolCall{
+			ID:    uuid.NewString(),
+			Name:  "message_agent",
+			Input: string(input),
+		})
+		require.NoError(t, err)
+		require.False(t, resp.IsError, resp.Content)
+
+		messages, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{ChatID: parent.ID})
+		require.NoError(t, err)
+		require.NotEmpty(t, messages)
+		requireChatMessageText(t, messages[len(messages)-1], subagentMessageEnvelope(child, "I need a decision"))
+	})
+
+	t.Run("ChildRejectsNonParentTargets", func(t *testing.T) {
+		t.Parallel()
+
+		db, ps := dbtestutil.NewDB(t)
+		server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
+		ctx := chatdTestContext(t)
+		user, org, model := seedInternalChatDeps(t, db)
+		parent, child := createParentChildChats(ctx, t, server, user, org, model)
+		sibling, err := server.CreateChat(ctx, CreateOptions{
+			OrganizationID: org.ID,
+			OwnerID:        user.ID,
+			ParentChatID:   uuid.NullUUID{UUID: parent.ID, Valid: true},
+			RootChatID:     uuid.NullUUID{UUID: parent.ID, Valid: true},
+			Title:          "sibling-" + t.Name(),
+			ModelConfigID:  model.ID,
+			InitialUserContent: []codersdk.ChatMessagePart{
+				codersdk.ChatMessageText("other work"),
+			},
+		})
+		require.NoError(t, err)
+
+		tool := server.childMessageAgentTool(child)
+		for _, targetID := range []uuid.UUID{sibling.ID, child.ID, uuid.New()} {
+			input, err := json.Marshal(messageAgentArgs{
+				ChatID:  targetID.String(),
+				Message: "should be rejected",
+			})
+			require.NoError(t, err)
+			resp, err := tool.Run(ctx, fantasy.ToolCall{
+				ID:    uuid.NewString(),
+				Name:  "message_agent",
+				Input: string(input),
+			})
+			require.NoError(t, err)
+			require.True(t, resp.IsError)
+			require.Equal(t, ErrSubagentNotParent.Error(), resp.Content)
+			require.NotContains(t, resp.Content, "type")
+		}
+	})
+
 	t.Run("IdleMessagePersistsSender", func(t *testing.T) {
 		t.Parallel()
 
@@ -4472,6 +4543,26 @@ func TestSubagentToolDescriptionsMatchCommunicationContract(t *testing.T) {
 	listTool := findToolByName(tools, "list_agents")
 	require.NotNil(t, listTool)
 	require.Contains(t, listTool.Info().Description, "requires_action = waiting for tool results")
+}
+
+func TestChildMessageAgentToolSchemaAndDescription(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
+	ctx := chatdTestContext(t)
+	user, org, model := seedInternalChatDeps(t, db)
+	parent, child := createParentChildChats(ctx, t, server, user, org, model)
+
+	tool := server.childMessageAgentTool(child)
+	require.Equal(t, "message_agent", tool.Info().Name)
+	require.Contains(t, tool.Info().Description, parent.ID.String())
+	require.Contains(t, tool.Info().Description, "Other targets are rejected")
+	require.Contains(t, tool.Info().Description, "blocked and need a decision")
+	require.Contains(t, tool.Info().Description, "Do not use it for routine progress updates")
+	require.Contains(t, tool.Info().Parameters, "chat_id")
+	require.Contains(t, tool.Info().Parameters, "message")
+	require.NotContains(t, tool.Info().Parameters, "interrupt")
 }
 
 func TestAgentMessageToolSchemas(t *testing.T) {

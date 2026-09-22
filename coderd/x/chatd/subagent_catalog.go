@@ -27,8 +27,8 @@ const (
 		spawnAgentToolName + " description for agent selection and ownership."
 )
 
-// unbilledSubagentToolNames excludes parent-side orchestration because
-// child chats bill their own runtime. Include deprecated aliases.
+// unbilledSubagentToolNames excludes agent orchestration because child chats
+// bill their own runtime. Include deprecated aliases.
 var unbilledSubagentToolNames = map[string]bool{
 	spawnAgentToolName:         true,
 	"wait_agent":               true,

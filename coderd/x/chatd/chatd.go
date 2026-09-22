@@ -110,7 +110,7 @@ const (
 	// when many chats are pending.
 	DefaultMaxChatsPerAcquire int32 = 10
 
-	defaultSubagentInstruction = "You are running as a delegated sub-agent chat. Complete the delegated task and provide clear, concise assistant responses for the parent agent."
+	defaultSubagentInstruction = "You are running as a delegated sub-agent chat. Complete the delegated task and provide clear, concise assistant responses for the parent agent. Use message_agent to contact the parent when you are blocked and need a decision, or when the parent needs information before your final response. Do not use it for routine progress updates."
 
 	// defaultAdvisorMaxOutputTokens caps the nested advisor response
 	// when the admin config omits the field (or sets it to <= 0).
@@ -3392,7 +3392,9 @@ func builtinPlanToolAllowed(name string, isRootChat bool) bool {
 		"spawn_explore_agent", "wait_agent", "list_agents", "list_subagent_models",
 		"ask_user_question", "attach_file":
 		return isRootChat
-	case "process_list", "process_signal", "message_agent", "followup_agent", "interrupt_agent", "close_agent",
+	case "message_agent":
+		return !isRootChat
+	case "process_list", "process_signal", "followup_agent", "interrupt_agent", "close_agent",
 		"spawn_computer_use_agent":
 		return false
 	default:
@@ -3456,7 +3458,7 @@ func activeToolNamesForTurn(
 	return toolNames
 }
 
-func allowedExploreToolNames(allTools []fantasy.AgentTool) []string {
+func allowedExploreToolNames(allTools []fantasy.AgentTool, allowParentMessage bool) []string {
 	builtinExplorePolicy := map[string]bool{
 		"read_file":            true,
 		"write_file":           false,
@@ -3473,7 +3475,7 @@ func allowedExploreToolNames(allTools []fantasy.AgentTool) []string {
 		"propose_plan":         false,
 		"spawn_agent":          false,
 		"wait_agent":           false,
-		"message_agent":        false,
+		"message_agent":        allowParentMessage,
 		"followup_agent":       false,
 		"interrupt_agent":      false,
 		"close_agent":          false,
@@ -3511,7 +3513,7 @@ func allowedBehaviorToolNames(
 	chatMode database.NullChatMode,
 ) []string {
 	if isExploreSubagentMode(chatMode) {
-		return allowedExploreToolNames(allTools)
+		return allowedExploreToolNames(allTools, false)
 	}
 	return allToolNames(allTools)
 }

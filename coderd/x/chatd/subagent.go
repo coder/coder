@@ -31,7 +31,10 @@ import (
 	"github.com/coder/coder/v2/codersdk/x/agenthooks"
 )
 
-var ErrSubagentNotDescendant = xerrors.New("target chat is not a descendant of current chat")
+var (
+	ErrSubagentNotDescendant = xerrors.New("target chat is not a descendant of current chat")
+	ErrSubagentNotParent     = xerrors.New("target chat is not the direct parent of current chat")
+)
 
 // ErrSubagentWaitTimeout is returned by awaitSubagentCompletion when the
 // wait deadline elapses before the subagent reaches a terminal status. The
@@ -944,8 +947,8 @@ func (p *Server) subagentTools(
 				return p.waitAgentSuccessResponse(ctx, recordingID, agentConn, parent, targetChat, report), nil
 			},
 		),
-		fantasy.NewAgentTool(
-			"message_agent",
+		p.messageAgentTool(
+			currentChat,
 			"Send a prioritized instruction to a previously spawned child "+
 				"agent for a correction or scope change that must affect active "+
 				"work. If the agent is idle, it starts work on the message. If it "+
@@ -958,9 +961,6 @@ func (p *Server) subagentTools(
 				"promotion error after the child starts the message. A successful "+
 				"result confirms acceptance, not that the child has stopped or "+
 				"responded. Use wait_agent to collect the child's response.",
-			func(ctx context.Context, args messageAgentArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
-				return p.runSubagentMessageTool(ctx, currentChat, args.ChatID, args.Message, true)
-			},
 		),
 		fantasy.NewAgentTool(
 			"followup_agent",
@@ -1365,6 +1365,33 @@ func (p *Server) createChildSubagentChatWithOptions(
 	return child, nil
 }
 
+func (p *Server) messageAgentTool(
+	currentChat func() database.Chat,
+	description string,
+) fantasy.AgentTool {
+	return fantasy.NewAgentTool(
+		"message_agent",
+		description,
+		func(ctx context.Context, args messageAgentArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
+			return p.runSubagentMessageTool(ctx, currentChat, args.ChatID, args.Message, true)
+		},
+	)
+}
+
+func (p *Server) childMessageAgentTool(child database.Chat) fantasy.AgentTool {
+	return p.messageAgentTool(
+		func() database.Chat { return child },
+		"Send a direct message to your parent agent at chat ID "+
+			child.ParentChatID.UUID.String()+". Other targets are rejected. Use this "+
+			"when you are blocked and need a decision, or when the parent needs "+
+			"information before your final response. Do not use it for routine "+
+			"progress updates. This interrupts active parent work and requests "+
+			"priority for the message, but preserves the parent's queued work. "+
+			"A successful result confirms acceptance, not that the parent has "+
+			"stopped or responded.",
+	)
+}
+
 func (p *Server) runSubagentMessageTool(
 	ctx context.Context,
 	currentChat func() database.Chat,
@@ -1381,18 +1408,20 @@ func (p *Server) runSubagentMessageTool(
 		return fantasy.NewTextErrorResponse(err.Error()), nil
 	}
 
-	parent := currentChat()
+	senderChat := currentChat()
 	var targetChatInfo *database.Chat
-	if chat, lookupErr := p.db.GetChatByID(ctx, targetChatID); lookupErr == nil {
-		targetChatInfo = &chat
-	} else if !xerrors.Is(lookupErr, sql.ErrNoRows) {
-		p.logger.Warn(ctx, "unexpected error looking up chat for message",
-			slog.F("chat_id", targetChatID),
-			slog.Error(lookupErr),
-		)
+	if !senderChat.ParentChatID.Valid || targetChatID == senderChat.ParentChatID.UUID {
+		if chat, lookupErr := p.db.GetChatByID(ctx, targetChatID); lookupErr == nil {
+			targetChatInfo = &chat
+		} else if !xerrors.Is(lookupErr, sql.ErrNoRows) {
+			p.logger.Warn(ctx, "unexpected error looking up chat for message",
+				slog.F("chat_id", targetChatID),
+				slog.Error(lookupErr),
+			)
+		}
 	}
 
-	targetChat, err := p.sendSubagentMessage(ctx, parent, targetChatID, message, direct)
+	targetChat, err := p.sendAgentMessage(ctx, senderChat, targetChatID, message, direct)
 	if err != nil {
 		return subagentErrorResponse(err, targetChatInfo), nil
 	}
@@ -1404,9 +1433,9 @@ func (p *Server) runSubagentMessageTool(
 	}, targetChat)), nil
 }
 
-func (p *Server) sendSubagentMessage(
+func (p *Server) sendAgentMessage(
 	ctx context.Context,
-	parentChat database.Chat,
+	senderChat database.Chat,
 	targetChatID uuid.UUID,
 	message string,
 	direct bool,
@@ -1416,12 +1445,18 @@ func (p *Server) sendSubagentMessage(
 		return database.Chat{}, xerrors.New("message is required")
 	}
 
-	isDescendant, err := isSubagentDescendant(ctx, p.db, parentChat.ID, targetChatID)
-	if err != nil {
-		return database.Chat{}, err
-	}
-	if !isDescendant {
-		return database.Chat{}, ErrSubagentNotDescendant
+	if senderChat.ParentChatID.Valid {
+		if targetChatID != senderChat.ParentChatID.UUID {
+			return database.Chat{}, ErrSubagentNotParent
+		}
+	} else {
+		isDescendant, err := isSubagentDescendant(ctx, p.db, senderChat.ID, targetChatID)
+		if err != nil {
+			return database.Chat{}, err
+		}
+		if !isDescendant {
+			return database.Chat{}, ErrSubagentNotDescendant
+		}
 	}
 
 	// CreatedBy remains the target owner because agent messages are persisted as
@@ -1432,8 +1467,8 @@ func (p *Server) sendSubagentMessage(
 	}
 	content := fmt.Sprintf(
 		"Message from agent %s (%s):\n%s",
-		parentChat.Title,
-		parentChat.ID,
+		senderChat.Title,
+		senderChat.ID,
 		message,
 	)
 
