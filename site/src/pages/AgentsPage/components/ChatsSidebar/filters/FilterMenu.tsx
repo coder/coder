@@ -1,5 +1,5 @@
 import { cn } from "cn";
-import { CheckIcon, FilterIcon, RotateCcwIcon, XIcon } from "lucide-react";
+import { CheckIcon, ListFilterIcon, RotateCcwIcon, XIcon } from "lucide-react";
 import { DropdownMenu as DropdownMenuPrimitive } from "radix-ui";
 import type { ComponentProps, FC, KeyboardEvent, ReactNode } from "react";
 import { useState } from "react";
@@ -185,8 +185,8 @@ const FilterRow: FC<{
 	readonly value: ReactNode;
 }> = ({ label, value }) => (
 	<>
-		<span>{label}</span>
-		<span className="ml-auto truncate text-content-primary">{value}</span>
+		<span className="flex-1">{label}</span>
+		<span className="truncate text-content-primary">{value}</span>
 	</>
 );
 
@@ -296,7 +296,7 @@ export const FilterMenu: FC<FilterMenuProps> = ({
 						hasActiveFilters(filters) && "text-content-primary",
 					)}
 				>
-					<FilterIcon />
+					<ListFilterIcon />
 				</Button>
 			</DropdownMenuTrigger>
 			<DropdownMenuContent
