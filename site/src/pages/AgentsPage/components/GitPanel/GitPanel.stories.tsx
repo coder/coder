@@ -398,6 +398,38 @@ export const MultipleRepos: Story = {
 	},
 };
 
+/** Refs across two origins share a branch name; entries name their repository. */
+export const MultipleOrigins: Story = {
+	args: {
+		chatId: "test-chat",
+		remoteDiffStats: [
+			{
+				...MockChatDiffStatus,
+				git_branch: "feature/shared",
+				remote_origin: "https://github.com/coder/coder.git",
+				pull_request_state: undefined,
+				pull_request_title: "",
+				pr_number: undefined,
+				url: undefined,
+			},
+			{
+				...MockChatDiffStatus,
+				git_branch: "feature/shared",
+				remote_origin: "https://github.com/coder/other-project.git",
+				pull_request_state: undefined,
+				pull_request_title: "",
+				pr_number: undefined,
+				url: undefined,
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(canvas.getByTestId("git-panel-view-switcher"));
+		await within(document.body).findByRole("menu");
+	},
+};
+
 /** No remote changes and no working changes. */
 export const EmptyState: Story = {
 	args: {
