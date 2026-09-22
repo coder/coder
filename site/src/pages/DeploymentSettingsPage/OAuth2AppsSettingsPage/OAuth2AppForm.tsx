@@ -124,6 +124,7 @@ const redirectURIsSchema = (isPublicClient: boolean) =>
 	Yup.array()
 		.of(
 			Yup.string()
+				.trim()
 				.test(
 					"redirect-uri-byte-length",
 					`A redirect URI cannot be longer than ${OAuth2RedirectURIMaxBytes} UTF-8 bytes.`,
