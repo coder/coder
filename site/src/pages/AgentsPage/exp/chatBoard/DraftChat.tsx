@@ -11,13 +11,13 @@ import {
 } from "../../components/AgentCreateForm";
 import { lastModelConfigIDStorageKey } from "./assistants";
 
-interface DraftChatProps {
+type DraftChatProps = {
 	/** Labels that place the chat on the board, sent with the create request. */
 	readonly labels: Record<string, string>;
 	/** Appended to the first message as a fenced block when present. A note may itself contain a three-backtick fence. */
 	readonly context: string | undefined;
 	readonly onCreated: (chatId: string) => void;
-}
+};
 
 /**
  * The regular create form inside a board window. Submit is a copy of

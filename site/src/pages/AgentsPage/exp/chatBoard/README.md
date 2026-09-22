@@ -77,10 +77,12 @@ Efforts
 
 Status at a glance
 
-- Each chat shows its status icon, last turn, age, unread mark and linked
-  pull request with line counts.
-- Resting on the info icon shows the chat's summary and cost without
-  reflowing the card; clicking pins it.
+- Each chat shows its status icon, last turn and linked pull request, and,
+  once it has settled, its age at the end of that line. Unread is a dot on
+  the chat icon; while the chat works the spinner says enough, so neither
+  is shown.
+- Resting on the info icon shows the chat's summary, cost and line counts
+  without reflowing the card; clicking pins it.
 
 Working without leaving the board
 
@@ -88,6 +90,10 @@ Working without leaving the board
   beside the card; clicking it, or dragging it, keeps the window. Windows
   move, resize, stack and survive a reload; a chat window has a button for
   its card's assistant.
+- I can start a new chat in a column from its header, or in a card from its
+  menu, with the regular create form in a floating window. The chat lands
+  where it was started, and a card's chat can carry the card's title, notes
+  and chats as context for its first message.
 - I can filter the board with the same search the sidebar uses; whole cards
   stay or go, groups are never split by a filter.
 
@@ -98,6 +104,10 @@ Assistant
   told to verify against the live chats before answering. It uses a shared
   workspace so it can read transcripts, send follow-ups and check pull
   requests on my behalf when I ask.
+- A card that has an assistant shows it as an icon in its header: resting
+  previews it, clicking pins it, it pulses while the assistant works and
+  carries the unread dot when it has replied. Archiving the assistant
+  removes the icon; the card's menu creates a new one.
 - The board has one assistant of its own, opened from the header. It gets
   a snapshot of every card with its primary chat id and is told how to read
   and edit board labels; it proposes changes and acts only on a yes. When it
@@ -149,7 +159,8 @@ snapshot the previous maps of every touched chat so they can be undone.
   `NotesSection.tsx` translate gestures into one command call each; the
   page filters the rendered columns but always hands the full model to the
   commands. `BoardCard.tsx` composes `CardColorPicker.tsx`,
-  `EditableTitle.tsx`, `ChatStatusLine.tsx` and `ChatInfo.tsx`;
+  `EditableTitle.tsx`, `ChatStatusLine.tsx`, `ChatInfo.tsx` and the chat
+  and assistant openers in `Openers.tsx`;
   `DragGhost.tsx` is the overlay drawn for whatever is being dragged.
 - `assistantSpecs.ts` writes the prompts and snapshots for the card and
   board assistants; `assistants.ts` finds or creates the chat for a spec.
