@@ -398,8 +398,12 @@ export function compactionTriggerTokens(
 	) {
 		return undefined;
 	}
-	// The backend compares usage >= threshold, but skips zero-token usage.
-	return Math.max(1, Math.ceil((contextLimit * threshold) / 100));
+	// The backend skips zero usage and compares (tokens / window) * 100.
+	// Preserve that operation order at floating-point integer boundaries.
+	const candidate = Math.max(1, Math.ceil((contextLimit * threshold) / 100));
+	return (candidate / contextLimit) * 100 >= threshold
+		? candidate
+		: candidate + 1;
 }
 
 export const getModelSelectorPlaceholder = (

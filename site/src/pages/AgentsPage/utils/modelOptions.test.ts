@@ -1369,6 +1369,12 @@ describe("compactionTriggerTokens", () => {
 		expect(compactionTriggerTokens(3, 70)).toBe(3);
 	});
 
+	it("matches the backend percentage comparison at floating-point boundaries", () => {
+		expect((37120 / 128000) * 100).toBeLessThan(29);
+		expect((37121 / 128000) * 100).toBeGreaterThanOrEqual(29);
+		expect(compactionTriggerTokens(128000, 29)).toBe(37121);
+	});
+
 	it("requires positive usage even at a zero threshold", () => {
 		expect(compactionTriggerTokens(128000, 0)).toBe(1);
 	});
