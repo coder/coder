@@ -6827,6 +6827,18 @@ export const OAuth2RedirectCookie = "oauth_redirect";
  */
 export const OAuth2RedirectURICookie = "oauth_redirect_uri";
 
+// From codersdk/oauth2_validation.go
+/**
+ * OAuth2RedirectURIMaxBytes is the longest a single redirect URI may be.
+ */
+export const OAuth2RedirectURIMaxBytes = 2048;
+
+// From codersdk/oauth2_validation.go
+/**
+ * OAuth2RedirectURIsMaxCount is the most redirect URIs an app may register.
+ */
+export const OAuth2RedirectURIsMaxCount = 32;
+
 // From codersdk/oauth2.go
 export type OAuth2RevocationTokenTypeHint = "access_token" | "refresh_token";
 

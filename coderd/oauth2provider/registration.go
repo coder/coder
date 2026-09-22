@@ -110,6 +110,7 @@ func CreateDynamicClientRegistration(db database.Store, accessURL *url.URL, audi
 		// The app and its secret are written in one transaction. A partial
 		// write would commit an app that can never authenticate, and which
 		// still holds a registration access token.
+		redirectURIs := resolveRedirectURIs("", req.RedirectURIs, nil)
 		var app database.OAuth2ProviderApp
 		err = db.InTx(func(tx database.Store) error {
 			var err error
@@ -120,8 +121,8 @@ func CreateDynamicClientRegistration(db database.Store, accessURL *url.URL, audi
 				UpdatedAt:               now,
 				Name:                    clientName,
 				Icon:                    req.LogoURI,
-				CallbackURL:             req.RedirectURIs[0], // Primary redirect URI
-				RedirectUris:            req.RedirectURIs,
+				CallbackURL:             redirectURIs[0],
+				RedirectUris:            redirectURIs,
 				ClientType:              string(clientType),
 				DynamicallyRegistered:   sql.NullBool{Bool: true, Valid: true},
 				ClientIDIssuedAt:        sql.NullTime{Time: now, Valid: true},
@@ -381,14 +382,15 @@ func UpdateClientConfiguration(db database.Store, auditor *audit.Auditor, logger
 
 		// Update app in database
 		now := dbtime.Now()
+		redirectURIs := resolveRedirectURIs("", req.RedirectURIs, nil)
 		//nolint:gocritic // OAuth2 system context, RFC 7592 client configuration endpoint
 		updatedApp, err := db.UpdateOAuth2ProviderAppByClientID(dbauthz.AsSystemOAuth2(ctx), database.UpdateOAuth2ProviderAppByClientIDParams{
 			ID:           clientID,
 			UpdatedAt:    now,
 			Name:         req.GenerateClientName(),
 			Icon:         req.LogoURI,
-			CallbackURL:  req.RedirectURIs[0], // Primary redirect URI
-			RedirectUris: req.RedirectURIs,
+			CallbackURL:  redirectURIs[0],
+			RedirectUris: redirectURIs,
 			// Carried through unchanged. The guard above rejects a request that
 			// would change the type, so re-deriving it here could only ever
 			// differ for a legacy row whose stored type and auth method
