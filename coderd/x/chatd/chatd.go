@@ -1265,13 +1265,6 @@ func (p *Server) applyRequestedMCPServerIDs(ctx context.Context, store database.
 	return updated, nil
 }
 
-func applyRequestedInlineMCPServers(ctx context.Context, store database.Store, lockedChat database.Chat, requested *[]codersdk.InlineMCPServerRequest) error {
-	if requested == nil {
-		return nil
-	}
-	return chatstate.ReplaceInlineMCPServers(ctx, store, lockedChat.ID, *requested)
-}
-
 // CreateChat creates a chat with its initial history through
 // chatstate.CreateChat. The new chat starts in `running` status per
 // the chat execution state model. Ownership hints wake chat workers.
@@ -1549,8 +1542,10 @@ func (p *Server) SendMessage(
 			return err
 		}
 
-		if err := applyRequestedInlineMCPServers(ctx, store, lockedChat, opts.InlineMCPServers); err != nil {
-			return xerrors.Errorf("replace chat MCP servers: %w", err)
+		if opts.InlineMCPServers != nil {
+			if err := chatstate.ReplaceInlineMCPServers(ctx, store, lockedChat.ID, *opts.InlineMCPServers); err != nil {
+				return xerrors.Errorf("replace inline MCP servers: %w", err)
+			}
 		}
 
 		messageCreatedBy := opts.CreatedBy
@@ -3330,54 +3325,34 @@ func isExploreSubagentMode(mode database.NullChatMode) bool {
 	return mode.Valid && mode.ChatMode == database.ChatModeExplore
 }
 
-// mcpPlanPolicy is the plan-mode input for one external MCP server,
-// org-configured or inline.
-type mcpPlanPolicy struct {
-	ID              uuid.UUID
-	AllowInPlanMode bool
-}
-
-// planApprovedMCPServerIDs returns the external MCP server IDs a turn may
-// use. nil means no restriction (not a plan-mode turn). Plan-mode
-// subagents get an empty set: their trust boundary is narrower than the
-// root chat's.
-func planApprovedMCPServerIDs(
+// filterMCPServersForTurn returns the external MCP servers visible on the
+// current turn and the set of their IDs. Outside plan mode every server is
+// visible and the set is nil. Plan-mode subagents see none: their trust
+// boundary is narrower than the root chat's. Root plan-mode chats see the
+// servers whose policy allows plan mode.
+func filterMCPServersForTurn[T any](
+	servers []T,
 	mode database.NullChatPlanMode,
 	parentChatID uuid.NullUUID,
-	servers []mcpPlanPolicy,
-) map[uuid.UUID]struct{} {
+	policy func(T) (id uuid.UUID, allowInPlanMode bool),
+) ([]T, map[uuid.UUID]struct{}) {
 	if !mode.Valid || mode.ChatPlanMode != database.ChatPlanModePlan {
-		return nil
+		return servers, nil
 	}
-	approved := make(map[uuid.UUID]struct{})
+	approved := map[uuid.UUID]struct{}{}
 	if parentChatID.Valid {
-		return approved
+		return nil, approved
 	}
+	filtered := make([]T, 0, len(servers))
 	for _, srv := range servers {
-		if srv.AllowInPlanMode {
-			approved[srv.ID] = struct{}{}
+		id, allowInPlanMode := policy(srv)
+		if !allowInPlanMode {
+			continue
 		}
+		filtered = append(filtered, srv)
+		approved[id] = struct{}{}
 	}
-	return approved
-}
-
-// approvedMCPServers keeps the items whose ID is approved. A nil approved
-// set keeps everything.
-func approvedMCPServers[T any](
-	items []T,
-	id func(T) uuid.UUID,
-	approved map[uuid.UUID]struct{},
-) []T {
-	if approved == nil {
-		return items
-	}
-	var filtered []T
-	for _, item := range items {
-		if _, ok := approved[id(item)]; ok {
-			filtered = append(filtered, item)
-		}
-	}
-	return filtered
+	return filtered, approved
 }
 
 // filterExternalMCPConfigsForTurn returns the external MCP server configs
@@ -3388,16 +3363,9 @@ func filterExternalMCPConfigsForTurn(
 	mode database.NullChatPlanMode,
 	parentChatID uuid.NullUUID,
 ) ([]database.MCPServerConfig, map[uuid.UUID]struct{}) {
-	policies := make([]mcpPlanPolicy, 0, len(configs))
-	for _, cfg := range configs {
-		policies = append(policies, mcpPlanPolicy{ID: cfg.ID, AllowInPlanMode: cfg.AllowInPlanMode})
-	}
-	approved := planApprovedMCPServerIDs(mode, parentChatID, policies)
-	return approvedMCPServers(configs, mcpConfigID, approved), approved
-}
-
-func mcpConfigID(cfg database.MCPServerConfig) uuid.UUID {
-	return cfg.ID
+	return filterMCPServersForTurn(configs, mode, parentChatID, func(cfg database.MCPServerConfig) (uuid.UUID, bool) {
+		return cfg.ID, cfg.AllowInPlanMode
+	})
 }
 
 func builtinPlanToolAllowed(name string, isRootChat bool) bool {

@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"net/url"
 	"slices"
 	"strconv"
@@ -2024,16 +2025,11 @@ func InlineMCPServer(row database.ChatMCPServer) (codersdk.InlineMCPServer, erro
 	if err := json.Unmarshal([]byte(row.Headers), &headers); err != nil {
 		return codersdk.InlineMCPServer{}, xerrors.Errorf("parse headers for chat MCP server %q: %w", row.Slug, err)
 	}
-	headerNames := make([]string, 0, len(headers))
-	for name := range headers {
-		headerNames = append(headerNames, name)
-	}
-	slices.Sort(headerNames)
 	return codersdk.InlineMCPServer{
 		ID:                  row.ID,
 		Slug:                row.Slug,
 		URL:                 row.Url,
-		HeaderNames:         headerNames,
+		HeaderNames:         nonNilStrings(slices.Sorted(maps.Keys(headers))),
 		ToolAllowList:       nonNilStrings(row.ToolAllowList),
 		ToolDenyList:        nonNilStrings(row.ToolDenyList),
 		AllowInPlanMode:     row.AllowInPlanMode,

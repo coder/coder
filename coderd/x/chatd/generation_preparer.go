@@ -2,6 +2,7 @@ package chatd
 
 import (
 	"context"
+	"maps"
 	"slices"
 	"strings"
 	"sync"
@@ -182,19 +183,20 @@ func (server *Server) prepareGeneration(
 	isExploreSubagent := isExploreSubagentMode(chat.Mode)
 	isRootChat := !chat.ParentChatID.Valid
 
-	// One plan-mode policy covers org-configured and inline
-	// servers: both feed the same approved set, and every tool source
-	// below is filtered against it.
-	mcpPolicies := make([]mcpPlanPolicy, 0, len(mcpConfigs)+len(inlineMCPServers))
-	for _, cfg := range mcpConfigs {
-		mcpPolicies = append(mcpPolicies, mcpPlanPolicy{ID: cfg.ID, AllowInPlanMode: cfg.AllowInPlanMode})
-	}
-	for _, srv := range inlineMCPServers {
-		mcpPolicies = append(mcpPolicies, mcpPlanPolicy{ID: srv.Server.ID, AllowInPlanMode: srv.AllowInPlanMode})
-	}
-	approvedPlanMCPConfigIDs := planApprovedMCPServerIDs(currentPlanMode, chat.ParentChatID, mcpPolicies)
-	mcpConnectConfigs := approvedMCPServers(mcpConfigs, mcpConfigID, approvedPlanMCPConfigIDs)
-	inlineMCPConnectServers := approvedMCPServers(inlineMCPServers, inlineMCPServerID, approvedPlanMCPConfigIDs)
+	mcpConnectConfigs, approvedPlanMCPConfigIDs := filterExternalMCPConfigsForTurn(
+		mcpConfigs,
+		currentPlanMode,
+		chat.ParentChatID,
+	)
+	inlineMCPConnectServers, approvedInlineMCPServerIDs := filterMCPServersForTurn(
+		inlineMCPServers,
+		currentPlanMode,
+		chat.ParentChatID,
+		func(srv inlineMCPServer) (uuid.UUID, bool) { return srv.Server.ID, srv.AllowInPlanMode },
+	)
+	// Both sets are nil outside plan mode, so this never writes to a nil
+	// map. Every tool source below is filtered against the union.
+	maps.Copy(approvedPlanMCPConfigIDs, approvedInlineMCPServerIDs)
 	if isExploreSubagent && isRootChat {
 		mcpConnectConfigs = nil
 		inlineMCPConnectServers = nil
@@ -241,15 +243,22 @@ func (server *Server) prepareGeneration(
 		currentChat:      &currentChat,
 		loadChatSnapshot: loadChatSnapshot,
 	}
-	// Each acquired resource registers its release here as soon as it
-	// exists, from whichever goroutine acquired it. An error return
-	// releases everything; a successful return hands the stack to the
-	// caller as Cleanup.
-	var cleanup cleanupStack
-	cleanup.add(workspaceCtx.close)
+	// mcpCleanup and inlineMCPCleanup are assigned by g2 goroutines and
+	// read only after g2.Wait, so no error path can run this before
+	// they are set.
+	var mcpCleanup, inlineMCPCleanup func()
+	cleanup := func() {
+		if inlineMCPCleanup != nil {
+			inlineMCPCleanup()
+		}
+		if mcpCleanup != nil {
+			mcpCleanup()
+		}
+		workspaceCtx.close()
+	}
 	defer func() {
 		if err != nil {
-			cleanup.run()
+			cleanup()
 		}
 	}()
 
@@ -438,7 +447,6 @@ func (server *Server) prepareGeneration(
 				}
 				mcpServers = append(mcpServers, srv)
 			}
-			var mcpCleanup func()
 			mcpTools, mcpSummaries, mcpCleanup = mcpclient.ConnectAll(
 				ctx,
 				logger,
@@ -449,7 +457,6 @@ func (server *Server) prepareGeneration(
 				chatprovider.CoderHeaders(chat),
 				server.mcpHTTPClient,
 			)
-			cleanup.add(mcpCleanup)
 			mcpSummaries = append(mcpSummaries, invalidConfigs...)
 			return nil
 		})
@@ -460,7 +467,6 @@ func (server *Server) prepareGeneration(
 			for _, srv := range inlineMCPConnectServers {
 				servers = append(servers, srv.Server)
 			}
-			var inlineMCPCleanup func()
 			inlineMCPTools, inlineMCPSummaries, inlineMCPCleanup = mcpclient.ConnectInline(
 				ctx,
 				logger,
@@ -468,7 +474,6 @@ func (server *Server) prepareGeneration(
 				chatprovider.CoderHeaders(chat),
 				server.mcpHTTPClient,
 			)
-			cleanup.add(inlineMCPCleanup)
 			return nil
 		})
 	}
@@ -866,7 +871,7 @@ func (server *Server) prepareGeneration(
 			Options:         compactionOptions,
 			PendingUserRows: pendingUserRows,
 		},
-		Cleanup: cleanup.run,
+		Cleanup: cleanup,
 		Debug:   debug,
 	}, nil
 }
@@ -1032,30 +1037,4 @@ func enabledMCPServerConfigsForChatOrg(
 		return nil, xerrors.Errorf("get enabled MCP server configs for organization: %w", err)
 	}
 	return configs, nil
-}
-
-// cleanupStack collects the release functions of resources a turn
-// acquires, from any goroutine, and runs them in reverse order.
-type cleanupStack struct {
-	mu  sync.Mutex
-	fns []func()
-}
-
-func (s *cleanupStack) add(fn func()) {
-	if fn == nil {
-		return
-	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.fns = append(s.fns, fn)
-}
-
-func (s *cleanupStack) run() {
-	s.mu.Lock()
-	fns := s.fns
-	s.fns = nil
-	s.mu.Unlock()
-	for i := len(fns) - 1; i >= 0; i-- {
-		fns[i]()
-	}
 }

@@ -4,8 +4,6 @@ import (
 	"context"
 	"encoding/json"
 
-	"github.com/google/uuid"
-
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/x/chatd/mcpclient"
@@ -17,10 +15,6 @@ import (
 type inlineMCPServer struct {
 	Server          mcpclient.Server
 	AllowInPlanMode bool
-}
-
-func inlineMCPServerID(srv inlineMCPServer) uuid.UUID {
-	return srv.Server.ID
 }
 
 // inlineMCPServersEnabled reports whether this deployment loads and
