@@ -164,52 +164,53 @@ describe("toolVisibility", () => {
 			).toBe(false);
 		});
 
-		it("hides running wait_agent rows until chat_id is available", () => {
-			expect(
-				shouldRenderTool({
-					name: "wait_agent",
-					status: "running",
-					args: {},
-					result: { status: "pending" },
-				}),
-			).toBe(false);
-		});
-
 		it.each([
-			"message_agent",
-			"queue_agent_work",
-		])("hides running %s rows until chat_id is available", (name) => {
-			expect(
-				shouldRenderTool({
-					name,
-					status: "running",
-					args: { message: "continue" },
-					result: { status: "pending" },
-				}),
-			).toBe(false);
-		});
-
-		it("hides running close_agent (legacy alias) rows until chat_id is available", () => {
-			expect(
-				shouldRenderTool({
-					name: "close_agent",
-					status: "running",
-					args: {},
-					result: { status: "running" },
-				}),
-			).toBe(false);
-		});
-
-		it("hides running interrupt_agent rows until chat_id is available", () => {
-			expect(
-				shouldRenderTool({
-					name: "interrupt_agent",
-					status: "running",
-					args: {},
-					result: { status: "running" },
-				}),
-			).toBe(false);
-		});
+			{
+				name: "wait_agent",
+				args: {},
+				result: { status: "pending" },
+			},
+			{
+				name: "message_agent",
+				args: { message: "continue" },
+				result: { status: "pending" },
+			},
+			{
+				name: "queue_agent_work",
+				args: { message: "later work" },
+				result: { status: "pending" },
+			},
+			{
+				name: "close_agent",
+				args: {},
+				result: { status: "running" },
+			},
+			{
+				name: "interrupt_agent",
+				args: {},
+				result: { status: "running" },
+			},
+		])(
+			"renders a running $name row only when chat_id is available",
+			({ name, args, result }) => {
+				expect(
+					shouldRenderTool({
+						name,
+						status: "running",
+						args,
+						result,
+					}),
+				).toBe(false);
+				expect(
+					shouldRenderTool({
+						name,
+						status: "running",
+						args: { ...args, chat_id: "child-chat-1" },
+						result,
+					}),
+				).toBe(true);
+			},
+		);
 
 		it("renders list_agents rows regardless of chat_id", () => {
 			expect(
@@ -218,17 +219,6 @@ describe("toolVisibility", () => {
 					status: "running",
 					args: {},
 					result: undefined,
-				}),
-			).toBe(true);
-		});
-
-		it("renders running lifecycle rows once args provide the chat_id", () => {
-			expect(
-				shouldRenderTool({
-					name: "wait_agent",
-					status: "running",
-					args: { chat_id: "child-chat-1" },
-					result: { status: "pending" },
 				}),
 			).toBe(true);
 		});
