@@ -108,17 +108,21 @@ func sdkError(status int, message string) error {
 	})
 }
 
-// shutdownAndRequirePoolClosed verifies cleanup reaches the real interception pool.
+// shutdownAndRequirePoolClosed verifies shutdown reaches the real interception
+// pool and then refuses handler acquisition without consulting it again.
 func shutdownAndRequirePoolClosed(t *testing.T, srv *aibridged.Server) {
 	t.Helper()
 	ctx := testutil.Context(t, testutil.WaitShort)
 	require.NotNil(t, srv.InterceptionPoolForTest())
 	require.NoError(t, srv.Shutdown(ctx))
 
-	// Use a live context so cancellation cannot mask a pool left open.
 	handler, err := srv.GetRequestHandler(ctx, aibridged.Request{})
-	require.ErrorContains(t, err, "pool shutting down")
-	require.Nil(t, handler)
+	require.NoError(t, err)
+	require.NotNil(t, handler)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/", nil))
+	require.Equal(t, http.StatusServiceUnavailable, rec.Code)
+	require.Equal(t, "AI Gateway is shutting down\n", rec.Body.String())
 }
 
 func TestClient_TransientDialErrorRetries(t *testing.T) {

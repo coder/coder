@@ -43,46 +43,6 @@ func serveAsync(tracker *Server, next http.Handler) <-chan int {
 	return done
 }
 
-// TestServerProxy_DrainsAdmitted asserts a graceful shutdown waits for the
-// requests already admitted and does not cancel them.
-func TestServerProxy_DrainsAdmitted(t *testing.T) {
-	t.Parallel()
-
-	tracker := newProxyTestServer(t)
-	handler, started, release := blockingHandler()
-	done := serveAsync(tracker, handler)
-	<-started
-
-	shutdownDone := make(chan error, 1)
-	go func() { shutdownDone <- tracker.Shutdown(t.Context()) }()
-
-	select {
-	case err := <-shutdownDone:
-		require.Fail(t, "shutdown returned before the in-flight request finished", "err: %v", err)
-	default:
-	}
-
-	release()
-	require.Equal(t, http.StatusNoContent, <-done)
-	require.NoError(t, <-shutdownDone)
-}
-
-// TestServerProxy_CancelsOnDeadline asserts an expired shutdown context
-// cancels admitted requests instead of waiting on them, and is reported.
-func TestServerProxy_CancelsOnDeadline(t *testing.T) {
-	t.Parallel()
-
-	tracker := newProxyTestServer(t)
-	handler, started, _ := blockingHandler()
-	done := serveAsync(tracker, handler)
-	<-started
-
-	ctx, cancel := context.WithCancel(t.Context())
-	cancel()
-	require.ErrorIs(t, tracker.Shutdown(ctx), context.Canceled)
-	require.Equal(t, http.StatusServiceUnavailable, <-done, "the request must observe the forced cancellation")
-}
-
 // TestServerProxy_DeadlineDoesNotWaitForHandler ensures shutdown returns
 // even if an admitted handler cannot observe cancellation, such as a blocked
 // response write.

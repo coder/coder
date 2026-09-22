@@ -2,6 +2,10 @@ package aibridged
 
 import (
 	"context"
+	"net/http"
+	"net/http/httptest"
+	"sync"
+	"sync/atomic"
 	"testing"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -138,13 +142,6 @@ func TestServerShutdownMode(t *testing.T) {
 				}
 				server.backend.Store(current)
 			}
-			proxy := tc.selected && !tc.interception
-			if !proxy {
-				// An unused proxy gate must not delay interception or startup cleanup.
-				release, ok := server.inflight.Admit()
-				require.True(t, ok)
-				defer release()
-			}
 			require.ErrorIs(t, server.Shutdown(ctx), tc.poolErr)
 			expectedCalls := 0
 			if tc.interception {
@@ -152,12 +149,410 @@ func TestServerShutdownMode(t *testing.T) {
 			}
 			require.Equal(t, expectedCalls, calls)
 			release, ok := server.inflight.Admit()
-			require.Equal(t, !proxy, ok, "only proxy mode shuts down the proxy gate")
-			if ok {
-				release()
-			}
+			require.False(t, ok, "shutdown closes request admission in every mode")
+			require.Nil(t, release)
 			_ = server.Shutdown(ctx)
 			require.Equal(t, expectedCalls, calls, "owned pool is shut down only once")
 		})
 	}
+}
+
+func TestServerShutdownDrainsBeforeCancelingLifecycle(t *testing.T) {
+	t.Parallel()
+
+	for _, interception := range []bool{false, true} {
+		name := "Proxy"
+		if interception {
+			name = "Interception"
+		}
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			lifecycleCtx, cancel := context.WithCancelCause(t.Context())
+			defer cancel(nil)
+			server := &Server{
+				lifecycleCtx: lifecycleCtx,
+				cancelFn:     cancel,
+				logger:       slogtest.Make(t, nil),
+				inflight:     aibridge.NewInflightGate(slogtest.Make(t, nil)),
+			}
+
+			started := make(chan struct{})
+			release := make(chan struct{})
+			baseHandler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				close(started)
+				<-release
+				w.WriteHeader(http.StatusNoContent)
+			})
+			if interception {
+				server.backend.Store(&backend{pool: &shutdownPool{
+					Pooler: &handlerPool{handler: baseHandler},
+					shutdown: func(context.Context) error {
+						return nil
+					},
+				}})
+			} else {
+				server.backend.Store(&backend{proxyRouter: server.inflight.Middleware(baseHandler)})
+			}
+
+			handler, err := server.GetRequestHandler(t.Context(), Request{})
+			require.NoError(t, err)
+			requestDone := make(chan int, 1)
+			go func() {
+				rec := httptest.NewRecorder()
+				handler.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/", nil))
+				requestDone <- rec.Code
+			}()
+			testCtx := testutil.Context(t, testutil.WaitShort)
+			testutil.TryReceive(testCtx, t, started)
+
+			shutdownDone := make(chan error, 1)
+			go func() {
+				shutdownDone <- server.Shutdown(testCtx)
+			}()
+			require.Eventually(t, func() bool {
+				probeRelease, ok := server.inflight.Admit()
+				if ok {
+					probeRelease()
+				}
+				return !ok
+			}, testutil.WaitShort, testutil.IntervalFast)
+			require.NoError(t, lifecycleCtx.Err(), "DRPC lifecycle must remain available while draining")
+			select {
+			case err := <-shutdownDone:
+				t.Fatalf("shutdown returned before the admitted request completed: %v", err)
+			default:
+			}
+
+			refused := httptest.NewRecorder()
+			handler.ServeHTTP(refused, httptest.NewRequest(http.MethodPost, "/", nil))
+			require.Equal(t, http.StatusServiceUnavailable, refused.Code)
+			require.Equal(t, "AI Gateway is shutting down\n", refused.Body.String())
+
+			close(release)
+			require.Equal(t, http.StatusNoContent, testutil.TryReceive(testCtx, t, requestDone))
+			require.NoError(t, testutil.TryReceive(testCtx, t, shutdownDone))
+			require.ErrorIs(t, context.Cause(lifecycleCtx), ErrShutdown)
+		})
+	}
+}
+
+type handlerPool struct {
+	Pooler
+	handler http.Handler
+}
+
+func (p *handlerPool) Acquire(context.Context, Request, ClientFunc, MCPProxyBuilder) (http.Handler, error) {
+	return p.handler, nil
+}
+
+func (*handlerPool) Shutdown(context.Context) error { return nil }
+
+type countingAcquirePool struct {
+	Pooler
+	acquireCalls  atomic.Int32
+	shutdownCalls atomic.Int32
+}
+
+func (p *countingAcquirePool) Acquire(context.Context, Request, ClientFunc, MCPProxyBuilder) (http.Handler, error) {
+	p.acquireCalls.Add(1)
+	return http.NotFoundHandler(), nil
+}
+
+func (p *countingAcquirePool) Shutdown(context.Context) error {
+	p.shutdownCalls.Add(1)
+	return nil
+}
+
+type blockingAcquirePool struct {
+	Pooler
+	started chan struct{}
+}
+
+func (p *blockingAcquirePool) Acquire(ctx context.Context, _ Request, _ ClientFunc, _ MCPProxyBuilder) (http.Handler, error) {
+	close(p.started)
+	<-ctx.Done()
+	return nil, ctx.Err()
+}
+
+func (*blockingAcquirePool) Shutdown(context.Context) error { return nil }
+
+func TestGetRequestHandlerRefusesBeforeLegacyAcquire(t *testing.T) {
+	t.Parallel()
+
+	pool := &countingAcquirePool{}
+	lifecycleCtx, cancel := context.WithCancelCause(t.Context())
+	defer cancel(nil)
+	server := &Server{
+		lifecycleCtx: lifecycleCtx,
+		cancelFn:     cancel,
+		logger:       slogtest.Make(t, nil),
+		inflight:     aibridge.NewInflightGate(slogtest.Make(t, nil)),
+	}
+	server.backend.Store(&backend{pool: pool})
+
+	require.NoError(t, server.Shutdown(testutil.Context(t, testutil.WaitShort)))
+	require.Equal(t, int32(1), pool.shutdownCalls.Load())
+	handler, err := server.GetRequestHandler(t.Context(), Request{})
+	require.NoError(t, err)
+	require.Zero(t, pool.acquireCalls.Load(), "shutdown must not acquire or build a legacy bridge")
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/", nil))
+	require.Equal(t, http.StatusServiceUnavailable, rec.Code)
+	require.Equal(t, "AI Gateway is shutting down\n", rec.Body.String())
+	require.Zero(t, pool.acquireCalls.Load(), "completed shutdown must continue refusing pool acquisition")
+}
+
+func TestGetRequestHandlerFatalLifecycleStillTracksServing(t *testing.T) {
+	t.Parallel()
+
+	lifecycleCtx, cancel := context.WithCancelCause(t.Context())
+	cancel(xerrors.New("fatal connection error"))
+	started := make(chan struct{})
+	release := make(chan struct{})
+	pool := &handlerPool{handler: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		close(started)
+		<-release
+		w.WriteHeader(http.StatusNoContent)
+	})}
+	server := &Server{
+		lifecycleCtx: lifecycleCtx,
+		cancelFn:     cancel,
+		logger:       slogtest.Make(t, nil),
+		inflight:     aibridge.NewInflightGate(slogtest.Make(t, nil)),
+	}
+	server.backend.Store(&backend{pool: pool})
+
+	handler, err := server.GetRequestHandler(t.Context(), Request{})
+	require.NoError(t, err)
+	requestDone := make(chan int, 1)
+	go func() {
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/", nil))
+		requestDone <- rec.Code
+	}()
+	testCtx := testutil.Context(t, testutil.WaitShort)
+	testutil.TryReceive(testCtx, t, started)
+
+	shutdownDone := make(chan error, 1)
+	go func() {
+		shutdownDone <- server.Shutdown(testCtx)
+	}()
+	select {
+	case err := <-shutdownDone:
+		t.Fatalf("shutdown returned before fatal-lifecycle request completed: %v", err)
+	default:
+	}
+	close(release)
+	require.Equal(t, http.StatusNoContent, testutil.TryReceive(testCtx, t, requestDone))
+	require.NoError(t, testutil.TryReceive(testCtx, t, shutdownDone))
+}
+
+func TestGetRequestHandlerPreAcquiredHandlerRefusesAfterShutdown(t *testing.T) {
+	t.Parallel()
+
+	lifecycleCtx, cancel := context.WithCancelCause(t.Context())
+	defer cancel(nil)
+	var served atomic.Bool
+	pool := &handlerPool{handler: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		served.Store(true)
+		w.WriteHeader(http.StatusNoContent)
+	})}
+	server := &Server{
+		lifecycleCtx: lifecycleCtx,
+		cancelFn:     cancel,
+		logger:       slogtest.Make(t, nil),
+		inflight:     aibridge.NewInflightGate(slogtest.Make(t, nil)),
+	}
+	server.backend.Store(&backend{pool: pool})
+
+	handler, err := server.GetRequestHandler(t.Context(), Request{})
+	require.NoError(t, err)
+	require.NoError(t, server.Shutdown(testutil.Context(t, testutil.WaitShort)))
+
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/", nil))
+	require.Equal(t, http.StatusServiceUnavailable, rec.Code)
+	require.Equal(t, "AI Gateway is shutting down\n", rec.Body.String())
+	require.False(t, served.Load(), "a handler acquired but not served before shutdown is not admitted")
+}
+
+func TestGetRequestHandlerAcquireIsCanceledAtShutdownDeadline(t *testing.T) {
+	t.Parallel()
+
+	lifecycleCtx, cancel := context.WithCancelCause(t.Context())
+	defer cancel(nil)
+	pool := &blockingAcquirePool{started: make(chan struct{})}
+	server := &Server{
+		lifecycleCtx: lifecycleCtx,
+		cancelFn:     cancel,
+		logger:       slogtest.Make(t, nil),
+		inflight:     aibridge.NewInflightGate(slogtest.Make(t, nil)),
+	}
+	server.backend.Store(&backend{pool: pool})
+
+	acquireDone := make(chan error, 1)
+	go func() {
+		_, err := server.GetRequestHandler(t.Context(), Request{})
+		acquireDone <- err
+	}()
+	testCtx := testutil.Context(t, testutil.WaitShort)
+	testutil.TryReceive(testCtx, t, pool.started)
+
+	shutdownCtx, shutdownCancel := context.WithCancel(t.Context())
+	shutdownCancel()
+	require.ErrorIs(t, server.Shutdown(shutdownCtx), context.Canceled)
+	require.ErrorIs(t, testutil.TryReceive(testCtx, t, acquireDone), context.Canceled)
+}
+
+func TestConnectLoopShutdownExitDoesNotCancelLifecycle(t *testing.T) {
+	t.Parallel()
+
+	lifecycleCtx, cancel := context.WithCancelCause(t.Context())
+	defer cancel(nil)
+	server := &Server{
+		lifecycleCtx: lifecycleCtx,
+		cancelFn:     cancel,
+		logger:       slogtest.Make(t, nil),
+		clientDialer: func(context.Context) (DRPCClient, error) {
+			t.Error("shutdown connect loop must not dial")
+			return nil, ErrShutdown
+		},
+	}
+	server.shuttingDown.Store(true)
+	server.wg.Add(1)
+	server.connect()
+
+	require.NoError(t, lifecycleCtx.Err(), "connect loop must leave lifecycle live during graceful drain")
+}
+
+func TestServerShutdownDeadlineDoesNotWaitForBackendMu(t *testing.T) {
+	t.Parallel()
+
+	lifecycleCtx, cancel := context.WithCancelCause(t.Context())
+	defer cancel(nil)
+	server := &Server{
+		lifecycleCtx: lifecycleCtx,
+		cancelFn:     cancel,
+		logger:       slogtest.Make(t, nil),
+		inflight:     aibridge.NewInflightGate(slogtest.Make(t, nil)),
+	}
+	server.backend.Store(&backend{})
+	server.backendMu.Lock()
+	defer server.backendMu.Unlock()
+
+	ctx, cancelShutdown := context.WithCancel(t.Context())
+	cancelShutdown()
+	require.ErrorIs(t, server.Shutdown(ctx), context.Canceled)
+	require.ErrorIs(t, context.Cause(lifecycleCtx), ErrShutdown)
+}
+
+func TestServerShutdownDeadlineCancelsInflight(t *testing.T) {
+	t.Parallel()
+
+	for _, interception := range []bool{false, true} {
+		name := "Proxy"
+		if interception {
+			name = "Interception"
+		}
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			lifecycleCtx, cancel := context.WithCancelCause(t.Context())
+			defer cancel(nil)
+			server := &Server{
+				lifecycleCtx: lifecycleCtx,
+				cancelFn:     cancel,
+				logger:       slogtest.Make(t, nil),
+				inflight:     aibridge.NewInflightGate(slogtest.Make(t, nil)),
+			}
+
+			started := make(chan struct{})
+			var completionAttempts atomic.Int32
+			baseHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				close(started)
+				<-r.Context().Done()
+				completionAttempts.Add(1)
+				http.Error(w, r.Context().Err().Error(), http.StatusServiceUnavailable)
+			})
+			if interception {
+				server.backend.Store(&backend{pool: &shutdownPool{
+					Pooler: &handlerPool{handler: baseHandler},
+					shutdown: func(context.Context) error {
+						return nil
+					},
+				}})
+			} else {
+				server.backend.Store(&backend{proxyRouter: server.inflight.Middleware(baseHandler)})
+			}
+
+			handler, err := server.GetRequestHandler(t.Context(), Request{})
+			require.NoError(t, err)
+			requestDone := make(chan int, 1)
+			go func() {
+				rec := httptest.NewRecorder()
+				handler.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/", nil))
+				requestDone <- rec.Code
+			}()
+			testCtx := testutil.Context(t, testutil.WaitShort)
+			testutil.TryReceive(testCtx, t, started)
+
+			shutdownCtx, shutdownCancel := context.WithCancel(t.Context())
+			shutdownCancel()
+			require.ErrorIs(t, server.Shutdown(shutdownCtx), context.Canceled)
+			require.Equal(t, http.StatusServiceUnavailable, testutil.TryReceive(testCtx, t, requestDone))
+			require.Equal(t, int32(1), completionAttempts.Load(), "canceled handler completes exactly once")
+			require.ErrorIs(t, context.Cause(lifecycleCtx), ErrShutdown)
+		})
+	}
+}
+
+type blockingNameProvider struct {
+	aibridge.Provider
+	started chan struct{}
+	release chan struct{}
+	once    sync.Once
+}
+
+func (p *blockingNameProvider) Name() string {
+	p.once.Do(func() { close(p.started) })
+	<-p.release
+	return p.Provider.Name()
+}
+
+func TestShutdownSynchronizesWithProviderReplacement(t *testing.T) {
+	t.Parallel()
+
+	lifecycleCtx, cancel := context.WithCancelCause(t.Context())
+	defer cancel(nil)
+	server := &Server{
+		lifecycleCtx: lifecycleCtx,
+		cancelFn:     cancel,
+		logger:       slogtest.Make(t, nil),
+		inflight:     aibridge.NewInflightGate(slogtest.Make(t, nil)),
+	}
+	original := &backend{}
+	server.backend.Store(original)
+
+	provider := &blockingNameProvider{
+		Provider: aibridge.NewOpenAIProvider(config.OpenAI{
+			Name:    "candidate",
+			BaseURL: "http://upstream.test",
+		}),
+		started: make(chan struct{}),
+		release: make(chan struct{}),
+	}
+	replaceDone := make(chan error, 1)
+	go func() {
+		replaceDone <- server.ReplaceProviders(t.Context(), []aibridge.Provider{provider})
+	}()
+	testCtx := testutil.Context(t, testutil.WaitShort)
+	testutil.TryReceive(testCtx, t, provider.started)
+
+	require.NoError(t, server.Shutdown(testCtx), "shutdown must not wait for provider construction")
+	require.Same(t, original, server.backend.Load())
+
+	close(provider.release)
+	require.ErrorIs(t, testutil.TryReceive(testCtx, t, replaceDone), ErrShutdown)
+	require.Same(t, original, server.backend.Load(), "a candidate built during shutdown must not publish")
 }
