@@ -118,6 +118,7 @@ const ChatProjectForm: FC<ChatProjectFormProps> = ({
 						value={name}
 						onChange={(event) => setName(event.target.value)}
 						disabled={isSaving}
+						maxLength={64}
 						autoFocus
 					/>
 				</div>
@@ -128,6 +129,7 @@ const ChatProjectForm: FC<ChatProjectFormProps> = ({
 						value={description}
 						onChange={(event) => setDescription(event.target.value)}
 						disabled={isSaving}
+						maxLength={1024}
 					/>
 				</div>
 				{error && (

@@ -213,12 +213,14 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	// Disabled queries retain cached data. When the dashboard hides organization
 	// selection, its organization list is authoritative so a removed org cannot
 	// remain selected for submission.
-	const allPermittedOrgs = showOrganizations
+	const permittedOrgs = showOrganizations
 		? (permittedOrgsQuery.data ?? [])
 		: organizations;
-	const permittedOrgs = lockedOrganizationId
-		? allPermittedOrgs.filter((org) => org.id === lockedOrganizationId)
-		: allPermittedOrgs;
+	// A lock overrides the effective organization without touching the
+	// user's own selection, so leaving the project restores their choice.
+	const lockedOrg = lockedOrganizationId
+		? (permittedOrgs.find((org) => org.id === lockedOrganizationId) ?? null)
+		: null;
 	// Treat the dashboard org as provisional until permissions resolve so
 	// sends and persisted attachments cannot use an unpermitted org.
 	const orgSelectionSettled =
@@ -228,9 +230,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	// other organizations would be permitted.
 	const noPermittedOrgs =
 		(showOrganizations && permittedOrgsQuery.data?.length === 0) ||
-		(orgSelectionSettled &&
-			Boolean(lockedOrganizationId) &&
-			permittedOrgs.length === 0);
+		(orgSelectionSettled && Boolean(lockedOrganizationId) && !lockedOrg);
 	const selectedOrgIsPermitted =
 		selectedOrg !== null &&
 		permittedOrgs.some((org) => org.id === selectedOrg.id);
@@ -249,8 +249,9 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	) {
 		setPendingOrgChange(null);
 	}
-	const effectiveOrg =
-		selectedOrg && selectedOrgIsPermitted
+	const effectiveOrg = lockedOrganizationId
+		? lockedOrg
+		: selectedOrg && selectedOrgIsPermitted
 			? selectedOrg
 			: (permittedOrgs.find((org) => org.is_default) ??
 				permittedOrgs[0] ??
@@ -270,6 +271,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	// re-permitted default. The permission guard also avoids a render loop.
 	if (
 		orgSelectionSettled &&
+		!lockedOrganizationId &&
 		!selectedOrg &&
 		effectiveOrg &&
 		permittedOrgs.some((org) => org.id === effectiveOrg.id)
@@ -636,6 +638,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 					)}
 					{showOrganizations &&
 						orgSelectionSettled &&
+						!lockedOrganizationId &&
 						permittedOrgs.length > 1 && (
 							<CompactOrgSelector
 								value={effectiveOrg}
