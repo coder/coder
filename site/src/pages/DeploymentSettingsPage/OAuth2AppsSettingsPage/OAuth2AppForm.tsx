@@ -195,9 +195,7 @@ export const OAuth2AppForm: FC<OAuth2AppFormProps> = ({
 		validateOnMount: true,
 		onSubmit: async ({ scope: selectedScopes, ...values }) => {
 			didSubmit.current = true;
-			const redirectURIs = values.redirect_uris
-				.map((uri) => uri.trim())
-				.filter(Boolean);
+			const redirectURIs = values.redirect_uris.map((uri) => uri.trim());
 			const scope = selectedScopes.join(" ");
 			// An untouched allowlist is left out of updates rather than echoed
 			// back. The form cannot round-trip a stored list exactly: a whitespace
