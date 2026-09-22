@@ -308,6 +308,7 @@ export const DateRangePicker: FC<DateRangePickerProps> = ({
 								selected={selection}
 								onSelect={handleCalendarSelect}
 								numberOfMonths={2}
+								excludeDisabled
 								disabled={
 									firstSelectableDay === undefined
 										? { after: currentTime }

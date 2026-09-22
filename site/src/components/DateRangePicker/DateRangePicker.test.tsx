@@ -159,6 +159,35 @@ it("ignores days before minDate", async () => {
 	);
 });
 
+it("restarts a range that would keep a start before minDate", async () => {
+	const user = userEvent.setup();
+	const onChange = vi.fn();
+	render(
+		<DateRangePicker
+			now={new Date(2025, 2, 15, 12)}
+			minDate={new Date(2025, 2, 10)}
+			value={{ startDate: new Date(2025, 2, 5), endDate: new Date(2025, 2, 9) }}
+			onChange={onChange}
+		/>,
+	);
+
+	// The committed start slipped behind the cutoff since it was applied, so
+	// extending the range must not carry it into the next request.
+	await user.click(screen.getByRole("button", { name: /Mar 5, 2025/ }));
+	await user.click(
+		await screen.findByRole("button", { name: /March 12th, 2025/ }),
+	);
+	await user.click(screen.getByRole("button", { name: "Apply" }));
+	expect(onChange).not.toHaveBeenCalled();
+
+	await user.click(screen.getByRole("button", { name: /March 13th, 2025/ }));
+	await user.click(screen.getByRole("button", { name: "Apply" }));
+	expect(onChange).toHaveBeenCalledWith({
+		startDate: new Date(2025, 2, 12),
+		endDate: new Date(2025, 2, 14),
+	});
+});
+
 it.each([
 	{ name: "without a retention cutoff", minDate: undefined },
 	{ name: "with a retention cutoff", minDate: new Date(2025, 2, 10) },
