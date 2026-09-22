@@ -1411,8 +1411,8 @@ func TestRolePermissions(t *testing.T) {
 			Actions:  []policy.Action{policy.ActionRead},
 			Resource: rbac.ResourceChatProject.WithID(uuid.New()).InOrg(orgID).WithOwner(currentUser.String()),
 			AuthorizeMap: map[bool][]hasAuthSubjects{
-				true:  {owner, orgAdmin, orgMemberMe},
-				false: {setOtherOrg, memberMe, userAdmin, templateAdmin, orgTemplateAdmin, orgUserAdmin, orgAuditor, orgWorkspaceAccessUser},
+				true:  {owner, orgAdmin, orgWorkspaceAccessUser},
+				false: {setOtherOrg, memberMe, orgMemberMe, userAdmin, templateAdmin, orgTemplateAdmin, orgUserAdmin, orgAuditor},
 			},
 		},
 		{
@@ -1430,8 +1430,8 @@ func TestRolePermissions(t *testing.T) {
 			Actions:  []policy.Action{policy.ActionCreate},
 			Resource: rbac.ResourceChatProject.WithID(uuid.New()).InOrg(orgID).WithOwner(currentUser.String()),
 			AuthorizeMap: map[bool][]hasAuthSubjects{
-				true:  {owner, orgAdmin, orgMemberMe},
-				false: {setOtherOrg, memberMe, userAdmin, templateAdmin, orgTemplateAdmin, orgUserAdmin, orgAuditor, orgWorkspaceAccessUser},
+				true:  {owner, orgAdmin, orgWorkspaceAccessUser},
+				false: {setOtherOrg, memberMe, orgMemberMe, userAdmin, templateAdmin, orgTemplateAdmin, orgUserAdmin, orgAuditor},
 			},
 		},
 		{
@@ -1439,8 +1439,8 @@ func TestRolePermissions(t *testing.T) {
 			Actions:  []policy.Action{policy.ActionUpdate, policy.ActionDelete},
 			Resource: rbac.ResourceChatProject.WithID(uuid.New()).InOrg(orgID).WithOwner(currentUser.String()),
 			AuthorizeMap: map[bool][]hasAuthSubjects{
-				true:  {owner, orgAdmin, orgMemberMe},
-				false: {setOtherOrg, memberMe, userAdmin, templateAdmin, orgTemplateAdmin, orgUserAdmin, orgAuditor, orgWorkspaceAccessUser},
+				true:  {owner, orgAdmin, orgWorkspaceAccessUser},
+				false: {setOtherOrg, memberMe, orgMemberMe, userAdmin, templateAdmin, orgTemplateAdmin, orgUserAdmin, orgAuditor},
 			},
 		},
 		{

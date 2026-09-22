@@ -247,9 +247,31 @@ func TestChatProjectBindingPatchClearAndListFilter(t *testing.T) {
 func TestChatProjectsExperimentDisabled(t *testing.T) {
 	t.Parallel()
 
-	// RequireExperimentWithDevBypass intentionally bypasses disabled experiments
-	// in development builds, which is how this integration suite runs.
-	t.Skip("experiment-disabled route behavior is not testable in development builds")
+	ctx := testutil.Context(t, testutil.WaitLong)
+	client, db := newChatClientWithDatabase(t, withChatWorkerDisabled)
+	firstUser := coderdtest.CreateFirstUser(t, client.Client)
+	_ = createChatModel(t, client)
+	// The project routes bypass the experiment in development builds, so
+	// seed the row directly and exercise the chat binding, which does not.
+	project := dbgen.ChatProject(t, db, database.ChatProject{
+		OrganizationID: firstUser.OrganizationID,
+		OwnerID:        firstUser.UserID,
+		Name:           "Off",
+	})
+
+	_, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+		OrganizationID: firstUser.OrganizationID,
+		ProjectID:      &project.ID,
+		Content:        []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: "experiment off"}},
+	})
+	require.Equal(t, 400, coderdtest.SDKError(t, err).StatusCode())
+
+	chat := createChatInProject(t, client, firstUser.OrganizationID, nil)
+	err = client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{ProjectID: &project.ID})
+	require.Equal(t, 400, coderdtest.SDKError(t, err).StatusCode())
+
+	_, err = client.ListChats(ctx, &codersdk.ListChatsOptions{ProjectID: &project.ID})
+	require.Equal(t, 400, coderdtest.SDKError(t, err).StatusCode())
 }
 
 func newChatProjectClient(t testing.TB) (*codersdk.ExperimentalClient, database.Store) {
