@@ -712,9 +712,9 @@ The current implementation has these limitations:
 The `redirect_uris` list is now the source of truth for an application's callbacks, and its first entry is the primary:
 
 - Earlier versions stored the primary in a separate `callback_url` field. The upgrade migration rewrites every application so the list starts with that value.
-- During a rolling upgrade, a replica running an earlier version still writes only the old field when an administrator edits a callback URL.
-- Replicas running the new version read the list and ignore the old field, so that edit is silently discarded. The application keeps accepting its previous redirect URIs, including any the administrator meant to remove, until it is saved again on the new version.
-- Drain replicas running the earlier version before you upgrade, or save the application again after the upgrade.
+- During a rolling upgrade, a replica running an earlier version still writes only the old field when an administrator edits the callback URL. Replicas running the new version read the list instead, so the edit is silently lost: the application keeps its old callback URL and keeps accepting every previous redirect URI, including any the administrator meant to remove.
+- Replicas running the new version also show the old callback URL in the form, so saving the application unchanged does not restore the edit.
+- Drain replicas running the earlier version before you upgrade. If a callback URL was edited during the upgrade, enter the intended value again and save the application once every replica runs the new version.
 
 A `scope` on a refresh request was parsed and discarded in earlier versions, so a
 client sending one wider than its grant refreshed successfully. It is now
