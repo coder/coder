@@ -51,7 +51,7 @@ export const agentConnectionMessages = {
 	},
 } as const;
 
-interface AgentHealthIssue {
+type AgentHealthIssue = {
 	title: string;
 	detail: string;
 	severity: "info" | "warning";
@@ -59,7 +59,7 @@ interface AgentHealthIssue {
 	// warnings, but connection timeout and startup timeout are
 	// exceptions (warning severity without prominent styling).
 	prominent: boolean;
-}
+};
 
 /**
  * Classifies connectivity-related health issues for an individual agent.

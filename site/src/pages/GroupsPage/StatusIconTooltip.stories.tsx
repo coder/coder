@@ -14,7 +14,7 @@ type Story = StoryObj<typeof StatusIconTooltip>;
 export const Info: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await userEvent.click(canvas.getByRole("button", { name: "More info" }));
+		await userEvent.hover(canvas.getByRole("button", { name: "More info" }));
 		await expect(
 			await within(document.body).findByText(
 				"Spend compared to the budget for the active period.",

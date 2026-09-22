@@ -34,12 +34,12 @@ import {
 	isActiveStatus,
 } from "./debugPanelUtils";
 
-interface DebugRunCardProps {
+type DebugRunCardProps = {
 	run: ChatDebugRunSummary;
 	chatId: string;
 	isVisible: boolean;
 	download?: DownloadDebugFile;
-}
+};
 
 // Max characters shown in the run header label before truncation.
 const RUN_LABEL_CLAMP_CHARS = 80;

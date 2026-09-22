@@ -2,16 +2,25 @@ package mcpclient_test
 
 import (
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
+	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"charm.land/fantasy"
 	"github.com/google/uuid"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
@@ -42,6 +51,170 @@ func newHeaderRecordingServer(t *testing.T) (*httptest.Server, *sync.Mutex, *[]h
 		},
 	})
 	return ts, &mu, &headers
+}
+
+type recordedMCPRequest struct {
+	method    string
+	rpcMethod string
+	err       error
+}
+
+func newSigningTestMCPServer(t *testing.T, signingSecret string) (*httptest.Server, <-chan recordedMCPRequest) {
+	t.Helper()
+
+	srv := mcp.NewServer(&mcp.Implementation{Name: "signed", Version: "1.0.0"}, nil)
+	tool := makeTool("ping")
+	srv.AddTool(tool.tool, tool.handler)
+	mcpHandler := mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server { return srv }, nil)
+	recorded := make(chan recordedMCPRequest, 16)
+	handler := http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		body, err := io.ReadAll(r.Body)
+		if err == nil {
+			err = verifyMCPRequestSignature(r, body, signingSecret)
+		}
+
+		var rpcRequest struct {
+			ID     json.RawMessage `json:"id"`
+			Method string          `json:"method"`
+		}
+		if r.Method == http.MethodPost {
+			if decodeErr := json.Unmarshal(body, &rpcRequest); err == nil && decodeErr != nil {
+				err = decodeErr
+			}
+		}
+		recorded <- recordedMCPRequest{method: r.Method, rpcMethod: rpcRequest.Method, err: err}
+		if err != nil {
+			http.Error(rw, err.Error(), http.StatusUnauthorized)
+			return
+		}
+
+		r.Body = io.NopCloser(strings.NewReader(string(body)))
+		mcpHandler.ServeHTTP(rw, r)
+	})
+
+	server := httptest.NewServer(handler)
+	t.Cleanup(server.Close)
+	return server, recorded
+}
+
+func verifyMCPRequestSignature(r *http.Request, body []byte, signingSecret string) error {
+	timestamp := r.Header.Get(mcpclient.HeaderCoderSignatureTimestamp)
+	signature := r.Header.Get(mcpclient.HeaderCoderSignature)
+	if signingSecret == "" {
+		if timestamp != "" || signature != "" {
+			return xerrors.New("unexpected MCP signature headers")
+		}
+		return nil
+	}
+	if timestamp == "" || signature == "" {
+		return xerrors.New("missing MCP signature headers")
+	}
+
+	unixSeconds, err := strconv.ParseInt(timestamp, 10, 64)
+	if err != nil {
+		return xerrors.Errorf("parse MCP signature timestamp: %w", err)
+	}
+	if time.Since(time.Unix(unixSeconds, 0)).Abs() > 5*time.Minute {
+		return xerrors.New("MCP signature timestamp is outside the allowed window")
+	}
+
+	bodyHash := sha256.Sum256(body)
+	canonical := strings.Join([]string{
+		"v1",
+		timestamp,
+		strings.ToUpper(r.Method),
+		r.URL.RequestURI(),
+		hex.EncodeToString(bodyHash[:]),
+		"owner=" + r.Header.Get(chatprovider.HeaderCoderOwnerID),
+		"chat=" + r.Header.Get(chatprovider.HeaderCoderChatID),
+		"subchat=" + r.Header.Get(chatprovider.HeaderCoderSubchatID),
+		"workspace=" + r.Header.Get(chatprovider.HeaderCoderWorkspaceID),
+	}, "\n")
+	mac := hmac.New(sha256.New, []byte(signingSecret))
+	_, _ = mac.Write([]byte(canonical))
+	expected := "v1=" + hex.EncodeToString(mac.Sum(nil))
+	if !hmac.Equal([]byte(expected), []byte(signature)) {
+		return xerrors.New("invalid MCP request signature")
+	}
+	return nil
+}
+
+func TestConnectAll_RequestSigning(t *testing.T) {
+	t.Parallel()
+
+	const signingSecret = "0123456789abcdef0123456789abcdef"
+	tests := []struct {
+		name                  string
+		forwardHeaders        bool
+		signingSecret         string
+		expectedSigningSecret string
+	}{
+		{name: "enabled", forwardHeaders: true, signingSecret: signingSecret, expectedSigningSecret: signingSecret},
+		{name: "forwarding disabled", forwardHeaders: false, signingSecret: signingSecret},
+		{name: "secret empty", forwardHeaders: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := t.Context()
+			logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+			server, recorded := newSigningTestMCPServer(t, tt.expectedSigningSecret)
+
+			cfg := makeConfig("signed", server.URL+"/api/mcp?x=1")
+			cfg.ForwardCoderHeaders = tt.forwardHeaders
+			cfg.SigningSecret = tt.signingSecret
+			coderHeaders := chatprovider.CoderHeaders(database.Chat{
+				ID:      uuid.New(),
+				OwnerID: uuid.New(),
+			})
+
+			tools, _, cleanup := mcpclient.ConnectAll(
+				ctx, logger, []database.MCPServerConfig{cfg}, nil, uuid.Nil, nil,
+				coderHeaders, testMCPHTTPClient(nil),
+			)
+			t.Cleanup(cleanup)
+			require.Len(t, tools, 1)
+			_, err := tools[0].Run(ctx, fantasy.ToolCall{
+				ID: "call-1", Name: "signed__ping", Input: "{}",
+			})
+			require.NoError(t, err)
+
+			expected := map[string]bool{
+				"server/discover":           false,
+				"initialize":                false,
+				"notifications/initialized": false,
+				"GET":                       false,
+				"tools/list":                false,
+				"tools/call":                false,
+			}
+			deadline := time.NewTimer(5 * time.Second)
+			defer deadline.Stop()
+			for {
+				complete := true
+				for _, seen := range expected {
+					complete = complete && seen
+				}
+				if complete {
+					break
+				}
+
+				select {
+				case request := <-recorded:
+					require.NoError(t, request.err)
+					key := request.rpcMethod
+					if request.method == http.MethodGet {
+						key = http.MethodGet
+					}
+					_, ok := expected[key]
+					require.Truef(t, ok, "unexpected MCP request %q", key)
+					expected[key] = true
+				case <-deadline.C:
+					require.FailNow(t, "timed out waiting for MCP requests", "%v", expected)
+				}
+			}
+		})
+	}
 }
 
 // TestConnectAll_ForwardCoderHeaders_DefaultOff is a regression guard

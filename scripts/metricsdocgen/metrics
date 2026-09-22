@@ -149,3 +149,9 @@ promhttp_metric_handler_requests_in_flight 1
 promhttp_metric_handler_requests_total{code="200"} 2
 promhttp_metric_handler_requests_total{code="500"} 0
 promhttp_metric_handler_requests_total{code="503"} 0
+# The key pool state collector is registered through a prefixed registerer that
+# the scanner's prefix resolver does not reach, so its published name is
+# maintained here. See excludeDirs in scanner/scanner.go.
+# HELP coder_ai_gateway_key_pool_state The number of keys currently in each state (state: valid, temporary, permanent).
+# TYPE coder_ai_gateway_key_pool_state gauge
+coder_ai_gateway_key_pool_state{provider="openai",state="valid"} 2

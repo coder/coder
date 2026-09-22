@@ -31,6 +31,8 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
+	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	skillspkg "github.com/coder/coder/v2/coderd/x/skills"
 	"github.com/coder/coder/v2/codersdk"
@@ -325,6 +327,96 @@ func TestMaybeGenerateChatSummaryAsync_CloseCancelsInflight(t *testing.T) {
 		_ = server.Close()
 	}()
 	testutil.TryReceive(ctx, t, closed)
+}
+
+// The whole-chat summary is a structured side call, so it must run on the
+// title generation model rather than the chat's own model.
+func TestGenerateAndStoreChatSummary_UsesTitleGenerationModel(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	ctx := chatdTestContext(t)
+
+	summaryModels := make(chan string, 1)
+	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if strings.Contains(string(req.RawBody), "chat_summary") {
+			summaryModels <- req.Model
+		}
+		return chattest.OpenAINonStreamingResponse(`{"headline":"Explains the answer to the question","bullets":[]}`)
+	})
+
+	user := dbgen.User(t, db, database.User{})
+	org := dbgen.Organization(t, db, database.Organization{})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{
+		UserID:         user.ID,
+		OrganizationID: org.ID,
+	})
+	dbgen.ChatProvider(t, db, database.ChatProvider{
+		Provider:    "openai",
+		DisplayName: "OpenAI",
+		BaseUrl:     openAIURL,
+	})
+	insertModel := func(model string, isDefault bool) database.ChatModelConfig {
+		return dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+			Model:          model,
+			DisplayName:    model,
+			Options:        json.RawMessage(`{"openai_config":{"use_responses_api":false}}`),
+			OrganizationID: org.ID,
+		}, func(p *database.InsertChatModelConfigParams) {
+			p.Enabled = true
+			p.IsDefault = isDefault
+		})
+	}
+	chatModel := insertModel("gpt-4.1", true)
+	insertModel("gpt-4o-mini", false)
+
+	created, err := chatstate.CreateChat(ctx, db, ps, chatstate.CreateChatInput{
+		OrganizationID:    org.ID,
+		OwnerID:           user.ID,
+		LastModelConfigID: chatModel.ID,
+		Title:             "summary-model-chat",
+		ClientType:        database.ChatClientTypeUi,
+		InitialMessages: []chatstate.Message{
+			{
+				Role:           database.ChatMessageRoleUser,
+				Content:        mustMarshalText(t, "what is the answer to life, the universe, and everything?"),
+				Visibility:     database.ChatMessageVisibilityBoth,
+				ContentVersion: chatprompt.CurrentContentVersion,
+				CreatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
+				ModelConfigID:  uuid.NullUUID{UUID: chatModel.ID, Valid: true},
+			},
+		},
+	})
+	require.NoError(t, err)
+	chat := created.Chat
+
+	machine := chatstate.NewChatMachine(db, ps, chat.ID)
+	require.NoError(t, machine.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+		_, err := tx.CommitStep(chatstate.CommitStepInput{
+			Messages: []chatstate.Message{
+				{
+					Role:           database.ChatMessageRoleAssistant,
+					Content:        mustMarshalText(t, strings.Repeat("The answer is 42. ", summaryMinTranscriptRunes/10)),
+					Visibility:     database.ChatMessageVisibilityBoth,
+					ContentVersion: chatprompt.CurrentContentVersion,
+					ModelConfigID:  uuid.NullUUID{UUID: chatModel.ID, Valid: true},
+				},
+			},
+		})
+		return err
+	}))
+
+	server := newInternalTestServer(
+		t, db, ps, chatprovider.ProviderAPIKeys{},
+		withInternalTestServerTransportFactory(chattest.NewMockAIBridgeTransport(t, openAIURL)),
+	)
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	server.generateAndStoreChatSummary(ctx, logger, chat)
+
+	require.Equal(t, "gpt-4o-mini", testutil.RequireReceive(ctx, t, summaryModels))
+	fetched, err := db.GetChatByID(ctx, chat.ID)
+	require.NoError(t, err)
+	require.True(t, fetched.Summary.Valid)
 }
 
 func TestComputerUseProviderAndModelFromConfig(t *testing.T) {
@@ -1187,6 +1279,7 @@ func TestTurnWorkspaceContext_BindingFirstPath(t *testing.T) {
 	db := dbmock.NewMockStore(ctrl)
 
 	workspaceID := uuid.New()
+	expectLiveWorkspace(db, workspaceID)
 	agentID := uuid.New()
 	chat := database.Chat{
 		ID: uuid.New(),
@@ -1232,6 +1325,7 @@ func TestTurnWorkspaceContext_NullBindingLazyBind(t *testing.T) {
 	db := dbmock.NewMockStore(ctrl)
 
 	workspaceID := uuid.New()
+	expectLiveWorkspace(db, workspaceID)
 	buildID := uuid.New()
 	agentID := uuid.New()
 	chat := database.Chat{
@@ -1300,6 +1394,7 @@ func TestTurnWorkspaceContext_StaleBindingRepair(t *testing.T) {
 	expectBestEffortContextRepin(db)
 
 	workspaceID := uuid.New()
+	expectLiveWorkspace(db, workspaceID)
 	staleAgentID := uuid.New()
 	buildID := uuid.New()
 	currentAgentID := uuid.New()
@@ -1356,6 +1451,7 @@ func TestTurnWorkspaceContextGetWorkspaceConnLazyValidationSwitchesWorkspaceAgen
 	expectBestEffortContextRepin(db)
 
 	workspaceID := uuid.New()
+	expectLiveWorkspace(db, workspaceID)
 	staleAgentID := uuid.New()
 	currentAgentID := uuid.New()
 	buildID := uuid.New()
@@ -1435,6 +1531,7 @@ func TestTurnWorkspaceContextGetWorkspaceConnFastFailsWithoutCurrentAgent(t *tes
 	db := dbmock.NewMockStore(ctrl)
 
 	workspaceID := uuid.New()
+	expectLiveWorkspace(db, workspaceID)
 	staleAgentID := uuid.New()
 	resourceID := uuid.New()
 	chat := database.Chat{
@@ -1498,6 +1595,121 @@ func TestTurnWorkspaceContextGetWorkspaceConnFastFailsWithoutCurrentAgent(t *tes
 	require.Equal(t, uuid.NullUUID{}, workspaceCtx.cachedWorkspaceID)
 }
 
+func TestTurnWorkspaceContextGetWorkspaceConnDeletedWorkspace(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+
+	workspaceID := uuid.New()
+	staleAgentID := uuid.New()
+	chat := database.Chat{
+		ID:          uuid.New(),
+		WorkspaceID: uuid.NullUUID{UUID: workspaceID, Valid: true},
+		AgentID:     uuid.NullUUID{UUID: staleAgentID, Valid: true},
+	}
+
+	// Dormancy auto-delete soft-deletes the row but keeps dormant_at and
+	// the agent rows, so the bound agent must not be dialed.
+	db.EXPECT().GetWorkspaceByID(gomock.Any(), workspaceID).
+		Return(database.Workspace{
+			ID:        workspaceID,
+			Deleted:   true,
+			DormantAt: sql.NullTime{Time: time.Now(), Valid: true},
+		}, nil).
+		Times(1)
+
+	server := &Server{
+		db:          db,
+		clock:       quartz.NewReal(),
+		dialTimeout: 30 * time.Second,
+	}
+	server.agentConnFn = func(context.Context, uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+		t.Fatal("agentConnFn must not be called for a deleted workspace")
+		return nil, nil, nil
+	}
+
+	chatStateMu := &sync.Mutex{}
+	currentChat := chat
+	workspaceCtx := turnWorkspaceContext{
+		server:           server,
+		chatStateMu:      chatStateMu,
+		currentChat:      &currentChat,
+		loadChatSnapshot: func(context.Context, uuid.UUID) (database.Chat, error) { return database.Chat{}, nil },
+	}
+	defer workspaceCtx.close()
+
+	gotConn, err := workspaceCtx.getWorkspaceConn(ctx)
+	require.Nil(t, gotConn)
+	require.ErrorIs(t, err, errChatWorkspaceDeleted)
+	require.Contains(t, err.Error(), "create_workspace")
+	require.NotContains(t, err.Error(), "forbidden")
+
+	workspaceCtx.mu.Lock()
+	defer workspaceCtx.mu.Unlock()
+	require.False(t, workspaceCtx.agentLoaded)
+	require.Nil(t, workspaceCtx.conn)
+}
+
+func TestTurnWorkspaceContextEnsureWorkspaceAgentRebindsFromDeletedWorkspace(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+
+	deletedWorkspaceID := uuid.New()
+	replacementWorkspaceID := uuid.New()
+	buildID := uuid.New()
+	replacementAgent := database.WorkspaceAgent{ID: uuid.New()}
+	chat := database.Chat{
+		ID:          uuid.New(),
+		WorkspaceID: uuid.NullUUID{UUID: deletedWorkspaceID, Valid: true},
+		AgentID:     uuid.NullUUID{UUID: uuid.New(), Valid: true},
+	}
+	rebound := chat
+	rebound.WorkspaceID = uuid.NullUUID{UUID: replacementWorkspaceID, Valid: true}
+	rebound.AgentID = uuid.NullUUID{}
+	updatedChat := rebound
+	updatedChat.BuildID = uuid.NullUUID{UUID: buildID, Valid: true}
+	updatedChat.AgentID = uuid.NullUUID{UUID: replacementAgent.ID, Valid: true}
+
+	chatStateMu := &sync.Mutex{}
+	currentChat := chat
+	workspaceCtx := turnWorkspaceContext{
+		server:           &Server{db: db},
+		chatStateMu:      chatStateMu,
+		currentChat:      &currentChat,
+		loadChatSnapshot: func(context.Context, uuid.UUID) (database.Chat, error) { return database.Chat{}, nil },
+	}
+	defer workspaceCtx.close()
+
+	// A concurrent create_workspace publishes the replacement binding while
+	// the deleted row is being read.
+	db.EXPECT().GetWorkspaceByID(gomock.Any(), deletedWorkspaceID).
+		DoAndReturn(func(context.Context, uuid.UUID) (database.Workspace, error) {
+			workspaceCtx.setCurrentChat(rebound)
+			return database.Workspace{ID: deletedWorkspaceID, Deleted: true}, nil
+		}).
+		Times(1)
+	expectLiveWorkspace(db, replacementWorkspaceID)
+	gomock.InOrder(
+		db.EXPECT().GetWorkspaceAgentsInLatestBuildByWorkspaceID(gomock.Any(), replacementWorkspaceID).Return([]database.WorkspaceAgent{replacementAgent}, nil),
+		db.EXPECT().GetLatestWorkspaceBuildByWorkspaceID(gomock.Any(), replacementWorkspaceID).Return(database.WorkspaceBuild{ID: buildID}, nil),
+		db.EXPECT().UpdateChatBuildAgentBinding(gomock.Any(), database.UpdateChatBuildAgentBindingParams{
+			ID:      chat.ID,
+			BuildID: uuid.NullUUID{UUID: buildID, Valid: true},
+			AgentID: uuid.NullUUID{UUID: replacementAgent.ID, Valid: true},
+		}).Return(updatedChat, nil),
+	)
+
+	chatSnapshot, agent, err := workspaceCtx.ensureWorkspaceAgent(ctx)
+	require.NoError(t, err)
+	require.Equal(t, updatedChat, chatSnapshot)
+	require.Equal(t, replacementAgent, agent)
+}
+
 func TestTurnWorkspaceContext_SelectWorkspaceClearsCachedState(t *testing.T) {
 	t.Parallel()
 
@@ -1554,6 +1766,7 @@ func TestTurnWorkspaceContext_EnsureWorkspaceAgentIgnoresCachedAgentForDifferent
 
 	workspaceOneID := uuid.New()
 	workspaceTwoID := uuid.New()
+	expectLiveWorkspace(db, workspaceTwoID)
 	buildID := uuid.New()
 	cachedAgent := database.WorkspaceAgent{ID: uuid.New()}
 	resolvedAgent := database.WorkspaceAgent{ID: uuid.New()}
@@ -2042,6 +2255,7 @@ func TestGetWorkspaceConn_StaleAgentRecovery(t *testing.T) {
 	expectBestEffortContextRepin(db)
 
 	workspaceID := uuid.New()
+	expectLiveWorkspace(db, workspaceID)
 	oldAgentID := uuid.New()
 	newAgentID := uuid.New()
 	buildID := uuid.New()
@@ -2168,6 +2382,7 @@ func TestGetWorkspaceConn_SameBuildAgentCrash(t *testing.T) {
 	db := dbmock.NewMockStore(ctrl)
 
 	workspaceID := uuid.New()
+	expectLiveWorkspace(db, workspaceID)
 	agentID := uuid.New()
 
 	// Agent: disconnected (crashed on current build).
@@ -2315,6 +2530,7 @@ func TestGetWorkspaceConn_StatusCheck(t *testing.T) {
 			db := dbmock.NewMockStore(ctrl)
 
 			workspaceID := uuid.New()
+			expectLiveWorkspace(db, workspaceID)
 			agentID := uuid.New()
 			chat := database.Chat{
 				ID: uuid.New(),
@@ -2477,6 +2693,7 @@ func TestGetWorkspaceConn_DialTimeoutDisconnectedRecoveryThreshold(t *testing.T)
 			db := dbmock.NewMockStore(ctrl)
 
 			workspaceID := uuid.New()
+			expectLiveWorkspace(db, workspaceID)
 			agentID := uuid.New()
 			chat := database.Chat{
 				ID: uuid.New(),
@@ -2600,6 +2817,7 @@ func TestGetWorkspaceConn_DisconnectedStatusDialSuccessDoesNotEscalate(t *testin
 	db := dbmock.NewMockStore(ctrl)
 
 	workspaceID := uuid.New()
+	expectLiveWorkspace(db, workspaceID)
 	agentID := uuid.New()
 	chat := database.Chat{
 		ID: uuid.New(),
@@ -2670,6 +2888,7 @@ func TestGetWorkspaceConn_CacheHitDisconnectedRetriesDialBeforeEscalating(t *tes
 	db := dbmock.NewMockStore(ctrl)
 
 	workspaceID := uuid.New()
+	expectLiveWorkspace(db, workspaceID)
 	agentID := uuid.New()
 	chat := database.Chat{
 		ID: uuid.New(),
@@ -2748,6 +2967,7 @@ func TestGetWorkspaceConn_DialTimeout(t *testing.T) {
 	db := dbmock.NewMockStore(ctrl)
 
 	workspaceID := uuid.New()
+	expectLiveWorkspace(db, workspaceID)
 	agentID := uuid.New()
 	chat := database.Chat{
 		ID: uuid.New(),
@@ -2818,6 +3038,7 @@ func TestGetWorkspaceConn_DialTimeoutParentCanceled(t *testing.T) {
 	db := dbmock.NewMockStore(ctrl)
 
 	workspaceID := uuid.New()
+	expectLiveWorkspace(db, workspaceID)
 	agentID := uuid.New()
 	chat := database.Chat{
 		ID: uuid.New(),
@@ -2902,6 +3123,7 @@ func TestGetWorkspaceConn_PreflightExternalAgentTimedOut(t *testing.T) {
 	db := dbmock.NewMockStore(ctrl)
 
 	workspaceID := uuid.New()
+	expectLiveWorkspace(db, workspaceID)
 	agentID := uuid.New()
 	resourceID := uuid.New()
 	agent := database.WorkspaceAgent{
@@ -2976,6 +3198,7 @@ func TestGetWorkspaceConn_PreflightExternalAgentConnectingDials(t *testing.T) {
 	db := dbmock.NewMockStore(ctrl)
 
 	workspaceID := uuid.New()
+	expectLiveWorkspace(db, workspaceID)
 	agentID := uuid.New()
 	resourceID := uuid.New()
 	agent := database.WorkspaceAgent{
@@ -3046,6 +3269,7 @@ func TestGetWorkspaceConn_DialErrorNotMisclassifiedAsTimeout(t *testing.T) {
 	db := dbmock.NewMockStore(ctrl)
 
 	workspaceID := uuid.New()
+	expectLiveWorkspace(db, workspaceID)
 	agentID := uuid.New()
 	resourceID := uuid.New()
 	chat := database.Chat{
@@ -3598,4 +3822,12 @@ func TestResolveFallbackModelConfigID(t *testing.T) {
 		})
 		require.ErrorIs(t, err, ErrInvalidModelConfigID)
 	})
+}
+
+// expectLiveWorkspace satisfies the workspace liveness read in
+// loadWorkspaceAgentLocked for a workspace that still exists.
+func expectLiveWorkspace(db *dbmock.MockStore, workspaceID uuid.UUID) {
+	db.EXPECT().GetWorkspaceByID(gomock.Any(), workspaceID).
+		Return(database.Workspace{ID: workspaceID}, nil).
+		AnyTimes()
 }

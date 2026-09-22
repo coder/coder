@@ -5,9 +5,9 @@ import {
 	SquareArrowOutUpRightIcon,
 } from "lucide-react";
 import {
+	type ComponentProps,
 	type FC,
 	Fragment,
-	type HTMLAttributes,
 	type PropsWithChildren,
 	type ReactNode,
 	useId,
@@ -35,19 +35,15 @@ import {
 	type DateRangeValue,
 } from "#/components/DateRangePicker/DateRangePicker";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
-import {
-	HelpPopover,
-	HelpPopoverContent,
-	HelpPopoverIconTrigger,
-	HelpPopoverText,
-	HelpPopoverTitle,
-} from "#/components/HelpPopover/HelpPopover";
+import { InfoTooltip } from "#/components/InfoTooltip/InfoTooltip";
 import { Link } from "#/components/Link/Link";
 import { Loader } from "#/components/Loader/Loader";
 import {
 	Tooltip,
 	TooltipArrow,
 	TooltipContent,
+	TooltipMessage,
+	TooltipTitle,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import { RequirePermission } from "#/modules/permissions/RequirePermission";
@@ -132,14 +128,14 @@ export default function TemplateInsightsPage() {
 	);
 }
 
-interface TemplateInsightsControlsProps {
+type TemplateInsightsControlsProps = {
 	interval: "day" | "week";
 	dateRange: DateRangeValue;
 	setDateRange: (value: DateRangeValue) => void;
 	searchParams: URLSearchParams;
 	setSearchParams: SetURLSearchParams;
 	now?: Date;
-}
+};
 
 export const TemplateInsightsControls: FC<TemplateInsightsControlsProps> = ({
 	interval,
@@ -212,7 +208,7 @@ const getDateRange = (
 	return lastWeeks(DEFAULT_NUMBER_OF_WEEKS);
 };
 
-interface TemplateInsightsPageViewProps {
+type TemplateInsightsPageViewProps = {
 	templateInsights: {
 		data: TemplateInsightsResponse | undefined;
 		error: unknown;
@@ -227,7 +223,7 @@ interface TemplateInsightsPageViewProps {
 	};
 	controls: ReactNode;
 	interval: InsightsInterval;
-}
+};
 
 export const TemplateInsightsPageView: FC<TemplateInsightsPageViewProps> = ({
 	templateInsights,
@@ -266,11 +262,11 @@ export const TemplateInsightsPageView: FC<TemplateInsightsPageViewProps> = ({
 	);
 };
 
-interface ActiveUsersPanelProps extends PanelProps {
+type ActiveUsersPanelProps = {
 	data: TemplateInsightsResponse["interval_reports"] | undefined;
 	error: unknown;
 	interval: InsightsInterval;
-}
+} & PanelProps;
 
 const ActiveUsersPanel: FC<ActiveUsersPanelProps> = ({
 	data,
@@ -283,20 +279,15 @@ const ActiveUsersPanel: FC<ActiveUsersPanelProps> = ({
 			<PanelHeader>
 				<PanelTitle className="flex items-center gap-2">
 					{interval === "day" ? "Daily" : "Weekly"} Active Users
-					<HelpPopover>
-						<HelpPopoverIconTrigger size="small" />
-						<HelpPopoverContent>
-							<HelpPopoverTitle>
-								How do we calculate active users?
-							</HelpPopoverTitle>
-							<HelpPopoverText>
-								When a connection is initiated to a user&apos;s workspace they
-								are considered an active user. e.g. apps, web terminal, SSH.
-								This is for measuring user activity and has no connection to
-								license consumption.
-							</HelpPopoverText>
-						</HelpPopoverContent>
-					</HelpPopover>
+					<InfoTooltip size="small">
+						<TooltipTitle>How do we calculate active users?</TooltipTitle>
+						<TooltipMessage>
+							When a connection is initiated to a user's workspace they are
+							considered an active user. e.g. apps, web terminal, SSH. This is
+							for measuring user activity and has no connection to license
+							consumption.
+						</TooltipMessage>
+					</InfoTooltip>
 				</PanelTitle>
 			</PanelHeader>
 			<PanelContent error={error} data={data}>
@@ -311,10 +302,10 @@ const ActiveUsersPanel: FC<ActiveUsersPanelProps> = ({
 	);
 };
 
-interface UsersLatencyPanelProps extends PanelProps {
+type UsersLatencyPanelProps = {
 	data: UserLatencyInsightsResponse | undefined;
 	error: unknown;
-}
+} & PanelProps;
 
 const UsersLatencyPanel: FC<UsersLatencyPanelProps> = ({
 	data,
@@ -327,15 +318,12 @@ const UsersLatencyPanel: FC<UsersLatencyPanelProps> = ({
 			<PanelHeader>
 				<PanelTitle className="flex items-center gap-2">
 					Latency by user
-					<HelpPopover>
-						<HelpPopoverIconTrigger size="small" />
-						<HelpPopoverContent>
-							<HelpPopoverTitle>How is latency calculated?</HelpPopoverTitle>
-							<HelpPopoverText>
-								The median round trip time of user connections to workspaces.
-							</HelpPopoverText>
-						</HelpPopoverContent>
-					</HelpPopover>
+					<InfoTooltip size="small">
+						<TooltipTitle>How is latency calculated?</TooltipTitle>
+						<TooltipMessage>
+							The median round trip time of user connections to workspaces.
+						</TooltipMessage>
+					</InfoTooltip>
 				</PanelTitle>
 			</PanelHeader>
 			<PanelContent error={error} data={data?.report.users}>
@@ -366,10 +354,10 @@ const UsersLatencyPanel: FC<UsersLatencyPanelProps> = ({
 	);
 };
 
-interface UsersActivityPanelProps extends PanelProps {
+type UsersActivityPanelProps = {
 	data: UserActivityInsightsResponse | undefined;
 	error: unknown;
-}
+} & PanelProps;
 
 const UsersActivityPanel: FC<UsersActivityPanelProps> = ({
 	data,
@@ -382,16 +370,13 @@ const UsersActivityPanel: FC<UsersActivityPanelProps> = ({
 			<PanelHeader>
 				<PanelTitle className="flex items-center gap-2">
 					Activity by user
-					<HelpPopover>
-						<HelpPopoverIconTrigger size="small" />
-						<HelpPopoverContent>
-							<HelpPopoverTitle>How is activity calculated?</HelpPopoverTitle>
-							<HelpPopoverText>
-								When a connection is initiated to a user&apos;s workspace they
-								are considered an active user. e.g. apps, web terminal, SSH
-							</HelpPopoverText>
-						</HelpPopoverContent>
-					</HelpPopover>
+					<InfoTooltip size="small">
+						<TooltipTitle>How is activity calculated?</TooltipTitle>
+						<TooltipMessage>
+							When a connection is initiated to a user's workspace they are
+							considered an active user. e.g. apps, web terminal, SSH
+						</TooltipMessage>
+					</InfoTooltip>
 				</PanelTitle>
 			</PanelHeader>
 			<PanelContent error={error} data={data?.report.users}>
@@ -417,10 +402,10 @@ const UsersActivityPanel: FC<UsersActivityPanelProps> = ({
 	);
 };
 
-interface TemplateUsagePanelProps extends PanelProps {
+type TemplateUsagePanelProps = {
 	data: readonly TemplateAppUsage[] | undefined;
 	error: unknown;
-}
+} & PanelProps;
 
 const TemplateUsagePanel: FC<TemplateUsagePanelProps> = ({
 	data,
@@ -496,10 +481,10 @@ const TemplateUsagePanel: FC<TemplateUsagePanelProps> = ({
 	);
 };
 
-interface TemplateParametersUsagePanelProps extends PanelProps {
+type TemplateParametersUsagePanelProps = {
 	data: readonly TemplateParameterUsage[] | undefined;
 	error: unknown;
-}
+} & PanelProps;
 
 const TemplateParametersUsagePanel: FC<TemplateParametersUsagePanelProps> = ({
 	data,
@@ -577,10 +562,10 @@ const filterOrphanValues = (
 	return true;
 };
 
-interface ParameterUsageLabelProps {
+type ParameterUsageLabelProps = {
 	usage: TemplateParameterValue;
 	parameter: TemplateParameterUsage;
-}
+};
 
 const ParameterUsageLabel: FC<ParameterUsageLabelProps> = ({
 	usage,
@@ -669,7 +654,7 @@ const ParameterUsageLabel: FC<ParameterUsageLabelProps> = ({
 	return <TextValue>{usage.value}</TextValue>;
 };
 
-type PanelProps = HTMLAttributes<HTMLDivElement>;
+type PanelProps = ComponentProps<"div">;
 
 const Panel: FC<PanelProps> = ({ children, className, ...attrs }) => {
 	return (
@@ -685,7 +670,7 @@ const Panel: FC<PanelProps> = ({ children, className, ...attrs }) => {
 	);
 };
 
-const PanelHeader: FC<HTMLAttributes<HTMLDivElement>> = ({
+const PanelHeader: FC<ComponentProps<"div">> = ({
 	children,
 	className,
 	...attrs
@@ -697,7 +682,7 @@ const PanelHeader: FC<HTMLAttributes<HTMLDivElement>> = ({
 	);
 };
 
-const PanelTitle: FC<HTMLAttributes<HTMLDivElement>> = ({
+const PanelTitle: FC<ComponentProps<"div">> = ({
 	children,
 	className,
 	...attrs
@@ -709,10 +694,10 @@ const PanelTitle: FC<HTMLAttributes<HTMLDivElement>> = ({
 	);
 };
 
-interface PanelContentProps extends HTMLAttributes<HTMLDivElement> {
+type PanelContentProps = ComponentProps<"div"> & {
 	error: unknown | undefined;
 	data: readonly unknown[] | undefined;
-}
+};
 
 const PanelContent: FC<PanelContentProps> = ({ error, data, children }) => {
 	return (
@@ -728,9 +713,9 @@ const PanelContent: FC<PanelContentProps> = ({ error, data, children }) => {
 	);
 };
 
-interface NoDataAvailableProps extends HTMLAttributes<HTMLDivElement> {
+type NoDataAvailableProps = ComponentProps<"div"> & {
 	error: unknown;
-}
+};
 
 const NoDataAvailable: FC<NoDataAvailableProps> = ({ error, ...props }) => {
 	return (

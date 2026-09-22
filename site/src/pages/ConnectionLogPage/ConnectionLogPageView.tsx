@@ -22,7 +22,7 @@ import { ConnectionLogFilter } from "./ConnectionLogFilter";
 import { ConnectionLogHelpPopover } from "./ConnectionLogHelpPopover";
 import { ConnectionLogRow } from "./ConnectionLogRow/ConnectionLogRow";
 
-interface ConnectionLogPageViewProps {
+type ConnectionLogPageViewProps = {
 	connectionLogs?: readonly ConnectionLog[];
 	isNonInitialPage: boolean;
 	isConnectionLogVisible: boolean;
@@ -30,7 +30,7 @@ interface ConnectionLogPageViewProps {
 	filterProps: ComponentProps<typeof ConnectionLogFilter>;
 	connectionLogsQuery: PaginationResult;
 	permissions: Permissions;
-}
+};
 
 export const ConnectionLogPageView: FC<ConnectionLogPageViewProps> = ({
 	connectionLogs,
@@ -103,13 +103,13 @@ export const ConnectionLogPageView: FC<ConnectionLogPageViewProps> = ({
 	);
 };
 
-interface ConnectionLogTableBodyProps {
+type ConnectionLogTableBodyProps = {
 	connectionLogs: readonly ConnectionLog[] | undefined;
 	error: unknown;
 	isLoading: boolean;
 	isEmpty: boolean;
 	isNonInitialPage: boolean;
-}
+};
 
 const ConnectionLogTableBody: FC<ConnectionLogTableBodyProps> = ({
 	connectionLogs,

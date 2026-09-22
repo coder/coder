@@ -34,7 +34,7 @@ const mockSpend: GroupMemberAISpend = {
 const openInfo = async (canvasElement: HTMLElement) => {
 	const canvas = within(canvasElement);
 	const cell = await canvas.findByTestId(testId);
-	await userEvent.click(
+	await userEvent.hover(
 		within(cell).getByRole("button", { name: "More info" }),
 	);
 	return within(document.body);
@@ -320,7 +320,7 @@ export const NotAttributedOtherOrganization: Story = {
 		await expect(cell).not.toHaveTextContent("$456");
 		const groupCell = canvas.getAllByRole("cell")[1];
 		await expect(groupCell).toHaveTextContent("\u2014");
-		await userEvent.click(
+		await userEvent.hover(
 			within(groupCell).getByRole("button", { name: "More info" }),
 		);
 		await expect(
@@ -328,8 +328,10 @@ export const NotAttributedOtherOrganization: Story = {
 				/managed by a group in another organization/,
 			),
 		).toBeInTheDocument();
-		// Close this popover so the shared message only matches once.
-		await userEvent.keyboard("{Escape}");
+		// Close this tooltip so the shared message only matches once.
+		await userEvent.unhover(
+			within(groupCell).getByRole("button", { name: "More info" }),
+		);
 		const body = await openInfo(canvasElement);
 		await expect(
 			await body.findByText(/managed by a group in another organization/),

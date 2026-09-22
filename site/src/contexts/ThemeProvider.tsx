@@ -49,10 +49,10 @@ export const ThemeProvider: FC<PropsWithChildren> = ({ children }) => {
 	return <ThemeOverride theme={theme}>{children}</ThemeOverride>;
 };
 
-interface ThemeOverrideProps {
+type ThemeOverrideProps = {
 	theme: Theme;
 	children?: ReactNode;
-}
+};
 
 export const ThemeOverride: FC<ThemeOverrideProps> = ({ theme, children }) => {
 	return (

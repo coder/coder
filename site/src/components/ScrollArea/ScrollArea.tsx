@@ -6,8 +6,7 @@
 import { cn } from "cn";
 import { ScrollArea as ScrollAreaPrimitive } from "radix-ui";
 
-interface ScrollAreaProps
-	extends React.ComponentPropsWithRef<typeof ScrollAreaPrimitive.Root> {
+type ScrollAreaProps = React.ComponentProps<typeof ScrollAreaPrimitive.Root> & {
 	scrollBarClassName?: string;
 	horizontalScrollBarClassName?: string;
 	/** Extra thumb classes; also reaches the thumb's `::before` hit-target. */
@@ -17,7 +16,7 @@ interface ScrollAreaProps
 	viewportAriaLabel?: string;
 	/** Which scrollbar(s) to show. Defaults to "vertical". */
 	orientation?: "vertical" | "horizontal" | "both";
-}
+};
 
 export const ScrollArea: React.FC<ScrollAreaProps> = ({
 	className,
@@ -69,9 +68,7 @@ export const ScrollArea: React.FC<ScrollAreaProps> = ({
 };
 
 const ScrollBar: React.FC<
-	React.ComponentPropsWithRef<
-		typeof ScrollAreaPrimitive.ScrollAreaScrollbar
-	> & {
+	React.ComponentProps<typeof ScrollAreaPrimitive.ScrollAreaScrollbar> & {
 		thumbClassName?: string;
 	}
 > = ({ className, orientation = "vertical", thumbClassName, ...props }) => {

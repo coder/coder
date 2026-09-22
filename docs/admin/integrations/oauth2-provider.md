@@ -1,38 +1,57 @@
 ---
-title: OAuth2 provider (Experimental)
+title: OAuth2 provider
 ---
 
-> [!WARNING]
-> The OAuth2 provider functionality is currently **experimental and unstable**. This feature:
->
-> - Is subject to breaking changes without notice
-> - May have incomplete functionality
-> - Is not recommended for production use
-> - Requires the `oauth2` experiment flag to be enabled
->
-> Use this feature for development and testing purposes only.
+> [!NOTE]
+> The OAuth2 provider is generally available and off by default.
+> Set `CODER_OAUTH2_PROVIDER_ENABLE=true` to turn it on.
+> The `oauth2` experiment has been removed.
 
 Coder can act as an OAuth2 authorization server, allowing third-party applications to authenticate users through Coder and access the Coder API on their behalf. This enables integrations where external applications can leverage Coder's authentication and user management.
 
 ## Requirements
 
 - Admin privileges in Coder
-- OAuth2 experiment flag enabled
+- `CODER_OAUTH2_PROVIDER_ENABLE=true` set on the Coder server
 - HTTPS recommended for production deployments
 
 ## Enable OAuth2 Provider
 
-Add the `oauth2` experiment flag to your Coder server:
+The provider is off by default.
+While it is off, the OAuth2 endpoints and discovery documents return 404 and the **OAuth2 Applications** page is hidden.
+Turn it on with the CLI flag:
 
 ```sh
-coder server --experiments oauth2
+coder server --oauth2-provider-enable
 ```
 
 Or set the environment variable:
 
 ```dotenv
-CODER_EXPERIMENTS=oauth2
+CODER_OAUTH2_PROVIDER_ENABLE=true
 ```
+
+Or set it in the YAML configuration file:
+
+```yaml
+oauth2:
+  provider:
+    enable: true
+```
+
+For Kubernetes deployments that use the Helm chart, add the environment variable to `coder.env` in your values file:
+
+```yaml
+coder:
+  env:
+    - name: CODER_OAUTH2_PROVIDER_ENABLE
+      value: "true"
+```
+
+Existing applications, secrets, and user authorizations are kept while the provider is off and work again when you turn it on.
+Turning the provider off does not invalidate access tokens it already issued.
+Those tokens keep authenticating to the regular Coder API while the OAuth2 refresh and revocation endpoints return 404.
+Treat the setting as a way to stop new authorizations rather than as a way to revoke access, and revoke the tokens or delete the application before you disable the provider.
 
 ## Creating OAuth2 Applications
 
@@ -60,6 +79,9 @@ curl -X POST \
   }' \
   "$CODER_URL/api/v2/oauth2-provider/apps"
 ```
+
+Add an optional `scope` field to restrict which scopes the application's clients may request.
+Refer to [Scopes](#scopes) for how the allowlist is applied and how to change it later.
 
 Generate a client secret:
 
@@ -129,6 +151,8 @@ Coder supports the following OAuth2 client authentication methods at the token e
 Coder supports both secret-based methods for compatibility; existing integrations using `client_secret_post` do not need to change.
 
 Public clients suit native, mobile, and CLI applications that cannot keep a secret confidential. Note the redirect URI restrictions below before choosing one.
+
+Opening a public client on the **OAuth2 Applications** page shows no client secrets section, since a public client has no secret to display or generate.
 
 If you use Dynamic Client Registration (RFC 7591) and omit `token_endpoint_auth_method`, clients default to `client_secret_basic`. To request `client_secret_post`, set `token_endpoint_auth_method` to `client_secret_post` in the registration request. To register a public client, set it to `none`: Coder issues no `client_secret`, and the registration response omits that field entirely.
 
@@ -285,7 +309,15 @@ https://coder.example.com/oauth2/authorize?
   redirect_uri=https://yourapp.example.com/callback
 ```
 
-An application registered through [Dynamic Client Registration](#dynamic-client-registration) can declare a `scope` field, which acts as an allowlist. The client may then request anything that allowlist covers, and is granted the whole allowlist if it requests nothing. Applications created through the web UI or the management API declare no allowlist, so any requested scope is honored and a request that names no scope is granted `coder:all`.
+An application can carry a `scope` allowlist.
+The client may then request anything that allowlist covers, and is granted the whole allowlist if it requests nothing.
+An application with no allowlist honors any requested scope, and a request that names no scope is granted `coder:all`.
+
+An application registered through [Dynamic Client Registration](#dynamic-client-registration) declares its allowlist in the `scope` field of its registration.
+An administrator sets one with the optional, space-separated `scope` field when [creating an application](../../reference/api/enterprise.md#create-oauth2-application) through the management API.
+When [updating an application](../../reference/api/enterprise.md#update-oauth2-application), omit `scope` to keep the current allowlist, send a new value to replace it, or send an empty string to clear it and make the application unrestricted.
+The stored value is not checked against the scopes this deployment offers; a name it does not offer fails at authorization, as described under ["invalid_scope" returned to your callback](#invalid_scope-returned-to-your-callback).
+The web UI does not yet set the allowlist.
 
 The consent page states the scope being granted before the user approves it. A refresh keeps the scope originally granted; a refresh that names a narrower `scope` applies it to the access token it mints, leaving the grant itself unchanged.
 
@@ -339,6 +371,29 @@ curl -X POST \
   -d "client_id=$CLIENT_ID" \
   "$CODER_URL/oauth2/tokens"
 ```
+
+### Revoke a Token
+
+Revoke one refresh token or access token through the
+[RFC 7009](https://datatracker.ietf.org/doc/html/rfc7009) endpoint that
+`revocation_endpoint` advertises. A confidential client authenticates as it
+does on a refresh, with HTTP Basic as below or with `client_id` and
+`client_secret` form fields as in the refresh examples above. An omitted or
+wrong secret answers HTTP 401 with `error=invalid_client`:
+
+```sh
+curl -X POST \
+  -u "$CLIENT_ID:$CLIENT_SECRET" \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d "token=$REFRESH_TOKEN" \
+  "$CODER_URL/oauth2/revoke"
+```
+
+A public client sends `client_id` alone. Revoking a refresh token also ends the
+access token issued with it. A successful revocation returns HTTP 200, but that
+response does not confirm that the token existed or belonged to your client. A
+confidential client that fails to authenticate receives HTTP 401 with
+`error=invalid_client` and nothing is revoked.
 
 ### Revoke Access
 
@@ -396,9 +451,11 @@ For more details on testing, see the [OAuth2 test scripts README](../../../scrip
 
 ## Common Issues
 
-### "OAuth2 experiment not enabled"
+### OAuth2 endpoints return 404
 
-Add `oauth2` to your experiment flags: `coder server --experiments oauth2`
+The provider is off.
+Set `CODER_OAUTH2_PROVIDER_ENABLE=true` and restart the server.
+Refer to [Enable OAuth2 Provider](#enable-oauth2-provider).
 
 ### "Invalid redirect_uri"
 
@@ -428,18 +485,14 @@ opens with the requested name that caused the rejection:
   OAuth2 clients. It may not exist, or it may exist and be internal-only, which
   no version offers. Read the current list from `scopes_supported` in
   `GET /.well-known/oauth-authorization-server`.
-- `scope requests permissions beyond this app's allowed scopes`: the name is
-  supported, but the application was registered with a narrower `scope`.
-  Request less, or re-register the application with a wider one.
-- `none of the scopes registered for this app are supported by this
-  deployment`: the application's own registered `scope` names nothing this
-  deployment offers, so no request against it can succeed, including one
-  that omits `scope`. Re-register the application with supported scopes. This
-  description stands alone. Nothing validates a registered `scope`, so the
-  response never echoes it; the server log records the application ID.
+- `scope requests permissions beyond this app's allowed scopes`: the name is supported, but the application's `scope` allowlist does not cover it.
+  Request less, or widen the allowlist.
+- `none of the scopes registered for this app are supported by this deployment`: the application's `scope` allowlist names nothing this deployment offers, so no request against it can succeed, including one that omits `scope`.
+  Update the allowlist with supported scopes.
+  This description stands alone.
+  Nothing checks a stored `scope` against the catalog, so the response never echoes it; the server log records the application ID.
 
-Omitting `scope` requests the application's registered scopes, or full access
-if it was registered without any.
+Omitting `scope` requests the application's allowlist, or full access if it has none.
 
 The negotiated scope is recorded on the authorization, shown on the consent
 page, and applied to the access token issued when the code is exchanged.
@@ -463,26 +516,18 @@ The exchange also re-checks the code's scope against the application's
 registered `scope`, which can change during the ten minutes a code stays valid.
 Two more descriptions can open the `error_description` here:
 
-- `scope is no longer allowed by this app's registered scopes`: the
-  registration narrowed after the code was issued and no longer covers the
-  code's scope. Authorize again to negotiate a scope within the new
-  registration.
-- `none of the scopes registered for this app are supported by this
-  deployment`: the registration names nothing this deployment offers, so no
-  code against it can be redeemed. Re-register the application with supported
-  scopes. As on the authorize endpoint, the registered value stays out of the
-  response.
+- `scope is no longer allowed by this app's registered scopes`: the allowlist narrowed after the code was issued and no longer covers the code's scope.
+  Authorize again to negotiate a scope within the new allowlist.
+- `none of the scopes registered for this app are supported by this deployment`: the allowlist names nothing this deployment offers, so no code against it can be redeemed.
+  Update the allowlist with supported scopes.
+  As on the authorize endpoint, the stored value stays out of the response.
 
 A coverage comparison this deployment cannot decide answers HTTP 500 with
 `error=server_error` and `The requested scope could not be evaluated`; the
 scope that could not be compared is in the server logs, not the response.
 
-Only the application itself can change its registered `scope`, through
-[Dynamic Client Registration](#dynamic-client-registration). No administrator
-surface writes the column, and an application that holds its registration
-access token can widen its own allowlist again before redeeming a code, so
-treat this re-check as reflecting the registration at redemption time rather
-than as a constraint on the client.
+An application's `scope` allowlist can change through [Dynamic Client Registration](#dynamic-client-registration), by the application itself, or through the management API, by an administrator.
+An application that holds its registration access token can widen its own allowlist again before redeeming a code, so treat this re-check as reflecting the allowlist at redemption time rather than as a constraint on the client.
 
 A refresh is not re-checked against the registration. That is a Coder policy
 choice: withdrawing scope from a session already running would break it
@@ -490,11 +535,9 @@ mid-flight, so a narrowing takes effect at the next authorization. A refresh
 token keeps its granted scope until it expires, which can be up to the
 configured refresh lifetime; revoke the token to cut a live session.
 
-Codes issued before the upgrade that added scope columns carry `coder:all`,
-recorded as an unrestricted grant. For an application registered with a
-narrower `scope`, those codes are refused with `scope is no longer allowed by
-this app's registered scopes` until they expire, which takes at most ten
-minutes. Authorizing again issues a code within the current registration.
+Codes issued before the upgrade that added scope columns carry `coder:all`, recorded as an unrestricted grant.
+For an application with a narrower `scope` allowlist, those codes are refused with `scope is no longer allowed by this app's registered scopes` until they expire, which takes at most ten minutes.
+Authorizing again issues a code within the current allowlist.
 
 ### "invalid_scope" for a refresh that names a scope
 
@@ -534,6 +577,19 @@ confers `organization_member:read`, which a workspace build needs and which
 `scopes_supported` does not list, so a token narrowed to the fullest set a client
 can name will fail to create a workspace. Refresh without a `scope` to return to
 the composite.
+
+### "invalid_client" for a refresh or a revocation
+
+`POST /oauth2/tokens` with `grant_type=refresh_token` and `POST /oauth2/revoke`
+answer HTTP 401 with `error=invalid_client` when a confidential client does not
+authenticate. The usual causes are a `client_secret` that was omitted, a secret
+that belongs to a different client, or a secret that has since been deleted or
+rotated. Present the client's current secret, as HTTP Basic or as a form
+parameter, following [Refresh Tokens](#refresh-tokens). The refresh token is
+not consumed and nothing is revoked by the refusal, so the retry needs no new
+authorization. If the secret was deleted, the tokens issued under it were
+revoked with it, and the client must authorize again. Public clients have no
+secret and never receive this error for omitting one.
 
 ### "unsupported_response_type" returned to your callback
 
@@ -633,6 +689,9 @@ Public clients (`token_endpoint_auth_method: none`) additionally cannot register
   custom URI schemes for native apps (`myapp://`) are permitted, and public
   clients additionally cannot use `mailto:`, `tel:`, or `sms:`
 - **Rotate secrets**: Periodically rotate client secrets using the management API
+- **Refresh tokens are not self-sufficient**: a confidential client must present
+  its `client_secret` to refresh or revoke, so a leaked token alone cannot mint
+  new access tokens or end another client's session
 - **No CORS on the authorization endpoint**: `/oauth2/authorize` is reached
   only by browser navigation and sends no CORS headers, as OAuth 2.1 requires.
   The token, registration, revocation, and metadata endpoints do allow
@@ -640,10 +699,11 @@ Public clients (`token_endpoint_auth_method: none`) additionally cannot register
 
 ## Limitations
 
-As an experimental feature, the current implementation has limitations:
+The current implementation has these limitations:
 
-- A scope allowlist can only be declared at [Dynamic Client Registration](#dynamic-client-registration); applications created through the web UI or the management API cannot restrict which scopes a client may request
+- The web UI cannot set or change a scope allowlist; declare one at [Dynamic Client Registration](#dynamic-client-registration) or set it through the management API, as described under [Scopes](#scopes)
 - No client credentials grant support
+- No device authorization grant support (RFC 8628)
 - Implicit grant (`response_type=token`) is not supported; OAuth 2.1 deprecated this flow due to token leakage risks, and a request for it redirects to the registered callback with `unsupported_response_type`
 - Limited to opaque access tokens (no JWT support)
 
@@ -653,6 +713,14 @@ enforced, and such a request answers HTTP 400 with `error=invalid_scope`. The
 refresh token is not consumed, so a client that drops the parameter or asks for
 less recovers without re-authorizing.
 
+Earlier versions did not check `client_secret` on a refresh or at the RFC 7009
+revocation endpoint, so a confidential client could refresh or revoke with a
+wrong secret or none. Both now authenticate confidential clients exactly as the
+authorization code grant does, and a request without a valid secret answers
+HTTP 401 with `error=invalid_client`. The refresh token is not consumed and
+nothing is revoked, so a client that adds its secret recovers without
+re-authorizing. Public clients are unaffected.
+
 Coder now enforces the `scope` an application declared for itself when it self-registered through [Dynamic Client Registration](#dynamic-client-registration).
 This affects only deployments that enabled Dynamic Client Registration and have an application that self-registered with a `scope`.
 Dynamic Client Registration is disabled by default, so if you never enabled it, nothing changes for you.
@@ -660,7 +728,7 @@ Turning it back off does not clear the check: Coder validates the stored `scope`
 
 Earlier versions of Coder accepted any `scope` at registration without checking it, and every token for that application had full access.
 Coder now treats the registered `scope` as the list of scopes the application is allowed to request, as described under [Scopes](#scopes).
-Applications that self-registered without a `scope`, and applications created through the web UI or the management API, have no scope list and are not affected; they continue to receive full access.
+Applications that self-registered without a `scope`, and applications created through the web UI or the management API without one, have no scope list and are not affected; they continue to receive full access.
 
 An affected application fails in the following ways:
 
@@ -672,7 +740,8 @@ For the full error details, refer to ["invalid_scope" returned to your callback]
 
 To fix an affected application, the party that holds its `registration_access_token` updates the registration with `PUT /oauth2/clients/{client_id}`, so that `scope` lists only names from `scopes_supported` in `GET /.well-known/oauth-authorization-server`.
 If that token is lost, register the application again.
-A Coder administrator cannot change an application's registered `scope` from the web UI or the management API; only the self-registration path writes that value.
+A Coder administrator can also fix it from the management API by [updating the application](../../reference/api/enterprise.md#update-oauth2-application) with a `scope` that lists supported names, or with an empty `scope` to remove the allowlist.
+The web UI cannot change it.
 
 ## Standards Compliance
 
@@ -694,4 +763,4 @@ pages.
 
 ## Feedback
 
-This is an experimental feature under active development. Please report issues and feedback through [GitHub Issues](https://github.com/coder/coder/issues) with the `oauth2` label.
+Report issues and feedback through [GitHub Issues](https://github.com/coder/coder/issues) with the `oauth2` label.

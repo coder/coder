@@ -13,6 +13,7 @@ import { getOrganizationLabel } from "#/components/OrganizationAutocomplete/Orga
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
+	SettingsHeaderDocsLink,
 	SettingsHeaderTitle,
 } from "#/components/SettingsHeader/SettingsHeader";
 import {
@@ -24,11 +25,12 @@ import {
 } from "#/components/Table/Table";
 import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
 import { TableLoader } from "#/components/TableLoader/TableLoader";
+import { docs } from "#/utils/docs";
 import { MCPServerRow } from "./components/MCPServerRow";
 import { OrganizationPicker } from "./components/OrganizationPicker";
 import { addMCPServerPath, updateMCPServerPath } from "./organizationParam";
 
-interface MCPServersPageViewProps {
+type MCPServersPageViewProps = {
 	isLoading: boolean;
 	error: unknown;
 	servers: readonly TypesGen.MCPServerConfig[];
@@ -38,7 +40,7 @@ interface MCPServersPageViewProps {
 	addOrganizations: readonly TypesGen.Organization[];
 	canOpenServer: boolean;
 	onSelectOrganization: (organization: TypesGen.Organization) => void;
-}
+};
 
 const MCPServersPageView: FC<MCPServersPageViewProps> = ({
 	isLoading,
@@ -98,7 +100,10 @@ const MCPServersPageView: FC<MCPServersPageViewProps> = ({
 				<SettingsHeaderTitle>MCP servers</SettingsHeaderTitle>
 				<SettingsHeaderDescription>
 					Configure external MCP servers that provide additional tools for Coder
-					Agents.
+					Agents.{" "}
+					<SettingsHeaderDocsLink
+						href={docs("/ai-coder/agents/platform-controls/mcp-servers")}
+					/>
 				</SettingsHeaderDescription>
 			</SettingsHeader>
 			<div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center">

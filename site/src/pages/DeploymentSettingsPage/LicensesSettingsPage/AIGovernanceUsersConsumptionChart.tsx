@@ -8,10 +8,10 @@ import {
 } from "./AIGovernanceLicensing";
 import { SeatUsageBarCard } from "./SeatUsageBarCard";
 
-interface AIGovernanceUsersConsumptionProps {
+type AIGovernanceUsersConsumptionProps = {
 	aiGovernanceUserFeature?: Feature;
 	licenses?: GetLicensesResponse[];
-}
+};
 
 export const AIGovernanceUsersConsumption: FC<
 	AIGovernanceUsersConsumptionProps
