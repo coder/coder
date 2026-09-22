@@ -717,6 +717,21 @@ func requireCallbackURLValidationError(t *testing.T, err error) {
 	}), "expected callback_url validation error, got: %+v", apiErr.Validations)
 }
 
+// requireRedirectURIsValidationError asserts err is an HTTP 400 carrying a
+// redirect_uris validation error with the given detail.
+func requireRedirectURIsValidationError(t *testing.T, err error, detail string) {
+	t.Helper()
+
+	require.Error(t, err)
+	var apiErr *codersdk.Error
+	require.True(t, errors.As(err, &apiErr))
+	require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
+	require.Contains(t, apiErr.Validations, codersdk.ValidationError{
+		Field:  "redirect_uris",
+		Detail: detail,
+	}, "expected redirect_uris validation error, got: %+v", apiErr.Validations)
+}
+
 type provisionedApps struct {
 	Default   codersdk.OAuth2ProviderApp
 	NoPort    codersdk.OAuth2ProviderApp
@@ -913,6 +928,74 @@ func TestOAuth2ProviderAppRedirectURIs(t *testing.T) {
 		})
 		requireCallbackURLValidationError(t, err)
 		require.ErrorContains(t, err, "callback URL must not contain a fragment component")
+	})
+
+	// Stored entries are validated again on every update, so an app whose
+	// list predates the caps is rejected even when the callback is unchanged
+	// and nothing about it is written.
+	t.Run("StoredListOverCount", func(t *testing.T) {
+		t.Parallel()
+
+		db, pubsub := dbtestutil.NewDB(t)
+		client := coderdtest.New(t, &coderdtest.Options{Database: db, Pubsub: pubsub})
+		_ = coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		uris := make([]string, 0, codersdk.OAuth2RedirectURIsMaxCount+1)
+		uris = append(uris, first)
+		for i := 1; i <= codersdk.OAuth2RedirectURIsMaxCount; i++ {
+			uris = append(uris, fmt.Sprintf("https://alt-%d.example.com/callback", i))
+		}
+		app := dbgen.OAuth2ProviderApp(t, db, database.OAuth2ProviderApp{
+			Name:         "over-count",
+			CallbackURL:  first,
+			RedirectUris: uris,
+		})
+
+		//nolint:gocritic // OAuth2 app management requires owner permission.
+		_, err := client.PutOAuth2ProviderApp(ctx, app.ID, codersdk.PutOAuth2ProviderAppRequest{
+			Name:        "renamed",
+			CallbackURL: first,
+		})
+		requireRedirectURIsValidationError(t, err, "at most 32 redirect URIs are allowed")
+
+		stored, err := db.GetOAuth2ProviderAppByID(ctx, app.ID)
+		require.NoError(t, err)
+		require.Equal(t, "over-count", stored.Name)
+		require.Equal(t, first, stored.CallbackURL)
+		require.Equal(t, uris, stored.RedirectUris)
+	})
+
+	// An oversized alternate is reported against redirect_uris with its
+	// index, since the request never sent it.
+	t.Run("StoredAlternateOversized", func(t *testing.T) {
+		t.Parallel()
+
+		db, pubsub := dbtestutil.NewDB(t)
+		client := coderdtest.New(t, &coderdtest.Options{Database: db, Pubsub: pubsub})
+		_ = coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		prefix := "https://example.com/"
+		long := prefix + strings.Repeat("a", codersdk.OAuth2RedirectURIMaxBytes-len(prefix)+1)
+		app := dbgen.OAuth2ProviderApp(t, db, database.OAuth2ProviderApp{
+			Name:         "long-alternate",
+			CallbackURL:  first,
+			RedirectUris: []string{first, long},
+		})
+
+		//nolint:gocritic // OAuth2 app management requires owner permission.
+		_, err := client.PutOAuth2ProviderApp(ctx, app.ID, codersdk.PutOAuth2ProviderAppRequest{
+			Name:        "renamed",
+			CallbackURL: first,
+		})
+		requireRedirectURIsValidationError(t, err, "redirect URI at index 1 must be at most 2048 bytes")
+
+		stored, err := db.GetOAuth2ProviderAppByID(ctx, app.ID)
+		require.NoError(t, err)
+		require.Equal(t, "long-alternate", stored.Name)
+		require.Equal(t, first, stored.CallbackURL)
+		require.Equal(t, []string{first, long}, stored.RedirectUris)
 	})
 
 	// Registration stores a deduplicated list, and the configuration
