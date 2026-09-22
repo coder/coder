@@ -543,7 +543,7 @@ export const mergeWatchedChatSummary = (
 	const nextStatus =
 		isFreshEnough && isStatusEvent ? watchedChat.status : cachedChat.status;
 	// Title writes do not change updated_at, so title events are ordered
-	// by title_updated_at instead. The three title fields move together.
+	// by title_updated_at instead.
 	const hasNewerTitle =
 		isTitleEvent &&
 		compareUpdatedAtInstants(
@@ -598,9 +598,9 @@ export const mergeWatchedChatSummary = (
 		isFreshEnough && isStatusEvent && watchedChat.id !== activeChatId
 			? true
 			: cachedChat.has_unread;
-	// The watermark advances only with status_change. A current row in
-	// another event can carry an updated_at newer than a status_change
-	// that has not arrived yet; advancing on it would refuse that status.
+	// Only status_change advances the watermark. The row in another event
+	// can have an updated_at newer than a status_change that has not
+	// arrived yet; advancing on it would make that status_change stale.
 	const nextUpdatedAt =
 		isStatusEvent && isFreshEnough
 			? watchedChat.updated_at
@@ -1627,9 +1627,9 @@ export const updateChatTitle = (queryClient: QueryClient) => ({
 	mutationFn: ({ chatId, title }: UpdateChatTitleVariables) =>
 		API.experimental.updateChat(chatId, { title }),
 
-	// The rename's title_change event (for the owner) or the settle
-	// refetch updates the caches. A local patch would lack the
-	// title_updated_at that orders title events.
+	// No local cache patch: it would lack the title_updated_at that orders
+	// title events. The owner's title_change event or the onSettled
+	// refetch updates the caches.
 	onSettled: (
 		_data: unknown,
 		_error: unknown,

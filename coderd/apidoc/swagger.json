@@ -19996,7 +19996,7 @@
 					"type": "string"
 				},
 				"title": {
-					"description": "Title, when set, is stored as the user title and automatic title\ngeneration does not run. It is trimmed of surrounding whitespace and\nmust then be non-empty and at most MaxChatTitleRunes characters;\notherwise the request is rejected with 400. When omitted, the title\nis derived from the first prompt and may later be replaced by a\ngenerated title.",
+					"description": "Title, when set, is stored as the user title and automatic title\ngeneration does not run. It is trimmed and must then be non-empty\nand at most MaxChatTitleRunes characters, else the request fails\nwith 400. When omitted, the title is derived from the first prompt\nand may later be replaced by a generated title.",
 					"type": "string"
 				},
 				"unsafe_dynamic_tools": {

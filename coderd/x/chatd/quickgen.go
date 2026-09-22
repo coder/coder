@@ -476,8 +476,8 @@ func (p *Server) maybeGenerateChatTitle(
 
 // publishCurrentChatTitle publishes the chat's current row after a title
 // model call that wrote no title, so watchers refetch the call's cost.
-// The row is read after the call because the title may have been
-// written by another source while the call ran.
+// The row is re-read because another source may have written the title
+// during the call.
 func (p *Server) publishCurrentChatTitle(ctx context.Context, chatID uuid.UUID, logger slog.Logger) {
 	chat, err := p.db.GetChatByID(ctx, chatID)
 	if err != nil {

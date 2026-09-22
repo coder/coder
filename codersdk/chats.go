@@ -619,11 +619,10 @@ type CreateChatRequest struct {
 	OwnerID *uuid.UUID      `json:"owner_id,omitempty" format:"uuid"`
 	Content []ChatInputPart `json:"content"`
 	// Title, when set, is stored as the user title and automatic title
-	// generation does not run. It is trimmed of surrounding whitespace and
-	// must then be non-empty and at most MaxChatTitleRunes characters;
-	// otherwise the request is rejected with 400. When omitted, the title
-	// is derived from the first prompt and may later be replaced by a
-	// generated title.
+	// generation does not run. It is trimmed and must then be non-empty
+	// and at most MaxChatTitleRunes characters, else the request fails
+	// with 400. When omitted, the title is derived from the first prompt
+	// and may later be replaced by a generated title.
 	Title           *string           `json:"title,omitempty"`
 	SystemPrompt    string            `json:"system_prompt,omitempty"`
 	WorkspaceID     *uuid.UUID        `json:"workspace_id,omitempty" format:"uuid"`

@@ -388,7 +388,7 @@ CREATE TYPE chat_title_source AS ENUM (
     'user'
 );
 
-COMMENT ON TYPE chat_title_source IS 'Where a chat title came from. fallback: derived from the first prompt. generated: written by automatic title generation. user: supplied by the caller at creation or by rename. Rows that existed before this column was added are fallback regardless of who set their title.';
+COMMENT ON TYPE chat_title_source IS 'Where a chat title came from. fallback: derived from the first prompt. generated: written by automatic title generation. user: supplied by the caller at creation or by rename.';
 
 CREATE TYPE connection_status AS ENUM (
     'connected',
@@ -2268,7 +2268,7 @@ COMMENT ON COLUMN chats.last_reasoning_effort IS 'Stores the most recent message
 
 COMMENT ON COLUMN chats.compaction_requested_at IS 'Set when the chat owner manually requests a context compaction. One-shot signal: consumed by the compaction commit and cleared whenever the chat leaves running.';
 
-COMMENT ON COLUMN chats.title_source IS 'Only a user title may replace a generated or user title.';
+COMMENT ON COLUMN chats.title_source IS 'Only a user title may replace a generated or user title. Rows from before this column existed are fallback regardless of who set their title.';
 
 COMMENT ON COLUMN chats.title_updated_at IS 'When title was last written. Orders title events; updated_at is not changed by title writes.';
 

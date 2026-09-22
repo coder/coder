@@ -669,9 +669,8 @@ func TestMaybeGenerateChatTitle(t *testing.T) {
 				_, ok := generated.Load()
 				require.False(t, ok)
 
-				// The event describes the chat as it is now, not as it was
-				// before the model call, and its title_updated_at is the
-				// rename's so clients holding the rename do not reorder.
+				// The event must be the current row, not the row read
+				// before the model call.
 				event := testutil.RequireReceive(ctx, t, events)
 				require.Equal(t, codersdk.ChatWatchEventKindTitleChange, event.Kind)
 				require.Equal(t, renamed, event.Chat.Title)

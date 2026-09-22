@@ -34,10 +34,6 @@ func TitlePasteText(data []byte) string {
 // nothing, the content of synthetic pasted-text attachments is used
 // instead, looked up in pasteText by file ID and truncated to
 // syntheticPasteTitleBudget runes per file.
-//
-// The fallback title shown at creation and the generation input are
-// both derived through this function so they describe the same
-// content.
 func TitleText(parts []codersdk.ChatMessagePart, pasteText map[uuid.UUID]string) string {
 	texts := make([]string, 0, len(parts))
 	for _, part := range parts {

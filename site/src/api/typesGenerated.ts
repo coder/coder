@@ -3956,11 +3956,10 @@ export interface CreateChatRequest {
 	readonly content: readonly ChatInputPart[];
 	/**
 	 * Title, when set, is stored as the user title and automatic title
-	 * generation does not run. It is trimmed of surrounding whitespace and
-	 * must then be non-empty and at most MaxChatTitleRunes characters;
-	 * otherwise the request is rejected with 400. When omitted, the title
-	 * is derived from the first prompt and may later be replaced by a
-	 * generated title.
+	 * generation does not run. It is trimmed and must then be non-empty
+	 * and at most MaxChatTitleRunes characters, else the request fails
+	 * with 400. When omitted, the title is derived from the first prompt
+	 * and may later be replaced by a generated title.
 	 */
 	readonly title?: string;
 	readonly system_prompt?: string;

@@ -134,7 +134,7 @@ func TestChatTools(t *testing.T) {
 		require.Equal(t, client.URL.String()+"/agents/"+created.ID, created.URL)
 
 		settled := coderdtest.WaitForChatSettled(ctx, t, api, chatID)
-		// The same text the fallback would produce.
+		// Same text as the fallback, so only the source distinguishes them.
 		require.Equal(t, "Say hello.", settled.Title)
 		require.Equal(t, database.ChatTitleSourceUser, settled.TitleSource)
 
