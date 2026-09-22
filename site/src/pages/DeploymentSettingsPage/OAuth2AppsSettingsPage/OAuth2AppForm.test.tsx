@@ -2,6 +2,7 @@ import { act, screen, waitFor } from "@testing-library/react";
 import userEvent, { type UserEvent } from "@testing-library/user-event";
 import { API } from "#/api/api";
 import {
+	OAuth2RedirectURIMaxBytes,
 	OAuth2RedirectURIsMaxCount,
 	OAuth2ScopeListMaxBytes,
 	OAuth2ScopeListMaxNames,
@@ -219,6 +220,56 @@ describe("OAuth2AppForm", () => {
 			expect(onSubmit).not.toHaveBeenCalled();
 		}
 	});
+
+	// Each "é" is two UTF-8 bytes but one UTF-16 code unit, so these URIs stay
+	// well under the limit by string length and only cross it by byte count.
+	const redirectURIPrefix = "https://example.com/";
+	const redirectURIOfBytes = (bytes: number) =>
+		redirectURIPrefix +
+		"é".repeat(Math.floor((bytes - redirectURIPrefix.length) / 2)) +
+		"a".repeat((bytes - redirectURIPrefix.length) % 2);
+
+	it.each([
+		{ bytes: OAuth2RedirectURIMaxBytes, valid: true },
+		{ bytes: OAuth2RedirectURIMaxBytes + 1, valid: false },
+	])(
+		"enforces the UTF-8 byte limit for a $bytes byte redirect URI",
+		async ({ bytes, valid }) => {
+			const uri = redirectURIOfBytes(bytes);
+			expect(new TextEncoder().encode(uri)).toHaveLength(bytes);
+			expect(uri.length).toBeLessThan(OAuth2RedirectURIMaxBytes);
+
+			const user = userEvent.setup();
+			const onSubmit = vi.fn();
+			render(
+				<OAuth2AppForm
+					clientType="confidential"
+					onSubmit={onSubmit}
+					isUpdating={false}
+					disabled={false}
+				/>,
+			);
+			await user.type(screen.getByLabelText(/^name/i), "OAuth App");
+			await user.click(screen.getByLabelText(/default callback/i));
+			await user.paste(uri);
+			await user.click(
+				screen.getByRole("button", { name: /create application/i }),
+			);
+			await act(async () => {});
+			if (valid) {
+				await waitFor(() =>
+					expect(onSubmit).toHaveBeenCalledWith({
+						name: "OAuth App",
+						redirect_uris: [uri],
+						icon: "",
+						scope: "",
+					}),
+				);
+			} else {
+				expect(onSubmit).not.toHaveBeenCalled();
+			}
+		},
+	);
 
 	it.each([
 		{ callback: "mailto:a@b", valid: false },
