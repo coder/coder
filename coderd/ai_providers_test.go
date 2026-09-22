@@ -2115,3 +2115,134 @@ func TestAIProviderHostnameCollisionWarnings(t *testing.T) {
 		require.Nil(t, updated.Status, "update-self should not trigger a warning")
 	})
 }
+
+func TestAIProvidersUpstreamHeaders(t *testing.T) {
+	t.Parallel()
+
+	t.Run("CreateGetUpdateDelete", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// Create an openai-compat provider with custom upstream headers,
+		// as for an OpenCode Zen endpoint requiring x-opencode-session.
+		created, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+			Type:    codersdk.AIProviderTypeOpenAICompat,
+			Name:    "zen-headers",
+			Enabled: true,
+			BaseURL: "https://opencode.ai/zen/go/v1",
+			APIKeys: []string{"sk-zen"},
+			Settings: codersdk.AIProviderSettings{
+				UpstreamHeaders: &codersdk.AIProviderUpstreamHeadersSettings{
+					Headers: map[string]string{
+						"x-opencode-session": "{{chat_id}}",
+						"X-Custom":           "literal",
+					},
+				},
+			},
+		})
+		require.NoError(t, err)
+		require.NotNil(t, created.Settings.UpstreamHeaders)
+		require.Equal(t, map[string]string{
+			"x-opencode-session": "{{chat_id}}",
+			"X-Custom":           "literal",
+		}, created.Settings.UpstreamHeaders.Headers)
+
+		// Get by name echoes the headers back (values are not secrets).
+		got, err := client.AIProvider(ctx, created.Name)
+		require.NoError(t, err)
+		require.NotNil(t, got.Settings.UpstreamHeaders)
+		require.Equal(t, created.Settings.UpstreamHeaders.Headers, got.Settings.UpstreamHeaders.Headers)
+
+		// A patch that does not touch settings preserves them.
+		newDisplay := "Zen"
+		updated, err := client.UpdateAIProvider(ctx, created.Name, codersdk.UpdateAIProviderRequest{
+			DisplayName: &newDisplay,
+		})
+		require.NoError(t, err)
+		require.NotNil(t, updated.Settings.UpstreamHeaders)
+		require.Equal(t, created.Settings.UpstreamHeaders.Headers, updated.Settings.UpstreamHeaders.Headers)
+
+		// A settings patch is a full replacement.
+		updated, err = client.UpdateAIProvider(ctx, created.Name, codersdk.UpdateAIProviderRequest{
+			Settings: &codersdk.AIProviderSettings{
+				UpstreamHeaders: &codersdk.AIProviderUpstreamHeadersSettings{
+					Headers: map[string]string{"X-New": "v"},
+				},
+			},
+		})
+		require.NoError(t, err)
+		require.NotNil(t, updated.Settings.UpstreamHeaders)
+		require.Equal(t, map[string]string{"X-New": "v"}, updated.Settings.UpstreamHeaders.Headers)
+
+		// A discriminator-only settings blob clears the headers. (A Go
+		// zero value marshals to JSON null, which decodes as "not sent",
+		// so the clear shape is expressed as raw JSON.)
+		res, err := client.Request(ctx, http.MethodPatch, "/api/v2/ai/providers/"+created.Name, map[string]any{
+			"settings": map[string]any{"_type": "upstream-headers", "_version": 1},
+		})
+		require.NoError(t, err)
+		func() {
+			defer res.Body.Close()
+			require.Equal(t, http.StatusOK, res.StatusCode)
+			var cleared codersdk.AIProvider
+			require.NoError(t, codersdk.ReadBodyAsJSON(res, &cleared))
+			require.True(t, cleared.Settings.IsZero())
+		}()
+	})
+
+	t.Run("CreateRejectsDeniedHeader", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		//nolint:gocritic // Owner role is the audience for this endpoint.
+		_, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+			Type:    codersdk.AIProviderTypeOpenAICompat,
+			Name:    "zen-denied",
+			Enabled: true,
+			BaseURL: "https://opencode.ai/zen/go/v1",
+			APIKeys: []string{"sk-zen"},
+			Settings: codersdk.AIProviderSettings{
+				UpstreamHeaders: &codersdk.AIProviderUpstreamHeadersSettings{
+					Headers: map[string]string{"Authorization": "Bearer x"},
+				},
+			},
+		})
+		require.Error(t, err)
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+		require.Len(t, sdkErr.Validations, 1)
+		require.Contains(t, sdkErr.Validations[0].Detail, "managed by the gateway")
+	})
+
+	t.Run("CreateRejectsUnknownPlaceholder", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		//nolint:gocritic // Owner role is the audience for this endpoint.
+		_, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+			Type:    codersdk.AIProviderTypeOpenAICompat,
+			Name:    "zen-placeholder",
+			Enabled: true,
+			BaseURL: "https://opencode.ai/zen/go/v1",
+			APIKeys: []string{"sk-zen"},
+			Settings: codersdk.AIProviderSettings{
+				UpstreamHeaders: &codersdk.AIProviderUpstreamHeadersSettings{
+					Headers: map[string]string{"X-Session": "{{session}}"},
+				},
+			},
+		})
+		require.Error(t, err)
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+		require.Len(t, sdkErr.Validations, 1)
+		require.Contains(t, sdkErr.Validations[0].Detail, "only")
+	})
+}

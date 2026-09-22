@@ -897,30 +897,42 @@ func lookupAndMergeSettings(ctx context.Context, db database.Store, idOrName str
 }
 
 // mergeAIProviderSettings overlays a patch onto an existing settings
-// value. Write-only fields (Bedrock AccessKey and AccessKeySecret) use
-// pointers so the patch can distinguish "omitted, keep existing" (nil)
-// from "explicitly clear" (pointer to empty string) - e.g. when an
-// admin migrates from static AWS credentials to IAM role-based auth
-// in a single PATCH.
+// value. Omitting every variant clears the settings. Bedrock and upstream
+// headers are independent variants: a patch containing one preserves the
+// other. Write-only fields (Bedrock AccessKey and AccessKeySecret) use
+// pointers so the patch can distinguish "omitted, keep existing" (nil) from
+// "explicitly clear" (pointer to empty string) - e.g. when an admin migrates
+// from static AWS credentials to IAM role-based auth in a single PATCH.
 func mergeAIProviderSettings(existing, patch codersdk.AIProviderSettings) codersdk.AIProviderSettings {
-	if patch.Bedrock == nil {
+	if patch.Bedrock == nil && patch.UpstreamHeaders == nil {
 		// Patch carries no type-specific data; treat as a clear.
 		return codersdk.AIProviderSettings{}
 	}
-	merged := *patch.Bedrock
-	if existing.Bedrock != nil {
-		if merged.AccessKey == nil {
-			merged.AccessKey = existing.Bedrock.AccessKey
+	merged := existing
+	if patch.Bedrock != nil {
+		b := *patch.Bedrock
+		if existing.Bedrock != nil {
+			if b.AccessKey == nil {
+				b.AccessKey = existing.Bedrock.AccessKey
+			}
+			if b.AccessKeySecret == nil {
+				b.AccessKeySecret = existing.Bedrock.AccessKeySecret
+			}
+			// The external ID is server-owned and stable: carry the stored value
+			// forward so a patch can't change it. A patch that sets a different
+			// value is rejected upstream.
+			b.ExternalID = existing.Bedrock.ExternalID
 		}
-		if merged.AccessKeySecret == nil {
-			merged.AccessKeySecret = existing.Bedrock.AccessKeySecret
-		}
-		// The external ID is server-owned and stable: carry the stored value
-		// forward so a patch can't change it. A patch that sets a different
-		// value is rejected upstream.
-		merged.ExternalID = existing.Bedrock.ExternalID
+		merged.Bedrock = &b
 	}
-	return codersdk.AIProviderSettings{Bedrock: &merged}
+	if patch.UpstreamHeaders != nil {
+		if patch.UpstreamHeaders.IsZero() {
+			merged.UpstreamHeaders = nil
+		} else {
+			merged.UpstreamHeaders = patch.UpstreamHeaders
+		}
+	}
+	return merged
 }
 
 // validateBedrockExternalIDUnchanged rejects a patch that sets a Bedrock

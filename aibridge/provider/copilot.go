@@ -47,6 +47,8 @@ type Copilot struct {
 
 var _ Provider = &Copilot{}
 
+var _ UpstreamHeadersProvider = &Copilot{}
+
 func NewCopilot(cfg config.Copilot) *Copilot {
 	if cfg.Name == "" {
 		cfg.Name = config.ProviderCopilot
@@ -75,6 +77,14 @@ func (*Copilot) Enabled() bool { return true }
 
 func (p *Copilot) BaseURL() string {
 	return p.cfg.BaseURL
+}
+
+// UpstreamHeaders returns the admin-configured custom headers sent on every
+// upstream request for this provider. It satisfies UpstreamHeadersProvider,
+// consumed by the passthrough router; intercepted routes read the same
+// configuration from intercept.Config instead.
+func (p *Copilot) UpstreamHeaders() map[string]string {
+	return p.cfg.UpstreamHeaders
 }
 
 func (p *Copilot) RoutePrefix() string {
@@ -144,9 +154,10 @@ func (p *Copilot) CreateInterceptor(_ http.ResponseWriter, r *http.Request, trac
 	// Copilot's API is OpenAI-compatible, so it reuses the OpenAI interceptors.
 	// It is always BYOK: the per-user key arrives in the Authorization header.
 	cfg := intercept.Config{
-		ProviderName: p.Name(),
-		BaseURL:      p.cfg.BaseURL,
-		APIDumpDir:   p.cfg.APIDumpDir,
+		ProviderName:    p.Name(),
+		BaseURL:         p.cfg.BaseURL,
+		APIDumpDir:      p.cfg.APIDumpDir,
+		UpstreamHeaders: p.cfg.UpstreamHeaders,
 	}
 	cred := intercept.BYOK{Secret: key, Header: intercept.AuthHeaderAuthorization}
 
