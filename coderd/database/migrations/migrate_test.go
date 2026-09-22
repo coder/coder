@@ -403,6 +403,7 @@ func TestMigrationChain(t *testing.T) {
 		{"Migration000587RemoveAgentsAccessRole", 587, testMigration000587RemoveAgentsAccessRole},
 		{"Migration000590WorkspaceAgentSessionCounts", 590, testMigration000590WorkspaceAgentSessionCounts},
 		{"Migration000595RemoveTaskPermissions", 595, testMigration000595RemoveTaskPermissions},
+		{"Migration000600AIBridgeTokenUsageHourly", 600, testMigration000600AIBridgeTokenUsageHourly},
 	}
 	for _, step := range steps {
 		stepTo(step.version - 1)

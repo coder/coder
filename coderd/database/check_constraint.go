@@ -15,6 +15,8 @@ const (
 	CheckAIModelPricesOutputPriceCheck                       CheckConstraint = "ai_model_prices_output_price_check"                        // ai_model_prices
 	CheckAIProvidersNameCheck                                CheckConstraint = "ai_providers_name_check"                                   // ai_providers
 	CheckAIUserDailySpendSpendMicrosCheck                    CheckConstraint = "ai_user_daily_spend_spend_micros_check"                    // ai_user_daily_spend
+	CheckAibridgeTokenUsageHourlyUnpricedUsageCountCheck     CheckConstraint = "aibridge_token_usage_hourly_unpriced_usage_count_check"    // aibridge_token_usage_hourly
+	CheckAibridgeTokenUsageHourlyUsageCountCheck             CheckConstraint = "aibridge_token_usage_hourly_usage_count_check"             // aibridge_token_usage_hourly
 	CheckAibridgeTokenUsagesCacheReadPriceMicrosCheck        CheckConstraint = "aibridge_token_usages_cache_read_price_micros_check"       // aibridge_token_usages
 	CheckAibridgeTokenUsagesCacheWritePriceMicrosCheck       CheckConstraint = "aibridge_token_usages_cache_write_price_micros_check"      // aibridge_token_usages
 	CheckAibridgeTokenUsagesCostMicrosCheck                  CheckConstraint = "aibridge_token_usages_cost_micros_check"                   // aibridge_token_usages

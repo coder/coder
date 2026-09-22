@@ -1836,6 +1836,7 @@ func TestRecordTokenUsage(t *testing.T) {
 					db.EXPECT().InTx(gomock.Any(), nil).DoAndReturn(
 						func(fn func(database.Store) error, _ *database.TxOptions) error { return fn(db) },
 					)
+					db.EXPECT().LockAIBridgeInterceptionForUsage(gomock.Any(), interceptionID).Return(interceptionID, nil)
 
 					db.EXPECT().InsertAIBridgeTokenUsage(gomock.Any(), gomock.Cond(func(p database.InsertAIBridgeTokenUsageParams) bool {
 						if !assert.Equal(t, uuid.NullUUID{UUID: groupID, Valid: true}, p.EffectiveGroupID, "effective group ID") ||
@@ -1849,6 +1850,7 @@ func TestRecordTokenUsage(t *testing.T) {
 						return true
 					})).Return(database.AIBridgeTokenUsage{ID: uuid.New(), InterceptionID: interceptionID}, nil)
 
+					db.EXPECT().IncrementAIBridgeTokenUsageHourly(gomock.Any(), gomock.Any()).Return(nil)
 					db.EXPECT().IncrementUserAIDailySpend(gomock.Any(), database.IncrementUserAIDailySpendParams{
 						UserID:           intc.InitiatorID,
 						EffectiveGroupID: groupID,
@@ -1899,6 +1901,7 @@ func TestRecordTokenUsage(t *testing.T) {
 					db.EXPECT().InTx(gomock.Any(), nil).DoAndReturn(
 						func(fn func(database.Store) error, _ *database.TxOptions) error { return fn(db) },
 					)
+					db.EXPECT().LockAIBridgeInterceptionForUsage(gomock.Any(), interceptionID).Return(interceptionID, nil)
 
 					db.EXPECT().InsertAIBridgeTokenUsage(gomock.Any(), gomock.Cond(func(p database.InsertAIBridgeTokenUsageParams) bool {
 						// Override group wins.
@@ -1909,6 +1912,7 @@ func TestRecordTokenUsage(t *testing.T) {
 						return true
 					})).Return(database.AIBridgeTokenUsage{ID: uuid.New(), InterceptionID: interceptionID}, nil)
 
+					db.EXPECT().IncrementAIBridgeTokenUsageHourly(gomock.Any(), gomock.Any()).Return(nil)
 					db.EXPECT().IncrementUserAIDailySpend(gomock.Any(), database.IncrementUserAIDailySpendParams{
 						UserID:           intc.InitiatorID,
 						EffectiveGroupID: overrideGroupID,
@@ -1949,12 +1953,14 @@ func TestRecordTokenUsage(t *testing.T) {
 					db.EXPECT().InTx(gomock.Any(), nil).DoAndReturn(
 						func(fn func(database.Store) error, _ *database.TxOptions) error { return fn(db) },
 					)
+					db.EXPECT().LockAIBridgeInterceptionForUsage(gomock.Any(), interceptionID).Return(interceptionID, nil)
 
 					db.EXPECT().InsertAIBridgeTokenUsage(gomock.Any(), gomock.Cond(func(p database.InsertAIBridgeTokenUsageParams) bool {
 						return assert.Equal(t, uuid.NullUUID{UUID: everyoneID, Valid: true}, p.EffectiveGroupID, "effective group ID") &&
 							assert.Equal(t, sql.NullInt64{Int64: wantCost, Valid: true}, p.CostMicros, "cost")
 					})).Return(database.AIBridgeTokenUsage{ID: uuid.New(), InterceptionID: interceptionID}, nil)
 
+					db.EXPECT().IncrementAIBridgeTokenUsageHourly(gomock.Any(), gomock.Any()).Return(nil)
 					db.EXPECT().IncrementUserAIDailySpend(gomock.Any(), database.IncrementUserAIDailySpendParams{
 						UserID:           intc.InitiatorID,
 						EffectiveGroupID: everyoneID,
@@ -1990,6 +1996,7 @@ func TestRecordTokenUsage(t *testing.T) {
 					db.EXPECT().InTx(gomock.Any(), nil).DoAndReturn(
 						func(fn func(database.Store) error, _ *database.TxOptions) error { return fn(db) },
 					)
+					db.EXPECT().LockAIBridgeInterceptionForUsage(gomock.Any(), interceptionID).Return(interceptionID, nil)
 
 					db.EXPECT().InsertAIBridgeTokenUsage(gomock.Any(), gomock.Cond(func(p database.InsertAIBridgeTokenUsageParams) bool {
 						if !assert.Equal(t, uuid.NullUUID{UUID: groupID, Valid: true}, p.EffectiveGroupID, "effective group ID") ||
@@ -2004,6 +2011,7 @@ func TestRecordTokenUsage(t *testing.T) {
 					})).Return(database.AIBridgeTokenUsage{ID: uuid.New(), InterceptionID: interceptionID}, nil)
 
 					// Spend update is skipped because cost is NULL.
+					db.EXPECT().IncrementAIBridgeTokenUsageHourly(gomock.Any(), gomock.Any()).Return(nil)
 					db.EXPECT().IncrementUserAIDailySpend(gomock.Any(), gomock.Any()).Times(0)
 				},
 				// A missing price row increments unpriced_token_usage_records_total.
@@ -2065,6 +2073,7 @@ func TestRecordTokenUsage(t *testing.T) {
 					db.EXPECT().InTx(gomock.Any(), nil).DoAndReturn(
 						func(fn func(database.Store) error, _ *database.TxOptions) error { return fn(db) },
 					)
+					db.EXPECT().LockAIBridgeInterceptionForUsage(gomock.Any(), interceptionID).Return(interceptionID, nil)
 
 					db.EXPECT().InsertAIBridgeTokenUsage(gomock.Any(), gomock.Cond(func(p database.InsertAIBridgeTokenUsageParams) bool {
 						// Prices and tokens are populated even though cost is NULL.
@@ -2078,6 +2087,7 @@ func TestRecordTokenUsage(t *testing.T) {
 					})).Return(database.AIBridgeTokenUsage{ID: uuid.New(), InterceptionID: interceptionID}, nil)
 
 					// Spend update is skipped because cost is NULL.
+					db.EXPECT().IncrementAIBridgeTokenUsageHourly(gomock.Any(), gomock.Any()).Return(nil)
 					db.EXPECT().IncrementUserAIDailySpend(gomock.Any(), gomock.Any()).Times(0)
 				},
 			},
@@ -2118,6 +2128,7 @@ func TestRecordTokenUsage(t *testing.T) {
 					db.EXPECT().InTx(gomock.Any(), nil).DoAndReturn(
 						func(fn func(database.Store) error, _ *database.TxOptions) error { return fn(db) },
 					)
+					db.EXPECT().LockAIBridgeInterceptionForUsage(gomock.Any(), interceptionID).Return(interceptionID, nil)
 
 					db.EXPECT().InsertAIBridgeTokenUsage(gomock.Any(), gomock.Cond(func(p database.InsertAIBridgeTokenUsageParams) bool {
 						if !assert.Equal(t, uuid.NullUUID{UUID: groupID, Valid: true}, p.EffectiveGroupID, "effective group ID") ||
@@ -2134,6 +2145,7 @@ func TestRecordTokenUsage(t *testing.T) {
 					})).Return(database.AIBridgeTokenUsage{ID: uuid.New(), InterceptionID: interceptionID}, nil)
 
 					// Spend update is skipped because cost is 0.
+					db.EXPECT().IncrementAIBridgeTokenUsageHourly(gomock.Any(), gomock.Any()).Return(nil)
 					db.EXPECT().IncrementUserAIDailySpend(gomock.Any(), gomock.Any()).Times(0)
 				},
 			},
@@ -2171,6 +2183,7 @@ func TestRecordTokenUsage(t *testing.T) {
 					db.EXPECT().InTx(gomock.Any(), nil).DoAndReturn(
 						func(fn func(database.Store) error, _ *database.TxOptions) error { return fn(db) },
 					)
+					db.EXPECT().LockAIBridgeInterceptionForUsage(gomock.Any(), interceptionID).Return(interceptionID, nil)
 
 					db.EXPECT().InsertAIBridgeTokenUsage(gomock.Any(), gomock.Cond(func(p database.InsertAIBridgeTokenUsageParams) bool {
 						zero := sql.NullInt64{Int64: 0, Valid: true}
@@ -2187,6 +2200,7 @@ func TestRecordTokenUsage(t *testing.T) {
 					})).Return(database.AIBridgeTokenUsage{ID: uuid.New(), InterceptionID: interceptionID}, nil)
 
 					// Spend update is skipped because cost is 0.
+					db.EXPECT().IncrementAIBridgeTokenUsageHourly(gomock.Any(), gomock.Any()).Return(nil)
 					db.EXPECT().IncrementUserAIDailySpend(gomock.Any(), gomock.Any()).Times(0)
 				},
 			},
@@ -2217,6 +2231,7 @@ func TestRecordTokenUsage(t *testing.T) {
 					db.EXPECT().InTx(gomock.Any(), nil).DoAndReturn(
 						func(fn func(database.Store) error, _ *database.TxOptions) error { return fn(db) },
 					)
+					db.EXPECT().LockAIBridgeInterceptionForUsage(gomock.Any(), interceptionID).Return(interceptionID, nil)
 
 					db.EXPECT().InsertAIBridgeTokenUsage(gomock.Any(), gomock.Cond(func(p database.InsertAIBridgeTokenUsageParams) bool {
 						if !assert.NotEqual(t, uuid.Nil, p.ID, "ID") ||
@@ -2253,6 +2268,7 @@ func TestRecordTokenUsage(t *testing.T) {
 					}, nil)
 
 					// Spend update is skipped because cost is NULL.
+					db.EXPECT().IncrementAIBridgeTokenUsageHourly(gomock.Any(), gomock.Any()).Return(nil)
 					db.EXPECT().IncrementUserAIDailySpend(gomock.Any(), gomock.Any()).Times(0)
 				},
 				// A missing price row increments unpriced_token_usage_records_total.
@@ -2295,6 +2311,7 @@ func TestRecordTokenUsage(t *testing.T) {
 					db.EXPECT().InTx(gomock.Any(), nil).DoAndReturn(
 						func(fn func(database.Store) error, _ *database.TxOptions) error { return fn(db) },
 					)
+					db.EXPECT().LockAIBridgeInterceptionForUsage(gomock.Any(), interceptionID).Return(interceptionID, nil)
 
 					const wantCost int64 = 1555
 
@@ -2344,10 +2361,12 @@ func TestRecordTokenUsage(t *testing.T) {
 					db.EXPECT().InTx(gomock.Any(), nil).DoAndReturn(
 						func(fn func(database.Store) error, _ *database.TxOptions) error { return fn(db) },
 					)
+					db.EXPECT().LockAIBridgeInterceptionForUsage(gomock.Any(), interceptionID).Return(interceptionID, nil)
 					db.EXPECT().InsertAIBridgeTokenUsage(gomock.Any(), gomock.Cond(func(p database.InsertAIBridgeTokenUsageParams) bool {
 						return assert.Equal(t, sql.NullInt64{Int64: 3_000_000, Valid: true}, p.InputPriceMicros, "input price") &&
 							assert.Equal(t, sql.NullInt64{Int64: 300, Valid: true}, p.CostMicros, "cost")
 					})).Return(database.AIBridgeTokenUsage{ID: uuid.New(), InterceptionID: interceptionID}, nil)
+					db.EXPECT().IncrementAIBridgeTokenUsageHourly(gomock.Any(), gomock.Any()).Return(nil)
 					db.EXPECT().IncrementUserAIDailySpend(gomock.Any(), gomock.Any()).
 						Return(database.AIUserDailySpend{}, nil)
 				},
@@ -2384,10 +2403,12 @@ func TestRecordTokenUsage(t *testing.T) {
 					db.EXPECT().InTx(gomock.Any(), nil).DoAndReturn(
 						func(fn func(database.Store) error, _ *database.TxOptions) error { return fn(db) },
 					)
+					db.EXPECT().LockAIBridgeInterceptionForUsage(gomock.Any(), interceptionID).Return(interceptionID, nil)
 					db.EXPECT().InsertAIBridgeTokenUsage(gomock.Any(), gomock.Cond(func(p database.InsertAIBridgeTokenUsageParams) bool {
 						return assert.Equal(t, sql.NullInt64{Int64: 3_000_000, Valid: true}, p.InputPriceMicros, "input price") &&
 							assert.Equal(t, sql.NullInt64{Int64: 300, Valid: true}, p.CostMicros, "cost")
 					})).Return(database.AIBridgeTokenUsage{ID: uuid.New(), InterceptionID: interceptionID}, nil)
+					db.EXPECT().IncrementAIBridgeTokenUsageHourly(gomock.Any(), gomock.Any()).Return(nil)
 					db.EXPECT().IncrementUserAIDailySpend(gomock.Any(), gomock.Any()).
 						Return(database.AIUserDailySpend{}, nil)
 				},
@@ -2415,10 +2436,12 @@ func TestRecordTokenUsage(t *testing.T) {
 					db.EXPECT().InTx(gomock.Any(), nil).DoAndReturn(
 						func(fn func(database.Store) error, _ *database.TxOptions) error { return fn(db) },
 					)
+					db.EXPECT().LockAIBridgeInterceptionForUsage(gomock.Any(), interceptionID).Return(interceptionID, nil)
 					db.EXPECT().InsertAIBridgeTokenUsage(gomock.Any(), gomock.Cond(func(p database.InsertAIBridgeTokenUsageParams) bool {
 						return assert.False(t, p.InputPriceMicros.Valid, "input price null") &&
 							assert.False(t, p.CostMicros.Valid, "cost null")
 					})).Return(database.AIBridgeTokenUsage{ID: uuid.New(), InterceptionID: interceptionID}, nil)
+					db.EXPECT().IncrementAIBridgeTokenUsageHourly(gomock.Any(), gomock.Any()).Return(nil)
 					db.EXPECT().IncrementUserAIDailySpend(gomock.Any(), gomock.Any()).Times(0)
 				},
 				// The metric names the provider that failed to resolve.
@@ -2528,6 +2551,7 @@ func TestRecordTokenUsage(t *testing.T) {
 					db.EXPECT().InTx(gomock.Any(), nil).DoAndReturn(
 						func(fn func(database.Store) error, _ *database.TxOptions) error { return fn(db) },
 					)
+					db.EXPECT().LockAIBridgeInterceptionForUsage(gomock.Any(), interceptionID).Return(interceptionID, nil)
 					db.EXPECT().InsertAIBridgeTokenUsage(gomock.Any(), gomock.Any()).Return(database.AIBridgeTokenUsage{}, sql.ErrConnDone)
 				},
 				expectedErr: "insert token usage",
@@ -2556,8 +2580,10 @@ func TestRecordTokenUsage(t *testing.T) {
 					db.EXPECT().InTx(gomock.Any(), nil).DoAndReturn(
 						func(fn func(database.Store) error, _ *database.TxOptions) error { return fn(db) },
 					)
+					db.EXPECT().LockAIBridgeInterceptionForUsage(gomock.Any(), interceptionID).Return(interceptionID, nil)
 					db.EXPECT().InsertAIBridgeTokenUsage(gomock.Any(), gomock.Any()).
 						Return(database.AIBridgeTokenUsage{ID: uuid.New(), InterceptionID: interceptionID}, nil)
+					db.EXPECT().IncrementAIBridgeTokenUsageHourly(gomock.Any(), gomock.Any()).Return(nil)
 					db.EXPECT().IncrementUserAIDailySpend(gomock.Any(), gomock.Any()).
 						Return(database.AIUserDailySpend{}, sql.ErrConnDone)
 				},
@@ -2672,6 +2698,27 @@ func TestRecordTokenUsageAuthorized(t *testing.T) {
 	require.Equal(t, group.ID, spend.EffectiveGroupID, "effective group ID")
 	require.True(t, today.Equal(spend.PeriodStart), "period start: want %s, got %s", today, spend.PeriodStart)
 	require.Equal(t, wantCost, spend.SpendMicros, "spend micros")
+	_, err = srv.RecordTokenUsage(ctx, &proto.RecordTokenUsageRequest{
+		InterceptionId: intc.ID.String(), MsgId: "zero-cost", CreatedAt: timestamppb.New(now.Add(time.Minute)),
+	})
+	require.NoError(t, err)
+	unpricedInterception := dbgen.AIBridgeInterception(t, rawDB, database.InsertAIBridgeInterceptionParams{
+		InitiatorID: user.ID, Provider: provider, ProviderName: aiProvider.Name,
+		Model: "model-without-price", StartedAt: now,
+	}, nil)
+	_, err = srv.RecordTokenUsage(ctx, &proto.RecordTokenUsageRequest{
+		InterceptionId: unpricedInterception.ID.String(), MsgId: "unpriced",
+		InputTokens: 10, CreatedAt: timestamppb.New(now.Add(2 * time.Minute)),
+	})
+	require.NoError(t, err)
+	report, err := rawDB.ListOrganizationAISpendUsers(ctx, database.ListOrganizationAISpendUsersParams{
+		OrganizationID: org.ID, PeriodStart: now.Truncate(time.Hour), PeriodEnd: now.Truncate(time.Hour).Add(time.Hour),
+	})
+	require.NoError(t, err)
+	require.Len(t, report, 1)
+	require.Equal(t, wantCost, report[0].CostMicros)
+	require.EqualValues(t, 1, report[0].UnpricedUsageCount)
+	require.Equal(t, []string{provider}, report[0].Providers)
 }
 
 // TestBudgetNotificationAuthorized exercises the budget threshold notification

@@ -261,6 +261,10 @@ func (i *instance) purgeTick(ctx context.Context, db database.Store, start time.
 			if err != nil {
 				return xerrors.Errorf("failed to delete old aibridge records: %w", err)
 			}
+			//nolint:gocritic // Purge needs internal access to remove usage aggregates.
+			if err := tx.DeleteEmptyAIBridgeTokenUsageHourly(dbauthz.AsAIBridged(ctx)); err != nil {
+				return xerrors.Errorf("failed to remove empty AI usage hours: %w", err)
+			}
 		}
 
 		var purgedConnectionLogs int64

@@ -2309,6 +2309,13 @@ func (q *querier) DeleteCustomRole(ctx context.Context, arg database.DeleteCusto
 	return q.db.DeleteCustomRole(ctx, arg)
 }
 
+func (q *querier) DeleteEmptyAIBridgeTokenUsageHourly(ctx context.Context) error {
+	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceAibridgeInterception); err != nil {
+		return err
+	}
+	return q.db.DeleteEmptyAIBridgeTokenUsageHourly(ctx)
+}
+
 func (q *querier) DeleteExpiredAPIKeys(ctx context.Context, arg database.DeleteExpiredAPIKeysParams) (int64, error) {
 	// Requires DELETE across all API keys.
 	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceApiKey); err != nil {
@@ -6034,6 +6041,17 @@ func (q *querier) HydrateAgentChatsContext(ctx context.Context, arg database.Hyd
 	return q.db.HydrateAgentChatsContext(ctx, arg)
 }
 
+func (q *querier) IncrementAIBridgeTokenUsageHourly(ctx context.Context, arg database.IncrementAIBridgeTokenUsageHourlyParams) error {
+	group, err := q.db.GetGroupByID(ctx, arg.EffectiveGroupID)
+	if err != nil {
+		return err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceAibridgeInterception.InOrg(group.OrganizationID)); err != nil {
+		return err
+	}
+	return q.db.IncrementAIBridgeTokenUsageHourly(ctx, arg)
+}
+
 func (q *querier) IncrementChatGenerationAttempt(ctx context.Context, id uuid.UUID) (int64, error) {
 	chat, err := q.db.GetChatByID(ctx, id)
 	if err != nil {
@@ -7057,6 +7075,13 @@ func (q *querier) ListWorkspaceAgentPortShares(ctx context.Context, workspaceID 
 	}
 
 	return q.db.ListWorkspaceAgentPortShares(ctx, workspaceID)
+}
+
+func (q *querier) LockAIBridgeInterceptionForUsage(ctx context.Context, id uuid.UUID) (uuid.UUID, error) {
+	if err := q.authorizeAIBridgeInterceptionAction(ctx, policy.ActionUpdate, id); err != nil {
+		return uuid.Nil, err
+	}
+	return q.db.LockAIBridgeInterceptionForUsage(ctx, id)
 }
 
 func (q *querier) LockChatAndBumpSnapshotVersion(ctx context.Context, id uuid.UUID) (database.Chat, error) {

@@ -74,6 +74,9 @@ INSERT INTO aibridge_model_thoughts (
 )
 RETURNING *;
 
+-- name: LockAIBridgeInterceptionForUsage :one
+SELECT id FROM aibridge_interceptions WHERE id = @id::uuid FOR KEY SHARE;
+
 -- name: GetAIBridgeInterceptionByID :one
 SELECT
 	*
@@ -260,10 +263,11 @@ FROM
 WITH
   -- We don't have FK relationships between the dependent tables and aibridge_interceptions, so we can't rely on DELETE CASCADE.
   to_delete AS (
-    SELECT id FROM aibridge_interceptions
+    SELECT id, initiator_id, provider, provider_name, model, client FROM aibridge_interceptions
     WHERE started_at < @before_time::timestamp with time zone
+    ORDER BY id
+    FOR UPDATE
   ),
-  -- CTEs are executed in order.
   model_thoughts AS (
     DELETE FROM aibridge_model_thoughts
     WHERE interception_id IN (SELECT id FROM to_delete)
@@ -277,6 +281,30 @@ WITH
   token_usages AS (
     DELETE FROM aibridge_token_usages
     WHERE interception_id IN (SELECT id FROM to_delete)
+    RETURNING interception_id, effective_group_id, created_at, cost_micros
+  ),
+  removed_hourly AS (
+    SELECT tu.effective_group_id,
+      date_trunc('hour', tu.created_at, 'UTC') AS hour,
+      ai.initiator_id, ai.provider, ai.provider_name, ai.model, COALESCE(ai.client, 'Unknown') AS client,
+      COALESCE(SUM(tu.cost_micros), 0)::bigint AS cost_micros,
+      COUNT(*) FILTER (WHERE tu.cost_micros IS NULL)::bigint AS unpriced_usage_count,
+      COUNT(*)::bigint AS usage_count
+    FROM token_usages tu
+    JOIN to_delete ai ON ai.id = tu.interception_id
+    WHERE tu.effective_group_id IS NOT NULL
+    GROUP BY tu.effective_group_id, 2, ai.initiator_id, ai.provider, ai.provider_name,
+      ai.model, COALESCE(ai.client, 'Unknown')
+  ),
+  hourly_decrements AS (
+    UPDATE aibridge_token_usage_hourly h SET
+      cost_micros = h.cost_micros - d.cost_micros,
+      unpriced_usage_count = h.unpriced_usage_count - d.unpriced_usage_count,
+      usage_count = h.usage_count - d.usage_count
+    FROM removed_hourly d
+    WHERE h.effective_group_id = d.effective_group_id AND h.hour = d.hour
+      AND h.initiator_id = d.initiator_id AND h.provider = d.provider
+      AND h.provider_name = d.provider_name AND h.model = d.model AND h.client = d.client
     RETURNING 1
   ),
   user_prompts AS (
@@ -296,7 +324,8 @@ SELECT (
   (SELECT COUNT(*) FROM token_usages) +
   (SELECT COUNT(*) FROM user_prompts) +
   (SELECT COUNT(*) FROM interceptions)
-)::bigint as total_deleted;
+)::bigint as total_deleted
+FROM (SELECT COUNT(*) FROM hourly_decrements) AS applied_hourly_decrements;
 
 -- name: CountAIBridgeSessions :one
 SELECT

@@ -1,0 +1,1 @@
+DROP TABLE aibridge_token_usage_hourly;

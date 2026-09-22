@@ -495,54 +495,104 @@ ORDER BY ai.initiator_id, tu.effective_group_id, ai.provider, ai.provider_name, 
 OFFSET @offset_opt
 LIMIT NULLIF(@limit_opt::int, 0);
 
+-- name: IncrementAIBridgeTokenUsageHourly :exec
+INSERT INTO aibridge_token_usage_hourly (
+    organization_id, hour, effective_group_id, initiator_id, provider, provider_name, model, client,
+    cost_micros, unpriced_usage_count, usage_count
+)
+SELECT g.organization_id,
+    date_trunc('hour', @created_at::timestamptz, 'UTC'),
+    g.id, @initiator_id::uuid, @provider::text, @provider_name::text, @model::text,
+    COALESCE(sqlc.narg('client')::text, 'Unknown'),
+    COALESCE(sqlc.narg('cost_micros')::bigint, 0),
+    CASE WHEN sqlc.narg('cost_micros')::bigint IS NULL THEN 1::bigint ELSE 0::bigint END,
+    1::bigint
+FROM groups g
+WHERE g.id = @effective_group_id::uuid
+ON CONFLICT (organization_id, hour, effective_group_id, initiator_id, provider, provider_name, model, client)
+DO UPDATE SET
+    cost_micros = aibridge_token_usage_hourly.cost_micros + EXCLUDED.cost_micros,
+    unpriced_usage_count = aibridge_token_usage_hourly.unpriced_usage_count + EXCLUDED.unpriced_usage_count,
+    usage_count = aibridge_token_usage_hourly.usage_count + EXCLUDED.usage_count;
+
+-- name: DeleteEmptyAIBridgeTokenUsageHourly :exec
+DELETE FROM aibridge_token_usage_hourly WHERE usage_count = 0;
+
 -- name: ListOrganizationAISpendUsers :many
--- Returns one page of per-user AI spend for @organization_id over the
--- [period_start, period_end) window, most expensive first, together with the
--- providers, clients, and models each user spent through and the count and
--- totals over every matching user. It must keep the same joins and predicates as
--- ExportOrganizationAISpend so both report the same token usage.
-WITH spend AS (
-	SELECT
-		ai.initiator_id AS user_id,
-		COALESCE(SUM(tu.cost_micros), 0)::BIGINT AS cost_micros,
-		COUNT(*) FILTER (WHERE tu.cost_micros IS NULL)::BIGINT AS unpriced_usage_count,
-		ARRAY_AGG(DISTINCT ai.provider ORDER BY ai.provider)::text[] AS providers,
-		ARRAY_AGG(DISTINCT COALESCE(ai.client, 'Unknown') ORDER BY COALESCE(ai.client, 'Unknown'))::text[] AS clients,
-		ARRAY_AGG(DISTINCT ai.model ORDER BY ai.model)::text[] AS models
-	FROM aibridge_token_usages tu
-	JOIN aibridge_interceptions ai ON ai.id = tu.interception_id
-	JOIN groups ON groups.id = tu.effective_group_id
-	WHERE groups.organization_id = @organization_id
-		AND tu.created_at >= @period_start::timestamptz
-		AND tu.created_at < @period_end::timestamptz
-		AND CASE
-			WHEN @provider_name::text != '' THEN ai.provider_name = @provider_name::text
-			ELSE true
-		END
-		AND CASE
-			WHEN @model::text != '' THEN ai.model = @model::text
-			ELSE true
-		END
-		AND CASE
-			WHEN @client::text != '' THEN COALESCE(ai.client, 'Unknown') = @client::text
-			ELSE true
-		END
-	GROUP BY ai.initiator_id
+-- Whole UTC hours use historical group attribution; the two disjoint edge
+-- scans retain exact timestamp boundaries without scanning the interior raw rows.
+WITH bounds AS (
+    SELECT
+        @period_start::timestamptz AS period_start,
+        @period_end::timestamptz AS period_end,
+        date_trunc('hour', @period_start::timestamptz, 'UTC') AS start_hour,
+        date_trunc('hour', @period_end::timestamptz, 'UTC') AS end_hour
+), ranges AS (
+    SELECT *, CASE WHEN period_start = start_hour THEN start_hour
+        ELSE start_hour + interval '1 hour' END AS whole_start
+    FROM bounds
+), facts AS (
+    SELECT h.initiator_id AS user_id, h.provider, h.model, h.client,
+        h.cost_micros, h.unpriced_usage_count
+    FROM aibridge_token_usage_hourly h
+    JOIN groups g ON g.id = h.effective_group_id
+    CROSS JOIN ranges r
+    WHERE h.organization_id = @organization_id
+        AND g.organization_id = @organization_id
+        AND h.hour >= r.whole_start AND h.hour < r.end_hour
+        AND (@provider_name::text = '' OR h.provider_name = @provider_name::text)
+        AND (@model::text = '' OR h.model = @model::text)
+        AND (@client::text = '' OR h.client = @client::text)
+    UNION ALL
+    SELECT ai.initiator_id, ai.provider, ai.model, COALESCE(ai.client, 'Unknown'),
+        COALESCE(tu.cost_micros, 0), CASE WHEN tu.cost_micros IS NULL THEN 1::bigint ELSE 0::bigint END
+    FROM aibridge_token_usages tu
+    JOIN aibridge_interceptions ai ON ai.id = tu.interception_id
+    JOIN groups g ON g.id = tu.effective_group_id
+    CROSS JOIN ranges r
+    WHERE g.organization_id = @organization_id
+        AND tu.created_at >= r.period_start
+        AND tu.created_at < LEAST(r.period_end, r.whole_start)
+        AND (@provider_name::text = '' OR ai.provider_name = @provider_name::text)
+        AND (@model::text = '' OR ai.model = @model::text)
+        AND (@client::text = '' OR COALESCE(ai.client, 'Unknown') = @client::text)
+    UNION ALL
+    SELECT ai.initiator_id, ai.provider, ai.model, COALESCE(ai.client, 'Unknown'),
+        COALESCE(tu.cost_micros, 0), CASE WHEN tu.cost_micros IS NULL THEN 1::bigint ELSE 0::bigint END
+    FROM aibridge_token_usages tu
+    JOIN aibridge_interceptions ai ON ai.id = tu.interception_id
+    JOIN groups g ON g.id = tu.effective_group_id
+    CROSS JOIN ranges r
+    WHERE g.organization_id = @organization_id
+        AND tu.created_at >= GREATEST(r.whole_start, r.end_hour)
+        AND tu.created_at < r.period_end
+        AND (@provider_name::text = '' OR ai.provider_name = @provider_name::text)
+        AND (@model::text = '' OR ai.model = @model::text)
+        AND (@client::text = '' OR COALESCE(ai.client, 'Unknown') = @client::text)
+), spend AS (
+    SELECT user_id,
+        SUM(cost_micros)::bigint AS cost_micros,
+        SUM(unpriced_usage_count)::bigint AS unpriced_usage_count,
+        ARRAY_AGG(DISTINCT provider ORDER BY provider)::text[] AS providers,
+        ARRAY_AGG(DISTINCT client ORDER BY client)::text[] AS clients,
+        ARRAY_AGG(DISTINCT model ORDER BY model)::text[] AS models
+    FROM facts
+    GROUP BY user_id
 )
 SELECT
-	spend.user_id,
-	users.username,
-	users.name,
-	users.avatar_url,
-	@organization_id::uuid AS organization_id,
-	spend.cost_micros,
-	spend.unpriced_usage_count,
-	spend.providers,
-	spend.clients,
-	spend.models,
-	COUNT(*) OVER ()::BIGINT AS count,
-	COALESCE(SUM(spend.cost_micros) OVER (), 0)::BIGINT AS total_cost_micros,
-	COALESCE(SUM(spend.unpriced_usage_count) OVER (), 0)::BIGINT AS total_unpriced_usage_count
+    spend.user_id,
+    users.username,
+    users.name,
+    users.avatar_url,
+    @organization_id::uuid AS organization_id,
+    spend.cost_micros,
+    spend.unpriced_usage_count,
+    spend.providers,
+    spend.clients,
+    spend.models,
+    COUNT(*) OVER ()::BIGINT AS count,
+    COALESCE(SUM(spend.cost_micros) OVER (), 0)::BIGINT AS total_cost_micros,
+    COALESCE(SUM(spend.unpriced_usage_count) OVER (), 0)::BIGINT AS total_unpriced_usage_count
 FROM spend
 JOIN users ON users.id = spend.user_id
 ORDER BY cost_micros DESC, LOWER(users.username), spend.user_id

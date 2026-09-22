@@ -7047,6 +7047,26 @@ func (s *MethodTestSuite) TestAIBridge() {
 		check.Args(params).Asserts(intc, policy.ActionUpdate).Returns(intc)
 	}))
 
+	s.Run("IncrementAIBridgeTokenUsageHourly", s.Mocked(func(db *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		group := testutil.Fake(s.T(), faker, database.Group{})
+		arg := database.IncrementAIBridgeTokenUsageHourlyParams{EffectiveGroupID: group.ID}
+		db.EXPECT().GetGroupByID(gomock.Any(), group.ID).Return(group, nil).AnyTimes()
+		db.EXPECT().IncrementAIBridgeTokenUsageHourly(gomock.Any(), arg).Return(nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceAibridgeInterception.InOrg(group.OrganizationID), policy.ActionUpdate)
+	}))
+
+	s.Run("LockAIBridgeInterceptionForUsage", s.Mocked(func(db *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		intc := testutil.Fake(s.T(), faker, database.AIBridgeInterception{})
+		db.EXPECT().GetAIBridgeInterceptionByID(gomock.Any(), intc.ID).Return(intc, nil).AnyTimes()
+		db.EXPECT().LockAIBridgeInterceptionForUsage(gomock.Any(), intc.ID).Return(intc.ID, nil).AnyTimes()
+		check.Args(intc.ID).Asserts(intc, policy.ActionUpdate).Returns(intc.ID)
+	}))
+
+	s.Run("DeleteEmptyAIBridgeTokenUsageHourly", s.Mocked(func(db *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		db.EXPECT().DeleteEmptyAIBridgeTokenUsageHourly(gomock.Any()).Return(nil).AnyTimes()
+		check.Args().Asserts(rbac.ResourceAibridgeInterception, policy.ActionDelete)
+	}))
+
 	s.Run("DeleteOldAIBridgeRecords", s.Mocked(func(db *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		t := dbtime.Now()
 		db.EXPECT().DeleteOldAIBridgeRecords(gomock.Any(), t).Return(int64(0), nil).AnyTimes()
