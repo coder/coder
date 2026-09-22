@@ -122,7 +122,7 @@ func (tx *Tx) requireFromAllowed(t Transition) (database.Chat, ExecutionState, e
 // Update applies one or more transitions to the machine's chat.
 //
 // Update opens a transaction on the captured store, atomically locks
-// the chat row with FOR UPDATE and increments `snapshot_version`
+// the chat row with FOR NO KEY UPDATE and increments `snapshot_version`
 // exactly once, then runs fn against a fresh [*Tx] and the active
 // transaction store. It constructs a [PublishBuffer], enqueues
 // `chat:update` (and a `chat:ownership` hint
@@ -205,7 +205,7 @@ func (m *ChatMachine) Update(
 	return buffer.Flush()
 }
 
-// Lock locks the chat row with FOR UPDATE and runs fn in a
+// Lock locks the chat row with FOR NO KEY UPDATE and runs fn in a
 // transaction without advancing snapshot_version. It uses the store
 // captured by [NewChatMachine]. Use it when the caller needs a
 // consistent chat snapshot plus related rows such as messages or

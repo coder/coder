@@ -1698,7 +1698,7 @@ locked AS (
     SELECT id FROM chats
     WHERE id IN (SELECT id FROM changed)
     ORDER BY id
-    FOR UPDATE
+    FOR NO KEY UPDATE
 ),
 deleted AS (
     DELETE FROM chat_context_resources
@@ -2099,14 +2099,14 @@ LIMIT
 SELECT id
 FROM chats
 WHERE id = @id::uuid
-FOR UPDATE;
+FOR NO KEY UPDATE;
 
 -- name: GetChatByIDForUpdate :one
 WITH locked_chat AS (
     SELECT *
     FROM chats
     WHERE id = @id::uuid
-    FOR UPDATE
+    FOR NO KEY UPDATE
 ),
 chats_expanded AS (
     SELECT
@@ -2492,17 +2492,24 @@ LIMIT @limit_count::int;
 
 
 -- name: LockChatAndBumpSnapshotVersion :one
--- Locks the chat row with FOR UPDATE and atomically increments its
+-- Locks the chat row with FOR NO KEY UPDATE and atomically increments its
 -- snapshot_version, returning the post-bump chat. This is the single
 -- entry point ChatMachine.Update uses to acquire the row lock and
 -- allocate a new snapshot version in one round trip.
+--
+-- FOR NO KEY UPDATE (rather than FOR UPDATE) is sufficient because the
+-- transition never changes chats.id, and it stays compatible with the
+-- FOR KEY SHARE locks that foreign-key child writes (chat_heartbeats,
+-- messages, queued messages) take on the chat row, so those writers do
+-- not convoy against transitions. Concurrent transitions still serialize
+-- because FOR NO KEY UPDATE conflicts with itself.
 WITH bumped_chat AS (
     UPDATE chats
     SET snapshot_version = snapshot_version + 1
     WHERE id = (
         SELECT id FROM chats
         WHERE id = @id::uuid
-        FOR UPDATE
+        FOR NO KEY UPDATE
     )
     RETURNING *
 ),
