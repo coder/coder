@@ -215,7 +215,9 @@ func TestRecordedHandlerMetadataAndCredentialHints(t *testing.T) {
 		dumpDir := t.TempDir()
 		prov := provider.NewOpenAI(config.OpenAI{BaseURL: upstream.URL, KeyPool: pool, APIDumpDir: dumpDir})
 		router := newTestRouter(t, []provider.Provider{prov}, rec, slogtest.Make(t, nil), nil)
-		router.ServeHTTP(httptest.NewRecorder(), recordedRequest(http.MethodPost, "/openai/v1/chat/completions", strings.NewReader("payload")))
+		req := recordedRequest(http.MethodPost, "/openai/v1/chat/completions", strings.NewReader("payload"))
+		req.Header.Set("Cookie", "coder_session_token=cookie-secret")
+		router.ServeHTTP(httptest.NewRecorder(), req)
 		starts := rec.RecordedInterceptions()
 		require.Len(t, starts, 1)
 		require.Equal(t, recorder.CredentialKindCentralized, starts[0].CredentialKind)
@@ -229,8 +231,11 @@ func TestRecordedHandlerMetadataAndCredentialHints(t *testing.T) {
 			content, err := os.ReadFile(dump)
 			require.NoError(t, err)
 			require.Contains(t, string(content), "payload")
+			require.Contains(t, string(content), "Authorization:")
 			require.NotContains(t, string(content), "first-centralized-provider-key")
 			require.NotContains(t, string(content), "second-centralized-provider-key")
+			require.NotContains(t, string(content), "cookie-secret")
+			require.NotContains(t, string(content), "Cookie:")
 		}
 	})
 }

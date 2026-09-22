@@ -5,7 +5,9 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"maps"
 	"net/http"
+	"net/http/httptest"
 	"strings"
 	"sync"
 	"testing"
@@ -14,10 +16,85 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/v3/sloggers/slogtest"
+	aibridgecore "github.com/coder/coder/v2/aibridge"
+	"github.com/coder/coder/v2/aibridge/config"
+	"github.com/coder/coder/v2/aibridge/recorder"
+	"github.com/coder/coder/v2/aibridge/x/proxy"
 	"github.com/coder/coder/v2/coderd/aibridge"
 	"github.com/coder/coder/v2/coderd/aibridged"
 	"github.com/coder/coder/v2/testutil"
 )
+
+type transportRecorder struct {
+	mu     sync.Mutex
+	starts []*recorder.InterceptionRecord
+	ends   map[string]*recorder.InterceptionRecordEnded
+}
+
+func (r *transportRecorder) RecordInterception(_ context.Context, record *recorder.InterceptionRecord) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.starts = append(r.starts, record)
+	return nil
+}
+
+func (r *transportRecorder) RecordInterceptionEnded(_ context.Context, record *recorder.InterceptionRecordEnded) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.ends == nil {
+		r.ends = map[string]*recorder.InterceptionRecordEnded{}
+	}
+	r.ends[record.ID] = record
+	return nil
+}
+
+func (*transportRecorder) RecordTokenUsage(context.Context, *recorder.TokenUsageRecord) error {
+	return nil
+}
+
+func (*transportRecorder) RecordPromptUsage(context.Context, *recorder.PromptUsageRecord) error {
+	return nil
+}
+
+func (*transportRecorder) RecordToolUsage(context.Context, *recorder.ToolUsageRecord) error {
+	return nil
+}
+
+func (*transportRecorder) RecordModelThought(context.Context, *recorder.ModelThoughtRecord) error {
+	return nil
+}
+
+func (r *transportRecorder) records() ([]*recorder.InterceptionRecord, map[string]*recorder.InterceptionRecordEnded) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return append([]*recorder.InterceptionRecord(nil), r.starts...), maps.Clone(r.ends)
+}
+
+func newProxyTransport(t *testing.T, prov aibridgecore.Provider, rec recorder.Recorder) http.RoundTripper {
+	t.Helper()
+	router, err := proxy.NewRouter([]aibridgecore.Provider{prov}, rec, slogtest.Make(t, nil), nil, nil)
+	require.NoError(t, err)
+	t.Cleanup(router.CloseIdleConnections)
+
+	rt, err := aibridged.NewTransportFactory(http.StripPrefix(aibridge.AIGatewayRootPath, router)).TransportFor(prov.Name(), aibridge.SourceAgents)
+	require.NoError(t, err)
+	return rt
+}
+
+func requireSingleEnd(t *testing.T, rec *transportRecorder) *recorder.InterceptionRecordEnded {
+	t.Helper()
+	var end *recorder.InterceptionRecordEnded
+	require.Eventually(t, func() bool {
+		starts, ends := rec.records()
+		if len(starts) != 1 {
+			return false
+		}
+		end = ends[starts[0].ID]
+		return end != nil
+	}, testutil.WaitShort, testutil.IntervalFast)
+	return end
+}
 
 func TestTransportFactory_TransportFor(t *testing.T) {
 	t.Parallel()
@@ -478,6 +555,127 @@ func TestInMemoryRoundTripper_CloseCancelsServedRequestOnly(t *testing.T) {
 	require.NoError(t, resp.Body.Close())
 	testutil.TryReceive(parentCtx, t, canceled)
 	require.NoError(t, parentCtx.Err(), "closing a response must not cancel the caller context")
+}
+
+func TestInMemoryRoundTripper_ProxyCloseCancelsStalledUpstream(t *testing.T) {
+	t.Parallel()
+
+	upstreamCanceled := make(chan struct{})
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, err := w.Write([]byte("chunk"))
+		if !assert.NoError(t, err) {
+			return
+		}
+		if f, ok := w.(http.Flusher); ok {
+			f.Flush()
+		}
+		<-r.Context().Done()
+		close(upstreamCanceled)
+	}))
+	t.Cleanup(upstream.Close)
+
+	rec := &transportRecorder{}
+	rt := newProxyTransport(t, aibridgecore.NewOpenAIProvider(config.OpenAI{BaseURL: upstream.URL}), rec)
+	parentCtx := testutil.Context(t, testutil.WaitShort)
+	ctx := aibridge.WithDelegatedAPIKeyID(parentCtx, "key-id")
+	ctx = aibridgecore.AsActor(ctx, "actor-id", nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "http://upstream/v1/chat/completions", strings.NewReader(`{}`))
+	require.NoError(t, err)
+
+	resp, err := rt.RoundTrip(req)
+	require.NoError(t, err)
+	buf := make([]byte, len("chunk"))
+	_, err = io.ReadFull(resp.Body, buf)
+	require.NoError(t, err)
+	require.Equal(t, "chunk", string(buf))
+	require.NoError(t, resp.Body.Close())
+
+	testutil.TryReceive(parentCtx, t, upstreamCanceled)
+	require.NoError(t, parentCtx.Err())
+	end := requireSingleEnd(t, rec)
+	require.Equal(t, recorder.ErrorTypeUnknown, end.ErrorType)
+	require.Equal(t, context.Canceled.Error(), end.ErrorMessage)
+}
+
+func TestInMemoryRoundTripper_ProxyForwardsNilBody(t *testing.T) {
+	t.Parallel()
+
+	upstreamCalled := make(chan struct{}, 1)
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, err := io.ReadAll(r.Body)
+		require.NoError(t, err)
+		require.Empty(t, body)
+		upstreamCalled <- struct{}{}
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	t.Cleanup(upstream.Close)
+
+	rt := newProxyTransport(t, aibridgecore.NewCopilotProvider(config.Copilot{BaseURL: upstream.URL}), &transportRecorder{})
+	ctx := aibridge.WithDelegatedAPIKeyID(testutil.Context(t, testutil.WaitShort), "key-id")
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "http://upstream/other", nil)
+	require.NoError(t, err)
+	require.Nil(t, req.Body)
+
+	resp, err := rt.RoundTrip(req)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusNoContent, resp.StatusCode)
+	require.NoError(t, resp.Body.Close())
+	testutil.TryReceive(ctx, t, upstreamCalled)
+}
+
+func TestInMemoryRoundTripper_PassthroughTruncatedStreamReturnsReadError(t *testing.T) {
+	t.Parallel()
+
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Length", "100")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("chunk"))
+		if f, ok := w.(http.Flusher); ok {
+			f.Flush()
+		}
+	}))
+	t.Cleanup(upstream.Close)
+
+	rt := newProxyTransport(t, aibridgecore.NewCopilotProvider(config.Copilot{BaseURL: upstream.URL}), &transportRecorder{})
+	ctx := aibridge.WithDelegatedAPIKeyID(testutil.Context(t, testutil.WaitShort), "key-id")
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "http://upstream/other", nil)
+	require.NoError(t, err)
+
+	resp, err := rt.RoundTrip(req)
+	require.NoError(t, err)
+	_, readErr := io.ReadAll(resp.Body)
+	require.ErrorIs(t, readErr, io.ErrUnexpectedEOF)
+	require.NoError(t, resp.Body.Close())
+}
+
+func TestInMemoryRoundTripper_ProxyTruncatedStreamReturnsReadErrorAndEnds(t *testing.T) {
+	t.Parallel()
+
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Length", "100")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("chunk"))
+	}))
+	t.Cleanup(upstream.Close)
+
+	rec := &transportRecorder{}
+	rt := newProxyTransport(t, aibridgecore.NewOpenAIProvider(config.OpenAI{BaseURL: upstream.URL}), rec)
+	ctx := aibridge.WithDelegatedAPIKeyID(testutil.Context(t, testutil.WaitShort), "key-id")
+	ctx = aibridgecore.AsActor(ctx, "actor-id", nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "http://upstream/v1/chat/completions", strings.NewReader(`{}`))
+	require.NoError(t, err)
+
+	resp, err := rt.RoundTrip(req)
+	require.NoError(t, err)
+	body, readErr := io.ReadAll(resp.Body)
+	require.ErrorIs(t, readErr, io.ErrUnexpectedEOF)
+	require.Equal(t, "chunk", string(body))
+	require.NoError(t, resp.Body.Close())
+
+	end := requireSingleEnd(t, rec)
+	require.Equal(t, recorder.ErrorTypeUnknown, end.ErrorType)
+	require.Equal(t, io.ErrUnexpectedEOF.Error(), end.ErrorMessage)
 }
 
 // A handler that returns without writing must not block RoundTrip; the caller

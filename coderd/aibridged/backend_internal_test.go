@@ -17,6 +17,7 @@ import (
 	"github.com/coder/coder/v2/aibridge"
 	"github.com/coder/coder/v2/aibridge/config"
 	"github.com/coder/coder/v2/aibridge/keypool"
+	"github.com/coder/coder/v2/aibridge/recorder"
 	"github.com/coder/coder/v2/aibridge/x/proxy"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
@@ -70,7 +71,7 @@ func TestServerKeyPoolStateCollector(t *testing.T) {
 	// Replacing proxy snapshots similarly changes the output without
 	// registering another collector.
 	thirdProvider := newProvider(t, "third")
-	firstRouter, err := proxy.NewRouter([]aibridge.Provider{thirdProvider}, slogtest.Make(t, nil))
+	firstRouter, err := proxy.NewRouter([]aibridge.Provider{thirdProvider}, recorder.NewLogRecorder(slogtest.Make(t, nil), nil), slogtest.Make(t, nil), nil, nil)
 	require.NoError(t, err)
 	server.backend.Store(&backend{proxyRouter: firstRouter, keyPools: firstRouter.KeyPools})
 
@@ -79,7 +80,7 @@ func TestServerKeyPoolStateCollector(t *testing.T) {
 	require.True(t, testutil.PromGaugeHasValue(t, metrics, 1, "key_pool_state", "third", "valid"))
 
 	fourthProvider := newProvider(t, "fourth")
-	secondRouter, err := proxy.NewRouter([]aibridge.Provider{fourthProvider}, slogtest.Make(t, nil))
+	secondRouter, err := proxy.NewRouter([]aibridge.Provider{fourthProvider}, recorder.NewLogRecorder(slogtest.Make(t, nil), nil), slogtest.Make(t, nil), nil, nil)
 	require.NoError(t, err)
 	server.backend.Store(&backend{proxyRouter: secondRouter, keyPools: secondRouter.KeyPools})
 
@@ -437,7 +438,8 @@ func TestServerShutdownDeadlineDoesNotWaitForBackendMu(t *testing.T) {
 		logger:       slogtest.Make(t, nil),
 		inflight:     aibridge.NewInflightGate(slogtest.Make(t, nil)),
 	}
-	server.backend.Store(&backend{})
+	var cleanups atomic.Int32
+	server.backend.Store(&backend{closeIdleConns: func() { cleanups.Add(1) }})
 	server.backendMu.Lock()
 	defer server.backendMu.Unlock()
 
@@ -445,6 +447,7 @@ func TestServerShutdownDeadlineDoesNotWaitForBackendMu(t *testing.T) {
 	cancelShutdown()
 	require.ErrorIs(t, server.Shutdown(ctx), context.Canceled)
 	require.ErrorIs(t, context.Cause(lifecycleCtx), ErrShutdown)
+	require.Equal(t, int32(1), cleanups.Load(), "shutdown cleans the snapshot without waiting for backend construction")
 }
 
 func TestServerShutdownDeadlineCancelsInflight(t *testing.T) {
@@ -529,9 +532,11 @@ func TestShutdownSynchronizesWithProviderReplacement(t *testing.T) {
 		lifecycleCtx: lifecycleCtx,
 		cancelFn:     cancel,
 		logger:       slogtest.Make(t, nil),
+		recorder:     recorder.NewLogRecorder(slogtest.Make(t, nil), nil),
 		inflight:     aibridge.NewInflightGate(slogtest.Make(t, nil)),
 	}
-	original := &backend{}
+	var cleanups atomic.Int32
+	original := &backend{closeIdleConns: func() { cleanups.Add(1) }}
 	server.backend.Store(original)
 
 	provider := &blockingNameProvider{
@@ -551,8 +556,10 @@ func TestShutdownSynchronizesWithProviderReplacement(t *testing.T) {
 
 	require.NoError(t, server.Shutdown(testCtx), "shutdown must not wait for provider construction")
 	require.Same(t, original, server.backend.Load())
+	require.Equal(t, int32(1), cleanups.Load(), "shutdown cleans the synchronized current snapshot")
 
 	close(provider.release)
 	require.ErrorIs(t, testutil.TryReceive(testCtx, t, replaceDone), ErrShutdown)
 	require.Same(t, original, server.backend.Load(), "a candidate built during shutdown must not publish")
+	require.Equal(t, int32(1), cleanups.Load(), "rejected replacement must not clean the current snapshot again")
 }

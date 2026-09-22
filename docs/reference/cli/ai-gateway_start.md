@@ -211,7 +211,7 @@ Maximum number of AI Gateway requests per second per replica. Set to 0 to disabl
 | YAML        | <code>ai_gateway.send_actor_headers</code>        |
 | Default     | <code>false</code>                                |
 
-Once enabled, extra headers will be added to upstream requests to identify the user (actor) making requests to AI Gateway. This is only needed if you are using a proxy between AI Gateway and an upstream AI provider. This will send X-Ai-Bridge-Actor-Id (the ID of the user making the request) and X-Ai-Bridge-Actor-Metadata-Username (their username).
+Send actor identity headers to upstream requests when AI Gateway uses interception mode. This option has no effect when AI Gateway runs in reverse proxy mode. Use it when a proxy between AI Gateway and the upstream provider needs the actor ID or username. Sends X-Ai-Bridge-Actor-Id and X-Ai-Bridge-Actor-Metadata-Username.
 
 ### --ai-gateway-dump-dir
 
