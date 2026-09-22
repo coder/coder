@@ -718,9 +718,11 @@ type partialToolCall struct {
 }
 
 type partialToolResult struct {
-	part        codersdk.ChatMessagePart
-	resultDelta strings.Builder
-	completed   bool
+	part codersdk.ChatMessagePart
+	// streamed records that live result or reasoning deltas arrived
+	// without a durable result; they are stream-only and never persisted.
+	streamed  bool
+	completed bool
 }
 
 func bufferedPartsToPartialMessages(input bufferedPartsToPartialMessagesInput) ([]chatstate.Message, error) {
@@ -880,11 +882,11 @@ func (s *partialMessageConversionState) consumeToolPart(buffered messagepartbuff
 		result := s.toolResult(part.ToolCallID)
 		result.part.ToolCallID = part.ToolCallID
 		result.part.ToolName = part.ToolName
-		result.resultDelta.Reset()
+		result.streamed = false
 		s.logSkippedPart(buffered, "streaming tool result reset is not durable")
 		return nil
 	}
-	if part.ResultDelta != "" {
+	if part.ResultDelta != "" || part.ReasoningDelta != "" {
 		result := s.toolResult(part.ToolCallID)
 		result.part.ToolCallID = part.ToolCallID
 		if part.ToolName != "" {
@@ -897,7 +899,7 @@ func (s *partialMessageConversionState) consumeToolPart(buffered messagepartbuff
 			result.part.CreatedAt = part.CreatedAt
 		}
 		result.part.ProviderExecuted = result.part.ProviderExecuted || part.ProviderExecuted
-		_, _ = result.resultDelta.WriteString(part.ResultDelta)
+		result.streamed = true
 		return nil
 	}
 	if err := s.finalizeToolCallPlaceholders(); err != nil {
@@ -916,6 +918,7 @@ func (s *partialMessageConversionState) consumeToolPart(buffered messagepartbuff
 		return nil
 	}
 	part.ResultDelta = ""
+	part.ReasoningDelta = ""
 	part.ResultReset = false
 	if err := s.flushAssistant(); err != nil {
 		return err
@@ -985,6 +988,7 @@ func (s *partialMessageConversionState) flushAssistant() error {
 		}
 		part.ArgsDelta = ""
 		part.ResultDelta = ""
+		part.ReasoningDelta = ""
 		part.ResultReset = false
 		durable = append(durable, part)
 	}
@@ -1006,10 +1010,7 @@ func (s *partialMessageConversionState) flushAccumulatedToolResults() error {
 			continue
 		}
 		result := s.toolResults[id]
-		if result == nil || result.completed {
-			continue
-		}
-		if result.resultDelta.Len() == 0 {
+		if result == nil || result.completed || !result.streamed {
 			continue
 		}
 		s.logSkippedPart(messagepartbuffer.Part{Role: codersdk.ChatMessageRoleTool, MessagePart: result.part}, "streaming tool result delta is not durable")

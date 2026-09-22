@@ -978,6 +978,46 @@ func TestBufferedPartsToPartialMessages_DeltaOnlyToolResultDoesNotAnswer(t *test
 	require.NotEmpty(t, logSink.entriesAtLevelWithMessage(slog.LevelWarn, "skipping buffered chat message part"))
 }
 
+func TestBufferedPartsToPartialMessages_ReasoningDeltaToolResultIsNotDurable(t *testing.T) {
+	t.Parallel()
+
+	logSink := &partialConversionLogSink{}
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).AppendSinks(logSink)
+	parts := []messagepartbuffer.Part{
+		{Seq: 1, Role: codersdk.ChatMessageRoleAssistant, MessagePart: codersdk.ChatMessageToolCall("call-1", "advisor", json.RawMessage(`{}`))},
+		{Seq: 2, Role: codersdk.ChatMessageRoleTool, MessagePart: codersdk.ChatMessagePart{Type: codersdk.ChatMessagePartTypeToolResult, ToolCallID: "call-1", ToolName: "advisor", ReasoningDelta: "weighing "}},
+		{Seq: 3, Role: codersdk.ChatMessageRoleTool, MessagePart: codersdk.ChatMessagePart{Type: codersdk.ChatMessagePartTypeToolResult, ToolCallID: "call-1", ToolName: "advisor", ReasoningDelta: "tradeoffs"}},
+	}
+	got, err := bufferedPartsToPartialMessages(bufferedPartsToPartialMessagesInput{
+		parts:          parts,
+		modelConfigID:  uuid.New(),
+		contentVersion: chatprompt.CurrentContentVersion,
+		logger:         logger,
+	})
+	require.NoError(t, err)
+	require.Len(t, got, 2)
+	require.NotContains(t, string(got[1].Content.RawMessage), "weighing")
+	toolParts := parseMessageParts(t, got[1].Role, got[1].Content)
+	require.Len(t, toolParts, 1)
+	require.Equal(t, "call-1", toolParts[0].ToolCallID)
+	require.True(t, toolParts[0].IsError)
+	require.Empty(t, toolParts[0].ReasoningDelta)
+	require.JSONEq(t, `{"error":"tool call was interrupted before it produced a result"}`, string(toolParts[0].Result))
+
+	// Reasoning deltas are stream-only like result deltas: the interrupted
+	// stream is reported once at flush time, not per chunk as an invalid
+	// durable result.
+	skipped := logSink.entriesAtLevelWithMessage(slog.LevelWarn, "skipping buffered chat message part")
+	require.Len(t, skipped, 1)
+	var reason string
+	for _, field := range skipped[0].Fields {
+		if field.Name == "reason" {
+			reason, _ = field.Value.(string)
+		}
+	}
+	require.Equal(t, "streaming tool result delta is not durable", reason)
+}
+
 func TestBufferedPartsToPartialMessages_LogsMalformedSkippedParts(t *testing.T) {
 	t.Parallel()
 
