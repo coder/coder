@@ -786,9 +786,9 @@ type partialMessageConversionState struct {
 	// attachment parts, which must not carry model runtime.
 	modelStreamedAssistant bool
 	// streamedRun accumulates the text of the open text or reasoning run
-	// at assistantParts[streamedRunIndex]. Appending to a builder keeps a
-	// turn of N deltas linear; concatenating onto the part copied the
-	// whole prefix per delta. The run closes when any other part is
+	// at assistantParts[streamedRunIndex]. Appending to a builder makes
+	// persisting N deltas linear in N; appending to the part's Text copied
+	// the whole run on every delta. The run closes when any other part is
 	// appended or the message is flushed.
 	streamedRun      strings.Builder
 	streamedRunIndex int

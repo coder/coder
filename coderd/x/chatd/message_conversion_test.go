@@ -918,8 +918,9 @@ func TestBufferedPartsToPartialMessages_CoalescesStreamedTextDeltas(t *testing.T
 }
 
 // BenchmarkBufferedPartsToPartialMessages_StreamedTextDeltas persists one
-// interrupted turn delivered as N small text deltas. Allocations must grow
-// linearly with N; a measured interrupted turn had 3,987 deltas.
+// interrupted turn delivered as N small text deltas. B/op should grow
+// linearly with N; compare the two sizes. A measured interrupted turn had
+// 3,987 deltas.
 func BenchmarkBufferedPartsToPartialMessages_StreamedTextDeltas(b *testing.B) {
 	for _, n := range []int{1000, 4000} {
 		b.Run(strconv.Itoa(n), func(b *testing.B) {
