@@ -35,7 +35,7 @@ func TestBuildRouterAssembly(t *testing.T) {
 			NameStr: "openai", URL: "https://openai.example.test",
 			Bridged: []string{"/v1/chat/completions"},
 		}
-		router, err := buildRouter([]provider.Provider{prov}, nil, slogtest.Make(t, nil), nil, nil)
+		router, err := NewRouter([]provider.Provider{prov}, nil, slogtest.Make(t, nil), nil, nil)
 		require.ErrorContains(t, err, "recorder is required for bridged routes")
 		require.Nil(t, router)
 	})
@@ -72,7 +72,7 @@ func TestBuildRouterAssembly(t *testing.T) {
 	t.Run("PropagatesHandlerValidation", func(t *testing.T) {
 		t.Parallel()
 		prov := &testutil.MockProvider{NameStr: "openai", URL: "/relative", Passthrough: []string{"/v1/models"}}
-		router, err := buildRouter([]provider.Provider{prov}, nil, slogtest.Make(t, nil), nil, nil)
+		router, err := NewRouter([]provider.Provider{prov}, nil, slogtest.Make(t, nil), nil, nil)
 		require.ErrorContains(t, err, "absolute HTTP or HTTPS URL")
 		require.Nil(t, router)
 	})
@@ -125,7 +125,7 @@ func TestBuildRouterAssembly(t *testing.T) {
 
 func newTestRouter(t *testing.T, providers []provider.Provider, rec recorder.Recorder, logger slog.Logger, m *metrics.Metrics) *Router {
 	t.Helper()
-	router, err := buildRouter(providers, rec, logger, m, noop.NewTracerProvider().Tracer(t.Name()))
+	router, err := NewRouter(providers, rec, logger, m, noop.NewTracerProvider().Tracer(t.Name()))
 	require.NoError(t, err)
 	t.Cleanup(router.CloseIdleConnections)
 	return router

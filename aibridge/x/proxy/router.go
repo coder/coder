@@ -40,29 +40,9 @@ type Router struct {
 
 var _ http.Handler = (*Router)(nil)
 
-// NewRouter creates a [*Router] for the given providers, whose
-// names must be valid and unique.
-//
-// Each configured-but-disabled provider serves a 503 sentinel on every path
-// under its name. Enabled providers have no routes registered yet, so their
-// requests reach the catch-all 404.
-func NewRouter(providers []provider.Provider, logger slog.Logger) (*Router, error) {
-	if err := provider.ValidateProviders(providers); err != nil {
-		return nil, err
-	}
-
-	snapshot := slices.Clone(providers)
-	mux := routing.NewProviderMux(snapshot, logger)
-
-	return &Router{
-		mux:       mux,
-		providers: snapshot,
-	}, nil
-}
-
-// buildRouter constructs the complete proxy router while the exported
-// constructor retains its placeholder behavior.
-func buildRouter(providers []provider.Provider, rec recorder.Recorder, logger slog.Logger, m *metrics.Metrics, tracer trace.Tracer) (_ *Router, outErr error) {
+// NewRouter creates a Router for valid, uniquely named providers. A recorder is
+// required when any eligible enabled provider has bridged routes.
+func NewRouter(providers []provider.Provider, rec recorder.Recorder, logger slog.Logger, m *metrics.Metrics, tracer trace.Tracer) (_ *Router, outErr error) {
 	if err := provider.ValidateProviders(providers); err != nil {
 		return nil, err
 	}
@@ -80,6 +60,8 @@ func buildRouter(providers []provider.Provider, rec recorder.Recorder, logger sl
 			continue
 		}
 		if prov.Type() == config.ProviderBedrock {
+			// Bedrock signing is implemented only by interception mode. Keep the
+			// existing catch-all 404 behavior, but make the skipped provider visible.
 			logger.Warn(context.Background(), "skipping unsupported Bedrock provider in proxy mode", slog.F("provider", prov.Name()))
 			continue
 		}

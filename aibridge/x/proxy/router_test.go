@@ -35,8 +35,11 @@ func TestNewRouterValidatesProviders(t *testing.T) {
 		errContains string
 	}{
 		{
-			name:      "ValidNames",
-			providers: []provider.Provider{&testutil.MockProvider{NameStr: "openai"}, &testutil.MockProvider{NameStr: "anthropic-eu-1"}},
+			name: "ValidNames",
+			providers: []provider.Provider{
+				&testutil.MockProvider{NameStr: "openai", URL: "https://openai.example.test"},
+				&testutil.MockProvider{NameStr: "anthropic-eu-1", URL: "https://anthropic.example.test"},
+			},
 		},
 		{
 			name:        "InvalidName",
@@ -52,7 +55,7 @@ func TestNewRouterValidatesProviders(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			router, err := proxy.NewRouter(tc.providers, slogtest.Make(t, nil))
+			router, err := proxy.NewRouter(tc.providers, nil, slogtest.Make(t, nil), nil, nil)
 			if tc.errContains != "" {
 				require.ErrorContains(t, err, tc.errContains)
 				require.Nil(t, router)
@@ -66,7 +69,7 @@ func TestNewRouterValidatesProviders(t *testing.T) {
 
 // TestRouterDisabledProvider asserts that every path under a disabled
 // provider's name serves the 503 sentinel, while a sibling enabled provider
-// has no routes yet and falls through to the catch-all.
+// serves its registered bridged and passthrough routes.
 func TestRouterDisabledProvider(t *testing.T) {
 	t.Parallel()
 
@@ -80,7 +83,7 @@ func TestRouterDisabledProvider(t *testing.T) {
 	}
 	router, err := proxy.NewRouter(
 		[]provider.Provider{enabled, provider.NewDisabledStub("disabled-openai", "openai")},
-		slogtest.Make(t, nil),
+		&testutil.MockRecorder{}, slogtest.Make(t, nil), nil, nil,
 	)
 	require.NoError(t, err)
 
@@ -93,8 +96,8 @@ func TestRouterDisabledProvider(t *testing.T) {
 		{name: "DisabledBridgedRoute", path: "/disabled-openai/v1/chat/completions", wantStatus: http.StatusServiceUnavailable, wantBody: routing.ErrorCodeProviderDisabled},
 		{name: "DisabledPassthroughRoute", path: "/disabled-openai/v1/models", wantStatus: http.StatusServiceUnavailable, wantBody: routing.ErrorCodeProviderDisabled},
 		{name: "DisabledUnknownRoute", path: "/disabled-openai/anything/else", wantStatus: http.StatusServiceUnavailable, wantBody: routing.ErrorCodeProviderDisabled},
-		{name: "EnabledBridgedRoute", path: "/openai/v1/chat/completions", wantStatus: http.StatusNotFound, wantBody: "route not supported"},
-		{name: "EnabledPassthroughRoute", path: "/openai/v1/models", wantStatus: http.StatusNotFound, wantBody: "route not supported"},
+		{name: "EnabledBridgedRoute", path: "/openai/v1/chat/completions", wantStatus: http.StatusBadRequest, wantBody: "no actor found"},
+		{name: "EnabledPassthroughRoute", path: "/openai/v1/models", wantStatus: http.StatusBadGateway, wantBody: "upstream proxy error"},
 		{name: "UnknownProvider", path: "/unknown/v1/models", wantStatus: http.StatusNotFound, wantBody: "route not supported"},
 		{name: "Root", path: "/", wantStatus: http.StatusNotFound, wantBody: "route not supported"},
 	} {
@@ -121,7 +124,7 @@ func TestRouterSnapshotsProviders(t *testing.T) {
 		keyPoolProvider{Provider: provider.NewDisabledStub("disabled-openai", "openai"), pool: pool},
 	}
 
-	router, err := proxy.NewRouter(providers, slogtest.Make(t, nil))
+	router, err := proxy.NewRouter(providers, nil, slogtest.Make(t, nil), nil, nil)
 	require.NoError(t, err)
 
 	// Replace the caller's entry with a provider the router never saw.
@@ -150,7 +153,7 @@ func TestRouterDisabledProviderOversizedBody(t *testing.T) {
 
 	router, err := proxy.NewRouter(
 		[]provider.Provider{provider.NewDisabledStub("disabled-openai", "openai")},
-		slogtest.Make(t, nil),
+		nil, slogtest.Make(t, nil), nil, nil,
 	)
 	require.NoError(t, err)
 

@@ -6,7 +6,14 @@ title: Monitoring
 > AI Gateway is part of [AI Governance](../ai-governance.md), which is
 > included with a Premium license.
 
-AI Gateway records the last `user` prompt, token usage, model reasoning, and every tool invocation for each intercepted request. Each capture is tied to a single "interception" that maps back to the authenticated Coder identity, making it easy to attribute spend and behaviour.
+In interception mode, AI Gateway records the last `user` prompt, token usage, model reasoning, and every tool invocation for each request.
+Each capture maps back to the authenticated Coder identity for spend and usage attribution.
+
+> [!WARNING]
+> The unsafe `ai-gateway-reverse-proxy` experiment records request lifecycle events only.
+> For traffic routed through this experiment, the monitoring UI can show a blank model and zero usage, but those values aren't evidence of zero provider spend or complete audit coverage.
+> Budget checks still include spend recorded from other traffic, but they cannot account for traffic routed through this experiment.
+> Leave the experiment off, or remove it and restart the embedded Coder server or standalone AI Gateway process, if you require spend enforcement.
 
 ![User Prompt logging](../../images/aibridge/grafana_user_prompts_logging.png)
 

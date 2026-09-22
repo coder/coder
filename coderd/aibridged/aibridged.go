@@ -16,6 +16,7 @@ import (
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/aibridge"
 	"github.com/coder/coder/v2/aibridge/keypool"
+	"github.com/coder/coder/v2/aibridge/recorder"
 	"github.com/coder/coder/v2/aibridge/x/proxy"
 	"github.com/coder/coder/v2/coderd/aibridged/proto"
 	"github.com/coder/coder/v2/codersdk"
@@ -57,6 +58,8 @@ type Server struct {
 	// reverseProxyExp is the experiment flag. Proxy mode also requires no MCP configs.
 	reverseProxyExp bool
 	metrics         *aibridge.Metrics
+	// recorder is shared only by proxy-mode router snapshots.
+	recorder recorder.Recorder
 
 	logger slog.Logger
 	tracer trace.Tracer
@@ -82,9 +85,10 @@ type Server struct {
 // Its fields are fixed after publication. Both pool and proxyRouter are nil when
 // proxy mode is selected but providers are not yet loaded.
 type backend struct {
-	pool        Pooler                 // RequestBridge pool.
-	proxyRouter http.Handler           // Proxy router for this snapshot.
-	keyPools    func() []*keypool.Pool // Current key pools for metric scrapes.
+	pool           Pooler                 // RequestBridge pool.
+	proxyRouter    http.Handler           // Proxy router for this snapshot.
+	keyPools       func() []*keypool.Pool // Current key pools for metric scrapes.
+	closeIdleConns func()                 // Safe while snapshot requests are in flight.
 }
 
 // New starts a gateway server. Creates a request pool only when interception
@@ -107,6 +111,22 @@ func New(ctx context.Context, rpcDialer Dialer, logger slog.Logger, tracer trace
 		metrics:         metrics,
 		inflight:        aibridge.NewInflightGate(logger),
 	}
+
+	daemon.recorder = aibridge.NewRecorder(
+		logger.Named("recorder"),
+		tracer,
+		func(recordCtx context.Context) (aibridge.Recorder, error) {
+			apiKeyID, ok := authenticatedAPIKeyIDFromContext(recordCtx)
+			if !ok {
+				return nil, xerrors.New("authenticated API key ID missing from recorder context")
+			}
+			client, err := daemon.Client(recordCtx)
+			if err != nil {
+				return nil, xerrors.Errorf("acquire recorder client: %w", err)
+			}
+			return recorder.NewDRPCRecorder(apiKeyID, client), nil
+		},
+	)
 
 	if !daemon.reverseProxyExp {
 		if err := daemon.initializeInterception(); err != nil {
@@ -248,7 +268,7 @@ func (s *Server) initializeBackend(ctx context.Context, client DRPCClient) error
 	if _, err := s.publishBackend(&backend{}); err != nil {
 		return err
 	}
-	s.logger.Warn(ctx, "reverse proxy routing is not yet functional")
+	s.logger.Warn(ctx, "selected experimental reverse proxy routing; only request start and end are recorded; token/prompt/tool/model accounting and spend accrual, Bedrock, and actor-header injection are unsupported; remove ai-gateway-reverse-proxy and restart to restore interception mode")
 	return nil
 }
 
@@ -381,12 +401,24 @@ func (s *Server) ReplaceProviders(ctx context.Context, providers []aibridge.Prov
 		current.pool.ReplaceProviders(providers)
 		return nil
 	}
-	router, err := proxy.NewRouter(providers, s.logger)
+	router, err := proxy.NewRouter(providers, s.recorder, s.logger, s.metrics, s.tracer)
 	if err != nil {
 		return xerrors.Errorf("create proxy router: %w", err)
 	}
-	_, err = s.publishBackend(&backend{proxyRouter: s.inflight.Middleware(router), keyPools: router.KeyPools})
-	return err
+	next := &backend{
+		proxyRouter:    s.inflight.Middleware(router),
+		keyPools:       router.KeyPools,
+		closeIdleConns: router.CloseIdleConnections,
+	}
+	previous, err := s.publishBackend(next)
+	if err != nil {
+		next.closeIdleConns()
+		return err
+	}
+	if previous != nil && previous.closeIdleConns != nil {
+		previous.closeIdleConns()
+	}
+	return nil
 }
 
 // KeyPoolStateCollector reports key states from the current provider snapshot.
@@ -441,11 +473,16 @@ func (s *Server) Shutdown(ctx context.Context) error {
 		// captured atomically with the shutdown flag. Request drainage never
 		// waits for backendMu, which may be held by slow provider construction.
 		var poolErr error
-		if current != nil && current.pool != nil {
-			s.logger.Info(ctx, "shutting down request pool")
-			poolErr = current.pool.Shutdown(ctx)
-			if poolErr != nil {
-				s.logger.Error(ctx, "request pool shutdown failed with error", slog.Error(poolErr))
+		if current != nil {
+			if current.pool != nil {
+				s.logger.Info(ctx, "shutting down request pool")
+				poolErr = current.pool.Shutdown(ctx)
+				if poolErr != nil {
+					s.logger.Error(ctx, "request pool shutdown failed with error", slog.Error(poolErr))
+				}
+			}
+			if current.closeIdleConns != nil {
+				current.closeIdleConns()
 			}
 		}
 

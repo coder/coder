@@ -1,6 +1,8 @@
 package proxy
 
 import (
+	"bytes"
+	"compress/gzip"
 	"context"
 	"fmt"
 	"io"
@@ -146,11 +148,18 @@ func TestForwardingHandlerRequestSemantics(t *testing.T) {
 		header   http.Header
 	}
 	requests := make(chan upstreamRequest, 2)
+	var buf bytes.Buffer
+	gzipWriter := gzip.NewWriter(&buf)
+	_, err := gzipWriter.Write([]byte("response"))
+	require.NoError(t, err)
+	require.NoError(t, gzipWriter.Close())
+	gzipBody := append([]byte(nil), buf.Bytes()...)
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		requests <- upstreamRequest{path: r.URL.EscapedPath(), rawQuery: r.URL.RawQuery, header: r.Header.Clone()}
+		w.Header().Set("Content-Encoding", "gzip")
 		w.Header().Set("Set-Cookie", "coder_session_token=upstream")
 		w.WriteHeader(http.StatusCreated)
-		_, _ = w.Write([]byte("response"))
+		_, _ = w.Write(gzipBody)
 	}))
 	t.Cleanup(upstream.Close)
 	prov := &forwardingTestProvider{MockProvider: &testutil.MockProvider{NameStr: "test", URL: upstream.URL + "/base?configured=1"}}
@@ -172,7 +181,8 @@ func TestForwardingHandlerRequestSemantics(t *testing.T) {
 		response := httptest.NewRecorder()
 		handler.ServeHTTP(response, req)
 		require.Equal(t, http.StatusCreated, response.Code)
-		require.Equal(t, "response", response.Body.String())
+		require.Equal(t, "gzip", response.Header().Get("Content-Encoding"))
+		require.Equal(t, gzipBody, response.Body.Bytes())
 		require.Empty(t, response.Header().Values("Set-Cookie"))
 
 		got := <-requests
