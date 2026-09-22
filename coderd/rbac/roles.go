@@ -244,6 +244,15 @@ func orgWorkspaceAccessMemberPerms() []Permission {
 		// (File.RBACObject sets WithOwner(CreatedBy)).
 		ResourceFile.Type: {policy.ActionCreate, policy.ActionRead},
 
+		// Chat projects group a member's own agent chats. They sit with
+		// workspace access rather than on the member floor, and stay
+		// private to their owner (ChatProject.RBACObject sets
+		// WithOwner(OwnerID)) until shared.
+		ResourceChatProject.Type: ResourceChatProject.AvailableActions(),
+		// Memory objects carry the owning project's owner, so this grant
+		// reaches only the member's own projects.
+		ResourceChatProjectMemory.Type: ResourceChatProjectMemory.AvailableActions(),
+
 		// User-scoped provisioner daemons: Upsert sets
 		// WithOwner(tag_owner) when scope=user so members can run their
 		// own daemons. Read is granted for symmetry; update and delete
@@ -1151,9 +1160,6 @@ func OrgMemberPermissions(org OrgSettings) OrgRolePermissions {
 		ResourceOrganization.Type: {policy.ActionRead},
 		// Can read available roles.
 		ResourceAssignOrgRole.Type: {policy.ActionRead},
-		// Projects are private to their creator until shared; members may
-		// only create them.
-		ResourceChatProject.Type: {policy.ActionCreate},
 	}
 
 	// In all modes of workspace sharing but `none`, members need to
@@ -1212,10 +1218,6 @@ func OrgMemberPermissions(org OrgSettings) OrgRolePermissions {
 			policy.ActionShare,
 			policy.ActionUpdate,
 		},
-		ResourceChatProject.Type: {policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
-		// Memory objects carry the owning project's owner, so this grant
-		// reaches only the creator's own projects.
-		ResourceChatProjectMemory.Type: ResourceChatProjectMemory.AvailableActions(),
 	})
 
 	if org.ShareableWorkspaceOwners != ShareableWorkspaceOwnersEveryone {
