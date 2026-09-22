@@ -4,6 +4,7 @@ import {
 	ChevronDownIcon,
 	CircleDotIcon,
 	ColumnsIcon,
+	ExternalLinkIcon,
 	GitBranchIcon,
 	GitCompareArrowsIcon,
 	GitMergeIcon,
@@ -388,8 +389,15 @@ export const GitPanel: FC<GitPanelProps> = ({
 
 	const items: ViewItem[] = [...remoteItems, ...localItems];
 
+	// The server synthesizes /tree/<branch> URLs for refs without a
+	// PR, so the link needs a PR number, not just a URL.
+	const viewPrUrl =
+		isRemoteView && selectedPrNumber ? selectedRemote?.url : undefined;
+
 	const activeRepoRoot =
 		effectiveView.type === "local" ? effectiveView.repoRoot : undefined;
+	const activeRepo =
+		activeRepoRoot !== undefined ? repositories.get(activeRepoRoot) : undefined;
 	const activeItem: ViewItem | undefined = isRemoteView
 		? items.find((item) => item.id === viewRefId)
 		: items.find(
@@ -418,6 +426,30 @@ export const GitPanel: FC<GitPanelProps> = ({
 				</div>
 				{/* Controls */}
 				<div className="flex shrink-0 items-center gap-1">
+					{/* The primary action follows the view: a PR opens on
+					   its host, a working repo commits. */}
+					{viewPrUrl && (
+						<a
+							href={viewPrUrl}
+							target="_blank"
+							rel="noreferrer"
+							className="inline-flex h-6 items-center gap-1 px-1.5 text-xs font-medium text-content-link no-underline hover:underline"
+						>
+							View PR
+							<ExternalLinkIcon className="size-3" />
+						</a>
+					)}
+					{activeRepoRoot !== undefined && activeRepo && (
+						<button
+							type="button"
+							onClick={() => onCommit(activeRepoRoot)}
+							disabled={!activeRepo.unified_diff}
+							className="inline-flex h-6 cursor-pointer items-center gap-1 rounded-md border border-solid border-border-default bg-surface-primary px-2 text-xs font-medium text-content-primary transition-colors hover:bg-surface-secondary disabled:pointer-events-none disabled:opacity-50"
+						>
+							<CheckIcon className="size-3" />
+							Commit
+						</button>
+					)}
 					<div className="flex h-6 items-stretch overflow-hidden rounded-md border border-solid border-border-default">
 						<button
 							type="button"
@@ -523,7 +555,6 @@ export const GitPanel: FC<GitPanelProps> = ({
 								deletions: 0,
 							}
 						}
-						onCommit={onCommit}
 						isExpanded={isExpanded}
 						diffStyle={diffStyle}
 						chatInputRef={chatInputRef}
@@ -567,37 +598,25 @@ const GitViewSwitcher: FC<GitViewSwitcherProps> = ({
 		);
 	}
 
-	const isSingleItem = items.length <= 1;
-
-	const triggerContent = (
-		<>
-			<span
-				className={cn(
-					"inline-flex h-full items-center gap-1 rounded-l-md border-0 border-r border-solid border-border-default px-1.5 font-medium leading-none",
-					activeItem.stateClasses,
-				)}
-			>
-				<span className="inline-flex size-3.5 shrink-0 items-center justify-center">
-					{activeItem.icon}
-				</span>
-				<span className="whitespace-nowrap">{activeItem.stateLabel}</span>
-			</span>
-			<span className="inline-flex min-w-0 items-center gap-1 pl-1.5 pr-1 text-content-primary">
-				<span className="truncate">{activeItem.triggerIdentifier}</span>
-				{!isSingleItem && (
-					<ChevronDownIcon className="size-3 shrink-0 opacity-70" />
-				)}
-			</span>
-		</>
-	);
-
-	if (isSingleItem) {
+	// With nothing to switch to, the view is a plain label rather
+	// than a menu trigger.
+	if (items.length <= 1) {
 		return (
 			<div
-				className="inline-flex h-6 min-w-0 max-w-full items-stretch overflow-hidden rounded-md border border-solid border-border-default bg-surface-primary text-xs"
+				className="inline-flex h-6 min-w-0 max-w-full items-center gap-1.5 text-xs"
 				data-testid="git-panel-view-switcher"
 			>
-				{triggerContent}
+				<span
+					className={cn(
+						"inline-flex size-3.5 shrink-0 items-center justify-center",
+						activeItem.stateClasses,
+					)}
+				>
+					{activeItem.icon}
+				</span>
+				<span className="truncate font-medium text-content-primary">
+					{activeItem.triggerIdentifier}
+				</span>
 			</div>
 		);
 	}
@@ -611,7 +630,21 @@ const GitViewSwitcher: FC<GitViewSwitcherProps> = ({
 					data-testid="git-panel-view-switcher"
 					aria-label="Switch git view"
 				>
-					{triggerContent}
+					<span
+						className={cn(
+							"inline-flex h-full items-center gap-1 rounded-l-md border-0 border-r border-solid border-border-default px-1.5 font-medium leading-none",
+							activeItem.stateClasses,
+						)}
+					>
+						<span className="inline-flex size-3.5 shrink-0 items-center justify-center">
+							{activeItem.icon}
+						</span>
+						<span className="whitespace-nowrap">{activeItem.stateLabel}</span>
+					</span>
+					<span className="inline-flex min-w-0 items-center gap-1 pl-1.5 pr-1 text-content-primary">
+						<span className="truncate">{activeItem.triggerIdentifier}</span>
+						<ChevronDownIcon className="size-3 shrink-0 opacity-70" />
+					</span>
 				</button>
 			</DropdownMenuTrigger>
 			<DropdownMenuContent
@@ -724,31 +757,17 @@ const LocalRepoContent: FC<{
 	repoRoot: string;
 	repo: WorkspaceAgentRepoChanges | undefined;
 	diffStats: DiffStats;
-	onCommit: (repoRoot: string) => void;
 	isExpanded?: boolean;
 	diffStyle: DiffStyle;
 	chatInputRef?: RefObject<ChatMessageInputRef | null>;
-}> = ({
-	repoRoot,
-	repo,
-	diffStats,
-	onCommit,
-	isExpanded,
-	diffStyle,
-	chatInputRef,
-}) => {
+}> = ({ repoRoot, repo, diffStats, isExpanded, diffStyle, chatInputRef }) => {
 	if (!repo) {
 		return null;
 	}
 
 	return (
 		<div className="flex h-full flex-col">
-			<RepoHeader
-				repoRoot={repoRoot}
-				repo={repo}
-				diffStats={diffStats}
-				onCommit={() => onCommit(repoRoot)}
-			/>
+			<RepoHeader repoRoot={repoRoot} repo={repo} diffStats={diffStats} />
 			<LocalDiffPanel
 				repo={repo}
 				isExpanded={isExpanded}
@@ -767,8 +786,7 @@ const RepoHeader: FC<{
 	repoRoot: string;
 	repo: WorkspaceAgentRepoChanges;
 	diffStats: DiffStats;
-	onCommit: () => void;
-}> = ({ repoRoot, repo, diffStats, onCommit }) => {
+}> = ({ repoRoot, repo, diffStats }) => {
 	return (
 		<div className="flex shrink-0 items-center gap-2 border-0 border-b border-solid border-border-default px-3 py-1.5">
 			<div className="flex min-w-0 items-center gap-1.5 text-[13px] text-content-secondary">
@@ -783,15 +801,6 @@ const RepoHeader: FC<{
 					additions={diffStats.additions}
 					deletions={diffStats.deletions}
 				/>
-				<button
-					type="button"
-					onClick={onCommit}
-					disabled={!repo.unified_diff}
-					className="inline-flex cursor-pointer items-center gap-1 rounded-sm border border-solid border-border-default bg-transparent px-2 text-[13px] font-medium leading-5 text-content-primary no-underline transition-colors hover:bg-surface-secondary disabled:pointer-events-none disabled:opacity-50"
-				>
-					<CheckIcon className="size-3" />
-					Commit
-				</button>
 			</div>
 		</div>
 	);

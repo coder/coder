@@ -1,9 +1,4 @@
-import {
-	ArrowLeftIcon,
-	CopyIcon,
-	ExternalLinkIcon,
-	GitBranchIcon,
-} from "lucide-react";
+import { ArrowLeftIcon, CopyIcon, GitBranchIcon } from "lucide-react";
 import { type FC, type RefObject, useEffect, useState } from "react";
 import { useQuery } from "react-query";
 import { chatDiffContents } from "#/api/queries/chats";
@@ -113,9 +108,6 @@ export const RemoteDiffPanel: FC<RemoteDiffPanelProps> = ({
 	// ---------------------------------------------------------------
 	const pullRequestUrl = diffStatus?.url;
 	const parsedPr = pullRequestUrl ? parsePullRequestUrl(pullRequestUrl) : null;
-	// The server synthesizes /tree/<branch> URLs for refs without
-	// a PR, so classify before rendering the PR link.
-	const hasPullRequest = Boolean(diffStatus?.pr_number ?? parsedPr);
 	const baseBranch = diffStatus?.base_branch;
 	// A cleared PR clears head_branch but keeps git_branch.
 	const headBranch = diffStatus?.head_branch || diffStatus?.git_branch;
@@ -158,17 +150,6 @@ export const RemoteDiffPanel: FC<RemoteDiffPanelProps> = ({
 								deletions={diffStatus.deletions}
 							/>
 						) : null}
-						{pullRequestUrl && hasPullRequest && (
-							<a
-								href={pullRequestUrl}
-								target="_blank"
-								rel="noreferrer"
-								className="inline-flex items-center gap-1 rounded-sm border border-solid border-border-default px-2 text-[13px] font-medium leading-5 text-content-primary no-underline transition-colors hover:bg-surface-secondary"
-							>
-								View PR
-								<ExternalLinkIcon className="size-3" />
-							</a>
-						)}
 					</div>
 				</div>
 			)}
