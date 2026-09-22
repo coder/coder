@@ -1,4 +1,4 @@
-package aibridge
+package interceptionerror_test
 
 import (
 	"context"
@@ -10,11 +10,12 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/aibridge/circuitbreaker"
+	"github.com/coder/coder/v2/aibridge/interceptionerror"
 	"github.com/coder/coder/v2/aibridge/keypool"
 	"github.com/coder/coder/v2/aibridge/recorder"
 )
 
-// stubCategorizer is a test errorCategorizer standing in for a provider.
+// stubCategorizer is a test Categorizer standing in for a provider.
 type stubCategorizer struct {
 	result *recorder.ErrorType
 }
@@ -108,7 +109,7 @@ func TestCategorizeInterceptionError(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			gotType, gotMsg := categorizeInterceptionError(tc.cat, tc.err)
+			gotType, gotMsg := interceptionerror.Categorize(tc.cat, tc.err)
 			assert.Equal(t, tc.wantType, gotType)
 			assert.Equal(t, tc.wantMsg, gotMsg)
 		})
@@ -118,15 +119,17 @@ func TestCategorizeInterceptionError(t *testing.T) {
 func TestCategorizeInterceptionErrorTruncatesMessage(t *testing.T) {
 	t.Parallel()
 
+	const maxRecordedErrorMessageBytes = 1024
+
 	// ASCII: truncated exactly at the byte cap.
 	ascii := strings.Repeat("a", maxRecordedErrorMessageBytes*2)
-	_, gotMsg := categorizeInterceptionError(stubCategorizer{}, xerrors.New(ascii))
+	_, gotMsg := interceptionerror.Categorize(stubCategorizer{}, xerrors.New(ascii))
 	assert.Len(t, gotMsg, maxRecordedErrorMessageBytes)
 
 	// Multi-byte: the '€' rune (3 bytes) split at the cap is dropped, leaving
 	// valid UTF-8 just below the cap rather than an invalid trailing fragment.
 	multibyte := strings.Repeat("€", maxRecordedErrorMessageBytes)
-	_, gotMsg = categorizeInterceptionError(stubCategorizer{}, xerrors.New(multibyte))
+	_, gotMsg = interceptionerror.Categorize(stubCategorizer{}, xerrors.New(multibyte))
 	assert.True(t, utf8.ValidString(gotMsg), "truncated message must stay valid UTF-8")
 	assert.Less(t, len(gotMsg), maxRecordedErrorMessageBytes)
 	assert.Positive(t, len(gotMsg))
