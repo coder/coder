@@ -117,13 +117,13 @@ export const RightPanelAddTabControl: FC<{
 		<DropdownMenu open={open} onOpenChange={setOpen}>
 			<DropdownMenuTrigger asChild>
 				<Button
-					variant="subtle"
+					variant="outline"
 					size="icon"
 					aria-label="Add panel"
 					title="Add panel"
-					className="size-7 shrink-0 text-content-secondary hover:text-content-primary"
+					className="size-8 shrink-0 text-content-secondary hover:text-content-primary"
 				>
-					<PlusIcon className="size-3.5" />
+					<PlusIcon className="size-4" />
 				</Button>
 			</DropdownMenuTrigger>
 			<DropdownMenuContent

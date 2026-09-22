@@ -62,14 +62,17 @@ import { chatWidthClass, useChatFullWidth } from "./hooks/useChatFullWidth";
 import { parsePullRequestUrl } from "./utils/pullRequest";
 import {
 	getPersistedDefaultTerminalHidden,
+	getPersistedRightPanelTabOrder,
 	getPersistedRightPanelTabs,
 	getPersistedVisibleSingletonTabs,
 	savePersistedDefaultTerminalHidden,
+	savePersistedRightPanelTabOrder,
 	savePersistedRightPanelTabs,
 	savePersistedVisibleSingletonTabs,
 } from "./utils/rightPanelTabStorage";
 import {
 	isSingletonRightPanelTabId,
+	orderRightPanelTabs,
 	type PortSelection,
 	type SingletonRightPanelTabId,
 	singletonRightPanelTabIds,
@@ -389,6 +392,9 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	const [visibleSingletonTabs, setVisibleSingletonTabsState] = useState<
 		SingletonRightPanelTabId[]
 	>(() => getPersistedVisibleSingletonTabs(agentId));
+	const [rightPanelTabOrder, setRightPanelTabOrderState] = useState<string[]>(
+		() => getPersistedRightPanelTabOrder(agentId),
+	);
 	const [pendingTabId, setPendingTabId] = useState<string | null>(null);
 	// One client session ID per page visit, shared by every terminal in this
 	// chat. It regenerates when this view remounts (switching chats or
@@ -399,6 +405,13 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 		setSidebarTabIdState(tabId);
 		if (!isArchived) {
 			savePersistedSidebarTabId(agentId, tabId);
+		}
+	};
+
+	const handleReorderTabs = (tabIds: string[]) => {
+		setRightPanelTabOrderState(tabIds);
+		if (!isArchived) {
+			savePersistedRightPanelTabOrder(agentId, tabIds);
 		}
 	};
 
@@ -488,7 +501,11 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	// of tab IDs used by `getEffectiveTabId` is derived from this so a
 	// new tab can never be added to one without the other going out of
 	// sync. Desktop is ordered before terminals so terminals are rightmost.
-	const builtInSidebarTabConfigs = [
+	const builtInSidebarTabConfigs: {
+		id: string;
+		label: string;
+		badge?: string;
+	}[] = [
 		{ id: "summary", label: "Summary" },
 		{ id: "git", label: "Git" },
 		...(isSingletonTabShown("debug") ? [{ id: "debug", label: "Debug" }] : []),
@@ -512,20 +529,25 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 					[tab.id, (hasBuiltInTerminal ? 1 : 0) + index + 1] as const,
 			),
 	);
-	const sidebarTabConfigs = [
-		...builtInSidebarTabConfigs,
-		// Only unlabeled terminal tabs fall through to the numbered label;
-		// every other tab kind has a required label.
-		...validatedUserRightPanelTabs.map((tab) => {
-			const terminalNumber = terminalNumbers.get(tab.id);
-			return {
-				id: tab.id,
-				label:
-					tab.label ??
-					(terminalNumber === 1 ? "Terminal" : `Terminal ${terminalNumber}`),
-			};
-		}),
-	];
+	const sidebarTabConfigs = orderRightPanelTabs(
+		[
+			...builtInSidebarTabConfigs,
+			// Only unlabeled terminal tabs fall through to the numbered badge;
+			// every other tab kind has a required label.
+			...validatedUserRightPanelTabs.map((tab) => {
+				const terminalNumber = terminalNumbers.get(tab.id);
+				return {
+					id: tab.id,
+					label: tab.label ?? "Terminal",
+					badge:
+						terminalNumber !== undefined && terminalNumber > 1
+							? String(terminalNumber)
+							: undefined,
+				};
+			}),
+		],
+		rightPanelTabOrder,
+	);
 	const sidebarTabIds = sidebarTabConfigs.map((tab) => tab.id);
 	const effectiveSidebarTabId = getEffectiveTabId(sidebarTabIds, sidebarTabId);
 
@@ -809,6 +831,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 		return {
 			id: tab.id,
 			label: tab.label,
+			badge: tab.badge,
 			content: renderTabContent(tab.id),
 			onClose: isCloseable ? () => handleCloseTab(tab.id) : undefined,
 		};
@@ -1010,6 +1033,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 							<SidebarTabView
 								effectiveTabId={effectiveSidebarTabId}
 								onActiveTabChange={handleActiveTabChange}
+								onReorder={handleReorderTabs}
 								tabs={sidebarTabs}
 								addTabControl={
 									<RightPanelAddTabControl

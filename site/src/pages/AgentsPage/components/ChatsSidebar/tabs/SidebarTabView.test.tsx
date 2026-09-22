@@ -14,7 +14,10 @@ describe("SidebarTabView", () => {
 		const onActiveTabChange = vi.fn();
 		render(
 			<SidebarTabView
-				tabs={[makeTab("summary", "Summary"), makeTab("git", "Git")]}
+				tabs={[
+					makeTab("summary", "Summary"),
+					{ ...makeTab("terminal-2", "Terminal"), badge: "2" },
+				]}
 				effectiveTabId="summary"
 				onActiveTabChange={onActiveTabChange}
 				isExpanded={false}
@@ -24,10 +27,10 @@ describe("SidebarTabView", () => {
 
 		await userEvent.click(screen.getByRole("button", { name: "All tabs" }));
 		await userEvent.click(
-			await screen.findByRole("menuitemradio", { name: "Git" }),
+			await screen.findByRole("menuitemradio", { name: "Terminal 2" }),
 		);
 
-		expect(onActiveTabChange).toHaveBeenCalledWith("git");
+		expect(onActiveTabChange).toHaveBeenCalledWith("terminal-2");
 	});
 
 	it("closes a tab without activating it", async () => {

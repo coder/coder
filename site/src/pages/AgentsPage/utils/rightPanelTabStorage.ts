@@ -94,6 +94,48 @@ export function savePersistedVisibleSingletonTabs(
 	);
 }
 
+const rightPanelTabOrderStorageKeyPrefix = "agents.right-panel-tab-order.";
+
+/** Tab IDs in the order the user arranged them. Unknown IDs are ignored
+ * by `orderRightPanelTabs`, so stale entries from closed tabs are harmless. */
+export function getPersistedRightPanelTabOrder(
+	chatID: string | undefined,
+): string[] {
+	if (!chatID) {
+		return [];
+	}
+
+	const value = localStorage.getItem(
+		`${rightPanelTabOrderStorageKeyPrefix}${chatID}`,
+	);
+	if (!value) {
+		return [];
+	}
+
+	try {
+		const parsed: unknown = JSON.parse(value);
+		if (!Array.isArray(parsed)) {
+			return [];
+		}
+		return parsed.filter((id): id is string => typeof id === "string");
+	} catch {
+		return [];
+	}
+}
+
+export function savePersistedRightPanelTabOrder(
+	chatID: string | undefined,
+	tabIds: readonly string[],
+): void {
+	if (!chatID) {
+		return;
+	}
+	localStorage.setItem(
+		`${rightPanelTabOrderStorageKeyPrefix}${chatID}`,
+		JSON.stringify(tabIds),
+	);
+}
+
 const defaultTerminalHiddenStorageKeyPrefix = "agents.default-terminal-hidden.";
 
 export function getPersistedDefaultTerminalHidden(
@@ -132,5 +174,6 @@ export function clearPersistedRightPanelState(
 	}
 	localStorage.removeItem(`${rightPanelTabStorageKeyPrefix}${chatID}`);
 	localStorage.removeItem(`${visibleSingletonTabsStorageKeyPrefix}${chatID}`);
+	localStorage.removeItem(`${rightPanelTabOrderStorageKeyPrefix}${chatID}`);
 	localStorage.removeItem(`${defaultTerminalHiddenStorageKeyPrefix}${chatID}`);
 }

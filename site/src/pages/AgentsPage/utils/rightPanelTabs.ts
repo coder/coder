@@ -117,6 +117,23 @@ export function isUserRightPanelTab(
 	return false;
 }
 
+/**
+ * Sorts tabs by a user-arranged list of IDs. Tabs missing from the list keep
+ * their default relative order after the arranged ones, so newly opened tabs
+ * land at the end of the strip.
+ */
+export function orderRightPanelTabs<T extends { id: string }>(
+	tabs: readonly T[],
+	order: readonly string[],
+): T[] {
+	const position = new Map(order.map((id, index) => [id, index]));
+	const arranged = tabs
+		.filter((tab) => position.has(tab.id))
+		.sort((a, b) => (position.get(a.id) ?? 0) - (position.get(b.id) ?? 0));
+	const unarranged = tabs.filter((tab) => !position.has(tab.id));
+	return [...arranged, ...unarranged];
+}
+
 export function validateUserRightPanelTabs(
 	tabs: readonly UserRightPanelTab[],
 	{

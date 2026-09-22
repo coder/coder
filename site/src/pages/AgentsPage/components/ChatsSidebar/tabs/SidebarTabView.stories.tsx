@@ -23,14 +23,14 @@ const summaryTab = makeTab("summary", "Summary");
 
 const addTabControl = (
 	<Button
-		variant="subtle"
+		variant="outline"
 		size="icon"
 		onClick={fn()}
 		aria-label="Add panel"
 		title="Add panel"
-		className="size-7 shrink-0 text-content-secondary hover:text-content-primary"
+		className="size-8 shrink-0 text-content-secondary hover:text-content-primary"
 	>
-		<PlusIcon className="size-3.5" />
+		<PlusIcon className="size-4" />
 	</Button>
 );
 
@@ -41,6 +41,7 @@ const meta: Meta<typeof SidebarTabView> = {
 		tabs: [summaryTab, gitTab],
 		effectiveTabId: "git",
 		onActiveTabChange: fn(),
+		onReorder: fn(),
 		isExpanded: false,
 		onToggleExpanded: fn(),
 		addTabControl,
@@ -63,8 +64,9 @@ export const MultipleTabs: Story = {
 		tabs: [
 			summaryTab,
 			gitTab,
-			makeTab("preview", "Preview"),
+			makeTab("desktop", "Desktop"),
 			{ ...makeTab("terminal", "Terminal"), onClose: fn() },
+			{ ...makeTab("terminal-4", "Terminal"), badge: "4", onClose: fn() },
 		],
 	},
 };
@@ -101,7 +103,7 @@ export const NarrowPanel: Story = {
 			summaryTab,
 			gitTab,
 			{ ...makeTab("terminal", "Terminal"), onClose: fn() },
-			{ ...makeTab("terminal-2", "Terminal 2"), onClose: fn() },
+			{ ...makeTab("terminal-2", "Terminal"), badge: "2", onClose: fn() },
 		],
 	},
 	decorators: [
@@ -141,13 +143,41 @@ export const AllTabsMenuOpen: Story = {
 			summaryTab,
 			gitTab,
 			{ ...makeTab("terminal", "Terminal"), onClose: fn() },
-			{ ...makeTab("terminal-2", "Terminal 2"), onClose: fn() },
+			{ ...makeTab("terminal-2", "Terminal"), badge: "2", onClose: fn() },
 		],
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await userEvent.click(canvas.getByRole("button", { name: "All tabs" }));
 		await within(document.body).findByRole("menuitemradio", { name: "Git" });
+	},
+};
+
+/** Tabs can be dragged to a new position; the parent owns the order. */
+export const ReorderableTabs: Story = {
+	render: function ReorderableTabs() {
+		const [tabs, setTabs] = useState<SidebarTab[]>([
+			summaryTab,
+			gitTab,
+			makeTab("desktop", "Desktop"),
+			{ ...makeTab("terminal", "Terminal"), onClose: fn() },
+		]);
+		const [activeTabId, setActiveTabId] = useState("git");
+		return (
+			<SidebarTabView
+				tabs={tabs}
+				effectiveTabId={activeTabId}
+				onActiveTabChange={setActiveTabId}
+				onReorder={(ids) =>
+					setTabs((current) =>
+						ids.flatMap((id) => current.filter((tab) => tab.id === id)),
+					)
+				}
+				isExpanded={false}
+				onToggleExpanded={() => {}}
+				addTabControl={addTabControl}
+			/>
+		);
 	},
 };
 
@@ -158,9 +188,10 @@ export const CloseableTabs: Story = {
 			summaryTab,
 			gitTab,
 			makeTab("terminal", "Terminal"),
-			...Array.from({ length: 8 }, (_, index) =>
-				makeTab(`terminal-${index + 2}`, `Terminal ${index + 2}`),
-			),
+			...Array.from({ length: 8 }, (_, index) => ({
+				...makeTab(`terminal-${index + 2}`, "Terminal"),
+				badge: String(index + 2),
+			})),
 		]);
 
 		const handleCloseTab = (tabId: string) => {

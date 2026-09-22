@@ -13,15 +13,18 @@ import {
 import {
 	clearPersistedRightPanelState,
 	getPersistedDefaultTerminalHidden,
+	getPersistedRightPanelTabOrder,
 	getPersistedRightPanelTabs,
 	getPersistedVisibleSingletonTabs,
 	rightPanelTabStorageKeyPrefix,
 	savePersistedDefaultTerminalHidden,
+	savePersistedRightPanelTabOrder,
 	savePersistedRightPanelTabs,
 	savePersistedVisibleSingletonTabs,
 	visibleSingletonTabsStorageKeyPrefix,
 } from "./rightPanelTabStorage";
 import {
+	orderRightPanelTabs,
 	type UserRightPanelTab,
 	validateUserRightPanelTabs,
 } from "./rightPanelTabs";
@@ -372,6 +375,71 @@ describe("singleton right-panel tab storage", () => {
 
 		expect(getPersistedVisibleSingletonTabs(undefined)).toEqual([]);
 		expect(localStorage.length).toBe(0);
+	});
+});
+
+describe("right-panel tab order", () => {
+	beforeEach(() => {
+		localStorage.clear();
+	});
+
+	const tabs = [
+		{ id: "summary" },
+		{ id: "git" },
+		{ id: "terminal" },
+		{ id: "terminal-2" },
+	];
+
+	it("keeps the default order without a saved arrangement", () => {
+		expect(orderRightPanelTabs(tabs, []).map((tab) => tab.id)).toEqual([
+			"summary",
+			"git",
+			"terminal",
+			"terminal-2",
+		]);
+	});
+
+	it("applies the arrangement and appends tabs it does not mention", () => {
+		const order = ["terminal", "closed-tab", "summary"];
+
+		expect(orderRightPanelTabs(tabs, order).map((tab) => tab.id)).toEqual([
+			"terminal",
+			"summary",
+			"git",
+			"terminal-2",
+		]);
+	});
+
+	it("round trips the saved arrangement per chat", () => {
+		savePersistedRightPanelTabOrder("chat-1", ["git", "summary"]);
+
+		expect(getPersistedRightPanelTabOrder("chat-1")).toEqual([
+			"git",
+			"summary",
+		]);
+		expect(getPersistedRightPanelTabOrder("chat-2")).toEqual([]);
+	});
+
+	it("drops non-string entries and malformed values", () => {
+		savePersistedRightPanelTabOrder("chat-1", ["git"]);
+		const key = localStorage.key(0);
+		if (!key) {
+			throw new Error("expected tab order key to be stored");
+		}
+
+		localStorage.setItem(key, JSON.stringify(["git", 3, null]));
+		expect(getPersistedRightPanelTabOrder("chat-1")).toEqual(["git"]);
+
+		localStorage.setItem(key, "{not json");
+		expect(getPersistedRightPanelTabOrder("chat-1")).toEqual([]);
+	});
+
+	it("is cleared with the rest of the right-panel state", () => {
+		savePersistedRightPanelTabOrder("chat-1", ["git"]);
+
+		clearPersistedRightPanelState("chat-1");
+
+		expect(getPersistedRightPanelTabOrder("chat-1")).toEqual([]);
 	});
 });
 
