@@ -797,6 +797,11 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().LockChatByID(gomock.Any(), chatID).Return(chatID, nil).AnyTimes()
 		check.Args(chatID).Asserts(rbac.ResourceSystem, policy.ActionUpdate).Returns(chatID)
 	}))
+	s.Run("GetChatIDByID", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		chatID := uuid.New()
+		dbm.EXPECT().GetChatIDByID(gomock.Any(), chatID).Return(chatID, nil).AnyTimes()
+		check.Args(chatID).Asserts(rbac.ResourceChat, policy.ActionRead).Returns(chatID)
+	}))
 	s.Run("LinkChatFilesAfterLock", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		arg := database.LinkChatFilesAfterLockParams{}
 		dbm.EXPECT().LinkChatFilesAfterLock(gomock.Any(), arg).Return(int32(0), nil).AnyTimes()

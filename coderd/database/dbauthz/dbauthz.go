@@ -3442,6 +3442,17 @@ func (q *querier) GetChatHeartbeat(ctx context.Context, arg database.GetChatHear
 	return q.db.GetChatHeartbeat(ctx, arg)
 }
 
+func (q *querier) GetChatIDByID(ctx context.Context, id uuid.UUID) (uuid.UUID, error) {
+	// This returns only the chat's own id (an existence probe used to open a
+	// read snapshot), so a type-level chat read is sufficient. Fetching the
+	// row to authorize the instance would defeat the point of avoiding the
+	// chats_expanded joins.
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceChat); err != nil {
+		return uuid.Nil, err
+	}
+	return q.db.GetChatIDByID(ctx, id)
+}
+
 func (q *querier) GetChatIncludeDefaultSystemPrompt(ctx context.Context) (bool, error) {
 	// The include-default-system-prompt flag is a deployment-wide setting read
 	// during chat creation by every authenticated user, so no RBAC policy
