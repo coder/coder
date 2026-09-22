@@ -3,7 +3,9 @@ import {
 	ArrowLeftIcon,
 	ArrowUpIcon,
 	CheckIcon,
+	ChevronDownIcon,
 	ChevronRightIcon,
+	LockIcon,
 	MicIcon,
 	MonitorIcon,
 	PaperclipIcon,
@@ -45,6 +47,7 @@ import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 import {
 	Popover,
 	PopoverContent,
+	type PopoverContentProps,
 	PopoverTrigger,
 } from "#/components/Popover/Popover";
 import { Separator } from "#/components/Separator/Separator";
@@ -90,6 +93,7 @@ import type { SkillMetadata } from "./ChatMessageInput/SkillsTriggerMenu";
 import type { AgentContextUsage } from "./ContextUsageIndicator";
 import { ContextUsageIndicator } from "./ContextUsageIndicator";
 import { ImageLightbox } from "./ImageLightbox";
+import { MCPServerIconStack } from "./MCPServerIconStack";
 import { QueuedMessagesList } from "./QueuedMessagesList";
 import { TextPreviewDialog } from "./TextPreviewDialog";
 import { WorkspacePill } from "./WorkspacePill";
@@ -218,11 +222,41 @@ export type AttachedWorkspaceInfo = {
 const pillSizingClasses =
 	"grow shrink-0 basis-[calc(8ch_+_3.125rem)] max-w-max";
 
+// Pills clamp to the popover width so a long name truncates instead
+// of pushing its X out of view.
+const BadgePopoverContent: FC<PopoverContentProps> = ({
+	className,
+	...props
+}) => (
+	<PopoverContent
+		side="top"
+		align="start"
+		className={cn(
+			"flex w-auto max-w-64 flex-wrap gap-1 p-2 *:max-w-full",
+			className,
+		)}
+		{...props}
+	/>
+);
+
 type ToolBadgeData =
 	| { kind: "workspace"; name: string }
 	| ({ kind: "attached-workspace" } & AttachedWorkspaceInfo)
 	| { kind: "mcp"; server: TypesGen.MCPServerConfig }
+	| { kind: "mcp-group"; servers: readonly TypesGen.MCPServerConfig[] }
 	| { kind: "planning" };
+
+// Non-MCP badges can share a kind, so their keys are position-qualified.
+const badgeKey = (badge: ToolBadgeData, index: number) => {
+	switch (badge.kind) {
+		case "mcp":
+			return badge.server.id;
+		case "mcp-group":
+			return badge.kind;
+		default:
+			return `${badge.kind}-${index}`;
+	}
+};
 
 // Small `X` button rendered inside pill-style badges (attached
 // workspace, MCP server, planning indicator) to dismiss or disable
@@ -237,7 +271,7 @@ const BadgeDismissButton: FC<{
 		type="button"
 		onClick={onClick}
 		disabled={isDisabled}
-		className="group -mx-1 -my-1 inline-flex size-5 cursor-pointer items-center justify-center rounded-full border-0 bg-transparent p-0 text-content-secondary disabled:cursor-not-allowed disabled:opacity-50"
+		className="group -mx-1 -my-1 inline-flex size-5 shrink-0 cursor-pointer items-center justify-center rounded-full border-0 bg-transparent p-0 text-content-secondary disabled:cursor-not-allowed disabled:opacity-50"
 		aria-label={ariaLabel}
 	>
 		<span className="inline-flex size-3.5 items-center justify-center rounded-full transition-colors group-hover:bg-surface-tertiary group-hover:text-content-primary">
@@ -245,6 +279,47 @@ const BadgeDismissButton: FC<{
 		</span>
 	</button>
 );
+
+const MCPGroupBadge: FC<{
+	servers: readonly TypesGen.MCPServerConfig[];
+	onRemoveMcp?: (serverId: string) => void;
+	isDisabled?: boolean;
+	className: string;
+}> = ({ servers, onRemoveMcp, isDisabled, className }) => {
+	const [open, setOpen] = useState(false);
+	const label = `${servers.length} MCPs`;
+
+	return (
+		<Popover open={open} onOpenChange={setOpen}>
+			<PopoverTrigger asChild>
+				<button
+					type="button"
+					aria-label={label}
+					className={cn(
+						className,
+						"cursor-pointer border-0 transition-colors hover:bg-surface-tertiary hover:text-content-primary",
+					)}
+				>
+					<MCPServerIconStack servers={servers} />
+					{label}
+					<ChevronDownIcon
+						className={cn("size-3 transition-transform", open && "rotate-180")}
+					/>
+				</button>
+			</PopoverTrigger>
+			<BadgePopoverContent>
+				{servers.map((server) => (
+					<ToolBadge
+						key={server.id}
+						badge={{ kind: "mcp", server }}
+						onRemoveMcp={onRemoveMcp}
+						isDisabled={isDisabled}
+					/>
+				))}
+			</BadgePopoverContent>
+		</Popover>
+	);
+};
 
 const ToolBadge: FC<{
 	badge: ToolBadgeData;
@@ -308,6 +383,7 @@ const ToolBadge: FC<{
 							<BadgeDismissButton
 								onClick={onRemoveWorkspace}
 								ariaLabel={`Remove workspace ${badge.name}`}
+								isDisabled={isDisabled}
 							/>
 						)}
 					</span>
@@ -331,9 +407,21 @@ const ToolBadge: FC<{
 					<BadgeDismissButton
 						onClick={onRemoveWorkspace}
 						ariaLabel={`Remove workspace ${badge.name}`}
+						isDisabled={isDisabled}
 					/>
 				)}
 			</span>
+		);
+	}
+
+	if (badge.kind === "mcp-group") {
+		return (
+			<MCPGroupBadge
+				servers={badge.servers}
+				onRemoveMcp={onRemoveMcp}
+				isDisabled={isDisabled}
+				className={badgeCls}
+			/>
 		);
 	}
 
@@ -349,12 +437,20 @@ const ToolBadge: FC<{
 			) : (
 				<ServerIcon className="size-3" />
 			)}
-			{badge.server.display_name}
-			{!isForceOn && onRemoveMcp && (
-				<BadgeDismissButton
-					onClick={() => onRemoveMcp(badge.server.id)}
-					ariaLabel={`Remove ${badge.server.display_name}`}
-				/>
+			<span className="truncate">{badge.server.display_name}</span>
+			{isForceOn ? (
+				<>
+					<LockIcon className="size-3 shrink-0" />
+					<span className="sr-only">Always on</span>
+				</>
+			) : (
+				onRemoveMcp && (
+					<BadgeDismissButton
+						onClick={() => onRemoveMcp(badge.server.id)}
+						ariaLabel={`Remove ${badge.server.display_name}`}
+						isDisabled={isDisabled}
+					/>
+				)
 			)}
 		</span>
 	);
@@ -631,8 +727,12 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	if (shouldShowSelectedWorkspaceBadge && selectedWorkspace) {
 		allBadges.push({ kind: "workspace", name: selectedWorkspace.name });
 	}
-	for (const s of activeMcpServers) {
-		allBadges.push({ kind: "mcp", server: s });
+	if (activeMcpServers.length >= 3) {
+		allBadges.push({ kind: "mcp-group", servers: activeMcpServers });
+	} else {
+		for (const server of activeMcpServers) {
+			allBadges.push({ kind: "mcp", server });
+		}
 	}
 
 	const overflowCount = useOverflowCount(badgeContainerRef, allBadges.length);
@@ -1398,21 +1498,32 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 															<span className="min-w-0 flex-1 truncate text-xs text-content-secondary">
 																{server.display_name}
 															</span>
+															{isForceOn && (
+																<LockIcon className="size-3 shrink-0 text-content-secondary" />
+															)}
 															{needsAuth ? (
-																<Button
-																	variant="outline"
-																	size="sm"
-																	className="h-6 shrink-0 px-2 text-[10px] leading-none"
-																	onClick={() => connectMCPServer(server.id)}
-																	disabled={
-																		isDisabled || mcpConnectingId !== null
-																	}
-																>
-																	{isConnecting ? (
-																		<Spinner loading className="h-2.5 w-2.5" />
-																	) : null}
-																	Auth
-																</Button>
+																<>
+																	{isForceOn && (
+																		<span className="sr-only">Always on</span>
+																	)}
+																	<Button
+																		variant="outline"
+																		size="sm"
+																		className="h-6 shrink-0 px-2 text-[10px] leading-none"
+																		onClick={() => connectMCPServer(server.id)}
+																		disabled={
+																			isDisabled || mcpConnectingId !== null
+																		}
+																	>
+																		{isConnecting ? (
+																			<Spinner
+																				loading
+																				className="h-2.5 w-2.5"
+																			/>
+																		) : null}
+																		Auth
+																	</Button>
+																</>
 															) : (
 																<>
 																	{server.auth_type === "oauth2" && (
@@ -1437,7 +1548,11 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 																			handleMcpToggle(server.id, checked)
 																		}
 																		disabled={isDisabled || isForceOn}
-																		aria-label={`${isSelected ? "Disable" : "Enable"} ${server.display_name}`}
+																		aria-label={
+																			isForceOn
+																				? `${server.display_name} always on`
+																				: `${isSelected ? "Disable" : "Enable"} ${server.display_name}`
+																		}
 																	/>
 																</>
 															)}
@@ -1520,7 +1635,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 								}
 								return (
 									<ToolBadge
-										key={badge.kind === "mcp" ? badge.server.id : badge.kind}
+										key={badgeKey(badge, i)}
 										badge={badge}
 										onRemoveWorkspace={removeWorkspaceHandler}
 										onRemoveMcp={handleRemoveMcp}
@@ -1549,11 +1664,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 										+{overflowCount}
 									</button>
 								</PopoverTrigger>
-								{/* Anchored above the +N pill; hugs the toolbar row. */}
-								<PopoverContent
-									side="top"
-									align="start"
-									className="flex w-auto max-w-64 flex-wrap gap-1 p-2"
+								<BadgePopoverContent
 									onInteractOutside={(event) => {
 										// The workspace pill portals its menu outside
 										// this popover; dismissing would unmount the
@@ -1597,13 +1708,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 										}
 										return (
 											<ToolBadge
-												// Non-MCP badges can share a kind, so keys
-												// are position-qualified.
-												key={
-													badge.kind === "mcp"
-														? badge.server.id
-														: `${badge.kind}-overflow-${visibleCount + i}`
-												}
+												key={badgeKey(badge, visibleCount + i)}
 												badge={badge}
 												onRemoveWorkspace={removeWorkspaceHandler}
 												onRemoveMcp={handleRemoveMcp}
@@ -1615,7 +1720,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 											/>
 										);
 									})}
-								</PopoverContent>
+								</BadgePopoverContent>
 							</Popover>
 						</div>
 					</div>
