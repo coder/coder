@@ -16,6 +16,25 @@ coder stop [flags] <workspace>
 
 ## Options
 
+### --log-dir
+
+|             |                             |
+|-------------|-----------------------------|
+| Type        | <code>string</code>         |
+| Environment | <code>$CODER_LOG_DIR</code> |
+
+Directory to write session diagnostic log files to. Defaults to the user state directory.
+
+### --log-buffer-size
+
+|             |                                     |
+|-------------|-------------------------------------|
+| Type        | <code>int</code>                    |
+| Environment | <code>$CODER_LOG_BUFFER_SIZE</code> |
+| Default     | <code>1000</code>                   |
+
+Number of debug log entries to keep in memory and write to the session log file if the command fails. Set to 0 to disable buffering. Ignored with --verbose, which writes debug logs unconditionally.
+
 ### -y, --yes
 
 |      |                   |
