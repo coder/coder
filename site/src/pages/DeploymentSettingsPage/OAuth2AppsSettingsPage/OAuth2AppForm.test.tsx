@@ -2,6 +2,7 @@ import { act, screen, waitFor } from "@testing-library/react";
 import userEvent, { type UserEvent } from "@testing-library/user-event";
 import { API } from "#/api/api";
 import {
+	OAuth2RedirectURIsMaxCount,
 	OAuth2ScopeListMaxBytes,
 	OAuth2ScopeListMaxNames,
 } from "#/api/typesGenerated";
@@ -161,7 +162,7 @@ describe("OAuth2AppForm", () => {
 
 	it.each([
 		{ name: "é".repeat(32), valid: true },
-		{ name: "a" + "é".repeat(32), valid: false },
+		{ name: `a${"é".repeat(32)}`, valid: false },
 		{ name: "é".repeat(33), valid: false },
 		{ name: "界".repeat(21), valid: true },
 		{ name: "界".repeat(22), valid: false },
@@ -525,6 +526,102 @@ describe("OAuth2AppForm", () => {
 		expect(
 			screen.getByText(/already used by another row/i),
 		).toBeInTheDocument();
+	});
+
+	// Confidential apps could store a non-local http redirect URI before the
+	// form checked for it. The stored value fails validation on load, so the
+	// error must show without the field being touched.
+	it("shows the error for a stored redirect URI that fails validation", async () => {
+		const user = userEvent.setup();
+		const onSubmit = vi.fn();
+		render(
+			<OAuth2AppForm
+				app={{
+					...MockOAuth2ProviderApps[0],
+					redirect_uris: ["http://intranet.example.com/callback"],
+				}}
+				onSubmit={onSubmit}
+				isUpdating={false}
+				disabled={false}
+			/>,
+		);
+
+		expect(
+			await screen.findByText("Please enter a valid redirect URI."),
+		).toBeInTheDocument();
+		await user.type(screen.getByLabelText(/^name/i), " updated");
+		expect(
+			screen.getByRole("button", { name: /update application/i }),
+		).toBeDisabled();
+
+		await user.clear(screen.getByLabelText(/default callback/i));
+		await user.type(
+			screen.getByLabelText(/default callback/i),
+			"https://intranet.example.com/callback",
+		);
+		await waitFor(() =>
+			expect(
+				screen.queryByText("Please enter a valid redirect URI."),
+			).not.toBeInTheDocument(),
+		);
+		await user.click(
+			screen.getByRole("button", { name: /update application/i }),
+		);
+		await waitFor(() =>
+			expect(onSubmit).toHaveBeenCalledWith({
+				name: `${MockOAuth2ProviderApps[0].name} updated`,
+				redirect_uris: ["https://intranet.example.com/callback"],
+				icon: MockOAuth2ProviderApps[0].icon,
+			}),
+		);
+	});
+
+	// A list over the count cap has no row to blur, so its message must also
+	// show on load.
+	it("shows the error for a stored list over the count cap", async () => {
+		render(
+			<OAuth2AppForm
+				app={{
+					...MockOAuth2ProviderApps[0],
+					redirect_uris: Array.from(
+						{ length: OAuth2RedirectURIsMaxCount + 1 },
+						(_, i) => `https://alt-${i}.example.com/cb`,
+					),
+				}}
+				onSubmit={vi.fn()}
+				isUpdating={false}
+				disabled={false}
+			/>,
+		);
+
+		expect(
+			await screen.findByText(
+				`At most ${OAuth2RedirectURIsMaxCount} redirect URIs are allowed.`,
+			),
+		).toBeInTheDocument();
+		expect(
+			screen.getByRole("button", { name: /update application/i }),
+		).toBeDisabled();
+	});
+
+	it("keeps the redirect URI error hidden when the stored list is valid", async () => {
+		const user = userEvent.setup();
+		render(
+			<OAuth2AppForm
+				app={MockOAuth2ProviderApps[0]}
+				onSubmit={vi.fn()}
+				isUpdating={false}
+				disabled={false}
+			/>,
+		);
+
+		await user.type(screen.getByLabelText(/^name/i), " updated");
+		expect(
+			screen.queryByText("Please enter a valid redirect URI."),
+		).not.toBeInTheDocument();
+		expect(
+			screen.getByRole("button", { name: /update application/i }),
+		).toBeEnabled();
 	});
 
 	it("submits the selected scopes as a space separated list", async () => {

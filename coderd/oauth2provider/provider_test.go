@@ -720,6 +720,21 @@ func requireCallbackURLValidationError(t *testing.T, err error) {
 	}), "expected callback_url validation error, got: %+v", apiErr.Validations)
 }
 
+// requireRedirectURIsValidationError asserts err is an HTTP 400 carrying a
+// redirect_uris validation error with the given detail.
+func requireRedirectURIsValidationError(t *testing.T, err error, detail string) {
+	t.Helper()
+
+	require.Error(t, err)
+	var apiErr *codersdk.Error
+	require.True(t, errors.As(err, &apiErr))
+	require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
+	require.Contains(t, apiErr.Validations, codersdk.ValidationError{
+		Field:  "redirect_uris",
+		Detail: detail,
+	}, "expected redirect_uris validation error, got: %+v", apiErr.Validations)
+}
+
 // competingRedirectURIWriteStore removes the second redirect URI of an app
 // right after the middleware reads it, once armed, and returns the row as it
 // was before the removal. This stands in for another admin whose update
@@ -962,6 +977,74 @@ func TestOAuth2ProviderAppRedirectURIs(t *testing.T) {
 		})
 		requireCallbackURLValidationError(t, err)
 		require.ErrorContains(t, err, "callback URL must not contain a fragment component")
+	})
+
+	// Stored entries are validated again on every update, so an app whose
+	// list predates the caps is rejected even when the callback is unchanged
+	// and nothing about it is written.
+	t.Run("StoredListOverCount", func(t *testing.T) {
+		t.Parallel()
+
+		db, pubsub := dbtestutil.NewDB(t)
+		client := coderdtest.New(t, &coderdtest.Options{Database: db, Pubsub: pubsub})
+		_ = coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		uris := make([]string, 0, codersdk.OAuth2RedirectURIsMaxCount+1)
+		uris = append(uris, first)
+		for i := 1; i <= codersdk.OAuth2RedirectURIsMaxCount; i++ {
+			uris = append(uris, fmt.Sprintf("https://alt-%d.example.com/callback", i))
+		}
+		app := dbgen.OAuth2ProviderApp(t, db, database.OAuth2ProviderApp{
+			Name:         "over-count",
+			CallbackURL:  first,
+			RedirectUris: uris,
+		})
+
+		//nolint:gocritic // OAuth2 app management requires owner permission.
+		_, err := client.PutOAuth2ProviderApp(ctx, app.ID, codersdk.PutOAuth2ProviderAppRequest{
+			Name:        "renamed",
+			CallbackURL: first,
+		})
+		requireRedirectURIsValidationError(t, err, "at most 32 redirect URIs are allowed")
+
+		stored, err := db.GetOAuth2ProviderAppByID(ctx, app.ID)
+		require.NoError(t, err)
+		require.Equal(t, "over-count", stored.Name)
+		require.Equal(t, first, stored.CallbackURL)
+		require.Equal(t, uris, stored.RedirectUris)
+	})
+
+	// An oversized alternate is reported against redirect_uris with its
+	// index, since the request never sent it.
+	t.Run("StoredAlternateOversized", func(t *testing.T) {
+		t.Parallel()
+
+		db, pubsub := dbtestutil.NewDB(t)
+		client := coderdtest.New(t, &coderdtest.Options{Database: db, Pubsub: pubsub})
+		_ = coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		prefix := "https://example.com/"
+		long := prefix + strings.Repeat("a", codersdk.OAuth2RedirectURIMaxBytes-len(prefix)+1)
+		app := dbgen.OAuth2ProviderApp(t, db, database.OAuth2ProviderApp{
+			Name:         "long-alternate",
+			CallbackURL:  first,
+			RedirectUris: []string{first, long},
+		})
+
+		//nolint:gocritic // OAuth2 app management requires owner permission.
+		_, err := client.PutOAuth2ProviderApp(ctx, app.ID, codersdk.PutOAuth2ProviderAppRequest{
+			Name:        "renamed",
+			CallbackURL: first,
+		})
+		requireRedirectURIsValidationError(t, err, "redirect URI at index 1 must be at most 2048 bytes")
+
+		stored, err := db.GetOAuth2ProviderAppByID(ctx, app.ID)
+		require.NoError(t, err)
+		require.Equal(t, "long-alternate", stored.Name)
+		require.Equal(t, first, stored.CallbackURL)
+		require.Equal(t, []string{first, long}, stored.RedirectUris)
 	})
 
 	// Registration stores a deduplicated list, and the configuration
@@ -1324,6 +1407,55 @@ func TestOAuth2ProviderAppRedirectURIs(t *testing.T) {
 		require.Len(t, sdkErr.Validations, 1)
 		require.Equal(t, "redirect_uris", sdkErr.Validations[0].Field)
 		require.Equal(t, "redirect URI at index 0 must use https scheme for non-localhost URLs", sdkErr.Validations[0].Detail)
+	})
+
+	t.Run("LegacyCleartextHTTPCallback", func(t *testing.T) {
+		t.Parallel()
+
+		db, pubsub := dbtestutil.NewDB(t)
+		client := coderdtest.New(t, &coderdtest.Options{Database: db, Pubsub: pubsub})
+		_ = coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		const legacy = "http://intranet.example.com/callback"
+		app := dbgen.OAuth2ProviderApp(t, db, database.OAuth2ProviderApp{
+			Name:         "legacy-cleartext",
+			CallbackURL:  legacy,
+			RedirectUris: []string{legacy},
+		})
+
+		query := authorizeQuery(t, app.ID.String(), "")
+		query.Set("redirect_uri", legacy)
+		resp := sendAuthorizeRequest(ctx, t, client, http.MethodGet, query)
+		defer resp.Body.Close()
+		require.Equal(t, http.StatusOK, resp.StatusCode, readBody(t, resp))
+
+		//nolint:gocritic // OAuth2 app management requires owner permission.
+		_, err := client.PutOAuth2ProviderApp(ctx, app.ID, codersdk.PutOAuth2ProviderAppRequest{
+			Name: "renamed",
+		})
+		requireRedirectURIsValidationError(t, err, "redirect URI at index 0 must use https scheme for non-localhost URLs")
+
+		stored, err := db.GetOAuth2ProviderAppByID(ctx, app.ID)
+		require.NoError(t, err)
+		require.Equal(t, "legacy-cleartext", stored.Name)
+		require.Equal(t, legacy, stored.CallbackURL)
+		require.Equal(t, []string{legacy}, stored.RedirectUris)
+
+		//nolint:gocritic // OAuth2 app management requires owner permission.
+		updated, err := client.PutOAuth2ProviderApp(ctx, app.ID, codersdk.PutOAuth2ProviderAppRequest{
+			Name:         "renamed",
+			RedirectURIs: []string{first, second},
+		})
+		require.NoError(t, err)
+		require.Equal(t, "renamed", updated.Name)
+		require.Equal(t, first, updated.CallbackURL)
+		require.Equal(t, []string{first, second}, updated.RedirectURIs)
+
+		stored, err = db.GetOAuth2ProviderAppByID(ctx, app.ID)
+		require.NoError(t, err)
+		require.Equal(t, first, stored.CallbackURL)
+		require.Equal(t, []string{first, second}, stored.RedirectUris)
 	})
 
 	// An update sending redirect_uris as an empty list is refused rather than

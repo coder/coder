@@ -156,18 +156,18 @@ resource "coder_app" "code-server" {
 ## I installed Coder and created a workspace but the icons do not load
 
 An important concept to understand is that Coder creates workspaces which have
-an agent that must be able to reach the `coder server`.
+an agent that must be able to reach the control plane.
 
 If the [`CODER_ACCESS_URL`](../admin/setup/index.md#access-url) is not
 accessible from a workspace, the workspace may build, but the agent cannot reach
 Coder, and thus the missing icons. e.g., Terminal, IDEs, Apps.
 
 By default, `coder server` automatically creates an Internet-accessible
-reverse proxy so that workspaces you create can reach the server.
+reverse proxy so that workspaces you create can reach the control plane.
 
 If you are doing a standalone install, e.g., on a MacBook and want to build
 workspaces in Docker Desktop, everything is self-contained and workspaces
-(containers in Docker Desktop) can reach the Coder server.
+(containers in Docker Desktop) can reach the control plane.
 
 ```sh
 coder server --access-url http://localhost:3000 --address 0.0.0.0:3000
@@ -216,7 +216,7 @@ sudo systemctl restart coder.service
 1. Run the `coder server` command below to retrieve the `psql` connection URL
    which includes the database user and password.
 2. `psql` into Postgres, and do a select query on the `users` table.
-3. Restart the `coder server`, pull up the Coder UI and log in (you will still
+3. Restart the control plane, pull up the Coder UI and log in (you will still
    need your password)
 
 ```sh
@@ -562,17 +562,17 @@ confidential resources to their local machines.
 For more advanced security needs, consider adopting an endpoint security
 solution.
 
-## How do I change the access URL for my Coder server?
+## How do I change the access URL for my control plane?
 
 You may want to change the default domain that's used to access coder, i.e. `yourcompany.coder.com` and find yourself unfamiliar with the process.
 
-To change the access URL associated with your server, you can edit any of the following variables:
+To change the access URL associated with your control plane, you can edit any of the following variables:
 
 - CLI using the `--access-url` flag
 - YAML using the `accessURL` option
 - or ENV using the `CODER_ACCESS_URL` environmental variable.
 
-For example, if you're using an environment file to configure your server, you'll want to edit the file located at `/etc/coder.d/coder.env` and edit the following:
+For example, if you're using an environment file to configure your control plane, you'll want to edit the file located at `/etc/coder.d/coder.env` and edit the following:
 
 `CODER_ACCESS_URL=https://yourcompany.coder.com` to your new desired URL.
 

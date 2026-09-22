@@ -12,7 +12,7 @@ Coder can act as an OAuth2 authorization server, allowing third-party applicatio
 ## Requirements
 
 - Admin privileges in Coder
-- `CODER_OAUTH2_PROVIDER_ENABLE=true` set on the Coder server
+- `CODER_OAUTH2_PROVIDER_ENABLE=true` set on the control plane
 - HTTPS recommended for production deployments
 
 ## Enable OAuth2 Provider
@@ -499,7 +499,7 @@ URI, then update the application with a corrected `redirect_uris` list as
 shown under [Management API](#method-2-management-api). Refer to
 [Callback URL schemes](#callback-url-schemes) for which values are accepted.
 
-The server log records the application ID and the stored value. The response
+The `coderd` log records the application ID and the stored value. The response
 does not, so a bad URL is never echoed back to a browser.
 
 ### "invalid_scope" returned to your callback
@@ -518,7 +518,7 @@ opens with the requested name that caused the rejection:
 - `none of the scopes registered for this app are supported by this deployment`: the application's `scope` allowlist names nothing this deployment offers, so no request against it can succeed, including one that omits `scope`.
   Update the allowlist with supported scopes.
   This description stands alone.
-  Nothing checks a stored `scope` against the catalog, so the response never echoes it; the server log records the application ID.
+  Nothing checks a stored `scope` against the catalog, so the response never echoes it; the `coderd` log records the application ID.
 
 Omitting `scope` requests the application's allowlist, or full access if it has none.
 
@@ -552,7 +552,7 @@ Two more descriptions can open the `error_description` here:
 
 A coverage comparison this deployment cannot decide answers HTTP 500 with
 `error=server_error` and `The requested scope could not be evaluated`; the
-scope that could not be compared is in the server logs, not the response.
+scope that could not be compared is in the `coderd` logs, not the response.
 
 An application's `scope` allowlist can change through [Dynamic Client Registration](#dynamic-client-registration), by the application itself, or through the management API, by an administrator.
 An application that holds its registration access token can widen its own allowlist again before redeeming a code, so treat this re-check as reflecting the allowlist at redemption time rather than as a constraint on the client.
@@ -570,7 +570,7 @@ Authorizing again issues a code within the current allowlist.
 ### "invalid_scope" for a refresh that names a scope
 
 `POST /oauth2/tokens` answers HTTP 400 with `error=invalid_scope` when a refresh
-request names a `scope` the server will not grant. This is the token endpoint,
+request names a `scope` the control plane will not grant. This is the token endpoint,
 not the authorization endpoint above: there is no redirect, and the error is in
 the response body.
 
@@ -717,9 +717,9 @@ These rules apply to every entry in `redirect_uris`, not only the first one.
 - **Implement PKCE**: PKCE is mandatory for all authorization code clients
   (public and confidential)
 - **Validate redirect URLs**: Only register trusted redirect URIs. Dangerous
-  schemes (`javascript:`, `data:`, `file:`, `ftp:`) are blocked by the server,
-  custom URI schemes for native apps (`myapp://`) are permitted, and public
-  clients additionally cannot use `mailto:`, `tel:`, or `sms:`
+  schemes (`javascript:`, `data:`, `file:`, `ftp:`) are blocked by the control
+  plane, custom URI schemes for native apps (`myapp://`) are permitted, and
+  public clients additionally cannot use `mailto:`, `tel:`, or `sms:`
 - **Rotate secrets**: Periodically rotate client secrets using the management API
 - **Refresh tokens are not self-sufficient**: a confidential client must present
   its `client_secret` to refresh or revoke, so a leaked token alone cannot mint
@@ -738,16 +738,16 @@ The current implementation has these limitations:
 - No device authorization grant support (RFC 8628)
 - Implicit grant (`response_type=token`) is not supported; OAuth 2.1 deprecated this flow due to token leakage risks, and a request for it redirects to the registered callback with `unsupported_response_type`
 - Limited to opaque access tokens (no JWT support)
-- An application may register at most 32 redirect URIs of at most 2048 bytes each. An application that stored a longer list before this limit existed keeps working, but it cannot be saved again until the list fits. To fix it, send a `PUT` with a `redirect_uris` list that fits, as shown under [Management API](#method-2-management-api). The web UI cannot edit the list.
+- An application may register at most 32 redirect URIs of at most 2048 bytes each. An application that stored a longer list before this limit existed keeps working, but it cannot be saved again until the list fits. To fix it, send a `PUT` with a `redirect_uris` list that fits, as shown under [Management API](#method-2-management-api). In the web UI, open the application and remove entries from **Redirect URIs** until the list fits.
 - A cleartext `http://` redirect URI to a host that is not local is rejected. Earlier versions accepted one through the management API for a confidential application, although Dynamic Client Registration always refused it. An application that stored one keeps working, but it cannot be saved again until its list uses `https://` or a local host, as described under [Callback URL schemes](#callback-url-schemes).
 - A redirect URI with a private-use scheme must name a path or an authority, as in `com.example.app:/callback` or `com.example.app://auth/callback`. The bare form `com.example.app:callback` is rejected. Dynamic Client Registration accepted it in earlier versions. A client that registered one can re-register with one of the other two forms, or an administrator can correct it with the same `PUT`.
 
 The `redirect_uris` list is now the source of truth for an application's callbacks, and its first entry is the primary:
 
 - Earlier versions stored the primary in a separate `callback_url` field. The upgrade migration rewrites every application so the list starts with that value.
-- During a rolling upgrade, a replica running an earlier version still writes only the old field when an administrator edits a callback URL.
-- Replicas running the new version read the list and ignore the old field, so that edit is silently discarded. The application keeps accepting its previous redirect URIs, including any the administrator meant to remove, until it is saved again on the new version.
-- Drain replicas running the earlier version before you upgrade, or save the application again after the upgrade.
+- During a rolling upgrade, a replica running an earlier version still writes only the old field when an administrator edits the callback URL. Replicas running the new version read the list instead, so the edit is silently lost: the application keeps its old callback URL and keeps accepting every previous redirect URI, including any the administrator meant to remove.
+- Replicas running the new version also show the old callback URL in the form, so saving the application unchanged does not restore the edit.
+- Drain replicas running the earlier version before you upgrade. If a callback URL was edited during the upgrade, enter the intended value again and save the application once every replica runs the new version.
 
 A `scope` on a refresh request was parsed and discarded in earlier versions, so a
 client sending one wider than its grant refreshed successfully. It is now

@@ -1318,7 +1318,7 @@ func TestOAuth2AuthorizeFollowsCallbackEdit(t *testing.T) {
 }
 
 // A callback_url that is not in the list is not registered. Such a row can
-// only be written by a binary older than migration 000598.
+// only be written by a binary older than migration 000599.
 func TestOAuth2AuthorizeIgnoresCallbackColumn(t *testing.T) {
 	t.Parallel()
 

@@ -14,11 +14,11 @@ you.
 
 You can run the UI and access the Coder dashboard in two ways:
 
-1. Build the UI pointing to an external Coder server:
+1. Build the UI pointing to an external Coder deployment:
    `CODER_HOST=https://mycoder.com pnpm dev` inside of the `site` folder. This
    is helpful when you are building something in the UI and already have the
-   data on your deployed server.
-2. Build the entire Coder server + UI locally: `./scripts/develop.sh` in the
+   data on your deployment.
+2. Build the entire control plane + UI locally: `./scripts/develop.sh` in the
    root folder. This is useful for contributing to features that are not
    deployed yet or that involve both the frontend and backend.
 

@@ -8,12 +8,15 @@
 -- the callback from wherever it appears and prepending it handles all three
 -- and is safe to run again.
 --
--- During a rolling upgrade, a replica older than this migration still writes
--- only callback_url on an admin update. Replicas at this version read
--- redirect_uris and ignore callback_url, so that edit is silently discarded
--- and the app keeps accepting its previous redirect URIs, including any the
--- admin meant to remove, until the app is saved again on this version.
--- Drain older replicas before upgrading, or save the app again afterwards.
+-- During a rolling upgrade, a replica older than this migration still
+-- writes only callback_url when an admin edits the callback. Replicas at
+-- this version read redirect_uris instead, so the edit is silently lost:
+-- the app keeps its old callback and keeps accepting every previous
+-- redirect URI, including any the admin meant to remove. The new replicas
+-- also show the old callback in the form, so saving the app unchanged
+-- does not restore the edit. Drain older replicas before upgrading. If a
+-- callback was edited during the upgrade, type the intended value in
+-- again and save once every replica runs this version.
 UPDATE oauth2_provider_apps
 SET redirect_uris = array_prepend(
     callback_url,

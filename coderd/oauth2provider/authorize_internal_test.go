@@ -796,7 +796,7 @@ func TestRegisteredRedirectURIs(t *testing.T) {
 	})
 
 	// The list is the source of truth. A callback_url that disagrees with it
-	// can only come from a row written before migration 000598 by an older
+	// can only come from a row written before migration 000599 by an older
 	// binary, and it is not registered.
 	t.Run("ColumnIsIgnored", func(t *testing.T) {
 		t.Parallel()

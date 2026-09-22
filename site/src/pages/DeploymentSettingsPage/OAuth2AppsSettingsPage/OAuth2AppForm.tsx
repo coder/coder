@@ -109,6 +109,52 @@ const isValidCallbackURL = (
 	}
 };
 
+const redirectURIsSchema = (isPublicClient: boolean) =>
+	Yup.array()
+		.of(
+			Yup.string()
+				.test(
+					"redirect-uri-byte-length",
+					`A redirect URI cannot be longer than ${OAuth2RedirectURIMaxBytes} UTF-8 bytes.`,
+					(value) =>
+						new TextEncoder().encode(value).length <= OAuth2RedirectURIMaxBytes,
+				)
+				.test(
+					"valid-redirect-uri",
+					"Please enter a valid redirect URI.",
+					(value) => isValidCallbackURL(value, isPublicClient),
+				)
+				// The server also deduplicates on save, so without this the form
+				// would submit a URI it never actually saved and mislead the user.
+				.test(
+					"unique-redirect-uri",
+					"This redirect URI is already used by another row.",
+					function (value) {
+						const trimmed = value?.trim();
+						if (!trimmed) {
+							return true;
+						}
+						const siblings: unknown = this.parent;
+						if (!Array.isArray(siblings)) {
+							return true;
+						}
+						const ownIndexMatch = /\[(\d+)\]$/.exec(this.path);
+						if (!ownIndexMatch) {
+							return true;
+						}
+						const firstIndex = siblings.findIndex(
+							(uri) => typeof uri === "string" && uri.trim() === trimmed,
+						);
+						return firstIndex === Number(ownIndexMatch[1]);
+					},
+				),
+		)
+		.min(1, "At least one redirect URI is required.")
+		.max(
+			OAuth2RedirectURIsMaxCount,
+			`At most ${OAuth2RedirectURIsMaxCount} redirect URIs are allowed.`,
+		);
+
 const validationSchema = (isPublicClient: boolean) =>
 	Yup.object({
 		name: Yup.string()
@@ -120,51 +166,7 @@ const validationSchema = (isPublicClient: boolean) =>
 				(value) =>
 					new TextEncoder().encode(value).length <= OAuth2AppNameMaxBytes,
 			),
-		redirect_uris: Yup.array()
-			.of(
-				Yup.string()
-					.test(
-						"redirect-uri-byte-length",
-						`A redirect URI cannot be longer than ${OAuth2RedirectURIMaxBytes} UTF-8 bytes.`,
-						(value) =>
-							new TextEncoder().encode(value).length <=
-							OAuth2RedirectURIMaxBytes,
-					)
-					.test(
-						"valid-redirect-uri",
-						"Please enter a valid redirect URI.",
-						(value) => isValidCallbackURL(value, isPublicClient),
-					)
-					// The server also deduplicates on save, so without this the form
-					// would submit a URI it never actually saved and mislead the user.
-					.test(
-						"unique-redirect-uri",
-						"This redirect URI is already used by another row.",
-						function (value) {
-							const trimmed = value?.trim();
-							if (!trimmed) {
-								return true;
-							}
-							const siblings: unknown = this.parent;
-							if (!Array.isArray(siblings)) {
-								return true;
-							}
-							const ownIndexMatch = /\[(\d+)\]$/.exec(this.path);
-							if (!ownIndexMatch) {
-								return true;
-							}
-							const firstIndex = siblings.findIndex(
-								(uri) => typeof uri === "string" && uri.trim() === trimmed,
-							);
-							return firstIndex === Number(ownIndexMatch[1]);
-						},
-					),
-			)
-			.min(1, "At least one redirect URI is required.")
-			.max(
-				OAuth2RedirectURIsMaxCount,
-				`At most ${OAuth2RedirectURIsMaxCount} redirect URIs are allowed.`,
-			),
+		redirect_uris: redirectURIsSchema(isPublicClient),
 		icon: iconValidator,
 	});
 
@@ -179,6 +181,12 @@ export const OAuth2AppForm: FC<OAuth2AppFormProps> = ({
 }) => {
 	const didSubmit = useRef(false);
 	const isPublicClient = app?.client_type === "public";
+	// A stored list that no longer passes validation disables Update on load.
+	// Show its errors right away instead of waiting for the field to be
+	// touched, so the admin can see what to correct.
+	const storedRedirectURIsInvalid =
+		app !== undefined &&
+		!redirectURIsSchema(isPublicClient).isValidSync(app.redirect_uris);
 	const form = useFormik<OAuth2AppFormValues>({
 		initialValues: {
 			name: app?.name ?? defaultValues?.name ?? "",
@@ -191,6 +199,9 @@ export const OAuth2AppForm: FC<OAuth2AppFormProps> = ({
 			scope:
 				app?.scope.split(" ").filter(Boolean) ?? defaultValues?.scope ?? [],
 		},
+		initialTouched: storedRedirectURIsInvalid
+			? { redirect_uris: true }
+			: undefined,
 		validationSchema: validationSchema(isPublicClient),
 		validateOnMount: true,
 		onSubmit: async ({ scope: selectedScopes, ...values }) => {
