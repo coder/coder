@@ -1627,9 +1627,9 @@ export const updateChatTitle = (queryClient: QueryClient) => ({
 	mutationFn: ({ chatId, title }: UpdateChatTitleVariables) =>
 		API.experimental.updateChat(chatId, { title }),
 
-	// No local cache patch: it would lack the title_updated_at that orders
-	// title events. The owner's title_change event or the onSettled
-	// refetch updates the caches.
+	// Do not patch the title into the cache here: the server assigns
+	// title_updated_at, and a cached title without it cannot be ordered
+	// against title_change events.
 	onSettled: (
 		_data: unknown,
 		_error: unknown,
