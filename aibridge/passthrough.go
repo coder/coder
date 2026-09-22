@@ -3,8 +3,10 @@ package aibridge
 import (
 	"context"
 	"errors"
+	"net"
 	"net/http"
 	"net/http/httputil"
+	"net/netip"
 	"net/url"
 
 	"go.opentelemetry.io/otel/attribute"
@@ -48,6 +50,13 @@ func newPassthroughRouter(prov provider.Provider, logger slog.Logger, m *metrics
 			apidump.NewPassthroughMiddleware(t, prov.APIDumpDir(), prov.Name(), logger, quartz.NewReal()),
 			prov.KeyFailoverConfig(logger),
 		),
+		ModifyResponse: func(resp *http.Response) error {
+			utils.StripSensitiveResponseHeaders(resp.Header)
+			if resp.StatusCode != http.StatusSwitchingProtocols {
+				utils.DropResponseTrailers(resp)
+			}
+			return nil
+		},
 		ErrorHandler: func(rw http.ResponseWriter, req *http.Request, e error) {
 			if _, ok := errors.AsType[*http.MaxBytesError](e); ok {
 				routing.WriteRequestBodyTooLarge(req.Context(), rw)
@@ -66,6 +75,11 @@ func newPassthroughRouter(prov provider.Provider, logger slog.Logger, m *metrics
 		ctx, span := startSpan(r, tracer)
 		defer span.End()
 
+		if err := routing.ValidateForwardPath(r.URL); err != nil {
+			logger.Warn(ctx, "rejecting unsafe upstream path", slog.Error(err), slog.F("path", r.URL.Path))
+			http.Error(w, "invalid request path", http.StatusBadRequest)
+			return
+		}
 		proxy.ServeHTTP(w, r.WithContext(ctx))
 	}
 }
@@ -74,15 +88,21 @@ func newPassthroughRouter(prov provider.Provider, logger slog.Logger, m *metrics
 // applies proxy headers.
 func rewritePassthroughRequest(pr *httputil.ProxyRequest, provBaseURL *url.URL) {
 	pr.SetURL(provBaseURL)
+	utils.StripSensitiveRequestHeaders(pr.Out.Header)
+	utils.DropRequestTrailers(pr.Out)
 
-	// Rewrite sets "X-Forwarded-For" to just last hop (clients IP address).
-	// To preserve old Director behavior pr.In "X-Forwarded-For" header
-	// values need to be copied manually.
-	// https://pkg.go.dev/net/http/httputil#ProxyRequest.SetXForwarded
-	if prior, ok := pr.In.Header["X-Forwarded-For"]; ok {
-		pr.Out.Header["X-Forwarded-For"] = append([]string(nil), prior...)
+	// SetXForwarded synthesizes a new trusted proxy chain from the request peer.
+	// Client-supplied Forwarded and X-Forwarded-* values were removed above.
+	// Coder's real-IP middleware stores a trusted client address as a bare IP,
+	// while SetXForwarded accepts only host:port. Add a synthetic port on a local
+	// request copy so the trusted IP is forwarded without mutating the caller.
+	forwarded := *pr
+	if ip, err := netip.ParseAddr(pr.In.RemoteAddr); err == nil {
+		in := *pr.In
+		in.RemoteAddr = net.JoinHostPort(ip.String(), "0")
+		forwarded.In = &in
 	}
-	pr.SetXForwarded()
+	forwarded.SetXForwarded()
 
 	span := trace.SpanFromContext(pr.Out.Context())
 	span.SetAttributes(attribute.String(tracing.PassthroughUpstreamURL, pr.Out.URL.String()))
