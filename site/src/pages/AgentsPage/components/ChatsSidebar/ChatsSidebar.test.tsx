@@ -668,9 +668,47 @@ describe("ChatsSidebar PR icon", () => {
 			</Wrapper>,
 		);
 
+		// The count and the glyph are one named image, so the link
+		// does not announce the count twice.
 		expect(
 			screen.getByRole("img", { name: /pull request/i }),
 		).toHaveAccessibleName("2 pull requests");
+		const link = screen.getByRole("link", {
+			name: /multiple pull requests/i,
+		});
+		expect(link).toHaveAccessibleName(
+			/Multiple pull requests.*2 pull requests/,
+		);
+		expect(link).not.toHaveAccessibleName(/2 pull requests.*2 pull requests/);
+	});
+
+	it("lists every pull request when the multi-PR chat link has keyboard focus", async () => {
+		const user = userEvent.setup();
+
+		render(
+			<Wrapper>
+				<ChatsSidebar {...defaultProps} chats={[mockMultiPRChat]} />
+			</Wrapper>,
+		);
+
+		const link = screen.getByRole("link", {
+			name: /multiple pull requests/i,
+		});
+		await user.tab();
+		while (!link.matches(":focus")) {
+			await user.tab();
+		}
+		expect(link).toHaveFocus();
+
+		// The link is the tooltip trigger, so Radix exposes the
+		// per-PR list through the link's describedby relation.
+		const tooltip = await screen.findByRole("tooltip");
+		expect(link).toHaveAttribute(
+			"aria-describedby",
+			tooltip.getAttribute("id") ?? "",
+		);
+		expect(link).toHaveAccessibleDescription(/PR #1/);
+		expect(link).toHaveAccessibleDescription(/PR #2/);
 	});
 });
 

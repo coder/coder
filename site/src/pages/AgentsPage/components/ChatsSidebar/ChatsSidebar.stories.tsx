@@ -1827,7 +1827,11 @@ export const WithMultiplePRs: Story = {
 		const canvas = within(canvasElement);
 		// Hover so Pixel captures the PR list popover. The tooltip
 		// portals to the body, outside the story canvas.
-		await userEvent.hover(canvas.getByRole("img", { name: "3 pull requests" }));
+		await userEvent.hover(
+			canvas.getByRole("link", {
+				name: /agent with three pull requests/i,
+			}),
+		);
 		await within(document.body).findByRole("tooltip");
 	},
 	parameters: {
