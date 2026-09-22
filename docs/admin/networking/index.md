@@ -72,7 +72,7 @@ In order for clients to be able to establish direct connections:
 ## Control plane
 
 Workspaces connect to the control plane via its external address, set
-via [`ACCESS_URL`](../../admin/setup/index.md#access-url). There must not be a
+by [`ACCESS_URL`](../../admin/setup/index.md#access-url). There must not be a
 NAT between workspaces and the control plane.
 
 Users connect to the control plane's dashboard and API through its `ACCESS_URL`

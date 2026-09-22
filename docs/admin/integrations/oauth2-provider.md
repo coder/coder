@@ -12,7 +12,7 @@ Coder can act as an OAuth2 authorization server, allowing third-party applicatio
 ## Requirements
 
 - Admin privileges in Coder
-- `CODER_OAUTH2_PROVIDER_ENABLE=true` set on the Coder server
+- `CODER_OAUTH2_PROVIDER_ENABLE=true` set on the control plane
 - HTTPS recommended for production deployments
 
 ## Enable OAuth2 Provider
@@ -490,7 +490,7 @@ opens with the requested name that caused the rejection:
 - `none of the scopes registered for this app are supported by this deployment`: the application's `scope` allowlist names nothing this deployment offers, so no request against it can succeed, including one that omits `scope`.
   Update the allowlist with supported scopes.
   This description stands alone.
-  Nothing checks a stored `scope` against the catalog, so the response never echoes it; the server log records the application ID.
+  Nothing checks a stored `scope` against the catalog, so the response never echoes it; the `coderd` log records the application ID.
 
 Omitting `scope` requests the application's allowlist, or full access if it has none.
 
@@ -524,7 +524,7 @@ Two more descriptions can open the `error_description` here:
 
 A coverage comparison this deployment cannot decide answers HTTP 500 with
 `error=server_error` and `The requested scope could not be evaluated`; the
-scope that could not be compared is in the server logs, not the response.
+scope that could not be compared is in the `coderd` logs, not the response.
 
 An application's `scope` allowlist can change through [Dynamic Client Registration](#dynamic-client-registration), by the application itself, or through the management API, by an administrator.
 An application that holds its registration access token can widen its own allowlist again before redeeming a code, so treat this re-check as reflecting the allowlist at redemption time rather than as a constraint on the client.
@@ -542,7 +542,7 @@ Authorizing again issues a code within the current allowlist.
 ### "invalid_scope" for a refresh that names a scope
 
 `POST /oauth2/tokens` answers HTTP 400 with `error=invalid_scope` when a refresh
-request names a `scope` the server will not grant. This is the token endpoint,
+request names a `scope` the control plane will not grant. This is the token endpoint,
 not the authorization endpoint above: there is no redirect, and the error is in
 the response body.
 
