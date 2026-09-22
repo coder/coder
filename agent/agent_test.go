@@ -484,6 +484,7 @@ func TestAgent_Session_EnvironmentVariables(t *testing.T) {
 	conn, _, _, _, _ := setupAgent(t, manifest, 0, func(_ *agenttest.Client, opts *agent.Options) {
 		opts.ScriptDataDir = tmpdir
 		opts.EnvironmentVariables["MY_OVERRIDE"] = "true"
+		opts.EnvInfo = sessionEnvInfo{}
 	})
 	sshClient, err := conn.SSHClient(ctx)
 	require.NoError(t, err)
@@ -530,7 +531,9 @@ func TestAgent_Session_SecretInjection(t *testing.T) {
 
 	ctx := testutil.Context(t, testutil.WaitLong)
 	//nolint:dogsled
-	conn, _, _, fs, _ := setupAgentWithSecrets(t, manifest, secrets, 0)
+	conn, _, _, fs, _ := setupAgentWithSecrets(t, manifest, secrets, 0, func(_ *agenttest.Client, opts *agent.Options) {
+		opts.EnvInfo = sessionEnvInfo{}
+	})
 
 	// Verify file injection via the agent's filesystem.
 	content, err := afero.ReadFile(fs, "/tmp/secret-file")
@@ -557,6 +560,28 @@ func TestAgent_Session_SecretInjection(t *testing.T) {
 	}
 }
 
+// Environment assertions need a shell that does not run host startup files.
+// The default shell can run those files before it executes the SSH command,
+// even when that command invokes another shell.
+type sessionEnvInfo struct {
+	usershell.SystemEnvInfo
+}
+
+func (sessionEnvInfo) Shell(string) (string, error) {
+	if runtime.GOOS == "windows" {
+		return exec.LookPath("cmd.exe")
+	}
+	return "/bin/sh", nil
+}
+
+func (sessionEnvInfo) ModifyCommand(name string, args ...string) (string, []string) {
+	if runtime.GOOS == "windows" {
+		// Disable cmd.exe AutoRun commands from the host registry.
+		args = append([]string{"/d"}, args...)
+	}
+	return name, args
+}
+
 func sessionEnvValue(t *testing.T, sshClient *ssh.Client, envName string, sessionEnv map[string]string) string {
 	t.Helper()
 
@@ -575,9 +600,9 @@ func sessionEnvValue(t *testing.T, sshClient *ssh.Client, envName string, sessio
 
 	stderr := &bytes.Buffer{}
 	session.Stderr = stderr
-	command := "sh -c 'echo $" + envName + "'"
+	command := "printf '%s\\n' \"$" + envName + "\""
 	if runtime.GOOS == "windows" {
-		command = `cmd.exe /c echo %` + envName + `%`
+		command = `echo %` + envName + `%`
 	}
 	out, err := session.Output(command)
 	if err != nil && ctx.Err() != nil {
