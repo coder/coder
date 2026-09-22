@@ -345,33 +345,44 @@ func (c *agentConn) SSHUpgrade(ctx context.Context) (TCPConn, error) {
 
 	c.SendConnectedTelemetry(c.agentAddress(), tailnet.TelemetryApplicationSSH)
 
+	return c.dialTCPUpgrade(ctx, AgentStandardSSHPort)
+}
+
+// dialTCPUpgrade dials the agent's /tcp HTTP endpoint so we can pass along the
+// client session ID via the baggage header.  The connection is then upgraded
+// into the desired connection type based on the port.
+func (c *agentConn) dialTCPUpgrade(ctx context.Context, port uint16) (TCPConn, error) {
 	addr := netip.AddrPortFrom(c.agentAddress(), AgentHTTPAPIServerPort)
-	url := fmt.Sprintf("http://%s/api/v0/tcp/%d", addr, AgentStandardSSHPort)
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	apiURL := fmt.Sprintf("http://%s/api/v0/tcp/%d", addr, port)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, apiURL, nil)
 	if err != nil {
-		return nil, xerrors.Errorf("new http api request to %q: %w", url, err)
+		return nil, xerrors.Errorf("new http api request to %q: %w", apiURL, err)
 	}
 	req.Header.Set("Connection", "Upgrade")
-	req.Header.Set("Upgrade", "ssh")
+	req.Header.Set("Upgrade", "tcp")
 
+	// The client session ID is found in the extra headers.
 	c.headersMu.RLock()
 	for k, v := range c.extraHeaders {
 		req.Header[k] = v
 	}
 	c.headersMu.RUnlock()
 
+	//nolint:bodyclose // On success the caller is responsible for closing.
 	resp, err := c.apiClient(ctx).Do(req)
 	if err != nil {
-		return nil, xerrors.Errorf("do upgrade request to %q: %w", url, err)
+		return nil, xerrors.Errorf("do upgrade request to %q: %w", apiURL, err)
 	}
 	if resp.StatusCode != http.StatusSwitchingProtocols {
+		_ = resp.Body.Close()
 		// Fall back to dialing the port directly.
-		return c.DialContextTCP(ctx, netip.AddrPortFrom(c.agentAddress(), AgentStandardSSHPort))
+		return c.DialContextTCP(ctx, netip.AddrPortFrom(c.agentAddress(), port))
 	}
 
 	respBody := resp.Body
 	conn, ok := respBody.(rawConn)
 	if !ok {
+		_ = respBody.Close()
 		return nil, xerrors.Errorf("response body is not a rawConn: %T", respBody)
 	}
 

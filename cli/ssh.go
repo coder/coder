@@ -29,7 +29,6 @@ import (
 	gosshagent "golang.org/x/crypto/ssh/agent"
 	"golang.org/x/term"
 	"golang.org/x/xerrors"
-	"gvisor.dev/gvisor/pkg/tcpip/adapters/gonet"
 	"tailscale.com/types/netlogtype"
 
 	"cdr.dev/slog/v3"
@@ -528,7 +527,7 @@ func (r *RootCmd) ssh() *serpent.Command {
 			}
 
 			if stdio {
-				rawSSH, err := conn.SSH(ctx)
+				rawSSH, err := conn.SSHUpgrade(ctx)
 				if err != nil {
 					return xerrors.Errorf("connect SSH: %w", err)
 				}
@@ -557,7 +556,7 @@ func (r *RootCmd) ssh() *serpent.Command {
 				return nil
 			}
 
-			sshClient, err := conn.SSHClient(ctx)
+			sshClient, err := conn.SSHClientUpgrade(ctx)
 			if err != nil {
 				return xerrors.Errorf("ssh client: %w", err)
 			}
@@ -1449,9 +1448,15 @@ func (c *closerStack) push(name string, closer io.Closer) error {
 	return nil
 }
 
+type rawSSHConn interface {
+	io.Reader
+	io.Writer
+	CloseWrite() error
+}
+
 // rawSSHCopier handles copying raw SSH data between the conn and the pair (r, w).
 type rawSSHCopier struct {
-	conn   *gonet.TCPConn
+	conn   rawSSHConn
 	logger slog.Logger
 	r      io.Reader
 	w      io.Writer
@@ -1459,7 +1464,7 @@ type rawSSHCopier struct {
 	done chan struct{}
 }
 
-func newRawSSHCopier(logger slog.Logger, conn *gonet.TCPConn, r io.Reader, w io.Writer) *rawSSHCopier {
+func newRawSSHCopier(logger slog.Logger, conn rawSSHConn, r io.Reader, w io.Writer) *rawSSHCopier {
 	return &rawSSHCopier{conn: conn, logger: logger, r: r, w: w, done: make(chan struct{})}
 }
 
