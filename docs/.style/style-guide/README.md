@@ -175,13 +175,13 @@ This guide is itself exempt from the Coder rules: it demonstrates the violations
 Zero baseline is measured over `docs/` excluding `docs/.style/style-guide/`.
 Run `make lint/prose` to reproduce the baseline locally.
 
-## Relationship to `docs/about/contributing/documentation.md`
+## Relationship to `contributing/documentation.md`
 
-A public-facing prose summary lives today at [`docs/about/contributing/documentation.md`](../../about/contributing/documentation.md).
-A follow-up PR will redirect that page to this guide.
+A public-facing prose summary lives today at [`contributing/documentation.md`](https://github.com/coder/coder/blob/main/contributing/documentation.md) in the repository.
+A follow-up PR will fold that page into this guide.
 Until then, follow the public summary for anything the subpages of this guide don't cover.
 New prose rules land here.
-The public page is frozen pending the redirect.
+The public page is frozen pending that move.
 
 ## Third-party references
 
