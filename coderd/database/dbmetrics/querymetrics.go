@@ -1472,14 +1472,6 @@ func (m queryMetricsStore) GetChatByID(ctx context.Context, id uuid.UUID) (datab
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetChatByIDForShare(ctx context.Context, id uuid.UUID) (database.Chat, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetChatByIDForShare(ctx, id)
-	m.queryLatencies.WithLabelValues("GetChatByIDForShare").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatByIDForShare").Inc()
-	return r0, r1
-}
-
 func (m queryMetricsStore) GetChatByIDForUpdate(ctx context.Context, id uuid.UUID) (database.Chat, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetChatByIDForUpdate(ctx, id)

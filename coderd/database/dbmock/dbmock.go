@@ -2759,21 +2759,6 @@ func (mr *MockStoreMockRecorder) GetChatByID(ctx, id any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatByID", reflect.TypeOf((*MockStore)(nil).GetChatByID), ctx, id)
 }
 
-// GetChatByIDForShare mocks base method.
-func (m *MockStore) GetChatByIDForShare(ctx context.Context, id uuid.UUID) (database.Chat, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetChatByIDForShare", ctx, id)
-	ret0, _ := ret[0].(database.Chat)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetChatByIDForShare indicates an expected call of GetChatByIDForShare.
-func (mr *MockStoreMockRecorder) GetChatByIDForShare(ctx, id any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatByIDForShare", reflect.TypeOf((*MockStore)(nil).GetChatByIDForShare), ctx, id)
-}
-
 // GetChatByIDForUpdate mocks base method.
 func (m *MockStore) GetChatByIDForUpdate(ctx context.Context, id uuid.UUID) (database.Chat, error) {
 	m.ctrl.T.Helper()
