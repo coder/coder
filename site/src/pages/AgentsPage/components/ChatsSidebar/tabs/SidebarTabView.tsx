@@ -132,11 +132,8 @@ const ScrollChevronButton: FC<ScrollChevronButtonProps> = ({
 			onClick={onClick}
 			aria-label={ariaLabel}
 			className={cn(
-				// Stops above the underline row so the fade never covers the active indicator.
-				"absolute top-0 bottom-0.5 z-10 flex w-8 cursor-pointer items-center border-none p-0 text-content-primary",
-				isLeft
-					? "left-0 justify-start pl-1 [background:linear-gradient(to_right,hsl(var(--surface-primary))_50%,transparent)]"
-					: "right-0 justify-end pr-1 [background:linear-gradient(to_left,hsl(var(--surface-primary))_50%,transparent)]",
+				"absolute inset-y-0 z-10 flex w-8 cursor-pointer items-center border-none bg-transparent p-0 text-content-primary",
+				isLeft ? "left-0 justify-start pl-1" : "right-0 justify-end pr-1",
 			)}
 		>
 			<Icon className="size-4" />
@@ -264,7 +261,20 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 					)}
 					<TabsList
 						ref={tabScrollRef}
-						className="w-full flex-nowrap gap-3 overflow-x-auto border-b-0 scrollbar-none [&::-webkit-scrollbar]:hidden [&_[data-slot=tabs-trigger]]:border-b-2"
+						className={cn(
+							"w-full flex-nowrap gap-3 overflow-x-auto border-b-0 scrollbar-none [&::-webkit-scrollbar]:hidden [&_[data-slot=tabs-trigger]]:border-b-2",
+							// Fade scrolled-off tabs (labels and underlines alike) under the
+							// chevrons. Masking the list leaves the header border untouched.
+							canScrollLeft &&
+								canScrollRight &&
+								"[mask-image:linear-gradient(to_right,transparent,black_2rem,black_calc(100%-2rem),transparent)]",
+							canScrollLeft &&
+								!canScrollRight &&
+								"[mask-image:linear-gradient(to_right,transparent,black_2rem)]",
+							!canScrollLeft &&
+								canScrollRight &&
+								"[mask-image:linear-gradient(to_left,transparent,black_2rem)]",
+						)}
 					>
 						{tabs.map((tab) => (
 							<TabsTrigger
