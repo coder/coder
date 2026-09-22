@@ -87,7 +87,7 @@ func TestAgentFirewallHeaders(t *testing.T) {
 
 		// Session ID without a sequence number is malformed; the rest of
 		// the validation matrix itself is covered by the unit tests for
-		// extractAgentFirewallHeaders.
+		// client.ExtractAgentFirewallHeaders.
 		resp, err := bridgeServer.makeRequest(t, http.MethodPost, pathOpenAIChatCompletions, reqBody, http.Header{
 			agplaibridge.HeaderAgentFirewallSessionID: {"e5f6a7b8-1234-5678-9abc-def012345678"},
 		})

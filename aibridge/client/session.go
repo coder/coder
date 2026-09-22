@@ -1,4 +1,4 @@
-package aibridge
+package client
 
 import (
 	"bytes"

@@ -36,6 +36,7 @@ import (
 
 	"github.com/coder/coder/v2/aibridge"
 	"github.com/coder/coder/v2/aibridge/aibridgetest"
+	aibclient "github.com/coder/coder/v2/aibridge/client"
 	"github.com/coder/coder/v2/aibridge/config"
 	"github.com/coder/coder/v2/aibridge/fixtures"
 	"github.com/coder/coder/v2/aibridge/intercept"
@@ -1403,7 +1404,7 @@ func TestSimple(t *testing.T) {
 		path              string
 		expectedMsgID     string
 		userAgent         string
-		expectedClient    aibridge.Client
+		expectedClient    aibclient.Client
 	}{
 		{
 			name:              config.ProviderAnthropic,
@@ -1414,7 +1415,7 @@ func TestSimple(t *testing.T) {
 			path:              pathAnthropicMessages,
 			expectedMsgID:     "msg_01Pvyf26bY17RcjmWfJsXGBn",
 			userAgent:         "claude-cli/2.0.67 (external, cli)",
-			expectedClient:    aibridge.ClientClaudeCode,
+			expectedClient:    aibclient.ClientClaudeCode,
 		},
 		{
 			name:              config.ProviderAnthropic + "_haiku_prompt_capture",
@@ -1425,7 +1426,7 @@ func TestSimple(t *testing.T) {
 			path:              pathAnthropicMessages,
 			expectedMsgID:     "msg_01Pvyf26bY17RcjmWfJsXGBn",
 			userAgent:         "claude-cli/2.0.67 (external, cli)",
-			expectedClient:    aibridge.ClientClaudeCode,
+			expectedClient:    aibclient.ClientClaudeCode,
 		},
 		{
 			name:              config.ProviderOpenAI,
@@ -1436,7 +1437,7 @@ func TestSimple(t *testing.T) {
 			path:              pathOpenAIChatCompletions,
 			expectedMsgID:     "chatcmpl-BwoiPTGRbKkY5rncfaM0s9KtWrq5N",
 			userAgent:         "codex_cli_rs/0.87.0 (Mac OS 26.2.0; arm64)",
-			expectedClient:    aibridge.ClientCodex,
+			expectedClient:    aibclient.ClientCodex,
 		},
 		{
 			name:              config.ProviderOpenAI + "_opencode",
@@ -1447,7 +1448,7 @@ func TestSimple(t *testing.T) {
 			path:              pathOpenAIChatCompletions,
 			expectedMsgID:     "chatcmpl-BwoiPTGRbKkY5rncfaM0s9KtWrq5N",
 			userAgent:         "opencode/1.16.0 ai-sdk/provider-utils/4.0.23 runtime/bun/1.3.14",
-			expectedClient:    aibridge.ClientOpenCode,
+			expectedClient:    aibclient.ClientOpenCode,
 		},
 		{
 			name:              config.ProviderAnthropic + "_baseURL_path",
@@ -1458,7 +1459,7 @@ func TestSimple(t *testing.T) {
 			path:              pathAnthropicMessages,
 			expectedMsgID:     "msg_01Pvyf26bY17RcjmWfJsXGBn",
 			userAgent:         "GitHubCopilotChat/0.37.2026011603",
-			expectedClient:    aibridge.ClientCopilotVSC,
+			expectedClient:    aibclient.ClientCopilotVSC,
 		},
 		{
 			name:              config.ProviderOpenAI + "_baseURL_path",
@@ -1469,7 +1470,7 @@ func TestSimple(t *testing.T) {
 			path:              pathOpenAIChatCompletions,
 			expectedMsgID:     "chatcmpl-BwoiPTGRbKkY5rncfaM0s9KtWrq5N",
 			userAgent:         "Zed/0.219.4+stable.119.abc123 (macos; aarch64)",
-			expectedClient:    aibridge.ClientZed,
+			expectedClient:    aibclient.ClientZed,
 		},
 	}
 
@@ -1548,14 +1549,14 @@ func TestSessionIDTracking(t *testing.T) {
 		fixture           []byte
 		header            http.Header
 		metadataSessionID string
-		expectedClient    aibridge.Client
+		expectedClient    aibclient.Client
 		expectSessionID   string
 	}{
 		// Session in header.
 		{
 			name:            "xum",
 			fixture:         fixtures.AntSimple,
-			expectedClient:  aibridge.ClientXum,
+			expectedClient:  aibclient.ClientXum,
 			expectSessionID: "xum-workspace-321",
 			header: http.Header{
 				"User-Agent":         []string{"xum/1.0.0"},
@@ -1566,7 +1567,7 @@ func TestSessionIDTracking(t *testing.T) {
 		{
 			name:            "claude_code",
 			fixture:         fixtures.AntSimple,
-			expectedClient:  aibridge.ClientClaudeCode,
+			expectedClient:  aibclient.ClientClaudeCode,
 			expectSessionID: "f47ac10b-58cc-4372-a567-0e02b2c3d479",
 			header: http.Header{
 				"User-Agent": []string{"claude-cli/2.0.67 (external, cli)"},
@@ -1577,7 +1578,7 @@ func TestSessionIDTracking(t *testing.T) {
 		{
 			name:           "zed",
 			fixture:        fixtures.AntSimple,
-			expectedClient: aibridge.ClientZed,
+			expectedClient: aibclient.ClientZed,
 			header: http.Header{
 				"User-Agent": []string{"Zed/0.219.4+stable.119.abc123 (macos; aarch64)"},
 			},
@@ -1585,7 +1586,7 @@ func TestSessionIDTracking(t *testing.T) {
 		{
 			name:            "opencode",
 			fixture:         fixtures.AntSimple,
-			expectedClient:  aibridge.ClientOpenCode,
+			expectedClient:  aibclient.ClientOpenCode,
 			expectSessionID: "ses_15a48edefffe7oY0YcIHRv29dD",
 			header: http.Header{
 				"User-Agent":         []string{"opencode/1.16.0 ai-sdk/provider-utils/4.0.23 runtime/bun/1.3.14"},

@@ -7,8 +7,32 @@ import (
 	"math"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 )
+
+const (
+	ActorHeaderPrefix      = "X-AI-Bridge-Actor"
+	actorHeaderPrefixLower = "x-ai-bridge-actor"
+)
+
+// IsActorHeader reports whether name is an AI Bridge actor header.
+func IsActorHeader(name string) bool {
+	return strings.HasPrefix(strings.ToLower(name), actorHeaderPrefixLower)
+}
+
+// NewStreamingTransport returns an HTTP transport tuned for streaming with no
+// response header timeout.
+func NewStreamingTransport() *http.Transport {
+	return &http.Transport{
+		Proxy:                 http.ProxyFromEnvironment,
+		ForceAttemptHTTP2:     true,
+		MaxIdleConns:          100,
+		IdleConnTimeout:       90 * time.Second,
+		TLSHandshakeTimeout:   10 * time.Second,
+		ExpectContinueTimeout: 1 * time.Second,
+	}
+}
 
 // NewJSONErrorResponse builds an *http.Response with a JSON body
 // and optional Retry-After header. Used to synthesize bridge-side

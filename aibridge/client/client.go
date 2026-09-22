@@ -1,10 +1,12 @@
-package aibridge
+// Package client identifies AI clients and request correlation metadata.
+package client
 
 import (
 	"net/http"
 	"strings"
 )
 
+// Client identifies an AI client application.
 type Client string
 
 const (

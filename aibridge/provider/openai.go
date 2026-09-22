@@ -15,6 +15,7 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/aibridge/config"
+	"github.com/coder/coder/v2/aibridge/credential"
 	"github.com/coder/coder/v2/aibridge/intercept"
 	"github.com/coder/coder/v2/aibridge/intercept/chatcompletions"
 	"github.com/coder/coder/v2/aibridge/intercept/responses"
@@ -160,8 +161,8 @@ func (p *OpenAI) CreateInterceptor(_ http.ResponseWriter, r *http.Request, trace
 // in the Authorization header. Otherwise the request uses the provider's
 // centralized key pool with failover, which must be configured.
 func (p *OpenAI) resolveCredential(r *http.Request) (intercept.Credential, error) {
-	if token := utils.ExtractBearerToken(r.Header.Get(intercept.AuthHeaderAuthorization)); token != "" {
-		return intercept.BYOK{Secret: token, Header: intercept.AuthHeaderAuthorization}, nil
+	if token := utils.ExtractBearerToken(r.Header.Get(credential.AuthHeaderAuthorization)); token != "" {
+		return intercept.BYOK{Secret: token, Header: credential.AuthHeaderAuthorization}, nil
 	}
 	if p.cfg.KeyPool == nil {
 		return nil, ErrNoCredential
