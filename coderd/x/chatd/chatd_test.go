@@ -4522,8 +4522,6 @@ func TestSubscribeAfterMessageID(t *testing.T) {
 	require.Len(t, partialMessages, 1, "afterMessageID=msg2.ID should return only messages after msg2")
 	require.Equal(t, codersdk.ChatMessageRoleUser, partialMessages[0].Message.Role)
 
-	// An edit truncating from msg2 soft-deletes the client's cursor, so
-	// the snapshot must replace the history instead of trusting the cursor.
 	err = db.SoftDeleteChatMessagesAfterID(ctx, database.SoftDeleteChatMessagesAfterIDParams{
 		ChatID:  chat.ID,
 		AfterID: msg2.ID - 1,

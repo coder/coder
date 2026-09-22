@@ -353,8 +353,6 @@ func TestStreamLoopInitialSyncBoundsFetchToCursorRevision(t *testing.T) {
 
 		cursor := streamMessage(t, chatID, 7, 5, database.ChatMessageRoleUser, "already seen", false)
 		tx.EXPECT().GetChatMessageByID(gomock.Any(), int64(7)).Return(cursor, nil)
-		// Only revisions from the cursor onward are read; the rest of the
-		// transcript is never loaded.
 		tx.EXPECT().GetChatMessagesByRevisionForStream(gomock.Any(), database.GetChatMessagesByRevisionForStreamParams{
 			ChatID:        chatID,
 			AfterRevision: 4,
@@ -388,10 +386,6 @@ func TestStreamLoopInitialSyncBoundsFetchToCursorRevision(t *testing.T) {
 		db, tx := newLockedTx(t, chatID, chat)
 		loop := newStreamLoop(chat, db, slogtest.Make(t, nil), 9)
 
-		// An edit soft-deletes the old turn and inserts its replacement in
-		// one transaction, so the tombstones share the cursor's revision. A
-		// client holding the replacement never saw them alive, so they
-		// must not replay the transcript.
 		cursor := streamMessage(t, chatID, 9, 5, database.ChatMessageRoleUser, "edited", false)
 		tx.EXPECT().GetChatMessageByID(gomock.Any(), int64(9)).Return(cursor, nil)
 		tx.EXPECT().GetChatMessagesByRevisionForStream(gomock.Any(), database.GetChatMessagesByRevisionForStreamParams{
@@ -429,8 +423,6 @@ func TestStreamLoopInitialSyncBoundsFetchToCursorRevision(t *testing.T) {
 		db, tx := newLockedTx(t, chatID, chat)
 		loop := newStreamLoop(chat, db, slogtest.Make(t, nil), 7)
 
-		// A turn appended and then truncated after the cursor was never
-		// held by the client, so only the surviving suffix is sent.
 		cursor := streamMessage(t, chatID, 7, 5, database.ChatMessageRoleAssistant, "already seen", false)
 		tx.EXPECT().GetChatMessageByID(gomock.Any(), int64(7)).Return(cursor, nil)
 		tx.EXPECT().GetChatMessagesByRevisionForStream(gomock.Any(), database.GetChatMessagesByRevisionForStreamParams{
@@ -467,8 +459,6 @@ func TestStreamLoopInitialSyncBoundsFetchToCursorRevision(t *testing.T) {
 		db, tx := newLockedTx(t, chatID, chat)
 		loop := newStreamLoop(chat, db, slogtest.Make(t, nil), 7)
 
-		// A row below the cursor deleted after the cursor's revision may
-		// still be in the client's history, so the snapshot resets it.
 		cursor := streamMessage(t, chatID, 7, 5, database.ChatMessageRoleAssistant, "already seen", false)
 		tx.EXPECT().GetChatMessageByID(gomock.Any(), int64(7)).Return(cursor, nil)
 		tx.EXPECT().GetChatMessagesByRevisionForStream(gomock.Any(), database.GetChatMessagesByRevisionForStreamParams{
@@ -514,8 +504,6 @@ func TestStreamLoopInitialSyncBoundsFetchToCursorRevision(t *testing.T) {
 		db, tx := newLockedTx(t, chatID, chat)
 		loop := newStreamLoop(chat, db, slogtest.Make(t, nil), 7)
 
-		// An edit truncated the client's cursor, so the full scan runs and
-		// the deletion surfaces as a history reset.
 		tx.EXPECT().GetChatMessageByID(gomock.Any(), int64(7)).Return(database.ChatMessage{}, sql.ErrNoRows)
 		tx.EXPECT().GetChatMessagesByRevisionForStream(gomock.Any(), database.GetChatMessagesByRevisionForStreamParams{
 			ChatID:        chatID,

@@ -217,12 +217,9 @@ func (l *streamLoop) loadDBSnapshot(ctx context.Context) (streamDBSnapshot, erro
 	return snapshot, nil
 }
 
-// initialSyncCursor loads the live row a client holds as afterMessageID so
-// the first fetch can start at its revision. Rows the client already has
-// were committed at or before that revision, and an edit truncating any of
-// them soft-deletes the cursor row itself. A cursor that is gone, unknown,
-// or from another chat reports false so the full scan surfaces the deletion
-// as a history reset.
+// initialSyncCursor resolves afterMessageID to bound the first fetch by
+// revision. Missing or foreign cursors use an unbounded scan so deletions can
+// trigger a history reset.
 func (l *streamLoop) initialSyncCursor(ctx context.Context, tx database.Store) (database.ChatMessage, bool, error) {
 	cursor, err := tx.GetChatMessageByID(ctx, l.state.afterMessageID)
 	if err != nil {
@@ -237,11 +234,9 @@ func (l *streamLoop) initialSyncCursor(ctx context.Context, tx database.Store) (
 	return cursor, true, nil
 }
 
-// tombstoneRequiresReset reports whether a deleted row invalidates history a
-// client holding cursor may have seen alive. Rows deleted no later than the
-// cursor's revision were gone before or in the transaction that made the
-// cursor visible, and rows after the cursor were never held, so an edit
-// truncation the client already observed does not replay the transcript.
+// tombstoneRequiresReset reports whether a deleted row may remain in the
+// client's history. Tombstones at or before the cursor's revision, or beyond
+// its ID, cannot be part of the history that holds the cursor.
 func tombstoneRequiresReset(cursor *database.ChatMessage, msg database.ChatMessage) bool {
 	if cursor == nil {
 		return true
@@ -365,8 +360,7 @@ func (l *streamLoop) messageEvents(snapshot streamDBSnapshot) []codersdk.ChatStr
 
 	events := make([]codersdk.ChatStreamEvent, 0, len(snapshot.changedMessages))
 	for _, msg := range snapshot.changedMessages {
-		// A tombstone that did not force a reset was never held by the
-		// client, so it has nothing to replace.
+		// Tombstones that did not force a reset are not in the client's history.
 		if msg.Deleted {
 			continue
 		}
