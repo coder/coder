@@ -112,7 +112,7 @@ Use a custom OpenAI provider in OpenCode for this connection, rather than its na
          "npm": "@ai-sdk/openai",
          "name": "Coder Mantle OpenAI",
          "options": {
-           "baseURL": "https://coder.example.com/api/v2/ai-gateway/bedrock-mantle-us-west-2/v1",
+           "baseURL": "https://coder.example.com/api/v2/ai-gateway/bedrock-provider-name/v1",
            "apiKey": "{env:CODER_TOKEN}"
          },
          "models": {
@@ -129,7 +129,7 @@ Use a custom OpenAI provider in OpenCode for this connection, rather than its na
    }
    ```
 
-   Replace `coder.example.com` with your AI Gateway host and `bedrock-mantle-us-west-2` with the provider name configured in Coder.
+   Replace `coder.example.com` with your AI Gateway host and `bedrock-provider-name` with the provider name configured in Coder.
    Keep the `/v1` suffix.
    Replace `openai.gpt-6-astra` with the exact Mantle model ID available in your AWS account and region.
 
