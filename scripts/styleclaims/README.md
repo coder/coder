@@ -71,7 +71,7 @@ in "Planned Vale rules" followed by names, and it carries until a later clause
 re-asserts enforcement. So "Planned `A`, enforced by `B`." reads `A` planned and
 `B` active.
 
-## Counting
+## Coverage counts
 
 Each annotation is classified once for the coverage table, so the table counts
 rule sections rather than linter rule names. One annotation footer is one rule
