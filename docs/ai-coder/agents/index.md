@@ -262,9 +262,9 @@ tasks:
 | `spawn_agent` (`type=general` or `explore`) | Delegate a task to a sub-agent running in parallel, optionally on a specific model                                                                                    |
 | `list_subagent_models`                      | List the models available for `spawn_agent`'s `model_config_id` argument                                                                                              |
 | `wait_agent`                                | Return the latest visible assistant message when a sub-agent is no longer running or interrupting                                                                     |
-| `message_agent`                             | Send a prioritized message from a parent to a descendant, or from a child to its direct parent                                                                        |
-| `queue_agent_work`                          | Queue additive work after the current assignment and older queued work without influencing active work                                                                |
-| `interrupt_agent`                           | Request interruption without adding an instruction; `interrupted` reports whether a request was committed                                                             |
+| `message_agent`                             | Send a prioritized message from a root chat to a descendant, or from a child to its direct parent                                                                     |
+| `queue_agent_work`                          | Schedule additional work after the current assignment and older queued work without interrupting active work                                                          |
+| `interrupt_agent`                           | Request interruption without adding an instruction or removing queued work                                                                                            |
 | `spawn_agent` (`type=computer_use`)         | Spawn a sub-agent with desktop interaction (screenshot, mouse, keyboard)                                                                                              |
 | `list_agents`                               | List spawned child agents, most recently active first                                                                                                                 |
 | `read_skill`                                | Read the instructions for a workspace skill by name                                                                                                                   |
@@ -272,22 +272,13 @@ tasks:
 | `web_search`                                | Search the internet (provider-native, when enabled)                                                                                                                   |
 | `find_tools`                                | Search the deferred MCP tool catalog and activate matching tools. Only available when the `mcp-tool-search` experiment is enabled and the turn has MCP tools to defer |
 
-`message_agent` queues and promotes the message as separate operations. Queue processing can start first, and the tool can report a promotion error after the target starts the message. If the target is already stopped with an error while work is queued, the existing queue head starts first.
-
-Child chats receive `message_agent` with their direct parent chat ID in the tool description. They can message only that direct parent, such as when blocked on a decision or when the parent needs information before the final response. Other orchestration tools remain root-only.
-
-`wait_agent` returns the latest visible assistant message and does not correlate it with a specific `message_agent` or `queue_agent_work` instruction. A `requires_action` status can return before the assignment is complete. Use `list_agents` for progress checks instead of sending progress requests.
-
-`interrupt_agent` preserves queued work. A waiting sub-agent is left unchanged and returns `interrupted=false`. For active work, `interrupted=true` confirms that the interruption request committed, not that execution stopped.
-
 These tools connect to the workspace over the same secure connection used for
 web terminals and IDE access. No additional ports or services are required in
 the workspace.
 
-Platform tools (`list_templates`, `read_template`, `create_workspace`,
-`start_workspace`, `stop_workspace`, `propose_plan`, `ask_user_question`) and root orchestration tools (`spawn_agent`,
-`list_subagent_models`, `wait_agent`, `queue_agent_work`, `interrupt_agent`, `list_agents`)
-are only available to root chats. Sub-agents cannot create workspaces or spawn further sub-agents. They retain `message_agent` for direct parent communication.
+Only root chats can use platform and orchestration tools, except for `message_agent`.
+Sub-agents can use `message_agent` to contact their direct parent, but can't create workspaces or spawn further sub-agents.
+Refer to [Orchestration tools](./architecture.md#orchestration-tools) for message ordering and lifecycle behavior.
 
 `spawn_agent` with `type=computer_use` additionally requires an
 Anthropic or OpenAI provider and the virtual desktop feature to be

@@ -800,11 +800,11 @@ func (p *Server) subagentTools(
 			"wait_agent",
 			"Wait until a spawned child agent is no longer running or "+
 				"interrupting, then return its latest visible assistant message "+
-				"and status. A requires_action status can return before the "+
-				"assignment is complete. A timeout does not stop the child; it "+
-				"still owns its assignment. Wait again or check its status with "+
-				"list_agents. The response is not correlated with a specific "+
-				"instruction.",
+				"and status. The tool can return requires_action before the assignment "+
+				"is complete. The report may answer an earlier instruction; read "+
+				"it before treating it as completion or a handoff. A timeout does "+
+				"not stop the child; it still owns its assignment. Wait again or "+
+				"check its status with list_agents.",
 			func(ctx context.Context, args waitAgentArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
 				if currentChat == nil {
 					return fantasy.NewTextErrorResponse("subagent callbacks are not configured"), nil
@@ -949,27 +949,29 @@ func (p *Server) subagentTools(
 		),
 		p.messageAgentTool(
 			currentChat,
-			"Send a prioritized instruction to a previously spawned child "+
-				"agent for a correction or scope change that must affect active "+
-				"work. If the agent is idle, it starts work on the message. If it "+
-				"is busy, the message is promoted ahead of older queued work "+
-				"and its current work is interrupted; older queued work is "+
-				"preserved. Do not use this for progress requests. An errored agent "+
-				"with queued work starts its existing queue head before this message "+
-				"can be promoted. Queueing and promotion are separate operations, "+
-				"so queue processing can win the race and the tool may report a "+
-				"promotion error after the child starts the message. A successful "+
-				"result confirms acceptance, not that the child has stopped or "+
-				"responded. Use wait_agent to collect the child's response.",
+			"Send a prioritized instruction to a descendant agent for a "+
+				"correction or scope change, or to resume it after resolving an "+
+				"error. An idle agent starts work on the message. For a busy agent, "+
+				"the tool requests interruption and moves the message ahead of "+
+				"older queued work; older queued work is preserved. Do not use this "+
+				"for progress requests. A successful result means Coder accepted "+
+				"the message, not that the child has stopped or responded. Use "+
+				"wait_agent for the child's latest report. Queueing and promotion "+
+				"are separate operations: queue processing may deliver the message "+
+				"first, so promotion can fail after delivery. If the agent has "+
+				"stopped with an error and has queued work, sending moves the first "+
+				"queued message into history and marks the chat running before "+
+				"this message can be promoted.",
 		),
 		fantasy.NewAgentTool(
 			"queue_agent_work",
-			"Queue additive work for a previously spawned child agent after its "+
-				"current assignment and older queued work. Use this only for work "+
-				"that remains valid after all of them. It does not interrupt or "+
-				"influence active work. Do not use it for corrections, scope changes, "+
-				"or progress requests. If the agent is idle, it starts work on the "+
-				"message. A successful result confirms acceptance, not completion.",
+			"Queue an additional assignment for a descendant agent after its "+
+				"current assignment and older queued work. Use only for work that "+
+				"remains valid after those assignments finish. It does not interrupt "+
+				"or influence active work. Do not use it for corrections, scope "+
+				"changes, or progress requests. An idle agent starts work on the "+
+				"message immediately. A successful result means Coder accepted the "+
+				"assignment, not that the agent completed it.",
 			func(ctx context.Context, args queueAgentWorkArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
 				return p.runSubagentMessageTool(ctx, currentChat, args.ChatID, args.Message, false)
 			},
@@ -978,9 +980,9 @@ func (p *Server) subagentTools(
 			"interrupt_agent",
 			"Request interruption of a spawned child agent's current work "+
 				"without adding an instruction. Existing queued work is preserved "+
-				"and may resume automatically. A waiting child is left unchanged "+
+				"and may start automatically. A waiting child is left unchanged "+
 				"and returns interrupted=false. For active work, "+
-				"interrupted=true confirms that the interruption request committed, "+
+				"interrupted=true means Coder accepted the interruption request, "+
 				"not that execution has stopped. The status may briefly read "+
 				"interrupting before transitioning to waiting, or running if there "+
 				"are queued messages.",
@@ -1380,14 +1382,19 @@ func (p *Server) messageAgentTool(
 func (p *Server) childMessageAgentTool(child database.Chat) fantasy.AgentTool {
 	return p.messageAgentTool(
 		func() database.Chat { return child },
-		"Send a direct message to your parent agent at chat ID "+
-			child.ParentChatID.UUID.String()+". Other targets are rejected. Use this "+
-			"when you are blocked and need a decision, or when the parent needs "+
-			"information before your final response. Do not use it for routine "+
-			"progress updates. This interrupts active parent work and requests "+
-			"priority for the message, but preserves the parent's queued work. "+
-			"A successful result confirms acceptance, not that the parent has "+
-			"stopped or responded.",
+		"Message your direct parent at chat ID "+child.ParentChatID.UUID.String()+
+			". Other targets are rejected. Use this when you are blocked and need "+
+			"a decision, or when the parent needs information before your final "+
+			"response. Do not use it for routine progress updates. An idle parent "+
+			"starts work on the message. For a busy parent, the tool requests "+
+			"interruption and moves the message ahead of older queued work "+
+			"without removing that work. Success means Coder accepted the message, "+
+			"not that the parent stopped or responded. Queueing and promotion "+
+			"are separate operations: queue processing may deliver the message "+
+			"first, so promotion can fail after delivery. If the parent has "+
+			"stopped with an error and has queued work, sending moves the first "+
+			"queued message into history and marks the chat running before "+
+			"this message can be promoted.",
 	)
 }
 
@@ -1458,8 +1465,8 @@ func (p *Server) sendAgentMessage(
 		}
 	}
 
-	// CreatedBy remains the target owner because agent messages are persisted as
-	// user turns. The content envelope carries the authoritative sending chat ID.
+	// Agent messages are stored with the user role, so CreatedBy is the
+	// target chat's owner. The message content identifies the sending agent.
 	targetChat, err := p.db.GetChatByID(ctx, targetChatID)
 	if err != nil {
 		return database.Chat{}, xerrors.Errorf("get target chat: %w", err)

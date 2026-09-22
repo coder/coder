@@ -2651,12 +2651,11 @@ func TestSpawnAgent_DescriptionGuidance(t *testing.T) {
 	require.Contains(t, description, `When using type="general" for read-only work, explicitly instruct the child not to modify files and to return findings`)
 	require.Contains(t, description, `Use type="explore" only for narrow repository-local read-only code discovery or code tracing`)
 	require.Contains(t, description, `Do not use type="explore" for generic research, broad architecture analysis, planning synthesis, external or web research, parallel research, or tasks that may need edits`)
-	require.Contains(t, description, "Delegating assigns the child responsibility for executing the scoped assignment")
+	require.Contains(t, description, "The child is responsible for carrying out the delegated assignment")
 	require.Contains(t, description, "You remain responsible for defining assignments, reviewing completed results, and completing the user's task")
 	require.Contains(t, description, "Use list_agents for progress checks")
-	require.Contains(t, description, "Use queue_agent_work only to schedule additive work that remains valid")
-	require.Contains(t, description, "Use message_agent when the active assignment is wrong or its scope has changed")
-	require.Contains(t, description, "preserves older queued work")
+	require.Contains(t, description, "Use message_agent for corrections or scope changes")
+	require.Contains(t, description, "queue_agent_work for additional assignments after current and queued work")
 	require.Contains(t, description, "request interruption with interrupt_agent")
 	require.NotContains(t, description, "stop them with interrupt_agent")
 }
@@ -4586,25 +4585,25 @@ func TestAgentToolContracts(t *testing.T) {
 					"correction or scope change",
 					"older queued work is preserved",
 					"Do not use this for progress requests",
-					"successful result confirms acceptance, not that the child has stopped or responded",
+					"successful result means Coder accepted the message, not that the child has stopped or responded",
 				},
 			},
 			{
 				name: "queue_agent_work",
 				tool: findToolByName(tools, "queue_agent_work"),
 				contains: []string{
-					"additive work",
+					"additional assignment",
 					"does not interrupt or influence active work",
 					"Do not use it for corrections, scope changes, or progress requests",
-					"successful result confirms acceptance, not completion",
+					"successful result means Coder accepted the assignment, not that the agent completed it",
 				},
 			},
 			{
 				name: "wait_agent",
 				tool: findToolByName(tools, "wait_agent"),
 				contains: []string{
-					"requires_action status can return before the assignment is complete",
-					"not correlated with a specific instruction",
+					"can return requires_action before the assignment is complete",
+					"report may answer an earlier instruction",
 				},
 			},
 			{
@@ -4614,7 +4613,7 @@ func TestAgentToolContracts(t *testing.T) {
 					"without adding an instruction",
 					"Existing queued work is preserved",
 					"A waiting child is left unchanged and returns interrupted=false",
-					"interrupted=true confirms that the interruption request committed, not that execution has stopped",
+					"interrupted=true means Coder accepted the interruption request, not that execution has stopped",
 				},
 			},
 			{

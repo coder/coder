@@ -165,10 +165,8 @@ shell, restart the workspace to pick up the updated `PATH`.
 
 ### Platform tools
 
-These tools run entirely within the control plane. They do not require a
-workspace connection. Platform and orchestration tools are only available to
-root chats — sub-agents spawned by `spawn_agent` do not have access to them
-and cannot create workspaces or spawn further sub-agents.
+Platform tools run entirely within the control plane and don't require a workspace connection.
+Only root chats receive platform tools, so sub-agents can't use them to create, start, or stop workspaces.
 
 | Tool                | What it does                                                                                      |
 |---------------------|---------------------------------------------------------------------------------------------------|
@@ -191,23 +189,38 @@ provider-native, and computer-use tools are not available.
 
 ### Orchestration tools
 
-These tools manage sub-agents — child chats that work on independent tasks in
-parallel.
+The root chat is your main conversation with the agent.
+The agent in that chat uses orchestration tools to delegate independent tasks to sub-agents, send instructions, and collect results.
+Sub-agents receive only `message_agent` from this tool group and can use it only to contact their direct parent.
+They can't spawn further sub-agents.
 
 | Tool                                        | What it does                                                                                                                                                                                                                                                         |
 |---------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `spawn_agent` (`type=general` or `explore`) | Delegates a task to a sub-agent with its own context window. Optionally accepts `model_config_id` and `reasoning_effort` to run the child on a specific enabled model instead of the configured default.                                                             |
 | `list_subagent_models`                      | Lists the enabled model configurations the agent can pass to `spawn_agent` as `model_config_id`.                                                                                                                                                                     |
-| `wait_agent`                                | Returns the latest visible assistant message when a sub-agent is no longer running or interrupting. The report is not correlated with a specific instruction, and a sub-agent that requires action may be unfinished.                                                |
-| `message_agent`                             | Sends a prioritized instruction between related agents. A parent can message descendants; a child can message only its direct parent. The message interrupts active work and requests priority, but preserves older queued work.                                     |
-| `queue_agent_work`                          | Queues additive work after the sub-agent's current assignment and older queued work. It does not interrupt or influence active work, so it is not suitable for corrections, scope changes, or progress requests.                                                     |
-| `interrupt_agent`                           | Requests interruption without adding an instruction and preserves queued work. A waiting sub-agent is unchanged and returns `interrupted=false`; `interrupted=true` confirms a committed request, not stopped execution.                                             |
+| `wait_agent`                                | Returns a sub-agent's latest visible assistant message and status once it is no longer running or interrupting.                                                                                                                                                      |
+| `message_agent`                             | Sends a prioritized message from a root chat to a descendant, or from a child to its direct parent.                                                                                                                                                                  |
+| `queue_agent_work`                          | Schedules additional work after the sub-agent's current assignment and older queued work without interrupting active work.                                                                                                                                           |
+| `interrupt_agent`                           | Requests interruption without adding an instruction. Queued work is preserved and may start automatically.                                                                                                                                                           |
 | `spawn_agent` (`type=computer_use`)         | Spawns a sub-agent with desktop interaction capabilities (screenshot, mouse, keyboard). Requires an administrator-configured computer-use provider (Anthropic or OpenAI) and the [virtual desktop experiment](./platform-controls/virtual-desktop.md) to be enabled. |
 | `list_agents`                               | Lists spawned child agents, most recently active first.                                                                                                                                                                                                              |
 
-`message_agent` queues and promotes the message as separate operations. Queue processing can start first, and the tool can report a promotion error after the target starts the message. If the target is already stopped with an error while work is queued, the existing queue head starts first.
+`message_agent` lets a parent correct or redirect a sub-agent's active assignment.
+For a busy recipient, it requests interruption and moves the message ahead of older queued assignments without removing those assignments.
+A child can use it when blocked on a decision or when the parent needs information before the child's final response.
 
-Child chats receive only `message_agent` from the orchestration tools. Its description supplies the direct parent chat ID. Children can use it when blocked on a decision or when the parent needs information before the child's final response; other target chats are rejected.
+`queue_agent_work` is for additional assignments that remain valid after the current and queued work finish.
+The recipient doesn't read the queued instruction during active work, so this tool can't correct or redirect that work.
+
+Both messaging tools start an idle recipient and include the sender's title and chat ID in the message.
+A successful tool result means Coder accepted the message, not that the recipient stopped or completed work.
+
+For an active sub-agent, a successful `interrupt_agent` result means Coder accepted the interruption request, not that execution stopped.
+The tool leaves an idle sub-agent unchanged.
+
+`wait_agent` returns the latest visible assistant message, which may answer an earlier instruction.
+It can also return while a sub-agent is waiting for tool results, before the assignment is complete.
+`list_agents` reports progress without sending a message.
 
 ### Provider tools
 
