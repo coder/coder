@@ -23,10 +23,11 @@ import (
 	"github.com/coder/quartz"
 )
 
-const headerRefreshMargin = 10 * time.Second
+// jwtExpirationSkew accounts for clock skew between the client and issuer.
+const jwtExpirationSkew = 10 * time.Second
 
 // headerTransport resolves initial headers so command errors surface at startup.
-func headerTransport(ctx context.Context, serverURL *url.URL, header []string, headerCommand string, clock quartz.Clock) (*codersdk.HeaderTransport, error) {
+func headerTransport(ctx context.Context, serverURL *url.URL, header []string, headerCommand string) (*codersdk.HeaderTransport, error) {
 	var provider codersdk.HeaderProvider
 	if headerCommand == "" {
 		headers, err := parseHeaders(header)
@@ -40,7 +41,7 @@ func headerTransport(ctx context.Context, serverURL *url.URL, header []string, h
 			serverURL: serverURL,
 			static:    slices.Clone(header),
 			command:   headerCommand,
-			clock:     clock,
+			clock:     quartz.NewReal(),
 		}
 		if _, err := provider.Headers(ctx); err != nil {
 			return nil, err
@@ -65,10 +66,7 @@ type commandHeaderProvider struct {
 	expires time.Time
 }
 
-func (p *commandHeaderProvider) Headers(ctx context.Context) (http.Header, error) {
-	if err := ctx.Err(); err != nil {
-		return nil, err
-	}
+func (p *commandHeaderProvider) Headers(context.Context) (http.Header, error) {
 	value, err, _ := p.sf.Do("headers", func() (any, error) {
 		if p.cached != nil && (p.expires.IsZero() || p.clock.Now().Before(p.expires)) {
 			return p.cached, nil
@@ -84,9 +82,6 @@ func (p *commandHeaderProvider) Headers(ctx context.Context) (http.Header, error
 		p.cached, p.expires = headers, headerExpiry(headers)
 		return headers, nil
 	})
-	if err := ctx.Err(); err != nil {
-		return nil, err
-	}
 	if err != nil {
 		return nil, err
 	}
@@ -148,7 +143,7 @@ func headerExpiry(headers http.Header) time.Time {
 	if earliest.IsZero() {
 		return time.Time{}
 	}
-	return earliest.Add(-headerRefreshMargin)
+	return earliest.Add(-jwtExpirationSkew)
 }
 
 var headerJWTAlgorithms = []jose.SignatureAlgorithm{
@@ -176,6 +171,8 @@ func jwtExpiry(value string) (time.Time, bool) {
 	var claims struct {
 		Expiry *jwt.NumericDate `json:"exp"`
 	}
+	// We don't have the issuer's key. exp is only a refresh hint, not proof
+	// of authentication.
 	if err := token.UnsafeClaimsWithoutVerification(&claims); err != nil || claims.Expiry == nil {
 		return time.Time{}, false
 	}

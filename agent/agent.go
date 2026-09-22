@@ -1852,7 +1852,7 @@ func (a *agent) createTailnet(
 		if headerTransport, ok := client.SDK.HTTPClient.Transport.(*codersdk.HeaderTransport); ok && headerTransport.Provider != nil {
 			header, err = headerTransport.Provider.Headers(ctx)
 			if err != nil {
-				return nil, xerrors.Errorf("get DERP headers: %w", err)
+				return nil, xerrors.Errorf("get headers: %w", err)
 			}
 		}
 	}

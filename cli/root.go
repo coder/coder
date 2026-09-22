@@ -470,7 +470,7 @@ func (r *RootCmd) Command(subcommands []*serpent.Command) (*serpent.Command, err
 		{
 			Flag:        varHeaderCommand,
 			Env:         "CODER_HEADER_COMMAND",
-			Description: "An external command that outputs additional HTTP headers added to all requests. The command must output each header as `key=value` on its own line. If a header value is a JWT with an exp claim, the command is re-run on demand starting 10 seconds before the earliest expiration.",
+			Description: "An external command that outputs additional HTTP headers added to all requests. The command must output each header as `key=value` on its own line. If a header value is a JWT, it will be refreshed based on the value in its `exp` field.",
 			Value:       serpent.StringOf(&r.headerCommand),
 			Group:       globalGroup,
 		},
@@ -848,7 +848,7 @@ func (r *RootCmd) TryInitClient(inv *serpent.Invocation) (*codersdk.Client, erro
 // HeaderTransport creates a new transport that executes `--header-command`
 // if it is set to add headers for all outbound requests.
 func (r *RootCmd) HeaderTransport(ctx context.Context, serverURL *url.URL) (*codersdk.HeaderTransport, error) {
-	return headerTransport(ctx, serverURL, r.header, r.headerCommand, r.clock)
+	return headerTransport(ctx, serverURL, r.header, r.headerCommand)
 }
 
 func (r *RootCmd) createHTTPClient(ctx context.Context, serverURL *url.URL, inv *serpent.Invocation) (*http.Client, error) {

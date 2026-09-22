@@ -151,7 +151,7 @@ Additional HTTP headers added to all requests. Provide as key=value. Can be spec
 | Type        | <code>string</code>                |
 | Environment | <code>$CODER_HEADER_COMMAND</code> |
 
-An external command that outputs additional HTTP headers added to all requests. The command must output each header as `key=value` on its own line. If a header value is a JWT with an exp claim, the command is re-run on demand starting 10 seconds before the earliest expiration.
+An external command that outputs additional HTTP headers added to all requests. The command must output each header as `key=value` on its own line. If a header value is a JWT, it will be refreshed based on the value in its `exp` field.
 
 ### --force-tty
 

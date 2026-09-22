@@ -292,7 +292,7 @@ func (c *Client) DialAgent(dialCtx context.Context, agentID uuid.UUID, options *
 	if headerTransport, ok := c.client.HTTPClient.Transport.(*codersdk.HeaderTransport); ok && headerTransport.Provider != nil {
 		header, err = headerTransport.Provider.Headers(ctx)
 		if err != nil {
-			return nil, xerrors.Errorf("get DERP headers: %w", err)
+			return nil, xerrors.Errorf("get headers: %w", err)
 		}
 	}
 	var telemetrySink tailnet.TelemetrySink
