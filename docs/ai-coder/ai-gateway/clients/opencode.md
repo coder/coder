@@ -45,6 +45,49 @@ To authenticate with AI Gateway, get your **[Coder API token](../../../admin/use
 }
 ```
 
+## BYOK (Personal API Key)
+
+Set the following in `~/.config/opencode/opencode.json`, including the `X-Coder-AI-Governance-Token` header with your Coder API token:
+
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "provider": {
+    "anthropic": {
+      "options": {
+        "baseURL": "https://coder.example.com/api/v2/ai-gateway/anthropic/v1",
+        "headers": {
+          "X-Coder-AI-Governance-Token": "<your-coder-api-token>"
+        }
+      }
+    },
+    "openai": {
+      "options": {
+        "baseURL": "https://coder.example.com/api/v2/ai-gateway/openai/v1",
+        "headers": {
+          "X-Coder-AI-Governance-Token": "<your-coder-api-token>"
+        }
+      }
+    }
+  }
+}
+```
+
+Set your personal API keys in `~/.local/share/opencode/auth.json`:
+
+```json
+{
+  "anthropic": {
+    "type": "api",
+    "key": "<your-anthropic-api-key>"
+  },
+  "openai": {
+    "type": "api",
+    "key": "<your-openai-api-key>"
+  }
+}
+```
+
 ## Custom models through Bedrock Mantle
 
 You can use OpenCode with custom OpenAI model IDs through a [Bedrock Mantle provider](../providers.md#mantle) configured by your Coder administrator.
@@ -110,48 +153,5 @@ This example uses `@ai-sdk/openai` for the Responses API (`/v1/responses`).
 For a model that uses Chat Completions (`/v1/chat/completions`), set `npm` to `@ai-sdk/openai-compatible` instead.
 Keep the same gateway base URL and use a model that supports that API.
 For more configuration options, refer to [OpenCode custom providers](https://opencode.ai/docs/providers/#custom-provider).
-
-## BYOK (Personal API Key)
-
-Set the following in `~/.config/opencode/opencode.json`, including the `X-Coder-AI-Governance-Token` header with your Coder API token:
-
-```json
-{
-  "$schema": "https://opencode.ai/config.json",
-  "provider": {
-    "anthropic": {
-      "options": {
-        "baseURL": "https://coder.example.com/api/v2/ai-gateway/anthropic/v1",
-        "headers": {
-          "X-Coder-AI-Governance-Token": "<your-coder-api-token>"
-        }
-      }
-    },
-    "openai": {
-      "options": {
-        "baseURL": "https://coder.example.com/api/v2/ai-gateway/openai/v1",
-        "headers": {
-          "X-Coder-AI-Governance-Token": "<your-coder-api-token>"
-        }
-      }
-    }
-  }
-}
-```
-
-Set your personal API keys in `~/.local/share/opencode/auth.json`:
-
-```json
-{
-  "anthropic": {
-    "type": "api",
-    "key": "<your-anthropic-api-key>"
-  },
-  "openai": {
-    "type": "api",
-    "key": "<your-openai-api-key>"
-  }
-}
-```
 
 **References:** [OpenCode Documentation](https://opencode.ai/docs/providers/#config)
