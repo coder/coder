@@ -18,16 +18,17 @@ const win: ChatWindow = {
 };
 
 const renderWindow = ({
-	overrides = {},
+	frame = {},
 	onAssistant,
 }: {
-	overrides?: Partial<ChatWindow>;
+	/** Geometry only: the union's discriminant cannot be spread over. */
+	frame?: Partial<Pick<ChatWindow, "x" | "y" | "width" | "height">>;
 	onAssistant?: { cardTitle: string; open: () => void };
 } = {}) => {
 	const onChange = vi.fn();
 	renderComponent(
 		<FloatingChat
-			window={{ ...win, ...overrides }}
+			window={{ ...win, ...frame }}
 			title={MockChat.title}
 			color={undefined}
 			onChange={onChange}
@@ -124,7 +125,7 @@ describe("FloatingChat", () => {
 	it("resizes with Shift+arrow and stops at the minimum size", async () => {
 		const user = userEvent.setup();
 		const { onChange } = renderWindow({
-			overrides: { width: MIN_WINDOW_SIZE.width },
+			frame: { width: MIN_WINDOW_SIZE.width },
 		});
 		screen
 			.getByRole("button", { name: `Move or resize ${MockChat.title}` })
