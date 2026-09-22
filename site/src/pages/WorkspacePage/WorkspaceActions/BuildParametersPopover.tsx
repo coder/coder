@@ -19,11 +19,11 @@ import {
 } from "#/components/Popover/Popover";
 import { docs } from "#/utils/docs";
 
-interface BuildParametersPopoverProps {
+type BuildParametersPopoverProps = {
 	workspace: Workspace;
 	disabled?: boolean;
 	label: string;
-}
+};
 
 export const BuildParametersPopover: FC<BuildParametersPopoverProps> = ({
 	workspace,
@@ -64,10 +64,10 @@ export const BuildParametersPopover: FC<BuildParametersPopoverProps> = ({
 	);
 };
 
-interface BuildParametersPopoverContentProps {
+type BuildParametersPopoverContentProps = {
 	workspace: Workspace;
 	ephemeralParameters: TemplateVersionParameter[] | undefined;
-}
+};
 
 const BuildParametersPopoverContent: FC<BuildParametersPopoverContentProps> = ({
 	workspace,

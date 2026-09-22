@@ -9,7 +9,7 @@ import {
 } from "#/components/Tooltip/Tooltip";
 import { CopyButton } from "../CopyButton/CopyButton";
 
-interface CodeExampleProps {
+type CodeExampleProps = {
 	code: string;
 	/** Defaulting to true to be on the safe side; you should have to opt out of the secure option, not remember to opt in */
 	secret?: boolean;
@@ -20,7 +20,7 @@ interface CodeExampleProps {
 	/** Show a button to reveal the redacted parts of the code */
 	showRevealButton?: boolean;
 	className?: string;
-}
+};
 
 /**
  * Component to show single-line code examples, with a copy button

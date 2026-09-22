@@ -29,7 +29,7 @@ const PreviewNotice: React.FC<{ icon: LucideIcon; children: string }> = ({
 	</div>
 );
 
-interface RecordingPreviewProps {
+type RecordingPreviewProps = {
 	/** The chat file ID for the MP4 recording. */
 	recordingFileId: string;
 	/** File ID for the JPEG thumbnail of a completed recording. */
@@ -40,7 +40,7 @@ interface RecordingPreviewProps {
 	/** Optional thumbnail URL override. When provided, this is used
 	 * directly instead of deriving the URL from thumbnailFileId. */
 	thumbnailSrc?: string;
-}
+};
 
 /**
  * Inline recording thumbnail with a play icon overlay. Clicking the

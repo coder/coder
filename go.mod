@@ -130,7 +130,7 @@ replace github.com/anthropics/anthropic-sdk-go v1.19.0 => github.com/dannykoppin
 replace github.com/openai/openai-go/v3 => github.com/coder/openai-go/v3 v3.0.0-20260810175933-92b5addb22d2
 
 require (
-	cdr.dev/slog/v3 v3.1.0
+	cdr.dev/slog/v3 v3.2.0
 	cloud.google.com/go/compute/metadata v0.9.0
 	github.com/DATA-DOG/go-sqlmock v1.5.2
 	github.com/Microsoft/go-winio v0.6.2

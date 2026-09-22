@@ -20832,6 +20832,9 @@ const docTemplate = `{
                 "prompt_cache_key": {
                     "type": "string"
                 },
+                "reasoning_mode": {
+                    "type": "string"
+                },
                 "reasoning_summary": {
                     "type": "string"
                 },
@@ -21938,6 +21941,11 @@ const docTemplate = `{
                     "format": "uuid"
                 },
                 "organization_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "owner_id": {
+                    "description": "OwnerID makes another user the chat owner. It defaults to the\ncaller. The chat runs with the owner's credentials, so setting it\nrequires site-wide authority over that user.",
                     "type": "string",
                     "format": "uuid"
                 },

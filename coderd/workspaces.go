@@ -114,20 +114,17 @@ func (api *API) workspace(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	data, err := api.workspaceData(ctx, []database.Workspace{workspace}, related)
+	data, err := api.singleWorkspaceData(ctx, workspace, related)
 	if err != nil {
+		// The template was requested but the actor cannot read it.
+		if errors.Is(err, errWorkspaceTemplateUnauthorized) {
+			httpapi.Forbidden(rw)
+			return
+		}
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching workspace resources.",
 			Detail:  err.Error(),
 		})
-		return
-	}
-
-	// workspaceData omits templates the requester cannot read. If the template
-	// was requested but is absent, the requester is not authorized to read it.
-	// When the template was not requested there is nothing to authorize here.
-	if related.Template && len(data.templates) == 0 {
-		httpapi.Forbidden(rw)
 		return
 	}
 
@@ -344,8 +341,14 @@ func (api *API) workspaceByOwnerAndName(rw http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	data, err := api.workspaceData(ctx, []database.Workspace{workspace}, wsrelated.All())
+	data, err := api.singleWorkspaceData(ctx, workspace, wsrelated.All())
 	if err != nil {
+		// Preserve concealment: a template the actor cannot read is reported as
+		// not found rather than forbidden.
+		if errors.Is(err, errWorkspaceTemplateUnauthorized) {
+			httpapi.ResourceNotFound(rw)
+			return
+		}
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching workspace resources.",
 			Detail:  err.Error(),
@@ -353,7 +356,7 @@ func (api *API) workspaceByOwnerAndName(rw http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	if len(data.builds) == 0 || len(data.templates) == 0 {
+	if len(data.builds) == 0 {
 		httpapi.ResourceNotFound(rw)
 		return
 	}
@@ -1607,20 +1610,19 @@ func (api *API) putWorkspaceDormant(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	data, err := api.workspaceData(ctx, []database.Workspace{workspace}, wsrelated.All())
+	data, err := api.singleWorkspaceData(ctx, workspace, wsrelated.All())
 	if err != nil {
+		// TODO: This is a strange error since it occurs after the mutation.
+		// An example of why we should join in fields to prevent this forbidden
+		// error from being sent, when the action did succeed.
+		if errors.Is(err, errWorkspaceTemplateUnauthorized) {
+			httpapi.Forbidden(rw)
+			return
+		}
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching workspace resources.",
 			Detail:  err.Error(),
 		})
-		return
-	}
-
-	// TODO: This is a strange error since it occurs after the mutation.
-	// An example of why we should join in fields to prevent this forbidden error
-	// from being sent, when the action did succeed.
-	if len(data.templates) == 0 {
-		httpapi.Forbidden(rw)
 		return
 	}
 
@@ -2179,22 +2181,22 @@ func (api *API) watchWorkspace(
 			return
 		}
 
-		data, err := api.workspaceData(ctx, []database.Workspace{workspace}, wsrelated.All())
+		data, err := api.singleWorkspaceData(ctx, workspace, wsrelated.All())
 		if err != nil {
+			if errors.Is(err, errWorkspaceTemplateUnauthorized) {
+				_ = sendEvent(codersdk.ServerSentEvent{
+					Type: codersdk.ServerSentEventTypeError,
+					Data: codersdk.Response{
+						Message: "Forbidden reading template of selected workspace.",
+					},
+				})
+				return
+			}
 			_ = sendEvent(codersdk.ServerSentEvent{
 				Type: codersdk.ServerSentEventTypeError,
 				Data: codersdk.Response{
 					Message: "Internal error fetching workspace data.",
 					Detail:  err.Error(),
-				},
-			})
-			return
-		}
-		if len(data.templates) == 0 {
-			_ = sendEvent(codersdk.ServerSentEvent{
-				Type: codersdk.ServerSentEventTypeError,
-				Data: codersdk.Response{
-					Message: "Forbidden reading template of selected workspace.",
 				},
 			})
 			return
@@ -2805,6 +2807,30 @@ func (api *API) workspaceData(ctx context.Context, workspaces []database.Workspa
 		builds:                  apiBuilds,
 		deploymentAllowsRenames: api.AllowWorkspaceRenames,
 	}, nil
+}
+
+// errWorkspaceTemplateUnauthorized indicates the actor requested a workspace's
+// template but is not authorized to read it. workspaceData omits templates the
+// actor cannot read, so for a single-workspace fetch an absent-but-requested
+// template means the read was denied.
+var errWorkspaceTemplateUnauthorized = xerrors.New("not authorized to read workspace template")
+
+// singleWorkspaceData loads related data for one workspace. Unlike the batch
+// workspaceData, which omits templates the actor cannot read so list endpoints
+// can skip them, it returns errWorkspaceTemplateUnauthorized when the template
+// was requested but is absent. Callers map that error to the response their
+// endpoint requires (403, 404, or an SSE error).
+func (api *API) singleWorkspaceData(ctx context.Context, workspace database.Workspace, cfg wsrelated.Config) (workspaceData, error) {
+	data, err := api.workspaceData(ctx, []database.Workspace{workspace}, cfg)
+	if err != nil {
+		return workspaceData{}, err
+	}
+	if cfg.Template && !slices.ContainsFunc(data.templates, func(t database.Template) bool {
+		return t.ID == workspace.TemplateID
+	}) {
+		return workspaceData{}, errWorkspaceTemplateUnauthorized
+	}
+	return data, nil
 }
 
 // attachAgentMetadata maps the agent metadata the workspaces query

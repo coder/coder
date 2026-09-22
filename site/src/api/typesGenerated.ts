@@ -2940,6 +2940,7 @@ export interface ChatModelOpenAIProviderOptions {
 	readonly metadata?: Record<string, unknown>;
 	readonly prompt_cache_key?: string;
 	readonly safety_identifier?: string;
+	readonly reasoning_mode?: string;
 	readonly service_tier?: string;
 	readonly structured_outputs?: boolean;
 	readonly strict_json_schema?: boolean;
@@ -3883,26 +3884,16 @@ export interface CreateChatModelRequest {
 
 // From codersdk/chats.go
 /**
- * CreateChatProviderConfigRequest creates a chat provider config.
- */
-export interface CreateChatProviderConfigRequest {
-	readonly provider: string;
-	readonly display_name?: string;
-	readonly icon?: string;
-	readonly api_key?: string;
-	readonly base_url?: string;
-	readonly enabled?: boolean;
-	readonly central_api_key_enabled?: boolean;
-	readonly allow_user_api_key?: boolean;
-	readonly allow_central_api_key_fallback?: boolean;
-}
-
-// From codersdk/chats.go
-/**
  * CreateChatRequest is the request to create a new chat.
  */
 export interface CreateChatRequest {
 	readonly organization_id: string;
+	/**
+	 * OwnerID makes another user the chat owner. It defaults to the
+	 * caller. The chat runs with the owner's credentials, so setting it
+	 * requires site-wide authority over that user.
+	 */
+	readonly owner_id?: string;
 	readonly content: readonly ChatInputPart[];
 	readonly system_prompt?: string;
 	readonly workspace_id?: string;
@@ -5869,10 +5860,6 @@ export const LicenseAgentRuntimeUsageUnavailableErrorText =
 
 // From codersdk/licenses.go
 export const LicenseExpiryClaim = "license_expires";
-
-// From codersdk/licenses.go
-export const LicenseManagedAgentLimitExceededWarningText =
-	"You have built more workspaces with managed agents than your license allows.";
 
 // From codersdk/licenses.go
 export const LicenseTelemetryRequiredErrorText =
@@ -9888,21 +9875,6 @@ export interface UpdateChatPersonalModelOverridesAdminSettingsRequest {
  */
 export interface UpdateChatPlanModeInstructionsRequest {
 	readonly plan_mode_instructions: string;
-}
-
-// From codersdk/chats.go
-/**
- * UpdateChatProviderConfigRequest updates a chat provider config.
- */
-export interface UpdateChatProviderConfigRequest {
-	readonly display_name?: string;
-	readonly icon?: string;
-	readonly api_key?: string;
-	readonly base_url?: string;
-	readonly enabled?: boolean;
-	readonly central_api_key_enabled?: boolean;
-	readonly allow_user_api_key?: boolean;
-	readonly allow_central_api_key_fallback?: boolean;
 }
 
 // From codersdk/chats.go

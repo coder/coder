@@ -29,7 +29,7 @@ const validationSchema = Yup.object({
 	avatar_url: Yup.string(),
 });
 
-interface EditUserFormProps {
+type EditUserFormProps = {
 	error?: unknown;
 	isLoading: boolean;
 	initialValues: UpdateUserProfileRequest;
@@ -38,7 +38,7 @@ interface EditUserFormProps {
 	headerActions?: ReactNode;
 	onSubmit: (values: UpdateUserProfileRequest) => void;
 	onCancel: () => void;
-}
+};
 
 export const EditUserForm: FC<EditUserFormProps> = ({
 	error,
