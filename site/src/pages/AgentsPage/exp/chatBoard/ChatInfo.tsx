@@ -122,6 +122,7 @@ const ChatInfoBody: FC<ChatInfoBodyProps> = ({ chat }) => {
 	let cost = "...";
 	if (costQuery.data) cost = formatCostMicros(costQuery.data.total_cost_micros);
 	else if (costQuery.isError) cost = "unavailable";
+	const unpricedRequests = costQuery.data?.unpriced_request_count ?? 0;
 
 	return (
 		<div className="max-h-[60vh] overflow-y-auto px-3.5 py-3 text-[12.5px] leading-[1.45] text-content-primary">
@@ -151,6 +152,18 @@ const ChatInfoBody: FC<ChatInfoBodyProps> = ({ chat }) => {
 					</>
 				)}
 			</dl>
+			{showCost && costQuery.data && chat.parent_chat_id && (
+				<p className="m-0 mt-1.5 text-xs italic text-content-secondary">
+					Cost covers this agent's whole chat, including the chat that started
+					it and any other subagents.
+				</p>
+			)}
+			{showCost && costQuery.data && unpricedRequests > 0 && (
+				<p className="m-0 mt-1.5 text-xs italic text-content-secondary">
+					Excludes unpriced usage from {unpricedRequests} request
+					{unpricedRequests === 1 ? "" : "s"}.
+				</p>
+			)}
 		</div>
 	);
 };

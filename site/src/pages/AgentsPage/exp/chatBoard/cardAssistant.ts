@@ -1,13 +1,15 @@
 import type { QueryClient } from "react-query";
 import { toast } from "sonner";
 import { getErrorMessage } from "#/api/errors";
+import { prependToInfiniteChatsCache } from "#/api/queries/chats";
 import { workspaces } from "#/api/queries/workspaces";
 import type { Chat, CreateChatRequest } from "#/api/typesGenerated";
 import { DATE_FORMAT, formatDateTime } from "#/utils/time";
 import { ASSISTANT_KEY, type BoardCard } from "./boardLabels";
 
-// Same key AgentChatPage.tsx writes when the user picks a model. Copied
-// rather than exported so the experiment adds no surface to that page.
+// Same key the chat pages write when the user picks a model
+// (submitChatTurn.ts, AgentCreateForm.tsx). Copied rather than imported so
+// the experiment adds no surface to those modules.
 const lastModelConfigIDStorageKey = "agents.last-model-config-id";
 
 // The assistant reads and acts on other chats, which needs a workspace with
@@ -22,7 +24,7 @@ The first user message is a snapshot taken when this chat was created. It only s
 
 Reading live data, from your workspace (CODER_URL and CODER_SESSION_TOKEN are set there; H='Coder-Session-Token: '$CODER_SESSION_TOKEN):
 - Chat: curl -sH "$H" "$CODER_URL/api/v2/chats/<id>" gives title, status, summary, last_turn_summary, diff_status (PR url, additions, deletions).
-- Transcript: curl -sH "$H" "$CODER_URL/api/v2/chats/<id>/messages?limit=50" gives messages oldest to newest; the last assistant messages say what happened.
+- Transcript: curl -sH "$H" "$CODER_URL/api/v2/chats/<id>/messages?limit=50" gives messages newest first; the first entries say what happened most recently.
 - Diff: .../chats/<id>/diff. Cost: .../chats/<id>/cost. All chats: .../chats?q=archived:false.
 - Follow-up to a chat, only when the user asks: curl -sH "$H" -H 'Content-Type: application/json' -X POST "$CODER_URL/api/v2/chats/<id>/messages" -d '{"content":[{"type":"text","text":"..."}]}'.
 - GitHub (PR state, checks, reviews): the gh CLI, for example gh pr view <url> --json state,reviewDecision,statusCheckRollup.
@@ -88,19 +90,49 @@ type OpenCardAssistant = {
 	readonly queryClient: QueryClient;
 };
 
+// Creations in flight, by card id, per client.
+const opening = new WeakMap<
+	QueryClient,
+	Map<string, Promise<string | undefined>>
+>();
+
+const openingFor = (queryClient: QueryClient) => {
+	let byCard = opening.get(queryClient);
+	if (!byCard) {
+		byCard = new Map();
+		opening.set(queryClient, byCard);
+	}
+	return byCard;
+};
+
 /**
  * The card's assistant chat id: the existing one, or a new chat in the shared
  * workspace titled for the card. Undefined after a reported failure; a failed
- * rename is reported by the mutation and the chat still opens.
+ * rename is reported by the mutation and the chat still opens. Opens for the
+ * same card on one client share one request until it settles, so a second
+ * click before the list refetch does not create a second assistant.
  */
-export const openCardAssistant = async ({
+export const openCardAssistant = (
+	args: OpenCardAssistant,
+): Promise<string | undefined> => {
+	const { card, existingId, queryClient } = args;
+	if (existingId) return Promise.resolve(existingId);
+	const byCard = openingFor(queryClient);
+	const inFlight = byCard.get(card.id);
+	if (inFlight) return inFlight;
+	const pending = createCardAssistant(args).finally(() =>
+		byCard.delete(card.id),
+	);
+	byCard.set(card.id, pending);
+	return pending;
+};
+
+const createCardAssistant = async ({
 	card,
-	existingId,
 	create,
 	rename,
 	queryClient,
 }: OpenCardAssistant): Promise<string | undefined> => {
-	if (existingId) return existingId;
 	try {
 		const { workspaces: found } = await queryClient.fetchQuery(
 			workspaces({ q: `owner:me name:${WORKSPACE_NAME}` }),
@@ -118,6 +150,9 @@ export const openCardAssistant = async ({
 			client_type: "ui",
 			...(model ? { model_config_id: model } : {}),
 		});
+		// The board reads assistant ids from the list; seeding it lets the next
+		// open find this chat before the refetch delivers it.
+		prependToInfiniteChatsCache(queryClient, chat);
 		await rename({ chatId: chat.id, title: `Assistant: ${card.title}` }).catch(
 			() => undefined,
 		);

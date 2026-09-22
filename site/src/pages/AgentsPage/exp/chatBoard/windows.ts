@@ -23,7 +23,7 @@ export const clampWindow = (w: ChatWindow): ChatWindow => ({
 export const windowBeside = (
 	chatId: string,
 	anchor: DOMRect,
-	pinned: boolean,
+	{ pinned }: Readonly<{ pinned: boolean }>,
 ): ChatWindow => {
 	const { width, height } = fittedSize();
 	const fitsRight =
@@ -51,10 +51,6 @@ export const windowCentered = (chatId: string): ChatWindow => {
 // holds pinned windows and the hover preview (pinned: false), so pinning is
 // a flag flip on the same element and a gesture in progress survives it.
 
-/** The preview, if one is showing. */
-export const previewOf = (list: readonly ChatWindow[]) =>
-	list.find((w) => !w.pinned);
-
 export const dropPreview = (list: readonly ChatWindow[]) =>
 	list.filter((w) => w.pinned);
 
@@ -75,9 +71,6 @@ export const changeWindow = (list: readonly ChatWindow[], next: ChatWindow) =>
 	list.map((w) =>
 		w.chatId === next.chatId ? { ...next, pinned: w.pinned } : w,
 	);
-
-export const closeWindow = (list: readonly ChatWindow[], chatId: string) =>
-	list.filter((w) => w.chatId !== chatId);
 
 /** Escape: the preview goes first, else the frontmost window. */
 export const dismissTop = (list: readonly ChatWindow[]) =>

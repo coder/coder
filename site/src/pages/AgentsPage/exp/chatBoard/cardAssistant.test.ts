@@ -3,7 +3,9 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
 import type { Chat } from "#/api/typesGenerated";
 import { MockChat } from "#/testHelpers/chatEntities";
+import { createDeferred } from "#/testHelpers/deferred";
 import { MockWorkspace } from "#/testHelpers/entities";
+import { boardChatsKey } from "./boardChats";
 import { addCommentLabels, buildCards } from "./boardLabels";
 import { assistantIds, openCardAssistant, snapshot } from "./cardAssistant";
 
@@ -149,7 +151,7 @@ describe("openCardAssistant", () => {
 		);
 	});
 
-	it("toasts and returns undefined when creation fails", async () => {
+	it("toasts and returns undefined when the workspace lookup fails", async () => {
 		const { toast } = await import("sonner");
 		vi.spyOn(API, "getWorkspaces").mockRejectedValue(new Error("offline"));
 
@@ -176,6 +178,66 @@ describe("openCardAssistant", () => {
 		});
 
 		expect(id).toBe("created");
+		expect(create).toHaveBeenCalledTimes(1);
+	});
+
+	it("shares one creation between concurrent opens of the same card on one client", async () => {
+		const lookup = createDeferred<{ workspaces: never[]; count: number }>();
+		vi.spyOn(API, "getWorkspaces").mockReturnValue(lookup.promise);
+		const queryClient = new QueryClient();
+		const card = cardFor([chat("p")]);
+		const create = vi.fn().mockResolvedValue({ ...MockChat, id: "created" });
+		const rename = vi.fn().mockResolvedValue(undefined);
+		const args = { card, existingId: undefined, create, rename, queryClient };
+
+		const first = openCardAssistant(args);
+		const second = openCardAssistant(args);
+		const elsewhere = openCardAssistant({
+			...args,
+			queryClient: new QueryClient(),
+		});
+		lookup.resolve({ workspaces: [], count: 0 });
+
+		expect(await Promise.all([first, second, elsewhere])).toEqual([
+			"created",
+			"created",
+			"created",
+		]);
+		expect(create).toHaveBeenCalledTimes(2);
+		expect(API.getWorkspaces).toHaveBeenCalledTimes(2);
+	});
+
+	it("prepends the created chat to the board list so the next open finds it", async () => {
+		vi.spyOn(API, "getWorkspaces").mockResolvedValue({
+			workspaces: [],
+			count: 0,
+		});
+		const queryClient = new QueryClient();
+		const card = cardFor([chat("p")]);
+		queryClient.setQueryData(boardChatsKey, {
+			pages: [[chat("p")]],
+			pageParams: [0],
+		});
+		const create = vi
+			.fn()
+			.mockResolvedValue(chat("created", { "board/assistant": card.id }));
+		const args = {
+			card,
+			create,
+			rename: vi.fn().mockResolvedValue(undefined),
+			queryClient,
+		};
+
+		await openCardAssistant({ ...args, existingId: undefined });
+		// What the page computes from the list on its next render.
+		const listed =
+			queryClient.getQueryData<{ pages: Chat[][] }>(boardChatsKey)?.pages[0] ??
+			[];
+		const existingId = assistantIds(listed).get(card.id);
+		const again = await openCardAssistant({ ...args, existingId });
+
+		expect(existingId).toBe("created");
+		expect(again).toBe("created");
 		expect(create).toHaveBeenCalledTimes(1);
 	});
 });

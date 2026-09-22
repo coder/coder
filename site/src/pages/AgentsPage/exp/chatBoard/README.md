@@ -136,9 +136,14 @@ snapshot the previous maps of every touched chat so they can be undone.
 - Multi pull request chats show the first pull request only.
 - The assistant is not told when its snapshot is stale on return.
 - Concurrent edits from two browsers are last write wins.
-- Window move and resize are pointer gestures only; there is no keyboard
-  path.
+- A second command on a chat while a transfer that touches it is still in
+  flight is last write wins, like any concurrent edit.
 - Notes have no id of their own: the list keys them by timestamp, so notes
   stored without one fall back to display order.
 - No Storybook stories: the experiment is off by default and not a Pixel
-  target; the page's loading and error states are covered by Vitest.
+  target. FE1 exception: the page's loading, error and search-failure states
+  and the route guard are asserted through DOM presence in Vitest, because
+  nothing else captures them.
+- FE6 exception: note actions are hidden by opacity and stay focusable, the
+  pattern the sidebar row actions use (ChatTreeNode), so Tab can reveal them.
+  Touch devices are out of scope.

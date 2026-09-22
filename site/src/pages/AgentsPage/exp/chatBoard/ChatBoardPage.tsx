@@ -59,10 +59,8 @@ import { DragGhost } from "./DragGhost";
 import { runPlan } from "./runPlan";
 import {
 	changeWindow,
-	closeWindow,
 	dismissTop,
 	dropPreview,
-	previewOf,
 	raise,
 	toFront,
 	windowBeside,
@@ -114,7 +112,7 @@ const ChatBoardPage: FC = () => {
 					const preview = windowBeside(
 						pendingPreview.chatId,
 						pendingPreview.anchor,
-						false,
+						{ pinned: false },
 					);
 					return { ...prev, windows: [...windows, preview] };
 				});
@@ -192,7 +190,8 @@ const ChatBoardPage: FC = () => {
 
 	const run = (plan: Plan | null) =>
 		runPlan(plan, {
-			write: (chatId, labels) => labelsMutation.mutateAsync({ chatId, labels }),
+			write: (chatId, labels, after) =>
+				labelsMutation.mutateAsync({ chatId, labels, after }),
 			rename: (chatId, title) => titleMutation.mutateAsync({ chatId, title }),
 			updateStorage,
 		});
@@ -203,7 +202,7 @@ const ChatBoardPage: FC = () => {
 			toFront(
 				dropPreview(prev),
 				prev.find((w) => w.chatId === chat.id) ??
-					windowBeside(chat.id, anchor, true),
+					windowBeside(chat.id, anchor, { pinned: true }),
 			),
 		);
 	};
@@ -231,7 +230,9 @@ const ChatBoardPage: FC = () => {
 
 	const handleDragStart = ({ active }: DragStartEvent) => {
 		setPendingPreview(null);
-		if (previewOf(windows)) setWindows(dropPreview);
+		setWindows((prev) =>
+			prev.some((w) => !w.pinned) ? dropPreview(prev) : prev,
+		);
 		setActiveDrag(dragDataOf(active) ?? null);
 	};
 	// onDragOver only fires when the droppable id changes, but the zone within
@@ -334,7 +335,9 @@ const ChatBoardPage: FC = () => {
 				chatsById={chatsById}
 				colorByChatId={cardColorByChat(allCards)}
 				onChange={(next) => setWindows((prev) => changeWindow(prev, next))}
-				onClose={(chatId) => setWindows((prev) => closeWindow(prev, chatId))}
+				onClose={(chatId) =>
+					setWindows((prev) => prev.filter((w) => w.chatId !== chatId))
+				}
 				onRaise={(chatId) => {
 					setPendingPreview(null);
 					setWindows((prev) => raise(prev, chatId));

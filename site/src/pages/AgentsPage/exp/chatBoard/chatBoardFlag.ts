@@ -1,7 +1,8 @@
 /**
  * The chat board is an experiment. Everything it owns lives in this folder,
  * production code reaches in only through a handful of hook points, and this
- * flag keeps every one of them inert until the user opts in. The flag is
+ * flag keeps every one of them inert until the user opts in through the
+ * settings toggle, the one hook point that stays live. The flag is
  * frontend-only so the experiment can change without touching the server.
  */
 import { useSyncExternalStore } from "react";
@@ -11,7 +12,7 @@ const KEY = "agents.exp.chat-board";
 export const CHAT_BOARD_PATH = "/agents/board";
 
 // In-tab subscribers. The native "storage" event only fires cross-tab, so
-// saving notifies same-tab consumers (settings toggle, nav item) directly.
+// saving notifies same-tab subscribers directly.
 const listeners = new Set<() => void>();
 
 export function getChatBoardEnabled(): boolean {

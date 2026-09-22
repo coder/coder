@@ -78,7 +78,7 @@ export type BoardCard = Readonly<{
 	column: string;
 	color: CardColor | undefined;
 	primary: Chat;
-	/** Primary first, then the rest by most recent activity. */
+	/** Primary first, then the rest by creation. */
 	members: readonly Chat[];
 	comments: readonly BoardComment[];
 }>;
@@ -134,16 +134,13 @@ export const parseComments = (
 
 // Splits on UTF-8 byte length, never inside a multi-byte character, because
 // the server measures label values in bytes.
-export const chunkByBytes = (
-	text: string,
-	maxBytes = MAX_LABEL_VALUE_BYTES,
-): string[] => {
+export const chunkByBytes = (text: string): string[] => {
 	const encoder = new TextEncoder();
 	const chunks: string[] = [];
 	let current = "";
 	for (const char of text) {
 		const candidate = current + char;
-		if (encoder.encode(candidate).length > maxBytes) {
+		if (encoder.encode(candidate).length > MAX_LABEL_VALUE_BYTES) {
 			chunks.push(current);
 			current = char;
 		} else {
@@ -370,7 +367,8 @@ export const cardColorByChat = (
 
 /**
  * Column order: stored order first, then columns discovered from labels in
- * first-seen order. Inbox is always first and cannot be removed.
+ * first-seen order. Inbox is present by default and cannot be removed; once
+ * the user has ordered columns, the stored order decides its position.
  */
 export const buildColumns = (
 	cards: readonly BoardCard[],

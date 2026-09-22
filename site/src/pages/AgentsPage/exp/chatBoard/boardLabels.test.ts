@@ -18,13 +18,15 @@ import {
 	updateCommentLabels,
 } from "./boardLabels";
 
+const CREATED_AT = "2026-01-01T00:00:00Z";
+
 const chat = (id: string, labels: Record<string, string> = {}): Chat => ({
 	...MockChat,
 	id,
 	title: `Chat ${id}`,
 	labels,
-	created_at: `2026-01-0${id.length}T00:00:00Z`,
-	updated_at: `2026-01-0${id.length}T00:00:00Z`,
+	created_at: CREATED_AT,
+	updated_at: CREATED_AT,
 });
 
 describe("comments", () => {
@@ -47,7 +49,7 @@ describe("comments", () => {
 
 	it("chunks on byte length without splitting characters", () => {
 		const text = "ä".repeat(300);
-		const chunks = chunkByBytes(text, 256);
+		const chunks = chunkByBytes(text);
 		expect(chunks.join("")).toBe(text);
 		for (const chunk of chunks) {
 			expect(new TextEncoder().encode(chunk).length).toBeLessThanOrEqual(256);
@@ -57,7 +59,7 @@ describe("comments", () => {
 
 	it("round-trips four-byte characters across chunk boundaries", () => {
 		const text = "a".repeat(255) + "😀".repeat(70);
-		const chunks = chunkByBytes(text, 256);
+		const chunks = chunkByBytes(text);
 		expect(chunks.length).toBeGreaterThan(1);
 		expect(chunks.join("")).toBe(text);
 		for (const chunk of chunks) {
@@ -87,7 +89,7 @@ describe("placement", () => {
 	});
 
 	it("prefers a valid board/pos over creation time", () => {
-		const created = new Date("2026-01-01T00:00:00Z").getTime();
+		const created = new Date(CREATED_AT).getTime();
 		expect(placementKey(chat("a"))).toBe(created);
 		expect(placementKey(chat("a", { "board/pos": "12345" }))).toBe(12345);
 		expect(placementKey(chat("a", { "board/pos": "nope" }))).toBe(created);

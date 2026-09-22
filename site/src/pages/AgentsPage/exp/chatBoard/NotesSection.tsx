@@ -122,6 +122,8 @@ const Note: FC<NoteProps> = ({ card, note, dropSide, onEdit, onRemove }) => {
 	}
 
 	// Age on the right; hover swaps it for the actions without moving text.
+	// The actions hide by opacity, not display: a display:none button cannot
+	// take focus, so Tab could never reveal them.
 	// The drop indicator is an inset shadow so the list does not shift.
 	return (
 		<div
@@ -139,10 +141,10 @@ const Note: FC<NoteProps> = ({ card, note, dropSide, onEdit, onRemove }) => {
 				{note.text}
 			</CompactMarkdown>
 			<span className="relative h-[17px] w-12 shrink-0">
-				<span className="absolute inset-0 flex items-center justify-end text-[11px] tabular-nums text-content-secondary/70 group-hover/note:hidden group-has-[[data-state=open]]/note:hidden">
+				<span className="absolute inset-0 flex items-center justify-end text-[11px] tabular-nums text-content-secondary/70 group-hover/note:hidden group-focus-within/note:hidden group-has-[[data-state=open]]/note:hidden">
 					{note.timestamp ? shortRelativeTime(note.timestamp) : ""}
 				</span>
-				<span className="-mr-1 absolute inset-0 hidden items-center justify-end group-hover/note:flex group-has-[[data-state=open]]/note:flex has-[:focus-visible]:flex">
+				<span className="-mr-1 absolute inset-0 flex items-center justify-end opacity-0 group-hover/note:opacity-100 focus-within:opacity-100 group-has-[[data-state=open]]/note:opacity-100">
 					<button
 						type="button"
 						ref={setActivatorNodeRef}

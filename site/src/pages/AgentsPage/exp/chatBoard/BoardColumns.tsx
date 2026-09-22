@@ -1,5 +1,6 @@
 import { PlusIcon } from "lucide-react";
 import { type FC, useState } from "react";
+import { toast } from "sonner";
 import type { ChatOpenHandlers } from "./BoardCard";
 import { BoardColumn, NewColumn } from "./BoardColumn";
 import {
@@ -27,11 +28,22 @@ type BoardColumnsProps = {
 	readonly columns: readonly BoardColumnModel[];
 	/** The unfiltered model that every command acts on. */
 	readonly board: BoardState;
-	readonly run: (plan: Plan | null) => Promise<void>;
+	readonly run: (plan: Plan | null) => Promise<boolean>;
 	readonly openChatIds: ReadonlySet<string>;
 	readonly dropTarget: DropTarget | null;
 	readonly onAssistant: (card: BoardCardModel) => void;
 } & ChatOpenHandlers;
+
+// The composer clears and the editor closes before the write settles, and
+// the refetch drops the optimistic note; this keeps the text on screen,
+// selectable, until the user closes it. The mutation's own toast names the
+// server error.
+const keepNote = (text: string) =>
+	toast("Note not saved", {
+		description: text,
+		duration: Number.POSITIVE_INFINITY,
+		closeButton: true,
+	});
 
 export const BoardColumns: FC<BoardColumnsProps> = ({
 	columns,
@@ -72,9 +84,15 @@ export const BoardColumns: FC<BoardColumnsProps> = ({
 					onOpen={onOpen}
 					onPreview={onPreview}
 					onPreviewEnd={onPreviewEnd}
-					onAddNote={(card, text) => void run(addNote(board, card.id, text))}
+					onAddNote={(card, text) =>
+						void run(addNote(board, card.id, text)).then((saved) => {
+							if (!saved) keepNote(text);
+						})
+					}
 					onEditNote={(card, index, text) =>
-						void run(editNote(board, card.id, index, text))
+						void run(editNote(board, card.id, index, text)).then((saved) => {
+							if (!saved) keepNote(text);
+						})
 					}
 					onRemoveNote={(card, index) =>
 						void run(removeNote(board, card.id, index))

@@ -47,9 +47,13 @@ const stateOf = (
 	};
 };
 
-/** Label maps a plan would write, keyed by chat id. */
+/** Label maps a plan would write, receiver included, keyed by chat id. */
 const written = (plan: Plan | null) =>
-	Object.fromEntries((plan?.writes ?? []).map((w) => [w.chat.id, w.labels]));
+	Object.fromEntries(
+		[...(plan?.receiver ? [plan.receiver] : []), ...(plan?.writes ?? [])].map(
+			(w) => [w.chat.id, w.labels],
+		),
+	);
 
 describe("boardApi", () => {
 	afterEach(() => {
@@ -105,6 +109,7 @@ describe("boardApi", () => {
 		const plan = mergeCards(state, "s", "t");
 
 		expect(plan?.undo).toBe('Merged into "Source"');
+		expect(plan?.receiver?.chat.id).toBe("s");
 		expect(written(plan)).toEqual({
 			s: {
 				"board/pos": "200",
@@ -170,6 +175,7 @@ describe("boardApi", () => {
 		const plan = joinCard(state, "m", "t");
 
 		expect(plan?.undo).toBe('Added "Chat m" to "Chat t"');
+		expect(plan?.receiver).toBeUndefined();
 		expect(written(plan)).toEqual({
 			m: { "board/group": "t", "board/column": "Done" },
 		});
@@ -205,7 +211,9 @@ describe("boardApi", () => {
 			chat("q", { "board/column": "Doing", "board/pos": "300000" }),
 		]);
 
-		expect(written(detachChat(state, "p", "Doing", null))).toEqual({
+		const plan = detachChat(state, "p", "Doing", null);
+		expect(plan?.receiver?.chat.id).toBe("a");
+		expect(written(plan)).toEqual({
 			a: {
 				"board/column": "Doing",
 				"board/color": "sky",
@@ -242,6 +250,7 @@ describe("boardApi", () => {
 
 		const within = moveNote(state, "a", 1, "a", { index: 0, side: "before" });
 		expect(within?.undo).toBe("Moved note");
+		expect(within?.receiver).toBeUndefined();
 		expect(written(within)).toEqual({
 			a: {
 				"board/pos": "200",
@@ -254,6 +263,7 @@ describe("boardApi", () => {
 
 		const across = moveNote(state, "a", 0, "b", null);
 		expect(across?.undo).toBe('Moved note to "Chat b"');
+		expect(across?.receiver?.chat.id).toBe("b");
 		expect(written(across)).toEqual({
 			b: {
 				"board/pos": "100",
@@ -300,6 +310,14 @@ describe("boardApi", () => {
 			g: { "board/title": "Bigger" },
 		});
 		expect(renameCard(state, "nope", "x")).toBeNull();
+	});
+
+	it("renameCard labels a single chat whose card kept a title label", () => {
+		const state = stateOf([chat("s", { "board/title": "Kept" })]);
+
+		const plan = renameCard(state, "s", "Renamed");
+		expect(plan?.titles).toBeUndefined();
+		expect(written(plan)).toEqual({ s: { "board/title": "Renamed" } });
 	});
 
 	it("renameChat and setCardColor touch one chat", () => {

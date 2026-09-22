@@ -3,6 +3,7 @@ import { XIcon } from "lucide-react";
 import {
 	type FC,
 	lazy,
+	type KeyboardEvent as ReactKeyboardEvent,
 	type PointerEvent as ReactPointerEvent,
 	Suspense,
 	useEffect,
@@ -18,6 +19,16 @@ import { cardSwatch } from "./cardColor";
 import { clampWindow, MIN_WINDOW_SIZE } from "./windows";
 
 const AgentChatPage = lazy(() => import("../../AgentChatPage"));
+
+/** How far one arrow press moves or resizes a window. */
+const KEY_STEP_PX = 16;
+
+const ARROW_DELTAS: Readonly<Record<string, readonly [number, number]>> = {
+	ArrowUp: [0, -KEY_STEP_PX],
+	ArrowDown: [0, KEY_STEP_PX],
+	ArrowLeft: [-KEY_STEP_PX, 0],
+	ArrowRight: [KEY_STEP_PX, 0],
+};
 
 /** A drag of the title bar or the resize corner, from where the pointer went down. */
 type Gesture = {
@@ -102,12 +113,20 @@ export const FloatingChat: FC<FloatingChatProps> = ({
 			setLive(null);
 			if (last !== gesture.origin) commit(last);
 		};
+		// A cancelled pointer (touch scroll, browser gesture) ends the drag
+		// where the window was; nothing is committed.
+		const onCancel = () => {
+			setGesture(null);
+			setLive(null);
+		};
 		window.addEventListener("pointermove", onMove);
 		window.addEventListener("pointerup", onUp);
+		window.addEventListener("pointercancel", onCancel);
 		return () => {
 			if (frame !== null) cancelAnimationFrame(frame);
 			window.removeEventListener("pointermove", onMove);
 			window.removeEventListener("pointerup", onUp);
+			window.removeEventListener("pointercancel", onCancel);
 		};
 	}, [gesture]);
 
@@ -118,10 +137,24 @@ export const FloatingChat: FC<FloatingChatProps> = ({
 		setGesture({ kind, startX: e.clientX, startY: e.clientY, origin: win });
 	};
 
+	// Arrows move, Shift+arrows resize, one step per press; the same clamp
+	// and minimum size as a pointer gesture from a zero origin.
+	const onKeyDown = (e: ReactKeyboardEvent) => {
+		const delta = ARROW_DELTAS[e.key];
+		if (!delta) return;
+		e.preventDefault();
+		const kind = e.shiftKey ? "resize" : "move";
+		onChange(
+			applyGesture({ kind, startX: 0, startY: 0, origin: win }, ...delta),
+		);
+	};
+
+	const title = chat?.title ?? "Chat";
+
 	return (
 		<div
 			role="dialog"
-			aria-label={chat?.title ?? "Chat"}
+			aria-label={title}
 			className={cn(
 				"fixed z-40 flex flex-col overflow-hidden rounded-lg border border-border bg-surface-primary shadow-[0_12px_40px_rgba(0,0,0,0.18)]",
 				!win.pinned && "border-content-link/50",
@@ -141,18 +174,27 @@ export const FloatingChat: FC<FloatingChatProps> = ({
 				className="flex h-8 shrink-0 cursor-grab touch-none select-none items-center gap-2 border-b border-border bg-surface-secondary/60 pr-1 pl-3 text-[12.5px] font-medium text-content-primary active:cursor-grabbing"
 				onPointerDown={start("move")}
 			>
-				<span
-					className={cn(
-						"size-2 shrink-0 rounded-[2px]",
-						color ? cardSwatch({ color }) : "bg-content-secondary/30",
+				{/* The bar's pointerdown handles drags (its preventDefault keeps a click from focusing this); the button gives the keyboard a target. */}
+				<button
+					type="button"
+					aria-label={`Move or resize ${title}`}
+					aria-keyshortcuts="ArrowUp ArrowDown ArrowLeft ArrowRight Shift+ArrowUp Shift+ArrowDown Shift+ArrowLeft Shift+ArrowRight"
+					className="flex min-w-0 flex-1 cursor-grab items-center gap-2 border-0 bg-transparent p-0 text-left active:cursor-grabbing"
+					onKeyDown={onKeyDown}
+				>
+					<span
+						className={cn(
+							"size-2 shrink-0 rounded-[2px]",
+							color ? cardSwatch({ color }) : "bg-content-secondary/30",
+						)}
+					/>
+					<span className="min-w-0 flex-1 truncate">{title}</span>
+					{!win.pinned && (
+						<span className="text-[11px] font-normal text-content-secondary">
+							click or drag to keep
+						</span>
 					)}
-				/>
-				<span className="min-w-0 flex-1 truncate">{chat?.title ?? "Chat"}</span>
-				{!win.pinned && (
-					<span className="text-[11px] font-normal text-content-secondary">
-						click or drag to keep
-					</span>
-				)}
+				</button>
 				<Button
 					variant="subtle"
 					size="icon"

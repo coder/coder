@@ -59,7 +59,7 @@ const rectOf = (node: RefObject<HTMLElement | null>) =>
 type BoardCardProps = {
 	readonly card: BoardCardModel;
 	readonly openChatIds: ReadonlySet<string>;
-	readonly isMergeTarget: boolean;
+	readonly isDropTarget: boolean;
 	/** A dragged note hovering one of this card's notes. */
 	readonly noteDrop: NoteSlot | undefined;
 	readonly onSetTitle: (title: string) => void;
@@ -75,7 +75,7 @@ type BoardCardProps = {
 export const BoardCard: FC<BoardCardProps> = ({
 	card,
 	openChatIds,
-	isMergeTarget,
+	isDropTarget,
 	noteDrop,
 	onSetTitle,
 	onSetColor,
@@ -125,7 +125,7 @@ export const BoardCard: FC<BoardCardProps> = ({
 				// The moving copy is drawn by DragGhost inside DragOverlay; the
 				// source stays put, faded, so column layout does not shift mid-drag.
 				isDragging && "opacity-40",
-				isMergeTarget && "border-content-link ring-1 ring-content-link",
+				isDropTarget && "border-content-link ring-1 ring-content-link",
 			)}
 		>
 			<CardColorPicker

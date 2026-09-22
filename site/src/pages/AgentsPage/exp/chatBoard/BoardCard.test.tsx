@@ -39,7 +39,7 @@ const renderCard = (chats: readonly Chat[]) => {
 		<BoardCard
 			card={card}
 			openChatIds={new Set()}
-			isMergeTarget={false}
+			isDropTarget={false}
 			noteDrop={undefined}
 			{...handlers}
 		/>,
@@ -51,7 +51,7 @@ describe("BoardCard", () => {
 	afterEach(() => {
 		vi.restoreAllMocks();
 	});
-	it("reports an edited title as the card title, single chat or group", async () => {
+	it("reports an edited title as the card title", async () => {
 		const user = userEvent.setup();
 		const { onRenameChat, onSetTitle } = renderCard([chat("p")]);
 
@@ -92,7 +92,7 @@ describe("BoardCard", () => {
 		expect(onAssistant).toHaveBeenCalledTimes(1);
 	});
 
-	it("opens the chat from its icon with the row as anchor", async () => {
+	it("opens the chat from its icon with the card as anchor", async () => {
 		const user = userEvent.setup();
 		const { card, onOpen } = renderCard([chat("p")]);
 
