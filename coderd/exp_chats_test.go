@@ -10197,6 +10197,16 @@ func TestStreamChat(t *testing.T) {
 		firstUser := coderdtest.CreateFirstUser(t, client.Client)
 		_ = createChatModel(t, client)
 
+		const initialMessage = "stream chat own history"
+		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
+			Content: []codersdk.ChatInputPart{
+				{Type: codersdk.ChatInputPartTypeText, Text: initialMessage},
+			},
+		})
+		require.NoError(t, err)
+
+		// Created second so the foreign cursor ID exceeds chat's initial message.
 		const otherMessage = "stream chat other chat cursor"
 		other, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
 			OrganizationID: firstUser.OrganizationID,
@@ -10208,15 +10218,6 @@ func TestStreamChat(t *testing.T) {
 		otherPage, err := client.GetChatMessages(ctx, other.ID, nil)
 		require.NoError(t, err)
 		require.NotEmpty(t, otherPage.Messages)
-
-		const initialMessage = "stream chat own history"
-		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
-			OrganizationID: firstUser.OrganizationID,
-			Content: []codersdk.ChatInputPart{
-				{Type: codersdk.ChatInputPartTypeText, Text: initialMessage},
-			},
-		})
-		require.NoError(t, err)
 
 		afterID := otherPage.Messages[0].ID
 		events, closer, err := client.StreamChat(ctx, chat.ID, &codersdk.StreamChatOptions{AfterID: &afterID})

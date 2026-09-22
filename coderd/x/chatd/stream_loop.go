@@ -229,6 +229,8 @@ func (l *streamLoop) initialSyncCursor(ctx context.Context, tx database.Store) (
 		return database.ChatMessage{}, false, xerrors.Errorf("get stream cursor message: %w", err)
 	}
 	if cursor.ChatID != l.chatID {
+		// Another chat's ID says nothing about which messages the client holds.
+		l.state.afterMessageID = 0
 		return database.ChatMessage{}, false, nil
 	}
 	return cursor, true, nil
