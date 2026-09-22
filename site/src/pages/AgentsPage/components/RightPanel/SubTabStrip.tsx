@@ -24,6 +24,7 @@ type SubTabStripProps = {
 	idPrefix: string;
 	/** Rendered after the last chip, typically the add control. */
 	trailing?: ReactNode;
+	className?: string;
 };
 
 export function getSubTabElementId(idPrefix: string, tabId: string): string {
@@ -44,6 +45,7 @@ export const SubTabStrip: FC<SubTabStripProps> = ({
 	label,
 	idPrefix,
 	trailing,
+	className,
 }) => {
 	const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
 		if (tabs.length === 0) {
@@ -74,57 +76,58 @@ export const SubTabStrip: FC<SubTabStripProps> = ({
 	};
 
 	return (
-		<div className="flex shrink-0 items-center gap-2 border-0 border-b border-solid border-border-default px-3 py-2">
-			<div
-				role="tablist"
-				aria-label={label}
-				aria-orientation="horizontal"
-				onKeyDown={handleKeyDown}
-				className="flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto scrollbar-none [&::-webkit-scrollbar]:hidden"
-			>
-				{tabs.map((tab) => {
-					const isActive = tab.id === activeTabId;
-					return (
-						<div
-							key={tab.id}
-							className="group flex shrink-0 items-stretch rounded-md border border-solid border-border-default bg-surface-primary"
+		<div
+			role="tablist"
+			aria-label={label}
+			aria-orientation="horizontal"
+			onKeyDown={handleKeyDown}
+			className={cn(
+				"flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto scrollbar-none [&::-webkit-scrollbar]:hidden",
+				className,
+			)}
+		>
+			{tabs.map((tab) => {
+				const isActive = tab.id === activeTabId;
+				return (
+					<div
+						key={tab.id}
+						className="group flex shrink-0 items-stretch rounded-md border border-solid border-border-default bg-surface-primary"
+					>
+						<Button
+							id={getSubTabElementId(idPrefix, tab.id)}
+							role="tab"
+							aria-selected={isActive}
+							tabIndex={isActive ? 0 : -1}
+							onClick={() => onActiveTabChange(tab.id)}
+							variant="subtle"
+							size="sm"
+							className={cn(
+								"h-7 min-w-0 gap-1.5 rounded-md border-0 px-2.5 text-xs text-content-secondary hover:text-content-primary",
+								tab.onClose && "rounded-r-none pr-1.5",
+								isActive && chipActiveClassName,
+							)}
 						>
+							{tab.icon}
+							<span className="truncate">{tab.label}</span>
+						</Button>
+						{tab.onClose && (
 							<Button
-								id={getSubTabElementId(idPrefix, tab.id)}
-								role="tab"
-								aria-selected={isActive}
-								tabIndex={isActive ? 0 : -1}
-								onClick={() => onActiveTabChange(tab.id)}
 								variant="subtle"
-								size="sm"
+								size="icon"
+								onClick={tab.onClose}
+								aria-label={`Close ${tab.label}`}
 								className={cn(
-									"h-7 min-w-0 gap-1.5 rounded-md border-0 px-2.5 text-xs text-content-secondary hover:text-content-primary",
-									tab.onClose && "rounded-r-none pr-1.5",
+									"h-7 w-6 rounded-l-none rounded-r-md border-0 p-0 text-content-secondary hover:text-content-primary [&>svg]:size-3",
 									isActive && chipActiveClassName,
 								)}
 							>
-								{tab.icon}
-								<span className="truncate">{tab.label}</span>
+								<XIcon />
 							</Button>
-							{tab.onClose && (
-								<Button
-									variant="subtle"
-									size="icon"
-									onClick={tab.onClose}
-									aria-label={`Close ${tab.label}`}
-									className={cn(
-										"h-7 w-6 rounded-l-none rounded-r-md border-0 p-0 text-content-secondary hover:text-content-primary [&>svg]:size-3",
-										isActive && chipActiveClassName,
-									)}
-								>
-									<XIcon />
-								</Button>
-							)}
-						</div>
-					);
-				})}
-				{trailing}
-			</div>
+						)}
+					</div>
+				);
+			})}
+			{trailing}
 		</div>
 	);
 };

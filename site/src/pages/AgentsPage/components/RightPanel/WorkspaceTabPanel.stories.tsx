@@ -98,7 +98,17 @@ export const EmptyState: Story = {
 	},
 };
 
-export const EmptyStateWithOpenMenu: Story = {
+export const SelectorOpen: Story = {
+	// The port preview loads an external iframe, which Pixel cannot capture;
+	// the menu itself is what this story screenshots.
+	parameters: { pixel: { exclude: true } },
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(canvas.getByRole("button", { name: ":3000" }));
+	},
+};
+
+export const EmptyStateSelectorOpen: Story = {
 	args: {
 		previews: [],
 		activePreviewId: null,
@@ -106,14 +116,9 @@ export const EmptyStateWithOpenMenu: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await userEvent.click(
-			canvas.getByRole("button", { name: "Open app or port" }),
+			canvas.getByRole("button", { name: "Open an app or port" }),
 		);
 	},
-};
-
-export const WithPreviews: Story = {
-	// The port preview loads an external iframe, which Pixel cannot capture.
-	parameters: { pixel: { exclude: true } },
 };
 
 export const WorkspaceStopped: Story = {
@@ -125,7 +130,7 @@ export const WorkspaceStopped: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await userEvent.click(
-			canvas.getByRole("button", { name: "Open app or port" }),
+			canvas.getByRole("button", { name: "Open an app or port" }),
 		);
 	},
 };

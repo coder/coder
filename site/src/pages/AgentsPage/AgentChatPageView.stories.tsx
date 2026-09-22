@@ -1758,10 +1758,10 @@ export const MigratesLegacyTerminalTabSelection: Story = {
 };
 
 /**
- * The Workspace tab starts on its empty state, and the open menu lists the
+ * The Workspace tab starts on its empty state, and its selector lists the
  * agent's apps so the first click on the tab reveals what is available.
  */
-export const WorkspaceTabOpenMenu: Story = {
+export const WorkspaceTabSelector: Story = {
 	render: () => (
 		<StoryAgentChatPageView
 			showSidebarPanel
@@ -1778,7 +1778,7 @@ export const WorkspaceTabOpenMenu: Story = {
 			await canvas.findByRole("tab", { name: "Workspace" }),
 		);
 		await userEvent.click(
-			await canvas.findByRole("button", { name: "Open app or port" }),
+			await canvas.findByRole("button", { name: "Open an app or port" }),
 		);
 		await body.findByRole("menu");
 	},

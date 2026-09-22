@@ -38,6 +38,14 @@ const agent = {
 	display_apps: [],
 };
 
+const appPreview: WorkspacePreviewRightPanelTab = {
+	id: "workspace_app-1",
+	kind: "workspace_app",
+	label: "code-server",
+	agentId: agent.id,
+	appId: embeddableApp.id,
+};
+
 const portPreview: WorkspacePreviewRightPanelTab = {
 	id: "port-1",
 	kind: "port",
@@ -45,13 +53,6 @@ const portPreview: WorkspacePreviewRightPanelTab = {
 	agentId: agent.id,
 	port: 3000,
 	protocol: "http",
-};
-
-const secondPortPreview: WorkspacePreviewRightPanelTab = {
-	...portPreview,
-	id: "port-2",
-	label: ":5173",
-	port: 5173,
 };
 
 const renderPanel = (
@@ -80,14 +81,22 @@ const renderPanel = (
 	return handlers;
 };
 
+const openSelector = async (user: ReturnType<typeof userEvent.setup>) => {
+	await user.click(
+		screen.getByRole("button", {
+			name: /open an app or port|code-server|:3000/i,
+		}),
+	);
+};
+
 describe("WorkspaceTabPanel", () => {
-	it("opens an embeddable app from the empty state", async () => {
+	it("opens an embeddable app that has no preview yet", async () => {
 		const user = userEvent.setup();
 		const { onOpenWorkspaceApp } = renderPanel();
 
-		await user.click(screen.getByRole("button", { name: "Open app or port" }));
+		await openSelector(user);
 		await user.click(
-			await screen.findByRole("menuitem", { name: "code-server" }),
+			await screen.findByRole("menuitemcheckbox", { name: "code-server" }),
 		);
 
 		expect(onOpenWorkspaceApp).toHaveBeenCalledWith(embeddableApp);
@@ -97,7 +106,7 @@ describe("WorkspaceTabPanel", () => {
 		const user = userEvent.setup();
 		const { onOpenCommandApp, onOpenWorkspaceApp } = renderPanel();
 
-		await user.click(screen.getByRole("button", { name: "Open app or port" }));
+		await openSelector(user);
 		await user.click(
 			await screen.findByRole("menuitem", { name: "Claude Code" }),
 		);
@@ -106,32 +115,35 @@ describe("WorkspaceTabPanel", () => {
 		expect(onOpenWorkspaceApp).not.toHaveBeenCalled();
 	});
 
-	it("switches and closes preview chips", async () => {
+	it("switches to an open preview that is not shown", async () => {
 		const user = userEvent.setup();
-		const { onActivePreviewChange, onClosePreview } = renderPanel({
-			previews: [portPreview, secondPortPreview],
+		const { onActivePreviewChange, onOpenWorkspaceApp } = renderPanel({
+			previews: [appPreview, portPreview],
 			activePreviewId: portPreview.id,
 		});
 
-		await user.click(screen.getByRole("tab", { name: ":5173" }));
-		expect(onActivePreviewChange).toHaveBeenCalledWith(secondPortPreview.id);
-
-		await user.click(screen.getByRole("button", { name: "Close :3000" }));
-		expect(onClosePreview).toHaveBeenCalledWith(portPreview.id);
-	});
-
-	it("keeps the open menu available next to the chips", async () => {
-		const user = userEvent.setup();
-		const { onOpenWorkspaceApp } = renderPanel({
-			previews: [portPreview],
-			activePreviewId: portPreview.id,
-		});
-
-		await user.click(screen.getByRole("button", { name: "Open app or port" }));
+		await openSelector(user);
 		await user.click(
-			await screen.findByRole("menuitem", { name: "code-server" }),
+			await screen.findByRole("menuitemcheckbox", { name: "code-server" }),
 		);
 
-		expect(onOpenWorkspaceApp).toHaveBeenCalledWith(embeddableApp);
+		expect(onActivePreviewChange).toHaveBeenCalledWith(appPreview.id);
+		expect(onOpenWorkspaceApp).not.toHaveBeenCalled();
+	});
+
+	it("closes the preview that is currently shown", async () => {
+		const user = userEvent.setup();
+		const { onClosePreview, onActivePreviewChange } = renderPanel({
+			previews: [appPreview, portPreview],
+			activePreviewId: portPreview.id,
+		});
+
+		await openSelector(user);
+		await user.click(
+			await screen.findByRole("menuitemcheckbox", { name: ":3000" }),
+		);
+
+		expect(onClosePreview).toHaveBeenCalledWith(portPreview.id);
+		expect(onActivePreviewChange).not.toHaveBeenCalled();
 	});
 });

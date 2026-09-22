@@ -84,6 +84,25 @@ export const MultipleTerminals: Story = {
 	parameters: { pixel: { exclude: true } },
 };
 
+/** Enough terminals that the chips no longer fit, so the strip collapses into a selector. */
+export const ManyTerminalsSelector: Story = {
+	parameters: { pixel: { exclude: true } },
+	args: {
+		terminals: Array.from({ length: 8 }, (_, index) => ({
+			id: `terminal-${index + 1}`,
+			label: `Terminal ${index + 1}`,
+			reconnectionToken: `token-${index + 1}`,
+		})),
+		activeTerminalId: "terminal-3",
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			await canvas.findByRole("button", { name: "Terminal 3" }),
+		);
+	},
+};
+
 export const EmptyState: Story = {
 	args: {
 		terminals: [],
