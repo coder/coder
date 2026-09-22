@@ -132,13 +132,14 @@ const ScrollChevronButton: FC<ScrollChevronButtonProps> = ({
 			onClick={onClick}
 			aria-label={ariaLabel}
 			className={cn(
-				"absolute inset-y-0 z-10 flex w-8 cursor-pointer items-center border-none p-0 text-content-primary",
+				// Stops above the underline row so the fade never covers the active indicator.
+				"absolute top-0 bottom-0.5 z-10 flex w-8 cursor-pointer items-center border-none p-0 text-content-primary",
 				isLeft
 					? "left-0 justify-start pl-1 [background:linear-gradient(to_right,hsl(var(--surface-primary))_50%,transparent)]"
 					: "right-0 justify-end pr-1 [background:linear-gradient(to_left,hsl(var(--surface-primary))_50%,transparent)]",
 			)}
 		>
-			<Icon className="size-3.5" />
+			<Icon className="size-4" />
 		</button>
 	);
 };
