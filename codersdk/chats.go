@@ -565,7 +565,11 @@ type ToolResult struct {
 
 // CreateChatRequest is the request to create a new chat.
 type CreateChatRequest struct {
-	OrganizationID  uuid.UUID         `json:"organization_id" format:"uuid"`
+	OrganizationID uuid.UUID `json:"organization_id" format:"uuid"`
+	// OwnerID makes another user the chat owner. It defaults to the
+	// caller. The chat runs with the owner's credentials, so setting it
+	// requires site-wide authority over that user.
+	OwnerID         *uuid.UUID        `json:"owner_id,omitempty" format:"uuid"`
 	Content         []ChatInputPart   `json:"content"`
 	SystemPrompt    string            `json:"system_prompt,omitempty"`
 	WorkspaceID     *uuid.UUID        `json:"workspace_id,omitempty" format:"uuid"`

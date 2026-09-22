@@ -1837,6 +1837,301 @@ func TestPostChats(t *testing.T) {
 	})
 }
 
+func TestPostChats_OwnerID(t *testing.T) {
+	t.Parallel()
+
+	helloRequest := func(ownerID, organizationID uuid.UUID) codersdk.CreateChatRequest {
+		return codersdk.CreateChatRequest{
+			OrganizationID: organizationID,
+			OwnerID:        &ownerID,
+			Content: []codersdk.ChatInputPart{{
+				Type: codersdk.ChatInputPartTypeText,
+				Text: "hello on behalf of another user",
+			}},
+		}
+	}
+
+	t.Run("OwnerCreatesForMember", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModel(t, client)
+		memberClientRaw, member := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
+		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
+
+		chat, err := client.CreateChat(ctx, helloRequest(member.ID, firstUser.OrganizationID))
+		require.NoError(t, err)
+		require.Equal(t, member.ID, chat.OwnerID)
+
+		// The member can read the chat; the prompt stays attributed to the admin.
+		_, err = memberClient.GetChat(ctx, chat.ID)
+		require.NoError(t, err)
+		messages, err := db.GetChatMessagesByChatID(dbauthz.AsSystemRestricted(ctx), database.GetChatMessagesByChatIDParams{
+			ChatID: chat.ID,
+		})
+		require.NoError(t, err)
+		userMsg := findUserMessage(t, messages)
+		require.Equal(t, uuid.NullUUID{UUID: firstUser.UserID, Valid: true}, userMsg.CreatedBy)
+	})
+
+	t.Run("OwnerServiceAccountCreatesForMember", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModel(t, client)
+		_, member := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
+
+		// Service accounts are a licensed feature, so seed one directly. It
+		// is not an organization member: site-wide authority is sufficient.
+		serviceAccount := dbgen.User(t, db, database.User{
+			IsServiceAccount: true,
+			RBACRoles:        []string{rbac.RoleOwner().String()},
+		})
+		_, token := dbgen.APIKey(t, db, database.APIKey{
+			UserID:    serviceAccount.ID,
+			LoginType: database.LoginTypeToken,
+		})
+		serviceAccountClient := codersdk.New(
+			client.URL,
+			codersdk.WithSessionToken(token),
+			codersdk.WithHTTPClient(coderdtest.NewIsolatedHTTPClient(client.URL)),
+		)
+		t.Cleanup(serviceAccountClient.HTTPClient.CloseIdleConnections)
+
+		chat, err := serviceAccountClient.CreateChat(ctx, helloRequest(member.ID, firstUser.OrganizationID))
+		require.NoError(t, err)
+		require.Equal(t, member.ID, chat.OwnerID)
+	})
+
+	t.Run("OwnerIDNil", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModel(t, client)
+
+		_, err := client.CreateChat(ctx, helloRequest(uuid.Nil, firstUser.OrganizationID))
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Equal(t, "Invalid owner_id: must be a user ID or omitted.", sdkErr.Message)
+	})
+
+	t.Run("OwnerIDIsCaller", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModel(t, client)
+		memberClientRaw, member := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
+		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
+
+		chat, err := memberClient.CreateChat(ctx, helloRequest(member.ID, firstUser.OrganizationID))
+		require.NoError(t, err)
+		require.Equal(t, member.ID, chat.OwnerID)
+	})
+
+	t.Run("WorkspaceOwnedByMember", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModel(t, client)
+		_, member := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
+		workspaceBuild := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OrganizationID: firstUser.OrganizationID,
+			OwnerID:        member.ID,
+		}).WithAgent().Do()
+
+		req := helloRequest(member.ID, firstUser.OrganizationID)
+		req.WorkspaceID = &workspaceBuild.Workspace.ID
+		chat, err := client.CreateChat(ctx, req)
+		require.NoError(t, err)
+		require.NotNil(t, chat.WorkspaceID)
+		require.Equal(t, workspaceBuild.Workspace.ID, *chat.WorkspaceID)
+	})
+
+	t.Run("WorkspaceNotAccessibleToOwner", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModel(t, client)
+		_, member := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
+		workspaceBuild := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OrganizationID: firstUser.OrganizationID,
+			OwnerID:        firstUser.UserID,
+		}).WithAgent().Do()
+
+		// The admin can reach their own workspace, but the chat connects
+		// as the member, who cannot.
+		req := helloRequest(member.ID, firstUser.OrganizationID)
+		req.WorkspaceID = &workspaceBuild.Workspace.ID
+		_, err := client.CreateChat(ctx, req)
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Equal(t, "Workspace not found or you do not have access to this resource", sdkErr.Message)
+	})
+
+	t.Run("ModelConfigNotAccessibleToOwner", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModel(t, client)
+		provider := createAIProviderForTest(t, client, "openai-compat", "test-api-key")
+		privateConfig := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+			AIProviderID: uuid.NullUUID{UUID: provider.ID, Valid: true}, OrganizationID: firstUser.OrganizationID,
+			Model: "private-" + uuid.NewString(), Enabled: true, GroupACL: database.ChatACL{},
+		})
+		_, member := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
+
+		// The admin can read the private model; the member cannot, and
+		// chatd would silently fall back to the default at run time.
+		req := helloRequest(member.ID, firstUser.OrganizationID)
+		req.ModelConfigID = &privateConfig.ID
+		_, err := client.CreateChat(ctx, req)
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Equal(t, "Invalid model_config_id: model config not found or disabled.", sdkErr.Message)
+	})
+
+	t.Run("OrgAdminForbidden", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModel(t, client)
+		orgAdminClientRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID, rbac.ScopedRoleOrgAdmin(firstUser.OrganizationID))
+		orgAdminClient := codersdk.NewExperimentalClient(orgAdminClientRaw)
+		_, member := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
+
+		// Org admins hold org-scoped chat:create, but a chat runs with its
+		// owner's credentials, so acting as another user needs site-wide
+		// authority.
+		_, err := orgAdminClient.CreateChat(ctx, helloRequest(member.ID, firstUser.OrganizationID))
+		requireSDKError(t, err, http.StatusForbidden)
+	})
+
+	t.Run("MemberForbidden", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModel(t, client)
+		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
+		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
+		_, other := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
+
+		_, err := memberClient.CreateChat(ctx, helloRequest(other.ID, firstUser.OrganizationID))
+		requireSDKError(t, err, http.StatusForbidden)
+	})
+
+	t.Run("OwnerNotInOrganization", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModel(t, client)
+		otherOrg := dbgen.Organization(t, db, database.Organization{})
+		_, member := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
+
+		_, err := client.CreateChat(ctx, helloRequest(member.ID, otherOrg.ID))
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Equal(t, "Chat owner must be an active member of the organization.", sdkErr.Message)
+	})
+
+	t.Run("OwnerNotFound", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModel(t, client)
+
+		_, err := client.CreateChat(ctx, helloRequest(uuid.New(), firstUser.OrganizationID))
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Equal(t, "Chat owner must be an active member of the organization.", sdkErr.Message)
+	})
+
+	t.Run("OwnerSuspended", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModel(t, client)
+		_, member := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
+		_, err := client.UpdateUserStatus(ctx, member.ID.String(), codersdk.UserStatusSuspended)
+		require.NoError(t, err)
+
+		_, err = client.CreateChat(ctx, helloRequest(member.ID, firstUser.OrganizationID))
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Equal(t, "Chat owner must be an active member of the organization.", sdkErr.Message)
+	})
+
+	t.Run("OwnerWithoutChatPermission", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModel(t, client)
+		// Organization service accounts deliberately hold no chat permissions.
+		serviceAccount := dbgen.User(t, db, database.User{IsServiceAccount: true})
+		dbgen.OrganizationMember(t, db, database.OrganizationMember{
+			OrganizationID: firstUser.OrganizationID,
+			UserID:         serviceAccount.ID,
+		})
+
+		_, err := client.CreateChat(ctx, helloRequest(serviceAccount.ID, firstUser.OrganizationID))
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Equal(t, "Chat owner does not have permission to use chats.", sdkErr.Message)
+	})
+
+	t.Run("OwnerWithCreateOnlyChatPermission", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		rawDB, pubsub := dbtestutil.NewDB(t)
+		client, _ := newChatClientWithDatabase(t, func(opts *coderdtest.Options) {
+			opts.Database = rawDB
+			opts.Pubsub = pubsub
+		})
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModel(t, client)
+		// A custom role can grant chat:create without read or update.
+		role, err := rawDB.InsertCustomRole(ctx, database.InsertCustomRoleParams{
+			Name:           testutil.GetRandomName(t),
+			DisplayName:    "Chat Creator",
+			OrganizationID: uuid.NullUUID{UUID: firstUser.OrganizationID, Valid: true},
+			OrgPermissions: database.CustomRolePermissions{{
+				ResourceType: rbac.ResourceChat.Type,
+				Action:       policy.ActionCreate,
+			}},
+		})
+		require.NoError(t, err)
+		serviceAccount := dbgen.User(t, rawDB, database.User{IsServiceAccount: true})
+		dbgen.OrganizationMember(t, rawDB, database.OrganizationMember{
+			OrganizationID: firstUser.OrganizationID,
+			UserID:         serviceAccount.ID,
+			Roles:          []string{role.Name},
+		})
+
+		_, err = client.CreateChat(ctx, helloRequest(serviceAccount.ID, firstUser.OrganizationID))
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Equal(t, "Chat owner does not have permission to use chats.", sdkErr.Message)
+	})
+}
+
 // TestChats_ForceOnMCPServerEnforced is the endpoint-level regression
 // test for Cure53 CDM-02-010: a regular user who strips force_on MCP
 // server IDs from mcp_server_ids when creating a chat or sending a

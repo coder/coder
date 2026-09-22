@@ -21624,6 +21624,11 @@ const docTemplate = `{
                     "type": "string",
                     "format": "uuid"
                 },
+                "owner_id": {
+                    "description": "OwnerID makes another user the chat owner. It defaults to the\ncaller. The chat runs with the owner's credentials, so setting it\nrequires site-wide authority over that user.",
+                    "type": "string",
+                    "format": "uuid"
+                },
                 "plan_mode": {
                     "$ref": "#/definitions/codersdk.ChatPlanMode"
                 },

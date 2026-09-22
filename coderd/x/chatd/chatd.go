@@ -1103,8 +1103,10 @@ var (
 
 // CreateOptions controls chat creation in the shared chat mutation path.
 type CreateOptions struct {
-	OrganizationID          uuid.UUID
-	OwnerID                 uuid.UUID
+	OrganizationID uuid.UUID
+	OwnerID        uuid.UUID
+	// CreatedBy attributes the initial user message; defaults to OwnerID.
+	CreatedBy               uuid.UUID
 	WorkspaceID             uuid.NullUUID
 	BuildID                 uuid.NullUUID
 	AgentID                 uuid.NullUUID
@@ -1397,7 +1399,7 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 		initialMessages = append(initialMessages, systemMessage(userPromptContent, opts.ModelConfigID))
 	}
 	initialMessages = append(initialMessages, systemMessage(workspaceAwarenessContent, opts.ModelConfigID))
-	initialMessages = append(initialMessages, userMessage(userContent, opts.ModelConfigID, opts.OwnerID, opts.ReasoningEffort))
+	initialMessages = append(initialMessages, userMessage(userContent, opts.ModelConfigID, cmp.Or(opts.CreatedBy, opts.OwnerID), opts.ReasoningEffort))
 
 	result, err := chatstate.CreateChatWithID(ctx, p.db, p.pubsub, chatID, chatstate.CreateChatInput{
 		OrganizationID:    opts.OrganizationID,
