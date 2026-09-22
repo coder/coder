@@ -25,6 +25,7 @@ import (
 	"cdr.dev/slog/v3"
 	aibconfig "github.com/coder/coder/v2/aibridge/config"
 	aibcontext "github.com/coder/coder/v2/aibridge/context"
+	"github.com/coder/coder/v2/aibridge/credential"
 	"github.com/coder/coder/v2/aibridge/intercept"
 	"github.com/coder/coder/v2/aibridge/intercept/apidump"
 	"github.com/coder/coder/v2/aibridge/intercept/awssig"
@@ -332,9 +333,9 @@ func (i *interceptionBase) newMessagesService(ctx context.Context, opts ...optio
 			slog.F("auth_header", byok.Header), slog.F("key_hint", byok.Hint()),
 		)
 		switch byok.Header {
-		case intercept.AuthHeaderAuthorization:
+		case credential.AuthHeaderAuthorization:
 			opts = append(opts, option.WithAuthToken(byok.Secret))
-		case intercept.AuthHeaderXAPIKey:
+		case credential.AuthHeaderXAPIKey:
 			opts = append(opts, option.WithAPIKey(byok.Secret))
 		default:
 			return anthropic.MessageService{}, xerrors.Errorf("unexpected byok auth header: %q", byok.Header)

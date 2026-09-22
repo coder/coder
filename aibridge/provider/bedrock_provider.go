@@ -15,6 +15,7 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/aibridge/config"
+	"github.com/coder/coder/v2/aibridge/credential"
 	"github.com/coder/coder/v2/aibridge/intercept"
 	"github.com/coder/coder/v2/aibridge/intercept/awssig"
 	"github.com/coder/coder/v2/aibridge/intercept/chatcompletions"
@@ -273,11 +274,11 @@ func (p *Bedrock) bedrockInterceptConfig() intercept.Config {
 // X-Api-Key/Authorization headers are honored for users who bring their own
 // key.
 func (p *Bedrock) resolveCredential(r *http.Request) (intercept.Credential, error) {
-	if apiKey := r.Header.Get(intercept.AuthHeaderXAPIKey); apiKey != "" {
-		return intercept.BYOK{Secret: apiKey, Header: intercept.AuthHeaderXAPIKey}, nil
+	if apiKey := r.Header.Get(credential.AuthHeaderXAPIKey); apiKey != "" {
+		return intercept.BYOK{Secret: apiKey, Header: credential.AuthHeaderXAPIKey}, nil
 	}
-	if token := utils.ExtractBearerToken(r.Header.Get(intercept.AuthHeaderAuthorization)); token != "" {
-		return intercept.BYOK{Secret: token, Header: intercept.AuthHeaderAuthorization}, nil
+	if token := utils.ExtractBearerToken(r.Header.Get(credential.AuthHeaderAuthorization)); token != "" {
+		return intercept.BYOK{Secret: token, Header: credential.AuthHeaderAuthorization}, nil
 	}
 	return intercept.AWSSigV4{AccessKey: p.runtime.Cfg.AccessKey}, nil
 }
@@ -287,7 +288,7 @@ func (p *Bedrock) BaseURL() string {
 }
 
 func (*Bedrock) AuthHeader() string {
-	return intercept.AuthHeaderXAPIKey
+	return credential.AuthHeaderXAPIKey
 }
 
 // KeyPool returns nil. Bedrock authenticates via AWS signing, not a key pool.
