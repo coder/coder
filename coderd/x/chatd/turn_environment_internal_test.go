@@ -787,6 +787,7 @@ func TestBuildTurnEnvironmentToolPolicy(t *testing.T) {
 		planRootOverlay  = "You are in Plan Mode."
 		planChildOverlay = "You are in Plan Mode as a delegated sub-agent."
 		proposePlan      = "When the plan is ready, call propose_plan"
+		childMessage     = "Use message_agent to contact the parent when you are blocked and need a decision"
 	)
 	tests := []struct {
 		name     string
@@ -831,7 +832,7 @@ func TestBuildTurnEnvironmentToolPolicy(t *testing.T) {
 			name:     "PlanChild",
 			planMode: plan,
 			child:    true,
-			prompt:   []string{planChildOverlay},
+			prompt:   []string{planChildOverlay, childMessage},
 			want:     []string{"read_file", "execute", "process_output", "message_agent"},
 			dontWant: []string{
 				"write_file", "edit_files", "ask_user_question", "approved__echo", "inline__echo",
@@ -853,7 +854,7 @@ func TestBuildTurnEnvironmentToolPolicy(t *testing.T) {
 			name:   "ExploreChild",
 			mode:   explore,
 			child:  true,
-			prompt: []string{exploreOverlay},
+			prompt: []string{exploreOverlay, childMessage},
 			want: []string{
 				"read_file", "execute", "process_output", "approved__echo", "blocked__echo", "filtered__visible",
 				"web_search", "message_agent",
@@ -868,7 +869,7 @@ func TestBuildTurnEnvironmentToolPolicy(t *testing.T) {
 			mode:       explore,
 			child:      true,
 			replaceMCP: true,
-			prompt:     []string{exploreOverlay},
+			prompt:     []string{exploreOverlay, childMessage},
 			want:       []string{"approved__echo", "blocked__echo", "filtered__visible"},
 			dontWant:   []string{"unselected__echo"},
 		},
@@ -974,7 +975,7 @@ func TestBuildTurnEnvironmentToolPolicy(t *testing.T) {
 					}
 				}
 			}
-			for _, instruction := range []string{exploreOverlay, planRootOverlay, planChildOverlay, proposePlan} {
+			for _, instruction := range []string{exploreOverlay, planRootOverlay, planChildOverlay, proposePlan, childMessage} {
 				require.Equal(t, slices.Contains(tt.prompt, instruction), strings.Contains(system.String(), instruction), instruction)
 			}
 

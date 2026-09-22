@@ -195,24 +195,12 @@ func TestDefaultSystemPromptContainsSubagentOrchestration(t *testing.T) {
 	require.Contains(t, subagentOrchestrationPromptBlock, "preserves older queued work")
 	require.Contains(t, subagentOrchestrationPromptBlock, "Use list_agents for progress checks")
 	require.Contains(t, subagentOrchestrationPromptBlock, "requires_action status is unfinished")
-	require.NotContains(t, subagentOrchestrationPromptBlock, "handoff is acknowledged")
-}
-
-func TestPlanningSubagentOverlayPromptIncludesParentMessaging(t *testing.T) {
-	t.Parallel()
-
-	require.Contains(t, PlanningSubagentOverlayPrompt, "You may also use message_agent")
-	require.Contains(t, PlanningSubagentOverlayPrompt, "blocked and need a decision")
-	require.Contains(t, PlanningSubagentOverlayPrompt, "Do not use it for routine progress updates")
 }
 
 func TestExploreSubagentOverlayPromptSearchDiscipline(t *testing.T) {
 	t.Parallel()
 
 	for _, instruction := range []string{
-		"You may also use message_agent",
-		"blocked and need a decision",
-		"Do not use it for routine progress updates",
 		"use execute only for read-only commands",
 		"Search first to locate candidates",
 		"Before concluding that something does not exist, check alternate names, locations, and conventions",
