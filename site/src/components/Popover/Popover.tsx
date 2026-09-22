@@ -5,6 +5,7 @@
 
 import { cn } from "cn";
 import { Popover as PopoverPrimitive } from "radix-ui";
+import { popperAnimationClass } from "#/theme/popperAnimation";
 
 export type PopoverContentProps = React.ComponentProps<
 	typeof PopoverPrimitive.Content
@@ -33,8 +34,8 @@ export const PopoverContent: React.FC<PopoverContentProps> = ({
 			className={cn(
 				`z-50 w-72 rounded-md border border-solid bg-surface-primary
 				text-content-primary shadow-md outline-hidden
-				max-h-(--radix-popper-available-height) overflow-y-auto
-				data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95`,
+				max-h-(--radix-popper-available-height) overflow-y-auto`,
+				popperAnimationClass,
 				className,
 			)}
 			{...props}

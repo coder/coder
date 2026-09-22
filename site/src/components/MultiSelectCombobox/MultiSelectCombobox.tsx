@@ -605,6 +605,7 @@ export const MultiSelectCombobox: React.FC<MultiSelectComboboxProps> = ({
 						className={`absolute top-1 z-10 w-full rounded-md
 								border border-solid border-border
 								bg-surface-primary text-content-primary shadow-md outline-hidden
+								animate-in fade-in-0 zoom-in-[0.97] origin-top ease-out duration-150
 								scroll-mt-44 scroll-mb-10`}
 						onPointerLeave={() => {
 							setOnScrollbar(false);
