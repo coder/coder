@@ -1,6 +1,7 @@
 package oauth2provider_test
 
 import (
+	"context"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -184,24 +185,76 @@ func TestOAuth2RateLimit(t *testing.T) {
 
 	t.Run("UnmatchedPathKeepsBudget", func(t *testing.T) {
 		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitLong)
-		client, _, baseURL := newServer(t)
-		app, _ := oauth2providertest.CreateTestOAuth2App(t, client)
 
-		for i := range rateLimit + 1 {
-			resp := doRequest(ctx, t, http.MethodGet, baseURL+"/oauth2/does-not-exist", nil)
-			_ = resp.Body.Close()
-			require.NotEqual(t, http.StatusTooManyRequests, resp.StatusCode, "junk request %d should not be counted", i+1)
+		type endpoint struct {
+			send       func(ctx context.Context, t *testing.T, baseURL, clientID string) *http.Response
+			wantStatus int
+		}
+		authorize := endpoint{
+			send: func(ctx context.Context, t *testing.T, baseURL, clientID string) *http.Response {
+				_, challenge := oauth2providertest.GeneratePKCE(t)
+				return doRequest(ctx, t, http.MethodGet, authorizeURL(baseURL, clientID, challenge), nil)
+			},
+			wantStatus: http.StatusSeeOther,
+		}
+		tokens := endpoint{
+			send: func(ctx context.Context, t *testing.T, baseURL, clientID string) *http.Response {
+				form := url.Values{}
+				form.Set("grant_type", "refresh_token")
+				form.Set("refresh_token", "coder_wrongprefix_wrongsecret")
+				form.Set("client_id", clientID)
+				form.Set("client_secret", "coder_wrongprefix_wrongsecret")
+				return doRequest(ctx, t, http.MethodPost, baseURL+"/oauth2/tokens", strings.NewReader(form.Encode()), formContentType)
+			},
+			wantStatus: http.StatusUnauthorized,
+		}
+		revoke := endpoint{
+			send: func(ctx context.Context, t *testing.T, baseURL, clientID string) *http.Response {
+				form := url.Values{}
+				form.Set("token", "coder_wrongprefix_wrongsecret")
+				form.Set("client_id", clientID)
+				form.Set("client_secret", "coder_wrongprefix_wrongsecret")
+				return doRequest(ctx, t, http.MethodPost, baseURL+"/oauth2/revoke", strings.NewReader(form.Encode()), formContentType)
+			},
+			wantStatus: http.StatusUnauthorized,
+		}
+		clients := endpoint{
+			send: func(ctx context.Context, t *testing.T, baseURL, _ string) *http.Response {
+				return doRequest(ctx, t, http.MethodGet, baseURL+"/oauth2/clients/"+uuid.NewString(), nil, bearer("wrongtoken"))
+			},
+			wantStatus: http.StatusUnauthorized,
 		}
 
-		form := url.Values{}
-		form.Set("token", "coder_wrongprefix_wrongsecret")
-		form.Set("client_id", app.ID.String())
-		form.Set("client_secret", "coder_wrongprefix_wrongsecret")
+		for _, tc := range []struct {
+			name     string
+			method   string
+			junkPath string
+			endpoint endpoint
+		}{
+			{name: "OutsideAnyEndpoint", method: http.MethodGet, junkPath: "/oauth2/does-not-exist", endpoint: revoke},
+			{name: "AuthorizeSuffix", method: http.MethodGet, junkPath: "/oauth2/authorize/does-not-exist", endpoint: authorize},
+			{name: "TokensSuffix", method: http.MethodPost, junkPath: "/oauth2/tokens/does-not-exist", endpoint: tokens},
+			{name: "RevokeSuffix", method: http.MethodPost, junkPath: "/oauth2/revoke/does-not-exist", endpoint: revoke},
+			{name: "RevokeWrongMethod", method: http.MethodGet, junkPath: "/oauth2/revoke", endpoint: revoke},
+			{name: "ClientsSuffix", method: http.MethodGet, junkPath: "/oauth2/clients/" + uuid.NewString() + "/does-not-exist", endpoint: clients},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				ctx := testutil.Context(t, testutil.WaitLong)
+				client, _, baseURL := newServer(t)
+				app, _ := oauth2providertest.CreateTestOAuth2App(t, client)
 
-		requireLimited(t, func() *http.Response {
-			return doRequest(ctx, t, http.MethodPost, baseURL+"/oauth2/revoke", strings.NewReader(form.Encode()), formContentType)
-		}, http.StatusUnauthorized)
+				for i := range rateLimit + 1 {
+					resp := doRequest(ctx, t, tc.method, baseURL+tc.junkPath, nil)
+					_ = resp.Body.Close()
+					require.NotEqual(t, http.StatusTooManyRequests, resp.StatusCode, "junk request %d should not be counted", i+1)
+				}
+
+				requireLimited(t, func() *http.Response {
+					return tc.endpoint.send(ctx, t, baseURL, app.ID.String())
+				}, tc.endpoint.wantStatus)
+			})
+		}
 	})
 
 	t.Run("DeleteTokensLimitedPerUser", func(t *testing.T) {
