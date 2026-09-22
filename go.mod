@@ -534,7 +534,7 @@ require (
 	charm.land/fantasy v0.8.1
 	github.com/anthropics/anthropic-sdk-go v1.19.0
 	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.7.15
-	github.com/aws/aws-sdk-go-v2/service/bedrock v1.72.0
+	github.com/aws/aws-sdk-go-v2/service/bedrock v1.73.0
 	github.com/aymanbagabas/go-udiff v0.4.1
 	github.com/brianvoe/gofakeit/v7 v7.17.0
 	github.com/coder/agentapi-sdk-go v0.0.0-20250505131810-560d1d88d225
