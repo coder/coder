@@ -53,6 +53,7 @@ For Amazon VPC CNI, use Deployment-managed Pods instead of this example's standa
 [AWS documents unreliable enforcement for standalone Pods](https://docs.aws.amazon.com/eks/latest/userguide/cni-network-policy.html).
 
 Save this Terraform as `main.tf` in an empty template directory.
+Edit the `locals` block at the top of the file with your namespace and Coder server address.
 
 <details>
 <summary>main.tf: two Pods, one project volume, and an agent network policy</summary>
@@ -65,43 +66,25 @@ terraform {
   }
 }
 
-variable "use_kubeconfig" {
-  type        = bool
-  default     = false
-  description = "Use ~/.kube/config on the provisioner host instead of in-cluster authentication."
-}
-variable "namespace" {
-  type        = string
-  description = "Existing namespace for workspace resources."
-}
-variable "storage_class_name" {
-  type        = string
-  default     = null
-  description = "Storage class for the shared project PVC. Null uses the cluster default."
-}
-variable "coder_host" {
-  type        = string
-  description = "Hostname in the Coder access URL, without scheme or port."
-}
-variable "coder_ip" {
-  type        = string
-  description = "Trusted fixed IPv4 address of the external Coder endpoint, not a cluster Service or node IP."
-  validation {
-    condition     = can(cidrnetmask("${var.coder_ip}/32"))
-    error_message = "coder_ip must be one IPv4 address."
-  }
-}
-variable "coder_port" {
-  type        = number
-  description = "TCP port of the Coder endpoint (including agent downloads and embedded DERP)."
-  validation {
-    condition     = var.coder_port >= 1 && var.coder_port <= 65535 && floor(var.coder_port) == var.coder_port
-    error_message = "coder_port must be an integer from 1 to 65535."
-  }
+locals {
+  # Edit these values for your cluster and Coder deployment.
+
+  # Use ~/.kube/config on the provisioner host instead of in-cluster authentication.
+  use_kubeconfig = false
+  # Existing namespace for workspace resources.
+  namespace = "coder-sandbox-test"
+  # Storage class for the shared project PVC. Null uses the cluster default.
+  storage_class_name = null
+  # Hostname in the Coder access URL, without scheme or port.
+  coder_host = "coder.example.com"
+  # Trusted fixed IPv4 address of the external Coder endpoint, not a cluster Service or node IP.
+  coder_ip = "192.0.2.10"
+  # TCP port of the Coder endpoint (including agent downloads and embedded DERP).
+  coder_port = 443
 }
 
 provider "kubernetes" {
-  config_path = var.use_kubeconfig == true ? "~/.kube/config" : null
+  config_path = local.use_kubeconfig ? "~/.kube/config" : null
 }
 
 data "coder_workspace" "me" {}
@@ -127,12 +110,12 @@ locals {
 resource "kubernetes_persistent_volume_claim_v1" "project" {
   metadata {
     name      = "${local.name}-project"
-    namespace = var.namespace
+    namespace = local.namespace
   }
   wait_until_bound = false
   spec {
     access_modes       = ["ReadWriteOnce"]
-    storage_class_name = var.storage_class_name
+    storage_class_name = local.storage_class_name
     resources {
       requests = { storage = "10Gi" }
     }
@@ -142,7 +125,7 @@ resource "kubernetes_persistent_volume_claim_v1" "project" {
 resource "kubernetes_config_map_v1" "mcp" {
   metadata {
     name      = "${local.name}-mcp"
-    namespace = var.namespace
+    namespace = local.namespace
   }
   data = { "mcp.json" = jsonencode({ mcpServers = {} }) }
 }
@@ -150,7 +133,7 @@ resource "kubernetes_config_map_v1" "mcp" {
 resource "kubernetes_network_policy_v1" "sandbox" {
   metadata {
     name      = "${local.name}-sandbox"
-    namespace = var.namespace
+    namespace = local.namespace
   }
   spec {
     pod_selector {
@@ -160,12 +143,12 @@ resource "kubernetes_network_policy_v1" "sandbox" {
     egress {
       to {
         ip_block {
-          cidr = "${var.coder_ip}/32"
+          cidr = "${local.coder_ip}/32"
         }
       }
       ports {
         protocol = "TCP"
-        port     = var.coder_port
+        port     = local.coder_port
       }
     }
   }
@@ -175,7 +158,7 @@ resource "kubernetes_pod_v1" "dev" {
   count = data.coder_workspace.me.start_count
   metadata {
     name      = "${local.name}-dev"
-    namespace = var.namespace
+    namespace = local.namespace
     labels    = merge(local.labels, { "coder.com/agent-role" = "dev" })
   }
   spec {
@@ -189,8 +172,8 @@ resource "kubernetes_pod_v1" "dev" {
       seccomp_profile { type = "RuntimeDefault" }
     }
     host_aliases {
-      ip        = var.coder_ip
-      hostnames = [var.coder_host]
+      ip        = local.coder_ip
+      hostnames = [local.coder_host]
     }
     container {
       name        = "dev"
@@ -236,7 +219,7 @@ resource "kubernetes_pod_v1" "sandbox" {
   depends_on = [kubernetes_network_policy_v1.sandbox]
   metadata {
     name      = "${local.name}-dev-coderd-chat"
-    namespace = var.namespace
+    namespace = local.namespace
     labels    = merge(local.labels, { "coder.com/agent-role" = "sandbox" })
   }
   spec {
@@ -263,8 +246,8 @@ resource "kubernetes_pod_v1" "sandbox" {
       }
     }
     host_aliases {
-      ip        = var.coder_ip
-      hostnames = [var.coder_host]
+      ip        = local.coder_ip
+      hostnames = [local.coder_host]
     }
     container {
       name        = "dev-coderd-chat"
@@ -329,20 +312,10 @@ resource "kubernetes_pod_v1" "sandbox" {
 
 </details>
 
-Create `terraform.tfvars` beside it:
-
-```tf
-namespace  = "coder-sandbox-test"
-coder_host = "coder.example.com"
-coder_ip   = "192.0.2.10"
-coder_port = 443
-```
-
-Replace these values with your namespace and Coder server address.
 Use the Coder hostname without `https://` or a port.
 Use an external IP address, not a cluster Service or node IP.
 `hostAliases` lets the agent find Coder at this IP without DNS.
-If Coder asks for `storage_class_name`, enter your cluster's default storage class.
+If your cluster has no default storage class, set `storage_class_name` to one that fits the requirements above.
 
 If the provisioner runs outside the cluster, set `use_kubeconfig = true`.
 Provide `~/.kube/config` on the provisioner host.
