@@ -53,6 +53,7 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/workspacestats/workspacestatstest"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/provisioner/echo"
 	"github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/pty"
@@ -2229,6 +2230,99 @@ func TestSSH_Container(t *testing.T) {
 func TestSSH_CoderConnect(t *testing.T) {
 	t.Parallel()
 
+	tests := []struct {
+		name        string
+		id          string
+		useOldAgent bool
+	}{
+		{name: "GenerateSessionID"},
+		{name: "ClientSessionID", id: "0123456789abcdef0123456789abcdef"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			connLogger := connectionlog.NewFake()
+			client, store := coderdtest.NewWithDatabase(t, &coderdtest.Options{
+				ConnectionLogger: connLogger,
+			})
+			client.SetLogger(testutil.Logger(t).Named("client"))
+			first := coderdtest.CreateFirstUser(t, client)
+			userClient, user := coderdtest.CreateAnotherUserMutators(t, client, first.OrganizationID, nil, func(r *codersdk.CreateUserRequestWithOrgs) {
+				r.Username = "myuser"
+			})
+			r := dbfake.WorkspaceBuild(t, store, database.WorkspaceTable{
+				Name:           "myworkspace",
+				OrganizationID: first.OrganizationID,
+				OwnerID:        user.ID,
+			}).WithAgent().Do()
+
+			_ = agenttest.New(t, userClient.URL, r.AgentToken)
+			resources := coderdtest.NewWorkspaceAgentWaiter(t, userClient, r.Workspace.ID).Wait()
+
+			clientOutput, clientInput := io.Pipe()
+			serverOutput, serverInput := io.Pipe()
+			defer func() {
+				for _, c := range []io.Closer{clientOutput, clientInput, serverOutput, serverInput} {
+					_ = c.Close()
+				}
+			}()
+
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+			defer cancel()
+
+			// Get an agent conn to use as the Coder Connect dialer.
+			agentConn, err := workspacesdk.New(userClient).DialAgent(ctx, resources[0].Agents[0].ID, nil)
+			require.NoError(t, err)
+			defer agentConn.Close()
+			require.True(t, agentConn.AwaitReachable(ctx))
+
+			inv, root := clitest.New(t, "ssh", r.Workspace.Name, "--stdio")
+			clitest.SetupConfig(t, userClient, root)
+			if tc.id != "" {
+				inv.Environ.Set("CODER_TRACE_SESSION_ID", tc.id)
+			}
+			ctx = cli.WithTestOnlyCoderConnectDialer(ctx, agentConn)
+			ctx = withCoderConnectRunning(ctx)
+			inv.Stdin = clientOutput
+			inv.Stdout = serverInput
+			inv.Stderr = io.Discard
+
+			cmdDone := tGo(t, func() {
+				err := inv.WithContext(ctx).Run()
+				assert.NoError(t, err)
+			})
+
+			conn, channels, requests, err := ssh.NewClientConn(&testutil.ReaderWriterConn{
+				Reader: serverOutput,
+				Writer: clientInput,
+			}, "", &ssh.ClientConfig{
+				// #nosec
+				HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+			})
+			require.NoError(t, err)
+			defer conn.Close()
+
+			sshClient := ssh.NewClient(conn, channels, requests)
+			session, err := sshClient.NewSession()
+			require.NoError(t, err)
+			defer session.Close()
+
+			command := "sh -c exit"
+			if runtime.GOOS == "windows" {
+				command = "cmd.exe /c exit"
+			}
+			err = session.Run(command)
+			require.NoError(t, err)
+			err = sshClient.Close()
+			require.NoError(t, err)
+			_ = clientOutput.Close()
+
+			<-cmdDone
+			assertConnLog(t, connLogger, r.Workspace, tc.id)
+		})
+	}
+
 	t.Run("Enabled", func(t *testing.T) {
 		t.Parallel()
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
@@ -2256,7 +2350,7 @@ func TestSSH_CoderConnect(t *testing.T) {
 
 		err := testutil.TryReceive(ctx, t, errCh)
 		// Our mock dialer will always fail with this error, if it was called
-		require.ErrorContains(t, err, "dial coder connect host \"dev.myworkspace.myuser.coder:22\" over tcp")
+		require.ErrorContains(t, err, "dial coder connect host \"dev.myworkspace.myuser.coder:4\" over tcp")
 
 		// The network info file should be created since we passed `--stdio`
 		entries, err := afero.ReadDir(fs, "/net")

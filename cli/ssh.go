@@ -25,6 +25,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/mattn/go-isatty"
 	"github.com/spf13/afero"
+	"go.opentelemetry.io/otel/baggage"
+	"go.opentelemetry.io/otel/propagation"
 	gossh "golang.org/x/crypto/ssh"
 	gosshagent "golang.org/x/crypto/ssh/agent"
 	"golang.org/x/term"
@@ -37,6 +39,7 @@ import (
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/cli/cliutil"
 	"github.com/coder/coder/v2/coderd/autobuild/notify"
+	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/coderd/util/maps"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
@@ -462,7 +465,16 @@ func (r *RootCmd) ssh() *serpent.Command {
 						})
 						defer closeUsage()
 					}
-					return runCoderConnectStdio(ctx, fmt.Sprintf("%s:22", coderConnectHost), stdioReader, stdioWriter, stack, logger)
+					return runCoderConnectStdio(ctx, coderConnectOpts{
+						host:            coderConnectHost,
+						httpPort:        workspacesdk.AgentHTTPAPIServerPort,
+						tcpPort:         workspacesdk.AgentStandardSSHPort,
+						stdin:           stdioReader,
+						stdout:          stdioWriter,
+						stack:           stack,
+						logger:          logger,
+						clientSessionID: sessionID,
+					})
 				}
 			}
 
@@ -1701,29 +1713,99 @@ func testOrDefaultDialer(ctx context.Context) coderConnectDialer {
 	return dialer
 }
 
-func runCoderConnectStdio(ctx context.Context, addr string, stdin io.Reader, stdout io.Writer, stack *closerStack, logger slog.Logger) error {
-	dialer := testOrDefaultDialer(ctx)
-	var conn net.Conn
-	if err := retryWithInterval(ctx, logger, sshRetryInterval, sshMaxAttempts, func() error {
+type coderConnectOpts struct {
+	host            string
+	httpPort        uint16
+	tcpPort         uint16
+	clientSessionID string
+	stdin           io.Reader
+	stdout          io.Writer
+	stack           *closerStack
+	logger          slog.Logger
+}
+
+func runCoderConnectStdio(ctx context.Context, opts coderConnectOpts) error {
+	var conn io.ReadWriteCloser
+	if err := retryWithInterval(ctx, opts.logger, sshRetryInterval, sshMaxAttempts, func() error {
 		var err error
-		conn, err = dialer.DialContext(ctx, "tcp", addr)
-		if err != nil {
-			return xerrors.Errorf("dial coder connect host %q over tcp: %w", addr, err)
-		}
-		return nil
+		conn, err = dialTCPUpgrade(ctx, opts)
+		return err
 	}); err != nil {
 		return err
 	}
-	if err := stack.push("tcp conn", conn); err != nil {
+	if err := opts.stack.push("tcp conn", conn); err != nil {
 		return err
 	}
 
 	agentssh.Bicopy(ctx, conn, &StdioRwc{
-		Reader: stdin,
-		Writer: stdout,
+		Reader: opts.stdin,
+		Writer: opts.stdout,
 	})
 
 	return nil
+}
+
+// dialTCPUpgrade dials the agent's /tcp HTTP endpoint so we can pass along the
+// client session ID via the baggage header.  The connection is then upgraded
+// into the desired connection type based on the port.
+func dialTCPUpgrade(ctx context.Context, opts coderConnectOpts) (io.ReadWriteCloser, error) {
+	dialer := testOrDefaultDialer(ctx)
+
+	apiURL := fmt.Sprintf("http://%s:%d/api/v0/tcp/%d", opts.host, opts.httpPort, opts.tcpPort)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, apiURL, nil)
+	if err != nil {
+		return nil, xerrors.Errorf("new http api request to %q: %w", apiURL, err)
+	}
+	req.Header.Set("Connection", "Upgrade")
+	req.Header.Set("Upgrade", "tcp")
+
+	// Propagate any baggage and add the session ID.
+	if opts.clientSessionID != "" {
+		member, err := baggage.NewMemberRaw(tracing.SessionIDBaggageKey, opts.clientSessionID)
+		if err != nil {
+			return nil, err
+		}
+		bctx := propagation.Baggage{}.Extract(ctx, propagation.HeaderCarrier(req.Header))
+		bag, err := baggage.FromContext(bctx).SetMember(member)
+		if err != nil {
+			return nil, err
+		}
+		bctx = baggage.ContextWithBaggage(bctx, bag)
+		propagation.Baggage{}.Inject(bctx, propagation.HeaderCarrier(req.Header))
+	}
+
+	client := http.Client{
+		// Redirects are blocked to prevent misuse.
+		CheckRedirect: func(*http.Request, []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+		Transport: &http.Transport{
+			// Disable keep alives as we're usually only making a single
+			// request, and this triggers goleak in tests
+			DisableKeepAlives: true,
+			DialContext:       dialer.DialContext,
+		},
+	}
+
+	//nolint:bodyclose // On success the caller is responsible for closing.
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, xerrors.Errorf("do upgrade request to %q: %w", apiURL, err)
+	}
+	if resp.StatusCode != http.StatusSwitchingProtocols {
+		_ = resp.Body.Close()
+		// Fall back to dialing the port directly.
+		return dialer.DialContext(ctx, "tcp", fmt.Sprintf("%s:%d", opts.host, opts.tcpPort))
+	}
+
+	respBody := resp.Body
+	conn, ok := respBody.(io.ReadWriteCloser)
+	if !ok {
+		_ = respBody.Close()
+		return nil, xerrors.Errorf("response body is not a io.ReadWriteCloser: %T", respBody)
+	}
+
+	return conn, nil
 }
 
 type StdioRwc struct {
