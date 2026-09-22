@@ -5415,12 +5415,12 @@ token_type_hint: string
 
 ### Responses
 
-| Status | Meaning                                                                 | Description                                                                                                                    | Schema                                                 |
-|--------|-------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------|--------------------------------------------------------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)                 | Token successfully revoked. A 200 does not confirm that the token existed or belonged to the client                            |                                                        |
-| 400    | [Bad Request](https://tools.ietf.org/html/rfc7231#section-6.5.1)        | invalid_request: a missing client_id or token, credentials in both the Authorization header and the body, or a malformed token | [codersdk.OAuth2Error](schemas.md#codersdkoauth2error) |
-| 401    | [Unauthorized](https://tools.ietf.org/html/rfc7235#section-3.1)         | invalid_client: the client is unknown, or a confidential client did not present a valid secret                                 | [codersdk.OAuth2Error](schemas.md#codersdkoauth2error) |
-| 413    | [Payload Too Large](https://tools.ietf.org/html/rfc7231#section-6.5.11) | Request body exceeds 4 MiB                                                                                                     | [codersdk.OAuth2Error](schemas.md#codersdkoauth2error) |
+| Status | Meaning                                                                 | Description                                                                                                                                                           | Schema                                                 |
+|--------|-------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------|--------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)                 | Token successfully revoked. A 200 does not confirm that the token existed or belonged to the client                                                                   |                                                        |
+| 400    | [Bad Request](https://tools.ietf.org/html/rfc7231#section-6.5.1)        | invalid_request: a missing client_id or token, credentials in both the Authorization header and the body, client_secret in the URL query string, or a malformed token | [codersdk.OAuth2Error](schemas.md#codersdkoauth2error) |
+| 401    | [Unauthorized](https://tools.ietf.org/html/rfc7235#section-3.1)         | invalid_client: the client is unknown, or a confidential client did not present a valid secret                                                                        | [codersdk.OAuth2Error](schemas.md#codersdkoauth2error) |
+| 413    | [Payload Too Large](https://tools.ietf.org/html/rfc7231#section-6.5.11) | Request body exceeds 4 MiB                                                                                                                                            | [codersdk.OAuth2Error](schemas.md#codersdkoauth2error) |
 
 ## OAuth2 token exchange
 
@@ -5481,10 +5481,11 @@ grant_type: authorization_code
 
 ### Responses
 
-| Status | Meaning                                                                 | Description                | Schema                                                                 |
-|--------|-------------------------------------------------------------------------|----------------------------|------------------------------------------------------------------------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)                 | OK                         | [codersdk.OAuth2TokenResponse](schemas.md#codersdkoauth2tokenresponse) |
-| 413    | [Payload Too Large](https://tools.ietf.org/html/rfc7231#section-6.5.11) | Request body exceeds 4 MiB | [codersdk.OAuth2Error](schemas.md#codersdkoauth2error)                 |
+| Status | Meaning                                                                 | Description                                                                                 | Schema                                                                 |
+|--------|-------------------------------------------------------------------------|---------------------------------------------------------------------------------------------|------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)                 | OK                                                                                          | [codersdk.OAuth2TokenResponse](schemas.md#codersdkoauth2tokenresponse) |
+| 400    | [Bad Request](https://tools.ietf.org/html/rfc7231#section-6.5.1)        | invalid_request: client_secret in the URL query string, or a missing or malformed parameter | [codersdk.OAuth2Error](schemas.md#codersdkoauth2error)                 |
+| 413    | [Payload Too Large](https://tools.ietf.org/html/rfc7231#section-6.5.11) | Request body exceeds 4 MiB                                                                  | [codersdk.OAuth2Error](schemas.md#codersdkoauth2error)                 |
 
 ## Delete OAuth2 application tokens
 
