@@ -21,7 +21,7 @@ export const useClientFilterMenu = ({
 			});
 			const firstClient = clientsRes.at(0);
 
-			if (firstClient) {
+			if (firstClient && firstClient === value) {
 				return {
 					startIcon: (
 						<AIBridgeClientIcon client={firstClient} className="size-icon-sm" />
