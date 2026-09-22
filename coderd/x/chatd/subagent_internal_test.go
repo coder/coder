@@ -4034,6 +4034,21 @@ func TestAwaitSubagentCompletion(t *testing.T) {
 		assert.Empty(t, report)
 	})
 
+	t.Run("PausedIsNotDone", func(t *testing.T) {
+		t.Parallel()
+		ctx := chatdTestContext(t)
+
+		_, child := createParentChildChats(ctx, t, server, user, org, model)
+
+		WaitUntilIdleForTest(server)
+		insertAssistantMessage(t, db, child.ID, model.ID, "partial result")
+		setChatStatus(ctx, t, db, child.ID, database.ChatStatusPaused, "")
+
+		_, _, done, err := server.checkSubagentCompletion(ctx, child.ID)
+		require.NoError(t, err)
+		assert.False(t, done)
+	})
+
 	t.Run("Timeout", func(t *testing.T) {
 		t.Parallel()
 
@@ -4193,6 +4208,9 @@ func TestWaitAgentToolSchema(t *testing.T) {
 	require.True(t, ok)
 	assert.Equal(t, "integer", timeoutSeconds["type"])
 	assert.Equal(t, "Defaults to 5 minutes.", timeoutSeconds["description"])
+	assert.Contains(t, tool.Info().Description, "Returns immediately when the agent finishes")
+	assert.Contains(t, tool.Info().Description, "A timeout does not stop the child")
+	assert.Contains(t, tool.Info().Description, "A timeout with status paused means the child's owner is editing")
 }
 
 func TestWaitAgentTimeoutReturnsInformationalPayload(t *testing.T) {
