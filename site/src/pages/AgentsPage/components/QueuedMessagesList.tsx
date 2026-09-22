@@ -16,18 +16,18 @@ import {
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 
-interface QueuedMessagesListProps {
+type QueuedMessagesListProps = {
 	messages: readonly ChatQueuedMessage[];
 	onDelete: (id: number) => Promise<void> | void;
 	onPromote: (id: number) => Promise<void> | void;
 	className?: string;
-}
+};
 
-interface QueuedMessageInfo {
+type QueuedMessageInfo = {
 	displayText: string;
 	attachmentCount: number;
 	hookNotices: string[];
-}
+};
 
 export const getQueuedMessageInfo = (
 	message: ChatQueuedMessage,

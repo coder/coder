@@ -13,13 +13,13 @@ import { getVSCodeHref } from "#/modules/apps/apps";
 import { AgentButton } from "../AgentButton";
 import { DisplayAppNameMap } from "../AppLink/AppLink";
 
-interface VSCodeDesktopButtonProps {
+type VSCodeDesktopButtonProps = {
 	userName: string;
 	workspaceName: string;
 	agentName?: string;
 	folderPath?: string;
 	displayApps: readonly DisplayApp[];
-}
+};
 
 type VSCodeVariant = "vscode" | "vscode-insiders";
 

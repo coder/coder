@@ -33,7 +33,7 @@ import { isMobileViewport } from "#/utils/mobile";
 import { getPathBasename, getPathDirname } from "../utils/path";
 import { SvgRingProgress } from "./SvgRingProgress";
 
-export interface AgentContextUsage {
+export type AgentContextUsage = {
 	readonly usedTokens?: number;
 	readonly estimated?: boolean;
 	readonly contextLimitTokens?: number;
@@ -47,7 +47,7 @@ export interface AgentContextUsage {
 	// Pinned workspace-context state: the resources the chat is built from and
 	// whether they have drifted from the agent's latest snapshot.
 	readonly context?: ChatContext;
-}
+};
 
 // Normalized popover entries, sourced from the chat's pinned context
 // resources.

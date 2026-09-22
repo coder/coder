@@ -197,11 +197,11 @@ function isRBACAction(action: string): action is RBACAction {
 	return RBACActions.some((rbacAction) => rbacAction === action);
 }
 
-interface ActionCheckboxesProps {
+type ActionCheckboxesProps = {
 	permissions: readonly Permission[];
 	form: FormikContextType<CustomRoleRequest>;
 	allResources: boolean;
-}
+};
 
 const ActionCheckboxes: FC<ActionCheckboxesProps> = ({
 	permissions,
@@ -306,7 +306,7 @@ const ActionCheckboxes: FC<ActionCheckboxesProps> = ({
 	);
 };
 
-interface PermissionCheckboxGroupProps {
+type PermissionCheckboxGroupProps = {
 	checkedActions: readonly Permission[];
 	resourceKey: RBACResource;
 	value: Partial<Record<RBACAction, string>>;
@@ -316,7 +316,7 @@ interface PermissionCheckboxGroupProps {
 		checked: boolean,
 		indeterminate: boolean,
 	) => Promise<void>;
-}
+};
 
 const PermissionCheckboxGroup: FC<PermissionCheckboxGroupProps> = ({
 	checkedActions,
@@ -385,10 +385,10 @@ const PermissionCheckboxGroup: FC<PermissionCheckboxGroupProps> = ({
 	);
 };
 
-interface ShowAllResourcesSwitchProps {
+type ShowAllResourcesSwitchProps = {
 	showAllResources: boolean;
 	setShowAllResources: Dispatch<SetStateAction<boolean>>;
-}
+};
 
 const ShowAllResourcesSwitch: FC<ShowAllResourcesSwitchProps> = ({
 	showAllResources,

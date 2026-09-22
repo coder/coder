@@ -1,7 +1,3 @@
-import {
-	MessageScroller,
-	useMessageScroller,
-} from "@shadcn/react/message-scroller";
 import { cn } from "cn";
 import {
 	ChevronLeftIcon,
@@ -20,6 +16,7 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { MessageScroller, useMessageScroller } from "#/vendor/message-scroller";
 
 import { ConversationItem } from "../ChatElements/Conversation";
 import { Message, MessageContent } from "../ChatElements/Message";
@@ -397,7 +394,7 @@ const ChatMessageItem = memo<{
 	},
 );
 
-interface ConversationTimelineProps {
+type ConversationTimelineProps = {
 	organizationId: string | undefined;
 	parsedMessages: readonly ParsedMessageEntry[];
 	chatFiles?: readonly TypesGen.ChatFileMetadata[];
@@ -422,7 +419,7 @@ interface ConversationTimelineProps {
 	showDesktopPreviews?: boolean;
 	hasActiveStream?: boolean;
 	isAwaitingFirstStreamChunk?: boolean;
-}
+};
 
 export const ConversationTimeline = memo<ConversationTimelineProps>(
 	({

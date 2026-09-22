@@ -2,6 +2,7 @@ package provider
 
 import (
 	"net/http"
+	"regexp"
 
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/xerrors"
@@ -114,4 +115,34 @@ type Provider interface {
 // same configuration from intercept.Config instead.
 type UpstreamHeadersProvider interface {
 	UpstreamHeaders() map[string]string
+}
+
+// validProviderName matches lowercase alphanumeric names separated by hyphens.
+var validProviderName = regexp.MustCompile(`^[a-z0-9]+(-[a-z0-9]+)*$`)
+
+// ValidateProviders checks that provider names are valid and unique.
+func ValidateProviders(providers []Provider) error {
+	names := make(map[string]bool, len(providers))
+	for _, prov := range providers {
+		name := prov.Name()
+		if !validProviderName.MatchString(name) {
+			return xerrors.Errorf("invalid provider name %q: must contain only lowercase alphanumeric characters and hyphens", name)
+		}
+		if names[name] {
+			return xerrors.Errorf("duplicate provider name: %q", name)
+		}
+		names[name] = true
+	}
+	return nil
+}
+
+// CollectKeyPools returns the non-nil key pools of the given providers.
+func CollectKeyPools(providers []Provider) []*keypool.Pool {
+	pools := make([]*keypool.Pool, 0, len(providers))
+	for _, prov := range providers {
+		if pool := prov.KeyPool(); pool != nil {
+			pools = append(pools, pool)
+		}
+	}
+	return pools
 }

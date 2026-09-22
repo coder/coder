@@ -376,6 +376,16 @@
 					"hidden": true
 				},
 				{
+					"json_name": "reasoning_mode",
+					"go_name": "ReasoningMode",
+					"type": "string",
+					"description": "Supported from the GPT-5.6 Sol generation of OpenAI models. Requests fail when Pro is set on a model that does not support it. Pro increases model work, latency, and token usage.",
+					"required": false,
+					"enum": ["pro"],
+					"input_type": "select",
+					"visible_for_providers": ["openai"]
+				},
+				{
 					"json_name": "service_tier",
 					"go_name": "ServiceTier",
 					"type": "string",

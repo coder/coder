@@ -20,8 +20,9 @@ const collapsibleSummaryVariants = cva(
 	},
 );
 
-interface CollapsibleSummaryProps
-	extends VariantProps<typeof collapsibleSummaryVariants> {
+type CollapsibleSummaryProps = VariantProps<
+	typeof collapsibleSummaryVariants
+> & {
 	/**
 	 * The label to display for the collapsible section
 	 */
@@ -46,7 +47,7 @@ interface CollapsibleSummaryProps
 	 * Will scroll the children into view whenever the component is opened
 	 */
 	scrollIntoViewOnOpen?: boolean;
-}
+};
 
 export const CollapsibleSummary: FC<CollapsibleSummaryProps> = ({
 	label,

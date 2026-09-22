@@ -413,11 +413,11 @@ const JSONField: FC<
 
 // ── Schema-driven field renderer ───────────────────────────────
 
-interface SchemaFieldProps extends FieldRenderContext {
+type SchemaFieldProps = FieldRenderContext & {
 	field: FieldSchema;
 	fieldKey: string;
 	errorKey: string;
-}
+};
 
 /**
  * Render a single field from the schema using the appropriate
@@ -511,13 +511,13 @@ const colSpanClass: Record<1 | 3, string | undefined> = {
 	3: "sm:col-span-full",
 };
 
-interface ModelConfigFieldsProps {
+type ModelConfigFieldsProps = {
 	provider: string;
 	form: FormikContextType<ModelFormValues>;
 	fieldErrors: ModelConfigFormBuildResult["fieldErrors"];
 	disabled: boolean;
 	children?: ReactNode;
-}
+};
 
 /**
  * Provider-specific fields (reasoning, tool calls, etc.) that

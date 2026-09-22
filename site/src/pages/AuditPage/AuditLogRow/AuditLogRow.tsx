@@ -24,12 +24,12 @@ import { AuditLogDescription } from "./AuditLogDescription/AuditLogDescription";
 import { AuditLogDiff } from "./AuditLogDiff/AuditLogDiff";
 import { determineGroupDiff } from "./AuditLogDiff/auditUtils";
 
-interface AuditLogRowProps {
+type AuditLogRowProps = {
 	auditLog: AuditLog;
 	// Useful for Storybook
 	defaultIsDiffOpen?: boolean;
 	showOrgDetails: boolean;
-}
+};
 
 export const AuditLogRow: FC<AuditLogRowProps> = ({
 	auditLog,

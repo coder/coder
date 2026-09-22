@@ -15,9 +15,9 @@ export const Sidebar: FC<ComponentProps<"nav">> = ({ children, ...attrs }) => {
 	);
 };
 
-interface SidebarItemProps extends ComponentProps<"button"> {
+type SidebarItemProps = ComponentProps<"button"> & {
 	active?: boolean;
-}
+};
 
 export const SidebarItem: FC<SidebarItemProps> = ({
 	children,

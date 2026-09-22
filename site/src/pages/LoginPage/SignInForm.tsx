@@ -6,14 +6,14 @@ import { getApplicationName } from "#/utils/appearance";
 import { OAuthSignInForm } from "./OAuthSignInForm";
 import { PasswordSignInForm } from "./PasswordSignInForm";
 
-interface SignInFormProps {
+type SignInFormProps = {
 	isSigningIn: boolean;
 	redirectTo: string;
 	error?: unknown;
 	message?: ReactNode;
 	authMethods?: AuthMethods;
 	onSubmit: (credentials: { email: string; password: string }) => void;
-}
+};
 
 export const SignInForm: FC<SignInFormProps> = ({
 	authMethods,
