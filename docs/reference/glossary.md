@@ -72,7 +72,8 @@ Refer to [Workspace scheduling](../admin/templates/managing-templates/schedule.m
 
 ### Built-in roles
 
-The predefined roles, including User Admin, Template Admin, Auditor, and Member, with progressively narrower permissions.
+The roles Coder predefines at two scopes.
+Deployment roles such as Owner, User Admin, Template Admin, and Auditor apply across the deployment, and [organization roles](#organization-roles) apply inside one organization.
 Refer to [Groups and roles](../admin/users/groups-roles.md).
 
 ## C
@@ -182,7 +183,7 @@ The control plane also runs the agent loop for [Coder Agents](#coder-agents).
 
 ### Custom roles
 
-Deployment-defined roles composed of specific RBAC actions.
+Roles an administrator defines inside an organization from a chosen set of permissions.
 This is a Premium feature.
 Refer to [Groups and roles](../admin/users/groups-roles.md).
 
@@ -345,6 +346,12 @@ Refer to [Provisioning with OpenTofu](../admin/integrations/opentofu.md).
 An isolation boundary for members, templates, provisioners, and quotas.
 Multi-organization support is a Premium feature.
 Refer to [Organizations](../admin/users/organizations.md).
+
+### Organization roles
+
+The [built-in roles](#built-in-roles) that apply inside a single organization, such as Organization Admin and Organization Template Admin.
+A user can hold different organization roles in each organization they belong to.
+Refer to [Organization roles](../admin/users/groups-roles.md#organization-roles).
 
 ### Owner
 
