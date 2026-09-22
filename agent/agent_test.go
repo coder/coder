@@ -22,6 +22,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -55,6 +56,7 @@ import (
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/cryptorand"
 	"github.com/coder/coder/v2/tailnet"
+	tailnetproto "github.com/coder/coder/v2/tailnet/proto"
 	"github.com/coder/coder/v2/tailnet/tailnettest"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/coder/v2/testutil/expecter"
@@ -119,6 +121,85 @@ func TestAgent_ImmediateClose(t *testing.T) {
 	t.Log("Closing Agent")
 	err := agentUnderTest.Close()
 	require.NoError(t, err)
+}
+
+// eofClient forces the agent's RPC connection to fail with io.EOF so runLoop
+// takes the disconnect path.
+type eofClient struct {
+	*agenttest.Client
+}
+
+func (*eofClient) ConnectRPC211WithRole(context.Context, string) (
+	proto.DRPCAgentClient211, tailnetproto.DRPCTailnetClient28, error,
+) {
+	return nil, nil, io.EOF
+}
+
+// flushTestSink is a concurrency-safe slog.Sink that records entry messages.
+type flushTestSink struct {
+	mu       sync.Mutex
+	messages []string
+}
+
+func (s *flushTestSink) LogEntry(_ context.Context, e slog.SinkEntry) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.messages = append(s.messages, e.Message)
+}
+
+func (*flushTestSink) Sync() {}
+
+func (s *flushTestSink) contains(msg string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return slices.Contains(s.messages, msg)
+}
+
+// TestAgent_FlushLogBufferOnDisconnect verifies the agent emits its buffered
+// debug history when it loses the connection to coderd, so the detail leading
+// up to the disconnect is available even though the agent runs at Info.
+func TestAgent_FlushLogBufferOnDisconnect(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	sink := &flushTestSink{}
+	logger := slog.Make(sink).Leveled(slog.LevelInfo).FlightRecorder(1000)
+
+	// The debug entry is held by the flight recorder, not emitted, during normal
+	// operation at Info.
+	const sentinel = "buffered debug sentinel"
+	logger.Debug(ctx, sentinel)
+	require.False(t, sink.contains(sentinel), "debug entry should be buffered, not emitted")
+
+	manifest := agentsdk.Manifest{
+		AgentID:       uuid.New(),
+		AgentName:     "test-agent",
+		WorkspaceName: "test-workspace",
+		WorkspaceID:   uuid.New(),
+	}
+	coordinator := tailnet.NewCoordinator(logger)
+	t.Cleanup(func() {
+		_ = coordinator.Close()
+	})
+	statsCh := make(chan *proto.Stats, 50)
+	baseClient := agenttest.NewClient(t, logger.Named("agenttest"), manifest.AgentID, manifest, statsCh, coordinator)
+	t.Cleanup(baseClient.Close)
+
+	agentUnderTest := agent.New(agent.Options{
+		Client:     &eofClient{Client: baseClient},
+		Filesystem: afero.NewMemMapFs(),
+		Logger:     logger.Named("agent"),
+	})
+	t.Cleanup(func() {
+		_ = agentUnderTest.Close()
+	})
+
+	// Losing the connection to coderd flushes the buffered debug history to the
+	// sink.
+	require.Eventually(t, func() bool {
+		return sink.contains(sentinel)
+	}, testutil.WaitShort, testutil.IntervalFast)
 }
 
 // NOTE(Cian): I noticed that these tests would fail when my default shell was zsh.
