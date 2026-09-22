@@ -503,6 +503,10 @@ func (api *API) aiBridgeGetSessionThreads(rw http.ResponseWriter, r *http.Reques
 	httpapi.Write(ctx, rw, http.StatusOK, resp)
 }
 
+// likePatternEscaper makes a string match itself under a Postgres LIKE
+// pattern, which uses backslash as its default escape character.
+var likePatternEscaper = strings.NewReplacer(`\`, `\\`, "%", `\%`, "_", `\_`)
+
 // aiBridgeListModels returns all AI Bridge models a user can see.
 //
 // @Summary List AI Gateway models
@@ -511,6 +515,8 @@ func (api *API) aiBridgeGetSessionThreads(rw http.ResponseWriter, r *http.Reques
 // @Security CoderSessionToken
 // @Produce json
 // @Tags AI Gateway
+// @Param q query string false "Search query in the format `key:value`. Available keys are: model. A bare term searches by model prefix."
+// @Param model query string false "Literal model identifier prefix. Cannot be combined with q."
 // @Success 200 {array} string
 // @Router /api/v2/ai-gateway/models [get]
 func (api *API) aiBridgeListModels(rw http.ResponseWriter, r *http.Request) {
@@ -534,14 +540,27 @@ func (api *API) aiBridgeListModels(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	queryStr := r.URL.Query().Get("q")
-	filter, errs := searchquery.AIBridgeModels(queryStr, page)
+	modelPrefix := r.URL.Query().Get("model")
+	if queryStr != "" && modelPrefix != "" {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Query parameters \"q\" and \"model\" cannot be combined.",
+		})
+		return
+	}
 
+	filter, errs := searchquery.AIBridgeModels(queryStr, page)
 	if len(errs) > 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message:     "Invalid AI Gateway models search query.",
 			Validations: errs,
 		})
 		return
+	}
+	// The search grammar cannot carry every recorded identifier (quotes end a
+	// quoted value) and the query matches with LIKE, so the explicit parameter
+	// escapes the pattern characters to match the identifier literally.
+	if modelPrefix != "" {
+		filter.Model = likePatternEscaper.Replace(modelPrefix)
 	}
 
 	models, err := api.Database.ListAIBridgeModels(ctx, filter)
