@@ -40,6 +40,9 @@ type OAuth2AppFormRequest = TypesGen.PostOAuth2ProviderAppRequest &
 
 type OAuth2AppFormProps = {
 	app?: TypesGen.OAuth2ProviderApp;
+	// Passed on its own because the create page has no app yet. The client
+	// type decides which redirect URI rules apply.
+	clientType: TypesGen.OAuth2ClientType;
 	onSubmit: (data: OAuth2AppFormRequest) => void | Promise<void>;
 	error?: unknown;
 	isUpdating: boolean;
@@ -169,6 +172,7 @@ const validationSchema = (isPublicClient: boolean) =>
 
 export const OAuth2AppForm: FC<OAuth2AppFormProps> = ({
 	app,
+	clientType,
 	onSubmit,
 	error,
 	isUpdating,
@@ -177,7 +181,7 @@ export const OAuth2AppForm: FC<OAuth2AppFormProps> = ({
 	onIconChange,
 }) => {
 	const didSubmit = useRef(false);
-	const isPublicClient = app?.client_type === "public";
+	const isPublicClient = clientType === "public";
 	// A stored list that no longer passes validation disables Update on load.
 	// Show its errors right away instead of waiting for the field to be
 	// touched, so the admin can see what to correct.

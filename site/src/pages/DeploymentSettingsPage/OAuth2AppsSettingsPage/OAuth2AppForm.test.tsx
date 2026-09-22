@@ -38,7 +38,12 @@ describe("OAuth2AppForm", () => {
 		const onSubmit = vi.fn();
 
 		render(
-			<OAuth2AppForm onSubmit={onSubmit} isUpdating={false} disabled={false} />,
+			<OAuth2AppForm
+				clientType="confidential"
+				onSubmit={onSubmit}
+				isUpdating={false}
+				disabled={false}
+			/>,
 		);
 
 		await user.type(screen.getByLabelText(/^name/i), name);
@@ -73,6 +78,7 @@ describe("OAuth2AppForm", () => {
 		render(
 			<OAuth2AppForm
 				app={app}
+				clientType={app.client_type}
 				onSubmit={onSubmit}
 				isUpdating={false}
 				disabled={false}
@@ -118,7 +124,12 @@ describe("OAuth2AppForm", () => {
 		const onSubmit = vi.fn();
 
 		render(
-			<OAuth2AppForm onSubmit={onSubmit} isUpdating={false} disabled={false} />,
+			<OAuth2AppForm
+				clientType="confidential"
+				onSubmit={onSubmit}
+				isUpdating={false}
+				disabled={false}
+			/>,
 		);
 
 		await user.type(screen.getByLabelText(/^name/i), "test-app");
@@ -143,7 +154,12 @@ describe("OAuth2AppForm", () => {
 		const user = userEvent.setup();
 		const onSubmit = vi.fn();
 		render(
-			<OAuth2AppForm onSubmit={onSubmit} isUpdating={false} disabled={false} />,
+			<OAuth2AppForm
+				clientType="confidential"
+				onSubmit={onSubmit}
+				isUpdating={false}
+				disabled={false}
+			/>,
 		);
 		await user.type(screen.getByLabelText(/^name/i), "OAuth App");
 		await user.type(screen.getByLabelText(/default callback/i), callback);
@@ -170,7 +186,12 @@ describe("OAuth2AppForm", () => {
 		const user = userEvent.setup();
 		const onSubmit = vi.fn();
 		render(
-			<OAuth2AppForm onSubmit={onSubmit} isUpdating={false} disabled={false} />,
+			<OAuth2AppForm
+				clientType="confidential"
+				onSubmit={onSubmit}
+				isUpdating={false}
+				disabled={false}
+			/>,
 		);
 		await user.type(screen.getByLabelText(/^name/i), name);
 		await user.type(
@@ -219,6 +240,7 @@ describe("OAuth2AppForm", () => {
 			render(
 				<OAuth2AppForm
 					app={MockOAuth2ProviderAppPublic}
+					clientType="public"
 					onSubmit={onSubmit}
 					isUpdating={false}
 					disabled={false}
@@ -264,6 +286,7 @@ describe("OAuth2AppForm", () => {
 			const onSubmit = vi.fn();
 			render(
 				<OAuth2AppForm
+					clientType="confidential"
 					onSubmit={onSubmit}
 					isUpdating={false}
 					disabled={false}
@@ -304,6 +327,7 @@ describe("OAuth2AppForm", () => {
 		render(
 			<OAuth2AppForm
 				app={app}
+				clientType={app.client_type}
 				onSubmit={onSubmit}
 				isUpdating={false}
 				disabled={false}
@@ -338,6 +362,7 @@ describe("OAuth2AppForm", () => {
 		render(
 			<OAuth2AppForm
 				app={app}
+				clientType={app.client_type}
 				onSubmit={onSubmit}
 				isUpdating={false}
 				disabled={false}
@@ -373,6 +398,7 @@ describe("OAuth2AppForm", () => {
 		render(
 			<OAuth2AppForm
 				app={app}
+				clientType={app.client_type}
 				onSubmit={onSubmit}
 				isUpdating={false}
 				disabled={false}
@@ -406,6 +432,7 @@ describe("OAuth2AppForm", () => {
 		render(
 			<OAuth2AppForm
 				app={app}
+				clientType={app.client_type}
 				onSubmit={onSubmit}
 				isUpdating={false}
 				disabled={false}
@@ -445,6 +472,7 @@ describe("OAuth2AppForm", () => {
 		render(
 			<OAuth2AppForm
 				app={app}
+				clientType={app.client_type}
 				onSubmit={onSubmit}
 				isUpdating={false}
 				disabled={false}
@@ -476,6 +504,7 @@ describe("OAuth2AppForm", () => {
 		render(
 			<OAuth2AppForm
 				app={app}
+				clientType={app.client_type}
 				onSubmit={onSubmit}
 				isUpdating={false}
 				disabled={false}
@@ -506,6 +535,7 @@ describe("OAuth2AppForm", () => {
 		render(
 			<OAuth2AppForm
 				app={app}
+				clientType={app.client_type}
 				onSubmit={onSubmit}
 				isUpdating={false}
 				disabled={false}
@@ -543,6 +573,7 @@ describe("OAuth2AppForm", () => {
 		render(
 			<OAuth2AppForm
 				app={app}
+				clientType={app.client_type}
 				onSubmit={onSubmit}
 				isUpdating={false}
 				disabled={false}
@@ -577,6 +608,7 @@ describe("OAuth2AppForm", () => {
 					...MockOAuth2ProviderApps[0],
 					redirect_uris: ["http://intranet.example.com/callback"],
 				}}
+				clientType="confidential"
 				onSubmit={onSubmit}
 				isUpdating={false}
 				disabled={false}
@@ -625,6 +657,7 @@ describe("OAuth2AppForm", () => {
 						(_, i) => `https://alt-${i}.example.com/cb`,
 					),
 				}}
+				clientType="confidential"
 				onSubmit={vi.fn()}
 				isUpdating={false}
 				disabled={false}
@@ -646,6 +679,7 @@ describe("OAuth2AppForm", () => {
 		render(
 			<OAuth2AppForm
 				app={MockOAuth2ProviderApps[0]}
+				clientType="confidential"
 				onSubmit={vi.fn()}
 				isUpdating={false}
 				disabled={false}
@@ -665,7 +699,12 @@ describe("OAuth2AppForm", () => {
 		const onSubmit = vi.fn();
 		const user = userEvent.setup();
 		render(
-			<OAuth2AppForm onSubmit={onSubmit} isUpdating={false} disabled={false} />,
+			<OAuth2AppForm
+				clientType="confidential"
+				onSubmit={onSubmit}
+				isUpdating={false}
+				disabled={false}
+			/>,
 		);
 
 		await user.type(screen.getByLabelText(/^name/i), "test-app");
@@ -695,6 +734,7 @@ describe("OAuth2AppForm", () => {
 		render(
 			<OAuth2AppForm
 				app={{ ...MockOAuth2ProviderApps[0], scope: "coder:all" }}
+				clientType="confidential"
 				onSubmit={onSubmit}
 				isUpdating={false}
 				disabled={false}
@@ -722,6 +762,7 @@ describe("OAuth2AppForm", () => {
 		render(
 			<OAuth2AppForm
 				app={MockOAuth2ProviderApps[0]}
+				clientType="confidential"
 				onSubmit={onSubmit}
 				isUpdating={false}
 				disabled={false}
@@ -771,6 +812,7 @@ describe("OAuth2AppForm", () => {
 			render(
 				<OAuth2AppForm
 					app={{ ...MockOAuth2ProviderApps[0], scope }}
+					clientType="confidential"
 					onSubmit={onSubmit}
 					isUpdating={false}
 					disabled={false}
@@ -800,6 +842,7 @@ describe("OAuth2AppForm", () => {
 		render(
 			<OAuth2AppForm
 				app={{ ...MockOAuth2ProviderApps[0], scope: "   " }}
+				clientType="confidential"
 				onSubmit={onSubmit}
 				isUpdating={false}
 				disabled={false}
@@ -825,6 +868,7 @@ describe("OAuth2AppForm", () => {
 		render(
 			<OAuth2AppForm
 				app={{ ...MockOAuth2ProviderApps[0], scope: "legacy:scope" }}
+				clientType="confidential"
 				onSubmit={onSubmit}
 				isUpdating={false}
 				disabled={false}

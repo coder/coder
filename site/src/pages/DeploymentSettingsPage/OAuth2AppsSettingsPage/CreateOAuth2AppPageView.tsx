@@ -51,6 +51,9 @@ export const CreateOAuth2AppPageView: FC = () => {
 
 				<div className="border border-solid p-6 rounded-lg">
 					<OAuth2AppForm
+						// Apps created here are confidential. Public clients only come
+						// from dynamic client registration.
+						clientType="confidential"
 						onSubmit={async (req) => {
 							try {
 								const app = await postAppMutation.mutateAsync(req);
