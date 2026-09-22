@@ -1,214 +1,73 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, fn, userEvent, waitFor, within } from "storybook/test";
-import {
-	MockChatContextClean,
-	MockChatContextDirty,
-} from "#/testHelpers/chatEntities";
+import { fn, userEvent, within } from "storybook/test";
 import { ContextUsageIndicator } from "./ContextUsageIndicator";
 
 const meta: Meta<typeof ContextUsageIndicator> = {
 	title: "pages/AgentsPage/ContextUsageIndicator",
 	component: ContextUsageIndicator,
 	args: {
-		onRefreshContext: fn(),
+		onOpenDetails: fn(),
+		usage: {
+			usedTokens: 26_000,
+			contextLimitTokens: 1_100_000,
+			compressionThreshold: 70,
+		},
 	},
 };
-
 export default meta;
 type Story = StoryObj<typeof ContextUsageIndicator>;
-
-// A pinned resource issue flags the ring and appears under Issues.
-export const ResourceIssue: Story = {
-	args: {
-		usage: {
-			usedTokens: 12_000,
-			contextLimitTokens: 200_000,
-			context: MockChatContextClean,
-		},
-	},
+export const Default: Story = {};
+export const Open: Story = {
 	play: async ({ canvasElement }) => {
-		const button = within(canvasElement).getByRole("button");
-		await userEvent.hover(button);
-	},
-};
-
-// Multiple context roots: files and skills are pulled from several
-// directories, so each list groups by its parent directory. Without grouping
-// the two AGENTS.md files would render as identical, ambiguous rows.
-export const MultipleContextRoots: Story = {
-	args: {
-		usage: {
-			usedTokens: 48_000,
-			contextLimitTokens: 200_000,
-			context: {
-				dirty: false,
-				resources: [
-					{
-						source: "/home/coder/AGENTS.md",
-						kind: "instruction_file",
-						size_bytes: 248,
-						status: "ok",
-					},
-					{
-						source: "/home/coder/site/AGENTS.md",
-						kind: "instruction_file",
-						size_bytes: 512,
-						status: "ok",
-					},
-					{
-						source: "/home/coder/.coder/skills/deploy",
-						kind: "skill",
-						size_bytes: 96,
-						status: "ok",
-						skill_name: "deploy",
-						skill_description: "Deploy the app to staging.",
-					},
-					{
-						source: "/home/coder/.coder/skills/migrate",
-						kind: "skill",
-						size_bytes: 120,
-						status: "ok",
-						skill_name: "migrate",
-						skill_description: "Run database migrations.",
-					},
-					{
-						source: "/home/coder/.agents/skills/review",
-						kind: "skill",
-						size_bytes: 140,
-						status: "ok",
-						skill_name: "review",
-						skill_description: "Review a pull request.",
-					},
-				],
-			},
-		},
-	},
-	play: async ({ canvasElement }) => {
-		const button = within(canvasElement).getByRole("button");
-		await userEvent.hover(button);
-	},
-};
-
-// Multiple .mcp.json files: each config is listed by its full path so the two
-// otherwise-identical .mcp.json files stay disambiguated.
-export const MultipleMcpConfigs: Story = {
-	args: {
-		usage: {
-			usedTokens: 20_000,
-			contextLimitTokens: 200_000,
-			context: {
-				dirty: false,
-				resources: [
-					{
-						source: "/home/coder/.mcp.json",
-						kind: "mcp_config",
-						size_bytes: 184,
-						status: "ok",
-					},
-					{
-						source: "/home/coder/project/.mcp.json",
-						kind: "mcp_config",
-						size_bytes: 256,
-						status: "ok",
-					},
-				],
-			},
-		},
-	},
-	play: async ({ canvasElement }) => {
-		const button = within(canvasElement).getByRole("button");
-		await userEvent.hover(button);
-	},
-};
-
-// Drifted pin: the ring announces a change, and the popover surfaces a refresh
-// affordance to re-pin the chat to the latest snapshot.
-export const Dirty: Story = {
-	args: {
-		usage: {
-			usedTokens: 12_000,
-			contextLimitTokens: 200_000,
-			context: MockChatContextDirty,
-		},
-	},
-	play: async ({ canvasElement, args }) => {
-		const button = within(canvasElement).getByRole("button");
-		expect(button).toHaveAccessibleName(/Context changed/);
-		expect(button).toHaveAccessibleName(
-			/Some context resources failed to load/,
+		await userEvent.hover(
+			within(canvasElement).getByRole("button", { name: /Context usage/ }),
 		);
-
-		await userEvent.hover(button);
-		const body = within(document.body);
-		await waitFor(() =>
-			expect(body.getByText("Context changed")).toBeVisible(),
-		);
-
-		// Refresh from the popover invokes the handler.
-		await userEvent.click(
-			body.getByRole("button", { name: "Refresh context" }),
-		);
-		expect(args.onRefreshContext).toHaveBeenCalledTimes(1);
 	},
 };
-
-// Before any assistant message reports token usage there is no percentage,
-// so the popover explains when the numbers will appear.
-export const NoUsage: Story = {
-	args: {
-		usage: null,
-	},
-	play: async ({ canvasElement }) => {
-		const button = within(canvasElement).getByRole("button");
-		await userEvent.hover(button);
-	},
-};
-
-// Some providers report usage without token counts, so no percentage can be
-// computed even though a message was sent. The popover must say the usage is
-// unavailable instead of promising numbers after the next message.
-export const UsageWithoutTokenCounts: Story = {
+export const Unavailable: Story = { ...Open, args: { usage: null } };
+export const Disabled: Story = {
+	...Open,
 	args: {
 		usage: {
+			usedTokens: 26_000,
+			contextLimitTokens: 1_100_000,
+			compressionThreshold: 100,
+		},
+	},
+};
+export const Estimated: Story = {
+	...Open,
+	args: {
+		usage: {
+			usedTokens: 350,
 			contextLimitTokens: 200_000,
+			compressionThreshold: 70,
+			estimated: true,
 		},
-	},
-	play: async ({ canvasElement }) => {
-		const button = within(canvasElement).getByRole("button");
-		await userEvent.hover(button);
 	},
 };
-
-// A fresh chat has pinned context before any assistant message reports token
-// usage, so the popover pairs the empty-usage copy with the resource list.
-export const NoUsageWithContext: Story = {
+export const UnknownBudget: Story = {
+	...Open,
+	args: { usage: { usedTokens: 26_000 } },
+};
+export const ZeroThreshold: Story = {
+	...Open,
 	args: {
 		usage: {
-			context: MockChatContextClean,
+			usedTokens: 26_000,
+			contextLimitTokens: 1_100_000,
+			compressionThreshold: 0,
 		},
-	},
-	play: async ({ canvasElement }) => {
-		const button = within(canvasElement).getByRole("button");
-		await userEvent.hover(button);
 	},
 };
-
-// Snapshot-level error: the ring shows a distinct error treatment and the
-// popover surfaces the error message.
-export const SnapshotError: Story = {
-	args: {
-		usage: {
-			usedTokens: 12_000,
-			contextLimitTokens: 200_000,
-			context: {
-				dirty: false,
-				error: "failed to read AGENTS.md: permission denied",
-				resources: MockChatContextClean.resources,
-			},
-		},
-	},
-	play: async ({ canvasElement }) => {
-		const button = within(canvasElement).getByRole("button");
-		await userEvent.hover(button);
+export const Narrow: Story = {
+	...Estimated,
+	parameters: { viewport: { defaultViewport: "mobile1" } },
+};
+export const KeyboardFocus: Story = {
+	play: async () => {
+		await userEvent.tab();
+		await userEvent.keyboard("{Enter}");
+		await userEvent.tab();
 	},
 };

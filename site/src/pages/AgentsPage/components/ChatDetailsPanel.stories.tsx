@@ -68,7 +68,18 @@ export const WithSummary: Story = {};
 export const ExpandedResources: Story = { play: expandResources };
 export const NoSummary: Story = {
 	parameters: {
-		queries: [{ key: chat(MockChat.id).queryKey, data: MockChat }],
+		queries: [
+			{ key: chat(MockChat.id).queryKey, data: MockChat },
+			{
+				key: chatCost(MockChat.id).queryKey,
+				data: {
+					chat_id: MockChat.id,
+					total_cost_micros: 0,
+					request_count: 0,
+					unpriced_request_count: 0,
+				},
+			},
+		],
 	},
 };
 export const SubagentSummaryPending: Story = {
@@ -77,6 +88,15 @@ export const SubagentSummaryPending: Story = {
 			{
 				key: chat(MockChat.id).queryKey,
 				data: { ...MockChat, parent_chat_id: "parent-chat-id" },
+			},
+			{
+				key: chatCost("parent-chat-id").queryKey,
+				data: {
+					chat_id: "parent-chat-id",
+					total_cost_micros: 0,
+					request_count: 0,
+					unpriced_request_count: 0,
+				},
 			},
 		],
 	},
@@ -153,7 +173,7 @@ export const SnapshotError: Story = {
 };
 export const NoUsage: Story = { args: { usage: null }, play: expandResources };
 export const EmptyContext: Story = {
-	args: { usage: { context: { dirty: false, resources: [] } } },
+	args: { usage: { context: { ...MockChatContextClean, resources: [] } } },
 	play: expandResources,
 };
 export const UsageWithoutTokenCounts: Story = {
@@ -230,6 +250,9 @@ export const MultipleMcpConfigs: Story = {
 	play: expandResources,
 };
 export const FailedMcpCollapsed: Story = { args: MultipleMcpConfigs.args };
+export const WorkspaceConnected: Story = {
+	args: { workspaceStatus: "connected" },
+};
 export const WorkspaceStopped: Story = {
 	args: { ...MultipleMcpConfigs.args, workspaceStatus: "stopped" },
 };
@@ -275,6 +298,21 @@ export const NarrowLongContent: Story = {
 	},
 	play: expandResources,
 };
+export const EnlargedText: Story = {
+	...NarrowLongContent,
+	beforeEach: () => {
+		const previous = document.documentElement.style.fontSize;
+		document.documentElement.style.fontSize = "32px";
+		return () => {
+			document.documentElement.style.fontSize = previous;
+		};
+	},
+};
+export const LightResourceIssues: Story = {
+	...NarrowLongContent,
+	parameters: { themes: { themeOverride: "light" } },
+};
+
 export const KeyboardFocus: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);

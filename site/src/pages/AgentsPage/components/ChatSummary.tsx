@@ -124,7 +124,7 @@ type ChatSummaryRowProps = {
 };
 
 const ChatSummaryRow: FC<ChatSummaryRowProps> = ({ label, children }) => (
-	<div className="grid grid-cols-[65px_minmax(0,1fr)] gap-x-2 text-sm leading-6">
+	<div className="grid grid-cols-[max-content_minmax(0,1fr)] gap-x-2 text-sm leading-6">
 		<dt className="text-content-secondary">{label}</dt>
 		<dd className="m-0 font-sans text-sm font-normal leading-6 text-content-primary">
 			{children}

@@ -24,7 +24,7 @@ const ResourceMetadata: FC<{ resource: ChatContextResource }> = ({
 			</span>
 		)}
 		{resource.error && (
-			<p className="m-0 text-xs text-content-warning wrap-anywhere">
+			<p className="m-0 text-xs text-highlight-orange wrap-anywhere">
 				{resource.error}
 			</p>
 		)}
@@ -87,7 +87,7 @@ export const ContextResourceIssues: FC<{
 }> = ({ items }) =>
 	items.length === 0 ? null : (
 		<div className="flex flex-col gap-2">
-			<p className="m-0 flex items-center gap-2 font-medium text-content-warning">
+			<p className="m-0 flex items-center gap-2 font-medium text-highlight-orange">
 				<TriangleAlertIcon aria-hidden="true" className="size-3.5" />
 				Resource issues
 			</p>
@@ -99,7 +99,7 @@ export const ContextResourceIssues: FC<{
 					>
 						<span>
 							{name}{" "}
-							<span className="text-xs text-content-warning">
+							<span className="text-xs text-highlight-orange">
 								(
 								{resource.status === "ok"
 									? "Missing resource name or path"
@@ -160,7 +160,7 @@ export const McpResourceList: FC<{
 							className={
 								resource.status === "ok"
 									? "text-content-secondary"
-									: "text-content-warning"
+									: "text-highlight-orange"
 							}
 						>
 							{resource.status === "ok"

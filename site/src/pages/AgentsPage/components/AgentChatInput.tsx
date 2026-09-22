@@ -165,11 +165,7 @@ type AgentChatInputProps = {
 	// Pass `null` to render fallback values (e.g. when limit is unknown).
 	// Omit entirely to hide the indicator.
 	contextUsage?: AgentContextUsage | null;
-	// Re-pins the chat to the workspace's latest context snapshot,
-	// surfaced by the context indicator when the pinned context has
-	// drifted.
-	onRefreshContext?: () => void;
-	isRefreshingContext?: boolean;
+	onOpenDetails?: (opener: HTMLButtonElement | null) => void;
 	attachments?: readonly File[];
 	onAttach?: (files: File[]) => void;
 	onRemoveAttachment?: (attachment: number | File) => void;
@@ -396,8 +392,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	onCancelHistoryEdit,
 	userPromptHistory = [],
 	contextUsage,
-	onRefreshContext,
-	isRefreshingContext,
+	onOpenDetails,
 	attachments = [],
 	onAttach,
 	onRemoveAttachment,
@@ -1655,7 +1650,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 								)}
 							</>
 						)}
-						{contextUsage !== undefined && (
+						{contextUsage !== undefined && onOpenDetails && (
 							<div
 								className={cn(
 									"flex",
@@ -1667,8 +1662,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 							>
 								<ContextUsageIndicator
 									usage={contextUsage}
-									onRefreshContext={onRefreshContext}
-									isRefreshingContext={isRefreshingContext}
+									onOpenDetails={onOpenDetails}
 								/>
 							</div>
 						)}

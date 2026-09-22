@@ -83,7 +83,7 @@ export const ChatDetailsPanel: FC<ChatDetailsPanelProps> = ({
 			role="region"
 			aria-label="Details"
 			tabIndex={-1}
-			className="h-full min-h-0 overflow-y-auto outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-content-link"
+			className="h-full min-h-0 overflow-y-auto outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-content-link forced-colors:[&_*]:text-[CanvasText] forced-colors:focus-visible:outline forced-colors:focus-visible:outline-2 forced-colors:focus-visible:outline-[Highlight]"
 		>
 			<DetailsSections key={chatId} {...props} summary={summary} />
 		</div>
@@ -122,18 +122,20 @@ const DetailsSection: FC<{
 						type="button"
 						aria-controls={contentId}
 						aria-describedby={description ? descriptionId : undefined}
-						className="flex min-h-12 w-full items-center gap-2 border-0 bg-transparent px-4 py-3 text-left text-content-primary hover:bg-surface-secondary focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-content-link"
+						className="flex min-h-12 w-full flex-wrap items-center gap-2 border-0 bg-transparent px-4 py-3 text-left text-content-primary hover:bg-surface-secondary focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-content-link"
 					>
 						<ChevronRightIcon
 							aria-hidden="true"
 							className={cn("size-4 shrink-0", open && "rotate-90")}
 						/>
-						<span className="min-w-0 flex-1">{title}</span>{" "}
+						<span className="min-w-0 flex-1 basis-24 wrap-anywhere">
+							{title}
+						</span>{" "}
 						{count && (
 							<span
 								className={cn(
-									"text-xs font-normal",
-									warning ? "text-content-warning" : "text-content-secondary",
+									"min-w-0 text-xs font-normal wrap-anywhere",
+									warning ? "text-highlight-orange" : "text-content-secondary",
 								)}
 							>
 								{count}
@@ -148,7 +150,7 @@ const DetailsSection: FC<{
 					id={descriptionId}
 					className={cn(
 						"m-0 px-4 pb-3 text-xs",
-						warning ? "text-content-warning" : "text-content-secondary",
+						warning ? "text-highlight-orange" : "text-content-secondary",
 					)}
 				>
 					{description}
@@ -193,9 +195,8 @@ const DetailsSections: FC<
 			applyHadFocus.current = false;
 		}
 	}, [showApply]);
-	const staleWorkspace = workspaceStatus && workspaceStatus !== "running";
-	const count = (value: number, noun: string) =>
-		inventory.known ? `${value} ${noun}${value === 1 ? "" : "s"}` : "Unknown";
+	const staleWorkspace =
+		workspaceStatus && !["running", "connected"].includes(workspaceStatus);
 	return (
 		<>
 			<DetailsSection title="Summary" defaultOpen>
@@ -206,20 +207,20 @@ const DetailsSections: FC<
 				role="group"
 				aria-label="Workspace context"
 				tabIndex={-1}
-				className="outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-content-link"
+				className="outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-content-link forced-colors:focus-visible:outline forced-colors:focus-visible:outline-2 forced-colors:focus-visible:outline-[Highlight]"
 			>
 				{Boolean(
 					context?.dirty || context?.error || applyError || showApply,
 				) && (
 					<div className="flex flex-col gap-2 border-0 border-b border-solid border-border-default p-4 text-xs">
 						{context?.dirty && (
-							<p className="m-0 text-content-warning">
+							<p className="m-0 text-highlight-orange">
 								New workspace context is available. This chat is using the
 								snapshot shown below.
 							</p>
 						)}
 						{context?.error && (
-							<p className="m-0 text-content-destructive wrap-anywhere">
+							<p className="m-0 text-highlight-red wrap-anywhere">
 								Context could not be loaded: {context.error}
 							</p>
 						)}
@@ -230,7 +231,7 @@ const DetailsSections: FC<
 									Updates the instructions and skills used by subsequent turns.
 								</p>
 								<Button
-									className="h-auto min-h-8 self-start whitespace-normal text-left"
+									className="h-auto min-h-8 self-start whitespace-normal text-left forced-colors:focus-visible:outline forced-colors:focus-visible:outline-2 forced-colors:focus-visible:outline-[Highlight]"
 									size="sm"
 									aria-disabled={isApplyingContext}
 									aria-busy={isApplyingContext}
@@ -273,7 +274,11 @@ const DetailsSections: FC<
 				</div>
 				<DetailsSection
 					title="Context"
-					count={count(inventory.files.length, "file")}
+					count={
+						inventory.known
+							? `${inventory.files.length} ${inventory.files.length === 1 ? "file" : "files"}`
+							: "Unknown"
+					}
 					compactContent={<ChatDetailsUsage usage={usage} compact />}
 				>
 					<ChatDetailsUsage usage={usage} />
@@ -293,7 +298,11 @@ const DetailsSections: FC<
 				</DetailsSection>
 				<DetailsSection
 					title="Skills"
-					count={count(inventory.skills.length, "skill")}
+					count={
+						inventory.known
+							? `${inventory.skills.length} ${inventory.skills.length === 1 ? "skill" : "skills"}`
+							: "Unknown"
+					}
 				>
 					{inventory.skills.length === 0 && (
 						<p className="m-0 text-content-secondary">
