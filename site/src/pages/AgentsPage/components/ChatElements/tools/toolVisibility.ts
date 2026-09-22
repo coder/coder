@@ -100,9 +100,8 @@ const shouldRenderSubagentLifecycleTool = ({
 		return true;
 	}
 
-	// Wait, message, queued work, and interrupt rows can stream before their target
-	// chat_id arrives. Hiding them until that id exists avoids flashing generic
-	// lifecycle copy before the transcript can resolve the real title.
+	// Tool arguments can stream before chat_id arrives. Wait for that ID to
+	// avoid briefly showing a generic label instead of the agent's title.
 	return Boolean(getSubagentChatId({ args, result }));
 };
 
