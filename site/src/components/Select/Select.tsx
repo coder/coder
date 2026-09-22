@@ -81,6 +81,8 @@ export const SelectContent: React.FC<
 			className={cn(
 				"relative z-50 max-h-96 min-w-32 overflow-hidden rounded-md border ",
 				"border-border border-solid bg-surface-primary text-content-primary shadow-md ",
+				"origin-(--radix-popper-transform-origin) ",
+				"data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95",
 				// Offset the popper content from the trigger by one spacing unit.
 				position === "popper" &&
 					"data-[side=bottom]:[transform:translateY(var(--spacing))] data-[side=left]:[transform:translateX(calc(var(--spacing)*-1))] data-[side=right]:[transform:translateX(var(--spacing))] data-[side=top]:[transform:translateY(calc(var(--spacing)*-1))]",
