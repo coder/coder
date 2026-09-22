@@ -344,7 +344,7 @@ func TestSubagentChatExcludesWorkspaceProvisioningTools(t *testing.T) {
 		"list_templates", "read_template", "create_workspace",
 		"start_workspace", "stop_workspace",
 	}
-	subagentTools := []string{"spawn_agent", "wait_agent", "message_agent", "followup_agent", "interrupt_agent", "list_agents"}
+	rootSubagentTools := []string{"spawn_agent", "wait_agent", "message_agent", "followup_agent", "interrupt_agent", "list_agents"}
 
 	// Identify root and subagent calls. Root chat calls include
 	// spawn_agent; the subagent call does not. Because the root chat
@@ -369,7 +369,7 @@ func TestSubagentChatExcludesWorkspaceProvisioningTools(t *testing.T) {
 		require.Contains(t, rootCalls[0], tool,
 			"root chat should have workspace tool %q", tool)
 	}
-	for _, tool := range subagentTools {
+	for _, tool := range rootSubagentTools {
 		require.Contains(t, rootCalls[0], tool,
 			"root chat should have subagent tool %q", tool)
 	}
@@ -381,15 +381,19 @@ func TestSubagentChatExcludesWorkspaceProvisioningTools(t *testing.T) {
 	require.NotContains(t, rootCalls[0], "propose_plan",
 		"standard-turn root chat should NOT have propose_plan")
 
-	// Subagent calls must NOT include workspace or subagent tools.
+	// Subagent calls retain message_agent for direct parent communication but
+	// exclude workspace provisioning and every other orchestration tool.
 	for _, tool := range workspaceTools {
 		require.NotContains(t, childCalls[0], tool,
 			"subagent chat should NOT have workspace tool %q", tool)
 	}
-	for _, tool := range subagentTools {
+	childExcludedTools := []string{"spawn_agent", "wait_agent", "followup_agent", "interrupt_agent", "list_agents"}
+	for _, tool := range childExcludedTools {
 		require.NotContains(t, childCalls[0], tool,
-			"subagent chat should NOT have subagent tool %q", tool)
+			"subagent chat should NOT have orchestration tool %q", tool)
 	}
+	require.Contains(t, childCalls[0], "message_agent",
+		"subagent chat should have message_agent for parent communication")
 	require.NotContains(t, childCalls[0], "ask_user_question",
 		"subagent chat should NOT have ask_user_question")
 }
@@ -10684,14 +10688,15 @@ func TestComputerUseSubagentToolsAndModel(t *testing.T) {
 				"provisioning tool %q", tool)
 	}
 
-	// 5. Verify subagent tools are NOT present.
-	subagentTools := []string{
-		"spawn_agent",
-		"wait_agent", "message_agent", "followup_agent", "interrupt_agent", "list_agents",
+	// 5. Verify only message_agent is present from the orchestration tools.
+	require.Contains(t, childTools, "message_agent",
+		"computer use subagent should have message_agent for parent communication")
+	excludedSubagentTools := []string{
+		"spawn_agent", "wait_agent", "followup_agent", "interrupt_agent", "list_agents",
 	}
-	for _, tool := range subagentTools {
+	for _, tool := range excludedSubagentTools {
 		require.NotContains(t, childTools, tool,
-			"computer use subagent should NOT have subagent "+
+			"computer use subagent should NOT have orchestration "+
 				"tool %q", tool)
 	}
 

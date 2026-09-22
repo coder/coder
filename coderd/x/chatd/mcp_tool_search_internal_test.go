@@ -454,7 +454,7 @@ func TestMCPToolSearchExploreAllowlist(t *testing.T) {
 		configID:              uuid.New(),
 	}
 	tools := []fantasy.AgentTool{hot, external}
-	exploreActive := allowedExploreToolNames(tools)
+	exploreActive := allowedExploreToolNames(tools, false)
 	require.Equal(t, []string{"read_file", external.Info().Name}, exploreActive)
 
 	candidate := deferredMCPTool{tool: external}

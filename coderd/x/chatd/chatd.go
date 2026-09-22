@@ -101,7 +101,7 @@ const (
 	// when many chats are pending.
 	DefaultMaxChatsPerAcquire int32 = 10
 
-	defaultSubagentInstruction = "You are running as a delegated sub-agent chat. Complete the delegated task and provide clear, concise assistant responses for the parent agent."
+	defaultSubagentInstruction = "You are running as a delegated sub-agent chat. Complete the delegated task and provide clear, concise assistant responses for the parent agent. Use message_agent to contact the parent when you are blocked and need a decision, or when the parent needs information before your final response. Do not use it for routine progress updates."
 
 	// defaultAdvisorMaxOutputTokens caps the nested advisor response
 	// when the admin config omits the field (or sets it to <= 0).
