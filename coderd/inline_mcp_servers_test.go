@@ -194,13 +194,9 @@ func TestInlineMCPServers(t *testing.T) {
 				wantField: "inline_mcp_servers[0].url",
 			},
 			{
-				name: "HeadersOverHTTP",
-				server: codersdk.InlineMCPServerRequest{
-					Slug:    "orders",
-					URL:     "http://mcp.example.com/v1",
-					Headers: map[string]string{"Authorization": "Bearer x"},
-				},
-				wantField: "inline_mcp_servers[0].headers",
+				name:      "PlaintextHostname",
+				server:    chatMCPServerRequest("orders", "http://mcp.example.com/v1"),
+				wantField: "inline_mcp_servers[0].url",
 			},
 			{
 				name: "ReservedHeader",

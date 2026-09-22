@@ -83,8 +83,7 @@ func validateInlineMCPServers(
 			seenSlugs[server.Slug] = struct{}{}
 		}
 
-		parsedURL, urlValidation := validateInlineMCPServerURL(i, server.URL, allowedIPRanges)
-		if urlValidation != nil {
+		if urlValidation := validateInlineMCPServerURL(i, server.URL, allowedIPRanges); urlValidation != nil {
 			validations = append(validations, *urlValidation)
 		}
 
@@ -146,13 +145,6 @@ func validateInlineMCPServers(
 			seen[canonical] = name
 		}
 
-		if parsedURL != nil && parsedURL.Scheme == "http" && len(server.Headers) > 0 && !inlineMCPURLUsesAllowedIPLiteral(parsedURL, allowedIPRanges) {
-			validations = append(validations, codersdk.ValidationError{
-				Field:  fmt.Sprintf("inline_mcp_servers[%d].headers", i),
-				Detail: "headers require an HTTPS server URL",
-			})
-		}
-
 		if len(server.ToolAllowList) > 0 && len(server.ToolDenyList) > 0 {
 			validations = append(validations, codersdk.ValidationError{
 				Field:  fmt.Sprintf("inline_mcp_servers[%d].tool_deny_list", i),
@@ -169,10 +161,10 @@ func validateInlineMCPServerURL(
 	index int,
 	rawURL string,
 	allowedIPRanges []netip.Prefix,
-) (*url.URL, *codersdk.ValidationError) {
+) *codersdk.ValidationError {
 	field := fmt.Sprintf("inline_mcp_servers[%d].url", index)
-	invalid := func(detail string) (*url.URL, *codersdk.ValidationError) {
-		return nil, &codersdk.ValidationError{Field: field, Detail: detail}
+	invalid := func(detail string) *codersdk.ValidationError {
+		return &codersdk.ValidationError{Field: field, Detail: detail}
 	}
 	if len(rawURL) == 0 {
 		return invalid("is required")
@@ -199,10 +191,20 @@ func validateInlineMCPServerURL(
 	if parsed.Fragment != "" {
 		return invalid("must not contain a fragment")
 	}
-	if ip, err := netip.ParseAddr(parsed.Hostname()); err == nil && safedial.CheckAddr(ip, safedial.WithAllowedPrefixes(allowedIPRanges...)) != nil {
+	ip, err := netip.ParseAddr(parsed.Hostname())
+	isIPLiteral := err == nil
+	if isIPLiteral && safedial.CheckAddr(ip, safedial.WithAllowedPrefixes(allowedIPRanges...)) != nil {
 		return invalid("host is in a private or reserved IP range")
 	}
-	return parsed, nil
+	// Plaintext is only allowed to an IP literal the operator allowlisted.
+	// Hostnames resolve at connect time, so they cannot be trusted here.
+	inAllowedRange := isIPLiteral && slices.ContainsFunc(allowedIPRanges, func(prefix netip.Prefix) bool {
+		return prefix.Contains(ip.Unmap())
+	})
+	if parsed.Scheme == "http" && !inAllowedRange {
+		return invalid("must use https, or http to an IP literal in an allowed private range")
+	}
+	return nil
 }
 
 func validateInlineMCPToolFilter(index int, name string, values []string) []codersdk.ValidationError {
@@ -252,20 +254,6 @@ func inlineMCPServersSize(servers []codersdk.InlineMCPServerRequest) int {
 		}
 	}
 	return total
-}
-
-func inlineMCPURLUsesAllowedIPLiteral(parsed *url.URL, allowedIPRanges []netip.Prefix) bool {
-	ip, err := netip.ParseAddr(parsed.Hostname())
-	if err != nil {
-		return false
-	}
-	ip = ip.Unmap()
-	for _, prefix := range allowedIPRanges {
-		if prefix.Contains(ip) {
-			return true
-		}
-	}
-	return false
 }
 
 func inlineMCPHeaderReserved(name string) bool {

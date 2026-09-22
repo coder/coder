@@ -90,10 +90,18 @@ func TestValidateInlineMCPServers(t *testing.T) {
 			wantDetail: "private or reserved",
 		},
 		{
-			name:       "HTTPHeaders",
-			servers:    []codersdk.InlineMCPServerRequest{{Slug: "private", URL: "http://mcp.example.com", Headers: map[string]string{"Authorization": "Bearer secret"}}},
-			wantField:  "inline_mcp_servers[0].headers",
-			wantDetail: "HTTPS",
+			name:       "HTTPHostname",
+			servers:    []codersdk.InlineMCPServerRequest{{Slug: "private", URL: "http://mcp.example.com"}},
+			allowed:    loopbackAllowed,
+			wantField:  "inline_mcp_servers[0].url",
+			wantDetail: "must use https",
+		},
+		{
+			name:       "HTTPPublicIPLiteral",
+			servers:    []codersdk.InlineMCPServerRequest{{Slug: "private", URL: "http://8.8.8.8/mcp"}},
+			allowed:    loopbackAllowed,
+			wantField:  "inline_mcp_servers[0].url",
+			wantDetail: "must use https",
 		},
 		{
 			name:       "ReservedHeader",
