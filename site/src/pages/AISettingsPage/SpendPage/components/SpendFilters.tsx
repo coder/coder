@@ -83,7 +83,7 @@ export const SpendFilters: FC<SpendFiltersProps> = ({
 			{isReportLoading ? (
 				// The retention bound arrives with the report, so a picker shown
 				// before it could offer days the server rejects.
-				<Skeleton width={256} height={40} />
+				<Skeleton className="h-10 w-64" />
 			) : dateRange ? (
 				<DateRangePicker
 					now={now}
