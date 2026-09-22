@@ -141,6 +141,7 @@ func (f *workerTestFixture) createRunningChat(t *testing.T) database.Chat {
 		LastModelConfigID: f.model.ID,
 		Title:             "test",
 		ClientType:        database.ChatClientTypeApi,
+		InitialStatus:     database.ChatStatusRunning,
 		InitialMessages: []chatstate.Message{
 			userTextMessage(t, "hello", f.user.ID, f.model.ID, f.apiKey.ID),
 		},
@@ -188,6 +189,7 @@ func (f *workerTestFixture) createRequiresActionChat(t *testing.T) database.Chat
 			RawMessage: dynamicTools,
 			Valid:      true,
 		},
+		InitialStatus: database.ChatStatusRunning,
 		InitialMessages: []chatstate.Message{
 			userTextMessage(t, "hello", f.user.ID, f.model.ID, f.apiKey.ID),
 		},

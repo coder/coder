@@ -1100,10 +1100,13 @@ type CreateOptions struct {
 	PlanMode                database.NullChatPlanMode
 	ClientType              database.ChatClientType
 	SystemPrompt            string
-	InitialUserContent      []codersdk.ChatMessagePart
-	MCPServerIDs            []uuid.UUID
-	Labels                  database.StringMap
-	DynamicTools            json.RawMessage
+	// InitialUserContent is the first user message. When empty, the
+	// chat is created idle (`waiting`) with system messages only and
+	// no worker processes it until the first SendMessage.
+	InitialUserContent []codersdk.ChatMessagePart
+	MCPServerIDs       []uuid.UUID
+	Labels             database.StringMap
+	DynamicTools       json.RawMessage
 }
 
 // SendMessageBusyBehavior controls what happens when a chat is already active.
@@ -1258,8 +1261,10 @@ func (p *Server) applyRequestedMCPServerIDs(ctx context.Context, store database.
 }
 
 // CreateChat creates a chat with its initial history through
-// chatstate.CreateChat. The new chat starts in `running` status per
-// the chat execution state model. Ownership hints wake chat workers.
+// chatstate.CreateChat. With initial user content the new chat starts
+// in `running` status and ownership hints wake chat workers. Without
+// initial user content the chat is created idle in `waiting` status
+// with system messages only; the first SendMessage starts generation.
 func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.Chat, error) {
 	if opts.OrganizationID == uuid.Nil {
 		return database.Chat{}, xerrors.New("organization_id is required")
@@ -1270,8 +1275,9 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 	if strings.TrimSpace(opts.Title) == "" {
 		return database.Chat{}, xerrors.New("title is required")
 	}
-	if len(opts.InitialUserContent) == 0 {
-		return database.Chat{}, xerrors.New("initial user content is required")
+	initialStatus := database.ChatStatusWaiting
+	if len(opts.InitialUserContent) > 0 {
+		initialStatus = database.ChatStatusRunning
 	}
 	// Ensure MCPServerIDs is non-nil so pq.Array produces '{}'
 	// instead of SQL NULL, which violates the NOT NULL column
@@ -1312,7 +1318,9 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 
 	chatID := uuid.New()
 	contentParts := opts.InitialUserContent
-	if p.hooks.Enabled() {
+	// The prompt-submit hook fires with the first SendMessage when the
+	// chat is created without an initial user message.
+	if p.hooks.Enabled() && len(contentParts) > 0 {
 		// Validate model admission before dispatch, matching the insert path.
 		if err := validateCreateModelConfigID(ctx, p.db, opts.OrganizationID, opts.ModelConfigID); err != nil {
 			return database.Chat{}, err
@@ -1353,11 +1361,6 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 	if err != nil {
 		return database.Chat{}, xerrors.Errorf("marshal workspace awareness: %w", err)
 	}
-	userContent, err := chatprompt.MarshalParts(contentParts)
-	if err != nil {
-		return database.Chat{}, xerrors.Errorf("marshal initial user content: %w", err)
-	}
-
 	var initialMessages []chatstate.Message
 	if deploymentPrompt != "" {
 		deploymentContent, marshalErr := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
@@ -1378,7 +1381,13 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 		initialMessages = append(initialMessages, systemMessage(userPromptContent, opts.ModelConfigID))
 	}
 	initialMessages = append(initialMessages, systemMessage(workspaceAwarenessContent, opts.ModelConfigID))
-	initialMessages = append(initialMessages, userMessage(userContent, opts.ModelConfigID, cmp.Or(opts.CreatedBy, opts.OwnerID), opts.ReasoningEffort))
+	if len(contentParts) > 0 {
+		userContent, marshalErr := chatprompt.MarshalParts(contentParts)
+		if marshalErr != nil {
+			return database.Chat{}, xerrors.Errorf("marshal initial user content: %w", marshalErr)
+		}
+		initialMessages = append(initialMessages, userMessage(userContent, opts.ModelConfigID, cmp.Or(opts.CreatedBy, opts.OwnerID), opts.ReasoningEffort))
+	}
 
 	result, err := chatstate.CreateChatWithID(ctx, p.db, p.pubsub, chatID, chatstate.CreateChatInput{
 		OrganizationID:    opts.OrganizationID,
@@ -1404,6 +1413,7 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 		ClientType:      opts.ClientType,
 		InitialMessages: initialMessages,
 		FileIDs:         chatprompt.FileIDs(contentParts),
+		InitialStatus:   initialStatus,
 	})
 	if err != nil {
 		return database.Chat{}, err

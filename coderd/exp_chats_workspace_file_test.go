@@ -420,6 +420,72 @@ func TestPostChatWorkspaceFile(t *testing.T) {
 		require.NoError(t, err, "archive should not remove workspace files")
 	})
 
+	t.Run("EmptyCreatedChat", func(t *testing.T) {
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db, api := newChatClientWithAPIAndDatabase(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModel(t, client)
+
+		workspaceBuild := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OrganizationID: firstUser.OrganizationID,
+			OwnerID:        firstUser.UserID,
+		}).WithAgent().Do()
+
+		home := t.TempDir()
+		t.Setenv("HOME", home)
+		t.Setenv("USERPROFILE", home)
+		_ = agenttest.New(t, client.URL, workspaceBuild.AgentToken)
+		coderdtest.NewWorkspaceAgentWaiter(t, client.Client, workspaceBuild.Workspace.ID).WaitFor(coderdtest.AgentsReady)
+
+		// Uploads only need the chat ID and workspace binding, so a
+		// chat created idle with no messages accepts them. This is
+		// the sequencing used by the new-chat page: create empty,
+		// upload, then send the first message with the references.
+		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
+			WorkspaceID:    &workspaceBuild.Workspace.ID,
+		})
+		require.NoError(t, err)
+		require.Equal(t, codersdk.ChatStatusWaiting, chat.Status)
+
+		payload := bytes.Repeat([]byte{0x50, 0x4b}, 16)
+		resp, err := client.UploadChatWorkspaceFile(ctx, chat.ID, "application/zip", "archive.zip", bytes.NewReader(payload))
+		require.NoError(t, err)
+		require.Equal(t, workspaceBuild.Workspace.ID, resp.WorkspaceID)
+
+		bytesOnDisk, err := os.ReadFile(resp.Path)
+		require.NoError(t, err)
+		require.Equal(t, payload, bytesOnDisk)
+
+		// The first message carries text plus the uploaded reference
+		// and starts generation: the idle chat inserts it directly.
+		messageResp, err := client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
+			Content: []codersdk.ChatInputPart{
+				{Type: codersdk.ChatInputPartTypeText, Text: "inspect the archive"},
+				{
+					Type:                     codersdk.ChatInputPartTypeWorkspaceFileReference,
+					WorkspaceFilePath:        resp.Path,
+					WorkspaceFileName:        resp.Name,
+					WorkspaceFileSize:        resp.Size,
+					WorkspaceFileMediaType:   resp.MediaType,
+					WorkspaceFileWorkspaceID: resp.WorkspaceID,
+				},
+			},
+		})
+		require.NoError(t, err)
+		require.False(t, messageResp.Queued)
+		require.NotNil(t, messageResp.Message)
+		require.Contains(t, messageResp.Message.Content, codersdk.ChatMessageWorkspaceFileReference(
+			resp.WorkspaceID,
+			resp.Path,
+			resp.Name,
+			resp.Size,
+			resp.MediaType,
+		))
+
+		coderdtest.WaitForChatSettled(ctx, t, api, chat.ID)
+	})
+
 	t.Run("MissingFilename", func(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client, db := newChatClientWithDatabase(t)

@@ -1342,6 +1342,7 @@ func (f *taskTestFixture) createRunningChat(t *testing.T) database.Chat {
 		LastModelConfigID: f.model.ID,
 		Title:             "test",
 		ClientType:        database.ChatClientTypeApi,
+		InitialStatus:     database.ChatStatusRunning,
 		InitialMessages:   []chatstate.Message{taskUserTextMessage(t, "hello", f.user.ID, f.model.ID, f.apiKey.ID)},
 	})
 	require.NoError(t, err)
@@ -1365,6 +1366,7 @@ func (f *taskTestFixture) createRequiresActionChat(t *testing.T) database.Chat {
 		Title:             "test",
 		ClientType:        database.ChatClientTypeApi,
 		DynamicTools:      pqtype.NullRawMessage{RawMessage: dynamicTools, Valid: true},
+		InitialStatus:     database.ChatStatusRunning,
 		InitialMessages:   []chatstate.Message{taskUserTextMessage(t, "hello", f.user.ID, f.model.ID, f.apiKey.ID)},
 	})
 	require.NoError(t, err)

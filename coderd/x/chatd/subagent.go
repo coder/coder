@@ -1163,6 +1163,7 @@ func (p *Server) createChildSubagentChatWithOptions(
 		DynamicTools:    pqtype.NullRawMessage{},
 		ClientType:      parent.ClientType,
 		InitialMessages: initialMessages,
+		InitialStatus:   database.ChatStatusRunning,
 	})
 	if err != nil {
 		return database.Chat{}, xerrors.Errorf("create child chat: %w", err)
@@ -1524,7 +1525,7 @@ func subagentFallbackChatTitle(message string) string {
 
 	words := strings.Fields(message)
 	if len(words) == 0 {
-		return "New Chat"
+		return chatprompt.DefaultChatTitle
 	}
 
 	truncated := false
