@@ -8,6 +8,7 @@ import (
 	"net/http/httputil"
 	"net/netip"
 	"net/url"
+	"strings"
 
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -69,7 +70,7 @@ func newPassthroughRouter(prov provider.Provider, logger slog.Logger, m *metrics
 
 	return func(w http.ResponseWriter, r *http.Request) {
 		if m != nil {
-			m.PassthroughCount.WithLabelValues(prov.Name(), r.URL.Path, r.Method).Add(1)
+			m.PassthroughCount.WithLabelValues(prov.Name(), passthroughMetricRoute(prov, r), routing.MetricMethod(r.Method)).Add(1)
 		}
 
 		ctx, span := startSpan(r, tracer)
@@ -121,13 +122,20 @@ func newInvalidBaseURLHandler(prov provider.Provider, logger slog.Logger, m *met
 		defer span.End()
 
 		if m != nil {
-			m.PassthroughCount.WithLabelValues(prov.Name(), r.URL.Path, r.Method).Add(1)
+			m.PassthroughCount.WithLabelValues(prov.Name(), passthroughMetricRoute(prov, r), routing.MetricMethod(r.Method)).Add(1)
 		}
 
 		logger.Warn(ctx, "invalid provider base URL", slog.Error(baseURLErr))
 		http.Error(w, "invalid provider base URL", http.StatusBadGateway)
 		span.SetStatus(codes.Error, "invalid provider base URL: "+baseURLErr.Error())
 	}
+}
+
+func passthroughMetricRoute(prov provider.Provider, r *http.Request) string {
+	if route, ok := strings.CutPrefix(r.Pattern, prov.RoutePrefix()); ok && route != "" {
+		return route
+	}
+	return "/"
 }
 
 func startSpan(r *http.Request, tracer trace.Tracer) (context.Context, trace.Span) {

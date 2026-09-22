@@ -26,8 +26,10 @@ func TestMetrics_Interception(t *testing.T) {
 	cases := []struct {
 		name           string
 		fixture        []byte
+		method         string
 		path           string
 		headers        http.Header
+		expectMethod   string
 		expectStatus   string
 		expectModel    string
 		expectRoute    string
@@ -38,7 +40,9 @@ func TestMetrics_Interception(t *testing.T) {
 		{
 			name:           "ant_simple",
 			fixture:        fixtures.AntSimple,
+			method:         "CUSTOM",
 			path:           pathAnthropicMessages,
+			expectMethod:   "OTHER",
 			expectStatus:   metrics.InterceptionCountStatusCompleted,
 			expectModel:    "claude-sonnet-4-0",
 			expectRoute:    "/v1/messages",
@@ -155,14 +159,22 @@ func TestMetrics_Interception(t *testing.T) {
 				withMetrics(m),
 			)
 
-			resp, err := bridgeServer.makeRequest(t, http.MethodPost, tc.path, fix.Request(), tc.headers)
+			method := tc.method
+			if method == "" {
+				method = http.MethodPost
+			}
+			resp, err := bridgeServer.makeRequest(t, method, tc.path, fix.Request(), tc.headers)
 			require.NoError(t, err)
 			defer resp.Body.Close()
 			_, err = io.ReadAll(resp.Body)
 			require.NoError(t, err)
 
+			expectMethod := tc.expectMethod
+			if expectMethod == "" {
+				expectMethod = http.MethodPost
+			}
 			count := promtest.ToFloat64(m.InterceptionCount.WithLabelValues(
-				tc.expectProvider, tc.expectModel, tc.expectStatus, tc.expectRoute, "POST", defaultActorID, string(tc.expectClient)))
+				tc.expectProvider, tc.expectModel, tc.expectStatus, tc.expectRoute, expectMethod, defaultActorID, string(tc.expectClient)))
 			require.Equal(t, 1.0, count)
 			require.Equal(t, 1, promtest.CollectAndCount(m.InterceptionDuration))
 			require.Equal(t, 1, promtest.CollectAndCount(m.InterceptionCount))

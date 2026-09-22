@@ -29,6 +29,8 @@ Refer to [provider configuration](./providers.md) for the provider reload lifecy
 
 The `provider` label is the provider instance name.
 Some metrics use the explicit `provider_name` or `provider_type` labels for clarity.
+The `method` label contains a standard HTTP method or `OTHER`.
+For `coder_ai_gateway_passthrough_total`, the `route` label contains the registered route pattern, not the requested URL path.
 
 | Metric                                                             | Type      | Labels                                                                     | Purpose                                                                                                                                            |
 |--------------------------------------------------------------------|-----------|----------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------|
@@ -52,6 +54,7 @@ Some metrics use the explicit `provider_name` or `provider_type` labels for clar
 | `coder_ai_gateway_providers_last_reload_success_timestamp_seconds` | gauge     |                                                                            | Unix timestamp of the last successful rebuild of the Gateway provider pool.                                                                        |
 
 Histograms also emit the standard `_bucket`, `_sum`, and `_count` series.
+Circuit-breaker state and trip series appear only after the relevant breaker changes state or transitions to open.
 
 ### Cost control metrics
 
