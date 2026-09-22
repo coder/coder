@@ -283,7 +283,7 @@ A chat owner can declare up to five MCP servers inline on a chat through the API
 Inline servers sit next to the organization-registered servers selected with `mcp_server_ids`.
 On every turn, chatd connects to each declared server over streamable HTTP, calls `tools/list`, and offers the discovered tools to the model next to the built-in and organization-registered tools.
 
-Declare servers on `POST /api/experimental/chats`:
+Declare servers on `POST /api/v2/chats`:
 
 ```json
 {
@@ -303,7 +303,7 @@ Declare servers on `POST /api/experimental/chats`:
 }
 ```
 
-`POST /api/experimental/chats/{chat}/messages` accepts the same field and replaces the chat's set before the turn runs.
+`POST /api/v2/chats/{chat}/messages` accepts the same field and replaces the chat's set before the turn runs.
 Omit `inline_mcp_servers` to keep the current set.
 Send `[]` to remove every server.
 A server whose `slug` already exists keeps its `id`.
@@ -314,7 +314,7 @@ Only root chats accept `inline_mcp_servers`.
 | Field                   | Description                                                                                                                       |
 |-------------------------|-----------------------------------------------------------------------------------------------------------------------------------|
 | `slug`                  | 1 to 32 ASCII letters, numbers, `_`, or `-`, starting with a letter or number. Unique within the chat. Prefixes every tool name.  |
-| `url`                   | Streamable HTTP MCP endpoint. See [URL and header requirements](#url-and-header-requirements).                                    |
+| `url`                   | Streamable HTTP MCP endpoint. Refer to [URL and header requirements](#url-and-header-requirements).                               |
 | `headers`               | Up to 16 HTTP headers sent on every request. This is the only credential mechanism.                                               |
 | `tool_allow_list`       | Same semantics as [Tool governance](#tool-governance). Up to 64 names. Cannot be combined with `tool_deny_list`.                  |
 | `tool_deny_list`        | Same semantics as [Tool governance](#tool-governance). Up to 64 names. Cannot be combined with `tool_allow_list`.                 |
