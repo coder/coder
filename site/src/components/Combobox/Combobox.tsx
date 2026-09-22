@@ -97,9 +97,7 @@ export const ComboboxButton = ({
 	);
 };
 
-type ComboboxContentProps = React.ComponentProps<
-	typeof PopoverContent
-> & {
+type ComboboxContentProps = React.ComponentProps<typeof PopoverContent> & {
 	shouldFilter?: boolean;
 };
 
